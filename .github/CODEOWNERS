@@ -1,0 +1,6 @@
+/flake.nix @ZebulonRouseFrantzich
+/flake.lock @ZebulonRouseFrantzich
+/.envrc @ZebulonRouseFrantzich
+/justfile @ZebulonRouseFrantzich
+/.github/CODEOWNERS @ZebulonRouseFrantzich
+/.github/workflows/* @ZebulonRouseFrantzich

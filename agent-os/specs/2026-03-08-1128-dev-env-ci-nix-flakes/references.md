@@ -15,6 +15,12 @@
   - https://github.com/nix-community/nix-direnv
 - GitHub Actions Nix installer (example; pin versions):
   - https://github.com/DeterminateSystems/nix-installer-action
+- GitHub Actions security hardening (pin third-party actions to SHAs):
+  - https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions#using-third-party-actions
+- GitHub Actions workflow permissions:
+  - https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#permissions
+- Nix store cache action:
+  - https://github.com/DeterminateSystems/magic-nix-cache-action
 - Optional binary cache (if CI times require it; must pin keys/substituters):
   - https://cachix.org/
 

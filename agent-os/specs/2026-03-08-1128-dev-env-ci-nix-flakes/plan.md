@@ -21,7 +21,7 @@ Create `agent-os/specs/2026-03-08-1128-dev-env-ci-nix-flakes/` with:
     - `substituters = https://cache.nixos.org`
     - `trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=`
   - CI must use `--no-write-lock-file` (or equivalent) and must fail if `flake.lock` changes during the run.
-  - Protect high-leverage files with `CODEOWNERS`: `flake.nix`, `flake.lock`, `.envrc`, `justfile`, and `.github/workflows/*`.
+  - Protect high-leverage files with `CODEOWNERS`: `flake.nix`, `flake.lock`, `.envrc`, `justfile`, `.github/CODEOWNERS`, and `.github/workflows/*`.
 - Provide flake outputs:
   - `formatter = pkgs.nixfmt-rfc-style` (or the chosen formatter)
   - `devShells.default = pkgs.mkShell { ... }`
@@ -34,6 +34,7 @@ Create `agent-os/specs/2026-03-08-1128-dev-env-ci-nix-flakes/` with:
 - Add a minimal `shellHook` that:
   - prints a short “Entering dev shell” banner (and optionally tool versions)
   - runs `just --list` to advertise common commands
+  - prints banner/list output only in interactive shells (avoid noisy `nix develop -c ...` output)
   - does not make network calls and does not mutate files outside the repo
   - avoids prepending repo-writable directories to `PATH` unless they are intentionally committed (prefer explicit `./scripts/` usage over implicit `./bin/` shadowing)
 
@@ -62,10 +63,14 @@ Create `agent-os/specs/2026-03-08-1128-dev-env-ci-nix-flakes/` with:
 ## Task 5: GitHub Actions CI Pipeline (Nix + Windows Portability)
 
 - Linux/macOS jobs:
-  - install Nix (pin the installer action version; prefer SHA pinning)
+  - set workflow token permissions to least privilege (`permissions: contents: read`, unless broader scopes are required)
+  - pin all workflow actions to full commit SHA (checkout/setup/Nix install/cache)
+  - install Nix (installer action must be SHA-pinned)
+  - add Nix cache acceleration via a SHA-pinned action (recommended)
   - configure Nix with an explicit substituter/key allowlist (do not rely only on flake `nixConfig.extra-*`). Example via `NIX_CONFIG` or `--option`:
     - `substituters = https://cache.nixos.org`
     - `trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=`
+  - validate `flake.lock` metadata before executing flake checks (`nix flake lock --no-update-lock-file`)
   - run `nix flake check --no-write-lock-file`
   - run `nix develop --no-write-lock-file -c just ci`
   - fail the job if `flake.lock` is modified by any step
@@ -73,6 +78,7 @@ Create `agent-os/specs/2026-03-08-1128-dev-env-ci-nix-flakes/` with:
   - if additional caches are added for speed (e.g., Cachix), enumerating substituters/keys is required (no implicit caches)
 - Windows job:
   - run the “portability guardrail” checks without Nix (use standard Go/Node setup actions)
+  - pin installed tool versions (avoid `@latest` for CI-critical tools)
   - run `just ci` (or the equivalent underlying commands)
 
 ## Task 6: Short Dev Docs
@@ -90,5 +96,6 @@ Create `agent-os/specs/2026-03-08-1128-dev-env-ci-nix-flakes/` with:
 - On Linux/macOS, `direnv` loads the flake dev shell and `just --list` shows commands.
 - CI runs on Linux/macOS (Nix-based) and Windows (native toolchains) and executes the same logical checks.
 - The workflow is consistent: “if `just ci` passes locally in the dev shell, it passes in CI”.
-- CI uses `--no-write-lock-file` and fails if `flake.lock` changes.
-- High-leverage files (`flake.nix`, `flake.lock`, `.envrc`, `justfile`, `.github/workflows/*`) are protected by CODEOWNERS.
+- CI uses `--no-write-lock-file`, validates `flake.lock` before flake execution, and fails if `flake.lock` changes.
+- CI workflows set least-privilege permissions and use full-SHA-pinned actions.
+- High-leverage files (`flake.nix`, `flake.lock`, `.envrc`, `justfile`, `.github/CODEOWNERS`, `.github/workflows/*`) are protected by CODEOWNERS.

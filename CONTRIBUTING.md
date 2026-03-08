@@ -53,6 +53,45 @@ Maintainers should:
 - Require the DCO check in branch protection rules
 - Enable GitHub's "Require contributors to sign off on web-based commits"
 
+## Dev Environment
+
+The canonical local workflow uses Nix + `just`:
+
+- Prerequisite: Nix `>= 2.18`
+- Optional auto-entry: `direnv` + `nix-direnv`
+- Canonical command surface: `just`
+- CI runs the same logical checks as `just ci`
+
+### Use the dev shell manually
+
+```sh
+nix develop
+just --list
+just ci
+```
+
+### Enable auto-entry with direnv
+
+1. Install `direnv` and `nix-direnv` on your host machine.
+2. Add the direnv shell hook for your shell (`bash`, `zsh`, `fish`, etc.).
+3. In the repo root, run:
+
+```sh
+direnv allow
+```
+
+Entering the repository directory auto-loads the flake shell (`use flake` from `.envrc`), and leaving the directory unloads it.
+
+### Trust model
+
+Treat changes to `flake.nix`, `flake.lock`, and `.envrc` as high-trust changes. They control local tooling execution and are reviewed carefully.
+
+### If you get stuck
+
+- Stop auto-loading for this repo: `direnv deny`
+- Fallback to manual shell entry: `nix develop`
+- Clear cached direnv environment: remove `.direnv/` and run `direnv allow` again
+
 ## Code of Conduct
 
 This project follows the Contributor Covenant Code of Conduct.
