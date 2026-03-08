@@ -1,2 +1,5 @@
 # Agent OS Standards Index
 
+product:
+  roadmap-conventions:
+    description: Conventions for `agent-os/product/roadmap.md` (sections, spec entry format, and moving releases to Completed).
