@@ -95,14 +95,17 @@ Deliverables:
     - `npm run lint` (may start as `tsc --noEmit` until eslint is introduced)
     - `npm test` (must fail on type errors; can initially be equivalent to typecheck)
 
-  - Boundary guardrail (required): add `npm run boundary-check` that fails if runner source files:
+  - Boundary guardrail (required): add `npm run boundary-check` that scans runner JS/TS source files across `runner/` (not only `runner/src/`; excluding dependency/build directories and boundary-check tooling/test files) and fails if:
     - import from `../../internal/*` or `../../cmd/*` (or any other path that escapes `runner/`),
     - read or reference trusted code paths except for allowed reads of `protocol/` schemas/fixtures.
+    - no runner source files are found (fail closed).
     Implementation guidance (MVP): keep it dependency-free and cross-platform (Node stdlib only).
+  - Add baseline tests for the boundary-check guardrail and run them from `npm test`.
 
 Deliverables:
 - `go.mod` (module `github.com/runecode-ai/runecode`) and `go.sum` at repo root.
 - `runner/package.json` and `runner/package-lock.json`.
+- `runner/scripts/boundary-check.js` plus baseline guardrail tests.
 - Minimal Go/TS entrypoints so `just` targets can run real checks.
 
 ## Task 4: Make `just` Real (fmt/lint/test/ci)

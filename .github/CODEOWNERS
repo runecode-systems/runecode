@@ -4,3 +4,7 @@
 /justfile @ZebulonRouseFrantzich
 /.github/CODEOWNERS @ZebulonRouseFrantzich
 /.github/workflows/* @ZebulonRouseFrantzich
+/protocol/ @ZebulonRouseFrantzich
+/docs/trust-boundaries.md @ZebulonRouseFrantzich
+/cmd/runecode-secretsd/ @ZebulonRouseFrantzich
+/cmd/runecode-auditd/ @ZebulonRouseFrantzich

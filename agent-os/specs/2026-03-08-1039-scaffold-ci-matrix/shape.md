@@ -17,6 +17,8 @@ This spec assumes the dev shell + CI plumbing already exists (Nix flake, `just`,
 - The trust boundary is documented explicitly in `docs/trust-boundaries.md`; cross-boundary artifacts are schemas/fixtures in `protocol/` (details are owned by the Protocol & Schema Bundle v0 spec).
 - This spec creates the `protocol/` directory skeleton; the protocol/schema spec owns population/versioning.
 - Trust boundary is not "doc-only": add a mechanical runner boundary guardrail (`npm run boundary-check`) and run it in `just ci`.
+- Boundary guardrail scope covers runner JS/TS source across `runner/` (not only `runner/src/`), skips dependency/build directories, and fails closed if no source files are found.
+- The guardrail is intentionally best-effort static analysis; authoritative enforcement remains broker auth/schema validation, policy, and runtime isolation backends.
 - Runner TS config is hardened for boundary safety: `rootDir: src` and `noEmit: true` for MVP typecheck/lint.
 - `just ci` is check-only and must not modify committed files; lockfile generation is an explicit developer action.
 - Dependency vulnerability scanning is desirable but non-gating for MVP parity (expose as an optional command/CI job later).

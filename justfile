@@ -2,26 +2,27 @@ default:
   @just --list
 
 fmt:
-  @echo "fmt is a placeholder and will be extended by follow-on specs."
+  go run ./tools/gofmtcheck --write
 
 lint:
-  @echo "lint is a placeholder and will be extended by follow-on specs."
+  go run ./tools/gofmtcheck
+  go vet ./...
+  cd runner && npm run lint
+  cd runner && npm run boundary-check
 
 test:
-  @echo "test is a placeholder and will be extended by follow-on specs."
+  go test ./...
+  cd runner && npm test
 
 ci:
-  @echo "Running CI smoke checks (tool versions)..."
-  git --version
-  go version
-  gopls version
-  node --version
-  npm --version
-  just --version
-  jq --version
-  rg --version
-  fd --version
-  curl --version
+  go run ./tools/gofmtcheck
+  go vet ./...
+  go test ./...
+  go build ./cmd/...
+  cd runner && npm ci
+  cd runner && npm run lint
+  cd runner && npm test
+  cd runner && npm run boundary-check
 
 dev:
   @just --list
