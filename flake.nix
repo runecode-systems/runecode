@@ -2,7 +2,7 @@
   description = "RuneCode dev environment (Nix >= 2.18)";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -21,7 +21,7 @@
           gopls
           gotools
           golangci-lint
-          nodejs_22
+          nodejs_24
           nodePackages.typescript
           just
           git
