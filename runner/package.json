@@ -1,0 +1,17 @@
+{
+  "name": "@runecode/runner",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runecode untrusted workflow runner scaffold",
+  "engines": {
+    "node": ">=22.22.1 <25"
+  },
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "test": "npm run lint && node --test scripts/boundary-check.test.js",
+    "boundary-check": "node scripts/boundary-check.js"
+  },
+  "devDependencies": {
+    "typescript": "5.7.3"
+  }
+}

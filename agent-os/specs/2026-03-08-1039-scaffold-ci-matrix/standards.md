@@ -66,11 +66,18 @@ Rules:
 - `just ci` is the canonical entrypoint and must be runnable on Windows without Nix and without a bash dependency.
 - `just ci` is check-only and must not modify the worktree (including lockfiles like `flake.lock`, `go.sum`, and `package-lock.json`).
 - Keep `justfile` recipes simple and cross-platform (avoid unix-only tools and bashisms). Prefer language-native commands and small helper programs over shell pipelines.
+- For MVP clarity, `just ci` may keep an explicit runner lint step even when `npm test` also invokes lint.
 
 ## Trust Boundary Guardrails (Scaffold Standard)
 
 - The "untrusted scheduler" boundary is not purely documentary.
 - The TS runner must have a mechanical boundary check that fails CI if runner source imports/references trusted Go areas (`cmd/`, `internal/`) or otherwise escapes `runner/` (except allowed access to `protocol/` schemas/fixtures).
+- Boundary-check scan scope must cover runner JS/TS source across `runner/` (not only `runner/src/`) while excluding dependency/build directories and boundary-check tooling/test files.
+- Boundary-check path handling must include Unix absolute paths and Windows drive-letter/UNC absolute paths.
+- Boundary-check matching must avoid false positives for unrelated third-party package names containing substrings like `/internal/` or `/cmd/`; enforcement should be based on repo-root references and resolved path containment.
+- Boundary-check violation messages should report runner-relative paths using forward slashes for deterministic behavior across operating systems.
+- Boundary-check behavior must fail closed if no runner source files are discovered.
+- Boundary-check implementation is a best-effort static guardrail; runtime trust enforcement remains with broker auth/schema validation, deterministic policy decisions, and isolation backends.
 - Cross-boundary artifacts live in `protocol/` and must be schema-validated at consumption time by the enforcing component (broker/policy/launcher).
 
 ## Repo Hygiene (Scaffold Standard)
