@@ -7,14 +7,54 @@ const EXCLUDED_RELATIVE_FILES = new Set([
   "scripts/boundary-check.js",
   "scripts/boundary-check.test.js",
 ]);
+const WINDOWS_DRIVE_ABSOLUTE_RE = /^[A-Za-z]:[\\/]/;
 
 function isInside(targetPath, rootPath) {
-  const relative = path.relative(rootPath, targetPath);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  const normalizedTarget = normalizeForComparison(targetPath);
+  const normalizedRoot = normalizeForComparison(rootPath);
+
+  if (normalizedRoot === "/") {
+    return normalizedTarget.startsWith("/");
+  }
+
+  return normalizedTarget === normalizedRoot || normalizedTarget.startsWith(`${normalizedRoot}/`);
 }
 
 function normalizeSpecifier(value) {
   return value.replaceAll("\\", "/");
+}
+
+function normalizeForComparison(value) {
+  let normalized = normalizeSpecifier(String(value));
+
+  if (WINDOWS_DRIVE_ABSOLUTE_RE.test(normalized)) {
+    normalized = `${normalized[0].toLowerCase()}${normalized.slice(1)}`;
+  }
+
+  if (normalized.startsWith("//")) {
+    normalized = `//${normalized.slice(2).replace(/^\/+/, "").replace(/\/+/g, "/")}`;
+  } else {
+    normalized = normalized.replace(/\/+/g, "/");
+  }
+
+  if (normalized.length > 1 && normalized.endsWith("/")) {
+    normalized = normalized.slice(0, -1);
+  }
+
+  return normalized;
+}
+
+function isWindowsUNCSpecifier(value) {
+  return value.startsWith("\\\\");
+}
+
+function isAbsolutePathSpecifier(rawSpecifier, normalizedSpecifier) {
+  return (
+    normalizedSpecifier.startsWith("/")
+    || WINDOWS_DRIVE_ABSOLUTE_RE.test(rawSpecifier)
+    || WINDOWS_DRIVE_ABSOLUTE_RE.test(normalizedSpecifier)
+    || isWindowsUNCSpecifier(rawSpecifier)
+  );
 }
 
 function createConfig(options = {}) {
@@ -81,7 +121,7 @@ function extractSpecifiers(content) {
     /\b(?:import|export)\s+(?:[^;]*?\s+from\s+)?["'`]([^"'`]+)["'`]/g,
     /\brequire\(\s*["'`]([^"'`]+)["'`]\s*\)/g,
     /\bimport\(\s*["'`]([^"'`]+)["'`]\s*\)/g,
-    /["'`]((?:\.\.?(?:\/|\\)[^"'`]+)|(?:cmd|internal|protocol)(?:\/|\\)[^"'`]*)["'`]/g,
+    /["'`]((?:\.\.?(?:\/|\\)[^"'`]+)|(?:[A-Za-z]:[\\/][^"'`]+)|(?:\\\\[^"'`]+)|(?:cmd|internal|protocol)(?:\/|\\)[^"'`]*)["'`]/g,
   ];
 
   for (const pattern of patterns) {
@@ -96,20 +136,20 @@ function extractSpecifiers(content) {
 }
 
 function checkSpecifier(filePath, specifier, config, violations) {
-  const normalized = normalizeSpecifier(specifier.trim());
+  const trimmed = specifier.trim();
+  const normalized = normalizeSpecifier(trimmed);
   if (normalized.length === 0) {
     return;
   }
 
-  const hasRelativePrefix = normalized.startsWith(".") || normalized.startsWith("/");
+  const hasRelativePrefix = normalized.startsWith(".");
+  const hasAbsolutePrefix = isAbsolutePathSpecifier(trimmed, normalized);
   const hasBoundaryKeyword =
     normalized.startsWith("cmd/") ||
     normalized.startsWith("internal/") ||
-    normalized.startsWith("protocol/") ||
-    normalized.includes("/cmd/") ||
-    normalized.includes("/internal/");
+    normalized.startsWith("protocol/");
 
-  if (!hasRelativePrefix && !hasBoundaryKeyword) {
+  if (!hasRelativePrefix && !hasAbsolutePrefix && !hasBoundaryKeyword) {
     return;
   }
 
@@ -118,9 +158,7 @@ function checkSpecifier(filePath, specifier, config, violations) {
     normalized === "protocol" ||
     normalized === "internal" ||
     normalized.startsWith("cmd/") ||
-    normalized.startsWith("internal/") ||
-    normalized.includes("/cmd/") ||
-    normalized.includes("/internal/")
+    normalized.startsWith("internal/")
   ) {
     violations.push(`${path.relative(config.runnerRoot, filePath)} references trusted path '${specifier}'`);
     return;
@@ -130,7 +168,9 @@ function checkSpecifier(filePath, specifier, config, violations) {
   if (normalized.startsWith("protocol/")) {
     resolvedPath = path.resolve(config.repoRoot, normalized);
   } else if (hasRelativePrefix) {
-    resolvedPath = path.resolve(path.dirname(filePath), specifier);
+    resolvedPath = path.resolve(path.dirname(filePath), normalized);
+  } else if (hasAbsolutePrefix) {
+    resolvedPath = normalizeForComparison(normalized);
   } else {
     return;
   }
@@ -208,6 +248,9 @@ module.exports = {
   checkSpecifier,
   runBoundaryCheck,
   normalizeSpecifier,
+  normalizeForComparison,
+  isAbsolutePathSpecifier,
+  isWindowsUNCSpecifier,
   isInside,
 };
 

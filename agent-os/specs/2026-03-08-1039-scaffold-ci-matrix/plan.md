@@ -98,7 +98,9 @@ Deliverables:
   - Boundary guardrail (required): add `npm run boundary-check` that scans runner JS/TS source files across `runner/` (not only `runner/src/`; excluding dependency/build directories and boundary-check tooling/test files) and fails if:
     - import from `../../internal/*` or `../../cmd/*` (or any other path that escapes `runner/`),
     - read or reference trusted code paths except for allowed reads of `protocol/` schemas/fixtures.
+    - absolute path references (including Unix absolute paths and Windows drive-letter/UNC paths) escape `runner/` except for allowed protocol reads.
     - no runner source files are found (fail closed).
+    - NOTE: the guardrail should avoid false positives on unrelated package names that merely contain path segments like `/internal/`.
     Implementation guidance (MVP): keep it dependency-free and cross-platform (Node stdlib only).
   - Add baseline tests for the boundary-check guardrail and run them from `npm test`.
 

@@ -92,3 +92,53 @@ test("ignores node_modules and dist directories", (t) => {
   assert.equal(result.error, null);
   assert.equal(result.violations.length, 0);
 });
+
+test("allows scoped package imports that contain internal segments", (t) => {
+  const repoRoot = createTempRepo({
+    "runner/src/index.ts": "import helper from '@scope/pkg/internal/foo';\nexport default helper;\n",
+  });
+
+  t.after(() => {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  });
+
+  const result = runCheckForRepo(repoRoot);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.error, null);
+  assert.equal(result.violations.length, 0);
+});
+
+test("rejects Windows drive-letter absolute path references", (t) => {
+  const repoRoot = createTempRepo({
+    "runner/src/index.ts": "export const ok = true;\n",
+    "runner/scripts/job.js": "const leaked = 'C:\\\\repo\\\\internal\\\\secret.txt';\n",
+  });
+
+  t.after(() => {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  });
+
+  const result = runCheckForRepo(repoRoot);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error, null);
+  assert.ok(result.violations.some((item) => item.includes("scripts/job.js")));
+});
+
+test("rejects Windows UNC path references", (t) => {
+  const repoRoot = createTempRepo({
+    "runner/src/index.ts": "export const ok = true;\n",
+    "runner/scripts/job.js": "const leaked = '\\\\\\\\server\\\\share\\\\internal\\\\secret.txt';\n",
+  });
+
+  t.after(() => {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  });
+
+  const result = runCheckForRepo(repoRoot);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error, null);
+  assert.ok(result.violations.some((item) => item.includes("scripts/job.js")));
+});

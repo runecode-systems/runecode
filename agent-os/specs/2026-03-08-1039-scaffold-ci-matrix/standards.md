@@ -72,6 +72,8 @@ Rules:
 - The "untrusted scheduler" boundary is not purely documentary.
 - The TS runner must have a mechanical boundary check that fails CI if runner source imports/references trusted Go areas (`cmd/`, `internal/`) or otherwise escapes `runner/` (except allowed access to `protocol/` schemas/fixtures).
 - Boundary-check scan scope must cover runner JS/TS source across `runner/` (not only `runner/src/`) while excluding dependency/build directories and boundary-check tooling/test files.
+- Boundary-check path handling must include Unix absolute paths and Windows drive-letter/UNC absolute paths.
+- Boundary-check matching must avoid false positives for unrelated third-party package names containing substrings like `/internal/` or `/cmd/`; enforcement should be based on repo-root references and resolved path containment.
 - Boundary-check behavior must fail closed if no runner source files are discovered.
 - Boundary-check implementation is a best-effort static guardrail; runtime trust enforcement remains with broker auth/schema validation, deterministic policy decisions, and isolation backends.
 - Cross-boundary artifacts live in `protocol/` and must be schema-validated at consumption time by the enforcing component (broker/policy/launcher).
