@@ -48,6 +48,16 @@ jobs:
       - name: Run CI command in dev shell
         run: nix develop --no-write-lock-file -c just ci
 
+      - name: Verify repository unchanged after CI command
+        run: |
+          git diff --exit-code
+          untracked="$(git ls-files --others --exclude-standard)"
+          if [ -n "$untracked" ]; then
+            echo "Untracked files found after CI command:"
+            echo "$untracked"
+            exit 1
+          fi
+
       - name: Verify flake.lock unchanged
         run: git diff --exit-code -- flake.lock
 
@@ -94,3 +104,17 @@ jobs:
 
       - name: Run portability checks
         run: just ci
+
+      - name: Verify repository unchanged after portability checks
+        shell: pwsh
+        run: |
+          git diff --exit-code
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $untracked = git ls-files --others --exclude-standard
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($untracked) {
+            Write-Host "Untracked files found after portability checks:"
+            $untracked
+            exit 1
+          }

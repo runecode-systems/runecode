@@ -65,6 +65,7 @@ Rules:
 
 - `just ci` is the canonical entrypoint and must be runnable on Windows without Nix and without a bash dependency.
 - `just ci` is check-only and must not modify the worktree (including lockfiles like `flake.lock`, `go.sum`, and `package-lock.json`).
+- CI cleanliness checks must detect tracked-file modifications and untracked files after `just ci`.
 - Keep `justfile` recipes simple and cross-platform (avoid unix-only tools and bashisms). Prefer language-native commands and small helper programs over shell pipelines.
 - For MVP clarity, `just ci` may keep an explicit runner lint step even when `npm test` also invokes lint.
 
@@ -83,6 +84,7 @@ Rules:
 ## Repo Hygiene (Scaffold Standard)
 
 - `.gitignore` must be kept current as new languages/tooling are introduced (minimum: `node_modules/`, build output dirs, and compiler metadata like `*.tsbuildinfo`).
+- `.gitattributes` should normalize line endings for text files so cross-platform check-only workflows are deterministic.
 - Security-critical surfaces introduced by scaffolding must be protected by `CODEOWNERS` + required review (minimum: `/protocol/`, `/docs/trust-boundaries.md`, and the secrets/audit daemons).
 - Prefer adding a minimal `.editorconfig` once the repo becomes multi-language to reduce formatting churn.
 

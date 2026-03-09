@@ -151,6 +151,7 @@ Deliverables:
 - CI and dev-shell wiring already exists (Nix + Windows portability) and should remain centralized.
 - Keep CI changes minimal and mechanical:
   - CI continues to call `just ci`.
+  - CI cleanliness checks must fail if `just ci` changes tracked files or creates untracked files.
   - If `just ci` grows new prerequisites, update `flake.nix` dev shell packages and the Windows job tool installs to match.
   - Preserve existing supply-chain guardrails (pinned actions, explicit Nix cache allowlist, and lockfile immutability).
 
@@ -174,6 +175,7 @@ Deliverables:
   (Owner policy: match the existing "high-leverage" owner/team until a dedicated security team exists.)
 
 - Add a minimal `.editorconfig` to reduce cross-editor churn across Go/TS/Markdown/JSON.
+- Add `.gitattributes` text normalization so cross-platform check-only CI does not drift on line endings.
 
 ## Acceptance Criteria
 
