@@ -1,5 +1,61 @@
 # Agent OS Standards Index
 
+backend:
+  go-cli-help-exit-codes:
+    description: Go CLI help flags, streams, and exit codes
+  go-cli-interactive-tty-guard:
+    description: TTY guard for interactive Go CLI UIs
+  go-cli-main-pattern:
+    description: Go CLI `main.go` wiring-only pattern
+  go-cli-stub-output:
+    description: Stable Go CLI stub output and no-side-effects default
+
+ci:
+  github-actions-supply-chain:
+    description: GitHub Actions pinning + least-privilege permissions
+  just-ci:
+    description: Canonical `just ci` entrypoint (check-only, cross-platform)
+  nix-flake-ci-invariants:
+    description: Nix flake CI cache allowlist and flake.lock invariants
+  windows-portability-matrix:
+    description: Windows CI portability job and Node version matrix
+  worktree-cleanliness:
+    description: CI fails on tracked diffs and untracked files
+
+global:
+  dco-signoff:
+    description: DCO sign-off requirement for every commit
+  deterministic-check-write-tools:
+    description: Deterministic tooling pattern (check-only by default, explicit write mode)
+  pr-review-finding-format:
+    description: Standard PR review finding format and prioritization
+  repo-hygiene-baseline:
+    description: Repo hygiene baseline (line endings, editorconfig, gitignore, envrc, CODEOWNERS)
+  repo-local-tools:
+    description: Repo-local helper tools over shell pipelines
+  review-instructions-files:
+    description: Conventions for `.github/instructions/*.instructions.md` files
+
+javascript:
+  node-engine-enforcement:
+    description: Runner Node engines policy and engine-strict enforcement
+  npm-ci-lockfile:
+    description: Runner npm ci and package-lock determinism
+  runner-node-test-runner:
+    description: Runner Node built-in test runner conventions
+  runner-typescript-as-lint:
+    description: Runner TypeScript typecheck-as-lint (tsc --noEmit)
+
 product:
   roadmap-conventions:
     description: Conventions for `agent-os/product/roadmap.md` (sections, spec entry format, and moving releases to Completed).
+
+security:
+  runner-boundary-check:
+    description: Runner boundary-check rules and allowed protocol access
+  trust-boundary-change-checklist:
+    description: Checklist for trust boundary changes (docs, guardrails, protocol)
+  trust-boundary-interfaces:
+    description: Allowed cross-boundary interfaces and prohibited bypasses
+  trust-boundary-layered-enforcement:
+    description: Trust boundary enforcement layers and guardrail expectations
