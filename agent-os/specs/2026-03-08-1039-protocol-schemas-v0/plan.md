@@ -11,6 +11,8 @@ Create `agent-os/specs/2026-03-08-1039-protocol-schemas-v0/` with:
 - `references.md`
 - `visuals/` (empty)
 
+Parallelization: docs-only; safe to do anytime.
+
 ## Task 2: Define Core Object Model
 
 Define the minimal canonical objects needed for MVP:
@@ -19,6 +21,19 @@ Define the minimal canonical objects needed for MVP:
 - Audit events (hash-chained, signed, typed).
 - Approval requests/decisions (typed, structured payloads for TUI display and deterministic enforcement).
 - Policy decisions (allow/deny/require_human_approval) with reason codes.
+- Signed object envelopes (MVP):
+  - Standardize signature fields across manifests, audit events, and receipts:
+    - `alg` (e.g., `ed25519`)
+    - `key_id`
+    - `signature` (bytes as base64)
+- Shared error taxonomy + envelope (MVP):
+  - Define a single `Error` object used across all boundaries:
+    - stable `code` (string enum)
+    - `category` (validation/auth/policy/transport/storage/timeout/internal)
+    - `retryable` (bool)
+    - `message` (human-facing; non-sensitive)
+    - optional typed `details` with its own `details_schema_id`
+  - Require all daemons/components to use this envelope rather than inventing ad-hoc error shapes.
 - Model gateway protocol objects:
   - `LLMRequest` and `LLMResponse` (including streaming event shapes where applicable)
   - provider/model selection fields that do not allow arbitrary capability escalation
@@ -47,6 +62,9 @@ Define the minimal canonical objects needed for MVP:
       - `approval_checkpoint`
       - `git_gateway_pr_create` (post-MVP; requires git-gateway)
       - `web_research` (post-MVP; requires web-research gateway)
+  - Governance note: adding a new allowlisted step type is a capability expansion.
+    - requires a schema version bump and a security review
+    - must be surfaced in release notes and (when used) recorded in audit metadata
   - per-step provider/model selection and step-level limits
 - Reserved (post-MVP) protocol surface for `bridge` providers (local runtimes behind model-gateway):
   - a typed request/response envelope, runtime identity/version fields, and stable error taxonomy
@@ -54,6 +72,8 @@ Define the minimal canonical objects needed for MVP:
     - bridge requests to execute commands, read/write workspace files, or apply patches are denied and treated as policy violations
   - explicit streaming support and backpressure/queueing signals
   - contract-test fixtures for request/response envelopes and error mapping
+
+Parallelization: schema design can proceed in parallel with crypto, broker, and policy work, but the signed/canonicalized envelope rules (JCS profile, `{alg, key_id}`, and the shared error envelope) must be finalized early to avoid churn.
 
 ## Task 3: Choose Schema + Validation Strategy
 
@@ -73,7 +93,15 @@ Define the minimal canonical objects needed for MVP:
   - Prohibit floats/NaN/Infinity in hashed/signed objects; use integers or strings.
   - Encode bytes as base64 strings; timestamps as RFC 3339 strings; durations as integer milliseconds.
   - Hash/sign inputs are the canonical JSON bytes produced by JCS.
+  - Implementation guidance (MVP):
+    - Validate canonicalization correctness using RFC 8785 reference test vectors (cross-language golden fixtures).
+    - Prefer using the RFC 8785 reference vectors/implementations from `https://github.com/cyberphone/json-canonicalization` as the baseline.
+      - Consider vendoring the canonicalizer code for Go/TS to reduce supply-chain risk (fixtures enforce correctness either way).
+    - Canonicalization operates on plain JSON values; do not depend on language-specific object serializers.
+    - If a third-party canonicalizer is used, pin versions and require golden fixture parity in CI.
 - Add field-level data classification metadata in schemas (`public | sensitive | secret`) to support structural redaction/boundary enforcement.
+
+Parallelization: can be implemented in parallel with audit/artifact subsystems as long as fixtures and canonicalization rules are agreed.
 
 ## Task 6: On-Wire Encoding Migration Plan (Post-MVP)
 
@@ -91,6 +119,8 @@ Define the minimal canonical objects needed for MVP:
     - a strong, short-lived local token mechanism (stored with strict filesystem permissions)
   - binding safety is a security requirement: never bind privileged APIs to non-loopback interfaces
 - Do not change hashing/signing semantics for persisted/signed objects (canonicalization remains defined by this spec).
+
+Parallelization: design-only; can be done anytime after MVP schema rules are stable.
 
 ## Task 4: Versioning + Compatibility Rules
 
@@ -110,6 +140,8 @@ Approval profile semantics note:
 - Approval profiles only affect whether an otherwise-allowed action returns `allow` vs `require_human_approval`.
 - Unknown profile values fail closed.
 
+Parallelization: can be implemented in parallel with verifier work; it depends on a stable schema bundle/version registry.
+
 ## Task 5: Reference Fixtures
 
 - Add small, checked-in example manifests and events that validate against schemas.
@@ -127,10 +159,21 @@ Approval profile semantics note:
   - expected hash outputs
   - (where relevant) expected signature verification outcomes
 
+Fixture governance (MVP):
+- Fixtures live under `protocol/fixtures/` and are treated as security-sensitive contract artifacts.
+- Regeneration is explicit; tooling must not auto-update fixtures during `just ci`.
+- Any fixture update must be reviewable:
+  - canonicalized JSON
+  - volatile fields stripped/canonicalized (timestamps, content-length, auth headers)
+  - clear change rationale (vendor drift vs intentional capability expansion)
+
+Parallelization: fixtures can be created in parallel across subsystems (audit/policy/gateway) as long as they validate against the same schema bundle and canonicalization rules.
+
 ## Acceptance Criteria
 
 - Go and TS validate the same fixtures deterministically and reject the same invalid inputs.
 - Canonical bytes and hash inputs are stable across platforms (golden fixtures pass in CI).
 - Schema versions are explicit and bound to hashes; verification fails closed on unknown versions.
 - All cross-boundary messages used in MVP are schema-defined and validated.
+- Shared error envelope fixtures exist and are validated consistently across Go and TS.
 - The schema/profile avoids constructs that would make post-MVP protobuf migration impractical.

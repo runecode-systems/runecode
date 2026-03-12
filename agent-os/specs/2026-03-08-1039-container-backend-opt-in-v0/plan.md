@@ -11,11 +11,15 @@ Create `agent-os/specs/2026-03-08-1039-container-backend-opt-in-v0/` with:
 - `references.md`
 - `visuals/` (empty)
 
+Parallelization: docs-only; safe to do anytime.
+
 ## Task 2: Opt-In UX + Audit
 
 - Add an explicit “run with container backend” opt-in flow.
 - Require an explicit user acknowledgment of reduced assurance.
 - Record the opt-in and the active backend in the audit log.
+
+Parallelization: can be implemented in parallel with TUI work; it depends on stable approval/audit event schemas.
 
 ## Task 3: Hardened Container Baseline
 
@@ -30,15 +34,21 @@ Create `agent-os/specs/2026-03-08-1039-container-backend-opt-in-v0/` with:
   - if egress is explicitly granted, enforce via explicit host-level rules (firewall/proxy allowlists), not in-container configuration
 - Ensure the isolation boundary is represented as “container (reduced assurance)” in UI/logs.
 
+Parallelization: can be implemented in parallel with the microVM backend; coordinate on shared policy invariants and audit posture fields.
+
 ## Task 4: No Host Mounts + Artifact Movement
 
 - Maintain the same “no host filesystem mounts” rule.
 - Provide artifacts/workspace state via explicit images/volumes that preserve the same data-movement semantics.
 
+Parallelization: can be implemented in parallel with artifact store work; it depends on stable artifact attachment semantics.
+
 ## Task 5: Policy Integration
 
 - Ensure the policy engine blocks containers by default.
 - Ensure microVM launch failures do not auto-trigger container mode.
+
+Parallelization: can be implemented in parallel with policy engine and launcher; it depends only on explicit posture decisions (never implicit fallback).
 
 ## Acceptance Criteria
 

@@ -23,6 +23,8 @@ This is the canonical view of what is planned next (as specs) and what has shipp
   - Manifests and audit events are signed and verifiable with recorded key posture.
 - [ ] Audit Log v0 + Verify (`agent-os/specs/2026-03-08-1039-audit-log-verify-v0/`)
   - Runs produce a tamper-evident audit trail with local verification.
+- [ ] Audit Anchoring v0 (`agent-os/specs/2026-03-08-1039-audit-anchoring/`)
+  - Audit segment roots can be anchored with verifiable receipts to strengthen tamper-evidence beyond local verification.
 
 ### v0.1.0-alpha.3
 
@@ -57,12 +59,16 @@ This is the canonical view of what is planned next (as specs) and what has shipp
   - Git operations are isolated behind a gateway with outbound patch verification.
 - [ ] Approval Profiles (Strict/Permissive) (`agent-os/specs/2026-03-10-1530-approval-profiles-v0/`)
   - Add selectable human-in-the-loop profiles beyond MVP moderate.
+- [ ] Auth Gateway Role v0 (`agent-os/specs/2026-03-12-1030-auth-gateway-role-v0/`)
+  - Provider login/refresh runs in an auth-only gateway role; long-lived tokens live only in secretsd.
+- [ ] OpenAI ChatGPT Subscription Provider (OAuth + Codex Bridge) (`agent-os/specs/2026-03-11-1920-openai-chatgpt-subscription-provider-v0/`)
+  - Access GPT models via a ChatGPT subscription OAuth flow without expanding the trust boundary.
+- [ ] GitHub Copilot Subscription Provider (Official Runtime Bridge) (`agent-os/specs/2026-03-11-1921-github-copilot-subscription-provider-v0/`)
+  - Access Copilot models via an official local runtime bridge in LLM-only mode.
 - [ ] Web Research Role (`agent-os/specs/2026-03-08-1039-web-research-role/`)
   - Controlled web research runs with strict egress allowlists and citation artifacts.
 - [ ] Deps Fetch + Offline Cache (`agent-os/specs/2026-03-08-1039-deps-fetch-cache/`)
   - Dependencies can be fetched without giving workspace roles internet access.
-- [ ] Audit Anchoring (`agent-os/specs/2026-03-08-1039-audit-anchoring/`)
-  - Audit roots can be optionally anchored externally with verifiable receipts.
 - [ ] Image/Toolchain Signing Pipeline (`agent-os/specs/2026-03-08-1039-image-toolchain-signing/`)
   - Isolate images/toolchains are signed and enforced at boot to reduce supply chain risk.
 - [ ] Windows MicroVM Runtime Support (`agent-os/specs/2026-03-08-1039-windows-microvm-runtime/`)

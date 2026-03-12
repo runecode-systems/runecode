@@ -11,6 +11,7 @@ Implement a content-addressed artifact store and a minimal data classification s
 - Artifact contents are stored on encrypted-at-rest storage by default (no silent plaintext mode).
 - Artifact retention/GC is required to avoid unbounded growth.
 - `approved_file_excerpts` are only created via explicit human approval; unapproved excerpts use a more restrictive class (`unapproved_file_excerpts`) and are not eligible for third-party egress.
+- Promotions are hardened: approvals are explicit, reviewable, rate-limited, and revocable via policy (no history rewriting).
 - Derived evidence is stored as explicit artifacts with their own data class (e.g., `audit_verification_report`).
 
 ## Context

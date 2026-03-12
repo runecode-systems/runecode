@@ -11,18 +11,30 @@ Create `agent-os/specs/2026-03-08-1039-secretsd-model-gateway-v0/` with:
 - `references.md`
 - `visuals/` (empty)
 
+Parallelization: docs-only; safe to do anytime.
+
 ## Task 2: Secretsd MVP Interface
 
 - Provide a minimal secrets daemon that:
   - stores long-lived secrets at rest (prefer hardware-backed / OS key storage where available)
   - fails closed by default if secure key storage is unavailable (no silent plaintext fallback)
   - allows an explicit, audited opt-in to passphrase-derived encryption for developer/portable setups
+    - passphrase-derived encryption requirements (MVP):
+      - KDF: Argon2id (RFC 9106) with stored parameters per ciphertext
+      - default parameters (baseline): memory=64 MiB, iterations=3, parallelism=1, salt=16 bytes, key=32 bytes
+      - passphrase policy: reject < 16 chars; warn on 16-19; recommend 20+
+      - never persist the passphrase; derived keys live in memory only as needed (best-effort zeroization)
   - issues short-lived, scope-bound leases only as allowed by the signed manifest
   - defines lease TTL bounds, renewal rules, and revocation semantics
   - records every lease as an audit event (without logging raw secrets)
 - Define a safe secret onboarding/import flow (MVP):
   - secrets are provided via stdin or a file descriptor (never CLI args or environment variables)
   - only secret metadata/IDs are logged/audited (never secret values)
+
+- Expose local-only health/readiness signals for `secretsd` and `model-gateway` (consumable via the broker local API).
+- Emit minimal operational metrics (local-only): request/lease counts, denials, and latency histograms (no secret values).
+
+Parallelization: can be implemented in parallel with crypto key management; coordinate on shared “key posture” and passphrase/KDF policy.
 
 ## Task 3: Model-Gateway Role
 
@@ -40,11 +52,13 @@ Create `agent-os/specs/2026-03-08-1039-secretsd-model-gateway-v0/` with:
   - Do not add a runtime Node "request builder" isolate for provider payload shaping.
 - Model-gateway must fetch artifact bytes by hash (via broker-mediated artifact store APIs) and assemble provider requests only from allowlisted artifact data classes.
 - Harden egress controls against SSRF and DNS rebinding:
-  - resolve and validate destinations (block RFC1918/link-local/reserved ranges)
-  - restrict redirects (or disable by default)
+  - resolve and validate destinations (block private/link-local/loopback/reserved ranges for both IPv4 and IPv6, including IPv4-mapped IPv6)
+  - restrict redirects (or disable by default); if enabled, validate every hop and never follow redirects to out-of-policy hosts
   - require TLS with certificate validation and SNI matching
   - apply strict timeouts and response size limits
   - Define streaming-specific limits (chunk sizes, total streamed bytes, idle timeouts) so streaming cannot bypass size/timeout controls.
+
+Parallelization: can be implemented in parallel with broker + policy engine once the `LLMRequest`/`LLMResponse` schemas and data-class flow rules are stable.
 
 ## Task 3b: Provider Adapters + Drift Detection (MVP)
 
@@ -59,20 +73,28 @@ Create `agent-os/specs/2026-03-08-1039-secretsd-model-gateway-v0/` with:
   - Run `fixturegen` locally via the Nix dev shell to update fixtures; commit the results.
   - Pin SDK versions in lockfiles; dependency upgrades require explicit fixture regeneration + review.
   - Use automated dependency updates so fixture drift is detected at upgrade time and requires explicit approval.
-  - Add CI coverage (GitHub Actions) so upgrades fail closed when fixtures drift.
+- Add CI coverage (GitHub Actions) so upgrades fail closed when fixtures drift.
+
+Parallelization: can be implemented in parallel with protocol schema work (fixtures) and with broker limits; avoid conflicts by agreeing on canonicalization and fixture locations early.
 
 ## Task 3c: Bridge Providers (Post-MVP)
 
 - Support a second provider integration mode for subscription-backed and local runtimes:
   - policy constraint: RuneCode does not ship/bundle/redistribute vendor CLIs or proprietary runtimes; integrate with user-installed official runtimes
   - `http` providers (MVP): model-gateway translates `LLMRequest -> provider HTTP` directly.
-  - `bridge` providers (post-MVP): model-gateway translates `LLMRequest -> local RPC` and the local runtime performs upstream network calls.
-    - prefer spawned child processes over stdio (no listening ports)
-    - require runtime version pinning + per-request version logging
-    - enforce an explicit "LLM-only" mode (deny tool execution and file operations)
-    - run with isolated `HOME`/tool dirs pointing at an allowlisted provider sandbox directory
-    - default to ephemeral sessions (no persisted conversation state unless enabled by manifest+policy)
-    - prefer protocol-level contract tests (RPC fixtures) over HTTP wire fixtures
+- `bridge` providers (post-MVP): model-gateway translates `LLMRequest -> local RPC` and the local runtime performs upstream network calls.
+  - prefer spawned child processes over stdio (no listening ports)
+  - require runtime identity + version discovery and per-request version logging
+    - compatibility policy: do not require RuneCode updates for every vendor release
+      - define a "tested range" plus a compatibility probe (contract tests / schema validation / required feature flags)
+      - allow newer versions if the probe passes; otherwise fail closed with a clear remediation (downgrade vendor runtime or upgrade RuneCode)
+      - if running an untested-but-probe-passing version, require an explicit acknowledgment surfaced in TUI and recorded in audit metadata
+  - enforce an explicit "LLM-only" mode (deny tool execution and file operations)
+  - run with isolated `HOME`/tool dirs pointing at an allowlisted provider sandbox directory
+    - disable core dumps; treat the sandbox dir as hostile and prevent token spills (no env/argv injection; controlled temp dirs)
+    - restrict child process spawning (deny-by-default; allowlist only if required and audited)
+  - default to ephemeral sessions (no persisted conversation state unless enabled by manifest+policy)
+  - prefer protocol-level contract tests (RPC fixtures) over HTTP wire fixtures
 
 ## Task 4: Data-Class Policy for Model Egress
 
@@ -84,10 +106,14 @@ Create `agent-os/specs/2026-03-08-1039-secretsd-model-gateway-v0/` with:
   - use schema field classification metadata (`secret` fields are rejected/stripped)
   - prefer allowlists of permitted fields/classes over heuristic redaction
 
+Parallelization: can be implemented in parallel with artifact store flow matrix work; it depends on stable data-class taxonomy.
+
 ## Task 5: Audit + Quotas
 
 - Log outbound requests (destination, bytes, timing) as audit events.
 - Enforce basic quotas (requests/bytes/time) for the gateway role.
+
+Parallelization: can be implemented in parallel with audit log verify and broker rate limits; align quota counters with audit event fields for observability.
 
 ## Acceptance Criteria
 

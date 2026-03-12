@@ -1,5 +1,11 @@
 # References for Approval Profiles (Strict/Permissive) — Post-MVP
 
+## Product Context
+
+- **Mission:** `agent-os/product/mission.md`
+- **Tech stack:** `agent-os/product/tech-stack.md`
+- **Trust boundaries:** `docs/trust-boundaries.md`
+
 ## Related Specs
 
 - `agent-os/specs/2026-03-08-1039-policy-engine-v0/`

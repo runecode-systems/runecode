@@ -11,15 +11,21 @@ Create `agent-os/specs/2026-03-08-1039-git-gateway/` with:
 - `references.md`
 - `visuals/` (empty)
 
+Parallelization: docs-only; safe to do anytime.
+
 ## Task 2: Git Target Allowlist Model
 
 - Represent canonical repo identity and allowed operations in the run/stage manifest.
 - Disallow URL-based policy decisions.
 
+Parallelization: can be designed in parallel with policy engine gateway allowlist work; it depends on stable destination descriptor schemas.
+
 ## Task 3: Secretsd-Backed Credentials
 
 - Issue repo-scoped, operation-scoped short-lived tokens.
 - Add revocation list support for active leases.
+
+Parallelization: can be implemented in parallel with `secretsd` lease work; it depends on stable lease semantics and audit event types.
 
 ## Task 4: Patch Artifact Application + Outbound Verification
 
@@ -27,10 +33,14 @@ Create `agent-os/specs/2026-03-08-1039-git-gateway/` with:
 - Apply patch in a sparse/partial checkout by default.
 - Verify outbound diff/tree hash matches the signed patch artifact before push.
 
+Parallelization: can be implemented in parallel with artifact store and protocol schema work; avoid conflicts by agreeing on patch artifact format and signing envelope.
+
 ## Task 5: PR Creation
 
 - Create PRs via provider APIs.
 - Attach run artifacts (spec links, gate results) as structured metadata.
+
+Parallelization: can be implemented in parallel with provider-specific API adapters once the core git-gateway boundary is stable.
 
 ## Acceptance Criteria
 

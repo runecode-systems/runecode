@@ -11,6 +11,8 @@ Create `agent-os/specs/2026-03-08-1039-policy-engine-v0/` with:
 - `references.md`
 - `visuals/` (empty)
 
+Parallelization: docs-only; safe to do anytime.
+
 ## Task 2: Role + Run/Stage Policy Model
 
 - Define how role manifests and run/stage capability manifests combine into an effective policy.
@@ -19,6 +21,7 @@ Create `agent-os/specs/2026-03-08-1039-policy-engine-v0/` with:
   - declarative, schema-validated policy documents (no embedded scripting)
   - explicit precedence rules (e.g., explicit deny > require_human_approval > allow)
   - stable reason codes and structured decision details
+  - use the shared protocol error taxonomy/envelope for denials and failures (see `agent-os/specs/2026-03-08-1039-protocol-schemas-v0/`)
 - Define gateway-role concepts in the policy model (even if MVP ships only `model-gateway`):
   - gateway role kinds (model, auth, git, web, deps)
   - per-gateway destination allowlists as signed inputs (no URL-based ad-hoc decisions)
@@ -26,6 +29,8 @@ Create `agent-os/specs/2026-03-08-1039-policy-engine-v0/` with:
 - Define policy loading/tamper resistance:
   - policy inputs are content-addressed and bound to signed manifests
   - policy evaluation rejects inputs that do not validate against the schema version
+
+Parallelization: can be implemented in parallel with the broker once the policy decision request/response schema is fixed.
 
 ## Task 3: Invariants (Fail Closed)
 
@@ -40,6 +45,8 @@ Create `agent-os/specs/2026-03-08-1039-policy-engine-v0/` with:
     - any non-gateway network egress attempt is denied and is not approvable
   - no single role combines workspace RW + public egress + long-lived secrets
 
+Parallelization: can be implemented in parallel with gateway specs; invariants are the shared non-negotiable core.
+
 ## Task 3b: Approval Policy (MVP: Moderate)
 
 - Define an approval policy model that controls when an otherwise-allowed action requires explicit human approval.
@@ -47,6 +54,16 @@ Create `agent-os/specs/2026-03-08-1039-policy-engine-v0/` with:
 - Approval profiles affect only *when* explicit human approval is required for actions already allowed by invariants + the signed manifest:
   - profiles must never convert `deny -> allow`
   - profiles may add additional `require_human_approval` decisions and/or additional denies, but cannot expand capabilities
+
+Approval lifecycle semantics (MVP):
+- Every approval request and decision is typed and binds to immutable inputs:
+  - approval request includes `{manifest_hash, action_request_hash, relevant_artifact_hashes}`
+  - approval decision references the approval request hash (no free-floating “approve by label”)
+- Expiry/timeout:
+  - approval requests have an explicit TTL (default: 30 minutes) and expire deterministically
+  - expired approvals cannot be used; the runner must re-request approval
+- Staleness:
+  - if any bound hash changes while awaiting approval, the pending approval is invalidated and must be re-issued
 - MVP implements a single approval profile: `moderate`:
   - approvals are checkpoint-style, not per-micro-action:
     - stage capability manifest sign-off (always; includes a structured summary of requested high-risk capability categories)
@@ -64,11 +81,15 @@ Create `agent-os/specs/2026-03-08-1039-policy-engine-v0/` with:
   - add `strict` and `permissive` approval profiles in a dedicated spec (without changing MVP invariants)
   - review adding a distinct approval trigger category for `git-remote-ops` (push/tag/PR creation) once the git-gateway exists
 
+Parallelization: can be implemented in parallel with the workflow runner pause/resume work as long as the approval request/decision schemas are shared.
+
 ## Task 4: Backend Selection Rules
 
 - MicroVM is the default backend when available.
 - Container backend is only allowed with an explicit opt-in recorded as an approval + audit event.
 - The system must not automatically fall back from microVM to containers.
+
+Parallelization: can be implemented in parallel with launcher backends; it depends only on emitting explicit posture + approval events.
 
 ## Task 5: Decision Outputs
 
@@ -77,6 +98,8 @@ Create `agent-os/specs/2026-03-08-1039-policy-engine-v0/` with:
   - stable reason codes
   - structured “required approvals” payloads
 - Decision artifacts must include hashes of all evaluated inputs (manifest hash, request hash, relevant artifact hashes).
+
+Parallelization: can be implemented in parallel with protocol schemas; it depends on a stable decision artifact schema and shared error taxonomy.
 
 ## Acceptance Criteria
 

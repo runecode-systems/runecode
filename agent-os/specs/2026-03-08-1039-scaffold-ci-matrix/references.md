@@ -4,6 +4,7 @@
 
 - **Mission:** `agent-os/product/mission.md`
 - **Tech stack:** `agent-os/product/tech-stack.md`
+- **Trust boundaries:** `docs/trust-boundaries.md`
 
 ## Repo Tooling Context (Already Implemented)
 

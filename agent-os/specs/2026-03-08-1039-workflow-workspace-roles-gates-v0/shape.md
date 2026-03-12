@@ -20,9 +20,14 @@ Build the end-to-end workflow engine and offline workspace execution roles, with
 - Runner persistence stores control-plane state only (IDs/hashes/approvals); it must never store raw workspace/code or secrets.
 - "Shared memory" (if any) is a rebuildable, ephemeral accelerator keyed by `(repo, commitSHA)`; raw content remains in the CAS.
 - Pause/resume is implemented via a persisted run state machine (durable state), not in-memory orchestration.
+- Approval requests/decisions are hash-bound and time-bounded (TTL/expiry); stale approvals must be re-requested.
 - Gate failure semantics are explicit (fail/abort, retry, and any override requires recorded approval).
 - MVP uses a "moderate" approval profile: approvals are checkpoint-style (stage sign-off and explicit posture changes), not per-action.
 - The workflow produces verifiable evidence artifacts (including `audit_verification_report`), not just human-readable logs.
+
+- Concurrency is locked per workspace (one active run per workspace by default); parallel runs across distinct workspaces are allowed.
+
+- SEA feasibility is validated early; if SEA bundling is blocked, a pinned-Node + bundled-JS fallback may ship for early alpha without changing the trust boundary.
 
 ## Context
 

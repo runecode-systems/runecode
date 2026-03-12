@@ -19,9 +19,13 @@ Create `agent-os/specs/2026-03-08-1039-initial-spec-suite-mvp/` with:
 - `references.md`
 - `visuals/` (empty)
 
+Parallelization: docs-only; safe to do anytime.
+
 ## Task 2: Create MVP + Post-MVP Spec Folders
 
 Create the following spec folders and their documentation files (no direct references to the source discovery doc filename/path).
+
+Parallelization: doc creation can be done in parallel, but keep cross-spec references consistent (protocol/crypto/audit/artifacts are foundational).
 
 MVP (v0.1):
 - Implement first: Dev Environment + CI Bootstrap (Nix Flakes): `agent-os/specs/2026-03-08-1128-dev-env-ci-nix-flakes/`
@@ -30,6 +34,7 @@ MVP (v0.1):
 - Crypto/key management v0: `agent-os/specs/2026-03-08-1039-crypto-key-mgmt-v0/`
 - Artifact store + data classes v0: `agent-os/specs/2026-03-08-1039-artifact-store-data-classes-v0/`
 - Audit log v0 + verify: `agent-os/specs/2026-03-08-1039-audit-log-verify-v0/`
+- Audit anchoring v0: `agent-os/specs/2026-03-08-1039-audit-anchoring/`
 - Policy engine v0: `agent-os/specs/2026-03-08-1039-policy-engine-v0/`
 - Launcher microVM backend v0: `agent-os/specs/2026-03-08-1039-launcher-microvm-backend-v0/`
 - Container backend v0 (explicit opt-in): `agent-os/specs/2026-03-08-1039-container-backend-opt-in-v0/`
@@ -43,10 +48,10 @@ MVP (v0.1):
 Post-MVP (v0.2+):
 - Git gateway (commit/push/PR): `agent-os/specs/2026-03-08-1039-git-gateway/`
 - Web research role: `agent-os/specs/2026-03-08-1039-web-research-role/`
+- Auth gateway role v0: `agent-os/specs/2026-03-12-1030-auth-gateway-role-v0/`
 - OpenAI ChatGPT subscription provider (OAuth + bridge runtime): `agent-os/specs/2026-03-11-1920-openai-chatgpt-subscription-provider-v0/`
 - GitHub Copilot subscription provider (official local runtime bridge): `agent-os/specs/2026-03-11-1921-github-copilot-subscription-provider-v0/`
 - Deps fetch + offline cache: `agent-os/specs/2026-03-08-1039-deps-fetch-cache/`
-- Audit anchoring: `agent-os/specs/2026-03-08-1039-audit-anchoring/`
 - Image/toolchain signing pipeline: `agent-os/specs/2026-03-08-1039-image-toolchain-signing/`
 - Windows microVM runtime support: `agent-os/specs/2026-03-08-1039-windows-microvm-runtime/`
 - macOS virtualization polish: `agent-os/specs/2026-03-08-1039-macos-virtualization-polish/`
@@ -58,6 +63,8 @@ Update `agent-os/product/roadmap.md` to:
 - Follow `product/roadmap-conventions` (checkbox spec entries, outcome-focused descriptions).
 - Remove the duplicated unscheduled checkboxes that are now represented by spec entries.
 
+Parallelization: can be done in parallel with spec drafting; avoid conflicting edits to `agent-os/product/roadmap.md`.
+
 ## MVP Cut (What We Intentionally Leave Out)
 
 To keep MVP essential and focused, the following are explicitly post-MVP unless pulled in by a must-have integration need:
@@ -65,7 +72,7 @@ To keep MVP essential and focused, the following are explicitly post-MVP unless 
 - Web research crawling + domain bundles/domain-expansion workflows.
 - Dependency fetching role and offline dependency caches.
 - Subscription-backed model provider access (e.g., ChatGPT subscription OAuth, Copilot subscription bridging).
-- External audit anchoring (TPM PCR / RFC3161 / witness services) beyond local verification.
+- External audit anchoring targets that require external receipts/services (e.g., RFC3161 timestamping, witness services) beyond local anchoring receipts.
 
 ## Notes / Open Questions (To Resolve Inside Individual Specs)
 

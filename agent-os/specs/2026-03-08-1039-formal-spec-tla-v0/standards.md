@@ -1,3 +1,7 @@
 # Standards for Formal Spec v0 (TLA+ + CI Model Checking)
 
-No additional AgentOS standards currently apply.
+These standards apply to implementation work produced from this spec.
+
+## CI Hygiene
+
+- `agent-os/standards/ci/worktree-cleanliness.md`

@@ -14,6 +14,9 @@ Implement the core policy evaluator that enforces manifests, role invariants, an
 - MVP uses checkpoint-style approvals (stage sign-off and explicit posture changes) instead of per-action nags.
 - MVP supports a single approval profile (`moderate`); strict/permissive profiles are post-MVP.
 
+- Approvals are typed, hash-bound to immutable inputs, and time-bounded (TTL/expiry); stale approvals are invalid.
+- Policy decisions and failures use a shared protocol error envelope and stable reason codes.
+
 ## Context
 
 - Visuals: None.

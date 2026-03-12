@@ -10,13 +10,17 @@ Create a tamper-evident audit log with signed, hash-chained events and a verifie
 - Isolate-attributed events must be signed by isolate keys; writers must verify signatures.
 - Audit log storage is encrypted at rest by default (no silent plaintext mode).
 - Audit logs are segmented for retention/archival without breaking verifiability.
+- Segment roots may be anchored via verifiable receipts (see `agent-os/specs/2026-03-08-1039-audit-anchoring/`).
+  - Missing anchors are treated as a degraded posture by default.
+  - Invalid anchors fail verification (fail closed).
 - Audit events are gateway-role aware (role identity + egress category metadata for outbound network activity), without logging secret values.
 - Verification produces a machine-readable artifact (`audit_verification_report`) that can be stored and reviewed later (not just printed).
+- Ordering integrity is defined using per-signer monotonic sequence + hash chaining; wall-clock timestamps are advisory metadata.
 
 ## Context
 
 - Visuals: None.
-- References: `agent-os/specs/2026-03-08-1039-crypto-key-mgmt-v0/`, `agent-os/specs/2026-03-08-1039-protocol-schemas-v0/`
+- References: `agent-os/specs/2026-03-08-1039-crypto-key-mgmt-v0/`, `agent-os/specs/2026-03-08-1039-protocol-schemas-v0/`, `agent-os/specs/2026-03-08-1039-audit-anchoring/`
 - Product alignment: Enables cryptographic provenance and auditable evidence.
 
 ## Standards Applied

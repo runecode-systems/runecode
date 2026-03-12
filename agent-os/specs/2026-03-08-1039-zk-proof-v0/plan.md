@@ -11,6 +11,8 @@ Create `agent-os/specs/2026-03-08-1039-zk-proof-v0/` with:
 - `references.md`
 - `visuals/` (empty)
 
+Parallelization: docs-only; safe to do anytime.
+
 ## Task 2: Pick the First Proof Statement
 
 Select one MVP proof type (keep narrow and deterministic), e.g.:
@@ -19,6 +21,8 @@ Select one MVP proof type (keep narrow and deterministic), e.g.:
 - Add an explicit feasibility gate:
   - the statement must have bounded inputs and fully deterministic verification
   - if proof generation or verification performance is not acceptable, ship this as post-MVP (interfaces/fixtures only)
+
+Parallelization: can be done in parallel with audit/artifact specs; keep the chosen statement aligned with the canonical audit root/verification artifacts.
 
 ## Task 3: Choose Proving System + Libraries
 
@@ -29,6 +33,8 @@ Select one MVP proof type (keep narrow and deterministic), e.g.:
   - proof artifacts must have bounded size
   - proof generation must not dominate the run (or must be explicitly opt-in)
 
+Parallelization: can be evaluated in parallel with other post-MVP hardening work; treat library selection as security-sensitive.
+
 ## Task 4: Proof Artifact Format + Storage
 
 - Define a proof artifact type with:
@@ -38,11 +44,15 @@ Select one MVP proof type (keep narrow and deterministic), e.g.:
   - verifier result
 - Store proofs in the artifact store and record verification in the audit chain.
 
+Parallelization: can be implemented in parallel with artifact store and audit log work; it depends on stable proof artifact schemas.
+
 ## Task 5: CLI Integration
 
 - Add commands to:
   - generate proof for a run or audit root
   - verify a proof artifact
+
+Parallelization: can be implemented in parallel with TUI/CLI work.
 
 ## Acceptance Criteria
 

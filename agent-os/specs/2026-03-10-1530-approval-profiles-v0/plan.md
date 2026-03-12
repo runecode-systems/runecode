@@ -11,6 +11,8 @@ Create `agent-os/specs/2026-03-10-1530-approval-profiles-v0/` with:
 - `references.md`
 - `visuals/` (empty)
 
+Parallelization: docs-only; safe to do anytime.
+
 ## Task 2: Approval Profile Model (Post-MVP)
 
 - Define additional approval profiles:
@@ -22,6 +24,12 @@ Create `agent-os/specs/2026-03-10-1530-approval-profiles-v0/` with:
 - Profiles must never convert `deny -> allow`; they only affect whether an otherwise-allowed action requires explicit human approval.
 - Define the non-negotiable invariant set that profiles cannot bypass.
 
+Cross-cutting approval lifecycle rules (applies to all profiles):
+- Approvals are typed and hash-bound to immutable inputs (manifest hash + request hash + relevant artifact hashes).
+- Approvals have explicit TTL/expiry; stale approvals are invalid and must be re-requested.
+
+Parallelization: can be designed in parallel with policy engine work; depends on stable approval request/decision schemas.
+
 ## Task 3: Strict Profile Semantics
 
 - Define which action categories require approval in `strict` mode (illustrative):
@@ -32,6 +40,8 @@ Create `agent-os/specs/2026-03-10-1530-approval-profiles-v0/` with:
   - all egress-related opt-ins (model, auth, git, web)
 - Define batching rules to prevent UX deadlocks (e.g., "approve N related writes" in one approval request).
 
+Parallelization: can be designed in parallel with TUI work; it depends on structured approval payloads and clear reason codes.
+
 ## Task 4: Permissive Profile Semantics
 
 - Define `permissive` mode as "approve at milestones" while keeping the same enforcement boundaries:
@@ -39,7 +49,9 @@ Create `agent-os/specs/2026-03-10-1530-approval-profiles-v0/` with:
   - posture-changing actions (e.g., container backend, new egress scopes) remain explicit approvals
   - gate overrides remain explicit approvals
   - when git-gateway exists: require an explicit final approval for git remote state changes (push/tag/PR creation)
-  - post-MVP review: consider a dedicated `git-remote-ops` approval trigger category once git-gateway exists
+- post-MVP review: consider a dedicated `git-remote-ops` approval trigger category once git-gateway exists
+
+Parallelization: can be designed in parallel with workflow runner work; it depends on the policy engine being the only pause/resume authority.
 
 ## Task 5: Policy + Runner + TUI Integration
 
@@ -49,6 +61,8 @@ Create `agent-os/specs/2026-03-10-1530-approval-profiles-v0/` with:
   - display the active profile
   - explain why an approval is required (reason codes + structured payload)
   - show what changes if approved
+
+Parallelization: can be implemented in parallel across policy/runner/TUI as long as the approval schema contract is fixed first.
 
 ## Acceptance Criteria
 

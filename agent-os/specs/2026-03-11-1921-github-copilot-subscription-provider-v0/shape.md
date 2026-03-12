@@ -12,7 +12,9 @@ Add a post-MVP provider integration that uses a user's GitHub Copilot subscripti
 - No environment-variable token injection.
 - The Copilot runtime executes under `model-gateway` in an "LLM-only" mode (deny tool/file operations).
 - RuneCode integrates only with officially supported, user-installed runtimes (no bundling/redistribution).
-- External runtime versions are pinned/audited and logged per request; contract tests validate the RPC surface.
+- External runtime identity/version are discovered and logged per request; contract tests validate the RPC surface.
+- External runtime compatibility uses a "tested range" + compatibility probe so RuneCode does not require updates for every vendor release.
+  - Untested-but-probe-passing versions require explicit user acknowledgment and are recorded as a degraded posture.
 - Sessions are ephemeral by default; persisted conversation state requires explicit manifest+policy enablement.
 
 ## Context

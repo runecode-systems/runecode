@@ -13,6 +13,8 @@ Ensure `agent-os/specs/2026-03-08-1039-scaffold-ci-matrix/` contains:
 - `references.md`
 - `visuals/` (empty unless visuals are added later)
 
+Parallelization: docs-only; safe to do anytime.
+
 ## Task 2: Define Repo Layout + Trust Boundary
 
 - Adopt a top-level layout that makes the trusted/untrusted split obvious and hard to accidentally bypass.
@@ -62,6 +64,8 @@ Deliverables:
     - broker local API auth + schema validation (`agent-os/specs/2026-03-08-1039-broker-local-api-v0/`)
     - deterministic policy decisions (`agent-os/specs/2026-03-08-1039-policy-engine-v0/`)
     - runtime isolation backends with no host filesystem mounts (`agent-os/specs/2026-03-08-1039-launcher-microvm-backend-v0/`, `agent-os/specs/2026-03-08-1039-container-backend-opt-in-v0/`)
+
+Parallelization: can be implemented in parallel with protocol schema drafting, but `protocol/` directory structure and `docs/trust-boundaries.md` are shared surfaces; coordinate to avoid conflicting definitions.
 
 ## Task 3: Scaffold Language Workspaces (Go + Node)
 
@@ -114,6 +118,8 @@ Deliverables:
 - `runner/scripts/boundary-check.js` plus baseline guardrail tests.
 - Minimal Go/TS entrypoints so `just` targets can run real checks.
 
+Parallelization: can be implemented in parallel across Go and runner work, but lockfile and `just ci` contract changes should be coordinated to avoid CI breakage.
+
 ## Task 4: Make `just` Real (fmt/lint/test/ci)
 
 - Update `justfile` so the stable command names from the dev-env spec become meaningful:
@@ -147,7 +153,9 @@ Deliverables:
 
 - Cross-platform requirements (Windows job runs this without Nix):
   - Avoid bashisms and unix-only tools in recipes (no `find`, `xargs`, process substitution, etc.).
-  - Use explicit `cd runner` where needed and only invoke tools that exist in the dev shell + Windows CI toolchain.
+- Use explicit `cd runner` where needed and only invoke tools that exist in the dev shell + Windows CI toolchain.
+
+Parallelization: can be implemented in parallel with language workspace scaffolding, but changes to `justfile` affect all CI jobs; coordinate to avoid breaking `just ci`.
 
 ## Task 5: CI Alignment (Keep Centralized)
 
@@ -162,6 +170,8 @@ Deliverables:
 - Version alignment guidance (avoid "works on my machine" drift as future specs land):
   - Go: keep Go version compatibility aligned with CI (Windows pins `go-version: 1.25.7`).
   - Node: keep the runner compatible with Node 22 and 24 (CI matrix); Nix dev shell may use Node 24 only.
+
+Parallelization: touches CI workflows and shared check entrypoints; avoid parallel edits with other CI-focused specs to reduce merge conflicts.
 
 ## Task 6: Repo Hygiene + Ownership Guardrails
 
@@ -181,6 +191,8 @@ Deliverables:
 - Add a minimal `.editorconfig` to reduce cross-editor churn across Go/TS/Markdown/JSON.
 - Add `.gitattributes` text normalization so cross-platform check-only CI does not drift on line endings.
 - Keep `.gitattributes` rules minimal (default to `* text=auto eol=lf`) and only add per-language overrides for real exceptions.
+
+Parallelization: can be implemented in parallel with feature specs, but CODEOWNERS and hygiene files are shared high-leverage surfaces; coordinate changes tightly.
 
 ## Acceptance Criteria
 

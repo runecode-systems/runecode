@@ -11,6 +11,8 @@ Create `agent-os/specs/2026-03-08-1128-dev-env-ci-nix-flakes/` with:
 - `references.md`
 - `visuals/` (empty)
 
+Parallelization: docs-only; safe to do anytime.
+
 ## Task 2: Add `flake.nix` Dev Shell (Project Standard)
 
 - Add a `flake.nix` using `flake-utils` `eachDefaultSystem`, similar to the reference style.
@@ -38,6 +40,8 @@ Create `agent-os/specs/2026-03-08-1128-dev-env-ci-nix-flakes/` with:
   - does not make network calls and does not mutate files outside the repo
   - avoids prepending repo-writable directories to `PATH` unless they are intentionally committed (prefer explicit `./scripts/` usage over implicit `./bin/` shadowing)
 
+Parallelization: touches high-leverage files (`flake.nix`, `flake.lock`); avoid parallel edits with other tasks that modify Nix/CI plumbing.
+
 ## Task 3: Add `direnv` Integration
 
 - Treat `direnv` and `nix-direnv` as host prerequisites (they are required before the flake can auto-load).
@@ -46,6 +50,8 @@ Create `agent-os/specs/2026-03-08-1128-dev-env-ci-nix-flakes/` with:
 - Update `.gitignore` to ignore `direnv` and common Nix build artifacts (at minimum: `.direnv/`, `result`, `result-*`).
 - Document rollback/unblock steps: `direnv deny` to stop auto-loading; `nix develop` still works as a manual fallback.
 - Ensure the experience is “enter shell on cd into repo; exit on leave”.
+
+Parallelization: can be implemented in parallel with Task 4, but both may touch `.gitignore` and repo root docs.
 
 ## Task 4: Add `justfile` Command Surface
 
@@ -59,6 +65,8 @@ Create `agent-os/specs/2026-03-08-1128-dev-env-ci-nix-flakes/` with:
   - `ci` is at minimum a smoke check that verifies the dev shell contains the expected baseline tools and prints versions.
   - `fmt`/`lint`/`test` may be placeholders initially, but the names and intent are stable and will be extended by follow-on specs.
 - Keep commands cross-platform (avoid bashisms where possible) so Windows CI can run `just ci` without Nix.
+
+Parallelization: can be implemented in parallel with CI workflow wiring, but avoid conflicts by agreeing on the canonical `just ci` contract early.
 
 ## Task 5: GitHub Actions CI Pipeline (Nix + Windows Portability)
 
@@ -81,6 +89,8 @@ Create `agent-os/specs/2026-03-08-1128-dev-env-ci-nix-flakes/` with:
   - pin installed tool versions (avoid `@latest` for CI-critical tools)
   - run `just ci` (or the equivalent underlying commands)
 
+Parallelization: touches high-leverage workflow files; avoid parallel edits with other CI-related specs to reduce merge conflicts.
+
 ## Task 6: Short Dev Docs
 
 - Add a brief “Dev environment” section explaining:
@@ -90,6 +100,8 @@ Create `agent-os/specs/2026-03-08-1128-dev-env-ci-nix-flakes/` with:
   - how CI maps to `just ci`
   - `direnv`/flake trust model (why `flake.nix`, `flake.lock`, and `.envrc` changes are reviewed carefully)
   - how to get unstuck if the flake breaks (`direnv deny`, manual `nix develop`, clearing `.direnv/`)
+
+Parallelization: can be implemented in parallel with the scaffold spec docs; coordinate on shared wording for CI/justfile conventions.
 
 ## Acceptance Criteria
 

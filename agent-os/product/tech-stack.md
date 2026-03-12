@@ -13,8 +13,9 @@
 
 - SQLite (WAL) for MVP durable local state and indexing (runs, approvals, artifact metadata, audit indexing)
 - Append-only files for large immutable blobs (CAS objects, audit log segments), with SQLite holding indexes/pointers
-- SQLite version is pinned when WAL is enabled (avoid known WAL integrity bugs; record SQLite library version in audit metadata)
 - SQLite version is pinned when WAL is enabled (include known WAL integrity fixes such as the WAL-reset fix in SQLite >= 3.52.0 or an equivalent backport; record SQLite library version in audit metadata)
+- SQLite operational guidance (MVP): avoid cross-process write contention.
+  - Prefer separate SQLite databases per subsystem (or strict transaction discipline) if contention becomes an issue; record the chosen layout and WAL mode in audit metadata.
 
 ## Other
 
