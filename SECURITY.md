@@ -11,8 +11,9 @@ Instead, use GitHub Security Advisories for private reporting:
 3. Click "Report a vulnerability".
 
 If you are unable to use GitHub Security Advisories, do not open a public
-issue. Instead, contact the maintainers privately through GitHub and request a
-private reporting channel before sharing any vulnerability details.
+issue. Instead, email the maintainer using the public contact address listed in
+this repository's signed commits and request a private reporting channel before
+sharing any vulnerability details.
 
 ## Supported Versions
 

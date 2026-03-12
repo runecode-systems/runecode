@@ -77,6 +77,22 @@ test("allows bare protocol string literals", (t) => {
   assert.equal(result.violations.length, 0);
 });
 
+test("allows bare tools string literals", (t) => {
+  const repoRoot = createTempRepo({
+    "runner/src/index.ts": "const label = 'tools';\nexport default label;\n",
+  });
+
+  t.after(() => {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  });
+
+  const result = runCheckForRepo(repoRoot);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.error, null);
+  assert.equal(result.violations.length, 0);
+});
+
 test("rejects trusted path escapes from files outside src", (t) => {
   const repoRoot = createTempRepo({
     "runner/src/index.ts": "export const ok = true;\n",

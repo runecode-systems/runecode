@@ -157,9 +157,6 @@ function checkSpecifier(filePath, specifier, config, violations) {
   }
 
   if (
-    normalized === "cmd" ||
-    normalized === "internal" ||
-    normalized === "tools" ||
     normalized.startsWith("cmd/") ||
     normalized.startsWith("internal/") ||
     normalized.startsWith("tools/")
