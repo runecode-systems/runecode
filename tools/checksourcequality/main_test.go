@@ -141,6 +141,10 @@ func TestCommentedOutCodeHeuristicsAvoidSuppressionAndAnnotations(t *testing.T) 
 		"//nolint:revive // reason",
 		"// NOTE: keep the branch fail-closed.",
 		"// TODO: add more edge cases.",
+		"// let me explain the rationale for the validation order.",
+		"// interface design choices are documented in docs/source-quality.md.",
+		"// export policy decisions are tracked in the spec.",
+		"// class design tradeoffs are documented in the ADR.",
 		"// if err != nil {",
 	}, "\n")
 

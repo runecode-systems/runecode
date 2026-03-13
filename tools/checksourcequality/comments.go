@@ -125,22 +125,59 @@ func extractCommentText(trimmed string) string {
 }
 
 func looksLikeCommentedCode(commentText string) bool {
-	if commentText == "" || hasAllowedAnnotationPrefix(commentText) {
+	if !shouldCheckCommentedCode(commentText) {
 		return false
 	}
 
-	for _, prefix := range []string{"package ", "import ", "func ", "type ", "var ", "const ", "let ", "class ", "interface ", "export ", "module.exports", "require("} {
+	return matchesImmediateCodePrefix(commentText) ||
+		looksLikeAmbiguousPrefixCode(commentText) ||
+		looksLikeAssignmentOrCall(commentText) ||
+		looksLikeControlFlowCode(commentText)
+}
+
+func shouldCheckCommentedCode(commentText string) bool {
+	return commentText != "" && !hasAllowedAnnotationPrefix(commentText)
+}
+
+func matchesImmediateCodePrefix(commentText string) bool {
+	for _, prefix := range []string{"package ", "import ", "func ", "type ", "var ", "const ", "module.exports", "require("} {
 		if strings.HasPrefix(commentText, prefix) {
 			return true
 		}
 	}
 
-	if codeAssignmentPattern.MatchString(commentText) || codeCallPattern.MatchString(commentText) {
-		return true
+	return false
+}
+
+func looksLikeAssignmentOrCall(commentText string) bool {
+	return codeAssignmentPattern.MatchString(commentText) || codeCallPattern.MatchString(commentText)
+}
+
+func looksLikeControlFlowCode(commentText string) bool {
+	for _, prefix := range []string{"if ", "for ", "switch ", "case "} {
+		if strings.HasPrefix(commentText, prefix) {
+			return strings.ContainsAny(commentText, "{}()[]=<>") || strings.Contains(commentText, ":=")
+		}
 	}
 
-	if strings.HasPrefix(commentText, "if ") || strings.HasPrefix(commentText, "for ") || strings.HasPrefix(commentText, "switch ") || strings.HasPrefix(commentText, "case ") {
-		return strings.ContainsAny(commentText, "{}()[]=<>") || strings.Contains(commentText, ":=")
+	return false
+}
+
+func looksLikeAmbiguousPrefixCode(commentText string) bool {
+	switch {
+	case strings.HasPrefix(commentText, "let "):
+		return strings.Contains(commentText, "=")
+	case strings.HasPrefix(commentText, "class "):
+		return strings.Contains(commentText, " extends ") || strings.ContainsAny(commentText, "{(")
+	case strings.HasPrefix(commentText, "interface "):
+		return strings.Contains(commentText, " extends ") || strings.Contains(commentText, "{")
+	case strings.HasPrefix(commentText, "export "):
+		rest := strings.TrimSpace(strings.TrimPrefix(commentText, "export "))
+		for _, prefix := range []string{"default ", "const ", "let ", "var ", "function ", "class ", "interface ", "type ", "{"} {
+			if strings.HasPrefix(rest, prefix) {
+				return true
+			}
+		}
 	}
 
 	return false
