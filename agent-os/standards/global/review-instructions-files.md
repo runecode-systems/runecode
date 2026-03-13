@@ -8,6 +8,9 @@ Applies to: `.github/instructions/*.instructions.md`
   - "Use these references" (source-of-truth paths)
   - "When reviewing... focus on" bullets
   - Escalation note (what to raise, when)
+- When scopes overlap, keep detailed policy in one dedicated instruction file.
+- Nearby scoped instruction files should point to that file instead of restating the same policy.
+- Keep overlap intentional; avoid competing `applyTo` ownership for the same detailed guidance.
 
 ```md
 ---
@@ -20,3 +23,7 @@ Use these references:
 When reviewing changes in this scope, focus on:
 - ...
 ```
+
+Example:
+- `source-quality.instructions.md` holds detailed source-quality review logic
+- Go, runner, and CI instruction files point to it instead of duplicating the full policy
