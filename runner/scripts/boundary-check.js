@@ -1,3 +1,5 @@
+// Enforces the runner trust boundary by rejecting imports and path references
+// that escape the allowed protocol-only cross-boundary surface.
 const fs = require("node:fs");
 const path = require("node:path");
 

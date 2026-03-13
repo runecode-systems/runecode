@@ -1,0 +1,6 @@
+{
+  "runnerTier1Paths": [
+    "runner/scripts/boundary-check.js"
+  ],
+  "tier1SuppressionExceptions": []
+}

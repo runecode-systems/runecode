@@ -1,3 +1,5 @@
+golangci_lint := "github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8"
+
 default:
   @just --list
 
@@ -6,7 +8,9 @@ fmt:
 
 lint:
   go run ./tools/gofmtcheck
+  go run {{golangci_lint}} run
   go vet ./...
+  go run ./tools/checksourcequality
   cd runner && npm run lint
   cd runner && npm run boundary-check
 
@@ -16,7 +20,9 @@ test:
 
 ci:
   go run ./tools/gofmtcheck
+  go run {{golangci_lint}} run
   go vet ./...
+  go run ./tools/checksourcequality
   go test ./...
   go build ./cmd/...
   cd runner && npm ci

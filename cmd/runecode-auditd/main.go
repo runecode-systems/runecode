@@ -1,3 +1,4 @@
+// Command runecode-auditd prints scaffold output for the audit daemon.
 package main
 
 import (

@@ -1,3 +1,4 @@
+// Command runecode-secretsd prints scaffold output for the secrets daemon.
 package main
 
 import (

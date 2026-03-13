@@ -1,3 +1,4 @@
+// Command gofmtcheck enforces deterministic Go formatting checks for the repo.
 package main
 
 import (

@@ -33,6 +33,7 @@ These standards apply to implementation work produced from this spec.
   - intentionally surprising behavior.
 - Comments should not merely narrate syntax or restate variable/function names.
 - Commented-out code should be removed rather than preserved inline, unless a generator or intentionally disabled snippet is required and documented.
+- Commented-out-code detection should avoid false positives on valid suppression directives, annotation prefixes such as `NOTE:` / `TODO:` / `SECURITY:`, and ordinary explanatory prose.
 - Tests should prefer descriptive names over explanatory comments; add comments only when fixtures or cross-platform/security behavior are not obvious.
 - Test/source classification must be deterministic:
   - Go tests use `_test.go`.
@@ -61,6 +62,7 @@ These standards apply to implementation work produced from this spec.
 - Initial function-length targets are:
   - Tier 1: 40 lines
   - Tier 2: 60 lines
+- Go function-length measurement should use the function body span rather than the full declaration span.
 - Use ratcheted exception mechanisms for legacy oversized files instead of indefinite blanket exemptions.
 - The ratchet mechanism uses a checked-in repo-root file named `.source-quality-baseline.json` with per-file caps and rationales.
 - New code and high-risk code should be held to stricter defaults first.
@@ -97,6 +99,7 @@ These standards apply to implementation work produced from this spec.
   - no eligible files found => fail,
   - eligible-file read/parse failure => fail,
   - policy violation => fail.
+- Requested scan roots must remain within the current repo/workspace boundary.
 - Exit semantics should be consistent and predictable:
   - pass => `0`
   - check failure / policy violation => `1`

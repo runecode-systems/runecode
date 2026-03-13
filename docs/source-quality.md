@@ -148,7 +148,7 @@ Treat the following as Tier 1 protected policy surfaces:
 Runner classification is deterministic:
 
 - `runner/**` defaults to Tier 2.
-- Only runner files explicitly listed by the repo-specific checker configuration as trust-boundary, policy, or guardrail enforcement code are Tier 1.
+- Only runner files explicitly listed in `.source-quality-config.json` as trust-boundary, policy, or guardrail enforcement code are Tier 1.
 - Current examples include the runner boundary guardrail under `runner/scripts/`.
 
 Tools classification is also deterministic:
@@ -198,14 +198,14 @@ Each baseline entry should be explicit about what is temporarily permitted, incl
 
 Baseline entries may be reduced or removed over time, but should not be increased without explicit review and written justification.
 
-Any deterministic Tier 1 runner override or other checker-owned exception should also live in checked-in checker configuration rather than relying on reviewer memory.
+Any deterministic Tier 1 runner override or other checker-owned exception should also live in `.source-quality-config.json` rather than relying on reviewer memory.
 
 ## Suppression Expectations
 
 - Ordinary source-quality suppressions may exist only with a specific reason.
 - Bare suppressions or vague reasons like `legacy` are not sufficient.
 - Tier 1 security- or boundary-sensitive suppressions are prohibited inline by default.
-- Any reviewed Tier 1 suppression exception must live in checked-in checker-owned configuration with a rationale and review reference; it must not be a casual inline escape.
+- Any reviewed Tier 1 suppression exception must live in `.source-quality-config.json` with a rationale and review reference; it must not be a casual inline escape.
 
 ## Enforcement Expectations
 

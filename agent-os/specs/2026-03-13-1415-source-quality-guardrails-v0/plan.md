@@ -117,6 +117,10 @@ Parallelization: can be designed in parallel with comment-quality rules; both sh
 Implementation guidance:
 - Prefer mechanical checks for low-subjectivity cases (commented-out code, bare suppression comments without reasons, obvious placeholder docs).
 - Leave nuanced prose-quality judgment to review when automation would be too brittle.
+- Commented-out-code detection must favor low false-positive behavior over broad pattern matching.
+  - Valid suppression directives must not also be flagged as commented-out code.
+  - Annotation prefixes such as `NOTE:`, `TODO:`, and `SECURITY:` must remain allowed when they contain prose guidance rather than preserved code.
+  - Ordinary explanatory prose that begins with words like `if`, `for`, or `return` must not be treated as code unless the comment also has clear code-like structure.
 
 Parallelization: can be implemented in parallel with complexity checks, but suppression-comment requirements should be shared across both.
 
@@ -148,6 +152,7 @@ Parallelization: can be implemented in parallel with complexity checks, but supp
     - Tier 1 functions: max `10`
     - Tier 2 functions: max `15`
     - provisional function-length defaults: Tier 1 `40` lines, Tier 2 `60` lines
+    - Go function-length measurement should use the function body span rather than the full declaration span.
   - Start with high-risk directories first if repo-wide rollout would create too much immediate debt.
 - Rollout policy:
   - New code should meet current defaults.
@@ -169,6 +174,10 @@ Required ratchet format:
   - issue or follow-up reference if one exists.
 - Baseline entries may be removed or reduced over time, but should not be increased without explicit review and written justification.
 - Any deterministic Tier 1 runner override or other reviewed checker-owned exception must live in checked-in checker configuration rather than reviewer memory.
+- Checker implementation details decided during v0 rollout:
+  - Generated-file detection should scan multiple leading non-blank lines so standard generated markers still work when a copyright header comes first.
+  - Root-path validation should fail closed when a requested scan root escapes the current repo/workspace boundary.
+  - File discovery should avoid unnecessary double-reads of source content so the same bytes are used for generated-file classification and rule evaluation.
 
 Parallelization: threshold selection can be done in parallel with tooling prototyping, but must converge before `just lint` integration.
 
@@ -239,6 +248,8 @@ Required verification:
   - threshold boundary conditions,
   - suppression parsing and reason enforcement,
   - ratchet baseline behavior,
+  - commented-out-code false-positive regressions for prose comments, suppression comments, and allowed annotation prefixes,
+  - cognitive-complexity violations,
   - fail-closed behavior,
   - cross-platform path handling if the checker resolves paths.
 - The checker must pass on its own implementation files before merge.

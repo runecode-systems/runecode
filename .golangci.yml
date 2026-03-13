@@ -1,0 +1,22 @@
+linters:
+  disable-all: true
+  enable:
+    - funlen
+    - gocognit
+    - nolintlint
+    - revive
+
+linters-settings:
+  funlen:
+    lines: 60
+    statements: 40
+  gocognit:
+    min-complexity: 15
+  nolintlint:
+    require-explanation: true
+    require-specific: true
+  revive:
+    rules:
+      - name: package-comments
+      - name: exported
+      - name: comment-spacings

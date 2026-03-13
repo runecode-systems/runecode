@@ -1,3 +1,4 @@
+// Command runecode-tui launches the scaffold terminal UI.
 package main
 
 import (
