@@ -1,3 +1,4 @@
+// Command runecode-broker prints scaffold output for the broker binary.
 package main
 
 import (

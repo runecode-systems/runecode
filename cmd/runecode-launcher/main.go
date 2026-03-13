@@ -1,3 +1,4 @@
+// Command runecode-launcher prints scaffold output for the launcher binary.
 package main
 
 import (

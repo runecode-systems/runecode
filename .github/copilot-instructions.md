@@ -4,6 +4,7 @@ When reviewing pull requests in this repository:
 
 - Treat these files as source of truth for conventions:
   - `/docs/trust-boundaries.md`
+  - `/docs/source-quality.md`
   - `/CONTRIBUTING.md`
   - `/justfile`
   - `/.github/workflows/ci.yml`
@@ -32,4 +33,19 @@ Review expectations:
   - `cd runner && npm run lint`
   - `cd runner && npm test`
   - `cd runner && npm run boundary-check`
+- Treat source-quality enforcement surfaces as protected review areas:
+  - `/justfile`
+  - `/tools/checksourcequality/`
+  - `/.source-quality-baseline.json`
+  - `/.source-quality-config.json`
+  - `/.golangci.yml`
+  - `/runner/eslint.config.*`
+  - `/docs/source-quality.md`
+  - `/.github/instructions/`
+- For detailed source-quality review criteria, follow `/docs/source-quality.md` and `/.github/instructions/source-quality.instructions.md`.
+- Distinguish hard-fail source-quality rules from review guidance:
+  - hard-fail rules should stay deterministic and tool-friendly,
+  - higher-judgment questions such as whether a subsystem needs a spec/doc/ADR update should remain review guidance.
+- Reject source-quality suppressions that lack concrete rationale or a reviewed exception path.
+- If a trust-boundary, policy, protocol-validation, secrets, or audit change needs paragraph-level explanation, ask for a maintained doc/spec/ADR update instead of only requesting more inline comments.
 - If roadmap or spec docs change, verify they follow `agent-os/standards/product/roadmap-conventions.md`.

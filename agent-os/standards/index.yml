@@ -27,6 +27,8 @@ global:
     description: DCO sign-off requirement for every commit
   deterministic-check-write-tools:
     description: Deterministic tooling pattern (check-only by default, explicit write mode)
+  language-aware-source-docs:
+    description: Language-aware docs and anti-boilerplate comment expectations
   pr-review-finding-format:
     description: Standard PR review finding format and prioritization
   repo-hygiene-baseline:
@@ -35,6 +37,12 @@ global:
     description: Repo-local helper tools over shell pipelines
   review-instructions-files:
     description: Conventions for `.github/instructions/*.instructions.md` files
+  source-quality-enforcement-layering:
+    description: Layered source-quality enforcement with golangci-lint floor and repo-specific checker
+  source-quality-protected-surfaces:
+    description: Protected source-quality policy, tooling, and config surfaces
+  source-quality-reviewed-exceptions:
+    description: Checked-in source-quality exceptions with rationale and follow-up references
 
 javascript:
   node-engine-enforcement:

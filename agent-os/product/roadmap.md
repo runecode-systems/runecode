@@ -12,6 +12,8 @@ This is the canonical view of what is planned next (as specs) and what has shipp
   - Standard dev shell via Nix + direnv + just; CI runs equivalent checks across OSes.
 - [x] Monorepo Scaffold + Package Boundaries (`agent-os/specs/2026-03-08-1039-scaffold-ci-matrix/`)
   - Clear Go/TS package boundaries with a consistent local build/test/lint loop.
+- [x] Source Quality Guardrails v0 (`agent-os/specs/2026-03-13-1415-source-quality-guardrails-v0/`)
+  - Keep security-sensitive Go and runner code maintainable with language-aware docs, complexity limits, and a repo-specific source-quality gate.
 - [ ] Protocol & Schema Bundle v0 (`agent-os/specs/2026-03-08-1039-protocol-schemas-v0/`)
   - Cross-boundary messages/manifests are schema-validated and hash-addressable.
 

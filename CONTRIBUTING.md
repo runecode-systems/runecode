@@ -103,5 +103,6 @@ See `CODE_OF_CONDUCT.md`.
 - Keep changes focused and well-described.
 - Ensure your commits are signed off (`git commit -s`).
 - Ensure tests/lint pass for the areas you changed.
+- Review `docs/source-quality.md` when your change affects trust-boundary logic, policy/enforcement tooling, or other protected source-quality surfaces.
 
 If you are unsure about a design direction, open an issue first.

@@ -20,6 +20,7 @@ Guidance for agentic coding agents working in this repository.
 - `tools/` - repo-local helper tools
 - `agent-os/` - specs, standards, roadmap/product docs
 - `docs/trust-boundaries.md` - boundary contract and prohibited bypasses
+- `docs/source-quality.md` - source-quality policy and enforcement expectations
 
 ## Toolchain baseline
 - Go: `1.25.x` (`go.mod`)
@@ -42,7 +43,9 @@ Run from repo root unless noted.
 
 `just lint` runs:
 - `go run ./tools/gofmtcheck`
+- `go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 run`
 - `go vet ./...`
+- `go run ./tools/checksourcequality`
 - `cd runner && npm run lint`
 - `cd runner && npm run boundary-check`
 
@@ -51,7 +54,7 @@ Run from repo root unless noted.
 - `cd runner && npm test`
 
 `just ci` runs:
-- gofmt check, vet, Go tests, and `go build ./cmd/...`
+- gofmt check, pinned `golangci-lint`, vet, source-quality checks, Go tests, and `go build ./cmd/...`
 - `cd runner && npm ci && npm run lint && npm test && npm run boundary-check`
 
 ## Single-test recipes (important)
@@ -148,6 +151,7 @@ Additional scoped instruction files:
 - `/.github/instructions/go-control-plane.instructions.md`
 - `/.github/instructions/runner-boundary.instructions.md`
 - `/.github/instructions/ci-tooling.instructions.md`
+- `/.github/instructions/source-quality.instructions.md`
 - `/.github/instructions/agent-os-docs.instructions.md`
 
 Cursor rules status in this repo:
