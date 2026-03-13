@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditReceipt.schema.json",
+  "title": "AuditReceipt",
+  "description": "Protocol-owned audit receipt family. Receipts bind back to event digests without inventing a separate registry namespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 3,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "event_digest"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.AuditReceipt",
+      "description": "Stable protocol object-family identifier for audit receipts.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this audit receipt.",
+      "x-data-class": "public"
+    },
+    "event_digest": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Digest reference for the audit event acknowledged by this receipt.",
+      "x-data-class": "public"
+    }
+  }
+}

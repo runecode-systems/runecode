@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/meta/manifest.schema.json",
+  "title": "ProtocolSchemaManifest",
+  "description": "Machine-readable schema for the protocol schema bundle manifest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "bundle_id",
+    "bundle_version",
+    "json_schema_draft",
+    "runtime_schema_prefix",
+    "canonicalization",
+    "top_level_object_requirements",
+    "schema_files",
+    "registries"
+  ],
+  "$defs": {
+    "schemaStatus": {
+      "type": "string",
+      "enum": [
+        "mvp",
+        "reserved"
+      ],
+      "description": "Bundle status for the schema family or registry entry."
+    },
+    "schemaManifestEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "schema_id",
+        "schema_version",
+        "owner",
+        "status"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^objects/.+\\.schema\\.json$",
+          "description": "Workspace-relative path to the schema file within protocol/schemas/."
+        },
+        "schema_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^runecode\\.protocol\\.v0\\.[A-Za-z][A-Za-z0-9]*$",
+          "description": "Stable runtime schema identifier for the object family."
+        },
+        "schema_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Exact schema version string for the object family."
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Documentation owner for the object family."
+        },
+        "status": {
+          "$ref": "#/$defs/schemaStatus"
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "description": "Optional human-readable note clarifying placeholder or rollout semantics for the object family."
+        }
+      }
+    },
+    "registryManifestEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "name",
+        "namespace",
+        "documentation_owner",
+        "status"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^registries/.+\\.registry\\.json$",
+          "description": "Workspace-relative path to the registry file within protocol/schemas/."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Registry name used in protocol field documentation."
+        },
+        "namespace": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Stable namespace prefix for machine-consumed registry values."
+        },
+        "documentation_owner": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Documentation owner for the registry."
+        },
+        "status": {
+          "$ref": "#/$defs/schemaStatus"
+        }
+      }
+    }
+  },
+  "properties": {
+    "bundle_id": {
+      "const": "runecode.protocol.v0",
+      "description": "Stable identifier for this protocol schema bundle."
+    },
+    "bundle_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Bundle version string for the checked-in schema bundle."
+    },
+    "json_schema_draft": {
+      "const": "2020-12",
+      "description": "JSON Schema draft version used by the bundle."
+    },
+    "runtime_schema_prefix": {
+      "const": "runecode.protocol.v0.",
+      "description": "Required prefix for runtime schema_id values owned by this bundle."
+    },
+    "canonicalization": {
+      "const": "RFC8785-JCS",
+      "description": "Canonicalization profile used for hashing and signing."
+    },
+    "top_level_object_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "require_schema_id",
+        "require_schema_version",
+        "unknown_schema_posture"
+      ],
+      "properties": {
+        "require_schema_id": {
+          "const": true,
+          "description": "Whether all top-level protocol objects must include schema_id."
+        },
+        "require_schema_version": {
+          "const": true,
+          "description": "Whether all top-level protocol objects must include schema_version."
+        },
+        "unknown_schema_posture": {
+          "const": "fail_closed",
+          "description": "Failure posture for unknown top-level object families or versions."
+        }
+      },
+      "description": "Shared requirements applied to every persisted or cross-boundary top-level object."
+    },
+    "schema_files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/schemaManifestEntry"
+      },
+      "description": "Authoritative list of object-family schemas shipped in this bundle."
+    },
+    "registries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "$ref": "#/$defs/registryManifestEntry"
+      },
+      "description": "Authoritative list of machine-consumed code registries shipped in this bundle."
+    }
+  }
+}

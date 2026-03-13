@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ApprovalDecision.schema.json",
+  "title": "ApprovalDecision",
+  "description": "Protocol-owned approval decision family reserved for hash-bound approval outcomes and receipts.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 2,
+  "required": [
+    "schema_id",
+    "schema_version"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.ApprovalDecision",
+      "description": "Stable protocol object-family identifier for approval decisions.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this approval decision.",
+      "x-data-class": "public"
+    }
+  }
+}

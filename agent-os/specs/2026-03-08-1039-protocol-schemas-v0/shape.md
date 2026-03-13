@@ -19,12 +19,19 @@ Refine the schema foundation for manifests, identities, approvals, artifacts/pro
 - Principal identity is a shared protocol concern; requests, approvals, leases, receipts, and audit events use the same identity model.
 - Signed/canonicalized objects require deterministic serialization; canonicalization is RFC 8785 JCS validated via cross-language golden fixtures.
 - Signed objects use a standardized signature envelope including `{alg, key_id, signature}` and sign the detached payload's JCS canonical bytes.
+- The shared signature block is schema-allowlisted to MVP-safe algorithms and the detached payload wrapper requires object payloads with explicit schema identity/version metadata.
+- The detached payload wrapper is classified fail-safe as `secret` until broker-side recursive schema introspection can apply nested field classifications precisely.
 - Error codes, policy reason codes, and approval trigger codes are distinct registries; no downstream spec should conflate them.
+- Shared registries use separate namespaces and Task 2 verification now treats cross-registry code reuse as a fail-closed error rather than relying on namespace disambiguation alone.
 - Artifact origin must be replaced by typed provenance or receipt objects that link artifacts to producing principals, stages, and audit events.
 - Schemas carry field-level data classification metadata (`public | sensitive | secret`) to support structural redaction and boundary enforcement.
+- Shared schemas include conservative structural bounds, field-level descriptions, and bidirectional manifest verification so stray files, escaped manifest paths, and undocumented property contracts fail closed.
+- Shared `$ref` definitions are verified with the same invariant checks as inline schemas so reusable digest/signature fragments cannot drift silently.
+- MVP-scoped placeholder families remain explicit via manifest notes; dedicated later tasks add their remaining fields under schema-versioned follow-up work instead of silently widening Task 2 shells.
 - The broker is the canonical enforcement point for schema-driven secret/sensitive field rejection or stripping at the trusted/untrusted boundary.
 - MVP favors a single schema source of truth that can be validated in both Go and TS.
 - MVP uses JSON Schema draft 2020-12 and JSON-on-wire; the logical object model remains encoding-agnostic so on-wire RPC can migrate post-MVP to protobuf over local IPC.
+- Bundle metadata (`manifest.json` and registry files) also has machine-readable meta-schemas, and schema-document `$id` URIs are canonical identifiers rather than a network fetch contract.
 - MVP runtime posture is same-schema-bundle only; upgrades are coordinated restarts rather than mixed-version live negotiation.
 - Auth and bridge-provider object families are reserved now at the shared-contract level, but provider-specific OAuth/RPC details stay in dedicated later specs.
 

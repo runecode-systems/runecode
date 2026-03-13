@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/LLMResponse.schema.json",
+  "title": "LLMResponse",
+  "description": "Protocol-owned model response family reserved for typed, auditable gateway outputs.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 2,
+  "required": [
+    "schema_id",
+    "schema_version"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.LLMResponse",
+      "description": "Stable protocol object-family identifier for model response objects.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this model response object.",
+      "x-data-class": "public"
+    }
+  }
+}

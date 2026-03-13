@@ -1,0 +1,8 @@
+{
+  "registry_name": "approval_trigger_code",
+  "namespace": "runecode.protocol.approval.trigger",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Stable machine-consumed trigger codes that explain why human approval is required.",
+  "codes": []
+}

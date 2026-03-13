@@ -1,0 +1,8 @@
+{
+  "registry_name": "policy_reason_code",
+  "namespace": "runecode.protocol.policy.reason",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Stable machine-consumed reason codes for deterministic policy outcomes.",
+  "codes": []
+}

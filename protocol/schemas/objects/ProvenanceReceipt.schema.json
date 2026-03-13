@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ProvenanceReceipt.schema.json",
+  "title": "ProvenanceReceipt",
+  "description": "Protocol-owned provenance receipt family. This initial version reserves the family and binds receipts to a subject digest and detached signature material.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 4,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "artifact_digest",
+    "signatures"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.ProvenanceReceipt",
+      "description": "Stable protocol object-family identifier for provenance receipts.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this provenance receipt.",
+      "x-data-class": "public"
+    },
+    "artifact_digest": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Digest reference for the artifact whose provenance this receipt attests to.",
+      "x-data-class": "public"
+    },
+    "signatures": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "description": "Detached signatures attesting to the provenance receipt contents.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "SignedObjectEnvelope.schema.json#/$defs/signatureBlock",
+        "description": "Detached signature block for the provenance receipt payload."
+      }
+    }
+  }
+}

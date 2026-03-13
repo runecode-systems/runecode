@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ProcessDefinition.schema.json",
+  "title": "ProcessDefinition",
+  "description": "Protocol-owned reserved process definition family. Future capability expansion requires a schema_version bump and security review.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 2,
+  "required": [
+    "schema_id",
+    "schema_version"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.ProcessDefinition",
+      "description": "Stable protocol object-family identifier for reserved process definition objects.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this reserved process definition.",
+      "x-data-class": "public"
+    }
+  }
+}

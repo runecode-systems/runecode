@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/PolicyDecision.schema.json",
+  "title": "PolicyDecision",
+  "description": "Protocol-owned policy decision family. Deterministic outcomes use policy_reason_code values, not error or approval registries.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 3,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "policy_reason_code"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.PolicyDecision",
+      "description": "Stable protocol object-family identifier for policy decisions.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this policy decision.",
+      "x-data-class": "public"
+    },
+    "policy_reason_code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Machine-consumed reason code explaining the deterministic policy outcome.",
+      "x-data-class": "public"
+    }
+  }
+}

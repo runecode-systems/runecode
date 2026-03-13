@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/WorkflowDefinition.schema.json",
+  "title": "WorkflowDefinition",
+  "description": "Protocol-owned reserved workflow definition family. Future capability expansion requires a schema_version bump and security review.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 2,
+  "required": [
+    "schema_id",
+    "schema_version"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.WorkflowDefinition",
+      "description": "Stable protocol object-family identifier for reserved workflow definition objects.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this reserved workflow definition.",
+      "x-data-class": "public"
+    }
+  }
+}

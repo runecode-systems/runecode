@@ -1,0 +1,174 @@
+{
+  "bundle_id": "runecode.protocol.v0",
+  "bundle_version": "0.1.0",
+  "json_schema_draft": "2020-12",
+  "runtime_schema_prefix": "runecode.protocol.v0.",
+  "canonicalization": "RFC8785-JCS",
+  "top_level_object_requirements": {
+    "require_schema_id": true,
+    "require_schema_version": true,
+    "unknown_schema_posture": "fail_closed"
+  },
+  "schema_files": [
+    {
+      "path": "objects/RoleManifest.schema.json",
+      "schema_id": "runecode.protocol.v0.RoleManifest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/CapabilityManifest.schema.json",
+      "schema_id": "runecode.protocol.v0.CapabilityManifest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/PrincipalIdentity.schema.json",
+      "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/Digest.schema.json",
+      "schema_id": "runecode.protocol.v0.Digest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ArtifactReference.schema.json",
+      "schema_id": "runecode.protocol.v0.ArtifactReference",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProvenanceReceipt.schema.json",
+      "schema_id": "runecode.protocol.v0.ProvenanceReceipt",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditEvent.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEvent",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditReceipt.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditReceipt",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp",
+      "note": "Minimal family anchor for Task 4. Additional approval request fields land with the owning task and a schema version bump."
+    },
+    {
+      "path": "objects/ApprovalDecision.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalDecision",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp",
+      "note": "Minimal family anchor for Task 4. Additional approval decision fields land with the owning task and a schema version bump."
+    },
+    {
+      "path": "objects/PolicyDecision.schema.json",
+      "schema_id": "runecode.protocol.v0.PolicyDecision",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp",
+      "note": "Minimal family anchor for Task 5. Decision outcome and detail fields land with the owning task and a schema version bump."
+    },
+    {
+      "path": "objects/LLMRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.LLMRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/LLMResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.LLMResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/LLMStreamEvent.schema.json",
+      "schema_id": "runecode.protocol.v0.LLMStreamEvent",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SignedObjectEnvelope.schema.json",
+      "schema_id": "runecode.protocol.v0.SignedObjectEnvelope",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/Error.schema.json",
+      "schema_id": "runecode.protocol.v0.Error",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp",
+      "note": "Minimal family anchor for Task 5. Category, retryability, and typed details fields land with the owning task and a schema version bump."
+    },
+    {
+      "path": "objects/WorkflowDefinition.schema.json",
+      "schema_id": "runecode.protocol.v0.WorkflowDefinition",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "reserved"
+    },
+    {
+      "path": "objects/ProcessDefinition.schema.json",
+      "schema_id": "runecode.protocol.v0.ProcessDefinition",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "reserved"
+    }
+  ],
+  "registries": [
+    {
+      "path": "registries/error.code.registry.json",
+      "name": "error.code",
+      "namespace": "runecode.protocol.error.code",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "registries/policy_reason_code.registry.json",
+      "name": "policy_reason_code",
+      "namespace": "runecode.protocol.policy.reason",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "registries/approval_trigger_code.registry.json",
+      "name": "approval_trigger_code",
+      "namespace": "runecode.protocol.approval.trigger",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "registries/audit_event_type.registry.json",
+      "name": "audit_event_type",
+      "namespace": "runecode.protocol.audit.event_type",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    }
+  ]
+}

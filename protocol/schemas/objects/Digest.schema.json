@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/Digest.schema.json",
+  "title": "Digest",
+  "description": "Protocol-owned digest reference family. MVP shared content-addressed references pin sha256 and fail closed for unknown algorithms.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 4,
+  "$defs": {
+    "digestValue": {
+      "description": "Reusable digest fragment for content-addressed protocol references.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 2,
+      "required": [
+        "hash_alg",
+        "hash"
+      ],
+      "properties": {
+        "hash_alg": {
+          "const": "sha256",
+          "description": "Hash algorithm identifier for shared protocol digests. MVP pins this to sha256.",
+          "x-data-class": "public"
+        },
+        "hash": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Lowercase hexadecimal sha256 digest bytes.",
+          "x-data-class": "public"
+        }
+      }
+    }
+  },
+  "required": [
+    "schema_id",
+    "schema_version",
+    "hash_alg",
+    "hash"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.Digest",
+      "description": "Stable protocol object-family identifier for digest objects.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this digest object.",
+      "x-data-class": "public"
+    },
+    "hash_alg": {
+      "const": "sha256",
+      "description": "Hash algorithm identifier for this digest object.",
+      "x-data-class": "public"
+    },
+    "hash": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Lowercase hexadecimal digest value for the referenced content.",
+      "x-data-class": "public"
+    }
+  }
+}

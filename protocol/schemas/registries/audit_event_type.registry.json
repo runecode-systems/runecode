@@ -1,0 +1,8 @@
+{
+  "registry_name": "audit_event_type",
+  "namespace": "runecode.protocol.audit.event_type",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Stable machine-consumed event types for audit event classification.",
+  "codes": []
+}

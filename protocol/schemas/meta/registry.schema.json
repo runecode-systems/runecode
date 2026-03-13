@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/meta/registry.schema.json",
+  "title": "ProtocolCodeRegistry",
+  "description": "Machine-readable schema for protocol code registry files.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "registry_name",
+    "namespace",
+    "documentation_owner",
+    "status",
+    "description",
+    "codes"
+  ],
+  "$defs": {
+    "registryStatus": {
+      "type": "string",
+      "enum": [
+        "mvp",
+        "reserved"
+      ],
+      "description": "Bundle status for the registry."
+    },
+    "registryCode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "summary"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Stable machine-consumed code value within the registry namespace."
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "description": "Human-readable summary describing the semantics of the code value."
+        }
+      },
+      "description": "Documented code entry inside the registry."
+    }
+  },
+  "properties": {
+    "registry_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Protocol field name or concept owning this registry."
+    },
+    "namespace": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Stable namespace prefix for machine-consumed codes in this registry."
+    },
+    "documentation_owner": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Documentation owner for the registry contents."
+    },
+    "status": {
+      "$ref": "#/$defs/registryStatus"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "Human-readable description of the registry scope."
+    },
+    "codes": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/registryCode"
+      },
+      "description": "Documented code entries defined by this registry."
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/Error.schema.json",
+  "title": "Error",
+  "description": "Protocol-owned shared error envelope family. Error codes come only from the dedicated error.code registry.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 4,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "code",
+    "message"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.Error",
+      "description": "Stable protocol object-family identifier for shared error envelopes.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this error object.",
+      "x-data-class": "public"
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Machine-consumed error code from the dedicated error.code registry.",
+      "x-data-class": "public"
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "Human-facing non-sensitive error summary associated with the stable error code.",
+      "x-data-class": "public"
+    }
+  }
+}

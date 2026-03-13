@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/LLMStreamEvent.schema.json",
+  "title": "LLMStreamEvent",
+  "description": "Protocol-owned streaming event family reserved for ordered incremental output and terminal status events.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 3,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "event_type"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.LLMStreamEvent",
+      "description": "Stable protocol object-family identifier for model streaming events.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this streaming event object.",
+      "x-data-class": "public"
+    },
+    "event_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Machine-consumed streaming event kind for ordered model output delivery.",
+      "x-data-class": "public"
+    }
+  }
+}

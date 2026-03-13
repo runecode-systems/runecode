@@ -1,0 +1,21 @@
+{
+  "registry_name": "error.code",
+  "namespace": "runecode.protocol.error.code",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Stable machine-consumed transport, validation, storage, auth, and runtime failure codes.",
+  "codes": [
+    {
+      "code": "unknown_schema_id",
+      "summary": "The schema_id is not registered in the local protocol bundle."
+    },
+    {
+      "code": "unsupported_schema_version",
+      "summary": "The schema_id is known but the exact schema_version is not supported."
+    },
+    {
+      "code": "unsupported_hash_algorithm",
+      "summary": "A digest reference uses a hash_alg value outside the MVP sha256 allowlist."
+    }
+  ]
+}

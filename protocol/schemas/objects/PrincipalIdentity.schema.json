@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/PrincipalIdentity.schema.json",
+  "title": "PrincipalIdentity",
+  "description": "Protocol-owned shared identity family for human, daemon, role-instance, local-client, and external-runtime actors.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 5,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "actor_kind": {
+            "const": "role_instance"
+          }
+        },
+        "required": [
+          "actor_kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "role_kind"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "actor_kind": {
+            "enum": [
+              "user",
+              "local_client"
+            ]
+          }
+        },
+        "required": [
+          "actor_kind"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "role_kind"
+          ]
+        }
+      }
+    }
+  ],
+  "required": [
+    "schema_id",
+    "schema_version",
+    "actor_kind",
+    "principal_id"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.PrincipalIdentity",
+      "description": "Stable protocol object-family identifier for principal identity objects.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this identity object.",
+      "x-data-class": "public"
+    },
+    "actor_kind": {
+      "type": "string",
+      "enum": [
+        "user",
+        "daemon",
+        "role_instance",
+        "local_client",
+        "external_runtime"
+      ],
+      "description": "Actor category for the identified caller or runtime principal.",
+      "x-data-class": "public"
+    },
+    "principal_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Stable principal identifier for the actor instance, session, or caller identity.",
+      "x-data-class": "sensitive"
+    },
+    "role_kind": {
+      "type": "string",
+      "enum": [
+        "workspace",
+        "gateway",
+        "auth",
+        "model",
+        "git",
+        "web",
+        "deps"
+      ],
+      "description": "Role category bound to the principal when the actor is role-scoped or gateway-like.",
+      "x-data-class": "public"
+    }
+  }
+}

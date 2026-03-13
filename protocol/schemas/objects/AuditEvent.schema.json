@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditEvent.schema.json",
+  "title": "AuditEvent",
+  "description": "Protocol-owned audit event family. Event classification stays in the dedicated audit_event_type registry.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 3,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "audit_event_type"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.AuditEvent",
+      "description": "Stable protocol object-family identifier for audit events.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this audit event.",
+      "x-data-class": "public"
+    },
+    "audit_event_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Machine-consumed audit event classification value from the audit_event_type registry.",
+      "x-data-class": "public"
+    }
+  }
+}

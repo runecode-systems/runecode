@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ApprovalRequest.schema.json",
+  "title": "ApprovalRequest",
+  "description": "Protocol-owned approval request family. Approval triggers stay in their own registry and do not reuse error or policy codes.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 3,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "approval_trigger_code"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.ApprovalRequest",
+      "description": "Stable protocol object-family identifier for approval requests.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this approval request.",
+      "x-data-class": "public"
+    },
+    "approval_trigger_code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Machine-consumed trigger code explaining why human approval is being requested.",
+      "x-data-class": "public"
+    }
+  }
+}

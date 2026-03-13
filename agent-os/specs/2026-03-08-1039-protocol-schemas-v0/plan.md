@@ -67,6 +67,24 @@ Signed object envelope requirements (MVP):
 - use a detached payload signing model: `signature` covers the RFC 8785 JCS canonical bytes of the payload object before any signature wrapper fields are attached
 - implementations must never sign language-specific serialized forms or self-referential objects that include their own `signature` field
 
+Implementation findings + decisions after the initial Task 2 review:
+- `SignedObjectEnvelope.payload` is constrained to object payloads that carry `schema_id` and `schema_version`; the detached wrapper no longer accepts arbitrary JSON scalars or nulls.
+- `SignedObjectEnvelope.payload` is classified as `secret` at the wrapper layer so nested secret-bearing payload families fail safe even before broker-side schema introspection recurses into the payload schema.
+- MVP signature algorithms are explicitly allowlisted at the schema layer; Task 2 pins the shared signature block to `ed25519` rather than accepting arbitrary `alg` strings.
+- Conservative structural limits (`maxLength`, `maxItems`, `maxProperties`) are part of the Task 2 schema bundle so trust-boundary validators inherit fail-closed bounds before Task 10 adds deeper transport-specific limits.
+- Task 2 now adds field-level `x-data-class` metadata (`public | sensitive | secret`) to shared schemas so later broker-side redaction/rejection work has a stable annotation shape.
+- Task 2 adds property-level descriptions across object schemas so generated tooling and reviewers get field-level protocol documentation rather than title-only object summaries.
+- Shared digest and signature fragments are centralized via reusable JSON Schema definitions/references instead of copy-pasted inline shapes.
+- `protocol/schemas/manifest.json` is authoritative in both directions: verification rejects omitted files, stray files on disk, and manifest paths that escape `protocol/schemas/`.
+- Go verification for Task 2 compiles every checked-in schema against JSON Schema draft 2020-12 in addition to manifest/registry invariant tests.
+- Task 2 validates `$ref` targets as well as inline schema nodes so shared digest/signature definitions cannot silently lose bounds, descriptions, or classification metadata through indirection.
+- Task 2 treats shared registry code values as pairwise non-overlapping across all bundle registries to keep machine-consumed namespaces fail-closed even when short codes are reused accidentally.
+- `PrincipalIdentity.role_kind` is now schema-constrained: `role_instance` actors must declare it, while `user` and `local_client` identities must not attach role kinds prematurely; daemon and external-runtime semantics stay extensible for Task 3.
+- Task 2 adds meta-schemas for the schema manifest and registry files plus CI validation for those documents so Go/TS tooling can share a machine-readable contract for bundle metadata.
+- Task 2 keeps `ApprovalRequest`, `ApprovalDecision`, `PolicyDecision`, and `Error` in MVP bundle scope but marks them as minimal family anchors via manifest notes; their owning tasks still add the remaining shared fields under explicit schema-versioned follow-up work.
+- Task 2 documents that schema-document `$id` URIs are canonical identifiers for tooling and reference resolution, not a requirement to fetch live network content.
+- Empty `policy_reason_code`, `approval_trigger_code`, and `audit_event_type` registries remain intentionally reserved until downstream policy, approval, and audit specs define concrete values.
+
 Parallelization: finalize the object-family list and code-registry split early so policy, broker, audit, and gateway work do not diverge.
 
 ## Task 3: Define Identity, Manifest, and Lifecycle Semantics

@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/SignedObjectEnvelope.schema.json",
+  "title": "SignedObjectEnvelope",
+  "description": "Protocol-owned detached signature envelope. The signature covers the RFC 8785 JCS canonical bytes of the payload before envelope fields are attached.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 7,
+  "$defs": {
+    "signatureBlock": {
+      "description": "Reusable detached signature block shared across signed protocol objects.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 3,
+      "required": [
+        "alg",
+        "key_id",
+        "signature"
+      ],
+      "properties": {
+        "alg": {
+          "type": "string",
+          "enum": [
+            "ed25519"
+          ],
+          "description": "Signature algorithm identifier for the detached payload signature. MVP allows ed25519 only.",
+          "x-data-class": "public"
+        },
+        "key_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Stable signer key identifier used to locate the verifying key material.",
+          "x-data-class": "public"
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+          "description": "Base64-encoded detached signature bytes over the RFC 8785 JCS payload bytes.",
+          "x-data-class": "public"
+        }
+      }
+    }
+  },
+  "required": [
+    "schema_id",
+    "schema_version",
+    "payload_schema_id",
+    "payload_schema_version",
+    "payload",
+    "signature_input",
+    "signature"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.SignedObjectEnvelope",
+      "description": "Stable protocol object-family identifier for signed object envelopes.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this signed envelope.",
+      "x-data-class": "public"
+    },
+    "payload_schema_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Schema identifier for the detached payload object carried by this envelope.",
+      "x-data-class": "public"
+    },
+    "payload_schema_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Exact schema version for the detached payload object carried by this envelope.",
+      "x-data-class": "public"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "schema_id",
+        "schema_version"
+      ],
+      "maxProperties": 128,
+      "properties": {
+        "schema_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Schema identifier for the nested payload object.",
+          "x-data-class": "public"
+        },
+        "schema_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Exact schema version for the nested payload object.",
+          "x-data-class": "public"
+        }
+      },
+      "description": "Detached payload object whose canonical RFC 8785 JCS bytes are signed by the envelope signature.",
+      "x-data-class": "secret"
+    },
+    "signature_input": {
+      "const": "rfc8785_jcs_detached_payload",
+      "description": "Canonicalization and signing-input contract used for the detached payload signature.",
+      "x-data-class": "public"
+    },
+    "signature": {
+      "$ref": "#/$defs/signatureBlock",
+      "description": "Detached signature block covering the canonical payload bytes.",
+      "x-data-class": "public"
+    }
+  }
+}
