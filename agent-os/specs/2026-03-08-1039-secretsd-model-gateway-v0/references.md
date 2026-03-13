@@ -24,3 +24,10 @@ Provider integrations:
 ## Similar Implementations
 
 None yet.
+
+## External References
+
+- OpenAI JS SDK: `https://www.npmjs.com/package/openai`
+- Anthropic TypeScript SDK: `https://www.npmjs.com/package/@anthropic-ai/sdk`
+- Google Gen AI SDK: `https://www.npmjs.com/package/@google/genai`
+- Models.dev catalog + API metadata: `https://models.dev/` and `https://models.dev/api.json`

@@ -18,8 +18,12 @@ Implement secrets storage/lease issuance and a dedicated model-gateway that cent
 - Model-gateway fetches artifact bytes by hash (via broker-mediated CAS access) and fails closed on disallowed data classes.
 - Model-gateway is implemented in Go for MVP to minimize TCB; provider request shaping stays inside the Go gateway.
 - Official provider SDKs (JS) are used only for fixture generation and drift detection; they are not in the production egress path.
+- The golden fixture generators for MVP are `openai`, `@anthropic-ai/sdk`, and `@google/genai`.
+- Generic abstraction packages (for example AI SDK and LangChain) are not part of the MVP golden fixture path because they smooth over provider differences that RuneCode needs to detect.
+- `models.dev` is useful for provider/model catalog and capability metadata, but not as the source of truth for provider wire shapes.
 - Streaming and tool calling are supported only within the typed boundary; tool calls remain untrusted proposals.
 - MVP default for model egress is `spec_text` only; allowing `diffs` or `approved_file_excerpts` is an explicit, auditable opt-in.
+- For future remote API providers, prefer each provider's official SDK for fixture generation; OpenAI-compatible providers without a solid official SDK remain a separate lower-confidence compatibility lane until explicitly promoted.
 - Post-MVP: add `bridge` providers for officially supported user-installed local runtimes (subscription access) behind model-gateway, with an explicit LLM-only mode and a compatibility probe policy.
   - Permit untested vendor versions only if the probe passes, with explicit user acknowledgment recorded in audit.
 

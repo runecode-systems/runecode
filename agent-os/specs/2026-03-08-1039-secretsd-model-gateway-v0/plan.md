@@ -63,16 +63,34 @@ Parallelization: can be implemented in parallel with broker + policy engine once
 ## Task 3b: Provider Adapters + Drift Detection (MVP)
 
 - Translate RuneCode-native `LLMRequest` into provider-specific HTTP payloads inside the Go model-gateway.
+- MVP remote API-key provider coverage includes OpenAI, Anthropic, and Google model APIs.
 - Do not depend on LangChain provider packages for production egress payload shaping.
 - Keep official provider SDK packages out of the production egress path.
   - Use them only for test/fixture generation to detect upstream request-shape drift.
+- Golden fixture generators (MVP) use official provider SDKs only:
+  - OpenAI: `openai`
+  - Anthropic: `@anthropic-ai/sdk`
+  - Google: `@google/genai`
+- Do not use generic abstraction packages (for example AI SDK or LangChain) as the golden fixture source.
+  - They may be useful for future app-layer compatibility checks, but they are out of scope for MVP drift detection because they normalize provider differences that the fixture lane must preserve.
+- Use `models.dev` only for provider/model catalog and capability metadata (IDs, package mapping, model capabilities, limits/pricing hints).
+  - Do not use `models.dev` as a source of truth for raw request bodies, headers, or provider wire semantics.
 - Commit non-sensitive "golden" fixtures and fail CI on drift.
   - Canonicalize away volatile fields (e.g., auth headers, timestamps, content-length) while remaining strict about semantically meaningful fields.
   - Add Go adapter conformance tests that load the same fixtures and assert `LLMRequest -> provider HTTP` matches after canonicalization.
-  - Provide a Node `fixturegen` tool (non-production) that regenerates fixtures using official SDKs.
+  - Provide a Node `fixturegen` tool (non-production) that regenerates fixtures using the official provider SDKs.
+    - capture requests via SDK-supported custom `fetch` / proxy hooks into a local sink rather than hitting live provider endpoints
+    - disable retries and other hidden transport behaviors that can blur request capture
+    - pin any provider API versions/headers that materially affect request shape (for example Google `apiVersion`)
   - Run `fixturegen` locally via the Nix dev shell to update fixtures; commit the results.
   - Pin SDK versions in lockfiles; dependency upgrades require explicit fixture regeneration + review.
   - Use automated dependency updates so fixture drift is detected at upgrade time and requires explicit approval.
+- Other remote API providers:
+  - prefer the provider's official SDK when one exists and is stable enough for request capture
+  - if a provider exposes an OpenAI-compatible API but lacks a good official SDK, treat it as a separate lower-confidence compatibility lane
+    - label its fixtures as compatibility fixtures rather than first-class provider goldens
+    - do not let OpenAI-compatible abstractions redefine the canonical OpenAI/Anthropic/Google fixture lanes
+  - promoting a new provider to a first-class golden lane requires explicit review of its auth model, request-shape stability, and fixture capture method
 - Add CI coverage (GitHub Actions) so upgrades fail closed when fixtures drift.
 
 Parallelization: can be implemented in parallel with protocol schema work (fixtures) and with broker limits; avoid conflicts by agreeing on canonicalization and fixture locations early.
@@ -123,3 +141,5 @@ Parallelization: can be implemented in parallel with audit log verify and broker
 - Secrets are never persisted in the launcher/broker/scheduler; only leases are used.
 - Model-gateway blocks SSRF/DNS rebinding classes of attacks (private IPs, unsafe redirects) by default.
 - Opt-in model egress is explicit, enforceable, and auditable.
+- OpenAI, Anthropic, and Google provider adapters have official-SDK-generated golden fixtures checked into the repo and validated by Go conformance tests.
+- `models.dev` is used only for provider/model catalog and capability metadata; provider wire-shape truth comes from official SDK fixture generation.
