@@ -1,0 +1,8 @@
+{
+  "schema_id": "runecode.protocol.v0.Error",
+  "schema_version": "0.3.0",
+  "code": "unsupported-schema-version",
+  "category": "validation",
+  "retryable": false,
+  "message": "Schema version 0.9.0 is not supported by this verifier."
+}

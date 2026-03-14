@@ -1,0 +1,49 @@
+[
+  {
+    "schema_id": "runecode.protocol.v0.LLMStreamEvent",
+    "schema_version": "0.3.0",
+    "stream_id": "stream-4",
+    "request_hash": {
+      "hash_alg": "sha256",
+      "hash": "1818181818181818181818181818181818181818181818181818181818181818"
+    },
+    "seq": 1,
+    "emitter": {
+      "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+      "schema_version": "0.2.0",
+      "actor_kind": "daemon",
+      "principal_id": "gateway",
+      "instance_id": "gateway-1",
+      "role_kind": "model"
+    },
+    "event_type": "response_start"
+  },
+  {
+    "schema_id": "runecode.protocol.v0.LLMStreamEvent",
+    "schema_version": "0.3.0",
+    "stream_id": "stream-4",
+    "request_hash": {
+      "hash_alg": "sha256",
+      "hash": "1818181818181818181818181818181818181818181818181818181818181818"
+    },
+    "seq": 2,
+    "emitter": {
+      "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+      "schema_version": "0.2.0",
+      "actor_kind": "daemon",
+      "principal_id": "broker",
+      "instance_id": "broker-1",
+      "role_kind": "workspace"
+    },
+    "event_type": "response_terminal",
+    "terminal_status": "failure",
+    "final_error": {
+      "schema_id": "runecode.protocol.v0.Error",
+      "schema_version": "0.3.0",
+      "code": "gateway_failure",
+      "category": "internal",
+      "retryable": false,
+      "message": "The model gateway returned a terminal failure."
+    }
+  }
+]

@@ -1,0 +1,1 @@
+{"empty_array":[],"empty_object":{},"escaped_text":"line1\nline2\t\"quoted\"","falsy":false,"null_value":null,"schema_id":"runecode.protocol.test.CanonicalBoundary","schema_version":"0.1.0","truthy":true,"unicode_value":"café and café"}

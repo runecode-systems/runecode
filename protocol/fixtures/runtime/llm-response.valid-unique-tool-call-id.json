@@ -1,0 +1,46 @@
+{
+  "schema_id": "runecode.protocol.v0.LLMResponse",
+  "schema_version": "0.3.0",
+  "request_hash": {
+    "hash_alg": "sha256",
+    "hash": "4545454545454545454545454545454545454545454545454545454545454545"
+  },
+  "output_trust_posture": "untrusted_proposal",
+  "output_artifacts": [
+    {
+      "schema_id": "runecode.protocol.v0.ArtifactReference",
+      "schema_version": "0.2.0",
+      "digest": {
+        "hash_alg": "sha256",
+        "hash": "4646464646464646464646464646464646464646464646464646464646464646"
+      },
+      "size_bytes": 256,
+      "content_type": "application/json",
+      "data_class": "spec_text",
+      "provenance_receipt_hash": {
+        "hash_alg": "sha256",
+        "hash": "4747474747474747474747474747474747474747474747474747474747474747"
+      }
+    }
+  ],
+  "proposed_tool_calls": [
+    {
+      "tool_call_id": "tool-call-1",
+      "tool_name": "write_patch",
+      "arguments_schema_id": "runecode.protocol.toolargs.write-patch.v0",
+      "arguments_schema_version": "0.1.0",
+      "arguments": {
+        "target": "protocol/schemas/manifest.json"
+      }
+    },
+    {
+      "tool_call_id": "tool-call-2",
+      "tool_name": "read_file",
+      "arguments_schema_id": "runecode.protocol.toolargs.read-file.v0",
+      "arguments_schema_version": "0.1.0",
+      "arguments": {
+        "path": "protocol/fixtures/manifest.json"
+      }
+    }
+  ]
+}

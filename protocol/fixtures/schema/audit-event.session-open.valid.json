@@ -1,0 +1,40 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditEvent",
+  "schema_version": "0.3.0",
+  "audit_event_type": "session_open",
+  "seq": 1,
+  "occurred_at": "2026-03-13T12:15:00Z",
+  "principal": {
+    "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+    "schema_version": "0.2.0",
+    "actor_kind": "daemon",
+    "principal_id": "broker",
+    "instance_id": "broker-1",
+    "role_kind": "workspace"
+  },
+  "event_payload_schema_id": "runecode.protocol.audit.payload.session-open.v0",
+  "event_payload": {
+    "participants": [
+      {
+        "component": "broker",
+        "bundle_version": "0.3.0"
+      },
+      {
+        "component": "gateway",
+        "bundle_version": "0.3.0"
+      }
+    ]
+  },
+  "event_payload_hash": {
+    "hash_alg": "sha256",
+    "hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "schema_bundle_version": "0.3.0",
+  "signatures": [
+    {
+      "alg": "ed25519",
+      "key_id": "signer-1",
+      "signature": "c2ln"
+    }
+  ]
+}

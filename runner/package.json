@@ -8,10 +8,12 @@
   },
   "scripts": {
     "lint": "tsc --noEmit",
-    "test": "npm run lint && node --test scripts/boundary-check.test.js",
+    "test": "npm run lint && node --test scripts/boundary-check.test.js scripts/protocol-fixtures.test.js",
     "boundary-check": "node scripts/boundary-check.js"
   },
   "devDependencies": {
+    "ajv": "8.18.0",
+    "ajv-formats": "3.0.1",
     "typescript": "5.7.3"
   }
 }

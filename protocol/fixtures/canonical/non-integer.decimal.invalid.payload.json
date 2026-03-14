@@ -1,0 +1,6 @@
+{
+  "schema_id": "runecode.protocol.test.CanonicalBoundary",
+  "schema_version": "0.1.0",
+  "value": 1.0,
+  "kind": "decimal_literal"
+}

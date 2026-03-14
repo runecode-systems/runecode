@@ -1,0 +1,8 @@
+{
+  "schema_version": "0.2.0",
+  "principal_id": "secretsd",
+  "actor_kind": "daemon",
+  "instance_id": "daemon-1",
+  "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+  "role_kind": "auth"
+}

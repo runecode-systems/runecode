@@ -1,0 +1,41 @@
+{
+  "schema_id": "runecode.protocol.v0.LLMResponse",
+  "schema_version": "0.3.0",
+  "request_hash": {
+    "hash_alg": "sha256",
+    "hash": "2626262626262626262626262626262626262626262626262626262626262626"
+  },
+  "output_trust_posture": "untrusted_proposal",
+  "output_artifacts": [
+    {
+      "schema_id": "runecode.protocol.v0.ArtifactReference",
+      "schema_version": "0.2.0",
+      "digest": {
+        "hash_alg": "sha256",
+        "hash": "2727272727272727272727272727272727272727272727272727272727272727"
+      },
+      "size_bytes": 256,
+      "content_type": "application/json",
+      "data_class": "spec_text",
+      "provenance_receipt_hash": {
+        "hash_alg": "sha256",
+        "hash": "2828282828282828282828282828282828282828282828282828282828282828"
+      }
+    },
+    {
+      "schema_id": "runecode.protocol.v0.ArtifactReference",
+      "schema_version": "0.2.0",
+      "digest": {
+        "hash_alg": "sha256",
+        "hash": "2727272727272727272727272727272727272727272727272727272727272727"
+      },
+      "size_bytes": 256,
+      "content_type": "text/plain",
+      "data_class": "spec_text",
+      "provenance_receipt_hash": {
+        "hash_alg": "sha256",
+        "hash": "2929292929292929292929292929292929292929292929292929292929292929"
+      }
+    }
+  ]
+}

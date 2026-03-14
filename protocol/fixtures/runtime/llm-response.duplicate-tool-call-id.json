@@ -1,0 +1,46 @@
+{
+  "schema_id": "runecode.protocol.v0.LLMResponse",
+  "schema_version": "0.3.0",
+  "request_hash": {
+    "hash_alg": "sha256",
+    "hash": "3030303030303030303030303030303030303030303030303030303030303030"
+  },
+  "output_trust_posture": "untrusted_proposal",
+  "output_artifacts": [
+    {
+      "schema_id": "runecode.protocol.v0.ArtifactReference",
+      "schema_version": "0.2.0",
+      "digest": {
+        "hash_alg": "sha256",
+        "hash": "3131313131313131313131313131313131313131313131313131313131313131"
+      },
+      "size_bytes": 256,
+      "content_type": "application/json",
+      "data_class": "spec_text",
+      "provenance_receipt_hash": {
+        "hash_alg": "sha256",
+        "hash": "3232323232323232323232323232323232323232323232323232323232323232"
+      }
+    }
+  ],
+  "proposed_tool_calls": [
+    {
+      "tool_call_id": "tool-call-1",
+      "tool_name": "write_patch",
+      "arguments_schema_id": "runecode.protocol.toolargs.write-patch.v0",
+      "arguments_schema_version": "0.1.0",
+      "arguments": {
+        "target": "protocol/schemas/manifest.json"
+      }
+    },
+    {
+      "tool_call_id": "tool-call-1",
+      "tool_name": "write_patch",
+      "arguments_schema_id": "runecode.protocol.toolargs.write-patch.v0",
+      "arguments_schema_version": "0.1.0",
+      "arguments": {
+        "target": "protocol/fixtures/manifest.json"
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "schema_version": "0.1.0",
+  "empty_object": {},
+  "truthy": true,
+  "null_value": null,
+  "empty_array": [],
+  "unicode_value": "cafe\u0301 and caf\u00e9",
+  "escaped_text": "line1\nline2\t\"quoted\"",
+  "schema_id": "runecode.protocol.test.CanonicalBoundary",
+  "falsy": false
+}

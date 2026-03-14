@@ -1,0 +1,8 @@
+{
+  "meta": {
+    "schema_version": "0.1.0",
+    "schema_id": "runecode.protocol.test.CanonicalBoundary"
+  },
+  "limit": 9007199254740991,
+  "kind": "safe_integer_boundary"
+}

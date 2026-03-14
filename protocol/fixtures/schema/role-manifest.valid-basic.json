@@ -1,0 +1,38 @@
+{
+  "schema_id": "runecode.protocol.v0.RoleManifest",
+  "schema_version": "0.2.0",
+  "principal": {
+    "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+    "schema_version": "0.2.0",
+    "actor_kind": "role_instance",
+    "principal_id": "gateway-role",
+    "instance_id": "gateway-1",
+    "role_kind": "gateway",
+    "active_role_manifest_hash": {
+      "hash_alg": "sha256",
+      "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "active_capability_manifest_hash": {
+      "hash_alg": "sha256",
+      "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  },
+  "role_kind": "gateway",
+  "approval_profile": "moderate",
+  "capability_opt_ins": [
+    "model_streaming"
+  ],
+  "allowlist_refs": [
+    {
+      "hash_alg": "sha256",
+      "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ],
+  "signatures": [
+    {
+      "alg": "ed25519",
+      "key_id": "signer-1",
+      "signature": "c2ln"
+    }
+  ]
+}

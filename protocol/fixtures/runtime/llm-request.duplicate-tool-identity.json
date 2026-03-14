@@ -1,0 +1,49 @@
+{
+  "schema_id": "runecode.protocol.v0.LLMRequest",
+  "schema_version": "0.3.0",
+  "selection_source": "signed_allowlist",
+  "provider": "openai",
+  "model": "gpt-4.1-mini",
+  "input_artifacts": [
+    {
+      "schema_id": "runecode.protocol.v0.ArtifactReference",
+      "schema_version": "0.2.0",
+      "digest": {
+        "hash_alg": "sha256",
+        "hash": "2424242424242424242424242424242424242424242424242424242424242424"
+      },
+      "size_bytes": 128,
+      "content_type": "application/json",
+      "data_class": "spec_text",
+      "provenance_receipt_hash": {
+        "hash_alg": "sha256",
+        "hash": "2525252525252525252525252525252525252525252525252525252525252525"
+      }
+    }
+  ],
+  "tool_allowlist": [
+    {
+      "tool_name": "write_patch",
+      "arguments_schema_id": "runecode.protocol.toolargs.write-patch.v0",
+      "arguments_schema_version": "0.1.0",
+      "tool_description": "Apply a patch to workspace files."
+    },
+    {
+      "tool_name": "write_patch",
+      "arguments_schema_id": "runecode.protocol.toolargs.write-patch.v0",
+      "arguments_schema_version": "0.1.0",
+      "tool_description": "Apply workspace file edits with a different label."
+    }
+  ],
+  "response_mode": "text",
+  "streaming_mode": "stream",
+  "request_limits": {
+    "max_request_bytes": 262144,
+    "max_tool_calls": 8,
+    "max_total_tool_call_argument_bytes": 65536,
+    "max_structured_output_bytes": 262144,
+    "max_streamed_bytes": 16777216,
+    "max_stream_chunk_bytes": 65536,
+    "stream_idle_timeout_ms": 15000
+  }
+}

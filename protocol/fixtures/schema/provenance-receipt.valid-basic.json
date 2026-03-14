@@ -1,0 +1,34 @@
+{
+  "schema_id": "runecode.protocol.v0.ProvenanceReceipt",
+  "schema_version": "0.2.0",
+  "artifact_digest": {
+    "hash_alg": "sha256",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+  },
+  "producer": {
+    "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+    "schema_version": "0.2.0",
+    "actor_kind": "daemon",
+    "principal_id": "artifact-store",
+    "instance_id": "artifact-store-1",
+    "role_kind": "workspace"
+  },
+  "source_artifact_hashes": [
+    {
+      "hash_alg": "sha256",
+      "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ],
+  "produced_at": "2026-03-13T12:10:00Z",
+  "producing_audit_event_hash": {
+    "hash_alg": "sha256",
+    "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "signatures": [
+    {
+      "alg": "ed25519",
+      "key_id": "signer-1",
+      "signature": "c2ln"
+    }
+  ]
+}

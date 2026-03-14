@@ -1,0 +1,34 @@
+{
+  "schema_id": "runecode.protocol.v0.PolicyDecision",
+  "schema_version": "0.3.0",
+  "decision_outcome": "require_human_approval",
+  "policy_reason_code": "approval_required",
+  "manifest_hash": {
+    "hash_alg": "sha256",
+    "hash": "6666666666666666666666666666666666666666666666666666666666666666"
+  },
+  "action_request_hash": {
+    "hash_alg": "sha256",
+    "hash": "7777777777777777777777777777777777777777777777777777777777777777"
+  },
+  "relevant_artifact_hashes": [
+    {
+      "hash_alg": "sha256",
+      "hash": "8888888888888888888888888888888888888888888888888888888888888888"
+    }
+  ],
+  "policy_input_hashes": [
+    {
+      "hash_alg": "sha256",
+      "hash": "9999999999999999999999999999999999999999999999999999999999999999"
+    }
+  ],
+  "details_schema_id": "runecode.protocol.details.policy.decision.v0",
+  "details": {
+    "rule": "deny_by_default"
+  },
+  "required_approval_schema_id": "runecode.protocol.details.policy.required-approval.v0",
+  "required_approval": {
+    "approval_trigger_code": "gateway_egress_scope_change"
+  }
+}

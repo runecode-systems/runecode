@@ -61,6 +61,22 @@ test("allows repo-root protocol schema/fixture specifiers", (t) => {
   assert.equal(result.violations.length, 0);
 });
 
+test("allows protocol root literals embedded in path.join", (t) => {
+  const repoRoot = createTempRepo({
+    "runner/src/index.ts": "const schemaRoot = path.join(repoRoot, 'protocol/schemas');\nconst fixtureRoot = path.join(repoRoot, 'protocol/fixtures');\n",
+  });
+
+  t.after(() => {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  });
+
+  const result = runCheckForRepo(repoRoot);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.error, null);
+  assert.equal(result.violations.length, 0);
+});
+
 test("allows bare protocol string literals", (t) => {
   const repoRoot = createTempRepo({
     "runner/src/index.ts": "const label = 'protocol';\nexport default label;\n",

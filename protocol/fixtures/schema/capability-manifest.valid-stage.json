@@ -1,0 +1,42 @@
+{
+  "schema_id": "runecode.protocol.v0.CapabilityManifest",
+  "schema_version": "0.2.0",
+  "principal": {
+    "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+    "schema_version": "0.2.0",
+    "actor_kind": "role_instance",
+    "principal_id": "workspace-role",
+    "instance_id": "workspace-1",
+    "role_kind": "workspace",
+    "run_id": "run-1",
+    "stage_id": "stage-build",
+    "active_role_manifest_hash": {
+      "hash_alg": "sha256",
+      "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    },
+    "active_capability_manifest_hash": {
+      "hash_alg": "sha256",
+      "hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    }
+  },
+  "manifest_scope": "stage",
+  "run_id": "run-1",
+  "stage_id": "stage-build",
+  "approval_profile": "moderate",
+  "capability_opt_ins": [
+    "container_fallback"
+  ],
+  "allowlist_refs": [
+    {
+      "hash_alg": "sha256",
+      "hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    }
+  ],
+  "signatures": [
+    {
+      "alg": "ed25519",
+      "key_id": "signer-1",
+      "signature": "c2ln"
+    }
+  ]
+}

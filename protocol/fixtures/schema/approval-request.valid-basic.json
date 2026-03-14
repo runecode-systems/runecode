@@ -1,0 +1,36 @@
+{
+  "schema_id": "runecode.protocol.v0.ApprovalRequest",
+  "schema_version": "0.2.0",
+  "approval_profile": "moderate",
+  "requester": {
+    "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+    "schema_version": "0.2.0",
+    "actor_kind": "local_client",
+    "principal_id": "cli-user",
+    "instance_id": "client-1",
+    "session_id": "session-1"
+  },
+  "approval_trigger_code": "gateway_egress_scope_change",
+  "manifest_hash": {
+    "hash_alg": "sha256",
+    "hash": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "action_request_hash": {
+    "hash_alg": "sha256",
+    "hash": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "relevant_artifact_hashes": [
+    {
+      "hash_alg": "sha256",
+      "hash": "3333333333333333333333333333333333333333333333333333333333333333"
+    }
+  ],
+  "details_schema_id": "runecode.protocol.details.approval.gateway-egress.v0",
+  "details": {
+    "requested_scope": "model_provider_allowlist"
+  },
+  "requested_at": "2026-03-13T12:00:00Z",
+  "expires_at": "2026-03-13T12:30:00Z",
+  "staleness_posture": "invalidate_on_bound_input_change",
+  "changes_if_approved": "Allow the gateway to use the requested provider allowlist for this run."
+}

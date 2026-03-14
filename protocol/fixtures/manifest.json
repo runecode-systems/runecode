@@ -1,0 +1,237 @@
+{
+  "schema_fixtures": [
+    {
+      "id": "error.valid-basic",
+      "schema_path": "objects/Error.schema.json",
+      "fixture_path": "schema/error.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "error.invalid-code-format",
+      "schema_path": "objects/Error.schema.json",
+      "fixture_path": "schema/error.invalid-code-format.json",
+      "expect_valid": false
+    },
+    {
+      "id": "role-manifest.valid-basic",
+      "schema_path": "objects/RoleManifest.schema.json",
+      "fixture_path": "schema/role-manifest.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "capability-manifest.valid-stage",
+      "schema_path": "objects/CapabilityManifest.schema.json",
+      "fixture_path": "schema/capability-manifest.valid-stage.json",
+      "expect_valid": true
+    },
+    {
+      "id": "approval-request.valid-basic",
+      "schema_path": "objects/ApprovalRequest.schema.json",
+      "fixture_path": "schema/approval-request.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "approval-decision.valid-basic",
+      "schema_path": "objects/ApprovalDecision.schema.json",
+      "fixture_path": "schema/approval-decision.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "policy-decision.valid-approval",
+      "schema_path": "objects/PolicyDecision.schema.json",
+      "fixture_path": "schema/policy-decision.valid-approval.json",
+      "expect_valid": true
+    },
+    {
+      "id": "artifact-reference.valid-spec-text",
+      "schema_path": "objects/ArtifactReference.schema.json",
+      "fixture_path": "schema/artifact-reference.valid-spec-text.json",
+      "expect_valid": true
+    },
+    {
+      "id": "provenance-receipt.valid-basic",
+      "schema_path": "objects/ProvenanceReceipt.schema.json",
+      "fixture_path": "schema/provenance-receipt.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-event.session-open.valid",
+      "schema_path": "objects/AuditEvent.schema.json",
+      "fixture_path": "schema/audit-event.session-open.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "llm-request.valid-spec-text",
+      "schema_path": "objects/LLMRequest.schema.json",
+      "fixture_path": "schema/llm-request.valid-spec-text.json",
+      "expect_valid": true
+    },
+    {
+      "id": "llm-request.invalid-text-output-schema",
+      "schema_path": "objects/LLMRequest.schema.json",
+      "fixture_path": "schema/llm-request.invalid-text-output-schema.json",
+      "expect_valid": false
+    },
+    {
+      "id": "llm-response.valid-spec-text",
+      "schema_path": "objects/LLMResponse.schema.json",
+      "fixture_path": "schema/llm-response.valid-spec-text.json",
+      "expect_valid": true
+    }
+  ],
+  "stream_sequence_fixtures": [
+    {
+      "id": "llm-stream.success",
+      "event_schema_path": "objects/LLMStreamEvent.schema.json",
+      "fixture_path": "stream/llm-stream.success.json",
+      "expect_valid": true
+    },
+    {
+      "id": "llm-stream.cancelled",
+      "event_schema_path": "objects/LLMStreamEvent.schema.json",
+      "fixture_path": "stream/llm-stream.cancelled.json",
+      "expect_valid": true
+    },
+    {
+      "id": "llm-stream.timeout",
+      "event_schema_path": "objects/LLMStreamEvent.schema.json",
+      "fixture_path": "stream/llm-stream.timeout.json",
+      "expect_valid": true
+    },
+    {
+      "id": "llm-stream.failure",
+      "event_schema_path": "objects/LLMStreamEvent.schema.json",
+      "fixture_path": "stream/llm-stream.failure.json",
+      "expect_valid": true
+    },
+    {
+      "id": "llm-stream.invalid-double-terminal",
+      "event_schema_path": "objects/LLMStreamEvent.schema.json",
+      "fixture_path": "stream/llm-stream.invalid-double-terminal.json",
+      "expect_valid": false
+    }
+  ],
+  "runtime_invariant_fixtures": [
+    {
+      "id": "llm-request.valid-unique-artifact-digests",
+      "schema_path": "objects/LLMRequest.schema.json",
+      "fixture_path": "runtime/llm-request.valid-unique-artifact-digests.json",
+      "rule": "llm_request_unique_artifact_digests",
+      "expect_valid": true
+    },
+    {
+      "id": "llm-request.duplicate-artifact-digest",
+      "schema_path": "objects/LLMRequest.schema.json",
+      "fixture_path": "runtime/llm-request.duplicate-artifact-digest.json",
+      "rule": "llm_request_unique_artifact_digests",
+      "expect_valid": false
+    },
+    {
+      "id": "llm-request.valid-unique-tool-identity",
+      "schema_path": "objects/LLMRequest.schema.json",
+      "fixture_path": "runtime/llm-request.valid-unique-tool-identity.json",
+      "rule": "llm_request_unique_tool_identities",
+      "expect_valid": true
+    },
+    {
+      "id": "llm-request.duplicate-tool-identity",
+      "schema_path": "objects/LLMRequest.schema.json",
+      "fixture_path": "runtime/llm-request.duplicate-tool-identity.json",
+      "rule": "llm_request_unique_tool_identities",
+      "expect_valid": false
+    },
+    {
+      "id": "llm-response.valid-unique-output-digest",
+      "schema_path": "objects/LLMResponse.schema.json",
+      "fixture_path": "runtime/llm-response.valid-unique-output-digest.json",
+      "rule": "llm_response_unique_output_artifact_digests",
+      "expect_valid": true
+    },
+    {
+      "id": "llm-response.duplicate-output-digest",
+      "schema_path": "objects/LLMResponse.schema.json",
+      "fixture_path": "runtime/llm-response.duplicate-output-digest.json",
+      "rule": "llm_response_unique_output_artifact_digests",
+      "expect_valid": false
+    },
+    {
+      "id": "llm-response.valid-unique-tool-call-id",
+      "schema_path": "objects/LLMResponse.schema.json",
+      "fixture_path": "runtime/llm-response.valid-unique-tool-call-id.json",
+      "rule": "llm_response_unique_tool_call_ids",
+      "expect_valid": true
+    },
+    {
+      "id": "llm-response.duplicate-tool-call-id",
+      "schema_path": "objects/LLMResponse.schema.json",
+      "fixture_path": "runtime/llm-response.duplicate-tool-call-id.json",
+      "rule": "llm_response_unique_tool_call_ids",
+      "expect_valid": false
+    }
+  ],
+  "canonicalization_fixtures": [
+    {
+      "id": "principal-identity.basic",
+      "payload_path": "canonical/principal-identity.basic.payload.json",
+      "canonical_json_path": "canonical/principal-identity.basic.canonical.json",
+      "sha256": "2d43d3ddae451441fd087ba5c5a84ea6e4a8791d404cd3ac1b9fd7ddab0bfff4",
+      "expect_valid": true
+    },
+    {
+      "id": "approval-request.basic",
+      "payload_path": "canonical/approval-request.basic.payload.json",
+      "canonical_json_path": "canonical/approval-request.basic.canonical.json",
+      "sha256": "22b9ecc3f8a4e6d699f4eae8348d2b6bff7c38c7c8c2ff2c659a8b30c357d481",
+      "expect_valid": true
+    },
+    {
+      "id": "safe-integer.max",
+      "payload_path": "canonical/safe-integer.max.payload.json",
+      "canonical_json_path": "canonical/safe-integer.max.canonical.json",
+      "sha256": "84b8f8d04bcf879b912a4efc1a1ac050678f681aad54761f637420f8b3fa174f",
+      "expect_valid": true
+    },
+    {
+      "id": "negative-zero.normalized",
+      "payload_path": "canonical/negative-zero.normalized.payload.json",
+      "canonical_json_path": "canonical/negative-zero.normalized.canonical.json",
+      "sha256": "748005dff48eab8af6453e43ba0aaca39030d44696465ed3ea42ea9532f8f947",
+      "expect_valid": true
+    },
+    {
+      "id": "json-primitives-and-escapes.basic",
+      "payload_path": "canonical/json-primitives-and-escapes.basic.payload.json",
+      "canonical_json_path": "canonical/json-primitives-and-escapes.basic.canonical.json",
+      "sha256": "8ab5949cda4dcc2daa3856f8adca7713e6cee0bea0752b0f2c949702454f1712",
+      "expect_valid": true
+    },
+    {
+      "id": "safe-integer.overflow",
+      "payload_path": "canonical/safe-integer.overflow.payload.json",
+      "canonical_json_path": "",
+      "sha256": "",
+      "expect_valid": false
+    },
+    {
+      "id": "non-integer.decimal.invalid",
+      "payload_path": "canonical/non-integer.decimal.invalid.payload.json",
+      "canonical_json_path": "",
+      "sha256": "",
+      "expect_valid": false
+    },
+    {
+      "id": "non-integer.exponent.invalid",
+      "payload_path": "canonical/non-integer.exponent.invalid.payload.json",
+      "canonical_json_path": "",
+      "sha256": "",
+      "expect_valid": false
+    },
+    {
+      "id": "non-ascii-key.invalid",
+      "payload_path": "canonical/non-ascii-key.invalid.payload.json",
+      "canonical_json_path": "",
+      "sha256": "",
+      "expect_valid": false
+    }
+  ]
+}
