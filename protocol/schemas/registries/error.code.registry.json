@@ -16,6 +16,10 @@
     {
       "code": "unsupported_hash_algorithm",
       "summary": "A digest reference uses a hash_alg value outside the MVP sha256 allowlist."
+    },
+    {
+      "code": "schema_bundle_version_mismatch",
+      "summary": "Communicating components do not share the same active local-session schema bundle version."
     }
   ]
 }

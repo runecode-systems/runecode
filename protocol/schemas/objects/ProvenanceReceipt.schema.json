@@ -2,14 +2,29 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/ProvenanceReceipt.schema.json",
   "title": "ProvenanceReceipt",
-  "description": "Protocol-owned provenance receipt family. This initial version reserves the family and binds receipts to a subject digest and detached signature material.",
+  "description": "Protocol-owned provenance receipt family linking an artifact to the producing principal, source artifacts, and related audit evidence.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 4,
+  "maxProperties": 9,
+  "oneOf": [
+    {
+      "required": [
+        "producing_audit_event_hash"
+      ]
+    },
+    {
+      "required": [
+        "producing_audit_receipt_hash"
+      ]
+    }
+  ],
   "required": [
     "schema_id",
     "schema_version",
     "artifact_digest",
+    "producer",
+    "source_artifact_hashes",
+    "produced_at",
     "signatures"
   ],
   "properties": {
@@ -19,13 +34,46 @@
       "x-data-class": "public"
     },
     "schema_version": {
-      "const": "0.1.0",
+      "const": "0.2.0",
       "description": "Exact protocol schema version used to validate this provenance receipt.",
       "x-data-class": "public"
     },
     "artifact_digest": {
       "$ref": "Digest.schema.json#/$defs/digestValue",
       "description": "Digest reference for the artifact whose provenance this receipt attests to.",
+      "x-data-class": "public"
+    },
+    "producer": {
+      "$ref": "PrincipalIdentity.schema.json",
+      "description": "Principal identity for the component or actor that produced the artifact.",
+      "x-data-class": "sensitive"
+    },
+    "source_artifact_hashes": {
+      "type": "array",
+      "maxItems": 64,
+      "description": "Hashes of source artifacts used to derive this artifact. An empty array is valid for root artifacts.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "Digest.schema.json#/$defs/digestValue",
+        "description": "Hash of one source artifact used to derive the subject artifact."
+      },
+      "uniqueItems": true
+    },
+    "produced_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64,
+      "description": "RFC 3339 timestamp recording when the artifact was produced.",
+      "x-data-class": "public"
+    },
+    "producing_audit_event_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Hash of the audit event that recorded the artifact production, when available.",
+      "x-data-class": "public"
+    },
+    "producing_audit_receipt_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Hash of the audit receipt that attests to the recorded artifact production, when available.",
       "x-data-class": "public"
     },
     "signatures": {

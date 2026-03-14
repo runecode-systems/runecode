@@ -54,6 +54,7 @@ func TestRegistryNamespacesAreSeparate(t *testing.T) {
 	assertRegistryCode(t, errorRegistry, "unknown_schema_id")
 	assertRegistryCode(t, errorRegistry, "unsupported_schema_version")
 	assertRegistryCode(t, errorRegistry, "unsupported_hash_algorithm")
+	assertRegistryCode(t, errorRegistry, "schema_bundle_version_mismatch")
 
 	approvalRegistry := loadRegistry(t, schemaPath(t, "registries/approval_trigger_code.registry.json"))
 	for _, code := range []string{

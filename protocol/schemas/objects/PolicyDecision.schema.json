@@ -2,14 +2,96 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/PolicyDecision.schema.json",
   "title": "PolicyDecision",
-  "description": "Protocol-owned policy decision family. Deterministic outcomes use policy_reason_code values, not error or approval registries.",
+  "description": "Protocol-owned policy decision family for deterministic allow, deny, and require-human-approval outcomes bound to hashed inputs.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 3,
+  "maxProperties": 12,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision_outcome": {
+            "const": "require_human_approval"
+          }
+        },
+        "required": [
+          "decision_outcome"
+        ]
+      },
+      "then": {
+        "required": [
+          "required_approval_schema_id",
+          "required_approval"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "required_approval"
+        ]
+      },
+      "then": {
+        "required": [
+          "required_approval_schema_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "required_approval_schema_id"
+        ]
+      },
+      "then": {
+        "required": [
+          "required_approval"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "decision_outcome": {
+            "enum": [
+              "allow",
+              "deny"
+            ]
+          }
+        },
+        "required": [
+          "decision_outcome"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "required_approval_schema_id"
+              ]
+            },
+            {
+              "required": [
+                "required_approval"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
   "required": [
     "schema_id",
     "schema_version",
-    "policy_reason_code"
+    "decision_outcome",
+    "policy_reason_code",
+    "manifest_hash",
+    "action_request_hash",
+    "relevant_artifact_hashes",
+    "policy_input_hashes",
+    "details_schema_id",
+    "details"
   ],
   "properties": {
     "schema_id": {
@@ -18,16 +100,87 @@
       "x-data-class": "public"
     },
     "schema_version": {
-      "const": "0.1.0",
+      "const": "0.3.0",
       "description": "Exact protocol schema version used to validate this policy decision.",
+      "x-data-class": "public"
+    },
+    "decision_outcome": {
+      "type": "string",
+      "enum": [
+        "allow",
+        "deny",
+        "require_human_approval"
+      ],
+      "description": "Deterministic policy outcome for the evaluated action request.",
       "x-data-class": "public"
     },
     "policy_reason_code": {
       "type": "string",
       "minLength": 1,
       "maxLength": 128,
-      "description": "Machine-consumed reason code explaining the deterministic policy outcome.",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Machine-consumed reason code explaining the deterministic policy outcome. Runtime enforcement must validate this value against the active policy_reason_code registry.",
       "x-data-class": "public"
+    },
+    "manifest_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Hash of the active manifest context evaluated by the policy engine.",
+      "x-data-class": "public"
+    },
+    "action_request_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Hash of the action request evaluated by policy.",
+      "x-data-class": "public"
+    },
+    "relevant_artifact_hashes": {
+      "type": "array",
+      "maxItems": 64,
+      "description": "Artifact hashes that materially affected this decision. An empty array is valid when no artifacts were relevant.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "Digest.schema.json#/$defs/digestValue",
+        "description": "Hash of one artifact included in policy evaluation."
+      },
+      "uniqueItems": true
+    },
+    "policy_input_hashes": {
+      "type": "array",
+      "maxItems": 64,
+      "description": "Hashes of other evaluated policy inputs, such as allowlists or policy documents, beyond the manifest and action request.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "Digest.schema.json#/$defs/digestValue",
+        "description": "Hash of one additional policy input used during evaluation."
+      },
+      "uniqueItems": true
+    },
+    "details_schema_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Schema identifier for the structured policy-decision details payload.",
+      "x-data-class": "public"
+    },
+    "details": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 32,
+      "description": "Structured decision details payload whose shape is defined by details_schema_id.",
+      "x-data-class": "sensitive"
+    },
+    "required_approval_schema_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Schema identifier for the required-approval payload when policy requires human approval.",
+      "x-data-class": "public"
+    },
+    "required_approval": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 32,
+      "description": "Structured machine-checkable payload describing the approval request context required by this policy decision.",
+      "x-data-class": "sensitive"
     }
   }
 }

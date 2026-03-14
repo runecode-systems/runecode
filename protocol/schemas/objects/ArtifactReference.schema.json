@@ -2,14 +2,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/ArtifactReference.schema.json",
   "title": "ArtifactReference",
-  "description": "Protocol-owned artifact reference family. This initial version reserves the object family and binds it to a shared digest shape.",
+  "description": "Protocol-owned artifact reference family with shared digest, size, content-type, data-class, and provenance linkage fields.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 3,
+  "maxProperties": 7,
   "required": [
     "schema_id",
     "schema_version",
-    "digest"
+    "digest",
+    "size_bytes",
+    "content_type",
+    "data_class",
+    "provenance_receipt_hash"
   ],
   "properties": {
     "schema_id": {
@@ -18,13 +22,41 @@
       "x-data-class": "public"
     },
     "schema_version": {
-      "const": "0.1.0",
+      "const": "0.2.0",
       "description": "Exact protocol schema version used to validate this artifact reference.",
       "x-data-class": "public"
     },
     "digest": {
       "$ref": "Digest.schema.json#/$defs/digestValue",
       "description": "Content-addressed digest reference for the artifact payload bytes.",
+      "x-data-class": "public"
+    },
+    "size_bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1099511627776,
+      "description": "Exact artifact payload size in bytes.",
+      "x-data-class": "public"
+    },
+    "content_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*$",
+      "description": "Declared base media type for the artifact payload. Artifact references store only the base media type and do not carry MIME parameters such as charset or boundary.",
+      "x-data-class": "public"
+    },
+    "data_class": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9_]{0,127}$",
+      "description": "Immutable artifact data-class label enforced by policy and flow-matrix checks.",
+      "x-data-class": "public"
+    },
+    "provenance_receipt_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Hash of the provenance receipt that attests how this artifact was produced.",
       "x-data-class": "public"
     }
   }

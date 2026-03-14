@@ -25,10 +25,7 @@ var (
 		"sensitive": {},
 		"secret":    {},
 	}
-	placeholderSchemaIDs = map[string]struct{}{
-		"runecode.protocol.v0.PolicyDecision": {},
-		"runecode.protocol.v0.Error":          {},
-	}
+	placeholderSchemaIDs = map[string]struct{}{}
 )
 
 type manifestFile struct {

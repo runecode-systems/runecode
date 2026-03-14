@@ -175,6 +175,7 @@ Versioning + compatibility rules:
 
 Code taxonomy rules:
 - error codes, policy reason codes, and approval trigger codes each have separate registries
+- schema-level validation constrains registry-backed fields to stable identifier syntax; runtime enforcement still validates exact membership against the active registry
 - registry additions are security-sensitive because they may affect enforcement, TUI rendering, or automation behavior
 - release notes and fixture changes must make registry additions/reinterpretations explicit
 
@@ -191,9 +192,11 @@ Model gateway protocol objects:
 - provider/model selection fields that do not allow arbitrary capability escalation
 - inputs reference artifacts by hash; no raw prompt blobs cross boundaries
 - explicit tool allowlist per request
+- schema validation rejects exact duplicate artifact references or exact duplicate tool-allowlist entries, and runtime validation rejects repeated artifact digests or repeated tool identities so quota/accounting stays deterministic
 - tool-call argument objects are schema-validated and reject unknown/extra fields
 - conservative limits cap tool calls per response and total tool-call bytes
 - output schema references for any machine-consumed structured output
+- text-mode requests must not carry structured-output schema references
 - request limits (bytes, tool-call count, timeouts, streaming posture)
 
 MVP default model-protocol limits:
@@ -208,15 +211,19 @@ MVP default model-protocol limits:
 `LLMResponse` requirements:
 - outputs are untrusted proposals and must be representable as typed artifacts
 - tool calling is supported only as schema-validated proposal objects; never direct execution
+- tool-call proposals carry both argument schema id and exact argument schema version so captured proposals remain self-describing in audit/replay workflows
+- schema validation rejects exact duplicate output-artifact/tool-call proposal objects, and runtime validation rejects repeated artifact digests or repeated `tool_call_id` values
 - structured JSON outputs are required for any machine-consumed output that can drive actions
 
 Streaming semantics:
 - define ordered event types for start, incremental content, proposal emission, structured-output candidates, and terminal status
 - every streamed response has sequence numbers and exactly one terminal event
+- non-terminal events reject terminal-only fields, and terminal events reject incremental/proposal payload fields
 - terminal events distinguish success, interruption/cancellation, and failure
 - the terminal event identifies the authoritative final response object/hash (or the final typed error)
 - partial events are auditable but do not implicitly authorize side effects
 - define how streaming interruptions, deadlines, and broker-enforced truncation surface in the protocol
+- runtime verifiers enforce that `response_start` begins at `seq=1` and that later event sequence numbers are strictly monotonic
 - if the broker enforces truncation, timeout, or cancellation, the broker emits the terminal status/event with broker attribution rather than masquerading as gateway-originated output
 
 Audit requirements for model traffic:
@@ -231,7 +238,7 @@ Parallelization: schema design can proceed in parallel with gateway, broker, and
 Define artifact references with the minimum shared fields needed across subsystems:
 - digest reference (`hash_alg`, `hash`)
 - size
-- content type
+- content type (base media type only; MIME parameters do not cross the artifact-reference boundary)
 - data class
 - provenance reference
 

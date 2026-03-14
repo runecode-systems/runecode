@@ -2,14 +2,42 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/Error.schema.json",
   "title": "Error",
-  "description": "Protocol-owned shared error envelope family. Error codes come only from the dedicated error.code registry.",
+  "description": "Protocol-owned shared error envelope family for trust-boundary failures with stable code taxonomy, retry posture, and typed details.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 4,
+  "maxProperties": 8,
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "details"
+        ]
+      },
+      "then": {
+        "required": [
+          "details_schema_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "details_schema_id"
+        ]
+      },
+      "then": {
+        "required": [
+          "details"
+        ]
+      }
+    }
+  ],
   "required": [
     "schema_id",
     "schema_version",
     "code",
+    "category",
+    "retryable",
     "message"
   ],
   "properties": {
@@ -19,7 +47,7 @@
       "x-data-class": "public"
     },
     "schema_version": {
-      "const": "0.1.0",
+      "const": "0.3.0",
       "description": "Exact protocol schema version used to validate this error object.",
       "x-data-class": "public"
     },
@@ -27,15 +55,49 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 128,
-      "description": "Machine-consumed error code from the dedicated error.code registry.",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Machine-consumed error code from the dedicated error.code registry. Runtime enforcement must validate this value against the active error.code registry.",
+      "x-data-class": "public"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "validation",
+        "auth",
+        "policy",
+        "transport",
+        "storage",
+        "timeout",
+        "internal"
+      ],
+      "description": "High-level failure category used for consistent boundary handling and UI treatment.",
+      "x-data-class": "public"
+    },
+    "retryable": {
+      "type": "boolean",
+      "description": "Whether the caller may safely retry the failed operation without changing the request shape.",
       "x-data-class": "public"
     },
     "message": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 4096,
+      "maxLength": 2048,
       "description": "Human-facing non-sensitive error summary associated with the stable error code.",
       "x-data-class": "public"
+    },
+    "details_schema_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Schema identifier for an optional typed details payload associated with this error.",
+      "x-data-class": "public"
+    },
+    "details": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 32,
+      "description": "Optional structured error details payload whose shape is defined by details_schema_id.",
+      "x-data-class": "sensitive"
     }
   }
 }

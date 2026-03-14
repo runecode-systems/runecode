@@ -2,13 +2,333 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/LLMStreamEvent.schema.json",
   "title": "LLMStreamEvent",
-  "description": "Protocol-owned streaming event family reserved for ordered incremental output and terminal status events.",
+  "description": "Protocol-owned streaming event family for ordered model output delivery with explicit broker or gateway attribution and exactly one terminal status event per stream.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 3,
+  "maxProperties": 15,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "response_start"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "content_delta"
+              ]
+            },
+            {
+              "required": [
+                "tool_call"
+              ]
+            },
+            {
+              "required": [
+                "structured_output_candidate_schema_id"
+              ]
+            },
+            {
+              "required": [
+                "structured_output_candidate_schema_version"
+              ]
+            },
+            {
+              "required": [
+                "structured_output_candidate"
+              ]
+            },
+            {
+              "required": [
+                "terminal_status"
+              ]
+            },
+            {
+              "required": [
+                "final_response_hash"
+              ]
+            },
+            {
+              "required": [
+                "final_error"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "output_delta"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "content_delta"
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "tool_call"
+              ]
+            },
+            {
+              "required": [
+                "structured_output_candidate_schema_id"
+              ]
+            },
+            {
+              "required": [
+                "structured_output_candidate_schema_version"
+              ]
+            },
+            {
+              "required": [
+                "structured_output_candidate"
+              ]
+            },
+            {
+              "required": [
+                "terminal_status"
+              ]
+            },
+            {
+              "required": [
+                "final_response_hash"
+              ]
+            },
+            {
+              "required": [
+                "final_error"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "tool_call_proposal"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "tool_call"
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "content_delta"
+              ]
+            },
+            {
+              "required": [
+                "structured_output_candidate_schema_id"
+              ]
+            },
+            {
+              "required": [
+                "structured_output_candidate_schema_version"
+              ]
+            },
+            {
+              "required": [
+                "structured_output_candidate"
+              ]
+            },
+            {
+              "required": [
+                "terminal_status"
+              ]
+            },
+            {
+              "required": [
+                "final_response_hash"
+              ]
+            },
+            {
+              "required": [
+                "final_error"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "structured_output_candidate"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "structured_output_candidate_schema_id",
+          "structured_output_candidate_schema_version",
+          "structured_output_candidate"
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "content_delta"
+              ]
+            },
+            {
+              "required": [
+                "tool_call"
+              ]
+            },
+            {
+              "required": [
+                "terminal_status"
+              ]
+            },
+            {
+              "required": [
+                "final_response_hash"
+              ]
+            },
+            {
+              "required": [
+                "final_error"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "response_terminal"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "terminal_status"
+        ],
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "content_delta"
+              ]
+            },
+            {
+              "required": [
+                "tool_call"
+              ]
+            },
+            {
+              "required": [
+                "structured_output_candidate_schema_id"
+              ]
+            },
+            {
+              "required": [
+                "structured_output_candidate_schema_version"
+              ]
+            },
+            {
+              "required": [
+                "structured_output_candidate"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "terminal_status": {
+            "const": "success"
+          }
+        },
+        "required": [
+          "terminal_status"
+        ]
+      },
+      "then": {
+        "required": [
+          "final_response_hash"
+        ],
+        "not": {
+          "required": [
+            "final_error"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "terminal_status": {
+            "enum": [
+              "cancelled",
+              "interrupted",
+              "timeout",
+              "truncated",
+              "failure"
+            ]
+          }
+        },
+        "required": [
+          "terminal_status"
+        ]
+      },
+      "then": {
+        "required": [
+          "final_error"
+        ],
+        "not": {
+          "required": [
+            "final_response_hash"
+          ]
+        }
+      }
+    }
+  ],
   "required": [
     "schema_id",
     "schema_version",
+    "stream_id",
+    "request_hash",
+    "seq",
+    "emitter",
     "event_type"
   ],
   "properties": {
@@ -18,16 +338,101 @@
       "x-data-class": "public"
     },
     "schema_version": {
-      "const": "0.1.0",
+      "const": "0.3.0",
       "description": "Exact protocol schema version used to validate this streaming event object.",
       "x-data-class": "public"
     },
+    "stream_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Stable stream identifier for the ordered event sequence this event belongs to. This is protocol routing metadata rather than secret payload content.",
+      "x-data-class": "public"
+    },
+    "request_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Hash of the LLMRequest object that opened this streamed response. This remains public protocol metadata even when the referenced request body contains sensitive content.",
+      "x-data-class": "public"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "description": "Monotonic sequence number for this event within the stream, starting at 1 for the first emitted event. Runtime verifiers must enforce that response_start uses seq=1 and that later events are strictly monotonic.",
+      "x-data-class": "public"
+    },
+    "emitter": {
+      "$ref": "PrincipalIdentity.schema.json",
+      "description": "Principal identity of the gateway or broker that emitted this event. Broker-attributed terminal events use the broker principal rather than masquerading as gateway output.",
+      "x-data-class": "sensitive"
+    },
     "event_type": {
+      "type": "string",
+      "enum": [
+        "response_start",
+        "output_delta",
+        "tool_call_proposal",
+        "structured_output_candidate",
+        "response_terminal"
+      ],
+      "description": "Machine-consumed streaming event kind for ordered model output delivery.",
+      "x-data-class": "public"
+    },
+    "content_delta": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 65536,
+      "description": "Incremental text content emitted for one streamed output chunk.",
+      "x-data-class": "sensitive"
+    },
+    "tool_call": {
+      "$ref": "LLMResponse.schema.json#/$defs/toolCallProposal",
+      "description": "Schema-validated tool-call proposal emitted as part of the stream.",
+      "x-data-class": "sensitive"
+    },
+    "structured_output_candidate_schema_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Schema identifier for a streamed structured-output candidate payload.",
+      "x-data-class": "public"
+    },
+    "structured_output_candidate_schema_version": {
       "type": "string",
       "minLength": 1,
       "maxLength": 64,
-      "description": "Machine-consumed streaming event kind for ordered model output delivery.",
+      "description": "Exact schema version for a streamed structured-output candidate payload.",
       "x-data-class": "public"
+    },
+    "structured_output_candidate": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 32,
+      "description": "Structured-output candidate payload emitted before the terminal event selects the authoritative final response.",
+      "x-data-class": "sensitive"
+    },
+    "terminal_status": {
+      "type": "string",
+      "enum": [
+        "success",
+        "cancelled",
+        "interrupted",
+        "timeout",
+        "truncated",
+        "failure"
+      ],
+      "description": "Terminal stream status for the authoritative end of the response.",
+      "x-data-class": "public"
+    },
+    "final_response_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Hash of the authoritative final LLMResponse object when the stream succeeds.",
+      "x-data-class": "public"
+    },
+    "final_error": {
+      "$ref": "Error.schema.json",
+      "description": "Final typed error emitted when the stream terminates unsuccessfully.",
+      "x-data-class": "sensitive"
     }
   }
 }

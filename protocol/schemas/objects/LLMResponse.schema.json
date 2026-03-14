@@ -2,13 +2,108 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/LLMResponse.schema.json",
   "title": "LLMResponse",
-  "description": "Protocol-owned model response family reserved for typed, auditable gateway outputs.",
+  "description": "Protocol-owned model response family for untrusted typed outputs, proposal-only tool calls, and optional structured JSON results.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 2,
+  "maxProperties": 9,
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "structured_output"
+        ]
+      },
+      "then": {
+        "required": [
+          "structured_output_schema_id",
+          "structured_output_schema_version"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "structured_output_schema_id"
+        ]
+      },
+      "then": {
+        "required": [
+          "structured_output",
+          "structured_output_schema_version"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "structured_output_schema_version"
+        ]
+      },
+      "then": {
+        "required": [
+          "structured_output",
+          "structured_output_schema_id"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "toolCallProposal": {
+      "description": "Schema-validated tool-call proposal emitted by the model as an untrusted artifact for later broker review.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 5,
+      "required": [
+        "tool_call_id",
+        "tool_name",
+        "arguments_schema_id",
+        "arguments_schema_version",
+        "arguments"
+      ],
+      "properties": {
+        "tool_call_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Stable identifier for one proposed tool call within the response. Runtime validation must reject repeated tool_call_id values within the same response or stream.",
+          "x-data-class": "public"
+        },
+        "tool_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Allowlisted tool name the model is proposing to call.",
+          "x-data-class": "public"
+        },
+        "arguments_schema_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Schema identifier used to validate the proposed arguments payload.",
+          "x-data-class": "public"
+        },
+        "arguments_schema_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Exact schema version used to validate the proposed arguments payload so tool-call proposals remain self-describing in audit and replay flows.",
+          "x-data-class": "public"
+        },
+        "arguments": {
+          "type": "object",
+          "maxProperties": 32,
+          "description": "Schema-validated proposed arguments payload for the tool call. Runtime validation rejects unknown or extra fields using arguments_schema_id.",
+          "x-data-class": "sensitive"
+        }
+      }
+    }
+  },
   "required": [
     "schema_id",
-    "schema_version"
+    "schema_version",
+    "request_hash",
+    "output_trust_posture",
+    "output_artifacts"
   ],
   "properties": {
     "schema_id": {
@@ -17,9 +112,64 @@
       "x-data-class": "public"
     },
     "schema_version": {
-      "const": "0.1.0",
+      "const": "0.3.0",
       "description": "Exact protocol schema version used to validate this model response object.",
       "x-data-class": "public"
+    },
+    "request_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Hash of the LLMRequest object this response resolves.",
+      "x-data-class": "public"
+    },
+    "output_trust_posture": {
+      "type": "string",
+      "const": "untrusted_proposal",
+      "description": "Model outputs are always untrusted proposals until later broker validation and policy checks succeed.",
+      "x-data-class": "public"
+    },
+    "output_artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "description": "Typed artifact references representing the final response output material emitted by the model gateway. Schema validation rejects exact duplicate entries and runtime validation must also reject repeated artifact digests even when other fields differ.",
+      "x-data-class": "sensitive",
+      "items": {
+        "$ref": "ArtifactReference.schema.json",
+        "description": "Artifact reference for one response output emitted by the gateway."
+      },
+      "uniqueItems": true
+    },
+    "proposed_tool_calls": {
+      "type": "array",
+      "maxItems": 8,
+      "description": "Optional schema-validated tool-call proposals emitted by the model. These are proposals only and never direct execution instructions. Schema validation rejects exact duplicate entries and runtime validation must also reject repeated tool_call_id values.",
+      "x-data-class": "sensitive",
+      "items": {
+        "$ref": "#/$defs/toolCallProposal",
+        "description": "One proposed tool call emitted by the model response."
+      },
+      "uniqueItems": true
+    },
+    "structured_output_schema_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Schema identifier for the machine-consumed structured output payload, when present.",
+      "x-data-class": "public"
+    },
+    "structured_output_schema_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Exact schema version for the machine-consumed structured output payload, when present.",
+      "x-data-class": "public"
+    },
+    "structured_output": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 32,
+      "description": "Optional machine-consumed structured output payload emitted by the model and validated by the referenced schema.",
+      "x-data-class": "sensitive"
     }
   }
 }

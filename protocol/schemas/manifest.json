@@ -1,6 +1,6 @@
 {
   "bundle_id": "runecode.protocol.v0",
-  "bundle_version": "0.2.0",
+  "bundle_version": "0.3.0",
   "json_schema_draft": "2020-12",
   "runtime_schema_prefix": "runecode.protocol.v0.",
   "canonicalization": "RFC8785-JCS",
@@ -41,28 +41,28 @@
     {
       "path": "objects/ArtifactReference.schema.json",
       "schema_id": "runecode.protocol.v0.ArtifactReference",
-      "schema_version": "0.1.0",
+      "schema_version": "0.2.0",
       "owner": "protocol",
       "status": "mvp"
     },
     {
       "path": "objects/ProvenanceReceipt.schema.json",
       "schema_id": "runecode.protocol.v0.ProvenanceReceipt",
-      "schema_version": "0.1.0",
+      "schema_version": "0.2.0",
       "owner": "protocol",
       "status": "mvp"
     },
     {
       "path": "objects/AuditEvent.schema.json",
       "schema_id": "runecode.protocol.v0.AuditEvent",
-      "schema_version": "0.1.0",
+      "schema_version": "0.3.0",
       "owner": "protocol",
       "status": "mvp"
     },
     {
       "path": "objects/AuditReceipt.schema.json",
       "schema_id": "runecode.protocol.v0.AuditReceipt",
-      "schema_version": "0.1.0",
+      "schema_version": "0.2.0",
       "owner": "protocol",
       "status": "mvp"
     },
@@ -83,29 +83,28 @@
     {
       "path": "objects/PolicyDecision.schema.json",
       "schema_id": "runecode.protocol.v0.PolicyDecision",
-      "schema_version": "0.1.0",
+      "schema_version": "0.3.0",
       "owner": "protocol",
-      "status": "mvp",
-      "note": "Minimal family anchor for Task 5. Decision outcome and detail fields land with the owning task and a schema version bump."
+      "status": "mvp"
     },
     {
       "path": "objects/LLMRequest.schema.json",
       "schema_id": "runecode.protocol.v0.LLMRequest",
-      "schema_version": "0.1.0",
+      "schema_version": "0.3.0",
       "owner": "protocol",
       "status": "mvp"
     },
     {
       "path": "objects/LLMResponse.schema.json",
       "schema_id": "runecode.protocol.v0.LLMResponse",
-      "schema_version": "0.1.0",
+      "schema_version": "0.3.0",
       "owner": "protocol",
       "status": "mvp"
     },
     {
       "path": "objects/LLMStreamEvent.schema.json",
       "schema_id": "runecode.protocol.v0.LLMStreamEvent",
-      "schema_version": "0.1.0",
+      "schema_version": "0.3.0",
       "owner": "protocol",
       "status": "mvp"
     },
@@ -119,10 +118,9 @@
     {
       "path": "objects/Error.schema.json",
       "schema_id": "runecode.protocol.v0.Error",
-      "schema_version": "0.1.0",
+      "schema_version": "0.3.0",
       "owner": "protocol",
-      "status": "mvp",
-      "note": "Minimal family anchor for Task 5. Category, retryability, and typed details fields land with the owning task and a schema version bump."
+      "status": "mvp"
     },
     {
       "path": "objects/WorkflowDefinition.schema.json",
