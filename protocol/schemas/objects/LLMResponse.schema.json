@@ -65,7 +65,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 128,
-          "description": "Stable identifier for one proposed tool call within the response.",
+          "description": "Stable identifier for one proposed tool call within the response. Runtime validation must reject repeated tool_call_id values within the same response or stream.",
           "x-data-class": "public"
         },
         "tool_name": {
@@ -131,7 +131,7 @@
       "type": "array",
       "minItems": 1,
       "maxItems": 32,
-      "description": "Typed artifact references representing the final response output material emitted by the model gateway.",
+      "description": "Typed artifact references representing the final response output material emitted by the model gateway. Schema validation rejects exact duplicate entries and runtime validation must also reject repeated artifact digests even when other fields differ.",
       "x-data-class": "sensitive",
       "items": {
         "$ref": "ArtifactReference.schema.json",
@@ -142,7 +142,7 @@
     "proposed_tool_calls": {
       "type": "array",
       "maxItems": 8,
-      "description": "Optional schema-validated tool-call proposals emitted by the model. These are proposals only and never direct execution instructions.",
+      "description": "Optional schema-validated tool-call proposals emitted by the model. These are proposals only and never direct execution instructions. Schema validation rejects exact duplicate entries and runtime validation must also reject repeated tool_call_id values.",
       "x-data-class": "sensitive",
       "items": {
         "$ref": "#/$defs/toolCallProposal",

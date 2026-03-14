@@ -118,7 +118,7 @@
     {
       "path": "objects/Error.schema.json",
       "schema_id": "runecode.protocol.v0.Error",
-      "schema_version": "0.2.0",
+      "schema_version": "0.3.0",
       "owner": "protocol",
       "status": "mvp"
     },

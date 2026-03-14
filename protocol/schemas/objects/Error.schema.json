@@ -47,7 +47,7 @@
       "x-data-class": "public"
     },
     "schema_version": {
-      "const": "0.2.0",
+      "const": "0.3.0",
       "description": "Exact protocol schema version used to validate this error object.",
       "x-data-class": "public"
     },
@@ -55,7 +55,8 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 128,
-      "description": "Machine-consumed error code from the dedicated error.code registry.",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Machine-consumed error code from the dedicated error.code registry. Runtime enforcement must validate this value against the active error.code registry.",
       "x-data-class": "public"
     },
     "category": {

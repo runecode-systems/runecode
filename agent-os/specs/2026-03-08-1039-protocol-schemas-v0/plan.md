@@ -192,7 +192,7 @@ Model gateway protocol objects:
 - provider/model selection fields that do not allow arbitrary capability escalation
 - inputs reference artifacts by hash; no raw prompt blobs cross boundaries
 - explicit tool allowlist per request
-- request arrays reject duplicate artifact references or duplicate tool-allowlist entries so quota/accounting stays deterministic
+- schema validation rejects exact duplicate artifact references or exact duplicate tool-allowlist entries, and runtime validation rejects repeated artifact digests or repeated tool identities so quota/accounting stays deterministic
 - tool-call argument objects are schema-validated and reject unknown/extra fields
 - conservative limits cap tool calls per response and total tool-call bytes
 - output schema references for any machine-consumed structured output
@@ -212,6 +212,7 @@ MVP default model-protocol limits:
 - outputs are untrusted proposals and must be representable as typed artifacts
 - tool calling is supported only as schema-validated proposal objects; never direct execution
 - tool-call proposals carry both argument schema id and exact argument schema version so captured proposals remain self-describing in audit/replay workflows
+- schema validation rejects exact duplicate output-artifact/tool-call proposal objects, and runtime validation rejects repeated artifact digests or repeated `tool_call_id` values
 - structured JSON outputs are required for any machine-consumed output that can drive actions
 
 Streaming semantics:

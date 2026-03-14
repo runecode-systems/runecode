@@ -75,6 +75,7 @@ func errorCases() []validationCase {
 		{name: "minimal error", value: validErrorEnvelope()},
 		{name: "typed details pair stays valid", value: validErrorEnvelopeWithDetails()},
 		{name: "details require schema id", value: invalidErrorEnvelopeWithoutDetailsSchema(), wantErr: true},
+		{name: "error code enforces identifier format", value: invalidErrorEnvelopeCode(), wantErr: true},
 		{name: "category enum fails closed", value: invalidErrorEnvelopeCategory(), wantErr: true},
 	}
 }
@@ -129,7 +130,7 @@ func auditReceiptCases() []validationCase {
 func validErrorEnvelope() map[string]any {
 	return map[string]any{
 		"schema_id":      "runecode.protocol.v0.Error",
-		"schema_version": "0.2.0",
+		"schema_version": "0.3.0",
 		"code":           "unsupported_schema_version",
 		"category":       "validation",
 		"retryable":      false,
@@ -147,6 +148,12 @@ func validErrorEnvelopeWithDetails() map[string]any {
 func invalidErrorEnvelopeWithoutDetailsSchema() map[string]any {
 	err := validErrorEnvelope()
 	err["details"] = map[string]any{"field": "schema_version"}
+	return err
+}
+
+func invalidErrorEnvelopeCode() map[string]any {
+	err := validErrorEnvelope()
+	err["code"] = "unsupported-schema-version"
 	return err
 }
 
