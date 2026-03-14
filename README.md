@@ -10,9 +10,37 @@ It treats isolation and cryptographic provenance as co-equal pillars: work runs 
 ## Status
 
 RuneCode is pre-alpha and not production-ready.
-This repository contains scaffolding, specs, and early guardrails; most runtime enforcement (isolation, signing, auditing) is not yet implemented.
+
+Implemented in this repo today:
+- A protocol/schema bundle in `protocol/schemas/` with an authoritative manifest at `protocol/schemas/manifest.json`
+- Shared JSON Schema object families for manifests, identities, approvals, artifacts/provenance, audit events/receipts, policy decisions, model request/response/streaming, detached signature envelopes, and shared errors
+- Shared machine-consumed code registries for `error.code`, `policy_reason_code`, `approval_trigger_code`, and `audit_event_type`
+- Shared fixtures in `protocol/fixtures/` validated in both Go and Node, including schema, stream-sequence, runtime-invariant, and canonicalization/hash cases
+- CI guardrails for runner trust-boundary access and protocol parity
+
+Still incremental / not implemented end-to-end yet:
+- Broker runtime, policy evaluation, secrets handling, audit persistence/verification, and isolation backends remain scaffolded or are implemented in later specs
 
 - Roadmap: `agent-os/product/roadmap.md`
+
+## Protocol Foundation
+
+`protocol/` is the current implemented foundation for cross-boundary contracts.
+
+- Bundle ID: `runecode.protocol.v0`
+- Source of truth: `protocol/schemas/manifest.json`
+- Schema draft: JSON Schema `2020-12`
+- Canonicalization profile: RFC 8785 JCS
+- Top-level posture: exact `schema_id` + `schema_version`; unknown fields and unknown schema versions fail closed
+- Shared fixtures: `protocol/fixtures/manifest.json`
+- Cross-language verification: Go tests in `internal/protocolschema/` and Node tests in `runner/scripts/protocol-fixtures.test.js`
+
+Current MVP object families cover:
+- manifests: `RoleManifest`, `CapabilityManifest`
+- identity and content addressing: `PrincipalIdentity`, `Digest`, `ArtifactReference`, `ProvenanceReceipt`
+- audit and approvals: `AuditEvent`, `AuditReceipt`, `ApprovalRequest`, `ApprovalDecision`, `PolicyDecision`
+- model traffic: `LLMRequest`, `LLMResponse`, `LLMStreamEvent`
+- wrappers and shared errors: `SignedObjectEnvelope`, `Error`
 
 ## Why RuneCode
 
@@ -52,7 +80,7 @@ Details (diagram, allowed interfaces, prohibited bypasses, and CI guardrail): `d
 - `cmd/` — trusted Go binaries (launcher, broker, secretsd, auditd, TUI)
 - `internal/` — trusted Go libraries
 - `runner/` — untrusted TS/Node workflow runner package
-- `protocol/` — cross-boundary schema + fixture roots (source of truth)
+- `protocol/` — authoritative schema bundle, shared registries, and cross-language fixtures for trusted/untrusted messages
 - `tools/` — repo-local helper tools for deterministic checks and fixes
 - `docs/` — trust-boundary contract and supporting design docs
 - `agent-os/` — product/spec/standards documents (git-native system of record)
@@ -74,6 +102,16 @@ just test
 just ci
 ```
 
+Useful protocol-specific checks:
+
+```sh
+go test ./internal/protocolschema
+cd runner && node --test scripts/protocol-fixtures.test.js
+cd runner && npm run boundary-check
+```
+
+These checks are also covered by `just ci`.
+
 Optional: enable automatic dev-shell entry with `direnv` + `nix-direnv`:
 
 ```sh
@@ -88,7 +126,14 @@ just ci
 
 ## Components
 
-The repo currently ships stub binaries that are scaffolded and intentionally do not start network listeners.
+The Go binaries in `cmd/` are still scaffolded and intentionally do not start network listeners.
+
+Alongside those stubs, the repository already includes a working protocol/schema foundation with:
+- manifest-verified schemas and registries
+- cross-language fixture validation
+- canonicalization/hash golden tests
+- runner trust-boundary static checks
+
 You can inspect their help output:
 
 ```sh
@@ -104,6 +149,8 @@ go run ./cmd/runecode-auditd --help
 - Mission: `agent-os/product/mission.md`
 - Roadmap: `agent-os/product/roadmap.md`
 - Trust boundaries: `docs/trust-boundaries.md`
+- Protocol schemas: `protocol/schemas/README.md`
+- Protocol/schema spec: `agent-os/specs/2026-03-08-1039-protocol-schemas-v0/`
 - Agent and AI contributor guidance: `AGENTS.md`
 
 ## Contributing

@@ -31,6 +31,14 @@ global:
     description: Language-aware docs and anti-boilerplate comment expectations
   pr-review-finding-format:
     description: Standard PR review finding format and prioritization
+  protocol-bundle-manifest:
+    description: Authoritative manifest inventory for protocol schemas and registries
+  protocol-canonicalization-profile:
+    description: MVP JCS signing and canonicalization restrictions
+  protocol-registry-discipline:
+    description: Separate machine-code registries and fixture alignment rules
+  protocol-schema-invariants:
+    description: Fail-closed baseline for top-level protocol schemas
   repo-hygiene-baseline:
     description: Repo hygiene baseline (line endings, editorconfig, gitignore, envrc, CODEOWNERS)
   repo-local-tools:
@@ -67,3 +75,7 @@ security:
     description: Allowed cross-boundary interfaces and prohibited bypasses
   trust-boundary-layered-enforcement:
     description: Trust boundary enforcement layers and guardrail expectations
+
+testing:
+  protocol-fixture-manifest-parity:
+    description: Shared protocol fixture manifest and Go/JS parity
