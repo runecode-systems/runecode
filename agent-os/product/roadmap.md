@@ -6,17 +6,6 @@ This is the canonical view of what is planned next (as specs) and what has shipp
 
 ## Upcoming Features
 
-### v0.1.0-alpha.1
-
-- [x] Dev Environment + CI Bootstrap (Nix Flakes) (`agent-os/specs/2026-03-08-1128-dev-env-ci-nix-flakes/`)
-  - Standard dev shell via Nix + direnv + just; CI runs equivalent checks across OSes.
-- [x] Monorepo Scaffold + Package Boundaries (`agent-os/specs/2026-03-08-1039-scaffold-ci-matrix/`)
-  - Clear Go/TS package boundaries with a consistent local build/test/lint loop.
-- [x] Source Quality Guardrails v0 (`agent-os/specs/2026-03-13-1415-source-quality-guardrails-v0/`)
-  - Keep security-sensitive Go and runner code maintainable with language-aware docs, complexity limits, and a repo-specific source-quality gate.
-- [x] Protocol & Schema Bundle v0 (`agent-os/specs/2026-03-08-1039-protocol-schemas-v0/`)
-  - Cross-boundary messages/manifests are schema-validated and hash-addressable.
-
 ### v0.1.0-alpha.2
 
 - [ ] Artifact Store + Data Classes v0 (`agent-os/specs/2026-03-08-1039-artifact-store-data-classes-v0/`)
@@ -96,3 +85,16 @@ This is the canonical view of what is planned next (as specs) and what has shipp
 ## Unscheduled (Needs Specs)
 
 ## Completed Features
+
+### v0.1.0-alpha.1
+
+- [x] Dev Environment + CI Bootstrap (Nix Flakes) (`agent-os/specs/2026-03-08-1128-dev-env-ci-nix-flakes/`)
+  - Standard dev shell via Nix + direnv + just; CI runs equivalent checks across OSes.
+- [x] Monorepo Scaffold + Package Boundaries (`agent-os/specs/2026-03-08-1039-scaffold-ci-matrix/`)
+  - Clear Go/TS package boundaries with a consistent local build/test/lint loop.
+- [x] Source Quality Guardrails v0 (`agent-os/specs/2026-03-13-1415-source-quality-guardrails-v0/`)
+  - Keep security-sensitive Go and runner code maintainable with language-aware docs, complexity limits, and a repo-specific source-quality gate.
+- [x] Protocol & Schema Bundle v0 (`agent-os/specs/2026-03-08-1039-protocol-schemas-v0/`)
+  - Cross-boundary messages/manifests are schema-validated and hash-addressable.
+
+

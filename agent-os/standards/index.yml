@@ -35,6 +35,8 @@ global:
     description: Deterministic tooling pattern (check-only by default, explicit write mode)
   language-aware-source-docs:
     description: Language-aware docs and anti-boilerplate comment expectations
+  local-first-future-optionality:
+    description: Keep local-first MVP choices out of portable logical contracts
   pr-review-finding-format:
     description: Standard PR review finding format and prioritization
   protocol-bundle-manifest:
