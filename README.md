@@ -10,12 +10,16 @@ It treats isolation and cryptographic provenance as co-equal pillars: work runs 
 ## Status
 
 RuneCode is pre-alpha and not production-ready.
+A signed, tag-driven release pipeline now exists, but the shipped Go binaries are still scaffold-heavy and not feature-complete.
 
 ## Install
 
-Official binaries are published through GitHub Releases.
-The canonical unsigned release artifacts are built from `flake.nix`.
-For latest-release install commands and full verification steps, see `docs/install-verify.md`.
+The official release channel is GitHub Releases.
+
+- Canonical unsigned release artifacts come from `nix build --no-link .#release-artifacts`
+- Published release assets are signed and attested in GitHub Actions
+- Supported targets: Linux (`amd64`, `arm64`), macOS (`amd64`, `arm64`), Windows (`amd64`, `arm64`)
+- For copyable install commands and full checksum/signature/attestation verification, see `docs/install-verify.md`
 
 Implemented in this repo today:
 - A protocol/schema bundle in `protocol/schemas/` with an authoritative manifest at `protocol/schemas/manifest.json`
@@ -85,6 +89,7 @@ Details (diagram, allowed interfaces, prohibited bypasses, and CI guardrail): `d
 
 - `cmd/` — trusted Go binaries (launcher, broker, secretsd, auditd, TUI)
 - `internal/` — trusted Go libraries
+- `nix/` — canonical release metadata, build definitions, and flake checks
 - `runner/` — untrusted TS/Node workflow runner package
 - `protocol/` — authoritative schema bundle, shared registries, and cross-language fixtures for trusted/untrusted messages
 - `tools/` — repo-local helper tools for deterministic checks and fixes
@@ -97,6 +102,13 @@ Canonical local workflow uses Nix + `just` (Nix `>= 2.18`):
 
 ```sh
 nix develop -c just ci
+```
+
+Canonical release-builder commands:
+
+```sh
+nix build --no-link .#release-artifacts
+nix eval --raw .#lib.release.tag
 ```
 
 Common commands:
@@ -132,7 +144,7 @@ just ci
 
 ## Components
 
-The Go binaries in `cmd/` are still scaffolded and intentionally do not start network listeners.
+The Go binaries currently shipped by the release pipeline are still scaffolded and intentionally do not start network listeners.
 
 Alongside those stubs, the repository already includes a working protocol/schema foundation with:
 - manifest-verified schemas and registries
