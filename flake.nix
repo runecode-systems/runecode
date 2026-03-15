@@ -1,5 +1,5 @@
 {
-  description = "RuneCode dev environment (Nix >= 2.18)";
+  description = "RuneCode dev environment and canonical release builder (Nix >= 2.18)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
@@ -12,33 +12,40 @@
       nixpkgs,
       flake-utils,
     }:
+    let
+      releaseMetadata = import ./nix/release/metadata.nix;
+    in
     flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = import nixpkgs { inherit system; };
-        devPackages = with pkgs; [
-          go
-          gopls
-          gotools
-          golangci-lint
-          nodejs_24
-          nodePackages.typescript
-          just
-          git
-          jq
-          ripgrep
-          fd
-          curl
-        ];
+        lib = pkgs.lib;
+        goToolchain = pkgs.go_1_25 or (throw "nixpkgs must provide go_1_25 for RuneCode release builds");
 
-        devShell = pkgs.mkShell {
-          packages = devPackages;
-          shellHook = ''
-            if [ -t 1 ] && [ -n "''${PS1:-}" ]; then
-              echo "Entering dev shell"
-              just --list
-            fi
-          '';
+        releaseArtifacts = import ./nix/packages/release-artifacts.nix {
+          inherit
+            goToolchain
+            lib
+            pkgs
+            self
+            ;
+          releaseMetadata = releaseMetadata;
+        };
+
+        devShell = import ./nix/dev-shell.nix {
+          inherit goToolchain pkgs;
+        };
+
+        checks = import ./nix/checks.nix {
+          inherit
+            devShell
+            lib
+            pkgs
+            releaseMetadata
+            releaseArtifacts
+            self
+            system
+            ;
         };
       in
       {
@@ -46,19 +53,14 @@
 
         devShells.default = devShell;
 
-        checks = {
-          dev-shell = devShell;
-
-          nix-format =
-            pkgs.runCommand "nix-format-check"
-              {
-                nativeBuildInputs = [ pkgs.nixfmt-rfc-style ];
-              }
-              ''
-                nixfmt --check ${self}/flake.nix
-                touch "$out"
-              '';
+        packages = {
+          release-artifacts = releaseArtifacts;
         };
+
+        inherit checks;
       }
-    );
+    )
+    // {
+      lib.release = releaseMetadata;
+    };
 }

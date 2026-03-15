@@ -1,0 +1,227 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build release assets
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      NIX_CONFIG: |
+        substituters = https://cache.nixos.org
+        trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+    outputs:
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@c5a866b6ab867e88becbed4467b93592bce69f8a # v21
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
+
+      - name: Verify flake.lock preflight
+        run: git diff --exit-code -- flake.lock
+
+      - name: Validate flake.lock metadata
+        run: nix flake lock --no-update-lock-file
+
+      - name: Capture release metadata
+        id: meta
+        run: |
+          set -euo pipefail
+
+          release_tag="${GITHUB_REF_NAME}"
+          case "${release_tag}" in
+            v*) ;;
+            *)
+              printf 'release tags must start with v, got %s\n' "${release_tag}" >&2
+              exit 1
+              ;;
+          esac
+
+          prerelease=false
+          if [[ "${release_tag}" == *-* ]]; then
+            prerelease=true
+          fi
+
+          printf 'release_tag=%s\n' "${release_tag}" >> "${GITHUB_OUTPUT}"
+          printf 'prerelease=%s\n' "${prerelease}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify release tag matches flake metadata
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+
+          if [ "${RELEASE_TAG}" = "v0.0.0-dev" ]; then
+            printf 'refusing to release sentinel development tag %s\n' "${RELEASE_TAG}" >&2
+            exit 1
+          fi
+
+          expected_tag="$(nix eval --raw .#lib.release.tag)"
+
+          if [ "${expected_tag}" != "${RELEASE_TAG}" ]; then
+            printf 'release tag mismatch: workflow saw %s but flake metadata requires %s\n' "${RELEASE_TAG}" "${expected_tag}" >&2
+            exit 1
+          fi
+
+      - name: Run flake checks
+        run: nix flake check --no-write-lock-file
+
+      - name: Run verification gate
+        run: nix develop --no-write-lock-file -c just ci
+
+      - name: Verify flake.lock unchanged
+        run: git diff --exit-code -- flake.lock
+
+      - name: Verify repository unchanged before packaging
+        run: |
+          git diff --exit-code
+          untracked="$(git ls-files --others --exclude-standard)"
+          if [ -n "${untracked}" ]; then
+            printf 'Untracked files found before packaging:\n%s\n' "${untracked}"
+            exit 1
+          fi
+
+      - name: Build canonical release artifacts
+        run: |
+          set -euo pipefail
+
+          rm -rf release
+          mkdir -p release/payload release/dist
+
+          release_root="$(nix build --no-link --print-out-paths --no-write-lock-file .#release-artifacts)"
+
+          cp -R "${release_root}/dist/." release/dist/
+          cp -R "${release_root}/payload/." release/payload/
+
+      - name: Generate release SBOM
+        uses: anchore/sbom-action@57aae528053a48a3f6235f2d9461b05fbcb7366d # v0.23.1
+        with:
+          path: release/payload
+          format: spdx-json
+          output-file: release/dist/runecode_${{ steps.meta.outputs.release_tag }}_sbom.spdx.json
+          dependency-snapshot: "false"
+          upload-artifact: "false"
+          upload-release-assets: "false"
+
+      - name: Verify canonical checksums
+        run: |
+          set -euo pipefail
+
+          (
+            cd release/dist
+            sha256sum -c SHA256SUMS
+          )
+
+      - name: Upload unsigned release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-assets-${{ steps.meta.outputs.release_tag }}
+          path: release/dist/
+          if-no-files-found: error
+
+  publish:
+    name: Sign, attest, and publish release
+    runs-on: ubuntu-24.04
+    needs: build
+    environment:
+      name: release
+    permissions:
+      contents: write
+      attestations: write
+      id-token: write
+    steps:
+      - name: Download unsigned release assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-assets-${{ needs.build.outputs.release_tag }}
+          path: release/dist
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          cosign-release: v2.4.1
+
+      - name: Verify checksums before signing
+        run: |
+          set -euo pipefail
+
+          (
+            cd release/dist
+            sha256sum -c SHA256SUMS
+          )
+
+      - name: Sign release assets
+        run: |
+          set -euo pipefail
+
+          shopt -s nullglob
+          for asset in release/dist/*; do
+            case "${asset}" in
+              *.tar.gz|*.zip|*.json|*/SHA256SUMS|*SHA256SUMS)
+                cosign sign-blob --yes \
+                  --output-signature "${asset}.sig" \
+                  --output-certificate "${asset}.pem" \
+                  "${asset}"
+                ;;
+              *)
+                continue
+                ;;
+            esac
+          done
+
+      - name: Attest release assets
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: |
+            release/dist/*.tar.gz
+            release/dist/*.zip
+            release/dist/*.json
+            release/dist/SHA256SUMS
+
+      - name: Write release notes preamble
+        env:
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+        run: |
+          {
+            printf '%s\n' '## Install and verify'
+            printf '\n'
+            printf '%s\n' "- Latest-release install and full verification commands: https://github.com/runecode-ai/runecode/blob/${RELEASE_TAG}/docs/install-verify.md"
+            printf '%s\n' "- Maintainer release procedure and required repository settings: https://github.com/runecode-ai/runecode/blob/${RELEASE_TAG}/docs/release-process.md"
+            printf '\n'
+            printf '%s\n' '## Included assets'
+            printf '\n'
+            printf '%s\n' '- Unsigned archives built from the canonical flake package `nix build .#release-artifacts`'
+            printf '%s\n' "- Canonical unsigned release manifest: \`runecode_${RELEASE_TAG}_release-manifest.json\`"
+            printf '%s\n' "- Per-platform archives for Linux, macOS, and Windows under the pattern \`runecode_${RELEASE_TAG}_{os}_{arch}\`"
+            printf '%s\n' "- Release-level SBOM: \`runecode_${RELEASE_TAG}_sbom.spdx.json\`"
+            printf '%s\n' '- Checksums: `SHA256SUMS`'
+            printf '%s\n' '- Keyless cosign signatures and certificates for every primary asset (`.sig` and `.pem`)'
+            printf '%s\n' '- GitHub build provenance attestations for each archive, the release manifest, the SBOM, and `SHA256SUMS`'
+          } > release-notes.md
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        with:
+          name: RuneCode ${{ needs.build.outputs.release_tag }}
+          tag_name: ${{ needs.build.outputs.release_tag }}
+          body_path: release-notes.md
+          append_body: true
+          generate_release_notes: true
+          prerelease: ${{ needs.build.outputs.prerelease }}
+          files: |
+            release/dist/*
+          fail_on_unmatched_files: true

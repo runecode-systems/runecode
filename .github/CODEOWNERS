@@ -1,4 +1,5 @@
 /flake.nix @ZebulonRouseFrantzich
+/nix/ @ZebulonRouseFrantzich
 /flake.lock @ZebulonRouseFrantzich
 /.envrc @ZebulonRouseFrantzich
 /justfile @ZebulonRouseFrantzich
@@ -13,6 +14,9 @@
 /.claude/skills/ @ZebulonRouseFrantzich
 /protocol/ @ZebulonRouseFrantzich
 /tools/checksourcequality/ @ZebulonRouseFrantzich
+/tools/releasebuilder/ @ZebulonRouseFrantzich
+/docs/install-verify.md @ZebulonRouseFrantzich
+/docs/release-process.md @ZebulonRouseFrantzich
 /docs/trust-boundaries.md @ZebulonRouseFrantzich
 /docs/source-quality.md @ZebulonRouseFrantzich
 /agent-os/doc-dump/project-idea.md @ZebulonRouseFrantzich

@@ -11,12 +11,18 @@ backend:
     description: Stable Go CLI stub output and no-side-effects default
 
 ci:
+  canonical-release-artifacts:
+    description: Canonical Nix-built unsigned release artifacts and publish-only CI
   github-actions-supply-chain:
     description: GitHub Actions pinning + least-privilege permissions
   just-ci:
     description: Canonical `just ci` entrypoint (check-only, cross-platform)
   nix-flake-ci-invariants:
     description: Nix flake CI cache allowlist and flake.lock invariants
+  release-metadata-source-of-truth:
+    description: Single-source release version, tag, binaries, and target metadata
+  tag-driven-github-releases:
+    description: Tag-driven GitHub Releases with protected approval, signing, and attestations
   windows-portability-matrix:
     description: Windows CI portability job and Node version matrix
   worktree-cleanliness:
@@ -67,6 +73,8 @@ product:
     description: Conventions for `agent-os/product/roadmap.md` (sections, spec entry format, and moving releases to Completed).
 
 security:
+  release-install-verification:
+    description: Verified release install flow with checksums, signatures, and attestations
   runner-boundary-check:
     description: Runner boundary-check rules and allowed protocol access
   trust-boundary-change-checklist:
