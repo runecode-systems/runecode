@@ -12,46 +12,6 @@ It treats isolation and cryptographic provenance as co-equal pillars: work runs 
 RuneCode is pre-alpha and not production-ready.
 A signed, tag-driven release pipeline now exists, but the shipped Go binaries are still scaffold-heavy and not feature-complete.
 
-## Install
-
-The official release channel is GitHub Releases.
-
-- Canonical unsigned release artifacts come from `nix build --no-link .#release-artifacts`
-- Published release assets are signed and attested in GitHub Actions
-- Supported targets: Linux (`amd64`, `arm64`), macOS (`amd64`, `arm64`), Windows (`amd64`, `arm64`)
-- For copyable install commands and full checksum/signature/attestation verification, see `docs/install-verify.md`
-
-Implemented in this repo today:
-- A protocol/schema bundle in `protocol/schemas/` with an authoritative manifest at `protocol/schemas/manifest.json`
-- Shared JSON Schema object families for manifests, identities, approvals, artifacts/provenance, audit events/receipts, policy decisions, model request/response/streaming, detached signature envelopes, and shared errors
-- Shared machine-consumed code registries for `error.code`, `policy_reason_code`, `approval_trigger_code`, and `audit_event_type`
-- Shared fixtures in `protocol/fixtures/` validated in both Go and Node, including schema, stream-sequence, runtime-invariant, and canonicalization/hash cases
-- CI guardrails for runner trust-boundary access and protocol parity
-
-Still incremental / not implemented end-to-end yet:
-- Broker runtime, policy evaluation, secrets handling, audit persistence/verification, and isolation backends remain scaffolded or are implemented in later specs
-
-- Roadmap: `agent-os/product/roadmap.md`
-
-## Protocol Foundation
-
-`protocol/` is the current implemented foundation for cross-boundary contracts.
-
-- Bundle ID: `runecode.protocol.v0`
-- Source of truth: `protocol/schemas/manifest.json`
-- Schema draft: JSON Schema `2020-12`
-- Canonicalization profile: RFC 8785 JCS
-- Top-level posture: exact `schema_id` + `schema_version`; unknown fields and unknown schema versions fail closed
-- Shared fixtures: `protocol/fixtures/manifest.json`
-- Cross-language verification: Go tests in `internal/protocolschema/` and Node tests in `runner/scripts/protocol-fixtures.test.js`
-
-Current MVP object families cover:
-- manifests: `RoleManifest`, `CapabilityManifest`
-- identity and content addressing: `PrincipalIdentity`, `Digest`, `ArtifactReference`, `ProvenanceReceipt`
-- audit and approvals: `AuditEvent`, `AuditReceipt`, `ApprovalRequest`, `ApprovalDecision`, `PolicyDecision`
-- model traffic: `LLMRequest`, `LLMResponse`, `LLMStreamEvent`
-- wrappers and shared errors: `SignedObjectEnvelope`, `Error`
-
 ## Why RuneCode
 
 - **Isolation is the boundary:** risky work runs in tightly scoped isolates; the workflow runner is treated as untrusted.
@@ -95,6 +55,118 @@ Details (diagram, allowed interfaces, prohibited bypasses, and CI guardrail): `d
 - `tools/` — repo-local helper tools for deterministic checks and fixes
 - `docs/` — trust-boundary contract and supporting design docs
 - `agent-os/` — product/spec/standards documents (git-native system of record)
+
+## Install
+
+The official release channel is GitHub Releases.
+
+- Canonical unsigned release artifacts come from `nix build --no-link .#release-artifacts`
+- Published release assets are signed and attested in GitHub Actions
+- Supported targets: Linux (`amd64`, `arm64`), macOS (`amd64`, `arm64`), Windows (`amd64`, `arm64`)
+- Requires `gh` and `cosign`
+
+Quick verified install for Linux and macOS:
+
+```bash
+set -euo pipefail
+
+REPO="runecode-ai/runecode"
+# Newest published release, including prereleases during pre-alpha.
+# Ordered by creation date; assumes no out-of-order backport releases.
+VERSION="$(gh release list --repo "$REPO" --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')"
+
+if [ -z "$VERSION" ]; then
+  printf 'no published release found for %s\n' "$REPO" >&2
+  exit 1
+fi
+
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+ARCH="$(uname -m)"
+
+case "$ARCH" in
+  x86_64) ARCH="amd64" ;;
+  arm64|aarch64) ARCH="arm64" ;;
+  *) printf 'unsupported architecture: %s\n' "$ARCH" >&2; exit 1 ;;
+esac
+
+case "$OS" in
+  linux|darwin) ;;
+  *) printf 'unsupported operating system: %s\n' "$OS" >&2; exit 1 ;;
+esac
+
+ARCHIVE="runecode_${VERSION}_${OS}_${ARCH}.tar.gz"
+WORKDIR="$(mktemp -d)"
+trap 'rm -rf "$WORKDIR"' EXIT
+
+cd "$WORKDIR"
+
+gh release download "$VERSION" --repo "$REPO" \
+  --pattern "$ARCHIVE" \
+  --pattern "$ARCHIVE.sig" \
+  --pattern "$ARCHIVE.pem" \
+  --pattern "SHA256SUMS" \
+  --pattern "SHA256SUMS.sig" \
+  --pattern "SHA256SUMS.pem"
+
+cosign verify-blob \
+  --certificate-identity "https://github.com/${REPO}/.github/workflows/release.yml@refs/tags/${VERSION}" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  --signature "SHA256SUMS.sig" \
+  --certificate "SHA256SUMS.pem" \
+  "SHA256SUMS"
+
+cosign verify-blob \
+  --certificate-identity "https://github.com/${REPO}/.github/workflows/release.yml@refs/tags/${VERSION}" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  --signature "${ARCHIVE}.sig" \
+  --certificate "${ARCHIVE}.pem" \
+  "$ARCHIVE"
+
+if command -v sha256sum >/dev/null 2>&1; then
+  grep -F "  ${ARCHIVE}" SHA256SUMS | sha256sum -c -
+else
+  grep -F "  ${ARCHIVE}" SHA256SUMS | shasum -a 256 -c -
+fi
+
+mkdir unpack
+tar -xzf "$ARCHIVE" -C unpack
+
+install -d "$HOME/.local/bin"
+install -m 0755 "unpack/runecode_${VERSION}_${OS}_${ARCH}"/bin/runecode-* "$HOME/.local/bin/"
+```
+
+This quick path verifies signed checksums and the signed archive before install. For Windows steps and full provenance verification with `gh attestation verify`, see `docs/install-verify.md`.
+
+## Implemented in this repo today:
+- A protocol/schema bundle in `protocol/schemas/` with an authoritative manifest at `protocol/schemas/manifest.json`
+- Shared JSON Schema object families for manifests, identities, approvals, artifacts/provenance, audit events/receipts, policy decisions, model request/response/streaming, detached signature envelopes, and shared errors
+- Shared machine-consumed code registries for `error.code`, `policy_reason_code`, `approval_trigger_code`, and `audit_event_type`
+- Shared fixtures in `protocol/fixtures/` validated in both Go and Node, including schema, stream-sequence, runtime-invariant, and canonicalization/hash cases
+- CI guardrails for runner trust-boundary access and protocol parity
+
+Still incremental / not implemented end-to-end yet:
+- Broker runtime, policy evaluation, secrets handling, audit persistence/verification, and isolation backends remain scaffolded or are implemented in later specs
+
+- Roadmap: `agent-os/product/roadmap.md`
+
+## Protocol Foundation
+
+`protocol/` is the current implemented foundation for cross-boundary contracts.
+
+- Bundle ID: `runecode.protocol.v0`
+- Source of truth: `protocol/schemas/manifest.json`
+- Schema draft: JSON Schema `2020-12`
+- Canonicalization profile: RFC 8785 JCS
+- Top-level posture: exact `schema_id` + `schema_version`; unknown fields and unknown schema versions fail closed
+- Shared fixtures: `protocol/fixtures/manifest.json`
+- Cross-language verification: Go tests in `internal/protocolschema/` and Node tests in `runner/scripts/protocol-fixtures.test.js`
+
+Current MVP object families cover:
+- manifests: `RoleManifest`, `CapabilityManifest`
+- identity and content addressing: `PrincipalIdentity`, `Digest`, `ArtifactReference`, `ProvenanceReceipt`
+- audit and approvals: `AuditEvent`, `AuditReceipt`, `ApprovalRequest`, `ApprovalDecision`, `PolicyDecision`
+- model traffic: `LLMRequest`, `LLMResponse`, `LLMStreamEvent`
+- wrappers and shared errors: `SignedObjectEnvelope`, `Error`
 
 ## Development
 
@@ -173,6 +245,34 @@ go run ./cmd/runecode-auditd --help
 - Protocol schemas: `protocol/schemas/README.md`
 - Protocol/schema spec: `agent-os/specs/2026-03-08-1039-protocol-schemas-v0/`
 - Agent and AI contributor guidance: `AGENTS.md`
+
+## Uninstall
+
+Remove the installed binaries for the path used in the install docs.
+
+Linux and macOS:
+
+```sh
+rm -f \
+  "$HOME/.local/bin/runecode-auditd" \
+  "$HOME/.local/bin/runecode-broker" \
+  "$HOME/.local/bin/runecode-launcher" \
+  "$HOME/.local/bin/runecode-secretsd" \
+  "$HOME/.local/bin/runecode-tui"
+```
+
+Windows PowerShell:
+
+```powershell
+$InstallDir = Join-Path $env:LOCALAPPDATA "Programs\RuneCode\bin"
+Remove-Item `
+  "$InstallDir\runecode-auditd.exe", `
+  "$InstallDir\runecode-broker.exe", `
+  "$InstallDir\runecode-launcher.exe", `
+  "$InstallDir\runecode-secretsd.exe", `
+  "$InstallDir\runecode-tui.exe" `
+  -Force -ErrorAction SilentlyContinue
+```
 
 ## Contributing
 

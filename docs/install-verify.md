@@ -25,6 +25,8 @@ nix build --no-link .#release-artifacts
 
 The release workflow generates the SBOM afterward, then signs and attests it separately. The canonical `SHA256SUMS` file covers the unsigned archives and release manifest.
 
+`README.md` contains a shorter verified install path. This document adds release asset layout details, prerelease-aware latest lookup, `gh attestation verify`, pinned-version flows, and Windows full verification.
+
 ## Prerequisites
 
 For the full verification flow below, install:
@@ -38,13 +40,23 @@ The commands also use the platform's built-in archive and checksum tooling:
 - macOS: `tar`, `shasum`
 - Windows: PowerShell `Expand-Archive`, `Get-FileHash`
 
+The `latest` examples below resolve the newest published release including prereleases. `gh release view` without a tag only works after a non-prerelease release exists.
+
 ## Linux and macOS: latest release, full verification, install
 
 ```bash
 set -euo pipefail
 
 REPO="runecode-ai/runecode"
-VERSION="$(gh release view --repo "$REPO" --json tagName -q .tagName)"
+# Newest published release, including prereleases during pre-alpha.
+# Ordered by creation date; assumes no out-of-order backport releases.
+VERSION="$(gh release list --repo "$REPO" --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')"
+
+if [ -z "$VERSION" ]; then
+  printf 'no published release found for %s\n' "$REPO" >&2
+  exit 1
+fi
+
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"
 
@@ -88,9 +100,9 @@ cosign verify-blob \
   "$ARCHIVE"
 
 if command -v sha256sum >/dev/null 2>&1; then
-  grep "  ${ARCHIVE}$" SHA256SUMS | sha256sum -c -
+  grep -F "  ${ARCHIVE}" SHA256SUMS | sha256sum -c -
 else
-  grep "  ${ARCHIVE}$" SHA256SUMS | shasum -a 256 -c -
+  grep -F "  ${ARCHIVE}" SHA256SUMS | shasum -a 256 -c -
 fi
 
 gh attestation verify "$ARCHIVE" --repo "$REPO"
@@ -123,7 +135,12 @@ Replace the `VERSION=...` line in the previous script with the pinned tag you wa
 $ErrorActionPreference = "Stop"
 
 $Repo = "runecode-ai/runecode"
-$Version = gh release view --repo $Repo --json tagName --jq .tagName
+# Newest published release, including prereleases during pre-alpha.
+# Ordered by creation date; assumes no out-of-order backport releases.
+$Version = gh release list --repo $Repo --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName'
+if (-not $Version) {
+  throw "No published release found for $Repo"
+}
 
 $ArchMap = @{
   "AMD64" = "amd64"
