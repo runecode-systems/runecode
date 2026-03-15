@@ -67,7 +67,7 @@ The official release channel is GitHub Releases.
 
 Quick verified install for Linux and macOS:
 
-```sh
+```bash
 set -euo pipefail
 
 REPO="runecode-ai/runecode"
