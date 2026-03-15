@@ -33,6 +33,18 @@ func TestReadChecksumsRejectsInvalidHashes(t *testing.T) {
 	}
 }
 
+func TestReadChecksumsRejectsDuplicateEntries(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	checksumsFile := filepath.Join(root, "SHA256SUMS")
+	mustWriteFile(t, checksumsFile, []byte("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  runecode_v1.2.3_linux_amd64.tar.gz\nbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  runecode_v1.2.3_linux_amd64.tar.gz\n"), 0o644)
+
+	if _, err := readChecksums(checksumsFile); err == nil {
+		t.Fatal("expected duplicate checksum entry to be rejected")
+	}
+}
+
 func assertManifest(t *testing.T, outputFile string, want releaseManifest) {
 	t.Helper()
 

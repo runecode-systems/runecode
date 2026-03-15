@@ -190,6 +190,9 @@ func readChecksums(path string) (map[string]string, error) {
 		if !isSHA256Hex(parts[0]) {
 			return nil, fmt.Errorf("invalid sha256 checksum in entry %q", line)
 		}
+		if _, exists := checksums[parts[1]]; exists {
+			return nil, fmt.Errorf("duplicate checksum entry for %q", parts[1])
+		}
 
 		checksums[parts[1]] = parts[0]
 	}

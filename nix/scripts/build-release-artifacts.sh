@@ -57,8 +57,14 @@ done
 
 archive_checksums="release/archive-sha256sums"
 (
+  shopt -s nullglob
   cd release/dist
-  @coreutils@/bin/sha256sum *.tar.gz *.zip > "../archive-sha256sums"
+  archive_files=( *.tar.gz *.zip )
+  if [ "${#archive_files[@]}" -eq 0 ]; then
+    printf 'expected at least one archive in release/dist for checksum generation\n' >&2
+    exit 1
+  fi
+  @coreutils@/bin/sha256sum "${archive_files[@]}" > "../archive-sha256sums"
 )
 
 "${release_helper}" manifest \
@@ -71,6 +77,12 @@ archive_checksums="release/archive-sha256sums"
   --output "release/dist/@packageName@_@tag@_release-manifest.json"
 
 (
+  shopt -s nullglob
   cd release/dist
-  @coreutils@/bin/sha256sum *.tar.gz *.zip *.json > SHA256SUMS
+  release_files=( *.tar.gz *.zip *.json )
+  if [ "${#release_files[@]}" -eq 0 ]; then
+    printf 'expected release assets in release/dist for checksum generation\n' >&2
+    exit 1
+  fi
+  @coreutils@/bin/sha256sum "${release_files[@]}" > SHA256SUMS
 )
