@@ -10,7 +10,7 @@ This policy defines what RuneCode means by source quality, what is in scope, wha
 
 - `docs/trust-boundaries.md`
 - `AGENTS.md`
-- `agent-os/specs/2026-03-13-1415-source-quality-guardrails-v0/`
+- `runecontext/specs/source-quality-guardrails-v0.md`
 
 ## What Source Quality Means In RuneCode
 

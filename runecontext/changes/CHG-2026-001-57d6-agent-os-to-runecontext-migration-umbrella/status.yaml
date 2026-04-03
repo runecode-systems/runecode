@@ -6,12 +6,17 @@ type: feature
 size: medium
 verification_status: pending
 context_bundles: []
-related_specs: []
+related_specs:
+  - specs/dev-environment-ci-bootstrap-nix-flakes.md
+  - specs/monorepo-scaffold-package-boundaries-v0.md
+  - specs/source-quality-guardrails-v0.md
+  - specs/protocol-schema-bundle-v0.md
 related_decisions:
   - decisions/DEC-2026-001-runecontext-canonical-planning-system.md
   - decisions/DEC-2026-002-verified-assurance-and-assurance-path.md
   - decisions/DEC-2026-003-bundled-runecontext-default-and-verified-requirement.md
   - decisions/DEC-2026-004-runecode-ux-ownership-and-runecontext-generic-boundary.md
+  - decisions/DEC-2026-005-initial-spec-suite-mvp-rationale.md
 related_changes: []
 depends_on: []
 informed_by: []

@@ -91,9 +91,13 @@ No unscheduled items are currently tracked outside the planned work listed above
 
 - Dev Environment + CI Bootstrap (Nix Flakes)
   - Standard dev shell via Nix, direnv, and just; CI runs equivalent checks across OSes.
+  - Durable spec: `runecontext/specs/dev-environment-ci-bootstrap-nix-flakes.md`
 - Monorepo Scaffold + Package Boundaries
   - Clear Go and TypeScript package boundaries with a consistent local build, test, and lint loop.
+  - Durable spec: `runecontext/specs/monorepo-scaffold-package-boundaries-v0.md`
 - Source Quality Guardrails v0
   - Security-sensitive Go and runner code remain maintainable with language-aware docs, complexity limits, and a repo-specific source-quality gate.
+  - Durable spec: `runecontext/specs/source-quality-guardrails-v0.md`
 - Protocol & Schema Bundle v0
   - Cross-boundary messages and manifests are schema-validated and hash-addressable.
+  - Durable spec: `runecontext/specs/protocol-schema-bundle-v0.md`

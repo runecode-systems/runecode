@@ -244,7 +244,7 @@ go run ./cmd/runecode-auditd --help
 - Tech stack: `runecontext/project/tech-stack.md`
 - Trust boundaries: `docs/trust-boundaries.md`
 - Protocol schemas: `protocol/schemas/README.md`
-- Protocol/schema spec: `agent-os/specs/2026-03-08-1039-protocol-schemas-v0/`
+- Protocol/schema spec: `runecontext/specs/protocol-schema-bundle-v0.md`
 - Agent and AI contributor guidance: `AGENTS.md`
 
 ## Uninstall
