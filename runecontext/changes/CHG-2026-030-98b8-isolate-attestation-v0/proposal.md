@@ -2,7 +2,7 @@
 RuneCode can upgrade MVP TOFU isolate binding to measured, attestable provisioning without changing the core audit contract.
 
 ## Problem
-The legacy Isolate Attestation v0 plan still lives under `agent-os/specs/2026-03-13-1731-isolate-attestation-v0/`, so the roadmap and related planning references do not yet point at a canonical RuneContext change record.
+This feature now has a canonical RuneContext change record, preserving the migrated planning content without relying on legacy Agent OS folders or path aliases.
 
 ## Proposed Change
 - Attestation Evidence Model.
@@ -11,7 +11,7 @@ The legacy Isolate Attestation v0 plan still lives under `agent-os/specs/2026-03
 - Fixtures + Cross-Platform Considerations.
 
 ## Why Now
-This work remains scheduled for vNext, and Phase 5 needs a canonical RuneContext change so later delivery and verification no longer depend on legacy Agent OS folders.
+This work remains scheduled for vNext, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
 
 ## Assumptions
 - `runecontext/changes/*` is the canonical planning surface for this repository.
@@ -20,7 +20,7 @@ This work remains scheduled for vNext, and Phase 5 needs a canonical RuneContext
 
 ## Out of Scope
 - Runtime implementation of the feature during this migration step.
-- Preserving the legacy `agent-os/specs/*` folder as an active planning source of truth.
+- Re-introducing legacy Agent OS planning paths as canonical references.
 
 ## Impact
 Keeps Isolate Attestation v0 reviewable as a RuneContext-native change and removes the need for a second semantics rewrite later.

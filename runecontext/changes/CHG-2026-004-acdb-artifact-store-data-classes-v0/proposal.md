@@ -2,7 +2,7 @@
 all cross-boundary handoffs are explicit, hash-addressed artifacts with immutable data classification; the system enforces allowed flows between roles.
 
 ## Problem
-The legacy Artifact Store + Data Classes v0 plan still lives under `agent-os/specs/2026-03-08-1039-artifact-store-data-classes-v0/`, so the roadmap and related planning references do not yet point at a canonical RuneContext change record.
+This feature now has a canonical RuneContext change record, preserving the migrated planning content without relying on legacy Agent OS folders or path aliases.
 
 ## Proposed Change
 - Define MVP Data Classes.
@@ -12,7 +12,7 @@ The legacy Artifact Store + Data Classes v0 plan still lives under `agent-os/spe
 - Garbage Collection + Retention (Minimal).
 
 ## Why Now
-This work remains scheduled for v0.1.0-alpha.2, and Phase 5 needs a canonical RuneContext change so later delivery and verification no longer depend on legacy Agent OS folders.
+This work remains scheduled for v0.1.0-alpha.2, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
 
 ## Assumptions
 - `runecontext/changes/*` is the canonical planning surface for this repository.
@@ -21,7 +21,7 @@ This work remains scheduled for v0.1.0-alpha.2, and Phase 5 needs a canonical Ru
 
 ## Out of Scope
 - Runtime implementation of the feature during this migration step.
-- Preserving the legacy `agent-os/specs/*` folder as an active planning source of truth.
+- Re-introducing legacy Agent OS planning paths as canonical references.
 
 ## Impact
 Keeps Artifact Store + Data Classes v0 reviewable as a RuneContext-native change and removes the need for a second semantics rewrite later.

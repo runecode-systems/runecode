@@ -1,8 +1,11 @@
-schema_version: 1
-kind: baseline
-subject_id: project-root
-created_at: 1774746775
 canonicalization: runecontext-canonical-json-v1
+created_at: 1774746775
+kind: baseline
+schema_version: 1
+subject_id: project-root
 value:
     adoption_commit: 6e9866232d10ade1925ce1c940c5f79c489281b8
+    imported_evidence:
+        - path: runecontext/assurance/backfill/imported-git-history-6e9866232d10ade1925ce1c940c5f79c489281b8.json
+          provenance: imported_git_history
     source_posture: embedded

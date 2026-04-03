@@ -22,7 +22,7 @@ Use this workflow when new directories or important files are added and CODEOWNE
 2. Prioritize coverage for policy and trust-sensitive areas:
    - `.github/**` (workflows, templates, Copilot instruction files)
    - `.claude/**` (skills and commands that shape agent behavior)
-   - `agent-os/standards/**` and `agent-os/product/**`
+   - `runecontext/standards/**`, `runecontext/project/**`, and `runecontext/decisions/**`
    - Security, trust-boundary, and bootstrap tooling files
 3. Compare candidates against existing CODEOWNERS patterns.
 4. Build a proposed update set:

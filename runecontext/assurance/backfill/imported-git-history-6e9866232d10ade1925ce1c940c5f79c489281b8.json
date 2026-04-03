@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "kind": "history",
+  "provenance": "imported_git_history",
+  "generated_at": 1775247413,
+  "adoption_commit": "6e9866232d10ade1925ce1c940c5f79c489281b8",
+  "commits": [
+    {
+      "commit": "bfaa7c6ff51ebbb4868a3d3b399e1c7a71fae375",
+      "committed_at": 1772939031,
+      "author_name": "Zebulon Rouse-Frantzich",
+      "author_email": "zebulonfrantzich@gmail.com",
+      "subject": "Initial commit."
+    },
+    {
+      "commit": "34ed7000de8234698deae43e5d640858a92f1e03",
+      "committed_at": 1772980260,
+      "author_name": "Zebulon Rouse-Frantzich",
+      "author_email": "zebulonfrantzich@gmail.com",
+      "subject": "Adds initial project idea document, adds initial agent-os product docs."
+    },
+    {
+      "commit": "454d7183ad1722e74cfe87664781a914f2c0e36f",
+      "committed_at": 1772982490,
+      "author_name": "Zebulon Rouse-Frantzich",
+      "author_email": "zebulonfrantzich@gmail.com",
+      "subject": "Updates structure for agent-os roadmap.md file. Adds Standards file and Skill file for it as well."
+    },
+    {
+      "commit": "6122da8fce19f27068a5ef89c8ff9e6ea7224dda",
+      "committed_at": 1772999367,
+      "author_name": "Zebulon Rouse-Frantzich",
+      "author_email": "zebulonfrantzich@gmail.com",
+      "subject": "Initial pass at the various project specs (pre and post MVP). Creates LICENSE and associated files."
+    },
+    {
+      "commit": "7aeec87413bcd8acec5c25ca1f67750cf936d2c8",
+      "committed_at": 1773018449,
+      "author_name": "Zebulon Rouse-Frantzich",
+      "author_email": "zebulonfrantzich@gmail.com",
+      "subject": "Spec: Development environment and CI setup (#1)"
+    },
+    {
+      "commit": "954e7051b71689bd3d24c871a68dc39b202c934c",
+      "committed_at": 1773336346,
+      "author_name": "Zebulon Rouse-Frantzich",
+      "author_email": "zebulonfrantzich@gmail.com",
+      "subject": "Spec: Repo scaffold ci matrix (#4)"
+    },
+    {
+      "commit": "8d7d0e7ffab555db2362921ff22919b7e90bc0c0",
+      "committed_at": 1773351500,
+      "author_name": "Zebulon Rouse-Frantzich",
+      "author_email": "zebulonfrantzich@gmail.com",
+      "subject": "README.md creation (#5)"
+    },
+    {
+      "commit": "6525073e9e37f4869f24302ca990d1e6aaaa7244",
+      "committed_at": 1773429994,
+      "author_name": "Zebulon Rouse-Frantzich",
+      "author_email": "zebulonfrantzich@gmail.com",
+      "subject": "Spec: Source quality guardrails (#7)"
+    },
+    {
+      "commit": "1cd04babfb39aa5032b4ac63d1948dbb6bcd9a73",
+      "committed_at": 1773517850,
+      "author_name": "Zebulon Rouse-Frantzich",
+      "author_email": "zebulonfrantzich@gmail.com",
+      "subject": "Spec: Protocol \u0026 Schema Bundle (#11)"
+    },
+    {
+      "commit": "323463cc9f65e0678f7deda76f51e8dc166e5cc8",
+      "committed_at": 1773537637,
+      "author_name": "Zebulon Rouse-Frantzich",
+      "author_email": "zebulonfrantzich@gmail.com",
+      "subject": "Release workflow (#12)"
+    },
+    {
+      "commit": "8bb58654228314fbcfbbe5c0ab5928994ff49304",
+      "committed_at": 1773579417,
+      "author_name": "Zebulon Rouse-Frantzich",
+      "author_email": "zebulonfrantzich@gmail.com",
+      "subject": "Initial package release: Fixes hash (#13)"
+    },
+    {
+      "commit": "85e4d14c6f183e6622e95ba23d28d91e9dac4abe",
+      "committed_at": 1773579609,
+      "author_name": "Zebulon Rouse-Frantzich",
+      "author_email": "zebulonfrantzich@gmail.com",
+      "subject": "Initial package release: Forgot release version (#14)"
+    },
+    {
+      "commit": "be89283dd776cd68e545f93a7723cde39a44aaf2",
+      "committed_at": 1773591732,
+      "author_name": "Zebulon Rouse-Frantzich",
+      "author_email": "zebulonfrantzich@gmail.com",
+      "subject": "Release Setup Cleanup (#15)"
+    },
+    {
+      "commit": "6e9866232d10ade1925ce1c940c5f79c489281b8",
+      "committed_at": 1773602147,
+      "author_name": "Zebulon Rouse-Frantzich",
+      "author_email": "zebulonfrantzich@gmail.com",
+      "subject": "Release: Sets project release version to 0.1.0-alpha.1 (#16)"
+    }
+  ]
+}

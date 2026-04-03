@@ -14,21 +14,21 @@ Keep `runecontext/project/roadmap.md` up to date as the human-facing product sum
 
 ## Inputs
 
-- Optional: one or more spec folder paths (example: `agent-os/specs/2026-03-08-1200-example-spec/`)
+- Optional: one or more canonical RuneContext change or spec paths (examples: `runecontext/changes/CHG-2026-002-33c5-git-gateway-commit-push-pr/`, `runecontext/specs/protocol-schema-bundle-v0.md`)
 - Optional: a target version label (example: `v0.1.0`)
 
 ## Procedure
 
-### A) Add (or update) spec entries in Upcoming
+### A) Add (or update) change/spec entries in Upcoming
 
-1. Resolve spec folder paths:
+1. Resolve canonical RuneContext paths:
    - Prefer paths provided by the user.
-   - If none are provided, look for recent folders under `agent-os/specs/` and select the most likely candidates.
-   - If `agent-os/specs/` does not exist yet, ask the user for the spec path(s) and stop.
+   - If none are provided, look for recent items under `runecontext/changes/` and `runecontext/specs/` and select the most likely candidates.
+   - If the likely source path is still ambiguous, ask the user for the change/spec path(s) and stop.
 
-2. For each spec folder, extract:
-   - Title: use the top-level heading from `spec.md` if present; else from `shape.md`; else from `plan.md`.
-   - Short description: prefer the spec's stated outcome/summary; otherwise write 1-2 lines describing the user-visible result.
+2. For each canonical path, extract:
+   - Title: use the change/spec title from the canonical file set.
+   - Short description: prefer the stated outcome/summary; otherwise write 1-2 lines describing the user-visible result.
 
 3. Decide the target version group under `## Upcoming Features`:
    - If the user provided a version, use it.
@@ -49,7 +49,7 @@ Keep `runecontext/project/roadmap.md` up to date as the human-facing product sum
       - Ensure the same item is not listed in both Upcoming and Completed.
 
 5. If an equivalent item exists under `## Unscheduled (Needs Specs)`:
-   - Remove the unscheduled duplicate after adding the spec entry.
+   - Remove the unscheduled duplicate after adding the canonical change/spec entry.
 
 ### B) Mark a version released and move it to Completed
 

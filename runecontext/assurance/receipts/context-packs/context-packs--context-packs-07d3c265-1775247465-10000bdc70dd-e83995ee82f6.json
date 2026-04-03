@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "kind": "receipt",
+  "subject_id": "context-packs/8962b3426c36a6e1c508afdae446ff78876b3a19709c7b88383e7238921b4f40",
+  "created_at": 1775247465,
+  "canonicalization": "runecontext-canonical-json-v1",
+  "value": {
+    "pack_hash": "8962b3426c36a6e1c508afdae446ff78876b3a19709c7b88383e7238921b4f40",
+    "receipt_family": "context-packs",
+    "requested_bundle_ids": [
+      "project-core",
+      "go-control-plane",
+      "runner-boundary",
+      "protocol-foundation",
+      "ci-tooling",
+      "product-planning"
+    ],
+    "source_mode": "embedded",
+    "source_ref": "embedded"
+  },
+  "receipt_id": "context-packs-07d3c265-1775247465-10000bdc70dd",
+  "receipt_hash": "e83995ee82f63600c1564320140e0b3de89289bcac0edce94de37a9c39ca7b7d",
+  "provenance": "captured_verified"
+}

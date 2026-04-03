@@ -9,10 +9,10 @@ Use this workflow when `tools/checksourcequality`, `golangci-lint`, or related s
 
 ## Standards and references to read first
 
-- `agent-os/standards/global/source-quality-enforcement-layering.md`
-- `agent-os/standards/global/source-quality-reviewed-exceptions.md`
-- `agent-os/standards/global/source-quality-protected-surfaces.md`
-- `agent-os/standards/global/language-aware-source-docs.md`
+- `runecontext/standards/global/source-quality-enforcement-layering.md`
+- `runecontext/standards/global/source-quality-reviewed-exceptions.md`
+- `runecontext/standards/global/source-quality-protected-surfaces.md`
+- `runecontext/standards/global/language-aware-source-docs.md`
 - `docs/source-quality.md`
 - `.source-quality-baseline.json`
 - `.source-quality-config.json`

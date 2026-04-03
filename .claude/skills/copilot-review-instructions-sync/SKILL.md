@@ -9,8 +9,9 @@ Use this workflow when standards or repository conventions change and Copilot re
 
 ## Standards and references to read first
 
-- `agent-os/standards/index.yml`
-- Any changed standards under `agent-os/standards/**`
+- `runecontext/project/standards-inventory.md`
+- Relevant changed standards under `runecontext/standards/**`
+- Relevant bundle definitions under `runecontext/bundles/*.yaml`
 - `docs/trust-boundaries.md`
 - `CONTRIBUTING.md`
 - `justfile`
