@@ -19,8 +19,8 @@ Phase 1 must land before broad product, standards, specs, and changes migration 
 - Follow-on phases will rewrite content toward the RuneContext final state rather than preserve Agent OS assumptions for later cleanup.
 
 ## Out of Scope
-- Bulk migration of `agent-os/standards/` and `agent-os/specs/` content.
-- Final legacy deletion of remaining `agent-os/` canonical material outside the Phase 2 product-doc scope.
+- Bulk migration of `agent-os/specs/` content.
+- Final legacy deletion of remaining `agent-os/` canonical material outside completed product-doc and standards migration scope.
 
 ## Impact
 Creates canonical migration governance context so subsequent migration batches are consistent, reviewable, and directly aligned with final RuneContext-era planning assumptions.

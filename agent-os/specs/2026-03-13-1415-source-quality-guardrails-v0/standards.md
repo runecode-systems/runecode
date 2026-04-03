@@ -4,10 +4,10 @@ These standards apply to implementation work produced from this spec.
 
 ## Existing Repo Standards
 
-- `agent-os/standards/global/deterministic-check-write-tools.md`
-- `agent-os/standards/ci/worktree-cleanliness.md`
-- `agent-os/standards/security/trust-boundary-change-checklist.md`
-- `agent-os/standards/security/trust-boundary-layered-enforcement.md`
+- `runecontext/standards/global/deterministic-check-write-tools.md`
+- `runecontext/standards/ci/worktree-cleanliness.md`
+- `runecontext/standards/security/trust-boundary-change-checklist.md`
+- `runecontext/standards/security/trust-boundary-layered-enforcement.md`
 
 ## Documentation Placement Standard
 

@@ -659,6 +659,35 @@ At the end of the cutover:
 - keep `agent-os/doc-dump/project-idea.md` frozen until there is an explicit decision to archive or relocate it
 - remove or archive the remaining `agent-os/` directory structure once nothing canonical depends on it
 
+#### Standard Alias Cleanup
+
+The migrated RuneContext standards may temporarily retain `aliases` entries that preserve traceability from legacy `agent-os/standards/...` IDs.
+
+Those aliases are useful during the active migration window, but they are not required forever.
+
+Remove migrated standard aliases only when all of the following are true:
+
+- all canonical references have been rewritten to `runecontext/standards/...`
+- no repo workflow, instruction file, generated artifact, or migration helper still depends on the old `agent-os/standards/...` IDs
+- operators no longer need old-ID traceability for the active migration review window
+- the standards tree validates cleanly without relying on the alias metadata
+
+Recommended timing:
+
+- do not remove aliases during the initial standards import
+- do remove them near the very end of the migration, after spec/change/reference migration is complete and legacy canonical usage has been removed
+
+Practical mutation guidance:
+
+- use `runectx standard update --path standards/<path>.md --replace-aliases` to clear aliases for a migrated standard once it is safe to do so
+- prefer one reviewed cleanup batch for alias removal rather than ad hoc piecemeal removal during earlier phases
+- after alias removal, run `runectx standard list`, `runectx validate --json`, and `runectx status --json`
+
+Recommended alias-removal verification:
+
+- search the repository for `agent-os/standards/` and confirm any remaining hits are intentionally historical archive or migration-guide material only
+- confirm no active RuneContext standard frontmatter still carries migration aliases unless intentionally retained for a documented reason
+
 ## Initial Bundle Set To Create
 
 Create an initial set of repo bundles to replace the old standards index-driven grouping model and to support tooling/context selection.
@@ -762,6 +791,13 @@ For each planned feature folder:
 - remove migrated `agent-os/specs/`
 - retain only intentionally frozen historical archive material until explicitly handled
 
+### Step 10: Remove Temporary Standard Migration Aliases
+
+- if migrated RuneContext standards still retain `aliases` entries for `agent-os/standards/...`, remove them only after all canonical references and workflow dependencies are gone
+- use `runectx standard update --path standards/<path>.md --replace-aliases` for the cleanup mutation
+- run `runectx standard list`, `runectx validate --json`, and `runectx status --json`
+- confirm any remaining `agent-os/standards/` mentions are intentionally historical-only
+
 ## Feature-Planning Swap Guidance
 
 When migrating old planned feature folders, apply the deeper RuneContext integration details immediately where they are relevant.
@@ -862,6 +898,7 @@ The migration is complete when all of the following are true:
 - completed feature planning has been converted into durable `runecontext/specs/*.md`
 - planned feature folders have been converted into `runecontext/changes/`
 - repo docs and review instructions no longer treat `agent-os/` as canonical
+- migrated RuneContext standards no longer need temporary `agent-os/standards/...` aliases, unless a specific alias is intentionally retained with documented rationale
 - no current planning workflow depends on `agent-os/` except any intentionally frozen archive material
 
 ## Summary Decision

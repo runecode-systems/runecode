@@ -37,7 +37,7 @@ Parallelization: docs-only; safe to do anytime.
       - `docs/trust-boundaries.md`
       - `.github/copilot-instructions.md`
       - `.github/instructions/**`
-      - `agent-os/standards/**`
+      - `runecontext/standards/**`
     - Planning-oriented docs under `agent-os/specs/**` and `agent-os/product/**` may remain outside code-size and function-complexity enforcement unless a future checker adds separate doc-quality rules.
   - Runner classification must be deterministic.
     - `runner/**` defaults to Tier 2.

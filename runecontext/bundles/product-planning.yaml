@@ -1,0 +1,13 @@
+schema_version: 1
+id: product-planning
+includes:
+  project:
+    - mission.md
+    - roadmap.md
+    - tech-stack.md
+  decisions:
+    - DEC-2026-001-runecontext-canonical-planning-system.md
+    - DEC-2026-003-bundled-runecontext-default-and-verified-requirement.md
+    - DEC-2026-004-runecode-ux-ownership-and-runecontext-generic-boundary.md
+  standards:
+    - product/**

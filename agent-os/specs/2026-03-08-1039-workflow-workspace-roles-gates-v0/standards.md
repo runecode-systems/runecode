@@ -4,17 +4,17 @@ These standards apply to implementation work produced from this spec.
 
 ## Trust Boundary
 
-- `agent-os/standards/security/trust-boundary-interfaces.md`
-- `agent-os/standards/security/trust-boundary-layered-enforcement.md`
-- `agent-os/standards/security/trust-boundary-change-checklist.md`
-- `agent-os/standards/security/runner-boundary-check.md`
+- `runecontext/standards/security/trust-boundary-interfaces.md`
+- `runecontext/standards/security/trust-boundary-layered-enforcement.md`
+- `runecontext/standards/security/trust-boundary-change-checklist.md`
+- `runecontext/standards/security/runner-boundary-check.md`
 
 ## Runner JavaScript/Node
 
-- `agent-os/standards/javascript/node-engine-enforcement.md`
-- `agent-os/standards/javascript/npm-ci-lockfile.md`
-- `agent-os/standards/javascript/runner-node-test-runner.md`
-- `agent-os/standards/javascript/runner-typescript-as-lint.md`
+- `runecontext/standards/javascript/node-engine-enforcement.md`
+- `runecontext/standards/javascript/npm-ci-lockfile.md`
+- `runecontext/standards/javascript/runner-node-test-runner.md`
+- `runecontext/standards/javascript/runner-typescript-as-lint.md`
 
 ## Runner Distribution (Node SEA)
 

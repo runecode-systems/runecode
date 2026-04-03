@@ -1,0 +1,10 @@
+schema_version: 1
+id: project-core
+includes:
+  project:
+    - mission.md
+    - roadmap.md
+    - tech-stack.md
+  standards:
+    - global/**
+    - product/**

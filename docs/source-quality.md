@@ -39,7 +39,7 @@ This policy applies to hand-maintained repo code and policy surfaces that define
   - `docs/trust-boundaries.md`
   - `.github/copilot-instructions.md`
   - `.github/instructions/**`
-  - `agent-os/standards/**`
+  - `runecontext/standards/**`
 
 The following concern areas are in scope:
 
@@ -150,7 +150,7 @@ Treat the following as Tier 1 protected policy surfaces:
 - `docs/trust-boundaries.md`
 - `.github/copilot-instructions.md`
 - `.github/instructions/**`
-- `agent-os/standards/**`
+- `runecontext/standards/**`
 
 Runner classification is deterministic:
 

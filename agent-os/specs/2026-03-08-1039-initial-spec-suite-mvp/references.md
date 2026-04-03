@@ -8,7 +8,7 @@
 
 ## Standards
 
-- **Roadmap conventions:** `agent-os/standards/product/roadmap-conventions.md`
+- **Roadmap conventions:** `runecontext/standards/product/roadmap-conventions.md`
 
 ## Similar Implementations
 

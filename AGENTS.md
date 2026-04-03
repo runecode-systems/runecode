@@ -41,10 +41,10 @@ Repo bootstrap for coding agents. Read this first, then follow the linked standa
 ### `runner/`
 - Read:
   - `docs/trust-boundaries.md`
-  - `agent-os/standards/security/trust-boundary-interfaces.md`
-  - `agent-os/standards/security/trust-boundary-layered-enforcement.md`
-  - `agent-os/standards/security/trust-boundary-change-checklist.md`
-  - `agent-os/standards/security/runner-boundary-check.md`
+  - `runecontext/standards/security/trust-boundary-interfaces.md`
+  - `runecontext/standards/security/trust-boundary-layered-enforcement.md`
+  - `runecontext/standards/security/trust-boundary-change-checklist.md`
+  - `runecontext/standards/security/runner-boundary-check.md`
 - Verify:
   - `cd runner && npm run boundary-check`
   - `cd runner && node --test scripts/boundary-check.test.js`
@@ -52,11 +52,11 @@ Repo bootstrap for coding agents. Read this first, then follow the linked standa
 
 ### `protocol/`
 - Read:
-  - `agent-os/standards/global/protocol-bundle-manifest.md`
-  - `agent-os/standards/global/protocol-schema-invariants.md`
-  - `agent-os/standards/global/protocol-registry-discipline.md`
-  - `agent-os/standards/global/protocol-canonicalization-profile.md`
-  - `agent-os/standards/testing/protocol-fixture-manifest-parity.md`
+  - `runecontext/standards/global/protocol-bundle-manifest.md`
+  - `runecontext/standards/global/protocol-schema-invariants.md`
+  - `runecontext/standards/global/protocol-registry-discipline.md`
+  - `runecontext/standards/global/protocol-canonicalization-profile.md`
+  - `runecontext/standards/testing/protocol-fixture-manifest-parity.md`
   - `docs/trust-boundaries.md`
 - Verify:
   - `go test ./internal/protocolschema`
@@ -66,8 +66,8 @@ Repo bootstrap for coding agents. Read this first, then follow the linked standa
 ### `cmd/`, `internal/`, `tools/`
 - Read:
   - `/.github/instructions/go-control-plane.instructions.md`
-  - `agent-os/standards/global/source-quality-enforcement-layering.md`
-  - `agent-os/standards/global/language-aware-source-docs.md`
+  - `runecontext/standards/global/source-quality-enforcement-layering.md`
+  - `runecontext/standards/global/language-aware-source-docs.md`
 - Verify:
   - relevant `go test ./...` target(s)
   - `just lint`
@@ -75,9 +75,9 @@ Repo bootstrap for coding agents. Read this first, then follow the linked standa
 ### Planning docs, specs, roadmap, or standards
 - Read:
   - `/.github/instructions/agent-os-docs.instructions.md`
-  - `agent-os/standards/product/roadmap-conventions.md` when touching `runecontext/project/roadmap.md`
+  - `runecontext/standards/product/roadmap-conventions.md` when touching `runecontext/project/roadmap.md`
 - Rules:
-  - Keep standards index entries concise and accurate
+  - Keep the standards inventory doc and bundle set concise and accurate
   - Maintain roadmap-to-spec traceability
   - Never modify `agent-os/doc-dump/project-idea.md`
 
@@ -98,7 +98,7 @@ Repo bootstrap for coding agents. Read this first, then follow the linked standa
   - `/.github/instructions/ci-tooling.instructions.md`
   - `/.github/instructions/source-quality.instructions.md`
   - `/.github/instructions/agent-os-docs.instructions.md`
-- Standards index: `agent-os/standards/index.yml`
+- Standards inventory: `runecontext/project/standards-inventory.md`
 
 Cursor rules status in this repo:
 - No Cursor rules are currently present in `.cursorrules` or `.cursor/rules/`.

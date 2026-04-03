@@ -4,7 +4,7 @@ Keep `runecontext/project/roadmap.md` up to date as the human-facing product sum
 
 ## Standards to read first
 
-- `agent-os/standards/product/roadmap-conventions.md`
+- `runecontext/standards/product/roadmap-conventions.md`
 
 ## When to use
 

@@ -1,0 +1,11 @@
+schema_version: 1
+id: runner-boundary
+includes:
+  standards:
+    - security/trust-boundary-interfaces.md
+    - security/trust-boundary-layered-enforcement.md
+    - security/trust-boundary-change-checklist.md
+    - security/runner-boundary-check.md
+    - javascript/**
+    - ci/windows-portability-matrix.md
+    - ci/worktree-cleanliness.md

@@ -30,7 +30,7 @@ This spec does not require blanket "comment everything" rules, does not require 
 - Tier classification must be deterministic rather than reviewer-implied.
   - `runner/**` defaults to Tier 2 unless checked-in checker configuration explicitly marks a file as Tier 1.
   - tools that enforce guardrails, touch `protocol/schemas/**`, or generate code for trusted paths are Tier 1 regardless of directory depth.
-  - policy/enforcement documents such as `docs/source-quality.md`, `docs/trust-boundaries.md`, `.github/instructions/**`, and `agent-os/standards/**` are Tier 1 protected surfaces for documentation/review rigor even when numeric code budgets do not apply.
+  - policy/enforcement documents such as `docs/source-quality.md`, `docs/trust-boundaries.md`, `.github/instructions/**`, and `runecontext/standards/**` are Tier 1 protected surfaces for documentation/review rigor even when numeric code budgets do not apply.
 - Initial thresholds are explicit and intentionally provisional so implementation does not invent policy ad hoc.
   - Tier 1 source files target about 250 SLOC; Tier 2 source files target about 400 SLOC.
   - Tier 1 test files target about 500 SLOC; Tier 2 test files target about 800 SLOC.
@@ -86,7 +86,7 @@ This spec does not require blanket "comment everything" rules, does not require 
 
 ## Standards Applied
 
-- `agent-os/standards/global/deterministic-check-write-tools.md`
-- `agent-os/standards/ci/worktree-cleanliness.md`
-- `agent-os/standards/security/trust-boundary-change-checklist.md`
-- `agent-os/standards/security/trust-boundary-layered-enforcement.md`
+- `runecontext/standards/global/deterministic-check-write-tools.md`
+- `runecontext/standards/ci/worktree-cleanliness.md`
+- `runecontext/standards/security/trust-boundary-change-checklist.md`
+- `runecontext/standards/security/trust-boundary-layered-enforcement.md`

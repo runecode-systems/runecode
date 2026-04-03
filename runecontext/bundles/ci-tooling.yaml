@@ -1,0 +1,8 @@
+schema_version: 1
+id: ci-tooling
+includes:
+  standards:
+    - ci/**
+    - global/deterministic-check-write-tools.md
+    - global/repo-hygiene-baseline.md
+    - global/repo-local-tools.md

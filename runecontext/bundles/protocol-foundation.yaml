@@ -1,0 +1,10 @@
+schema_version: 1
+id: protocol-foundation
+includes:
+  standards:
+    - global/protocol-bundle-manifest.md
+    - global/protocol-schema-invariants.md
+    - global/protocol-registry-discipline.md
+    - global/protocol-canonicalization-profile.md
+    - testing/protocol-fixture-manifest-parity.md
+    - security/trust-boundary-interfaces.md

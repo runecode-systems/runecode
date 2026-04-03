@@ -4,18 +4,18 @@ These standards apply to implementation work produced from this spec.
 
 ## Trust Boundary Standards
 
-- `agent-os/standards/security/trust-boundary-interfaces.md`
+- `runecontext/standards/security/trust-boundary-interfaces.md`
   - broker local API plus `protocol/schemas/` and `protocol/fixtures/` are the only allowed shared boundary surfaces
-- `agent-os/standards/security/trust-boundary-layered-enforcement.md`
+- `runecontext/standards/security/trust-boundary-layered-enforcement.md`
   - protocol changes must preserve broker validation, policy enforcement, and runtime isolation as layered controls
-- `agent-os/standards/security/trust-boundary-change-checklist.md`
+- `runecontext/standards/security/trust-boundary-change-checklist.md`
   - schema/fixture changes are security-sensitive and must stay aligned with trust-boundary docs and guardrails
-- `agent-os/standards/security/runner-boundary-check.md`
+- `runecontext/standards/security/runner-boundary-check.md`
   - the runner may only consume shared protocol schemas/fixtures and must fail closed on boundary violations
 
 ## Determinism and CI Hygiene
 
-- `agent-os/standards/global/deterministic-check-write-tools.md`
+- `runecontext/standards/global/deterministic-check-write-tools.md`
   - schema tooling and fixture workflows must default to check-only behavior and write only with explicit opt-in
-- `agent-os/standards/ci/worktree-cleanliness.md`
+- `runecontext/standards/ci/worktree-cleanliness.md`
   - CI must not mutate schemas, fixtures, or generated artifacts after the check entrypoint runs
