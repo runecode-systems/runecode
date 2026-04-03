@@ -5,7 +5,7 @@
 Runecode has two trust domains separated by a hard boundary:
 
 | Domain | Components | Trust Level |
-|--------|------------|-------------|
+| --- | --- | --- |
 | **Trusted** | Go control plane daemons + TUI client | Privileged local components with least-privilege separation (only `secretsd` stores long-lived secrets; the TUI must not receive secret values; other daemons run without secrets and with restricted OS permissions) |
 | **Untrusted** | TS/Node workflow runner | Zero direct access to secrets or host state |
 
@@ -64,7 +64,7 @@ The following MUST NEVER happen:
 This boundary is enforced at multiple layers:
 
 | Enforcement Point | Owner Artifact |
-|-------------------|----------------|
+| --- | --- |
 | Broker local API auth + schema validation | `runecontext/changes/CHG-2026-008-62e1-broker-local-api-v0/` |
 | Deterministic policy decisions | `runecontext/changes/CHG-2026-007-2315-policy-engine-v0/` |
 | Runtime isolation (no host filesystem mounts) | `runecontext/changes/CHG-2026-009-1672-launcher-microvm-backend-v0/` |

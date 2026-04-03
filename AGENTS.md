@@ -73,7 +73,7 @@ Repo bootstrap for coding agents. Read this first, then follow the linked standa
 
 ### Planning docs, specs, roadmap, or standards
 - Read:
-  - `/.github/instructions/agent-os-docs.instructions.md`
+  - `/.github/instructions/runecontext-docs.instructions.md`
   - `runecontext/standards/product/roadmap-conventions.md` when touching `runecontext/project/roadmap.md`
 - Rules:
   - Keep the standards inventory doc and bundle set concise and accurate
@@ -95,7 +95,7 @@ Repo bootstrap for coding agents. Read this first, then follow the linked standa
   - `/.github/instructions/runner-boundary.instructions.md`
   - `/.github/instructions/ci-tooling.instructions.md`
   - `/.github/instructions/source-quality.instructions.md`
-  - `/.github/instructions/agent-os-docs.instructions.md`
+  - `/.github/instructions/runecontext-docs.instructions.md`
 - Standards inventory: `runecontext/project/standards-inventory.md`
 
 Cursor rules status in this repo:
