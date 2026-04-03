@@ -3,7 +3,6 @@
 Repo bootstrap for coding agents. Read this first, then follow the linked standards/docs for the area you are changing.
 
 ## Non-negotiables
-- DO NOT edit `agent-os/doc-dump/project-idea.md`.
 - Preserve trust boundaries: `runner/` is untrusted; `cmd/` and `internal/` are trusted.
 - Never add runner imports/references into trusted paths (`cmd/`, `internal/`).
 - Runner must not import/reference repo-root `tools/` or other cross-boundary roots outside `protocol/`.
@@ -21,7 +20,6 @@ Repo bootstrap for coding agents. Read this first, then follow the linked standa
 - `protocol/` - authoritative schema bundle, registries, and shared fixtures for trusted/untrusted contracts
 - `tools/` - repo-local helper tools
 - `runecontext/` - canonical project context, standards, changes, specs, decisions, and bundles
-- `agent-os/doc-dump/` - frozen historical migration material
 - `docs/trust-boundaries.md` - boundary contract and prohibited bypasses
 - `docs/source-quality.md` - source-quality policy and enforcement expectations
 
@@ -80,7 +78,6 @@ Repo bootstrap for coding agents. Read this first, then follow the linked standa
 - Rules:
   - Keep the standards inventory doc and bundle set concise and accurate
   - Maintain roadmap-to-change/spec traceability
-  - Never modify `agent-os/doc-dump/project-idea.md`
 
 ## Verification Expectations
 - `just ci` stays check-only; do not introduce silent writes or lockfile churn.

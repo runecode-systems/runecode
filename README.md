@@ -55,7 +55,6 @@ Details (diagram, allowed interfaces, prohibited bypasses, and CI guardrail): `d
 - `tools/` — repo-local helper tools for deterministic checks and fixes
 - `docs/` — trust-boundary contract and supporting design docs
 - `runecontext/` — canonical project context, standards, changes, specs, decisions, and bundles
-- `agent-os/doc-dump/` — frozen migration/archive material only
 
 ## Install
 
