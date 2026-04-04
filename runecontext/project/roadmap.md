@@ -29,8 +29,9 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
   - Roles can run in microVM isolates (Linux-first) with no host filesystem mounts.
   - Planned change: `runecontext/changes/CHG-2026-009-1672-launcher-microvm-backend-v0/`
 - Workflow Runner + Workspace Roles + Deterministic Gates v0
-  - A first honest end-to-end slice executes offline workspace roles through the secure policy and evidence loop.
-  - Planned change: `runecontext/changes/CHG-2026-033-6e7b-workflow-runner-durable-state-v0/`
+  - A first honest end-to-end slice executes offline workspace roles through the secure policy and evidence loop, delivered through scoped child features.
+  - Project change: `runecontext/changes/CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0/`
+  - Feature changes: `runecontext/changes/CHG-2026-033-6e7b-workflow-runner-durable-state-v0/`, `runecontext/changes/CHG-2026-034-b2d4-workspace-roles-v0/`, `runecontext/changes/CHG-2026-035-c8e1-deterministic-gates-v0/`
 - Minimal TUI v0
   - Users can approve actions and inspect diffs, artifacts, and audit timelines locally through the real secure local API.
   - Planned change: `runecontext/changes/CHG-2026-013-d2c9-minimal-tui-v0/`
@@ -38,8 +39,9 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 ### v0.1.0-alpha.4
 
 - Secretsd + Model Gateway v0
-  - Model egress is centralized behind a gateway with scoped secret leases and auditing.
-  - Planned change: `runecontext/changes/CHG-2026-032-4d1f-model-gateway-v0/`
+  - Model egress is centralized behind a gateway with scoped secret leases and auditing, delivered through scoped child features.
+  - Project change: `runecontext/changes/CHG-2026-011-7240-secretsd-model-gateway-v0/`
+  - Feature changes: `runecontext/changes/CHG-2026-031-7a3c-secretsd-core-v0/`, `runecontext/changes/CHG-2026-032-4d1f-model-gateway-v0/`
 - Container Backend v0 (Explicit Opt-In)
   - Container isolation is available only via explicit opt-in with reduced-assurance UX after the primary high-assurance path exists.
   - Planned change: `runecontext/changes/CHG-2026-010-54b7-container-backend-v0-explicit-opt-in/`
