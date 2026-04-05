@@ -1,6 +1,10 @@
 package artifacts
 
-import "time"
+import (
+	"time"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
+)
 
 type DataClass string
 
@@ -102,6 +106,7 @@ type PutRequest struct {
 	DataClass             DataClass
 	ProvenanceReceiptHash string
 	CreatedByRole         string
+	TrustedSource         bool
 	RunID                 string
 	StepID                string
 }
@@ -125,6 +130,7 @@ type PromotionRequest struct {
 	ExplicitViewFull      bool
 	BulkRequest           bool
 	BulkApprovalConfirmed bool
+	ApprovalDecision      *trustpolicy.SignedObjectEnvelope
 }
 
 type GCResult struct {

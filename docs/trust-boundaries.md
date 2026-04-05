@@ -71,6 +71,17 @@ This boundary is enforced at multiple layers:
 | Optional container backend | `runecontext/changes/CHG-2026-010-54b7-container-backend-v0-explicit-opt-in/` |
 | CI boundary guardrail | This spec (`npm run boundary-check`) |
 
+## Crypto Foundation Readiness Hooks
+
+The trusted daemons expose minimal fail-closed validation hooks so later feature work can reuse one reviewed contract without re-inventing parsing and posture checks:
+
+- `runecode-broker promote-excerpt` now requires a signed approval-decision envelope and validates it against broker-owned trusted verifier records before approval consumption.
+- `runecode-launcher validate-isolate-binding` validates TOFU isolate session bindings (`run_id`, `isolate_id`, `session_id`, `session_nonce`, digest bindings, and key identity profile).
+- `runecode-auditd validate-signer-evidence` validates signer scope/purpose and isolate binding evidence for isolate-attributed events.
+- `runecode-secretsd validate-sign-request` validates sign-request preconditions (purpose/scope and closed posture enums) before signing.
+
+These hooks are not final runtime wiring for all features, but they are authoritative trusted-domain validation surfaces used to fail closed and keep upcoming `CHG-2026-003/006/008/009/031/033` integration deterministic.
+
 ## CI Guardrail
 
 The runner includes a mechanical boundary check (`npm run boundary-check`) that fails CI if:

@@ -1,6 +1,10 @@
 package artifacts
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
+)
 
 func validatePutRequest(req PutRequest, policy Policy) error {
 	if _, ok := allDataClasses[req.DataClass]; !ok {
@@ -143,11 +147,14 @@ func flowAllowed(rules []FlowRule, req FlowCheckRequest) bool {
 	return false
 }
 
-func validatePromotionRequest(policy Policy, source ArtifactRecord, req PromotionRequest) error {
+func validatePromotionRequest(policy Policy, source ArtifactRecord, req PromotionRequest, trustedVerifiers []trustpolicy.VerifierRecord) error {
 	if source.Reference.DataClass != DataClassUnapprovedFileExcerpts {
 		return ErrPromotionSourceNotUnapproved
 	}
 	if err := validatePromotionApproval(policy, req); err != nil {
+		return err
+	}
+	if err := verifySignedApprovalDecision(req, trustedVerifiers); err != nil {
 		return err
 	}
 	if err := validatePromotionMetadata(req); err != nil {

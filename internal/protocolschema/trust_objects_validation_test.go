@@ -62,6 +62,18 @@ func TestApprovalDecisionRequiresMachineCheckableRestrictionSchema(t *testing.T)
 	}
 }
 
+func TestVerifierRecordRequiresDeterministicKeyIdentityAndClosedPostures(t *testing.T) {
+	schema := mustCompileObjectSchema(t, newCompiledBundle(t, loadManifest(t)), "objects/VerifierRecord.schema.json")
+
+	for _, testCase := range verifierRecordCases() {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			err := schema.Validate(testCase.value)
+			assertValidationOutcome(t, err, testCase.wantErr)
+		})
+	}
+}
+
 func capabilityManifestCases() []validationCase {
 	return []validationCase{
 		{name: "run scope omits stage id", value: validRunCapabilityManifest()},
@@ -87,6 +99,8 @@ func approvalRequestCases() []validationCase {
 		{name: "runtime-owned timestamp ordering remains schema-valid", value: validApprovalRequestWithInvertedTimes()},
 		{name: "runtime-owned trigger registry lookup remains schema-valid", value: validApprovalRequestWithUnknownTriggerCode()},
 		{name: "unknown profile fails closed", value: invalidApprovalRequestProfile(), wantErr: true},
+		{name: "unknown assurance level fails closed", value: invalidApprovalRequestAssuranceLevel(), wantErr: true},
+		{name: "unknown presence mode fails closed", value: invalidApprovalRequestPresenceMode(), wantErr: true},
 		{name: "details schema id is required", value: invalidApprovalRequestWithoutDetailsSchema(), wantErr: true},
 	}
 }
@@ -95,8 +109,19 @@ func approvalDecisionCases() []validationCase {
 	return []validationCase{
 		{name: "valid decision", value: validApprovalDecision()},
 		{name: "minimal decision omits optional expiry", value: validMinimalApprovalDecision()},
+		{name: "unknown assurance level fails closed", value: invalidApprovalDecisionAssuranceLevel(), wantErr: true},
+		{name: "unknown presence mode fails closed", value: invalidApprovalDecisionPresenceMode(), wantErr: true},
 		{name: "restrictions require schema id", value: invalidApprovalDecisionWithoutRestrictionSchema(), wantErr: true},
 		{name: "restrictions schema id requires restrictions", value: invalidApprovalDecisionWithoutRestrictions(), wantErr: true},
+	}
+}
+
+func verifierRecordCases() []validationCase {
+	return []validationCase{
+		{name: "valid verifier record", value: validVerifierRecord()},
+		{name: "unknown key posture fails closed", value: invalidVerifierRecordUnknownKeyPosture(), wantErr: true},
+		{name: "unknown presence mode fails closed", value: invalidVerifierRecordUnknownPresenceMode(), wantErr: true},
+		{name: "path-like key id value fails", value: invalidVerifierRecordPathLikeKeyID(), wantErr: true},
 	}
 }
 
@@ -214,7 +239,7 @@ func invalidStageScopedManifestWithoutStageID() map[string]any {
 func validApprovalRequest() map[string]any {
 	return map[string]any{
 		"schema_id":                "runecode.protocol.v0.ApprovalRequest",
-		"schema_version":           "0.2.0",
+		"schema_version":           "0.3.0",
 		"approval_profile":         "moderate",
 		"requester":                manifestPrincipal(),
 		"approval_trigger_code":    "gateway_egress_scope_change",
@@ -223,10 +248,13 @@ func validApprovalRequest() map[string]any {
 		"relevant_artifact_hashes": []any{testDigestValue("c")},
 		"details_schema_id":        "runecode.protocol.details.approval.gateway-egress.v0",
 		"details":                  map[string]any{"requested_category": "model"},
+		"approval_assurance_level": "session_authenticated",
+		"presence_mode":            "os_confirmation",
 		"requested_at":             "2026-03-13T12:00:00Z",
 		"expires_at":               "2026-03-13T12:30:00Z",
 		"staleness_posture":        "invalidate_on_bound_input_change",
 		"changes_if_approved":      "Enable model-gateway egress for spec_text artifacts to the signed allowlist.",
+		"signatures":               []any{signatureBlock()},
 	}
 }
 
@@ -254,6 +282,18 @@ func invalidApprovalRequestProfile() map[string]any {
 	return request
 }
 
+func invalidApprovalRequestAssuranceLevel() map[string]any {
+	request := validApprovalRequest()
+	request["approval_assurance_level"] = "channel_click"
+	return request
+}
+
+func invalidApprovalRequestPresenceMode() map[string]any {
+	request := validApprovalRequest()
+	request["presence_mode"] = "biometric"
+	return request
+}
+
 func invalidApprovalRequestWithoutDetailsSchema() map[string]any {
 	request := validApprovalRequest()
 	delete(request, "details_schema_id")
@@ -263,10 +303,15 @@ func invalidApprovalRequestWithoutDetailsSchema() map[string]any {
 func validApprovalDecision() map[string]any {
 	return map[string]any{
 		"schema_id":                   "runecode.protocol.v0.ApprovalDecision",
-		"schema_version":              "0.2.0",
+		"schema_version":              "0.3.0",
 		"approval_request_hash":       testDigestValue("d"),
 		"approver":                    approverPrincipal(),
 		"decision_outcome":            "approve",
+		"approval_assurance_level":    "reauthenticated",
+		"presence_mode":               "hardware_touch",
+		"key_protection_posture":      "hardware_backed",
+		"identity_binding_posture":    "attested",
+		"approval_assertion_hash":     testDigestValue("1"),
 		"decided_at":                  "2026-03-13T12:05:00Z",
 		"consumption_posture":         "single_use",
 		"decision_expires_at":         "2026-03-13T12:30:00Z",
@@ -274,18 +319,24 @@ func validApprovalDecision() map[string]any {
 		"restrictions":                map[string]any{"max_uses": 1},
 		"policy_decision_hash":        testDigestValue("e"),
 		"stage_manifest_summary_hash": testDigestValue("f"),
+		"signatures":                  []any{signatureBlock()},
 	}
 }
 
 func validMinimalApprovalDecision() map[string]any {
 	return map[string]any{
-		"schema_id":             "runecode.protocol.v0.ApprovalDecision",
-		"schema_version":        "0.2.0",
-		"approval_request_hash": testDigestValue("d"),
-		"approver":              approverPrincipal(),
-		"decision_outcome":      "approve",
-		"decided_at":            "2026-03-13T12:05:00Z",
-		"consumption_posture":   "single_use",
+		"schema_id":                "runecode.protocol.v0.ApprovalDecision",
+		"schema_version":           "0.3.0",
+		"approval_request_hash":    testDigestValue("d"),
+		"approver":                 approverPrincipal(),
+		"decision_outcome":         "approve",
+		"approval_assurance_level": "none",
+		"presence_mode":            "none",
+		"key_protection_posture":   "os_keystore",
+		"identity_binding_posture": "tofu",
+		"decided_at":               "2026-03-13T12:05:00Z",
+		"consumption_posture":      "single_use",
+		"signatures":               []any{signatureBlock()},
 	}
 }
 
@@ -295,8 +346,57 @@ func invalidApprovalDecisionWithoutRestrictionSchema() map[string]any {
 	return decision
 }
 
+func invalidApprovalDecisionAssuranceLevel() map[string]any {
+	decision := validApprovalDecision()
+	decision["approval_assurance_level"] = "delivery_channel_only"
+	return decision
+}
+
+func invalidApprovalDecisionPresenceMode() map[string]any {
+	decision := validApprovalDecision()
+	decision["presence_mode"] = "push"
+	return decision
+}
+
 func invalidApprovalDecisionWithoutRestrictions() map[string]any {
 	decision := validApprovalDecision()
 	delete(decision, "restrictions")
 	return decision
+}
+
+func validVerifierRecord() map[string]any {
+	return map[string]any{
+		"schema_id":                "runecode.protocol.v0.VerifierRecord",
+		"schema_version":           "0.1.0",
+		"key_id":                   "key_sha256",
+		"key_id_value":             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		"alg":                      "ed25519",
+		"public_key":               map[string]any{"encoding": "base64", "value": "AQID"},
+		"logical_purpose":          "approval_authority",
+		"logical_scope":            "user",
+		"owner_principal":          approverPrincipal(),
+		"key_protection_posture":   "hardware_backed",
+		"identity_binding_posture": "attested",
+		"presence_mode":            "hardware_touch",
+		"created_at":               "2026-03-13T12:00:00Z",
+		"status":                   "active",
+	}
+}
+
+func invalidVerifierRecordUnknownKeyPosture() map[string]any {
+	record := validVerifierRecord()
+	record["key_protection_posture"] = "plaintext_disk"
+	return record
+}
+
+func invalidVerifierRecordUnknownPresenceMode() map[string]any {
+	record := validVerifierRecord()
+	record["presence_mode"] = "biometric"
+	return record
+}
+
+func invalidVerifierRecordPathLikeKeyID() map[string]any {
+	record := validVerifierRecord()
+	record["key_id_value"] = "../../keys/local-user"
+	return record
 }

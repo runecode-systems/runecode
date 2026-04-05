@@ -23,13 +23,19 @@ function loadBundle() {
   addFormats(ajv)
 
   const schemaPathToId = new Map()
+  const runtimeSchemaKeyToPath = new Map()
   for (const entry of manifest.schema_files) {
     const schema = loadJson(path.join(schemaRoot, entry.path))
     ajv.addSchema(schema)
     schemaPathToId.set(entry.path, schema.$id)
+    runtimeSchemaKeyToPath.set(runtimeSchemaKey(entry.schema_id, entry.schema_version), entry.path)
   }
 
-  return { ajv, schemaPathToId }
+  return { ajv, schemaPathToId, runtimeSchemaKeyToPath }
+}
+
+function runtimeSchemaKey(schemaId, schemaVersion) {
+  return `${schemaId}@${schemaVersion}`
 }
 
 function validatorForPath(bundle, schemaPath) {
@@ -224,7 +230,7 @@ function digestIdentity(digest) {
   return `${digest.hash_alg}:${digest.hash}`
 }
 
-function validateRuntimeInvariant(rule, fixture) {
+function validateRuntimeInvariant(rule, fixture, bundle) {
   switch (rule) {
     case 'llm_request_unique_artifact_digests':
       return requireUniqueArtifactDigests(fixture.input_artifacts)
@@ -234,9 +240,33 @@ function validateRuntimeInvariant(rule, fixture) {
       return requireUniqueArtifactDigests(fixture.output_artifacts)
     case 'llm_response_unique_tool_call_ids':
       return requireUniqueToolCallIds(fixture.proposed_tool_calls)
+    case 'signed_envelope_payload_schema_match':
+      return requireSignedEnvelopePayloadSchemaMatch(fixture, bundle)
     default:
       throw new Error(`unknown runtime invariant rule ${rule}`)
   }
+}
+
+function requireSignedEnvelopePayloadSchemaMatch(envelope, bundle) {
+  if (envelope.payload_schema_id !== envelope?.payload?.schema_id) {
+    return new Error(`payload_schema_id ${JSON.stringify(envelope.payload_schema_id)} does not match payload.schema_id ${JSON.stringify(envelope?.payload?.schema_id)}`)
+  }
+  if (envelope.payload_schema_version !== envelope?.payload?.schema_version) {
+    return new Error(`payload_schema_version ${JSON.stringify(envelope.payload_schema_version)} does not match payload.schema_version ${JSON.stringify(envelope?.payload?.schema_version)}`)
+  }
+
+  const payloadSchemaPath = bundle.runtimeSchemaKeyToPath.get(runtimeSchemaKey(envelope.payload_schema_id, envelope.payload_schema_version))
+  if (!payloadSchemaPath) {
+    return new Error(`payload schema ${envelope.payload_schema_id}@${envelope.payload_schema_version} not found in schema manifest`)
+  }
+
+  const validatePayload = validatorForPath(bundle, payloadSchemaPath)
+  const validPayload = validatePayload(envelope.payload)
+  if (!validPayload) {
+    return new Error(`payload failed ${envelope.payload_schema_id}@${envelope.payload_schema_version} schema validation: ${JSON.stringify(validatePayload.errors)}`)
+  }
+
+  return null
 }
 
 function requireUniqueArtifactDigests(artifacts) {
@@ -357,7 +387,7 @@ test('runtime invariant fixtures fail closed identically in JS', async (t) => {
       const fixture = loadJson(path.join(fixtureRoot, entry.fixture_path))
       const validate = validatorForPath(bundle, entry.schema_path)
       assert.equal(validate(fixture), true, `${entry.id} must be schema-valid before runtime checks: ${JSON.stringify(validate.errors)}`)
-      const runtimeError = validateRuntimeInvariant(entry.rule, fixture)
+      const runtimeError = validateRuntimeInvariant(entry.rule, fixture, bundle)
       assert.equal(runtimeError === null, entry.expect_valid, `${entry.id} runtime mismatch: ${runtimeError}`)
     })
   }

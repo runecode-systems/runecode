@@ -37,6 +37,18 @@
       "expect_valid": true
     },
     {
+      "id": "verifier-record.valid-basic",
+      "schema_path": "objects/VerifierRecord.schema.json",
+      "fixture_path": "schema/verifier-record.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "verifier-record.invalid-unknown-posture",
+      "schema_path": "objects/VerifierRecord.schema.json",
+      "fixture_path": "schema/verifier-record.invalid-unknown-posture.json",
+      "expect_valid": false
+    },
+    {
       "id": "policy-decision.valid-approval",
       "schema_path": "objects/PolicyDecision.schema.json",
       "fixture_path": "schema/policy-decision.valid-approval.json",
@@ -203,6 +215,20 @@
       "fixture_path": "runtime/llm-response.duplicate-tool-call-id.json",
       "rule": "llm_response_unique_tool_call_ids",
       "expect_valid": false
+    },
+    {
+      "id": "signed-envelope.valid-payload-schema-match",
+      "schema_path": "objects/SignedObjectEnvelope.schema.json",
+      "fixture_path": "runtime/signed-envelope.valid-payload-schema-match.json",
+      "rule": "signed_envelope_payload_schema_match",
+      "expect_valid": true
+    },
+    {
+      "id": "signed-envelope.invalid-payload-schema-mismatch",
+      "schema_path": "objects/SignedObjectEnvelope.schema.json",
+      "fixture_path": "runtime/signed-envelope.invalid-payload-schema-mismatch.json",
+      "rule": "signed_envelope_payload_schema_match",
+      "expect_valid": false
     }
   ],
   "canonicalization_fixtures": [
@@ -217,7 +243,7 @@
       "id": "approval-request.basic",
       "payload_path": "canonical/approval-request.basic.payload.json",
       "canonical_json_path": "canonical/approval-request.basic.canonical.json",
-      "sha256": "22b9ecc3f8a4e6d699f4eae8348d2b6bff7c38c7c8c2ff2c659a8b30c357d481",
+      "sha256": "ada22abf316ebf7762511f1239f3f4471bdaf598bce5e34998f8bfdb985bb39a",
       "expect_valid": true
     },
     {

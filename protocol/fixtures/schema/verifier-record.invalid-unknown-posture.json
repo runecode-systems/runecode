@@ -1,0 +1,25 @@
+{
+  "schema_id": "runecode.protocol.v0.VerifierRecord",
+  "schema_version": "0.1.0",
+  "key_id": "key_sha256",
+  "key_id_value": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "alg": "ed25519",
+  "public_key": {
+    "encoding": "base64",
+    "value": "AQID"
+  },
+  "logical_purpose": "approval_authority",
+  "logical_scope": "user",
+  "owner_principal": {
+    "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+    "schema_version": "0.2.0",
+    "actor_kind": "user",
+    "principal_id": "alice",
+    "instance_id": "approval-session-1"
+  },
+  "key_protection_posture": "plaintext_disk",
+  "identity_binding_posture": "attested",
+  "presence_mode": "hardware_touch",
+  "created_at": "2026-03-13T12:00:00Z",
+  "status": "active"
+}

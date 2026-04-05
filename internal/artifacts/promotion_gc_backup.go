@@ -1,6 +1,7 @@
 package artifacts
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -23,7 +24,10 @@ func (s *Store) buildApprovedRecord(source ArtifactRecord, req PromotionRequest)
 		return ArtifactReference{}, ArtifactRecord{}, "", "", err
 	}
 	now := s.nowFn().UTC()
-	decisionHash := digestBytes([]byte(fmt.Sprintf("%s|%s|%s|%s", req.UnapprovedDigest, req.Approver, req.RepoPath, now.Format(time.RFC3339Nano))))
+	decisionHash, err := promotionDecisionHash(req)
+	if err != nil {
+		return ArtifactReference{}, ArtifactRecord{}, "", "", err
+	}
 	requestHash := digestBytes([]byte(strings.Join([]string{req.UnapprovedDigest, req.RepoPath, req.Commit, req.ExtractorToolVersion, req.Approver}, "|")))
 	ref := ArtifactReference{
 		Digest:                newDigest,
@@ -47,6 +51,17 @@ func (s *Store) buildApprovedRecord(source ArtifactRecord, req PromotionRequest)
 		PromotionApprovedAt:  &now,
 	}
 	return ref, record, decisionHash, requestHash, nil
+}
+
+func promotionDecisionHash(req PromotionRequest) (string, error) {
+	if req.ApprovalDecision == nil {
+		return "", ErrApprovalArtifactRequired
+	}
+	b, err := json.Marshal(req.ApprovalDecision)
+	if err != nil {
+		return "", err
+	}
+	return digestBytes(b), nil
 }
 
 func promotionAuditDetails(req PromotionRequest, approvedDigest, requestHash, decisionHash string) map[string]interface{} {

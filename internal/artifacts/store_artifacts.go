@@ -87,11 +87,21 @@ func (s *Store) upsertArtifactRecord(ref ArtifactReference, req PutRequest, dige
 		Reference:         ref,
 		BlobPath:          s.storeIO.blobPath(digest),
 		CreatedAt:         now,
-		CreatedByRole:     req.CreatedByRole,
+		CreatedByRole:     createdByRole(req),
 		RunID:             req.RunID,
 		StepID:            req.StepID,
 		StorageProtection: s.state.StorageProtectionPosture,
 	}
+}
+
+func createdByRole(req PutRequest) string {
+	if req.TrustedSource {
+		return req.CreatedByRole
+	}
+	if req.CreatedByRole == "auditd" || req.CreatedByRole == "secretsd" || req.CreatedByRole == "launcher" {
+		return "untrusted_client"
+	}
+	return req.CreatedByRole
 }
 
 func (s *Store) Get(digest string) (io.ReadCloser, error) {

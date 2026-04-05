@@ -11,10 +11,11 @@
       "description": "Reusable detached signature block shared across signed protocol objects.",
       "type": "object",
       "additionalProperties": false,
-      "maxProperties": 3,
+      "maxProperties": 4,
       "required": [
         "alg",
         "key_id",
+        "key_id_value",
         "signature"
       ],
       "properties": {
@@ -28,9 +29,16 @@
         },
         "key_id": {
           "type": "string",
-          "minLength": 1,
-          "maxLength": 256,
-          "description": "Stable signer key identifier used to locate the verifying key material.",
+          "const": "key_sha256",
+          "description": "Canonical signer key-id algorithm profile. Signature key IDs use the deterministic public-key-derived format key_sha256:<64-lowercase-hex>.",
+          "x-data-class": "public"
+        },
+        "key_id_value": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Deterministic SHA-256 hex key identifier derived from canonical public-key bytes. Topology-neutral and never a path, username, or local keystore handle.",
           "x-data-class": "public"
         },
         "signature": {
@@ -60,7 +68,7 @@
       "x-data-class": "public"
     },
     "schema_version": {
-      "const": "0.1.0",
+      "const": "0.2.0",
       "description": "Exact protocol schema version used to validate this signed envelope.",
       "x-data-class": "public"
     },

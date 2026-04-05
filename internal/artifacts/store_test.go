@@ -133,32 +133,9 @@ func TestFlowChecksFailClosedAndEgressRules(t *testing.T) {
 }
 
 func TestPromotionRequiresApprovalAndMintsNewReference(t *testing.T) {
-	store := newTestStore(t)
-	unapproved, err := store.Put(PutRequest{
-		Payload:               []byte("sensitive excerpt"),
-		ContentType:           "text/plain",
-		DataClass:             DataClassUnapprovedFileExcerpts,
-		ProvenanceReceiptHash: testDigest("5"),
-		CreatedByRole:         "workspace",
-	})
-	if err != nil {
-		t.Fatalf("Put returned error: %v", err)
-	}
-	_, err = store.PromoteApprovedExcerpt(PromotionRequest{UnapprovedDigest: unapproved.Digest})
-	if err != ErrPromotionRequiresApproval {
-		t.Fatalf("Promote no approver error = %v, want %v", err, ErrPromotionRequiresApproval)
-	}
-	approved, err := store.PromoteApprovedExcerpt(PromotionRequest{
-		UnapprovedDigest:     unapproved.Digest,
-		Approver:             "human-1",
-		RepoPath:             "repo/file.txt",
-		Commit:               "abc123",
-		ExtractorToolVersion: "v1",
-		FullContentVisible:   true,
-	})
-	if err != nil {
-		t.Fatalf("Promote returned error: %v", err)
-	}
+	store, unapproved := setupPromotionSourceForTests(t)
+	assertPromotionRequiresApprover(t, store, unapproved.Digest)
+	approved := promoteApprovedExcerptForTests(t, store, unapproved.Digest, "human-1")
 	if approved.Digest == unapproved.Digest {
 		t.Fatalf("approved digest must differ from unapproved digest")
 	}
@@ -183,11 +160,11 @@ func TestPromotionRateLimitAndBulkGate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Put first error: %v", err)
 	}
-	_, err = store.PromoteApprovedExcerpt(PromotionRequest{UnapprovedDigest: first.Digest, Approver: "human", RepoPath: "a", Commit: "b", ExtractorToolVersion: "c", FullContentVisible: true, BulkRequest: true})
+	_, err = promoteApprovedExcerptWithFlagsForTests(t, store, first.Digest, "human", true, false)
 	if err != ErrApprovalBulkConfirmationNeeded {
 		t.Fatalf("bulk promotion error = %v, want %v", err, ErrApprovalBulkConfirmationNeeded)
 	}
-	_, err = store.PromoteApprovedExcerpt(PromotionRequest{UnapprovedDigest: first.Digest, Approver: "human", RepoPath: "a", Commit: "b", ExtractorToolVersion: "c", FullContentVisible: true, BulkRequest: true, BulkApprovalConfirmed: true})
+	_, err = promoteApprovedExcerptWithFlagsForTests(t, store, first.Digest, "human", true, true)
 	if err != nil {
 		t.Fatalf("bulk promotion confirmed error: %v", err)
 	}
@@ -195,7 +172,7 @@ func TestPromotionRateLimitAndBulkGate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Put second error: %v", err)
 	}
-	_, err = store.PromoteApprovedExcerpt(PromotionRequest{UnapprovedDigest: second.Digest, Approver: "human", RepoPath: "a", Commit: "b", ExtractorToolVersion: "c", FullContentVisible: true})
+	_, err = promoteApprovedExcerptWithFlagsForTests(t, store, second.Digest, "human", false, false)
 	if err != ErrPromotionRateLimited {
 		t.Fatalf("second promotion error = %v, want %v", err, ErrPromotionRateLimited)
 	}

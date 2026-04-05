@@ -63,7 +63,8 @@ func validateStreamEventSchemas(schema interface{ Validate(any) error }, events 
 
 func TestRuntimeInvariantFixturesValidateFailClosed(t *testing.T) {
 	manifest := loadFixtureManifest(t)
-	bundle := newCompiledBundle(t, loadManifest(t))
+	schemaManifest := loadManifest(t)
+	bundle := newCompiledBundle(t, schemaManifest)
 
 	for _, entry := range manifest.RuntimeFixtures {
 		entry := entry
@@ -74,7 +75,7 @@ func TestRuntimeInvariantFixturesValidateFailClosed(t *testing.T) {
 				t.Fatalf("fixture must be schema-valid before runtime checks: %v", err)
 			}
 
-			err := validateLLMRuntimeInvariant(entry.Rule, fixture)
+			err := validateRuntimeInvariant(entry.Rule, fixture, schemaManifest, bundle)
 			assertValidationOutcome(t, err, !entry.ExpectValid)
 		})
 	}

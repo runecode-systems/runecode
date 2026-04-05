@@ -1,6 +1,6 @@
 {
   "schema_id": "runecode.protocol.v0.ApprovalDecision",
-  "schema_version": "0.2.0",
+  "schema_version": "0.3.0",
   "approval_request_hash": {
     "hash_alg": "sha256",
     "hash": "4444444444444444444444444444444444444444444444444444444444444444"
@@ -14,10 +14,26 @@
     "session_id": "session-1"
   },
   "decision_outcome": "approve",
+  "approval_assurance_level": "reauthenticated",
+  "presence_mode": "hardware_touch",
+  "key_protection_posture": "hardware_backed",
+  "identity_binding_posture": "attested",
+  "approval_assertion_hash": {
+    "hash_alg": "sha256",
+    "hash": "6666666666666666666666666666666666666666666666666666666666666666"
+  },
   "decided_at": "2026-03-13T12:05:00Z",
   "consumption_posture": "single_use",
   "policy_decision_hash": {
     "hash_alg": "sha256",
     "hash": "5555555555555555555555555555555555555555555555555555555555555555"
-  }
+  },
+  "signatures": [
+    {
+      "alg": "ed25519",
+      "key_id": "key_sha256",
+      "key_id_value": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "signature": "c2ln"
+    }
+  ]
 }
