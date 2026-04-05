@@ -12,6 +12,7 @@ suggested_context_bundles:
 Use RFC 8785 JCS for hashed or signed protocol objects.
 
 - Sign the detached payload's RFC 8785 JCS bytes, not wrapper fields or language-native serialization
+- Hash trusted persisted protocol objects and derived trust records from RFC 8785 JCS bytes, not language-native serialization output or delimiter-joined field strings
 - Accept RFC 8785-compatible JSON numbers, including decimal and exponent forms, and normalize them through JCS/ECMAScript number formatting rules
 - Normalize `-0` to `0`
 - Sort object keys by UTF-16 code units as required by RFC 8785 JCS, including non-ASCII keys

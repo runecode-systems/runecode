@@ -2,6 +2,7 @@
 - `standards/product/roadmap-conventions.md`
 - `standards/global/local-first-future-optionality.md`
 - `standards/global/protocol-canonicalization-profile.md`
+- `standards/security/approval-binding-and-verifier-identity.md`
 - `standards/security/trust-boundary-layered-enforcement.md`
 - `standards/security/trust-boundary-interfaces.md`
 - `standards/security/trusted-local-artifact-persistence.md`
