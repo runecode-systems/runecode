@@ -19,6 +19,10 @@ func TestSchemaManifestMatchesSchemas(t *testing.T) {
 	assertReservedStatus(t, manifest, "runecode.protocol.v0.ProcessDefinition")
 	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.ArtifactReference", "0.3.0")
 	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.ArtifactPolicy", "0.1.0")
+	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.SignedObjectEnvelope", "0.2.0")
+	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.ApprovalRequest", "0.3.0")
+	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.ApprovalDecision", "0.3.0")
+	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.VerifierRecord", "0.1.0")
 }
 
 func TestManifestAndRegistryDocumentsValidateAgainstMetaSchemas(t *testing.T) {

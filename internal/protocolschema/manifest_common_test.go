@@ -436,8 +436,9 @@ func testDigestValue(nibble string) map[string]any {
 
 func signatureBlock() map[string]any {
 	return map[string]any{
-		"alg":       "ed25519",
-		"key_id":    "signer-1",
-		"signature": "c2ln",
+		"alg":          "ed25519",
+		"key_id":       "key_sha256",
+		"key_id_value": strings.Repeat("a", 64),
+		"signature":    "c2ln",
 	}
 }

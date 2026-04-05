@@ -29,6 +29,7 @@ func (s *Store) Put(req PutRequest) (ArtifactReference, error) {
 }
 
 func (s *Store) putLocked(req PutRequest) (ArtifactReference, error) {
+	actorRole := createdByRole(req)
 	payload, digest, err := s.preparePutPayload(req)
 	if err != nil {
 		return ArtifactReference{}, err
@@ -40,11 +41,11 @@ func (s *Store) putLocked(req PutRequest) (ArtifactReference, error) {
 		return ArtifactReference{}, err
 	}
 	ref := buildArtifactReference(digest, int64(len(payload)), req)
-	s.upsertArtifactRecord(ref, req, digest)
+	s.upsertArtifactRecord(ref, req, digest, actorRole)
 	if req.RunID != "" {
 		s.state.Runs[req.RunID] = "active"
 	}
-	if err := s.appendAuditLocked("artifact_put", req.CreatedByRole, map[string]interface{}{"digest": digest, "data_class": req.DataClass}); err != nil {
+	if err := s.appendAuditLocked("artifact_put", actorRole, map[string]interface{}{"digest": digest, "data_class": req.DataClass}); err != nil {
 		return ArtifactReference{}, err
 	}
 	if err := s.saveStateLocked(); err != nil {
@@ -61,8 +62,9 @@ func (s *Store) preparePutPayload(req PutRequest) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	if err := s.checkQuotasLocked(req.CreatedByRole, req.StepID, int64(len(canonical))); err != nil {
-		if auditErr := s.appendAuditLocked("artifact_quota_violation", req.CreatedByRole, map[string]interface{}{"role": req.CreatedByRole, "step_id": req.StepID}); auditErr != nil {
+	actorRole := createdByRole(req)
+	if err := s.checkQuotasLocked(actorRole, req.StepID, int64(len(canonical))); err != nil {
+		if auditErr := s.appendAuditLocked("artifact_quota_violation", actorRole, map[string]interface{}{"role": actorRole, "step_id": req.StepID}); auditErr != nil {
 			return nil, "", errors.Join(err, auditErr)
 		}
 		return nil, "", err
@@ -81,17 +83,27 @@ func (s *Store) tryReturnExistingReference(req PutRequest, digest string) (Artif
 	return existing.Reference, true, nil
 }
 
-func (s *Store) upsertArtifactRecord(ref ArtifactReference, req PutRequest, digest string) {
+func (s *Store) upsertArtifactRecord(ref ArtifactReference, req PutRequest, digest string, actorRole string) {
 	now := s.nowFn().UTC()
 	s.state.Artifacts[digest] = ArtifactRecord{
 		Reference:         ref,
 		BlobPath:          s.storeIO.blobPath(digest),
 		CreatedAt:         now,
-		CreatedByRole:     req.CreatedByRole,
+		CreatedByRole:     actorRole,
 		RunID:             req.RunID,
 		StepID:            req.StepID,
 		StorageProtection: s.state.StorageProtectionPosture,
 	}
+}
+
+func createdByRole(req PutRequest) string {
+	if req.TrustedSource {
+		return req.CreatedByRole
+	}
+	if req.CreatedByRole == "auditd" || req.CreatedByRole == "secretsd" || req.CreatedByRole == "launcher" {
+		return "untrusted_client"
+	}
+	return req.CreatedByRole
 }
 
 func (s *Store) Get(digest string) (io.ReadCloser, error) {

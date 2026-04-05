@@ -9,6 +9,9 @@ Define post-MVP approval profiles that adjust approval timing without weakening 
 - Profiles are signed inputs (part of the run/stage capability manifest) and are fully auditable.
 - Adding or constraining profile values is a schema-versioned protocol change for every object family that carries the enum.
 - MVP ships with `moderate` only; `strict` and `permissive` are post-MVP extensions.
+- Profiles are user-involvement presets for ordinary actions: they map approval frequency, batching, TTL, and minimum assurance, but they do not define transport trust or channel semantics.
+- Profiles cannot lower the fixed hard-floor categories defined by policy; those continue to require their minimum assurance regardless of selected profile.
+- Delivery channel remains non-authoritative; local TUI, remote TUI, and messaging delivery are interchangeable only when they converge on the same signed approval artifacts and assurance checks.
 
 ## Main Workstreams
 - Approval Profile Model (Post-MVP)

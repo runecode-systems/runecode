@@ -1,6 +1,6 @@
 {
   "bundle_id": "runecode.protocol.v0",
-  "bundle_version": "0.3.0",
+  "bundle_version": "0.4.0",
   "json_schema_draft": "2020-12",
   "runtime_schema_prefix": "runecode.protocol.v0.",
   "canonicalization": "RFC8785-JCS",
@@ -76,18 +76,18 @@
     {
       "path": "objects/ApprovalRequest.schema.json",
       "schema_id": "runecode.protocol.v0.ApprovalRequest",
-      "schema_version": "0.2.0",
+      "schema_version": "0.3.0",
       "owner": "protocol",
       "status": "mvp",
-      "note": "MVP anchor family for typed approval requests; later approval-profile and workflow tasks add broader payload semantics under versioned follow-up work."
+      "note": "MVP signed approval-request family for typed approval intent, explicit assurance hooks, and detached-signature verification over canonical payload bytes."
     },
     {
       "path": "objects/ApprovalDecision.schema.json",
       "schema_id": "runecode.protocol.v0.ApprovalDecision",
-      "schema_version": "0.2.0",
+      "schema_version": "0.3.0",
       "owner": "protocol",
       "status": "mvp",
-      "note": "MVP anchor family for typed approval decisions; later approval-profile and workflow tasks add broader consumption and restriction semantics under versioned follow-up work."
+      "note": "MVP signed approval-decision family for typed outcomes, detached-signature verification, and bound assurance/posture evidence fields."
     },
     {
       "path": "objects/PolicyDecision.schema.json",
@@ -121,6 +121,13 @@
     {
       "path": "objects/SignedObjectEnvelope.schema.json",
       "schema_id": "runecode.protocol.v0.SignedObjectEnvelope",
+      "schema_version": "0.2.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/VerifierRecord.schema.json",
+      "schema_id": "runecode.protocol.v0.VerifierRecord",
       "schema_version": "0.1.0",
       "owner": "protocol",
       "status": "mvp"

@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/ApprovalDecision.schema.json",
   "title": "ApprovalDecision",
-  "description": "Protocol-owned approval decision family for hash-bound approval outcomes, approver attribution, and explicit consumption semantics.",
+  "description": "Protocol-owned approval decision family for hash-bound approval outcomes, approver attribution, and explicit consumption semantics. Decisions are signed by trusted approval authorities and can bind step-up assurance evidence hashes without making delivery channels authoritative.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 12,
+  "maxProperties": 18,
   "allOf": [
     {
       "if": {
@@ -38,8 +38,13 @@
     "approval_request_hash",
     "approver",
     "decision_outcome",
+    "approval_assurance_level",
+    "presence_mode",
+    "key_protection_posture",
+    "identity_binding_posture",
     "decided_at",
-    "consumption_posture"
+    "consumption_posture",
+    "signatures"
   ],
   "properties": {
     "schema_id": {
@@ -48,7 +53,7 @@
       "x-data-class": "public"
     },
     "schema_version": {
-      "const": "0.2.0",
+      "const": "0.3.0",
       "description": "Exact protocol schema version used to validate this approval decision.",
       "x-data-class": "public"
     },
@@ -71,6 +76,53 @@
         "cancelled"
       ],
       "description": "Outcome applied to the referenced approval request.",
+      "x-data-class": "public"
+    },
+    "approval_assurance_level": {
+      "type": "string",
+      "enum": [
+        "none",
+        "session_authenticated",
+        "reauthenticated",
+        "hardware_backed"
+      ],
+      "description": "Assurance level achieved by the approval authority before issuing this decision. Unknown values fail closed.",
+      "x-data-class": "public"
+    },
+    "presence_mode": {
+      "type": "string",
+      "enum": [
+        "none",
+        "os_confirmation",
+        "passphrase",
+        "hardware_touch"
+      ],
+      "description": "User-presence mode satisfied for this approval decision. Unknown values fail closed.",
+      "x-data-class": "public"
+    },
+    "key_protection_posture": {
+      "type": "string",
+      "enum": [
+        "hardware_backed",
+        "os_keystore",
+        "passphrase_wrapped",
+        "ephemeral_memory"
+      ],
+      "description": "Protection posture of the signing authority key used for this decision.",
+      "x-data-class": "public"
+    },
+    "identity_binding_posture": {
+      "type": "string",
+      "enum": [
+        "attested",
+        "tofu"
+      ],
+      "description": "Identity binding posture for the signer and associated verification path.",
+      "x-data-class": "public"
+    },
+    "approval_assertion_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Optional hash of user step-up assertion bytes verified by the approval authority and bound into this signed decision.",
       "x-data-class": "public"
     },
     "decided_at": {
@@ -118,6 +170,17 @@
       "$ref": "Digest.schema.json#/$defs/digestValue",
       "description": "Optional hash of the stage manifest summary the approver acted on.",
       "x-data-class": "public"
+    },
+    "signatures": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "description": "Detached signatures attesting to the exact approval decision payload contents over RFC 8785 JCS canonical bytes.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "SignedObjectEnvelope.schema.json#/$defs/signatureBlock",
+        "description": "Detached signature block for the approval decision payload."
+      }
     }
   }
 }

@@ -100,7 +100,7 @@ func canonicalSHA256Hex(value string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func validateLLMRuntimeInvariant(rule string, value map[string]any) error {
+func validateRuntimeInvariant(rule string, value map[string]any, manifest manifestFile, bundle compiledBundle) error {
 	switch rule {
 	case "llm_request_unique_artifact_digests":
 		return requireUniqueArtifactDigests(value, "input_artifacts")
@@ -110,9 +110,111 @@ func validateLLMRuntimeInvariant(rule string, value map[string]any) error {
 		return requireUniqueArtifactDigests(value, "output_artifacts")
 	case "llm_response_unique_tool_call_ids":
 		return requireUniqueToolCallIDs(value, "proposed_tool_calls")
+	case "signed_envelope_payload_schema_match":
+		return requireSignedEnvelopePayloadSchemaMatch(value, manifest, bundle)
 	default:
 		return fmt.Errorf("unknown runtime invariant rule %q", rule)
 	}
+}
+
+func requireSignedEnvelopePayloadSchemaMatch(value map[string]any, manifest manifestFile, bundle compiledBundle) error {
+	envelope, err := signedEnvelopeRuntimeView(value)
+	if err != nil {
+		return err
+	}
+	if err := requireRuntimePayloadSchemaMatch(envelope); err != nil {
+		return err
+	}
+	return validateRuntimePayloadSchema(envelope, manifest, bundle)
+}
+
+type signedEnvelopeRuntimePayloadView struct {
+	payloadSchemaID      string
+	payloadSchemaVersion string
+	payload              map[string]any
+	nestedSchemaID       string
+	nestedSchemaVersion  string
+}
+
+func signedEnvelopeRuntimeView(value map[string]any) (signedEnvelopeRuntimePayloadView, error) {
+	payloadSchemaID, err := stringField(value, "payload_schema_id")
+	if err != nil {
+		return signedEnvelopeRuntimePayloadView{}, err
+	}
+	payloadSchemaVersion, err := stringField(value, "payload_schema_version")
+	if err != nil {
+		return signedEnvelopeRuntimePayloadView{}, err
+	}
+	payload, err := requiredObjectField(value, "payload")
+	if err != nil {
+		return signedEnvelopeRuntimePayloadView{}, err
+	}
+	nestedSchemaID, err := stringField(payload, "schema_id")
+	if err != nil {
+		return signedEnvelopeRuntimePayloadView{}, err
+	}
+	nestedSchemaVersion, err := stringField(payload, "schema_version")
+	if err != nil {
+		return signedEnvelopeRuntimePayloadView{}, err
+	}
+	return signedEnvelopeRuntimePayloadView{
+		payloadSchemaID:      payloadSchemaID,
+		payloadSchemaVersion: payloadSchemaVersion,
+		payload:              payload,
+		nestedSchemaID:       nestedSchemaID,
+		nestedSchemaVersion:  nestedSchemaVersion,
+	}, nil
+}
+
+func requireRuntimePayloadSchemaMatch(envelope signedEnvelopeRuntimePayloadView) error {
+	if envelope.payloadSchemaID != envelope.nestedSchemaID {
+		return fmt.Errorf("payload_schema_id %q does not match payload.schema_id %q", envelope.payloadSchemaID, envelope.nestedSchemaID)
+	}
+	if envelope.payloadSchemaVersion != envelope.nestedSchemaVersion {
+		return fmt.Errorf("payload_schema_version %q does not match payload.schema_version %q", envelope.payloadSchemaVersion, envelope.nestedSchemaVersion)
+	}
+	return nil
+}
+
+func validateRuntimePayloadSchema(envelope signedEnvelopeRuntimePayloadView, manifest manifestFile, bundle compiledBundle) error {
+	schemaPath, err := manifestSchemaPathForRuntimeID(manifest, envelope.payloadSchemaID, envelope.payloadSchemaVersion)
+	if err != nil {
+		return err
+	}
+	schemaURI, err := schemaURIFromBundlePath(bundle, schemaPath)
+	if err != nil {
+		return err
+	}
+	schema, err := bundle.Compiler.Compile(schemaURI)
+	if err != nil {
+		return fmt.Errorf("compile schema %q for %s@%s: %w", schemaPath, envelope.payloadSchemaID, envelope.payloadSchemaVersion, err)
+	}
+	if err := schema.Validate(envelope.payload); err != nil {
+		return fmt.Errorf("payload failed %s@%s schema validation: %w", envelope.payloadSchemaID, envelope.payloadSchemaVersion, err)
+	}
+	return nil
+}
+
+func schemaURIFromBundlePath(bundle compiledBundle, schemaPath string) (string, error) {
+	schemaDoc, ok := bundle.SchemaDocs[schemaPath]
+	if !ok {
+		return "", fmt.Errorf("schema document %q not loaded in compiled bundle", schemaPath)
+	}
+	schemaURI, err := stringField(schemaDoc, "$id")
+	if err != nil {
+		return "", fmt.Errorf("schema document %q: %w", schemaPath, err)
+	}
+	return schemaURI, nil
+}
+
+func manifestSchemaPathForRuntimeID(manifest manifestFile, schemaID string, schemaVersion string) (string, error) {
+	for _, entry := range manifest.SchemaFiles {
+		if entry.SchemaID == schemaID && entry.SchemaVersion == schemaVersion {
+			return entry.Path, nil
+		}
+	}
+
+	return "", fmt.Errorf("schema_id %q with schema_version %q not found in manifest", schemaID, schemaVersion)
 }
 
 func requireUniqueArtifactDigests(value map[string]any, key string) error {

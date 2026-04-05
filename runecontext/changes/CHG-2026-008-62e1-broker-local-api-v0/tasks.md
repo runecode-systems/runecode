@@ -7,6 +7,7 @@
 - [ ] Use the shared protocol error envelope and stable reason codes for all rejections/failures (see `runecontext/specs/protocol-schema-bundle-v0.md`).
 - [ ] Enforce size limits, rate limits, backpressure, and max in-flight requests.
 - [ ] MVP on-wire encoding is JSON (schema-validated). Keep message types/fields disciplined so post-MVP protobuf encoding is straightforward.
+- [ ] Broker approval handling must consume signed approval artifacts and exact hash bindings; local IPC client identity or delivery channel must never be treated as sufficient authorization on its own.
 
 MVP default limits (tunable via explicit config; changes are audited):
 - [ ] Max message size: 1 MiB (hard reject if exceeded).
@@ -30,6 +31,8 @@ Parallelization: can be implemented in parallel with policy engine and protocol 
 Additional MVP endpoints:
 - [ ] health/readiness (local-only) for daemon supervision and TUI status
 - [ ] version/build info (for diagnostics and audit metadata)
+- [ ] Approval endpoints return and consume typed signed `ApprovalRequest` and `ApprovalDecision` artifacts plus structured status metadata.
+- [ ] Approval endpoints support listing and polling multiple pending approvals and their bound scopes without implying a whole-system pause.
 
 Parallelization: can be implemented in parallel with TUI and runner development once the core request/response schemas are defined.
 
@@ -69,3 +72,4 @@ Parallelization: can be implemented in parallel with the artifact store and poli
 - [ ] Local API authentication fails closed; other-user processes cannot connect to the broker API.
 - [ ] The broker exposes no network-reachable API surface by default.
 - [ ] CLI/TUI can operate entirely via the local API.
+- [ ] Approval-related API surfaces carry typed signed approval artifacts; transport identity alone never authorizes high-risk actions.

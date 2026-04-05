@@ -1,8 +1,11 @@
 package artifacts
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func (s *Store) CheckFlow(req FlowCheckRequest) error {
@@ -58,7 +61,8 @@ func (s *Store) PromoteApprovedExcerpt(req PromotionRequest) (ArtifactReference,
 	if !ok {
 		return ArtifactReference{}, ErrArtifactNotFound
 	}
-	if err := validatePromotionRequest(s.state.Policy, unapproved, req); err != nil {
+	trustedVerifiers := s.trustedVerifierRecordsLocked()
+	if err := validatePromotionRequest(s.state.Policy, unapproved, req, trustedVerifiers); err != nil {
 		return ArtifactReference{}, err
 	}
 	if err := s.checkPromotionRateLimitLocked(req.Approver); err != nil {
@@ -76,6 +80,28 @@ func (s *Store) PromoteApprovedExcerpt(req PromotionRequest) (ArtifactReference,
 		return ArtifactReference{}, err
 	}
 	return newRef, nil
+}
+
+func (s *Store) trustedVerifierRecordsLocked() []trustpolicy.VerifierRecord {
+	records := []trustpolicy.VerifierRecord{}
+	for _, artifactRecord := range s.state.Artifacts {
+		if artifactRecord.Reference.DataClass != DataClassAuditVerificationReport {
+			continue
+		}
+		if artifactRecord.CreatedByRole != "auditd" {
+			continue
+		}
+		blob, err := s.storeIO.readBlob(artifactRecord.BlobPath)
+		if err != nil {
+			continue
+		}
+		verifierRecord := trustpolicy.VerifierRecord{}
+		if err := json.Unmarshal(blob, &verifierRecord); err != nil {
+			continue
+		}
+		records = append(records, verifierRecord)
+	}
+	return records
 }
 
 func (s *Store) checkPromotionRateLimitLocked(actor string) error {

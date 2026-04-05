@@ -1,0 +1,21 @@
+{
+  "schema_id": "runecode.protocol.v0.SignedObjectEnvelope",
+  "schema_version": "0.2.0",
+  "payload_schema_id": "runecode.protocol.v0.Error",
+  "payload_schema_version": "0.3.0",
+  "payload": {
+    "schema_id": "runecode.protocol.v0.Error",
+    "schema_version": "0.3.0",
+    "code": "unsupported_schema_version",
+    "category": "validation",
+    "retryable": false,
+    "message": "Schema version 0.9.0 is not supported by this verifier."
+  },
+  "signature_input": "rfc8785_jcs_detached_payload",
+  "signature": {
+    "alg": "ed25519",
+    "key_id": "key_sha256",
+    "key_id_value": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "signature": "c2ln"
+  }
+}

@@ -1,15 +1,16 @@
 ## Summary
-RuneCode can sign and verify manifests and audit events using a clear key hierarchy, while recording the host's key protection posture.
+RuneCode establishes a topology-neutral cryptographic trust foundation for signed manifests, approvals, audit evidence, and authoritative trusted-state integrity using purpose-scoped logical authorities and explicit degraded-posture recording.
 
 ## Problem
 This feature now has a canonical RuneContext change record, preserving the migrated planning content without relying on legacy Agent OS folders or path aliases.
 
 ## Proposed Change
-- Define MVP Key Hierarchy.
-- Key Storage + Posture Recording.
-- User-Presence Approval Hook (MVP Baseline).
-- Sign/Verify Primitives.
+- Signed Object + Verifier Contract.
+- Scoped Key Authorities + Posture Recording.
+- Approval Authority + User-Assurance Hooks.
+- Sign/Verify Primitives + Authoritative Verification Placement.
 - Rotation + Revocation (Minimal).
+- Authoritative State Integrity.
 
 ## Why Now
 This work remains scheduled for v0.1.0-alpha.2, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
@@ -24,4 +25,4 @@ This work remains scheduled for v0.1.0-alpha.2, and keeping it on this canonical
 - Re-introducing legacy Agent OS planning paths as canonical references.
 
 ## Impact
-Keeps Crypto / Key Management v0 reviewable as a RuneContext-native change and removes the need for a second semantics rewrite later.
+Keeps Crypto / Key Management v0 reviewable as a RuneContext-native foundational change for manifests, approvals, audit evidence, and future local/remote deployment topologies without needing a second semantics rewrite later.

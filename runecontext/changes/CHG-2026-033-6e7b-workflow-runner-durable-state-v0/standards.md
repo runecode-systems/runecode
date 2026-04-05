@@ -4,6 +4,7 @@
 - `standards/security/trust-boundary-layered-enforcement.md`
 - `standards/security/trust-boundary-change-checklist.md`
 - `standards/security/runner-boundary-check.md`
+- `standards/security/approval-binding-and-verifier-identity.md`
 - `standards/javascript/node-engine-enforcement.md`
 - `standards/javascript/npm-ci-lockfile.md`
 - `standards/javascript/runner-node-test-runner.md`

@@ -121,10 +121,17 @@ func assertSignatureBlock(t *testing.T, signatureBlock map[string]any) {
 	signatureRequired := stringSliceValue(t, signatureBlock, "required")
 	assertContains(t, signatureRequired, "alg")
 	assertContains(t, signatureRequired, "key_id")
+	assertContains(t, signatureRequired, "key_id_value")
 	assertContains(t, signatureRequired, "signature")
 
-	alg := objectValue(t, objectValue(t, signatureBlock, "properties"), "alg")
+	properties := objectValue(t, signatureBlock, "properties")
+	alg := objectValue(t, properties, "alg")
 	assertContains(t, stringSliceValue(t, alg, "enum"), "ed25519")
+	assertConst(t, properties, "key_id", "key_sha256")
+	keyIDValue := objectValue(t, properties, "key_id_value")
+	if got := stringValue(t, keyIDValue, "pattern"); got != "^[a-f0-9]{64}$" {
+		t.Fatalf("key_id_value pattern = %q, want ^[a-f0-9]{64}$", got)
+	}
 }
 
 func assertSchemaNodeInvariants(t *testing.T, location string, node map[string]any, requireClassification bool) {

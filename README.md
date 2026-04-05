@@ -1,7 +1,7 @@
 # RuneCode — Security-first AI coding: isolated execution, signed, auditable
 
 [![CI](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml/badge.svg)](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml)
-![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange)
+[![Status: alpha.2](https://img.shields.io/badge/status-alpha.2-orange)](runecontext/project/roadmap.md)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 RuneCode is a security-first agentic automation platform for software engineering.
@@ -9,7 +9,7 @@ It treats isolation and cryptographic provenance as co-equal pillars: work runs 
 
 ## Status
 
-RuneCode is pre-alpha and not production-ready.
+RuneCode is in alpha.2 and not production-ready.
 A signed, tag-driven release pipeline now exists, but the shipped Go binaries are still scaffold-heavy and not feature-complete.
 
 ## Why RuneCode
@@ -145,7 +145,7 @@ This quick path verifies signed checksums and the signed archive before install.
 - CI guardrails for runner trust-boundary access and protocol parity
 - MVP artifact data classes and an `ArtifactPolicy` schema family anchoring flow-matrix, approval-promotion, quota, and retention/GC controls
 - A trusted local artifact store with immutable hash-addressed artifact persistence, broker-facing flow checks, quota enforcement, retention/GC, backup/restore, and audit event recording for artifact actions
-- Approval promotion and revocation flows for `unapproved_file_excerpts` and `approved_file_excerpts`
+- Approval promotion and revocation flows for `unapproved_file_excerpts` and `approved_file_excerpts`, including signed request/decision verification bound to canonical request bytes, promoted inputs, and verifier owner identity
 
 Still incremental / not implemented end-to-end yet:
 - Secrets handling, audit verification/reporting, and isolation backends remain scaffolded or are implemented in later specs

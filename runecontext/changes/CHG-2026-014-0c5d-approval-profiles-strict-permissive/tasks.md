@@ -12,10 +12,17 @@
   - Version-bump every object family that constrains or surfaces the profile enum, starting with the run/stage capability manifest and any typed summaries that expose the active profile.
 - [ ] Profiles must never convert `deny -> allow`; they only affect whether an otherwise-allowed action requires explicit human approval.
 - [ ] Define the non-negotiable invariant set that profiles cannot bypass.
+- [ ] Define profile mappings for ordinary actions:
+  - approval frequency
+  - minimum assurance level
+  - batching rules
+  - TTL/expiry defaults
+- [ ] Keep the fixed hard-floor categories from `runecontext/changes/CHG-2026-007-2315-policy-engine-v0/` outside profile control.
 
 Cross-cutting approval lifecycle rules (applies to all profiles):
-- [ ] Approvals are typed and hash-bound to immutable inputs (manifest hash + request hash + relevant artifact hashes).
+- [ ] Approvals are typed, signed, and hash-bound to immutable inputs (manifest hash + request hash + relevant artifact hashes).
 - [ ] Approvals have explicit TTL/expiry; stale approvals are invalid and must be re-requested.
+- [ ] Remote approvals become authoritative only through the same signed approval artifact and assurance model as local approvals; delivery channel alone is never sufficient.
 
 Parallelization: can be designed in parallel with policy engine work; depends on stable approval request/decision schemas.
 
@@ -47,8 +54,10 @@ Parallelization: can be designed in parallel with workflow runner work; it depen
 - [ ] Ensure the workflow runner pauses only on policy-returned `require_human_approval` decisions.
 - [ ] Ensure the TUI can:
   - display the active profile
+  - display the required assurance level
   - explain why an approval is required (reason codes + structured payload)
   - show what changes if approved
+  - support the same approval semantics whether the decision was delivered locally or remotely
 
 Parallelization: can be implemented in parallel across policy/runner/TUI as long as the approval schema contract is fixed first.
 
@@ -58,3 +67,4 @@ Parallelization: can be implemented in parallel across policy/runner/TUI as long
 - [ ] Profiles cannot weaken core invariants (deny-by-default, no escalation-in-place, no host mounts, no unsafe role capability combinations).
 - [ ] Profiles must never convert `deny -> allow`.
 - [ ] Attempting to use an unknown profile value fails closed.
+- [ ] Profiles do not weaken the fixed minimum assurance floor for hard-floor operations.

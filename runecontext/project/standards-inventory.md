@@ -6,6 +6,7 @@ Standards are organized by canonical paths plus repo-local bundles under `runeco
 Recent notable standards for this branch:
 
 - `runecontext/standards/global/protocol-canonicalization-profile.md`
+- `runecontext/standards/security/approval-binding-and-verifier-identity.md`
 - `runecontext/standards/security/trusted-local-artifact-persistence.md`
 
 ## Standard Families
