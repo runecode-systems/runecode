@@ -1,7 +1,7 @@
 # RuneCode — Security-first AI coding: isolated execution, signed, auditable
 
 [![CI](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml/badge.svg)](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml)
-[![Status: alpha.2](https://img.shields.io/badge/status-alpha.2-orange)](runecontext/product/roadmap.md)
+[![Status: alpha.2](https://img.shields.io/badge/status-alpha.2-orange)](runecontext/project/roadmap.md)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 RuneCode is a security-first agentic automation platform for software engineering.

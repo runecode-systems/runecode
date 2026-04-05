@@ -46,11 +46,86 @@ func TestVerifySignedApprovalDecisionRejectsUnknownTrustedVerifier(t *testing.T)
 	}
 }
 
+func TestVerifySignedApprovalDecisionRejectsVerifierWithWrongPurpose(t *testing.T) {
+	req, verifiers, err := signedPromotionRequestForTests("human-1")
+	if err != nil {
+		t.Fatalf("signedPromotionRequestForTests returned error: %v", err)
+	}
+	verifiers[0].LogicalPurpose = "audit_anchor"
+	err = verifySignedApprovalDecision(req, verifiers)
+	if !errors.Is(err, ErrVerifierNotFound) {
+		t.Fatalf("verifySignedApprovalDecision error = %v, want ErrVerifierNotFound", err)
+	}
+}
+
+func TestVerifySignedApprovalDecisionRejectsVerifierWithWrongScope(t *testing.T) {
+	req, verifiers, err := signedPromotionRequestForTests("human-1")
+	if err != nil {
+		t.Fatalf("signedPromotionRequestForTests returned error: %v", err)
+	}
+	verifiers[0].LogicalScope = "deployment"
+	err = verifySignedApprovalDecision(req, verifiers)
+	if !errors.Is(err, ErrVerifierNotFound) {
+		t.Fatalf("verifySignedApprovalDecision error = %v, want ErrVerifierNotFound", err)
+	}
+}
+
+func TestVerifySignedApprovalDecisionRejectsPayloadUnknownFields(t *testing.T) {
+	signer, err := newApprovalSignerFixture()
+	if err != nil {
+		t.Fatalf("newApprovalSignerFixture returned error: %v", err)
+	}
+	req, verifiers, err := signedPromotionRequestForTestsWithSigner("human-1", signer)
+	if err != nil {
+		t.Fatalf("signedPromotionRequestForTests returned error: %v", err)
+	}
+	payloadMap := map[string]any{}
+	if err := json.Unmarshal(req.ApprovalDecision.Payload, &payloadMap); err != nil {
+		t.Fatalf("Unmarshal payload returned error: %v", err)
+	}
+	payloadMap["unknown_field"] = "should-fail-closed"
+	payloadBytes, err := json.Marshal(payloadMap)
+	if err != nil {
+		t.Fatalf("Marshal payload returned error: %v", err)
+	}
+	signedEnvelope, err := signedEnvelopeForPayload(payloadBytes, signer)
+	if err != nil {
+		t.Fatalf("signedEnvelopeForPayload returned error: %v", err)
+	}
+	req.ApprovalDecision = signedEnvelope
+	err = verifySignedApprovalDecision(req, verifiers)
+	if !errors.Is(err, ErrApprovalVerificationFailed) {
+		t.Fatalf("verifySignedApprovalDecision error = %v, want ErrApprovalVerificationFailed", err)
+	}
+}
+
 func signedPromotionRequestForTests(approver string) (PromotionRequest, []trustpolicy.VerifierRecord, error) {
-	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	signer, err := newApprovalSignerFixture()
 	if err != nil {
 		return PromotionRequest{}, nil, err
 	}
+	return signedPromotionRequestForTestsWithSigner(approver, signer)
+}
+
+type approvalSignerFixture struct {
+	publicKey  ed25519.PublicKey
+	privateKey ed25519.PrivateKey
+	keyIDValue string
+}
+
+func newApprovalSignerFixture() (approvalSignerFixture, error) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return approvalSignerFixture{}, err
+	}
+	return approvalSignerFixture{
+		publicKey:  publicKey,
+		privateKey: privateKey,
+		keyIDValue: strings.TrimPrefix(digestBytes(publicKey), "sha256:"),
+	}, nil
+}
+
+func signedPromotionRequestForTestsWithSigner(approver string, signer approvalSignerFixture) (PromotionRequest, []trustpolicy.VerifierRecord, error) {
 	decision := approvalDecisionFixtureForTests(approver)
 	payload, err := json.Marshal(decision)
 	if err != nil {
@@ -60,14 +135,22 @@ func signedPromotionRequestForTests(approver string) (PromotionRequest, []trustp
 	if err != nil {
 		return PromotionRequest{}, nil, err
 	}
-	signature := ed25519.Sign(privateKey, canonical)
-	keyIDValue := strings.TrimPrefix(digestBytes(publicKey), "sha256:")
-	verifiers := []trustpolicy.VerifierRecord{approvalVerifierFixtureForTests(approver, keyIDValue, publicKey)}
+	signature := ed25519.Sign(signer.privateKey, canonical)
+	verifiers := []trustpolicy.VerifierRecord{approvalVerifierFixtureForTests(approver, signer.keyIDValue, signer.publicKey)}
 
 	return PromotionRequest{
 		Approver:         approver,
-		ApprovalDecision: approvalEnvelopeFixtureForTests(payload, keyIDValue, signature),
+		ApprovalDecision: approvalEnvelopeFixtureForTests(payload, signer.keyIDValue, signature),
 	}, verifiers, nil
+}
+
+func signedEnvelopeForPayload(payload []byte, signer approvalSignerFixture) (*trustpolicy.SignedObjectEnvelope, error) {
+	canonical, err := jsoncanonicalizer.Transform(payload)
+	if err != nil {
+		return nil, err
+	}
+	signature := ed25519.Sign(signer.privateKey, canonical)
+	return approvalEnvelopeFixtureForTests(payload, signer.keyIDValue, signature), nil
 }
 
 func approvalDecisionFixtureForTests(approver string) map[string]any {
@@ -84,6 +167,16 @@ func approvalDecisionFixtureForTests(approver string) map[string]any {
 		"approval_assertion_hash":  map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("f", 64)},
 		"decided_at":               "2026-03-13T12:05:00Z",
 		"consumption_posture":      "single_use",
+		"signatures":               []any{approvalDecisionSignaturePlaceholderForTests()},
+	}
+}
+
+func approvalDecisionSignaturePlaceholderForTests() map[string]any {
+	return map[string]any{
+		"alg":          "ed25519",
+		"key_id":       trustpolicy.KeyIDProfile,
+		"key_id_value": strings.Repeat("a", 64),
+		"signature":    "c2ln",
 	}
 }
 

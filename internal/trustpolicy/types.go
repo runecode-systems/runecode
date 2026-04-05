@@ -32,7 +32,7 @@ func (d Digest) Identity() (string, error) {
 type SignatureBlock struct {
 	Alg        string `json:"alg"`
 	KeyID      string `json:"key_id"`
-	KeyIDValue string `json:"key_id_value,omitempty"`
+	KeyIDValue string `json:"key_id_value"`
 	Signature  string `json:"signature"`
 }
 
@@ -82,7 +82,7 @@ type VerifierRecord struct {
 	SchemaID               string             `json:"schema_id"`
 	SchemaVersion          string             `json:"schema_version"`
 	KeyID                  string             `json:"key_id"`
-	KeyIDValue             string             `json:"key_id_value,omitempty"`
+	KeyIDValue             string             `json:"key_id_value"`
 	Alg                    string             `json:"alg"`
 	PublicKey              PublicKey          `json:"public_key"`
 	LogicalPurpose         string             `json:"logical_purpose"`

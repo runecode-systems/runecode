@@ -249,6 +249,16 @@ func approvalDecisionFixture(approver string) map[string]any {
 		"approval_assertion_hash":  map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("f", 64)},
 		"decided_at":               "2026-03-13T12:05:00Z",
 		"consumption_posture":      "single_use",
+		"signatures":               []any{approvalDecisionSignaturePlaceholder()},
+	}
+}
+
+func approvalDecisionSignaturePlaceholder() map[string]any {
+	return map[string]any{
+		"alg":          "ed25519",
+		"key_id":       trustpolicy.KeyIDProfile,
+		"key_id_value": strings.Repeat("a", 64),
+		"signature":    "c2ln",
 	}
 }
 

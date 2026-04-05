@@ -13,24 +13,9 @@ func verifySignedApprovalDecision(req PromotionRequest, trustedVerifiers []trust
 	if req.ApprovalDecision == nil {
 		return ErrApprovalArtifactRequired
 	}
-	verifiers, err := resolveTrustedVerifiersForEnvelope(*req.ApprovalDecision, trustedVerifiers)
+	decision, err := verifiedApprovalDecision(req, trustedVerifiers)
 	if err != nil {
 		return err
-	}
-	registry, err := trustpolicy.NewVerifierRegistry(verifiers)
-	if err != nil {
-		return errors.Join(ErrApprovalVerificationFailed, err)
-	}
-	if err := trustpolicy.VerifySignedEnvelope(*req.ApprovalDecision, registry, trustpolicy.EnvelopeVerificationOptions{
-		RequirePayloadSchemaMatch: true,
-		ExpectedPayloadSchemaID:   trustpolicy.ApprovalDecisionSchemaID,
-		ExpectedPayloadVersion:    trustpolicy.ApprovalDecisionSchemaVersion,
-	}); err != nil {
-		return errors.Join(ErrApprovalVerificationFailed, err)
-	}
-	decision := trustpolicy.ApprovalDecision{}
-	if err := json.Unmarshal(req.ApprovalDecision.Payload, &decision); err != nil {
-		return errors.Join(ErrApprovalVerificationFailed, err)
 	}
 	if err := trustpolicy.ValidateApprovalDecisionEvidence(decision); err != nil {
 		return errors.Join(ErrApprovalVerificationFailed, err)
@@ -47,16 +32,59 @@ func verifySignedApprovalDecision(req PromotionRequest, trustedVerifiers []trust
 	return nil
 }
 
-func resolveTrustedVerifiersForEnvelope(envelope trustpolicy.SignedObjectEnvelope, trustedVerifiers []trustpolicy.VerifierRecord) ([]trustpolicy.VerifierRecord, error) {
+func verifiedApprovalDecision(req PromotionRequest, trustedVerifiers []trustpolicy.VerifierRecord) (trustpolicy.ApprovalDecision, error) {
+	verifiers, err := resolveTrustedApprovalVerifiersForEnvelope(*req.ApprovalDecision, trustedVerifiers)
+	if err != nil {
+		return trustpolicy.ApprovalDecision{}, err
+	}
+	registry, err := verifierRegistry(verifiers)
+	if err != nil {
+		return trustpolicy.ApprovalDecision{}, errors.Join(ErrApprovalVerificationFailed, err)
+	}
+	if err := verifyApprovalDecisionEnvelope(*req.ApprovalDecision, registry); err != nil {
+		return trustpolicy.ApprovalDecision{}, errors.Join(ErrApprovalVerificationFailed, err)
+	}
+	if err := validateApprovalDecisionPayload(req.ApprovalDecision.Payload); err != nil {
+		return trustpolicy.ApprovalDecision{}, errors.Join(ErrApprovalVerificationFailed, err)
+	}
+	decision, err := decodeApprovalDecision(req.ApprovalDecision.Payload)
+	if err != nil {
+		return trustpolicy.ApprovalDecision{}, errors.Join(ErrApprovalVerificationFailed, err)
+	}
+	return decision, nil
+}
+
+func verifierRegistry(verifiers []trustpolicy.VerifierRecord) (*trustpolicy.VerifierRegistry, error) {
+	return trustpolicy.NewVerifierRegistry(verifiers)
+}
+
+func verifyApprovalDecisionEnvelope(envelope trustpolicy.SignedObjectEnvelope, registry *trustpolicy.VerifierRegistry) error {
+	return trustpolicy.VerifySignedEnvelope(envelope, registry, trustpolicy.EnvelopeVerificationOptions{
+		RequirePayloadSchemaMatch: true,
+		ExpectedPayloadSchemaID:   trustpolicy.ApprovalDecisionSchemaID,
+		ExpectedPayloadVersion:    trustpolicy.ApprovalDecisionSchemaVersion,
+	})
+}
+
+func validateApprovalDecisionPayload(payload []byte) error {
+	return validateObjectPayloadAgainstSchema(payload, "objects/ApprovalDecision.schema.json")
+}
+
+func decodeApprovalDecision(payload []byte) (trustpolicy.ApprovalDecision, error) {
+	decision := trustpolicy.ApprovalDecision{}
+	if err := json.Unmarshal(payload, &decision); err != nil {
+		return trustpolicy.ApprovalDecision{}, err
+	}
+	return decision, nil
+}
+
+func resolveTrustedApprovalVerifiersForEnvelope(envelope trustpolicy.SignedObjectEnvelope, trustedVerifiers []trustpolicy.VerifierRecord) ([]trustpolicy.VerifierRecord, error) {
 	if len(trustedVerifiers) == 0 {
 		return nil, errors.Join(ErrApprovalVerificationFailed, ErrVerifierNotFound)
 	}
-	wantKeyIDValue := envelope.Signature.KeyIDValue
+	wantKeyID, wantKeyIDValue := envelopeVerifierIdentity(envelope)
 	for _, record := range trustedVerifiers {
-		if record.KeyID != envelope.Signature.KeyID {
-			continue
-		}
-		if record.KeyIDValue != wantKeyIDValue {
+		if !matchesApprovalVerifier(record, wantKeyID, wantKeyIDValue) {
 			continue
 		}
 		if record.Status != "active" {
@@ -72,4 +100,24 @@ func resolveTrustedVerifiersForEnvelope(envelope trustpolicy.SignedObjectEnvelop
 		return []trustpolicy.VerifierRecord{verified}, nil
 	}
 	return nil, errors.Join(ErrApprovalVerificationFailed, ErrVerifierNotFound)
+}
+
+func envelopeVerifierIdentity(envelope trustpolicy.SignedObjectEnvelope) (string, string) {
+	return envelope.Signature.KeyID, envelope.Signature.KeyIDValue
+}
+
+func matchesApprovalVerifier(record trustpolicy.VerifierRecord, wantKeyID string, wantKeyIDValue string) bool {
+	if record.LogicalPurpose != "approval_authority" {
+		return false
+	}
+	if record.LogicalScope != "user" {
+		return false
+	}
+	if record.KeyID != wantKeyID {
+		return false
+	}
+	if record.KeyIDValue != wantKeyIDValue {
+		return false
+	}
+	return true
 }
