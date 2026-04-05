@@ -71,7 +71,11 @@ func promotionDecisionHash(req PromotionRequest) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return digestBytes(b), nil
+	canonical, err := canonicalizeJSONBytes(b)
+	if err != nil {
+		return "", err
+	}
+	return digestBytes(canonical), nil
 }
 
 func promotionAuditDetails(req PromotionRequest, approvedDigest, requestHash, decisionHash string) map[string]interface{} {

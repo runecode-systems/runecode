@@ -28,6 +28,11 @@ func TestValidateIsolateSessionBindingRequiresTOFUAndHashes(t *testing.T) {
 	if err := ValidateIsolateSessionBinding(binding); err == nil {
 		t.Fatal("ValidateIsolateSessionBinding expected fail-closed invalid hex key_id_value")
 	}
+	binding.KeyIDValue = repeatedHex("a")
+	binding.KeyIDValue = "A" + binding.KeyIDValue[1:]
+	if err := ValidateIsolateSessionBinding(binding); err == nil {
+		t.Fatal("ValidateIsolateSessionBinding expected fail-closed uppercase key_id_value")
+	}
 }
 
 func TestValidateAuditSignerEvidenceRequiresSessionScopeForIsolateIdentity(t *testing.T) {

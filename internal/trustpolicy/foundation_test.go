@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"strings"
 	"testing"
 
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
@@ -32,6 +33,15 @@ func TestVerifySignedEnvelopeFailsClosedOnSchemaMismatch(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("VerifySignedEnvelope expected payload schema mismatch error")
+	}
+}
+
+func TestVerifySignedEnvelopeFailsClosedOnUppercaseKeyIDValue(t *testing.T) {
+	registry, envelope := signedEnvelopeFixtureForTests(t)
+	envelope.Signature.KeyIDValue = strings.ToUpper(envelope.Signature.KeyIDValue)
+	err := VerifySignedEnvelope(envelope, registry, EnvelopeVerificationOptions{})
+	if err == nil {
+		t.Fatal("VerifySignedEnvelope expected fail-closed uppercase key_id_value error")
 	}
 }
 

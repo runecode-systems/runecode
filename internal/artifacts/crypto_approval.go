@@ -21,21 +21,12 @@ func verifySignedApprovalDecision(req PromotionRequest, trustedVerifiers []trust
 	if err != nil {
 		return err
 	}
-	decision, err := verifiedApprovalDecision(req, trustedVerifiers)
+	decision, decisionVerifier, err := verifiedApprovalDecision(req, trustedVerifiers)
 	if err != nil {
 		return err
 	}
-	if err := trustpolicy.ValidateApprovalDecisionEvidence(decision); err != nil {
+	if err := validateDecisionApproverBinding(req, decision, decisionVerifier); err != nil {
 		return errors.Join(ErrApprovalVerificationFailed, err)
-	}
-	if decision.DecisionOutcome != "approve" {
-		return errors.Join(ErrApprovalVerificationFailed, errors.New("approval decision outcome is not approve"))
-	}
-	if decision.Approver.PrincipalID == "" {
-		return errors.Join(ErrApprovalVerificationFailed, errors.New("approval decision approver principal is required"))
-	}
-	if req.Approver != "" && req.Approver != decision.Approver.PrincipalID {
-		return errors.Join(ErrApprovalVerificationFailed, errors.New("promotion approver does not match approval decision approver"))
 	}
 	if err := validateApprovalBinding(req, requestEnvelope.Payload, requestPayload, decision); err != nil {
 		return errors.Join(ErrApprovalVerificationFailed, err)
@@ -69,26 +60,26 @@ func verifiedApprovalRequest(req PromotionRequest, trustedVerifiers []trustpolic
 	return *req.ApprovalRequest, payload, nil
 }
 
-func verifiedApprovalDecision(req PromotionRequest, trustedVerifiers []trustpolicy.VerifierRecord) (trustpolicy.ApprovalDecision, error) {
+func verifiedApprovalDecision(req PromotionRequest, trustedVerifiers []trustpolicy.VerifierRecord) (trustpolicy.ApprovalDecision, trustpolicy.VerifierRecord, error) {
 	verifiers, err := resolveTrustedApprovalVerifiersForEnvelope(*req.ApprovalDecision, trustedVerifiers)
 	if err != nil {
-		return trustpolicy.ApprovalDecision{}, err
+		return trustpolicy.ApprovalDecision{}, trustpolicy.VerifierRecord{}, err
 	}
 	registry, err := verifierRegistry(verifiers)
 	if err != nil {
-		return trustpolicy.ApprovalDecision{}, errors.Join(ErrApprovalVerificationFailed, err)
+		return trustpolicy.ApprovalDecision{}, trustpolicy.VerifierRecord{}, errors.Join(ErrApprovalVerificationFailed, err)
 	}
 	if err := verifyApprovalDecisionEnvelope(*req.ApprovalDecision, registry); err != nil {
-		return trustpolicy.ApprovalDecision{}, errors.Join(ErrApprovalVerificationFailed, err)
+		return trustpolicy.ApprovalDecision{}, trustpolicy.VerifierRecord{}, errors.Join(ErrApprovalVerificationFailed, err)
 	}
 	if err := validateApprovalDecisionPayload(req.ApprovalDecision.Payload); err != nil {
-		return trustpolicy.ApprovalDecision{}, errors.Join(ErrApprovalVerificationFailed, err)
+		return trustpolicy.ApprovalDecision{}, trustpolicy.VerifierRecord{}, errors.Join(ErrApprovalVerificationFailed, err)
 	}
 	decision, err := decodeApprovalDecision(req.ApprovalDecision.Payload)
 	if err != nil {
-		return trustpolicy.ApprovalDecision{}, errors.Join(ErrApprovalVerificationFailed, err)
+		return trustpolicy.ApprovalDecision{}, trustpolicy.VerifierRecord{}, errors.Join(ErrApprovalVerificationFailed, err)
 	}
-	return decision, nil
+	return decision, verifiers[0], nil
 }
 
 func verifierRegistry(verifiers []trustpolicy.VerifierRecord) (*trustpolicy.VerifierRegistry, error) {

@@ -35,6 +35,18 @@ func TestVerifySignedApprovalDecisionRejectsApproverMismatch(t *testing.T) {
 	}
 }
 
+func TestVerifySignedApprovalDecisionRejectsVerifierOwnerMismatch(t *testing.T) {
+	req, verifiers, err := signedPromotionRequestForTests("human-1")
+	if err != nil {
+		t.Fatalf("signedPromotionRequestForTests returned error: %v", err)
+	}
+	verifiers[0].OwnerPrincipal.InstanceID = "different-session"
+	err = verifySignedApprovalDecision(req, verifiers)
+	if !errors.Is(err, ErrApprovalVerificationFailed) {
+		t.Fatalf("verifySignedApprovalDecision error = %v, want ErrApprovalVerificationFailed", err)
+	}
+}
+
 func TestVerifySignedApprovalDecisionRejectsUnknownTrustedVerifier(t *testing.T) {
 	req, _, err := signedPromotionRequestForTests("human-1")
 	if err != nil {

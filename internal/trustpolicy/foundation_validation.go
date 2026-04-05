@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -158,6 +159,9 @@ func validateVerifierRecordSchema(record VerifierRecord) error {
 	if len(record.KeyIDValue) != 64 {
 		return fmt.Errorf("key_id_value must be 64 lowercase hex characters")
 	}
+	if strings.ToLower(record.KeyIDValue) != record.KeyIDValue {
+		return fmt.Errorf("key_id_value must be lowercase hex")
+	}
 	return nil
 }
 
@@ -232,6 +236,9 @@ func signatureVerifierIdentity(signature SignatureBlock) (string, error) {
 	}
 	if len(signature.KeyIDValue) != 64 {
 		return "", fmt.Errorf("key_id_value must be 64 lowercase hex characters")
+	}
+	if strings.ToLower(signature.KeyIDValue) != signature.KeyIDValue {
+		return "", fmt.Errorf("key_id_value must be lowercase hex")
 	}
 	if _, err := hex.DecodeString(signature.KeyIDValue); err != nil {
 		return "", fmt.Errorf("invalid key_id_value: %w", err)

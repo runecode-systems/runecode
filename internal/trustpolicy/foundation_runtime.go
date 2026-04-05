@@ -3,6 +3,7 @@ package trustpolicy
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
 )
 
 var (
@@ -136,6 +137,9 @@ func validateIsolateBindingKeyIdentity(binding IsolateSessionBinding) error {
 	}
 	if len(binding.KeyIDValue) != 64 {
 		return fmt.Errorf("key_id_value must be 64 lowercase hex characters")
+	}
+	if strings.ToLower(binding.KeyIDValue) != binding.KeyIDValue {
+		return fmt.Errorf("key_id_value must be lowercase hex")
 	}
 	if _, err := hex.DecodeString(binding.KeyIDValue); err != nil {
 		return fmt.Errorf("key_id_value must be lowercase hex: %w", err)
