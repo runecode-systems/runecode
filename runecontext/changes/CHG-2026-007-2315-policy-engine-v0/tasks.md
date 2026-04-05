@@ -38,19 +38,34 @@ Parallelization: can be implemented in parallel with gateway specs; invariants a
 
 - [ ] Define an approval policy model that controls when an otherwise-allowed action requires explicit human approval.
 - [ ] Approval policy/profile is a signed input (part of the run/stage capability manifest).
+- [ ] Define the user-involvement slider/profile as a policy mapping for ordinary actions:
+  - approval frequency
+  - minimum assurance level
+  - batching rules
+  - TTL/expiry defaults
+- [ ] Define `approval_assurance_level` handling for policy outputs and approval requirements.
 - [ ] Approval profiles affect only *when* explicit human approval is required for actions already allowed by invariants + the signed manifest:
   - profiles must never convert `deny -> allow`
   - profiles may add additional `require_human_approval` decisions and/or additional denies, but cannot expand capabilities
+- [ ] The fixed hard floor for high-blast-radius operations is not slider-controlled and cannot be lowered by profile selection:
+  - trust-root changes
+  - security-posture weakening
+  - authoritative restore/import/reconciliation
+  - deployment/bootstrap authority changes
+- [ ] Stage sign-off remains profile-controlled rather than automatically belonging to the fixed hard floor.
 
 Approval lifecycle semantics (MVP):
-- [ ] Every approval request and decision is typed and binds to immutable inputs:
+- [ ] Every approval request and decision is typed, signed, and binds to immutable inputs:
   - approval request includes `{manifest_hash, action_request_hash, relevant_artifact_hashes}`
   - approval decision references the approval request hash (no free-floating “approve by label”)
+- [ ] Reserve and propagate an `approval_assertion_hash` or equivalent hook so decisions can bind verified step-up assurance evidence when required.
 - [ ] Expiry/timeout:
   - approval requests have an explicit TTL (default: 30 minutes) and expire deterministically
   - expired approvals cannot be used; the runner must re-request approval
 - [ ] Staleness:
   - if any bound hash changes while awaiting approval, the pending approval is invalidated and must be re-issued
+- [ ] Delivery channel is advisory metadata only and must not by itself satisfy approval assurance requirements.
+- [ ] Typed approval details must provide enough context for safe review, including scope, why approval is required, effect if approved, effect if denied/deferred, security-posture impact, blocked work, expiry, and related hashes/artifacts.
 - [ ] MVP implements a single approval profile: `moderate`:
   - approvals are checkpoint-style, not per-micro-action:
     - stage capability manifest sign-off (always; includes a structured summary of requested high-risk capability categories)
@@ -93,3 +108,4 @@ Parallelization: can be implemented in parallel with protocol schemas; it depend
 - [ ] Container usage is blocked unless explicitly opted in and recorded.
 - [ ] Violations are auditable and do not partially execute.
 - [ ] With the `moderate` approval profile, a typical offline edit+gate step can execute without intermediate approvals once the stage manifest is signed.
+- [ ] High-blast-radius operations enforce the fixed approval-assurance floor regardless of the selected user-involvement profile.

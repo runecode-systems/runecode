@@ -1,5 +1,5 @@
 ## Summary
-RuneCode supports selectable human-in-the-loop approval profiles beyond MVP `moderate` without weakening core security invariants.
+RuneCode supports selectable human-in-the-loop approval profiles beyond MVP `moderate`, mapping ordinary actions to approval frequency and assurance without weakening core security invariants or the fixed high-assurance floor.
 
 ## Problem
 This feature now has a canonical RuneContext change record, preserving the migrated planning content without relying on legacy Agent OS folders or path aliases.

@@ -1,5 +1,5 @@
 ## Summary
-RuneCode deterministically allows or denies actions based on signed manifests and role rules, with explicit human approvals for elevated risk.
+RuneCode deterministically allows or denies actions based on signed manifests and role rules, with signed typed approval artifacts, explicit assurance levels, and a fixed hard floor for high-blast-radius operations.
 
 ## Problem
 This feature now has a canonical RuneContext change record, preserving the migrated planning content without relying on legacy Agent OS folders or path aliases.

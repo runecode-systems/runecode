@@ -1,5 +1,5 @@
 ## Summary
-RuneCode has an untrusted workflow runner with durable pause/resume state and typed propose-to-attest control-flow semantics.
+RuneCode has an untrusted workflow runner with durable pause/resume state, typed propose-to-attest control-flow semantics, and the ability to continue independent work while approval-bound scopes are waiting on signed human decisions.
 
 ## Problem
 The prior combined change bundled runner, execution roles, and gates into one very large feature, reducing implementation and verification granularity.

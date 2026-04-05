@@ -1,5 +1,5 @@
 ## Summary
-Isolates and clients communicate through a brokered, schema-validated, rate-limited local API with no isolate-to-isolate direct networking.
+Isolates and clients communicate through a brokered, schema-validated, rate-limited local API with no isolate-to-isolate direct networking and with approval flows carried as typed signed artifacts rather than channel-specific trust shortcuts.
 
 ## Problem
 This feature now has a canonical RuneContext change record, preserving the migrated planning content without relying on legacy Agent OS folders or path aliases.

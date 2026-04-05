@@ -17,6 +17,7 @@ related_changes:
   - CHG-2026-002-33c5-git-gateway-commit-push-pr
   - CHG-2026-003-b567-audit-log-v0-verify
   - CHG-2026-004-acdb-artifact-store-data-classes-v0
+  - CHG-2026-005-cfd0-crypto-key-management-v0
   - CHG-2026-008-62e1-broker-local-api-v0
   - CHG-2026-009-1672-launcher-microvm-backend-v0
   - CHG-2026-010-54b7-container-backend-v0-explicit-opt-in
@@ -33,6 +34,7 @@ related_changes:
   - CHG-2026-024-acde-deps-fetch-offline-cache
   - CHG-2026-025-5679-external-audit-anchoring-v0
   - CHG-2026-027-71ed-workflow-concurrency-v0
+  - CHG-2026-033-6e7b-workflow-runner-durable-state-v0
 depends_on: []
 informed_by: []
 supersedes: []

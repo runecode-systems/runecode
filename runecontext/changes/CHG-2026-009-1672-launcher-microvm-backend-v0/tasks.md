@@ -14,14 +14,21 @@
   - security must not depend on transport choice
 - [ ] Transport security (MVP requirement):
   - establish a mutually authenticated + encrypted session (e.g., Noise-style handshake)
+  - isolate generates a per-session signing key inside the isolate boundary
   - bind isolate identity to the isolate signing public key announced at session start
+  - require proof-of-possession for that key during the handshake
   - enforce replay protection, message framing, and strict size limits
 
 Key provisioning posture alignment (MVP):
 - [ ] Treat isolate key provisioning as TOFU for MVP and record binding context:
   - image digest
+  - active manifest hash
   - `handshake_transcript_hash`
   - `provisioning_mode=tofu`
+  - `session_nonce`
+- [ ] Pin the isolate public key to `{run_id, isolate_id, session_id}` as a topology-neutral identity binding; treat hosting node identity as non-authoritative metadata.
+- [ ] Fail closed on key mismatch, replayed handshakes, or mid-session identity changes.
+- [ ] Later attestation work in `runecontext/changes/CHG-2026-030-98b8-isolate-attestation-v0/` must bind evidence to the same per-session isolate key model.
 - [ ] Surface this posture in audit metadata and TUI (degraded posture, not silent).
 
 CI/non-KVM environments (MVP):
@@ -72,6 +79,7 @@ Parallelization: can be implemented in parallel with artifact store work; it dep
   - prevent cross-run state bleed:
     - pooled VMs must be reset to a known-clean state (or destroyed) before reuse
     - no reuse of guest disk/memory state across distinct runs/stages unless explicitly designed and audited
+    - no reuse of prior session isolate identity private keys across distinct runs/sessions
   - caches must be verifiable:
     - cached images/boot artifacts must remain pinned by digest/signature as specified by the signed manifest
     - cache hits/misses and the resulting image digests are recorded in audit metadata
@@ -95,5 +103,6 @@ Parallelization: can be implemented in parallel with container backend work; beh
 - [ ] On Linux, the launcher can start/stop a microVM role and run at least one deterministic “hello world” role action.
 - [ ] Isolation backend + assurance level are recorded in the audit log.
 - [ ] Isolate <-> host transport is mutually authenticated and encrypted; unauthenticated messages are rejected.
+- [ ] Isolate session identity keys are per-session ephemeral and verified with proof-of-possession.
 - [ ] QEMU hardening is enabled by default for MVP.
 - [ ] No host filesystem mounts are used.

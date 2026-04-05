@@ -1,5 +1,5 @@
 ## Summary
-RuneCode can launch and manage isolated microVM-based roles on Linux with a clear, auditable isolation boundary and no host filesystem mounts.
+RuneCode can launch and manage isolated microVM-based roles on Linux with a clear, auditable isolation boundary, per-session isolate identity keys, and no host filesystem mounts.
 
 ## Problem
 This feature now has a canonical RuneContext change record, preserving the migrated planning content without relying on legacy Agent OS folders or path aliases.
