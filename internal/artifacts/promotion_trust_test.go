@@ -14,6 +14,7 @@ func TestPromotionRejectsVerificationRecordFromNonAuditRole(t *testing.T) {
 	_, err := store.PromoteApprovedExcerpt(PromotionRequest{
 		UnapprovedDigest:     unapproved.Digest,
 		Approver:             "human-1",
+		ApprovalRequest:      req.ApprovalRequest,
 		ApprovalDecision:     req.ApprovalDecision,
 		RepoPath:             "repo/file.txt",
 		Commit:               "abc123",
@@ -81,22 +82,14 @@ func promoteApprovedExcerptForTests(t *testing.T, store *Store, digest string, a
 
 func promoteApprovedExcerptWithFlagsForTests(t *testing.T, store *Store, digest string, approver string, bulk bool, bulkApproved bool) (ArtifactReference, error) {
 	t.Helper()
-	req, verifiers, err := signedPromotionRequestForTests(approver)
+	req, verifiers, err := signedPromotionRequestForInputs(digest, approver, "a", "b", "c")
 	if err != nil {
-		t.Fatalf("signedPromotionRequestForTests error: %v", err)
+		t.Fatalf("signedPromotionRequestForInputs error: %v", err)
 	}
 	seedTrustedVerifierRecordsForTests(t, store, verifiers)
-	return store.PromoteApprovedExcerpt(PromotionRequest{
-		UnapprovedDigest:      digest,
-		Approver:              approver,
-		ApprovalDecision:      req.ApprovalDecision,
-		RepoPath:              "a",
-		Commit:                "b",
-		ExtractorToolVersion:  "c",
-		FullContentVisible:    true,
-		BulkRequest:           bulk,
-		BulkApprovalConfirmed: bulkApproved,
-	})
+	req.BulkRequest = bulk
+	req.BulkApprovalConfirmed = bulkApproved
+	return store.PromoteApprovedExcerpt(req)
 }
 
 func setupPromotionWithUntrustedVerifierForTests(t *testing.T, store *Store, approver string) (ArtifactReference, PromotionRequest) {
@@ -129,4 +122,39 @@ func setupPromotionWithUntrustedVerifierForTests(t *testing.T, store *Store, app
 		t.Fatalf("Put unapproved artifact error: %v", err)
 	}
 	return unapproved, req
+}
+
+func TestPutNormalizesReservedDaemonRolesForQuotaAndAudit(t *testing.T) {
+	store := newTestStore(t)
+	policy := store.Policy()
+	policy.PerRoleQuota["untrusted_client"] = Quota{MaxArtifactCount: 1, MaxTotalBytes: 5, MaxSingleArtifactSize: 5}
+	if err := store.SetPolicy(policy); err != nil {
+		t.Fatalf("SetPolicy error: %v", err)
+	}
+	if _, err := store.Put(PutRequest{
+		Payload:               []byte("first"),
+		ContentType:           "text/plain",
+		DataClass:             DataClassSpecText,
+		ProvenanceReceiptHash: testDigest("b"),
+		CreatedByRole:         "auditd",
+	}); err != nil {
+		t.Fatalf("initial Put error: %v", err)
+	}
+	_, err := store.Put(PutRequest{
+		Payload:               []byte("payload"),
+		ContentType:           "text/plain",
+		DataClass:             DataClassSpecText,
+		ProvenanceReceiptHash: testDigest("c"),
+		CreatedByRole:         "auditd",
+	})
+	if err != ErrQuotaExceeded {
+		t.Fatalf("Put error = %v, want ErrQuotaExceeded", err)
+	}
+	events, err := store.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents error: %v", err)
+	}
+	if len(events) == 0 || events[len(events)-1].Actor != "untrusted_client" {
+		t.Fatalf("quota audit actor = %v, want untrusted_client", events)
+	}
 }

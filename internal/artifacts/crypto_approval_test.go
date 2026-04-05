@@ -99,12 +99,76 @@ func TestVerifySignedApprovalDecisionRejectsPayloadUnknownFields(t *testing.T) {
 	}
 }
 
+func TestVerifySignedApprovalDecisionRejectsMissingApprovalRequest(t *testing.T) {
+	req, verifiers, err := signedPromotionRequestForTests("human-1")
+	if err != nil {
+		t.Fatalf("signedPromotionRequestForTests returned error: %v", err)
+	}
+	req.ApprovalRequest = nil
+	err = verifySignedApprovalDecision(req, verifiers)
+	if !errors.Is(err, ErrApprovalRequestArtifactRequired) {
+		t.Fatalf("verifySignedApprovalDecision error = %v, want ErrApprovalRequestArtifactRequired", err)
+	}
+}
+
+func TestVerifySignedApprovalDecisionRejectsApprovalRequestBindingMismatch(t *testing.T) {
+	req, verifiers, err := signedPromotionRequestForTests("human-1")
+	if err != nil {
+		t.Fatalf("signedPromotionRequestForTests returned error: %v", err)
+	}
+	req.Commit = "def456"
+	err = verifySignedApprovalDecision(req, verifiers)
+	if !errors.Is(err, ErrApprovalVerificationFailed) {
+		t.Fatalf("verifySignedApprovalDecision error = %v, want ErrApprovalVerificationFailed", err)
+	}
+}
+
+func TestPromotionActionRequestHashEscapesDelimiterLikeValues(t *testing.T) {
+	reqA := PromotionRequest{
+		UnapprovedDigest:     testDigestValueForApprovalTests("a"),
+		Approver:             "human|ops",
+		RepoPath:             "repo/file.txt",
+		Commit:               "abc123",
+		ExtractorToolVersion: "tool-v1",
+	}
+	reqB := PromotionRequest{
+		UnapprovedDigest:     testDigestValueForApprovalTests("a"),
+		Approver:             "ops",
+		RepoPath:             "repo/file.txt|human",
+		Commit:               "abc123",
+		ExtractorToolVersion: "tool-v1",
+	}
+	hashA, err := promotionActionRequestHash(reqA)
+	if err != nil {
+		t.Fatalf("promotionActionRequestHash(reqA) error: %v", err)
+	}
+	hashB, err := promotionActionRequestHash(reqB)
+	if err != nil {
+		t.Fatalf("promotionActionRequestHash(reqB) error: %v", err)
+	}
+	if hashA == hashB {
+		t.Fatalf("promotionActionRequestHash collision: %q", hashA)
+	}
+}
+
 func signedPromotionRequestForTests(approver string) (PromotionRequest, []trustpolicy.VerifierRecord, error) {
+	return signedPromotionRequestForInputs(testDigestValueForApprovalTests("c"), approver, "a", "b", "tool-v1")
+}
+
+func signedPromotionRequestForInputs(unapprovedDigest string, approver string, repoPath string, commit string, extractorVersion string) (PromotionRequest, []trustpolicy.VerifierRecord, error) {
 	signer, err := newApprovalSignerFixture()
 	if err != nil {
 		return PromotionRequest{}, nil, err
 	}
-	return signedPromotionRequestForTestsWithSigner(approver, signer)
+	request := PromotionRequest{
+		UnapprovedDigest:     unapprovedDigest,
+		Approver:             approver,
+		RepoPath:             repoPath,
+		Commit:               commit,
+		ExtractorToolVersion: extractorVersion,
+		FullContentVisible:   true,
+	}
+	return signedPromotionRequestFixtureWithSigner(request, signer)
 }
 
 type approvalSignerFixture struct {
@@ -126,22 +190,41 @@ func newApprovalSignerFixture() (approvalSignerFixture, error) {
 }
 
 func signedPromotionRequestForTestsWithSigner(approver string, signer approvalSignerFixture) (PromotionRequest, []trustpolicy.VerifierRecord, error) {
-	decision := approvalDecisionFixtureForTests(approver)
-	payload, err := json.Marshal(decision)
-	if err != nil {
-		return PromotionRequest{}, nil, err
-	}
-	canonical, err := jsoncanonicalizer.Transform(payload)
-	if err != nil {
-		return PromotionRequest{}, nil, err
-	}
-	signature := ed25519.Sign(signer.privateKey, canonical)
-	verifiers := []trustpolicy.VerifierRecord{approvalVerifierFixtureForTests(approver, signer.keyIDValue, signer.publicKey)}
+	request := PromotionRequest{UnapprovedDigest: testDigestValueForApprovalTests("c"), Approver: approver, RepoPath: "a", Commit: "b", ExtractorToolVersion: "tool-v1", FullContentVisible: true}
+	return signedPromotionRequestFixtureWithSigner(request, signer)
+}
 
-	return PromotionRequest{
-		Approver:         approver,
-		ApprovalDecision: approvalEnvelopeFixtureForTests(payload, signer.keyIDValue, signature),
-	}, verifiers, nil
+func signedPromotionRequestFixtureWithSigner(request PromotionRequest, signer approvalSignerFixture) (PromotionRequest, []trustpolicy.VerifierRecord, error) {
+	requestPayloadMap := approvalRequestFixtureForTests(request)
+	requestPayload, err := json.Marshal(requestPayloadMap)
+	if err != nil {
+		return PromotionRequest{}, nil, err
+	}
+	canonicalRequest, err := jsoncanonicalizer.Transform(requestPayload)
+	if err != nil {
+		return PromotionRequest{}, nil, err
+	}
+	requestSignature := ed25519.Sign(signer.privateKey, canonicalRequest)
+	requestEnvelope := approvalRequestEnvelopeFixtureForTests(requestPayload, signer.keyIDValue, requestSignature)
+	requestDigest, err := canonicalPayloadDigest(requestPayload)
+	if err != nil {
+		return PromotionRequest{}, nil, err
+	}
+	decision := approvalDecisionFixtureForTests(request.Approver, requestDigest)
+	decisionPayload, err := json.Marshal(decision)
+	if err != nil {
+		return PromotionRequest{}, nil, err
+	}
+	canonicalDecision, err := jsoncanonicalizer.Transform(decisionPayload)
+	if err != nil {
+		return PromotionRequest{}, nil, err
+	}
+	decisionSignature := ed25519.Sign(signer.privateKey, canonicalDecision)
+	verifiers := []trustpolicy.VerifierRecord{approvalVerifierFixtureForTests(request.Approver, signer.keyIDValue, signer.publicKey)}
+
+	request.ApprovalRequest = requestEnvelope
+	request.ApprovalDecision = approvalEnvelopeFixtureForTests(decisionPayload, signer.keyIDValue, decisionSignature)
+	return request, verifiers, nil
 }
 
 func signedEnvelopeForPayload(payload []byte, signer approvalSignerFixture) (*trustpolicy.SignedObjectEnvelope, error) {
@@ -153,11 +236,12 @@ func signedEnvelopeForPayload(payload []byte, signer approvalSignerFixture) (*tr
 	return approvalEnvelopeFixtureForTests(payload, signer.keyIDValue, signature), nil
 }
 
-func approvalDecisionFixtureForTests(approver string) map[string]any {
+func approvalDecisionFixtureForTests(approver string, requestDigest string) map[string]any {
+	hashAlg, hash := splitDigestIdentityForTests(requestDigest)
 	return map[string]any{
 		"schema_id":                trustpolicy.ApprovalDecisionSchemaID,
 		"schema_version":           trustpolicy.ApprovalDecisionSchemaVersion,
-		"approval_request_hash":    map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("d", 64)},
+		"approval_request_hash":    map[string]any{"hash_alg": hashAlg, "hash": hash},
 		"approver":                 map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "user", "principal_id": approver, "instance_id": "approval-session"},
 		"decision_outcome":         "approve",
 		"approval_assurance_level": "reauthenticated",
@@ -169,6 +253,50 @@ func approvalDecisionFixtureForTests(approver string) map[string]any {
 		"consumption_posture":      "single_use",
 		"signatures":               []any{approvalDecisionSignaturePlaceholderForTests()},
 	}
+}
+
+func approvalRequestFixtureForTests(req PromotionRequest) map[string]any {
+	actionRequestHash, err := promotionActionRequestHash(req)
+	if err != nil {
+		panic(err)
+	}
+	actionHashAlg, actionHash := splitDigestIdentityForTests(actionRequestHash)
+	sourceHashAlg, sourceHash := splitDigestIdentityForTests(req.UnapprovedDigest)
+	return map[string]any{
+		"schema_id":                trustpolicy.ApprovalRequestSchemaID,
+		"schema_version":           trustpolicy.ApprovalRequestSchemaVersion,
+		"approval_profile":         "moderate",
+		"requester":                map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "broker", "instance_id": "broker-artifact-store"},
+		"approval_trigger_code":    "artifact_promotion",
+		"manifest_hash":            map[string]any{"hash_alg": sourceHashAlg, "hash": sourceHash},
+		"action_request_hash":      map[string]any{"hash_alg": actionHashAlg, "hash": actionHash},
+		"relevant_artifact_hashes": []any{map[string]any{"hash_alg": sourceHashAlg, "hash": sourceHash}},
+		"details_schema_id":        "runecode.protocol.details.approval.excerpt-promotion.v0",
+		"details":                  map[string]any{"repo_path": req.RepoPath, "commit": req.Commit},
+		"approval_assurance_level": "reauthenticated",
+		"presence_mode":            "hardware_touch",
+		"requested_at":             "2026-03-13T12:00:00Z",
+		"expires_at":               "2026-03-13T12:30:00Z",
+		"staleness_posture":        "invalidate_on_bound_input_change",
+		"changes_if_approved":      "Promote reviewed file excerpts for downstream use.",
+		"signatures":               []any{approvalDecisionSignaturePlaceholderForTests()},
+	}
+}
+
+func splitDigestIdentityForTests(identity string) (string, string) {
+	parts := strings.SplitN(identity, ":", 2)
+	if len(parts) != 2 {
+		return "sha256", identity
+	}
+	return parts[0], parts[1]
+}
+
+func testDigestValueForApprovalTests(seed string) string {
+	base := strings.Repeat(seed, 64)
+	if len(base) > 64 {
+		base = base[:64]
+	}
+	return "sha256:" + base[:64]
 }
 
 func approvalDecisionSignaturePlaceholderForTests() map[string]any {
@@ -205,6 +333,23 @@ func approvalEnvelopeFixtureForTests(payload []byte, keyIDValue string, signatur
 		SchemaVersion:        trustpolicy.EnvelopeSchemaVersion,
 		PayloadSchemaID:      trustpolicy.ApprovalDecisionSchemaID,
 		PayloadSchemaVersion: trustpolicy.ApprovalDecisionSchemaVersion,
+		Payload:              payload,
+		SignatureInput:       trustpolicy.SignatureInputProfile,
+		Signature: trustpolicy.SignatureBlock{
+			Alg:        "ed25519",
+			KeyID:      trustpolicy.KeyIDProfile,
+			KeyIDValue: keyIDValue,
+			Signature:  base64.StdEncoding.EncodeToString(signature),
+		},
+	}
+}
+
+func approvalRequestEnvelopeFixtureForTests(payload []byte, keyIDValue string, signature []byte) *trustpolicy.SignedObjectEnvelope {
+	return &trustpolicy.SignedObjectEnvelope{
+		SchemaID:             trustpolicy.EnvelopeSchemaID,
+		SchemaVersion:        trustpolicy.EnvelopeSchemaVersion,
+		PayloadSchemaID:      trustpolicy.ApprovalRequestSchemaID,
+		PayloadSchemaVersion: trustpolicy.ApprovalRequestSchemaVersion,
 		Payload:              payload,
 		SignatureInput:       trustpolicy.SignatureInputProfile,
 		Signature: trustpolicy.SignatureBlock{

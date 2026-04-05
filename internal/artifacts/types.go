@@ -130,6 +130,7 @@ type PromotionRequest struct {
 	ExplicitViewFull      bool
 	BulkRequest           bool
 	BulkApprovalConfirmed bool
+	ApprovalRequest       *trustpolicy.SignedObjectEnvelope
 	ApprovalDecision      *trustpolicy.SignedObjectEnvelope
 }
 

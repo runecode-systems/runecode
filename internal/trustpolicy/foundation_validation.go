@@ -10,6 +10,8 @@ import (
 )
 
 const (
+	ApprovalRequestSchemaID       = "runecode.protocol.v0.ApprovalRequest"
+	ApprovalRequestSchemaVersion  = "0.3.0"
 	ApprovalDecisionSchemaID      = "runecode.protocol.v0.ApprovalDecision"
 	ApprovalDecisionSchemaVersion = "0.3.0"
 )

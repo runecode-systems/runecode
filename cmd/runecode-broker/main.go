@@ -223,6 +223,7 @@ func handlePromoteExcerpt(args []string, service *brokerapi.Service, stdout io.W
 	fs.SetOutput(io.Discard)
 	unapprovedDigest := fs.String("unapproved-digest", "", "source unapproved artifact digest")
 	approver := fs.String("approver", "", "human approver id")
+	approvalRequestPath := fs.String("approval-request", "", "path to signed approval request envelope JSON")
 	approvalEnvelopePath := fs.String("approval-envelope", "", "path to signed approval decision envelope JSON")
 	repoPath := fs.String("repo-path", "", "repo path")
 	commit := fs.String("commit", "", "commit hash")
@@ -232,10 +233,14 @@ func handlePromoteExcerpt(args []string, service *brokerapi.Service, stdout io.W
 	bulk := fs.Bool("bulk", false, "bulk promotion request")
 	bulkApproved := fs.Bool("bulk-approved", false, "separate bulk approval confirmed")
 	if err := fs.Parse(args); err != nil {
-		return &usageError{message: "promote-excerpt usage: runecode-broker promote-excerpt --unapproved-digest sha256:... --approver user --approval-envelope approval.json --repo-path path --commit hash --extractor-version v1 --full-content-visible"}
+		return &usageError{message: "promote-excerpt usage: runecode-broker promote-excerpt --unapproved-digest sha256:... --approver user --approval-request approval-request.json --approval-envelope approval.json --repo-path path --commit hash --extractor-version v1 --full-content-visible"}
 	}
 	if *unapprovedDigest == "" {
 		return &usageError{message: "promote-excerpt requires --unapproved-digest"}
+	}
+	approvalRequest, err := loadSignedApprovalEnvelope(*approvalRequestPath)
+	if err != nil {
+		return &usageError{message: fmt.Sprintf("invalid --approval-request: %v", err)}
 	}
 	approvalEnvelope, err := loadSignedApprovalEnvelope(*approvalEnvelopePath)
 	if err != nil {
@@ -244,6 +249,7 @@ func handlePromoteExcerpt(args []string, service *brokerapi.Service, stdout io.W
 	ref, err := service.PromoteApprovedExcerpt(artifacts.PromotionRequest{
 		UnapprovedDigest:      *unapprovedDigest,
 		Approver:              *approver,
+		ApprovalRequest:       approvalRequest,
 		ApprovalDecision:      approvalEnvelope,
 		RepoPath:              *repoPath,
 		Commit:                *commit,
@@ -354,7 +360,7 @@ Commands:
   get-artifact --digest sha256:... --out path
   put-artifact --file path --content-type type --data-class class --provenance-hash sha256:...
   check-flow --producer role --consumer role --data-class class --digest sha256:... [--egress] [--manifest-opt-in]
-  promote-excerpt --unapproved-digest sha256:... --approver user --approval-envelope approval.json --repo-path path --commit hash --extractor-version v1 --full-content-visible
+  promote-excerpt --unapproved-digest sha256:... --approver user --approval-request approval-request.json --approval-envelope approval.json --repo-path path --commit hash --extractor-version v1 --full-content-visible
   revoke-approved-excerpt --digest sha256:... --actor user
   set-run-status --run-id id --status active|retained|closed
   gc

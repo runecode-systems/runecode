@@ -9,7 +9,7 @@ It treats isolation and cryptographic provenance as co-equal pillars: work runs 
 
 ## Status
 
-RuneCode is alpha and not production-ready.
+RuneCode is in alpha.2 and not production-ready.
 A signed, tag-driven release pipeline now exists, but the shipped Go binaries are still scaffold-heavy and not feature-complete.
 
 ## Why RuneCode

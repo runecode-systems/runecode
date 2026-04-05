@@ -5,6 +5,35 @@ import (
 	"fmt"
 )
 
+var (
+	allowedSignerPurposes = map[string]struct{}{
+		"isolate_session_identity": {},
+		"host_audit":               {},
+		"audit_anchor":             {},
+	}
+	allowedSignerScopes = map[string]struct{}{
+		"session":    {},
+		"node":       {},
+		"deployment": {},
+	}
+	allowedSignRequestPurposes = map[string]struct{}{
+		"approval_authority":       {},
+		"backup_integrity":         {},
+		"manifest_authority":       {},
+		"audit_anchor":             {},
+		"image_signing":            {},
+		"isolate_session_identity": {},
+	}
+	allowedSignRequestScopes = map[string]struct{}{
+		"deployment": {},
+		"node":       {},
+		"store":      {},
+		"user":       {},
+		"session":    {},
+		"publisher":  {},
+	}
+)
+
 type IsolateSessionBinding struct {
 	RunID                   string `json:"run_id"`
 	IsolateID               string `json:"isolate_id"`
@@ -65,8 +94,8 @@ func ValidateAuditSignerEvidence(evidence AuditSignerEvidence) error {
 }
 
 func ValidateSignRequestPreconditions(request SignRequestPreconditions) error {
-	if request.LogicalPurpose == "" || request.LogicalScope == "" {
-		return fmt.Errorf("logical_purpose and logical_scope are required")
+	if err := validateSignRequestIdentity(request); err != nil {
+		return err
 	}
 	if _, ok := allowedKeyProtectionPostures[request.KeyProtectionPosture]; !ok {
 		return fmt.Errorf("unsupported key_protection_posture %q", request.KeyProtectionPosture)
@@ -138,6 +167,12 @@ func validateAuditSignerCore(evidence AuditSignerEvidence) error {
 	if evidence.SignerPurpose == "" || evidence.SignerScope == "" {
 		return fmt.Errorf("signer_purpose and signer_scope are required")
 	}
+	if _, ok := allowedSignerPurposes[evidence.SignerPurpose]; !ok {
+		return fmt.Errorf("unsupported signer_purpose %q", evidence.SignerPurpose)
+	}
+	if _, ok := allowedSignerScopes[evidence.SignerScope]; !ok {
+		return fmt.Errorf("unsupported signer_scope %q", evidence.SignerScope)
+	}
 	if _, err := signatureVerifierIdentity(evidence.SignerKey); err != nil {
 		return err
 	}
@@ -155,4 +190,17 @@ func validateAuditSignerIsolateEvidence(evidence AuditSignerEvidence) error {
 		return fmt.Errorf("isolate signer evidence requires isolate_binding")
 	}
 	return ValidateIsolateSessionBinding(*evidence.IsolateBinding)
+}
+
+func validateSignRequestIdentity(request SignRequestPreconditions) error {
+	if request.LogicalPurpose == "" || request.LogicalScope == "" {
+		return fmt.Errorf("logical_purpose and logical_scope are required")
+	}
+	if _, ok := allowedSignRequestPurposes[request.LogicalPurpose]; !ok {
+		return fmt.Errorf("unsupported logical_purpose %q", request.LogicalPurpose)
+	}
+	if _, ok := allowedSignRequestScopes[request.LogicalScope]; !ok {
+		return fmt.Errorf("unsupported logical_scope %q", request.LogicalScope)
+	}
+	return nil
 }

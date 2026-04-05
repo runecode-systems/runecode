@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -24,11 +23,10 @@ func (s *Store) buildApprovedRecord(source ArtifactRecord, req PromotionRequest)
 		return ArtifactReference{}, ArtifactRecord{}, "", "", err
 	}
 	now := s.nowFn().UTC()
-	decisionHash, err := promotionDecisionHash(req)
+	decisionHash, requestHash, err := promotionHashes(req)
 	if err != nil {
 		return ArtifactReference{}, ArtifactRecord{}, "", "", err
 	}
-	requestHash := digestBytes([]byte(strings.Join([]string{req.UnapprovedDigest, req.RepoPath, req.Commit, req.ExtractorToolVersion, req.Approver}, "|")))
 	ref := ArtifactReference{
 		Digest:                newDigest,
 		SizeBytes:             int64(len(approvedPayload)),
@@ -51,6 +49,18 @@ func (s *Store) buildApprovedRecord(source ArtifactRecord, req PromotionRequest)
 		PromotionApprovedAt:  &now,
 	}
 	return ref, record, decisionHash, requestHash, nil
+}
+
+func promotionHashes(req PromotionRequest) (string, string, error) {
+	decisionHash, err := promotionDecisionHash(req)
+	if err != nil {
+		return "", "", err
+	}
+	requestHash, err := promotionActionRequestHash(req)
+	if err != nil {
+		return "", "", err
+	}
+	return decisionHash, requestHash, nil
 }
 
 func promotionDecisionHash(req PromotionRequest) (string, error) {
