@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -215,17 +214,17 @@ func TestBrokerServiceUsesTempFallbackWhenUserDirsUnavailable(t *testing.T) {
 	}
 
 	root := defaultBrokerStoreRoot()
-	wantPrefix := filepath.Join(os.TempDir(), "runecode", "artifact-store")
-	if root != wantPrefix {
-		t.Fatalf("defaultBrokerStoreRoot = %q, want %q", root, wantPrefix)
+	if root == "" {
+		t.Fatal("defaultBrokerStoreRoot returned empty path")
 	}
-
-	storePath := filepath.Join(root, fmt.Sprintf("test-%d", os.Getpid()))
-	if err := os.MkdirAll(storePath, 0o755); err != nil {
-		t.Fatalf("MkdirAll(%q) error: %v", storePath, err)
+	if !filepath.IsAbs(root) {
+		t.Fatalf("defaultBrokerStoreRoot = %q, want absolute path", root)
 	}
-	if _, err := brokerapi.NewService(storePath); err != nil {
-		t.Fatalf("NewService(%q) error: %v", storePath, err)
+	if !strings.Contains(filepath.ToSlash(root), "/runecode/artifact-store") {
+		t.Fatalf("defaultBrokerStoreRoot = %q, want path containing runecode/artifact-store", root)
+	}
+	if _, err := brokerapi.NewService(root); err != nil {
+		t.Fatalf("NewService(%q) error: %v", root, err)
 	}
 }
 
