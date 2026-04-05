@@ -25,6 +25,7 @@ let
         keepPrefixes = [
           "cmd"
           "internal"
+          "third_party"
           "tools/releasebuilder"
         ];
         matchesPrefix =
