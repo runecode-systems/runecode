@@ -44,12 +44,36 @@ func (s *Store) loadState() error {
 		return err
 	}
 	s.state = withKey
-	if state.BackupHMACKey == "" {
+	changed := state.BackupHMACKey == ""
+	sequenceChanged, err := s.reconcileAuditSequenceLocked()
+	if err != nil {
+		return err
+	}
+	changed = changed || sequenceChanged
+	if changed {
 		if err := s.saveStateLocked(); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (s *Store) reconcileAuditSequenceLocked() (bool, error) {
+	events, err := s.storeIO.readAuditEvents()
+	if err != nil {
+		return false, err
+	}
+	var maxSeq int64
+	for _, event := range events {
+		if event.Seq > maxSeq {
+			maxSeq = event.Seq
+		}
+	}
+	if maxSeq <= s.state.LastAuditSequence {
+		return false, nil
+	}
+	s.state.LastAuditSequence = maxSeq
+	return true, nil
 }
 
 func (s *Store) saveStateLocked() error {
@@ -59,7 +83,14 @@ func (s *Store) saveStateLocked() error {
 func (s *Store) appendAuditLocked(eventType, actor string, details map[string]interface{}) error {
 	s.state.LastAuditSequence++
 	event := newAuditEvent(s.state.LastAuditSequence, eventType, actor, details, s.nowFn)
-	return s.storeIO.appendAuditEvent(event)
+	if err := s.storeIO.appendAuditEvent(event); err != nil {
+		s.state.LastAuditSequence--
+		return err
+	}
+	if err := s.saveStateLocked(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Store) ReadAuditEvents() ([]AuditEvent, error) {

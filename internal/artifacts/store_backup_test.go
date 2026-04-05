@@ -115,7 +115,7 @@ func TestRestoreRejectsForgedBackupRecord(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal forged backup error: %v", err)
 	}
-	if err := os.WriteFile(backupPath, b, 0o644); err != nil {
+	if err := os.WriteFile(backupPath, b, 0o600); err != nil {
 		t.Fatalf("write forged backup error: %v", err)
 	}
 	restoreStore := newTestStore(t)
@@ -206,7 +206,7 @@ func TestRestoreRejectsTamperedBackupSignature(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal tampered signature error: %v", err)
 	}
-	if err := os.WriteFile(backupSignaturePath(backupPath), b, 0o644); err != nil {
+	if err := os.WriteFile(backupSignaturePath(backupPath), b, 0o600); err != nil {
 		t.Fatalf("write tampered signature error: %v", err)
 	}
 	restoreStore := newTestStore(t)
@@ -214,4 +214,17 @@ func TestRestoreRejectsTamperedBackupSignature(t *testing.T) {
 	if err != ErrBackupSignatureInvalid {
 		t.Fatalf("RestoreBackup error = %v, want %v", err, ErrBackupSignatureInvalid)
 	}
+}
+
+func TestBackupFilesArePrivateByDefault(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.Put(PutRequest{Payload: []byte("payload"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"}); err != nil {
+		t.Fatalf("Put error: %v", err)
+	}
+	backupPath := filepath.Join(t.TempDir(), "backup.json")
+	if err := store.ExportBackup(backupPath); err != nil {
+		t.Fatalf("ExportBackup error: %v", err)
+	}
+	assertMode(t, backupPath, 0o600)
+	assertMode(t, backupSignaturePath(backupPath), 0o600)
 }

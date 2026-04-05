@@ -16,7 +16,7 @@ type storeIO struct {
 }
 
 func newStoreIO(rootDir, blobDir string) (*storeIO, error) {
-	if err := os.MkdirAll(blobDir, 0o755); err != nil {
+	if err := os.MkdirAll(blobDir, 0o700); err != nil {
 		return nil, err
 	}
 	return &storeIO{
@@ -49,7 +49,7 @@ func (s *storeIO) saveStateFile(state StoreState) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.statePath, b, 0o644)
+	return os.WriteFile(s.statePath, b, 0o600)
 }
 
 func (s *storeIO) appendAuditEvent(event AuditEvent) error {
@@ -57,7 +57,7 @@ func (s *storeIO) appendAuditEvent(event AuditEvent) error {
 	if err != nil {
 		return err
 	}
-	f, err := os.OpenFile(s.auditPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(s.auditPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func (s *storeIO) writeBlobIfMissing(digest string, payload []byte) error {
 	if _, err := os.Stat(path); err == nil {
 		return nil
 	}
-	return os.WriteFile(path, payload, 0o644)
+	return os.WriteFile(path, payload, 0o600)
 }
 
 func (s *storeIO) openBlob(path string) (*os.File, error) {
@@ -137,7 +137,7 @@ func (s *storeIO) writeBackup(path string, manifest BackupManifest) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o644)
+	return os.WriteFile(path, b, 0o600)
 }
 
 func (s *storeIO) writeBackupSignature(path string, signature BackupSignature) error {
@@ -145,7 +145,7 @@ func (s *storeIO) writeBackupSignature(path string, signature BackupSignature) e
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o644)
+	return os.WriteFile(path, b, 0o600)
 }
 
 func (s *storeIO) readBackup(path string) (BackupManifest, error) {

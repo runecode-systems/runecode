@@ -263,6 +263,66 @@ func TestAuditFailureIsSurfaced(t *testing.T) {
 	if err == nil {
 		t.Fatal("CheckFlow expected audit write error")
 	}
+	if store.state.LastAuditSequence != 1 {
+		t.Fatalf("LastAuditSequence after failed audit append = %d, want 1", store.state.LastAuditSequence)
+	}
+}
+
+func TestAuditSequencePersistsForBlockedFlow(t *testing.T) {
+	store := newTestStore(t)
+	ref, err := store.Put(PutRequest{Payload: []byte("excerpt"), ContentType: "text/plain", DataClass: DataClassUnapprovedFileExcerpts, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"})
+	if err != nil {
+		t.Fatalf("Put error: %v", err)
+	}
+	err = store.CheckFlow(FlowCheckRequest{ProducerRole: "workspace", ConsumerRole: "model_gateway", DataClass: DataClassUnapprovedFileExcerpts, Digest: ref.Digest, IsEgress: true})
+	if err != ErrUnapprovedEgressDenied {
+		t.Fatalf("CheckFlow error = %v, want %v", err, ErrUnapprovedEgressDenied)
+	}
+	reloaded, err := NewStore(store.rootDir)
+	if err != nil {
+		t.Fatalf("NewStore reload error: %v", err)
+	}
+	if reloaded.state.LastAuditSequence <= 1 {
+		t.Fatalf("reloaded LastAuditSequence = %d, want > 1 after blocked-flow audit", reloaded.state.LastAuditSequence)
+	}
+}
+
+func TestLoadStateRecoversAuditSequenceWhenStateSaveLagged(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.Put(PutRequest{Payload: []byte("seed"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"}); err != nil {
+		t.Fatalf("seed Put error: %v", err)
+	}
+	store.storeIO.statePath = filepath.Join(t.TempDir(), "state-dir")
+	if err := os.MkdirAll(store.storeIO.statePath, 0o755); err != nil {
+		t.Fatalf("mkdir state dir error: %v", err)
+	}
+	if _, err := store.Put(PutRequest{Payload: []byte("second"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("2"), CreatedByRole: "workspace"}); err == nil {
+		t.Fatal("Put expected state save failure after audit append")
+	}
+	reloaded, err := NewStore(store.rootDir)
+	if err != nil {
+		t.Fatalf("NewStore reload error: %v", err)
+	}
+	events, err := reloaded.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents error: %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatal("expected audit events after simulated state save failure")
+	}
+	last := events[len(events)-1].Seq
+	if reloaded.state.LastAuditSequence != last {
+		t.Fatalf("reloaded LastAuditSequence = %d, want %d", reloaded.state.LastAuditSequence, last)
+	}
+}
+
+func TestStateAndAuditFilesArePrivateByDefault(t *testing.T) {
+	store := newTestStore(t)
+	if _, err := store.Put(PutRequest{Payload: []byte("hello"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"}); err != nil {
+		t.Fatalf("Put error: %v", err)
+	}
+	assertMode(t, store.storeIO.statePath, 0o600)
+	assertMode(t, store.storeIO.auditPath, 0o600)
 }
 
 func TestCanonicalJSONSupportsFullJCSNumberAndUnicodeBehavior(t *testing.T) {
@@ -357,7 +417,19 @@ func copyBlobFile(t *testing.T, src, dst string) {
 	if err != nil {
 		t.Fatalf("read blob %s error: %v", src, err)
 	}
-	if err := os.WriteFile(dst, b, 0o644); err != nil {
+	if err := os.WriteFile(dst, b, 0o600); err != nil {
 		t.Fatalf("write blob %s error: %v", dst, err)
+	}
+}
+
+func assertMode(t *testing.T, path string, want os.FileMode) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat(%q) error: %v", path, err)
+	}
+	got := info.Mode().Perm()
+	if got != want {
+		t.Fatalf("mode for %s = %#o, want %#o", path, got, want)
 	}
 }

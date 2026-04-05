@@ -99,8 +99,12 @@ func Transform(jsonData []byte) (result []byte, e error) {
 		if globalError != nil {
 			return 0
 		}
-		u16, err := strconv.ParseUint(string(jsonData[start:index]), 16, 64)
+		u16, err := strconv.ParseUint(string(jsonData[start:index]), 16, 16)
 		checkError(err)
+		if u16 > 0xffff {
+			setError("Invalid Unicode escape range")
+			return 0
+		}
 		return rune(u16)
 	}
 

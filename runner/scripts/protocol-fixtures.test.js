@@ -45,9 +45,137 @@ function canonicalize(value) {
 }
 
 function canonicalizeFromText(jsonText) {
+	assertNoDuplicateObjectKeys(jsonText)
 	const value = JSON.parse(jsonText)
 	assert.ok(Array.isArray(value) || (value && typeof value === 'object'), 'top-level JSON value must be an object or array')
 	return serializeCanonical(value)
+}
+
+function assertNoDuplicateObjectKeys(jsonText) {
+	let index = 0
+
+	function skipWhitespace() {
+		while (index < jsonText.length && /\s/.test(jsonText[index])) {
+			index += 1
+		}
+	}
+
+	function parseStringToken() {
+		const start = index
+		assert.equal(jsonText[index], '"', 'expected string')
+		index += 1
+		while (index < jsonText.length) {
+			const ch = jsonText[index]
+			if (ch === '\\') {
+				index += 2
+				continue
+			}
+			if (ch === '"') {
+				index += 1
+				return jsonText.slice(start, index)
+			}
+			index += 1
+		}
+		throw new Error('unterminated string literal')
+	}
+
+	function parseLiteral(lit) {
+		assert.equal(jsonText.slice(index, index + lit.length), lit, `expected literal ${lit}`)
+		index += lit.length
+	}
+
+	function parseNumber() {
+		const match = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(jsonText.slice(index))
+		assert.ok(match, 'invalid number')
+		index += match[0].length
+	}
+
+	function parseArray() {
+		assert.equal(jsonText[index], '[', 'expected array')
+		index += 1
+		skipWhitespace()
+		if (jsonText[index] === ']') {
+			index += 1
+			return
+		}
+		while (true) {
+			parseValue()
+			skipWhitespace()
+			if (jsonText[index] === ']') {
+				index += 1
+				return
+			}
+			assert.equal(jsonText[index], ',', 'expected comma in array')
+			index += 1
+			skipWhitespace()
+		}
+	}
+
+	function parseObject() {
+		assert.equal(jsonText[index], '{', 'expected object')
+		index += 1
+		skipWhitespace()
+		if (jsonText[index] === '}') {
+			index += 1
+			return
+		}
+		const keys = new Set()
+		while (true) {
+			const token = parseStringToken()
+			const key = JSON.parse(token)
+			if (keys.has(key)) {
+				throw new Error(`duplicate object key ${JSON.stringify(key)}`)
+			}
+			keys.add(key)
+			skipWhitespace()
+			assert.equal(jsonText[index], ':', 'expected colon in object')
+			index += 1
+			skipWhitespace()
+			parseValue()
+			skipWhitespace()
+			if (jsonText[index] === '}') {
+				index += 1
+				return
+			}
+			assert.equal(jsonText[index], ',', 'expected comma in object')
+			index += 1
+			skipWhitespace()
+		}
+	}
+
+	function parseValue() {
+		skipWhitespace()
+		const ch = jsonText[index]
+		if (ch === '{') {
+			parseObject()
+			return
+		}
+		if (ch === '[') {
+			parseArray()
+			return
+		}
+		if (ch === '"') {
+			parseStringToken()
+			return
+		}
+		if (ch === 't') {
+			parseLiteral('true')
+			return
+		}
+		if (ch === 'f') {
+			parseLiteral('false')
+			return
+		}
+		if (ch === 'n') {
+			parseLiteral('null')
+			return
+		}
+		parseNumber()
+	}
+
+	parseValue()
+	skipWhitespace()
+	assert.equal(index, jsonText.length, 'unexpected trailing JSON data')
 }
 
 function serializeCanonical(value) {
@@ -259,4 +387,8 @@ test('canonicalization rejects top-level scalar roots', () => {
 	for (const payload of ['1', '"text"', 'true', 'null']) {
 		assert.throws(() => canonicalizeFromText(payload), /top-level JSON value must be an object or array/)
 	}
+})
+
+test('canonicalization rejects duplicate object keys', () => {
+	assert.throws(() => canonicalizeFromText('{"a":1,"a":2}'), /duplicate object key/)
 })
