@@ -1,0 +1,65 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+
+	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
+)
+
+func defaultBrokerStoreRoot() string {
+	cacheDir, err := os.UserCacheDir()
+	if err == nil && cacheDir != "" {
+		return filepath.Join(cacheDir, "runecode", "artifact-store")
+	}
+	configDir, configErr := os.UserConfigDir()
+	if configErr == nil && configDir != "" {
+		return filepath.Join(configDir, "runecode", "artifact-store")
+	}
+	return filepath.Join(os.TempDir(), "runecode", "artifact-store")
+}
+
+func writeJSON(w io.Writer, value interface{}) error {
+	b, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(w, string(b))
+	return err
+}
+
+func putTrustedVerifierRecord(service *brokerapi.Service, record trustpolicy.VerifierRecord) error {
+	b, err := json.Marshal(record)
+	if err != nil {
+		return err
+	}
+	_, err = service.Put(artifacts.PutRequest{
+		Payload:               b,
+		ContentType:           "application/json",
+		DataClass:             artifacts.DataClassAuditVerificationReport,
+		ProvenanceReceiptHash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+		CreatedByRole:         "auditd",
+		TrustedSource:         true,
+	})
+	return err
+}
+
+func loadSignedApprovalEnvelope(filePath string) (*trustpolicy.SignedObjectEnvelope, error) {
+	if filePath == "" {
+		return nil, fmt.Errorf("path is required")
+	}
+	b, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+	envelope := trustpolicy.SignedObjectEnvelope{}
+	if err := json.Unmarshal(b, &envelope); err != nil {
+		return nil, err
+	}
+	return &envelope, nil
+}

@@ -170,6 +170,23 @@ func TestValidateReadinessCLI(t *testing.T) {
 	}
 }
 
+func TestAppendEventRejectsInvalidRequestWithoutWritingContracts(t *testing.T) {
+	root := t.TempDir()
+	requestPath := filepath.Join(t.TempDir(), "admission.json")
+	if err := os.WriteFile(requestPath, []byte(`{"checks":{}}`), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := run([]string{"append-event", "--file", requestPath, "--ledger-root", root}, stdout, stderr)
+	if err == nil {
+		t.Fatal("run returned nil error, want validation error")
+	}
+	if _, statErr := os.Stat(filepath.Join(root, "contracts")); !os.IsNotExist(statErr) {
+		t.Fatalf("contracts directory should not be created for invalid request, stat err = %v", statErr)
+	}
+}
+
 func validAuditAdmissionRequestFixture(t *testing.T) trustpolicy.AuditAdmissionRequest {
 	t.Helper()
 	publicKey, privateKey, keyIDValue := generateAuditFixtureKeyMaterial(t)

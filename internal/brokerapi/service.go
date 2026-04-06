@@ -5,18 +5,25 @@ import (
 	"io"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/auditd"
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 type Service struct {
-	store *artifacts.Store
+	store       *artifacts.Store
+	auditLedger *auditd.Ledger
 }
 
-func NewService(storeRoot string) (*Service, error) {
+func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
 	store, err := artifacts.NewStore(storeRoot)
 	if err != nil {
 		return nil, err
 	}
-	return &Service{store: store}, nil
+	ledger, err := auditd.Open(ledgerRoot)
+	if err != nil {
+		return nil, err
+	}
+	return &Service{store: store, auditLedger: ledger}, nil
 }
 
 func (s *Service) Put(req artifacts.PutRequest) (artifacts.ArtifactReference, error) {
@@ -73,6 +80,24 @@ func (s *Service) SetPolicy(policy artifacts.Policy) error {
 
 func (s *Service) Policy() artifacts.Policy {
 	return s.store.Policy()
+}
+
+func (s *Service) AuditReadiness() (trustpolicy.AuditdReadiness, error) {
+	return s.auditLedger.Readiness()
+}
+
+type AuditVerificationSurface struct {
+	Summary trustpolicy.DerivedRunAuditVerificationSummary `json:"summary"`
+	Report  trustpolicy.AuditVerificationReportPayload     `json:"report"`
+	Views   []trustpolicy.AuditOperationalView             `json:"views"`
+}
+
+func (s *Service) LatestAuditVerificationSurface(limit int) (AuditVerificationSurface, error) {
+	summary, views, report, err := s.auditLedger.LatestVerificationSummaryAndViews(limit)
+	if err != nil {
+		return AuditVerificationSurface{}, err
+	}
+	return AuditVerificationSurface{Summary: summary, Report: report, Views: views}, nil
 }
 
 func ParseDataClass(value string) (artifacts.DataClass, error) {

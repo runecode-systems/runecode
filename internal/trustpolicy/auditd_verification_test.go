@@ -20,29 +20,25 @@ func TestVerifyAuditEvidenceMissingAnchorIsDegradedByDefault(t *testing.T) {
 	assertDerivedSummaryDegraded(t, report)
 }
 
-func TestVerifyAuditEvidenceInvalidAnchorFailsClosed(t *testing.T) {
+func TestVerifyAuditEvidenceIgnoresHistoricalUnrelatedReceipts(t *testing.T) {
 	fixture := newAuditVerificationFixture(t, verifierStatusFixture{status: "active"})
-	invalidAnchor := fixture.anchorReceiptEnvelope(t, testDigestFromByte('9'))
+	validAnchor := fixture.anchorReceiptEnvelope(t, fixture.sealEnvelopeDigest)
+	unrelatedAnchor := fixture.anchorReceiptEnvelope(t, testDigestFromByte('9'))
 
-	report, err := VerifyAuditEvidence(AuditVerificationInput{
-		Scope:                 AuditVerificationScope{ScopeKind: AuditVerificationScopeSegment, LastSegmentID: fixture.segment.Header.SegmentID},
-		Segment:               fixture.segment,
-		RawFramedSegmentBytes: fixture.rawSegmentBytes,
-		SegmentSealEnvelope:   fixture.sealEnvelope,
-		ReceiptEnvelopes:      []SignedObjectEnvelope{invalidAnchor},
-		VerifierRecords:       fixture.verifierRecords,
-		EventContractCatalog:  fixture.eventContractCatalog,
-		SignerEvidence:        fixture.signerEvidence,
-		Now:                   time.Date(2026, time.March, 13, 13, 0, 0, 0, time.UTC),
-	})
-	if err != nil {
-		t.Fatalf("VerifyAuditEvidence returned error: %v", err)
+	var payload map[string]any
+	if err := json.Unmarshal(unrelatedAnchor.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal receipt payload returned error: %v", err)
 	}
-	if report.AnchoringStatus != AuditVerificationStatusFailed {
-		t.Fatalf("anchoring_status = %q, want %q", report.AnchoringStatus, AuditVerificationStatusFailed)
+	payload["recorded_at"] = "2026-03-13T12:15:00Z"
+	unrelatedAnchor.Payload = marshalJSONFixture(t, payload)
+	unrelatedAnchor = resignEnvelopeFixture(t, fixture.privateKey, unrelatedAnchor)
+
+	report := mustVerifyAuditEvidenceReport(t, fixture, []SignedObjectEnvelope{validAnchor, unrelatedAnchor})
+	if report.AnchoringStatus != AuditVerificationStatusOK {
+		t.Fatalf("anchoring_status = %q, want %q", report.AnchoringStatus, AuditVerificationStatusOK)
 	}
-	if !containsReasonCode(report.HardFailures, AuditVerificationReasonAnchorReceiptInvalid) {
-		t.Fatalf("hard_failures = %v, want %q", report.HardFailures, AuditVerificationReasonAnchorReceiptInvalid)
+	if containsReasonCode(report.HardFailures, AuditVerificationReasonAnchorReceiptInvalid) {
+		t.Fatalf("hard_failures = %v, want no %q for unrelated historical receipt", report.HardFailures, AuditVerificationReasonAnchorReceiptInvalid)
 	}
 }
 
@@ -107,11 +103,11 @@ func TestVerifyAuditEvidenceKeepsCryptographicValidityForAnchoringOnlyFailure(t 
 	fixture := newAuditVerificationFixture(t, verifierStatusFixture{status: "active"})
 	invalidAnchor := fixture.anchorReceiptEnvelope(t, testDigestFromByte('9'))
 	report := mustVerifyAuditEvidenceReport(t, fixture, []SignedObjectEnvelope{invalidAnchor})
-	if !containsReasonCode(report.HardFailures, AuditVerificationReasonAnchorReceiptInvalid) {
-		t.Fatalf("hard_failures = %v, want %q", report.HardFailures, AuditVerificationReasonAnchorReceiptInvalid)
+	if !containsReasonCode(report.DegradedReasons, AuditVerificationReasonAnchorReceiptMissing) {
+		t.Fatalf("degraded_reasons = %v, want %q", report.DegradedReasons, AuditVerificationReasonAnchorReceiptMissing)
 	}
 	if !report.CryptographicallyValid {
-		t.Fatal("cryptographically_valid = false, want true for non-cryptographic hard failure")
+		t.Fatal("cryptographically_valid = false, want true for anchoring degraded state")
 	}
 }
 

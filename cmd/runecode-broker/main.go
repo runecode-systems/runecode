@@ -2,23 +2,20 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/auditd"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 type usageError struct{ message string }
 
 func (e *usageError) Error() string { return e.message }
-
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		var u *usageError
@@ -39,14 +36,14 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 		return writeHelp(stdout)
 	}
 
-	service, err := brokerServiceFactory()
-	if err != nil {
-		return fmt.Errorf("runecode-broker failed to initialize store: %w", err)
-	}
 	handler, ok := commandHandlers()[args[0]]
 	if !ok {
 		_ = writeHelp(stderr)
 		return &usageError{message: fmt.Sprintf("unknown command %q", args[0])}
+	}
+	service, err := brokerServiceFactory()
+	if err != nil {
+		return fmt.Errorf("runecode-broker failed to initialize store: %w", err)
 	}
 	return handler(args[1:], service, stdout)
 }
@@ -71,6 +68,8 @@ func commandHandlers() map[string]commandHandler {
 		"show-audit":              handleShowAudit,
 		"show-policy":             handleShowPolicy,
 		"set-reserved-classes":    handleSetReservedClasses,
+		"audit-readiness":         handleAuditReadiness,
+		"audit-verification":      handleAuditVerification,
 	}
 }
 
@@ -351,6 +350,28 @@ func handleSetReservedClasses(args []string, service *brokerapi.Service, _ io.Wr
 	return service.SetPolicy(policy)
 }
 
+func handleAuditReadiness(_ []string, service *brokerapi.Service, stdout io.Writer) error {
+	readiness, err := service.AuditReadiness()
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, readiness)
+}
+
+func handleAuditVerification(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	fs := flag.NewFlagSet("audit-verification", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	limit := fs.Int("limit", 20, "max operational view entries")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "audit-verification usage: runecode-broker audit-verification [--limit N]"}
+	}
+	surface, err := service.LatestAuditVerificationSurface(*limit)
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, surface)
+}
+
 func writeHelp(w io.Writer) error {
 	_, err := fmt.Fprintln(w, `Usage: runecode-broker <command> [flags]
 
@@ -368,62 +389,12 @@ Commands:
   restore-backup --path backup.json
   show-audit
   show-policy
-  set-reserved-classes --enabled=true|false`)
+  set-reserved-classes --enabled=true|false
+  audit-readiness
+  audit-verification [--limit N]`)
 	return err
 }
 
 func brokerService() (*brokerapi.Service, error) {
-	return brokerapi.NewService(defaultBrokerStoreRoot())
-}
-
-func defaultBrokerStoreRoot() string {
-	cacheDir, err := os.UserCacheDir()
-	if err == nil && cacheDir != "" {
-		return filepath.Join(cacheDir, "runecode", "artifact-store")
-	}
-	configDir, configErr := os.UserConfigDir()
-	if configErr == nil && configDir != "" {
-		return filepath.Join(configDir, "runecode", "artifact-store")
-	}
-	return filepath.Join(os.TempDir(), "runecode", "artifact-store")
-}
-
-func writeJSON(w io.Writer, value interface{}) error {
-	b, err := json.MarshalIndent(value, "", "  ")
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintln(w, string(b))
-	return err
-}
-
-func putTrustedVerifierRecord(service *brokerapi.Service, record trustpolicy.VerifierRecord) error {
-	b, err := json.Marshal(record)
-	if err != nil {
-		return err
-	}
-	_, err = service.Put(artifacts.PutRequest{
-		Payload:               b,
-		ContentType:           "application/json",
-		DataClass:             artifacts.DataClassAuditVerificationReport,
-		ProvenanceReceiptHash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-		CreatedByRole:         "auditd",
-		TrustedSource:         true,
-	})
-	return err
-}
-
-func loadSignedApprovalEnvelope(filePath string) (*trustpolicy.SignedObjectEnvelope, error) {
-	if filePath == "" {
-		return nil, fmt.Errorf("path is required")
-	}
-	b, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-	envelope := trustpolicy.SignedObjectEnvelope{}
-	if err := json.Unmarshal(b, &envelope); err != nil {
-		return nil, err
-	}
-	return &envelope, nil
+	return brokerapi.NewService(defaultBrokerStoreRoot(), auditd.DefaultLedgerRoot())
 }

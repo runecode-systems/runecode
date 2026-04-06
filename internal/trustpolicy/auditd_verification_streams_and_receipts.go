@@ -148,33 +148,6 @@ func verifyAndDecodeReceipt(index int, input AuditVerificationInput, registry *V
 	return receipt, true
 }
 
-func processReceiptByKind(index int, input AuditVerificationInput, report *AuditVerificationReportPayload, receipt auditReceiptPayloadStrict, sealDigest *Digest, sealPayload AuditSegmentSealPayload, anchorReceipts int, validAnchorForSeal bool) (int, bool) {
-	if receipt.AuditReceiptKind == "anchor" {
-		anchorReceipts++
-		if validateAnchorReceipt(index, input, report, receipt, sealDigest) {
-			validAnchorForSeal = true
-		}
-	}
-	if (receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore") && sealDigest != nil {
-		if err := verifyImportRestoreConsistency(receipt, *sealDigest, sealPayload); err != nil {
-			addHardFailure(report, AuditVerificationReasonImportRestoreProvenanceInconsistent, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] import/restore consistency failed: %v", index, err), input.Segment.Header.SegmentID, nil)
-		}
-	}
-	return anchorReceipts, validAnchorForSeal
-}
-
-func validateAnchorReceipt(index int, input AuditVerificationInput, report *AuditVerificationReportPayload, receipt auditReceiptPayloadStrict, sealDigest *Digest) bool {
-	if sealDigest == nil {
-		return false
-	}
-	receiptSubject, _ := receipt.SubjectDigest.Identity()
-	if receiptSubject == mustDigestIdentity(*sealDigest) {
-		return true
-	}
-	addHardFailure(report, AuditVerificationReasonAnchorReceiptInvalid, AuditVerificationDimensionAnchoring, fmt.Sprintf("anchor receipt[%d] subject_digest does not match segment seal digest", index), input.Segment.Header.SegmentID, nil)
-	return false
-}
-
 func decodeAuditReceiptPayload(raw json.RawMessage) (auditReceiptPayloadStrict, error) {
 	receipt := auditReceiptPayloadStrict{}
 	if err := json.Unmarshal(raw, &receipt); err != nil {
