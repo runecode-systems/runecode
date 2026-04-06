@@ -71,10 +71,20 @@ func writeCanonicalJSONFile(path string, value any) error {
 	if err := os.WriteFile(tmp, canonical, 0o600); err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, path); err != nil {
+	if err := replaceFile(tmp, path); err != nil {
 		return err
 	}
 	return nil
+}
+
+func replaceFile(src, dst string) error {
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	}
+	if removeErr := os.Remove(dst); removeErr != nil && !os.IsNotExist(removeErr) {
+		return removeErr
+	}
+	return os.Rename(src, dst)
 }
 
 func ensureDir(path string) error {

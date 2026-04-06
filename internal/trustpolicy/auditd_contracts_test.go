@@ -45,6 +45,16 @@ func TestValidateAuditAdmissionRequestChecksEnvelopeSignerWhenSignerEvidenceRefs
 	}
 }
 
+func TestValidateAuditAdmissionRequestRejectsSignerEvidenceRefBoundToDifferentSigner(t *testing.T) {
+	request := validAuditAdmissionRequestFixture(t)
+	_, _, otherKeyID := generateAuditFixtureKeyMaterial(t)
+	request.SignerEvidence = append(request.SignerEvidence, buildSignerEvidenceReferenceFixtureWithDigest(otherKeyID, strings.Repeat("9", 64)))
+	request.Envelope.Payload = payloadWithSignerEvidenceRefDigest(t, request.Envelope.Payload, strings.Repeat("9", 64))
+	if err := ValidateAuditAdmissionRequest(request); err == nil {
+		t.Fatal("ValidateAuditAdmissionRequest expected signer evidence binding failure")
+	}
+}
+
 func TestEvaluateAuditSegmentRecoveryRules(t *testing.T) {
 	sealedBad := AuditSegmentRecoveryState{
 		SegmentID:            "segment-0001",
@@ -371,8 +381,12 @@ func buildAuditEventContractCatalogFixture() AuditEventContractCatalog {
 }
 
 func buildSignerEvidenceReferenceFixture(keyIDValue string) AuditSignerEvidenceReference {
+	return buildSignerEvidenceReferenceFixtureWithDigest(keyIDValue, strings.Repeat("f", 64))
+}
+
+func buildSignerEvidenceReferenceFixtureWithDigest(keyIDValue string, digestHash string) AuditSignerEvidenceReference {
 	return AuditSignerEvidenceReference{
-		Digest: Digest{HashAlg: "sha256", Hash: strings.Repeat("f", 64)},
+		Digest: Digest{HashAlg: "sha256", Hash: digestHash},
 		Evidence: AuditSignerEvidence{
 			SignerPurpose: "isolate_session_identity",
 			SignerScope:   "session",
@@ -397,6 +411,20 @@ func buildSignerEvidenceReferenceFixture(keyIDValue string) AuditSignerEvidenceR
 			},
 		},
 	}
+}
+
+func payloadWithSignerEvidenceRefDigest(t *testing.T, payload json.RawMessage, digestHash string) json.RawMessage {
+	t.Helper()
+	var event map[string]any
+	if err := json.Unmarshal(payload, &event); err != nil {
+		t.Fatalf("Unmarshal payload returned error: %v", err)
+	}
+	event["signer_evidence_refs"] = []any{map[string]any{"object_family": "verifier_record", "digest": map[string]any{"hash_alg": "sha256", "hash": digestHash}, "ref_role": "admissibility"}}
+	updatedPayload, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("Marshal payload returned error: %v", err)
+	}
+	return updatedPayload
 }
 
 func payloadWithoutSignerEvidenceRefs(t *testing.T, payload json.RawMessage) json.RawMessage {

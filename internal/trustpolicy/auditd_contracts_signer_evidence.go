@@ -15,12 +15,17 @@ func validateSignerEvidenceRefs(event AuditEventPayload, envelopeSignature Signa
 	if err != nil {
 		return err
 	}
-	if len(referencedEvidence) > 0 {
+	if len(event.SignerEvidenceRefs) > 0 {
 		if err := validateReferencedEvidenceBinding(signerIdentity, referencedEvidence); err != nil {
 			return err
 		}
 	}
 	return validateEnvelopeSignerEvidence(signerIdentity, entry, providedByIdentity)
+}
+
+type referencedSignerEvidence struct {
+	refIndex int
+	evidence AuditSignerEvidence
 }
 
 func buildSignerEvidenceIndexes(provided []AuditSignerEvidenceReference) (map[string]AuditSignerEvidence, map[string]AuditSignerEvidence, error) {
@@ -65,15 +70,15 @@ func checkSignerEvidenceIndexConflicts(digestIdentity string, evidenceIdentity s
 	return nil
 }
 
-func validateReferencedEvidenceBinding(signerIdentity string, referencedEvidence []AuditSignerEvidence) error {
+func validateReferencedEvidenceBinding(signerIdentity string, referencedEvidence []referencedSignerEvidence) error {
 	matchedSignerIdentity := false
 	for index := range referencedEvidence {
-		referencedIdentity, err := signatureVerifierIdentity(referencedEvidence[index].SignerKey)
+		referencedIdentity, err := signatureVerifierIdentity(referencedEvidence[index].evidence.SignerKey)
 		if err != nil {
-			return fmt.Errorf("signer_evidence_refs[%d].signer_key: %w", index, err)
+			return fmt.Errorf("signer_evidence_refs[%d].signer_key: %w", referencedEvidence[index].refIndex, err)
 		}
 		if referencedIdentity != signerIdentity {
-			return fmt.Errorf("signer_evidence_refs[%d] is bound to %q, expected envelope signer %q", index, referencedIdentity, signerIdentity)
+			return fmt.Errorf("signer_evidence_refs[%d] is bound to %q, expected envelope signer %q", referencedEvidence[index].refIndex, referencedIdentity, signerIdentity)
 		}
 		matchedSignerIdentity = true
 	}
@@ -83,8 +88,8 @@ func validateReferencedEvidenceBinding(signerIdentity string, referencedEvidence
 	return nil
 }
 
-func collectReferencedSignerEvidence(refs []AuditTypedReference, providedByDigest map[string]AuditSignerEvidence) ([]AuditSignerEvidence, error) {
-	referencedEvidence := make([]AuditSignerEvidence, 0, len(refs))
+func collectReferencedSignerEvidence(refs []AuditTypedReference, providedByDigest map[string]AuditSignerEvidence) ([]referencedSignerEvidence, error) {
+	referencedEvidence := make([]referencedSignerEvidence, 0, len(refs))
 	for index := range refs {
 		digestIdentity, err := refs[index].Digest.Identity()
 		if err != nil {
@@ -94,7 +99,7 @@ func collectReferencedSignerEvidence(refs []AuditTypedReference, providedByDiges
 		if !ok {
 			return nil, fmt.Errorf("missing signer evidence payload for digest %q", digestIdentity)
 		}
-		referencedEvidence = append(referencedEvidence, evidence)
+		referencedEvidence = append(referencedEvidence, referencedSignerEvidence{refIndex: index, evidence: evidence})
 	}
 	return referencedEvidence, nil
 }

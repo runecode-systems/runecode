@@ -143,6 +143,24 @@ func TestLatestVerificationReportRecoversFromStatePointerLoss(t *testing.T) {
 	}
 }
 
+func TestWriteCanonicalJSONFileReplacesExistingFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(path, []byte(`{"stale":true}`), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	state := ledgerState{SchemaVersion: stateSchemaVersion, LastSealedSegmentID: "segment-000123"}
+	if err := writeCanonicalJSONFile(path, state); err != nil {
+		t.Fatalf("writeCanonicalJSONFile returned error: %v", err)
+	}
+	loaded := ledgerState{}
+	if err := readJSONFile(path, &loaded); err != nil {
+		t.Fatalf("readJSONFile returned error: %v", err)
+	}
+	if loaded.LastSealedSegmentID != "segment-000123" {
+		t.Fatalf("LastSealedSegmentID = %q, want segment-000123", loaded.LastSealedSegmentID)
+	}
+}
+
 func TestConfigureVerificationInputsClearsOmittedOptionalFiles(t *testing.T) {
 	root := t.TempDir()
 	ledger, err := Open(root)
