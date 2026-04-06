@@ -14,6 +14,7 @@ Parallelization: can be implemented in parallel with broker local API work; it d
 - [ ] Artifacts browser (diffs, logs, gate results) with metadata.
 - [ ] Audit timeline (paged view + verify status).
 - [ ] Audit timeline must surface anchored vs unanchored verification posture (and any invalid/failed anchoring state).
+- [ ] Audit timeline and posture views consume machine-readable audit verification findings/reason codes from the local API rather than scraping human CLI output.
 - [ ] Approval context: show the active approval profile (`moderate` in MVP) and why each approval is required (reason codes + structured details).
 
 Parallelization: screens can be built in parallel, but all depend on the broker local API schemas and shared error taxonomy.

@@ -9,6 +9,7 @@ Implement the brokered local API contract that mediates all isolate RPC, local c
 - Broker enforces concrete default limits (message size/complexity/in-flight/streaming) with audited overrides.
 - The local API is per-user IPC with strict filesystem permissions; authentication fails closed when OS peer credentials are unavailable.
 - Approval delivery channels are not authoritative; the broker transports typed signed approval objects and exact hash bindings rather than trusting transport or UI channel identity.
+- Audit timeline and verification reads consume derived auditd-owned views and machine-readable verification findings rather than treating the broker, TUI, or artifact store as alternate audit sources of truth.
 - MVP remains local-IPC-first, but boundary-visible API contracts must stay topology-neutral so future remote UI or messaging bridges terminate into the same signed approval and approval-authority model.
 - Errors use a shared typed envelope and stable reason codes (no ad-hoc error shapes).
 - MVP uses JSON on-wire; later transport migration is specified separately so this spec stays focused on the MVP broker/API contract.

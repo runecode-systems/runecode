@@ -10,7 +10,7 @@ Implement a content-addressed artifact store and a minimal data classification s
 - Artifact retention/GC is required to avoid unbounded growth.
 - `approved_file_excerpts` are only created via explicit human approval; unapproved excerpts use a more restrictive class (`unapproved_file_excerpts`) and are not eligible for third-party egress.
 - Promotions are hardened: approvals are explicit, reviewable, rate-limited, and revocable via policy (no history rewriting).
-- Derived evidence is stored as explicit artifacts with their own data class (e.g., `audit_verification_report`).
+- Derived evidence is stored as explicit artifacts with their own data class (e.g., `audit_verification_report`), but the artifact store does not become the authoritative source of truth for subsystems that define stronger primary ledgers. In particular, `runecontext/changes/CHG-2026-003-b567-audit-log-v0-verify/` owns the authoritative audit ledger; artifact-store copies of audit evidence are export/review products, not the primary audit record.
 - JSON hashing/signing paths use RFC 8785 JCS canonical bytes, implemented through a pinned vendored snapshot behind local wrappers so runtime behavior matches the protocol contract without introducing a fragile upstream module dependency. Current trusted usage supports top-level object or array JSON values only, matching RuneCode's signed and persisted protocol surfaces.
 
 ## Main Workstreams

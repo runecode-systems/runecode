@@ -1,13 +1,13 @@
 # Design
 
 ## Overview
-Add anchoring receipts for audit segment roots and integrate them with verification. MVP includes a local-only anchoring mode with no network egress. Later external-anchoring work is tracked separately.
+Add anchoring receipts for signed audit segment seals and integrate them with verification. MVP includes a local-only anchoring mode with no network egress. Later external-anchoring work is tracked separately.
 
 ## Key Decisions
-- Anchoring is an explicit step and produces receipts.
+- Anchoring is an explicit step and produces receipts over `AuditSegmentSeal` commitments rather than over ad-hoc in-band segment-root events.
 - Failures are recorded; no history rewriting.
 - MVP baseline anchoring is local-only and uses the purpose-scoped `audit_anchor` authority from `CHG-2026-005-cfd0-crypto-key-management-v0/` rather than a generic machine-key abstraction.
-- Anchor receipts are signed objects under the shared detached-attestation contract.
+- Anchor receipts are signed objects under the shared detached-attestation contract and remain sidecar audit evidence rather than leaves inside the segment they attest.
 - Any approval, assurance, or user-presence requirement for anchoring follows the shared signed approval model; delivery channel is advisory and must not become the trust primitive.
 - Verification distinguishes `verified_unanchored` vs `verified_anchored`; missing anchors are not a verification failure by default.
 - Invalid receipts fail closed.

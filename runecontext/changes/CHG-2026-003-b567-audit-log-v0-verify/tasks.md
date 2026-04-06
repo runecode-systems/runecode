@@ -1,83 +1,174 @@
 # Tasks
 
-## Audit Event Model
+## Audit Ledger + Evidence Model
 
-- [ ] Define the MVP audit event types and required fields:
-  - previous event hash
-  - event payload hash
-  - signer identity (component or isolate)
-  - manifest hash binding
-  - timestamps and monotonic sequence
-- [ ] Ordering semantics (MVP):
-  - Define a per-signer strictly monotonic `seq` (do not require global ordering across signers).
-  - Treat wall-clock timestamps as advisory metadata; verification must not rely on synchronized clocks to establish integrity.
-  - Define verifier rules for gaps/duplicates/rollbacks in `seq`.
-- [ ] Include explicit schema identifiers so verification can be performed across schema versions.
-- [ ] Make audit events gateway-role aware (role identity + egress category), so network activity is attributable and enforceable:
-  - model egress events (model-gateway): allowlist id, destination descriptor, bytes, timing, outcome
-  - auth egress events in `runecontext/changes/CHG-2026-018-5900-auth-gateway-role-v0/`: login/refresh lifecycle events (no secrets in logs)
-  - later gateway specs (`runecontext/changes/CHG-2026-002-33c5-git-gateway-commit-push-pr/`, `runecontext/changes/CHG-2026-023-59ac-web-research-role/`, `runecontext/changes/CHG-2026-024-acde-deps-fetch-offline-cache/`) extend the same event model with allowlist id, destination descriptor, bytes, timing, and outcome
-- [ ] Record secrets lease lifecycle events as first-class audit events (issuance/renewal/revocation), without logging secret values.
-- [ ] Add event types required to harden against “audit writer compromise” (see `runecontext/changes/CHG-2026-006-84f0-audit-anchoring-v0/`):
-  - audit segment root commitment events (segment id + root hash)
-  - anchor receipt recorded events (receipt artifact hash + anchor kind)
-- [ ] Add event types for isolate session/key provisioning posture:
-  - session start event includes `{isolate_id, session_id, session_nonce, isolate_pubkey, provisioning_mode=tofu, image_digest, handshake_transcript_hash}`.
+- [ ] Define the authoritative audit storage model:
+  - instance-global append-only ledger owned by `auditd`
+  - authoritative segment files + sidecar evidence objects as the source of truth
+  - rebuildable query/index storage only for local reads and timeline views
+  - optional export/review copies in the artifact store without making CAS the primary ledger
+- [ ] Define the canonical audit-record digest as `sha256(JCS(SignedObjectEnvelope))` and reuse it consistently for:
+  - `previous_event_hash`
+  - Merkle leaves
+  - receipt subject targeting
+  - segment first/last record references
+  - import/restore provenance references
+  - verification findings and reports
+- [ ] Define the signed audit object families used by this change:
+  - `AuditEvent` payload family wrapped in `SignedObjectEnvelope`
+  - `AuditReceipt` payload family wrapped in `SignedObjectEnvelope`
+  - `AuditSegmentSeal` payload family wrapped in `SignedObjectEnvelope`
+  - `AuditVerificationReport` protocol object stored as `audit_verification_report`
+- [ ] Keep `SignedObjectEnvelope` single-signature for this foundation and model additional attestations as separate signed objects or receipts rather than multiple independent signatures on one envelope.
+- [ ] Keep open and sealed segments limited to signed `AuditEvent` envelopes only.
+- [ ] Store receipts, segment seals, and verification reports as first-class sidecar evidence keyed by digest rather than in-band segment leaves.
 
-Parallelization: can be implemented in parallel with the schema bundle and crypto primitives, but the event envelope + canonicalization rules must be finalized first.
+Parallelization: foundational; this must be settled before writer, verifier, or anchoring implementation branches diverge.
 
-## Append-Only Audit Writer
+## Typed Audit Event Contract
 
-- [ ] Implement an append-only audit log writer process/role.
-- [ ] Enforce schema validation and signature verification at write time.
-- [ ] Store audit logs on encrypted-at-rest storage by default (e.g., inside the encrypted workspace volume).
-- [ ] Record storage protection posture in audit metadata; do not silently fall back to plaintext.
-- [ ] Expose a local-only health/readiness signal (consumable via the broker local API) for supervision and TUI status.
-- [ ] Threat model note (MVP): if the audit writer itself is fully compromised, local write-time verification alone is not sufficient. MVP mitigates this by supporting anchoring receipts for segment roots (see `runecontext/changes/CHG-2026-006-84f0-audit-anchoring-v0/`).
-  - If anchors are missing, verification reports the run as verified-but-unanchored (degraded posture).
-  - If anchors are present but invalid, verification fails closed.
+- [ ] Update `AuditEvent` to remove inline `signatures` and treat it as a pure payload family.
+- [ ] Define chain continuity on a stable emitter-stream identity rather than directly on a signing key:
+  - add `emitter_stream_id` or equivalent
+  - keep `seq` strictly monotonic per stream
+  - define verifier rules for gaps, duplicates, rollbacks, unexpected signer changes, and admissible rotation
+- [ ] Treat `previous_event_hash` as the digest of the previous signed event envelope in the same emitter stream.
+- [ ] Keep `occurred_at` as signed emitter time but make append order the authoritative ledger chronology.
+- [ ] Bind trust-relevant event context with exact hashes rather than advisory version labels alone:
+  - active role/capability manifest hashes where applicable
+  - protocol bundle manifest hash or equivalent immutable bundle contract reference
+  - keep version strings optional/advisory for UX and diagnostics only
+- [ ] Replace parallel `related_*_hashes` arrays with a typed-reference model:
+  - `subject_ref`
+  - `cause_refs`
+  - `related_refs`
+- [ ] Add shared context blocks that later features can reuse without schema churn:
+  - `scope` for workspace/run/stage/step context
+  - `correlation` for session/operation/parent-operation context
+- [ ] Add `signer_evidence_refs` for signers whose admissibility depends on prior trusted evidence such as isolate-session bindings or later attestation.
+- [ ] Keep audit events gateway-role aware so network activity is attributable without logging secrets:
+  - model egress events
+  - auth egress events in `runecontext/changes/CHG-2026-018-5900-auth-gateway-role-v0/`
+  - later gateway specs (`runecontext/changes/CHG-2026-002-33c5-git-gateway-commit-push-pr/`, `runecontext/changes/CHG-2026-023-59ac-web-research-role/`, `runecontext/changes/CHG-2026-024-acde-deps-fetch-offline-cache/`) extend the same event contract with typed payloads
+- [ ] Record secrets lease lifecycle events as first-class audit events without logging secret values.
+- [ ] Define isolate session/binding events so MVP TOFU posture is explicit and later attestation can upgrade the same model rather than replace it.
+- [ ] Add or reference a machine-readable audit-event contract catalog that binds each `audit_event_type` to:
+  - allowed payload schema IDs
+  - allowed signer purposes/scopes
+  - required scope/correlation fields
+  - allowed/required subject and cause refs
+  - gateway context rules
 
-Parallelization: can be implemented in parallel with the artifact store (CAS) and verifier so long as the on-disk segment format and root-hash commitment rules are agreed.
+Parallelization: can proceed alongside schema-bundle and crypto work once the detached-event contract is locked.
 
-## Redaction Boundaries (Minimal)
+## Append-Only Writer + Recovery Rules
 
-- [ ] Define what is always redacted in the default operational view.
-- [ ] Ensure secrets never cross trust boundaries by construction (not only post-hoc scrubbing):
-  - use schema field classification metadata (`secret` fields are rejected/stripped at boundary)
-  - prefer allowlists over heuristic redaction
+- [ ] Implement `auditd` as the append-only writer and recovery owner for the authoritative ledger.
+- [ ] Enforce schema validation, event-contract validation, signer-evidence validation, and signature verification at write/admission time.
+- [ ] Define the framed physical segment format:
+  - segment header
+  - repeated record frames containing record digest, byte length, and canonical signed-envelope bytes
+  - explicit open/sealed lifecycle markers or metadata needed for deterministic recovery
+- [ ] Define crash-recovery rules:
+  - open segments may truncate a torn trailing frame before sealing
+  - sealed segments never permit silent repair
+  - inconsistent sealed segments are quarantined and fail closed
+- [ ] Store audit data on encrypted-at-rest storage by default and record storage protection posture as audit evidence.
+- [ ] Do not silently fall back to plaintext; any explicit dev-only degraded posture must be recorded and surfaced.
+- [ ] Expose a local-only readiness signal consumable via the broker local API for supervision and TUI status.
+- [ ] Define readiness as more than process liveness:
+  - recovery complete
+  - append position stable
+  - current segment writable
+  - verifier material available
+  - derived index sufficiently caught up for reads
 
-Parallelization: can proceed in parallel with schema work; it depends on schema field classification metadata.
+Parallelization: can proceed in parallel with verifier implementation once the physical segment contract and signer-evidence contract are fixed.
 
-## Verify Command
+## Segment Sealing + Lifecycle Model
+
+- [ ] Define segment-cutting rules for MVP using explicit size and/or time windows, not per-run ownership of the primary ledger.
+- [ ] Introduce `AuditSegmentSeal` as a first-class signed object emitted after a segment is closed.
+- [ ] Compute segment roots using an ordered Merkle construction over signed record digests with:
+  - domain-separated leaf and internal-node hashing
+  - deterministic ordering by append position
+  - no ad-hoc unordered-set semantics
+- [ ] Compute and record a separate exact `segment_file_hash` over the raw framed segment bytes.
+- [ ] Chain segment seals via previous-seal digest so segment history remains explainable across retention, archival, import, and restore.
+- [ ] Define segment lifecycle states explicitly:
+  - `open`
+  - `sealed`
+  - `anchored`
+  - `imported`
+  - `quarantined`
+- [ ] Keep segment seals and receipts outside the segment they attest to avoid sealing recursion.
+- [ ] Use segment seals as the anchoring target for receipts in `runecontext/changes/CHG-2026-006-84f0-audit-anchoring-v0/`.
+
+Parallelization: can proceed alongside anchoring design and verifier work once the Merkle and seal contract is frozen.
+
+## Audit Receipts + Import/Restore Provenance
+
+- [ ] Update `AuditReceipt` to remove inline `signatures` and target generic signed-object subjects rather than only one event digest.
+- [ ] Define and register `audit_receipt_kind` values needed by the foundation now:
+  - `anchor`
+  - `import`
+  - `restore`
+  - `reconciliation`
+- [ ] Record import/restore as explicit signed evidence and audit events without rewriting imported segment bytes.
+- [ ] Ensure imported historical segments remain byte-identical sealed units while the current instance records how those segments entered local history.
+- [ ] Define provenance links from import/restore evidence to:
+  - imported segment seal digests
+  - imported segment roots
+  - source backup/export manifest digests
+  - operator/authority context where applicable
+
+Parallelization: can proceed in parallel with artifact backup/restore work so long as byte-identity and no-history-rewriting rules stay aligned.
+
+## Redaction Boundaries + Audit Views
+
+- [ ] Define what is always excluded or redacted in the default operational audit view.
+- [ ] Ensure secrets never cross trust boundaries by construction, not only by best-effort scrubbing.
+- [ ] Prefer typed allowlists and schema field classification over heuristic redaction.
+- [ ] Keep enough typed evidence for later trusted verification even when default operator views redact sensitive fields.
+
+Parallelization: can proceed with schema and TUI work once common payload and field-classification rules are stable.
+
+## Verification + Machine-Readable Findings
 
 - [ ] Implement a deterministic verifier that checks:
-  - hash chain integrity
-  - signature validity
-  - required event ordering invariants
+  - segment framing and exact file-hash integrity
+  - ordered Merkle root and seal correctness
+  - per-stream chain continuity and sequence monotonicity
+  - detached signature validity
+  - signer-evidence admissibility
+  - event-contract catalog compatibility
+  - import/restore provenance consistency
+  - receipt validity when receipts are present
+- [ ] Distinguish verification dimensions instead of collapsing everything into one result:
+  - integrity status
+  - anchoring status
+  - storage posture status
+  - segment lifecycle posture
+  - degraded reasons
+  - hard failures
+- [ ] Define a machine-readable findings model with stable reason codes and severities so policy, TUI, and later formal/proof work can consume verifier output directly.
+- [ ] Distinguish:
+  - cryptographically valid
+  - historically admissible at event time
+  - currently degraded or revoked by later trust posture
 - [ ] If anchor receipts are present, validate them and surface anchored vs unanchored status.
-- [ ] Produce a machine-readable verification artifact (data class: `audit_verification_report`).
-- [ ] Store the verification output as an artifact in the CAS and attach it to the run metadata so the TUI can show a clear "verified / not verified" status.
+- [ ] Missing anchors are reported as degraded posture by default; invalid anchors fail closed.
+- [ ] Produce and store a machine-readable `AuditVerificationReport` artifact (`audit_verification_report`).
+- [ ] Attach verification status/finding summaries to derived run metadata so the TUI and local API can surface clear posture.
 
-Parallelization: can be implemented in parallel with the audit writer once the event model and segment/root commitment format are defined.
-
-## Segmentation + Retention (Minimal)
-
-- [ ] Define an audit log segmentation model that preserves verifiability:
-  - segment the log (e.g., per run and/or size/time windows)
-  - each segment has a recorded root hash (committed as an audit event)
-  - segment root hashes are the anchoring target for receipts (see `runecontext/changes/CHG-2026-006-84f0-audit-anchoring-v0/`)
-- [ ] Define minimal retention/archival rules (so audit does not grow without bound) without rewriting history.
-
-Operational note (MVP): backup/restore and upgrades must preserve verifiability.
-- [ ] Define minimal backup/restore guidance for audit segments + indexes (copy-only; no rewriting).
-- [ ] Record restore/import events as audit events (verifier must be able to explain provenance).
-
-Parallelization: can be implemented in parallel with retention/GC in the artifact store as long as “no history rewriting” is preserved.
+Parallelization: can proceed in parallel with writer and anchoring work once signed-object, segment-seal, and findings contracts are defined.
 
 ## Acceptance Criteria
 
-- [ ] A run produces an auditable sequence of events covering: proposals, validations, authorizations, executions, gate results, and approvals.
-- [ ] Verification can be run locally and fails closed with clear errors.
-- [ ] Audit logs can be segmented/archived without breaking verification.
-- [ ] Verification output is storable/retained as a first-class artifact for later review.
-- [ ] Verification output surfaces anchored vs unanchored posture when receipts are configured/present.
+- [ ] The authoritative audit ledger is instance-global, append-only, and owned by `auditd` rather than by per-run artifact copies.
+- [ ] `AuditEvent`, `AuditReceipt`, and `AuditSegmentSeal` use detached RFC 8785 JCS-signed envelopes with a consistent canonical digest contract.
+- [ ] Typed references, scope/correlation fields, and signer-evidence refs are sufficient for later policy, approval, gateway, import/restore, and attestation work without another audit schema rewrite.
+- [ ] Segment sealing uses an ordered Merkle root plus exact file hash and survives archival/import without breaking verification.
+- [ ] Verification runs locally, fails closed on invalid evidence, and distinguishes hard failure from degraded posture with machine-readable findings.
+- [ ] Verification output is storable and reviewable as a first-class artifact for later API/TUI use.
+- [ ] Missing anchors are surfaced as degraded posture by default; invalid anchors fail closed.

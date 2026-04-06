@@ -7,7 +7,7 @@
   - timestamp-authority style anchors
   - public-chain style anchors
 - [ ] Keep each target kind on a typed target descriptor and receipt payload contract instead of a freeform blob.
-- [ ] Preserve the shared anchor-receipt envelope from `runecontext/changes/CHG-2026-006-84f0-audit-anchoring-v0/` while adding target-specific typed fields.
+- [ ] Preserve the shared anchor-receipt envelope and `AuditSegmentSeal` subject model from `runecontext/changes/CHG-2026-006-84f0-audit-anchoring-v0/` while adding target-specific typed fields.
 
 ## Egress + Trust Boundary Model
 
@@ -21,7 +21,7 @@
 
 ## Receipt, Audit, and Verification Integration
 
-- [ ] Store external anchor receipts as artifacts and reference them from anchoring audit events.
+- [ ] Store external anchor receipts as sidecar audit evidence and optional exported artifacts while keeping `AuditSegmentSeal` as the anchoring subject.
 - [ ] Verification output must distinguish:
   - valid external anchors
   - deferred or unavailable anchors
