@@ -96,14 +96,22 @@ func verifyImportRestoreConsistency(receipt auditReceiptPayloadStrict, sealDiges
 	if mustDigestIdentity(receipt.SubjectDigest) != sealDigestID {
 		return fmt.Errorf("receipt subject_digest does not target verified segment seal digest")
 	}
+	matchingEntries := 0
 	for index := range payload.ImportedSegments {
 		segment := payload.ImportedSegments[index]
 		if mustDigestIdentity(segment.LocalSegmentFileHash) != mustDigestIdentity(sealPayload.SegmentFileHash) {
-			return fmt.Errorf("imported_segments[%d] local_segment_file_hash does not match segment seal hash", index)
+			continue
+		}
+		matchingEntries++
+		if matchingEntries > 1 {
+			return fmt.Errorf("multiple imported_segments entries match verified segment seal hash")
 		}
 		if mustDigestIdentity(segment.ImportedSegmentRoot) != mustDigestIdentity(sealPayload.MerkleRoot) {
 			return fmt.Errorf("imported_segments[%d] imported_segment_root does not match segment seal root", index)
 		}
+	}
+	if matchingEntries == 0 {
+		return fmt.Errorf("no imported_segments entry matches verified segment seal hash")
 	}
 	return nil
 }

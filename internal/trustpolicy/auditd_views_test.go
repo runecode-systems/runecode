@@ -101,24 +101,36 @@ func TestBuildDefaultOperationalAuditViewRedactsSensitiveReceiptFields(t *testin
 	if err != nil {
 		t.Fatalf("BuildDefaultOperationalAuditView returned error: %v", err)
 	}
+	assertOperationalReceiptViewMetadata(t, view)
+	receipt := decodeOperationalReceiptView(t, view)
+	assertOperationalReceiptRedactionSemantics(t, receipt)
+}
+
+func assertOperationalReceiptViewMetadata(t *testing.T, view AuditOperationalView) {
+	t.Helper()
 	if view.Receipt == nil {
 		t.Fatal("expected receipt operational payload in view")
 	}
 	if len(view.Redaction.RedactedFields) != 2 || view.Redaction.RedactedFields[0] != "receipt_payload" || view.Redaction.RedactedFields[1] != "recorder" {
 		t.Fatalf("redacted_fields = %v, want [receipt_payload recorder]", view.Redaction.RedactedFields)
 	}
-	viewJSON, err := json.Marshal(view)
-	if err != nil {
-		t.Fatalf("Marshal view returned error: %v", err)
+	if view.Receipt.AuthorityContext == nil {
+		t.Fatal("expected authority_context extracted from receipt_payload")
 	}
-	decoded := map[string]any{}
-	if err := json.Unmarshal(viewJSON, &decoded); err != nil {
-		t.Fatalf("Unmarshal view returned error: %v", err)
-	}
+}
+
+func decodeOperationalReceiptView(t *testing.T, view AuditOperationalView) map[string]any {
+	t.Helper()
+	decoded := decodeOperationalViewJSON(t, view)
 	receipt, ok := decoded["receipt"].(map[string]any)
 	if !ok {
 		t.Fatalf("receipt view payload has unexpected type %T", decoded["receipt"])
 	}
+	return receipt
+}
+
+func assertOperationalReceiptRedactionSemantics(t *testing.T, receipt map[string]any) {
+	t.Helper()
 	if _, found := receipt["receipt_payload"]; found {
 		t.Fatalf("operational receipt view must not include receipt_payload: %+v", receipt)
 	}
@@ -127,6 +139,9 @@ func TestBuildDefaultOperationalAuditViewRedactsSensitiveReceiptFields(t *testin
 	}
 	if _, found := receipt["subject_digest"]; !found {
 		t.Fatalf("operational receipt view must retain subject_digest evidence: %+v", receipt)
+	}
+	if _, found := receipt["authority_context"]; !found {
+		t.Fatalf("operational receipt view must retain authority_context from receipt_payload: %+v", receipt)
 	}
 }
 
@@ -168,8 +183,8 @@ func receiptPayloadFixture() map[string]any {
 			"segment_file_hash_scope": "raw_framed_segment_bytes_v1",
 			"imported_segments":       []any{map[string]any{"imported_segment_seal_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("b", 64)}, "imported_segment_root": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("c", 64)}, "source_segment_file_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("d", 64)}, "local_segment_file_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("d", 64)}, "byte_identity_verified": true}},
 			"source_manifest_digests": []any{map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("e", 64)}},
+			"authority_context":       map[string]any{"authority_kind": "operator", "authority_id": "operator-1"},
 		},
-		"authority_context": map[string]any{"authority_kind": "operator", "authority_id": "operator-1"},
 	}
 }
 
@@ -190,5 +205,42 @@ func TestBuildDefaultOperationalAuditViewFailsClosedOnUnsupportedPayloadFamily(t
 	}
 	if _, err := BuildDefaultOperationalAuditView(envelope); err == nil {
 		t.Fatal("BuildDefaultOperationalAuditView expected failure for unsupported payload schema")
+	}
+}
+
+func TestBuildDefaultOperationalAuditViewFailsClosedOnInvalidImportReceiptPayload(t *testing.T) {
+	envelope := receiptEnvelopeFixture(t)
+	var payload map[string]any
+	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal receipt payload returned error: %v", err)
+	}
+	payload["receipt_payload"] = "not-an-object"
+	mutatedPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal mutated payload returned error: %v", err)
+	}
+	envelope.Payload = mutatedPayload
+
+	if _, err := BuildDefaultOperationalAuditView(envelope); err == nil {
+		t.Fatal("BuildDefaultOperationalAuditView expected failure for malformed import receipt_payload")
+	}
+}
+
+func TestBuildDefaultOperationalAuditViewFailsClosedOnNonObjectAuthorityContext(t *testing.T) {
+	envelope := receiptEnvelopeFixture(t)
+	var payload map[string]any
+	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal receipt payload returned error: %v", err)
+	}
+	receiptPayload := payload["receipt_payload"].(map[string]any)
+	receiptPayload["authority_context"] = "operator-1"
+	mutatedPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal mutated payload returned error: %v", err)
+	}
+	envelope.Payload = mutatedPayload
+
+	if _, err := BuildDefaultOperationalAuditView(envelope); err == nil {
+		t.Fatal("BuildDefaultOperationalAuditView expected failure for non-object authority_context")
 	}
 }

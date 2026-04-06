@@ -401,6 +401,54 @@ func (f auditVerificationFixture) anchorReceiptEnvelope(t *testing.T, subjectDig
 	})
 }
 
+func (f auditVerificationFixture) importRestoreReceiptEnvelope(t *testing.T, subjectDigest Digest, sealEnvelope SignedObjectEnvelope) SignedObjectEnvelope {
+	t.Helper()
+	sealPayload := mustDecodeSealPayloadFixture(t, sealEnvelope.Payload)
+	matchingHash := map[string]any{"hash_alg": sealPayload.SegmentFileHash.HashAlg, "hash": sealPayload.SegmentFileHash.Hash}
+	matchingRoot := map[string]any{"hash_alg": sealPayload.MerkleRoot.HashAlg, "hash": sealPayload.MerkleRoot.Hash}
+	return signEnvelopeFixture(t, f.privateKey, f.keyID, AuditReceiptSchemaID, AuditReceiptSchemaVersion, map[string]any{
+		"schema_id":                 AuditReceiptSchemaID,
+		"schema_version":            AuditReceiptSchemaVersion,
+		"subject_digest":            subjectDigest,
+		"audit_receipt_kind":        "import",
+		"subject_family":            "audit_segment_seal",
+		"recorded_at":               "2026-03-13T12:25:00Z",
+		"recorder":                  map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "auditd", "instance_id": "auditd-1"},
+		"receipt_payload_schema_id": "runecode.protocol.audit.receipt.import_restore_provenance.v0",
+		"receipt_payload": map[string]any{
+			"provenance_action":       "import",
+			"segment_file_hash_scope": "raw_framed_segment_bytes_v1",
+			"imported_segments": []any{
+				map[string]any{
+					"imported_segment_seal_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("8", 64)},
+					"imported_segment_root":        map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("7", 64)},
+					"source_segment_file_hash":     map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("6", 64)},
+					"local_segment_file_hash":      map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("6", 64)},
+					"byte_identity_verified":       true,
+				},
+				map[string]any{
+					"imported_segment_seal_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("5", 64)},
+					"imported_segment_root":        matchingRoot,
+					"source_segment_file_hash":     matchingHash,
+					"local_segment_file_hash":      matchingHash,
+					"byte_identity_verified":       true,
+				},
+			},
+			"source_manifest_digests": []any{map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("4", 64)}},
+			"authority_context":       map[string]any{"authority_kind": "operator", "authority_id": "operator-1"},
+		},
+	})
+}
+
+func mustDecodeSealPayloadFixture(t *testing.T, payload json.RawMessage) AuditSegmentSealPayload {
+	t.Helper()
+	sealPayload := AuditSegmentSealPayload{}
+	if err := json.Unmarshal(payload, &sealPayload); err != nil {
+		t.Fatalf("Unmarshal seal payload returned error: %v", err)
+	}
+	return sealPayload
+}
+
 func mapEventFrameFixture(digest Digest, canonicalEnvelopeBytes []byte) AuditSegmentRecordFrame {
 	return AuditSegmentRecordFrame{
 		RecordDigest:                 digest,
