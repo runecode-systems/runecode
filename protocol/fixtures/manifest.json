@@ -109,6 +109,18 @@
       "expect_valid": true
     },
     {
+      "id": "audit-event-contract-catalog.valid",
+      "schema_path": "objects/AuditEventContractCatalog.schema.json",
+      "fixture_path": "schema/audit-event-contract-catalog.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-receipt.import.valid",
+      "schema_path": "objects/AuditReceipt.schema.json",
+      "fixture_path": "schema/audit-receipt.import.valid.json",
+      "expect_valid": true
+    },
+    {
       "id": "llm-request.valid-spec-text",
       "schema_path": "objects/LLMRequest.schema.json",
       "fixture_path": "schema/llm-request.valid-spec-text.json",
@@ -228,6 +240,13 @@
       "schema_path": "objects/SignedObjectEnvelope.schema.json",
       "fixture_path": "runtime/signed-envelope.invalid-payload-schema-mismatch.json",
       "rule": "signed_envelope_payload_schema_match",
+      "expect_valid": false
+    },
+    {
+      "id": "audit-receipt.import.invalid-byte-identity",
+      "schema_path": "objects/AuditReceipt.schema.json",
+      "fixture_path": "runtime/audit-receipt.import.invalid-byte-identity.json",
+      "rule": "audit_receipt_import_restore_byte_identity",
       "expect_valid": false
     }
   ],

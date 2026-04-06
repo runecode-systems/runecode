@@ -39,6 +39,13 @@
       "status": "mvp"
     },
     {
+      "path": "objects/AuditRecordDigest.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditRecordDigest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/ArtifactReference.schema.json",
       "schema_id": "runecode.protocol.v0.ArtifactReference",
       "schema_version": "0.3.0",
@@ -62,14 +69,42 @@
     {
       "path": "objects/AuditEvent.schema.json",
       "schema_id": "runecode.protocol.v0.AuditEvent",
-      "schema_version": "0.3.0",
+      "schema_version": "0.5.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditEventContractCatalog.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEventContractCatalog",
+      "schema_version": "0.1.0",
       "owner": "protocol",
       "status": "mvp"
     },
     {
       "path": "objects/AuditReceipt.schema.json",
       "schema_id": "runecode.protocol.v0.AuditReceipt",
+      "schema_version": "0.4.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditSegmentSeal.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditSegmentSeal",
       "schema_version": "0.2.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditSegmentFile.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditSegmentFile",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditVerificationReport.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditVerificationReport",
+      "schema_version": "0.1.0",
       "owner": "protocol",
       "status": "mvp"
     },
@@ -181,6 +216,20 @@
       "path": "registries/audit_event_type.registry.json",
       "name": "audit_event_type",
       "namespace": "runecode.protocol.audit.event_type",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "registries/audit_receipt_kind.registry.json",
+      "name": "audit_receipt_kind",
+      "namespace": "runecode.protocol.audit.receipt_kind",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "registries/audit_verification_reason_code.registry.json",
+      "name": "audit_verification_reason_code",
+      "namespace": "runecode.protocol.audit.verification.reason",
       "documentation_owner": "protocol",
       "status": "mvp"
     }

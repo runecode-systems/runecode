@@ -1,7 +1,8 @@
 {
   "schema_id": "runecode.protocol.v0.AuditEvent",
-  "schema_version": "0.3.0",
+  "schema_version": "0.5.0",
   "audit_event_type": "session_open",
+  "emitter_stream_id": "broker-stream-1",
   "seq": 1,
   "occurred_at": "2026-03-13T12:15:00Z",
   "principal": {
@@ -29,13 +30,16 @@
     "hash_alg": "sha256",
     "hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
   },
-  "schema_bundle_version": "0.3.0",
-  "signatures": [
-    {
-      "alg": "ed25519",
-      "key_id": "key_sha256",
-      "key_id_value": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      "signature": "c2ln"
-    }
-  ]
+  "active_role_manifest_hash": {
+    "hash_alg": "sha256",
+    "hash": "7777777777777777777777777777777777777777777777777777777777777777"
+  },
+  "active_capability_manifest_hash": {
+    "hash_alg": "sha256",
+    "hash": "8888888888888888888888888888888888888888888888888888888888888888"
+  },
+  "protocol_bundle_manifest_hash": {
+    "hash_alg": "sha256",
+    "hash": "9999999999999999999999999999999999999999999999999999999999999999"
+  }
 }

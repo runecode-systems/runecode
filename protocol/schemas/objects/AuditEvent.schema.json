@@ -2,21 +2,130 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/AuditEvent.schema.json",
   "title": "AuditEvent",
-  "description": "Protocol-owned audit event family for typed, hash-linked, signed, schema-versioned event records with optional gateway context and related-object hash references.",
+  "description": "Protocol-owned unsigned audit event payload family carried inside SignedObjectEnvelope records. The payload binds stream continuity, trust context hashes, typed references, and optional gateway attribution without secret disclosure.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 18,
+  "maxProperties": 22,
+  "$defs": {
+    "typedReference": {
+      "description": "Typed reference to a related signed object by canonical digest and role.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 4,
+      "required": [
+        "object_family",
+        "digest",
+        "ref_role"
+      ],
+      "properties": {
+        "object_family": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Machine-consumed object-family label for the referenced object.",
+          "x-data-class": "public"
+        },
+        "digest": {
+          "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+          "description": "Canonical digest for the referenced signed object envelope.",
+          "x-data-class": "public"
+        },
+        "ref_role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Machine-consumed relationship role for this reference.",
+          "x-data-class": "public"
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Optional diagnostic note for operator-facing context.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "scope": {
+      "description": "Reusable execution scope context for workspace, run, stage, and step attribution.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 4,
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Workspace identifier associated with this event.",
+          "x-data-class": "public"
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Run identifier associated with this event.",
+          "x-data-class": "public"
+        },
+        "stage_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Stage identifier associated with this event.",
+          "x-data-class": "public"
+        },
+        "step_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Step identifier associated with this event.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "correlation": {
+      "description": "Reusable correlation context for sessions and operations.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 3,
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Session identifier associated with this event.",
+          "x-data-class": "public"
+        },
+        "operation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Operation identifier associated with this event.",
+          "x-data-class": "public"
+        },
+        "parent_operation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Parent operation identifier associated with this event.",
+          "x-data-class": "public"
+        }
+      }
+    }
+  },
   "required": [
     "schema_id",
     "schema_version",
     "audit_event_type",
+    "emitter_stream_id",
     "seq",
     "occurred_at",
     "principal",
     "event_payload_schema_id",
     "event_payload",
     "event_payload_hash",
-    "signatures"
+    "protocol_bundle_manifest_hash"
   ],
   "properties": {
     "schema_id": {
@@ -25,7 +134,7 @@
       "x-data-class": "public"
     },
     "schema_version": {
-      "const": "0.3.0",
+      "const": "0.5.0",
       "description": "Exact protocol schema version used to validate this audit event.",
       "x-data-class": "public"
     },
@@ -37,18 +146,26 @@
       "description": "Machine-consumed audit event classification value from the audit_event_type registry. Runtime enforcement must validate this value against the active audit_event_type registry.",
       "x-data-class": "public"
     },
+    "emitter_stream_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-zA-Z0-9._:-]+$",
+      "description": "Stable emitter stream identity used for per-stream sequence and continuity checks.",
+      "x-data-class": "public"
+    },
     "seq": {
       "type": "integer",
       "minimum": 1,
       "maximum": 9007199254740991,
-      "description": "Strictly monotonic per-signer sequence number for this audit event.",
+      "description": "Strictly monotonic per-emitter-stream sequence number for this audit event payload.",
       "x-data-class": "public"
     },
     "occurred_at": {
       "type": "string",
       "format": "date-time",
       "maxLength": 64,
-      "description": "RFC 3339 timestamp recording when the audited event occurred. Verification uses seq for integrity and treats wall-clock time as advisory metadata.",
+      "description": "RFC 3339 emitter timestamp for when the audited event occurred. Ledger append order remains the authoritative chronology for replay and verification.",
       "x-data-class": "public"
     },
     "principal": {
@@ -57,13 +174,18 @@
       "x-data-class": "sensitive"
     },
     "previous_event_hash": {
-      "$ref": "Digest.schema.json#/$defs/digestValue",
-      "description": "Hash of the previous audit event in this signer's append-only chain, when one exists.",
+      "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+      "description": "Digest of the previous signed AuditEvent envelope in the same emitter stream, when one exists.",
       "x-data-class": "public"
     },
-    "manifest_hash": {
+    "active_role_manifest_hash": {
       "$ref": "Digest.schema.json#/$defs/digestValue",
-      "description": "Hash of the active manifest context bound to the audited event, when applicable.",
+      "description": "Hash of the active role manifest bound to the audited event when signer role context is applicable.",
+      "x-data-class": "public"
+    },
+    "active_capability_manifest_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Hash of the active capability manifest bound to the audited event when signer capability context is applicable.",
       "x-data-class": "public"
     },
     "event_payload_schema_id": {
@@ -85,47 +207,51 @@
       "description": "Hash of the canonical event payload bytes used for verification and receipt linkage.",
       "x-data-class": "public"
     },
-    "related_artifact_hashes": {
+    "subject_ref": {
+      "$ref": "#/$defs/typedReference",
+      "description": "Optional primary subject reference for the audited action.",
+      "x-data-class": "public"
+    },
+    "cause_refs": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "Typed references to immediate causes for this event.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "#/$defs/typedReference",
+        "description": "One typed cause reference for this audit event."
+      },
+      "uniqueItems": true
+    },
+    "related_refs": {
       "type": "array",
       "maxItems": 64,
-      "description": "Artifact hashes materially related to this event.",
+      "description": "Typed references to related objects associated with this event.",
       "x-data-class": "public",
       "items": {
-        "$ref": "Digest.schema.json#/$defs/digestValue",
-        "description": "Hash of one artifact related to this audit event."
+        "$ref": "#/$defs/typedReference",
+        "description": "One typed related-object reference for this audit event."
       },
       "uniqueItems": true
     },
-    "related_principal_hashes": {
-      "type": "array",
-      "maxItems": 32,
-      "description": "Hashes of additional principal-identity objects related to this event beyond the emitting principal.",
-      "x-data-class": "public",
-      "items": {
-        "$ref": "Digest.schema.json#/$defs/digestValue",
-        "description": "Hash of one related principal-identity object."
-      },
-      "uniqueItems": true
+    "scope": {
+      "$ref": "#/$defs/scope",
+      "description": "Reusable scope context for this event.",
+      "x-data-class": "public"
     },
-    "related_decision_hashes": {
-      "type": "array",
-      "maxItems": 32,
-      "description": "Hashes of approval, policy, or other decision objects related to this event.",
-      "x-data-class": "public",
-      "items": {
-        "$ref": "Digest.schema.json#/$defs/digestValue",
-        "description": "Hash of one related decision object."
-      },
-      "uniqueItems": true
+    "correlation": {
+      "$ref": "#/$defs/correlation",
+      "description": "Reusable correlation context for this event.",
+      "x-data-class": "public"
     },
-    "related_receipt_hashes": {
+    "signer_evidence_refs": {
       "type": "array",
       "maxItems": 32,
-      "description": "Hashes of related audit, provenance, or approval receipts associated with this event.",
+      "description": "Typed references to signed evidence objects required for signer admissibility checks.",
       "x-data-class": "public",
       "items": {
-        "$ref": "Digest.schema.json#/$defs/digestValue",
-        "description": "Hash of one related receipt object."
+        "$ref": "#/$defs/typedReference",
+        "description": "One signer-evidence reference for this audit event."
       },
       "uniqueItems": true
     },
@@ -167,23 +293,10 @@
       "description": "Optional gateway-role metadata for outbound network events.",
       "x-data-class": "public"
     },
-    "schema_bundle_version": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 64,
-      "description": "Exact schema bundle version used by the emitting component or client. Session-open events record this for same-bundle runtime verification.",
+    "protocol_bundle_manifest_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Hash binding for the protocol schema-bundle manifest used by the emitter when producing this event.",
       "x-data-class": "public"
-    },
-    "signatures": {
-      "type": "array",
-      "minItems": 1,
-      "maxItems": 8,
-      "description": "Detached signatures attesting to the audit event contents.",
-      "x-data-class": "public",
-      "items": {
-        "$ref": "SignedObjectEnvelope.schema.json#/$defs/signatureBlock",
-        "description": "Detached signature block for the audit event payload."
-      }
     }
   }
 }

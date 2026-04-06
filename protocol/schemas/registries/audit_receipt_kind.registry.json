@@ -1,0 +1,25 @@
+{
+  "registry_name": "audit_receipt_kind",
+  "namespace": "runecode.protocol.audit.receipt_kind",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Stable machine-consumed receipt kinds for signed audit sidecar evidence objects.",
+  "codes": [
+    {
+      "code": "anchor",
+      "summary": "Receipt attesting anchoring of a signed audit commitment."
+    },
+    {
+      "code": "import",
+      "summary": "Receipt attesting import provenance for historical sealed segments."
+    },
+    {
+      "code": "restore",
+      "summary": "Receipt attesting restore provenance for previously exported sealed segments."
+    },
+    {
+      "code": "reconciliation",
+      "summary": "Receipt attesting deterministic reconciliation between expected and observed audit evidence sets."
+    }
+  ]
+}

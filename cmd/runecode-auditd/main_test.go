@@ -56,3 +56,73 @@ func TestValidateSignerEvidenceUsageError(t *testing.T) {
 		t.Fatalf("error type = %T, want *usageError", err)
 	}
 }
+
+func TestValidateRecoveryCLI(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "recovery.json")
+	if err := os.WriteFile(statePath, []byte(`{
+  "segment_id": "segment-0001",
+  "header_state": "open",
+  "lifecycle_marker_state": "open",
+  "has_torn_trailing_frame": true,
+  "frame_integrity_ok": true,
+  "seal_integrity_ok": false
+}`), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := run([]string{"validate-recovery", "--file", statePath}, stdout, stderr)
+	if err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	if !bytes.Contains(stdout.Bytes(), []byte("truncate_open_torn_trailing_frame")) {
+		t.Fatalf("stdout = %q, want truncate decision", stdout.String())
+	}
+}
+
+func TestValidateStoragePostureCLI(t *testing.T) {
+	posturePath := filepath.Join(t.TempDir(), "posture.json")
+	if err := os.WriteFile(posturePath, []byte(`{
+  "encrypted_at_rest_default": true,
+  "encrypted_at_rest_effective": false,
+  "dev_plaintext_override_active": true,
+  "dev_plaintext_override_reason": "dev_local_filesystem_without_encryption",
+  "surfaced_to_operator": true
+}`), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := run([]string{"validate-storage-posture", "--file", posturePath}, stdout, stderr)
+	if err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	if stdout.String() != "valid\n" {
+		t.Fatalf("stdout = %q, want valid", stdout.String())
+	}
+}
+
+func TestValidateReadinessCLI(t *testing.T) {
+	readinessPath := filepath.Join(t.TempDir(), "readiness.json")
+	if err := os.WriteFile(readinessPath, []byte(`{
+  "local_only": true,
+  "consumption_channel": "broker_local_api",
+  "recovery_complete": true,
+  "append_position_stable": true,
+  "current_segment_writable": true,
+  "verifier_material_available": true,
+  "derived_index_caught_up": true,
+  "ready": true
+}`), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := run([]string{"validate-readiness", "--file", readinessPath}, stdout, stderr)
+	if err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	if stdout.String() != "valid\n" {
+		t.Fatalf("stdout = %q, want valid", stdout.String())
+	}
+}

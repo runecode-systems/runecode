@@ -1,0 +1,101 @@
+{
+  "registry_name": "audit_verification_reason_code",
+  "namespace": "runecode.protocol.audit.verification.reason",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Stable reason codes for deterministic audit verification findings, degraded posture, and fail-closed outcomes.",
+  "codes": [
+    {
+      "code": "segment_frame_digest_mismatch",
+      "summary": "A segment frame record_digest does not match the canonical envelope bytes in that frame."
+    },
+    {
+      "code": "segment_frame_byte_length_mismatch",
+      "summary": "A segment frame byte_length does not match the decoded canonical envelope byte length."
+    },
+    {
+      "code": "segment_file_hash_mismatch",
+      "summary": "The exact raw segment-file hash does not match the hash committed by the segment seal."
+    },
+    {
+      "code": "segment_merkle_root_mismatch",
+      "summary": "The ordered Merkle root computed from frame record digests does not match the segment seal commitment."
+    },
+    {
+      "code": "segment_seal_invalid",
+      "summary": "Segment seal payload or signed envelope verification failed."
+    },
+    {
+      "code": "segment_seal_chain_mismatch",
+      "summary": "Segment seal previous_seal_digest linkage is inconsistent with prior seal digest."
+    },
+    {
+      "code": "stream_sequence_gap",
+      "summary": "Per-stream sequence monotonicity check found a gap."
+    },
+    {
+      "code": "stream_sequence_rollback_or_duplicate",
+      "summary": "Per-stream sequence monotonicity check found a duplicate or rollback."
+    },
+    {
+      "code": "stream_previous_hash_mismatch",
+      "summary": "Per-stream previous_event_hash linkage does not match the prior envelope digest."
+    },
+    {
+      "code": "detached_signature_invalid",
+      "summary": "Detached signature verification failed for a signed envelope."
+    },
+    {
+      "code": "signer_evidence_missing",
+      "summary": "An event requires signer evidence but no admissible referenced evidence was provided."
+    },
+    {
+      "code": "signer_evidence_invalid",
+      "summary": "Signer evidence payload is malformed or violates admissibility rules."
+    },
+    {
+      "code": "signer_historically_inadmissible",
+      "summary": "Signer status/evidence was not admissible at the signed event time."
+    },
+    {
+      "code": "signer_currently_revoked_or_compromised",
+      "summary": "Signer was historically admissible but is now revoked or compromised, producing degraded current posture."
+    },
+    {
+      "code": "event_contract_mismatch",
+      "summary": "Audit event payload does not satisfy the active event-contract catalog entry."
+    },
+    {
+      "code": "event_contract_missing",
+      "summary": "No event-contract catalog entry exists for an observed audit_event_type."
+    },
+    {
+      "code": "import_restore_provenance_inconsistent",
+      "summary": "Import/restore receipt provenance links are inconsistent with local segment seal or hash evidence."
+    },
+    {
+      "code": "receipt_invalid",
+      "summary": "Audit receipt payload or signed envelope verification failed."
+    },
+    {
+      "code": "anchor_receipt_missing",
+      "summary": "No anchor receipt is present for at least one sealed segment in scope."
+    },
+    {
+      "code": "anchor_receipt_invalid",
+      "summary": "An anchor receipt is present but invalid, requiring fail-closed verification."
+    },
+    {
+      "code": "segment_lifecycle_inconsistent",
+      "summary": "Segment lifecycle posture is inconsistent with segment header, lifecycle marker, seal state, or receipts."
+    },
+    {
+      "code": "storage_posture_degraded",
+      "summary": "Storage posture evidence indicates explicit degraded protection posture."
+    },
+    {
+      "code": "storage_posture_invalid",
+      "summary": "Storage posture evidence is invalid and fails verification closed."
+    }
+  ]
+}

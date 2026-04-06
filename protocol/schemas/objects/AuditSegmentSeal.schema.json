@@ -1,0 +1,265 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditSegmentSeal.schema.json",
+  "title": "AuditSegmentSeal",
+  "description": "Protocol-owned segment-seal payload family for signed sidecar evidence over sealed audit-event segments.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 19,
+  "$defs": {
+    "segmentCutWindow": {
+      "description": "Explicit MVP segment-cut window policy used by auditd for this sealed segment.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 4,
+      "required": [
+        "ownership_scope",
+        "cut_trigger"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "max_segment_bytes"
+          ]
+        },
+        {
+          "required": [
+            "max_segment_duration_seconds"
+          ]
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "cut_trigger": {
+                "const": "size_window"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "max_segment_bytes"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cut_trigger": {
+                "const": "time_window"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "max_segment_duration_seconds"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "ownership_scope": {
+          "const": "instance_global",
+          "description": "Authoritative ledger ownership scope for this segment-cut policy; per-run ownership is forbidden.",
+          "x-data-class": "public"
+        },
+        "max_segment_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Configured byte window for cutting this segment, measured over raw framed segment bytes.",
+          "x-data-class": "public"
+        },
+        "max_segment_duration_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Configured time window for cutting this segment in wall-clock seconds.",
+          "x-data-class": "public"
+        },
+        "cut_trigger": {
+          "type": "string",
+          "enum": [
+            "size_window",
+            "time_window"
+          ],
+          "description": "Deterministic trigger that caused this segment to be cut.",
+          "x-data-class": "public"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "seal_chain_index"
+        ],
+        "properties": {
+          "seal_chain_index": {
+            "minimum": 1
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "previous_seal_digest"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "seal_chain_index"
+        ],
+        "properties": {
+          "seal_chain_index": {
+            "const": 0
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "previous_seal_digest"
+          ]
+        }
+      }
+    }
+  ],
+  "required": [
+    "schema_id",
+    "schema_version",
+    "segment_id",
+    "sealed_after_state",
+    "segment_state",
+    "segment_cut",
+    "event_count",
+    "first_record_digest",
+    "last_record_digest",
+    "merkle_profile",
+    "merkle_root",
+    "segment_file_hash_scope",
+    "segment_file_hash",
+    "seal_chain_index",
+    "anchoring_subject",
+    "sealed_at",
+    "protocol_bundle_manifest_hash"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.AuditSegmentSeal",
+      "description": "Stable protocol object-family identifier for audit segment seals.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.2.0",
+      "description": "Exact protocol schema version used to validate this audit segment seal payload.",
+      "x-data-class": "public"
+    },
+    "segment_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-zA-Z0-9._:-]+$",
+      "description": "Stable segment identifier emitted by auditd for the sealed segment.",
+      "x-data-class": "public"
+    },
+    "sealed_after_state": {
+      "const": "open",
+      "description": "Seals are emitted only after a previously open segment is closed.",
+      "x-data-class": "public"
+    },
+    "segment_state": {
+      "type": "string",
+      "enum": [
+        "sealed",
+        "anchored",
+        "imported",
+        "quarantined"
+      ],
+      "description": "Lifecycle posture encoded by this seal sidecar evidence object.",
+      "x-data-class": "public"
+    },
+    "segment_cut": {
+      "$ref": "#/$defs/segmentCutWindow",
+      "description": "Explicit size/time window policy used to cut this segment in the instance-global ledger.",
+      "x-data-class": "public"
+    },
+    "event_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "description": "Number of signed AuditEvent envelopes included in the sealed segment.",
+      "x-data-class": "public"
+    },
+    "first_record_digest": {
+      "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+      "description": "Digest of the first signed AuditEvent envelope in append order for the sealed segment.",
+      "x-data-class": "public"
+    },
+    "last_record_digest": {
+      "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+      "description": "Digest of the last signed AuditEvent envelope in append order for the sealed segment.",
+      "x-data-class": "public"
+    },
+    "merkle_profile": {
+      "const": "sha256_ordered_dse_v1",
+      "description": "Pinned ordered-Merkle profile over append-ordered signed-record digests using domain-separated leaf/internal-node hashing.",
+      "x-data-class": "public"
+    },
+    "merkle_root": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Ordered Merkle root over the segment's signed AuditEvent envelope digests.",
+      "x-data-class": "public"
+    },
+    "segment_file_hash_scope": {
+      "const": "raw_framed_segment_bytes_v1",
+      "description": "Pinned hash scope requiring segment_file_hash to cover exact raw framed segment bytes.",
+      "x-data-class": "public"
+    },
+    "segment_file_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Exact hash over raw framed segment-file bytes.",
+      "x-data-class": "public"
+    },
+    "seal_chain_index": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Zero-based linear position in the local segment-seal chain.",
+      "x-data-class": "public"
+    },
+    "previous_seal_digest": {
+      "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+      "description": "Digest of the previous signed AuditSegmentSeal envelope for linear seal chaining.",
+      "x-data-class": "public"
+    },
+    "anchoring_subject": {
+      "const": "audit_segment_seal",
+      "description": "Explicit anchoring target contract; anchor receipts bind to signed AuditSegmentSeal envelopes.",
+      "x-data-class": "public"
+    },
+    "sealed_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64,
+      "description": "RFC 3339 timestamp for when auditd sealed this segment.",
+      "x-data-class": "public"
+    },
+    "protocol_bundle_manifest_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Hash binding for the protocol bundle manifest used when the seal was produced.",
+      "x-data-class": "public"
+    },
+    "seal_reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Machine-consumed reason code describing why the segment was cut and sealed.",
+      "x-data-class": "public"
+    }
+  }
+}

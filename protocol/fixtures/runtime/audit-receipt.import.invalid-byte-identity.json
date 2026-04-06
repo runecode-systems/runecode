@@ -1,0 +1,51 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditReceipt",
+  "schema_version": "0.4.0",
+  "subject_digest": {
+    "hash_alg": "sha256",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "audit_receipt_kind": "import",
+  "subject_family": "audit_segment_seal",
+  "recorder": {
+    "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+    "schema_version": "0.2.0",
+    "actor_kind": "daemon",
+    "principal_id": "auditd",
+    "instance_id": "auditd-1",
+    "role_kind": "workspace"
+  },
+  "recorded_at": "2026-03-13T12:16:00Z",
+  "receipt_payload_schema_id": "runecode.protocol.audit.receipt.import_restore_provenance.v0",
+  "receipt_payload": {
+    "provenance_action": "import",
+    "segment_file_hash_scope": "raw_framed_segment_bytes_v1",
+    "imported_segments": [
+      {
+        "imported_segment_seal_digest": {
+          "hash_alg": "sha256",
+          "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "imported_segment_root": {
+          "hash_alg": "sha256",
+          "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        "source_segment_file_hash": {
+          "hash_alg": "sha256",
+          "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        },
+        "local_segment_file_hash": {
+          "hash_alg": "sha256",
+          "hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        },
+        "byte_identity_verified": true
+      }
+    ],
+    "source_manifest_digests": [
+      {
+        "hash_alg": "sha256",
+        "hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      }
+    ]
+  }
+}

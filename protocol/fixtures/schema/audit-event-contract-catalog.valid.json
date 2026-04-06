@@ -1,0 +1,548 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditEventContractCatalog",
+  "schema_version": "0.1.0",
+  "catalog_id": "audit_event_contract_v0",
+  "entries": [
+    {
+      "audit_event_type": "session_open",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.session-open.v0"
+      ],
+      "allowed_signer_purposes": [
+        "audit_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "instance"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id"
+      ],
+      "required_correlation_fields": [
+        "session_id"
+      ],
+      "require_subject_ref": false,
+      "allowed_subject_ref_roles": [],
+      "allowed_cause_ref_roles": [],
+      "allowed_related_ref_roles": [
+        "evidence"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "artifact_put",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.artifact-put.v0"
+      ],
+      "allowed_signer_purposes": [
+        "artifact_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage",
+        "step"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id"
+      ],
+      "required_correlation_fields": [
+        "operation_id"
+      ],
+      "require_subject_ref": true,
+      "allowed_subject_ref_roles": [
+        "target"
+      ],
+      "allowed_cause_ref_roles": [
+        "producer"
+      ],
+      "allowed_related_ref_roles": [
+        "artifact",
+        "provenance",
+        "receipt"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "artifact_flow_blocked",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.artifact-flow-blocked.v0"
+      ],
+      "allowed_signer_purposes": [
+        "artifact_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage",
+        "step"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id"
+      ],
+      "required_correlation_fields": [
+        "operation_id"
+      ],
+      "require_subject_ref": false,
+      "allowed_subject_ref_roles": [],
+      "allowed_cause_ref_roles": [
+        "policy_cause"
+      ],
+      "allowed_related_ref_roles": [
+        "artifact",
+        "receipt"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "artifact_promotion_action",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.artifact-promotion-action.v0"
+      ],
+      "allowed_signer_purposes": [
+        "artifact_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage",
+        "step"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id"
+      ],
+      "required_correlation_fields": [
+        "operation_id"
+      ],
+      "require_subject_ref": true,
+      "allowed_subject_ref_roles": [
+        "target"
+      ],
+      "allowed_cause_ref_roles": [
+        "approval_cause",
+        "policy_cause"
+      ],
+      "allowed_related_ref_roles": [
+        "artifact",
+        "receipt"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "artifact_quota_violation",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.artifact-quota-violation.v0"
+      ],
+      "allowed_signer_purposes": [
+        "artifact_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage",
+        "step"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id"
+      ],
+      "required_correlation_fields": [
+        "operation_id"
+      ],
+      "require_subject_ref": false,
+      "allowed_subject_ref_roles": [],
+      "allowed_cause_ref_roles": [
+        "policy_cause"
+      ],
+      "allowed_related_ref_roles": [
+        "artifact",
+        "receipt"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "artifact_retention_action",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.artifact-retention-action.v0"
+      ],
+      "allowed_signer_purposes": [
+        "artifact_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "instance",
+        "run"
+      ],
+      "required_scope_fields": [
+        "workspace_id"
+      ],
+      "required_correlation_fields": [],
+      "require_subject_ref": false,
+      "allowed_subject_ref_roles": [],
+      "allowed_cause_ref_roles": [
+        "policy_cause"
+      ],
+      "allowed_related_ref_roles": [
+        "artifact",
+        "receipt"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "audit_segment_imported",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.audit-segment-imported.v0"
+      ],
+      "allowed_signer_purposes": [
+        "audit_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "instance"
+      ],
+      "required_scope_fields": [
+        "workspace_id"
+      ],
+      "required_correlation_fields": [
+        "operation_id"
+      ],
+      "require_subject_ref": true,
+      "allowed_subject_ref_roles": [
+        "import_target"
+      ],
+      "allowed_cause_ref_roles": [
+        "source_manifest",
+        "operator_authority"
+      ],
+      "allowed_related_ref_roles": [
+        "segment_seal",
+        "segment_root",
+        "receipt",
+        "evidence"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "audit_segment_restored",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.audit-segment-restored.v0"
+      ],
+      "allowed_signer_purposes": [
+        "audit_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "instance"
+      ],
+      "required_scope_fields": [
+        "workspace_id"
+      ],
+      "required_correlation_fields": [
+        "operation_id"
+      ],
+      "require_subject_ref": true,
+      "allowed_subject_ref_roles": [
+        "restore_target"
+      ],
+      "allowed_cause_ref_roles": [
+        "source_manifest",
+        "operator_authority"
+      ],
+      "allowed_related_ref_roles": [
+        "segment_seal",
+        "segment_root",
+        "receipt",
+        "evidence"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "model_egress",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.model-egress.v0"
+      ],
+      "allowed_signer_purposes": [
+        "gateway_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id",
+        "stage_id"
+      ],
+      "required_correlation_fields": [
+        "session_id",
+        "operation_id"
+      ],
+      "require_subject_ref": true,
+      "allowed_subject_ref_roles": [
+        "target"
+      ],
+      "allowed_cause_ref_roles": [
+        "policy_cause",
+        "approval_cause"
+      ],
+      "allowed_related_ref_roles": [
+        "evidence",
+        "artifact",
+        "receipt"
+      ],
+      "require_gateway_context": true,
+      "allowed_gateway_egress_categories": [
+        "model"
+      ],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "auth_egress",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.auth-egress.v0"
+      ],
+      "allowed_signer_purposes": [
+        "gateway_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id",
+        "stage_id"
+      ],
+      "required_correlation_fields": [
+        "session_id",
+        "operation_id"
+      ],
+      "require_subject_ref": true,
+      "allowed_subject_ref_roles": [
+        "target"
+      ],
+      "allowed_cause_ref_roles": [
+        "policy_cause",
+        "approval_cause"
+      ],
+      "allowed_related_ref_roles": [
+        "evidence",
+        "artifact",
+        "receipt"
+      ],
+      "require_gateway_context": true,
+      "allowed_gateway_egress_categories": [
+        "auth"
+      ],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "secrets_lease_acquired",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.secrets-lease-acquired.v0"
+      ],
+      "allowed_signer_purposes": [
+        "secrets_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage",
+        "step"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id"
+      ],
+      "required_correlation_fields": [
+        "session_id",
+        "operation_id"
+      ],
+      "require_subject_ref": false,
+      "allowed_subject_ref_roles": [],
+      "allowed_cause_ref_roles": [
+        "policy_cause",
+        "approval_cause"
+      ],
+      "allowed_related_ref_roles": [
+        "lease",
+        "evidence",
+        "receipt"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "secrets_lease_released",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.secrets-lease-released.v0"
+      ],
+      "allowed_signer_purposes": [
+        "secrets_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage",
+        "step"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id"
+      ],
+      "required_correlation_fields": [
+        "session_id",
+        "operation_id"
+      ],
+      "require_subject_ref": false,
+      "allowed_subject_ref_roles": [],
+      "allowed_cause_ref_roles": [
+        "lease"
+      ],
+      "allowed_related_ref_roles": [
+        "lease",
+        "evidence",
+        "receipt"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "isolate_session_started",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.isolate-session-started.v0"
+      ],
+      "allowed_signer_purposes": [
+        "isolate_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id"
+      ],
+      "required_correlation_fields": [
+        "session_id",
+        "operation_id"
+      ],
+      "require_subject_ref": false,
+      "allowed_subject_ref_roles": [],
+      "allowed_cause_ref_roles": [],
+      "allowed_related_ref_roles": [
+        "binding",
+        "evidence",
+        "receipt"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "isolate_session_bound",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.isolate-session-bound.v0"
+      ],
+      "allowed_signer_purposes": [
+        "isolate_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id",
+        "stage_id"
+      ],
+      "required_correlation_fields": [
+        "session_id",
+        "operation_id"
+      ],
+      "require_subject_ref": true,
+      "allowed_subject_ref_roles": [
+        "binding_target"
+      ],
+      "allowed_cause_ref_roles": [
+        "session_cause"
+      ],
+      "allowed_related_ref_roles": [
+        "binding",
+        "evidence",
+        "receipt"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": true,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    }
+  ]
+}

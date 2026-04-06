@@ -242,9 +242,50 @@ function validateRuntimeInvariant(rule, fixture, bundle) {
       return requireUniqueToolCallIds(fixture.proposed_tool_calls)
     case 'signed_envelope_payload_schema_match':
       return requireSignedEnvelopePayloadSchemaMatch(fixture, bundle)
+    case 'audit_receipt_import_restore_byte_identity':
+      return requireImportRestoreReceiptByteIdentity(fixture)
     default:
       throw new Error(`unknown runtime invariant rule ${rule}`)
   }
+}
+
+function requireImportRestoreReceiptByteIdentity(receipt) {
+	if (receipt.audit_receipt_kind !== 'import' && receipt.audit_receipt_kind !== 'restore') {
+		return null
+	}
+
+	if (receipt.receipt_payload_schema_id !== 'runecode.protocol.audit.receipt.import_restore_provenance.v0') {
+		return new Error('import/restore receipts must use import_restore provenance payload schema')
+	}
+
+	if (!receipt.receipt_payload || typeof receipt.receipt_payload !== 'object' || Array.isArray(receipt.receipt_payload)) {
+		return new Error('receipt_payload must be an object')
+	}
+
+	if (receipt.receipt_payload.provenance_action !== receipt.audit_receipt_kind) {
+		return new Error(`provenance_action ${JSON.stringify(receipt.receipt_payload.provenance_action)} must match audit_receipt_kind ${JSON.stringify(receipt.audit_receipt_kind)}`)
+	}
+
+	if (!Array.isArray(receipt.receipt_payload.imported_segments)) {
+		return new Error('receipt_payload.imported_segments must be an array')
+	}
+
+	for (let index = 0; index < receipt.receipt_payload.imported_segments.length; index += 1) {
+		const segment = receipt.receipt_payload.imported_segments[index]
+		if (!segment || typeof segment !== 'object' || Array.isArray(segment)) {
+			return new Error(`receipt_payload.imported_segments[${index}] must be an object`)
+		}
+		if (segment.byte_identity_verified !== true) {
+			return new Error(`receipt_payload.imported_segments[${index}].byte_identity_verified must be true`)
+		}
+		const source = digestIdentity(segment.source_segment_file_hash)
+		const local = digestIdentity(segment.local_segment_file_hash)
+		if (source !== local) {
+			return new Error(`receipt_payload.imported_segments[${index}] source/local segment hashes differ`)
+		}
+	}
+
+	return null
 }
 
 function requireSignedEnvelopePayloadSchemaMatch(envelope, bundle) {
