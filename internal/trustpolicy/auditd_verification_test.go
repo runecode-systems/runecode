@@ -423,7 +423,7 @@ func (f auditVerificationFixture) importRestoreReceiptEnvelope(t *testing.T, sub
 					"byte_identity_verified":       true,
 				},
 				map[string]any{
-					"imported_segment_seal_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("5", 64)},
+					"imported_segment_seal_digest": map[string]any{"hash_alg": subjectDigest.HashAlg, "hash": subjectDigest.Hash},
 					"imported_segment_root":        matchingRoot,
 					"source_segment_file_hash":     matchingHash,
 					"local_segment_file_hash":      matchingHash,

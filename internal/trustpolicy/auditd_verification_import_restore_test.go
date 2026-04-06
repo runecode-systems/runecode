@@ -64,3 +64,30 @@ func TestVerifyAuditEvidenceImportRestoreReceiptFailsOnDuplicateMatchingSegmentE
 		t.Fatalf("hard_failures = %v, want %q", report.HardFailures, AuditVerificationReasonImportRestoreProvenanceInconsistent)
 	}
 }
+
+func TestVerifyAuditEvidenceImportRestoreReceiptAllowsAdditionalUnrelatedSegmentEntries(t *testing.T) {
+	fixture := newAuditVerificationFixture(t, verifierStatusFixture{status: "active"})
+	receipt := fixture.importRestoreReceiptEnvelope(t, fixture.sealEnvelopeDigest, fixture.sealEnvelope)
+
+	var payload map[string]any
+	if err := json.Unmarshal(receipt.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal import receipt payload returned error: %v", err)
+	}
+	receiptPayload := payload["receipt_payload"].(map[string]any)
+	segments := receiptPayload["imported_segments"].([]any)
+	unrelated := map[string]any{
+		"imported_segment_seal_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("a", 64)},
+		"imported_segment_root":        map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("b", 64)},
+		"source_segment_file_hash":     map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("c", 64)},
+		"local_segment_file_hash":      map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("c", 64)},
+		"byte_identity_verified":       true,
+	}
+	receiptPayload["imported_segments"] = append(segments, unrelated)
+	receipt.Payload = marshalJSONFixture(t, payload)
+	receipt = resignEnvelopeFixture(t, fixture.privateKey, receipt)
+
+	report := mustVerifyAuditEvidenceReport(t, fixture, []SignedObjectEnvelope{receipt})
+	if containsReasonCode(report.HardFailures, AuditVerificationReasonImportRestoreProvenanceInconsistent) {
+		t.Fatalf("hard_failures = %v, unexpected %q", report.HardFailures, AuditVerificationReasonImportRestoreProvenanceInconsistent)
+	}
+}

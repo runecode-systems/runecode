@@ -6,8 +6,9 @@
 - `standards/security/trust-boundary-layered-enforcement.md`
 - `standards/security/trust-boundary-interfaces.md`
 - `standards/security/trusted-local-artifact-persistence.md`
+- `standards/security/audit-verification-scope-and-evidence-binding.md`
 - `standards/global/deterministic-check-write-tools.md`
 - `standards/ci/worktree-cleanliness.md`
 
 ## Resolution Notes
-Migrated from the legacy spec standards list and refreshed to canonical RuneContext standard paths. Updated to reflect the detached signed-object contract, typed registry discipline, local-first authoritative audit storage, and trusted persistence rules this change now depends on.
+Migrated from the legacy spec standards list and refreshed to canonical RuneContext standard paths. Updated to reflect the detached signed-object contract, typed registry discipline, local-first authoritative audit storage, trusted persistence rules, and audit verification invariants this change now depends on, including signer-evidence binding, report-scoped verification views, import/restore matching discipline, and persisted frame-digest validation.

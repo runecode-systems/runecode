@@ -31,7 +31,10 @@ func (l *Ledger) ensureLayout() error {
 		filepath.Join(l.rootDir, indexDirName),
 	}
 	for _, path := range paths {
-		if err := os.MkdirAll(path, 0o755); err != nil {
+		if err := os.MkdirAll(path, 0o700); err != nil {
+			return err
+		}
+		if err := os.Chmod(path, 0o700); err != nil {
 			return err
 		}
 	}
@@ -88,7 +91,7 @@ func replaceFile(src, dst string) error {
 }
 
 func ensureDir(path string) error {
-	return os.MkdirAll(path, 0o755)
+	return os.MkdirAll(path, 0o700)
 }
 
 func readJSONFile(path string, target any) error {

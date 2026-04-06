@@ -42,11 +42,30 @@ func frameOperationalView(frame trustpolicy.AuditSegmentRecordFrame) (trustpolic
 	if err != nil {
 		return trustpolicy.AuditOperationalView{}, err
 	}
+	if err := verifyFrameRecordDigest(frame, envelope); err != nil {
+		return trustpolicy.AuditOperationalView{}, err
+	}
 	view, err := trustpolicy.BuildDefaultOperationalAuditView(envelope)
 	if err != nil {
 		return trustpolicy.AuditOperationalView{}, fmt.Errorf("build operational view: %w", err)
 	}
 	return view, nil
+}
+
+func verifyFrameRecordDigest(frame trustpolicy.AuditSegmentRecordFrame, envelope trustpolicy.SignedObjectEnvelope) error {
+	persisted, err := frame.RecordDigest.Identity()
+	if err != nil {
+		return fmt.Errorf("invalid persisted frame record_digest: %w", err)
+	}
+	computedDigest, err := trustpolicy.ComputeSignedEnvelopeAuditRecordDigest(envelope)
+	if err != nil {
+		return fmt.Errorf("compute frame record digest: %w", err)
+	}
+	computed, _ := computedDigest.Identity()
+	if computed != persisted {
+		return fmt.Errorf("frame record_digest mismatch: persisted %q computed %q", persisted, computed)
+	}
+	return nil
 }
 
 func (l *Ledger) LatestVerificationSummaryAndViews(limit int) (trustpolicy.DerivedRunAuditVerificationSummary, []trustpolicy.AuditOperationalView, trustpolicy.AuditVerificationReportPayload, error) {

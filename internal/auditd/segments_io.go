@@ -22,13 +22,10 @@ func (l *Ledger) loadSegment(segmentID string) (trustpolicy.AuditSegmentFilePayl
 	if segment.Header.SegmentState != segment.LifecycleMarker.State {
 		return trustpolicy.AuditSegmentFilePayload{}, fmt.Errorf("segment header/lifecycle marker state mismatch")
 	}
-	if segment.Header.SegmentState == trustpolicy.AuditSegmentStateOpen && segment.TrailingPartialFrameBytes > 0 {
-		return trustpolicy.AuditSegmentFilePayload{}, fmt.Errorf("trailing_partial_frame_bytes not supported in v0 runtime")
-	}
 	if segment.Header.SegmentState != trustpolicy.AuditSegmentStateOpen && len(segment.Frames) == 0 {
 		return trustpolicy.AuditSegmentFilePayload{}, fmt.Errorf("non-open segment must have frames")
 	}
-	if segment.TrailingPartialFrameBytes > 0 {
+	if segment.Header.SegmentState != trustpolicy.AuditSegmentStateOpen && segment.TrailingPartialFrameBytes > 0 {
 		return trustpolicy.AuditSegmentFilePayload{}, fmt.Errorf("immutable segment cannot include trailing_partial_frame_bytes")
 	}
 	return segment, nil

@@ -139,16 +139,17 @@ This quick path verifies signed checksums and the signed archive before install.
 
 ## Implemented in this repo today:
 - A protocol/schema bundle in `protocol/schemas/` with an authoritative manifest at `protocol/schemas/manifest.json`
-- Shared JSON Schema object families for manifests, identities, approvals, artifacts/provenance, audit events/receipts, policy decisions, model request/response/streaming, detached signature envelopes, and shared errors
-- Shared machine-consumed code registries for `error.code`, `policy_reason_code`, `approval_trigger_code`, and `audit_event_type`
+- Shared JSON Schema object families for manifests, identities, approvals, artifacts/provenance, audit events/receipts, audit segment files/seals, audit verification reports, policy decisions, model request/response/streaming, detached signature envelopes, and shared errors
+- Shared machine-consumed code registries for `error.code`, `policy_reason_code`, `approval_trigger_code`, `audit_event_type`, `audit_receipt_kind`, and `audit_verification_reason_code`
 - Shared fixtures in `protocol/fixtures/` validated in both Go and Node, including schema, stream-sequence, runtime-invariant, and canonicalization/hash cases
 - CI guardrails for runner trust-boundary access and protocol parity
 - MVP artifact data classes and an `ArtifactPolicy` schema family anchoring flow-matrix, approval-promotion, quota, and retention/GC controls
 - A trusted local artifact store with immutable hash-addressed artifact persistence, broker-facing flow checks, quota enforcement, retention/GC, backup/restore, and audit event recording for artifact actions
 - Approval promotion and revocation flows for `unapproved_file_excerpts` and `approved_file_excerpts`, including signed request/decision verification bound to canonical request bytes, promoted inputs, and verifier owner identity
+- A trusted local audit ledger with append/seal persistence, segment recovery, digest-addressed sidecar evidence, readiness evaluation, audit verification reports, and broker-facing audit verification/readiness surfaces
 
 Still incremental / not implemented end-to-end yet:
-- Secrets handling, audit verification/reporting, and isolation backends remain scaffolded or are implemented in later specs
+- Secrets handling and isolation backends remain scaffolded or are implemented in later specs
 - The broker and artifact store now implement local runtime behavior, but the overall system is still pre-alpha and not production-ready
 
 - Roadmap: `runecontext/project/roadmap.md`
@@ -169,7 +170,7 @@ Still incremental / not implemented end-to-end yet:
 Current MVP object families cover:
 - manifests: `RoleManifest`, `CapabilityManifest`
 - identity and content addressing: `PrincipalIdentity`, `Digest`, `ArtifactReference`, `ArtifactPolicy`, `ProvenanceReceipt`
-- audit and approvals: `AuditEvent`, `AuditReceipt`, `ApprovalRequest`, `ApprovalDecision`, `PolicyDecision`
+- audit and approvals: `AuditEvent`, `AuditReceipt`, `AuditSegmentFile`, `AuditSegmentSeal`, `AuditVerificationReport`, `ApprovalRequest`, `ApprovalDecision`, `PolicyDecision`
 - model traffic: `LLMRequest`, `LLMResponse`, `LLMStreamEvent`
 - wrappers and shared errors: `SignedObjectEnvelope`, `Error`
 
@@ -229,6 +230,7 @@ Alongside that still-incremental surface, the repository already includes workin
 - canonicalization/hash golden tests
 - runner trust-boundary static checks
 - a trusted local artifact store and broker CLI for artifact put/get/head/list, flow checks, excerpt promotion, run-status updates, GC, and backup/restore
+- a trusted local audit ledger plus broker/auditd CLI surfaces for audit readiness and audit verification inspection
 
 You can inspect their help output:
 

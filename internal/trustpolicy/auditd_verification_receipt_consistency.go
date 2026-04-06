@@ -96,22 +96,26 @@ func verifyImportRestoreConsistency(receipt auditReceiptPayloadStrict, sealDiges
 	if mustDigestIdentity(receipt.SubjectDigest) != sealDigestID {
 		return fmt.Errorf("receipt subject_digest does not target verified segment seal digest")
 	}
-	matchingEntries := 0
+	matchIndex := -1
 	for index := range payload.ImportedSegments {
 		segment := payload.ImportedSegments[index]
-		if mustDigestIdentity(segment.LocalSegmentFileHash) != mustDigestIdentity(sealPayload.SegmentFileHash) {
+		if mustDigestIdentity(segment.ImportedSegmentSealDigest) != sealDigestID {
 			continue
 		}
-		matchingEntries++
-		if matchingEntries > 1 {
-			return fmt.Errorf("multiple imported_segments entries match verified segment seal hash")
+		if matchIndex >= 0 {
+			return fmt.Errorf("multiple imported_segments entries match verified segment seal digest")
 		}
-		if mustDigestIdentity(segment.ImportedSegmentRoot) != mustDigestIdentity(sealPayload.MerkleRoot) {
-			return fmt.Errorf("imported_segments[%d] imported_segment_root does not match segment seal root", index)
-		}
+		matchIndex = index
 	}
-	if matchingEntries == 0 {
-		return fmt.Errorf("no imported_segments entry matches verified segment seal hash")
+	if matchIndex < 0 {
+		return fmt.Errorf("no imported_segments entry matches verified segment seal digest")
+	}
+	match := payload.ImportedSegments[matchIndex]
+	if mustDigestIdentity(match.ImportedSegmentRoot) != mustDigestIdentity(sealPayload.MerkleRoot) {
+		return fmt.Errorf("imported_segments[%d] imported_segment_root does not match segment seal root", matchIndex)
+	}
+	if mustDigestIdentity(match.LocalSegmentFileHash) != mustDigestIdentity(sealPayload.SegmentFileHash) {
+		return fmt.Errorf("imported_segments[%d] local_segment_file_hash does not match segment seal file hash", matchIndex)
 	}
 	return nil
 }
