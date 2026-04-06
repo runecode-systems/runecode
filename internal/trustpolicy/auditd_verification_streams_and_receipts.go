@@ -212,11 +212,34 @@ func validateAuditReceiptCoreFields(receipt auditReceiptPayloadStrict) error {
 	if _, ok := map[string]struct{}{"anchor": {}, "import": {}, "restore": {}, "reconciliation": {}}[receipt.AuditReceiptKind]; !ok {
 		return fmt.Errorf("unsupported audit_receipt_kind %q", receipt.AuditReceiptKind)
 	}
+	if err := validateReceiptRecorder(receipt.Recorder); err != nil {
+		return err
+	}
 	if receipt.RecordedAt == "" {
 		return fmt.Errorf("recorded_at is required")
 	}
 	if _, err := time.Parse(time.RFC3339, receipt.RecordedAt); err != nil {
 		return fmt.Errorf("invalid recorded_at: %w", err)
+	}
+	return nil
+}
+
+func validateReceiptRecorder(recorder json.RawMessage) error {
+	if len(recorder) == 0 {
+		return fmt.Errorf("recorder is required")
+	}
+	identity := PrincipalIdentity{}
+	if err := json.Unmarshal(recorder, &identity); err != nil {
+		return fmt.Errorf("recorder must decode as principal identity: %w", err)
+	}
+	if identity.SchemaID != "runecode.protocol.v0.PrincipalIdentity" {
+		return fmt.Errorf("recorder.schema_id must be runecode.protocol.v0.PrincipalIdentity")
+	}
+	if identity.SchemaVersion != "0.2.0" {
+		return fmt.Errorf("recorder.schema_version must be 0.2.0")
+	}
+	if identity.ActorKind == "" || identity.PrincipalID == "" || identity.InstanceID == "" {
+		return fmt.Errorf("recorder is required")
 	}
 	return nil
 }

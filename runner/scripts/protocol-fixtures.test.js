@@ -230,6 +230,19 @@ function digestIdentity(digest) {
   return `${digest.hash_alg}:${digest.hash}`
 }
 
+function requireDigestObject(value, location) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${location} must be an object`)
+  }
+  if (typeof value.hash_alg !== 'string' || value.hash_alg.length === 0) {
+    throw new Error(`${location}.hash_alg must be a non-empty string`)
+  }
+  if (typeof value.hash !== 'string' || value.hash.length === 0) {
+    throw new Error(`${location}.hash must be a non-empty string`)
+  }
+  return value
+}
+
 function validateRuntimeInvariant(rule, fixture, bundle) {
   switch (rule) {
     case 'llm_request_unique_artifact_digests':
@@ -278,8 +291,10 @@ function requireImportRestoreReceiptByteIdentity(receipt) {
 		if (segment.byte_identity_verified !== true) {
 			return new Error(`receipt_payload.imported_segments[${index}].byte_identity_verified must be true`)
 		}
-		const source = digestIdentity(segment.source_segment_file_hash)
-		const local = digestIdentity(segment.local_segment_file_hash)
+		const sourceDigest = requireDigestObject(segment.source_segment_file_hash, `receipt_payload.imported_segments[${index}].source_segment_file_hash`)
+		const localDigest = requireDigestObject(segment.local_segment_file_hash, `receipt_payload.imported_segments[${index}].local_segment_file_hash`)
+		const source = digestIdentity(sourceDigest)
+		const local = digestIdentity(localDigest)
 		if (source !== local) {
 			return new Error(`receipt_payload.imported_segments[${index}] source/local segment hashes differ`)
 		}

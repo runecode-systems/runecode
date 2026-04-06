@@ -78,6 +78,7 @@ func decodeFrameEnvelopeBytes(index int, frame AuditSegmentRecordFrame, input Au
 	}
 	if int64(len(rawEnvelopeBytes)) != frame.ByteLength {
 		addHardFailure(report, AuditVerificationReasonSegmentFrameByteLengthMismatch, AuditVerificationDimensionIntegrity, fmt.Sprintf("frame %d byte_length=%d does not match decoded envelope bytes=%d", index, frame.ByteLength, len(rawEnvelopeBytes)), input.Segment.Header.SegmentID, &frameRecordDigest)
+		return nil, false
 	}
 	return rawEnvelopeBytes, true
 }
@@ -102,6 +103,7 @@ func validateFrameCanonicalDigest(index int, input AuditVerificationInput, repor
 	}
 	if computedID != expectedID {
 		addHardFailure(report, AuditVerificationReasonSegmentFrameDigestMismatch, AuditVerificationDimensionIntegrity, fmt.Sprintf("frame %d record_digest mismatch: got %q want %q", index, computedID, expectedID), input.Segment.Header.SegmentID, &frameRecordDigest)
+		return false
 	}
 	return true
 }

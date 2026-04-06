@@ -18,6 +18,9 @@ func validateSignerEvidenceRefs(event AuditEventPayload, envelopeSignature Signa
 	if len(referencedEvidence) == 0 {
 		return nil
 	}
+	if err := validateReferencedEvidenceBinding(signerIdentity, referencedEvidence); err != nil {
+		return err
+	}
 	return validateEnvelopeSignerEvidence(signerIdentity, entry, providedByIdentity)
 }
 
@@ -25,24 +28,60 @@ func buildSignerEvidenceIndexes(provided []AuditSignerEvidenceReference) (map[st
 	providedByDigest := map[string]AuditSignerEvidence{}
 	providedByIdentity := map[string]AuditSignerEvidence{}
 	for index := range provided {
-		digestIdentity, err := provided[index].Digest.Identity()
+		digestIdentity, evidenceIdentity, evidence, err := parseSignerEvidenceIndexEntry(index, provided[index])
 		if err != nil {
-			return nil, nil, fmt.Errorf("signer_evidence[%d].digest: %w", index, err)
+			return nil, nil, err
 		}
-		if _, exists := providedByDigest[digestIdentity]; exists {
-			return nil, nil, fmt.Errorf("duplicate signer evidence digest %q", digestIdentity)
+		if err := checkSignerEvidenceIndexConflicts(digestIdentity, evidenceIdentity, providedByDigest, providedByIdentity); err != nil {
+			return nil, nil, err
 		}
-		if err := ValidateAuditSignerEvidence(provided[index].Evidence); err != nil {
-			return nil, nil, fmt.Errorf("signer_evidence[%d].evidence: %w", index, err)
-		}
-		evidenceIdentity, err := signatureVerifierIdentity(provided[index].Evidence.SignerKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("signer_evidence[%d].evidence.signer_key: %w", index, err)
-		}
-		providedByDigest[digestIdentity] = provided[index].Evidence
-		providedByIdentity[evidenceIdentity] = provided[index].Evidence
+		providedByDigest[digestIdentity] = evidence
+		providedByIdentity[evidenceIdentity] = evidence
 	}
 	return providedByDigest, providedByIdentity, nil
+}
+
+func parseSignerEvidenceIndexEntry(index int, reference AuditSignerEvidenceReference) (string, string, AuditSignerEvidence, error) {
+	digestIdentity, err := reference.Digest.Identity()
+	if err != nil {
+		return "", "", AuditSignerEvidence{}, fmt.Errorf("signer_evidence[%d].digest: %w", index, err)
+	}
+	if err := ValidateAuditSignerEvidence(reference.Evidence); err != nil {
+		return "", "", AuditSignerEvidence{}, fmt.Errorf("signer_evidence[%d].evidence: %w", index, err)
+	}
+	evidenceIdentity, err := signatureVerifierIdentity(reference.Evidence.SignerKey)
+	if err != nil {
+		return "", "", AuditSignerEvidence{}, fmt.Errorf("signer_evidence[%d].evidence.signer_key: %w", index, err)
+	}
+	return digestIdentity, evidenceIdentity, reference.Evidence, nil
+}
+
+func checkSignerEvidenceIndexConflicts(digestIdentity string, evidenceIdentity string, providedByDigest map[string]AuditSignerEvidence, providedByIdentity map[string]AuditSignerEvidence) error {
+	if _, exists := providedByDigest[digestIdentity]; exists {
+		return fmt.Errorf("duplicate signer evidence digest %q", digestIdentity)
+	}
+	if _, exists := providedByIdentity[evidenceIdentity]; exists {
+		return fmt.Errorf("duplicate signer evidence identity %q", evidenceIdentity)
+	}
+	return nil
+}
+
+func validateReferencedEvidenceBinding(signerIdentity string, referencedEvidence []AuditSignerEvidence) error {
+	matchedSignerIdentity := false
+	for index := range referencedEvidence {
+		referencedIdentity, err := signatureVerifierIdentity(referencedEvidence[index].SignerKey)
+		if err != nil {
+			return fmt.Errorf("signer_evidence_refs[%d].signer_key: %w", index, err)
+		}
+		if referencedIdentity != signerIdentity {
+			return fmt.Errorf("signer_evidence_refs[%d] is bound to %q, expected envelope signer %q", index, referencedIdentity, signerIdentity)
+		}
+		matchedSignerIdentity = true
+	}
+	if !matchedSignerIdentity {
+		return fmt.Errorf("missing referenced signer evidence for envelope signer %q", signerIdentity)
+	}
+	return nil
 }
 
 func collectReferencedSignerEvidence(refs []AuditTypedReference, providedByDigest map[string]AuditSignerEvidence) ([]AuditSignerEvidence, error) {

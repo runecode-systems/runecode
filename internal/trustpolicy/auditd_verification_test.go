@@ -82,6 +82,27 @@ func TestVerifyAuditEvidenceDistinguishesHistoricalAdmissibilityFromCurrentDegra
 	}
 }
 
+func TestVerifyAuditEvidenceFailsClosedOnInvalidReceiptRecorder(t *testing.T) {
+	fixture := newAuditVerificationFixture(t, verifierStatusFixture{status: "active"})
+	receipt := fixture.anchorReceiptEnvelope(t, fixture.sealEnvelopeDigest)
+
+	var payload map[string]any
+	if err := json.Unmarshal(receipt.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal receipt payload returned error: %v", err)
+	}
+	payload["recorder"] = map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity"}
+	receipt.Payload = marshalJSONFixture(t, payload)
+	receipt = resignEnvelopeFixture(t, fixture.privateKey, receipt)
+
+	report := mustVerifyAuditEvidenceReport(t, fixture, []SignedObjectEnvelope{receipt})
+	if report.AnchoringStatus != AuditVerificationStatusFailed {
+		t.Fatalf("anchoring_status = %q, want %q", report.AnchoringStatus, AuditVerificationStatusFailed)
+	}
+	if !containsReasonCode(report.HardFailures, AuditVerificationReasonAnchorReceiptInvalid) {
+		t.Fatalf("hard_failures = %v, want %q", report.HardFailures, AuditVerificationReasonAnchorReceiptInvalid)
+	}
+}
+
 type verifierStatusFixture struct {
 	status          string
 	statusChangedAt string
@@ -406,6 +427,25 @@ func canonicalEnvelopeBytesFixture(t *testing.T, envelope SignedObjectEnvelope) 
 func digestForBytesFixture(bytes []byte) Digest {
 	sum := sha256.Sum256(bytes)
 	return Digest{HashAlg: "sha256", Hash: hex.EncodeToString(sum[:])}
+}
+
+func marshalJSONFixture(t *testing.T, value any) []byte {
+	t.Helper()
+	b, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("Marshal returned error: %v", err)
+	}
+	return b
+}
+
+func resignEnvelopeFixture(t *testing.T, privateKey ed25519.PrivateKey, envelope SignedObjectEnvelope) SignedObjectEnvelope {
+	t.Helper()
+	canonicalPayload, err := jsoncanonicalizer.Transform(envelope.Payload)
+	if err != nil {
+		t.Fatalf("Transform payload returned error: %v", err)
+	}
+	envelope.Signature.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, canonicalPayload))
+	return envelope
 }
 
 func containsReasonCode(values []string, code string) bool {
