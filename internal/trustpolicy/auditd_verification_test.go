@@ -103,6 +103,31 @@ func TestVerifyAuditEvidenceFailsClosedOnInvalidReceiptRecorder(t *testing.T) {
 	}
 }
 
+func TestVerifyAuditEvidenceKeepsCryptographicValidityForAnchoringOnlyFailure(t *testing.T) {
+	fixture := newAuditVerificationFixture(t, verifierStatusFixture{status: "active"})
+	invalidAnchor := fixture.anchorReceiptEnvelope(t, testDigestFromByte('9'))
+	report := mustVerifyAuditEvidenceReport(t, fixture, []SignedObjectEnvelope{invalidAnchor})
+	if !containsReasonCode(report.HardFailures, AuditVerificationReasonAnchorReceiptInvalid) {
+		t.Fatalf("hard_failures = %v, want %q", report.HardFailures, AuditVerificationReasonAnchorReceiptInvalid)
+	}
+	if !report.CryptographicallyValid {
+		t.Fatal("cryptographically_valid = false, want true for non-cryptographic hard failure")
+	}
+}
+
+func TestVerifyAuditEvidenceMarksCryptographicValidityFalseForDigestFailure(t *testing.T) {
+	fixture := newAuditVerificationFixture(t, verifierStatusFixture{status: "active"})
+	broken := fixture
+	broken.segment.Frames[0].RecordDigest = testDigestFromByte('9')
+	report := mustVerifyAuditEvidenceReport(t, broken, nil)
+	if !containsReasonCode(report.HardFailures, AuditVerificationReasonSegmentFrameDigestMismatch) {
+		t.Fatalf("hard_failures = %v, want %q", report.HardFailures, AuditVerificationReasonSegmentFrameDigestMismatch)
+	}
+	if report.CryptographicallyValid {
+		t.Fatal("cryptographically_valid = true, want false for digest mismatch")
+	}
+}
+
 type verifierStatusFixture struct {
 	status          string
 	statusChangedAt string

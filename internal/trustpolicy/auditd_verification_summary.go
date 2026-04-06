@@ -115,10 +115,7 @@ func finalizeAuditVerificationReport(report AuditVerificationReportPayload) Audi
 	report.DegradedReasons = dedupeAndSortReasonCodes(report.DegradedReasons)
 	report.HardFailures = dedupeAndSortReasonCodes(report.HardFailures)
 	report.CurrentlyDegraded = len(report.DegradedReasons) > 0
-
-	if len(report.HardFailures) > 0 {
-		report.CryptographicallyValid = false
-	}
+	report.CryptographicallyValid = deriveCryptographicValidity(report.HardFailures)
 	if report.IntegrityStatus == "" {
 		report.IntegrityStatus = AuditVerificationStatusOK
 	}
@@ -185,6 +182,27 @@ func hasFindingWithCode(findings []AuditVerificationFinding, code string) bool {
 		}
 	}
 	return false
+}
+
+func deriveCryptographicValidity(hardFailures []string) bool {
+	for _, code := range hardFailures {
+		if isCryptographicFailureCode(code) {
+			return false
+		}
+	}
+	return true
+}
+
+func isCryptographicFailureCode(code string) bool {
+	switch code {
+	case AuditVerificationReasonDetachedSignatureInvalid,
+		AuditVerificationReasonSegmentFrameDigestMismatch,
+		AuditVerificationReasonSegmentFileHashMismatch,
+		AuditVerificationReasonSegmentSealInvalid:
+		return true
+	default:
+		return false
+	}
 }
 
 func buildVerificationSummary(report AuditVerificationReportPayload) string {

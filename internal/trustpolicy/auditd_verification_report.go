@@ -94,10 +94,19 @@ func validateAuditVerificationReportCrossFieldConstraints(report AuditVerificati
 	if !report.CurrentlyDegraded && len(report.DegradedReasons) > 0 {
 		return fmt.Errorf("currently_degraded=false cannot include degraded_reasons")
 	}
-	if report.CryptographicallyValid && len(report.HardFailures) > 0 {
-		return fmt.Errorf("cryptographically_valid=true cannot include hard_failures")
+	if report.CryptographicallyValid && hasCryptographicHardFailure(report.HardFailures) {
+		return fmt.Errorf("cryptographically_valid=true cannot include cryptographic hard_failures")
 	}
 	return nil
+}
+
+func hasCryptographicHardFailure(hardFailures []string) bool {
+	for _, code := range hardFailures {
+		if isCryptographicFailureCode(code) {
+			return true
+		}
+	}
+	return false
 }
 
 func hasFailedStatus(report AuditVerificationReportPayload) bool {

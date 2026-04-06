@@ -232,13 +232,13 @@ function digestIdentity(digest) {
 
 function requireDigestObject(value, location) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${location} must be an object`)
+    return new Error(`${location} must be an object`)
   }
   if (typeof value.hash_alg !== 'string' || value.hash_alg.length === 0) {
-    throw new Error(`${location}.hash_alg must be a non-empty string`)
+    return new Error(`${location}.hash_alg must be a non-empty string`)
   }
   if (typeof value.hash !== 'string' || value.hash.length === 0) {
-    throw new Error(`${location}.hash must be a non-empty string`)
+    return new Error(`${location}.hash must be a non-empty string`)
   }
   return value
 }
@@ -292,7 +292,13 @@ function requireImportRestoreReceiptByteIdentity(receipt) {
 			return new Error(`receipt_payload.imported_segments[${index}].byte_identity_verified must be true`)
 		}
 		const sourceDigest = requireDigestObject(segment.source_segment_file_hash, `receipt_payload.imported_segments[${index}].source_segment_file_hash`)
+		if (sourceDigest instanceof Error) {
+			return sourceDigest
+		}
 		const localDigest = requireDigestObject(segment.local_segment_file_hash, `receipt_payload.imported_segments[${index}].local_segment_file_hash`)
+		if (localDigest instanceof Error) {
+			return localDigest
+		}
 		const source = digestIdentity(sourceDigest)
 		const local = digestIdentity(localDigest)
 		if (source !== local) {
@@ -447,6 +453,25 @@ test('runtime invariant fixtures fail closed identically in JS', async (t) => {
       assert.equal(runtimeError === null, entry.expect_valid, `${entry.id} runtime mismatch: ${runtimeError}`)
     })
   }
+})
+
+test('import/restore runtime invariant returns structured error for malformed digest objects', () => {
+	const runtimeError = requireImportRestoreReceiptByteIdentity({
+		audit_receipt_kind: 'import',
+		receipt_payload_schema_id: 'runecode.protocol.audit.receipt.import_restore_provenance.v0',
+		receipt_payload: {
+			provenance_action: 'import',
+			imported_segments: [
+				{
+					byte_identity_verified: true,
+					source_segment_file_hash: 'not-an-object',
+					local_segment_file_hash: { hash_alg: 'sha256', hash: 'abcd' },
+				},
+			],
+		},
+	})
+	assert.ok(runtimeError instanceof Error)
+	assert.match(runtimeError.message, /source_segment_file_hash must be an object/)
 })
 
 test('canonicalization fixtures match golden bytes and hashes', async (t) => {

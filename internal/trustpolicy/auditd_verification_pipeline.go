@@ -76,7 +76,7 @@ func evaluateStoragePostureEvidence(input AuditVerificationInput, report *AuditV
 }
 
 func setDerivedVerificationPosture(report *AuditVerificationReportPayload, frameEnvelopes []SignedObjectEnvelope, eventTimes []time.Time) {
-	report.CryptographicallyValid = len(report.HardFailures) == 0 && !hasFindingWithCode(report.Findings, AuditVerificationReasonDetachedSignatureInvalid)
+	report.CryptographicallyValid = deriveCryptographicValidity(report.HardFailures)
 	report.HistoricallyAdmissible = len(report.HardFailures) == 0 && !hasFindingWithCode(report.Findings, AuditVerificationReasonSignerHistoricallyInadmissible)
 	report.CurrentlyDegraded = len(report.DegradedReasons) > 0
 	if len(eventTimes) == 0 && len(frameEnvelopes) > 0 {

@@ -15,11 +15,10 @@ func validateSignerEvidenceRefs(event AuditEventPayload, envelopeSignature Signa
 	if err != nil {
 		return err
 	}
-	if len(referencedEvidence) == 0 {
-		return nil
-	}
-	if err := validateReferencedEvidenceBinding(signerIdentity, referencedEvidence); err != nil {
-		return err
+	if len(referencedEvidence) > 0 {
+		if err := validateReferencedEvidenceBinding(signerIdentity, referencedEvidence); err != nil {
+			return err
+		}
 	}
 	return validateEnvelopeSignerEvidence(signerIdentity, entry, providedByIdentity)
 }

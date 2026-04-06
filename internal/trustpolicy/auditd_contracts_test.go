@@ -36,6 +36,15 @@ func TestValidateAuditAdmissionRequestFailsClosedOnCatalogMismatch(t *testing.T)
 	}
 }
 
+func TestValidateAuditAdmissionRequestChecksEnvelopeSignerWhenSignerEvidenceRefsAreEmpty(t *testing.T) {
+	request := validAuditAdmissionRequestFixture(t)
+	request.Envelope.Payload = payloadWithoutSignerEvidenceRefs(t, request.Envelope.Payload)
+	request.SignerEvidence[0].Evidence.SignerPurpose = "approval_authority"
+	if err := ValidateAuditAdmissionRequest(request); err == nil {
+		t.Fatal("ValidateAuditAdmissionRequest expected signer admissibility failure")
+	}
+}
+
 func TestEvaluateAuditSegmentRecoveryRules(t *testing.T) {
 	sealedBad := AuditSegmentRecoveryState{
 		SegmentID:            "segment-0001",
@@ -388,4 +397,18 @@ func buildSignerEvidenceReferenceFixture(keyIDValue string) AuditSignerEvidenceR
 			},
 		},
 	}
+}
+
+func payloadWithoutSignerEvidenceRefs(t *testing.T, payload json.RawMessage) json.RawMessage {
+	t.Helper()
+	var event map[string]any
+	if err := json.Unmarshal(payload, &event); err != nil {
+		t.Fatalf("Unmarshal payload returned error: %v", err)
+	}
+	delete(event, "signer_evidence_refs")
+	updatedPayload, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("Marshal payload returned error: %v", err)
+	}
+	return updatedPayload
 }
