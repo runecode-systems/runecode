@@ -83,3 +83,4 @@ Parallelization: can be implemented in parallel with audit log retention; coordi
 - [ ] Artifacts can be listed and inspected (metadata) via CLI/TUI.
 - [ ] Artifact store does not grow without bound; GC can reclaim unreferenced artifacts deterministically.
 - [ ] `approved_file_excerpts` cannot be produced without a recorded human approval; `unapproved_file_excerpts` are blocked from third-party egress deterministically.
+- [ ] Public broker/API artifact metadata does not require daemon-private blob paths or host-local storage details.

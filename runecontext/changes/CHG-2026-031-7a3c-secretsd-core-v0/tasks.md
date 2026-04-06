@@ -21,6 +21,7 @@
 
 - [ ] Expose local-only health/readiness signals.
 - [ ] Emit minimal local-only operational metrics.
+- [ ] Keep any user-facing visibility for secrets posture aligned with broker operator-facing status surfaces rather than a second long-lived client API.
 
 ## Acceptance Criteria
 

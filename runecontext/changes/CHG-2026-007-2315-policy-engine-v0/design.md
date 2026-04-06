@@ -18,6 +18,8 @@ Implement the core policy evaluator that enforces manifests, role invariants, an
 - Delivery channel is advisory only; local TUI, remote TUI, or messaging delivery must all converge on the same signed approval contract.
 - `ApprovalDecision` is signed by the approval authority after verifying any required user cryptographic assertion rather than by trusting the delivery channel or a free-floating button click.
 - Policy decisions and failures use a shared protocol error envelope and stable reason codes.
+- Policy remains the source of truth for approval-requirement semantics, while the broker local API owns operator-facing request/response and read-model contracts for inspecting and resolving those decisions.
+- Where policy returns `require_human_approval`, the broker-visible approval identity and bound scope must stay aligned with policy outputs so runner, TUI, and later transports do not invent parallel approval models.
 
 ## Main Workstreams
 - Role + Run/Stage Policy Model

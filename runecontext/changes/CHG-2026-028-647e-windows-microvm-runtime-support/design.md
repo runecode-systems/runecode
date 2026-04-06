@@ -6,6 +6,7 @@ Define Windows microVM runtime support with WHPX/Hyper-V acceleration, strict lo
 ## Key Decisions
 - Runtime support is distinct from CI portability; CI comes first.
 - Windows uses OS-appropriate local IPC and permissions.
+- Windows named pipes are a platform-specific transport/auth binding for the same logical broker API, not a Windows-only protocol fork.
 
 ## Main Workstreams
 - Windows MicroVM Backend Implementation

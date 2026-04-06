@@ -11,6 +11,8 @@ Implement the untrusted runner orchestration and durable state authority for sec
 - Multiple pending approvals may coexist and survive restarts.
 - Runner-internal durable state remains non-canonical and outside the cryptographic trust root unless exported into canonical protocol objects.
 - All real execution remains brokered and policy-authorized.
+- Broker-facing run and approval summaries are shared operator-facing contracts; runner state must align with them rather than inventing a second lifecycle vocabulary.
+- Runner durable state may retain additional orchestration detail, but broker-visible run truth must remain an explicit translation into authoritative or advisory public fields.
 
 ## Main Workstreams
 - Runner contract and packaging constraints.

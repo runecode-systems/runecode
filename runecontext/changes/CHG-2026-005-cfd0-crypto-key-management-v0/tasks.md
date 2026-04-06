@@ -89,6 +89,7 @@ Parallelization: can be implemented in parallel with secretsd work; coordinate o
   - expiry
   - related hashes and artifacts
 - [ ] Ensure the same approval contract supports local TUI, remote TUI, and message-driven delivery without changing trust semantics.
+- [ ] Keep the cryptographic approval identity and assurance fields aligned with the broker local API approval list/get/resolve contract so delivery surfaces do not fork approval semantics.
 
 Parallelization: can be implemented in parallel with audit anchoring; both rely on user-presence-gated signing.
 

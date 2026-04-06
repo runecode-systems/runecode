@@ -106,3 +106,4 @@ Parallelization: can be implemented in parallel with container backend work; beh
 - [ ] Isolate session identity keys are per-session ephemeral and verified with proof-of-possession.
 - [ ] QEMU hardening is enabled by default for MVP.
 - [ ] No host filesystem mounts are used.
+- [ ] Backend kind and assurance posture are available for broker operator-facing run summaries and detail views.

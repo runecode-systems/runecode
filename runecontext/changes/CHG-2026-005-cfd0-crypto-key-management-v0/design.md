@@ -18,6 +18,7 @@ Establish the minimum cryptographic root-of-trust for signing manifests, approva
 - The user-involvement slider may change approval frequency and minimum assurance for ordinary actions, but it must not lower the fixed hard floor for a small set of high-blast-radius operations defined by policy.
 - Trusted Go verification is authoritative at narrow daemon boundaries; runner-side TypeScript verification is parity/supporting only.
 - Authoritative backup and state integrity under this change applies to canonical RuneCode trusted state, not runner-internal non-canonical orchestration state such as LangGraph checkpoints unless that state is exported into canonical protocol objects.
+- Approval identity and approval-authority semantics remain channel-independent and must stay aligned with the broker API's canonical approval-request identity and typed approval-summary model.
 
 ## Main Workstreams
 - Signed Object + Verifier Contract

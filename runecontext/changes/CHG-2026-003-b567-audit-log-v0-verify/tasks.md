@@ -160,6 +160,7 @@ Parallelization: can proceed with schema and TUI work once common payload and fi
 - [ ] Missing anchors are reported as degraded posture by default; invalid anchors fail closed.
 - [ ] Produce and store a machine-readable `AuditVerificationReport` artifact (`audit_verification_report`).
 - [ ] Attach verification status/finding summaries to derived run metadata so the TUI and local API can surface clear posture.
+- [ ] Keep broker-exposed audit timeline and verification surfaces aligned to the derived audit operational-view and verification-summary model rather than creating a second broker-specific audit contract.
 
 Parallelization: can proceed in parallel with writer and anchoring work once signed-object, segment-seal, and findings contracts are defined.
 

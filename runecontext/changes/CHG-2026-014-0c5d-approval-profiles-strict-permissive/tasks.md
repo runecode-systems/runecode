@@ -58,6 +58,7 @@ Parallelization: can be designed in parallel with workflow runner work; it depen
   - explain why an approval is required (reason codes + structured payload)
   - show what changes if approved
   - support the same approval semantics whether the decision was delivered locally or remotely
+- [ ] Keep broker-visible run and approval summaries that surface active profile or required assurance aligned with the same schema/versioning rules.
 
 Parallelization: can be implemented in parallel across policy/runner/TUI as long as the approval schema contract is fixed first.
 

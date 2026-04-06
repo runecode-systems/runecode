@@ -21,6 +21,7 @@
 - [ ] Define how the runner, broker, and local API expose concurrency posture, lock ownership, waits, and conflicts.
 - [ ] Keep TUI and CLI surfaces clear when a run is blocked by another active run or is sharing a workspace under an explicit concurrency mode.
 - [ ] Record lock acquisition, release, contention, overrides, and conflict-triggered failures as audit events.
+- [ ] Reuse or extend the shared broker run-detail and coordination-summary contracts rather than inventing a separate concurrency-specific UI status model.
 
 ## Fixtures + Recovery Cases
 
