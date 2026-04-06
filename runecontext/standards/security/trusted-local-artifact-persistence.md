@@ -14,6 +14,7 @@ When trusted Go services persist artifact-store state, audit logs, or backup mat
 
 - Treat `state.json`, `audit.log`, backup manifests, backup signatures, and artifact blobs as sensitive local data
 - Create trusted local persistence paths with private-by-default permissions on platforms that honor POSIX mode bits
+- Normalize trusted local directory permissions on startup/open so pre-existing installs do not retain broader legacy modes after an upgrade
 - Do not weaken Unix permission expectations for these files or directories without an explicit reviewed exception
 - Keep Windows portability explicit: permission-bit assertions may differ there, but the implementation should still avoid broader-than-necessary defaults
 - Persist audit-sequence state so restarted processes do not reuse audit sequence numbers after partial failures

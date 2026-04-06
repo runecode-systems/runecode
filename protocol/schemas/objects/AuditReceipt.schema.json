@@ -2,10 +2,162 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/AuditReceipt.schema.json",
   "title": "AuditReceipt",
-  "description": "Protocol-owned audit receipt family for typed signed acknowledgements or anchoring records attached to audit events.",
+  "description": "Protocol-owned unsigned audit receipt payload family for signed sidecar attestations over signed audit objects, including import/restore provenance evidence without segment-byte rewrites.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 9,
+  "maxProperties": 10,
+  "$defs": {
+    "importedSegmentLink": {
+      "description": "One imported or restored historical segment linkage proving sealed-byte identity and binding local provenance to prior sealed evidence.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 5,
+      "required": [
+        "imported_segment_seal_digest",
+        "imported_segment_root",
+        "source_segment_file_hash",
+        "local_segment_file_hash",
+        "byte_identity_verified"
+      ],
+      "properties": {
+        "imported_segment_seal_digest": {
+          "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+          "description": "Digest of the imported signed AuditSegmentSeal envelope for this historical segment.",
+          "x-data-class": "public"
+        },
+        "imported_segment_root": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Ordered Merkle root recorded by the imported segment seal for this segment.",
+          "x-data-class": "public"
+        },
+        "source_segment_file_hash": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Exact hash of raw framed bytes from the source imported/backup segment file.",
+          "x-data-class": "public"
+        },
+        "local_segment_file_hash": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Exact hash of raw framed bytes as stored locally after import or restore.",
+          "x-data-class": "public"
+        },
+        "byte_identity_verified": {
+          "const": true,
+          "description": "Fail-closed byte-identity assertion: local segment bytes are identical to imported sealed source bytes.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "authorityContext": {
+      "description": "Optional operator or authority context for import/restore provenance admission.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 4,
+      "required": [
+        "authority_kind",
+        "authority_id"
+      ],
+      "properties": {
+        "authority_kind": {
+          "type": "string",
+          "enum": [
+            "operator",
+            "system_policy",
+            "external_authority"
+          ],
+          "description": "Authority category responsible for admitting this import/restore evidence.",
+          "x-data-class": "public"
+        },
+        "authority_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Stable authority identifier for operational provenance review.",
+          "x-data-class": "public"
+        },
+        "authorization_manifest_digest": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Optional digest reference for policy/manifest evidence that authorized this import or restore.",
+          "x-data-class": "public"
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Optional non-secret operator-facing authority context note.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "importRestoreProvenancePayload": {
+      "description": "Typed import/restore provenance payload binding historical segment linkage and source-manifest evidence while preserving sealed byte identity.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 7,
+      "required": [
+        "provenance_action",
+        "segment_file_hash_scope",
+        "imported_segments",
+        "source_manifest_digests"
+      ],
+      "properties": {
+        "provenance_action": {
+          "type": "string",
+          "enum": [
+            "import",
+            "restore"
+          ],
+          "description": "Operation kind proven by this receipt payload.",
+          "x-data-class": "public"
+        },
+        "segment_file_hash_scope": {
+          "const": "raw_framed_segment_bytes_v1",
+          "description": "Pinned segment-byte hash scope used to prove source/local byte identity for imported or restored segments.",
+          "x-data-class": "public"
+        },
+        "imported_segments": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "description": "Historical sealed segments covered by this provenance evidence payload.",
+          "x-data-class": "public",
+          "items": {
+            "$ref": "#/$defs/importedSegmentLink",
+            "description": "One imported or restored segment provenance linkage."
+          },
+          "uniqueItems": true
+        },
+        "source_manifest_digests": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "description": "Digest references for source backup/export manifests or inventories that enumerated imported segments.",
+          "x-data-class": "public",
+          "items": {
+            "$ref": "Digest.schema.json#/$defs/digestValue",
+            "description": "One source backup or export manifest digest."
+          },
+          "uniqueItems": true
+        },
+        "operator": {
+          "$ref": "PrincipalIdentity.schema.json",
+          "description": "Optional operator identity associated with this import/restore action where human operation context applies.",
+          "x-data-class": "sensitive"
+        },
+        "authority_context": {
+          "$ref": "#/$defs/authorityContext",
+          "description": "Optional authority context for policy- or authority-mediated import/restore admission.",
+          "x-data-class": "public"
+        },
+        "source_instance_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Optional source instance identifier from which sealed segments were imported or restored.",
+          "x-data-class": "public"
+        }
+      }
+    }
+  },
   "allOf": [
     {
       "if": {
@@ -30,16 +182,90 @@
           "receipt_payload"
         ]
       }
+    },
+    {
+      "if": {
+        "required": [
+          "audit_receipt_kind"
+        ],
+        "properties": {
+          "audit_receipt_kind": {
+            "enum": [
+              "import",
+              "restore"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "receipt_payload_schema_id",
+          "receipt_payload"
+        ],
+        "properties": {
+          "receipt_payload_schema_id": {
+            "const": "runecode.protocol.audit.receipt.import_restore_provenance.v0"
+          },
+          "receipt_payload": {
+            "$ref": "#/$defs/importRestoreProvenancePayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "audit_receipt_kind"
+        ],
+        "properties": {
+          "audit_receipt_kind": {
+            "const": "import"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "receipt_payload": {
+            "properties": {
+              "provenance_action": {
+                "const": "import"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "audit_receipt_kind"
+        ],
+        "properties": {
+          "audit_receipt_kind": {
+            "const": "restore"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "receipt_payload": {
+            "properties": {
+              "provenance_action": {
+                "const": "restore"
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "required": [
     "schema_id",
     "schema_version",
-    "event_digest",
-    "receipt_kind",
+    "subject_digest",
+    "audit_receipt_kind",
     "recorder",
-    "recorded_at",
-    "signatures"
+    "recorded_at"
   ],
   "properties": {
     "schema_id": {
@@ -48,21 +274,29 @@
       "x-data-class": "public"
     },
     "schema_version": {
-      "const": "0.2.0",
+      "const": "0.4.0",
       "description": "Exact protocol schema version used to validate this audit receipt.",
       "x-data-class": "public"
     },
-    "event_digest": {
-      "$ref": "Digest.schema.json#/$defs/digestValue",
-      "description": "Digest reference for the audit event acknowledged by this receipt.",
+    "subject_digest": {
+      "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+      "description": "Canonical digest for the signed-object envelope this receipt attests to.",
       "x-data-class": "public"
     },
-    "receipt_kind": {
+    "audit_receipt_kind": {
       "type": "string",
       "minLength": 1,
       "maxLength": 64,
       "pattern": "^[a-z][a-z0-9_]*$",
-      "description": "Machine-consumed receipt classification owned by the audit subsystem.",
+      "description": "Machine-consumed receipt classification from the audit_receipt_kind registry.",
+      "x-data-class": "public"
+    },
+    "subject_family": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Optional machine-consumed family label for the signed-object subject targeted by this receipt.",
       "x-data-class": "public"
     },
     "recorder": {
@@ -90,17 +324,6 @@
       "maxProperties": 32,
       "description": "Optional typed receipt payload whose shape is defined by receipt_payload_schema_id.",
       "x-data-class": "sensitive"
-    },
-    "signatures": {
-      "type": "array",
-      "minItems": 1,
-      "maxItems": 8,
-      "description": "Detached signatures attesting to the audit receipt contents.",
-      "x-data-class": "public",
-      "items": {
-        "$ref": "SignedObjectEnvelope.schema.json#/$defs/signatureBlock",
-        "description": "Detached signature block for the audit receipt payload."
-      }
     }
   }
 }

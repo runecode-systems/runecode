@@ -40,6 +40,38 @@
   - `web_citations` (reserved)
 - `web_query` and `web_citations` are reserved for future role work and remain fail-closed unless explicitly enabled by later signed-manifest policy surfaces.
 
+## Audit Ledger + Evidence Model Foundation
+
+- Authoritative audit truth is the `auditd`-owned instance-global append-only ledger (`AuditEvent` signed envelopes in segment files) plus signed sidecar evidence objects (`AuditReceipt`, `AuditSegmentSeal`, and `AuditVerificationReport`).
+- Query/index stores are rebuildable local-read derivatives and are never a second source of truth.
+- Artifact-store copies of audit evidence are optional export/review copies and do not replace ledger authority.
+- Canonical audit-record identity is `sha256(JCS(SignedObjectEnvelope))`, modeled as `AuditRecordDigest` for reuse across event chaining, receipt targeting, segment first/last references, seal chaining, import/restore references, and verifier findings.
+- `SignedObjectEnvelope` remains a single-signature envelope contract for this foundation. Additional attestations are modeled as separate signed objects/receipts rather than multiple independent signatures on one envelope.
+- Open and sealed segment leaves are limited to signed `AuditEvent` envelopes; receipts, seals, and verification reports are sidecar evidence keyed by digest.
+
+## Append-Only Writer + Recovery Contract Foundation
+
+- `auditd` is the authoritative append-only writer and recovery owner; trusted admission surfaces must fail closed unless all four checks succeed at write time:
+  - schema validation
+  - event-contract catalog validation
+  - signer-evidence validation
+  - detached signature verification
+- Framed segment-file contract (`AuditSegmentFile`) models:
+  - header (`format`, `segment_id`, lifecycle state, `auditd` writer identity)
+  - repeated record frames (`record_digest`, `byte_length`, canonical signed-envelope bytes)
+  - explicit lifecycle marker (`open`/`sealed`/`quarantined`) for deterministic recovery
+- Recovery rules are fail-closed by contract:
+  - open segments may truncate a torn trailing frame before sealing
+  - sealed segments never permit silent repair
+  - inconsistent sealed segments are quarantined
+- Storage posture evidence must assert encrypted-at-rest default with no silent plaintext fallback; explicit dev-only degraded posture must be recorded and surfaced.
+- Local readiness is broker-local-API consumption only and must include all dimensions before `ready=true`:
+  - recovery complete
+  - append position stable
+  - current segment writable
+  - verifier material available
+  - derived index caught up
+
 ## Artifact Policy Family v0
 
 - `ArtifactPolicy` provides a schema-level anchor for artifact-store and data-flow controls:

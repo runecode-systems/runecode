@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditSegmentFile.schema.json",
+  "title": "AuditSegmentFile",
+  "description": "Protocol-owned framed physical segment contract for append-only audit-event envelope storage and deterministic recovery decisions.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 6,
+  "$defs": {
+    "segmentHeader": {
+      "description": "Segment header marker written once when a new segment file is created.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 5,
+      "required": [
+        "format",
+        "segment_id",
+        "segment_state",
+        "created_at"
+      ],
+      "properties": {
+        "format": {
+          "const": "audit_segment_framed_v1",
+          "description": "Pinned segment framing contract identifier.",
+          "x-data-class": "public"
+        },
+        "segment_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9._:-]+$",
+          "description": "Stable segment identifier.",
+          "x-data-class": "public"
+        },
+        "segment_state": {
+          "type": "string",
+          "enum": [
+            "open",
+            "sealed",
+            "anchored",
+            "imported",
+            "quarantined"
+          ],
+          "description": "Current lifecycle state for the on-disk segment bytes.",
+          "x-data-class": "public"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 64,
+          "description": "RFC 3339 timestamp when this segment file was created.",
+          "x-data-class": "public"
+        },
+        "writer": {
+          "const": "auditd",
+          "description": "Authoritative append writer identity for this segment file.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "recordFrame": {
+      "description": "One framed signed-envelope record in append order.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 3,
+      "required": [
+        "record_digest",
+        "byte_length",
+        "canonical_signed_envelope_bytes"
+      ],
+      "properties": {
+        "record_digest": {
+          "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+          "description": "Canonical record digest for this signed envelope frame.",
+          "x-data-class": "public"
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "Exact byte length of canonical_signed_envelope_bytes after base64 decoding.",
+          "x-data-class": "public"
+        },
+        "canonical_signed_envelope_bytes": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 20971520,
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+          "description": "Base64-encoded RFC 8785 JCS bytes of one SignedObjectEnvelope.",
+          "x-data-class": "sensitive"
+        }
+      }
+    },
+    "lifecycleMarker": {
+      "description": "Deterministic lifecycle marker appended by auditd for recovery and verification.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 3,
+      "required": [
+        "state",
+        "marked_at"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "open",
+            "sealed",
+            "anchored",
+            "imported",
+            "quarantined"
+          ],
+          "description": "Lifecycle marker state for recovery and verification.",
+          "x-data-class": "public"
+        },
+        "marked_at": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 64,
+          "description": "RFC 3339 timestamp for when the lifecycle marker was recorded.",
+          "x-data-class": "public"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Optional machine-consumed reason code for a seal or quarantine transition.",
+          "x-data-class": "public"
+        }
+      }
+    }
+  },
+  "required": [
+    "schema_id",
+    "schema_version",
+    "header",
+    "frames",
+    "lifecycle_marker"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "lifecycle_marker": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "sealed",
+                  "anchored",
+                  "imported",
+                  "quarantined"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "trailing_partial_frame_bytes"
+          ]
+        }
+      }
+    }
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.AuditSegmentFile",
+      "description": "Stable protocol object-family identifier for framed segment-file contracts.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this framed segment contract object.",
+      "x-data-class": "public"
+    },
+    "header": {
+      "$ref": "#/$defs/segmentHeader",
+      "description": "Segment header contract.",
+      "x-data-class": "public"
+    },
+    "frames": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100000,
+      "description": "Append-ordered framed records for canonical signed audit-event envelopes.",
+      "x-data-class": "sensitive",
+      "items": {
+        "$ref": "#/$defs/recordFrame"
+      }
+    },
+    "lifecycle_marker": {
+      "$ref": "#/$defs/lifecycleMarker",
+      "description": "Current lifecycle marker for deterministic recovery behavior.",
+      "x-data-class": "public"
+    },
+    "trailing_partial_frame_bytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "description": "Observed trailing bytes from a torn partial frame. Allowed only while the segment remains open.",
+      "x-data-class": "public"
+    }
+  }
+}

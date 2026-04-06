@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditRecordDigest.schema.json",
+  "title": "AuditRecordDigest",
+  "description": "Protocol-owned canonical digest contract for signed audit records. Audit record identity is sha256 over RFC 8785 JCS canonical bytes of the full SignedObjectEnvelope.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 4,
+  "$defs": {
+    "auditRecordDigestValue": {
+      "description": "Reusable digest fragment for signed audit-record identity. Value is sha256(JCS(SignedObjectEnvelope)).",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 2,
+      "required": [
+        "hash_alg",
+        "hash"
+      ],
+      "properties": {
+        "hash_alg": {
+          "const": "sha256",
+          "description": "Pinned hash algorithm for audit-record identity digests.",
+          "x-data-class": "public"
+        },
+        "hash": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Lowercase hexadecimal digest value for the canonical signed audit envelope bytes.",
+          "x-data-class": "public"
+        }
+      }
+    }
+  },
+  "required": [
+    "schema_id",
+    "schema_version",
+    "hash_alg",
+    "hash"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.AuditRecordDigest",
+      "description": "Stable protocol object-family identifier for audit-record digests.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this audit-record digest object.",
+      "x-data-class": "public"
+    },
+    "hash_alg": {
+      "const": "sha256",
+      "description": "Hash algorithm identifier for this audit-record digest object.",
+      "x-data-class": "public"
+    },
+    "hash": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Lowercase hexadecimal digest value for sha256(JCS(SignedObjectEnvelope)).",
+      "x-data-class": "public"
+    }
+  }
+}

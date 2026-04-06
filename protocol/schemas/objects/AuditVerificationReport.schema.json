@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditVerificationReport.schema.json",
+  "title": "AuditVerificationReport",
+  "description": "Protocol-owned machine-readable verification output for authoritative local audit integrity and posture checks. Stored as audit_verification_report artifacts.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 15,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "verified_at",
+    "verification_scope",
+    "cryptographically_valid",
+    "historically_admissible",
+    "currently_degraded",
+    "integrity_status",
+    "anchoring_status",
+    "storage_posture_status",
+    "segment_lifecycle_status",
+    "degraded_reasons",
+    "hard_failures",
+    "findings"
+  ],
+  "$defs": {
+    "status": {
+      "description": "Closed status enum for verification dimensions.",
+      "type": "string",
+      "enum": [
+        "ok",
+        "degraded",
+        "failed"
+      ]
+    },
+    "findingSeverity": {
+      "description": "Closed severity enum for machine-readable verifier findings.",
+      "type": "string",
+      "enum": [
+        "info",
+        "warning",
+        "error"
+      ]
+    },
+    "finding": {
+      "description": "One deterministic verifier finding entry with stable code and typed scope references.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 8,
+      "required": [
+        "code",
+        "dimension",
+        "severity",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Stable machine-consumed finding code.",
+          "x-data-class": "public"
+        },
+        "dimension": {
+          "type": "string",
+          "enum": [
+            "integrity",
+            "anchoring",
+            "storage_posture",
+            "segment_lifecycle"
+          ],
+          "description": "Verification dimension this finding affects.",
+          "x-data-class": "public"
+        },
+        "severity": {
+          "$ref": "#/$defs/findingSeverity",
+          "description": "Severity of this verifier finding.",
+          "x-data-class": "public"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "description": "Deterministic human-readable summary for this finding.",
+          "x-data-class": "public"
+        },
+        "segment_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9._:-]+$",
+          "description": "Optional segment identifier targeted by this finding.",
+          "x-data-class": "public"
+        },
+        "subject_record_digest": {
+          "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+          "description": "Optional signed-object digest targeted by this finding.",
+          "x-data-class": "public"
+        },
+        "related_record_digests": {
+          "type": "array",
+          "maxItems": 32,
+          "description": "Optional additional signed-object digests related to this finding.",
+          "x-data-class": "public",
+          "items": {
+            "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+            "description": "One related signed-object digest for this finding."
+          },
+          "uniqueItems": true
+        },
+        "details": {
+          "type": "object",
+          "maxProperties": 64,
+          "description": "Optional structured details for this finding entry.",
+          "x-data-class": "sensitive"
+        }
+      }
+    }
+  },
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.AuditVerificationReport",
+      "description": "Stable protocol object-family identifier for audit verification reports.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this audit verification report.",
+      "x-data-class": "public"
+    },
+    "verified_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64,
+      "description": "RFC 3339 timestamp when verification completed.",
+      "x-data-class": "public"
+    },
+    "verification_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 3,
+      "required": [
+        "scope_kind"
+      ],
+      "properties": {
+        "scope_kind": {
+          "type": "string",
+          "enum": [
+            "instance",
+            "segment_range",
+            "segment"
+          ],
+          "description": "Kind of ledger scope verified by this report.",
+          "x-data-class": "public"
+        },
+        "first_segment_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9._:-]+$",
+          "description": "First segment identifier in scope when scope_kind is segment_range.",
+          "x-data-class": "public"
+        },
+        "last_segment_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9._:-]+$",
+          "description": "Last segment identifier in scope when scope_kind is segment or segment_range.",
+          "x-data-class": "public"
+        }
+      },
+      "description": "Ledger scope verified by this report.",
+      "x-data-class": "public"
+    },
+    "cryptographically_valid": {
+      "type": "boolean",
+      "description": "Whether all checked signatures and hash commitments were cryptographically valid.",
+      "x-data-class": "public"
+    },
+    "historically_admissible": {
+      "type": "boolean",
+      "description": "Whether signer and evidence posture were admissible for the event/seal/receipt timestamps.",
+      "x-data-class": "public"
+    },
+    "currently_degraded": {
+      "type": "boolean",
+      "description": "Whether current trust posture is degraded despite historical admissibility (for example retired/revoked signers after event time).",
+      "x-data-class": "public"
+    },
+    "integrity_status": {
+      "$ref": "#/$defs/status",
+      "description": "Integrity dimension status for the verified scope.",
+      "x-data-class": "public"
+    },
+    "anchoring_status": {
+      "$ref": "#/$defs/status",
+      "description": "Anchoring posture status for the verified scope.",
+      "x-data-class": "public"
+    },
+    "storage_posture_status": {
+      "$ref": "#/$defs/status",
+      "description": "Storage-protection posture status for the verified scope.",
+      "x-data-class": "public"
+    },
+    "segment_lifecycle_status": {
+      "$ref": "#/$defs/status",
+      "description": "Segment lifecycle posture status for the verified scope.",
+      "x-data-class": "public"
+    },
+    "degraded_reasons": {
+      "type": "array",
+      "maxItems": 256,
+      "description": "Stable reason codes for degraded-but-not-failed posture.",
+      "x-data-class": "public",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "description": "One degraded-posture reason code from the audit_verification_reason_code registry."
+      },
+      "uniqueItems": true
+    },
+    "hard_failures": {
+      "type": "array",
+      "maxItems": 256,
+      "description": "Stable reason codes for fail-closed verification failures.",
+      "x-data-class": "public",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "description": "One hard-failure reason code from the audit_verification_reason_code registry."
+      },
+      "uniqueItems": true
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 512,
+      "description": "Deterministic verifier findings for this report scope.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "#/$defs/finding",
+        "description": "One machine-readable verifier finding entry."
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "Optional concise human-readable summary of report posture.",
+      "x-data-class": "public"
+    }
+  }
+}

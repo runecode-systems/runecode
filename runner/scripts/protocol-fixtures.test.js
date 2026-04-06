@@ -230,6 +230,19 @@ function digestIdentity(digest) {
   return `${digest.hash_alg}:${digest.hash}`
 }
 
+function requireDigestObject(value, location) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return new Error(`${location} must be an object`)
+  }
+  if (typeof value.hash_alg !== 'string' || value.hash_alg.length === 0) {
+    return new Error(`${location}.hash_alg must be a non-empty string`)
+  }
+  if (typeof value.hash !== 'string' || value.hash.length === 0) {
+    return new Error(`${location}.hash must be a non-empty string`)
+  }
+  return value
+}
+
 function validateRuntimeInvariant(rule, fixture, bundle) {
   switch (rule) {
     case 'llm_request_unique_artifact_digests':
@@ -242,9 +255,58 @@ function validateRuntimeInvariant(rule, fixture, bundle) {
       return requireUniqueToolCallIds(fixture.proposed_tool_calls)
     case 'signed_envelope_payload_schema_match':
       return requireSignedEnvelopePayloadSchemaMatch(fixture, bundle)
+    case 'audit_receipt_import_restore_byte_identity':
+      return requireImportRestoreReceiptByteIdentity(fixture)
     default:
       throw new Error(`unknown runtime invariant rule ${rule}`)
   }
+}
+
+function requireImportRestoreReceiptByteIdentity(receipt) {
+	if (receipt.audit_receipt_kind !== 'import' && receipt.audit_receipt_kind !== 'restore') {
+		return null
+	}
+
+	if (receipt.receipt_payload_schema_id !== 'runecode.protocol.audit.receipt.import_restore_provenance.v0') {
+		return new Error('import/restore receipts must use import_restore provenance payload schema')
+	}
+
+	if (!receipt.receipt_payload || typeof receipt.receipt_payload !== 'object' || Array.isArray(receipt.receipt_payload)) {
+		return new Error('receipt_payload must be an object')
+	}
+
+	if (receipt.receipt_payload.provenance_action !== receipt.audit_receipt_kind) {
+		return new Error(`provenance_action ${JSON.stringify(receipt.receipt_payload.provenance_action)} must match audit_receipt_kind ${JSON.stringify(receipt.audit_receipt_kind)}`)
+	}
+
+	if (!Array.isArray(receipt.receipt_payload.imported_segments)) {
+		return new Error('receipt_payload.imported_segments must be an array')
+	}
+
+	for (let index = 0; index < receipt.receipt_payload.imported_segments.length; index += 1) {
+		const segment = receipt.receipt_payload.imported_segments[index]
+		if (!segment || typeof segment !== 'object' || Array.isArray(segment)) {
+			return new Error(`receipt_payload.imported_segments[${index}] must be an object`)
+		}
+		if (segment.byte_identity_verified !== true) {
+			return new Error(`receipt_payload.imported_segments[${index}].byte_identity_verified must be true`)
+		}
+		const sourceDigest = requireDigestObject(segment.source_segment_file_hash, `receipt_payload.imported_segments[${index}].source_segment_file_hash`)
+		if (sourceDigest instanceof Error) {
+			return sourceDigest
+		}
+		const localDigest = requireDigestObject(segment.local_segment_file_hash, `receipt_payload.imported_segments[${index}].local_segment_file_hash`)
+		if (localDigest instanceof Error) {
+			return localDigest
+		}
+		const source = digestIdentity(sourceDigest)
+		const local = digestIdentity(localDigest)
+		if (source !== local) {
+			return new Error(`receipt_payload.imported_segments[${index}] source/local segment hashes differ`)
+		}
+	}
+
+	return null
 }
 
 function requireSignedEnvelopePayloadSchemaMatch(envelope, bundle) {
@@ -391,6 +453,25 @@ test('runtime invariant fixtures fail closed identically in JS', async (t) => {
       assert.equal(runtimeError === null, entry.expect_valid, `${entry.id} runtime mismatch: ${runtimeError}`)
     })
   }
+})
+
+test('import/restore runtime invariant returns structured error for malformed digest objects', () => {
+	const runtimeError = requireImportRestoreReceiptByteIdentity({
+		audit_receipt_kind: 'import',
+		receipt_payload_schema_id: 'runecode.protocol.audit.receipt.import_restore_provenance.v0',
+		receipt_payload: {
+			provenance_action: 'import',
+			imported_segments: [
+				{
+					byte_identity_verified: true,
+					source_segment_file_hash: 'not-an-object',
+					local_segment_file_hash: { hash_alg: 'sha256', hash: 'abcd' },
+				},
+			],
+		},
+	})
+	assert.ok(runtimeError instanceof Error)
+	assert.match(runtimeError.message, /source_segment_file_hash must be an object/)
 })
 
 test('canonicalization fixtures match golden bytes and hashes', async (t) => {

@@ -1,0 +1,314 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditEventContractCatalog.schema.json",
+  "title": "AuditEventContractCatalog",
+  "description": "Machine-readable catalog binding each audit_event_type to allowed payload schema identifiers, signer posture constraints, required shared context fields, typed reference rules, and gateway-context admission requirements.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 4,
+  "$defs": {
+    "scopeField": {
+      "description": "One reusable scope field identifier from the AuditEvent scope block.",
+      "type": "string",
+      "enum": [
+        "workspace_id",
+        "run_id",
+        "stage_id",
+        "step_id"
+      ],
+      "x-data-class": "public"
+    },
+    "correlationField": {
+      "description": "One reusable correlation field identifier from the AuditEvent correlation block.",
+      "type": "string",
+      "enum": [
+        "session_id",
+        "operation_id",
+        "parent_operation_id"
+      ],
+      "x-data-class": "public"
+    },
+    "gatewayCategory": {
+      "description": "Allowed gateway egress category for events requiring gateway context.",
+      "type": "string",
+      "enum": [
+        "model",
+        "auth",
+        "git",
+        "web",
+        "deps"
+      ],
+      "x-data-class": "public"
+    },
+    "catalogEntry": {
+      "description": "One event-contract entry mapping an audit_event_type to typed payload and context rules.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 14,
+      "required": [
+        "audit_event_type",
+        "allowed_payload_schema_ids",
+        "allowed_signer_purposes",
+        "allowed_signer_scopes",
+        "required_scope_fields",
+        "required_correlation_fields",
+        "require_subject_ref",
+        "allowed_subject_ref_roles",
+        "allowed_cause_ref_roles",
+        "allowed_related_ref_roles",
+        "require_gateway_context",
+        "require_signer_evidence_refs",
+        "allowed_signer_evidence_ref_roles"
+      ],
+      "properties": {
+        "audit_event_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Registry-defined audit_event_type code governed by this contract entry.",
+          "x-data-class": "public"
+        },
+        "allowed_payload_schema_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "description": "Allowed event_payload_schema_id values for this audit event type.",
+          "x-data-class": "public",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "One allowed payload schema identifier.",
+            "x-data-class": "public"
+          }
+        },
+        "allowed_signer_purposes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "description": "Allowed signer-purpose labels admissible for this event type.",
+          "x-data-class": "public",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "One signer-purpose identifier.",
+            "x-data-class": "public"
+          }
+        },
+        "allowed_signer_scopes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "description": "Allowed signer scope labels for this event type.",
+          "x-data-class": "public",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "One signer scope identifier.",
+            "x-data-class": "public"
+          }
+        },
+        "required_scope_fields": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "description": "Required fields from AuditEvent.scope for this event type.",
+          "x-data-class": "public",
+          "items": {
+            "$ref": "#/$defs/scopeField"
+          }
+        },
+        "required_correlation_fields": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "description": "Required fields from AuditEvent.correlation for this event type.",
+          "x-data-class": "public",
+          "items": {
+            "$ref": "#/$defs/correlationField"
+          }
+        },
+        "require_subject_ref": {
+          "type": "boolean",
+          "description": "Whether AuditEvent.subject_ref is required for this event type.",
+          "x-data-class": "public"
+        },
+        "allowed_subject_ref_roles": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "description": "Allowed subject_ref.ref_role values for this event type.",
+          "x-data-class": "public",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "One allowed subject reference role.",
+            "x-data-class": "public"
+          }
+        },
+        "allowed_cause_ref_roles": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "description": "Allowed cause_refs[].ref_role values for this event type.",
+          "x-data-class": "public",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "One allowed cause reference role.",
+            "x-data-class": "public"
+          }
+        },
+        "allowed_related_ref_roles": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "description": "Allowed related_refs[].ref_role values for this event type.",
+          "x-data-class": "public",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "One allowed related reference role.",
+            "x-data-class": "public"
+          }
+        },
+        "require_gateway_context": {
+          "type": "boolean",
+          "description": "Whether AuditEvent.gateway_context is required for this event type.",
+          "x-data-class": "public"
+        },
+        "allowed_gateway_egress_categories": {
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "description": "Allowed gateway_context.egress_category values when gateway context is present for this event type.",
+          "x-data-class": "public",
+          "items": {
+            "$ref": "#/$defs/gatewayCategory"
+          }
+        },
+        "require_signer_evidence_refs": {
+          "type": "boolean",
+          "description": "Whether signer_evidence_refs are required for signer admissibility on this event type.",
+          "x-data-class": "public"
+        },
+        "allowed_signer_evidence_ref_roles": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "description": "Allowed signer_evidence_refs[].ref_role values for this event type.",
+          "x-data-class": "public",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "One allowed signer-evidence reference role.",
+            "x-data-class": "public"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "require_gateway_context": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "allowed_gateway_egress_categories": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "require_signer_evidence_refs": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "allowed_signer_evidence_ref_roles": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "require_subject_ref": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "allowed_subject_ref_roles": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema_id",
+    "schema_version",
+    "catalog_id",
+    "entries"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.AuditEventContractCatalog",
+      "description": "Stable protocol object-family identifier for the audit event contract catalog.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this catalog object.",
+      "x-data-class": "public"
+    },
+    "catalog_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Stable machine-consumed catalog identifier.",
+      "x-data-class": "public"
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "uniqueItems": true,
+      "description": "Audit event contract entries keyed by audit_event_type.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "#/$defs/catalogEntry"
+      }
+    }
+  }
+}

@@ -14,6 +14,10 @@
       "summary": "Records a model-gateway outbound request with allowlist and destination attribution."
     },
     {
+      "code": "auth_egress",
+      "summary": "Records auth-gateway outbound activity with attributable destination and allowlist context."
+    },
+    {
       "code": "artifact_put",
       "summary": "Records successful artifact ingestion after canonicalization and immutable metadata assignment."
     },
@@ -32,6 +36,30 @@
     {
       "code": "artifact_retention_action",
       "summary": "Records retention, GC, export, and restore actions including reclaimed bytes when applicable."
+    },
+    {
+      "code": "audit_segment_imported",
+      "summary": "Records local admission of imported historical sealed audit segments without rewriting imported bytes."
+    },
+    {
+      "code": "audit_segment_restored",
+      "summary": "Records local admission of restored sealed audit segments from backup/export evidence without rewriting segment bytes."
+    },
+    {
+      "code": "secrets_lease_acquired",
+      "summary": "Records issuance of a secrets access lease with non-secret lease identity and scope context."
+    },
+    {
+      "code": "secrets_lease_released",
+      "summary": "Records normal release, expiry, or revocation of a secrets access lease without secret values."
+    },
+    {
+      "code": "isolate_session_started",
+      "summary": "Records creation of an isolate session used for TOFU and later attestable signer binding."
+    },
+    {
+      "code": "isolate_session_bound",
+      "summary": "Records binding evidence between an isolate session and signer identity for event admissibility checks."
     }
   ]
 }

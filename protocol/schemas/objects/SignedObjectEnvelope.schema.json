@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/SignedObjectEnvelope.schema.json",
   "title": "SignedObjectEnvelope",
-  "description": "Protocol-owned detached signature envelope. The signature covers the RFC 8785 JCS canonical bytes of the payload before envelope fields are attached.",
+  "description": "Protocol-owned detached single-signature envelope. The signature covers the RFC 8785 JCS canonical bytes of the payload before envelope fields are attached. Additional attestations are modeled as separate signed objects.",
   "type": "object",
   "additionalProperties": false,
   "maxProperties": 7,

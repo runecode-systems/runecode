@@ -55,10 +55,73 @@ func TestSignedEnvelopeConstrainsPayloadAndAlgorithms(t *testing.T) {
 	assertContains(t, required, "signature_input")
 	assertContains(t, required, "signature")
 
+	if got := strings.TrimSpace(stringValue(t, schema, "description")); !strings.Contains(got, "single-signature") {
+		t.Fatalf("SignedObjectEnvelope description must declare single-signature posture; got: %q", got)
+	}
+
 	properties := objectValue(t, schema, "properties")
 	assertConst(t, properties, "signature_input", "rfc8785_jcs_detached_payload")
 	assertSignedEnvelopePayload(t, objectValue(t, properties, "payload"))
 	assertSignatureBlock(t, objectValue(t, objectValue(t, schema, "$defs"), "signatureBlock"))
+}
+
+func TestAuditSchemasUseCanonicalAuditRecordDigestReferences(t *testing.T) {
+	bundle := newCompiledBundle(t, loadManifest(t))
+
+	auditEvent := bundle.SchemaDocs["objects/AuditEvent.schema.json"]
+	auditReceipt := bundle.SchemaDocs["objects/AuditReceipt.schema.json"]
+	auditSegmentSeal := bundle.SchemaDocs["objects/AuditSegmentSeal.schema.json"]
+	auditSegmentFile := bundle.SchemaDocs["objects/AuditSegmentFile.schema.json"]
+	auditVerificationReport := bundle.SchemaDocs["objects/AuditVerificationReport.schema.json"]
+
+	assertRefEquals(t, objectValue(t, objectValue(t, auditEvent, "properties"), "previous_event_hash"), "$ref", "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue")
+	assertRefEquals(t, objectValue(t, objectValue(t, auditReceipt, "properties"), "subject_digest"), "$ref", "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue")
+	assertRefEquals(t, objectValue(t, objectValue(t, auditSegmentSeal, "properties"), "first_record_digest"), "$ref", "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue")
+	assertRefEquals(t, objectValue(t, objectValue(t, auditSegmentSeal, "properties"), "last_record_digest"), "$ref", "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue")
+	assertRefEquals(t, objectValue(t, objectValue(t, auditSegmentSeal, "properties"), "previous_seal_digest"), "$ref", "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue")
+	assertConst(t, objectValue(t, auditSegmentSeal, "properties"), "sealed_after_state", "open")
+	assertConst(t, objectValue(t, auditSegmentSeal, "properties"), "merkle_profile", "sha256_ordered_dse_v1")
+	assertConst(t, objectValue(t, auditSegmentSeal, "properties"), "segment_file_hash_scope", "raw_framed_segment_bytes_v1")
+	assertConst(t, objectValue(t, auditSegmentSeal, "properties"), "anchoring_subject", "audit_segment_seal")
+
+	recordFrame := objectValue(t, objectValue(t, auditSegmentFile, "$defs"), "recordFrame")
+	assertRefEquals(t, objectValue(t, objectValue(t, recordFrame, "properties"), "record_digest"), "$ref", "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue")
+
+	finding := objectValue(t, objectValue(t, auditVerificationReport, "$defs"), "finding")
+	assertRefEquals(t, objectValue(t, objectValue(t, finding, "properties"), "subject_record_digest"), "$ref", "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue")
+	assertContains(t, stringSliceValue(t, finding, "required"), "dimension")
+}
+
+func TestAuditEventSchemaUsesDetachedPayloadContractAndHashBindings(t *testing.T) {
+	auditEvent := loadJSONMap(t, schemaPath(t, "objects/AuditEvent.schema.json"))
+	properties := objectValue(t, auditEvent, "properties")
+	required := stringSliceValue(t, auditEvent, "required")
+
+	assertContains(t, required, "emitter_stream_id")
+	assertContains(t, required, "seq")
+	assertContains(t, required, "protocol_bundle_manifest_hash")
+	assertContains(t, required, "event_payload_hash")
+
+	if hasKey(properties, "signatures") {
+		t.Fatal("AuditEvent must not include inline signatures; use SignedObjectEnvelope instead")
+	}
+	if hasKey(properties, "manifest_hash") {
+		t.Fatal("AuditEvent must bind trust context with explicit role/capability hashes, not legacy manifest_hash")
+	}
+	if hasKey(properties, "schema_bundle_manifest_hash") {
+		t.Fatal("AuditEvent must use protocol_bundle_manifest_hash, not legacy schema_bundle_manifest_hash")
+	}
+
+	assertRefEquals(t, objectValue(t, properties, "protocol_bundle_manifest_hash"), "$ref", "Digest.schema.json#/$defs/digestValue")
+	assertRefEquals(t, objectValue(t, properties, "active_role_manifest_hash"), "$ref", "Digest.schema.json#/$defs/digestValue")
+	assertRefEquals(t, objectValue(t, properties, "active_capability_manifest_hash"), "$ref", "Digest.schema.json#/$defs/digestValue")
+}
+
+func assertRefEquals(t *testing.T, node map[string]any, key string, want string) {
+	t.Helper()
+	if got := stringValue(t, node, key); got != want {
+		t.Fatalf("%s = %q, want %q", key, got, want)
+	}
 }
 
 func TestManifestsRequireExplicitSignedInputs(t *testing.T) {

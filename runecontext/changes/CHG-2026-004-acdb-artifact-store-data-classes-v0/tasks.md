@@ -8,7 +8,7 @@
   - `approved_file_excerpts`
   - `diffs`
   - `build_logs`
-  - `audit_events`
+  - `audit_events` (sealed/exported audit evidence copies; not the primary audit ledger)
   - `audit_verification_report` (machine-readable audit verification output)
 - [ ] Include reserved-but-not-used-yet classes for later roles (e.g., `web_query`, `web_citations`) without enabling those roles in MVP.
 
@@ -47,6 +47,9 @@ Parallelization: can be implemented in parallel with audit log storage; coordina
 - [ ] Enforce at the broker/policy layer (fail-closed).
 - [ ] Ensure artifacts are immutable: `data_class` cannot change after creation.
 - [ ] Ensure `unapproved_file_excerpts` never flow to egress roles; only `approved_file_excerpts` may be eligible for model egress when explicitly opted in by the signed manifest.
+
+Audit integration note:
+- [ ] Keep the artifact-store role in audit integration limited to storing derived/exported audit evidence such as verification reports and optional sealed evidence copies. The authoritative append-only audit ledger remains owned by `auditd` under `runecontext/changes/CHG-2026-003-b567-audit-log-v0-verify/`.
 
 Parallelization: can be implemented in parallel with broker artifact routing and policy evaluation; it depends on stable role manifests + data-class taxonomy.
 
