@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -70,13 +69,6 @@ func skipIfDirectoryModeAssertionsUnavailable(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("permission bits differ on windows")
 	}
-	umask, err := currentUmask()
-	if err != nil {
-		t.Fatalf("currentUmask returned error: %v", err)
-	}
-	if umask != 0 {
-		t.Skipf("umask %03o masks owner-only directory mode assertions", umask)
-	}
 }
 
 func createLegacyLayoutFixture(t *testing.T, paths []string) {
@@ -99,25 +91,6 @@ func assertOwnerOnlyMode(t *testing.T, paths []string) {
 			t.Fatalf("%s mode = %o, want 700", path, got)
 		}
 	}
-}
-
-func currentUmask() (int, error) {
-	value, err := os.ReadFile("/proc/self/status")
-	if err != nil {
-		return 0, err
-	}
-	const prefix = "Umask:\t"
-	for _, line := range strings.Split(string(value), "\n") {
-		if !strings.HasPrefix(line, prefix) {
-			continue
-		}
-		parsed, err := strconv.ParseInt(strings.TrimPrefix(line, prefix), 8, 32)
-		if err != nil {
-			return 0, err
-		}
-		return int(parsed), nil
-	}
-	return 0, os.ErrNotExist
 }
 
 func TestLatestVerificationSummaryAndViewsFailsClosedOnFrameDigestMismatch(t *testing.T) {
