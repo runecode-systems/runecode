@@ -15,6 +15,17 @@ func (s *Service) HandleArtifactListV0(ctx context.Context, req LocalArtifactLis
 	if errResp != nil {
 		return LocalArtifactListResponse{}, errResp
 	}
+	release, err := s.acquireInFlight(meta)
+	if err != nil {
+		errOut := s.errorFromLimit(requestID, err)
+		return LocalArtifactListResponse{}, &errOut
+	}
+	defer release()
+	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
+	defer cancel()
+	if errResp := s.requestContextError(requestID, requestCtx); errResp != nil {
+		return LocalArtifactListResponse{}, errResp
+	}
 	order := artifactListOrder(req.Order)
 	summaries := filterArtifactSummaries(s.List(), req)
 	sortArtifactSummariesNewestFirst(summaries)
@@ -62,6 +73,17 @@ func (s *Service) HandleArtifactHeadV0(ctx context.Context, req LocalArtifactHea
 	if errResp != nil {
 		return LocalArtifactHeadResponse{}, errResp
 	}
+	release, err := s.acquireInFlight(meta)
+	if err != nil {
+		errOut := s.errorFromLimit(requestID, err)
+		return LocalArtifactHeadResponse{}, &errOut
+	}
+	defer release()
+	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
+	defer cancel()
+	if errResp := s.requestContextError(requestID, requestCtx); errResp != nil {
+		return LocalArtifactHeadResponse{}, errResp
+	}
 	record, err := s.Head(req.Digest)
 	if err != nil {
 		errOut := s.errorFromStore(requestID, err)
@@ -78,6 +100,17 @@ func (s *Service) HandleArtifactHeadV0(ctx context.Context, req LocalArtifactHea
 func (s *Service) HandleArtifactRead(ctx context.Context, req ArtifactReadRequest, meta RequestContext) (ArtifactReadHandle, *ErrorResponse) {
 	requestID, errResp := s.prepareLocalRequest(req.RequestID, meta.RequestID, meta.AdmissionErr, req, artifactReadRequestSchemaPath)
 	if errResp != nil {
+		return ArtifactReadHandle{}, errResp
+	}
+	release, err := s.acquireInFlight(meta)
+	if err != nil {
+		errOut := s.errorFromLimit(requestID, err)
+		return ArtifactReadHandle{}, &errOut
+	}
+	defer release()
+	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
+	defer cancel()
+	if errResp := s.requestContextError(requestID, requestCtx); errResp != nil {
 		return ArtifactReadHandle{}, errResp
 	}
 	if strings.TrimSpace(req.ProducerRole) == "" || strings.TrimSpace(req.ConsumerRole) == "" {

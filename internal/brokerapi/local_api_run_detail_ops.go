@@ -19,7 +19,7 @@ func (s *Service) runDetail(runID string) (RunDetail, bool, error) {
 	}
 	artifactsForRun, classCount := runArtifactsAndClassCount(s.List(), runID)
 	pendingIDs := runPendingApprovalIDs(s.listApprovals(), runID)
-	verification, _ := s.LatestAuditVerificationSurface(20)
+	verification := s.runAuditVerificationOrFallback()
 	return buildRunDetail(summary, verification, artifactsForRun, classCount, pendingIDs), true, nil
 }
 

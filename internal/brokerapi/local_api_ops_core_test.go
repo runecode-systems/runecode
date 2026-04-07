@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 )
@@ -151,6 +152,102 @@ func TestArtifactReadRejectsRangeRequestsInMVP(t *testing.T) {
 	}
 }
 
+func TestArtifactLocalOpsRejectInFlightLimit(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{Limits: Limits{MaxInFlightPerClient: 1, MaxInFlightPerLane: 1}})
+	release, err := s.apiInflight.acquire("client-a", "lane-a")
+	if err != nil {
+		t.Fatalf("acquire precondition returned error: %v", err)
+	}
+	defer release()
+	meta := RequestContext{ClientID: "client-a", LaneID: "lane-a"}
+
+	_, errResp := s.HandleArtifactListV0(context.Background(), LocalArtifactListRequest{
+		SchemaID:      "runecode.protocol.v0.ArtifactListRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-art-list-limit",
+	}, meta)
+	if errResp == nil {
+		t.Fatal("HandleArtifactListV0 expected in-flight limit error")
+	}
+	if errResp.Error.Code != "broker_limit_in_flight_exceeded" {
+		t.Fatalf("artifact_list error code = %q, want broker_limit_in_flight_exceeded", errResp.Error.Code)
+	}
+
+	_, errResp = s.HandleArtifactHeadV0(context.Background(), LocalArtifactHeadRequest{
+		SchemaID:      "runecode.protocol.v0.ArtifactHeadRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-art-head-limit",
+		Digest:        "sha256:" + strings.Repeat("a", 64),
+	}, meta)
+	if errResp == nil {
+		t.Fatal("HandleArtifactHeadV0 expected in-flight limit error")
+	}
+	if errResp.Error.Code != "broker_limit_in_flight_exceeded" {
+		t.Fatalf("artifact_head error code = %q, want broker_limit_in_flight_exceeded", errResp.Error.Code)
+	}
+
+	_, errResp = s.HandleArtifactRead(context.Background(), ArtifactReadRequest{
+		SchemaID:      "runecode.protocol.v0.ArtifactReadRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-art-read-limit",
+		Digest:        "sha256:" + strings.Repeat("a", 64),
+		ProducerRole:  "workspace",
+		ConsumerRole:  "model_gateway",
+	}, meta)
+	if errResp == nil {
+		t.Fatal("HandleArtifactRead expected in-flight limit error")
+	}
+	if errResp.Error.Code != "broker_limit_in_flight_exceeded" {
+		t.Fatalf("artifact_read error code = %q, want broker_limit_in_flight_exceeded", errResp.Error.Code)
+	}
+}
+
+func TestArtifactLocalOpsRejectDeadlineExceeded(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	deadline := time.Now().Add(-time.Second)
+	meta := RequestContext{Deadline: &deadline}
+
+	_, errResp := s.HandleArtifactListV0(context.Background(), LocalArtifactListRequest{
+		SchemaID:      "runecode.protocol.v0.ArtifactListRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-art-list-timeout",
+	}, meta)
+	if errResp == nil {
+		t.Fatal("HandleArtifactListV0 expected deadline error")
+	}
+	if errResp.Error.Code != "broker_timeout_request_deadline_exceeded" {
+		t.Fatalf("artifact_list error code = %q, want broker_timeout_request_deadline_exceeded", errResp.Error.Code)
+	}
+
+	_, errResp = s.HandleArtifactHeadV0(context.Background(), LocalArtifactHeadRequest{
+		SchemaID:      "runecode.protocol.v0.ArtifactHeadRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-art-head-timeout",
+		Digest:        "sha256:" + strings.Repeat("a", 64),
+	}, meta)
+	if errResp == nil {
+		t.Fatal("HandleArtifactHeadV0 expected deadline error")
+	}
+	if errResp.Error.Code != "broker_timeout_request_deadline_exceeded" {
+		t.Fatalf("artifact_head error code = %q, want broker_timeout_request_deadline_exceeded", errResp.Error.Code)
+	}
+
+	_, errResp = s.HandleArtifactRead(context.Background(), ArtifactReadRequest{
+		SchemaID:      "runecode.protocol.v0.ArtifactReadRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-art-read-timeout",
+		Digest:        "sha256:" + strings.Repeat("a", 64),
+		ProducerRole:  "workspace",
+		ConsumerRole:  "model_gateway",
+	}, meta)
+	if errResp == nil {
+		t.Fatal("HandleArtifactRead expected deadline error")
+	}
+	if errResp.Error.Code != "broker_timeout_request_deadline_exceeded" {
+		t.Fatalf("artifact_read error code = %q, want broker_timeout_request_deadline_exceeded", errResp.Error.Code)
+	}
+}
+
 func TestRunGetNotFoundUsesRunSpecificCode(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	_, errResp := s.HandleRunGet(context.Background(), RunGetRequest{
@@ -164,6 +261,28 @@ func TestRunGetNotFoundUsesRunSpecificCode(t *testing.T) {
 	}
 	if errResp.Error.Code != "broker_not_found_run" {
 		t.Fatalf("error code = %q, want broker_not_found_run", errResp.Error.Code)
+	}
+}
+
+func TestRunGetFallsBackWhenAuditVerificationUnavailable(t *testing.T) {
+	service := newBrokerAPIServiceForTests(t, APIConfig{})
+	putRunScopedArtifactForLocalOpsTest(t, service, "run-fallback", "step-1")
+	service.auditLedger = nil
+
+	resp, errResp := service.HandleRunGet(context.Background(), RunGetRequest{
+		SchemaID:      "runecode.protocol.v0.RunGetRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-run-fallback",
+		RunID:         "run-fallback",
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleRunGet error response: %+v", errResp)
+	}
+	if !resp.Run.AuditSummary.CurrentlyDegraded {
+		t.Fatal("audit summary should be degraded when verification surface is unavailable")
+	}
+	if resp.Run.AuditSummary.IntegrityStatus != "failed" {
+		t.Fatalf("integrity_status = %q, want failed", resp.Run.AuditSummary.IntegrityStatus)
 	}
 }
 

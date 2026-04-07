@@ -151,3 +151,58 @@ func TestApprovalGetReturnsDerivedPendingApproval(t *testing.T) {
 		t.Fatal("derived pending approval should not include signed request/decision envelopes")
 	}
 }
+
+func TestHandleApprovalGetRejectsInFlightLimit(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{Limits: Limits{MaxInFlightPerClient: 1, MaxInFlightPerLane: 1}})
+	release, err := s.apiInflight.acquire("client-a", "lane-a")
+	if err != nil {
+		t.Fatalf("acquire precondition returned error: %v", err)
+	}
+	defer release()
+
+	_, errResp := s.HandleApprovalGet(context.Background(), ApprovalGetRequest{
+		SchemaID:      "runecode.protocol.v0.ApprovalGetRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-approval-get-limit",
+		ApprovalID:    "sha256:" + strings.Repeat("a", 64),
+	}, RequestContext{ClientID: "client-a", LaneID: "lane-a"})
+	if errResp == nil {
+		t.Fatal("HandleApprovalGet expected in-flight limit error")
+	}
+	if errResp.Error.Code != "broker_limit_in_flight_exceeded" {
+		t.Fatalf("error code = %q, want broker_limit_in_flight_exceeded", errResp.Error.Code)
+	}
+}
+
+func TestHandleApprovalGetRejectsDeadlineExceeded(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	deadline := time.Now().Add(-time.Second)
+	_, errResp := s.HandleApprovalGet(context.Background(), ApprovalGetRequest{
+		SchemaID:      "runecode.protocol.v0.ApprovalGetRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-approval-get-timeout",
+		ApprovalID:    "sha256:" + strings.Repeat("a", 64),
+	}, RequestContext{Deadline: &deadline})
+	if errResp == nil {
+		t.Fatal("HandleApprovalGet expected deadline error")
+	}
+	if errResp.Error.Code != "broker_timeout_request_deadline_exceeded" {
+		t.Fatalf("error code = %q, want broker_timeout_request_deadline_exceeded", errResp.Error.Code)
+	}
+}
+
+func TestHandleApprovalGetUsesNotFoundApprovalCode(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	_, errResp := s.HandleApprovalGet(context.Background(), ApprovalGetRequest{
+		SchemaID:      "runecode.protocol.v0.ApprovalGetRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-approval-get-missing",
+		ApprovalID:    "sha256:" + strings.Repeat("f", 64),
+	}, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleApprovalGet expected not-found error")
+	}
+	if errResp.Error.Code != "broker_not_found_approval" {
+		t.Fatalf("error code = %q, want broker_not_found_approval", errResp.Error.Code)
+	}
+}

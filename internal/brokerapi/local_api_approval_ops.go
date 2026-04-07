@@ -66,9 +66,21 @@ func (s *Service) HandleApprovalGet(ctx context.Context, req ApprovalGetRequest,
 	if errResp != nil {
 		return ApprovalGetResponse{}, errResp
 	}
+	release, err := s.acquireInFlight(meta)
+	if err != nil {
+		errOut := s.errorFromLimit(requestID, err)
+		return ApprovalGetResponse{}, &errOut
+	}
+	defer release()
+	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
+	defer cancel()
+	if err := requestCtx.Err(); err != nil {
+		errOut := s.errorFromContext(requestID, err)
+		return ApprovalGetResponse{}, &errOut
+	}
 	rec, ok := s.getApproval(req.ApprovalID)
 	if !ok {
-		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, fmt.Sprintf("approval %q not found", req.ApprovalID))
+		errOut := s.makeError(requestID, "broker_not_found_approval", "storage", false, fmt.Sprintf("approval %q not found", req.ApprovalID))
 		return ApprovalGetResponse{}, &errOut
 	}
 	resp := ApprovalGetResponse{SchemaID: "runecode.protocol.v0.ApprovalGetResponse", SchemaVersion: "0.1.0", RequestID: requestID, Approval: rec.Summary, SignedApprovalRequest: rec.RequestEnvelope, SignedApprovalDecision: rec.DecisionEnvelope}

@@ -129,6 +129,9 @@ type AuditVerificationSurface struct {
 }
 
 func (s *Service) LatestAuditVerificationSurface(limit int) (AuditVerificationSurface, error) {
+	if s.auditLedger == nil {
+		return AuditVerificationSurface{}, fmt.Errorf("audit ledger unavailable")
+	}
 	summary, views, report, err := s.auditLedger.LatestVerificationSummaryAndViews(limit)
 	if err != nil {
 		return AuditVerificationSurface{}, err
