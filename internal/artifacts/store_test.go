@@ -99,6 +99,27 @@ func TestDataClassMutationDenied(t *testing.T) {
 	}
 }
 
+func TestPutCanonicalizesUntrustedCreatedByRole(t *testing.T) {
+	store := newTestStore(t)
+	ref, err := store.Put(PutRequest{
+		Payload:               []byte("payload"),
+		ContentType:           "text/plain",
+		DataClass:             DataClassSpecText,
+		ProvenanceReceiptHash: testDigest("a"),
+		CreatedByRole:         " admin ",
+	})
+	if err != nil {
+		t.Fatalf("Put returned error: %v", err)
+	}
+	record, err := store.Head(ref.Digest)
+	if err != nil {
+		t.Fatalf("Head returned error: %v", err)
+	}
+	if record.CreatedByRole != "untrusted_client" {
+		t.Fatalf("created_by_role = %q, want untrusted_client", record.CreatedByRole)
+	}
+}
+
 func TestFlowChecksFailClosedAndEgressRules(t *testing.T) {
 	store := newTestStore(t)
 	ref, err := store.Put(PutRequest{

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"sort"
+	"strings"
 )
 
 func (s *Store) SetPolicy(policy Policy) error {
@@ -97,13 +98,17 @@ func (s *Store) upsertArtifactRecord(ref ArtifactReference, req PutRequest, dige
 }
 
 func createdByRole(req PutRequest) string {
+	role := strings.TrimSpace(req.CreatedByRole)
 	if req.TrustedSource {
-		return req.CreatedByRole
+		return role
 	}
-	if req.CreatedByRole == "auditd" || req.CreatedByRole == "secretsd" || req.CreatedByRole == "launcher" {
+	if role == "workspace" || role == "model_gateway" || role == "untrusted_client" {
+		return role
+	}
+	if role == "" {
 		return "untrusted_client"
 	}
-	return req.CreatedByRole
+	return "untrusted_client"
 }
 
 func (s *Store) Get(digest string) (io.ReadCloser, error) {

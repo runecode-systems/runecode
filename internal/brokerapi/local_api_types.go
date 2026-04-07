@@ -537,7 +537,6 @@ func toArtifactSummary(record artifacts.ArtifactRecord) ArtifactSummary {
 		CreatedByRole:        record.CreatedByRole,
 		RunID:                record.RunID,
 		StepID:               record.StepID,
-		StageID:              record.StepID,
 		ApprovalOfDigest:     record.ApprovalOfDigest,
 		ApprovalDecisionHash: record.ApprovalDecisionHash,
 	}

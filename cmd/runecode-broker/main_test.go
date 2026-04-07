@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -58,6 +59,9 @@ func TestDefaultCLICommandsDoNotStartLocalListener(t *testing.T) {
 }
 
 func TestServeLocalUsesLocalIPCListener(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("serve-local IPC peer-credential path is linux-only")
+	}
 	setBrokerServiceForTest(t)
 	runtimeDir := filepath.Join(t.TempDir(), "runtime")
 	clientErr, clientDone := startServeLocalClientProbe(t, runtimeDir)

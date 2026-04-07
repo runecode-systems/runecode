@@ -38,6 +38,10 @@
       "summary": "The broker rejected the request because local transport authentication credentials were unavailable or invalid."
     },
     {
+      "code": "broker_api_auth_admission_denied",
+      "summary": "The broker rejected the request during local admission/authentication before operation handling."
+    },
+    {
       "code": "broker_validation_request_id_missing",
       "summary": "The broker rejected the request because request_id was missing or empty."
     },
