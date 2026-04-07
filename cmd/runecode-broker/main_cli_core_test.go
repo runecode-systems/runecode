@@ -67,6 +67,35 @@ func TestServeLocalUsesLocalIPCListener(t *testing.T) {
 	}
 }
 
+func TestServeLocalArtifactReadRejectsRangeWithTypedCode(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("serve-local IPC peer-credential path is linux-only")
+	}
+	setBrokerServiceForTest(t)
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	clientErr := make(chan error, 1)
+	go func() {
+		for i := 0; i < 200; i++ {
+			socketPath := filepath.Join(runtimeDir, "broker.sock")
+			conn, err := net.Dial("unix", socketPath)
+			if err == nil {
+				clientErr <- requestArtifactReadRangeViaLocalRPC(t, conn)
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		clientErr <- fmt.Errorf("failed to connect to serve-local socket")
+	}()
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	if err := run([]string{"serve-local", "--once", "--runtime-dir", runtimeDir}, stdout, stderr); err != nil {
+		t.Fatalf("serve-local --once returned error: %v", err)
+	}
+	if err := <-clientErr; err != nil {
+		t.Fatalf("serve-local artifact-read range probe failed: %v", err)
+	}
+}
+
 func startServeLocalClientProbe(t *testing.T, runtimeDir string) (<-chan error, <-chan struct{}) {
 	t.Helper()
 	clientErr := make(chan error, 1)
@@ -126,6 +155,39 @@ func requestRunListViaLocalRPC(t *testing.T, conn net.Conn) error {
 	}
 	if !resp.OK {
 		return fmt.Errorf("rpc failed: %+v", resp.Error)
+	}
+	return nil
+}
+
+func requestArtifactReadRangeViaLocalRPC(t *testing.T, conn net.Conn) error {
+	t.Helper()
+	defer conn.Close()
+	encoder := json.NewEncoder(conn)
+	decoder := json.NewDecoder(conn)
+	wire := localRPCRequest{Operation: "artifact_read", Request: mustJSONRawMessage(t, map[string]any{
+		"schema_id":      "runecode.protocol.v0.ArtifactReadRequest",
+		"schema_version": "0.1.0",
+		"request_id":     "req-art-range",
+		"digest":         "sha256:" + strings.Repeat("a", 64),
+		"producer_role":  "workspace",
+		"consumer_role":  "model_gateway",
+		"range_start":    0,
+	})}
+	if err := encoder.Encode(wire); err != nil {
+		return err
+	}
+	resp := localRPCResponse{}
+	if err := decoder.Decode(&resp); err != nil {
+		return err
+	}
+	if resp.OK {
+		return fmt.Errorf("expected artifact_read range rejection")
+	}
+	if resp.Error == nil {
+		return fmt.Errorf("expected typed error envelope")
+	}
+	if resp.Error.Error.Code != "broker_validation_range_not_supported" {
+		return fmt.Errorf("error code = %q, want broker_validation_range_not_supported", resp.Error.Error.Code)
 	}
 	return nil
 }

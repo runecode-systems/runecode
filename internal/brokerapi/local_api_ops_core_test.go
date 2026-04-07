@@ -45,6 +45,9 @@ func assertArtifactListAndHeadForLocalOps(t *testing.T, s *Service, digest strin
 	if len(artList.Artifacts) != 1 || artList.Artifacts[0].RunID != "run-123" {
 		t.Fatalf("artifact list = %+v, want run-scoped artifact", artList.Artifacts)
 	}
+	if artList.Artifacts[0].StageID != "artifact_flow" {
+		t.Fatalf("artifact list stage_id = %q, want artifact_flow", artList.Artifacts[0].StageID)
+	}
 	headReq := LocalArtifactHeadRequest{SchemaID: "runecode.protocol.v0.ArtifactHeadRequest", SchemaVersion: "0.1.0", RequestID: "req-art-head", Digest: artList.Artifacts[0].Reference.Digest}
 	headResp, errResp := s.HandleArtifactHeadV0(context.Background(), headReq, RequestContext{})
 	if errResp != nil {
@@ -130,6 +133,22 @@ func TestArtifactReadRejectsRangeRequestsInMVP(t *testing.T) {
 	}
 	if errResp.Error.Code != "broker_validation_range_not_supported" {
 		t.Fatalf("error code = %q, want broker_validation_range_not_supported", errResp.Error.Code)
+	}
+}
+
+func TestRunGetNotFoundUsesRunSpecificCode(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	_, errResp := s.HandleRunGet(context.Background(), RunGetRequest{
+		SchemaID:      "runecode.protocol.v0.RunGetRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-run-missing",
+		RunID:         "run-missing",
+	}, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleRunGet expected not-found error")
+	}
+	if errResp.Error.Code != "broker_not_found_run" {
+		t.Fatalf("error code = %q, want broker_not_found_run", errResp.Error.Code)
 	}
 }
 

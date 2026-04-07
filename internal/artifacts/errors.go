@@ -26,6 +26,7 @@ var (
 	ErrPromotionSourceNotUnapproved    = errors.New("promotion source artifact must be unapproved_file_excerpts")
 	ErrDataClassMutationDenied         = errors.New("data class mutation denied")
 	ErrHashOnlyHandoffRequired         = errors.New("hash-only handoff is required")
+	ErrTrustedCreatedByRoleRequired    = errors.New("trusted source requires non-empty created_by_role")
 	errUnsupportedRevocationTarget     = errors.New("only approved_file_excerpts can be revoked")
 	ErrApprovedClassRequiresPromotion  = errors.New("approved_file_excerpts must be produced via promotion")
 	ErrBackupSignatureMissing          = errors.New("backup signature file is missing")

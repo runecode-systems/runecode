@@ -73,7 +73,7 @@ func (s *Service) HandleRunGet(ctx context.Context, req RunGetRequest, meta Requ
 		return RunGetResponse{}, &errResp
 	}
 	if !ok {
-		errResp := s.makeError(requestID, "broker_not_found_artifact", "storage", false, fmt.Sprintf("run %q not found", req.RunID))
+		errResp := s.makeError(requestID, "broker_not_found_run", "storage", false, fmt.Sprintf("run %q not found", req.RunID))
 		return RunGetResponse{}, &errResp
 	}
 	resp := RunGetResponse{SchemaID: "runecode.protocol.v0.RunGetResponse", SchemaVersion: "0.1.0", RequestID: requestID, Run: detail}

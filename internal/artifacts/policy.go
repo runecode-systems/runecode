@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
@@ -18,6 +19,9 @@ func validatePutRequest(req PutRequest, policy Policy) error {
 	}
 	if !isValidDigest(req.ProvenanceReceiptHash) {
 		return ErrInvalidDigest
+	}
+	if req.TrustedSource && strings.TrimSpace(req.CreatedByRole) == "" {
+		return ErrTrustedCreatedByRoleRequired
 	}
 	return nil
 }

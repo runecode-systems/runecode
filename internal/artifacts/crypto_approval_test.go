@@ -279,7 +279,7 @@ func approvalRequestFixtureForTests(req PromotionRequest) map[string]any {
 		"schema_version":           trustpolicy.ApprovalRequestSchemaVersion,
 		"approval_profile":         "moderate",
 		"requester":                map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "broker", "instance_id": "broker-artifact-store"},
-		"approval_trigger_code":    "artifact_promotion",
+		"approval_trigger_code":    "excerpt_promotion",
 		"manifest_hash":            map[string]any{"hash_alg": sourceHashAlg, "hash": sourceHash},
 		"action_request_hash":      map[string]any{"hash_alg": actionHashAlg, "hash": actionHash},
 		"relevant_artifact_hashes": []any{map[string]any{"hash_alg": sourceHashAlg, "hash": sourceHash}},

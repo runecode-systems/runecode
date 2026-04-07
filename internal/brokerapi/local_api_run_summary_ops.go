@@ -87,9 +87,15 @@ func buildRunSummary(runID string, records []artifacts.ArtifactRecord, status st
 }
 
 func runRecordTimingAndPending(records []artifacts.ArtifactRecord) (time.Time, time.Time, int) {
-	created := time.Now().UTC()
-	updated := created
+	emptyRunTime := time.Unix(0, 0).UTC()
+	created := emptyRunTime
+	updated := emptyRunTime
 	pending := 0
+	if len(records) == 0 {
+		return created, updated, pending
+	}
+	created = records[0].CreatedAt
+	updated = records[0].CreatedAt
 	for _, rec := range records {
 		if rec.CreatedAt.Before(created) {
 			created = rec.CreatedAt

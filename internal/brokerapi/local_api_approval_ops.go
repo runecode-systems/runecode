@@ -13,6 +13,18 @@ func (s *Service) HandleApprovalList(ctx context.Context, req ApprovalListReques
 	if errResp != nil {
 		return ApprovalListResponse{}, errResp
 	}
+	release, err := s.acquireInFlight(meta)
+	if err != nil {
+		errOut := s.errorFromLimit(requestID, err)
+		return ApprovalListResponse{}, &errOut
+	}
+	defer release()
+	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
+	defer cancel()
+	if err := requestCtx.Err(); err != nil {
+		errOut := s.errorFromContext(requestID, err)
+		return ApprovalListResponse{}, &errOut
+	}
 	if err := s.seedStubApprovals(); err != nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
 		return ApprovalListResponse{}, &errOut

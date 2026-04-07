@@ -53,6 +53,16 @@ func TestLogStreamEventsCarryTypedErrorOnFailedTerminal(t *testing.T) {
 	}
 }
 
+func TestStreamSemanticsRejectCancelledTerminalWithError(t *testing.T) {
+	err := validateLogStreamSemantics([]LogStreamEvent{
+		{SchemaID: "runecode.protocol.v0.LogStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 1, EventType: "log_stream_start"},
+		{SchemaID: "runecode.protocol.v0.LogStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 2, EventType: "log_stream_terminal", Terminal: true, TerminalStatus: "cancelled", Error: &ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "request_cancelled", Category: "transport", Retryable: true, Message: "cancelled"}},
+	})
+	if err == nil {
+		t.Fatal("validateLogStreamSemantics expected cancelled-with-error rejection")
+	}
+}
+
 type alwaysErrReader struct{}
 
 func (r *alwaysErrReader) Read(_ []byte) (int, error) {

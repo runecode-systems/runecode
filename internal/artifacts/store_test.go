@@ -120,6 +120,21 @@ func TestPutCanonicalizesUntrustedCreatedByRole(t *testing.T) {
 	}
 }
 
+func TestPutRejectsTrustedSourceMissingCreatedByRole(t *testing.T) {
+	store := newTestStore(t)
+	_, err := store.Put(PutRequest{
+		Payload:               []byte("payload"),
+		ContentType:           "text/plain",
+		DataClass:             DataClassSpecText,
+		ProvenanceReceiptHash: testDigest("b"),
+		CreatedByRole:         "   ",
+		TrustedSource:         true,
+	})
+	if err != ErrTrustedCreatedByRoleRequired {
+		t.Fatalf("Put trusted source missing created_by_role error = %v, want %v", err, ErrTrustedCreatedByRoleRequired)
+	}
+}
+
 func TestFlowChecksFailClosedAndEgressRules(t *testing.T) {
 	store := newTestStore(t)
 	ref, err := store.Put(PutRequest{

@@ -36,6 +36,10 @@
     {
       "code": "system_command_execution",
       "summary": "A system-modifying command outside ordinary workspace edit or test executors requires approval."
+    },
+    {
+      "code": "excerpt_promotion",
+      "summary": "Promoting unapproved excerpts into approved excerpts requires explicit human approval artifacts."
     }
   ]
 }

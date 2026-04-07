@@ -60,7 +60,7 @@ func buildResolvedApprovalRecord(req ApprovalResolveRequest, approvalID, decisio
 			Status:                 "approved",
 			RequestedAt:            now,
 			DecidedAt:              now,
-			ApprovalTriggerCode:    "artifact_promotion",
+			ApprovalTriggerCode:    "excerpt_promotion",
 			ChangesIfApproved:      "Promote reviewed file excerpts for downstream use.",
 			ApprovalAssuranceLevel: decodeDecisionString(req.SignedApprovalDecision.Payload, "approval_assurance_level", "reauthenticated"),
 			PresenceMode:           decodeDecisionString(req.SignedApprovalDecision.Payload, "presence_mode", "hardware_touch"),

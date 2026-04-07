@@ -35,6 +35,7 @@ func assertErrorRegistryCodes(t *testing.T) {
 		"broker_validation_data_class_invalid",
 		"broker_validation_range_not_supported",
 		"broker_not_found_artifact",
+		"broker_not_found_run",
 		"broker_limit_message_size_exceeded",
 		"broker_limit_structural_complexity_exceeded",
 		"broker_limit_in_flight_exceeded",
@@ -126,6 +127,7 @@ func assertApprovalRegistryCodes(t *testing.T) {
 		"secret_access_lease",
 		"dependency_install",
 		"system_command_execution",
+		"excerpt_promotion",
 	)
 }
 

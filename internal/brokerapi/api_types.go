@@ -15,10 +15,10 @@ type ArtifactListRequest struct {
 }
 
 type ArtifactListResponse struct {
-	SchemaID      string                     `json:"schema_id"`
-	SchemaVersion string                     `json:"schema_version"`
-	RequestID     string                     `json:"request_id"`
-	Artifacts     []artifacts.ArtifactRecord `json:"artifacts"`
+	SchemaID      string                        `json:"schema_id"`
+	SchemaVersion string                        `json:"schema_version"`
+	RequestID     string                        `json:"request_id"`
+	Artifacts     []artifacts.ArtifactReference `json:"artifacts"`
 }
 
 type ArtifactHeadRequest struct {
@@ -104,11 +104,15 @@ func DefaultArtifactPutRequest(requestID string, payload []byte, contentType str
 }
 
 func defaultArtifactListResponse(requestID string, artifactsList []artifacts.ArtifactRecord) ArtifactListResponse {
+	refs := make([]artifacts.ArtifactReference, 0, len(artifactsList))
+	for _, rec := range artifactsList {
+		refs = append(refs, rec.Reference)
+	}
 	return ArtifactListResponse{
 		SchemaID:      "runecode.protocol.v0.BrokerArtifactListResponse",
 		SchemaVersion: "0.1.0",
 		RequestID:     requestID,
-		Artifacts:     artifactsList,
+		Artifacts:     refs,
 	}
 }
 

@@ -62,6 +62,10 @@
       "summary": "The broker could not find the requested artifact for the provided digest."
     },
     {
+      "code": "broker_not_found_run",
+      "summary": "The broker could not find the requested run for the provided run_id."
+    },
+    {
       "code": "broker_limit_message_size_exceeded",
       "summary": "The broker rejected the request because encoded or decoded message size exceeded configured limits."
     },

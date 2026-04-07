@@ -51,14 +51,14 @@ func putArtifactViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, path, dataCla
 	return ref
 }
 
-func listArtifactsViaCLI(t *testing.T, stdout, stderr *bytes.Buffer) []artifacts.ArtifactRecord {
+func listArtifactsViaCLI(t *testing.T, stdout, stderr *bytes.Buffer) []artifacts.ArtifactReference {
 	t.Helper()
 	stdout.Reset()
 	err := run([]string{"list-artifacts"}, stdout, stderr)
 	if err != nil {
 		t.Fatalf("list-artifacts returned error: %v", err)
 	}
-	list := []artifacts.ArtifactRecord{}
+	list := []artifacts.ArtifactReference{}
 	if unmarshalErr := json.Unmarshal(stdout.Bytes(), &list); unmarshalErr != nil {
 		t.Fatalf("list-artifacts output parse error: %v", unmarshalErr)
 	}
@@ -178,7 +178,7 @@ func approvalRequestFixture(approver string, digest string, repoPath string, com
 	actionHash := promotionActionHashForCLITests(digest, repoPath, commit, extractorVersion, approver)
 	actionHashAlg, actionHashValue := splitDigestIdentity(actionHash)
 	digestHashAlg, digestHashValue := splitDigestIdentity(digest)
-	return map[string]any{"schema_id": trustpolicy.ApprovalRequestSchemaID, "schema_version": trustpolicy.ApprovalRequestSchemaVersion, "approval_profile": "moderate", "requester": map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "broker", "instance_id": "broker-artifact-store"}, "approval_trigger_code": "artifact_promotion", "manifest_hash": map[string]any{"hash_alg": digestHashAlg, "hash": digestHashValue}, "action_request_hash": map[string]any{"hash_alg": actionHashAlg, "hash": actionHashValue}, "relevant_artifact_hashes": []any{map[string]any{"hash_alg": digestHashAlg, "hash": digestHashValue}}, "details_schema_id": "runecode.protocol.details.approval.excerpt-promotion.v0", "details": map[string]any{"repo_path": repoPath, "commit": commit}, "approval_assurance_level": "reauthenticated", "presence_mode": "hardware_touch", "requested_at": "2026-03-13T12:00:00Z", "expires_at": "2026-03-13T12:30:00Z", "staleness_posture": "invalidate_on_bound_input_change", "changes_if_approved": "Promote reviewed file excerpts for downstream use.", "signatures": []any{approvalDecisionSignaturePlaceholder()}}
+	return map[string]any{"schema_id": trustpolicy.ApprovalRequestSchemaID, "schema_version": trustpolicy.ApprovalRequestSchemaVersion, "approval_profile": "moderate", "requester": map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "broker", "instance_id": "broker-artifact-store"}, "approval_trigger_code": "excerpt_promotion", "manifest_hash": map[string]any{"hash_alg": digestHashAlg, "hash": digestHashValue}, "action_request_hash": map[string]any{"hash_alg": actionHashAlg, "hash": actionHashValue}, "relevant_artifact_hashes": []any{map[string]any{"hash_alg": digestHashAlg, "hash": digestHashValue}}, "details_schema_id": "runecode.protocol.details.approval.excerpt-promotion.v0", "details": map[string]any{"repo_path": repoPath, "commit": commit}, "approval_assurance_level": "reauthenticated", "presence_mode": "hardware_touch", "requested_at": "2026-03-13T12:00:00Z", "expires_at": "2026-03-13T12:30:00Z", "staleness_posture": "invalidate_on_bound_input_change", "changes_if_approved": "Promote reviewed file excerpts for downstream use.", "signatures": []any{approvalDecisionSignaturePlaceholder()}}
 }
 
 func approvalDecisionSignaturePlaceholder() map[string]any {

@@ -145,5 +145,8 @@ func validateTerminalEvent(kind string, terminal bool, terminalStatus string, ha
 	if terminalStatus == "completed" && hasError {
 		return fmt.Errorf("completed %s terminal event must not include error envelope", kind)
 	}
+	if terminalStatus == "cancelled" && hasError {
+		return fmt.Errorf("cancelled %s terminal event must not include error envelope", kind)
+	}
 	return nil
 }

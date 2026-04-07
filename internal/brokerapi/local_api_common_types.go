@@ -210,5 +210,12 @@ type VersionInfoGetResponse struct {
 }
 
 func toArtifactSummary(record artifacts.ArtifactRecord) ArtifactSummary {
-	return ArtifactSummary{SchemaID: "runecode.protocol.v0.ArtifactSummary", SchemaVersion: "0.1.0", Reference: record.Reference, CreatedAt: record.CreatedAt.UTC().Format(time.RFC3339), CreatedByRole: record.CreatedByRole, RunID: record.RunID, StepID: record.StepID, ApprovalOfDigest: record.ApprovalOfDigest, ApprovalDecisionHash: record.ApprovalDecisionHash}
+	return ArtifactSummary{SchemaID: "runecode.protocol.v0.ArtifactSummary", SchemaVersion: "0.1.0", Reference: record.Reference, CreatedAt: record.CreatedAt.UTC().Format(time.RFC3339), CreatedByRole: record.CreatedByRole, RunID: record.RunID, StageID: stageIDForArtifactSummary(record), StepID: record.StepID, ApprovalOfDigest: record.ApprovalOfDigest, ApprovalDecisionHash: record.ApprovalDecisionHash}
+}
+
+func stageIDForArtifactSummary(record artifacts.ArtifactRecord) string {
+	if record.RunID == "" {
+		return ""
+	}
+	return "artifact_flow"
 }
