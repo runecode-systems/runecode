@@ -3,8 +3,11 @@ package brokerapi
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/runecode-ai/runecode/internal/artifacts"
 )
 
 func TestHandleRunListRejectsAdmissionFailure(t *testing.T) {
@@ -68,5 +71,83 @@ func TestHandleApprovalListRejectsDeadlineExceeded(t *testing.T) {
 	}
 	if errResp.Error.Code != "broker_timeout_request_deadline_exceeded" {
 		t.Fatalf("error code = %q, want broker_timeout_request_deadline_exceeded", errResp.Error.Code)
+	}
+}
+
+func TestApprovalListDerivesPendingFromUnapprovedArtifacts(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	ref, err := s.Put(artifacts.PutRequest{
+		Payload:               []byte("private excerpt"),
+		ContentType:           "text/plain",
+		DataClass:             artifacts.DataClassUnapprovedFileExcerpts,
+		ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64),
+		CreatedByRole:         "workspace",
+		RunID:                 "run-approval-derived",
+		StepID:                "step-1",
+	})
+	if err != nil {
+		t.Fatalf("Put returned error: %v", err)
+	}
+
+	resp, errResp := s.HandleApprovalList(context.Background(), ApprovalListRequest{
+		SchemaID:      "runecode.protocol.v0.ApprovalListRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-derived-approval-list",
+		RunID:         "run-approval-derived",
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleApprovalList error response: %+v", errResp)
+	}
+	if len(resp.Approvals) != 1 {
+		t.Fatalf("approval count = %d, want 1", len(resp.Approvals))
+	}
+	approval := resp.Approvals[0]
+	if approval.Status != "pending" {
+		t.Fatalf("approval status = %q, want pending", approval.Status)
+	}
+	if approval.ApprovalTriggerCode != "excerpt_promotion" {
+		t.Fatalf("approval trigger = %q, want excerpt_promotion", approval.ApprovalTriggerCode)
+	}
+	if approval.BoundScope.RunID != "run-approval-derived" {
+		t.Fatalf("bound scope run_id = %q, want run-approval-derived", approval.BoundScope.RunID)
+	}
+	if approval.BoundScope.StepID != "step-1" {
+		t.Fatalf("bound scope step_id = %q, want step-1", approval.BoundScope.StepID)
+	}
+	expectedID := shaDigestIdentity("pending-approval:" + ref.Digest)
+	if approval.ApprovalID != expectedID {
+		t.Fatalf("approval id = %q, want %q", approval.ApprovalID, expectedID)
+	}
+}
+
+func TestApprovalGetReturnsDerivedPendingApproval(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	ref, err := s.Put(artifacts.PutRequest{
+		Payload:               []byte("private excerpt"),
+		ContentType:           "text/plain",
+		DataClass:             artifacts.DataClassUnapprovedFileExcerpts,
+		ProvenanceReceiptHash: "sha256:" + strings.Repeat("b", 64),
+		CreatedByRole:         "workspace",
+		RunID:                 "run-approval-get",
+	})
+	if err != nil {
+		t.Fatalf("Put returned error: %v", err)
+	}
+	approvalID := shaDigestIdentity("pending-approval:" + ref.Digest)
+
+	resp, errResp := s.HandleApprovalGet(context.Background(), ApprovalGetRequest{
+		SchemaID:      "runecode.protocol.v0.ApprovalGetRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-derived-approval-get",
+		ApprovalID:    approvalID,
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleApprovalGet error response: %+v", errResp)
+	}
+	if resp.Approval.ApprovalID != approvalID {
+		t.Fatalf("approval id = %q, want %q", resp.Approval.ApprovalID, approvalID)
+	}
+	if resp.SignedApprovalRequest != nil || resp.SignedApprovalDecision != nil {
+		t.Fatal("derived pending approval should not include signed request/decision envelopes")
 	}
 }

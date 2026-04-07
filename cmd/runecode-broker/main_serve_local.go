@@ -18,7 +18,7 @@ import (
 
 const (
 	localIPCMaxConcurrentConns = 64
-	localIPCMaxRequestBytes    = 256 << 10
+	localIPCMaxRequestBytes    = 1 << 20
 	localIPCReadIdleTimeout    = 10 * time.Second
 	localIPCWriteTimeout       = 10 * time.Second
 )
@@ -78,16 +78,9 @@ func handleAcceptedLocalConn(conn net.Conn, service *brokerapi.Service, connSlot
 	return false, nil
 }
 
-type localRPCRequest struct {
-	Operation string          `json:"operation"`
-	Request   json.RawMessage `json:"request"`
-}
+type localRPCRequest = brokerapi.LocalRPCRequest
 
-type localRPCResponse struct {
-	OK       bool                     `json:"ok"`
-	Response any                      `json:"response,omitempty"`
-	Error    *brokerapi.ErrorResponse `json:"error,omitempty"`
-}
+type localRPCResponse = brokerapi.LocalRPCResponse
 
 type rpcOperationHandler func(json.RawMessage) localRPCResponse
 
@@ -98,12 +91,21 @@ type rpcOperation struct {
 
 func serveLocalConn(conn net.Conn, service *brokerapi.Service, creds brokerapi.PeerCredentials) error {
 	defer conn.Close()
+	limits := service.APILimits()
+	requestBytesLimit := limits.MaxMessageBytes
+	if requestBytesLimit <= 0 {
+		requestBytesLimit = localIPCMaxRequestBytes
+	}
+	readIdleTimeout := limits.StreamIdleTimeout
+	if readIdleTimeout <= 0 {
+		readIdleTimeout = localIPCReadIdleTimeout
+	}
 	encoder := json.NewEncoder(conn)
 	scanner := bufio.NewScanner(conn)
-	scanner.Buffer(make([]byte, 0, 8<<10), localIPCMaxRequestBytes)
+	scanner.Buffer(make([]byte, 0, 8<<10), requestBytesLimit)
 	meta := brokerapi.RequestContext{ClientID: fmt.Sprintf("uid:%d/pid:%d", creds.UID, creds.PID), LaneID: "local_ipc"}
 	for {
-		wire, done, err := readLocalRPCRequest(conn, scanner, encoder)
+		wire, done, err := readLocalRPCRequest(conn, scanner, encoder, requestBytesLimit, readIdleTimeout)
 		if err != nil {
 			return err
 		}
@@ -120,8 +122,8 @@ func serveLocalConn(conn net.Conn, service *brokerapi.Service, creds brokerapi.P
 	}
 }
 
-func readLocalRPCRequest(conn net.Conn, scanner *bufio.Scanner, encoder *json.Encoder) (*localRPCRequest, bool, error) {
-	if err := conn.SetReadDeadline(time.Now().Add(localIPCReadIdleTimeout)); err != nil {
+func readLocalRPCRequest(conn net.Conn, scanner *bufio.Scanner, encoder *json.Encoder, requestBytesLimit int, readIdleTimeout time.Duration) (*localRPCRequest, bool, error) {
+	if err := conn.SetReadDeadline(time.Now().Add(readIdleTimeout)); err != nil {
 		return nil, false, err
 	}
 	if !scanner.Scan() {
@@ -132,8 +134,9 @@ func readLocalRPCRequest(conn net.Conn, scanner *bufio.Scanner, encoder *json.En
 		if errors.Is(err, bufio.ErrTooLong) {
 			resp := localRPCResponse{OK: false, Error: decodeWireError("", fmt.Errorf("request exceeds local IPC message size limit"))}
 			if encodeErr := encodeLocalRPCResponse(conn, encoder, resp); encodeErr != nil {
-				return nil, false, encodeErr
+				return nil, true, nil
 			}
+			return nil, true, nil
 		}
 		return nil, false, err
 	}
@@ -144,6 +147,13 @@ func readLocalRPCRequest(conn net.Conn, scanner *bufio.Scanner, encoder *json.En
 			return nil, false, encodeErr
 		}
 		return nil, false, nil
+	}
+	if len(wire.Request) > requestBytesLimit {
+		resp := localRPCResponse{OK: false, Error: decodeWireError("", fmt.Errorf("request exceeds local IPC message size limit"))}
+		if encodeErr := encodeLocalRPCResponse(conn, encoder, resp); encodeErr != nil {
+			return nil, true, nil
+		}
+		return nil, true, nil
 	}
 	return &wire, false, nil
 }
@@ -176,18 +186,14 @@ func dispatchLocalRPC(service *brokerapi.Service, wire localRPCRequest, meta bro
 	if !ok {
 		return localRPCResponse{OK: false, Error: decodeWireError("", fmt.Errorf("unsupported operation %q", wire.Operation))}
 	}
-	if err := validateRawRPCPayload(wire.Request, operation.requestSchemaPath); err != nil {
+	if err := validateRawRPCPayload(wire.Request, operation.requestSchemaPath, service.APILimits()); err != nil {
 		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
 	}
 	return operation.handle(wire.Request)
 }
 
-func validateRawRPCPayload(raw json.RawMessage, schemaPath string) error {
-	if len(raw) > localIPCMaxRequestBytes {
-		return fmt.Errorf("request size %d exceeds max %d", len(raw), localIPCMaxRequestBytes)
-	}
-	decoded := any(nil)
-	if err := json.Unmarshal(raw, &decoded); err != nil {
+func validateRawRPCPayload(raw json.RawMessage, schemaPath string, limits brokerapi.Limits) error {
+	if err := brokerapi.ValidateRawMessageLimits(raw, limits); err != nil {
 		return err
 	}
 	if err := artifacts.ValidateObjectPayloadAgainstSchema(raw, schemaPath); err != nil {
@@ -293,7 +299,7 @@ func decodeAndHandle[T any](raw json.RawMessage, handle func(T) (any, *brokerapi
 	if errResp != nil {
 		return localRPCResponse{OK: false, Error: errResp}
 	}
-	return localRPCResponse{OK: true, Response: resp}
+	return localRPCOKResponse(resp)
 }
 
 func decodeAndHandleArtifactRead(service *brokerapi.Service, raw json.RawMessage, meta brokerapi.RequestContext) localRPCResponse {
@@ -311,7 +317,7 @@ func decodeAndHandleArtifactRead(service *brokerapi.Service, raw json.RawMessage
 	if err != nil {
 		return localRPCResponse{OK: false, Error: decodeWireError(req.RequestID, err)}
 	}
-	return localRPCResponse{OK: true, Response: events}
+	return localRPCOKResponse(events)
 }
 
 func decodeAndHandleLogStream(service *brokerapi.Service, raw json.RawMessage, meta brokerapi.RequestContext) localRPCResponse {
@@ -329,7 +335,15 @@ func decodeAndHandleLogStream(service *brokerapi.Service, raw json.RawMessage, m
 	if err != nil {
 		return localRPCResponse{OK: false, Error: decodeWireError(req.RequestID, err)}
 	}
-	return localRPCResponse{OK: true, Response: events}
+	return localRPCOKResponse(events)
+}
+
+func localRPCOKResponse(value any) localRPCResponse {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
+	}
+	return localRPCResponse{OK: true, Response: json.RawMessage(raw)}
 }
 
 func decodeWireError(requestID string, _ error) *brokerapi.ErrorResponse {

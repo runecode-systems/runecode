@@ -27,12 +27,27 @@ func assertRunListAndDetailForLocalOps(t *testing.T, s *Service) {
 	if len(runList.Runs) != 1 || runList.Runs[0].RunID != "run-123" {
 		t.Fatalf("run list = %+v, want run-123", runList.Runs)
 	}
+	if runList.Runs[0].WorkspaceID != "workspace-run-123" {
+		t.Fatalf("workspace_id = %q, want workspace-run-123", runList.Runs[0].WorkspaceID)
+	}
+	if runList.Runs[0].WorkflowKind == "" {
+		t.Fatal("workflow_kind should be populated")
+	}
+	if runList.Runs[0].WorkflowDefinitionHash == "" {
+		t.Fatal("workflow_definition_hash should be populated")
+	}
 	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-get", RunID: "run-123"}, RequestContext{})
 	if errResp != nil {
 		t.Fatalf("HandleRunGet error response: %+v", errResp)
 	}
 	if runGet.Run.Summary.RunID != "run-123" {
 		t.Fatalf("run detail run_id = %q, want run-123", runGet.Run.Summary.RunID)
+	}
+	if len(runGet.Run.ActiveManifestHashes) == 0 {
+		t.Fatal("run detail active_manifest_hashes should not be empty")
+	}
+	if runGet.Run.AuthoritativeState["source"] != "broker_store" {
+		t.Fatalf("authoritative_state.source = %v, want broker_store", runGet.Run.AuthoritativeState["source"])
 	}
 }
 

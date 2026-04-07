@@ -136,6 +136,10 @@ func (s *Service) LatestAuditVerificationSurface(limit int) (AuditVerificationSu
 	return AuditVerificationSurface{Summary: summary, Report: report, Views: views}, nil
 }
 
+func (s *Service) APILimits() Limits {
+	return s.apiConfig.Limits
+}
+
 func ParseDataClass(value string) (artifacts.DataClass, error) {
 	class := artifacts.DataClass(value)
 	switch class {

@@ -65,6 +65,7 @@ func buildResolvedApprovalRecord(req ApprovalResolveRequest, approvalID, decisio
 			ApprovalAssuranceLevel: decodeDecisionString(req.SignedApprovalDecision.Payload, "approval_assurance_level", "reauthenticated"),
 			PresenceMode:           decodeDecisionString(req.SignedApprovalDecision.Payload, "presence_mode", "hardware_touch"),
 			BoundScope:             req.BoundScope,
+			PolicyDecisionHash:     decisionDigest,
 			RequestDigest:          approvalID,
 			DecisionDigest:         decisionDigest,
 		},

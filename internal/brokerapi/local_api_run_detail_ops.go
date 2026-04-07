@@ -1,6 +1,7 @@
 package brokerapi
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -56,20 +57,35 @@ func runPendingApprovalIDs(approvals []ApprovalSummary, runID string) []string {
 }
 
 func buildRunDetail(summary RunSummary, verification AuditVerificationSurface, artifactsForRun []artifacts.ArtifactRecord, classCount map[string]int, pendingIDs []string) RunDetail {
+	manifestHashes := activeManifestHashes(summary, artifactsForRun)
+	policyRefs := latestPolicyDecisionRefs(artifactsForRun)
+	stageSummaries := []RunStageSummary{buildRunStageSummary(summary, artifactsForRun, pendingIDs)}
+	roleSummaries := buildRunRoleSummaries(summary, artifactsForRun)
+	authoritativeState := map[string]any{
+		"source":                 "broker_store",
+		"status":                 summary.LifecycleState,
+		"artifact_count":         len(artifactsForRun),
+		"pending_approval_count": len(pendingIDs),
+	}
+	advisoryState := map[string]any{
+		"source":           "runner_advisory",
+		"available":        false,
+		"advisory_version": "0",
+	}
 	return RunDetail{
 		SchemaID:                 "runecode.protocol.v0.RunDetail",
 		SchemaVersion:            "0.1.0",
 		Summary:                  summary,
-		StageSummaries:           []RunStageSummary{buildRunStageSummary(summary, artifactsForRun, pendingIDs)},
-		RoleSummaries:            []RunRoleSummary{buildRunRoleSummary(summary, artifactsForRun)},
+		StageSummaries:           stageSummaries,
+		RoleSummaries:            roleSummaries,
 		Coordination:             buildRunCoordinationSummary(summary),
 		AuditSummary:             verification.Summary,
 		ArtifactCountsByClass:    classCount,
 		PendingApprovalIDs:       pendingIDs,
-		ActiveManifestHashes:     []string{"sha256:" + strings.Repeat("0", 64)},
-		LatestPolicyDecisionRefs: []string{},
-		AuthoritativeState:       map[string]any{"source": "broker_store", "status": summary.LifecycleState},
-		AdvisoryState:            map[string]any{"source": "runner_advisory", "available": false},
+		ActiveManifestHashes:     manifestHashes,
+		LatestPolicyDecisionRefs: policyRefs,
+		AuthoritativeState:       authoritativeState,
+		AdvisoryState:            advisoryState,
 	}
 }
 
@@ -86,15 +102,42 @@ func buildRunStageSummary(summary RunSummary, artifactsForRun []artifacts.Artifa
 	}
 }
 
-func buildRunRoleSummary(summary RunSummary, artifactsForRun []artifacts.ArtifactRecord) RunRoleSummary {
-	return RunRoleSummary{
-		SchemaID:        "runecode.protocol.v0.RunRoleSummary",
-		SchemaVersion:   "0.1.0",
-		RoleInstanceID:  "workspace-1",
-		RoleKind:        "workspace",
-		LifecycleState:  summary.LifecycleState,
-		ActiveItemCount: len(artifactsForRun),
+func buildRunRoleSummaries(summary RunSummary, artifactsForRun []artifacts.ArtifactRecord) []RunRoleSummary {
+	counts := map[string]int{}
+	for _, record := range artifactsForRun {
+		role := strings.TrimSpace(record.CreatedByRole)
+		if role == "" {
+			role = "unknown"
+		}
+		counts[role]++
 	}
+	if len(counts) == 0 {
+		return []RunRoleSummary{{
+			SchemaID:        "runecode.protocol.v0.RunRoleSummary",
+			SchemaVersion:   "0.1.0",
+			RoleInstanceID:  runRoleInstanceID("workspace"),
+			RoleKind:        "workspace",
+			LifecycleState:  summary.LifecycleState,
+			ActiveItemCount: 0,
+		}}
+	}
+	roles := make([]string, 0, len(counts))
+	for role := range counts {
+		roles = append(roles, role)
+	}
+	sort.Strings(roles)
+	out := make([]RunRoleSummary, 0, len(roles))
+	for _, role := range roles {
+		out = append(out, RunRoleSummary{
+			SchemaID:        "runecode.protocol.v0.RunRoleSummary",
+			SchemaVersion:   "0.1.0",
+			RoleInstanceID:  runRoleInstanceID(role),
+			RoleKind:        role,
+			LifecycleState:  summary.LifecycleState,
+			ActiveItemCount: counts[role],
+		})
+	}
+	return out
 }
 
 func buildRunCoordinationSummary(summary RunSummary) RunCoordinationSummary {
@@ -107,4 +150,35 @@ func buildRunCoordinationSummary(summary RunSummary) RunCoordinationSummary {
 		ConflictCount:    0,
 		CoordinationMode: "single_broker_queue",
 	}
+}
+
+func activeManifestHashes(summary RunSummary, artifactsForRun []artifacts.ArtifactRecord) []string {
+	values := make([]string, 0, len(artifactsForRun)+1)
+	for _, record := range artifactsForRun {
+		values = append(values, record.Reference.ProvenanceReceiptHash)
+	}
+	values = append(values, summary.WorkflowDefinitionHash)
+	unique := uniqueSortedDigests(values)
+	if len(unique) > 0 {
+		return unique
+	}
+	return []string{shaDigestIdentity("manifest:" + summary.RunID)}
+}
+
+func latestPolicyDecisionRefs(artifactsForRun []artifacts.ArtifactRecord) []string {
+	refs := make([]string, 0, len(artifactsForRun))
+	for _, record := range artifactsForRun {
+		if record.ApprovalDecisionHash == "" {
+			continue
+		}
+		refs = append(refs, fmt.Sprintf("approval_decision:%s", record.ApprovalDecisionHash))
+	}
+	if len(refs) == 0 {
+		return []string{}
+	}
+	sort.Strings(refs)
+	if len(refs) > 256 {
+		return refs[len(refs)-256:]
+	}
+	return refs
 }

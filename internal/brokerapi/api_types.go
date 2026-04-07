@@ -166,6 +166,15 @@ func validateMessageLimits(value any, limits Limits) error {
 	if err != nil {
 		return fmt.Errorf("marshal message: %w", err)
 	}
+	return validateRawMessageLimitsBytes(b, limits)
+}
+
+func ValidateRawMessageLimits(raw json.RawMessage, limits Limits) error {
+	return validateRawMessageLimitsBytes(raw, limits)
+}
+
+func validateRawMessageLimitsBytes(raw []byte, limits Limits) error {
+	b := raw
 	if len(b) > limits.MaxMessageBytes {
 		return fmt.Errorf("message size %d exceeds max %d", len(b), limits.MaxMessageBytes)
 	}
