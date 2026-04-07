@@ -74,6 +74,43 @@ func assertArtifactListAndHeadForLocalOps(t *testing.T, s *Service, digest strin
 	}
 }
 
+func TestArtifactListHonorsAscendingOrder(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	firstDigest := putPayloadArtifactForLocalOpsTest(t, s, "artifact-order-a", "run-order", "step-1")
+	time.Sleep(1100 * time.Millisecond)
+	secondDigest := putPayloadArtifactForLocalOpsTest(t, s, "artifact-order-b", "run-order", "step-2")
+
+	resp, errResp := s.HandleArtifactListV0(context.Background(), LocalArtifactListRequest{
+		SchemaID:      "runecode.protocol.v0.ArtifactListRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-art-order-asc",
+		RunID:         "run-order",
+		Order:         "created_at_asc",
+		Limit:         10,
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleArtifactListV0 error response: %+v", errResp)
+	}
+	if len(resp.Artifacts) != 2 {
+		t.Fatalf("artifact count = %d, want 2", len(resp.Artifacts))
+	}
+	if resp.Artifacts[0].Reference.Digest != firstDigest {
+		t.Fatalf("first digest = %q, want %q", resp.Artifacts[0].Reference.Digest, firstDigest)
+	}
+	if resp.Artifacts[1].Reference.Digest != secondDigest {
+		t.Fatalf("second digest = %q, want %q", resp.Artifacts[1].Reference.Digest, secondDigest)
+	}
+}
+
+func putPayloadArtifactForLocalOpsTest(t *testing.T, s *Service, payload, runID, stepID string) string {
+	t.Helper()
+	ref, putErr := s.Put(artifacts.PutRequest{Payload: []byte(payload), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64), CreatedByRole: "workspace", RunID: runID, StepID: stepID})
+	if putErr != nil {
+		t.Fatalf("Put returned error: %v", putErr)
+	}
+	return ref.Digest
+}
+
 func putRunScopedArtifactForLocalOpsTest(t *testing.T, s *Service, runID, stepID string) string {
 	t.Helper()
 	ref, putErr := s.Put(artifacts.PutRequest{Payload: []byte("artifact-a"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64), CreatedByRole: "workspace", RunID: runID, StepID: stepID})

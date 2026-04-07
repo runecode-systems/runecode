@@ -30,6 +30,9 @@ func (s *Store) Put(req PutRequest) (ArtifactReference, error) {
 }
 
 func (s *Store) putLocked(req PutRequest) (ArtifactReference, error) {
+	if req.TrustedSource && strings.TrimSpace(req.CreatedByRole) == "" {
+		return ArtifactReference{}, ErrTrustedCreatedByRoleRequired
+	}
 	actorRole := createdByRole(req)
 	payload, digest, err := s.preparePutPayload(req)
 	if err != nil {

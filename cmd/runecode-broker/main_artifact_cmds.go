@@ -97,13 +97,19 @@ func writeArtifactEventsToFile(events []brokerapi.ArtifactStreamEvent, outPath s
 	}
 	defer os.Remove(tmpPath)
 	var written int64
+	sawCompletedTerminal := false
 	for _, event := range events {
-		n, processErr := processArtifactFileEvent(f, event)
+		n, completedTerminal, processErr := processArtifactFileEvent(f, event)
 		if processErr != nil {
 			_ = f.Close()
 			return 0, processErr
 		}
 		written += int64(n)
+		sawCompletedTerminal = sawCompletedTerminal || completedTerminal
+	}
+	if !sawCompletedTerminal {
+		_ = f.Close()
+		return 0, fmt.Errorf("artifact stream did not complete successfully")
 	}
 	if err := f.Sync(); err != nil {
 		_ = f.Close()
@@ -118,20 +124,25 @@ func writeArtifactEventsToFile(events []brokerapi.ArtifactStreamEvent, outPath s
 	return written, nil
 }
 
-func processArtifactFileEvent(f *os.File, event brokerapi.ArtifactStreamEvent) (int, error) {
+func processArtifactFileEvent(f *os.File, event brokerapi.ArtifactStreamEvent) (int, bool, error) {
 	switch event.EventType {
 	case "artifact_stream_chunk":
 		chunk, err := base64.StdEncoding.DecodeString(event.ChunkBase64)
 		if err != nil {
-			return 0, err
+			return 0, false, err
 		}
-		return f.Write(chunk)
+		n, err := f.Write(chunk)
+		return n, false, err
 	case "artifact_stream_terminal":
 		if event.Error != nil {
-			return 0, fmt.Errorf("%s: %s", event.Error.Code, event.Error.Message)
+			return 0, false, fmt.Errorf("%s: %s", event.Error.Code, event.Error.Message)
 		}
+		if event.TerminalStatus != "completed" {
+			return 0, false, fmt.Errorf("artifact stream terminal status %q is not completed", event.TerminalStatus)
+		}
+		return 0, true, nil
 	}
-	return 0, nil
+	return 0, false, nil
 }
 
 func replaceFile(src, dst string) error {

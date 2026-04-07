@@ -25,7 +25,7 @@ func (s *Service) HandleArtifactListV0(ctx context.Context, req LocalArtifactLis
 	}
 	order := artifactListOrder(req.Order)
 	summaries := filterArtifactSummaries(s.List(), req)
-	sortArtifactSummariesNewestFirst(summaries)
+	sortArtifactSummariesByOrder(summaries, order)
 	limit := normalizeLimit(req.Limit, 100, 500)
 	page, next, err := paginate(summaries, req.Cursor, limit)
 	if err != nil {
@@ -45,6 +45,14 @@ func artifactListOrder(order string) string {
 		return "created_at_desc"
 	}
 	return order
+}
+
+func sortArtifactSummariesByOrder(items []ArtifactSummary, order string) {
+	if order == "created_at_asc" {
+		sortArtifactSummariesOldestFirst(items)
+		return
+	}
+	sortArtifactSummariesNewestFirst(items)
 }
 
 func filterArtifactSummaries(all []artifacts.ArtifactRecord, req LocalArtifactListRequest) []ArtifactSummary {

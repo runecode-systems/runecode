@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
 func TestPutListHeadGetArtifactCLI(t *testing.T) {
@@ -105,6 +106,66 @@ func TestGetArtifactCLIApprovedExcerptRequiresManifestOptIn(t *testing.T) {
 	}
 	if string(b) != "approved:\nprivate excerpt" {
 		t.Fatalf("approved get-artifact payload = %q, want approved payload", string(b))
+	}
+}
+
+func TestWriteArtifactEventsToFileRejectsCancelledTerminal(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "cancelled.txt")
+	events := []brokerapi.ArtifactStreamEvent{
+		{SchemaID: "runecode.protocol.v0.ArtifactStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 1, EventType: "artifact_stream_start", Digest: testDigest("1"), DataClass: "spec_text"},
+		{SchemaID: "runecode.protocol.v0.ArtifactStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 2, EventType: "artifact_stream_chunk", Digest: testDigest("1"), DataClass: "spec_text", ChunkBase64: "aGVsbG8=", ChunkBytes: 5},
+		{SchemaID: "runecode.protocol.v0.ArtifactStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 3, EventType: "artifact_stream_terminal", Digest: testDigest("1"), DataClass: "spec_text", Terminal: true, TerminalStatus: "cancelled"},
+	}
+
+	_, err := writeArtifactEventsToFile(events, outputPath)
+	if err == nil {
+		t.Fatal("writeArtifactEventsToFile expected cancelled terminal failure")
+	}
+	if !strings.Contains(err.Error(), "terminal status") {
+		t.Fatalf("error = %q, want terminal status failure", err.Error())
+	}
+	if _, statErr := os.Stat(outputPath); !os.IsNotExist(statErr) {
+		t.Fatalf("output file should not exist after cancelled stream, statErr=%v", statErr)
+	}
+}
+
+func TestWriteArtifactEventsToFileRequiresCompletedTerminal(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "missing-terminal.txt")
+	events := []brokerapi.ArtifactStreamEvent{
+		{SchemaID: "runecode.protocol.v0.ArtifactStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 1, EventType: "artifact_stream_start", Digest: testDigest("1"), DataClass: "spec_text"},
+		{SchemaID: "runecode.protocol.v0.ArtifactStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 2, EventType: "artifact_stream_chunk", Digest: testDigest("1"), DataClass: "spec_text", ChunkBase64: "aGVsbG8=", ChunkBytes: 5},
+	}
+
+	_, err := writeArtifactEventsToFile(events, outputPath)
+	if err == nil {
+		t.Fatal("writeArtifactEventsToFile expected missing terminal failure")
+	}
+	if !strings.Contains(err.Error(), "did not complete successfully") {
+		t.Fatalf("error = %q, want incomplete stream failure", err.Error())
+	}
+}
+
+func TestWriteArtifactEventsToFileSucceedsOnCompletedTerminal(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "completed.txt")
+	events := []brokerapi.ArtifactStreamEvent{
+		{SchemaID: "runecode.protocol.v0.ArtifactStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 1, EventType: "artifact_stream_start", Digest: testDigest("1"), DataClass: "spec_text"},
+		{SchemaID: "runecode.protocol.v0.ArtifactStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 2, EventType: "artifact_stream_chunk", Digest: testDigest("1"), DataClass: "spec_text", ChunkBase64: "aGVsbG8=", ChunkBytes: 5},
+		{SchemaID: "runecode.protocol.v0.ArtifactStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 3, EventType: "artifact_stream_terminal", Digest: testDigest("1"), DataClass: "spec_text", Terminal: true, TerminalStatus: "completed"},
+	}
+
+	written, err := writeArtifactEventsToFile(events, outputPath)
+	if err != nil {
+		t.Fatalf("writeArtifactEventsToFile returned error: %v", err)
+	}
+	if written != 5 {
+		t.Fatalf("written bytes = %d, want 5", written)
+	}
+	b, readErr := os.ReadFile(outputPath)
+	if readErr != nil {
+		t.Fatalf("ReadFile returned error: %v", readErr)
+	}
+	if string(b) != "hello" {
+		t.Fatalf("output payload = %q, want hello", string(b))
 	}
 }
 
