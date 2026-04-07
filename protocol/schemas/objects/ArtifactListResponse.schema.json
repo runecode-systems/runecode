@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ArtifactListResponse.schema.json",
+  "title": "ArtifactListResponse",
+  "description": "Typed artifact list response with ordering semantics and continuation cursor.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 6,
+  "required": ["schema_id", "schema_version", "request_id", "order", "artifacts"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ArtifactListResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable echoed request identifier.", "x-data-class": "public" },
+    "order": { "type": "string", "enum": ["created_at_desc", "created_at_asc"], "description": "Ordering applied to this page.", "x-data-class": "public" },
+    "artifacts": { "type": "array", "maxItems": 500, "description": "Artifact summary entries.", "x-data-class": "public", "items": { "$ref": "ArtifactSummary.schema.json", "description": "Artifact summary entry.", "x-data-class": "public" } },
+    "next_cursor": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Opaque continuation cursor.", "x-data-class": "public" }
+  }
+}

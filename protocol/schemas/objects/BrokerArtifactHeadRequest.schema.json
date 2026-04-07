@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/BrokerArtifactHeadRequest.schema.json",
+  "title": "BrokerArtifactHeadRequest",
+  "description": "Typed broker artifact-head request family for metadata reads by digest.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 4,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "request_id",
+    "digest"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.BrokerArtifactHeadRequest",
+      "description": "Stable protocol object-family identifier for artifact head requests.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this artifact head request.",
+      "x-data-class": "public"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Stable client-provided request identifier echoed by all responses.",
+      "x-data-class": "public"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "maxLength": 71,
+      "description": "Canonical digest identity of the artifact metadata to retrieve.",
+      "x-data-class": "public"
+    }
+  }
+}

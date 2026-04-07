@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/BrokerReadiness.schema.json",
+  "title": "BrokerReadiness",
+  "description": "Broker readiness model mapped from auditd readiness dimensions for local supervision.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 10,
+  "required": ["schema_id", "schema_version", "ready", "local_only", "consumption_channel", "recovery_complete", "append_position_stable", "current_segment_writable", "verifier_material_available", "derived_index_caught_up"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.BrokerReadiness", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "ready": { "type": "boolean", "description": "Aggregated readiness flag.", "x-data-class": "public" },
+    "local_only": { "type": "boolean", "description": "Signals that readiness is local-only for broker API consumption.", "x-data-class": "public" },
+    "consumption_channel": { "type": "string", "const": "broker_local_api", "description": "Readiness consumption channel contract value.", "x-data-class": "public" },
+    "recovery_complete": { "type": "boolean", "description": "Audit recovery completion flag.", "x-data-class": "public" },
+    "append_position_stable": { "type": "boolean", "description": "Append-position stability flag.", "x-data-class": "public" },
+    "current_segment_writable": { "type": "boolean", "description": "Current segment writable posture.", "x-data-class": "public" },
+    "verifier_material_available": { "type": "boolean", "description": "Verifier material availability flag.", "x-data-class": "public" },
+    "derived_index_caught_up": { "type": "boolean", "description": "Derived index catch-up flag.", "x-data-class": "public" }
+  }
+}

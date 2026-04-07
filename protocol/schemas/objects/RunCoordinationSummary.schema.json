@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/RunCoordinationSummary.schema.json",
+  "title": "RunCoordinationSummary",
+  "description": "Topology-neutral coordination posture summary for a run.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 8,
+  "required": ["schema_id", "schema_version", "blocked", "lock_count", "conflict_count", "coordination_mode"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.RunCoordinationSummary", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "blocked": { "type": "boolean", "description": "Whether coordination currently blocks progress.", "x-data-class": "public" },
+    "wait_reason_code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 128, "description": "Optional machine-readable wait reason code.", "x-data-class": "public" },
+    "lock_count": { "type": "integer", "minimum": 0, "description": "Current lock count.", "x-data-class": "public" },
+    "conflict_count": { "type": "integer", "minimum": 0, "description": "Current conflict count.", "x-data-class": "public" },
+    "coordination_mode": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Coordination mode label.", "x-data-class": "public" }
+  }
+}

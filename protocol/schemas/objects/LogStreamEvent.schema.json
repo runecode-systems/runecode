@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/LogStreamEvent.schema.json",
+  "title": "LogStreamEvent",
+  "description": "Typed broker log stream event envelope with uniform transport-neutral stream semantics.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 15,
+  "required": ["schema_id", "schema_version", "stream_id", "request_id", "seq", "event_type"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.LogStreamEvent", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "stream_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Stable stream identifier.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Correlated request identifier.", "x-data-class": "public" },
+    "seq": { "type": "integer", "minimum": 1, "description": "Monotonic stream event sequence number.", "x-data-class": "public" },
+    "event_type": {
+      "type": "string",
+      "enum": ["log_stream_start", "log_stream_chunk", "log_stream_terminal"],
+      "description": "Log stream event type.",
+      "x-data-class": "public"
+    },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional run scope for the event.", "x-data-class": "public" },
+    "role_instance_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional role-instance scope for the event.", "x-data-class": "public" },
+    "cursor": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Opaque stream cursor for chunk events.", "x-data-class": "public" },
+    "timestamp": { "type": "string", "format": "date-time", "maxLength": 64, "description": "RFC3339 timestamp of emitted log record.", "x-data-class": "public" },
+    "level": { "type": "string", "enum": ["debug", "info", "warn", "error"], "description": "Log severity level for chunk events.", "x-data-class": "public" },
+    "message": { "type": "string", "minLength": 1, "maxLength": 65536, "description": "Log message payload for chunk events.", "x-data-class": "public" },
+    "terminal": { "type": "boolean", "description": "True only for terminal event.", "x-data-class": "public" },
+    "terminal_status": {
+      "type": "string",
+      "enum": ["completed", "failed", "cancelled"],
+      "description": "In-band terminal status for the stream lifecycle.",
+      "x-data-class": "public"
+    },
+    "error": { "$ref": "Error.schema.json", "description": "Typed terminal error payload for failed terminal event.", "x-data-class": "public" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "event_type": { "const": "log_stream_start" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            { "required": ["cursor"] },
+            { "required": ["timestamp"] },
+            { "required": ["level"] },
+            { "required": ["message"] },
+            { "required": ["terminal_status"] },
+            { "required": ["error"] }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "log_stream_chunk" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["cursor", "timestamp", "level", "message"],
+        "not": {
+          "anyOf": [
+            { "required": ["terminal"] },
+            { "required": ["terminal_status"] },
+            { "required": ["error"] }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "log_stream_terminal" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["terminal", "terminal_status"],
+        "properties": {
+          "terminal": { "const": true }
+        },
+        "not": {
+          "anyOf": [
+            { "required": ["cursor"] },
+            { "required": ["timestamp"] },
+            { "required": ["level"] },
+            { "required": ["message"] }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": { "const": "log_stream_terminal" },
+          "terminal_status": { "const": "failed" }
+        },
+        "required": ["event_type", "terminal_status"]
+      },
+      "then": {
+        "required": ["error"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": { "const": "log_stream_terminal" },
+          "terminal_status": { "enum": ["completed", "cancelled"] }
+        },
+        "required": ["event_type", "terminal_status"]
+      },
+      "then": {
+        "not": {
+          "required": ["error"]
+        }
+      }
+    }
+  ]
+}

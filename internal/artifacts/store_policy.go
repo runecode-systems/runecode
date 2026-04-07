@@ -18,6 +18,13 @@ func (s *Store) CheckFlow(req FlowCheckRequest) error {
 	if err != nil {
 		return err
 	}
+	if record.CreatedByRole != req.ProducerRole {
+		auditErr := s.appendAuditLocked("artifact_flow_blocked", req.ProducerRole, map[string]interface{}{"reason": "artifact_producer_role_mismatch", "digest": req.Digest, "requested_producer_role": req.ProducerRole, "actual_producer_role": record.CreatedByRole})
+		if auditErr != nil {
+			return errors.Join(ErrFlowProducerRoleMismatch, auditErr)
+		}
+		return ErrFlowProducerRoleMismatch
+	}
 	if record.Reference.DataClass != req.DataClass {
 		auditErr := s.appendAuditLocked("artifact_flow_blocked", req.ProducerRole, map[string]interface{}{"reason": "artifact_data_class_mismatch", "digest": req.Digest, "requested_data_class": req.DataClass, "actual_data_class": record.Reference.DataClass})
 		if auditErr != nil {

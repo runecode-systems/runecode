@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ArtifactReadRequest.schema.json",
+  "title": "ArtifactReadRequest",
+  "description": "Typed artifact stream read request shape for broker-mediated byte downloads.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 12,
+  "required": ["schema_id", "schema_version", "request_id", "digest", "producer_role", "consumer_role"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ArtifactReadRequest", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable request identifier.", "x-data-class": "public" },
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Artifact digest identity.", "x-data-class": "public" },
+    "producer_role": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Producer role bound to artifact flow check.", "x-data-class": "public" },
+    "consumer_role": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Consumer role requesting broker-mediated read.", "x-data-class": "public" },
+    "manifest_opt_in": { "type": "boolean", "description": "Manifest opt-in posture for approved excerpt egress.", "x-data-class": "public" },
+    "data_class": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional expected data_class; when omitted broker derives from digest.", "x-data-class": "public" },
+    "range_start": { "type": "integer", "minimum": 0, "description": "Optional byte range start (MVP rejects range requests).", "x-data-class": "public" },
+    "range_end": { "type": "integer", "minimum": 0, "description": "Optional byte range end (MVP rejects range requests).", "x-data-class": "public" },
+    "stream_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional client stream identifier.", "x-data-class": "public" },
+    "chunk_bytes": { "type": "integer", "minimum": 1, "maximum": 65536, "description": "Requested stream chunk size.", "x-data-class": "public" }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ApprovalListRequest.schema.json",
+  "title": "ApprovalListRequest",
+  "description": "Typed approval list request with pending-first ordering semantics and opaque cursor paging.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 8,
+  "required": ["schema_id", "schema_version", "request_id"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ApprovalListRequest", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable request identifier.", "x-data-class": "public" },
+    "cursor": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Opaque cursor.", "x-data-class": "public" },
+    "limit": { "type": "integer", "minimum": 1, "maximum": 200, "description": "Page size.", "x-data-class": "public" },
+    "order": { "type": "string", "enum": ["pending_first_newest_within_status"], "description": "Explicit approval ordering semantics.", "x-data-class": "public" },
+    "status": { "type": "string", "enum": ["pending", "approved", "denied", "expired", "cancelled", "superseded", "consumed"], "description": "Optional approval status filter.", "x-data-class": "public" },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional run scope filter.", "x-data-class": "public" }
+  }
+}

@@ -1,6 +1,6 @@
 {
   "bundle_id": "runecode.protocol.v0",
-  "bundle_version": "0.4.0",
+  "bundle_version": "0.5.0",
   "json_schema_draft": "2020-12",
   "runtime_schema_prefix": "runecode.protocol.v0.",
   "canonicalization": "RFC8785-JCS",
@@ -163,6 +163,307 @@
     {
       "path": "objects/VerifierRecord.schema.json",
       "schema_id": "runecode.protocol.v0.VerifierRecord",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BrokerArtifactListRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.BrokerArtifactListRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BrokerArtifactListResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.BrokerArtifactListResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BrokerArtifactHeadRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.BrokerArtifactHeadRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BrokerArtifactHeadResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.BrokerArtifactHeadResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BrokerArtifactPutRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.BrokerArtifactPutRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BrokerArtifactPutResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.BrokerArtifactPutResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BrokerErrorResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.BrokerErrorResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunSummary.schema.json",
+      "schema_id": "runecode.protocol.v0.RunSummary",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunDetail.schema.json",
+      "schema_id": "runecode.protocol.v0.RunDetail",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunStageSummary.schema.json",
+      "schema_id": "runecode.protocol.v0.RunStageSummary",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunRoleSummary.schema.json",
+      "schema_id": "runecode.protocol.v0.RunRoleSummary",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunCoordinationSummary.schema.json",
+      "schema_id": "runecode.protocol.v0.RunCoordinationSummary",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalSummary.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalSummary",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalBoundScope.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalBoundScope",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ArtifactSummary.schema.json",
+      "schema_id": "runecode.protocol.v0.ArtifactSummary",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BrokerReadiness.schema.json",
+      "schema_id": "runecode.protocol.v0.BrokerReadiness",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BrokerVersionInfo.schema.json",
+      "schema_id": "runecode.protocol.v0.BrokerVersionInfo",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunListRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.RunListRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunListResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.RunListResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.RunGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.RunGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalListRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalListRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalListResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalListResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalResolveRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalResolveRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalResolveResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalResolveResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ArtifactListRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ArtifactListRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ArtifactListResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ArtifactListResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ArtifactHeadRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ArtifactHeadRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ArtifactHeadResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ArtifactHeadResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ArtifactReadRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ArtifactReadRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ArtifactStreamEvent.schema.json",
+      "schema_id": "runecode.protocol.v0.ArtifactStreamEvent",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/LogStreamEvent.schema.json",
+      "schema_id": "runecode.protocol.v0.LogStreamEvent",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditTimelineRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditTimelineRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditTimelineResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditTimelineResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditVerificationGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditVerificationGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditVerificationGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditVerificationGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/LogStreamRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.LogStreamRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ReadinessGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ReadinessGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ReadinessGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ReadinessGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/VersionInfoGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.VersionInfoGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/VersionInfoGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.VersionInfoGetResponse",
       "schema_version": "0.1.0",
       "owner": "protocol",
       "status": "mvp"

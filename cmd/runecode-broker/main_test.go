@@ -8,6 +8,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,6 +41,109 @@ func TestHelpAndUnknownCommand(t *testing.T) {
 	}
 }
 
+func TestDefaultCLICommandsDoNotStartLocalListener(t *testing.T) {
+	setBrokerServiceForTest(t)
+	originalListen := localIPCListen
+	localIPCListen = func(_ brokerapi.LocalIPCConfig) (*brokerapi.LocalIPCListener, error) {
+		t.Fatal("localIPCListen should not be called for non-serve-local commands")
+		return nil, nil
+	}
+	t.Cleanup(func() { localIPCListen = originalListen })
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	if err := run([]string{"list-artifacts"}, stdout, stderr); err != nil {
+		t.Fatalf("list-artifacts returned error: %v", err)
+	}
+}
+
+func TestServeLocalUsesLocalIPCListener(t *testing.T) {
+	setBrokerServiceForTest(t)
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	clientErr, clientDone := startServeLocalClientProbe(t, runtimeDir)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	if err := run([]string{"serve-local", "--once", "--runtime-dir", runtimeDir}, stdout, stderr); err != nil {
+		t.Fatalf("serve-local --once returned error: %v", err)
+	}
+	awaitServeLocalClientProbe(t, clientErr, clientDone)
+	if !strings.Contains(stdout.String(), "local broker api listening") {
+		t.Fatalf("serve-local output = %q, want listening banner", stdout.String())
+	}
+}
+
+func startServeLocalClientProbe(t *testing.T, runtimeDir string) (<-chan error, <-chan struct{}) {
+	t.Helper()
+	clientErr := make(chan error, 1)
+	clientDone := make(chan struct{}, 1)
+	go func() {
+		probeServeLocalClient(t, runtimeDir, clientErr, clientDone)
+	}()
+	return clientErr, clientDone
+}
+
+func awaitServeLocalClientProbe(t *testing.T, clientErr <-chan error, clientDone <-chan struct{}) {
+	t.Helper()
+	select {
+	case err := <-clientErr:
+		t.Fatalf("serve-local client request failed: %v", err)
+	case <-clientDone:
+	case <-time.After(3 * time.Second):
+		t.Fatal("serve-local client did not complete in time")
+	}
+}
+
+func probeServeLocalClient(t *testing.T, runtimeDir string, clientErr chan<- error, clientDone chan<- struct{}) {
+	t.Helper()
+	for i := 0; i < 200; i++ {
+		socketPath := filepath.Join(runtimeDir, "broker.sock")
+		conn, err := net.Dial("unix", socketPath)
+		if err == nil {
+			if err := requestRunListViaLocalRPC(t, conn); err != nil {
+				clientErr <- err
+				return
+			}
+			clientDone <- struct{}{}
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	clientErr <- fmt.Errorf("failed to connect to serve-local socket")
+}
+
+func requestRunListViaLocalRPC(t *testing.T, conn net.Conn) error {
+	t.Helper()
+	defer conn.Close()
+	encoder := json.NewEncoder(conn)
+	decoder := json.NewDecoder(conn)
+	wire := localRPCRequest{Operation: "run_list", Request: mustJSONRawMessage(t, brokerapi.RunListRequest{
+		SchemaID:      "runecode.protocol.v0.RunListRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-serve-local-test",
+		Limit:         10,
+	})}
+	if err := encoder.Encode(wire); err != nil {
+		return err
+	}
+	resp := localRPCResponse{}
+	if err := decoder.Decode(&resp); err != nil {
+		return err
+	}
+	if !resp.OK {
+		return fmt.Errorf("rpc failed: %+v", resp.Error)
+	}
+	return nil
+}
+
+func mustJSONRawMessage(t *testing.T, value any) json.RawMessage {
+	t.Helper()
+	b, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("Marshal JSON raw message error: %v", err)
+	}
+	return json.RawMessage(b)
+}
+
 func TestPutListHeadGetArtifactCLI(t *testing.T) {
 	root := setBrokerServiceForTest(t)
 	payloadPath := writeTempFile(t, "payload.txt", "hello artifact")
@@ -54,7 +159,7 @@ func TestPutListHeadGetArtifactCLI(t *testing.T) {
 		t.Fatalf("head digest = %q, want %q", record.Reference.Digest, ref.Digest)
 	}
 	outputPath := filepath.Join(t.TempDir(), "output.txt")
-	getArtifactViaCLI(t, stdout, stderr, ref.Digest, outputPath)
+	getArtifactViaCLI(t, stdout, stderr, ref.Digest, "workspace", "model_gateway", "", false, outputPath)
 	b, readErr := os.ReadFile(outputPath)
 	if readErr != nil {
 		t.Fatalf("read get-artifact output error: %v", readErr)
@@ -88,6 +193,64 @@ func TestPromotionFlowAndCheckFlowCLI(t *testing.T) {
 	err = run([]string{"check-flow", "--producer", "workspace", "--consumer", "model_gateway", "--data-class", "approved_file_excerpts", "--digest", approved.Digest, "--egress", "--manifest-opt-in"}, stdout, stderr)
 	if err != nil {
 		t.Fatalf("check-flow approved with opt-in error: %v", err)
+	}
+}
+
+func TestGetArtifactCLIRejectsMissingProducerConsumer(t *testing.T) {
+	setBrokerServiceForTest(t)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := run([]string{"get-artifact", "--digest", testDigest("a"), "--out", filepath.Join(t.TempDir(), "out.txt")}, stdout, stderr)
+	if err == nil {
+		t.Fatal("get-artifact expected usage error when producer/consumer missing")
+	}
+	if _, ok := err.(*usageError); !ok {
+		t.Fatalf("error type = %T, want *usageError", err)
+	}
+}
+
+func TestGetArtifactCLIApprovedExcerptRequiresManifestOptIn(t *testing.T) {
+	setBrokerServiceForTest(t)
+	stderr := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
+	unapprovedPath := writeTempFile(t, "excerpt.txt", "private excerpt")
+	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"))
+	approvalRequestPath, approvalEnvelopePath, verifierRecords := writeApprovalFixtures(t, "human", unapproved.Digest, "repo/file.txt", "abc123", "tool-v1")
+	seedTrustedVerifierForBrokerCLITest(t, verifierRecords)
+	approved := promoteViaCLI(t, stdout, stderr, unapproved.Digest, approvalRequestPath, approvalEnvelopePath)
+
+	outPath := filepath.Join(t.TempDir(), "approved.txt")
+	err := run([]string{"get-artifact", "--digest", approved.Digest, "--producer", "workspace", "--consumer", "model_gateway", "--data-class", "approved_file_excerpts", "--out", outPath}, stdout, stderr)
+	if err == nil {
+		t.Fatal("get-artifact expected manifest-opt-in policy rejection")
+	}
+	if !strings.Contains(err.Error(), "broker_limit_policy_rejected") {
+		t.Fatalf("error = %q, want typed policy rejection code", err.Error())
+	}
+
+	err = run([]string{"get-artifact", "--digest", approved.Digest, "--producer", "workspace", "--consumer", "model_gateway", "--data-class", "approved_file_excerpts", "--manifest-opt-in", "--out", outPath}, stdout, stderr)
+	if err != nil {
+		t.Fatalf("get-artifact with manifest opt-in returned error: %v", err)
+	}
+	b, readErr := os.ReadFile(outPath)
+	if readErr != nil {
+		t.Fatalf("read approved artifact output error: %v", readErr)
+	}
+	if string(b) != "approved:\nprivate excerpt" {
+		t.Fatalf("approved get-artifact payload = %q, want approved payload", string(b))
+	}
+}
+
+func TestHeadArtifactReturnsTypedValidationCodeForInvalidDigest(t *testing.T) {
+	setBrokerServiceForTest(t)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := run([]string{"head-artifact", "--digest", "invalid"}, stdout, stderr)
+	if err == nil {
+		t.Fatal("head-artifact expected validation error for invalid digest")
+	}
+	if !strings.Contains(err.Error(), "broker_validation_schema_invalid") {
+		t.Fatalf("error = %q, want typed broker validation code", err.Error())
 	}
 }
 
@@ -208,10 +371,17 @@ func headArtifactViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, digest strin
 	return record
 }
 
-func getArtifactViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, digest, out string) {
+func getArtifactViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, digest, producer, consumer, dataClass string, manifestOptIn bool, out string) {
 	t.Helper()
 	stdout.Reset()
-	err := run([]string{"get-artifact", "--digest", digest, "--out", out}, stdout, stderr)
+	args := []string{"get-artifact", "--digest", digest, "--producer", producer, "--consumer", consumer, "--out", out}
+	if dataClass != "" {
+		args = append(args, "--data-class", dataClass)
+	}
+	if manifestOptIn {
+		args = append(args, "--manifest-opt-in")
+	}
+	err := run(args, stdout, stderr)
 	if err != nil {
 		t.Fatalf("get-artifact returned error: %v", err)
 	}

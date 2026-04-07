@@ -2,16 +2,22 @@
 package main
 
 import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/auditd"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
+
+const localIPCMaxConcurrentConns = 64
 
 type usageError struct{ message string }
 
@@ -49,11 +55,13 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 }
 
 var brokerServiceFactory = brokerService
+var localIPCListen = brokerapi.ListenLocalIPC
 
 type commandHandler func([]string, *brokerapi.Service, io.Writer) error
 
 func commandHandlers() map[string]commandHandler {
 	return map[string]commandHandler{
+		"serve-local":             handleServeLocal,
 		"list-artifacts":          handleListArtifacts,
 		"head-artifact":           handleHeadArtifact,
 		"get-artifact":            handleGetArtifact,
@@ -73,8 +81,277 @@ func commandHandlers() map[string]commandHandler {
 	}
 }
 
+func handleServeLocal(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	cfg, once, err := parseServeLocalArgs(args)
+	if err != nil {
+		return err
+	}
+	listener, err := localIPCListen(cfg)
+	if err != nil {
+		return fmt.Errorf("local ipc startup failed: %w", err)
+	}
+	return serveLocalLoop(listener, service, stdout, once)
+}
+
+func parseServeLocalArgs(args []string) (brokerapi.LocalIPCConfig, bool, error) {
+	defaults, err := brokerapi.DefaultLocalIPCConfig()
+	if err != nil {
+		return brokerapi.LocalIPCConfig{}, false, err
+	}
+	fs := flag.NewFlagSet("serve-local", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	runtimeDir := fs.String("runtime-dir", defaults.RuntimeDir, "runtime directory for local unix socket")
+	socketName := fs.String("socket-name", defaults.SocketName, "socket filename")
+	once := fs.Bool("once", false, "accept a single connection and exit")
+	if err := fs.Parse(args); err != nil {
+		return brokerapi.LocalIPCConfig{}, false, &usageError{message: "serve-local usage: runecode-broker serve-local [--runtime-dir dir] [--socket-name broker.sock] [--once]"}
+	}
+	return brokerapi.LocalIPCConfig{RuntimeDir: *runtimeDir, SocketName: *socketName}, *once, nil
+}
+
+func serveLocalLoop(listener *brokerapi.LocalIPCListener, service *brokerapi.Service, stdout io.Writer, once bool) error {
+	defer listener.Close()
+	if _, err := fmt.Fprintln(stdout, "local broker api listening"); err != nil {
+		return err
+	}
+	connSlots := make(chan struct{}, localIPCMaxConcurrentConns)
+	for {
+		conn, err := listener.Listener.Accept()
+		if err != nil {
+			return err
+		}
+		done, err := handleAcceptedLocalConn(conn, service, connSlots, once)
+		if err != nil {
+			return err
+		}
+		if done {
+			return nil
+		}
+	}
+}
+
+func handleAcceptedLocalConn(conn net.Conn, service *brokerapi.Service, connSlots chan struct{}, once bool) (bool, error) {
+	creds, authErr := brokerapi.AuthenticateLocalPeer(conn, brokerapi.DefaultAdmissionPolicy())
+	if authErr != nil {
+		_ = conn.Close()
+		if once {
+			return false, authErr
+		}
+		return false, nil
+	}
+	if once {
+		return true, serveLocalConn(conn, service, creds)
+	}
+	connSlots <- struct{}{}
+	go func() {
+		defer func() { <-connSlots }()
+		if err := serveLocalConn(conn, service, creds); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "serve-local connection error: %v\n", err)
+		}
+	}()
+	return false, nil
+}
+
+type localRPCRequest struct {
+	Operation string          `json:"operation"`
+	Request   json.RawMessage `json:"request"`
+}
+
+type localRPCResponse struct {
+	OK       bool                     `json:"ok"`
+	Response any                      `json:"response,omitempty"`
+	Error    *brokerapi.ErrorResponse `json:"error,omitempty"`
+}
+
+type rpcOperationHandler func(json.RawMessage) localRPCResponse
+
+func serveLocalConn(conn io.ReadWriteCloser, service *brokerapi.Service, creds brokerapi.PeerCredentials) error {
+	defer conn.Close()
+	decoder := json.NewDecoder(conn)
+	encoder := json.NewEncoder(conn)
+	meta := brokerapi.RequestContext{ClientID: fmt.Sprintf("uid:%d/pid:%d", creds.UID, creds.PID), LaneID: "local_ipc"}
+	for {
+		wire := localRPCRequest{}
+		if err := decoder.Decode(&wire); err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+		resp := dispatchLocalRPC(service, wire, meta)
+		if err := encoder.Encode(resp); err != nil {
+			return err
+		}
+	}
+}
+
+func dispatchLocalRPC(service *brokerapi.Service, wire localRPCRequest, meta brokerapi.RequestContext) localRPCResponse {
+	handler, ok := localRPCHandlers(service, meta)[wire.Operation]
+	if !ok {
+		return localRPCResponse{OK: false, Error: decodeWireError("", fmt.Errorf("unsupported operation %q", wire.Operation))}
+	}
+	return handler(wire.Request)
+}
+
+func localRPCHandlers(service *brokerapi.Service, meta brokerapi.RequestContext) map[string]rpcOperationHandler {
+	handlers := map[string]rpcOperationHandler{}
+	mergeRPCHandlers(handlers, runApprovalRPCHandlers(service, meta))
+	mergeRPCHandlers(handlers, artifactRPCHandlers(service, meta))
+	mergeRPCHandlers(handlers, auditHealthRPCHandlers(service, meta))
+	return handlers
+}
+
+func mergeRPCHandlers(dst, src map[string]rpcOperationHandler) {
+	for key, handler := range src {
+		dst[key] = handler
+	}
+}
+
+func runApprovalRPCHandlers(service *brokerapi.Service, meta brokerapi.RequestContext) map[string]rpcOperationHandler {
+	return map[string]rpcOperationHandler{
+		"run_list": func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.RunListRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleRunList(context.Background(), req, meta)
+			})
+		},
+		"run_get": func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.RunGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleRunGet(context.Background(), req, meta)
+			})
+		},
+		"approval_list": func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ApprovalListRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleApprovalList(context.Background(), req, meta)
+			})
+		},
+		"approval_get": func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ApprovalGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleApprovalGet(context.Background(), req, meta)
+			})
+		},
+		"approval_resolve": func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ApprovalResolveRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleApprovalResolve(context.Background(), req, meta)
+			})
+		},
+	}
+}
+
+func artifactRPCHandlers(service *brokerapi.Service, meta brokerapi.RequestContext) map[string]rpcOperationHandler {
+	return map[string]rpcOperationHandler{
+		"artifact_list": func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.LocalArtifactListRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleArtifactListV0(context.Background(), req, meta)
+			})
+		},
+		"artifact_head": func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.LocalArtifactHeadRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleArtifactHeadV0(context.Background(), req, meta)
+			})
+		},
+		"artifact_read": func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandleArtifactRead(service, raw, meta)
+		},
+		"log_stream": func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandleLogStream(service, raw, meta)
+		},
+	}
+}
+
+func auditHealthRPCHandlers(service *brokerapi.Service, meta brokerapi.RequestContext) map[string]rpcOperationHandler {
+	return map[string]rpcOperationHandler{
+		"audit_timeline": func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.AuditTimelineRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleAuditTimeline(context.Background(), req, meta)
+			})
+		},
+		"audit_verification_get": func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.AuditVerificationGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleAuditVerificationGet(context.Background(), req, meta)
+			})
+		},
+		"readiness_get": func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ReadinessGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleReadinessGet(context.Background(), req, meta)
+			})
+		},
+		"version_info_get": func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.VersionInfoGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleVersionInfoGet(context.Background(), req, meta)
+			})
+		},
+	}
+}
+
+func decodeAndHandle[T any](raw json.RawMessage, handle func(T) (any, *brokerapi.ErrorResponse)) localRPCResponse {
+	var req T
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
+	}
+	resp, errResp := handle(req)
+	if errResp != nil {
+		return localRPCResponse{OK: false, Error: errResp}
+	}
+	return localRPCResponse{OK: true, Response: resp}
+}
+
+func decodeAndHandleArtifactRead(service *brokerapi.Service, raw json.RawMessage, meta brokerapi.RequestContext) localRPCResponse {
+	req := brokerapi.ArtifactReadRequest{}
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
+	}
+	handle, errResp := service.HandleArtifactRead(context.Background(), req, meta)
+	if errResp != nil {
+		return localRPCResponse{OK: false, Error: errResp}
+	}
+	events, err := service.StreamArtifactReadEvents(handle)
+	if err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError(req.RequestID, err)}
+	}
+	return localRPCResponse{OK: true, Response: events}
+}
+
+func decodeAndHandleLogStream(service *brokerapi.Service, raw json.RawMessage, meta brokerapi.RequestContext) localRPCResponse {
+	req := brokerapi.LogStreamRequest{}
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
+	}
+	ack, errResp := service.HandleLogStreamRequest(context.Background(), req, meta)
+	if errResp != nil {
+		return localRPCResponse{OK: false, Error: errResp}
+	}
+	events, err := service.StreamLogEvents(ack)
+	if err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError(req.RequestID, err)}
+	}
+	return localRPCResponse{OK: true, Response: events}
+}
+
+func decodeWireError(requestID string, err error) *brokerapi.ErrorResponse {
+	if requestID == "" {
+		requestID = "invalid_request"
+	}
+	return &brokerapi.ErrorResponse{
+		SchemaID:      "runecode.protocol.v0.BrokerErrorResponse",
+		SchemaVersion: "0.1.0",
+		RequestID:     requestID,
+		Error: brokerapi.ProtocolError{
+			SchemaID:      "runecode.protocol.v0.Error",
+			SchemaVersion: "0.3.0",
+			Code:          "broker_validation_schema_invalid",
+			Category:      "validation",
+			Retryable:     false,
+			Message:       err.Error(),
+		},
+	}
+}
+
 func handleListArtifacts(_ []string, service *brokerapi.Service, stdout io.Writer) error {
-	return writeJSON(stdout, service.List())
+	resp, errResp := service.HandleArtifactList(context.Background(), brokerapi.DefaultArtifactListRequest(defaultRequestID()), brokerapi.RequestContext{})
+	if errResp != nil {
+		return fmt.Errorf("%s: %s", errResp.Error.Code, errResp.Error.Message)
+	}
+	return writeJSON(stdout, resp.Artifacts)
 }
 
 func handleHeadArtifact(args []string, service *brokerapi.Service, stdout io.Writer) error {
@@ -87,58 +364,132 @@ func handleHeadArtifact(args []string, service *brokerapi.Service, stdout io.Wri
 	if *digest == "" {
 		return &usageError{message: "head-artifact requires --digest"}
 	}
-	record, err := service.Head(*digest)
-	if err != nil {
-		return err
+	resp, errResp := service.HandleArtifactHead(
+		context.Background(),
+		brokerapi.DefaultArtifactHeadRequest(defaultRequestID(), *digest),
+		brokerapi.RequestContext{},
+	)
+	if errResp != nil {
+		return fmt.Errorf("%s: %s", errResp.Error.Code, errResp.Error.Message)
 	}
-	return writeJSON(stdout, record)
+	return writeJSON(stdout, resp.Artifact)
 }
 
 func handleGetArtifact(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	opts, err := parseGetArtifactArgs(args)
+	if err != nil {
+		return err
+	}
+	handle, errResp := service.HandleArtifactRead(context.Background(), opts.toRequest(), brokerapi.RequestContext{})
+	if errResp != nil {
+		return fmt.Errorf("%s: %s", errResp.Error.Code, errResp.Error.Message)
+	}
+	events, err := service.StreamArtifactReadEvents(handle)
+	if err != nil {
+		return err
+	}
+	written, err := writeArtifactEventsToFile(events, opts.out)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "wrote %d bytes to %s\n", written, opts.out)
+	return err
+}
+
+type getArtifactOptions struct {
+	digest        string
+	producer      string
+	consumer      string
+	manifestOptIn bool
+	dataClass     string
+	out           string
+}
+
+func parseGetArtifactArgs(args []string) (getArtifactOptions, error) {
 	fs := flag.NewFlagSet("get-artifact", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	digest := fs.String("digest", "", "artifact digest")
+	producer := fs.String("producer", "", "producer role for flow check")
+	consumer := fs.String("consumer", "", "consumer role for flow check")
+	manifestOptIn := fs.Bool("manifest-opt-in", false, "manifest opt-in posture for approved excerpts")
+	dataClass := fs.String("data-class", "", "optional expected data class")
 	out := fs.String("out", "", "output file path")
 	if err := fs.Parse(args); err != nil {
-		return &usageError{message: "get-artifact usage: runecode-broker get-artifact --digest sha256:... --out path"}
+		return getArtifactOptions{}, &usageError{message: "get-artifact usage: runecode-broker get-artifact --digest sha256:... --producer role --consumer role [--manifest-opt-in] [--data-class class] --out path"}
 	}
-	if *digest == "" || *out == "" {
-		return &usageError{message: "get-artifact requires --digest and --out"}
+	if *digest == "" || *producer == "" || *consumer == "" || *out == "" {
+		return getArtifactOptions{}, &usageError{message: "get-artifact requires --digest --producer --consumer and --out"}
 	}
-	r, err := service.Get(*digest)
-	if err != nil {
-		return err
+	return getArtifactOptions{
+		digest:        *digest,
+		producer:      *producer,
+		consumer:      *consumer,
+		manifestOptIn: *manifestOptIn,
+		dataClass:     *dataClass,
+		out:           *out,
+	}, nil
+}
+
+func (o getArtifactOptions) toRequest() brokerapi.ArtifactReadRequest {
+	return brokerapi.ArtifactReadRequest{
+		SchemaID:      "runecode.protocol.v0.ArtifactReadRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     defaultRequestID(),
+		Digest:        o.digest,
+		ProducerRole:  o.producer,
+		ConsumerRole:  o.consumer,
+		ManifestOptIn: o.manifestOptIn,
+		DataClass:     o.dataClass,
 	}
-	tmpPath := *out + ".tmp"
+}
+
+func writeArtifactEventsToFile(events []brokerapi.ArtifactStreamEvent, outPath string) (int64, error) {
+	tmpPath := outPath + ".tmp"
 	f, err := os.Create(tmpPath)
 	if err != nil {
-		_ = r.Close()
-		return err
+		return 0, err
 	}
 	defer os.Remove(tmpPath)
-	written, err := io.Copy(f, r)
-	if err != nil {
-		_ = r.Close()
-		_ = f.Close()
-		return err
+	var written int64
+	for _, event := range events {
+		n, processErr := processArtifactFileEvent(f, event)
+		if processErr != nil {
+			_ = f.Close()
+			return 0, processErr
+		}
+		written += int64(n)
 	}
 	if err := f.Sync(); err != nil {
-		_ = r.Close()
 		_ = f.Close()
-		return err
+		return 0, err
 	}
 	if err := f.Close(); err != nil {
-		_ = r.Close()
-		return err
+		return 0, err
 	}
-	if err := r.Close(); err != nil {
-		return err
+	if err := replaceFile(tmpPath, outPath); err != nil {
+		return 0, err
 	}
-	if err := replaceFile(tmpPath, *out); err != nil {
-		return err
+	return written, nil
+}
+
+func processArtifactFileEvent(f *os.File, event brokerapi.ArtifactStreamEvent) (int, error) {
+	switch event.EventType {
+	case "artifact_stream_chunk":
+		chunk, err := base64.StdEncoding.DecodeString(event.ChunkBase64)
+		if err != nil {
+			return 0, err
+		}
+		n, err := f.Write(chunk)
+		if err != nil {
+			return 0, err
+		}
+		return n, nil
+	case "artifact_stream_terminal":
+		if event.Error != nil {
+			return 0, fmt.Errorf("%s: %s", event.Error.Code, event.Error.Message)
+		}
 	}
-	_, err = fmt.Fprintf(stdout, "wrote %d bytes to %s\n", written, *out)
-	return err
+	return 0, nil
 }
 
 func replaceFile(src, dst string) error {
@@ -171,24 +522,12 @@ func handlePutArtifact(args []string, service *brokerapi.Service, stdout io.Writ
 	if err != nil {
 		return err
 	}
-	class, err := brokerapi.ParseDataClass(*dataClass)
-	if err != nil {
-		return &usageError{message: err.Error()}
+	request := brokerapi.DefaultArtifactPutRequest(defaultRequestID(), payload, *contentType, *dataClass, *provenance, *role, *runID, *stepID)
+	resp, errResp := service.HandleArtifactPut(context.Background(), request, brokerapi.RequestContext{})
+	if errResp != nil {
+		return fmt.Errorf("%s: %s", errResp.Error.Code, errResp.Error.Message)
 	}
-	ref, err := service.Put(artifacts.PutRequest{
-		Payload:               payload,
-		ContentType:           *contentType,
-		DataClass:             class,
-		ProvenanceReceiptHash: *provenance,
-		CreatedByRole:         *role,
-		TrustedSource:         false,
-		RunID:                 *runID,
-		StepID:                *stepID,
-	})
-	if err != nil {
-		return err
-	}
-	return writeJSON(stdout, ref)
+	return writeJSON(stdout, resp.Artifact)
 }
 
 func handleCheckFlow(args []string, service *brokerapi.Service, stdout io.Writer) error {
@@ -376,9 +715,10 @@ func writeHelp(w io.Writer) error {
 	_, err := fmt.Fprintln(w, `Usage: runecode-broker <command> [flags]
 
 Commands:
+  serve-local [--runtime-dir dir] [--socket-name broker.sock] [--once]
   list-artifacts
   head-artifact --digest sha256:...
-  get-artifact --digest sha256:... --out path
+  get-artifact --digest sha256:... --producer role --consumer role [--manifest-opt-in] [--data-class class] --out path
   put-artifact --file path --content-type type --data-class class --provenance-hash sha256:...
   check-flow --producer role --consumer role --data-class class --digest sha256:... [--egress] [--manifest-opt-in]
   promote-excerpt --unapproved-digest sha256:... --approver user --approval-request approval-request.json --approval-envelope approval.json --repo-path path --commit hash --extractor-version v1 --full-content-visible

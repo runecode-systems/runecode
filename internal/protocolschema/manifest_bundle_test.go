@@ -15,21 +15,94 @@ func TestSchemaManifestMatchesSchemas(t *testing.T) {
 	assertManifestFileSet(t, manifest.SchemaFiles, "objects", ".schema.json")
 	assertManifestRegistryFileSet(t, manifest.Registries)
 	assertSchemaManifestEntries(t, manifest)
+	assertReservedStatuses(t, manifest)
+	assertSchemaVersions(t, manifest)
+}
+
+func assertReservedStatuses(t *testing.T, manifest manifestFile) {
+	t.Helper()
 	assertReservedStatus(t, manifest, "runecode.protocol.v0.WorkflowDefinition")
 	assertReservedStatus(t, manifest, "runecode.protocol.v0.ProcessDefinition")
-	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.ArtifactReference", "0.3.0")
-	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.ArtifactPolicy", "0.1.0")
-	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.AuditRecordDigest", "0.1.0")
-	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.AuditEvent", "0.5.0")
-	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.AuditEventContractCatalog", "0.1.0")
-	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.AuditReceipt", "0.4.0")
-	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.AuditSegmentSeal", "0.2.0")
-	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.AuditSegmentFile", "0.1.0")
-	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.AuditVerificationReport", "0.1.0")
-	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.SignedObjectEnvelope", "0.2.0")
-	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.ApprovalRequest", "0.3.0")
-	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.ApprovalDecision", "0.3.0")
-	assertManifestSchemaVersion(t, manifest, "runecode.protocol.v0.VerifierRecord", "0.1.0")
+}
+
+func assertSchemaVersions(t *testing.T, manifest manifestFile) {
+	t.Helper()
+	assertSchemaVersionsCore(t, manifest)
+	assertSchemaVersionsLocalBroker(t, manifest)
+}
+
+func assertSchemaVersionsCore(t *testing.T, manifest manifestFile) {
+	t.Helper()
+	versions := map[string]string{
+		"runecode.protocol.v0.ArtifactReference":          "0.3.0",
+		"runecode.protocol.v0.ArtifactPolicy":             "0.1.0",
+		"runecode.protocol.v0.AuditRecordDigest":          "0.1.0",
+		"runecode.protocol.v0.AuditEvent":                 "0.5.0",
+		"runecode.protocol.v0.AuditEventContractCatalog":  "0.1.0",
+		"runecode.protocol.v0.AuditReceipt":               "0.4.0",
+		"runecode.protocol.v0.AuditSegmentSeal":           "0.2.0",
+		"runecode.protocol.v0.AuditSegmentFile":           "0.1.0",
+		"runecode.protocol.v0.AuditVerificationReport":    "0.1.0",
+		"runecode.protocol.v0.SignedObjectEnvelope":       "0.2.0",
+		"runecode.protocol.v0.ApprovalRequest":            "0.3.0",
+		"runecode.protocol.v0.ApprovalDecision":           "0.3.0",
+		"runecode.protocol.v0.VerifierRecord":             "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactListRequest":  "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactListResponse": "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactHeadRequest":  "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactHeadResponse": "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactPutRequest":   "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactPutResponse":  "0.1.0",
+		"runecode.protocol.v0.BrokerErrorResponse":        "0.1.0",
+	}
+	for schemaID, version := range versions {
+		assertManifestSchemaVersion(t, manifest, schemaID, version)
+	}
+}
+
+func assertSchemaVersionsLocalBroker(t *testing.T, manifest manifestFile) {
+	t.Helper()
+	versions := map[string]string{
+		"runecode.protocol.v0.RunSummary":                   "0.1.0",
+		"runecode.protocol.v0.RunDetail":                    "0.1.0",
+		"runecode.protocol.v0.RunStageSummary":              "0.1.0",
+		"runecode.protocol.v0.RunRoleSummary":               "0.1.0",
+		"runecode.protocol.v0.RunCoordinationSummary":       "0.1.0",
+		"runecode.protocol.v0.ApprovalSummary":              "0.1.0",
+		"runecode.protocol.v0.ApprovalBoundScope":           "0.1.0",
+		"runecode.protocol.v0.ArtifactSummary":              "0.1.0",
+		"runecode.protocol.v0.BrokerReadiness":              "0.1.0",
+		"runecode.protocol.v0.BrokerVersionInfo":            "0.1.0",
+		"runecode.protocol.v0.RunListRequest":               "0.1.0",
+		"runecode.protocol.v0.RunListResponse":              "0.1.0",
+		"runecode.protocol.v0.RunGetRequest":                "0.1.0",
+		"runecode.protocol.v0.RunGetResponse":               "0.1.0",
+		"runecode.protocol.v0.ApprovalListRequest":          "0.1.0",
+		"runecode.protocol.v0.ApprovalListResponse":         "0.1.0",
+		"runecode.protocol.v0.ApprovalGetRequest":           "0.1.0",
+		"runecode.protocol.v0.ApprovalGetResponse":          "0.1.0",
+		"runecode.protocol.v0.ApprovalResolveRequest":       "0.1.0",
+		"runecode.protocol.v0.ApprovalResolveResponse":      "0.1.0",
+		"runecode.protocol.v0.ArtifactListRequest":          "0.1.0",
+		"runecode.protocol.v0.ArtifactListResponse":         "0.1.0",
+		"runecode.protocol.v0.ArtifactHeadRequest":          "0.1.0",
+		"runecode.protocol.v0.ArtifactHeadResponse":         "0.1.0",
+		"runecode.protocol.v0.ArtifactReadRequest":          "0.1.0",
+		"runecode.protocol.v0.ArtifactStreamEvent":          "0.1.0",
+		"runecode.protocol.v0.AuditTimelineRequest":         "0.1.0",
+		"runecode.protocol.v0.AuditTimelineResponse":        "0.1.0",
+		"runecode.protocol.v0.AuditVerificationGetRequest":  "0.1.0",
+		"runecode.protocol.v0.AuditVerificationGetResponse": "0.1.0",
+		"runecode.protocol.v0.LogStreamRequest":             "0.1.0",
+		"runecode.protocol.v0.LogStreamEvent":               "0.1.0",
+		"runecode.protocol.v0.ReadinessGetRequest":          "0.1.0",
+		"runecode.protocol.v0.ReadinessGetResponse":         "0.1.0",
+		"runecode.protocol.v0.VersionInfoGetRequest":        "0.1.0",
+		"runecode.protocol.v0.VersionInfoGetResponse":       "0.1.0",
+	}
+	for schemaID, version := range versions {
+		assertManifestSchemaVersion(t, manifest, schemaID, version)
+	}
 }
 
 func TestManifestAndRegistryDocumentsValidateAgainstMetaSchemas(t *testing.T) {
@@ -87,6 +160,18 @@ func assertErrorRegistryCodes(t *testing.T) {
 		"stream_timeout",
 		"gateway_failure",
 		"request_cancelled",
+		"broker_auth_peer_credentials_required",
+		"broker_validation_request_id_missing",
+		"broker_validation_schema_invalid",
+		"broker_validation_payload_base64_invalid",
+		"broker_validation_data_class_invalid",
+		"broker_not_found_artifact",
+		"broker_limit_message_size_exceeded",
+		"broker_limit_structural_complexity_exceeded",
+		"broker_limit_in_flight_exceeded",
+		"broker_limit_policy_rejected",
+		"broker_timeout_request_deadline_exceeded",
+		"broker_approval_state_invalid",
 	)
 }
 

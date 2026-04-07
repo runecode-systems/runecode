@@ -132,6 +132,67 @@ func TestFlowChecksFailClosedAndEgressRules(t *testing.T) {
 	}
 }
 
+func TestGetForFlowEnforcesProducerRoleAndManifestOptIn(t *testing.T) {
+	store, unapproved := setupPromotionSourceForTests(t)
+	request := ArtifactReadRequest{
+		Digest:       unapproved.Digest,
+		ProducerRole: "workspace",
+		ConsumerRole: "model_gateway",
+		DataClass:    DataClassUnapprovedFileExcerpts,
+		IsEgress:     true,
+	}
+	_, _, err := store.GetForFlow(request)
+	if err != ErrUnapprovedEgressDenied {
+		t.Fatalf("GetForFlow unapproved egress error = %v, want %v", err, ErrUnapprovedEgressDenied)
+	}
+
+	approved := promoteApprovedExcerptForTests(t, store, unapproved.Digest, "human")
+	_, _, err = store.GetForFlow(ArtifactReadRequest{
+		Digest:       approved.Digest,
+		ProducerRole: "workspace",
+		ConsumerRole: "model_gateway",
+		DataClass:    DataClassApprovedFileExcerpts,
+		IsEgress:     true,
+	})
+	if err != ErrApprovedEgressRequiresManifest {
+		t.Fatalf("GetForFlow approved no-opt-in error = %v, want %v", err, ErrApprovedEgressRequiresManifest)
+	}
+
+	r, rec, err := store.GetForFlow(ArtifactReadRequest{
+		Digest:        approved.Digest,
+		ProducerRole:  "workspace",
+		ConsumerRole:  "model_gateway",
+		DataClass:     DataClassApprovedFileExcerpts,
+		IsEgress:      true,
+		ManifestOptIn: true,
+	})
+	if err != nil {
+		t.Fatalf("GetForFlow approved with opt-in error: %v", err)
+	}
+	b, readErr := ioReadAllAndClose(r)
+	if readErr != nil {
+		t.Fatalf("GetForFlow read error: %v", readErr)
+	}
+	if string(b) != "approved:\nsensitive excerpt" {
+		t.Fatalf("GetForFlow payload = %q, want approved payload", string(b))
+	}
+	if rec.Reference.Digest != approved.Digest {
+		t.Fatalf("GetForFlow record digest = %q, want %q", rec.Reference.Digest, approved.Digest)
+	}
+
+	_, _, err = store.GetForFlow(ArtifactReadRequest{
+		Digest:        approved.Digest,
+		ProducerRole:  "auditd",
+		ConsumerRole:  "model_gateway",
+		DataClass:     DataClassApprovedFileExcerpts,
+		IsEgress:      true,
+		ManifestOptIn: true,
+	})
+	if err != ErrFlowProducerRoleMismatch {
+		t.Fatalf("GetForFlow mismatched producer error = %v, want %v", err, ErrFlowProducerRoleMismatch)
+	}
+}
+
 func TestPromotionRequiresApprovalAndMintsNewReference(t *testing.T) {
 	store, unapproved := setupPromotionSourceForTests(t)
 	assertPromotionRequiresApprover(t, store, unapproved.Digest)

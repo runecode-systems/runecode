@@ -8,6 +8,7 @@ var (
 	ErrInvalidDigest                   = errors.New("invalid digest")
 	ErrArtifactNotFound                = errors.New("artifact not found")
 	ErrFlowDenied                      = errors.New("artifact flow denied")
+	ErrFlowProducerRoleMismatch        = errors.New("artifact producer role does not match flow request")
 	ErrUnapprovedEgressDenied          = errors.New("unapproved excerpt egress denied")
 	ErrApprovedEgressRequiresManifest  = errors.New("approved excerpt egress requires manifest opt-in")
 	ErrApprovedExcerptRevoked          = errors.New("approved excerpt is revoked")

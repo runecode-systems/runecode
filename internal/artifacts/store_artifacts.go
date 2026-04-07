@@ -116,6 +116,49 @@ func (s *Store) Get(digest string) (io.ReadCloser, error) {
 	return s.storeIO.openBlob(record.BlobPath)
 }
 
+func (s *Store) GetForFlow(req ArtifactReadRequest) (io.ReadCloser, ArtifactRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, err := s.lookupRecord(req.Digest)
+	if err != nil {
+		return nil, ArtifactRecord{}, err
+	}
+	if req.DataClass == "" {
+		req.DataClass = record.Reference.DataClass
+	}
+	if err := validateFlowInputs(s.state.Policy, FlowCheckRequest{ProducerRole: req.ProducerRole, ConsumerRole: req.ConsumerRole, DataClass: req.DataClass, Digest: req.Digest, IsEgress: req.IsEgress, ManifestOptIn: req.ManifestOptIn}); err != nil {
+		return nil, ArtifactRecord{}, err
+	}
+	if record.CreatedByRole != req.ProducerRole {
+		auditErr := s.appendAuditLocked("artifact_flow_blocked", req.ProducerRole, map[string]interface{}{"reason": "artifact_producer_role_mismatch", "digest": req.Digest, "requested_producer_role": req.ProducerRole, "actual_producer_role": record.CreatedByRole})
+		if auditErr != nil {
+			return nil, ArtifactRecord{}, errors.Join(ErrFlowProducerRoleMismatch, auditErr)
+		}
+		return nil, ArtifactRecord{}, ErrFlowProducerRoleMismatch
+	}
+	if record.Reference.DataClass != req.DataClass {
+		auditErr := s.appendAuditLocked("artifact_flow_blocked", req.ProducerRole, map[string]interface{}{"reason": "artifact_data_class_mismatch", "digest": req.Digest, "requested_data_class": req.DataClass, "actual_data_class": record.Reference.DataClass})
+		if auditErr != nil {
+			return nil, ArtifactRecord{}, errors.Join(ErrFlowDenied, auditErr)
+		}
+		return nil, ArtifactRecord{}, ErrFlowDenied
+	}
+	if err := enforceEgressRestrictions(s.state.Policy, FlowCheckRequest{ProducerRole: req.ProducerRole, ConsumerRole: req.ConsumerRole, DataClass: req.DataClass, Digest: req.Digest, IsEgress: req.IsEgress, ManifestOptIn: req.ManifestOptIn}, s.appendAuditLocked); err != nil {
+		return nil, ArtifactRecord{}, err
+	}
+	if !flowAllowed(s.state.Policy.FlowMatrix, FlowCheckRequest{ProducerRole: req.ProducerRole, ConsumerRole: req.ConsumerRole, DataClass: req.DataClass, Digest: req.Digest, IsEgress: req.IsEgress, ManifestOptIn: req.ManifestOptIn}) {
+		if auditErr := s.appendAuditLocked("artifact_flow_blocked", req.ProducerRole, map[string]interface{}{"reason": "artifact_flow_denied", "digest": req.Digest, "data_class": req.DataClass}); auditErr != nil {
+			return nil, ArtifactRecord{}, errors.Join(ErrFlowDenied, auditErr)
+		}
+		return nil, ArtifactRecord{}, ErrFlowDenied
+	}
+	r, err := s.storeIO.openBlob(record.BlobPath)
+	if err != nil {
+		return nil, ArtifactRecord{}, err
+	}
+	return r, record, nil
+}
+
 func (s *Store) Head(digest string) (ArtifactRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -152,4 +195,14 @@ func (s *Store) SetRunStatus(runID, status string) error {
 	}
 	s.state.Runs[runID] = status
 	return s.saveStateLocked()
+}
+
+func (s *Store) RunStatuses() map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make(map[string]string, len(s.state.Runs))
+	for runID, status := range s.state.Runs {
+		out[runID] = status
+	}
+	return out
 }

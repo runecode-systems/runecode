@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditVerificationGetResponse.schema.json",
+  "title": "AuditVerificationGetResponse",
+  "description": "Typed audit verification response mapping existing verification summary/report contracts.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 6,
+  "required": ["schema_id", "schema_version", "request_id", "summary", "report", "views"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.AuditVerificationGetResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable echoed request identifier.", "x-data-class": "public" },
+    "summary": { "type": "object", "maxProperties": 64, "description": "Derived verification summary view.", "x-data-class": "public" },
+    "report": { "$ref": "AuditVerificationReport.schema.json", "description": "Audit verification report payload.", "x-data-class": "public" },
+    "views": { "type": "array", "maxItems": 500, "description": "Mapped audit operational views.", "x-data-class": "public", "items": { "type": "object", "maxProperties": 128, "description": "Audit operational view entry.", "x-data-class": "public" } }
+  }
+}

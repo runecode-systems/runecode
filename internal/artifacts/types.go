@@ -120,6 +120,15 @@ type FlowCheckRequest struct {
 	ManifestOptIn bool
 }
 
+type ArtifactReadRequest struct {
+	Digest        string
+	ProducerRole  string
+	ConsumerRole  string
+	DataClass     DataClass
+	IsEgress      bool
+	ManifestOptIn bool
+}
+
 type PromotionRequest struct {
 	UnapprovedDigest      string
 	Approver              string

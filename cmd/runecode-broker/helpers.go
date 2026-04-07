@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
@@ -62,4 +63,8 @@ func loadSignedApprovalEnvelope(filePath string) (*trustpolicy.SignedObjectEnvel
 		return nil, err
 	}
 	return &envelope, nil
+}
+
+func defaultRequestID() string {
+	return fmt.Sprintf("cli-%d", time.Now().UTC().UnixNano())
 }

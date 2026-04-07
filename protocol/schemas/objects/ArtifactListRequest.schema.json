@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ArtifactListRequest.schema.json",
+  "title": "ArtifactListRequest",
+  "description": "Typed artifact list request with opaque cursor paging and explicit ordering semantics.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 9,
+  "required": ["schema_id", "schema_version", "request_id"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ArtifactListRequest", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable request identifier.", "x-data-class": "public" },
+    "cursor": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Opaque cursor.", "x-data-class": "public" },
+    "limit": { "type": "integer", "minimum": 1, "maximum": 500, "description": "Page size.", "x-data-class": "public" },
+    "order": { "type": "string", "enum": ["created_at_desc", "created_at_asc"], "description": "Explicit artifact ordering semantics.", "x-data-class": "public" },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional run scope filter.", "x-data-class": "public" },
+    "step_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional step scope filter.", "x-data-class": "public" },
+    "data_class": { "type": "string", "enum": ["spec_text", "unapproved_file_excerpts", "approved_file_excerpts", "diffs", "build_logs", "audit_events", "audit_verification_report", "web_query", "web_citations"], "description": "Optional data-class filter.", "x-data-class": "public" }
+  }
+}
