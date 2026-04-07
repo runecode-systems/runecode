@@ -59,9 +59,18 @@ func TestCLIAdoptionRoutesArtifactAuditAndResolveThroughLocalRPC(t *testing.T) {
 	stderr := &bytes.Buffer{}
 	requestedOps := make([]string, 0, 8)
 
+	installArtifactAuditResolveDispatchStub(t, &requestedOps)
+	runArtifactAuditResolveCommands(t, stdout, stderr)
+
+	want := []string{"artifact_list", "artifact_head", "artifact_read", "approval_resolve", "readiness_get", "audit_verification_get"}
+	assertRequestedOps(t, requestedOps, want)
+}
+
+func installArtifactAuditResolveDispatchStub(t *testing.T, requestedOps *[]string) {
+	t.Helper()
 	originalDispatch := localRPCDispatch
 	localRPCDispatch = func(_ *brokerapi.Service, _ context.Context, wire localRPCRequest, _ brokerapi.RequestContext) localRPCResponse {
-		requestedOps = append(requestedOps, wire.Operation)
+		*requestedOps = append(*requestedOps, wire.Operation)
 		switch wire.Operation {
 		case "artifact_list":
 			return mustOKLocalRPCResponse(t, brokerapi.LocalArtifactListResponse{SchemaID: "runecode.protocol.v0.ArtifactListResponse", SchemaVersion: "0.1.0", RequestID: "req-art-list", Artifacts: []brokerapi.ArtifactSummary{{SchemaID: "runecode.protocol.v0.ArtifactSummary", SchemaVersion: "0.1.0", Reference: artifacts.ArtifactReference{Digest: testDigest("b"), DataClass: artifacts.DataClassSpecText}, CreatedAt: "2026-01-01T00:00:00Z", CreatedByRole: "workspace"}}})
@@ -80,7 +89,10 @@ func TestCLIAdoptionRoutesArtifactAuditAndResolveThroughLocalRPC(t *testing.T) {
 		}
 	}
 	t.Cleanup(func() { localRPCDispatch = originalDispatch })
+}
 
+func runArtifactAuditResolveCommands(t *testing.T, stdout *bytes.Buffer, stderr *bytes.Buffer) {
+	t.Helper()
 	outPath := filepath.Join(t.TempDir(), "artifact.out")
 	if err := run([]string{"list-artifacts"}, stdout, stderr); err != nil {
 		t.Fatalf("list-artifacts returned error: %v", err)
@@ -109,9 +121,6 @@ func TestCLIAdoptionRoutesArtifactAuditAndResolveThroughLocalRPC(t *testing.T) {
 	if err := run([]string{"audit-verification"}, stdout, stderr); err != nil {
 		t.Fatalf("audit-verification returned error: %v", err)
 	}
-
-	want := []string{"artifact_list", "artifact_head", "artifact_read", "approval_resolve", "readiness_get", "audit_verification_get"}
-	assertRequestedOps(t, requestedOps, want)
 }
 
 func mustOKLocalRPCResponse(t *testing.T, value any) localRPCResponse {

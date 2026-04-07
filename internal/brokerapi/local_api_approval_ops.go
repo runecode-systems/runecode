@@ -92,62 +92,54 @@ func (s *Service) HandleApprovalGet(ctx context.Context, req ApprovalGetRequest,
 }
 
 func (s *Service) HandleApprovalResolve(ctx context.Context, req ApprovalResolveRequest, meta RequestContext) (ApprovalResolveResponse, *ErrorResponse) {
-	requestID, errResp := s.prepareLocalRequest(req.RequestID, meta.RequestID, meta.AdmissionErr, req, approvalResolveRequestSchemaPath)
+	requestID, done, errResp := s.prepareApprovalResolveExecution(ctx, req, meta)
 	if errResp != nil {
 		return ApprovalResolveResponse{}, errResp
+	}
+	defer done()
+	return s.resolveApprovalResponse(requestID, req)
+}
+
+func (s *Service) prepareApprovalResolveExecution(ctx context.Context, req ApprovalResolveRequest, meta RequestContext) (string, func(), *ErrorResponse) {
+	requestID, errResp := s.prepareLocalRequest(req.RequestID, meta.RequestID, meta.AdmissionErr, req, approvalResolveRequestSchemaPath)
+	if errResp != nil {
+		return "", nil, errResp
 	}
 	release, err := s.acquireInFlight(meta)
 	if err != nil {
 		errOut := s.errorFromLimit(requestID, err)
-		return ApprovalResolveResponse{}, &errOut
+		return "", nil, &errOut
 	}
-	defer release()
 	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
-	defer cancel()
 	if err := requestCtx.Err(); err != nil {
+		release()
+		cancel()
 		errOut := s.errorFromContext(requestID, err)
-		return ApprovalResolveResponse{}, &errOut
+		return "", nil, &errOut
 	}
+	return requestID, func() {
+		release()
+		cancel()
+	}, nil
+}
+
+func (s *Service) resolveApprovalResponse(requestID string, req ApprovalResolveRequest) (ApprovalResolveResponse, *ErrorResponse) {
 	approvalID, decisionDigest, outcome, errResp := s.resolveApprovalDigestsAndOutcome(requestID, req)
 	if errResp != nil {
 		return ApprovalResolveResponse{}, errResp
 	}
-	records := s.approvalRecordsByID()
-	current, ok := records[approvalID]
-	if !ok {
-		for _, rec := range records {
-			if rec.SourceDigest == req.UnapprovedDigest {
-				current = rec
-				ok = true
-				break
-			}
-		}
-	}
-	if !ok {
-		errOut := s.makeError(requestID, "broker_not_found_approval", "storage", false, fmt.Sprintf("approval %q not found", approvalID))
-		return ApprovalResolveResponse{}, &errOut
-	}
-	if current.Summary.Status != "pending" {
-		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, fmt.Sprintf("approval %q is already terminal with status %q", approvalID, current.Summary.Status))
-		return ApprovalResolveResponse{}, &errOut
-	}
-	if current.SourceDigest != "" && current.SourceDigest != req.UnapprovedDigest {
-		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "unapproved_digest does not match pending approval source")
-		return ApprovalResolveResponse{}, &errOut
+	current, errResp := s.resolveCurrentPendingApproval(requestID, req, approvalID)
+	if errResp != nil {
+		return ApprovalResolveResponse{}, errResp
 	}
 	record, buildErr := buildResolvedApprovalRecordForOutcome(req, current, approvalID, decisionDigest, outcome)
 	if buildErr != nil {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, buildErr.Error())
 		return ApprovalResolveResponse{}, &errOut
 	}
-
-	var approvedArtifact *ArtifactSummary
-	if outcome == "approve" {
-		head, promoteErr := s.promoteAndHeadResolvedArtifact(requestID, req)
-		if promoteErr != nil {
-			return ApprovalResolveResponse{}, promoteErr
-		}
-		approvedArtifact = ptrArtifactSummary(toArtifactSummary(head))
+	approvedArtifact, errResp := s.resolveApprovedArtifactSummary(requestID, req, outcome)
+	if errResp != nil {
+		return ApprovalResolveResponse{}, errResp
 	}
 
 	s.putApproval(record)
@@ -158,6 +150,48 @@ func (s *Service) HandleApprovalResolve(ctx context.Context, req ApprovalResolve
 		return ApprovalResolveResponse{}, &errOut
 	}
 	return resp, nil
+}
+
+func (s *Service) resolveCurrentPendingApproval(requestID string, req ApprovalResolveRequest, approvalID string) (approvalRecord, *ErrorResponse) {
+	records := s.approvalRecordsByID()
+	current, ok := records[approvalID]
+	if !ok {
+		current, ok = approvalRecordBySourceDigest(records, req.UnapprovedDigest)
+	}
+	if !ok {
+		errOut := s.makeError(requestID, "broker_not_found_approval", "storage", false, fmt.Sprintf("approval %q not found", approvalID))
+		return approvalRecord{}, &errOut
+	}
+	if current.Summary.Status != "pending" {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, fmt.Sprintf("approval %q is already terminal with status %q", approvalID, current.Summary.Status))
+		return approvalRecord{}, &errOut
+	}
+	if current.SourceDigest != "" && current.SourceDigest != req.UnapprovedDigest {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "unapproved_digest does not match pending approval source")
+		return approvalRecord{}, &errOut
+	}
+	return current, nil
+}
+
+func approvalRecordBySourceDigest(records map[string]approvalRecord, sourceDigest string) (approvalRecord, bool) {
+	for _, rec := range records {
+		if rec.SourceDigest == sourceDigest {
+			return rec, true
+		}
+	}
+	return approvalRecord{}, false
+}
+
+func (s *Service) resolveApprovedArtifactSummary(requestID string, req ApprovalResolveRequest, outcome string) (*ArtifactSummary, *ErrorResponse) {
+	if outcome != "approve" {
+		return nil, nil
+	}
+	head, promoteErr := s.promoteAndHeadResolvedArtifact(requestID, req)
+	if promoteErr != nil {
+		return nil, promoteErr
+	}
+	artifact := ptrArtifactSummary(toArtifactSummary(head))
+	return artifact, nil
 }
 
 func (s *Service) listApprovals() []ApprovalSummary {

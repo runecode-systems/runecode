@@ -173,29 +173,17 @@ func (s *Service) verifySignedApprovalDecisionEnvelope(envelope trustpolicy.Sign
 func (s *Service) trustedApprovalVerifiersForEnvelope(envelope trustpolicy.SignedObjectEnvelope) ([]trustpolicy.VerifierRecord, error) {
 	records := make([]trustpolicy.VerifierRecord, 0)
 	for _, artifactRecord := range s.List() {
-		if artifactRecord.Reference.DataClass != artifacts.DataClassAuditVerificationReport {
+		if !isTrustedVerifierArtifact(artifactRecord) {
 			continue
 		}
-		if artifactRecord.CreatedByRole != "auditd" {
+		verifier, ok := s.loadVerifierRecord(artifactRecord)
+		if !ok {
 			continue
 		}
-		reader, err := s.Get(artifactRecord.Reference.Digest)
-		if err != nil {
+		if !matchesVerifierIdentity(verifier, envelope) {
 			continue
 		}
-		blob, readErr := io.ReadAll(reader)
-		closeErr := reader.Close()
-		if readErr != nil || closeErr != nil {
-			continue
-		}
-		verifier := trustpolicy.VerifierRecord{}
-		if err := json.Unmarshal(blob, &verifier); err != nil {
-			continue
-		}
-		if verifier.KeyID != envelope.Signature.KeyID || verifier.KeyIDValue != envelope.Signature.KeyIDValue {
-			continue
-		}
-		if verifier.LogicalPurpose != "approval_authority" || verifier.LogicalScope != "user" {
+		if !isApprovalAuthorityVerifier(verifier) {
 			continue
 		}
 		records = append(records, verifier)
@@ -204,6 +192,38 @@ func (s *Service) trustedApprovalVerifiersForEnvelope(envelope trustpolicy.Signe
 		return nil, fmt.Errorf("trusted verifier not found for signed approval decision")
 	}
 	return records, nil
+}
+
+func isTrustedVerifierArtifact(record artifacts.ArtifactRecord) bool {
+	if record.Reference.DataClass != artifacts.DataClassAuditVerificationReport {
+		return false
+	}
+	return record.CreatedByRole == "auditd"
+}
+
+func (s *Service) loadVerifierRecord(record artifacts.ArtifactRecord) (trustpolicy.VerifierRecord, bool) {
+	reader, err := s.Get(record.Reference.Digest)
+	if err != nil {
+		return trustpolicy.VerifierRecord{}, false
+	}
+	blob, readErr := io.ReadAll(reader)
+	closeErr := reader.Close()
+	if readErr != nil || closeErr != nil {
+		return trustpolicy.VerifierRecord{}, false
+	}
+	verifier := trustpolicy.VerifierRecord{}
+	if err := json.Unmarshal(blob, &verifier); err != nil {
+		return trustpolicy.VerifierRecord{}, false
+	}
+	return verifier, true
+}
+
+func matchesVerifierIdentity(verifier trustpolicy.VerifierRecord, envelope trustpolicy.SignedObjectEnvelope) bool {
+	return verifier.KeyID == envelope.Signature.KeyID && verifier.KeyIDValue == envelope.Signature.KeyIDValue
+}
+
+func isApprovalAuthorityVerifier(verifier trustpolicy.VerifierRecord) bool {
+	return verifier.LogicalPurpose == "approval_authority" && verifier.LogicalScope == "user"
 }
 
 func approvalStatusForDecisionOutcome(outcome string) (string, bool) {

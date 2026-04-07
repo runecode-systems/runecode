@@ -90,15 +90,9 @@ func TestDefaultVersionInfoUsesConcreteMetadata(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 	info := service.versionInfo
-	if info.ProductVersion == "" || info.ProductVersion == "unknown" {
-		t.Fatalf("product_version = %q, want concrete value", info.ProductVersion)
-	}
-	if info.BuildRevision == "" || info.BuildRevision == "unknown" {
-		t.Fatalf("build_revision = %q, want concrete value", info.BuildRevision)
-	}
-	if info.BuildTime == "" || info.BuildTime == "unknown" {
-		t.Fatalf("build_time = %q, want concrete value", info.BuildTime)
-	}
+	assertVersionInfoFieldConcrete(t, "product_version", info.ProductVersion)
+	assertVersionInfoFieldConcrete(t, "build_revision", info.BuildRevision)
+	assertVersionInfoFieldConcrete(t, "build_time", info.BuildTime)
 	if info.ProtocolBundleVersion != "0.5.0" {
 		t.Fatalf("protocol_bundle_version = %q, want 0.5.0", info.ProtocolBundleVersion)
 	}
@@ -107,6 +101,13 @@ func TestDefaultVersionInfoUsesConcreteMetadata(t *testing.T) {
 	}
 	if info.ProtocolBundleManifestHash == "sha256:"+strings.Repeat("0", 64) {
 		t.Fatal("protocol_bundle_manifest_hash must not be all-zero placeholder")
+	}
+}
+
+func assertVersionInfoFieldConcrete(t *testing.T, name, value string) {
+	t.Helper()
+	if value == "" || value == "unknown" {
+		t.Fatalf("%s = %q, want concrete value", name, value)
 	}
 }
 

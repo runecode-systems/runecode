@@ -67,22 +67,34 @@ func TestLogStreamHoldsInFlightSlotUntilStreamCompletes(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{Limits: Limits{MaxInFlightPerClient: 1, MaxInFlightPerLane: 1}})
 	meta := RequestContext{ClientID: "client-stream", LaneID: "lane-stream"}
 
-	ack, errResp := s.HandleLogStreamRequest(context.Background(), LogStreamRequest{
-		SchemaID:       "runecode.protocol.v0.LogStreamRequest",
-		SchemaVersion:  "0.1.0",
-		RequestID:      "req-log-open",
-		Follow:         true,
-		IncludeBacklog: true,
-	}, meta)
+	ack, errResp := openFollowLogStream(t, s, meta)
 	if errResp != nil {
 		t.Fatalf("HandleLogStreamRequest error response: %+v", errResp)
+	}
+	assertArtifactListBlockedWhileStreamOpen(t, s, meta)
+
+	if _, err := s.StreamLogEvents(ack); err != nil {
+		t.Fatalf("StreamLogEvents returned error: %v", err)
 	}
 
 	_, listErr := s.HandleArtifactListV0(context.Background(), LocalArtifactListRequest{
 		SchemaID:      "runecode.protocol.v0.ArtifactListRequest",
 		SchemaVersion: "0.1.0",
-		RequestID:     "req-list-during-stream",
+		RequestID:     "req-list-after-stream",
 	}, meta)
+	if listErr != nil {
+		t.Fatalf("HandleArtifactListV0 after stream error response: %+v", listErr)
+	}
+}
+
+func openFollowLogStream(t *testing.T, s *Service, meta RequestContext) (LogStreamRequest, *ErrorResponse) {
+	t.Helper()
+	return s.HandleLogStreamRequest(context.Background(), LogStreamRequest{SchemaID: "runecode.protocol.v0.LogStreamRequest", SchemaVersion: "0.1.0", RequestID: "req-log-open", Follow: true, IncludeBacklog: true}, meta)
+}
+
+func assertArtifactListBlockedWhileStreamOpen(t *testing.T, s *Service, meta RequestContext) {
+	t.Helper()
+	_, listErr := s.HandleArtifactListV0(context.Background(), LocalArtifactListRequest{SchemaID: "runecode.protocol.v0.ArtifactListRequest", SchemaVersion: "0.1.0", RequestID: "req-list-during-stream"}, meta)
 	if listErr == nil {
 		t.Fatal("expected in-flight saturation rejection while log stream is open")
 	}
@@ -91,19 +103,6 @@ func TestLogStreamHoldsInFlightSlotUntilStreamCompletes(t *testing.T) {
 	}
 	if !listErr.Error.Retryable {
 		t.Fatal("in-flight saturation rejection should be retryable")
-	}
-
-	if _, err := s.StreamLogEvents(ack); err != nil {
-		t.Fatalf("StreamLogEvents returned error: %v", err)
-	}
-
-	_, listErr = s.HandleArtifactListV0(context.Background(), LocalArtifactListRequest{
-		SchemaID:      "runecode.protocol.v0.ArtifactListRequest",
-		SchemaVersion: "0.1.0",
-		RequestID:     "req-list-after-stream",
-	}, meta)
-	if listErr != nil {
-		t.Fatalf("HandleArtifactListV0 after stream error response: %+v", listErr)
 	}
 }
 

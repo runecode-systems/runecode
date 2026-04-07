@@ -39,33 +39,57 @@ func (g *inFlightGate) acquire(clientID string, laneID string) (func(), error) {
 func (g *inFlightGate) acquireAt(clientID string, laneID string, now time.Time) (func(), error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	clientID, laneID = normalizeGateIdentity(clientID, laneID)
+	if err := g.enforceRateLimit(clientID, now); err != nil {
+		return nil, err
+	}
+	if err := g.enforceInFlightLimits(clientID, laneID); err != nil {
+		return nil, err
+	}
+	g.perClientCount[clientID]++
+	g.perLaneCount[laneID]++
+	return g.releaseFn(clientID, laneID), nil
+}
+
+func normalizeGateIdentity(clientID, laneID string) (string, string) {
 	if clientID == "" {
 		clientID = "default-client"
 	}
 	if laneID == "" {
 		laneID = "default-lane"
 	}
-	if g.limits.MaxRequestsPerClientPS > 0 {
-		second := now.Unix()
-		window := g.perClientRate[clientID]
-		if window.windowStart != second {
-			window.windowStart = second
-			window.count = 0
-		}
-		if window.count >= g.limits.MaxRequestsPerClientPS {
-			return nil, fmt.Errorf("%w: client %q has %d requests in second %d, max %d", errRateLimitExceeded, clientID, window.count, second, g.limits.MaxRequestsPerClientPS)
-		}
-		window.count++
-		g.perClientRate[clientID] = window
+	return clientID, laneID
+}
+
+func (g *inFlightGate) enforceRateLimit(clientID string, now time.Time) error {
+	if g.limits.MaxRequestsPerClientPS <= 0 {
+		return nil
 	}
+	second := now.Unix()
+	window := g.perClientRate[clientID]
+	if window.windowStart != second {
+		window.windowStart = second
+		window.count = 0
+	}
+	if window.count >= g.limits.MaxRequestsPerClientPS {
+		return fmt.Errorf("%w: client %q has %d requests in second %d, max %d", errRateLimitExceeded, clientID, window.count, second, g.limits.MaxRequestsPerClientPS)
+	}
+	window.count++
+	g.perClientRate[clientID] = window
+	return nil
+}
+
+func (g *inFlightGate) enforceInFlightLimits(clientID, laneID string) error {
 	if g.perClientCount[clientID] >= g.limits.MaxInFlightPerClient {
-		return nil, fmt.Errorf("%w: client %q has %d active, max %d", errInFlightLimitExceeded, clientID, g.perClientCount[clientID], g.limits.MaxInFlightPerClient)
+		return fmt.Errorf("%w: client %q has %d active, max %d", errInFlightLimitExceeded, clientID, g.perClientCount[clientID], g.limits.MaxInFlightPerClient)
 	}
 	if g.perLaneCount[laneID] >= g.limits.MaxInFlightPerLane {
-		return nil, fmt.Errorf("%w: lane %q has %d active, max %d", errInFlightLimitExceeded, laneID, g.perLaneCount[laneID], g.limits.MaxInFlightPerLane)
+		return fmt.Errorf("%w: lane %q has %d active, max %d", errInFlightLimitExceeded, laneID, g.perLaneCount[laneID], g.limits.MaxInFlightPerLane)
 	}
-	g.perClientCount[clientID]++
-	g.perLaneCount[laneID]++
+	return nil
+}
+
+func (g *inFlightGate) releaseFn(clientID, laneID string) func() {
 	released := false
 	return func() {
 		g.mu.Lock()
@@ -82,5 +106,5 @@ func (g *inFlightGate) acquireAt(clientID string, laneID string, now time.Time) 
 		if g.perLaneCount[laneID] <= 0 {
 			delete(g.perLaneCount, laneID)
 		}
-	}, nil
+	}
 }

@@ -244,29 +244,7 @@ func assertDerivedPendingApproval(t *testing.T, s *Service, approvals []Approval
 
 func TestApprovalGetReturnsDerivedPendingApproval(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	ref, err := s.Put(artifacts.PutRequest{
-		Payload:               []byte("private excerpt"),
-		ContentType:           "text/plain",
-		DataClass:             artifacts.DataClassUnapprovedFileExcerpts,
-		ProvenanceReceiptHash: "sha256:" + strings.Repeat("b", 64),
-		CreatedByRole:         "workspace",
-		RunID:                 "run-approval-get",
-	})
-	if err != nil {
-		t.Fatalf("Put returned error: %v", err)
-	}
-	record, headErr := s.Head(ref.Digest)
-	if headErr != nil {
-		t.Fatalf("Head returned error: %v", headErr)
-	}
-	requestedAt := record.CreatedAt.UTC()
-	expiresAt := requestedAt.Add(30 * time.Minute)
-	requestEnvelope := inferredPendingApprovalRequestEnvelope(record, requestedAt, expiresAt)
-	approvalID, idErr := approvalIDFromRequest(requestEnvelope)
-	if idErr != nil {
-		t.Fatalf("approvalIDFromRequest returned error: %v", idErr)
-	}
-
+	approvalID := createPendingApprovalForGetTest(t, s)
 	resp, errResp := s.HandleApprovalGet(context.Background(), ApprovalGetRequest{
 		SchemaID:      "runecode.protocol.v0.ApprovalGetRequest",
 		SchemaVersion: "0.1.0",
@@ -292,6 +270,26 @@ func TestApprovalGetReturnsDerivedPendingApproval(t *testing.T) {
 	if derivedID != approvalID {
 		t.Fatalf("derived approval id = %q, want %q", derivedID, approvalID)
 	}
+}
+
+func createPendingApprovalForGetTest(t *testing.T, s *Service) string {
+	t.Helper()
+	ref, err := s.Put(artifacts.PutRequest{Payload: []byte("private excerpt"), ContentType: "text/plain", DataClass: artifacts.DataClassUnapprovedFileExcerpts, ProvenanceReceiptHash: "sha256:" + strings.Repeat("b", 64), CreatedByRole: "workspace", RunID: "run-approval-get"})
+	if err != nil {
+		t.Fatalf("Put returned error: %v", err)
+	}
+	record, headErr := s.Head(ref.Digest)
+	if headErr != nil {
+		t.Fatalf("Head returned error: %v", headErr)
+	}
+	requestedAt := record.CreatedAt.UTC()
+	expiresAt := requestedAt.Add(30 * time.Minute)
+	requestEnvelope := inferredPendingApprovalRequestEnvelope(record, requestedAt, expiresAt)
+	approvalID, idErr := approvalIDFromRequest(requestEnvelope)
+	if idErr != nil {
+		t.Fatalf("approvalIDFromRequest returned error: %v", idErr)
+	}
+	return approvalID
 }
 
 func TestHandleApprovalGetRejectsInFlightLimit(t *testing.T) {

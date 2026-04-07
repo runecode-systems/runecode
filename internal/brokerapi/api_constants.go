@@ -52,40 +52,32 @@ type APIConfig struct {
 
 func (c APIConfig) withDefaults() APIConfig {
 	defaults := DefaultLimits()
-	if c.Limits.MaxMessageBytes <= 0 {
-		c.Limits.MaxMessageBytes = defaults.MaxMessageBytes
-	}
-	if c.Limits.MaxStructuralDepth <= 0 {
-		c.Limits.MaxStructuralDepth = defaults.MaxStructuralDepth
-	}
-	if c.Limits.MaxArrayLength <= 0 {
-		c.Limits.MaxArrayLength = defaults.MaxArrayLength
-	}
-	if c.Limits.MaxObjectProperties <= 0 {
-		c.Limits.MaxObjectProperties = defaults.MaxObjectProperties
-	}
-	if c.Limits.MaxRequestsPerClientPS <= 0 {
-		c.Limits.MaxRequestsPerClientPS = defaults.MaxRequestsPerClientPS
-	}
-	if c.Limits.MaxInFlightPerClient <= 0 {
-		c.Limits.MaxInFlightPerClient = defaults.MaxInFlightPerClient
-	}
-	if c.Limits.MaxInFlightPerLane <= 0 {
-		c.Limits.MaxInFlightPerLane = defaults.MaxInFlightPerLane
-	}
-	if c.Limits.DefaultRequestDeadline <= 0 {
-		c.Limits.DefaultRequestDeadline = defaults.DefaultRequestDeadline
-	}
-	if c.Limits.MaxStreamChunkBytes <= 0 {
-		c.Limits.MaxStreamChunkBytes = defaults.MaxStreamChunkBytes
-	}
-	if c.Limits.StreamIdleTimeout <= 0 {
-		c.Limits.StreamIdleTimeout = defaults.StreamIdleTimeout
-	}
-	if c.Limits.MaxResponseStreamBytes <= 0 {
-		c.Limits.MaxResponseStreamBytes = defaults.MaxResponseStreamBytes
-	}
+	c.Limits.MaxMessageBytes = resolveIntLimit(c.Limits.MaxMessageBytes, defaults.MaxMessageBytes)
+	c.Limits.MaxStructuralDepth = resolveIntLimit(c.Limits.MaxStructuralDepth, defaults.MaxStructuralDepth)
+	c.Limits.MaxArrayLength = resolveIntLimit(c.Limits.MaxArrayLength, defaults.MaxArrayLength)
+	c.Limits.MaxObjectProperties = resolveIntLimit(c.Limits.MaxObjectProperties, defaults.MaxObjectProperties)
+	c.Limits.MaxRequestsPerClientPS = resolveIntLimit(c.Limits.MaxRequestsPerClientPS, defaults.MaxRequestsPerClientPS)
+	c.Limits.MaxInFlightPerClient = resolveIntLimit(c.Limits.MaxInFlightPerClient, defaults.MaxInFlightPerClient)
+	c.Limits.MaxInFlightPerLane = resolveIntLimit(c.Limits.MaxInFlightPerLane, defaults.MaxInFlightPerLane)
+	c.Limits.DefaultRequestDeadline = resolveDurationLimit(c.Limits.DefaultRequestDeadline, defaults.DefaultRequestDeadline)
+	c.Limits.MaxStreamChunkBytes = resolveIntLimit(c.Limits.MaxStreamChunkBytes, defaults.MaxStreamChunkBytes)
+	c.Limits.StreamIdleTimeout = resolveDurationLimit(c.Limits.StreamIdleTimeout, defaults.StreamIdleTimeout)
+	c.Limits.MaxResponseStreamBytes = resolveIntLimit(c.Limits.MaxResponseStreamBytes, defaults.MaxResponseStreamBytes)
 	return c
+}
+
+func resolveIntLimit(value, fallback int) int {
+	if value > 0 {
+		return value
+	}
+	return fallback
+}
+
+func resolveDurationLimit(value, fallback time.Duration) time.Duration {
+	if value > 0 {
+		return value
+	}
+	return fallback
 }
 
 type RequestContext struct {

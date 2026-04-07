@@ -25,36 +25,46 @@ func assertRunListAndDetailForLocalOps(t *testing.T, s *Service) {
 	if errResp != nil {
 		t.Fatalf("HandleRunList error response: %+v", errResp)
 	}
-	if len(runList.Runs) != 1 || runList.Runs[0].RunID != "run-123" {
-		t.Fatalf("run list = %+v, want run-123", runList.Runs)
-	}
-	if runList.Runs[0].WorkspaceID != "workspace-local" {
-		t.Fatalf("workspace_id = %q, want workspace-local", runList.Runs[0].WorkspaceID)
-	}
-	if runList.Runs[0].WorkflowKind != "" {
-		t.Fatalf("workflow_kind = %q, want empty when broker has no trusted workflow kind", runList.Runs[0].WorkflowKind)
-	}
-	if runList.Runs[0].WorkflowDefinitionHash == "" {
-		t.Fatal("workflow_definition_hash should use trusted manifest digest when unambiguous")
-	}
+	assertRunListSummaryForLocalOps(t, runList.Runs)
 	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-get", RunID: "run-123"}, RequestContext{})
 	if errResp != nil {
 		t.Fatalf("HandleRunGet error response: %+v", errResp)
 	}
-	if runGet.Run.Summary.RunID != "run-123" {
-		t.Fatalf("run detail run_id = %q, want run-123", runGet.Run.Summary.RunID)
+	assertRunDetailForLocalOps(t, runGet.Run)
+}
+
+func assertRunListSummaryForLocalOps(t *testing.T, runs []RunSummary) {
+	t.Helper()
+	if len(runs) != 1 || runs[0].RunID != "run-123" {
+		t.Fatalf("run list = %+v, want run-123", runs)
 	}
-	if len(runGet.Run.ActiveManifestHashes) == 0 {
+	if runs[0].WorkspaceID != "workspace-local" {
+		t.Fatalf("workspace_id = %q, want workspace-local", runs[0].WorkspaceID)
+	}
+	if runs[0].WorkflowKind != "" {
+		t.Fatalf("workflow_kind = %q, want empty when broker has no trusted workflow kind", runs[0].WorkflowKind)
+	}
+	if runs[0].WorkflowDefinitionHash == "" {
+		t.Fatal("workflow_definition_hash should use trusted manifest digest when unambiguous")
+	}
+}
+
+func assertRunDetailForLocalOps(t *testing.T, detail RunDetail) {
+	t.Helper()
+	if detail.Summary.RunID != "run-123" {
+		t.Fatalf("run detail run_id = %q, want run-123", detail.Summary.RunID)
+	}
+	if len(detail.ActiveManifestHashes) == 0 {
 		t.Fatal("run detail active_manifest_hashes should not be empty")
 	}
-	if runGet.Run.AuthoritativeState["source"] != "broker_store" {
-		t.Fatalf("authoritative_state.source = %v, want broker_store", runGet.Run.AuthoritativeState["source"])
+	if detail.AuthoritativeState["source"] != "broker_store" {
+		t.Fatalf("authoritative_state.source = %v, want broker_store", detail.AuthoritativeState["source"])
 	}
-	if runGet.Run.AuthoritativeState["provenance"] != "trusted_derived" {
-		t.Fatalf("authoritative_state.provenance = %v, want trusted_derived", runGet.Run.AuthoritativeState["provenance"])
+	if detail.AuthoritativeState["provenance"] != "trusted_derived" {
+		t.Fatalf("authoritative_state.provenance = %v, want trusted_derived", detail.AuthoritativeState["provenance"])
 	}
-	if runGet.Run.AdvisoryState["provenance"] != "none_reported" {
-		t.Fatalf("advisory_state.provenance = %v, want none_reported", runGet.Run.AdvisoryState["provenance"])
+	if detail.AdvisoryState["provenance"] != "none_reported" {
+		t.Fatalf("advisory_state.provenance = %v, want none_reported", detail.AdvisoryState["provenance"])
 	}
 }
 
