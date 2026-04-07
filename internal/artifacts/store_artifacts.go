@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"sort"
+	"strings"
 )
 
 func (s *Store) SetPolicy(policy Policy) error {
@@ -29,6 +30,9 @@ func (s *Store) Put(req PutRequest) (ArtifactReference, error) {
 }
 
 func (s *Store) putLocked(req PutRequest) (ArtifactReference, error) {
+	if req.TrustedSource && strings.TrimSpace(req.CreatedByRole) == "" {
+		return ArtifactReference{}, ErrTrustedCreatedByRoleRequired
+	}
 	actorRole := createdByRole(req)
 	payload, digest, err := s.preparePutPayload(req)
 	if err != nil {
@@ -97,13 +101,17 @@ func (s *Store) upsertArtifactRecord(ref ArtifactReference, req PutRequest, dige
 }
 
 func createdByRole(req PutRequest) string {
+	role := strings.TrimSpace(req.CreatedByRole)
 	if req.TrustedSource {
-		return req.CreatedByRole
+		return role
 	}
-	if req.CreatedByRole == "auditd" || req.CreatedByRole == "secretsd" || req.CreatedByRole == "launcher" {
+	if role == "workspace" || role == "model_gateway" || role == "untrusted_client" {
+		return role
+	}
+	if role == "" {
 		return "untrusted_client"
 	}
-	return req.CreatedByRole
+	return "untrusted_client"
 }
 
 func (s *Store) Get(digest string) (io.ReadCloser, error) {
@@ -114,6 +122,45 @@ func (s *Store) Get(digest string) (io.ReadCloser, error) {
 		return nil, err
 	}
 	return s.storeIO.openBlob(record.BlobPath)
+}
+
+func (s *Store) GetForFlow(req ArtifactReadRequest) (io.ReadCloser, ArtifactRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, err := s.lookupRecord(req.Digest)
+	if err != nil {
+		return nil, ArtifactRecord{}, err
+	}
+	checkReq := flowCheckRequestFromRead(req, record.Reference.DataClass)
+	if err := validateFlowInputs(s.state.Policy, checkReq); err != nil {
+		return nil, ArtifactRecord{}, err
+	}
+	if err := s.enforceFlowRecordConsistencyLocked(record, checkReq); err != nil {
+		return nil, ArtifactRecord{}, err
+	}
+	if err := s.enforceFlowPolicyLocked(checkReq); err != nil {
+		return nil, ArtifactRecord{}, err
+	}
+	r, err := s.storeIO.openBlob(record.BlobPath)
+	if err != nil {
+		return nil, ArtifactRecord{}, err
+	}
+	return r, record, nil
+}
+
+func flowCheckRequestFromRead(req ArtifactReadRequest, fallbackClass DataClass) FlowCheckRequest {
+	class := req.DataClass
+	if class == "" {
+		class = fallbackClass
+	}
+	return FlowCheckRequest{
+		ProducerRole:  req.ProducerRole,
+		ConsumerRole:  req.ConsumerRole,
+		DataClass:     class,
+		Digest:        req.Digest,
+		IsEgress:      req.IsEgress,
+		ManifestOptIn: req.ManifestOptIn,
+	}
 }
 
 func (s *Store) Head(digest string) (ArtifactRecord, error) {
@@ -152,4 +199,14 @@ func (s *Store) SetRunStatus(runID, status string) error {
 	}
 	s.state.Runs[runID] = status
 	return s.saveStateLocked()
+}
+
+func (s *Store) RunStatuses() map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make(map[string]string, len(s.state.Runs))
+	for runID, status := range s.state.Runs {
+		out[runID] = status
+	}
+	return out
 }

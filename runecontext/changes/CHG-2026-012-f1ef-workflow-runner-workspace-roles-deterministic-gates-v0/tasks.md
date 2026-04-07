@@ -11,6 +11,7 @@
 - [ ] Keep child feature sequencing aligned with `CHG-2026-007-2315-policy-engine-v0` and `CHG-2026-008-62e1-broker-local-api-v0`.
 - [ ] Keep child feature sequencing aligned with `CHG-2026-009-1672-launcher-microvm-backend-v0`.
 - [ ] Keep the minimal end-to-end demo run as the integration milestone across child features.
+- [ ] Keep run lifecycle, approval lifecycle, blocked-state semantics, and operator-facing read models aligned across broker, runner, and TUI work.
 
 ## Acceptance Criteria
 

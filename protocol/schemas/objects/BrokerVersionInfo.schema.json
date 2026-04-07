@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/BrokerVersionInfo.schema.json",
+  "title": "BrokerVersionInfo",
+  "description": "Broker version and build diagnostic contract for local API surfaces.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 10,
+  "required": ["schema_id", "schema_version", "product_version", "build_revision", "build_time", "protocol_bundle_version", "protocol_bundle_manifest_hash", "api_family", "api_version", "supported_transport_encodings"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.BrokerVersionInfo", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "product_version": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Product semantic version.", "x-data-class": "public" },
+    "build_revision": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Build revision string.", "x-data-class": "public" },
+    "build_time": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Build time string.", "x-data-class": "public" },
+    "protocol_bundle_version": { "type": "string", "minLength": 1, "maxLength": 32, "description": "Protocol bundle version.", "x-data-class": "public" },
+    "protocol_bundle_manifest_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Protocol bundle manifest digest identity.", "x-data-class": "public" },
+    "api_family": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Logical API family name.", "x-data-class": "public" },
+    "api_version": { "type": "string", "minLength": 1, "maxLength": 32, "description": "Logical API version.", "x-data-class": "public" },
+    "supported_transport_encodings": { "type": "array", "maxItems": 8, "description": "Supported transport encoding set.", "x-data-class": "public", "items": { "type": "string", "minLength": 1, "maxLength": 32, "description": "Supported encoding value.", "x-data-class": "public" } }
+  }
+}

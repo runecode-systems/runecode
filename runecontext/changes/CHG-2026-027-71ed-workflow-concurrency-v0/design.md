@@ -8,6 +8,7 @@ Define explicit shared-workspace concurrency modes, deterministic locking, and a
 - Shared-workspace concurrency requires an explicit model, not opportunistic scheduling.
 - Concurrency state must be visible to the runner, broker, policy layer, and TUI.
 - Approval and artifact bindings remain run-specific even when runs execute concurrently.
+- Concurrency posture must surface through the shared broker run-detail/read-model contract rather than through a second UI-only status vocabulary.
 
 ## Main Workstreams
 - Workspace Concurrency Model

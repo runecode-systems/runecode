@@ -15,6 +15,7 @@ Implement the Linux microVM isolation backend, including launcher hardening, gue
 - Performance work (boot latency, warm pools, caching) must not relax isolation semantics or bypass audit/policy.
 - Warm pools/caches must not introduce cross-run state bleed; reuse requires reset-to-clean (or destroy) semantics and verifiable, manifest-pinned artifacts.
 - CI may not always have KVM; backend-agnostic components must be testable without KVM, while microVM e2e runs can use a dedicated KVM-capable lane.
+- Backend kind and assurance posture are first-class operator-visible outputs that should align with shared broker run-summary/run-detail surfaces rather than existing only as audit side notes.
 
 ## Main Workstreams
 - MicroVM Backend Architecture

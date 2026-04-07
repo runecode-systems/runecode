@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ArtifactStreamEvent.schema.json",
+  "title": "ArtifactStreamEvent",
+  "description": "Typed broker artifact stream event envelope with uniform stream semantics.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 14,
+  "required": ["schema_id", "schema_version", "stream_id", "request_id", "seq", "event_type"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ArtifactStreamEvent", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "stream_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Stable stream identifier.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Correlated request identifier.", "x-data-class": "public" },
+    "seq": { "type": "integer", "minimum": 1, "description": "Monotonic stream event sequence number.", "x-data-class": "public" },
+    "event_type": {
+      "type": "string",
+      "enum": ["artifact_stream_start", "artifact_stream_chunk", "artifact_stream_terminal"],
+      "description": "Artifact stream event type.",
+      "x-data-class": "public"
+    },
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Artifact digest identity.", "x-data-class": "public" },
+    "data_class": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Artifact data class.", "x-data-class": "public" },
+    "chunk_base64": { "type": "string", "maxLength": 87384, "description": "Base64 payload chunk for chunk events.", "x-data-class": "public" },
+    "chunk_bytes": { "type": "integer", "minimum": 1, "maximum": 65536, "description": "Decoded payload chunk size.", "x-data-class": "public" },
+    "eof": { "type": "boolean", "description": "True when terminal reached end-of-file.", "x-data-class": "public" },
+    "terminal": { "type": "boolean", "description": "True only for terminal event.", "x-data-class": "public" },
+    "terminal_status": {
+      "type": "string",
+      "enum": ["completed", "failed", "cancelled"],
+      "description": "In-band terminal status for the stream lifecycle.",
+      "x-data-class": "public"
+    },
+    "error": { "$ref": "Error.schema.json", "description": "Typed terminal error payload for failed terminal event.", "x-data-class": "public" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "event_type": { "const": "artifact_stream_start" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["digest", "data_class"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "artifact_stream_chunk" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["digest", "data_class", "chunk_base64", "chunk_bytes"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "artifact_stream_terminal" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["terminal", "digest", "data_class", "terminal_status"],
+        "properties": {
+          "terminal": { "const": true }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": { "const": "artifact_stream_terminal" },
+          "terminal_status": { "const": "failed" }
+        },
+        "required": ["event_type", "terminal_status"]
+      },
+      "then": {
+        "required": ["error"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": { "const": "artifact_stream_terminal" },
+          "terminal_status": { "enum": ["completed", "cancelled"] }
+        },
+        "required": ["event_type", "terminal_status"]
+      },
+      "then": {
+        "not": {
+          "required": ["error"]
+        }
+      }
+    }
+  ]
+}

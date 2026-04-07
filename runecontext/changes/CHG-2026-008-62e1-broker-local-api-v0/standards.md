@@ -1,5 +1,6 @@
 ## Applicable Standards
 - `standards/product/roadmap-conventions.md`
+- `standards/global/local-first-future-optionality.md`
 - `standards/security/approval-binding-and-verifier-identity.md`
 - `standards/security/audit-verification-scope-and-evidence-binding.md`
 - `standards/security/trust-boundary-interfaces.md`

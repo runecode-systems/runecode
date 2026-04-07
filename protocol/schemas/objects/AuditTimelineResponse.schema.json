@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditTimelineResponse.schema.json",
+  "title": "AuditTimelineResponse",
+  "description": "Typed audit operational timeline response page.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 6,
+  "required": ["schema_id", "schema_version", "request_id", "order", "views"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.AuditTimelineResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable echoed request identifier.", "x-data-class": "public" },
+    "order": { "type": "string", "enum": ["operational_seq_asc", "operational_seq_desc"], "description": "Ordering applied to this timeline page.", "x-data-class": "public" },
+    "views": { "type": "array", "maxItems": 500, "description": "Audit operational view page entries.", "x-data-class": "public", "items": { "type": "object", "maxProperties": 128, "description": "Audit operational view entry.", "x-data-class": "public" } },
+    "next_cursor": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Opaque continuation cursor.", "x-data-class": "public" }
+  }
+}

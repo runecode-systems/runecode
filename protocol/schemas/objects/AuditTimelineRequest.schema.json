@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditTimelineRequest.schema.json",
+  "title": "AuditTimelineRequest",
+  "description": "Typed audit operational timeline request with opaque cursor pagination and explicit ordering semantics.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 6,
+  "required": ["schema_id", "schema_version", "request_id"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.AuditTimelineRequest", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable request identifier.", "x-data-class": "public" },
+    "cursor": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Opaque cursor.", "x-data-class": "public" },
+    "limit": { "type": "integer", "minimum": 1, "maximum": 500, "description": "Page size.", "x-data-class": "public" },
+    "order": { "type": "string", "enum": ["operational_seq_asc", "operational_seq_desc"], "description": "Explicit audit timeline ordering semantics.", "x-data-class": "public" }
+  }
+}

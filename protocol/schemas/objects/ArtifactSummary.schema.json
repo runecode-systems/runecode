@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ArtifactSummary.schema.json",
+  "title": "ArtifactSummary",
+  "description": "Topology-neutral artifact read model built around ArtifactReference.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 10,
+  "required": ["schema_id", "schema_version", "reference", "created_at", "created_by_role"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ArtifactSummary", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 5,
+      "required": ["digest", "size_bytes", "content_type", "data_class", "provenance_receipt_hash"],
+      "description": "Topology-neutral artifact reference view used by broker local reads.",
+      "x-data-class": "public",
+      "properties": {
+        "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Artifact digest identity.", "x-data-class": "public" },
+        "size_bytes": { "type": "integer", "minimum": 0, "maximum": 1099511627776, "description": "Artifact byte size.", "x-data-class": "public" },
+        "content_type": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Artifact media type.", "x-data-class": "public" },
+        "data_class": { "type": "string", "enum": ["spec_text", "unapproved_file_excerpts", "approved_file_excerpts", "diffs", "build_logs", "audit_events", "audit_verification_report", "web_query", "web_citations"], "description": "Artifact data class.", "x-data-class": "public" },
+        "provenance_receipt_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Provenance receipt digest identity.", "x-data-class": "public" }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Artifact creation time.", "x-data-class": "public" },
+    "created_by_role": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Creating role identity.", "x-data-class": "public" },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional run identifier.", "x-data-class": "public" },
+    "stage_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional stage identifier.", "x-data-class": "public" },
+    "step_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional step identifier.", "x-data-class": "public" },
+    "approval_of_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Optional source digest approved by this artifact.", "x-data-class": "public" },
+    "approval_decision_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Optional approval decision hash.", "x-data-class": "public" }
+  }
+}

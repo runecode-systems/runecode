@@ -7,6 +7,7 @@ Use this change as the project-level tracker for secure workflow execution while
 - Child features own runtime implementation detail.
 - Parent project owns sequencing and integration posture.
 - Security invariants remain untrusted-runner, policy enforcement, and evidence-backed execution.
+- Integration posture includes one shared broker logical API vocabulary for runs, approvals, audit posture, and operator-visible blocked state across child features.
 
 ## Main Workstreams
 - `CHG-2026-033-6e7b-workflow-runner-durable-state-v0`

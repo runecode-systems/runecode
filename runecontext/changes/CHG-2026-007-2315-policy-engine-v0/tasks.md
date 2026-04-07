@@ -98,6 +98,7 @@ Parallelization: can be implemented in parallel with launcher backends; it depen
   - stable reason codes
   - structured “required approvals” payloads
 - [ ] Decision artifacts must include hashes of all evaluated inputs (manifest hash, request hash, relevant artifact hashes).
+- [ ] Keep `required_approval` payloads aligned with the broker local API approval-summary/bound-scope model so the broker can expose operator-facing approval objects without semantic reshaping.
 
 Parallelization: can be implemented in parallel with protocol schemas; it depends on a stable decision artifact schema and shared error taxonomy.
 

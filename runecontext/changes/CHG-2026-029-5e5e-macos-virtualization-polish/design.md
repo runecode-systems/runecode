@@ -6,6 +6,7 @@ Improve macOS virtualization reliability, packaging, and UX without changing the
 ## Key Decisions
 - Any macOS-specific backend changes must preserve the same capability model.
 - UX must keep assurance levels explicit.
+- Backend kind and assurance posture must remain aligned with the shared broker run-summary/run-detail contract rather than becoming platform-specific UI metadata.
 
 ## Main Workstreams
 - HVF Reliability + UX

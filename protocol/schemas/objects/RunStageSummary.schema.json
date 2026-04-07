@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/RunStageSummary.schema.json",
+  "title": "RunStageSummary",
+  "description": "Stable stage-level run detail summary for broker local API responses.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 8,
+  "required": ["schema_id", "schema_version", "stage_id", "lifecycle_state", "pending_approval_count", "artifact_count"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.RunStageSummary", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "stage_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Stage identifier.", "x-data-class": "public" },
+    "lifecycle_state": { "type": "string", "enum": ["pending", "starting", "active", "blocked", "recovering", "completed", "failed", "cancelled"], "description": "Stage lifecycle state.", "x-data-class": "public" },
+    "started_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Stage start time.", "x-data-class": "public" },
+    "finished_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Stage finish time.", "x-data-class": "public" },
+    "pending_approval_count": { "type": "integer", "minimum": 0, "description": "Pending approvals in the stage.", "x-data-class": "public" },
+    "artifact_count": { "type": "integer", "minimum": 0, "description": "Artifact count observed in the stage.", "x-data-class": "public" }
+  }
+}

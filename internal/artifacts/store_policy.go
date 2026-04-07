@@ -2,7 +2,6 @@ package artifacts
 
 import (
 	"encoding/json"
-	"errors"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
@@ -18,23 +17,10 @@ func (s *Store) CheckFlow(req FlowCheckRequest) error {
 	if err != nil {
 		return err
 	}
-	if record.Reference.DataClass != req.DataClass {
-		auditErr := s.appendAuditLocked("artifact_flow_blocked", req.ProducerRole, map[string]interface{}{"reason": "artifact_data_class_mismatch", "digest": req.Digest, "requested_data_class": req.DataClass, "actual_data_class": record.Reference.DataClass})
-		if auditErr != nil {
-			return errors.Join(ErrFlowDenied, auditErr)
-		}
-		return ErrFlowDenied
-	}
-	if err := enforceEgressRestrictions(s.state.Policy, req, s.appendAuditLocked); err != nil {
+	if err := s.enforceFlowRecordConsistencyLocked(record, req); err != nil {
 		return err
 	}
-	if flowAllowed(s.state.Policy.FlowMatrix, req) {
-		return nil
-	}
-	if auditErr := s.appendAuditLocked("artifact_flow_blocked", req.ProducerRole, map[string]interface{}{"reason": "artifact_flow_denied", "digest": req.Digest, "data_class": req.DataClass}); auditErr != nil {
-		return errors.Join(ErrFlowDenied, auditErr)
-	}
-	return ErrFlowDenied
+	return s.enforceFlowPolicyLocked(req)
 }
 
 func (s *Store) RevokeApprovedExcerpt(digest, actor string) error {

@@ -99,6 +99,42 @@ func TestDataClassMutationDenied(t *testing.T) {
 	}
 }
 
+func TestPutCanonicalizesUntrustedCreatedByRole(t *testing.T) {
+	store := newTestStore(t)
+	ref, err := store.Put(PutRequest{
+		Payload:               []byte("payload"),
+		ContentType:           "text/plain",
+		DataClass:             DataClassSpecText,
+		ProvenanceReceiptHash: testDigest("a"),
+		CreatedByRole:         " admin ",
+	})
+	if err != nil {
+		t.Fatalf("Put returned error: %v", err)
+	}
+	record, err := store.Head(ref.Digest)
+	if err != nil {
+		t.Fatalf("Head returned error: %v", err)
+	}
+	if record.CreatedByRole != "untrusted_client" {
+		t.Fatalf("created_by_role = %q, want untrusted_client", record.CreatedByRole)
+	}
+}
+
+func TestPutRejectsTrustedSourceMissingCreatedByRole(t *testing.T) {
+	store := newTestStore(t)
+	_, err := store.Put(PutRequest{
+		Payload:               []byte("payload"),
+		ContentType:           "text/plain",
+		DataClass:             DataClassSpecText,
+		ProvenanceReceiptHash: testDigest("b"),
+		CreatedByRole:         "   ",
+		TrustedSource:         true,
+	})
+	if err != ErrTrustedCreatedByRoleRequired {
+		t.Fatalf("Put trusted source missing created_by_role error = %v, want %v", err, ErrTrustedCreatedByRoleRequired)
+	}
+}
+
 func TestFlowChecksFailClosedAndEgressRules(t *testing.T) {
 	store := newTestStore(t)
 	ref, err := store.Put(PutRequest{
@@ -129,6 +165,57 @@ func TestFlowChecksFailClosedAndEgressRules(t *testing.T) {
 	err = store.CheckFlow(FlowCheckRequest{ProducerRole: "workspace", ConsumerRole: "model_gateway", DataClass: DataClassSpecText, Digest: testDigest("f")})
 	if err != ErrArtifactNotFound {
 		t.Fatalf("CheckFlow unknown digest error = %v, want %v", err, ErrArtifactNotFound)
+	}
+}
+
+func TestGetForFlowEnforcesProducerRoleAndManifestOptIn(t *testing.T) {
+	store, unapproved := setupPromotionSourceForTests(t)
+	assertGetForFlowRejectsUnapprovedEgress(t, store, unapproved.Digest)
+	approved := promoteApprovedExcerptForTests(t, store, unapproved.Digest, "human")
+	assertGetForFlowRequiresManifestOptIn(t, store, approved.Digest)
+	assertGetForFlowAllowsApprovedWithOptIn(t, store, approved.Digest)
+	assertGetForFlowRejectsMismatchedProducer(t, store, approved.Digest)
+}
+
+func assertGetForFlowRejectsUnapprovedEgress(t *testing.T, store *Store, digest string) {
+	t.Helper()
+	_, _, err := store.GetForFlow(ArtifactReadRequest{Digest: digest, ProducerRole: "workspace", ConsumerRole: "model_gateway", DataClass: DataClassUnapprovedFileExcerpts, IsEgress: true})
+	if err != ErrUnapprovedEgressDenied {
+		t.Fatalf("GetForFlow unapproved egress error = %v, want %v", err, ErrUnapprovedEgressDenied)
+	}
+}
+
+func assertGetForFlowRequiresManifestOptIn(t *testing.T, store *Store, digest string) {
+	t.Helper()
+	_, _, err := store.GetForFlow(ArtifactReadRequest{Digest: digest, ProducerRole: "workspace", ConsumerRole: "model_gateway", DataClass: DataClassApprovedFileExcerpts, IsEgress: true})
+	if err != ErrApprovedEgressRequiresManifest {
+		t.Fatalf("GetForFlow approved no-opt-in error = %v, want %v", err, ErrApprovedEgressRequiresManifest)
+	}
+}
+
+func assertGetForFlowAllowsApprovedWithOptIn(t *testing.T, store *Store, digest string) {
+	t.Helper()
+	r, rec, err := store.GetForFlow(ArtifactReadRequest{Digest: digest, ProducerRole: "workspace", ConsumerRole: "model_gateway", DataClass: DataClassApprovedFileExcerpts, IsEgress: true, ManifestOptIn: true})
+	if err != nil {
+		t.Fatalf("GetForFlow approved with opt-in error: %v", err)
+	}
+	b, readErr := ioReadAllAndClose(r)
+	if readErr != nil {
+		t.Fatalf("GetForFlow read error: %v", readErr)
+	}
+	if string(b) != "approved:\nsensitive excerpt" {
+		t.Fatalf("GetForFlow payload = %q, want approved payload", string(b))
+	}
+	if rec.Reference.Digest != digest {
+		t.Fatalf("GetForFlow record digest = %q, want %q", rec.Reference.Digest, digest)
+	}
+}
+
+func assertGetForFlowRejectsMismatchedProducer(t *testing.T, store *Store, digest string) {
+	t.Helper()
+	_, _, err := store.GetForFlow(ArtifactReadRequest{Digest: digest, ProducerRole: "auditd", ConsumerRole: "model_gateway", DataClass: DataClassApprovedFileExcerpts, IsEgress: true, ManifestOptIn: true})
+	if err != ErrFlowProducerRoleMismatch {
+		t.Fatalf("GetForFlow mismatched producer error = %v, want %v", err, ErrFlowProducerRoleMismatch)
 	}
 }
 

@@ -14,6 +14,10 @@ var (
 )
 
 func validateObjectPayloadAgainstSchema(payload []byte, schemaPath string) error {
+	return ValidateObjectPayloadAgainstSchema(payload, schemaPath)
+}
+
+func ValidateObjectPayloadAgainstSchema(payload []byte, schemaPath string) error {
 	schema, err := compiledObjectSchema(schemaPath)
 	if err != nil {
 		return err

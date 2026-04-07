@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/LogStreamRequest.schema.json",
+  "title": "LogStreamRequest",
+  "description": "Typed local log stream request shape with stable stream_id for transport-neutral streaming.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 9,
+  "required": ["schema_id", "schema_version", "request_id", "stream_id", "follow", "include_backlog"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.LogStreamRequest", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable request identifier.", "x-data-class": "public" },
+    "stream_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Stable stream identifier.", "x-data-class": "public" },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional run scope filter.", "x-data-class": "public" },
+    "role_instance_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional role instance scope filter.", "x-data-class": "public" },
+    "start_cursor": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Optional stream start cursor.", "x-data-class": "public" },
+    "follow": { "type": "boolean", "description": "Whether to continue streaming new entries.", "x-data-class": "public" },
+    "include_backlog": { "type": "boolean", "description": "Whether to include existing backlog before live follow.", "x-data-class": "public" }
+  }
+}

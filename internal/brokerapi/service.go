@@ -3,18 +3,41 @@ package brokerapi
 import (
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/auditd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
+var (
+	BrokerProductVersion = "0.0.0-dev"
+	BrokerBuildRevision  = "dev"
+	BrokerBuildTime      = "1970-01-01T00:00:00Z"
+)
+
+const (
+	brokerProtocolBundleVersion      = "0.5.0"
+	brokerProtocolBundleManifestHash = "sha256:98d83c70b6948c654d0e23e556eb62ab7a0cac54dc214ba755521d5002061b06"
+)
+
 type Service struct {
 	store       *artifacts.Store
 	auditLedger *auditd.Ledger
+	auditor     *brokerAuditEmitter
+	auditRoot   string
+	apiConfig   APIConfig
+	apiInflight *inFlightGate
+	approvals   approvalState
+	versionInfo BrokerVersionInfo
+	now         func() time.Time
 }
 
 func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
+	return NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{})
+}
+
+func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*Service, error) {
 	store, err := artifacts.NewStore(storeRoot)
 	if err != nil {
 		return nil, err
@@ -23,7 +46,56 @@ func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Service{store: store, auditLedger: ledger}, nil
+	resolved := cfg.withDefaults()
+	auditor, err := newBrokerAuditEmitter()
+	if err != nil {
+		return nil, err
+	}
+	return &Service{
+		store:       store,
+		auditLedger: ledger,
+		auditor:     auditor,
+		auditRoot:   ledgerRoot,
+		apiConfig:   resolved,
+		apiInflight: newInFlightGate(resolved.Limits),
+		approvals:   approvalState{records: map[string]approvalRecord{}},
+		now:         time.Now,
+		versionInfo: defaultBrokerVersionInfo(),
+	}, nil
+}
+
+func defaultBrokerVersionInfo() BrokerVersionInfo {
+	return BrokerVersionInfo{
+		SchemaID:                    "runecode.protocol.v0.BrokerVersionInfo",
+		SchemaVersion:               "0.1.0",
+		ProductVersion:              BrokerProductVersion,
+		BuildRevision:               BrokerBuildRevision,
+		BuildTime:                   BrokerBuildTime,
+		ProtocolBundleVersion:       brokerProtocolBundleVersion,
+		ProtocolBundleManifestHash:  brokerProtocolBundleManifestHash,
+		APIFamily:                   "broker_local_api",
+		APIVersion:                  "v0",
+		SupportedTransportEncodings: []string{"json"},
+	}
+}
+
+func (s *Service) SetVersionInfo(info BrokerVersionInfo) {
+	if info.SchemaID == "" {
+		info.SchemaID = "runecode.protocol.v0.BrokerVersionInfo"
+	}
+	if info.SchemaVersion == "" {
+		info.SchemaVersion = "0.1.0"
+	}
+	if info.APIFamily == "" {
+		info.APIFamily = "broker_local_api"
+	}
+	if info.APIVersion == "" {
+		info.APIVersion = "v0"
+	}
+	if len(info.SupportedTransportEncodings) == 0 {
+		info.SupportedTransportEncodings = []string{"json"}
+	}
+	s.versionInfo = info
 }
 
 func (s *Service) Put(req artifacts.PutRequest) (artifacts.ArtifactReference, error) {
@@ -34,12 +106,20 @@ func (s *Service) List() []artifacts.ArtifactRecord {
 	return s.store.List()
 }
 
+func (s *Service) RunStatuses() map[string]string {
+	return s.store.RunStatuses()
+}
+
 func (s *Service) Head(digest string) (artifacts.ArtifactRecord, error) {
 	return s.store.Head(digest)
 }
 
 func (s *Service) Get(digest string) (io.ReadCloser, error) {
 	return s.store.Get(digest)
+}
+
+func (s *Service) GetForFlow(req artifacts.ArtifactReadRequest) (io.ReadCloser, artifacts.ArtifactRecord, error) {
+	return s.store.GetForFlow(req)
 }
 
 func (s *Service) CheckFlow(req artifacts.FlowCheckRequest) error {
@@ -93,11 +173,18 @@ type AuditVerificationSurface struct {
 }
 
 func (s *Service) LatestAuditVerificationSurface(limit int) (AuditVerificationSurface, error) {
+	if s.auditLedger == nil {
+		return AuditVerificationSurface{}, fmt.Errorf("audit ledger unavailable")
+	}
 	summary, views, report, err := s.auditLedger.LatestVerificationSummaryAndViews(limit)
 	if err != nil {
 		return AuditVerificationSurface{}, err
 	}
 	return AuditVerificationSurface{Summary: summary, Report: report, Views: views}, nil
+}
+
+func (s *Service) APILimits() Limits {
+	return s.apiConfig.Limits
 }
 
 func ParseDataClass(value string) (artifacts.DataClass, error) {

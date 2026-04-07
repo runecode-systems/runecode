@@ -32,6 +32,82 @@
     {
       "code": "request_cancelled",
       "summary": "The streamed request was cancelled before a successful terminal response was produced."
+    },
+    {
+      "code": "broker_auth_peer_credentials_required",
+      "summary": "The broker rejected the request because local transport authentication credentials were unavailable or invalid."
+    },
+    {
+      "code": "broker_api_auth_admission_denied",
+      "summary": "The broker rejected the request during local admission/authentication before operation handling."
+    },
+    {
+      "code": "broker_validation_request_id_missing",
+      "summary": "The broker rejected the request because request_id was missing or empty."
+    },
+    {
+      "code": "broker_validation_schema_invalid",
+      "summary": "The broker rejected the request or response payload because it failed boundary schema validation."
+    },
+    {
+      "code": "broker_validation_payload_base64_invalid",
+      "summary": "The broker rejected the request because a base64 payload field was malformed."
+    },
+    {
+      "code": "broker_validation_data_class_invalid",
+      "summary": "The broker rejected the request because data_class was unsupported for the operation."
+    },
+    {
+      "code": "broker_validation_operation_invalid",
+      "summary": "The broker rejected the request because the requested operation is not supported by this API surface."
+    },
+    {
+      "code": "broker_not_found_artifact",
+      "summary": "The broker could not find the requested artifact for the provided digest."
+    },
+    {
+      "code": "broker_not_found_run",
+      "summary": "The broker could not find the requested run for the provided run_id."
+    },
+    {
+      "code": "broker_not_found_approval",
+      "summary": "The broker could not find the requested approval for the provided approval_id."
+    },
+    {
+      "code": "broker_limit_message_size_exceeded",
+      "summary": "The broker rejected the request because encoded or decoded message size exceeded configured limits."
+    },
+    {
+      "code": "broker_limit_structural_complexity_exceeded",
+      "summary": "The broker rejected the request because JSON depth, array length, or object properties exceeded configured limits."
+    },
+    {
+      "code": "broker_limit_in_flight_exceeded",
+      "summary": "The broker rejected the request because in-flight request limits per client or lane were exceeded."
+    },
+    {
+      "code": "broker_limit_rate_exceeded",
+      "summary": "The broker rejected the request because per-client request rate exceeded configured limits for the current window."
+    },
+    {
+      "code": "broker_limit_policy_rejected",
+      "summary": "The broker rejected the request due to policy-enforced runtime limits or flow controls."
+    },
+    {
+      "code": "broker_limit_response_stream_size_exceeded",
+      "summary": "The broker terminated a response stream because total streamed bytes exceeded configured limits."
+    },
+    {
+      "code": "broker_timeout_request_deadline_exceeded",
+      "summary": "The broker rejected or terminated the request because its deadline was exceeded."
+    },
+    {
+      "code": "broker_approval_state_invalid",
+      "summary": "The broker rejected approval handling because typed signed approval artifacts or required hash bindings were invalid."
+    },
+    {
+      "code": "broker_validation_range_not_supported",
+      "summary": "The broker rejected the request because artifact range reads are not supported in MVP."
     }
   ]
 }
