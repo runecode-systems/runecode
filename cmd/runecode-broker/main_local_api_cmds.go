@@ -4,9 +4,19 @@ import (
 	"context"
 	"flag"
 	"io"
+	"os/signal"
+	"syscall"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
+
+func commandRequestContext(parent context.Context) (context.Context, context.CancelFunc) {
+	base := parent
+	if base == nil {
+		base = context.Background()
+	}
+	return signal.NotifyContext(base, syscall.SIGINT, syscall.SIGTERM)
+}
 
 func handleRunList(args []string, service *brokerapi.Service, stdout io.Writer) error {
 	fs := flag.NewFlagSet("run-list", flag.ContinueOnError)
@@ -16,7 +26,9 @@ func handleRunList(args []string, service *brokerapi.Service, stdout io.Writer) 
 		return &usageError{message: "run-list usage: runecode-broker run-list [--limit N]"}
 	}
 	api := localAPIForService(service)
-	resp, errResp := api.RunList(context.Background(), brokerapi.RunListRequest{
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.RunList(ctx, brokerapi.RunListRequest{
 		SchemaID:      "runecode.protocol.v0.RunListRequest",
 		SchemaVersion: "0.1.0",
 		RequestID:     defaultRequestID(),
@@ -39,7 +51,9 @@ func handleRunGet(args []string, service *brokerapi.Service, stdout io.Writer) e
 		return &usageError{message: "run-get requires --run-id"}
 	}
 	api := localAPIForService(service)
-	resp, errResp := api.RunGet(context.Background(), brokerapi.RunGetRequest{
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.RunGet(ctx, brokerapi.RunGetRequest{
 		SchemaID:      "runecode.protocol.v0.RunGetRequest",
 		SchemaVersion: "0.1.0",
 		RequestID:     defaultRequestID(),
@@ -61,7 +75,9 @@ func handleApprovalList(args []string, service *brokerapi.Service, stdout io.Wri
 		return &usageError{message: "approval-list usage: runecode-broker approval-list [--run-id id] [--status pending|approved|denied|expired|cancelled|superseded|consumed] [--limit N]"}
 	}
 	api := localAPIForService(service)
-	resp, errResp := api.ApprovalList(context.Background(), brokerapi.ApprovalListRequest{
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.ApprovalList(ctx, brokerapi.ApprovalListRequest{
 		SchemaID:      "runecode.protocol.v0.ApprovalListRequest",
 		SchemaVersion: "0.1.0",
 		RequestID:     defaultRequestID(),
@@ -86,7 +102,9 @@ func handleApprovalGet(args []string, service *brokerapi.Service, stdout io.Writ
 		return &usageError{message: "approval-get requires --approval-id"}
 	}
 	api := localAPIForService(service)
-	resp, errResp := api.ApprovalGet(context.Background(), brokerapi.ApprovalGetRequest{
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.ApprovalGet(ctx, brokerapi.ApprovalGetRequest{
 		SchemaID:      "runecode.protocol.v0.ApprovalGetRequest",
 		SchemaVersion: "0.1.0",
 		RequestID:     defaultRequestID(),
@@ -100,7 +118,9 @@ func handleApprovalGet(args []string, service *brokerapi.Service, stdout io.Writ
 
 func handleVersionInfo(_ []string, service *brokerapi.Service, stdout io.Writer) error {
 	api := localAPIForService(service)
-	resp, errResp := api.VersionInfoGet(context.Background(), brokerapi.VersionInfoGetRequest{
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.VersionInfoGet(ctx, brokerapi.VersionInfoGetRequest{
 		SchemaID:      "runecode.protocol.v0.VersionInfoGetRequest",
 		SchemaVersion: "0.1.0",
 		RequestID:     defaultRequestID(),
@@ -123,7 +143,9 @@ func handleStreamLogs(args []string, service *brokerapi.Service, stdout io.Write
 		return &usageError{message: "stream-logs usage: runecode-broker stream-logs [--run-id id] [--role-instance-id id] [--start-cursor cursor] [--follow] [--include-backlog]"}
 	}
 	api := localAPIForService(service)
-	events, errResp := api.LogStream(context.Background(), brokerapi.LogStreamRequest{
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	events, errResp := api.LogStream(ctx, brokerapi.LogStreamRequest{
 		SchemaID:       "runecode.protocol.v0.LogStreamRequest",
 		SchemaVersion:  "0.1.0",
 		RequestID:      defaultRequestID(),

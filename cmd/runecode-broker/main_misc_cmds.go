@@ -38,7 +38,9 @@ func handlePromoteExcerpt(args []string, service *brokerapi.Service, stdout io.W
 		return &usageError{message: fmt.Sprintf("invalid --approval-envelope: %v", err)}
 	}
 	api := localAPIForService(service)
-	resolveResp, errResp := api.ApprovalResolve(context.Background(), brokerapi.ApprovalResolveRequest{
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resolveResp, errResp := api.ApprovalResolve(ctx, brokerapi.ApprovalResolveRequest{
 		SchemaID:      "runecode.protocol.v0.ApprovalResolveRequest",
 		SchemaVersion: "0.1.0",
 		RequestID:     defaultRequestID(),
@@ -156,7 +158,9 @@ func handleSetReservedClasses(args []string, service *brokerapi.Service, _ io.Wr
 
 func handleAuditReadiness(_ []string, service *brokerapi.Service, stdout io.Writer) error {
 	api := localAPIForService(service)
-	resp, errResp := api.ReadinessGet(context.Background(), brokerapi.ReadinessGetRequest{
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.ReadinessGet(ctx, brokerapi.ReadinessGetRequest{
 		SchemaID:      "runecode.protocol.v0.ReadinessGetRequest",
 		SchemaVersion: "0.1.0",
 		RequestID:     defaultRequestID(),
@@ -175,7 +179,9 @@ func handleAuditVerification(args []string, service *brokerapi.Service, stdout i
 		return &usageError{message: "audit-verification usage: runecode-broker audit-verification [--limit N]"}
 	}
 	api := localAPIForService(service)
-	resp, errResp := api.AuditVerificationGet(context.Background(), brokerapi.AuditVerificationGetRequest{
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.AuditVerificationGet(ctx, brokerapi.AuditVerificationGetRequest{
 		SchemaID:      "runecode.protocol.v0.AuditVerificationGetRequest",
 		SchemaVersion: "0.1.0",
 		RequestID:     defaultRequestID(),

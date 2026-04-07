@@ -57,6 +57,7 @@ func shouldAuditErrorCode(code string) bool {
 	switch code {
 	case "broker_api_auth_admission_denied",
 		"broker_validation_schema_invalid",
+		"broker_validation_operation_invalid",
 		"broker_limit_message_size_exceeded",
 		"broker_limit_structural_complexity_exceeded",
 		"broker_limit_in_flight_exceeded",

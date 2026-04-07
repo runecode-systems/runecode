@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -261,4 +262,31 @@ func requestOversizedPayloadViaLocalRPC(t *testing.T, conn net.Conn) error {
 		return fmt.Errorf("error code = %q, want broker_limit_message_size_exceeded", resp.Error.Error.Code)
 	}
 	return nil
+}
+
+func TestDecodeWireErrorClassifiesOperationAndCancellation(t *testing.T) {
+	unsupported := decodeWireError("req-op", fmt.Errorf("unsupported operation %q", "not_real"))
+	if unsupported == nil {
+		t.Fatal("decodeWireError returned nil for unsupported operation")
+	}
+	if unsupported.Error.Code != "broker_validation_operation_invalid" {
+		t.Fatalf("unsupported operation code = %q, want broker_validation_operation_invalid", unsupported.Error.Code)
+	}
+	canceled := decodeWireError("req-cancel", context.Canceled)
+	if canceled == nil {
+		t.Fatal("decodeWireError returned nil for canceled context")
+	}
+	if canceled.Error.Code != "request_cancelled" {
+		t.Fatalf("context canceled code = %q, want request_cancelled", canceled.Error.Code)
+	}
+	if !canceled.Error.Retryable {
+		t.Fatal("request_cancelled should be retryable")
+	}
+	deadline := decodeWireError("req-deadline", context.DeadlineExceeded)
+	if deadline == nil {
+		t.Fatal("decodeWireError returned nil for deadline exceeded")
+	}
+	if deadline.Error.Code != "broker_timeout_request_deadline_exceeded" {
+		t.Fatalf("deadline code = %q, want broker_timeout_request_deadline_exceeded", deadline.Error.Code)
+	}
 }

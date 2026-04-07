@@ -401,6 +401,32 @@ func TestArtifactStreamEventsCloseWithSingleTerminalOnReadFailure(t *testing.T) 
 	assertSingleFailedArtifactTerminal(t, events)
 }
 
+func TestArtifactStreamOverflowUsesResponseStreamLimitCode(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{Limits: Limits{MaxResponseStreamBytes: 16, MaxStreamChunkBytes: 8}})
+	handle := ArtifactReadHandle{
+		RequestID:  "req-stream-overflow",
+		Digest:     "sha256:" + strings.Repeat("b", 64),
+		DataClass:  artifacts.DataClassSpecText,
+		StreamID:   "stream-overflow",
+		ChunkBytes: 8,
+		Reader:     io.NopCloser(strings.NewReader(strings.Repeat("x", 32))),
+	}
+	events, err := s.StreamArtifactReadEvents(handle)
+	if err != nil {
+		t.Fatalf("StreamArtifactReadEvents returned error: %v", err)
+	}
+	for _, event := range events {
+		if event.EventType != "artifact_stream_terminal" || event.TerminalStatus != "failed" || event.Error == nil {
+			continue
+		}
+		if event.Error.Code != "broker_limit_response_stream_size_exceeded" {
+			t.Fatalf("error code = %q, want broker_limit_response_stream_size_exceeded", event.Error.Code)
+		}
+		return
+	}
+	t.Fatal("missing failed terminal event with typed stream overflow code")
+}
+
 func assertSingleFailedArtifactTerminal(t *testing.T, events []ArtifactStreamEvent) {
 	t.Helper()
 	terminal := 0

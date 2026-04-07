@@ -3,12 +3,22 @@ package brokerapi
 import (
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/auditd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
+)
+
+var (
+	BrokerProductVersion = "0.0.0-dev"
+	BrokerBuildRevision  = "dev"
+	BrokerBuildTime      = "1970-01-01T00:00:00Z"
+)
+
+const (
+	brokerProtocolBundleVersion      = "0.5.0"
+	brokerProtocolBundleManifestHash = "sha256:98d83c70b6948c654d0e23e556eb62ab7a0cac54dc214ba755521d5002061b06"
 )
 
 type Service struct {
@@ -50,19 +60,42 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 		apiInflight: newInFlightGate(resolved.Limits),
 		approvals:   approvalState{records: map[string]approvalRecord{}},
 		now:         time.Now,
-		versionInfo: BrokerVersionInfo{
-			SchemaID:                    "runecode.protocol.v0.BrokerVersionInfo",
-			SchemaVersion:               "0.1.0",
-			ProductVersion:              "0.0.0-dev",
-			BuildRevision:               "unknown",
-			BuildTime:                   "unknown",
-			ProtocolBundleVersion:       "0.5.0",
-			ProtocolBundleManifestHash:  "sha256:" + strings.Repeat("0", 64),
-			APIFamily:                   "broker_local_api",
-			APIVersion:                  "v0",
-			SupportedTransportEncodings: []string{"json"},
-		},
+		versionInfo: defaultBrokerVersionInfo(),
 	}, nil
+}
+
+func defaultBrokerVersionInfo() BrokerVersionInfo {
+	return BrokerVersionInfo{
+		SchemaID:                    "runecode.protocol.v0.BrokerVersionInfo",
+		SchemaVersion:               "0.1.0",
+		ProductVersion:              BrokerProductVersion,
+		BuildRevision:               BrokerBuildRevision,
+		BuildTime:                   BrokerBuildTime,
+		ProtocolBundleVersion:       brokerProtocolBundleVersion,
+		ProtocolBundleManifestHash:  brokerProtocolBundleManifestHash,
+		APIFamily:                   "broker_local_api",
+		APIVersion:                  "v0",
+		SupportedTransportEncodings: []string{"json"},
+	}
+}
+
+func (s *Service) SetVersionInfo(info BrokerVersionInfo) {
+	if info.SchemaID == "" {
+		info.SchemaID = "runecode.protocol.v0.BrokerVersionInfo"
+	}
+	if info.SchemaVersion == "" {
+		info.SchemaVersion = "0.1.0"
+	}
+	if info.APIFamily == "" {
+		info.APIFamily = "broker_local_api"
+	}
+	if info.APIVersion == "" {
+		info.APIVersion = "v0"
+	}
+	if len(info.SupportedTransportEncodings) == 0 {
+		info.SupportedTransportEncodings = []string{"json"}
+	}
+	s.versionInfo = info
 }
 
 func (s *Service) Put(req artifacts.PutRequest) (artifacts.ArtifactReference, error) {

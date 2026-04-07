@@ -92,6 +92,8 @@ type rpcOperation struct {
 
 func serveLocalConn(conn net.Conn, service *brokerapi.Service, creds brokerapi.PeerCredentials) error {
 	defer conn.Close()
+	connCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	limits := service.APILimits()
 	requestBytesLimit := limits.MaxMessageBytes
 	if requestBytesLimit <= 0 {
@@ -116,7 +118,7 @@ func serveLocalConn(conn net.Conn, service *brokerapi.Service, creds brokerapi.P
 		if wire == nil {
 			continue
 		}
-		resp := localRPCDispatch(service, context.Background(), *wire, meta)
+		resp := localRPCDispatch(service, connCtx, *wire, meta)
 		if err := encodeLocalRPCResponse(conn, encoder, resp); err != nil {
 			return err
 		}
@@ -358,8 +360,19 @@ func decodeWireError(requestID string, err error) *brokerapi.ErrorResponse {
 	code := "broker_validation_schema_invalid"
 	category := "validation"
 	message := "request validation failed"
+	retryable := false
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return &brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: requestID, Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "request_cancelled", Category: "transport", Retryable: true, Message: "request cancelled"}}
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return &brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: requestID, Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "broker_timeout_request_deadline_exceeded", Category: "timeout", Retryable: false, Message: "request deadline exceeded"}}
+		}
 		message = err.Error()
+		if strings.Contains(message, "unsupported operation") {
+			code = "broker_validation_operation_invalid"
+			category = "validation"
+		}
 		if strings.Contains(message, "message size") {
 			code = "broker_limit_message_size_exceeded"
 			category = "transport"
@@ -369,5 +382,5 @@ func decodeWireError(requestID string, err error) *brokerapi.ErrorResponse {
 			category = "transport"
 		}
 	}
-	return &brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: requestID, Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: code, Category: category, Retryable: false, Message: message}}
+	return &brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: requestID, Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: code, Category: category, Retryable: retryable, Message: message}}
 }

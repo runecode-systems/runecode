@@ -58,6 +58,10 @@
       "summary": "The broker rejected the request because data_class was unsupported for the operation."
     },
     {
+      "code": "broker_validation_operation_invalid",
+      "summary": "The broker rejected the request because the requested operation is not supported by this API surface."
+    },
+    {
       "code": "broker_not_found_artifact",
       "summary": "The broker could not find the requested artifact for the provided digest."
     },
@@ -88,6 +92,10 @@
     {
       "code": "broker_limit_policy_rejected",
       "summary": "The broker rejected the request due to policy-enforced runtime limits or flow controls."
+    },
+    {
+      "code": "broker_limit_response_stream_size_exceeded",
+      "summary": "The broker terminated a response stream because total streamed bytes exceeded configured limits."
     },
     {
       "code": "broker_timeout_request_deadline_exceeded",

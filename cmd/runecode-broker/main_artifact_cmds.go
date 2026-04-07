@@ -14,7 +14,9 @@ import (
 
 func handleListArtifacts(_ []string, service *brokerapi.Service, stdout io.Writer) error {
 	api := localAPIForService(service)
-	resp, errResp := api.ArtifactList(context.Background(), brokerapi.LocalArtifactListRequest{
+	ctx, cancel := commandRequestContext(nil)
+	defer cancel()
+	resp, errResp := api.ArtifactList(ctx, brokerapi.LocalArtifactListRequest{
 		SchemaID:      "runecode.protocol.v0.ArtifactListRequest",
 		SchemaVersion: "0.1.0",
 		RequestID:     defaultRequestID(),
@@ -40,7 +42,9 @@ func handleHeadArtifact(args []string, service *brokerapi.Service, stdout io.Wri
 		return &usageError{message: "head-artifact requires --digest"}
 	}
 	api := localAPIForService(service)
-	resp, errResp := api.ArtifactHead(context.Background(), brokerapi.LocalArtifactHeadRequest{
+	ctx, cancel := commandRequestContext(nil)
+	defer cancel()
+	resp, errResp := api.ArtifactHead(ctx, brokerapi.LocalArtifactHeadRequest{
 		SchemaID:      "runecode.protocol.v0.ArtifactHeadRequest",
 		SchemaVersion: "0.1.0",
 		RequestID:     defaultRequestID(),
@@ -89,7 +93,9 @@ func handleGetArtifact(args []string, service *brokerapi.Service, stdout io.Writ
 		return err
 	}
 	api := localAPIForService(service)
-	events, errResp := api.ArtifactRead(context.Background(), opts.toRequest())
+	ctx, cancel := commandRequestContext(nil)
+	defer cancel()
+	events, errResp := api.ArtifactRead(ctx, opts.toRequest())
 	if errResp != nil {
 		return localAPIError(errResp)
 	}

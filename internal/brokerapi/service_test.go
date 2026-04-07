@@ -84,6 +84,32 @@ func TestLatestAuditVerificationSurfaceUsesReportScopedSegment(t *testing.T) {
 	}
 }
 
+func TestDefaultVersionInfoUsesConcreteMetadata(t *testing.T) {
+	service, err := NewService(t.TempDir(), filepath.Join(t.TempDir(), "ledger"))
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
+	info := service.versionInfo
+	if info.ProductVersion == "" || info.ProductVersion == "unknown" {
+		t.Fatalf("product_version = %q, want concrete value", info.ProductVersion)
+	}
+	if info.BuildRevision == "" || info.BuildRevision == "unknown" {
+		t.Fatalf("build_revision = %q, want concrete value", info.BuildRevision)
+	}
+	if info.BuildTime == "" || info.BuildTime == "unknown" {
+		t.Fatalf("build_time = %q, want concrete value", info.BuildTime)
+	}
+	if info.ProtocolBundleVersion != "0.5.0" {
+		t.Fatalf("protocol_bundle_version = %q, want 0.5.0", info.ProtocolBundleVersion)
+	}
+	if !strings.HasPrefix(info.ProtocolBundleManifestHash, "sha256:") || len(info.ProtocolBundleManifestHash) != 71 {
+		t.Fatalf("protocol_bundle_manifest_hash = %q, want sha256 identity", info.ProtocolBundleManifestHash)
+	}
+	if info.ProtocolBundleManifestHash == "sha256:"+strings.Repeat("0", 64) {
+		t.Fatal("protocol_bundle_manifest_hash must not be all-zero placeholder")
+	}
+}
+
 func seedLedgerForBrokerSurfaceTest(root string) error {
 	if err := prepareLedgerDirs(root); err != nil {
 		return err

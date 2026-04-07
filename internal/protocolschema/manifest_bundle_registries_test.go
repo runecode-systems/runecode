@@ -33,6 +33,7 @@ func assertErrorRegistryCodes(t *testing.T) {
 		"broker_validation_schema_invalid",
 		"broker_validation_payload_base64_invalid",
 		"broker_validation_data_class_invalid",
+		"broker_validation_operation_invalid",
 		"broker_validation_range_not_supported",
 		"broker_not_found_artifact",
 		"broker_not_found_run",
@@ -42,6 +43,7 @@ func assertErrorRegistryCodes(t *testing.T) {
 		"broker_limit_in_flight_exceeded",
 		"broker_limit_rate_exceeded",
 		"broker_limit_policy_rejected",
+		"broker_limit_response_stream_size_exceeded",
 		"broker_timeout_request_deadline_exceeded",
 		"broker_approval_state_invalid",
 	)

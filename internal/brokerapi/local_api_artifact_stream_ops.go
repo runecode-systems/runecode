@@ -111,7 +111,7 @@ func artifactStreamTerminalLimitExceeded(handle ArtifactReadHandle, seq int64) A
 		Error: &ProtocolError{
 			SchemaID:      "runecode.protocol.v0.Error",
 			SchemaVersion: errorEnvelopeSchemaVersion,
-			Code:          "broker_limit_message_size_exceeded",
+			Code:          "broker_limit_response_stream_size_exceeded",
 			Category:      "transport",
 			Retryable:     false,
 			Message:       "artifact stream exceeded broker max response stream bytes",
