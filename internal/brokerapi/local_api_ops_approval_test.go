@@ -76,18 +76,7 @@ func TestHandleApprovalListRejectsDeadlineExceeded(t *testing.T) {
 
 func TestApprovalListDerivesPendingFromUnapprovedArtifacts(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	ref, err := s.Put(artifacts.PutRequest{
-		Payload:               []byte("private excerpt"),
-		ContentType:           "text/plain",
-		DataClass:             artifacts.DataClassUnapprovedFileExcerpts,
-		ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64),
-		CreatedByRole:         "workspace",
-		RunID:                 "run-approval-derived",
-		StepID:                "step-1",
-	})
-	if err != nil {
-		t.Fatalf("Put returned error: %v", err)
-	}
+	ref := putUnapprovedExcerptArtifactForApprovalTest(t, s, "run-approval-derived", "step-1", "a")
 
 	resp, errResp := s.HandleApprovalList(context.Background(), ApprovalListRequest{
 		SchemaID:      "runecode.protocol.v0.ApprovalListRequest",
@@ -98,23 +87,45 @@ func TestApprovalListDerivesPendingFromUnapprovedArtifacts(t *testing.T) {
 	if errResp != nil {
 		t.Fatalf("HandleApprovalList error response: %+v", errResp)
 	}
-	if len(resp.Approvals) != 1 {
-		t.Fatalf("approval count = %d, want 1", len(resp.Approvals))
+	assertDerivedPendingApproval(t, resp.Approvals, "run-approval-derived", "step-1", ref.Digest)
+}
+
+func putUnapprovedExcerptArtifactForApprovalTest(t *testing.T, s *Service, runID, stepID, hashFill string) artifacts.ArtifactReference {
+	t.Helper()
+	ref, err := s.Put(artifacts.PutRequest{
+		Payload:               []byte("private excerpt"),
+		ContentType:           "text/plain",
+		DataClass:             artifacts.DataClassUnapprovedFileExcerpts,
+		ProvenanceReceiptHash: "sha256:" + strings.Repeat(hashFill, 64),
+		CreatedByRole:         "workspace",
+		RunID:                 runID,
+		StepID:                stepID,
+	})
+	if err != nil {
+		t.Fatalf("Put returned error: %v", err)
 	}
-	approval := resp.Approvals[0]
+	return ref
+}
+
+func assertDerivedPendingApproval(t *testing.T, approvals []ApprovalSummary, runID, stepID, digest string) {
+	t.Helper()
+	if len(approvals) != 1 {
+		t.Fatalf("approval count = %d, want 1", len(approvals))
+	}
+	approval := approvals[0]
 	if approval.Status != "pending" {
 		t.Fatalf("approval status = %q, want pending", approval.Status)
 	}
 	if approval.ApprovalTriggerCode != "excerpt_promotion" {
 		t.Fatalf("approval trigger = %q, want excerpt_promotion", approval.ApprovalTriggerCode)
 	}
-	if approval.BoundScope.RunID != "run-approval-derived" {
-		t.Fatalf("bound scope run_id = %q, want run-approval-derived", approval.BoundScope.RunID)
+	if approval.BoundScope.RunID != runID {
+		t.Fatalf("bound scope run_id = %q, want %s", approval.BoundScope.RunID, runID)
 	}
-	if approval.BoundScope.StepID != "step-1" {
-		t.Fatalf("bound scope step_id = %q, want step-1", approval.BoundScope.StepID)
+	if approval.BoundScope.StepID != stepID {
+		t.Fatalf("bound scope step_id = %q, want %s", approval.BoundScope.StepID, stepID)
 	}
-	expectedID := shaDigestIdentity("pending-approval:" + ref.Digest)
+	expectedID := shaDigestIdentity("pending-approval:" + digest)
 	if approval.ApprovalID != expectedID {
 		t.Fatalf("approval id = %q, want %q", approval.ApprovalID, expectedID)
 	}

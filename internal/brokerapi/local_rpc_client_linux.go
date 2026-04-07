@@ -49,6 +49,21 @@ func (c *LocalRPCClient) Close() error {
 }
 
 func (c *LocalRPCClient) Invoke(ctx context.Context, operation string, request any, out any) *ErrorResponse {
+	if errResp := validateRPCInvoke(c, operation); errResp != nil {
+		return errResp
+	}
+	wire, errResp := c.buildWireRequest(operation, request)
+	if errResp != nil {
+		return errResp
+	}
+	response, errResp := c.sendAndReceive(ctx, wire)
+	if errResp != nil {
+		return errResp
+	}
+	return decodeRPCInvokeResponse(response, out)
+}
+
+func validateRPCInvoke(c *LocalRPCClient, operation string) *ErrorResponse {
 	if c == nil || c.conn == nil {
 		err := toErrorResponse(defaultRequestIDFallback, "gateway_failure", "internal", false, "local rpc client is not connected")
 		return &err
@@ -57,29 +72,40 @@ func (c *LocalRPCClient) Invoke(ctx context.Context, operation string, request a
 		err := toErrorResponse(defaultRequestIDFallback, "broker_validation_schema_invalid", "validation", false, "operation is required")
 		return &err
 	}
+	return nil
+}
+
+func (c *LocalRPCClient) buildWireRequest(operation string, request any) (LocalRPCRequest, *ErrorResponse) {
 	requestBytes, err := json.Marshal(request)
 	if err != nil {
 		errResp := toErrorResponse(defaultRequestIDFallback, "broker_validation_schema_invalid", "validation", false, "request validation failed")
-		return &errResp
+		return LocalRPCRequest{}, &errResp
 	}
 	if err := ValidateRawMessageLimits(requestBytes, c.limits); err != nil {
 		errResp := toErrorResponse(defaultRequestIDFallback, "broker_validation_schema_invalid", "validation", false, err.Error())
-		return &errResp
+		return LocalRPCRequest{}, &errResp
 	}
-	wire := LocalRPCRequest{Operation: operation, Request: json.RawMessage(requestBytes)}
+	return LocalRPCRequest{Operation: operation, Request: json.RawMessage(requestBytes)}, nil
+}
+
+func (c *LocalRPCClient) sendAndReceive(ctx context.Context, wire LocalRPCRequest) (LocalRPCResponse, *ErrorResponse) {
 	if err := c.setDeadlineFromContext(ctx); err != nil {
 		errResp := toErrorResponse(defaultRequestIDFallback, "request_cancelled", "transport", true, err.Error())
-		return &errResp
+		return LocalRPCResponse{}, &errResp
 	}
 	if err := c.encoder.Encode(wire); err != nil {
 		errResp := toErrorResponse(defaultRequestIDFallback, "gateway_failure", "internal", false, err.Error())
-		return &errResp
+		return LocalRPCResponse{}, &errResp
 	}
 	response := LocalRPCResponse{}
 	if err := c.decoder.Decode(&response); err != nil {
 		errResp := toErrorResponse(defaultRequestIDFallback, "gateway_failure", "internal", false, err.Error())
-		return &errResp
+		return LocalRPCResponse{}, &errResp
 	}
+	return response, nil
+}
+
+func decodeRPCInvokeResponse(response LocalRPCResponse, out any) *ErrorResponse {
 	if response.Error != nil {
 		return response.Error
 	}

@@ -1,6 +1,7 @@
 package brokerapi
 
 import (
+	"context"
 	"io"
 	"time"
 
@@ -125,6 +126,9 @@ type ArtifactReadHandle struct {
 	StreamID   string
 	ChunkBytes int
 	Reader     io.ReadCloser
+	RequestCtx context.Context
+	Cancel     context.CancelFunc
+	Release    func()
 }
 
 type ArtifactStreamEvent struct {

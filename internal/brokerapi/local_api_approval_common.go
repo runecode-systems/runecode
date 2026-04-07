@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -76,61 +75,12 @@ func shaDigestIdentity(input string) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-func uniqueSortedDigests(values []string) []string {
-	set := map[string]struct{}{}
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if !isSHA256Digest(trimmed) {
-			continue
-		}
-		set[trimmed] = struct{}{}
-	}
-	if len(set) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(set))
-	for value := range set {
-		out = append(out, value)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func isSHA256Digest(value string) bool {
-	if len(value) != 71 || !strings.HasPrefix(value, "sha256:") {
-		return false
-	}
-	for _, c := range value[len("sha256:"):] {
-		if (c < 'a' || c > 'f') && (c < '0' || c > '9') {
-			return false
-		}
-	}
-	return true
-}
-
 func (s *Service) approvalRecordsByID() map[string]approvalRecord {
 	all := s.derivedApprovalRecords()
 
 	s.approvals.mu.Lock()
 	defer s.approvals.mu.Unlock()
-	overlayDigests := map[string]struct{}{}
-	for _, record := range s.approvals.records {
-		if isSHA256Digest(record.Summary.RequestDigest) {
-			overlayDigests[record.Summary.RequestDigest] = struct{}{}
-		}
-		if isSHA256Digest(record.Summary.DecisionDigest) {
-			overlayDigests[record.Summary.DecisionDigest] = struct{}{}
-		}
-	}
-	for id, record := range all {
-		if _, ok := overlayDigests[record.Summary.RequestDigest]; ok {
-			delete(all, id)
-			continue
-		}
-		if _, ok := overlayDigests[record.Summary.DecisionDigest]; ok {
-			delete(all, id)
-		}
-	}
+	pruneDerivedApprovalOverlays(all, approvalOverlayDigests(s.approvals.records))
 	for id, record := range s.approvals.records {
 		all[id] = record
 	}
@@ -138,42 +88,11 @@ func (s *Service) approvalRecordsByID() map[string]approvalRecord {
 }
 
 func (s *Service) derivedApprovalRecords() map[string]approvalRecord {
-	records := s.List()
 	now := time.Now().UTC()
 	byID := map[string]approvalRecord{}
-
-	unapprovedByDigest := map[string]artifacts.ArtifactRecord{}
-	consumedUnapproved := map[string]struct{}{}
-	approvedRecords := make([]artifacts.ArtifactRecord, 0)
-	for _, record := range records {
-		switch record.Reference.DataClass {
-		case artifacts.DataClassUnapprovedFileExcerpts:
-			if record.Reference.Digest != "" {
-				unapprovedByDigest[record.Reference.Digest] = record
-			}
-		case artifacts.DataClassApprovedFileExcerpts:
-			approvedRecords = append(approvedRecords, record)
-			if record.ApprovalOfDigest != "" {
-				consumedUnapproved[record.ApprovalOfDigest] = struct{}{}
-			}
-		}
-	}
-
-	for _, approved := range approvedRecords {
-		source, hasSource := unapprovedByDigest[approved.ApprovalOfDigest]
-		resolved := inferredResolvedApprovalRecord(approved, source, hasSource)
-		if resolved.Summary.ApprovalID != "" {
-			byID[resolved.Summary.ApprovalID] = resolved
-		}
-	}
-
-	for digest, record := range unapprovedByDigest {
-		if _, ok := consumedUnapproved[digest]; ok {
-			continue
-		}
-		pending := inferredPendingApprovalRecord(record, now)
-		byID[pending.Summary.ApprovalID] = pending
-	}
+	unapprovedByDigest, consumedUnapproved, approvedRecords := classifyApprovalArtifacts(s.List())
+	addResolvedApprovalRecords(byID, approvedRecords, unapprovedByDigest)
+	addPendingApprovalRecords(byID, unapprovedByDigest, consumedUnapproved, now)
 	return byID
 }
 
@@ -213,37 +132,13 @@ func inferredResolvedApprovalRecord(record artifacts.ArtifactRecord, source arti
 	if strings.TrimSpace(record.PromotionRequestHash) == "" {
 		return approvalRecord{}
 	}
-	requestTime := record.CreatedAt
-	if hasSource && !source.CreatedAt.IsZero() {
-		requestTime = source.CreatedAt
-	}
-	if requestTime.IsZero() {
-		requestTime = time.Now().UTC()
-	}
-	decidedTime := record.CreatedAt
-	if record.PromotionApprovedAt != nil {
-		decidedTime = record.PromotionApprovedAt.UTC()
-	}
-	if decidedTime.IsZero() {
-		decidedTime = requestTime
-	}
-	requestedAt := requestTime.UTC().Format(time.RFC3339)
-	decidedAt := decidedTime.UTC().Format(time.RFC3339)
-	status := "approved"
-	boundScope := ApprovalBoundScope{
-		SchemaID:      "runecode.protocol.v0.ApprovalBoundScope",
-		SchemaVersion: "0.1.0",
-		WorkspaceID:   workspaceIDForRun(record.RunID),
-		RunID:         record.RunID,
-		StageID:       stageIDForRun(record.RunID),
-		StepID:        record.StepID,
-		ActionKind:    "excerpt_promotion",
-	}
+	requestedAt, decidedAt := resolvedApprovalTimes(record, source, hasSource)
+	boundScope := resolvedApprovalScope(record)
 	return approvalRecord{Summary: ApprovalSummary{
 		SchemaID:               "runecode.protocol.v0.ApprovalSummary",
 		SchemaVersion:          "0.1.0",
 		ApprovalID:             record.PromotionRequestHash,
-		Status:                 status,
+		Status:                 "approved",
 		RequestedAt:            requestedAt,
 		DecidedAt:              decidedAt,
 		ApprovalTriggerCode:    "excerpt_promotion",

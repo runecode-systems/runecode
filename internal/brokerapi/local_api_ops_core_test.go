@@ -160,91 +160,61 @@ func TestArtifactLocalOpsRejectInFlightLimit(t *testing.T) {
 	}
 	defer release()
 	meta := RequestContext{ClientID: "client-a", LaneID: "lane-a"}
-
-	_, errResp := s.HandleArtifactListV0(context.Background(), LocalArtifactListRequest{
-		SchemaID:      "runecode.protocol.v0.ArtifactListRequest",
-		SchemaVersion: "0.1.0",
-		RequestID:     "req-art-list-limit",
-	}, meta)
-	if errResp == nil {
-		t.Fatal("HandleArtifactListV0 expected in-flight limit error")
-	}
-	if errResp.Error.Code != "broker_limit_in_flight_exceeded" {
-		t.Fatalf("artifact_list error code = %q, want broker_limit_in_flight_exceeded", errResp.Error.Code)
-	}
-
-	_, errResp = s.HandleArtifactHeadV0(context.Background(), LocalArtifactHeadRequest{
-		SchemaID:      "runecode.protocol.v0.ArtifactHeadRequest",
-		SchemaVersion: "0.1.0",
-		RequestID:     "req-art-head-limit",
-		Digest:        "sha256:" + strings.Repeat("a", 64),
-	}, meta)
-	if errResp == nil {
-		t.Fatal("HandleArtifactHeadV0 expected in-flight limit error")
-	}
-	if errResp.Error.Code != "broker_limit_in_flight_exceeded" {
-		t.Fatalf("artifact_head error code = %q, want broker_limit_in_flight_exceeded", errResp.Error.Code)
-	}
-
-	_, errResp = s.HandleArtifactRead(context.Background(), ArtifactReadRequest{
-		SchemaID:      "runecode.protocol.v0.ArtifactReadRequest",
-		SchemaVersion: "0.1.0",
-		RequestID:     "req-art-read-limit",
-		Digest:        "sha256:" + strings.Repeat("a", 64),
-		ProducerRole:  "workspace",
-		ConsumerRole:  "model_gateway",
-	}, meta)
-	if errResp == nil {
-		t.Fatal("HandleArtifactRead expected in-flight limit error")
-	}
-	if errResp.Error.Code != "broker_limit_in_flight_exceeded" {
-		t.Fatalf("artifact_read error code = %q, want broker_limit_in_flight_exceeded", errResp.Error.Code)
-	}
+	assertArtifactLocalOpErrorCode(t, "artifact_list", "broker_limit_in_flight_exceeded", callArtifactListLocal(t, s, meta, "req-art-list-limit"))
+	assertArtifactLocalOpErrorCode(t, "artifact_head", "broker_limit_in_flight_exceeded", callArtifactHeadLocal(t, s, meta, "req-art-head-limit"))
+	assertArtifactLocalOpErrorCode(t, "artifact_read", "broker_limit_in_flight_exceeded", callArtifactReadLocal(t, s, meta, "req-art-read-limit"))
 }
 
 func TestArtifactLocalOpsRejectDeadlineExceeded(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	deadline := time.Now().Add(-time.Second)
 	meta := RequestContext{Deadline: &deadline}
+	assertArtifactLocalOpErrorCode(t, "artifact_list", "broker_timeout_request_deadline_exceeded", callArtifactListLocal(t, s, meta, "req-art-list-timeout"))
+	assertArtifactLocalOpErrorCode(t, "artifact_head", "broker_timeout_request_deadline_exceeded", callArtifactHeadLocal(t, s, meta, "req-art-head-timeout"))
+	assertArtifactLocalOpErrorCode(t, "artifact_read", "broker_timeout_request_deadline_exceeded", callArtifactReadLocal(t, s, meta, "req-art-read-timeout"))
+}
 
+func callArtifactListLocal(t *testing.T, s *Service, meta RequestContext, requestID string) *ErrorResponse {
+	t.Helper()
 	_, errResp := s.HandleArtifactListV0(context.Background(), LocalArtifactListRequest{
 		SchemaID:      "runecode.protocol.v0.ArtifactListRequest",
 		SchemaVersion: "0.1.0",
-		RequestID:     "req-art-list-timeout",
+		RequestID:     requestID,
 	}, meta)
-	if errResp == nil {
-		t.Fatal("HandleArtifactListV0 expected deadline error")
-	}
-	if errResp.Error.Code != "broker_timeout_request_deadline_exceeded" {
-		t.Fatalf("artifact_list error code = %q, want broker_timeout_request_deadline_exceeded", errResp.Error.Code)
-	}
+	return errResp
+}
 
-	_, errResp = s.HandleArtifactHeadV0(context.Background(), LocalArtifactHeadRequest{
+func callArtifactHeadLocal(t *testing.T, s *Service, meta RequestContext, requestID string) *ErrorResponse {
+	t.Helper()
+	_, errResp := s.HandleArtifactHeadV0(context.Background(), LocalArtifactHeadRequest{
 		SchemaID:      "runecode.protocol.v0.ArtifactHeadRequest",
 		SchemaVersion: "0.1.0",
-		RequestID:     "req-art-head-timeout",
+		RequestID:     requestID,
 		Digest:        "sha256:" + strings.Repeat("a", 64),
 	}, meta)
-	if errResp == nil {
-		t.Fatal("HandleArtifactHeadV0 expected deadline error")
-	}
-	if errResp.Error.Code != "broker_timeout_request_deadline_exceeded" {
-		t.Fatalf("artifact_head error code = %q, want broker_timeout_request_deadline_exceeded", errResp.Error.Code)
-	}
+	return errResp
+}
 
-	_, errResp = s.HandleArtifactRead(context.Background(), ArtifactReadRequest{
+func callArtifactReadLocal(t *testing.T, s *Service, meta RequestContext, requestID string) *ErrorResponse {
+	t.Helper()
+	_, errResp := s.HandleArtifactRead(context.Background(), ArtifactReadRequest{
 		SchemaID:      "runecode.protocol.v0.ArtifactReadRequest",
 		SchemaVersion: "0.1.0",
-		RequestID:     "req-art-read-timeout",
+		RequestID:     requestID,
 		Digest:        "sha256:" + strings.Repeat("a", 64),
 		ProducerRole:  "workspace",
 		ConsumerRole:  "model_gateway",
 	}, meta)
+	return errResp
+}
+
+func assertArtifactLocalOpErrorCode(t *testing.T, opName, wantCode string, errResp *ErrorResponse) {
+	t.Helper()
 	if errResp == nil {
-		t.Fatal("HandleArtifactRead expected deadline error")
+		t.Fatalf("%s expected typed error", opName)
 	}
-	if errResp.Error.Code != "broker_timeout_request_deadline_exceeded" {
-		t.Fatalf("artifact_read error code = %q, want broker_timeout_request_deadline_exceeded", errResp.Error.Code)
+	if errResp.Error.Code != wantCode {
+		t.Fatalf("%s error code = %q, want %s", opName, errResp.Error.Code, wantCode)
 	}
 }
 

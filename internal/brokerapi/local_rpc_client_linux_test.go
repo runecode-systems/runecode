@@ -15,28 +15,9 @@ import (
 
 func TestLocalRPCClientInvokeRunList(t *testing.T) {
 	service := newBrokerAPIServiceForTests(t, APIConfig{})
-	runtimeDir := filepath.Join(t.TempDir(), "runtime")
-	listener, err := ListenLocalIPC(LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
-	if err != nil {
-		t.Fatalf("ListenLocalIPC returned error: %v", err)
-	}
-	t.Cleanup(func() { _ = listener.Close() })
-
-	done := make(chan error, 1)
-	go func() {
-		conn, err := listener.Listener.Accept()
-		if err != nil {
-			done <- err
-			return
-		}
-		done <- serveSingleLocalRPCConnForTest(conn, service)
-	}()
-
-	client, err := DialLocalRPC(context.Background(), LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
-	if err != nil {
-		t.Fatalf("DialLocalRPC returned error: %v", err)
-	}
+	runtimeDir, client, done := setupLocalRPCRunListRoundTrip(t, service)
 	defer client.Close()
+	assertLocalRPCSocketPath(t, runtimeDir)
 
 	resp := RunListResponse{}
 	errResp := client.Invoke(context.Background(), "run_list", RunListRequest{
@@ -54,6 +35,38 @@ func TestLocalRPCClientInvokeRunList(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatalf("local rpc server returned error: %v", err)
 	}
+}
+
+func assertLocalRPCSocketPath(t *testing.T, runtimeDir string) {
+	t.Helper()
+	socketPath := filepath.Join(runtimeDir, "broker.sock")
+	if _, err := os.Stat(socketPath); err != nil {
+		t.Fatalf("expected socket at %q: %v", socketPath, err)
+	}
+}
+
+func setupLocalRPCRunListRoundTrip(t *testing.T, service *Service) (string, *LocalRPCClient, chan error) {
+	t.Helper()
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	listener, err := ListenLocalIPC(LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
+	if err != nil {
+		t.Fatalf("ListenLocalIPC returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	done := make(chan error, 1)
+	go func() {
+		conn, err := listener.Listener.Accept()
+		if err != nil {
+			done <- err
+			return
+		}
+		done <- serveSingleLocalRPCConnForTest(conn, service)
+	}()
+	client, err := DialLocalRPC(context.Background(), LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
+	if err != nil {
+		t.Fatalf("DialLocalRPC returned error: %v", err)
+	}
+	return runtimeDir, client, done
 }
 
 func TestDialLocalRPCWithLimitsAppliesMessageLimitValidation(t *testing.T) {
