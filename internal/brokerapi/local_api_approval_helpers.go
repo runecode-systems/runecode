@@ -53,8 +53,22 @@ func approvalOverlayDigests(records map[string]approvalRecord) map[string]struct
 	return overlayDigests
 }
 
-func pruneDerivedApprovalOverlays(derived map[string]approvalRecord, overlayDigests map[string]struct{}) {
+func approvalOverlaySourceDigests(records map[string]approvalRecord) map[string]struct{} {
+	overlaySources := map[string]struct{}{}
+	for _, record := range records {
+		if isSHA256Digest(record.SourceDigest) {
+			overlaySources[record.SourceDigest] = struct{}{}
+		}
+	}
+	return overlaySources
+}
+
+func pruneDerivedApprovalOverlays(derived map[string]approvalRecord, overlayDigests map[string]struct{}, overlaySources map[string]struct{}) {
 	for id, record := range derived {
+		if _, ok := overlaySources[record.SourceDigest]; ok {
+			delete(derived, id)
+			continue
+		}
 		if _, ok := overlayDigests[record.Summary.RequestDigest]; ok {
 			delete(derived, id)
 			continue

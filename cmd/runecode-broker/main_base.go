@@ -51,6 +51,10 @@ type commandHandler func([]string, *brokerapi.Service, io.Writer) error
 func commandHandlers() map[string]commandHandler {
 	return map[string]commandHandler{
 		"serve-local":             handleServeLocal,
+		"run-list":                handleRunList,
+		"run-get":                 handleRunGet,
+		"approval-list":           handleApprovalList,
+		"approval-get":            handleApprovalGet,
 		"list-artifacts":          handleListArtifacts,
 		"head-artifact":           handleHeadArtifact,
 		"get-artifact":            handleGetArtifact,
@@ -67,6 +71,8 @@ func commandHandlers() map[string]commandHandler {
 		"set-reserved-classes":    handleSetReservedClasses,
 		"audit-readiness":         handleAuditReadiness,
 		"audit-verification":      handleAuditVerification,
+		"version-info":            handleVersionInfo,
+		"stream-logs":             handleStreamLogs,
 	}
 }
 
@@ -91,6 +97,10 @@ func writeHelp(w io.Writer) error {
 
 Commands:
   serve-local [--runtime-dir dir] [--socket-name broker.sock] [--once]
+  run-list [--limit N]
+  run-get --run-id id
+  approval-list [--run-id id] [--status pending|approved|denied|expired|cancelled|superseded|consumed] [--limit N]
+  approval-get --approval-id sha256:...
   list-artifacts
   head-artifact --digest sha256:...
   get-artifact --digest sha256:... --producer role --consumer role [--manifest-opt-in] [--data-class class] --out path
@@ -106,7 +116,9 @@ Commands:
   show-policy
   set-reserved-classes --enabled=true|false
   audit-readiness
-  audit-verification [--limit N]`)
+  audit-verification [--limit N]
+  version-info
+  stream-logs [--run-id id] [--role-instance-id id] [--start-cursor cursor] [--follow] [--include-backlog]`)
 	return err
 }
 

@@ -108,17 +108,51 @@ func (s *Service) HandleApprovalResolve(ctx context.Context, req ApprovalResolve
 		errOut := s.errorFromContext(requestID, err)
 		return ApprovalResolveResponse{}, &errOut
 	}
-	approvalID, decisionDigest, errResp := s.resolveApprovalDigests(requestID, req)
+	approvalID, decisionDigest, outcome, errResp := s.resolveApprovalDigestsAndOutcome(requestID, req)
 	if errResp != nil {
 		return ApprovalResolveResponse{}, errResp
 	}
-	head, errResp := s.promoteAndHeadResolvedArtifact(requestID, req)
-	if errResp != nil {
-		return ApprovalResolveResponse{}, errResp
+	records := s.approvalRecordsByID()
+	current, ok := records[approvalID]
+	if !ok {
+		for _, rec := range records {
+			if rec.SourceDigest == req.UnapprovedDigest {
+				current = rec
+				ok = true
+				break
+			}
+		}
 	}
-	record := buildResolvedApprovalRecord(req, approvalID, decisionDigest)
+	if !ok {
+		errOut := s.makeError(requestID, "broker_not_found_approval", "storage", false, fmt.Sprintf("approval %q not found", approvalID))
+		return ApprovalResolveResponse{}, &errOut
+	}
+	if current.Summary.Status != "pending" {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, fmt.Sprintf("approval %q is already terminal with status %q", approvalID, current.Summary.Status))
+		return ApprovalResolveResponse{}, &errOut
+	}
+	if current.SourceDigest != "" && current.SourceDigest != req.UnapprovedDigest {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "unapproved_digest does not match pending approval source")
+		return ApprovalResolveResponse{}, &errOut
+	}
+	record, buildErr := buildResolvedApprovalRecordForOutcome(req, current, approvalID, decisionDigest, outcome)
+	if buildErr != nil {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, buildErr.Error())
+		return ApprovalResolveResponse{}, &errOut
+	}
+
+	var approvedArtifact *ArtifactSummary
+	if outcome == "approve" {
+		head, promoteErr := s.promoteAndHeadResolvedArtifact(requestID, req)
+		if promoteErr != nil {
+			return ApprovalResolveResponse{}, promoteErr
+		}
+		approvedArtifact = ptrArtifactSummary(toArtifactSummary(head))
+	}
+
 	s.putApproval(record)
-	resp := buildApprovalResolveResponse(requestID, record, head)
+	resp := buildApprovalResolveResponseNoArtifact(requestID, record, approvedArtifact)
+	_ = s.auditApprovalResolution(requestID, record.Summary.ApprovalID, record.Summary.Status, resp.ResolutionReasonCode)
 	if err := s.validateResponse(resp, approvalResolveResponseSchemaPath); err != nil {
 		errOut := s.errorFromValidation(requestID, err)
 		return ApprovalResolveResponse{}, &errOut

@@ -88,6 +88,32 @@ func TestHandleArtifactListRejectsInFlightLimit(t *testing.T) {
 	}
 }
 
+func TestHandleArtifactListRejectsRateLimitWithTypedCode(t *testing.T) {
+	service := newBrokerAPIServiceForTests(t, APIConfig{Limits: Limits{MaxRequestsPerClientPS: 1}})
+	fixed := time.Date(2026, time.April, 7, 12, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return fixed }
+	meta := RequestContext{ClientID: "client-rate", LaneID: "lane-rate"}
+
+	if _, errResp := service.HandleArtifactList(context.Background(), DefaultArtifactListRequest("req-rate-1"), meta); errResp != nil {
+		t.Fatalf("first request error response: %+v", errResp)
+	}
+	_, errResp := service.HandleArtifactList(context.Background(), DefaultArtifactListRequest("req-rate-2"), meta)
+	if errResp == nil {
+		t.Fatal("second request expected typed rate-limit error")
+	}
+	if errResp.Error.Code != "broker_limit_rate_exceeded" {
+		t.Fatalf("error code = %q, want broker_limit_rate_exceeded", errResp.Error.Code)
+	}
+	if !errResp.Error.Retryable {
+		t.Fatal("rate limit rejection should be retryable")
+	}
+
+	service.now = func() time.Time { return fixed.Add(1 * time.Second) }
+	if _, errResp := service.HandleArtifactList(context.Background(), DefaultArtifactListRequest("req-rate-3"), meta); errResp != nil {
+		t.Fatalf("request after next window error response: %+v", errResp)
+	}
+}
+
 func TestHandleArtifactListRejectsDeadlineExceeded(t *testing.T) {
 	service := newBrokerAPIServiceForTests(t, APIConfig{})
 	deadline := time.Now().Add(-time.Second)

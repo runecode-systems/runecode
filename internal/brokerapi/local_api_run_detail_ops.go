@@ -57,21 +57,12 @@ func runPendingApprovalIDs(approvals []ApprovalSummary, runID string) []string {
 }
 
 func buildRunDetail(summary RunSummary, verification AuditVerificationSurface, artifactsForRun []artifacts.ArtifactRecord, classCount map[string]int, pendingIDs []string) RunDetail {
-	manifestHashes := activeManifestHashes(summary, artifactsForRun)
+	manifestHashes := activeManifestHashes(artifactsForRun)
 	policyRefs := latestPolicyDecisionRefs(artifactsForRun)
 	stageSummaries := []RunStageSummary{buildRunStageSummary(summary, artifactsForRun, pendingIDs)}
 	roleSummaries := buildRunRoleSummaries(summary, artifactsForRun)
-	authoritativeState := map[string]any{
-		"source":                 "broker_store",
-		"status":                 summary.LifecycleState,
-		"artifact_count":         len(artifactsForRun),
-		"pending_approval_count": len(pendingIDs),
-	}
-	advisoryState := map[string]any{
-		"source":           "runner_advisory",
-		"available":        false,
-		"advisory_version": "0",
-	}
+	authoritativeState := buildAuthoritativeRunState(summary, artifactsForRun, pendingIDs, manifestHashes)
+	advisoryState := buildAdvisoryRunState()
 	return RunDetail{
 		SchemaID:                 "runecode.protocol.v0.RunDetail",
 		SchemaVersion:            "0.1.0",
@@ -152,17 +143,53 @@ func buildRunCoordinationSummary(summary RunSummary) RunCoordinationSummary {
 	}
 }
 
-func activeManifestHashes(summary RunSummary, artifactsForRun []artifacts.ArtifactRecord) []string {
-	values := make([]string, 0, len(artifactsForRun)+1)
-	for _, record := range artifactsForRun {
-		values = append(values, record.Reference.ProvenanceReceiptHash)
-	}
-	values = append(values, summary.WorkflowDefinitionHash)
+func activeManifestHashes(artifactsForRun []artifacts.ArtifactRecord) []string {
+	values := runProvenanceDigests(artifactsForRun)
 	unique := uniqueSortedDigests(values)
 	if len(unique) > 0 {
+		if len(unique) > 64 {
+			return unique[:64]
+		}
 		return unique
 	}
-	return []string{shaDigestIdentity("manifest:" + summary.RunID)}
+	return []string{}
+}
+
+func buildAuthoritativeRunState(summary RunSummary, artifactsForRun []artifacts.ArtifactRecord, pendingIDs []string, manifestHashes []string) map[string]any {
+	state := map[string]any{
+		"source":                 "broker_store",
+		"provenance":             "trusted_derived",
+		"status":                 summary.LifecycleState,
+		"artifact_count":         len(artifactsForRun),
+		"pending_approval_count": len(pendingIDs),
+		"workspace_id":           summary.WorkspaceID,
+		"backend_kind":           summary.BackendKind,
+	}
+	if len(manifestHashes) > 0 {
+		state["active_manifest_hashes_count"] = len(manifestHashes)
+	}
+	if summary.WorkflowDefinitionHash != "" {
+		state["workflow_definition_hash"] = summary.WorkflowDefinitionHash
+	}
+	if summary.CurrentStageID != "" {
+		state["current_stage_id"] = summary.CurrentStageID
+	}
+	if summary.ApprovalProfile != "" {
+		state["approval_profile"] = summary.ApprovalProfile
+	}
+	if summary.WorkflowKind != "" {
+		state["workflow_kind"] = summary.WorkflowKind
+	}
+	return state
+}
+
+func buildAdvisoryRunState() map[string]any {
+	return map[string]any{
+		"source":       "runner_advisory",
+		"provenance":   "none_reported",
+		"available":    false,
+		"bounded_keys": []string{},
+	}
 }
 
 func latestPolicyDecisionRefs(artifactsForRun []artifacts.ArtifactRecord) []string {

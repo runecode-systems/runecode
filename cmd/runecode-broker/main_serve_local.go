@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
@@ -115,12 +116,14 @@ func serveLocalConn(conn net.Conn, service *brokerapi.Service, creds brokerapi.P
 		if wire == nil {
 			continue
 		}
-		resp := dispatchLocalRPC(service, *wire, meta)
+		resp := localRPCDispatch(service, context.Background(), *wire, meta)
 		if err := encodeLocalRPCResponse(conn, encoder, resp); err != nil {
 			return err
 		}
 	}
 }
+
+var localRPCDispatch = dispatchLocalRPC
 
 func readLocalRPCRequest(conn net.Conn, scanner *bufio.Scanner, encoder *json.Encoder, requestBytesLimit int, readIdleTimeout time.Duration) (*localRPCRequest, bool, error) {
 	if err := conn.SetReadDeadline(time.Now().Add(readIdleTimeout)); err != nil {
@@ -181,8 +184,8 @@ func decodeLocalRPCRequest(line []byte) (localRPCRequest, error) {
 	return request, nil
 }
 
-func dispatchLocalRPC(service *brokerapi.Service, wire localRPCRequest, meta brokerapi.RequestContext) localRPCResponse {
-	operation, ok := localRPCOperations(service, meta)[wire.Operation]
+func dispatchLocalRPC(service *brokerapi.Service, ctx context.Context, wire localRPCRequest, meta brokerapi.RequestContext) localRPCResponse {
+	operation, ok := localRPCOperations(service, ctx, meta)[wire.Operation]
 	if !ok {
 		return localRPCResponse{OK: false, Error: decodeWireError("", fmt.Errorf("unsupported operation %q", wire.Operation))}
 	}
@@ -202,11 +205,11 @@ func validateRawRPCPayload(raw json.RawMessage, schemaPath string, limits broker
 	return nil
 }
 
-func localRPCOperations(service *brokerapi.Service, meta brokerapi.RequestContext) map[string]rpcOperation {
+func localRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
 	operations := map[string]rpcOperation{}
-	mergeRPCOperations(operations, runApprovalRPCOperations(service, meta))
-	mergeRPCOperations(operations, artifactRPCOperations(service, meta))
-	mergeRPCOperations(operations, auditHealthRPCOperations(service, meta))
+	mergeRPCOperations(operations, runApprovalRPCOperations(service, ctx, meta))
+	mergeRPCOperations(operations, artifactRPCOperations(service, ctx, meta))
+	mergeRPCOperations(operations, auditHealthRPCOperations(service, ctx, meta))
 	return operations
 }
 
@@ -216,73 +219,75 @@ func mergeRPCOperations(dst, src map[string]rpcOperation) {
 	}
 }
 
-func runApprovalRPCOperations(service *brokerapi.Service, meta brokerapi.RequestContext) map[string]rpcOperation {
+func runApprovalRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
 	return map[string]rpcOperation{
 		"run_list": {requestSchemaPath: "objects/RunListRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.RunListRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleRunList(context.Background(), req, meta)
+				return service.HandleRunList(ctx, req, meta)
 			})
 		}},
 		"run_get": {requestSchemaPath: "objects/RunGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.RunGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleRunGet(context.Background(), req, meta)
+				return service.HandleRunGet(ctx, req, meta)
 			})
 		}},
 		"approval_list": {requestSchemaPath: "objects/ApprovalListRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.ApprovalListRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleApprovalList(context.Background(), req, meta)
+				return service.HandleApprovalList(ctx, req, meta)
 			})
 		}},
 		"approval_get": {requestSchemaPath: "objects/ApprovalGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.ApprovalGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleApprovalGet(context.Background(), req, meta)
+				return service.HandleApprovalGet(ctx, req, meta)
 			})
 		}},
 		"approval_resolve": {requestSchemaPath: "objects/ApprovalResolveRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.ApprovalResolveRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleApprovalResolve(context.Background(), req, meta)
+				return service.HandleApprovalResolve(ctx, req, meta)
 			})
 		}},
 	}
 }
 
-func artifactRPCOperations(service *brokerapi.Service, meta brokerapi.RequestContext) map[string]rpcOperation {
+func artifactRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
 	return map[string]rpcOperation{
 		"artifact_list": {requestSchemaPath: "objects/ArtifactListRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.LocalArtifactListRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleArtifactListV0(context.Background(), req, meta)
+				return service.HandleArtifactListV0(ctx, req, meta)
 			})
 		}},
 		"artifact_head": {requestSchemaPath: "objects/ArtifactHeadRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.LocalArtifactHeadRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleArtifactHeadV0(context.Background(), req, meta)
+				return service.HandleArtifactHeadV0(ctx, req, meta)
 			})
 		}},
-		"artifact_read": {requestSchemaPath: "objects/ArtifactReadRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse { return decodeAndHandleArtifactRead(service, raw, meta) }},
-		"log_stream":    {requestSchemaPath: "objects/LogStreamRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse { return decodeAndHandleLogStream(service, raw, meta) }},
+		"artifact_read": {requestSchemaPath: "objects/ArtifactReadRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandleArtifactRead(service, ctx, raw, meta)
+		}},
+		"log_stream": {requestSchemaPath: "objects/LogStreamRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse { return decodeAndHandleLogStream(service, ctx, raw, meta) }},
 	}
 }
 
-func auditHealthRPCOperations(service *brokerapi.Service, meta brokerapi.RequestContext) map[string]rpcOperation {
+func auditHealthRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
 	return map[string]rpcOperation{
 		"audit_timeline": {requestSchemaPath: "objects/AuditTimelineRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.AuditTimelineRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditTimeline(context.Background(), req, meta)
+				return service.HandleAuditTimeline(ctx, req, meta)
 			})
 		}},
 		"audit_verification_get": {requestSchemaPath: "objects/AuditVerificationGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.AuditVerificationGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditVerificationGet(context.Background(), req, meta)
+				return service.HandleAuditVerificationGet(ctx, req, meta)
 			})
 		}},
 		"readiness_get": {requestSchemaPath: "objects/ReadinessGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.ReadinessGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleReadinessGet(context.Background(), req, meta)
+				return service.HandleReadinessGet(ctx, req, meta)
 			})
 		}},
 		"version_info_get": {requestSchemaPath: "objects/VersionInfoGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.VersionInfoGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleVersionInfoGet(context.Background(), req, meta)
+				return service.HandleVersionInfoGet(ctx, req, meta)
 			})
 		}},
 	}
@@ -302,14 +307,14 @@ func decodeAndHandle[T any](raw json.RawMessage, handle func(T) (any, *brokerapi
 	return localRPCOKResponse(resp)
 }
 
-func decodeAndHandleArtifactRead(service *brokerapi.Service, raw json.RawMessage, meta brokerapi.RequestContext) localRPCResponse {
+func decodeAndHandleArtifactRead(service *brokerapi.Service, ctx context.Context, raw json.RawMessage, meta brokerapi.RequestContext) localRPCResponse {
 	req := brokerapi.ArtifactReadRequest{}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&req); err != nil {
 		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
 	}
-	handle, errResp := service.HandleArtifactRead(context.Background(), req, meta)
+	handle, errResp := service.HandleArtifactRead(ctx, req, meta)
 	if errResp != nil {
 		return localRPCResponse{OK: false, Error: errResp}
 	}
@@ -320,14 +325,14 @@ func decodeAndHandleArtifactRead(service *brokerapi.Service, raw json.RawMessage
 	return localRPCOKResponse(events)
 }
 
-func decodeAndHandleLogStream(service *brokerapi.Service, raw json.RawMessage, meta brokerapi.RequestContext) localRPCResponse {
+func decodeAndHandleLogStream(service *brokerapi.Service, ctx context.Context, raw json.RawMessage, meta brokerapi.RequestContext) localRPCResponse {
 	req := brokerapi.LogStreamRequest{}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&req); err != nil {
 		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
 	}
-	ack, errResp := service.HandleLogStreamRequest(context.Background(), req, meta)
+	ack, errResp := service.HandleLogStreamRequest(ctx, req, meta)
 	if errResp != nil {
 		return localRPCResponse{OK: false, Error: errResp}
 	}
@@ -346,9 +351,23 @@ func localRPCOKResponse(value any) localRPCResponse {
 	return localRPCResponse{OK: true, Response: json.RawMessage(raw)}
 }
 
-func decodeWireError(requestID string, _ error) *brokerapi.ErrorResponse {
+func decodeWireError(requestID string, err error) *brokerapi.ErrorResponse {
 	if requestID == "" {
 		requestID = "invalid_request"
 	}
-	return &brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: requestID, Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "broker_validation_schema_invalid", Category: "validation", Retryable: false, Message: "request validation failed"}}
+	code := "broker_validation_schema_invalid"
+	category := "validation"
+	message := "request validation failed"
+	if err != nil {
+		message = err.Error()
+		if strings.Contains(message, "message size") {
+			code = "broker_limit_message_size_exceeded"
+			category = "transport"
+		}
+		if strings.Contains(message, "message depth") || strings.Contains(message, "array length") || strings.Contains(message, "object property count") {
+			code = "broker_limit_structural_complexity_exceeded"
+			category = "transport"
+		}
+	}
+	return &brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: requestID, Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: code, Category: category, Retryable: false, Message: message}}
 }

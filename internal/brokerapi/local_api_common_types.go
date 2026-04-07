@@ -176,15 +176,18 @@ type logStreamRecord struct {
 }
 
 type LogStreamRequest struct {
-	SchemaID       string `json:"schema_id"`
-	SchemaVersion  string `json:"schema_version"`
-	RequestID      string `json:"request_id"`
-	StreamID       string `json:"stream_id"`
-	RunID          string `json:"run_id,omitempty"`
-	RoleInstanceID string `json:"role_instance_id,omitempty"`
-	StartCursor    string `json:"start_cursor,omitempty"`
-	Follow         bool   `json:"follow"`
-	IncludeBacklog bool   `json:"include_backlog"`
+	SchemaID       string             `json:"schema_id"`
+	SchemaVersion  string             `json:"schema_version"`
+	RequestID      string             `json:"request_id"`
+	StreamID       string             `json:"stream_id"`
+	RunID          string             `json:"run_id,omitempty"`
+	RoleInstanceID string             `json:"role_instance_id,omitempty"`
+	StartCursor    string             `json:"start_cursor,omitempty"`
+	Follow         bool               `json:"follow"`
+	IncludeBacklog bool               `json:"include_backlog"`
+	RequestCtx     context.Context    `json:"-"`
+	Cancel         context.CancelFunc `json:"-"`
+	Release        func()             `json:"-"`
 }
 
 type ReadinessGetRequest struct {

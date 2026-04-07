@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/auditd"
@@ -13,10 +14,13 @@ import (
 type Service struct {
 	store       *artifacts.Store
 	auditLedger *auditd.Ledger
+	auditor     *brokerAuditEmitter
+	auditRoot   string
 	apiConfig   APIConfig
 	apiInflight *inFlightGate
 	approvals   approvalState
 	versionInfo BrokerVersionInfo
+	now         func() time.Time
 }
 
 func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
@@ -33,12 +37,19 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 		return nil, err
 	}
 	resolved := cfg.withDefaults()
+	auditor, err := newBrokerAuditEmitter()
+	if err != nil {
+		return nil, err
+	}
 	return &Service{
 		store:       store,
 		auditLedger: ledger,
+		auditor:     auditor,
+		auditRoot:   ledgerRoot,
 		apiConfig:   resolved,
 		apiInflight: newInFlightGate(resolved.Limits),
 		approvals:   approvalState{records: map[string]approvalRecord{}},
+		now:         time.Now,
 		versionInfo: BrokerVersionInfo{
 			SchemaID:                    "runecode.protocol.v0.BrokerVersionInfo",
 			SchemaVersion:               "0.1.0",

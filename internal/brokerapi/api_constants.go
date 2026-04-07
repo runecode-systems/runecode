@@ -21,6 +21,7 @@ type Limits struct {
 	MaxStructuralDepth     int
 	MaxArrayLength         int
 	MaxObjectProperties    int
+	MaxRequestsPerClientPS int
 	MaxInFlightPerClient   int
 	MaxInFlightPerLane     int
 	DefaultRequestDeadline time.Duration
@@ -35,6 +36,7 @@ func DefaultLimits() Limits {
 		MaxStructuralDepth:     64,
 		MaxArrayLength:         10_000,
 		MaxObjectProperties:    1_000,
+		MaxRequestsPerClientPS: 256,
 		MaxInFlightPerClient:   64,
 		MaxInFlightPerLane:     32,
 		DefaultRequestDeadline: 30 * time.Second,
@@ -61,6 +63,9 @@ func (c APIConfig) withDefaults() APIConfig {
 	}
 	if c.Limits.MaxObjectProperties <= 0 {
 		c.Limits.MaxObjectProperties = defaults.MaxObjectProperties
+	}
+	if c.Limits.MaxRequestsPerClientPS <= 0 {
+		c.Limits.MaxRequestsPerClientPS = defaults.MaxRequestsPerClientPS
 	}
 	if c.Limits.MaxInFlightPerClient <= 0 {
 		c.Limits.MaxInFlightPerClient = defaults.MaxInFlightPerClient

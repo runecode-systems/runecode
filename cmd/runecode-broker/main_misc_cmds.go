@@ -1,11 +1,11 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
@@ -37,23 +37,35 @@ func handlePromoteExcerpt(args []string, service *brokerapi.Service, stdout io.W
 	if err != nil {
 		return &usageError{message: fmt.Sprintf("invalid --approval-envelope: %v", err)}
 	}
-	ref, err := service.PromoteApprovedExcerpt(artifacts.PromotionRequest{
-		UnapprovedDigest:      *unapprovedDigest,
-		Approver:              *approver,
-		ApprovalRequest:       approvalRequest,
-		ApprovalDecision:      approvalEnvelope,
-		RepoPath:              *repoPath,
-		Commit:                *commit,
-		ExtractorToolVersion:  *extractorVersion,
-		FullContentVisible:    *fullContentVisible,
-		ExplicitViewFull:      *explicitViewFull,
-		BulkRequest:           *bulk,
-		BulkApprovalConfirmed: *bulkApproved,
+	api := localAPIForService(service)
+	resolveResp, errResp := api.ApprovalResolve(context.Background(), brokerapi.ApprovalResolveRequest{
+		SchemaID:      "runecode.protocol.v0.ApprovalResolveRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     defaultRequestID(),
+		BoundScope: brokerapi.ApprovalBoundScope{
+			SchemaID:      "runecode.protocol.v0.ApprovalBoundScope",
+			SchemaVersion: "0.1.0",
+			ActionKind:    "excerpt_promotion",
+		},
+		UnapprovedDigest:       *unapprovedDigest,
+		Approver:               *approver,
+		RepoPath:               *repoPath,
+		Commit:                 *commit,
+		ExtractorToolVersion:   *extractorVersion,
+		FullContentVisible:     *fullContentVisible,
+		ExplicitViewFull:       *explicitViewFull,
+		BulkRequest:            *bulk,
+		BulkApprovalConfirmed:  *bulkApproved,
+		SignedApprovalRequest:  *approvalRequest,
+		SignedApprovalDecision: *approvalEnvelope,
 	})
-	if err != nil {
-		return err
+	if errResp != nil {
+		return localAPIError(errResp)
 	}
-	return writeJSON(stdout, ref)
+	if resolveResp.ApprovedArtifact == nil {
+		return fmt.Errorf("gateway_failure: approval resolved without approved artifact")
+	}
+	return writeJSON(stdout, resolveResp.ApprovedArtifact.Reference)
 }
 
 func handleRevokeApprovedExcerpt(args []string, service *brokerapi.Service, _ io.Writer) error {
@@ -143,11 +155,16 @@ func handleSetReservedClasses(args []string, service *brokerapi.Service, _ io.Wr
 }
 
 func handleAuditReadiness(_ []string, service *brokerapi.Service, stdout io.Writer) error {
-	readiness, err := service.AuditReadiness()
-	if err != nil {
-		return err
+	api := localAPIForService(service)
+	resp, errResp := api.ReadinessGet(context.Background(), brokerapi.ReadinessGetRequest{
+		SchemaID:      "runecode.protocol.v0.ReadinessGetRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     defaultRequestID(),
+	})
+	if errResp != nil {
+		return localAPIError(errResp)
 	}
-	return writeJSON(stdout, readiness)
+	return writeJSON(stdout, resp.Readiness)
 }
 
 func handleAuditVerification(args []string, service *brokerapi.Service, stdout io.Writer) error {
@@ -157,9 +174,15 @@ func handleAuditVerification(args []string, service *brokerapi.Service, stdout i
 	if err := fs.Parse(args); err != nil {
 		return &usageError{message: "audit-verification usage: runecode-broker audit-verification [--limit N]"}
 	}
-	surface, err := service.LatestAuditVerificationSurface(*limit)
-	if err != nil {
-		return err
+	api := localAPIForService(service)
+	resp, errResp := api.AuditVerificationGet(context.Background(), brokerapi.AuditVerificationGetRequest{
+		SchemaID:      "runecode.protocol.v0.AuditVerificationGetRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     defaultRequestID(),
+		ViewLimit:     *limit,
+	})
+	if errResp != nil {
+		return localAPIError(errResp)
 	}
-	return writeJSON(stdout, surface)
+	return writeJSON(stdout, brokerapi.AuditVerificationSurface{Summary: resp.Summary, Report: resp.Report, Views: resp.Views})
 }

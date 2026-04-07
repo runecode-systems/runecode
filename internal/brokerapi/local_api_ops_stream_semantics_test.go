@@ -63,6 +63,50 @@ func TestStreamSemanticsRejectCancelledTerminalWithError(t *testing.T) {
 	}
 }
 
+func TestLogStreamHoldsInFlightSlotUntilStreamCompletes(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{Limits: Limits{MaxInFlightPerClient: 1, MaxInFlightPerLane: 1}})
+	meta := RequestContext{ClientID: "client-stream", LaneID: "lane-stream"}
+
+	ack, errResp := s.HandleLogStreamRequest(context.Background(), LogStreamRequest{
+		SchemaID:       "runecode.protocol.v0.LogStreamRequest",
+		SchemaVersion:  "0.1.0",
+		RequestID:      "req-log-open",
+		Follow:         true,
+		IncludeBacklog: true,
+	}, meta)
+	if errResp != nil {
+		t.Fatalf("HandleLogStreamRequest error response: %+v", errResp)
+	}
+
+	_, listErr := s.HandleArtifactListV0(context.Background(), LocalArtifactListRequest{
+		SchemaID:      "runecode.protocol.v0.ArtifactListRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-list-during-stream",
+	}, meta)
+	if listErr == nil {
+		t.Fatal("expected in-flight saturation rejection while log stream is open")
+	}
+	if listErr.Error.Code != "broker_limit_in_flight_exceeded" {
+		t.Fatalf("error code = %q, want broker_limit_in_flight_exceeded", listErr.Error.Code)
+	}
+	if !listErr.Error.Retryable {
+		t.Fatal("in-flight saturation rejection should be retryable")
+	}
+
+	if _, err := s.StreamLogEvents(ack); err != nil {
+		t.Fatalf("StreamLogEvents returned error: %v", err)
+	}
+
+	_, listErr = s.HandleArtifactListV0(context.Background(), LocalArtifactListRequest{
+		SchemaID:      "runecode.protocol.v0.ArtifactListRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-list-after-stream",
+	}, meta)
+	if listErr != nil {
+		t.Fatalf("HandleArtifactListV0 after stream error response: %+v", listErr)
+	}
+}
+
 type alwaysErrReader struct{}
 
 func (r *alwaysErrReader) Read(_ []byte) (int, error) {

@@ -36,6 +36,9 @@ func (s *Service) errorFromValidation(requestID string, err error) ErrorResponse
 }
 
 func (s *Service) errorFromLimit(requestID string, err error) ErrorResponse {
+	if errors.Is(err, errRateLimitExceeded) {
+		return s.makeError(requestID, "broker_limit_rate_exceeded", "transport", true, err.Error())
+	}
 	if errors.Is(err, errInFlightLimitExceeded) {
 		return s.makeError(requestID, "broker_limit_in_flight_exceeded", "transport", true, err.Error())
 	}

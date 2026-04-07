@@ -59,24 +59,23 @@ func buildRunRecordIndex(all []artifacts.ArtifactRecord, runStatus map[string]st
 func buildRunSummary(runID string, records []artifacts.ArtifactRecord, status string, pending int, verification AuditVerificationSurface) RunSummary {
 	created, updated := runRecordTiming(records)
 	state := runLifecycleFromStore(status, pending, len(records) > 0)
-	workflowKind := inferWorkflowKind(records)
-	backendKind := inferBackendKind(records)
+	workflowKind, workflowDefinitionHash := inferWorkflowIdentity(records)
 	assuranceLevel := inferAssuranceLevel(verification)
 	summary := RunSummary{
 		SchemaID:               "runecode.protocol.v0.RunSummary",
 		SchemaVersion:          "0.1.0",
 		RunID:                  runID,
-		WorkspaceID:            workspaceIDForRun(runID),
+		WorkspaceID:            "workspace-local",
 		WorkflowKind:           workflowKind,
-		WorkflowDefinitionHash: shaDigestIdentity("workflow:" + runID + ":" + workflowKind),
+		WorkflowDefinitionHash: workflowDefinitionHash,
 		CreatedAt:              created.UTC().Format(time.RFC3339),
 		StartedAt:              created.UTC().Format(time.RFC3339),
 		UpdatedAt:              updated.UTC().Format(time.RFC3339),
 		LifecycleState:         state,
-		CurrentStageID:         stageIDForRun(runID),
+		CurrentStageID:         currentStageIDFromArtifacts(records, pending),
 		PendingApprovalCount:   pending,
-		ApprovalProfile:        "moderate",
-		BackendKind:            backendKind,
+		ApprovalProfile:        "unknown",
+		BackendKind:            authoritativeBackendKind(),
 		AssuranceLevel:         assuranceLevel,
 		AuditIntegrityStatus:   verification.Summary.IntegrityStatus,
 		AuditAnchoringStatus:   verification.Summary.AnchoringStatus,
@@ -169,6 +168,31 @@ func stageIDForRun(runID string) string {
 	return "artifact_flow"
 }
 
+func currentStageIDFromArtifacts(records []artifacts.ArtifactRecord, pending int) string {
+	if len(records) == 0 && pending == 0 {
+		return ""
+	}
+	return "artifact_flow"
+}
+
+func inferWorkflowIdentity(records []artifacts.ArtifactRecord) (string, string) {
+	workflowKind := inferWorkflowKind(records)
+	workflowDefinitionHash := ""
+	manifestDigests := uniqueSortedDigests(runProvenanceDigests(records))
+	if len(manifestDigests) == 1 {
+		workflowDefinitionHash = manifestDigests[0]
+	}
+	return workflowKind, workflowDefinitionHash
+}
+
+func runProvenanceDigests(records []artifacts.ArtifactRecord) []string {
+	out := make([]string, 0, len(records))
+	for _, record := range records {
+		out = append(out, record.Reference.ProvenanceReceiptHash)
+	}
+	return out
+}
+
 func inferWorkflowKind(records []artifacts.ArtifactRecord) string {
 	hasDiff := false
 	hasBuildLogs := false
@@ -191,16 +215,11 @@ func inferWorkflowKind(records []artifacts.ArtifactRecord) string {
 	case hasDiff:
 		return "edit_diff"
 	default:
-		return "artifact_flow"
+		return ""
 	}
 }
 
-func inferBackendKind(records []artifacts.ArtifactRecord) string {
-	for _, record := range records {
-		if record.CreatedByRole == "auditd" {
-			return "local_broker"
-		}
-	}
+func authoritativeBackendKind() string {
 	return "local_broker"
 }
 

@@ -3,6 +3,7 @@ package brokerapi
 import (
 	"context"
 	"encoding/base64"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 )
@@ -168,10 +169,10 @@ func (s *Service) decodeArtifactPutPayload(requestID, payloadBase64 string) ([]b
 func (s *Service) makeError(requestID string, code string, category string, retryable bool, message string) ErrorResponse {
 	resp := toErrorResponse(requestID, code, category, retryable, message)
 	if err := s.validateResponse(resp, brokerErrorResponseSchemaPath); err == nil {
-		return resp
+		return s.auditErrorResponse(resp)
 	}
 	fallback := toErrorResponse(defaultRequestIDFallback, "gateway_failure", "internal", false, "broker error-envelope validation failed")
-	return fallback
+	return s.auditErrorResponse(fallback)
 }
 
 func resolveRequestID(primary string, fallback string) string {
@@ -199,5 +200,9 @@ func (s *Service) acquireInFlight(meta RequestContext) (func(), error) {
 	if s.apiInflight == nil {
 		return func() {}, nil
 	}
-	return s.apiInflight.acquire(meta.ClientID, meta.LaneID)
+	now := time.Now().UTC()
+	if s.now != nil {
+		now = s.now().UTC()
+	}
+	return s.apiInflight.acquireAt(meta.ClientID, meta.LaneID, now)
 }

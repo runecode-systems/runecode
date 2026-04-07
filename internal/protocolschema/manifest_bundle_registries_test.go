@@ -40,6 +40,7 @@ func assertErrorRegistryCodes(t *testing.T) {
 		"broker_limit_message_size_exceeded",
 		"broker_limit_structural_complexity_exceeded",
 		"broker_limit_in_flight_exceeded",
+		"broker_limit_rate_exceeded",
 		"broker_limit_policy_rejected",
 		"broker_timeout_request_deadline_exceeded",
 		"broker_approval_state_invalid",

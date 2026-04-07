@@ -18,6 +18,7 @@ type approvalRecord struct {
 	Summary          ApprovalSummary
 	RequestEnvelope  *trustpolicy.SignedObjectEnvelope
 	DecisionEnvelope *trustpolicy.SignedObjectEnvelope
+	SourceDigest     string
 }
 
 type approvalState struct {
@@ -80,7 +81,7 @@ func (s *Service) approvalRecordsByID() map[string]approvalRecord {
 
 	s.approvals.mu.Lock()
 	defer s.approvals.mu.Unlock()
-	pruneDerivedApprovalOverlays(all, approvalOverlayDigests(s.approvals.records))
+	pruneDerivedApprovalOverlays(all, approvalOverlayDigests(s.approvals.records), approvalOverlaySourceDigests(s.approvals.records))
 	for id, record := range s.approvals.records {
 		all[id] = record
 	}
@@ -97,9 +98,13 @@ func (s *Service) derivedApprovalRecords() map[string]approvalRecord {
 }
 
 func inferredPendingApprovalRecord(record artifacts.ArtifactRecord, now time.Time) approvalRecord {
-	approvalID := shaDigestIdentity("pending-approval:" + record.Reference.Digest)
 	requestedAt := nonZeroRecordTime(record.CreatedAt, now)
 	expiresAt := requestedAt.Add(30 * time.Minute)
+	requestEnvelope := inferredPendingApprovalRequestEnvelope(record, requestedAt, expiresAt)
+	approvalID, err := approvalIDFromRequest(requestEnvelope)
+	if err != nil {
+		approvalID = shaDigestIdentity("approval-request:" + record.Reference.Digest)
+	}
 	workspaceID := workspaceIDForRun(record.RunID)
 	if record.RunID == "" {
 		workspaceID = "workspace-local"
@@ -125,7 +130,66 @@ func inferredPendingApprovalRecord(record artifacts.ArtifactRecord, now time.Tim
 			ActionKind:    "excerpt_promotion",
 		},
 		RequestDigest: approvalID,
-	}}
+	}, RequestEnvelope: &requestEnvelope, SourceDigest: record.Reference.Digest}
+}
+
+func inferredPendingApprovalRequestEnvelope(record artifacts.ArtifactRecord, requestedAt, expiresAt time.Time) trustpolicy.SignedObjectEnvelope {
+	manifestHash := strings.TrimPrefix(record.Reference.ProvenanceReceiptHash, "sha256:")
+	if len(manifestHash) != 64 {
+		manifestHash = strings.TrimPrefix(shaDigestIdentity("manifest:"+record.RunID), "sha256:")
+	}
+	actionHash := strings.TrimPrefix(shaDigestIdentity("pending-action:"+record.Reference.Digest), "sha256:")
+	payload := map[string]any{
+		"schema_id":             trustpolicy.ApprovalRequestSchemaID,
+		"schema_version":        trustpolicy.ApprovalRequestSchemaVersion,
+		"approval_profile":      "moderate",
+		"approval_trigger_code": "excerpt_promotion",
+		"requester": map[string]any{
+			"schema_id":      "runecode.protocol.v0.PrincipalIdentity",
+			"schema_version": "0.2.0",
+			"actor_kind":     "daemon",
+			"principal_id":   "broker",
+			"instance_id":    "broker-local",
+		},
+		"manifest_hash":            map[string]any{"hash_alg": "sha256", "hash": manifestHash},
+		"action_request_hash":      map[string]any{"hash_alg": "sha256", "hash": actionHash},
+		"relevant_artifact_hashes": []map[string]any{{"hash_alg": "sha256", "hash": strings.TrimPrefix(record.Reference.Digest, "sha256:")}},
+		"details_schema_id":        "runecode.protocol.details.approval.excerpt-promotion.v0",
+		"details": map[string]any{
+			"run_id":  record.RunID,
+			"step_id": record.StepID,
+		},
+		"approval_assurance_level": "session_authenticated",
+		"presence_mode":            "os_confirmation",
+		"requested_at":             requestedAt.UTC().Format(time.RFC3339),
+		"expires_at":               expiresAt.UTC().Format(time.RFC3339),
+		"staleness_posture":        "invalidate_on_bound_input_change",
+		"changes_if_approved":      approvalChangesIfApprovedDefault,
+		"signatures": []map[string]any{{
+			"alg":          "ed25519",
+			"key_id":       trustpolicy.KeyIDProfile,
+			"key_id_value": strings.Repeat("0", 64),
+			"signature":    "cGVuZGluZw==",
+		}},
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		payloadBytes = []byte(`{"schema_id":"` + trustpolicy.ApprovalRequestSchemaID + `","schema_version":"` + trustpolicy.ApprovalRequestSchemaVersion + `"}`)
+	}
+	return trustpolicy.SignedObjectEnvelope{
+		SchemaID:             trustpolicy.EnvelopeSchemaID,
+		SchemaVersion:        trustpolicy.EnvelopeSchemaVersion,
+		PayloadSchemaID:      trustpolicy.ApprovalRequestSchemaID,
+		PayloadSchemaVersion: trustpolicy.ApprovalRequestSchemaVersion,
+		Payload:              payloadBytes,
+		SignatureInput:       trustpolicy.SignatureInputProfile,
+		Signature: trustpolicy.SignatureBlock{
+			Alg:        "ed25519",
+			KeyID:      trustpolicy.KeyIDProfile,
+			KeyIDValue: strings.Repeat("0", 64),
+			Signature:  "cGVuZGluZw==",
+		},
+	}
 }
 
 func inferredResolvedApprovalRecord(record artifacts.ArtifactRecord, source artifacts.ArtifactRecord, hasSource bool) approvalRecord {
@@ -149,7 +213,7 @@ func inferredResolvedApprovalRecord(record artifacts.ArtifactRecord, source arti
 		PolicyDecisionHash:     record.ApprovalDecisionHash,
 		RequestDigest:          record.PromotionRequestHash,
 		DecisionDigest:         record.ApprovalDecisionHash,
-	}}
+	}, SourceDigest: record.ApprovalOfDigest}
 }
 
 func nonZeroRecordTime(value, fallback time.Time) time.Time {

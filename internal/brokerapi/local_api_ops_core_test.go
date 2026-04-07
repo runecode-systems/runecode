@@ -28,14 +28,14 @@ func assertRunListAndDetailForLocalOps(t *testing.T, s *Service) {
 	if len(runList.Runs) != 1 || runList.Runs[0].RunID != "run-123" {
 		t.Fatalf("run list = %+v, want run-123", runList.Runs)
 	}
-	if runList.Runs[0].WorkspaceID != "workspace-run-123" {
-		t.Fatalf("workspace_id = %q, want workspace-run-123", runList.Runs[0].WorkspaceID)
+	if runList.Runs[0].WorkspaceID != "workspace-local" {
+		t.Fatalf("workspace_id = %q, want workspace-local", runList.Runs[0].WorkspaceID)
 	}
-	if runList.Runs[0].WorkflowKind == "" {
-		t.Fatal("workflow_kind should be populated")
+	if runList.Runs[0].WorkflowKind != "" {
+		t.Fatalf("workflow_kind = %q, want empty when broker has no trusted workflow kind", runList.Runs[0].WorkflowKind)
 	}
 	if runList.Runs[0].WorkflowDefinitionHash == "" {
-		t.Fatal("workflow_definition_hash should be populated")
+		t.Fatal("workflow_definition_hash should use trusted manifest digest when unambiguous")
 	}
 	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-get", RunID: "run-123"}, RequestContext{})
 	if errResp != nil {
@@ -49,6 +49,33 @@ func assertRunListAndDetailForLocalOps(t *testing.T, s *Service) {
 	}
 	if runGet.Run.AuthoritativeState["source"] != "broker_store" {
 		t.Fatalf("authoritative_state.source = %v, want broker_store", runGet.Run.AuthoritativeState["source"])
+	}
+	if runGet.Run.AuthoritativeState["provenance"] != "trusted_derived" {
+		t.Fatalf("authoritative_state.provenance = %v, want trusted_derived", runGet.Run.AuthoritativeState["provenance"])
+	}
+	if runGet.Run.AdvisoryState["provenance"] != "none_reported" {
+		t.Fatalf("advisory_state.provenance = %v, want none_reported", runGet.Run.AdvisoryState["provenance"])
+	}
+}
+
+func TestRunSummaryWorkflowDefinitionHashRequiresSingleTrustedManifest(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	if _, putErr := s.Put(artifacts.PutRequest{Payload: []byte("artifact-a"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64), CreatedByRole: "workspace", RunID: "run-ambiguous", StepID: "step-1"}); putErr != nil {
+		t.Fatalf("Put artifact-a returned error: %v", putErr)
+	}
+	if _, putErr := s.Put(artifacts.PutRequest{Payload: []byte("artifact-b"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("b", 64), CreatedByRole: "workspace", RunID: "run-ambiguous", StepID: "step-2"}); putErr != nil {
+		t.Fatalf("Put artifact-b returned error: %v", putErr)
+	}
+
+	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-ambiguous", RunID: "run-ambiguous"}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleRunGet error response: %+v", errResp)
+	}
+	if runGet.Run.Summary.WorkflowDefinitionHash != "" {
+		t.Fatalf("workflow_definition_hash = %q, want empty when no single trusted manifest identity", runGet.Run.Summary.WorkflowDefinitionHash)
+	}
+	if got := len(runGet.Run.ActiveManifestHashes); got != 2 {
+		t.Fatalf("active_manifest_hashes len = %d, want 2", got)
 	}
 }
 
@@ -290,6 +317,45 @@ func TestRunGetFallsBackWhenAuditVerificationUnavailable(t *testing.T) {
 	}
 	if resp.Run.AuditSummary.IntegrityStatus != "failed" {
 		t.Fatalf("integrity_status = %q, want failed", resp.Run.AuditSummary.IntegrityStatus)
+	}
+}
+
+func TestRunPendingApprovalsUseCanonicalPendingRecords(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	ref, putErr := s.Put(artifacts.PutRequest{Payload: []byte("private excerpt"), ContentType: "text/plain", DataClass: artifacts.DataClassUnapprovedFileExcerpts, ProvenanceReceiptHash: "sha256:" + strings.Repeat("c", 64), CreatedByRole: "workspace", RunID: "run-pending-canonical", StepID: "step-1"})
+	if putErr != nil {
+		t.Fatalf("Put returned error: %v", putErr)
+	}
+	record, headErr := s.Head(ref.Digest)
+	if headErr != nil {
+		t.Fatalf("Head returned error: %v", headErr)
+	}
+	requestEnvelope := inferredPendingApprovalRequestEnvelope(record, record.CreatedAt.UTC(), record.CreatedAt.UTC().Add(30*time.Minute))
+	expectedID, idErr := approvalIDFromRequest(requestEnvelope)
+	if idErr != nil {
+		t.Fatalf("approvalIDFromRequest returned error: %v", idErr)
+	}
+
+	runResp, runErr := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-get-pending", RunID: "run-pending-canonical"}, RequestContext{})
+	if runErr != nil {
+		t.Fatalf("HandleRunGet error response: %+v", runErr)
+	}
+	if runResp.Run.Summary.PendingApprovalCount != 1 {
+		t.Fatalf("pending_approval_count = %d, want 1", runResp.Run.Summary.PendingApprovalCount)
+	}
+	if len(runResp.Run.PendingApprovalIDs) != 1 {
+		t.Fatalf("pending_approval_ids len = %d, want 1", len(runResp.Run.PendingApprovalIDs))
+	}
+	if runResp.Run.PendingApprovalIDs[0] != expectedID {
+		t.Fatalf("pending_approval_ids[0] = %q, want %q", runResp.Run.PendingApprovalIDs[0], expectedID)
+	}
+
+	approvalResp, approvalErr := s.HandleApprovalGet(context.Background(), ApprovalGetRequest{SchemaID: "runecode.protocol.v0.ApprovalGetRequest", SchemaVersion: "0.1.0", RequestID: "req-approval-get-pending", ApprovalID: runResp.Run.PendingApprovalIDs[0]}, RequestContext{})
+	if approvalErr != nil {
+		t.Fatalf("HandleApprovalGet error response: %+v", approvalErr)
+	}
+	if approvalResp.SignedApprovalRequest == nil {
+		t.Fatal("signed_approval_request = nil, want pending request envelope")
 	}
 }
 

@@ -1,9 +1,14 @@
 # Verification
 
-## Planned Checks
-- `runectx validate --json`
-- `runectx status --json`
-- `just test`
+## Checks Run
+- ✅ `runectx validate --json`
+  - Result: `ok` (exit 0), diagnostics: `0`.
+- ✅ `runectx status --json`
+  - Result: `ok` (exit 0); change metadata parsed successfully.
+- ✅ `go test ./internal/brokerapi`
+  - Result: `ok` (cached), including local API typed operation/stream/auth tests.
+- ✅ `go test ./internal/protocolschema`
+  - Result: `ok` (cached), covering schema bundle/manifest checks relevant to new broker API object families.
 
 ## Verification Notes
 - Confirm the change defines a transport-neutral logical broker API rather than only a Unix-socket implementation sketch.
@@ -15,6 +20,11 @@
 - Confirm pagination, ordering, and error-taxonomy expectations are explicit enough for later TUI and protobuf work to reuse without redefining semantics.
 - Confirm canonical references remain on RuneContext project, spec, and change paths, with no active workflow depending on legacy planning paths.
 - Confirm the change still matches its v0.1.0-alpha.3 roadmap bucket and title after migration.
+
+## Verification Outcome
+- This branch contains substantial broker/local API implementation progress and matching protocol schema inventory in-tree.
+- Change metadata remains `status: planned` and `verification_status: pending` because acceptance checklist items remain open in `tasks.md`.
+- Full repository gate (`just ci`) was not rerun as part of this metadata/doc update; use the standard CI gate for final branch-wide validation.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

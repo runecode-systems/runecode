@@ -98,3 +98,15 @@ func (s *Store) ReadAuditEvents() ([]AuditEvent, error) {
 	defer s.mu.Unlock()
 	return s.storeIO.readAuditEvents()
 }
+
+func (s *Store) AppendTrustedAuditEvent(eventType, actor string, details map[string]interface{}) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if eventType == "" {
+		return fmt.Errorf("event type is required")
+	}
+	if actor == "" {
+		actor = "trusted_component"
+	}
+	return s.appendAuditLocked(eventType, actor, details)
+}

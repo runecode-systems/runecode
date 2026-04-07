@@ -13,11 +13,20 @@ import (
 )
 
 func handleListArtifacts(_ []string, service *brokerapi.Service, stdout io.Writer) error {
-	resp, errResp := service.HandleArtifactList(context.Background(), brokerapi.DefaultArtifactListRequest(defaultRequestID()), brokerapi.RequestContext{})
+	api := localAPIForService(service)
+	resp, errResp := api.ArtifactList(context.Background(), brokerapi.LocalArtifactListRequest{
+		SchemaID:      "runecode.protocol.v0.ArtifactListRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     defaultRequestID(),
+	})
 	if errResp != nil {
-		return fmt.Errorf("%s: %s", errResp.Error.Code, errResp.Error.Message)
+		return localAPIError(errResp)
 	}
-	return writeJSON(stdout, resp.Artifacts)
+	artifactsOut := make([]artifacts.ArtifactReference, 0, len(resp.Artifacts))
+	for _, artifact := range resp.Artifacts {
+		artifactsOut = append(artifactsOut, artifact.Reference)
+	}
+	return writeJSON(stdout, artifactsOut)
 }
 
 func handleHeadArtifact(args []string, service *brokerapi.Service, stdout io.Writer) error {
@@ -30,11 +39,17 @@ func handleHeadArtifact(args []string, service *brokerapi.Service, stdout io.Wri
 	if *digest == "" {
 		return &usageError{message: "head-artifact requires --digest"}
 	}
-	resp, errResp := service.HandleArtifactHead(context.Background(), brokerapi.DefaultArtifactHeadRequest(defaultRequestID(), *digest), brokerapi.RequestContext{})
+	api := localAPIForService(service)
+	resp, errResp := api.ArtifactHead(context.Background(), brokerapi.LocalArtifactHeadRequest{
+		SchemaID:      "runecode.protocol.v0.ArtifactHeadRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     defaultRequestID(),
+		Digest:        *digest,
+	})
 	if errResp != nil {
-		return fmt.Errorf("%s: %s", errResp.Error.Code, errResp.Error.Message)
+		return localAPIError(errResp)
 	}
-	return writeJSON(stdout, resp.Artifact)
+	return writeJSON(stdout, resp.Artifact.Reference)
 }
 
 type getArtifactOptions struct {
@@ -73,13 +88,10 @@ func handleGetArtifact(args []string, service *brokerapi.Service, stdout io.Writ
 	if err != nil {
 		return err
 	}
-	handle, errResp := service.HandleArtifactRead(context.Background(), opts.toRequest(), brokerapi.RequestContext{})
+	api := localAPIForService(service)
+	events, errResp := api.ArtifactRead(context.Background(), opts.toRequest())
 	if errResp != nil {
-		return fmt.Errorf("%s: %s", errResp.Error.Code, errResp.Error.Message)
-	}
-	events, err := service.StreamArtifactReadEvents(handle)
-	if err != nil {
-		return err
+		return localAPIError(errResp)
 	}
 	written, err := writeArtifactEventsToFile(events, opts.out)
 	if err != nil {

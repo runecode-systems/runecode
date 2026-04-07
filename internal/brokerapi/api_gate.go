@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 )
 
 type inFlightGate struct {
@@ -11,19 +12,31 @@ type inFlightGate struct {
 	limits         Limits
 	perClientCount map[string]int
 	perLaneCount   map[string]int
+	perClientRate  map[string]rateWindow
+}
+
+type rateWindow struct {
+	windowStart int64
+	count       int
 }
 
 var errInFlightLimitExceeded = errors.New("in-flight limit exceeded")
+var errRateLimitExceeded = errors.New("rate limit exceeded")
 
 func newInFlightGate(limits Limits) *inFlightGate {
 	return &inFlightGate{
 		limits:         limits,
 		perClientCount: map[string]int{},
 		perLaneCount:   map[string]int{},
+		perClientRate:  map[string]rateWindow{},
 	}
 }
 
 func (g *inFlightGate) acquire(clientID string, laneID string) (func(), error) {
+	return g.acquireAt(clientID, laneID, time.Now().UTC())
+}
+
+func (g *inFlightGate) acquireAt(clientID string, laneID string, now time.Time) (func(), error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if clientID == "" {
@@ -31,6 +44,19 @@ func (g *inFlightGate) acquire(clientID string, laneID string) (func(), error) {
 	}
 	if laneID == "" {
 		laneID = "default-lane"
+	}
+	if g.limits.MaxRequestsPerClientPS > 0 {
+		second := now.Unix()
+		window := g.perClientRate[clientID]
+		if window.windowStart != second {
+			window.windowStart = second
+			window.count = 0
+		}
+		if window.count >= g.limits.MaxRequestsPerClientPS {
+			return nil, fmt.Errorf("%w: client %q has %d requests in second %d, max %d", errRateLimitExceeded, clientID, window.count, second, g.limits.MaxRequestsPerClientPS)
+		}
+		window.count++
+		g.perClientRate[clientID] = window
 	}
 	if g.perClientCount[clientID] >= g.limits.MaxInFlightPerClient {
 		return nil, fmt.Errorf("%w: client %q has %d active, max %d", errInFlightLimitExceeded, clientID, g.perClientCount[clientID], g.limits.MaxInFlightPerClient)

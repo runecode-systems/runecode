@@ -2,6 +2,7 @@ package brokerapi
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -16,23 +17,45 @@ func (s *Service) HandleLogStreamRequest(ctx context.Context, req LogStreamReque
 	if errResp != nil {
 		return LogStreamRequest{}, errResp
 	}
+	release, err := s.acquireInFlight(meta)
+	if err != nil {
+		errOut := s.errorFromLimit(requestID, err)
+		return LogStreamRequest{}, &errOut
+	}
+	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
+	if errResp := s.requestContextError(requestID, requestCtx); errResp != nil {
+		release()
+		cancel()
+		return LogStreamRequest{}, errResp
+	}
 	ack := req
 	ack.RequestID = requestID
 	if ack.StreamID == "" {
 		ack.StreamID = "log-" + requestID
 	}
+	ack.RequestCtx = requestCtx
+	ack.Cancel = cancel
+	ack.Release = release
 	return ack, nil
 }
 
 func (s *Service) StreamLogEvents(req LogStreamRequest) ([]LogStreamEvent, error) {
+	defer finalizeLogStreamRequest(req)
 	events := make([]LogStreamEvent, 0, 8)
 	events = append(events, logStreamStartEvent(req, 1))
 	seq := int64(2)
 	for _, record := range s.logRecordsForRequest(req) {
+		if err := reqContextErr(req.RequestCtx); err != nil {
+			events = append(events, logStreamTerminalFromContextErr(req, seq, err))
+			seq++
+			break
+		}
 		events = append(events, logStreamChunkEvent(req, seq, record))
 		seq++
 	}
-	events = append(events, logStreamTerminalEvent(req, seq))
+	if len(events) == 0 || events[len(events)-1].EventType != "log_stream_terminal" {
+		events = append(events, logStreamTerminalEvent(req, seq))
+	}
 
 	if err := validateLogStreamSemantics(events); err != nil {
 		return nil, err
@@ -43,6 +66,59 @@ func (s *Service) StreamLogEvents(req LogStreamRequest) ([]LogStreamEvent, error
 		}
 	}
 	return events, nil
+}
+
+func reqContextErr(requestCtx context.Context) error {
+	if requestCtx == nil {
+		return nil
+	}
+	select {
+	case <-requestCtx.Done():
+		return requestCtx.Err()
+	default:
+		return nil
+	}
+}
+
+func logStreamTerminalFromContextErr(req LogStreamRequest, seq int64, ctxErr error) LogStreamEvent {
+	terminal := LogStreamEvent{
+		SchemaID:       "runecode.protocol.v0.LogStreamEvent",
+		SchemaVersion:  "0.1.0",
+		StreamID:       req.StreamID,
+		RequestID:      req.RequestID,
+		Seq:            seq,
+		EventType:      "log_stream_terminal",
+		RunID:          req.RunID,
+		RoleInstanceID: req.RoleInstanceID,
+		Terminal:       true,
+		Error: &ProtocolError{
+			SchemaID:      "runecode.protocol.v0.Error",
+			SchemaVersion: errorEnvelopeSchemaVersion,
+			Code:          "request_cancelled",
+			Category:      "transport",
+			Retryable:     true,
+			Message:       "log stream cancelled",
+		},
+	}
+	if errors.Is(ctxErr, context.DeadlineExceeded) {
+		terminal.TerminalStatus = "failed"
+		terminal.Error.Code = "broker_timeout_request_deadline_exceeded"
+		terminal.Error.Category = "timeout"
+		terminal.Error.Message = "log stream deadline exceeded"
+		return terminal
+	}
+	terminal.TerminalStatus = "cancelled"
+	terminal.Error = nil
+	return terminal
+}
+
+func finalizeLogStreamRequest(req LogStreamRequest) {
+	if req.Release != nil {
+		req.Release()
+	}
+	if req.Cancel != nil {
+		req.Cancel()
+	}
 }
 
 func logStreamStartEvent(req LogStreamRequest, seq int64) LogStreamEvent {

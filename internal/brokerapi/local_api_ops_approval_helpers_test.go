@@ -63,6 +63,10 @@ func setupApprovedExcerptArtifactForReadTests(t *testing.T, s *Service) artifact
 }
 
 func setupServiceWithApprovalFixture(t *testing.T) (*Service, artifacts.ArtifactReference, *trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope) {
+	return setupServiceWithApprovalFixtureAndOutcome(t, "approve")
+}
+
+func setupServiceWithApprovalFixtureAndOutcome(t *testing.T, outcome string) (*Service, artifacts.ArtifactReference, *trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope) {
 	t.Helper()
 	root := t.TempDir()
 	ledgerRoot := root + "/audit-ledger"
@@ -77,7 +81,7 @@ func setupServiceWithApprovalFixture(t *testing.T) (*Service, artifacts.Artifact
 	if err != nil {
 		t.Fatalf("Put unapproved returned error: %v", err)
 	}
-	requestEnv, decisionEnv, verifiers := signedApprovalArtifactsForBrokerTests(t, "human", unapproved.Digest)
+	requestEnv, decisionEnv, verifiers := signedApprovalArtifactsForBrokerTestsWithOutcome(t, "human", unapproved.Digest, outcome)
 	for _, verifier := range verifiers {
 		if putErr := putTrustedVerifierRecordForService(s, verifier); putErr != nil {
 			t.Fatalf("putTrustedVerifierRecordForService returned error: %v", putErr)
@@ -210,6 +214,10 @@ func assertSingleLogTerminalEvent(t *testing.T, events []LogStreamEvent) {
 }
 
 func signedApprovalArtifactsForBrokerTests(t *testing.T, approver string, digest string) (*trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope, []trustpolicy.VerifierRecord) {
+	return signedApprovalArtifactsForBrokerTestsWithOutcome(t, approver, digest, "approve")
+}
+
+func signedApprovalArtifactsForBrokerTestsWithOutcome(t *testing.T, approver string, digest string, outcome string) (*trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope, []trustpolicy.VerifierRecord) {
 	t.Helper()
 	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -225,7 +233,7 @@ func signedApprovalArtifactsForBrokerTests(t *testing.T, approver string, digest
 	requestEnv := &trustpolicy.SignedObjectEnvelope{SchemaID: trustpolicy.EnvelopeSchemaID, SchemaVersion: trustpolicy.EnvelopeSchemaVersion, PayloadSchemaID: trustpolicy.ApprovalRequestSchemaID, PayloadSchemaVersion: trustpolicy.ApprovalRequestSchemaVersion, Payload: reqBytes, SignatureInput: trustpolicy.SignatureInputProfile, Signature: trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: keyIDValue, Signature: base64.StdEncoding.EncodeToString(reqSig)}}
 
 	requestDigest, _ := approvalIDFromRequest(*requestEnv)
-	decisionPayload := map[string]any{"schema_id": trustpolicy.ApprovalDecisionSchemaID, "schema_version": trustpolicy.ApprovalDecisionSchemaVersion, "approval_request_hash": map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(requestDigest, "sha256:")}, "approver": map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "user", "principal_id": approver, "instance_id": "approval-session"}, "decision_outcome": "approve", "approval_assurance_level": "reauthenticated", "presence_mode": "hardware_touch", "key_protection_posture": "hardware_backed", "identity_binding_posture": "attested", "approval_assertion_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("f", 64)}, "decided_at": "2026-03-13T12:05:00Z", "consumption_posture": "single_use", "signatures": []any{map[string]any{"alg": "ed25519", "key_id": trustpolicy.KeyIDProfile, "key_id_value": strings.Repeat("a", 64), "signature": "c2ln"}}}
+	decisionPayload := map[string]any{"schema_id": trustpolicy.ApprovalDecisionSchemaID, "schema_version": trustpolicy.ApprovalDecisionSchemaVersion, "approval_request_hash": map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(requestDigest, "sha256:")}, "approver": map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "user", "principal_id": approver, "instance_id": "approval-session"}, "decision_outcome": outcome, "approval_assurance_level": "reauthenticated", "presence_mode": "hardware_touch", "key_protection_posture": "hardware_backed", "identity_binding_posture": "attested", "approval_assertion_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("f", 64)}, "decided_at": "2026-03-13T12:05:00Z", "consumption_posture": "single_use", "signatures": []any{map[string]any{"alg": "ed25519", "key_id": trustpolicy.KeyIDProfile, "key_id_value": strings.Repeat("a", 64), "signature": "c2ln"}}}
 	decisionBytes, _ := json.Marshal(decisionPayload)
 	decisionCanonical, _ := jsoncanonicalizer.Transform(decisionBytes)
 	decisionSig := ed25519.Sign(privateKey, decisionCanonical)

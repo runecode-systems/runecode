@@ -82,6 +82,10 @@
       "summary": "The broker rejected the request because in-flight request limits per client or lane were exceeded."
     },
     {
+      "code": "broker_limit_rate_exceeded",
+      "summary": "The broker rejected the request because per-client request rate exceeded configured limits for the current window."
+    },
+    {
       "code": "broker_limit_policy_rejected",
       "summary": "The broker rejected the request due to policy-enforced runtime limits or flow controls."
     },

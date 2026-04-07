@@ -27,8 +27,8 @@ type RunSummary struct {
 	SchemaVersion          string `json:"schema_version"`
 	RunID                  string `json:"run_id"`
 	WorkspaceID            string `json:"workspace_id"`
-	WorkflowKind           string `json:"workflow_kind"`
-	WorkflowDefinitionHash string `json:"workflow_definition_hash"`
+	WorkflowKind           string `json:"workflow_kind,omitempty"`
+	WorkflowDefinitionHash string `json:"workflow_definition_hash,omitempty"`
 	CreatedAt              string `json:"created_at"`
 	StartedAt              string `json:"started_at,omitempty"`
 	UpdatedAt              string `json:"updated_at"`

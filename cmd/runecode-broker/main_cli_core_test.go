@@ -257,8 +257,8 @@ func requestOversizedPayloadViaLocalRPC(t *testing.T, conn net.Conn) error {
 	if resp.Error == nil {
 		return fmt.Errorf("expected typed error envelope")
 	}
-	if resp.Error.Error.Code != "broker_validation_schema_invalid" {
-		return fmt.Errorf("error code = %q, want broker_validation_schema_invalid", resp.Error.Error.Code)
+	if resp.Error.Error.Code != "broker_limit_message_size_exceeded" {
+		return fmt.Errorf("error code = %q, want broker_limit_message_size_exceeded", resp.Error.Error.Code)
 	}
 	return nil
 }
