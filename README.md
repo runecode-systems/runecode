@@ -139,7 +139,7 @@ This quick path verifies signed checksums and the signed archive before install.
 
 ## Implemented in this repo today:
 - A protocol/schema bundle in `protocol/schemas/` with an authoritative manifest at `protocol/schemas/manifest.json`
-- Shared JSON Schema object families for manifests, identities, approvals, artifacts/provenance, audit events/receipts, audit segment files/seals, audit verification reports, policy decisions, model request/response/streaming, detached signature envelopes, and shared errors
+- Shared JSON Schema object families for manifests, identities, approvals, artifacts/provenance, audit events/receipts, audit segment files/seals, audit verification reports, policy decisions, model request/response/streaming, broker local API request/response/read-model/stream families, detached signature envelopes, and shared errors
 - Shared machine-consumed code registries for `error.code`, `policy_reason_code`, `approval_trigger_code`, `audit_event_type`, `audit_receipt_kind`, and `audit_verification_reason_code`
 - Shared fixtures in `protocol/fixtures/` validated in both Go and Node, including schema, stream-sequence, runtime-invariant, and canonicalization/hash cases
 - CI guardrails for runner trust-boundary access and protocol parity
@@ -147,6 +147,7 @@ This quick path verifies signed checksums and the signed archive before install.
 - A trusted local artifact store with immutable hash-addressed artifact persistence, broker-facing flow checks, quota enforcement, retention/GC, backup/restore, and audit event recording for artifact actions
 - Approval promotion and revocation flows for `unapproved_file_excerpts` and `approved_file_excerpts`, including signed request/decision verification bound to canonical request bytes, promoted inputs, and verifier owner identity
 - A trusted local audit ledger with append/seal persistence, segment recovery, digest-addressed sidecar evidence, readiness evaluation, audit verification reports, and broker-facing audit verification/readiness surfaces
+- A broker local API with fail-closed local auth, schema-validated typed operations for runs, approvals, artifacts, audit, readiness, and version info, plus uniform log and artifact read streaming semantics
 
 Still incremental / not implemented end-to-end yet:
 - Secrets handling and isolation backends remain scaffolded or are implemented in later specs
@@ -172,6 +173,9 @@ Current MVP object families cover:
 - identity and content addressing: `PrincipalIdentity`, `Digest`, `ArtifactReference`, `ArtifactPolicy`, `ProvenanceReceipt`
 - audit and approvals: `AuditEvent`, `AuditReceipt`, `AuditSegmentFile`, `AuditSegmentSeal`, `AuditVerificationReport`, `ApprovalRequest`, `ApprovalDecision`, `PolicyDecision`
 - model traffic: `LLMRequest`, `LLMResponse`, `LLMStreamEvent`
+- broker local API requests/responses: `RunListRequest`, `RunGetRequest`, `ApprovalListRequest`, `ApprovalGetRequest`, `ApprovalResolveRequest`, `ArtifactListRequest`, `ArtifactHeadRequest`, `ArtifactReadRequest`, `AuditTimelineRequest`, `AuditVerificationGetRequest`, `ReadinessGetRequest`, `VersionInfoGetRequest`
+- broker local API read models: `RunSummary`, `RunDetail`, `RunStageSummary`, `RunRoleSummary`, `RunCoordinationSummary`, `ApprovalSummary`, `ApprovalBoundScope`, `ArtifactSummary`, `BrokerReadiness`, `BrokerVersionInfo`
+- broker local API streams and error envelopes: `LogStreamEvent`, `ArtifactStreamEvent`, `BrokerErrorResponse`
 - wrappers and shared errors: `SignedObjectEnvelope`, `Error`
 
 ## Development
@@ -201,6 +205,7 @@ just ci
 Useful protocol-specific checks:
 
 ```sh
+go test ./internal/brokerapi
 go test ./internal/protocolschema
 cd runner && node --test scripts/protocol-fixtures.test.js
 cd runner && npm run boundary-check
@@ -231,6 +236,7 @@ Alongside that still-incremental surface, the repository already includes workin
 - runner trust-boundary static checks
 - a trusted local artifact store and broker CLI for artifact put/get/head/list, flow checks, excerpt promotion, run-status updates, GC, and backup/restore
 - a trusted local audit ledger plus broker/auditd CLI surfaces for audit readiness and audit verification inspection
+- a broker local IPC API and CLI read surfaces for run list/detail, approval list/detail/resolve, audit verification/readiness, version inspection, and structured log streaming
 
 You can inspect their help output:
 
@@ -240,6 +246,20 @@ go run ./cmd/runecode-launcher --help
 go run ./cmd/runecode-broker --help
 go run ./cmd/runecode-secretsd --help
 go run ./cmd/runecode-auditd --help
+```
+
+The broker help surface currently includes local API and operator commands such as:
+
+```sh
+go run ./cmd/runecode-broker serve-local --help
+go run ./cmd/runecode-broker run-list --help
+go run ./cmd/runecode-broker run-get --help
+go run ./cmd/runecode-broker approval-list --help
+go run ./cmd/runecode-broker approval-get --help
+go run ./cmd/runecode-broker audit-verification --help
+go run ./cmd/runecode-broker audit-readiness --help
+go run ./cmd/runecode-broker version-info --help
+go run ./cmd/runecode-broker stream-logs --help
 ```
 
 ## Docs
