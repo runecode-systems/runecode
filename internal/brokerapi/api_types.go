@@ -1,105 +1,12 @@
 package brokerapi
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"sync"
-	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 )
-
-const (
-	defaultRequestIDFallback = "invalid_request"
-
-	brokerArtifactListRequestSchemaPath  = "objects/BrokerArtifactListRequest.schema.json"
-	brokerArtifactListResponseSchemaPath = "objects/BrokerArtifactListResponse.schema.json"
-	brokerArtifactHeadRequestSchemaPath  = "objects/BrokerArtifactHeadRequest.schema.json"
-	brokerArtifactHeadResponseSchemaPath = "objects/BrokerArtifactHeadResponse.schema.json"
-	brokerArtifactPutRequestSchemaPath   = "objects/BrokerArtifactPutRequest.schema.json"
-	brokerArtifactPutResponseSchemaPath  = "objects/BrokerArtifactPutResponse.schema.json"
-	brokerErrorResponseSchemaPath        = "objects/BrokerErrorResponse.schema.json"
-	errorEnvelopeSchemaVersion           = "0.3.0"
-	errorResponseSchemaVersion           = "0.1.0"
-)
-
-type Limits struct {
-	MaxMessageBytes        int
-	MaxStructuralDepth     int
-	MaxArrayLength         int
-	MaxObjectProperties    int
-	MaxInFlightPerClient   int
-	MaxInFlightPerLane     int
-	DefaultRequestDeadline time.Duration
-	MaxStreamChunkBytes    int
-	StreamIdleTimeout      time.Duration
-	MaxResponseStreamBytes int
-}
-
-func DefaultLimits() Limits {
-	return Limits{
-		MaxMessageBytes:        1 << 20,
-		MaxStructuralDepth:     64,
-		MaxArrayLength:         10_000,
-		MaxObjectProperties:    1_000,
-		MaxInFlightPerClient:   64,
-		MaxInFlightPerLane:     32,
-		DefaultRequestDeadline: 30 * time.Second,
-		MaxStreamChunkBytes:    64 << 10,
-		StreamIdleTimeout:      15 * time.Second,
-		MaxResponseStreamBytes: 16 << 20,
-	}
-}
-
-type APIConfig struct {
-	Limits Limits
-}
-
-func (c APIConfig) withDefaults() APIConfig {
-	defaults := DefaultLimits()
-	if c.Limits.MaxMessageBytes <= 0 {
-		c.Limits.MaxMessageBytes = defaults.MaxMessageBytes
-	}
-	if c.Limits.MaxStructuralDepth <= 0 {
-		c.Limits.MaxStructuralDepth = defaults.MaxStructuralDepth
-	}
-	if c.Limits.MaxArrayLength <= 0 {
-		c.Limits.MaxArrayLength = defaults.MaxArrayLength
-	}
-	if c.Limits.MaxObjectProperties <= 0 {
-		c.Limits.MaxObjectProperties = defaults.MaxObjectProperties
-	}
-	if c.Limits.MaxInFlightPerClient <= 0 {
-		c.Limits.MaxInFlightPerClient = defaults.MaxInFlightPerClient
-	}
-	if c.Limits.MaxInFlightPerLane <= 0 {
-		c.Limits.MaxInFlightPerLane = defaults.MaxInFlightPerLane
-	}
-	if c.Limits.DefaultRequestDeadline <= 0 {
-		c.Limits.DefaultRequestDeadline = defaults.DefaultRequestDeadline
-	}
-	if c.Limits.MaxStreamChunkBytes <= 0 {
-		c.Limits.MaxStreamChunkBytes = defaults.MaxStreamChunkBytes
-	}
-	if c.Limits.StreamIdleTimeout <= 0 {
-		c.Limits.StreamIdleTimeout = defaults.StreamIdleTimeout
-	}
-	if c.Limits.MaxResponseStreamBytes <= 0 {
-		c.Limits.MaxResponseStreamBytes = defaults.MaxResponseStreamBytes
-	}
-	return c
-}
-
-type RequestContext struct {
-	RequestID    string
-	ClientID     string
-	LaneID       string
-	Deadline     *time.Time
-	AdmissionErr error
-}
 
 type ArtifactListRequest struct {
 	SchemaID      string `json:"schema_id"`
@@ -122,10 +29,10 @@ type ArtifactHeadRequest struct {
 }
 
 type ArtifactHeadResponse struct {
-	SchemaID      string                   `json:"schema_id"`
-	SchemaVersion string                   `json:"schema_version"`
-	RequestID     string                   `json:"request_id"`
-	Artifact      artifacts.ArtifactRecord `json:"artifact"`
+	SchemaID      string                      `json:"schema_id"`
+	SchemaVersion string                      `json:"schema_version"`
+	RequestID     string                      `json:"request_id"`
+	Artifact      artifacts.ArtifactReference `json:"artifact"`
 }
 
 type ArtifactPutRequest struct {
@@ -210,7 +117,7 @@ func defaultArtifactHeadResponse(requestID string, record artifacts.ArtifactReco
 		SchemaID:      "runecode.protocol.v0.BrokerArtifactHeadResponse",
 		SchemaVersion: "0.1.0",
 		RequestID:     requestID,
-		Artifact:      record,
+		Artifact:      record.Reference,
 	}
 }
 
@@ -310,71 +217,4 @@ func mapValues(value map[string]any) []any {
 		out = append(out, child)
 	}
 	return out
-}
-
-type inFlightGate struct {
-	mu             sync.Mutex
-	limits         Limits
-	perClientCount map[string]int
-	perLaneCount   map[string]int
-}
-
-var errInFlightLimitExceeded = errors.New("in-flight limit exceeded")
-
-func newInFlightGate(limits Limits) *inFlightGate {
-	return &inFlightGate{
-		limits:         limits,
-		perClientCount: map[string]int{},
-		perLaneCount:   map[string]int{},
-	}
-}
-
-func (g *inFlightGate) acquire(clientID string, laneID string) (func(), error) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if clientID == "" {
-		clientID = "default-client"
-	}
-	if laneID == "" {
-		laneID = "default-lane"
-	}
-	if g.perClientCount[clientID] >= g.limits.MaxInFlightPerClient {
-		return nil, fmt.Errorf("%w: client %q has %d active, max %d", errInFlightLimitExceeded, clientID, g.perClientCount[clientID], g.limits.MaxInFlightPerClient)
-	}
-	if g.perLaneCount[laneID] >= g.limits.MaxInFlightPerLane {
-		return nil, fmt.Errorf("%w: lane %q has %d active, max %d", errInFlightLimitExceeded, laneID, g.perLaneCount[laneID], g.limits.MaxInFlightPerLane)
-	}
-	g.perClientCount[clientID]++
-	g.perLaneCount[laneID]++
-	released := false
-	return func() {
-		g.mu.Lock()
-		defer g.mu.Unlock()
-		if released {
-			return
-		}
-		released = true
-		g.perClientCount[clientID]--
-		if g.perClientCount[clientID] <= 0 {
-			delete(g.perClientCount, clientID)
-		}
-		g.perLaneCount[laneID]--
-		if g.perLaneCount[laneID] <= 0 {
-			delete(g.perLaneCount, laneID)
-		}
-	}, nil
-}
-
-func withDefaultDeadline(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	if _, ok := parent.Deadline(); ok {
-		return parent, func() {}
-	}
-	return context.WithTimeout(parent, timeout)
-}
-
-func withRequestDeadline(parent context.Context, meta RequestContext, fallback time.Duration) (context.Context, context.CancelFunc) {
-	if meta.Deadline != nil {
-		return context.WithDeadline(parent, *meta.Deadline)
-	}
-	return withDefaultDeadline(parent, fallback)
 }

@@ -3,9 +3,6 @@ package brokerapi
 import (
 	"context"
 	"encoding/base64"
-	"errors"
-	"fmt"
-	"strings"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 )
@@ -33,11 +30,8 @@ func (s *Service) HandleArtifactList(ctx context.Context, req ArtifactListReques
 	defer release()
 	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
 	defer cancel()
-	select {
-	case <-requestCtx.Done():
-		errResp := s.errorFromContext(requestID, requestCtx.Err())
-		return ArtifactListResponse{}, &errResp
-	default:
+	if errResp := s.requestContextError(requestID, requestCtx); errResp != nil {
+		return ArtifactListResponse{}, errResp
 	}
 	resp := defaultArtifactListResponse(requestID, s.List())
 	if err := s.validateResponse(resp, brokerArtifactListResponseSchemaPath); err != nil {
@@ -70,11 +64,8 @@ func (s *Service) HandleArtifactHead(ctx context.Context, req ArtifactHeadReques
 	defer release()
 	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
 	defer cancel()
-	select {
-	case <-requestCtx.Done():
-		errResp := s.errorFromContext(requestID, requestCtx.Err())
-		return ArtifactHeadResponse{}, &errResp
-	default:
+	if errResp := s.requestContextError(requestID, requestCtx); errResp != nil {
+		return ArtifactHeadResponse{}, errResp
 	}
 	record, err := s.Head(req.Digest)
 	if err != nil {
@@ -90,19 +81,9 @@ func (s *Service) HandleArtifactHead(ctx context.Context, req ArtifactHeadReques
 }
 
 func (s *Service) HandleArtifactPut(ctx context.Context, req ArtifactPutRequest, meta RequestContext) (ArtifactPutResponse, *ErrorResponse) {
-	if meta.AdmissionErr != nil {
-		err := s.makeError(resolveRequestID(req.RequestID, meta.RequestID), "broker_api_auth_admission_denied", "auth", false, meta.AdmissionErr.Error())
-		return ArtifactPutResponse{}, &err
-	}
-	requestID := resolveRequestID(req.RequestID, meta.RequestID)
-	if requestID == "" {
-		err := s.makeError(defaultRequestIDFallback, "broker_validation_request_id_missing", "validation", false, "request_id is required")
-		return ArtifactPutResponse{}, &err
-	}
-	req.RequestID = requestID
-	if err := s.validateRequest(req, brokerArtifactPutRequestSchemaPath); err != nil {
-		errResp := s.errorFromValidation(requestID, err)
-		return ArtifactPutResponse{}, &errResp
+	requestID, errResp := s.prepareArtifactPutRequest(req, meta)
+	if errResp != nil {
+		return ArtifactPutResponse{}, errResp
 	}
 	release, err := s.acquireInFlight(meta)
 	if err != nil {
@@ -112,11 +93,8 @@ func (s *Service) HandleArtifactPut(ctx context.Context, req ArtifactPutRequest,
 	defer release()
 	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
 	defer cancel()
-	select {
-	case <-requestCtx.Done():
-		errResp := s.errorFromContext(requestID, requestCtx.Err())
-		return ArtifactPutResponse{}, &errResp
-	default:
+	if errResp := s.requestContextError(requestID, requestCtx); errResp != nil {
+		return ArtifactPutResponse{}, errResp
 	}
 	putReq, errResp := s.artifactPutRequestToStore(requestID, req)
 	if errResp != nil {
@@ -133,6 +111,24 @@ func (s *Service) HandleArtifactPut(ctx context.Context, req ArtifactPutRequest,
 		return ArtifactPutResponse{}, &errResp
 	}
 	return resp, nil
+}
+
+func (s *Service) prepareArtifactPutRequest(req ArtifactPutRequest, meta RequestContext) (string, *ErrorResponse) {
+	if meta.AdmissionErr != nil {
+		err := s.makeError(resolveRequestID(req.RequestID, meta.RequestID), "broker_api_auth_admission_denied", "auth", false, meta.AdmissionErr.Error())
+		return "", &err
+	}
+	requestID := resolveRequestID(req.RequestID, meta.RequestID)
+	if requestID == "" {
+		err := s.makeError(defaultRequestIDFallback, "broker_validation_request_id_missing", "validation", false, "request_id is required")
+		return "", &err
+	}
+	req.RequestID = requestID
+	if err := s.validateRequest(req, brokerArtifactPutRequestSchemaPath); err != nil {
+		errResp := s.errorFromValidation(requestID, err)
+		return "", &errResp
+	}
+	return requestID, nil
 }
 
 func (s *Service) artifactPutRequestToStore(requestID string, req ArtifactPutRequest) (artifacts.PutRequest, *ErrorResponse) {
@@ -204,67 +200,4 @@ func (s *Service) acquireInFlight(meta RequestContext) (func(), error) {
 		return func() {}, nil
 	}
 	return s.apiInflight.acquire(meta.ClientID, meta.LaneID)
-}
-
-func (s *Service) errorFromValidation(requestID string, err error) ErrorResponse {
-	code := "broker_validation_schema_invalid"
-	if errors.Is(err, context.DeadlineExceeded) {
-		return s.errorFromContext(requestID, err)
-	}
-	if contains(err, "message size") {
-		code = "broker_limit_message_size_exceeded"
-		return s.makeError(requestID, code, "transport", false, err.Error())
-	}
-	if contains(err, "message depth") || contains(err, "array length") || contains(err, "object property count") {
-		code = "broker_limit_structural_complexity_exceeded"
-		return s.makeError(requestID, code, "transport", false, err.Error())
-	}
-	return s.makeError(requestID, code, "validation", false, err.Error())
-}
-
-func (s *Service) errorFromLimit(requestID string, err error) ErrorResponse {
-	if errors.Is(err, errInFlightLimitExceeded) {
-		return s.makeError(requestID, "broker_limit_in_flight_exceeded", "transport", true, err.Error())
-	}
-	return s.makeError(requestID, "broker_limit_in_flight_exceeded", "transport", true, err.Error())
-}
-
-func (s *Service) errorFromContext(requestID string, err error) ErrorResponse {
-	if errors.Is(err, context.DeadlineExceeded) {
-		return s.makeError(requestID, "broker_timeout_request_deadline_exceeded", "timeout", true, err.Error())
-	}
-	if errors.Is(err, context.Canceled) {
-		return s.makeError(requestID, "request_cancelled", "transport", true, err.Error())
-	}
-	return s.makeError(requestID, "broker_timeout_request_deadline_exceeded", "timeout", true, err.Error())
-}
-
-func (s *Service) errorFromStore(requestID string, err error) ErrorResponse {
-	switch {
-	case errors.Is(err, artifacts.ErrArtifactNotFound):
-		return s.makeError(requestID, "broker_not_found_artifact", "storage", false, err.Error())
-	case errors.Is(err, artifacts.ErrFlowDenied),
-		errors.Is(err, artifacts.ErrFlowProducerRoleMismatch),
-		errors.Is(err, artifacts.ErrUnapprovedEgressDenied),
-		errors.Is(err, artifacts.ErrApprovedEgressRequiresManifest),
-		errors.Is(err, artifacts.ErrApprovedExcerptRevoked),
-		errors.Is(err, artifacts.ErrQuotaExceeded),
-		errors.Is(err, artifacts.ErrPromotionRateLimited),
-		errors.Is(err, artifacts.ErrPromotionTooLarge):
-		return s.makeError(requestID, "broker_limit_policy_rejected", "policy", false, err.Error())
-	case errors.Is(err, artifacts.ErrApprovalRequestArtifactRequired),
-		errors.Is(err, artifacts.ErrApprovalArtifactRequired),
-		errors.Is(err, artifacts.ErrVerifierNotFound),
-		errors.Is(err, artifacts.ErrApprovalVerificationFailed):
-		return s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
-	default:
-		return s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
-	}
-}
-
-func contains(err error, needle string) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(fmt.Sprintf("%v", err), needle)
 }
