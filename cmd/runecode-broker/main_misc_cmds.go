@@ -192,3 +192,26 @@ func handleAuditVerification(args []string, service *brokerapi.Service, stdout i
 	}
 	return writeJSON(stdout, brokerapi.AuditVerificationSurface{Summary: resp.Summary, Report: resp.Report, Views: resp.Views})
 }
+
+func handleImportTrustedContract(args []string, service *brokerapi.Service, _ io.Writer) error {
+	fs := flag.NewFlagSet("import-trusted-contract", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	kind := fs.String("kind", "", "trusted contract kind")
+	filePath := fs.String("file", "", "path to contract JSON")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "import-trusted-contract usage: runecode-broker import-trusted-contract --kind verifier-record --file verifier.json"}
+	}
+	if *kind == "" || *filePath == "" {
+		return &usageError{message: "import-trusted-contract requires --kind and --file"}
+	}
+	switch *kind {
+	case "verifier-record":
+		record, err := loadVerifierRecord(*filePath)
+		if err != nil {
+			return fmt.Errorf("invalid verifier record: %w", err)
+		}
+		return putTrustedVerifierRecord(service, record)
+	default:
+		return &usageError{message: fmt.Sprintf("unsupported --kind %q (supported: verifier-record)", *kind)}
+	}
+}

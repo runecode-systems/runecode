@@ -136,19 +136,26 @@ func handleStreamLogs(args []string, service *brokerapi.Service, stdout io.Write
 	fs.SetOutput(io.Discard)
 	runID := fs.String("run-id", "", "filter by run id")
 	roleInstanceID := fs.String("role-instance-id", "", "filter by role instance id")
+	streamID := fs.String("stream-id", "", "stable stream id")
 	startCursor := fs.String("start-cursor", "", "cursor to resume from")
 	follow := fs.Bool("follow", false, "stream follow mode")
 	includeBacklog := fs.Bool("include-backlog", true, "include backlog")
 	if err := fs.Parse(args); err != nil {
-		return &usageError{message: "stream-logs usage: runecode-broker stream-logs [--run-id id] [--role-instance-id id] [--start-cursor cursor] [--follow] [--include-backlog]"}
+		return &usageError{message: "stream-logs usage: runecode-broker stream-logs [--stream-id id] [--run-id id] [--role-instance-id id] [--start-cursor cursor] [--follow] [--include-backlog]"}
 	}
 	api := localAPIForService(service)
 	ctx, cancel := commandRequestContext(context.Background())
 	defer cancel()
+	requestID := defaultRequestID()
+	resolvedStreamID := *streamID
+	if resolvedStreamID == "" {
+		resolvedStreamID = "log-" + requestID
+	}
 	events, errResp := api.LogStream(ctx, brokerapi.LogStreamRequest{
 		SchemaID:       "runecode.protocol.v0.LogStreamRequest",
 		SchemaVersion:  "0.1.0",
-		RequestID:      defaultRequestID(),
+		RequestID:      requestID,
+		StreamID:       resolvedStreamID,
 		RunID:          *runID,
 		RoleInstanceID: *roleInstanceID,
 		StartCursor:    *startCursor,

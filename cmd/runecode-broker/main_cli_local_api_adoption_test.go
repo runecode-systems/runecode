@@ -19,9 +19,25 @@ func TestCLIAdoptionRoutesRunApprovalVersionAndLogThroughLocalRPC(t *testing.T) 
 	stderr := &bytes.Buffer{}
 	requestedOps := make([]string, 0, 8)
 
+	installRunApprovalVersionLogDispatchStub(t, &requestedOps)
+
+	commands := [][]string{{"run-list"}, {"run-get", "--run-id", "run-1"}, {"approval-list"}, {"approval-get", "--approval-id", testDigest("a")}, {"version-info"}, {"stream-logs"}, {"stream-logs", "--stream-id", "custom-stream"}}
+	for _, args := range commands {
+		stdout.Reset()
+		if err := run(args, stdout, stderr); err != nil {
+			t.Fatalf("run(%v) error: %v", args, err)
+		}
+	}
+
+	want := []string{"run_list", "run_get", "approval_list", "approval_get", "version_info_get", "log_stream", "log_stream"}
+	assertRequestedOps(t, requestedOps, want)
+}
+
+func installRunApprovalVersionLogDispatchStub(t *testing.T, requestedOps *[]string) {
+	t.Helper()
 	originalDispatch := localRPCDispatch
 	localRPCDispatch = func(_ *brokerapi.Service, _ context.Context, wire localRPCRequest, _ brokerapi.RequestContext) localRPCResponse {
-		requestedOps = append(requestedOps, wire.Operation)
+		*requestedOps = append(*requestedOps, wire.Operation)
 		switch wire.Operation {
 		case "run_list":
 			return mustOKLocalRPCResponse(t, brokerapi.RunListResponse{SchemaID: "runecode.protocol.v0.RunListResponse", SchemaVersion: "0.1.0", RequestID: "req-run-list"})
@@ -34,23 +50,27 @@ func TestCLIAdoptionRoutesRunApprovalVersionAndLogThroughLocalRPC(t *testing.T) 
 		case "version_info_get":
 			return mustOKLocalRPCResponse(t, brokerapi.VersionInfoGetResponse{SchemaID: "runecode.protocol.v0.VersionInfoGetResponse", SchemaVersion: "0.1.0", RequestID: "req-version", VersionInfo: brokerapi.BrokerVersionInfo{SchemaID: "runecode.protocol.v0.BrokerVersionInfo", SchemaVersion: "0.1.0"}})
 		case "log_stream":
-			return mustOKLocalRPCResponse(t, []brokerapi.LogStreamEvent{{SchemaID: "runecode.protocol.v0.LogStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-log", Seq: 1, EventType: "log_stream_start"}, {SchemaID: "runecode.protocol.v0.LogStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-log", Seq: 2, EventType: "log_stream_terminal", Terminal: true, TerminalStatus: "completed"}})
+			return handleLogStreamDispatchForTest(t, wire, len(*requestedOps))
 		default:
 			return localRPCResponse{OK: false}
 		}
 	}
 	t.Cleanup(func() { localRPCDispatch = originalDispatch })
+}
 
-	commands := [][]string{{"run-list"}, {"run-get", "--run-id", "run-1"}, {"approval-list"}, {"approval-get", "--approval-id", testDigest("a")}, {"version-info"}, {"stream-logs"}}
-	for _, args := range commands {
-		stdout.Reset()
-		if err := run(args, stdout, stderr); err != nil {
-			t.Fatalf("run(%v) error: %v", args, err)
-		}
+func handleLogStreamDispatchForTest(t *testing.T, wire localRPCRequest, opCount int) localRPCResponse {
+	t.Helper()
+	request := brokerapi.LogStreamRequest{}
+	if err := json.Unmarshal(wire.Request, &request); err != nil {
+		t.Fatalf("Unmarshal log stream request error: %v", err)
 	}
-
-	want := []string{"run_list", "run_get", "approval_list", "approval_get", "version_info_get", "log_stream"}
-	assertRequestedOps(t, requestedOps, want)
+	if opCount == 6 && (request.StreamID == "" || request.StreamID == request.RequestID) {
+		t.Fatalf("default stream-logs request stream_id = %q, want derived non-empty stream id", request.StreamID)
+	}
+	if opCount == 7 && request.StreamID != "custom-stream" {
+		t.Fatalf("explicit stream-logs request stream_id = %q, want custom-stream", request.StreamID)
+	}
+	return mustOKLocalRPCResponse(t, []brokerapi.LogStreamEvent{{SchemaID: "runecode.protocol.v0.LogStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-log", Seq: 1, EventType: "log_stream_start"}, {SchemaID: "runecode.protocol.v0.LogStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-log", Seq: 2, EventType: "log_stream_terminal", Terminal: true, TerminalStatus: "completed"}})
 }
 
 func TestCLIAdoptionRoutesArtifactAuditAndResolveThroughLocalRPC(t *testing.T) {

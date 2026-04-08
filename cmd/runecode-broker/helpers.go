@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
@@ -35,6 +36,9 @@ func writeJSON(w io.Writer, value interface{}) error {
 }
 
 func putTrustedVerifierRecord(service *brokerapi.Service, record trustpolicy.VerifierRecord) error {
+	if _, err := trustpolicy.NewVerifierRegistry([]trustpolicy.VerifierRecord{record}); err != nil {
+		return err
+	}
 	b, err := json.Marshal(record)
 	if err != nil {
 		return err
@@ -48,6 +52,25 @@ func putTrustedVerifierRecord(service *brokerapi.Service, record trustpolicy.Ver
 		TrustedSource:         true,
 	})
 	return err
+}
+
+func loadVerifierRecord(filePath string) (trustpolicy.VerifierRecord, error) {
+	record := trustpolicy.VerifierRecord{}
+	if strings.TrimSpace(filePath) == "" {
+		return record, fmt.Errorf("path is required")
+	}
+	if err := loadJSONFileValue(filePath, &record); err != nil {
+		return record, err
+	}
+	return record, nil
+}
+
+func loadJSONFileValue(filePath string, target any) error {
+	b, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, target)
 }
 
 func loadSignedApprovalEnvelope(filePath string) (*trustpolicy.SignedObjectEnvelope, error) {

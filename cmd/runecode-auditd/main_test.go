@@ -187,6 +187,88 @@ func TestAppendEventRejectsInvalidRequestWithoutWritingContracts(t *testing.T) {
 	}
 }
 
+func TestConfigureVerificationInputsUsageError(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := run([]string{"configure-verification-inputs"}, stdout, stderr)
+	if err == nil {
+		t.Fatal("run expected usage error")
+	}
+	if _, ok := err.(*usageError); !ok {
+		t.Fatalf("error type = %T, want *usageError", err)
+	}
+}
+
+func TestConfigureVerificationInputsWritesAndClearsOptionalFiles(t *testing.T) {
+	root := t.TempDir()
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	request := validAuditAdmissionRequestFixture(t)
+	verifierPath := filepath.Join(t.TempDir(), "verifier-records.json")
+	if err := writeJSONFixtureFile(verifierPath, request.VerifierRecords); err != nil {
+		t.Fatalf("writeJSONFixtureFile(verifier records) error: %v", err)
+	}
+	catalogPath := filepath.Join(t.TempDir(), "event-contract-catalog.json")
+	if err := writeJSONFixtureFile(catalogPath, request.EventContractCatalog); err != nil {
+		t.Fatalf("writeJSONFixtureFile(catalog) error: %v", err)
+	}
+	signerEvidencePath := filepath.Join(t.TempDir(), "signer-evidence.json")
+	if err := writeJSONFixtureFile(signerEvidencePath, request.SignerEvidence); err != nil {
+		t.Fatalf("writeJSONFixtureFile(signer evidence) error: %v", err)
+	}
+	storagePosturePath := filepath.Join(t.TempDir(), "storage-posture.json")
+	storagePosture := trustpolicy.AuditStoragePostureEvidence{EncryptedAtRestDefault: true, EncryptedAtRestEffective: true, SurfacedToOperator: true}
+	if err := writeJSONFixtureFile(storagePosturePath, storagePosture); err != nil {
+		t.Fatalf("writeJSONFixtureFile(storage posture) error: %v", err)
+	}
+
+	err := run([]string{"configure-verification-inputs", "--ledger-root", root, "--verifier-records", verifierPath, "--event-contract-catalog", catalogPath, "--signer-evidence", signerEvidencePath, "--storage-posture", storagePosturePath}, stdout, stderr)
+	if err != nil {
+		t.Fatalf("configure-verification-inputs returned error: %v", err)
+	}
+	if stdout.String() != "configured\n" {
+		t.Fatalf("stdout = %q, want configured", stdout.String())
+	}
+	assertPathExists(t, filepath.Join(root, "contracts", "verifier-records.json"))
+	assertPathExists(t, filepath.Join(root, "contracts", "event-contract-catalog.json"))
+	assertPathExists(t, filepath.Join(root, "contracts", "signer-evidence.json"))
+	assertPathExists(t, filepath.Join(root, "contracts", "storage-posture.json"))
+
+	stdout.Reset()
+	err = run([]string{"configure-verification-inputs", "--ledger-root", root, "--verifier-records", verifierPath, "--event-contract-catalog", catalogPath}, stdout, stderr)
+	if err != nil {
+		t.Fatalf("configure-verification-inputs(update) returned error: %v", err)
+	}
+	assertPathExists(t, filepath.Join(root, "contracts", "verifier-records.json"))
+	assertPathExists(t, filepath.Join(root, "contracts", "event-contract-catalog.json"))
+	assertPathMissing(t, filepath.Join(root, "contracts", "signer-evidence.json"))
+	assertPathMissing(t, filepath.Join(root, "contracts", "storage-posture.json"))
+	readinessStdout := &bytes.Buffer{}
+	if err := run([]string{"readiness", "--ledger-root", root}, readinessStdout, stderr); err != nil {
+		t.Fatalf("readiness returned error: %v", err)
+	}
+}
+
+func TestConfigureVerificationInputsRejectsEmptyRequiredContracts(t *testing.T) {
+	root := t.TempDir()
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	verifierPath := filepath.Join(t.TempDir(), "verifier-records.json")
+	if err := os.WriteFile(verifierPath, []byte(`[]`), 0o600); err != nil {
+		t.Fatalf("WriteFile verifier records error: %v", err)
+	}
+	catalogPath := filepath.Join(t.TempDir(), "event-contract-catalog.json")
+	if err := os.WriteFile(catalogPath, []byte(`{"schema_id":"","schema_version":"0.1.0","catalog_id":"audit_event_contract_v0","entries":[]}`), 0o600); err != nil {
+		t.Fatalf("WriteFile catalog error: %v", err)
+	}
+	err := run([]string{"configure-verification-inputs", "--ledger-root", root, "--verifier-records", verifierPath, "--event-contract-catalog", catalogPath}, stdout, stderr)
+	if err == nil {
+		t.Fatal("configure-verification-inputs expected validation error for empty required contracts")
+	}
+	assertPathMissing(t, filepath.Join(root, "contracts", "verifier-records.json"))
+	assertPathMissing(t, filepath.Join(root, "contracts", "event-contract-catalog.json"))
+}
+
 func validAuditAdmissionRequestFixture(t *testing.T) trustpolicy.AuditAdmissionRequest {
 	t.Helper()
 	publicKey, privateKey, keyIDValue := generateAuditFixtureKeyMaterial(t)
@@ -350,5 +432,27 @@ func buildAuditAdmissionVerifierRecord(publicKey ed25519.PublicKey, keyIDValue s
 		PresenceMode:           "os_confirmation",
 		CreatedAt:              "2026-03-13T12:00:00Z",
 		Status:                 "active",
+	}
+}
+
+func writeJSONFixtureFile(path string, value any) error {
+	b, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, b, 0o600)
+}
+
+func assertPathExists(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected %q to exist: %v", path, err)
+	}
+}
+
+func assertPathMissing(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("expected %q to be absent, stat err = %v", path, err)
 	}
 }

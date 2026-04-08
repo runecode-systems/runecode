@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -80,5 +81,44 @@ func TestPromoteExcerptRejectsSelfProvidedVerifierRecord(t *testing.T) {
 	err := run([]string{"promote-excerpt", "--unapproved-digest", unapproved.Digest, "--approver", "human", "--approval-request", approvalRequestPath, "--approval-envelope", approvalEnvelopePath, "--repo-path", "repo/file.txt", "--commit", "abc123", "--extractor-version", "tool-v1", "--full-content-visible"}, stdout, stderr)
 	if err == nil {
 		t.Fatal("promote-excerpt expected error when verifier records are not auditd-owned")
+	}
+}
+
+func TestImportTrustedContractAllowsPromotionWorkflow(t *testing.T) {
+	setBrokerServiceForTest(t)
+	stderr := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
+	unapprovedPath := writeTempFile(t, "excerpt.txt", "private excerpt")
+	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"))
+	approvalRequestPath, approvalEnvelopePath, verifierRecords := writeApprovalFixtures(t, "human", unapproved.Digest, "repo/file.txt", "abc123", "tool-v1")
+	for index := range verifierRecords {
+		payload, err := json.Marshal(verifierRecords[index])
+		if err != nil {
+			t.Fatalf("Marshal verifier record error: %v", err)
+		}
+		verifierPath := filepath.Join(t.TempDir(), "verifier-record.json")
+		if err := os.WriteFile(verifierPath, payload, 0o600); err != nil {
+			t.Fatalf("WriteFile verifier record error: %v", err)
+		}
+		if err := run([]string{"import-trusted-contract", "--kind", "verifier-record", "--file", verifierPath}, stdout, stderr); err != nil {
+			t.Fatalf("import-trusted-contract returned error: %v", err)
+		}
+	}
+	approved := promoteViaCLI(t, stdout, stderr, unapproved.Digest, approvalRequestPath, approvalEnvelopePath)
+	if approved.DataClass != "approved_file_excerpts" {
+		t.Fatalf("approved data_class = %q, want approved_file_excerpts", approved.DataClass)
+	}
+}
+
+func TestImportTrustedContractRejectsUnsupportedKind(t *testing.T) {
+	setBrokerServiceForTest(t)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := run([]string{"import-trusted-contract", "--kind", "unknown", "--file", writeTempFile(t, "noop.json", "{}")}, stdout, stderr)
+	if err == nil {
+		t.Fatal("import-trusted-contract expected usage error for unsupported kind")
+	}
+	if _, ok := err.(*usageError); !ok {
+		t.Fatalf("error type = %T, want *usageError", err)
 	}
 }
