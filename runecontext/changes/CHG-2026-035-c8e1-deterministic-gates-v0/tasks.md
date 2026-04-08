@@ -14,6 +14,7 @@
 
 - [ ] Fail closed on gate failures by default.
 - [ ] Record retries and require explicit approvals for overrides.
+- [ ] Keep override semantics aligned with canonical policy `ActionRequest` / `PolicyDecision` identity and shared approval trigger semantics.
 
 ## Acceptance Criteria
 

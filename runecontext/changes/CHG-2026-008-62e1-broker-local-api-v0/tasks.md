@@ -41,6 +41,7 @@ Additional MVP endpoints:
 - [x] version/build info (for diagnostics and audit metadata)
 - [x] Approval endpoints return and consume typed signed `ApprovalRequest` and `ApprovalDecision` artifacts plus structured status metadata.
 - [x] Approval endpoints support listing and polling multiple pending approvals and their bound scopes without implying a whole-system pause.
+- [ ] Keep broker approval inspection and resolution aligned with the policy split between exact-action approvals and stage sign-off approvals.
 - [x] Define protocol object families for the core read models and operations, including:
   - `RunSummary`, `RunDetail`, `RunStageSummary`, `RunRoleSummary`, `RunCoordinationSummary`
   - `ApprovalSummary`, `ApprovalBoundScope`
@@ -64,6 +65,7 @@ Additional MVP endpoints:
 - [x] Define the broker run lifecycle vocabulary explicitly and reuse it across the TUI and future runner integration.
 - [x] Define approval identity as the canonical approval-request identity shared with policy and runner state rather than a transport/session-local identifier.
 - [x] Define explicit approval status vocabulary and bound-scope metadata so blocked work and later supersession/consumption semantics remain machine-readable.
+- [ ] Treat `ApprovalBoundScope` as normalized UX metadata and keep signed request identity, stage-summary hash, and compiled policy-context hash as the authoritative bindings.
 - [x] Define artifact public read models around `ArtifactReference` without exposing daemon-private storage paths or host-local implementation details.
 - [x] Reuse or directly map audit operational-view and verification-summary contracts rather than inventing a second broker-specific audit vocabulary.
 - [x] Use opaque cursor-based pagination for paged reads and specify ordering semantics per operation.
@@ -98,6 +100,7 @@ Parallelization: can be implemented in parallel with TUI and CLI work; depends o
 - [x] Enforce the data-class flow matrix.
 - [ ] Ensure gateway roles (e.g., `model-gateway`) can fetch artifact bytes by hash only via the broker/artifact API (never via workspace mounts).
 - [x] Enforce role+manifest-based allowlists when serving artifact bytes (fail closed on disallowed data classes).
+- [ ] Keep broker policy-facing request/response surfaces ready to carry canonical `ActionRequest` / `PolicyDecision` identities without transport-specific reshaping.
 - [x] Keep artifact download broker-mediated and streamed with uniform broker stream semantics rather than transport-specific ad hoc chunking.
 - [x] Keep MVP artifact download as full-object hash-addressed read; any future range support must be additive.
 

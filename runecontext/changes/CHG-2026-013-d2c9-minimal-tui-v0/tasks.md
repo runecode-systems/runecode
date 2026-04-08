@@ -16,8 +16,11 @@ Parallelization: can be implemented in parallel with broker local API work; it d
 - [ ] Audit timeline must surface anchored vs unanchored verification posture (and any invalid/failed anchoring state).
 - [ ] Audit timeline and posture views consume machine-readable audit verification findings/reason codes from the local API rather than scraping human CLI output.
 - [ ] Approval context: show the active approval profile (`moderate` in MVP) and why each approval is required (reason codes + structured details).
+- [ ] Distinguish exact-action approvals from stage sign-off approvals in inbox and detail views.
+- [ ] Surface when a stage sign-off became stale or was superseded because its bound stage summary hash changed.
 - [ ] Runs views consume broker `RunSummary` and `RunDetail` contracts rather than ad hoc screen-specific data shaping.
 - [ ] Approval views consume broker `ApprovalSummary` and bound-scope metadata so blocked work, supersession, expiry, and consumption are explainable without payload scraping.
+- [ ] Keep approval views clear about the difference between `policy_reason_code`, `approval_trigger_code`, and execution/system error states.
 - [ ] Artifact views consume broker `ArtifactSummary` plus streamed artifact reads rather than daemon-private storage metadata.
 - [ ] Status and diagnostics views consume broker `BrokerReadiness` and `BrokerVersionInfo` contracts.
 
@@ -40,6 +43,7 @@ Parallelization: can be implemented in parallel with broker development once the
   - TOFU isolate key provisioning
   - unanchored audit segments (when anchoring is configured/expected)
 - [ ] For each approval request, show a concise, structured what changes if approved view.
+- [ ] For each approval request, show the canonical bound identity the user is acting on (action-derived request or stage-summary sign-off) without exposing daemon-private internals.
 
 Parallelization: can be implemented in parallel with policy engine approval payload design; it depends on stable reason codes and structured decision details.
 

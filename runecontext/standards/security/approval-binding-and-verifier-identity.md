@@ -18,5 +18,11 @@ When trusted RuneCode services accept signed approval artifacts for promotion or
 - Fail closed unless the trusted verifier's `owner_principal` exactly matches the approval decision `approver` identity
 - Treat `approval_request_hash` as a binding to the canonical approval request payload bytes, not ad-hoc local serialization or unsigned ambient context
 - Require approval-request action binding fields to cover the immutable action inputs and the exact relevant artifact digests for the action being approved
+- Distinguish exact-action approval from stage sign-off at the binding layer:
+  - exact-action approvals bind the canonical `ActionRequest` hash
+  - stage sign-off approvals bind the canonical stage summary hash
+- When policy context participates in approval binding, require `manifest_hash` to mean the compiled effective policy-context hash rather than one raw source-manifest digest
+- Treat `ApprovalBoundScope` and similar bound-scope summaries as operator-facing metadata only; do not accept them as substitutes for signed artifacts, request hashes, or stage-summary hashes
+- Reject approvals when any bound action hash, stage-summary hash, or compiled policy-context hash has changed since request issuance, even if human-readable scope fields still appear to match
 - Reject approval artifacts when any bound request hash, approver identity, or relevant artifact digest does not match the current trusted runtime inputs
 - Treat trust-surface `key_id_value` fields as canonical lowercase hex only; reject uppercase or non-canonical encodings even if they would otherwise decode successfully

@@ -12,12 +12,14 @@
   - Version-bump every object family that constrains or surfaces the profile enum, starting with the run/stage capability manifest and any typed summaries that expose the active profile.
 - [ ] Profiles must never convert `deny -> allow`; they only affect whether an otherwise-allowed action requires explicit human approval.
 - [ ] Define the non-negotiable invariant set that profiles cannot bypass.
+- [ ] Define profile mappings against canonical policy `action_kind` values rather than ad hoc feature-local action labels.
 - [ ] Define profile mappings for ordinary actions:
   - approval frequency
   - minimum assurance level
   - batching rules
   - TTL/expiry defaults
 - [ ] Keep the fixed hard-floor categories from `runecontext/changes/CHG-2026-007-2315-policy-engine-v0/` outside profile control.
+- [ ] Keep profile behavior aligned with the policy split between exact-action approvals and stage sign-off.
 
 Cross-cutting approval lifecycle rules (applies to all profiles):
 - [ ] Approvals are typed, signed, and hash-bound to immutable inputs (manifest hash + request hash + relevant artifact hashes).
@@ -58,6 +60,7 @@ Parallelization: can be designed in parallel with workflow runner work; it depen
   - explain why an approval is required (reason codes + structured payload)
   - show what changes if approved
   - support the same approval semantics whether the decision was delivered locally or remotely
+- [ ] Keep profile-driven approval semantics aligned with canonical `policy_reason_code`, `approval_trigger_code`, and hard-floor classes rather than inventing profile-local status vocabularies.
 - [ ] Keep broker-visible run and approval summaries that surface active profile or required assurance aligned with the same schema/versioning rules.
 
 Parallelization: can be implemented in parallel across policy/runner/TUI as long as the approval schema contract is fixed first.

@@ -18,6 +18,7 @@ Implement the brokered local API contract that mediates all isolate RPC, local c
 - Broker read models are public operator-facing contracts. Internal Go structs and daemon-private storage layouts are implementation details and must be translated into topology-neutral API shapes.
 - Run inspection is a first-class capability. `list runs` and `get run detail` are foundational control-plane reads, not TUI-only conveniences.
 - Approval identity is canonical and hash-bound. Broker-visible approval lifecycle state must reuse the same approval-request identity across policy, runner, TUI, and later transport changes.
+- Broker policy-facing identity stays aligned with shared policy foundations: action-derived approvals bind canonical `ActionRequest` hashes, stage sign-off approvals bind canonical stage summary hashes, and `manifest_hash` refers to the compiled effective policy-context hash rather than one raw source manifest.
 - Streaming semantics are uniform across stream families: `stream_id`, monotonic `seq`, exactly one terminal event, and terminal failure carried as a typed protocol error.
 - Broker-visible state separates authoritative broker-derived or trusted state from runner advisory state so operator UX can consume real posture without promoting untrusted internals into trusted truth.
 
@@ -155,11 +156,14 @@ Recommended status vocabulary:
 
 Clients should not have to scrape freeform approval details just to answer what exact work is blocked or what exact work would be unblocked by approval.
 
+`ApprovalBoundScope` remains explanatory operator-facing metadata. It must not be treated as the trust root in place of the canonical approval-request identity, stage-summary hash, or other signed/bound hashes defined by policy.
+
 ### Approval Resolution
 - Approval resolution must consume typed signed approval artifacts and exact hash bindings.
 - `ApprovalResolveRequest` is not a free-floating `approve=true` or `deny=true` button message.
 - The delivery channel or local client identity is not the authorization primitive for high-risk actions.
 - Broker-facing approval APIs are primarily for inspection and resolution of policy-derived approvals, not for creating arbitrary freeform approval requests from untrusted clients.
+- Approval APIs should preserve the policy distinction between exact-action approvals and stage sign-off approvals rather than collapsing them into one ambient pending-approval shape.
 
 ## Artifact Model
 

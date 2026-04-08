@@ -15,6 +15,10 @@ Boundary-visible control-plane APIs must keep their logical contract explicit, t
 - Define operation-specific request and response object families under `protocol/schemas/`; do not treat ad-hoc JSON or transport-specific method envelopes as the contract source of truth.
 - Keep public read models topology-neutral; do not require socket names, local usernames, daemon-private storage layouts, or host-local filesystem paths as part of boundary-visible object identity.
 - Use shared typed error envelopes and stable reason-code registries for machine handling; do not rely on transport close, exit status, or scraped prose as the API error contract.
+- When surfacing policy-gated work, keep canonical decision identity and machine semantics explicit:
+  - expose policy decision hashes or equivalent canonical identifiers where operator UX needs stable identity
+  - keep `policy_reason_code`, `approval_trigger_code`, and system `error.code` distinct rather than overloading one status field
+  - treat bound-scope summaries as explanatory UX data, not as substitutes for signed request or decision hashes
 - Stream families must use explicit typed events with stable stream identity, monotonic sequence numbers, and exactly one terminal event.
 - Use opaque cursor pagination and explicit ordering semantics for list and timeline operations; do not rely on page-number conventions or undocumented default sort behavior.
 - Keep transport bindings, local IPC details, and CLI ergonomics as implementations of the logical API contract rather than the source of that contract.

@@ -1,5 +1,7 @@
 ## Applicable Standards
 - `standards/product/roadmap-conventions.md`
+- `standards/security/policy-evaluation-foundations.md`
+- `standards/security/trust-boundary-layered-enforcement.md`
 
 ## Resolution Notes
-Migrated from the legacy spec standards list and refreshed to canonical RuneContext standard paths.
+Expanded to include the shared policy-foundation and trust-boundary standards needed for typed auth-gateway policy and approval semantics.

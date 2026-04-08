@@ -9,6 +9,7 @@ Define the dedicated auth gateway role, provider-agnostic auth object families, 
 - Shared auth object families are provider-agnostic, typed, and versioned; provider specs extend them rather than redefining the control flow.
 - No environment-variable or CLI-arg secret injection.
 - Auth flows are typed, auditable, and fail closed on state/protocol mismatches.
+- Auth egress should use the shared typed gateway destination/allowlist model so provider identity and allowed auth operations are expressed through canonical descriptors rather than raw URL decisions.
 
 ## Main Workstreams
 - Auth Gateway Role Contract

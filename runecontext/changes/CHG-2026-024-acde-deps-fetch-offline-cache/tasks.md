@@ -4,6 +4,7 @@
 
 - [ ] Define the dedicated dependency-fetch role.
 - [ ] Keep workspace roles offline while fetches happen through the explicit gateway role.
+- [ ] Model package-registry destinations through the shared typed `DestinationDescriptor` / allowlist-entry pattern.
 
 ## Offline Cache Artifact Model
 
@@ -14,6 +15,7 @@
 
 - [ ] Keep dependency fetch posture explicit and auditable.
 - [ ] Record destinations, bytes, timing, and cache outcomes without weakening trust boundaries.
+- [ ] Keep the distinction explicit between gateway fetch/cache-fill actions and offline consumption of cached read-only dependencies inside workspace execution.
 
 ## Acceptance Criteria
 
