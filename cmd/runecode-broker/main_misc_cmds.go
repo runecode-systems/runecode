@@ -47,7 +47,7 @@ func handlePromoteExcerpt(args []string, service *brokerapi.Service, stdout io.W
 		BoundScope: brokerapi.ApprovalBoundScope{
 			SchemaID:      "runecode.protocol.v0.ApprovalBoundScope",
 			SchemaVersion: "0.1.0",
-			ActionKind:    "excerpt_promotion",
+			ActionKind:    "promotion",
 		},
 		UnapprovedDigest:       *unapprovedDigest,
 		Approver:               *approver,

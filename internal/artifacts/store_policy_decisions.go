@@ -16,68 +16,26 @@ func (s *Store) RecordPolicyDecision(record PolicyDecisionRecord) error {
 }
 
 func (s *Store) recordPolicyDecisionLocked(record PolicyDecisionRecord) error {
-	if record.SchemaID == "" || record.SchemaVersion == "" {
-		return fmt.Errorf("policy decision schema identity is required")
-	}
-	if record.DetailsSchemaID == "" || record.Details == nil {
-		return fmt.Errorf("policy decision details payload is required")
-	}
-	if record.DecisionOutcome == "require_human_approval" {
-		if record.RequiredApprovalSchemaID == "" || record.RequiredApproval == nil {
-			return fmt.Errorf("required_approval payload is required for require_human_approval outcome")
-		}
-	}
-	payload, err := policyDecisionPayload(record)
-	if err != nil {
+	if err := validatePolicyDecisionRecord(record); err != nil {
 		return err
 	}
-	payloadBytes, err := canonicalPolicyDecisionBytes(payload)
+	payload, payloadBytes, err := canonicalizePolicyDecisionRecord(record)
 	if err != nil {
 		return err
 	}
 	if err := validateObjectPayloadAgainstSchema(payloadBytes, "objects/PolicyDecision.schema.json"); err != nil {
 		return fmt.Errorf("validate persisted policy decision payload: %w", err)
 	}
-	computedDigest := digestBytes(payloadBytes)
-	if record.Digest == "" {
-		record.Digest = computedDigest
-	} else if record.Digest != computedDigest {
-		return fmt.Errorf("policy decision digest mismatch: provided %q computed %q", record.Digest, computedDigest)
+	if err := applyComputedPolicyDecisionDigest(&record, payloadBytes); err != nil {
+		return err
 	}
 	if record.RecordedAt.IsZero() {
 		record.RecordedAt = s.nowFn().UTC()
 	}
-	if existing, exists := s.state.PolicyDecisions[record.Digest]; exists {
-		existingPayload, payloadErr := policyDecisionPayload(existing)
-		if payloadErr != nil {
-			return fmt.Errorf("existing policy decision payload invalid for %q: %w", record.Digest, payloadErr)
-		}
-		existingCanonical, canonicalErr := canonicalPolicyDecisionBytes(existingPayload)
-		if canonicalErr != nil {
-			return fmt.Errorf("canonicalize existing policy decision payload for %q: %w", record.Digest, canonicalErr)
-		}
-		if string(existingCanonical) != string(payloadBytes) {
-			return fmt.Errorf("policy decision digest %q already recorded with different payload", record.Digest)
-		}
-		return nil
+	if done, err := s.ensureNoConflictingExistingDecision(record, payloadBytes); done {
+		return err
 	}
-
-	details := map[string]interface{}{
-		"policy_decision_digest": record.Digest,
-		"decision_outcome":       record.DecisionOutcome,
-		"policy_reason_code":     record.PolicyReasonCode,
-		"manifest_hash":          record.ManifestHash,
-		"action_request_hash":    record.ActionRequestHash,
-		"policy_input_hashes":    append([]string{}, record.PolicyInputHashes...),
-	}
-	if len(record.RelevantArtifactHashes) > 0 {
-		details["relevant_artifact_hashes"] = append([]string{}, record.RelevantArtifactHashes...)
-	}
-	if record.RunID != "" {
-		details["run_id"] = record.RunID
-	}
-	details["policy_decision"] = payload
-
+	details := policyDecisionAuditDetails(record, payload)
 	s.state.LastAuditSequence++
 	seq := s.state.LastAuditSequence
 	event := newAuditEvent(seq, "policy_decision_recorded", "policyengine", details, s.nowFn)
@@ -95,6 +53,80 @@ func (s *Store) recordPolicyDecisionLocked(record PolicyDecisionRecord) error {
 		s.state.RunPolicyDecisionRefs[record.RunID] = uniqueSortedStrings(refs)
 	}
 	return s.saveStateLocked()
+}
+
+func validatePolicyDecisionRecord(record PolicyDecisionRecord) error {
+	if record.SchemaID == "" || record.SchemaVersion == "" {
+		return fmt.Errorf("policy decision schema identity is required")
+	}
+	if record.DetailsSchemaID == "" || record.Details == nil {
+		return fmt.Errorf("policy decision details payload is required")
+	}
+	if record.DecisionOutcome == "require_human_approval" {
+		if record.RequiredApprovalSchemaID == "" || record.RequiredApproval == nil {
+			return fmt.Errorf("required_approval payload is required for require_human_approval outcome")
+		}
+	}
+	return nil
+}
+
+func canonicalizePolicyDecisionRecord(record PolicyDecisionRecord) (map[string]any, []byte, error) {
+	payload, err := policyDecisionPayload(record)
+	if err != nil {
+		return nil, nil, err
+	}
+	payloadBytes, err := canonicalPolicyDecisionBytes(payload)
+	if err != nil {
+		return nil, nil, err
+	}
+	return payload, payloadBytes, nil
+}
+
+func applyComputedPolicyDecisionDigest(record *PolicyDecisionRecord, payloadBytes []byte) error {
+	computedDigest := digestBytes(payloadBytes)
+	if record.Digest == "" {
+		record.Digest = computedDigest
+		return nil
+	}
+	if record.Digest != computedDigest {
+		return fmt.Errorf("policy decision digest mismatch: provided %q computed %q", record.Digest, computedDigest)
+	}
+	return nil
+}
+
+func (s *Store) ensureNoConflictingExistingDecision(record PolicyDecisionRecord, payloadBytes []byte) (bool, error) {
+	existing, exists := s.state.PolicyDecisions[record.Digest]
+	if !exists {
+		return false, nil
+	}
+	existingPayload, existingCanonical, err := canonicalizePolicyDecisionRecord(existing)
+	if err != nil {
+		return true, fmt.Errorf("existing policy decision payload invalid for %q: %w", record.Digest, err)
+	}
+	_ = existingPayload
+	if string(existingCanonical) != string(payloadBytes) {
+		return true, fmt.Errorf("policy decision digest %q already recorded with different payload", record.Digest)
+	}
+	return true, nil
+}
+
+func policyDecisionAuditDetails(record PolicyDecisionRecord, payload map[string]any) map[string]interface{} {
+	details := map[string]interface{}{
+		"policy_decision_digest": record.Digest,
+		"decision_outcome":       record.DecisionOutcome,
+		"policy_reason_code":     record.PolicyReasonCode,
+		"manifest_hash":          record.ManifestHash,
+		"action_request_hash":    record.ActionRequestHash,
+		"policy_input_hashes":    append([]string{}, record.PolicyInputHashes...),
+		"policy_decision":        payload,
+	}
+	if len(record.RelevantArtifactHashes) > 0 {
+		details["relevant_artifact_hashes"] = append([]string{}, record.RelevantArtifactHashes...)
+	}
+	if record.RunID != "" {
+		details["run_id"] = record.RunID
+	}
+	return details
 }
 
 func policyDecisionPayload(record PolicyDecisionRecord) (map[string]any, error) {

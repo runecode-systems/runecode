@@ -215,13 +215,25 @@ func splitDigestIdentity(identity string) (string, string) {
 }
 
 func promotionActionHashForCLITests(digest string, repoPath string, commit string, extractorVersion string, approver string) string {
-	payload, err := json.Marshal(struct {
-		Approver             string `json:"approver"`
-		Commit               string `json:"commit"`
-		ExtractorToolVersion string `json:"extractor_tool_version"`
-		RepoPath             string `json:"repo_path"`
-		UnapprovedDigest     string `json:"unapproved_digest"`
-	}{Approver: approver, Commit: commit, ExtractorToolVersion: extractorVersion, RepoPath: repoPath, UnapprovedDigest: digest})
+	payload, err := json.Marshal(map[string]any{
+		"schema_id":                "runecode.protocol.v0.ActionRequest",
+		"schema_version":           "0.1.0",
+		"action_kind":              "promotion",
+		"capability_id":            "promotion",
+		"action_payload_schema_id": "runecode.protocol.v0.ActionPayloadPromotion",
+		"action_payload": map[string]any{
+			"schema_id":              "runecode.protocol.v0.ActionPayloadPromotion",
+			"schema_version":         "0.1.0",
+			"promotion_kind":         "excerpt",
+			"source_artifact_hash":   digest,
+			"target_data_class":      "approved_file_excerpts",
+			"justification":          "promotion approval request",
+			"repo_path":              repoPath,
+			"commit":                 commit,
+			"extractor_tool_version": extractorVersion,
+			"approver":               approver,
+		},
+	})
 	if err != nil {
 		panic(err)
 	}

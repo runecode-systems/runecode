@@ -35,18 +35,7 @@ func (s *Store) enforceFlowRecordConsistencyLocked(record ArtifactRecord, req Fl
 }
 
 func (s *Store) enforceFlowPolicyLocked(req FlowCheckRequest) error {
-	flowRules := make([]policyengine.ArtifactFlowRule, 0, len(s.state.Policy.FlowMatrix))
-	for _, rule := range s.state.Policy.FlowMatrix {
-		allowed := make([]string, 0, len(rule.AllowedDataClasses))
-		for _, dc := range rule.AllowedDataClasses {
-			allowed = append(allowed, string(dc))
-		}
-		flowRules = append(flowRules, policyengine.ArtifactFlowRule{
-			ProducerRole:       rule.ProducerRole,
-			ConsumerRole:       rule.ConsumerRole,
-			AllowedDataClasses: allowed,
-		})
-	}
+	flowRules := artifactFlowRulesFromPolicy(s.state.Policy.FlowMatrix)
 	outcome, reason, details := policyengine.EvaluateArtifactFlowRules(policyengine.ArtifactFlowPolicy{
 		UnapprovedExcerptEgressDenied:  s.state.Policy.UnapprovedExcerptEgressDenied,
 		ApprovedExcerptEgressOptInOnly: s.state.Policy.ApprovedExcerptEgressOptInOnly,
@@ -63,21 +52,50 @@ func (s *Store) enforceFlowPolicyLocked(req FlowCheckRequest) error {
 	if outcome == policyengine.DecisionAllow {
 		return nil
 	}
-	errOut := ErrFlowDenied
+	return s.auditFlowBlockedLocked(req.ProducerRole, mapFlowReasonToError(reason), reason, flowAuditDetails(req, details))
+}
+
+func artifactFlowRulesFromPolicy(flowMatrix []FlowRule) []policyengine.ArtifactFlowRule {
+	flowRules := make([]policyengine.ArtifactFlowRule, 0, len(flowMatrix))
+	for _, rule := range flowMatrix {
+		flowRules = append(flowRules, policyengine.ArtifactFlowRule{
+			ProducerRole:       rule.ProducerRole,
+			ConsumerRole:       rule.ConsumerRole,
+			AllowedDataClasses: stringifyDataClasses(rule.AllowedDataClasses),
+		})
+	}
+	return flowRules
+}
+
+func stringifyDataClasses(dataClasses []DataClass) []string {
+	out := make([]string, 0, len(dataClasses))
+	for _, dc := range dataClasses {
+		out = append(out, string(dc))
+	}
+	return out
+}
+
+func mapFlowReasonToError(reason string) error {
 	switch reason {
 	case "unapproved_excerpt_egress_denied":
-		errOut = ErrUnapprovedEgressDenied
+		return ErrUnapprovedEgressDenied
 	case "approved_excerpt_requires_manifest_opt_in":
-		errOut = ErrApprovedEgressRequiresManifest
+		return ErrApprovedEgressRequiresManifest
 	case "approved_excerpt_revoked":
-		errOut = ErrApprovedExcerptRevoked
+		return ErrApprovedExcerptRevoked
+	default:
+		return ErrFlowDenied
 	}
+}
+
+func flowAuditDetails(req FlowCheckRequest, details map[string]any) map[string]interface{} {
 	converted := map[string]interface{}{"digest": req.Digest, "data_class": req.DataClass}
 	for key, value := range details {
 		converted[key] = value
 	}
-	return s.auditFlowBlockedLocked(req.ProducerRole, errOut, reason, converted)
+	return converted
 }
+
 func (s *Store) auditFlowBlockedLocked(actor string, denyErr error, reason string, details map[string]interface{}) error {
 	out := map[string]interface{}{"reason": reason}
 	for key, value := range details {

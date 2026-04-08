@@ -25,30 +25,43 @@ type ArtifactFlowRequest struct {
 }
 
 func EvaluateArtifactFlowRules(policy ArtifactFlowPolicy, req ArtifactFlowRequest) (DecisionOutcome, string, map[string]any) {
+	if outcome, reason, details, decided := evaluateArtifactFlowRestrictions(policy, req); decided {
+		return outcome, reason, details
+	}
+	return evaluateArtifactFlowMatrix(policy, req)
+}
+
+func evaluateArtifactFlowRestrictions(policy ArtifactFlowPolicy, req ArtifactFlowRequest) (DecisionOutcome, string, map[string]any, bool) {
 	if req.IsEgress && req.DataClass == "unapproved_file_excerpts" && policy.UnapprovedExcerptEgressDenied {
-		return DecisionDeny, "unapproved_excerpt_egress_denied", map[string]any{"digest": req.Digest}
+		return DecisionDeny, "unapproved_excerpt_egress_denied", map[string]any{"digest": req.Digest}, true
 	}
 	if req.IsEgress && req.DataClass == "approved_file_excerpts" && policy.ApprovedExcerptEgressOptInOnly && !req.ManifestOptIn {
-		return DecisionDeny, "approved_excerpt_requires_manifest_opt_in", map[string]any{"digest": req.Digest}
+		return DecisionDeny, "approved_excerpt_requires_manifest_opt_in", map[string]any{"digest": req.Digest}, true
 	}
 	if policy.RevokedDigests != nil && policy.RevokedDigests[req.Digest] {
-		return DecisionDeny, "approved_excerpt_revoked", map[string]any{"digest": req.Digest}
+		return DecisionDeny, "approved_excerpt_revoked", map[string]any{"digest": req.Digest}, true
 	}
+	return "", "", nil, false
+}
 
-	matchedRolePair := false
+func evaluateArtifactFlowMatrix(policy ArtifactFlowPolicy, req ArtifactFlowRequest) (DecisionOutcome, string, map[string]any) {
 	for _, rule := range policy.FlowMatrix {
 		if !strings.EqualFold(rule.ProducerRole, req.ProducerRole) || !strings.EqualFold(rule.ConsumerRole, req.ConsumerRole) {
 			continue
 		}
-		matchedRolePair = true
-		for _, allowedClass := range rule.AllowedDataClasses {
-			if allowedClass == req.DataClass {
-				return DecisionAllow, "allow_manifest_opt_in", map[string]any{}
-			}
+		if roleRuleAllowsDataClass(rule, req.DataClass) {
+			return DecisionAllow, "allow_manifest_opt_in", map[string]any{}
 		}
-	}
-	if matchedRolePair {
-		return DecisionDeny, "artifact_flow_denied", map[string]any{"digest": req.Digest, "data_class": req.DataClass}
+		break
 	}
 	return DecisionDeny, "artifact_flow_denied", map[string]any{"digest": req.Digest, "data_class": req.DataClass}
+}
+
+func roleRuleAllowsDataClass(rule ArtifactFlowRule, dataClass string) bool {
+	for _, allowedClass := range rule.AllowedDataClasses {
+		if allowedClass == dataClass {
+			return true
+		}
+	}
+	return false
 }
