@@ -92,10 +92,7 @@ func putTrustedVerifierRecord(service *brokerapi.Service, record trustpolicy.Ver
 		},
 	); err != nil {
 		if !existing {
-			cleanupErr := service.DeleteDigest(ref.Digest)
-			if cleanupErr != nil {
-				return fmt.Errorf("append trusted import audit event: %v (cleanup failed: %v)", err, cleanupErr)
-			}
+			return fmt.Errorf("append trusted import audit event: %w (artifact persisted; retry import to finalize trust admission)", err)
 		}
 		return err
 	}
