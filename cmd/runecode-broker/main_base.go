@@ -69,6 +69,7 @@ func commandHandlers() map[string]commandHandler {
 		"show-audit":              handleShowAudit,
 		"show-policy":             handleShowPolicy,
 		"set-reserved-classes":    handleSetReservedClasses,
+		"import-trusted-contract": handleImportTrustedContract,
 		"audit-readiness":         handleAuditReadiness,
 		"audit-verification":      handleAuditVerification,
 		"version-info":            handleVersionInfo,
@@ -115,10 +116,11 @@ Commands:
   show-audit
   show-policy
   set-reserved-classes --enabled=true|false
+  import-trusted-contract --kind verifier-record --file verifier.json --evidence import-evidence.json
   audit-readiness
   audit-verification [--limit N]
   version-info
-  stream-logs [--run-id id] [--role-instance-id id] [--start-cursor cursor] [--follow] [--include-backlog]`)
+  stream-logs [--stream-id id] [--run-id id] [--role-instance-id id] [--start-cursor cursor] [--follow] [--include-backlog]`)
 	return err
 }
 

@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-003-b567-audit-log-v0-verify
 title: Audit Log v0 + Verify
-status: planned
+status: implemented
 type: feature
 size: large
 verification_status: pending

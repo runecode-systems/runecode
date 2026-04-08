@@ -168,6 +168,13 @@
       "status": "mvp"
     },
     {
+      "path": "objects/TrustedContractImportRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.TrustedContractImportRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/BrokerArtifactListRequest.schema.json",
       "schema_id": "runecode.protocol.v0.BrokerArtifactListRequest",
       "schema_version": "0.1.0",

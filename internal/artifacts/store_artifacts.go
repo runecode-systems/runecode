@@ -49,7 +49,7 @@ func (s *Store) putLocked(req PutRequest) (ArtifactReference, error) {
 	if req.RunID != "" {
 		s.state.Runs[req.RunID] = "active"
 	}
-	if err := s.appendAuditLocked("artifact_put", actorRole, map[string]interface{}{"digest": digest, "data_class": req.DataClass}); err != nil {
+	if err := s.appendAuditLocked("artifact_put", actorRole, map[string]interface{}{"digest": digest, "data_class": req.DataClass, "provenance_receipt_hash": req.ProvenanceReceiptHash}); err != nil {
 		return ArtifactReference{}, err
 	}
 	if err := s.saveStateLocked(); err != nil {

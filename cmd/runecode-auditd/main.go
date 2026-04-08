@@ -45,16 +45,17 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 
 func commandHandlers() map[string]commandHandler {
 	return map[string]commandHandler{
-		"validate-signer-evidence": handleValidateSignerEvidence,
-		"validate-admission":       handleValidateAdmission,
-		"validate-recovery":        handleValidateRecovery,
-		"validate-storage-posture": handleValidateStoragePosture,
-		"validate-readiness":       handleValidateReadiness,
-		"append-event":             handleAppendEvent,
-		"seal-current-segment":     handleSealCurrentSegment,
-		"persist-receipt":          handlePersistReceipt,
-		"verify-current-segment":   handleVerifyCurrentSegment,
-		"readiness":                handleRuntimeReadiness,
+		"validate-signer-evidence":      handleValidateSignerEvidence,
+		"validate-admission":            handleValidateAdmission,
+		"validate-recovery":             handleValidateRecovery,
+		"validate-storage-posture":      handleValidateStoragePosture,
+		"validate-readiness":            handleValidateReadiness,
+		"append-event":                  handleAppendEvent,
+		"configure-verification-inputs": handleConfigureVerificationInputs,
+		"seal-current-segment":          handleSealCurrentSegment,
+		"persist-receipt":               handlePersistReceipt,
+		"verify-current-segment":        handleVerifyCurrentSegment,
+		"readiness":                     handleRuntimeReadiness,
 	}
 }
 
@@ -324,6 +325,7 @@ Commands:
   validate-storage-posture --file posture.json
   validate-readiness --file readiness.json
   append-event --file admission.json [--ledger-root path]
+  configure-verification-inputs --verifier-records records.json --event-contract-catalog catalog.json [--signer-evidence evidence.json] [--storage-posture posture.json] [--ledger-root path]
   seal-current-segment --file seal-envelope.json [--ledger-root path]
   persist-receipt --file receipt-envelope.json [--ledger-root path]
   verify-current-segment [--ledger-root path]

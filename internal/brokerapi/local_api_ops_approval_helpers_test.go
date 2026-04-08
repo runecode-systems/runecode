@@ -267,6 +267,17 @@ func putTrustedVerifierRecordForService(service *Service, record trustpolicy.Ver
 	if err != nil {
 		return err
 	}
-	_, err = service.Put(artifacts.PutRequest{Payload: b, ContentType: "application/json", DataClass: artifacts.DataClassAuditVerificationReport, ProvenanceReceiptHash: "sha256:" + strings.Repeat("1", 64), CreatedByRole: "auditd", TrustedSource: true})
-	return err
+	ref, err := service.Put(artifacts.PutRequest{Payload: b, ContentType: "application/json", DataClass: artifacts.DataClassAuditVerificationReport, ProvenanceReceiptHash: "sha256:" + strings.Repeat("1", 64), CreatedByRole: "auditd", TrustedSource: true})
+	if err != nil {
+		return err
+	}
+	return service.AppendTrustedAuditEvent(
+		artifacts.TrustedContractImportAuditEventType,
+		"brokerapi",
+		map[string]interface{}{
+			artifacts.TrustedContractImportKindDetailKey:           artifacts.TrustedContractImportKindVerifierRecord,
+			artifacts.TrustedContractImportArtifactDigestDetailKey: ref.Digest,
+			artifacts.TrustedContractImportProvenanceDetailKey:     "sha256:" + strings.Repeat("1", 64),
+		},
+	)
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -234,18 +235,47 @@ func promotionActionHashForCLITests(digest string, repoPath string, commit strin
 func seedTrustedVerifierForBrokerCLITest(t *testing.T, verifiers []trustpolicy.VerifierRecord) {
 	t.Helper()
 	for index := range verifiers {
-		if err := putTrustedVerifierRecordForTest(verifiers[index]); err != nil {
-			t.Fatalf("put trusted verifier record returned error: %v", err)
+		payload, err := json.Marshal(verifiers[index])
+		if err != nil {
+			t.Fatalf("Marshal verifier record error: %v", err)
+		}
+		verifierPath := filepath.Join(t.TempDir(), fmt.Sprintf("verifier-%d.json", index))
+		if err := os.WriteFile(verifierPath, payload, 0o600); err != nil {
+			t.Fatalf("WriteFile verifier record error: %v", err)
+		}
+		evidencePath := writeTrustedImportEvidenceFixture(t, "verifier-record")
+		if err := run([]string{"import-trusted-contract", "--kind", "verifier-record", "--file", verifierPath, "--evidence", evidencePath}, &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+			t.Fatalf("import-trusted-contract returned error: %v", err)
 		}
 	}
 }
 
-func putTrustedVerifierRecordForTest(record trustpolicy.VerifierRecord) error {
-	service, err := brokerServiceFactory()
-	if err != nil {
-		return err
+func writeTrustedImportEvidenceFixture(t *testing.T, kind string) string {
+	t.Helper()
+	evidence := map[string]any{
+		"schema_id":      "runecode.protocol.v0.TrustedContractImportRequest",
+		"schema_version": "0.1.0",
+		"kind":           kind,
+		"importer": map[string]any{
+			"schema_id":      "runecode.protocol.v0.PrincipalIdentity",
+			"schema_version": "0.2.0",
+			"actor_kind":     "user",
+			"principal_id":   "operator",
+			"instance_id":    "cli-session",
+		},
+		"reason":      "manual import for verifier rotation",
+		"imported_at": "2026-04-08T00:00:00Z",
+		"source":      "local-trust-bundle",
 	}
-	return putTrustedVerifierRecord(service, record)
+	b, err := json.Marshal(evidence)
+	if err != nil {
+		t.Fatalf("Marshal trusted import evidence error: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "import-evidence.json")
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		t.Fatalf("Write trusted import evidence error: %v", err)
+	}
+	return path
 }
 
 func sha256Hex(value []byte) string {

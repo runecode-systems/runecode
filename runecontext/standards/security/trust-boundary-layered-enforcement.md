@@ -11,7 +11,8 @@ suggested_context_bundles:
 
 - CI boundary-check is a best-effort static guardrail, not a security boundary
 - Authoritative enforcement lives in:
-  - Broker local API auth + schema validation
+  - Broker local API auth, request limits, and schema validation
+  - Typed broker error handling and explicit stream termination semantics
   - Deterministic policy decisions
   - Runtime isolation backends (microvm/container)
 
