@@ -5,21 +5,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ## Upcoming Features
 
-### v0.1.0-alpha.2
-
-- Artifact Store + Data Classes v0
-  - Data moves via explicit hash-addressed artifacts with enforced data-class flows.
-  - Planned change: `runecontext/changes/CHG-2026-004-acdb-artifact-store-data-classes-v0/`
-- Crypto / Key Management v0
-  - Manifests and audit events are signed and verifiable with recorded key posture.
-  - Planned change: `runecontext/changes/CHG-2026-005-cfd0-crypto-key-management-v0/`
-- Audit Log v0 + Verify
-  - Runs produce a tamper-evident audit trail with local verification.
-  - Planned change: `runecontext/changes/CHG-2026-003-b567-audit-log-v0-verify/`
-- Broker + Local API v0
-  - Components and isolates communicate via a local brokered API with schema validation.
-  - Planned change: `runecontext/changes/CHG-2026-008-62e1-broker-local-api-v0/`
-
 ### v0.1.0-alpha.3
 
 - Policy Engine v0
@@ -137,3 +122,18 @@ No unscheduled items are currently tracked outside the planned work listed above
 - Protocol & Schema Bundle v0
   - Cross-boundary messages and manifests are schema-validated and hash-addressable.
   - Durable spec: `runecontext/specs/protocol-schema-bundle-v0.md`
+
+- Artifact Store + Data Classes v0
+  - Data moves via explicit hash-addressed artifacts with enforced data-class flows.
+  - Planned change: `runecontext/changes/CHG-2026-004-acdb-artifact-store-data-classes-v0/`
+- Crypto / Key Management v0
+  - Manifests and audit events are signed and verifiable with recorded key posture.
+  - Planned change: `runecontext/changes/CHG-2026-005-cfd0-crypto-key-management-v0/`
+- Audit Log v0 + Verify
+  - Runs produce a tamper-evident audit trail with local verification.
+  - Planned change: `runecontext/changes/CHG-2026-003-b567-audit-log-v0-verify/`
+- Broker + Local API v0
+  - Components and isolates communicate via a local brokered API with schema validation.
+  - Planned change: `runecontext/changes/CHG-2026-008-62e1-broker-local-api-v0/`
+
+
