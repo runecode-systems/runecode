@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/TrustedContractImportRequest.schema.json",
+  "title": "TrustedContractImportRequest",
+  "description": "Typed trusted contract import request family for broker-mediated trust admission.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 8,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "kind",
+    "importer",
+    "reason",
+    "imported_at",
+    "source"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.TrustedContractImportRequest",
+      "description": "Stable protocol object-family identifier for trusted import requests.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this trusted import request.",
+      "x-data-class": "public"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "verifier-record"
+      ],
+      "description": "Trusted contract kind admitted by this request.",
+      "x-data-class": "public"
+    },
+    "importer": {
+      "$ref": "PrincipalIdentity.schema.json",
+      "description": "Principal identity requesting trusted contract import.",
+      "x-data-class": "sensitive"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "Operator rationale for admitting this trusted contract.",
+      "x-data-class": "sensitive"
+    },
+    "imported_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64,
+      "description": "RFC 3339 timestamp describing when import approval occurred.",
+      "x-data-class": "public"
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Stable source descriptor for the trusted contract material.",
+      "x-data-class": "public"
+    }
+  }
+}

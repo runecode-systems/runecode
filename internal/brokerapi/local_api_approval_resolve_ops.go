@@ -173,17 +173,12 @@ func (s *Service) verifySignedApprovalDecisionEnvelope(envelope trustpolicy.Sign
 func (s *Service) trustedApprovalVerifiersForEnvelope(envelope trustpolicy.SignedObjectEnvelope) ([]trustpolicy.VerifierRecord, error) {
 	records := make([]trustpolicy.VerifierRecord, 0)
 	for _, artifactRecord := range s.List() {
-		if !s.isTrustedVerifierArtifact(artifactRecord) {
-			continue
-		}
-		verifier, ok := s.loadVerifierRecord(artifactRecord)
-		if !ok {
-			continue
-		}
-		if !matchesVerifierIdentity(verifier, envelope) {
-			continue
-		}
-		if !isApprovalAuthorityVerifier(verifier) {
+		trusted, trustErr := s.isTrustedVerifierArtifact(artifactRecord)
+		verifier, skip, err := selectVerifierRecordForEnvelope(artifactRecord, trusted, trustErr, envelope, s)
+		if skip {
+			if err != nil {
+				return nil, err
+			}
 			continue
 		}
 		records = append(records, verifier)
@@ -194,21 +189,44 @@ func (s *Service) trustedApprovalVerifiersForEnvelope(envelope trustpolicy.Signe
 	return records, nil
 }
 
-func (s *Service) loadVerifierRecord(record artifacts.ArtifactRecord) (trustpolicy.VerifierRecord, bool) {
+func selectVerifierRecordForEnvelope(record artifacts.ArtifactRecord, trusted bool, trustErr error, envelope trustpolicy.SignedObjectEnvelope, service *Service) (trustpolicy.VerifierRecord, bool, error) {
+	if trustErr != nil {
+		return trustpolicy.VerifierRecord{}, true, trustErr
+	}
+	if !trusted {
+		return trustpolicy.VerifierRecord{}, true, nil
+	}
+	verifier, err := service.loadVerifierRecord(record)
+	if err != nil {
+		return trustpolicy.VerifierRecord{}, true, err
+	}
+	if !matchesVerifierIdentity(verifier, envelope) {
+		return trustpolicy.VerifierRecord{}, true, nil
+	}
+	if !isApprovalAuthorityVerifier(verifier) {
+		return trustpolicy.VerifierRecord{}, true, nil
+	}
+	return verifier, false, nil
+}
+
+func (s *Service) loadVerifierRecord(record artifacts.ArtifactRecord) (trustpolicy.VerifierRecord, error) {
 	reader, err := s.Get(record.Reference.Digest)
 	if err != nil {
-		return trustpolicy.VerifierRecord{}, false
+		return trustpolicy.VerifierRecord{}, fmt.Errorf("read trusted verifier artifact %q: %w", record.Reference.Digest, err)
 	}
 	blob, readErr := io.ReadAll(reader)
 	closeErr := reader.Close()
 	if readErr != nil || closeErr != nil {
-		return trustpolicy.VerifierRecord{}, false
+		if readErr != nil {
+			return trustpolicy.VerifierRecord{}, fmt.Errorf("read trusted verifier artifact %q bytes: %w", record.Reference.Digest, readErr)
+		}
+		return trustpolicy.VerifierRecord{}, fmt.Errorf("close trusted verifier artifact %q reader: %w", record.Reference.Digest, closeErr)
 	}
 	verifier := trustpolicy.VerifierRecord{}
 	if err := json.Unmarshal(blob, &verifier); err != nil {
-		return trustpolicy.VerifierRecord{}, false
+		return trustpolicy.VerifierRecord{}, fmt.Errorf("decode trusted verifier artifact %q: %w", record.Reference.Digest, err)
 	}
-	return verifier, true
+	return verifier, nil
 }
 
 func matchesVerifierIdentity(verifier trustpolicy.VerifierRecord, envelope trustpolicy.SignedObjectEnvelope) bool {

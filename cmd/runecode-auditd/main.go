@@ -322,11 +322,11 @@ Commands:
   validate-signer-evidence --file evidence.json
   validate-admission --file admission.json
   validate-recovery --file recovery.json
-	  validate-storage-posture --file posture.json
-	  validate-readiness --file readiness.json
-	  append-event --file admission.json [--ledger-root path]
-	  configure-verification-inputs --verifier-records records.json --event-contract-catalog catalog.json [--signer-evidence evidence.json] [--storage-posture posture.json] [--ledger-root path]
-	  seal-current-segment --file seal-envelope.json [--ledger-root path]
+  validate-storage-posture --file posture.json
+  validate-readiness --file readiness.json
+  append-event --file admission.json [--ledger-root path]
+  configure-verification-inputs --verifier-records records.json --event-contract-catalog catalog.json [--signer-evidence evidence.json] [--storage-posture posture.json] [--ledger-root path]
+  seal-current-segment --file seal-envelope.json [--ledger-root path]
   persist-receipt --file receipt-envelope.json [--ledger-root path]
   verify-current-segment [--ledger-root path]
   readiness [--ledger-root path]`)

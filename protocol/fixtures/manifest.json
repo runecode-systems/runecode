@@ -49,6 +49,12 @@
       "expect_valid": false
     },
     {
+      "id": "trusted-contract-import-request.valid-basic",
+      "schema_path": "objects/TrustedContractImportRequest.schema.json",
+      "fixture_path": "schema/trusted-contract-import-request.valid-basic.json",
+      "expect_valid": true
+    },
+    {
       "id": "policy-decision.valid-approval",
       "schema_path": "objects/PolicyDecision.schema.json",
       "fixture_path": "schema/policy-decision.valid-approval.json",

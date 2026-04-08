@@ -118,7 +118,7 @@ func loadTrustedImportRequest(filePath string) (trustedImportRequest, error) {
 	if strings.TrimSpace(filePath) == "" {
 		return request, fmt.Errorf("path is required")
 	}
-	if err := loadJSONFileValue(filePath, &request); err != nil {
+	if err := loadStrictJSONFileValue(filePath, &request); err != nil {
 		return request, err
 	}
 	if err := validateTrustedImportRequest(request); err != nil {
@@ -133,6 +133,25 @@ func loadJSONFileValue(filePath string, target any) error {
 		return err
 	}
 	return json.Unmarshal(b, target)
+}
+
+func loadStrictJSONFileValue(filePath string, target any) error {
+	b, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+	decoder := json.NewDecoder(strings.NewReader(string(b)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("unexpected trailing JSON content")
+		}
+		return err
+	}
+	return nil
 }
 
 func validateTrustedImportRequest(request trustedImportRequest) error {
@@ -151,11 +170,24 @@ func validateTrustedImportRequest(request trustedImportRequest) error {
 	if strings.TrimSpace(request.Reason) == "" {
 		return fmt.Errorf("reason is required")
 	}
+	if len(request.Reason) > 512 {
+		return fmt.Errorf("reason must be <= 512 characters")
+	}
 	if strings.TrimSpace(request.ImportedAt) == "" {
 		return fmt.Errorf("imported_at is required")
 	}
+	parsedImportedAt, err := time.Parse(time.RFC3339, request.ImportedAt)
+	if err != nil {
+		return fmt.Errorf("imported_at must be RFC3339: %w", err)
+	}
+	if parsedImportedAt.Format(time.RFC3339) != request.ImportedAt {
+		return fmt.Errorf("imported_at must use canonical RFC3339 form")
+	}
 	if strings.TrimSpace(request.Source) == "" {
 		return fmt.Errorf("source is required")
+	}
+	if len(request.Source) > 256 {
+		return fmt.Errorf("source must be <= 256 characters")
 	}
 	return nil
 }
