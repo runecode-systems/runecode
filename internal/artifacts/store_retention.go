@@ -1,6 +1,9 @@
 package artifacts
 
-import "path/filepath"
+import (
+	"errors"
+	"path/filepath"
+)
 
 func (s *Store) GarbageCollect() (GCResult, error) {
 	s.mu.Lock()
@@ -29,6 +32,29 @@ func (s *Store) deleteCandidatesLocked(candidates []gcCandidate) (GCResult, erro
 		result.FreedBytes += c.rec.Reference.SizeBytes
 	}
 	return result, nil
+}
+
+func (s *Store) DeleteDigest(digest string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.state.Artifacts[digest]
+	if !ok {
+		return nil
+	}
+	delete(s.state.Artifacts, digest)
+	if err := s.saveStateLocked(); err != nil {
+		s.state.Artifacts[digest] = record
+		return err
+	}
+	if err := s.storeIO.removeBlob(record.BlobPath); err != nil {
+		s.state.Artifacts[digest] = record
+		rollbackErr := s.saveStateLocked()
+		if rollbackErr != nil {
+			return errors.Join(err, rollbackErr)
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *Store) auditGCResultLocked(result GCResult) error {

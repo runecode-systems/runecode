@@ -173,7 +173,7 @@ func (s *Service) verifySignedApprovalDecisionEnvelope(envelope trustpolicy.Sign
 func (s *Service) trustedApprovalVerifiersForEnvelope(envelope trustpolicy.SignedObjectEnvelope) ([]trustpolicy.VerifierRecord, error) {
 	records := make([]trustpolicy.VerifierRecord, 0)
 	for _, artifactRecord := range s.List() {
-		if !isTrustedVerifierArtifact(artifactRecord) {
+		if !s.isTrustedVerifierArtifact(artifactRecord) {
 			continue
 		}
 		verifier, ok := s.loadVerifierRecord(artifactRecord)
@@ -192,13 +192,6 @@ func (s *Service) trustedApprovalVerifiersForEnvelope(envelope trustpolicy.Signe
 		return nil, fmt.Errorf("trusted verifier not found for signed approval decision")
 	}
 	return records, nil
-}
-
-func isTrustedVerifierArtifact(record artifacts.ArtifactRecord) bool {
-	if record.Reference.DataClass != artifacts.DataClassAuditVerificationReport {
-		return false
-	}
-	return record.CreatedByRole == "auditd"
 }
 
 func (s *Service) loadVerifierRecord(record artifacts.ArtifactRecord) (trustpolicy.VerifierRecord, bool) {

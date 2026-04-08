@@ -243,10 +243,39 @@ func seedTrustedVerifierForBrokerCLITest(t *testing.T, verifiers []trustpolicy.V
 		if err := os.WriteFile(verifierPath, payload, 0o600); err != nil {
 			t.Fatalf("WriteFile verifier record error: %v", err)
 		}
-		if err := run([]string{"import-trusted-contract", "--kind", "verifier-record", "--file", verifierPath}, &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+		evidencePath := writeTrustedImportEvidenceFixture(t, "verifier-record")
+		if err := run([]string{"import-trusted-contract", "--kind", "verifier-record", "--file", verifierPath, "--evidence", evidencePath}, &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
 			t.Fatalf("import-trusted-contract returned error: %v", err)
 		}
 	}
+}
+
+func writeTrustedImportEvidenceFixture(t *testing.T, kind string) string {
+	t.Helper()
+	evidence := map[string]any{
+		"schema_id":      "runecode.protocol.v0.TrustedContractImportRequest",
+		"schema_version": "0.1.0",
+		"kind":           kind,
+		"importer": map[string]any{
+			"schema_id":      "runecode.protocol.v0.PrincipalIdentity",
+			"schema_version": "0.2.0",
+			"actor_kind":     "user",
+			"principal_id":   "operator",
+			"instance_id":    "cli-session",
+		},
+		"reason":      "manual import for verifier rotation",
+		"imported_at": "2026-04-08T00:00:00Z",
+		"source":      "local-trust-bundle",
+	}
+	b, err := json.Marshal(evidence)
+	if err != nil {
+		t.Fatalf("Marshal trusted import evidence error: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "import-evidence.json")
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		t.Fatalf("Write trusted import evidence error: %v", err)
+	}
+	return path
 }
 
 func sha256Hex(value []byte) string {

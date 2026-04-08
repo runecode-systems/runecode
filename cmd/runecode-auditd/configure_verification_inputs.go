@@ -1,12 +1,16 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 
 	"github.com/runecode-ai/runecode/internal/auditd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
 
 func handleConfigureVerificationInputs(args []string, stdout io.Writer) error {
@@ -93,7 +97,48 @@ func loadOptionalSignerEvidenceForConfiguration(filePath string) ([]trustpolicy.
 	if err := loadJSONFile(filePath, &signerEvidence); err != nil {
 		return nil, fmt.Errorf("invalid signer evidence: %w", err)
 	}
+	if err := validateSignerEvidenceReferencesForConfiguration(signerEvidence); err != nil {
+		return nil, err
+	}
 	return signerEvidence, nil
+}
+
+func validateSignerEvidenceReferencesForConfiguration(references []trustpolicy.AuditSignerEvidenceReference) error {
+	seen := map[string]struct{}{}
+	for index := range references {
+		digestIdentity, err := references[index].Digest.Identity()
+		if err != nil {
+			return fmt.Errorf("invalid signer evidence: signer_evidence[%d].digest: %w", index, err)
+		}
+		if _, exists := seen[digestIdentity]; exists {
+			return fmt.Errorf("invalid signer evidence: duplicate signer_evidence digest %q", digestIdentity)
+		}
+		seen[digestIdentity] = struct{}{}
+		if err := trustpolicy.ValidateAuditSignerEvidence(references[index].Evidence); err != nil {
+			return fmt.Errorf("invalid signer evidence: signer_evidence[%d].evidence: %w", index, err)
+		}
+		computedDigest, err := signerEvidenceReferenceDigestIdentity(references[index].Evidence)
+		if err != nil {
+			return fmt.Errorf("invalid signer evidence: signer_evidence[%d].evidence digest: %w", index, err)
+		}
+		if digestIdentity != computedDigest {
+			return fmt.Errorf("invalid signer evidence: signer_evidence[%d].digest %q does not match evidence digest %q", index, digestIdentity, computedDigest)
+		}
+	}
+	return nil
+}
+
+func signerEvidenceReferenceDigestIdentity(evidence trustpolicy.AuditSignerEvidence) (string, error) {
+	b, err := json.Marshal(evidence)
+	if err != nil {
+		return "", err
+	}
+	canonical, err := jsoncanonicalizer.Transform(b)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(canonical)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
 func loadOptionalStoragePostureForConfiguration(filePath string) (*trustpolicy.AuditStoragePostureEvidence, error) {

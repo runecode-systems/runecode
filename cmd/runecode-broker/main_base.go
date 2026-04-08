@@ -116,7 +116,7 @@ Commands:
   show-audit
 	  show-policy
 	  set-reserved-classes --enabled=true|false
-	  import-trusted-contract --kind verifier-record --file verifier.json
+	  import-trusted-contract --kind verifier-record --file verifier.json --evidence import-evidence.json
 	  audit-readiness
 	  audit-verification [--limit N]
 	  version-info

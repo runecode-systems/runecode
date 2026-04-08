@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
@@ -47,7 +48,10 @@ func (s *Store) PromoteApprovedExcerpt(req PromotionRequest) (ArtifactReference,
 	if !ok {
 		return ArtifactReference{}, ErrArtifactNotFound
 	}
-	trustedVerifiers := s.trustedVerifierRecordsLocked()
+	trustedVerifiers, trustErr := s.trustedVerifierRecordsLocked()
+	if trustErr != nil {
+		return ArtifactReference{}, errors.Join(ErrTrustedVerifierStateUnavailable, trustErr)
+	}
 	if err := validatePromotionRequest(s.state.Policy, unapproved, req, trustedVerifiers); err != nil {
 		return ArtifactReference{}, err
 	}
@@ -68,13 +72,14 @@ func (s *Store) PromoteApprovedExcerpt(req PromotionRequest) (ArtifactReference,
 	return newRef, nil
 }
 
-func (s *Store) trustedVerifierRecordsLocked() []trustpolicy.VerifierRecord {
+func (s *Store) trustedVerifierRecordsLocked() ([]trustpolicy.VerifierRecord, error) {
 	records := []trustpolicy.VerifierRecord{}
+	events, eventsErr := s.storeIO.readAuditEvents()
+	if eventsErr != nil {
+		return nil, eventsErr
+	}
 	for _, artifactRecord := range s.state.Artifacts {
-		if artifactRecord.Reference.DataClass != DataClassAuditVerificationReport {
-			continue
-		}
-		if artifactRecord.CreatedByRole != "auditd" {
+		if !IsTrustedVerifierArtifact(artifactRecord, events) {
 			continue
 		}
 		blob, err := s.storeIO.readBlob(artifactRecord.BlobPath)
@@ -87,7 +92,7 @@ func (s *Store) trustedVerifierRecordsLocked() []trustpolicy.VerifierRecord {
 		}
 		records = append(records, verifierRecord)
 	}
-	return records
+	return records, nil
 }
 
 func (s *Store) checkPromotionRateLimitLocked(actor string) error {

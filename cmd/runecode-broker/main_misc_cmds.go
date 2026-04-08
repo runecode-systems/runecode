@@ -198,11 +198,12 @@ func handleImportTrustedContract(args []string, service *brokerapi.Service, _ io
 	fs.SetOutput(io.Discard)
 	kind := fs.String("kind", "", "trusted contract kind")
 	filePath := fs.String("file", "", "path to contract JSON")
+	evidencePath := fs.String("evidence", "", "path to trusted import evidence JSON")
 	if err := fs.Parse(args); err != nil {
-		return &usageError{message: "import-trusted-contract usage: runecode-broker import-trusted-contract --kind verifier-record --file verifier.json"}
+		return &usageError{message: "import-trusted-contract usage: runecode-broker import-trusted-contract --kind verifier-record --file verifier.json --evidence import-evidence.json"}
 	}
-	if *kind == "" || *filePath == "" {
-		return &usageError{message: "import-trusted-contract requires --kind and --file"}
+	if *kind == "" || *filePath == "" || *evidencePath == "" {
+		return &usageError{message: "import-trusted-contract requires --kind, --file, and --evidence"}
 	}
 	switch *kind {
 	case "verifier-record":
@@ -210,7 +211,11 @@ func handleImportTrustedContract(args []string, service *brokerapi.Service, _ io
 		if err != nil {
 			return fmt.Errorf("invalid verifier record: %w", err)
 		}
-		return putTrustedVerifierRecord(service, record)
+		evidence, err := loadTrustedImportRequest(*evidencePath)
+		if err != nil {
+			return fmt.Errorf("invalid import evidence: %w", err)
+		}
+		return putTrustedVerifierRecord(service, record, evidence)
 	default:
 		return &usageError{message: fmt.Sprintf("unsupported --kind %q (supported: verifier-record)", *kind)}
 	}

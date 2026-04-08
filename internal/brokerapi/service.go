@@ -142,6 +142,10 @@ func (s *Service) GarbageCollect() (artifacts.GCResult, error) {
 	return s.store.GarbageCollect()
 }
 
+func (s *Service) DeleteDigest(digest string) error {
+	return s.store.DeleteDigest(digest)
+}
+
 func (s *Service) ExportBackup(path string) error {
 	return s.store.ExportBackup(path)
 }
@@ -152,6 +156,10 @@ func (s *Service) RestoreBackup(path string) error {
 
 func (s *Service) ReadAuditEvents() ([]artifacts.AuditEvent, error) {
 	return s.store.ReadAuditEvents()
+}
+
+func (s *Service) AppendTrustedAuditEvent(eventType, actor string, details map[string]interface{}) error {
+	return s.store.AppendTrustedAuditEvent(eventType, actor, details)
 }
 
 func (s *Service) SetPolicy(policy artifacts.Policy) error {

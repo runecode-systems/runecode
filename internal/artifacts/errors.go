@@ -31,4 +31,5 @@ var (
 	ErrApprovedClassRequiresPromotion  = errors.New("approved_file_excerpts must be produced via promotion")
 	ErrBackupSignatureMissing          = errors.New("backup signature file is missing")
 	ErrBackupSignatureInvalid          = errors.New("backup signature verification failed")
+	ErrTrustedVerifierStateUnavailable = errors.New("trusted verifier state unavailable")
 )

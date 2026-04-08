@@ -100,7 +100,8 @@ func TestImportTrustedContractAllowsPromotionWorkflow(t *testing.T) {
 		if err := os.WriteFile(verifierPath, payload, 0o600); err != nil {
 			t.Fatalf("WriteFile verifier record error: %v", err)
 		}
-		if err := run([]string{"import-trusted-contract", "--kind", "verifier-record", "--file", verifierPath}, stdout, stderr); err != nil {
+		evidencePath := writeTrustedImportEvidenceFixture(t, "verifier-record")
+		if err := run([]string{"import-trusted-contract", "--kind", "verifier-record", "--file", verifierPath, "--evidence", evidencePath}, stdout, stderr); err != nil {
 			t.Fatalf("import-trusted-contract returned error: %v", err)
 		}
 	}
@@ -114,9 +115,22 @@ func TestImportTrustedContractRejectsUnsupportedKind(t *testing.T) {
 	setBrokerServiceForTest(t)
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
-	err := run([]string{"import-trusted-contract", "--kind", "unknown", "--file", writeTempFile(t, "noop.json", "{}")}, stdout, stderr)
+	err := run([]string{"import-trusted-contract", "--kind", "unknown", "--file", writeTempFile(t, "noop.json", "{}"), "--evidence", writeTrustedImportEvidenceFixture(t, "unknown")}, stdout, stderr)
 	if err == nil {
 		t.Fatal("import-trusted-contract expected usage error for unsupported kind")
+	}
+	if _, ok := err.(*usageError); !ok {
+		t.Fatalf("error type = %T, want *usageError", err)
+	}
+}
+
+func TestImportTrustedContractRequiresEvidence(t *testing.T) {
+	setBrokerServiceForTest(t)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := run([]string{"import-trusted-contract", "--kind", "verifier-record", "--file", writeTempFile(t, "verifier.json", "{}")}, stdout, stderr)
+	if err == nil {
+		t.Fatal("import-trusted-contract expected usage error when --evidence is missing")
 	}
 	if _, ok := err.(*usageError); !ok {
 		t.Fatalf("error type = %T, want *usageError", err)
