@@ -7,7 +7,8 @@
     "actor_kind": "role_instance",
     "principal_id": "gateway-role",
     "instance_id": "gateway-1",
-    "role_kind": "gateway",
+    "role_family": "gateway",
+    "role_kind": "model-gateway",
     "active_role_manifest_hash": {
       "hash_alg": "sha256",
       "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -17,7 +18,8 @@
       "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     }
   },
-  "role_kind": "gateway",
+  "role_family": "gateway",
+  "role_kind": "model-gateway",
   "approval_profile": "moderate",
   "capability_opt_ins": [
     "model_streaming"

@@ -1,0 +1,10 @@
+{
+  "schema_id": "runecode.protocol.v0.DestinationDescriptor",
+  "schema_version": "0.1.0",
+  "descriptor_kind": "package_registry",
+  "canonical_host": "registry.example.test",
+  "provider_or_namespace": "npm-public",
+  "tls_required": true,
+  "private_range_blocking": "enforced",
+  "dns_rebinding_protection": "enforced"
+}

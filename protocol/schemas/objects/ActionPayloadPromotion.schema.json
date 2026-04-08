@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ActionPayloadPromotion.schema.json",
+  "title": "ActionPayloadPromotion",
+  "description": "Typed action payload for excerpt or artifact promotion operations.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 12,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "promotion_kind",
+    "source_artifact_hash",
+    "target_data_class"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.ActionPayloadPromotion",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "promotion_kind": {
+      "type": "string",
+      "enum": [
+        "excerpt",
+        "artifact"
+      ],
+      "description": "Promotion category.",
+      "x-data-class": "public"
+    },
+    "source_artifact_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Source artifact hash.",
+      "x-data-class": "public"
+    },
+    "target_data_class": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Target artifact data class after promotion.",
+      "x-data-class": "public"
+    },
+    "byte_start": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Optional excerpt byte start offset.",
+      "x-data-class": "public"
+    },
+    "byte_end": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Optional excerpt byte end offset.",
+      "x-data-class": "public"
+    },
+    "justification": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "Operator-visible promotion justification.",
+      "x-data-class": "sensitive"
+    },
+    "repo_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "Repository path context for promotion binding.",
+      "x-data-class": "sensitive"
+    },
+    "commit": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Commit context for promotion binding.",
+      "x-data-class": "public"
+    },
+    "extractor_tool_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Extractor tool version bound to the promotion request.",
+      "x-data-class": "public"
+    },
+    "approver": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Expected approver principal bound by the promotion action request.",
+      "x-data-class": "sensitive"
+    }
+  }
+}

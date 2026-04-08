@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ActionPayloadGatewayEgress.schema.json",
+  "title": "ActionPayloadGatewayEgress",
+  "description": "Typed action payload for gateway egress operations.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 8,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "gateway_role_kind",
+    "destination_kind",
+    "destination_ref",
+    "egress_data_class"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.ActionPayloadGatewayEgress",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "gateway_role_kind": {
+      "type": "string",
+      "enum": [
+        "model-gateway",
+        "auth-gateway",
+        "git-gateway",
+        "web-research",
+        "dependency-fetch"
+      ],
+      "description": "Concrete gateway role used for egress.",
+      "x-data-class": "public"
+    },
+    "destination_kind": {
+      "type": "string",
+      "enum": [
+        "model_endpoint",
+        "auth_provider",
+        "git_remote",
+        "web_origin",
+        "package_registry"
+      ],
+      "description": "Typed destination descriptor family.",
+      "x-data-class": "public"
+    },
+    "destination_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "Canonical allowlist destination reference.",
+      "x-data-class": "sensitive"
+    },
+    "egress_data_class": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Data class being sent through the gateway.",
+      "x-data-class": "public"
+    },
+    "operation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Gateway operation requested.",
+      "x-data-class": "public"
+    },
+    "payload_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Optional digest of egress payload.",
+      "x-data-class": "public"
+    }
+  }
+}

@@ -38,6 +38,10 @@
       "summary": "Records retention, GC, export, and restore actions including reclaimed bytes when applicable."
     },
     {
+      "code": "policy_decision_recorded",
+      "summary": "Records persisted typed policy decision digests with audit binding metadata."
+    },
+    {
       "code": "audit_segment_imported",
       "summary": "Records local admission of imported historical sealed audit segments without rewriting imported bytes."
     },

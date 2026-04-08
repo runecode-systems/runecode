@@ -5,13 +5,14 @@
   "description": "Stable role-level run detail summary for broker local API responses.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 7,
-  "required": ["schema_id", "schema_version", "role_instance_id", "role_kind", "lifecycle_state", "active_item_count"],
+  "maxProperties": 8,
+  "required": ["schema_id", "schema_version", "role_instance_id", "role_family", "role_kind", "lifecycle_state", "active_item_count"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.RunRoleSummary", "description": "Protocol schema identifier.", "x-data-class": "public" },
     "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
     "role_instance_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Role instance identifier.", "x-data-class": "public" },
-    "role_kind": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Role kind.", "x-data-class": "public" },
+    "role_family": { "type": "string", "enum": ["workspace", "gateway"], "description": "Role family.", "x-data-class": "public" },
+    "role_kind": { "type": "string", "enum": ["workspace-read", "workspace-edit", "workspace-test", "model-gateway", "auth-gateway", "git-gateway", "web-research", "dependency-fetch"], "description": "Concrete role kind.", "x-data-class": "public" },
     "lifecycle_state": { "type": "string", "enum": ["pending", "starting", "active", "blocked", "recovering", "completed", "failed", "cancelled"], "description": "Role lifecycle state.", "x-data-class": "public" },
     "active_item_count": { "type": "integer", "minimum": 0, "description": "Active item count for this role.", "x-data-class": "public" },
     "wait_reason_code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 128, "description": "Optional role wait reason.", "x-data-class": "public" }

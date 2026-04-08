@@ -127,7 +127,7 @@ func inferredPendingApprovalRecord(record artifacts.ArtifactRecord, now time.Tim
 			RunID:         record.RunID,
 			StageID:       stageIDForRun(record.RunID),
 			StepID:        record.StepID,
-			ActionKind:    "excerpt_promotion",
+			ActionKind:    "promotion",
 		},
 		RequestDigest: approvalID,
 	}, RequestEnvelope: &requestEnvelope, SourceDigest: record.Reference.Digest}

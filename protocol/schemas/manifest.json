@@ -1,6 +1,6 @@
 {
   "bundle_id": "runecode.protocol.v0",
-  "bundle_version": "0.5.0",
+  "bundle_version": "0.6.0",
   "json_schema_draft": "2020-12",
   "runtime_schema_prefix": "runecode.protocol.v0.",
   "canonicalization": "RFC8785-JCS",
@@ -131,6 +131,104 @@
       "owner": "protocol",
       "status": "mvp",
       "note": "MVP anchor family for deterministic policy outcomes; the policy-engine spec owns later expansion of shared reason-code coverage and detail payload semantics."
+    },
+    {
+      "path": "objects/DestinationDescriptor.schema.json",
+      "schema_id": "runecode.protocol.v0.DestinationDescriptor",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GatewayScopeRule.schema.json",
+      "schema_id": "runecode.protocol.v0.GatewayScopeRule",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/PolicyAllowlist.schema.json",
+      "schema_id": "runecode.protocol.v0.PolicyAllowlist",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/PolicyRuleSet.schema.json",
+      "schema_id": "runecode.protocol.v0.PolicyRuleSet",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ActionRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ActionRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ActionPayloadWorkspaceWrite.schema.json",
+      "schema_id": "runecode.protocol.v0.ActionPayloadWorkspaceWrite",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ActionPayloadExecutorRun.schema.json",
+      "schema_id": "runecode.protocol.v0.ActionPayloadExecutorRun",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ActionPayloadArtifactRead.schema.json",
+      "schema_id": "runecode.protocol.v0.ActionPayloadArtifactRead",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ActionPayloadPromotion.schema.json",
+      "schema_id": "runecode.protocol.v0.ActionPayloadPromotion",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ActionPayloadGatewayEgress.schema.json",
+      "schema_id": "runecode.protocol.v0.ActionPayloadGatewayEgress",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ActionPayloadBackendPostureChange.schema.json",
+      "schema_id": "runecode.protocol.v0.ActionPayloadBackendPostureChange",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ActionPayloadGateOverride.schema.json",
+      "schema_id": "runecode.protocol.v0.ActionPayloadGateOverride",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ActionPayloadStageSummarySignOff.schema.json",
+      "schema_id": "runecode.protocol.v0.ActionPayloadStageSummarySignOff",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ActionPayloadSecretAccess.schema.json",
+      "schema_id": "runecode.protocol.v0.ActionPayloadSecretAccess",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
     },
     {
       "path": "objects/LLMRequest.schema.json",
@@ -521,6 +619,13 @@
       "status": "mvp"
     },
     {
+      "path": "registries/hard_floor_operation_class.registry.json",
+      "name": "hard_floor_operation_class",
+      "namespace": "runecode.protocol.policy.hard_floor_operation_class",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "registries/audit_event_type.registry.json",
       "name": "audit_event_type",
       "namespace": "runecode.protocol.audit.event_type",
@@ -538,6 +643,34 @@
       "path": "registries/audit_verification_reason_code.registry.json",
       "name": "audit_verification_reason_code",
       "namespace": "runecode.protocol.audit.verification.reason",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "registries/action_kind.registry.json",
+      "name": "action_kind",
+      "namespace": "runecode.protocol.action.kind",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "registries/action_payload_schema_id.registry.json",
+      "name": "action_payload_schema_id",
+      "namespace": "runecode.protocol.action.payload_schema",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "registries/role_family.registry.json",
+      "name": "role_family",
+      "namespace": "runecode.protocol.identity.role_family",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "registries/role_kind.registry.json",
+      "name": "role_kind",
+      "namespace": "runecode.protocol.identity.role_kind",
       "documentation_owner": "protocol",
       "status": "mvp"
     }

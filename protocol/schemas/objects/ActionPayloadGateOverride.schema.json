@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ActionPayloadGateOverride.schema.json",
+  "title": "ActionPayloadGateOverride",
+  "description": "Typed action payload for gate override operations.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 7,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "gate_name",
+    "override_mode",
+    "justification"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.ActionPayloadGateOverride",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "gate_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Target gate identifier.",
+      "x-data-class": "public"
+    },
+    "override_mode": {
+      "type": "string",
+      "enum": [
+        "temporary_allow",
+        "break_glass"
+      ],
+      "description": "Override mode.",
+      "x-data-class": "public"
+    },
+    "justification": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "Required operator justification.",
+      "x-data-class": "sensitive"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64,
+      "description": "Optional override expiry timestamp.",
+      "x-data-class": "public"
+    },
+    "ticket_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Optional audit or incident ticket reference.",
+      "x-data-class": "public"
+    }
+  }
+}

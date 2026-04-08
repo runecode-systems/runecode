@@ -145,6 +145,6 @@ func resolvedApprovalScope(record artifacts.ArtifactRecord) ApprovalBoundScope {
 		RunID:         record.RunID,
 		StageID:       stageIDForRun(record.RunID),
 		StepID:        record.StepID,
-		ActionKind:    "excerpt_promotion",
+		ActionKind:    "promotion",
 	}
 }

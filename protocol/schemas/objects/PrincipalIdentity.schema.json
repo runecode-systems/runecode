@@ -110,18 +110,28 @@
       "description": "Stable session identifier bound to this principal when approvals, audit events, or leases need session-level attribution.",
       "x-data-class": "sensitive"
     },
-    "role_kind": {
+    "role_family": {
       "type": "string",
       "enum": [
         "workspace",
-        "gateway",
-        "auth",
-        "model",
-        "git",
-        "web",
-        "deps"
+        "gateway"
       ],
-      "description": "Role category bound to the principal when the actor is role-scoped or gateway-like.",
+      "description": "Role family taxonomy for role-scoped principals.",
+      "x-data-class": "public"
+    },
+    "role_kind": {
+      "type": "string",
+      "enum": [
+        "workspace-read",
+        "workspace-edit",
+        "workspace-test",
+        "model-gateway",
+        "auth-gateway",
+        "git-gateway",
+        "web-research",
+        "dependency-fetch"
+      ],
+      "description": "Concrete least-privilege role kind bound to the principal.",
       "x-data-class": "public"
     },
     "run_id": {

@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/PolicyRuleSet.schema.json",
+  "title": "PolicyRuleSet",
+  "description": "Protocol-owned declarative policy rule-set family. Policy documents are schema-validated and contain no embedded scripting.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 3,
+  "$defs": {
+    "policyRule": {
+      "description": "One declarative rule matched by action-kind and optional capability.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 6,
+      "required": [
+        "rule_id",
+        "effect",
+        "action_kind",
+        "reason_code",
+        "details_schema_id"
+      ],
+      "properties": {
+        "rule_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Deterministic rule identifier within this rule set.",
+          "x-data-class": "public"
+        },
+        "effect": {
+          "type": "string",
+          "enum": [
+            "allow",
+            "deny",
+            "require_human_approval"
+          ],
+          "description": "Rule effect; runtime precedence remains deny > require_human_approval > allow.",
+          "x-data-class": "public"
+        },
+        "action_kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Action kind this rule applies to.",
+          "x-data-class": "public"
+        },
+        "capability_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Optional capability constraint for this rule.",
+          "x-data-class": "public"
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Stable policy_reason_code emitted when this rule is selected.",
+          "x-data-class": "public"
+        },
+        "details_schema_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Details schema identifier for structured decision details.",
+          "x-data-class": "public"
+        }
+      }
+    }
+  },
+  "required": [
+    "schema_id",
+    "schema_version",
+    "rules"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.PolicyRuleSet",
+      "description": "Stable protocol object-family identifier for declarative policy rule sets.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this rule set.",
+      "x-data-class": "public"
+    },
+    "rules": {
+      "type": "array",
+      "maxItems": 512,
+      "description": "Declarative policy rules with deterministic precedence applied at evaluation time.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "#/$defs/policyRule",
+        "description": "One declarative policy rule."
+      },
+      "uniqueItems": true
+    }
+  }
+}

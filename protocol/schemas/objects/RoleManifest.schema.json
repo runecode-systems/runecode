@@ -5,11 +5,50 @@
   "description": "Protocol-owned role manifest family. Security-sensitive capability expansion must be explicit, signed, versioned, and bound to a shared principal identity.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 8,
+  "maxProperties": 9,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "role_family": {
+            "const": "workspace"
+          }
+        },
+        "required": [
+          "role_family"
+        ]
+      },
+      "then": {
+        "properties": {
+          "role_kind": {
+            "enum": [
+              "workspace-read",
+              "workspace-edit",
+              "workspace-test"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "role_kind": {
+            "enum": [
+              "model-gateway",
+              "auth-gateway",
+              "git-gateway",
+              "web-research",
+              "dependency-fetch"
+            ]
+          }
+        }
+      }
+    }
+  ],
   "required": [
     "schema_id",
     "schema_version",
     "principal",
+    "role_family",
     "role_kind",
     "approval_profile",
     "capability_opt_ins",
@@ -32,11 +71,28 @@
       "description": "Shared principal identity for the role or daemon this manifest governs so later approvals and audit events bind to the same identity object.",
       "x-data-class": "sensitive"
     },
+    "role_family": {
+      "type": "string",
+      "enum": [
+        "workspace",
+        "gateway"
+      ],
+      "description": "Top-level role family this manifest configures.",
+      "x-data-class": "public"
+    },
     "role_kind": {
       "type": "string",
-      "minLength": 1,
-      "maxLength": 64,
-      "description": "Named role category this manifest configures, such as gateway or workspace.",
+      "enum": [
+        "workspace-read",
+        "workspace-edit",
+        "workspace-test",
+        "model-gateway",
+        "auth-gateway",
+        "git-gateway",
+        "web-research",
+        "dependency-fetch"
+      ],
+      "description": "Concrete least-privilege role kind this manifest configures.",
       "x-data-class": "public"
     },
     "approval_profile": {

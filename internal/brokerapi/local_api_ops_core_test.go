@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
 func TestRunAndArtifactLocalTypedOperations(t *testing.T) {
@@ -86,6 +87,42 @@ func TestRunSummaryWorkflowDefinitionHashRequiresSingleTrustedManifest(t *testin
 	}
 	if got := len(runGet.Run.ActiveManifestHashes); got != 2 {
 		t.Fatalf("active_manifest_hashes len = %d, want 2", got)
+	}
+}
+
+func TestRunDetailIncludesPersistedPolicyDecisionRefs(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	_ = putRunScopedArtifactForLocalOpsTest(t, s, "run-policy-refs", "step-1")
+
+	err := s.RecordPolicyDecision("run-policy-refs", "", policyDecisionFixtureForRunRefs())
+	if err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
+	}
+
+	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-policy-refs", RunID: "run-policy-refs"}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleRunGet error response: %+v", errResp)
+	}
+	if len(runGet.Run.LatestPolicyDecisionRefs) == 0 {
+		t.Fatal("latest_policy_decision_refs should include persisted policy decision digest")
+	}
+	if !strings.HasPrefix(runGet.Run.LatestPolicyDecisionRefs[0], "sha256:") {
+		t.Fatalf("latest_policy_decision_refs[0] = %q, want sha256 digest", runGet.Run.LatestPolicyDecisionRefs[0])
+	}
+}
+
+func policyDecisionFixtureForRunRefs() policyengine.PolicyDecision {
+	return policyengine.PolicyDecision{
+		SchemaID:               "runecode.protocol.v0.PolicyDecision",
+		SchemaVersion:          "0.3.0",
+		DecisionOutcome:        policyengine.DecisionDeny,
+		PolicyReasonCode:       "deny_by_default",
+		ManifestHash:           "sha256:" + strings.Repeat("1", 64),
+		PolicyInputHashes:      []string{"sha256:" + strings.Repeat("2", 64)},
+		ActionRequestHash:      "sha256:" + strings.Repeat("3", 64),
+		RelevantArtifactHashes: []string{"sha256:" + strings.Repeat("4", 64)},
+		DetailsSchemaID:        "runecode.protocol.details.policy.decision.v0",
+		Details:                map[string]any{"rule": "deny_by_default"},
 	}
 }
 

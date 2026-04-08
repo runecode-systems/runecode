@@ -1,0 +1,22 @@
+{
+  "schema_id": "runecode.protocol.v0.GatewayScopeRule",
+  "schema_version": "0.1.0",
+  "scope_kind": "gateway_destination",
+  "gateway_role_kind": "web-research",
+  "destination": {
+    "schema_id": "runecode.protocol.v0.DestinationDescriptor",
+    "schema_version": "0.1.0",
+    "descriptor_kind": "raw_url",
+    "canonical_host": "docs.example.test",
+    "tls_required": true,
+    "private_range_blocking": "enforced",
+    "dns_rebinding_protection": "enforced"
+  },
+  "permitted_operations": [
+    "fetch"
+  ],
+  "allowed_egress_data_classes": [
+    "spec_text"
+  ],
+  "redirect_posture": "allowlist_only"
+}

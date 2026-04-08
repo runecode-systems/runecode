@@ -1,0 +1,417 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ActionRequest.schema.json",
+  "title": "ActionRequest",
+  "description": "Canonical policy action contract shared across policy evaluation, approvals, audit, and broker read models.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 10,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "role_family": {
+            "const": "workspace"
+          }
+        },
+        "required": [
+          "role_family"
+        ]
+      },
+      "then": {
+        "properties": {
+          "role_kind": {
+            "enum": [
+              "workspace-read",
+              "workspace-edit",
+              "workspace-test"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "role_family": {
+            "const": "gateway"
+          }
+        },
+        "required": [
+          "role_family"
+        ]
+      },
+      "then": {
+        "properties": {
+          "role_kind": {
+            "enum": [
+              "model-gateway",
+              "auth-gateway",
+              "git-gateway",
+              "web-research",
+              "dependency-fetch"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action_kind": {
+            "const": "gateway_egress"
+          }
+        },
+        "required": [
+          "action_kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "role_family": {
+            "const": "gateway"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action_kind": {
+            "const": "dependency_fetch"
+          }
+        },
+        "required": [
+          "action_kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "role_family": {
+            "const": "gateway"
+          },
+          "role_kind": {
+            "const": "dependency-fetch"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action_kind": {
+            "const": "workspace_write"
+          }
+        },
+        "required": [
+          "action_kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "action_payload_schema_id": {
+            "const": "runecode.protocol.v0.ActionPayloadWorkspaceWrite"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action_kind": {
+            "const": "executor_run"
+          }
+        },
+        "required": [
+          "action_kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "action_payload_schema_id": {
+            "const": "runecode.protocol.v0.ActionPayloadExecutorRun"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action_kind": {
+            "const": "artifact_read"
+          }
+        },
+        "required": [
+          "action_kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "action_payload_schema_id": {
+            "const": "runecode.protocol.v0.ActionPayloadArtifactRead"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action_kind": {
+            "const": "promotion"
+          }
+        },
+        "required": [
+          "action_kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "action_payload_schema_id": {
+            "const": "runecode.protocol.v0.ActionPayloadPromotion"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action_kind": {
+            "const": "gateway_egress"
+          }
+        },
+        "required": [
+          "action_kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "action_payload_schema_id": {
+            "const": "runecode.protocol.v0.ActionPayloadGatewayEgress"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action_kind": {
+            "const": "dependency_fetch"
+          }
+        },
+        "required": [
+          "action_kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "action_payload_schema_id": {
+            "const": "runecode.protocol.v0.ActionPayloadGatewayEgress"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action_kind": {
+            "const": "backend_posture_change"
+          }
+        },
+        "required": [
+          "action_kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "action_payload_schema_id": {
+            "const": "runecode.protocol.v0.ActionPayloadBackendPostureChange"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action_kind": {
+            "const": "action_gate_override"
+          }
+        },
+        "required": [
+          "action_kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "action_payload_schema_id": {
+            "const": "runecode.protocol.v0.ActionPayloadGateOverride"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action_kind": {
+            "const": "stage_summary_sign_off"
+          }
+        },
+        "required": [
+          "action_kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "action_payload_schema_id": {
+            "const": "runecode.protocol.v0.ActionPayloadStageSummarySignOff"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action_kind": {
+            "const": "secret_access"
+          }
+        },
+        "required": [
+          "action_kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "action_payload_schema_id": {
+            "const": "runecode.protocol.v0.ActionPayloadSecretAccess"
+          }
+        }
+      }
+    }
+  ],
+  "required": [
+    "schema_id",
+    "schema_version",
+    "action_kind",
+    "capability_id",
+    "role_family",
+    "role_kind",
+    "action_payload_schema_id",
+    "action_payload"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.ActionRequest",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "action_kind": {
+      "type": "string",
+      "enum": [
+        "workspace_write",
+        "executor_run",
+        "artifact_read",
+        "promotion",
+        "gateway_egress",
+        "dependency_fetch",
+        "backend_posture_change",
+        "action_gate_override",
+        "stage_summary_sign_off",
+        "secret_access"
+      ],
+      "description": "Closed action kind taxonomy for policy evaluation.",
+      "x-data-class": "public"
+    },
+    "capability_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Capability identifier used for role/run/stage envelope checks.",
+      "x-data-class": "public"
+    },
+    "allowlist_refs": {
+      "type": "array",
+      "maxItems": 64,
+      "description": "Optional allowlist digests required by this action request.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "Digest.schema.json#/$defs/digestValue",
+        "description": "Digest reference to one allowlist artifact."
+      },
+      "uniqueItems": true
+    },
+    "relevant_artifact_hashes": {
+      "type": "array",
+      "maxItems": 64,
+      "description": "Hashes of artifacts that materially inform this policy action evaluation.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "Digest.schema.json#/$defs/digestValue",
+        "description": "Digest reference to one relevant artifact."
+      },
+      "uniqueItems": true
+    },
+    "action_payload_schema_id": {
+      "type": "string",
+      "enum": [
+        "runecode.protocol.v0.ActionPayloadWorkspaceWrite",
+        "runecode.protocol.v0.ActionPayloadExecutorRun",
+        "runecode.protocol.v0.ActionPayloadArtifactRead",
+        "runecode.protocol.v0.ActionPayloadPromotion",
+        "runecode.protocol.v0.ActionPayloadGatewayEgress",
+        "runecode.protocol.v0.ActionPayloadBackendPostureChange",
+        "runecode.protocol.v0.ActionPayloadGateOverride",
+        "runecode.protocol.v0.ActionPayloadStageSummarySignOff",
+        "runecode.protocol.v0.ActionPayloadSecretAccess"
+      ],
+      "description": "Closed payload schema family identifier keyed by action_kind.",
+      "x-data-class": "public"
+    },
+    "action_payload": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 32,
+      "description": "Typed action payload for the selected action_kind.",
+      "x-data-class": "sensitive"
+    },
+    "actor_kind": {
+      "type": "string",
+      "enum": [
+        "user",
+        "daemon",
+        "role_instance",
+        "local_client",
+        "external_runtime"
+      ],
+      "description": "Optional copied actor category for explicit audit/policy joins.",
+      "x-data-class": "public"
+    },
+    "role_family": {
+      "type": "string",
+      "enum": [
+        "workspace",
+        "gateway"
+      ],
+      "description": "Optional role family taxonomy used for reporting and policy details.",
+      "x-data-class": "public"
+    },
+    "role_kind": {
+      "type": "string",
+      "enum": [
+        "workspace-read",
+        "workspace-edit",
+        "workspace-test",
+        "model-gateway",
+        "auth-gateway",
+        "git-gateway",
+        "web-research",
+        "dependency-fetch"
+      ],
+      "description": "Concrete least-privilege role kind.",
+      "x-data-class": "public"
+    }
+  }
+}

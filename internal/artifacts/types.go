@@ -91,13 +91,35 @@ type Policy struct {
 }
 
 type StoreState struct {
-	Artifacts                map[string]ArtifactRecord `json:"artifacts"`
-	Policy                   Policy                    `json:"policy"`
-	Runs                     map[string]string         `json:"runs"`
-	PromotionEventsByActor   map[string][]time.Time    `json:"promotion_events_by_actor"`
-	LastAuditSequence        int64                     `json:"last_audit_sequence"`
-	StorageProtectionPosture string                    `json:"storage_protection_posture"`
-	BackupHMACKey            string                    `json:"backup_hmac_key"`
+	Artifacts                map[string]ArtifactRecord       `json:"artifacts"`
+	PolicyDecisions          map[string]PolicyDecisionRecord `json:"policy_decisions,omitempty"`
+	RunPolicyDecisionRefs    map[string][]string             `json:"run_policy_decision_refs,omitempty"`
+	Policy                   Policy                          `json:"policy"`
+	Runs                     map[string]string               `json:"runs"`
+	PromotionEventsByActor   map[string][]time.Time          `json:"promotion_events_by_actor"`
+	LastAuditSequence        int64                           `json:"last_audit_sequence"`
+	StorageProtectionPosture string                          `json:"storage_protection_posture"`
+	BackupHMACKey            string                          `json:"backup_hmac_key"`
+}
+
+type PolicyDecisionRecord struct {
+	Digest                   string         `json:"digest"`
+	RunID                    string         `json:"run_id,omitempty"`
+	SchemaID                 string         `json:"schema_id"`
+	SchemaVersion            string         `json:"schema_version"`
+	DecisionOutcome          string         `json:"decision_outcome"`
+	PolicyReasonCode         string         `json:"policy_reason_code"`
+	ManifestHash             string         `json:"manifest_hash"`
+	ActionRequestHash        string         `json:"action_request_hash"`
+	PolicyInputHashes        []string       `json:"policy_input_hashes"`
+	RelevantArtifactHashes   []string       `json:"relevant_artifact_hashes"`
+	DetailsSchemaID          string         `json:"details_schema_id"`
+	Details                  map[string]any `json:"details"`
+	RequiredApprovalSchemaID string         `json:"required_approval_schema_id,omitempty"`
+	RequiredApproval         map[string]any `json:"required_approval,omitempty"`
+	RecordedAt               time.Time      `json:"recorded_at"`
+	AuditEventType           string         `json:"audit_event_type"`
+	AuditEventSeq            int64          `json:"audit_event_seq"`
 }
 
 type PutRequest struct {

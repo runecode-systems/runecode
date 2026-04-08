@@ -49,6 +49,12 @@ func normalizeState(state StoreState) StoreState {
 	if state.Runs == nil {
 		state.Runs = map[string]string{}
 	}
+	if state.PolicyDecisions == nil {
+		state.PolicyDecisions = map[string]PolicyDecisionRecord{}
+	}
+	if state.RunPolicyDecisionRefs == nil {
+		state.RunPolicyDecisionRefs = map[string][]string{}
+	}
 	if state.PromotionEventsByActor == nil {
 		state.PromotionEventsByActor = map[string][]time.Time{}
 	}

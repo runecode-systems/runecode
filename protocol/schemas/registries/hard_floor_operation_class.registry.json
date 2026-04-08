@@ -1,0 +1,25 @@
+{
+  "registry_name": "hard_floor_operation_class",
+  "namespace": "runecode.protocol.policy.hard_floor_operation_class",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Closed hard-floor operation classes that enforce non-profile-lowerable approval assurance floors.",
+  "codes": [
+    {
+      "code": "trust_root_change",
+      "summary": "Changes trust-root material or trust authority bindings."
+    },
+    {
+      "code": "security_posture_weakening",
+      "summary": "Weakens security posture, isolation, or enforcement controls."
+    },
+    {
+      "code": "authoritative_state_reconciliation",
+      "summary": "Reconciles or restores authoritative state from external or historical sources."
+    },
+    {
+      "code": "deployment_bootstrap_authority_change",
+      "summary": "Changes deployment/bootstrap authority or privilege-establishing control paths."
+    }
+  ]
+}

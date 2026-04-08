@@ -87,6 +87,18 @@ func invalidPolicyDecisionWithBadReasonCode() map[string]any {
 	return decision
 }
 
+func invalidPolicyDecisionWithUnknownReasonCode() map[string]any {
+	decision := validDenyPolicyDecision()
+	decision["policy_reason_code"] = "runtime_defined_future_code"
+	return decision
+}
+
+func invalidApprovalPolicyDecisionWithUnknownTriggerCode() map[string]any {
+	decision := validApprovalPolicyDecision()
+	decision["required_approval"] = map[string]any{"approval_trigger_code": "future_runtime_defined_trigger"}
+	return decision
+}
+
 func validArtifactReference() map[string]any {
 	return map[string]any{
 		"schema_id":               "runecode.protocol.v0.ArtifactReference",
@@ -220,6 +232,94 @@ func invalidArtifactPolicyWithUnknownFlowDataClass() map[string]any {
 	flow := policy["flow_matrix"].([]any)[0].(map[string]any)
 	flow["allowed_data_classes"] = []any{"spec_text", "new_unregistered_class"}
 	return policy
+}
+
+func validPolicyRuleSet() map[string]any {
+	return map[string]any{
+		"schema_id":      "runecode.protocol.v0.PolicyRuleSet",
+		"schema_version": "0.1.0",
+		"rules": []any{
+			map[string]any{
+				"rule_id":           "workspace_write_needs_approval",
+				"effect":            "require_human_approval",
+				"action_kind":       "workspace_write",
+				"capability_id":     "workspace_write",
+				"reason_code":       "approval_required",
+				"details_schema_id": "runecode.protocol.details.policy.workspace-write.v0",
+			},
+		},
+	}
+}
+
+func invalidPolicyRuleSetWithUnknownEffect() map[string]any {
+	ruleSet := validPolicyRuleSet()
+	rules := ruleSet["rules"].([]any)
+	rule := rules[0].(map[string]any)
+	rule["effect"] = "script_eval"
+	return ruleSet
+}
+
+func validPolicyAllowlist() map[string]any {
+	return map[string]any{
+		"schema_id":       "runecode.protocol.v0.PolicyAllowlist",
+		"schema_version":  "0.1.0",
+		"allowlist_kind":  "gateway_scope_rule",
+		"entry_schema_id": "runecode.protocol.v0.GatewayScopeRule",
+		"entries": []any{
+			validGatewayScopeRule("provider-a"),
+			validGatewayScopeRule("provider-b"),
+		},
+	}
+}
+
+func invalidPolicyAllowlistKind() map[string]any {
+	allowlist := validPolicyAllowlist()
+	allowlist["allowlist_kind"] = "gateway_destination"
+	return allowlist
+}
+
+func invalidPolicyAllowlistEntrySchemaID() map[string]any {
+	allowlist := validPolicyAllowlist()
+	allowlist["entry_schema_id"] = "runecode.protocol.v0.DestinationDescriptor"
+	return allowlist
+}
+
+func validGatewayScopeRule(provider string) map[string]any {
+	return map[string]any{
+		"schema_id":                   "runecode.protocol.v0.GatewayScopeRule",
+		"schema_version":              "0.1.0",
+		"scope_kind":                  "gateway_destination",
+		"gateway_role_kind":           "model-gateway",
+		"destination":                 validDestinationDescriptor(provider),
+		"permitted_operations":        []any{"invoke_model"},
+		"allowed_egress_data_classes": []any{"spec_text"},
+		"redirect_posture":            "allowlist_only",
+	}
+}
+
+func invalidGatewayScopeRuleKind() map[string]any {
+	rule := validGatewayScopeRule("provider-a")
+	rule["scope_kind"] = "gateway_destination_legacy"
+	return rule
+}
+
+func validDestinationDescriptor(provider string) map[string]any {
+	return map[string]any{
+		"schema_id":                "runecode.protocol.v0.DestinationDescriptor",
+		"schema_version":           "0.1.0",
+		"descriptor_kind":          "model_endpoint",
+		"canonical_host":           provider + ".example.com",
+		"provider_or_namespace":    provider,
+		"tls_required":             true,
+		"private_range_blocking":   "enforced",
+		"dns_rebinding_protection": "enforced",
+	}
+}
+
+func invalidDestinationDescriptorKind() map[string]any {
+	descriptor := validDestinationDescriptor("provider-a")
+	descriptor["descriptor_kind"] = "raw_url"
+	return descriptor
 }
 
 func validProvenanceReceipt() map[string]any {

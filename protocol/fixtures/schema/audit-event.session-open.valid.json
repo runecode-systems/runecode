@@ -11,7 +11,8 @@
     "actor_kind": "daemon",
     "principal_id": "broker",
     "instance_id": "broker-1",
-    "role_kind": "workspace"
+    "role_family": "workspace",
+    "role_kind": "workspace-edit"
   },
   "event_payload_schema_id": "runecode.protocol.audit.payload.session-open.v0",
   "event_payload": {

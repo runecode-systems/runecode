@@ -46,6 +46,7 @@ func assertErrorRegistryCodes(t *testing.T) {
 		"broker_limit_response_stream_size_exceeded",
 		"broker_timeout_request_deadline_exceeded",
 		"broker_approval_state_invalid",
+		"policy_input_hash_mismatch",
 	)
 }
 
@@ -56,6 +57,9 @@ func assertPolicyRegistryCodes(t *testing.T) {
 		"deny_by_default",
 		"allow_manifest_opt_in",
 		"approval_required",
+		"allow_microvm_default",
+		"deny_container_opt_in_required",
+		"deny_container_automatic_fallback",
 		"artifact_flow_denied",
 		"unapproved_excerpt_egress_denied",
 		"approved_excerpt_revoked",
@@ -74,6 +78,7 @@ func assertAuditRegistryCodes(t *testing.T) {
 		"artifact_promotion_action",
 		"artifact_quota_violation",
 		"artifact_retention_action",
+		"policy_decision_recorded",
 		"audit_segment_imported",
 		"audit_segment_restored",
 		"secrets_lease_acquired",
@@ -129,9 +134,29 @@ func assertApprovalRegistryCodes(t *testing.T) {
 		"gateway_egress_scope_change",
 		"out_of_workspace_write",
 		"secret_access_lease",
-		"dependency_install",
+		"dependency_network_fetch",
 		"system_command_execution",
 		"excerpt_promotion",
+	)
+	hardFloorRegistry := loadRegistry(t, schemaPath(t, "registries/hard_floor_operation_class.registry.json"))
+	assertRegistryContainsCodes(t, hardFloorRegistry,
+		"trust_root_change",
+		"security_posture_weakening",
+		"authoritative_state_reconciliation",
+		"deployment_bootstrap_authority_change",
+	)
+	actionRegistry := loadRegistry(t, schemaPath(t, "registries/action_kind.registry.json"))
+	assertRegistryContainsCodes(t, actionRegistry,
+		"workspace_write",
+		"executor_run",
+		"artifact_read",
+		"promotion",
+		"gateway_egress",
+		"dependency_fetch",
+		"backend_posture_change",
+		"action_gate_override",
+		"stage_summary_sign_off",
+		"secret_access",
 	)
 }
 

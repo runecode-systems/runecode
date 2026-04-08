@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ActionPayloadWorkspaceWrite.schema.json",
+  "title": "ActionPayloadWorkspaceWrite",
+  "description": "Typed action payload for workspace write operations.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 7,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "target_path",
+    "write_mode"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.ActionPayloadWorkspaceWrite",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "target_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "Workspace-relative target path.",
+      "x-data-class": "sensitive"
+    },
+    "write_mode": {
+      "type": "string",
+      "enum": [
+        "create",
+        "update",
+        "delete",
+        "rename"
+      ],
+      "description": "Write operation mode.",
+      "x-data-class": "public"
+    },
+    "source_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "Optional source path for move or rename operations.",
+      "x-data-class": "sensitive"
+    },
+    "content_sha256": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Optional content digest for deterministic write intent.",
+      "x-data-class": "public"
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Optional declared byte count for write intent.",
+      "x-data-class": "public"
+    }
+  }
+}
