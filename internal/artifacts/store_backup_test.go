@@ -228,3 +228,37 @@ func TestBackupFilesArePrivateByDefault(t *testing.T) {
 	assertMode(t, backupPath, 0o600)
 	assertMode(t, backupSignaturePath(backupPath), 0o600)
 }
+
+func TestBackupRestorePreservesPolicyDecisionState(t *testing.T) {
+	store := newTestStore(t)
+	rec := basePolicyDecisionRecord("run-backup-policy", map[string]any{"precedence": "invariants_first"})
+	if err := store.RecordPolicyDecision(rec); err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
+	}
+	storedDecision, ok := firstPolicyDecisionRecord(store)
+	if !ok {
+		t.Fatal("policy decision missing from source state")
+	}
+
+	backupPath := filepath.Join(t.TempDir(), "backup-policy.json")
+	if err := store.ExportBackup(backupPath); err != nil {
+		t.Fatalf("ExportBackup returned error: %v", err)
+	}
+
+	restoreStore := newTestStore(t)
+	if err := restoreStore.RestoreBackup(backupPath); err != nil {
+		t.Fatalf("RestoreBackup returned error: %v", err)
+	}
+
+	restoredDecision, ok := restoreStore.state.PolicyDecisions[storedDecision.Digest]
+	if !ok {
+		t.Fatalf("restored policy decision %q missing", storedDecision.Digest)
+	}
+	if restoredDecision.RunID != rec.RunID {
+		t.Fatalf("restored run_id = %q, want %q", restoredDecision.RunID, rec.RunID)
+	}
+	refs := restoreStore.PolicyDecisionRefsForRun(rec.RunID)
+	if len(refs) != 1 || refs[0] != storedDecision.Digest {
+		t.Fatalf("restored PolicyDecisionRefsForRun = %v, want [%s]", refs, storedDecision.Digest)
+	}
+}

@@ -1,40 +1,52 @@
 package artifacts
 
-import "encoding/json"
+import (
+	"fmt"
+	"strings"
 
-const (
-	actionRequestSchemaID        = "runecode.protocol.v0.ActionRequest"
-	actionRequestSchemaVersion   = "0.1.0"
-	actionKindPromotion          = "promotion"
-	actionPayloadPromotionSchema = "runecode.protocol.v0.ActionPayloadPromotion"
+	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
-func promotionActionRequestHash(req PromotionRequest) (string, error) {
-	payload, err := json.Marshal(map[string]any{
-		"schema_id":                actionRequestSchemaID,
-		"schema_version":           actionRequestSchemaVersion,
-		"action_kind":              actionKindPromotion,
-		"capability_id":            actionKindPromotion,
-		"action_payload_schema_id": actionPayloadPromotionSchema,
-		"action_payload": map[string]any{
-			"schema_id":              actionPayloadPromotionSchema,
-			"schema_version":         "0.1.0",
-			"promotion_kind":         "excerpt",
-			"source_artifact_hash":   req.UnapprovedDigest,
-			"target_data_class":      "approved_file_excerpts",
-			"justification":          "promotion approval request",
-			"repo_path":              req.RepoPath,
-			"commit":                 req.Commit,
-			"extractor_tool_version": req.ExtractorToolVersion,
-			"approver":               req.Approver,
+const promotionActionJustification = "promotion approval request"
+
+func BuildPromotionActionRequest(req PromotionRequest) (policyengine.ActionRequest, error) {
+	if !isValidDigest(req.UnapprovedDigest) {
+		return policyengine.ActionRequest{}, fmt.Errorf("invalid source digest %q", req.UnapprovedDigest)
+	}
+	sourceDigest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.TrimPrefix(req.UnapprovedDigest, "sha256:")}
+	if _, err := sourceDigest.Identity(); err != nil {
+		return policyengine.ActionRequest{}, err
+	}
+	return policyengine.NewPromotionAction(policyengine.PromotionActionInput{
+		ActionEnvelope: policyengine.ActionEnvelope{
+			CapabilityID:           policyengine.ActionKindPromotion,
+			RelevantArtifactHashes: []trustpolicy.Digest{sourceDigest},
+			Actor: policyengine.ActionActor{
+				ActorKind:  "daemon",
+				RoleFamily: "workspace",
+				RoleKind:   "workspace-edit",
+			},
 		},
-	})
+		PromotionKind:        "excerpt",
+		SourceArtifactHash:   sourceDigest,
+		TargetDataClass:      string(DataClassApprovedFileExcerpts),
+		Justification:        promotionActionJustification,
+		RepoPath:             req.RepoPath,
+		Commit:               req.Commit,
+		ExtractorToolVersion: req.ExtractorToolVersion,
+		Approver:             req.Approver,
+	}), nil
+}
+
+func CanonicalPromotionActionRequestHash(req PromotionRequest) (string, error) {
+	action, err := BuildPromotionActionRequest(req)
 	if err != nil {
 		return "", err
 	}
-	canonical, err := canonicalizeJSONBytes(payload)
-	if err != nil {
-		return "", err
-	}
-	return digestBytes(canonical), nil
+	return policyengine.CanonicalActionRequestHash(action)
+}
+
+func promotionActionRequestHash(req PromotionRequest) (string, error) {
+	return CanonicalPromotionActionRequestHash(req)
 }

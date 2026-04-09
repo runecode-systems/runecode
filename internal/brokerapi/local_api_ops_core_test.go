@@ -373,15 +373,7 @@ func TestRunPendingApprovalsUseCanonicalPendingRecords(t *testing.T) {
 	if putErr != nil {
 		t.Fatalf("Put returned error: %v", putErr)
 	}
-	record, headErr := s.Head(ref.Digest)
-	if headErr != nil {
-		t.Fatalf("Head returned error: %v", headErr)
-	}
-	requestEnvelope := inferredPendingApprovalRequestEnvelope(record, record.CreatedAt.UTC(), record.CreatedAt.UTC().Add(30*time.Minute))
-	expectedID, idErr := approvalIDFromRequest(requestEnvelope)
-	if idErr != nil {
-		t.Fatalf("approvalIDFromRequest returned error: %v", idErr)
-	}
+	expectedID := createPendingApprovalFromPolicyDecision(t, s, "run-pending-canonical", "step-1", ref.Digest)
 
 	runResp, runErr := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-get-pending", RunID: "run-pending-canonical"}, RequestContext{})
 	if runErr != nil {

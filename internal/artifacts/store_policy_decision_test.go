@@ -1,6 +1,9 @@
 package artifacts
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestRecordPolicyDecisionPersistsTypedRecordAndAuditBinding(t *testing.T) {
 	store := newTestStore(t)
@@ -90,6 +93,79 @@ func TestRecordPolicyDecisionAllowsIdempotentReinsertSamePayload(t *testing.T) {
 	}
 	if len(store.state.PolicyDecisions) != 1 {
 		t.Fatalf("policy decision count = %d, want 1", len(store.state.PolicyDecisions))
+	}
+}
+
+func TestRecordPolicyDecisionCreatesPendingApprovalLinkedToPolicyDigest(t *testing.T) {
+	store := newTestStore(t)
+	rec := basePolicyDecisionRecord("run-link", map[string]any{"precedence": "approval"})
+	rec.DecisionOutcome = "require_human_approval"
+	rec.PolicyReasonCode = "approval_required"
+	rec.RequiredApprovalSchemaID = "runecode.protocol.details.policy.required_approval.moderate.workspace_write.v0"
+	rec.RequiredApproval = map[string]any{
+		"approval_trigger_code": "excerpt_promotion",
+		"scope": map[string]any{
+			"workspace_id": "workspace-local",
+			"run_id":       "run-link",
+			"stage_id":     "artifact_flow",
+			"step_id":      "step-1",
+			"action_kind":  "promotion",
+		},
+	}
+	if err := store.RecordPolicyDecision(rec); err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
+	}
+	storedDecision, ok := firstPolicyDecisionRecord(store)
+	if !ok {
+		t.Fatal("policy decision missing from state")
+	}
+	if len(store.state.Approvals) != 1 {
+		t.Fatalf("approval count = %d, want 1", len(store.state.Approvals))
+	}
+	for _, approval := range store.state.Approvals {
+		if approval.PolicyDecisionHash != storedDecision.Digest {
+			t.Fatalf("approval policy_decision_hash = %q, want %q", approval.PolicyDecisionHash, storedDecision.Digest)
+		}
+	}
+}
+
+func TestRecordApprovalBackfillsPolicyDecisionHashFromPersistedDecision(t *testing.T) {
+	store := newTestStore(t)
+	rec := basePolicyDecisionRecord("run-backfill", map[string]any{"precedence": "deny"})
+	if err := store.RecordPolicyDecision(rec); err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
+	}
+	storedDecision, ok := firstPolicyDecisionRecord(store)
+	if !ok {
+		t.Fatal("policy decision missing from state")
+	}
+
+	requestedAt := time.Now().UTC()
+	approval := ApprovalRecord{
+		ApprovalID:             testDigest("a"),
+		Status:                 "pending",
+		WorkspaceID:            "workspace-local",
+		RunID:                  "run-backfill",
+		StageID:                "artifact_flow",
+		StepID:                 "step-1",
+		ActionKind:             "promotion",
+		RequestedAt:            requestedAt,
+		ApprovalTriggerCode:    "excerpt_promotion",
+		ChangesIfApproved:      approvalChangesIfApprovedDefault,
+		ApprovalAssuranceLevel: "session_authenticated",
+		PresenceMode:           "os_confirmation",
+		ManifestHash:           storedDecision.ManifestHash,
+		ActionRequestHash:      storedDecision.ActionRequestHash,
+	}
+	if err := store.RecordApproval(approval); err != nil {
+		t.Fatalf("RecordApproval returned error: %v", err)
+	}
+	storedApproval, ok := store.ApprovalGet(testDigest("a"))
+	if !ok {
+		t.Fatal("stored approval missing")
+	}
+	if storedApproval.PolicyDecisionHash != storedDecision.Digest {
+		t.Fatalf("stored approval policy_decision_hash = %q, want %q", storedApproval.PolicyDecisionHash, storedDecision.Digest)
 	}
 }
 

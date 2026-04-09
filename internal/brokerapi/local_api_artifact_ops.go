@@ -2,9 +2,12 @@ package brokerapi
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
 func (s *Service) HandleArtifactListV0(ctx context.Context, req LocalArtifactListRequest, meta RequestContext) (LocalArtifactListResponse, *ErrorResponse) {
@@ -116,12 +119,18 @@ func (s *Service) HandleArtifactRead(ctx context.Context, req ArtifactReadReques
 		cancel()
 		return ArtifactReadHandle{}, errResp
 	}
-	normalizedReq, errResp := s.normalizeArtifactReadRequest(requestID, req)
+	normalizedReq, head, errResp := s.prepareArtifactReadRequestState(requestID, req)
 	if errResp != nil {
 		release()
 		cancel()
 		return ArtifactReadHandle{}, errResp
 	}
+	if errResp := s.enforceArtifactReadPolicy(requestID, normalizedReq, head); errResp != nil {
+		release()
+		cancel()
+		return ArtifactReadHandle{}, errResp
+	}
+
 	r, record, err := s.GetForFlow(s.artifactReadRequestToStore(normalizedReq))
 	if err != nil {
 		release()
@@ -130,6 +139,43 @@ func (s *Service) HandleArtifactRead(ctx context.Context, req ArtifactReadReques
 		return ArtifactReadHandle{}, &errOut
 	}
 	return ArtifactReadHandle{RequestID: requestID, Digest: normalizedReq.Digest, DataClass: record.Reference.DataClass, StreamID: normalizedReq.StreamID, ChunkBytes: normalizedReq.ChunkBytes, Reader: r, RequestCtx: requestCtx, Cancel: cancel, Release: release}, nil
+}
+
+func (s *Service) prepareArtifactReadRequestState(requestID string, req ArtifactReadRequest) (ArtifactReadRequest, artifacts.ArtifactRecord, *ErrorResponse) {
+	normalizedReq, errResp := s.normalizeArtifactReadRequest(requestID, req)
+	if errResp != nil {
+		return ArtifactReadRequest{}, artifacts.ArtifactRecord{}, errResp
+	}
+	head, err := s.Head(normalizedReq.Digest)
+	if err != nil {
+		errOut := s.errorFromStore(requestID, err)
+		return ArtifactReadRequest{}, artifacts.ArtifactRecord{}, &errOut
+	}
+	return normalizedReq, head, nil
+}
+
+func (s *Service) enforceArtifactReadPolicy(requestID string, req ArtifactReadRequest, head artifacts.ArtifactRecord) *ErrorResponse {
+	if strings.TrimSpace(head.RunID) == "" {
+		return nil
+	}
+	action, err := policyActionForArtifactRead(req, head)
+	if err != nil {
+		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
+		return &errOut
+	}
+	decision, evalErr := s.EvaluateAction(head.RunID, action)
+	if evalErr != nil {
+		if errors.Is(evalErr, errPolicyContextUnavailable) {
+			return nil
+		}
+		errOut := s.errorFromPolicyEvaluation(requestID, evalErr)
+		return &errOut
+	}
+	if decision.DecisionOutcome == policyengine.DecisionAllow {
+		return nil
+	}
+	errOut := s.makeError(requestID, "broker_limit_policy_rejected", "policy", false, fmt.Sprintf("artifact read decision outcome %q (%s)", decision.DecisionOutcome, decision.PolicyReasonCode))
+	return &errOut
 }
 
 func (s *Service) prepareArtifactReadExecution(ctx context.Context, requestID string, meta RequestContext) (func(), context.Context, context.CancelFunc, *ErrorResponse) {

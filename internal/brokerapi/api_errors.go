@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
 func (s *Service) requestContextError(requestID string, requestCtx context.Context) *ErrorResponse {
@@ -76,6 +77,22 @@ func (s *Service) errorFromStore(requestID string, err error) ErrorResponse {
 	default:
 		return s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
 	}
+}
+
+func (s *Service) errorFromPolicyEvaluation(requestID string, err error) ErrorResponse {
+	var evalErr *policyengine.EvaluationError
+	if errors.As(err, &evalErr) {
+		code := string(evalErr.Code)
+		if strings.TrimSpace(code) == "" {
+			code = "broker_limit_policy_rejected"
+		}
+		category := evalErr.Category
+		if strings.TrimSpace(category) == "" {
+			category = "policy"
+		}
+		return s.makeError(requestID, code, category, evalErr.Retryable, evalErr.Message)
+	}
+	return s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
 }
 
 func contains(err error, needle string) bool {

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
@@ -32,7 +33,7 @@ func mustJSONRawMessage(t *testing.T, value any) json.RawMessage {
 func writeTempFile(t *testing.T, name, contents string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)
-	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
 		t.Fatalf("write temp file error: %v", err)
 	}
 	return path
@@ -98,6 +99,7 @@ func getArtifactViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, digest, produ
 
 func promoteViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, digest string, approvalRequestPath string, approvalEnvelopePath string) artifacts.ArtifactReference {
 	t.Helper()
+	seedPendingPromotionApprovalForCLI(t, digest, approvalRequestPath)
 	stdout.Reset()
 	err := run([]string{"promote-excerpt", "--unapproved-digest", digest, "--approver", "human", "--approval-request", approvalRequestPath, "--approval-envelope", approvalEnvelopePath, "--repo-path", "repo/file.txt", "--commit", "abc123", "--extractor-version", "tool-v1", "--full-content-visible"}, stdout, stderr)
 	if err != nil {
@@ -108,6 +110,49 @@ func promoteViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, digest string, ap
 		t.Fatalf("approved parse error: %v", unmarshalErr)
 	}
 	return approved
+}
+
+func seedPendingPromotionApprovalForCLI(t *testing.T, digest, approvalRequestPath string) {
+	t.Helper()
+	service, err := brokerServiceFactory()
+	if err != nil {
+		t.Fatalf("brokerServiceFactory returned error: %v", err)
+	}
+	requestEnv, err := loadSignedApprovalEnvelope(approvalRequestPath)
+	if err != nil {
+		t.Fatalf("loadSignedApprovalEnvelope(%q) error: %v", approvalRequestPath, err)
+	}
+	approvalID, err := approvalRequestDigestForCLITests(*requestEnv)
+	if err != nil {
+		t.Fatalf("approvalRequestDigestForCLITests returned error: %v", err)
+	}
+	payload := map[string]any{}
+	if err := json.Unmarshal(requestEnv.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal request payload error: %v", err)
+	}
+	expiresAt := mustTimeForCLITests(t, stringField(payload, "expires_at"))
+	if err := service.RecordApproval(artifacts.ApprovalRecord{
+		ApprovalID:             approvalID,
+		Status:                 "pending",
+		WorkspaceID:            "",
+		RunID:                  "",
+		StageID:                "",
+		ActionKind:             "promotion",
+		RequestedAt:            mustTimeForCLITests(t, stringField(payload, "requested_at")),
+		ExpiresAt:              &expiresAt,
+		ApprovalTriggerCode:    stringField(payload, "approval_trigger_code"),
+		ChangesIfApproved:      stringField(payload, "changes_if_approved"),
+		ApprovalAssuranceLevel: stringField(payload, "approval_assurance_level"),
+		PresenceMode:           stringField(payload, "presence_mode"),
+		ManifestHash:           digestField(payload, "manifest_hash"),
+		ActionRequestHash:      digestField(payload, "action_request_hash"),
+		RelevantArtifactHashes: digestListField(payload, "relevant_artifact_hashes"),
+		RequestDigest:          approvalID,
+		SourceDigest:           digest,
+		RequestEnvelope:        requestEnv,
+	}); err != nil {
+		t.Fatalf("RecordApproval returned error: %v", err)
+	}
 }
 
 func writeApprovalFixtures(t *testing.T, approver string, digest string, repoPath string, commit string, extractorVersion string) (string, string, []trustpolicy.VerifierRecord) {
@@ -138,7 +183,8 @@ func signedApprovalArtifactsForCLITests(t *testing.T, approver string, digest st
 	if err != nil {
 		t.Fatalf("GenerateKey error: %v", err)
 	}
-	request := approvalRequestFixture(approver, digest, repoPath, commit, extractorVersion)
+	now := time.Now().UTC()
+	request := approvalRequestFixture(approver, digest, repoPath, commit, extractorVersion, now)
 	requestPayload, err := json.Marshal(request)
 	if err != nil {
 		t.Fatalf("Marshal request error: %v", err)
@@ -155,7 +201,7 @@ func signedApprovalArtifactsForCLITests(t *testing.T, approver string, digest st
 		t.Fatalf("request digest error: %v", err)
 	}
 
-	decision := approvalDecisionFixture(approver, requestHash)
+	decision := approvalDecisionFixture(approver, requestHash, now)
 	decisionPayload, err := json.Marshal(decision)
 	if err != nil {
 		t.Fatalf("Marshal decision error: %v", err)
@@ -170,16 +216,25 @@ func signedApprovalArtifactsForCLITests(t *testing.T, approver string, digest st
 	return requestEnvelope, envelope, verifiers
 }
 
-func approvalDecisionFixture(approver string, requestHash string) map[string]any {
+func approvalDecisionFixture(approver string, requestHash string, now time.Time) map[string]any {
 	hashAlg, hash := splitDigestIdentity(requestHash)
-	return map[string]any{"schema_id": trustpolicy.ApprovalDecisionSchemaID, "schema_version": trustpolicy.ApprovalDecisionSchemaVersion, "approval_request_hash": map[string]any{"hash_alg": hashAlg, "hash": hash}, "approver": map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "user", "principal_id": approver, "instance_id": "approval-session"}, "decision_outcome": "approve", "approval_assurance_level": "reauthenticated", "presence_mode": "hardware_touch", "key_protection_posture": "hardware_backed", "identity_binding_posture": "attested", "approval_assertion_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("f", 64)}, "decided_at": "2026-03-13T12:05:00Z", "consumption_posture": "single_use", "signatures": []any{approvalDecisionSignaturePlaceholder()}}
+	return map[string]any{"schema_id": trustpolicy.ApprovalDecisionSchemaID, "schema_version": trustpolicy.ApprovalDecisionSchemaVersion, "approval_request_hash": map[string]any{"hash_alg": hashAlg, "hash": hash}, "approver": map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "user", "principal_id": approver, "instance_id": "approval-session"}, "decision_outcome": "approve", "approval_assurance_level": "reauthenticated", "presence_mode": "hardware_touch", "key_protection_posture": "hardware_backed", "identity_binding_posture": "attested", "approval_assertion_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("f", 64)}, "decided_at": now.Format(time.RFC3339), "consumption_posture": "single_use", "signatures": []any{approvalDecisionSignaturePlaceholder()}}
 }
 
-func approvalRequestFixture(approver string, digest string, repoPath string, commit string, extractorVersion string) map[string]any {
-	actionHash := promotionActionHashForCLITests(digest, repoPath, commit, extractorVersion, approver)
+func approvalRequestFixture(approver string, digest string, repoPath string, commit string, extractorVersion string, now time.Time) map[string]any {
+	actionHash, err := artifacts.CanonicalPromotionActionRequestHash(artifacts.PromotionRequest{
+		UnapprovedDigest:     digest,
+		Approver:             approver,
+		RepoPath:             repoPath,
+		Commit:               commit,
+		ExtractorToolVersion: extractorVersion,
+	})
+	if err != nil {
+		panic(err)
+	}
 	actionHashAlg, actionHashValue := splitDigestIdentity(actionHash)
 	digestHashAlg, digestHashValue := splitDigestIdentity(digest)
-	return map[string]any{"schema_id": trustpolicy.ApprovalRequestSchemaID, "schema_version": trustpolicy.ApprovalRequestSchemaVersion, "approval_profile": "moderate", "requester": map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "broker", "instance_id": "broker-artifact-store"}, "approval_trigger_code": "excerpt_promotion", "manifest_hash": map[string]any{"hash_alg": digestHashAlg, "hash": digestHashValue}, "action_request_hash": map[string]any{"hash_alg": actionHashAlg, "hash": actionHashValue}, "relevant_artifact_hashes": []any{map[string]any{"hash_alg": digestHashAlg, "hash": digestHashValue}}, "details_schema_id": "runecode.protocol.details.approval.excerpt-promotion.v0", "details": map[string]any{"repo_path": repoPath, "commit": commit}, "approval_assurance_level": "reauthenticated", "presence_mode": "hardware_touch", "requested_at": "2026-03-13T12:00:00Z", "expires_at": "2026-03-13T12:30:00Z", "staleness_posture": "invalidate_on_bound_input_change", "changes_if_approved": "Promote reviewed file excerpts for downstream use.", "signatures": []any{approvalDecisionSignaturePlaceholder()}}
+	return map[string]any{"schema_id": trustpolicy.ApprovalRequestSchemaID, "schema_version": trustpolicy.ApprovalRequestSchemaVersion, "approval_profile": "moderate", "requester": map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "broker", "instance_id": "broker-artifact-store"}, "approval_trigger_code": "excerpt_promotion", "manifest_hash": map[string]any{"hash_alg": digestHashAlg, "hash": digestHashValue}, "action_request_hash": map[string]any{"hash_alg": actionHashAlg, "hash": actionHashValue}, "relevant_artifact_hashes": []any{map[string]any{"hash_alg": digestHashAlg, "hash": digestHashValue}}, "details_schema_id": "runecode.protocol.details.approval.excerpt-promotion.v0", "details": map[string]any{"repo_path": repoPath, "commit": commit}, "approval_assurance_level": "reauthenticated", "presence_mode": "hardware_touch", "requested_at": now.Add(-1 * time.Minute).Format(time.RFC3339), "expires_at": now.Add(30 * time.Minute).Format(time.RFC3339), "staleness_posture": "invalidate_on_bound_input_change", "changes_if_approved": "Promote reviewed file excerpts for downstream use.", "signatures": []any{approvalDecisionSignaturePlaceholder()}}
 }
 
 func approvalDecisionSignaturePlaceholder() map[string]any {
@@ -214,36 +269,6 @@ func splitDigestIdentity(identity string) (string, string) {
 	return parts[0], parts[1]
 }
 
-func promotionActionHashForCLITests(digest string, repoPath string, commit string, extractorVersion string, approver string) string {
-	payload, err := json.Marshal(map[string]any{
-		"schema_id":                "runecode.protocol.v0.ActionRequest",
-		"schema_version":           "0.1.0",
-		"action_kind":              "promotion",
-		"capability_id":            "promotion",
-		"action_payload_schema_id": "runecode.protocol.v0.ActionPayloadPromotion",
-		"action_payload": map[string]any{
-			"schema_id":              "runecode.protocol.v0.ActionPayloadPromotion",
-			"schema_version":         "0.1.0",
-			"promotion_kind":         "excerpt",
-			"source_artifact_hash":   digest,
-			"target_data_class":      "approved_file_excerpts",
-			"justification":          "promotion approval request",
-			"repo_path":              repoPath,
-			"commit":                 commit,
-			"extractor_tool_version": extractorVersion,
-			"approver":               approver,
-		},
-	})
-	if err != nil {
-		panic(err)
-	}
-	canonical, err := jsoncanonicalizer.Transform(payload)
-	if err != nil {
-		panic(err)
-	}
-	return "sha256:" + sha256Hex(canonical)
-}
-
 func seedTrustedVerifierForBrokerCLITest(t *testing.T, verifiers []trustpolicy.VerifierRecord) {
 	t.Helper()
 	for index := range verifiers {
@@ -260,6 +285,53 @@ func seedTrustedVerifierForBrokerCLITest(t *testing.T, verifiers []trustpolicy.V
 			t.Fatalf("import-trusted-contract returned error: %v", err)
 		}
 	}
+}
+
+func approvalRequestDigestForCLITests(envelope trustpolicy.SignedObjectEnvelope) (string, error) {
+	canonical, err := jsoncanonicalizer.Transform(envelope.Payload)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(canonical)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+func mustTimeForCLITests(t *testing.T, value string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		t.Fatalf("time.Parse returned error for %q: %v", value, err)
+	}
+	return parsed
+}
+
+func stringField(payload map[string]any, key string) string {
+	value, _ := payload[key].(string)
+	return value
+}
+
+func digestField(payload map[string]any, key string) string {
+	obj, _ := payload[key].(map[string]any)
+	hashAlg, _ := obj["hash_alg"].(string)
+	hash, _ := obj["hash"].(string)
+	if hashAlg == "" || hash == "" {
+		return ""
+	}
+	return hashAlg + ":" + hash
+}
+
+func digestListField(payload map[string]any, key string) []string {
+	items, _ := payload[key].([]any)
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		obj, _ := item.(map[string]any)
+		hashAlg, _ := obj["hash_alg"].(string)
+		hash, _ := obj["hash"].(string)
+		if hashAlg != "" && hash != "" {
+			out = append(out, hashAlg+":"+hash)
+		}
+	}
+	return out
 }
 
 func writeTrustedImportEvidenceFixture(t *testing.T, kind string) string {

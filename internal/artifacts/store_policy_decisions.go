@@ -3,7 +3,6 @@ package artifacts
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
@@ -16,43 +15,94 @@ func (s *Store) RecordPolicyDecision(record PolicyDecisionRecord) error {
 }
 
 func (s *Store) recordPolicyDecisionLocked(record PolicyDecisionRecord) error {
-	if err := validatePolicyDecisionRecord(record); err != nil {
-		return err
-	}
-	payload, payloadBytes, err := canonicalizePolicyDecisionRecord(record)
+	persisted, err := s.preparePolicyDecisionForPersist(record)
 	if err != nil {
 		return err
 	}
+	if persisted.idempotentNoop {
+		return nil
+	}
+	seq, err := s.appendPolicyDecisionAuditEvent(persisted.record, persisted.payload)
+	if err != nil {
+		return err
+	}
+	persisted.record.AuditEventType = "policy_decision_recorded"
+	persisted.record.AuditEventSeq = seq
+	s.persistPolicyDecisionRecord(persisted.record)
+	if err := s.maybePersistDerivedApproval(persisted.record, seq); err != nil {
+		return err
+	}
+	return s.saveStateLocked()
+}
+
+type preparedPolicyDecision struct {
+	record         PolicyDecisionRecord
+	payload        map[string]any
+	bytes          []byte
+	idempotentNoop bool
+}
+
+func (s *Store) preparePolicyDecisionForPersist(record PolicyDecisionRecord) (preparedPolicyDecision, error) {
+	if err := validatePolicyDecisionRecord(record); err != nil {
+		return preparedPolicyDecision{}, err
+	}
+	payload, payloadBytes, err := canonicalizePolicyDecisionRecord(record)
+	if err != nil {
+		return preparedPolicyDecision{}, err
+	}
 	if err := validateObjectPayloadAgainstSchema(payloadBytes, "objects/PolicyDecision.schema.json"); err != nil {
-		return fmt.Errorf("validate persisted policy decision payload: %w", err)
+		return preparedPolicyDecision{}, fmt.Errorf("validate persisted policy decision payload: %w", err)
 	}
 	if err := applyComputedPolicyDecisionDigest(&record, payloadBytes); err != nil {
-		return err
+		return preparedPolicyDecision{}, err
 	}
 	if record.RecordedAt.IsZero() {
 		record.RecordedAt = s.nowFn().UTC()
 	}
 	if done, err := s.ensureNoConflictingExistingDecision(record, payloadBytes); done {
-		return err
+		if err != nil {
+			return preparedPolicyDecision{}, err
+		}
+		return preparedPolicyDecision{idempotentNoop: true}, nil
 	}
+	return preparedPolicyDecision{record: record, payload: payload, bytes: payloadBytes}, nil
+}
+
+func (s *Store) appendPolicyDecisionAuditEvent(record PolicyDecisionRecord, payload map[string]any) (int64, error) {
 	details := policyDecisionAuditDetails(record, payload)
 	s.state.LastAuditSequence++
 	seq := s.state.LastAuditSequence
 	event := newAuditEvent(seq, "policy_decision_recorded", "policyengine", details, s.nowFn)
 	if err := s.storeIO.appendAuditEvent(event); err != nil {
 		s.state.LastAuditSequence--
+		return 0, err
+	}
+	return seq, nil
+}
+
+func (s *Store) persistPolicyDecisionRecord(record PolicyDecisionRecord) {
+	s.state.PolicyDecisions[record.Digest] = record
+	if record.RunID == "" {
+		return
+	}
+	refs := append([]string{}, s.state.RunPolicyDecisionRefs[record.RunID]...)
+	refs = append(refs, record.Digest)
+	s.state.RunPolicyDecisionRefs[record.RunID] = uniqueSortedStrings(refs)
+}
+
+func (s *Store) maybePersistDerivedApproval(record PolicyDecisionRecord, seq int64) error {
+	approval, ok, err := buildApprovalFromPolicyDecision(record, s.nowFn)
+	if err != nil {
 		return err
 	}
-	record.AuditEventType = "policy_decision_recorded"
-	record.AuditEventSeq = seq
-
-	s.state.PolicyDecisions[record.Digest] = record
-	if record.RunID != "" {
-		refs := append([]string{}, s.state.RunPolicyDecisionRefs[record.RunID]...)
-		refs = append(refs, record.Digest)
-		s.state.RunPolicyDecisionRefs[record.RunID] = uniqueSortedStrings(refs)
+	if !ok {
+		return nil
 	}
-	return s.saveStateLocked()
+	approval.AuditEventType = "policy_decision_recorded"
+	approval.AuditEventSeq = seq
+	s.state.Approvals[approval.ApprovalID] = approval
+	rebuildRunApprovalRefsLocked(&s.state)
+	return nil
 }
 
 func validatePolicyDecisionRecord(record PolicyDecisionRecord) error {
@@ -207,19 +257,4 @@ func (s *Store) PolicyDecisionRefsForRun(runID string) []string {
 		return []string{}
 	}
 	return refs
-}
-
-func uniqueSortedStrings(values []string) []string {
-	if len(values) == 0 {
-		return []string{}
-	}
-	clone := append([]string{}, values...)
-	sort.Strings(clone)
-	out := make([]string, 0, len(clone))
-	for _, v := range clone {
-		if len(out) == 0 || out[len(out)-1] != v {
-			out = append(out, v)
-		}
-	}
-	return out
 }
