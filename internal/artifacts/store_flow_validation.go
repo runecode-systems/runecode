@@ -39,7 +39,7 @@ func (s *Store) enforceFlowPolicyLocked(req FlowCheckRequest) error {
 	outcome, reason, details := policyengine.EvaluateArtifactFlowRules(policyengine.ArtifactFlowPolicy{
 		UnapprovedExcerptEgressDenied:  s.state.Policy.UnapprovedExcerptEgressDenied,
 		ApprovedExcerptEgressOptInOnly: s.state.Policy.ApprovedExcerptEgressOptInOnly,
-		RevokedDigests:                 s.state.Policy.RevokedApprovedExcerptHashes,
+		RevokedApprovedExcerptDigests:  s.state.Policy.RevokedApprovedExcerptHashes,
 		FlowMatrix:                     flowRules,
 	}, policyengine.ArtifactFlowRequest{
 		ProducerRole:  req.ProducerRole,

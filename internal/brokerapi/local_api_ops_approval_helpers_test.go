@@ -37,6 +37,31 @@ func TestArtifactReadRequiresManifestOptInForApprovedExcerpt(t *testing.T) {
 	})
 }
 
+func TestArtifactReadRejectsRevokedApprovedExcerpt(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	approved := setupApprovedExcerptArtifactForReadTests(t, s)
+	if err := s.RevokeApprovedExcerpt(approved.Digest, "human"); err != nil {
+		t.Fatalf("RevokeApprovedExcerpt returned error: %v", err)
+	}
+
+	_, errResp := s.HandleArtifactRead(context.Background(), ArtifactReadRequest{
+		SchemaID:      "runecode.protocol.v0.ArtifactReadRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-approved-revoked",
+		Digest:        approved.Digest,
+		ProducerRole:  "workspace",
+		ConsumerRole:  "model_gateway",
+		DataClass:     string(artifacts.DataClassApprovedFileExcerpts),
+		ManifestOptIn: true,
+	}, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleArtifactRead expected revoked approved excerpt denial")
+	}
+	if errResp.Error.Code != "broker_limit_policy_rejected" {
+		t.Fatalf("error code = %q, want broker_limit_policy_rejected", errResp.Error.Code)
+	}
+}
+
 func setupApprovedExcerptArtifactForReadTests(t *testing.T, s *Service) artifacts.ArtifactReference {
 	t.Helper()
 	runID := "run-approved-read"

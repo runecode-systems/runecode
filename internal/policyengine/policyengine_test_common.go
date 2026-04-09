@@ -3,6 +3,7 @@ package policyengine
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -75,7 +76,11 @@ func failTestOrPanic(t *testing.T, format string, args ...any) {
 }
 
 func mustDigestObject(identity string) map[string]any {
-	return map[string]any{"hash_alg": "sha256", "hash": identity[len("sha256:"):]}
+	const prefix = "sha256:"
+	if !strings.HasPrefix(identity, prefix) || len(identity) <= len(prefix) {
+		panic(fmt.Sprintf("mustDigestObject: invalid identity %q: must have sha256: prefix with non-empty hash", identity))
+	}
+	return map[string]any{"hash_alg": "sha256", "hash": identity[len(prefix):]}
 }
 
 func toAnySlice(values []string) []any {

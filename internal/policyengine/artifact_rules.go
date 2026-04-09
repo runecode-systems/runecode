@@ -11,8 +11,10 @@ type ArtifactFlowRule struct {
 type ArtifactFlowPolicy struct {
 	UnapprovedExcerptEgressDenied  bool
 	ApprovedExcerptEgressOptInOnly bool
-	RevokedDigests                 map[string]bool
-	FlowMatrix                     []ArtifactFlowRule
+	// RevokedApprovedExcerptDigests is exclusively checked against approved_file_excerpts
+	// data class requests. Digests of other data classes are not evaluated against this set.
+	RevokedApprovedExcerptDigests map[string]bool
+	FlowMatrix                    []ArtifactFlowRule
 }
 
 type ArtifactFlowRequest struct {
@@ -38,7 +40,7 @@ func evaluateArtifactFlowRestrictions(policy ArtifactFlowPolicy, req ArtifactFlo
 	if req.IsEgress && req.DataClass == "approved_file_excerpts" && policy.ApprovedExcerptEgressOptInOnly && !req.ManifestOptIn {
 		return DecisionDeny, "approved_excerpt_requires_manifest_opt_in", map[string]any{"digest": req.Digest}, true
 	}
-	if policy.RevokedDigests != nil && policy.RevokedDigests[req.Digest] {
+	if req.DataClass == "approved_file_excerpts" && policy.RevokedApprovedExcerptDigests != nil && policy.RevokedApprovedExcerptDigests[req.Digest] {
 		return DecisionDeny, "approved_excerpt_revoked", map[string]any{"digest": req.Digest}, true
 	}
 	return "", "", nil, false
