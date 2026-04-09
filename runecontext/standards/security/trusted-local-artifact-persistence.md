@@ -19,5 +19,7 @@ When trusted Go services persist artifact-store state, audit logs, or backup mat
 - Keep Windows portability explicit: permission-bit assertions may differ there, but the implementation should still avoid broader-than-necessary defaults
 - Persist audit-sequence state so restarted processes do not reuse audit sequence numbers after partial failures
 - If persisted audit data can get ahead of persisted state, startup must reconcile to the highest durable audit sequence before new events are emitted
-- Backup and restore must preserve integrity/authenticity checks and must not bypass artifact digest validation
+- Treat durable approval records, policy decisions, revocation state, and their linkage metadata as trusted local state with the same fail-closed expectations as artifact and audit persistence
+- Backup and restore must preserve integrity/authenticity checks and must not bypass artifact digest validation, approval binding checks, policy-decision identity, or revocation durability
+- After restart or restore, fail closed unless persisted revocation and policy-decision state is reconstructed consistently enough to preserve prior deny outcomes and approval linkage
 - Tests should cover both nominal persistence and fail-closed recovery paths for audit/state divergence

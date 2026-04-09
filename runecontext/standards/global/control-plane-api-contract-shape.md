@@ -22,3 +22,4 @@ Boundary-visible control-plane APIs must keep their logical contract explicit, t
 - Stream families must use explicit typed events with stable stream identity, monotonic sequence numbers, and exactly one terminal event.
 - Use opaque cursor pagination and explicit ordering semantics for list and timeline operations; do not rely on page-number conventions or undocumented default sort behavior.
 - Keep transport bindings, local IPC details, and CLI ergonomics as implementations of the logical API contract rather than the source of that contract.
+- Keep operator CLI commands as thin adapters over the same trusted service semantics and typed contracts; do not introduce separate CLI-only allow/deny behavior, approval resolution rules, or revocation semantics that bypass the canonical control-plane path.
