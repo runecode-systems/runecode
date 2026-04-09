@@ -9,6 +9,10 @@ Use this change as the project-level tracker for secure workflow execution while
 - Security invariants remain untrusted-runner, policy enforcement, and evidence-backed execution.
 - Integration posture includes one shared broker logical API vocabulary for runs, approvals, audit posture, and operator-visible blocked state across child features.
 - Integration posture also includes one shared policy vocabulary for canonical action identity, role taxonomy, gateway destination semantics, and exact-action-vs-stage-sign-off approval behavior across child features.
+- Integration posture also includes one shared runtime-isolation contract vocabulary across child features:
+  - backend-neutral launch/session/attachment seams
+  - runtime posture vocabulary (`backend_kind`, runtime isolation assurance, provisioning/binding posture, audit posture)
+  - authoritative launcher/broker runtime-state projection
 
 ## Main Workstreams
 - `CHG-2026-033-6e7b-workflow-runner-durable-state-v0`

@@ -7,6 +7,7 @@ This feature now has a canonical RuneContext change record, preserving the migra
 ## Proposed Change
 - Define a transport-neutral logical broker API with protocol-owned typed request, response, read-model, and stream object families.
 - Make run inspection first-class with `list runs` and `get run detail` surfaces that later TUI, CLI, concurrency, and remote/bridge work can build on without redefining run identity or lifecycle state.
+- Keep run posture semantics explicit so broker read models do not collapse backend kind, runtime isolation assurance, provisioning posture, and audit posture into one ambiguous status field.
 - Carry approval review and resolution through typed signed approval artifacts, canonical approval-request identity, structured bound-scope metadata, and explicit approval lifecycle states.
 - Expose artifact and audit reads through broker-owned derived views that preserve trust boundaries and do not leak daemon-private storage internals.
 - Keep local IPC auth, permissions, framing, limits, and rate posture explicit while preserving topology-neutral logical contracts for later alternate transports.
@@ -19,6 +20,7 @@ Core API foundation decisions for this change:
 - Failed terminal stream events carry the shared typed error envelope rather than transport-specific failure framing.
 - Public broker read models stay operator-facing and topology-neutral; they do not expose host-local blob paths, socket names, usernames, or other transport/storage implementation details except optional diagnostics where explicitly allowed.
 - Broker-visible state separates authoritative trusted or broker-derived status from runner-internal advisory state so the local API does not accidentally elevate untrusted orchestration details into trusted truth.
+- Broker run surfaces must expose backend/runtime posture as distinct dimensions so later microVM/container, TUI, durable-state, and cross-platform changes can reuse one operator vocabulary.
 
 ## Why Now
 This work remains scheduled for v0.1.0-alpha.3, and it is the narrowest point where RuneCode can set one durable control-plane API foundation before TUI, runner durable state, concurrency, and alternate transport work land.

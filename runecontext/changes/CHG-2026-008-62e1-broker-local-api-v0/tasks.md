@@ -62,6 +62,11 @@ Additional MVP endpoints:
   - `VersionInfoGetRequest` / `VersionInfoGetResponse`
 - [x] Define `RunSummary` as the stable list-facing run model with lifecycle state, current stage, pending approval count, active profile, backend kind, assurance level, and audit posture summary.
 - [x] Define `RunDetail` as the stable drill-down run model with stage summaries, role summaries, coordination state, audit summary, artifact counts, pending approvals, and explicit separation of authoritative vs advisory state.
+- [ ] Tighten `RunSummary` / `RunDetail` posture semantics so:
+  - `backend_kind` identifies the selected backend class and stays topology-neutral
+  - `assurance_level` refers only to runtime isolation assurance
+  - provisioning/binding posture remains separate from both `backend_kind` and audit posture
+  - audit posture remains represented through explicit audit summary fields rather than overloaded into runtime assurance
 - [x] Define the broker run lifecycle vocabulary explicitly and reuse it across the TUI and future runner integration.
 - [x] Define approval identity as the canonical approval-request identity shared with policy and runner state rather than a transport/session-local identifier.
 - [x] Define explicit approval status vocabulary and bound-scope metadata so blocked work and later supersession/consumption semantics remain machine-readable.
@@ -69,6 +74,7 @@ Additional MVP endpoints:
 - [x] Define artifact public read models around `ArtifactReference` without exposing daemon-private storage paths or host-local implementation details.
 - [x] Reuse or directly map audit operational-view and verification-summary contracts rather than inventing a second broker-specific audit vocabulary.
 - [x] Use opaque cursor-based pagination for paged reads and specify ordering semantics per operation.
+- [ ] Keep authoritative backend/runtime facts launcher/broker-derived and avoid deriving runtime isolation assurance from audit verification posture or runner-local status alone.
 
 Parallelization: can be implemented in parallel with TUI and runner development once the core request/response schemas are defined.
 
@@ -129,4 +135,5 @@ Parallelization: can be implemented in parallel with log and artifact work once 
 - [x] Approval-related API surfaces carry typed signed approval artifacts; transport identity alone never authorizes high-risk actions.
 - [x] Run list and run detail are first-class typed broker reads rather than TUI-only derived shortcuts.
 - [x] Broker read models remain topology-neutral and do not leak daemon-private storage or transport implementation details.
+- [ ] Broker run read models keep backend kind, runtime isolation assurance, provisioning/binding posture, and audit posture as distinct operator-facing concepts.
 - [x] Later protobuf transport work can map 1:1 to the logical broker API without changing operation semantics, status vocabularies, or stream semantics.

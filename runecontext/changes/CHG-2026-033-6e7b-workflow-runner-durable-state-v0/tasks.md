@@ -16,6 +16,8 @@
 - [ ] Persist whether a pending approval is an exact-action approval or a stage sign-off and retain the canonical bound action hash or stage summary hash needed to validate consumption after restart.
 - [ ] Persist enough run summary and drill-down state for the broker to produce stable `RunSummary` and `RunDetail` read models without scraping runner internals.
 - [ ] Keep runner-only orchestration detail explicitly separate from any authoritative broker-exposed run posture.
+- [ ] Treat authoritative backend/runtime facts as launcher-derived broker state, not runner-owned truth.
+- [ ] Do not collapse `backend_kind`, runtime isolation assurance, provisioning/binding posture, and audit posture into one runner-local status field.
 
 ## Execution Loop
 
@@ -25,6 +27,7 @@
 - [ ] Ensure approval consumption is bound to the exact request scope/hash so unrelated work cannot accidentally consume or satisfy the wrong approval.
 - [ ] Supersede stale stage sign-off approvals when the bound stage summary hash changes before consumption.
 - [ ] Ensure broker-exposed blocked-state and pending-approval summaries can be derived deterministically from runner state without inventing a second approval model.
+- [ ] Ensure runner/orchestrator state integrates with launcher-backed runtime state without redefining launch/session/attachment semantics locally.
 
 ## Acceptance Criteria
 

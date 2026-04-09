@@ -5,8 +5,9 @@ Improve macOS virtualization reliability, packaging, and UX without changing the
 
 ## Key Decisions
 - Any macOS-specific backend changes must preserve the same capability model.
-- UX must keep assurance levels explicit.
-- Backend kind and assurance posture must remain aligned with the shared broker run-summary/run-detail contract rather than becoming platform-specific UI metadata.
+- UX must keep backend kind, runtime isolation assurance, provisioning/binding posture, and audit posture explicit rather than flattening them into one generic “assurance” label.
+- Backend kind and runtime posture must remain aligned with the shared broker run-summary/run-detail contract rather than becoming platform-specific UI metadata.
+- HVF-backed QEMU or a later Virtualization.framework implementation must preserve the same backend-neutral launch/session/attachment semantics, hardening posture model, and isolate-session audit payload semantics established by the Linux-first microVM backend.
 
 ## Main Workstreams
 - HVF Reliability + UX

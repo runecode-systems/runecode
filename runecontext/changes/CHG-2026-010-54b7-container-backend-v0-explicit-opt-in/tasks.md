@@ -1,10 +1,18 @@
 # Tasks
 
+## Shared Backend Contract Alignment
+
+- [ ] Reuse the backend-neutral logical seams established by `CHG-2026-009-1672-launcher-microvm-backend-v0` where applicable, including launch intent, attachment planning, hardening posture recording, and terminal reporting.
+- [ ] Keep `backend_kind` and runtime isolation assurance separate from audit posture and any backend-specific implementation evidence.
+- [ ] Keep container runtime implementation details out of operator-facing run identity and public contracts.
+
+Parallelization: should be agreed before container-specific implementation details expand; it depends on the finalized CHG-009 contract vocabulary.
+
 ## Opt-In UX + Audit
 
 - [ ] Add an explicit “run with container backend” opt-in flow.
 - [ ] Require an explicit user acknowledgment of reduced assurance.
-- [ ] Record the opt-in and the active backend in the audit log.
+- [ ] Record the opt-in, active `backend_kind`, runtime isolation assurance, and degraded posture in audit and shared broker run surfaces.
 
 Parallelization: can be implemented in parallel with TUI work; it depends on stable approval/audit event schemas.
 
@@ -26,7 +34,7 @@ Parallelization: can be implemented in parallel with the microVM backend; coordi
 ## No Host Mounts + Artifact Movement
 
 - [ ] Maintain the same “no host filesystem mounts” rule.
-- [ ] Provide artifacts/workspace state via explicit images/volumes that preserve the same data-movement semantics.
+- [ ] Provide artifacts/workspace state via explicit images/volumes that preserve the same data-movement semantics and logical attachment roles established by the shared `AttachmentPlan` model.
 
 Parallelization: can be implemented in parallel with artifact store work; it depends on stable artifact attachment semantics.
 
@@ -41,5 +49,5 @@ Parallelization: can be implemented in parallel with policy engine and launcher;
 
 - [ ] Container mode cannot be enabled without an explicit recorded opt-in.
 - [ ] The reduced assurance posture is unmissable in UX and audit.
-- [ ] Role capabilities and artifact routing semantics remain consistent across backends.
+- [ ] Role capabilities, attachment semantics, and artifact routing semantics remain consistent across backends.
 - [ ] Deny-by-default egress is real (attempted outbound connections fail unless explicitly allowed and audited).

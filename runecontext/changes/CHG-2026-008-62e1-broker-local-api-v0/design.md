@@ -21,6 +21,7 @@ Implement the brokered local API contract that mediates all isolate RPC, local c
 - Broker policy-facing identity stays aligned with shared policy foundations: action-derived approvals bind canonical `ActionRequest` hashes, stage sign-off approvals bind canonical stage summary hashes, and `manifest_hash` refers to the compiled effective policy-context hash rather than one raw source manifest.
 - Streaming semantics are uniform across stream families: `stream_id`, monotonic `seq`, exactly one terminal event, and terminal failure carried as a typed protocol error.
 - Broker-visible state separates authoritative broker-derived or trusted state from runner advisory state so operator UX can consume real posture without promoting untrusted internals into trusted truth.
+- Broker-visible run posture must keep backend kind, runtime isolation assurance, provisioning/binding posture, and audit posture as distinct concepts rather than overloading one “assurance” field with multiple meanings.
 
 ## Logical API Model
 
@@ -83,6 +84,13 @@ These object families are the semantic API surface that later protobuf/gRPC tran
 - `blocking_reason_code`
 - audit posture summary fields such as `audit_integrity_status`, `audit_anchoring_status`, and `audit_currently_degraded`
 
+Run posture semantics must remain explicit:
+- `backend_kind` identifies the selected execution backend class and should stay topology-neutral (for example `microvm` or `container`, not `qemu`, `docker`, `hvf`, or `whpx`).
+- `assurance_level` should refer only to runtime isolation assurance. If schema evolution later allows a clearer field name such as `isolation_assurance_level`, that should be treated as a naming refinement rather than a change in semantics.
+- Provisioning/binding posture (for example TOFU vs later attested variants) is separate from `assurance_level` and should not be smuggled into `backend_kind` or audit-only prose.
+- Audit posture remains separate and continues to be represented through explicit audit summary fields rather than folded into `assurance_level`.
+- When authoritative launcher/runtime facts are unavailable, the broker should fail closed or surface explicit degraded/unknown posture rather than inferring backend/runtime posture from unrelated audit or runner data.
+
 Recommended lifecycle vocabulary:
 - `pending`
 - `starting`
@@ -107,10 +115,20 @@ This vocabulary is intentionally richer than one generic status string so future
 - latest policy-decision references where useful for operator understanding
 - optional runner advisory information kept explicitly non-authoritative
 
+`RunDetail.authoritative_state` should remain the place for additional trusted runtime facts that do not fit in the stable list-facing summary, including where useful:
+- isolate/session identity references
+- runtime image identity references
+- applied hardening posture summaries
+- backend terminal/failure reason codes
+
+These details should extend the summary posture model, not redefine it.
+
 ### Authoritative vs Advisory Run State
 - Broker-derived trusted state and trusted daemon state are first-class in the API.
 - Runner-reported orchestration details may be exposed only as explicit advisory metadata.
 - The API must not require clients to trust untrusted runner persistence as the source of run truth.
+- Authoritative backend/runtime facts should come from trusted launcher/broker state, not runner-local inference.
+- The broker should not derive runtime isolation assurance from audit verification posture alone; audit posture and runtime isolation posture are related but distinct operator-facing signals.
 
 ## Approval Model
 

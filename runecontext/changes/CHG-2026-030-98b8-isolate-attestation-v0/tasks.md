@@ -3,8 +3,15 @@
 ## Attestation Evidence Model
 
 - [ ] Define the attestation evidence objects that upgrade an isolate or session from TOFU to an attested binding.
-- [ ] Keep evidence bound at least to image identity, session identity, and provisioning evidence.
+- [ ] Keep evidence bound at least to:
+  - session identity
+  - `session_nonce`
+  - `handshake_transcript_hash`
+  - runtime image descriptor identity
+  - concrete boot component digests
+  - prior provisioning evidence
 - [ ] Preserve compatibility with the MVP audit/event envelope so previously recorded TOFU fields do not need a format break.
+- [ ] Preserve compatibility with the `IsolateSessionBinding` model and the `isolate_session_started` / `isolate_session_bound` audit event families so attestation upgrades the same session-key model rather than replacing it.
 
 ## Launch, Verification, and Policy Integration
 
