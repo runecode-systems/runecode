@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ActionPayloadArtifactRead.schema.json",
+  "title": "ActionPayloadArtifactRead",
+  "description": "Typed action payload for artifact read operations.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 7,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "artifact_hash",
+    "read_mode"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.ActionPayloadArtifactRead",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "artifact_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Artifact hash requested for reading.",
+      "x-data-class": "public"
+    },
+    "read_mode": {
+      "type": "string",
+      "enum": [
+        "head",
+        "full"
+      ],
+      "description": "Artifact read mode.",
+      "x-data-class": "public"
+    },
+    "expected_data_class": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Expected artifact data class.",
+      "x-data-class": "public"
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Declared reason for artifact access.",
+      "x-data-class": "public"
+    },
+    "max_bytes": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional read byte ceiling.",
+      "x-data-class": "public"
+    }
+  }
+}

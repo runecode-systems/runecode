@@ -61,6 +61,60 @@
       "expect_valid": true
     },
     {
+      "id": "destination-descriptor.valid-model-endpoint",
+      "schema_path": "objects/DestinationDescriptor.schema.json",
+      "fixture_path": "schema/destination-descriptor.valid-model-endpoint.json",
+      "expect_valid": true
+    },
+    {
+      "id": "destination-descriptor.valid-auth-provider",
+      "schema_path": "objects/DestinationDescriptor.schema.json",
+      "fixture_path": "schema/destination-descriptor.valid-auth-provider.json",
+      "expect_valid": true
+    },
+    {
+      "id": "destination-descriptor.valid-git-remote",
+      "schema_path": "objects/DestinationDescriptor.schema.json",
+      "fixture_path": "schema/destination-descriptor.valid-git-remote.json",
+      "expect_valid": true
+    },
+    {
+      "id": "destination-descriptor.valid-web-origin",
+      "schema_path": "objects/DestinationDescriptor.schema.json",
+      "fixture_path": "schema/destination-descriptor.valid-web-origin.json",
+      "expect_valid": true
+    },
+    {
+      "id": "destination-descriptor.valid-package-registry",
+      "schema_path": "objects/DestinationDescriptor.schema.json",
+      "fixture_path": "schema/destination-descriptor.valid-package-registry.json",
+      "expect_valid": true
+    },
+    {
+      "id": "gateway-scope-rule.valid-model-endpoint",
+      "schema_path": "objects/GatewayScopeRule.schema.json",
+      "fixture_path": "schema/gateway-scope-rule.valid-model-endpoint.json",
+      "expect_valid": true
+    },
+    {
+      "id": "gateway-scope-rule.invalid-raw-url-entry",
+      "schema_path": "objects/GatewayScopeRule.schema.json",
+      "fixture_path": "schema/gateway-scope-rule.invalid-raw-url-entry.json",
+      "expect_valid": false
+    },
+    {
+      "id": "policy-allowlist.valid-gateway-scope-rules",
+      "schema_path": "objects/PolicyAllowlist.schema.json",
+      "fixture_path": "schema/policy-allowlist.valid-gateway-scope-rules.json",
+      "expect_valid": true
+    },
+    {
+      "id": "policy-allowlist.invalid-string-entry",
+      "schema_path": "objects/PolicyAllowlist.schema.json",
+      "fixture_path": "schema/policy-allowlist.invalid-string-entry.json",
+      "expect_valid": false
+    },
+    {
       "id": "artifact-reference.valid-spec-text",
       "schema_path": "objects/ArtifactReference.schema.json",
       "fixture_path": "schema/artifact-reference.valid-spec-text.json",
@@ -261,7 +315,7 @@
       "id": "principal-identity.basic",
       "payload_path": "canonical/principal-identity.basic.payload.json",
       "canonical_json_path": "canonical/principal-identity.basic.canonical.json",
-      "sha256": "2d43d3ddae451441fd087ba5c5a84ea6e4a8791d404cd3ac1b9fd7ddab0bfff4",
+      "sha256": "aa8e5e7e9ee96bba988f8a4891d8e9fab1fe1e032ffadf01d3557857a453254f",
       "expect_valid": true
     },
     {

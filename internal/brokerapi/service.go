@@ -7,6 +7,7 @@ import (
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/auditd"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
@@ -28,7 +29,6 @@ type Service struct {
 	auditRoot   string
 	apiConfig   APIConfig
 	apiInflight *inFlightGate
-	approvals   approvalState
 	versionInfo BrokerVersionInfo
 	now         func() time.Time
 }
@@ -58,7 +58,6 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 		auditRoot:   ledgerRoot,
 		apiConfig:   resolved,
 		apiInflight: newInFlightGate(resolved.Limits),
-		approvals:   approvalState{records: map[string]approvalRecord{}},
 		now:         time.Now,
 		versionInfo: defaultBrokerVersionInfo(),
 	}, nil
@@ -160,6 +159,41 @@ func (s *Service) ReadAuditEvents() ([]artifacts.AuditEvent, error) {
 
 func (s *Service) AppendTrustedAuditEvent(eventType, actor string, details map[string]interface{}) error {
 	return s.store.AppendTrustedAuditEvent(eventType, actor, details)
+}
+
+func (s *Service) RecordPolicyDecision(runID string, digest string, decision policyengine.PolicyDecision) error {
+	return s.store.RecordPolicyDecision(artifacts.PolicyDecisionRecord{
+		Digest:                   digest,
+		RunID:                    runID,
+		SchemaID:                 decision.SchemaID,
+		SchemaVersion:            decision.SchemaVersion,
+		DecisionOutcome:          string(decision.DecisionOutcome),
+		PolicyReasonCode:         decision.PolicyReasonCode,
+		ManifestHash:             decision.ManifestHash,
+		ActionRequestHash:        decision.ActionRequestHash,
+		PolicyInputHashes:        append([]string{}, decision.PolicyInputHashes...),
+		RelevantArtifactHashes:   append([]string{}, decision.RelevantArtifactHashes...),
+		DetailsSchemaID:          decision.DetailsSchemaID,
+		Details:                  decision.Details,
+		RequiredApprovalSchemaID: decision.RequiredApprovalSchemaID,
+		RequiredApproval:         decision.RequiredApproval,
+	})
+}
+
+func (s *Service) PolicyDecisionRefsForRun(runID string) []string {
+	return s.store.PolicyDecisionRefsForRun(runID)
+}
+
+func (s *Service) ApprovalList() []artifacts.ApprovalRecord {
+	return s.store.ApprovalList()
+}
+
+func (s *Service) ApprovalGet(approvalID string) (artifacts.ApprovalRecord, bool) {
+	return s.store.ApprovalGet(approvalID)
+}
+
+func (s *Service) RecordApproval(record artifacts.ApprovalRecord) error {
+	return s.store.RecordApproval(record)
 }
 
 func (s *Service) SetPolicy(policy artifacts.Policy) error {

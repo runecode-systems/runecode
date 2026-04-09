@@ -4,5 +4,6 @@
   "actor_kind": "daemon",
   "instance_id": "daemon-1",
   "schema_id": "runecode.protocol.v0.PrincipalIdentity",
-  "role_kind": "auth"
+  "role_family": "gateway",
+  "role_kind": "auth-gateway"
 }

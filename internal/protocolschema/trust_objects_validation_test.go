@@ -145,7 +145,8 @@ func manifestPrincipal() map[string]any {
 		"actor_kind":     "daemon",
 		"principal_id":   "broker",
 		"instance_id":    "broker-1",
-		"role_kind":      "workspace",
+		"role_family":    "workspace",
+		"role_kind":      "workspace-edit",
 	}
 }
 
@@ -171,7 +172,8 @@ func validRoleManifest() map[string]any {
 		"schema_id":          "runecode.protocol.v0.RoleManifest",
 		"schema_version":     "0.2.0",
 		"principal":          manifestPrincipal(),
-		"role_kind":          "workspace",
+		"role_family":        "workspace",
+		"role_kind":          "workspace-edit",
 		"approval_profile":   "moderate",
 		"capability_opt_ins": []any{"workspace_write"},
 		"allowlist_refs":     []any{testDigestValue("a")},

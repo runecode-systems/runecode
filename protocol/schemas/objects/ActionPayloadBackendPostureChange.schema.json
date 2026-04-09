@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ActionPayloadBackendPostureChange.schema.json",
+  "title": "ActionPayloadBackendPostureChange",
+  "description": "Typed action payload for backend posture change operations.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 7,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "backend_class",
+    "change_kind",
+    "requested_posture"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.ActionPayloadBackendPostureChange",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "backend_class": {
+      "type": "string",
+      "enum": [
+        "microvm",
+        "container"
+      ],
+      "description": "Execution backend class.",
+      "x-data-class": "public"
+    },
+    "change_kind": {
+      "type": "string",
+      "enum": [
+        "select_backend",
+        "relax_isolation"
+      ],
+      "description": "Backend posture change kind.",
+      "x-data-class": "public"
+    },
+    "requested_posture": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Requested backend posture profile.",
+      "x-data-class": "public"
+    },
+    "requires_opt_in": {
+      "type": "boolean",
+      "description": "Whether this change requires explicit user opt-in.",
+      "x-data-class": "public"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "Human-readable reason for posture change.",
+      "x-data-class": "sensitive"
+    }
+  }
+}

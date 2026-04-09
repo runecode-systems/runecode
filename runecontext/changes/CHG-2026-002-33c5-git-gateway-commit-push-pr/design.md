@@ -6,6 +6,7 @@ Define the dedicated Git gateway for commit, push, and pull-request operations w
 ## Key Decisions
 - Git egress is treated as high risk and is isolated behind a gateway.
 - Outbound verification must match signed patch artifacts.
+- Git policy should use the shared typed gateway destination model so canonical repo identity and allowed operations are expressed through signed destination descriptors and allowlist entries rather than raw URL checks.
 
 ## Main Workstreams
 - Git Target Allowlist Model

@@ -1,48 +1,109 @@
 package brokerapi
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
+	"strings"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
-func (s *Service) resolveApprovalDigestsAndOutcome(requestID string, req ApprovalResolveRequest) (string, string, string, *ErrorResponse) {
+type approvalResolutionInput struct {
+	approvalID     string
+	decisionDigest string
+	requestPayload map[string]any
+	decision       trustpolicy.ApprovalDecision
+	outcome        string
+}
+
+type approvalResumeResult struct {
+	statusOverride     string
+	resolutionReason   string
+	supersededByID     string
+	approvedArtifact   *ArtifactSummary
+	notYetSupportedFor string
+}
+
+func (s *Service) resolveApprovalInput(requestID string, req ApprovalResolveRequest) (approvalResolutionInput, *ErrorResponse) {
+	approvalID, errResp := s.resolveApprovalRequestIdentity(requestID, req)
+	if errResp != nil {
+		return approvalResolutionInput{}, errResp
+	}
+	requestPayload, errResp := s.resolveApprovalRequestPayload(requestID, req)
+	if errResp != nil {
+		return approvalResolutionInput{}, errResp
+	}
+	decisionDigest, decision, errResp := s.resolveApprovalDecision(requestID, req)
+	if errResp != nil {
+		return approvalResolutionInput{}, errResp
+	}
+	if errResp := s.verifyApprovalBindingAndOutcome(requestID, req, decision); errResp != nil {
+		return approvalResolutionInput{}, errResp
+	}
+	return approvalResolutionInput{
+		approvalID:     approvalID,
+		decisionDigest: decisionDigest,
+		requestPayload: requestPayload,
+		decision:       decision,
+		outcome:        decision.DecisionOutcome,
+	}, nil
+}
+
+func (s *Service) resolveApprovalRequestIdentity(requestID string, req ApprovalResolveRequest) (string, *ErrorResponse) {
 	approvalID, err := approvalIDFromRequest(req.SignedApprovalRequest)
 	if err != nil {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
-		return "", "", "", &errOut
+		return "", &errOut
 	}
 	if req.ApprovalID != "" && req.ApprovalID != approvalID {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "approval_id does not match signed_approval_request")
-		return "", "", "", &errOut
+		return "", &errOut
 	}
+	return approvalID, nil
+}
+
+func (s *Service) resolveApprovalRequestPayload(requestID string, req ApprovalResolveRequest) (map[string]any, *ErrorResponse) {
+	if err := s.verifySignedApprovalRequestEnvelope(req.SignedApprovalRequest); err != nil {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
+		return nil, &errOut
+	}
+	requestPayload, err := decodeApprovalRequestPayload(req.SignedApprovalRequest)
+	if err != nil {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
+		return nil, &errOut
+	}
+	return requestPayload, nil
+}
+
+func (s *Service) resolveApprovalDecision(requestID string, req ApprovalResolveRequest) (string, trustpolicy.ApprovalDecision, *ErrorResponse) {
 	decisionDigest, err := signedEnvelopeDigest(req.SignedApprovalDecision)
 	if err != nil {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
-		return "", "", "", &errOut
+		return "", trustpolicy.ApprovalDecision{}, &errOut
 	}
 	decision, err := decodeApprovalDecision(req.SignedApprovalDecision)
 	if err != nil {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
-		return "", "", "", &errOut
+		return "", trustpolicy.ApprovalDecision{}, &errOut
 	}
 	if err := s.verifySignedApprovalDecisionEnvelope(req.SignedApprovalDecision); err != nil {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
-		return "", "", "", &errOut
+		return "", trustpolicy.ApprovalDecision{}, &errOut
 	}
+	return decisionDigest, decision, nil
+}
+
+func (s *Service) verifyApprovalBindingAndOutcome(requestID string, req ApprovalResolveRequest, decision trustpolicy.ApprovalDecision) *ErrorResponse {
 	if err := verifyApprovalDecisionBinding(req.SignedApprovalRequest, decision); err != nil {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
-		return "", "", "", &errOut
+		return &errOut
 	}
 	if _, ok := approvalStatusForDecisionOutcome(decision.DecisionOutcome); !ok {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, fmt.Sprintf("unsupported decision_outcome %q", decision.DecisionOutcome))
-		return "", "", "", &errOut
+		return &errOut
 	}
-	return approvalID, decisionDigest, decision.DecisionOutcome, nil
+	return nil
 }
 
 func (s *Service) promoteAndHeadResolvedArtifact(requestID string, req ApprovalResolveRequest) (artifacts.ArtifactRecord, *ErrorResponse) {
@@ -71,11 +132,10 @@ func (s *Service) promoteAndHeadResolvedArtifact(requestID string, req ApprovalR
 	return head, nil
 }
 
-func buildResolvedApprovalRecordForOutcome(req ApprovalResolveRequest, prior approvalRecord, approvalID, decisionDigest, outcome string) (approvalRecord, error) {
+func buildResolvedApprovalRecordForOutcome(req ApprovalResolveRequest, prior approvalRecord, approvalID, decisionDigest, status, supersededBy string) (approvalRecord, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
-	status, ok := approvalStatusForDecisionOutcome(outcome)
-	if !ok {
-		return approvalRecord{}, fmt.Errorf("unsupported decision_outcome %q", outcome)
+	if strings.TrimSpace(status) == "" {
+		return approvalRecord{}, fmt.Errorf("approval status is required")
 	}
 	requestedAt := prior.Summary.RequestedAt
 	if requestedAt == "" {
@@ -94,61 +154,46 @@ func buildResolvedApprovalRecordForOutcome(req ApprovalResolveRequest, prior app
 			RequestedAt:            requestedAt,
 			ExpiresAt:              prior.Summary.ExpiresAt,
 			DecidedAt:              now,
-			ApprovalTriggerCode:    "excerpt_promotion",
+			ApprovalTriggerCode:    prior.Summary.ApprovalTriggerCode,
 			ChangesIfApproved:      changesIfApproved,
 			ApprovalAssuranceLevel: decodeDecisionString(req.SignedApprovalDecision.Payload, "approval_assurance_level", "reauthenticated"),
 			PresenceMode:           decodeDecisionString(req.SignedApprovalDecision.Payload, "presence_mode", "hardware_touch"),
-			BoundScope:             req.BoundScope,
-			PolicyDecisionHash:     decisionDigest,
-			RequestDigest:          approvalID,
+			BoundScope:             prior.Summary.BoundScope,
+			PolicyDecisionHash:     prior.Summary.PolicyDecisionHash,
+			SupersededByApprovalID: supersededBy,
+			RequestDigest:          prior.Summary.RequestDigest,
 			DecisionDigest:         decisionDigest,
 		},
-		RequestEnvelope:  &req.SignedApprovalRequest,
-		DecisionEnvelope: &req.SignedApprovalDecision,
-		SourceDigest:     req.UnapprovedDigest,
+		RequestEnvelope:        &req.SignedApprovalRequest,
+		DecisionEnvelope:       &req.SignedApprovalDecision,
+		SourceDigest:           prior.SourceDigest,
+		ManifestHash:           prior.ManifestHash,
+		ActionRequestHash:      prior.ActionRequestHash,
+		RelevantArtifactHashes: append([]string{}, prior.RelevantArtifactHashes...),
 	}, nil
 }
 
-func buildApprovalResolveResponseNoArtifact(requestID string, record approvalRecord, approvedArtifact *ArtifactSummary) ApprovalResolveResponse {
+func buildApprovalResolveResponseNoArtifact(requestID string, record approvalRecord, approvedArtifact *ArtifactSummary, reasonOverride string) ApprovalResolveResponse {
 	reasonCode := ""
 	if record.Summary.Status != "approved" {
 		reasonCode = resolutionReasonCodeForApprovalStatus(record.Summary.Status)
+	}
+	if strings.TrimSpace(reasonOverride) != "" {
+		reasonCode = strings.TrimSpace(reasonOverride)
+	}
+	resolutionStatus := "resolved"
+	if reasonCode == "approval_superseded" {
+		resolutionStatus = "no_change"
 	}
 	return ApprovalResolveResponse{
 		SchemaID:             "runecode.protocol.v0.ApprovalResolveResponse",
 		SchemaVersion:        "0.1.0",
 		RequestID:            requestID,
-		ResolutionStatus:     "resolved",
+		ResolutionStatus:     resolutionStatus,
 		ResolutionReasonCode: reasonCode,
 		Approval:             record.Summary,
 		ApprovedArtifact:     approvedArtifact,
 	}
-}
-
-func decodeApprovalDecision(envelope trustpolicy.SignedObjectEnvelope) (trustpolicy.ApprovalDecision, error) {
-	decision := trustpolicy.ApprovalDecision{}
-	if err := json.Unmarshal(envelope.Payload, &decision); err != nil {
-		return trustpolicy.ApprovalDecision{}, fmt.Errorf("decode signed approval decision payload: %w", err)
-	}
-	return decision, nil
-}
-
-func verifyApprovalDecisionBinding(requestEnvelope trustpolicy.SignedObjectEnvelope, decision trustpolicy.ApprovalDecision) error {
-	if err := trustpolicy.ValidateApprovalDecisionEvidence(decision); err != nil {
-		return fmt.Errorf("validate approval decision evidence: %w", err)
-	}
-	requestDigest, err := approvalIDFromRequest(requestEnvelope)
-	if err != nil {
-		return fmt.Errorf("derive approval request digest: %w", err)
-	}
-	decisionRequestHash, err := decision.ApprovalRequestHash.Identity()
-	if err != nil {
-		return fmt.Errorf("approval_request_hash: %w", err)
-	}
-	if requestDigest != decisionRequestHash {
-		return fmt.Errorf("approval_request_hash %q does not match signed_approval_request digest %q", decisionRequestHash, requestDigest)
-	}
-	return nil
 }
 
 func (s *Service) verifySignedApprovalDecisionEnvelope(envelope trustpolicy.SignedObjectEnvelope) error {
@@ -170,97 +215,21 @@ func (s *Service) verifySignedApprovalDecisionEnvelope(envelope trustpolicy.Sign
 	return nil
 }
 
-func (s *Service) trustedApprovalVerifiersForEnvelope(envelope trustpolicy.SignedObjectEnvelope) ([]trustpolicy.VerifierRecord, error) {
-	records := make([]trustpolicy.VerifierRecord, 0)
-	for _, artifactRecord := range s.List() {
-		trusted, trustErr := s.isTrustedVerifierArtifact(artifactRecord)
-		verifier, skip, err := selectVerifierRecordForEnvelope(artifactRecord, trusted, trustErr, envelope, s)
-		if skip {
-			if err != nil {
-				return nil, err
-			}
-			continue
-		}
-		records = append(records, verifier)
-	}
-	if len(records) == 0 {
-		return nil, fmt.Errorf("trusted verifier not found for signed approval decision")
-	}
-	return records, nil
-}
-
-func selectVerifierRecordForEnvelope(record artifacts.ArtifactRecord, trusted bool, trustErr error, envelope trustpolicy.SignedObjectEnvelope, service *Service) (trustpolicy.VerifierRecord, bool, error) {
-	if trustErr != nil {
-		return trustpolicy.VerifierRecord{}, true, trustErr
-	}
-	if !trusted {
-		return trustpolicy.VerifierRecord{}, true, nil
-	}
-	verifier, err := service.loadVerifierRecord(record)
+func (s *Service) verifySignedApprovalRequestEnvelope(envelope trustpolicy.SignedObjectEnvelope) error {
+	verifiers, err := s.trustedApprovalVerifiersForEnvelope(envelope)
 	if err != nil {
-		return trustpolicy.VerifierRecord{}, true, err
+		return err
 	}
-	if !matchesVerifierIdentity(verifier, envelope) {
-		return trustpolicy.VerifierRecord{}, true, nil
-	}
-	if !isApprovalAuthorityVerifier(verifier) {
-		return trustpolicy.VerifierRecord{}, true, nil
-	}
-	return verifier, false, nil
-}
-
-func (s *Service) loadVerifierRecord(record artifacts.ArtifactRecord) (trustpolicy.VerifierRecord, error) {
-	reader, err := s.Get(record.Reference.Digest)
+	registry, err := trustpolicy.NewVerifierRegistry(verifiers)
 	if err != nil {
-		return trustpolicy.VerifierRecord{}, fmt.Errorf("read trusted verifier artifact %q: %w", record.Reference.Digest, err)
+		return fmt.Errorf("create verifier registry: %w", err)
 	}
-	blob, readErr := io.ReadAll(reader)
-	closeErr := reader.Close()
-	if readErr != nil || closeErr != nil {
-		if readErr != nil {
-			return trustpolicy.VerifierRecord{}, fmt.Errorf("read trusted verifier artifact %q bytes: %w", record.Reference.Digest, readErr)
-		}
-		return trustpolicy.VerifierRecord{}, fmt.Errorf("close trusted verifier artifact %q reader: %w", record.Reference.Digest, closeErr)
+	if err := trustpolicy.VerifySignedEnvelope(envelope, registry, trustpolicy.EnvelopeVerificationOptions{
+		RequirePayloadSchemaMatch: true,
+		ExpectedPayloadSchemaID:   trustpolicy.ApprovalRequestSchemaID,
+		ExpectedPayloadVersion:    trustpolicy.ApprovalRequestSchemaVersion,
+	}); err != nil {
+		return fmt.Errorf("verify signed approval request: %w", err)
 	}
-	verifier := trustpolicy.VerifierRecord{}
-	if err := json.Unmarshal(blob, &verifier); err != nil {
-		return trustpolicy.VerifierRecord{}, fmt.Errorf("decode trusted verifier artifact %q: %w", record.Reference.Digest, err)
-	}
-	return verifier, nil
-}
-
-func matchesVerifierIdentity(verifier trustpolicy.VerifierRecord, envelope trustpolicy.SignedObjectEnvelope) bool {
-	return verifier.KeyID == envelope.Signature.KeyID && verifier.KeyIDValue == envelope.Signature.KeyIDValue
-}
-
-func isApprovalAuthorityVerifier(verifier trustpolicy.VerifierRecord) bool {
-	return verifier.LogicalPurpose == "approval_authority" && verifier.LogicalScope == "user"
-}
-
-func approvalStatusForDecisionOutcome(outcome string) (string, bool) {
-	switch outcome {
-	case "approve":
-		return "approved", true
-	case "deny":
-		return "denied", true
-	case "expired":
-		return "expired", true
-	case "cancelled":
-		return "cancelled", true
-	default:
-		return "", false
-	}
-}
-
-func resolutionReasonCodeForApprovalStatus(status string) string {
-	switch status {
-	case "denied":
-		return "approval_denied"
-	case "expired":
-		return "approval_expired"
-	case "cancelled":
-		return "approval_cancelled"
-	default:
-		return "approval_resolved"
-	}
+	return nil
 }

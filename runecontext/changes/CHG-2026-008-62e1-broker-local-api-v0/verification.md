@@ -15,6 +15,7 @@
 - Confirm the change defines first-class typed request/response/read-model/stream families for runs, approvals, artifacts, audit, readiness, and version info.
 - Confirm run list and run detail are explicitly first-class operator-facing reads and not TUI-only shortcuts.
 - Confirm approval identity, approval lifecycle states, and bound-scope metadata are specified consistently with the signed approval artifact model.
+- Confirm broker approval semantics preserve the distinction between exact-action approvals and stage sign-off approvals, and do not treat `ApprovalBoundScope` as the trust root.
 - Confirm broker read models stay topology-neutral and do not require host-local paths, socket names, usernames, or daemon-private storage details.
 - Confirm stream semantics are explicit (`stream_id`, monotonic `seq`, exactly one terminal event, typed terminal failure).
 - Confirm pagination, ordering, and error-taxonomy expectations are explicit enough for later TUI and protobuf work to reuse without redefining semantics.

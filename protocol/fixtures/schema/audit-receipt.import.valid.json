@@ -13,7 +13,8 @@
     "actor_kind": "daemon",
     "principal_id": "auditd",
     "instance_id": "auditd-1",
-    "role_kind": "workspace"
+    "role_family": "workspace",
+    "role_kind": "workspace-edit"
   },
   "recorded_at": "2026-03-13T12:16:00Z",
   "receipt_payload_schema_id": "runecode.protocol.audit.receipt.import_restore_provenance.v0",

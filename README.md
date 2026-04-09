@@ -144,8 +144,8 @@ This quick path verifies signed checksums and the signed archive before install.
 - Shared fixtures in `protocol/fixtures/` validated in both Go and Node, including schema, stream-sequence, runtime-invariant, and canonicalization/hash cases
 - CI guardrails for runner trust-boundary access and protocol parity
 - MVP artifact data classes and an `ArtifactPolicy` schema family anchoring flow-matrix, approval-promotion, quota, and retention/GC controls
-- A trusted local artifact store with immutable hash-addressed artifact persistence, broker-facing flow checks, quota enforcement, retention/GC, backup/restore, and audit event recording for artifact actions
-- Approval promotion and revocation flows for `unapproved_file_excerpts` and `approved_file_excerpts`, including signed request/decision verification bound to canonical request bytes, promoted inputs, and verifier owner identity
+- A trusted local artifact store with immutable hash-addressed artifact persistence, broker-facing flow checks, quota enforcement, retention/GC, backup/restore, approval records, persisted policy decisions, and audit event recording for artifact and approval actions
+- Approval promotion, resolution, and revocation flows for `unapproved_file_excerpts` and `approved_file_excerpts`, including signed request/decision verification bound to canonical request bytes, promoted inputs, verifier owner identity, and durable policy-decision linkage
 - A trusted local audit ledger with append/seal persistence, segment recovery, digest-addressed sidecar evidence, readiness evaluation, audit verification reports, and broker-facing audit verification/readiness surfaces
 - A broker local API with fail-closed local auth, schema-validated typed operations for runs, approvals, artifacts, audit, readiness, and version info, plus uniform log and artifact read streaming semantics
 
@@ -171,7 +171,8 @@ Still incremental / not implemented end-to-end yet:
 Current MVP object families cover:
 - manifests: `RoleManifest`, `CapabilityManifest`
 - identity and content addressing: `PrincipalIdentity`, `Digest`, `ArtifactReference`, `ArtifactPolicy`, `ProvenanceReceipt`
-- audit and approvals: `AuditEvent`, `AuditReceipt`, `AuditSegmentFile`, `AuditSegmentSeal`, `AuditVerificationReport`, `ApprovalRequest`, `ApprovalDecision`, `PolicyDecision`
+- audit, approvals, and policy: `AuditEvent`, `AuditReceipt`, `AuditSegmentFile`, `AuditSegmentSeal`, `AuditVerificationReport`, `ApprovalRequest`, `ApprovalDecision`, `PolicyDecision`, `PolicyRuleSet`, `PolicyAllowlist`
+- policy actions and destinations: `ActionRequest`, `ActionPayloadArtifactRead`, `ActionPayloadPromotion`, `ActionPayloadGatewayEgress`, `ActionPayloadSecretAccess`, `ActionPayloadWorkspaceWrite`, `ActionPayloadExecutorRun`, `ActionPayloadBackendPostureChange`, `ActionPayloadGateOverride`, `ActionPayloadStageSummarySignOff`, `DestinationDescriptor`, `GatewayScopeRule`
 - model traffic: `LLMRequest`, `LLMResponse`, `LLMStreamEvent`
 - broker local API requests/responses: `RunListRequest`, `RunGetRequest`, `ApprovalListRequest`, `ApprovalGetRequest`, `ApprovalResolveRequest`, `ArtifactListRequest`, `ArtifactHeadRequest`, `ArtifactReadRequest`, `AuditTimelineRequest`, `AuditVerificationGetRequest`, `ReadinessGetRequest`, `VersionInfoGetRequest`
 - broker local API read models: `RunSummary`, `RunDetail`, `RunStageSummary`, `RunRoleSummary`, `RunCoordinationSummary`, `ApprovalSummary`, `ApprovalBoundScope`, `ArtifactSummary`, `BrokerReadiness`, `BrokerVersionInfo`
@@ -234,9 +235,9 @@ Alongside that still-incremental surface, the repository already includes workin
 - cross-language fixture validation
 - canonicalization/hash golden tests
 - runner trust-boundary static checks
-- a trusted local artifact store and broker CLI for artifact put/get/head/list, flow checks, excerpt promotion, run-status updates, GC, and backup/restore
+- a trusted local artifact store and broker CLI for artifact put/get/head/list, flow checks, excerpt promotion and revocation, run-status updates, GC, and backup/restore
 - a trusted local audit ledger plus broker/auditd CLI surfaces for audit readiness and audit verification inspection
-- a broker local IPC API and CLI read surfaces for run list/detail, approval list/detail/resolve, audit verification/readiness, version inspection, and structured log streaming
+- a broker local IPC API and CLI read surfaces for run list/detail, approval list/detail/resolve, policy-backed artifact reads, audit verification/readiness, version inspection, and structured log streaming
 
 You can inspect their help output:
 
@@ -256,6 +257,8 @@ go run ./cmd/runecode-broker run-list --help
 go run ./cmd/runecode-broker run-get --help
 go run ./cmd/runecode-broker approval-list --help
 go run ./cmd/runecode-broker approval-get --help
+go run ./cmd/runecode-broker promote-excerpt --help
+go run ./cmd/runecode-broker revoke-approved-excerpt --help
 go run ./cmd/runecode-broker audit-verification --help
 go run ./cmd/runecode-broker audit-readiness --help
 go run ./cmd/runecode-broker version-info --help

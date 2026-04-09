@@ -10,6 +10,76 @@
     {
       "if": {
         "properties": {
+          "principal": {
+            "properties": {
+              "role_family": {
+                "const": "workspace"
+              }
+            },
+            "required": [
+              "role_family"
+            ]
+          }
+        },
+        "required": [
+          "principal"
+        ]
+      },
+      "then": {
+        "properties": {
+          "principal": {
+            "properties": {
+              "role_kind": {
+                "enum": [
+                  "workspace-read",
+                  "workspace-edit",
+                  "workspace-test"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "principal": {
+            "properties": {
+              "role_family": {
+                "const": "gateway"
+              }
+            },
+            "required": [
+              "role_family"
+            ]
+          }
+        },
+        "required": [
+          "principal"
+        ]
+      },
+      "then": {
+        "properties": {
+          "principal": {
+            "properties": {
+              "role_kind": {
+                "enum": [
+                  "model-gateway",
+                  "auth-gateway",
+                  "git-gateway",
+                  "web-research",
+                  "dependency-fetch"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
           "manifest_scope": {
             "const": "stage"
           }

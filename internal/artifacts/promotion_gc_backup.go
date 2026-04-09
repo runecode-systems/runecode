@@ -134,6 +134,8 @@ func buildBackupManifest(state StoreState, exportedAt time.Time) BackupManifest 
 		Policy:            state.Policy,
 		Runs:              map[string]string{},
 		Artifacts:         make([]ArtifactRecord, 0, len(state.Artifacts)),
+		PolicyDecisions:   make([]PolicyDecisionRecord, 0, len(state.PolicyDecisions)),
+		Approvals:         make([]ApprovalRecord, 0, len(state.Approvals)),
 	}
 	for runID, status := range state.Runs {
 		manifest.Runs[runID] = status
@@ -141,39 +143,22 @@ func buildBackupManifest(state StoreState, exportedAt time.Time) BackupManifest 
 	for _, rec := range state.Artifacts {
 		manifest.Artifacts = append(manifest.Artifacts, rec)
 	}
+	for _, rec := range state.PolicyDecisions {
+		manifest.PolicyDecisions = append(manifest.PolicyDecisions, rec)
+	}
+	for _, rec := range state.Approvals {
+		manifest.Approvals = append(manifest.Approvals, rec)
+	}
 	sort.Slice(manifest.Artifacts, func(i, j int) bool {
 		return manifest.Artifacts[i].Reference.Digest < manifest.Artifacts[j].Reference.Digest
 	})
+	sort.Slice(manifest.PolicyDecisions, func(i, j int) bool {
+		return manifest.PolicyDecisions[i].Digest < manifest.PolicyDecisions[j].Digest
+	})
+	sort.Slice(manifest.Approvals, func(i, j int) bool {
+		return manifest.Approvals[i].ApprovalID < manifest.Approvals[j].ApprovalID
+	})
 	return manifest
-}
-
-func stateFromBackup(manifest BackupManifest, lastAuditSequence int64, ioStore *storeIO) (StoreState, error) {
-	if err := validatePolicy(manifest.Policy); err != nil {
-		return StoreState{}, err
-	}
-	next := StoreState{
-		Artifacts:                map[string]ArtifactRecord{},
-		Policy:                   manifest.Policy,
-		Runs:                     manifest.Runs,
-		PromotionEventsByActor:   map[string][]time.Time{},
-		LastAuditSequence:        lastAuditSequence,
-		StorageProtectionPosture: manifest.StorageProtection,
-	}
-	unapprovedByDigest := map[string]ArtifactRecord{}
-	for _, rec := range manifest.Artifacts {
-		validated, err := validateRestoredRecord(rec, ioStore)
-		if err != nil {
-			return StoreState{}, err
-		}
-		next.Artifacts[validated.Reference.Digest] = validated
-		if validated.Reference.DataClass == DataClassUnapprovedFileExcerpts {
-			unapprovedByDigest[validated.Reference.Digest] = validated
-		}
-	}
-	if err := validateApprovedRestores(next.Artifacts, unapprovedByDigest); err != nil {
-		return StoreState{}, err
-	}
-	return next, nil
 }
 
 func validateRestoredRecord(record ArtifactRecord, ioStore *storeIO) (ArtifactRecord, error) {

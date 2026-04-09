@@ -91,6 +91,46 @@ func TestArtifactPolicySchemaEncodesFlowAndRetentionControls(t *testing.T) {
 	}
 }
 
+func TestPolicyRuleSetAndAllowlistSchemasValidateDeclarativePolicyInputs(t *testing.T) {
+	bundle := newCompiledBundle(t, loadManifest(t))
+	ruleSetSchema := mustCompileObjectSchema(t, bundle, "objects/PolicyRuleSet.schema.json")
+	allowlistSchema := mustCompileObjectSchema(t, bundle, "objects/PolicyAllowlist.schema.json")
+	gatewayScopeRuleSchema := mustCompileObjectSchema(t, bundle, "objects/GatewayScopeRule.schema.json")
+	destinationDescriptorSchema := mustCompileObjectSchema(t, bundle, "objects/DestinationDescriptor.schema.json")
+
+	for _, testCase := range policyRuleSetCases() {
+		testCase := testCase
+		t.Run("rule-set/"+testCase.name, func(t *testing.T) {
+			err := ruleSetSchema.Validate(testCase.value)
+			assertValidationOutcome(t, err, testCase.wantErr)
+		})
+	}
+
+	for _, testCase := range policyAllowlistCases() {
+		testCase := testCase
+		t.Run("allowlist/"+testCase.name, func(t *testing.T) {
+			err := allowlistSchema.Validate(testCase.value)
+			assertValidationOutcome(t, err, testCase.wantErr)
+		})
+	}
+
+	for _, testCase := range gatewayScopeRuleCases() {
+		testCase := testCase
+		t.Run("gateway-scope-rule/"+testCase.name, func(t *testing.T) {
+			err := gatewayScopeRuleSchema.Validate(testCase.value)
+			assertValidationOutcome(t, err, testCase.wantErr)
+		})
+	}
+
+	for _, testCase := range destinationDescriptorCases() {
+		testCase := testCase
+		t.Run("destination-descriptor/"+testCase.name, func(t *testing.T) {
+			err := destinationDescriptorSchema.Validate(testCase.value)
+			assertValidationOutcome(t, err, testCase.wantErr)
+		})
+	}
+}
+
 func errorCases() []validationCase {
 	return []validationCase{
 		{name: "minimal error", value: validErrorEnvelope()},
@@ -107,6 +147,8 @@ func policyDecisionCases() []validationCase {
 		{name: "deny decision", value: validDenyPolicyDecision()},
 		{name: "approval decision", value: validApprovalPolicyDecision()},
 		{name: "policy reason code enforces identifier format", value: invalidPolicyDecisionWithBadReasonCode(), wantErr: true},
+		{name: "policy reason code must be from registry", value: invalidPolicyDecisionWithUnknownReasonCode(), wantErr: true},
+		{name: "approval trigger code must be from registry", value: invalidApprovalPolicyDecisionWithUnknownTriggerCode(), wantErr: true},
 		{name: "approval outcome requires payload", value: invalidApprovalPolicyDecisionWithoutPayload(), wantErr: true},
 		{name: "deny decision rejects approval payload", value: invalidDenyPolicyDecisionWithApprovalPayload(), wantErr: true},
 	}
@@ -141,6 +183,35 @@ func artifactPolicyCases() []validationCase {
 		{name: "policy requires hash only handoff mode", value: invalidArtifactPolicyWithNonHashHandoff(), wantErr: true},
 		{name: "policy requires explicit approval for promotions", value: invalidArtifactPolicyWithoutExplicitHumanApproval(), wantErr: true},
 		{name: "policy rejects unknown flow data class", value: invalidArtifactPolicyWithUnknownFlowDataClass(), wantErr: true},
+	}
+}
+
+func policyRuleSetCases() []validationCase {
+	return []validationCase{
+		{name: "valid declarative rule set", value: validPolicyRuleSet()},
+		{name: "unknown effect fails closed", value: invalidPolicyRuleSetWithUnknownEffect(), wantErr: true},
+	}
+}
+
+func policyAllowlistCases() []validationCase {
+	return []validationCase{
+		{name: "valid policy allowlist", value: validPolicyAllowlist()},
+		{name: "invalid allowlist kind format", value: invalidPolicyAllowlistKind(), wantErr: true},
+		{name: "invalid allowlist entry schema id", value: invalidPolicyAllowlistEntrySchemaID(), wantErr: true},
+	}
+}
+
+func gatewayScopeRuleCases() []validationCase {
+	return []validationCase{
+		{name: "valid gateway scope rule", value: validGatewayScopeRule("provider-a")},
+		{name: "unknown scope kind fails closed", value: invalidGatewayScopeRuleKind(), wantErr: true},
+	}
+}
+
+func destinationDescriptorCases() []validationCase {
+	return []validationCase{
+		{name: "valid destination descriptor", value: validDestinationDescriptor("provider-a")},
+		{name: "unknown descriptor kind fails closed", value: invalidDestinationDescriptorKind(), wantErr: true},
 	}
 }
 

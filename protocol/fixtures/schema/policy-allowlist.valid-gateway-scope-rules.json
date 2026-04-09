@@ -1,0 +1,31 @@
+{
+  "schema_id": "runecode.protocol.v0.PolicyAllowlist",
+  "schema_version": "0.1.0",
+  "allowlist_kind": "gateway_scope_rule",
+  "entry_schema_id": "runecode.protocol.v0.GatewayScopeRule",
+  "entries": [
+    {
+      "schema_id": "runecode.protocol.v0.GatewayScopeRule",
+      "schema_version": "0.1.0",
+      "scope_kind": "gateway_destination",
+      "gateway_role_kind": "model-gateway",
+      "destination": {
+        "schema_id": "runecode.protocol.v0.DestinationDescriptor",
+        "schema_version": "0.1.0",
+        "descriptor_kind": "model_endpoint",
+        "canonical_host": "api.example-model.test",
+        "provider_or_namespace": "example-model",
+        "tls_required": true,
+        "private_range_blocking": "enforced",
+        "dns_rebinding_protection": "enforced"
+      },
+      "permitted_operations": [
+        "invoke_model"
+      ],
+      "allowed_egress_data_classes": [
+        "spec_text"
+      ],
+      "redirect_posture": "allowlist_only"
+    }
+  ]
+}

@@ -4,6 +4,7 @@
 
 - [ ] Define the dedicated auth-gateway role and its limited public egress surface.
 - [ ] Keep auth egress isolated from model egress and workspace access.
+- [ ] Model auth-provider destinations through the shared typed `DestinationDescriptor` / allowlist-entry pattern.
 
 ## Provider-Agnostic Auth Objects
 
@@ -20,6 +21,7 @@
 
 - [ ] Record typed auth lifecycle events without leaking secret values.
 - [ ] Bind auth flows into policy and approval surfaces where required.
+- [ ] Keep auth-gateway approval and error semantics aligned with shared `policy_reason_code`, `approval_trigger_code`, and system `error.code` ownership.
 
 ## Acceptance Criteria
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
 func (s *Service) requestContextError(requestID string, requestCtx context.Context) *ErrorResponse {
@@ -71,11 +72,28 @@ func (s *Service) errorFromStore(requestID string, err error) ErrorResponse {
 	case errors.Is(err, artifacts.ErrApprovalRequestArtifactRequired),
 		errors.Is(err, artifacts.ErrApprovalArtifactRequired),
 		errors.Is(err, artifacts.ErrVerifierNotFound),
-		errors.Is(err, artifacts.ErrApprovalVerificationFailed):
+		errors.Is(err, artifacts.ErrApprovalVerificationFailed),
+		errors.Is(err, artifacts.ErrApprovalPolicyDecisionRequired):
 		return s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
 	default:
 		return s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
 	}
+}
+
+func (s *Service) errorFromPolicyEvaluation(requestID string, err error) ErrorResponse {
+	var evalErr *policyengine.EvaluationError
+	if errors.As(err, &evalErr) {
+		code := string(evalErr.Code)
+		if strings.TrimSpace(code) == "" {
+			code = "broker_limit_policy_rejected"
+		}
+		category := evalErr.Category
+		if strings.TrimSpace(category) == "" {
+			category = "policy"
+		}
+		return s.makeError(requestID, code, category, evalErr.Retryable, evalErr.Message)
+	}
+	return s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
 }
 
 func contains(err error, needle string) bool {

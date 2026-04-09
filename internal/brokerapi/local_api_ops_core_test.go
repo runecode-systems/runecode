@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
 func TestRunAndArtifactLocalTypedOperations(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	digest := putRunScopedArtifactForLocalOpsTest(t, s, "run-123", "step-1")
+	_ = putTrustedPolicyContextForRun(t, s, "run-123", false)
 	assertRunListAndDetailForLocalOps(t, s)
 	assertArtifactListAndHeadForLocalOps(t, s, digest)
 	assertArtifactReadStreamCompletes(t, s, digest)
@@ -66,6 +68,16 @@ func assertRunDetailForLocalOps(t *testing.T, detail RunDetail) {
 	if detail.AdvisoryState["provenance"] != "none_reported" {
 		t.Fatalf("advisory_state.provenance = %v, want none_reported", detail.AdvisoryState["provenance"])
 	}
+	hasWorkspaceEdit := false
+	for _, role := range detail.RoleSummaries {
+		if role.RoleKind == "workspace-edit" {
+			hasWorkspaceEdit = true
+			break
+		}
+	}
+	if !hasWorkspaceEdit {
+		t.Fatalf("role_summaries = %+v, want workspace-edit role", detail.RoleSummaries)
+	}
 }
 
 func TestRunSummaryWorkflowDefinitionHashRequiresSingleTrustedManifest(t *testing.T) {
@@ -89,19 +101,65 @@ func TestRunSummaryWorkflowDefinitionHashRequiresSingleTrustedManifest(t *testin
 	}
 }
 
+func TestRunDetailIncludesPersistedPolicyDecisionRefs(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	_ = putRunScopedArtifactForLocalOpsTest(t, s, "run-policy-refs", "step-1")
+
+	err := s.RecordPolicyDecision("run-policy-refs", "", policyDecisionFixtureForRunRefs())
+	if err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
+	}
+
+	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-policy-refs", RunID: "run-policy-refs"}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleRunGet error response: %+v", errResp)
+	}
+	if len(runGet.Run.LatestPolicyDecisionRefs) == 0 {
+		t.Fatal("latest_policy_decision_refs should include persisted policy decision digest")
+	}
+	if !strings.HasPrefix(runGet.Run.LatestPolicyDecisionRefs[0], "sha256:") {
+		t.Fatalf("latest_policy_decision_refs[0] = %q, want sha256 digest", runGet.Run.LatestPolicyDecisionRefs[0])
+	}
+}
+
+func policyDecisionFixtureForRunRefs() policyengine.PolicyDecision {
+	return policyengine.PolicyDecision{
+		SchemaID:               "runecode.protocol.v0.PolicyDecision",
+		SchemaVersion:          "0.3.0",
+		DecisionOutcome:        policyengine.DecisionDeny,
+		PolicyReasonCode:       "deny_by_default",
+		ManifestHash:           "sha256:" + strings.Repeat("1", 64),
+		PolicyInputHashes:      []string{"sha256:" + strings.Repeat("2", 64)},
+		ActionRequestHash:      "sha256:" + strings.Repeat("3", 64),
+		RelevantArtifactHashes: []string{"sha256:" + strings.Repeat("4", 64)},
+		DetailsSchemaID:        "runecode.protocol.details.policy.decision.v0",
+		Details:                map[string]any{"rule": "deny_by_default"},
+	}
+}
+
 func assertArtifactListAndHeadForLocalOps(t *testing.T, s *Service, digest string) {
 	t.Helper()
 	artList, errResp := s.HandleArtifactListV0(context.Background(), LocalArtifactListRequest{SchemaID: "runecode.protocol.v0.ArtifactListRequest", SchemaVersion: "0.1.0", RequestID: "req-art-list", Order: "created_at_desc", Limit: 10}, RequestContext{})
 	if errResp != nil {
 		t.Fatalf("HandleArtifactListV0 error response: %+v", errResp)
 	}
-	if len(artList.Artifacts) != 1 || artList.Artifacts[0].RunID != "run-123" {
-		t.Fatalf("artifact list = %+v, want run-scoped artifact", artList.Artifacts)
+	var listed *ArtifactSummary
+	for i := range artList.Artifacts {
+		if artList.Artifacts[i].Reference.Digest == digest {
+			listed = &artList.Artifacts[i]
+			break
+		}
 	}
-	if artList.Artifacts[0].StageID != "artifact_flow" {
-		t.Fatalf("artifact list stage_id = %q, want artifact_flow", artList.Artifacts[0].StageID)
+	if listed == nil {
+		t.Fatalf("artifact list missing digest %q: %+v", digest, artList.Artifacts)
 	}
-	headReq := LocalArtifactHeadRequest{SchemaID: "runecode.protocol.v0.ArtifactHeadRequest", SchemaVersion: "0.1.0", RequestID: "req-art-head", Digest: artList.Artifacts[0].Reference.Digest}
+	if listed.RunID != "run-123" {
+		t.Fatalf("artifact run_id = %q, want run-123", listed.RunID)
+	}
+	if listed.StageID != "artifact_flow" {
+		t.Fatalf("artifact stage_id = %q, want artifact_flow", listed.StageID)
+	}
+	headReq := LocalArtifactHeadRequest{SchemaID: "runecode.protocol.v0.ArtifactHeadRequest", SchemaVersion: "0.1.0", RequestID: "req-art-head", Digest: digest}
 	headResp, errResp := s.HandleArtifactHeadV0(context.Background(), headReq, RequestContext{})
 	if errResp != nil {
 		t.Fatalf("HandleArtifactHeadV0 error response: %+v", errResp)
@@ -150,7 +208,7 @@ func putPayloadArtifactForLocalOpsTest(t *testing.T, s *Service, payload, runID,
 
 func putRunScopedArtifactForLocalOpsTest(t *testing.T, s *Service, runID, stepID string) string {
 	t.Helper()
-	ref, putErr := s.Put(artifacts.PutRequest{Payload: []byte("artifact-a"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64), CreatedByRole: "workspace", RunID: runID, StepID: stepID})
+	ref, putErr := s.Put(artifacts.PutRequest{Payload: []byte("artifact-a"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("1", 64), CreatedByRole: "workspace", RunID: runID, StepID: stepID})
 	if putErr != nil {
 		t.Fatalf("Put returned error: %v", putErr)
 	}
@@ -181,15 +239,6 @@ func assertArtifactReadStreamCompletes(t *testing.T, s *Service, digest string) 
 	assertSingleArtifactTerminalEvent(t, events)
 	if got := events[len(events)-1].TerminalStatus; got != "completed" {
 		t.Fatalf("terminal_status = %q, want completed", got)
-	}
-}
-
-func assertStreamSeqMonotonic(t *testing.T, events []ArtifactStreamEvent) {
-	t.Helper()
-	for i := 1; i < len(events); i++ {
-		if events[i].Seq <= events[i-1].Seq {
-			t.Fatalf("stream seq not monotonic: prev=%d curr=%d", events[i-1].Seq, events[i].Seq)
-		}
 	}
 }
 
@@ -336,15 +385,7 @@ func TestRunPendingApprovalsUseCanonicalPendingRecords(t *testing.T) {
 	if putErr != nil {
 		t.Fatalf("Put returned error: %v", putErr)
 	}
-	record, headErr := s.Head(ref.Digest)
-	if headErr != nil {
-		t.Fatalf("Head returned error: %v", headErr)
-	}
-	requestEnvelope := inferredPendingApprovalRequestEnvelope(record, record.CreatedAt.UTC(), record.CreatedAt.UTC().Add(30*time.Minute))
-	expectedID, idErr := approvalIDFromRequest(requestEnvelope)
-	if idErr != nil {
-		t.Fatalf("approvalIDFromRequest returned error: %v", idErr)
-	}
+	expectedID := createPendingApprovalFromPolicyDecision(t, s, "run-pending-canonical", "step-1", ref.Digest)
 
 	runResp, runErr := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-get-pending", RunID: "run-pending-canonical"}, RequestContext{})
 	if runErr != nil {
@@ -396,6 +437,38 @@ func TestArtifactReadGatewayFlowDeniedForMismatchedProducerRole(t *testing.T) {
 	_, errResp := s.HandleArtifactRead(context.Background(), ArtifactReadRequest{SchemaID: "runecode.protocol.v0.ArtifactReadRequest", SchemaVersion: "0.1.0", RequestID: "req-role-mismatch", Digest: ref.Digest, ProducerRole: "auditd", ConsumerRole: "model_gateway", DataClass: string(artifacts.DataClassSpecText)}, RequestContext{})
 	if errResp == nil {
 		t.Fatal("HandleArtifactRead expected policy rejection for mismatched producer")
+	}
+	if errResp.Error.Code != "broker_limit_policy_rejected" {
+		t.Fatalf("error code = %q, want broker_limit_policy_rejected", errResp.Error.Code)
+	}
+}
+
+func TestArtifactReadFailsClosedWhenPolicyContextUnavailable(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-missing-policy-context"
+	ref, putErr := s.Put(artifacts.PutRequest{
+		Payload:               []byte("artifact-a"),
+		ContentType:           "text/plain",
+		DataClass:             artifacts.DataClassSpecText,
+		ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64),
+		CreatedByRole:         "workspace",
+		RunID:                 runID,
+		StepID:                "step-1",
+	})
+	if putErr != nil {
+		t.Fatalf("Put returned error: %v", putErr)
+	}
+	_, errResp := s.HandleArtifactRead(context.Background(), ArtifactReadRequest{
+		SchemaID:      "runecode.protocol.v0.ArtifactReadRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-policy-missing",
+		Digest:        ref.Digest,
+		ProducerRole:  "workspace",
+		ConsumerRole:  "model_gateway",
+		DataClass:     string(artifacts.DataClassSpecText),
+	}, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleArtifactRead expected policy rejection when trusted policy context is unavailable")
 	}
 	if errResp.Error.Code != "broker_limit_policy_rejected" {
 		t.Fatalf("error code = %q, want broker_limit_policy_rejected", errResp.Error.Code)

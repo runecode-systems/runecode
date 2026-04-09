@@ -30,8 +30,8 @@
       "summary": "Issuing or renewing a secret lease from secretsd requires explicit human approval."
     },
     {
-      "code": "dependency_install",
-      "summary": "A dependency or package installation step requires human review."
+      "code": "dependency_network_fetch",
+      "summary": "A dependency network fetch/cache-fill action via dependency-fetch gateway requires human review."
     },
     {
       "code": "system_command_execution",

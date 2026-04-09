@@ -1,0 +1,9 @@
+{
+  "schema_id": "runecode.protocol.v0.PolicyAllowlist",
+  "schema_version": "0.1.0",
+  "allowlist_kind": "gateway_scope_rule",
+  "entry_schema_id": "runecode.protocol.v0.GatewayScopeRule",
+  "entries": [
+    "https://raw.url.forbidden.example"
+  ]
+}

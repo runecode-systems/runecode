@@ -11,6 +11,7 @@ Define post-MVP approval profiles that adjust approval timing without weakening 
 - MVP ships with `moderate` only; `strict` and `permissive` are post-MVP extensions.
 - Profiles are user-involvement presets for ordinary actions: they map approval frequency, batching, TTL, and minimum assurance, but they do not define transport trust or channel semantics.
 - Profiles cannot lower the fixed hard-floor categories defined by policy; those continue to require their minimum assurance regardless of selected profile.
+- Profiles should operate over canonical policy action kinds and hard-floor classes rather than ad hoc UI-facing action labels so later policy, runner, broker, and TUI work reuse one action taxonomy.
 - Delivery channel remains non-authoritative; local TUI, remote TUI, and messaging delivery are interchangeable only when they converge on the same signed approval artifacts and assurance checks.
 - Any broker-exposed run or approval summaries that surface the active profile or required assurance are part of the shared logical API contract and must evolve consistently as new profile values are added.
 

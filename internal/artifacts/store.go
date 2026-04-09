@@ -50,6 +50,11 @@ func (s *Store) loadState() error {
 		return err
 	}
 	changed = changed || sequenceChanged
+	approvalLinkChanged, err := s.reconcileApprovalPolicyDecisionLinksLocked()
+	if err != nil {
+		return err
+	}
+	changed = changed || approvalLinkChanged
 	if changed {
 		if err := s.saveStateLocked(); err != nil {
 			return err

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -48,6 +49,18 @@ func normalizeState(state StoreState) StoreState {
 	}
 	if state.Runs == nil {
 		state.Runs = map[string]string{}
+	}
+	if state.PolicyDecisions == nil {
+		state.PolicyDecisions = map[string]PolicyDecisionRecord{}
+	}
+	if state.RunPolicyDecisionRefs == nil {
+		state.RunPolicyDecisionRefs = map[string][]string{}
+	}
+	if state.Approvals == nil {
+		state.Approvals = map[string]ApprovalRecord{}
+	}
+	if state.RunApprovalRefs == nil {
+		state.RunApprovalRefs = map[string][]string{}
 	}
 	if state.PromotionEventsByActor == nil {
 		state.PromotionEventsByActor = map[string][]time.Time{}
@@ -164,4 +177,19 @@ func randomBackupKey() (string, error) {
 		return "", err
 	}
 	return "hmac-sha256:" + hex.EncodeToString(b), nil
+}
+
+func uniqueSortedStrings(values []string) []string {
+	if len(values) == 0 {
+		return []string{}
+	}
+	clone := append([]string{}, values...)
+	sort.Strings(clone)
+	out := make([]string, 0, len(clone))
+	for _, v := range clone {
+		if len(out) == 0 || out[len(out)-1] != v {
+			out = append(out, v)
+		}
+	}
+	return out
 }

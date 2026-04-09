@@ -1,0 +1,41 @@
+{
+  "registry_name": "role_kind",
+  "namespace": "runecode.protocol.identity.role_kind",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Closed concrete least-privilege role-kind taxonomy.",
+  "codes": [
+    {
+      "code": "workspace-read",
+      "summary": "Workspace role limited to read-oriented operations."
+    },
+    {
+      "code": "workspace-edit",
+      "summary": "Workspace role for editing/writing operations."
+    },
+    {
+      "code": "workspace-test",
+      "summary": "Workspace role for local test/build execution."
+    },
+    {
+      "code": "model-gateway",
+      "summary": "Gateway role for model endpoint egress."
+    },
+    {
+      "code": "auth-gateway",
+      "summary": "Gateway role for auth provider egress."
+    },
+    {
+      "code": "git-gateway",
+      "summary": "Gateway role for git remote egress."
+    },
+    {
+      "code": "web-research",
+      "summary": "Gateway role for web-origin research egress."
+    },
+    {
+      "code": "dependency-fetch",
+      "summary": "Gateway role for dependency registry egress."
+    }
+  ]
+}

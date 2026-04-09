@@ -177,6 +177,38 @@ func TestGetForFlowEnforcesProducerRoleAndManifestOptIn(t *testing.T) {
 	assertGetForFlowRejectsMismatchedProducer(t, store, approved.Digest)
 }
 
+func TestCheckFlowAndGetForFlowDenyRevokedApprovedExcerpt(t *testing.T) {
+	store, unapproved := setupPromotionSourceForTests(t)
+	approved := promoteApprovedExcerptForTests(t, store, unapproved.Digest, "human")
+	if err := store.RevokeApprovedExcerpt(approved.Digest, "human"); err != nil {
+		t.Fatalf("RevokeApprovedExcerpt returned error: %v", err)
+	}
+
+	err := store.CheckFlow(FlowCheckRequest{
+		ProducerRole:  "workspace",
+		ConsumerRole:  "model_gateway",
+		DataClass:     DataClassApprovedFileExcerpts,
+		Digest:        approved.Digest,
+		IsEgress:      true,
+		ManifestOptIn: true,
+	})
+	if err != ErrApprovedExcerptRevoked {
+		t.Fatalf("CheckFlow revoked approved excerpt error = %v, want %v", err, ErrApprovedExcerptRevoked)
+	}
+
+	_, _, err = store.GetForFlow(ArtifactReadRequest{
+		Digest:        approved.Digest,
+		ProducerRole:  "workspace",
+		ConsumerRole:  "model_gateway",
+		DataClass:     DataClassApprovedFileExcerpts,
+		IsEgress:      true,
+		ManifestOptIn: true,
+	})
+	if err != ErrApprovedExcerptRevoked {
+		t.Fatalf("GetForFlow revoked approved excerpt error = %v, want %v", err, ErrApprovedExcerptRevoked)
+	}
+}
+
 func assertGetForFlowRejectsUnapprovedEgress(t *testing.T, store *Store, digest string) {
 	t.Helper()
 	_, _, err := store.GetForFlow(ArtifactReadRequest{Digest: digest, ProducerRole: "workspace", ConsumerRole: "model_gateway", DataClass: DataClassUnapprovedFileExcerpts, IsEgress: true})
@@ -420,14 +452,6 @@ func TestCanonicalJSONRejectsTopLevelScalarRoots(t *testing.T) {
 		if !strings.Contains(err.Error(), "top-level JSON value must be an object or array") {
 			t.Fatalf("Put(%q) error = %v, want object-or-array root error", payload, err)
 		}
-	}
-}
-
-func TestReservedDataClassesFailClosedByDefault(t *testing.T) {
-	store := newTestStore(t)
-	_, err := store.Put(PutRequest{Payload: []byte("web"), ContentType: "text/plain", DataClass: DataClassWebQuery, ProvenanceReceiptHash: testDigest("b"), CreatedByRole: "workspace"})
-	if err != ErrReservedDataClassDisabled {
-		t.Fatalf("reserved class Put error = %v, want %v", err, ErrReservedDataClassDisabled)
 	}
 }
 

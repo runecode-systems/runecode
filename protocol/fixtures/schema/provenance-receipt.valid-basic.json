@@ -11,7 +11,8 @@
     "actor_kind": "daemon",
     "principal_id": "artifact-store",
     "instance_id": "artifact-store-1",
-    "role_kind": "workspace"
+    "role_family": "workspace",
+    "role_kind": "workspace-edit"
   },
   "source_artifact_hashes": [
     {

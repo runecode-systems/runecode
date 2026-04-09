@@ -60,6 +60,7 @@ type RunRoleSummary struct {
 	SchemaID        string `json:"schema_id"`
 	SchemaVersion   string `json:"schema_version"`
 	RoleInstanceID  string `json:"role_instance_id"`
+	RoleFamily      string `json:"role_family"`
 	RoleKind        string `json:"role_kind"`
 	LifecycleState  string `json:"lifecycle_state"`
 	ActiveItemCount int    `json:"active_item_count"`

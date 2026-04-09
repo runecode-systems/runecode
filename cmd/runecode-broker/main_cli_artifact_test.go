@@ -64,6 +64,36 @@ func TestPromotionFlowAndCheckFlowCLI(t *testing.T) {
 	}
 }
 
+func TestRevokeApprovedExcerptBlocksCheckFlowAndGetArtifactCLI(t *testing.T) {
+	setBrokerServiceForTest(t)
+	stderr := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
+	unapprovedPath := writeTempFile(t, "excerpt.txt", "private excerpt")
+	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"))
+	approvalRequestPath, approvalEnvelopePath, verifierRecords := writeApprovalFixtures(t, "human", unapproved.Digest, "repo/file.txt", "abc123", "tool-v1")
+	seedTrustedVerifierForBrokerCLITest(t, verifierRecords)
+	approved := promoteViaCLI(t, stdout, stderr, unapproved.Digest, approvalRequestPath, approvalEnvelopePath)
+
+	err := run([]string{"revoke-approved-excerpt", "--digest", approved.Digest, "--actor", "human"}, stdout, stderr)
+	if err != nil {
+		t.Fatalf("revoke-approved-excerpt returned error: %v", err)
+	}
+
+	err = run([]string{"check-flow", "--producer", "workspace", "--consumer", "model_gateway", "--data-class", "approved_file_excerpts", "--digest", approved.Digest, "--egress", "--manifest-opt-in"}, stdout, stderr)
+	if err != artifacts.ErrApprovedExcerptRevoked {
+		t.Fatalf("check-flow revoked approved excerpt error = %v, want %v", err, artifacts.ErrApprovedExcerptRevoked)
+	}
+
+	outPath := filepath.Join(t.TempDir(), "approved.txt")
+	err = run([]string{"get-artifact", "--digest", approved.Digest, "--producer", "workspace", "--consumer", "model_gateway", "--data-class", "approved_file_excerpts", "--manifest-opt-in", "--out", outPath}, stdout, stderr)
+	if err == nil {
+		t.Fatal("get-artifact expected policy rejection for revoked approved excerpt")
+	}
+	if !strings.Contains(err.Error(), "broker_limit_policy_rejected") {
+		t.Fatalf("error = %q, want typed policy rejection code", err.Error())
+	}
+}
+
 func TestGetArtifactCLIRejectsMissingProducerConsumer(t *testing.T) {
 	setBrokerServiceForTest(t)
 	stdout := &bytes.Buffer{}

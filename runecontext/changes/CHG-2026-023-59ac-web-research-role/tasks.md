@@ -4,12 +4,14 @@
 
 - [ ] Define the dedicated web-research gateway role.
 - [ ] Keep web research isolated from workspace roles and workspace-derived data classes.
+- [ ] Model web destinations through the shared typed `DestinationDescriptor` / allowlist-entry pattern.
 
 ## Egress Controls + Fetch Hardening
 
 - [ ] Keep egress deny-by-default and policy-driven.
 - [ ] Harden fetching against SSRF and DNS rebinding.
 - [ ] Block private and reserved IP ranges and constrain redirects.
+- [ ] Keep redirect handling aligned with the shared rule that redirects may only target separately allowlisted destinations.
 
 ## Citation Artifact Model
 

@@ -223,6 +223,46 @@
       ]
     },
     {
+      "audit_event_type": "policy_decision_recorded",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.policy-decision-recorded.v0"
+      ],
+      "allowed_signer_purposes": [
+        "policy_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage",
+        "step"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id"
+      ],
+      "required_correlation_fields": [
+        "operation_id"
+      ],
+      "require_subject_ref": true,
+      "allowed_subject_ref_roles": [
+        "target"
+      ],
+      "allowed_cause_ref_roles": [
+        "policy_cause"
+      ],
+      "allowed_related_ref_roles": [
+        "artifact",
+        "receipt",
+        "evidence"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
       "audit_event_type": "audit_segment_imported",
       "allowed_payload_schema_ids": [
         "runecode.protocol.audit.payload.audit-segment-imported.v0"

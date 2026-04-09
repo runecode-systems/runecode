@@ -14,7 +14,8 @@
       "actor_kind": "daemon",
       "principal_id": "gateway",
       "instance_id": "gateway-1",
-      "role_kind": "model"
+      "role_family": "gateway",
+      "role_kind": "model-gateway"
     },
     "event_type": "response_start"
   },
@@ -33,7 +34,8 @@
       "actor_kind": "daemon",
       "principal_id": "gateway",
       "instance_id": "gateway-1",
-      "role_kind": "model"
+      "role_family": "gateway",
+      "role_kind": "model-gateway"
     },
     "event_type": "output_delta",
     "content_delta": "partial output"
@@ -53,7 +55,8 @@
       "actor_kind": "daemon",
       "principal_id": "broker",
       "instance_id": "broker-1",
-      "role_kind": "workspace"
+      "role_family": "workspace",
+      "role_kind": "workspace-edit"
     },
     "event_type": "response_terminal",
     "terminal_status": "success",

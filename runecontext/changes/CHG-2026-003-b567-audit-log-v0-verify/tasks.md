@@ -173,3 +173,8 @@ Parallelization: can proceed in parallel with writer and anchoring work once sig
 - [ ] Verification runs locally, fails closed on invalid evidence, and distinguishes hard failure from degraded posture with machine-readable findings.
 - [ ] Verification output is storable and reviewable as a first-class artifact for later API/TUI use.
 - [ ] Missing anchors are surfaced as degraded posture by default; invalid anchors fail closed.
+
+Approval-resolution audit durability follow-up (pre-MVP foundation):
+- [ ] Define and implement a broker-side durability contract ensuring approval resolution and required audit evidence cannot diverge silently.
+  - Either make approval-resolution commit contingent on successful audit persistence,
+  - or introduce a durable retry/reconciliation queue with explicit degraded posture surfaced to operators.

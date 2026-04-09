@@ -32,4 +32,5 @@ var (
 	ErrBackupSignatureMissing          = errors.New("backup signature file is missing")
 	ErrBackupSignatureInvalid          = errors.New("backup signature verification failed")
 	ErrTrustedVerifierStateUnavailable = errors.New("trusted verifier state unavailable")
+	ErrApprovalPolicyDecisionRequired  = errors.New("approval requires policy decision hash")
 )

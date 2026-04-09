@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func handlePromoteExcerpt(args []string, service *brokerapi.Service, stdout io.Writer) error {
@@ -29,26 +30,23 @@ func handlePromoteExcerpt(args []string, service *brokerapi.Service, stdout io.W
 	if *unapprovedDigest == "" {
 		return &usageError{message: "promote-excerpt requires --unapproved-digest"}
 	}
-	approvalRequest, err := loadSignedApprovalEnvelope(*approvalRequestPath)
+	approvalRequest, approvalEnvelope, err := loadPromotionResolveEnvelopes(*approvalRequestPath, *approvalEnvelopePath)
 	if err != nil {
-		return &usageError{message: fmt.Sprintf("invalid --approval-request: %v", err)}
-	}
-	approvalEnvelope, err := loadSignedApprovalEnvelope(*approvalEnvelopePath)
-	if err != nil {
-		return &usageError{message: fmt.Sprintf("invalid --approval-envelope: %v", err)}
+		return err
 	}
 	api := localAPIForService(service)
 	ctx, cancel := commandRequestContext(context.Background())
 	defer cancel()
-	resolveResp, errResp := api.ApprovalResolve(ctx, brokerapi.ApprovalResolveRequest{
-		SchemaID:      "runecode.protocol.v0.ApprovalResolveRequest",
-		SchemaVersion: "0.1.0",
-		RequestID:     defaultRequestID(),
-		BoundScope: brokerapi.ApprovalBoundScope{
-			SchemaID:      "runecode.protocol.v0.ApprovalBoundScope",
-			SchemaVersion: "0.1.0",
-			ActionKind:    "excerpt_promotion",
-		},
+	approvalID, boundScope, err := promotionBoundScopeForResolve(ctx, api, approvalRequest.Payload)
+	if err != nil {
+		return err
+	}
+	resolveReq := brokerapi.ApprovalResolveRequest{
+		SchemaID:               "runecode.protocol.v0.ApprovalResolveRequest",
+		SchemaVersion:          "0.1.0",
+		RequestID:              defaultRequestID(),
+		ApprovalID:             approvalID,
+		BoundScope:             boundScope,
 		UnapprovedDigest:       *unapprovedDigest,
 		Approver:               *approver,
 		RepoPath:               *repoPath,
@@ -60,7 +58,8 @@ func handlePromoteExcerpt(args []string, service *brokerapi.Service, stdout io.W
 		BulkApprovalConfirmed:  *bulkApproved,
 		SignedApprovalRequest:  *approvalRequest,
 		SignedApprovalDecision: *approvalEnvelope,
-	})
+	}
+	resolveResp, errResp := api.ApprovalResolve(ctx, resolveReq)
 	if errResp != nil {
 		return localAPIError(errResp)
 	}
@@ -68,6 +67,46 @@ func handlePromoteExcerpt(args []string, service *brokerapi.Service, stdout io.W
 		return fmt.Errorf("gateway_failure: approval resolved without approved artifact")
 	}
 	return writeJSON(stdout, resolveResp.ApprovedArtifact.Reference)
+}
+
+func loadPromotionResolveEnvelopes(approvalRequestPath, approvalEnvelopePath string) (*trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope, error) {
+	approvalRequest, err := loadSignedApprovalEnvelope(approvalRequestPath)
+	if err != nil {
+		return nil, nil, &usageError{message: fmt.Sprintf("invalid --approval-request: %v", err)}
+	}
+	approvalEnvelope, err := loadSignedApprovalEnvelope(approvalEnvelopePath)
+	if err != nil {
+		return nil, nil, &usageError{message: fmt.Sprintf("invalid --approval-envelope: %v", err)}
+	}
+	return approvalRequest, approvalEnvelope, nil
+}
+
+func promotionBoundScopeForResolve(ctx context.Context, api brokerLocalAPI, requestPayload []byte) (string, brokerapi.ApprovalBoundScope, error) {
+	approvalID, err := canonicalJSONDigestIdentity(requestPayload)
+	if err != nil {
+		return "", brokerapi.ApprovalBoundScope{}, fmt.Errorf("derive approval request digest: %w", err)
+	}
+	if approvalID == "" {
+		return "", brokerapi.ApprovalBoundScope{}, fmt.Errorf("derive approval request digest: empty digest")
+	}
+	getResp, getErr := api.ApprovalGet(ctx, brokerapi.ApprovalGetRequest{SchemaID: "runecode.protocol.v0.ApprovalGetRequest", SchemaVersion: "0.1.0", RequestID: defaultRequestID(), ApprovalID: approvalID})
+	if getErr != nil {
+		if getErr.Error.Code == "broker_not_found_approval" {
+			return "", brokerapi.ApprovalBoundScope{}, fmt.Errorf("approval %q not found", approvalID)
+		}
+		return "", brokerapi.ApprovalBoundScope{}, localAPIError(getErr)
+	}
+	scope := getResp.Approval.BoundScope
+	if scope.SchemaID == "" {
+		return "", brokerapi.ApprovalBoundScope{}, fmt.Errorf("approval %q has invalid bound scope: missing schema_id", approvalID)
+	}
+	if scope.SchemaVersion == "" {
+		return "", brokerapi.ApprovalBoundScope{}, fmt.Errorf("approval %q has invalid bound scope: missing schema_version", approvalID)
+	}
+	if scope.ActionKind == "" {
+		scope.ActionKind = "promotion"
+	}
+	return approvalID, scope, nil
 }
 
 func handleRevokeApprovedExcerpt(args []string, service *brokerapi.Service, _ io.Writer) error {

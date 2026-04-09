@@ -1,0 +1,17 @@
+{
+  "registry_name": "role_family",
+  "namespace": "runecode.protocol.identity.role_family",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Closed high-level role-family taxonomy used by manifests, identities, audit, and policy.",
+  "codes": [
+    {
+      "code": "workspace",
+      "summary": "Workspace-scoped role family with no direct public egress."
+    },
+    {
+      "code": "gateway",
+      "summary": "Gateway-scoped role family used for typed network egress boundaries."
+    }
+  ]
+}

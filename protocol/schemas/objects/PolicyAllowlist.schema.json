@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/PolicyAllowlist.schema.json",
+  "title": "PolicyAllowlist",
+  "description": "Protocol-owned policy allowlist artifact family. Only allowlists referenced by the active signed manifest set participate in evaluation.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 5,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "allowlist_kind",
+    "entry_schema_id",
+    "entries"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.PolicyAllowlist",
+      "description": "Stable protocol object-family identifier for policy allowlist artifacts.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this policy allowlist.",
+      "x-data-class": "public"
+    },
+    "allowlist_kind": {
+      "type": "string",
+      "enum": [
+        "gateway_scope_rule"
+      ],
+      "description": "Closed allowlist kind identifier enforced by runtime policy loading.",
+      "x-data-class": "public"
+    },
+    "entry_schema_id": {
+      "type": "string",
+      "enum": [
+        "runecode.protocol.v0.GatewayScopeRule"
+      ],
+      "description": "Typed allowlist entry schema identifier. Unknown kinds fail closed.",
+      "x-data-class": "public"
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 512,
+      "description": "Deterministic allowlist entries consumed by policy evaluation.",
+      "x-data-class": "sensitive",
+      "items": {
+        "$ref": "GatewayScopeRule.schema.json",
+        "description": "One typed gateway scope rule entry."
+      },
+      "uniqueItems": true
+    }
+  }
+}

@@ -71,7 +71,6 @@ func (s *Store) PromoteApprovedExcerpt(req PromotionRequest) (ArtifactReference,
 	}
 	return newRef, nil
 }
-
 func (s *Store) trustedVerifierRecordsLocked() ([]trustpolicy.VerifierRecord, error) {
 	records := []trustpolicy.VerifierRecord{}
 	events, eventsErr := s.storeIO.readAuditEvents()

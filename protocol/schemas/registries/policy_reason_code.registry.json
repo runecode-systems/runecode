@@ -18,6 +18,18 @@
       "summary": "The request remains allowed only after the required human-approval checkpoint is satisfied."
     },
     {
+      "code": "allow_microvm_default",
+      "summary": "MicroVM backend selection is allowed as the default execution posture when available."
+    },
+    {
+      "code": "deny_container_opt_in_required",
+      "summary": "Container backend selection is denied unless explicit opt-in is present and approval is requested."
+    },
+    {
+      "code": "deny_container_automatic_fallback",
+      "summary": "Automatic fallback from microVM to container backend is denied fail-closed."
+    },
+    {
       "code": "artifact_flow_denied",
       "summary": "The requested artifact producer-consumer flow is not present in the signed flow matrix and is denied fail-closed."
     },

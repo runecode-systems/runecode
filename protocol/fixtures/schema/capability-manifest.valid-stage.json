@@ -7,7 +7,8 @@
     "actor_kind": "role_instance",
     "principal_id": "workspace-role",
     "instance_id": "workspace-1",
-    "role_kind": "workspace",
+    "role_family": "workspace",
+    "role_kind": "workspace-edit",
     "run_id": "run-1",
     "stage_id": "stage-build",
     "active_role_manifest_hash": {

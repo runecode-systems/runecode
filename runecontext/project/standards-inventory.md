@@ -8,6 +8,7 @@ Recent notable standards for this branch:
 - `runecontext/standards/global/control-plane-api-contract-shape.md`
 - `runecontext/standards/global/protocol-canonicalization-profile.md`
 - `runecontext/standards/global/protocol-registry-discipline.md`
+- `runecontext/standards/security/policy-evaluation-foundations.md`
 - `runecontext/standards/security/approval-binding-and-verifier-identity.md`
 - `runecontext/standards/security/audit-verification-scope-and-evidence-binding.md`
 - `runecontext/standards/security/trusted-local-artifact-persistence.md`

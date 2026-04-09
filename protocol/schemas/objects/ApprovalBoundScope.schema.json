@@ -15,7 +15,7 @@
     "stage_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Bound stage identifier.", "x-data-class": "public" },
     "step_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Bound step identifier.", "x-data-class": "public" },
     "role_instance_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Bound role instance identifier.", "x-data-class": "public" },
-    "action_kind": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Bound action kind.", "x-data-class": "public" },
+    "action_kind": { "type": "string", "enum": ["workspace_write", "executor_run", "artifact_read", "promotion", "gateway_egress", "dependency_fetch", "backend_posture_change", "action_gate_override", "stage_summary_sign_off", "secret_access"], "description": "Bound action kind.", "x-data-class": "public" },
     "policy_decision_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Policy decision digest bound to this approval scope.", "x-data-class": "public" }
   }
 }

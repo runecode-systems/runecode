@@ -108,6 +108,10 @@
     {
       "code": "broker_validation_range_not_supported",
       "summary": "The broker rejected the request because artifact range reads are not supported in MVP."
+    },
+    {
+      "code": "policy_input_hash_mismatch",
+      "summary": "Policy evaluation rejected a content-addressed input because payload bytes did not match the signed expected hash."
     }
   ]
 }

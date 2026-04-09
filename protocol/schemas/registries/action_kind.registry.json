@@ -1,0 +1,49 @@
+{
+  "registry_name": "action_kind",
+  "namespace": "runecode.protocol.action.kind",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Closed canonical policy action kinds for ActionRequest evaluation.",
+  "codes": [
+    {
+      "code": "workspace_write",
+      "summary": "Workspace write operations, including file create/update/delete/rename intents."
+    },
+    {
+      "code": "executor_run",
+      "summary": "Executor command execution requests across ordinary and system-modifying classes."
+    },
+    {
+      "code": "artifact_read",
+      "summary": "Artifact metadata or content read operations."
+    },
+    {
+      "code": "promotion",
+      "summary": "Excerpt or artifact promotion requests requiring typed traceability."
+    },
+    {
+      "code": "gateway_egress",
+      "summary": "Gateway-mediated network egress requests."
+    },
+    {
+      "code": "dependency_fetch",
+      "summary": "Gateway-scoped network dependency fetch/cache-fill requests."
+    },
+    {
+      "code": "backend_posture_change",
+      "summary": "Backend selection or isolation posture change requests."
+    },
+    {
+      "code": "action_gate_override",
+      "summary": "Gate override requests that bypass or relax a blocked checkpoint."
+    },
+    {
+      "code": "stage_summary_sign_off",
+      "summary": "Stage summary sign-off requests bound to canonical stage summary hashes."
+    },
+    {
+      "code": "secret_access",
+      "summary": "Secrets lease issue/renew access requests requiring typed policy evaluation."
+    }
+  ]
+}

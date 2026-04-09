@@ -37,7 +37,8 @@ func TestBrokerRejectionPathsAreAudited(t *testing.T) {
 func TestBrokerApprovalResolveAuditsResolution(t *testing.T) {
 	s, unapproved, requestEnv, decisionEnv := setupServiceWithApprovalFixture(t)
 	approvalID := approvalIDForBrokerTest(t, requestEnv)
-	resolveReq := brokerAuditResolveRequest(approvalID, unapproved.Digest, requestEnv, decisionEnv)
+	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, approvalID)
+	resolveReq := brokerAuditResolveRequest(approvalID, policyDecisionHash, unapproved.Digest, requestEnv, decisionEnv)
 	if _, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{}); errResp != nil {
 		t.Fatalf("HandleApprovalResolve returned error response: %+v", errResp)
 	}
@@ -45,13 +46,13 @@ func TestBrokerApprovalResolveAuditsResolution(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadAuditEvents returned error: %v", err)
 	}
-	if !hasBrokerApprovalResolutionEvent(events, "req-approval-audit", approvalID, "approved") {
+	if !hasBrokerApprovalResolutionEvent(events, "req-approval-audit", approvalID, "consumed") {
 		t.Fatal("expected broker_approval_resolution audit event for approval resolve")
 	}
 }
 
-func brokerAuditResolveRequest(approvalID, digest string, requestEnv, decisionEnv *trustpolicy.SignedObjectEnvelope) ApprovalResolveRequest {
-	return ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-approval-audit", ApprovalID: approvalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: "workspace-1", RunID: "run-approval", StageID: "artifact_flow", ActionKind: "excerpt_promotion"}, UnapprovedDigest: digest, Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *requestEnv, SignedApprovalDecision: *decisionEnv}
+func brokerAuditResolveRequest(approvalID, policyDecisionHash, digest string, requestEnv, decisionEnv *trustpolicy.SignedObjectEnvelope) ApprovalResolveRequest {
+	return ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-approval-audit", ApprovalID: approvalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-approval"), RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", ActionKind: "promotion", PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: digest, Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *requestEnv, SignedApprovalDecision: *decisionEnv}
 }
 
 func hasBrokerApprovalResolutionEvent(events []artifacts.AuditEvent, requestID, approvalID, status string) bool {

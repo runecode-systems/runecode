@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/DestinationDescriptor.schema.json",
+  "title": "DestinationDescriptor",
+  "description": "Canonical typed external destination identity for gateway policy evaluation.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 10,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "descriptor_kind",
+    "canonical_host",
+    "tls_required",
+    "private_range_blocking",
+    "dns_rebinding_protection"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.DestinationDescriptor",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "descriptor_kind": {
+      "type": "string",
+      "enum": [
+        "model_endpoint",
+        "auth_provider",
+        "git_remote",
+        "web_origin",
+        "package_registry"
+      ],
+      "description": "Closed destination descriptor family.",
+      "x-data-class": "public"
+    },
+    "canonical_host": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^[a-z0-9.-]+$",
+      "description": "Canonical DNS host identity for the destination.",
+      "x-data-class": "public"
+    },
+    "canonical_port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "Optional canonical port (defaults to 443).",
+      "x-data-class": "public"
+    },
+    "canonical_path_prefix": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*$",
+      "description": "Optional canonical path prefix for endpoint scoping.",
+      "x-data-class": "public"
+    },
+    "provider_or_namespace": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Provider/namespace identity within the descriptor family.",
+      "x-data-class": "public"
+    },
+    "tls_required": {
+      "const": true,
+      "description": "Invariant-owned transport requirement. Gateways must use TLS.",
+      "x-data-class": "public"
+    },
+    "private_range_blocking": {
+      "const": "enforced",
+      "description": "Invariant-owned SSRF/private-range posture.",
+      "x-data-class": "public"
+    },
+    "dns_rebinding_protection": {
+      "const": "enforced",
+      "description": "Invariant-owned DNS rebinding posture.",
+      "x-data-class": "public"
+    }
+  }
+}

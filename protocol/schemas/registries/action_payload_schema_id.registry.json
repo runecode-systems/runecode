@@ -1,0 +1,45 @@
+{
+  "registry_name": "action_payload_schema_id",
+  "namespace": "runecode.protocol.action.payload_schema",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Closed ActionRequest payload schema identifiers keyed to action_kind.",
+  "codes": [
+    {
+      "code": "runecode.protocol.v0.ActionPayloadWorkspaceWrite",
+      "summary": "Typed payload schema for workspace_write actions."
+    },
+    {
+      "code": "runecode.protocol.v0.ActionPayloadExecutorRun",
+      "summary": "Typed payload schema for executor_run actions."
+    },
+    {
+      "code": "runecode.protocol.v0.ActionPayloadArtifactRead",
+      "summary": "Typed payload schema for artifact_read actions."
+    },
+    {
+      "code": "runecode.protocol.v0.ActionPayloadPromotion",
+      "summary": "Typed payload schema for promotion actions."
+    },
+    {
+      "code": "runecode.protocol.v0.ActionPayloadGatewayEgress",
+      "summary": "Typed payload schema for gateway_egress actions."
+    },
+    {
+      "code": "runecode.protocol.v0.ActionPayloadBackendPostureChange",
+      "summary": "Typed payload schema for backend_posture_change actions."
+    },
+    {
+      "code": "runecode.protocol.v0.ActionPayloadGateOverride",
+      "summary": "Typed payload schema for gate_override actions."
+    },
+    {
+      "code": "runecode.protocol.v0.ActionPayloadStageSummarySignOff",
+      "summary": "Typed payload schema for stage_summary_sign_off actions."
+    },
+    {
+      "code": "runecode.protocol.v0.ActionPayloadSecretAccess",
+      "summary": "Typed payload schema for secret_access actions."
+    }
+  ]
+}

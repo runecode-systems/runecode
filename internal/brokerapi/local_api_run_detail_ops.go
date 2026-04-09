@@ -1,7 +1,6 @@
 package brokerapi
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -18,9 +17,10 @@ func (s *Service) runDetail(runID string) (RunDetail, bool, error) {
 		return RunDetail{}, false, nil
 	}
 	artifactsForRun, classCount := runArtifactsAndClassCount(s.List(), runID)
+	policyRefs := s.PolicyDecisionRefsForRun(runID)
 	pendingIDs := runPendingApprovalIDs(s.listApprovals(), runID)
 	verification := s.runAuditVerificationOrFallback()
-	return buildRunDetail(summary, verification, artifactsForRun, classCount, pendingIDs), true, nil
+	return buildRunDetail(summary, verification, artifactsForRun, classCount, pendingIDs, policyRefs), true, nil
 }
 
 func findRunSummary(summaries []RunSummary, runID string) (RunSummary, bool) {
@@ -56,9 +56,8 @@ func runPendingApprovalIDs(approvals []ApprovalSummary, runID string) []string {
 	return pendingIDs
 }
 
-func buildRunDetail(summary RunSummary, verification AuditVerificationSurface, artifactsForRun []artifacts.ArtifactRecord, classCount map[string]int, pendingIDs []string) RunDetail {
+func buildRunDetail(summary RunSummary, verification AuditVerificationSurface, artifactsForRun []artifacts.ArtifactRecord, classCount map[string]int, pendingIDs []string, policyRefs []string) RunDetail {
 	manifestHashes := activeManifestHashes(artifactsForRun)
-	policyRefs := latestPolicyDecisionRefs(artifactsForRun)
 	stageSummaries := []RunStageSummary{buildRunStageSummary(summary, artifactsForRun, pendingIDs)}
 	roleSummaries := buildRunRoleSummaries(summary, artifactsForRun)
 	authoritativeState := buildAuthoritativeRunState(summary, artifactsForRun, pendingIDs, manifestHashes)
@@ -107,7 +106,8 @@ func buildRunRoleSummaries(summary RunSummary, artifactsForRun []artifacts.Artif
 			SchemaID:        "runecode.protocol.v0.RunRoleSummary",
 			SchemaVersion:   "0.1.0",
 			RoleInstanceID:  runRoleInstanceID("workspace"),
-			RoleKind:        "workspace",
+			RoleFamily:      "workspace",
+			RoleKind:        "workspace-edit",
 			LifecycleState:  summary.LifecycleState,
 			ActiveItemCount: 0,
 		}}
@@ -119,16 +119,39 @@ func buildRunRoleSummaries(summary RunSummary, artifactsForRun []artifacts.Artif
 	sort.Strings(roles)
 	out := make([]RunRoleSummary, 0, len(roles))
 	for _, role := range roles {
+		family, kind := normalizeRoleForSummary(role)
 		out = append(out, RunRoleSummary{
 			SchemaID:        "runecode.protocol.v0.RunRoleSummary",
 			SchemaVersion:   "0.1.0",
 			RoleInstanceID:  runRoleInstanceID(role),
-			RoleKind:        role,
+			RoleFamily:      family,
+			RoleKind:        kind,
 			LifecycleState:  summary.LifecycleState,
 			ActiveItemCount: counts[role],
 		})
 	}
 	return out
+}
+
+func normalizeRoleForSummary(createdByRole string) (string, string) {
+	switch strings.TrimSpace(createdByRole) {
+	case "workspace-read", "workspace-edit", "workspace-test":
+		return "workspace", strings.TrimSpace(createdByRole)
+	case "workspace", "brokerapi", "unknown", "":
+		return "workspace", "workspace-edit"
+	case "model_gateway", "model-gateway":
+		return "gateway", "model-gateway"
+	case "auth_gateway", "auth-gateway":
+		return "gateway", "auth-gateway"
+	case "git_gateway", "git-gateway":
+		return "gateway", "git-gateway"
+	case "web_research", "web-research":
+		return "gateway", "web-research"
+	case "dependency_fetch", "dependency-fetch":
+		return "gateway", "dependency-fetch"
+	default:
+		return "workspace", "workspace-edit"
+	}
 }
 
 func buildRunCoordinationSummary(summary RunSummary) RunCoordinationSummary {
@@ -190,22 +213,4 @@ func buildAdvisoryRunState() map[string]any {
 		"available":    false,
 		"bounded_keys": []string{},
 	}
-}
-
-func latestPolicyDecisionRefs(artifactsForRun []artifacts.ArtifactRecord) []string {
-	refs := make([]string, 0, len(artifactsForRun))
-	for _, record := range artifactsForRun {
-		if record.ApprovalDecisionHash == "" {
-			continue
-		}
-		refs = append(refs, fmt.Sprintf("approval_decision:%s", record.ApprovalDecisionHash))
-	}
-	if len(refs) == 0 {
-		return []string{}
-	}
-	sort.Strings(refs)
-	if len(refs) > 256 {
-		return refs[len(refs)-256:]
-	}
-	return refs
 }

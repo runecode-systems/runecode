@@ -5,7 +5,7 @@
   "description": "Protocol-owned policy decision family for deterministic allow, deny, and require-human-approval outcomes bound to hashed inputs.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 12,
+  "maxProperties": 13,
   "allOf": [
     {
       "if": {
@@ -35,6 +35,44 @@
         "required": [
           "required_approval_schema_id"
         ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "required_approval": {
+            "type": "object",
+            "required": [
+              "approval_trigger_code"
+            ]
+          }
+        },
+        "required": [
+          "required_approval"
+        ]
+      },
+      "then": {
+        "properties": {
+          "required_approval": {
+            "type": "object",
+            "properties": {
+              "approval_trigger_code": {
+                "type": "string",
+                "enum": [
+                  "stage_sign_off",
+                  "reduced_assurance_backend",
+                  "gate_override",
+                  "gateway_egress_scope_change",
+                  "out_of_workspace_write",
+                  "secret_access_lease",
+                  "dependency_network_fetch",
+                  "system_command_execution",
+                  "excerpt_promotion"
+                ]
+              }
+            }
+          }
+        }
       }
     },
     {
@@ -116,15 +154,25 @@
     },
     "policy_reason_code": {
       "type": "string",
-      "minLength": 1,
-      "maxLength": 128,
-      "pattern": "^[a-z][a-z0-9_]*$",
+      "enum": [
+        "deny_by_default",
+        "allow_manifest_opt_in",
+        "approval_required",
+        "allow_microvm_default",
+        "deny_container_opt_in_required",
+        "deny_container_automatic_fallback",
+        "artifact_flow_denied",
+        "unapproved_excerpt_egress_denied",
+        "approved_excerpt_requires_manifest_opt_in",
+        "approved_excerpt_revoked",
+        "artifact_quota_exceeded"
+      ],
       "description": "Machine-consumed reason code explaining the deterministic policy outcome. Runtime enforcement must validate this value against the active policy_reason_code registry.",
       "x-data-class": "public"
     },
     "manifest_hash": {
       "$ref": "Digest.schema.json#/$defs/digestValue",
-      "description": "Hash of the active manifest context evaluated by the policy engine.",
+      "description": "Hash of the compiled effective policy context evaluated by the policy engine (invariants + active role/run/stage manifests + participating allowlists).",
       "x-data-class": "public"
     },
     "action_request_hash": {
@@ -146,7 +194,7 @@
     "policy_input_hashes": {
       "type": "array",
       "maxItems": 64,
-      "description": "Hashes of other evaluated policy inputs, such as allowlists or policy documents, beyond the manifest and action request.",
+      "description": "Hashes of other evaluated policy inputs contributing to manifest_hash, including source role/capability manifests and referenced allowlist or policy documents.",
       "x-data-class": "public",
       "items": {
         "$ref": "Digest.schema.json#/$defs/digestValue",
