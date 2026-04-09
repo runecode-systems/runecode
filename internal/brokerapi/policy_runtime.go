@@ -70,7 +70,7 @@ func (r policyRuntime) loadCompileInput(runID string) (policyengine.CompileInput
 		RunManifest:                runInput,
 		Allowlists:                 []policyengine.ManifestInput{},
 		VerifierRecords:            catalog.verifiers,
-		RequireSignedContextVerify: len(catalog.verifiers) > 0,
+		RequireSignedContextVerify: true,
 	}
 	allowlistRefs, err := requiredAllowlistRefs(roleManifest.AllowlistRefs, runManifest.AllowlistRefs)
 	if err != nil {
@@ -95,18 +95,18 @@ type runtimeContextRecords struct {
 }
 
 func (r policyRuntime) loadRuntimeContextRecords(catalog trustedPolicyCatalog, runID string) (runtimeContextRecords, error) {
-	roleRecord, err := pickScopedRecord(catalog.byKind[artifacts.TrustedContractImportKindRoleManifest], runID)
+	roleRecord, err := pickRequiredExactRunRecord(catalog.byKind[artifacts.TrustedContractImportKindRoleManifest], runID, artifacts.TrustedContractImportKindRoleManifest)
 	if err != nil {
 		return runtimeContextRecords{}, err
 	}
-	runRecord, err := pickRequiredRunRecord(catalog.byKind[artifacts.TrustedContractImportKindRunCapability], runID, artifacts.TrustedContractImportKindRunCapability)
+	runRecord, err := pickRequiredExactRunRecord(catalog.byKind[artifacts.TrustedContractImportKindRunCapability], runID, artifacts.TrustedContractImportKindRunCapability)
 	if err != nil {
 		return runtimeContextRecords{}, err
 	}
 	return runtimeContextRecords{
 		roleRecord:  roleRecord,
 		runRecord:   runRecord,
-		stageRecord: pickOptionalRunRecord(catalog.byKind[artifacts.TrustedContractImportKindStageCapability], runID),
+		stageRecord: pickOptionalExactRunRecord(catalog.byKind[artifacts.TrustedContractImportKindStageCapability], runID),
 	}, nil
 }
 
@@ -178,7 +178,7 @@ func (r policyRuntime) attachAllowlists(input *policyengine.CompileInput, record
 }
 
 func (r policyRuntime) attachOptionalRuleSet(input *policyengine.CompileInput, records []artifacts.ArtifactRecord, runID string) error {
-	ruleSet := pickOptionalRunRecord(records, runID)
+	ruleSet := pickOptionalExactRunRecord(records, runID)
 	if ruleSet == nil {
 		return nil
 	}

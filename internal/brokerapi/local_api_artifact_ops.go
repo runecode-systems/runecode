@@ -166,7 +166,8 @@ func (s *Service) enforceArtifactReadPolicy(requestID string, req ArtifactReadRe
 	decision, evalErr := s.EvaluateAction(head.RunID, action)
 	if evalErr != nil {
 		if errors.Is(evalErr, errPolicyContextUnavailable) {
-			return nil
+			errOut := s.makeError(requestID, "broker_limit_policy_rejected", "policy", false, fmt.Sprintf("artifact read denied: %v", evalErr))
+			return &errOut
 		}
 		errOut := s.errorFromPolicyEvaluation(requestID, evalErr)
 		return &errOut

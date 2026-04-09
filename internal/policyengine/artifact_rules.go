@@ -45,14 +45,18 @@ func evaluateArtifactFlowRestrictions(policy ArtifactFlowPolicy, req ArtifactFlo
 }
 
 func evaluateArtifactFlowMatrix(policy ArtifactFlowPolicy, req ArtifactFlowRequest) (DecisionOutcome, string, map[string]any) {
+	matchedRolePair := false
 	for _, rule := range policy.FlowMatrix {
 		if !strings.EqualFold(rule.ProducerRole, req.ProducerRole) || !strings.EqualFold(rule.ConsumerRole, req.ConsumerRole) {
 			continue
 		}
+		matchedRolePair = true
 		if roleRuleAllowsDataClass(rule, req.DataClass) {
 			return DecisionAllow, "allow_manifest_opt_in", map[string]any{}
 		}
-		break
+	}
+	if matchedRolePair {
+		return DecisionDeny, "artifact_flow_denied", map[string]any{"digest": req.Digest, "data_class": req.DataClass}
 	}
 	return DecisionDeny, "artifact_flow_denied", map[string]any{"digest": req.Digest, "data_class": req.DataClass}
 }

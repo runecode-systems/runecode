@@ -82,7 +82,6 @@ func loadPromotionResolveEnvelopes(approvalRequestPath, approvalEnvelopePath str
 }
 
 func promotionBoundScopeForResolve(ctx context.Context, api brokerLocalAPI, requestPayload []byte) (string, brokerapi.ApprovalBoundScope, error) {
-	defaultScope := brokerapi.ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", ActionKind: "promotion"}
 	approvalID, err := canonicalJSONDigestIdentity(requestPayload)
 	if err != nil {
 		return "", brokerapi.ApprovalBoundScope{}, fmt.Errorf("derive approval request digest: %w", err)
@@ -99,7 +98,10 @@ func promotionBoundScopeForResolve(ctx context.Context, api brokerLocalAPI, requ
 	}
 	scope := getResp.Approval.BoundScope
 	if scope.SchemaID == "" {
-		return approvalID, defaultScope, nil
+		return "", brokerapi.ApprovalBoundScope{}, fmt.Errorf("approval %q has invalid bound scope: missing schema_id", approvalID)
+	}
+	if scope.SchemaVersion == "" {
+		return "", brokerapi.ApprovalBoundScope{}, fmt.Errorf("approval %q has invalid bound scope: missing schema_version", approvalID)
 	}
 	if scope.ActionKind == "" {
 		scope.ActionKind = "promotion"

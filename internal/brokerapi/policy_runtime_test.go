@@ -42,6 +42,140 @@ func TestHandleArtifactReadUsesTrustedPolicyRuntime(t *testing.T) {
 	assertSinglePersistedAllowDecision(t, s, runID)
 }
 
+func TestEvaluateActionRequiresRunScopedRoleManifest(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-role-scope"
+	verifier, privateKey := newSignedContextVerifierFixture(t)
+	if err := putTrustedVerifierRecordForService(s, verifier); err != nil {
+		t.Fatalf("putTrustedVerifierRecordForService returned error: %v", err)
+	}
+	allowlistDigest := putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindPolicyAllowlist, trustedPolicyAllowlistPayload(t))
+	globalRolePayload := trustedRoleManifestPayload(t, verifier, privateKey, "", allowlistDigest)
+	_ = putTrustedPolicyArtifact(t, s, "", artifacts.TrustedContractImportKindRoleManifest, globalRolePayload)
+	runPayload := trustedCapabilityManifestPayload(t, verifier, privateKey, runID, "", "run", allowlistDigest)
+	_ = putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindRunCapability, runPayload)
+
+	_, err := s.EvaluateAction(runID, trustedArtifactReadAction())
+	if err == nil {
+		t.Fatal("EvaluateAction expected error when run-scoped role manifest is missing")
+	}
+	if !strings.Contains(err.Error(), "trusted policy context unavailable") {
+		t.Fatalf("EvaluateAction error = %v, want trusted policy context unavailable", err)
+	}
+}
+
+func TestEvaluateActionRequiresRunScopedRunCapabilityManifest(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-run-scope"
+	verifier, privateKey := newSignedContextVerifierFixture(t)
+	if err := putTrustedVerifierRecordForService(s, verifier); err != nil {
+		t.Fatalf("putTrustedVerifierRecordForService returned error: %v", err)
+	}
+	allowlistDigest := putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindPolicyAllowlist, trustedPolicyAllowlistPayload(t))
+	rolePayload := trustedRoleManifestPayload(t, verifier, privateKey, runID, allowlistDigest)
+	_ = putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindRoleManifest, rolePayload)
+	runPayload := trustedCapabilityManifestPayload(t, verifier, privateKey, runID, "", "run", allowlistDigest)
+	_ = putTrustedPolicyArtifact(t, s, "", artifacts.TrustedContractImportKindRunCapability, runPayload)
+
+	_, err := s.EvaluateAction(runID, trustedArtifactReadAction())
+	if err == nil {
+		t.Fatal("EvaluateAction expected error when run-scoped run capability is missing")
+	}
+	if !strings.Contains(err.Error(), "trusted policy context unavailable") {
+		t.Fatalf("EvaluateAction error = %v, want trusted policy context unavailable", err)
+	}
+}
+
+func TestEvaluateActionFailsClosedWhenSignedContextVerifiersMissing(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-missing-verifier"
+	verifier, privateKey := newSignedContextVerifierFixture(t)
+	allowlistDigest := putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindPolicyAllowlist, trustedPolicyAllowlistPayload(t))
+	rolePayload := trustedRoleManifestPayload(t, verifier, privateKey, runID, allowlistDigest)
+	_ = putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindRoleManifest, rolePayload)
+	runPayload := trustedCapabilityManifestPayload(t, verifier, privateKey, runID, "", "run", allowlistDigest)
+	_ = putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindRunCapability, runPayload)
+
+	_, err := s.EvaluateAction(runID, trustedArtifactReadAction())
+	if err == nil {
+		t.Fatal("EvaluateAction expected error when verifier records are unavailable")
+	}
+	if !strings.Contains(err.Error(), "signed context verification requires at least one verifier record") {
+		t.Fatalf("EvaluateAction error = %v, want missing verifier fail-closed message", err)
+	}
+}
+
+func TestEvaluateActionIgnoresGlobalRuleSetFallback(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-ruleset-scope"
+	verifier, privateKey := newSignedContextVerifierFixture(t)
+	if err := putTrustedVerifierRecordForService(s, verifier); err != nil {
+		t.Fatalf("putTrustedVerifierRecordForService returned error: %v", err)
+	}
+	allowlistDigest := putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindPolicyAllowlist, trustedPolicyAllowlistPayload(t))
+	rolePayload := trustedRoleManifestPayload(t, verifier, privateKey, runID, allowlistDigest)
+	_ = putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindRoleManifest, rolePayload)
+	runPayload := trustedCapabilityManifestPayload(t, verifier, privateKey, runID, "", "run", allowlistDigest)
+	_ = putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindRunCapability, runPayload)
+
+	globalRuleSet := map[string]any{
+		"schema_id":      "runecode.protocol.v0.PolicyRuleSet",
+		"schema_version": "0.1.0",
+		"rules": []any{map[string]any{
+			"rule_id":           "deny-artifact-read-global",
+			"effect":            "deny",
+			"action_kind":       "artifact_read",
+			"capability_id":     artifactReadCapabilityID,
+			"reason_code":       "deny_by_default",
+			"details_schema_id": "runecode.protocol.details.policy.deny.v0",
+		}},
+	}
+	_ = putTrustedPolicyArtifact(t, s, "", artifacts.TrustedContractImportKindPolicyRuleSet, mustJSONBytes(t, globalRuleSet))
+
+	decision, err := s.EvaluateAction(runID, trustedArtifactReadAction())
+	if err != nil {
+		t.Fatalf("EvaluateAction returned error: %v", err)
+	}
+	if decision.DecisionOutcome != policyengine.DecisionAllow {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, policyengine.DecisionAllow)
+	}
+}
+
+func TestEvaluateActionIgnoresGlobalStageCapabilityFallback(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-stage-scope"
+	verifier, privateKey := newSignedContextVerifierFixture(t)
+	if err := putTrustedVerifierRecordForService(s, verifier); err != nil {
+		t.Fatalf("putTrustedVerifierRecordForService returned error: %v", err)
+	}
+	allowlistDigest := putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindPolicyAllowlist, trustedPolicyAllowlistPayload(t))
+	rolePayload := trustedRoleManifestPayload(t, verifier, privateKey, runID, allowlistDigest)
+	_ = putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindRoleManifest, rolePayload)
+	runPayload := trustedCapabilityManifestPayload(t, verifier, privateKey, runID, "", "run", allowlistDigest)
+	_ = putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindRunCapability, runPayload)
+
+	globalStagePayload := signedPayloadForTrustedContext(t, map[string]any{
+		"schema_id":          "runecode.protocol.v0.CapabilityManifest",
+		"schema_version":     "0.2.0",
+		"principal":          signedContextPrincipal("workspace", "workspace-edit", runID, "artifact_flow"),
+		"manifest_scope":     "stage",
+		"run_id":             runID,
+		"stage_id":           "artifact_flow",
+		"approval_profile":   "moderate",
+		"capability_opt_ins": []any{"cap_unrelated"},
+		"allowlist_refs":     []any{digestObject(allowlistDigest)},
+	}, verifier, privateKey)
+	_ = putTrustedPolicyArtifact(t, s, "", artifacts.TrustedContractImportKindStageCapability, globalStagePayload)
+
+	decision, err := s.EvaluateAction(runID, trustedArtifactReadAction())
+	if err != nil {
+		t.Fatalf("EvaluateAction returned error: %v", err)
+	}
+	if decision.DecisionOutcome != policyengine.DecisionAllow {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, policyengine.DecisionAllow)
+	}
+}
+
 func trustedArtifactReadAction() policyengine.ActionRequest {
 	return policyengine.ActionRequest{
 		SchemaID:              "runecode.protocol.v0.ActionRequest",

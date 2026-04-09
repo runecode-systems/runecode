@@ -78,6 +78,7 @@ Parallelization: can be implemented in parallel with secretsd work; coordinate o
 - [ ] Define `approval_assurance_level = none | session_authenticated | reauthenticated | hardware_backed`.
 - [ ] Delivery channel (`local_tui`, `remote_tui`, messaging bridge, later integrations) is routing/advisory metadata only and is not the trust primitive.
 - [ ] `ApprovalDecision` is signed by a trusted approval authority; when step-up assurance is required, the user authenticator signs a challenge/assertion that the approval authority verifies and binds into the decision.
+- [ ] Replace broker-generated placeholder `ApprovalRequest` envelopes with real detached signatures from a broker-scoped authority or a distinct unsigned-pending contract; fail closed if a path would otherwise emit an `ed25519` envelope with stub signature bytes.
 - [ ] Highest-assurance operations require a user-controlled cryptographic factor regardless of delivery channel; exact hard-floor categories are coordinated with `runecontext/changes/CHG-2026-007-2315-policy-engine-v0/`.
 - [ ] Typed approval payloads must provide enough context for safe review, including:
   - scope

@@ -135,7 +135,9 @@ func buildRunRoleSummaries(summary RunSummary, artifactsForRun []artifacts.Artif
 
 func normalizeRoleForSummary(createdByRole string) (string, string) {
 	switch strings.TrimSpace(createdByRole) {
-	case "workspace", "workspace-read", "workspace-edit", "workspace-test", "brokerapi", "unknown", "":
+	case "workspace-read", "workspace-edit", "workspace-test":
+		return "workspace", strings.TrimSpace(createdByRole)
+	case "workspace", "brokerapi", "unknown", "":
 		return "workspace", "workspace-edit"
 	case "model_gateway", "model-gateway":
 		return "gateway", "model-gateway"

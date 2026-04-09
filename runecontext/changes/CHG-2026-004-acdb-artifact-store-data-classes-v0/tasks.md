@@ -84,3 +84,8 @@ Parallelization: can be implemented in parallel with audit log retention; coordi
 - [ ] Artifact store does not grow without bound; GC can reclaim unreferenced artifacts deterministically.
 - [ ] `approved_file_excerpts` cannot be produced without a recorded human approval; `unapproved_file_excerpts` are blocked from third-party egress deterministically.
 - [ ] Public broker/API artifact metadata does not require daemon-private blob paths or host-local storage details.
+
+Retention/restore provenance hardening follow-up (pre-MVP foundation):
+- [ ] Preserve promotion provenance graph integrity across GC and backup/restore:
+  - prevent GC from removing unapproved source artifacts while approved excerpts still reference them,
+  - keep restore validation fail-closed on broken promotion lineage instead of silently weakening provenance checks.

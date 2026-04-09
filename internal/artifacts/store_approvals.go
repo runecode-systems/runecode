@@ -48,6 +48,9 @@ func (s *Store) RecordApproval(record ApprovalRecord) error {
 	if err := s.ensureApprovalPolicyDecisionLinkLocked(&record); err != nil {
 		return err
 	}
+	if err := requirePolicyDecisionHashForBoundApproval(record); err != nil {
+		return err
+	}
 	if err := validateApprovalRecord(record); err != nil {
 		return err
 	}
@@ -62,6 +65,16 @@ func (s *Store) RecordApproval(record ApprovalRecord) error {
 	s.state.Approvals[record.ApprovalID] = record
 	rebuildRunApprovalRefsLocked(&s.state)
 	return s.saveStateLocked()
+}
+
+func requirePolicyDecisionHashForBoundApproval(record ApprovalRecord) error {
+	if !approvalHasBindingKeys(&record) {
+		return nil
+	}
+	if strings.TrimSpace(record.PolicyDecisionHash) == "" {
+		return ErrApprovalPolicyDecisionRequired
+	}
+	return nil
 }
 
 func (s *Store) ensureApprovalPolicyDecisionLinkLocked(record *ApprovalRecord) error {
@@ -97,6 +110,9 @@ func (s *Store) reconcileApprovalPolicyDecisionLinksLocked() (bool, error) {
 	for approvalID, rec := range s.state.Approvals {
 		before := rec.PolicyDecisionHash
 		if err := s.ensureApprovalPolicyDecisionLinkLocked(&rec); err != nil {
+			return false, fmt.Errorf("approval %q policy decision linkage: %w", approvalID, err)
+		}
+		if err := requirePolicyDecisionHashForBoundApproval(rec); err != nil {
 			return false, fmt.Errorf("approval %q policy decision linkage: %w", approvalID, err)
 		}
 		if rec.PolicyDecisionHash != before {

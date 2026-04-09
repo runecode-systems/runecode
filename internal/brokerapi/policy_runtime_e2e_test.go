@@ -35,8 +35,10 @@ func TestPolicyRuntimeE2EStageSignOffStaleThenCurrentLifecycle(t *testing.T) {
 	}
 	oldID := seedPendingStageSignOffApprovalForSignedRequest(t, s, "run-stage-e2e", "stage-1", *oldRequest)
 	newID := seedPendingStageSignOffApprovalForSignedRequest(t, s, "run-stage-e2e", "stage-1", *newRequest)
+	oldPolicyDecisionHash := policyDecisionHashForStoredApproval(t, s, oldID)
+	newPolicyDecisionHash := policyDecisionHashForStoredApproval(t, s, newID)
 
-	oldResolveResp, oldErrResp := s.HandleApprovalResolve(context.Background(), stageResolveRequestForE2E(oldID, "req-stage-e2e-old", *oldRequest, *oldDecision), RequestContext{})
+	oldResolveResp, oldErrResp := s.HandleApprovalResolve(context.Background(), stageResolveRequestForE2E(oldID, oldPolicyDecisionHash, "req-stage-e2e-old", *oldRequest, *oldDecision), RequestContext{})
 	if oldErrResp != nil {
 		t.Fatalf("HandleApprovalResolve(old) error response: %+v", oldErrResp)
 	}
@@ -47,7 +49,7 @@ func TestPolicyRuntimeE2EStageSignOffStaleThenCurrentLifecycle(t *testing.T) {
 		t.Fatalf("superseded_by_approval_id = %q, want %q", oldResolveResp.Approval.SupersededByApprovalID, newID)
 	}
 
-	newResolveResp, newErrResp := s.HandleApprovalResolve(context.Background(), stageResolveRequestForE2E(newID, "req-stage-e2e-new", *newRequest, *newDecision), RequestContext{})
+	newResolveResp, newErrResp := s.HandleApprovalResolve(context.Background(), stageResolveRequestForE2E(newID, newPolicyDecisionHash, "req-stage-e2e-new", *newRequest, *newDecision), RequestContext{})
 	if newErrResp != nil {
 		t.Fatalf("HandleApprovalResolve(new) error response: %+v", newErrResp)
 	}
@@ -346,19 +348,20 @@ func assertPromotionApprovalResolutionLinkedHash(t *testing.T, s *Service, resol
 	}
 }
 
-func stageResolveRequestForE2E(approvalID, requestID string, request, decision trustpolicy.SignedObjectEnvelope) ApprovalResolveRequest {
+func stageResolveRequestForE2E(approvalID, policyDecisionHash, requestID string, request, decision trustpolicy.SignedObjectEnvelope) ApprovalResolveRequest {
 	return ApprovalResolveRequest{
 		SchemaID:      "runecode.protocol.v0.ApprovalResolveRequest",
 		SchemaVersion: "0.1.0",
 		RequestID:     requestID,
 		ApprovalID:    approvalID,
 		BoundScope: ApprovalBoundScope{
-			SchemaID:      "runecode.protocol.v0.ApprovalBoundScope",
-			SchemaVersion: "0.1.0",
-			WorkspaceID:   workspaceIDForRun("run-stage-e2e"),
-			RunID:         "run-stage-e2e",
-			StageID:       "stage-1",
-			ActionKind:    policyengine.ActionKindStageSummarySign,
+			SchemaID:           "runecode.protocol.v0.ApprovalBoundScope",
+			SchemaVersion:      "0.1.0",
+			WorkspaceID:        workspaceIDForRun("run-stage-e2e"),
+			RunID:              "run-stage-e2e",
+			StageID:            "stage-1",
+			ActionKind:         policyengine.ActionKindStageSummarySign,
+			PolicyDecisionHash: policyDecisionHash,
 		},
 		UnapprovedDigest:       "sha256:" + strings.Repeat("d", 64),
 		Approver:               "human",

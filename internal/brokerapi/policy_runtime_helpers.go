@@ -41,29 +41,18 @@ func sortedUniquePolicyRefs(values []string) []string {
 	return out
 }
 
-func pickScopedRecord(records []artifacts.ArtifactRecord, runID string) (artifacts.ArtifactRecord, error) {
-	if rec := pickOptionalRunRecord(records, runID); rec != nil {
-		return *rec, nil
-	}
-	return artifacts.ArtifactRecord{}, fmt.Errorf("%w: no trusted import for run %q", errPolicyContextUnavailable, runID)
-}
-
-func pickRequiredRunRecord(records []artifacts.ArtifactRecord, runID string, kind string) (artifacts.ArtifactRecord, error) {
-	rec := pickOptionalRunRecord(records, runID)
-	if rec != nil {
-		return *rec, nil
+func pickRequiredExactRunRecord(records []artifacts.ArtifactRecord, runID string, kind string) (artifacts.ArtifactRecord, error) {
+	for i := range records {
+		if strings.TrimSpace(records[i].RunID) == runID {
+			return records[i], nil
+		}
 	}
 	return artifacts.ArtifactRecord{}, fmt.Errorf("%w: no trusted %s for run %q", errPolicyContextUnavailable, kind, runID)
 }
 
-func pickOptionalRunRecord(records []artifacts.ArtifactRecord, runID string) *artifacts.ArtifactRecord {
+func pickOptionalExactRunRecord(records []artifacts.ArtifactRecord, runID string) *artifacts.ArtifactRecord {
 	for i := range records {
 		if strings.TrimSpace(records[i].RunID) == runID {
-			return &records[i]
-		}
-	}
-	for i := range records {
-		if strings.TrimSpace(records[i].RunID) == "" {
 			return &records[i]
 		}
 	}

@@ -72,3 +72,8 @@ Parallelization: can be implemented in parallel across policy/runner/TUI as long
 - [ ] Profiles must never convert `deny -> allow`.
 - [ ] Attempting to use an unknown profile value fails closed.
 - [ ] Profiles do not weaken the fixed minimum assurance floor for hard-floor operations.
+
+Profile hardening follow-up (pre-MVP foundation):
+- [ ] Ensure backend posture approval gating fails closed when profile-specific approval payload derivation is unavailable.
+  - `evaluateContainerBackendSelection` must not return a no-op match (`PolicyDecision{}, false`) when `requires_opt_in=true` and no profile mapping resolves.
+  - Preserve the invariant that profile expansion cannot silently convert a required-approval posture into an implicit allow path.

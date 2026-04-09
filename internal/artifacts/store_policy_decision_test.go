@@ -1,6 +1,10 @@
 package artifacts
 
 import (
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -166,6 +170,70 @@ func TestRecordApprovalBackfillsPolicyDecisionHashFromPersistedDecision(t *testi
 	}
 	if storedApproval.PolicyDecisionHash != storedDecision.Digest {
 		t.Fatalf("stored approval policy_decision_hash = %q, want %q", storedApproval.PolicyDecisionHash, storedDecision.Digest)
+	}
+}
+
+func TestNewStoreFailsClosedWhenBoundApprovalLinkCannotBeReconciled(t *testing.T) {
+	root := t.TempDir()
+	store := newStoreForReconcileFailureTest(t, root)
+	seedRequireHumanApprovalPolicyDecision(t, store, "run-reconcile")
+	clearPersistedPolicyDecisions(t, root)
+
+	_, err := NewStore(root)
+	if !errors.Is(err, ErrApprovalPolicyDecisionRequired) {
+		t.Fatalf("NewStore error = %v, want %v", err, ErrApprovalPolicyDecisionRequired)
+	}
+}
+
+func newStoreForReconcileFailureTest(t *testing.T, root string) *Store {
+	t.Helper()
+	t.Setenv(backupHMACKeyEnv, "test-backup-key")
+	store, err := NewStore(root)
+	if err != nil {
+		t.Fatalf("NewStore returned error: %v", err)
+	}
+	return store
+}
+
+func seedRequireHumanApprovalPolicyDecision(t *testing.T, store *Store, runID string) {
+	t.Helper()
+	decision := basePolicyDecisionRecord(runID, map[string]any{"precedence": "approval"})
+	decision.DecisionOutcome = "require_human_approval"
+	decision.PolicyReasonCode = "approval_required"
+	decision.RequiredApprovalSchemaID = "runecode.protocol.details.policy.required_approval.moderate.workspace_write.v0"
+	decision.RequiredApproval = map[string]any{
+		"approval_trigger_code": "excerpt_promotion",
+		"scope": map[string]any{
+			"workspace_id": "workspace-local",
+			"run_id":       runID,
+			"stage_id":     "artifact_flow",
+			"step_id":      "step-1",
+			"action_kind":  "promotion",
+		},
+	}
+	if err := store.RecordPolicyDecision(decision); err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
+	}
+}
+
+func clearPersistedPolicyDecisions(t *testing.T, root string) {
+	t.Helper()
+	statePath := filepath.Join(root, "state.json")
+	rawState, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatalf("ReadFile state.json returned error: %v", err)
+	}
+	state := StoreState{}
+	if err := json.Unmarshal(rawState, &state); err != nil {
+		t.Fatalf("Unmarshal state.json returned error: %v", err)
+	}
+	state.PolicyDecisions = map[string]PolicyDecisionRecord{}
+	rewritten, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal state.json returned error: %v", err)
+	}
+	if err := os.WriteFile(statePath, rewritten, 0o600); err != nil {
+		t.Fatalf("WriteFile state.json returned error: %v", err)
 	}
 }
 

@@ -17,6 +17,7 @@ import (
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
@@ -130,6 +131,7 @@ func seedPendingPromotionApprovalForCLI(t *testing.T, digest, approvalRequestPat
 	if err := json.Unmarshal(requestEnv.Payload, &payload); err != nil {
 		t.Fatalf("Unmarshal request payload error: %v", err)
 	}
+	seedPolicyDecisionForCLIApprovalRecord(t, service, payload)
 	expiresAt := mustTimeForCLITests(t, stringField(payload, "expires_at"))
 	if err := service.RecordApproval(artifacts.ApprovalRecord{
 		ApprovalID:             approvalID,
@@ -152,6 +154,30 @@ func seedPendingPromotionApprovalForCLI(t *testing.T, digest, approvalRequestPat
 		RequestEnvelope:        requestEnv,
 	}); err != nil {
 		t.Fatalf("RecordApproval returned error: %v", err)
+	}
+}
+
+func seedPolicyDecisionForCLIApprovalRecord(t *testing.T, service *brokerapi.Service, payload map[string]any) {
+	t.Helper()
+	manifestHash := digestField(payload, "manifest_hash")
+	actionHash := digestField(payload, "action_request_hash")
+	if manifestHash == "" || actionHash == "" {
+		t.Fatalf("approval payload missing manifest/action request hash for policy decision seeding")
+	}
+	decision := policyengine.PolicyDecision{
+		SchemaID:               "runecode.protocol.v0.PolicyDecision",
+		SchemaVersion:          "0.3.0",
+		DecisionOutcome:        policyengine.DecisionDeny,
+		PolicyReasonCode:       "deny_by_default",
+		ManifestHash:           manifestHash,
+		ActionRequestHash:      actionHash,
+		PolicyInputHashes:      []string{manifestHash},
+		RelevantArtifactHashes: digestListField(payload, "relevant_artifact_hashes"),
+		DetailsSchemaID:        "runecode.protocol.details.policy.evaluation.v0",
+		Details:                map[string]any{"precedence": "test_seed"},
+	}
+	if err := service.RecordPolicyDecision("", "", decision); err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
 	}
 }
 

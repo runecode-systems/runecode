@@ -39,7 +39,9 @@ func TestArtifactReadRequiresManifestOptInForApprovedExcerpt(t *testing.T) {
 
 func setupApprovedExcerptArtifactForReadTests(t *testing.T, s *Service) artifacts.ArtifactReference {
 	t.Helper()
-	unapproved, err := s.Put(artifacts.PutRequest{Payload: []byte("private excerpt"), ContentType: "text/plain", DataClass: artifacts.DataClassUnapprovedFileExcerpts, ProvenanceReceiptHash: "sha256:" + strings.Repeat("b", 64), CreatedByRole: "workspace"})
+	runID := "run-approved-read"
+	_ = putTrustedPolicyContextForRun(t, s, runID, false)
+	unapproved, err := s.Put(artifacts.PutRequest{Payload: []byte("private excerpt"), ContentType: "text/plain", DataClass: artifacts.DataClassUnapprovedFileExcerpts, ProvenanceReceiptHash: "sha256:" + strings.Repeat("b", 64), CreatedByRole: "workspace", RunID: runID, StepID: "step-1"})
 	if err != nil {
 		t.Fatalf("Put unapproved returned error: %v", err)
 	}

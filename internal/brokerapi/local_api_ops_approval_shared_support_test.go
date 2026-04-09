@@ -55,15 +55,38 @@ func seedPendingApprovalForSignedRequest(t *testing.T, s *Service, runID, stepID
 		t.Fatalf("approvalIDFromRequest returned error: %v", err)
 	}
 	payload := decodeApprovalPayloadMap(requestEnv.Payload)
+	seedPolicyDecisionForPendingApproval(t, s, runID, payload)
 	record := pendingPromotionApprovalRecordForRequest(runID, stepID, sourceDigest, approvalID, payload, requestEnv)
 	if err := s.RecordApproval(record); err != nil {
 		t.Fatalf("RecordApproval returned error: %v", err)
 	}
 }
 
+func seedPolicyDecisionForPendingApproval(t *testing.T, s *Service, runID string, payload map[string]any) {
+	t.Helper()
+	manifestHash := digestFromPayloadField(payload, "manifest_hash")
+	actionHash := digestFromPayloadField(payload, "action_request_hash")
+	if err := s.RecordPolicyDecision(runID, "", policyengine.PolicyDecision{
+		SchemaID:               "runecode.protocol.v0.PolicyDecision",
+		SchemaVersion:          "0.3.0",
+		DecisionOutcome:        policyengine.DecisionDeny,
+		PolicyReasonCode:       "deny_by_default",
+		ManifestHash:           manifestHash,
+		ActionRequestHash:      actionHash,
+		PolicyInputHashes:      []string{manifestHash},
+		RelevantArtifactHashes: relevantArtifactHashesFromPayload(payload),
+		DetailsSchemaID:        "runecode.protocol.details.policy.evaluation.v0",
+		Details:                map[string]any{"precedence": "test_seed"},
+	}); err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
+	}
+}
+
 func decodeApprovalPayloadMap(payload []byte) map[string]any {
 	out := map[string]any{}
-	_ = json.Unmarshal(payload, &out)
+	if err := json.Unmarshal(payload, &out); err != nil {
+		panic(err)
+	}
 	return out
 }
 
@@ -118,31 +141,59 @@ func signedApprovalArtifactsForBrokerTests(t *testing.T, approver, digest string
 
 func signedApprovalArtifactsForBrokerTestsWithOutcome(t *testing.T, approver, digest, outcome string) (*trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope, []trustpolicy.VerifierRecord) {
 	t.Helper()
-	now := time.Now().UTC()
-	requestedAt := now.Add(-1 * time.Minute).Format(time.RFC3339)
-	expiresAt := now.Add(30 * time.Minute).Format(time.RFC3339)
-	decidedAt := now.Format(time.RFC3339)
-	publicKey, privateKey, _ := ed25519.GenerateKey(rand.Reader)
-	keyID := sha256.Sum256(publicKey)
-	keyIDValue := hex.EncodeToString(keyID[:])
+	requestedAt, expiresAt, decidedAt := approvalTimestamps(time.Now().UTC())
+	publicKey, privateKey, keyIDValue := approvalSigningIdentity(t)
 	actionHash := promotionActionHashForBrokerTests(digest, "repo/file.txt", "abc123", "tool-v1", approver)
-	requestPayload := map[string]any{"schema_id": trustpolicy.ApprovalRequestSchemaID, "schema_version": trustpolicy.ApprovalRequestSchemaVersion, "approval_profile": "moderate", "requester": map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "broker", "instance_id": "broker-1"}, "approval_trigger_code": "excerpt_promotion", "manifest_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("1", 64)}, "action_request_hash": map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(actionHash, "sha256:")}, "relevant_artifact_hashes": []any{map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(digest, "sha256:")}}, "details_schema_id": "runecode.protocol.details.approval.excerpt-promotion.v0", "details": map[string]any{"repo_path": "repo/file.txt", "commit": "abc123"}, "approval_assurance_level": "reauthenticated", "presence_mode": "hardware_touch", "requested_at": requestedAt, "expires_at": expiresAt, "staleness_posture": "invalidate_on_bound_input_change", "changes_if_approved": "Promote reviewed file excerpts for downstream use.", "signatures": []any{map[string]any{"alg": "ed25519", "key_id": trustpolicy.KeyIDProfile, "key_id_value": keyIDValue, "signature": "c2ln"}}}
-	reqBytes, _ := json.Marshal(requestPayload)
-	reqCanonical, _ := jsoncanonicalizer.Transform(reqBytes)
-	reqSig := ed25519.Sign(privateKey, reqCanonical)
-	requestEnv := &trustpolicy.SignedObjectEnvelope{SchemaID: trustpolicy.EnvelopeSchemaID, SchemaVersion: trustpolicy.EnvelopeSchemaVersion, PayloadSchemaID: trustpolicy.ApprovalRequestSchemaID, PayloadSchemaVersion: trustpolicy.ApprovalRequestSchemaVersion, Payload: reqBytes, SignatureInput: trustpolicy.SignatureInputProfile, Signature: trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: keyIDValue, Signature: base64.StdEncoding.EncodeToString(reqSig)}}
-	requestDigest, _ := approvalIDFromRequest(*requestEnv)
-	decisionPayload := map[string]any{"schema_id": trustpolicy.ApprovalDecisionSchemaID, "schema_version": trustpolicy.ApprovalDecisionSchemaVersion, "approval_request_hash": map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(requestDigest, "sha256:")}, "approver": map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "user", "principal_id": approver, "instance_id": "approval-session"}, "decision_outcome": outcome, "approval_assurance_level": "reauthenticated", "presence_mode": "hardware_touch", "key_protection_posture": "hardware_backed", "identity_binding_posture": "attested", "approval_assertion_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("f", 64)}, "decided_at": decidedAt, "consumption_posture": "single_use", "signatures": []any{map[string]any{"alg": "ed25519", "key_id": trustpolicy.KeyIDProfile, "key_id_value": strings.Repeat("a", 64), "signature": "c2ln"}}}
-	decisionBytes, _ := json.Marshal(decisionPayload)
-	decisionCanonical, _ := jsoncanonicalizer.Transform(decisionBytes)
-	decisionSig := ed25519.Sign(privateKey, decisionCanonical)
-	decisionEnv := &trustpolicy.SignedObjectEnvelope{SchemaID: trustpolicy.EnvelopeSchemaID, SchemaVersion: trustpolicy.EnvelopeSchemaVersion, PayloadSchemaID: trustpolicy.ApprovalDecisionSchemaID, PayloadSchemaVersion: trustpolicy.ApprovalDecisionSchemaVersion, Payload: decisionBytes, SignatureInput: trustpolicy.SignatureInputProfile, Signature: trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: keyIDValue, Signature: base64.StdEncoding.EncodeToString(decisionSig)}}
-	verifier := trustpolicy.VerifierRecord{SchemaID: trustpolicy.VerifierSchemaID, SchemaVersion: trustpolicy.VerifierSchemaVersion, KeyID: trustpolicy.KeyIDProfile, KeyIDValue: keyIDValue, Alg: "ed25519", PublicKey: trustpolicy.PublicKey{Encoding: "base64", Value: base64.StdEncoding.EncodeToString(publicKey)}, LogicalPurpose: "approval_authority", LogicalScope: "user", OwnerPrincipal: trustpolicy.PrincipalIdentity{SchemaID: "runecode.protocol.v0.PrincipalIdentity", SchemaVersion: "0.2.0", ActorKind: "user", PrincipalID: approver, InstanceID: "approval-session"}, KeyProtectionPosture: "hardware_backed", IdentityBindingPosture: "attested", PresenceMode: "hardware_touch", CreatedAt: "2026-03-13T12:00:00Z", Status: "active"}
+	requestEnv := signedApprovalRequestEnvelopeForBrokerTests(t, privateKey, keyIDValue, promotionApprovalRequestPayload(actionHash, digest, requestedAt, expiresAt))
+	requestDigest, err := approvalIDFromRequest(*requestEnv)
+	if err != nil {
+		t.Fatalf("approvalIDFromRequest returned error: %v", err)
+	}
+	decisionEnv := signedApprovalDecisionEnvelopeForBrokerTests(t, privateKey, keyIDValue, approver, outcome, decidedAt, requestDigest)
+	verifier := approvalVerifierRecordForBrokerTests(publicKey, keyIDValue, approver)
 	return requestEnv, decisionEnv, []trustpolicy.VerifierRecord{verifier}
 }
 
+func promotionApprovalRequestPayload(actionHash, digest, requestedAt, expiresAt string) map[string]any {
+	return map[string]any{
+		"schema_id":        trustpolicy.ApprovalRequestSchemaID,
+		"schema_version":   trustpolicy.ApprovalRequestSchemaVersion,
+		"approval_profile": "moderate",
+		"requester": map[string]any{
+			"schema_id":      "runecode.protocol.v0.PrincipalIdentity",
+			"schema_version": "0.2.0",
+			"actor_kind":     "daemon",
+			"principal_id":   "broker",
+			"instance_id":    "broker-1",
+		},
+		"approval_trigger_code": "excerpt_promotion",
+		"manifest_hash":         map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("1", 64)},
+		"action_request_hash":   map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(actionHash, "sha256:")},
+		"relevant_artifact_hashes": []any{
+			map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(digest, "sha256:")},
+		},
+		"details_schema_id":        "runecode.protocol.details.approval.excerpt-promotion.v0",
+		"details":                  map[string]any{"repo_path": "repo/file.txt", "commit": "abc123"},
+		"approval_assurance_level": "reauthenticated",
+		"presence_mode":            "hardware_touch",
+		"requested_at":             requestedAt,
+		"expires_at":               expiresAt,
+		"staleness_posture":        "invalidate_on_bound_input_change",
+		"changes_if_approved":      "Promote reviewed file excerpts for downstream use.",
+		"signatures": []any{map[string]any{
+			"alg":          "ed25519",
+			"key_id":       trustpolicy.KeyIDProfile,
+			"key_id_value": "",
+			"signature":    "c2ln",
+		}},
+	}
+}
+
 func promotionActionHashForBrokerTests(digest, repoPath, commit, extractorVersion, approver string) string {
-	actionHash, _ := artifacts.CanonicalPromotionActionRequestHash(artifacts.PromotionRequest{UnapprovedDigest: digest, Approver: approver, RepoPath: repoPath, Commit: commit, ExtractorToolVersion: extractorVersion})
+	actionHash, err := artifacts.CanonicalPromotionActionRequestHash(artifacts.PromotionRequest{UnapprovedDigest: digest, Approver: approver, RepoPath: repoPath, Commit: commit, ExtractorToolVersion: extractorVersion})
+	if err != nil {
+		panic(err)
+	}
 	return actionHash
 }
 
@@ -150,7 +201,9 @@ func createPendingApprovalFromPolicyDecision(t *testing.T, s *Service, runID, st
 	t.Helper()
 	manifestHash := "sha256:" + strings.Repeat("1", 64)
 	actionHash := promotionActionHashForBrokerTests(sourceDigest, "repo/file.txt", "abc123", "tool-v1", "human")
-	_ = s.RecordPolicyDecision(runID, "", policyengine.PolicyDecision{SchemaID: "runecode.protocol.v0.PolicyDecision", SchemaVersion: "0.3.0", DecisionOutcome: policyengine.DecisionRequireHumanApproval, PolicyReasonCode: "approval_required", ManifestHash: manifestHash, PolicyInputHashes: []string{"sha256:" + strings.Repeat("2", 64)}, ActionRequestHash: actionHash, RelevantArtifactHashes: []string{sourceDigest}, DetailsSchemaID: "runecode.protocol.details.policy.evaluation.v0", Details: map[string]any{"precedence": "approval_profile_moderate"}, RequiredApprovalSchemaID: "runecode.protocol.details.policy.required_approval.moderate.workspace_write.v0", RequiredApproval: map[string]any{"approval_trigger_code": "excerpt_promotion", "approval_assurance_level": "session_authenticated", "presence_mode": "os_confirmation", "scope": map[string]any{"schema_id": "runecode.protocol.v0.ApprovalBoundScope", "schema_version": "0.1.0", "workspace_id": workspaceIDForRun(runID), "run_id": runID, "stage_id": "artifact_flow", "step_id": stepID, "action_kind": "promotion"}, "changes_if_approved": "Promote reviewed file excerpts for downstream use.", "approval_ttl_seconds": 1800}})
+	if err := s.RecordPolicyDecision(runID, "", policyengine.PolicyDecision{SchemaID: "runecode.protocol.v0.PolicyDecision", SchemaVersion: "0.3.0", DecisionOutcome: policyengine.DecisionRequireHumanApproval, PolicyReasonCode: "approval_required", ManifestHash: manifestHash, PolicyInputHashes: []string{"sha256:" + strings.Repeat("2", 64)}, ActionRequestHash: actionHash, RelevantArtifactHashes: []string{sourceDigest}, DetailsSchemaID: "runecode.protocol.details.policy.evaluation.v0", Details: map[string]any{"precedence": "approval_profile_moderate"}, RequiredApprovalSchemaID: "runecode.protocol.details.policy.required_approval.moderate.workspace_write.v0", RequiredApproval: map[string]any{"approval_trigger_code": "excerpt_promotion", "approval_assurance_level": "session_authenticated", "presence_mode": "os_confirmation", "scope": map[string]any{"schema_id": "runecode.protocol.v0.ApprovalBoundScope", "schema_version": "0.1.0", "workspace_id": workspaceIDForRun(runID), "run_id": runID, "stage_id": "artifact_flow", "step_id": stepID, "action_kind": "promotion"}, "changes_if_approved": "Promote reviewed file excerpts for downstream use.", "approval_ttl_seconds": 1800}}); err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
+	}
 	for _, rec := range s.ApprovalList() {
 		if rec.RunID == runID && rec.Status == "pending" {
 			return rec.ApprovalID
@@ -185,7 +238,9 @@ func setupServiceWithStageSignOffApprovalFixture(t *testing.T) (*Service, *trust
 	}
 	requestEnv, decisionEnv, verifiers := signedStageSummaryApprovalArtifactsForBrokerTests(t, "human", "run-stage", "stage-1", "sha256:"+strings.Repeat("6", 64), 1, "approve")
 	for _, verifier := range verifiers {
-		_ = putTrustedVerifierRecordForService(s, verifier)
+		if err := putTrustedVerifierRecordForService(s, verifier); err != nil {
+			t.Fatalf("putTrustedVerifierRecordForService returned error: %v", err)
+		}
 	}
 	seedPendingStageSignOffApprovalForSignedRequest(t, s, "run-stage", "stage-1", *requestEnv)
 	return s, requestEnv, decisionEnv
@@ -200,12 +255,20 @@ func setupServiceWithSupersededStageSignOffApprovals(t *testing.T) (*Service, *t
 
 func seedPendingStageSignOffApprovalForSignedRequest(t *testing.T, s *Service, runID, stageID string, requestEnv trustpolicy.SignedObjectEnvelope) string {
 	t.Helper()
-	approvalID, _ := approvalIDFromRequest(requestEnv)
+	approvalID, err := approvalIDFromRequest(requestEnv)
+	if err != nil {
+		t.Fatalf("approvalIDFromRequest returned error: %v", err)
+	}
 	payload := map[string]any{}
-	_ = json.Unmarshal(requestEnv.Payload, &payload)
+	if err := json.Unmarshal(requestEnv.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal approval request payload returned error: %v", err)
+	}
+	seedPolicyDecisionForPendingApproval(t, s, runID, payload)
 	requestedAt := parseRFC3339OrNow(payload, "requested_at")
 	expiresAt := parseRFC3339OrNow(payload, "expires_at")
-	_ = s.RecordApproval(artifacts.ApprovalRecord{ApprovalID: approvalID, Status: "pending", WorkspaceID: workspaceIDForRun(runID), RunID: runID, StageID: stageID, ActionKind: policyengine.ActionKindStageSummarySign, RequestedAt: requestedAt, ExpiresAt: &expiresAt, ApprovalTriggerCode: stringFieldFromPayload(payload, "approval_trigger_code", "stage_sign_off"), ChangesIfApproved: stringFieldFromPayload(payload, "changes_if_approved", "Stage summary is signed off for this exact summary hash."), ApprovalAssuranceLevel: stringFieldFromPayload(payload, "approval_assurance_level", "session_authenticated"), PresenceMode: stringFieldFromPayload(payload, "presence_mode", "os_confirmation"), ManifestHash: digestFromPayloadField(payload, "manifest_hash"), ActionRequestHash: digestFromPayloadField(payload, "action_request_hash"), RequestDigest: approvalID, SourceDigest: "", RequestEnvelope: &requestEnv})
+	if err := s.RecordApproval(artifacts.ApprovalRecord{ApprovalID: approvalID, Status: "pending", WorkspaceID: workspaceIDForRun(runID), RunID: runID, StageID: stageID, ActionKind: policyengine.ActionKindStageSummarySign, RequestedAt: requestedAt, ExpiresAt: &expiresAt, ApprovalTriggerCode: stringFieldFromPayload(payload, "approval_trigger_code", "stage_sign_off"), ChangesIfApproved: stringFieldFromPayload(payload, "changes_if_approved", "Stage summary is signed off for this exact summary hash."), ApprovalAssuranceLevel: stringFieldFromPayload(payload, "approval_assurance_level", "session_authenticated"), PresenceMode: stringFieldFromPayload(payload, "presence_mode", "os_confirmation"), ManifestHash: digestFromPayloadField(payload, "manifest_hash"), ActionRequestHash: digestFromPayloadField(payload, "action_request_hash"), RequestDigest: approvalID, SourceDigest: "", RequestEnvelope: &requestEnv}); err != nil {
+		t.Fatalf("RecordApproval returned error: %v", err)
+	}
 	return approvalID
 }
 
@@ -216,7 +279,10 @@ func signedStageSummaryApprovalArtifactsForBrokerTests(t *testing.T, approver, r
 	publicKey, privateKey, keyIDValue := approvalSigningIdentity(t)
 	actionHash := stageSignOffActionHashForBrokerTests(runID, stageID, stageSummaryDigest, summaryRevision)
 	requestEnv := signedApprovalRequestEnvelopeForBrokerTests(t, privateKey, keyIDValue, stageSummaryApprovalRequestPayload(actionHash, runID, stageID, stageSummaryDigest, summaryRevision, requestedAt, expiresAt))
-	requestDigest, _ := approvalIDFromRequest(*requestEnv)
+	requestDigest, err := approvalIDFromRequest(*requestEnv)
+	if err != nil {
+		t.Fatalf("approvalIDFromRequest returned error: %v", err)
+	}
 	decisionEnv := signedApprovalDecisionEnvelopeForBrokerTests(t, privateKey, keyIDValue, approver, outcome, decidedAt, requestDigest)
 	verifier := approvalVerifierRecordForBrokerTests(publicKey, keyIDValue, approver)
 	return requestEnv, decisionEnv, []trustpolicy.VerifierRecord{verifier}
@@ -261,8 +327,14 @@ func stageSummaryApprovalRequestPayload(actionHash, runID, stageID, stageSummary
 func signedApprovalRequestEnvelopeForBrokerTests(t *testing.T, privateKey ed25519.PrivateKey, keyIDValue string, payload map[string]any) *trustpolicy.SignedObjectEnvelope {
 	t.Helper()
 	payload["signatures"] = []any{map[string]any{"alg": "ed25519", "key_id": trustpolicy.KeyIDProfile, "key_id_value": keyIDValue, "signature": "c2ln"}}
-	reqBytes, _ := json.Marshal(payload)
-	reqCanonical, _ := jsoncanonicalizer.Transform(reqBytes)
+	reqBytes, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal stage sign-off approval request returned error: %v", err)
+	}
+	reqCanonical, err := jsoncanonicalizer.Transform(reqBytes)
+	if err != nil {
+		t.Fatalf("canonicalize stage sign-off approval request returned error: %v", err)
+	}
 	reqSig := ed25519.Sign(privateKey, reqCanonical)
 	return &trustpolicy.SignedObjectEnvelope{SchemaID: trustpolicy.EnvelopeSchemaID, SchemaVersion: trustpolicy.EnvelopeSchemaVersion, PayloadSchemaID: trustpolicy.ApprovalRequestSchemaID, PayloadSchemaVersion: trustpolicy.ApprovalRequestSchemaVersion, Payload: reqBytes, SignatureInput: trustpolicy.SignatureInputProfile, Signature: trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: keyIDValue, Signature: base64.StdEncoding.EncodeToString(reqSig)}}
 }
@@ -270,8 +342,14 @@ func signedApprovalRequestEnvelopeForBrokerTests(t *testing.T, privateKey ed2551
 func signedApprovalDecisionEnvelopeForBrokerTests(t *testing.T, privateKey ed25519.PrivateKey, keyIDValue, approver, outcome, decidedAt, requestDigest string) *trustpolicy.SignedObjectEnvelope {
 	t.Helper()
 	decisionPayload := map[string]any{"schema_id": trustpolicy.ApprovalDecisionSchemaID, "schema_version": trustpolicy.ApprovalDecisionSchemaVersion, "approval_request_hash": map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(requestDigest, "sha256:")}, "approver": map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "user", "principal_id": approver, "instance_id": "approval-session"}, "decision_outcome": outcome, "approval_assurance_level": "reauthenticated", "presence_mode": "hardware_touch", "key_protection_posture": "hardware_backed", "identity_binding_posture": "attested", "approval_assertion_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("f", 64)}, "decided_at": decidedAt, "consumption_posture": "single_use", "signatures": []any{map[string]any{"alg": "ed25519", "key_id": trustpolicy.KeyIDProfile, "key_id_value": keyIDValue, "signature": "c2ln"}}}
-	decisionBytes, _ := json.Marshal(decisionPayload)
-	decisionCanonical, _ := jsoncanonicalizer.Transform(decisionBytes)
+	decisionBytes, err := json.Marshal(decisionPayload)
+	if err != nil {
+		t.Fatalf("Marshal stage sign-off approval decision returned error: %v", err)
+	}
+	decisionCanonical, err := jsoncanonicalizer.Transform(decisionBytes)
+	if err != nil {
+		t.Fatalf("canonicalize stage sign-off approval decision returned error: %v", err)
+	}
 	decisionSig := ed25519.Sign(privateKey, decisionCanonical)
 	return &trustpolicy.SignedObjectEnvelope{SchemaID: trustpolicy.EnvelopeSchemaID, SchemaVersion: trustpolicy.EnvelopeSchemaVersion, PayloadSchemaID: trustpolicy.ApprovalDecisionSchemaID, PayloadSchemaVersion: trustpolicy.ApprovalDecisionSchemaVersion, Payload: decisionBytes, SignatureInput: trustpolicy.SignatureInputProfile, Signature: trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: keyIDValue, Signature: base64.StdEncoding.EncodeToString(decisionSig)}}
 }
@@ -281,15 +359,33 @@ func approvalVerifierRecordForBrokerTests(publicKey ed25519.PublicKey, keyIDValu
 }
 
 func stageSignOffActionHashForBrokerTests(runID, stageID, stageSummaryDigest string, summaryRevision int64) string {
-	stageSummaryHash, _ := digestFromIdentity(stageSummaryDigest)
+	stageSummaryHash, err := digestFromIdentity(stageSummaryDigest)
+	if err != nil {
+		panic(err)
+	}
 	action := policyengine.NewStageSummarySignOffAction(policyengine.StageSummarySignOffActionInput{ActionEnvelope: policyengine.ActionEnvelope{CapabilityID: "cap_stage", Actor: policyengine.ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"}}, RunID: runID, StageID: stageID, StageSummaryHash: stageSummaryHash, ApprovalProfile: "moderate", SummaryRevision: &summaryRevision})
-	hash, _ := policyengine.CanonicalActionRequestHash(action)
+	hash, err := policyengine.CanonicalActionRequestHash(action)
+	if err != nil {
+		panic(err)
+	}
 	return hash
 }
 
 func assertApprovalAndAuditReadEndpoints(t *testing.T, s *Service, approvalID string) {
 	t.Helper()
 	_, _ = s.HandleApprovalGet(context.Background(), ApprovalGetRequest{SchemaID: "runecode.protocol.v0.ApprovalGetRequest", SchemaVersion: "0.1.0", RequestID: "req-approval-get", ApprovalID: approvalID}, RequestContext{})
+}
+
+func policyDecisionHashForStoredApproval(t *testing.T, s *Service, approvalID string) string {
+	t.Helper()
+	rec, ok := s.ApprovalGet(approvalID)
+	if !ok {
+		t.Fatalf("ApprovalGet(%q) missing", approvalID)
+	}
+	if rec.PolicyDecisionHash == "" {
+		t.Fatalf("ApprovalGet(%q) missing policy_decision_hash", approvalID)
+	}
+	return rec.PolicyDecisionHash
 }
 
 func assertVersionAndLogEndpoints(t *testing.T, s *Service) {

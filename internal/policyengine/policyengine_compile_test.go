@@ -171,3 +171,26 @@ func TestCompileFailsClosedOnUnknownApprovalProfile(t *testing.T) {
 		}
 	}
 }
+
+func TestCompileFailsClosedWhenExpectedHashMissing(t *testing.T) {
+	roleInput := testManifestInput(t, validRoleManifestPayload(), "")
+	runInput := testManifestInput(t, validRunCapabilityManifestPayload(), "")
+	allowlistInput := testManifestInput(t, validAllowlistPayload("allowlist-a"), "")
+	roleInput.ExpectedHash = ""
+	input := CompileInput{
+		RoleManifest: roleInput,
+		RunManifest:  runInput,
+		Allowlists:   []ManifestInput{allowlistInput},
+	}
+	_, err := Compile(input)
+	if err == nil {
+		t.Fatal("Compile returned nil error, want failure when expected_hash is empty")
+	}
+	evalErr, ok := err.(*EvaluationError)
+	if !ok {
+		t.Fatalf("error type = %T, want *EvaluationError", err)
+	}
+	if evalErr.Code != ErrCodeBrokerValidationOperation {
+		t.Fatalf("error code = %q, want %q", evalErr.Code, ErrCodeBrokerValidationOperation)
+	}
+}

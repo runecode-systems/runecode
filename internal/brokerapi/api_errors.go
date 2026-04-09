@@ -72,7 +72,8 @@ func (s *Service) errorFromStore(requestID string, err error) ErrorResponse {
 	case errors.Is(err, artifacts.ErrApprovalRequestArtifactRequired),
 		errors.Is(err, artifacts.ErrApprovalArtifactRequired),
 		errors.Is(err, artifacts.ErrVerifierNotFound),
-		errors.Is(err, artifacts.ErrApprovalVerificationFailed):
+		errors.Is(err, artifacts.ErrApprovalVerificationFailed),
+		errors.Is(err, artifacts.ErrApprovalPolicyDecisionRequired):
 		return s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
 	default:
 		return s.makeError(requestID, "gateway_failure", "internal", false, err.Error())

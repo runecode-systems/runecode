@@ -154,7 +154,7 @@ func digestIdentities(digests []trustpolicy.Digest) ([]string, error) {
 
 func verifyExpectedHash(expected, actual string) error {
 	if expected == "" {
-		return nil
+		return &EvaluationError{Code: ErrCodeBrokerValidationOperation, Category: "validation", Retryable: false, Message: "expected_hash is required for trusted manifest inputs (fail-closed)"}
 	}
 	normalized, err := normalizeHashIdentity(expected)
 	if err != nil {
