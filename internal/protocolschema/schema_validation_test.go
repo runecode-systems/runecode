@@ -304,8 +304,13 @@ func principalIdentityCases() []validationCase {
 		principalIdentityDaemonCase(),
 		principalIdentityExternalRuntimeCase(),
 		principalIdentityExternalRuntimeWithRoleKindCase(),
+		principalIdentityExternalRuntimeWithRoleKindMissingFamilyCase(),
+		principalIdentityExternalRuntimeWorkspaceFamilyWithGatewayKindCase(),
+		principalIdentityExternalRuntimeGatewayFamilyWithWorkspaceKindCase(),
 		principalIdentityUserWithRoleKindCase(),
+		principalIdentityUserWithRoleFamilyCase(),
 		principalIdentityLocalClientWithRoleKindCase(),
+		principalIdentityLocalClientWithRoleFamilyCase(),
 	}
 }
 
@@ -385,6 +390,53 @@ func principalIdentityExternalRuntimeWithRoleKindCase() validationCase {
 	}
 }
 
+func principalIdentityExternalRuntimeWithRoleKindMissingFamilyCase() validationCase {
+	return validationCase{
+		name: "role kind requires role family",
+		value: map[string]any{
+			"schema_id":      "runecode.protocol.v0.PrincipalIdentity",
+			"schema_version": "0.2.0",
+			"actor_kind":     "external_runtime",
+			"principal_id":   "provider-runtime",
+			"instance_id":    "runtime-1",
+			"role_kind":      "model-gateway",
+		},
+		wantErr: true,
+	}
+}
+
+func principalIdentityExternalRuntimeWorkspaceFamilyWithGatewayKindCase() validationCase {
+	return validationCase{
+		name: "workspace family rejects gateway role kind",
+		value: map[string]any{
+			"schema_id":      "runecode.protocol.v0.PrincipalIdentity",
+			"schema_version": "0.2.0",
+			"actor_kind":     "external_runtime",
+			"principal_id":   "provider-runtime",
+			"instance_id":    "runtime-1",
+			"role_family":    "workspace",
+			"role_kind":      "model-gateway",
+		},
+		wantErr: true,
+	}
+}
+
+func principalIdentityExternalRuntimeGatewayFamilyWithWorkspaceKindCase() validationCase {
+	return validationCase{
+		name: "gateway family rejects workspace role kind",
+		value: map[string]any{
+			"schema_id":      "runecode.protocol.v0.PrincipalIdentity",
+			"schema_version": "0.2.0",
+			"actor_kind":     "external_runtime",
+			"principal_id":   "provider-runtime",
+			"instance_id":    "runtime-1",
+			"role_family":    "gateway",
+			"role_kind":      "workspace-edit",
+		},
+		wantErr: true,
+	}
+}
+
 func principalIdentityUserWithRoleKindCase() validationCase {
 	return validationCase{
 		name: "user may not include role kind",
@@ -400,6 +452,21 @@ func principalIdentityUserWithRoleKindCase() validationCase {
 	}
 }
 
+func principalIdentityUserWithRoleFamilyCase() validationCase {
+	return validationCase{
+		name: "user may not include role family",
+		value: map[string]any{
+			"schema_id":      "runecode.protocol.v0.PrincipalIdentity",
+			"schema_version": "0.2.0",
+			"actor_kind":     "user",
+			"principal_id":   "alice",
+			"instance_id":    "user-session-1",
+			"role_family":    "workspace",
+		},
+		wantErr: true,
+	}
+}
+
 func principalIdentityLocalClientWithRoleKindCase() validationCase {
 	return validationCase{
 		name: "local client may not include role kind",
@@ -410,6 +477,21 @@ func principalIdentityLocalClientWithRoleKindCase() validationCase {
 			"principal_id":   "cli-session",
 			"instance_id":    "client-1",
 			"role_kind":      "workspace-edit",
+		},
+		wantErr: true,
+	}
+}
+
+func principalIdentityLocalClientWithRoleFamilyCase() validationCase {
+	return validationCase{
+		name: "local client may not include role family",
+		value: map[string]any{
+			"schema_id":      "runecode.protocol.v0.PrincipalIdentity",
+			"schema_version": "0.2.0",
+			"actor_kind":     "local_client",
+			"principal_id":   "cli-session",
+			"instance_id":    "client-1",
+			"role_family":    "gateway",
 		},
 		wantErr: true,
 	}

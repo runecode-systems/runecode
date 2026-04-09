@@ -2,6 +2,7 @@ package policyengine
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 )
 
@@ -23,42 +24,54 @@ func compileInputWithOneCapability(capability string) CompileInput {
 	stage["capability_opt_ins"] = []any{capability}
 	return CompileInput{
 		FixedInvariants: FixedInvariants{},
-		RoleManifest:    mustManifestInput(role),
-		RunManifest:     mustManifestInput(run),
-		StageManifest:   ptr(mustManifestInput(stage)),
+		RoleManifest:    testManifestInput(nil, role, ""),
+		RunManifest:     testManifestInput(nil, run, ""),
+		StageManifest:   ptr(testManifestInput(nil, stage, "")),
 		Allowlists: []ManifestInput{
-			mustManifestInput(validAllowlistPayload("allowlist-a")),
-			mustManifestInput(validAllowlistPayload("allowlist-b")),
-			mustManifestInput(validAllowlistPayload("allowlist-c")),
+			testManifestInput(nil, validAllowlistPayload("allowlist-a"), ""),
+			testManifestInput(nil, validAllowlistPayload("allowlist-b"), ""),
+			testManifestInput(nil, validAllowlistPayload("allowlist-c"), ""),
 		},
 	}
 }
 
-func mustManifestInput(value map[string]any) ManifestInput {
-	b, _ := json.Marshal(value)
-	h, _ := canonicalHashBytes(b)
-	return ManifestInput{Payload: b, ExpectedHash: h}
-}
-
 func testManifestInput(t *testing.T, value map[string]any, expectedHash string) ManifestInput {
-	t.Helper()
+	if t != nil {
+		t.Helper()
+	}
 	b, err := json.Marshal(value)
 	if err != nil {
-		t.Fatalf("Marshal returned error: %v", err)
+		failTestOrPanic(t, "Marshal returned error: %v", err)
 	}
 	if expectedHash == "" {
 		expectedHash, err = canonicalHashBytes(b)
 		if err != nil {
-			t.Fatalf("canonicalHashBytes returned error: %v", err)
+			failTestOrPanic(t, "canonicalHashBytes returned error: %v", err)
 		}
 	}
 	return ManifestInput{Payload: b, ExpectedHash: expectedHash}
 }
 
-func mustAllowlistHash(value map[string]any) string {
-	b, _ := json.Marshal(value)
-	h, _ := canonicalHashBytes(b)
+func testAllowlistHash(t *testing.T, value map[string]any) string {
+	if t != nil {
+		t.Helper()
+	}
+	b, err := json.Marshal(value)
+	if err != nil {
+		failTestOrPanic(t, "Marshal returned error: %v", err)
+	}
+	h, err := canonicalHashBytes(b)
+	if err != nil {
+		failTestOrPanic(t, "canonicalHashBytes returned error: %v", err)
+	}
 	return h
+}
+
+func failTestOrPanic(t *testing.T, format string, args ...any) {
+	if t != nil {
+		t.Fatalf(format, args...)
+	}
+	panic(fmt.Sprintf(format, args...))
 }
 
 func mustDigestObject(identity string) map[string]any {

@@ -5,7 +5,7 @@
   "description": "Protocol-owned shared identity family for human, daemon, role-instance, local-client, and external-runtime actors, including lifecycle context and active manifest bindings.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 12,
+  "maxProperties": 13,
   "allOf": [
     {
       "if": {
@@ -40,9 +40,78 @@
       },
       "then": {
         "not": {
-          "required": [
-            "role_kind"
+          "anyOf": [
+            {
+              "required": [
+                "role_family"
+              ]
+            },
+            {
+              "required": [
+                "role_kind"
+              ]
+            }
           ]
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "role_kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "role_family"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "role_family": {
+            "const": "workspace"
+          }
+        },
+        "required": [
+          "role_family"
+        ]
+      },
+      "then": {
+        "properties": {
+          "role_kind": {
+            "enum": [
+              "workspace-read",
+              "workspace-edit",
+              "workspace-test"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "role_family": {
+            "const": "gateway"
+          }
+        },
+        "required": [
+          "role_family"
+        ]
+      },
+      "then": {
+        "properties": {
+          "role_kind": {
+            "enum": [
+              "model-gateway",
+              "auth-gateway",
+              "git-gateway",
+              "web-research",
+              "dependency-fetch"
+            ]
+          }
         }
       }
     },

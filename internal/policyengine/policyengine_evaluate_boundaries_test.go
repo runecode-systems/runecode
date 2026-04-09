@@ -25,7 +25,7 @@ func TestEvaluateDeniesDependencyFetchWhenNotUsingDependencyRoleAndKind(t *testi
 	runPrincipal := run["principal"].(map[string]any)
 	runPrincipal["role_family"] = "gateway"
 	runPrincipal["role_kind"] = "dependency-fetch"
-	compiled := mustCompile(t, CompileInput{FixedInvariants: FixedInvariants{}, RoleManifest: mustManifestInput(role), RunManifest: mustManifestInput(run), Allowlists: []ManifestInput{mustManifestInput(validAllowlistPayload("allowlist-a")), mustManifestInput(validAllowlistPayload("allowlist-b"))}})
+	compiled := mustCompile(t, CompileInput{FixedInvariants: FixedInvariants{}, RoleManifest: testManifestInput(t, role, ""), RunManifest: testManifestInput(t, run, ""), Allowlists: []ManifestInput{testManifestInput(t, validAllowlistPayload("allowlist-a"), ""), testManifestInput(t, validAllowlistPayload("allowlist-b"), "")}})
 	action := validGatewayEgressActionRequest("cap_run", "gateway", "dependency-fetch", "dependency-fetch", "model_endpoint", ActionKindDependencyFetch)
 	decision, err := Evaluate(compiled, action)
 	if err != nil {

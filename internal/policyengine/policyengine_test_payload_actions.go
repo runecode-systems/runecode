@@ -215,20 +215,20 @@ func compileGatewayInputWithOneCapability(roleKind string, capability string, al
 	rolePrincipal := role["principal"].(map[string]any)
 	rolePrincipal["role_family"] = "gateway"
 	rolePrincipal["role_kind"] = roleKind
-	role["allowlist_refs"] = []any{mustDigestObject(mustAllowlistHash(allowlist))}
+	role["allowlist_refs"] = []any{mustDigestObject(testAllowlistHash(nil, allowlist))}
 
 	run := validRunCapabilityManifestPayload()
 	run["capability_opt_ins"] = []any{capability}
 	runPrincipal := run["principal"].(map[string]any)
 	runPrincipal["role_family"] = "gateway"
 	runPrincipal["role_kind"] = roleKind
-	run["allowlist_refs"] = []any{mustDigestObject(mustAllowlistHash(allowlist))}
+	run["allowlist_refs"] = []any{mustDigestObject(testAllowlistHash(nil, allowlist))}
 
 	return CompileInput{
 		FixedInvariants: FixedInvariants{},
-		RoleManifest:    mustManifestInput(role),
-		RunManifest:     mustManifestInput(run),
-		Allowlists:      []ManifestInput{mustManifestInput(allowlist)},
+		RoleManifest:    testManifestInput(nil, role, ""),
+		RunManifest:     testManifestInput(nil, run, ""),
+		Allowlists:      []ManifestInput{testManifestInput(nil, allowlist, "")},
 	}
 }
 

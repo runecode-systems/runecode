@@ -9,7 +9,7 @@ func validRoleManifestPayload() map[string]any {
 		"role_kind":          "workspace-edit",
 		"approval_profile":   "moderate",
 		"capability_opt_ins": []any{"cap_run", "cap_stage", "always_denied"},
-		"allowlist_refs":     []any{mustDigestObject(mustAllowlistHash(validAllowlistPayload("allowlist-a")))},
+		"allowlist_refs":     []any{mustDigestObject(testAllowlistHash(nil, validAllowlistPayload("allowlist-a")))},
 		"signatures":         []any{map[string]any{"alg": "ed25519", "key_id": "key_sha256", "key_id_value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "signature": "c2ln"}},
 	}
 }
@@ -23,7 +23,7 @@ func validRunCapabilityManifestPayload() map[string]any {
 		"run_id":             "run-1",
 		"approval_profile":   "moderate",
 		"capability_opt_ins": []any{"cap_run", "cap_stage"},
-		"allowlist_refs":     []any{mustDigestObject(mustAllowlistHash(validAllowlistPayload("allowlist-b")))},
+		"allowlist_refs":     []any{mustDigestObject(testAllowlistHash(nil, validAllowlistPayload("allowlist-b")))},
 		"signatures":         []any{map[string]any{"alg": "ed25519", "key_id": "key_sha256", "key_id_value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "signature": "c2ln"}},
 	}
 }
@@ -38,7 +38,7 @@ func validStageCapabilityManifestPayload() map[string]any {
 		"stage_id":           "stage-1",
 		"approval_profile":   "moderate",
 		"capability_opt_ins": []any{"cap_stage"},
-		"allowlist_refs":     []any{mustDigestObject(mustAllowlistHash(validAllowlistPayload("allowlist-c")))},
+		"allowlist_refs":     []any{mustDigestObject(testAllowlistHash(nil, validAllowlistPayload("allowlist-c")))},
 		"signatures":         []any{map[string]any{"alg": "ed25519", "key_id": "key_sha256", "key_id_value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "signature": "c2ln"}},
 	}
 }
