@@ -152,13 +152,15 @@ func TestRunSummaryWorkflowDefinitionHashRequiresSingleTrustedManifest(t *testin
 func TestRecordRuntimeFactsFailClosesInvalidTerminalReport(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	putRunScopedArtifactForLocalOpsTest(t, s, "run-terminal-invalid", "step-1")
-	s.RecordRuntimeFacts("run-terminal-invalid", launcherbackend.RuntimeFactsSnapshot{
+	if err := s.RecordRuntimeFacts("run-terminal-invalid", launcherbackend.RuntimeFactsSnapshot{
 		LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: "run-terminal-invalid"},
 		TerminalReport: &launcherbackend.BackendTerminalReport{
 			TerminationKind: "unknown_state",
 			FailClosed:      false,
 		},
-	})
+	}); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
 
 	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-terminal-invalid", RunID: "run-terminal-invalid"}, RequestContext{})
 	if errResp != nil {
@@ -203,10 +205,40 @@ func TestRunDetailIncludesPersistedPolicyDecisionRefs(t *testing.T) {
 	}
 }
 
+func TestRecordRuntimeLifecycleStateUpdatesAuthoritativeProjection(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	putRunScopedArtifactForLocalOpsTest(t, s, "run-lifecycle-update", "step-1")
+	if err := s.RecordRuntimeFacts("run-lifecycle-update", launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: "run-lifecycle-update"}}); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
+	err := s.RecordRuntimeLifecycleState("run-lifecycle-update", launcherbackend.RuntimeLifecycleState{
+		BackendLifecycle:            &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateActive, PreviousState: launcherbackend.BackendLifecycleStateBinding, TransitionCount: 3},
+		ProvisioningPosture:         launcherbackend.ProvisioningPostureTOFU,
+		ProvisioningPostureDegraded: true,
+		ProvisioningDegradedReasons: []string{"key_material_transient"},
+		LaunchFailureReasonCode:     launcherbackend.BackendErrorCodeAccelerationUnavailable,
+	})
+	if err != nil {
+		t.Fatalf("RecordRuntimeLifecycleState returned error: %v", err)
+	}
+
+	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-runtime-lifecycle", RunID: "run-lifecycle-update"}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleRunGet error response: %+v", errResp)
+	}
+	state := runGet.Run.AuthoritativeState
+	if state["provisioning_posture"] != launcherbackend.ProvisioningPostureTOFU {
+		t.Fatalf("authoritative_state.provisioning_posture = %v, want %q", state["provisioning_posture"], launcherbackend.ProvisioningPostureTOFU)
+	}
+	if state["launch_failure_reason_code"] != launcherbackend.BackendErrorCodeAccelerationUnavailable {
+		t.Fatalf("authoritative_state.launch_failure_reason_code = %v, want %q", state["launch_failure_reason_code"], launcherbackend.BackendErrorCodeAccelerationUnavailable)
+	}
+}
+
 func TestRecordRuntimeFactsFailClosesInvalidHardeningPosture(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	putRunScopedArtifactForLocalOpsTest(t, s, "run-hardening-invalid", "step-1")
-	s.RecordRuntimeFacts("run-hardening-invalid", launcherbackend.RuntimeFactsSnapshot{
+	if err := s.RecordRuntimeFacts("run-hardening-invalid", launcherbackend.RuntimeFactsSnapshot{
 		LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: "run-hardening-invalid"},
 		HardeningPosture: launcherbackend.AppliedHardeningPosture{
 			Requested:           launcherbackend.HardeningRequestedHardened,
@@ -214,7 +246,9 @@ func TestRecordRuntimeFactsFailClosesInvalidHardeningPosture(t *testing.T) {
 			DegradedReasons:     []string{"seccomp_unavailable"},
 			BackendEvidenceRefs: []string{"/usr/bin/qemu-system-x86_64"},
 		},
-	})
+	}); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
 
 	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-hardening-invalid", RunID: "run-hardening-invalid"}, RequestContext{})
 	if errResp != nil {

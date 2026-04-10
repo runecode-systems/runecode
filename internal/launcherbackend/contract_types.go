@@ -153,6 +153,35 @@ type SessionBindingRecord struct {
 	IdentityBindingPosture  string `json:"identity_binding_posture"`
 }
 
+type SecureSessionIdentity struct {
+	Algorithm         string `json:"algorithm"`
+	KeyID             string `json:"key_id"`
+	KeyIDValue        string `json:"key_id_value"`
+	KeyOrigin         string `json:"key_origin"`
+	PublicKeyEncoding string `json:"public_key_encoding"`
+	PublicKeyDigest   string `json:"public_key_digest"`
+}
+
+type SecureSessionChannel struct {
+	TransportKind             string `json:"transport_kind"`
+	ChannelKeyMode            string `json:"channel_key_mode"`
+	FrameFormat               string `json:"frame_format"`
+	MaxFrameBytes             int    `json:"max_frame_bytes"`
+	MaxHandshakeMessageBytes  int    `json:"max_handshake_message_bytes"`
+	MutualAuthentication      bool   `json:"mutual_authentication"`
+	Encryption                bool   `json:"encryption"`
+	ReplayProtection          bool   `json:"replay_protection"`
+	ProofOfPossessionVerified bool   `json:"proof_of_possession_verified"`
+}
+
+type SecureSessionSummary struct {
+	BindingRecord     SessionBindingRecord   `json:"binding_record"`
+	Identity          SecureSessionIdentity  `json:"identity"`
+	Channel           SecureSessionChannel   `json:"channel"`
+	SecurityPosture   SessionSecurityPosture `json:"security_posture"`
+	TranscriptBinding string                 `json:"transcript_binding"`
+}
+
 type SessionSecurityPosture struct {
 	MutuallyAuthenticated     bool     `json:"mutually_authenticated"`
 	Encrypted                 bool     `json:"encrypted"`

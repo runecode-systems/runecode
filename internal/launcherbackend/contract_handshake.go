@@ -30,6 +30,9 @@ func ValidateSessionHandshake(launchContext LaunchContext, host HostHello, isola
 	if err := validateHandshakeTranscriptConsistency(isolate, ready, transcriptHash); err != nil {
 		return SessionBindingRecord{}, err
 	}
+	if err := verifyIsolateSessionProofOfPossession(host, isolate, transcriptHash); err != nil {
+		return SessionBindingRecord{}, fmt.Errorf("proof_of_possession: %w", err)
+	}
 	if err := validateHandshakeReplayAndIdentity(previous, host, isolate, transcriptHash); err != nil {
 		return SessionBindingRecord{}, err
 	}
@@ -102,36 +105,47 @@ func buildSessionBindingRecord(host HostHello, isolate IsolateHello, ready Sessi
 }
 
 func HandshakeTranscriptHash(host HostHello, isolate IsolateHello) (string, error) {
-	transcript := struct {
-		HostHello    HostHello `json:"host_hello"`
-		IsolateHello struct {
-			RunID               string            `json:"run_id"`
-			IsolateID           string            `json:"isolate_id"`
-			SessionID           string            `json:"session_id"`
-			SessionNonce        string            `json:"session_nonce"`
-			LaunchContextDigest string            `json:"launch_context_digest"`
-			IsolateSessionKey   IsolateSessionKey `json:"isolate_session_key"`
-			ProofOfPossession   SessionKeyProof   `json:"proof_of_possession"`
-		} `json:"isolate_hello"`
+	return canonicalSHA256Digest(handshakeTranscriptInput(host, isolate), "handshake transcript")
+}
+
+func handshakeTranscriptInput(host HostHello, isolate IsolateHello) any {
+	return struct {
+		HostHello    HostHello               `json:"host_hello"`
+		IsolateHello handshakeTranscriptPeer `json:"isolate_hello"`
 	}{
-		HostHello: host,
-		IsolateHello: struct {
-			RunID               string            `json:"run_id"`
-			IsolateID           string            `json:"isolate_id"`
-			SessionID           string            `json:"session_id"`
-			SessionNonce        string            `json:"session_nonce"`
-			LaunchContextDigest string            `json:"launch_context_digest"`
-			IsolateSessionKey   IsolateSessionKey `json:"isolate_session_key"`
-			ProofOfPossession   SessionKeyProof   `json:"proof_of_possession"`
-		}{
-			RunID:               isolate.RunID,
-			IsolateID:           isolate.IsolateID,
-			SessionID:           isolate.SessionID,
-			SessionNonce:        isolate.SessionNonce,
-			LaunchContextDigest: isolate.LaunchContextDigest,
-			IsolateSessionKey:   isolate.IsolateSessionKey,
-			ProofOfPossession:   isolate.ProofOfPossession,
+		HostHello:    host,
+		IsolateHello: handshakeTranscriptPeerFromIsolate(isolate),
+	}
+}
+
+type handshakeTranscriptPeer struct {
+	RunID               string                       `json:"run_id"`
+	IsolateID           string                       `json:"isolate_id"`
+	SessionID           string                       `json:"session_id"`
+	SessionNonce        string                       `json:"session_nonce"`
+	LaunchContextDigest string                       `json:"launch_context_digest"`
+	IsolateSessionKey   IsolateSessionKey            `json:"isolate_session_key"`
+	ProofOfPossession   handshakeTranscriptProofMeta `json:"proof_of_possession"`
+}
+
+type handshakeTranscriptProofMeta struct {
+	Alg        string `json:"alg"`
+	KeyID      string `json:"key_id"`
+	KeyIDValue string `json:"key_id_value"`
+}
+
+func handshakeTranscriptPeerFromIsolate(isolate IsolateHello) handshakeTranscriptPeer {
+	return handshakeTranscriptPeer{
+		RunID:               isolate.RunID,
+		IsolateID:           isolate.IsolateID,
+		SessionID:           isolate.SessionID,
+		SessionNonce:        isolate.SessionNonce,
+		LaunchContextDigest: isolate.LaunchContextDigest,
+		IsolateSessionKey:   isolate.IsolateSessionKey,
+		ProofOfPossession: handshakeTranscriptProofMeta{
+			Alg:        isolate.ProofOfPossession.Alg,
+			KeyID:      isolate.ProofOfPossession.KeyID,
+			KeyIDValue: isolate.ProofOfPossession.KeyIDValue,
 		},
 	}
-	return canonicalSHA256Digest(transcript, "handshake transcript")
 }

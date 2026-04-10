@@ -13,6 +13,7 @@
 - `runecontext/standards/security/trust-boundary-change-checklist.md`
 - `runecontext/standards/security/audit-verification-scope-and-evidence-binding.md`
 - `runecontext/standards/security/approval-binding-and-verifier-identity.md`
+- `runecontext/standards/security/trusted-local-artifact-persistence.md`
 - `runecontext/standards/global/control-plane-api-contract-shape.md`
 - `runecontext/standards/global/local-first-future-optionality.md`
 - `runecontext/standards/global/protocol-schema-invariants.md`
@@ -42,6 +43,10 @@
 - `protocol/schemas/registries/audit_event_type.registry.json`
 - `protocol/schemas/registries/error.code.registry.json`
 - `cmd/runecode-launcher/main.go`
+- `internal/launcherdaemon/service.go`
+- `internal/launcherbackend/contract_handshake.go`
+- `internal/brokerapi/service_runtime_facts.go`
+- `internal/brokerapi/local_api_run_detail_state_ops.go`
 - `internal/trustpolicy/foundation_runtime.go`
 - `internal/brokerapi/local_api_run_approval_types.go`
 - `internal/brokerapi/local_api_run_summary_ops.go`

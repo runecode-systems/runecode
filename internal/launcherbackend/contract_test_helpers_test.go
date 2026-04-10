@@ -1,6 +1,9 @@
 package launcherbackend
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
 	"strings"
 )
 
@@ -119,7 +122,12 @@ func validHostHelloForContractTests(ctx LaunchContext) HostHello {
 }
 
 func validIsolateHelloForContractTests(host HostHello) IsolateHello {
-	return IsolateHello{
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+	keyIDValue := sha256Hex(publicKey)
+	hello := IsolateHello{
 		RunID:               host.RunID,
 		IsolateID:           host.IsolateID,
 		SessionID:           host.SessionID,
@@ -128,13 +136,24 @@ func validIsolateHelloForContractTests(host HostHello) IsolateHello {
 		IsolateSessionKey: IsolateSessionKey{
 			Alg:               "ed25519",
 			KeyID:             "key_sha256",
-			KeyIDValue:        strings.Repeat("a", 64),
+			KeyIDValue:        keyIDValue,
 			PublicKeyEncoding: "base64",
-			PublicKey:         "cHVibGljLWtleQ==",
+			PublicKey:         base64.StdEncoding.EncodeToString(publicKey),
 			KeyOrigin:         SessionKeyOriginIsolateBoundaryEphemeral,
 		},
-		ProofOfPossession: SessionKeyProof{Alg: "ed25519", KeyID: "key_sha256", KeyIDValue: strings.Repeat("a", 64), Signature: "c2ln"},
+		ProofOfPossession: SessionKeyProof{Alg: "ed25519", KeyID: "key_sha256", KeyIDValue: keyIDValue},
 	}
+	transcript, err := HandshakeTranscriptHash(host, hello)
+	if err != nil {
+		panic(err)
+	}
+	hello.HandshakeTranscriptHash = transcript
+	payload, err := sessionProofPayload(host, hello, transcript)
+	if err != nil {
+		panic(err)
+	}
+	hello.ProofOfPossession.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(privateKey, payload))
+	return hello
 }
 
 func validSessionReadyForContractTests(host HostHello, isolate IsolateHello) SessionReady {

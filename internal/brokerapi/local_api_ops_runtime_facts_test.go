@@ -2,16 +2,47 @@ package brokerapi
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
+func TestRunDetailRuntimeFactsProjectionSurvivesServiceRestart(t *testing.T) {
+	root := t.TempDir()
+	storeRoot := filepath.Join(root, "store")
+	ledgerRoot := filepath.Join(root, "ledger")
+	svc, err := NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{})
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig returned error: %v", err)
+	}
+	putRunScopedArtifactForLocalOpsTest(t, svc, "run-runtime-restart", "step-1")
+	facts := launcherRuntimeFactsFixture()
+	facts.LaunchReceipt.RunID = "run-runtime-restart"
+	if err := svc.RecordRuntimeFacts("run-runtime-restart", facts); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
+
+	reloaded, err := NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{})
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig(reload) returned error: %v", err)
+	}
+	runGet := mustRunGetForRuntimeFactsRestartTest(t, reloaded, "run-runtime-restart")
+	if runGet.Run.Summary.BackendKind != launcherbackend.BackendKindMicroVM {
+		t.Fatalf("backend_kind = %q, want %q after restart", runGet.Run.Summary.BackendKind, launcherbackend.BackendKindMicroVM)
+	}
+	if runGet.Run.AuthoritativeState["session_id"] != "session-1" {
+		t.Fatalf("authoritative_state.session_id = %v, want session-1 after restart", runGet.Run.AuthoritativeState["session_id"])
+	}
+}
+
 func TestRunSummaryAndDetailProjectRecordedLauncherRuntimeFacts(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	putRunScopedArtifactForLocalOpsTest(t, s, "run-launcher-facts", "step-1")
-	s.RecordRuntimeFacts("run-launcher-facts", launcherRuntimeFactsFixture())
+	if err := s.RecordRuntimeFacts("run-launcher-facts", launcherRuntimeFactsFixture()); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
 
 	runList := mustRunListForRuntimeFactsTest(t, s)
 	assertRuntimeFactsRunListProjection(t, runList.Runs)
@@ -104,6 +135,15 @@ func mustRunListForRuntimeFactsTest(t *testing.T, service *Service) RunListRespo
 func mustRunGetForRuntimeFactsTest(t *testing.T, service *Service) RunGetResponse {
 	t.Helper()
 	response, errResp := service.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-get-runtime-facts", RunID: "run-launcher-facts"}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleRunGet error response: %+v", errResp)
+	}
+	return response
+}
+
+func mustRunGetForRuntimeFactsRestartTest(t *testing.T, service *Service, runID string) RunGetResponse {
+	t.Helper()
+	response, errResp := service.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-get-runtime-facts-restart", RunID: runID}, RequestContext{})
 	if errResp != nil {
 		t.Fatalf("HandleRunGet error response: %+v", errResp)
 	}

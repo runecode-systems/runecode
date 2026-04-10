@@ -70,3 +70,10 @@ func TestServeUsageError(t *testing.T) {
 		t.Fatalf("error type = %T, want *usageError", err)
 	}
 }
+
+func TestHelloWorldLaunchSpecValidates(t *testing.T) {
+	spec := helloWorldLaunchSpec("run-test")
+	if err := spec.Validate(); err != nil {
+		t.Fatalf("helloWorldLaunchSpec Validate returned error: %v", err)
+	}
+}

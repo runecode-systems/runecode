@@ -1,6 +1,8 @@
 package launcherbackend
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
 	"fmt"
 	"sort"
 	"strings"
@@ -114,26 +116,55 @@ func validateIsolateHelloSessionIdentity(hello IsolateHello) error {
 }
 
 func validateIsolateHelloDigestAndSessionKey(hello IsolateHello) error {
+	if err := validateIsolateHelloDigests(hello); err != nil {
+		return err
+	}
+	return validateIsolateSessionKey(hello.IsolateSessionKey)
+}
+
+func validateIsolateHelloDigests(hello IsolateHello) error {
 	if !looksLikeDigest(hello.LaunchContextDigest) {
 		return fmt.Errorf("launch_context_digest must be sha256:<64 lowercase hex>")
 	}
 	if !looksLikeDigest(hello.HandshakeTranscriptHash) {
 		return fmt.Errorf("handshake_transcript_hash must be sha256:<64 lowercase hex>")
 	}
-	if hello.IsolateSessionKey.Alg != "ed25519" {
+	return nil
+}
+
+func validateIsolateSessionKey(key IsolateSessionKey) error {
+	if key.Alg != "ed25519" {
 		return fmt.Errorf("isolate_session_key.alg must be ed25519")
 	}
-	if hello.IsolateSessionKey.KeyID == "" || hello.IsolateSessionKey.KeyIDValue == "" {
+	if err := validateIsolateSessionKeyIdentity(key); err != nil {
+		return err
+	}
+	return validateIsolateSessionKeyPublicKey(key)
+}
+
+func validateIsolateSessionKeyIdentity(key IsolateSessionKey) error {
+	if key.KeyID == "" || key.KeyIDValue == "" {
 		return fmt.Errorf("isolate_session_key key identity is required")
 	}
-	if !looksLikeHexKeyIDValue(hello.IsolateSessionKey.KeyIDValue) {
+	if !looksLikeHexKeyIDValue(key.KeyIDValue) {
 		return fmt.Errorf("isolate_session_key.key_id_value must be 64 lowercase hex characters")
 	}
-	if hello.IsolateSessionKey.KeyOrigin != SessionKeyOriginIsolateBoundaryEphemeral {
+	if key.KeyOrigin != SessionKeyOriginIsolateBoundaryEphemeral {
 		return fmt.Errorf("isolate_session_key.key_origin must be %q", SessionKeyOriginIsolateBoundaryEphemeral)
 	}
-	if strings.TrimSpace(hello.IsolateSessionKey.PublicKey) == "" || strings.TrimSpace(hello.IsolateSessionKey.PublicKeyEncoding) == "" {
+	return nil
+}
+
+func validateIsolateSessionKeyPublicKey(key IsolateSessionKey) error {
+	if strings.TrimSpace(key.PublicKey) == "" || strings.TrimSpace(key.PublicKeyEncoding) == "" {
 		return fmt.Errorf("isolate_session_key public key material is required")
+	}
+	publicKeyBytes, err := isolateSessionPublicKeyBytes(key)
+	if err != nil {
+		return err
+	}
+	if key.KeyIDValue != sha256Hex(publicKeyBytes) {
+		return fmt.Errorf("isolate_session_key.key_id_value does not match public key digest")
 	}
 	return nil
 }
@@ -147,6 +178,13 @@ func validateIsolateHelloProofOfPossession(hello IsolateHello) error {
 	}
 	if hello.ProofOfPossession.KeyID != hello.IsolateSessionKey.KeyID || hello.ProofOfPossession.KeyIDValue != hello.IsolateSessionKey.KeyIDValue {
 		return fmt.Errorf("proof_of_possession key identity must match isolate_session_key")
+	}
+	signatureBytes, err := base64.StdEncoding.DecodeString(hello.ProofOfPossession.Signature)
+	if err != nil {
+		return fmt.Errorf("proof_of_possession.signature must be valid base64: %w", err)
+	}
+	if len(signatureBytes) != ed25519.SignatureSize {
+		return fmt.Errorf("proof_of_possession.signature must decode to %d bytes for ed25519", ed25519.SignatureSize)
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 package launcherbackend
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 )
@@ -91,5 +92,27 @@ func TestValidateSessionHandshakeRejectsTranscriptMismatch(t *testing.T) {
 	ready.HandshakeTranscriptHash = testDigest("b")
 	if _, err := ValidateSessionHandshake(ctx, host, isolate, ready, nil); err == nil {
 		t.Fatal("ValidateSessionHandshake expected transcript mismatch rejection")
+	}
+}
+
+func TestValidateSessionHandshakeRejectsInvalidProofOfPossessionSignature(t *testing.T) {
+	ctx := validLaunchContextForContractTests()
+	digest, err := ctx.CanonicalDigest()
+	if err != nil {
+		t.Fatalf("CanonicalDigest returned error: %v", err)
+	}
+	ctx.LaunchContextDigest = digest
+	host := validHostHelloForContractTests(ctx)
+	isolate := validIsolateHelloForContractTests(host)
+	transcript, err := HandshakeTranscriptHash(host, isolate)
+	if err != nil {
+		t.Fatalf("HandshakeTranscriptHash returned error: %v", err)
+	}
+	isolate.HandshakeTranscriptHash = transcript
+	isolate.ProofOfPossession.Signature = base64.StdEncoding.EncodeToString([]byte(strings.Repeat("x", 64)))
+	ready := validSessionReadyForContractTests(host, isolate)
+	ready.HandshakeTranscriptHash = transcript
+	if _, err := ValidateSessionHandshake(ctx, host, isolate, ready, nil); err == nil {
+		t.Fatal("ValidateSessionHandshake expected invalid signature rejection")
 	}
 }

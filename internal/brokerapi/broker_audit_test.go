@@ -86,6 +86,96 @@ func TestBrokerRejectionFailsClosedWhenAuditPersistFails(t *testing.T) {
 	}
 }
 
+func TestRecordRuntimeFactsEmitsBrokerOwnedLauncherRuntimeAuditEvents(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	_ = putRunScopedArtifactForLocalOpsTest(t, s, "run-runtime-audit", "step-1")
+	if err := s.RecordRuntimeFacts("run-runtime-audit", launcherRuntimeFactsFixture()); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
+	_, evidence, _, _, ok := s.store.RuntimeEvidenceState("run-runtime-audit")
+	if !ok {
+		t.Fatal("RuntimeEvidenceState = not found, want persisted runtime evidence")
+	}
+	events, err := s.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents returned error: %v", err)
+	}
+	assertLauncherRuntimeAuditEvent(t, events, "isolate_session_started", evidence.Launch.EvidenceDigest, evidence.Hardening.EvidenceDigest, evidence.Session.EvidenceDigest)
+	assertLauncherRuntimeAuditEvent(t, events, "isolate_session_bound", evidence.Launch.EvidenceDigest, evidence.Hardening.EvidenceDigest, evidence.Session.EvidenceDigest)
+}
+
+func TestRuntimeFactsAuditEventsAreNotReemittedForSameEvidenceDigest(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	_ = putRunScopedArtifactForLocalOpsTest(t, s, "run-runtime-dedupe", "step-1")
+	facts := launcherRuntimeFactsFixture()
+	if err := s.RecordRuntimeFacts("run-runtime-dedupe", facts); err != nil {
+		t.Fatalf("first RecordRuntimeFacts returned error: %v", err)
+	}
+	before, err := s.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents(before) returned error: %v", err)
+	}
+	if err := s.RecordRuntimeFacts("run-runtime-dedupe", facts); err != nil {
+		t.Fatalf("second RecordRuntimeFacts returned error: %v", err)
+	}
+	after, err := s.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents(after) returned error: %v", err)
+	}
+	if countLauncherRuntimeAuditEvents(after) != countLauncherRuntimeAuditEvents(before) {
+		t.Fatalf("launcher runtime event count changed after duplicate facts: before=%d after=%d", countLauncherRuntimeAuditEvents(before), countLauncherRuntimeAuditEvents(after))
+	}
+}
+
+func assertLauncherRuntimeAuditEvent(t *testing.T, events []artifacts.AuditEvent, runtimeEventType, launchDigest, hardeningDigest, sessionDigest string) {
+	t.Helper()
+	for _, event := range events {
+		if event.Type != brokerAuditEventTypeLauncherRuntime {
+			continue
+		}
+		if event.Details["runtime_event_type"] != runtimeEventType {
+			continue
+		}
+		assertLauncherRuntimeAuditDigests(t, event, launchDigest, hardeningDigest, sessionDigest)
+		return
+	}
+	t.Fatalf("missing %s launcher runtime audit event", runtimeEventType)
+}
+
+func assertLauncherRuntimeAuditDigests(t *testing.T, event artifacts.AuditEvent, launchDigest, hardeningDigest, sessionDigest string) {
+	t.Helper()
+	digests := launcherRuntimeAuditDigests(t, event)
+	assertLauncherRuntimeAuditDigestValue(t, digests, "launch_receipt", launchDigest)
+	assertLauncherRuntimeAuditDigestValue(t, digests, "hardening_posture", hardeningDigest)
+	assertLauncherRuntimeAuditDigestValue(t, digests, "session_binding", sessionDigest)
+}
+
+func launcherRuntimeAuditDigests(t *testing.T, event artifacts.AuditEvent) map[string]any {
+	t.Helper()
+	digests, ok := event.Details["stored_runtime_fact_digests"].(map[string]any)
+	if !ok {
+		t.Fatalf("stored_runtime_fact_digests = %T, want map", event.Details["stored_runtime_fact_digests"])
+	}
+	return digests
+}
+
+func assertLauncherRuntimeAuditDigestValue(t *testing.T, digests map[string]any, name, want string) {
+	t.Helper()
+	if digests[name] != want {
+		t.Fatalf("%s digest = %v, want %q", name, digests[name], want)
+	}
+}
+
+func countLauncherRuntimeAuditEvents(events []artifacts.AuditEvent) int {
+	count := 0
+	for _, event := range events {
+		if event.Type == brokerAuditEventTypeLauncherRuntime {
+			count++
+		}
+	}
+	return count
+}
+
 func assertBrokerRejectionAuditEvent(t *testing.T, events []artifacts.AuditEvent, requestID, reasonCode string) {
 	t.Helper()
 	for _, event := range events {

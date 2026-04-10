@@ -6,6 +6,7 @@
 - [ ] Freeze the broker/launcher ownership split:
   - broker owns policy evaluation, approvals, artifact authorization, authoritative run state, and operator-facing read models
   - launcher owns backend realization, hardening, attachment materialization, session establishment, watchdogs, and fail-closed termination
+- [ ] Define the private trusted broker-to-launcher control contract around service-oriented operations such as launch, terminate, get-state, and runtime update delivery while keeping the broker local API as the only public/untrusted interface.
 - [ ] Define a small backend-neutral trusted interface for runtime backends around typed objects such as:
   - `BackendLaunchSpec`
   - `LaunchContext`
@@ -14,6 +15,8 @@
   - `BackendLaunchReceipt`
   - `AppliedHardeningPosture`
   - `BackendTerminalReport`
+- [ ] Split immutable launch/session/hardening/terminal evidence from mutable lifecycle snapshots so durable state, audit refs, and broker projections do not depend on mutating one overloaded receipt object.
+- [ ] Persist launcher-produced runtime evidence in trusted storage and derive broker-facing runtime state from those records rather than from in-memory snapshots or runner-local inference.
 - [ ] Keep hypervisor flags, host-local paths, device numbering, guest mount paths, and transport allocation details out of the logical contract.
 - [ ] Keep the logical trust-boundary contract as the broker local API; launcher-managed transport/session plumbing must not become a second ad hoc runtime API.
 
@@ -40,12 +43,14 @@ Parallelization: can be implemented in parallel with broker/policy/schema work; 
   - applied hardening posture summary
   - launch/terminal failure reason codes
 - [ ] Ensure broker `RunSummary` / `RunDetail` surfaces project launcher facts rather than inferring backend posture indirectly from audit-only or runner-only data.
+- [ ] Ensure broker runtime posture is derived from persisted launcher evidence objects and remains durable across broker or launcher restarts.
 
 Parallelization: can be implemented in parallel with broker local API work; coordinate early on schema vocabulary and run-state projection.
 
 ## MicroVM Backend Architecture
 
 - [ ] Standardize on QEMU microVMs for MVP.
+- [ ] Implement the first real Linux/QEMU/KVM vertical slice through the broker->launcher->isolate->broker path before expanding additional contract-only work.
 - [ ] Pin and record the QEMU version/build provenance (reproducibility + patch posture) and emit it into audit metadata.
 - [ ] Define a cross-platform abstraction for acceleration:
   - Linux: KVM (MVP runtime)
@@ -56,20 +61,22 @@ Parallelization: can be implemented in parallel with broker local API work; coor
   - MVP (Linux): vsock (AF_VSOCK) is the preferred transport
   - fallback: `virtio-serial` for portability and non-vsock environments
   - security must not depend on transport choice
+- [ ] Keep transport selection backend-private and platform-specific while preserving one transport-neutral secure-session model across Linux, macOS, and Windows follow-on work.
 
 ## Session Handshake + Binding Contract
 
 - [ ] Define a small typed session-establishment family (e.g. `HostHello`, `IsolateHello`, `SessionReady`) that runs before ordinary broker API traffic.
 - [ ] Define `LaunchContext` as immutable read-only guest-visible session input that is digest-bound into launch/session identity.
 - [ ] Transport security (MVP requirement):
-  - establish a mutually authenticated + encrypted session
+  - establish a mutually authenticated + encrypted session using a standard secure-channel design rather than custom crypto
   - isolate generates a per-session signing key inside the isolate boundary
   - bind isolate identity to the isolate signing public key announced at session start
-  - require proof-of-possession for that key during the handshake
+  - require cryptographically verified proof-of-possession for that key during the handshake
   - treat transport/session keys as channel keys only; they are not the durable isolate identity
   - launcher generates a unique `session_nonce`
   - record a canonical `handshake_transcript_hash`
   - enforce replay protection, message framing, and strict size limits
+- [ ] Treat `SessionReady` as a verified summary of an already-established secure session rather than as a declarative trust signal.
 - [ ] Hosting node identity remains audit metadata, not isolate identity; the isolate key binding model must stay topology-neutral so future multi-node scheduling does not change object semantics.
 
 Key provisioning posture alignment (MVP):
@@ -99,6 +106,7 @@ Parallelization: can be implemented in parallel with broker/policy/schema work; 
   - apply a restrictive seccomp policy
   - restrict filesystem access to only required paths
   - use an allowlist of QEMU devices and command-line flags
+- [ ] Build QEMU invocation through one launcher-owned allowlisted argv/device policy builder rather than distributing flag assembly across the codebase.
 - [ ] Define typed `AppliedHardeningPosture` with:
   - requested posture
   - effective posture
@@ -113,6 +121,7 @@ Parallelization: can be implemented in parallel with broker/policy/schema work; 
   - acceleration kind
 - [ ] Allow backend-specific evidence (QEMU provenance, sandbox/profile identifiers, policy IDs) without leaking host-local paths.
 - [ ] Record the applied hardening posture in audit and expose a summary through broker run detail so "we forgot to sandbox" is detectable.
+- [ ] Ensure the recorded hardening posture captures what was actually enforced, not only the requested policy target.
 
 Parallelization: can be implemented in parallel with the microVM launch path; it depends on a stable hardening posture recording format.
 
@@ -147,6 +156,7 @@ Parallelization: can be implemented in parallel with image/toolchain signing pip
 - [ ] Enforce “no host filesystem mounts into isolates”.
 - [ ] Keep host-local paths out of boundary-visible attachment contracts and audit payloads.
 - [ ] Guest mount locations remain backend/guest convention rather than public contract identity.
+- [ ] Keep broker authorization at logical attachment role + digest level only; launcher resolves and materializes backend-private storage/layout without exposing host path identity through the trusted control contract.
 
 Parallelization: can be implemented in parallel with artifact store work; it depends on stable artifact attachment and data-class flow rules.
 
@@ -154,6 +164,7 @@ Parallelization: can be implemented in parallel with artifact store work; it dep
 
 - [ ] Define MVP resource controls (vCPU/memory/disk/timeouts) and a watchdog that terminates misbehaving isolates.
 - [ ] Define an explicit backend lifecycle progression for launch/session establishment (e.g. `planned`, `launching`, `started`, `binding`, `active`, `terminating`, `terminated`) without overloading shared operator run lifecycle state.
+- [ ] Persist lifecycle transitions separately from immutable launch evidence so later durable-state and restart recovery work can reuse one clear model.
 - [ ] Ensure isolate termination between steps is the default.
 - [ ] Performance (without weakening the boundary):
   - keep guest images minimal and role-specific to reduce boot latency
@@ -190,6 +201,7 @@ Parallelization: can be implemented in parallel with workflow runner work; watch
   - emit a typed `BackendTerminalReport`
 - [ ] Do not automatically fall back to containers.
 - [ ] Provide an explicit, separate user flow to opt into container mode (handled by the container backend spec).
+- [ ] Add a backend conformance suite that asserts no automatic fallback, correct posture separation, attachment semantics, hardening/error reporting, and broker projection behavior across backend implementations.
 
 Parallelization: can be implemented in parallel with container backend work; behavior must remain “no automatic fallback” and error vocabulary should stay reusable across backends.
 
@@ -199,6 +211,14 @@ Parallelization: can be implemented in parallel with container backend work; beh
 - [ ] Keep those payloads small, reference-heavy, and topology-neutral; reference launch/session/image/hardening objects rather than duplicating host-local implementation details.
 - [ ] Ensure later attestation work can upgrade TOFU posture without breaking these event families.
 - [ ] Keep backend kind, runtime isolation assurance, provisioning posture, and audit posture visible through shared broker run-summary/run-detail surfaces rather than platform-specific side channels.
+- [ ] Make the broker the owner of audit emission for launcher-visible runtime events while the launcher supplies referenced evidence objects and digests.
+
+## Implementation Sequencing
+
+- [ ] Finalize the trusted broker-to-launcher control contract, secure-session design, and immutable evidence model before expanding implementation-specific runtime code.
+- [ ] Wire a fake backend through the real broker->launcher->broker path to prove lifecycle updates, evidence persistence, broker projection, and audit emission.
+- [ ] Replace the fake backend with the real Linux/QEMU/KVM implementation behind the same control contract.
+- [ ] Add backend-conformance and KVM-backed end-to-end verification before treating the change as complete.
 
 Parallelization: can be implemented in parallel with audit and broker work; it depends on stable payload schemas, reference roles, and posture vocabulary.
 
@@ -206,7 +226,9 @@ Parallelization: can be implemented in parallel with audit and broker work; it d
 
 - [ ] On Linux, the launcher can start/stop a microVM role and run at least one deterministic “hello world” role action.
 - [ ] Launcher/broker ownership split and the backend-neutral launch/session/attachment contracts are explicit enough that later backends do not need to redefine the core model.
+- [ ] Broker<->launcher control is service-oriented and private to the trusted domain while the broker local API remains the only public/untrusted boundary.
 - [ ] Isolation backend + runtime isolation assurance are recorded in audit and projected through broker operator-facing run surfaces.
+- [ ] Broker-facing runtime state remains derivable from persisted launcher evidence after restart and does not depend on runner-local inference.
 - [ ] Runtime isolation assurance, provisioning/binding posture, and audit posture are not silently collapsed into one ambiguous field.
 - [ ] Isolate <-> host transport is mutually authenticated and encrypted; unauthenticated messages are rejected.
 - [ ] Isolate session identity keys are per-session ephemeral and verified with proof-of-possession.
@@ -215,3 +237,4 @@ Parallelization: can be implemented in parallel with audit and broker work; it d
 - [ ] QEMU hardening is enabled by default for MVP.
 - [ ] Backend launch/runtime failures surface through stable error codes and terminal reports rather than only logs or exit status.
 - [ ] Audit payload schemas for isolate-session events are explicit enough for later attestation work to reuse without a format break.
+- [ ] The same trusted control contract and conformance checks are reusable by container, macOS, Windows, attestation, and durable-state follow-on work without redefining runtime posture semantics.

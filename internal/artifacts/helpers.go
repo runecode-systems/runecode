@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
 const backupHMACKeyEnv = "RUNE_BACKUP_HMAC_KEY"
@@ -44,6 +46,18 @@ func isReservedDataClass(dataClass DataClass) bool {
 }
 
 func normalizeState(state StoreState) StoreState {
+	state = normalizePrimaryStateMaps(state)
+	state = normalizeRuntimeStateMaps(state)
+	if state.Policy.HandOffReferenceMode == "" {
+		state.Policy = DefaultPolicy()
+	}
+	if state.StorageProtectionPosture == "" {
+		state.StorageProtectionPosture = "encrypted_at_rest_default"
+	}
+	return state
+}
+
+func normalizePrimaryStateMaps(state StoreState) StoreState {
 	if state.Artifacts == nil {
 		state.Artifacts = map[string]ArtifactRecord{}
 	}
@@ -65,11 +79,21 @@ func normalizeState(state StoreState) StoreState {
 	if state.PromotionEventsByActor == nil {
 		state.PromotionEventsByActor = map[string][]time.Time{}
 	}
-	if state.Policy.HandOffReferenceMode == "" {
-		state.Policy = DefaultPolicy()
+	return state
+}
+
+func normalizeRuntimeStateMaps(state StoreState) StoreState {
+	if state.RuntimeFactsByRun == nil {
+		state.RuntimeFactsByRun = map[string]launcherbackend.RuntimeFactsSnapshot{}
 	}
-	if state.StorageProtectionPosture == "" {
-		state.StorageProtectionPosture = "encrypted_at_rest_default"
+	if state.RuntimeEvidenceByRun == nil {
+		state.RuntimeEvidenceByRun = map[string]launcherbackend.RuntimeEvidenceSnapshot{}
+	}
+	if state.RuntimeLifecycleByRun == nil {
+		state.RuntimeLifecycleByRun = map[string]launcherbackend.RuntimeLifecycleState{}
+	}
+	if state.RuntimeAuditStateByRun == nil {
+		state.RuntimeAuditStateByRun = map[string]RuntimeAuditEmissionState{}
 	}
 	return state
 }

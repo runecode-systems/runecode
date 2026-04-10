@@ -96,16 +96,24 @@ func isWindowsEnvRootPath(value string) bool {
 }
 
 func canonicalSHA256Digest(value any, context string) (string, error) {
-	blob, err := json.Marshal(value)
+	canonical, err := canonicalJSONBytes(value, context)
 	if err != nil {
-		return "", fmt.Errorf("%s serialization failed: %w", context, err)
-	}
-	canonical, err := jsoncanonicalizer.Transform(blob)
-	if err != nil {
-		return "", fmt.Errorf("%s canonicalization failed: %w", context, err)
+		return "", err
 	}
 	sum := sha256.Sum256(canonical)
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+func canonicalJSONBytes(value any, context string) ([]byte, error) {
+	blob, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("%s serialization failed: %w", context, err)
+	}
+	canonical, err := jsoncanonicalizer.Transform(blob)
+	if err != nil {
+		return nil, fmt.Errorf("%s canonicalization failed: %w", context, err)
+	}
+	return canonical, nil
 }
 
 func looksLikeDeviceNumberingMaterial(value string) bool {
