@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/RuntimeImageDescriptor.schema.json",
+  "title": "RuntimeImageDescriptor",
+  "description": "Digest-addressed backend-neutral runtime image identity descriptor.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 9,
+  "required": ["schema_id", "schema_version", "descriptor_digest", "backend_kind", "platform_compatibility", "boot_contract_version", "component_digests"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.RuntimeImageDescriptor", "description": "Protocol schema identifier for runtime image descriptors.", "x-data-class": "public" },
+    "schema_version": { "const": "0.2.0", "description": "Protocol schema version for runtime image descriptors.", "x-data-class": "public" },
+    "descriptor_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest identity for the descriptor payload.", "x-data-class": "public" },
+    "backend_kind": { "type": "string", "enum": ["microvm", "container"], "description": "Backend topology kind for compatibility checking.", "x-data-class": "public" },
+    "platform_compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "architecture"],
+      "maxProperties": 3,
+      "description": "Backend-neutral runtime platform compatibility constraints.",
+      "x-data-class": "public",
+      "properties": {
+        "os": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z0-9][a-z0-9._-]*$", "description": "Target guest operating system family.", "x-data-class": "public" },
+        "architecture": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z0-9][a-z0-9._-]*$", "description": "Target guest CPU architecture.", "x-data-class": "public" },
+        "acceleration_kind": { "type": "string", "enum": ["kvm", "hvf", "whpx", "none"], "description": "Optional acceleration compatibility hint.", "x-data-class": "public" }
+      }
+    },
+    "boot_contract_version": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Versioned boot contract profile identifier.", "x-data-class": "public" },
+    "component_digests": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 16,
+      "description": "Digest-addressed concrete boot components keyed by logical component name.",
+      "x-data-class": "public",
+      "additionalProperties": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest identity for one component.", "x-data-class": "public" }
+    },
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 3,
+      "description": "Optional image-signing metadata hooks for staged signature enforcement.",
+      "x-data-class": "public",
+      "properties": {
+        "signer_ref": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Signer identity reference.", "x-data-class": "public" },
+        "signature_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest identity of detached signature material.", "x-data-class": "public" },
+        "signature_bundle_ref": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Opaque reference to signature bundle metadata.", "x-data-class": "public" }
+      }
+    },
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 2,
+      "description": "Optional future-facing attestation and measurement linkage hooks.",
+      "x-data-class": "public",
+      "properties": {
+        "measurement_profile": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Measurement profile identifier.", "x-data-class": "public" },
+        "expected_measurement_digests": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "x-data-class": "public" },
+          "description": "Optional list of expected measurement digest anchors.",
+          "x-data-class": "public"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "backend_kind": { "const": "microvm" } },
+        "required": ["backend_kind"]
+      },
+      "then": {
+        "properties": {
+          "component_digests": {
+            "required": ["kernel", "rootfs"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "backend_kind": { "const": "container" } },
+        "required": ["backend_kind"]
+      },
+      "then": {
+        "properties": {
+          "component_digests": {
+            "required": ["image"]
+          }
+        }
+      }
+    }
+  ]
+}

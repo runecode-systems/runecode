@@ -182,7 +182,7 @@ func buildVerificationFixtureSignerEvidence(keyID string) []AuditSignerEvidenceR
 				RunID:                   "run-1",
 				IsolateID:               "isolate-1",
 				SessionID:               "session-1",
-				SessionNonce:            "nonce-1",
+				SessionNonce:            "nonce-0123456789abcd",
 				ProvisioningMode:        "tofu",
 				ImageDigest:             Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)},
 				ActiveManifestHash:      Digest{HashAlg: "sha256", Hash: strings.Repeat("2", 64)},

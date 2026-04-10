@@ -2,13 +2,12 @@ package brokerapi
 
 import (
 	"context"
-	"encoding/base64"
-	"io"
+	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/launcherbackend"
 	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
@@ -49,9 +48,28 @@ func assertRunListSummaryForLocalOps(t *testing.T, runs []RunSummary) {
 	if runs[0].WorkflowDefinitionHash == "" {
 		t.Fatal("workflow_definition_hash should use trusted manifest digest when unambiguous")
 	}
+	if runs[0].BackendKind != launcherbackend.BackendKindUnknown {
+		t.Fatalf("backend_kind = %q, want %q", runs[0].BackendKind, launcherbackend.BackendKindUnknown)
+	}
+	if runs[0].IsolationAssuranceLevel != launcherbackend.IsolationAssuranceUnknown {
+		t.Fatalf("isolation_assurance_level = %q, want %q", runs[0].IsolationAssuranceLevel, launcherbackend.IsolationAssuranceUnknown)
+	}
+	if runs[0].ProvisioningPosture != launcherbackend.ProvisioningPostureUnknown {
+		t.Fatalf("provisioning_posture = %q, want %q", runs[0].ProvisioningPosture, launcherbackend.ProvisioningPostureUnknown)
+	}
+	if runs[0].AssuranceLevel != runs[0].IsolationAssuranceLevel {
+		t.Fatalf("assurance_level alias = %q, want %q", runs[0].AssuranceLevel, runs[0].IsolationAssuranceLevel)
+	}
 }
 
 func assertRunDetailForLocalOps(t *testing.T, detail RunDetail) {
+	t.Helper()
+	assertRunDetailCoreForLocalOps(t, detail)
+	assertRunDetailAuthoritativeStateForLocalOps(t, detail.AuthoritativeState)
+	assertRunDetailRoleCoverageForLocalOps(t, detail.RoleSummaries)
+}
+
+func assertRunDetailCoreForLocalOps(t *testing.T, detail RunDetail) {
 	t.Helper()
 	if detail.Summary.RunID != "run-123" {
 		t.Fatalf("run detail run_id = %q, want run-123", detail.Summary.RunID)
@@ -59,24 +77,54 @@ func assertRunDetailForLocalOps(t *testing.T, detail RunDetail) {
 	if len(detail.ActiveManifestHashes) == 0 {
 		t.Fatal("run detail active_manifest_hashes should not be empty")
 	}
-	if detail.AuthoritativeState["source"] != "broker_store" {
-		t.Fatalf("authoritative_state.source = %v, want broker_store", detail.AuthoritativeState["source"])
-	}
-	if detail.AuthoritativeState["provenance"] != "trusted_derived" {
-		t.Fatalf("authoritative_state.provenance = %v, want trusted_derived", detail.AuthoritativeState["provenance"])
-	}
 	if detail.AdvisoryState["provenance"] != "none_reported" {
 		t.Fatalf("advisory_state.provenance = %v, want none_reported", detail.AdvisoryState["provenance"])
 	}
+}
+
+func assertRunDetailAuthoritativeStateForLocalOps(t *testing.T, state map[string]any) {
+	t.Helper()
+	if state["source"] != "broker_store" {
+		t.Fatalf("authoritative_state.source = %v, want broker_store", state["source"])
+	}
+	if state["provenance"] != "trusted_derived" {
+		t.Fatalf("authoritative_state.provenance = %v, want trusted_derived", state["provenance"])
+	}
+	if state["runtime_facts_source"] != "launcher_backend_receipt" {
+		t.Fatalf("authoritative_state.runtime_facts_source = %v, want launcher_backend_receipt", state["runtime_facts_source"])
+	}
+	if state["backend_kind"] != launcherbackend.BackendKindUnknown {
+		t.Fatalf("authoritative_state.backend_kind = %v, want %q", state["backend_kind"], launcherbackend.BackendKindUnknown)
+	}
+	if state["isolation_assurance_level"] != launcherbackend.IsolationAssuranceUnknown {
+		t.Fatalf("authoritative_state.isolation_assurance_level = %v, want %q", state["isolation_assurance_level"], launcherbackend.IsolationAssuranceUnknown)
+	}
+	if state["provisioning_posture"] != launcherbackend.ProvisioningPostureUnknown {
+		t.Fatalf("authoritative_state.provisioning_posture = %v, want %q", state["provisioning_posture"], launcherbackend.ProvisioningPostureUnknown)
+	}
+	hardening, ok := state["applied_hardening_posture"].(map[string]any)
+	if !ok {
+		t.Fatalf("authoritative_state.applied_hardening_posture = %T, want map", state["applied_hardening_posture"])
+	}
+	if hardening["degraded"] != true {
+		t.Fatalf("applied_hardening_posture.degraded = %v, want true", hardening["degraded"])
+	}
+	if hardening["degraded_reasons"] == nil {
+		t.Fatal("applied_hardening_posture.degraded_reasons should be present for default unknown posture")
+	}
+}
+
+func assertRunDetailRoleCoverageForLocalOps(t *testing.T, roles []RunRoleSummary) {
+	t.Helper()
 	hasWorkspaceEdit := false
-	for _, role := range detail.RoleSummaries {
+	for _, role := range roles {
 		if role.RoleKind == "workspace-edit" {
 			hasWorkspaceEdit = true
 			break
 		}
 	}
 	if !hasWorkspaceEdit {
-		t.Fatalf("role_summaries = %+v, want workspace-edit role", detail.RoleSummaries)
+		t.Fatalf("role_summaries = %+v, want workspace-edit role", roles)
 	}
 }
 
@@ -101,6 +149,41 @@ func TestRunSummaryWorkflowDefinitionHashRequiresSingleTrustedManifest(t *testin
 	}
 }
 
+func TestRecordRuntimeFactsFailClosesInvalidTerminalReport(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	putRunScopedArtifactForLocalOpsTest(t, s, "run-terminal-invalid", "step-1")
+	if err := s.RecordRuntimeFacts("run-terminal-invalid", launcherbackend.RuntimeFactsSnapshot{
+		LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: "run-terminal-invalid"},
+		TerminalReport: &launcherbackend.BackendTerminalReport{
+			TerminationKind: "unknown_state",
+			FailClosed:      false,
+		},
+	}); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
+
+	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-terminal-invalid", RunID: "run-terminal-invalid"}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleRunGet error response: %+v", errResp)
+	}
+	terminal, ok := runGet.Run.AuthoritativeState["backend_terminal"].(map[string]any)
+	if !ok {
+		t.Fatalf("authoritative_state.backend_terminal = %T, want map", runGet.Run.AuthoritativeState["backend_terminal"])
+	}
+	if terminal["termination_kind"] != launcherbackend.BackendTerminationKindFailed {
+		t.Fatalf("backend_terminal.termination_kind = %v, want %q", terminal["termination_kind"], launcherbackend.BackendTerminationKindFailed)
+	}
+	if terminal["failure_reason_code"] != launcherbackend.BackendErrorCodeTerminalReportInvalid {
+		t.Fatalf("backend_terminal.failure_reason_code = %v, want %q", terminal["failure_reason_code"], launcherbackend.BackendErrorCodeTerminalReportInvalid)
+	}
+	if terminal["fail_closed"] != true {
+		t.Fatalf("backend_terminal.fail_closed = %v, want true", terminal["fail_closed"])
+	}
+	if terminal["fallback_posture"] != launcherbackend.BackendFallbackPostureNoAutomaticFallback {
+		t.Fatalf("backend_terminal.fallback_posture = %v, want %q", terminal["fallback_posture"], launcherbackend.BackendFallbackPostureNoAutomaticFallback)
+	}
+}
+
 func TestRunDetailIncludesPersistedPolicyDecisionRefs(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	_ = putRunScopedArtifactForLocalOpsTest(t, s, "run-policy-refs", "step-1")
@@ -122,6 +205,68 @@ func TestRunDetailIncludesPersistedPolicyDecisionRefs(t *testing.T) {
 	}
 }
 
+func TestRecordRuntimeLifecycleStateUpdatesAuthoritativeProjection(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	putRunScopedArtifactForLocalOpsTest(t, s, "run-lifecycle-update", "step-1")
+	if err := s.RecordRuntimeFacts("run-lifecycle-update", launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: "run-lifecycle-update"}}); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
+	err := s.RecordRuntimeLifecycleState("run-lifecycle-update", launcherbackend.RuntimeLifecycleState{
+		BackendLifecycle:            &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateActive, PreviousState: launcherbackend.BackendLifecycleStateBinding, TransitionCount: 3},
+		ProvisioningPosture:         launcherbackend.ProvisioningPostureTOFU,
+		ProvisioningPostureDegraded: true,
+		ProvisioningDegradedReasons: []string{"key_material_transient"},
+		LaunchFailureReasonCode:     launcherbackend.BackendErrorCodeAccelerationUnavailable,
+	})
+	if err != nil {
+		t.Fatalf("RecordRuntimeLifecycleState returned error: %v", err)
+	}
+
+	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-runtime-lifecycle", RunID: "run-lifecycle-update"}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleRunGet error response: %+v", errResp)
+	}
+	state := runGet.Run.AuthoritativeState
+	if state["provisioning_posture"] != launcherbackend.ProvisioningPostureTOFU {
+		t.Fatalf("authoritative_state.provisioning_posture = %v, want %q", state["provisioning_posture"], launcherbackend.ProvisioningPostureTOFU)
+	}
+	if state["launch_failure_reason_code"] != launcherbackend.BackendErrorCodeAccelerationUnavailable {
+		t.Fatalf("authoritative_state.launch_failure_reason_code = %v, want %q", state["launch_failure_reason_code"], launcherbackend.BackendErrorCodeAccelerationUnavailable)
+	}
+}
+
+func TestRecordRuntimeFactsFailClosesInvalidHardeningPosture(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	putRunScopedArtifactForLocalOpsTest(t, s, "run-hardening-invalid", "step-1")
+	if err := s.RecordRuntimeFacts("run-hardening-invalid", launcherbackend.RuntimeFactsSnapshot{
+		LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: "run-hardening-invalid"},
+		HardeningPosture: launcherbackend.AppliedHardeningPosture{
+			Requested:           launcherbackend.HardeningRequestedHardened,
+			Effective:           launcherbackend.HardeningEffectiveDegraded,
+			DegradedReasons:     []string{"seccomp_unavailable"},
+			BackendEvidenceRefs: []string{"/usr/bin/qemu-system-x86_64"},
+		},
+	}); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
+
+	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-hardening-invalid", RunID: "run-hardening-invalid"}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleRunGet error response: %+v", errResp)
+	}
+	hardening, ok := runGet.Run.AuthoritativeState["applied_hardening_posture"].(map[string]any)
+	if !ok {
+		t.Fatalf("authoritative_state.applied_hardening_posture = %T, want map", runGet.Run.AuthoritativeState["applied_hardening_posture"])
+	}
+	reasons, ok := hardening["degraded_reasons"].([]string)
+	if !ok {
+		t.Fatalf("applied_hardening_posture.degraded_reasons = %T, want []string", hardening["degraded_reasons"])
+	}
+	if !slices.Contains(reasons, "hardening_posture_invalid") {
+		t.Fatalf("degraded_reasons = %v, want include hardening_posture_invalid", reasons)
+	}
+}
+
 func policyDecisionFixtureForRunRefs() policyengine.PolicyDecision {
 	return policyengine.PolicyDecision{
 		SchemaID:               "runecode.protocol.v0.PolicyDecision",
@@ -134,210 +279,6 @@ func policyDecisionFixtureForRunRefs() policyengine.PolicyDecision {
 		RelevantArtifactHashes: []string{"sha256:" + strings.Repeat("4", 64)},
 		DetailsSchemaID:        "runecode.protocol.details.policy.decision.v0",
 		Details:                map[string]any{"rule": "deny_by_default"},
-	}
-}
-
-func assertArtifactListAndHeadForLocalOps(t *testing.T, s *Service, digest string) {
-	t.Helper()
-	artList, errResp := s.HandleArtifactListV0(context.Background(), LocalArtifactListRequest{SchemaID: "runecode.protocol.v0.ArtifactListRequest", SchemaVersion: "0.1.0", RequestID: "req-art-list", Order: "created_at_desc", Limit: 10}, RequestContext{})
-	if errResp != nil {
-		t.Fatalf("HandleArtifactListV0 error response: %+v", errResp)
-	}
-	var listed *ArtifactSummary
-	for i := range artList.Artifacts {
-		if artList.Artifacts[i].Reference.Digest == digest {
-			listed = &artList.Artifacts[i]
-			break
-		}
-	}
-	if listed == nil {
-		t.Fatalf("artifact list missing digest %q: %+v", digest, artList.Artifacts)
-	}
-	if listed.RunID != "run-123" {
-		t.Fatalf("artifact run_id = %q, want run-123", listed.RunID)
-	}
-	if listed.StageID != "artifact_flow" {
-		t.Fatalf("artifact stage_id = %q, want artifact_flow", listed.StageID)
-	}
-	headReq := LocalArtifactHeadRequest{SchemaID: "runecode.protocol.v0.ArtifactHeadRequest", SchemaVersion: "0.1.0", RequestID: "req-art-head", Digest: digest}
-	headResp, errResp := s.HandleArtifactHeadV0(context.Background(), headReq, RequestContext{})
-	if errResp != nil {
-		t.Fatalf("HandleArtifactHeadV0 error response: %+v", errResp)
-	}
-	if headResp.Artifact.Reference.Digest != digest {
-		t.Fatalf("artifact head digest = %q, want %q", headResp.Artifact.Reference.Digest, digest)
-	}
-}
-
-func TestArtifactListHonorsAscendingOrder(t *testing.T) {
-	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	firstDigest := putPayloadArtifactForLocalOpsTest(t, s, "artifact-order-a", "run-order", "step-1")
-	time.Sleep(1100 * time.Millisecond)
-	secondDigest := putPayloadArtifactForLocalOpsTest(t, s, "artifact-order-b", "run-order", "step-2")
-
-	resp, errResp := s.HandleArtifactListV0(context.Background(), LocalArtifactListRequest{
-		SchemaID:      "runecode.protocol.v0.ArtifactListRequest",
-		SchemaVersion: "0.1.0",
-		RequestID:     "req-art-order-asc",
-		RunID:         "run-order",
-		Order:         "created_at_asc",
-		Limit:         10,
-	}, RequestContext{})
-	if errResp != nil {
-		t.Fatalf("HandleArtifactListV0 error response: %+v", errResp)
-	}
-	if len(resp.Artifacts) != 2 {
-		t.Fatalf("artifact count = %d, want 2", len(resp.Artifacts))
-	}
-	if resp.Artifacts[0].Reference.Digest != firstDigest {
-		t.Fatalf("first digest = %q, want %q", resp.Artifacts[0].Reference.Digest, firstDigest)
-	}
-	if resp.Artifacts[1].Reference.Digest != secondDigest {
-		t.Fatalf("second digest = %q, want %q", resp.Artifacts[1].Reference.Digest, secondDigest)
-	}
-}
-
-func putPayloadArtifactForLocalOpsTest(t *testing.T, s *Service, payload, runID, stepID string) string {
-	t.Helper()
-	ref, putErr := s.Put(artifacts.PutRequest{Payload: []byte(payload), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64), CreatedByRole: "workspace", RunID: runID, StepID: stepID})
-	if putErr != nil {
-		t.Fatalf("Put returned error: %v", putErr)
-	}
-	return ref.Digest
-}
-
-func putRunScopedArtifactForLocalOpsTest(t *testing.T, s *Service, runID, stepID string) string {
-	t.Helper()
-	ref, putErr := s.Put(artifacts.PutRequest{Payload: []byte("artifact-a"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("1", 64), CreatedByRole: "workspace", RunID: runID, StepID: stepID})
-	if putErr != nil {
-		t.Fatalf("Put returned error: %v", putErr)
-	}
-	return ref.Digest
-}
-
-func assertArtifactReadStreamCompletes(t *testing.T, s *Service, digest string) {
-	t.Helper()
-	readReq := ArtifactReadRequest{SchemaID: "runecode.protocol.v0.ArtifactReadRequest", SchemaVersion: "0.1.0", RequestID: "req-art-read", Digest: digest, ProducerRole: "workspace", ConsumerRole: "model_gateway", ChunkBytes: 128}
-	readResp, errResp := s.HandleArtifactRead(context.Background(), readReq, RequestContext{})
-	if errResp != nil {
-		t.Fatalf("HandleArtifactRead error response: %+v", errResp)
-	}
-	if readResp.StreamID == "" || readResp.Reader == nil {
-		t.Fatalf("artifact read response invalid: %+v", readResp)
-	}
-	events, err := s.StreamArtifactReadEvents(readResp)
-	if err != nil {
-		t.Fatalf("StreamArtifactReadEvents error: %v", err)
-	}
-	if len(events) < 2 {
-		t.Fatalf("artifact stream events = %d, want at least start+terminal", len(events))
-	}
-	if events[0].EventType != "artifact_stream_start" {
-		t.Fatalf("first stream event_type = %q, want artifact_stream_start", events[0].EventType)
-	}
-	assertStreamSeqMonotonic(t, events)
-	assertSingleArtifactTerminalEvent(t, events)
-	if got := events[len(events)-1].TerminalStatus; got != "completed" {
-		t.Fatalf("terminal_status = %q, want completed", got)
-	}
-}
-
-func assertSingleArtifactTerminalEvent(t *testing.T, events []ArtifactStreamEvent) {
-	t.Helper()
-	terminalCount := 0
-	for _, event := range events {
-		if event.EventType != "artifact_stream_terminal" {
-			continue
-		}
-		terminalCount++
-		if event.TerminalStatus == "" {
-			t.Fatal("artifact terminal event missing in-band terminal_status")
-		}
-	}
-	if terminalCount != 1 {
-		t.Fatalf("terminal event count = %d, want 1", terminalCount)
-	}
-}
-
-func TestArtifactReadRejectsRangeRequestsInMVP(t *testing.T) {
-	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	ref, putErr := s.Put(artifacts.PutRequest{Payload: []byte("artifact-a"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64), CreatedByRole: "workspace"})
-	if putErr != nil {
-		t.Fatalf("Put returned error: %v", putErr)
-	}
-	rangeStart := int64(0)
-	_, errResp := s.HandleArtifactRead(context.Background(), ArtifactReadRequest{SchemaID: "runecode.protocol.v0.ArtifactReadRequest", SchemaVersion: "0.1.0", RequestID: "req-range", Digest: ref.Digest, ProducerRole: "workspace", ConsumerRole: "model_gateway", RangeStart: &rangeStart}, RequestContext{})
-	if errResp == nil {
-		t.Fatal("HandleArtifactRead expected range rejection error")
-	}
-	if errResp.Error.Code != "broker_validation_range_not_supported" {
-		t.Fatalf("error code = %q, want broker_validation_range_not_supported", errResp.Error.Code)
-	}
-}
-
-func TestArtifactLocalOpsRejectInFlightLimit(t *testing.T) {
-	s := newBrokerAPIServiceForTests(t, APIConfig{Limits: Limits{MaxInFlightPerClient: 1, MaxInFlightPerLane: 1}})
-	release, err := s.apiInflight.acquire("client-a", "lane-a")
-	if err != nil {
-		t.Fatalf("acquire precondition returned error: %v", err)
-	}
-	defer release()
-	meta := RequestContext{ClientID: "client-a", LaneID: "lane-a"}
-	assertArtifactLocalOpErrorCode(t, "artifact_list", "broker_limit_in_flight_exceeded", callArtifactListLocal(t, s, meta, "req-art-list-limit"))
-	assertArtifactLocalOpErrorCode(t, "artifact_head", "broker_limit_in_flight_exceeded", callArtifactHeadLocal(t, s, meta, "req-art-head-limit"))
-	assertArtifactLocalOpErrorCode(t, "artifact_read", "broker_limit_in_flight_exceeded", callArtifactReadLocal(t, s, meta, "req-art-read-limit"))
-}
-
-func TestArtifactLocalOpsRejectDeadlineExceeded(t *testing.T) {
-	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	deadline := time.Now().Add(-time.Second)
-	meta := RequestContext{Deadline: &deadline}
-	assertArtifactLocalOpErrorCode(t, "artifact_list", "broker_timeout_request_deadline_exceeded", callArtifactListLocal(t, s, meta, "req-art-list-timeout"))
-	assertArtifactLocalOpErrorCode(t, "artifact_head", "broker_timeout_request_deadline_exceeded", callArtifactHeadLocal(t, s, meta, "req-art-head-timeout"))
-	assertArtifactLocalOpErrorCode(t, "artifact_read", "broker_timeout_request_deadline_exceeded", callArtifactReadLocal(t, s, meta, "req-art-read-timeout"))
-}
-
-func callArtifactListLocal(t *testing.T, s *Service, meta RequestContext, requestID string) *ErrorResponse {
-	t.Helper()
-	_, errResp := s.HandleArtifactListV0(context.Background(), LocalArtifactListRequest{
-		SchemaID:      "runecode.protocol.v0.ArtifactListRequest",
-		SchemaVersion: "0.1.0",
-		RequestID:     requestID,
-	}, meta)
-	return errResp
-}
-
-func callArtifactHeadLocal(t *testing.T, s *Service, meta RequestContext, requestID string) *ErrorResponse {
-	t.Helper()
-	_, errResp := s.HandleArtifactHeadV0(context.Background(), LocalArtifactHeadRequest{
-		SchemaID:      "runecode.protocol.v0.ArtifactHeadRequest",
-		SchemaVersion: "0.1.0",
-		RequestID:     requestID,
-		Digest:        "sha256:" + strings.Repeat("a", 64),
-	}, meta)
-	return errResp
-}
-
-func callArtifactReadLocal(t *testing.T, s *Service, meta RequestContext, requestID string) *ErrorResponse {
-	t.Helper()
-	_, errResp := s.HandleArtifactRead(context.Background(), ArtifactReadRequest{
-		SchemaID:      "runecode.protocol.v0.ArtifactReadRequest",
-		SchemaVersion: "0.1.0",
-		RequestID:     requestID,
-		Digest:        "sha256:" + strings.Repeat("a", 64),
-		ProducerRole:  "workspace",
-		ConsumerRole:  "model_gateway",
-	}, meta)
-	return errResp
-}
-
-func assertArtifactLocalOpErrorCode(t *testing.T, opName, wantCode string, errResp *ErrorResponse) {
-	t.Helper()
-	if errResp == nil {
-		t.Fatalf("%s expected typed error", opName)
-	}
-	if errResp.Error.Code != wantCode {
-		t.Fatalf("%s error code = %q, want %s", opName, errResp.Error.Code, wantCode)
 	}
 }
 
@@ -407,125 +348,5 @@ func TestRunPendingApprovalsUseCanonicalPendingRecords(t *testing.T) {
 	}
 	if approvalResp.SignedApprovalRequest == nil {
 		t.Fatal("signed_approval_request = nil, want pending request envelope")
-	}
-}
-
-func assertArtifactStreamDecodedPayload(t *testing.T, events []ArtifactStreamEvent, want string) {
-	t.Helper()
-	decoded := ""
-	for _, event := range events {
-		if event.EventType != "artifact_stream_chunk" {
-			continue
-		}
-		chunk, decodeErr := base64.StdEncoding.DecodeString(event.ChunkBase64)
-		if decodeErr != nil {
-			t.Fatalf("chunk decode error: %v", decodeErr)
-		}
-		decoded += string(chunk)
-	}
-	if decoded != want {
-		t.Fatalf("decoded artifact stream payload = %q, want %q", decoded, want)
-	}
-}
-
-func TestArtifactReadGatewayFlowDeniedForMismatchedProducerRole(t *testing.T) {
-	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	ref, putErr := s.Put(artifacts.PutRequest{Payload: []byte("artifact-a"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64), CreatedByRole: "workspace"})
-	if putErr != nil {
-		t.Fatalf("Put returned error: %v", putErr)
-	}
-	_, errResp := s.HandleArtifactRead(context.Background(), ArtifactReadRequest{SchemaID: "runecode.protocol.v0.ArtifactReadRequest", SchemaVersion: "0.1.0", RequestID: "req-role-mismatch", Digest: ref.Digest, ProducerRole: "auditd", ConsumerRole: "model_gateway", DataClass: string(artifacts.DataClassSpecText)}, RequestContext{})
-	if errResp == nil {
-		t.Fatal("HandleArtifactRead expected policy rejection for mismatched producer")
-	}
-	if errResp.Error.Code != "broker_limit_policy_rejected" {
-		t.Fatalf("error code = %q, want broker_limit_policy_rejected", errResp.Error.Code)
-	}
-}
-
-func TestArtifactReadFailsClosedWhenPolicyContextUnavailable(t *testing.T) {
-	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	runID := "run-missing-policy-context"
-	ref, putErr := s.Put(artifacts.PutRequest{
-		Payload:               []byte("artifact-a"),
-		ContentType:           "text/plain",
-		DataClass:             artifacts.DataClassSpecText,
-		ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64),
-		CreatedByRole:         "workspace",
-		RunID:                 runID,
-		StepID:                "step-1",
-	})
-	if putErr != nil {
-		t.Fatalf("Put returned error: %v", putErr)
-	}
-	_, errResp := s.HandleArtifactRead(context.Background(), ArtifactReadRequest{
-		SchemaID:      "runecode.protocol.v0.ArtifactReadRequest",
-		SchemaVersion: "0.1.0",
-		RequestID:     "req-policy-missing",
-		Digest:        ref.Digest,
-		ProducerRole:  "workspace",
-		ConsumerRole:  "model_gateway",
-		DataClass:     string(artifacts.DataClassSpecText),
-	}, RequestContext{})
-	if errResp == nil {
-		t.Fatal("HandleArtifactRead expected policy rejection when trusted policy context is unavailable")
-	}
-	if errResp.Error.Code != "broker_limit_policy_rejected" {
-		t.Fatalf("error code = %q, want broker_limit_policy_rejected", errResp.Error.Code)
-	}
-}
-
-func TestArtifactStreamEventsCloseWithSingleTerminalOnReadFailure(t *testing.T) {
-	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	events, err := s.StreamArtifactReadEvents(ArtifactReadHandle{RequestID: "req-stream-fail", Digest: "sha256:" + strings.Repeat("a", 64), DataClass: artifacts.DataClassSpecText, StreamID: "stream-fail", ChunkBytes: 8, Reader: io.NopCloser(&alwaysErrReader{})})
-	if err != nil {
-		t.Fatalf("StreamArtifactReadEvents returned error: %v", err)
-	}
-	assertSingleFailedArtifactTerminal(t, events)
-}
-
-func TestArtifactStreamOverflowUsesResponseStreamLimitCode(t *testing.T) {
-	s := newBrokerAPIServiceForTests(t, APIConfig{Limits: Limits{MaxResponseStreamBytes: 16, MaxStreamChunkBytes: 8}})
-	handle := ArtifactReadHandle{
-		RequestID:  "req-stream-overflow",
-		Digest:     "sha256:" + strings.Repeat("b", 64),
-		DataClass:  artifacts.DataClassSpecText,
-		StreamID:   "stream-overflow",
-		ChunkBytes: 8,
-		Reader:     io.NopCloser(strings.NewReader(strings.Repeat("x", 32))),
-	}
-	events, err := s.StreamArtifactReadEvents(handle)
-	if err != nil {
-		t.Fatalf("StreamArtifactReadEvents returned error: %v", err)
-	}
-	for _, event := range events {
-		if event.EventType != "artifact_stream_terminal" || event.TerminalStatus != "failed" || event.Error == nil {
-			continue
-		}
-		if event.Error.Code != "broker_limit_response_stream_size_exceeded" {
-			t.Fatalf("error code = %q, want broker_limit_response_stream_size_exceeded", event.Error.Code)
-		}
-		return
-	}
-	t.Fatal("missing failed terminal event with typed stream overflow code")
-}
-
-func assertSingleFailedArtifactTerminal(t *testing.T, events []ArtifactStreamEvent) {
-	t.Helper()
-	terminal := 0
-	for _, event := range events {
-		if event.EventType != "artifact_stream_terminal" {
-			continue
-		}
-		terminal++
-		if event.TerminalStatus != "failed" {
-			t.Fatalf("terminal_status = %q, want failed", event.TerminalStatus)
-		}
-		if event.Error == nil {
-			t.Fatal("terminal failure event missing typed error envelope")
-		}
-	}
-	if terminal != 1 {
-		t.Fatalf("terminal event count = %d, want 1", terminal)
 	}
 }

@@ -324,14 +324,14 @@
     {
       "path": "objects/RunSummary.schema.json",
       "schema_id": "runecode.protocol.v0.RunSummary",
-      "schema_version": "0.1.0",
+      "schema_version": "0.2.0",
       "owner": "protocol",
       "status": "mvp"
     },
     {
       "path": "objects/RunDetail.schema.json",
       "schema_id": "runecode.protocol.v0.RunDetail",
-      "schema_version": "0.1.0",
+      "schema_version": "0.2.0",
       "owner": "protocol",
       "status": "mvp"
     },
@@ -352,6 +352,27 @@
     {
       "path": "objects/RunCoordinationSummary.schema.json",
       "schema_id": "runecode.protocol.v0.RunCoordinationSummary",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RuntimeImageDescriptor.schema.json",
+      "schema_id": "runecode.protocol.v0.RuntimeImageDescriptor",
+      "schema_version": "0.2.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/IsolateSessionStartedPayload.schema.json",
+      "schema_id": "runecode.protocol.v0.IsolateSessionStartedPayload",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/IsolateSessionBoundPayload.schema.json",
+      "schema_id": "runecode.protocol.v0.IsolateSessionBoundPayload",
       "schema_version": "0.1.0",
       "owner": "protocol",
       "status": "mvp"

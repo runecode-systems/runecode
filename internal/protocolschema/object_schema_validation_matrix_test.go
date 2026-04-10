@@ -91,6 +91,41 @@ func TestArtifactPolicySchemaEncodesFlowAndRetentionControls(t *testing.T) {
 	}
 }
 
+func TestRuntimeImageDescriptorSchemaRequiresDigestAddressedComponents(t *testing.T) {
+	bundle := newCompiledBundle(t, loadManifest(t))
+	schema := mustCompileObjectSchema(t, bundle, "objects/RuntimeImageDescriptor.schema.json")
+
+	for _, testCase := range runtimeImageDescriptorCases() {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			err := schema.Validate(testCase.value)
+			assertValidationOutcome(t, err, testCase.wantErr)
+		})
+	}
+}
+
+func TestIsolateSessionAuditPayloadSchemasValidateReferenceHeavyTopologyNeutralShape(t *testing.T) {
+	bundle := newCompiledBundle(t, loadManifest(t))
+	startedSchema := mustCompileObjectSchema(t, bundle, "objects/IsolateSessionStartedPayload.schema.json")
+	boundSchema := mustCompileObjectSchema(t, bundle, "objects/IsolateSessionBoundPayload.schema.json")
+
+	for _, testCase := range isolateSessionStartedPayloadCases() {
+		testCase := testCase
+		t.Run("isolate-session-started/"+testCase.name, func(t *testing.T) {
+			err := startedSchema.Validate(testCase.value)
+			assertValidationOutcome(t, err, testCase.wantErr)
+		})
+	}
+
+	for _, testCase := range isolateSessionBoundPayloadCases() {
+		testCase := testCase
+		t.Run("isolate-session-bound/"+testCase.name, func(t *testing.T) {
+			err := boundSchema.Validate(testCase.value)
+			assertValidationOutcome(t, err, testCase.wantErr)
+		})
+	}
+}
+
 func TestPolicyRuleSetAndAllowlistSchemasValidateDeclarativePolicyInputs(t *testing.T) {
 	bundle := newCompiledBundle(t, loadManifest(t))
 	ruleSetSchema := mustCompileObjectSchema(t, bundle, "objects/PolicyRuleSet.schema.json")
@@ -183,6 +218,37 @@ func artifactPolicyCases() []validationCase {
 		{name: "policy requires hash only handoff mode", value: invalidArtifactPolicyWithNonHashHandoff(), wantErr: true},
 		{name: "policy requires explicit approval for promotions", value: invalidArtifactPolicyWithoutExplicitHumanApproval(), wantErr: true},
 		{name: "policy rejects unknown flow data class", value: invalidArtifactPolicyWithUnknownFlowDataClass(), wantErr: true},
+	}
+}
+
+func runtimeImageDescriptorCases() []validationCase {
+	return []validationCase{
+		{name: "valid descriptor", value: validRuntimeImageDescriptor()},
+		{name: "unknown backend kind fails closed", value: invalidRuntimeImageDescriptorWithUnknownBackend(), wantErr: true},
+		{name: "platform compatibility required", value: invalidRuntimeImageDescriptorWithoutPlatformCompatibility(), wantErr: true},
+		{name: "component digests required", value: invalidRuntimeImageDescriptorWithoutComponents(), wantErr: true},
+		{name: "microvm requires kernel and rootfs", value: invalidRuntimeImageDescriptorWithMissingMicroVMKernelRootfs(), wantErr: true},
+		{name: "component digest must be digest identity", value: invalidRuntimeImageDescriptorWithBadComponentDigest(), wantErr: true},
+		{name: "signing hook object must not be empty", value: invalidRuntimeImageDescriptorWithEmptySigningObject(), wantErr: true},
+		{name: "attestation hook digest must be digest identity", value: invalidRuntimeImageDescriptorWithBadAttestationDigest(), wantErr: true},
+	}
+}
+
+func isolateSessionStartedPayloadCases() []validationCase {
+	return []validationCase{
+		{name: "valid started payload", value: validIsolateSessionStartedPayload()},
+		{name: "invalid started payload schema id", value: invalidIsolateSessionStartedPayloadWithBadSchemaID(), wantErr: true},
+		{name: "invalid started payload backend kind", value: invalidIsolateSessionStartedPayloadWithBadBackendKind(), wantErr: true},
+		{name: "invalid started payload digest", value: invalidIsolateSessionStartedPayloadWithBadDigest(), wantErr: true},
+	}
+}
+
+func isolateSessionBoundPayloadCases() []validationCase {
+	return []validationCase{
+		{name: "valid bound payload", value: validIsolateSessionBoundPayload()},
+		{name: "invalid bound payload schema id", value: invalidIsolateSessionBoundPayloadWithBadSchemaID(), wantErr: true},
+		{name: "invalid bound payload posture", value: invalidIsolateSessionBoundPayloadWithBadProvisioningPosture(), wantErr: true},
+		{name: "invalid bound payload digest", value: invalidIsolateSessionBoundPayloadWithBadDigest(), wantErr: true},
 	}
 }
 

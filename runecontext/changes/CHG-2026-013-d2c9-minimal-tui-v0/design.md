@@ -6,7 +6,11 @@ Implement the local TUI for runs, approvals, artifacts, and audit posture over t
 ## Key Decisions
 - TUI is a separate least-privilege client; it does not embed privileged execution.
 - Use Bubble Tea as the TUI framework.
-- The assurance level (microVM vs container) must be prominent.
+- The TUI must present backend posture as separate dimensions rather than flattening them into one overloaded “assurance” label:
+  - `backend_kind` (`microvm`, later `container`)
+  - runtime isolation assurance
+  - provisioning/binding posture
+  - audit posture
 - The active approval profile is part of the user safety posture and should be visible and explained (MVP default: `moderate`).
 - Approval requests must be explainable from structured data (reason codes + what changes if approved).
 - The TUI must distinguish exact-action approvals from stage sign-off so it can explain what hash-bound work is blocked, what changed if a sign-off became stale, and what will actually be unblocked if approval is granted.
@@ -14,6 +18,7 @@ Implement the local TUI for runs, approvals, artifacts, and audit posture over t
 - Run browsing is built around first-class broker `RunSummary` and `RunDetail` read models so later CLI, remote, and concurrency work can reuse the same operator contract.
 - TUI posture views must preserve the broker distinction between authoritative broker-derived state and optional runner advisory state.
 - TUI explanation surfaces must keep `policy_reason_code`, `approval_trigger_code`, and system errors distinct rather than flattening them into one generic status string.
+- Container reduced-assurance posture, TOFU-only provisioning posture, and degraded audit posture must remain visually distinct so users can tell what kind of degradation they are looking at.
 
 ## Main Workstreams
 - Bubble Tea App Skeleton

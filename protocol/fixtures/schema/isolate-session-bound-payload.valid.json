@@ -1,0 +1,15 @@
+{
+  "schema_id": "runecode.protocol.v0.IsolateSessionBoundPayload",
+  "schema_version": "0.1.0",
+  "run_id": "run-1",
+  "isolate_id": "isolate-1",
+  "session_id": "session-1",
+  "backend_kind": "microvm",
+  "isolation_assurance_level": "isolated",
+  "provisioning_posture": "tofu",
+  "launch_context_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "handshake_transcript_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "session_binding_digest": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+  "runtime_image_descriptor_digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "applied_hardening_posture_digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555"
+}

@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/IsolateSessionStartedPayload.schema.json",
+  "title": "IsolateSessionStartedPayload",
+  "description": "Reference-heavy, topology-neutral audit payload for isolate_session_started events.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 14,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "run_id",
+    "isolate_id",
+    "session_id",
+    "backend_kind",
+    "isolation_assurance_level",
+    "provisioning_posture",
+    "launch_context_digest",
+    "handshake_transcript_hash",
+    "launch_receipt_digest",
+    "runtime_image_descriptor_digest",
+    "applied_hardening_posture_digest"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.IsolateSessionStartedPayload",
+      "description": "Protocol schema identifier for isolate_session_started payload.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version for isolate_session_started payload.",
+      "x-data-class": "public"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Run identifier bound to the isolate session.",
+      "x-data-class": "public"
+    },
+    "isolate_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Isolate identifier for the started session.",
+      "x-data-class": "public"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Session identifier for correlation across isolate lifecycle events.",
+      "x-data-class": "public"
+    },
+    "backend_kind": {
+      "type": "string",
+      "enum": [
+        "microvm",
+        "container",
+        "unknown"
+      ],
+      "description": "Backend kind in shared operator-facing vocabulary.",
+      "x-data-class": "public"
+    },
+    "isolation_assurance_level": {
+      "type": "string",
+      "enum": [
+        "isolated",
+        "degraded",
+        "unknown"
+      ],
+      "description": "Runtime isolation assurance posture for the started isolate session.",
+      "x-data-class": "public"
+    },
+    "provisioning_posture": {
+      "type": "string",
+      "enum": [
+        "tofu",
+        "attested",
+        "unknown"
+      ],
+      "description": "Provisioning/binding posture kept distinct from runtime isolation and audit posture.",
+      "x-data-class": "public"
+    },
+    "launch_context_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "maxLength": 71,
+      "description": "Digest identity for immutable launch context consumed by the session.",
+      "x-data-class": "public"
+    },
+    "handshake_transcript_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "maxLength": 71,
+      "description": "Canonical handshake transcript hash for replay and binding verification.",
+      "x-data-class": "public"
+    },
+    "launch_receipt_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "maxLength": 71,
+      "description": "Digest reference to launcher runtime launch receipt object.",
+      "x-data-class": "public"
+    },
+    "runtime_image_descriptor_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "maxLength": 71,
+      "description": "Digest reference to RuntimeImageDescriptor used for this session.",
+      "x-data-class": "public"
+    },
+    "applied_hardening_posture_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "maxLength": 71,
+      "description": "Digest reference to applied hardening posture evidence object.",
+      "x-data-class": "public"
+    },
+    "attestation_evidence_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "maxLength": 71,
+      "description": "Optional attestation evidence digest reference for forward-compatible posture upgrades.",
+      "x-data-class": "public"
+    }
+  }
+}

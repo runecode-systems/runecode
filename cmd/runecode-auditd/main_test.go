@@ -32,7 +32,7 @@ func TestValidateSignerEvidenceCLI(t *testing.T) {
     "run_id": "run-1",
     "isolate_id": "isolate-1",
     "session_id": "session-1",
-    "session_nonce": "nonce-1",
+    "session_nonce": "nonce-0123456789abcd",
     "provisioning_mode": "tofu",
     "image_digest": {"hash_alg": "sha256", "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
     "active_manifest_hash": {"hash_alg": "sha256", "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
@@ -334,7 +334,7 @@ func TestConfigureVerificationInputsRejectsSignerEvidenceDigestMismatch(t *testi
 				"run_id":                    "run-1",
 				"isolate_id":                "isolate-1",
 				"session_id":                "session-1",
-				"session_nonce":             "nonce-1",
+				"session_nonce":             "nonce-0123456789abcd",
 				"provisioning_mode":         "tofu",
 				"image_digest":              map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("a", 64)},
 				"active_manifest_hash":      map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("b", 64)},
@@ -401,7 +401,21 @@ func generateAuditFixtureKeyMaterial(t *testing.T) (ed25519.PublicKey, ed25519.P
 
 func buildAuditAdmissionEventPayloadBytes(t *testing.T, signerEvidenceDigestHash string) json.RawMessage {
 	t.Helper()
-	eventPayload := map[string]any{"session_id": "session-1"}
+	eventPayload := map[string]any{
+		"schema_id":                        trustpolicy.IsolateSessionBoundPayloadSchemaID,
+		"schema_version":                   trustpolicy.IsolateSessionBoundPayloadSchemaVersion,
+		"run_id":                           "run-1",
+		"isolate_id":                       "isolate-1",
+		"session_id":                       "session-1",
+		"backend_kind":                     "microvm",
+		"isolation_assurance_level":        "isolated",
+		"provisioning_posture":             "tofu",
+		"launch_context_digest":            "sha256:" + strings.Repeat("1", 64),
+		"handshake_transcript_hash":        "sha256:" + strings.Repeat("2", 64),
+		"session_binding_digest":           "sha256:" + strings.Repeat("3", 64),
+		"runtime_image_descriptor_digest":  "sha256:" + strings.Repeat("4", 64),
+		"applied_hardening_posture_digest": "sha256:" + strings.Repeat("5", 64),
+	}
 	eventPayloadHash := hashCanonicalJSONFixture(t, eventPayload)
 	payload := map[string]any{
 		"schema_id":                     trustpolicy.AuditEventSchemaID,
@@ -411,7 +425,7 @@ func buildAuditAdmissionEventPayloadBytes(t *testing.T, signerEvidenceDigestHash
 		"seq":                           1,
 		"occurred_at":                   "2026-03-13T12:15:00Z",
 		"principal":                     map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "auditd", "instance_id": "auditd-1"},
-		"event_payload_schema_id":       "runecode.protocol.audit.payload.isolate-session-bound.v0",
+		"event_payload_schema_id":       trustpolicy.IsolateSessionBoundPayloadSchemaID,
 		"event_payload":                 eventPayload,
 		"event_payload_hash":            map[string]any{"hash_alg": "sha256", "hash": eventPayloadHash},
 		"protocol_bundle_manifest_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("b", 64)},
@@ -445,7 +459,7 @@ func buildAuditEventContractCatalogFixture() trustpolicy.AuditEventContractCatal
 		CatalogID:     "audit_event_contract_v0",
 		Entries: []trustpolicy.AuditEventContractCatalogEntry{{
 			AuditEventType:                "isolate_session_bound",
-			AllowedPayloadSchemaIDs:       []string{"runecode.protocol.audit.payload.isolate-session-bound.v0"},
+			AllowedPayloadSchemaIDs:       []string{trustpolicy.IsolateSessionBoundPayloadSchemaID},
 			AllowedSignerPurposes:         []string{"isolate_session_identity"},
 			AllowedSignerScopes:           []string{"session"},
 			RequiredScopeFields:           []string{"workspace_id", "run_id", "stage_id"},
@@ -476,7 +490,7 @@ func buildSignerEvidenceReferenceFixture(t *testing.T, keyIDValue string) trustp
 			RunID:                   "run-1",
 			IsolateID:               "isolate-1",
 			SessionID:               "session-1",
-			SessionNonce:            "nonce-1",
+			SessionNonce:            "nonce-0123456789abcd",
 			ProvisioningMode:        "tofu",
 			ImageDigest:             trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)},
 			ActiveManifestHash:      trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("2", 64)},

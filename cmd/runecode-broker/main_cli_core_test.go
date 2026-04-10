@@ -272,6 +272,9 @@ func TestDecodeWireErrorClassifiesOperationAndCancellation(t *testing.T) {
 	if unsupported.Error.Code != "broker_validation_operation_invalid" {
 		t.Fatalf("unsupported operation code = %q, want broker_validation_operation_invalid", unsupported.Error.Code)
 	}
+	if unsupported.Error.Message != "operation is not supported" {
+		t.Fatalf("unsupported operation message = %q, want sanitized message", unsupported.Error.Message)
+	}
 	canceled := decodeWireError("req-cancel", context.Canceled)
 	if canceled == nil {
 		t.Fatal("decodeWireError returned nil for canceled context")
@@ -288,5 +291,16 @@ func TestDecodeWireErrorClassifiesOperationAndCancellation(t *testing.T) {
 	}
 	if deadline.Error.Code != "broker_timeout_request_deadline_exceeded" {
 		t.Fatalf("deadline code = %q, want broker_timeout_request_deadline_exceeded", deadline.Error.Code)
+	}
+
+	structural := decodeWireError("req-structure", fmt.Errorf("message depth exceeds configured maximum"))
+	if structural == nil {
+		t.Fatal("decodeWireError returned nil for structural complexity error")
+	}
+	if structural.Error.Code != "broker_limit_structural_complexity_exceeded" {
+		t.Fatalf("structural code = %q, want broker_limit_structural_complexity_exceeded", structural.Error.Code)
+	}
+	if structural.Error.Message != "request exceeds structural complexity limits" {
+		t.Fatalf("structural message = %q, want sanitized message", structural.Error.Message)
 	}
 }

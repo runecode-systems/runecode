@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
@@ -25,11 +26,148 @@ func validateAuditEventPayloadShape(event AuditEventPayload) error {
 	if err := validateAuditEventPayloadDigestFields(event); err != nil {
 		return err
 	}
+	if err := validateTypedAuditEventPayload(event); err != nil {
+		return err
+	}
 	if event.OccurredAt == "" {
 		return fmt.Errorf("occurred_at is required")
 	}
 	if _, err := time.Parse(time.RFC3339, event.OccurredAt); err != nil {
 		return fmt.Errorf("invalid occurred_at: %w", err)
+	}
+	return nil
+}
+
+func validateTypedAuditEventPayload(event AuditEventPayload) error {
+	switch event.EventPayloadSchemaID {
+	case IsolateSessionStartedPayloadSchemaID:
+		payload := IsolateSessionStartedPayload{}
+		if err := json.Unmarshal(event.EventPayload, &payload); err != nil {
+			return fmt.Errorf("decode isolate session started payload: %w", err)
+		}
+		if err := validateIsolateSessionStartedPayload(payload); err != nil {
+			return err
+		}
+	case IsolateSessionBoundPayloadSchemaID:
+		payload := IsolateSessionBoundPayload{}
+		if err := json.Unmarshal(event.EventPayload, &payload); err != nil {
+			return fmt.Errorf("decode isolate session bound payload: %w", err)
+		}
+		if err := validateIsolateSessionBoundPayload(payload); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateIsolateSessionStartedPayload(payload IsolateSessionStartedPayload) error {
+	if err := validateIsolateSessionPayloadCommon(
+		payload.SchemaID,
+		IsolateSessionStartedPayloadSchemaID,
+		payload.SchemaVersion,
+		IsolateSessionStartedPayloadSchemaVersion,
+		payload.RunID,
+		payload.IsolateID,
+		payload.SessionID,
+		"isolate session started payload",
+		payload.BackendKind,
+		payload.IsolationAssuranceLevel,
+		payload.ProvisioningPosture,
+	); err != nil {
+		return err
+	}
+	if err := requireDigestIdentityString(payload.LaunchContextDigest, "launch_context_digest"); err != nil {
+		return err
+	}
+	if err := requireDigestIdentityString(payload.HandshakeTranscriptHash, "handshake_transcript_hash"); err != nil {
+		return err
+	}
+	if err := requireDigestIdentityString(payload.LaunchReceiptDigest, "launch_receipt_digest"); err != nil {
+		return err
+	}
+	if err := requireDigestIdentityString(payload.RuntimeImageDescriptorDigest, "runtime_image_descriptor_digest"); err != nil {
+		return err
+	}
+	if err := requireDigestIdentityString(payload.AppliedHardeningPostureDigest, "applied_hardening_posture_digest"); err != nil {
+		return err
+	}
+	return validateOptionalAttestationEvidenceDigest(payload.AttestationEvidenceDigest)
+}
+
+func validateIsolateSessionBoundPayload(payload IsolateSessionBoundPayload) error {
+	if err := validateIsolateSessionPayloadCommon(
+		payload.SchemaID,
+		IsolateSessionBoundPayloadSchemaID,
+		payload.SchemaVersion,
+		IsolateSessionBoundPayloadSchemaVersion,
+		payload.RunID,
+		payload.IsolateID,
+		payload.SessionID,
+		"isolate session bound payload",
+		payload.BackendKind,
+		payload.IsolationAssuranceLevel,
+		payload.ProvisioningPosture,
+	); err != nil {
+		return err
+	}
+	if err := requireDigestIdentityString(payload.LaunchContextDigest, "launch_context_digest"); err != nil {
+		return err
+	}
+	if err := requireDigestIdentityString(payload.HandshakeTranscriptHash, "handshake_transcript_hash"); err != nil {
+		return err
+	}
+	if err := requireDigestIdentityString(payload.SessionBindingDigest, "session_binding_digest"); err != nil {
+		return err
+	}
+	if err := requireDigestIdentityString(payload.RuntimeImageDescriptorDigest, "runtime_image_descriptor_digest"); err != nil {
+		return err
+	}
+	if err := requireDigestIdentityString(payload.AppliedHardeningPostureDigest, "applied_hardening_posture_digest"); err != nil {
+		return err
+	}
+	return validateOptionalAttestationEvidenceDigest(payload.AttestationEvidenceDigest)
+}
+
+func validateIsolateSessionPayloadCommon(schemaID string, wantSchemaID string, schemaVersion string, wantSchemaVersion string, runID string, isolateID string, sessionID string, payloadName string, backendKind string, isolationAssuranceLevel string, provisioningPosture string) error {
+	if schemaID != wantSchemaID {
+		return fmt.Errorf("%s schema_id must be %q", payloadName, wantSchemaID)
+	}
+	if schemaVersion != wantSchemaVersion {
+		return fmt.Errorf("%s schema_version must be %q", payloadName, wantSchemaVersion)
+	}
+	if strings.TrimSpace(runID) == "" || strings.TrimSpace(isolateID) == "" || strings.TrimSpace(sessionID) == "" {
+		return fmt.Errorf("%s requires run_id, isolate_id, and session_id", payloadName)
+	}
+	if !containsString([]string{"microvm", "container", "unknown"}, backendKind) {
+		return fmt.Errorf("%s backend_kind %q is unsupported", payloadName, backendKind)
+	}
+	if !containsString([]string{"isolated", "degraded", "unknown"}, isolationAssuranceLevel) {
+		return fmt.Errorf("%s isolation_assurance_level %q is unsupported", payloadName, isolationAssuranceLevel)
+	}
+	if !containsString([]string{"tofu", "attested", "unknown"}, provisioningPosture) {
+		return fmt.Errorf("%s provisioning_posture %q is unsupported", payloadName, provisioningPosture)
+	}
+	return nil
+}
+
+func validateOptionalAttestationEvidenceDigest(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return requireDigestIdentityString(value, "attestation_evidence_digest")
+}
+
+func requireDigestIdentityString(value string, fieldName string) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("%s is required", fieldName)
+	}
+	parts := strings.SplitN(trimmed, ":", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("%s must be digest identity sha256:<64 lowercase hex>", fieldName)
+	}
+	if _, err := (Digest{HashAlg: parts[0], Hash: parts[1]}).Identity(); err != nil {
+		return fmt.Errorf("%s: %w", fieldName, err)
 	}
 	return nil
 }
@@ -96,122 +234,6 @@ func validateAuditEventPayloadHash(event AuditEventPayload) error {
 	}
 	if computedIdentity != expectedIdentity {
 		return fmt.Errorf("event_payload_hash mismatch: got %q want %q", computedIdentity, expectedIdentity)
-	}
-	return nil
-}
-
-func validateAuditEventAgainstCatalog(event AuditEventPayload, catalog AuditEventContractCatalog) (AuditEventContractCatalogEntry, error) {
-	entry, err := catalogEntryForEventType(catalog, event.AuditEventType)
-	if err != nil {
-		return AuditEventContractCatalogEntry{}, err
-	}
-	if err := validateCatalogFieldRequirements(event, entry); err != nil {
-		return AuditEventContractCatalogEntry{}, err
-	}
-	if err := validateCatalogSubjectRef(event, entry); err != nil {
-		return AuditEventContractCatalogEntry{}, err
-	}
-	if err := validateCatalogReferenceRoles(event, entry); err != nil {
-		return AuditEventContractCatalogEntry{}, err
-	}
-	if err := validateCatalogGatewayContext(event, entry); err != nil {
-		return AuditEventContractCatalogEntry{}, err
-	}
-	if err := validateCatalogSignerEvidencePresence(event, entry); err != nil {
-		return AuditEventContractCatalogEntry{}, err
-	}
-	if err := validateReferenceRoles(event.SignerEvidenceRefs, entry.AllowedSignerEvidenceRefRoles, "signer_evidence_refs"); err != nil {
-		return AuditEventContractCatalogEntry{}, err
-	}
-	return entry, nil
-}
-
-func validateCatalogFieldRequirements(event AuditEventPayload, entry AuditEventContractCatalogEntry) error {
-	if !containsString(entry.AllowedPayloadSchemaIDs, event.EventPayloadSchemaID) {
-		return fmt.Errorf("event payload schema %q is not allowed for audit_event_type %q", event.EventPayloadSchemaID, event.AuditEventType)
-	}
-	if err := requireStringMapFields(event.Scope, entry.RequiredScopeFields, "scope"); err != nil {
-		return err
-	}
-	return requireStringMapFields(event.Correlation, entry.RequiredCorrelationFields, "correlation")
-}
-
-func validateCatalogReferenceRoles(event AuditEventPayload, entry AuditEventContractCatalogEntry) error {
-	if err := validateReferenceRoles(event.CauseRefs, entry.AllowedCauseRefRoles, "cause_refs"); err != nil {
-		return err
-	}
-	return validateReferenceRoles(event.RelatedRefs, entry.AllowedRelatedRefRoles, "related_refs")
-}
-
-func validateCatalogSignerEvidencePresence(event AuditEventPayload, entry AuditEventContractCatalogEntry) error {
-	if entry.RequireSignerEvidenceRefs && len(event.SignerEvidenceRefs) == 0 {
-		return fmt.Errorf("signer_evidence_refs are required for audit_event_type %q", event.AuditEventType)
-	}
-	return nil
-}
-
-func validateCatalogSubjectRef(event AuditEventPayload, entry AuditEventContractCatalogEntry) error {
-	if event.SubjectRef == nil {
-		if entry.RequireSubjectRef {
-			return fmt.Errorf("subject_ref is required for audit_event_type %q", event.AuditEventType)
-		}
-		return nil
-	}
-	if !containsString(entry.AllowedSubjectRefRoles, event.SubjectRef.RefRole) {
-		return fmt.Errorf("subject_ref.ref_role %q is not allowed for audit_event_type %q", event.SubjectRef.RefRole, event.AuditEventType)
-	}
-	return nil
-}
-
-func validateCatalogGatewayContext(event AuditEventPayload, entry AuditEventContractCatalogEntry) error {
-	if event.GatewayContext == nil {
-		if entry.RequireGatewayContext {
-			return fmt.Errorf("gateway_context is required for audit_event_type %q", event.AuditEventType)
-		}
-		return nil
-	}
-	if !containsString(entry.AllowedGatewayEgressCategories, event.GatewayContext.EgressCategory) {
-		return fmt.Errorf("gateway egress category %q is not allowed for audit_event_type %q", event.GatewayContext.EgressCategory, event.AuditEventType)
-	}
-	return nil
-}
-
-func catalogEntryForEventType(catalog AuditEventContractCatalog, auditEventType string) (AuditEventContractCatalogEntry, error) {
-	var matched *AuditEventContractCatalogEntry
-	for index := range catalog.Entries {
-		entry := &catalog.Entries[index]
-		if entry.AuditEventType != auditEventType {
-			continue
-		}
-		if matched != nil {
-			return AuditEventContractCatalogEntry{}, fmt.Errorf("duplicate event-contract entry for audit_event_type %q", auditEventType)
-		}
-		matched = entry
-	}
-	if matched == nil {
-		return AuditEventContractCatalogEntry{}, fmt.Errorf("no event-contract entry for audit_event_type %q", auditEventType)
-	}
-	return *matched, nil
-}
-
-func requireStringMapFields(values map[string]string, required []string, blockName string) error {
-	for _, key := range required {
-		if values == nil || values[key] == "" {
-			return fmt.Errorf("%s.%s is required by event contract", blockName, key)
-		}
-	}
-	return nil
-}
-
-func validateReferenceRoles(refs []AuditTypedReference, allowed []string, field string) error {
-	for index := range refs {
-		ref := refs[index]
-		if _, err := ref.Digest.Identity(); err != nil {
-			return fmt.Errorf("%s[%d].digest: %w", field, index, err)
-		}
-		if !containsString(allowed, ref.RefRole) {
-			return fmt.Errorf("%s[%d].ref_role %q is not allowed", field, index, ref.RefRole)
-		}
 	}
 	return nil
 }

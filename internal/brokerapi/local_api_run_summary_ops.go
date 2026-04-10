@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/launcherbackend"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
@@ -17,7 +18,7 @@ func (s *Service) runSummaries(order string) ([]RunSummary, error) {
 	pendingByRun := pendingApprovalCountByRun(s.listApprovals())
 	summaries := make([]RunSummary, 0, len(byRun))
 	for runID, records := range byRun {
-		summaries = append(summaries, buildRunSummary(runID, records, runStatus[runID], pendingByRun[runID], verification))
+		summaries = append(summaries, buildRunSummary(runID, records, runStatus[runID], pendingByRun[runID], verification, s.RuntimeFacts(runID)))
 	}
 	sortRunSummaries(summaries, order)
 	return summaries, nil
@@ -56,38 +57,57 @@ func buildRunRecordIndex(all []artifacts.ArtifactRecord, runStatus map[string]st
 	return byRun
 }
 
-func buildRunSummary(runID string, records []artifacts.ArtifactRecord, status string, pending int, verification AuditVerificationSurface) RunSummary {
+func buildRunSummary(runID string, records []artifacts.ArtifactRecord, status string, pending int, verification AuditVerificationSurface, runtimeFacts launcherbackend.RuntimeFactsSnapshot) RunSummary {
 	created, updated := runRecordTiming(records)
 	state := runLifecycleFromStore(status, pending, len(records) > 0)
 	workflowKind, workflowDefinitionHash := inferWorkflowIdentity(records)
-	assuranceLevel := inferAssuranceLevel(verification)
+	backendKind, isolationAssuranceLevel, provisioningPosture := normalizedRunSummaryPosture(runtimeFacts)
 	summary := RunSummary{
-		SchemaID:               "runecode.protocol.v0.RunSummary",
-		SchemaVersion:          "0.1.0",
-		RunID:                  runID,
-		WorkspaceID:            "workspace-local",
-		WorkflowKind:           workflowKind,
-		WorkflowDefinitionHash: workflowDefinitionHash,
-		CreatedAt:              created.UTC().Format(time.RFC3339),
-		StartedAt:              created.UTC().Format(time.RFC3339),
-		UpdatedAt:              updated.UTC().Format(time.RFC3339),
-		LifecycleState:         state,
-		CurrentStageID:         currentStageIDFromArtifacts(records, pending),
-		PendingApprovalCount:   pending,
-		ApprovalProfile:        "unknown",
-		BackendKind:            authoritativeBackendKind(),
-		AssuranceLevel:         assuranceLevel,
-		AuditIntegrityStatus:   verification.Summary.IntegrityStatus,
-		AuditAnchoringStatus:   verification.Summary.AnchoringStatus,
-		AuditCurrentlyDegraded: verification.Summary.CurrentlyDegraded,
+		SchemaID:                "runecode.protocol.v0.RunSummary",
+		SchemaVersion:           "0.2.0",
+		RunID:                   runID,
+		WorkspaceID:             "workspace-local",
+		WorkflowKind:            workflowKind,
+		WorkflowDefinitionHash:  workflowDefinitionHash,
+		CreatedAt:               created.UTC().Format(time.RFC3339),
+		StartedAt:               created.UTC().Format(time.RFC3339),
+		UpdatedAt:               updated.UTC().Format(time.RFC3339),
+		LifecycleState:          state,
+		CurrentStageID:          currentStageIDFromArtifacts(records, pending),
+		PendingApprovalCount:    pending,
+		ApprovalProfile:         "unknown",
+		BackendKind:             backendKind,
+		IsolationAssuranceLevel: isolationAssuranceLevel,
+		ProvisioningPosture:     provisioningPosture,
+		AssuranceLevel:          isolationAssuranceLevel,
+		AuditIntegrityStatus:    verification.Summary.IntegrityStatus,
+		AuditAnchoringStatus:    verification.Summary.AnchoringStatus,
+		AuditCurrentlyDegraded:  verification.Summary.CurrentlyDegraded,
 	}
+	finalizeRunSummaryTerminalState(&summary, state, updated)
+	return summary
+}
+
+func normalizedRunSummaryPosture(runtimeFacts launcherbackend.RuntimeFactsSnapshot) (string, string, string) {
+	receipt := runtimeFacts.LaunchReceipt.Normalized()
+	isolationAssuranceLevel := strings.TrimSpace(receipt.IsolationAssuranceLevel)
+	if isolationAssuranceLevel == "" || isolationAssuranceLevel == launcherbackend.IsolationAssuranceUnknown {
+		isolationAssuranceLevel = launcherbackend.IsolationAssuranceUnknown
+	}
+	provisioningPosture := strings.TrimSpace(receipt.ProvisioningPosture)
+	if provisioningPosture == "" {
+		provisioningPosture = launcherbackend.ProvisioningPostureUnknown
+	}
+	return receipt.BackendKind, isolationAssuranceLevel, provisioningPosture
+}
+
+func finalizeRunSummaryTerminalState(summary *RunSummary, state string, updated time.Time) {
 	if state == "blocked" {
 		summary.BlockingReasonCode = "pending_approval"
 	}
 	if state == "completed" || state == "failed" || state == "cancelled" {
 		summary.FinishedAt = updated.UTC().Format(time.RFC3339)
 	}
-	return summary
 }
 
 func runRecordTiming(records []artifacts.ArtifactRecord) (time.Time, time.Time) {
@@ -217,20 +237,6 @@ func inferWorkflowKind(records []artifacts.ArtifactRecord) string {
 	default:
 		return ""
 	}
-}
-
-func authoritativeBackendKind() string {
-	return "local_broker"
-}
-
-func inferAssuranceLevel(verification AuditVerificationSurface) string {
-	if verification.Summary.CurrentlyDegraded {
-		return "degraded"
-	}
-	if verification.Summary.CryptographicallyValid {
-		return "verified"
-	}
-	return "session_authenticated"
 }
 
 func runRoleInstanceID(role string) string {

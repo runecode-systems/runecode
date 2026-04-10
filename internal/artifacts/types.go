@@ -3,6 +3,7 @@ package artifacts
 import (
 	"time"
 
+	"github.com/runecode-ai/runecode/internal/launcherbackend"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
@@ -91,17 +92,26 @@ type Policy struct {
 }
 
 type StoreState struct {
-	Artifacts                map[string]ArtifactRecord       `json:"artifacts"`
-	PolicyDecisions          map[string]PolicyDecisionRecord `json:"policy_decisions,omitempty"`
-	RunPolicyDecisionRefs    map[string][]string             `json:"run_policy_decision_refs,omitempty"`
-	Approvals                map[string]ApprovalRecord       `json:"approvals,omitempty"`
-	RunApprovalRefs          map[string][]string             `json:"run_approval_refs,omitempty"`
-	Policy                   Policy                          `json:"policy"`
-	Runs                     map[string]string               `json:"runs"`
-	PromotionEventsByActor   map[string][]time.Time          `json:"promotion_events_by_actor"`
-	LastAuditSequence        int64                           `json:"last_audit_sequence"`
-	StorageProtectionPosture string                          `json:"storage_protection_posture"`
-	BackupHMACKey            string                          `json:"backup_hmac_key"`
+	Artifacts                map[string]ArtifactRecord                          `json:"artifacts"`
+	PolicyDecisions          map[string]PolicyDecisionRecord                    `json:"policy_decisions,omitempty"`
+	RunPolicyDecisionRefs    map[string][]string                                `json:"run_policy_decision_refs,omitempty"`
+	Approvals                map[string]ApprovalRecord                          `json:"approvals,omitempty"`
+	RunApprovalRefs          map[string][]string                                `json:"run_approval_refs,omitempty"`
+	RuntimeFactsByRun        map[string]launcherbackend.RuntimeFactsSnapshot    `json:"runtime_facts_by_run,omitempty"`
+	RuntimeEvidenceByRun     map[string]launcherbackend.RuntimeEvidenceSnapshot `json:"runtime_evidence_by_run,omitempty"`
+	RuntimeLifecycleByRun    map[string]launcherbackend.RuntimeLifecycleState   `json:"runtime_lifecycle_by_run,omitempty"`
+	RuntimeAuditStateByRun   map[string]RuntimeAuditEmissionState               `json:"runtime_audit_state_by_run,omitempty"`
+	Policy                   Policy                                             `json:"policy"`
+	Runs                     map[string]string                                  `json:"runs"`
+	PromotionEventsByActor   map[string][]time.Time                             `json:"promotion_events_by_actor"`
+	LastAuditSequence        int64                                              `json:"last_audit_sequence"`
+	StorageProtectionPosture string                                             `json:"storage_protection_posture"`
+	BackupHMACKey            string                                             `json:"backup_hmac_key"`
+}
+
+type RuntimeAuditEmissionState struct {
+	LastIsolateSessionStartedDigest string `json:"last_isolate_session_started_digest,omitempty"`
+	LastIsolateSessionBoundDigest   string `json:"last_isolate_session_bound_digest,omitempty"`
 }
 
 type ApprovalRecord struct {

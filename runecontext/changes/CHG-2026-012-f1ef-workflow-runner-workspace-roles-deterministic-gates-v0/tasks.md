@@ -13,6 +13,7 @@
 - [ ] Keep the minimal end-to-end demo run as the integration milestone across child features.
 - [ ] Keep run lifecycle, approval lifecycle, blocked-state semantics, and operator-facing read models aligned across broker, runner, and TUI work.
 - [ ] Keep canonical action identity, role taxonomy, gateway destination semantics, and exact-action-vs-stage-sign-off approval behavior aligned across child features.
+- [ ] Keep backend-neutral launch/session/attachment contracts, runtime posture vocabulary, and authoritative launcher/broker runtime-state projection aligned across child features.
 
 ## Acceptance Criteria
 

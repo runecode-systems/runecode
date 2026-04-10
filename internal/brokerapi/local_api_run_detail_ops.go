@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
 func (s *Service) runDetail(runID string) (RunDetail, bool, error) {
@@ -20,7 +21,8 @@ func (s *Service) runDetail(runID string) (RunDetail, bool, error) {
 	policyRefs := s.PolicyDecisionRefsForRun(runID)
 	pendingIDs := runPendingApprovalIDs(s.listApprovals(), runID)
 	verification := s.runAuditVerificationOrFallback()
-	return buildRunDetail(summary, verification, artifactsForRun, classCount, pendingIDs, policyRefs), true, nil
+	runtimeFacts := s.RuntimeFacts(runID)
+	return buildRunDetail(summary, verification, artifactsForRun, classCount, pendingIDs, policyRefs, runtimeFacts), true, nil
 }
 
 func findRunSummary(summaries []RunSummary, runID string) (RunSummary, bool) {
@@ -56,15 +58,15 @@ func runPendingApprovalIDs(approvals []ApprovalSummary, runID string) []string {
 	return pendingIDs
 }
 
-func buildRunDetail(summary RunSummary, verification AuditVerificationSurface, artifactsForRun []artifacts.ArtifactRecord, classCount map[string]int, pendingIDs []string, policyRefs []string) RunDetail {
+func buildRunDetail(summary RunSummary, verification AuditVerificationSurface, artifactsForRun []artifacts.ArtifactRecord, classCount map[string]int, pendingIDs []string, policyRefs []string, runtimeFacts launcherbackend.RuntimeFactsSnapshot) RunDetail {
 	manifestHashes := activeManifestHashes(artifactsForRun)
 	stageSummaries := []RunStageSummary{buildRunStageSummary(summary, artifactsForRun, pendingIDs)}
 	roleSummaries := buildRunRoleSummaries(summary, artifactsForRun)
-	authoritativeState := buildAuthoritativeRunState(summary, artifactsForRun, pendingIDs, manifestHashes)
+	authoritativeState := buildAuthoritativeRunState(summary, artifactsForRun, pendingIDs, manifestHashes, runtimeFacts)
 	advisoryState := buildAdvisoryRunState()
 	return RunDetail{
 		SchemaID:                 "runecode.protocol.v0.RunDetail",
-		SchemaVersion:            "0.1.0",
+		SchemaVersion:            "0.2.0",
 		Summary:                  summary,
 		StageSummaries:           stageSummaries,
 		RoleSummaries:            roleSummaries,
@@ -176,41 +178,4 @@ func activeManifestHashes(artifactsForRun []artifacts.ArtifactRecord) []string {
 		return unique
 	}
 	return []string{}
-}
-
-func buildAuthoritativeRunState(summary RunSummary, artifactsForRun []artifacts.ArtifactRecord, pendingIDs []string, manifestHashes []string) map[string]any {
-	state := map[string]any{
-		"source":                 "broker_store",
-		"provenance":             "trusted_derived",
-		"status":                 summary.LifecycleState,
-		"artifact_count":         len(artifactsForRun),
-		"pending_approval_count": len(pendingIDs),
-		"workspace_id":           summary.WorkspaceID,
-		"backend_kind":           summary.BackendKind,
-	}
-	if len(manifestHashes) > 0 {
-		state["active_manifest_hashes_count"] = len(manifestHashes)
-	}
-	if summary.WorkflowDefinitionHash != "" {
-		state["workflow_definition_hash"] = summary.WorkflowDefinitionHash
-	}
-	if summary.CurrentStageID != "" {
-		state["current_stage_id"] = summary.CurrentStageID
-	}
-	if summary.ApprovalProfile != "" {
-		state["approval_profile"] = summary.ApprovalProfile
-	}
-	if summary.WorkflowKind != "" {
-		state["workflow_kind"] = summary.WorkflowKind
-	}
-	return state
-}
-
-func buildAdvisoryRunState() map[string]any {
-	return map[string]any{
-		"source":       "runner_advisory",
-		"provenance":   "none_reported",
-		"available":    false,
-		"bounded_keys": []string{},
-	}
 }

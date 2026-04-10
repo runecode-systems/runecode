@@ -9,7 +9,7 @@
   "required": ["schema_id", "schema_version", "summary", "stage_summaries", "role_summaries", "coordination", "audit_summary", "artifact_counts_by_class", "pending_approval_ids", "active_manifest_hashes", "latest_policy_decision_refs", "authoritative_state", "advisory_state"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.RunDetail", "description": "Protocol schema identifier.", "x-data-class": "public" },
-    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "schema_version": { "const": "0.2.0", "description": "Protocol schema version.", "x-data-class": "public" },
     "summary": { "$ref": "RunSummary.schema.json", "description": "List-facing run summary baseline.", "x-data-class": "public" },
     "stage_summaries": { "type": "array", "maxItems": 256, "description": "Per-stage summaries.", "x-data-class": "public", "items": { "$ref": "RunStageSummary.schema.json", "description": "Stage summary entry.", "x-data-class": "public" } },
     "role_summaries": { "type": "array", "maxItems": 512, "description": "Per-role summaries.", "x-data-class": "public", "items": { "$ref": "RunRoleSummary.schema.json", "description": "Role summary entry.", "x-data-class": "public" } },
@@ -19,7 +19,23 @@
     "pending_approval_ids": { "type": "array", "maxItems": 512, "description": "Pending approval identifiers for this run.", "x-data-class": "public", "items": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Approval identifier.", "x-data-class": "public" } },
     "active_manifest_hashes": { "type": "array", "maxItems": 64, "description": "Active manifest digest identities.", "x-data-class": "public", "items": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Manifest digest identity.", "x-data-class": "public" } },
     "latest_policy_decision_refs": { "type": "array", "maxItems": 256, "description": "Latest policy decision references.", "x-data-class": "public", "items": { "type": "string", "maxLength": 256, "description": "Policy decision reference.", "x-data-class": "public" } },
-    "authoritative_state": { "type": "object", "maxProperties": 64, "description": "Trusted authoritative run state details.", "x-data-class": "public" },
-    "advisory_state": { "type": "object", "maxProperties": 64, "description": "Explicitly non-authoritative advisory run state details.", "x-data-class": "public" }
+    "authoritative_state": {
+      "type": "object",
+      "maxProperties": 64,
+      "description": "Trusted authoritative run state details projected from launcher backend runtime facts plus broker-owned state.",
+      "x-data-class": "public",
+      "required": ["source", "provenance", "status", "backend_kind", "isolation_assurance_level", "provisioning_posture", "runtime_facts_source"],
+      "properties": {
+        "source": { "type": "string", "const": "broker_store", "description": "Trusted source for authoritative projection.", "x-data-class": "public" },
+        "provenance": { "type": "string", "const": "trusted_derived", "description": "Authoritative provenance posture.", "x-data-class": "public" },
+        "status": { "type": "string", "maxLength": 64, "description": "Authoritative run lifecycle status.", "x-data-class": "public" },
+        "backend_kind": { "type": "string", "enum": ["microvm", "container", "unknown"], "description": "Projected launcher backend kind (closed vocabulary).", "x-data-class": "public" },
+        "isolation_assurance_level": { "type": "string", "enum": ["isolated", "degraded", "unknown"], "description": "Projected runtime isolation assurance posture.", "x-data-class": "public" },
+        "provisioning_posture": { "type": "string", "enum": ["tofu", "attested", "unknown"], "description": "Projected key provisioning/binding posture.", "x-data-class": "public" },
+        "runtime_facts_source": { "type": "string", "const": "launcher_backend_receipt", "description": "Identifier for launcher runtime fact projection source.", "x-data-class": "public" }
+      },
+      "additionalProperties": true
+    },
+    "advisory_state": { "type": "object", "maxProperties": 64, "description": "Explicitly non-authoritative advisory run state details from runner-side or other non-trusted projections.", "x-data-class": "public" }
   }
 }

@@ -17,6 +17,10 @@
 - Confirm approval identity, approval lifecycle states, and bound-scope metadata are specified consistently with the signed approval artifact model.
 - Confirm broker approval semantics preserve the distinction between exact-action approvals and stage sign-off approvals, and do not treat `ApprovalBoundScope` as the trust root.
 - Confirm broker read models stay topology-neutral and do not require host-local paths, socket names, usernames, or daemon-private storage details.
+- Confirm `RunSummary` / `RunDetail` semantics keep `backend_kind`, runtime isolation assurance, provisioning/binding posture, and audit posture as distinct operator-facing concepts.
+- Confirm `backend_kind` stays topology-neutral and does not drift into hypervisor/runtime implementation names.
+- Confirm `assurance_level` is scoped to runtime isolation assurance rather than being overloaded with audit verification or provisioning posture meanings.
+- Confirm authoritative backend/runtime facts are expected to come from trusted launcher/broker state rather than runner-local inference or audit-only derivation.
 - Confirm stream semantics are explicit (`stream_id`, monotonic `seq`, exactly one terminal event, typed terminal failure).
 - Confirm pagination, ordering, and error-taxonomy expectations are explicit enough for later TUI and protobuf work to reuse without redefining semantics.
 - Confirm canonical references remain on RuneContext project, spec, and change paths, with no active workflow depending on legacy planning paths.

@@ -1,12 +1,19 @@
 # Design
 
 ## Overview
-Define Windows microVM runtime support with WHPX/Hyper-V acceleration, strict local IPC, and consistent audit semantics.
+Define Windows microVM runtime support with WHPX/Hyper-V acceleration, strict local IPC, consistent audit semantics, and the same backend-neutral launch/session/attachment contracts established by `CHG-2026-009-1672-launcher-microvm-backend-v0`.
 
 ## Key Decisions
 - Runtime support is distinct from CI portability; CI comes first.
 - Windows uses OS-appropriate local IPC and permissions.
 - Windows named pipes are a platform-specific transport/auth binding for the same logical broker API, not a Windows-only protocol fork.
+- Windows runtime support must preserve the same operator-visible runtime posture model as Linux:
+  - `backend_kind`
+  - runtime isolation assurance
+  - provisioning/binding posture
+  - audit posture
+- WHPX/Hyper-V, QEMU process layout, and named-pipe details remain implementation evidence rather than public run identity.
+- Windows support should reuse the same backend-neutral launch/session/attachment and audit payload semantics rather than defining Windows-specific runtime objects.
 
 ## Main Workstreams
 - Windows MicroVM Backend Implementation

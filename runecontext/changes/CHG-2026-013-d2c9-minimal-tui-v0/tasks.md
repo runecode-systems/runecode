@@ -19,6 +19,11 @@ Parallelization: can be implemented in parallel with broker local API work; it d
 - [ ] Distinguish exact-action approvals from stage sign-off approvals in inbox and detail views.
 - [ ] Surface when a stage sign-off became stale or was superseded because its bound stage summary hash changed.
 - [ ] Runs views consume broker `RunSummary` and `RunDetail` contracts rather than ad hoc screen-specific data shaping.
+- [ ] Runs views distinguish and explain:
+  - `backend_kind`
+  - runtime isolation assurance
+  - provisioning/binding posture
+  - audit posture
 - [ ] Approval views consume broker `ApprovalSummary` and bound-scope metadata so blocked work, supersession, expiry, and consumption are explainable without payload scraping.
 - [ ] Keep approval views clear about the difference between `policy_reason_code`, `approval_trigger_code`, and execution/system error states.
 - [ ] Artifact views consume broker `ArtifactSummary` plus streamed artifact reads rather than daemon-private storage metadata.
@@ -36,12 +41,13 @@ Parallelization: can be implemented in parallel with broker development once the
 
 ## Safety UX
 
-- [ ] Make the active isolation backend and assurance level unmissable.
-- [ ] Make container mode clearly labeled as reduced assurance.
+- [ ] Make the active `backend_kind` and runtime isolation assurance unmissable.
+- [ ] Make container mode clearly labeled as reduced runtime isolation assurance.
 - [ ] Make the active approval profile unmissable and keep the default posture obvious (`moderate` in MVP).
 - [ ] Surface degraded posture states prominently:
   - TOFU isolate key provisioning
   - unanchored audit segments (when anchoring is configured/expected)
+- [ ] Keep reduced backend assurance, degraded provisioning posture, and degraded audit posture visually distinct in run and status views.
 - [ ] For each approval request, show a concise, structured what changes if approved view.
 - [ ] For each approval request, show the canonical bound identity the user is acting on (action-derived request or stage-summary sign-off) without exposing daemon-private internals.
 

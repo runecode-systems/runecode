@@ -9,6 +9,7 @@ import (
 const (
 	brokerAuditEventTypeRejection          = "broker_api_rejection"
 	brokerAuditEventTypeApprovalResolution = "broker_approval_resolution"
+	brokerAuditEventTypeLauncherRuntime    = "broker_launcher_runtime_event"
 )
 
 type brokerAuditEmitter struct {
@@ -51,6 +52,17 @@ func (e *brokerAuditEmitter) emitApprovalResolution(store *artifacts.Store, requ
 		return err
 	}
 	return nil
+}
+
+func (e *brokerAuditEmitter) emitLauncherRuntimeEvent(store *artifacts.Store, runtimeEventType string, details map[string]interface{}) error {
+	if store == nil {
+		return fmt.Errorf("broker audit store unavailable")
+	}
+	if details == nil {
+		details = map[string]interface{}{}
+	}
+	details["runtime_event_type"] = runtimeEventType
+	return store.AppendTrustedAuditEvent(brokerAuditEventTypeLauncherRuntime, "brokerapi", details)
 }
 
 func shouldAuditErrorCode(code string) bool {

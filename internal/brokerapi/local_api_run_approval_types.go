@@ -23,21 +23,25 @@ const (
 )
 
 type RunSummary struct {
-	SchemaID               string `json:"schema_id"`
-	SchemaVersion          string `json:"schema_version"`
-	RunID                  string `json:"run_id"`
-	WorkspaceID            string `json:"workspace_id"`
-	WorkflowKind           string `json:"workflow_kind,omitempty"`
-	WorkflowDefinitionHash string `json:"workflow_definition_hash,omitempty"`
-	CreatedAt              string `json:"created_at"`
-	StartedAt              string `json:"started_at,omitempty"`
-	UpdatedAt              string `json:"updated_at"`
-	FinishedAt             string `json:"finished_at,omitempty"`
-	LifecycleState         string `json:"lifecycle_state"`
-	CurrentStageID         string `json:"current_stage_id,omitempty"`
-	PendingApprovalCount   int    `json:"pending_approval_count"`
-	ApprovalProfile        string `json:"approval_profile"`
-	BackendKind            string `json:"backend_kind"`
+	SchemaID                string `json:"schema_id"`
+	SchemaVersion           string `json:"schema_version"`
+	RunID                   string `json:"run_id"`
+	WorkspaceID             string `json:"workspace_id"`
+	WorkflowKind            string `json:"workflow_kind,omitempty"`
+	WorkflowDefinitionHash  string `json:"workflow_definition_hash,omitempty"`
+	CreatedAt               string `json:"created_at"`
+	StartedAt               string `json:"started_at,omitempty"`
+	UpdatedAt               string `json:"updated_at"`
+	FinishedAt              string `json:"finished_at,omitempty"`
+	LifecycleState          string `json:"lifecycle_state"`
+	CurrentStageID          string `json:"current_stage_id,omitempty"`
+	PendingApprovalCount    int    `json:"pending_approval_count"`
+	ApprovalProfile         string `json:"approval_profile"`
+	BackendKind             string `json:"backend_kind"`
+	IsolationAssuranceLevel string `json:"isolation_assurance_level"`
+	ProvisioningPosture     string `json:"provisioning_posture"`
+	// AssuranceLevel is retained as a migration-compatible alias for
+	// isolation_assurance_level.
 	AssuranceLevel         string `json:"assurance_level"`
 	BlockingReasonCode     string `json:"blocking_reason_code,omitempty"`
 	AuditIntegrityStatus   string `json:"audit_integrity_status"`

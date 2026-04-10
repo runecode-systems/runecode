@@ -112,6 +112,58 @@
     {
       "code": "policy_input_hash_mismatch",
       "summary": "Policy evaluation rejected a content-addressed input because payload bytes did not match the signed expected hash."
+    },
+    {
+      "code": "backend_acceleration_unavailable",
+      "summary": "The requested backend acceleration capability is unavailable and launch failed closed."
+    },
+    {
+      "code": "backend_hypervisor_launch_failed",
+      "summary": "MicroVM backend launch failed during hypervisor startup and no fallback backend was auto-selected."
+    },
+    {
+      "code": "backend_image_descriptor_signature_mismatch",
+      "summary": "Runtime image descriptor or signature evidence did not match required pinned launch identity."
+    },
+    {
+      "code": "backend_attachment_plan_invalid",
+      "summary": "The backend rejected attachment realization because the trusted attachment plan failed fail-closed validation."
+    },
+    {
+      "code": "backend_handshake_failed",
+      "summary": "Session establishment failed before backend activation due to handshake validation failure."
+    },
+    {
+      "code": "backend_replay_detected",
+      "summary": "Session establishment failed because replay protection detected duplicated session identity material."
+    },
+    {
+      "code": "backend_session_binding_mismatch",
+      "summary": "Session establishment or continuation failed because isolate binding evidence did not match the pinned session tuple."
+    },
+    {
+      "code": "backend_guest_unresponsive",
+      "summary": "The running backend became unresponsive and was terminated fail closed."
+    },
+    {
+      "code": "backend_watchdog_timeout",
+      "summary": "The backend watchdog terminated the runtime after heartbeat or progress timeout."
+    },
+    {
+      "code": "backend_required_hardening_unavailable",
+      "summary": "Launch failed closed because required runtime hardening controls were unavailable."
+    },
+    {
+      "code": "backend_required_disk_encryption_unavailable",
+      "summary": "Launch failed closed because required workspace disk encryption or key protection was unavailable."
+    },
+    {
+      "code": "backend_container_automatic_fallback_disallowed",
+      "summary": "The runtime rejected automatic microVM-to-container fallback; container mode requires explicit flow semantics."
+    },
+    {
+      "code": "backend_container_opt_in_required",
+      "summary": "Container backend selection was rejected because explicit user opt-in flow was required."
     }
   ]
 }

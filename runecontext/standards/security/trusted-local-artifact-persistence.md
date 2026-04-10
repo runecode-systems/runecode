@@ -20,6 +20,9 @@ When trusted Go services persist artifact-store state, audit logs, or backup mat
 - Persist audit-sequence state so restarted processes do not reuse audit sequence numbers after partial failures
 - If persisted audit data can get ahead of persisted state, startup must reconcile to the highest durable audit sequence before new events are emitted
 - Treat durable approval records, policy decisions, revocation state, and their linkage metadata as trusted local state with the same fail-closed expectations as artifact and audit persistence
+- Treat persisted runtime facts, immutable runtime evidence snapshots, runtime lifecycle state, and runtime audit-emission dedupe markers as trusted local state with the same fail-closed expectations as artifact and audit persistence
+- Reconstruct authoritative runtime read models from durable persisted runtime evidence/lifecycle state after restart; do not rely on transient in-memory launcher or broker caches as the source of truth
 - Backup and restore must preserve integrity/authenticity checks and must not bypass artifact digest validation, approval binding checks, policy-decision identity, or revocation durability
+- Backup and restore must preserve runtime evidence digests, lifecycle projections, and audit dedupe state so restarted services do not silently re-emit or orphan launcher runtime events
 - After restart or restore, fail closed unless persisted revocation and policy-decision state is reconstructed consistently enough to preserve prior deny outcomes and approval linkage
-- Tests should cover both nominal persistence and fail-closed recovery paths for audit/state divergence
+- Tests should cover both nominal persistence and fail-closed recovery paths for audit/state divergence, runtime evidence/lifecycle replay, and restart-time authoritative-state reconstruction

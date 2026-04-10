@@ -7,7 +7,7 @@ func TestValidateIsolateSessionBindingRequiresTOFUAndHashes(t *testing.T) {
 		RunID:                   "run-1",
 		IsolateID:               "isolate-1",
 		SessionID:               "session-1",
-		SessionNonce:            "nonce-1",
+		SessionNonce:            "nonce-0123456789abcd",
 		ProvisioningMode:        "tofu",
 		ImageDigest:             Digest{HashAlg: "sha256", Hash: repeatedHex("a")},
 		ActiveManifestHash:      Digest{HashAlg: "sha256", Hash: repeatedHex("b")},
@@ -35,6 +35,54 @@ func TestValidateIsolateSessionBindingRequiresTOFUAndHashes(t *testing.T) {
 	}
 }
 
+func TestValidateIsolateSessionBindingUpdateFailsClosedOnIdentityOrTranscriptChange(t *testing.T) {
+	previous := IsolateSessionBinding{
+		RunID:                   "run-1",
+		IsolateID:               "isolate-1",
+		SessionID:               "session-1",
+		SessionNonce:            "nonce-0123456789abcd",
+		ProvisioningMode:        "tofu",
+		ImageDigest:             Digest{HashAlg: "sha256", Hash: repeatedHex("a")},
+		ActiveManifestHash:      Digest{HashAlg: "sha256", Hash: repeatedHex("b")},
+		HandshakeTranscriptHash: Digest{HashAlg: "sha256", Hash: repeatedHex("c")},
+		KeyID:                   KeyIDProfile,
+		KeyIDValue:              repeatedHex("d"),
+		IdentityBindingPosture:  "tofu",
+	}
+	current := previous
+	if err := ValidateIsolateSessionBindingUpdate(previous, current); err != nil {
+		t.Fatalf("ValidateIsolateSessionBindingUpdate returned error: %v", err)
+	}
+	current.KeyIDValue = repeatedHex("e")
+	if err := ValidateIsolateSessionBindingUpdate(previous, current); err == nil {
+		t.Fatal("ValidateIsolateSessionBindingUpdate expected fail-closed mid-session identity change")
+	}
+	current = previous
+	current.HandshakeTranscriptHash = Digest{HashAlg: "sha256", Hash: repeatedHex("e")}
+	if err := ValidateIsolateSessionBindingUpdate(previous, current); err == nil {
+		t.Fatal("ValidateIsolateSessionBindingUpdate expected transcript mismatch rejection")
+	}
+}
+
+func TestValidateIsolateSessionBindingRequiresNonceLength(t *testing.T) {
+	binding := IsolateSessionBinding{
+		RunID:                   "run-1",
+		IsolateID:               "isolate-1",
+		SessionID:               "session-1",
+		SessionNonce:            "short",
+		ProvisioningMode:        "tofu",
+		ImageDigest:             Digest{HashAlg: "sha256", Hash: repeatedHex("a")},
+		ActiveManifestHash:      Digest{HashAlg: "sha256", Hash: repeatedHex("b")},
+		HandshakeTranscriptHash: Digest{HashAlg: "sha256", Hash: repeatedHex("c")},
+		KeyID:                   KeyIDProfile,
+		KeyIDValue:              repeatedHex("d"),
+		IdentityBindingPosture:  "tofu",
+	}
+	if err := ValidateIsolateSessionBinding(binding); err == nil {
+		t.Fatal("ValidateIsolateSessionBinding expected nonce length rejection")
+	}
+}
+
 func TestValidateAuditSignerEvidenceRequiresSessionScopeForIsolateIdentity(t *testing.T) {
 	evidence := AuditSignerEvidence{
 		SignerPurpose: "isolate_session_identity",
@@ -49,7 +97,7 @@ func TestValidateAuditSignerEvidenceRequiresSessionScopeForIsolateIdentity(t *te
 			RunID:                   "run-1",
 			IsolateID:               "isolate-1",
 			SessionID:               "session-1",
-			SessionNonce:            "nonce-1",
+			SessionNonce:            "nonce-0123456789abcd",
 			ProvisioningMode:        "tofu",
 			ImageDigest:             Digest{HashAlg: "sha256", Hash: repeatedHex("a")},
 			ActiveManifestHash:      Digest{HashAlg: "sha256", Hash: repeatedHex("b")},

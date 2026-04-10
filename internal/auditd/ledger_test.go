@@ -227,7 +227,21 @@ func newAuditFixtureKey(t *testing.T) auditFixtureKey {
 
 func validAdmissionRequestForLedger(t *testing.T, f auditFixtureKey) trustpolicy.AuditAdmissionRequest {
 	t.Helper()
-	eventPayload := map[string]any{"session_id": "session-1"}
+	eventPayload := map[string]any{
+		"schema_id":                        trustpolicy.IsolateSessionBoundPayloadSchemaID,
+		"schema_version":                   trustpolicy.IsolateSessionBoundPayloadSchemaVersion,
+		"run_id":                           "run-1",
+		"isolate_id":                       "isolate-1",
+		"session_id":                       "session-1",
+		"backend_kind":                     "microvm",
+		"isolation_assurance_level":        "isolated",
+		"provisioning_posture":             "tofu",
+		"launch_context_digest":            "sha256:" + strings.Repeat("1", 64),
+		"handshake_transcript_hash":        "sha256:" + strings.Repeat("2", 64),
+		"session_binding_digest":           "sha256:" + strings.Repeat("3", 64),
+		"runtime_image_descriptor_digest":  "sha256:" + strings.Repeat("4", 64),
+		"applied_hardening_posture_digest": "sha256:" + strings.Repeat("5", 64),
+	}
 	eventPayloadHash := sha256.Sum256(mustCanonicalJSON(t, eventPayload))
 	payload := auditEventPayloadFixture(eventPayload, eventPayloadHash)
 	payloadBytes := mustJSON(t, payload)
@@ -237,15 +251,29 @@ func validAdmissionRequestForLedger(t *testing.T, f auditFixtureKey) trustpolicy
 
 func auditEventPayloadFixture(eventPayload map[string]any, eventPayloadHash [32]byte) map[string]any {
 	return map[string]any{
-		"schema_id":                     trustpolicy.AuditEventSchemaID,
-		"schema_version":                trustpolicy.AuditEventSchemaVersion,
-		"audit_event_type":              "isolate_session_bound",
-		"emitter_stream_id":             "auditd-stream-1",
-		"seq":                           1,
-		"occurred_at":                   "2026-03-13T12:15:00Z",
-		"principal":                     map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "auditd", "instance_id": "auditd-1"},
-		"event_payload_schema_id":       "runecode.protocol.audit.payload.isolate-session-bound.v0",
-		"event_payload":                 eventPayload,
+		"schema_id":               trustpolicy.AuditEventSchemaID,
+		"schema_version":          trustpolicy.AuditEventSchemaVersion,
+		"audit_event_type":        "isolate_session_bound",
+		"emitter_stream_id":       "auditd-stream-1",
+		"seq":                     1,
+		"occurred_at":             "2026-03-13T12:15:00Z",
+		"principal":               map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "auditd", "instance_id": "auditd-1"},
+		"event_payload_schema_id": trustpolicy.IsolateSessionBoundPayloadSchemaID,
+		"event_payload": map[string]any{
+			"schema_id":                        trustpolicy.IsolateSessionBoundPayloadSchemaID,
+			"schema_version":                   trustpolicy.IsolateSessionBoundPayloadSchemaVersion,
+			"run_id":                           "run-1",
+			"isolate_id":                       "isolate-1",
+			"session_id":                       "session-1",
+			"backend_kind":                     "microvm",
+			"isolation_assurance_level":        "isolated",
+			"provisioning_posture":             "tofu",
+			"launch_context_digest":            "sha256:" + strings.Repeat("1", 64),
+			"handshake_transcript_hash":        "sha256:" + strings.Repeat("2", 64),
+			"session_binding_digest":           "sha256:" + strings.Repeat("3", 64),
+			"runtime_image_descriptor_digest":  "sha256:" + strings.Repeat("4", 64),
+			"applied_hardening_posture_digest": "sha256:" + strings.Repeat("5", 64),
+		},
 		"event_payload_hash":            map[string]any{"hash_alg": "sha256", "hash": hex.EncodeToString(eventPayloadHash[:])},
 		"protocol_bundle_manifest_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("b", 64)},
 		"scope":                         map[string]any{"workspace_id": "workspace-1", "run_id": "run-1", "stage_id": "stage-1"},
@@ -262,11 +290,11 @@ func signedEventEnvelope(payloadBytes []byte, keyID string, signature []byte) tr
 }
 
 func eventContractCatalogFixture() trustpolicy.AuditEventContractCatalog {
-	return trustpolicy.AuditEventContractCatalog{SchemaID: trustpolicy.AuditEventContractCatalogSchemaID, SchemaVersion: trustpolicy.AuditEventContractCatalogSchemaVersion, CatalogID: "audit_event_contract_v0", Entries: []trustpolicy.AuditEventContractCatalogEntry{{AuditEventType: "isolate_session_bound", AllowedPayloadSchemaIDs: []string{"runecode.protocol.audit.payload.isolate-session-bound.v0"}, AllowedSignerPurposes: []string{"isolate_session_identity"}, AllowedSignerScopes: []string{"session"}, RequiredScopeFields: []string{"workspace_id", "run_id", "stage_id"}, RequiredCorrelationFields: []string{"session_id", "operation_id"}, RequireSubjectRef: true, AllowedSubjectRefRoles: []string{"binding_target"}, AllowedCauseRefRoles: []string{"session_cause"}, AllowedRelatedRefRoles: []string{"binding", "evidence", "receipt"}, RequireGatewayContext: false, RequireSignerEvidenceRefs: true, AllowedSignerEvidenceRefRoles: []string{"admissibility", "binding"}}}}
+	return trustpolicy.AuditEventContractCatalog{SchemaID: trustpolicy.AuditEventContractCatalogSchemaID, SchemaVersion: trustpolicy.AuditEventContractCatalogSchemaVersion, CatalogID: "audit_event_contract_v0", Entries: []trustpolicy.AuditEventContractCatalogEntry{{AuditEventType: "isolate_session_bound", AllowedPayloadSchemaIDs: []string{trustpolicy.IsolateSessionBoundPayloadSchemaID}, AllowedSignerPurposes: []string{"isolate_session_identity"}, AllowedSignerScopes: []string{"session"}, RequiredScopeFields: []string{"workspace_id", "run_id", "stage_id"}, RequiredCorrelationFields: []string{"session_id", "operation_id"}, RequireSubjectRef: true, AllowedSubjectRefRoles: []string{"binding_target"}, AllowedCauseRefRoles: []string{"session_cause"}, AllowedRelatedRefRoles: []string{"binding", "evidence", "receipt"}, RequireGatewayContext: false, RequireSignerEvidenceRefs: true, AllowedSignerEvidenceRefRoles: []string{"admissibility", "binding"}}}}
 }
 
 func signerEvidenceFixture(keyIDValue string) trustpolicy.AuditSignerEvidenceReference {
-	return trustpolicy.AuditSignerEvidenceReference{Digest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("f", 64)}, Evidence: trustpolicy.AuditSignerEvidence{SignerPurpose: "isolate_session_identity", SignerScope: "session", SignerKey: trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: keyIDValue, Signature: "c2ln"}, IsolateBinding: &trustpolicy.IsolateSessionBinding{RunID: "run-1", IsolateID: "isolate-1", SessionID: "session-1", SessionNonce: "nonce-1", ProvisioningMode: "tofu", ImageDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)}, ActiveManifestHash: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("2", 64)}, HandshakeTranscriptHash: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("3", 64)}, KeyID: trustpolicy.KeyIDProfile, KeyIDValue: keyIDValue, IdentityBindingPosture: "tofu"}}}
+	return trustpolicy.AuditSignerEvidenceReference{Digest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("f", 64)}, Evidence: trustpolicy.AuditSignerEvidence{SignerPurpose: "isolate_session_identity", SignerScope: "session", SignerKey: trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: keyIDValue, Signature: "c2ln"}, IsolateBinding: &trustpolicy.IsolateSessionBinding{RunID: "run-1", IsolateID: "isolate-1", SessionID: "session-1", SessionNonce: "nonce-0123456789abcd", ProvisioningMode: "tofu", ImageDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)}, ActiveManifestHash: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("2", 64)}, HandshakeTranscriptHash: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("3", 64)}, KeyID: trustpolicy.KeyIDProfile, KeyIDValue: keyIDValue, IdentityBindingPosture: "tofu"}}}
 }
 
 func validReportFixture(segmentID string) trustpolicy.AuditVerificationReportPayload {

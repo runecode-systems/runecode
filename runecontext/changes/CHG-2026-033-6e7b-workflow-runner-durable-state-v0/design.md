@@ -13,6 +13,8 @@ Implement the untrusted runner orchestration and durable state authority for sec
 - All real execution remains brokered and policy-authorized.
 - Broker-facing run and approval summaries are shared operator-facing contracts; runner state must align with them rather than inventing a second lifecycle vocabulary.
 - Runner durable state may retain additional orchestration detail, but broker-visible run truth must remain an explicit translation into authoritative or advisory public fields.
+- Authoritative backend/runtime facts come from launcher -> broker projection rather than from runner-local inference.
+- Runner must not flatten backend kind, runtime isolation assurance, provisioning/binding posture, and audit posture into one local status string.
 - Runner approval wait semantics must preserve the policy distinction between exact-action approvals and stage sign-off, including supersession when the bound stage summary hash changes.
 
 ## Main Workstreams
