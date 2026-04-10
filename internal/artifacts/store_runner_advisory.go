@@ -29,15 +29,16 @@ func (s *Store) reconcileRunnerAdvisoryDurableStateLocked() (bool, error) {
 	if len(runs) > 0 || len(idem) > 0 {
 		s.state.RunnerAdvisoryByRun = runs
 	}
+	consumedChanged := reconcileConsumedGateOverrideApprovalsLocked(&s.state)
 	if migrated {
 		for runID := range runs {
 			if _, ok := s.state.Runs[runID]; !ok {
 				s.state.Runs[runID] = "pending"
 			}
 		}
-		return true, nil
+		return true || consumedChanged, nil
 	}
-	return false, ensureRunnerDurableFiles(s.rootDir, runs, idem, seq)
+	return consumedChanged, ensureRunnerDurableFiles(s.rootDir, runs, idem, seq)
 }
 
 func (s *Store) RecordRunnerCheckpoint(runID string, checkpoint RunnerCheckpointAdvisory) (bool, error) {
@@ -74,7 +75,7 @@ func (s *Store) RecordRunnerCheckpoint(runID string, checkpoint RunnerCheckpoint
 	return s.appendRunnerJournalRecordLocked(record)
 }
 
-func (s *Store) RecordRunnerResult(runID string, result RunnerResultAdvisory) (bool, error) {
+func (s *Store) RecordRunnerResult(runID string, result RunnerResultAdvisory, overridePolicyRef string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	trimmedRunID := strings.TrimSpace(runID)
@@ -105,7 +106,48 @@ func (s *Store) RecordRunnerResult(runID string, result RunnerResultAdvisory) (b
 		OccurredAt:     result.OccurredAt.UTC(),
 		Result:         cloneResult(&result),
 	}
-	return s.appendRunnerJournalRecordLocked(record)
+	runs, idem, seq, _, err := loadRunnerDurableState(s.rootDir)
+	if err != nil {
+		return false, err
+	}
+	key := scopedRunnerIdempotencyKey(record)
+	if prevSeq, ok := idem[key]; ok && prevSeq > 0 {
+		s.state.RunnerAdvisoryByRun = runs
+		return false, nil
+	}
+	approvalID, priorApproval, mutated, err := s.consumeGateOverrideApprovalLocked(trimmedRunID, strings.TrimSpace(overridePolicyRef), result)
+	if err != nil {
+		return false, err
+	}
+	record.Sequence = seq + 1
+	if err := appendRunnerJournalRecord(s.rootDir, record); err != nil {
+		if mutated {
+			s.state.Approvals[approvalID] = priorApproval
+			rebuildRunApprovalRefsLocked(&s.state)
+		}
+		return false, err
+	}
+	if err := applyRunnerJournalRecord(runs, record); err != nil {
+		return false, err
+	}
+	s.state.RunnerAdvisoryByRun = runs
+	if _, ok := s.state.Runs[record.RunID]; !ok {
+		s.state.Runs[record.RunID] = "pending"
+	}
+	idem[key] = record.Sequence
+	if err := writeRunnerSnapshot(s.rootDir, RunnerDurableSnapshot{
+		Family:        runnerSnapshotFamily,
+		SchemaVersion: runnerDurableSchemaVersion,
+		LastSequence:  record.Sequence,
+		Runs:          runs,
+		Idempotency:   idem,
+	}); err != nil {
+		return false, err
+	}
+	if err := s.saveStateLocked(); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *Store) RecordRunnerApprovalWait(approval RunnerApproval) error {
@@ -155,7 +197,8 @@ func (s *Store) appendRunnerJournalRecordLocked(record RunnerDurableJournalRecor
 	if err != nil {
 		return false, err
 	}
-	if prevSeq, ok := idem[record.IdempotencyKey]; ok {
+	key := scopedRunnerIdempotencyKey(record)
+	if prevSeq, ok := idem[key]; ok {
 		if prevSeq > 0 {
 			s.state.RunnerAdvisoryByRun = runs
 			return false, nil
@@ -168,7 +211,7 @@ func (s *Store) appendRunnerJournalRecordLocked(record RunnerDurableJournalRecor
 	if err := applyRunnerJournalRecord(runs, record); err != nil {
 		return false, err
 	}
-	idem[record.IdempotencyKey] = record.Sequence
+	idem[key] = record.Sequence
 	if err := writeRunnerSnapshot(s.rootDir, RunnerDurableSnapshot{
 		Family:        runnerSnapshotFamily,
 		SchemaVersion: runnerDurableSchemaVersion,
@@ -201,13 +244,14 @@ func loadRunnerDurableState(rootDir string) (map[string]RunnerAdvisoryState, map
 		if record.Sequence <= seq {
 			continue
 		}
-		if prev, ok := idem[record.IdempotencyKey]; ok && prev >= record.Sequence {
+		key := scopedRunnerIdempotencyKey(record)
+		if prev, ok := idem[key]; ok && prev >= record.Sequence {
 			continue
 		}
 		if err := applyRunnerJournalRecord(runs, record); err != nil {
 			return nil, nil, 0, false, err
 		}
-		idem[record.IdempotencyKey] = record.Sequence
+		idem[key] = record.Sequence
 		seq = record.Sequence
 	}
 	needsSnapshot := false
@@ -318,6 +362,73 @@ func validateRunnerJournalRecordShape(rec *RunnerDurableJournalRecord) error {
 	return nil
 }
 
+func (s *Store) consumeGateOverrideApprovalLocked(runID, policyDecisionRef string, result RunnerResultAdvisory) (string, ApprovalRecord, bool, error) {
+	if strings.TrimSpace(policyDecisionRef) == "" {
+		return "", ApprovalRecord{}, false, nil
+	}
+	for approvalID, approval := range s.state.Approvals {
+		if !matchesApprovedGateOverrideApprovalRecord(approval, runID, policyDecisionRef) {
+			continue
+		}
+		prior := approval
+		now := result.OccurredAt.UTC()
+		approval.Status = "consumed"
+		approval.DecidedAt = &now
+		approval.ConsumedAt = &now
+		s.state.Approvals[approvalID] = approval
+		rebuildRunApprovalRefsLocked(&s.state)
+		return approvalID, prior, true, nil
+	}
+	return "", ApprovalRecord{}, false, fmt.Errorf("gate override requires explicit approved approval")
+}
+
+func matchesApprovedGateOverrideApprovalRecord(approval ApprovalRecord, runID, policyDecisionRef string) bool {
+	if strings.TrimSpace(approval.RunID) != strings.TrimSpace(runID) {
+		return false
+	}
+	if strings.TrimSpace(approval.ActionKind) != "action_gate_override" {
+		return false
+	}
+	if strings.TrimSpace(approval.PolicyDecisionHash) != strings.TrimSpace(policyDecisionRef) {
+		return false
+	}
+	return strings.TrimSpace(approval.Status) == "approved"
+}
+
+func reconcileConsumedGateOverrideApprovalsLocked(state *StoreState) bool {
+	if state == nil || len(state.RunnerAdvisoryByRun) == 0 || len(state.Approvals) == 0 {
+		return false
+	}
+	changed := false
+	for runID, advisory := range state.RunnerAdvisoryByRun {
+		for _, gateAttempt := range advisory.GateAttempts {
+			policyRef := strings.TrimSpace(gateAttempt.OverridePolicyRef)
+			if policyRef == "" || strings.TrimSpace(gateAttempt.GateState) != "overridden" {
+				continue
+			}
+			for approvalID, approval := range state.Approvals {
+				if !matchesApprovedGateOverrideApprovalRecord(approval, runID, policyRef) {
+					continue
+				}
+				when := gateAttempt.FinishedAt.UTC()
+				if when.IsZero() {
+					when = gateAttempt.LastUpdatedAt.UTC()
+				}
+				approval.Status = "consumed"
+				approval.DecidedAt = &when
+				approval.ConsumedAt = &when
+				state.Approvals[approvalID] = approval
+				changed = true
+				break
+			}
+		}
+	}
+	if changed {
+		rebuildRunApprovalRefsLocked(state)
+	}
+	return changed
+}
+
 func appendRunnerJournalRecord(rootDir string, record RunnerDurableJournalRecord) error {
 	b, err := json.Marshal(record)
 	if err != nil {
@@ -359,6 +470,18 @@ func ensureRunnerDurableFiles(rootDir string, runs map[string]RunnerAdvisoryStat
 	return os.WriteFile(path, []byte{}, 0o600)
 }
 
+func scopedRunnerIdempotencyKey(record RunnerDurableJournalRecord) string {
+	runID := strings.TrimSpace(record.RunID)
+	key := strings.TrimSpace(record.IdempotencyKey)
+	if runID == "" {
+		return key
+	}
+	if key == "" {
+		return runID + "@"
+	}
+	return runID + "@" + key
+}
+
 func applyRunnerJournalRecord(runs map[string]RunnerAdvisoryState, record RunnerDurableJournalRecord) error {
 	runID := strings.TrimSpace(record.RunID)
 	if runID == "" {
@@ -385,6 +508,7 @@ func applyRunnerJournalRecord(runs map[string]RunnerAdvisoryState, record Runner
 			GateAttemptID:  record.Checkpoint.GateAttemptID,
 		}
 		applyStepHintFromCheckpoint(&state, runID, *record.Checkpoint)
+		applyGateHintFromCheckpoint(&state, runID, *record.Checkpoint)
 	case "result":
 		if record.Result == nil {
 			return fmt.Errorf("runner result journal record missing payload")
@@ -401,6 +525,7 @@ func applyRunnerJournalRecord(runs map[string]RunnerAdvisoryState, record Runner
 			GateAttemptID:  record.Result.GateAttemptID,
 		}
 		applyStepHintFromResult(&state, runID, *record.Result)
+		applyGateHintFromResult(&state, runID, *record.Result)
 	case "approval_wait":
 		if record.Approval == nil {
 			return fmt.Errorf("runner approval journal record missing payload")
@@ -424,11 +549,16 @@ func applyStepHintFromCheckpoint(state *RunnerAdvisoryState, runID string, check
 	hint := state.StepAttempts[stepAttemptID]
 	hint.StepAttemptID = stepAttemptID
 	hint.RunID = runID
+	hint.GateID = checkpoint.GateID
+	hint.GateKind = checkpoint.GateKind
+	hint.GateVersion = checkpoint.GateVersion
+	hint.GateState = checkpoint.GateState
 	hint.StageID = checkpoint.StageID
 	hint.StepID = checkpoint.StepID
 	hint.RoleInstanceID = checkpoint.RoleInstanceID
 	hint.StageAttemptID = checkpoint.StageAttemptID
 	hint.GateAttemptID = checkpoint.GateAttemptID
+	hint.GateEvidenceRef = checkpoint.GateEvidenceRef
 	hint.LastUpdatedAt = checkpoint.OccurredAt.UTC()
 	if phase, ok := runnerExecutionPhaseForCheckpointCode(checkpoint.CheckpointCode); ok {
 		hint.CurrentPhase = phase
@@ -461,11 +591,16 @@ func applyStepHintFromResult(state *RunnerAdvisoryState, runID string, result Ru
 	hint := state.StepAttempts[stepAttemptID]
 	hint.StepAttemptID = stepAttemptID
 	hint.RunID = runID
+	hint.GateID = result.GateID
+	hint.GateKind = result.GateKind
+	hint.GateVersion = result.GateVersion
+	hint.GateState = result.GateState
 	hint.StageID = result.StageID
 	hint.StepID = result.StepID
 	hint.RoleInstanceID = result.RoleInstanceID
 	hint.StageAttemptID = result.StageAttemptID
 	hint.GateAttemptID = result.GateAttemptID
+	hint.GateEvidenceRef = result.GateEvidenceRef
 	hint.Status = "finished"
 	hint.CurrentPhase = "attest"
 	hint.PhaseStatus = "finished"
@@ -473,6 +608,74 @@ func applyStepHintFromResult(state *RunnerAdvisoryState, runID string, result Ru
 	t := result.OccurredAt.UTC()
 	hint.FinishedAt = t
 	state.StepAttempts[stepAttemptID] = hint
+}
+
+func applyGateHintFromCheckpoint(state *RunnerAdvisoryState, runID string, checkpoint RunnerCheckpointAdvisory) {
+	gateAttemptID := strings.TrimSpace(checkpoint.GateAttemptID)
+	if gateAttemptID == "" {
+		return
+	}
+	if state.GateAttempts == nil {
+		state.GateAttempts = map[string]RunnerGateHint{}
+	}
+	hint := state.GateAttempts[gateAttemptID]
+	hint.GateAttemptID = gateAttemptID
+	hint.RunID = runID
+	hint.GateID = checkpoint.GateID
+	hint.GateKind = checkpoint.GateKind
+	hint.GateVersion = checkpoint.GateVersion
+	hint.GateState = checkpoint.GateState
+	hint.StageID = checkpoint.StageID
+	hint.StepID = checkpoint.StepID
+	hint.RoleInstanceID = checkpoint.RoleInstanceID
+	hint.StageAttemptID = checkpoint.StageAttemptID
+	hint.StepAttemptID = checkpoint.StepAttemptID
+	hint.GateEvidenceRef = checkpoint.GateEvidenceRef
+	hint.LastUpdatedAt = checkpoint.OccurredAt.UTC()
+	if strings.TrimSpace(hint.ResultCode) == "" {
+		hint.ResultCode = checkpoint.CheckpointCode
+	}
+	if !hint.Terminal && checkpoint.CheckpointCode == "gate_started" {
+		hint.StartedAt = checkpoint.OccurredAt.UTC()
+	}
+	state.GateAttempts[gateAttemptID] = hint
+}
+
+func applyGateHintFromResult(state *RunnerAdvisoryState, runID string, result RunnerResultAdvisory) {
+	gateAttemptID := strings.TrimSpace(result.GateAttemptID)
+	if gateAttemptID == "" {
+		return
+	}
+	if state.GateAttempts == nil {
+		state.GateAttempts = map[string]RunnerGateHint{}
+	}
+	hint := state.GateAttempts[gateAttemptID]
+	hint.GateAttemptID = gateAttemptID
+	hint.RunID = runID
+	hint.GateID = result.GateID
+	hint.GateKind = result.GateKind
+	hint.GateVersion = result.GateVersion
+	hint.GateState = result.GateState
+	hint.StageID = result.StageID
+	hint.StepID = result.StepID
+	hint.RoleInstanceID = result.RoleInstanceID
+	hint.StageAttemptID = result.StageAttemptID
+	hint.StepAttemptID = result.StepAttemptID
+	hint.GateEvidenceRef = result.GateEvidenceRef
+	hint.FailureReasonCode = result.FailureReasonCode
+	hint.OverrideFailedRef = result.OverrideFailedRef
+	hint.OverrideActionHash = result.OverrideActionHash
+	hint.OverridePolicyRef = result.OverridePolicyRef
+	hint.ResultRef = result.ResultRef
+	hint.ResultCode = result.ResultCode
+	hint.Terminal = true
+	hint.LastUpdatedAt = result.OccurredAt.UTC()
+	t := result.OccurredAt.UTC()
+	hint.FinishedAt = t
+	if hint.StartedAt.IsZero() {
+		hint.StartedAt = t
+	}
+	state.GateAttempts[gateAttemptID] = hint
 }
 
 func runnerExecutionPhaseForCheckpointCode(code string) (string, bool) {
@@ -614,6 +817,12 @@ func copyRunnerAdvisoryState(in RunnerAdvisoryState) RunnerAdvisoryState {
 			out.StepAttempts[k] = v
 		}
 	}
+	if len(in.GateAttempts) > 0 {
+		out.GateAttempts = make(map[string]RunnerGateHint, len(in.GateAttempts))
+		for k, v := range in.GateAttempts {
+			out.GateAttempts[k] = v
+		}
+	}
 	if len(in.ApprovalWaits) > 0 {
 		out.ApprovalWaits = make(map[string]RunnerApproval, len(in.ApprovalWaits))
 		for k, v := range in.ApprovalWaits {
@@ -665,9 +874,24 @@ func cloneRunnerApproval(in *RunnerApproval) *RunnerApproval {
 func copyMap(in map[string]any) map[string]any {
 	out := make(map[string]any, len(in))
 	for key, value := range in {
-		out[key] = value
+		out[key] = copyAny(value)
 	}
 	return out
+}
+
+func copyAny(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return copyMap(typed)
+	case []any:
+		out := make([]any, len(typed))
+		for i := range typed {
+			out[i] = copyAny(typed[i])
+		}
+		return out
+	default:
+		return typed
+	}
 }
 
 func copyRunnerAdvisoryByRun(in map[string]RunnerAdvisoryState) map[string]RunnerAdvisoryState {

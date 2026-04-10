@@ -5,11 +5,16 @@
   "description": "Typed action payload for gate override operations.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 7,
+  "maxProperties": 12,
   "required": [
     "schema_id",
     "schema_version",
-    "gate_name",
+    "gate_id",
+    "gate_kind",
+    "gate_version",
+    "gate_attempt_id",
+    "overridden_failed_result_ref",
+    "policy_context_hash",
     "override_mode",
     "justification"
   ],
@@ -24,11 +29,52 @@
       "description": "Protocol schema version.",
       "x-data-class": "public"
     },
-    "gate_name": {
+    "gate_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "maxLength": 128,
+      "description": "Target stable gate identity.",
+      "x-data-class": "public"
+    },
+    "gate_kind": {
+      "type": "string",
+      "enum": [
+        "build",
+        "test",
+        "lint",
+        "format",
+        "secret_scan",
+        "policy"
+      ],
+      "description": "Target gate taxonomy kind.",
+      "x-data-class": "public"
+    },
+    "gate_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "maxLength": 32,
+      "description": "Target gate contract version.",
+      "x-data-class": "public"
+    },
+    "gate_attempt_id": {
       "type": "string",
       "minLength": 1,
       "maxLength": 128,
-      "description": "Target gate identifier.",
+      "description": "Exact failed gate attempt identity that this override targets.",
+      "x-data-class": "public"
+    },
+    "overridden_failed_result_ref": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "maxLength": 71,
+      "description": "Canonical failed gate result digest that this override continuation references.",
+      "x-data-class": "public"
+    },
+    "policy_context_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "maxLength": 71,
+      "description": "Current effective policy context hash bound to this override request.",
       "x-data-class": "public"
     },
     "override_mode": {

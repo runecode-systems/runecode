@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/GateDefinition.schema.json",
+  "title": "GateDefinition",
+  "description": "Reusable typed gate definition entry for explicit workflow/process planning order.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 5,
+  "required": ["schema_id", "schema_version", "gate", "checkpoint_code", "order_index"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.GateDefinition", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "gate": { "$ref": "GateContract.schema.json", "description": "Gate contract bound into plan order.", "x-data-class": "public" },
+    "checkpoint_code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 128, "description": "Explicit checkpoint placement declared by planner.", "x-data-class": "public" },
+    "order_index": { "type": "integer", "minimum": 0, "description": "Deterministic gate ordering index.", "x-data-class": "public" }
+  }
+}

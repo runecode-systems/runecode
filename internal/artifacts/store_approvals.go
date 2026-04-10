@@ -152,7 +152,10 @@ func requiredApprovalPayload(record PolicyDecisionRecord) (map[string]any, error
 }
 
 func approvalDecisionRequestEnvelope(record PolicyDecisionRecord, requestedAt, expiresAt time.Time, summary approvalDecisionDerivedSummary) (trustpolicy.SignedObjectEnvelope, string, error) {
-	requestPayload := approvalRequestPayloadFromDecision(record, requestedAt, expiresAt, summary.trigger, summary.changes, summary.assurance, summary.presence, summary.runID, summary.stepID)
+	requestPayload, err := approvalRequestPayloadFromDecision(record, requestedAt, expiresAt, summary.trigger, summary.changes, summary.assurance, summary.presence, summary.runID, summary.stepID)
+	if err != nil {
+		return trustpolicy.SignedObjectEnvelope{}, "", err
+	}
 	return approvalRequestEnvelopeAndDigest(requestPayload)
 }
 

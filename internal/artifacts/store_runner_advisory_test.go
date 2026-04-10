@@ -26,6 +26,22 @@ func TestRunnerDurableStateReplaySnapshotAndIdempotency(t *testing.T) {
 	assertReloadedRunnerDurableState(t, store.rootDir, "run-durable", "step-attempt-1")
 }
 
+func TestRunnerDurableStateIdempotencyScopedByRunID(t *testing.T) {
+	store := newTestStore(t)
+	now := time.Date(2026, 4, 10, 10, 0, 0, 0, time.UTC)
+	checkpointA := RunnerCheckpointAdvisory{LifecycleState: "active", CheckpointCode: "run_started", OccurredAt: now, IdempotencyKey: "shared-idem"}
+	checkpointB := RunnerCheckpointAdvisory{LifecycleState: "active", CheckpointCode: "run_started", OccurredAt: now.Add(time.Minute), IdempotencyKey: "shared-idem"}
+	recordCheckpointAcceptance(t, store, "run-a", checkpointA, true, "run-a first")
+	recordCheckpointAcceptance(t, store, "run-b", checkpointB, true, "run-b same key")
+
+	if _, ok := store.RunnerAdvisory("run-a"); !ok {
+		t.Fatal("RunnerAdvisory(run-a) missing")
+	}
+	if _, ok := store.RunnerAdvisory("run-b"); !ok {
+		t.Fatal("RunnerAdvisory(run-b) missing")
+	}
+}
+
 func TestRunnerDurableStateMigratesLegacyRunnerAdvisoryMap(t *testing.T) {
 	store := newTestStore(t)
 	store.mu.Lock()
@@ -115,6 +131,150 @@ func TestRunnerApprovalWaitDedupeSupersessionAndStatuses(t *testing.T) {
 	}
 }
 
+func TestRecordRunnerResultRollsBackConsumedApprovalOnJournalFailure(t *testing.T) {
+	store := newTestStore(t)
+	now := time.Date(2026, 4, 10, 11, 30, 0, 0, time.UTC)
+	approval := ApprovalRecord{
+		ApprovalID:             testDigest("a"),
+		Status:                 "approved",
+		WorkspaceID:            "workspace-local",
+		RunID:                  "run-rollback",
+		ActionKind:             "action_gate_override",
+		RequestedAt:            now.Add(-time.Minute),
+		ExpiresAt:              ptrTime(now.Add(time.Hour)),
+		ApprovalTriggerCode:    "gate_override",
+		ChangesIfApproved:      approvalChangesIfApprovedDefault,
+		ApprovalAssuranceLevel: "reauthenticated",
+		PresenceMode:           "hardware_touch",
+		PolicyDecisionHash:     testDigest("p"),
+		ManifestHash:           testDigest("1"),
+		ActionRequestHash:      testDigest("2"),
+	}
+	decision := basePolicyDecisionRecord("run-rollback", map[string]any{"precedence": "approval"})
+	decision.DecisionOutcome = "require_human_approval"
+	decision.PolicyReasonCode = "approval_required"
+	decision.ManifestHash = approval.ManifestHash
+	decision.ActionRequestHash = approval.ActionRequestHash
+	decision.RequiredApprovalSchemaID = "runecode.protocol.details.policy.required_approval.hard_floor.v0"
+	decision.RequiredApproval = map[string]any{
+		"approval_trigger_code": "gate_override",
+		"scope": map[string]any{
+			"workspace_id": "workspace-local",
+			"run_id":       "run-rollback",
+			"action_kind":  "action_gate_override",
+		},
+	}
+	if err := store.RecordPolicyDecision(decision); err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
+	}
+	for _, rec := range store.state.PolicyDecisions {
+		approval.PolicyDecisionHash = rec.Digest
+		break
+	}
+	if err := store.RecordApproval(approval); err != nil {
+		t.Fatalf("RecordApproval returned error: %v", err)
+	}
+	snapshotPath := filepath.Join(store.rootDir, runnerSnapshotFileName)
+	if err := os.Remove(snapshotPath); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("remove runner snapshot returned error: %v", err)
+	}
+	if err := os.Mkdir(snapshotPath, 0o700); err != nil {
+		t.Fatalf("mkdir runner snapshot path returned error: %v", err)
+	}
+	_, err := store.RecordRunnerResult("run-rollback", RunnerResultAdvisory{LifecycleState: "failed", ResultCode: "gate_overridden", OccurredAt: now, IdempotencyKey: "idem-rollback"}, approval.PolicyDecisionHash)
+	if err == nil {
+		t.Fatal("RecordRunnerResult error = nil, want journal failure")
+	}
+	stored, ok := store.ApprovalGet(testDigest("a"))
+	if !ok {
+		t.Fatal("ApprovalGet missing approval after rollback")
+	}
+	if stored.Status != "approved" {
+		t.Fatalf("approval status = %q, want approved after rollback", stored.Status)
+	}
+	if stored.ConsumedAt != nil {
+		t.Fatal("approval consumed_at set after rollback")
+	}
+}
+
+func TestRunnerDurableStateReconcilesConsumedGateOverrideApprovalFromResult(t *testing.T) {
+	store := newTestStore(t)
+	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+	decision := basePolicyDecisionRecord("run-reconcile-consume", map[string]any{"precedence": "approval"})
+	decision.DecisionOutcome = "require_human_approval"
+	decision.PolicyReasonCode = "approval_required"
+	decision.RequiredApprovalSchemaID = "runecode.protocol.details.policy.required_approval.hard_floor.v0"
+	decision.RequiredApproval = map[string]any{
+		"approval_trigger_code": "gate_override",
+		"scope": map[string]any{
+			"workspace_id": "workspace-local",
+			"run_id":       "run-reconcile-consume",
+			"action_kind":  "action_gate_override",
+		},
+	}
+	if err := store.RecordPolicyDecision(decision); err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
+	}
+	var policyHash string
+	for _, rec := range store.state.PolicyDecisions {
+		policyHash = rec.Digest
+		break
+	}
+	approval := ApprovalRecord{
+		ApprovalID:             testDigest("b"),
+		Status:                 "approved",
+		WorkspaceID:            "workspace-local",
+		RunID:                  "run-reconcile-consume",
+		ActionKind:             "action_gate_override",
+		RequestedAt:            now.Add(-time.Minute),
+		ExpiresAt:              ptrTime(now.Add(time.Hour)),
+		ApprovalTriggerCode:    "gate_override",
+		ChangesIfApproved:      approvalChangesIfApprovedDefault,
+		ApprovalAssuranceLevel: "reauthenticated",
+		PresenceMode:           "hardware_touch",
+		PolicyDecisionHash:     policyHash,
+		ManifestHash:           decision.ManifestHash,
+		ActionRequestHash:      decision.ActionRequestHash,
+	}
+	if err := store.RecordApproval(approval); err != nil {
+		t.Fatalf("RecordApproval returned error: %v", err)
+	}
+	if _, err := store.RecordRunnerResult("run-reconcile-consume", RunnerResultAdvisory{LifecycleState: "failed", ResultCode: "gate_overridden", GateAttemptID: "gate-attempt-1", GateState: "overridden", OverridePolicyRef: policyHash, OccurredAt: now, IdempotencyKey: "idem-reconcile"}, policyHash); err != nil {
+		t.Fatalf("RecordRunnerResult returned error: %v", err)
+	}
+
+	store.mu.Lock()
+	approved := store.state.Approvals[approval.ApprovalID]
+	approved.Status = "approved"
+	approved.DecidedAt = nil
+	approved.ConsumedAt = nil
+	store.state.Approvals[approval.ApprovalID] = approved
+	if err := store.saveStateLocked(); err != nil {
+		store.mu.Unlock()
+		t.Fatalf("saveStateLocked returned error: %v", err)
+	}
+	store.mu.Unlock()
+
+	reloaded, err := NewStore(store.rootDir)
+	if err != nil {
+		t.Fatalf("NewStore reload returned error: %v", err)
+	}
+	restored, ok := reloaded.ApprovalGet(approval.ApprovalID)
+	if !ok {
+		t.Fatal("ApprovalGet missing after reload")
+	}
+	if restored.Status != "consumed" {
+		t.Fatalf("approval status after reload = %q, want consumed", restored.Status)
+	}
+	if restored.ConsumedAt == nil {
+		t.Fatal("approval consumed_at missing after reconciliation")
+	}
+}
+
+func ptrTime(t time.Time) *time.Time {
+	return &t
+}
+
 func recordCheckpointAcceptance(t *testing.T, store *Store, runID string, checkpoint RunnerCheckpointAdvisory, wantAccepted bool, label string) {
 	t.Helper()
 	accepted, err := store.RecordRunnerCheckpoint(runID, checkpoint)
@@ -128,7 +288,7 @@ func recordCheckpointAcceptance(t *testing.T, store *Store, runID string, checkp
 
 func recordResultAcceptance(t *testing.T, store *Store, runID string, result RunnerResultAdvisory, wantAccepted bool, label string) {
 	t.Helper()
-	accepted, err := store.RecordRunnerResult(runID, result)
+	accepted, err := store.RecordRunnerResult(runID, result, "")
 	if err != nil {
 		t.Fatalf("%s RecordRunnerResult returned error: %v", label, err)
 	}

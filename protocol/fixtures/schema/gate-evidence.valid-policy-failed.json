@@ -1,0 +1,33 @@
+{
+  "schema_id": "runecode.protocol.v0.GateEvidence",
+  "schema_version": "0.1.0",
+  "gate_id": "policy_gate",
+  "gate_kind": "policy",
+  "gate_version": "1.0.0",
+  "run_id": "run-1",
+  "stage_id": "stage-1",
+  "step_id": "step-1",
+  "role_instance_id": "role-1",
+  "gate_attempt_id": "gate-attempt-2",
+  "started_at": "2026-04-01T12:01:00Z",
+  "finished_at": "2026-04-01T12:03:00Z",
+  "normalized_input_digests": [
+    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "runtime": {
+    "tool": "policyengine",
+    "tool_version": "0.1.0"
+  },
+  "outcome": {
+    "deterministic_outcome": "failed"
+  },
+  "output_artifact_digests": [
+    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  ],
+  "policy_decision_refs": [
+    "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  ],
+  "override_action_request_hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "override_policy_decision_ref": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "failure_reason_code": "policy_denied"
+}

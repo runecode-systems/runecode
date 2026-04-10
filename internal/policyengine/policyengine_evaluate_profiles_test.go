@@ -133,6 +133,31 @@ func TestEvaluateDeniesSudoLauncherForWorkspaceOrdinaryExecutor(t *testing.T) {
 	}
 }
 
+func TestEvaluateDeniesSystemModifyingWrapperChainsForWorkspaceOrdinaryExecutor(t *testing.T) {
+	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
+	fixtures := []struct {
+		name string
+		argv []string
+	}{
+		{name: "env_command_nohup_chain", argv: []string{"env", "CI=1", "command", "nohup", "apt-get", "install", "jq"}},
+		{name: "scheduler_priority_wrappers", argv: []string{"timeout", "30", "nice", "-n", "10", "docker", "run", "alpine", "true"}},
+		{name: "single_token_passthrough", argv: []string{"workspace-runner", "exec", "--", "apt-get install jq"}},
+	}
+
+	for _, fixture := range fixtures {
+		t.Run(fixture.name, func(t *testing.T) {
+			action := validExecutorRunActionRequest("cap_stage", "workspace_ordinary", fixture.argv)
+			decision, err := Evaluate(compiled, action)
+			if err != nil {
+				t.Fatalf("Evaluate returned error: %v", err)
+			}
+			if decision.DecisionOutcome != DecisionDeny {
+				t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+			}
+		})
+	}
+}
+
 func TestExactActionApprovalBindingChangesWithActionHash(t *testing.T) {
 	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
 	actionA := validGateOverrideActionRequest("cap_stage")

@@ -173,6 +173,110 @@ func TestRecordApprovalBackfillsPolicyDecisionHashFromPersistedDecision(t *testi
 	}
 }
 
+func TestRecordApprovalRejectsGateOverrideWithoutExpiresAt(t *testing.T) {
+	store := newTestStore(t)
+	requestedAt := time.Now().UTC()
+	approval := ApprovalRecord{
+		ApprovalID:             testDigest("f"),
+		Status:                 "pending",
+		WorkspaceID:            "workspace-local",
+		RunID:                  "run-gate-override-no-expiry",
+		ActionKind:             "action_gate_override",
+		RequestedAt:            requestedAt,
+		ApprovalTriggerCode:    "gate_override",
+		ChangesIfApproved:      approvalChangesIfApprovedDefault,
+		ApprovalAssuranceLevel: "reauthenticated",
+		PresenceMode:           "hardware_touch",
+		ManifestHash:           testDigest("1"),
+		ActionRequestHash:      testDigest("2"),
+	}
+	if err := store.RecordApproval(approval); err == nil {
+		t.Fatal("RecordApproval error = nil, want expires_at validation failure for gate override")
+	}
+}
+
+func TestRecordApprovalRejectsGateOverrideExpiryBeyondTTL(t *testing.T) {
+	store := newTestStore(t)
+	requestedAt := time.Now().UTC().Add(-time.Minute)
+	expiresAt := requestedAt.Add(25 * time.Hour)
+	approval := ApprovalRecord{
+		ApprovalID:             testDigest("e"),
+		Status:                 "pending",
+		WorkspaceID:            "workspace-local",
+		RunID:                  "run-gate-override-ttl",
+		ActionKind:             "action_gate_override",
+		RequestedAt:            requestedAt,
+		ExpiresAt:              &expiresAt,
+		ApprovalTriggerCode:    "gate_override",
+		ChangesIfApproved:      approvalChangesIfApprovedDefault,
+		ApprovalAssuranceLevel: "reauthenticated",
+		PresenceMode:           "hardware_touch",
+		ManifestHash:           testDigest("1"),
+		ActionRequestHash:      testDigest("2"),
+	}
+	if err := store.RecordApproval(approval); err == nil {
+		t.Fatal("RecordApproval error = nil, want max TTL validation failure for gate override")
+	}
+}
+
+func TestRecordPolicyDecisionRejectsInvalidBoundDigestIdentity(t *testing.T) {
+	store := newTestStore(t)
+	rec := basePolicyDecisionRecord("run-invalid-digest", map[string]any{"precedence": "approval"})
+	rec.DecisionOutcome = "require_human_approval"
+	rec.PolicyReasonCode = "approval_required"
+	rec.ManifestHash = "not-a-digest"
+	rec.RequiredApprovalSchemaID = "runecode.protocol.details.policy.required_approval.moderate.workspace_write.v0"
+	rec.RequiredApproval = map[string]any{
+		"approval_trigger_code": "excerpt_promotion",
+		"scope": map[string]any{
+			"workspace_id": "workspace-local",
+			"run_id":       "run-invalid-digest",
+			"stage_id":     "artifact_flow",
+			"step_id":      "step-1",
+			"action_kind":  "promotion",
+		},
+	}
+	if err := store.RecordPolicyDecision(rec); err == nil {
+		t.Fatal("RecordPolicyDecision error = nil, want invalid digest identity rejection")
+	}
+}
+
+func TestRecordPolicyDecisionClampsApprovalTTLToMax(t *testing.T) {
+	store := newTestStore(t)
+	requestedAt := time.Now().UTC()
+	rec := basePolicyDecisionRecord("run-ttl-clamp", map[string]any{"precedence": "approval"})
+	rec.RecordedAt = requestedAt
+	rec.DecisionOutcome = "require_human_approval"
+	rec.PolicyReasonCode = "approval_required"
+	rec.RequiredApprovalSchemaID = "runecode.protocol.details.policy.required_approval.moderate.workspace_write.v0"
+	rec.RequiredApproval = map[string]any{
+		"approval_trigger_code": "excerpt_promotion",
+		"scope": map[string]any{
+			"workspace_id": "workspace-local",
+			"run_id":       "run-ttl-clamp",
+			"stage_id":     "artifact_flow",
+			"step_id":      "step-1",
+			"action_kind":  "promotion",
+		},
+		"approval_ttl_seconds": int64(999999),
+	}
+	if err := store.RecordPolicyDecision(rec); err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
+	}
+	if len(store.state.Approvals) != 1 {
+		t.Fatalf("approval count = %d, want 1", len(store.state.Approvals))
+	}
+	for _, approval := range store.state.Approvals {
+		if approval.ExpiresAt == nil {
+			t.Fatal("approval.expires_at = nil, want TTL value")
+		}
+		want := requestedAt.Add(24 * time.Hour)
+		if !approval.ExpiresAt.Equal(want) {
+			t.Fatalf("approval.expires_at = %s, want %s", approval.ExpiresAt.UTC().Format(time.RFC3339), want.Format(time.RFC3339))
+		}
+	}
+}
+
 func TestNewStoreFailsClosedWhenBoundApprovalLinkCannotBeReconciled(t *testing.T) {
 	root := t.TempDir()
 	store := newStoreForReconcileFailureTest(t, root)

@@ -93,8 +93,8 @@ func TestDefaultVersionInfoUsesConcreteMetadata(t *testing.T) {
 	assertVersionInfoFieldConcrete(t, "product_version", info.ProductVersion)
 	assertVersionInfoFieldConcrete(t, "build_revision", info.BuildRevision)
 	assertVersionInfoFieldConcrete(t, "build_time", info.BuildTime)
-	if info.ProtocolBundleVersion != "0.5.0" {
-		t.Fatalf("protocol_bundle_version = %q, want 0.5.0", info.ProtocolBundleVersion)
+	if info.ProtocolBundleVersion != "0.7.0" {
+		t.Fatalf("protocol_bundle_version = %q, want 0.7.0", info.ProtocolBundleVersion)
 	}
 	if !strings.HasPrefix(info.ProtocolBundleManifestHash, "sha256:") || len(info.ProtocolBundleManifestHash) != 71 {
 		t.Fatalf("protocol_bundle_manifest_hash = %q, want sha256 identity", info.ProtocolBundleManifestHash)

@@ -1,0 +1,26 @@
+{
+  "schema_id": "runecode.protocol.v0.GateResultReport",
+  "schema_version": "0.1.0",
+  "gate_id": "policy_gate",
+  "gate_kind": "policy",
+  "gate_version": "1.0.0",
+  "gate_attempt_id": "gate-attempt-2",
+  "lifecycle_state": "overridden",
+  "result_code": "gate_overridden",
+  "occurred_at": "2026-04-01T12:05:00Z",
+  "idempotency_key": "idem-gate-result-1",
+  "run_id": "run-1",
+  "stage_id": "stage-1",
+  "step_id": "step-1",
+  "role_instance_id": "role-1",
+  "stage_attempt_id": "stage-attempt-1",
+  "step_attempt_id": "step-attempt-1",
+  "normalized_input_digests": [
+    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  ],
+  "overridden_failed_result_ref": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "gate_evidence_ref": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "details": {
+    "override_reason": "temporary break glass"
+  }
+}

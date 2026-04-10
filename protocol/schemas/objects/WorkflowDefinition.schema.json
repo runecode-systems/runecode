@@ -2,13 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/WorkflowDefinition.schema.json",
   "title": "WorkflowDefinition",
-  "description": "Protocol-owned reserved workflow definition family. Future capability expansion requires a schema_version bump and security review.",
+  "description": "Protocol-owned workflow definition family with explicit deterministic gate planning.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 2,
+  "maxProperties": 3,
   "required": [
     "schema_id",
-    "schema_version"
+    "schema_version",
+    "gate_definitions"
   ],
   "properties": {
     "schema_id": {
@@ -20,6 +21,17 @@
       "const": "0.1.0",
       "description": "Exact protocol schema version used to validate this reserved workflow definition.",
       "x-data-class": "public"
+    },
+    "gate_definitions": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "Explicit gate ordering and checkpoint placement declared by workflow planning.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "GateDefinition.schema.json",
+        "description": "One deterministic gate definition entry.",
+        "x-data-class": "public"
+      }
     }
   }
 }

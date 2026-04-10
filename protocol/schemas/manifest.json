@@ -1,6 +1,6 @@
 {
   "bundle_id": "runecode.protocol.v0",
-  "bundle_version": "0.6.0",
+  "bundle_version": "0.7.0",
   "json_schema_draft": "2020-12",
   "runtime_schema_prefix": "runecode.protocol.v0.",
   "canonicalization": "RFC8785-JCS",
@@ -10,6 +10,41 @@
     "unknown_schema_posture": "fail_closed"
   },
   "schema_files": [
+    {
+      "path": "objects/GateContract.schema.json",
+      "schema_id": "runecode.protocol.v0.GateContract",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GateDefinition.schema.json",
+      "schema_id": "runecode.protocol.v0.GateDefinition",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GateCheckpointReport.schema.json",
+      "schema_id": "runecode.protocol.v0.GateCheckpointReport",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GateResultReport.schema.json",
+      "schema_id": "runecode.protocol.v0.GateResultReport",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GateEvidence.schema.json",
+      "schema_id": "runecode.protocol.v0.GateEvidence",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
     {
       "path": "objects/RoleManifest.schema.json",
       "schema_id": "runecode.protocol.v0.RoleManifest",

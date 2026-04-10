@@ -17,6 +17,7 @@ const (
 	DataClassBuildLogs               DataClass = "build_logs"
 	DataClassAuditEvents             DataClass = "audit_events"
 	DataClassAuditVerificationReport DataClass = "audit_verification_report"
+	DataClassGateEvidence            DataClass = "gate_evidence"
 	DataClassWebQuery                DataClass = "web_query"
 	DataClassWebCitations            DataClass = "web_citations"
 )
@@ -29,6 +30,7 @@ var allDataClasses = map[DataClass]struct{}{
 	DataClassBuildLogs:               {},
 	DataClassAuditEvents:             {},
 	DataClassAuditVerificationReport: {},
+	DataClassGateEvidence:            {},
 	DataClassWebQuery:                {},
 	DataClassWebCitations:            {},
 }
@@ -115,29 +117,45 @@ type RunnerCheckpointAdvisory struct {
 	CheckpointCode   string         `json:"checkpoint_code"`
 	OccurredAt       time.Time      `json:"occurred_at"`
 	IdempotencyKey   string         `json:"idempotency_key"`
+	GateID           string         `json:"gate_id,omitempty"`
+	GateKind         string         `json:"gate_kind,omitempty"`
+	GateVersion      string         `json:"gate_version,omitempty"`
+	GateState        string         `json:"gate_lifecycle_state,omitempty"`
 	StageID          string         `json:"stage_id,omitempty"`
 	StepID           string         `json:"step_id,omitempty"`
 	RoleInstanceID   string         `json:"role_instance_id,omitempty"`
 	StageAttemptID   string         `json:"stage_attempt_id,omitempty"`
 	StepAttemptID    string         `json:"step_attempt_id,omitempty"`
 	GateAttemptID    string         `json:"gate_attempt_id,omitempty"`
+	GateEvidenceRef  string         `json:"gate_evidence_ref,omitempty"`
+	NormalizedInputs []string       `json:"normalized_input_digests,omitempty"`
 	PendingApprovals int            `json:"pending_approval_count,omitempty"`
 	Details          map[string]any `json:"details,omitempty"`
 }
 
 type RunnerResultAdvisory struct {
-	LifecycleState    string         `json:"lifecycle_state"`
-	ResultCode        string         `json:"result_code"`
-	OccurredAt        time.Time      `json:"occurred_at"`
-	IdempotencyKey    string         `json:"idempotency_key"`
-	StageID           string         `json:"stage_id,omitempty"`
-	StepID            string         `json:"step_id,omitempty"`
-	RoleInstanceID    string         `json:"role_instance_id,omitempty"`
-	StageAttemptID    string         `json:"stage_attempt_id,omitempty"`
-	StepAttemptID     string         `json:"step_attempt_id,omitempty"`
-	GateAttemptID     string         `json:"gate_attempt_id,omitempty"`
-	FailureReasonCode string         `json:"failure_reason_code,omitempty"`
-	Details           map[string]any `json:"details,omitempty"`
+	LifecycleState     string         `json:"lifecycle_state"`
+	ResultCode         string         `json:"result_code"`
+	OccurredAt         time.Time      `json:"occurred_at"`
+	IdempotencyKey     string         `json:"idempotency_key"`
+	GateID             string         `json:"gate_id,omitempty"`
+	GateKind           string         `json:"gate_kind,omitempty"`
+	GateVersion        string         `json:"gate_version,omitempty"`
+	GateState          string         `json:"gate_lifecycle_state,omitempty"`
+	StageID            string         `json:"stage_id,omitempty"`
+	StepID             string         `json:"step_id,omitempty"`
+	RoleInstanceID     string         `json:"role_instance_id,omitempty"`
+	StageAttemptID     string         `json:"stage_attempt_id,omitempty"`
+	StepAttemptID      string         `json:"step_attempt_id,omitempty"`
+	GateAttemptID      string         `json:"gate_attempt_id,omitempty"`
+	NormalizedInputs   []string       `json:"normalized_input_digests,omitempty"`
+	FailureReasonCode  string         `json:"failure_reason_code,omitempty"`
+	OverrideFailedRef  string         `json:"overridden_failed_result_ref,omitempty"`
+	OverrideActionHash string         `json:"override_action_request_hash,omitempty"`
+	OverridePolicyRef  string         `json:"override_policy_decision_ref,omitempty"`
+	ResultRef          string         `json:"gate_result_ref,omitempty"`
+	GateEvidenceRef    string         `json:"gate_evidence_ref,omitempty"`
+	Details            map[string]any `json:"details,omitempty"`
 }
 
 type RunnerAdvisoryState struct {
@@ -145,7 +163,33 @@ type RunnerAdvisoryState struct {
 	LastResult     *RunnerResultAdvisory     `json:"last_result,omitempty"`
 	Lifecycle      *RunnerLifecycleHint      `json:"lifecycle,omitempty"`
 	StepAttempts   map[string]RunnerStepHint `json:"step_attempts,omitempty"`
+	GateAttempts   map[string]RunnerGateHint `json:"gate_attempts,omitempty"`
 	ApprovalWaits  map[string]RunnerApproval `json:"approval_waits,omitempty"`
+}
+
+type RunnerGateHint struct {
+	GateAttemptID      string    `json:"gate_attempt_id"`
+	RunID              string    `json:"run_id"`
+	GateID             string    `json:"gate_id"`
+	GateKind           string    `json:"gate_kind"`
+	GateVersion        string    `json:"gate_version"`
+	GateState          string    `json:"gate_lifecycle_state"`
+	StageID            string    `json:"stage_id,omitempty"`
+	StepID             string    `json:"step_id,omitempty"`
+	RoleInstanceID     string    `json:"role_instance_id,omitempty"`
+	StageAttemptID     string    `json:"stage_attempt_id,omitempty"`
+	StepAttemptID      string    `json:"step_attempt_id,omitempty"`
+	GateEvidenceRef    string    `json:"gate_evidence_ref,omitempty"`
+	FailureReasonCode  string    `json:"failure_reason_code,omitempty"`
+	OverrideFailedRef  string    `json:"overridden_failed_result_ref,omitempty"`
+	OverrideActionHash string    `json:"override_action_request_hash,omitempty"`
+	OverridePolicyRef  string    `json:"override_policy_decision_ref,omitempty"`
+	ResultRef          string    `json:"gate_result_ref,omitempty"`
+	ResultCode         string    `json:"result_code,omitempty"`
+	Terminal           bool      `json:"terminal"`
+	StartedAt          time.Time `json:"started_at,omitempty"`
+	FinishedAt         time.Time `json:"finished_at,omitempty"`
+	LastUpdatedAt      time.Time `json:"last_updated_at"`
 }
 
 type RunnerLifecycleHint struct {
@@ -160,19 +204,24 @@ type RunnerLifecycleHint struct {
 }
 
 type RunnerStepHint struct {
-	StepAttemptID  string    `json:"step_attempt_id"`
-	RunID          string    `json:"run_id"`
-	StageID        string    `json:"stage_id,omitempty"`
-	StepID         string    `json:"step_id,omitempty"`
-	RoleInstanceID string    `json:"role_instance_id,omitempty"`
-	StageAttemptID string    `json:"stage_attempt_id,omitempty"`
-	GateAttemptID  string    `json:"gate_attempt_id,omitempty"`
-	CurrentPhase   string    `json:"current_phase,omitempty"`
-	PhaseStatus    string    `json:"phase_status,omitempty"`
-	Status         string    `json:"status"`
-	StartedAt      time.Time `json:"started_at,omitempty"`
-	FinishedAt     time.Time `json:"finished_at,omitempty"`
-	LastUpdatedAt  time.Time `json:"last_updated_at"`
+	StepAttemptID   string    `json:"step_attempt_id"`
+	RunID           string    `json:"run_id"`
+	GateID          string    `json:"gate_id,omitempty"`
+	GateKind        string    `json:"gate_kind,omitempty"`
+	GateVersion     string    `json:"gate_version,omitempty"`
+	GateState       string    `json:"gate_lifecycle_state,omitempty"`
+	StageID         string    `json:"stage_id,omitempty"`
+	StepID          string    `json:"step_id,omitempty"`
+	RoleInstanceID  string    `json:"role_instance_id,omitempty"`
+	StageAttemptID  string    `json:"stage_attempt_id,omitempty"`
+	GateAttemptID   string    `json:"gate_attempt_id,omitempty"`
+	GateEvidenceRef string    `json:"gate_evidence_ref,omitempty"`
+	CurrentPhase    string    `json:"current_phase,omitempty"`
+	PhaseStatus     string    `json:"phase_status,omitempty"`
+	Status          string    `json:"status"`
+	StartedAt       time.Time `json:"started_at,omitempty"`
+	FinishedAt      time.Time `json:"finished_at,omitempty"`
+	LastUpdatedAt   time.Time `json:"last_updated_at"`
 }
 
 type RunnerApproval struct {
@@ -355,7 +404,7 @@ func DefaultPolicy() Policy {
 		BulkPromotionRequiresSeparateReview: true,
 		FlowMatrix: []FlowRule{
 			{ProducerRole: "workspace", ConsumerRole: "model_gateway", AllowedDataClasses: []DataClass{DataClassSpecText, DataClassApprovedFileExcerpts}},
-			{ProducerRole: "workspace", ConsumerRole: "auditd", AllowedDataClasses: []DataClass{DataClassAuditEvents, DataClassAuditVerificationReport, DataClassBuildLogs, DataClassDiffs, DataClassSpecText, DataClassUnapprovedFileExcerpts, DataClassApprovedFileExcerpts}},
+			{ProducerRole: "workspace", ConsumerRole: "auditd", AllowedDataClasses: []DataClass{DataClassAuditEvents, DataClassAuditVerificationReport, DataClassGateEvidence, DataClassBuildLogs, DataClassDiffs, DataClassSpecText, DataClassUnapprovedFileExcerpts, DataClassApprovedFileExcerpts}},
 		},
 		RevokedApprovedExcerptHashes: map[string]bool{},
 		PerRoleQuota: map[string]Quota{

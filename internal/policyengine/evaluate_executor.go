@@ -7,7 +7,15 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode"
 )
+
+var systemModifyingExecutableNames = map[string]struct{}{
+	"apt": {}, "apt-get": {}, "yum": {}, "dnf": {}, "apk": {}, "pacman": {}, "brew": {},
+	"systemctl": {}, "service": {}, "modprobe": {}, "sysctl": {}, "mount": {}, "umount": {},
+	"iptables": {}, "ufw": {}, "nft": {}, "netsh": {}, "sc": {},
+	"docker": {}, "podman": {}, "kubectl": {}, "helm": {},
+}
 
 func evaluateExecutorBoundary(compiled *CompiledContext, action ActionRequest, actionHash string) (PolicyDecision, bool) {
 	payload, decision, blocked := decodeExecutorPayload(compiled, action, actionHash)
@@ -522,27 +530,48 @@ func isSystemModifyingArgv(argv []string) bool {
 	if len(argv) == 0 {
 		return false
 	}
-	base := unwrapLauncherArgv(argv)
-	if len(base) == 0 {
-		return false
-	}
-	first := strings.ToLower(filepath.Base(base[0]))
-	systemTools := map[string]struct{}{
-		"apt": {}, "apt-get": {}, "yum": {}, "dnf": {}, "apk": {}, "pacman": {}, "brew": {},
-		"systemctl": {}, "service": {}, "modprobe": {}, "sysctl": {}, "mount": {}, "umount": {},
-		"iptables": {}, "ufw": {}, "nft": {}, "netsh": {}, "sc": {},
-		"docker": {}, "podman": {}, "kubectl": {}, "helm": {},
-	}
-	if _, ok := systemTools[first]; ok {
-		return true
-	}
-	for _, arg := range argv {
-		lower := strings.ToLower(arg)
-		if strings.Contains(lower, "/etc/") || strings.Contains(lower, "c:\\windows") {
+	for _, token := range argv {
+		if tokenIsSystemModifying(token) {
 			return true
 		}
 	}
 	return false
+}
+
+func tokenIsSystemModifying(token string) bool {
+	lower := strings.ToLower(strings.TrimSpace(token))
+	if lower == "" {
+		return false
+	}
+	if strings.Contains(lower, "/etc/") || strings.Contains(lower, "c:\\windows") {
+		return true
+	}
+	base := strings.ToLower(filepath.Base(lower))
+	if _, ok := systemModifyingExecutableNames[base]; ok {
+		return true
+	}
+	for _, candidate := range splitCommandLikeToken(lower) {
+		candidateBase := strings.ToLower(filepath.Base(candidate))
+		if _, ok := systemModifyingExecutableNames[candidateBase]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func splitCommandLikeToken(value string) []string {
+	parts := strings.FieldsFunc(value, func(r rune) bool {
+		return unicode.IsSpace(r) || strings.ContainsRune("'\"`;|&(){}[]<>,", r)
+	})
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		out = append(out, strings.Trim(trimmed, "`"))
+	}
+	return out
 }
 
 func destinationRefMatches(descriptor DestinationDescriptor, destinationRef string) bool {

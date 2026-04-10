@@ -1,6 +1,7 @@
 package artifacts
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -24,4 +25,12 @@ func canonicalizeJSONBytes(payload []byte) ([]byte, error) {
 		return nil, fmt.Errorf("top-level JSON value must be an object or array")
 	}
 	return jsoncanonicalizer.Transform(payload)
+}
+
+func canonicalizeJSONValue(value any) ([]byte, error) {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("marshal json value: %w", err)
+	}
+	return canonicalizeJSONBytes(payload)
 }

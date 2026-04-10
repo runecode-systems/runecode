@@ -158,11 +158,16 @@ func NewBackendPostureChangeAction(input BackendPostureChangeActionInput) Action
 
 func NewGateOverrideAction(input GateOverrideActionInput) ActionRequest {
 	payload := map[string]any{
-		"schema_id":      actionPayloadGateSchemaID,
-		"schema_version": "0.1.0",
-		"gate_name":      input.GateName,
-		"override_mode":  input.OverrideMode,
-		"justification":  input.Justification,
+		"schema_id":                    actionPayloadGateSchemaID,
+		"schema_version":               "0.1.0",
+		"gate_id":                      input.GateID,
+		"gate_kind":                    input.GateKind,
+		"gate_version":                 input.GateVersion,
+		"gate_attempt_id":              input.GateAttemptID,
+		"overridden_failed_result_ref": input.OverriddenFailedResultRef,
+		"policy_context_hash":          input.PolicyContextHash,
+		"override_mode":                input.OverrideMode,
+		"justification":                input.Justification,
 	}
 	if input.ExpiresAt != "" {
 		payload["expires_at"] = input.ExpiresAt

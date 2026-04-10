@@ -25,6 +25,50 @@ func assertReservedStatuses(t *testing.T, manifest manifestFile) {
 	assertReservedStatus(t, manifest, "runecode.protocol.v0.ProcessDefinition")
 }
 
+func TestWorkflowAndProcessDefinitionsRequireExplicitGateDefinitions(t *testing.T) {
+	bundle := newCompiledBundle(t, loadManifest(t))
+	workflowSchema := mustCompileObjectSchema(t, bundle, "objects/WorkflowDefinition.schema.json")
+	processSchema := mustCompileObjectSchema(t, bundle, "objects/ProcessDefinition.schema.json")
+
+	workflow := map[string]any{
+		"schema_id":      "runecode.protocol.v0.WorkflowDefinition",
+		"schema_version": "0.1.0",
+		"gate_definitions": []any{
+			map[string]any{
+				"schema_id":       "runecode.protocol.v0.GateDefinition",
+				"schema_version":  "0.1.0",
+				"checkpoint_code": "step_validation_started",
+				"order_index":     0,
+				"gate": map[string]any{
+					"schema_id":      "runecode.protocol.v0.GateContract",
+					"schema_version": "0.1.0",
+					"gate_id":        "build_gate",
+					"gate_kind":      "build",
+					"gate_version":   "1.0.0",
+					"normalized_inputs": []any{
+						map[string]any{"input_id": "source_tree", "input_digest": "sha256:" + strings.Repeat("1", 64)},
+					},
+					"plan_binding":       map[string]any{"checkpoint_code": "step_validation_started", "order_index": 0},
+					"retry_semantics":    map[string]any{"retry_mode": "new_attempt_required", "max_attempts": 3},
+					"override_semantics": map[string]any{"override_mode": "policy_action_required", "action_kind": "action_gate_override", "approval_trigger_code": "gate_override"},
+				},
+			},
+		},
+	}
+	if err := workflowSchema.Validate(workflow); err != nil {
+		t.Fatalf("workflow schema validation failed: %v", err)
+	}
+
+	process := map[string]any{
+		"schema_id":        "runecode.protocol.v0.ProcessDefinition",
+		"schema_version":   "0.1.0",
+		"gate_definitions": workflow["gate_definitions"],
+	}
+	if err := processSchema.Validate(process); err != nil {
+		t.Fatalf("process schema validation failed: %v", err)
+	}
+}
+
 func assertSchemaVersions(t *testing.T, manifest manifestFile) {
 	t.Helper()
 	assertSchemaVersionsCore(t, manifest)

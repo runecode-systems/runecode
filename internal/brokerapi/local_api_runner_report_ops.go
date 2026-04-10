@@ -2,11 +2,17 @@ package brokerapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
 
 const (
@@ -24,44 +30,32 @@ type runnerReportPreparation struct {
 	found     bool
 }
 
+type runnerResultBindings struct {
+	details            map[string]any
+	overrideActionHash string
+	overridePolicyRef  string
+	gateEvidenceRef    string
+	gateResultRef      string
+}
+
+type runnerValidationError struct {
+	code string
+	msg  string
+}
+
+func (e runnerValidationError) Error() string { return e.msg }
+
 func (s *Service) HandleRunnerCheckpointReport(ctx context.Context, req RunnerCheckpointReportRequest, meta RequestContext) (RunnerCheckpointReportResponse, *ErrorResponse) {
 	prep, release, errResp := s.prepareRunnerCheckpointReport(ctx, req, meta)
 	if errResp != nil {
 		return RunnerCheckpointReportResponse{}, errResp
 	}
 	defer release()
-	if err := validateRunnerCheckpointTransition(prep.current, prep.found, req.Report.LifecycleState); err != nil {
-		errOut := s.makeError(prep.requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
-		return RunnerCheckpointReportResponse{}, &errOut
-	}
-	if err := validateRunnerCheckpointCode(req.Report.CheckpointCode); err != nil {
-		errOut := s.makeError(prep.requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
-		return RunnerCheckpointReportResponse{}, &errOut
-	}
-	runnerAdvisory, _ := s.RunnerAdvisory(prep.runID)
-	if err := validateRunnerCheckpointPhaseTransition(runnerAdvisory, req.Report); err != nil {
-		errOut := s.makeError(prep.requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
-		return RunnerCheckpointReportResponse{}, &errOut
-	}
-	details, err := sanitizeRunnerDetails(req.Report.Details)
+	details, err := s.validateRunnerCheckpointReport(prep.current, prep.found, prep.runID, req.Report)
 	if err != nil {
-		errOut := s.makeError(prep.requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
-		return RunnerCheckpointReportResponse{}, &errOut
+		return s.runnerCheckpointValidationError(prep.requestID, err)
 	}
-	accepted, err := s.RecordRunnerCheckpoint(prep.runID, artifacts.RunnerCheckpointAdvisory{
-		LifecycleState:   req.Report.LifecycleState,
-		CheckpointCode:   req.Report.CheckpointCode,
-		OccurredAt:       prep.occurred.UTC(),
-		IdempotencyKey:   req.Report.IdempotencyKey,
-		StageID:          req.Report.StageID,
-		StepID:           req.Report.StepID,
-		RoleInstanceID:   req.Report.RoleInstanceID,
-		StageAttemptID:   req.Report.StageAttemptID,
-		StepAttemptID:    req.Report.StepAttemptID,
-		GateAttemptID:    req.Report.GateAttemptID,
-		PendingApprovals: req.Report.PendingApprovalCount,
-		Details:          details,
-	})
+	accepted, err := s.RecordRunnerCheckpoint(prep.runID, buildRunnerCheckpointAdvisory(req.Report, prep.occurred, details))
 	if err != nil {
 		errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, err.Error())
 		return RunnerCheckpointReportResponse{}, &errOut
@@ -92,33 +86,11 @@ func (s *Service) HandleRunnerResultReport(ctx context.Context, req RunnerResult
 		return RunnerResultReportResponse{}, errResp
 	}
 	defer release()
-	if err := validateRunnerResultTransition(prep.current, prep.found, req.Report.LifecycleState); err != nil {
-		errOut := s.makeError(prep.requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
-		return RunnerResultReportResponse{}, &errOut
-	}
-	if err := validateRunnerResultCode(req.Report.ResultCode); err != nil {
-		errOut := s.makeError(prep.requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
-		return RunnerResultReportResponse{}, &errOut
-	}
-	details, err := sanitizeRunnerDetails(req.Report.Details)
+	bindings, err := s.prepareRunnerResultBindings(prep.current, prep.found, prep.runID, req.Report)
 	if err != nil {
-		errOut := s.makeError(prep.requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
-		return RunnerResultReportResponse{}, &errOut
+		return s.runnerResultValidationError(prep.requestID, err)
 	}
-	accepted, err := s.RecordRunnerResult(prep.runID, artifacts.RunnerResultAdvisory{
-		LifecycleState:    req.Report.LifecycleState,
-		ResultCode:        req.Report.ResultCode,
-		OccurredAt:        prep.occurred.UTC(),
-		IdempotencyKey:    req.Report.IdempotencyKey,
-		StageID:           req.Report.StageID,
-		StepID:            req.Report.StepID,
-		RoleInstanceID:    req.Report.RoleInstanceID,
-		StageAttemptID:    req.Report.StageAttemptID,
-		StepAttemptID:     req.Report.StepAttemptID,
-		GateAttemptID:     req.Report.GateAttemptID,
-		FailureReasonCode: req.Report.FailureReasonCode,
-		Details:           details,
-	})
+	accepted, err := s.RecordRunnerResult(prep.runID, buildRunnerResultAdvisory(req.Report, prep.occurred, bindings.details, bindings.gateEvidenceRef, bindings.gateResultRef, bindings.overrideActionHash, bindings.overridePolicyRef), bindings.overridePolicyRef)
 	if err != nil {
 		errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, err.Error())
 		return RunnerResultReportResponse{}, &errOut
@@ -147,8 +119,92 @@ func (s *Service) prepareRunnerCheckpointReport(ctx context.Context, req RunnerC
 	return s.prepareRunnerReport(ctx, req.RequestID, runnerCheckpointRequestSchemaPath, req.RunID, req.Report.OccurredAt, req, meta)
 }
 
+func (s *Service) validateRunnerCheckpointReport(current string, found bool, runID string, report RunnerCheckpointReport) (map[string]any, error) {
+	runnerAdvisory, _ := s.RunnerAdvisory(runID)
+	if err := validateRunnerCheckpointTransition(current, found, report.LifecycleState); err != nil {
+		return nil, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	if err := validateRunnerCheckpointCode(report.CheckpointCode); err != nil {
+		return nil, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	if err := validateGateCheckpointFields(report); err != nil {
+		return nil, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	if err := validateCheckpointGateAttemptMutation(runnerAdvisory, report); err != nil {
+		return nil, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	if err := validateRunnerCheckpointPhaseTransition(runnerAdvisory, report); err != nil {
+		return nil, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	details, err := sanitizeRunnerDetails(report.Details)
+	if err != nil {
+		return nil, runnerValidationError{code: "broker_validation_schema_invalid", msg: err.Error()}
+	}
+	return details, nil
+}
+
+func (s *Service) runnerCheckpointValidationError(requestID string, err error) (RunnerCheckpointReportResponse, *ErrorResponse) {
+	errOut := s.makeError(requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
+	var validationErr runnerValidationError
+	if errors.As(err, &validationErr) {
+		errOut = s.makeError(requestID, validationErr.code, "validation", false, validationErr.msg)
+	}
+	return RunnerCheckpointReportResponse{}, &errOut
+}
+
 func (s *Service) prepareRunnerResultReport(ctx context.Context, req RunnerResultReportRequest, meta RequestContext) (runnerReportPreparation, func(), *ErrorResponse) {
 	return s.prepareRunnerReport(ctx, req.RequestID, runnerResultRequestSchemaPath, req.RunID, req.Report.OccurredAt, req, meta)
+}
+
+func (s *Service) prepareRunnerResultBindings(current string, found bool, runID string, report RunnerResultReport) (runnerResultBindings, error) {
+	runnerAdvisory, _ := s.RunnerAdvisory(runID)
+	if err := validateRunnerResultTransition(current, found, report.LifecycleState); err != nil {
+		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	if err := validateRunnerResultCode(report.ResultCode); err != nil {
+		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	if err := validateGateResultFields(report); err != nil {
+		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	if err := validateResultGateAttemptMutation(runnerAdvisory, report); err != nil {
+		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	if err := validateOverrideReferenceAgainstHistory(runnerAdvisory, report); err != nil {
+		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	details, err := sanitizeRunnerDetails(report.Details)
+	if err != nil {
+		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_schema_invalid", msg: err.Error()}
+	}
+	overrideActionHash, overridePolicyRef, err := s.resolveOverrideApprovalBindings(runID, report, details)
+	if err != nil {
+		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	gateEvidenceRef, err := s.resolveGateEvidenceRef(runID, report)
+	if err != nil {
+		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	gateResultRef, err := canonicalGateResultRef(runID, report, gateEvidenceRef)
+	if err != nil {
+		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	return runnerResultBindings{
+		details:            details,
+		overrideActionHash: overrideActionHash,
+		overridePolicyRef:  overridePolicyRef,
+		gateEvidenceRef:    gateEvidenceRef,
+		gateResultRef:      gateResultRef,
+	}, nil
+}
+
+func (s *Service) runnerResultValidationError(requestID string, err error) (RunnerResultReportResponse, *ErrorResponse) {
+	errOut := s.makeError(requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
+	var validationErr runnerValidationError
+	if errors.As(err, &validationErr) {
+		errOut = s.makeError(requestID, validationErr.code, "validation", false, validationErr.msg)
+	}
+	return RunnerResultReportResponse{}, &errOut
 }
 
 func (s *Service) prepareRunnerReport(ctx context.Context, requestIDInput, requestSchemaPath, runIDInput, occurredAtInput string, requestPayload any, meta RequestContext) (runnerReportPreparation, func(), *ErrorResponse) {
@@ -344,7 +400,9 @@ func validateRunnerCheckpointCode(code string) error {
 	switch strings.TrimSpace(code) {
 	case "run_started", "stage_entered", "step_attempt_started", "action_request_issued",
 		"step_validation_started", "step_validation_finished", "approval_wait_entered", "approval_wait_cleared",
-		"gate_attempt_started", "gate_attempt_finished", "step_execution_started", "step_execution_finished",
+		"gate_attempt_started", "gate_attempt_finished",
+		"gate_planned", "gate_started", "gate_passed", "gate_failed", "gate_overridden", "gate_superseded",
+		"step_execution_started", "step_execution_finished",
 		"step_attest_started", "step_attest_finished", "step_attempt_finished", "run_terminal":
 		return nil
 	default:
@@ -354,11 +412,664 @@ func validateRunnerCheckpointCode(code string) error {
 
 func validateRunnerResultCode(code string) error {
 	switch strings.TrimSpace(code) {
-	case "run_completed", "run_failed", "run_cancelled", "step_failed", "gate_failed":
+	case "run_completed", "run_failed", "run_cancelled", "step_failed", "gate_failed", "gate_passed", "gate_overridden", "gate_superseded":
 		return nil
 	default:
 		return fmt.Errorf("unsupported result code %q", strings.TrimSpace(code))
 	}
+}
+
+func validateGateCheckpointFields(report RunnerCheckpointReport) error {
+	if strings.TrimSpace(report.GateEvidenceRef) != "" {
+		if !isValidDigestIdentity(strings.TrimSpace(report.GateEvidenceRef)) {
+			return fmt.Errorf("gate_evidence_ref must be digest identity")
+		}
+		if !hasGateBinding(report.GateID, report.GateKind, report.GateVersion, report.GateAttemptID, report.GateLifecycleState, report.NormalizedInputDigests) {
+			return fmt.Errorf("gate_evidence_ref requires gate identity binding")
+		}
+	}
+	if !hasGateBinding(report.GateID, report.GateKind, report.GateVersion, report.GateAttemptID, report.GateLifecycleState, report.NormalizedInputDigests) {
+		return nil
+	}
+	if strings.TrimSpace(report.GateID) == "" || strings.TrimSpace(report.GateKind) == "" || strings.TrimSpace(report.GateVersion) == "" || strings.TrimSpace(report.GateAttemptID) == "" || strings.TrimSpace(report.GateLifecycleState) == "" {
+		return fmt.Errorf("gate-scoped checkpoint requires gate_id, gate_kind, gate_version, gate_attempt_id, and gate_lifecycle_state")
+	}
+	if !isGateKind(report.GateKind) {
+		return fmt.Errorf("unsupported gate_kind %q", report.GateKind)
+	}
+	if !isGateCheckpointState(report.GateLifecycleState) {
+		return fmt.Errorf("unsupported gate_lifecycle_state %q for checkpoint", report.GateLifecycleState)
+	}
+	if expected, ok := gateStateForCheckpointCode(report.CheckpointCode); ok && expected != report.GateLifecycleState {
+		return fmt.Errorf("checkpoint_code %q requires gate_lifecycle_state %q, got %q", report.CheckpointCode, expected, report.GateLifecycleState)
+	}
+	if err := validateNormalizedInputDigests(report.NormalizedInputDigests); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateGateResultFields(report RunnerResultReport) error {
+	if err := validateGateEvidenceBindingFields(report); err != nil {
+		return err
+	}
+	if !shouldValidateGateScopedResult(report) {
+		return nil
+	}
+	if err := validateGateResultIdentity(report); err != nil {
+		return err
+	}
+	if err := validateGateResultStateAndInputs(report); err != nil {
+		return err
+	}
+	return validateGateResultOverrideFields(report)
+}
+
+func validateGateEvidenceBindingFields(report RunnerResultReport) error {
+	if err := validateGateEvidencePayloadShape(report.GateEvidence); err != nil {
+		return err
+	}
+	if strings.TrimSpace(report.GateEvidenceRef) != "" && !isValidDigestIdentity(strings.TrimSpace(report.GateEvidenceRef)) {
+		return fmt.Errorf("gate_evidence_ref must be digest identity")
+	}
+	if !hasGateBinding(report.GateID, report.GateKind, report.GateVersion, report.GateAttemptID, report.GateLifecycleState, report.NormalizedInputDigests) && strings.TrimSpace(report.OverriddenFailedResultRef) == "" {
+		if report.GateEvidence != nil || strings.TrimSpace(report.GateEvidenceRef) != "" {
+			return fmt.Errorf("gate evidence requires gate identity binding")
+		}
+	}
+	return nil
+}
+
+func shouldValidateGateScopedResult(report RunnerResultReport) bool {
+	return hasGateBinding(report.GateID, report.GateKind, report.GateVersion, report.GateAttemptID, report.GateLifecycleState, report.NormalizedInputDigests) || strings.TrimSpace(report.OverriddenFailedResultRef) != ""
+}
+
+func validateGateResultIdentity(report RunnerResultReport) error {
+	if strings.TrimSpace(report.GateID) == "" || strings.TrimSpace(report.GateKind) == "" || strings.TrimSpace(report.GateVersion) == "" || strings.TrimSpace(report.GateAttemptID) == "" || strings.TrimSpace(report.GateLifecycleState) == "" {
+		return fmt.Errorf("gate-scoped result requires gate_id, gate_kind, gate_version, gate_attempt_id, and gate_lifecycle_state")
+	}
+	if !isGateKind(report.GateKind) {
+		return fmt.Errorf("unsupported gate_kind %q", report.GateKind)
+	}
+	return nil
+}
+
+func validateGateResultStateAndInputs(report RunnerResultReport) error {
+	if !isGateResultState(report.GateLifecycleState) {
+		return fmt.Errorf("unsupported gate_lifecycle_state %q for result", report.GateLifecycleState)
+	}
+	if expected, ok := gateStateForResultCode(report.ResultCode); ok && expected != report.GateLifecycleState {
+		return fmt.Errorf("result_code %q requires gate_lifecycle_state %q, got %q", report.ResultCode, expected, report.GateLifecycleState)
+	}
+	if err := validateNormalizedInputDigests(report.NormalizedInputDigests); err != nil {
+		return err
+	}
+	if strings.TrimSpace(report.ResultCode) == "gate_failed" && strings.TrimSpace(report.LifecycleState) != "failed" {
+		return fmt.Errorf("gate_failed result requires lifecycle_state failed")
+	}
+	return nil
+}
+
+func validateGateResultOverrideFields(report RunnerResultReport) error {
+	if report.GateLifecycleState == "overridden" && strings.TrimSpace(report.OverriddenFailedResultRef) == "" {
+		return fmt.Errorf("overridden gate result requires overridden_failed_result_ref")
+	}
+	if strings.TrimSpace(report.OverriddenFailedResultRef) != "" && !isValidDigestIdentity(report.OverriddenFailedResultRef) {
+		return fmt.Errorf("overridden_failed_result_ref must be digest identity")
+	}
+	return nil
+}
+
+func validateGateEvidencePayloadShape(evidence *GateEvidence) error {
+	if evidence == nil {
+		return nil
+	}
+	if err := validateGateEvidenceCoreFields(evidence); err != nil {
+		return err
+	}
+	if err := validateGateEvidenceDigestFields(evidence); err != nil {
+		return err
+	}
+	return validateGateEvidenceOverrideRefs(evidence)
+}
+
+func validateGateEvidenceCoreFields(evidence *GateEvidence) error {
+	if evidence.SchemaID != "runecode.protocol.v0.GateEvidence" {
+		return fmt.Errorf("gate_evidence.schema_id must be runecode.protocol.v0.GateEvidence")
+	}
+	if evidence.SchemaVersion != "0.1.0" {
+		return fmt.Errorf("gate_evidence.schema_version must be 0.1.0")
+	}
+	if strings.TrimSpace(evidence.GateID) == "" || strings.TrimSpace(evidence.GateKind) == "" || strings.TrimSpace(evidence.GateVersion) == "" || strings.TrimSpace(evidence.GateAttemptID) == "" {
+		return fmt.Errorf("gate_evidence requires gate_id, gate_kind, gate_version, and gate_attempt_id")
+	}
+	if !isGateKind(evidence.GateKind) {
+		return fmt.Errorf("gate_evidence has unsupported gate_kind %q", evidence.GateKind)
+	}
+	if _, err := time.Parse(time.RFC3339, strings.TrimSpace(evidence.StartedAt)); err != nil {
+		return fmt.Errorf("gate_evidence.started_at must be RFC3339")
+	}
+	if _, err := time.Parse(time.RFC3339, strings.TrimSpace(evidence.FinishedAt)); err != nil {
+		return fmt.Errorf("gate_evidence.finished_at must be RFC3339")
+	}
+	if len(evidence.Runtime) == 0 {
+		return fmt.Errorf("gate_evidence.runtime is required")
+	}
+	if len(evidence.Outcome) == 0 {
+		return fmt.Errorf("gate_evidence.outcome is required")
+	}
+	return nil
+}
+
+func validateGateEvidenceDigestFields(evidence *GateEvidence) error {
+	if err := validateNormalizedInputDigests(evidence.NormalizedInputDigests); err != nil {
+		return fmt.Errorf("gate_evidence.%w", err)
+	}
+	if err := validateNormalizedInputDigests(evidence.OutputArtifactDigests); err != nil {
+		return fmt.Errorf("gate_evidence output_artifact_digests: %w", err)
+	}
+	if err := validateNormalizedInputDigests(evidence.PolicyDecisionRefs); err != nil {
+		return fmt.Errorf("gate_evidence policy_decision_refs: %w", err)
+	}
+	return nil
+}
+
+func validateGateEvidenceOverrideRefs(evidence *GateEvidence) error {
+	if strings.TrimSpace(evidence.OverrideActionRequestHash) != "" && !isValidDigestIdentity(strings.TrimSpace(evidence.OverrideActionRequestHash)) {
+		return fmt.Errorf("gate_evidence.override_action_request_hash must be digest identity")
+	}
+	if strings.TrimSpace(evidence.OverridePolicyDecisionRef) != "" && !isValidDigestIdentity(strings.TrimSpace(evidence.OverridePolicyDecisionRef)) {
+		return fmt.Errorf("gate_evidence.override_policy_decision_ref must be digest identity")
+	}
+	if strings.TrimSpace(evidence.OverriddenFailedResultRef) != "" && !isValidDigestIdentity(strings.TrimSpace(evidence.OverriddenFailedResultRef)) {
+		return fmt.Errorf("gate_evidence.overridden_failed_result_ref must be digest identity")
+	}
+	return nil
+}
+
+func hasGateBinding(gateID, gateKind, gateVersion, gateAttemptID, gateState string, normalized []string) bool {
+	return strings.TrimSpace(gateID) != "" || strings.TrimSpace(gateKind) != "" || strings.TrimSpace(gateVersion) != "" || strings.TrimSpace(gateAttemptID) != "" || strings.TrimSpace(gateState) != "" || len(normalized) > 0
+}
+
+func isGateKind(kind string) bool {
+	switch strings.TrimSpace(kind) {
+	case "build", "test", "lint", "format", "secret_scan", "policy":
+		return true
+	default:
+		return false
+	}
+}
+
+func isGateCheckpointState(state string) bool {
+	switch strings.TrimSpace(state) {
+	case "planned", "running", "passed", "failed", "overridden", "superseded":
+		return true
+	default:
+		return false
+	}
+}
+
+func isGateResultState(state string) bool {
+	switch strings.TrimSpace(state) {
+	case "passed", "failed", "overridden", "superseded":
+		return true
+	default:
+		return false
+	}
+}
+
+func gateStateForCheckpointCode(code string) (string, bool) {
+	switch strings.TrimSpace(code) {
+	case "gate_planned":
+		return "planned", true
+	case "gate_started":
+		return "running", true
+	case "gate_passed":
+		return "passed", true
+	case "gate_failed":
+		return "failed", true
+	case "gate_overridden":
+		return "overridden", true
+	case "gate_superseded":
+		return "superseded", true
+	default:
+		return "", false
+	}
+}
+
+func gateStateForResultCode(code string) (string, bool) {
+	switch strings.TrimSpace(code) {
+	case "gate_passed":
+		return "passed", true
+	case "gate_failed":
+		return "failed", true
+	case "gate_overridden":
+		return "overridden", true
+	case "gate_superseded":
+		return "superseded", true
+	default:
+		return "", false
+	}
+}
+
+func validateNormalizedInputDigests(digests []string) error {
+	if len(digests) == 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	for _, digest := range digests {
+		d := strings.TrimSpace(digest)
+		if !isValidDigestIdentity(d) {
+			return fmt.Errorf("normalized_input_digests contains invalid digest %q", digest)
+		}
+		if _, ok := seen[d]; ok {
+			return fmt.Errorf("normalized_input_digests contains duplicate digest %q", d)
+		}
+		seen[d] = struct{}{}
+	}
+	return nil
+}
+
+func isValidDigestIdentity(value string) bool {
+	if len(value) != 71 || !strings.HasPrefix(value, "sha256:") {
+		return false
+	}
+	for _, ch := range value[len("sha256:"):] {
+		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func buildRunnerCheckpointAdvisory(report RunnerCheckpointReport, occurred time.Time, details map[string]any) artifacts.RunnerCheckpointAdvisory {
+	return artifacts.RunnerCheckpointAdvisory{
+		LifecycleState:   report.LifecycleState,
+		CheckpointCode:   report.CheckpointCode,
+		OccurredAt:       occurred.UTC(),
+		IdempotencyKey:   report.IdempotencyKey,
+		GateID:           report.GateID,
+		GateKind:         report.GateKind,
+		GateVersion:      report.GateVersion,
+		GateState:        report.GateLifecycleState,
+		StageID:          report.StageID,
+		StepID:           report.StepID,
+		RoleInstanceID:   report.RoleInstanceID,
+		StageAttemptID:   report.StageAttemptID,
+		StepAttemptID:    report.StepAttemptID,
+		GateAttemptID:    report.GateAttemptID,
+		GateEvidenceRef:  strings.TrimSpace(report.GateEvidenceRef),
+		NormalizedInputs: append([]string{}, report.NormalizedInputDigests...),
+		PendingApprovals: report.PendingApprovalCount,
+		Details:          details,
+	}
+}
+
+func buildRunnerResultAdvisory(report RunnerResultReport, occurred time.Time, details map[string]any, gateEvidenceRef string, gateResultRef string, overrideActionHash string, overridePolicyRef string) artifacts.RunnerResultAdvisory {
+	return artifacts.RunnerResultAdvisory{
+		LifecycleState:     report.LifecycleState,
+		ResultCode:         report.ResultCode,
+		OccurredAt:         occurred.UTC(),
+		IdempotencyKey:     report.IdempotencyKey,
+		GateID:             report.GateID,
+		GateKind:           report.GateKind,
+		GateVersion:        report.GateVersion,
+		GateState:          report.GateLifecycleState,
+		StageID:            report.StageID,
+		StepID:             report.StepID,
+		RoleInstanceID:     report.RoleInstanceID,
+		StageAttemptID:     report.StageAttemptID,
+		StepAttemptID:      report.StepAttemptID,
+		GateAttemptID:      report.GateAttemptID,
+		NormalizedInputs:   append([]string{}, report.NormalizedInputDigests...),
+		FailureReasonCode:  report.FailureReasonCode,
+		OverrideFailedRef:  report.OverriddenFailedResultRef,
+		OverrideActionHash: overrideActionHash,
+		OverridePolicyRef:  overridePolicyRef,
+		ResultRef:          gateResultRef,
+		GateEvidenceRef:    strings.TrimSpace(gateEvidenceRef),
+		Details:            details,
+	}
+}
+
+func (s *Service) resolveOverrideApprovalBindings(runID string, report RunnerResultReport, sanitizedDetails map[string]any) (string, string, error) {
+	if strings.TrimSpace(report.GateLifecycleState) != "overridden" {
+		return "", "", nil
+	}
+	action, err := overrideActionForResult(report, sanitizedDetails)
+	if err != nil {
+		return "", "", err
+	}
+	actionHash, err := policyengine.CanonicalActionRequestHash(action)
+	if err != nil {
+		return "", "", fmt.Errorf("canonical override action hash: %w", err)
+	}
+	latestRef, ok := s.latestGateOverridePolicyDecisionRef(runID, actionHash)
+	if !ok {
+		return "", "", fmt.Errorf("gate override requires prior policy decision approval for exact override action")
+	}
+	if err := s.requireValidGateOverrideApproval(runID, latestRef); err != nil {
+		return "", "", err
+	}
+	if !hasPolicyContextDigest(sanitizedDetails, report.NormalizedInputDigests) {
+		return "", "", fmt.Errorf("gate override result requires details.policy_context_hash present in normalized_input_digests")
+	}
+	return actionHash, latestRef, nil
+}
+
+func hasPolicyContextDigest(details map[string]any, normalizedInputDigests []string) bool {
+	value, _ := details["policy_context_hash"].(string)
+	policyContextHash := strings.TrimSpace(value)
+	if !isValidDigestIdentity(policyContextHash) {
+		return false
+	}
+	for _, digest := range normalizedInputDigests {
+		if strings.TrimSpace(digest) == policyContextHash {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Service) latestGateOverridePolicyDecisionRef(runID, actionHash string) (string, bool) {
+	latest := ""
+	for _, ref := range s.PolicyDecisionRefsForRun(runID) {
+		rec, ok := s.PolicyDecisionGet(ref)
+		if !ok || !matchesGateOverridePolicyDecision(rec, actionHash) {
+			continue
+		}
+		latest = ref
+	}
+	if latest == "" {
+		return "", false
+	}
+	return latest, true
+}
+
+func matchesGateOverridePolicyDecision(rec artifacts.PolicyDecisionRecord, actionHash string) bool {
+	if rec.DecisionOutcome != string(policyengine.DecisionRequireHumanApproval) {
+		return false
+	}
+	if strings.TrimSpace(rec.ActionRequestHash) != actionHash {
+		return false
+	}
+	if strings.TrimSpace(rec.PolicyReasonCode) != "approval_required" {
+		return false
+	}
+	trigger, _ := rec.RequiredApproval["approval_trigger_code"].(string)
+	return strings.TrimSpace(trigger) == "gate_override"
+}
+
+func (s *Service) requireValidGateOverrideApproval(runID, policyDecisionRef string) error {
+	for _, approval := range s.listApprovals() {
+		if !isMatchingApprovedGateOverrideApproval(approval, runID, policyDecisionRef) {
+			continue
+		}
+		if err := validateGateOverrideApprovalExpiry(approval.ExpiresAt, s.now().UTC()); err != nil {
+			return err
+		}
+		return nil
+	}
+	return fmt.Errorf("gate override requires explicit approved approval")
+}
+
+func isMatchingApprovedGateOverrideApproval(approval ApprovalSummary, runID, policyDecisionRef string) bool {
+	if approval.BoundScope.RunID != runID {
+		return false
+	}
+	if approval.BoundScope.ActionKind != policyengine.ActionKindGateOverride {
+		return false
+	}
+	if strings.TrimSpace(approval.PolicyDecisionHash) != policyDecisionRef {
+		return false
+	}
+	return approval.Status == "approved"
+}
+
+func validateGateOverrideApprovalExpiry(expiresAtRaw string, now time.Time) error {
+	if expiresAtRaw == "" {
+		return fmt.Errorf("gate override approval missing expires_at")
+	}
+	expiresAt, err := time.Parse(time.RFC3339, expiresAtRaw)
+	if err != nil {
+		return fmt.Errorf("gate override approval has invalid expires_at")
+	}
+	if now.After(expiresAt.UTC()) {
+		return fmt.Errorf("gate override approval expired")
+	}
+	return nil
+}
+
+func overrideActionForResult(report RunnerResultReport, details map[string]any) (policyengine.ActionRequest, error) {
+	if strings.TrimSpace(report.GateID) == "" || strings.TrimSpace(report.GateKind) == "" || strings.TrimSpace(report.GateVersion) == "" || strings.TrimSpace(report.GateAttemptID) == "" || strings.TrimSpace(report.OverriddenFailedResultRef) == "" {
+		return policyengine.ActionRequest{}, fmt.Errorf("gate override action requires gate identity, gate_attempt_id, and overridden_failed_result_ref")
+	}
+	policyContextHash, _ := details["policy_context_hash"].(string)
+	policyContextHash = strings.TrimSpace(policyContextHash)
+	if !isValidDigestIdentity(policyContextHash) {
+		return policyengine.ActionRequest{}, fmt.Errorf("gate override result requires details.policy_context_hash digest")
+	}
+	if !hasPolicyContextDigest(details, report.NormalizedInputDigests) {
+		return policyengine.ActionRequest{}, fmt.Errorf("details.policy_context_hash must be present in normalized_input_digests")
+	}
+	expiresAt := ""
+	if value, ok := details["override_expires_at"].(string); ok {
+		expiresAt = strings.TrimSpace(value)
+	}
+	if expiresAt == "" {
+		return policyengine.ActionRequest{}, fmt.Errorf("gate override result requires details.override_expires_at")
+	}
+	if _, err := time.Parse(time.RFC3339, expiresAt); err != nil {
+		return policyengine.ActionRequest{}, fmt.Errorf("details.override_expires_at must be RFC3339")
+	}
+	ticketRef := ""
+	if value, ok := details["ticket_ref"].(string); ok {
+		ticketRef = strings.TrimSpace(value)
+	}
+	overrideMode := "break_glass"
+	if value, ok := details["override_mode"].(string); ok && strings.TrimSpace(value) != "" {
+		overrideMode = strings.TrimSpace(value)
+	}
+	if overrideMode != "break_glass" && overrideMode != "temporary_allow" {
+		return policyengine.ActionRequest{}, fmt.Errorf("details.override_mode must be one of: break_glass, temporary_allow")
+	}
+	justification := "gate override continuation"
+	if value, ok := details["override_reason"].(string); ok && strings.TrimSpace(value) != "" {
+		justification = strings.TrimSpace(value)
+	}
+	if len(justification) > 512 {
+		return policyengine.ActionRequest{}, fmt.Errorf("details.override_reason exceeds max length 512")
+	}
+	if len(ticketRef) > 256 {
+		return policyengine.ActionRequest{}, fmt.Errorf("details.ticket_ref exceeds max length 256")
+	}
+	return policyengine.NewGateOverrideAction(policyengine.GateOverrideActionInput{
+		ActionEnvelope: policyengine.ActionEnvelope{
+			CapabilityID: "cap_gate_override",
+			Actor: policyengine.ActionActor{
+				ActorKind:  "daemon",
+				RoleFamily: "workspace",
+				RoleKind:   "workspace-edit",
+			},
+		},
+		GateID:                    strings.TrimSpace(report.GateID),
+		GateKind:                  strings.TrimSpace(report.GateKind),
+		GateVersion:               strings.TrimSpace(report.GateVersion),
+		GateAttemptID:             strings.TrimSpace(report.GateAttemptID),
+		OverriddenFailedResultRef: strings.TrimSpace(report.OverriddenFailedResultRef),
+		PolicyContextHash:         policyContextHash,
+		OverrideMode:              overrideMode,
+		Justification:             justification,
+		ExpiresAt:                 expiresAt,
+		TicketRef:                 ticketRef,
+	}), nil
+}
+
+func validateCheckpointGateAttemptMutation(advisory artifacts.RunnerAdvisoryState, report RunnerCheckpointReport) error {
+	gateAttemptID := strings.TrimSpace(report.GateAttemptID)
+	if gateAttemptID == "" {
+		return nil
+	}
+	existing, ok := advisory.GateAttempts[gateAttemptID]
+	if !ok {
+		return nil
+	}
+	if existing.Terminal {
+		return fmt.Errorf("gate_attempt_id %q already terminal; retries must mint a new gate_attempt_id", gateAttemptID)
+	}
+	if strings.TrimSpace(existing.GateID) != "" && strings.TrimSpace(existing.GateID) != strings.TrimSpace(report.GateID) {
+		return fmt.Errorf("gate_attempt_id %q identity mismatch for gate_id", gateAttemptID)
+	}
+	if strings.TrimSpace(existing.GateKind) != "" && strings.TrimSpace(existing.GateKind) != strings.TrimSpace(report.GateKind) {
+		return fmt.Errorf("gate_attempt_id %q identity mismatch for gate_kind", gateAttemptID)
+	}
+	if strings.TrimSpace(existing.GateVersion) != "" && strings.TrimSpace(existing.GateVersion) != strings.TrimSpace(report.GateVersion) {
+		return fmt.Errorf("gate_attempt_id %q identity mismatch for gate_version", gateAttemptID)
+	}
+	return nil
+}
+
+func validateResultGateAttemptMutation(advisory artifacts.RunnerAdvisoryState, report RunnerResultReport) error {
+	gateAttemptID := strings.TrimSpace(report.GateAttemptID)
+	if gateAttemptID == "" {
+		return nil
+	}
+	existing, ok := advisory.GateAttempts[gateAttemptID]
+	if !ok {
+		return nil
+	}
+	if existing.Terminal {
+		return fmt.Errorf("gate_attempt_id %q already has terminal result; retries must mint a new gate_attempt_id", gateAttemptID)
+	}
+	if strings.TrimSpace(existing.GateID) != "" && strings.TrimSpace(existing.GateID) != strings.TrimSpace(report.GateID) {
+		return fmt.Errorf("gate_attempt_id %q identity mismatch for gate_id", gateAttemptID)
+	}
+	if strings.TrimSpace(existing.GateKind) != "" && strings.TrimSpace(existing.GateKind) != strings.TrimSpace(report.GateKind) {
+		return fmt.Errorf("gate_attempt_id %q identity mismatch for gate_kind", gateAttemptID)
+	}
+	if strings.TrimSpace(existing.GateVersion) != "" && strings.TrimSpace(existing.GateVersion) != strings.TrimSpace(report.GateVersion) {
+		return fmt.Errorf("gate_attempt_id %q identity mismatch for gate_version", gateAttemptID)
+	}
+	return nil
+}
+
+func validateOverrideReferenceAgainstHistory(advisory artifacts.RunnerAdvisoryState, report RunnerResultReport) error {
+	if strings.TrimSpace(report.GateLifecycleState) != "overridden" {
+		return nil
+	}
+	ref := strings.TrimSpace(report.OverriddenFailedResultRef)
+	if ref == "" {
+		return nil
+	}
+	for _, attempt := range advisory.GateAttempts {
+		if strings.TrimSpace(attempt.ResultRef) != ref {
+			continue
+		}
+		if strings.TrimSpace(attempt.GateState) != "failed" {
+			return fmt.Errorf("overridden_failed_result_ref must reference a failed gate result")
+		}
+		if strings.TrimSpace(attempt.GateID) != strings.TrimSpace(report.GateID) || strings.TrimSpace(attempt.GateKind) != strings.TrimSpace(report.GateKind) || strings.TrimSpace(attempt.GateVersion) != strings.TrimSpace(report.GateVersion) {
+			return fmt.Errorf("overridden_failed_result_ref must reference matching gate identity")
+		}
+		if strings.TrimSpace(attempt.GateAttemptID) == strings.TrimSpace(report.GateAttemptID) {
+			return fmt.Errorf("overridden_failed_result_ref must reference a prior failed gate attempt")
+		}
+		return nil
+	}
+	return fmt.Errorf("overridden_failed_result_ref does not reference known failed gate result")
+}
+
+func canonicalGateResultRef(runID string, report RunnerResultReport, gateEvidenceRef string) (string, error) {
+	if !hasGateBinding(report.GateID, report.GateKind, report.GateVersion, report.GateAttemptID, report.GateLifecycleState, report.NormalizedInputDigests) {
+		return "", nil
+	}
+	payload := map[string]any{
+		"schema_id":                    "runecode.protocol.v0.GateResultReport",
+		"schema_version":               "0.1.0",
+		"run_id":                       strings.TrimSpace(runID),
+		"gate_id":                      strings.TrimSpace(report.GateID),
+		"gate_kind":                    strings.TrimSpace(report.GateKind),
+		"gate_version":                 strings.TrimSpace(report.GateVersion),
+		"gate_attempt_id":              strings.TrimSpace(report.GateAttemptID),
+		"lifecycle_state":              strings.TrimSpace(report.GateLifecycleState),
+		"result_code":                  strings.TrimSpace(report.ResultCode),
+		"occurred_at":                  strings.TrimSpace(report.OccurredAt),
+		"idempotency_key":              strings.TrimSpace(report.IdempotencyKey),
+		"stage_id":                     strings.TrimSpace(report.StageID),
+		"step_id":                      strings.TrimSpace(report.StepID),
+		"role_instance_id":             strings.TrimSpace(report.RoleInstanceID),
+		"stage_attempt_id":             strings.TrimSpace(report.StageAttemptID),
+		"step_attempt_id":              strings.TrimSpace(report.StepAttemptID),
+		"failure_reason_code":          strings.TrimSpace(report.FailureReasonCode),
+		"overridden_failed_result_ref": strings.TrimSpace(report.OverriddenFailedResultRef),
+		"gate_evidence_ref":            strings.TrimSpace(gateEvidenceRef),
+	}
+	if len(report.NormalizedInputDigests) > 0 {
+		payload["normalized_input_digests"] = append([]string{}, report.NormalizedInputDigests...)
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("marshal gate result ref payload: %w", err)
+	}
+	canonical, err := jsoncanonicalizer.Transform(b)
+	if err != nil {
+		return "", fmt.Errorf("canonicalize gate result ref payload: %w", err)
+	}
+	sum := sha256.Sum256(canonical)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+func (s *Service) resolveGateEvidenceRef(runID string, report RunnerResultReport) (string, error) {
+	providedRef := strings.TrimSpace(report.GateEvidenceRef)
+	if report.GateEvidence == nil {
+		return providedRef, nil
+	}
+	evidence := report.GateEvidence
+	runtimeSummary, err := sanitizeRunnerDetails(evidence.Runtime)
+	if err != nil {
+		return "", fmt.Errorf("gate_evidence.runtime: %w", err)
+	}
+	outcomeSummary, err := sanitizeRunnerDetails(evidence.Outcome)
+	if err != nil {
+		return "", fmt.Errorf("gate_evidence.outcome: %w", err)
+	}
+	if strings.TrimSpace(evidence.RunID) != strings.TrimSpace(runID) {
+		return "", fmt.Errorf("gate_evidence.run_id must match run_id")
+	}
+	if strings.TrimSpace(evidence.GateID) != strings.TrimSpace(report.GateID) || strings.TrimSpace(evidence.GateKind) != strings.TrimSpace(report.GateKind) || strings.TrimSpace(evidence.GateVersion) != strings.TrimSpace(report.GateVersion) || strings.TrimSpace(evidence.GateAttemptID) != strings.TrimSpace(report.GateAttemptID) {
+		return "", fmt.Errorf("gate_evidence identity must match gate report binding")
+	}
+	evidenceRecord := artifacts.GateEvidenceArtifact{
+		SchemaID:               evidence.SchemaID,
+		SchemaVersion:          evidence.SchemaVersion,
+		GateID:                 evidence.GateID,
+		GateKind:               evidence.GateKind,
+		GateVersion:            evidence.GateVersion,
+		RunID:                  evidence.RunID,
+		StageID:                evidence.StageID,
+		StepID:                 evidence.StepID,
+		RoleInstanceID:         evidence.RoleInstanceID,
+		GateAttemptID:          evidence.GateAttemptID,
+		StartedAt:              evidence.StartedAt,
+		FinishedAt:             evidence.FinishedAt,
+		NormalizedInputDigests: append([]string{}, evidence.NormalizedInputDigests...),
+		Runtime:                runtimeSummary,
+		Outcome:                outcomeSummary,
+		OutputArtifactDigests:  append([]string{}, evidence.OutputArtifactDigests...),
+		PolicyDecisionRefs:     append([]string{}, evidence.PolicyDecisionRefs...),
+		OverrideActionHash:     evidence.OverrideActionRequestHash,
+		OverridePolicyRef:      evidence.OverridePolicyDecisionRef,
+		OverriddenFailedRef:    evidence.OverriddenFailedResultRef,
+		FailureReasonCode:      evidence.FailureReasonCode,
+	}
+	ref, err := s.PutGateEvidence(runID, evidenceRecord)
+	if err != nil {
+		return "", err
+	}
+	if providedRef != "" && providedRef != ref.Digest {
+		return "", fmt.Errorf("gate_evidence_ref does not match canonical evidence digest")
+	}
+	return ref.Digest, nil
 }
 
 func validateRunnerCheckpointPhaseTransition(advisory artifacts.RunnerAdvisoryState, report RunnerCheckpointReport) error {
@@ -506,7 +1217,22 @@ func cloneRunnerDetailsMap(details map[string]any) map[string]any {
 	}
 	out := make(map[string]any, len(details))
 	for key, value := range details {
-		out[key] = value
+		out[key] = cloneRunnerDetailsValue(value)
 	}
 	return out
+}
+
+func cloneRunnerDetailsValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneRunnerDetailsMap(typed)
+	case []any:
+		out := make([]any, len(typed))
+		for i := range typed {
+			out[i] = cloneRunnerDetailsValue(typed[i])
+		}
+		return out
+	default:
+		return typed
+	}
 }

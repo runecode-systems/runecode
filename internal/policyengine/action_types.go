@@ -79,11 +79,16 @@ type BackendPostureChangeActionInput struct {
 
 type GateOverrideActionInput struct {
 	ActionEnvelope
-	GateName      string
-	OverrideMode  string
-	Justification string
-	ExpiresAt     string
-	TicketRef     string
+	GateID                    string
+	GateKind                  string
+	GateVersion               string
+	GateAttemptID             string
+	OverriddenFailedResultRef string
+	PolicyContextHash         string
+	OverrideMode              string
+	Justification             string
+	ExpiresAt                 string
+	TicketRef                 string
 }
 
 type SecretAccessActionInput struct {

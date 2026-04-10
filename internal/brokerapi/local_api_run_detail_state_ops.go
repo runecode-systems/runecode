@@ -149,6 +149,9 @@ func buildAdvisoryRunState(advisory artifacts.RunnerAdvisoryState) map[string]an
 	if stepAttempts := buildAdvisoryStepAttemptsState(advisory.StepAttempts, pendingByScope); len(stepAttempts) > 0 {
 		state["step_attempts"] = stepAttempts
 	}
+	if gateAttempts := buildAdvisoryGateAttemptsState(advisory.GateAttempts); len(gateAttempts) > 0 {
+		state["gate_attempts"] = gateAttempts
+	}
 	if len(advisory.ApprovalWaits) > 0 {
 		state["approval_waits"] = redactedApprovalWaits(advisory.ApprovalWaits)
 	}
@@ -175,13 +178,21 @@ func buildAdvisoryLastCheckpointState(checkpoint *artifacts.RunnerCheckpointAdvi
 		"checkpoint_code":        checkpoint.CheckpointCode,
 		"occurred_at":            checkpoint.OccurredAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 		"idempotency_key":        checkpoint.IdempotencyKey,
+		"gate_id":                checkpoint.GateID,
+		"gate_kind":              checkpoint.GateKind,
+		"gate_version":           checkpoint.GateVersion,
+		"gate_lifecycle_state":   checkpoint.GateState,
 		"stage_id":               checkpoint.StageID,
 		"step_id":                checkpoint.StepID,
 		"role_instance_id":       checkpoint.RoleInstanceID,
 		"stage_attempt_id":       checkpoint.StageAttemptID,
 		"step_attempt_id":        checkpoint.StepAttemptID,
 		"gate_attempt_id":        checkpoint.GateAttemptID,
+		"gate_evidence_ref":      checkpoint.GateEvidenceRef,
 		"pending_approval_count": checkpoint.PendingApprovals,
+	}
+	if len(checkpoint.NormalizedInputs) > 0 {
+		state["normalized_input_digests"] = append([]string{}, checkpoint.NormalizedInputs...)
 	}
 	if len(checkpoint.Details) > 0 {
 		state["details"] = checkpoint.Details
@@ -194,17 +205,37 @@ func buildAdvisoryLastResultState(result *artifacts.RunnerResultAdvisory) map[st
 		return nil
 	}
 	state := map[string]any{
-		"lifecycle_state":     result.LifecycleState,
-		"result_code":         result.ResultCode,
-		"occurred_at":         result.OccurredAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-		"idempotency_key":     result.IdempotencyKey,
-		"stage_id":            result.StageID,
-		"step_id":             result.StepID,
-		"role_instance_id":    result.RoleInstanceID,
-		"stage_attempt_id":    result.StageAttemptID,
-		"step_attempt_id":     result.StepAttemptID,
-		"gate_attempt_id":     result.GateAttemptID,
-		"failure_reason_code": result.FailureReasonCode,
+		"lifecycle_state":              result.LifecycleState,
+		"result_code":                  result.ResultCode,
+		"occurred_at":                  result.OccurredAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		"idempotency_key":              result.IdempotencyKey,
+		"gate_id":                      result.GateID,
+		"gate_kind":                    result.GateKind,
+		"gate_version":                 result.GateVersion,
+		"gate_lifecycle_state":         result.GateState,
+		"stage_id":                     result.StageID,
+		"step_id":                      result.StepID,
+		"role_instance_id":             result.RoleInstanceID,
+		"stage_attempt_id":             result.StageAttemptID,
+		"step_attempt_id":              result.StepAttemptID,
+		"gate_attempt_id":              result.GateAttemptID,
+		"gate_evidence_ref":            result.GateEvidenceRef,
+		"gate_result_ref":              result.ResultRef,
+		"failure_reason_code":          result.FailureReasonCode,
+		"override_action_request_hash": result.OverrideActionHash,
+		"override_policy_decision_ref": result.OverridePolicyRef,
+	}
+	if len(result.NormalizedInputs) > 0 {
+		state["normalized_input_digests"] = append([]string{}, result.NormalizedInputs...)
+	}
+	if result.OverrideFailedRef != "" {
+		state["overridden_failed_result_ref"] = result.OverrideFailedRef
+	}
+	if result.OverrideActionHash != "" {
+		state["override_action_request_hash"] = result.OverrideActionHash
+	}
+	if result.OverridePolicyRef != "" {
+		state["override_policy_decision_ref"] = result.OverridePolicyRef
 	}
 	if len(result.Details) > 0 {
 		state["details"] = result.Details
@@ -250,15 +281,20 @@ func buildAdvisoryStepAttemptsState(stepAttempts map[string]artifacts.RunnerStep
 
 func buildAdvisoryStepAttemptEntry(hint artifacts.RunnerStepHint, pendingByScope map[string]int) map[string]any {
 	entry := map[string]any{
-		"step_attempt_id":  hint.StepAttemptID,
-		"run_id":           hint.RunID,
-		"stage_id":         hint.StageID,
-		"step_id":          hint.StepID,
-		"role_instance_id": hint.RoleInstanceID,
-		"stage_attempt_id": hint.StageAttemptID,
-		"gate_attempt_id":  hint.GateAttemptID,
-		"status":           hint.Status,
-		"last_updated_at":  hint.LastUpdatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		"step_attempt_id":      hint.StepAttemptID,
+		"run_id":               hint.RunID,
+		"gate_id":              hint.GateID,
+		"gate_kind":            hint.GateKind,
+		"gate_version":         hint.GateVersion,
+		"gate_lifecycle_state": hint.GateState,
+		"stage_id":             hint.StageID,
+		"step_id":              hint.StepID,
+		"role_instance_id":     hint.RoleInstanceID,
+		"stage_attempt_id":     hint.StageAttemptID,
+		"gate_attempt_id":      hint.GateAttemptID,
+		"gate_evidence_ref":    hint.GateEvidenceRef,
+		"status":               hint.Status,
+		"last_updated_at":      hint.LastUpdatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 	}
 	if !hint.StartedAt.IsZero() {
 		entry["started_at"] = hint.StartedAt.UTC().Format("2006-01-02T15:04:05Z07:00")
@@ -280,6 +316,45 @@ func buildAdvisoryStepAttemptEntry(hint artifacts.RunnerStepHint, pendingByScope
 	}
 	entry["blocked_on_scope_pending_approval"] = false
 	return entry
+}
+
+func buildAdvisoryGateAttemptsState(gateAttempts map[string]artifacts.RunnerGateHint) map[string]any {
+	if len(gateAttempts) == 0 {
+		return nil
+	}
+	out := map[string]any{}
+	for attemptID, hint := range gateAttempts {
+		entry := map[string]any{
+			"gate_attempt_id":              hint.GateAttemptID,
+			"run_id":                       hint.RunID,
+			"gate_id":                      hint.GateID,
+			"gate_kind":                    hint.GateKind,
+			"gate_version":                 hint.GateVersion,
+			"gate_lifecycle_state":         hint.GateState,
+			"stage_id":                     hint.StageID,
+			"step_id":                      hint.StepID,
+			"role_instance_id":             hint.RoleInstanceID,
+			"stage_attempt_id":             hint.StageAttemptID,
+			"step_attempt_id":              hint.StepAttemptID,
+			"gate_evidence_ref":            hint.GateEvidenceRef,
+			"gate_result_ref":              hint.ResultRef,
+			"failure_reason_code":          hint.FailureReasonCode,
+			"overridden_failed_result_ref": hint.OverrideFailedRef,
+			"override_action_request_hash": hint.OverrideActionHash,
+			"override_policy_decision_ref": hint.OverridePolicyRef,
+			"result_code":                  hint.ResultCode,
+			"terminal":                     hint.Terminal,
+			"last_updated_at":              hint.LastUpdatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		}
+		if !hint.StartedAt.IsZero() {
+			entry["started_at"] = hint.StartedAt.UTC().Format("2006-01-02T15:04:05Z07:00")
+		}
+		if !hint.FinishedAt.IsZero() {
+			entry["finished_at"] = hint.FinishedAt.UTC().Format("2006-01-02T15:04:05Z07:00")
+		}
+		out[attemptID] = entry
+	}
+	return out
 }
 
 func redactedApprovalWaits(waits map[string]artifacts.RunnerApproval) map[string]artifacts.RunnerApproval {
