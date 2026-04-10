@@ -14,6 +14,9 @@ func Compile(input CompileInput) (*CompiledContext, error) {
 	if err := ensureApprovalProfileCompatibility(decoded); err != nil {
 		return nil, err
 	}
+	if err := ensureRoleBindingAndCapabilityManifestCompatibility(decoded); err != nil {
+		return nil, err
+	}
 	roleCaps, runCaps, stageCaps, effectiveCaps := computeCapabilitySets(decoded, input.FixedInvariants)
 	activeRefs, err := activeAllowlistRefs(decoded.roleManifest, decoded.runManifest, decoded.stageManifest, decoded.allowlistsByHash)
 	if err != nil {
@@ -119,6 +122,93 @@ func ensureApprovalProfileCompatibility(decoded *decodedCompileInputs) error {
 		return &EvaluationError{Code: ErrCodeBrokerLimitPolicyReject, Category: "policy", Retryable: false, Message: fmt.Sprintf("run/stage approval_profile mismatch: %q != %q", decoded.runManifest.ApprovalProfile, decoded.stageManifest.ApprovalProfile)}
 	}
 	return nil
+}
+
+func ensureRoleBindingAndCapabilityManifestCompatibility(decoded *decodedCompileInputs) error {
+	if decoded.roleManifest.RoleFamily == "workspace" {
+		if err := validateWorkspaceRoleCapabilityManifest(decoded.roleManifest.RoleKind, decoded.roleManifest.CapabilityOptIns, "role manifest"); err != nil {
+			return err
+		}
+	}
+	if err := ensureCapabilityManifestRoleBinding(decoded.roleManifest.RoleFamily, decoded.roleManifest.RoleKind, decoded.runManifest, "run manifest"); err != nil {
+		return err
+	}
+	if decoded.stageManifest != nil {
+		if err := ensureCapabilityManifestRoleBinding(decoded.roleManifest.RoleFamily, decoded.roleManifest.RoleKind, *decoded.stageManifest, "stage manifest"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureCapabilityManifestRoleBinding(expectedRoleFamily, expectedRoleKind string, manifest CapabilityManifest, manifestLabel string) error {
+	if manifest.Principal.RoleFamily == "" {
+		return &EvaluationError{Code: ErrCodeBrokerValidationOperation, Category: "validation", Retryable: false, Message: fmt.Sprintf("%s principal.role_family is required for explicit role capability manifests (fail-closed)", manifestLabel)}
+	}
+	if manifest.Principal.RoleKind == "" {
+		return &EvaluationError{Code: ErrCodeBrokerValidationOperation, Category: "validation", Retryable: false, Message: fmt.Sprintf("%s principal.role_kind is required for explicit role capability manifests (fail-closed)", manifestLabel)}
+	}
+	if manifest.Principal.RoleFamily != "" && manifest.Principal.RoleFamily != expectedRoleFamily {
+		return &EvaluationError{Code: ErrCodeBrokerValidationOperation, Category: "validation", Retryable: false, Message: fmt.Sprintf("%s principal.role_family %q does not match role manifest role_family %q", manifestLabel, manifest.Principal.RoleFamily, expectedRoleFamily)}
+	}
+	if manifest.Principal.RoleKind != "" && manifest.Principal.RoleKind != expectedRoleKind {
+		return &EvaluationError{Code: ErrCodeBrokerValidationOperation, Category: "validation", Retryable: false, Message: fmt.Sprintf("%s principal.role_kind %q does not match role manifest role_kind %q", manifestLabel, manifest.Principal.RoleKind, expectedRoleKind)}
+	}
+	if expectedRoleFamily == "workspace" {
+		if err := validateWorkspaceRoleCapabilityManifest(expectedRoleKind, manifest.CapabilityOptIns, manifestLabel); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateWorkspaceRoleCapabilityManifest(roleKind string, capabilityOptIns []string, manifestLabel string) error {
+	allowed, known := workspaceRoleAllowedCapabilities()[roleKind]
+	if !known {
+		return &EvaluationError{Code: ErrCodeBrokerValidationOperation, Category: "validation", Retryable: false, Message: fmt.Sprintf("%s role_kind %q missing explicit workspace capability manifest policy (fail-closed)", manifestLabel, roleKind)}
+	}
+	for _, cap := range capabilityOptIns {
+		if _, ok := allowed[cap]; !ok {
+			return &EvaluationError{Code: ErrCodeBrokerValidationOperation, Category: "validation", Retryable: false, Message: fmt.Sprintf("%s capability %q is not allowed for workspace role_kind %q", manifestLabel, cap, roleKind)}
+		}
+	}
+	return nil
+}
+
+func knownWorkspaceRoleKinds() map[string]struct{} {
+	return map[string]struct{}{
+		"workspace-read": {},
+		"workspace-edit": {},
+		"workspace-test": {},
+	}
+}
+
+func workspaceRoleAllowedCapabilities() map[string]map[string]struct{} {
+	return map[string]map[string]struct{}{
+		"workspace-read": {
+			"cap_artifact_read": {},
+		},
+		"workspace-edit": {
+			"cap_stage":         {},
+			"cap_run":           {},
+			"cap_exec":          {},
+			"cap_artifact_read": {},
+			"cap_backend":       {},
+			"promotion":         {},
+			"cap_other":         {},
+			"always_denied":     {},
+		},
+		"workspace-test": {
+			"cap_stage":         {},
+			"cap_run":           {},
+			"cap_exec":          {},
+			"cap_artifact_read": {},
+			"cap_backend":       {},
+			"promotion":         {},
+			"cap_other":         {},
+			"always_denied":     {},
+		},
+	}
 }
 
 func computeCapabilitySets(decoded *decodedCompileInputs, invariants FixedInvariants) ([]string, []string, []string, []string) {

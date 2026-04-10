@@ -9,60 +9,49 @@ import (
 	"github.com/runecode-ai/runecode/internal/artifacts"
 )
 
+const (
+	runnerDetailsMaxEntries  = 64
+	runnerDetailsMaxDepth    = 4
+	runnerDetailsMaxStrLen   = 1024
+	runnerDetailsMaxArrayLen = 64
+)
+
+type runnerReportPreparation struct {
+	requestID string
+	runID     string
+	occurred  time.Time
+	current   string
+	found     bool
+}
+
 func (s *Service) HandleRunnerCheckpointReport(ctx context.Context, req RunnerCheckpointReportRequest, meta RequestContext) (RunnerCheckpointReportResponse, *ErrorResponse) {
-	requestID, errResp := s.prepareLocalRequest(req.RequestID, meta.RequestID, meta.AdmissionErr, req, runnerCheckpointRequestSchemaPath)
+	prep, release, errResp := s.prepareRunnerCheckpointReport(ctx, req, meta)
 	if errResp != nil {
 		return RunnerCheckpointReportResponse{}, errResp
 	}
-	release, err := s.acquireInFlight(meta)
-	if err != nil {
-		errOut := s.errorFromLimit(requestID, err)
-		return RunnerCheckpointReportResponse{}, &errOut
-	}
 	defer release()
-	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
-	defer cancel()
-	if err := requestCtx.Err(); err != nil {
-		errOut := s.errorFromContext(requestID, err)
-		return RunnerCheckpointReportResponse{}, &errOut
-	}
-	runID := strings.TrimSpace(req.RunID)
-	if runID == "" {
-		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "run_id is required")
-		return RunnerCheckpointReportResponse{}, &errOut
-	}
-	occurredAt, err := time.Parse(time.RFC3339, req.Report.OccurredAt)
-	if err != nil {
-		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "report.occurred_at must be RFC3339")
-		return RunnerCheckpointReportResponse{}, &errOut
-	}
-	current, found, err := s.currentCanonicalLifecycleForRun(runID)
-	if err != nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
-		return RunnerCheckpointReportResponse{}, &errOut
-	}
-	if err := validateRunnerCheckpointTransition(current, found, req.Report.LifecycleState); err != nil {
-		errOut := s.makeError(requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
+	if err := validateRunnerCheckpointTransition(prep.current, prep.found, req.Report.LifecycleState); err != nil {
+		errOut := s.makeError(prep.requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
 		return RunnerCheckpointReportResponse{}, &errOut
 	}
 	if err := validateRunnerCheckpointCode(req.Report.CheckpointCode); err != nil {
-		errOut := s.makeError(requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
+		errOut := s.makeError(prep.requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
 		return RunnerCheckpointReportResponse{}, &errOut
 	}
-	runnerAdvisory, _ := s.RunnerAdvisory(runID)
+	runnerAdvisory, _ := s.RunnerAdvisory(prep.runID)
 	if err := validateRunnerCheckpointPhaseTransition(runnerAdvisory, req.Report); err != nil {
-		errOut := s.makeError(requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
+		errOut := s.makeError(prep.requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
 		return RunnerCheckpointReportResponse{}, &errOut
 	}
 	details, err := sanitizeRunnerDetails(req.Report.Details)
 	if err != nil {
-		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
+		errOut := s.makeError(prep.requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
 		return RunnerCheckpointReportResponse{}, &errOut
 	}
-	accepted, err := s.RecordRunnerCheckpoint(runID, artifacts.RunnerCheckpointAdvisory{
+	accepted, err := s.RecordRunnerCheckpoint(prep.runID, artifacts.RunnerCheckpointAdvisory{
 		LifecycleState:   req.Report.LifecycleState,
 		CheckpointCode:   req.Report.CheckpointCode,
-		OccurredAt:       occurredAt.UTC(),
+		OccurredAt:       prep.occurred.UTC(),
 		IdempotencyKey:   req.Report.IdempotencyKey,
 		StageID:          req.Report.StageID,
 		StepID:           req.Report.StepID,
@@ -74,97 +63,52 @@ func (s *Service) HandleRunnerCheckpointReport(ctx context.Context, req RunnerCh
 		Details:          details,
 	})
 	if err != nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
+		errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, err.Error())
 		return RunnerCheckpointReportResponse{}, &errOut
 	}
 	if !accepted {
-		canonical, _, lookupErr := s.currentCanonicalLifecycleForRun(runID)
+		canonical, _, lookupErr := s.currentCanonicalLifecycleForRun(prep.runID)
 		if lookupErr != nil {
-			errOut := s.makeError(requestID, "gateway_failure", "internal", false, lookupErr.Error())
+			errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, lookupErr.Error())
 			return RunnerCheckpointReportResponse{}, &errOut
 		}
-		resp := RunnerCheckpointReportResponse{SchemaID: "runecode.protocol.v0.RunnerCheckpointReportResponse", SchemaVersion: "0.1.0", RequestID: requestID, RunID: runID, Accepted: false, CanonicalLifecycleState: canonical, AcceptedAt: s.now().UTC().Format(time.RFC3339), IdempotencyKey: req.Report.IdempotencyKey}
-		if err := s.validateResponse(resp, runnerCheckpointRespSchemaPath); err != nil {
-			errOut := s.errorFromValidation(requestID, err)
-			return RunnerCheckpointReportResponse{}, &errOut
-		}
-		return resp, nil
+		return s.buildRunnerCheckpointReportResponse(prep.requestID, prep.runID, canonical, req.Report.IdempotencyKey, false)
 	}
-	if err := s.SetRunStatus(runID, mapLifecycleToStoreStatus(req.Report.LifecycleState)); err != nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
+	if err := s.SetRunStatus(prep.runID, mapLifecycleToStoreStatus(req.Report.LifecycleState)); err != nil {
+		errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, err.Error())
 		return RunnerCheckpointReportResponse{}, &errOut
 	}
-	canonical, _, err := s.currentCanonicalLifecycleForRun(runID)
+	canonical, _, err := s.currentCanonicalLifecycleForRun(prep.runID)
 	if err != nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
+		errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, err.Error())
 		return RunnerCheckpointReportResponse{}, &errOut
 	}
-	resp := RunnerCheckpointReportResponse{
-		SchemaID:                "runecode.protocol.v0.RunnerCheckpointReportResponse",
-		SchemaVersion:           "0.1.0",
-		RequestID:               requestID,
-		RunID:                   runID,
-		Accepted:                true,
-		CanonicalLifecycleState: canonical,
-		AcceptedAt:              s.now().UTC().Format(time.RFC3339),
-		IdempotencyKey:          req.Report.IdempotencyKey,
-	}
-	if err := s.validateResponse(resp, runnerCheckpointRespSchemaPath); err != nil {
-		errOut := s.errorFromValidation(requestID, err)
-		return RunnerCheckpointReportResponse{}, &errOut
-	}
-	return resp, nil
+	return s.buildRunnerCheckpointReportResponse(prep.requestID, prep.runID, canonical, req.Report.IdempotencyKey, true)
 }
 
 func (s *Service) HandleRunnerResultReport(ctx context.Context, req RunnerResultReportRequest, meta RequestContext) (RunnerResultReportResponse, *ErrorResponse) {
-	requestID, errResp := s.prepareLocalRequest(req.RequestID, meta.RequestID, meta.AdmissionErr, req, runnerResultRequestSchemaPath)
+	prep, release, errResp := s.prepareRunnerResultReport(ctx, req, meta)
 	if errResp != nil {
 		return RunnerResultReportResponse{}, errResp
 	}
-	release, err := s.acquireInFlight(meta)
-	if err != nil {
-		errOut := s.errorFromLimit(requestID, err)
-		return RunnerResultReportResponse{}, &errOut
-	}
 	defer release()
-	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
-	defer cancel()
-	if err := requestCtx.Err(); err != nil {
-		errOut := s.errorFromContext(requestID, err)
-		return RunnerResultReportResponse{}, &errOut
-	}
-	runID := strings.TrimSpace(req.RunID)
-	if runID == "" {
-		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "run_id is required")
-		return RunnerResultReportResponse{}, &errOut
-	}
-	occurredAt, err := time.Parse(time.RFC3339, req.Report.OccurredAt)
-	if err != nil {
-		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "report.occurred_at must be RFC3339")
-		return RunnerResultReportResponse{}, &errOut
-	}
-	current, found, err := s.currentCanonicalLifecycleForRun(runID)
-	if err != nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
-		return RunnerResultReportResponse{}, &errOut
-	}
-	if err := validateRunnerResultTransition(current, found, req.Report.LifecycleState); err != nil {
-		errOut := s.makeError(requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
+	if err := validateRunnerResultTransition(prep.current, prep.found, req.Report.LifecycleState); err != nil {
+		errOut := s.makeError(prep.requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
 		return RunnerResultReportResponse{}, &errOut
 	}
 	if err := validateRunnerResultCode(req.Report.ResultCode); err != nil {
-		errOut := s.makeError(requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
+		errOut := s.makeError(prep.requestID, "broker_validation_runner_transition_invalid", "validation", false, err.Error())
 		return RunnerResultReportResponse{}, &errOut
 	}
 	details, err := sanitizeRunnerDetails(req.Report.Details)
 	if err != nil {
-		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
+		errOut := s.makeError(prep.requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
 		return RunnerResultReportResponse{}, &errOut
 	}
-	accepted, err := s.RecordRunnerResult(runID, artifacts.RunnerResultAdvisory{
+	accepted, err := s.RecordRunnerResult(prep.runID, artifacts.RunnerResultAdvisory{
 		LifecycleState:    req.Report.LifecycleState,
 		ResultCode:        req.Report.ResultCode,
-		OccurredAt:        occurredAt.UTC(),
+		OccurredAt:        prep.occurred.UTC(),
 		IdempotencyKey:    req.Report.IdempotencyKey,
 		StageID:           req.Report.StageID,
 		StepID:            req.Report.StepID,
@@ -176,40 +120,103 @@ func (s *Service) HandleRunnerResultReport(ctx context.Context, req RunnerResult
 		Details:           details,
 	})
 	if err != nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
+		errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, err.Error())
 		return RunnerResultReportResponse{}, &errOut
 	}
 	if !accepted {
-		canonical, _, lookupErr := s.currentCanonicalLifecycleForRun(runID)
+		canonical, _, lookupErr := s.currentCanonicalLifecycleForRun(prep.runID)
 		if lookupErr != nil {
-			errOut := s.makeError(requestID, "gateway_failure", "internal", false, lookupErr.Error())
+			errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, lookupErr.Error())
 			return RunnerResultReportResponse{}, &errOut
 		}
-		resp := RunnerResultReportResponse{SchemaID: "runecode.protocol.v0.RunnerResultReportResponse", SchemaVersion: "0.1.0", RequestID: requestID, RunID: runID, Accepted: false, CanonicalLifecycleState: canonical, AcceptedAt: s.now().UTC().Format(time.RFC3339), IdempotencyKey: req.Report.IdempotencyKey}
-		if err := s.validateResponse(resp, runnerResultRespSchemaPath); err != nil {
-			errOut := s.errorFromValidation(requestID, err)
-			return RunnerResultReportResponse{}, &errOut
-		}
-		return resp, nil
+		return s.buildRunnerResultReportResponse(prep.requestID, prep.runID, canonical, req.Report.IdempotencyKey, false)
 	}
-	if err := s.SetRunStatus(runID, mapLifecycleToStoreStatus(req.Report.LifecycleState)); err != nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
+	if err := s.SetRunStatus(prep.runID, mapLifecycleToStoreStatus(req.Report.LifecycleState)); err != nil {
+		errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, err.Error())
 		return RunnerResultReportResponse{}, &errOut
 	}
-	canonical, _, err := s.currentCanonicalLifecycleForRun(runID)
+	canonical, _, err := s.currentCanonicalLifecycleForRun(prep.runID)
 	if err != nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
+		errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, err.Error())
 		return RunnerResultReportResponse{}, &errOut
 	}
+	return s.buildRunnerResultReportResponse(prep.requestID, prep.runID, canonical, req.Report.IdempotencyKey, true)
+}
+
+func (s *Service) prepareRunnerCheckpointReport(ctx context.Context, req RunnerCheckpointReportRequest, meta RequestContext) (runnerReportPreparation, func(), *ErrorResponse) {
+	return s.prepareRunnerReport(ctx, req.RequestID, runnerCheckpointRequestSchemaPath, req.RunID, req.Report.OccurredAt, req, meta)
+}
+
+func (s *Service) prepareRunnerResultReport(ctx context.Context, req RunnerResultReportRequest, meta RequestContext) (runnerReportPreparation, func(), *ErrorResponse) {
+	return s.prepareRunnerReport(ctx, req.RequestID, runnerResultRequestSchemaPath, req.RunID, req.Report.OccurredAt, req, meta)
+}
+
+func (s *Service) prepareRunnerReport(ctx context.Context, requestIDInput, requestSchemaPath, runIDInput, occurredAtInput string, requestPayload any, meta RequestContext) (runnerReportPreparation, func(), *ErrorResponse) {
+	requestID, errResp := s.prepareLocalRequest(requestIDInput, meta.RequestID, meta.AdmissionErr, requestPayload, requestSchemaPath)
+	if errResp != nil {
+		return runnerReportPreparation{}, noOpRelease, errResp
+	}
+	release, err := s.acquireInFlight(meta)
+	if err != nil {
+		errOut := s.errorFromLimit(requestID, err)
+		return runnerReportPreparation{}, noOpRelease, &errOut
+	}
+	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
+	defer cancel()
+	if err := requestCtx.Err(); err != nil {
+		release()
+		errOut := s.errorFromContext(requestID, err)
+		return runnerReportPreparation{}, noOpRelease, &errOut
+	}
+	runID := strings.TrimSpace(runIDInput)
+	if runID == "" {
+		release()
+		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "run_id is required")
+		return runnerReportPreparation{}, noOpRelease, &errOut
+	}
+	occurredAt, err := time.Parse(time.RFC3339, occurredAtInput)
+	if err != nil {
+		release()
+		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "report.occurred_at must be RFC3339")
+		return runnerReportPreparation{}, noOpRelease, &errOut
+	}
+	current, found, err := s.currentCanonicalLifecycleForRun(runID)
+	if err != nil {
+		release()
+		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
+		return runnerReportPreparation{}, noOpRelease, &errOut
+	}
+	return runnerReportPreparation{requestID: requestID, runID: runID, occurred: occurredAt, current: current, found: found}, release, nil
+}
+
+func (s *Service) buildRunnerCheckpointReportResponse(requestID, runID, canonical, idempotencyKey string, accepted bool) (RunnerCheckpointReportResponse, *ErrorResponse) {
+	resp := RunnerCheckpointReportResponse{
+		SchemaID:                "runecode.protocol.v0.RunnerCheckpointReportResponse",
+		SchemaVersion:           "0.1.0",
+		RequestID:               requestID,
+		RunID:                   runID,
+		Accepted:                accepted,
+		CanonicalLifecycleState: canonical,
+		AcceptedAt:              s.now().UTC().Format(time.RFC3339),
+		IdempotencyKey:          idempotencyKey,
+	}
+	if err := s.validateResponse(resp, runnerCheckpointRespSchemaPath); err != nil {
+		errOut := s.errorFromValidation(requestID, err)
+		return RunnerCheckpointReportResponse{}, &errOut
+	}
+	return resp, nil
+}
+
+func (s *Service) buildRunnerResultReportResponse(requestID, runID, canonical, idempotencyKey string, accepted bool) (RunnerResultReportResponse, *ErrorResponse) {
 	resp := RunnerResultReportResponse{
 		SchemaID:                "runecode.protocol.v0.RunnerResultReportResponse",
 		SchemaVersion:           "0.1.0",
 		RequestID:               requestID,
 		RunID:                   runID,
-		Accepted:                true,
+		Accepted:                accepted,
 		CanonicalLifecycleState: canonical,
 		AcceptedAt:              s.now().UTC().Format(time.RFC3339),
-		IdempotencyKey:          req.Report.IdempotencyKey,
+		IdempotencyKey:          idempotencyKey,
 	}
 	if err := s.validateResponse(resp, runnerResultRespSchemaPath); err != nil {
 		errOut := s.errorFromValidation(requestID, err)
@@ -217,6 +224,8 @@ func (s *Service) HandleRunnerResultReport(ctx context.Context, req RunnerResult
 	}
 	return resp, nil
 }
+
+func noOpRelease() {}
 
 func (s *Service) currentCanonicalLifecycleForRun(runID string) (string, bool, error) {
 	trimmedRunID := strings.TrimSpace(runID)
@@ -415,66 +424,89 @@ func sanitizeRunnerDetails(details map[string]any) (map[string]any, error) {
 	if len(details) == 0 {
 		return nil, nil
 	}
-	const (
-		maxEntries  = 64
-		maxDepth    = 4
-		maxStrLen   = 1024
-		maxArrayLen = 64
-	)
-	seen := 0
-	var walk func(value any, depth int) error
-	walk = func(value any, depth int) error {
-		if depth > maxDepth {
-			return fmt.Errorf("report.details exceeds max nesting depth")
-		}
-		switch typed := value.(type) {
-		case nil, bool, float64, int, int64:
-			return nil
-		case string:
-			if len(typed) > maxStrLen {
-				return fmt.Errorf("report.details string value exceeds max length")
-			}
-			return nil
-		case map[string]any:
-			if len(typed) > maxEntries {
-				return fmt.Errorf("report.details object exceeds max keys")
-			}
-			for k, v := range typed {
-				seen++
-				if seen > maxEntries {
-					return fmt.Errorf("report.details exceeds max total entries")
-				}
-				if len(strings.TrimSpace(k)) == 0 {
-					return fmt.Errorf("report.details contains empty key")
-				}
-				if len(k) > 128 {
-					return fmt.Errorf("report.details key exceeds max length")
-				}
-				if err := walk(v, depth+1); err != nil {
-					return err
-				}
-			}
-			return nil
-		case []any:
-			if len(typed) > maxArrayLen {
-				return fmt.Errorf("report.details array exceeds max length")
-			}
-			for _, item := range typed {
-				if err := walk(item, depth+1); err != nil {
-					return err
-				}
-			}
-			return nil
-		default:
-			return fmt.Errorf("report.details contains unsupported value type %T", value)
-		}
-	}
-	if err := walk(details, 0); err != nil {
+	state := &runnerDetailsValidationState{}
+	if err := validateRunnerDetailsObject(details, 0, state); err != nil {
 		return nil, err
 	}
-	out := map[string]any{}
-	for k, v := range details {
-		out[k] = v
+	return cloneRunnerDetailsMap(details), nil
+}
+
+type runnerDetailsValidationState struct {
+	seen int
+}
+
+func validateRunnerDetailsObject(details map[string]any, depth int, state *runnerDetailsValidationState) error {
+	if depth > runnerDetailsMaxDepth {
+		return fmt.Errorf("report.details exceeds max nesting depth")
 	}
-	return out, nil
+	if len(details) > runnerDetailsMaxEntries {
+		return fmt.Errorf("report.details object exceeds max keys")
+	}
+	for key, value := range details {
+		if err := validateRunnerDetailsKey(key, state); err != nil {
+			return err
+		}
+		if err := validateRunnerDetailsValue(value, depth+1, state); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateRunnerDetailsValue(value any, depth int, state *runnerDetailsValidationState) error {
+	if depth > runnerDetailsMaxDepth {
+		return fmt.Errorf("report.details exceeds max nesting depth")
+	}
+	switch typed := value.(type) {
+	case nil, bool, float64, int, int64:
+		return nil
+	case string:
+		if len(typed) > runnerDetailsMaxStrLen {
+			return fmt.Errorf("report.details string value exceeds max length")
+		}
+		return nil
+	case map[string]any:
+		return validateRunnerDetailsObject(typed, depth, state)
+	case []any:
+		return validateRunnerDetailsArray(typed, depth, state)
+	default:
+		return fmt.Errorf("report.details contains unsupported value type %T", value)
+	}
+}
+
+func validateRunnerDetailsArray(items []any, depth int, state *runnerDetailsValidationState) error {
+	if len(items) > runnerDetailsMaxArrayLen {
+		return fmt.Errorf("report.details array exceeds max length")
+	}
+	for _, item := range items {
+		if err := validateRunnerDetailsValue(item, depth+1, state); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateRunnerDetailsKey(key string, state *runnerDetailsValidationState) error {
+	state.seen++
+	if state.seen > runnerDetailsMaxEntries {
+		return fmt.Errorf("report.details exceeds max total entries")
+	}
+	if len(strings.TrimSpace(key)) == 0 {
+		return fmt.Errorf("report.details contains empty key")
+	}
+	if len(key) > 128 {
+		return fmt.Errorf("report.details key exceeds max length")
+	}
+	return nil
+}
+
+func cloneRunnerDetailsMap(details map[string]any) map[string]any {
+	if len(details) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(details))
+	for key, value := range details {
+		out[key] = value
+	}
+	return out
 }

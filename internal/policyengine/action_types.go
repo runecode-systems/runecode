@@ -29,6 +29,7 @@ type ExecutorRunActionInput struct {
 	ExecutorClass    string
 	ExecutorID       string
 	Argv             []string
+	Environment      map[string]string
 	WorkingDirectory string
 	NetworkAccess    string
 	TimeoutSeconds   *int
@@ -59,7 +60,6 @@ type PromotionActionInput struct {
 
 type GatewayEgressActionInput struct {
 	ActionEnvelope
-	ActionKind      string
 	GatewayRoleKind string
 	DestinationKind string
 	DestinationRef  string

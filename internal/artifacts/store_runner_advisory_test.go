@@ -12,81 +12,18 @@ import (
 func TestRunnerDurableStateReplaySnapshotAndIdempotency(t *testing.T) {
 	store := newTestStore(t)
 	now := time.Date(2026, 4, 10, 10, 0, 0, 0, time.UTC)
-	accepted, err := store.RecordRunnerCheckpoint("run-durable", RunnerCheckpointAdvisory{
-		LifecycleState: "active",
-		CheckpointCode: "step_attempt_started",
-		OccurredAt:     now,
-		IdempotencyKey: "idem-checkpoint-1",
-		StageID:        "stage-1",
-		StepID:         "step-1",
-		RoleInstanceID: "role-1",
-		StepAttemptID:  "step-attempt-1",
-	})
-	if err != nil {
-		t.Fatalf("RecordRunnerCheckpoint returned error: %v", err)
-	}
-	if !accepted {
-		t.Fatal("first RecordRunnerCheckpoint accepted=false, want true")
-	}
-	accepted, err = store.RecordRunnerCheckpoint("run-durable", RunnerCheckpointAdvisory{
-		LifecycleState: "active",
-		CheckpointCode: "step_attempt_started",
-		OccurredAt:     now,
-		IdempotencyKey: "idem-checkpoint-1",
-		StageID:        "stage-1",
-		StepID:         "step-1",
-		RoleInstanceID: "role-1",
-		StepAttemptID:  "step-attempt-1",
-	})
-	if err != nil {
-		t.Fatalf("duplicate RecordRunnerCheckpoint returned error: %v", err)
-	}
-	if accepted {
-		t.Fatal("duplicate RecordRunnerCheckpoint accepted=true, want false")
-	}
-	accepted, err = store.RecordRunnerResult("run-durable", RunnerResultAdvisory{
-		LifecycleState: "completed",
-		ResultCode:     "run_completed",
-		OccurredAt:     now.Add(time.Minute),
-		IdempotencyKey: "idem-result-1",
-		StageID:        "stage-1",
-		StepID:         "step-1",
-		RoleInstanceID: "role-1",
-		StepAttemptID:  "step-attempt-1",
-	})
-	if err != nil {
-		t.Fatalf("RecordRunnerResult returned error: %v", err)
-	}
-	if !accepted {
-		t.Fatal("RecordRunnerResult accepted=false, want true")
-	}
+	checkpoint := RunnerCheckpointAdvisory{LifecycleState: "active", CheckpointCode: "step_attempt_started", OccurredAt: now, IdempotencyKey: "idem-checkpoint-1", StageID: "stage-1", StepID: "step-1", RoleInstanceID: "role-1", StepAttemptID: "step-attempt-1"}
+	recordCheckpointAcceptance(t, store, "run-durable", checkpoint, true, "first")
+	recordCheckpointAcceptance(t, store, "run-durable", checkpoint, false, "duplicate")
+	result := RunnerResultAdvisory{LifecycleState: "completed", ResultCode: "run_completed", OccurredAt: now.Add(time.Minute), IdempotencyKey: "idem-result-1", StageID: "stage-1", StepID: "step-1", RoleInstanceID: "role-1", StepAttemptID: "step-attempt-1"}
+	recordResultAcceptance(t, store, "run-durable", result, true, "result")
 
 	journal := mustReadRunnerJournal(t, store.rootDir)
 	if got := len(journal); got != 2 {
 		t.Fatalf("runner journal records = %d, want 2", got)
 	}
 
-	reloaded, err := NewStore(store.rootDir)
-	if err != nil {
-		t.Fatalf("NewStore reload returned error: %v", err)
-	}
-	state, ok := reloaded.RunnerAdvisory("run-durable")
-	if !ok {
-		t.Fatal("RunnerAdvisory(run-durable) = missing, want present")
-	}
-	if state.LastResult == nil || state.LastResult.ResultCode != "run_completed" {
-		t.Fatalf("last result = %+v, want run_completed", state.LastResult)
-	}
-	if state.Lifecycle == nil || state.Lifecycle.LifecycleState != "completed" {
-		t.Fatalf("lifecycle hint = %+v, want completed", state.Lifecycle)
-	}
-	hint, ok := state.StepAttempts["step-attempt-1"]
-	if !ok {
-		t.Fatalf("step_attempts missing step-attempt-1: %+v", state.StepAttempts)
-	}
-	if hint.Status != "finished" {
-		t.Fatalf("step attempt status = %q, want finished", hint.Status)
-	}
+	assertReloadedRunnerDurableState(t, store.rootDir, "run-durable", "step-attempt-1")
 }
 
 func TestRunnerDurableStateMigratesLegacyRunnerAdvisoryMap(t *testing.T) {
@@ -154,60 +91,11 @@ func TestRunnerDurableStateRejectsUnknownJournalSchemaVersion(t *testing.T) {
 func TestRunnerApprovalWaitDedupeSupersessionAndStatuses(t *testing.T) {
 	store := newTestStore(t)
 	now := time.Date(2026, 4, 10, 11, 0, 0, 0, time.UTC)
-	if err := store.RecordRunnerApprovalWait(RunnerApproval{
-		ApprovalID:      "sha256:" + strings.Repeat("1", 64),
-		RunID:           "run-approval",
-		StageID:         "stage-1",
-		StepID:          "step-1",
-		RoleInstanceID:  "role-1",
-		Status:          "pending",
-		ApprovalType:    "exact_action",
-		BoundActionHash: "sha256:" + strings.Repeat("a", 64),
-		OccurredAt:      now,
-	}); err != nil {
-		t.Fatalf("RecordRunnerApprovalWait pending #1 returned error: %v", err)
-	}
-	if err := store.RecordRunnerApprovalWait(RunnerApproval{
-		ApprovalID:      "sha256:" + strings.Repeat("2", 64),
-		RunID:           "run-approval",
-		StageID:         "stage-1",
-		StepID:          "step-1",
-		RoleInstanceID:  "role-1",
-		Status:          "pending",
-		ApprovalType:    "exact_action",
-		BoundActionHash: "sha256:" + strings.Repeat("a", 64),
-		OccurredAt:      now.Add(time.Minute),
-	}); err != nil {
-		t.Fatalf("RecordRunnerApprovalWait pending #2 returned error: %v", err)
-	}
-	if err := store.RecordRunnerApprovalWait(RunnerApproval{
-		ApprovalID:      "sha256:" + strings.Repeat("2", 64),
-		RunID:           "run-approval",
-		StageID:         "stage-1",
-		StepID:          "step-1",
-		RoleInstanceID:  "role-1",
-		Status:          "pending",
-		ApprovalType:    "exact_action",
-		BoundActionHash: "sha256:" + strings.Repeat("a", 64),
-		OccurredAt:      now.Add(time.Minute),
-	}); err != nil {
-		t.Fatalf("duplicate RecordRunnerApprovalWait pending #2 returned error: %v", err)
-	}
+	recordRunnerApprovalWait(t, store, buildRunnerApprovalForTest("run-approval", "1", "pending", now, nil))
+	recordRunnerApprovalWait(t, store, buildRunnerApprovalForTest("run-approval", "2", "pending", now.Add(time.Minute), nil))
+	recordRunnerApprovalWait(t, store, buildRunnerApprovalForTest("run-approval", "2", "pending", now.Add(time.Minute), nil))
 	resolved := now.Add(2 * time.Minute)
-	if err := store.RecordRunnerApprovalWait(RunnerApproval{
-		ApprovalID:      "sha256:" + strings.Repeat("2", 64),
-		RunID:           "run-approval",
-		StageID:         "stage-1",
-		StepID:          "step-1",
-		RoleInstanceID:  "role-1",
-		Status:          "consumed",
-		ApprovalType:    "exact_action",
-		BoundActionHash: "sha256:" + strings.Repeat("a", 64),
-		OccurredAt:      resolved,
-		ResolvedAt:      &resolved,
-	}); err != nil {
-		t.Fatalf("RecordRunnerApprovalWait consumed returned error: %v", err)
-	}
+	recordRunnerApprovalWait(t, store, buildRunnerApprovalForTest("run-approval", "2", "consumed", resolved, &resolved))
 
 	state, ok := store.RunnerAdvisory("run-approval")
 	if !ok {
@@ -224,6 +112,75 @@ func TestRunnerApprovalWaitDedupeSupersessionAndStatuses(t *testing.T) {
 
 	if err := store.RecordRunnerApprovalWait(RunnerApproval{ApprovalID: "sha256:" + strings.Repeat("3", 64), RunID: "run-approval", Status: "bogus", ApprovalType: "exact_action", BoundActionHash: "sha256:" + strings.Repeat("b", 64), OccurredAt: now}); err == nil {
 		t.Fatal("RecordRunnerApprovalWait expected invalid status error")
+	}
+}
+
+func recordCheckpointAcceptance(t *testing.T, store *Store, runID string, checkpoint RunnerCheckpointAdvisory, wantAccepted bool, label string) {
+	t.Helper()
+	accepted, err := store.RecordRunnerCheckpoint(runID, checkpoint)
+	if err != nil {
+		t.Fatalf("%s RecordRunnerCheckpoint returned error: %v", label, err)
+	}
+	if accepted != wantAccepted {
+		t.Fatalf("%s RecordRunnerCheckpoint accepted=%v, want %v", label, accepted, wantAccepted)
+	}
+}
+
+func recordResultAcceptance(t *testing.T, store *Store, runID string, result RunnerResultAdvisory, wantAccepted bool, label string) {
+	t.Helper()
+	accepted, err := store.RecordRunnerResult(runID, result)
+	if err != nil {
+		t.Fatalf("%s RecordRunnerResult returned error: %v", label, err)
+	}
+	if accepted != wantAccepted {
+		t.Fatalf("%s RecordRunnerResult accepted=%v, want %v", label, accepted, wantAccepted)
+	}
+}
+
+func assertReloadedRunnerDurableState(t *testing.T, rootDir, runID, stepAttemptID string) {
+	t.Helper()
+	reloaded, err := NewStore(rootDir)
+	if err != nil {
+		t.Fatalf("NewStore reload returned error: %v", err)
+	}
+	state, ok := reloaded.RunnerAdvisory(runID)
+	if !ok {
+		t.Fatalf("RunnerAdvisory(%s) = missing, want present", runID)
+	}
+	if state.LastResult == nil || state.LastResult.ResultCode != "run_completed" {
+		t.Fatalf("last result = %+v, want run_completed", state.LastResult)
+	}
+	if state.Lifecycle == nil || state.Lifecycle.LifecycleState != "completed" {
+		t.Fatalf("lifecycle hint = %+v, want completed", state.Lifecycle)
+	}
+	hint, ok := state.StepAttempts[stepAttemptID]
+	if !ok {
+		t.Fatalf("step_attempts missing %s: %+v", stepAttemptID, state.StepAttempts)
+	}
+	if hint.Status != "finished" {
+		t.Fatalf("step attempt status = %q, want finished", hint.Status)
+	}
+}
+
+func buildRunnerApprovalForTest(runID, idSuffix, status string, occurredAt time.Time, resolvedAt *time.Time) RunnerApproval {
+	return RunnerApproval{
+		ApprovalID:      "sha256:" + strings.Repeat(idSuffix, 64),
+		RunID:           runID,
+		StageID:         "stage-1",
+		StepID:          "step-1",
+		RoleInstanceID:  "role-1",
+		Status:          status,
+		ApprovalType:    "exact_action",
+		BoundActionHash: "sha256:" + strings.Repeat("a", 64),
+		OccurredAt:      occurredAt,
+		ResolvedAt:      resolvedAt,
+	}
+}
+
+func recordRunnerApprovalWait(t *testing.T, store *Store, approval RunnerApproval) {
+	t.Helper()
+	if err := store.RecordRunnerApprovalWait(approval); err != nil {
+		t.Fatalf("RecordRunnerApprovalWait(%s) returned error: %v", approval.Status, err)
 	}
 }
 

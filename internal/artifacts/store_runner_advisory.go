@@ -256,6 +256,26 @@ func loadRunnerSnapshot(rootDir string) (map[string]RunnerAdvisoryState, map[str
 }
 
 func readRunnerJournalRecords(rootDir string) ([]RunnerDurableJournalRecord, error) {
+	lines, err := loadRunnerJournalLines(rootDir)
+	if err != nil {
+		return nil, err
+	}
+	records := make([]RunnerDurableJournalRecord, 0, len(lines))
+	for _, line := range lines {
+		rec, ok, err := parseRunnerJournalRecord(line)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		records = append(records, rec)
+	}
+	sort.Slice(records, func(i, j int) bool { return records[i].Sequence < records[j].Sequence })
+	return records, nil
+}
+
+func loadRunnerJournalLines(rootDir string) ([]string, error) {
 	path := filepath.Join(rootDir, runnerJournalFileName)
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -264,32 +284,38 @@ func readRunnerJournalRecords(rootDir string) ([]RunnerDurableJournalRecord, err
 		}
 		return nil, err
 	}
-	if len(strings.TrimSpace(string(b))) == 0 {
+	trimmed := strings.TrimSpace(string(b))
+	if trimmed == "" {
 		return nil, nil
 	}
-	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
-	records := make([]RunnerDurableJournalRecord, 0, len(lines))
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-		var rec RunnerDurableJournalRecord
-		if err := json.Unmarshal([]byte(line), &rec); err != nil {
-			return nil, err
-		}
-		if rec.SchemaVersion == 0 {
-			rec.SchemaVersion = 1
-		}
-		if rec.SchemaVersion != runnerDurableSchemaVersion {
-			return nil, fmt.Errorf("unsupported runner journal schema version %d", rec.SchemaVersion)
-		}
-		if rec.Family != "" && rec.Family != runnerJournalFamily {
-			return nil, fmt.Errorf("unsupported runner journal family %q", rec.Family)
-		}
-		records = append(records, rec)
+	return strings.Split(trimmed, "\n"), nil
+}
+
+func parseRunnerJournalRecord(line string) (RunnerDurableJournalRecord, bool, error) {
+	if strings.TrimSpace(line) == "" {
+		return RunnerDurableJournalRecord{}, false, nil
 	}
-	sort.Slice(records, func(i, j int) bool { return records[i].Sequence < records[j].Sequence })
-	return records, nil
+	var rec RunnerDurableJournalRecord
+	if err := json.Unmarshal([]byte(line), &rec); err != nil {
+		return RunnerDurableJournalRecord{}, false, err
+	}
+	if err := validateRunnerJournalRecordShape(&rec); err != nil {
+		return RunnerDurableJournalRecord{}, false, err
+	}
+	return rec, true, nil
+}
+
+func validateRunnerJournalRecordShape(rec *RunnerDurableJournalRecord) error {
+	if rec.SchemaVersion == 0 {
+		rec.SchemaVersion = 1
+	}
+	if rec.SchemaVersion != runnerDurableSchemaVersion {
+		return fmt.Errorf("unsupported runner journal schema version %d", rec.SchemaVersion)
+	}
+	if rec.Family != "" && rec.Family != runnerJournalFamily {
+		return fmt.Errorf("unsupported runner journal family %q", rec.Family)
+	}
+	return nil
 }
 
 func appendRunnerJournalRecord(rootDir string, record RunnerDurableJournalRecord) error {

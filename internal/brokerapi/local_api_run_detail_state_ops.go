@@ -130,113 +130,156 @@ func buildAdvisoryRunState(advisory artifacts.RunnerAdvisoryState) map[string]an
 		"bounded_keys": []string{},
 	}
 	bounded := make([]string, 0, 2)
-	pendingByScope := map[string]int{}
-	for _, approval := range advisory.ApprovalWaits {
-		if approval.Status != "pending" {
-			continue
-		}
-		scope := approvalScopeKey(approval)
-		pendingByScope[scope]++
-	}
+	pendingByScope := pendingApprovalScopeCounts(advisory.ApprovalWaits)
 	if len(pendingByScope) > 0 {
 		state["pending_approval_scope_counts"] = pendingByScope
 	}
-	if advisory.LastCheckpoint != nil {
-		state["last_checkpoint"] = map[string]any{
-			"lifecycle_state":        advisory.LastCheckpoint.LifecycleState,
-			"checkpoint_code":        advisory.LastCheckpoint.CheckpointCode,
-			"occurred_at":            advisory.LastCheckpoint.OccurredAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-			"idempotency_key":        advisory.LastCheckpoint.IdempotencyKey,
-			"stage_id":               advisory.LastCheckpoint.StageID,
-			"step_id":                advisory.LastCheckpoint.StepID,
-			"role_instance_id":       advisory.LastCheckpoint.RoleInstanceID,
-			"stage_attempt_id":       advisory.LastCheckpoint.StageAttemptID,
-			"step_attempt_id":        advisory.LastCheckpoint.StepAttemptID,
-			"gate_attempt_id":        advisory.LastCheckpoint.GateAttemptID,
-			"pending_approval_count": advisory.LastCheckpoint.PendingApprovals,
-		}
-		if len(advisory.LastCheckpoint.Details) > 0 {
-			state["last_checkpoint"].(map[string]any)["details"] = advisory.LastCheckpoint.Details
-		}
+	if checkpointState := buildAdvisoryLastCheckpointState(advisory.LastCheckpoint); checkpointState != nil {
+		state["last_checkpoint"] = checkpointState
 		bounded = append(bounded, "last_checkpoint")
 	}
-	if advisory.LastResult != nil {
-		state["last_result"] = map[string]any{
-			"lifecycle_state":     advisory.LastResult.LifecycleState,
-			"result_code":         advisory.LastResult.ResultCode,
-			"occurred_at":         advisory.LastResult.OccurredAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-			"idempotency_key":     advisory.LastResult.IdempotencyKey,
-			"stage_id":            advisory.LastResult.StageID,
-			"step_id":             advisory.LastResult.StepID,
-			"role_instance_id":    advisory.LastResult.RoleInstanceID,
-			"stage_attempt_id":    advisory.LastResult.StageAttemptID,
-			"step_attempt_id":     advisory.LastResult.StepAttemptID,
-			"gate_attempt_id":     advisory.LastResult.GateAttemptID,
-			"failure_reason_code": advisory.LastResult.FailureReasonCode,
-		}
-		if len(advisory.LastResult.Details) > 0 {
-			state["last_result"].(map[string]any)["details"] = advisory.LastResult.Details
-		}
+	if resultState := buildAdvisoryLastResultState(advisory.LastResult); resultState != nil {
+		state["last_result"] = resultState
 		bounded = append(bounded, "last_result")
 	}
-	if len(bounded) > 0 {
-		state["available"] = true
-		state["provenance"] = "runner_reported"
-		state["bounded_keys"] = bounded
+	markAdvisoryAvailability(state, bounded)
+	if lifecycleHint := buildAdvisoryLifecycleHintState(advisory.Lifecycle); lifecycleHint != nil {
+		state["lifecycle_hint"] = lifecycleHint
 	}
-	if advisory.Lifecycle != nil {
-		state["lifecycle_hint"] = map[string]any{
-			"lifecycle_state":  advisory.Lifecycle.LifecycleState,
-			"occurred_at":      advisory.Lifecycle.OccurredAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-			"stage_id":         advisory.Lifecycle.StageID,
-			"step_id":          advisory.Lifecycle.StepID,
-			"role_instance_id": advisory.Lifecycle.RoleInstanceID,
-			"stage_attempt_id": advisory.Lifecycle.StageAttemptID,
-			"step_attempt_id":  advisory.Lifecycle.StepAttemptID,
-			"gate_attempt_id":  advisory.Lifecycle.GateAttemptID,
-		}
-	}
-	if len(advisory.StepAttempts) > 0 {
-		stepAttempts := map[string]any{}
-		for attemptID, hint := range advisory.StepAttempts {
-			entry := map[string]any{
-				"step_attempt_id":  hint.StepAttemptID,
-				"run_id":           hint.RunID,
-				"stage_id":         hint.StageID,
-				"step_id":          hint.StepID,
-				"role_instance_id": hint.RoleInstanceID,
-				"stage_attempt_id": hint.StageAttemptID,
-				"gate_attempt_id":  hint.GateAttemptID,
-				"status":           hint.Status,
-				"last_updated_at":  hint.LastUpdatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-			}
-			if !hint.StartedAt.IsZero() {
-				entry["started_at"] = hint.StartedAt.UTC().Format("2006-01-02T15:04:05Z07:00")
-			}
-			if !hint.FinishedAt.IsZero() {
-				entry["finished_at"] = hint.FinishedAt.UTC().Format("2006-01-02T15:04:05Z07:00")
-			}
-			if hint.CurrentPhase != "" {
-				entry["current_phase"] = hint.CurrentPhase
-			}
-			if hint.PhaseStatus != "" {
-				entry["phase_status"] = hint.PhaseStatus
-			}
-			scopeKey := approvalScopeKey(artifacts.RunnerApproval{RunID: hint.RunID, StageID: hint.StageID, StepID: hint.StepID, RoleInstanceID: hint.RoleInstanceID})
-			if pending := pendingByScope[scopeKey]; pending > 0 {
-				entry["blocked_on_scope_pending_approval"] = true
-				entry["pending_approval_scope_count"] = pending
-			} else {
-				entry["blocked_on_scope_pending_approval"] = false
-			}
-			stepAttempts[attemptID] = entry
-		}
+	if stepAttempts := buildAdvisoryStepAttemptsState(advisory.StepAttempts, pendingByScope); len(stepAttempts) > 0 {
 		state["step_attempts"] = stepAttempts
 	}
 	if len(advisory.ApprovalWaits) > 0 {
 		state["approval_waits"] = redactedApprovalWaits(advisory.ApprovalWaits)
 	}
 	return state
+}
+
+func pendingApprovalScopeCounts(waits map[string]artifacts.RunnerApproval) map[string]int {
+	counts := map[string]int{}
+	for _, approval := range waits {
+		if approval.Status != "pending" {
+			continue
+		}
+		counts[approvalScopeKey(approval)]++
+	}
+	return counts
+}
+
+func buildAdvisoryLastCheckpointState(checkpoint *artifacts.RunnerCheckpointAdvisory) map[string]any {
+	if checkpoint == nil {
+		return nil
+	}
+	state := map[string]any{
+		"lifecycle_state":        checkpoint.LifecycleState,
+		"checkpoint_code":        checkpoint.CheckpointCode,
+		"occurred_at":            checkpoint.OccurredAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		"idempotency_key":        checkpoint.IdempotencyKey,
+		"stage_id":               checkpoint.StageID,
+		"step_id":                checkpoint.StepID,
+		"role_instance_id":       checkpoint.RoleInstanceID,
+		"stage_attempt_id":       checkpoint.StageAttemptID,
+		"step_attempt_id":        checkpoint.StepAttemptID,
+		"gate_attempt_id":        checkpoint.GateAttemptID,
+		"pending_approval_count": checkpoint.PendingApprovals,
+	}
+	if len(checkpoint.Details) > 0 {
+		state["details"] = checkpoint.Details
+	}
+	return state
+}
+
+func buildAdvisoryLastResultState(result *artifacts.RunnerResultAdvisory) map[string]any {
+	if result == nil {
+		return nil
+	}
+	state := map[string]any{
+		"lifecycle_state":     result.LifecycleState,
+		"result_code":         result.ResultCode,
+		"occurred_at":         result.OccurredAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		"idempotency_key":     result.IdempotencyKey,
+		"stage_id":            result.StageID,
+		"step_id":             result.StepID,
+		"role_instance_id":    result.RoleInstanceID,
+		"stage_attempt_id":    result.StageAttemptID,
+		"step_attempt_id":     result.StepAttemptID,
+		"gate_attempt_id":     result.GateAttemptID,
+		"failure_reason_code": result.FailureReasonCode,
+	}
+	if len(result.Details) > 0 {
+		state["details"] = result.Details
+	}
+	return state
+}
+
+func markAdvisoryAvailability(state map[string]any, bounded []string) {
+	if len(bounded) == 0 {
+		return
+	}
+	state["available"] = true
+	state["provenance"] = "runner_reported"
+	state["bounded_keys"] = bounded
+}
+
+func buildAdvisoryLifecycleHintState(lifecycle *artifacts.RunnerLifecycleHint) map[string]any {
+	if lifecycle == nil {
+		return nil
+	}
+	return map[string]any{
+		"lifecycle_state":  lifecycle.LifecycleState,
+		"occurred_at":      lifecycle.OccurredAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		"stage_id":         lifecycle.StageID,
+		"step_id":          lifecycle.StepID,
+		"role_instance_id": lifecycle.RoleInstanceID,
+		"stage_attempt_id": lifecycle.StageAttemptID,
+		"step_attempt_id":  lifecycle.StepAttemptID,
+		"gate_attempt_id":  lifecycle.GateAttemptID,
+	}
+}
+
+func buildAdvisoryStepAttemptsState(stepAttempts map[string]artifacts.RunnerStepHint, pendingByScope map[string]int) map[string]any {
+	if len(stepAttempts) == 0 {
+		return nil
+	}
+	out := map[string]any{}
+	for attemptID, hint := range stepAttempts {
+		out[attemptID] = buildAdvisoryStepAttemptEntry(hint, pendingByScope)
+	}
+	return out
+}
+
+func buildAdvisoryStepAttemptEntry(hint artifacts.RunnerStepHint, pendingByScope map[string]int) map[string]any {
+	entry := map[string]any{
+		"step_attempt_id":  hint.StepAttemptID,
+		"run_id":           hint.RunID,
+		"stage_id":         hint.StageID,
+		"step_id":          hint.StepID,
+		"role_instance_id": hint.RoleInstanceID,
+		"stage_attempt_id": hint.StageAttemptID,
+		"gate_attempt_id":  hint.GateAttemptID,
+		"status":           hint.Status,
+		"last_updated_at":  hint.LastUpdatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+	}
+	if !hint.StartedAt.IsZero() {
+		entry["started_at"] = hint.StartedAt.UTC().Format("2006-01-02T15:04:05Z07:00")
+	}
+	if !hint.FinishedAt.IsZero() {
+		entry["finished_at"] = hint.FinishedAt.UTC().Format("2006-01-02T15:04:05Z07:00")
+	}
+	if hint.CurrentPhase != "" {
+		entry["current_phase"] = hint.CurrentPhase
+	}
+	if hint.PhaseStatus != "" {
+		entry["phase_status"] = hint.PhaseStatus
+	}
+	scopeKey := approvalScopeKey(artifacts.RunnerApproval{RunID: hint.RunID, StageID: hint.StageID, StepID: hint.StepID, RoleInstanceID: hint.RoleInstanceID})
+	if pending := pendingByScope[scopeKey]; pending > 0 {
+		entry["blocked_on_scope_pending_approval"] = true
+		entry["pending_approval_scope_count"] = pending
+		return entry
+	}
+	entry["blocked_on_scope_pending_approval"] = false
+	return entry
 }
 
 func redactedApprovalWaits(waits map[string]artifacts.RunnerApproval) map[string]artifacts.RunnerApproval {
