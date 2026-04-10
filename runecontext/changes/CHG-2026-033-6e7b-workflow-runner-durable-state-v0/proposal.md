@@ -1,5 +1,5 @@
 ## Summary
-RuneCode has an untrusted workflow runner with durable pause/resume state, typed propose-to-attest control-flow semantics, and the ability to continue independent work while approval-bound scopes are waiting on signed human decisions.
+RuneCode has an untrusted workflow runner with durable pause/resume state, typed propose-to-attest control-flow semantics, explicit broker-validated checkpoint reporting, and the ability to continue independent work while approval-bound scopes are waiting on signed human decisions.
 
 ## Problem
 The prior combined change bundled runner, execution roles, and gates into one very large feature, reducing implementation and verification granularity.
@@ -8,6 +8,9 @@ The prior combined change bundled runner, execution roles, and gates into one ve
 - Runner contract and untrusted scheduler constraints.
 - Durable state machine and crash recovery semantics.
 - Typed propose, validate, authorize, execute, and attest loop.
+- Event-style runner-to-broker checkpoint/result reporting with broker-owned public projection.
+- Stable logical workflow identity with separate execution-attempt identity.
+- Versioned runner journal/snapshot persistence with deterministic broker-wins reconciliation.
 
 ## Why Now
 Splitting runner and durable-state foundations improves sequencing, ownership, and verification while preserving the original end-to-end objective.
@@ -22,4 +25,4 @@ Splitting runner and durable-state foundations improves sequencing, ownership, a
 - Deterministic gate implementation details.
 
 ## Impact
-Keeps runner and durable-state contract work reviewable as an independent feature under the workflow execution project.
+Keeps runner and durable-state contract work reviewable as an independent feature under the workflow execution project while freezing the recovery and reconciliation rules that later workflow features must reuse.

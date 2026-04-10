@@ -1,5 +1,5 @@
 ## Summary
-RuneCode enforces deterministic quality and safety gates that produce verifiable evidence artifacts and fail closed by default.
+RuneCode enforces deterministic quality and safety gates that produce typed verifiable evidence artifacts, fail closed by default, and integrate with canonical policy approval/override semantics.
 
 ## Problem
 Gate behavior and evidence semantics were previously embedded in a broad combined change, limiting focused verification.
@@ -8,6 +8,7 @@ Gate behavior and evidence semantics were previously embedded in a broad combine
 - Implement a deterministic gate framework.
 - Produce hash-addressed gate evidence artifacts.
 - Define failure, retry, and override semantics with audit coverage.
+- Freeze a reusable typed gate contract with stable gate identity, declared inputs, explicit attempt semantics, and policy-mediated overrides.
 
 ## Why Now
 This split keeps gate correctness and evidence production independently reviewable while preserving end-to-end workflow traceability.
@@ -22,4 +23,4 @@ This split keeps gate correctness and evidence production independently reviewab
 - Workspace role implementation details.
 
 ## Impact
-Keeps gate determinism and evidence semantics as a dedicated feature boundary.
+Keeps gate determinism and evidence semantics as a dedicated feature boundary while freezing the shared gate/evidence model that later workflow features must reuse.
