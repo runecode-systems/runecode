@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
@@ -79,6 +80,9 @@ func assertRunDetailCoreForLocalOps(t *testing.T, detail RunDetail) {
 	}
 	if detail.AdvisoryState["provenance"] != "none_reported" {
 		t.Fatalf("advisory_state.provenance = %v, want none_reported", detail.AdvisoryState["provenance"])
+	}
+	if _, ok := detail.AuthoritativeState["lifecycle_hint"]; ok {
+		t.Fatal("authoritative_state must not contain runner lifecycle_hint")
 	}
 }
 
@@ -348,5 +352,84 @@ func TestRunPendingApprovalsUseCanonicalPendingRecords(t *testing.T) {
 	}
 	if approvalResp.SignedApprovalRequest == nil {
 		t.Fatal("signed_approval_request = nil, want pending request envelope")
+	}
+}
+
+func TestRunLifecycleUsesRunnerAdvisoryActiveForPartialApprovalBlocking(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, 4, 2, 9, 0, 0, 0, time.UTC)
+	if _, err := s.Put(artifacts.PutRequest{Payload: []byte("x"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("2", 64), CreatedByRole: "workspace", RunID: "run-partial", StepID: "step-1"}); err != nil {
+		t.Fatalf("Put returned error: %v", err)
+	}
+	if err := s.RecordRunnerApprovalWait(artifacts.RunnerApproval{ApprovalID: "sha256:" + strings.Repeat("a", 64), RunID: "run-partial", StageID: "stage-a", StepID: "step-a", RoleInstanceID: "role-a", Status: "pending", ApprovalType: "exact_action", BoundActionHash: "sha256:" + strings.Repeat("b", 64), OccurredAt: now}); err != nil {
+		t.Fatalf("RecordRunnerApprovalWait returned error: %v", err)
+	}
+	_, errResp := s.HandleRunnerCheckpointReport(context.Background(), RunnerCheckpointReportRequest{SchemaID: "runecode.protocol.v0.RunnerCheckpointReportRequest", SchemaVersion: "0.1.0", RequestID: "req-partial-active", RunID: "run-partial", Report: RunnerCheckpointReport{SchemaID: "runecode.protocol.v0.RunnerCheckpointReport", SchemaVersion: "0.1.0", LifecycleState: "active", CheckpointCode: "step_attempt_started", OccurredAt: now.Add(time.Minute).Format(time.RFC3339), IdempotencyKey: "idem-partial-active", StageID: "stage-b", StepID: "step-b", StepAttemptID: "attempt-b"}}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleRunnerCheckpointReport error response: %+v", errResp)
+	}
+
+	runResp, runErr := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-partial", RunID: "run-partial"}, RequestContext{})
+	if runErr != nil {
+		t.Fatalf("HandleRunGet error response: %+v", runErr)
+	}
+	if runResp.Run.Summary.LifecycleState != "active" {
+		t.Fatalf("summary.lifecycle_state = %q, want active for partial blocking", runResp.Run.Summary.LifecycleState)
+	}
+	if runResp.Run.Coordination.Blocked {
+		t.Fatal("coordination.blocked = true, want false for partial blocking detail")
+	}
+	if runResp.Run.Coordination.WaitReasonCode != "partial_pending_approval" {
+		t.Fatalf("coordination.wait_reason_code = %q, want partial_pending_approval", runResp.Run.Coordination.WaitReasonCode)
+	}
+	stepAttempts, ok := runResp.Run.AdvisoryState["step_attempts"].(map[string]any)
+	if !ok {
+		t.Fatalf("advisory_state.step_attempts = %T, want map[string]any", runResp.Run.AdvisoryState["step_attempts"])
+	}
+	attemptB, ok := stepAttempts["attempt-b"].(map[string]any)
+	if !ok {
+		t.Fatalf("step_attempts[attempt-b] = %T, want map[string]any", stepAttempts["attempt-b"])
+	}
+	if blockedOnScope, _ := attemptB["blocked_on_scope_pending_approval"].(bool); blockedOnScope {
+		t.Fatal("attempt-b blocked_on_scope_pending_approval = true, want false")
+	}
+}
+
+func TestRunLifecycleRemainsBlockedWhenCanonicalPendingApprovalExists(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, 4, 2, 10, 0, 0, 0, time.UTC)
+	if _, err := s.Put(artifacts.PutRequest{Payload: []byte("x"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("3", 64), CreatedByRole: "workspace", RunID: "run-blocked", StepID: "step-1"}); err != nil {
+		t.Fatalf("Put returned error: %v", err)
+	}
+	_ = createPendingApprovalFromPolicyDecision(t, s, "run-blocked", "step-1", "sha256:"+strings.Repeat("9", 64))
+	_, errResp := s.HandleRunnerCheckpointReport(context.Background(), RunnerCheckpointReportRequest{SchemaID: "runecode.protocol.v0.RunnerCheckpointReportRequest", SchemaVersion: "0.1.0", RequestID: "req-blocked-active", RunID: "run-blocked", Report: RunnerCheckpointReport{SchemaID: "runecode.protocol.v0.RunnerCheckpointReport", SchemaVersion: "0.1.0", LifecycleState: "active", CheckpointCode: "step_attempt_started", OccurredAt: now.Add(time.Minute).Format(time.RFC3339), IdempotencyKey: "idem-blocked-active", StageID: "stage-1", StepID: "step-1", StepAttemptID: "attempt-1"}}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleRunnerCheckpointReport error response: %+v", errResp)
+	}
+	runResp, runErr := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-blocked", RunID: "run-blocked"}, RequestContext{})
+	if runErr != nil {
+		t.Fatalf("HandleRunGet error response: %+v", runErr)
+	}
+	if runResp.Run.Summary.LifecycleState != "blocked" {
+		t.Fatalf("summary.lifecycle_state = %q, want blocked", runResp.Run.Summary.LifecycleState)
+	}
+}
+
+func TestRunnerCheckpointRejectsOversizedDetailsMap(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, 4, 2, 11, 0, 0, 0, time.UTC)
+	if _, err := s.Put(artifacts.PutRequest{Payload: []byte("x"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("4", 64), CreatedByRole: "workspace", RunID: "run-details", StepID: "step-1"}); err != nil {
+		t.Fatalf("Put returned error: %v", err)
+	}
+	details := map[string]any{}
+	for i := 0; i < 65; i++ {
+		details["k"+time.Unix(int64(i), 0).UTC().Format("150405")+"-"+strings.Repeat("x", i%3)] = i
+	}
+	_, errResp := s.HandleRunnerCheckpointReport(context.Background(), RunnerCheckpointReportRequest{SchemaID: "runecode.protocol.v0.RunnerCheckpointReportRequest", SchemaVersion: "0.1.0", RequestID: "req-details-oversized", RunID: "run-details", Report: RunnerCheckpointReport{SchemaID: "runecode.protocol.v0.RunnerCheckpointReport", SchemaVersion: "0.1.0", LifecycleState: "active", CheckpointCode: "step_attempt_started", OccurredAt: now.Format(time.RFC3339), IdempotencyKey: "idem-details-oversized", StageID: "stage-1", StepID: "step-1", StepAttemptID: "attempt-1", Details: details}}, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleRunnerCheckpointReport error = nil, want details validation failure")
+	}
+	if errResp.Error.Code != "broker_validation_schema_invalid" {
+		t.Fatalf("error code = %q, want broker_validation_schema_invalid", errResp.Error.Code)
 	}
 }

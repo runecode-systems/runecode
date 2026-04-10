@@ -21,6 +21,34 @@ func TestHandleRunListRejectsAdmissionFailure(t *testing.T) {
 	}
 }
 
+func TestApprovalResolvePersistsRunnerApprovalWaitHintWithSupersession(t *testing.T) {
+	s, oldRequestEnv, oldDecisionEnv, newApprovalID := setupServiceWithSupersededStageSignOffApprovals(t)
+	oldApprovalID := approvalIDForBrokerTest(t, oldRequestEnv)
+	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, oldApprovalID)
+	resolveReq := ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-stage-signoff-hint", ApprovalID: oldApprovalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-stage"), RunID: "run-stage", StageID: "stage-1", ActionKind: "stage_summary_sign_off", PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: "sha256:" + strings.Repeat("d", 64), Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *oldRequestEnv, SignedApprovalDecision: *oldDecisionEnv}
+	if _, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{}); errResp != nil {
+		t.Fatalf("HandleApprovalResolve returned error: %+v", errResp)
+	}
+	runResp, runErr := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-stage-hint", RunID: "run-stage"}, RequestContext{})
+	if runErr != nil {
+		t.Fatalf("HandleRunGet error response: %+v", runErr)
+	}
+	waits, ok := runResp.Run.AdvisoryState["approval_waits"].(map[string]artifacts.RunnerApproval)
+	if !ok {
+		t.Fatalf("advisory_state.approval_waits = %T, want map[string]artifacts.RunnerApproval", runResp.Run.AdvisoryState["approval_waits"])
+	}
+	first, ok := waits[oldApprovalID]
+	if !ok {
+		t.Fatalf("approval_waits missing %s", oldApprovalID)
+	}
+	if first.Status != "superseded" {
+		t.Fatalf("approval_waits[%s].status = %v, want superseded", oldApprovalID, first.Status)
+	}
+	if first.SupersededByApproval != newApprovalID {
+		t.Fatalf("approval_waits[%s].superseded_by_approval = %q, want %q", oldApprovalID, first.SupersededByApproval, newApprovalID)
+	}
+}
+
 func TestApprovalResolveAndAuditReadinessVersionOperations(t *testing.T) {
 	s, unapproved, requestEnv, decisionEnv := setupServiceWithApprovalFixture(t)
 	approvalID := approvalIDForBrokerTest(t, requestEnv)
@@ -75,19 +103,78 @@ func TestApprovalResolveRejectsUnknownDecisionOutcome(t *testing.T) {
 	}
 }
 
-func TestApprovalResolveSucceedsWhenAuditEmitterUnavailable(t *testing.T) {
+func TestApprovalResolveFailsWhenAuditEmitterUnavailable(t *testing.T) {
 	s, unapproved, requestEnv, decisionEnv := setupServiceWithApprovalFixture(t)
 	s.auditor = nil
 	approvalID := approvalIDForBrokerTest(t, requestEnv)
 	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, approvalID)
 
 	resolveReq := ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-approval-resolve-no-auditor", ApprovalID: approvalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-approval"), RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", ActionKind: "promotion", PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: unapproved.Digest, Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *requestEnv, SignedApprovalDecision: *decisionEnv}
+	_, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleApprovalResolve error = nil, want storage write failure when audit emitter unavailable")
+	}
+	if errResp.Error.Code != "gateway_failure" {
+		t.Fatalf("error code = %q, want gateway_failure", errResp.Error.Code)
+	}
+}
+
+func TestApprovalResolveRejectsApproverPrincipalMismatch(t *testing.T) {
+	s, unapproved, requestEnv, decisionEnv := setupServiceWithApprovalFixture(t)
+	approvalID := approvalIDForBrokerTest(t, requestEnv)
+	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, approvalID)
+
+	resolveReq := ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-approval-resolve-approver-mismatch", ApprovalID: approvalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-approval"), RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", ActionKind: "promotion", PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: unapproved.Digest, Approver: "different-human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *requestEnv, SignedApprovalDecision: *decisionEnv}
+	_, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleApprovalResolve error = nil, want approver binding rejection")
+	}
+	if errResp.Error.Code != "broker_approval_state_invalid" {
+		t.Fatalf("error code = %q, want broker_approval_state_invalid", errResp.Error.Code)
+	}
+}
+
+func TestApprovalResolveUsesSingleCapturedTimeForDecidedAndConsumed(t *testing.T) {
+	s, unapproved, requestEnv, decisionEnv := setupServiceWithApprovalFixture(t)
+	fixedNow := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+	s.now = func() time.Time { return fixedNow }
+	approvalID := approvalIDForBrokerTest(t, requestEnv)
+	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, approvalID)
+
+	resolveReq := ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-approval-resolve-time-binding", ApprovalID: approvalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-approval"), RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", ActionKind: "promotion", PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: unapproved.Digest, Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *requestEnv, SignedApprovalDecision: *decisionEnv}
 	resolveResp, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{})
 	if errResp != nil {
 		t.Fatalf("HandleApprovalResolve error response: %+v", errResp)
 	}
-	if resolveResp.Approval.Status != "consumed" {
-		t.Fatalf("approval status = %q, want consumed", resolveResp.Approval.Status)
+	want := fixedNow.Format(time.RFC3339)
+	if resolveResp.Approval.DecidedAt != want {
+		t.Fatalf("approval.decided_at = %q, want %q", resolveResp.Approval.DecidedAt, want)
+	}
+	if resolveResp.Approval.ConsumedAt != want {
+		t.Fatalf("approval.consumed_at = %q, want %q", resolveResp.Approval.ConsumedAt, want)
+	}
+}
+
+func TestApprovalResolveRedactsApprovalWaitBindingHashesFromRunDetail(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, 4, 10, 13, 0, 0, 0, time.UTC)
+	if err := s.RecordRunnerApprovalWait(artifacts.RunnerApproval{ApprovalID: "sha256:" + strings.Repeat("a", 64), RunID: "run-redact", StageID: "stage-1", StepID: "step-1", RoleInstanceID: "role-1", Status: "pending", ApprovalType: "exact_action", BoundActionHash: "sha256:" + strings.Repeat("b", 64), OccurredAt: now}); err != nil {
+		t.Fatalf("RecordRunnerApprovalWait returned error: %v", err)
+	}
+	runResp, runErr := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-redact", RunID: "run-redact"}, RequestContext{})
+	if runErr != nil {
+		t.Fatalf("HandleRunGet error response: %+v", runErr)
+	}
+	waits, ok := runResp.Run.AdvisoryState["approval_waits"].(map[string]artifacts.RunnerApproval)
+	if !ok {
+		t.Fatalf("advisory_state.approval_waits = %T, want map[string]artifacts.RunnerApproval", runResp.Run.AdvisoryState["approval_waits"])
+	}
+	wait, ok := waits["sha256:"+strings.Repeat("a", 64)]
+	if !ok {
+		t.Fatal("missing approval wait in advisory state")
+	}
+	if wait.BoundActionHash != "" {
+		t.Fatalf("bound_action_hash = %q, want redacted empty value", wait.BoundActionHash)
 	}
 }
 
@@ -228,6 +315,97 @@ func TestApprovalResolveRejectsWhenStoredBoundScopeFieldsOmittedByRequest(t *tes
 	}
 	if !strings.Contains(errResp.Error.Message, "bound_scope.workspace_id") {
 		t.Fatalf("error message = %q, want workspace_id mismatch", errResp.Error.Message)
+	}
+}
+
+func TestApprovalResolveRejectsMismatchedUnapprovedDigestBinding(t *testing.T) {
+	s, unapproved, requestEnv, decisionEnv := setupServiceWithApprovalFixture(t)
+	approvalID := approvalIDForBrokerTest(t, requestEnv)
+	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, approvalID)
+
+	resolveReq := ApprovalResolveRequest{
+		SchemaID:      "runecode.protocol.v0.ApprovalResolveRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-approval-resolve-wrong-source",
+		ApprovalID:    approvalID,
+		BoundScope: ApprovalBoundScope{
+			SchemaID:           "runecode.protocol.v0.ApprovalBoundScope",
+			SchemaVersion:      "0.1.0",
+			WorkspaceID:        workspaceIDForRun("run-approval"),
+			RunID:              "run-approval",
+			StageID:            "artifact_flow",
+			StepID:             "step-1",
+			ActionKind:         "promotion",
+			PolicyDecisionHash: policyDecisionHash,
+		},
+		UnapprovedDigest:       "sha256:" + strings.Repeat("f", 64),
+		Approver:               "human",
+		RepoPath:               "repo/file.txt",
+		Commit:                 "abc123",
+		ExtractorToolVersion:   "tool-v1",
+		FullContentVisible:     true,
+		ExplicitViewFull:       false,
+		BulkRequest:            false,
+		BulkApprovalConfirmed:  false,
+		SignedApprovalRequest:  *requestEnv,
+		SignedApprovalDecision: *decisionEnv,
+	}
+
+	_, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleApprovalResolve expected source digest mismatch")
+	}
+	if errResp.Error.Code != "broker_approval_state_invalid" {
+		t.Fatalf("error code = %q, want broker_approval_state_invalid", errResp.Error.Code)
+	}
+	if !strings.Contains(errResp.Error.Message, "unapproved_digest") {
+		t.Fatalf("error message = %q, want unapproved_digest mismatch", errResp.Error.Message)
+	}
+	_ = unapproved
+}
+
+func TestApprovalResolveRejectsWhenApprovalIDDoesNotMatchSignedRequest(t *testing.T) {
+	s, unapproved, requestEnv, decisionEnv := setupServiceWithApprovalFixture(t)
+	approvalID := approvalIDForBrokerTest(t, requestEnv)
+	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, approvalID)
+
+	resolveReq := ApprovalResolveRequest{
+		SchemaID:      "runecode.protocol.v0.ApprovalResolveRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-approval-resolve-wrong-id",
+		ApprovalID:    "sha256:" + strings.Repeat("9", 64),
+		BoundScope: ApprovalBoundScope{
+			SchemaID:           "runecode.protocol.v0.ApprovalBoundScope",
+			SchemaVersion:      "0.1.0",
+			WorkspaceID:        workspaceIDForRun("run-approval"),
+			RunID:              "run-approval",
+			StageID:            "artifact_flow",
+			StepID:             "step-1",
+			ActionKind:         "promotion",
+			PolicyDecisionHash: policyDecisionHash,
+		},
+		UnapprovedDigest:       unapproved.Digest,
+		Approver:               "human",
+		RepoPath:               "repo/file.txt",
+		Commit:                 "abc123",
+		ExtractorToolVersion:   "tool-v1",
+		FullContentVisible:     true,
+		ExplicitViewFull:       false,
+		BulkRequest:            false,
+		BulkApprovalConfirmed:  false,
+		SignedApprovalRequest:  *requestEnv,
+		SignedApprovalDecision: *decisionEnv,
+	}
+
+	_, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleApprovalResolve expected approval_id mismatch")
+	}
+	if errResp.Error.Code != "broker_approval_state_invalid" {
+		t.Fatalf("error code = %q, want broker_approval_state_invalid", errResp.Error.Code)
+	}
+	if !strings.Contains(errResp.Error.Message, "approval_id does not match") {
+		t.Fatalf("error message = %q, want approval_id mismatch", errResp.Error.Message)
 	}
 }
 

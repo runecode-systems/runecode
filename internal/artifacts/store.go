@@ -55,6 +55,11 @@ func (s *Store) loadState() error {
 		return err
 	}
 	changed = changed || approvalLinkChanged
+	runnerChanged, err := s.reconcileRunnerAdvisoryDurableStateLocked()
+	if err != nil {
+		return err
+	}
+	changed = changed || runnerChanged
 	if changed {
 		if err := s.saveStateLocked(); err != nil {
 			return err

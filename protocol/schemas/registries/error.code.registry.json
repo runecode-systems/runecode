@@ -110,6 +110,10 @@
       "summary": "The broker rejected the request because artifact range reads are not supported in MVP."
     },
     {
+      "code": "broker_validation_runner_transition_invalid",
+      "summary": "The broker rejected an untrusted runner checkpoint/result report because lifecycle transition validation failed closed."
+    },
+    {
       "code": "policy_input_hash_mismatch",
       "summary": "Policy evaluation rejected a content-addressed input because payload bytes did not match the signed expected hash."
     },

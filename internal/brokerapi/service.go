@@ -137,6 +137,22 @@ func (s *Service) SetRunStatus(runID, status string) error {
 	return s.store.SetRunStatus(runID, status)
 }
 
+func (s *Service) RecordRunnerCheckpoint(runID string, checkpoint artifacts.RunnerCheckpointAdvisory) (bool, error) {
+	return s.store.RecordRunnerCheckpoint(runID, checkpoint)
+}
+
+func (s *Service) RecordRunnerResult(runID string, result artifacts.RunnerResultAdvisory) (bool, error) {
+	return s.store.RecordRunnerResult(runID, result)
+}
+
+func (s *Service) RunnerAdvisory(runID string) (artifacts.RunnerAdvisoryState, bool) {
+	return s.store.RunnerAdvisory(runID)
+}
+
+func (s *Service) RecordRunnerApprovalWait(approval artifacts.RunnerApproval) error {
+	return s.store.RecordRunnerApprovalWait(approval)
+}
+
 func (s *Service) GarbageCollect() (artifacts.GCResult, error) {
 	return s.store.GarbageCollect()
 }

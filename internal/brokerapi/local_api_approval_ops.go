@@ -61,7 +61,10 @@ func (s *Service) resolveApprovalResponse(ctx context.Context, requestID string,
 	if errResp := s.requestContextError(requestID, ctx); errResp != nil {
 		return ApprovalResolveResponse{}, errResp
 	}
-	_ = s.auditApprovalResolution(requestID, resolved.record.Summary.ApprovalID, resolved.record.Summary.Status, resp.ResolutionReasonCode)
+	if err := s.auditApprovalResolution(requestID, resolved.record.Summary.ApprovalID, resolved.record.Summary.Status, resp.ResolutionReasonCode); err != nil {
+		errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, err.Error())
+		return ApprovalResolveResponse{}, &errOut
+	}
 	return resp, nil
 }
 

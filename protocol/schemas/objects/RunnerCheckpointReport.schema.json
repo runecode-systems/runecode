@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/RunnerCheckpointReport.schema.json",
+  "title": "RunnerCheckpointReport",
+  "description": "Typed advisory checkpoint report from untrusted runner to broker.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 14,
+  "required": ["schema_id", "schema_version", "lifecycle_state", "checkpoint_code", "occurred_at", "idempotency_key"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.RunnerCheckpointReport", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "lifecycle_state": { "type": "string", "enum": ["pending", "starting", "active", "blocked", "recovering"], "description": "Runner checkpoint lifecycle state projected into broker lifecycle vocabulary.", "x-data-class": "public" },
+    "checkpoint_code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 128, "description": "Stable machine-readable checkpoint code.", "x-data-class": "public" },
+    "occurred_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Checkpoint event time.", "x-data-class": "public" },
+    "idempotency_key": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Stable idempotency key for runner checkpoint replay safety.", "x-data-class": "public" },
+    "stage_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Stable stage identity when known.", "x-data-class": "public" },
+    "step_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Stable step identity when known.", "x-data-class": "public" },
+    "role_instance_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Stable role-instance identity when known.", "x-data-class": "public" },
+    "stage_attempt_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Stage attempt identity for retry/recovery tracking.", "x-data-class": "public" },
+    "step_attempt_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Step attempt identity for retry/recovery tracking.", "x-data-class": "public" },
+    "gate_attempt_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Gate attempt identity when checkpoint is gate-scoped.", "x-data-class": "public" },
+    "pending_approval_count": { "type": "integer", "minimum": 0, "description": "Runner advisory count of currently blocking pending approvals.", "x-data-class": "public" },
+    "details": { "type": "object", "maxProperties": 32, "description": "Optional bounded advisory checkpoint details without canonical broker authority.", "x-data-class": "public", "additionalProperties": true }
+  }
+}

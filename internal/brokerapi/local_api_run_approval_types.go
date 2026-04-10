@@ -14,6 +14,12 @@ const (
 	runListResponseSchemaPath         = "objects/RunListResponse.schema.json"
 	runGetRequestSchemaPath           = "objects/RunGetRequest.schema.json"
 	runGetResponseSchemaPath          = "objects/RunGetResponse.schema.json"
+	runnerCheckpointReportSchemaPath  = "objects/RunnerCheckpointReport.schema.json"
+	runnerResultReportSchemaPath      = "objects/RunnerResultReport.schema.json"
+	runnerCheckpointRequestSchemaPath = "objects/RunnerCheckpointReportRequest.schema.json"
+	runnerCheckpointRespSchemaPath    = "objects/RunnerCheckpointReportResponse.schema.json"
+	runnerResultRequestSchemaPath     = "objects/RunnerResultReportRequest.schema.json"
+	runnerResultRespSchemaPath        = "objects/RunnerResultReportResponse.schema.json"
 	approvalListRequestSchemaPath     = "objects/ApprovalListRequest.schema.json"
 	approvalListResponseSchemaPath    = "objects/ApprovalListResponse.schema.json"
 	approvalGetRequestSchemaPath      = "objects/ApprovalGetRequest.schema.json"
@@ -127,6 +133,78 @@ type RunGetResponse struct {
 	SchemaVersion string    `json:"schema_version"`
 	RequestID     string    `json:"request_id"`
 	Run           RunDetail `json:"run"`
+}
+
+type RunnerCheckpointReport struct {
+	SchemaID             string         `json:"schema_id"`
+	SchemaVersion        string         `json:"schema_version"`
+	LifecycleState       string         `json:"lifecycle_state"`
+	CheckpointCode       string         `json:"checkpoint_code"`
+	OccurredAt           string         `json:"occurred_at"`
+	IdempotencyKey       string         `json:"idempotency_key"`
+	StageID              string         `json:"stage_id,omitempty"`
+	StepID               string         `json:"step_id,omitempty"`
+	RoleInstanceID       string         `json:"role_instance_id,omitempty"`
+	StageAttemptID       string         `json:"stage_attempt_id,omitempty"`
+	StepAttemptID        string         `json:"step_attempt_id,omitempty"`
+	GateAttemptID        string         `json:"gate_attempt_id,omitempty"`
+	PendingApprovalCount int            `json:"pending_approval_count,omitempty"`
+	Details              map[string]any `json:"details,omitempty"`
+}
+
+type RunnerResultReport struct {
+	SchemaID          string         `json:"schema_id"`
+	SchemaVersion     string         `json:"schema_version"`
+	LifecycleState    string         `json:"lifecycle_state"`
+	ResultCode        string         `json:"result_code"`
+	OccurredAt        string         `json:"occurred_at"`
+	IdempotencyKey    string         `json:"idempotency_key"`
+	StageID           string         `json:"stage_id,omitempty"`
+	StepID            string         `json:"step_id,omitempty"`
+	RoleInstanceID    string         `json:"role_instance_id,omitempty"`
+	StageAttemptID    string         `json:"stage_attempt_id,omitempty"`
+	StepAttemptID     string         `json:"step_attempt_id,omitempty"`
+	GateAttemptID     string         `json:"gate_attempt_id,omitempty"`
+	FailureReasonCode string         `json:"failure_reason_code,omitempty"`
+	Details           map[string]any `json:"details,omitempty"`
+}
+
+type RunnerCheckpointReportRequest struct {
+	SchemaID      string                 `json:"schema_id"`
+	SchemaVersion string                 `json:"schema_version"`
+	RequestID     string                 `json:"request_id"`
+	RunID         string                 `json:"run_id"`
+	Report        RunnerCheckpointReport `json:"report"`
+}
+
+type RunnerCheckpointReportResponse struct {
+	SchemaID                string `json:"schema_id"`
+	SchemaVersion           string `json:"schema_version"`
+	RequestID               string `json:"request_id"`
+	RunID                   string `json:"run_id"`
+	Accepted                bool   `json:"accepted"`
+	CanonicalLifecycleState string `json:"canonical_lifecycle_state"`
+	AcceptedAt              string `json:"accepted_at"`
+	IdempotencyKey          string `json:"idempotency_key"`
+}
+
+type RunnerResultReportRequest struct {
+	SchemaID      string             `json:"schema_id"`
+	SchemaVersion string             `json:"schema_version"`
+	RequestID     string             `json:"request_id"`
+	RunID         string             `json:"run_id"`
+	Report        RunnerResultReport `json:"report"`
+}
+
+type RunnerResultReportResponse struct {
+	SchemaID                string `json:"schema_id"`
+	SchemaVersion           string `json:"schema_version"`
+	RequestID               string `json:"request_id"`
+	RunID                   string `json:"run_id"`
+	Accepted                bool   `json:"accepted"`
+	CanonicalLifecycleState string `json:"canonical_lifecycle_state"`
+	AcceptedAt              string `json:"accepted_at"`
+	IdempotencyKey          string `json:"idempotency_key"`
 }
 
 type ApprovalBoundScope struct {

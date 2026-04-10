@@ -57,6 +57,7 @@ func brokerErrorRegistryCodes() []string {
 		"broker_limit_response_stream_size_exceeded",
 		"broker_timeout_request_deadline_exceeded",
 		"broker_approval_state_invalid",
+		"broker_validation_runner_transition_invalid",
 		"policy_input_hash_mismatch",
 	}
 }

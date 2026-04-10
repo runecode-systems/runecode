@@ -357,6 +357,48 @@
       "status": "mvp"
     },
     {
+      "path": "objects/RunnerCheckpointReport.schema.json",
+      "schema_id": "runecode.protocol.v0.RunnerCheckpointReport",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunnerResultReport.schema.json",
+      "schema_id": "runecode.protocol.v0.RunnerResultReport",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunnerCheckpointReportRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.RunnerCheckpointReportRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunnerCheckpointReportResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.RunnerCheckpointReportResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunnerResultReportRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.RunnerResultReportRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunnerResultReportResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.RunnerResultReportResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/RuntimeImageDescriptor.schema.json",
       "schema_id": "runecode.protocol.v0.RuntimeImageDescriptor",
       "schema_version": "0.2.0",

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
@@ -149,7 +150,10 @@ func (s *Service) persistApprovalRecord(rec approvalRecord) error {
 		RelevantArtifactHashes: append([]string{}, rec.RelevantArtifactHashes...),
 	}
 	applyApprovalSummaryTimes(&stored, rec.Summary)
-	return s.RecordApproval(stored)
+	if err := s.RecordApproval(stored); err != nil {
+		return err
+	}
+	return s.recordRunnerApprovalWaitFromCanonical(stored)
 }
 
 func applyApprovalSummaryTimes(stored *artifacts.ApprovalRecord, summary ApprovalSummary) {
@@ -176,4 +180,56 @@ func parseRFC3339(value string) (time.Time, bool) {
 		return time.Time{}, false
 	}
 	return ts.UTC(), true
+}
+
+func (s *Service) recordRunnerApprovalWaitFromCanonical(stored artifacts.ApprovalRecord) error {
+	if strings.TrimSpace(stored.RunID) == "" {
+		return nil
+	}
+	approvalType, actionHash, stageHash := approvalBindingForRunnerHint(stored)
+	occurredAt := stored.RequestedAt
+	if occurredAt.IsZero() {
+		occurredAt = s.now().UTC()
+	}
+	resolvedAt := stored.DecidedAt
+	if strings.TrimSpace(stored.Status) == "consumed" && stored.ConsumedAt != nil {
+		resolvedAt = stored.ConsumedAt
+	}
+	var resolvedCopy *time.Time
+	if resolvedAt != nil {
+		t := resolvedAt.UTC()
+		resolvedCopy = &t
+	}
+	return s.store.RecordRunnerApprovalWait(artifacts.RunnerApproval{
+		ApprovalID:            stored.ApprovalID,
+		RunID:                 stored.RunID,
+		StageID:               stored.StageID,
+		StepID:                stored.StepID,
+		RoleInstanceID:        stored.RoleInstanceID,
+		Status:                stored.Status,
+		ApprovalType:          approvalType,
+		BoundActionHash:       actionHash,
+		BoundStageSummaryHash: stageHash,
+		OccurredAt:            occurredAt.UTC(),
+		ResolvedAt:            resolvedCopy,
+		SupersededByApproval:  stored.SupersededByApprovalID,
+	})
+}
+
+func approvalBindingForRunnerHint(stored artifacts.ApprovalRecord) (string, string, string) {
+	if strings.TrimSpace(stored.ActionKind) == "stage_summary_sign_off" {
+		if stored.RequestEnvelope != nil {
+			payload, err := decodeApprovalRequestPayload(*stored.RequestEnvelope)
+			if err == nil {
+				details, _ := payload["details"].(map[string]any)
+				if details != nil {
+					if digest, err := digestIdentityFromPayloadObject(details, "stage_summary_hash"); err == nil {
+						return "stage_sign_off", "", digest
+					}
+				}
+			}
+		}
+		return "stage_sign_off", "", stored.ManifestHash
+	}
+	return "exact_action", stored.ActionRequestHash, ""
 }

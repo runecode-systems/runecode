@@ -22,6 +22,9 @@ func validateApprovalRecordRequiredFields(record ApprovalRecord) error {
 	if strings.TrimSpace(record.Status) == "" {
 		return fmt.Errorf("approval status is required")
 	}
+	if !isSupportedApprovalStatus(record.Status) {
+		return fmt.Errorf("unsupported approval status")
+	}
 	if strings.TrimSpace(record.ActionKind) == "" {
 		return fmt.Errorf("action kind is required")
 	}
@@ -41,6 +44,15 @@ func validateApprovalRecordRequiredFields(record ApprovalRecord) error {
 		return fmt.Errorf("presence_mode is required")
 	}
 	return nil
+}
+
+func isSupportedApprovalStatus(status string) bool {
+	switch strings.TrimSpace(status) {
+	case "pending", "approved", "denied", "expired", "superseded", "cancelled", "consumed":
+		return true
+	default:
+		return false
+	}
 }
 
 func validateApprovalRecordBindings(record ApprovalRecord) error {

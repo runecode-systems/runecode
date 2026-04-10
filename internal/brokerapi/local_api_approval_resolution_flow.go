@@ -37,13 +37,14 @@ func (s *Service) resolveApprovalForPersistence(requestID string, req ApprovalRe
 	if resumeResult.statusOverride != "" {
 		resolvedStatus = resumeResult.statusOverride
 	}
-	record, buildErr := buildResolvedApprovalRecordForOutcome(req, current, resolvedInput.approvalID, resolvedInput.decisionDigest, resolvedStatus, resumeResult.supersededByID)
+	resolvedAt := s.now().UTC()
+	record, buildErr := buildResolvedApprovalRecordForOutcome(req, current, resolvedInput.approvalID, resolvedInput.decisionDigest, resolvedStatus, resumeResult.supersededByID, resolvedAt)
 	if buildErr != nil {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, buildErr.Error())
 		return resolvedApprovalResult{}, &errOut
 	}
 	if resolvedStatus == "consumed" {
-		record.Summary.ConsumedAt = s.now().UTC().Format(time.RFC3339)
+		record.Summary.ConsumedAt = resolvedAt.Format(time.RFC3339)
 	}
 	return resolvedApprovalResult{record: record, resumeResult: resumeResult}, nil
 }

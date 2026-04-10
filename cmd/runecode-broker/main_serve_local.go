@@ -233,6 +233,16 @@ func runApprovalRPCOperations(service *brokerapi.Service, ctx context.Context, m
 				return service.HandleRunGet(ctx, req, meta)
 			})
 		}},
+		"runner_checkpoint_report": {requestSchemaPath: "objects/RunnerCheckpointReportRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.RunnerCheckpointReportRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleRunnerCheckpointReport(ctx, req, meta)
+			})
+		}},
+		"runner_result_report": {requestSchemaPath: "objects/RunnerResultReportRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.RunnerResultReportRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleRunnerResultReport(ctx, req, meta)
+			})
+		}},
 		"approval_list": {requestSchemaPath: "objects/ApprovalListRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.ApprovalListRequest) (any, *brokerapi.ErrorResponse) {
 				return service.HandleApprovalList(ctx, req, meta)
