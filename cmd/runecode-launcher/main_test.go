@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -72,6 +73,9 @@ func TestServeUsageError(t *testing.T) {
 }
 
 func TestHelloWorldLaunchSpecValidates(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("microvm/kvm launch spec validation is linux-only in MVP")
+	}
 	spec := helloWorldLaunchSpec("run-test")
 	if err := spec.Validate(); err != nil {
 		t.Fatalf("helloWorldLaunchSpec Validate returned error: %v", err)

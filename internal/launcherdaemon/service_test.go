@@ -3,6 +3,7 @@ package launcherdaemon
 import (
 	"context"
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 
@@ -120,6 +121,9 @@ func TestServiceStopFromInvalidStateFails(t *testing.T) {
 }
 
 func TestServiceLaunchConsumesRuntimeUpdates(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("microvm/kvm launch validation is linux-only in MVP")
+	}
 	reporter := &fakeReporter{}
 	controller := &scriptedController{}
 	svc, err := New(Config{Controller: controller, Reporter: reporter})
@@ -143,6 +147,9 @@ func TestServiceLaunchConsumesRuntimeUpdates(t *testing.T) {
 }
 
 func TestServiceReporterFailureMarksServiceFailed(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("microvm/kvm launch validation is linux-only in MVP")
+	}
 	reporter := &fakeReporter{factsErr: errors.New("persist failed")}
 	controller := &scriptedController{}
 	svc, err := New(Config{Controller: controller, Reporter: reporter})
