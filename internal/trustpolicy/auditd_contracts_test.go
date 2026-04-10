@@ -30,7 +30,12 @@ func TestValidateAuditAdmissionRequestFailsClosedOnMissingSignerEvidence(t *test
 
 func TestValidateAuditAdmissionRequestFailsClosedOnCatalogMismatch(t *testing.T) {
 	request := validAuditAdmissionRequestFixture(t)
-	request.EventContractCatalog.Entries[0].AllowedPayloadSchemaIDs = []string{"runecode.protocol.audit.payload.other.v0"}
+	for index := range request.EventContractCatalog.Entries {
+		if request.EventContractCatalog.Entries[index].AuditEventType == "isolate_session_bound" {
+			request.EventContractCatalog.Entries[index].AllowedPayloadSchemaIDs = []string{"runecode.protocol.audit.payload.other.v0"}
+			break
+		}
+	}
 	if err := ValidateAuditAdmissionRequest(request); err == nil {
 		t.Fatal("ValidateAuditAdmissionRequest expected event contract mismatch")
 	}
@@ -284,9 +289,36 @@ func generateAuditFixtureKeyMaterial(t *testing.T) (ed25519.PublicKey, ed25519.P
 
 func buildAuditAdmissionEventPayloadBytes(t *testing.T) json.RawMessage {
 	t.Helper()
-	eventPayload := map[string]any{"session_id": "session-1"}
+	eventPayload := baseIsolateSessionBoundPayloadFixture()
 	eventPayloadHash := hashCanonicalJSONFixture(t, eventPayload)
-	payload := map[string]any{
+	payload := buildAuditAdmissionEnvelopePayload(eventPayload, eventPayloadHash)
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal payload returned error: %v", err)
+	}
+	return payloadBytes
+}
+
+func baseIsolateSessionBoundPayloadFixture() map[string]any {
+	return map[string]any{
+		"schema_id":                        IsolateSessionBoundPayloadSchemaID,
+		"schema_version":                   IsolateSessionBoundPayloadSchemaVersion,
+		"run_id":                           "run-1",
+		"isolate_id":                       "isolate-1",
+		"session_id":                       "session-1",
+		"backend_kind":                     "microvm",
+		"isolation_assurance_level":        "isolated",
+		"provisioning_posture":             "tofu",
+		"launch_context_digest":            "sha256:" + strings.Repeat("1", 64),
+		"handshake_transcript_hash":        "sha256:" + strings.Repeat("2", 64),
+		"session_binding_digest":           "sha256:" + strings.Repeat("3", 64),
+		"runtime_image_descriptor_digest":  "sha256:" + strings.Repeat("4", 64),
+		"applied_hardening_posture_digest": "sha256:" + strings.Repeat("5", 64),
+	}
+}
+
+func buildAuditAdmissionEnvelopePayload(eventPayload map[string]any, eventPayloadHash string) map[string]any {
+	return map[string]any{
 		"schema_id":                     AuditEventSchemaID,
 		"schema_version":                AuditEventSchemaVersion,
 		"audit_event_type":              "isolate_session_bound",
@@ -294,7 +326,7 @@ func buildAuditAdmissionEventPayloadBytes(t *testing.T) json.RawMessage {
 		"seq":                           1,
 		"occurred_at":                   "2026-03-13T12:15:00Z",
 		"principal":                     map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "auditd", "instance_id": "auditd-1"},
-		"event_payload_schema_id":       "runecode.protocol.audit.payload.isolate-session-bound.v0",
+		"event_payload_schema_id":       IsolateSessionBoundPayloadSchemaID,
 		"event_payload":                 eventPayload,
 		"event_payload_hash":            map[string]any{"hash_alg": "sha256", "hash": eventPayloadHash},
 		"protocol_bundle_manifest_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("b", 64)},
@@ -305,11 +337,6 @@ func buildAuditAdmissionEventPayloadBytes(t *testing.T) json.RawMessage {
 		"related_refs":                  []any{map[string]any{"object_family": "verifier_record", "digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("e", 64)}, "ref_role": "binding"}},
 		"signer_evidence_refs":          []any{map[string]any{"object_family": "verifier_record", "digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("f", 64)}, "ref_role": "admissibility"}},
 	}
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("Marshal payload returned error: %v", err)
-	}
-	return payloadBytes
 }
 
 func hashCanonicalJSONFixture(t *testing.T, value any) string {
@@ -359,24 +386,45 @@ func buildAuditEventContractCatalogFixture() AuditEventContractCatalog {
 		SchemaID:      AuditEventContractCatalogSchemaID,
 		SchemaVersion: AuditEventContractCatalogSchemaVersion,
 		CatalogID:     "audit_event_contract_v0",
-		Entries: []AuditEventContractCatalogEntry{
-			{
-				AuditEventType:                 "isolate_session_bound",
-				AllowedPayloadSchemaIDs:        []string{"runecode.protocol.audit.payload.isolate-session-bound.v0"},
-				AllowedSignerPurposes:          []string{"isolate_session_identity"},
-				AllowedSignerScopes:            []string{"session"},
-				RequiredScopeFields:            []string{"workspace_id", "run_id", "stage_id"},
-				RequiredCorrelationFields:      []string{"session_id", "operation_id"},
-				RequireSubjectRef:              true,
-				AllowedSubjectRefRoles:         []string{"binding_target"},
-				AllowedCauseRefRoles:           []string{"session_cause"},
-				AllowedRelatedRefRoles:         []string{"binding", "evidence", "receipt"},
-				RequireGatewayContext:          false,
-				AllowedGatewayEgressCategories: []string{},
-				RequireSignerEvidenceRefs:      true,
-				AllowedSignerEvidenceRefRoles:  []string{"admissibility", "binding"},
-			},
-		},
+		Entries:       []AuditEventContractCatalogEntry{auditEventContractStartedEntry(), auditEventContractBoundEntry()},
+	}
+}
+
+func auditEventContractStartedEntry() AuditEventContractCatalogEntry {
+	return AuditEventContractCatalogEntry{
+		AuditEventType:                 "isolate_session_started",
+		AllowedPayloadSchemaIDs:        []string{IsolateSessionStartedPayloadSchemaID},
+		AllowedSignerPurposes:          []string{"isolate_session_identity"},
+		AllowedSignerScopes:            []string{"session"},
+		RequiredScopeFields:            []string{"workspace_id", "run_id"},
+		RequiredCorrelationFields:      []string{"session_id", "operation_id"},
+		RequireSubjectRef:              false,
+		AllowedSubjectRefRoles:         []string{},
+		AllowedCauseRefRoles:           []string{},
+		AllowedRelatedRefRoles:         []string{"binding", "evidence", "receipt"},
+		RequireGatewayContext:          false,
+		AllowedGatewayEgressCategories: []string{},
+		RequireSignerEvidenceRefs:      false,
+		AllowedSignerEvidenceRefRoles:  []string{"admissibility", "binding"},
+	}
+}
+
+func auditEventContractBoundEntry() AuditEventContractCatalogEntry {
+	return AuditEventContractCatalogEntry{
+		AuditEventType:                 "isolate_session_bound",
+		AllowedPayloadSchemaIDs:        []string{IsolateSessionBoundPayloadSchemaID},
+		AllowedSignerPurposes:          []string{"isolate_session_identity"},
+		AllowedSignerScopes:            []string{"session"},
+		RequiredScopeFields:            []string{"workspace_id", "run_id", "stage_id"},
+		RequiredCorrelationFields:      []string{"session_id", "operation_id"},
+		RequireSubjectRef:              true,
+		AllowedSubjectRefRoles:         []string{"binding_target"},
+		AllowedCauseRefRoles:           []string{"session_cause"},
+		AllowedRelatedRefRoles:         []string{"binding", "evidence", "receipt"},
+		RequireGatewayContext:          false,
+		AllowedGatewayEgressCategories: []string{},
+		RequireSignerEvidenceRefs:      true,
+		AllowedSignerEvidenceRefRoles:  []string{"admissibility", "binding"},
 	}
 }
 
@@ -400,7 +448,7 @@ func buildSignerEvidenceReferenceFixtureWithDigest(keyIDValue string, digestHash
 				RunID:                   "run-1",
 				IsolateID:               "isolate-1",
 				SessionID:               "session-1",
-				SessionNonce:            "nonce-1",
+				SessionNonce:            "nonce-0123456789abcd",
 				ProvisioningMode:        "tofu",
 				ImageDigest:             Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)},
 				ActiveManifestHash:      Digest{HashAlg: "sha256", Hash: strings.Repeat("2", 64)},

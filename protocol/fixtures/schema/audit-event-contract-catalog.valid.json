@@ -510,7 +510,7 @@
     {
       "audit_event_type": "isolate_session_started",
       "allowed_payload_schema_ids": [
-        "runecode.protocol.audit.payload.isolate-session-started.v0"
+        "runecode.protocol.v0.IsolateSessionStartedPayload"
       ],
       "allowed_signer_purposes": [
         "isolate_emitter"
@@ -546,7 +546,7 @@
     {
       "audit_event_type": "isolate_session_bound",
       "allowed_payload_schema_ids": [
-        "runecode.protocol.audit.payload.isolate-session-bound.v0"
+        "runecode.protocol.v0.IsolateSessionBoundPayload"
       ],
       "allowed_signer_purposes": [
         "isolate_emitter"

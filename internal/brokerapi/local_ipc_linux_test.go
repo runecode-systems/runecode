@@ -110,6 +110,45 @@ func TestAuthenticateLocalPeerRejectsWrongUID(t *testing.T) {
 	}
 }
 
+func TestAuthenticateLocalPeerHonorsExplicitZeroAllowedUID(t *testing.T) {
+	base := shortBaseDir(t)
+	runtimeDir := filepath.Join(base, "runtime")
+	listener, err := ListenLocalIPC(LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
+	if err != nil {
+		t.Fatalf("ListenLocalIPC returned error: %v", err)
+	}
+	defer listener.Close()
+
+	errCh := make(chan error, 1)
+	go func() {
+		conn, acceptErr := listener.Listener.Accept()
+		if acceptErr != nil {
+			errCh <- acceptErr
+			return
+		}
+		defer conn.Close()
+		_, authErr := AuthenticateLocalPeer(conn, AdmissionPolicy{RequireSameUID: true, AllowedUID: 0})
+		errCh <- authErr
+	}()
+
+	client, err := net.Dial("unix", listener.SocketPath)
+	if err != nil {
+		t.Fatalf("Dial returned error: %v", err)
+	}
+	_ = client.Close()
+
+	authErr := <-errCh
+	if os.Getuid() == 0 {
+		if authErr != nil {
+			t.Fatalf("auth error = %v, want nil for root uid with AllowedUID=0", authErr)
+		}
+		return
+	}
+	if !errors.Is(authErr, ErrPeerUIDMismatch) {
+		t.Fatalf("auth error = %v, want ErrPeerUIDMismatch for explicit AllowedUID=0", authErr)
+	}
+}
+
 func TestAuthenticateLocalPeerFailsClosedWhenCredentialsUnavailable(t *testing.T) {
 	left, right := net.Pipe()
 	defer left.Close()

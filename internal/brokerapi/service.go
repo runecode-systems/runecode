@@ -3,10 +3,12 @@ package brokerapi
 import (
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/auditd"
+	"github.com/runecode-ai/runecode/internal/launcherbackend"
 	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
@@ -31,6 +33,9 @@ type Service struct {
 	apiInflight *inFlightGate
 	versionInfo BrokerVersionInfo
 	now         func() time.Time
+
+	runtimeFactsMu sync.RWMutex
+	runtimeFacts   map[string]launcherbackend.RuntimeFactsSnapshot
 }
 
 func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
@@ -52,14 +57,15 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 		return nil, err
 	}
 	return &Service{
-		store:       store,
-		auditLedger: ledger,
-		auditor:     auditor,
-		auditRoot:   ledgerRoot,
-		apiConfig:   resolved,
-		apiInflight: newInFlightGate(resolved.Limits),
-		now:         time.Now,
-		versionInfo: defaultBrokerVersionInfo(),
+		store:        store,
+		auditLedger:  ledger,
+		auditor:      auditor,
+		auditRoot:    ledgerRoot,
+		apiConfig:    resolved,
+		apiInflight:  newInFlightGate(resolved.Limits),
+		now:          time.Now,
+		versionInfo:  defaultBrokerVersionInfo(),
+		runtimeFacts: map[string]launcherbackend.RuntimeFactsSnapshot{},
 	}, nil
 }
 
@@ -227,22 +233,4 @@ func (s *Service) LatestAuditVerificationSurface(limit int) (AuditVerificationSu
 
 func (s *Service) APILimits() Limits {
 	return s.apiConfig.Limits
-}
-
-func ParseDataClass(value string) (artifacts.DataClass, error) {
-	class := artifacts.DataClass(value)
-	switch class {
-	case artifacts.DataClassSpecText,
-		artifacts.DataClassUnapprovedFileExcerpts,
-		artifacts.DataClassApprovedFileExcerpts,
-		artifacts.DataClassDiffs,
-		artifacts.DataClassBuildLogs,
-		artifacts.DataClassAuditEvents,
-		artifacts.DataClassAuditVerificationReport,
-		artifacts.DataClassWebQuery,
-		artifacts.DataClassWebCitations:
-		return class, nil
-	default:
-		return "", fmt.Errorf("unsupported data class %q", value)
-	}
 }

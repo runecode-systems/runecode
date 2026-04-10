@@ -246,16 +246,12 @@ func PeerCredentialsFromConn(conn net.Conn) (PeerCredentials, error) {
 }
 
 func AuthenticateLocalPeer(conn net.Conn, policy AdmissionPolicy) (PeerCredentials, error) {
-	resolved := policy
-	if resolved.RequireSameUID && resolved.AllowedUID == 0 {
-		resolved.AllowedUID = uint32(os.Getuid())
-	}
 	creds, err := PeerCredentialsFromConn(conn)
 	if err != nil {
 		return PeerCredentials{}, err
 	}
-	if resolved.RequireSameUID && creds.UID != resolved.AllowedUID {
-		return PeerCredentials{}, fmt.Errorf("%w: got uid=%d want uid=%d", ErrPeerUIDMismatch, creds.UID, resolved.AllowedUID)
+	if policy.RequireSameUID && creds.UID != policy.AllowedUID {
+		return PeerCredentials{}, fmt.Errorf("%w: got uid=%d want uid=%d", ErrPeerUIDMismatch, creds.UID, policy.AllowedUID)
 	}
 	return creds, nil
 }

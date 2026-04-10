@@ -9,6 +9,11 @@ const (
 	AuditEventSchemaID      = "runecode.protocol.v0.AuditEvent"
 	AuditEventSchemaVersion = "0.5.0"
 
+	IsolateSessionStartedPayloadSchemaID      = "runecode.protocol.v0.IsolateSessionStartedPayload"
+	IsolateSessionStartedPayloadSchemaVersion = "0.1.0"
+	IsolateSessionBoundPayloadSchemaID        = "runecode.protocol.v0.IsolateSessionBoundPayload"
+	IsolateSessionBoundPayloadSchemaVersion   = "0.1.0"
+
 	AuditSegmentSealSchemaID      = "runecode.protocol.v0.AuditSegmentSeal"
 	AuditSegmentSealSchemaVersion = "0.2.0"
 
@@ -41,6 +46,40 @@ type AuditTypedReference struct {
 
 type AuditGatewayContext struct {
 	EgressCategory string `json:"egress_category"`
+}
+
+type IsolateSessionStartedPayload struct {
+	SchemaID                      string `json:"schema_id"`
+	SchemaVersion                 string `json:"schema_version"`
+	RunID                         string `json:"run_id"`
+	IsolateID                     string `json:"isolate_id"`
+	SessionID                     string `json:"session_id"`
+	BackendKind                   string `json:"backend_kind"`
+	IsolationAssuranceLevel       string `json:"isolation_assurance_level"`
+	ProvisioningPosture           string `json:"provisioning_posture"`
+	LaunchContextDigest           string `json:"launch_context_digest"`
+	HandshakeTranscriptHash       string `json:"handshake_transcript_hash"`
+	LaunchReceiptDigest           string `json:"launch_receipt_digest"`
+	RuntimeImageDescriptorDigest  string `json:"runtime_image_descriptor_digest"`
+	AppliedHardeningPostureDigest string `json:"applied_hardening_posture_digest"`
+	AttestationEvidenceDigest     string `json:"attestation_evidence_digest,omitempty"`
+}
+
+type IsolateSessionBoundPayload struct {
+	SchemaID                      string `json:"schema_id"`
+	SchemaVersion                 string `json:"schema_version"`
+	RunID                         string `json:"run_id"`
+	IsolateID                     string `json:"isolate_id"`
+	SessionID                     string `json:"session_id"`
+	BackendKind                   string `json:"backend_kind"`
+	IsolationAssuranceLevel       string `json:"isolation_assurance_level"`
+	ProvisioningPosture           string `json:"provisioning_posture"`
+	LaunchContextDigest           string `json:"launch_context_digest"`
+	HandshakeTranscriptHash       string `json:"handshake_transcript_hash"`
+	SessionBindingDigest          string `json:"session_binding_digest"`
+	RuntimeImageDescriptorDigest  string `json:"runtime_image_descriptor_digest"`
+	AppliedHardeningPostureDigest string `json:"applied_hardening_posture_digest"`
+	AttestationEvidenceDigest     string `json:"attestation_evidence_digest,omitempty"`
 }
 
 type AuditEventPayload struct {

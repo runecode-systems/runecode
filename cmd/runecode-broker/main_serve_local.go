@@ -368,18 +368,21 @@ func decodeWireError(requestID string, err error) *brokerapi.ErrorResponse {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return &brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: requestID, Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "broker_timeout_request_deadline_exceeded", Category: "timeout", Retryable: false, Message: "request deadline exceeded"}}
 		}
-		message = err.Error()
-		if strings.Contains(message, "unsupported operation") {
+		errText := err.Error()
+		if strings.Contains(errText, "unsupported operation") {
 			code = "broker_validation_operation_invalid"
 			category = "validation"
+			message = "operation is not supported"
 		}
-		if strings.Contains(message, "message size") {
+		if strings.Contains(errText, "message size") {
 			code = "broker_limit_message_size_exceeded"
 			category = "transport"
+			message = "request exceeds message size limit"
 		}
-		if strings.Contains(message, "message depth") || strings.Contains(message, "array length") || strings.Contains(message, "object property count") {
+		if strings.Contains(errText, "message depth") || strings.Contains(errText, "array length") || strings.Contains(errText, "object property count") {
 			code = "broker_limit_structural_complexity_exceeded"
 			category = "transport"
+			message = "request exceeds structural complexity limits"
 		}
 	}
 	return &brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: requestID, Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: code, Category: category, Retryable: retryable, Message: message}}

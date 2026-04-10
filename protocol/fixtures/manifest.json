@@ -175,6 +175,18 @@
       "expect_valid": true
     },
     {
+      "id": "isolate-session-started-payload.valid",
+      "schema_path": "objects/IsolateSessionStartedPayload.schema.json",
+      "fixture_path": "schema/isolate-session-started-payload.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "isolate-session-bound-payload.valid",
+      "schema_path": "objects/IsolateSessionBoundPayload.schema.json",
+      "fixture_path": "schema/isolate-session-bound-payload.valid.json",
+      "expect_valid": true
+    },
+    {
       "id": "audit-receipt.import.valid",
       "schema_path": "objects/AuditReceipt.schema.json",
       "fixture_path": "schema/audit-receipt.import.valid.json",

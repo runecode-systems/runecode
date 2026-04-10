@@ -1,5 +1,7 @@
 package protocolschema
 
+import "strings"
+
 func validErrorEnvelope() map[string]any {
 	return map[string]any{
 		"schema_id":      "runecode.protocol.v0.Error",
@@ -320,6 +322,144 @@ func invalidDestinationDescriptorKind() map[string]any {
 	descriptor := validDestinationDescriptor("provider-a")
 	descriptor["descriptor_kind"] = "raw_url"
 	return descriptor
+}
+
+func testDigestString(nibble string) string {
+	if len(nibble) != 1 || !strings.Contains("0123456789abcdef", nibble) {
+		panic("testDigestString requires exactly one lowercase hex nibble")
+	}
+	return "sha256:" + strings.Repeat(nibble, 64)
+}
+
+func validRuntimeImageDescriptor() map[string]any {
+	return map[string]any{
+		"schema_id":              "runecode.protocol.v0.RuntimeImageDescriptor",
+		"schema_version":         "0.2.0",
+		"descriptor_digest":      testDigestString("a"),
+		"backend_kind":           "microvm",
+		"platform_compatibility": map[string]any{"os": "linux", "architecture": "amd64", "acceleration_kind": "kvm"},
+		"boot_contract_version":  "v1",
+		"component_digests": map[string]any{
+			"kernel": testDigestString("b"),
+			"rootfs": testDigestString("c"),
+		},
+		"signing":     map[string]any{"signer_ref": "signer:trusted-ci", "signature_digest": testDigestString("d")},
+		"attestation": map[string]any{"measurement_profile": "sev-snp-v1", "expected_measurement_digests": []any{testDigestString("e")}},
+	}
+}
+
+func invalidRuntimeImageDescriptorWithUnknownBackend() map[string]any {
+	descriptor := validRuntimeImageDescriptor()
+	descriptor["backend_kind"] = "qemu"
+	return descriptor
+}
+
+func invalidRuntimeImageDescriptorWithoutComponents() map[string]any {
+	descriptor := validRuntimeImageDescriptor()
+	delete(descriptor, "component_digests")
+	return descriptor
+}
+
+func invalidRuntimeImageDescriptorWithBadComponentDigest() map[string]any {
+	descriptor := validRuntimeImageDescriptor()
+	descriptor["component_digests"] = map[string]any{"kernel": "not-a-digest"}
+	return descriptor
+}
+
+func invalidRuntimeImageDescriptorWithoutPlatformCompatibility() map[string]any {
+	descriptor := validRuntimeImageDescriptor()
+	delete(descriptor, "platform_compatibility")
+	return descriptor
+}
+
+func invalidRuntimeImageDescriptorWithMissingMicroVMKernelRootfs() map[string]any {
+	descriptor := validRuntimeImageDescriptor()
+	descriptor["component_digests"] = map[string]any{"initrd": testDigestString("f")}
+	return descriptor
+}
+
+func invalidRuntimeImageDescriptorWithEmptySigningObject() map[string]any {
+	descriptor := validRuntimeImageDescriptor()
+	descriptor["signing"] = map[string]any{}
+	return descriptor
+}
+
+func invalidRuntimeImageDescriptorWithBadAttestationDigest() map[string]any {
+	descriptor := validRuntimeImageDescriptor()
+	descriptor["attestation"] = map[string]any{"measurement_profile": "sev-snp-v1", "expected_measurement_digests": []any{"sha256:INVALID"}}
+	return descriptor
+}
+
+func validIsolateSessionStartedPayload() map[string]any {
+	return map[string]any{
+		"schema_id":                        "runecode.protocol.v0.IsolateSessionStartedPayload",
+		"schema_version":                   "0.1.0",
+		"run_id":                           "run-1",
+		"isolate_id":                       "isolate-1",
+		"session_id":                       "session-1",
+		"backend_kind":                     "microvm",
+		"isolation_assurance_level":        "isolated",
+		"provisioning_posture":             "tofu",
+		"launch_context_digest":            testDigestString("1"),
+		"handshake_transcript_hash":        testDigestString("2"),
+		"launch_receipt_digest":            testDigestString("3"),
+		"runtime_image_descriptor_digest":  testDigestString("4"),
+		"applied_hardening_posture_digest": testDigestString("5"),
+	}
+}
+
+func invalidIsolateSessionStartedPayloadWithBadSchemaID() map[string]any {
+	payload := validIsolateSessionStartedPayload()
+	payload["schema_id"] = "runecode.protocol.v0.IsolateSessionStarted"
+	return payload
+}
+
+func invalidIsolateSessionStartedPayloadWithBadBackendKind() map[string]any {
+	payload := validIsolateSessionStartedPayload()
+	payload["backend_kind"] = "qemu"
+	return payload
+}
+
+func invalidIsolateSessionStartedPayloadWithBadDigest() map[string]any {
+	payload := validIsolateSessionStartedPayload()
+	payload["launch_receipt_digest"] = "sha256:INVALID"
+	return payload
+}
+
+func validIsolateSessionBoundPayload() map[string]any {
+	return map[string]any{
+		"schema_id":                        "runecode.protocol.v0.IsolateSessionBoundPayload",
+		"schema_version":                   "0.1.0",
+		"run_id":                           "run-1",
+		"isolate_id":                       "isolate-1",
+		"session_id":                       "session-1",
+		"backend_kind":                     "microvm",
+		"isolation_assurance_level":        "isolated",
+		"provisioning_posture":             "tofu",
+		"launch_context_digest":            testDigestString("1"),
+		"handshake_transcript_hash":        testDigestString("2"),
+		"session_binding_digest":           testDigestString("6"),
+		"runtime_image_descriptor_digest":  testDigestString("4"),
+		"applied_hardening_posture_digest": testDigestString("5"),
+	}
+}
+
+func invalidIsolateSessionBoundPayloadWithBadSchemaID() map[string]any {
+	payload := validIsolateSessionBoundPayload()
+	payload["schema_id"] = "runecode.protocol.v0.IsolateSessionBound"
+	return payload
+}
+
+func invalidIsolateSessionBoundPayloadWithBadProvisioningPosture() map[string]any {
+	payload := validIsolateSessionBoundPayload()
+	payload["provisioning_posture"] = "pending"
+	return payload
+}
+
+func invalidIsolateSessionBoundPayloadWithBadDigest() map[string]any {
+	payload := validIsolateSessionBoundPayload()
+	payload["session_binding_digest"] = "not-a-digest"
+	return payload
 }
 
 func validProvenanceReceipt() map[string]any {

@@ -19,7 +19,13 @@ func assertRegistryCodeNamespacesSeparate(t *testing.T, registryNames []string, 
 func assertErrorRegistryCodes(t *testing.T) {
 	t.Helper()
 	errorRegistry := loadRegistry(t, schemaPath(t, "registries/error.code.registry.json"))
-	assertRegistryContainsCodes(t, errorRegistry,
+	assertRegistryContainsCodes(t, errorRegistry, baseErrorRegistryCodes()...)
+	assertRegistryContainsCodes(t, errorRegistry, brokerErrorRegistryCodes()...)
+	assertRegistryContainsCodes(t, errorRegistry, backendErrorRegistryCodes()...)
+}
+
+func baseErrorRegistryCodes() []string {
+	return []string{
 		"unknown_schema_id",
 		"unsupported_schema_version",
 		"unsupported_hash_algorithm",
@@ -27,6 +33,11 @@ func assertErrorRegistryCodes(t *testing.T) {
 		"stream_timeout",
 		"gateway_failure",
 		"request_cancelled",
+	}
+}
+
+func brokerErrorRegistryCodes() []string {
+	return []string{
 		"broker_auth_peer_credentials_required",
 		"broker_api_auth_admission_denied",
 		"broker_validation_request_id_missing",
@@ -47,7 +58,25 @@ func assertErrorRegistryCodes(t *testing.T) {
 		"broker_timeout_request_deadline_exceeded",
 		"broker_approval_state_invalid",
 		"policy_input_hash_mismatch",
-	)
+	}
+}
+
+func backendErrorRegistryCodes() []string {
+	return []string{
+		"backend_acceleration_unavailable",
+		"backend_hypervisor_launch_failed",
+		"backend_image_descriptor_signature_mismatch",
+		"backend_attachment_plan_invalid",
+		"backend_handshake_failed",
+		"backend_replay_detected",
+		"backend_session_binding_mismatch",
+		"backend_guest_unresponsive",
+		"backend_watchdog_timeout",
+		"backend_required_hardening_unavailable",
+		"backend_required_disk_encryption_unavailable",
+		"backend_container_automatic_fallback_disallowed",
+		"backend_container_opt_in_required",
+	}
 }
 
 func assertPolicyRegistryCodes(t *testing.T) {

@@ -79,6 +79,50 @@ func ValidateIsolateSessionBinding(binding IsolateSessionBinding) error {
 	return validateIsolateBindingPosture(binding)
 }
 
+// ValidateIsolateSessionBindingUpdate enforces fail-closed invariants once a
+// session key is pinned to a {run_id,isolate_id,session_id} tuple.
+func ValidateIsolateSessionBindingUpdate(previous IsolateSessionBinding, current IsolateSessionBinding) error {
+	if err := ValidateIsolateSessionBinding(previous); err != nil {
+		return fmt.Errorf("previous binding invalid: %w", err)
+	}
+	if err := ValidateIsolateSessionBinding(current); err != nil {
+		return fmt.Errorf("current binding invalid: %w", err)
+	}
+	if err := validateBindingTupleAndIdentityContinuity(previous, current); err != nil {
+		return err
+	}
+	if err := validateBindingSessionAndPostureContinuity(previous, current); err != nil {
+		return err
+	}
+	if previous.ImageDigest != current.ImageDigest || previous.ActiveManifestHash != current.ActiveManifestHash {
+		return fmt.Errorf("binding context digest changed mid-session")
+	}
+	return nil
+}
+
+func validateBindingTupleAndIdentityContinuity(previous IsolateSessionBinding, current IsolateSessionBinding) error {
+	if previous.RunID != current.RunID || previous.IsolateID != current.IsolateID || previous.SessionID != current.SessionID {
+		return fmt.Errorf("binding tuple mismatch; expected immutable {run_id,isolate_id,session_id}")
+	}
+	if previous.KeyIDValue != current.KeyIDValue {
+		return fmt.Errorf("mid-session isolate identity change detected")
+	}
+	return nil
+}
+
+func validateBindingSessionAndPostureContinuity(previous IsolateSessionBinding, current IsolateSessionBinding) error {
+	if previous.SessionNonce != current.SessionNonce {
+		return fmt.Errorf("session_nonce mismatch for pinned session binding")
+	}
+	if previous.HandshakeTranscriptHash != current.HandshakeTranscriptHash {
+		return fmt.Errorf("handshake_transcript_hash mismatch for pinned session binding")
+	}
+	if previous.ProvisioningMode != current.ProvisioningMode || previous.IdentityBindingPosture != current.IdentityBindingPosture {
+		return fmt.Errorf("provisioning posture changed mid-session")
+	}
+	return nil
+}
+
 func ValidateAuditSignerEvidence(evidence AuditSignerEvidence) error {
 	if err := validateAuditSignerCore(evidence); err != nil {
 		return err
@@ -124,6 +168,9 @@ func validateIsolateBindingCore(binding IsolateSessionBinding) error {
 	}
 	if binding.SessionNonce == "" {
 		return fmt.Errorf("session_nonce is required")
+	}
+	if len(binding.SessionNonce) < 16 {
+		return fmt.Errorf("session_nonce must be at least 16 characters")
 	}
 	if binding.ProvisioningMode != "tofu" {
 		return fmt.Errorf("unsupported provisioning_mode %q", binding.ProvisioningMode)

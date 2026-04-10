@@ -2,13 +2,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/runecode-ai/runecode/internal/launcherdaemon"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
@@ -44,8 +48,39 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 
 func commandHandlers() map[string]commandHandler {
 	return map[string]commandHandler{
+		"serve":                    handleServe,
 		"validate-isolate-binding": handleValidateIsolateBinding,
 	}
+}
+
+func handleServe(args []string, stdout io.Writer) error {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	once := fs.Bool("once", false, "start and stop service immediately (test/validation)")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "serve usage: runecode-launcher serve [--once]"}
+	}
+	svc, err := launcherdaemon.New(launcherdaemon.Config{})
+	if err != nil {
+		return err
+	}
+	if err := svc.Start(context.Background()); err != nil {
+		return err
+	}
+	if *once {
+		if err := svc.Stop(context.Background()); err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(stdout, "launcher service started and stopped")
+		return err
+	}
+	if _, err := fmt.Fprintln(stdout, "launcher service running"); err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	<-ctx.Done()
+	return svc.Stop(context.Background())
 }
 
 func handleValidateIsolateBinding(args []string, stdout io.Writer) error {
@@ -85,6 +120,7 @@ func writeHelp(w io.Writer) error {
 	_, err := fmt.Fprintln(w, `Usage: runecode-launcher <command> [flags]
 
 Commands:
+  serve [--once]
   validate-isolate-binding --file binding.json`)
 	return err
 }
