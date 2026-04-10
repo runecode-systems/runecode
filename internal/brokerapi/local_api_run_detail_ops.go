@@ -66,7 +66,7 @@ func buildRunDetail(summary RunSummary, verification AuditVerificationSurface, a
 	advisoryState := buildAdvisoryRunState()
 	return RunDetail{
 		SchemaID:                 "runecode.protocol.v0.RunDetail",
-		SchemaVersion:            "0.1.0",
+		SchemaVersion:            "0.2.0",
 		Summary:                  summary,
 		StageSummaries:           stageSummaries,
 		RoleSummaries:            roleSummaries,

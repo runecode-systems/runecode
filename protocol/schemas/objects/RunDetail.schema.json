@@ -9,7 +9,7 @@
   "required": ["schema_id", "schema_version", "summary", "stage_summaries", "role_summaries", "coordination", "audit_summary", "artifact_counts_by_class", "pending_approval_ids", "active_manifest_hashes", "latest_policy_decision_refs", "authoritative_state", "advisory_state"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.RunDetail", "description": "Protocol schema identifier.", "x-data-class": "public" },
-    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "schema_version": { "const": "0.2.0", "description": "Protocol schema version.", "x-data-class": "public" },
     "summary": { "$ref": "RunSummary.schema.json", "description": "List-facing run summary baseline.", "x-data-class": "public" },
     "stage_summaries": { "type": "array", "maxItems": 256, "description": "Per-stage summaries.", "x-data-class": "public", "items": { "$ref": "RunStageSummary.schema.json", "description": "Stage summary entry.", "x-data-class": "public" } },
     "role_summaries": { "type": "array", "maxItems": 512, "description": "Per-role summaries.", "x-data-class": "public", "items": { "$ref": "RunRoleSummary.schema.json", "description": "Role summary entry.", "x-data-class": "public" } },

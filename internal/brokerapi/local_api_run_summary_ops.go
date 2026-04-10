@@ -64,7 +64,7 @@ func buildRunSummary(runID string, records []artifacts.ArtifactRecord, status st
 	backendKind, isolationAssuranceLevel, provisioningPosture := normalizedRunSummaryPosture(runtimeFacts)
 	summary := RunSummary{
 		SchemaID:                "runecode.protocol.v0.RunSummary",
-		SchemaVersion:           "0.1.0",
+		SchemaVersion:           "0.2.0",
 		RunID:                   runID,
 		WorkspaceID:             "workspace-local",
 		WorkflowKind:            workflowKind,

@@ -15,7 +15,9 @@ import (
 
 func (c *qemuController) monitorInstance(parent context.Context, inst *qemuInstance, spec launcherbackend.BackendLaunchSpec, out io.Reader, hardening launcherbackend.AppliedHardeningPosture, receipt launcherbackend.BackendLaunchReceipt) {
 	defer removeLaunchDir(inst.launchDir)
-	lineCh, scanDone := scanQEMUOutput(out)
+	scanStop := make(chan struct{})
+	defer close(scanStop)
+	lineCh, scanDone := scanQEMUOutput(out, scanStop)
 	helloSeen := c.waitForHelloOrExit(parent, inst, spec, lineCh, scanDone)
 	_ = inst.cmd.Wait()
 	term := buildTerminalReport(spec, receipt, helloSeen, inst.errText)
@@ -49,15 +51,21 @@ func (c *qemuController) finishInstance(inst *qemuInstance, terminated launcherb
 	inst.state.LastError = failureReason
 }
 
-func scanQEMUOutput(out io.Reader) (<-chan string, <-chan struct{}) {
+func scanQEMUOutput(out io.Reader, stop <-chan struct{}) (<-chan string, <-chan struct{}) {
 	lineCh := make(chan string, 16)
 	scanDone := make(chan struct{})
 	go func() {
+		defer close(lineCh)
+		defer close(scanDone)
 		scanner := bufio.NewScanner(out)
 		for scanner.Scan() {
-			lineCh <- scanner.Text()
+			line := scanner.Text()
+			select {
+			case lineCh <- line:
+			case <-stop:
+				return
+			}
 		}
-		close(scanDone)
 	}()
 	return lineCh, scanDone
 }
@@ -74,9 +82,12 @@ func (c *qemuController) waitForHelloOrExit(parent context.Context, inst *qemuIn
 			_ = inst.cmd.Process.Kill()
 			inst.errText = launcherbackend.BackendErrorCodeWatchdogTimeout
 			return inst.helloSeen
-		case line := <-lineCh:
+		case line, ok := <-lineCh:
+			if !ok {
+				return inst.helloSeen
+			}
 			if c.recordHelloLine(inst, line) {
-				return true
+				continue
 			}
 		case <-scanDone:
 			return inst.helloSeen

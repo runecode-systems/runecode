@@ -16,8 +16,8 @@ func assertSchemaVersionPairs(t *testing.T, manifest manifestFile, versions map[
 
 func localBrokerSchemaVersionPairs() map[string]string {
 	return map[string]string{
-		"runecode.protocol.v0.RunSummary":                   "0.1.0",
-		"runecode.protocol.v0.RunDetail":                    "0.1.0",
+		"runecode.protocol.v0.RunSummary":                   "0.2.0",
+		"runecode.protocol.v0.RunDetail":                    "0.2.0",
 		"runecode.protocol.v0.RunStageSummary":              "0.1.0",
 		"runecode.protocol.v0.RunRoleSummary":               "0.1.0",
 		"runecode.protocol.v0.RunCoordinationSummary":       "0.1.0",
