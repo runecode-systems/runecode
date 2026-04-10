@@ -7,6 +7,11 @@
 - [ ] Role isolation constraints (no forbidden capability combinations).
 - [ ] Artifact routing invariants (only allowed data-class flows; only hash-addressed artifacts consumed).
 - [ ] Audit invariants (hash chaining rules; required events before state advances).
+- [ ] Model broker-authoritative run truth versus runner advisory durable state.
+- [ ] Model stable logical workflow identities separately from retry/rerun attempt identities.
+- [ ] Model exact-action approvals versus stage sign-off, including stale sign-off supersession when stage summary hashes change.
+- [ ] Model gate evidence immutability, separate gate attempts, and override linkage.
+- [ ] Model coordination/detail-based partial blocking separately from the public run lifecycle vocabulary.
 
 Parallelization: can be done in parallel with implementation specs; keep it aligned by referencing the canonical schemas and invariants.
 
@@ -19,6 +24,7 @@ Parallelization: can be done in parallel with implementation specs; keep it alig
   - artifacts
   - audit events
 - [ ] Define safety properties and invariants.
+- [ ] Encode enough state to check that one run cannot consume another run's approval, gate result, or gate override binding.
 
 Parallelization: can be done in parallel with early implementation; update as interfaces stabilize.
 
@@ -39,3 +45,4 @@ Parallelization: can be done in parallel with code organization work; it depends
 
 - [ ] CI fails on invariant violations.
 - [ ] The spec covers the highest-risk invariants that enforce separation and audit integrity.
+- [ ] The spec covers the shared workflow kernel invariants for identity, approval scope, gate evidence immutability, and broker-vs-runner authority boundaries.

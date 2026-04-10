@@ -10,6 +10,7 @@ Define the explicit reduced-assurance container backend, including opt-in UX, ha
 - The container backend should reuse the same backend-neutral logical seams as the microVM backend where applicable, including launch intent, attachment planning, hardening posture recording, and terminal reporting, rather than inventing container-only control-plane contracts.
 - `backend_kind` remains operator-facing and topology-neutral (`container`, not runtime implementation names such as Docker/Podman/runc).
 - Container-specific runtime details remain implementation evidence, not public run identity.
+- Reduced-assurance container opt-in should remain an exact explicit approval bound to canonical policy/action identity rather than a generic UI toggle or ambient workflow setting.
 
 ## Main Workstreams
 - Shared Backend Contract Alignment

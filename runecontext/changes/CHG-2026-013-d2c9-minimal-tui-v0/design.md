@@ -19,6 +19,9 @@ Implement the local TUI for runs, approvals, artifacts, and audit posture over t
 - TUI posture views must preserve the broker distinction between authoritative broker-derived state and optional runner advisory state.
 - TUI explanation surfaces must keep `policy_reason_code`, `approval_trigger_code`, and system errors distinct rather than flattening them into one generic status string.
 - Container reduced-assurance posture, TOFU-only provisioning posture, and degraded audit posture must remain visually distinct so users can tell what kind of degradation they are looking at.
+- TUI should explain partial blocking and coordination waits from `RunDetail` coordination/stage/role surfaces rather than inferring a second lifecycle concept beyond the shared broker lifecycle vocabulary.
+- TUI should present gate attempts, gate evidence, and gate overrides using the shared typed gate contract rather than log-only heuristics.
+- TUI should surface canonical bound identities for run/stage/step/role scopes and gate attempts without promoting daemon-private identifiers to user authority.
 
 ## Main Workstreams
 - Bubble Tea App Skeleton

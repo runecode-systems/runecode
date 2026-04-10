@@ -67,6 +67,7 @@ Additional MVP endpoints:
   - `assurance_level` refers only to runtime isolation assurance
   - provisioning/binding posture remains separate from both `backend_kind` and audit posture
   - audit posture remains represented through explicit audit summary fields rather than overloaded into runtime assurance
+- [ ] Keep partial blocking, waits, and coordination detail in `RunDetail`, `RunStageSummary`, `RunRoleSummary`, and `RunCoordinationSummary` rather than expanding the public lifecycle enum for every coordination mode.
 - [x] Define the broker run lifecycle vocabulary explicitly and reuse it across the TUI and future runner integration.
 - [x] Define approval identity as the canonical approval-request identity shared with policy and runner state rather than a transport/session-local identifier.
 - [x] Define explicit approval status vocabulary and bound-scope metadata so blocked work and later supersession/consumption semantics remain machine-readable.
@@ -75,6 +76,7 @@ Additional MVP endpoints:
 - [x] Reuse or directly map audit operational-view and verification-summary contracts rather than inventing a second broker-specific audit vocabulary.
 - [x] Use opaque cursor-based pagination for paged reads and specify ordering semantics per operation.
 - [ ] Keep authoritative backend/runtime facts launcher/broker-derived and avoid deriving runtime isolation assurance from audit verification posture or runner-local status alone.
+- [ ] Define typed runner->broker workflow checkpoint/result write families when runner orchestration integration lands, keeping them operation-specific and broker-validated.
 
 Parallelization: can be implemented in parallel with TUI and runner development once the core request/response schemas are defined.
 

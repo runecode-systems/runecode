@@ -10,6 +10,7 @@ Define the local-only protobuf transport as an alternate encoding for the existi
 - gRPC is optional and local-only.
 - Protobuf must map 1:1 to the logical broker request/response/read-model/stream families defined by `CHG-2026-008-62e1-broker-local-api-v0`.
 - Migration to protobuf must preserve logical operation names, run and approval vocabularies, cursor semantics, and stream terminal semantics; encoding can change, meaning cannot.
+- Any later runner-facing checkpoint/result write families and gate-evidence-related logical families must also map 1:1 without transport-specific semantic forks.
 
 ## Main Workstreams
 - Proto Mapping for the Existing Logical Model

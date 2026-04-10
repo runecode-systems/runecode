@@ -28,6 +28,9 @@ Parallelization: can be implemented in parallel with broker local API work; it d
 - [ ] Keep approval views clear about the difference between `policy_reason_code`, `approval_trigger_code`, and execution/system error states.
 - [ ] Artifact views consume broker `ArtifactSummary` plus streamed artifact reads rather than daemon-private storage metadata.
 - [ ] Status and diagnostics views consume broker `BrokerReadiness` and `BrokerVersionInfo` contracts.
+- [ ] Run detail views surface authoritative vs advisory state explicitly and explain partial blocking from coordination/stage/role summaries rather than from a separate lifecycle label.
+- [ ] Gate views surface gate attempts, gate evidence, gate outcomes, and override linkage from typed broker-visible data rather than log scraping.
+- [ ] Approval and gate views surface stable bound identities for `run_id`, `stage_id`, `step_id`, `role_instance_id`, and gate attempts where relevant.
 
 Parallelization: screens can be built in parallel, but all depend on the broker local API schemas and shared error taxonomy.
 
@@ -50,6 +53,8 @@ Parallelization: can be implemented in parallel with broker development once the
 - [ ] Keep reduced backend assurance, degraded provisioning posture, and degraded audit posture visually distinct in run and status views.
 - [ ] For each approval request, show a concise, structured what changes if approved view.
 - [ ] For each approval request, show the canonical bound identity the user is acting on (action-derived request or stage-summary sign-off) without exposing daemon-private internals.
+- [ ] Keep authoritative broker state and advisory runner state visually distinct in run and diagnostics views.
+- [ ] Keep gate failure, gate override, and approval-required states visually distinct rather than flattening them into one generic blocked/error label.
 
 Parallelization: can be implemented in parallel with policy engine approval payload design; it depends on stable reason codes and structured decision details.
 

@@ -10,6 +10,8 @@
 - Confirm canonical references remain on RuneContext project, spec, and change paths, with no active workflow depending on legacy planning paths.
 - Confirm the migrated text assumes RuneContext is canonical, RuneCode owns the user-facing UX, and verified-mode project state remains the expected operating posture.
 - Confirm the change still matches its v0.2 roadmap bucket and title after migration.
+- Confirm the change reuses the shared workflow identity and attempt model rather than inventing process-local scope identities.
+- Confirm the change reuses the shared typed executor, gate, approval, and runner->broker checkpoint/result contracts.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.
