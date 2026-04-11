@@ -367,6 +367,60 @@
       "expect_valid": true
     },
     {
+      "id": "audit-record-detail.valid-basic",
+      "schema_path": "objects/AuditRecordDetail.schema.json",
+      "fixture_path": "schema/audit-record-detail.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-record-get-request.valid-basic",
+      "schema_path": "objects/AuditRecordGetRequest.schema.json",
+      "fixture_path": "schema/audit-record-get-request.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-record-get-response.valid-detail",
+      "schema_path": "objects/AuditRecordGetResponse.schema.json",
+      "fixture_path": "schema/audit-record-get-response.valid-detail.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-record-get-response.invalid-daemon-private-storage-access",
+      "schema_path": "objects/AuditRecordGetResponse.schema.json",
+      "fixture_path": "schema/audit-record-get-response.invalid-daemon-private-storage-access.json",
+      "expect_valid": false
+    },
+    {
+      "id": "audit-record-detail.invalid-approval-link-format",
+      "schema_path": "objects/AuditRecordDetail.schema.json",
+      "fixture_path": "schema/audit-record-detail.invalid-approval-link-format.json",
+      "expect_valid": false
+    },
+    {
+      "id": "audit-timeline-response.valid-linked-records",
+      "schema_path": "objects/AuditTimelineResponse.schema.json",
+      "fixture_path": "schema/audit-timeline-response.valid-linked-records.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-timeline-response.invalid-approval-link-format",
+      "schema_path": "objects/AuditTimelineResponse.schema.json",
+      "fixture_path": "schema/audit-timeline-response.invalid-approval-link-format.json",
+      "expect_valid": false
+    },
+    {
+      "id": "audit-timeline-response.invalid-missing-record-digest",
+      "schema_path": "objects/AuditTimelineResponse.schema.json",
+      "fixture_path": "schema/audit-timeline-response.invalid-missing-record-digest.json",
+      "expect_valid": false
+    },
+    {
+      "id": "audit-timeline-response.invalid-daemon-private-storage-access",
+      "schema_path": "objects/AuditTimelineResponse.schema.json",
+      "fixture_path": "schema/audit-timeline-response.invalid-daemon-private-storage-access.json",
+      "expect_valid": false
+    },
+    {
       "id": "run-watch-request.valid-basic",
       "schema_path": "objects/RunWatchRequest.schema.json",
       "fixture_path": "schema/run-watch-request.valid-basic.json",

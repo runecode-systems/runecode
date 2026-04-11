@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditRecordDetail.schema.json",
+  "title": "AuditRecordDetail",
+  "description": "Typed broker-owned derived audit record drill-down view for interactive operator inspection.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 11,
+  "$defs": {
+    "linkedReference": {
+      "description": "One typed linked reference surfaced from broker-owned derived audit views.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 4,
+      "required": ["reference_kind", "reference_id"],
+      "properties": {
+        "reference_kind": {
+          "type": "string",
+          "enum": ["approval", "artifact", "audit_record", "verification_reason"],
+          "description": "Linked reference family for this record detail view.",
+          "x-data-class": "public"
+        },
+        "reference_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^(sha256:[a-f0-9]{64}|[a-z][a-z0-9_]*)$",
+          "description": "Stable linked reference identity in broker-visible form.",
+          "x-data-class": "public"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Optional operator-facing linked-reference label.",
+          "x-data-class": "public"
+        },
+        "relation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Optional machine-consumed relation hint.",
+          "x-data-class": "public"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "reference_kind": { "const": "approval" }
+            },
+            "required": ["reference_kind"]
+          },
+          "then": {
+            "properties": {
+              "reference_id": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$",
+                "maxLength": 71
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reference_kind": { "const": "artifact" }
+            },
+            "required": ["reference_kind"]
+          },
+          "then": {
+            "properties": {
+              "reference_id": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$",
+                "maxLength": 71
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reference_kind": { "const": "audit_record" }
+            },
+            "required": ["reference_kind"]
+          },
+          "then": {
+            "properties": {
+              "reference_id": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$",
+                "maxLength": 71
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reference_kind": { "const": "verification_reason" }
+            },
+            "required": ["reference_kind"]
+          },
+          "then": {
+            "properties": {
+              "reference_id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "maxLength": 128
+              }
+            }
+          }
+        }
+      ]
+    },
+    "verificationPosture": {
+      "description": "Optional record-facing verification posture derived from broker-owned verification views.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 2,
+      "required": ["status", "reason_codes"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["ok", "degraded", "failed"],
+          "description": "Derived verification posture for this record detail view.",
+          "x-data-class": "public"
+        },
+        "reason_codes": {
+          "type": "array",
+          "maxItems": 64,
+          "description": "Stable reason codes from verification findings relevant to this record.",
+          "x-data-class": "public",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "description": "One verification reason code.",
+            "x-data-class": "public"
+          },
+          "uniqueItems": true
+        }
+      }
+    }
+  },
+  "required": ["schema_id", "schema_version", "record_digest", "record_family", "occurred_at", "summary", "linked_references"],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.AuditRecordDetail",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "record_digest": {
+      "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+      "description": "Stable audit-record identity used for timeline-to-detail drill-down.",
+      "x-data-class": "public"
+    },
+    "record_family": {
+      "type": "string",
+      "enum": ["audit_event", "audit_receipt", "audit_segment_seal"],
+      "description": "Derived signed-record family for this detail view.",
+      "x-data-class": "public"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64,
+      "description": "RFC 3339 record timestamp surfaced in drill-down views.",
+      "x-data-class": "public"
+    },
+    "event_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Audit event type when record_family is audit_event.",
+      "x-data-class": "public"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^[^\u0000-\u001F\u007F]+$",
+      "description": "Concise broker-derived detail summary for alpha operator inspection.",
+      "x-data-class": "public"
+    },
+    "linked_references": {
+      "type": "array",
+      "maxItems": 128,
+      "description": "Typed linked references useful for related approval, artifact, audit, and verification pivots.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "#/$defs/linkedReference",
+        "description": "One linked reference entry."
+      }
+    },
+    "verification_posture": {
+      "$ref": "#/$defs/verificationPosture",
+      "description": "Optional derived verification posture for this record.",
+      "x-data-class": "public"
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 4,
+      "properties": {
+        "workspace_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Workspace scope identity.", "x-data-class": "public" },
+        "run_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Run scope identity.", "x-data-class": "public" },
+        "stage_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stage scope identity.", "x-data-class": "public" },
+        "step_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Step scope identity.", "x-data-class": "public" }
+      },
+      "description": "Optional derived scope context for this record.",
+      "x-data-class": "public"
+    },
+    "correlation": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 3,
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Session correlation identity.", "x-data-class": "public" },
+        "operation_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Operation correlation identity.", "x-data-class": "public" },
+        "parent_operation_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Parent operation correlation identity.", "x-data-class": "public" }
+      },
+      "description": "Optional derived correlation context for this record.",
+      "x-data-class": "public"
+    }
+  }
+}

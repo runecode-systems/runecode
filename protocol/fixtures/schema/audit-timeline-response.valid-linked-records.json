@@ -1,0 +1,39 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditTimelineResponse",
+  "schema_version": "0.1.0",
+  "request_id": "req-audit-timeline-1",
+  "order": "operational_seq_desc",
+  "views": [
+    {
+      "record_digest": {
+        "hash_alg": "sha256",
+        "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "event_type": "approval_requested",
+      "summary": "Approval request emitted for a policy-gated stage transition.",
+      "linked_references": [
+        {
+          "reference_kind": "approval",
+          "reference_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "relation": "subject"
+        },
+        {
+          "reference_kind": "artifact",
+          "reference_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "relation": "evidence"
+        },
+        {
+          "reference_kind": "verification_reason",
+          "reference_id": "anchor_receipt_missing",
+          "relation": "posture_reason"
+        }
+      ],
+      "verification_posture": {
+        "status": "degraded",
+        "reason_codes": [
+          "anchor_receipt_missing"
+        ]
+      }
+    }
+  ]
+}

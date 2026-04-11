@@ -1,0 +1,19 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditRecordGetResponse",
+  "schema_version": "0.1.0",
+  "request_id": "req-audit-record-get-1",
+  "record": {
+    "schema_id": "runecode.protocol.v0.AuditRecordDetail",
+    "schema_version": "0.1.0",
+    "record_digest": {
+      "hash_alg": "sha256",
+      "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "record_family": "audit_event",
+    "occurred_at": "2026-04-11T10:00:00Z",
+    "event_type": "approval_requested",
+    "summary": "Approval request was emitted for a policy-gated stage transition.",
+    "linked_references": [],
+    "ledger_segment_file_path": "/var/lib/runecode/audit/segments/segment-00042.audit"
+  }
+}

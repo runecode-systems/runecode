@@ -770,6 +770,27 @@
       "status": "mvp"
     },
     {
+      "path": "objects/AuditRecordDetail.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditRecordDetail",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditRecordGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditRecordGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditRecordGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditRecordGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/AuditTimelineRequest.schema.json",
       "schema_id": "runecode.protocol.v0.AuditTimelineRequest",
       "schema_version": "0.1.0",
