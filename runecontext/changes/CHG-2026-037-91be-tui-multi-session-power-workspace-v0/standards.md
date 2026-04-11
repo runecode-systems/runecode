@@ -5,6 +5,7 @@
 - `standards/security/policy-evaluation-foundations.md`
 - `standards/security/approval-binding-and-verifier-identity.md`
 - `standards/security/audit-verification-scope-and-evidence-binding.md`
+- `standards/security/trusted-runtime-evidence-and-broker-projection.md`
 
 ## Resolution Notes
-Expanded to include the shared control-plane, local-first, approval-binding, and policy/audit standards required for a hybrid dashboard-plus-chat TUI that remains a strict broker client and a durable foundation for later power-user work.
+This advanced TUI work remains bound to the same control-plane, local-first, approval-binding, audit, and trusted-runtime-projection standards as the MVP foundation. The richer workbench experience must be implemented by consuming better typed contracts and watch surfaces, not by relaxing those standards.

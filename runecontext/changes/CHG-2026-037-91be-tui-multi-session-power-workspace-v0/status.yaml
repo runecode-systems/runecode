@@ -1,32 +1,29 @@
 schema_version: 1
-id: CHG-2026-013-d2c9-minimal-tui-v0
-title: Minimal TUI v0
+id: CHG-2026-037-91be-tui-multi-session-power-workspace-v0
+title: TUI Multi-Session + Power Workspace v0
 status: planned
 type: feature
-size: medium
+size: large
 verification_status: pending
 context_bundles:
   - product-planning
 related_specs: []
-related_decisions:
-  - decisions/DEC-2026-001-runecontext-canonical-planning-system.md
-  - decisions/DEC-2026-002-verified-assurance-and-assurance-path.md
-  - decisions/DEC-2026-003-bundled-runecontext-default-and-verified-requirement.md
-  - decisions/DEC-2026-004-runecode-ux-ownership-and-runecontext-generic-boundary.md
+related_decisions: []
 related_changes:
+  - CHG-2026-013-d2c9-minimal-tui-v0
+depends_on:
+  - CHG-2026-013-d2c9-minimal-tui-v0
   - CHG-2026-011-7240-secretsd-model-gateway-v0
+informed_by:
   - CHG-2026-008-62e1-broker-local-api-v0
   - CHG-2026-003-b567-audit-log-v0-verify
   - CHG-2026-006-84f0-audit-anchoring-v0
   - CHG-2026-007-2315-policy-engine-v0
   - CHG-2026-014-0c5d-approval-profiles-strict-permissive
   - CHG-2026-019-40c5-bridge-runtime-protocol-v0
-  - CHG-2026-037-91be-tui-multi-session-power-workspace-v0
-depends_on: []
-informed_by: []
 supersedes: []
 superseded_by: []
-created_at: "2026-04-03"
+created_at: "2026-04-11"
 closed_at: null
 promotion_assessment:
   status: pending
