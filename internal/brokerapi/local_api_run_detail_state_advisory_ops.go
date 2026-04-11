@@ -9,10 +9,11 @@ func buildAdvisoryRunState(advisory artifacts.RunnerAdvisoryState) map[string]an
 		"available":    false,
 		"bounded_keys": []string{},
 	}
-	bounded := make([]string, 0, 2)
+	bounded := make([]string, 0, 6)
 	pendingByScope := pendingApprovalScopeCounts(advisory.ApprovalWaits)
 	if len(pendingByScope) > 0 {
 		state["pending_approval_scope_counts"] = pendingByScope
+		bounded = append(bounded, "pending_approval_scope_counts")
 	}
 	if checkpointState := buildAdvisoryLastCheckpointState(advisory.LastCheckpoint); checkpointState != nil {
 		state["last_checkpoint"] = checkpointState
@@ -22,19 +23,23 @@ func buildAdvisoryRunState(advisory artifacts.RunnerAdvisoryState) map[string]an
 		state["last_result"] = resultState
 		bounded = append(bounded, "last_result")
 	}
-	markAdvisoryAvailability(state, bounded)
 	if lifecycleHint := buildAdvisoryLifecycleHintState(advisory.Lifecycle); lifecycleHint != nil {
 		state["lifecycle_hint"] = lifecycleHint
+		bounded = append(bounded, "lifecycle_hint")
 	}
 	if stepAttempts := buildAdvisoryStepAttemptsState(advisory.StepAttempts, pendingByScope); len(stepAttempts) > 0 {
 		state["step_attempts"] = stepAttempts
+		bounded = append(bounded, "step_attempts")
 	}
 	if gateAttempts := buildAdvisoryGateAttemptsState(advisory.GateAttempts); len(gateAttempts) > 0 {
 		state["gate_attempts"] = gateAttempts
+		bounded = append(bounded, "gate_attempts")
 	}
 	if len(advisory.ApprovalWaits) > 0 {
 		state["approval_waits"] = redactedApprovalWaits(advisory.ApprovalWaits)
+		bounded = append(bounded, "approval_waits")
 	}
+	markAdvisoryAvailability(state, bounded)
 	return state
 }
 

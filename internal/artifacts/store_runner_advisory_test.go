@@ -351,6 +351,36 @@ func TestRunnerStepAttemptPhaseMappingAcrossExecutionLoop(t *testing.T) {
 	}
 }
 
+func TestRecordRunnerCheckpointRejectsRoleInstanceWithoutStepIdentity(t *testing.T) {
+	store := newTestStore(t)
+	now := time.Date(2026, 4, 10, 12, 30, 0, 0, time.UTC)
+	_, err := store.RecordRunnerCheckpoint("run-role-missing-step", RunnerCheckpointAdvisory{
+		LifecycleState: "active",
+		CheckpointCode: "step_attempt_started",
+		OccurredAt:     now,
+		IdempotencyKey: "idem-role-missing-step",
+		RoleInstanceID: "role-1",
+	})
+	if err == nil {
+		t.Fatal("RecordRunnerCheckpoint error = nil, want role instance identity validation failure")
+	}
+}
+
+func TestRecordRunnerResultRejectsRoleInstanceWithoutStepIdentity(t *testing.T) {
+	store := newTestStore(t)
+	now := time.Date(2026, 4, 10, 12, 45, 0, 0, time.UTC)
+	_, err := store.RecordRunnerResult("run-role-missing-step", RunnerResultAdvisory{
+		LifecycleState: "failed",
+		ResultCode:     "run_failed",
+		OccurredAt:     now,
+		IdempotencyKey: "idem-role-missing-step-result",
+		RoleInstanceID: "role-1",
+	}, "")
+	if err == nil {
+		t.Fatal("RecordRunnerResult error = nil, want role instance identity validation failure")
+	}
+}
+
 func mustReadRunnerJournal(t *testing.T, root string) []RunnerDurableJournalRecord {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(root, runnerJournalFileName))

@@ -1,6 +1,7 @@
 package policyengine
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -43,16 +44,20 @@ func TestEvaluateGatewayDeniesWhenCanonicalPortRequiredButMissing(t *testing.T) 
 	}
 }
 
-func TestEvaluateGatewayDeniesWhenOperationMissing(t *testing.T) {
+func TestEvaluateGatewayFailsClosedWhenOperationMissing(t *testing.T) {
 	compiled := mustCompile(t, compileGatewayInputWithOneCapability("model-gateway", "cap_gateway", validAllowlistPayloadForGateway("allowlist-model", "model-gateway", "model_endpoint", "invoke_model", "spec_text")))
 	action := validGatewayEgressActionRequest("cap_gateway", "gateway", "model-gateway", "model-gateway", "model_endpoint", ActionKindGatewayEgress)
 	delete(action.ActionPayload, "operation")
-	decision, err := Evaluate(compiled, action)
-	if err != nil {
-		t.Fatalf("Evaluate returned error: %v", err)
+	_, err := Evaluate(compiled, action)
+	if err == nil {
+		t.Fatal("Evaluate error = nil, want fail-closed schema validation error")
 	}
-	if decision.DecisionOutcome != DecisionDeny {
-		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	var evalErr *EvaluationError
+	if !errors.As(err, &evalErr) {
+		t.Fatalf("error type = %T, want *EvaluationError", err)
+	}
+	if evalErr.Code != ErrCodeBrokerValidationSchema {
+		t.Fatalf("error code = %q, want %q", evalErr.Code, ErrCodeBrokerValidationSchema)
 	}
 }
 

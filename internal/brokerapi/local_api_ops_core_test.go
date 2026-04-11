@@ -132,6 +132,36 @@ func assertRunDetailRoleCoverageForLocalOps(t *testing.T, roles []RunRoleSummary
 	}
 }
 
+func TestRunGetMarksAdvisoryAvailableForLifecycleHintOnly(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
+	if _, err := s.RecordRunnerCheckpoint("run-advisory-lifecycle-only", artifacts.RunnerCheckpointAdvisory{
+		LifecycleState: "active",
+		CheckpointCode: "run_started",
+		OccurredAt:     now,
+		IdempotencyKey: "idem-advisory-lifecycle",
+	}); err != nil {
+		t.Fatalf("RecordRunnerCheckpoint returned error: %v", err)
+	}
+	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-advisory-lifecycle", RunID: "run-advisory-lifecycle-only"}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleRunGet error response: %+v", errResp)
+	}
+	if runGet.Run.AdvisoryState["available"] != true {
+		t.Fatalf("advisory_state.available = %v, want true", runGet.Run.AdvisoryState["available"])
+	}
+	if runGet.Run.AdvisoryState["provenance"] != "runner_reported" {
+		t.Fatalf("advisory_state.provenance = %v, want runner_reported", runGet.Run.AdvisoryState["provenance"])
+	}
+	bounded, ok := runGet.Run.AdvisoryState["bounded_keys"].([]string)
+	if !ok {
+		t.Fatalf("advisory_state.bounded_keys = %T, want []string", runGet.Run.AdvisoryState["bounded_keys"])
+	}
+	if len(bounded) == 0 {
+		t.Fatal("advisory_state.bounded_keys empty, want lifecycle_hint included")
+	}
+}
+
 func TestRunSummaryWorkflowDefinitionHashRequiresSingleTrustedManifest(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	if _, putErr := s.Put(artifacts.PutRequest{Payload: []byte("artifact-a"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64), CreatedByRole: "workspace", RunID: "run-ambiguous", StepID: "step-1"}); putErr != nil {

@@ -12,7 +12,8 @@
     "gateway_role_kind",
     "destination_kind",
     "destination_ref",
-    "egress_data_class"
+    "egress_data_class",
+    "operation"
   ],
   "properties": {
     "schema_id": {

@@ -111,9 +111,7 @@ func NewGatewayEgressAction(input GatewayEgressActionInput) ActionRequest {
 		"destination_kind":  input.DestinationKind,
 		"destination_ref":   input.DestinationRef,
 		"egress_data_class": input.EgressDataClass,
-	}
-	if input.Operation != "" {
-		payload["operation"] = input.Operation
+		"operation":         input.Operation,
 	}
 	if input.PayloadHash != nil {
 		payload["payload_hash"] = *input.PayloadHash
@@ -129,9 +127,7 @@ func NewDependencyFetchAction(input GatewayEgressActionInput) ActionRequest {
 		"destination_kind":  input.DestinationKind,
 		"destination_ref":   input.DestinationRef,
 		"egress_data_class": input.EgressDataClass,
-	}
-	if input.Operation != "" {
-		payload["operation"] = input.Operation
+		"operation":         input.Operation,
 	}
 	if input.PayloadHash != nil {
 		payload["payload_hash"] = *input.PayloadHash

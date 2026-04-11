@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
@@ -107,6 +108,144 @@ func TestRunnerResultReportConsumesGateOverrideApprovalSingleUse(t *testing.T) {
 	if errResp == nil || errResp.Error.Code != "broker_validation_runner_transition_invalid" {
 		t.Fatalf("unexpected error response: %+v", errResp)
 	}
+}
+
+func TestRunnerResultReportOverrideUsesMostRecentMatchingPolicyDecision(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, 4, 2, 15, 0, 0, 0, time.UTC)
+	s.now = func() time.Time { return now }
+	override := prepareOverrideScenario(t, s, now, "run-gate-override-recency")
+	actionHash := mustOverrideActionHash(t, override)
+	firstDecision := seedApprovedGateOverrideDecision(t, s, now, "run-gate-override-recency", actionHash, override.OverriddenFailedResultRef, "first")
+	now = now.Add(5 * time.Minute)
+	secondDecision := seedApprovedGateOverrideDecision(t, s, now, "run-gate-override-recency", actionHash, override.OverriddenFailedResultRef, "second")
+	if secondDecision == firstDecision {
+		t.Fatal("expected distinct second policy decision digest")
+	}
+	mustAcceptRunnerResultReq(t, s, RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-gate-override-recency", RunID: "run-gate-override-recency", Report: override})
+	assertOverridePolicyDecisionBinding(t, s, "run-gate-override-recency", secondDecision)
+}
+
+func mustOverrideActionHash(t *testing.T, override RunnerResultReport) string {
+	t.Helper()
+	action, err := overrideActionForResult(override, override.Details)
+	if err != nil {
+		t.Fatalf("overrideActionForResult returned error: %v", err)
+	}
+	actionHash, err := policyengine.CanonicalActionRequestHash(action)
+	if err != nil {
+		t.Fatalf("CanonicalActionRequestHash returned error: %v", err)
+	}
+	return actionHash
+}
+
+func seedApprovedGateOverrideDecision(t *testing.T, s *Service, now time.Time, runID, actionHash, failedRef, nonce string) string {
+	t.Helper()
+	decisionPayload := buildGateOverridePolicyDecision(runID, actionHash, failedRef)
+	decisionPayload.Details["decision_nonce"] = nonce
+	if err := s.RecordPolicyDecision(runID, "", decisionPayload); err != nil {
+		t.Fatalf("RecordPolicyDecision(%s) returned error: %v", nonce, err)
+	}
+	decisionRef := latestPolicyDecisionRefForAction(t, s, runID, actionHash)
+	approvePendingGateOverrideByPolicyDecision(t, s, now, runID, decisionRef)
+	return decisionRef
+}
+
+func assertOverridePolicyDecisionBinding(t *testing.T, s *Service, runID, wantRef string) {
+	t.Helper()
+	runResp := mustRunGet(t, s, runID, "req-run-override-recency")
+	lastResult, ok := runResp.Run.AdvisoryState["last_result"].(map[string]any)
+	if !ok {
+		t.Fatalf("advisory_state.last_result = %T, want map", runResp.Run.AdvisoryState["last_result"])
+	}
+	boundRef, _ := lastResult["override_policy_decision_ref"].(string)
+	if boundRef != wantRef {
+		t.Fatalf("override_policy_decision_ref = %q, want most recent %q", boundRef, wantRef)
+	}
+}
+
+func TestRunnerResultReportOverrideAllowsAnyValidMatchingApprovalExpiry(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, 4, 2, 16, 0, 0, 0, time.UTC)
+	s.now = func() time.Time { return now }
+	override := prepareOverrideScenario(t, s, now, "run-gate-override-expiry-any-valid")
+	actionHash := mustOverrideActionHash(t, override)
+
+	decisionRef := seedApprovedGateOverrideDecision(t, s, now, "run-gate-override-expiry-any-valid", actionHash, override.OverriddenFailedResultRef, "nonce-expiry")
+	seedAdditionalApprovedGateOverrideApproval(t, s, now, "run-gate-override-expiry-any-valid", decisionRef, "sha256:"+strings.Repeat("f", 64))
+	markApprovedGateOverrideExpired(t, s, now, "run-gate-override-expiry-any-valid", decisionRef)
+	now = now.Add(time.Minute)
+
+	mustAcceptRunnerResultReq(t, s, RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-gate-override-expiry-any-valid", RunID: "run-gate-override-expiry-any-valid", Report: override})
+	assertOverridePolicyDecisionBinding(t, s, "run-gate-override-expiry-any-valid", decisionRef)
+}
+
+func seedAdditionalApprovedGateOverrideApproval(t *testing.T, s *Service, now time.Time, runID, policyDecisionRef, approvalID string) {
+	t.Helper()
+	base := mustFindApprovedGateOverrideApproval(t, s, runID, policyDecisionRef)
+	duplicate := base
+	duplicate.ApprovalID = approvalID
+	duplicate.RequestedAt = now.Add(-10 * time.Minute)
+	expiresAt := now.Add(20 * time.Minute)
+	duplicate.ExpiresAt = &expiresAt
+	if err := s.RecordApproval(duplicate); err != nil {
+		t.Fatalf("RecordApproval(duplicate approved) returned error: %v", err)
+	}
+}
+
+func markApprovedGateOverrideExpired(t *testing.T, s *Service, now time.Time, runID, policyDecisionRef string) {
+	t.Helper()
+	approval := mustFindApprovedGateOverrideApproval(t, s, runID, policyDecisionRef)
+	approval.RequestedAt = now.Add(-1 * time.Minute)
+	expiresAt := now.Add(-30 * time.Second)
+	approval.ExpiresAt = &expiresAt
+	if err := s.RecordApproval(approval); err != nil {
+		t.Fatalf("RecordApproval(expired) returned error: %v", err)
+	}
+}
+
+func mustFindApprovedGateOverrideApproval(t *testing.T, s *Service, runID, policyDecisionRef string) artifacts.ApprovalRecord {
+	t.Helper()
+	for _, ap := range s.ApprovalList() {
+		if ap.RunID == runID && ap.PolicyDecisionHash == policyDecisionRef && ap.ActionKind == policyengine.ActionKindGateOverride && ap.Status == "approved" {
+			return ap
+		}
+	}
+	t.Fatalf("missing approved gate override approval for policy decision %q", policyDecisionRef)
+	return artifacts.ApprovalRecord{}
+}
+
+func latestPolicyDecisionRefForAction(t *testing.T, s *Service, runID, actionHash string) string {
+	t.Helper()
+	ref, ok := s.latestGateOverridePolicyDecisionRef(runID, actionHash)
+	if !ok || ref == "" {
+		t.Fatalf("latestGateOverridePolicyDecisionRef(%q) missing", runID)
+	}
+	return ref
+}
+
+func approvePendingGateOverrideByPolicyDecision(t *testing.T, s *Service, now time.Time, runID, policyDecisionRef string) {
+	t.Helper()
+	for _, ap := range s.ApprovalList() {
+		if ap.RunID != runID || ap.ActionKind != policyengine.ActionKindGateOverride || ap.Status != "pending" {
+			continue
+		}
+		if ap.PolicyDecisionHash != policyDecisionRef {
+			continue
+		}
+		ap.Status = "approved"
+		decided := now.Add(time.Minute)
+		ap.DecidedAt = &decided
+		if ap.ExpiresAt == nil {
+			ex := now.Add(10 * time.Minute)
+			ap.ExpiresAt = &ex
+		}
+		if err := s.RecordApproval(ap); err != nil {
+			t.Fatalf("RecordApproval(approved) returned error: %v", err)
+		}
+		return
+	}
+	t.Fatalf("missing pending gate override approval for policy decision %q", policyDecisionRef)
 }
 
 func TestRunnerResultReportSanitizesAndDeepCopiesDetails(t *testing.T) {

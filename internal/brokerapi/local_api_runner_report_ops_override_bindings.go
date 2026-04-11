@@ -49,12 +49,17 @@ func hasPolicyContextDigest(details map[string]any, normalizedInputDigests []str
 
 func (s *Service) latestGateOverridePolicyDecisionRef(runID, actionHash string) (string, bool) {
 	latest := ""
+	var latestRecordedAt time.Time
 	for _, ref := range s.PolicyDecisionRefsForRun(runID) {
 		rec, ok := s.PolicyDecisionGet(ref)
 		if !ok || !matchesGateOverridePolicyDecision(rec, actionHash) {
 			continue
 		}
-		latest = ref
+		recordedAt := rec.RecordedAt.UTC()
+		if latest == "" || recordedAt.After(latestRecordedAt) || (recordedAt.Equal(latestRecordedAt) && ref > latest) {
+			latest = ref
+			latestRecordedAt = recordedAt
+		}
 	}
 	if latest == "" {
 		return "", false
@@ -77,14 +82,24 @@ func matchesGateOverridePolicyDecision(rec artifacts.PolicyDecisionRecord, actio
 }
 
 func (s *Service) requireValidGateOverrideApproval(runID, policyDecisionRef string) error {
+	foundMatch := false
+	var lastValidationErr error
 	for _, approval := range s.listApprovals() {
 		if !isMatchingApprovedGateOverrideApproval(approval, runID, policyDecisionRef) {
 			continue
 		}
+		foundMatch = true
 		if err := validateGateOverrideApprovalExpiry(approval.ExpiresAt, s.now().UTC()); err != nil {
-			return err
+			lastValidationErr = err
+			continue
 		}
 		return nil
+	}
+	if lastValidationErr != nil {
+		return lastValidationErr
+	}
+	if foundMatch {
+		return fmt.Errorf("gate override requires explicit approved approval")
 	}
 	return fmt.Errorf("gate override requires explicit approved approval")
 }

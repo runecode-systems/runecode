@@ -6,11 +6,17 @@ import (
 )
 
 func validateRunnerStepIdentity(stageID, stepID, roleInstanceID string) error {
-	if strings.TrimSpace(stageID) == "" && strings.TrimSpace(stepID) != "" {
+	trimmedStageID := strings.TrimSpace(stageID)
+	trimmedStepID := strings.TrimSpace(stepID)
+	trimmedRoleInstanceID := strings.TrimSpace(roleInstanceID)
+	if trimmedStageID == "" && trimmedStepID != "" {
 		return fmt.Errorf("stage id is required when step id is set")
 	}
-	if strings.TrimSpace(roleInstanceID) == "" {
+	if trimmedRoleInstanceID == "" {
 		return nil
+	}
+	if trimmedStageID == "" || trimmedStepID == "" {
+		return fmt.Errorf("stage id and step id are required when role instance id is set")
 	}
 	return nil
 }

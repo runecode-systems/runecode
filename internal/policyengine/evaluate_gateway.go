@@ -1,5 +1,7 @@
 package policyengine
 
+import "strings"
+
 func evaluateGatewayBoundary(compiled *CompiledContext, action ActionRequest, actionHash string) (PolicyDecision, bool) {
 	if decision, blocked := denyIfInvalidGatewayFamily(compiled, action, actionHash); blocked {
 		return decision, true
@@ -114,6 +116,14 @@ func decodeAndValidateGatewayPayload(compiled *CompiledContext, action ActionReq
 			"non_approvable":            true,
 			"payload_gateway_role_kind": payload.GatewayRoleKind,
 			"active_context_role_kind":  compiled.Context.ActiveRoleKind,
+		}), true
+	}
+	if strings.TrimSpace(payload.Operation) == "" {
+		return gatewayEgressPayload{}, denyInvariantDecision(compiled, action, actionHash, map[string]any{
+			"precedence":     "invariants_first",
+			"invariant":      "network_egress_hard_boundary",
+			"non_approvable": true,
+			"reason":         "missing_gateway_operation",
 		}), true
 	}
 	return payload, PolicyDecision{}, false

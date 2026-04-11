@@ -19,7 +19,7 @@ type gatewayEgressPayload struct {
 	DestinationKind string `json:"destination_kind"`
 	DestinationRef  string `json:"destination_ref"`
 	EgressDataClass string `json:"egress_data_class"`
-	Operation       string `json:"operation,omitempty"`
+	Operation       string `json:"operation"`
 	PayloadHash     string `json:"payload_hash,omitempty"`
 }
 
