@@ -206,6 +206,19 @@ func requestSessionSendMessageViaLocalRPC(t *testing.T, conn net.Conn) error {
 	defer conn.Close()
 	encoder := json.NewEncoder(conn)
 	decoder := json.NewDecoder(conn)
+	sessionID, err := sessionIDForLocalRPCMessageTest(t, encoder, decoder)
+	if err != nil {
+		return err
+	}
+	ack, err := sendSessionMessageViaLocalRPC(t, encoder, decoder, sessionID)
+	if err != nil {
+		return err
+	}
+	return assertSessionSendAck(ack)
+}
+
+func sessionIDForLocalRPCMessageTest(t *testing.T, encoder *json.Encoder, decoder *json.Decoder) (string, error) {
+	t.Helper()
 	seedReq := localRPCRequest{Operation: "session_list", Request: mustJSONRawMessage(t, brokerapi.SessionListRequest{
 		SchemaID:      "runecode.protocol.v0.SessionListRequest",
 		SchemaVersion: "0.1.0",
@@ -213,23 +226,27 @@ func requestSessionSendMessageViaLocalRPC(t *testing.T, conn net.Conn) error {
 		Limit:         1,
 	})}
 	if err := encoder.Encode(seedReq); err != nil {
-		return err
+		return "", err
 	}
 	seedResp := localRPCResponse{}
 	if err := decoder.Decode(&seedResp); err != nil {
-		return err
+		return "", err
 	}
 	if !seedResp.OK {
-		return fmt.Errorf("session_list failed: %+v", seedResp.Error)
+		return "", fmt.Errorf("session_list failed: %+v", seedResp.Error)
 	}
 	list := brokerapi.SessionListResponse{}
 	if err := json.Unmarshal(seedResp.Response, &list); err != nil {
-		return err
+		return "", err
 	}
 	if len(list.Sessions) == 0 {
-		return fmt.Errorf("session_list returned no sessions")
+		return "", fmt.Errorf("session_list returned no sessions")
 	}
-	sessionID := list.Sessions[0].Identity.SessionID
+	return list.Sessions[0].Identity.SessionID, nil
+}
+
+func sendSessionMessageViaLocalRPC(t *testing.T, encoder *json.Encoder, decoder *json.Decoder, sessionID string) (brokerapi.SessionSendMessageResponse, error) {
+	t.Helper()
 	wire := localRPCRequest{Operation: "session_send_message", Request: mustJSONRawMessage(t, brokerapi.SessionSendMessageRequest{
 		SchemaID:       "runecode.protocol.v0.SessionSendMessageRequest",
 		SchemaVersion:  "0.1.0",
@@ -240,19 +257,23 @@ func requestSessionSendMessageViaLocalRPC(t *testing.T, conn net.Conn) error {
 		IdempotencyKey: "idem-local-rpc",
 	})}
 	if err := encoder.Encode(wire); err != nil {
-		return err
+		return brokerapi.SessionSendMessageResponse{}, err
 	}
 	resp := localRPCResponse{}
 	if err := decoder.Decode(&resp); err != nil {
-		return err
+		return brokerapi.SessionSendMessageResponse{}, err
 	}
 	if !resp.OK {
-		return fmt.Errorf("session_send_message failed: %+v", resp.Error)
+		return brokerapi.SessionSendMessageResponse{}, fmt.Errorf("session_send_message failed: %+v", resp.Error)
 	}
 	ack := brokerapi.SessionSendMessageResponse{}
 	if err := json.Unmarshal(resp.Response, &ack); err != nil {
-		return err
+		return brokerapi.SessionSendMessageResponse{}, err
 	}
+	return ack, nil
+}
+
+func assertSessionSendAck(ack brokerapi.SessionSendMessageResponse) error {
 	if ack.EventType != "session_message_ack" {
 		return fmt.Errorf("event_type = %q, want session_message_ack", ack.EventType)
 	}

@@ -11,63 +11,12 @@ import (
 
 func TestSessionListAndGetProjectCanonicalSessionIdentity(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	putRunScopedArtifactForLocalOpsTest(t, s, "run-session-1", "step-1")
-	if err := s.RecordRuntimeFacts("run-session-1", launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: "run-session-1", SessionID: "sess-alpha"}}); err != nil {
-		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
-	}
-
-	listResp, errResp := s.HandleSessionList(context.Background(), SessionListRequest{SchemaID: "runecode.protocol.v0.SessionListRequest", SchemaVersion: "0.1.0", RequestID: "req-session-list", Limit: 10}, RequestContext{})
-	if errResp != nil {
-		t.Fatalf("HandleSessionList error response: %+v", errResp)
-	}
-	if len(listResp.Sessions) != 1 {
-		t.Fatalf("session list len = %d, want 1", len(listResp.Sessions))
-	}
-	summary := listResp.Sessions[0]
-	if summary.Identity.SessionID != "sess-alpha" {
-		t.Fatalf("identity.session_id = %q, want sess-alpha", summary.Identity.SessionID)
-	}
-	if summary.Identity.SchemaID != "runecode.protocol.v0.SessionIdentity" {
-		t.Fatalf("identity.schema_id = %q, want SessionIdentity", summary.Identity.SchemaID)
-	}
-	if summary.Identity.WorkspaceID != "workspace-local" {
-		t.Fatalf("identity.workspace_id = %q, want workspace-local", summary.Identity.WorkspaceID)
-	}
-	if summary.LinkedRunCount != 1 {
-		t.Fatalf("linked_run_count = %d, want 1", summary.LinkedRunCount)
-	}
-	if summary.TurnCount != 1 {
-		t.Fatalf("turn_count = %d, want 1 for minimal ordered transcript substrate", summary.TurnCount)
-	}
-
-	getResp, getErr := s.HandleSessionGet(context.Background(), SessionGetRequest{SchemaID: "runecode.protocol.v0.SessionGetRequest", SchemaVersion: "0.1.0", RequestID: "req-session-get", SessionID: "sess-alpha"}, RequestContext{})
-	if getErr != nil {
-		t.Fatalf("HandleSessionGet error response: %+v", getErr)
-	}
-	if getResp.Session.Summary.Identity.SessionID != "sess-alpha" {
-		t.Fatalf("session.summary.identity.session_id = %q, want sess-alpha", getResp.Session.Summary.Identity.SessionID)
-	}
-	if len(getResp.Session.LinkedRunIDs) != 1 || getResp.Session.LinkedRunIDs[0] != "run-session-1" {
-		t.Fatalf("linked_run_ids = %+v, want [run-session-1]", getResp.Session.LinkedRunIDs)
-	}
-	if len(getResp.Session.LinkedArtifactDigests) != 1 || !strings.HasPrefix(getResp.Session.LinkedArtifactDigests[0], "sha256:") {
-		t.Fatalf("linked_artifact_digests = %+v, want single sha256 digest", getResp.Session.LinkedArtifactDigests)
-	}
-	if len(getResp.Session.TranscriptTurns) != 1 {
-		t.Fatalf("transcript_turns len = %d, want 1", len(getResp.Session.TranscriptTurns))
-	}
-	if getResp.Session.TranscriptTurns[0].TurnIndex != 1 {
-		t.Fatalf("transcript_turns[0].turn_index = %d, want 1", getResp.Session.TranscriptTurns[0].TurnIndex)
-	}
-	if len(getResp.Session.TranscriptTurns[0].Messages) != 1 {
-		t.Fatalf("transcript_turns[0].messages len = %d, want 1", len(getResp.Session.TranscriptTurns[0].Messages))
-	}
-	if len(getResp.Session.TranscriptTurns[0].Messages[0].RelatedLinks.RunIDs) != 1 || getResp.Session.TranscriptTurns[0].Messages[0].RelatedLinks.RunIDs[0] != "run-session-1" {
-		t.Fatalf("transcript_turns[0].messages[0].related_links.run_ids = %+v, want [run-session-1]", getResp.Session.TranscriptTurns[0].Messages[0].RelatedLinks.RunIDs)
-	}
-	if len(getResp.Session.LinkedAuditRecordDigests) != 0 {
-		t.Fatalf("linked_audit_record_digests = %+v, want empty in minimal substrate", getResp.Session.LinkedAuditRecordDigests)
-	}
+	seedSessionForOpsTest(t, s, "run-session-1", "sess-alpha")
+	listResp := mustSessionList(t, s, "req-session-list")
+	summary := requireSingleSessionSummary(t, listResp, "sess-alpha")
+	assertSessionSummaryProjection(t, summary)
+	getResp := mustSessionGet(t, s, "req-session-get", "sess-alpha")
+	assertSessionDetailProjection(t, getResp, "sess-alpha", "run-session-1")
 }
 
 func TestSessionGetNotFoundUsesSessionSpecificCode(t *testing.T) {
@@ -83,10 +32,7 @@ func TestSessionGetNotFoundUsesSessionSpecificCode(t *testing.T) {
 
 func TestSessionSendMessageReturnsTypedAckAndSupportsIdempotency(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	putRunScopedArtifactForLocalOpsTest(t, s, "run-session-send", "step-1")
-	if err := s.RecordRuntimeFacts("run-session-send", launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: "run-session-send", SessionID: "sess-send"}}); err != nil {
-		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
-	}
+	seedSessionForOpsTest(t, s, "run-session-send", "sess-send")
 	baseReq := SessionSendMessageRequest{
 		SchemaID:       "runecode.protocol.v0.SessionSendMessageRequest",
 		SchemaVersion:  "0.1.0",
@@ -97,60 +43,15 @@ func TestSessionSendMessageReturnsTypedAckAndSupportsIdempotency(t *testing.T) {
 		IdempotencyKey: "idem-1",
 		RelatedLinks:   &SessionTranscriptLinks{SchemaID: "runecode.protocol.v0.SessionTranscriptLinks", SchemaVersion: "0.1.0", RunIDs: []string{"run-session-send"}, ApprovalIDs: []string{}, ArtifactDigests: []string{}, AuditRecordDigests: []string{}},
 	}
-	ack1, errResp := s.HandleSessionSendMessage(context.Background(), baseReq, RequestContext{})
-	if errResp != nil {
-		t.Fatalf("HandleSessionSendMessage first error response: %+v", errResp)
-	}
-	if ack1.EventType != "session_message_ack" {
-		t.Fatalf("event_type = %q, want session_message_ack", ack1.EventType)
-	}
-	if ack1.StreamID != "session-sess-send" {
-		t.Fatalf("stream_id = %q, want session-sess-send", ack1.StreamID)
-	}
-	if ack1.Seq != 1 {
-		t.Fatalf("seq = %d, want 1", ack1.Seq)
-	}
-	if ack1.Message.SessionID != "sess-send" || ack1.Turn.SessionID != "sess-send" {
-		t.Fatalf("ack session identities mismatch: message=%q turn=%q", ack1.Message.SessionID, ack1.Turn.SessionID)
-	}
-	if ack1.Message.ContentText != "hello" {
-		t.Fatalf("message content_text = %q, want hello", ack1.Message.ContentText)
-	}
-	if len(ack1.Message.RelatedLinks.RunIDs) != 1 || ack1.Message.RelatedLinks.RunIDs[0] != "run-session-send" {
-		t.Fatalf("related_links.run_ids = %+v, want [run-session-send]", ack1.Message.RelatedLinks.RunIDs)
-	}
-	if ack1.Turn.TurnIndex != 2 {
-		t.Fatalf("turn.turn_index = %d, want 2 based on existing summary turn count", ack1.Turn.TurnIndex)
-	}
+	ack1 := mustSessionSendMessage(t, s, baseReq)
+	assertInitialSessionSendAck(t, ack1)
 	replayReq := baseReq
 	replayReq.RequestID = "req-session-send-2"
-	ack2, errResp := s.HandleSessionSendMessage(context.Background(), replayReq, RequestContext{})
-	if errResp != nil {
-		t.Fatalf("HandleSessionSendMessage replay error response: %+v", errResp)
-	}
-	if ack2.Seq != ack1.Seq {
-		t.Fatalf("idempotent replay seq = %d, want %d", ack2.Seq, ack1.Seq)
-	}
-	if ack2.Message.MessageID != ack1.Message.MessageID {
-		t.Fatalf("idempotent replay message_id = %q, want %q", ack2.Message.MessageID, ack1.Message.MessageID)
-	}
-	if ack2.RequestID != "req-session-send-2" {
-		t.Fatalf("replay request_id = %q, want req-session-send-2", ack2.RequestID)
-	}
+	ack2 := mustSessionSendMessage(t, s, replayReq)
+	assertSessionSendReplayAck(t, ack1, ack2)
 	nextReq := SessionSendMessageRequest{SchemaID: "runecode.protocol.v0.SessionSendMessageRequest", SchemaVersion: "0.1.0", RequestID: "req-session-send-3", SessionID: "sess-send", Role: "user", ContentText: "second"}
-	ack3, errResp := s.HandleSessionSendMessage(context.Background(), nextReq, RequestContext{})
-	if errResp != nil {
-		t.Fatalf("HandleSessionSendMessage second distinct error response: %+v", errResp)
-	}
-	if ack3.Seq != 2 {
-		t.Fatalf("second distinct seq = %d, want 2", ack3.Seq)
-	}
-	if ack3.Turn.TurnIndex != 3 {
-		t.Fatalf("second distinct turn.turn_index = %d, want 3", ack3.Turn.TurnIndex)
-	}
-	if ack3.Message.MessageID == ack1.Message.MessageID {
-		t.Fatalf("second distinct message_id = %q, want different than first %q", ack3.Message.MessageID, ack1.Message.MessageID)
-	}
+	ack3 := mustSessionSendMessage(t, s, nextReq)
+	assertSecondDistinctSessionSendAck(t, ack1, ack3)
 }
 
 func TestBuildSessionTranscriptTurnsCapsToSchemaLimits(t *testing.T) {
@@ -170,5 +71,161 @@ func TestBuildSessionTranscriptTurnsCapsToSchemaLimits(t *testing.T) {
 	turns := buildSessionTranscriptTurns("sess-cap", summary, runs, approvals, artifactsByDigest, audit)
 	if len(turns) != 2048 {
 		t.Fatalf("turn count = %d, want 2048", len(turns))
+	}
+}
+
+func seedSessionForOpsTest(t *testing.T, s *Service, runID, sessionID string) {
+	t.Helper()
+	putRunScopedArtifactForLocalOpsTest(t, s, runID, "step-1")
+	if err := s.RecordRuntimeFacts(runID, launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: runID, SessionID: sessionID}}); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
+}
+
+func mustSessionList(t *testing.T, s *Service, requestID string) SessionListResponse {
+	t.Helper()
+	resp, errResp := s.HandleSessionList(context.Background(), SessionListRequest{SchemaID: "runecode.protocol.v0.SessionListRequest", SchemaVersion: "0.1.0", RequestID: requestID, Limit: 10}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleSessionList error response: %+v", errResp)
+	}
+	return resp
+}
+
+func requireSingleSessionSummary(t *testing.T, resp SessionListResponse, wantSessionID string) SessionSummary {
+	t.Helper()
+	if len(resp.Sessions) != 1 {
+		t.Fatalf("session list len = %d, want 1", len(resp.Sessions))
+	}
+	summary := resp.Sessions[0]
+	if summary.Identity.SessionID != wantSessionID {
+		t.Fatalf("identity.session_id = %q, want %s", summary.Identity.SessionID, wantSessionID)
+	}
+	return summary
+}
+
+func assertSessionSummaryProjection(t *testing.T, summary SessionSummary) {
+	t.Helper()
+	if summary.Identity.SchemaID != "runecode.protocol.v0.SessionIdentity" {
+		t.Fatalf("identity.schema_id = %q, want SessionIdentity", summary.Identity.SchemaID)
+	}
+	if summary.Identity.WorkspaceID != "workspace-local" {
+		t.Fatalf("identity.workspace_id = %q, want workspace-local", summary.Identity.WorkspaceID)
+	}
+	if summary.LinkedRunCount != 1 {
+		t.Fatalf("linked_run_count = %d, want 1", summary.LinkedRunCount)
+	}
+	if summary.TurnCount != 1 {
+		t.Fatalf("turn_count = %d, want 1 for minimal ordered transcript substrate", summary.TurnCount)
+	}
+}
+
+func mustSessionGet(t *testing.T, s *Service, requestID, sessionID string) SessionGetResponse {
+	t.Helper()
+	resp, errResp := s.HandleSessionGet(context.Background(), SessionGetRequest{SchemaID: "runecode.protocol.v0.SessionGetRequest", SchemaVersion: "0.1.0", RequestID: requestID, SessionID: sessionID}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleSessionGet error response: %+v", errResp)
+	}
+	return resp
+}
+
+func assertSessionDetailProjection(t *testing.T, resp SessionGetResponse, wantSessionID, wantRunID string) {
+	t.Helper()
+	if resp.Session.Summary.Identity.SessionID != wantSessionID {
+		t.Fatalf("session.summary.identity.session_id = %q, want %s", resp.Session.Summary.Identity.SessionID, wantSessionID)
+	}
+	assertSessionDetailLinks(t, resp.Session, wantRunID)
+	assertSingleSessionTurnProjection(t, resp.Session.TranscriptTurns, wantRunID)
+	if len(resp.Session.LinkedAuditRecordDigests) != 0 {
+		t.Fatalf("linked_audit_record_digests = %+v, want empty in minimal substrate", resp.Session.LinkedAuditRecordDigests)
+	}
+}
+
+func assertSessionDetailLinks(t *testing.T, detail SessionDetail, wantRunID string) {
+	t.Helper()
+	if len(detail.LinkedRunIDs) != 1 || detail.LinkedRunIDs[0] != wantRunID {
+		t.Fatalf("linked_run_ids = %+v, want [%s]", detail.LinkedRunIDs, wantRunID)
+	}
+	if len(detail.LinkedArtifactDigests) != 1 || !strings.HasPrefix(detail.LinkedArtifactDigests[0], "sha256:") {
+		t.Fatalf("linked_artifact_digests = %+v, want single sha256 digest", detail.LinkedArtifactDigests)
+	}
+	if len(detail.LinkedAuditRecordDigests) != 0 {
+		t.Fatalf("linked_audit_record_digests = %+v, want empty in minimal substrate", detail.LinkedAuditRecordDigests)
+	}
+}
+
+func assertSingleSessionTurnProjection(t *testing.T, turns []SessionTranscriptTurn, wantRunID string) {
+	t.Helper()
+	if len(turns) != 1 {
+		t.Fatalf("transcript_turns len = %d, want 1", len(turns))
+	}
+	turn := turns[0]
+	if turn.TurnIndex != 1 {
+		t.Fatalf("transcript_turns[0].turn_index = %d, want 1", turn.TurnIndex)
+	}
+	if len(turn.Messages) != 1 {
+		t.Fatalf("transcript_turns[0].messages len = %d, want 1", len(turn.Messages))
+	}
+	if len(turn.Messages[0].RelatedLinks.RunIDs) != 1 || turn.Messages[0].RelatedLinks.RunIDs[0] != wantRunID {
+		t.Fatalf("transcript_turns[0].messages[0].related_links.run_ids = %+v, want [%s]", turn.Messages[0].RelatedLinks.RunIDs, wantRunID)
+	}
+}
+
+func mustSessionSendMessage(t *testing.T, s *Service, req SessionSendMessageRequest) SessionSendMessageResponse {
+	t.Helper()
+	resp, errResp := s.HandleSessionSendMessage(context.Background(), req, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleSessionSendMessage error response: %+v", errResp)
+	}
+	return resp
+}
+
+func assertInitialSessionSendAck(t *testing.T, ack SessionSendMessageResponse) {
+	t.Helper()
+	if ack.EventType != "session_message_ack" {
+		t.Fatalf("event_type = %q, want session_message_ack", ack.EventType)
+	}
+	if ack.StreamID != "session-sess-send" {
+		t.Fatalf("stream_id = %q, want session-sess-send", ack.StreamID)
+	}
+	if ack.Seq != 1 {
+		t.Fatalf("seq = %d, want 1", ack.Seq)
+	}
+	if ack.Message.SessionID != "sess-send" || ack.Turn.SessionID != "sess-send" {
+		t.Fatalf("ack session identities mismatch: message=%q turn=%q", ack.Message.SessionID, ack.Turn.SessionID)
+	}
+	if ack.Message.ContentText != "hello" {
+		t.Fatalf("message content_text = %q, want hello", ack.Message.ContentText)
+	}
+	if len(ack.Message.RelatedLinks.RunIDs) != 1 || ack.Message.RelatedLinks.RunIDs[0] != "run-session-send" {
+		t.Fatalf("related_links.run_ids = %+v, want [run-session-send]", ack.Message.RelatedLinks.RunIDs)
+	}
+	if ack.Turn.TurnIndex != 2 {
+		t.Fatalf("turn.turn_index = %d, want 2 based on existing summary turn count", ack.Turn.TurnIndex)
+	}
+}
+
+func assertSessionSendReplayAck(t *testing.T, first, replay SessionSendMessageResponse) {
+	t.Helper()
+	if replay.Seq != first.Seq {
+		t.Fatalf("idempotent replay seq = %d, want %d", replay.Seq, first.Seq)
+	}
+	if replay.Message.MessageID != first.Message.MessageID {
+		t.Fatalf("idempotent replay message_id = %q, want %q", replay.Message.MessageID, first.Message.MessageID)
+	}
+	if replay.RequestID != "req-session-send-2" {
+		t.Fatalf("replay request_id = %q, want req-session-send-2", replay.RequestID)
+	}
+}
+
+func assertSecondDistinctSessionSendAck(t *testing.T, first, second SessionSendMessageResponse) {
+	t.Helper()
+	if second.Seq != 2 {
+		t.Fatalf("second distinct seq = %d, want 2", second.Seq)
+	}
+	if second.Turn.TurnIndex != 3 {
+		t.Fatalf("second distinct turn.turn_index = %d, want 3", second.Turn.TurnIndex)
+	}
+	if second.Message.MessageID == first.Message.MessageID {
+		t.Fatalf("second distinct message_id = %q, want different than first %q", second.Message.MessageID, first.Message.MessageID)
 	}
 }
