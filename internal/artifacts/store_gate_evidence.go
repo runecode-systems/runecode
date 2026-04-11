@@ -38,22 +38,40 @@ type GateEvidenceArtifact struct {
 func (s *Store) PutGateEvidence(runID string, evidence GateEvidenceArtifact) (ArtifactReference, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := validateGateEvidenceArtifact(evidence, runID); err != nil {
-		return ArtifactReference{}, err
-	}
-	if _, err := time.Parse(time.RFC3339, evidence.StartedAt); err != nil {
-		return ArtifactReference{}, fmt.Errorf("gate evidence started_at must be RFC3339")
-	}
-	finishedAt, err := time.Parse(time.RFC3339, evidence.FinishedAt)
+	finishedAt, err := validateAndParseGateEvidence(evidence, runID)
 	if err != nil {
-		return ArtifactReference{}, fmt.Errorf("gate evidence finished_at must be RFC3339")
+		return ArtifactReference{}, err
 	}
 	payload, err := canonicalizeJSONValue(evidence)
 	if err != nil {
 		return ArtifactReference{}, fmt.Errorf("canonicalize gate evidence: %w", err)
 	}
-	finishedAtUTC := finishedAt.UTC()
-	ref, err := s.putLocked(PutRequest{
+	ref, err := s.putGateEvidenceArtifactLocked(payload, runID, evidence)
+	if err != nil {
+		return ArtifactReference{}, err
+	}
+	if err := s.appendGateEvidenceAuditLocked(runID, evidence, ref, finishedAt.UTC()); err != nil {
+		return ArtifactReference{}, err
+	}
+	if err := s.saveStateLocked(); err != nil {
+		return ArtifactReference{}, err
+	}
+	return ref, nil
+}
+
+func validateAndParseGateEvidence(evidence GateEvidenceArtifact, runID string) (time.Time, error) {
+	if err := validateGateEvidenceArtifact(evidence, runID); err != nil {
+		return time.Time{}, err
+	}
+	finishedAt, err := time.Parse(time.RFC3339, evidence.FinishedAt)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("gate evidence finished_at must be RFC3339")
+	}
+	return finishedAt, nil
+}
+
+func (s *Store) putGateEvidenceArtifactLocked(payload []byte, runID string, evidence GateEvidenceArtifact) (ArtifactReference, error) {
+	return s.putLocked(PutRequest{
 		Payload:               payload,
 		ContentType:           "application/json",
 		DataClass:             DataClassGateEvidence,
@@ -63,24 +81,18 @@ func (s *Store) PutGateEvidence(runID string, evidence GateEvidenceArtifact) (Ar
 		RunID:                 strings.TrimSpace(runID),
 		StepID:                strings.TrimSpace(evidence.StepID),
 	})
-	if err != nil {
-		return ArtifactReference{}, err
-	}
-	if err := s.appendAuditLocked("gate_evidence_recorded", "brokerapi", map[string]interface{}{
+}
+
+func (s *Store) appendGateEvidenceAuditLocked(runID string, evidence GateEvidenceArtifact, ref ArtifactReference, finishedAt time.Time) error {
+	return s.appendAuditLocked("gate_evidence_recorded", "brokerapi", map[string]interface{}{
 		"run_id":            strings.TrimSpace(runID),
 		"gate_id":           evidence.GateID,
 		"gate_kind":         evidence.GateKind,
 		"gate_version":      evidence.GateVersion,
 		"gate_attempt_id":   evidence.GateAttemptID,
-		"finished_at":       finishedAtUTC.Format(time.RFC3339),
+		"finished_at":       finishedAt.Format(time.RFC3339),
 		"gate_evidence_ref": ref.Digest,
-	}); err != nil {
-		return ArtifactReference{}, err
-	}
-	if err := s.saveStateLocked(); err != nil {
-		return ArtifactReference{}, err
-	}
-	return ref, nil
+	})
 }
 
 func validateGateEvidenceArtifact(evidence GateEvidenceArtifact, runID string) error {

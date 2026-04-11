@@ -6,17 +6,7 @@ import (
 )
 
 func TestCompileBuildsEffectiveContextWithFrozenPrecedenceAndHashes(t *testing.T) {
-	input := CompileInput{
-		FixedInvariants: FixedInvariants{DeniedCapabilities: []string{"always_denied"}, DeniedActionKinds: []string{"backend_posture_change"}},
-		RoleManifest:    testManifestInput(t, validRoleManifestPayload(), ""),
-		RunManifest:     testManifestInput(t, validRunCapabilityManifestPayload(), ""),
-		StageManifest:   ptr(testManifestInput(t, validStageCapabilityManifestPayload(), "")),
-		Allowlists: []ManifestInput{
-			testManifestInput(t, validAllowlistPayload("allowlist-a"), ""),
-			testManifestInput(t, validAllowlistPayload("allowlist-b"), ""),
-			testManifestInput(t, validAllowlistPayload("allowlist-c"), ""),
-		},
-	}
+	input := compileInputWithThreeAllowlistsAndStage(t)
 
 	compiled, err := Compile(input)
 	if err != nil {
@@ -37,12 +27,7 @@ func TestCompileBuildsEffectiveContextWithFrozenPrecedenceAndHashes(t *testing.T
 }
 
 func TestCompileFailsClosedWhenActiveAllowlistMissing(t *testing.T) {
-	input := CompileInput{
-		FixedInvariants: FixedInvariants{},
-		RoleManifest:    testManifestInput(t, validRoleManifestPayload(), ""),
-		RunManifest:     testManifestInput(t, validRunCapabilityManifestPayload(), ""),
-		Allowlists:      []ManifestInput{},
-	}
+	input := compileInputWithNoAllowlists(t)
 
 	_, err := Compile(input)
 	if err == nil {
@@ -61,15 +46,7 @@ func TestCompileFailsClosedWhenActiveAllowlistMissing(t *testing.T) {
 func TestCompileRejectsSchemaVersionMismatch(t *testing.T) {
 	role := validRoleManifestPayload()
 	role["schema_version"] = "9.9.9"
-	input := CompileInput{
-		FixedInvariants: FixedInvariants{},
-		RoleManifest:    testManifestInput(t, role, ""),
-		RunManifest:     testManifestInput(t, validRunCapabilityManifestPayload(), ""),
-		Allowlists: []ManifestInput{
-			testManifestInput(t, validAllowlistPayload("allowlist-a"), ""),
-			testManifestInput(t, validAllowlistPayload("allowlist-b"), ""),
-		},
-	}
+	input := compileInputWithRoleAndTwoAllowlists(t, role)
 
 	_, err := Compile(input)
 	if err == nil {
@@ -91,15 +68,7 @@ func TestCompileFailsClosedOnUnknownGatewayScopeKind(t *testing.T) {
 	rule := entries[0].(map[string]any)
 	rule["scope_kind"] = "gateway_destination_legacy"
 
-	input := CompileInput{
-		FixedInvariants: FixedInvariants{},
-		RoleManifest:    testManifestInput(t, validRoleManifestPayload(), ""),
-		RunManifest:     testManifestInput(t, validRunCapabilityManifestPayload(), ""),
-		Allowlists: []ManifestInput{
-			testManifestInput(t, allowlist, ""),
-			testManifestInput(t, validAllowlistPayload("allowlist-b"), ""),
-		},
-	}
+	input := compileInputWithAllowlistOverrideAndSecondary(t, allowlist)
 
 	_, err := Compile(input)
 	if err == nil {
@@ -122,15 +91,7 @@ func TestCompileFailsClosedOnUnknownDestinationDescriptorKind(t *testing.T) {
 	destination := rule["destination"].(map[string]any)
 	destination["descriptor_kind"] = "raw_url"
 
-	input := CompileInput{
-		FixedInvariants: FixedInvariants{},
-		RoleManifest:    testManifestInput(t, validRoleManifestPayload(), ""),
-		RunManifest:     testManifestInput(t, validRunCapabilityManifestPayload(), ""),
-		Allowlists: []ManifestInput{
-			testManifestInput(t, allowlist, ""),
-			testManifestInput(t, validAllowlistPayload("allowlist-b"), ""),
-		},
-	}
+	input := compileInputWithAllowlistOverrideAndSecondary(t, allowlist)
 
 	_, err := Compile(input)
 	if err == nil {
@@ -209,32 +170,7 @@ func TestCompileWorkspaceRoleCapabilityManifestPolicyByRoleKind(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			role := validRoleManifestPayload()
-			role["role_kind"] = tc.roleKind
-			role["capability_opt_ins"] = []any{tc.capability}
-			rolePrincipal := role["principal"].(map[string]any)
-			rolePrincipal["role_kind"] = tc.roleKind
-
-			run := validRunCapabilityManifestPayload()
-			run["capability_opt_ins"] = []any{tc.capability}
-			runPrincipal := run["principal"].(map[string]any)
-			runPrincipal["role_kind"] = tc.roleKind
-
-			stage := validStageCapabilityManifestPayload()
-			stage["capability_opt_ins"] = []any{tc.capability}
-			stagePrincipal := stage["principal"].(map[string]any)
-			stagePrincipal["role_kind"] = tc.roleKind
-
-			_, err := Compile(CompileInput{
-				RoleManifest:  testManifestInput(t, role, ""),
-				RunManifest:   testManifestInput(t, run, ""),
-				StageManifest: ptr(testManifestInput(t, stage, "")),
-				Allowlists: []ManifestInput{
-					testManifestInput(t, validAllowlistPayload("allowlist-a"), ""),
-					testManifestInput(t, validAllowlistPayload("allowlist-b"), ""),
-					testManifestInput(t, validAllowlistPayload("allowlist-c"), ""),
-				},
-			})
+			err := compileWorkspaceRoleCapabilityManifestByRoleKind(t, tc.roleKind, tc.capability)
 			if err != nil {
 				t.Fatalf("Compile returned error: %v", err)
 			}

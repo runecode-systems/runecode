@@ -1,0 +1,27 @@
+package brokerapi
+
+const (
+	runSummarySchemaPath              = "objects/RunSummary.schema.json"
+	runDetailSchemaPath               = "objects/RunDetail.schema.json"
+	runStageSummarySchemaPath         = "objects/RunStageSummary.schema.json"
+	runRoleSummarySchemaPath          = "objects/RunRoleSummary.schema.json"
+	runCoordinationSummarySchemaPath  = "objects/RunCoordinationSummary.schema.json"
+	approvalBoundScopeSchemaPath      = "objects/ApprovalBoundScope.schema.json"
+	approvalSummarySchemaPath         = "objects/ApprovalSummary.schema.json"
+	runListRequestSchemaPath          = "objects/RunListRequest.schema.json"
+	runListResponseSchemaPath         = "objects/RunListResponse.schema.json"
+	runGetRequestSchemaPath           = "objects/RunGetRequest.schema.json"
+	runGetResponseSchemaPath          = "objects/RunGetResponse.schema.json"
+	runnerCheckpointReportSchemaPath  = "objects/RunnerCheckpointReport.schema.json"
+	runnerResultReportSchemaPath      = "objects/RunnerResultReport.schema.json"
+	runnerCheckpointRequestSchemaPath = "objects/RunnerCheckpointReportRequest.schema.json"
+	runnerCheckpointRespSchemaPath    = "objects/RunnerCheckpointReportResponse.schema.json"
+	runnerResultRequestSchemaPath     = "objects/RunnerResultReportRequest.schema.json"
+	runnerResultRespSchemaPath        = "objects/RunnerResultReportResponse.schema.json"
+	approvalListRequestSchemaPath     = "objects/ApprovalListRequest.schema.json"
+	approvalListResponseSchemaPath    = "objects/ApprovalListResponse.schema.json"
+	approvalGetRequestSchemaPath      = "objects/ApprovalGetRequest.schema.json"
+	approvalGetResponseSchemaPath     = "objects/ApprovalGetResponse.schema.json"
+	approvalResolveRequestSchemaPath  = "objects/ApprovalResolveRequest.schema.json"
+	approvalResolveResponseSchemaPath = "objects/ApprovalResolveResponse.schema.json"
+)

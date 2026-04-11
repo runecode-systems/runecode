@@ -13,7 +13,18 @@ func TestCompileBuildsDeterministicRunPlan(t *testing.T) {
 	workflowPayload := workflowPayloadForTest(t, []any{gateDef("build_gate", "step_validation_started", 0)}, []string{"workspace-edit", "workspace-test"})
 	processPayload := processPayloadForTest(t, []any{gateDef("build_gate", "step_validation_started", 0), gateDef("lint_gate", "step_validation_finished", 1)}, []string{"workspace-edit", "workspace-test"})
 
-	plan, err := Compile(CompileInput{
+	plan, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
+	if err != nil {
+		t.Fatalf("Compile returned error: %v", err)
+	}
+	assertDeterministicRunPlanShape(t, plan)
+	if err := ValidateRunPlan(plan); err != nil {
+		t.Fatalf("ValidateRunPlan returned error: %v", err)
+	}
+}
+
+func deterministicCompileInput(workflowPayload []byte, processPayload []byte) CompileInput {
+	return CompileInput{
 		RunID:                   "run_123",
 		PlanID:                  "plan_run_123_0001",
 		SupersedesPlanID:        "plan_run_123_0000",
@@ -22,10 +33,11 @@ func TestCompileBuildsDeterministicRunPlan(t *testing.T) {
 		ProcessDefinitionBytes:  processPayload,
 		PolicyContextHash:       "sha256:" + strings.Repeat("a", 64),
 		ExecutorRegistry:        policyengine.BuildExecutorRegistryProjection(),
-	})
-	if err != nil {
-		t.Fatalf("Compile returned error: %v", err)
 	}
+}
+
+func assertDeterministicRunPlanShape(t *testing.T, plan RunPlan) {
+	t.Helper()
 	if plan.SchemaID != runPlanSchemaID {
 		t.Fatalf("schema_id = %q, want %q", plan.SchemaID, runPlanSchemaID)
 	}
@@ -47,40 +59,11 @@ func TestCompileBuildsDeterministicRunPlan(t *testing.T) {
 	if got := plan.GateDefinitions[1].Gate.GateID; got != "build_gate" {
 		t.Fatalf("second gate_id = %q, want build_gate", got)
 	}
-	if err := ValidateRunPlan(plan); err != nil {
-		t.Fatalf("ValidateRunPlan returned error: %v", err)
-	}
 }
 
 func TestCompileFailsClosedOnUnknownExecutorBinding(t *testing.T) {
-	workflowPayload := mustJSON(t, map[string]any{
-		"schema_id":      workflowDefinitionSchemaID,
-		"schema_version": workflowDefinitionVersion,
-		"workflow_id":    "workflow_main",
-		"executor_bindings": []any{
-			map[string]any{
-				"binding_id":         "binding_unknown",
-				"executor_id":        "unknown-executor",
-				"executor_class":     "workspace_ordinary",
-				"allowed_role_kinds": []any{"workspace-edit"},
-			},
-		},
-		"gate_definitions": []any{gateDef("build_gate", "step_validation_started", 0)},
-	})
-	processPayload := mustJSON(t, map[string]any{
-		"schema_id":      processDefinitionSchemaID,
-		"schema_version": processDefinitionVersion,
-		"process_id":     "process_default",
-		"executor_bindings": []any{
-			map[string]any{
-				"binding_id":         "binding_unknown",
-				"executor_id":        "unknown-executor",
-				"executor_class":     "workspace_ordinary",
-				"allowed_role_kinds": []any{"workspace-edit"},
-			},
-		},
-		"gate_definitions": []any{gateDef("build_gate", "step_validation_started", 0)},
-	})
+	workflowPayload := workflowPayloadWithSingleBinding(t, "binding_unknown", "unknown-executor", []string{"workspace-edit"})
+	processPayload := processPayloadWithSingleBinding(t, "binding_unknown", "unknown-executor", []string{"workspace-edit"})
 
 	_, err := Compile(CompileInput{
 		RunID:                   "run_123",
@@ -131,34 +114,8 @@ func executorBindingFixture(bindingID, executorID string, roles []string) map[st
 }
 
 func TestCompileRejectsSupersedesSameAsPlanID(t *testing.T) {
-	workflowPayload := mustJSON(t, map[string]any{
-		"schema_id":      workflowDefinitionSchemaID,
-		"schema_version": workflowDefinitionVersion,
-		"workflow_id":    "workflow_main",
-		"executor_bindings": []any{
-			map[string]any{
-				"binding_id":         "binding_workspace_runner",
-				"executor_id":        "workspace-runner",
-				"executor_class":     "workspace_ordinary",
-				"allowed_role_kinds": []any{"workspace-edit"},
-			},
-		},
-		"gate_definitions": []any{gateDef("build_gate", "step_validation_started", 0)},
-	})
-	processPayload := mustJSON(t, map[string]any{
-		"schema_id":      processDefinitionSchemaID,
-		"schema_version": processDefinitionVersion,
-		"process_id":     "process_default",
-		"executor_bindings": []any{
-			map[string]any{
-				"binding_id":         "binding_workspace_runner",
-				"executor_id":        "workspace-runner",
-				"executor_class":     "workspace_ordinary",
-				"allowed_role_kinds": []any{"workspace-edit"},
-			},
-		},
-		"gate_definitions": []any{gateDef("build_gate", "step_validation_started", 0)},
-	})
+	workflowPayload := workflowPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
+	processPayload := processPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
 
 	_, err := Compile(CompileInput{
 		RunID:                   "run_123",
@@ -175,34 +132,8 @@ func TestCompileRejectsSupersedesSameAsPlanID(t *testing.T) {
 }
 
 func TestCompileUsesCurrentTimeWhenCompiledAtZero(t *testing.T) {
-	workflowPayload := mustJSON(t, map[string]any{
-		"schema_id":      workflowDefinitionSchemaID,
-		"schema_version": workflowDefinitionVersion,
-		"workflow_id":    "workflow_main",
-		"executor_bindings": []any{
-			map[string]any{
-				"binding_id":         "binding_workspace_runner",
-				"executor_id":        "workspace-runner",
-				"executor_class":     "workspace_ordinary",
-				"allowed_role_kinds": []any{"workspace-edit"},
-			},
-		},
-		"gate_definitions": []any{gateDef("build_gate", "step_validation_started", 0)},
-	})
-	processPayload := mustJSON(t, map[string]any{
-		"schema_id":      processDefinitionSchemaID,
-		"schema_version": processDefinitionVersion,
-		"process_id":     "process_default",
-		"executor_bindings": []any{
-			map[string]any{
-				"binding_id":         "binding_workspace_runner",
-				"executor_id":        "workspace-runner",
-				"executor_class":     "workspace_ordinary",
-				"allowed_role_kinds": []any{"workspace-edit"},
-			},
-		},
-		"gate_definitions": []any{gateDef("build_gate", "step_validation_started", 0)},
-	})
+	workflowPayload := workflowPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
+	processPayload := processPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
 	plan, err := Compile(CompileInput{
 		RunID:                   "run_123",
 		PlanID:                  "plan_run_123_0001",
@@ -244,6 +175,28 @@ func gateDef(gateID, checkpoint string, order int) map[string]any {
 			"override_semantics": map[string]any{"override_mode": "policy_action_required", "action_kind": "action_gate_override", "approval_trigger_code": "gate_override"},
 		},
 	}
+}
+
+func workflowPayloadWithSingleBinding(t *testing.T, bindingID, executorID string, roles []string) []byte {
+	t.Helper()
+	return mustJSON(t, map[string]any{
+		"schema_id":         workflowDefinitionSchemaID,
+		"schema_version":    workflowDefinitionVersion,
+		"workflow_id":       "workflow_main",
+		"executor_bindings": []any{executorBindingFixture(bindingID, executorID, roles)},
+		"gate_definitions":  []any{gateDef("build_gate", "step_validation_started", 0)},
+	})
+}
+
+func processPayloadWithSingleBinding(t *testing.T, bindingID, executorID string, roles []string) []byte {
+	t.Helper()
+	return mustJSON(t, map[string]any{
+		"schema_id":         processDefinitionSchemaID,
+		"schema_version":    processDefinitionVersion,
+		"process_id":        "process_default",
+		"executor_bindings": []any{executorBindingFixture(bindingID, executorID, roles)},
+		"gate_definitions":  []any{gateDef("build_gate", "step_validation_started", 0)},
+	})
 }
 
 func mustJSON(t *testing.T, value any) []byte {

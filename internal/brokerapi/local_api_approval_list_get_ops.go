@@ -218,18 +218,26 @@ func (s *Service) recordRunnerApprovalWaitFromCanonical(stored artifacts.Approva
 
 func approvalBindingForRunnerHint(stored artifacts.ApprovalRecord) (string, string, string) {
 	if strings.TrimSpace(stored.ActionKind) == "stage_summary_sign_off" {
-		if stored.RequestEnvelope != nil {
-			payload, err := decodeApprovalRequestPayload(*stored.RequestEnvelope)
-			if err == nil {
-				details, _ := payload["details"].(map[string]any)
-				if details != nil {
-					if digest, err := digestIdentityFromPayloadObject(details, "stage_summary_hash"); err == nil {
-						return "stage_sign_off", "", digest
-					}
-				}
-			}
-		}
-		return "stage_sign_off", "", stored.ManifestHash
+		return "stage_sign_off", "", stageSummaryHashForRunnerHint(stored)
 	}
 	return "exact_action", stored.ActionRequestHash, ""
+}
+
+func stageSummaryHashForRunnerHint(stored artifacts.ApprovalRecord) string {
+	if stored.RequestEnvelope == nil {
+		return stored.ManifestHash
+	}
+	payload, err := decodeApprovalRequestPayload(*stored.RequestEnvelope)
+	if err != nil {
+		return stored.ManifestHash
+	}
+	details, _ := payload["details"].(map[string]any)
+	if details == nil {
+		return stored.ManifestHash
+	}
+	digest, err := digestIdentityFromPayloadObject(details, "stage_summary_hash")
+	if err != nil {
+		return stored.ManifestHash
+	}
+	return digest
 }
