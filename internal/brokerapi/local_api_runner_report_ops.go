@@ -120,6 +120,10 @@ func (s *Service) prepareRunnerCheckpointReport(ctx context.Context, req RunnerC
 }
 
 func (s *Service) validateRunnerCheckpointReport(current string, found bool, runID string, report RunnerCheckpointReport) (map[string]any, error) {
+	planned, err := s.compileRunGatePlan(runID)
+	if err != nil {
+		return nil, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
 	runnerAdvisory, _ := s.RunnerAdvisory(runID)
 	if err := validateRunnerCheckpointTransition(current, found, report.LifecycleState); err != nil {
 		return nil, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
@@ -128,6 +132,12 @@ func (s *Service) validateRunnerCheckpointReport(current string, found bool, run
 		return nil, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
 	}
 	if err := validateGateCheckpointFields(report); err != nil {
+		return nil, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	if err := validateGateCheckpointPlanBinding(report, planned); err != nil {
+		return nil, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	if err := validateGateAttemptRetryPosture(runnerAdvisory, report.GateAttemptID, report.GateID, report.GateKind, report.GateVersion, report.PlanCheckpointCode, report.PlanOrderIndex, planned); err != nil {
 		return nil, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
 	}
 	if err := validateCheckpointGateAttemptMutation(runnerAdvisory, report); err != nil {
@@ -157,6 +167,10 @@ func (s *Service) prepareRunnerResultReport(ctx context.Context, req RunnerResul
 }
 
 func (s *Service) prepareRunnerResultBindings(current string, found bool, runID string, report RunnerResultReport) (runnerResultBindings, error) {
+	planned, err := s.compileRunGatePlan(runID)
+	if err != nil {
+		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
 	runnerAdvisory, _ := s.RunnerAdvisory(runID)
 	if err := validateRunnerResultTransition(current, found, report.LifecycleState); err != nil {
 		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
@@ -165,6 +179,12 @@ func (s *Service) prepareRunnerResultBindings(current string, found bool, runID 
 		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
 	}
 	if err := validateGateResultFields(report); err != nil {
+		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	if err := validateGateResultPlanBinding(report, planned); err != nil {
+		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
+	}
+	if err := validateGateAttemptRetryPosture(runnerAdvisory, report.GateAttemptID, report.GateID, report.GateKind, report.GateVersion, report.PlanCheckpointCode, report.PlanOrderIndex, planned); err != nil {
 		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
 	}
 	if err := validateResultGateAttemptMutation(runnerAdvisory, report); err != nil {
@@ -181,7 +201,8 @@ func (s *Service) prepareRunnerResultBindings(current string, found bool, runID 
 	if err != nil {
 		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
 	}
-	gateEvidenceRef, err := s.resolveGateEvidenceRef(runID, report)
+	plannedEntry, _ := planned.entryFor(report.GateID, report.GateKind, report.GateVersion, report.PlanCheckpointCode, report.PlanOrderIndex)
+	gateEvidenceRef, err := s.resolveGateEvidenceRef(runID, report, plannedEntry)
 	if err != nil {
 		return runnerResultBindings{}, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: err.Error()}
 	}
@@ -420,6 +441,9 @@ func validateRunnerResultCode(code string) error {
 }
 
 func validateGateCheckpointFields(report RunnerCheckpointReport) error {
+	if strings.TrimSpace(report.PlanCheckpointCode) != "" && report.PlanOrderIndex < 0 {
+		return fmt.Errorf("plan_order_index must be >= 0 when plan_checkpoint_code is set")
+	}
 	if strings.TrimSpace(report.GateEvidenceRef) != "" {
 		if !isValidDigestIdentity(strings.TrimSpace(report.GateEvidenceRef)) {
 			return fmt.Errorf("gate_evidence_ref must be digest identity")
@@ -450,11 +474,17 @@ func validateGateCheckpointFields(report RunnerCheckpointReport) error {
 }
 
 func validateGateResultFields(report RunnerResultReport) error {
+	if strings.TrimSpace(report.PlanCheckpointCode) != "" && report.PlanOrderIndex < 0 {
+		return fmt.Errorf("plan_order_index must be >= 0 when plan_checkpoint_code is set")
+	}
 	if err := validateGateEvidenceBindingFields(report); err != nil {
 		return err
 	}
 	if !shouldValidateGateScopedResult(report) {
 		return nil
+	}
+	if err := validateGateScopedResultCode(report.ResultCode); err != nil {
+		return err
 	}
 	if err := validateGateResultIdentity(report); err != nil {
 		return err
@@ -463,6 +493,104 @@ func validateGateResultFields(report RunnerResultReport) error {
 		return err
 	}
 	return validateGateResultOverrideFields(report)
+}
+
+func validateGateCheckpointPlanBinding(report RunnerCheckpointReport, planned compiledRunGatePlan) error {
+	if !hasGateBinding(report.GateID, report.GateKind, report.GateVersion, report.GateAttemptID, report.GateLifecycleState, report.NormalizedInputDigests) {
+		if strings.TrimSpace(report.PlanCheckpointCode) != "" {
+			return fmt.Errorf("plan_checkpoint_code requires gate identity binding")
+		}
+		if report.PlanOrderIndex != 0 {
+			return fmt.Errorf("plan_order_index requires gate identity binding")
+		}
+		return nil
+	}
+	if !planned.hasEntries() {
+		if strings.TrimSpace(report.PlanCheckpointCode) != "" || report.PlanOrderIndex != 0 {
+			return fmt.Errorf("gate-scoped checkpoint requires trusted run plan gate entries")
+		}
+		return nil
+	}
+	if strings.TrimSpace(report.PlanCheckpointCode) == "" {
+		return fmt.Errorf("gate-scoped checkpoint requires plan_checkpoint_code")
+	}
+	entry, ok := planned.entryFor(report.GateID, report.GateKind, report.GateVersion, report.PlanCheckpointCode, report.PlanOrderIndex)
+	if !ok {
+		return fmt.Errorf("gate-scoped checkpoint does not match trusted run plan placement")
+	}
+	if err := validatePlannedInputDigestHooks(entry.ExpectedInputDigests, report.NormalizedInputDigests); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateGateResultPlanBinding(report RunnerResultReport, planned compiledRunGatePlan) error {
+	if !shouldValidateGateScopedResult(report) {
+		if strings.TrimSpace(report.PlanCheckpointCode) != "" {
+			return fmt.Errorf("plan_checkpoint_code requires gate identity binding")
+		}
+		if report.PlanOrderIndex != 0 {
+			return fmt.Errorf("plan_order_index requires gate identity binding")
+		}
+		return nil
+	}
+	if !planned.hasEntries() {
+		if strings.TrimSpace(report.PlanCheckpointCode) != "" || report.PlanOrderIndex != 0 {
+			return fmt.Errorf("gate-scoped result requires trusted run plan gate entries")
+		}
+		return nil
+	}
+	if strings.TrimSpace(report.PlanCheckpointCode) == "" {
+		return fmt.Errorf("gate-scoped result requires plan_checkpoint_code")
+	}
+	entry, ok := planned.entryFor(report.GateID, report.GateKind, report.GateVersion, report.PlanCheckpointCode, report.PlanOrderIndex)
+	if !ok {
+		return fmt.Errorf("gate-scoped result does not match trusted run plan placement")
+	}
+	if err := validatePlannedInputDigestHooks(entry.ExpectedInputDigests, report.NormalizedInputDigests); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateGateAttemptRetryPosture(advisory artifacts.RunnerAdvisoryState, gateAttemptID, gateID, gateKind, gateVersion, planCheckpointCode string, planOrderIndex int, planned compiledRunGatePlan) error {
+	if !planned.hasEntries() {
+		return nil
+	}
+	entry, ok := planned.entryFor(gateID, gateKind, gateVersion, planCheckpointCode, planOrderIndex)
+	if !ok {
+		return nil
+	}
+	trimmedAttemptID := strings.TrimSpace(gateAttemptID)
+	if trimmedAttemptID == "" {
+		return nil
+	}
+	if _, exists := advisory.GateAttempts[trimmedAttemptID]; exists {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	for _, existing := range advisory.GateAttempts {
+		if strings.TrimSpace(existing.GateID) != entry.GateID || strings.TrimSpace(existing.GateKind) != entry.GateKind || strings.TrimSpace(existing.GateVersion) != entry.GateVersion {
+			continue
+		}
+		if strings.TrimSpace(existing.PlanCheckpoint) != entry.PlanCheckpointCode || existing.PlanOrderIndex != entry.PlanOrderIndex {
+			continue
+		}
+		seen[strings.TrimSpace(existing.GateAttemptID)] = struct{}{}
+	}
+	if entry.MaxAttempts > 0 && len(seen) >= entry.MaxAttempts {
+		return fmt.Errorf("gate plan retry posture exceeded: max_attempts=%d for gate %q at %s[%d]", entry.MaxAttempts, entry.GateID, entry.PlanCheckpointCode, entry.PlanOrderIndex)
+	}
+	return nil
+}
+
+func validateGateScopedResultCode(code string) error {
+	switch strings.TrimSpace(code) {
+	case "gate_failed", "gate_passed", "gate_overridden", "gate_superseded":
+		return nil
+	default:
+		return fmt.Errorf("gate-scoped result requires gate_* result_code, got %q", strings.TrimSpace(code))
+	}
 }
 
 func validateGateEvidenceBindingFields(report RunnerResultReport) error {
@@ -542,6 +670,9 @@ func validateGateEvidenceCoreFields(evidence *GateEvidence) error {
 	}
 	if strings.TrimSpace(evidence.GateID) == "" || strings.TrimSpace(evidence.GateKind) == "" || strings.TrimSpace(evidence.GateVersion) == "" || strings.TrimSpace(evidence.GateAttemptID) == "" {
 		return fmt.Errorf("gate_evidence requires gate_id, gate_kind, gate_version, and gate_attempt_id")
+	}
+	if strings.TrimSpace(evidence.PlanCheckpointCode) != "" && evidence.PlanOrderIndex < 0 {
+		return fmt.Errorf("gate_evidence.plan_order_index must be >= 0 when plan_checkpoint_code is set")
 	}
 	if !isGateKind(evidence.GateKind) {
 		return fmt.Errorf("gate_evidence has unsupported gate_kind %q", evidence.GateKind)
@@ -688,6 +819,8 @@ func buildRunnerCheckpointAdvisory(report RunnerCheckpointReport, occurred time.
 		CheckpointCode:   report.CheckpointCode,
 		OccurredAt:       occurred.UTC(),
 		IdempotencyKey:   report.IdempotencyKey,
+		PlanCheckpoint:   report.PlanCheckpointCode,
+		PlanOrderIndex:   report.PlanOrderIndex,
 		GateID:           report.GateID,
 		GateKind:         report.GateKind,
 		GateVersion:      report.GateVersion,
@@ -711,6 +844,8 @@ func buildRunnerResultAdvisory(report RunnerResultReport, occurred time.Time, de
 		ResultCode:         report.ResultCode,
 		OccurredAt:         occurred.UTC(),
 		IdempotencyKey:     report.IdempotencyKey,
+		PlanCheckpoint:     report.PlanCheckpointCode,
+		PlanOrderIndex:     report.PlanOrderIndex,
 		GateID:             report.GateID,
 		GateKind:           report.GateKind,
 		GateVersion:        report.GateVersion,
@@ -1004,6 +1139,10 @@ func canonicalGateResultRef(runID string, report RunnerResultReport, gateEvidenc
 		"overridden_failed_result_ref": strings.TrimSpace(report.OverriddenFailedResultRef),
 		"gate_evidence_ref":            strings.TrimSpace(gateEvidenceRef),
 	}
+	if strings.TrimSpace(report.PlanCheckpointCode) != "" {
+		payload["plan_checkpoint_code"] = strings.TrimSpace(report.PlanCheckpointCode)
+		payload["plan_order_index"] = report.PlanOrderIndex
+	}
 	if len(report.NormalizedInputDigests) > 0 {
 		payload["normalized_input_digests"] = append([]string{}, report.NormalizedInputDigests...)
 	}
@@ -1019,7 +1158,7 @@ func canonicalGateResultRef(runID string, report RunnerResultReport, gateEvidenc
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
-func (s *Service) resolveGateEvidenceRef(runID string, report RunnerResultReport) (string, error) {
+func (s *Service) resolveGateEvidenceRef(runID string, report RunnerResultReport, planned runPlannedGateEntry) (string, error) {
 	providedRef := strings.TrimSpace(report.GateEvidenceRef)
 	if report.GateEvidence == nil {
 		return providedRef, nil
@@ -1039,12 +1178,20 @@ func (s *Service) resolveGateEvidenceRef(runID string, report RunnerResultReport
 	if strings.TrimSpace(evidence.GateID) != strings.TrimSpace(report.GateID) || strings.TrimSpace(evidence.GateKind) != strings.TrimSpace(report.GateKind) || strings.TrimSpace(evidence.GateVersion) != strings.TrimSpace(report.GateVersion) || strings.TrimSpace(evidence.GateAttemptID) != strings.TrimSpace(report.GateAttemptID) {
 		return "", fmt.Errorf("gate_evidence identity must match gate report binding")
 	}
+	if strings.TrimSpace(evidence.PlanCheckpointCode) != "" && strings.TrimSpace(evidence.PlanCheckpointCode) != strings.TrimSpace(report.PlanCheckpointCode) {
+		return "", fmt.Errorf("gate_evidence.plan_checkpoint_code must match gate report binding")
+	}
+	if strings.TrimSpace(evidence.PlanCheckpointCode) != "" && evidence.PlanOrderIndex != report.PlanOrderIndex {
+		return "", fmt.Errorf("gate_evidence.plan_order_index must match gate report binding")
+	}
 	evidenceRecord := artifacts.GateEvidenceArtifact{
 		SchemaID:               evidence.SchemaID,
 		SchemaVersion:          evidence.SchemaVersion,
 		GateID:                 evidence.GateID,
 		GateKind:               evidence.GateKind,
 		GateVersion:            evidence.GateVersion,
+		PlanCheckpointCode:     evidence.PlanCheckpointCode,
+		PlanOrderIndex:         evidence.PlanOrderIndex,
 		RunID:                  evidence.RunID,
 		StageID:                evidence.StageID,
 		StepID:                 evidence.StepID,
@@ -1062,14 +1209,37 @@ func (s *Service) resolveGateEvidenceRef(runID string, report RunnerResultReport
 		OverriddenFailedRef:    evidence.OverriddenFailedResultRef,
 		FailureReasonCode:      evidence.FailureReasonCode,
 	}
+	if strings.TrimSpace(report.PlanCheckpointCode) != "" {
+		evidenceRecord.PlanCheckpointCode = strings.TrimSpace(report.PlanCheckpointCode)
+		evidenceRecord.PlanOrderIndex = report.PlanOrderIndex
+	}
+	if planned.MaxAttempts > 0 {
+		evidenceRecord.Runtime["planned_retry_max_attempts"] = planned.MaxAttempts
+	}
+	canonicalEvidence, err := canonicalGateEvidenceDigest(evidenceRecord)
+	if err != nil {
+		return "", err
+	}
+	if providedRef != "" && providedRef != canonicalEvidence {
+		return "", fmt.Errorf("gate_evidence_ref does not match canonical evidence digest")
+	}
 	ref, err := s.PutGateEvidence(runID, evidenceRecord)
 	if err != nil {
 		return "", err
 	}
-	if providedRef != "" && providedRef != ref.Digest {
-		return "", fmt.Errorf("gate_evidence_ref does not match canonical evidence digest")
-	}
 	return ref.Digest, nil
+}
+
+func canonicalGateEvidenceDigest(evidence artifacts.GateEvidenceArtifact) (string, error) {
+	payload, err := json.Marshal(evidence)
+	if err != nil {
+		return "", fmt.Errorf("marshal gate evidence: %w", err)
+	}
+	canonical, err := artifacts.CanonicalizeJSONBytes(payload)
+	if err != nil {
+		return "", fmt.Errorf("canonicalize gate evidence: %w", err)
+	}
+	return artifacts.DigestBytes(canonical), nil
 }
 
 func validateRunnerCheckpointPhaseTransition(advisory artifacts.RunnerAdvisoryState, report RunnerCheckpointReport) error {

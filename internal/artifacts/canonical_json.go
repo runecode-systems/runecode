@@ -27,6 +27,10 @@ func canonicalizeJSONBytes(payload []byte) ([]byte, error) {
 	return jsoncanonicalizer.Transform(payload)
 }
 
+func CanonicalizeJSONBytes(payload []byte) ([]byte, error) {
+	return canonicalizeJSONBytes(payload)
+}
+
 func canonicalizeJSONValue(value any) ([]byte, error) {
 	payload, err := json.Marshal(value)
 	if err != nil {

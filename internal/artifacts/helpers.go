@@ -30,6 +30,10 @@ func digestBytes(payload []byte) string {
 	return "sha256:" + hex.EncodeToString(h[:])
 }
 
+func DigestBytes(payload []byte) string {
+	return digestBytes(payload)
+}
+
 func canonicalPayload(contentType string, payload []byte) ([]byte, error) {
 	if isJSONContentType(contentType) {
 		canonical, err := canonicalizeJSONBytes(payload)

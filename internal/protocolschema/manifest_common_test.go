@@ -396,6 +396,21 @@ func assertReservedStatus(t *testing.T, manifest manifestFile, schemaID string) 
 	t.Fatalf("schema_id %q not found in manifest", schemaID)
 }
 
+func assertSchemaStatus(t *testing.T, manifest manifestFile, schemaID string, wantStatus string) {
+	t.Helper()
+
+	for _, entry := range manifest.SchemaFiles {
+		if entry.SchemaID == schemaID {
+			if entry.Status != wantStatus {
+				t.Fatalf("status for %q = %q, want %s", schemaID, entry.Status, wantStatus)
+			}
+			return
+		}
+	}
+
+	t.Fatalf("schema_id %q not found in manifest", schemaID)
+}
+
 func assertRegistryCode(t *testing.T, registry registryFile, want string) {
 	t.Helper()
 

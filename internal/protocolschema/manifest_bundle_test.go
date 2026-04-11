@@ -21,8 +21,8 @@ func TestSchemaManifestMatchesSchemas(t *testing.T) {
 
 func assertReservedStatuses(t *testing.T, manifest manifestFile) {
 	t.Helper()
-	assertReservedStatus(t, manifest, "runecode.protocol.v0.WorkflowDefinition")
-	assertReservedStatus(t, manifest, "runecode.protocol.v0.ProcessDefinition")
+	assertSchemaStatus(t, manifest, "runecode.protocol.v0.WorkflowDefinition", "mvp")
+	assertSchemaStatus(t, manifest, "runecode.protocol.v0.ProcessDefinition", "mvp")
 }
 
 func TestWorkflowAndProcessDefinitionsRequireExplicitGateDefinitions(t *testing.T) {
@@ -32,13 +32,24 @@ func TestWorkflowAndProcessDefinitionsRequireExplicitGateDefinitions(t *testing.
 
 	workflow := map[string]any{
 		"schema_id":      "runecode.protocol.v0.WorkflowDefinition",
-		"schema_version": "0.1.0",
+		"schema_version": "0.2.0",
+		"workflow_id":    "workflow_main",
+		"executor_bindings": []any{
+			map[string]any{
+				"binding_id":         "binding_workspace_runner",
+				"executor_id":        "workspace-runner",
+				"executor_class":     "workspace_ordinary",
+				"allowed_role_kinds": []any{"workspace-edit", "workspace-test"},
+			},
+		},
 		"gate_definitions": []any{
 			map[string]any{
-				"schema_id":       "runecode.protocol.v0.GateDefinition",
-				"schema_version":  "0.1.0",
-				"checkpoint_code": "step_validation_started",
-				"order_index":     0,
+				"schema_id":           "runecode.protocol.v0.GateDefinition",
+				"schema_version":      "0.1.0",
+				"checkpoint_code":     "step_validation_started",
+				"order_index":         0,
+				"role_instance_id":    "workspace_editor_1",
+				"executor_binding_id": "binding_workspace_runner",
 				"gate": map[string]any{
 					"schema_id":      "runecode.protocol.v0.GateContract",
 					"schema_version": "0.1.0",
@@ -60,12 +71,68 @@ func TestWorkflowAndProcessDefinitionsRequireExplicitGateDefinitions(t *testing.
 	}
 
 	process := map[string]any{
-		"schema_id":        "runecode.protocol.v0.ProcessDefinition",
-		"schema_version":   "0.1.0",
-		"gate_definitions": workflow["gate_definitions"],
+		"schema_id":         "runecode.protocol.v0.ProcessDefinition",
+		"schema_version":    "0.2.0",
+		"process_id":        "process_default",
+		"executor_bindings": workflow["executor_bindings"],
+		"gate_definitions":  workflow["gate_definitions"],
 	}
 	if err := processSchema.Validate(process); err != nil {
 		t.Fatalf("process schema validation failed: %v", err)
+	}
+}
+
+func TestRunPlanSchemaValidatesCompiledPlanShape(t *testing.T) {
+	bundle := newCompiledBundle(t, loadManifest(t))
+	runPlanSchema := mustCompileObjectSchema(t, bundle, "objects/RunPlan.schema.json")
+
+	runPlan := map[string]any{
+		"schema_id":                "runecode.protocol.v0.RunPlan",
+		"schema_version":           "0.1.0",
+		"plan_id":                  "plan_run_123_0001",
+		"run_id":                   "run_123",
+		"workflow_id":              "workflow_main",
+		"process_id":               "process_default",
+		"workflow_definition_hash": "sha256:" + strings.Repeat("a", 64),
+		"process_definition_hash":  "sha256:" + strings.Repeat("b", 64),
+		"policy_context_hash":      "sha256:" + strings.Repeat("c", 64),
+		"compiled_at":              "2026-04-10T12:00:00Z",
+		"role_instance_ids":        []any{"workspace_editor_1"},
+		"executor_bindings": []any{
+			map[string]any{
+				"binding_id":         "binding_workspace_runner",
+				"executor_id":        "workspace-runner",
+				"executor_class":     "workspace_ordinary",
+				"allowed_role_kinds": []any{"workspace-edit", "workspace-test"},
+			},
+		},
+		"gate_definitions": []any{
+			map[string]any{
+				"schema_id":           "runecode.protocol.v0.GateDefinition",
+				"schema_version":      "0.1.0",
+				"checkpoint_code":     "step_validation_started",
+				"order_index":         0,
+				"role_instance_id":    "workspace_editor_1",
+				"executor_binding_id": "binding_workspace_runner",
+				"gate": map[string]any{
+					"schema_id":      "runecode.protocol.v0.GateContract",
+					"schema_version": "0.1.0",
+					"gate_id":        "build_gate",
+					"gate_kind":      "build",
+					"gate_version":   "1.0.0",
+					"normalized_inputs": []any{
+						map[string]any{"input_id": "source_tree", "input_digest": "sha256:" + strings.Repeat("1", 64)},
+					},
+					"plan_binding":       map[string]any{"checkpoint_code": "step_validation_started", "order_index": 0},
+					"retry_semantics":    map[string]any{"retry_mode": "new_attempt_required", "max_attempts": 3},
+					"override_semantics": map[string]any{"override_mode": "policy_action_required", "action_kind": "action_gate_override", "approval_trigger_code": "gate_override"},
+				},
+			},
+		},
+	}
+
+	if err := runPlanSchema.Validate(runPlan); err != nil {
+		t.Fatalf("run plan schema validation failed: %v", err)
 	}
 }
 

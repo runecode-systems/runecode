@@ -15,6 +15,8 @@ type GateEvidenceArtifact struct {
 	GateID                 string         `json:"gate_id"`
 	GateKind               string         `json:"gate_kind"`
 	GateVersion            string         `json:"gate_version"`
+	PlanCheckpointCode     string         `json:"plan_checkpoint_code,omitempty"`
+	PlanOrderIndex         int            `json:"plan_order_index,omitempty"`
 	RunID                  string         `json:"run_id"`
 	StageID                string         `json:"stage_id,omitempty"`
 	StepID                 string         `json:"step_id,omitempty"`
@@ -112,6 +114,9 @@ func validateGateEvidenceContract(evidence GateEvidenceArtifact, runID string) e
 	}
 	if !isValidGateKind(evidence.GateKind) {
 		return fmt.Errorf("gate evidence has unsupported gate_kind %q", evidence.GateKind)
+	}
+	if strings.TrimSpace(evidence.PlanCheckpointCode) != "" && evidence.PlanOrderIndex < 0 {
+		return fmt.Errorf("gate evidence plan_order_index must be >= 0 when plan_checkpoint_code is set")
 	}
 	return nil
 }

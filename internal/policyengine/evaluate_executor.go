@@ -77,7 +77,7 @@ func evaluateWorkspaceRoleExecutorMatrix(compiled *CompiledContext, action Actio
 type workspaceExecutorContractValidator func(*CompiledContext, ActionRequest, string, executorRunPayload, typedExecutorContract) (PolicyDecision, bool)
 
 func resolveWorkspaceExecutorContract(compiled *CompiledContext, action ActionRequest, actionHash string, executorID string) (typedExecutorContract, PolicyDecision, bool) {
-	contract, known := workspaceExecutorContractsByID()[executorID]
+	contract, known := workspaceExecutorContractByID(executorID)
 	if known {
 		return contract, PolicyDecision{}, true
 	}
@@ -216,38 +216,6 @@ func denyWorkspaceExecutorEnvironmentMismatch(compiled *CompiledContext, action 
 	}
 	return PolicyDecision{}, false
 }
-
-func workspaceExecutorContractsByID() map[string]typedExecutorContract {
-	return map[string]typedExecutorContract{
-		"workspace-runner": {
-			ID:               "workspace-runner",
-			AllowedRoles:     roleSet("workspace-edit", "workspace-test"),
-			AllowedClass:     "workspace_ordinary",
-			AllowedNetwork:   roleSet("none"),
-			AllowedEnvKeys:   roleSet("CI", "HOME", "LANG", "LC_ALL", "PATH", "PWD", "TMP", "TMPDIR", "TEMP"),
-			AllowEmptyEnv:    true,
-			RequireWorkspace: true,
-			AllowEnvWrapper:  true,
-			AllowedArgvHeads: [][]string{{"go", "test"}, {"go", "build"}, {"go", "vet"}, {"go", "fmt"}, {"go", "list"}, {"python"}, {"node", "--test"}, {"npm", "test"}, {"just", "test"}, {"just", "lint"}, {"just", "fmt"}, {"just", "ci"}},
-			MaxArgvItems:     64,
-			MaxTimeoutSecs:   3600,
-		},
-		"python": {
-			ID:               "python",
-			AllowedRoles:     roleSet("workspace-edit", "workspace-test"),
-			AllowedClass:     "workspace_ordinary",
-			AllowedNetwork:   roleSet("none"),
-			AllowedEnvKeys:   roleSet("PYTHONPATH", "PYTHONWARNINGS", "CI", "HOME", "LANG", "LC_ALL", "PATH", "PWD", "TMP", "TMPDIR", "TEMP"),
-			AllowEmptyEnv:    true,
-			RequireWorkspace: true,
-			AllowEnvWrapper:  false,
-			AllowedArgvHeads: [][]string{{"python"}},
-			MaxArgvItems:     64,
-			MaxTimeoutSecs:   3600,
-		},
-	}
-}
-
 func validateExecutorArgvShape(argv []string, contract typedExecutorContract) error {
 	if len(argv) == 0 {
 		return fmt.Errorf("argv must not be empty")
@@ -356,14 +324,6 @@ func hasCommandStringPassthrough(argv []string) bool {
 		return short
 	}
 	return false
-}
-
-func roleSet(values ...string) map[string]struct{} {
-	out := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		out[value] = struct{}{}
-	}
-	return out
 }
 
 func decodeExecutorPayload(compiled *CompiledContext, action ActionRequest, actionHash string) (executorRunPayload, PolicyDecision, bool) {

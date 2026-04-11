@@ -5,7 +5,7 @@
   "description": "Typed canonical gate-evidence summary object for one gate attempt. Reference-heavy by design.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 21,
+  "maxProperties": 23,
   "required": [
     "schema_id",
     "schema_version",
@@ -30,6 +30,8 @@
     "step_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Stable step identity when known.", "x-data-class": "public" },
     "role_instance_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Stable role-instance identity when known.", "x-data-class": "public" },
     "gate_attempt_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Gate attempt identity (separate from workflow scope IDs).", "x-data-class": "public" },
+    "plan_checkpoint_code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 128, "description": "Plan-derived checkpoint placement identity for this gate attempt.", "x-data-class": "public" },
+    "plan_order_index": { "type": "integer", "minimum": 0, "description": "Plan-derived deterministic gate placement order index for this gate attempt.", "x-data-class": "public" },
     "started_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Gate execution start timestamp.", "x-data-class": "public" },
     "finished_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Gate execution finish timestamp.", "x-data-class": "public" },
     "normalized_input_digests": { "type": "array", "maxItems": 64, "uniqueItems": true, "description": "Declared normalized gate input digests.", "x-data-class": "public", "items": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest identity.", "x-data-class": "public" } },

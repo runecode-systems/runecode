@@ -621,6 +621,8 @@ func applyGateHintFromCheckpoint(state *RunnerAdvisoryState, runID string, check
 	hint := state.GateAttempts[gateAttemptID]
 	hint.GateAttemptID = gateAttemptID
 	hint.RunID = runID
+	hint.PlanCheckpoint = checkpoint.PlanCheckpoint
+	hint.PlanOrderIndex = checkpoint.PlanOrderIndex
 	hint.GateID = checkpoint.GateID
 	hint.GateKind = checkpoint.GateKind
 	hint.GateVersion = checkpoint.GateVersion
@@ -652,6 +654,8 @@ func applyGateHintFromResult(state *RunnerAdvisoryState, runID string, result Ru
 	hint := state.GateAttempts[gateAttemptID]
 	hint.GateAttemptID = gateAttemptID
 	hint.RunID = runID
+	hint.PlanCheckpoint = result.PlanCheckpoint
+	hint.PlanOrderIndex = result.PlanOrderIndex
 	hint.GateID = result.GateID
 	hint.GateKind = result.GateKind
 	hint.GateVersion = result.GateVersion

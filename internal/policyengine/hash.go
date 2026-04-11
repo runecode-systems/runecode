@@ -19,6 +19,10 @@ func canonicalHashBytes(payload []byte) (string, error) {
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
+func CanonicalHashBytes(payload []byte) (string, error) {
+	return canonicalHashBytes(payload)
+}
+
 func canonicalHashValue(value any) (string, error) {
 	b, err := json.Marshal(value)
 	if err != nil {
@@ -42,4 +46,8 @@ func normalizeHashIdentity(hash string) (string, error) {
 		return "", fmt.Errorf("invalid sha256 hash value: %w", err)
 	}
 	return hash, nil
+}
+
+func NormalizeHashIdentity(hash string) (string, error) {
+	return normalizeHashIdentity(hash)
 }

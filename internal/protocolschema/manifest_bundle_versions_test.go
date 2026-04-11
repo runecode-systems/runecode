@@ -63,5 +63,8 @@ func localBrokerSchemaVersionPairs() map[string]string {
 		"runecode.protocol.v0.ReadinessGetResponse":           "0.1.0",
 		"runecode.protocol.v0.VersionInfoGetRequest":          "0.1.0",
 		"runecode.protocol.v0.VersionInfoGetResponse":         "0.1.0",
+		"runecode.protocol.v0.WorkflowDefinition":             "0.2.0",
+		"runecode.protocol.v0.ProcessDefinition":              "0.2.0",
+		"runecode.protocol.v0.RunPlan":                        "0.1.0",
 	}
 }

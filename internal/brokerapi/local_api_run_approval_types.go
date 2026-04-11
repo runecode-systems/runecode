@@ -142,6 +142,8 @@ type RunnerCheckpointReport struct {
 	CheckpointCode         string         `json:"checkpoint_code"`
 	OccurredAt             string         `json:"occurred_at"`
 	IdempotencyKey         string         `json:"idempotency_key"`
+	PlanCheckpointCode     string         `json:"plan_checkpoint_code,omitempty"`
+	PlanOrderIndex         int            `json:"plan_order_index,omitempty"`
 	GateEvidenceRef        string         `json:"gate_evidence_ref,omitempty"`
 	GateID                 string         `json:"gate_id,omitempty"`
 	GateKind               string         `json:"gate_kind,omitempty"`
@@ -165,6 +167,8 @@ type RunnerResultReport struct {
 	ResultCode                string         `json:"result_code"`
 	OccurredAt                string         `json:"occurred_at"`
 	IdempotencyKey            string         `json:"idempotency_key"`
+	PlanCheckpointCode        string         `json:"plan_checkpoint_code,omitempty"`
+	PlanOrderIndex            int            `json:"plan_order_index,omitempty"`
 	GateEvidence              *GateEvidence  `json:"gate_evidence,omitempty"`
 	GateEvidenceRef           string         `json:"gate_evidence_ref,omitempty"`
 	GateID                    string         `json:"gate_id,omitempty"`
@@ -191,6 +195,8 @@ type GateEvidence struct {
 	GateID                    string         `json:"gate_id"`
 	GateKind                  string         `json:"gate_kind"`
 	GateVersion               string         `json:"gate_version"`
+	PlanCheckpointCode        string         `json:"plan_checkpoint_code,omitempty"`
+	PlanOrderIndex            int            `json:"plan_order_index,omitempty"`
 	RunID                     string         `json:"run_id"`
 	StageID                   string         `json:"stage_id,omitempty"`
 	StepID                    string         `json:"step_id,omitempty"`

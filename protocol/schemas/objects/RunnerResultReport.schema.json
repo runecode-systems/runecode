@@ -5,7 +5,7 @@
   "description": "Typed advisory terminal result report from untrusted runner to broker, including gate outcomes.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 23,
+  "maxProperties": 25,
   "required": ["schema_id", "schema_version", "lifecycle_state", "result_code", "occurred_at", "idempotency_key"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.RunnerResultReport", "description": "Protocol schema identifier.", "x-data-class": "public" },
@@ -14,6 +14,8 @@
     "result_code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 128, "description": "Stable machine-readable result code.", "x-data-class": "public" },
     "occurred_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Terminal event time.", "x-data-class": "public" },
     "idempotency_key": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Stable idempotency key for runner terminal replay safety.", "x-data-class": "public" },
+    "plan_checkpoint_code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 128, "description": "Plan-derived checkpoint placement identity from trusted run plan compilation.", "x-data-class": "public" },
+    "plan_order_index": { "type": "integer", "minimum": 0, "description": "Plan-derived deterministic gate placement order index from trusted run plan compilation.", "x-data-class": "public" },
     "gate_evidence_ref": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Optional canonical gate evidence artifact digest for this gate result.", "x-data-class": "public" },
     "gate_evidence": { "$ref": "GateEvidence.schema.json", "description": "Optional typed gate-evidence object. Broker persists and canonicalizes it to gate_evidence artifact.", "x-data-class": "public" },
     "stage_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Stable stage identity when terminaling at stage scope.", "x-data-class": "public" },

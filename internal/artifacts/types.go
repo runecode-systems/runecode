@@ -117,6 +117,8 @@ type RunnerCheckpointAdvisory struct {
 	CheckpointCode   string         `json:"checkpoint_code"`
 	OccurredAt       time.Time      `json:"occurred_at"`
 	IdempotencyKey   string         `json:"idempotency_key"`
+	PlanCheckpoint   string         `json:"plan_checkpoint_code,omitempty"`
+	PlanOrderIndex   int            `json:"plan_order_index,omitempty"`
 	GateID           string         `json:"gate_id,omitempty"`
 	GateKind         string         `json:"gate_kind,omitempty"`
 	GateVersion      string         `json:"gate_version,omitempty"`
@@ -138,6 +140,8 @@ type RunnerResultAdvisory struct {
 	ResultCode         string         `json:"result_code"`
 	OccurredAt         time.Time      `json:"occurred_at"`
 	IdempotencyKey     string         `json:"idempotency_key"`
+	PlanCheckpoint     string         `json:"plan_checkpoint_code,omitempty"`
+	PlanOrderIndex     int            `json:"plan_order_index,omitempty"`
 	GateID             string         `json:"gate_id,omitempty"`
 	GateKind           string         `json:"gate_kind,omitempty"`
 	GateVersion        string         `json:"gate_version,omitempty"`
@@ -170,6 +174,8 @@ type RunnerAdvisoryState struct {
 type RunnerGateHint struct {
 	GateAttemptID      string    `json:"gate_attempt_id"`
 	RunID              string    `json:"run_id"`
+	PlanCheckpoint     string    `json:"plan_checkpoint_code,omitempty"`
+	PlanOrderIndex     int       `json:"plan_order_index,omitempty"`
 	GateID             string    `json:"gate_id"`
 	GateKind           string    `json:"gate_kind"`
 	GateVersion        string    `json:"gate_version"`

@@ -682,16 +682,23 @@
     {
       "path": "objects/WorkflowDefinition.schema.json",
       "schema_id": "runecode.protocol.v0.WorkflowDefinition",
-      "schema_version": "0.1.0",
+      "schema_version": "0.2.0",
       "owner": "protocol",
-      "status": "reserved"
+      "status": "mvp"
     },
     {
       "path": "objects/ProcessDefinition.schema.json",
       "schema_id": "runecode.protocol.v0.ProcessDefinition",
+      "schema_version": "0.2.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunPlan.schema.json",
+      "schema_id": "runecode.protocol.v0.RunPlan",
       "schema_version": "0.1.0",
       "owner": "protocol",
-      "status": "reserved"
+      "status": "mvp"
     }
   ],
   "registries": [

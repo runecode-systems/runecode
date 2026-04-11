@@ -2,6 +2,7 @@ package brokerapi
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -863,5 +864,117 @@ func TestRunnerResultReportRejectsUnknownResultCode(t *testing.T) {
 	}
 	if errResp.Error.Code != "broker_validation_runner_transition_invalid" {
 		t.Fatalf("error code = %q, want broker_validation_runner_transition_invalid", errResp.Error.Code)
+	}
+}
+
+func TestRunnerGateReportsFailClosedWhenPlanPlacementMissing(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
+	if _, err := s.Put(artifacts.PutRequest{Payload: []byte("x"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("1", 64), CreatedByRole: "workspace", RunID: "run-plan-missing", StepID: "step-1"}); err != nil {
+		t.Fatalf("Put returned error: %v", err)
+	}
+
+	_, errResp := s.HandleRunnerCheckpointReport(context.Background(), RunnerCheckpointReportRequest{
+		SchemaID:      "runecode.protocol.v0.RunnerCheckpointReportRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-plan-missing",
+		RunID:         "run-plan-missing",
+		Report: RunnerCheckpointReport{
+			SchemaID:               "runecode.protocol.v0.RunnerCheckpointReport",
+			SchemaVersion:          "0.1.0",
+			LifecycleState:         "active",
+			CheckpointCode:         "gate_started",
+			OccurredAt:             now.Format(time.RFC3339),
+			IdempotencyKey:         "idem-plan-missing",
+			PlanCheckpointCode:     "step_validation_started",
+			PlanOrderIndex:         0,
+			GateID:                 "policy_gate",
+			GateKind:               "policy",
+			GateVersion:            "1.0.0",
+			GateLifecycleState:     "running",
+			GateAttemptID:          "gate-attempt-1",
+			NormalizedInputDigests: []string{"sha256:" + strings.Repeat("a", 64)},
+		},
+	}, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleRunnerCheckpointReport error = nil, want fail-closed plan placement rejection")
+	}
+	if errResp.Error.Code != "broker_validation_runner_transition_invalid" {
+		t.Fatalf("error code = %q, want broker_validation_runner_transition_invalid", errResp.Error.Code)
+	}
+}
+
+func TestRunnerGateReportsAcceptTrustedPlanPlacementAndRetryPosture(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC)
+	if _, err := s.Put(artifacts.PutRequest{Payload: []byte("x"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("1", 64), CreatedByRole: "workspace", RunID: "run-plan-ok", StepID: "step-1"}); err != nil {
+		t.Fatalf("Put returned error: %v", err)
+	}
+	putTrustedWorkflowDefinitionForGatePlan(t, s, "run-plan-ok", 2)
+
+	first := buildFailedGateResult(now, "idem-plan-ok-1", "gate-attempt-1", "sha256:"+strings.Repeat("a", 64))
+	first.PlanCheckpointCode = "step_validation_started"
+	first.PlanOrderIndex = 0
+	if _, errResp := s.HandleRunnerResultReport(context.Background(), RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-plan-ok-1", RunID: "run-plan-ok", Report: first}, RequestContext{}); errResp != nil {
+		t.Fatalf("first HandleRunnerResultReport error response: %+v", errResp)
+	}
+
+	second := buildFailedGateResult(now.Add(time.Minute), "idem-plan-ok-2", "gate-attempt-2", "sha256:"+strings.Repeat("a", 64))
+	second.PlanCheckpointCode = "step_validation_started"
+	second.PlanOrderIndex = 0
+	if _, errResp := s.HandleRunnerResultReport(context.Background(), RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-plan-ok-2", RunID: "run-plan-ok", Report: second}, RequestContext{}); errResp != nil {
+		t.Fatalf("second HandleRunnerResultReport error response: %+v", errResp)
+	}
+
+	third := buildFailedGateResult(now.Add(2*time.Minute), "idem-plan-ok-3", "gate-attempt-3", "sha256:"+strings.Repeat("a", 64))
+	third.PlanCheckpointCode = "step_validation_started"
+	third.PlanOrderIndex = 0
+	if _, errResp := s.HandleRunnerResultReport(context.Background(), RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-plan-ok-3", RunID: "run-plan-ok", Report: third}, RequestContext{}); errResp == nil {
+		t.Fatal("third HandleRunnerResultReport error=nil, want max_attempts fail-closed rejection")
+	}
+}
+
+func TestRunnerResultReportRejectsGateScopedRunResultCode(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
+	if _, err := s.Put(artifacts.PutRequest{Payload: []byte("x"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("1", 64), CreatedByRole: "workspace", RunID: "run-plan-invalid-code", StepID: "step-1"}); err != nil {
+		t.Fatalf("Put returned error: %v", err)
+	}
+	putTrustedWorkflowDefinitionForGatePlan(t, s, "run-plan-invalid-code", 2)
+	report := buildFailedGateResult(now, "idem-plan-invalid-code", "gate-attempt-1", "sha256:"+strings.Repeat("a", 64))
+	report.ResultCode = "run_failed"
+	report.PlanCheckpointCode = "step_validation_started"
+	report.PlanOrderIndex = 0
+	if _, errResp := s.HandleRunnerResultReport(context.Background(), RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-plan-invalid-code", RunID: "run-plan-invalid-code", Report: report}, RequestContext{}); errResp == nil {
+		t.Fatal("HandleRunnerResultReport error=nil, want gate-scoped run_* result_code rejection")
+	}
+}
+
+func TestRunnerResultReportRejectsMismatchedGateEvidenceRefWithoutPersistingArtifact(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
+	req := buildGateEvidenceResultRequest(now)
+	req.RunID = "run-evidence-mismatch"
+	req.RequestID = "req-evidence-mismatch"
+	req.Report.GateEvidenceRef = "sha256:" + strings.Repeat("f", 64)
+	_, errResp := s.HandleRunnerResultReport(context.Background(), req, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleRunnerResultReport error=nil, want gate_evidence_ref mismatch rejection")
+	}
+	if errResp.Error.Code != "broker_validation_runner_transition_invalid" {
+		t.Fatalf("error code = %q, want broker_validation_runner_transition_invalid", errResp.Error.Code)
+	}
+	for _, rec := range s.List() {
+		if rec.RunID == "run-evidence-mismatch" && rec.Reference.DataClass == artifacts.DataClassGateEvidence {
+			t.Fatalf("unexpected persisted gate evidence artifact %q for rejected request", rec.Reference.Digest)
+		}
+	}
+}
+
+func putTrustedWorkflowDefinitionForGatePlan(t *testing.T, s *Service, runID string, maxAttempts int) {
+	t.Helper()
+	payload := `{"schema_id":"runecode.protocol.v0.WorkflowDefinition","schema_version":"0.2.0","workflow_id":"workflow_main","executor_bindings":[{"binding_id":"binding_workspace_runner","executor_id":"workspace-runner","executor_class":"workspace_ordinary","allowed_role_kinds":["workspace-edit","workspace-test"]}],"gate_definitions":[{"schema_id":"runecode.protocol.v0.GateDefinition","schema_version":"0.1.0","checkpoint_code":"step_validation_started","order_index":0,"role_instance_id":"workspace_editor_1","executor_binding_id":"binding_workspace_runner","gate":{"schema_id":"runecode.protocol.v0.GateContract","schema_version":"0.1.0","gate_id":"policy_gate","gate_kind":"policy","gate_version":"1.0.0","normalized_inputs":[{"input_id":"policy_context","input_digest":"sha256:` + strings.Repeat("a", 64) + `"}],"plan_binding":{"checkpoint_code":"step_validation_started","order_index":0},"retry_semantics":{"retry_mode":"new_attempt_required","max_attempts":` + strconv.Itoa(maxAttempts) + `},"override_semantics":{"override_mode":"policy_action_required","action_kind":"action_gate_override","approval_trigger_code":"gate_override"}}}]}`
+	if _, err := s.Put(artifacts.PutRequest{Payload: []byte(payload), ContentType: "application/json", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("2", 64), CreatedByRole: "brokerapi", TrustedSource: true, RunID: runID, StepID: "plan"}); err != nil {
+		t.Fatalf("Put trusted workflow definition returned error: %v", err)
 	}
 }

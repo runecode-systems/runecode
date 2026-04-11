@@ -239,6 +239,24 @@
       "schema_path": "objects/LLMResponse.schema.json",
       "fixture_path": "schema/llm-response.valid-spec-text.json",
       "expect_valid": true
+    },
+    {
+      "id": "workflow-definition.valid-minimal",
+      "schema_path": "objects/WorkflowDefinition.schema.json",
+      "fixture_path": "schema/workflow-definition.valid-minimal.json",
+      "expect_valid": true
+    },
+    {
+      "id": "process-definition.valid-minimal",
+      "schema_path": "objects/ProcessDefinition.schema.json",
+      "fixture_path": "schema/process-definition.valid-minimal.json",
+      "expect_valid": true
+    },
+    {
+      "id": "run-plan.valid-minimal",
+      "schema_path": "objects/RunPlan.schema.json",
+      "fixture_path": "schema/run-plan.valid-minimal.json",
+      "expect_valid": true
     }
   ],
   "stream_sequence_fixtures": [
