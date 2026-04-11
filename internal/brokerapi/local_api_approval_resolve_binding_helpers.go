@@ -31,7 +31,10 @@ func validateStoredApprovalDigestMatch(label, expected string, payload map[strin
 	if err != nil {
 		return fmt.Errorf("%s: %w", label, err)
 	}
-	if expected != "" && expected != actual {
+	if strings.TrimSpace(expected) == "" {
+		return fmt.Errorf("%s stored pending approval binding is missing", label)
+	}
+	if expected != actual {
 		return fmt.Errorf("%s %q does not match stored pending approval %s %q", label, actual, label, expected)
 	}
 	return nil

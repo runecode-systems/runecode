@@ -107,6 +107,7 @@ This change also fixes the canonical policy foundation that later broker, runner
 - Ordinary workspace executors are workspace-scoped, offline, typed, and non-privileged.
 - Raw shell or other system-modifying execution is never implicitly treated as an ordinary workspace executor.
 - System-modifying execution includes host/global state changes, out-of-workspace writes, system package installs, service/network/kernel/container configuration, and persistent OS/user config changes.
+- Policy should own the reviewed `role_kind x action_kind x executor_class` matrix so runner, workflow, and UI features do not invent parallel executor-allowance logic.
 - Dependency behavior is intentionally split:
   - network fetch/cache-fill is a `dependency-fetch` action
   - offline use of cached read-only dependencies inside the workspace is ordinary workspace execution

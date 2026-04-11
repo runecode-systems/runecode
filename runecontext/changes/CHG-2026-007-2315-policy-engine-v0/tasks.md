@@ -45,6 +45,7 @@ Parallelization: can be implemented in parallel with the broker once the policy 
   - `role_family = workspace | gateway`
   - concrete `role_kind` values such as `workspace-read`, `workspace-edit`, `workspace-test`, `model-gateway`, `auth-gateway`, `git-gateway`, `web-research`, `dependency-fetch`
 - [ ] Eliminate overlapping generic role vocabulary so `role_kind` always names a concrete least-privilege role rather than a mixed family/subtype term.
+- [ ] Freeze a reviewed `role_kind x action_kind x executor_class` policy matrix so workflow, runner, and TUI features reuse one execution-authorization model.
 
 Parallelization: can be implemented in parallel with protocol schema work once the `ActionRequest` and role-identity contracts are fixed.
 
@@ -89,6 +90,7 @@ Parallelization: can be designed in parallel with gateway feature lanes once des
 - [ ] Define a closed `executor_class` taxonomy that distinguishes ordinary workspace executors from system-modifying execution.
 - [ ] Ordinary workspace executors are workspace-scoped, offline, typed, and non-privileged; raw shell is not implicitly ordinary.
 - [ ] System-modifying execution includes host/global state changes, out-of-workspace writes, system package installs, service/network/kernel/container configuration, and persistent OS/user config changes.
+- [ ] Ensure policy preserves the shared rule that ordinary `workspace-test` behavior does not silently inherit `system_modifying` authority.
 - [ ] Split dependency behavior cleanly:
   - network fetch/cache-fill is a `dependency-fetch` action
   - offline use of cached read-only dependencies inside the workspace is ordinary workspace execution
@@ -174,6 +176,7 @@ Parallelization: can be implemented in parallel with launcher backends; it depen
 - [ ] Decision artifacts must include hashes of all evaluated inputs (`manifest_hash`, `action_request_hash`, `relevant_artifact_hashes`, and other `policy_input_hashes`).
 - [ ] Record one primary `policy_reason_code` per decision and keep secondary contributing factors in typed details rather than competing primary codes.
 - [ ] Keep `required_approval` payloads aligned with the broker local API approval-summary/bound-scope model so the broker can expose operator-facing approval objects without semantic reshaping.
+- [ ] Keep gate-override and reduced-assurance-backend approvals exact-action-bound rather than ambient feature-local exceptions.
 - [ ] Persist every policy decision as a typed object with a stable digest and signed audit binding; do not add a separate policy-signing authority in MVP.
 
 Parallelization: can be implemented in parallel with protocol schemas; it depends on a stable decision artifact schema and shared error taxonomy.

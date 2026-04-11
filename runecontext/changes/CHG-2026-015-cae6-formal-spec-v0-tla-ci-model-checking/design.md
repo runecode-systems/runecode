@@ -6,6 +6,7 @@ Define and continuously model-check the highest-risk security and routing invari
 ## Key Decisions
 - Formal methods focus on the security kernel invariants, not arbitrary model reasoning.
 - Model checking runs continuously in CI.
+- The formal scope should cover the shared workflow kernel invariants frozen by the workflow runner, workspace-role, gate, policy, and broker contracts rather than modeling feature-local approximations.
 
 ## Main Workstreams
 - Define Invariants to Specify (MVP Scope)

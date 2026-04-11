@@ -1,0 +1,21 @@
+{
+  "schema_id": "runecode.protocol.v0.GateCheckpointReport",
+  "schema_version": "0.1.0",
+  "gate_id": "policy_gate",
+  "gate_kind": "policy",
+  "gate_version": "1.0.0",
+  "gate_attempt_id": "gate-attempt-1",
+  "lifecycle_state": "running",
+  "checkpoint_code": "gate_started",
+  "occurred_at": "2026-04-01T12:00:00Z",
+  "idempotency_key": "idem-gate-checkpoint-1",
+  "run_id": "run-1",
+  "stage_id": "stage-1",
+  "step_id": "step-1",
+  "role_instance_id": "role-1",
+  "stage_attempt_id": "stage-attempt-1",
+  "step_attempt_id": "step-attempt-1",
+  "details": {
+    "note": "policy gate entered running"
+  }
+}

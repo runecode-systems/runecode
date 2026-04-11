@@ -166,6 +166,37 @@ func TestPolicyRuleSetAndAllowlistSchemasValidateDeclarativePolicyInputs(t *test
 	}
 }
 
+func TestRunPlanningSchemasValidateDeterministicPlanningInputsAndOutputs(t *testing.T) {
+	bundle := newCompiledBundle(t, loadManifest(t))
+	workflowSchema := mustCompileObjectSchema(t, bundle, "objects/WorkflowDefinition.schema.json")
+	processSchema := mustCompileObjectSchema(t, bundle, "objects/ProcessDefinition.schema.json")
+	runPlanSchema := mustCompileObjectSchema(t, bundle, "objects/RunPlan.schema.json")
+
+	for _, testCase := range workflowDefinitionCases() {
+		testCase := testCase
+		t.Run("workflow-definition/"+testCase.name, func(t *testing.T) {
+			err := workflowSchema.Validate(testCase.value)
+			assertValidationOutcome(t, err, testCase.wantErr)
+		})
+	}
+
+	for _, testCase := range processDefinitionCases() {
+		testCase := testCase
+		t.Run("process-definition/"+testCase.name, func(t *testing.T) {
+			err := processSchema.Validate(testCase.value)
+			assertValidationOutcome(t, err, testCase.wantErr)
+		})
+	}
+
+	for _, testCase := range runPlanCases() {
+		testCase := testCase
+		t.Run("run-plan/"+testCase.name, func(t *testing.T) {
+			err := runPlanSchema.Validate(testCase.value)
+			assertValidationOutcome(t, err, testCase.wantErr)
+		})
+	}
+}
+
 func errorCases() []validationCase {
 	return []validationCase{
 		{name: "minimal error", value: validErrorEnvelope()},
@@ -287,6 +318,28 @@ func provenanceReceiptCases() []validationCase {
 		{name: "audit receipt linkage", value: validProvenanceReceiptWithReceiptHash()},
 		{name: "audit linkage is mutually exclusive", value: invalidProvenanceReceiptWithBothAuditLinks(), wantErr: true},
 		{name: "must link to audit evidence", value: invalidProvenanceReceiptWithoutAuditLinkage(), wantErr: true},
+	}
+}
+
+func workflowDefinitionCases() []validationCase {
+	return []validationCase{
+		{name: "valid workflow definition", value: validWorkflowDefinition()},
+		{name: "workflow definition requires executor bindings", value: invalidWorkflowDefinitionWithoutExecutorBindings(), wantErr: true},
+	}
+}
+
+func processDefinitionCases() []validationCase {
+	return []validationCase{
+		{name: "valid process definition", value: validProcessDefinition()},
+		{name: "process definition requires process id", value: invalidProcessDefinitionWithoutProcessID(), wantErr: true},
+	}
+}
+
+func runPlanCases() []validationCase {
+	return []validationCase{
+		{name: "valid run plan", value: validRunPlan()},
+		{name: "run plan requires executor bindings", value: invalidRunPlanWithoutBindings(), wantErr: true},
+		{name: "run plan schema permits supersede id", value: validRunPlanWithSupersedesPlanID()},
 	}
 }
 

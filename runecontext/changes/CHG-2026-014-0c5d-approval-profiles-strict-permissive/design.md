@@ -14,6 +14,9 @@ Define post-MVP approval profiles that adjust approval timing without weakening 
 - Profiles should operate over canonical policy action kinds and hard-floor classes rather than ad hoc UI-facing action labels so later policy, runner, broker, and TUI work reuse one action taxonomy.
 - Delivery channel remains non-authoritative; local TUI, remote TUI, and messaging delivery are interchangeable only when they converge on the same signed approval artifacts and assurance checks.
 - Any broker-exposed run or approval summaries that surface the active profile or required assurance are part of the shared logical API contract and must evolve consistently as new profile values are added.
+- Profiles must preserve the shared approval split between exact-action approvals and stage sign-off rather than collapsing them into one profile-local approval type.
+- Gate overrides remain exact explicit approvals across all profiles.
+- Profile expansion must respect the shared role-kind versus executor-class model and must not silently let `workspace-test` or other ordinary workspace roles inherit `system_modifying` behavior.
 
 ## Main Workstreams
 - Approval Profile Model (Post-MVP)

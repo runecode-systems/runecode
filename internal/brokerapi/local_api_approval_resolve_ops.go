@@ -91,6 +91,10 @@ func (s *Service) resolveApprovalDecision(requestID string, req ApprovalResolveR
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
 		return "", trustpolicy.ApprovalDecision{}, &errOut
 	}
+	if err := s.verifyApprovalDecisionApproverBinding(req, decision); err != nil {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
+		return "", trustpolicy.ApprovalDecision{}, &errOut
+	}
 	return decisionDigest, decision, nil
 }
 
@@ -132,8 +136,8 @@ func (s *Service) promoteAndHeadResolvedArtifact(requestID string, req ApprovalR
 	return head, nil
 }
 
-func buildResolvedApprovalRecordForOutcome(req ApprovalResolveRequest, prior approvalRecord, approvalID, decisionDigest, status, supersededBy string) (approvalRecord, error) {
-	now := time.Now().UTC().Format(time.RFC3339)
+func buildResolvedApprovalRecordForOutcome(req ApprovalResolveRequest, prior approvalRecord, approvalID, decisionDigest, status, supersededBy string, resolvedAt time.Time) (approvalRecord, error) {
+	now := resolvedAt.UTC().Format(time.RFC3339)
 	if strings.TrimSpace(status) == "" {
 		return approvalRecord{}, fmt.Errorf("approval status is required")
 	}
@@ -173,6 +177,44 @@ func buildResolvedApprovalRecordForOutcome(req ApprovalResolveRequest, prior app
 	}, nil
 }
 
+func (s *Service) verifyApprovalDecisionApproverBinding(req ApprovalResolveRequest, decision trustpolicy.ApprovalDecision) error {
+	if strings.TrimSpace(decision.Approver.PrincipalID) == "" {
+		return fmt.Errorf("approval decision approver principal is required")
+	}
+	if strings.TrimSpace(req.Approver) != "" && strings.TrimSpace(req.Approver) != strings.TrimSpace(decision.Approver.PrincipalID) {
+		return fmt.Errorf("approval decision approver does not match request approver")
+	}
+	verifiers, err := s.trustedApprovalVerifiersForEnvelope(req.SignedApprovalDecision)
+	if err != nil {
+		return err
+	}
+	for _, verifier := range verifiers {
+		if samePrincipalIdentity(verifier.OwnerPrincipal, decision.Approver) {
+			return nil
+		}
+	}
+	return fmt.Errorf("approval decision approver does not match verifier owner identity")
+}
+
+func samePrincipalIdentity(left trustpolicy.PrincipalIdentity, right trustpolicy.PrincipalIdentity) bool {
+	if left.SchemaID != right.SchemaID {
+		return false
+	}
+	if left.SchemaVersion != right.SchemaVersion {
+		return false
+	}
+	if left.ActorKind != right.ActorKind {
+		return false
+	}
+	if left.PrincipalID != right.PrincipalID {
+		return false
+	}
+	if left.InstanceID != right.InstanceID {
+		return false
+	}
+	return true
+}
+
 func buildApprovalResolveResponseNoArtifact(requestID string, record approvalRecord, approvedArtifact *ArtifactSummary, reasonOverride string) ApprovalResolveResponse {
 	reasonCode := ""
 	if record.Summary.Status != "approved" {
@@ -194,42 +236,4 @@ func buildApprovalResolveResponseNoArtifact(requestID string, record approvalRec
 		Approval:             record.Summary,
 		ApprovedArtifact:     approvedArtifact,
 	}
-}
-
-func (s *Service) verifySignedApprovalDecisionEnvelope(envelope trustpolicy.SignedObjectEnvelope) error {
-	verifiers, err := s.trustedApprovalVerifiersForEnvelope(envelope)
-	if err != nil {
-		return err
-	}
-	registry, err := trustpolicy.NewVerifierRegistry(verifiers)
-	if err != nil {
-		return fmt.Errorf("create verifier registry: %w", err)
-	}
-	if err := trustpolicy.VerifySignedEnvelope(envelope, registry, trustpolicy.EnvelopeVerificationOptions{
-		RequirePayloadSchemaMatch: true,
-		ExpectedPayloadSchemaID:   trustpolicy.ApprovalDecisionSchemaID,
-		ExpectedPayloadVersion:    trustpolicy.ApprovalDecisionSchemaVersion,
-	}); err != nil {
-		return fmt.Errorf("verify signed approval decision: %w", err)
-	}
-	return nil
-}
-
-func (s *Service) verifySignedApprovalRequestEnvelope(envelope trustpolicy.SignedObjectEnvelope) error {
-	verifiers, err := s.trustedApprovalVerifiersForEnvelope(envelope)
-	if err != nil {
-		return err
-	}
-	registry, err := trustpolicy.NewVerifierRegistry(verifiers)
-	if err != nil {
-		return fmt.Errorf("create verifier registry: %w", err)
-	}
-	if err := trustpolicy.VerifySignedEnvelope(envelope, registry, trustpolicy.EnvelopeVerificationOptions{
-		RequirePayloadSchemaMatch: true,
-		ExpectedPayloadSchemaID:   trustpolicy.ApprovalRequestSchemaID,
-		ExpectedPayloadVersion:    trustpolicy.ApprovalRequestSchemaVersion,
-	}); err != nil {
-		return fmt.Errorf("verify signed approval request: %w", err)
-	}
-	return nil
 }

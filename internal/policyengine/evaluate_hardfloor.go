@@ -6,7 +6,7 @@ func classifyHardFloorOperation(action ActionRequest, exec *executorRunPayload) 
 	if action.ActionKind == ActionKindGateOverride {
 		classes = append(classes, HardFloorSecurityPostureWeakening, HardFloorTrustRootChange)
 	}
-	if action.ActionKind == ActionKindExecutorRun && exec != nil && exec.ExecutorClass == "system_modifying" {
+	if action.ActionKind == ActionKindExecutorRun && exec != nil && (exec.ExecutorClass == "system_modifying" || isSystemModifyingArgv(exec.Argv)) {
 		classes = append(classes, HardFloorSecurityPostureWeakening)
 	}
 	if action.ActionKind == ActionKindPromotion {

@@ -3,6 +3,7 @@ package artifacts
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 func validateApprovalRecord(record ApprovalRecord) error {
@@ -16,11 +17,21 @@ func validateApprovalRecord(record ApprovalRecord) error {
 }
 
 func validateApprovalRecordRequiredFields(record ApprovalRecord) error {
+	if err := validateApprovalRecordCoreRequiredFields(record); err != nil {
+		return err
+	}
+	return validateGateOverrideApprovalTTL(record)
+}
+
+func validateApprovalRecordCoreRequiredFields(record ApprovalRecord) error {
 	if !isValidDigest(record.ApprovalID) {
 		return fmt.Errorf("approval_id: %w", ErrInvalidDigest)
 	}
 	if strings.TrimSpace(record.Status) == "" {
 		return fmt.Errorf("approval status is required")
+	}
+	if !isSupportedApprovalStatus(record.Status) {
+		return fmt.Errorf("unsupported approval status")
 	}
 	if strings.TrimSpace(record.ActionKind) == "" {
 		return fmt.Errorf("action kind is required")
@@ -41,6 +52,32 @@ func validateApprovalRecordRequiredFields(record ApprovalRecord) error {
 		return fmt.Errorf("presence_mode is required")
 	}
 	return nil
+}
+
+func validateGateOverrideApprovalTTL(record ApprovalRecord) error {
+	if strings.TrimSpace(record.ActionKind) != "action_gate_override" {
+		return nil
+	}
+	if record.ExpiresAt == nil || record.ExpiresAt.IsZero() {
+		return fmt.Errorf("expires_at is required for action_gate_override approvals")
+	}
+	if !record.ExpiresAt.After(record.RequestedAt.UTC()) {
+		return fmt.Errorf("expires_at must be after requested_at for action_gate_override approvals")
+	}
+	max := record.RequestedAt.UTC().Add(24 * time.Hour)
+	if record.ExpiresAt.After(max) {
+		return fmt.Errorf("expires_at exceeds max TTL for action_gate_override approvals")
+	}
+	return nil
+}
+
+func isSupportedApprovalStatus(status string) bool {
+	switch strings.TrimSpace(status) {
+	case "pending", "approved", "denied", "expired", "superseded", "cancelled", "consumed":
+		return true
+	default:
+		return false
+	}
 }
 
 func validateApprovalRecordBindings(record ApprovalRecord) error {

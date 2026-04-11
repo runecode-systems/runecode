@@ -121,12 +121,3 @@ func projectWorkflowDerivedState(state map[string]any, summary RunSummary, manif
 		state["workflow_kind"] = summary.WorkflowKind
 	}
 }
-
-func buildAdvisoryRunState() map[string]any {
-	return map[string]any{
-		"source":       "runner_advisory",
-		"provenance":   "none_reported",
-		"available":    false,
-		"bounded_keys": []string{},
-	}
-}

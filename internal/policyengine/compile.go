@@ -26,6 +26,9 @@ func decodeRoleManifest(input ManifestInput, registry *trustpolicy.VerifierRegis
 	if err := validateApprovalProfile(manifest.ApprovalProfile); err != nil {
 		return RoleManifest{}, "", nil, err
 	}
+	if err := validateManifestPrincipalAlignment(manifest.RoleFamily, manifest.RoleKind, manifest.Principal, "role manifest"); err != nil {
+		return RoleManifest{}, "", nil, err
+	}
 	signerIDs, err := verifyContextSignatures(input.Payload, manifest.SchemaID, manifest.SchemaVersion, registry, requireSignedContextVerify)
 	if err != nil {
 		return RoleManifest{}, "", nil, err
@@ -81,6 +84,16 @@ func decodeCapabilityManifest(input ManifestInput, expectedScope string, registr
 func validateApprovalProfile(profile string) error {
 	if ApprovalProfile(profile) != ApprovalProfileModerate {
 		return &EvaluationError{Code: ErrCodeBrokerValidationOperation, Category: "validation", Retryable: false, Message: fmt.Sprintf("unknown approval_profile %q (fail-closed)", profile)}
+	}
+	return nil
+}
+
+func validateManifestPrincipalAlignment(roleFamily, roleKind string, principal ManifestPrincipal, manifestLabel string) error {
+	if principal.RoleFamily != "" && principal.RoleFamily != roleFamily {
+		return &EvaluationError{Code: ErrCodeBrokerValidationOperation, Category: "validation", Retryable: false, Message: fmt.Sprintf("%s principal.role_family %q does not match role_family %q", manifestLabel, principal.RoleFamily, roleFamily)}
+	}
+	if principal.RoleKind != "" && principal.RoleKind != roleKind {
+		return &EvaluationError{Code: ErrCodeBrokerValidationOperation, Category: "validation", Retryable: false, Message: fmt.Sprintf("%s principal.role_kind %q does not match role_kind %q", manifestLabel, principal.RoleKind, roleKind)}
 	}
 	return nil
 }

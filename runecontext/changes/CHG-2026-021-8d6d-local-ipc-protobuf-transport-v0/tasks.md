@@ -9,6 +9,7 @@
 - [ ] Preserve typed run, approval, artifact, audit, readiness, and version read models without transport-specific semantic forks.
 - [ ] Preserve cursor pagination and ordering semantics from the logical API.
 - [ ] Preserve the logical stream contract of exactly one terminal event with typed terminal failure.
+- [ ] Preserve any runner->broker checkpoint/result write families and any gate-evidence-related logical families 1:1 when those logical contracts are added.
 
 ## Local IPC Transport Requirements
 
@@ -25,6 +26,7 @@
 - [ ] Keep migration from JSON encoding explicit and reviewable.
 - [ ] Preserve compatibility rules for existing logical contracts and persisted objects.
 - [ ] Do not merge, rename, or reinterpret logical operations as part of transport migration.
+- [ ] Do not reinterpret authoritative-versus-advisory run-state semantics, approval scope semantics, or gate-attempt/evidence semantics during transport mapping.
 
 ## Acceptance Criteria
 

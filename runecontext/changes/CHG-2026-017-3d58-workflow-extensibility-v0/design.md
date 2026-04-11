@@ -11,6 +11,35 @@ Define schema-validated workflow composition and rebuildable shared-memory accel
 - JSON Schema is the single validation source of truth for `ProcessDefinition` objects.
 - Future authoring adapters must normalize to the same RFC 8785 JCS canonical JSON bytes before validation and hashing; the authored `ProcessDefinition` surface remains object-rooted even though shared canonicalization semantics are now defined repo-wide.
 - Shared memory is a rebuildable accelerator for derived artifacts only; authoritative state remains in the run DB, artifact store, and audit trail.
+- `ProcessDefinition` must reuse the shared workflow identity model established by the workflow runner project rather than inventing process-local IDs or retry semantics.
+- Custom workflows must reuse the shared typed gate contract, executor model, approval split, and runner->broker checkpoint/result model rather than defining process-local variants.
+
+## Shared Contract Reuse
+
+### Identity + Attempt Semantics
+- Process definitions should name stable logical workflow scopes that compile into shared runtime identities such as:
+  - `stage_id`
+  - `step_id`
+  - `role_instance_id`
+- Retries and reruns should use separate attempt identities rather than mutating those logical scope identities.
+
+### Executor Reuse
+- Custom workflows may reference only reviewed typed executors already defined by the shared workspace/gateway execution model.
+- Process definitions must not introduce arbitrary shell strings, raw command passthrough, or unreviewed executor contracts.
+
+### Gate Reuse
+- Custom workflows must reuse the shared typed gate contract:
+  - stable `gate_id`
+  - explicit `gate_kind`
+  - explicit `gate_version`
+  - declared normalized inputs
+  - shared gate-attempt and gate-evidence semantics
+- Gate ordering and checkpoint placement should be explicit in the process definition so later runs, approvals, and TUI surfaces reuse one model.
+
+### Approval + Runner Contract Reuse
+- Custom workflows must preserve the shared approval split between exact-action approvals and stage sign-off.
+- Stage sign-off should continue to bind one canonical stage summary hash and become stale when that hash changes.
+- Process-defined execution should report progress through the shared runner->broker checkpoint/result contract rather than a process-local status channel.
 
 ## Main Workstreams
 - `ProcessDefinition` Contract

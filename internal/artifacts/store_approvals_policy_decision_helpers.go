@@ -1,12 +1,15 @@
 package artifacts
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
+
+const approvalMaxTTLSeconds = int64(24 * 60 * 60)
 
 type approvalDecisionDerivedSummary struct {
 	trigger        string
@@ -30,6 +33,9 @@ func approvalTiming(record PolicyDecisionRecord, required map[string]any, nowFn 
 	}
 	expiresAt := requestedAt.Add(30 * time.Minute)
 	if ttlSeconds, ok := approvalTTLSeconds(required); ok && ttlSeconds > 0 {
+		if ttlSeconds > approvalMaxTTLSeconds {
+			ttlSeconds = approvalMaxTTLSeconds
+		}
 		expiresAt = requestedAt.Add(time.Duration(ttlSeconds) * time.Second)
 	}
 	return requestedAt, expiresAt
@@ -106,16 +112,28 @@ func mapField(object map[string]any, key string) map[string]any {
 	return v
 }
 
-func approvalRequestPayloadFromDecision(record PolicyDecisionRecord, requestedAt, expiresAt time.Time, trigger, changes, assurance, presence, runID, stepID string) map[string]any {
+func approvalRequestPayloadFromDecision(record PolicyDecisionRecord, requestedAt, expiresAt time.Time, trigger, changes, assurance, presence, runID, stepID string) (map[string]any, error) {
+	manifestHash, err := digestObjectForIdentity(record.ManifestHash)
+	if err != nil {
+		return nil, fmt.Errorf("manifest_hash: %w", err)
+	}
+	actionRequestHash, err := digestObjectForIdentity(record.ActionRequestHash)
+	if err != nil {
+		return nil, fmt.Errorf("action_request_hash: %w", err)
+	}
+	relevantArtifactHashes, err := digestObjectSliceForIdentities(record.RelevantArtifactHashes)
+	if err != nil {
+		return nil, fmt.Errorf("relevant_artifact_hashes: %w", err)
+	}
 	return map[string]any{
 		"schema_id":                trustpolicy.ApprovalRequestSchemaID,
 		"schema_version":           trustpolicy.ApprovalRequestSchemaVersion,
 		"approval_profile":         "moderate",
 		"requester":                approvalRequesterIdentity(runID),
 		"approval_trigger_code":    trigger,
-		"manifest_hash":            digestObjectForIdentity(record.ManifestHash),
-		"action_request_hash":      digestObjectForIdentity(record.ActionRequestHash),
-		"relevant_artifact_hashes": digestObjectSliceForIdentities(record.RelevantArtifactHashes),
+		"manifest_hash":            manifestHash,
+		"action_request_hash":      actionRequestHash,
+		"relevant_artifact_hashes": relevantArtifactHashes,
 		"details_schema_id":        record.RequiredApprovalSchemaID,
 		"details":                  approvalDetailsFromRequired(record.RequiredApproval, runID, stepID),
 		"approval_assurance_level": assurance,
@@ -125,7 +143,7 @@ func approvalRequestPayloadFromDecision(record PolicyDecisionRecord, requestedAt
 		"staleness_posture":        "invalidate_on_bound_input_change",
 		"changes_if_approved":      changes,
 		"signatures":               pendingApprovalSignatures(),
-	}
+	}, nil
 }
 
 func approvalRequesterIdentity(runID string) map[string]any {
@@ -172,20 +190,24 @@ func pendingApprovalSignatures() []map[string]any {
 	}}
 }
 
-func digestObjectForIdentity(identity string) map[string]any {
-	if strings.HasPrefix(identity, "sha256:") {
-		return map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(identity, "sha256:")}
+func digestObjectForIdentity(identity string) (map[string]any, error) {
+	if len(identity) == len("sha256:")+64 && strings.HasPrefix(identity, "sha256:") {
+		return map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(identity, "sha256:")}, nil
 	}
-	return map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("0", 64)}
+	return nil, fmt.Errorf("invalid digest identity %q", identity)
 }
 
-func digestObjectSliceForIdentities(identities []string) []map[string]any {
+func digestObjectSliceForIdentities(identities []string) ([]map[string]any, error) {
 	out := make([]map[string]any, 0, len(identities))
 	for _, identity := range uniqueSortedStrings(identities) {
-		out = append(out, digestObjectForIdentity(identity))
+		d, err := digestObjectForIdentity(identity)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
 	}
 	if out == nil {
-		return []map[string]any{}
+		return []map[string]any{}, nil
 	}
-	return out
+	return out, nil
 }

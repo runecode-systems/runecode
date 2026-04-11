@@ -18,7 +18,8 @@ func (s *Service) runSummaries(order string) ([]RunSummary, error) {
 	pendingByRun := pendingApprovalCountByRun(s.listApprovals())
 	summaries := make([]RunSummary, 0, len(byRun))
 	for runID, records := range byRun {
-		summaries = append(summaries, buildRunSummary(runID, records, runStatus[runID], pendingByRun[runID], verification, s.RuntimeFacts(runID)))
+		runnerAdvisory, _ := s.RunnerAdvisory(runID)
+		summaries = append(summaries, buildRunSummary(runID, records, runStatus[runID], pendingByRun[runID], verification, s.RuntimeFacts(runID), runnerAdvisory))
 	}
 	sortRunSummaries(summaries, order)
 	return summaries, nil
@@ -57,9 +58,9 @@ func buildRunRecordIndex(all []artifacts.ArtifactRecord, runStatus map[string]st
 	return byRun
 }
 
-func buildRunSummary(runID string, records []artifacts.ArtifactRecord, status string, pending int, verification AuditVerificationSurface, runtimeFacts launcherbackend.RuntimeFactsSnapshot) RunSummary {
+func buildRunSummary(runID string, records []artifacts.ArtifactRecord, status string, pending int, verification AuditVerificationSurface, runtimeFacts launcherbackend.RuntimeFactsSnapshot, runnerAdvisory artifacts.RunnerAdvisoryState) RunSummary {
 	created, updated := runRecordTiming(records)
-	state := runLifecycleFromStore(status, pending, len(records) > 0)
+	state := runLifecycleFromStore(status, pending, len(records) > 0, runnerAdvisory)
 	workflowKind, workflowDefinitionHash := inferWorkflowIdentity(records)
 	backendKind, isolationAssuranceLevel, provisioningPosture := normalizedRunSummaryPosture(runtimeFacts)
 	summary := RunSummary{
@@ -140,26 +141,6 @@ func sortRunSummaries(summaries []RunSummary, order string) {
 		}
 		return summaries[i].UpdatedAt > summaries[j].UpdatedAt
 	})
-}
-
-func runLifecycleFromStore(status string, pendingApprovals int, hasArtifacts bool) string {
-	if pendingApprovals > 0 {
-		return "blocked"
-	}
-	switch status {
-	case "pending", "starting", "active", "blocked", "recovering", "completed", "failed", "cancelled":
-		if status == "active" && !hasArtifacts {
-			return "starting"
-		}
-		return status
-	case "retained", "closed":
-		return "completed"
-	default:
-		if !hasArtifacts {
-			return "pending"
-		}
-		return "active"
-	}
 }
 
 func pendingApprovalCountByRun(approvals []ApprovalSummary) map[string]int {

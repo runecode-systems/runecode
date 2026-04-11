@@ -37,13 +37,14 @@ func (s *Service) resolveApprovalForPersistence(requestID string, req ApprovalRe
 	if resumeResult.statusOverride != "" {
 		resolvedStatus = resumeResult.statusOverride
 	}
-	record, buildErr := buildResolvedApprovalRecordForOutcome(req, current, resolvedInput.approvalID, resolvedInput.decisionDigest, resolvedStatus, resumeResult.supersededByID)
+	resolvedAt := s.now().UTC()
+	record, buildErr := buildResolvedApprovalRecordForOutcome(req, current, resolvedInput.approvalID, resolvedInput.decisionDigest, resolvedStatus, resumeResult.supersededByID, resolvedAt)
 	if buildErr != nil {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, buildErr.Error())
 		return resolvedApprovalResult{}, &errOut
 	}
 	if resolvedStatus == "consumed" {
-		record.Summary.ConsumedAt = s.now().UTC().Format(time.RFC3339)
+		record.Summary.ConsumedAt = resolvedAt.Format(time.RFC3339)
 	}
 	return resolvedApprovalResult{record: record, resumeResult: resumeResult}, nil
 }
@@ -184,7 +185,7 @@ func (s *Service) latestPendingStageSignOffBinding(current approvalRecord, curre
 
 type latestStageBinding struct {
 	approvalID  string
-	requestedAt string
+	requestedAt time.Time
 	digest      string
 	revision    int64
 	hasRevision bool
@@ -213,11 +214,19 @@ func pendingStageBindingCandidate(rec approvalRecord, current approvalRecord) (l
 	}
 	return latestStageBinding{
 		approvalID:  rec.Summary.ApprovalID,
-		requestedAt: rec.Summary.RequestedAt,
+		requestedAt: parseRequestedAt(rec.Summary.RequestedAt),
 		digest:      digest,
 		revision:    rev,
 		hasRevision: revOK,
 	}, true
+}
+
+func parseRequestedAt(value string) time.Time {
+	ts, ok := parseRFC3339(strings.TrimSpace(value))
+	if !ok {
+		return time.Time{}
+	}
+	return ts
 }
 
 func prefersStageBindingCandidate(candidate, latest latestStageBinding) bool {
@@ -230,10 +239,10 @@ func prefersStageBindingCandidate(candidate, latest latestStageBinding) bool {
 	case candidate.hasRevision && latest.hasRevision && candidate.revision > latest.revision:
 		return true
 	case candidate.hasRevision == latest.hasRevision && candidate.revision == latest.revision:
-		if candidate.requestedAt > latest.requestedAt {
+		if candidate.requestedAt.After(latest.requestedAt) {
 			return true
 		}
-		return candidate.requestedAt == latest.requestedAt && candidate.approvalID > latest.approvalID
+		return candidate.requestedAt.Equal(latest.requestedAt) && candidate.approvalID > latest.approvalID
 	default:
 		return false
 	}

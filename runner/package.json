@@ -2,16 +2,17 @@
   "name": "@runecode/runner",
   "version": "0.0.0",
   "private": true,
-  "description": "Runecode untrusted workflow runner scaffold",
+  "description": "Runecode untrusted workflow runner kernel foundation",
   "engines": {
     "node": ">=22.22.1 <25"
   },
   "scripts": {
     "lint": "tsc --noEmit",
-    "test": "npm run lint && node --test scripts/boundary-check.test.js scripts/protocol-fixtures.test.js",
+    "test": "npm run lint && node --experimental-strip-types --test scripts/boundary-check.test.js scripts/protocol-fixtures.test.js scripts/runner-kernel-foundation.test.js",
     "boundary-check": "node scripts/boundary-check.js"
   },
   "devDependencies": {
+    "@types/node": "22.15.30",
     "ajv": "8.18.0",
     "ajv-formats": "3.0.1",
     "typescript": "5.7.3"

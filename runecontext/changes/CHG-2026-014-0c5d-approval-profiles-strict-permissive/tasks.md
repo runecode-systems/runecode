@@ -20,6 +20,8 @@
   - TTL/expiry defaults
 - [ ] Keep the fixed hard-floor categories from `runecontext/changes/CHG-2026-007-2315-policy-engine-v0/` outside profile control.
 - [ ] Keep profile behavior aligned with the policy split between exact-action approvals and stage sign-off.
+- [ ] Keep gate overrides explicit approvals across all profiles and do not batch them into ambient milestone sign-off.
+- [ ] Keep profile mappings aligned with the shared executor-class model so stricter or more permissive timing does not blur `workspace_ordinary` versus `system_modifying` actions.
 
 Cross-cutting approval lifecycle rules (applies to all profiles):
 - [ ] Approvals are typed, signed, and hash-bound to immutable inputs (manifest hash + request hash + relevant artifact hashes).
@@ -37,6 +39,7 @@ Parallelization: can be designed in parallel with policy engine work; depends on
   - artifact publication beyond the current step
   - all egress-related opt-ins (model, auth, git, web)
 - [ ] Define batching rules to prevent UX deadlocks (e.g., approve N related writes in one approval request).
+- [ ] Keep exact-action approvals and stage sign-off distinct even when `strict` increases approval frequency.
 
 Parallelization: can be designed in parallel with TUI work; it depends on structured approval payloads and clear reason codes.
 
@@ -47,6 +50,7 @@ Parallelization: can be designed in parallel with TUI work; it depends on struct
   - posture-changing actions (e.g., container backend, new egress scopes) remain explicit approvals
   - gate overrides remain explicit approvals
   - when git-gateway exists: require an explicit final approval for git remote state changes (push/tag/PR creation)
+- [ ] Ensure `permissive` does not silently convert `workspace-test` or similar ordinary workspace roles into `system_modifying` execution without explicit exact-action approval.
 
 Parallelization: can be designed in parallel with workflow runner work; it depends on the policy engine being the only pause/resume authority.
 
@@ -62,6 +66,7 @@ Parallelization: can be designed in parallel with workflow runner work; it depen
   - support the same approval semantics whether the decision was delivered locally or remotely
 - [ ] Keep profile-driven approval semantics aligned with canonical `policy_reason_code`, `approval_trigger_code`, and hard-floor classes rather than inventing profile-local status vocabularies.
 - [ ] Keep broker-visible run and approval summaries that surface active profile or required assurance aligned with the same schema/versioning rules.
+- [ ] Keep profile behavior aligned with shared gate-override semantics and typed gate-evidence-linked review flows.
 
 Parallelization: can be implemented in parallel across policy/runner/TUI as long as the approval schema contract is fixed first.
 

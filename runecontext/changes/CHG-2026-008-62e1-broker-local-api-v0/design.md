@@ -62,6 +62,8 @@ The change must define operation-specific object families for at least:
 - `ReadinessGetRequest` / `ReadinessGetResponse`
 - `VersionInfoGetRequest` / `VersionInfoGetResponse`
 
+The logical API should also be ready to grow typed runner->broker workflow orchestration write families for checkpoint/result reporting without changing the transport-neutral modeling approach.
+
 These object families are the semantic API surface that later protobuf/gRPC transport work maps 1:1.
 
 ## Run Model
@@ -114,6 +116,8 @@ This vocabulary is intentionally richer than one generic status string so future
 - relevant active manifest hashes
 - latest policy-decision references where useful for operator understanding
 - optional runner advisory information kept explicitly non-authoritative
+
+`RunDetail` and related stage/role/coordination models should carry partial-blocking and wait detail there rather than driving future features toward a second public lifecycle enum.
 
 `RunDetail.authoritative_state` should remain the place for additional trusted runtime facts that do not fit in the stable list-facing summary, including where useful:
 - isolate/session identity references
@@ -232,6 +236,11 @@ The initial stream model should cover at least:
 - `ArtifactReadEvent`
 
 The stream contract must be designed so later `RunWatchEvent` or `ApprovalWatchEvent` additions are additive and do not require transport redesign.
+
+## Runner Workflow Reporting Alignment
+
+- The broker local API should remain ready for typed runner->broker workflow orchestration writes such as checkpoint and result reporting.
+- Those writes should remain operation-specific, transport-neutral, and broker-validated rather than exposing raw runner-local state as public truth.
 
 ## Pagination And Ordering
 - Paged reads use opaque cursors rather than page-number semantics.

@@ -12,7 +12,8 @@
     "gateway_role_kind",
     "destination_kind",
     "destination_ref",
-    "egress_data_class"
+    "egress_data_class",
+    "operation"
   ],
   "properties": {
     "schema_id": {
@@ -58,8 +59,18 @@
     },
     "egress_data_class": {
       "type": "string",
-      "minLength": 1,
-      "maxLength": 64,
+      "enum": [
+        "spec_text",
+        "unapproved_file_excerpts",
+        "approved_file_excerpts",
+        "diffs",
+        "build_logs",
+        "audit_events",
+        "audit_verification_report",
+        "gate_evidence",
+        "web_query",
+        "web_citations"
+      ],
       "description": "Data class being sent through the gateway.",
       "x-data-class": "public"
     },

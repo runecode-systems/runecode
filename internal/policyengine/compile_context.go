@@ -14,6 +14,9 @@ func Compile(input CompileInput) (*CompiledContext, error) {
 	if err := ensureApprovalProfileCompatibility(decoded); err != nil {
 		return nil, err
 	}
+	if err := ensureRoleBindingAndCapabilityManifestCompatibility(decoded); err != nil {
+		return nil, err
+	}
 	roleCaps, runCaps, stageCaps, effectiveCaps := computeCapabilitySets(decoded, input.FixedInvariants)
 	activeRefs, err := activeAllowlistRefs(decoded.roleManifest, decoded.runManifest, decoded.stageManifest, decoded.allowlistsByHash)
 	if err != nil {
@@ -117,6 +120,44 @@ func ensureApprovalProfileCompatibility(decoded *decodedCompileInputs) error {
 	}
 	if decoded.stageManifest != nil && decoded.runManifest.ApprovalProfile != decoded.stageManifest.ApprovalProfile {
 		return &EvaluationError{Code: ErrCodeBrokerLimitPolicyReject, Category: "policy", Retryable: false, Message: fmt.Sprintf("run/stage approval_profile mismatch: %q != %q", decoded.runManifest.ApprovalProfile, decoded.stageManifest.ApprovalProfile)}
+	}
+	return nil
+}
+
+func ensureRoleBindingAndCapabilityManifestCompatibility(decoded *decodedCompileInputs) error {
+	if decoded.roleManifest.RoleFamily == "workspace" {
+		if err := validateWorkspaceRoleCapabilityManifest(decoded.roleManifest.RoleKind, decoded.roleManifest.CapabilityOptIns, "role manifest"); err != nil {
+			return err
+		}
+	}
+	if err := ensureCapabilityManifestRoleBinding(decoded.roleManifest.RoleFamily, decoded.roleManifest.RoleKind, decoded.runManifest, "run manifest"); err != nil {
+		return err
+	}
+	if decoded.stageManifest != nil {
+		if err := ensureCapabilityManifestRoleBinding(decoded.roleManifest.RoleFamily, decoded.roleManifest.RoleKind, *decoded.stageManifest, "stage manifest"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureCapabilityManifestRoleBinding(expectedRoleFamily, expectedRoleKind string, manifest CapabilityManifest, manifestLabel string) error {
+	if manifest.Principal.RoleFamily == "" {
+		return &EvaluationError{Code: ErrCodeBrokerValidationOperation, Category: "validation", Retryable: false, Message: fmt.Sprintf("%s principal.role_family is required for explicit role capability manifests (fail-closed)", manifestLabel)}
+	}
+	if manifest.Principal.RoleKind == "" {
+		return &EvaluationError{Code: ErrCodeBrokerValidationOperation, Category: "validation", Retryable: false, Message: fmt.Sprintf("%s principal.role_kind is required for explicit role capability manifests (fail-closed)", manifestLabel)}
+	}
+	if manifest.Principal.RoleFamily != "" && manifest.Principal.RoleFamily != expectedRoleFamily {
+		return &EvaluationError{Code: ErrCodeBrokerValidationOperation, Category: "validation", Retryable: false, Message: fmt.Sprintf("%s principal.role_family %q does not match role manifest role_family %q", manifestLabel, manifest.Principal.RoleFamily, expectedRoleFamily)}
+	}
+	if manifest.Principal.RoleKind != "" && manifest.Principal.RoleKind != expectedRoleKind {
+		return &EvaluationError{Code: ErrCodeBrokerValidationOperation, Category: "validation", Retryable: false, Message: fmt.Sprintf("%s principal.role_kind %q does not match role manifest role_kind %q", manifestLabel, manifest.Principal.RoleKind, expectedRoleKind)}
+	}
+	if expectedRoleFamily == "workspace" {
+		if err := validateWorkspaceRoleCapabilityManifest(expectedRoleKind, manifest.CapabilityOptIns, manifestLabel); err != nil {
+			return err
+		}
 	}
 	return nil
 }

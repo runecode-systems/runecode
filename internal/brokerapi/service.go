@@ -18,8 +18,8 @@ var (
 )
 
 const (
-	brokerProtocolBundleVersion      = "0.5.0"
-	brokerProtocolBundleManifestHash = "sha256:98d83c70b6948c654d0e23e556eb62ab7a0cac54dc214ba755521d5002061b06"
+	brokerProtocolBundleVersion      = "0.7.0"
+	brokerProtocolBundleManifestHash = "sha256:a187dfeb6247659ba9331f46c5b5e662449c763409d00b800c947e79c4a3f628"
 )
 
 type Service struct {
@@ -137,6 +137,26 @@ func (s *Service) SetRunStatus(runID, status string) error {
 	return s.store.SetRunStatus(runID, status)
 }
 
+func (s *Service) RecordRunnerCheckpoint(runID string, checkpoint artifacts.RunnerCheckpointAdvisory) (bool, error) {
+	return s.store.RecordRunnerCheckpoint(runID, checkpoint)
+}
+
+func (s *Service) RecordRunnerResult(runID string, result artifacts.RunnerResultAdvisory, overridePolicyRef string) (bool, error) {
+	return s.store.RecordRunnerResult(runID, result, overridePolicyRef)
+}
+
+func (s *Service) PutGateEvidence(runID string, evidence artifacts.GateEvidenceArtifact) (artifacts.ArtifactReference, error) {
+	return s.store.PutGateEvidence(runID, evidence)
+}
+
+func (s *Service) RunnerAdvisory(runID string) (artifacts.RunnerAdvisoryState, bool) {
+	return s.store.RunnerAdvisory(runID)
+}
+
+func (s *Service) RecordRunnerApprovalWait(approval artifacts.RunnerApproval) error {
+	return s.store.RecordRunnerApprovalWait(approval)
+}
+
 func (s *Service) GarbageCollect() (artifacts.GCResult, error) {
 	return s.store.GarbageCollect()
 }
@@ -182,6 +202,10 @@ func (s *Service) RecordPolicyDecision(runID string, digest string, decision pol
 
 func (s *Service) PolicyDecisionRefsForRun(runID string) []string {
 	return s.store.PolicyDecisionRefsForRun(runID)
+}
+
+func (s *Service) PolicyDecisionGet(digest string) (artifacts.PolicyDecisionRecord, bool) {
+	return s.store.PolicyDecisionGet(digest)
 }
 
 func (s *Service) ApprovalList() []artifacts.ApprovalRecord {

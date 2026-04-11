@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/RunnerResultReportResponse.schema.json",
+  "title": "RunnerResultReportResponse",
+  "description": "Typed acknowledgement for runner terminal result report ingestion.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 8,
+  "required": ["schema_id", "schema_version", "request_id", "run_id", "accepted", "canonical_lifecycle_state", "accepted_at", "idempotency_key"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.RunnerResultReportResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Echoed request identifier.", "x-data-class": "public" },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Run identifier bound to this report.", "x-data-class": "public" },
+    "accepted": { "type": "boolean", "description": "Whether the broker accepted this report.", "x-data-class": "public" },
+    "canonical_lifecycle_state": { "type": "string", "enum": ["pending", "starting", "active", "blocked", "recovering", "completed", "failed", "cancelled"], "description": "Broker canonical lifecycle after validation and projection.", "x-data-class": "public" },
+    "accepted_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Broker acceptance time.", "x-data-class": "public" },
+    "idempotency_key": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Echoed idempotency key from accepted report.", "x-data-class": "public" }
+  }
+}

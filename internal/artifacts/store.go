@@ -38,29 +38,52 @@ func (s *Store) loadState() error {
 	if err != nil {
 		return err
 	}
-	normalized := normalizeState(state)
-	withKey, err := ensureBackupKey(normalized)
+	initialized, changed, err := s.initializeLoadedState(state)
 	if err != nil {
 		return err
 	}
-	s.state = withKey
-	changed := state.BackupHMACKey == ""
-	sequenceChanged, err := s.reconcileAuditSequenceLocked()
+	s.state = initialized
+
+	changed, err = s.reconcileLoadedState(changed)
 	if err != nil {
 		return err
 	}
-	changed = changed || sequenceChanged
-	approvalLinkChanged, err := s.reconcileApprovalPolicyDecisionLinksLocked()
-	if err != nil {
-		return err
-	}
-	changed = changed || approvalLinkChanged
 	if changed {
 		if err := s.saveStateLocked(); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (s *Store) initializeLoadedState(state StoreState) (StoreState, bool, error) {
+	normalized := normalizeState(state)
+	withKey, err := ensureBackupKey(normalized)
+	if err != nil {
+		return StoreState{}, false, err
+	}
+	return withKey, state.BackupHMACKey == "", nil
+}
+
+func (s *Store) reconcileLoadedState(changed bool) (bool, error) {
+	sequenceChanged, err := s.reconcileAuditSequenceLocked()
+	if err != nil {
+		return false, err
+	}
+	changed = changed || sequenceChanged
+
+	approvalLinkChanged, err := s.reconcileApprovalPolicyDecisionLinksLocked()
+	if err != nil {
+		return false, err
+	}
+	changed = changed || approvalLinkChanged
+
+	runnerChanged, err := s.reconcileRunnerAdvisoryDurableStateLocked()
+	if err != nil {
+		return false, err
+	}
+	changed = changed || runnerChanged
+	return changed, nil
 }
 
 func (s *Store) reconcileAuditSequenceLocked() (bool, error) {

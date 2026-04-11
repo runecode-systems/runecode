@@ -6,17 +6,7 @@ import (
 )
 
 func TestCompileBuildsEffectiveContextWithFrozenPrecedenceAndHashes(t *testing.T) {
-	input := CompileInput{
-		FixedInvariants: FixedInvariants{DeniedCapabilities: []string{"always_denied"}, DeniedActionKinds: []string{"backend_posture_change"}},
-		RoleManifest:    testManifestInput(t, validRoleManifestPayload(), ""),
-		RunManifest:     testManifestInput(t, validRunCapabilityManifestPayload(), ""),
-		StageManifest:   ptr(testManifestInput(t, validStageCapabilityManifestPayload(), "")),
-		Allowlists: []ManifestInput{
-			testManifestInput(t, validAllowlistPayload("allowlist-a"), ""),
-			testManifestInput(t, validAllowlistPayload("allowlist-b"), ""),
-			testManifestInput(t, validAllowlistPayload("allowlist-c"), ""),
-		},
-	}
+	input := compileInputWithThreeAllowlistsAndStage(t)
 
 	compiled, err := Compile(input)
 	if err != nil {
@@ -37,12 +27,7 @@ func TestCompileBuildsEffectiveContextWithFrozenPrecedenceAndHashes(t *testing.T
 }
 
 func TestCompileFailsClosedWhenActiveAllowlistMissing(t *testing.T) {
-	input := CompileInput{
-		FixedInvariants: FixedInvariants{},
-		RoleManifest:    testManifestInput(t, validRoleManifestPayload(), ""),
-		RunManifest:     testManifestInput(t, validRunCapabilityManifestPayload(), ""),
-		Allowlists:      []ManifestInput{},
-	}
+	input := compileInputWithNoAllowlists(t)
 
 	_, err := Compile(input)
 	if err == nil {
@@ -61,15 +46,7 @@ func TestCompileFailsClosedWhenActiveAllowlistMissing(t *testing.T) {
 func TestCompileRejectsSchemaVersionMismatch(t *testing.T) {
 	role := validRoleManifestPayload()
 	role["schema_version"] = "9.9.9"
-	input := CompileInput{
-		FixedInvariants: FixedInvariants{},
-		RoleManifest:    testManifestInput(t, role, ""),
-		RunManifest:     testManifestInput(t, validRunCapabilityManifestPayload(), ""),
-		Allowlists: []ManifestInput{
-			testManifestInput(t, validAllowlistPayload("allowlist-a"), ""),
-			testManifestInput(t, validAllowlistPayload("allowlist-b"), ""),
-		},
-	}
+	input := compileInputWithRoleAndTwoAllowlists(t, role)
 
 	_, err := Compile(input)
 	if err == nil {
@@ -91,15 +68,7 @@ func TestCompileFailsClosedOnUnknownGatewayScopeKind(t *testing.T) {
 	rule := entries[0].(map[string]any)
 	rule["scope_kind"] = "gateway_destination_legacy"
 
-	input := CompileInput{
-		FixedInvariants: FixedInvariants{},
-		RoleManifest:    testManifestInput(t, validRoleManifestPayload(), ""),
-		RunManifest:     testManifestInput(t, validRunCapabilityManifestPayload(), ""),
-		Allowlists: []ManifestInput{
-			testManifestInput(t, allowlist, ""),
-			testManifestInput(t, validAllowlistPayload("allowlist-b"), ""),
-		},
-	}
+	input := compileInputWithAllowlistOverrideAndSecondary(t, allowlist)
 
 	_, err := Compile(input)
 	if err == nil {
@@ -122,15 +91,7 @@ func TestCompileFailsClosedOnUnknownDestinationDescriptorKind(t *testing.T) {
 	destination := rule["destination"].(map[string]any)
 	destination["descriptor_kind"] = "raw_url"
 
-	input := CompileInput{
-		FixedInvariants: FixedInvariants{},
-		RoleManifest:    testManifestInput(t, validRoleManifestPayload(), ""),
-		RunManifest:     testManifestInput(t, validRunCapabilityManifestPayload(), ""),
-		Allowlists: []ManifestInput{
-			testManifestInput(t, allowlist, ""),
-			testManifestInput(t, validAllowlistPayload("allowlist-b"), ""),
-		},
-	}
+	input := compileInputWithAllowlistOverrideAndSecondary(t, allowlist)
 
 	_, err := Compile(input)
 	if err == nil {
@@ -192,5 +153,93 @@ func TestCompileFailsClosedWhenExpectedHashMissing(t *testing.T) {
 	}
 	if evalErr.Code != ErrCodeBrokerValidationOperation {
 		t.Fatalf("error code = %q, want %q", evalErr.Code, ErrCodeBrokerValidationOperation)
+	}
+}
+
+func TestCompileWorkspaceRoleCapabilityManifestPolicyByRoleKind(t *testing.T) {
+	tests := []struct {
+		name       string
+		roleKind   string
+		capability string
+	}{
+		{name: "workspace-read allows explicit read capability", roleKind: "workspace-read", capability: "cap_artifact_read"},
+		{name: "workspace-edit allows explicit edit capability", roleKind: "workspace-edit", capability: "cap_stage"},
+		{name: "workspace-test allows explicit test capability", roleKind: "workspace-test", capability: "cap_exec"},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			err := compileWorkspaceRoleCapabilityManifestByRoleKind(t, tc.roleKind, tc.capability)
+			if err != nil {
+				t.Fatalf("Compile returned error: %v", err)
+			}
+		})
+	}
+}
+
+func TestCompileFailsClosedOnCapabilityManifestRoleKindMismatch(t *testing.T) {
+	role := validRoleManifestPayload()
+	role["role_kind"] = "workspace-edit"
+	rolePrincipal := role["principal"].(map[string]any)
+	rolePrincipal["role_kind"] = "workspace-edit"
+
+	run := validRunCapabilityManifestPayload()
+	runPrincipal := run["principal"].(map[string]any)
+	runPrincipal["role_kind"] = "workspace-test"
+
+	_, err := Compile(CompileInput{
+		RoleManifest: testManifestInput(t, role, ""),
+		RunManifest:  testManifestInput(t, run, ""),
+		Allowlists: []ManifestInput{
+			testManifestInput(t, validAllowlistPayload("allowlist-a"), ""),
+			testManifestInput(t, validAllowlistPayload("allowlist-b"), ""),
+		},
+	})
+	if err == nil {
+		t.Fatal("Compile returned nil error, want fail-closed role binding mismatch")
+	}
+}
+
+func TestCompileFailsClosedWhenRunCapabilityManifestMissingRoleBinding(t *testing.T) {
+	run := validRunCapabilityManifestPayload()
+	runPrincipal := run["principal"].(map[string]any)
+	delete(runPrincipal, "role_kind")
+
+	_, err := Compile(CompileInput{
+		RoleManifest: testManifestInput(t, validRoleManifestPayload(), ""),
+		RunManifest:  testManifestInput(t, run, ""),
+		Allowlists: []ManifestInput{
+			testManifestInput(t, validAllowlistPayload("allowlist-a"), ""),
+			testManifestInput(t, validAllowlistPayload("allowlist-b"), ""),
+		},
+	})
+	if err == nil {
+		t.Fatal("Compile returned nil error, want fail-closed explicit capability-manifest role binding enforcement")
+	}
+}
+
+func TestCompileFailsClosedOnWorkspaceReadCapabilityEscalation(t *testing.T) {
+	role := validRoleManifestPayload()
+	role["role_kind"] = "workspace-read"
+	role["capability_opt_ins"] = []any{"cap_stage"}
+	rolePrincipal := role["principal"].(map[string]any)
+	rolePrincipal["role_kind"] = "workspace-read"
+
+	run := validRunCapabilityManifestPayload()
+	run["capability_opt_ins"] = []any{"cap_stage"}
+	runPrincipal := run["principal"].(map[string]any)
+	runPrincipal["role_kind"] = "workspace-read"
+
+	_, err := Compile(CompileInput{
+		RoleManifest: testManifestInput(t, role, ""),
+		RunManifest:  testManifestInput(t, run, ""),
+		Allowlists: []ManifestInput{
+			testManifestInput(t, validAllowlistPayload("allowlist-a"), ""),
+			testManifestInput(t, validAllowlistPayload("allowlist-b"), ""),
+		},
+	})
+	if err == nil {
+		t.Fatal("Compile returned nil error, want fail-closed workspace-read capability policy rejection")
 	}
 }

@@ -1,5 +1,7 @@
 package policyengine
 
+import "strings"
+
 func evaluateGatewayBoundary(compiled *CompiledContext, action ActionRequest, actionHash string) (PolicyDecision, bool) {
 	if decision, blocked := denyIfInvalidGatewayFamily(compiled, action, actionHash); blocked {
 		return decision, true
@@ -68,7 +70,7 @@ func denyIfDestinationNotAllowlisted(compiled *CompiledContext, action ActionReq
 
 func denyIfInvalidGatewayFamily(compiled *CompiledContext, action ActionRequest, actionHash string) (PolicyDecision, bool) {
 	if compiled.Context.ActiveRoleFamily != "gateway" {
-		return denyInvariantDecision(compiled, action, actionHash, map[string]any{
+		details := map[string]any{
 			"precedence":             "invariants_first",
 			"invariant":              "network_egress_hard_boundary",
 			"non_approvable":         true,
@@ -76,14 +78,22 @@ func denyIfInvalidGatewayFamily(compiled *CompiledContext, action ActionRequest,
 			"required_role_family":   "gateway",
 			"active_role_family":     compiled.Context.ActiveRoleFamily,
 			"workspace_offline_only": true,
-		}), true
+		}
+		if compiled.Context.ActiveRoleFamily == "workspace" {
+			details["required_cross_boundary_route"] = "artifact_io"
+			details["artifact_route_actions"] = []string{ActionKindArtifactRead}
+		}
+		return denyInvariantDecision(compiled, action, actionHash, details), true
 	}
 	if compiled.Context.ActiveRoleKind == "workspace-read" || compiled.Context.ActiveRoleKind == "workspace-edit" || compiled.Context.ActiveRoleKind == "workspace-test" {
 		return denyInvariantDecision(compiled, action, actionHash, map[string]any{
-			"precedence":          "invariants_first",
-			"invariant":           "network_egress_hard_boundary",
-			"non_approvable":      true,
-			"workspace_role_kind": compiled.Context.ActiveRoleKind,
+			"precedence":                    "invariants_first",
+			"invariant":                     "network_egress_hard_boundary",
+			"non_approvable":                true,
+			"workspace_role_kind":           compiled.Context.ActiveRoleKind,
+			"workspace_offline_only":        true,
+			"required_cross_boundary_route": "artifact_io",
+			"artifact_route_actions":        []string{ActionKindArtifactRead},
 		}), true
 	}
 	return PolicyDecision{}, false
@@ -106,6 +116,14 @@ func decodeAndValidateGatewayPayload(compiled *CompiledContext, action ActionReq
 			"non_approvable":            true,
 			"payload_gateway_role_kind": payload.GatewayRoleKind,
 			"active_context_role_kind":  compiled.Context.ActiveRoleKind,
+		}), true
+	}
+	if strings.TrimSpace(payload.Operation) == "" {
+		return gatewayEgressPayload{}, denyInvariantDecision(compiled, action, actionHash, map[string]any{
+			"precedence":     "invariants_first",
+			"invariant":      "network_egress_hard_boundary",
+			"non_approvable": true,
+			"reason":         "missing_gateway_operation",
 		}), true
 	}
 	return payload, PolicyDecision{}, false
@@ -146,10 +164,7 @@ func requiredGatewayRoleForDestination(destinationKind string) (string, bool) {
 }
 
 func gatewayDestinationAllowedBySignedAllowlists(compiled *CompiledContext, action ActionRequest, payload gatewayEgressPayload) bool {
-	refs := action.AllowlistRefs
-	if len(refs) == 0 {
-		refs = compiled.Context.ActiveAllowlistRefs
-	}
+	refs := compiled.Context.ActiveAllowlistRefs
 	for _, ref := range refs {
 		allowlist, ok := compiled.AllowlistsByHash[ref]
 		if !ok {
@@ -168,6 +183,9 @@ func gatewayScopeEntryMatchesPayload(entry GatewayScopeRule, payload gatewayEgre
 	if entry.ScopeKind != "gateway_destination" {
 		return false
 	}
+	if payload.Operation == "" {
+		return false
+	}
 	if entry.GatewayRoleKind != "" && entry.GatewayRoleKind != payload.GatewayRoleKind {
 		return false
 	}
@@ -177,7 +195,7 @@ func gatewayScopeEntryMatchesPayload(entry GatewayScopeRule, payload gatewayEgre
 	if !destinationRefMatches(entry.Destination, payload.DestinationRef) {
 		return false
 	}
-	if payload.Operation != "" && !containsString(entry.PermittedOperations, payload.Operation) {
+	if !containsString(entry.PermittedOperations, payload.Operation) {
 		return false
 	}
 	return containsString(entry.AllowedEgressDataClasses, payload.EgressDataClass)

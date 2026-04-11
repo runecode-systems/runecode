@@ -28,6 +28,10 @@ func validateObjectPayloadAgainstSchema(payload []byte, schemaPath string) error
 	return nil
 }
 
+func ValidateObjectPayloadAgainstSchema(payload []byte, schemaPath string) error {
+	return validateObjectPayloadAgainstSchema(payload, schemaPath)
+}
+
 func compiledObjectSchema(schemaPath string) (*jsonschema.Schema, error) {
 	compiledSchemaCacheMu.RLock()
 	if schema, ok := compiledSchemaCache[schemaPath]; ok {

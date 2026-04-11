@@ -133,6 +133,7 @@ const (
 type RoleManifest struct {
 	SchemaID         string               `json:"schema_id"`
 	SchemaVersion    string               `json:"schema_version"`
+	Principal        ManifestPrincipal    `json:"principal"`
 	RoleFamily       string               `json:"role_family"`
 	RoleKind         string               `json:"role_kind"`
 	ApprovalProfile  string               `json:"approval_profile"`
@@ -143,12 +144,18 @@ type RoleManifest struct {
 type CapabilityManifest struct {
 	SchemaID         string               `json:"schema_id"`
 	SchemaVersion    string               `json:"schema_version"`
+	Principal        ManifestPrincipal    `json:"principal"`
 	ManifestScope    string               `json:"manifest_scope"`
 	RunID            string               `json:"run_id,omitempty"`
 	StageID          string               `json:"stage_id,omitempty"`
 	ApprovalProfile  string               `json:"approval_profile"`
 	CapabilityOptIns []string             `json:"capability_opt_ins"`
 	AllowlistRefs    []trustpolicy.Digest `json:"allowlist_refs"`
+}
+
+type ManifestPrincipal struct {
+	RoleFamily string `json:"role_family,omitempty"`
+	RoleKind   string `json:"role_kind,omitempty"`
 }
 
 type PolicyAllowlist struct {

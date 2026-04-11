@@ -11,6 +11,8 @@ import (
 type brokerLocalAPI interface {
 	RunList(context.Context, brokerapi.RunListRequest) (brokerapi.RunListResponse, *brokerapi.ErrorResponse)
 	RunGet(context.Context, brokerapi.RunGetRequest) (brokerapi.RunGetResponse, *brokerapi.ErrorResponse)
+	RunnerCheckpointReport(context.Context, brokerapi.RunnerCheckpointReportRequest) (brokerapi.RunnerCheckpointReportResponse, *brokerapi.ErrorResponse)
+	RunnerResultReport(context.Context, brokerapi.RunnerResultReportRequest) (brokerapi.RunnerResultReportResponse, *brokerapi.ErrorResponse)
 	ApprovalList(context.Context, brokerapi.ApprovalListRequest) (brokerapi.ApprovalListResponse, *brokerapi.ErrorResponse)
 	ApprovalGet(context.Context, brokerapi.ApprovalGetRequest) (brokerapi.ApprovalGetResponse, *brokerapi.ErrorResponse)
 	ApprovalResolve(context.Context, brokerapi.ApprovalResolveRequest) (brokerapi.ApprovalResolveResponse, *brokerapi.ErrorResponse)
@@ -80,6 +82,16 @@ func (c *localAPIClient) RunList(ctx context.Context, req brokerapi.RunListReque
 func (c *localAPIClient) RunGet(ctx context.Context, req brokerapi.RunGetRequest) (brokerapi.RunGetResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.RunGetResponse{}
 	return resp, c.invoke(ctx, "run_get", req, &resp)
+}
+
+func (c *localAPIClient) RunnerCheckpointReport(ctx context.Context, req brokerapi.RunnerCheckpointReportRequest) (brokerapi.RunnerCheckpointReportResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.RunnerCheckpointReportResponse{}
+	return resp, c.invoke(ctx, "runner_checkpoint_report", req, &resp)
+}
+
+func (c *localAPIClient) RunnerResultReport(ctx context.Context, req brokerapi.RunnerResultReportRequest) (brokerapi.RunnerResultReportResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.RunnerResultReportResponse{}
+	return resp, c.invoke(ctx, "runner_result_report", req, &resp)
 }
 
 func (c *localAPIClient) ApprovalList(ctx context.Context, req brokerapi.ApprovalListRequest) (brokerapi.ApprovalListResponse, *brokerapi.ErrorResponse) {

@@ -18,6 +18,7 @@
         "build_logs",
         "audit_events",
         "audit_verification_report",
+        "gate_evidence",
         "web_query",
         "web_citations"
       ]
@@ -49,7 +50,7 @@
         },
         "allowed_data_classes": {
           "type": "array",
-          "maxItems": 9,
+          "maxItems": 10,
           "description": "Allowed artifact classes for this producer->consumer pair.",
           "x-data-class": "public",
           "items": {

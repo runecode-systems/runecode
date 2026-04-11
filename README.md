@@ -42,6 +42,7 @@ Key invariants (design targets; enforcement is implemented incrementally):
 - Deny-by-default capabilities; explicit opt-ins for higher-risk posture changes
 - No single component combines public network egress + workspace access (especially RW) + long-lived secrets
 - Cross-boundary communication is brokered and schema-validated (no ad-hoc JSON)
+- Trusted control-plane services compile immutable `RunPlan` contracts from workflow and process definitions; the untrusted runner consumes that plan as a thin kernel and reports progress through typed broker APIs rather than inventing its own planning truth
 
 Details (diagram, allowed interfaces, prohibited bypasses, and CI guardrail): `docs/trust-boundaries.md`.
 
@@ -143,11 +144,16 @@ This quick path verifies signed checksums and the signed archive before install.
 - Shared machine-consumed code registries for `error.code`, `policy_reason_code`, `approval_trigger_code`, `audit_event_type`, `audit_receipt_kind`, and `audit_verification_reason_code`
 - Shared fixtures in `protocol/fixtures/` validated in both Go and Node, including schema, stream-sequence, runtime-invariant, and canonicalization/hash cases
 - CI guardrails for runner trust-boundary access and protocol parity
+- Workflow/process planning schemas and fixtures, plus a trusted Go `RunPlan` compiler that merges executor bindings and deterministic gate definitions into one immutable execution contract
+- Deterministic gate contracts and reporting families for gate planning, runner checkpoint/result reporting, gate checkpoint/result reporting, and gate evidence persistence
+- A thin untrusted runner kernel foundation that loads broker-compiled `RunPlan` data from the shared schema bundle, persists durable plan identity, schedules plan entries, and emits typed reports back to the broker
 - MVP artifact data classes and an `ArtifactPolicy` schema family anchoring flow-matrix, approval-promotion, quota, and retention/GC controls
 - A trusted local artifact store with immutable hash-addressed artifact persistence, broker-facing flow checks, quota enforcement, retention/GC, backup/restore, approval records, persisted policy decisions, and audit event recording for artifact and approval actions
 - Approval promotion, resolution, and revocation flows for `unapproved_file_excerpts` and `approved_file_excerpts`, including signed request/decision verification bound to canonical request bytes, promoted inputs, verifier owner identity, and durable policy-decision linkage
+- Store-layer atomic persistence for canonical approval records plus runner-advisory approval mirrors, with rollback that restores durable runner journal/snapshot state consistently on failure
 - A trusted local audit ledger with append/seal persistence, segment recovery, digest-addressed sidecar evidence, readiness evaluation, audit verification reports, and broker-facing audit verification/readiness surfaces
 - A broker local API with fail-closed local auth, schema-validated typed operations for runs, approvals, artifacts, audit, readiness, and version info, plus uniform log and artifact read streaming semantics
+- Broker run read models that keep authoritative trusted state distinct from runner-advisory projection, including durable approval-wait, lifecycle, checkpoint, result, and attempt hints
 - A trusted launcher daemon/service plus a Linux-first microVM/QEMU/KVM MVP vertical slice, including a deterministic `runecode-launcher serve --hello-world` path for end-to-end launcher->broker runtime reporting
 - Durable launcher runtime evidence persistence and broker-derived authoritative runtime projection for `backend_kind`, `isolation_assurance_level`, `provisioning_posture`, lifecycle, and terminal state
 - Broker-owned runtime audit emission for `isolate_session_started` and `isolate_session_bound`, with reference-heavy payloads bound to persisted launcher evidence digests
@@ -175,6 +181,7 @@ Current MVP object families cover:
 - manifests: `RoleManifest`, `CapabilityManifest`
 - identity and content addressing: `PrincipalIdentity`, `Digest`, `ArtifactReference`, `ArtifactPolicy`, `ProvenanceReceipt`
 - audit, approvals, and policy: `AuditEvent`, `AuditReceipt`, `AuditSegmentFile`, `AuditSegmentSeal`, `AuditVerificationReport`, `ApprovalRequest`, `ApprovalDecision`, `PolicyDecision`, `PolicyRuleSet`, `PolicyAllowlist`
+- workflow planning and deterministic gates: `WorkflowDefinition`, `ProcessDefinition`, `RunPlan`, `GateDefinition`, `GateContract`, `RunnerCheckpointReport`, `RunnerResultReport`, `GateCheckpointReport`, `GateResultReport`, `GateEvidence`
 - runtime evidence and session lifecycle payloads: `RuntimeImageDescriptor`, `IsolateSessionStartedPayload`, `IsolateSessionBoundPayload`
 - policy actions and destinations: `ActionRequest`, `ActionPayloadArtifactRead`, `ActionPayloadPromotion`, `ActionPayloadGatewayEgress`, `ActionPayloadSecretAccess`, `ActionPayloadWorkspaceWrite`, `ActionPayloadExecutorRun`, `ActionPayloadBackendPostureChange`, `ActionPayloadGateOverride`, `ActionPayloadStageSummarySignOff`, `DestinationDescriptor`, `GatewayScopeRule`
 - model traffic: `LLMRequest`, `LLMResponse`, `LLMStreamEvent`

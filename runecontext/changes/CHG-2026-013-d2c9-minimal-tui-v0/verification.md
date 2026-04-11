@@ -12,6 +12,9 @@
 - Confirm the change still matches its v0.1.0-alpha.4 roadmap bucket and title after migration.
 - Confirm the TUI plan distinguishes exact-action approvals from stage sign-off and explains supersession/staleness from typed approval data rather than scraped prose.
 - Confirm approval UI notes keep `policy_reason_code`, `approval_trigger_code`, and system error states distinct.
+- Confirm the TUI plan distinguishes authoritative broker state from advisory runner state.
+- Confirm partial blocking is presented from coordination/stage/role detail rather than a second lifecycle vocabulary.
+- Confirm gate attempts/evidence/overrides are planned as typed UI surfaces rather than log-only heuristics.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

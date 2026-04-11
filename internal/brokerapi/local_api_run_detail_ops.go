@@ -22,7 +22,8 @@ func (s *Service) runDetail(runID string) (RunDetail, bool, error) {
 	pendingIDs := runPendingApprovalIDs(s.listApprovals(), runID)
 	verification := s.runAuditVerificationOrFallback()
 	runtimeFacts := s.RuntimeFacts(runID)
-	return buildRunDetail(summary, verification, artifactsForRun, classCount, pendingIDs, policyRefs, runtimeFacts), true, nil
+	runnerAdvisory, _ := s.RunnerAdvisory(runID)
+	return buildRunDetail(summary, verification, artifactsForRun, classCount, pendingIDs, policyRefs, runtimeFacts, runnerAdvisory), true, nil
 }
 
 func findRunSummary(summaries []RunSummary, runID string) (RunSummary, bool) {
@@ -58,19 +59,19 @@ func runPendingApprovalIDs(approvals []ApprovalSummary, runID string) []string {
 	return pendingIDs
 }
 
-func buildRunDetail(summary RunSummary, verification AuditVerificationSurface, artifactsForRun []artifacts.ArtifactRecord, classCount map[string]int, pendingIDs []string, policyRefs []string, runtimeFacts launcherbackend.RuntimeFactsSnapshot) RunDetail {
+func buildRunDetail(summary RunSummary, verification AuditVerificationSurface, artifactsForRun []artifacts.ArtifactRecord, classCount map[string]int, pendingIDs []string, policyRefs []string, runtimeFacts launcherbackend.RuntimeFactsSnapshot, runnerAdvisory artifacts.RunnerAdvisoryState) RunDetail {
 	manifestHashes := activeManifestHashes(artifactsForRun)
 	stageSummaries := []RunStageSummary{buildRunStageSummary(summary, artifactsForRun, pendingIDs)}
 	roleSummaries := buildRunRoleSummaries(summary, artifactsForRun)
 	authoritativeState := buildAuthoritativeRunState(summary, artifactsForRun, pendingIDs, manifestHashes, runtimeFacts)
-	advisoryState := buildAdvisoryRunState()
+	advisoryState := buildAdvisoryRunState(runnerAdvisory)
 	return RunDetail{
 		SchemaID:                 "runecode.protocol.v0.RunDetail",
 		SchemaVersion:            "0.2.0",
 		Summary:                  summary,
 		StageSummaries:           stageSummaries,
 		RoleSummaries:            roleSummaries,
-		Coordination:             buildRunCoordinationSummary(summary),
+		Coordination:             buildRunCoordinationSummary(summary, runnerAdvisory, len(pendingIDs)),
 		AuditSummary:             verification.Summary,
 		ArtifactCountsByClass:    classCount,
 		PendingApprovalIDs:       pendingIDs,
@@ -156,16 +157,30 @@ func normalizeRoleForSummary(createdByRole string) (string, string) {
 	}
 }
 
-func buildRunCoordinationSummary(summary RunSummary) RunCoordinationSummary {
+func buildRunCoordinationSummary(summary RunSummary, runnerAdvisory artifacts.RunnerAdvisoryState, pendingCount int) RunCoordinationSummary {
+	blocked := summary.LifecycleState == "blocked"
+	waitReason := summary.BlockingReasonCode
+	if !blocked && advisoryHasPendingBlockedScopes(runnerAdvisory) {
+		waitReason = "partial_pending_approval"
+	}
 	return RunCoordinationSummary{
 		SchemaID:         "runecode.protocol.v0.RunCoordinationSummary",
 		SchemaVersion:    "0.1.0",
-		Blocked:          summary.LifecycleState == "blocked",
-		WaitReasonCode:   summary.BlockingReasonCode,
+		Blocked:          blocked,
+		WaitReasonCode:   waitReason,
 		LockCount:        0,
 		ConflictCount:    0,
 		CoordinationMode: "single_broker_queue",
 	}
+}
+
+func advisoryHasPendingBlockedScopes(advisory artifacts.RunnerAdvisoryState) bool {
+	for _, approval := range advisory.ApprovalWaits {
+		if approval.Status == "pending" {
+			return true
+		}
+	}
+	return false
 }
 
 func activeManifestHashes(artifactsForRun []artifacts.ArtifactRecord) []string {

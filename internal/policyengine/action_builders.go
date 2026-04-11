@@ -33,6 +33,13 @@ func NewExecutorRunAction(input ExecutorRunActionInput) ActionRequest {
 		"executor_id":    input.ExecutorID,
 		"argv":           argv,
 	}
+	if len(input.Environment) > 0 {
+		environment := map[string]any{}
+		for key, value := range input.Environment {
+			environment[key] = value
+		}
+		payload["environment"] = environment
+	}
 	if input.WorkingDirectory != "" {
 		payload["working_directory"] = input.WorkingDirectory
 	}
@@ -104,23 +111,28 @@ func NewGatewayEgressAction(input GatewayEgressActionInput) ActionRequest {
 		"destination_kind":  input.DestinationKind,
 		"destination_ref":   input.DestinationRef,
 		"egress_data_class": input.EgressDataClass,
-	}
-	if input.Operation != "" {
-		payload["operation"] = input.Operation
+		"operation":         input.Operation,
 	}
 	if input.PayloadHash != nil {
 		payload["payload_hash"] = *input.PayloadHash
 	}
-	kind := input.ActionKind
-	if kind == "" {
-		kind = ActionKindGatewayEgress
-	}
-	return buildActionRequest(kind, actionPayloadGatewaySchemaID, payload, input.ActionEnvelope)
+	return buildActionRequest(ActionKindGatewayEgress, actionPayloadGatewaySchemaID, payload, input.ActionEnvelope)
 }
 
 func NewDependencyFetchAction(input GatewayEgressActionInput) ActionRequest {
-	input.ActionKind = ActionKindDependencyFetch
-	return NewGatewayEgressAction(input)
+	payload := map[string]any{
+		"schema_id":         actionPayloadGatewaySchemaID,
+		"schema_version":    "0.1.0",
+		"gateway_role_kind": input.GatewayRoleKind,
+		"destination_kind":  input.DestinationKind,
+		"destination_ref":   input.DestinationRef,
+		"egress_data_class": input.EgressDataClass,
+		"operation":         input.Operation,
+	}
+	if input.PayloadHash != nil {
+		payload["payload_hash"] = *input.PayloadHash
+	}
+	return buildActionRequest(ActionKindDependencyFetch, actionPayloadGatewaySchemaID, payload, input.ActionEnvelope)
 }
 
 func NewBackendPostureChangeAction(input BackendPostureChangeActionInput) ActionRequest {
@@ -142,11 +154,16 @@ func NewBackendPostureChangeAction(input BackendPostureChangeActionInput) Action
 
 func NewGateOverrideAction(input GateOverrideActionInput) ActionRequest {
 	payload := map[string]any{
-		"schema_id":      actionPayloadGateSchemaID,
-		"schema_version": "0.1.0",
-		"gate_name":      input.GateName,
-		"override_mode":  input.OverrideMode,
-		"justification":  input.Justification,
+		"schema_id":                    actionPayloadGateSchemaID,
+		"schema_version":               "0.1.0",
+		"gate_id":                      input.GateID,
+		"gate_kind":                    input.GateKind,
+		"gate_version":                 input.GateVersion,
+		"gate_attempt_id":              input.GateAttemptID,
+		"overridden_failed_result_ref": input.OverriddenFailedResultRef,
+		"policy_context_hash":          input.PolicyContextHash,
+		"override_mode":                input.OverrideMode,
+		"justification":                input.Justification,
 	}
 	if input.ExpiresAt != "" {
 		payload["expires_at"] = input.ExpiresAt

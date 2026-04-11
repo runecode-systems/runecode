@@ -1,11 +1,8 @@
 package artifacts
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
-
-	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
 
 func (s *Store) RecordPolicyDecision(record PolicyDecisionRecord) error {
@@ -237,16 +234,11 @@ func digestObjectSliceFromIdentities(identities []string) ([]map[string]any, err
 }
 
 func canonicalPolicyDecisionBytes(payload map[string]any) ([]byte, error) {
-	b, err := jsoncanonicalizer.Transform(mustJSON(payload))
+	b, err := canonicalizeJSONValue(payload)
 	if err != nil {
 		return nil, fmt.Errorf("canonicalize policy decision payload: %w", err)
 	}
 	return b, nil
-}
-
-func mustJSON(v any) []byte {
-	b, _ := json.Marshal(v)
-	return b
 }
 
 func (s *Store) PolicyDecisionRefsForRun(runID string) []string {
@@ -257,4 +249,11 @@ func (s *Store) PolicyDecisionRefsForRun(runID string) []string {
 		return []string{}
 	}
 	return refs
+}
+
+func (s *Store) PolicyDecisionGet(digest string) (PolicyDecisionRecord, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rec, ok := s.state.PolicyDecisions[strings.TrimSpace(digest)]
+	return rec, ok
 }

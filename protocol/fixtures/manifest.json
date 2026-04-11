@@ -1,6 +1,36 @@
 {
   "schema_fixtures": [
     {
+      "id": "gate-contract.valid-build",
+      "schema_path": "objects/GateContract.schema.json",
+      "fixture_path": "schema/gate-contract.valid-build.json",
+      "expect_valid": true
+    },
+    {
+      "id": "gate-checkpoint-report.valid-policy-running",
+      "schema_path": "objects/GateCheckpointReport.schema.json",
+      "fixture_path": "schema/gate-checkpoint-report.valid-policy-running.json",
+      "expect_valid": true
+    },
+    {
+      "id": "gate-result-report.valid-policy-overridden",
+      "schema_path": "objects/GateResultReport.schema.json",
+      "fixture_path": "schema/gate-result-report.valid-policy-overridden.json",
+      "expect_valid": true
+    },
+    {
+      "id": "gate-evidence.valid-policy-failed",
+      "schema_path": "objects/GateEvidence.schema.json",
+      "fixture_path": "schema/gate-evidence.valid-policy-failed.json",
+      "expect_valid": true
+    },
+    {
+      "id": "action-payload-gate-override.valid-gate-identity",
+      "schema_path": "objects/ActionPayloadGateOverride.schema.json",
+      "fixture_path": "schema/action-payload-gate-override.valid-gate-identity.json",
+      "expect_valid": true
+    },
+    {
       "id": "error.valid-basic",
       "schema_path": "objects/Error.schema.json",
       "fixture_path": "schema/error.valid-basic.json",
@@ -208,6 +238,24 @@
       "id": "llm-response.valid-spec-text",
       "schema_path": "objects/LLMResponse.schema.json",
       "fixture_path": "schema/llm-response.valid-spec-text.json",
+      "expect_valid": true
+    },
+    {
+      "id": "workflow-definition.valid-minimal",
+      "schema_path": "objects/WorkflowDefinition.schema.json",
+      "fixture_path": "schema/workflow-definition.valid-minimal.json",
+      "expect_valid": true
+    },
+    {
+      "id": "process-definition.valid-minimal",
+      "schema_path": "objects/ProcessDefinition.schema.json",
+      "fixture_path": "schema/process-definition.valid-minimal.json",
+      "expect_valid": true
+    },
+    {
+      "id": "run-plan.valid-minimal",
+      "schema_path": "objects/RunPlan.schema.json",
+      "fixture_path": "schema/run-plan.valid-minimal.json",
       "expect_valid": true
     }
   ],

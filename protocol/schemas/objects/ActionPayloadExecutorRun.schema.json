@@ -5,7 +5,7 @@
   "description": "Typed action payload for executor run operations.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 8,
+  "maxProperties": 9,
   "required": [
     "schema_id",
     "schema_version",
@@ -51,6 +51,16 @@
         "minLength": 1,
         "maxLength": 2048,
         "description": "One argv token."
+      }
+    },
+    "environment": {
+      "type": "object",
+      "description": "Explicit environment variables for typed executor contracts.",
+      "x-data-class": "sensitive",
+      "maxProperties": 64,
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 4096
       }
     },
     "working_directory": {

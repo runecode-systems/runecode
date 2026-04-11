@@ -60,6 +60,7 @@
         "build_logs",
         "audit_events",
         "audit_verification_report",
+        "gate_evidence",
         "web_query",
         "web_citations"
       ],

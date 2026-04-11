@@ -21,6 +21,8 @@ When trusted RuneCode services accept signed approval artifacts for promotion or
 - Distinguish exact-action approval from stage sign-off at the binding layer:
   - exact-action approvals bind the canonical `ActionRequest` hash
   - stage sign-off approvals bind the canonical stage summary hash
+- Treat the canonical trusted `ApprovalRecord` as the source of truth for approval lifecycle; runner-facing approval waits and other advisory summaries are derived mirrors, not a second approval authority
+- When trusted services persist a canonical approval together with a runner-advisory mirror, perform that work in one atomic trusted store operation or fail closed with rollback that restores both in-memory and durable mirror state consistently
 - When policy context participates in approval binding, require `manifest_hash` to mean the compiled effective policy-context hash rather than one raw source-manifest digest
 - Treat `ApprovalBoundScope` and similar bound-scope summaries as operator-facing metadata only; do not accept them as substitutes for signed artifacts, request hashes, or stage-summary hashes
 - Reject approvals when any bound action hash, stage-summary hash, or compiled policy-context hash has changed since request issuance, even if human-readable scope fields still appear to match

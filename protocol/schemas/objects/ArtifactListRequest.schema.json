@@ -16,6 +16,6 @@
     "order": { "type": "string", "enum": ["created_at_desc", "created_at_asc"], "description": "Explicit artifact ordering semantics.", "x-data-class": "public" },
     "run_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional run scope filter.", "x-data-class": "public" },
     "step_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Optional step scope filter.", "x-data-class": "public" },
-    "data_class": { "type": "string", "enum": ["spec_text", "unapproved_file_excerpts", "approved_file_excerpts", "diffs", "build_logs", "audit_events", "audit_verification_report", "web_query", "web_citations"], "description": "Optional data-class filter.", "x-data-class": "public" }
+    "data_class": { "type": "string", "enum": ["spec_text", "unapproved_file_excerpts", "approved_file_excerpts", "diffs", "build_logs", "audit_events", "audit_verification_report", "gate_evidence", "web_query", "web_citations"], "description": "Optional data-class filter.", "x-data-class": "public" }
   }
 }

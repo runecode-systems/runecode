@@ -1,0 +1,14 @@
+{
+  "schema_id": "runecode.protocol.v0.ActionPayloadGateOverride",
+  "schema_version": "0.1.0",
+  "gate_id": "policy_gate",
+  "gate_kind": "policy",
+  "gate_version": "1.0.0",
+  "gate_attempt_id": "gate-attempt-2",
+  "overridden_failed_result_ref": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "policy_context_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "override_mode": "break_glass",
+  "justification": "Emergency continuation during incident response",
+  "expires_at": "2026-04-01T13:00:00Z",
+  "ticket_ref": "INC-1234"
+}

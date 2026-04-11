@@ -149,7 +149,10 @@ func (s *Service) persistApprovalRecord(rec approvalRecord) error {
 		RelevantArtifactHashes: append([]string{}, rec.RelevantArtifactHashes...),
 	}
 	applyApprovalSummaryTimes(&stored, rec.Summary)
-	return s.RecordApproval(stored)
+	if err := s.store.RecordApprovalWithRunnerMirror(stored); err != nil {
+		return err
+	}
+	return nil
 }
 
 func applyApprovalSummaryTimes(stored *artifacts.ApprovalRecord, summary ApprovalSummary) {

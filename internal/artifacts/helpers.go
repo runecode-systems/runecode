@@ -30,6 +30,10 @@ func digestBytes(payload []byte) string {
 	return "sha256:" + hex.EncodeToString(h[:])
 }
 
+func DigestBytes(payload []byte) string {
+	return digestBytes(payload)
+}
+
 func canonicalPayload(contentType string, payload []byte) ([]byte, error) {
 	if isJSONContentType(contentType) {
 		canonical, err := canonicalizeJSONBytes(payload)
@@ -95,6 +99,9 @@ func normalizeRuntimeStateMaps(state StoreState) StoreState {
 	if state.RuntimeAuditStateByRun == nil {
 		state.RuntimeAuditStateByRun = map[string]RuntimeAuditEmissionState{}
 	}
+	if state.RunnerAdvisoryByRun == nil {
+		state.RunnerAdvisoryByRun = map[string]RunnerAdvisoryState{}
+	}
 	return state
 }
 
@@ -128,10 +135,19 @@ func validateRunStatusInput(runID, status string) error {
 	if runID == "" {
 		return fmt.Errorf("run id is required")
 	}
-	if status != "active" && status != "retained" && status != "closed" {
+	if !isSupportedRunStatus(status) {
 		return fmt.Errorf("unsupported run status")
 	}
 	return nil
+}
+
+func isSupportedRunStatus(status string) bool {
+	switch status {
+	case "pending", "starting", "active", "blocked", "recovering", "completed", "failed", "cancelled", "retained", "closed":
+		return true
+	default:
+		return false
+	}
 }
 
 func backupSignaturePath(manifestPath string) string {

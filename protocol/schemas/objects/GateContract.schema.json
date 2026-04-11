@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/GateContract.schema.json",
+  "title": "GateContract",
+  "description": "Reusable typed deterministic gate contract with explicit planning, retry, and override semantics.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 9,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "gate_id",
+    "gate_kind",
+    "gate_version",
+    "normalized_inputs",
+    "plan_binding",
+    "retry_semantics",
+    "override_semantics"
+  ],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.GateContract", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "gate_id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 128, "description": "Stable machine identity for the gate.", "x-data-class": "public" },
+    "gate_kind": { "type": "string", "enum": ["build", "test", "lint", "format", "secret_scan", "policy"], "description": "Closed gate kind taxonomy.", "x-data-class": "public" },
+    "gate_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$", "maxLength": 32, "description": "Version of the gate implementation contract.", "x-data-class": "public" },
+    "normalized_inputs": {
+      "type": "array",
+      "maxItems": 64,
+      "description": "Declared normalized gate inputs bound to digest identities.",
+      "x-data-class": "public",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "maxProperties": 3,
+        "required": ["input_id", "input_digest"],
+        "properties": {
+          "input_id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 128, "description": "Stable normalized input identity.", "x-data-class": "public" },
+          "input_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest identity for normalized input payload.", "x-data-class": "public" },
+          "source_ref": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Optional input reference label.", "x-data-class": "public" }
+        }
+      }
+    },
+    "plan_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 2,
+      "required": ["checkpoint_code", "order_index"],
+      "description": "Explicit planning-time checkpoint binding and order placement.",
+      "x-data-class": "public",
+      "properties": {
+        "checkpoint_code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 128, "description": "Checkpoint placement selected by workflow/process planning.", "x-data-class": "public" },
+        "order_index": { "type": "integer", "minimum": 0, "description": "Deterministic gate ordering index within checkpoint placement.", "x-data-class": "public" }
+      }
+    },
+    "retry_semantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 2,
+      "required": ["retry_mode", "max_attempts"],
+      "description": "Explicit retry contract; retries must create new gate attempts.",
+      "x-data-class": "public",
+      "properties": {
+        "retry_mode": { "type": "string", "enum": ["new_attempt_required"], "description": "Retry posture for this gate contract.", "x-data-class": "public" },
+        "max_attempts": { "type": "integer", "minimum": 1, "maximum": 50, "description": "Maximum allowed attempts for this gate in one run plan.", "x-data-class": "public" }
+      }
+    },
+    "override_semantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 3,
+      "required": ["override_mode", "action_kind", "approval_trigger_code"],
+      "description": "Explicit override posture bound to canonical policy action identity.",
+      "x-data-class": "public",
+      "properties": {
+        "override_mode": { "type": "string", "enum": ["policy_action_required", "disallowed"], "description": "Override posture for this gate contract.", "x-data-class": "public" },
+        "action_kind": { "const": "action_gate_override", "description": "Canonical action kind consumed for gate overrides.", "x-data-class": "public" },
+        "approval_trigger_code": { "const": "gate_override", "description": "Approval trigger taxonomy code used for gate override requests.", "x-data-class": "public" }
+      }
+    }
+  }
+}
