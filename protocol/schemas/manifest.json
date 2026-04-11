@@ -721,6 +721,48 @@
       "status": "mvp"
     },
     {
+      "path": "objects/RunWatchRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.RunWatchRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RunWatchEvent.schema.json",
+      "schema_id": "runecode.protocol.v0.RunWatchEvent",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalWatchRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalWatchRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalWatchEvent.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalWatchEvent",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionWatchRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionWatchRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionWatchEvent.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionWatchEvent",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/LogStreamEvent.schema.json",
       "schema_id": "runecode.protocol.v0.LogStreamEvent",
       "schema_version": "0.1.0",

@@ -1,6 +1,7 @@
 package protocolschema
 
 import "fmt"
+import "strings"
 
 func requireSessionSendMessageAckAlignment(value map[string]any) error {
 	sessionID, err := stringField(value, "session_id")
@@ -110,7 +111,7 @@ func validateStreamSequence(events []any) error {
 
 type streamEventView struct {
 	streamID    string
-	requestHash string
+	correlation string
 	eventType   string
 	seq         int64
 }
@@ -136,7 +137,7 @@ func parseStreamEvent(event map[string]any) (streamEventView, error) {
 	if err != nil {
 		return streamEventView{}, err
 	}
-	requestHash, err := digestIdentityField(event, "request_hash")
+	correlation, err := streamCorrelationIdentity(event)
 	if err != nil {
 		return streamEventView{}, err
 	}
@@ -148,7 +149,24 @@ func parseStreamEvent(event map[string]any) (streamEventView, error) {
 	if err != nil {
 		return streamEventView{}, err
 	}
-	return streamEventView{streamID: streamID, requestHash: requestHash, eventType: eventType, seq: seq}, nil
+	return streamEventView{streamID: streamID, correlation: correlation, eventType: eventType, seq: seq}, nil
+}
+
+func streamCorrelationIdentity(event map[string]any) (string, error) {
+	if _, ok := event["request_hash"]; ok {
+		return digestIdentityField(event, "request_hash")
+	}
+	if _, ok := event["request_id"]; ok {
+		requestID, err := stringField(event, "request_id")
+		if err != nil {
+			return "", err
+		}
+		if requestID == "" {
+			return "", fmt.Errorf("request_id must be non-empty")
+		}
+		return "request_id:" + requestID, nil
+	}
+	return "", fmt.Errorf("stream event must include request_hash or request_id")
 }
 
 func validateParsedStreamEvents(events []streamEventView) error {
@@ -159,17 +177,17 @@ func validateParsedStreamEvents(events []streamEventView) error {
 		return err
 	}
 	streamID := events[0].streamID
-	requestHash := events[0].requestHash
+	correlation := events[0].correlation
 	lastSeq := int64(0)
 	for index, event := range events {
-		if err := requireMatchingStreamIdentity(event, streamID, requestHash); err != nil {
+		if err := requireMatchingStreamIdentity(event, streamID, correlation); err != nil {
 			return err
 		}
 		if err := requireStrictlyMonotonicSeq(event.seq, lastSeq); err != nil {
 			return err
 		}
-		if index < len(events)-1 && event.eventType == "response_terminal" {
-			return fmt.Errorf("response_terminal must be the final event in the stream")
+		if index < len(events)-1 && isTerminalEventType(event.eventType) {
+			return fmt.Errorf("terminal event must be the final event in the stream")
 		}
 		lastSeq = event.seq
 	}
@@ -184,18 +202,22 @@ func requireStreamStartsAtSeqOne(first streamEventView) error {
 }
 
 func requireFinalStreamEventTerminal(last streamEventView) error {
-	if last.eventType != "response_terminal" {
+	if !isTerminalEventType(last.eventType) {
 		return fmt.Errorf("stream must contain exactly one terminal event")
 	}
 	return nil
 }
 
-func requireMatchingStreamIdentity(event streamEventView, streamID string, requestHash string) error {
+func isTerminalEventType(eventType string) bool {
+	return eventType == "response_terminal" || strings.HasSuffix(eventType, "_terminal")
+}
+
+func requireMatchingStreamIdentity(event streamEventView, streamID string, correlation string) error {
 	if event.streamID != streamID {
 		return fmt.Errorf("stream_id must remain constant across a stream")
 	}
-	if event.requestHash != requestHash {
-		return fmt.Errorf("request_hash must remain constant across a stream")
+	if event.correlation != correlation {
+		return fmt.Errorf("request identity must remain constant across a stream")
 	}
 	return nil
 }
