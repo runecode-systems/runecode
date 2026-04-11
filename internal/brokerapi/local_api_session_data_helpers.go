@@ -50,55 +50,122 @@ func detailString(details map[string]interface{}, key string) (string, bool) {
 }
 
 func (s *Service) approvalIDsBySession() map[string]map[string]struct{} {
+	states := s.store.SessionDurableStates()
+	runToSession := runToSessionIndex(states)
 	approvalsBySession := map[string]map[string]struct{}{}
 	for _, approval := range s.listApprovals() {
-		sessionID, ok := s.sessionIDForRun(approval.BoundScope.RunID)
+		sessionID, ok := s.sessionIDForRun(approval.BoundScope.RunID, runToSession)
 		if !ok {
 			continue
 		}
-		if _, exists := approvalsBySession[sessionID]; !exists {
-			approvalsBySession[sessionID] = map[string]struct{}{}
-		}
-		approvalsBySession[sessionID][approval.ApprovalID] = struct{}{}
+		appendSessionLink(approvalsBySession, sessionID, approval.ApprovalID)
 	}
 	return approvalsBySession
 }
 
-func (s *Service) recordsBySession() map[string][]artifacts.ArtifactRecord {
-	byID := map[string][]artifacts.ArtifactRecord{}
+func runToSessionIndex(states []artifacts.SessionDurableState) map[string]string {
+	index := map[string]string{}
+	for _, state := range states {
+		sessionID := strings.TrimSpace(state.SessionID)
+		if sessionID == "" {
+			continue
+		}
+		for _, runID := range state.LinkedRunIDs {
+			trimmed := strings.TrimSpace(runID)
+			if trimmed == "" {
+				continue
+			}
+			index[trimmed] = sessionID
+		}
+		if trimmed := strings.TrimSpace(state.CreatedByRunID); trimmed != "" {
+			index[trimmed] = sessionID
+		}
+	}
+	return index
+}
+
+func appendSessionLink(bySession map[string]map[string]struct{}, sessionID, value string) {
+	if _, exists := bySession[sessionID]; !exists {
+		bySession[sessionID] = map[string]struct{}{}
+	}
+	bySession[sessionID][value] = struct{}{}
+}
+
+func (s *Service) sessionArtifactDigestsBySession(runToSession map[string]string) map[string]map[string]struct{} {
+	bySession := map[string]map[string]struct{}{}
 	for _, rec := range s.List() {
-		sessionID, ok := s.sessionIDForRun(rec.RunID)
+		sessionID, ok := s.sessionIDForRun(rec.RunID, runToSession)
 		if !ok {
 			continue
 		}
-		byID[sessionID] = append(byID[sessionID], rec)
+		appendSessionLink(bySession, sessionID, rec.Reference.Digest)
 	}
-	return byID
+	return bySession
 }
 
-func (s *Service) sessionIDForRun(runID string) (string, bool) {
+func (s *Service) sessionRunsBySession(states []artifacts.SessionDurableState, runToSession map[string]string) map[string]map[string]struct{} {
+	bySession := map[string]map[string]struct{}{}
+	for _, state := range states {
+		seedSessionRunIndex(bySession, runToSession, state)
+	}
+	for _, rec := range s.List() {
+		sessionID, ok := s.sessionIDForRun(rec.RunID, runToSession)
+		if !ok {
+			continue
+		}
+		appendSessionLink(bySession, sessionID, rec.RunID)
+	}
+	return bySession
+}
+
+func seedSessionRunIndex(bySession map[string]map[string]struct{}, runToSession map[string]string, state artifacts.SessionDurableState) {
+	sessionID := strings.TrimSpace(state.SessionID)
+	if sessionID == "" {
+		return
+	}
+	for _, runID := range state.LinkedRunIDs {
+		appendRunSessionLink(bySession, runToSession, sessionID, runID)
+	}
+	appendRunSessionLink(bySession, runToSession, sessionID, state.CreatedByRunID)
+}
+
+func appendRunSessionLink(bySession map[string]map[string]struct{}, runToSession map[string]string, sessionID, runID string) {
+	trimmed := strings.TrimSpace(runID)
+	if trimmed == "" {
+		return
+	}
+	runToSession[trimmed] = sessionID
+	appendSessionLink(bySession, sessionID, trimmed)
+}
+
+func (s *Service) sessionIDForRun(runID string, runToSession map[string]string) (string, bool) {
 	if strings.TrimSpace(runID) == "" {
 		return "", false
 	}
+	if runToSession != nil {
+		if sessionID, ok := runToSession[runID]; ok {
+			return sessionID, true
+		}
+	}
 	runtime := s.RuntimeFacts(runID)
 	sessionID := strings.TrimSpace(runtime.LaunchReceipt.Normalized().SessionID)
+	if runToSession != nil && sessionID != "" {
+		runToSession[runID] = sessionID
+	}
 	return sessionID, sessionID != ""
 }
 
-func (s *Service) sessionLinkedObjects(sessionID string) (map[string]struct{}, map[string]struct{}, map[string]struct{}) {
-	runs := map[string]struct{}{}
-	approvals := map[string]struct{}{}
-	artifactsByDigest := map[string]struct{}{}
-	for _, rec := range s.List() {
-		if linkedSessionID, ok := s.sessionIDForRun(rec.RunID); ok && linkedSessionID == sessionID {
-			runs[rec.RunID] = struct{}{}
-			artifactsByDigest[rec.Reference.Digest] = struct{}{}
-		}
-	}
+func (s *Service) sessionLinkIndexes(states []artifacts.SessionDurableState) (map[string]map[string]struct{}, map[string]map[string]struct{}, map[string]map[string]struct{}) {
+	runToSession := runToSessionIndex(states)
+	runsBySession := s.sessionRunsBySession(states, runToSession)
+	approvalsBySession := map[string]map[string]struct{}{}
 	for _, approval := range s.listApprovals() {
-		if linkedSessionID, ok := s.sessionIDForRun(approval.BoundScope.RunID); ok && linkedSessionID == sessionID {
-			approvals[approval.ApprovalID] = struct{}{}
+		sessionID, ok := s.sessionIDForRun(approval.BoundScope.RunID, runToSession)
+		if !ok {
+			continue
 		}
+		appendSessionLink(approvalsBySession, sessionID, approval.ApprovalID)
 	}
-	return runs, approvals, artifactsByDigest
+	artifactsBySession := s.sessionArtifactDigestsBySession(runToSession)
+	return runsBySession, approvalsBySession, artifactsBySession
 }

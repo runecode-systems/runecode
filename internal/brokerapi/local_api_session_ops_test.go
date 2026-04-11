@@ -3,7 +3,6 @@ package brokerapi
 import (
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
@@ -11,12 +10,38 @@ import (
 
 func TestSessionListAndGetProjectCanonicalSessionIdentity(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	seedSessionForOpsTest(t, s, "run-session-1", "sess-alpha")
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-1", "sess-alpha")
 	listResp := mustSessionList(t, s, "req-session-list")
 	summary := requireSingleSessionSummary(t, listResp, "sess-alpha")
 	assertSessionSummaryProjection(t, summary)
 	getResp := mustSessionGet(t, s, "req-session-get", "sess-alpha")
 	assertSessionDetailProjection(t, getResp, "sess-alpha", "run-session-1")
+}
+
+func TestSessionListIncludesRuntimeDerivedSessionWithoutArtifacts(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-runtime-only", "sess-runtime-only")
+	listResp := mustSessionList(t, s, "req-session-runtime-only")
+	summary := requireSingleSessionSummary(t, listResp, "sess-runtime-only")
+	if summary.TurnCount != 0 {
+		t.Fatalf("turn_count = %d, want 0 before any transcript message", summary.TurnCount)
+	}
+	if summary.LinkedArtifactCount != 0 {
+		t.Fatalf("linked_artifact_count = %d, want 0 when no artifacts exist", summary.LinkedArtifactCount)
+	}
+	if summary.LinkedRunCount != 1 {
+		t.Fatalf("linked_run_count = %d, want 1 from runtime facts linkage", summary.LinkedRunCount)
+	}
+	if summary.LastActivityKind != "session_created" && summary.LastActivityKind != "run_progress" {
+		t.Fatalf("last_activity_kind = %q, want runtime-derived kind", summary.LastActivityKind)
+	}
+	getResp := mustSessionGet(t, s, "req-session-runtime-only-get", "sess-runtime-only")
+	if len(getResp.Session.TranscriptTurns) != 0 {
+		t.Fatalf("transcript_turns len = %d, want 0 before any transcript messages", len(getResp.Session.TranscriptTurns))
+	}
+	if len(getResp.Session.LinkedRunIDs) != 1 || getResp.Session.LinkedRunIDs[0] != "run-session-runtime-only" {
+		t.Fatalf("linked_run_ids = %+v, want [run-session-runtime-only]", getResp.Session.LinkedRunIDs)
+	}
 }
 
 func TestSessionGetNotFoundUsesSessionSpecificCode(t *testing.T) {
@@ -32,7 +57,7 @@ func TestSessionGetNotFoundUsesSessionSpecificCode(t *testing.T) {
 
 func TestSessionSendMessageReturnsTypedAckAndSupportsIdempotency(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	seedSessionForOpsTest(t, s, "run-session-send", "sess-send")
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-send", "sess-send")
 	baseReq := SessionSendMessageRequest{
 		SchemaID:       "runecode.protocol.v0.SessionSendMessageRequest",
 		SchemaVersion:  "0.1.0",
@@ -52,6 +77,99 @@ func TestSessionSendMessageReturnsTypedAckAndSupportsIdempotency(t *testing.T) {
 	nextReq := SessionSendMessageRequest{SchemaID: "runecode.protocol.v0.SessionSendMessageRequest", SchemaVersion: "0.1.0", RequestID: "req-session-send-3", SessionID: "sess-send", Role: "user", ContentText: "second"}
 	ack3 := mustSessionSendMessage(t, s, nextReq)
 	assertSecondDistinctSessionSendAck(t, ack1, ack3)
+}
+
+func TestSessionSendMessageDurableAcrossBrokerRestart(t *testing.T) {
+	root := t.TempDir()
+	svc, err := NewServiceWithConfig(root, root+"/audit-ledger", APIConfig{})
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig returned error: %v", err)
+	}
+	seedSessionRuntimeFactsForOpsTest(t, svc, "run-session-restart", "sess-restart")
+	ack := mustSessionSendMessage(t, svc, SessionSendMessageRequest{
+		SchemaID:      "runecode.protocol.v0.SessionSendMessageRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-session-restart-send",
+		SessionID:     "sess-restart",
+		Role:          "user",
+		ContentText:   "persist me",
+	})
+	if ack.Seq != 1 {
+		t.Fatalf("seq = %d, want 1", ack.Seq)
+	}
+
+	restarted, err := NewServiceWithConfig(root, root+"/audit-ledger", APIConfig{})
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig(restart) returned error: %v", err)
+	}
+	getResp := mustSessionGet(t, restarted, "req-session-restart-get", "sess-restart")
+	assertSessionGetLastMessageContent(t, getResp, "persist me", 1)
+}
+
+func TestSessionSendMessageIdempotencyRejectsPayloadMismatch(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-send-conflict", "sess-send-conflict")
+	baseReq := SessionSendMessageRequest{
+		SchemaID:       "runecode.protocol.v0.SessionSendMessageRequest",
+		SchemaVersion:  "0.1.0",
+		RequestID:      "req-session-send-conflict-1",
+		SessionID:      "sess-send-conflict",
+		Role:           "user",
+		ContentText:    "hello",
+		IdempotencyKey: "idem-conflict",
+	}
+	_ = mustSessionSendMessage(t, s, baseReq)
+	collisionReq := baseReq
+	collisionReq.RequestID = "req-session-send-conflict-2"
+	collisionReq.ContentText = "hello-updated"
+	_, errResp := s.HandleSessionSendMessage(context.Background(), collisionReq, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleSessionSendMessage expected idempotency conflict typed error")
+	}
+	if errResp.Error.Code != "broker_idempotency_key_payload_mismatch" {
+		t.Fatalf("error code = %q, want broker_idempotency_key_payload_mismatch", errResp.Error.Code)
+	}
+}
+
+func TestSessionSendMessageVisibleViaSessionGetAndPersistsAcrossRestart(t *testing.T) {
+	root := t.TempDir()
+	ledgerRoot := root + "/audit-ledger"
+	first, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig returned error: %v", err)
+	}
+	seedSessionRuntimeFactsForOpsTest(t, first, "run-session-restart", "sess-restart")
+	ack1 := mustSessionSendMessage(t, first, SessionSendMessageRequest{
+		SchemaID:      "runecode.protocol.v0.SessionSendMessageRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-session-restart-send-1",
+		SessionID:     "sess-restart",
+		Role:          "user",
+		ContentText:   "persist me",
+	})
+	if ack1.Seq != 1 {
+		t.Fatalf("first send seq = %d, want 1", ack1.Seq)
+	}
+	get1 := mustSessionGet(t, first, "req-session-restart-get-1", "sess-restart")
+	assertSessionGetLastMessageContent(t, get1, "persist me", 1)
+
+	restarted, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig(restart) returned error: %v", err)
+	}
+	get2 := mustSessionGet(t, restarted, "req-session-restart-get-2", "sess-restart")
+	assertSessionGetLastMessageContent(t, get2, "persist me", 1)
+	ack2 := mustSessionSendMessage(t, restarted, SessionSendMessageRequest{
+		SchemaID:      "runecode.protocol.v0.SessionSendMessageRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-session-restart-send-2",
+		SessionID:     "sess-restart",
+		Role:          "user",
+		ContentText:   "second",
+	})
+	if ack2.Seq != 2 {
+		t.Fatalf("second send seq after restart = %d, want 2", ack2.Seq)
+	}
 }
 
 func TestBuildSessionTranscriptTurnsCapsToSchemaLimits(t *testing.T) {
@@ -74,9 +192,8 @@ func TestBuildSessionTranscriptTurnsCapsToSchemaLimits(t *testing.T) {
 	}
 }
 
-func seedSessionForOpsTest(t *testing.T, s *Service, runID, sessionID string) {
+func seedSessionRuntimeFactsForOpsTest(t *testing.T, s *Service, runID, sessionID string) {
 	t.Helper()
-	putRunScopedArtifactForLocalOpsTest(t, s, runID, "step-1")
 	if err := s.RecordRuntimeFacts(runID, launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: runID, SessionID: sessionID}}); err != nil {
 		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
 	}
@@ -114,8 +231,8 @@ func assertSessionSummaryProjection(t *testing.T, summary SessionSummary) {
 	if summary.LinkedRunCount != 1 {
 		t.Fatalf("linked_run_count = %d, want 1", summary.LinkedRunCount)
 	}
-	if summary.TurnCount != 1 {
-		t.Fatalf("turn_count = %d, want 1 for minimal ordered transcript substrate", summary.TurnCount)
+	if summary.TurnCount != 0 {
+		t.Fatalf("turn_count = %d, want 0 before transcript messages", summary.TurnCount)
 	}
 }
 
@@ -134,7 +251,9 @@ func assertSessionDetailProjection(t *testing.T, resp SessionGetResponse, wantSe
 		t.Fatalf("session.summary.identity.session_id = %q, want %s", resp.Session.Summary.Identity.SessionID, wantSessionID)
 	}
 	assertSessionDetailLinks(t, resp.Session, wantRunID)
-	assertSingleSessionTurnProjection(t, resp.Session.TranscriptTurns, wantRunID)
+	if len(resp.Session.TranscriptTurns) != 0 {
+		t.Fatalf("transcript_turns len = %d, want 0 before transcript messages", len(resp.Session.TranscriptTurns))
+	}
 	if len(resp.Session.LinkedAuditRecordDigests) != 0 {
 		t.Fatalf("linked_audit_record_digests = %+v, want empty in minimal substrate", resp.Session.LinkedAuditRecordDigests)
 	}
@@ -145,28 +264,11 @@ func assertSessionDetailLinks(t *testing.T, detail SessionDetail, wantRunID stri
 	if len(detail.LinkedRunIDs) != 1 || detail.LinkedRunIDs[0] != wantRunID {
 		t.Fatalf("linked_run_ids = %+v, want [%s]", detail.LinkedRunIDs, wantRunID)
 	}
-	if len(detail.LinkedArtifactDigests) != 1 || !strings.HasPrefix(detail.LinkedArtifactDigests[0], "sha256:") {
-		t.Fatalf("linked_artifact_digests = %+v, want single sha256 digest", detail.LinkedArtifactDigests)
+	if len(detail.LinkedArtifactDigests) != 0 {
+		t.Fatalf("linked_artifact_digests = %+v, want empty before artifact links", detail.LinkedArtifactDigests)
 	}
 	if len(detail.LinkedAuditRecordDigests) != 0 {
 		t.Fatalf("linked_audit_record_digests = %+v, want empty in minimal substrate", detail.LinkedAuditRecordDigests)
-	}
-}
-
-func assertSingleSessionTurnProjection(t *testing.T, turns []SessionTranscriptTurn, wantRunID string) {
-	t.Helper()
-	if len(turns) != 1 {
-		t.Fatalf("transcript_turns len = %d, want 1", len(turns))
-	}
-	turn := turns[0]
-	if turn.TurnIndex != 1 {
-		t.Fatalf("transcript_turns[0].turn_index = %d, want 1", turn.TurnIndex)
-	}
-	if len(turn.Messages) != 1 {
-		t.Fatalf("transcript_turns[0].messages len = %d, want 1", len(turn.Messages))
-	}
-	if len(turn.Messages[0].RelatedLinks.RunIDs) != 1 || turn.Messages[0].RelatedLinks.RunIDs[0] != wantRunID {
-		t.Fatalf("transcript_turns[0].messages[0].related_links.run_ids = %+v, want [%s]", turn.Messages[0].RelatedLinks.RunIDs, wantRunID)
 	}
 }
 
@@ -199,8 +301,8 @@ func assertInitialSessionSendAck(t *testing.T, ack SessionSendMessageResponse) {
 	if len(ack.Message.RelatedLinks.RunIDs) != 1 || ack.Message.RelatedLinks.RunIDs[0] != "run-session-send" {
 		t.Fatalf("related_links.run_ids = %+v, want [run-session-send]", ack.Message.RelatedLinks.RunIDs)
 	}
-	if ack.Turn.TurnIndex != 2 {
-		t.Fatalf("turn.turn_index = %d, want 2 based on existing summary turn count", ack.Turn.TurnIndex)
+	if ack.Turn.TurnIndex != 1 {
+		t.Fatalf("turn.turn_index = %d, want 1 as first transcript turn", ack.Turn.TurnIndex)
 	}
 }
 
@@ -222,10 +324,31 @@ func assertSecondDistinctSessionSendAck(t *testing.T, first, second SessionSendM
 	if second.Seq != 2 {
 		t.Fatalf("second distinct seq = %d, want 2", second.Seq)
 	}
-	if second.Turn.TurnIndex != 3 {
-		t.Fatalf("second distinct turn.turn_index = %d, want 3", second.Turn.TurnIndex)
+	if second.Turn.TurnIndex != 2 {
+		t.Fatalf("second distinct turn.turn_index = %d, want 2", second.Turn.TurnIndex)
 	}
 	if second.Message.MessageID == first.Message.MessageID {
 		t.Fatalf("second distinct message_id = %q, want different than first %q", second.Message.MessageID, first.Message.MessageID)
+	}
+}
+
+func assertSessionGetLastMessageContent(t *testing.T, resp SessionGetResponse, wantContent string, wantTurnCount int) {
+	t.Helper()
+	if resp.Session.Summary.TurnCount != wantTurnCount {
+		t.Fatalf("session.summary.turn_count = %d, want %d", resp.Session.Summary.TurnCount, wantTurnCount)
+	}
+	if len(resp.Session.TranscriptTurns) != wantTurnCount {
+		t.Fatalf("session.transcript_turns len = %d, want %d", len(resp.Session.TranscriptTurns), wantTurnCount)
+	}
+	if wantTurnCount == 0 {
+		return
+	}
+	lastTurn := resp.Session.TranscriptTurns[len(resp.Session.TranscriptTurns)-1]
+	if len(lastTurn.Messages) == 0 {
+		t.Fatal("last transcript turn has no messages")
+	}
+	lastMessage := lastTurn.Messages[len(lastTurn.Messages)-1]
+	if lastMessage.ContentText != wantContent {
+		t.Fatalf("last message content_text = %q, want %q", lastMessage.ContentText, wantContent)
 	}
 }

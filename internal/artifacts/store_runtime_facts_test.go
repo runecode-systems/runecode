@@ -10,6 +10,7 @@ import (
 func TestRecordRuntimeEvidenceStatePersistsAcrossReload(t *testing.T) {
 	store := newTestStore(t)
 	facts, evidence, lifecycle := recordRuntimeEvidenceFixture(t, store, "run-runtime-persist")
+	assertSessionStateBoundFromRuntimeFacts(t, store, "session-1", "run-runtime-persist")
 	if err := store.MarkRuntimeAuditEventEmitted("run-runtime-persist", "isolate_session_started", evidence.Session.EvidenceDigest); err != nil {
 		t.Fatalf("MarkRuntimeAuditEventEmitted(started) returned error: %v", err)
 	}
@@ -26,6 +27,7 @@ func TestRecordRuntimeEvidenceStatePersistsAcrossReload(t *testing.T) {
 	}
 	assertPersistedRuntimeEvidence(t, persistedFacts, facts, persistedEvidence, evidence, persistedLifecycle, lifecycle)
 	assertPersistedRuntimeAuditMarkers(t, persistedAudit, evidence.Session.EvidenceDigest)
+	assertSessionStateBoundFromRuntimeFacts(t, reloaded, "session-1", "run-runtime-persist")
 }
 
 func TestUpdateRuntimeLifecycleStateProjectsIntoPersistedFacts(t *testing.T) {
@@ -119,4 +121,27 @@ func runtimeFactsFixtureForStoreRuntimeTests(runID string) launcherbackend.Runti
 	facts.LaunchReceipt.HandshakeTranscriptHash = testDigest("5")
 	facts.LaunchReceipt.IsolateSessionKeyIDValue = strings.Repeat("f", 64)
 	return facts
+}
+
+func assertSessionStateBoundFromRuntimeFacts(t *testing.T, store *Store, sessionID, runID string) {
+	t.Helper()
+	session, ok := store.SessionState(sessionID)
+	if !ok {
+		t.Fatalf("SessionState(%q) = not found, want durable session", sessionID)
+	}
+	if session.SessionID != sessionID {
+		t.Fatalf("session_id = %q, want %q", session.SessionID, sessionID)
+	}
+	if session.CreatedByRunID != runID {
+		t.Fatalf("created_by_run_id = %q, want %q", session.CreatedByRunID, runID)
+	}
+	if session.LastActivityKind != "session_created" && session.LastActivityKind != "run_progress" {
+		t.Fatalf("last_activity_kind = %q, want runtime-derived session activity", session.LastActivityKind)
+	}
+	if len(session.LinkedRunIDs) != 1 || session.LinkedRunIDs[0] != runID {
+		t.Fatalf("linked_run_ids = %+v, want [%s]", session.LinkedRunIDs, runID)
+	}
+	if session.TurnCount != 0 {
+		t.Fatalf("turn_count = %d, want 0 before transcript messages", session.TurnCount)
+	}
 }

@@ -58,7 +58,7 @@ func (s *Service) enforcePendingApprovalFreshness(requestID string, current appr
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "stored pending approval has invalid expires_at")
 		return &errOut
 	}
-	if s.now().UTC().After(expiresAt) {
+	if !s.now().UTC().Before(expiresAt) {
 		expiredRecord, err := s.buildExpiredApprovalRecord(current)
 		if err != nil {
 			errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())

@@ -67,6 +67,42 @@
       "expect_valid": true
     },
     {
+      "id": "approval-lifecycle-detail.valid-superseded",
+      "schema_path": "objects/ApprovalLifecycleDetail.schema.json",
+      "fixture_path": "schema/approval-lifecycle-detail.valid-superseded.json",
+      "expect_valid": true
+    },
+    {
+      "id": "approval-what-changes-if-approved.valid-promotion",
+      "schema_path": "objects/ApprovalWhatChangesIfApproved.schema.json",
+      "fixture_path": "schema/approval-what-changes-if-approved.valid-promotion.json",
+      "expect_valid": true
+    },
+    {
+      "id": "approval-blocked-work-scope.valid-stage",
+      "schema_path": "objects/ApprovalBlockedWorkScope.schema.json",
+      "fixture_path": "schema/approval-blocked-work-scope.valid-stage.json",
+      "expect_valid": true
+    },
+    {
+      "id": "approval-bound-identity.valid-exact-action",
+      "schema_path": "objects/ApprovalBoundIdentity.schema.json",
+      "fixture_path": "schema/approval-bound-identity.valid-exact-action.json",
+      "expect_valid": true
+    },
+    {
+      "id": "approval-detail.valid-exact-action",
+      "schema_path": "objects/ApprovalDetail.schema.json",
+      "fixture_path": "schema/approval-detail.valid-exact-action.json",
+      "expect_valid": true
+    },
+    {
+      "id": "approval-get-response.valid-detail",
+      "schema_path": "objects/ApprovalGetResponse.schema.json",
+      "fixture_path": "schema/approval-get-response.valid-detail.json",
+      "expect_valid": true
+    },
+    {
       "id": "verifier-record.valid-basic",
       "schema_path": "objects/VerifierRecord.schema.json",
       "fixture_path": "schema/verifier-record.valid-basic.json",
@@ -268,6 +304,66 @@
       "id": "session-send-message-response.valid-ack",
       "schema_path": "objects/SessionSendMessageResponse.schema.json",
       "fixture_path": "schema/session-send-message-response.valid-ack.json",
+      "expect_valid": true
+    },
+    {
+      "id": "session-identity.valid-basic",
+      "schema_path": "objects/SessionIdentity.schema.json",
+      "fixture_path": "schema/session-identity.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "session-summary.valid-active",
+      "schema_path": "objects/SessionSummary.schema.json",
+      "fixture_path": "schema/session-summary.valid-active.json",
+      "expect_valid": true
+    },
+    {
+      "id": "session-transcript-links.valid-basic",
+      "schema_path": "objects/SessionTranscriptLinks.schema.json",
+      "fixture_path": "schema/session-transcript-links.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "session-transcript-message.valid-assistant",
+      "schema_path": "objects/SessionTranscriptMessage.schema.json",
+      "fixture_path": "schema/session-transcript-message.valid-assistant.json",
+      "expect_valid": true
+    },
+    {
+      "id": "session-transcript-turn.valid-completed",
+      "schema_path": "objects/SessionTranscriptTurn.schema.json",
+      "fixture_path": "schema/session-transcript-turn.valid-completed.json",
+      "expect_valid": true
+    },
+    {
+      "id": "session-detail.valid-basic",
+      "schema_path": "objects/SessionDetail.schema.json",
+      "fixture_path": "schema/session-detail.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "session-list-request.valid-basic",
+      "schema_path": "objects/SessionListRequest.schema.json",
+      "fixture_path": "schema/session-list-request.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "session-list-response.valid-basic",
+      "schema_path": "objects/SessionListResponse.schema.json",
+      "fixture_path": "schema/session-list-response.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "session-get-request.valid-basic",
+      "schema_path": "objects/SessionGetRequest.schema.json",
+      "fixture_path": "schema/session-get-request.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "session-get-response.valid-basic",
+      "schema_path": "objects/SessionGetResponse.schema.json",
+      "fixture_path": "schema/session-get-response.valid-basic.json",
       "expect_valid": true
     }
   ],

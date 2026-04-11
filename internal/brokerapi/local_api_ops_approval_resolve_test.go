@@ -213,6 +213,30 @@ func TestApprovalResolveUsesSingleCapturedTimeForDecidedAndConsumed(t *testing.T
 	}
 }
 
+func TestApprovalResolveTreatsExpiryBoundaryAsExpiredAndMatchesApprovalGetParity(t *testing.T) {
+	s, unapproved, requestEnv, decisionEnv := setupServiceWithApprovalFixture(t)
+	approvalID := approvalIDForBrokerTest(t, requestEnv)
+	stored := mustApprovalGet(t, s, approvalID)
+	fixedNow := time.Date(2026, 4, 10, 12, 30, 0, 0, time.UTC)
+	stored.ExpiresAt = &fixedNow
+	if err := s.RecordApproval(stored); err != nil {
+		t.Fatalf("RecordApproval returned error: %v", err)
+	}
+	s.now = func() time.Time { return fixedNow }
+
+	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, approvalID)
+	resolveReq := ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-approval-resolve-expiry-boundary", ApprovalID: approvalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-approval"), RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", ActionKind: "promotion", PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: unapproved.Digest, Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *requestEnv, SignedApprovalDecision: *decisionEnv}
+	_, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{})
+	if errResp == nil || errResp.Error.Code != "broker_approval_state_invalid" {
+		t.Fatalf("unexpected error response: %+v", errResp)
+	}
+
+	updated := mustApprovalGet(t, s, approvalID)
+	if updated.Status != "expired" {
+		t.Fatalf("approval status = %q, want expired", updated.Status)
+	}
+}
+
 func TestApprovalResolveRedactsApprovalWaitBindingHashesFromRunDetail(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	now := time.Date(2026, 4, 10, 13, 0, 0, 0, time.UTC)

@@ -85,13 +85,13 @@ func (s *Service) HandleSessionGet(ctx context.Context, req SessionGetRequest, m
 }
 
 func (s *Service) sessionSummaries(order string) ([]SessionSummary, error) {
+	states := s.store.SessionDurableStates()
+	runsBySession, approvalsBySession, artifactsBySession := s.sessionLinkIndexes(states)
 	auditBySession, err := s.auditRecordDigestsBySession()
 	if err != nil {
 		return nil, err
 	}
-	approvalsBySession := s.approvalIDsBySession()
-	byID := s.recordsBySession()
-	out := buildSessionSummaries(byID, approvalsBySession, auditBySession)
+	out := buildSessionSummaries(states, runsBySession, approvalsBySession, artifactsBySession, auditBySession)
 	sortSessionSummaries(out, order)
 	return out, nil
 }
@@ -105,8 +105,10 @@ func (s *Service) sessionDetail(sessionID string) (SessionDetail, bool, error) {
 	if err != nil {
 		return SessionDetail{}, false, err
 	}
-	runs, approvals, artifactsByDigest := s.sessionLinkedObjects(sessionID)
-	return buildSessionDetail(summary, runs, approvals, artifactsByDigest, auditBySession[sessionID]), true, nil
+	states := s.store.SessionDurableStates()
+	runsBySession, approvalsBySession, artifactsBySession := s.sessionLinkIndexes(states)
+	state, _ := s.store.SessionState(sessionID)
+	return buildSessionDetailFromState(summary, state.TranscriptTurns, runsBySession[sessionID], approvalsBySession[sessionID], artifactsBySession[sessionID], auditBySession[sessionID]), true, nil
 }
 
 func (s *Service) sessionSummaryByID(sessionID string) (SessionSummary, bool, error) {

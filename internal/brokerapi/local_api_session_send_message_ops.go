@@ -2,9 +2,12 @@ package brokerapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/runecode-ai/runecode/internal/artifacts"
 )
 
 func (s *Service) HandleSessionSendMessage(ctx context.Context, req SessionSendMessageRequest, meta RequestContext) (SessionSendMessageResponse, *ErrorResponse) {
@@ -27,19 +30,17 @@ func (s *Service) HandleSessionSendMessage(ctx context.Context, req SessionSendM
 	if errResp := s.validateSessionSendMessageRequest(requestID, req); errResp != nil {
 		return SessionSendMessageResponse{}, errResp
 	}
-	if prior, handled, errResp := s.replayedSessionSendMessage(requestID, req); handled {
-		return prior, errResp
-	}
-	session, errResp := s.sessionDetailForSendMessage(requestID, req.SessionID)
+	session, errResp := s.sessionStateForSendMessage(requestID, req.SessionID)
 	if errResp != nil {
 		return SessionSendMessageResponse{}, errResp
 	}
-	resp, errResp := s.newSessionSendMessageResponse(requestID, req, session)
+	resp, created, errResp := s.newSessionSendMessageResponse(requestID, req, session)
 	if errResp != nil {
 		return SessionSendMessageResponse{}, errResp
 	}
-	s.storeSessionIdempotentInteractionResponse(req.SessionID, strings.TrimSpace(req.IdempotencyKey), resp)
-	s.auditSessionSendMessage(requestID, req, resp)
+	if created {
+		s.auditSessionSendMessage(requestID, req, resp)
+	}
 	return resp, nil
 }
 
@@ -70,90 +71,128 @@ func (s *Service) validateSessionSendMessageRequest(requestID string, req Sessio
 	return nil
 }
 
-func (s *Service) replayedSessionSendMessage(requestID string, req SessionSendMessageRequest) (SessionSendMessageResponse, bool, *ErrorResponse) {
-	prior, ok := s.sessionIdempotentInteractionResponse(req.SessionID, strings.TrimSpace(req.IdempotencyKey))
-	if !ok {
-		return SessionSendMessageResponse{}, false, nil
-	}
-	prior.RequestID = requestID
-	if err := s.validateResponse(prior, sessionSendMessageResponseSchemaPath); err != nil {
-		errOut := s.errorFromValidation(requestID, err)
-		return SessionSendMessageResponse{}, true, &errOut
-	}
-	return prior, true, nil
-}
-
-func (s *Service) sessionDetailForSendMessage(requestID, sessionID string) (SessionDetail, *ErrorResponse) {
-	session, ok, err := s.sessionDetail(sessionID)
-	if err != nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
-		return SessionDetail{}, &errOut
-	}
+func (s *Service) sessionStateForSendMessage(requestID, sessionID string) (artifacts.SessionDurableState, *ErrorResponse) {
+	session, ok := s.SessionState(sessionID)
 	if !ok {
 		errOut := s.makeError(requestID, "broker_not_found_session", "storage", false, fmt.Sprintf("session %q not found", sessionID))
-		return SessionDetail{}, &errOut
+		return artifacts.SessionDurableState{}, &errOut
 	}
 	return session, nil
 }
 
-func (s *Service) newSessionSendMessageResponse(requestID string, req SessionSendMessageRequest, session SessionDetail) (SessionSendMessageResponse, *ErrorResponse) {
-	createdAt := s.currentTimestampRFC3339()
-	turnIndex := s.nextSessionInteractionTurnIndex(req.SessionID, session.Summary.TurnCount)
-	turnID := fmt.Sprintf("%s.turn.%06d", req.SessionID, turnIndex)
-	message := buildSessionSendMessageMessage(req, turnID, createdAt)
-	resp := SessionSendMessageResponse{
+func (s *Service) newSessionSendMessageResponse(requestID string, req SessionSendMessageRequest, session artifacts.SessionDurableState) (SessionSendMessageResponse, bool, *ErrorResponse) {
+	createdAt := s.currentTimestamp()
+	links := normalizedSessionTranscriptLinks(req.RelatedLinks)
+	durableLinks := durableSessionTranscriptLinks(links)
+	idempotencyHash, err := artifacts.SessionSendMessageIdempotencyHash(req.SessionID, req.Role, req.ContentText, durableLinks)
+	if err != nil {
+		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
+		return SessionSendMessageResponse{}, false, &errOut
+	}
+	appendResult, err := s.AppendSessionMessage(buildSessionMessageAppendRequest(req, session, durableLinks, idempotencyHash, createdAt))
+	if err != nil {
+		if errors.Is(err, artifacts.ErrSessionIdempotencyKeyConflict) {
+			errOut := s.makeError(requestID, "broker_idempotency_key_payload_mismatch", "validation", false, err.Error())
+			return SessionSendMessageResponse{}, false, &errOut
+		}
+		errOut := s.errorFromStore(requestID, err)
+		return SessionSendMessageResponse{}, false, &errOut
+	}
+	turn := sessionTranscriptTurnFromDurable(appendResult.Turn)
+	message := sessionTranscriptMessageFromDurable(appendResult.Message)
+	resp := buildSessionSendMessageAckResponse(requestID, req.SessionID, turn, message, appendResult.Seq)
+	if err := s.validateResponse(resp, sessionSendMessageResponseSchemaPath); err != nil {
+		errOut := s.errorFromValidation(requestID, err)
+		return SessionSendMessageResponse{}, false, &errOut
+	}
+	return resp, appendResult.Created, nil
+}
+
+func durableSessionTranscriptLinks(links SessionTranscriptLinks) artifacts.SessionTranscriptLinksDurableState {
+	return artifacts.SessionTranscriptLinksDurableState{
+		RunIDs:             append([]string{}, links.RunIDs...),
+		ApprovalIDs:        append([]string{}, links.ApprovalIDs...),
+		ArtifactDigests:    append([]string{}, links.ArtifactDigests...),
+		AuditRecordDigests: append([]string{}, links.AuditRecordDigests...),
+	}
+}
+
+func buildSessionMessageAppendRequest(req SessionSendMessageRequest, session artifacts.SessionDurableState, links artifacts.SessionTranscriptLinksDurableState, idempotencyHash string, occurredAt time.Time) artifacts.SessionMessageAppendRequest {
+	return artifacts.SessionMessageAppendRequest{
+		SessionID:       req.SessionID,
+		WorkspaceID:     session.WorkspaceID,
+		CreatedByRunID:  session.CreatedByRunID,
+		Role:            req.Role,
+		ContentText:     req.ContentText,
+		RelatedLinks:    links,
+		IdempotencyKey:  strings.TrimSpace(req.IdempotencyKey),
+		IdempotencyHash: idempotencyHash,
+		OccurredAt:      occurredAt,
+	}
+}
+
+func buildSessionSendMessageAckResponse(requestID, sessionID string, turn SessionTranscriptTurn, message SessionTranscriptMessage, seq int64) SessionSendMessageResponse {
+	return SessionSendMessageResponse{
 		SchemaID:      "runecode.protocol.v0.SessionSendMessageResponse",
 		SchemaVersion: "0.1.0",
 		RequestID:     requestID,
-		SessionID:     req.SessionID,
-		Turn:          buildSessionSendMessageTurn(req.SessionID, turnID, turnIndex, createdAt, message),
+		SessionID:     sessionID,
+		Turn:          turn,
 		Message:       message,
 		EventType:     "session_message_ack",
-		StreamID:      sessionInteractionStreamID(req.SessionID),
-		Seq:           s.nextSessionInteractionSeq(req.SessionID),
+		StreamID:      sessionInteractionStreamID(sessionID),
+		Seq:           seq,
 	}
-	if err := s.validateResponse(resp, sessionSendMessageResponseSchemaPath); err != nil {
-		errOut := s.errorFromValidation(requestID, err)
-		return SessionSendMessageResponse{}, &errOut
-	}
-	return resp, nil
 }
 
-func (s *Service) currentTimestampRFC3339() string {
+func (s *Service) currentTimestamp() time.Time {
 	now := time.Now().UTC()
 	if s.now != nil {
 		now = s.now().UTC()
 	}
-	return now.Format(time.RFC3339)
+	return now
 }
 
-func buildSessionSendMessageMessage(req SessionSendMessageRequest, turnID, createdAt string) SessionTranscriptMessage {
+func sessionTranscriptMessageFromDurable(in artifacts.SessionTranscriptMessageDurableState) SessionTranscriptMessage {
 	return SessionTranscriptMessage{
 		SchemaID:      "runecode.protocol.v0.SessionTranscriptMessage",
 		SchemaVersion: "0.1.0",
-		MessageID:     fmt.Sprintf("%s.msg.%06d", turnID, 1),
-		TurnID:        turnID,
-		SessionID:     req.SessionID,
-		MessageIndex:  1,
-		Role:          req.Role,
-		CreatedAt:     createdAt,
-		ContentText:   req.ContentText,
-		RelatedLinks:  normalizedSessionTranscriptLinks(req.RelatedLinks),
+		MessageID:     in.MessageID,
+		TurnID:        in.TurnID,
+		SessionID:     in.SessionID,
+		MessageIndex:  in.MessageIndex,
+		Role:          in.Role,
+		CreatedAt:     in.CreatedAt.UTC().Format(time.RFC3339),
+		ContentText:   in.ContentText,
+		RelatedLinks: SessionTranscriptLinks{
+			SchemaID:           "runecode.protocol.v0.SessionTranscriptLinks",
+			SchemaVersion:      "0.1.0",
+			RunIDs:             append([]string{}, in.RelatedLinks.RunIDs...),
+			ApprovalIDs:        append([]string{}, in.RelatedLinks.ApprovalIDs...),
+			ArtifactDigests:    append([]string{}, in.RelatedLinks.ArtifactDigests...),
+			AuditRecordDigests: append([]string{}, in.RelatedLinks.AuditRecordDigests...),
+		},
 	}
 }
 
-func buildSessionSendMessageTurn(sessionID, turnID string, turnIndex int, createdAt string, message SessionTranscriptMessage) SessionTranscriptTurn {
-	return SessionTranscriptTurn{
+func sessionTranscriptTurnFromDurable(in artifacts.SessionTranscriptTurnDurableState) SessionTranscriptTurn {
+	turn := SessionTranscriptTurn{
 		SchemaID:      "runecode.protocol.v0.SessionTranscriptTurn",
 		SchemaVersion: "0.1.0",
-		TurnID:        turnID,
-		SessionID:     sessionID,
-		TurnIndex:     turnIndex,
-		StartedAt:     createdAt,
-		CompletedAt:   createdAt,
-		Status:        "completed",
-		Messages:      []SessionTranscriptMessage{message},
+		TurnID:        in.TurnID,
+		SessionID:     in.SessionID,
+		TurnIndex:     in.TurnIndex,
+		StartedAt:     in.StartedAt.UTC().Format(time.RFC3339),
+		Status:        in.Status,
+		Messages:      make([]SessionTranscriptMessage, 0, len(in.Messages)),
 	}
+	if in.CompletedAt != nil {
+		turn.CompletedAt = in.CompletedAt.UTC().Format(time.RFC3339)
+	}
+	for _, message := range in.Messages {
+		turn.Messages = append(turn.Messages, sessionTranscriptMessageFromDurable(message))
+	}
+	return turn
 }
 
 func (s *Service) auditSessionSendMessage(requestID string, req SessionSendMessageRequest, resp SessionSendMessageResponse) {

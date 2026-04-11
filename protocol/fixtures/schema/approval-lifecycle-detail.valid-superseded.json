@@ -1,0 +1,11 @@
+{
+  "schema_id": "runecode.protocol.v0.ApprovalLifecycleDetail",
+  "schema_version": "0.1.0",
+  "lifecycle_state": "superseded",
+  "lifecycle_reason_code": "approval_superseded",
+  "stale": true,
+  "stale_reason_code": "approval_superseded",
+  "superseded_by_approval_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "expires_at": "2026-04-11T11:00:00Z",
+  "decided_at": "2026-04-11T10:10:00Z"
+}

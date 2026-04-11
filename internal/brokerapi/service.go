@@ -221,6 +221,18 @@ func (s *Service) ApprovalGet(approvalID string) (artifacts.ApprovalRecord, bool
 	return s.store.ApprovalGet(approvalID)
 }
 
+func (s *Service) SessionState(sessionID string) (artifacts.SessionDurableState, bool) {
+	return s.store.SessionState(sessionID)
+}
+
+func (s *Service) SessionStates() map[string]artifacts.SessionDurableState {
+	return s.store.SessionStates()
+}
+
+func (s *Service) AppendSessionMessage(req artifacts.SessionMessageAppendRequest) (artifacts.SessionMessageAppendResult, error) {
+	return s.store.AppendSessionMessage(req)
+}
+
 func (s *Service) RecordApproval(record artifacts.ApprovalRecord) error {
 	return s.store.RecordApproval(record)
 }

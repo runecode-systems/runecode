@@ -26,6 +26,7 @@ func (s *Store) RecordRuntimeEvidenceState(runID string, facts launcherbackend.R
 	if _, ok := s.state.Runs[trimmedRunID]; !ok {
 		s.state.Runs[trimmedRunID] = "active"
 	}
+	_ = s.upsertSessionRuntimeBindingLocked(trimmedRunID, facts)
 	return s.saveStateLocked()
 }
 
@@ -99,6 +100,7 @@ func (s *Store) UpdateRuntimeLifecycleState(runID string, lifecycle launcherback
 	if _, ok := s.state.Runs[trimmedRunID]; !ok {
 		s.state.Runs[trimmedRunID] = "active"
 	}
+	_ = s.upsertSessionRuntimeBindingLocked(trimmedRunID, facts)
 	return s.saveStateLocked()
 }
 

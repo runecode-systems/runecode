@@ -8,13 +8,6 @@ import (
 	"github.com/runecode-ai/runecode/internal/artifacts"
 )
 
-type sessionSummaryStats struct {
-	created           time.Time
-	updated           time.Time
-	runs              map[string]struct{}
-	artifactsByDigest map[string]struct{}
-}
-
 func buildSessionTranscriptTurns(sessionID string, summary SessionSummary, runs, approvals, artifactsByDigest, auditRecordDigests map[string]struct{}) []SessionTranscriptTurn {
 	turnLimit := cappedSessionTurnCount(summary.TurnCount)
 	if turnLimit == 0 {
@@ -33,6 +26,69 @@ func buildSessionTranscriptTurns(sessionID string, summary SessionSummary, runs,
 		turns = append(turns, buildProjectedSessionTranscriptTurn(sessionID, i+1, summary, links))
 	}
 	return turns
+}
+
+func buildSessionTranscriptTurnsFromDurable(turns []artifacts.SessionTranscriptTurnDurableState) []SessionTranscriptTurn {
+	if len(turns) == 0 {
+		return []SessionTranscriptTurn{}
+	}
+	out := make([]SessionTranscriptTurn, 0, len(turns))
+	for _, turn := range turns {
+		out = append(out, buildSessionTranscriptTurnFromDurable(turn))
+	}
+	return out
+}
+
+func buildSessionTranscriptTurnFromDurable(turn artifacts.SessionTranscriptTurnDurableState) SessionTranscriptTurn {
+	completedAt := ""
+	if turn.CompletedAt != nil {
+		completedAt = turn.CompletedAt.UTC().Format(time.RFC3339)
+	}
+	return SessionTranscriptTurn{
+		SchemaID:      "runecode.protocol.v0.SessionTranscriptTurn",
+		SchemaVersion: "0.1.0",
+		TurnID:        turn.TurnID,
+		SessionID:     turn.SessionID,
+		TurnIndex:     turn.TurnIndex,
+		StartedAt:     turn.StartedAt.UTC().Format(time.RFC3339),
+		CompletedAt:   completedAt,
+		Status:        turn.Status,
+		Messages:      buildSessionTranscriptMessagesFromDurable(turn.Messages),
+	}
+}
+
+func buildSessionTranscriptMessagesFromDurable(messages []artifacts.SessionTranscriptMessageDurableState) []SessionTranscriptMessage {
+	out := make([]SessionTranscriptMessage, 0, len(messages))
+	for _, message := range messages {
+		out = append(out, buildSessionTranscriptMessageFromDurable(message))
+	}
+	return out
+}
+
+func buildSessionTranscriptMessageFromDurable(message artifacts.SessionTranscriptMessageDurableState) SessionTranscriptMessage {
+	return SessionTranscriptMessage{
+		SchemaID:      "runecode.protocol.v0.SessionTranscriptMessage",
+		SchemaVersion: "0.1.0",
+		MessageID:     message.MessageID,
+		TurnID:        message.TurnID,
+		SessionID:     message.SessionID,
+		MessageIndex:  message.MessageIndex,
+		Role:          message.Role,
+		CreatedAt:     message.CreatedAt.UTC().Format(time.RFC3339),
+		ContentText:   message.ContentText,
+		RelatedLinks:  boundedSessionTranscriptLinks(message.RelatedLinks),
+	}
+}
+
+func boundedSessionTranscriptLinks(links artifacts.SessionTranscriptLinksDurableState) SessionTranscriptLinks {
+	return SessionTranscriptLinks{
+		SchemaID:           "runecode.protocol.v0.SessionTranscriptLinks",
+		SchemaVersion:      "0.1.0",
+		RunIDs:             boundedStrings(append([]string{}, links.RunIDs...), 256),
+		ApprovalIDs:        boundedStrings(append([]string{}, links.ApprovalIDs...), 512),
+		ArtifactDigests:    boundedStrings(append([]string{}, links.ArtifactDigests...), 1024),
+		AuditRecordDigests: boundedStrings(append([]string{}, links.AuditRecordDigests...), 1024),
+	}
 }
 
 func buildProjectedSessionTranscriptTurn(sessionID string, turnIndex int, summary SessionSummary, links SessionTranscriptLinks) SessionTranscriptTurn {
@@ -72,89 +128,31 @@ func cappedSessionTurnCount(turnCount int) int {
 	return turnCount
 }
 
-func buildSessionSummary(sessionID string, records []artifacts.ArtifactRecord, linkedApprovalCount, linkedAuditEventCount int) SessionSummary {
-	stats := collectSessionSummaryStats(records)
-	updatedAt := stats.updated.Format(time.RFC3339)
+func buildSessionSummary(state artifacts.SessionDurableState, linkedRunCount, linkedApprovalCount, linkedArtifactCount, linkedAuditEventCount int) SessionSummary {
+	updatedAt := state.UpdatedAt.UTC().Format(time.RFC3339)
 	return SessionSummary{
 		SchemaID:      "runecode.protocol.v0.SessionSummary",
 		SchemaVersion: "0.1.0",
 		Identity: SessionIdentity{
 			SchemaID:       "runecode.protocol.v0.SessionIdentity",
 			SchemaVersion:  "0.1.0",
-			SessionID:      sessionID,
-			WorkspaceID:    "workspace-local",
-			CreatedAt:      stats.created.Format(time.RFC3339),
-			CreatedByRunID: firstSortedStringKey(stats.runs),
+			SessionID:      state.SessionID,
+			WorkspaceID:    state.WorkspaceID,
+			CreatedAt:      state.CreatedAt.UTC().Format(time.RFC3339),
+			CreatedByRunID: state.CreatedByRunID,
 		},
 		UpdatedAt:             updatedAt,
-		Status:                "active",
-		LastActivityAt:        updatedAt,
-		LastActivityKind:      "run_progress",
-		LastActivityPreview:   sessionSummaryPreview(records),
-		TurnCount:             sessionSummaryTurnCount(records, stats.runs),
-		LinkedRunCount:        len(stats.runs),
+		Status:                state.Status,
+		LastActivityAt:        state.LastActivityAt.UTC().Format(time.RFC3339),
+		LastActivityKind:      state.LastActivityKind,
+		LastActivityPreview:   state.LastActivityPreview,
+		TurnCount:             state.TurnCount,
+		LinkedRunCount:        linkedRunCount,
 		LinkedApprovalCount:   linkedApprovalCount,
-		LinkedArtifactCount:   len(stats.artifactsByDigest),
+		LinkedArtifactCount:   linkedArtifactCount,
 		LinkedAuditEventCount: linkedAuditEventCount,
-		HasIncompleteTurn:     false,
+		HasIncompleteTurn:     state.HasIncompleteTurn,
 	}
-}
-
-func collectSessionSummaryStats(records []artifacts.ArtifactRecord) sessionSummaryStats {
-	created := time.Unix(0, 0).UTC()
-	updated := created
-	if len(records) > 0 {
-		created = records[0].CreatedAt.UTC()
-		updated = created
-	}
-	stats := sessionSummaryStats{
-		created:           created,
-		updated:           updated,
-		runs:              map[string]struct{}{},
-		artifactsByDigest: map[string]struct{}{},
-	}
-	for _, rec := range records {
-		stats.created = minSessionTime(stats.created, rec.CreatedAt.UTC())
-		stats.updated = maxSessionTime(stats.updated, rec.CreatedAt.UTC())
-		if rec.RunID != "" {
-			stats.runs[rec.RunID] = struct{}{}
-		}
-		if rec.Reference.Digest != "" {
-			stats.artifactsByDigest[rec.Reference.Digest] = struct{}{}
-		}
-	}
-	return stats
-}
-
-func minSessionTime(current, candidate time.Time) time.Time {
-	if candidate.Before(current) {
-		return candidate
-	}
-	return current
-}
-
-func maxSessionTime(current, candidate time.Time) time.Time {
-	if candidate.After(current) {
-		return candidate
-	}
-	return current
-}
-
-func sessionSummaryPreview(records []artifacts.ArtifactRecord) string {
-	if len(records) == 0 {
-		return ""
-	}
-	return "session linked to run activity"
-}
-
-func sessionSummaryTurnCount(records []artifacts.ArtifactRecord, runs map[string]struct{}) int {
-	if len(runs) > 0 {
-		return len(runs)
-	}
-	if len(records) > 0 {
-		return 1
-	}
-	return 0
 }
 
 func sortedStringKeys(values map[string]struct{}) []string {
@@ -164,14 +162,6 @@ func sortedStringKeys(values map[string]struct{}) []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-func firstSortedStringKey(values map[string]struct{}) string {
-	keys := sortedStringKeys(values)
-	if len(keys) == 0 {
-		return ""
-	}
-	return keys[0]
 }
 
 func boundedStrings(values []string, limit int) []string {
@@ -185,10 +175,10 @@ func boundedSortedKeys(values map[string]struct{}, limit int) []string {
 	return boundedStrings(sortedStringKeys(values), limit)
 }
 
-func buildSessionSummaries(byID map[string][]artifacts.ArtifactRecord, approvalsBySession, auditBySession map[string]map[string]struct{}) []SessionSummary {
-	out := make([]SessionSummary, 0, len(byID))
-	for sessionID, records := range byID {
-		out = append(out, buildSessionSummary(sessionID, records, len(approvalsBySession[sessionID]), len(auditBySession[sessionID])))
+func buildSessionSummaries(states []artifacts.SessionDurableState, runsBySession, approvalsBySession, artifactsBySession, auditBySession map[string]map[string]struct{}) []SessionSummary {
+	out := make([]SessionSummary, 0, len(states))
+	for _, state := range states {
+		out = append(out, buildSessionSummary(state, len(runsBySession[state.SessionID]), len(approvalsBySession[state.SessionID]), len(artifactsBySession[state.SessionID]), len(auditBySession[state.SessionID])))
 	}
 	return out
 }
@@ -209,11 +199,19 @@ func sortSessionSummaries(items []SessionSummary, order string) {
 }
 
 func buildSessionDetail(summary SessionSummary, runs, approvals, artifactsByDigest, auditRecordDigests map[string]struct{}) SessionDetail {
+	return buildSessionDetailFromState(summary, nil, runs, approvals, artifactsByDigest, auditRecordDigests)
+}
+
+func buildSessionDetailFromState(summary SessionSummary, transcriptTurns []artifacts.SessionTranscriptTurnDurableState, runs, approvals, artifactsByDigest, auditRecordDigests map[string]struct{}) SessionDetail {
+	projectedTurns := buildSessionTranscriptTurns(summary.Identity.SessionID, summary, runs, approvals, artifactsByDigest, auditRecordDigests)
+	if len(transcriptTurns) > 0 {
+		projectedTurns = buildSessionTranscriptTurnsFromDurable(transcriptTurns)
+	}
 	return SessionDetail{
 		SchemaID:                 "runecode.protocol.v0.SessionDetail",
 		SchemaVersion:            "0.1.0",
 		Summary:                  summary,
-		TranscriptTurns:          buildSessionTranscriptTurns(summary.Identity.SessionID, summary, runs, approvals, artifactsByDigest, auditRecordDigests),
+		TranscriptTurns:          projectedTurns,
 		LinkedRunIDs:             boundedSortedKeys(runs, 256),
 		LinkedApprovalIDs:        boundedSortedKeys(approvals, 512),
 		LinkedArtifactDigests:    boundedSortedKeys(artifactsByDigest, 1024),
