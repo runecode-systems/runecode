@@ -250,14 +250,16 @@ func TestRecordApprovalWithRunnerMirrorRollsBackOnMirrorValidationFailure(t *tes
 func TestRecordApprovalWithRunnerMirrorRollsBackJournalOnSnapshotFailure(t *testing.T) {
 	store := newTestStore(t)
 	approvalID, approval := runnerMirrorRollbackApprovalFixture()
-	breakRunnerSnapshotPath(t, store.rootDir)
+	seedRunnerDurableFilesForRollbackTest(t, store.rootDir)
+	breakStatePathForAtomicMirrorRollback(t, store.rootDir)
 	if err := store.RecordApprovalWithRunnerMirror(approval); err == nil {
-		t.Fatal("RecordApprovalWithRunnerMirror error = nil, want snapshot write failure")
+		t.Fatal("RecordApprovalWithRunnerMirror error = nil, want post-journal state persistence failure")
 	}
 	if _, ok := store.ApprovalGet(approvalID); ok {
 		t.Fatal("ApprovalGet returned record after snapshot failure, want rollback")
 	}
 	assertRunnerJournalDoesNotContainApproval(t, store.rootDir, approvalID)
+	assertRunnerSnapshotRestoredAfterRollback(t, store.rootDir)
 }
 
 func runnerMirrorRollbackApprovalFixture() (string, ApprovalRecord) {
@@ -285,14 +287,27 @@ func runnerMirrorRollbackApprovalFixture() (string, ApprovalRecord) {
 	}
 }
 
-func breakRunnerSnapshotPath(t *testing.T, rootDir string) {
+func breakStatePathForAtomicMirrorRollback(t *testing.T, rootDir string) {
 	t.Helper()
-	snapshotPath := rootDir + "/" + runnerSnapshotFileName
-	if err := os.Remove(snapshotPath); err != nil && !os.IsNotExist(err) {
-		t.Fatalf("remove runner snapshot returned error: %v", err)
+	statePath := rootDir + "/state.json"
+	if err := os.Remove(statePath); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("remove state.json returned error: %v", err)
 	}
-	if err := os.Mkdir(snapshotPath, 0o700); err != nil {
-		t.Fatalf("mkdir runner snapshot path returned error: %v", err)
+	if err := os.Mkdir(statePath, 0o700); err != nil {
+		t.Fatalf("mkdir state.json path returned error: %v", err)
+	}
+}
+
+func seedRunnerDurableFilesForRollbackTest(t *testing.T, rootDir string) {
+	t.Helper()
+	now := time.Now().UTC()
+	runs := map[string]RunnerAdvisoryState{"run-existing": {Lifecycle: &RunnerLifecycleHint{LifecycleState: "active", OccurredAt: now}}}
+	idem := map[string]int64{"run-existing@seed": 1}
+	if err := ensureRunnerDurableFiles(rootDir, runs, idem, 1); err != nil {
+		t.Fatalf("ensureRunnerDurableFiles returned error: %v", err)
+	}
+	if err := appendRunnerJournalRecord(rootDir, RunnerDurableJournalRecord{Family: runnerJournalFamily, SchemaVersion: runnerDurableSchemaVersion, Sequence: 1, RecordType: "checkpoint", RunID: "run-existing", IdempotencyKey: "seed", OccurredAt: now, Checkpoint: &RunnerCheckpointAdvisory{LifecycleState: "active", CheckpointCode: "run_started", OccurredAt: now, IdempotencyKey: "seed"}}); err != nil {
+		t.Fatalf("appendRunnerJournalRecord returned error: %v", err)
 	}
 }
 
@@ -306,6 +321,31 @@ func assertRunnerJournalDoesNotContainApproval(t *testing.T, rootDir, approvalID
 		if rec.Approval != nil && rec.Approval.ApprovalID == approvalID {
 			t.Fatalf("runner journal retained rolled-back approval record: %+v", rec)
 		}
+	}
+}
+
+func assertRunnerSnapshotRestoredAfterRollback(t *testing.T, rootDir string) {
+	t.Helper()
+	snapshotPath := filepath.Join(rootDir, runnerSnapshotFileName)
+	info, err := os.Stat(snapshotPath)
+	if err != nil {
+		t.Fatalf("Stat runner snapshot returned error: %v", err)
+	}
+	if info.IsDir() {
+		t.Fatalf("runner snapshot path became directory after rollback: %s", snapshotPath)
+	}
+	runs, idem, seq, err := loadRunnerSnapshot(rootDir)
+	if err != nil {
+		t.Fatalf("loadRunnerSnapshot returned error: %v", err)
+	}
+	if seq != 1 {
+		t.Fatalf("snapshot last_sequence = %d, want 1", seq)
+	}
+	if _, ok := runs["run-existing"]; !ok {
+		t.Fatalf("snapshot runs missing seeded run: %+v", runs)
+	}
+	if idem["run-existing@seed"] != 1 {
+		t.Fatalf("snapshot idempotency = %+v, want run-existing@seed=1", idem)
 	}
 }
 
