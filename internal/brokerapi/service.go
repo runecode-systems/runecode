@@ -20,7 +20,7 @@ var (
 
 const (
 	brokerProtocolBundleVersion      = "0.9.0"
-	brokerProtocolBundleManifestHash = "sha256:4ecfea8f490f4073bbb1f0c6ff29c17f221dd6cf0f205ac92d5525b44da2418b"
+	brokerProtocolBundleManifestHash = "sha256:47427e96642a0f2cb7fb4e66aed61817f72f4233f0273744baa8469a2d13f170"
 )
 
 type Service struct {

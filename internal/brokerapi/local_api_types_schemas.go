@@ -8,6 +8,7 @@ const (
 	runCoordinationSummarySchemaPath     = "objects/RunCoordinationSummary.schema.json"
 	approvalBoundScopeSchemaPath         = "objects/ApprovalBoundScope.schema.json"
 	approvalSummarySchemaPath            = "objects/ApprovalSummary.schema.json"
+	approvalDetailSchemaPath             = "objects/ApprovalDetail.schema.json"
 	runListRequestSchemaPath             = "objects/RunListRequest.schema.json"
 	runListResponseSchemaPath            = "objects/RunListResponse.schema.json"
 	runGetRequestSchemaPath              = "objects/RunGetRequest.schema.json"

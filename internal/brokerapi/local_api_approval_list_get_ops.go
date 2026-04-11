@@ -86,7 +86,12 @@ func (s *Service) HandleApprovalGet(ctx context.Context, req ApprovalGetRequest,
 		errOut := s.makeError(requestID, "broker_not_found_approval", "storage", false, fmt.Sprintf("approval %q not found", req.ApprovalID))
 		return ApprovalGetResponse{}, &errOut
 	}
-	resp := ApprovalGetResponse{SchemaID: "runecode.protocol.v0.ApprovalGetResponse", SchemaVersion: "0.1.0", RequestID: requestID, Approval: rec.Summary, SignedApprovalRequest: rec.RequestEnvelope, SignedApprovalDecision: rec.DecisionEnvelope}
+	detail, err := s.approvalDetailFromRecord(rec)
+	if err != nil {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
+		return ApprovalGetResponse{}, &errOut
+	}
+	resp := ApprovalGetResponse{SchemaID: "runecode.protocol.v0.ApprovalGetResponse", SchemaVersion: "0.1.0", RequestID: requestID, Approval: rec.Summary, ApprovalDetail: detail, SignedApprovalRequest: rec.RequestEnvelope, SignedApprovalDecision: rec.DecisionEnvelope}
 	if err := s.validateResponse(resp, approvalGetResponseSchemaPath); err != nil {
 		errOut := s.errorFromValidation(requestID, err)
 		return ApprovalGetResponse{}, &errOut

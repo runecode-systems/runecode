@@ -462,6 +462,41 @@
       "status": "mvp"
     },
     {
+      "path": "objects/ApprovalDetail.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalDetail",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalLifecycleDetail.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalLifecycleDetail",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalWhatChangesIfApproved.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalWhatChangesIfApproved",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalBlockedWorkScope.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalBlockedWorkScope",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ApprovalBoundIdentity.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalBoundIdentity",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/ApprovalBoundScope.schema.json",
       "schema_id": "runecode.protocol.v0.ApprovalBoundScope",
       "schema_version": "0.1.0",

@@ -62,15 +62,20 @@ func localBrokerRunnerSchemaVersionPairs() map[string]string {
 
 func localBrokerApprovalAndArtifactSchemaVersionPairs() map[string]string {
 	return map[string]string{
-		"runecode.protocol.v0.ApprovalSummary":         "0.1.0",
-		"runecode.protocol.v0.ApprovalBoundScope":      "0.1.0",
-		"runecode.protocol.v0.ArtifactSummary":         "0.1.0",
-		"runecode.protocol.v0.BrokerReadiness":         "0.1.0",
-		"runecode.protocol.v0.BrokerVersionInfo":       "0.1.0",
-		"runecode.protocol.v0.ApprovalResolveRequest":  "0.1.0",
-		"runecode.protocol.v0.ApprovalResolveResponse": "0.1.0",
-		"runecode.protocol.v0.ArtifactReadRequest":     "0.1.0",
-		"runecode.protocol.v0.ArtifactStreamEvent":     "0.1.0",
+		"runecode.protocol.v0.ApprovalSummary":               "0.1.0",
+		"runecode.protocol.v0.ApprovalDetail":                "0.1.0",
+		"runecode.protocol.v0.ApprovalLifecycleDetail":       "0.1.0",
+		"runecode.protocol.v0.ApprovalWhatChangesIfApproved": "0.1.0",
+		"runecode.protocol.v0.ApprovalBlockedWorkScope":      "0.1.0",
+		"runecode.protocol.v0.ApprovalBoundIdentity":         "0.1.0",
+		"runecode.protocol.v0.ApprovalBoundScope":            "0.1.0",
+		"runecode.protocol.v0.ArtifactSummary":               "0.1.0",
+		"runecode.protocol.v0.BrokerReadiness":               "0.1.0",
+		"runecode.protocol.v0.BrokerVersionInfo":             "0.1.0",
+		"runecode.protocol.v0.ApprovalResolveRequest":        "0.1.0",
+		"runecode.protocol.v0.ApprovalResolveResponse":       "0.1.0",
+		"runecode.protocol.v0.ArtifactReadRequest":           "0.1.0",
+		"runecode.protocol.v0.ArtifactStreamEvent":           "0.1.0",
 	}
 }
 
