@@ -3,7 +3,6 @@ package brokerapi
 import (
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
@@ -32,9 +31,6 @@ type Service struct {
 	apiInflight *inFlightGate
 	versionInfo BrokerVersionInfo
 	now         func() time.Time
-
-	sessionInteractionMu    sync.Mutex
-	sessionInteractionState map[string]sessionInteractionState
 }
 
 func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
@@ -56,15 +52,14 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 		return nil, err
 	}
 	return &Service{
-		store:                   store,
-		auditLedger:             ledger,
-		auditor:                 auditor,
-		auditRoot:               ledgerRoot,
-		apiConfig:               resolved,
-		apiInflight:             newInFlightGate(resolved.Limits),
-		now:                     time.Now,
-		versionInfo:             defaultBrokerVersionInfo(),
-		sessionInteractionState: map[string]sessionInteractionState{},
+		store:       store,
+		auditLedger: ledger,
+		auditor:     auditor,
+		auditRoot:   ledgerRoot,
+		apiConfig:   resolved,
+		apiInflight: newInFlightGate(resolved.Limits),
+		now:         time.Now,
+		versionInfo: defaultBrokerVersionInfo(),
 	}, nil
 }
 

@@ -203,9 +203,9 @@ func buildSessionDetail(summary SessionSummary, runs, approvals, artifactsByDige
 }
 
 func buildSessionDetailFromState(summary SessionSummary, transcriptTurns []artifacts.SessionTranscriptTurnDurableState, runs, approvals, artifactsByDigest, auditRecordDigests map[string]struct{}) SessionDetail {
-	projectedTurns := buildSessionTranscriptTurns(summary.Identity.SessionID, summary, runs, approvals, artifactsByDigest, auditRecordDigests)
-	if len(transcriptTurns) > 0 {
-		projectedTurns = buildSessionTranscriptTurnsFromDurable(transcriptTurns)
+	projectedTurns := buildSessionTranscriptTurnsFromDurable(transcriptTurns)
+	if len(projectedTurns) == 0 {
+		projectedTurns = buildSessionTranscriptTurns(summary.Identity.SessionID, summary, runs, approvals, artifactsByDigest, auditRecordDigests)
 	}
 	return SessionDetail{
 		SchemaID:                 "runecode.protocol.v0.SessionDetail",

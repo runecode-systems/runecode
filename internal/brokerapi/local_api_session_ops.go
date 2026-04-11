@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/runecode-ai/runecode/internal/artifacts"
 )
 
 func (s *Service) HandleSessionList(ctx context.Context, req SessionListRequest, meta RequestContext) (SessionListResponse, *ErrorResponse) {
@@ -23,9 +25,9 @@ func (s *Service) HandleSessionList(ctx context.Context, req SessionListRequest,
 		errOut := s.errorFromContext(requestID, err)
 		return SessionListResponse{}, &errOut
 	}
-	order := req.Order
-	if order == "" {
-		order = "updated_at_desc"
+	order, errResp := s.resolveSessionListOrder(requestID, req.Order)
+	if errResp != nil {
+		return SessionListResponse{}, errResp
 	}
 	summaries, err := s.sessionSummaries(order)
 	if err != nil {
@@ -63,17 +65,18 @@ func (s *Service) HandleSessionGet(ctx context.Context, req SessionGetRequest, m
 		errOut := s.errorFromContext(requestID, err)
 		return SessionGetResponse{}, &errOut
 	}
-	if strings.TrimSpace(req.SessionID) == "" {
+	sessionID := strings.TrimSpace(req.SessionID)
+	if sessionID == "" {
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "session_id is required")
 		return SessionGetResponse{}, &errOut
 	}
-	detail, ok, err := s.sessionDetail(req.SessionID)
+	detail, ok, err := s.sessionDetail(sessionID)
 	if err != nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
 		return SessionGetResponse{}, &errOut
 	}
 	if !ok {
-		errOut := s.makeError(requestID, "broker_not_found_session", "storage", false, fmt.Sprintf("session %q not found", req.SessionID))
+		errOut := s.makeError(requestID, "broker_not_found_session", "storage", false, fmt.Sprintf("session %q not found", sessionID))
 		return SessionGetResponse{}, &errOut
 	}
 	resp := SessionGetResponse{SchemaID: "runecode.protocol.v0.SessionGetResponse", SchemaVersion: "0.1.0", RequestID: requestID, Session: detail}
@@ -96,30 +99,39 @@ func (s *Service) sessionSummaries(order string) ([]SessionSummary, error) {
 	return out, nil
 }
 
-func (s *Service) sessionDetail(sessionID string) (SessionDetail, bool, error) {
-	summary, ok, err := s.sessionSummaryByID(sessionID)
-	if err != nil || !ok {
-		return SessionDetail{}, ok, err
+func (s *Service) resolveSessionListOrder(requestID, order string) (string, *ErrorResponse) {
+	if order == "" {
+		return "updated_at_desc", nil
 	}
+	if order == "updated_at_desc" || order == "updated_at_asc" {
+		return order, nil
+	}
+	errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "order must be updated_at_desc or updated_at_asc")
+	return "", &errOut
+}
+
+func (s *Service) sessionDetail(sessionID string) (SessionDetail, bool, error) {
+	states := s.store.SessionDurableStates()
+	runsBySession, approvalsBySession, artifactsBySession := s.sessionLinkIndexes(states)
 	auditBySession, err := s.auditRecordDigestsBySession()
 	if err != nil {
 		return SessionDetail{}, false, err
 	}
-	states := s.store.SessionDurableStates()
-	runsBySession, approvalsBySession, artifactsBySession := s.sessionLinkIndexes(states)
-	state, _ := s.store.SessionState(sessionID)
-	return buildSessionDetailFromState(summary, state.TranscriptTurns, runsBySession[sessionID], approvalsBySession[sessionID], artifactsBySession[sessionID], auditBySession[sessionID]), true, nil
-}
-
-func (s *Service) sessionSummaryByID(sessionID string) (SessionSummary, bool, error) {
-	summaries, err := s.sessionSummaries("updated_at_desc")
-	if err != nil {
-		return SessionSummary{}, false, err
-	}
-	for _, summary := range summaries {
-		if summary.Identity.SessionID == sessionID {
-			return summary, true, nil
+	var (
+		summary SessionSummary
+		state   artifacts.SessionDurableState
+		ok      bool
+	)
+	for _, candidate := range states {
+		if candidate.SessionID == sessionID {
+			state = candidate
+			summary = buildSessionSummary(state, len(runsBySession[state.SessionID]), len(approvalsBySession[state.SessionID]), len(artifactsBySession[state.SessionID]), len(auditBySession[state.SessionID]))
+			ok = true
+			break
 		}
 	}
-	return SessionSummary{}, false, nil
+	if !ok {
+		return SessionDetail{}, false, nil
+	}
+	return buildSessionDetailFromState(summary, state.TranscriptTurns, runsBySession[sessionID], approvalsBySession[sessionID], artifactsBySession[sessionID], auditBySession[sessionID]), true, nil
 }
