@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/SessionSendMessageResponse.schema.json",
+  "title": "SessionSendMessageResponse",
+  "description": "Typed broker-mediated session interaction acknowledgement with stream-friendly sequencing metadata.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 9,
+  "required": ["schema_id", "schema_version", "request_id", "session_id", "turn", "message", "event_type", "stream_id", "seq"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.SessionSendMessageResponse", "description": "Protocol schema identifier for SessionSendMessageResponse.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version for SessionSendMessageResponse.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Echoed caller request identity.", "x-data-class": "public" },
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Canonical session identity where interaction was recorded.", "x-data-class": "public" },
+    "turn": { "$ref": "SessionTranscriptTurn.schema.json", "description": "Current turn state after applying the message.", "x-data-class": "public" },
+    "message": { "$ref": "SessionTranscriptMessage.schema.json", "description": "Canonical message entry that was recorded.", "x-data-class": "public" },
+    "event_type": { "type": "string", "enum": ["session_message_ack"], "description": "Typed ack event family for watch-stream compatibility.", "x-data-class": "public" },
+    "stream_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Stable session interaction stream identity for later watch-stream APIs.", "x-data-class": "public" },
+    "seq": { "type": "integer", "minimum": 1, "description": "Monotonic sequence number scoped to stream_id for replay/watch compatibility.", "x-data-class": "public" }
+  }
+}

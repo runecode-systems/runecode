@@ -12,7 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
 func TestHelpAndUnknownCommand(t *testing.T) {
@@ -199,6 +201,91 @@ func requestRunListViaLocalRPC(t *testing.T, conn net.Conn) error {
 	return nil
 }
 
+func requestSessionSendMessageViaLocalRPC(t *testing.T, conn net.Conn) error {
+	t.Helper()
+	defer conn.Close()
+	encoder := json.NewEncoder(conn)
+	decoder := json.NewDecoder(conn)
+	sessionID, err := sessionIDForLocalRPCMessageTest(t, encoder, decoder)
+	if err != nil {
+		return err
+	}
+	ack, err := sendSessionMessageViaLocalRPC(t, encoder, decoder, sessionID)
+	if err != nil {
+		return err
+	}
+	return assertSessionSendAck(ack)
+}
+
+func sessionIDForLocalRPCMessageTest(t *testing.T, encoder *json.Encoder, decoder *json.Decoder) (string, error) {
+	t.Helper()
+	seedReq := localRPCRequest{Operation: "session_list", Request: mustJSONRawMessage(t, brokerapi.SessionListRequest{
+		SchemaID:      "runecode.protocol.v0.SessionListRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-session-seed",
+		Limit:         1,
+	})}
+	if err := encoder.Encode(seedReq); err != nil {
+		return "", err
+	}
+	seedResp := localRPCResponse{}
+	if err := decoder.Decode(&seedResp); err != nil {
+		return "", err
+	}
+	if !seedResp.OK {
+		return "", fmt.Errorf("session_list failed: %+v", seedResp.Error)
+	}
+	list := brokerapi.SessionListResponse{}
+	if err := json.Unmarshal(seedResp.Response, &list); err != nil {
+		return "", err
+	}
+	if len(list.Sessions) == 0 {
+		return "", fmt.Errorf("session_list returned no sessions")
+	}
+	return list.Sessions[0].Identity.SessionID, nil
+}
+
+func sendSessionMessageViaLocalRPC(t *testing.T, encoder *json.Encoder, decoder *json.Decoder, sessionID string) (brokerapi.SessionSendMessageResponse, error) {
+	t.Helper()
+	wire := localRPCRequest{Operation: "session_send_message", Request: mustJSONRawMessage(t, brokerapi.SessionSendMessageRequest{
+		SchemaID:       "runecode.protocol.v0.SessionSendMessageRequest",
+		SchemaVersion:  "0.1.0",
+		RequestID:      "req-session-send",
+		SessionID:      sessionID,
+		Role:           "user",
+		ContentText:    "hello",
+		IdempotencyKey: "idem-local-rpc",
+	})}
+	if err := encoder.Encode(wire); err != nil {
+		return brokerapi.SessionSendMessageResponse{}, err
+	}
+	resp := localRPCResponse{}
+	if err := decoder.Decode(&resp); err != nil {
+		return brokerapi.SessionSendMessageResponse{}, err
+	}
+	if !resp.OK {
+		return brokerapi.SessionSendMessageResponse{}, fmt.Errorf("session_send_message failed: %+v", resp.Error)
+	}
+	ack := brokerapi.SessionSendMessageResponse{}
+	if err := json.Unmarshal(resp.Response, &ack); err != nil {
+		return brokerapi.SessionSendMessageResponse{}, err
+	}
+	return ack, nil
+}
+
+func assertSessionSendAck(ack brokerapi.SessionSendMessageResponse) error {
+	if ack.EventType != "session_message_ack" {
+		return fmt.Errorf("event_type = %q, want session_message_ack", ack.EventType)
+	}
+	if ack.StreamID == "" || ack.Seq < 1 {
+		return fmt.Errorf("invalid ack stream metadata: stream_id=%q seq=%d", ack.StreamID, ack.Seq)
+	}
+	if ack.Message.ContentText != "hello" {
+		return fmt.Errorf("message content_text = %q, want hello", ack.Message.ContentText)
+	}
+	return nil
+}
+
 func requestArtifactReadRangeViaLocalRPC(t *testing.T, conn net.Conn) error {
 	t.Helper()
 	defer conn.Close()
@@ -230,6 +317,45 @@ func requestArtifactReadRangeViaLocalRPC(t *testing.T, conn net.Conn) error {
 		return fmt.Errorf("error code = %q, want broker_validation_range_not_supported", resp.Error.Error.Code)
 	}
 	return nil
+}
+
+func TestServeLocalSessionSendMessageReturnsTypedAck(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("serve-local IPC peer-credential path is linux-only")
+	}
+	setBrokerServiceForTest(t)
+	seedService, err := brokerServiceFactory()
+	if err != nil {
+		t.Fatalf("brokerServiceFactory seed returned error: %v", err)
+	}
+	if _, err := seedService.Put(artifacts.PutRequest{Payload: []byte("seed"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64), CreatedByRole: "workspace", RunID: "run-session-send", StepID: "step-1"}); err != nil {
+		t.Fatalf("seed Put returned error: %v", err)
+	}
+	if err := seedService.RecordRuntimeFacts("run-session-send", launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: "run-session-send", SessionID: "sess-send-cli"}}); err != nil {
+		t.Fatalf("seed RecordRuntimeFacts returned error: %v", err)
+	}
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	clientErr := make(chan error, 1)
+	go func() {
+		for i := 0; i < 200; i++ {
+			socketPath := filepath.Join(runtimeDir, "broker.sock")
+			conn, err := net.Dial("unix", socketPath)
+			if err == nil {
+				clientErr <- requestSessionSendMessageViaLocalRPC(t, conn)
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		clientErr <- fmt.Errorf("failed to connect to serve-local socket")
+	}()
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	if err := run([]string{"serve-local", "--once", "--runtime-dir", runtimeDir}, stdout, stderr); err != nil {
+		t.Fatalf("serve-local --once returned error: %v", err)
+	}
+	if err := <-clientErr; err != nil {
+		t.Fatalf("serve-local session-send-message probe failed: %v", err)
+	}
 }
 
 func requestOversizedPayloadViaLocalRPC(t *testing.T, conn net.Conn) error {

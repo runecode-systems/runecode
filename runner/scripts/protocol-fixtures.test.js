@@ -257,9 +257,81 @@ function validateRuntimeInvariant(rule, fixture, bundle) {
       return requireSignedEnvelopePayloadSchemaMatch(fixture, bundle)
     case 'audit_receipt_import_restore_byte_identity':
       return requireImportRestoreReceiptByteIdentity(fixture)
+    case 'session_send_message_ack_alignment':
+      return requireSessionSendMessageAckAlignment(fixture)
     default:
       throw new Error(`unknown runtime invariant rule ${rule}`)
   }
+}
+
+function requireSessionSendMessageAckAlignment(fixture) {
+	const sessionId = requireNonEmptyString(fixture, 'session_id')
+	if (sessionId instanceof Error) {
+		return sessionId
+	}
+	if (fixture.event_type !== 'session_message_ack') {
+		return new Error('event_type must be session_message_ack')
+	}
+	if (fixture.stream_id !== `session-${sessionId}`) {
+		return new Error(`stream_id ${JSON.stringify(fixture.stream_id)} must equal session-${sessionId}`)
+	}
+	const message = requireObjectField(fixture, 'message')
+	if (message instanceof Error) {
+		return message
+	}
+	const turn = requireObjectField(fixture, 'turn')
+	if (turn instanceof Error) {
+		return turn
+	}
+	const messageSessionId = requireNonEmptyString(message, 'session_id', 'message')
+	if (messageSessionId instanceof Error) {
+		return messageSessionId
+	}
+	if (messageSessionId !== sessionId) {
+		return new Error(`message.session_id ${JSON.stringify(messageSessionId)} must match session_id ${JSON.stringify(sessionId)}`)
+	}
+	const turnSessionId = requireNonEmptyString(turn, 'session_id', 'turn')
+	if (turnSessionId instanceof Error) {
+		return turnSessionId
+	}
+	if (turnSessionId !== sessionId) {
+		return new Error(`turn.session_id ${JSON.stringify(turnSessionId)} must match session_id ${JSON.stringify(sessionId)}`)
+	}
+	const turnId = requireNonEmptyString(turn, 'turn_id', 'turn')
+	if (turnId instanceof Error) {
+		return turnId
+	}
+	const messageTurnId = requireNonEmptyString(message, 'turn_id', 'message')
+	if (messageTurnId instanceof Error) {
+		return messageTurnId
+	}
+	if (messageTurnId !== turnId) {
+		return new Error(`message.turn_id ${JSON.stringify(messageTurnId)} must match turn.turn_id ${JSON.stringify(turnId)}`)
+	}
+	if (!Number.isInteger(fixture.seq) || fixture.seq < 1) {
+		return new Error('seq must be >= 1')
+	}
+	return null
+}
+
+function requireObjectField(value, key) {
+	const object = value?.[key]
+	if (!object || typeof object !== 'object' || Array.isArray(object)) {
+		return new Error(`${key} must be an object`)
+	}
+	return object
+}
+
+function requireNonEmptyString(value, key, prefix = '') {
+	const fieldValue = value?.[key]
+	if (typeof fieldValue !== 'string' || fieldValue.trim().length === 0) {
+		return new Error(`${formatFieldPath(prefix, key)} must be a non-empty string`)
+	}
+	return fieldValue.trim()
+}
+
+function formatFieldPath(prefix, key) {
+	return prefix ? `${prefix}.${key}` : key
 }
 
 function requireImportRestoreReceiptByteIdentity(receipt) {

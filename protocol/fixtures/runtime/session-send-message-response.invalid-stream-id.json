@@ -1,0 +1,63 @@
+{
+  "schema_id": "runecode.protocol.v0.SessionSendMessageResponse",
+  "schema_version": "0.1.0",
+  "request_id": "req-session-send-1",
+  "session_id": "sess-alpha",
+  "turn": {
+    "schema_id": "runecode.protocol.v0.SessionTranscriptTurn",
+    "schema_version": "0.1.0",
+    "turn_id": "sess-alpha.turn.000002",
+    "session_id": "sess-alpha",
+    "turn_index": 2,
+    "started_at": "2026-04-11T10:00:00Z",
+    "completed_at": "2026-04-11T10:00:00Z",
+    "status": "completed",
+    "messages": [
+      {
+        "schema_id": "runecode.protocol.v0.SessionTranscriptMessage",
+        "schema_version": "0.1.0",
+        "message_id": "sess-alpha.turn.000002.msg.000001",
+        "turn_id": "sess-alpha.turn.000002",
+        "session_id": "sess-alpha",
+        "message_index": 1,
+        "role": "user",
+        "created_at": "2026-04-11T10:00:00Z",
+        "content_text": "Hello from client",
+        "related_links": {
+          "schema_id": "runecode.protocol.v0.SessionTranscriptLinks",
+          "schema_version": "0.1.0",
+          "run_ids": [
+            "run-1"
+          ],
+          "approval_ids": [],
+          "artifact_digests": [],
+          "audit_record_digests": []
+        }
+      }
+    ]
+  },
+  "message": {
+    "schema_id": "runecode.protocol.v0.SessionTranscriptMessage",
+    "schema_version": "0.1.0",
+    "message_id": "sess-alpha.turn.000002.msg.000001",
+    "turn_id": "sess-alpha.turn.000002",
+    "session_id": "sess-alpha",
+    "message_index": 1,
+    "role": "user",
+    "created_at": "2026-04-11T10:00:00Z",
+    "content_text": "Hello from client",
+    "related_links": {
+      "schema_id": "runecode.protocol.v0.SessionTranscriptLinks",
+      "schema_version": "0.1.0",
+      "run_ids": [
+        "run-1"
+      ],
+      "approval_ids": [],
+      "artifact_digests": [],
+      "audit_record_digests": []
+    }
+  },
+  "event_type": "session_message_ack",
+  "stream_id": "session-other",
+  "seq": 1
+}

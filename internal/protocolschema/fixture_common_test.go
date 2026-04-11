@@ -112,6 +112,8 @@ func validateRuntimeInvariant(rule string, value map[string]any, manifest manife
 		return requireSignedEnvelopePayloadSchemaMatch(value, manifest, bundle)
 	case "audit_receipt_import_restore_byte_identity":
 		return requireImportRestoreReceiptByteIdentity(value)
+	case "session_send_message_ack_alignment":
+		return requireSessionSendMessageAckAlignment(value)
 	default:
 		return fmt.Errorf("unknown runtime invariant rule %q", rule)
 	}
@@ -361,117 +363,6 @@ func requireUniqueToolCallIDs(value map[string]any, key string) error {
 			return fmt.Errorf("duplicate tool_call_id %s", id)
 		}
 		seen[id] = struct{}{}
-	}
-	return nil
-}
-
-func validateStreamSequence(events []any) error {
-	if len(events) == 0 {
-		return fmt.Errorf("stream sequence must contain at least one event")
-	}
-	parsedEvents, err := parseStreamEvents(events)
-	if err != nil {
-		return err
-	}
-	return validateParsedStreamEvents(parsedEvents)
-}
-
-type streamEventView struct {
-	streamID    string
-	requestHash string
-	eventType   string
-	seq         int64
-}
-
-func parseStreamEvents(events []any) ([]streamEventView, error) {
-	parsed := make([]streamEventView, 0, len(events))
-	for index, item := range events {
-		event, err := objectFromFixtureValue(item, fmt.Sprintf("events[%d]", index))
-		if err != nil {
-			return nil, err
-		}
-		parsedEvent, err := parseStreamEvent(event)
-		if err != nil {
-			return nil, fmt.Errorf("events[%d]: %w", index, err)
-		}
-		parsed = append(parsed, parsedEvent)
-	}
-	return parsed, nil
-}
-
-func parseStreamEvent(event map[string]any) (streamEventView, error) {
-	streamID, err := stringField(event, "stream_id")
-	if err != nil {
-		return streamEventView{}, err
-	}
-	requestHash, err := digestIdentityField(event, "request_hash")
-	if err != nil {
-		return streamEventView{}, err
-	}
-	eventType, err := stringField(event, "event_type")
-	if err != nil {
-		return streamEventView{}, err
-	}
-	seq, err := integerField(event, "seq")
-	if err != nil {
-		return streamEventView{}, err
-	}
-	return streamEventView{streamID: streamID, requestHash: requestHash, eventType: eventType, seq: seq}, nil
-}
-
-func validateParsedStreamEvents(events []streamEventView) error {
-	if err := requireStreamStartsAtSeqOne(events[0]); err != nil {
-		return fmt.Errorf("first stream event: %w", err)
-	}
-	if err := requireFinalStreamEventTerminal(events[len(events)-1]); err != nil {
-		return err
-	}
-	streamID := events[0].streamID
-	requestHash := events[0].requestHash
-	lastSeq := int64(0)
-
-	for index, event := range events {
-		if err := requireMatchingStreamIdentity(event, streamID, requestHash); err != nil {
-			return err
-		}
-		if err := requireStrictlyMonotonicSeq(event.seq, lastSeq); err != nil {
-			return err
-		}
-		if index < len(events)-1 && event.eventType == "response_terminal" {
-			return fmt.Errorf("response_terminal must be the final event in the stream")
-		}
-		lastSeq = event.seq
-	}
-	return nil
-}
-
-func requireStreamStartsAtSeqOne(first streamEventView) error {
-	if first.seq != 1 {
-		return fmt.Errorf("first stream event must use seq=1")
-	}
-	return nil
-}
-
-func requireFinalStreamEventTerminal(last streamEventView) error {
-	if last.eventType != "response_terminal" {
-		return fmt.Errorf("stream must contain exactly one terminal event")
-	}
-	return nil
-}
-
-func requireMatchingStreamIdentity(event streamEventView, streamID string, requestHash string) error {
-	if event.streamID != streamID {
-		return fmt.Errorf("stream_id must remain constant across a stream")
-	}
-	if event.requestHash != requestHash {
-		return fmt.Errorf("request_hash must remain constant across a stream")
-	}
-	return nil
-}
-
-func requireStrictlyMonotonicSeq(seq int64, lastSeq int64) error {
-	if seq <= lastSeq {
-		return fmt.Errorf("stream sequence numbers must be strictly monotonic")
 	}
 	return nil
 }

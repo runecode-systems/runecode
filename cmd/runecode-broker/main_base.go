@@ -53,6 +53,9 @@ func commandHandlers() map[string]commandHandler {
 		"serve-local":             handleServeLocal,
 		"run-list":                handleRunList,
 		"run-get":                 handleRunGet,
+		"session-list":            handleSessionList,
+		"session-get":             handleSessionGet,
+		"session-send-message":    handleSessionSendMessage,
 		"approval-list":           handleApprovalList,
 		"approval-get":            handleApprovalGet,
 		"list-artifacts":          handleListArtifacts,
@@ -100,6 +103,9 @@ Commands:
   serve-local [--runtime-dir dir] [--socket-name broker.sock] [--once]
   run-list [--limit N]
   run-get --run-id id
+  session-list [--limit N]
+  session-get --session-id id
+  session-send-message --session-id id --content text [--role user|assistant|system|tool] [--idempotency-key key]
   approval-list [--run-id id] [--status pending|approved|denied|expired|cancelled|superseded|consumed] [--limit N]
   approval-get --approval-id sha256:...
   list-artifacts

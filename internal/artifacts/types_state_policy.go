@@ -9,6 +9,7 @@ import (
 
 type StoreState struct {
 	Artifacts                map[string]ArtifactRecord                          `json:"artifacts"`
+	Sessions                 map[string]SessionDurableState                     `json:"sessions,omitempty"`
 	PolicyDecisions          map[string]PolicyDecisionRecord                    `json:"policy_decisions,omitempty"`
 	RunPolicyDecisionRefs    map[string][]string                                `json:"run_policy_decision_refs,omitempty"`
 	Approvals                map[string]ApprovalRecord                          `json:"approvals,omitempty"`
@@ -24,6 +25,58 @@ type StoreState struct {
 	LastAuditSequence        int64                                              `json:"last_audit_sequence"`
 	StorageProtectionPosture string                                             `json:"storage_protection_posture"`
 	BackupHMACKey            string                                             `json:"backup_hmac_key"`
+}
+
+type SessionDurableState struct {
+	SessionID           string                              `json:"session_id"`
+	WorkspaceID         string                              `json:"workspace_id"`
+	CreatedAt           time.Time                           `json:"created_at"`
+	CreatedByRunID      string                              `json:"created_by_run_id,omitempty"`
+	UpdatedAt           time.Time                           `json:"updated_at"`
+	Status              string                              `json:"status"`
+	LastActivityAt      time.Time                           `json:"last_activity_at"`
+	LastActivityKind    string                              `json:"last_activity_kind"`
+	LastActivityPreview string                              `json:"last_activity_preview,omitempty"`
+	TurnCount           int                                 `json:"turn_count"`
+	HasIncompleteTurn   bool                                `json:"has_incomplete_turn"`
+	TranscriptTurns     []SessionTranscriptTurnDurableState `json:"transcript_turns,omitempty"`
+	IdempotencyByKey    map[string]SessionIdempotencyRecord `json:"idempotency_by_key,omitempty"`
+	LinkedRunIDs        []string                            `json:"linked_run_ids,omitempty"`
+}
+
+type SessionTranscriptLinksDurableState struct {
+	RunIDs             []string `json:"run_ids,omitempty"`
+	ApprovalIDs        []string `json:"approval_ids,omitempty"`
+	ArtifactDigests    []string `json:"artifact_digests,omitempty"`
+	AuditRecordDigests []string `json:"audit_record_digests,omitempty"`
+}
+
+type SessionTranscriptMessageDurableState struct {
+	MessageID    string                             `json:"message_id"`
+	TurnID       string                             `json:"turn_id"`
+	SessionID    string                             `json:"session_id"`
+	MessageIndex int                                `json:"message_index"`
+	Role         string                             `json:"role"`
+	CreatedAt    time.Time                          `json:"created_at"`
+	ContentText  string                             `json:"content_text"`
+	RelatedLinks SessionTranscriptLinksDurableState `json:"related_links"`
+}
+
+type SessionTranscriptTurnDurableState struct {
+	TurnID      string                                 `json:"turn_id"`
+	SessionID   string                                 `json:"session_id"`
+	TurnIndex   int                                    `json:"turn_index"`
+	StartedAt   time.Time                              `json:"started_at"`
+	CompletedAt *time.Time                             `json:"completed_at,omitempty"`
+	Status      string                                 `json:"status"`
+	Messages    []SessionTranscriptMessageDurableState `json:"messages,omitempty"`
+}
+
+type SessionIdempotencyRecord struct {
+	RequestHash string `json:"request_hash"`
+	TurnID      string `json:"turn_id"`
+	MessageID   string `json:"message_id"`
+	Seq         int64  `json:"seq"`
 }
 
 type ApprovalRecord struct {
@@ -97,6 +150,7 @@ type BackupManifest struct {
 	StorageProtection string                 `json:"storage_protection"`
 	Policy            Policy                 `json:"policy"`
 	Artifacts         []ArtifactRecord       `json:"artifacts"`
+	Sessions          []SessionDurableState  `json:"sessions,omitempty"`
 	PolicyDecisions   []PolicyDecisionRecord `json:"policy_decisions,omitempty"`
 	Approvals         []ApprovalRecord       `json:"approvals,omitempty"`
 	Runs              map[string]string      `json:"runs"`

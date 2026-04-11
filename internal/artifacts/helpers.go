@@ -65,6 +65,9 @@ func normalizePrimaryStateMaps(state StoreState) StoreState {
 	if state.Artifacts == nil {
 		state.Artifacts = map[string]ArtifactRecord{}
 	}
+	if state.Sessions == nil {
+		state.Sessions = map[string]SessionDurableState{}
+	}
 	if state.Runs == nil {
 		state.Runs = map[string]string{}
 	}

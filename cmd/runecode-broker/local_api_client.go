@@ -11,6 +11,9 @@ import (
 type brokerLocalAPI interface {
 	RunList(context.Context, brokerapi.RunListRequest) (brokerapi.RunListResponse, *brokerapi.ErrorResponse)
 	RunGet(context.Context, brokerapi.RunGetRequest) (brokerapi.RunGetResponse, *brokerapi.ErrorResponse)
+	SessionList(context.Context, brokerapi.SessionListRequest) (brokerapi.SessionListResponse, *brokerapi.ErrorResponse)
+	SessionGet(context.Context, brokerapi.SessionGetRequest) (brokerapi.SessionGetResponse, *brokerapi.ErrorResponse)
+	SessionSendMessage(context.Context, brokerapi.SessionSendMessageRequest) (brokerapi.SessionSendMessageResponse, *brokerapi.ErrorResponse)
 	RunnerCheckpointReport(context.Context, brokerapi.RunnerCheckpointReportRequest) (brokerapi.RunnerCheckpointReportResponse, *brokerapi.ErrorResponse)
 	RunnerResultReport(context.Context, brokerapi.RunnerResultReportRequest) (brokerapi.RunnerResultReportResponse, *brokerapi.ErrorResponse)
 	ApprovalList(context.Context, brokerapi.ApprovalListRequest) (brokerapi.ApprovalListResponse, *brokerapi.ErrorResponse)
@@ -82,6 +85,21 @@ func (c *localAPIClient) RunList(ctx context.Context, req brokerapi.RunListReque
 func (c *localAPIClient) RunGet(ctx context.Context, req brokerapi.RunGetRequest) (brokerapi.RunGetResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.RunGetResponse{}
 	return resp, c.invoke(ctx, "run_get", req, &resp)
+}
+
+func (c *localAPIClient) SessionList(ctx context.Context, req brokerapi.SessionListRequest) (brokerapi.SessionListResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.SessionListResponse{}
+	return resp, c.invoke(ctx, "session_list", req, &resp)
+}
+
+func (c *localAPIClient) SessionGet(ctx context.Context, req brokerapi.SessionGetRequest) (brokerapi.SessionGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.SessionGetResponse{}
+	return resp, c.invoke(ctx, "session_get", req, &resp)
+}
+
+func (c *localAPIClient) SessionSendMessage(ctx context.Context, req brokerapi.SessionSendMessageRequest) (brokerapi.SessionSendMessageResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.SessionSendMessageResponse{}
+	return resp, c.invoke(ctx, "session_send_message", req, &resp)
 }
 
 func (c *localAPIClient) RunnerCheckpointReport(ctx context.Context, req brokerapi.RunnerCheckpointReportRequest) (brokerapi.RunnerCheckpointReportResponse, *brokerapi.ErrorResponse) {

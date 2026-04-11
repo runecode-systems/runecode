@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/SessionListResponse.schema.json",
+  "title": "SessionListResponse",
+  "description": "Typed session list response with ordering guarantees and opaque continuation cursor.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 6,
+  "required": ["schema_id", "schema_version", "request_id", "order", "sessions"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.SessionListResponse", "description": "Protocol schema identifier for SessionListResponse.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version for SessionListResponse.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable echoed request identity.", "x-data-class": "public" },
+    "order": { "type": "string", "enum": ["updated_at_desc", "updated_at_asc"], "description": "Ordering applied to this page.", "x-data-class": "public" },
+    "sessions": { "type": "array", "maxItems": 200, "description": "Session summary page entries.", "x-data-class": "public", "items": { "$ref": "SessionSummary.schema.json", "description": "Session summary entry.", "x-data-class": "public" } },
+    "next_cursor": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Opaque continuation cursor.", "x-data-class": "public" }
+  }
+}

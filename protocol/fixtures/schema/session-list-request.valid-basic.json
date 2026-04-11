@@ -1,0 +1,8 @@
+{
+  "schema_id": "runecode.protocol.v0.SessionListRequest",
+  "schema_version": "0.1.0",
+  "request_id": "req-session-list-1",
+  "cursor": "opaque-cursor-1",
+  "limit": 25,
+  "order": "updated_at_desc"
+}
