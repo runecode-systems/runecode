@@ -430,3 +430,11 @@ func TestDecodeWireErrorClassifiesOperationAndCancellation(t *testing.T) {
 		t.Fatalf("structural message = %q, want sanitized message", structural.Error.Message)
 	}
 }
+
+func TestDecodeLocalRPCRequestRejectsTrailingJSON(t *testing.T) {
+	line := []byte(`{"operation":"run_list","request":{"schema_id":"runecode.protocol.v0.RunListRequest","schema_version":"0.1.0","request_id":"req-trailing"}} {}`)
+	_, err := decodeLocalRPCRequest(line)
+	if err == nil {
+		t.Fatal("decodeLocalRPCRequest expected trailing JSON rejection")
+	}
+}

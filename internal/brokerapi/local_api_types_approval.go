@@ -1,6 +1,10 @@
 package brokerapi
 
-import "github.com/runecode-ai/runecode/internal/trustpolicy"
+import (
+	"context"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
+)
 
 type ApprovalBoundScope struct {
 	SchemaID           string `json:"schema_id"`
@@ -160,4 +164,33 @@ type ApprovalResolveResponse struct {
 	ResolutionReasonCode string           `json:"resolution_reason_code,omitempty"`
 	Approval             ApprovalSummary  `json:"approval"`
 	ApprovedArtifact     *ArtifactSummary `json:"approved_artifact,omitempty"`
+}
+
+type ApprovalWatchRequest struct {
+	SchemaID        string             `json:"schema_id"`
+	SchemaVersion   string             `json:"schema_version"`
+	RequestID       string             `json:"request_id"`
+	StreamID        string             `json:"stream_id"`
+	ApprovalID      string             `json:"approval_id,omitempty"`
+	RunID           string             `json:"run_id,omitempty"`
+	WorkspaceID     string             `json:"workspace_id,omitempty"`
+	Status          string             `json:"status,omitempty"`
+	Follow          bool               `json:"follow"`
+	IncludeSnapshot bool               `json:"include_snapshot"`
+	RequestCtx      context.Context    `json:"-"`
+	Cancel          context.CancelFunc `json:"-"`
+	Release         func()             `json:"-"`
+}
+
+type ApprovalWatchEvent struct {
+	SchemaID       string           `json:"schema_id"`
+	SchemaVersion  string           `json:"schema_version"`
+	StreamID       string           `json:"stream_id"`
+	RequestID      string           `json:"request_id"`
+	Seq            int64            `json:"seq"`
+	EventType      string           `json:"event_type"`
+	Approval       *ApprovalSummary `json:"approval,omitempty"`
+	Terminal       bool             `json:"terminal,omitempty"`
+	TerminalStatus string           `json:"terminal_status,omitempty"`
+	Error          *ProtocolError   `json:"error,omitempty"`
 }

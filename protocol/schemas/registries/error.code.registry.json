@@ -78,6 +78,10 @@
       "summary": "The broker could not find the requested session for the provided session_id."
     },
     {
+      "code": "broker_not_found_audit_record",
+      "summary": "The broker could not find the requested audit record for the provided record_digest."
+    },
+    {
       "code": "broker_idempotency_key_payload_mismatch",
       "summary": "The broker rejected a replay because the idempotency key matched a prior request but the canonical request payload hash differed."
     },

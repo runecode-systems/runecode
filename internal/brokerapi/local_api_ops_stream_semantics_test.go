@@ -63,6 +63,37 @@ func TestStreamSemanticsRejectCancelledTerminalWithError(t *testing.T) {
 	}
 }
 
+func TestRunWatchSemanticsRejectMultipleTerminalEvents(t *testing.T) {
+	err := validateRunWatchSemantics([]RunWatchEvent{
+		{SchemaID: "runecode.protocol.v0.RunWatchEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 1, EventType: "run_watch_snapshot", Run: &RunSummary{SchemaID: "runecode.protocol.v0.RunSummary", SchemaVersion: "0.2.0", RunID: "run-1", WorkspaceID: "workspace-local", CreatedAt: "2026-01-01T00:00:00Z", UpdatedAt: "2026-01-01T00:00:00Z", LifecycleState: "active", PendingApprovalCount: 0, ApprovalProfile: "unknown", BackendKind: "unknown", IsolationAssuranceLevel: "unknown", ProvisioningPosture: "unknown", AssuranceLevel: "unknown", AuditIntegrityStatus: "ok", AuditAnchoringStatus: "ok", AuditCurrentlyDegraded: false}},
+		{SchemaID: "runecode.protocol.v0.RunWatchEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 2, EventType: "run_watch_terminal", Terminal: true, TerminalStatus: "completed"},
+		{SchemaID: "runecode.protocol.v0.RunWatchEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 3, EventType: "run_watch_terminal", Terminal: true, TerminalStatus: "completed"},
+	})
+	if err == nil {
+		t.Fatal("validateRunWatchSemantics expected multiple terminal error")
+	}
+}
+
+func TestApprovalWatchSemanticsRejectNonMonotonicSeq(t *testing.T) {
+	err := validateApprovalWatchSemantics([]ApprovalWatchEvent{
+		{SchemaID: "runecode.protocol.v0.ApprovalWatchEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 1, EventType: "approval_watch_snapshot", Approval: &ApprovalSummary{SchemaID: "runecode.protocol.v0.ApprovalSummary", SchemaVersion: "0.1.0", ApprovalID: "sha256:" + strings.Repeat("a", 64), Status: "pending", RequestedAt: "2026-01-01T00:00:00Z", ApprovalTriggerCode: "manual_approval_required", ChangesIfApproved: "Promote reviewed file excerpts for downstream use.", ApprovalAssuranceLevel: "session_authenticated", PresenceMode: "os_confirmation", BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", ActionKind: "promotion"}}},
+		{SchemaID: "runecode.protocol.v0.ApprovalWatchEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 1, EventType: "approval_watch_terminal", Terminal: true, TerminalStatus: "completed"},
+	})
+	if err == nil {
+		t.Fatal("validateApprovalWatchSemantics expected non-monotonic seq error")
+	}
+}
+
+func TestSessionWatchSemanticsRejectCancelledTerminalWithError(t *testing.T) {
+	err := validateSessionWatchSemantics([]SessionWatchEvent{
+		{SchemaID: "runecode.protocol.v0.SessionWatchEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 1, EventType: "session_watch_snapshot", Session: &SessionSummary{SchemaID: "runecode.protocol.v0.SessionSummary", SchemaVersion: "0.1.0", Identity: SessionIdentity{SchemaID: "runecode.protocol.v0.SessionIdentity", SchemaVersion: "0.1.0", SessionID: "sess-1", WorkspaceID: "workspace-local", CreatedAt: "2026-01-01T00:00:00Z"}, UpdatedAt: "2026-01-01T00:00:00Z", Status: "active", LastActivityKind: "chat_message", TurnCount: 1, LinkedRunCount: 1, LinkedApprovalCount: 0, LinkedArtifactCount: 0, LinkedAuditEventCount: 0, HasIncompleteTurn: false}},
+		{SchemaID: "runecode.protocol.v0.SessionWatchEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 2, EventType: "session_watch_terminal", Terminal: true, TerminalStatus: "cancelled", Error: &ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "request_cancelled", Category: "transport", Retryable: true, Message: "cancelled"}},
+	})
+	if err == nil {
+		t.Fatal("validateSessionWatchSemantics expected cancelled-with-error rejection")
+	}
+}
+
 func TestLogStreamHoldsInFlightSlotUntilStreamCompletes(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{Limits: Limits{MaxInFlightPerClient: 1, MaxInFlightPerLane: 1}})
 	meta := RequestContext{ClientID: "client-stream", LaneID: "lane-stream"}
