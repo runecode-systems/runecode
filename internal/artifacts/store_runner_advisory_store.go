@@ -187,6 +187,10 @@ func saveStoreStateLocked(state *StoreState, rootDir string) error {
 func (s *Store) RecordRunnerApprovalWait(approval RunnerApproval) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.recordRunnerApprovalWaitLocked(approval)
+}
+
+func (s *Store) recordRunnerApprovalWaitLocked(approval RunnerApproval) error {
 	if strings.TrimSpace(approval.ApprovalID) == "" {
 		return fmt.Errorf("approval id is required")
 	}
@@ -210,6 +214,30 @@ func (s *Store) RecordRunnerApprovalWait(approval RunnerApproval) error {
 	}
 	_, err := s.appendRunnerJournalRecordLocked(record)
 	return err
+}
+
+func runnerApprovalJournalRecord(approval RunnerApproval) (RunnerDurableJournalRecord, error) {
+	if strings.TrimSpace(approval.ApprovalID) == "" {
+		return RunnerDurableJournalRecord{}, fmt.Errorf("approval id is required")
+	}
+	if strings.TrimSpace(approval.RunID) == "" {
+		return RunnerDurableJournalRecord{}, fmt.Errorf("run id is required")
+	}
+	if err := validateRunnerApprovalStatus(approval.Status); err != nil {
+		return RunnerDurableJournalRecord{}, err
+	}
+	if err := validateRunnerApprovalTypeAndBinding(approval); err != nil {
+		return RunnerDurableJournalRecord{}, err
+	}
+	return RunnerDurableJournalRecord{
+		Family:         runnerJournalFamily,
+		SchemaVersion:  runnerDurableSchemaVersion,
+		RecordType:     "approval_wait",
+		RunID:          strings.TrimSpace(approval.RunID),
+		IdempotencyKey: strings.TrimSpace(approval.ApprovalID) + "@" + strings.TrimSpace(approval.Status),
+		OccurredAt:     approval.OccurredAt.UTC(),
+		Approval:       cloneRunnerApproval(&approval),
+	}, nil
 }
 
 func (s *Store) RunnerAdvisory(runID string) (RunnerAdvisoryState, bool) {

@@ -3,12 +3,26 @@ package brokerapi
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
+
+func digestForBrokerTest(seed string) string {
+	base := strings.Repeat(seed, 64)
+	if len(base) > 64 {
+		base = base[:64]
+	}
+	for len(base) < 64 {
+		base += "0"
+	}
+	return "sha256:" + base
+}
 
 func TestHandleRunListRejectsAdmissionFailure(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
@@ -75,6 +89,88 @@ func TestApprovalResolveRejectsUnknownDecisionOutcome(t *testing.T) {
 	if errResp == nil || errResp.Error.Code != "broker_approval_state_invalid" {
 		t.Fatalf("unexpected error response: %+v", errResp)
 	}
+}
+
+func TestApprovalResolveFailsClosedWhenCanonicalMirrorAtomicWriteFails(t *testing.T) {
+	s, root := newApprovalResolveAtomicFailureService(t)
+	approvalID, unapprovedDigest, requestEnv, decisionEnv := seedAtomicFailureApprovalFixture(t, s)
+	breakRunnerSnapshotPathForAtomicFailure(t, root)
+	resolveReq := atomicFailureResolveRequest(t, s, approvalID, unapprovedDigest, requestEnv, decisionEnv)
+	_, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{})
+	if errResp == nil || errResp.Error.Code != "broker_storage_write_failed" {
+		t.Fatalf("unexpected error response: %+v", errResp)
+	}
+	stored := mustApprovalGet(t, s, approvalID)
+	if stored.Status != "pending" {
+		t.Fatalf("approval status = %q, want pending after rollback", stored.Status)
+	}
+}
+
+func newApprovalResolveAtomicFailureService(t *testing.T) (*Service, string) {
+	t.Helper()
+	root := t.TempDir()
+	ledgerRoot := root + "/audit-ledger"
+	if err := seedLedgerForBrokerSurfaceTest(ledgerRoot); err != nil {
+		t.Fatalf("seedLedgerForBrokerSurfaceTest returned error: %v", err)
+	}
+	s, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig returned error: %v", err)
+	}
+	return s, root
+}
+
+func seedAtomicFailureApprovalFixture(t *testing.T, s *Service) (string, string, *trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope) {
+	t.Helper()
+	unapprovedDigest := "sha256:" + strings.Repeat("f", 64)
+	if _, putErr := s.Put(artifacts.PutRequest{Payload: []byte("private excerpt"), ContentType: "text/plain", DataClass: artifacts.DataClassUnapprovedFileExcerpts, ProvenanceReceiptHash: "sha256:" + strings.Repeat("b", 64), CreatedByRole: "workspace", RunID: "run-approval", StepID: "step-1"}); putErr != nil {
+		t.Fatalf("Put unapproved returned error: %v", putErr)
+	}
+	actionHash := promotionActionHashForBrokerTests(unapprovedDigest, "repo/file.txt", "abc123", "tool-v1", "human")
+	requestEnv, decisionEnv, verifiers := signedApprovalArtifactsForBrokerTestsWithOutcome(t, "human", unapprovedDigest, "deny")
+	for _, verifier := range verifiers {
+		if putErr := putTrustedVerifierRecordForService(s, verifier); putErr != nil {
+			t.Fatalf("putTrustedVerifierRecordForService returned error: %v", putErr)
+		}
+	}
+	approvalID, err := approvalIDFromRequest(*requestEnv)
+	if err != nil {
+		t.Fatalf("approvalIDFromRequest returned error: %v", err)
+	}
+	approvalPayload := decodeApprovalPayloadMap(requestEnv.Payload)
+	now := time.Now().UTC()
+	if err := s.RecordPolicyDecision("run-approval", "", policyengine.PolicyDecision{SchemaID: "runecode.protocol.v0.PolicyDecision", SchemaVersion: "0.3.0", DecisionOutcome: policyengine.DecisionRequireHumanApproval, PolicyReasonCode: "approval_required", ManifestHash: digestFromPayloadField(approvalPayload, "manifest_hash"), ActionRequestHash: actionHash, PolicyInputHashes: []string{digestForBrokerTest("4")}, RelevantArtifactHashes: []string{unapprovedDigest}, DetailsSchemaID: "runecode.protocol.details.policy.evaluation.v0", Details: map[string]any{"precedence": "approval_profile_moderate"}, RequiredApprovalSchemaID: "runecode.protocol.details.policy.required_approval.moderate.workspace_write.v0", RequiredApproval: map[string]any{"approval_trigger_code": "excerpt_promotion", "approval_assurance_level": "reauthenticated", "presence_mode": "hardware_touch", "scope": map[string]any{"schema_id": "runecode.protocol.v0.ApprovalBoundScope", "schema_version": "0.1.0", "workspace_id": workspaceIDForRun("run-approval"), "run_id": "run-approval", "stage_id": "artifact_flow", "step_id": "step-1", "action_kind": "promotion"}, "changes_if_approved": "Promote reviewed file excerpts for downstream use.", "approval_ttl_seconds": 1200}}); err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
+	}
+	if err := s.RecordApproval(artifacts.ApprovalRecord{ApprovalID: approvalID, Status: "pending", WorkspaceID: workspaceIDForRun("run-approval"), RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", ActionKind: "promotion", RequestedAt: now, ExpiresAt: func() *time.Time { t := now.Add(time.Hour); return &t }(), ApprovalTriggerCode: "excerpt_promotion", ChangesIfApproved: approvalChangesIfApprovedDefault, ApprovalAssuranceLevel: "reauthenticated", PresenceMode: "hardware_touch", PolicyDecisionHash: "", ManifestHash: digestFromPayloadField(approvalPayload, "manifest_hash"), ActionRequestHash: actionHash, RelevantArtifactHashes: []string{unapprovedDigest}, SourceDigest: unapprovedDigest, RequestDigest: approvalID, RequestEnvelope: requestEnv}); err != nil {
+		t.Fatalf("RecordApproval returned error: %v", err)
+	}
+	return approvalID, unapprovedDigest, requestEnv, decisionEnv
+}
+
+func breakRunnerSnapshotPathForAtomicFailure(t *testing.T, root string) {
+	t.Helper()
+	if err := os.Remove(root + "/" + "runner_state.snapshot.json"); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("remove runner snapshot returned error: %v", err)
+	}
+	if err := os.Mkdir(root+"/"+"runner_state.snapshot.json", 0o700); err != nil {
+		t.Fatalf("mkdir runner snapshot path returned error: %v", err)
+	}
+}
+
+func atomicFailureResolveRequest(t *testing.T, s *Service, approvalID, unapprovedDigest string, requestEnv, decisionEnv *trustpolicy.SignedObjectEnvelope) ApprovalResolveRequest {
+	t.Helper()
+	storedApproval := mustApprovalGet(t, s, approvalID)
+	return ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-approval-resolve-atomic-failure", ApprovalID: approvalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-approval"), RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", ActionKind: "promotion", PolicyDecisionHash: storedApproval.PolicyDecisionHash}, UnapprovedDigest: unapprovedDigest, Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *requestEnv, SignedApprovalDecision: *decisionEnv}
+}
+
+func mustApprovalGet(t *testing.T, s *Service, approvalID string) artifacts.ApprovalRecord {
+	t.Helper()
+	storedApproval, ok := s.ApprovalGet(approvalID)
+	if !ok {
+		t.Fatalf("ApprovalGet(%q) missing approval", approvalID)
+	}
+	return storedApproval
 }
 
 func TestApprovalResolveFailsWhenAuditEmitterUnavailable(t *testing.T) {

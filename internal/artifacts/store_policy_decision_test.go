@@ -219,6 +219,96 @@ func TestRecordApprovalRejectsGateOverrideExpiryBeyondTTL(t *testing.T) {
 	}
 }
 
+func TestRecordApprovalWithRunnerMirrorRollsBackOnMirrorValidationFailure(t *testing.T) {
+	store := newTestStore(t)
+	requestedAt := time.Now().UTC()
+	expiresAt := requestedAt.Add(time.Hour)
+	approvalID := testDigest("m")
+	approval := ApprovalRecord{
+		ApprovalID:             approvalID,
+		Status:                 "pending",
+		WorkspaceID:            "workspace-local",
+		RunID:                  "run-mirror-rollback",
+		ActionKind:             "action_gate_override",
+		RequestedAt:            requestedAt,
+		ExpiresAt:              &expiresAt,
+		ApprovalTriggerCode:    "gate_override",
+		ChangesIfApproved:      approvalChangesIfApprovedDefault,
+		ApprovalAssuranceLevel: "reauthenticated",
+		PresenceMode:           "hardware_touch",
+		ManifestHash:           testDigest("1"),
+		ActionRequestHash:      testDigest("2"),
+	}
+	if err := store.RecordApprovalWithRunnerMirror(approval); err == nil {
+		t.Fatal("RecordApprovalWithRunnerMirror error = nil, want role-instance mirror validation failure")
+	}
+	if _, ok := store.ApprovalGet(approvalID); ok {
+		t.Fatal("ApprovalGet returned record after failed mirror write, want rollback")
+	}
+}
+
+func TestRecordApprovalWithRunnerMirrorRollsBackJournalOnSnapshotFailure(t *testing.T) {
+	store := newTestStore(t)
+	approvalID, approval := runnerMirrorRollbackApprovalFixture()
+	breakRunnerSnapshotPath(t, store.rootDir)
+	if err := store.RecordApprovalWithRunnerMirror(approval); err == nil {
+		t.Fatal("RecordApprovalWithRunnerMirror error = nil, want snapshot write failure")
+	}
+	if _, ok := store.ApprovalGet(approvalID); ok {
+		t.Fatal("ApprovalGet returned record after snapshot failure, want rollback")
+	}
+	assertRunnerJournalDoesNotContainApproval(t, store.rootDir, approvalID)
+}
+
+func runnerMirrorRollbackApprovalFixture() (string, ApprovalRecord) {
+	requestedAt := time.Now().UTC()
+	expiresAt := requestedAt.Add(time.Hour)
+	approvalID := testDigest("n")
+	return approvalID, ApprovalRecord{
+		ApprovalID:             approvalID,
+		Status:                 "pending",
+		WorkspaceID:            "workspace-local",
+		RunID:                  "run-mirror-snapshot-rollback",
+		StageID:                "artifact_flow",
+		StepID:                 "step-1",
+		ActionKind:             "promotion",
+		RequestedAt:            requestedAt,
+		ExpiresAt:              &expiresAt,
+		ApprovalTriggerCode:    "excerpt_promotion",
+		ChangesIfApproved:      approvalChangesIfApprovedDefault,
+		ApprovalAssuranceLevel: "session_authenticated",
+		PresenceMode:           "os_confirmation",
+		ManifestHash:           testDigest("1"),
+		ActionRequestHash:      testDigest("2"),
+		RelevantArtifactHashes: []string{testDigest("3")},
+		SourceDigest:           testDigest("3"),
+	}
+}
+
+func breakRunnerSnapshotPath(t *testing.T, rootDir string) {
+	t.Helper()
+	snapshotPath := rootDir + "/" + runnerSnapshotFileName
+	if err := os.Remove(snapshotPath); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("remove runner snapshot returned error: %v", err)
+	}
+	if err := os.Mkdir(snapshotPath, 0o700); err != nil {
+		t.Fatalf("mkdir runner snapshot path returned error: %v", err)
+	}
+}
+
+func assertRunnerJournalDoesNotContainApproval(t *testing.T, rootDir, approvalID string) {
+	t.Helper()
+	records, err := readRunnerJournalRecords(rootDir)
+	if err != nil {
+		t.Fatalf("readRunnerJournalRecords returned error: %v", err)
+	}
+	for _, rec := range records {
+		if rec.Approval != nil && rec.Approval.ApprovalID == approvalID {
+			t.Fatalf("runner journal retained rolled-back approval record: %+v", rec)
+		}
+	}
+}
+
 func TestRecordPolicyDecisionRejectsInvalidBoundDigestIdentity(t *testing.T) {
 	store := newTestStore(t)
 	rec := basePolicyDecisionRecord("run-invalid-digest", map[string]any{"precedence": "approval"})

@@ -153,7 +153,55 @@ func TestCompileUsesCurrentTimeWhenCompiledAtZero(t *testing.T) {
 	}
 }
 
+func TestCompileKeepsDistinctGateKindVersionVariants(t *testing.T) {
+	workflowPayload := workflowPayloadForTest(t, []any{gateDefWithKindVersion("same_gate", "step_validation_started", 0, "build", "1.0.0")}, []string{"workspace-edit"})
+	processPayload := processPayloadForTest(t, []any{gateDefWithKindVersion("same_gate", "step_validation_started", 0, "test", "2.0.0")}, []string{"workspace-edit"})
+
+	plan, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
+	if err != nil {
+		t.Fatalf("Compile returned error: %v", err)
+	}
+	if len(plan.GateDefinitions) != 2 {
+		t.Fatalf("gate_definitions len = %d, want 2 distinct kind/version variants", len(plan.GateDefinitions))
+	}
+	seen := map[string]bool{}
+	for _, gate := range plan.GateDefinitions {
+		seen[gate.Gate.GateKind+"@"+gate.Gate.GateVersion] = true
+	}
+	if !seen["build@1.0.0"] || !seen["test@2.0.0"] {
+		t.Fatalf("compiled gate variants = %+v, want build@1.0.0 and test@2.0.0", seen)
+	}
+}
+
+func TestCompileRejectsConflictingGateDefinitionForSameDedupeKey(t *testing.T) {
+	workflowPayload := workflowPayloadForTest(t, []any{gateDef("build_gate", "step_validation_started", 0)}, []string{"workspace-edit"})
+	processGate := gateDef("build_gate", "step_validation_started", 0)
+	processGate["executor_binding_id"] = "binding_workspace_runner_alt"
+	processPayload := mustJSON(t, map[string]any{
+		"schema_id":      processDefinitionSchemaID,
+		"schema_version": processDefinitionVersion,
+		"process_id":     "process_default",
+		"executor_bindings": []any{
+			executorBindingFixture("binding_workspace_runner", "workspace-runner", []string{"workspace-edit"}),
+			executorBindingFixture("binding_workspace_runner_alt", "workspace-runner", []string{"workspace-edit"}),
+		},
+		"gate_definitions": []any{processGate},
+	})
+
+	_, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
+	if err == nil {
+		t.Fatal("Compile error = nil, want conflict rejection for same dedupe key")
+	}
+	if !strings.Contains(err.Error(), "conflicts across workflow/process inputs") {
+		t.Fatalf("Compile error = %v, want conflict error", err)
+	}
+}
+
 func gateDef(gateID, checkpoint string, order int) map[string]any {
+	return gateDefWithKindVersion(gateID, checkpoint, order, "build", "1.0.0")
+}
+
+func gateDefWithKindVersion(gateID, checkpoint string, order int, gateKind, gateVersion string) map[string]any {
 	return map[string]any{
 		"schema_id":           gateDefinitionSchemaID,
 		"schema_version":      gateDefinitionVersion,
@@ -165,8 +213,8 @@ func gateDef(gateID, checkpoint string, order int) map[string]any {
 			"schema_id":      "runecode.protocol.v0.GateContract",
 			"schema_version": "0.1.0",
 			"gate_id":        gateID,
-			"gate_kind":      "build",
-			"gate_version":   "1.0.0",
+			"gate_kind":      gateKind,
+			"gate_version":   gateVersion,
 			"normalized_inputs": []any{
 				map[string]any{"input_id": "source_tree", "input_digest": "sha256:" + strings.Repeat("1", 64)},
 			},

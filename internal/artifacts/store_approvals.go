@@ -45,6 +45,20 @@ func (s *Store) ApprovalGet(approvalID string) (ApprovalRecord, bool) {
 func (s *Store) RecordApproval(record ApprovalRecord) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.recordApprovalLocked(record, nil)
+}
+
+func (s *Store) RecordApprovalWithRunnerMirror(record ApprovalRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	mirror, err := runnerApprovalFromCanonicalRecord(record, s.nowFn)
+	if err != nil {
+		return err
+	}
+	return s.recordApprovalLocked(record, mirror)
+}
+
+func (s *Store) recordApprovalLocked(record ApprovalRecord, mirror *RunnerApproval) error {
 	if err := s.ensureApprovalPolicyDecisionLinkLocked(&record); err != nil {
 		return err
 	}
@@ -62,9 +76,12 @@ func (s *Store) RecordApproval(record ApprovalRecord) error {
 			record.AuditEventType = existing.AuditEventType
 		}
 	}
-	s.state.Approvals[record.ApprovalID] = record
-	rebuildRunApprovalRefsLocked(&s.state)
-	return s.saveStateLocked()
+	if mirror == nil {
+		s.state.Approvals[record.ApprovalID] = record
+		rebuildRunApprovalRefsLocked(&s.state)
+		return s.saveStateLocked()
+	}
+	return s.recordApprovalWithRunnerMirrorLocked(record, *mirror)
 }
 
 func requirePolicyDecisionHashForBoundApproval(record ApprovalRecord) error {

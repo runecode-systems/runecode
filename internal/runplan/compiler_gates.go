@@ -2,6 +2,7 @@ package runplan
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 )
 
@@ -46,7 +47,7 @@ func validatedCompiledGateKey(bindingSet map[string]struct{}, gate GateDefinitio
 	if _, ok := bindingSet[gate.ExecutorBindingID]; !ok {
 		return "", fmt.Errorf("gate %q references unknown executor_binding_id %q", gate.Gate.GateID, gate.ExecutorBindingID)
 	}
-	return fmt.Sprintf("%s|%09d|%s", gate.CheckpointCode, gate.OrderIndex, gate.Gate.GateID), nil
+	return fmt.Sprintf("%s|%09d|%s|%s|%s", gate.CheckpointCode, gate.OrderIndex, gate.Gate.GateID, gate.Gate.GateKind, gate.Gate.GateVersion), nil
 }
 
 func mergeCompiledGateDefinition(keySet map[string]GateDefinition, key string, gate GateDefinition) error {
@@ -55,7 +56,7 @@ func mergeCompiledGateDefinition(keySet map[string]GateDefinition, key string, g
 		keySet[key] = gate
 		return nil
 	}
-	if existing.ExecutorBindingID != gate.ExecutorBindingID || existing.RoleInstanceID != gate.RoleInstanceID {
+	if !reflect.DeepEqual(existing, gate) {
 		return fmt.Errorf("gate definition %q conflicts across workflow/process inputs", gate.Gate.GateID)
 	}
 	return nil
