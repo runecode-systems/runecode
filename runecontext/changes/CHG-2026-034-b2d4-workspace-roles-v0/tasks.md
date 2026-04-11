@@ -9,6 +9,8 @@
 
 ## Execution Boundaries
 
+- [ ] Introduce one trusted authoritative executor registry shared across policy and runner dispatch.
+- [ ] Define the read-only runner projection rules for that registry so the runner does not invent executor semantics locally.
 - [ ] Implement constrained executors with allowlisted operations.
 - [ ] Block shell passthrough behavior.
 - [ ] Distinguish ordinary workspace executors from system-modifying execution using the shared `executor_class` model.
@@ -18,6 +20,7 @@
 - [ ] Keep `workspace-read` from silently becoming a general command-execution role.
 - [ ] Keep `workspace-edit` limited to typed workspace writes plus `workspace_ordinary` execution.
 - [ ] Keep `workspace-test` limited to offline `workspace_ordinary` execution and workspace/build-output writes rather than implicit `system_modifying` authority.
+- [ ] Bind workspace execution to `RunPlan` executor entries rather than ad hoc workflow-local executor choice.
 
 ## Offline Posture
 
@@ -30,3 +33,4 @@
 - [ ] Workspace roles cannot bypass runner, policy, or broker controls.
 - [ ] Non-shell-passthrough is defined and enforced as typed executor usage rather than best-effort shell heuristics alone.
 - [ ] Role kind and executor class remain distinct in policy and implementation rather than collapsing into one mixed vocabulary.
+- [ ] Executor semantics stay authoritative in trusted Go and do not drift into an independent runner-local policy surface.

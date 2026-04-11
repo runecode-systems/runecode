@@ -3,8 +3,11 @@
 ## Overview
 Implement the untrusted runner orchestration and durable state authority for secure, resumable runs.
 
+The recommended foundation is a thin runner kernel that executes a broker-compiled immutable `RunPlan`. The runner is responsible for resumable orchestration mechanics, reviewed executor dispatch, and typed broker reporting. It is not responsible for planning workflows, deciding authorization, inventing lifecycle truth, or defining gate order locally.
+
 ## Key Decisions
 - Runner is untrusted and never directly executes privileged operations.
+- Runner consumes one immutable `RunPlan` compiled by the broker rather than inferring workflow order or step/gate placement locally.
 - Runner persistence stores untrusted orchestration state only.
 - Pause/resume and crash recovery rely on durable state transitions.
 - Pending approval blocks only the exact bound scope; unrelated eligible work may continue.
@@ -21,6 +24,20 @@ Implement the untrusted runner orchestration and durable state authority for sec
 - Stable logical workflow identities (`run_id`, `stage_id`, `step_id`, `role_instance_id`) survive retries and recovery. Retries and reruns mint separate attempt identities instead of mutating logical scope identity.
 - Public run lifecycle stays on the broker lifecycle vocabulary. Runner may use richer internal orchestration states, but partial blocking or branch-local waits should surface through broker detail/coordination models rather than a second public lifecycle enum.
 - Runner persistence should use an append-first journal plus snapshots, explicit schema versions, idempotency keys, and deterministic broker-wins reconciliation after restart.
+- If plan evolution is required after a run starts, the broker must issue a new superseding plan identity. The runner must not mutate a received `RunPlan` in place.
+- Runner-side policy checks may validate plan or executor shape defensively, but authorization semantics remain in the trusted policy engine.
+
+## RunPlan Contract
+
+- Runner execution should start from one immutable `RunPlan` protocol object compiled by the broker.
+- `RunPlan` should bind at least:
+  - run identity and plan identity
+  - stable stage, step, role, and gate scope identities
+  - reviewed executor bindings plus expected `executor_class`
+  - approval checkpoints and scope bindings
+  - gate placements, order, and retry posture
+  - digest refs for workflow/process/policy inputs used to compile the plan
+- Runner journal entries, checkpoint reports, result reports, and recovery behavior should all remain plan-bound so a restart cannot silently mix scheduler state from different planning inputs.
 
 ## Ownership Model
 
@@ -33,6 +50,7 @@ Implement the untrusted runner orchestration and durable state authority for sec
 
 ### Runner-Owned Durable State
 - Runner durable state should contain only resumable orchestration mechanics such as:
+  - current plan identity and superseding-plan linkage
   - workflow cursor / next eligible work
   - stable logical scope references
   - attempt identities and idempotency keys
@@ -45,6 +63,7 @@ Implement the untrusted runner orchestration and durable state authority for sec
   - backend/runtime posture
   - operator-facing lifecycle state
   - policy outcomes
+  - workflow planning order or gate placement
 
 ## Identity Model
 
@@ -57,6 +76,7 @@ Implement the untrusted runner orchestration and durable state authority for sec
   - `step_attempt_id`
   - `gate_attempt_id`
 - Stable logical identities should be the same identities used by policy requests, approvals, artifacts, launcher runtime evidence, and broker run-detail summaries.
+- Plan identity should remain separate from both logical workflow scope identities and retry/attempt identities.
 
 ## Runner -> Broker Contract Recommendation
 
@@ -69,6 +89,7 @@ Implement the untrusted runner orchestration and durable state authority for sec
   - run lifecycle checkpoint / terminal report
 - Broker should validate these reports against canonical state and reject inconsistent transitions fail closed.
 - Broker should project accepted reports into read models and durable shared state rather than promoting raw runner event payloads into operator truth without translation.
+- Reports should also bind to the active plan identity so broker reconciliation can fail closed when runner events were produced from stale or superseded planning inputs.
 
 ## Lifecycle Mapping
 
@@ -91,6 +112,7 @@ Implement the untrusted runner orchestration and durable state authority for sec
 - Use an append-first event journal plus periodic snapshots.
 - Every record family and snapshot should carry an explicit schema version.
 - Recovery should load the latest compatible snapshot and replay later journal entries deterministically.
+- Journal and snapshot state should record the active plan identity and fail closed if the broker indicates that identity is stale or superseded.
 
 ### Recommended Journal Families
 - `run_started`
@@ -115,6 +137,7 @@ Implement the untrusted runner orchestration and durable state authority for sec
   - runner journal provides resumable orchestration hints and outstanding local bookkeeping
   - disagreements should resolve through explicit reconciliation rules, never implicit merge heuristics
 - Recovery should fail closed on unknown future journal versions or inconsistent canonical broker bindings.
+- Recovery should also fail closed when journal state is bound to a plan identity that no longer matches the broker-authoritative run plan.
 
 ## Approval Wait Semantics
 
@@ -123,8 +146,27 @@ Implement the untrusted runner orchestration and durable state authority for sec
 - Runner should persist enough scope and hash material to resume safely after restart, but approval creation and final approval truth should stay broker-owned and policy-derived.
 - Multiple pending approvals may coexist. Runner scheduling should block only the exact bound scope and continue unrelated eligible work when policy and coordination allow.
 
+## Runner Shape To Prefer
+
+- Keep the runner decomposed into small modules:
+  - plan loader
+  - broker API client
+  - journal/snapshot store
+  - scheduler
+  - executor adapters
+  - checkpoint/result emitter
+- Avoid a monolithic runner core that mixes scheduling, policy interpretation, executor classification, and broker state projection in one file or package.
+
+## Foundation Shortcuts To Avoid
+
+- Do not let the runner compile or reorder workflows locally.
+- Do not let the runner invent gate placement from executor-local scripts.
+- Do not let the runner interpret policy decisions beyond required shape/integrity checks.
+- Do not let durable state become a mutable status blob detached from explicit journal families and plan identity.
+
 ## Main Workstreams
 - Runner contract and packaging constraints.
+- `RunPlan` consumption contract and plan-bound scheduling state.
 - Durable state schema and migration rules.
 - Propose-to-attest execution loop integration.
 - Runner->broker checkpoint/result API alignment.
