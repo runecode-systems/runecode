@@ -1,0 +1,19 @@
+{
+  "schema_id": "runecode.protocol.v0.SessionSendMessageRequest",
+  "schema_version": "0.1.0",
+  "request_id": "req-session-send-1",
+  "session_id": "sess-alpha",
+  "role": "user",
+  "content_text": "Hello from client",
+  "idempotency_key": "idem-1",
+  "related_links": {
+    "schema_id": "runecode.protocol.v0.SessionTranscriptLinks",
+    "schema_version": "0.1.0",
+    "run_ids": [
+      "run-1"
+    ],
+    "approval_ids": [],
+    "artifact_digests": [],
+    "audit_record_digests": []
+  }
+}

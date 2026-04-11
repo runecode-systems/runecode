@@ -233,6 +233,21 @@ func runApprovalRPCOperations(service *brokerapi.Service, ctx context.Context, m
 				return service.HandleRunGet(ctx, req, meta)
 			})
 		}},
+		"session_list": {requestSchemaPath: "objects/SessionListRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.SessionListRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleSessionList(ctx, req, meta)
+			})
+		}},
+		"session_get": {requestSchemaPath: "objects/SessionGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.SessionGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleSessionGet(ctx, req, meta)
+			})
+		}},
+		"session_send_message": {requestSchemaPath: "objects/SessionSendMessageRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.SessionSendMessageRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleSessionSendMessage(ctx, req, meta)
+			})
+		}},
 		"runner_checkpoint_report": {requestSchemaPath: "objects/RunnerCheckpointReportRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.RunnerCheckpointReportRequest) (any, *brokerapi.ErrorResponse) {
 				return service.HandleRunnerCheckpointReport(ctx, req, meta)

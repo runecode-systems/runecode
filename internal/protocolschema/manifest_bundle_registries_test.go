@@ -49,6 +49,7 @@ func brokerErrorRegistryCodes() []string {
 		"broker_not_found_artifact",
 		"broker_not_found_run",
 		"broker_not_found_approval",
+		"broker_not_found_session",
 		"broker_limit_message_size_exceeded",
 		"broker_limit_structural_complexity_exceeded",
 		"broker_limit_in_flight_exceeded",

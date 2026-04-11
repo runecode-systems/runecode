@@ -257,6 +257,18 @@
       "schema_path": "objects/RunPlan.schema.json",
       "fixture_path": "schema/run-plan.valid-minimal.json",
       "expect_valid": true
+    },
+    {
+      "id": "session-send-message-request.valid-basic",
+      "schema_path": "objects/SessionSendMessageRequest.schema.json",
+      "fixture_path": "schema/session-send-message-request.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "session-send-message-response.valid-ack",
+      "schema_path": "objects/SessionSendMessageResponse.schema.json",
+      "fixture_path": "schema/session-send-message-response.valid-ack.json",
+      "expect_valid": true
     }
   ],
   "stream_sequence_fixtures": [
@@ -367,6 +379,20 @@
       "schema_path": "objects/AuditReceipt.schema.json",
       "fixture_path": "runtime/audit-receipt.import.invalid-byte-identity.json",
       "rule": "audit_receipt_import_restore_byte_identity",
+      "expect_valid": false
+    },
+    {
+      "id": "session-send-message-response.valid-ack-alignment",
+      "schema_path": "objects/SessionSendMessageResponse.schema.json",
+      "fixture_path": "runtime/session-send-message-response.valid-ack-alignment.json",
+      "rule": "session_send_message_ack_alignment",
+      "expect_valid": true
+    },
+    {
+      "id": "session-send-message-response.invalid-stream-id",
+      "schema_path": "objects/SessionSendMessageResponse.schema.json",
+      "fixture_path": "runtime/session-send-message-response.invalid-stream-id.json",
+      "rule": "session_send_message_ack_alignment",
       "expect_valid": false
     }
   ],

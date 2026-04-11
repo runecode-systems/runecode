@@ -112,9 +112,69 @@ func validateRuntimeInvariant(rule string, value map[string]any, manifest manife
 		return requireSignedEnvelopePayloadSchemaMatch(value, manifest, bundle)
 	case "audit_receipt_import_restore_byte_identity":
 		return requireImportRestoreReceiptByteIdentity(value)
+	case "session_send_message_ack_alignment":
+		return requireSessionSendMessageAckAlignment(value)
 	default:
 		return fmt.Errorf("unknown runtime invariant rule %q", rule)
 	}
+}
+
+func requireSessionSendMessageAckAlignment(value map[string]any) error {
+	sessionID, err := stringField(value, "session_id")
+	if err != nil {
+		return err
+	}
+	eventType, err := stringField(value, "event_type")
+	if err != nil {
+		return err
+	}
+	if eventType != "session_message_ack" {
+		return fmt.Errorf("event_type must be session_message_ack")
+	}
+	streamID, err := stringField(value, "stream_id")
+	if err != nil {
+		return err
+	}
+	if streamID != "session-"+sessionID {
+		return fmt.Errorf("stream_id %q must equal session-%s", streamID, sessionID)
+	}
+	message, err := requiredObjectField(value, "message")
+	if err != nil {
+		return err
+	}
+	messageSessionID, err := stringField(message, "session_id")
+	if err != nil {
+		return err
+	}
+	if messageSessionID != sessionID {
+		return fmt.Errorf("message.session_id %q must match session_id %q", messageSessionID, sessionID)
+	}
+	turn, err := requiredObjectField(value, "turn")
+	if err != nil {
+		return err
+	}
+	turnSessionID, err := stringField(turn, "session_id")
+	if err != nil {
+		return err
+	}
+	if turnSessionID != sessionID {
+		return fmt.Errorf("turn.session_id %q must match session_id %q", turnSessionID, sessionID)
+	}
+	turnID, err := stringField(turn, "turn_id")
+	if err != nil {
+		return err
+	}
+	if messageTurnID, turnErr := stringField(message, "turn_id"); turnErr != nil {
+		return turnErr
+	} else if messageTurnID != turnID {
+		return fmt.Errorf("message.turn_id %q must match turn.turn_id %q", messageTurnID, turnID)
+	}
+	if seq, seqErr := integerField(value, "seq"); seqErr != nil {
+		return seqErr
+	} else if seq < 1 {
+		return fmt.Errorf("seq must be >= 1")
+	}
+	return nil
 }
 
 func requireImportRestoreReceiptByteIdentity(value map[string]any) error {

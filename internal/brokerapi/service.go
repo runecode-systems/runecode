@@ -3,6 +3,7 @@ package brokerapi
 import (
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
@@ -18,8 +19,8 @@ var (
 )
 
 const (
-	brokerProtocolBundleVersion      = "0.7.0"
-	brokerProtocolBundleManifestHash = "sha256:a187dfeb6247659ba9331f46c5b5e662449c763409d00b800c947e79c4a3f628"
+	brokerProtocolBundleVersion      = "0.9.0"
+	brokerProtocolBundleManifestHash = "sha256:4ecfea8f490f4073bbb1f0c6ff29c17f221dd6cf0f205ac92d5525b44da2418b"
 )
 
 type Service struct {
@@ -31,6 +32,9 @@ type Service struct {
 	apiInflight *inFlightGate
 	versionInfo BrokerVersionInfo
 	now         func() time.Time
+
+	sessionInteractionMu    sync.Mutex
+	sessionInteractionState map[string]sessionInteractionState
 }
 
 func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
@@ -52,14 +56,15 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 		return nil, err
 	}
 	return &Service{
-		store:       store,
-		auditLedger: ledger,
-		auditor:     auditor,
-		auditRoot:   ledgerRoot,
-		apiConfig:   resolved,
-		apiInflight: newInFlightGate(resolved.Limits),
-		now:         time.Now,
-		versionInfo: defaultBrokerVersionInfo(),
+		store:                   store,
+		auditLedger:             ledger,
+		auditor:                 auditor,
+		auditRoot:               ledgerRoot,
+		apiConfig:               resolved,
+		apiInflight:             newInFlightGate(resolved.Limits),
+		now:                     time.Now,
+		versionInfo:             defaultBrokerVersionInfo(),
+		sessionInteractionState: map[string]sessionInteractionState{},
 	}, nil
 }
 

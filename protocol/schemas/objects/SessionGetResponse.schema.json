@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/SessionGetResponse.schema.json",
+  "title": "SessionGetResponse",
+  "description": "Typed session detail response for broker-visible session model reads.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 4,
+  "required": ["schema_id", "schema_version", "request_id", "session"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.SessionGetResponse", "description": "Protocol schema identifier for SessionGetResponse.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version for SessionGetResponse.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable echoed request identity.", "x-data-class": "public" },
+    "session": { "$ref": "SessionDetail.schema.json", "description": "Detailed session model.", "x-data-class": "public" }
+  }
+}

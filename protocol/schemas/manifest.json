@@ -1,6 +1,6 @@
 {
   "bundle_id": "runecode.protocol.v0",
-  "bundle_version": "0.7.0",
+  "bundle_version": "0.9.0",
   "json_schema_draft": "2020-12",
   "runtime_schema_prefix": "runecode.protocol.v0.",
   "canonicalization": "RFC8785-JCS",
@@ -513,6 +513,90 @@
     {
       "path": "objects/RunGetResponse.schema.json",
       "schema_id": "runecode.protocol.v0.RunGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionIdentity.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionIdentity",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionSummary.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionSummary",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionDetail.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionDetail",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionTranscriptLinks.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionTranscriptLinks",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionTranscriptMessage.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionTranscriptMessage",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionTranscriptTurn.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionTranscriptTurn",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionListRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionListRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionListResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionListResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionSendMessageRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionSendMessageRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionSendMessageResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionSendMessageResponse",
       "schema_version": "0.1.0",
       "owner": "protocol",
       "status": "mvp"

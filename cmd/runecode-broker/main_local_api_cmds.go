@@ -65,6 +65,87 @@ func handleRunGet(args []string, service *brokerapi.Service, stdout io.Writer) e
 	return writeJSON(stdout, resp.Run)
 }
 
+func handleSessionList(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	fs := flag.NewFlagSet("session-list", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	limit := fs.Int("limit", 20, "max session entries")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "session-list usage: runecode-broker session-list [--limit N]"}
+	}
+	api := localAPIForService(service)
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.SessionList(ctx, brokerapi.SessionListRequest{
+		SchemaID:      "runecode.protocol.v0.SessionListRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     defaultRequestID(),
+		Limit:         *limit,
+	})
+	if errResp != nil {
+		return localAPIError(errResp)
+	}
+	return writeJSON(stdout, resp.Sessions)
+}
+
+func handleSessionGet(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	fs := flag.NewFlagSet("session-get", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	sessionID := fs.String("session-id", "", "session id")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "session-get usage: runecode-broker session-get --session-id id"}
+	}
+	if *sessionID == "" {
+		return &usageError{message: "session-get requires --session-id"}
+	}
+	api := localAPIForService(service)
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.SessionGet(ctx, brokerapi.SessionGetRequest{
+		SchemaID:      "runecode.protocol.v0.SessionGetRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     defaultRequestID(),
+		SessionID:     *sessionID,
+	})
+	if errResp != nil {
+		return localAPIError(errResp)
+	}
+	return writeJSON(stdout, resp.Session)
+}
+
+func handleSessionSendMessage(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	fs := flag.NewFlagSet("session-send-message", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	sessionID := fs.String("session-id", "", "session id")
+	role := fs.String("role", "user", "message role")
+	content := fs.String("content", "", "message content")
+	idempotencyKey := fs.String("idempotency-key", "", "optional idempotency key")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "session-send-message usage: runecode-broker session-send-message --session-id id --content text [--role user|assistant|system|tool] [--idempotency-key key]"}
+	}
+	if *sessionID == "" {
+		return &usageError{message: "session-send-message requires --session-id"}
+	}
+	if *content == "" {
+		return &usageError{message: "session-send-message requires --content"}
+	}
+	api := localAPIForService(service)
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.SessionSendMessage(ctx, brokerapi.SessionSendMessageRequest{
+		SchemaID:       "runecode.protocol.v0.SessionSendMessageRequest",
+		SchemaVersion:  "0.1.0",
+		RequestID:      defaultRequestID(),
+		SessionID:      *sessionID,
+		Role:           *role,
+		ContentText:    *content,
+		IdempotencyKey: *idempotencyKey,
+	})
+	if errResp != nil {
+		return localAPIError(errResp)
+	}
+	return writeJSON(stdout, resp)
+}
+
 func handleApprovalList(args []string, service *brokerapi.Service, stdout io.Writer) error {
 	fs := flag.NewFlagSet("approval-list", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
