@@ -1,25 +1,22 @@
 schema_version: 1
-id: CHG-2026-037-91be-tui-multi-session-power-workspace-v0
-title: TUI Multi-Session + Power Workspace v0
+id: CHG-2026-038-5a1d-runecode-tui-experience-v0
+title: RuneCode TUI Experience v0
 status: planned
-type: feature
-size: large
+type: project
+size: medium
 verification_status: pending
 context_bundles:
   - product-planning
 related_specs: []
 related_decisions: []
-related_changes: []
-depends_on:
+related_changes:
+  - CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0
   - CHG-2026-013-d2c9-minimal-tui-v0
-  - CHG-2026-011-7240-secretsd-model-gateway-v0
+depends_on: []
 informed_by:
   - CHG-2026-008-62e1-broker-local-api-v0
-  - CHG-2026-003-b567-audit-log-v0-verify
-  - CHG-2026-006-84f0-audit-anchoring-v0
   - CHG-2026-007-2315-policy-engine-v0
-  - CHG-2026-014-0c5d-approval-profiles-strict-permissive
-  - CHG-2026-019-40c5-bridge-runtime-protocol-v0
+  - CHG-2026-003-b567-audit-log-v0-verify
 supersedes: []
 superseded_by: []
 created_at: "2026-04-11"

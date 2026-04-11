@@ -20,6 +20,7 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 - Minimal TUI v0
   - Users land in a dashboard-first terminal client, can enter a first-class chat route, approve actions, and inspect runs, artifacts, and audit timelines through the real secure local API.
   - Planned change: `runecontext/changes/CHG-2026-013-d2c9-minimal-tui-v0/`
+  - Callout: TUI delivery is tracked under `CHG-2026-038-5a1d-runecode-tui-experience-v0/`, and the alpha implementation is sequenced after the prerequisite contract lane in `CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0/`.
 
 ### v0.1.0-alpha.4
 
@@ -138,4 +139,3 @@ No unscheduled items are currently tracked outside the planned work listed above
 - Broker + Local API v0
   - Components and isolates communicate via a local brokered API with schema validation.
   - Planned change: `runecontext/changes/CHG-2026-008-62e1-broker-local-api-v0/`
-

@@ -19,6 +19,12 @@
 
 ## Related Changes
 
+- `runecontext/changes/CHG-2026-038-5a1d-runecode-tui-experience-v0/`
+- `runecontext/changes/CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0/`
+- `runecontext/changes/CHG-2026-040-2b7f-session-transcript-model-v0/`
+- `runecontext/changes/CHG-2026-041-4d8a-approval-review-detail-models-v0/`
+- `runecontext/changes/CHG-2026-042-6f3c-audit-record-drill-down-v0/`
+- `runecontext/changes/CHG-2026-043-8e9b-live-activity-watch-streams-v0/`
 - `runecontext/changes/CHG-2026-008-62e1-broker-local-api-v0/`
 - `runecontext/changes/CHG-2026-003-b567-audit-log-v0-verify/`
 - `runecontext/changes/CHG-2026-006-84f0-audit-anchoring-v0/`

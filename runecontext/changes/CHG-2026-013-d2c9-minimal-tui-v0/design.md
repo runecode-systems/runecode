@@ -5,6 +5,8 @@ Implement the first RuneCode TUI as a hybrid local terminal client: a dashboard-
 
 This change defines the MVP TUI foundation. It is intentionally broad enough to avoid repainting the substrate later, but it keeps advanced multi-session workbench behavior and deeper observability enhancements in a dedicated pre-MVP follow-on change.
 
+This feature is part of `CHG-2026-038-5a1d-runecode-tui-experience-v0` and should be implemented after the prerequisite broker/API UX contract lane in `CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0`.
+
 ## Product Shape
 
 ### Hybrid Shell
@@ -104,6 +106,12 @@ The MVP TUI should be built around first-class broker read models rather than sc
 - `AuditVerificationReport`
 - `BrokerReadiness`
 - `BrokerVersionInfo`
+
+The TUI also depends on the explicit prerequisite contract features tracked in:
+- `CHG-2026-040-2b7f-session-transcript-model-v0`
+- `CHG-2026-041-4d8a-approval-review-detail-models-v0`
+- `CHG-2026-042-6f3c-audit-record-drill-down-v0`
+- `CHG-2026-043-8e9b-live-activity-watch-streams-v0`
 
 ### Approval Read Model Expectations
 - MVP screens may begin from `ApprovalSummary`, but the overall TUI foundation requires a richer approval-detail surface than one prose field and optional raw envelopes.

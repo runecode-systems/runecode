@@ -14,6 +14,12 @@ related_decisions:
   - decisions/DEC-2026-003-bundled-runecontext-default-and-verified-requirement.md
   - decisions/DEC-2026-004-runecode-ux-ownership-and-runecontext-generic-boundary.md
 related_changes:
+  - CHG-2026-038-5a1d-runecode-tui-experience-v0
+  - CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0
+  - CHG-2026-040-2b7f-session-transcript-model-v0
+  - CHG-2026-041-4d8a-approval-review-detail-models-v0
+  - CHG-2026-042-6f3c-audit-record-drill-down-v0
+  - CHG-2026-043-8e9b-live-activity-watch-streams-v0
   - CHG-2026-011-7240-secretsd-model-gateway-v0
   - CHG-2026-008-62e1-broker-local-api-v0
   - CHG-2026-003-b567-audit-log-v0-verify
@@ -21,9 +27,18 @@ related_changes:
   - CHG-2026-007-2315-policy-engine-v0
   - CHG-2026-014-0c5d-approval-profiles-strict-permissive
   - CHG-2026-019-40c5-bridge-runtime-protocol-v0
-  - CHG-2026-037-91be-tui-multi-session-power-workspace-v0
-depends_on: []
-informed_by: []
+depends_on:
+  - CHG-2026-040-2b7f-session-transcript-model-v0
+  - CHG-2026-041-4d8a-approval-review-detail-models-v0
+  - CHG-2026-042-6f3c-audit-record-drill-down-v0
+  - CHG-2026-043-8e9b-live-activity-watch-streams-v0
+informed_by:
+  - CHG-2026-008-62e1-broker-local-api-v0
+  - CHG-2026-003-b567-audit-log-v0-verify
+  - CHG-2026-006-84f0-audit-anchoring-v0
+  - CHG-2026-007-2315-policy-engine-v0
+  - CHG-2026-014-0c5d-approval-profiles-strict-permissive
+  - CHG-2026-019-40c5-bridge-runtime-protocol-v0
 supersedes: []
 superseded_by: []
 created_at: "2026-04-03"

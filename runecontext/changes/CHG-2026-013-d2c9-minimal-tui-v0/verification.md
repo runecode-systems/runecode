@@ -7,6 +7,8 @@
 
 ## Verification Notes
 - Confirm the change remains scheduled for `v0.1.0-alpha.3` and no longer references `v0.1.0-alpha.4`.
+- Confirm the change is now a child feature of `CHG-2026-038-5a1d-runecode-tui-experience-v0`.
+- Confirm the change explicitly depends on `CHG-2026-040-2b7f-session-transcript-model-v0`, `CHG-2026-041-4d8a-approval-review-detail-models-v0`, `CHG-2026-042-6f3c-audit-record-drill-down-v0`, and `CHG-2026-043-8e9b-live-activity-watch-streams-v0`.
 - Confirm the change now defines the MVP TUI as a hybrid dashboard-first shell with a first-class chat route.
 - Confirm the TUI remains a strict broker/local-API client with no daemon-private data dependencies and no CLI scraping for state that already has typed contracts.
 - Confirm Bubble Tea is still the required framework and that the design follows its message-driven architecture rather than a monolithic or side-effect-heavy model.

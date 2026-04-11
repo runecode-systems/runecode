@@ -16,6 +16,7 @@ If the first TUI is defined too loosely:
 
 ## Proposed Change
 - Make `CHG-2026-013-d2c9-minimal-tui-v0` the MVP TUI foundation, not just a thin review console.
+- Implement it as a child feature of `CHG-2026-038-5a1d-runecode-tui-experience-v0` after the prerequisite broker/API UX contract lane in `CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0`.
 - Start the TUI in a dashboard/ops-console route while making chat/coding a first-class route in the same shell.
 - Use Bubble Tea and its message-driven architecture as the required framework and implementation posture.
 - Keep the TUI a least-privilege broker client that consumes typed read/write/stream contracts rather than daemon-private data or scraped CLI output.
@@ -26,17 +27,17 @@ If the first TUI is defined too loosely:
   - typed approval, run, artifact, audit, status, and live-activity surfaces
   - semantic theming and colorful but non-decorative presentation
   - explicit authoritative vs advisory state handling
-- Capture known contract follow-ups that must be handled through broker/API work rather than through TUI-local heuristics:
-  - richer approval detail/read-model support
-  - audit record drill-down support
-  - typed watch/event surfaces for live activity
-  - minimal canonical session/transcript model to support the chat route
+- Depend on explicit broker/API prerequisite features rather than informal follow-up notes:
+  - `CHG-2026-040-2b7f-session-transcript-model-v0`
+  - `CHG-2026-041-4d8a-approval-review-detail-models-v0`
+  - `CHG-2026-042-6f3c-audit-record-drill-down-v0`
+  - `CHG-2026-043-8e9b-live-activity-watch-streams-v0`
 - Keep advanced multi-session, power-user workspace management, richer inspection, and enhanced observability in a dedicated pre-MVP follow-on change.
 
 ## Why Now
 This work remains scheduled for `v0.1.0-alpha.3` because RuneCode needs the first honest user-facing secure slice through the real brokered local API, policy, audit, artifact, and approval surfaces.
 
-The goal is not to ship the fastest possible TUI. The goal is to define the best durable foundation so later TUI features, CLI work, and future remote or scaled client topologies can build on one typed control-plane substrate without revisiting fundamental UX or trust-boundary decisions.
+The goal is not to ship the fastest possible TUI. The goal is to define the best durable foundation so later TUI features, CLI work, and future remote or scaled client topologies can build on one typed control-plane substrate without revisiting fundamental UX or trust-boundary decisions. That is why the contract lane is now captured as explicit prerequisite work rather than implicit follow-up.
 
 ## Assumptions
 - `runecontext/changes/*` is the canonical planning surface for this repository.
@@ -55,3 +56,5 @@ The goal is not to ship the fastest possible TUI. The goal is to define the best
 
 ## Impact
 This change establishes the durable TUI foundation for RuneCode: one visible shell, one secure control-plane contract model, one set of interaction principles, and one path from local MVP to richer pre-MVP enhancements without rewriting the base architecture later.
+
+It also makes the sequencing explicit: this feature should build on the prerequisite broker/API UX contract features rather than forcing the TUI to invent local approximations.
