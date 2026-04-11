@@ -10,39 +10,8 @@ import (
 )
 
 func TestCompileBuildsDeterministicRunPlan(t *testing.T) {
-	workflowPayload := mustJSON(t, map[string]any{
-		"schema_id":      workflowDefinitionSchemaID,
-		"schema_version": workflowDefinitionVersion,
-		"workflow_id":    "workflow_main",
-		"executor_bindings": []any{
-			map[string]any{
-				"binding_id":         "binding_workspace_runner",
-				"executor_id":        "workspace-runner",
-				"executor_class":     "workspace_ordinary",
-				"allowed_role_kinds": []any{"workspace-edit", "workspace-test"},
-			},
-		},
-		"gate_definitions": []any{
-			gateDef("build_gate", "step_validation_started", 0),
-		},
-	})
-	processPayload := mustJSON(t, map[string]any{
-		"schema_id":      processDefinitionSchemaID,
-		"schema_version": processDefinitionVersion,
-		"process_id":     "process_default",
-		"executor_bindings": []any{
-			map[string]any{
-				"binding_id":         "binding_workspace_runner",
-				"executor_id":        "workspace-runner",
-				"executor_class":     "workspace_ordinary",
-				"allowed_role_kinds": []any{"workspace-edit", "workspace-test"},
-			},
-		},
-		"gate_definitions": []any{
-			gateDef("build_gate", "step_validation_started", 0),
-			gateDef("lint_gate", "step_validation_finished", 1),
-		},
-	})
+	workflowPayload := workflowPayloadForTest(t, []any{gateDef("build_gate", "step_validation_started", 0)}, []string{"workspace-edit", "workspace-test"})
+	processPayload := processPayloadForTest(t, []any{gateDef("build_gate", "step_validation_started", 0), gateDef("lint_gate", "step_validation_finished", 1)}, []string{"workspace-edit", "workspace-test"})
 
 	plan, err := Compile(CompileInput{
 		RunID:                   "run_123",
@@ -123,6 +92,41 @@ func TestCompileFailsClosedOnUnknownExecutorBinding(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("Compile returned nil error, want failure")
+	}
+}
+
+func workflowPayloadForTest(t *testing.T, gates []any, roles []string) []byte {
+	t.Helper()
+	return mustJSON(t, map[string]any{
+		"schema_id":         workflowDefinitionSchemaID,
+		"schema_version":    workflowDefinitionVersion,
+		"workflow_id":       "workflow_main",
+		"executor_bindings": []any{executorBindingFixture("binding_workspace_runner", "workspace-runner", roles)},
+		"gate_definitions":  gates,
+	})
+}
+
+func processPayloadForTest(t *testing.T, gates []any, roles []string) []byte {
+	t.Helper()
+	return mustJSON(t, map[string]any{
+		"schema_id":         processDefinitionSchemaID,
+		"schema_version":    processDefinitionVersion,
+		"process_id":        "process_default",
+		"executor_bindings": []any{executorBindingFixture("binding_workspace_runner", "workspace-runner", roles)},
+		"gate_definitions":  gates,
+	})
+}
+
+func executorBindingFixture(bindingID, executorID string, roles []string) map[string]any {
+	roleItems := make([]any, 0, len(roles))
+	for _, role := range roles {
+		roleItems = append(roleItems, role)
+	}
+	return map[string]any{
+		"binding_id":         bindingID,
+		"executor_id":        executorID,
+		"executor_class":     "workspace_ordinary",
+		"allowed_role_kinds": roleItems,
 	}
 }
 

@@ -1,1 +1,130 @@
-{}
+{
+  "internal/artifacts/store.go": {
+    "kind": "source",
+    "maxCognitiveComplexity": 11,
+    "rationale": "Reviewed exception for existing Tier 1 store logic pending dedicated source-quality decomposition."
+  },
+  "internal/artifacts/store_gate_evidence.go": {
+    "kind": "source",
+    "maxFunctionLength": 47,
+    "rationale": "Reviewed exception for existing Tier 1 gate-evidence persistence logic pending dedicated source-quality decomposition."
+  },
+  "internal/artifacts/store_runner_advisory.go": {
+    "kind": "source",
+    "maxSloc": 905,
+    "maxFunctionLength": 55,
+    "maxCognitiveComplexity": 15,
+    "rationale": "Reviewed exception for existing Tier 1 runner advisory durability logic pending dedicated source-quality decomposition."
+  },
+  "internal/artifacts/types.go": {
+    "kind": "source",
+    "maxSloc": 396,
+    "rationale": "Reviewed exception for existing Tier 1 artifact type definitions pending dedicated source-quality decomposition."
+  },
+  "internal/brokerapi/local_api_approval_list_get_ops.go": {
+    "kind": "source",
+    "maxCognitiveComplexity": 15,
+    "rationale": "Reviewed exception for existing Tier 1 approval listing logic pending dedicated source-quality decomposition."
+  },
+  "internal/brokerapi/local_api_approval_resolve_ops.go": {
+    "kind": "source",
+    "maxSloc": 273,
+    "rationale": "Reviewed exception for existing Tier 1 approval resolution logic pending dedicated source-quality decomposition."
+  },
+  "internal/brokerapi/local_api_ops_approval_test.go": {
+    "kind": "test",
+    "maxSloc": 547,
+    "maxFunctionLength": 45,
+    "rationale": "Reviewed exception for existing Tier 1 approval API test coverage pending dedicated source-quality decomposition."
+  },
+  "internal/brokerapi/local_api_run_approval_types.go": {
+    "kind": "source",
+    "maxSloc": 353,
+    "rationale": "Reviewed exception for existing Tier 1 run approval type shaping pending dedicated source-quality decomposition."
+  },
+  "internal/brokerapi/local_api_run_detail_state_ops.go": {
+    "kind": "source",
+    "maxSloc": 361,
+    "maxFunctionLength": 44,
+    "rationale": "Reviewed exception for existing Tier 1 run detail state shaping pending dedicated source-quality decomposition."
+  },
+  "internal/brokerapi/local_api_run_summary_ops.go": {
+    "kind": "source",
+    "maxSloc": 261,
+    "rationale": "Reviewed exception for existing Tier 1 run summary shaping pending dedicated source-quality decomposition."
+  },
+  "internal/brokerapi/local_api_runner_gate_plan_ops.go": {
+    "kind": "source",
+    "maxSloc": 287,
+    "maxFunctionLength": 42,
+    "rationale": "Reviewed exception for existing Tier 1 runner gate-plan projection logic pending dedicated source-quality decomposition."
+  },
+  "internal/brokerapi/local_api_runner_report_ops.go": {
+    "kind": "source",
+    "maxSloc": 1384,
+    "maxFunctionLength": 52,
+    "maxCognitiveComplexity": 15,
+    "rationale": "Reviewed exception for existing Tier 1 runner report processing logic pending dedicated source-quality decomposition."
+  },
+  "internal/brokerapi/local_api_runner_report_ops_test.go": {
+    "kind": "test",
+    "maxSloc": 938,
+    "maxFunctionLength": 62,
+    "maxCognitiveComplexity": 13,
+    "rationale": "Reviewed exception for existing Tier 1 runner report test coverage pending dedicated source-quality decomposition."
+  },
+  "internal/policyengine/compile_context.go": {
+    "kind": "source",
+    "maxSloc": 276,
+    "rationale": "Reviewed exception for existing Tier 1 policy compile context logic pending dedicated source-quality decomposition."
+  },
+  "internal/policyengine/evaluate_boundaries.go": {
+    "kind": "source",
+    "maxSloc": 275,
+    "maxFunctionLength": 47,
+    "rationale": "Reviewed exception for existing Tier 1 boundary evaluation logic pending dedicated source-quality decomposition."
+  },
+  "internal/policyengine/evaluate_executor.go": {
+    "kind": "source",
+    "maxSloc": 616,
+    "maxCognitiveComplexity": 13,
+    "rationale": "Reviewed exception for existing Tier 1 executor evaluation logic pending dedicated source-quality decomposition."
+  },
+  "internal/policyengine/policyengine_compile_test.go": {
+    "kind": "test",
+    "maxFunctionLength": 46,
+    "rationale": "Reviewed exception for existing Tier 1 policy compile test coverage pending dedicated source-quality decomposition."
+  },
+  "internal/policyengine/policyengine_test_payload_actions.go": {
+    "kind": "source",
+    "maxSloc": 254,
+    "rationale": "Reviewed exception for existing Tier 1 policy test payload builders pending dedicated source-quality decomposition."
+  },
+  "internal/protocolschema/manifest_bundle_test.go": {
+    "kind": "test",
+    "maxFunctionLength": 56,
+    "rationale": "Reviewed exception for existing Tier 1 protocol schema bundle tests pending dedicated source-quality decomposition."
+  },
+  "internal/protocolschema/manifest_bundle_versions_test.go": {
+    "kind": "test",
+    "maxFunctionLength": 54,
+    "rationale": "Reviewed exception for existing Tier 1 protocol schema version tests pending dedicated source-quality decomposition."
+  },
+  "internal/protocolschema/object_schema_validation_core_fixtures_test.go": {
+    "kind": "test",
+    "maxSloc": 534,
+    "rationale": "Reviewed exception for existing Tier 1 protocol fixture validation tests pending dedicated source-quality decomposition."
+  },
+  "internal/runplan/compiler.go": {
+    "kind": "source",
+    "maxSloc": 319,
+    "maxFunctionLength": 56,
+    "maxCognitiveComplexity": 12,
+    "rationale": "Reviewed exception for existing Tier 1 run-plan compiler logic pending dedicated source-quality decomposition."
+  },
+  "internal/runplan/compiler_test.go": {
+    "kind": "test",
+    "maxFunctionLength": 47,
+    "rationale": "Reviewed exception for existing Tier 1 run-plan compiler test coverage pending dedicated source-quality decomposition."
+  }
+}

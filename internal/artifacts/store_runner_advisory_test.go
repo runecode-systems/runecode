@@ -134,46 +134,7 @@ func TestRunnerApprovalWaitDedupeSupersessionAndStatuses(t *testing.T) {
 func TestRecordRunnerResultRollsBackConsumedApprovalOnJournalFailure(t *testing.T) {
 	store := newTestStore(t)
 	now := time.Date(2026, 4, 10, 11, 30, 0, 0, time.UTC)
-	approval := ApprovalRecord{
-		ApprovalID:             testDigest("a"),
-		Status:                 "approved",
-		WorkspaceID:            "workspace-local",
-		RunID:                  "run-rollback",
-		ActionKind:             "action_gate_override",
-		RequestedAt:            now.Add(-time.Minute),
-		ExpiresAt:              ptrTime(now.Add(time.Hour)),
-		ApprovalTriggerCode:    "gate_override",
-		ChangesIfApproved:      approvalChangesIfApprovedDefault,
-		ApprovalAssuranceLevel: "reauthenticated",
-		PresenceMode:           "hardware_touch",
-		PolicyDecisionHash:     testDigest("p"),
-		ManifestHash:           testDigest("1"),
-		ActionRequestHash:      testDigest("2"),
-	}
-	decision := basePolicyDecisionRecord("run-rollback", map[string]any{"precedence": "approval"})
-	decision.DecisionOutcome = "require_human_approval"
-	decision.PolicyReasonCode = "approval_required"
-	decision.ManifestHash = approval.ManifestHash
-	decision.ActionRequestHash = approval.ActionRequestHash
-	decision.RequiredApprovalSchemaID = "runecode.protocol.details.policy.required_approval.hard_floor.v0"
-	decision.RequiredApproval = map[string]any{
-		"approval_trigger_code": "gate_override",
-		"scope": map[string]any{
-			"workspace_id": "workspace-local",
-			"run_id":       "run-rollback",
-			"action_kind":  "action_gate_override",
-		},
-	}
-	if err := store.RecordPolicyDecision(decision); err != nil {
-		t.Fatalf("RecordPolicyDecision returned error: %v", err)
-	}
-	for _, rec := range store.state.PolicyDecisions {
-		approval.PolicyDecisionHash = rec.Digest
-		break
-	}
-	if err := store.RecordApproval(approval); err != nil {
-		t.Fatalf("RecordApproval returned error: %v", err)
-	}
+	approval := seedApprovedGateOverrideApproval(t, store, "run-rollback", testDigest("a"), now)
 	snapshotPath := filepath.Join(store.rootDir, runnerSnapshotFileName)
 	if err := os.Remove(snapshotPath); err != nil && !os.IsNotExist(err) {
 		t.Fatalf("remove runner snapshot returned error: %v", err)
@@ -200,46 +161,8 @@ func TestRecordRunnerResultRollsBackConsumedApprovalOnJournalFailure(t *testing.
 func TestRunnerDurableStateReconcilesConsumedGateOverrideApprovalFromResult(t *testing.T) {
 	store := newTestStore(t)
 	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-	decision := basePolicyDecisionRecord("run-reconcile-consume", map[string]any{"precedence": "approval"})
-	decision.DecisionOutcome = "require_human_approval"
-	decision.PolicyReasonCode = "approval_required"
-	decision.RequiredApprovalSchemaID = "runecode.protocol.details.policy.required_approval.hard_floor.v0"
-	decision.RequiredApproval = map[string]any{
-		"approval_trigger_code": "gate_override",
-		"scope": map[string]any{
-			"workspace_id": "workspace-local",
-			"run_id":       "run-reconcile-consume",
-			"action_kind":  "action_gate_override",
-		},
-	}
-	if err := store.RecordPolicyDecision(decision); err != nil {
-		t.Fatalf("RecordPolicyDecision returned error: %v", err)
-	}
-	var policyHash string
-	for _, rec := range store.state.PolicyDecisions {
-		policyHash = rec.Digest
-		break
-	}
-	approval := ApprovalRecord{
-		ApprovalID:             testDigest("b"),
-		Status:                 "approved",
-		WorkspaceID:            "workspace-local",
-		RunID:                  "run-reconcile-consume",
-		ActionKind:             "action_gate_override",
-		RequestedAt:            now.Add(-time.Minute),
-		ExpiresAt:              ptrTime(now.Add(time.Hour)),
-		ApprovalTriggerCode:    "gate_override",
-		ChangesIfApproved:      approvalChangesIfApprovedDefault,
-		ApprovalAssuranceLevel: "reauthenticated",
-		PresenceMode:           "hardware_touch",
-		PolicyDecisionHash:     policyHash,
-		ManifestHash:           decision.ManifestHash,
-		ActionRequestHash:      decision.ActionRequestHash,
-	}
-	if err := store.RecordApproval(approval); err != nil {
-		t.Fatalf("RecordApproval returned error: %v", err)
-	}
-	if _, err := store.RecordRunnerResult("run-reconcile-consume", RunnerResultAdvisory{LifecycleState: "failed", ResultCode: "gate_overridden", GateAttemptID: "gate-attempt-1", GateState: "overridden", OverridePolicyRef: policyHash, OccurredAt: now, IdempotencyKey: "idem-reconcile"}, policyHash); err != nil {
+	approval := seedApprovedGateOverrideApproval(t, store, "run-reconcile-consume", testDigest("b"), now)
+	if _, err := store.RecordRunnerResult("run-reconcile-consume", RunnerResultAdvisory{LifecycleState: "failed", ResultCode: "gate_overridden", GateAttemptID: "gate-attempt-1", GateState: "overridden", OverridePolicyRef: approval.PolicyDecisionHash, OccurredAt: now, IdempotencyKey: "idem-reconcile"}, approval.PolicyDecisionHash); err != nil {
 		t.Fatalf("RecordRunnerResult returned error: %v", err)
 	}
 
@@ -273,6 +196,53 @@ func TestRunnerDurableStateReconcilesConsumedGateOverrideApprovalFromResult(t *t
 
 func ptrTime(t time.Time) *time.Time {
 	return &t
+}
+
+func seedApprovedGateOverrideApproval(t *testing.T, store *Store, runID, approvalID string, now time.Time) ApprovalRecord {
+	t.Helper()
+	decision := basePolicyDecisionRecord(runID, map[string]any{"precedence": "approval"})
+	decision.DecisionOutcome = "require_human_approval"
+	decision.PolicyReasonCode = "approval_required"
+	decision.RequiredApprovalSchemaID = "runecode.protocol.details.policy.required_approval.hard_floor.v0"
+	decision.RequiredApproval = map[string]any{
+		"approval_trigger_code": "gate_override",
+		"scope": map[string]any{
+			"workspace_id": "workspace-local",
+			"run_id":       runID,
+			"action_kind":  "action_gate_override",
+		},
+	}
+	if err := store.RecordPolicyDecision(decision); err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
+	}
+	decisionHash := firstPolicyDecisionDigest(store)
+	approval := ApprovalRecord{
+		ApprovalID:             approvalID,
+		Status:                 "approved",
+		WorkspaceID:            "workspace-local",
+		RunID:                  runID,
+		ActionKind:             "action_gate_override",
+		RequestedAt:            now.Add(-time.Minute),
+		ExpiresAt:              ptrTime(now.Add(time.Hour)),
+		ApprovalTriggerCode:    "gate_override",
+		ChangesIfApproved:      approvalChangesIfApprovedDefault,
+		ApprovalAssuranceLevel: "reauthenticated",
+		PresenceMode:           "hardware_touch",
+		PolicyDecisionHash:     decisionHash,
+		ManifestHash:           decision.ManifestHash,
+		ActionRequestHash:      decision.ActionRequestHash,
+	}
+	if err := store.RecordApproval(approval); err != nil {
+		t.Fatalf("RecordApproval returned error: %v", err)
+	}
+	return approval
+}
+
+func firstPolicyDecisionDigest(store *Store) string {
+	for _, rec := range store.state.PolicyDecisions {
+		return rec.Digest
+	}
+	return ""
 }
 
 func recordCheckpointAcceptance(t *testing.T, store *Store, runID string, checkpoint RunnerCheckpointAdvisory, wantAccepted bool, label string) {

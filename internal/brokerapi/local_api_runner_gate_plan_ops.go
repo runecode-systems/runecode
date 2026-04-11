@@ -6,6 +6,8 @@ import (
 	"io"
 	"sort"
 	"strings"
+
+	"github.com/runecode-ai/runecode/internal/artifacts"
 )
 
 type runPlannedGateEntry struct {
@@ -28,42 +30,83 @@ func (s *Service) compileRunGatePlan(runID string) (compiledRunGatePlan, error) 
 	if runID == "" {
 		return compiledRunGatePlan{}, nil
 	}
-	records := s.List()
-	entries := make([]runPlannedGateEntry, 0, 8)
+	records, foundRun := runScopedPlanRecords(s.List(), runID)
+	if err := ensureRunExistsForGatePlan(s.RunStatuses(), runID, foundRun); err != nil {
+		return compiledRunGatePlan{}, err
+	}
+	entries, err := s.collectRunPlanEntries(records)
+	if err != nil {
+		return compiledRunGatePlan{}, err
+	}
+	if len(entries) == 0 {
+		return compiledRunGatePlan{}, nil
+	}
+	sortRunPlanEntries(entries)
+	byGate, err := buildRunPlanEntryIndex(entries)
+	if err != nil {
+		return compiledRunGatePlan{}, err
+	}
+	return compiledRunGatePlan{entries: entries, byGate: byGate}, nil
+}
+
+func runScopedPlanRecords(records []artifacts.ArtifactRecord, runID string) ([]artifacts.ArtifactRecord, bool) {
+	out := make([]artifacts.ArtifactRecord, 0, len(records))
 	foundRun := false
 	for _, record := range records {
 		if strings.TrimSpace(record.RunID) != runID {
 			continue
 		}
 		foundRun = true
-		if !isTrustedGatePlanSourceRole(record.CreatedByRole) {
+		if !isTrustedGatePlanSourceRecord(record) {
 			continue
 		}
-		if !strings.EqualFold(strings.TrimSpace(record.Reference.ContentType), "application/json") {
-			continue
-		}
-		obj, ok, err := s.readWorkflowOrProcessDefinition(record.Reference.Digest)
+		out = append(out, record)
+	}
+	return out, foundRun
+}
+
+func isTrustedGatePlanSourceRecord(record artifacts.ArtifactRecord) bool {
+	if !isTrustedGatePlanSourceRole(record.CreatedByRole) {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(record.Reference.ContentType), "application/json")
+}
+
+func ensureRunExistsForGatePlan(statuses map[string]string, runID string, foundRun bool) error {
+	if foundRun {
+		return nil
+	}
+	status, ok := statuses[runID]
+	if !ok || strings.TrimSpace(status) == "" {
+		return fmt.Errorf("run %q not found", runID)
+	}
+	return nil
+}
+
+func (s *Service) collectRunPlanEntries(records []artifacts.ArtifactRecord) ([]runPlannedGateEntry, error) {
+	entries := make([]runPlannedGateEntry, 0, len(records))
+	for _, record := range records {
+		definitions, err := s.runPlanEntriesFromRecord(record)
 		if err != nil {
-			return compiledRunGatePlan{}, err
-		}
-		if !ok {
-			continue
-		}
-		definitions, err := extractGateDefinitionsForRunPlan(obj)
-		if err != nil {
-			return compiledRunGatePlan{}, err
+			return nil, err
 		}
 		entries = append(entries, definitions...)
 	}
-	if !foundRun {
-		status, ok := s.RunStatuses()[runID]
-		if !ok || strings.TrimSpace(status) == "" {
-			return compiledRunGatePlan{}, fmt.Errorf("run %q not found", runID)
-		}
+	return entries, nil
+}
+
+func (s *Service) runPlanEntriesFromRecord(record artifacts.ArtifactRecord) ([]runPlannedGateEntry, error) {
+	obj, ok, err := s.readWorkflowOrProcessDefinition(record.Reference.Digest)
+	if err != nil {
+		return nil, err
 	}
-	if len(entries) == 0 {
-		return compiledRunGatePlan{}, nil
+	if !ok {
+		return nil, nil
 	}
+	return extractGateDefinitionsForRunPlan(obj)
+}
+
+func sortRunPlanEntries(entries []runPlannedGateEntry) {
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].PlanOrderIndex != entries[j].PlanOrderIndex {
 			return entries[i].PlanOrderIndex < entries[j].PlanOrderIndex
@@ -79,18 +122,21 @@ func (s *Service) compileRunGatePlan(runID string) (compiledRunGatePlan, error) 
 		}
 		return entries[i].GateVersion < entries[j].GateVersion
 	})
+}
+
+func buildRunPlanEntryIndex(entries []runPlannedGateEntry) (map[string]runPlannedGateEntry, error) {
 	byGate := make(map[string]runPlannedGateEntry, len(entries))
 	for _, entry := range entries {
 		key := runPlanGateKey(entry.GateID, entry.GateKind, entry.GateVersion, entry.PlanCheckpointCode, entry.PlanOrderIndex)
 		if existing, ok := byGate[key]; ok {
 			if !sameRunPlannedGateEntry(existing, entry) {
-				return compiledRunGatePlan{}, fmt.Errorf("ambiguous gate plan entry for gate %q at %s[%d]", entry.GateID, entry.PlanCheckpointCode, entry.PlanOrderIndex)
+				return nil, fmt.Errorf("ambiguous gate plan entry for gate %q at %s[%d]", entry.GateID, entry.PlanCheckpointCode, entry.PlanOrderIndex)
 			}
 			continue
 		}
 		byGate[key] = entry
 	}
-	return compiledRunGatePlan{entries: entries, byGate: byGate}, nil
+	return byGate, nil
 }
 
 func isTrustedGatePlanSourceRole(role string) bool {

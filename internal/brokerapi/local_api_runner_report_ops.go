@@ -976,47 +976,16 @@ func validateGateOverrideApprovalExpiry(expiresAtRaw string, now time.Time) erro
 }
 
 func overrideActionForResult(report RunnerResultReport, details map[string]any) (policyengine.ActionRequest, error) {
-	if strings.TrimSpace(report.GateID) == "" || strings.TrimSpace(report.GateKind) == "" || strings.TrimSpace(report.GateVersion) == "" || strings.TrimSpace(report.GateAttemptID) == "" || strings.TrimSpace(report.OverriddenFailedResultRef) == "" {
-		return policyengine.ActionRequest{}, fmt.Errorf("gate override action requires gate identity, gate_attempt_id, and overridden_failed_result_ref")
+	if err := validateOverrideActionReportBinding(report); err != nil {
+		return policyengine.ActionRequest{}, err
 	}
-	policyContextHash, _ := details["policy_context_hash"].(string)
-	policyContextHash = strings.TrimSpace(policyContextHash)
-	if !isValidDigestIdentity(policyContextHash) {
-		return policyengine.ActionRequest{}, fmt.Errorf("gate override result requires details.policy_context_hash digest")
+	policyContextHash, err := requiredOverridePolicyContextHash(details, report.NormalizedInputDigests)
+	if err != nil {
+		return policyengine.ActionRequest{}, err
 	}
-	if !hasPolicyContextDigest(details, report.NormalizedInputDigests) {
-		return policyengine.ActionRequest{}, fmt.Errorf("details.policy_context_hash must be present in normalized_input_digests")
-	}
-	expiresAt := ""
-	if value, ok := details["override_expires_at"].(string); ok {
-		expiresAt = strings.TrimSpace(value)
-	}
-	if expiresAt == "" {
-		return policyengine.ActionRequest{}, fmt.Errorf("gate override result requires details.override_expires_at")
-	}
-	if _, err := time.Parse(time.RFC3339, expiresAt); err != nil {
-		return policyengine.ActionRequest{}, fmt.Errorf("details.override_expires_at must be RFC3339")
-	}
-	ticketRef := ""
-	if value, ok := details["ticket_ref"].(string); ok {
-		ticketRef = strings.TrimSpace(value)
-	}
-	overrideMode := "break_glass"
-	if value, ok := details["override_mode"].(string); ok && strings.TrimSpace(value) != "" {
-		overrideMode = strings.TrimSpace(value)
-	}
-	if overrideMode != "break_glass" && overrideMode != "temporary_allow" {
-		return policyengine.ActionRequest{}, fmt.Errorf("details.override_mode must be one of: break_glass, temporary_allow")
-	}
-	justification := "gate override continuation"
-	if value, ok := details["override_reason"].(string); ok && strings.TrimSpace(value) != "" {
-		justification = strings.TrimSpace(value)
-	}
-	if len(justification) > 512 {
-		return policyengine.ActionRequest{}, fmt.Errorf("details.override_reason exceeds max length 512")
-	}
-	if len(ticketRef) > 256 {
-		return policyengine.ActionRequest{}, fmt.Errorf("details.ticket_ref exceeds max length 256")
+	overrideDetails, err := parseOverrideActionDetails(details)
+	if err != nil {
+		return policyengine.ActionRequest{}, err
 	}
 	return policyengine.NewGateOverrideAction(policyengine.GateOverrideActionInput{
 		ActionEnvelope: policyengine.ActionEnvelope{
@@ -1033,11 +1002,95 @@ func overrideActionForResult(report RunnerResultReport, details map[string]any) 
 		GateAttemptID:             strings.TrimSpace(report.GateAttemptID),
 		OverriddenFailedResultRef: strings.TrimSpace(report.OverriddenFailedResultRef),
 		PolicyContextHash:         policyContextHash,
-		OverrideMode:              overrideMode,
-		Justification:             justification,
-		ExpiresAt:                 expiresAt,
-		TicketRef:                 ticketRef,
+		OverrideMode:              overrideDetails.OverrideMode,
+		Justification:             overrideDetails.Justification,
+		ExpiresAt:                 overrideDetails.ExpiresAt,
+		TicketRef:                 overrideDetails.TicketRef,
 	}), nil
+}
+
+type parsedOverrideActionDetails struct {
+	ExpiresAt     string
+	TicketRef     string
+	OverrideMode  string
+	Justification string
+}
+
+func validateOverrideActionReportBinding(report RunnerResultReport) error {
+	if strings.TrimSpace(report.GateID) == "" || strings.TrimSpace(report.GateKind) == "" || strings.TrimSpace(report.GateVersion) == "" || strings.TrimSpace(report.GateAttemptID) == "" || strings.TrimSpace(report.OverriddenFailedResultRef) == "" {
+		return fmt.Errorf("gate override action requires gate identity, gate_attempt_id, and overridden_failed_result_ref")
+	}
+	return nil
+}
+
+func requiredOverridePolicyContextHash(details map[string]any, normalizedInputDigests []string) (string, error) {
+	policyContextHash, _ := details["policy_context_hash"].(string)
+	policyContextHash = strings.TrimSpace(policyContextHash)
+	if !isValidDigestIdentity(policyContextHash) {
+		return "", fmt.Errorf("gate override result requires details.policy_context_hash digest")
+	}
+	if !hasPolicyContextDigest(details, normalizedInputDigests) {
+		return "", fmt.Errorf("details.policy_context_hash must be present in normalized_input_digests")
+	}
+	return policyContextHash, nil
+}
+
+func parseOverrideActionDetails(details map[string]any) (parsedOverrideActionDetails, error) {
+	expiresAt, err := requiredOverrideExpiry(details)
+	if err != nil {
+		return parsedOverrideActionDetails{}, err
+	}
+	ticketRef := optionalTrimmedDetail(details, "ticket_ref")
+	overrideMode, err := parsedOverrideMode(details)
+	if err != nil {
+		return parsedOverrideActionDetails{}, err
+	}
+	justification, err := parsedOverrideJustification(details)
+	if err != nil {
+		return parsedOverrideActionDetails{}, err
+	}
+	if len(ticketRef) > 256 {
+		return parsedOverrideActionDetails{}, fmt.Errorf("details.ticket_ref exceeds max length 256")
+	}
+	return parsedOverrideActionDetails{ExpiresAt: expiresAt, TicketRef: ticketRef, OverrideMode: overrideMode, Justification: justification}, nil
+}
+
+func requiredOverrideExpiry(details map[string]any) (string, error) {
+	expiresAt := optionalTrimmedDetail(details, "override_expires_at")
+	if expiresAt == "" {
+		return "", fmt.Errorf("gate override result requires details.override_expires_at")
+	}
+	if _, err := time.Parse(time.RFC3339, expiresAt); err != nil {
+		return "", fmt.Errorf("details.override_expires_at must be RFC3339")
+	}
+	return expiresAt, nil
+}
+
+func parsedOverrideMode(details map[string]any) (string, error) {
+	overrideMode := optionalTrimmedDetail(details, "override_mode")
+	if overrideMode == "" {
+		overrideMode = "break_glass"
+	}
+	if overrideMode != "break_glass" && overrideMode != "temporary_allow" {
+		return "", fmt.Errorf("details.override_mode must be one of: break_glass, temporary_allow")
+	}
+	return overrideMode, nil
+}
+
+func parsedOverrideJustification(details map[string]any) (string, error) {
+	justification := optionalTrimmedDetail(details, "override_reason")
+	if justification == "" {
+		justification = "gate override continuation"
+	}
+	if len(justification) > 512 {
+		return "", fmt.Errorf("details.override_reason exceeds max length 512")
+	}
+	return justification, nil
+}
+
+func optionalTrimmedDetail(details map[string]any, key string) string {
+	value, _ := details[key].(string)
+	return strings.TrimSpace(value)
 }
 
 func validateCheckpointGateAttemptMutation(advisory artifacts.RunnerAdvisoryState, report RunnerCheckpointReport) error {
@@ -1172,18 +1225,41 @@ func (s *Service) resolveGateEvidenceRef(runID string, report RunnerResultReport
 	if err != nil {
 		return "", fmt.Errorf("gate_evidence.outcome: %w", err)
 	}
+	if err := validateGateEvidenceReportBinding(runID, report, evidence); err != nil {
+		return "", err
+	}
+	evidenceRecord := buildGateEvidenceRecord(report, evidence, runtimeSummary, outcomeSummary, planned)
+	canonicalEvidence, err := canonicalGateEvidenceDigest(evidenceRecord)
+	if err != nil {
+		return "", err
+	}
+	if providedRef != "" && providedRef != canonicalEvidence {
+		return "", fmt.Errorf("gate_evidence_ref does not match canonical evidence digest")
+	}
+	ref, err := s.PutGateEvidence(runID, evidenceRecord)
+	if err != nil {
+		return "", err
+	}
+	return ref.Digest, nil
+}
+
+func validateGateEvidenceReportBinding(runID string, report RunnerResultReport, evidence *GateEvidence) error {
 	if strings.TrimSpace(evidence.RunID) != strings.TrimSpace(runID) {
-		return "", fmt.Errorf("gate_evidence.run_id must match run_id")
+		return fmt.Errorf("gate_evidence.run_id must match run_id")
 	}
 	if strings.TrimSpace(evidence.GateID) != strings.TrimSpace(report.GateID) || strings.TrimSpace(evidence.GateKind) != strings.TrimSpace(report.GateKind) || strings.TrimSpace(evidence.GateVersion) != strings.TrimSpace(report.GateVersion) || strings.TrimSpace(evidence.GateAttemptID) != strings.TrimSpace(report.GateAttemptID) {
-		return "", fmt.Errorf("gate_evidence identity must match gate report binding")
+		return fmt.Errorf("gate_evidence identity must match gate report binding")
 	}
 	if strings.TrimSpace(evidence.PlanCheckpointCode) != "" && strings.TrimSpace(evidence.PlanCheckpointCode) != strings.TrimSpace(report.PlanCheckpointCode) {
-		return "", fmt.Errorf("gate_evidence.plan_checkpoint_code must match gate report binding")
+		return fmt.Errorf("gate_evidence.plan_checkpoint_code must match gate report binding")
 	}
 	if strings.TrimSpace(evidence.PlanCheckpointCode) != "" && evidence.PlanOrderIndex != report.PlanOrderIndex {
-		return "", fmt.Errorf("gate_evidence.plan_order_index must match gate report binding")
+		return fmt.Errorf("gate_evidence.plan_order_index must match gate report binding")
 	}
+	return nil
+}
+
+func buildGateEvidenceRecord(report RunnerResultReport, evidence *GateEvidence, runtimeSummary map[string]any, outcomeSummary map[string]any, planned runPlannedGateEntry) artifacts.GateEvidenceArtifact {
 	evidenceRecord := artifacts.GateEvidenceArtifact{
 		SchemaID:               evidence.SchemaID,
 		SchemaVersion:          evidence.SchemaVersion,
@@ -1216,18 +1292,7 @@ func (s *Service) resolveGateEvidenceRef(runID string, report RunnerResultReport
 	if planned.MaxAttempts > 0 {
 		evidenceRecord.Runtime["planned_retry_max_attempts"] = planned.MaxAttempts
 	}
-	canonicalEvidence, err := canonicalGateEvidenceDigest(evidenceRecord)
-	if err != nil {
-		return "", err
-	}
-	if providedRef != "" && providedRef != canonicalEvidence {
-		return "", fmt.Errorf("gate_evidence_ref does not match canonical evidence digest")
-	}
-	ref, err := s.PutGateEvidence(runID, evidenceRecord)
-	if err != nil {
-		return "", err
-	}
-	return ref.Digest, nil
+	return evidenceRecord
 }
 
 func canonicalGateEvidenceDigest(evidence artifacts.GateEvidenceArtifact) (string, error) {

@@ -238,31 +238,62 @@ func mergeExecutorBindings(workflow []ExecutorBinding, process []ExecutorBinding
 }
 
 func compileGateDefinitions(workflow []GateDefinition, process []GateDefinition, bindings []ExecutorBinding) ([]GateDefinition, []string, error) {
-	bindingSet := map[string]struct{}{}
-	for _, binding := range bindings {
-		bindingSet[binding.BindingID] = struct{}{}
+	bindingSet := bindingIDSet(bindings)
+	keySet, err := collectCompiledGateDefinitions(bindingSet, workflow, process)
+	if err != nil {
+		return nil, nil, err
 	}
+	return sortedCompiledGateDefinitions(keySet)
+}
+
+func bindingIDSet(bindings []ExecutorBinding) map[string]struct{} {
+	out := map[string]struct{}{}
+	for _, binding := range bindings {
+		out[binding.BindingID] = struct{}{}
+	}
+	return out
+}
+
+func collectCompiledGateDefinitions(bindingSet map[string]struct{}, workflow []GateDefinition, process []GateDefinition) (map[string]GateDefinition, error) {
 	keySet := map[string]GateDefinition{}
 	for _, gate := range append(append([]GateDefinition{}, workflow...), process...) {
-		if gate.SchemaID != gateDefinitionSchemaID {
-			return nil, nil, fmt.Errorf("gate definition schema_id %q does not match %q", gate.SchemaID, gateDefinitionSchemaID)
+		key, err := validatedCompiledGateKey(bindingSet, gate)
+		if err != nil {
+			return nil, err
 		}
-		if gate.SchemaVersion != gateDefinitionVersion {
-			return nil, nil, fmt.Errorf("gate definition schema_version %q does not match %q", gate.SchemaVersion, gateDefinitionVersion)
-		}
-		if _, ok := bindingSet[gate.ExecutorBindingID]; !ok {
-			return nil, nil, fmt.Errorf("gate %q references unknown executor_binding_id %q", gate.Gate.GateID, gate.ExecutorBindingID)
-		}
-		key := fmt.Sprintf("%s|%09d|%s", gate.CheckpointCode, gate.OrderIndex, gate.Gate.GateID)
-		existing, seen := keySet[key]
-		if !seen {
-			keySet[key] = gate
-			continue
-		}
-		if existing.ExecutorBindingID != gate.ExecutorBindingID || existing.RoleInstanceID != gate.RoleInstanceID {
-			return nil, nil, fmt.Errorf("gate definition %q conflicts across workflow/process inputs", gate.Gate.GateID)
+		if err := mergeCompiledGateDefinition(keySet, key, gate); err != nil {
+			return nil, err
 		}
 	}
+	return keySet, nil
+}
+
+func validatedCompiledGateKey(bindingSet map[string]struct{}, gate GateDefinition) (string, error) {
+	if gate.SchemaID != gateDefinitionSchemaID {
+		return "", fmt.Errorf("gate definition schema_id %q does not match %q", gate.SchemaID, gateDefinitionSchemaID)
+	}
+	if gate.SchemaVersion != gateDefinitionVersion {
+		return "", fmt.Errorf("gate definition schema_version %q does not match %q", gate.SchemaVersion, gateDefinitionVersion)
+	}
+	if _, ok := bindingSet[gate.ExecutorBindingID]; !ok {
+		return "", fmt.Errorf("gate %q references unknown executor_binding_id %q", gate.Gate.GateID, gate.ExecutorBindingID)
+	}
+	return fmt.Sprintf("%s|%09d|%s", gate.CheckpointCode, gate.OrderIndex, gate.Gate.GateID), nil
+}
+
+func mergeCompiledGateDefinition(keySet map[string]GateDefinition, key string, gate GateDefinition) error {
+	existing, seen := keySet[key]
+	if !seen {
+		keySet[key] = gate
+		return nil
+	}
+	if existing.ExecutorBindingID != gate.ExecutorBindingID || existing.RoleInstanceID != gate.RoleInstanceID {
+		return fmt.Errorf("gate definition %q conflicts across workflow/process inputs", gate.Gate.GateID)
+	}
+	return nil
+}
+
+func sortedCompiledGateDefinitions(keySet map[string]GateDefinition) ([]GateDefinition, []string, error) {
 	keys := make([]string, 0, len(keySet))
 	roleSet := map[string]struct{}{}
 	for key, gate := range keySet {
@@ -272,8 +303,7 @@ func compileGateDefinitions(workflow []GateDefinition, process []GateDefinition,
 	sort.Strings(keys)
 	gates := make([]GateDefinition, 0, len(keys))
 	for _, key := range keys {
-		gate := keySet[key]
-		gates = append(gates, gate)
+		gates = append(gates, keySet[key])
 	}
 	roleIDs := make([]string, 0, len(roleSet))
 	for roleID := range roleSet {

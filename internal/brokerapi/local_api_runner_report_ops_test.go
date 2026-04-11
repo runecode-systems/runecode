@@ -617,14 +617,31 @@ func TestRunnerResultReportConsumesGateOverrideApprovalSingleUse(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	now := time.Date(2026, 4, 2, 13, 0, 0, 0, time.UTC)
 	s.now = func() time.Time { return now }
-	if err := s.SetRunStatus("run-gate-override-consume", "active"); err != nil {
+	override := prepareConsumableGateOverride(t, s, now, "run-gate-override-consume")
+	if _, errResp := s.HandleRunnerResultReport(context.Background(), RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-gate-override-consume-1", RunID: "run-gate-override-consume", Report: override}, RequestContext{}); errResp != nil {
+		t.Fatalf("first override HandleRunnerResultReport error response: %+v", errResp)
+	}
+	assertConsumedGateOverrideApproval(t, s, "run-gate-override-consume")
+	override.GateAttemptID = "gate-attempt-3"
+	override.IdempotencyKey = "idem-gate-override-second-consume"
+	override.OccurredAt = now.Add(3 * time.Minute).Format(time.RFC3339)
+	if _, errResp := s.HandleRunnerResultReport(context.Background(), RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-gate-override-consume-2", RunID: "run-gate-override-consume", Report: override}, RequestContext{}); errResp == nil {
+		t.Fatal("second override should fail after approval is consumed")
+	} else if errResp.Error.Code != "broker_validation_runner_transition_invalid" {
+		t.Fatalf("error code = %q, want broker_validation_runner_transition_invalid", errResp.Error.Code)
+	}
+}
+
+func prepareConsumableGateOverride(t *testing.T, s *Service, now time.Time, runID string) RunnerResultReport {
+	t.Helper()
+	if err := s.SetRunStatus(runID, "active"); err != nil {
 		t.Fatalf("SetRunStatus returned error: %v", err)
 	}
 	failed := buildFailedGateResult(now, "idem-gate-failed-consume", "gate-attempt-1", "sha256:"+strings.Repeat("a", 64))
-	if _, errResp := s.HandleRunnerResultReport(context.Background(), RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-gate-failed-consume", RunID: "run-gate-override-consume", Report: failed}, RequestContext{}); errResp != nil {
+	if _, errResp := s.HandleRunnerResultReport(context.Background(), RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-gate-failed-consume", RunID: runID, Report: failed}, RequestContext{}); errResp != nil {
 		t.Fatalf("failed HandleRunnerResultReport error response: %+v", errResp)
 	}
-	failedRef, err := canonicalGateResultRef("run-gate-override-consume", failed, "")
+	failedRef, err := canonicalGateResultRef(runID, failed, "")
 	if err != nil {
 		t.Fatalf("canonicalGateResultRef returned error: %v", err)
 	}
@@ -637,36 +654,25 @@ func TestRunnerResultReportConsumesGateOverrideApprovalSingleUse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CanonicalActionRequestHash returned error: %v", err)
 	}
-	decision := buildGateOverridePolicyDecision("run-gate-override-consume", actionHash, failedRef)
-	if err := s.RecordPolicyDecision("run-gate-override-consume", "", decision); err != nil {
+	decision := buildGateOverridePolicyDecision(runID, actionHash, failedRef)
+	if err := s.RecordPolicyDecision(runID, "", decision); err != nil {
 		t.Fatalf("RecordPolicyDecision returned error: %v", err)
 	}
-	approvePendingGateOverride(t, s, now, "run-gate-override-consume")
+	approvePendingGateOverride(t, s, now, runID)
+	return override
+}
 
-	if _, errResp := s.HandleRunnerResultReport(context.Background(), RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-gate-override-consume-1", RunID: "run-gate-override-consume", Report: override}, RequestContext{}); errResp != nil {
-		t.Fatalf("first override HandleRunnerResultReport error response: %+v", errResp)
-	}
-
-	consumed := false
+func assertConsumedGateOverrideApproval(t *testing.T, s *Service, runID string) {
+	t.Helper()
 	for _, ap := range s.ApprovalList() {
-		if ap.RunID == "run-gate-override-consume" && ap.ActionKind == policyengine.ActionKindGateOverride && ap.Status == "consumed" {
-			consumed = true
+		if ap.RunID == runID && ap.ActionKind == policyengine.ActionKindGateOverride && ap.Status == "consumed" {
 			if ap.ConsumedAt == nil {
 				t.Fatal("consumed approval missing consumed_at")
 			}
+			return
 		}
 	}
-	if !consumed {
-		t.Fatal("expected gate override approval to be consumed")
-	}
-	override.GateAttemptID = "gate-attempt-3"
-	override.IdempotencyKey = "idem-gate-override-second-consume"
-	override.OccurredAt = now.Add(3 * time.Minute).Format(time.RFC3339)
-	if _, errResp := s.HandleRunnerResultReport(context.Background(), RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-gate-override-consume-2", RunID: "run-gate-override-consume", Report: override}, RequestContext{}); errResp == nil {
-		t.Fatal("second override should fail after approval is consumed")
-	} else if errResp.Error.Code != "broker_validation_runner_transition_invalid" {
-		t.Fatalf("error code = %q, want broker_validation_runner_transition_invalid", errResp.Error.Code)
-	}
+	t.Fatal("expected gate override approval to be consumed")
 }
 
 func TestRunnerResultReportSanitizesAndDeepCopiesDetails(t *testing.T) {

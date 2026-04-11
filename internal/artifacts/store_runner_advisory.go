@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 const (
@@ -78,33 +79,9 @@ func (s *Store) RecordRunnerCheckpoint(runID string, checkpoint RunnerCheckpoint
 func (s *Store) RecordRunnerResult(runID string, result RunnerResultAdvisory, overridePolicyRef string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	trimmedRunID := strings.TrimSpace(runID)
-	if trimmedRunID == "" {
-		return false, fmt.Errorf("run id is required")
-	}
-	if strings.TrimSpace(result.IdempotencyKey) == "" {
-		return false, fmt.Errorf("idempotency key is required")
-	}
-	if strings.TrimSpace(result.LifecycleState) == "" {
-		return false, fmt.Errorf("lifecycle state is required")
-	}
-	if strings.TrimSpace(result.ResultCode) == "" {
-		return false, fmt.Errorf("result code is required")
-	}
-	if err := validateRunnerTerminalLifecycleState(result.LifecycleState); err != nil {
+	trimmedRunID, record, err := validatedRunnerResultRecord(runID, result)
+	if err != nil {
 		return false, err
-	}
-	if err := validateRunnerStepIdentity(result.StageID, result.StepID, result.RoleInstanceID); err != nil {
-		return false, err
-	}
-	record := RunnerDurableJournalRecord{
-		Family:         runnerJournalFamily,
-		SchemaVersion:  runnerDurableSchemaVersion,
-		RecordType:     "result",
-		RunID:          trimmedRunID,
-		IdempotencyKey: result.IdempotencyKey,
-		OccurredAt:     result.OccurredAt.UTC(),
-		Result:         cloneResult(&result),
 	}
 	runs, idem, seq, _, err := loadRunnerDurableState(s.rootDir)
 	if err != nil {
@@ -115,39 +92,96 @@ func (s *Store) RecordRunnerResult(runID string, result RunnerResultAdvisory, ov
 		s.state.RunnerAdvisoryByRun = runs
 		return false, nil
 	}
-	approvalID, priorApproval, mutated, err := s.consumeGateOverrideApprovalLocked(trimmedRunID, strings.TrimSpace(overridePolicyRef), result)
+	rollback, err := s.consumeGateOverrideApprovalForResult(trimmedRunID, strings.TrimSpace(overridePolicyRef), result)
 	if err != nil {
 		return false, err
 	}
 	record.Sequence = seq + 1
 	if err := appendRunnerJournalRecord(s.rootDir, record); err != nil {
+		rollback()
+		return false, err
+	}
+	if err := persistRunnerResultDurableStateLocked(&s.state, s.rootDir, runs, idem, record); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func validatedRunnerResultRecord(runID string, result RunnerResultAdvisory) (string, RunnerDurableJournalRecord, error) {
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return "", RunnerDurableJournalRecord{}, fmt.Errorf("run id is required")
+	}
+	if strings.TrimSpace(result.IdempotencyKey) == "" {
+		return "", RunnerDurableJournalRecord{}, fmt.Errorf("idempotency key is required")
+	}
+	if strings.TrimSpace(result.LifecycleState) == "" {
+		return "", RunnerDurableJournalRecord{}, fmt.Errorf("lifecycle state is required")
+	}
+	if strings.TrimSpace(result.ResultCode) == "" {
+		return "", RunnerDurableJournalRecord{}, fmt.Errorf("result code is required")
+	}
+	if err := validateRunnerTerminalLifecycleState(result.LifecycleState); err != nil {
+		return "", RunnerDurableJournalRecord{}, err
+	}
+	if err := validateRunnerStepIdentity(result.StageID, result.StepID, result.RoleInstanceID); err != nil {
+		return "", RunnerDurableJournalRecord{}, err
+	}
+	return trimmedRunID, RunnerDurableJournalRecord{
+		Family:         runnerJournalFamily,
+		SchemaVersion:  runnerDurableSchemaVersion,
+		RecordType:     "result",
+		RunID:          trimmedRunID,
+		IdempotencyKey: result.IdempotencyKey,
+		OccurredAt:     result.OccurredAt.UTC(),
+		Result:         cloneResult(&result),
+	}, nil
+}
+
+func (s *Store) consumeGateOverrideApprovalForResult(runID, overridePolicyRef string, result RunnerResultAdvisory) (func(), error) {
+	approvalID, priorApproval, mutated, err := s.consumeGateOverrideApprovalLocked(runID, overridePolicyRef, result)
+	if err != nil {
+		return nil, err
+	}
+	return func() {
 		if mutated {
 			s.state.Approvals[approvalID] = priorApproval
 			rebuildRunApprovalRefsLocked(&s.state)
 		}
-		return false, err
-	}
+	}, nil
+}
+
+func persistRunnerResultDurableStateLocked(state *StoreState, rootDir string, runs map[string]RunnerAdvisoryState, idem map[string]int64, record RunnerDurableJournalRecord) error {
 	if err := applyRunnerJournalRecord(runs, record); err != nil {
-		return false, err
+		return err
 	}
-	s.state.RunnerAdvisoryByRun = runs
-	if _, ok := s.state.Runs[record.RunID]; !ok {
-		s.state.Runs[record.RunID] = "pending"
-	}
-	idem[key] = record.Sequence
-	if err := writeRunnerSnapshot(s.rootDir, RunnerDurableSnapshot{
+	state.RunnerAdvisoryByRun = runs
+	ensureRunnerStatusExists(state, record.RunID)
+	idem[scopedRunnerIdempotencyKey(record)] = record.Sequence
+	if err := writeRunnerSnapshot(rootDir, RunnerDurableSnapshot{
 		Family:        runnerSnapshotFamily,
 		SchemaVersion: runnerDurableSchemaVersion,
 		LastSequence:  record.Sequence,
 		Runs:          runs,
 		Idempotency:   idem,
 	}); err != nil {
-		return false, err
+		return err
 	}
-	if err := s.saveStateLocked(); err != nil {
-		return false, err
+	return saveStoreStateLocked(state, rootDir)
+}
+
+func ensureRunnerStatusExists(state *StoreState, runID string) {
+	if _, ok := state.Runs[runID]; !ok {
+		state.Runs[runID] = "pending"
 	}
-	return true, nil
+}
+
+func saveStoreStateLocked(state *StoreState, rootDir string) error {
+	sio, err := newStoreIO(rootDir, defaultBlobDir(rootDir))
+	if err != nil {
+		return err
+	}
+	return sio.saveStateFile(*state)
 }
 
 func (s *Store) RecordRunnerApprovalWait(approval RunnerApproval) error {
@@ -402,24 +436,8 @@ func reconcileConsumedGateOverrideApprovalsLocked(state *StoreState) bool {
 	changed := false
 	for runID, advisory := range state.RunnerAdvisoryByRun {
 		for _, gateAttempt := range advisory.GateAttempts {
-			policyRef := strings.TrimSpace(gateAttempt.OverridePolicyRef)
-			if policyRef == "" || strings.TrimSpace(gateAttempt.GateState) != "overridden" {
-				continue
-			}
-			for approvalID, approval := range state.Approvals {
-				if !matchesApprovedGateOverrideApprovalRecord(approval, runID, policyRef) {
-					continue
-				}
-				when := gateAttempt.FinishedAt.UTC()
-				if when.IsZero() {
-					when = gateAttempt.LastUpdatedAt.UTC()
-				}
-				approval.Status = "consumed"
-				approval.DecidedAt = &when
-				approval.ConsumedAt = &when
-				state.Approvals[approvalID] = approval
+			if reconcileConsumedGateOverrideApprovalForAttempt(state, runID, gateAttempt) {
 				changed = true
-				break
 			}
 		}
 	}
@@ -427,6 +445,36 @@ func reconcileConsumedGateOverrideApprovalsLocked(state *StoreState) bool {
 		rebuildRunApprovalRefsLocked(state)
 	}
 	return changed
+}
+
+func reconcileConsumedGateOverrideApprovalForAttempt(state *StoreState, runID string, gateAttempt RunnerGateHint) bool {
+	policyRef := strings.TrimSpace(gateAttempt.OverridePolicyRef)
+	if policyRef == "" || strings.TrimSpace(gateAttempt.GateState) != "overridden" {
+		return false
+	}
+	for approvalID, approval := range state.Approvals {
+		if !matchesApprovedGateOverrideApprovalRecord(approval, runID, policyRef) {
+			continue
+		}
+		state.Approvals[approvalID] = consumedGateOverrideApproval(approval, gateAttemptFinishedAt(gateAttempt))
+		return true
+	}
+	return false
+}
+
+func gateAttemptFinishedAt(gateAttempt RunnerGateHint) time.Time {
+	when := gateAttempt.FinishedAt.UTC()
+	if when.IsZero() {
+		when = gateAttempt.LastUpdatedAt.UTC()
+	}
+	return when
+}
+
+func consumedGateOverrideApproval(approval ApprovalRecord, when time.Time) ApprovalRecord {
+	approval.Status = "consumed"
+	approval.DecidedAt = &when
+	approval.ConsumedAt = &when
+	return approval
 }
 
 func appendRunnerJournalRecord(rootDir string, record RunnerDurableJournalRecord) error {
