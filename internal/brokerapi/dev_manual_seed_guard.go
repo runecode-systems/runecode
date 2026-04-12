@@ -13,7 +13,7 @@ import (
 
 func ensureDevManualSeedLedgerAllowed(root string) error {
 	if filepath.Clean(root) == filepath.Clean(auditd.DefaultLedgerRoot()) {
-		return fmt.Errorf("dev manual seeding refuses default audit ledger root %q", root)
+		return fmt.Errorf("dev manual seeding refuses default audit ledger root")
 	}
 	if hasDevManualSeedMarker(root) {
 		return nil
@@ -23,7 +23,7 @@ func ensureDevManualSeedLedgerAllowed(root string) error {
 		return err
 	}
 	if populated {
-		return fmt.Errorf("dev manual seeding refuses populated audit ledger root %q", root)
+		return fmt.Errorf("dev manual seeding refuses populated audit ledger root")
 	}
 	return nil
 }

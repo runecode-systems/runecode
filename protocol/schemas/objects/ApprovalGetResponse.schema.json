@@ -6,7 +6,7 @@
   "type": "object",
   "additionalProperties": false,
   "maxProperties": 7,
-  "required": ["schema_id", "schema_version", "request_id", "approval", "approval_detail"],
+  "required": ["schema_id", "schema_version", "request_id", "approval"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.ApprovalGetResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },
     "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },

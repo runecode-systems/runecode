@@ -184,6 +184,38 @@ func TestRestoreRejectsMissingBackupSignature(t *testing.T) {
 	}
 }
 
+func TestRestoreReportsSessionRecordIndexForMissingSessionID(t *testing.T) {
+	store := newTestStore(t)
+	manifest := BackupManifest{
+		Schema:            "runecode.backup.artifacts.v1",
+		ExportedAt:        time.Now().UTC(),
+		StorageProtection: "encrypted_at_rest_default",
+		Policy:            DefaultPolicy(),
+		Runs:              map[string]string{},
+		Sessions:          []SessionDurableState{{WorkspaceID: "ws-restore"}},
+	}
+	backupPath := filepath.Join(t.TempDir(), "backup-missing-session-id.json")
+	if err := store.storeIO.writeBackup(backupPath, manifest); err != nil {
+		t.Fatalf("write backup error: %v", err)
+	}
+	signature, err := computeBackupSignature(manifest, store.state.BackupHMACKey)
+	if err != nil {
+		t.Fatalf("compute signature error: %v", err)
+	}
+	if err := store.storeIO.writeBackupSignature(backupSignaturePath(backupPath), signature); err != nil {
+		t.Fatalf("write signature error: %v", err)
+	}
+	restoreStore := newTestStore(t)
+	err = restoreStore.RestoreBackup(backupPath)
+	if err == nil {
+		t.Fatal("RestoreBackup expected missing session id error")
+	}
+	want := "session id is required at restore index 0 (workspace=\"ws-restore\")"
+	if err.Error() != want {
+		t.Fatalf("RestoreBackup error = %q, want %q", err.Error(), want)
+	}
+}
+
 func TestRestoreRejectsTamperedBackupSignature(t *testing.T) {
 	store := newTestStore(t)
 	if _, err := store.Put(PutRequest{Payload: []byte("payload"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"}); err != nil {

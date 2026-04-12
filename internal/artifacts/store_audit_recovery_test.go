@@ -74,6 +74,8 @@ func TestLoadStateRecoversAuditSequenceWhenStateSaveLagged(t *testing.T) {
 	}
 	if _, err := store.Put(PutRequest{Payload: []byte("second"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("2"), CreatedByRole: "workspace"}); err == nil {
 		t.Fatal("Put expected state save failure after audit append")
+	} else if !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("Put error = %v, want state path directory failure", err)
 	}
 	reloaded, err := NewStore(store.rootDir)
 	if err != nil {
@@ -83,12 +85,15 @@ func TestLoadStateRecoversAuditSequenceWhenStateSaveLagged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadAuditEvents error: %v", err)
 	}
-	if len(events) == 0 {
-		t.Fatal("expected audit events after simulated state save failure")
+	if len(events) != 2 {
+		t.Fatalf("audit events len = %d, want 2 after save lag", len(events))
 	}
 	last := events[len(events)-1].Seq
 	if reloaded.state.LastAuditSequence != last {
 		t.Fatalf("reloaded LastAuditSequence = %d, want %d", reloaded.state.LastAuditSequence, last)
+	}
+	if len(reloaded.List()) != 1 {
+		t.Fatalf("reloaded artifact count = %d, want 1 after rollback", len(reloaded.List()))
 	}
 }
 

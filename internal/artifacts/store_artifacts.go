@@ -47,13 +47,20 @@ func (s *Store) putLocked(req PutRequest) (ArtifactReference, error) {
 		return ArtifactReference{}, err
 	}
 	if err := s.appendAuditLocked("artifact_put", actorRole, map[string]interface{}{"digest": digest, "data_class": req.DataClass, "provenance_receipt_hash": req.ProvenanceReceiptHash}); err != nil {
-		rollback()
-		if removeErr := s.storeIO.removeBlob(blobPath); removeErr != nil {
-			return ArtifactReference{}, errors.Join(err, removeErr)
-		}
-		return ArtifactReference{}, err
+		return ArtifactReference{}, s.rollbackStagedArtifactPut(rollback, blobPath, err)
+	}
+	if err := s.saveStateLocked(); err != nil {
+		return ArtifactReference{}, s.rollbackStagedArtifactPut(rollback, blobPath, err)
 	}
 	return ref, nil
+}
+
+func (s *Store) rollbackStagedArtifactPut(rollback func(), blobPath string, cause error) error {
+	rollback()
+	if removeErr := s.storeIO.removeBlob(blobPath); removeErr != nil {
+		return errors.Join(cause, removeErr)
+	}
+	return cause
 }
 
 func (s *Store) stageArtifactPut(ref ArtifactReference, req PutRequest, digest string, payload []byte, actorRole string) (string, func(), error) {

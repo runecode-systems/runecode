@@ -44,12 +44,12 @@ func completedSessionWatchTerminal(req SessionWatchRequest, seq int64) SessionWa
 	}
 }
 
-func runWatchTerminalFromContextErr(req RunWatchRequest, seq int64, ctxErr error) RunWatchEvent {
+func runWatchTerminalFromContextErr(streamID string, requestID string, seq int64, ctxErr error) RunWatchEvent {
 	terminal := RunWatchEvent{
 		SchemaID:      "runecode.protocol.v0.RunWatchEvent",
 		SchemaVersion: "0.1.0",
-		StreamID:      req.StreamID,
-		RequestID:     req.RequestID,
+		StreamID:      streamID,
+		RequestID:     requestID,
 		Seq:           seq,
 		EventType:     "run_watch_terminal",
 		Terminal:      true,
@@ -74,12 +74,12 @@ func runWatchTerminalFromContextErr(req RunWatchRequest, seq int64, ctxErr error
 	return terminal
 }
 
-func approvalWatchTerminalFromContextErr(req ApprovalWatchRequest, seq int64, ctxErr error) ApprovalWatchEvent {
+func approvalWatchTerminalFromContextErr(streamID string, requestID string, seq int64, ctxErr error) ApprovalWatchEvent {
 	terminal := ApprovalWatchEvent{
 		SchemaID:      "runecode.protocol.v0.ApprovalWatchEvent",
 		SchemaVersion: "0.1.0",
-		StreamID:      req.StreamID,
-		RequestID:     req.RequestID,
+		StreamID:      streamID,
+		RequestID:     requestID,
 		Seq:           seq,
 		EventType:     "approval_watch_terminal",
 		Terminal:      true,
@@ -104,12 +104,12 @@ func approvalWatchTerminalFromContextErr(req ApprovalWatchRequest, seq int64, ct
 	return terminal
 }
 
-func sessionWatchTerminalFromContextErr(req SessionWatchRequest, seq int64, ctxErr error) SessionWatchEvent {
+func sessionWatchTerminalFromContextErr(streamID string, requestID string, seq int64, ctxErr error) SessionWatchEvent {
 	terminal := SessionWatchEvent{
 		SchemaID:      "runecode.protocol.v0.SessionWatchEvent",
 		SchemaVersion: "0.1.0",
-		StreamID:      req.StreamID,
-		RequestID:     req.RequestID,
+		StreamID:      streamID,
+		RequestID:     requestID,
 		Seq:           seq,
 		EventType:     "session_watch_terminal",
 		Terminal:      true,

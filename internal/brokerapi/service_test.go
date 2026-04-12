@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -176,9 +175,8 @@ func TestSeedDevManualScenarioRejectsDefaultLedgerRoot(t *testing.T) {
 	if err == nil {
 		t.Fatal("SeedDevManualScenario expected default-ledger-root rejection")
 	}
-	want := fmt.Sprintf("dev manual seeding refuses default audit ledger root %q", auditd.DefaultLedgerRoot())
-	if err.Error() != want {
-		t.Fatalf("SeedDevManualScenario error = %q, want %q", err.Error(), want)
+	if err.Error() != "dev manual seeding refuses default audit ledger root" {
+		t.Fatalf("SeedDevManualScenario error = %q, want sanitized default-ledger refusal", err.Error())
 	}
 }
 

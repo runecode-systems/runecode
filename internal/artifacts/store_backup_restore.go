@@ -34,6 +34,10 @@ func stateFromBackup(manifest BackupManifest, lastAuditSequence int64, ioStore *
 }
 
 func newStateFromBackup(manifest BackupManifest, lastAuditSequence int64) StoreState {
+	runs := make(map[string]string, len(manifest.Runs))
+	for runID, status := range manifest.Runs {
+		runs[runID] = status
+	}
 	return StoreState{
 		Artifacts:                map[string]ArtifactRecord{},
 		Sessions:                 map[string]SessionDurableState{},
@@ -42,7 +46,7 @@ func newStateFromBackup(manifest BackupManifest, lastAuditSequence int64) StoreS
 		PolicyDecisions:          map[string]PolicyDecisionRecord{},
 		RunPolicyDecisionRefs:    map[string][]string{},
 		Policy:                   manifest.Policy,
-		Runs:                     manifest.Runs,
+		Runs:                     runs,
 		PromotionEventsByActor:   map[string][]time.Time{},
 		LastAuditSequence:        lastAuditSequence,
 		StorageProtectionPosture: manifest.StorageProtection,
@@ -50,10 +54,10 @@ func newStateFromBackup(manifest BackupManifest, lastAuditSequence int64) StoreS
 }
 
 func loadRestoredSessions(next *StoreState, records []SessionDurableState) error {
-	for _, rec := range records {
+	for i, rec := range records {
 		normalized := normalizeSessionDurableState(rec)
 		if normalized.SessionID == "" {
-			return fmt.Errorf("session id is required")
+			return fmt.Errorf("session id is required at restore index %d (workspace=%q)", i, normalized.WorkspaceID)
 		}
 		next.Sessions[normalized.SessionID] = normalized
 	}

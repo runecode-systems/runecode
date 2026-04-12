@@ -82,7 +82,7 @@ func runWatchEventsFromSummaries(req RunWatchRequest, runs []RunSummary) []RunWa
 		seq++
 	}
 	if err := reqContextErr(req.RequestCtx); err != nil {
-		events = append(events, runWatchTerminalFromContextErr(req, seq, err))
+		events = append(events, runWatchTerminalFromContextErr(req.StreamID, req.RequestID, seq, err))
 		return events
 	}
 	if req.Follow && len(runs) > 0 {
@@ -101,7 +101,7 @@ func approvalWatchEventsFromSummaries(req ApprovalWatchRequest, approvals []Appr
 		seq++
 	}
 	if err := reqContextErr(req.RequestCtx); err != nil {
-		events = append(events, approvalWatchTerminalFromContextErr(req, seq, err))
+		events = append(events, approvalWatchTerminalFromContextErr(req.StreamID, req.RequestID, seq, err))
 		return events
 	}
 	if req.Follow && len(approvals) > 0 {
@@ -120,7 +120,7 @@ func sessionWatchEventsFromSummaries(req SessionWatchRequest, sessions []Session
 		seq++
 	}
 	if err := reqContextErr(req.RequestCtx); err != nil {
-		events = append(events, sessionWatchTerminalFromContextErr(req, seq, err))
+		events = append(events, sessionWatchTerminalFromContextErr(req.StreamID, req.RequestID, seq, err))
 		return events
 	}
 	if req.Follow && len(sessions) > 0 {

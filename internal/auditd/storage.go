@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
@@ -22,6 +23,9 @@ const (
 
 var renameFile = os.Rename
 var removeFile = os.Remove
+
+var replaceFileLocksMu sync.Mutex
+var replaceFileLocks = map[string]*sync.Mutex{}
 
 func (l *Ledger) ensureLayout() error {
 	paths := []string{
@@ -98,6 +102,9 @@ func writeCanonicalJSONFile(path string, value any) error {
 }
 
 func replaceFile(src, dst string) error {
+	release := lockReplaceTarget(dst)
+	defer release()
+
 	if err := renameFile(src, dst); err == nil {
 		return nil
 	} else if os.IsNotExist(err) {
@@ -120,6 +127,19 @@ func replaceFile(src, dst string) error {
 		return err
 	}
 	return nil
+}
+
+func lockReplaceTarget(path string) func() {
+	key := filepath.Clean(path)
+	replaceFileLocksMu.Lock()
+	mu, ok := replaceFileLocks[key]
+	if !ok {
+		mu = &sync.Mutex{}
+		replaceFileLocks[key] = mu
+	}
+	replaceFileLocksMu.Unlock()
+	mu.Lock()
+	return mu.Unlock
 }
 
 func createReplaceBackup(dst string) (string, error) {
