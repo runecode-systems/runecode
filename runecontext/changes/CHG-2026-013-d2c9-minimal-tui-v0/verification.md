@@ -22,6 +22,19 @@
 - Confirm live-activity expectations are framed around typed watch/event families rather than log-only heuristics.
 - Confirm the MVP does not promise raw model chain-of-thought capture or display.
 - Confirm the change clearly defers full multi-session and advanced power-user workspace management to the pre-MVP follow-on TUI change.
+- Implemented TUI verification now includes:
+  - `runectx validate --json`
+  - `runectx status --json`
+  - `go test ./cmd/runecode-tui`
+  - `go test ./cmd/runecode-tui -run TestTUIRoutesUseRealLocalRPCBrokerContracts -v`
+  - `just ci`
+- The broker-backed TUI integration proof exercises the production `rpcBrokerClient` against a real local IPC socket served by `brokerapi.Service` and verifies:
+  - typed local broker API use rather than CLI scraping,
+  - dashboard/chat/runs/approvals/artifacts/audit/status route loads over local RPC,
+  - audit drill-down through broker-owned `AuditRecordGet` detail reads,
+  - approval route typed list/detail surfaces over broker-owned approval semantics,
+  - artifact route fail-closed broker policy behavior through typed reads,
+  - keyboard-driven routed interaction remains compatible with the real broker transport.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-043-8e9b-live-activity-watch-streams-v0
 title: Live Activity Watch Streams v0
-status: planned
+status: implemented
 type: feature
 size: medium
 verification_status: pending
