@@ -26,6 +26,28 @@ The recommended foundation is a thin runner kernel that executes a broker-compil
 - Runner persistence should use an append-first journal plus snapshots, explicit schema versions, idempotency keys, and deterministic broker-wins reconciliation after restart.
 - If plan evolution is required after a run starts, the broker must issue a new superseding plan identity. The runner must not mutate a received `RunPlan` in place.
 - Runner-side policy checks may validate plan or executor shape defensively, but authorization semantics remain in the trusted policy engine.
+- Runner delivery should be native-first: implement the durable-state and approval-wait model directly in the thin runner kernel before adding any optional third-party orchestration runtime.
+- Any future LangGraph adoption must remain optional, internal-only, and behind a narrow runtime seam that covers local checkpoint/wait/resume mechanics only.
+- The runtime seam must not let a runner-local library become a second planning authority, approval authority, lifecycle source, or public API contract.
+
+## Delivery Posture
+
+RuneCode already has the right canonical boundary model for stop, wait, persist, and resume semantics:
+
+- broker-owned approval state and lifecycle summaries
+- broker-owned run lifecycle and operator-facing projections
+- typed runner checkpoint/result reports
+- immutable broker-compiled `RunPlan` identity
+- runner-local advisory durable state
+
+The recommended delivery posture is therefore:
+
+1. complete the native thin-kernel durable-state and approval-wait foundation first
+2. prove restart-safe wait/resume behavior against broker canonical state
+3. add a narrow runtime seam so future internal runtimes remain possible without changing contracts
+4. defer any LangGraph decision to a later optional post-MVP change
+
+This avoids coupling RuneCode's trust and recovery semantics to a third-party thread/checkpoint model before RuneCode's own invariants are complete.
 
 ## RunPlan Contract
 
@@ -114,6 +136,20 @@ The recommended foundation is a thin runner kernel that executes a broker-compil
 - Recovery should load the latest compatible snapshot and replay later journal entries deterministically.
 - Journal and snapshot state should record the active plan identity and fail closed if the broker indicates that identity is stale or superseded.
 
+### Native-First Hardening Priorities
+
+- Expand the current runner-local store into explicit record families rather than a generic mutable status blob.
+- Make snapshot and journal replay reconstruct scheduler, wait, and attempt bookkeeping deterministically.
+- Bind every journal family and externally visible side effect to:
+  - `run_id`
+  - `plan_id`
+  - stable logical scope identity
+  - attempt identity
+  - stable idempotency key
+- Fail closed on unknown future snapshot or journal versions.
+- Fail closed when replayed state cannot be reconciled to broker-canonical approval, run, or plan bindings.
+- Keep runner-local state advisory only even when it is complete enough to resume execution after a crash.
+
 ### Recommended Journal Families
 - `run_started`
 - `stage_entered`
@@ -126,10 +162,20 @@ The recommended foundation is a thin runner kernel that executes a broker-compil
 - `step_attempt_finished`
 - `run_terminal`
 
+Each family should retain enough information to rebuild runner-local eligibility, in-flight attempt state, pending waits, and broker correlation without scraping other state blobs.
+
 ### Idempotency + Replay
 - Every externally visible operation should carry a stable idempotency key.
 - Replaying the same journal must not duplicate broker-visible side effects, approvals, or gate evidence linkage.
 - Attempt identities should isolate retries from prior failed or superseded attempts.
+
+Externally visible operations that must remain replay-safe include at least:
+
+- runner checkpoint report requests
+- runner result report requests
+- approval wait creation/clear transitions
+- gate evidence publication/linkage
+- executor-dispatch side effects that survive retries or process failure
 
 ### Reconciliation
 - On restart or resume:
@@ -146,6 +192,79 @@ The recommended foundation is a thin runner kernel that executes a broker-compil
 - Runner should persist enough scope and hash material to resume safely after restart, but approval creation and final approval truth should stay broker-owned and policy-derived.
 - Multiple pending approvals may coexist. Runner scheduling should block only the exact bound scope and continue unrelated eligible work when policy and coordination allow.
 
+### Required Durable Wait Fields
+
+Runner-local approval wait state should persist at least:
+
+- canonical `approval_id`
+- `run_id` and active `plan_id`
+- binding kind: `exact_action` or `stage_sign_off`
+- bound action hash or bound stage summary hash
+- blocked scope identity (`stage_id`, `step_id`, `role_instance_id`, or narrower action scope)
+- stable wait-entered idempotency key
+- wait-clear idempotency key when resolved
+- broker correlation fields needed to reload canonical approval state after restart
+
+This lets the runner stop cleanly, survive process restarts, and resume only when the broker confirms that the approval is still current and valid for the same bound scope and active plan.
+
+### Restart + Resume Rules
+
+On restart or explicit resume:
+
+- reload the latest compatible snapshot
+- replay later journal entries deterministically
+- query broker-canonical run and approval state
+- if approval remains pending, restore the wait without changing canonical truth
+- if approval is approved and still matches the bound action hash or stage summary hash, resume the blocked scope
+- if the approval is denied, expired, cancelled, consumed, or superseded, fail the blocked scope or reroute according to broker-canonical truth
+- if the run plan is stale or superseded, fail closed and require broker-directed reconciliation
+
+The runner must never resume a wait solely because local persistence suggests it can; broker-canonical state always wins.
+
+### Partial Blocking
+
+Approval waits should block only the exact bound scope. The scheduler should continue unrelated eligible work when:
+
+- the active `RunPlan` explicitly permits that work
+- local dependency bookkeeping shows it is unblocked
+- broker policy and coordination state do not block it
+
+This partial-blocked behavior must remain an internal runner scheduling fact that maps into broker detail surfaces rather than a new public lifecycle enum.
+
+## Runtime Seam Recommendation
+
+The runner should expose a narrow internal runtime seam after the native durable-state model is defined. Its purpose is to keep future internal orchestration runtimes possible without changing public or cross-boundary contracts.
+
+### Seam Scope
+
+The seam may cover only local runner mechanics such as:
+
+- durable checkpointing of runner-local progress
+- parking a wait on external input or approval
+- restoring a parked wait after restart
+- resuming from a known internal execution point
+- replaying completed local operations through idempotent handles
+
+### Seam Non-Goals
+
+The seam must not own or redefine:
+
+- `RunPlan` compilation or planning semantics
+- authorization semantics
+- approval truth
+- broker lifecycle vocabulary
+- runner->broker request/response schema families
+- public operator-facing run or approval models
+
+### LangGraph Placement Rule
+
+If LangGraph is ever adopted, it must sit behind this seam as an optional internal runtime implementation only. LangGraph checkpoints, thread state, and interrupts must remain non-canonical runner-local state and must never replace:
+
+- the runner journal/snapshot contract
+- broker-owned run truth
+- broker-owned approval truth
+- plan-bound fail-closed reconciliation
+
 ## Runner Shape To Prefer
 
 - Keep the runner decomposed into small modules:
@@ -155,6 +274,7 @@ The recommended foundation is a thin runner kernel that executes a broker-compil
   - scheduler
   - executor adapters
   - checkpoint/result emitter
+- Keep any future runtime seam smaller than the scheduler or broker contract surfaces; it should be an internal implementation detail, not the organizing principle of the runner.
 - Avoid a monolithic runner core that mixes scheduling, policy interpretation, executor classification, and broker state projection in one file or package.
 
 ## Foundation Shortcuts To Avoid
@@ -163,6 +283,8 @@ The recommended foundation is a thin runner kernel that executes a broker-compil
 - Do not let the runner invent gate placement from executor-local scripts.
 - Do not let the runner interpret policy decisions beyond required shape/integrity checks.
 - Do not let durable state become a mutable status blob detached from explicit journal families and plan identity.
+- Do not add a third-party runtime in a way that makes its thread/checkpoint vocabulary the effective source of runner truth.
+- Do not rely on runtime-local interrupts or resume tokens without broker validation of approval, scope, and active plan identity.
 
 ## Main Workstreams
 - Runner contract and packaging constraints.
@@ -171,3 +293,5 @@ The recommended foundation is a thin runner kernel that executes a broker-compil
 - Propose-to-attest execution loop integration.
 - Runner->broker checkpoint/result API alignment.
 - Recovery, replay, and reconciliation semantics.
+- Native-first approval-wait durability and restart-safe resume.
+- Narrow runtime seam for optional future internal orchestration runtimes.

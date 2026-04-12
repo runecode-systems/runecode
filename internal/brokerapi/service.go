@@ -97,6 +97,16 @@ func (s *Service) SetVersionInfo(info BrokerVersionInfo) {
 	s.versionInfo = info
 }
 
+func (s *Service) SetNowFuncForTests(nowFn func() time.Time) {
+	if nowFn == nil {
+		s.now = time.Now
+		s.store.SetNowFuncForTests(nil)
+		return
+	}
+	s.now = nowFn
+	s.store.SetNowFuncForTests(nowFn)
+}
+
 func (s *Service) Put(req artifacts.PutRequest) (artifacts.ArtifactReference, error) {
 	return s.store.Put(req)
 }

@@ -12,7 +12,7 @@ import (
 func TestRunnerCheckpointReportAcceptsValidTransitionAndProjectsAdvisoryState(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	now := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
-	s.now = func() time.Time { return now }
+	s.SetNowFuncForTests(func() time.Time { return now })
 	putRunnerSeedArtifact(t, s, "run-checkpoint")
 
 	report := RunnerCheckpointReport{SchemaID: "runecode.protocol.v0.RunnerCheckpointReport", SchemaVersion: "0.1.0", LifecycleState: "blocked", CheckpointCode: "approval_wait_entered", OccurredAt: now.Format(time.RFC3339), IdempotencyKey: "idem-1", GateID: "policy_gate", GateKind: "policy", GateVersion: "1.0.0", GateLifecycleState: "running", StageAttemptID: "stage-attempt-1", StepAttemptID: "step-attempt-1", GateAttemptID: "gate-attempt-1", NormalizedInputDigests: []string{"sha256:" + strings.Repeat("a", 64)}, PendingApprovalCount: 2}

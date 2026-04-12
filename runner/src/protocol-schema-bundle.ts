@@ -59,22 +59,16 @@ export class ProtocolSchemaBundle {
       schemaPathByRuntimeKey.set(schemaKey(entry.schema_id, entry.schema_version), entry.path);
     }
 
-    // RunPlan is a runner-critical contract. Load it explicitly so runner
-    // startup can still fail closed on plan validation while protocol inventory
-    // catches up to include it in manifest metadata.
+    // RunPlan is a runner-critical contract. Load it explicitly only when the
+    // checked-in manifest does not advertise it yet.
     if (!schemaPathByRuntimeKey.has(schemaKey(RUN_PLAN_SCHEMA_ID, RUN_PLAN_SCHEMA_VERSION))) {
-      try {
-        const runPlanSchemaPath = path.join(protocolSchemasRoot, RUN_PLAN_SCHEMA_PATH);
-        const runPlanSchema = await readJsonFile<JsonObject>(runPlanSchemaPath);
-        ajv.addSchema(runPlanSchema);
-        schemaPathByRuntimeKey.set(
-          schemaKey(RUN_PLAN_SCHEMA_ID, RUN_PLAN_SCHEMA_VERSION),
-          RUN_PLAN_SCHEMA_PATH,
-        );
-      } catch {
-        // Fail-closed behavior is preserved by validation: RunPlan load will
-        // fail if no validator exists for its declared schema runtime key.
-      }
+      const runPlanSchemaPath = path.join(protocolSchemasRoot, RUN_PLAN_SCHEMA_PATH);
+      const runPlanSchema = await readJsonFile<JsonObject>(runPlanSchemaPath);
+      ajv.addSchema(runPlanSchema);
+      schemaPathByRuntimeKey.set(
+        schemaKey(RUN_PLAN_SCHEMA_ID, RUN_PLAN_SCHEMA_VERSION),
+        RUN_PLAN_SCHEMA_PATH,
+      );
     }
 
     return new ProtocolSchemaBundle(ajv, schemaPathByRuntimeKey);

@@ -213,7 +213,7 @@ func TestApprovalGetLifecycleDetailMarksBoundaryExpiryAsStale(t *testing.T) {
 	if err := s.RecordApproval(record); err != nil {
 		t.Fatalf("RecordApproval returned error: %v", err)
 	}
-	s.now = func() time.Time { return fixed }
+	s.SetNowFuncForTests(func() time.Time { return fixed })
 
 	resp, errResp := s.HandleApprovalGet(context.Background(), ApprovalGetRequest{SchemaID: "runecode.protocol.v0.ApprovalGetRequest", SchemaVersion: "0.1.0", RequestID: "req-approval-get-boundary-expired", ApprovalID: approvalID}, RequestContext{})
 	if errResp != nil {

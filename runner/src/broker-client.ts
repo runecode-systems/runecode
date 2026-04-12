@@ -10,17 +10,22 @@ export type BrokerAcknowledge = {
   reason?: string;
 };
 
+import type {
+  RunnerCheckpointReportRequest,
+  RunnerResultReportRequest,
+} from "./contracts.ts";
+
 export type RunnerBrokerClient = {
-  sendRunnerCheckpointReport(request: unknown): Promise<BrokerAcknowledge>;
-  sendRunnerResultReport(request: unknown): Promise<BrokerAcknowledge>;
+  sendRunnerCheckpointReport(request: RunnerCheckpointReportRequest): Promise<BrokerAcknowledge>;
+  sendRunnerResultReport(request: RunnerResultReportRequest): Promise<BrokerAcknowledge>;
 };
 
 export class NoopRunnerBrokerClient implements RunnerBrokerClient {
-  async sendRunnerCheckpointReport(_request: unknown): Promise<BrokerAcknowledge> {
+  async sendRunnerCheckpointReport(_request: RunnerCheckpointReportRequest): Promise<BrokerAcknowledge> {
     return { accepted: false, reason: "broker client not configured" };
   }
 
-  async sendRunnerResultReport(_request: unknown): Promise<BrokerAcknowledge> {
+  async sendRunnerResultReport(_request: RunnerResultReportRequest): Promise<BrokerAcknowledge> {
     return { accepted: false, reason: "broker client not configured" };
   }
 }

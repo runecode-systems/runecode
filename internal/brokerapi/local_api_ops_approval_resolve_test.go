@@ -199,7 +199,7 @@ func TestApprovalResolveRejectsApproverPrincipalMismatch(t *testing.T) {
 func TestApprovalResolveUsesSingleCapturedTimeForDecidedAndConsumed(t *testing.T) {
 	s, unapproved, requestEnv, decisionEnv := setupServiceWithApprovalFixture(t)
 	fixedNow := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
-	s.now = func() time.Time { return fixedNow }
+	s.SetNowFuncForTests(func() time.Time { return fixedNow })
 	approvalID := approvalIDForBrokerTest(t, requestEnv)
 	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, approvalID)
 	resolveReq := ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-approval-resolve-time-binding", ApprovalID: approvalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-approval"), RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", ActionKind: "promotion", PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: unapproved.Digest, Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *requestEnv, SignedApprovalDecision: *decisionEnv}
@@ -222,7 +222,7 @@ func TestApprovalResolveTreatsExpiryBoundaryAsExpiredAndMatchesApprovalGetParity
 	if err := s.RecordApproval(stored); err != nil {
 		t.Fatalf("RecordApproval returned error: %v", err)
 	}
-	s.now = func() time.Time { return fixedNow }
+	s.SetNowFuncForTests(func() time.Time { return fixedNow })
 
 	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, approvalID)
 	resolveReq := ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-approval-resolve-expiry-boundary", ApprovalID: approvalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-approval"), RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", ActionKind: "promotion", PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: unapproved.Digest, Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *requestEnv, SignedApprovalDecision: *decisionEnv}

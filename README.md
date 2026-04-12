@@ -1,7 +1,7 @@
 # RuneCode — Security-first AI coding: isolated execution, signed, auditable
 
 [![CI](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml/badge.svg)](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml)
-[![Status: alpha.2](https://img.shields.io/badge/status-alpha.2-orange)](runecontext/project/roadmap.md)
+[![Status: alpha.2 release](https://img.shields.io/badge/status-alpha.2%20release-orange)](runecontext/project/roadmap.md)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 RuneCode is a security-first agentic automation platform for software engineering.
@@ -9,8 +9,8 @@ It treats isolation and cryptographic provenance as co-equal pillars: work runs 
 
 ## Status
 
-RuneCode is in alpha.2 and not production-ready.
-A signed, tag-driven release pipeline now exists, but the shipped Go binaries are still scaffold-heavy and not feature-complete.
+The latest published release is `v0.1.0-alpha.2`, and the repository mainline already includes additional alpha.3 work in progress.
+RuneCode remains pre-production: the signed, tag-driven release pipeline exists, but the shipped Go binaries are still scaffold-heavy and not feature-complete.
 
 ## Why RuneCode
 
@@ -146,7 +146,8 @@ This quick path verifies signed checksums and the signed archive before install.
 - CI guardrails for runner trust-boundary access and protocol parity
 - Workflow/process planning schemas and fixtures, plus a trusted Go `RunPlan` compiler that merges executor bindings and deterministic gate definitions into one immutable execution contract
 - Deterministic gate contracts and reporting families for gate planning, runner checkpoint/result reporting, gate checkpoint/result reporting, and gate evidence persistence
-- A thin untrusted runner kernel foundation that loads broker-compiled `RunPlan` data from the shared schema bundle, persists durable plan identity, schedules plan entries, and emits typed reports back to the broker
+- A thin untrusted runner kernel foundation that loads broker-compiled `RunPlan` data from the shared schema bundle, persists plan-bound journal/snapshot durable state, replays approval waits and recovery state fail closed, schedules plan entries, and emits typed reports back to the broker
+- A narrow internal runner runtime seam for local checkpoint, wait, and resume mechanics without making runner-local state, third-party runtimes, or framework checkpoints authoritative
 - MVP artifact data classes and an `ArtifactPolicy` schema family anchoring flow-matrix, approval-promotion, quota, and retention/GC controls
 - A trusted local artifact store with immutable hash-addressed artifact persistence, broker-facing flow checks, quota enforcement, retention/GC, backup/restore, approval records, persisted policy decisions, and audit event recording for artifact and approval actions
 - Approval promotion, resolution, and revocation flows for `unapproved_file_excerpts` and `approved_file_excerpts`, including signed request/decision verification bound to canonical request bytes, promoted inputs, verifier owner identity, and durable policy-decision linkage
@@ -220,6 +221,7 @@ Useful protocol-specific checks:
 go test ./internal/brokerapi
 go test ./internal/protocolschema
 cd runner && node --test scripts/protocol-fixtures.test.js
+cd runner && npm test
 cd runner && npm run boundary-check
 ```
 

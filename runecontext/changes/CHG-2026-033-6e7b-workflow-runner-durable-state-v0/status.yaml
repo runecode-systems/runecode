@@ -17,6 +17,7 @@ related_changes:
   - CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0
   - CHG-2026-034-b2d4-workspace-roles-v0
   - CHG-2026-035-c8e1-deterministic-gates-v0
+  - CHG-2026-044-9f2a-optional-langgraph-runner-runtime-evaluation
 depends_on: []
 informed_by: []
 supersedes: []

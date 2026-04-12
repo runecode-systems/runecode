@@ -63,6 +63,9 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 - Workflow Extensibility v0
   - Add schema-validated custom workflows and rebuildable shared-memory accelerators without changing the safety model.
   - Planned change: `runecontext/changes/CHG-2026-017-3d58-workflow-extensibility-v0/`
+- Optional LangGraph Runner Runtime Evaluation
+  - Optionally evaluate LangGraph as an internal runner runtime for checkpoint/wait/resume mechanics after the native runner foundation is hardened, implementing it only if it is still needed at that time.
+  - Planned change: `runecontext/changes/CHG-2026-044-9f2a-optional-langgraph-runner-runtime-evaluation/`
 - Auth Gateway Role v0
   - Provider login and refresh runs in an auth-only gateway role; long-lived tokens live only in secretsd.
   - Planned change: `runecontext/changes/CHG-2026-018-5900-auth-gateway-role-v0/`

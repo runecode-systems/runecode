@@ -6,6 +6,7 @@
 - [ ] Implement runner execution as consumption of one broker-compiled immutable `RunPlan` rather than runner-local workflow planning.
 - [ ] Introduce the `RunPlan` identity and bind runner journal, checkpoints, and results to it.
 - [ ] Keep LangGraph internal and non-canonical.
+- [ ] Keep native thin-kernel execution as the primary implementation path for MVP and post-alpha hardening.
 - [ ] Align runner-facing run lifecycle state with the shared broker run-summary/run-detail vocabulary instead of defining a separate UI-only status model.
 - [ ] Keep broker as the authoritative owner of shared run truth and operator-facing projections; runner durable state must remain explicit advisory orchestration state only.
 - [ ] Define typed runner->broker orchestration report families for checkpoints and results rather than relying on broker scraping runner-local persistence.
@@ -18,6 +19,8 @@
   - executor adapters
   - report emitter
 - [ ] Explicitly avoid runner-local authorization, runner-local approval truth, and runner-local workflow/gate planning semantics.
+- [ ] Add a narrow internal runtime seam for local checkpoint/wait/resume mechanics without changing runner->broker contracts or broker-owned truth.
+- [ ] Keep the runtime seam optional and internal so future runtime experimentation does not become part of the public or trust-boundary contract.
 
 ## Durable State
 
@@ -42,6 +45,9 @@
 - [ ] Put explicit schema-versioning and migration rules on journal and snapshot record families.
 - [ ] Use stable idempotency keys so journal replay does not duplicate broker-visible lifecycle updates, approvals, or gate evidence linkage.
 - [ ] Define deterministic reconciliation rules where broker canonical shared state wins and runner local state supplies only resumable orchestration hints.
+- [ ] Reconstruct runner-local scheduler, wait, and in-flight attempt state deterministically from snapshot plus journal replay.
+- [ ] Fail closed on unknown future journal/snapshot schema versions.
+- [ ] Bind every externally visible side effect to run, plan, scope, attempt, and idempotency identities so replay does not duplicate work.
 
 ## Execution Loop
 
@@ -57,6 +63,16 @@
 - [ ] Treat partial blocking as run-detail coordination/state detail rather than minting a second public lifecycle enum.
 - [ ] Report step-attempt starts/finishes, approval waits, gate attempts/results, and terminal checkpoints through typed broker-facing report contracts.
 - [ ] Reject execution when plan-bound executor, gate, or scope bindings do not match the active trusted plan.
+- [ ] Persist approval waits with canonical approval identity, binding kind, bound action hash or stage summary hash, blocked scope, and broker correlation material needed for restart-safe resume.
+- [ ] On restart, resume blocked work only after broker confirms the approval remains valid for the same bound scope/hash and active plan identity.
+- [ ] Continue unrelated eligible work while a bound scope is waiting on approval when the active plan and coordination state permit it.
+- [ ] Fail closed when restart or resume encounters stale approvals, superseded stage-summary sign-off, or stale/superseded plan bindings.
+
+## Native Hardening Sequence
+
+- [ ] Finish explicit journal families and replay rules before introducing any optional third-party orchestration runtime.
+- [ ] Prove native stop/wait/persist/resume behavior end to end against broker canonical state before runtime substitution is considered.
+- [ ] Keep any future LangGraph adoption behind the runtime seam and outside the trust root.
 
 ## Acceptance Criteria
 
@@ -66,3 +82,5 @@
 - [ ] Broker remains the only shared source of operator-facing run truth after runner restart or recovery.
 - [ ] Stable logical workflow identities survive retries and restarts while attempt identities track reruns separately.
 - [ ] Runs cannot silently drift from the broker-compiled `RunPlan`; stale or superseded plan bindings fail closed.
+- [ ] Approval waits survive process restart and resume only after broker confirms the same canonical approval is valid for the same bound scope/hash.
+- [ ] The runner runtime seam remains an internal implementation detail and does not alter broker, protocol, approval, or lifecycle contracts.
