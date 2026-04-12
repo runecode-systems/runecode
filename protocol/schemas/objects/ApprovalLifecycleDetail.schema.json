@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ApprovalLifecycleDetail.schema.json",
+  "title": "ApprovalLifecycleDetail",
+  "description": "Typed lifecycle semantics for approval review, including stale and terminal reason codes.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 10,
+  "required": ["schema_id", "schema_version", "lifecycle_state", "lifecycle_reason_code", "stale"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ApprovalLifecycleDetail", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "lifecycle_state": { "type": "string", "enum": ["pending", "approved", "denied", "expired", "cancelled", "superseded", "consumed"], "description": "Approval lifecycle state from canonical approval summary.", "x-data-class": "public" },
+    "lifecycle_reason_code": { "type": "string", "enum": ["approval_pending", "approval_approved", "approval_denied", "approval_expired", "approval_cancelled", "approval_superseded", "approval_consumed", "approval_lifecycle_unknown"], "description": "Machine-readable lifecycle reason for the current state.", "x-data-class": "public" },
+    "stale": { "type": "boolean", "description": "Whether this approval is no longer fresh for future use in current context.", "x-data-class": "public" },
+    "stale_reason_code": { "type": "string", "enum": ["approval_superseded", "approval_expired"], "description": "Machine-readable stale reason when stale=true.", "x-data-class": "public" },
+    "superseded_by_approval_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Superseding approval identity when lifecycle_state is superseded.", "x-data-class": "public" },
+    "expires_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Expiry timestamp copied from approval summary when present.", "x-data-class": "public" },
+    "decided_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Decision timestamp copied from approval summary when present.", "x-data-class": "public" },
+    "consumed_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Consumption timestamp copied from approval summary when present.", "x-data-class": "public" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "stale": { "const": true }
+        }
+      },
+      "then": {
+        "required": ["stale_reason_code"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "lifecycle_state": { "const": "superseded" }
+        }
+      },
+      "then": {
+        "required": ["superseded_by_approval_id"],
+        "properties": {
+          "lifecycle_reason_code": { "const": "approval_superseded" },
+          "stale": { "const": true },
+          "stale_reason_code": { "const": "approval_superseded" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "lifecycle_state": { "const": "expired" }
+        }
+      },
+      "then": {
+        "properties": {
+          "lifecycle_reason_code": { "const": "approval_expired" },
+          "stale": { "const": true },
+          "stale_reason_code": { "const": "approval_expired" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "lifecycle_state": { "const": "consumed" }
+        }
+      },
+      "then": {
+        "properties": {
+          "lifecycle_reason_code": { "const": "approval_consumed" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "lifecycle_state": { "const": "approved" }
+        }
+      },
+      "then": {
+        "properties": {
+          "lifecycle_reason_code": { "const": "approval_approved" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "lifecycle_state": { "const": "denied" }
+        }
+      },
+      "then": {
+        "properties": {
+          "lifecycle_reason_code": { "const": "approval_denied" }
+        }
+      }
+    }
+  ]
+}

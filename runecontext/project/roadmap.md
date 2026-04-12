@@ -18,8 +18,9 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
   - Project change: `runecontext/changes/CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0/`
   - Feature changes: `runecontext/changes/CHG-2026-033-6e7b-workflow-runner-durable-state-v0/`, `runecontext/changes/CHG-2026-034-b2d4-workspace-roles-v0/`, `runecontext/changes/CHG-2026-035-c8e1-deterministic-gates-v0/`
 - Minimal TUI v0
-  - Users can approve actions and inspect diffs, artifacts, and audit timelines locally through the real secure local API.
+  - Users land in a dashboard-first terminal client, can enter a first-class chat route, approve actions, and inspect runs, artifacts, and audit timelines through the real secure local API.
   - Planned change: `runecontext/changes/CHG-2026-013-d2c9-minimal-tui-v0/`
+  - Callout: TUI delivery is tracked under `CHG-2026-038-5a1d-runecode-tui-experience-v0/`, and the alpha implementation is sequenced after the prerequisite contract lane in `CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0/`.
 
 ### v0.1.0-alpha.4
 
@@ -47,6 +48,9 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 - ZK Proof v0 (One Narrow Proof + Verify)
   - RuneCode can generate and verify at least one narrow zero-knowledge integrity proof.
   - Planned change: `runecontext/changes/CHG-2026-016-8cdb-zk-proof-v0-one-narrow-proof-verify/`
+- TUI Multi-Session + Power Workspace v0
+  - The terminal client grows into a multi-session, power-user workbench with richer live activity, deeper inspection, saved layouts, and theme presets while staying on the same secure brokered control-plane.
+  - Planned change: `runecontext/changes/CHG-2026-037-91be-tui-multi-session-power-workspace-v0/`
 
 ### v0.2 (Post-MVP)
 
@@ -135,5 +139,3 @@ No unscheduled items are currently tracked outside the planned work listed above
 - Broker + Local API v0
   - Components and isolates communicate via a local brokered API with schema validation.
   - Planned change: `runecontext/changes/CHG-2026-008-62e1-broker-local-api-v0/`
-
-

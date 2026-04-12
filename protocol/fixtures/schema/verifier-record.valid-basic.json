@@ -2,11 +2,11 @@
   "schema_id": "runecode.protocol.v0.VerifierRecord",
   "schema_version": "0.1.0",
   "key_id": "key_sha256",
-  "key_id_value": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "key_id_value": "ae216c2ef5247a3782c135efa279a3e4cdc61094270f5d2be58c6204b7a612c9",
   "alg": "ed25519",
   "public_key": {
     "encoding": "base64",
-    "value": "AQID"
+    "value": "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="
   },
   "logical_purpose": "approval_authority",
   "logical_scope": "user",

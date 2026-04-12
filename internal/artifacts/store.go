@@ -72,6 +72,12 @@ func (s *Store) reconcileLoadedState(changed bool) (bool, error) {
 	}
 	changed = changed || sequenceChanged
 
+	artifactIndexChanged, err := s.reconcileArtifactIndexFromAuditLocked()
+	if err != nil {
+		return false, err
+	}
+	changed = changed || artifactIndexChanged
+
 	approvalLinkChanged, err := s.reconcileApprovalPolicyDecisionLinksLocked()
 	if err != nil {
 		return false, err

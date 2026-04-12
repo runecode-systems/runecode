@@ -1,64 +1,134 @@
 # Tasks
 
-## Bubble Tea App Skeleton
+## Bubble Tea Shell Foundation
 
-- [ ] Implement the TUI using Bubble Tea.
-- [ ] Define a simple navigation model (list -> detail, tabbed panes, or routed views).
+- [x] Implement the TUI using Bubble Tea.
+- [x] Follow Bubble Tea's message-driven architecture under the covers:
+  - keep `Update` and `View` fast
+  - run I/O and long work through commands
+  - avoid out-of-band model mutation from goroutines
+- [x] Implement a root shell model plus child route/component models rather than a monolithic screen model.
+- [x] Define a visible primary navigation model for wide terminals.
+- [x] Add a command palette or quick-jump surface for route switching and power-user navigation.
+- [x] Add shared generated help output from the real keymap definitions.
+- [x] Define a clear focus model and ensure focus state is always visible.
+- [x] Support keyboard-only full operation.
+- [x] Support mouse as an additive interaction path:
+  - click-to-focus
+  - click-to-open
+  - wheel scrolling
+- [x] Ensure every mouse action in MVP has a keyboard-equivalent action.
 
-Parallelization: can be implemented in parallel with broker local API work; it depends on a stable logical broker API object model plus the local transport/auth scheme.
+Parallelization: shell foundation can proceed in parallel with read-model and API work, but it depends on stable route identities and typed data contracts.
 
-## Core Screens (MVP)
+## Hybrid MVP Routes
 
-- [ ] Runs list + run detail.
-- [ ] Approvals inbox (manifest signing, container opt-in, other gated actions).
-- [ ] Artifacts browser (diffs, logs, gate results) with metadata.
-- [ ] Audit timeline (paged view + verify status).
-- [ ] Audit timeline must surface anchored vs unanchored verification posture (and any invalid/failed anchoring state).
-- [ ] Audit timeline and posture views consume machine-readable audit verification findings/reason codes from the local API rather than scraping human CLI output.
-- [ ] Approval context: show the active approval profile (`moderate` in MVP) and why each approval is required (reason codes + structured details).
-- [ ] Distinguish exact-action approvals from stage sign-off approvals in inbox and detail views.
-- [ ] Surface when a stage sign-off became stale or was superseded because its bound stage summary hash changed.
-- [ ] Runs views consume broker `RunSummary` and `RunDetail` contracts rather than ad hoc screen-specific data shaping.
-- [ ] Runs views distinguish and explain:
+- [x] Implement `Dashboard` as the default landing route.
+- [x] Implement `Chat` as a first-class route in the same shell, not a hidden or secondary workflow.
+- [x] Implement `Runs` route with run list + run detail.
+- [x] Implement `Approvals` route as the MVP action center slice.
+- [x] Implement `Artifacts` route with typed artifact browsing and drill-down.
+- [x] Implement `Audit` route with timeline, verification posture, and drill-down entry points.
+- [x] Implement `Status` route with broker/subsystem readiness and version posture.
+- [x] Prefer routed views and inspector panes over modal-heavy drill-down patterns.
+
+Parallelization: route work can be parallelized once shared shell, route registry, and read-model contracts are frozen.
+
+## Chat And Session Foundation
+
+- [x] Build the chat route on top of a minimal canonical session/transcript substrate rather than client-local-only transcript state.
+- [x] Support stable session identity for the active MVP session.
+- [x] Support ordered transcript turns/messages.
+- [x] Support typed send-message request/response or equivalent broker-mediated session interaction.
+- [x] Surface linked run, approval, artifact, and audit references from the chat route where those relationships exist.
+- [ ] Keep full multi-session browsing, saved workspaces, and session switching out of this change and in the follow-on TUI change.
+
+Parallelization: depends on minimal session/transcript model alignment; rendering and interaction work can proceed in parallel once that contract is stable.
+
+## Runs, Approvals, And Artifacts
+
+- [x] Runs views must consume broker `RunSummary` and `RunDetail` contracts rather than ad hoc screen-specific shaping.
+- [x] Run views must distinguish and explain:
   - `backend_kind`
   - runtime isolation assurance
   - provisioning/binding posture
   - audit posture
-- [ ] Approval views consume broker `ApprovalSummary` and bound-scope metadata so blocked work, supersession, expiry, and consumption are explainable without payload scraping.
-- [ ] Keep approval views clear about the difference between `policy_reason_code`, `approval_trigger_code`, and execution/system error states.
-- [ ] Artifact views consume broker `ArtifactSummary` plus streamed artifact reads rather than daemon-private storage metadata.
-- [ ] Status and diagnostics views consume broker `BrokerReadiness` and `BrokerVersionInfo` contracts.
-- [ ] Run detail views surface authoritative vs advisory state explicitly and explain partial blocking from coordination/stage/role summaries rather than from a separate lifecycle label.
-- [ ] Gate views surface gate attempts, gate evidence, gate outcomes, and override linkage from typed broker-visible data rather than log scraping.
-- [ ] Approval and gate views surface stable bound identities for `run_id`, `stage_id`, `step_id`, `role_instance_id`, and gate attempts where relevant.
+- [x] Run detail views must surface authoritative vs advisory state explicitly.
+- [x] Run detail views must explain partial blocking and coordination waits from coordination/stage/role summaries rather than from a second lifecycle vocabulary.
+- [x] Approval views must consume broker approval summaries and detail surfaces rather than payload scraping or local heuristics.
+- [x] Approval views must distinguish exact-action approvals from stage sign-off approvals.
+- [x] Approval views must surface stale, superseded, expired, consumed, approved, and denied states clearly.
+- [x] Approval views must keep `policy_reason_code`, `approval_trigger_code`, and execution/system errors visually and semantically distinct.
+- [x] Approval views must show concise structured “what changes if approved” information.
+- [x] Approval views must show the canonical bound identity and exact bound scope without exposing daemon-private internals.
+- [x] Artifact views must consume broker `ArtifactSummary` and typed read streams rather than daemon-private storage metadata.
+- [x] Artifact/detail views must support inspectable diff/log/result content without promoting raw logs to the primary source of control-plane truth.
 
-Parallelization: screens can be built in parallel, but all depend on the broker local API schemas and shared error taxonomy.
+Parallelization: runs, approvals, and artifacts can be developed in parallel after shared data models and key interaction patterns are defined.
 
-## Local API Integration
+## Audit And Status
 
-- [ ] Connect only via the local broker API.
-- [ ] Use OS peer auth where available.
-- [ ] Do not scrape broker or daemon CLI output for operational state that already has a typed local-API contract.
+- [x] Audit route must provide a paged audit timeline.
+- [x] Audit route must surface anchored vs unanchored posture and invalid/failed anchoring states.
+- [x] Audit route must consume machine-readable audit verification findings and reason codes rather than scraped prose.
+- [x] Audit drill-down must be planned or implemented through typed broker-owned record detail reads rather than direct ledger access.
+- [x] Status and diagnostics views must consume broker `BrokerReadiness` and `BrokerVersionInfo` contracts.
+- [x] Status views must explain degraded subsystem posture without collapsing everything into one generic unhealthy label.
 
-Parallelization: can be implemented in parallel with broker development once the local IPC endpoint and auth handshake are specified.
+Parallelization: audit and status surfaces can proceed in parallel with broker read-model work once timeline, verification, and status contracts are stable.
+
+## Live Activity Foundation
+
+- [x] Keep live-update UX grounded in typed watch/event surfaces rather than log scraping.
+- [x] Ensure the TUI foundation is ready to consume typed live activity for runs, approvals, and sessions.
+- [x] Prefer explicit watch/event families such as run, approval, and session watch streams over one ambiguous event bus.
+- [x] Use logs as a supplementary inspection surface rather than the sole live operator surface.
+
+Parallelization: depends on broker/API stream-family alignment; shell and route UI can prepare for these surfaces in parallel.
+
+## Visual System And Theming Foundation
+
+- [x] Use a semantic theme-token layer rather than hard-coded per-view colors.
+- [x] Make the TUI colorful, professional, and dense enough for efficient use.
+- [x] Ensure color is never the only cue for posture or state.
+- [x] Use compact tables, lists, badges, summaries, and inspectors rather than oversized card layouts.
+- [x] Support multiple content presentation modes where useful:
+  - rendered
+  - raw
+  - structured
+- [x] Preserve a theme foundation that can later support user-selectable presets and customization.
+
+Parallelization: can proceed in parallel with route implementation once semantic state taxonomy and shell layout are defined.
+
+## Local API Integration And Trust Boundaries
+
+- [x] Connect only via the local broker API.
+- [x] Use OS peer auth where available.
+- [x] Do not scrape broker or daemon CLI output for operational state that already has a typed contract.
+- [x] Do not use daemon-private file paths, storage layouts, or local counters as part of the user-facing model.
+- [x] Do not invent TUI-local approval or workflow semantics to smooth over missing broker contracts; instead, capture those as control-plane follow-ups.
+
+Parallelization: can proceed in parallel with broker development once transport/auth and logical contracts are specified.
 
 ## Safety UX
 
-- [ ] Make the active `backend_kind` and runtime isolation assurance unmissable.
-- [ ] Make container mode clearly labeled as reduced runtime isolation assurance.
-- [ ] Make the active approval profile unmissable and keep the default posture obvious (`moderate` in MVP).
-- [ ] Surface degraded posture states prominently:
+- [x] Make the active `backend_kind`, runtime isolation assurance, provisioning posture, audit posture, and approval profile unmissable.
+- [x] Make container mode clearly labeled as reduced runtime isolation assurance.
+- [x] Surface degraded posture states prominently, including:
   - TOFU isolate key provisioning
-  - unanchored audit segments (when anchoring is configured/expected)
-- [ ] Keep reduced backend assurance, degraded provisioning posture, and degraded audit posture visually distinct in run and status views.
-- [ ] For each approval request, show a concise, structured what changes if approved view.
-- [ ] For each approval request, show the canonical bound identity the user is acting on (action-derived request or stage-summary sign-off) without exposing daemon-private internals.
-- [ ] Keep authoritative broker state and advisory runner state visually distinct in run and diagnostics views.
-- [ ] Keep gate failure, gate override, and approval-required states visually distinct rather than flattening them into one generic blocked/error label.
+  - degraded or unavailable authoritative runtime posture
+  - unanchored or degraded audit posture
+- [x] Keep reduced backend assurance, degraded provisioning posture, degraded audit posture, advisory state, and blocking state visually distinct.
+- [x] Keep gate failure, gate override, approval-required, and system-failure states visually distinct rather than flattening them into one label.
 
-Parallelization: can be implemented in parallel with policy engine approval payload design; it depends on stable reason codes and structured decision details.
+Parallelization: can be implemented in parallel with policy, audit, and runtime posture model work once the shared state taxonomy is frozen.
 
 ## Acceptance Criteria
 
-- [ ] A user can complete an end-to-end run using the TUI for approvals.
-- [ ] Diffs/artifacts/audit events are navigable without exposing raw secrets.
+- [x] A user can enter the TUI, land on the dashboard, and navigate to the chat route without relying on hidden primary navigation.
+- [x] A user can complete an end-to-end run using the TUI for approvals over the real broker local API.
+- [x] Runs, approvals, artifacts, audit, and status are inspectable through typed broker contracts rather than CLI scraping or daemon-private metadata.
+- [x] The MVP TUI distinguishes authoritative broker state from advisory runner state.
+- [x] The MVP TUI distinguishes backend kind, runtime isolation assurance, provisioning posture, and audit posture.
+- [x] The MVP TUI is fully usable with keyboard only and offers additive mouse support.
+- [x] Diffs, artifacts, and audit events are navigable without exposing raw secrets.

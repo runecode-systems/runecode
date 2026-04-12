@@ -1,0 +1,24 @@
+schema_version: 1
+id: CHG-2026-040-2b7f-session-transcript-model-v0
+title: Session + Transcript Model v0
+status: implemented
+type: feature
+size: medium
+verification_status: pending
+context_bundles:
+  - product-planning
+related_specs: []
+related_decisions: []
+related_changes:
+  - CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0
+  - CHG-2026-013-d2c9-minimal-tui-v0
+depends_on: []
+informed_by:
+  - CHG-2026-008-62e1-broker-local-api-v0
+supersedes: []
+superseded_by: []
+created_at: "2026-04-11"
+closed_at: null
+promotion_assessment:
+  status: pending
+  suggested_targets: []

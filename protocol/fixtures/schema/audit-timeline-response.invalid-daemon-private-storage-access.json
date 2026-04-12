@@ -1,0 +1,16 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditTimelineResponse",
+  "schema_version": "0.1.0",
+  "request_id": "req-audit-timeline-1",
+  "order": "operational_seq_desc",
+  "views": [
+    {
+      "record_digest": {
+        "hash_alg": "sha256",
+        "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "summary": "Timeline entry with leaked daemon-private storage field.",
+      "ledger_segment_file_path": "/var/lib/runecode/audit/segments/segment-00042.audit"
+    }
+  ]
+}

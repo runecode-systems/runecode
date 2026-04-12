@@ -1,0 +1,10 @@
+{
+  "schema_id": "runecode.protocol.v0.ApprovalWatchRequest",
+  "schema_version": "0.1.0",
+  "request_id": "req-approval-watch-1",
+  "stream_id": "approval-watch-workspace-core",
+  "workspace_id": "workspace-core",
+  "status": "pending",
+  "follow": true,
+  "include_snapshot": true
+}

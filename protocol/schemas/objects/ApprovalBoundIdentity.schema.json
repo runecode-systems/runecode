@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ApprovalBoundIdentity.schema.json",
+  "title": "ApprovalBoundIdentity",
+  "description": "Typed bound-identity detail for approval request/decision and immutable binding hashes.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 13,
+  "required": ["schema_id", "schema_version", "approval_request_digest", "manifest_hash", "binding_kind"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ApprovalBoundIdentity", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "approval_request_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Canonical signed approval-request digest identity.", "x-data-class": "public" },
+    "approval_decision_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Canonical signed approval-decision digest identity when resolved.", "x-data-class": "public" },
+    "policy_decision_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Compiled policy decision hash linked to this approval.", "x-data-class": "public" },
+    "manifest_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Compiled effective policy-context manifest hash bound to this approval.", "x-data-class": "public" },
+    "relevant_artifact_hashes": {
+      "type": "array",
+      "description": "Exact relevant artifact digests bound in the approval request context.",
+      "items": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "x-data-class": "public" },
+      "maxItems": 128,
+      "x-data-class": "public"
+    },
+    "binding_kind": { "type": "string", "enum": ["exact_action", "stage_sign_off"], "description": "Explicit approval binding kind.", "x-data-class": "public" },
+    "bound_action_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Canonical ActionRequest hash when binding_kind is exact_action.", "x-data-class": "public" },
+    "bound_stage_summary_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Canonical stage summary hash when binding_kind is stage_sign_off.", "x-data-class": "public" },
+    "decision_approver": { "$ref": "PrincipalIdentity.schema.json", "description": "Approver principal identity from signed decision payload when available.", "x-data-class": "public" },
+    "decision_verifier_key_id": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Verifier key-id selected by the signed decision envelope.", "x-data-class": "public" },
+    "decision_verifier_key_id_value": { "type": "string", "pattern": "^[a-f0-9]{64}$", "maxLength": 64, "description": "Verifier key-id value selected by the signed decision envelope.", "x-data-class": "public" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "binding_kind": { "const": "exact_action" }
+        }
+      },
+      "then": {
+        "required": ["bound_action_hash"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "binding_kind": { "const": "stage_sign_off" }
+        }
+      },
+      "then": {
+        "required": ["bound_stage_summary_hash"]
+      }
+    }
+  ]
+}

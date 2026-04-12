@@ -257,9 +257,81 @@ function validateRuntimeInvariant(rule, fixture, bundle) {
       return requireSignedEnvelopePayloadSchemaMatch(fixture, bundle)
     case 'audit_receipt_import_restore_byte_identity':
       return requireImportRestoreReceiptByteIdentity(fixture)
+    case 'session_send_message_ack_alignment':
+      return requireSessionSendMessageAckAlignment(fixture)
     default:
       throw new Error(`unknown runtime invariant rule ${rule}`)
   }
+}
+
+function requireSessionSendMessageAckAlignment(fixture) {
+	const sessionId = requireNonEmptyString(fixture, 'session_id')
+	if (sessionId instanceof Error) {
+		return sessionId
+	}
+	if (fixture.event_type !== 'session_message_ack') {
+		return new Error('event_type must be session_message_ack')
+	}
+	if (fixture.stream_id !== `session-${sessionId}`) {
+		return new Error(`stream_id ${JSON.stringify(fixture.stream_id)} must equal session-${sessionId}`)
+	}
+	const message = requireObjectField(fixture, 'message')
+	if (message instanceof Error) {
+		return message
+	}
+	const turn = requireObjectField(fixture, 'turn')
+	if (turn instanceof Error) {
+		return turn
+	}
+	const messageSessionId = requireNonEmptyString(message, 'session_id', 'message')
+	if (messageSessionId instanceof Error) {
+		return messageSessionId
+	}
+	if (messageSessionId !== sessionId) {
+		return new Error(`message.session_id ${JSON.stringify(messageSessionId)} must match session_id ${JSON.stringify(sessionId)}`)
+	}
+	const turnSessionId = requireNonEmptyString(turn, 'session_id', 'turn')
+	if (turnSessionId instanceof Error) {
+		return turnSessionId
+	}
+	if (turnSessionId !== sessionId) {
+		return new Error(`turn.session_id ${JSON.stringify(turnSessionId)} must match session_id ${JSON.stringify(sessionId)}`)
+	}
+	const turnId = requireNonEmptyString(turn, 'turn_id', 'turn')
+	if (turnId instanceof Error) {
+		return turnId
+	}
+	const messageTurnId = requireNonEmptyString(message, 'turn_id', 'message')
+	if (messageTurnId instanceof Error) {
+		return messageTurnId
+	}
+	if (messageTurnId !== turnId) {
+		return new Error(`message.turn_id ${JSON.stringify(messageTurnId)} must match turn.turn_id ${JSON.stringify(turnId)}`)
+	}
+	if (!Number.isInteger(fixture.seq) || fixture.seq < 1) {
+		return new Error('seq must be >= 1')
+	}
+	return null
+}
+
+function requireObjectField(value, key) {
+	const object = value?.[key]
+	if (!object || typeof object !== 'object' || Array.isArray(object)) {
+		return new Error(`${key} must be an object`)
+	}
+	return object
+}
+
+function requireNonEmptyString(value, key, prefix = '') {
+	const fieldValue = value?.[key]
+	if (typeof fieldValue !== 'string' || fieldValue.trim().length === 0) {
+		return new Error(`${formatFieldPath(prefix, key)} must be a non-empty string`)
+	}
+	return fieldValue
+}
+
+function formatFieldPath(prefix, key) {
+	return prefix ? `${prefix}.${key}` : key
 }
 
 function requireImportRestoreReceiptByteIdentity(receipt) {
@@ -375,12 +447,15 @@ function validateStreamSequence(events) {
   if (first.seq !== 1) {
     return new Error('first stream event must use seq=1')
   }
-  if (events[events.length - 1].event_type !== 'response_terminal') {
+  if (!isTerminalEventType(events[events.length - 1].event_type)) {
     return new Error('stream must contain exactly one terminal event')
   }
 
   const streamId = first.stream_id
-  const requestHash = digestIdentity(first.request_hash)
+  const requestIdentity = streamRequestIdentity(first)
+  if (requestIdentity instanceof Error) {
+    return requestIdentity
+  }
   let lastSeq = 0
 
   for (let index = 0; index < events.length; index += 1) {
@@ -388,18 +463,40 @@ function validateStreamSequence(events) {
     if (event.stream_id !== streamId) {
       return new Error('stream_id must remain constant across a stream')
     }
-    if (digestIdentity(event.request_hash) !== requestHash) {
-      return new Error('request_hash must remain constant across a stream')
+    const eventIdentity = streamRequestIdentity(event)
+    if (eventIdentity instanceof Error) {
+      return eventIdentity
+    }
+    if (eventIdentity !== requestIdentity) {
+      return new Error('request identity must remain constant across a stream')
     }
     if (event.seq <= lastSeq) {
       return new Error('stream sequence numbers must be strictly monotonic')
     }
-    if (index < events.length - 1 && event.event_type === 'response_terminal') {
-      return new Error('response_terminal must be the final event in the stream')
+    if (index < events.length - 1 && isTerminalEventType(event.event_type)) {
+      return new Error('terminal event must be the final event in the stream')
     }
     lastSeq = event.seq
   }
   return null
+}
+
+function isTerminalEventType(eventType) {
+  return eventType === 'response_terminal' || (typeof eventType === 'string' && eventType.endsWith('_terminal'))
+}
+
+function streamRequestIdentity(event) {
+  if (Object.prototype.hasOwnProperty.call(event, 'request_hash')) {
+    const digest = requireDigestObject(event.request_hash, 'request_hash')
+    if (digest instanceof Error) {
+      return digest
+    }
+    return digestIdentity(digest)
+  }
+  if (typeof event.request_id === 'string' && event.request_id.length > 0) {
+    return `request_id:${event.request_id}`
+  }
+  return new Error('stream event must include request_hash or request_id')
 }
 
 test('schema fixtures validate against manifest-defined schemas', async (t) => {

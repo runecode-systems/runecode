@@ -11,11 +11,17 @@ import (
 type brokerLocalAPI interface {
 	RunList(context.Context, brokerapi.RunListRequest) (brokerapi.RunListResponse, *brokerapi.ErrorResponse)
 	RunGet(context.Context, brokerapi.RunGetRequest) (brokerapi.RunGetResponse, *brokerapi.ErrorResponse)
+	RunWatch(context.Context, brokerapi.RunWatchRequest) ([]brokerapi.RunWatchEvent, *brokerapi.ErrorResponse)
+	SessionList(context.Context, brokerapi.SessionListRequest) (brokerapi.SessionListResponse, *brokerapi.ErrorResponse)
+	SessionGet(context.Context, brokerapi.SessionGetRequest) (brokerapi.SessionGetResponse, *brokerapi.ErrorResponse)
+	SessionSendMessage(context.Context, brokerapi.SessionSendMessageRequest) (brokerapi.SessionSendMessageResponse, *brokerapi.ErrorResponse)
+	SessionWatch(context.Context, brokerapi.SessionWatchRequest) ([]brokerapi.SessionWatchEvent, *brokerapi.ErrorResponse)
 	RunnerCheckpointReport(context.Context, brokerapi.RunnerCheckpointReportRequest) (brokerapi.RunnerCheckpointReportResponse, *brokerapi.ErrorResponse)
 	RunnerResultReport(context.Context, brokerapi.RunnerResultReportRequest) (brokerapi.RunnerResultReportResponse, *brokerapi.ErrorResponse)
 	ApprovalList(context.Context, brokerapi.ApprovalListRequest) (brokerapi.ApprovalListResponse, *brokerapi.ErrorResponse)
 	ApprovalGet(context.Context, brokerapi.ApprovalGetRequest) (brokerapi.ApprovalGetResponse, *brokerapi.ErrorResponse)
 	ApprovalResolve(context.Context, brokerapi.ApprovalResolveRequest) (brokerapi.ApprovalResolveResponse, *brokerapi.ErrorResponse)
+	ApprovalWatch(context.Context, brokerapi.ApprovalWatchRequest) ([]brokerapi.ApprovalWatchEvent, *brokerapi.ErrorResponse)
 	ArtifactList(context.Context, brokerapi.LocalArtifactListRequest) (brokerapi.LocalArtifactListResponse, *brokerapi.ErrorResponse)
 	ArtifactHead(context.Context, brokerapi.LocalArtifactHeadRequest) (brokerapi.LocalArtifactHeadResponse, *brokerapi.ErrorResponse)
 	ArtifactRead(context.Context, brokerapi.ArtifactReadRequest) ([]brokerapi.ArtifactStreamEvent, *brokerapi.ErrorResponse)
@@ -23,6 +29,7 @@ type brokerLocalAPI interface {
 	ReadinessGet(context.Context, brokerapi.ReadinessGetRequest) (brokerapi.ReadinessGetResponse, *brokerapi.ErrorResponse)
 	VersionInfoGet(context.Context, brokerapi.VersionInfoGetRequest) (brokerapi.VersionInfoGetResponse, *brokerapi.ErrorResponse)
 	AuditVerificationGet(context.Context, brokerapi.AuditVerificationGetRequest) (brokerapi.AuditVerificationGetResponse, *brokerapi.ErrorResponse)
+	AuditRecordGet(context.Context, brokerapi.AuditRecordGetRequest) (brokerapi.AuditRecordGetResponse, *brokerapi.ErrorResponse)
 }
 
 type localRPCInvokeFunc func(ctx context.Context, operation string, request any, out any) *brokerapi.ErrorResponse
@@ -84,6 +91,31 @@ func (c *localAPIClient) RunGet(ctx context.Context, req brokerapi.RunGetRequest
 	return resp, c.invoke(ctx, "run_get", req, &resp)
 }
 
+func (c *localAPIClient) RunWatch(ctx context.Context, req brokerapi.RunWatchRequest) ([]brokerapi.RunWatchEvent, *brokerapi.ErrorResponse) {
+	events := []brokerapi.RunWatchEvent{}
+	return events, c.invoke(ctx, "run_watch", req, &events)
+}
+
+func (c *localAPIClient) SessionList(ctx context.Context, req brokerapi.SessionListRequest) (brokerapi.SessionListResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.SessionListResponse{}
+	return resp, c.invoke(ctx, "session_list", req, &resp)
+}
+
+func (c *localAPIClient) SessionGet(ctx context.Context, req brokerapi.SessionGetRequest) (brokerapi.SessionGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.SessionGetResponse{}
+	return resp, c.invoke(ctx, "session_get", req, &resp)
+}
+
+func (c *localAPIClient) SessionSendMessage(ctx context.Context, req brokerapi.SessionSendMessageRequest) (brokerapi.SessionSendMessageResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.SessionSendMessageResponse{}
+	return resp, c.invoke(ctx, "session_send_message", req, &resp)
+}
+
+func (c *localAPIClient) SessionWatch(ctx context.Context, req brokerapi.SessionWatchRequest) ([]brokerapi.SessionWatchEvent, *brokerapi.ErrorResponse) {
+	events := []brokerapi.SessionWatchEvent{}
+	return events, c.invoke(ctx, "session_watch", req, &events)
+}
+
 func (c *localAPIClient) RunnerCheckpointReport(ctx context.Context, req brokerapi.RunnerCheckpointReportRequest) (brokerapi.RunnerCheckpointReportResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.RunnerCheckpointReportResponse{}
 	return resp, c.invoke(ctx, "runner_checkpoint_report", req, &resp)
@@ -107,6 +139,11 @@ func (c *localAPIClient) ApprovalGet(ctx context.Context, req brokerapi.Approval
 func (c *localAPIClient) ApprovalResolve(ctx context.Context, req brokerapi.ApprovalResolveRequest) (brokerapi.ApprovalResolveResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.ApprovalResolveResponse{}
 	return resp, c.invoke(ctx, "approval_resolve", req, &resp)
+}
+
+func (c *localAPIClient) ApprovalWatch(ctx context.Context, req brokerapi.ApprovalWatchRequest) ([]brokerapi.ApprovalWatchEvent, *brokerapi.ErrorResponse) {
+	events := []brokerapi.ApprovalWatchEvent{}
+	return events, c.invoke(ctx, "approval_watch", req, &events)
 }
 
 func (c *localAPIClient) ArtifactList(ctx context.Context, req brokerapi.LocalArtifactListRequest) (brokerapi.LocalArtifactListResponse, *brokerapi.ErrorResponse) {
@@ -142,4 +179,9 @@ func (c *localAPIClient) VersionInfoGet(ctx context.Context, req brokerapi.Versi
 func (c *localAPIClient) AuditVerificationGet(ctx context.Context, req brokerapi.AuditVerificationGetRequest) (brokerapi.AuditVerificationGetResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.AuditVerificationGetResponse{}
 	return resp, c.invoke(ctx, "audit_verification_get", req, &resp)
+}
+
+func (c *localAPIClient) AuditRecordGet(ctx context.Context, req brokerapi.AuditRecordGetRequest) (brokerapi.AuditRecordGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.AuditRecordGetResponse{}
+	return resp, c.invoke(ctx, "audit_record_get", req, &resp)
 }

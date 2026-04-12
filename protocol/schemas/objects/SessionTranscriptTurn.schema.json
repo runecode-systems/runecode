@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/SessionTranscriptTurn.schema.json",
+  "title": "SessionTranscriptTurn",
+  "description": "Typed transcript turn contract with stable identity and explicit session-local ordering semantics.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 9,
+  "required": ["schema_id", "schema_version", "turn_id", "session_id", "turn_index", "started_at", "status", "messages"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.SessionTranscriptTurn", "description": "Protocol schema identifier for SessionTranscriptTurn.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version for SessionTranscriptTurn.", "x-data-class": "public" },
+    "turn_id": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable transcript turn identity scoped to one session.", "x-data-class": "public" },
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Canonical session identity for this turn.", "x-data-class": "public" },
+    "turn_index": { "type": "integer", "minimum": 1, "description": "Monotonic one-based turn order within a session transcript.", "x-data-class": "public" },
+    "started_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Turn start time in RFC3339 format.", "x-data-class": "public" },
+    "completed_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Turn completion time in RFC3339 format when terminal.", "x-data-class": "public" },
+    "status": { "type": "string", "enum": ["in_progress", "completed", "failed", "cancelled"], "description": "Transcript turn lifecycle status.", "x-data-class": "public" },
+    "messages": { "type": "array", "maxItems": 64, "description": "Ordered messages that belong to this turn.", "x-data-class": "public", "items": { "$ref": "SessionTranscriptMessage.schema.json", "description": "Transcript turn message entry.", "x-data-class": "public" } }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "completed" } },
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["completed_at"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "status": { "const": "in_progress" } },
+        "required": ["status"]
+      },
+      "then": {
+        "not": {
+          "required": ["completed_at"]
+        }
+      }
+    }
+  ]
+}

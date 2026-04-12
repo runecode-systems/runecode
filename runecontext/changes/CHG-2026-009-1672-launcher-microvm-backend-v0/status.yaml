@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-009-1672-launcher-microvm-backend-v0
 title: Launcher MicroVM Backend v0
-status: planned
+status: implemented
 type: feature
 size: large
 verification_status: pending

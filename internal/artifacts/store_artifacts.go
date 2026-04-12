@@ -41,21 +41,61 @@ func (s *Store) putLocked(req PutRequest) (ArtifactReference, error) {
 	if ref, ok, err := s.tryReturnExistingReference(req, digest); ok || err != nil {
 		return ref, err
 	}
-	if err := s.storeIO.writeBlobIfMissing(digest, payload); err != nil {
+	ref := buildArtifactReference(digest, int64(len(payload)), req)
+	blobPath, createdBlob, rollback, err := s.stageArtifactPut(ref, req, digest, payload, actorRole)
+	if err != nil {
 		return ArtifactReference{}, err
 	}
-	ref := buildArtifactReference(digest, int64(len(payload)), req)
+	if err := s.appendAuditLocked("artifact_put", actorRole, map[string]interface{}{"digest": digest, "data_class": req.DataClass, "provenance_receipt_hash": req.ProvenanceReceiptHash}); err != nil {
+		return ArtifactReference{}, s.rollbackStagedArtifactPut(rollback, blobPath, createdBlob, err)
+	}
+	if err := s.saveStateLocked(); err != nil {
+		return ArtifactReference{}, s.rollbackStagedArtifactPut(rollback, blobPath, createdBlob, err)
+	}
+	return ref, nil
+}
+
+func (s *Store) rollbackStagedArtifactPut(rollback func(), blobPath string, createdBlob bool, cause error) error {
+	rollback()
+	if !createdBlob {
+		return cause
+	}
+	if removeErr := s.storeIO.removeBlob(blobPath); removeErr != nil {
+		return errors.Join(cause, removeErr)
+	}
+	return cause
+}
+
+func (s *Store) stageArtifactPut(ref ArtifactReference, req PutRequest, digest string, payload []byte, actorRole string) (string, bool, func(), error) {
+	createdBlob, err := s.storeIO.writeBlobIfMissing(digest, payload)
+	if err != nil {
+		return "", false, nil, err
+	}
+	blobPath := s.storeIO.blobPath(digest)
+	rollback := s.captureArtifactPutRollback(req.RunID, digest)
 	s.upsertArtifactRecord(ref, req, digest, actorRole)
 	if req.RunID != "" {
 		s.state.Runs[req.RunID] = "active"
 	}
-	if err := s.appendAuditLocked("artifact_put", actorRole, map[string]interface{}{"digest": digest, "data_class": req.DataClass, "provenance_receipt_hash": req.ProvenanceReceiptHash}); err != nil {
-		return ArtifactReference{}, err
+	return blobPath, createdBlob, rollback, nil
+}
+
+func (s *Store) captureArtifactPutRollback(runID, digest string) func() {
+	priorRunStatus, hadRunStatus := "", false
+	if runID != "" {
+		priorRunStatus, hadRunStatus = s.state.Runs[runID]
 	}
-	if err := s.saveStateLocked(); err != nil {
-		return ArtifactReference{}, err
+	return func() {
+		delete(s.state.Artifacts, digest)
+		if runID == "" {
+			return
+		}
+		if hadRunStatus {
+			s.state.Runs[runID] = priorRunStatus
+			return
+		}
+		delete(s.state.Runs, runID)
 	}
-	return ref, nil
 }
 
 func (s *Store) preparePutPayload(req PutRequest) ([]byte, string, error) {

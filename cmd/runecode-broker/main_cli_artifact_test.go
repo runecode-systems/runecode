@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
@@ -38,6 +39,64 @@ func TestPutListHeadGetArtifactCLI(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(root, "state.json")); err != nil {
 		t.Fatalf("expected broker state.json: %v", err)
+	}
+}
+
+func TestArtifactCLIRecoversMissingIndexFromAuditAndBlob(t *testing.T) {
+	root := setBrokerServiceForTest(t)
+	payload := []byte("recovered artifact")
+	digest := artifacts.DigestBytes(payload)
+	provenance := testDigest("8")
+	blobPath := filepath.Join(root, "blobs", strings.TrimPrefix(digest, "sha256:"))
+	if err := os.MkdirAll(filepath.Dir(blobPath), 0o700); err != nil {
+		t.Fatalf("MkdirAll blobs returned error: %v", err)
+	}
+	if err := os.WriteFile(blobPath, payload, 0o600); err != nil {
+		t.Fatalf("WriteFile blob returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "state.json"), []byte(`{"artifacts":{}}`), 0o600); err != nil {
+		t.Fatalf("WriteFile state returned error: %v", err)
+	}
+	auditEvent := artifacts.AuditEvent{
+		Seq:        1,
+		Type:       "artifact_put",
+		OccurredAt: time.Now().UTC(),
+		Actor:      "workspace",
+		Details: map[string]interface{}{
+			"digest":                  digest,
+			"data_class":              string(artifacts.DataClassSpecText),
+			"provenance_receipt_hash": provenance,
+		},
+	}
+	auditLine, err := json.Marshal(auditEvent)
+	if err != nil {
+		t.Fatalf("Marshal audit event returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "audit.log"), append(auditLine, '\n'), 0o600); err != nil {
+		t.Fatalf("WriteFile audit returned error: %v", err)
+	}
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	list := listArtifactsViaCLI(t, stdout, stderr)
+	if len(list) != 1 {
+		t.Fatalf("list-artifacts count = %d, want 1", len(list))
+	}
+	if list[0].Digest != digest {
+		t.Fatalf("list-artifacts digest = %q, want %q", list[0].Digest, digest)
+	}
+	head := headArtifactViaCLI(t, stdout, stderr, digest)
+	if head.Digest != digest {
+		t.Fatalf("head-artifact digest = %q, want %q", head.Digest, digest)
+	}
+	outPath := filepath.Join(t.TempDir(), "recovered.txt")
+	getArtifactViaCLI(t, stdout, stderr, digest, "workspace", "model_gateway", "", false, outPath)
+	b, readErr := os.ReadFile(outPath)
+	if readErr != nil {
+		t.Fatalf("ReadFile recovered output returned error: %v", readErr)
+	}
+	if string(b) != "recovered artifact" {
+		t.Fatalf("get-artifact recovered payload = %q, want recovered artifact", string(b))
 	}
 }
 

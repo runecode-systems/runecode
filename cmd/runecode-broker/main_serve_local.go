@@ -177,6 +177,12 @@ func decodeLocalRPCRequest(line []byte) (localRPCRequest, error) {
 	if err := decoder.Decode(&request); err != nil {
 		return localRPCRequest{}, err
 	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			return localRPCRequest{}, errors.New("request must contain exactly one JSON object")
+		}
+		return localRPCRequest{}, err
+	}
 	if request.Operation == "" {
 		return localRPCRequest{}, errors.New("operation is required")
 	}
@@ -222,43 +228,11 @@ func mergeRPCOperations(dst, src map[string]rpcOperation) {
 }
 
 func runApprovalRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
-	return map[string]rpcOperation{
-		"run_list": {requestSchemaPath: "objects/RunListRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.RunListRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleRunList(ctx, req, meta)
-			})
-		}},
-		"run_get": {requestSchemaPath: "objects/RunGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.RunGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleRunGet(ctx, req, meta)
-			})
-		}},
-		"runner_checkpoint_report": {requestSchemaPath: "objects/RunnerCheckpointReportRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.RunnerCheckpointReportRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleRunnerCheckpointReport(ctx, req, meta)
-			})
-		}},
-		"runner_result_report": {requestSchemaPath: "objects/RunnerResultReportRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.RunnerResultReportRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleRunnerResultReport(ctx, req, meta)
-			})
-		}},
-		"approval_list": {requestSchemaPath: "objects/ApprovalListRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.ApprovalListRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleApprovalList(ctx, req, meta)
-			})
-		}},
-		"approval_get": {requestSchemaPath: "objects/ApprovalGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.ApprovalGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleApprovalGet(ctx, req, meta)
-			})
-		}},
-		"approval_resolve": {requestSchemaPath: "objects/ApprovalResolveRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.ApprovalResolveRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleApprovalResolve(ctx, req, meta)
-			})
-		}},
-	}
+	operations := map[string]rpcOperation{}
+	mergeRPCOperations(operations, runRPCOperations(service, ctx, meta))
+	mergeRPCOperations(operations, sessionRPCOperations(service, ctx, meta))
+	mergeRPCOperations(operations, approvalRunnerRPCOperations(service, ctx, meta))
+	return operations
 }
 
 func artifactRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
@@ -290,6 +264,11 @@ func auditHealthRPCOperations(service *brokerapi.Service, ctx context.Context, m
 		"audit_verification_get": {requestSchemaPath: "objects/AuditVerificationGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.AuditVerificationGetRequest) (any, *brokerapi.ErrorResponse) {
 				return service.HandleAuditVerificationGet(ctx, req, meta)
+			})
+		}},
+		"audit_record_get": {requestSchemaPath: "objects/AuditRecordGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.AuditRecordGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleAuditRecordGet(ctx, req, meta)
 			})
 		}},
 		"readiness_get": {requestSchemaPath: "objects/ReadinessGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {

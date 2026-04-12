@@ -1,0 +1,6 @@
+{
+  "schema_id": "runecode.protocol.v0.ApprovalWhatChangesIfApproved",
+  "schema_version": "0.1.0",
+  "summary": "Promotion to the requested target may proceed for this run.",
+  "effect_kind": "promotion"
+}

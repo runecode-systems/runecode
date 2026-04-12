@@ -1,0 +1,18 @@
+{
+  "schema_id": "runecode.protocol.v0.SessionWatchEvent",
+  "schema_version": "0.1.0",
+  "stream_id": "session-watch-workspace-core",
+  "request_id": "req-session-watch-1",
+  "seq": 1,
+  "event_type": "session_watch_terminal",
+  "terminal": true,
+  "terminal_status": "failed",
+  "error": {
+    "schema_id": "runecode.protocol.v0.Error",
+    "schema_version": "0.3.0",
+    "code": "gateway_failure",
+    "category": "internal",
+    "retryable": false,
+    "message": "Session watch stream failed while replaying session activity."
+  }
+}

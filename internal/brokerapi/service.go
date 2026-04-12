@@ -18,8 +18,8 @@ var (
 )
 
 const (
-	brokerProtocolBundleVersion      = "0.7.0"
-	brokerProtocolBundleManifestHash = "sha256:a187dfeb6247659ba9331f46c5b5e662449c763409d00b800c947e79c4a3f628"
+	brokerProtocolBundleVersion      = "0.9.0"
+	brokerProtocolBundleManifestHash = "sha256:47427e96642a0f2cb7fb4e66aed61817f72f4233f0273744baa8469a2d13f170"
 )
 
 type Service struct {
@@ -214,6 +214,18 @@ func (s *Service) ApprovalList() []artifacts.ApprovalRecord {
 
 func (s *Service) ApprovalGet(approvalID string) (artifacts.ApprovalRecord, bool) {
 	return s.store.ApprovalGet(approvalID)
+}
+
+func (s *Service) SessionState(sessionID string) (artifacts.SessionDurableState, bool) {
+	return s.store.SessionState(sessionID)
+}
+
+func (s *Service) SessionStates() map[string]artifacts.SessionDurableState {
+	return s.store.SessionStates()
+}
+
+func (s *Service) AppendSessionMessage(req artifacts.SessionMessageAppendRequest) (artifacts.SessionMessageAppendResult, error) {
+	return s.store.AppendSessionMessage(req)
 }
 
 func (s *Service) RecordApproval(record artifacts.ApprovalRecord) error {

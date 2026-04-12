@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/SessionSummary.schema.json",
+  "title": "SessionSummary",
+  "description": "Broker list-facing summary model for interactive sessions.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 14,
+  "required": ["schema_id", "schema_version", "identity", "updated_at", "status", "last_activity_kind", "turn_count", "linked_run_count", "linked_approval_count", "linked_artifact_count", "linked_audit_event_count", "has_incomplete_turn"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.SessionSummary", "description": "Protocol schema identifier for SessionSummary.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version for SessionSummary.", "x-data-class": "public" },
+    "identity": { "$ref": "SessionIdentity.schema.json", "description": "Canonical session identity.", "x-data-class": "public" },
+    "updated_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Latest session update time visible to broker reads.", "x-data-class": "public" },
+    "status": { "type": "string", "enum": ["active", "completed", "archived"], "description": "Session lifecycle status in closed vocabulary.", "x-data-class": "public" },
+    "last_activity_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Timestamp of the most recent observed session activity.", "x-data-class": "public" },
+    "last_activity_kind": { "type": "string", "enum": ["session_created", "run_progress", "approval_pending", "artifact_recorded", "audit_recorded", "chat_message", "unknown"], "description": "Most recent activity kind in stable broker-facing vocabulary.", "x-data-class": "public" },
+    "last_activity_preview": { "type": "string", "maxLength": 512, "description": "Optional concise preview for list rendering; non-authoritative and human-facing.", "x-data-class": "public" },
+    "turn_count": { "type": "integer", "minimum": 0, "description": "Ordered transcript turn count currently known for this session.", "x-data-class": "public" },
+    "linked_run_count": { "type": "integer", "minimum": 0, "description": "Number of linked runs associated with the session timeline.", "x-data-class": "public" },
+    "linked_approval_count": { "type": "integer", "minimum": 0, "description": "Number of linked approvals associated with the session timeline.", "x-data-class": "public" },
+    "linked_artifact_count": { "type": "integer", "minimum": 0, "description": "Number of linked artifacts associated with the session timeline.", "x-data-class": "public" },
+    "linked_audit_event_count": { "type": "integer", "minimum": 0, "description": "Number of linked audit events associated with the session timeline.", "x-data-class": "public" },
+    "has_incomplete_turn": { "type": "boolean", "description": "Whether the latest turn is still in-progress or awaiting terminal completion.", "x-data-class": "public" }
+  }
+}

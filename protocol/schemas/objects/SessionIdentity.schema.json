@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/SessionIdentity.schema.json",
+  "title": "SessionIdentity",
+  "description": "Canonical broker-visible session identity model for interactive control-plane routes.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 6,
+  "required": ["schema_id", "schema_version", "session_id", "workspace_id", "created_at"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.SessionIdentity", "description": "Protocol schema identifier for SessionIdentity.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version for SessionIdentity.", "x-data-class": "public" },
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Canonical opaque session identifier.", "x-data-class": "public" },
+    "workspace_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Workspace identifier bound to this session identity.", "x-data-class": "public" },
+    "created_at": { "type": "string", "format": "date-time", "maxLength": 64, "description": "Session creation time observed by broker state.", "x-data-class": "public" },
+    "created_by_run_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Run identifier that first established this session identity, when known.", "x-data-class": "public" }
+  }
+}

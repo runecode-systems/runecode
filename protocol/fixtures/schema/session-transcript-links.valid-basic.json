@@ -1,0 +1,16 @@
+{
+  "schema_id": "runecode.protocol.v0.SessionTranscriptLinks",
+  "schema_version": "0.1.0",
+  "run_ids": [
+    "run-001"
+  ],
+  "approval_ids": [
+    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "artifact_digests": [
+    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  ],
+  "audit_record_digests": [
+    "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  ]
+}

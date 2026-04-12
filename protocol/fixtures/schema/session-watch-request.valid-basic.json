@@ -1,0 +1,10 @@
+{
+  "schema_id": "runecode.protocol.v0.SessionWatchRequest",
+  "schema_version": "0.1.0",
+  "request_id": "req-session-watch-1",
+  "stream_id": "session-watch-workspace-core",
+  "workspace_id": "workspace-core",
+  "status": "active",
+  "follow": true,
+  "include_snapshot": true
+}

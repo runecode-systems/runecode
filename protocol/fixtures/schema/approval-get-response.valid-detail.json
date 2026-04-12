@@ -1,0 +1,83 @@
+{
+  "schema_id": "runecode.protocol.v0.ApprovalGetResponse",
+  "schema_version": "0.1.0",
+  "request_id": "req-approval-get-1",
+  "approval": {
+    "schema_id": "runecode.protocol.v0.ApprovalSummary",
+    "schema_version": "0.1.0",
+    "approval_id": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+    "status": "pending",
+    "requested_at": "2026-04-11T10:00:00Z",
+    "approval_trigger_code": "manual_approval_required",
+    "changes_if_approved": "Promotion to the requested target may proceed for this run.",
+    "approval_assurance_level": "session_authenticated",
+    "presence_mode": "os_confirmation",
+    "bound_scope": {
+      "schema_id": "runecode.protocol.v0.ApprovalBoundScope",
+      "schema_version": "0.1.0",
+      "workspace_id": "workspace-core",
+      "run_id": "run-001",
+      "stage_id": "stage-build",
+      "step_id": "step-promote",
+      "role_instance_id": "role-ci-1",
+      "action_kind": "promotion",
+      "policy_decision_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "policy_decision_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "request_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "approval_detail": {
+    "schema_id": "runecode.protocol.v0.ApprovalDetail",
+    "schema_version": "0.1.0",
+    "approval_id": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+    "policy_reason_code": "manual_approval_required",
+    "lifecycle_detail": {
+      "schema_id": "runecode.protocol.v0.ApprovalLifecycleDetail",
+      "schema_version": "0.1.0",
+      "lifecycle_state": "pending",
+      "lifecycle_reason_code": "approval_pending",
+      "stale": false
+    },
+    "binding_kind": "exact_action",
+    "bound_action_hash": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+    "what_changes_if_approved": {
+      "schema_id": "runecode.protocol.v0.ApprovalWhatChangesIfApproved",
+      "schema_version": "0.1.0",
+      "summary": "Promotion to the requested target may proceed for this run.",
+      "effect_kind": "promotion"
+    },
+    "blocked_work_scope": {
+      "schema_id": "runecode.protocol.v0.ApprovalBlockedWorkScope",
+      "schema_version": "0.1.0",
+      "scope_kind": "stage",
+      "workspace_id": "workspace-core",
+      "run_id": "run-001",
+      "stage_id": "stage-build",
+      "step_id": "step-promote",
+      "role_instance_id": "role-ci-1",
+      "action_kind": "promotion"
+    },
+    "bound_identity": {
+      "schema_id": "runecode.protocol.v0.ApprovalBoundIdentity",
+      "schema_version": "0.1.0",
+      "approval_request_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "approval_decision_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "policy_decision_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "manifest_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "relevant_artifact_hashes": [
+        "sha256:5555555555555555555555555555555555555555555555555555555555555555"
+      ],
+      "binding_kind": "exact_action",
+      "bound_action_hash": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+      "decision_approver": {
+        "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+        "schema_version": "0.2.0",
+        "actor_kind": "user",
+        "principal_id": "approver-1",
+        "instance_id": "approver-session-1"
+      },
+      "decision_verifier_key_id": "key_sha256",
+      "decision_verifier_key_id_value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  }
+}

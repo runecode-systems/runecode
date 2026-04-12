@@ -30,7 +30,8 @@ func (s *Service) HandleAuditTimeline(ctx context.Context, req AuditTimelineRequ
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
 		return AuditTimelineResponse{}, &errOut
 	}
-	resp := AuditTimelineResponse{SchemaID: "runecode.protocol.v0.AuditTimelineResponse", SchemaVersion: "0.1.0", RequestID: requestID, Order: order, Views: page, NextCursor: next}
+	postures := deriveRecordVerificationPosturesFromFindings(surface.Report.Findings)
+	resp := AuditTimelineResponse{SchemaID: "runecode.protocol.v0.AuditTimelineResponse", SchemaVersion: "0.1.0", RequestID: requestID, Order: order, Views: s.projectAuditTimelineEntries(page, postures), NextCursor: next}
 	if err := s.validateResponse(resp, auditTimelineResponseSchemaPath); err != nil {
 		errOut := s.errorFromValidation(requestID, err)
 		return AuditTimelineResponse{}, &errOut

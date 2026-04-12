@@ -1,0 +1,26 @@
+{
+  "schema_id": "runecode.protocol.v0.RunWatchEvent",
+  "schema_version": "0.1.0",
+  "stream_id": "run-watch-workspace-core",
+  "request_id": "req-run-watch-1",
+  "seq": 1,
+  "event_type": "run_watch_snapshot",
+  "run": {
+    "schema_id": "runecode.protocol.v0.RunSummary",
+    "schema_version": "0.2.0",
+    "run_id": "run-001",
+    "workspace_id": "workspace-core",
+    "created_at": "2026-04-11T10:00:00Z",
+    "updated_at": "2026-04-11T10:05:00Z",
+    "lifecycle_state": "active",
+    "pending_approval_count": 1,
+    "approval_profile": "default",
+    "backend_kind": "microvm",
+    "isolation_assurance_level": "isolated",
+    "provisioning_posture": "attested",
+    "assurance_level": "isolated",
+    "audit_integrity_status": "ok",
+    "audit_anchoring_status": "ok",
+    "audit_currently_degraded": false
+  }
+}

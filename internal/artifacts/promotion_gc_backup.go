@@ -19,7 +19,7 @@ func (s *Store) buildApprovedRecord(source ArtifactRecord, req PromotionRequest)
 	}
 	approvedPayload := append([]byte("approved:\n"), payload...)
 	newDigest := digestBytes(approvedPayload)
-	if err := s.storeIO.writeBlobIfMissing(newDigest, approvedPayload); err != nil {
+	if _, err := s.storeIO.writeBlobIfMissing(newDigest, approvedPayload); err != nil {
 		return ArtifactReference{}, ArtifactRecord{}, "", "", err
 	}
 	now := s.nowFn().UTC()
@@ -127,21 +127,35 @@ func gcCandidates(artifactsMap map[string]ArtifactRecord, runs map[string]string
 }
 
 func buildBackupManifest(state StoreState, exportedAt time.Time) BackupManifest {
-	manifest := BackupManifest{
+	manifest := newBackupManifest(state, exportedAt)
+	populateBackupManifestCollections(&manifest, state)
+	sortBackupManifestCollections(&manifest)
+	return manifest
+}
+
+func newBackupManifest(state StoreState, exportedAt time.Time) BackupManifest {
+	return BackupManifest{
 		Schema:            "runecode.backup.artifacts.v1",
 		ExportedAt:        exportedAt,
 		StorageProtection: state.StorageProtectionPosture,
 		Policy:            state.Policy,
 		Runs:              map[string]string{},
 		Artifacts:         make([]ArtifactRecord, 0, len(state.Artifacts)),
+		Sessions:          make([]SessionDurableState, 0, len(state.Sessions)),
 		PolicyDecisions:   make([]PolicyDecisionRecord, 0, len(state.PolicyDecisions)),
 		Approvals:         make([]ApprovalRecord, 0, len(state.Approvals)),
 	}
+}
+
+func populateBackupManifestCollections(manifest *BackupManifest, state StoreState) {
 	for runID, status := range state.Runs {
 		manifest.Runs[runID] = status
 	}
 	for _, rec := range state.Artifacts {
 		manifest.Artifacts = append(manifest.Artifacts, rec)
+	}
+	for _, rec := range state.Sessions {
+		manifest.Sessions = append(manifest.Sessions, copySessionDurableState(rec))
 	}
 	for _, rec := range state.PolicyDecisions {
 		manifest.PolicyDecisions = append(manifest.PolicyDecisions, rec)
@@ -149,8 +163,14 @@ func buildBackupManifest(state StoreState, exportedAt time.Time) BackupManifest 
 	for _, rec := range state.Approvals {
 		manifest.Approvals = append(manifest.Approvals, rec)
 	}
+}
+
+func sortBackupManifestCollections(manifest *BackupManifest) {
 	sort.Slice(manifest.Artifacts, func(i, j int) bool {
 		return manifest.Artifacts[i].Reference.Digest < manifest.Artifacts[j].Reference.Digest
+	})
+	sort.Slice(manifest.Sessions, func(i, j int) bool {
+		return manifest.Sessions[i].SessionID < manifest.Sessions[j].SessionID
 	})
 	sort.Slice(manifest.PolicyDecisions, func(i, j int) bool {
 		return manifest.PolicyDecisions[i].Digest < manifest.PolicyDecisions[j].Digest
@@ -158,7 +178,6 @@ func buildBackupManifest(state StoreState, exportedAt time.Time) BackupManifest 
 	sort.Slice(manifest.Approvals, func(i, j int) bool {
 		return manifest.Approvals[i].ApprovalID < manifest.Approvals[j].ApprovalID
 	})
-	return manifest
 }
 
 func validateRestoredRecord(record ArtifactRecord, ioStore *storeIO) (ArtifactRecord, error) {

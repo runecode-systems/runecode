@@ -1,6 +1,10 @@
 package brokerapi
 
-import "github.com/runecode-ai/runecode/internal/trustpolicy"
+import (
+	"context"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
+)
 
 type RunSummary struct {
 	SchemaID                string `json:"schema_id"`
@@ -107,4 +111,32 @@ type RunGetResponse struct {
 	SchemaVersion string    `json:"schema_version"`
 	RequestID     string    `json:"request_id"`
 	Run           RunDetail `json:"run"`
+}
+
+type RunWatchRequest struct {
+	SchemaID        string             `json:"schema_id"`
+	SchemaVersion   string             `json:"schema_version"`
+	RequestID       string             `json:"request_id"`
+	StreamID        string             `json:"stream_id"`
+	RunID           string             `json:"run_id,omitempty"`
+	WorkspaceID     string             `json:"workspace_id,omitempty"`
+	LifecycleState  string             `json:"lifecycle_state,omitempty"`
+	Follow          bool               `json:"follow"`
+	IncludeSnapshot bool               `json:"include_snapshot"`
+	RequestCtx      context.Context    `json:"-"`
+	Cancel          context.CancelFunc `json:"-"`
+	Release         func()             `json:"-"`
+}
+
+type RunWatchEvent struct {
+	SchemaID       string         `json:"schema_id"`
+	SchemaVersion  string         `json:"schema_version"`
+	StreamID       string         `json:"stream_id"`
+	RequestID      string         `json:"request_id"`
+	Seq            int64          `json:"seq"`
+	EventType      string         `json:"event_type"`
+	Run            *RunSummary    `json:"run,omitempty"`
+	Terminal       bool           `json:"terminal,omitempty"`
+	TerminalStatus string         `json:"terminal_status,omitempty"`
+	Error          *ProtocolError `json:"error,omitempty"`
 }

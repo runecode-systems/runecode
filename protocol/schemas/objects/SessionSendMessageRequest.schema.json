@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/SessionSendMessageRequest.schema.json",
+  "title": "SessionSendMessageRequest",
+  "description": "Typed broker-mediated session interaction request for appending a transcript message.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 8,
+  "required": ["schema_id", "schema_version", "request_id", "session_id", "role", "content_text"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.SessionSendMessageRequest", "description": "Protocol schema identifier for SessionSendMessageRequest.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version for SessionSendMessageRequest.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable caller request identity.", "x-data-class": "public" },
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Canonical session identity to append interaction activity to.", "x-data-class": "public" },
+    "role": { "type": "string", "enum": ["user", "assistant", "system", "tool"], "description": "Transcript role for the submitted message.", "x-data-class": "public" },
+    "content_text": { "type": "string", "minLength": 1, "maxLength": 32768, "description": "Primary display text for the submitted transcript message.", "x-data-class": "public" },
+    "idempotency_key": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Optional caller-supplied idempotency identity for retries.", "x-data-class": "public" },
+    "related_links": { "$ref": "SessionTranscriptLinks.schema.json", "description": "Optional typed links carried with the message for run/approval/artifact/audit correlation.", "x-data-class": "public" }
+  }
+}
