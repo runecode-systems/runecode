@@ -18,3 +18,8 @@
   - `protocol/fixtures/schema/audit-timeline-response.valid-linked-records.json`
 - No direct ledger/daemon-private storage requirement is enforced fail-closed via schema closure (`additionalProperties: false`) and negative fixture:
   - `protocol/fixtures/schema/audit-record-get-response.invalid-daemon-private-storage-access.json` (`expect_valid: false` in fixture manifest)
+- Broker and TUI integration evidence now also covers the shipped drill-down path:
+  - `go test ./internal/brokerapi -run TestAuditRecordGetSuccessProjectsTypedDetail -v`
+  - `go test ./cmd/runecode-tui`
+  - `just ci`
+- The TUI audit route consumes `AuditRecordGet` through the broker client and does not perform direct ledger reads or daemon-private file access.

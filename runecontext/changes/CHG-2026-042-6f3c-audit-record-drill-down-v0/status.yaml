@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-042-6f3c-audit-record-drill-down-v0
 title: Audit Record Drill-Down v0
-status: planned
+status: implemented
 type: feature
 size: medium
 verification_status: pending

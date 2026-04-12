@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-013-d2c9-minimal-tui-v0
 title: Minimal TUI v0
-status: planned
+status: implemented
 type: feature
 size: medium
 verification_status: pending
