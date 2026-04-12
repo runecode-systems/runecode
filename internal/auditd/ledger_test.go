@@ -225,6 +225,44 @@ func TestReplaceFileRestoresDestinationWhenSecondRenameFails(t *testing.T) {
 	}
 }
 
+func TestReplaceFileFallbackPromotesSourceAndRemovesBackup(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "state.json.tmp")
+	dst := filepath.Join(dir, "state.json")
+	if err := os.WriteFile(src, []byte(`{"next":true}`), 0o600); err != nil {
+		t.Fatalf("WriteFile(src) returned error: %v", err)
+	}
+	if err := os.WriteFile(dst, []byte(`{"current":true}`), 0o600); err != nil {
+		t.Fatalf("WriteFile(dst) returned error: %v", err)
+	}
+	originalRename := renameFile
+	firstPromote := true
+	renameFile = func(srcPath, dstPath string) error {
+		if srcPath == src && dstPath == dst && firstPromote {
+			firstPromote = false
+			return fmt.Errorf("forced first promote failure")
+		}
+		return originalRename(srcPath, dstPath)
+	}
+	t.Cleanup(func() {
+		renameFile = originalRename
+	})
+
+	if err := replaceFile(src, dst); err != nil {
+		t.Fatalf("replaceFile returned error: %v", err)
+	}
+	b, readErr := os.ReadFile(dst)
+	if readErr != nil {
+		t.Fatalf("ReadFile(dst) returned error: %v", readErr)
+	}
+	if string(b) != `{"next":true}` {
+		t.Fatalf("dst contents = %q, want promoted contents", string(b))
+	}
+	if _, statErr := os.Stat(dst + ".bak"); !os.IsNotExist(statErr) {
+		t.Fatalf("backup presence err = %v, want not exist", statErr)
+	}
+}
+
 func TestOpenConcurrentCleanStartAndRestart(t *testing.T) {
 	root := t.TempDir()
 	const starters = 16

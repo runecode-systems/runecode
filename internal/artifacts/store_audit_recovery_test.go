@@ -74,8 +74,8 @@ func TestLoadStateRecoversAuditSequenceWhenStateSaveLagged(t *testing.T) {
 	}
 	if _, err := store.Put(PutRequest{Payload: []byte("second"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("2"), CreatedByRole: "workspace"}); err == nil {
 		t.Fatal("Put expected state save failure after audit append")
-	} else if !strings.Contains(err.Error(), "is a directory") {
-		t.Fatalf("Put error = %v, want state path directory failure", err)
+	} else {
+		assertPathErrorTarget(t, err, store.storeIO.statePath)
 	}
 	reloaded, err := NewStore(store.rootDir)
 	if err != nil {
@@ -111,6 +111,44 @@ func TestPutRollsBackArtifactStateAndBlobWhenAuditAppendFails(t *testing.T) {
 	assertArtifactRollbackDigestLookup(t, store, testDigest("4"))
 	store.storeIO.auditPath = originalAuditPath
 	assertArtifactRollbackPersistedState(t, store)
+}
+
+func TestPutRollbackPreservesPreexistingBlobOnAuditFailure(t *testing.T) {
+	store := newTestStore(t)
+	payload := []byte("preexisting blob")
+	digest := DigestBytes(payload)
+	blobPath := store.storeIO.blobPath(digest)
+	if err := os.WriteFile(blobPath, payload, 0o600); err != nil {
+		t.Fatalf("WriteFile preexisting blob returned error: %v", err)
+	}
+	setBrokenAuditPath(t, store)
+	_, err := store.Put(PutRequest{Payload: payload, ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("6"), CreatedByRole: "workspace"})
+	if err == nil {
+		t.Fatal("Put expected audit append failure")
+	}
+	if _, statErr := os.Stat(blobPath); statErr != nil {
+		t.Fatalf("Stat preexisting blob returned error: %v", statErr)
+	}
+	if len(store.state.Artifacts) != 0 {
+		t.Fatalf("artifacts len = %d, want 0 after rollback", len(store.state.Artifacts))
+	}
+}
+
+func TestPutRejectsDigestCollisionWhenBlobContentMismatches(t *testing.T) {
+	store := newTestStore(t)
+	canonicalPayload := []byte("canonical artifact")
+	digest := DigestBytes(canonicalPayload)
+	blobPath := store.storeIO.blobPath(digest)
+	if err := os.WriteFile(blobPath, []byte("tampered existing payload"), 0o600); err != nil {
+		t.Fatalf("WriteFile tampered blob returned error: %v", err)
+	}
+	_, err := store.Put(PutRequest{Payload: canonicalPayload, ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("7"), CreatedByRole: "workspace"})
+	if err != ErrInvalidDigest {
+		t.Fatalf("Put error = %v, want %v", err, ErrInvalidDigest)
+	}
+	if len(store.state.Artifacts) != 0 {
+		t.Fatalf("artifacts len = %d, want 0 after digest mismatch", len(store.state.Artifacts))
+	}
 }
 
 func TestLoadStateRejectsRecoveredArtifactWhenBlobDigestMismatches(t *testing.T) {
@@ -196,5 +234,16 @@ func assertArtifactRollbackPersistedState(t *testing.T, store *Store) {
 	}
 	if len(reloaded.List()) != 0 {
 		t.Fatalf("reloaded artifact count = %d, want 0 after rollback", len(reloaded.List()))
+	}
+}
+
+func assertPathErrorTarget(t *testing.T, err error, path string) {
+	t.Helper()
+	pathErr := &os.PathError{}
+	if !errors.As(err, &pathErr) {
+		t.Fatalf("error = %v, want wrapped os.PathError", err)
+	}
+	if pathErr.Path != path {
+		t.Fatalf("PathError path = %q, want %q", pathErr.Path, path)
 	}
 }

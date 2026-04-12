@@ -124,7 +124,7 @@ func replaceFile(src, dst string) error {
 		return nil
 	}
 	if err := removeFile(backup); err != nil && !os.IsNotExist(err) {
-		return err
+		return nil
 	}
 	return nil
 }
@@ -180,6 +180,9 @@ func ensureDir(path string) error {
 }
 
 func readJSONFile(path string, target any) error {
+	release := lockReplaceTarget(path)
+	defer release()
+
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return err

@@ -108,12 +108,24 @@ func (s *storeIO) validatedBlobPath(digest string) (string, error) {
 	return path, nil
 }
 
-func (s *storeIO) writeBlobIfMissing(digest string, payload []byte) error {
+func (s *storeIO) writeBlobIfMissing(digest string, payload []byte) (bool, error) {
 	path := s.blobPath(digest)
 	if _, err := os.Stat(path); err == nil {
-		return nil
+		existing, readErr := s.readBlob(path)
+		if readErr != nil {
+			return false, readErr
+		}
+		if digestBytes(existing) != digest {
+			return false, ErrInvalidDigest
+		}
+		return false, nil
+	} else if !os.IsNotExist(err) {
+		return false, err
 	}
-	return os.WriteFile(path, payload, 0o600)
+	if err := os.WriteFile(path, payload, 0o600); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *storeIO) openBlob(path string) (*os.File, error) {

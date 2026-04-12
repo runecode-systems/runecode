@@ -19,7 +19,7 @@ func (s *Store) buildApprovedRecord(source ArtifactRecord, req PromotionRequest)
 	}
 	approvedPayload := append([]byte("approved:\n"), payload...)
 	newDigest := digestBytes(approvedPayload)
-	if err := s.storeIO.writeBlobIfMissing(newDigest, approvedPayload); err != nil {
+	if _, err := s.storeIO.writeBlobIfMissing(newDigest, approvedPayload); err != nil {
 		return ArtifactReference{}, ArtifactRecord{}, "", "", err
 	}
 	now := s.nowFn().UTC()
