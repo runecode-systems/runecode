@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/auditd"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
@@ -109,6 +111,116 @@ func assertVersionInfoFieldConcrete(t *testing.T, name, value string) {
 	if value == "" || value == "unknown" {
 		t.Fatalf("%s = %q, want concrete value", name, value)
 	}
+}
+
+func TestSeedDevManualScenarioReturnsApprovalForSeededDecision(t *testing.T) {
+	service := newDevManualSeedService(t)
+	t.Setenv(devManualSeedEnvVar, "1")
+	if err := seedConflictingApprovalDecision(t, service, devManualSeedRunID, digestWithByte("0"), digestWithByte("9")); err != nil {
+		t.Fatalf("seedConflictingApprovalDecision returned error: %v", err)
+	}
+	result, err := service.SeedDevManualScenario()
+	if err != nil {
+		t.Fatalf("SeedDevManualScenario returned error: %v", err)
+	}
+	approval, ok := service.ApprovalGet(result.ApprovalID)
+	if !ok {
+		t.Fatalf("ApprovalGet(%q) missing seeded approval", result.ApprovalID)
+	}
+	decision, ok := service.PolicyDecisionGet(approval.PolicyDecisionHash)
+	if !ok {
+		t.Fatalf("PolicyDecisionGet(%q) missing seeded decision", approval.PolicyDecisionHash)
+	}
+	if !isDevManualApprovalDecision(decision) {
+		t.Fatalf("approval %q linked to non-seed decision: %+v", result.ApprovalID, decision)
+	}
+}
+
+func TestSeedDevManualScenarioAddsManualSeedLinkWhenDifferentEventSharesDigest(t *testing.T) {
+	service := newDevManualSeedService(t)
+	t.Setenv(devManualSeedEnvVar, "1")
+	if err := service.AppendTrustedAuditEvent("other_event", "brokerapi", map[string]interface{}{
+		"run_id":        devManualSeedRunID,
+		"session_id":    devManualSeedSessionID,
+		"record_digest": "sha256:" + strings.Repeat("1", 64),
+		"seed_profile":  devManualSeedProfile,
+	}); err != nil {
+		t.Fatalf("AppendTrustedAuditEvent returned error: %v", err)
+	}
+	result, err := service.SeedDevManualScenario()
+	if err != nil {
+		t.Fatalf("SeedDevManualScenario returned error: %v", err)
+	}
+	events, err := service.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents returned error: %v", err)
+	}
+	count := 0
+	for _, event := range events {
+		if devManualSessionAuditLinkMatches(event, result.AuditRecordDigest) {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("manual_seed_link count = %d, want 1", count)
+	}
+}
+
+func TestSeedDevManualScenarioRejectsDefaultLedgerRoot(t *testing.T) {
+	service, err := NewService(t.TempDir(), auditd.DefaultLedgerRoot())
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
+	t.Setenv(devManualSeedEnvVar, "1")
+	_, err = service.SeedDevManualScenario()
+	if err == nil {
+		t.Fatal("SeedDevManualScenario expected default-ledger-root rejection")
+	}
+	want := fmt.Sprintf("dev manual seeding refuses default audit ledger root %q", auditd.DefaultLedgerRoot())
+	if err.Error() != want {
+		t.Fatalf("SeedDevManualScenario error = %q, want %q", err.Error(), want)
+	}
+}
+
+func newDevManualSeedService(t *testing.T) *Service {
+	t.Helper()
+	root := t.TempDir()
+	service, err := NewService(filepath.Join(root, "store"), filepath.Join(root, "ledger"))
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
+	return service
+}
+
+func seedConflictingApprovalDecision(t *testing.T, service *Service, runID, manifestHash, actionHash string) error {
+	t.Helper()
+	return service.RecordPolicyDecision(runID, "", policyengine.PolicyDecision{
+		SchemaID:                 "runecode.protocol.v0.PolicyDecision",
+		SchemaVersion:            "0.3.0",
+		DecisionOutcome:          policyengine.DecisionRequireHumanApproval,
+		PolicyReasonCode:         "approval_required",
+		ManifestHash:             manifestHash,
+		ActionRequestHash:        actionHash,
+		PolicyInputHashes:        []string{digestWithByte("7")},
+		RelevantArtifactHashes:   []string{digestWithByte("8")},
+		DetailsSchemaID:          "runecode.protocol.details.policy.evaluation.v0",
+		Details:                  map[string]any{"precedence": "test_conflict"},
+		RequiredApprovalSchemaID: "runecode.protocol.details.policy.required_approval.moderate.workspace_write.v0",
+		RequiredApproval: map[string]any{
+			"approval_trigger_code":    "excerpt_promotion",
+			"approval_assurance_level": "moderate",
+			"presence_mode":            "os_confirmation",
+			"approval_ttl_seconds":     1800,
+			"changes_if_approved":      "Conflict decision",
+			"scope": map[string]any{
+				"workspace_id":     devManualSeedWorkspaceID,
+				"run_id":           runID,
+				"stage_id":         devManualSeedStageID,
+				"role_instance_id": devManualSeedRoleInstanceID,
+				"action_kind":      "promotion",
+			},
+		},
+	})
 }
 
 func seedLedgerForBrokerSurfaceTest(root string) error {

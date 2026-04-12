@@ -259,3 +259,24 @@ func handleImportTrustedContract(args []string, service *brokerapi.Service, _ io
 		return &usageError{message: fmt.Sprintf("unsupported --kind %q (supported: verifier-record)", *kind)}
 	}
 }
+
+func handleSeedDevManualScenario(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	fs := flag.NewFlagSet("seed-dev-manual-scenario", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	profile := fs.String("profile", "tui-rich-v1", "deterministic dev seed profile")
+	devOnly := fs.Bool("dev-only", false, "required acknowledgement; this command is dev/manual-test only")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "seed-dev-manual-scenario usage: runecode-broker seed-dev-manual-scenario --dev-only [--profile tui-rich-v1]"}
+	}
+	if !*devOnly {
+		return &usageError{message: "seed-dev-manual-scenario requires --dev-only acknowledgement"}
+	}
+	if *profile != "tui-rich-v1" {
+		return &usageError{message: fmt.Sprintf("seed-dev-manual-scenario unsupported --profile %q (supported: tui-rich-v1)", *profile)}
+	}
+	result, err := service.SeedDevManualScenario()
+	if err != nil {
+		return fmt.Errorf("seed-dev-manual-scenario failed: %w", err)
+	}
+	return writeJSON(stdout, result)
+}

@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0
 title: Workflow Runner + Workspace Roles + Deterministic Gates v0
-status: planned
+status: implemented
 type: project
 size: large
 verification_status: pending

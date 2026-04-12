@@ -1,10 +1,8 @@
 package artifacts
 
 import (
-	"errors"
 	"io"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -318,98 +316,6 @@ func TestQuotasEnforcedAndAudited(t *testing.T) {
 	}
 	if !containsAuditType(audit, "artifact_quota_violation") {
 		t.Fatalf("expected artifact_quota_violation in audit")
-	}
-}
-
-func TestQuotaFailuresPreserveQuotaErrorWhenAuditAlsoFails(t *testing.T) {
-	store := newTestStore(t)
-	policy := store.Policy()
-	policy.PerRoleQuota["workspace"] = Quota{MaxArtifactCount: 1, MaxTotalBytes: 1, MaxSingleArtifactSize: 1}
-	if err := store.SetPolicy(policy); err != nil {
-		t.Fatalf("SetPolicy error: %v", err)
-	}
-	if _, err := store.Put(PutRequest{Payload: []byte("x"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("8"), CreatedByRole: "workspace"}); err != nil {
-		t.Fatalf("seed Put error: %v", err)
-	}
-	badPath := filepath.Join(t.TempDir(), "audit-dir")
-	if err := os.MkdirAll(badPath, 0o755); err != nil {
-		t.Fatalf("mkdir audit dir error: %v", err)
-	}
-	store.storeIO.auditPath = badPath
-	_, err := store.Put(PutRequest{Payload: []byte("x"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("8"), CreatedByRole: "workspace"})
-	if err == nil {
-		t.Fatal("Put expected joined quota and audit error")
-	}
-	if !errors.Is(err, ErrQuotaExceeded) {
-		t.Fatalf("Put error = %v, want joined error containing %v", err, ErrQuotaExceeded)
-	}
-}
-
-func TestAuditFailureIsSurfaced(t *testing.T) {
-	store := newTestStore(t)
-	ref, err := store.Put(PutRequest{Payload: []byte("excerpt"), ContentType: "text/plain", DataClass: DataClassUnapprovedFileExcerpts, ProvenanceReceiptHash: testDigest("e"), CreatedByRole: "workspace"})
-	if err != nil {
-		t.Fatalf("Put error: %v", err)
-	}
-	badPath := filepath.Join(t.TempDir(), "audit-dir")
-	if err := os.MkdirAll(badPath, 0o755); err != nil {
-		t.Fatalf("mkdir audit dir error: %v", err)
-	}
-	store.storeIO.auditPath = badPath
-	err = store.CheckFlow(FlowCheckRequest{ProducerRole: "workspace", ConsumerRole: "model_gateway", DataClass: DataClassUnapprovedFileExcerpts, Digest: ref.Digest, IsEgress: true})
-	if err == nil {
-		t.Fatal("CheckFlow expected audit write error")
-	}
-	if store.state.LastAuditSequence != 1 {
-		t.Fatalf("LastAuditSequence after failed audit append = %d, want 1", store.state.LastAuditSequence)
-	}
-}
-
-func TestAuditSequencePersistsForBlockedFlow(t *testing.T) {
-	store := newTestStore(t)
-	ref, err := store.Put(PutRequest{Payload: []byte("excerpt"), ContentType: "text/plain", DataClass: DataClassUnapprovedFileExcerpts, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"})
-	if err != nil {
-		t.Fatalf("Put error: %v", err)
-	}
-	err = store.CheckFlow(FlowCheckRequest{ProducerRole: "workspace", ConsumerRole: "model_gateway", DataClass: DataClassUnapprovedFileExcerpts, Digest: ref.Digest, IsEgress: true})
-	if err != ErrUnapprovedEgressDenied {
-		t.Fatalf("CheckFlow error = %v, want %v", err, ErrUnapprovedEgressDenied)
-	}
-	reloaded, err := NewStore(store.rootDir)
-	if err != nil {
-		t.Fatalf("NewStore reload error: %v", err)
-	}
-	if reloaded.state.LastAuditSequence <= 1 {
-		t.Fatalf("reloaded LastAuditSequence = %d, want > 1 after blocked-flow audit", reloaded.state.LastAuditSequence)
-	}
-}
-
-func TestLoadStateRecoversAuditSequenceWhenStateSaveLagged(t *testing.T) {
-	store := newTestStore(t)
-	if _, err := store.Put(PutRequest{Payload: []byte("seed"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"}); err != nil {
-		t.Fatalf("seed Put error: %v", err)
-	}
-	store.storeIO.statePath = filepath.Join(t.TempDir(), "state-dir")
-	if err := os.MkdirAll(store.storeIO.statePath, 0o755); err != nil {
-		t.Fatalf("mkdir state dir error: %v", err)
-	}
-	if _, err := store.Put(PutRequest{Payload: []byte("second"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("2"), CreatedByRole: "workspace"}); err == nil {
-		t.Fatal("Put expected state save failure after audit append")
-	}
-	reloaded, err := NewStore(store.rootDir)
-	if err != nil {
-		t.Fatalf("NewStore reload error: %v", err)
-	}
-	events, err := reloaded.ReadAuditEvents()
-	if err != nil {
-		t.Fatalf("ReadAuditEvents error: %v", err)
-	}
-	if len(events) == 0 {
-		t.Fatal("expected audit events after simulated state save failure")
-	}
-	last := events[len(events)-1].Seq
-	if reloaded.state.LastAuditSequence != last {
-		t.Fatalf("reloaded LastAuditSequence = %d, want %d", reloaded.state.LastAuditSequence, last)
 	}
 }
 

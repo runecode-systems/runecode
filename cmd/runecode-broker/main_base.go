@@ -50,37 +50,38 @@ type commandHandler func([]string, *brokerapi.Service, io.Writer) error
 
 func commandHandlers() map[string]commandHandler {
 	return map[string]commandHandler{
-		"serve-local":             handleServeLocal,
-		"run-list":                handleRunList,
-		"run-get":                 handleRunGet,
-		"run-watch":               handleRunWatch,
-		"session-list":            handleSessionList,
-		"session-get":             handleSessionGet,
-		"session-send-message":    handleSessionSendMessage,
-		"session-watch":           handleSessionWatch,
-		"approval-list":           handleApprovalList,
-		"approval-get":            handleApprovalGet,
-		"approval-watch":          handleApprovalWatch,
-		"list-artifacts":          handleListArtifacts,
-		"head-artifact":           handleHeadArtifact,
-		"get-artifact":            handleGetArtifact,
-		"put-artifact":            handlePutArtifact,
-		"check-flow":              handleCheckFlow,
-		"promote-excerpt":         handlePromoteExcerpt,
-		"revoke-approved-excerpt": handleRevokeApprovedExcerpt,
-		"set-run-status":          handleSetRunStatus,
-		"gc":                      handleGC,
-		"export-backup":           handleExportBackup,
-		"restore-backup":          handleRestoreBackup,
-		"show-audit":              handleShowAudit,
-		"show-policy":             handleShowPolicy,
-		"set-reserved-classes":    handleSetReservedClasses,
-		"import-trusted-contract": handleImportTrustedContract,
-		"audit-readiness":         handleAuditReadiness,
-		"audit-verification":      handleAuditVerification,
-		"audit-record-get":        handleAuditRecordGet,
-		"version-info":            handleVersionInfo,
-		"stream-logs":             handleStreamLogs,
+		"serve-local":              handleServeLocal,
+		"run-list":                 handleRunList,
+		"run-get":                  handleRunGet,
+		"run-watch":                handleRunWatch,
+		"session-list":             handleSessionList,
+		"session-get":              handleSessionGet,
+		"session-send-message":     handleSessionSendMessage,
+		"session-watch":            handleSessionWatch,
+		"approval-list":            handleApprovalList,
+		"approval-get":             handleApprovalGet,
+		"approval-watch":           handleApprovalWatch,
+		"list-artifacts":           handleListArtifacts,
+		"head-artifact":            handleHeadArtifact,
+		"get-artifact":             handleGetArtifact,
+		"put-artifact":             handlePutArtifact,
+		"check-flow":               handleCheckFlow,
+		"promote-excerpt":          handlePromoteExcerpt,
+		"revoke-approved-excerpt":  handleRevokeApprovedExcerpt,
+		"set-run-status":           handleSetRunStatus,
+		"gc":                       handleGC,
+		"export-backup":            handleExportBackup,
+		"restore-backup":           handleRestoreBackup,
+		"show-audit":               handleShowAudit,
+		"show-policy":              handleShowPolicy,
+		"set-reserved-classes":     handleSetReservedClasses,
+		"import-trusted-contract":  handleImportTrustedContract,
+		"seed-dev-manual-scenario": handleSeedDevManualScenario,
+		"audit-readiness":          handleAuditReadiness,
+		"audit-verification":       handleAuditVerification,
+		"audit-record-get":         handleAuditRecordGet,
+		"version-info":             handleVersionInfo,
+		"stream-logs":              handleStreamLogs,
 	}
 }
 
@@ -130,6 +131,7 @@ Commands:
   show-policy
   set-reserved-classes --enabled=true|false
   import-trusted-contract --kind verifier-record --file verifier.json --evidence import-evidence.json
+  seed-dev-manual-scenario --dev-only [--profile tui-rich-v1]
   audit-readiness
   audit-verification [--limit N]
   audit-record-get --record-digest sha256:...

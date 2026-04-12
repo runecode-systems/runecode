@@ -80,38 +80,13 @@ func (m shellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-	if typed, ok := msg.(tea.WindowSizeMsg); ok {
-		m.width = typed.Width
-		m.height = typed.Height
-		if m.palette.IsOpen() {
-			return m, nil
-		}
+	if updated, cmd, handled := m.handleWindowSize(msg); handled {
+		return updated, cmd
 	}
 
 	if m.palette.IsOpen() {
-		switch typed := msg.(type) {
-		case tea.MouseMsg:
-			updatedPalette, routeMsg, changed := m.palette.UpdateMouse(typed, m.paletteStartY(), 0)
-			m.palette = updatedPalette
-			if !m.palette.IsOpen() && m.focus == focusPalette {
-				m.focus = focusNav
-			}
-			if changed {
-				return m, func() tea.Msg { return routeMsg }
-			}
-			return m.updateActiveRoute(msg)
-		case tea.KeyMsg:
-			updatedPalette, routeMsg, changed := m.palette.Update(msg, m.keys)
-			m.palette = updatedPalette
-			if !m.palette.IsOpen() && m.focus == focusPalette {
-				m.focus = focusNav
-			}
-			if changed {
-				return m, func() tea.Msg { return routeMsg }
-			}
-			return m, nil
-		default:
-			return m.updateActiveRoute(msg)
+		if updated, cmd, handled := m.handlePaletteMessage(msg); handled {
+			return updated, cmd
 		}
 	}
 
@@ -128,6 +103,58 @@ func (m shellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m.updateActiveRoute(msg)
+}
+
+func (m shellModel) handleWindowSize(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
+	typed, ok := msg.(tea.WindowSizeMsg)
+	if !ok {
+		return m, nil, false
+	}
+	m.width = typed.Width
+	m.height = typed.Height
+	if m.palette.IsOpen() {
+		return m, nil, true
+	}
+	return m, nil, false
+}
+
+func (m shellModel) handlePaletteMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
+	switch typed := msg.(type) {
+	case tea.MouseMsg:
+		return m.handlePaletteMouse(typed)
+	case tea.KeyMsg:
+		return m.handlePaletteKey(typed)
+	default:
+		updated, cmd := m.updateActiveRoute(msg)
+		return updated, cmd, true
+	}
+}
+
+func (m shellModel) handlePaletteMouse(mouse tea.MouseMsg) (tea.Model, tea.Cmd, bool) {
+	updatedPalette, routeMsg, changed := m.palette.UpdateMouse(mouse, m.paletteStartY(), 0)
+	m.palette = updatedPalette
+	m.resetFocusAfterPaletteClose()
+	if changed {
+		return m, func() tea.Msg { return routeMsg }, true
+	}
+	updated, cmd := m.updateActiveRoute(mouse)
+	return updated, cmd, true
+}
+
+func (m shellModel) handlePaletteKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	updatedPalette, routeMsg, changed := m.palette.Update(key, m.keys)
+	m.palette = updatedPalette
+	m.resetFocusAfterPaletteClose()
+	if changed {
+		return m, func() tea.Msg { return routeMsg }, true
+	}
+	return m, nil, true
+}
+
+func (m *shellModel) resetFocusAfterPaletteClose() {
+	if !m.palette.IsOpen() && m.focus == focusPalette {
+		m.focus = focusNav
+	}
 }
 
 func (m shellModel) View() string {

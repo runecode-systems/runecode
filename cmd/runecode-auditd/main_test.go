@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -267,6 +268,38 @@ func TestConfigureVerificationInputsRejectsEmptyRequiredContracts(t *testing.T) 
 	}
 	assertPathMissing(t, filepath.Join(root, "contracts", "verifier-records.json"))
 	assertPathMissing(t, filepath.Join(root, "contracts", "event-contract-catalog.json"))
+}
+
+func TestConfigureVerificationInputsAcceptsShippedFixtures(t *testing.T) {
+	root := t.TempDir()
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+
+	repoRoot := repoRootForAuditdTests(t)
+	verifierFixturePath := filepath.Join(repoRoot, "protocol", "fixtures", "schema", "verifier-record.valid-basic.json")
+	verifierFixtureBytes, err := os.ReadFile(verifierFixturePath)
+	if err != nil {
+		t.Fatalf("ReadFile(verifier fixture) error: %v", err)
+	}
+	verifier := trustpolicy.VerifierRecord{}
+	if err := json.Unmarshal(verifierFixtureBytes, &verifier); err != nil {
+		t.Fatalf("Unmarshal(verifier fixture) error: %v", err)
+	}
+	verifierPath := filepath.Join(t.TempDir(), "verifier-records.json")
+	if err := writeJSONFixtureFile(verifierPath, []trustpolicy.VerifierRecord{verifier}); err != nil {
+		t.Fatalf("writeJSONFixtureFile(verifier records) error: %v", err)
+	}
+
+	catalogPath := filepath.Join(repoRoot, "protocol", "fixtures", "schema", "audit-event-contract-catalog.valid.json")
+	err = run([]string{"configure-verification-inputs", "--ledger-root", root, "--verifier-records", verifierPath, "--event-contract-catalog", catalogPath}, stdout, stderr)
+	if err != nil {
+		t.Fatalf("configure-verification-inputs with shipped fixtures returned error: %v", err)
+	}
+	if stdout.String() != "configured\n" {
+		t.Fatalf("stdout = %q, want configured", stdout.String())
+	}
+	assertPathExists(t, filepath.Join(root, "contracts", "verifier-records.json"))
+	assertPathExists(t, filepath.Join(root, "contracts", "event-contract-catalog.json"))
 }
 
 func TestConfigureVerificationInputsRejectsInvalidSignerEvidence(t *testing.T) {
@@ -560,4 +593,13 @@ func assertPathMissing(t *testing.T, path string) {
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("expected %q to be absent, stat err = %v", path, err)
 	}
+}
+
+func repoRootForAuditdTests(t *testing.T) string {
+	t.Helper()
+	_, filePath, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	return filepath.Clean(filepath.Join(filepath.Dir(filePath), "..", ".."))
 }

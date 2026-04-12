@@ -34,3 +34,29 @@ func TestNewRouteModelsHybridMVPRoutesLoad(t *testing.T) {
 		}
 	}
 }
+
+func TestSafeUIErrorTextAddsRemediationForLocalIPCDialFallbackCode(t *testing.T) {
+	got := safeUIErrorText(assertError("local_ipc_dial_error"))
+	if !strings.Contains(got, "runecode-broker serve-local") {
+		t.Fatalf("expected broker remediation in %q", got)
+	}
+	if !strings.Contains(got, "press r to retry") {
+		t.Fatalf("expected retry hint in %q", got)
+	}
+}
+
+func TestSafeUIErrorTextAddsRemediationForLocalIPCConfigFallbackCode(t *testing.T) {
+	got := safeUIErrorText(assertError("local_ipc_config_error"))
+	if !strings.Contains(got, "Linux") {
+		t.Fatalf("expected platform hint in %q", got)
+	}
+	if strings.Contains(got, "local_ipc_config_error") {
+		t.Fatalf("expected user-facing remediation text, got %q", got)
+	}
+}
+
+type fixedError string
+
+func (e fixedError) Error() string { return string(e) }
+
+func assertError(text string) error { return fixedError(text) }

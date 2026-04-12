@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-034-b2d4-workspace-roles-v0
 title: Workspace Roles v0
-status: planned
+status: implemented
 type: feature
 size: medium
 verification_status: pending
