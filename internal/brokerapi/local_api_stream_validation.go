@@ -23,6 +23,33 @@ func validateLogStreamSemantics(events []LogStreamEvent) error {
 	)
 }
 
+func validateRunWatchSemantics(events []RunWatchEvent) error {
+	return validateStreamSemantics(
+		events,
+		"run_watch",
+		"run watch stream",
+		"run_watch_terminal",
+	)
+}
+
+func validateApprovalWatchSemantics(events []ApprovalWatchEvent) error {
+	return validateStreamSemantics(
+		events,
+		"approval_watch",
+		"approval watch stream",
+		"approval_watch_terminal",
+	)
+}
+
+func validateSessionWatchSemantics(events []SessionWatchEvent) error {
+	return validateStreamSemantics(
+		events,
+		"session_watch",
+		"session watch stream",
+		"session_watch_terminal",
+	)
+}
+
 func validateStreamSemantics[T streamEvent](events []T, kind, label, terminalType string) error {
 	streamID, requestID, err := validateStreamHeader(events, kind, label)
 	if err != nil {
@@ -105,6 +132,30 @@ func (e LogStreamEvent) GetEventType() string      { return e.EventType }
 func (e LogStreamEvent) IsTerminal() bool          { return e.Terminal }
 func (e LogStreamEvent) GetTerminalStatus() string { return e.TerminalStatus }
 func (e LogStreamEvent) GetError() *ProtocolError  { return e.Error }
+
+func (e RunWatchEvent) GetSeq() int64             { return e.Seq }
+func (e RunWatchEvent) GetStreamID() string       { return e.StreamID }
+func (e RunWatchEvent) GetRequestID() string      { return e.RequestID }
+func (e RunWatchEvent) GetEventType() string      { return e.EventType }
+func (e RunWatchEvent) IsTerminal() bool          { return e.Terminal }
+func (e RunWatchEvent) GetTerminalStatus() string { return e.TerminalStatus }
+func (e RunWatchEvent) GetError() *ProtocolError  { return e.Error }
+
+func (e ApprovalWatchEvent) GetSeq() int64             { return e.Seq }
+func (e ApprovalWatchEvent) GetStreamID() string       { return e.StreamID }
+func (e ApprovalWatchEvent) GetRequestID() string      { return e.RequestID }
+func (e ApprovalWatchEvent) GetEventType() string      { return e.EventType }
+func (e ApprovalWatchEvent) IsTerminal() bool          { return e.Terminal }
+func (e ApprovalWatchEvent) GetTerminalStatus() string { return e.TerminalStatus }
+func (e ApprovalWatchEvent) GetError() *ProtocolError  { return e.Error }
+
+func (e SessionWatchEvent) GetSeq() int64             { return e.Seq }
+func (e SessionWatchEvent) GetStreamID() string       { return e.StreamID }
+func (e SessionWatchEvent) GetRequestID() string      { return e.RequestID }
+func (e SessionWatchEvent) GetEventType() string      { return e.EventType }
+func (e SessionWatchEvent) IsTerminal() bool          { return e.Terminal }
+func (e SessionWatchEvent) GetTerminalStatus() string { return e.TerminalStatus }
+func (e SessionWatchEvent) GetError() *ProtocolError  { return e.Error }
 
 func validateStableStreamEventIDs(kind, streamID, expectedStreamID, requestID, expectedRequestID string) error {
 	if streamID != expectedStreamID {

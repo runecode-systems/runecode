@@ -1,0 +1,9 @@
+{
+  "schema_id": "runecode.protocol.v0.RunWatchRequest",
+  "schema_version": "0.1.0",
+  "request_id": "req-run-watch-1",
+  "stream_id": "run-watch-workspace-core",
+  "workspace_id": "workspace core",
+  "follow": true,
+  "include_snapshot": true
+}

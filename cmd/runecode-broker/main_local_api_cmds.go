@@ -3,11 +3,14 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func commandRequestContext(parent context.Context) (context.Context, context.CancelFunc) {
@@ -63,6 +66,43 @@ func handleRunGet(args []string, service *brokerapi.Service, stdout io.Writer) e
 		return localAPIError(errResp)
 	}
 	return writeJSON(stdout, resp.Run)
+}
+
+func handleRunWatch(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	fs := flag.NewFlagSet("run-watch", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	streamID := fs.String("stream-id", "", "stable stream id")
+	runID := fs.String("run-id", "", "optional run id filter")
+	workspaceID := fs.String("workspace-id", "", "optional workspace id filter")
+	lifecycleState := fs.String("lifecycle-state", "", "optional lifecycle state filter")
+	follow := fs.Bool("follow", false, "stream follow mode")
+	includeSnapshot := fs.Bool("include-snapshot", true, "include initial snapshot event")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "run-watch usage: runecode-broker run-watch [--stream-id id] [--run-id id] [--workspace-id id] [--lifecycle-state state] [--follow] [--include-snapshot]"}
+	}
+	api := localAPIForService(service)
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	requestID := defaultRequestID()
+	resolvedStreamID := *streamID
+	if resolvedStreamID == "" {
+		resolvedStreamID = "run-watch-" + requestID
+	}
+	events, errResp := api.RunWatch(ctx, brokerapi.RunWatchRequest{
+		SchemaID:        "runecode.protocol.v0.RunWatchRequest",
+		SchemaVersion:   "0.1.0",
+		RequestID:       requestID,
+		StreamID:        resolvedStreamID,
+		RunID:           *runID,
+		WorkspaceID:     *workspaceID,
+		LifecycleState:  *lifecycleState,
+		Follow:          *follow,
+		IncludeSnapshot: *includeSnapshot,
+	})
+	if errResp != nil {
+		return localAPIError(errResp)
+	}
+	return writeJSON(stdout, events)
 }
 
 func handleSessionList(args []string, service *brokerapi.Service, stdout io.Writer) error {
@@ -128,6 +168,9 @@ func handleSessionSendMessage(args []string, service *brokerapi.Service, stdout 
 	if *content == "" {
 		return &usageError{message: "session-send-message requires --content"}
 	}
+	if !validSessionMessageRole(*role) {
+		return &usageError{message: "session-send-message --role must be one of: user|assistant|system|tool"}
+	}
 	api := localAPIForService(service)
 	ctx, cancel := commandRequestContext(context.Background())
 	defer cancel()
@@ -144,6 +187,45 @@ func handleSessionSendMessage(args []string, service *brokerapi.Service, stdout 
 		return localAPIError(errResp)
 	}
 	return writeJSON(stdout, resp)
+}
+
+func handleSessionWatch(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	fs := flag.NewFlagSet("session-watch", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	streamID := fs.String("stream-id", "", "stable stream id")
+	sessionID := fs.String("session-id", "", "optional session id filter")
+	workspaceID := fs.String("workspace-id", "", "optional workspace id filter")
+	status := fs.String("status", "", "optional session status filter")
+	lastActivityKind := fs.String("last-activity-kind", "", "optional session activity-kind filter")
+	follow := fs.Bool("follow", false, "stream follow mode")
+	includeSnapshot := fs.Bool("include-snapshot", true, "include initial snapshot event")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "session-watch usage: runecode-broker session-watch [--stream-id id] [--session-id id] [--workspace-id id] [--status active|completed|archived] [--last-activity-kind kind] [--follow] [--include-snapshot]"}
+	}
+	api := localAPIForService(service)
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	requestID := defaultRequestID()
+	resolvedStreamID := *streamID
+	if resolvedStreamID == "" {
+		resolvedStreamID = "session-watch-" + requestID
+	}
+	events, errResp := api.SessionWatch(ctx, brokerapi.SessionWatchRequest{
+		SchemaID:         "runecode.protocol.v0.SessionWatchRequest",
+		SchemaVersion:    "0.1.0",
+		RequestID:        requestID,
+		StreamID:         resolvedStreamID,
+		SessionID:        *sessionID,
+		WorkspaceID:      *workspaceID,
+		Status:           *status,
+		LastActivityKind: *lastActivityKind,
+		Follow:           *follow,
+		IncludeSnapshot:  *includeSnapshot,
+	})
+	if errResp != nil {
+		return localAPIError(errResp)
+	}
+	return writeJSON(stdout, events)
 }
 
 func handleApprovalList(args []string, service *brokerapi.Service, stdout io.Writer) error {
@@ -197,6 +279,45 @@ func handleApprovalGet(args []string, service *brokerapi.Service, stdout io.Writ
 	return writeJSON(stdout, resp)
 }
 
+func handleApprovalWatch(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	fs := flag.NewFlagSet("approval-watch", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	streamID := fs.String("stream-id", "", "stable stream id")
+	approvalID := fs.String("approval-id", "", "optional approval id filter")
+	runID := fs.String("run-id", "", "optional run id filter")
+	workspaceID := fs.String("workspace-id", "", "optional workspace id filter")
+	status := fs.String("status", "", "optional approval status filter")
+	follow := fs.Bool("follow", false, "stream follow mode")
+	includeSnapshot := fs.Bool("include-snapshot", true, "include initial snapshot event")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "approval-watch usage: runecode-broker approval-watch [--stream-id id] [--approval-id sha256:...] [--run-id id] [--workspace-id id] [--status pending|approved|denied|expired|cancelled|superseded|consumed] [--follow] [--include-snapshot]"}
+	}
+	api := localAPIForService(service)
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	requestID := defaultRequestID()
+	resolvedStreamID := *streamID
+	if resolvedStreamID == "" {
+		resolvedStreamID = "approval-watch-" + requestID
+	}
+	events, errResp := api.ApprovalWatch(ctx, brokerapi.ApprovalWatchRequest{
+		SchemaID:        "runecode.protocol.v0.ApprovalWatchRequest",
+		SchemaVersion:   "0.1.0",
+		RequestID:       requestID,
+		StreamID:        resolvedStreamID,
+		ApprovalID:      *approvalID,
+		RunID:           *runID,
+		WorkspaceID:     *workspaceID,
+		Status:          *status,
+		Follow:          *follow,
+		IncludeSnapshot: *includeSnapshot,
+	})
+	if errResp != nil {
+		return localAPIError(errResp)
+	}
+	return writeJSON(stdout, events)
+}
+
 func handleVersionInfo(_ []string, service *brokerapi.Service, stdout io.Writer) error {
 	api := localAPIForService(service)
 	ctx, cancel := commandRequestContext(context.Background())
@@ -247,4 +368,49 @@ func handleStreamLogs(args []string, service *brokerapi.Service, stdout io.Write
 		return localAPIError(errResp)
 	}
 	return writeJSON(stdout, events)
+}
+
+func handleAuditRecordGet(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	fs := flag.NewFlagSet("audit-record-get", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	recordDigest := fs.String("record-digest", "", "audit record digest")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "audit-record-get usage: runecode-broker audit-record-get --record-digest sha256:..."}
+	}
+	if strings.TrimSpace(*recordDigest) == "" {
+		return &usageError{message: "audit-record-get requires --record-digest"}
+	}
+	parts := strings.SplitN(strings.TrimSpace(*recordDigest), ":", 2)
+	if len(parts) != 2 {
+		return &usageError{message: "audit-record-get --record-digest must use sha256:<64 lowercase hex>"}
+	}
+	if parts[0] != "sha256" {
+		return &usageError{message: "audit-record-get --record-digest must use sha256:<64 lowercase hex>"}
+	}
+	digest := trustpolicy.Digest{HashAlg: parts[0], Hash: parts[1]}
+	if _, err := digest.Identity(); err != nil {
+		return &usageError{message: fmt.Sprintf("audit-record-get --record-digest invalid: %v", err)}
+	}
+	api := localAPIForService(service)
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.AuditRecordGet(ctx, brokerapi.AuditRecordGetRequest{
+		SchemaID:      "runecode.protocol.v0.AuditRecordGetRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     defaultRequestID(),
+		RecordDigest:  digest,
+	})
+	if errResp != nil {
+		return localAPIError(errResp)
+	}
+	return writeJSON(stdout, resp.Record)
+}
+
+func validSessionMessageRole(role string) bool {
+	switch role {
+	case "user", "assistant", "system", "tool":
+		return true
+	default:
+		return false
+	}
 }

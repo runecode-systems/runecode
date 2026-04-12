@@ -43,6 +43,43 @@ func TestAuditReadinessAndVerificationCommands(t *testing.T) {
 	}
 }
 
+func TestAuditRecordGetCommand(t *testing.T) {
+	root := setBrokerServiceForTest(t)
+	if err := seedLedgerForBrokerCommandTest(filepath.Join(root, "audit-ledger")); err != nil {
+		t.Fatalf("seedLedgerForBrokerCommandTest returned error: %v", err)
+	}
+	service, err := brokerServiceFactory()
+	if err != nil {
+		t.Fatalf("brokerServiceFactory returned error: %v", err)
+	}
+	surface, err := service.LatestAuditVerificationSurface(1)
+	if err != nil {
+		t.Fatalf("LatestAuditVerificationSurface returned error: %v", err)
+	}
+	if len(surface.Views) == 0 {
+		t.Fatal("seed surface views empty, want at least one record")
+	}
+	digestID, err := surface.Views[0].RecordDigest.Identity()
+	if err != nil {
+		t.Fatalf("record digest identity error: %v", err)
+	}
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	if err := run([]string{"audit-record-get", "--record-digest", digestID}, stdout, stderr); err != nil {
+		t.Fatalf("audit-record-get returned error: %v", err)
+	}
+	record := brokerapi.AuditRecordDetail{}
+	if err := json.Unmarshal(stdout.Bytes(), &record); err != nil {
+		t.Fatalf("audit-record-get output parse error: %v", err)
+	}
+	if record.RecordFamily == "" || record.Summary == "" || record.OccurredAt == "" {
+		t.Fatalf("audit-record-get record missing core fields: %+v", record)
+	}
+	if len(record.LinkedReferences) == 0 {
+		t.Fatal("audit-record-get linked_references empty, want projected links")
+	}
+}
+
 func TestPromoteExcerptRequiresSignedApprovalInputs(t *testing.T) {
 	setBrokerServiceForTest(t)
 	stderr := &bytes.Buffer{}

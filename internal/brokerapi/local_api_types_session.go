@@ -1,5 +1,7 @@
 package brokerapi
 
+import "context"
+
 type SessionIdentity struct {
 	SchemaID       string `json:"schema_id"`
 	SchemaVersion  string `json:"schema_version"`
@@ -124,4 +126,33 @@ type SessionSendMessageResponse struct {
 	EventType     string                   `json:"event_type"`
 	StreamID      string                   `json:"stream_id"`
 	Seq           int64                    `json:"seq"`
+}
+
+type SessionWatchRequest struct {
+	SchemaID         string             `json:"schema_id"`
+	SchemaVersion    string             `json:"schema_version"`
+	RequestID        string             `json:"request_id"`
+	StreamID         string             `json:"stream_id"`
+	SessionID        string             `json:"session_id,omitempty"`
+	WorkspaceID      string             `json:"workspace_id,omitempty"`
+	Status           string             `json:"status,omitempty"`
+	LastActivityKind string             `json:"last_activity_kind,omitempty"`
+	Follow           bool               `json:"follow"`
+	IncludeSnapshot  bool               `json:"include_snapshot"`
+	RequestCtx       context.Context    `json:"-"`
+	Cancel           context.CancelFunc `json:"-"`
+	Release          func()             `json:"-"`
+}
+
+type SessionWatchEvent struct {
+	SchemaID       string          `json:"schema_id"`
+	SchemaVersion  string          `json:"schema_version"`
+	StreamID       string          `json:"stream_id"`
+	RequestID      string          `json:"request_id"`
+	Seq            int64           `json:"seq"`
+	EventType      string          `json:"event_type"`
+	Session        *SessionSummary `json:"session,omitempty"`
+	Terminal       bool            `json:"terminal,omitempty"`
+	TerminalStatus string          `json:"terminal_status,omitempty"`
+	Error          *ProtocolError  `json:"error,omitempty"`
 }

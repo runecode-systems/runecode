@@ -1,0 +1,19 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditRecordDetail",
+  "schema_version": "0.1.0",
+  "record_digest": {
+    "hash_alg": "sha256",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "record_family": "audit_event",
+  "occurred_at": "2026-04-11T10:00:00Z",
+  "event_type": "approval_requested",
+  "summary": "Approval request emitted for stage transition.",
+  "linked_references": [
+    {
+      "reference_kind": "approval",
+      "reference_id": "approval-123",
+      "relation": "subject"
+    }
+  ]
+}

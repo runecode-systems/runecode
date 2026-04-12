@@ -1,0 +1,73 @@
+[
+  {
+    "schema_id": "runecode.protocol.v0.ApprovalWatchEvent",
+    "schema_version": "0.1.0",
+    "stream_id": "approval-watch-workspace-core",
+    "request_id": "req-approval-watch-2",
+    "seq": 1,
+    "event_type": "approval_watch_snapshot",
+    "approval": {
+      "schema_id": "runecode.protocol.v0.ApprovalSummary",
+      "schema_version": "0.1.0",
+      "approval_id": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+      "status": "pending",
+      "requested_at": "2026-04-11T10:00:00Z",
+      "approval_trigger_code": "manual_approval_required",
+      "changes_if_approved": "Promotion to the requested target may proceed for this run.",
+      "approval_assurance_level": "session_authenticated",
+      "presence_mode": "os_confirmation",
+      "bound_scope": {
+        "schema_id": "runecode.protocol.v0.ApprovalBoundScope",
+        "schema_version": "0.1.0",
+        "workspace_id": "workspace-core",
+        "run_id": "run-001",
+        "stage_id": "stage-build",
+        "step_id": "step-promote",
+        "role_instance_id": "role-ci-1",
+        "action_kind": "promotion",
+        "policy_decision_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+      }
+    }
+  },
+  {
+    "schema_id": "runecode.protocol.v0.ApprovalWatchEvent",
+    "schema_version": "0.1.0",
+    "stream_id": "approval-watch-workspace-core",
+    "request_id": "req-approval-watch-2",
+    "seq": 2,
+    "event_type": "approval_watch_upsert",
+    "approval": {
+      "schema_id": "runecode.protocol.v0.ApprovalSummary",
+      "schema_version": "0.1.0",
+      "approval_id": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+      "status": "approved",
+      "requested_at": "2026-04-11T10:00:00Z",
+      "decided_at": "2026-04-11T10:02:00Z",
+      "approval_trigger_code": "manual_approval_required",
+      "changes_if_approved": "Promotion to the requested target may proceed for this run.",
+      "approval_assurance_level": "session_authenticated",
+      "presence_mode": "os_confirmation",
+      "bound_scope": {
+        "schema_id": "runecode.protocol.v0.ApprovalBoundScope",
+        "schema_version": "0.1.0",
+        "workspace_id": "workspace-core",
+        "run_id": "run-001",
+        "stage_id": "stage-build",
+        "step_id": "step-promote",
+        "role_instance_id": "role-ci-1",
+        "action_kind": "promotion",
+        "policy_decision_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+      }
+    }
+  },
+  {
+    "schema_id": "runecode.protocol.v0.ApprovalWatchEvent",
+    "schema_version": "0.1.0",
+    "stream_id": "approval-watch-workspace-core",
+    "request_id": "req-approval-watch-2",
+    "seq": 3,
+    "event_type": "approval_watch_terminal",
+    "terminal": true,
+    "terminal_status": "completed"
+  }
+]

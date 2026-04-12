@@ -365,6 +365,108 @@
       "schema_path": "objects/SessionGetResponse.schema.json",
       "fixture_path": "schema/session-get-response.valid-basic.json",
       "expect_valid": true
+    },
+    {
+      "id": "audit-record-detail.valid-basic",
+      "schema_path": "objects/AuditRecordDetail.schema.json",
+      "fixture_path": "schema/audit-record-detail.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-record-get-request.valid-basic",
+      "schema_path": "objects/AuditRecordGetRequest.schema.json",
+      "fixture_path": "schema/audit-record-get-request.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-record-get-response.valid-detail",
+      "schema_path": "objects/AuditRecordGetResponse.schema.json",
+      "fixture_path": "schema/audit-record-get-response.valid-detail.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-record-get-response.invalid-daemon-private-storage-access",
+      "schema_path": "objects/AuditRecordGetResponse.schema.json",
+      "fixture_path": "schema/audit-record-get-response.invalid-daemon-private-storage-access.json",
+      "expect_valid": false
+    },
+    {
+      "id": "audit-record-detail.invalid-approval-link-format",
+      "schema_path": "objects/AuditRecordDetail.schema.json",
+      "fixture_path": "schema/audit-record-detail.invalid-approval-link-format.json",
+      "expect_valid": false
+    },
+    {
+      "id": "audit-timeline-response.valid-linked-records",
+      "schema_path": "objects/AuditTimelineResponse.schema.json",
+      "fixture_path": "schema/audit-timeline-response.valid-linked-records.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-timeline-response.invalid-approval-link-format",
+      "schema_path": "objects/AuditTimelineResponse.schema.json",
+      "fixture_path": "schema/audit-timeline-response.invalid-approval-link-format.json",
+      "expect_valid": false
+    },
+    {
+      "id": "audit-timeline-response.invalid-missing-record-digest",
+      "schema_path": "objects/AuditTimelineResponse.schema.json",
+      "fixture_path": "schema/audit-timeline-response.invalid-missing-record-digest.json",
+      "expect_valid": false
+    },
+    {
+      "id": "audit-timeline-response.invalid-daemon-private-storage-access",
+      "schema_path": "objects/AuditTimelineResponse.schema.json",
+      "fixture_path": "schema/audit-timeline-response.invalid-daemon-private-storage-access.json",
+      "expect_valid": false
+    },
+    {
+      "id": "run-watch-request.valid-basic",
+      "schema_path": "objects/RunWatchRequest.schema.json",
+      "fixture_path": "schema/run-watch-request.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "run-watch-request.invalid-workspace-id-format",
+      "schema_path": "objects/RunWatchRequest.schema.json",
+      "fixture_path": "schema/run-watch-request.invalid-workspace-id-format.json",
+      "expect_valid": false
+    },
+    {
+      "id": "approval-watch-request.valid-basic",
+      "schema_path": "objects/ApprovalWatchRequest.schema.json",
+      "fixture_path": "schema/approval-watch-request.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "session-watch-request.valid-basic",
+      "schema_path": "objects/SessionWatchRequest.schema.json",
+      "fixture_path": "schema/session-watch-request.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "run-watch-event.valid-snapshot",
+      "schema_path": "objects/RunWatchEvent.schema.json",
+      "fixture_path": "schema/run-watch-event.valid-snapshot.json",
+      "expect_valid": true
+    },
+    {
+      "id": "run-watch-event.invalid-snapshot-terminal-false",
+      "schema_path": "objects/RunWatchEvent.schema.json",
+      "fixture_path": "schema/run-watch-event.invalid-snapshot-terminal-false.json",
+      "expect_valid": false
+    },
+    {
+      "id": "approval-watch-event.valid-upsert",
+      "schema_path": "objects/ApprovalWatchEvent.schema.json",
+      "fixture_path": "schema/approval-watch-event.valid-upsert.json",
+      "expect_valid": true
+    },
+    {
+      "id": "session-watch-event.valid-terminal-failed",
+      "schema_path": "objects/SessionWatchEvent.schema.json",
+      "fixture_path": "schema/session-watch-event.valid-terminal-failed.json",
+      "expect_valid": true
     }
   ],
   "stream_sequence_fixtures": [
@@ -396,6 +498,42 @@
       "id": "llm-stream.invalid-double-terminal",
       "event_schema_path": "objects/LLMStreamEvent.schema.json",
       "fixture_path": "stream/llm-stream.invalid-double-terminal.json",
+      "expect_valid": false
+    },
+    {
+      "id": "run-watch.success",
+      "event_schema_path": "objects/RunWatchEvent.schema.json",
+      "fixture_path": "stream/run-watch.success.json",
+      "expect_valid": true
+    },
+    {
+      "id": "approval-watch.success",
+      "event_schema_path": "objects/ApprovalWatchEvent.schema.json",
+      "fixture_path": "stream/approval-watch.success.json",
+      "expect_valid": true
+    },
+    {
+      "id": "approval-watch.invalid-double-terminal",
+      "event_schema_path": "objects/ApprovalWatchEvent.schema.json",
+      "fixture_path": "stream/approval-watch.invalid-double-terminal.json",
+      "expect_valid": false
+    },
+    {
+      "id": "run-watch.invalid-double-terminal",
+      "event_schema_path": "objects/RunWatchEvent.schema.json",
+      "fixture_path": "stream/run-watch.invalid-double-terminal.json",
+      "expect_valid": false
+    },
+    {
+      "id": "session-watch.success",
+      "event_schema_path": "objects/SessionWatchEvent.schema.json",
+      "fixture_path": "stream/session-watch.success.json",
+      "expect_valid": true
+    },
+    {
+      "id": "session-watch.invalid-double-terminal",
+      "event_schema_path": "objects/SessionWatchEvent.schema.json",
+      "fixture_path": "stream/session-watch.invalid-double-terminal.json",
       "expect_valid": false
     }
   ],

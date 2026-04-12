@@ -53,11 +53,14 @@ func commandHandlers() map[string]commandHandler {
 		"serve-local":             handleServeLocal,
 		"run-list":                handleRunList,
 		"run-get":                 handleRunGet,
+		"run-watch":               handleRunWatch,
 		"session-list":            handleSessionList,
 		"session-get":             handleSessionGet,
 		"session-send-message":    handleSessionSendMessage,
+		"session-watch":           handleSessionWatch,
 		"approval-list":           handleApprovalList,
 		"approval-get":            handleApprovalGet,
+		"approval-watch":          handleApprovalWatch,
 		"list-artifacts":          handleListArtifacts,
 		"head-artifact":           handleHeadArtifact,
 		"get-artifact":            handleGetArtifact,
@@ -75,6 +78,7 @@ func commandHandlers() map[string]commandHandler {
 		"import-trusted-contract": handleImportTrustedContract,
 		"audit-readiness":         handleAuditReadiness,
 		"audit-verification":      handleAuditVerification,
+		"audit-record-get":        handleAuditRecordGet,
 		"version-info":            handleVersionInfo,
 		"stream-logs":             handleStreamLogs,
 	}
@@ -103,11 +107,14 @@ Commands:
   serve-local [--runtime-dir dir] [--socket-name broker.sock] [--once]
   run-list [--limit N]
   run-get --run-id id
+  run-watch [--stream-id id] [--run-id id] [--workspace-id id] [--lifecycle-state state] [--follow] [--include-snapshot]
   session-list [--limit N]
   session-get --session-id id
   session-send-message --session-id id --content text [--role user|assistant|system|tool] [--idempotency-key key]
+  session-watch [--stream-id id] [--session-id id] [--workspace-id id] [--status active|completed|archived] [--last-activity-kind kind] [--follow] [--include-snapshot]
   approval-list [--run-id id] [--status pending|approved|denied|expired|cancelled|superseded|consumed] [--limit N]
   approval-get --approval-id sha256:...
+  approval-watch [--stream-id id] [--approval-id sha256:...] [--run-id id] [--workspace-id id] [--status pending|approved|denied|expired|cancelled|superseded|consumed] [--follow] [--include-snapshot]
   list-artifacts
   head-artifact --digest sha256:...
   get-artifact --digest sha256:... --producer role --consumer role [--manifest-opt-in] [--data-class class] --out path
@@ -125,6 +132,7 @@ Commands:
   import-trusted-contract --kind verifier-record --file verifier.json --evidence import-evidence.json
   audit-readiness
   audit-verification [--limit N]
+  audit-record-get --record-digest sha256:...
   version-info
   stream-logs [--stream-id id] [--run-id id] [--role-instance-id id] [--start-cursor cursor] [--follow] [--include-backlog]`)
 	return err

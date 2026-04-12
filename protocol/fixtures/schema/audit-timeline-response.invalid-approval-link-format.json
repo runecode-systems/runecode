@@ -1,0 +1,21 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditTimelineResponse",
+  "schema_version": "0.1.0",
+  "request_id": "req-audit-timeline-invalid-1",
+  "order": "operational_seq_desc",
+  "views": [
+    {
+      "record_digest": {
+        "hash_alg": "sha256",
+        "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "linked_references": [
+        {
+          "reference_kind": "approval",
+          "reference_id": "approval-123",
+          "relation": "subject"
+        }
+      ]
+    }
+  ]
+}

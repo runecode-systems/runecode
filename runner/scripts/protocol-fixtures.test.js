@@ -327,7 +327,7 @@ function requireNonEmptyString(value, key, prefix = '') {
 	if (typeof fieldValue !== 'string' || fieldValue.trim().length === 0) {
 		return new Error(`${formatFieldPath(prefix, key)} must be a non-empty string`)
 	}
-	return fieldValue.trim()
+	return fieldValue
 }
 
 function formatFieldPath(prefix, key) {
@@ -447,12 +447,15 @@ function validateStreamSequence(events) {
   if (first.seq !== 1) {
     return new Error('first stream event must use seq=1')
   }
-  if (events[events.length - 1].event_type !== 'response_terminal') {
+  if (!isTerminalEventType(events[events.length - 1].event_type)) {
     return new Error('stream must contain exactly one terminal event')
   }
 
   const streamId = first.stream_id
-  const requestHash = digestIdentity(first.request_hash)
+  const requestIdentity = streamRequestIdentity(first)
+  if (requestIdentity instanceof Error) {
+    return requestIdentity
+  }
   let lastSeq = 0
 
   for (let index = 0; index < events.length; index += 1) {
@@ -460,18 +463,40 @@ function validateStreamSequence(events) {
     if (event.stream_id !== streamId) {
       return new Error('stream_id must remain constant across a stream')
     }
-    if (digestIdentity(event.request_hash) !== requestHash) {
-      return new Error('request_hash must remain constant across a stream')
+    const eventIdentity = streamRequestIdentity(event)
+    if (eventIdentity instanceof Error) {
+      return eventIdentity
+    }
+    if (eventIdentity !== requestIdentity) {
+      return new Error('request identity must remain constant across a stream')
     }
     if (event.seq <= lastSeq) {
       return new Error('stream sequence numbers must be strictly monotonic')
     }
-    if (index < events.length - 1 && event.event_type === 'response_terminal') {
-      return new Error('response_terminal must be the final event in the stream')
+    if (index < events.length - 1 && isTerminalEventType(event.event_type)) {
+      return new Error('terminal event must be the final event in the stream')
     }
     lastSeq = event.seq
   }
   return null
+}
+
+function isTerminalEventType(eventType) {
+  return eventType === 'response_terminal' || (typeof eventType === 'string' && eventType.endsWith('_terminal'))
+}
+
+function streamRequestIdentity(event) {
+  if (Object.prototype.hasOwnProperty.call(event, 'request_hash')) {
+    const digest = requireDigestObject(event.request_hash, 'request_hash')
+    if (digest instanceof Error) {
+      return digest
+    }
+    return digestIdentity(digest)
+  }
+  if (typeof event.request_id === 'string' && event.request_id.length > 0) {
+    return `request_id:${event.request_id}`
+  }
+  return new Error('stream event must include request_hash or request_id')
 }
 
 test('schema fixtures validate against manifest-defined schemas', async (t) => {
