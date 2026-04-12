@@ -324,7 +324,7 @@ function requireObjectField(value, key) {
 
 function requireNonEmptyString(value, key, prefix = '') {
 	const fieldValue = value?.[key]
-	if (typeof fieldValue !== 'string' || fieldValue.length === 0) {
+	if (typeof fieldValue !== 'string' || fieldValue.trim().length === 0) {
 		return new Error(`${formatFieldPath(prefix, key)} must be a non-empty string`)
 	}
 	return fieldValue

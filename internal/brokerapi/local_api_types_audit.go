@@ -12,12 +12,20 @@ type AuditTimelineRequest struct {
 }
 
 type AuditTimelineResponse struct {
-	SchemaID      string                             `json:"schema_id"`
-	SchemaVersion string                             `json:"schema_version"`
-	RequestID     string                             `json:"request_id"`
-	Order         string                             `json:"order"`
-	Views         []trustpolicy.AuditOperationalView `json:"views"`
-	NextCursor    string                             `json:"next_cursor,omitempty"`
+	SchemaID      string                   `json:"schema_id"`
+	SchemaVersion string                   `json:"schema_version"`
+	RequestID     string                   `json:"request_id"`
+	Order         string                   `json:"order"`
+	Views         []AuditTimelineViewEntry `json:"views"`
+	NextCursor    string                   `json:"next_cursor,omitempty"`
+}
+
+type AuditTimelineViewEntry struct {
+	RecordDigest        trustpolicy.Digest              `json:"record_digest"`
+	EventType           string                          `json:"event_type,omitempty"`
+	Summary             string                          `json:"summary,omitempty"`
+	LinkedReferences    []AuditRecordLinkedReference    `json:"linked_references,omitempty"`
+	VerificationPosture *AuditRecordVerificationPosture `json:"verification_posture,omitempty"`
 }
 
 type AuditVerificationGetRequest struct {

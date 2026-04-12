@@ -1,7 +1,9 @@
 package protocolschema
 
-import "fmt"
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 func requireSessionSendMessageAckAlignment(value map[string]any) error {
 	sessionID, err := stringField(value, "session_id")

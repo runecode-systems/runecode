@@ -200,6 +200,6 @@
     "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable echoed request identifier.", "x-data-class": "public" },
     "order": { "type": "string", "enum": ["operational_seq_asc", "operational_seq_desc"], "description": "Ordering applied to this timeline page.", "x-data-class": "public" },
     "views": { "type": "array", "maxItems": 500, "description": "Audit operational view page entries.", "x-data-class": "public", "items": { "$ref": "#/$defs/viewEntry", "description": "Audit operational view entry." } },
-    "next_cursor": { "type": "string", "minLength": 32, "maxLength": 512, "pattern": "^[A-Za-z0-9_=-]+$", "description": "Opaque continuation cursor.", "x-data-class": "public" }
+    "next_cursor": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Opaque continuation cursor.", "x-data-class": "public" }
   }
 }
