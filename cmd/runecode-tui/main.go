@@ -10,35 +10,6 @@ import (
 	"golang.org/x/term"
 )
 
-type model struct {
-	quitting bool
-}
-
-func (m model) Init() tea.Cmd {
-	return nil
-}
-
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch key := msg.(type) {
-	case tea.KeyMsg:
-		switch key.String() {
-		case "q", "ctrl+c":
-			m.quitting = true
-			return m, tea.Quit
-		}
-	}
-
-	return m, nil
-}
-
-func (m model) View() string {
-	if m.quitting {
-		return "Goodbye from runecode-tui.\n"
-	}
-
-	return "Runecode TUI scaffold\nPress q or ctrl+c to quit.\n"
-}
-
 func main() {
 	args := os.Args[1:]
 	if err := scaffold.ValidateArgs(args); err != nil {
@@ -69,7 +40,7 @@ func main() {
 		return
 	}
 
-	p := tea.NewProgram(model{})
+	p := tea.NewProgram(newShellModel(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "runecode-tui failed: %v\n", err)
 		os.Exit(1)
