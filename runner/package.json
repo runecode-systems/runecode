@@ -8,7 +8,7 @@
   },
   "scripts": {
     "lint": "tsc --noEmit",
-    "test": "npm run lint && node --experimental-strip-types --test scripts/boundary-check.test.js scripts/protocol-fixtures.test.js scripts/runner-kernel-foundation.test.js",
+    "test": "npm run lint && node --experimental-strip-types --test scripts/boundary-check.test.js scripts/protocol-fixtures.test.js scripts/runner-durable-state.test.js scripts/runner-kernel-runtime.test.js scripts/runner-kernel-foundation.test.js",
     "boundary-check": "node scripts/boundary-check.js"
   },
   "devDependencies": {

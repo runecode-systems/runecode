@@ -29,3 +29,7 @@ throws `PlanIdentityMismatchError` when a stale/superseded identity is loaded.
 
 This fail-closed behavior prevents silently replaying state from a different
 broker-compiled immutable plan.
+
+The append-only journal is authoritative for recovery. Snapshot files are a
+cache that can be healed from journal replay after a crash rather than becoming
+the source of truth.
