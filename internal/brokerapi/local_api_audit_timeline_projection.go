@@ -36,8 +36,8 @@ func projectAuditTimelineEntry(view trustpolicy.AuditOperationalView, postures m
 			entry.LinkedReferences = append(entry.LinkedReferences, AuditRecordLinkedReference{ReferenceKind: "audit_record", ReferenceID: subject, Relation: "subject"})
 		}
 	}
-	if posture, ok := postures[recordDigest]; ok {
-		entry.VerificationPosture = &AuditRecordVerificationPosture{Status: posture.Status, ReasonCodes: append([]string{}, posture.ReasonCodes...)}
+	if posture := timelineVerificationPosture(recordDigest, postures); posture != nil {
+		entry.VerificationPosture = posture
 		entry.LinkedReferences = append(entry.LinkedReferences, verificationReasonRefs(posture.ReasonCodes)...)
 	}
 	entry.LinkedReferences = dedupeAuditRecordReferences(entry.LinkedReferences)
@@ -59,13 +59,17 @@ func buildFindingStateByRecord(findings []trustpolicy.AuditVerificationFinding) 
 	reasonsByRecord := map[string]map[string]struct{}{}
 	statusByRecord := map[string]string{}
 	for _, finding := range findings {
+		code := strings.TrimSpace(finding.Code)
+		if code == "" {
+			continue
+		}
 		for _, record := range findingDigests(finding) {
 			reasons := reasonsByRecord[record]
 			if reasons == nil {
 				reasons = map[string]struct{}{}
 				reasonsByRecord[record] = reasons
 			}
-			reasons[finding.Code] = struct{}{}
+			reasons[code] = struct{}{}
 			statusByRecord[record] = mergeVerificationStatus(statusByRecord[record], finding.Severity)
 		}
 	}
@@ -109,6 +113,17 @@ func findingDigests(finding trustpolicy.AuditVerificationFinding) []string {
 	return identities
 }
 
+func timelineVerificationPosture(recordDigest string, postures map[string]AuditRecordVerificationPosture) *AuditRecordVerificationPosture {
+	if posture, ok := postures[recordDigest]; ok {
+		return cloneVerificationPosture(posture)
+	}
+	return &AuditRecordVerificationPosture{Status: "ok", ReasonCodes: []string{}}
+}
+
+func cloneVerificationPosture(posture AuditRecordVerificationPosture) *AuditRecordVerificationPosture {
+	return &AuditRecordVerificationPosture{Status: posture.Status, ReasonCodes: append([]string{}, posture.ReasonCodes...)}
+}
+
 func mergeVerificationStatus(current string, severity string) string {
 	if severity == trustpolicy.AuditVerificationSeverityError {
 		return "failed"
@@ -118,6 +133,12 @@ func mergeVerificationStatus(current string, severity string) string {
 	}
 	if severity == trustpolicy.AuditVerificationSeverityWarning {
 		return "degraded"
+	}
+	if severity == trustpolicy.AuditVerificationSeverityInfo {
+		if current == "" {
+			return "ok"
+		}
+		return current
 	}
 	if current == "" {
 		return "degraded"

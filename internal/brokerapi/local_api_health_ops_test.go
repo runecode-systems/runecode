@@ -4,6 +4,8 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func TestHandleAuditTimelineProjectsSchemaAlignedViews(t *testing.T) {
@@ -62,5 +64,20 @@ func TestHandleAuditTimelineCursorRoundTripSupportsShortEncodedValues(t *testing
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	if err := s.validateResponse(resp, auditTimelineResponseSchemaPath); err != nil {
 		t.Fatalf("validateResponse(short next_cursor) returned error: %v", err)
+	}
+}
+
+func TestMergeVerificationStatusTreatsInfoAsOK(t *testing.T) {
+	if got := mergeVerificationStatus("", trustpolicy.AuditVerificationSeverityInfo); got != "ok" {
+		t.Fatalf("mergeVerificationStatus(info from empty) = %q, want ok", got)
+	}
+	if got := mergeVerificationStatus("degraded", trustpolicy.AuditVerificationSeverityInfo); got != "degraded" {
+		t.Fatalf("mergeVerificationStatus(info from degraded) = %q, want degraded", got)
+	}
+	if got := mergeVerificationStatus("failed", trustpolicy.AuditVerificationSeverityInfo); got != "failed" {
+		t.Fatalf("mergeVerificationStatus(info from failed) = %q, want failed", got)
+	}
+	if got := mergeVerificationStatus("", "future_unknown"); got != "degraded" {
+		t.Fatalf("mergeVerificationStatus(unknown from empty) = %q, want degraded", got)
 	}
 }

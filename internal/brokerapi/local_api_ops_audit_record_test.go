@@ -106,6 +106,77 @@ func TestAuditRecordGetSchemaShapePreventsPrivateLeak(t *testing.T) {
 	}
 }
 
+func TestAuditRecordPostureFromLatestReportTreatsInfoAsOK(t *testing.T) {
+	service, digest := seededAuditRecordTestServiceAndDigest(t)
+	digestID := mustDigestIdentity(t, digest)
+	assertAuditRecordPosture(t, service, digestID, "ok", nil)
+	persistInfoOnlyReportForDigest(t, service, digest)
+	assertAuditRecordPosture(t, service, digestID, "ok", []string{trustpolicy.AuditVerificationReasonEventContractMissing})
+}
+
+func TestAuditRecordPostureDefaultsToOKWhenReportHasNoFindingForRecord(t *testing.T) {
+	service, digest := seededAuditRecordTestServiceAndDigest(t)
+	digestID := mustDigestIdentity(t, digest)
+	assertAuditRecordPosture(t, service, digestID, "ok", nil)
+}
+
+func mustDigestIdentity(t *testing.T, digest trustpolicy.Digest) string {
+	t.Helper()
+	digestID, err := digest.Identity()
+	if err != nil {
+		t.Fatalf("digest.Identity() returned error: %v", err)
+	}
+	return digestID
+}
+
+func persistInfoOnlyReportForDigest(t *testing.T, service *Service, digest trustpolicy.Digest) {
+	t.Helper()
+	report, err := service.auditLedger.LatestVerificationReport()
+	if err != nil {
+		t.Fatalf("LatestVerificationReport returned error: %v", err)
+	}
+	report.Findings = append(report.Findings, trustpolicy.AuditVerificationFinding{
+		Code:                trustpolicy.AuditVerificationReasonEventContractMissing,
+		Dimension:           trustpolicy.AuditVerificationDimensionIntegrity,
+		Severity:            trustpolicy.AuditVerificationSeverityInfo,
+		Message:             "informational coverage finding",
+		SubjectRecordDigest: &digest,
+		RelatedRecordDigests: []trustpolicy.Digest{
+			digest,
+		},
+	})
+	report.VerifiedAt = "2099-01-01T00:00:00Z"
+	if _, err := service.auditLedger.PersistVerificationReport(report); err != nil {
+		t.Fatalf("PersistVerificationReport returned error: %v", err)
+	}
+}
+
+func assertAuditRecordPosture(t *testing.T, service *Service, digestID string, wantStatus string, wantReasons []string) {
+	t.Helper()
+	reasons, posture := service.deriveRecordVerificationPosture(digestID)
+	if posture == nil {
+		t.Fatal("posture = nil, want explicit posture")
+	}
+	if posture.Status != wantStatus {
+		t.Fatalf("posture.status = %q, want %q", posture.Status, wantStatus)
+	}
+	if !equalStrings(reasons, wantReasons) {
+		t.Fatalf("reasons = %v, want %v", reasons, wantReasons)
+	}
+}
+
+func equalStrings(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func digestChar(ch string) trustpolicy.Digest {
 	return trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat(ch, 64)}
 }

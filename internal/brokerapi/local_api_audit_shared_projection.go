@@ -204,14 +204,17 @@ func projectAuditSegmentSealRecordDetail(detail *AuditRecordDetail, payload json
 }
 
 func (s *Service) deriveRecordVerificationPosture(recordDigest string) ([]string, *AuditRecordVerificationPosture) {
-	surface, err := s.LatestAuditVerificationSurface(1000)
+	if s == nil || s.auditLedger == nil {
+		return nil, nil
+	}
+	report, err := s.auditLedger.LatestVerificationReport()
 	if err != nil {
 		return nil, nil
 	}
-	postures := deriveRecordVerificationPosturesFromFindings(surface.Report.Findings)
+	postures := deriveRecordVerificationPosturesFromFindings(report.Findings)
 	posture, ok := postures[recordDigest]
 	if !ok {
-		return nil, nil
+		return []string{}, &AuditRecordVerificationPosture{Status: "ok", ReasonCodes: []string{}}
 	}
-	return append([]string{}, posture.ReasonCodes...), &AuditRecordVerificationPosture{Status: posture.Status, ReasonCodes: append([]string{}, posture.ReasonCodes...)}
+	return append([]string{}, posture.ReasonCodes...), cloneVerificationPosture(posture)
 }
