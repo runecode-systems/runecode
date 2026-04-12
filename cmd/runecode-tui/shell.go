@@ -9,7 +9,6 @@ import (
 
 const (
 	wideTerminalWidth = 100
-	navLineY          = 1
 	navLinePrefix     = "Primary navigation: "
 )
 
@@ -90,18 +89,30 @@ func (m shellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.palette.IsOpen() {
-		if _, ok := msg.(tea.KeyMsg); !ok {
+		switch typed := msg.(type) {
+		case tea.MouseMsg:
+			updatedPalette, routeMsg, changed := m.palette.UpdateMouse(typed, m.paletteStartY(), 0)
+			m.palette = updatedPalette
+			if !m.palette.IsOpen() && m.focus == focusPalette {
+				m.focus = focusNav
+			}
+			if changed {
+				return m, func() tea.Msg { return routeMsg }
+			}
+			return m.updateActiveRoute(msg)
+		case tea.KeyMsg:
+			updatedPalette, routeMsg, changed := m.palette.Update(msg, m.keys)
+			m.palette = updatedPalette
+			if !m.palette.IsOpen() && m.focus == focusPalette {
+				m.focus = focusNav
+			}
+			if changed {
+				return m, func() tea.Msg { return routeMsg }
+			}
+			return m, nil
+		default:
 			return m.updateActiveRoute(msg)
 		}
-		updatedPalette, routeMsg, changed := m.palette.Update(msg, m.keys)
-		m.palette = updatedPalette
-		if !m.palette.IsOpen() && m.focus == focusPalette {
-			m.focus = focusNav
-		}
-		if changed {
-			return m, func() tea.Msg { return routeMsg }
-		}
-		return m, nil
 	}
 
 	switch typed := msg.(type) {
@@ -123,20 +134,12 @@ func (m shellModel) View() string {
 	if m.quitting {
 		return "Goodbye from runecode-tui.\n"
 	}
-	wide := m.width >= wideTerminalWidth
-	navLine, _ := m.nav.Render(wide)
 
 	b := strings.Builder{}
-	b.WriteString(appTheme.AppTitle.Render("Runecode TUI α shell"))
-	b.WriteString(" ")
-	b.WriteString(neutralBadge("THEME " + string(themePresetDark)))
-	b.WriteString("\n")
-	b.WriteString(navLinePrefix)
-	b.WriteString(navLine)
-	b.WriteString("\n")
-	b.WriteString(appTheme.FocusLine.Render("Focus: "))
-	b.WriteString(focusBadge(m.focus))
-	b.WriteString("\n")
+	for _, line := range m.headerLines() {
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
 
 	if m.palette.IsOpen() {
 		b.WriteString(m.renderPalette())
@@ -212,10 +215,9 @@ func (m shellModel) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m shellModel) handleMouse(mouse tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if mouse.Action == tea.MouseActionPress && mouse.Button == tea.MouseButtonLeft {
-		if mouse.Y == navLineY {
+	if mouse.Button == tea.MouseButtonLeft && (mouse.Action == tea.MouseActionPress || mouse.Action == tea.MouseActionRelease) {
+		if navX, ok := m.navOffsetAtMouse(mouse.X, mouse.Y); ok {
 			_, boxes := m.nav.Render(m.width >= wideTerminalWidth)
-			navX := mouse.X - len(navLinePrefix)
 			if routeID, ok := navRouteAtX(boxes, navX); ok {
 				m.currentID = routeID
 				m.nav.SelectByRouteID(routeID)
@@ -245,6 +247,35 @@ func (m shellModel) handleMouse(mouse tea.MouseMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m shellModel) navYRange() (startY int, endY int) {
+	return 1, 1
+}
+
+func (m shellModel) paletteStartY() int {
+	return len(m.headerLines())
+}
+
+func (m shellModel) navOffsetAtMouse(mouseX int, mouseY int) (int, bool) {
+	startY, endY := m.navYRange()
+	if mouseY < startY || mouseY > endY {
+		return 0, false
+	}
+	if mouseX < len(navLinePrefix) {
+		return 0, false
+	}
+	return mouseX - len(navLinePrefix), true
+}
+
+func (m shellModel) headerLines() []string {
+	wide := m.width >= wideTerminalWidth
+	navLine, _ := m.nav.Render(wide)
+	return []string{
+		appTheme.AppTitle.Render("Runecode TUI α shell") + " " + neutralBadge("THEME "+string(themePresetDark)),
+		navLinePrefix + navLine,
+		appTheme.FocusLine.Render("Focus: ") + focusBadge(m.focus),
+	}
+}
+
 func (m shellModel) renderActiveRoute() string {
 	active := m.routeModels[m.currentID]
 	if active == nil {
@@ -255,7 +286,6 @@ func (m shellModel) renderActiveRoute() string {
 }
 
 func (m shellModel) renderPalette() string {
-	selected, ok := m.palette.SelectedRoute()
 	b := strings.Builder{}
 	b.WriteString("Quick Jump Palette (: / ctrl+p)\n")
 	b.WriteString(fmt.Sprintf("Query: %q\n", m.palette.query))
@@ -265,11 +295,8 @@ func (m shellModel) renderPalette() string {
 	}
 	b.WriteString("Matches:\n")
 	for i, route := range m.palette.matches {
-		marker := " "
-		if ok && route.ID == selected.ID && i == m.palette.selectedIndex {
-			marker = ">"
-		}
-		b.WriteString(fmt.Sprintf(" %s %d. %s — %s\n", marker, route.Index, route.Label, route.Description))
+		b.WriteString(paletteMatchLine(route, i == m.palette.selectedIndex))
+		b.WriteString("\n")
 	}
 	return b.String()
 }

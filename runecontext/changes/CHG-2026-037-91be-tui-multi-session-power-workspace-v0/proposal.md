@@ -23,6 +23,7 @@ If these enhancements are not planned explicitly now, they are likely to accrete
 - Add advanced live activity, inspection, and observability views driven by typed broker/API contracts.
 - Expand the action-center model to support approvals and future question-style workflows while keeping their semantics distinct.
 - Add layout customization, saved workspace state, and theme presets without elevating client convenience state into trusted control-plane state.
+- Add the larger post-foundation visual pass for the TUI: stronger layout hierarchy, more visual workbench composition, denser but more scannable inspectors, and presentation polish that should wait until the core route semantics and control-plane workflows stop moving.
 - Preserve local-first UX while keeping the client topology-neutral for future remote or scaled backends.
 
 ## Why Now
@@ -36,6 +37,7 @@ Doing this before MVP avoids a common trap: shipping a permanently minimal conso
 - Verified-mode RuneContext remains the normal operating assumption for this repository.
 - `CHG-2026-013-d2c9-minimal-tui-v0` lands first and remains the base shell/foundation for this work.
 - Raw model chain-of-thought remains out of scope; richer inspection focuses on typed traces, decisions, audit records, artifacts, rationale summaries, and live activity streams.
+- The larger visual redesign should be sequenced after the MVP foundation and immediate broker-workflow fixes settle, so the project does not repeatedly repaint screens whose semantics are still changing.
 
 ## Out of Scope
 - Replacing the MVP TUI foundation rather than extending it.

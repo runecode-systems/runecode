@@ -55,12 +55,22 @@ This change is not a replacement for `CHG-2026-013-d2c9-minimal-tui-v0`. It is t
 - Wide terminals should be able to show multiple related panes without overwhelming the user.
 - Narrow terminals should degrade cleanly into simpler routed views.
 - Primary navigation and shell state must remain discoverable even when layouts become denser.
+- The larger visual pass should happen only after the core route set, approval/action semantics, and broker-backed dashboard expectations are stable enough that visual hierarchy changes are not chasing moving content contracts.
 
 ### Advanced Layout Capabilities
 - Support inspector panes and split-view workbench layouts.
 - Support resizable pane layouts where practical.
 - Support saved layout presets and restoration of prior workspace arrangement.
 - Keep layout persistence local and non-authoritative.
+
+### Deferred Larger Visual Pass
+- The post-foundation workbench should move beyond mostly linear status text into a more visual terminal composition with clearer pane hierarchy, stronger section framing, more obvious interactive affordances, and lower cognitive load on the dashboard and inspector-heavy routes.
+- This larger visual pass should be deferred until the following inputs are stable enough to avoid repeated churn:
+  - dashboard data requirements and fallback posture rules
+  - approval and future action-center semantics
+  - route inventory and primary drill-down paths
+  - the first round of real operator dogfooding across the MVP shell
+- Before that stabilization point, only smaller presentation polish should be expected on the MVP shell.
 
 ## Action Center Model
 
@@ -132,11 +142,13 @@ The advanced workbench should deepen inspection for:
 - Retain the colorful, professional, dense visual language from the MVP foundation.
 - Add theme presets and user-selectable presentation modes.
 - Preserve semantic consistency across presets.
+- Use the larger pre-MVP visual pass to make dense views feel more like a coherent workbench and less like route-local formatted text, while preserving terminal efficiency and semantic state cues.
 
 ### Theme Rules
 - Themes should be built on semantic tokens, not direct view-level color choices.
 - A theme preset may change expression, but not semantic meaning.
 - Content viewers should support strong syntax and markdown presentation without sacrificing raw and structured inspection modes.
+- Bigger visual changes should favor hierarchy, spacing, pane composition, emphasis, and discoverability improvements before introducing decorative complexity.
 
 ## Future Topology Neutrality
 - The workbench must continue to avoid local-only semantic assumptions.
@@ -158,6 +170,7 @@ The advanced workbench should deepen inspection for:
 - Rich Inspection Surfaces
 - Power-User Navigation And Commands
 - Theme Presets And Layout Customization
+- Deferred Larger Visual Pass After Workflow Stabilization
 
 ## RuneContext Migration Notes
 - Canonical references now point at `runecontext/project/`, `runecontext/specs/`, and `runecontext/changes/` paths.

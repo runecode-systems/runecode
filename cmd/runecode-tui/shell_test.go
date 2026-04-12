@@ -30,8 +30,9 @@ func TestShellMouseClickNavOpensRoute(t *testing.T) {
 		t.Fatalf("expected nav boxes, got %d", len(boxes))
 	}
 	chatBox := boxes[1]
+	startY, _ := m.navYRange()
 	clickX := len(navLinePrefix) + chatBox.StartX
-	updated, _ := m.Update(tea.MouseMsg{X: clickX, Y: navLineY, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	updated, _ := m.Update(tea.MouseMsg{X: clickX, Y: startY, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
 	shell, ok := updated.(shellModel)
 	if !ok {
 		t.Fatalf("expected shellModel, got %T", updated)
@@ -41,6 +42,89 @@ func TestShellMouseClickNavOpensRoute(t *testing.T) {
 	}
 	if shell.focus != focusContent {
 		t.Fatalf("expected focusContent, got %v", shell.focus)
+	}
+}
+
+func TestShellMouseReleaseNavOpensRoute(t *testing.T) {
+	m := newShellModel()
+	m.width = 120
+	_, boxes := m.nav.Render(true)
+	if len(boxes) < 2 {
+		t.Fatalf("expected nav boxes, got %d", len(boxes))
+	}
+	chatBox := boxes[1]
+	startY, _ := m.navYRange()
+	clickX := len(navLinePrefix) + chatBox.StartX
+	updated, _ := m.Update(tea.MouseMsg{X: clickX, Y: startY, Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft})
+	shell, ok := updated.(shellModel)
+	if !ok {
+		t.Fatalf("expected shellModel, got %T", updated)
+	}
+	if shell.currentID != routeChat {
+		t.Fatalf("expected route %q, got %q", routeChat, shell.currentID)
+	}
+}
+
+func TestShellMouseClickPaletteRowPicksRoute(t *testing.T) {
+	m := newShellModel()
+	m.width = 120
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	shell, ok := updated.(shellModel)
+	if !ok {
+		t.Fatalf("expected shellModel, got %T", updated)
+	}
+	if !shell.palette.IsOpen() {
+		t.Fatal("expected palette open")
+	}
+	paletteStartY := shell.paletteStartY()
+	firstMatchY := paletteStartY + 3
+
+	updated, cmd := shell.Update(tea.MouseMsg{X: 3, Y: firstMatchY + 1, Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft})
+	shell, ok = updated.(shellModel)
+	if !ok {
+		t.Fatalf("expected shellModel, got %T", updated)
+	}
+	if cmd == nil {
+		t.Fatal("expected route-switch command from palette click")
+	}
+	updated, cmd = shell.Update(cmd())
+	shell, ok = updated.(shellModel)
+	if !ok {
+		t.Fatalf("expected shellModel, got %T", updated)
+	}
+	if cmd == nil {
+		t.Fatal("expected route activation command")
+	}
+	updated, _ = shell.Update(cmd())
+	shell, ok = updated.(shellModel)
+	if !ok {
+		t.Fatalf("expected shellModel, got %T", updated)
+	}
+	if shell.currentID != routeChat {
+		t.Fatalf("expected route %q from palette click, got %q", routeChat, shell.currentID)
+	}
+	if shell.palette.IsOpen() {
+		t.Fatal("expected palette to close after mouse pick")
+	}
+}
+
+func TestShellMouseNavWorksWhenHeaderWraps(t *testing.T) {
+	m := newShellModel()
+	m.width = 24
+	_, boxes := m.nav.Render(false)
+	if len(boxes) < 2 {
+		t.Fatalf("expected nav boxes, got %d", len(boxes))
+	}
+	startY, _ := m.navYRange()
+	chatBox := boxes[1]
+	clickX := len(navLinePrefix) + chatBox.StartX
+	updated, _ := m.Update(tea.MouseMsg{X: clickX, Y: startY, Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft})
+	shell, ok := updated.(shellModel)
+	if !ok {
+		t.Fatalf("expected shellModel, got %T", updated)
+	}
+	if shell.currentID != routeChat {
+		t.Fatalf("expected route %q, got %q", routeChat, shell.currentID)
 	}
 }
 

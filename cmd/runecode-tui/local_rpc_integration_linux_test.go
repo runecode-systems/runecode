@@ -122,10 +122,13 @@ func assertTUIBrokerBackedRoutes(t *testing.T) {
 
 	dashboard := newDashboardRouteModel(routeDefinition{ID: routeDashboard, Label: "Dashboard"}, recording)
 	assertRouteOutputContainsAll(t, dashboard, routeDashboard,
+		"Now",
 		"Safety strip",
 		"backend_kind=unknown",
+		"Live Activity",
 		"Live activity (typed watch families; logs are supplemental inspection only):",
-		"run_watch events=2 snapshot=1 upsert=0 terminal=1 errors=0",
+		"totals events=2 snapshot=1 upsert=0 terminal=1 errors=0",
+		"last_event=run_watch_terminal subject=run-tui status=completed",
 	)
 
 	chat := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, recording)

@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 type dashboardLoadedMsg struct {
@@ -21,6 +22,7 @@ type dashboardData struct {
 	runs      []brokerapi.RunSummary
 	approvals []brokerapi.ApprovalSummary
 	audit     brokerapi.AuditVerificationGetResponse
+	auditErr  string
 	live      dashboardLiveActivity
 }
 
@@ -111,22 +113,34 @@ func (m dashboardRouteModel) View(width, height int, focus focusArea) string {
 	if focus == focusContent {
 		focusLabel = "active"
 	}
+	primaryRun := primaryDashboardRun(m.data.runs)
 	return compactLines(
 		sectionTitle("Dashboard")+" "+focusBadge(focus)+" "+navStateBadge(focusLabel == "active"),
+		tableHeader("Now")+" "+renderDashboardNowBar(primaryRun, len(m.data.approvals), focusLabel == "active"),
+		"",
+		tableHeader("Safety Summary"),
 		renderRunSafetyStrip(primaryDashboardRun(m.data.runs)),
 		renderDashboardSafetyAlerts(m.data),
+		"",
+		tableHeader("Control Plane"),
 		tableHeader("Readiness")+" "+boolBadge("ready", m.data.readiness.Ready)+" "+boolBadge("local_only", m.data.readiness.LocalOnly)+" "+boolBadge("recovery_complete", m.data.readiness.RecoveryComplete),
 		tableHeader("Safety posture")+" "+stateBadgeWithLabel("integrity", m.data.audit.Summary.IntegrityStatus)+" "+stateBadgeWithLabel("anchoring", m.data.audit.Summary.AnchoringStatus)+" "+boolBadge("degraded", m.data.audit.Summary.CurrentlyDegraded),
+		renderDashboardAuditFallbackNotice(m.data.auditErr),
 		fmt.Sprintf("Workflow posture: runs=%d pending_approvals=%d", len(m.data.runs), pendingApprovalCount(m.data.runs, m.data.approvals)),
 		fmt.Sprintf("Version: %s (%s) protocol bundle=%s", m.data.version.ProductVersion, m.data.version.BuildRevision, m.data.version.ProtocolBundleVersion),
+		"",
+		tableHeader("Live Activity"),
 		"Live activity (typed watch families; logs are supplemental inspection only):",
 		muted("Live activity uses semantic watch families with explicit event types."),
 		renderWatchFamilySummary(m.data.live.runWatch),
 		renderWatchFamilySummary(m.data.live.approvalWatch),
 		renderWatchFamilySummary(m.data.live.sessionWatch),
+		"",
 		tableHeader("Highlights"),
 		renderRunHighlights(m.data.runs),
 		renderApprovalHighlights(m.data.approvals),
+		"",
+		tableHeader("Actions")+" "+keyHint("r reload")+" "+muted("tab moves focus • : opens command surface"),
 		keyHint("Route keys: r reload"),
 	)
 }
@@ -151,13 +165,56 @@ func (m dashboardRouteModel) loadCmd(seq uint64) tea.Cmd {
 		if err != nil {
 			return dashboardLoadedMsg{err: err, seq: seq}
 		}
-		auditResp, err := m.client.AuditVerificationGet(ctx, 20)
-		if err != nil {
-			return dashboardLoadedMsg{err: err, seq: seq}
+		auditResp := degradedDashboardAuditFallback()
+		auditErr := ""
+		if loadedAudit, err := m.client.AuditVerificationGet(ctx, 20); err == nil {
+			auditResp = loadedAudit
+		} else {
+			auditErr = safeUIErrorText(err)
 		}
 		live := loadLiveActivity(ctx, m.client)
-		return dashboardLoadedMsg{data: dashboardData{readiness: readinessResp.Readiness, version: versionResp.VersionInfo, runs: runResp.Runs, approvals: approvalResp.Approvals, audit: auditResp, live: live}, seq: seq}
+		return dashboardLoadedMsg{data: dashboardData{readiness: readinessResp.Readiness, version: versionResp.VersionInfo, runs: runResp.Runs, approvals: approvalResp.Approvals, audit: auditResp, auditErr: auditErr, live: live}, seq: seq}
 	}
+}
+
+func degradedDashboardAuditFallback() brokerapi.AuditVerificationGetResponse {
+	return brokerapi.AuditVerificationGetResponse{Summary: trustpolicy.DerivedRunAuditVerificationSummary{
+		CryptographicallyValid: false,
+		HistoricallyAdmissible: false,
+		CurrentlyDegraded:      true,
+		IntegrityStatus:        "failed",
+		AnchoringStatus:        "failed",
+		StoragePostureStatus:   "failed",
+		SegmentLifecycleStatus: "failed",
+		HardFailures:           []string{"audit_surface_unavailable"},
+	}}
+}
+
+func renderDashboardAuditFallbackNotice(auditErr string) string {
+	if strings.TrimSpace(auditErr) == "" {
+		return ""
+	}
+	return dangerBadge("AUDIT_VERIFICATION_UNAVAILABLE") + " audit verification unavailable; showing degraded fallback posture (" + auditErr + ")"
+}
+
+func renderDashboardNowBar(run brokerapi.RunSummary, approvalCount int, focusActive bool) string {
+	parts := []string{}
+	if focusActive {
+		parts = append(parts, successBadge("CONTENT_READY"))
+	} else {
+		parts = append(parts, neutralBadge("CONTENT_IDLE"))
+	}
+	if strings.TrimSpace(run.RunID) != "" {
+		parts = append(parts, fmt.Sprintf("run=%s", run.RunID))
+		parts = append(parts, stateBadgeWithLabel("state", run.LifecycleState))
+		parts = append(parts, stateBadgeWithLabel("backend", run.BackendKind))
+	}
+	if approvalCount > 0 {
+		parts = append(parts, approvalRequiredBadge(fmt.Sprintf("PENDING_APPROVALS=%d", approvalCount)))
+	} else {
+		parts = append(parts, successBadge("PENDING_APPROVALS=0"))
+	}
+	return strings.Join(parts, " ")
 }
 
 func loadLiveActivity(ctx context.Context, client localBrokerClient) dashboardLiveActivity {
@@ -268,9 +325,8 @@ func summarizeSessionWatchEvents(events []brokerapi.SessionWatchEvent) watchFami
 
 func renderWatchFamilySummary(summary watchFamilySummary) string {
 	return fmt.Sprintf(
-		"  - %s %s events=%d snapshot=%d upsert=%d terminal=%d errors=%d last_event=%s last_subject=%s status=%s",
+		"  %s\n    totals events=%d snapshot=%d upsert=%d terminal=%d errors=%d\n    last_event=%s subject=%s status=%s",
 		infoBadge(summary.family),
-		summary.family,
 		summary.eventCount,
 		summary.snapshotCount,
 		summary.upsertCount,
@@ -295,18 +351,18 @@ func pendingApprovalCount(runs []brokerapi.RunSummary, approvals []brokerapi.App
 
 func renderRunHighlights(runs []brokerapi.RunSummary) string {
 	if len(runs) == 0 {
-		return "  - No runs returned"
+		return "  No runs returned"
 	}
 	first := runs[0]
-	return fmt.Sprintf("  - Latest run %s %s backend=%s isolation=%s", first.RunID, stateBadgeWithLabel("state", first.LifecycleState), first.BackendKind, first.IsolationAssuranceLevel)
+	return fmt.Sprintf("  Latest run %s %s backend=%s isolation=%s approvals=%d", first.RunID, stateBadgeWithLabel("state", first.LifecycleState), first.BackendKind, first.IsolationAssuranceLevel, first.PendingApprovalCount)
 }
 
 func renderApprovalHighlights(approvals []brokerapi.ApprovalSummary) string {
 	if len(approvals) == 0 {
-		return "  - No pending approvals"
+		return "  No pending approvals"
 	}
 	first := approvals[0]
-	return fmt.Sprintf("  - Approval %s %s trigger=%s", first.ApprovalID, stateBadgeWithLabel("status", first.Status), first.ApprovalTriggerCode)
+	return fmt.Sprintf("  Approval %s %s trigger=%s run=%s", first.ApprovalID, stateBadgeWithLabel("status", first.Status), first.ApprovalTriggerCode, valueOrNA(first.BoundScope.RunID))
 }
 
 func primaryDashboardRun(runs []brokerapi.RunSummary) brokerapi.RunSummary {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -60,6 +61,25 @@ func (m paletteModel) Update(msg tea.Msg, keys shellKeyMap) (paletteModel, route
 		return m, routeSwitchMsg{}, false
 	}
 	return m.updateKey(key, keys)
+}
+
+func (m paletteModel) UpdateMouse(msg tea.MouseMsg, paletteStartY int, layoutWidth int) (paletteModel, routeSwitchMsg, bool) {
+	if !m.open {
+		return m, routeSwitchMsg{}, false
+	}
+	_ = layoutWidth
+	if msg.Button != tea.MouseButtonLeft {
+		return m, routeSwitchMsg{}, false
+	}
+	if msg.Action != tea.MouseActionPress && msg.Action != tea.MouseActionRelease {
+		return m, routeSwitchMsg{}, false
+	}
+	index, ok := m.matchIndexAtPosition(msg.Y, paletteStartY, layoutWidth)
+	if !ok {
+		return m, routeSwitchMsg{}, false
+	}
+	m.selectedIndex = index
+	return m.pickRoute()
 }
 
 func (m paletteModel) updateKey(key tea.KeyMsg, keys shellKeyMap) (paletteModel, routeSwitchMsg, bool) {
@@ -138,6 +158,29 @@ func (m *paletteModel) rebuildMatches() {
 			m.selectedIndex = len(m.matches) - 1
 		}
 	}
+}
+
+func (m paletteModel) matchIndexAtPosition(y int, paletteStartY int, layoutWidth int) (int, bool) {
+	if len(m.matches) == 0 {
+		return 0, false
+	}
+	_ = layoutWidth
+	startY := paletteStartY + 3
+	for _, candidateY := range []int{y, y - 1} {
+		index := candidateY - startY
+		if index >= 0 && index < len(m.matches) {
+			return index, true
+		}
+	}
+	return 0, false
+}
+
+func paletteMatchLine(route routeDefinition, selected bool) string {
+	marker := " "
+	if selected {
+		marker = ">"
+	}
+	return " " + marker + " " + fmt.Sprintf("%d. %s — %s", route.Index, route.Label, route.Description)
 }
 
 func isTypingKey(msg tea.KeyMsg) bool {

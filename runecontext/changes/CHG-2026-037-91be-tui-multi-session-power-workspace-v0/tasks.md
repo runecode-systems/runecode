@@ -76,6 +76,16 @@ Parallelization: command and shortcut work can proceed in parallel with route an
 
 Parallelization: can proceed in parallel once the semantic token foundation from the MVP change is stable.
 
+## Deferred Larger Visual Pass After Workflow Stabilization
+
+- [ ] Rework the dashboard and high-traffic routes into a more visual workbench composition once route semantics and broker-backed workflows have stabilized.
+- [ ] Strengthen layout hierarchy, pane framing, spacing, and interactive affordances so the TUI feels less like route-local formatted text and more like a cohesive terminal workbench.
+- [ ] Reduce cognitive load in dense inspectors by using clearer grouping, stronger emphasis, and better summary-to-detail transitions.
+- [ ] Base the larger visual pass on at least one round of real operator dogfooding so presentation changes respond to observed friction rather than taste alone.
+- [ ] Keep the larger visual pass explicitly downstream of approval/action-center semantic stabilization and dashboard data/fallback stabilization.
+
+Parallelization: should begin only after the MVP shell semantics, immediate broker/TUI workflow fixes, and route inventory have settled enough to avoid repeated visual churn.
+
 ## Topology-Neutral Client Posture
 
 - [ ] Ensure advanced workbench behavior does not depend on host-local storage identity, socket names, or daemon-private details.
