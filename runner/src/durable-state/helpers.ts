@@ -1,4 +1,5 @@
 import {
+  DURABLE_BLOCKED_ACTION_KINDS,
   BLOCKED_SCOPE_KINDS,
   type ApprovalBindingKind,
   type DurableActionScopeKind,
@@ -19,13 +20,19 @@ export function parseBlockedScopeFields(record: Record<string, unknown>, locatio
       stage_id: optionalString(record, "stage_id", location),
       step_id: optionalString(record, "step_id", location),
       role_instance_id: optionalString(record, "role_instance_id", location),
-      action_kind: requireString(record, "action_kind", location),
+      action_kind: requireEnum(record, "action_kind", DURABLE_BLOCKED_ACTION_KINDS, location),
     },
     location,
   );
 }
 
 export function sanitizeBlockedScope(scope: DurableApprovalBlockedWorkScope, location: string): DurableApprovalBlockedWorkScope {
+  const actionKindRaw = trimRequired(scope.action_kind, `${location}.action_kind`);
+  if (!DURABLE_BLOCKED_ACTION_KINDS.includes(actionKindRaw as (typeof DURABLE_BLOCKED_ACTION_KINDS)[number])) {
+    throw new InvalidApprovalWaitError(`${location}.action_kind ${actionKindRaw} is invalid`);
+  }
+  const actionKind = actionKindRaw as DurableApprovalBlockedWorkScope["action_kind"];
+
   const sanitized: DurableApprovalBlockedWorkScope = {
     scope_kind: scope.scope_kind,
     workspace_id: trimOptional(scope.workspace_id),
@@ -33,7 +40,7 @@ export function sanitizeBlockedScope(scope: DurableApprovalBlockedWorkScope, loc
     stage_id: trimOptional(scope.stage_id),
     step_id: trimOptional(scope.step_id),
     role_instance_id: trimOptional(scope.role_instance_id),
-    action_kind: trimRequired(scope.action_kind, `${location}.action_kind`),
+    action_kind: actionKind,
   };
   if (!BLOCKED_SCOPE_KINDS.includes(sanitized.scope_kind)) {
     throw new InvalidApprovalWaitError(`${location}.scope_kind ${scope.scope_kind} is invalid`);

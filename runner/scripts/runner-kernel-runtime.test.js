@@ -90,6 +90,68 @@ test("scheduler continues unrelated eligible work while exact bound scope remain
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+test("scheduler applies action_kind blocking for stage_summary_sign_off", async () => {
+  const {
+    ProtocolSchemaBundle,
+    RunPlanLoader,
+    PlanScheduler,
+    FileDurableStateStore,
+  } = await loadRunnerModules();
+
+  const schemaBundle = await ProtocolSchemaBundle.fromProtocolSchemasRoot(path.join(repoRoot, "protocol", "schemas"));
+  const loader = new RunPlanLoader(schemaBundle);
+  const scheduler = new PlanScheduler();
+
+  const plan = loader.loadFromUnknown(validRunPlanFixture({
+    role_instance_ids: ["role_alpha", "role_beta"],
+    gate_definitions: [
+      {
+        ...validRunPlanFixture().gate_definitions[0],
+        role_instance_id: "role_alpha",
+        gate: {
+          ...validRunPlanFixture().gate_definitions[0].gate,
+          gate_id: "lint_alpha",
+        },
+      },
+      {
+        ...validRunPlanFixture().gate_definitions[0],
+        order_index: 1,
+        role_instance_id: "role_beta",
+        gate: {
+          ...validRunPlanFixture().gate_definitions[0].gate,
+          gate_id: "lint_beta",
+        },
+      },
+    ],
+  }));
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-state-"));
+  const store = new FileDurableStateStore(root);
+  await store.bindPlanIdentity({ run_id: "run_alpha", plan_id: "plan_alpha" });
+
+  await store.enterApprovalWait({
+    approval_id: "sha256:f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1",
+    run_id: "run_alpha",
+    plan_id: "plan_alpha",
+    binding_kind: "stage_sign_off",
+    bound_stage_summary_hash: "sha256:f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2",
+    blocked_scope: {
+      scope_kind: "action_kind",
+      run_id: "run_alpha",
+      role_instance_id: "role_alpha",
+      action_kind: "stage_summary_sign_off",
+    },
+    broker_correlation: { request_id: "stage-signoff-block-1" },
+    idempotency_key: "wait-enter-stage-signoff-1",
+  });
+
+  const work = scheduler.listPlannedWork(plan, { pending_approval_waits: await store.listPendingApprovalWaits() });
+  assert.equal(work.length, 1);
+  assert.equal(work[0].entry.role_instance_id, "role_beta");
+
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 test("workspace-scoped waits block all scheduled work", async () => {
   const {
     ProtocolSchemaBundle,
@@ -366,6 +428,86 @@ test("report emitter wraps typed request envelopes", async () => {
   assert.equal(captured[0].run_id, "run_alpha");
   assert.equal(captured[0].report.schema_id, "runecode.protocol.v0.RunnerCheckpointReport");
   assert.equal(captured[0].report.step_attempt_id, "step_attempt_alpha");
+});
+
+test("noop broker client returns unaccepted acknowledgements", async () => {
+  const {
+    NoopRunnerBrokerClient,
+  } = await loadRunnerModules();
+
+  const client = new NoopRunnerBrokerClient();
+  const checkpoint = await client.sendRunnerCheckpointReport({
+    schema_id: "runecode.protocol.v0.RunnerCheckpointReportRequest",
+    schema_version: "0.1.0",
+    request_id: "noop-checkpoint",
+    run_id: "run_alpha",
+    report: {
+      schema_id: "runecode.protocol.v0.RunnerCheckpointReport",
+      schema_version: "0.1.0",
+      lifecycle_state: "active",
+      checkpoint_code: "gate_running",
+      occurred_at: "2026-01-01T00:00:00Z",
+      idempotency_key: "noop-cp-1",
+    },
+  });
+  const result = await client.sendRunnerResultReport({
+    schema_id: "runecode.protocol.v0.RunnerResultReportRequest",
+    schema_version: "0.1.0",
+    request_id: "noop-result",
+    run_id: "run_alpha",
+    report: {
+      schema_id: "runecode.protocol.v0.RunnerResultReport",
+      schema_version: "0.1.0",
+      lifecycle_state: "terminal",
+      result_code: "step_succeeded",
+      occurred_at: "2026-01-01T00:00:00Z",
+      idempotency_key: "noop-result-1",
+    },
+  });
+
+  assert.deepEqual(checkpoint, { accepted: false, reason: "broker client not configured" });
+  assert.deepEqual(result, { accepted: false, reason: "broker client not configured" });
+});
+
+test("runtime seam idempotency ignores payload detail key order and writes private file mode", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("permission bit checks are platform-specific");
+  }
+
+  const {
+    FileDurableStateStore,
+    DurableRuntimeSeam,
+  } = await loadRunnerModules();
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-runtime-"));
+  t.after(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  const store = new FileDurableStateStore(root);
+  await store.bindPlanIdentity({ run_id: "run_alpha", plan_id: "plan_alpha" });
+  const seam = new DurableRuntimeSeam(store);
+
+  await seam.checkpoint({
+    identity: { run_id: "run_alpha", plan_id: "plan_alpha" },
+    checkpoint_code: "active_step",
+    idempotency_key: "runtime-key-order-1",
+    details: { beta: 2, alpha: 1 },
+  });
+
+  await seam.checkpoint({
+    identity: { run_id: "run_alpha", plan_id: "plan_alpha" },
+    checkpoint_code: "active_step",
+    idempotency_key: "runtime-key-order-1",
+    details: { alpha: 1, beta: 2 },
+  });
+
+  const journalPath = path.join(root, "runtime-seam.v1.ndjson");
+  const lines = fs.readFileSync(journalPath, "utf8").trim().split("\n");
+  assert.equal(lines.length, 1);
+
+  const mode = fs.statSync(journalPath).mode & 0o777;
+  assert.equal(mode, 0o600);
 });
 
 test("kernel runtime seam restores parked waits for active plan identity", async (t) => {

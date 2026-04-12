@@ -85,7 +85,7 @@ func TestRunnerResultReportRejectsReuseOfTerminalGateAttemptID(t *testing.T) {
 func TestRunnerResultReportOverrideRequiresApprovedGateOverrideBinding(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	now := time.Date(2026, 4, 1, 19, 0, 0, 0, time.UTC)
-	s.now = func() time.Time { return now }
+	s.SetNowFuncForTests(func() time.Time { return now })
 	override := prepareOverrideScenario(t, s, now, "run-gate-override-approval")
 	_, errResp := s.HandleRunnerResultReport(context.Background(), RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-gate-override-reject", RunID: "run-gate-override-approval", Report: override}, RequestContext{})
 	if errResp == nil {
@@ -99,7 +99,7 @@ func TestRunnerResultReportOverrideRequiresApprovedGateOverrideBinding(t *testin
 func TestRunnerResultReportConsumesGateOverrideApprovalSingleUse(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	now := time.Date(2026, 4, 2, 13, 0, 0, 0, time.UTC)
-	s.now = func() time.Time { return now }
+	s.SetNowFuncForTests(func() time.Time { return now })
 	override := prepareConsumableGateOverride(t, s, now, "run-gate-override-consume")
 	mustAcceptRunnerResultReq(t, s, RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-gate-override-consume-1", RunID: "run-gate-override-consume", Report: override})
 	assertConsumedGateOverrideApproval(t, s, "run-gate-override-consume")
@@ -113,7 +113,7 @@ func TestRunnerResultReportConsumesGateOverrideApprovalSingleUse(t *testing.T) {
 func TestRunnerResultReportOverrideUsesMostRecentMatchingPolicyDecision(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	now := time.Date(2026, 4, 2, 15, 0, 0, 0, time.UTC)
-	s.now = func() time.Time { return now }
+	s.SetNowFuncForTests(func() time.Time { return now })
 	override := prepareOverrideScenario(t, s, now, "run-gate-override-recency")
 	actionHash := mustOverrideActionHash(t, override)
 	firstDecision := seedApprovedGateOverrideDecision(t, s, now, "run-gate-override-recency", actionHash, override.OverriddenFailedResultRef, "first")
@@ -167,7 +167,7 @@ func assertOverridePolicyDecisionBinding(t *testing.T, s *Service, runID, wantRe
 func TestRunnerResultReportOverrideAllowsAnyValidMatchingApprovalExpiry(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	now := time.Date(2026, 4, 2, 16, 0, 0, 0, time.UTC)
-	s.now = func() time.Time { return now }
+	s.SetNowFuncForTests(func() time.Time { return now })
 	override := prepareOverrideScenario(t, s, now, "run-gate-override-expiry-any-valid")
 	actionHash := mustOverrideActionHash(t, override)
 

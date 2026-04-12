@@ -144,3 +144,13 @@ func (s *Store) AppendTrustedAuditEvent(eventType, actor string, details map[str
 	}
 	return s.appendAuditLocked(eventType, actor, details)
 }
+
+func (s *Store) SetNowFuncForTests(nowFn func() time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if nowFn == nil {
+		s.nowFn = time.Now
+		return
+	}
+	s.nowFn = nowFn
+}

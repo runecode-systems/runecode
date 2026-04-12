@@ -23,6 +23,8 @@ import { approvalWaitBindingsMatch, assertApprovalBinding, blockedScopeToDurable
 import { healSnapshotFromJournal, replayDurableState, replayDurableStateInternal, snapshotNeedsRewrite } from "./replay.ts";
 
 const durableStateWriteLocks = new Map<string, Promise<void>>();
+const PRIVATE_STATE_DIR_MODE = 0o700;
+const PRIVATE_STATE_FILE_MODE = 0o600;
 
 export class FileDurableStateStore {
   private readonly stateRoot: string;
@@ -43,7 +45,7 @@ export class FileDurableStateStore {
 
   async bindPlanIdentity(planIdentity: RunnerPlanIdentity): Promise<void> {
     await this.withWriteLock(async () => {
-      await mkdir(this.stateRoot, { recursive: true });
+      await mkdir(this.stateRoot, { recursive: true, mode: PRIVATE_STATE_DIR_MODE });
       const existing = await this.tryReadSnapshot();
       if (!existing) {
         const now = new Date().toISOString();
@@ -235,7 +237,7 @@ export class FileDurableStateStore {
   }
 
   private async appendRecordsLocked(inputs: DurableAppendRecordInput[]): Promise<DurableStateView & { records: DurableJournalRecord[] }> {
-    await mkdir(this.stateRoot, { recursive: true });
+    await mkdir(this.stateRoot, { recursive: true, mode: PRIVATE_STATE_DIR_MODE });
     const state = await this.readStateUnlocked();
     const journal = [...state.journal];
     const emitted: DurableJournalRecord[] = [];
@@ -256,7 +258,10 @@ export class FileDurableStateStore {
     }
 
     if (fresh.length > 0) {
-      await appendFile(this.journalPath, `${fresh.map((record) => JSON.stringify(record)).join("\n")}\n`, "utf8");
+      await appendFile(this.journalPath, `${fresh.map((record) => JSON.stringify(record)).join("\n")}\n`, {
+        encoding: "utf8",
+        mode: PRIVATE_STATE_FILE_MODE,
+      });
     }
 
     const nextSnapshot = healSnapshotFromJournal(state.snapshot, journal);
@@ -268,7 +273,10 @@ export class FileDurableStateStore {
 
   private async writeSnapshot(snapshot: DurableSnapshot): Promise<void> {
     const tempPath = `${this.snapshotPath}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
-    await writeFile(tempPath, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
+    await writeFile(tempPath, `${JSON.stringify(snapshot, null, 2)}\n`, {
+      encoding: "utf8",
+      mode: PRIVATE_STATE_FILE_MODE,
+    });
     await rename(tempPath, this.snapshotPath);
   }
 

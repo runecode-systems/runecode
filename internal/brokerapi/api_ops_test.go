@@ -91,7 +91,7 @@ func TestHandleArtifactListRejectsInFlightLimit(t *testing.T) {
 func TestHandleArtifactListRejectsRateLimitWithTypedCode(t *testing.T) {
 	service := newBrokerAPIServiceForTests(t, APIConfig{Limits: Limits{MaxRequestsPerClientPS: 1}})
 	fixed := time.Date(2026, time.April, 7, 12, 0, 0, 0, time.UTC)
-	service.now = func() time.Time { return fixed }
+	service.SetNowFuncForTests(func() time.Time { return fixed })
 	meta := RequestContext{ClientID: "client-rate", LaneID: "lane-rate"}
 
 	if _, errResp := service.HandleArtifactList(context.Background(), DefaultArtifactListRequest("req-rate-1"), meta); errResp != nil {
@@ -108,7 +108,7 @@ func TestHandleArtifactListRejectsRateLimitWithTypedCode(t *testing.T) {
 		t.Fatal("rate limit rejection should be retryable")
 	}
 
-	service.now = func() time.Time { return fixed.Add(1 * time.Second) }
+	service.SetNowFuncForTests(func() time.Time { return fixed.Add(1 * time.Second) })
 	if _, errResp := service.HandleArtifactList(context.Background(), DefaultArtifactListRequest("req-rate-3"), meta); errResp != nil {
 		t.Fatalf("request after next window error response: %+v", errResp)
 	}

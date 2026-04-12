@@ -22,10 +22,10 @@ export type RunnerBrokerClient = {
 
 export class NoopRunnerBrokerClient implements RunnerBrokerClient {
   async sendRunnerCheckpointReport(_request: RunnerCheckpointReportRequest): Promise<BrokerAcknowledge> {
-    throw new Error("broker client not configured");
+    return { accepted: false, reason: "broker client not configured" };
   }
 
   async sendRunnerResultReport(_request: RunnerResultReportRequest): Promise<BrokerAcknowledge> {
-    throw new Error("broker client not configured");
+    return { accepted: false, reason: "broker client not configured" };
   }
 }

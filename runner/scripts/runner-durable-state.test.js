@@ -289,6 +289,51 @@ test("fails closed when stage or step blocked scopes omit required identifiers",
     }),
     (error) => error instanceof InvalidApprovalWaitError,
   );
+
+  await assert.rejects(
+    () => store.enterApprovalWait({
+      approval_id: "sha256:1234123412341234123412341234123412341234123412341234123412341234",
+      run_id: "run_alpha",
+      plan_id: "plan_alpha",
+      binding_kind: "exact_action",
+      bound_action_hash: "sha256:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+      blocked_scope: {
+        scope_kind: "action_kind",
+        run_id: "run_alpha",
+        action_kind: "action_unrecognized",
+      },
+      broker_correlation: { request_id: "invalid-action-kind" },
+      idempotency_key: "wait-enter-invalid-action-kind",
+    }),
+    (error) => error instanceof InvalidApprovalWaitError,
+  );
+});
+
+test("writes durable state with private directory and file permissions", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("permission bit checks are platform-specific");
+  }
+
+  const {
+    FileDurableStateStore,
+  } = await loadRunnerModules();
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-state-"));
+  t.after(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  const store = new FileDurableStateStore(root);
+  await store.bindPlanIdentity({ run_id: "run_alpha", plan_id: "plan_alpha" });
+  await store.appendRecord({ kind: "run_started", idempotency_key: "perm-k1", run_scope_id: "run_alpha" });
+
+  const rootMode = fs.statSync(root).mode & 0o777;
+  const snapshotMode = fs.statSync(path.join(root, "snapshot.v2.json")).mode & 0o777;
+  const journalMode = fs.statSync(path.join(root, "journal.v2.ndjson")).mode & 0o777;
+
+  assert.equal(rootMode, 0o700);
+  assert.equal(snapshotMode, 0o600);
+  assert.equal(journalMode, 0o600);
 });
 
 test("heals snapshot state from journal after crash window during wait resolution", async (t) => {

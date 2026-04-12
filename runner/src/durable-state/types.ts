@@ -4,6 +4,7 @@ export const SNAPSHOT_SCHEMA_VERSION = "2";
 export const JOURNAL_SCHEMA_VERSION = "2";
 
 export const DURABLE_ACTION_SCOPE_KINDS = ["run", "stage", "step_attempt", "gate_attempt"] as const;
+export const DURABLE_BLOCKED_ACTION_KINDS = ["action_gate_override", "stage_summary_sign_off"] as const;
 export const APPROVAL_BINDING_KINDS = ["exact_action", "stage_sign_off"] as const;
 export const APPROVAL_WAIT_STATUSES = ["pending", "approved", "denied", "expired", "superseded", "cancelled", "consumed"] as const;
 export const BLOCKED_SCOPE_KINDS = ["workspace", "run", "stage", "step", "action_kind"] as const;
@@ -29,6 +30,7 @@ export type DurableActionScopeKind = (typeof DURABLE_ACTION_SCOPE_KINDS)[number]
 export type DurableGateAttemptOutcome = (typeof DURABLE_GATE_ATTEMPT_OUTCOMES)[number];
 export type DurableStepAttemptOutcome = (typeof DURABLE_STEP_ATTEMPT_OUTCOMES)[number];
 export type DurableRunTerminalStatus = (typeof DURABLE_TERMINAL_STATUSES)[number];
+export type DurableBlockedActionKind = (typeof DURABLE_BLOCKED_ACTION_KINDS)[number];
 export type ApprovalBindingKind = (typeof APPROVAL_BINDING_KINDS)[number];
 export type ApprovalWaitStatus = (typeof APPROVAL_WAIT_STATUSES)[number];
 export type DurableApprovalClearStatus = Exclude<ApprovalWaitStatus, "pending">;
@@ -40,7 +42,7 @@ export type DurableApprovalBlockedWorkScope = {
   stage_id?: string;
   step_id?: string;
   role_instance_id?: string;
-  action_kind: string;
+  action_kind: DurableBlockedActionKind;
 };
 
 export type DurableApprovalBrokerCorrelation = {

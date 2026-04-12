@@ -14,6 +14,7 @@ import { PlanIdentityMismatchError } from "./durable-state.ts";
 const RUNTIME_SEAM_SCHEMA_VERSION = "1";
 const RUNTIME_SEAM_KINDS = ["checkpoint", "wait_parked", "wait_resumed"] as const;
 const runtimeSeamWriteLocks = new Map<string, Promise<void>>();
+const PRIVATE_RUNTIME_FILE_MODE = 0o600;
 
 type RuntimeSeamRecord = {
   schema_version: typeof RUNTIME_SEAM_SCHEMA_VERSION;
@@ -197,7 +198,10 @@ export class DurableRuntimeSeam implements RunnerRuntimeSeam {
         sequence: existing.length + 1,
         occurred_at: input.occurred_at ?? new Date().toISOString(),
       };
-      await appendFile(this.runtimeJournalPath, `${JSON.stringify(record)}\n`, "utf8");
+      await appendFile(this.runtimeJournalPath, `${JSON.stringify(record)}\n`, {
+        encoding: "utf8",
+        mode: PRIVATE_RUNTIME_FILE_MODE,
+      });
     });
   }
 
@@ -288,10 +292,33 @@ function assertRuntimeRecordMatches(existing: RuntimeSeamRecord, input: RuntimeS
     || existing.resume_token !== input.resume_token
     || existing.checkpoint_code !== input.checkpoint_code
     || existing.occurred_at !== occurredAt
-    || JSON.stringify(existing.payload_details ?? null) !== JSON.stringify(input.payload_details ?? null)
+    || !detailsAreEqual(existing.payload_details, input.payload_details)
   ) {
     throw new Error(`runtime seam idempotency key ${input.idempotency_key} conflicts with existing ${existing.kind} record`);
   }
+}
+
+function detailsAreEqual(
+  left: Record<string, unknown> | undefined,
+  right: Record<string, unknown> | undefined,
+): boolean {
+  return stableObjectString(left ?? null) === stableObjectString(right ?? null);
+}
+
+function stableObjectString(value: unknown): string {
+  if (value === undefined) {
+    return "null";
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => stableObjectString(entry)).join(",")}]`;
+  }
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${stableObjectString(entry)}`);
+    return `{${entries.join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 function assertObjectRecord(value: unknown, location: string): Record<string, unknown> {

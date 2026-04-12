@@ -5,7 +5,7 @@
  * keeps no local workflow-planning authority.
  */
 
-import type { DurableApprovalWait } from "./durable-state.ts";
+import { DURABLE_BLOCKED_ACTION_KINDS, type DurableApprovalWait } from "./durable-state.ts";
 import type { RunnerPlan, RunnerPlanEntry } from "./run-plan.ts";
 
 export type ScheduledWorkItem = {
@@ -46,11 +46,21 @@ export class PlanScheduler {
       case "step":
         return scope.step_id !== undefined && entry.step_id === scope.step_id;
       case "action_kind":
-        return scope.action_kind === "action_gate_override" && entry.entry_kind === "gate_definition";
+        return this.matchesBlockedActionKind(entry, scope.action_kind);
       case "workspace":
         return true;
       default:
         return false;
+    }
+  }
+
+  private matchesBlockedActionKind(entry: RunnerPlanEntry, actionKind: DurableApprovalWait["blocked_scope"]["action_kind"]): boolean {
+    switch (actionKind) {
+      case "action_gate_override":
+      case "stage_summary_sign_off":
+        return entry.entry_kind === "gate_definition";
+      default:
+        throw new Error(`unsupported blocked action kind ${actionKind}; expected one of ${DURABLE_BLOCKED_ACTION_KINDS.join(", ")}`);
     }
   }
 }
