@@ -12,6 +12,7 @@ Recent notable standards for this branch:
 - `runecontext/standards/security/approval-binding-and-verifier-identity.md`
 - `runecontext/standards/security/audit-verification-scope-and-evidence-binding.md`
 - `runecontext/standards/security/trusted-local-artifact-persistence.md`
+- `runecontext/standards/security/runner-durable-state-and-replay.md`
 - `runecontext/standards/security/trusted-runtime-evidence-and-broker-projection.md`
 
 ## Standard Families
