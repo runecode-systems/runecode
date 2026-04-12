@@ -97,8 +97,8 @@ export class FileDurableStateStore {
 
       const occurredAt = input.occurred_at ?? new Date().toISOString();
       const blockedScope = sanitizeBlockedScope(input.blocked_scope, `approval wait ${input.approval_id}`);
-      if (blockedScope.scope_kind === "run" && blockedScope.run_id !== input.run_id) {
-        throw new InvalidApprovalWaitError(`approval wait ${input.approval_id} run-scoped binding ${blockedScope.run_id} does not match active run ${input.run_id}`);
+      if (blockedScope.run_id && blockedScope.run_id !== input.run_id) {
+        throw new InvalidApprovalWaitError(`approval wait ${input.approval_id} blocked scope run_id ${blockedScope.run_id} does not match active run ${input.run_id}`);
       }
       const brokerCorrelation = sanitizeBrokerCorrelation(input.broker_correlation);
       const actionRequestId = brokerCorrelation.action_request_id ?? brokerCorrelation.request_id ?? `approval:${input.approval_id}`;

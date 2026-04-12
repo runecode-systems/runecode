@@ -458,7 +458,7 @@ test("noop broker client returns unaccepted acknowledgements", async () => {
     report: {
       schema_id: "runecode.protocol.v0.RunnerResultReport",
       schema_version: "0.1.0",
-      lifecycle_state: "terminal",
+      lifecycle_state: "completed",
       result_code: "step_succeeded",
       occurred_at: "2026-01-01T00:00:00Z",
       idempotency_key: "noop-result-1",

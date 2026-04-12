@@ -238,6 +238,81 @@ test("fails closed when stage or step blocked scopes omit required identifiers",
 
   await assert.rejects(
     () => store.enterApprovalWait({
+      approval_id: "sha256:c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4",
+      run_id: "run_alpha",
+      plan_id: "plan_alpha",
+      binding_kind: "stage_sign_off",
+      bound_stage_summary_hash: "sha256:d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5",
+      blocked_scope: {
+        scope_kind: "stage",
+        run_id: "run_beta",
+        stage_id: "stage_lint",
+        action_kind: "stage_summary_sign_off",
+      },
+      broker_correlation: { request_id: "mismatched-stage-run-id" },
+      idempotency_key: "wait-enter-mismatched-stage-run-id",
+    }),
+    (error) => error instanceof InvalidApprovalWaitError,
+  );
+
+  await assert.rejects(
+    () => store.enterApprovalWait({
+      approval_id: "sha256:e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6",
+      run_id: "run_alpha",
+      plan_id: "plan_alpha",
+      binding_kind: "exact_action",
+      bound_action_hash: "sha256:f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7",
+      blocked_scope: {
+        scope_kind: "step",
+        run_id: "run_beta",
+        step_id: "step_lint",
+        action_kind: "action_gate_override",
+      },
+      broker_correlation: { request_id: "mismatched-step-run-id" },
+      idempotency_key: "wait-enter-mismatched-step-run-id",
+    }),
+    (error) => error instanceof InvalidApprovalWaitError,
+  );
+
+  await assert.rejects(
+    () => store.enterApprovalWait({
+      approval_id: "sha256:1818181818181818181818181818181818181818181818181818181818181818",
+      run_id: "run_alpha",
+      plan_id: "plan_alpha",
+      binding_kind: "stage_sign_off",
+      bound_stage_summary_hash: "sha256:2929292929292929292929292929292929292929292929292929292929292929",
+      blocked_scope: {
+        scope_kind: "workspace",
+        run_id: "run_beta",
+        workspace_id: "workspace_local",
+        action_kind: "stage_summary_sign_off",
+      },
+      broker_correlation: { request_id: "mismatched-workspace-run-id" },
+      idempotency_key: "wait-enter-mismatched-workspace-run-id",
+    }),
+    (error) => error instanceof InvalidApprovalWaitError,
+  );
+
+  await assert.rejects(
+    () => store.enterApprovalWait({
+      approval_id: "sha256:3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a",
+      run_id: "run_alpha",
+      plan_id: "plan_alpha",
+      binding_kind: "exact_action",
+      bound_action_hash: "sha256:4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b",
+      blocked_scope: {
+        scope_kind: "action_kind",
+        run_id: "run_beta",
+        action_kind: "action_gate_override",
+      },
+      broker_correlation: { request_id: "mismatched-action-kind-run-id" },
+      idempotency_key: "wait-enter-mismatched-action-kind-run-id",
+    }),
+    (error) => error instanceof InvalidApprovalWaitError,
+  );
+
+  await assert.rejects(
+    () => store.enterApprovalWait({
       approval_id: "sha256:5656565656565656565656565656565656565656565656565656565656565656",
       run_id: "run_alpha",
       plan_id: "plan_alpha",
