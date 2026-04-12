@@ -80,6 +80,14 @@ func (m shellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
+	if typed, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width = typed.Width
+		m.height = typed.Height
+		if m.palette.IsOpen() {
+			return m, nil
+		}
+	}
+
 	if m.palette.IsOpen() {
 		if _, ok := msg.(tea.KeyMsg); !ok {
 			return m.updateActiveRoute(msg)
@@ -96,10 +104,6 @@ func (m shellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch typed := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = typed.Width
-		m.height = typed.Height
-		return m, nil
 	case routeSwitchMsg:
 		m.currentID = typed.RouteID
 		m.nav.SelectByRouteID(typed.RouteID)
@@ -279,7 +283,13 @@ func (m shellModel) nextFocus() focusArea {
 }
 
 func (m shellModel) prevFocus() focusArea {
-	return m.nextFocus()
+	if m.palette.IsOpen() {
+		return focusPalette
+	}
+	if m.focus == focusContent {
+		return focusNav
+	}
+	return focusContent
 }
 
 func (m shellModel) activateCurrentRouteCmd() tea.Cmd {

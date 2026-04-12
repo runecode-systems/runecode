@@ -110,7 +110,7 @@ func (m approvalsRouteModel) View(width, height int, focus focusArea) string {
 		body = append(body, tableHeader("Inspector")+" "+appTheme.InspectorHint.Render("(policy/trigger/system cues are distinct)"))
 		body = append(body, renderApprovalInspector(m.active))
 	}
-	body = append(body, keyHint("Route keys: j/k move, enter load detail, a approve current via typed API, i toggle inspector, r reload"))
+	body = append(body, keyHint("Route keys: j/k move, enter load detail, a resolve current (currently disabled pending typed origin metadata), i toggle inspector, r reload"))
 	return compactLines(body...)
 }
 
@@ -119,14 +119,7 @@ func (m approvalsRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 	case "r":
 		return m.reload()
 	case "a":
-		if m.active == nil {
-			m.statusText = "Load an approval detail first (enter), then press a to resolve."
-			return m, nil
-		}
-		m.resolving = true
-		m.errText = ""
-		m.statusText = ""
-		return m, m.resolveCmd(*m.active)
+		return m.handleResolveKey()
 	case "i":
 		m.inspectorOn = !m.inspectorOn
 		return m, nil
@@ -159,61 +152,53 @@ func (m approvalsRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 	}
 }
 
+func (m approvalsRouteModel) handleResolveKey() (routeModel, tea.Cmd) {
+	if m.active == nil {
+		m.statusText = "Load an approval detail first (enter), then press a to resolve."
+		return m, nil
+	}
+	if err := validateApprovalResolveInput(*m.active); err != nil {
+		m.resolving = false
+		m.errText = ""
+		m.statusText = safeUIErrorText(err)
+		return m, nil
+	}
+	m.resolving = true
+	m.errText = ""
+	m.statusText = ""
+	return m, m.resolveCmd(*m.active)
+}
+
 func (m approvalsRouteModel) reload() (routeModel, tea.Cmd) {
 	m.loading = true
 	m.errText = ""
 	m.statusText = ""
 	m.loadSeq++
-	return m, m.loadCmd("", m.loadSeq)
+	target := ""
+	if m.selected >= 0 && m.selected < len(m.items) {
+		target = m.items[m.selected].ApprovalID
+	}
+	return m, m.loadCmd(target, m.loadSeq)
 }
 
 func (m approvalsRouteModel) resolveCmd(resp brokerapi.ApprovalGetResponse) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := withLoadTimeout()
-		defer cancel()
-
-		approvalID := strings.TrimSpace(resp.Approval.ApprovalID)
-		detail := resp.ApprovalDetail
-		req := brokerapi.ApprovalResolveRequest{
-			ApprovalID: approvalID,
-			BoundScope: resp.Approval.BoundScope,
-			Approver:   "tui-operator",
+		if err := validateApprovalResolveInput(resp); err != nil {
+			return approvalResolvedMsg{approvalID: strings.TrimSpace(resp.Approval.ApprovalID), err: err}
 		}
-		if req.BoundScope.SchemaID == "" {
-			req.BoundScope.SchemaID = "runecode.protocol.v0.ApprovalBoundScope"
-		}
-		if req.BoundScope.SchemaVersion == "" {
-			req.BoundScope.SchemaVersion = localAPISchemaVersion
-		}
-		if req.UnapprovedDigest == "" {
-			req.UnapprovedDigest = firstNonEmpty(
-				detail.BoundIdentity.BoundActionHash,
-				detail.BoundIdentity.BoundStageSummaryHash,
-				detail.BoundIdentity.ApprovalRequestDigest,
-			)
-		}
-		if req.UnapprovedDigest == "" {
-			return approvalResolvedMsg{approvalID: approvalID, err: fmt.Errorf("approval_identity_digest_missing")}
-		}
-		resolveResp, err := m.client.ApprovalResolve(ctx, req)
-		if err != nil {
-			return approvalResolvedMsg{approvalID: approvalID, err: err}
-		}
-		if strings.TrimSpace(resolveResp.ResolutionStatus) != "resolved" {
-			return approvalResolvedMsg{approvalID: approvalID, err: fmt.Errorf("unexpected resolution status %q", resolveResp.ResolutionStatus)}
-		}
-		return approvalResolvedMsg{approvalID: approvalID}
+		return approvalResolvedMsg{approvalID: strings.TrimSpace(resp.Approval.ApprovalID), err: fmt.Errorf("approval resolve is disabled until approval detail exposes typed origin metadata required by ApprovalResolveRequest")}
 	}
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed != "" {
-			return trimmed
-		}
+func validateApprovalResolveInput(resp brokerapi.ApprovalGetResponse) error {
+	approvalID := strings.TrimSpace(resp.Approval.ApprovalID)
+	if approvalID == "" {
+		return fmt.Errorf("approval detail missing approval_id")
 	}
-	return ""
+	if resp.SignedApprovalRequest == nil || resp.SignedApprovalDecision == nil {
+		return fmt.Errorf("approval resolve requires signed approval request and decision envelopes")
+	}
+	return fmt.Errorf("approval resolve is disabled until approval detail exposes typed origin metadata required by ApprovalResolveRequest")
 }
 
 func (m approvalsRouteModel) loadCmd(approvalID string, seq uint64) tea.Cmd {
@@ -344,12 +329,12 @@ func renderApprovalSafetyStrip(resp *brokerapi.ApprovalGetResponse) string {
 
 func renderApprovalFlowPath(resp *brokerapi.ApprovalGetResponse) string {
 	if resp == nil {
-		return "Flow path: run -> approval -> typed resolve -> run resumes (load an approval detail to inspect)"
+		return "Flow path: run -> approval -> typed resolve (currently disabled pending typed origin metadata) -> run resumes (load an approval detail to inspect)"
 	}
 	s := resp.Approval
 	workspace := valueOrNA(s.BoundScope.WorkspaceID)
 	run := valueOrNA(s.BoundScope.RunID)
 	stage := valueOrNA(s.BoundScope.StageID)
 	action := valueOrNA(s.BoundScope.ActionKind)
-	return fmt.Sprintf("Flow path: workspace=%s run=%s stage=%s action=%s -> approval=%s -> press a to call typed approval_resolve -> resume signal", workspace, run, stage, action, s.ApprovalID)
+	return fmt.Sprintf("Flow path: workspace=%s run=%s stage=%s action=%s -> approval=%s -> typed approval_resolve currently disabled pending typed origin metadata -> resume signal", workspace, run, stage, action, s.ApprovalID)
 }

@@ -73,3 +73,50 @@ func TestHelpRenderedFromRealKeyBindings(t *testing.T) {
 		t.Fatalf("expected focus binding in help, got %q", help)
 	}
 }
+
+func TestShellUpdatesWindowSizeWhilePaletteOpen(t *testing.T) {
+	m := newShellModel()
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	shell, ok := updated.(shellModel)
+	if !ok {
+		t.Fatalf("expected shellModel, got %T", updated)
+	}
+	if !shell.palette.IsOpen() {
+		t.Fatal("expected palette to be open")
+	}
+
+	updated, _ = shell.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	shell, ok = updated.(shellModel)
+	if !ok {
+		t.Fatalf("expected shellModel, got %T", updated)
+	}
+	if shell.width != 120 || shell.height != 40 {
+		t.Fatalf("expected window size 120x40, got %dx%d", shell.width, shell.height)
+	}
+	if !shell.palette.IsOpen() {
+		t.Fatal("expected palette to remain open after resize")
+	}
+}
+
+func TestShellShiftTabCyclesFocusBackward(t *testing.T) {
+	m := newShellModel()
+	m.focus = focusNav
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	shell, ok := updated.(shellModel)
+	if !ok {
+		t.Fatalf("expected shellModel, got %T", updated)
+	}
+	if shell.focus != focusContent {
+		t.Fatalf("expected reverse focus from nav to content, got %v", shell.focus)
+	}
+
+	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	shell, ok = updated.(shellModel)
+	if !ok {
+		t.Fatalf("expected shellModel, got %T", updated)
+	}
+	if shell.focus != focusNav {
+		t.Fatalf("expected reverse focus from content to nav, got %v", shell.focus)
+	}
+}

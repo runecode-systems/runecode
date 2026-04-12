@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -101,17 +102,20 @@ func TestApprovalsResolveUsesTypedBrokerContract(t *testing.T) {
 	updated, _ = updated.Update(cmd())
 
 	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-	if cmd == nil {
-		t.Fatal("expected resolve command")
+	if cmd != nil {
+		t.Fatal("expected resolve to stay fail-closed without typed origin metadata")
 	}
-	resolved := cmd()
-	updated, cmd = updated.Update(resolved)
-	if cmd == nil {
-		t.Fatal("expected reload command after resolve")
-	}
-	_, _ = updated.Update(cmd())
 
-	assertStringSliceEqual(t, recording.Calls(), []string{"ApprovalList", "ApprovalGet", "ApprovalResolve", "ApprovalList", "ApprovalGet"})
+	view := updated.View(120, 40, focusContent)
+	if want := "approval resolve is disabled until approval detail exposes typed origin metadata required by ApprovalResolveRequest"; !containsSubstring(view, want) {
+		t.Fatalf("expected fail-closed status %q in view, got %q", want, view)
+	}
+
+	assertStringSliceEqual(t, recording.Calls(), []string{"ApprovalList", "ApprovalGet"})
+}
+
+func containsSubstring(text, want string) bool {
+	return strings.Contains(text, want)
 }
 
 func assertStringSliceEqual(t *testing.T, got, want []string) {

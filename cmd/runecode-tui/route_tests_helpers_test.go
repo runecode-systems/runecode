@@ -10,7 +10,29 @@ import (
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
+var testSignedApprovalRequest = &trustpolicy.SignedObjectEnvelope{
+	SchemaID:             trustpolicy.EnvelopeSchemaID,
+	SchemaVersion:        trustpolicy.EnvelopeSchemaVersion,
+	PayloadSchemaID:      trustpolicy.ApprovalRequestSchemaID,
+	PayloadSchemaVersion: trustpolicy.ApprovalRequestSchemaVersion,
+	Payload:              []byte(`{"schema_id":"runecode.protocol.v0.ApprovalRequest","schema_version":"0.3.0"}`),
+	SignatureInput:       trustpolicy.SignatureInputProfile,
+	Signature:            trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: strings.Repeat("a", 64), Signature: "c2ln"},
+}
+
+var testSignedApprovalDecision = &trustpolicy.SignedObjectEnvelope{
+	SchemaID:             trustpolicy.EnvelopeSchemaID,
+	SchemaVersion:        trustpolicy.EnvelopeSchemaVersion,
+	PayloadSchemaID:      trustpolicy.ApprovalDecisionSchemaID,
+	PayloadSchemaVersion: trustpolicy.ApprovalDecisionSchemaVersion,
+	Payload:              []byte(`{"schema_id":"runecode.protocol.v0.ApprovalDecision","schema_version":"0.3.0"}`),
+	SignatureInput:       trustpolicy.SignatureInputProfile,
+	Signature:            trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: strings.Repeat("b", 64), Signature: "c2ln"},
+}
+
 type fakeBrokerClient struct{}
+
+type reloadAwareBrokerClient struct{}
 
 type recordingBrokerClient struct {
 	base  localBrokerClient
@@ -207,7 +229,7 @@ func (f *fakeBrokerClient) ApprovalGet(ctx context.Context, approvalID string) (
 	if approvalID == "" {
 		return brokerapi.ApprovalGetResponse{}, fmt.Errorf("approval id required")
 	}
-	return brokerapi.ApprovalGetResponse{Approval: brokerapi.ApprovalSummary{ApprovalID: approvalID, Status: "pending", ApprovalTriggerCode: "policy_gate", BoundScope: brokerapi.ApprovalBoundScope{WorkspaceID: "ws-1", RunID: "run-1", StageID: "stage-1", ActionKind: "promotion"}}, ApprovalDetail: brokerapi.ApprovalDetail{BindingKind: "exact_action", PolicyReasonCode: "requires_human_review", LifecycleDetail: brokerapi.ApprovalLifecycleDetail{LifecycleState: "pending", LifecycleReasonCode: "awaiting_decision", Stale: true, StaleReasonCode: "policy_recomputed"}, WhatChangesIfApproved: brokerapi.ApprovalWhatChangesIfApproved{Summary: "Promotion continues", EffectKind: "unblock_next_stage"}, BlockedWorkScope: brokerapi.ApprovalBlockedWorkScope{ScopeKind: "stage", RunID: "run-1", StageID: "stage-1", ActionKind: "promotion"}, BoundIdentity: brokerapi.ApprovalBoundIdentity{ApprovalRequestDigest: "sha256:req", ManifestHash: "sha256:manifest", PolicyDecisionHash: "sha256:policy"}}}, nil
+	return brokerapi.ApprovalGetResponse{Approval: brokerapi.ApprovalSummary{ApprovalID: approvalID, Status: "pending", ApprovalTriggerCode: "policy_gate", BoundScope: brokerapi.ApprovalBoundScope{WorkspaceID: "ws-1", RunID: "run-1", StageID: "stage-1", ActionKind: "promotion"}}, ApprovalDetail: brokerapi.ApprovalDetail{BindingKind: "exact_action", PolicyReasonCode: "requires_human_review", LifecycleDetail: brokerapi.ApprovalLifecycleDetail{LifecycleState: "pending", LifecycleReasonCode: "awaiting_decision", Stale: true, StaleReasonCode: "policy_recomputed"}, WhatChangesIfApproved: brokerapi.ApprovalWhatChangesIfApproved{Summary: "Promotion continues", EffectKind: "unblock_next_stage"}, BlockedWorkScope: brokerapi.ApprovalBlockedWorkScope{ScopeKind: "stage", RunID: "run-1", StageID: "stage-1", ActionKind: "promotion"}, BoundIdentity: brokerapi.ApprovalBoundIdentity{ApprovalRequestDigest: "sha256:req", ManifestHash: "sha256:manifest", PolicyDecisionHash: "sha256:policy"}}, SignedApprovalRequest: testSignedApprovalRequest, SignedApprovalDecision: testSignedApprovalDecision}, nil
 }
 
 func (f *fakeBrokerClient) ApprovalResolve(ctx context.Context, req brokerapi.ApprovalResolveRequest) (brokerapi.ApprovalResolveResponse, error) {
@@ -220,6 +242,138 @@ func (f *fakeBrokerClient) ApprovalResolve(ctx context.Context, req brokerapi.Ap
 		ResolutionStatus:     "resolved",
 		ResolutionReasonCode: "approval_consumed",
 	}, nil
+}
+
+func (f *reloadAwareBrokerClient) RunList(ctx context.Context, limit int) (brokerapi.RunListResponse, error) {
+	_ = ctx
+	_ = limit
+	return brokerapi.RunListResponse{Runs: []brokerapi.RunSummary{{RunID: "run-1", LifecycleState: "active", BackendKind: "workspace", IsolationAssuranceLevel: "sandboxed", PendingApprovalCount: 1, ProvisioningPosture: "ok", AuditIntegrityStatus: "ok", AuditAnchoringStatus: "degraded"}, {RunID: "run-2", LifecycleState: "blocked", BackendKind: "container", IsolationAssuranceLevel: "reduced", PendingApprovalCount: 0, ProvisioningPosture: "degraded", AuditIntegrityStatus: "degraded", AuditAnchoringStatus: "degraded"}}}, nil
+}
+
+func (f *reloadAwareBrokerClient) RunGet(ctx context.Context, runID string) (brokerapi.RunGetResponse, error) {
+	_ = ctx
+	summary := brokerapi.RunSummary{RunID: runID, BackendKind: "workspace", IsolationAssuranceLevel: "sandboxed", ProvisioningPosture: "ok", AuditIntegrityStatus: "ok", AuditAnchoringStatus: "degraded"}
+	coordination := brokerapi.RunCoordinationSummary{Blocked: true, WaitReasonCode: "approval_wait", CoordinationMode: "stage_gate"}
+	if runID == "run-2" {
+		summary = brokerapi.RunSummary{RunID: runID, BackendKind: "container", IsolationAssuranceLevel: "reduced", ProvisioningPosture: "degraded", AuditIntegrityStatus: "degraded", AuditAnchoringStatus: "degraded"}
+		coordination = brokerapi.RunCoordinationSummary{Blocked: false, WaitReasonCode: "", CoordinationMode: "free"}
+	}
+	return brokerapi.RunGetResponse{Run: brokerapi.RunDetail{Summary: summary, Coordination: coordination}}, nil
+}
+
+func (f *reloadAwareBrokerClient) RunWatch(ctx context.Context, req brokerapi.RunWatchRequest) ([]brokerapi.RunWatchEvent, error) {
+	return (&fakeBrokerClient{}).RunWatch(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) SessionList(ctx context.Context, limit int) (brokerapi.SessionListResponse, error) {
+	return (&fakeBrokerClient{}).SessionList(ctx, limit)
+}
+
+func (f *reloadAwareBrokerClient) SessionGet(ctx context.Context, sessionID string) (brokerapi.SessionGetResponse, error) {
+	return (&fakeBrokerClient{}).SessionGet(ctx, sessionID)
+}
+
+func (f *reloadAwareBrokerClient) SessionSendMessage(ctx context.Context, req brokerapi.SessionSendMessageRequest) (brokerapi.SessionSendMessageResponse, error) {
+	return (&fakeBrokerClient{}).SessionSendMessage(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) SessionWatch(ctx context.Context, req brokerapi.SessionWatchRequest) ([]brokerapi.SessionWatchEvent, error) {
+	return (&fakeBrokerClient{}).SessionWatch(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) ApprovalList(ctx context.Context, limit int) (brokerapi.ApprovalListResponse, error) {
+	_ = ctx
+	_ = limit
+	return brokerapi.ApprovalListResponse{Approvals: []brokerapi.ApprovalSummary{{ApprovalID: "ap-1", Status: "pending", ApprovalTriggerCode: "policy_gate", BoundScope: brokerapi.ApprovalBoundScope{WorkspaceID: "ws-1", RunID: "run-1", StageID: "stage-1", ActionKind: "promotion"}}, {ApprovalID: "ap-2", Status: "pending", ApprovalTriggerCode: "stage_sign_off", BoundScope: brokerapi.ApprovalBoundScope{WorkspaceID: "ws-1", RunID: "run-2", StageID: "stage-2", ActionKind: "stage_summary_sign_off"}}}}, nil
+}
+
+func (f *reloadAwareBrokerClient) ApprovalGet(ctx context.Context, approvalID string) (brokerapi.ApprovalGetResponse, error) {
+	_ = ctx
+	resp, err := (&fakeBrokerClient{}).ApprovalGet(ctx, approvalID)
+	if err != nil {
+		return brokerapi.ApprovalGetResponse{}, err
+	}
+	if approvalID == "ap-2" {
+		resp.Approval.BoundScope = brokerapi.ApprovalBoundScope{WorkspaceID: "ws-1", RunID: "run-2", StageID: "stage-2", ActionKind: "stage_summary_sign_off"}
+		resp.ApprovalDetail.BindingKind = "stage_sign_off"
+		resp.ApprovalDetail.PolicyReasonCode = "stage_sign_off_required"
+		resp.ApprovalDetail.BoundStageSummaryHash = "sha256:stage"
+		resp.ApprovalDetail.BoundIdentity.PolicyDecisionHash = "sha256:policy-2"
+	}
+	return resp, nil
+}
+
+func (f *reloadAwareBrokerClient) ApprovalResolve(ctx context.Context, req brokerapi.ApprovalResolveRequest) (brokerapi.ApprovalResolveResponse, error) {
+	return (&fakeBrokerClient{}).ApprovalResolve(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) ApprovalWatch(ctx context.Context, req brokerapi.ApprovalWatchRequest) ([]brokerapi.ApprovalWatchEvent, error) {
+	return (&fakeBrokerClient{}).ApprovalWatch(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) ArtifactList(ctx context.Context, limit int, dataClass string) (brokerapi.LocalArtifactListResponse, error) {
+	_ = ctx
+	_ = limit
+	_ = dataClass
+	refOne := brokerapi.ArtifactSummary{}.Reference
+	refOne.Digest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	refOne.ContentType = "text/plain"
+	refOne.DataClass = "diffs"
+	refOne.SizeBytes = 128
+	refOne.ProvenanceReceiptHash = "sha256:receipt-1"
+	refTwo := brokerapi.ArtifactSummary{}.Reference
+	refTwo.Digest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	refTwo.ContentType = "text/plain"
+	refTwo.DataClass = "build_logs"
+	refTwo.SizeBytes = 256
+	refTwo.ProvenanceReceiptHash = "sha256:receipt-2"
+	return brokerapi.LocalArtifactListResponse{Artifacts: []brokerapi.ArtifactSummary{{Reference: refOne, RunID: "run-1"}, {Reference: refTwo, RunID: "run-2"}}}, nil
+}
+
+func (f *reloadAwareBrokerClient) ArtifactHead(ctx context.Context, digest string) (brokerapi.LocalArtifactHeadResponse, error) {
+	_ = ctx
+	ref := brokerapi.ArtifactSummary{}.Reference
+	ref.Digest = digest
+	ref.ContentType = "text/plain"
+	ref.DataClass = "diffs"
+	ref.SizeBytes = 128
+	ref.ProvenanceReceiptHash = "sha256:receipt-1"
+	if strings.Contains(digest, "cccc") {
+		ref.DataClass = "build_logs"
+		ref.SizeBytes = 256
+		ref.ProvenanceReceiptHash = "sha256:receipt-2"
+	}
+	return brokerapi.LocalArtifactHeadResponse{Artifact: brokerapi.ArtifactSummary{Reference: ref}}, nil
+}
+
+func (f *reloadAwareBrokerClient) ArtifactRead(ctx context.Context, req brokerapi.ArtifactReadRequest) ([]brokerapi.ArtifactStreamEvent, error) {
+	_ = ctx
+	content := "diff preview"
+	if strings.Contains(req.Digest, "cccc") {
+		content = "build log preview"
+	}
+	chunk := base64.StdEncoding.EncodeToString([]byte(content))
+	return []brokerapi.ArtifactStreamEvent{{EventType: "artifact_stream_chunk", ChunkBase64: chunk}, {EventType: "artifact_stream_terminal", Terminal: true, TerminalStatus: "completed"}}, nil
+}
+
+func (f *reloadAwareBrokerClient) AuditTimeline(ctx context.Context, limit int, cursor string) (brokerapi.AuditTimelineResponse, error) {
+	return (&fakeBrokerClient{}).AuditTimeline(ctx, limit, cursor)
+}
+
+func (f *reloadAwareBrokerClient) AuditVerificationGet(ctx context.Context, viewLimit int) (brokerapi.AuditVerificationGetResponse, error) {
+	return (&fakeBrokerClient{}).AuditVerificationGet(ctx, viewLimit)
+}
+
+func (f *reloadAwareBrokerClient) AuditRecordGet(ctx context.Context, digest string) (brokerapi.AuditRecordGetResponse, error) {
+	return (&fakeBrokerClient{}).AuditRecordGet(ctx, digest)
+}
+
+func (f *reloadAwareBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error) {
+	return (&fakeBrokerClient{}).ReadinessGet(ctx)
+}
+
+func (f *reloadAwareBrokerClient) VersionInfoGet(ctx context.Context) (brokerapi.VersionInfoGetResponse, error) {
+	return (&fakeBrokerClient{}).VersionInfoGet(ctx)
 }
 
 func (f *fakeBrokerClient) ApprovalWatch(ctx context.Context, req brokerapi.ApprovalWatchRequest) ([]brokerapi.ApprovalWatchEvent, error) {

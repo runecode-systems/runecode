@@ -2,6 +2,7 @@ package main
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -109,7 +110,11 @@ func (m paletteModel) deleteQueryRune() paletteModel {
 	if len(m.query) == 0 {
 		return m
 	}
-	m.query = m.query[:len(m.query)-1]
+	_, size := utf8.DecodeLastRuneInString(m.query)
+	if size <= 0 {
+		return m
+	}
+	m.query = m.query[:len(m.query)-size]
 	m.rebuildMatches()
 	return m
 }

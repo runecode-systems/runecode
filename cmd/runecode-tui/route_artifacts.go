@@ -182,7 +182,11 @@ func (m artifactsRouteModel) reload() (routeModel, tea.Cmd) {
 	m.loading = true
 	m.errText = ""
 	m.loadSeq++
-	return m, m.loadCmd("", m.loadSeq)
+	target := ""
+	if m.selected >= 0 && m.selected < len(m.items) {
+		target = m.items[m.selected].Reference.Digest
+	}
+	return m, m.loadCmd(target, m.loadSeq)
 }
 
 func (m artifactsRouteModel) loadCmd(digest string, seq uint64) tea.Cmd {

@@ -126,7 +126,11 @@ func (m runsRouteModel) reload() (routeModel, tea.Cmd) {
 	m.loading = true
 	m.errText = ""
 	m.loadSeq++
-	return m, m.loadCmd("", m.loadSeq)
+	target := ""
+	if m.selected >= 0 && m.selected < len(m.runs) {
+		target = m.runs[m.selected].RunID
+	}
+	return m, m.loadCmd(target, m.loadSeq)
 }
 
 func (m runsRouteModel) loadCmd(runID string, seq uint64) tea.Cmd {

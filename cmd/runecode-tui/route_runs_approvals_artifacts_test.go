@@ -99,25 +99,95 @@ func TestApprovalsRouteSupportsTypedResolveFlowPath(t *testing.T) {
 	if !strings.Contains(view, "Flow path: workspace=ws-1 run=run-1 stage=stage-1 action=promotion") {
 		t.Fatalf("expected typed flow-path summary in view, got %q", view)
 	}
+	if !strings.Contains(view, "typed approval_resolve currently disabled pending typed origin metadata") {
+		t.Fatalf("expected disabled resolve copy in flow path, got %q", view)
+	}
 
 	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-	if cmd == nil {
-		t.Fatal("expected typed resolve command when pressing a")
+	if cmd != nil {
+		t.Fatal("expected resolve to fail closed until typed origin metadata is available")
 	}
-	updated, cmd = updated.Update(cmd())
-	if cmd == nil {
-		t.Fatal("expected post-resolve reload command")
-	}
-	updated, _ = updated.Update(cmd())
 
 	calls := spy.Calls()
-	if !containsCall(calls, "ApprovalResolve") {
-		t.Fatalf("expected ApprovalResolve typed call, got %v", calls)
+	if containsCall(calls, "ApprovalResolve") {
+		t.Fatalf("expected ApprovalResolve not to be called, got %v", calls)
 	}
 
 	view = updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "Status: Approval ap-1 resolved via typed ApprovalResolve; run can continue.") {
-		t.Fatalf("expected resolve status in view, got %q", view)
+	if !strings.Contains(view, "Status: approval resolve is disabled until approval detail exposes typed origin metadata required by ApprovalResolveRequest") {
+		t.Fatalf("expected fail-closed approval status in view, got %q", view)
+	}
+}
+
+func TestRunsReloadKeepsSelectedDetailAligned(t *testing.T) {
+	model := newRunsRouteModel(routeDefinition{ID: routeRuns, Label: "Runs"}, &reloadAwareBrokerClient{})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeRuns})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if cmd == nil {
+		t.Fatal("expected reload command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	view := updated.View(120, 40, focusContent)
+	if !strings.Contains(view, "> run-2") {
+		t.Fatalf("expected run-2 to remain selected after reload, got %q", view)
+	}
+	if !strings.Contains(view, "backend_kind=container") {
+		t.Fatalf("expected run-2 detail to remain active after reload, got %q", view)
+	}
+}
+
+func TestApprovalsReloadKeepsSelectedDetailAligned(t *testing.T) {
+	model := newApprovalsRouteModel(routeDefinition{ID: routeApprovals, Label: "Approvals"}, &reloadAwareBrokerClient{})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeApprovals})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if cmd == nil {
+		t.Fatal("expected reload command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	view := updated.View(120, 40, focusContent)
+	if !strings.Contains(view, "> ap-2") {
+		t.Fatalf("expected ap-2 to remain selected after reload, got %q", view)
+	}
+	if !strings.Contains(view, "Policy reason code: stage_sign_off_required") {
+		t.Fatalf("expected ap-2 detail to remain active after reload, got %q", view)
+	}
+}
+
+func TestArtifactsReloadKeepsSelectedDetailAligned(t *testing.T) {
+	model := newArtifactsRouteModel(routeDefinition{ID: routeArtifacts, Label: "Artifacts"}, &reloadAwareBrokerClient{})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeArtifacts})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	if cmd == nil {
+		t.Fatal("expected reload command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	view := updated.View(120, 40, focusContent)
+	if !strings.Contains(view, "> sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc") {
+		t.Fatalf("expected second artifact to remain selected after reload, got %q", view)
+	}
+	if !strings.Contains(view, "Data class: build_logs") {
+		t.Fatalf("expected selected artifact detail to remain active after reload, got %q", view)
 	}
 }
 
