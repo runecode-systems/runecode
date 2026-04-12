@@ -13,6 +13,8 @@ The prior combined change bundled runner, execution roles, and gates into one ve
 - Stable logical workflow identity with separate execution-attempt identity.
 - Versioned runner journal/snapshot persistence with deterministic broker-wins reconciliation.
 - Thin runner-kernel architecture rather than a runner-local planner or policy engine.
+- Native runner-first hardening for approval waits, restart recovery, idempotent side effects, and partial-blocked scheduling before any optional internal orchestration runtime is introduced.
+- A narrow internal runtime seam for local checkpoint/wait/resume mechanics only, preserving broker-owned planning, approval truth, and lifecycle authority.
 
 ## Why Now
 Splitting runner and durable-state foundations improves sequencing, ownership, and verification while preserving the original end-to-end objective. Freezing the runner as a `RunPlan` consumer now prevents future workflow families from depending on runner-local planning semantics that would later have to be undone.
@@ -26,6 +28,9 @@ Splitting runner and durable-state foundations improves sequencing, ownership, a
 - Workspace role command execution details.
 - Deterministic gate implementation details.
 - Letting the runner become the source of planning, authorization, or operator truth.
+- Making LangGraph or any other runner-local orchestration library the canonical execution or trust-root model for this feature.
 
 ## Impact
 Keeps runner and durable-state contract work reviewable as an independent feature under the workflow execution project while freezing the `RunPlan`, recovery, and reconciliation rules that later workflow features must reuse.
+
+This change also freezes the near-term delivery posture: RuneCode should first complete the native thin-kernel durable-state and approval-wait foundation, while any future LangGraph adoption remains optional, internal-only, and separately tracked for a post-MVP reassessment.

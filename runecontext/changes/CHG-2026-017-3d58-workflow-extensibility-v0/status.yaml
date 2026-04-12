@@ -18,6 +18,7 @@ related_changes:
   - CHG-2026-007-2315-policy-engine-v0
   - CHG-2026-014-0c5d-approval-profiles-strict-permissive
   - CHG-2026-027-71ed-workflow-concurrency-v0
+  - CHG-2026-044-9f2a-optional-langgraph-runner-runtime-evaluation
 depends_on: []
 informed_by: []
 supersedes: []

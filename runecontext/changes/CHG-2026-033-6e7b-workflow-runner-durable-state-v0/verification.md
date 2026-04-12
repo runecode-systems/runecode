@@ -16,6 +16,10 @@
 - Confirm the docs require typed runner->broker checkpoint/result reporting and deterministic broker-wins reconciliation after restart.
 - Confirm the docs preserve the approval split between exact-action approval and stage sign-off, including stage-summary supersession semantics.
 - Confirm the docs keep the runner thin and explicitly reject runner-local policy, approval, and workflow-planning authority.
+- Confirm the docs explicitly choose native thin-kernel hardening before any optional third-party orchestration runtime adoption.
+- Confirm the docs require durable approval-wait persistence to retain canonical approval identity, binding kind, bound action hash or stage summary hash, blocked scope, and restart-safe broker correlation data.
+- Confirm the docs require restart-safe resume to validate broker-canonical approval and active plan identity before unblocking work.
+- Confirm the docs define a narrow runtime seam and keep any future LangGraph usage optional, internal-only, and non-canonical.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.
