@@ -30,7 +30,7 @@ func TestShellMouseClickNavOpensRoute(t *testing.T) {
 		t.Fatalf("expected nav boxes, got %d", len(boxes))
 	}
 	chatBox := boxes[1]
-	clickX := chatBox.StartX
+	clickX := len(navLinePrefix) + chatBox.StartX
 	updated, _ := m.Update(tea.MouseMsg{X: clickX, Y: navLineY, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
 	shell, ok := updated.(shellModel)
 	if !ok {

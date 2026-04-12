@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -190,10 +191,13 @@ func (c *rpcBrokerClient) VersionInfoGet(ctx context.Context) (brokerapi.Version
 func (c *rpcBrokerClient) invoke(ctx context.Context, operation string, req any, out any) error {
 	cfg, err := localIPCConfigProvider()
 	if err != nil {
-		return fmt.Errorf("local_ipc_config_error")
+		return localIPCSetupError("local_ipc_config_error", err)
 	}
 	client, err := localRPCDialer(ctx, cfg)
 	if err != nil {
+		return localIPCSetupError("local_ipc_dial_error", err)
+	}
+	if client == nil {
 		return fmt.Errorf("local_ipc_dial_error")
 	}
 	defer client.Close()
@@ -205,6 +209,21 @@ func (c *rpcBrokerClient) invoke(ctx context.Context, operation string, req any,
 		return fmt.Errorf("%s", code)
 	}
 	return nil
+}
+
+func localIPCSetupError(fallback string, err error) error {
+	message := strings.TrimSpace(err.Error())
+	if message == "" {
+		return fmt.Errorf("%s", fallback)
+	}
+	if errors.Is(err, brokerapi.ErrPeerCredentialsUnavailable) {
+		return fmt.Errorf("%s", message)
+	}
+	lower := strings.ToLower(message)
+	if strings.Contains(lower, "linux-only") || strings.Contains(lower, "runtime directory is required") || strings.Contains(lower, "socket name is required") || strings.Contains(lower, "peer credentials unavailable") {
+		return fmt.Errorf("%s", message)
+	}
+	return fmt.Errorf("%s", fallback)
 }
 
 func localBrokerBoundaryPosture() string {
@@ -230,10 +249,17 @@ func parseDigestIdentity(identity string) trustpolicy.Digest {
 
 func decodeArtifactStream(events []brokerapi.ArtifactStreamEvent) (string, error) {
 	var b strings.Builder
+	hasTerminal := false
 	for _, event := range events {
+		if event.EventType == "artifact_stream_terminal" {
+			hasTerminal = true
+		}
 		if err := applyArtifactEvent(&b, event); err != nil {
 			return "", err
 		}
+	}
+	if !hasTerminal {
+		return "", fmt.Errorf("artifact_stream_incomplete")
 	}
 	return b.String(), nil
 }

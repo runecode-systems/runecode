@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"errors"
 	"strings"
 	"testing"
 
@@ -100,5 +102,114 @@ func TestLocalBrokerBoundaryPostureMentionsLocalIPCAndPeerAuth(t *testing.T) {
 	}
 	if !strings.Contains(posture, "OS peer auth") {
 		t.Fatalf("expected OS peer auth mention, got %q", posture)
+	}
+}
+
+func TestRPCBrokerClientInvokeSurfacesActionableLocalIPCConfigError(t *testing.T) {
+	origConfigProvider := localIPCConfigProvider
+	origDialer := localRPCDialer
+	t.Cleanup(func() {
+		localIPCConfigProvider = origConfigProvider
+		localRPCDialer = origDialer
+	})
+
+	localIPCConfigProvider = func() (brokerapi.LocalIPCConfig, error) {
+		return brokerapi.LocalIPCConfig{}, errors.New("local ipc listener is linux-only for MVP")
+	}
+
+	client := &rpcBrokerClient{}
+	_, err := client.RunList(context.Background(), 1)
+	if err == nil {
+		t.Fatal("expected RunList to fail")
+	}
+	if got := err.Error(); got != "local ipc listener is linux-only for MVP" {
+		t.Fatalf("expected actionable config error, got %q", got)
+	}
+}
+
+func TestRPCBrokerClientInvokeSurfacesActionableLocalIPCDialError(t *testing.T) {
+	origConfigProvider := localIPCConfigProvider
+	origDialer := localRPCDialer
+	t.Cleanup(func() {
+		localIPCConfigProvider = origConfigProvider
+		localRPCDialer = origDialer
+	})
+
+	localIPCConfigProvider = func() (brokerapi.LocalIPCConfig, error) {
+		return brokerapi.LocalIPCConfig{RuntimeDir: "/tmp/runtime", SocketName: "broker.sock"}, nil
+	}
+	localRPCDialer = func(ctx context.Context, cfg brokerapi.LocalIPCConfig) (localRPCInvoker, error) {
+		_ = ctx
+		_ = cfg
+		return nil, errors.New("runtime directory is required")
+	}
+
+	client := &rpcBrokerClient{}
+	_, err := client.RunList(context.Background(), 1)
+	if err == nil {
+		t.Fatal("expected RunList to fail")
+	}
+	if got := err.Error(); got != "runtime directory is required" {
+		t.Fatalf("expected actionable dial error, got %q", got)
+	}
+}
+
+func TestRPCBrokerClientInvokeFallsBackForOpaqueLocalIPCErrors(t *testing.T) {
+	origConfigProvider := localIPCConfigProvider
+	origDialer := localRPCDialer
+	t.Cleanup(func() {
+		localIPCConfigProvider = origConfigProvider
+		localRPCDialer = origDialer
+	})
+
+	localIPCConfigProvider = func() (brokerapi.LocalIPCConfig, error) {
+		return brokerapi.LocalIPCConfig{}, errors.New("unexpected filesystem path /tmp/private/socket")
+	}
+
+	client := &rpcBrokerClient{}
+	_, err := client.RunList(context.Background(), 1)
+	if err == nil {
+		t.Fatal("expected RunList to fail")
+	}
+	if got := err.Error(); got != "local_ipc_config_error" {
+		t.Fatalf("expected fallback config error code, got %q", got)
+	}
+}
+
+func TestRPCBrokerClientInvokeReturnsDialFallbackWhenDialerReturnsNilClient(t *testing.T) {
+	origConfigProvider := localIPCConfigProvider
+	origDialer := localRPCDialer
+	t.Cleanup(func() {
+		localIPCConfigProvider = origConfigProvider
+		localRPCDialer = origDialer
+	})
+
+	localIPCConfigProvider = func() (brokerapi.LocalIPCConfig, error) {
+		return brokerapi.LocalIPCConfig{RuntimeDir: "/tmp/runtime", SocketName: "broker.sock"}, nil
+	}
+	localRPCDialer = func(ctx context.Context, cfg brokerapi.LocalIPCConfig) (localRPCInvoker, error) {
+		_ = ctx
+		_ = cfg
+		return nil, nil
+	}
+
+	client := &rpcBrokerClient{}
+	_, err := client.RunList(context.Background(), 1)
+	if err == nil {
+		t.Fatal("expected RunList to fail")
+	}
+	if got := err.Error(); got != "local_ipc_dial_error" {
+		t.Fatalf("expected local_ipc_dial_error fallback for nil client, got %q", got)
+	}
+}
+
+func TestDecodeArtifactStreamRequiresTerminalEvent(t *testing.T) {
+	chunk := base64.StdEncoding.EncodeToString([]byte("partial"))
+	_, err := decodeArtifactStream([]brokerapi.ArtifactStreamEvent{{EventType: "artifact_stream_chunk", ChunkBase64: chunk}})
+	if err == nil {
+		t.Fatal("expected decodeArtifactStream to reject missing terminal event")
+	}
+	if got := err.Error(); got != "artifact_stream_incomplete" {
+		t.Fatalf("expected artifact_stream_incomplete, got %q", got)
 	}
 }

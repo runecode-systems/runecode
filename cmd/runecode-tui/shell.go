@@ -10,6 +10,7 @@ import (
 const (
 	wideTerminalWidth = 100
 	navLineY          = 1
+	navLinePrefix     = "Primary navigation: "
 )
 
 type focusArea int
@@ -130,7 +131,7 @@ func (m shellModel) View() string {
 	b.WriteString(" ")
 	b.WriteString(neutralBadge("THEME " + string(themePresetDark)))
 	b.WriteString("\n")
-	b.WriteString("Primary navigation: ")
+	b.WriteString(navLinePrefix)
 	b.WriteString(navLine)
 	b.WriteString("\n")
 	b.WriteString(appTheme.FocusLine.Render("Focus: "))
@@ -214,7 +215,8 @@ func (m shellModel) handleMouse(mouse tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if mouse.Action == tea.MouseActionPress && mouse.Button == tea.MouseButtonLeft {
 		if mouse.Y == navLineY {
 			_, boxes := m.nav.Render(m.width >= wideTerminalWidth)
-			if routeID, ok := navRouteAtX(boxes, mouse.X); ok {
+			navX := mouse.X - len(navLinePrefix)
+			if routeID, ok := navRouteAtX(boxes, navX); ok {
 				m.currentID = routeID
 				m.nav.SelectByRouteID(routeID)
 				m.focus = focusContent
