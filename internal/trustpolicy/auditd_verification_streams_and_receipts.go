@@ -105,16 +105,35 @@ func verifyReceipts(input AuditVerificationInput, registry *VerifierRegistry, se
 		if !ok {
 			continue
 		}
+		if sealDigest == nil && receiptRequiresCurrentSealMatch(receipt) {
+			addReceiptFailureForMissingSeal(index, input, report, receipt)
+			continue
+		}
 		anchorReceipts, validAnchorForSeal = processReceiptByKind(index, input, report, receipt, sealDigest, sealPayload, anchorReceipts, validAnchorForSeal)
 	}
 
+	if sealDigest == nil {
+		return
+	}
 	if anchorReceipts == 0 {
 		addDegraded(report, AuditVerificationReasonAnchorReceiptMissing, AuditVerificationDimensionAnchoring, "no anchor receipts present for sealed segment", input.Segment.Header.SegmentID, nil)
 		return
 	}
-	if !validAnchorForSeal && len(report.HardFailures) == 0 {
+	if !validAnchorForSeal {
 		addDegraded(report, AuditVerificationReasonAnchorReceiptMissing, AuditVerificationDimensionAnchoring, "anchor receipts are present but none target this segment seal digest", input.Segment.Header.SegmentID, nil)
 	}
+}
+
+func addReceiptFailureForMissingSeal(index int, input AuditVerificationInput, report *AuditVerificationReportPayload, receipt auditReceiptPayloadStrict) {
+	if receipt.AuditReceiptKind == "anchor" {
+		addHardFailure(report, AuditVerificationReasonAnchorReceiptInvalid, AuditVerificationDimensionAnchoring, fmt.Sprintf("anchor receipt[%d] cannot be validated because segment seal verification failed", index), input.Segment.Header.SegmentID, nil)
+		return
+	}
+	if receipt.AuditReceiptKind == "reconciliation" {
+		addHardFailure(report, AuditVerificationReasonReceiptInvalid, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] cannot be validated because segment seal verification failed", index), input.Segment.Header.SegmentID, nil)
+		return
+	}
+	addHardFailure(report, AuditVerificationReasonImportRestoreProvenanceInconsistent, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] cannot be validated because segment seal verification failed", index), input.Segment.Header.SegmentID, nil)
 }
 
 func verifyAndDecodeReceipt(index int, input AuditVerificationInput, registry *VerifierRegistry, report *AuditVerificationReportPayload) (auditReceiptPayloadStrict, bool) {

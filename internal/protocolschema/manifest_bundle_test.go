@@ -149,6 +149,8 @@ func assertSchemaVersionsCore(t *testing.T, manifest manifestFile) {
 		"runecode.protocol.v0.ApprovalDecision":             "0.3.0",
 		"runecode.protocol.v0.PolicyAllowlist":              "0.1.0",
 		"runecode.protocol.v0.ActionPayloadSecretAccess":    "0.1.0",
+		"runecode.protocol.v0.SecretLease":                  "0.1.0",
+		"runecode.protocol.v0.SecretStoragePosture":         "0.1.0",
 		"runecode.protocol.v0.DestinationDescriptor":        "0.1.0",
 		"runecode.protocol.v0.GatewayScopeRule":             "0.1.0",
 		"runecode.protocol.v0.PolicyRuleSet":                "0.1.0",

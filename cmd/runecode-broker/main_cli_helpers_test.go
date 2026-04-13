@@ -18,6 +18,7 @@ import (
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-ai/runecode/internal/secretsd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
@@ -395,7 +396,10 @@ func sha256Hex(value []byte) string {
 
 func setBrokerServiceForTest(t *testing.T) string {
 	t.Helper()
-	root := filepath.Join(t.TempDir(), "store")
+	root := filepath.Join(canonicalTempDir(t), "store")
+	secretsRoot := filepath.Join(root, "secrets-state")
+	seedBrokerSecretsReadinessState(t, secretsRoot)
+	t.Setenv("RUNE_SECRETS_STATE_ROOT", secretsRoot)
 	brokerServiceFactory = func() (*brokerapi.Service, error) {
 		return brokerapi.NewService(root, filepath.Join(root, "audit-ledger"))
 	}
@@ -403,6 +407,37 @@ func setBrokerServiceForTest(t *testing.T) string {
 		brokerServiceFactory = brokerService
 	})
 	return root
+}
+
+func seedBrokerSecretsReadinessState(t *testing.T, root string) {
+	t.Helper()
+	svc, err := secretsd.Open(root)
+	if err != nil {
+		t.Fatalf("secretsd.Open returned error: %v", err)
+	}
+	if _, err := svc.ImportSecret("secrets/prod/db", strings.NewReader("db-secret")); err != nil {
+		t.Fatalf("ImportSecret returned error: %v", err)
+	}
+	lease, err := svc.IssueLease(secretsd.IssueLeaseRequest{SecretRef: "secrets/prod/db", ConsumerID: "principal:runner:1", RoleKind: "runner", Scope: "stage:alpha", TTLSeconds: 120})
+	if err != nil {
+		t.Fatalf("IssueLease returned error: %v", err)
+	}
+	if _, err := svc.RenewLease(secretsd.RenewLeaseRequest{LeaseID: lease.LeaseID, ConsumerID: "principal:runner:1", RoleKind: "runner", Scope: "stage:alpha", TTLSeconds: 120}); err != nil {
+		t.Fatalf("RenewLease returned error: %v", err)
+	}
+	if _, err := svc.RevokeLease(secretsd.RevokeLeaseRequest{LeaseID: lease.LeaseID, ConsumerID: "principal:runner:1", RoleKind: "runner", Scope: "stage:alpha", Reason: "operator"}); err != nil {
+		t.Fatalf("RevokeLease returned error: %v", err)
+	}
+}
+
+func canonicalTempDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q) returned error: %v", dir, err)
+	}
+	return resolved
 }
 
 func testDigest(seed string) string {

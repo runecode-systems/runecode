@@ -5,23 +5,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ## Upcoming Features
 
-### v0.1.0-alpha.3
-
-- Policy Engine v0
-  - Actions are deterministically allowed or denied by signed policy with explicit approvals.
-  - Planned change: `runecontext/changes/CHG-2026-007-2315-policy-engine-v0/`
-- Launcher MicroVM Backend v0
-  - Roles can run in microVM isolates (Linux-first) with no host filesystem mounts.
-  - Planned change: `runecontext/changes/CHG-2026-009-1672-launcher-microvm-backend-v0/`
-- Workflow Runner + Workspace Roles + Deterministic Gates v0
-  - A first honest end-to-end slice executes offline workspace roles through the secure policy and evidence loop, delivered through scoped child features.
-  - Project change: `runecontext/changes/CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0/`
-  - Feature changes: `runecontext/changes/CHG-2026-033-6e7b-workflow-runner-durable-state-v0/`, `runecontext/changes/CHG-2026-034-b2d4-workspace-roles-v0/`, `runecontext/changes/CHG-2026-035-c8e1-deterministic-gates-v0/`
-- Minimal TUI v0
-  - Users land in a dashboard-first terminal client, can enter a first-class chat route, approve actions, and inspect runs, artifacts, and audit timelines through the real secure local API.
-  - Planned change: `runecontext/changes/CHG-2026-013-d2c9-minimal-tui-v0/`
-  - Callout: TUI delivery is tracked under `CHG-2026-038-5a1d-runecode-tui-experience-v0/`, and the alpha implementation is sequenced after the prerequisite contract lane in `CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0/`.
-
 ### v0.1.0-alpha.4
 
 - Secretsd + Model Gateway v0
@@ -142,3 +125,20 @@ No unscheduled items are currently tracked outside the planned work listed above
 - Broker + Local API v0
   - Components and isolates communicate via a local brokered API with schema validation.
   - Planned change: `runecontext/changes/CHG-2026-008-62e1-broker-local-api-v0/`
+
+- Policy Engine v0
+  - Actions are deterministically allowed or denied by signed policy with explicit approvals.
+  - Planned change: `runecontext/changes/CHG-2026-007-2315-policy-engine-v0/`
+- Launcher MicroVM Backend v0
+  - Roles can run in microVM isolates (Linux-first) with no host filesystem mounts.
+  - Planned change: `runecontext/changes/CHG-2026-009-1672-launcher-microvm-backend-v0/`
+- Workflow Runner + Workspace Roles + Deterministic Gates v0
+  - A first honest end-to-end slice executes offline workspace roles through the secure policy and evidence loop, delivered through scoped child features.
+  - Project change: `runecontext/changes/CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0/`
+  - Feature changes: `runecontext/changes/CHG-2026-033-6e7b-workflow-runner-durable-state-v0/`, `runecontext/changes/CHG-2026-034-b2d4-workspace-roles-v0/`, `runecontext/changes/CHG-2026-035-c8e1-deterministic-gates-v0/`
+- Minimal TUI v0
+  - Users land in a dashboard-first terminal client, can enter a first-class chat route, approve actions, and inspect runs, artifacts, and audit timelines through the real secure local API.
+  - Planned change: `runecontext/changes/CHG-2026-013-d2c9-minimal-tui-v0/`
+  - Callout: TUI delivery is tracked under `CHG-2026-038-5a1d-runecode-tui-experience-v0/`, and the alpha implementation is sequenced after the prerequisite contract lane in `CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0/`.
+
+

@@ -103,38 +103,6 @@ func NewPromotionAction(input PromotionActionInput) ActionRequest {
 	return buildActionRequest(ActionKindPromotion, actionPayloadPromotionSchemaID, payload, input.ActionEnvelope)
 }
 
-func NewGatewayEgressAction(input GatewayEgressActionInput) ActionRequest {
-	payload := map[string]any{
-		"schema_id":         actionPayloadGatewaySchemaID,
-		"schema_version":    "0.1.0",
-		"gateway_role_kind": input.GatewayRoleKind,
-		"destination_kind":  input.DestinationKind,
-		"destination_ref":   input.DestinationRef,
-		"egress_data_class": input.EgressDataClass,
-		"operation":         input.Operation,
-	}
-	if input.PayloadHash != nil {
-		payload["payload_hash"] = *input.PayloadHash
-	}
-	return buildActionRequest(ActionKindGatewayEgress, actionPayloadGatewaySchemaID, payload, input.ActionEnvelope)
-}
-
-func NewDependencyFetchAction(input GatewayEgressActionInput) ActionRequest {
-	payload := map[string]any{
-		"schema_id":         actionPayloadGatewaySchemaID,
-		"schema_version":    "0.1.0",
-		"gateway_role_kind": input.GatewayRoleKind,
-		"destination_kind":  input.DestinationKind,
-		"destination_ref":   input.DestinationRef,
-		"egress_data_class": input.EgressDataClass,
-		"operation":         input.Operation,
-	}
-	if input.PayloadHash != nil {
-		payload["payload_hash"] = *input.PayloadHash
-	}
-	return buildActionRequest(ActionKindDependencyFetch, actionPayloadGatewaySchemaID, payload, input.ActionEnvelope)
-}
-
 func NewBackendPostureChangeAction(input BackendPostureChangeActionInput) ActionRequest {
 	payload := map[string]any{
 		"schema_id":         actionPayloadBackendSchemaID,
@@ -178,11 +146,24 @@ func NewSecretAccessAction(input SecretAccessActionInput) ActionRequest {
 	payload := map[string]any{
 		"schema_id":      actionPayloadSecretAccessID,
 		"schema_version": "0.1.0",
-		"secret_ref":     input.SecretRef,
 		"access_mode":    input.AccessMode,
+	}
+	if input.SecretRef != "" {
+		payload["secret_ref"] = input.SecretRef
+	}
+	if input.LeaseID != "" {
+		payload["lease_id"] = input.LeaseID
 	}
 	if input.LeaseTTLSeconds != nil {
 		payload["lease_ttl_seconds"] = *input.LeaseTTLSeconds
+	}
+	if input.RenewalContext != nil {
+		renewalContext := map[string]any{
+			"consumer_principal_ref": input.RenewalContext.ConsumerPrincipalRef,
+			"target_ref":             input.RenewalContext.TargetRef,
+			"policy_context_hash":    input.RenewalContext.PolicyContextHash,
+		}
+		payload["renewal_context"] = renewalContext
 	}
 	if input.Justification != "" {
 		payload["justification"] = input.Justification

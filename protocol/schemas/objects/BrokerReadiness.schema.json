@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/BrokerReadiness.schema.json",
   "title": "BrokerReadiness",
-  "description": "Broker readiness model mapped from auditd readiness dimensions for local supervision.",
+  "description": "Broker readiness model mapped from local subsystem supervision dimensions with broker-projected posture fields for operator-facing visibility.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 10,
+  "maxProperties": 17,
   "required": ["schema_id", "schema_version", "ready", "local_only", "consumption_channel", "recovery_complete", "append_position_stable", "current_segment_writable", "verifier_material_available", "derived_index_caught_up"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.BrokerReadiness", "description": "Protocol schema identifier.", "x-data-class": "public" },
@@ -17,6 +17,100 @@
     "append_position_stable": { "type": "boolean", "description": "Append-position stability flag.", "x-data-class": "public" },
     "current_segment_writable": { "type": "boolean", "description": "Current segment writable posture.", "x-data-class": "public" },
     "verifier_material_available": { "type": "boolean", "description": "Verifier material availability flag.", "x-data-class": "public" },
-    "derived_index_caught_up": { "type": "boolean", "description": "Derived index catch-up flag.", "x-data-class": "public" }
-  }
+    "derived_index_caught_up": { "type": "boolean", "description": "Derived index catch-up flag.", "x-data-class": "public" },
+    "secrets_ready": {
+      "type": "boolean",
+      "description": "Local-only readiness signal for the secrets subsystem projected through broker status surfaces.",
+      "x-data-class": "public"
+    },
+    "secrets_health_state": {
+      "type": "string",
+      "enum": ["ok", "degraded", "failed"],
+      "description": "Local-only health signal for the secrets subsystem supervision state.",
+      "x-data-class": "public"
+    },
+    "secrets_operational_metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 5,
+      "required": ["lease_issue_count", "lease_renew_count", "lease_revoke_count", "lease_denied_count", "active_lease_count"],
+      "description": "Minimal local-only operational metrics for secrets lease lifecycle behavior, broker-projected for operator visibility.",
+      "x-data-class": "public",
+      "properties": {
+        "lease_issue_count": { "type": "integer", "minimum": 0, "description": "Count of lease issue operations observed by the local secrets subsystem.", "x-data-class": "public" },
+        "lease_renew_count": { "type": "integer", "minimum": 0, "description": "Count of lease renew operations observed by the local secrets subsystem.", "x-data-class": "public" },
+        "lease_revoke_count": { "type": "integer", "minimum": 0, "description": "Count of lease revoke operations observed by the local secrets subsystem.", "x-data-class": "public" },
+        "lease_denied_count": { "type": "integer", "minimum": 0, "description": "Count of fail-closed denied lease operations observed by the local secrets subsystem.", "x-data-class": "public" },
+        "active_lease_count": { "type": "integer", "minimum": 0, "description": "Current count of active secrets leases in local durable state.", "x-data-class": "public" }
+      }
+    },
+    "secrets_storage_posture": {
+      "$ref": "SecretStoragePosture.schema.json",
+      "description": "Optional durable secrets custody posture summary for broker/operator distinction between secure default and explicit portable degraded mode.",
+      "x-data-class": "public"
+    },
+    "model_gateway_ready": {
+      "type": "boolean",
+      "description": "Broker-projected readiness signal for model-gateway behavior; daemon-local supervision remains internal.",
+      "x-data-class": "public"
+    },
+    "model_gateway_health_state": {
+      "type": "string",
+      "enum": ["ok", "degraded", "failed"],
+      "description": "Broker-projected model-gateway health state for operator/user posture surfaces.",
+      "x-data-class": "public"
+    },
+    "model_gateway_posture_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 8,
+      "required": ["schema_id", "schema_version", "projection_kind", "gateway_role_kind", "destination_scope_kind", "configuration_state", "egress_policy_posture", "surface_channel"],
+      "description": "Broker-projected model-gateway posture summary that avoids introducing a daemon-specific public API.",
+      "x-data-class": "public",
+      "properties": {
+        "schema_id": { "const": "runecode.protocol.v0.ModelGatewayPostureProjection", "description": "Protocol schema identifier for projected model-gateway posture.", "x-data-class": "public" },
+        "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+        "projection_kind": { "type": "string", "const": "broker_projected", "description": "Projection kind for operator posture surfaces.", "x-data-class": "public" },
+        "gateway_role_kind": { "type": "string", "const": "model-gateway", "description": "Gateway role for this projected posture record.", "x-data-class": "public" },
+        "destination_scope_kind": { "type": "string", "const": "gateway_destination", "description": "Scope kind represented by model-gateway policy posture projection.", "x-data-class": "public" },
+        "configuration_state": { "type": "string", "enum": ["not_configured", "configured"], "description": "Configuration posture for model-gateway policy data availability; not_configured is a neutral empty-data state.", "x-data-class": "public" },
+        "egress_policy_posture": { "type": "string", "enum": ["deny_by_default", "allowlist_only"], "description": "Projected egress authorization posture for model-gateway traffic.", "x-data-class": "public" },
+        "surface_channel": { "type": "string", "const": "broker_local_api", "description": "Broker API channel that exposes projected posture.", "x-data-class": "public" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["secrets_health_state"]
+      },
+      "then": {
+        "required": ["secrets_ready"]
+      }
+    },
+    {
+      "if": {
+        "required": ["secrets_operational_metrics"]
+      },
+      "then": {
+        "required": ["secrets_ready"]
+      }
+    },
+    {
+      "if": {
+        "required": ["model_gateway_health_state"]
+      },
+      "then": {
+        "required": ["model_gateway_ready"]
+      }
+    },
+    {
+      "if": {
+        "required": ["model_gateway_posture_projection"]
+      },
+      "then": {
+        "required": ["model_gateway_ready"]
+      }
+    }
+  ]
 }

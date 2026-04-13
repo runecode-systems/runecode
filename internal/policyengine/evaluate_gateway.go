@@ -1,26 +1,52 @@
 package policyengine
 
-import "strings"
+import (
+	"strings"
+)
+
+const (
+	gatewayMaxTimeoutSecondsHardLimit   = 300
+	gatewayMaxResponseBytesHardLimit    = 16 * 1024 * 1024
+	gatewayRedirectPostureDeny          = "deny"
+	gatewayRedirectPostureAllowlistOnly = "allowlist_only"
+)
 
 func evaluateGatewayBoundary(compiled *CompiledContext, action ActionRequest, actionHash string) (PolicyDecision, bool) {
-	if decision, blocked := denyIfInvalidGatewayFamily(compiled, action, actionHash); blocked {
-		return decision, true
-	}
-	payload, decision, blocked := decodeAndValidateGatewayPayload(compiled, action, actionHash)
+	payload, decision, blocked := validateGatewayBoundaryInput(compiled, action, actionHash)
 	if blocked {
 		return decision, true
 	}
-	if decision, blocked := denyIfDependencySplitViolation(compiled, action, actionHash, payload); blocked {
-		return decision, true
+	return evaluateGatewayBoundaryInvariants(compiled, action, actionHash, payload)
+}
+
+func validateGatewayBoundaryInput(compiled *CompiledContext, action ActionRequest, actionHash string) (gatewayEgressPayload, PolicyDecision, bool) {
+	if decision, blocked := denyIfInvalidGatewayFamily(compiled, action, actionHash); blocked {
+		return gatewayEgressPayload{}, decision, true
 	}
-	if decision, blocked := denyIfUnknownGatewayDestination(compiled, action, actionHash, payload); blocked {
-		return decision, true
+	payload, decision, blocked := decodeAndValidateGatewayPayload(compiled, action, actionHash)
+	if blocked {
+		return gatewayEgressPayload{}, decision, true
 	}
-	if decision, blocked := denyIfGatewayRoleMismatch(compiled, action, actionHash, payload); blocked {
-		return decision, true
+	return payload, PolicyDecision{}, false
+}
+
+func evaluateGatewayBoundaryInvariants(compiled *CompiledContext, action ActionRequest, actionHash string, payload gatewayEgressPayload) (PolicyDecision, bool) {
+	checks := []func(*CompiledContext, ActionRequest, string, gatewayEgressPayload) (PolicyDecision, bool){
+		denyIfDependencySplitViolation,
+		denyIfModelGatewayUsesAuthProviderFlow,
+		denyIfModelGatewayUsesAuthOperations,
+		denyIfModelInvokePayloadHashUnbound,
+		denyIfDisallowedGatewayEgressDataClass,
+		denyIfGatewayAuditBindingsInvalid,
+		denyIfGatewayQuotaContextInvalid,
+		denyIfUnknownGatewayDestination,
+		denyIfGatewayRoleMismatch,
+		denyIfDestinationNotAllowlisted,
 	}
-	if decision, blocked := denyIfDestinationNotAllowlisted(compiled, action, actionHash, payload); blocked {
-		return decision, true
+	for _, check := range checks {
+		if decision, blocked := check(compiled, action, actionHash, payload); blocked {
+			return decision, true
+		}
 	}
 	return PolicyDecision{}, false
 }
@@ -55,8 +81,12 @@ func denyIfGatewayRoleMismatch(compiled *CompiledContext, action ActionRequest, 
 }
 
 func denyIfDestinationNotAllowlisted(compiled *CompiledContext, action ActionRequest, actionHash string, payload gatewayEgressPayload) (PolicyDecision, bool) {
-	if gatewayDestinationAllowedBySignedAllowlists(compiled, action, payload) {
+	allowed, denyDetails := gatewayDestinationAllowedBySignedAllowlists(compiled, payload)
+	if allowed {
 		return PolicyDecision{}, false
+	}
+	if denyDetails != nil {
+		return denyInvariantDecision(compiled, action, actionHash, denyDetails), true
 	}
 	return denyInvariantDecision(compiled, action, actionHash, map[string]any{
 		"precedence":       "allowlist_active_manifest_set",
@@ -84,17 +114,6 @@ func denyIfInvalidGatewayFamily(compiled *CompiledContext, action ActionRequest,
 			details["artifact_route_actions"] = []string{ActionKindArtifactRead}
 		}
 		return denyInvariantDecision(compiled, action, actionHash, details), true
-	}
-	if compiled.Context.ActiveRoleKind == "workspace-read" || compiled.Context.ActiveRoleKind == "workspace-edit" || compiled.Context.ActiveRoleKind == "workspace-test" {
-		return denyInvariantDecision(compiled, action, actionHash, map[string]any{
-			"precedence":                    "invariants_first",
-			"invariant":                     "network_egress_hard_boundary",
-			"non_approvable":                true,
-			"workspace_role_kind":           compiled.Context.ActiveRoleKind,
-			"workspace_offline_only":        true,
-			"required_cross_boundary_route": "artifact_io",
-			"artifact_route_actions":        []string{ActionKindArtifactRead},
-		}), true
 	}
 	return PolicyDecision{}, false
 }
@@ -151,52 +170,55 @@ func denyIfDependencySplitViolation(compiled *CompiledContext, action ActionRequ
 	return PolicyDecision{}, false
 }
 
-func requiredGatewayRoleForDestination(destinationKind string) (string, bool) {
-	requiredRoleForDestination := map[string]string{
-		"model_endpoint":   "model-gateway",
-		"auth_provider":    "auth-gateway",
-		"git_remote":       "git-gateway",
-		"web_origin":       "web-research",
-		"package_registry": "dependency-fetch",
+func denyIfModelGatewayUsesAuthProviderFlow(compiled *CompiledContext, action ActionRequest, actionHash string, payload gatewayEgressPayload) (PolicyDecision, bool) {
+	if payload.GatewayRoleKind != "model-gateway" {
+		return PolicyDecision{}, false
 	}
-	requiredRole, ok := requiredRoleForDestination[destinationKind]
-	return requiredRole, ok
+	if payload.DestinationKind != "auth_provider" {
+		return PolicyDecision{}, false
+	}
+	return denyInvariantDecision(compiled, action, actionHash, map[string]any{
+		"precedence":        "invariants_first",
+		"invariant":         "gateway_role_separation",
+		"non_approvable":    true,
+		"gateway_role_kind": payload.GatewayRoleKind,
+		"destination_kind":  payload.DestinationKind,
+		"reason":            "model_gateway_cannot_perform_auth_provider_exchange_or_refresh",
+	}), true
 }
 
-func gatewayDestinationAllowedBySignedAllowlists(compiled *CompiledContext, action ActionRequest, payload gatewayEgressPayload) bool {
-	refs := compiled.Context.ActiveAllowlistRefs
-	for _, ref := range refs {
-		allowlist, ok := compiled.AllowlistsByHash[ref]
-		if !ok {
-			continue
-		}
-		for _, entry := range allowlist.Entries {
-			if gatewayScopeEntryMatchesPayload(entry, payload) {
-				return true
-			}
-		}
+func denyIfModelGatewayUsesAuthOperations(compiled *CompiledContext, action ActionRequest, actionHash string, payload gatewayEgressPayload) (PolicyDecision, bool) {
+	if payload.GatewayRoleKind != "model-gateway" {
+		return PolicyDecision{}, false
 	}
-	return false
+	if payload.Operation != "exchange_auth_code" && payload.Operation != "refresh_auth_token" {
+		return PolicyDecision{}, false
+	}
+	return denyInvariantDecision(compiled, action, actionHash, map[string]any{
+		"precedence":        "invariants_first",
+		"invariant":         "gateway_role_separation",
+		"non_approvable":    true,
+		"gateway_role_kind": payload.GatewayRoleKind,
+		"operation":         payload.Operation,
+		"reason":            "model_gateway_cannot_perform_auth_exchange_or_refresh_operations",
+	}), true
 }
 
-func gatewayScopeEntryMatchesPayload(entry GatewayScopeRule, payload gatewayEgressPayload) bool {
-	if entry.ScopeKind != "gateway_destination" {
-		return false
+func denyIfDisallowedGatewayEgressDataClass(compiled *CompiledContext, action ActionRequest, actionHash string, payload gatewayEgressPayload) (PolicyDecision, bool) {
+	if payload.GatewayRoleKind != "model-gateway" {
+		return PolicyDecision{}, false
 	}
-	if payload.Operation == "" {
-		return false
+	if payload.EgressDataClass != "unapproved_file_excerpts" {
+		return PolicyDecision{}, false
 	}
-	if entry.GatewayRoleKind != "" && entry.GatewayRoleKind != payload.GatewayRoleKind {
-		return false
-	}
-	if entry.Destination.DescriptorKind != payload.DestinationKind {
-		return false
-	}
-	if !destinationRefMatches(entry.Destination, payload.DestinationRef) {
-		return false
-	}
-	if !containsString(entry.PermittedOperations, payload.Operation) {
-		return false
-	}
-	return containsString(entry.AllowedEgressDataClasses, payload.EgressDataClass)
+	return denyInvariantDecision(compiled, action, actionHash, map[string]any{
+		"precedence":        "invariants_first",
+		"invariant":         "network_egress_hard_boundary",
+		"non_approvable":    true,
+		"gateway_role_kind": payload.GatewayRoleKind,
+		"destination_kind":  payload.DestinationKind,
+		"operation":         payload.Operation,
+		"egress_data_class": payload.EgressDataClass,
+		"reason":            "disallowed_egress_data_class",
+	}), true
 }

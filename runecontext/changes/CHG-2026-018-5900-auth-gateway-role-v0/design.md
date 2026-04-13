@@ -11,10 +11,36 @@ Define the dedicated auth gateway role, provider-agnostic auth object families, 
 - Auth flows are typed, auditable, and fail closed on state/protocol mismatches.
 - Auth egress should use the shared typed gateway destination/allowlist model so provider identity and allowed auth operations are expressed through canonical descriptors rather than raw URL decisions.
 
+## Lease And Token Handoff
+
+- `SecretLease` is the canonical short-lived token handoff contract for auth-derived credentials.
+- `auth-gateway` may issue or renew auth-derived short-lived token material only through the reviewed `secretsd` lease boundary.
+- `model-gateway` and later bridge/runtime consumers should consume short-lived auth material by lease identity rather than through custom provider-specific token-delivery paths.
+- Long-lived refresh or session authority remains isolated to `secretsd`.
+
+## Gateway Separation
+
+- `auth-gateway` is the only gateway role for auth-provider egress.
+- `auth-gateway` must not perform model inference or become a back door to general model-provider access.
+- `model-gateway` must not perform login, code exchange, or token refresh in place.
+- The auth lane should reuse the same canonical destination identity and shared gateway-operation vocabulary as the broader gateway foundation.
+
+## Auth Contract Shape
+
+- Shared auth object families should stay provider-agnostic, typed, and versioned.
+- Provider-specific flows may extend the shared auth families but must not replace them with raw provider payloads as the control-plane contract source of truth.
+- Auth request-execution operations should be bindable to canonical typed request identity in the same way model request execution now binds `payload_hash` to `LLMRequest` identity.
+
+## Operator Posture
+
+- Daemon-local auth supervision is not the long-lived operator-facing API.
+- Any user-facing or operator-facing auth posture should be broker-projected together with other subsystem posture rather than creating a second public truth source.
+
 ## Main Workstreams
 - Auth Gateway Role Contract
 - Provider-Agnostic Auth Objects
 - Secret Handling + Token Storage
+- Canonical lease-based token handoff
 - Audit + Policy Integration
 
 ## RuneContext Migration Notes

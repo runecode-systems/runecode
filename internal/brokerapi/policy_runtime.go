@@ -45,6 +45,7 @@ func (r policyRuntime) EvaluateAction(runID string, action policyengine.ActionRe
 	if err != nil {
 		return policyengine.PolicyDecision{}, err
 	}
+	decision = r.enforceGatewayRuntime(runID, compiled, action, decision)
 	if err := r.service.RecordPolicyDecision(runID, "", decision); err != nil {
 		return policyengine.PolicyDecision{}, err
 	}

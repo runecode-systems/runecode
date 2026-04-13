@@ -8,28 +8,6 @@ import (
 	"github.com/runecode-ai/runecode/internal/artifacts"
 )
 
-const (
-	artifactSummarySchemaPath              = "objects/ArtifactSummary.schema.json"
-	brokerReadinessSchemaPath              = "objects/BrokerReadiness.schema.json"
-	brokerVersionInfoSchemaPath            = "objects/BrokerVersionInfo.schema.json"
-	artifactListRequestSchemaPath          = "objects/ArtifactListRequest.schema.json"
-	artifactListResponseSchemaPath         = "objects/ArtifactListResponse.schema.json"
-	artifactHeadRequestSchemaPath          = "objects/ArtifactHeadRequest.schema.json"
-	artifactHeadResponseSchemaPath         = "objects/ArtifactHeadResponse.schema.json"
-	artifactReadRequestSchemaPath          = "objects/ArtifactReadRequest.schema.json"
-	artifactStreamEventSchemaPath          = "objects/ArtifactStreamEvent.schema.json"
-	logStreamEventSchemaPath               = "objects/LogStreamEvent.schema.json"
-	logStreamRequestSchemaPath             = "objects/LogStreamRequest.schema.json"
-	readinessGetRequestSchemaPath          = "objects/ReadinessGetRequest.schema.json"
-	readinessGetResponseSchemaPath         = "objects/ReadinessGetResponse.schema.json"
-	versionInfoGetRequestSchemaPath        = "objects/VersionInfoGetRequest.schema.json"
-	versionInfoGetResponseSchemaPath       = "objects/VersionInfoGetResponse.schema.json"
-	auditTimelineRequestSchemaPath         = "objects/AuditTimelineRequest.schema.json"
-	auditTimelineResponseSchemaPath        = "objects/AuditTimelineResponse.schema.json"
-	auditVerificationGetRequestSchemaPath  = "objects/AuditVerificationGetRequest.schema.json"
-	auditVerificationGetResponseSchemaPath = "objects/AuditVerificationGetResponse.schema.json"
-)
-
 type ArtifactSummary struct {
 	SchemaID             string                      `json:"schema_id"`
 	SchemaVersion        string                      `json:"schema_version"`
@@ -41,32 +19,6 @@ type ArtifactSummary struct {
 	StepID               string                      `json:"step_id,omitempty"`
 	ApprovalOfDigest     string                      `json:"approval_of_digest,omitempty"`
 	ApprovalDecisionHash string                      `json:"approval_decision_hash,omitempty"`
-}
-
-type BrokerReadiness struct {
-	SchemaID                  string `json:"schema_id"`
-	SchemaVersion             string `json:"schema_version"`
-	Ready                     bool   `json:"ready"`
-	LocalOnly                 bool   `json:"local_only"`
-	ConsumptionChannel        string `json:"consumption_channel"`
-	RecoveryComplete          bool   `json:"recovery_complete"`
-	AppendPositionStable      bool   `json:"append_position_stable"`
-	CurrentSegmentWritable    bool   `json:"current_segment_writable"`
-	VerifierMaterialAvailable bool   `json:"verifier_material_available"`
-	DerivedIndexCaughtUp      bool   `json:"derived_index_caught_up"`
-}
-
-type BrokerVersionInfo struct {
-	SchemaID                    string   `json:"schema_id"`
-	SchemaVersion               string   `json:"schema_version"`
-	ProductVersion              string   `json:"product_version"`
-	BuildRevision               string   `json:"build_revision"`
-	BuildTime                   string   `json:"build_time"`
-	ProtocolBundleVersion       string   `json:"protocol_bundle_version"`
-	ProtocolBundleManifestHash  string   `json:"protocol_bundle_manifest_hash"`
-	APIFamily                   string   `json:"api_family"`
-	APIVersion                  string   `json:"api_version"`
-	SupportedTransportEncodings []string `json:"supported_transport_encodings"`
 }
 
 type LocalArtifactListRequest struct {
@@ -188,32 +140,6 @@ type LogStreamRequest struct {
 	RequestCtx     context.Context    `json:"-"`
 	Cancel         context.CancelFunc `json:"-"`
 	Release        func()             `json:"-"`
-}
-
-type ReadinessGetRequest struct {
-	SchemaID      string `json:"schema_id"`
-	SchemaVersion string `json:"schema_version"`
-	RequestID     string `json:"request_id"`
-}
-
-type ReadinessGetResponse struct {
-	SchemaID      string          `json:"schema_id"`
-	SchemaVersion string          `json:"schema_version"`
-	RequestID     string          `json:"request_id"`
-	Readiness     BrokerReadiness `json:"readiness"`
-}
-
-type VersionInfoGetRequest struct {
-	SchemaID      string `json:"schema_id"`
-	SchemaVersion string `json:"schema_version"`
-	RequestID     string `json:"request_id"`
-}
-
-type VersionInfoGetResponse struct {
-	SchemaID      string            `json:"schema_id"`
-	SchemaVersion string            `json:"schema_version"`
-	RequestID     string            `json:"request_id"`
-	VersionInfo   BrokerVersionInfo `json:"version_info"`
 }
 
 func toArtifactSummary(record artifacts.ArtifactRecord) ArtifactSummary {

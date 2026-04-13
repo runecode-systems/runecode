@@ -86,6 +86,74 @@ func TestEvaluateDeniesDependencyFetchWhenNotUsingDependencyRoleAndKind(t *testi
 	}
 }
 
+func TestEvaluateDeniesSecretAccessForGatewayRole(t *testing.T) {
+	compiled := mustCompile(t, compileGatewayInputWithOneCapability("model-gateway", "cap_gateway", validAllowlistPayloadForGateway("allowlist-model", "model-gateway", "model_endpoint", "invoke_model", "spec_text")))
+	action := validSecretAccessActionRequest("cap_gateway")
+	action.RoleFamily = "gateway"
+	action.RoleKind = "model-gateway"
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionDeny {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	}
+	if got, _ := decision.Details["invariant"].(string); got != "gateway_no_long_lived_secret_storage" {
+		t.Fatalf("invariant = %v, want gateway_no_long_lived_secret_storage", decision.Details["invariant"])
+	}
+}
+
+func TestEvaluateDeniesArtifactReadForGatewayRole(t *testing.T) {
+	compiled := mustCompile(t, compileGatewayInputWithOneCapability("model-gateway", "cap_gateway", validAllowlistPayloadForGateway("allowlist-model", "model-gateway", "model_endpoint", "invoke_model", "spec_text")))
+	action := validArtifactReadActionRequest("cap_gateway")
+	action.RoleFamily = "gateway"
+	action.RoleKind = "model-gateway"
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionDeny {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	}
+	if got, _ := decision.Details["invariant"].(string); got != "gateway_no_workspace_access" {
+		t.Fatalf("invariant = %v, want gateway_no_workspace_access", decision.Details["invariant"])
+	}
+}
+
+func TestEvaluateDeniesModelGatewayAuthProviderDestination(t *testing.T) {
+	compiled := mustCompile(t, compileGatewayInputWithOneCapability("model-gateway", "cap_gateway", validAllowlistPayloadForGateway("allowlist-auth", "model-gateway", "auth_provider", "exchange_auth_code", "spec_text")))
+	action := validGatewayEgressActionRequest("cap_gateway", "gateway", "model-gateway", "model-gateway", "auth_provider", ActionKindGatewayEgress)
+	action.ActionPayload["destination_ref"] = "allowlist-auth.example.com"
+	action.ActionPayload["operation"] = "exchange_auth_code"
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionDeny {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	}
+	if got, _ := decision.Details["invariant"].(string); got != "gateway_role_separation" {
+		t.Fatalf("invariant = %v, want gateway_role_separation", decision.Details["invariant"])
+	}
+}
+
+func TestEvaluateDeniesModelGatewayAuthRefreshOperation(t *testing.T) {
+	compiled := mustCompile(t, compileGatewayInputWithOneCapability("model-gateway", "cap_gateway", validAllowlistPayloadForGateway("allowlist-model", "model-gateway", "model_endpoint", "refresh_auth_token", "spec_text")))
+	action := validGatewayEgressActionRequest("cap_gateway", "gateway", "model-gateway", "model-gateway", "model_endpoint", ActionKindGatewayEgress)
+	action.ActionPayload["destination_ref"] = "allowlist-model.example.com"
+	action.ActionPayload["operation"] = "refresh_auth_token"
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionDeny {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	}
+	if got, _ := decision.Details["invariant"].(string); got != "gateway_role_separation" {
+		t.Fatalf("invariant = %v, want gateway_role_separation", decision.Details["invariant"])
+	}
+}
+
 func TestEvaluateExecutorSystemModifyingDeniedForWorkspaceRoleMatrix(t *testing.T) {
 	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
 	action := validExecutorRunActionRequest("cap_stage", "system_modifying", []string{"apt-get", "install", "jq"})

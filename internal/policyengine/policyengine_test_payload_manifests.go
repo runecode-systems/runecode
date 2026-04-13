@@ -58,6 +58,8 @@ func validAllowlistPayload(entry string) map[string]any {
 			"permitted_operations":        []any{"invoke_model"},
 			"allowed_egress_data_classes": []any{"spec_text"},
 			"redirect_posture":            "allowlist_only",
+			"max_timeout_seconds":         float64(120),
+			"max_response_bytes":          float64(16777216),
 		}},
 	}
 }

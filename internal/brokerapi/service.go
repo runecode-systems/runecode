@@ -23,14 +23,16 @@ const (
 )
 
 type Service struct {
-	store       *artifacts.Store
-	auditLedger *auditd.Ledger
-	auditor     *brokerAuditEmitter
-	auditRoot   string
-	apiConfig   APIConfig
-	apiInflight *inFlightGate
-	versionInfo BrokerVersionInfo
-	now         func() time.Time
+	store          *artifacts.Store
+	auditLedger    *auditd.Ledger
+	auditor        *brokerAuditEmitter
+	auditRoot      string
+	gatewayQuota   *gatewayQuotaBackend
+	gatewayRuntime *modelGatewayRuntime
+	apiConfig      APIConfig
+	apiInflight    *inFlightGate
+	versionInfo    BrokerVersionInfo
+	now            func() time.Time
 }
 
 func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
@@ -51,16 +53,23 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 	if err != nil {
 		return nil, err
 	}
-	return &Service{
-		store:       store,
-		auditLedger: ledger,
-		auditor:     auditor,
-		auditRoot:   ledgerRoot,
-		apiConfig:   resolved,
-		apiInflight: newInFlightGate(resolved.Limits),
-		now:         time.Now,
-		versionInfo: defaultBrokerVersionInfo(),
-	}, nil
+	quotaBackend := newGatewayQuotaBackend()
+	quotaBackend.setLimits(resolved.GatewayQuota)
+	runtime := newModelGatewayRuntime(quotaBackend)
+	svc := &Service{
+		store:          store,
+		auditLedger:    ledger,
+		auditor:        auditor,
+		auditRoot:      ledgerRoot,
+		gatewayQuota:   quotaBackend,
+		gatewayRuntime: runtime,
+		apiConfig:      resolved,
+		apiInflight:    newInFlightGate(resolved.Limits),
+		now:            time.Now,
+		versionInfo:    defaultBrokerVersionInfo(),
+	}
+	runtime.auditFn = svc.AppendTrustedAuditEvent
+	return svc, nil
 }
 
 func defaultBrokerVersionInfo() BrokerVersionInfo {
@@ -144,7 +153,13 @@ func (s *Service) RevokeApprovedExcerpt(digest, actor string) error {
 }
 
 func (s *Service) SetRunStatus(runID, status string) error {
-	return s.store.SetRunStatus(runID, status)
+	if err := s.store.SetRunStatus(runID, status); err != nil {
+		return err
+	}
+	if s.gatewayQuota != nil && isTerminalRunStatus(status) {
+		s.gatewayQuota.releaseRun(runID)
+	}
+	return nil
 }
 
 func (s *Service) RecordRunnerCheckpoint(runID string, checkpoint artifacts.RunnerCheckpointAdvisory) (bool, error) {
@@ -271,6 +286,4 @@ func (s *Service) LatestAuditVerificationSurface(limit int) (AuditVerificationSu
 	return AuditVerificationSurface{Summary: summary, Report: report, Views: views}, nil
 }
 
-func (s *Service) APILimits() Limits {
-	return s.apiConfig.Limits
-}
+func (s *Service) APILimits() Limits { return s.apiConfig.Limits }

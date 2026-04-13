@@ -62,7 +62,45 @@ func putTrustedPolicyContextForRun(t *testing.T, s *Service, runID string, withR
 
 func trustedPolicyAllowlistPayload(t *testing.T) []byte {
 	t.Helper()
-	return mustJSONBytes(t, map[string]any{"schema_id": "runecode.protocol.v0.PolicyAllowlist", "schema_version": "0.1.0", "allowlist_kind": "gateway_scope_rule", "entry_schema_id": "runecode.protocol.v0.GatewayScopeRule", "entries": []any{map[string]any{"schema_id": "runecode.protocol.v0.GatewayScopeRule", "schema_version": "0.1.0", "scope_kind": "gateway_destination", "destination": map[string]any{"schema_id": "runecode.protocol.v0.DestinationDescriptor", "schema_version": "0.1.0", "descriptor_kind": "model_endpoint", "canonical_host": "model.example.com", "tls_required": true, "private_range_blocking": "enforced", "dns_rebinding_protection": "enforced"}, "permitted_operations": []any{"invoke_model"}, "allowed_egress_data_classes": []any{"spec_text"}, "redirect_posture": "allowlist_only"}}})
+	return trustedPolicyAllowlistPayloadWithEntries(t, []any{trustedModelGatewayAllowlistEntry()})
+}
+
+func trustedPolicyAllowlistPayloadWithEntries(t *testing.T, entries []any) []byte {
+	t.Helper()
+	return mustJSONBytes(t, map[string]any{
+		"schema_id":       "runecode.protocol.v0.PolicyAllowlist",
+		"schema_version":  "0.1.0",
+		"allowlist_kind":  "gateway_scope_rule",
+		"entry_schema_id": "runecode.protocol.v0.GatewayScopeRule",
+		"entries":         entries,
+	})
+}
+
+func trustedModelGatewayAllowlistEntry() map[string]any {
+	return map[string]any{
+		"schema_id":                   "runecode.protocol.v0.GatewayScopeRule",
+		"schema_version":              "0.1.0",
+		"scope_kind":                  "gateway_destination",
+		"gateway_role_kind":           "model-gateway",
+		"destination":                 trustedModelGatewayDestination(),
+		"permitted_operations":        []any{"invoke_model"},
+		"allowed_egress_data_classes": []any{"spec_text"},
+		"redirect_posture":            "allowlist_only",
+		"max_timeout_seconds":         120,
+		"max_response_bytes":          16777216,
+	}
+}
+
+func trustedModelGatewayDestination() map[string]any {
+	return map[string]any{
+		"schema_id":                "runecode.protocol.v0.DestinationDescriptor",
+		"schema_version":           "0.1.0",
+		"descriptor_kind":          "model_endpoint",
+		"canonical_host":           "model.example.com",
+		"tls_required":             true,
+		"private_range_blocking":   "enforced",
+		"dns_rebinding_protection": "enforced",
+	}
 }
 
 func trustedRoleManifestPayload(t *testing.T, verifier trustpolicy.VerifierRecord, privateKey ed25519.PrivateKey, runID, allowlistDigest string) []byte {
@@ -91,6 +129,11 @@ func maybePutTrustedRuleSet(t *testing.T, s *Service, runID string, withRuleSet 
 func putTrustedPolicyArtifact(t *testing.T, s *Service, runID, kind string, payload []byte) string {
 	t.Helper()
 	provenance := "sha256:" + strings.Repeat("1", 64)
+	return putTrustedPolicyArtifactWithProvenance(t, s, runID, kind, payload, provenance)
+}
+
+func putTrustedPolicyArtifactWithProvenance(t *testing.T, s *Service, runID, kind string, payload []byte, provenance string) string {
+	t.Helper()
 	ref, err := s.Put(artifacts.PutRequest{Payload: payload, ContentType: "application/json", DataClass: artifacts.DataClassAuditVerificationReport, ProvenanceReceiptHash: provenance, CreatedByRole: "broker", TrustedSource: true, RunID: runID})
 	if err != nil {
 		t.Fatalf("Put trusted policy artifact returned error: %v", err)

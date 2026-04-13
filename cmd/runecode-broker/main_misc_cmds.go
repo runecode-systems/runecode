@@ -274,6 +274,9 @@ func handleSeedDevManualScenario(args []string, service *brokerapi.Service, stdo
 	if *profile != "tui-rich-v1" {
 		return &usageError{message: fmt.Sprintf("seed-dev-manual-scenario unsupported --profile %q (supported: tui-rich-v1)", *profile)}
 	}
+	if !brokerapi.DevManualSeedBuildEnabled() {
+		return &usageError{message: "seed-dev-manual-scenario unavailable in this build"}
+	}
 	result, err := service.SeedDevManualScenario()
 	if err != nil {
 		return fmt.Errorf("seed-dev-manual-scenario failed: %w", err)

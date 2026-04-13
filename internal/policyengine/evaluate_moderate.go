@@ -31,6 +31,12 @@ func moderateCheckpointDetails(actionKind string) (map[string]any, bool) {
 	case ActionKindSecretAccess:
 		base["checkpoint_model"] = "secret_checkpoint"
 		return base, true
+	case ActionKindGateOverride:
+		base["checkpoint_model"] = "gate_override_checkpoint"
+		return base, true
+	case ActionKindBackendPosture:
+		base["checkpoint_model"] = "backend_posture_checkpoint"
+		return base, true
 	case ActionKindWorkspaceWrite:
 		delete(base, "checkpoint_model")
 		return base, true
@@ -162,7 +168,7 @@ func moderateSecretApprovalPayload(base map[string]any) map[string]any {
 	payload := cloneMap(base)
 	payload["approval_trigger_code"] = "secret_access_lease"
 	payload["approval_assurance_level"] = string(ApprovalAssuranceReauthenticated)
-	payload["why_required"] = "Moderate profile requires explicit approval for secret lease issue/renew operations."
+	payload["why_required"] = "Moderate profile requires explicit approval for secret lease issue, renew, and revoke operations."
 	payload["changes_if_approved"] = "Secret lease operation can proceed once for this exact action request hash."
 	payload["security_posture_impact"] = "high"
 	return payload

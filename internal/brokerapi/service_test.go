@@ -113,6 +113,9 @@ func assertVersionInfoFieldConcrete(t *testing.T, name, value string) {
 }
 
 func TestSeedDevManualScenarioReturnsApprovalForSeededDecision(t *testing.T) {
+	if !DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
 	service := newDevManualSeedService(t)
 	t.Setenv(devManualSeedEnvVar, "1")
 	if err := seedConflictingApprovalDecision(t, service, devManualSeedRunID, digestWithByte("0"), digestWithByte("9")); err != nil {
@@ -136,6 +139,9 @@ func TestSeedDevManualScenarioReturnsApprovalForSeededDecision(t *testing.T) {
 }
 
 func TestSeedDevManualScenarioAddsManualSeedLinkWhenDifferentEventSharesDigest(t *testing.T) {
+	if !DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
 	service := newDevManualSeedService(t)
 	t.Setenv(devManualSeedEnvVar, "1")
 	if err := service.AppendTrustedAuditEvent("other_event", "brokerapi", map[string]interface{}{
@@ -166,6 +172,9 @@ func TestSeedDevManualScenarioAddsManualSeedLinkWhenDifferentEventSharesDigest(t
 }
 
 func TestSeedDevManualScenarioRejectsDefaultLedgerRoot(t *testing.T) {
+	if !DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
 	service, err := NewService(t.TempDir(), auditd.DefaultLedgerRoot())
 	if err != nil {
 		t.Fatalf("NewService returned error: %v", err)
@@ -177,6 +186,83 @@ func TestSeedDevManualScenarioRejectsDefaultLedgerRoot(t *testing.T) {
 	}
 	if err.Error() != "dev manual seeding refuses default audit ledger root" {
 		t.Fatalf("SeedDevManualScenario error = %q, want sanitized default-ledger refusal", err.Error())
+	}
+}
+
+func TestSeedDevManualScenarioRejectsLedgerWithMultipleBootstrapSegments(t *testing.T) {
+	if !DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
+	service := newDevManualSeedService(t)
+	t.Setenv(devManualSeedEnvVar, "1")
+	if err := os.MkdirAll(filepath.Join(service.auditRoot, "segments"), 0o700); err != nil {
+		t.Fatalf("MkdirAll returned error: %v", err)
+	}
+	if err := writeBootstrapOpenSegmentForDevManualSeedTest(filepath.Join(service.auditRoot, "segments", "segment-000001.json"), "segment-000001"); err != nil {
+		t.Fatalf("writeBootstrapOpenSegmentForDevManualSeedTest(1) returned error: %v", err)
+	}
+	if err := writeBootstrapOpenSegmentForDevManualSeedTest(filepath.Join(service.auditRoot, "segments", "segment-000002.json"), "segment-000002"); err != nil {
+		t.Fatalf("writeBootstrapOpenSegmentForDevManualSeedTest(2) returned error: %v", err)
+	}
+	_, err := service.SeedDevManualScenario()
+	if err == nil {
+		t.Fatal("SeedDevManualScenario expected populated-ledger rejection for multiple bootstrap segments")
+	}
+	if err.Error() != "dev manual seeding refuses populated audit ledger root" {
+		t.Fatalf("SeedDevManualScenario error = %q, want populated-ledger refusal", err.Error())
+	}
+}
+
+func TestSeedDevManualScenarioRejectsOversizedSeedMarker(t *testing.T) {
+	if !DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
+	service := newDevManualSeedService(t)
+	t.Setenv(devManualSeedEnvVar, "1")
+	markerPath := devManualLedgerSeedMarkerPath(service.auditRoot)
+	if err := os.WriteFile(markerPath, []byte(strings.Repeat("x", devManualSeedMarkerMaxBytes+1)), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	_, err := service.SeedDevManualScenario()
+	if err == nil {
+		t.Fatal("SeedDevManualScenario expected oversized marker rejection")
+	}
+	if err.Error() != "dev manual seeding refuses tampered seed marker" {
+		t.Fatalf("SeedDevManualScenario error = %q, want tampered-marker refusal", err.Error())
+	}
+}
+
+func TestSeedDevManualScenarioRejectsInvalidSeedMarkerContent(t *testing.T) {
+	if !DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
+	service := newDevManualSeedService(t)
+	t.Setenv(devManualSeedEnvVar, "1")
+	markerPath := devManualLedgerSeedMarkerPath(service.auditRoot)
+	if err := os.WriteFile(markerPath, []byte("tampered\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	_, err := service.SeedDevManualScenario()
+	if err == nil {
+		t.Fatal("SeedDevManualScenario expected invalid marker rejection")
+	}
+	if err.Error() != "dev manual seeding refuses tampered seed marker" {
+		t.Fatalf("SeedDevManualScenario error = %q, want tampered-marker refusal", err.Error())
+	}
+}
+
+func TestSeedDevManualScenarioUnavailableWhenBuildTagDisabled(t *testing.T) {
+	if DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is enabled in this build")
+	}
+	service := newDevManualSeedService(t)
+	t.Setenv(devManualSeedEnvVar, "1")
+	_, err := service.SeedDevManualScenario()
+	if err == nil {
+		t.Fatal("SeedDevManualScenario expected build-disabled error")
+	}
+	if err.Error() != "dev manual seeding unavailable in this build" {
+		t.Fatalf("SeedDevManualScenario error = %q, want build-disabled message", err.Error())
 	}
 }
 
@@ -219,6 +305,31 @@ func seedConflictingApprovalDecision(t *testing.T, service *Service, runID, mani
 			},
 		},
 	})
+}
+
+func writeBootstrapOpenSegmentForDevManualSeedTest(path string, segmentID string) error {
+	segment := trustpolicy.AuditSegmentFilePayload{
+		SchemaID:      "runecode.protocol.v0.AuditSegmentFile",
+		SchemaVersion: "0.1.0",
+		Header: trustpolicy.AuditSegmentHeader{
+			Format:       "audit_segment_framed_v1",
+			SegmentID:    segmentID,
+			SegmentState: trustpolicy.AuditSegmentStateOpen,
+			CreatedAt:    "2026-03-13T12:21:00Z",
+			Writer:       "auditd",
+		},
+		Frames:          []trustpolicy.AuditSegmentRecordFrame{},
+		LifecycleMarker: trustpolicy.AuditSegmentLifecycleMarker{State: trustpolicy.AuditSegmentStateOpen, MarkedAt: "2026-03-13T12:21:00Z"},
+	}
+	b, err := json.Marshal(segment)
+	if err != nil {
+		return err
+	}
+	canonical, err := jsoncanonicalizer.Transform(b)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, canonical, 0o600)
 }
 
 func seedLedgerForBrokerSurfaceTest(root string) error {

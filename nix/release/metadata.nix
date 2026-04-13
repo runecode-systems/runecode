@@ -1,7 +1,7 @@
 let
   base = {
     packageName = "runecode";
-    version = "0.1.0-alpha.3";
+    version = "0.1.0-alpha.4";
 
     binaries = [
       "runecode-auditd"

@@ -31,6 +31,78 @@
       "expect_valid": true
     },
     {
+      "id": "action-payload-secret-access.valid-lease-renew",
+      "schema_path": "objects/ActionPayloadSecretAccess.schema.json",
+      "fixture_path": "schema/action-payload-secret-access.valid-lease-renew.json",
+      "expect_valid": true
+    },
+    {
+      "id": "action-payload-secret-access.valid-lease-revoke",
+      "schema_path": "objects/ActionPayloadSecretAccess.schema.json",
+      "fixture_path": "schema/action-payload-secret-access.valid-lease-revoke.json",
+      "expect_valid": true
+    },
+    {
+      "id": "action-payload-secret-access.invalid-lease-renew-missing-lease-id",
+      "schema_path": "objects/ActionPayloadSecretAccess.schema.json",
+      "fixture_path": "schema/action-payload-secret-access.invalid-lease-renew-missing-lease-id.json",
+      "expect_valid": false
+    },
+    {
+      "id": "action-payload-secret-access.invalid-lease-renew-missing-renewal-context",
+      "schema_path": "objects/ActionPayloadSecretAccess.schema.json",
+      "fixture_path": "schema/action-payload-secret-access.invalid-lease-renew-missing-renewal-context.json",
+      "expect_valid": false
+    },
+    {
+      "id": "action-payload-secret-access.invalid-lease-revoke-with-ttl",
+      "schema_path": "objects/ActionPayloadSecretAccess.schema.json",
+      "fixture_path": "schema/action-payload-secret-access.invalid-lease-revoke-with-ttl.json",
+      "expect_valid": false
+    },
+    {
+      "id": "secret-lease.valid-persisted-secret-active",
+      "schema_path": "objects/SecretLease.schema.json",
+      "fixture_path": "schema/secret-lease.valid-persisted-secret-active.json",
+      "expect_valid": true
+    },
+    {
+      "id": "secret-lease.valid-derived-token-revoked",
+      "schema_path": "objects/SecretLease.schema.json",
+      "fixture_path": "schema/secret-lease.valid-derived-token-revoked.json",
+      "expect_valid": true
+    },
+    {
+      "id": "secret-lease.invalid-derived-token-missing-source-lease-id",
+      "schema_path": "objects/SecretLease.schema.json",
+      "fixture_path": "schema/secret-lease.invalid-derived-token-missing-source-lease-id.json",
+      "expect_valid": false
+    },
+    {
+      "id": "secret-lease.invalid-revoked-without-revocation-metadata",
+      "schema_path": "objects/SecretLease.schema.json",
+      "fixture_path": "schema/secret-lease.invalid-revoked-without-revocation-metadata.json",
+      "expect_valid": false
+    },
+    {
+      "id": "secret-storage-posture.valid-secure-default",
+      "schema_path": "objects/SecretStoragePosture.schema.json",
+      "fixture_path": "schema/secret-storage-posture.valid-secure-default.json",
+      "expect_valid": true
+    },
+    {
+      "id": "secret-storage-posture.valid-portable-degraded",
+      "schema_path": "objects/SecretStoragePosture.schema.json",
+      "fixture_path": "schema/secret-storage-posture.valid-portable-degraded.json",
+      "expect_valid": true
+    },
+    {
+      "id": "secret-storage-posture.invalid-unavailable-without-opt-in",
+      "schema_path": "objects/SecretStoragePosture.schema.json",
+      "fixture_path": "schema/secret-storage-posture.invalid-unavailable-without-opt-in.json",
+      "expect_valid": false
+    },
+    {
       "id": "error.valid-basic",
       "schema_path": "objects/Error.schema.json",
       "fixture_path": "schema/error.valid-basic.json",

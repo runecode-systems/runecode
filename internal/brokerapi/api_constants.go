@@ -47,7 +47,8 @@ func DefaultLimits() Limits {
 }
 
 type APIConfig struct {
-	Limits Limits
+	Limits       Limits
+	GatewayQuota GatewayQuotaLimits
 }
 
 func (c APIConfig) withDefaults() APIConfig {

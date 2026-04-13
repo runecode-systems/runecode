@@ -9,6 +9,9 @@ import (
 )
 
 func TestSeedDevManualScenarioCommandSeedsDeterministicBrokerSurfaceState(t *testing.T) {
+	if !brokerapi.DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
 	setBrokerServiceForTest(t)
 	t.Setenv("RUNECODE_DEV_MODE", "1")
 	stdout := &bytes.Buffer{}
@@ -59,6 +62,9 @@ func TestSeedDevManualScenarioCommandSeedsDeterministicBrokerSurfaceState(t *tes
 }
 
 func TestSeedDevManualScenarioRequiresDevOnlyAck(t *testing.T) {
+	if !brokerapi.DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
 	setBrokerServiceForTest(t)
 	t.Setenv("RUNECODE_DEV_MODE", "1")
 	err := run([]string{"seed-dev-manual-scenario"}, &bytes.Buffer{}, &bytes.Buffer{})
@@ -71,6 +77,9 @@ func TestSeedDevManualScenarioRequiresDevOnlyAck(t *testing.T) {
 }
 
 func TestSeedDevManualScenarioRequiresExplicitDevModeEnv(t *testing.T) {
+	if !brokerapi.DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
 	setBrokerServiceForTest(t)
 	err := run([]string{"seed-dev-manual-scenario", "--dev-only"}, &bytes.Buffer{}, &bytes.Buffer{})
 	if err == nil {
@@ -82,6 +91,9 @@ func TestSeedDevManualScenarioRequiresExplicitDevModeEnv(t *testing.T) {
 }
 
 func TestSeedDevManualScenarioIsIdempotentForPolicyAndPrimaryIdentifiers(t *testing.T) {
+	if !brokerapi.DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
 	setBrokerServiceForTest(t)
 	t.Setenv("RUNECODE_DEV_MODE", "1")
 	stdout := &bytes.Buffer{}
@@ -104,6 +116,25 @@ func TestSeedDevManualScenarioIsIdempotentForPolicyAndPrimaryIdentifiers(t *test
 	}
 	if count != 1 {
 		t.Fatalf("workspace->model_gateway flow rule count = %d, want 1 after repeated seeding", count)
+	}
+}
+
+func TestSeedDevManualScenarioUnavailableWhenBuildTagDisabled(t *testing.T) {
+	if brokerapi.DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is enabled in this build")
+	}
+	setBrokerServiceForTest(t)
+	t.Setenv("RUNECODE_DEV_MODE", "1")
+	err := run([]string{"seed-dev-manual-scenario", "--dev-only"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("seed-dev-manual-scenario expected build-disabled usage error")
+	}
+	uerr, ok := err.(*usageError)
+	if !ok {
+		t.Fatalf("seed-dev-manual-scenario error type = %T, want *usageError", err)
+	}
+	if uerr.Error() != "seed-dev-manual-scenario unavailable in this build" {
+		t.Fatalf("seed-dev-manual-scenario error = %q", uerr.Error())
 	}
 }
 

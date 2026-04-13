@@ -10,12 +10,22 @@ func processReceiptByKind(index int, input AuditVerificationInput, report *Audit
 		return ok.anchorReceipts, ok.validAnchor
 	}
 	if receipt.AuditReceiptKind == "anchor" {
+		if !anchorReceiptFamilyMatchesSeal(receipt) {
+			addHardFailure(report, AuditVerificationReasonAnchorReceiptInvalid, AuditVerificationDimensionAnchoring, fmt.Sprintf("anchor receipt[%d] subject_family must be audit_segment_seal", index), input.Segment.Header.SegmentID, nil)
+			return anchorReceipts, validAnchorForSeal
+		}
 		return anchorReceipts + 1, true
 	}
-	if err := verifyImportRestoreConsistency(receipt, *sealDigest, sealPayload); err != nil {
-		addHardFailure(report, AuditVerificationReasonImportRestoreProvenanceInconsistent, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] import/restore consistency failed: %v", index, err), input.Segment.Header.SegmentID, nil)
+	if receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore" {
+		if err := verifyImportRestoreConsistency(receipt, *sealDigest, sealPayload); err != nil {
+			addHardFailure(report, AuditVerificationReasonImportRestoreProvenanceInconsistent, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] import/restore consistency failed: %v", index, err), input.Segment.Header.SegmentID, nil)
+		}
 	}
 	return anchorReceipts, validAnchorForSeal
+}
+
+func anchorReceiptFamilyMatchesSeal(receipt auditReceiptPayloadStrict) bool {
+	return receipt.SubjectFamily == "audit_segment_seal"
 }
 
 type receiptProcessingState struct {
@@ -38,7 +48,7 @@ func processReceiptTarget(index int, input AuditVerificationInput, report *Audit
 }
 
 func receiptRequiresCurrentSealMatch(receipt auditReceiptPayloadStrict) bool {
-	return receipt.AuditReceiptKind == "anchor" || receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore"
+	return receipt.AuditReceiptKind == "anchor" || receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore" || receipt.AuditReceiptKind == "reconciliation"
 }
 
 func receiptIsHistoricalForCurrentSeal(receipt auditReceiptPayloadStrict, sealPayload AuditSegmentSealPayload) bool {
@@ -63,5 +73,9 @@ func addMismatchedReceiptFailure(index int, input AuditVerificationInput, report
 	}
 	if receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore" {
 		addHardFailure(report, AuditVerificationReasonImportRestoreProvenanceInconsistent, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] subject_digest does not match segment seal digest", index), input.Segment.Header.SegmentID, nil)
+		return
+	}
+	if receipt.AuditReceiptKind == "reconciliation" {
+		addHardFailure(report, AuditVerificationReasonReceiptInvalid, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] subject_digest does not match segment seal digest", index), input.Segment.Header.SegmentID, nil)
 	}
 }

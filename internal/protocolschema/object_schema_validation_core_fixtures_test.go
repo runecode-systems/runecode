@@ -261,69 +261,6 @@ func invalidPolicyRuleSetWithUnknownEffect() map[string]any {
 	return ruleSet
 }
 
-func validPolicyAllowlist() map[string]any {
-	return map[string]any{
-		"schema_id":       "runecode.protocol.v0.PolicyAllowlist",
-		"schema_version":  "0.1.0",
-		"allowlist_kind":  "gateway_scope_rule",
-		"entry_schema_id": "runecode.protocol.v0.GatewayScopeRule",
-		"entries": []any{
-			validGatewayScopeRule("provider-a"),
-			validGatewayScopeRule("provider-b"),
-		},
-	}
-}
-
-func invalidPolicyAllowlistKind() map[string]any {
-	allowlist := validPolicyAllowlist()
-	allowlist["allowlist_kind"] = "gateway_destination"
-	return allowlist
-}
-
-func invalidPolicyAllowlistEntrySchemaID() map[string]any {
-	allowlist := validPolicyAllowlist()
-	allowlist["entry_schema_id"] = "runecode.protocol.v0.DestinationDescriptor"
-	return allowlist
-}
-
-func validGatewayScopeRule(provider string) map[string]any {
-	return map[string]any{
-		"schema_id":                   "runecode.protocol.v0.GatewayScopeRule",
-		"schema_version":              "0.1.0",
-		"scope_kind":                  "gateway_destination",
-		"gateway_role_kind":           "model-gateway",
-		"destination":                 validDestinationDescriptor(provider),
-		"permitted_operations":        []any{"invoke_model"},
-		"allowed_egress_data_classes": []any{"spec_text"},
-		"redirect_posture":            "allowlist_only",
-	}
-}
-
-func invalidGatewayScopeRuleKind() map[string]any {
-	rule := validGatewayScopeRule("provider-a")
-	rule["scope_kind"] = "gateway_destination_legacy"
-	return rule
-}
-
-func validDestinationDescriptor(provider string) map[string]any {
-	return map[string]any{
-		"schema_id":                "runecode.protocol.v0.DestinationDescriptor",
-		"schema_version":           "0.1.0",
-		"descriptor_kind":          "model_endpoint",
-		"canonical_host":           provider + ".example.com",
-		"provider_or_namespace":    provider,
-		"tls_required":             true,
-		"private_range_blocking":   "enforced",
-		"dns_rebinding_protection": "enforced",
-	}
-}
-
-func invalidDestinationDescriptorKind() map[string]any {
-	descriptor := validDestinationDescriptor("provider-a")
-	descriptor["descriptor_kind"] = "raw_url"
-	return descriptor
-}
-
 func testDigestString(nibble string) string {
 	if len(nibble) != 1 || !strings.Contains("0123456789abcdef", nibble) {
 		panic("testDigestString requires exactly one lowercase hex nibble")

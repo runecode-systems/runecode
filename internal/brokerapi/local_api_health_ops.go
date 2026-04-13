@@ -45,9 +45,7 @@ func (s *Service) HandleAuditVerificationGet(ctx context.Context, req AuditVerif
 		return AuditVerificationGetResponse{}, errResp
 	}
 	limit := req.ViewLimit
-	if limit <= 0 {
-		limit = 50
-	}
+	limit = normalizeLimit(limit, 50, 500)
 	surface, err := s.LatestAuditVerificationSurface(limit)
 	if err != nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
@@ -82,6 +80,14 @@ func (s *Service) HandleReadinessGet(ctx context.Context, req ReadinessGetReques
 		CurrentSegmentWritable:    readiness.CurrentSegmentWritable,
 		VerifierMaterialAvailable: readiness.VerifierMaterialAvailable,
 		DerivedIndexCaughtUp:      readiness.DerivedIndexCaughtUp,
+	}
+	model.SecretsReady, model.SecretsHealthState, model.SecretsOperationalMetrics, model.SecretsStoragePosture = projectSecretsReadinessFromLocalState()
+	if !model.SecretsReady {
+		model.Ready = false
+	}
+	model.ModelGatewayReady, model.ModelGatewayHealthState, model.ModelGatewayPosture = s.projectModelGatewayPostureForReadiness()
+	if !model.ModelGatewayReady || model.ModelGatewayHealthState == "failed" || model.ModelGatewayHealthState == "degraded" {
+		model.Ready = false
 	}
 	resp := ReadinessGetResponse{SchemaID: "runecode.protocol.v0.ReadinessGetResponse", SchemaVersion: "0.1.0", RequestID: requestID, Readiness: model}
 	if err := s.validateResponse(resp, readinessGetResponseSchemaPath); err != nil {

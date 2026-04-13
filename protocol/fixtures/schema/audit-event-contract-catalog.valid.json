@@ -469,6 +469,124 @@
       ]
     },
     {
+      "audit_event_type": "secrets_lease_renewed",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.secrets-lease-renewed.v0"
+      ],
+      "allowed_signer_purposes": [
+        "secrets_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage",
+        "step"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id"
+      ],
+      "required_correlation_fields": [
+        "session_id",
+        "operation_id"
+      ],
+      "require_subject_ref": false,
+      "allowed_subject_ref_roles": [],
+      "allowed_cause_ref_roles": [
+        "lease",
+        "policy_cause"
+      ],
+      "allowed_related_ref_roles": [
+        "lease",
+        "evidence",
+        "receipt"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "secrets_lease_denied",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.secrets-lease-denied.v0"
+      ],
+      "allowed_signer_purposes": [
+        "secrets_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage",
+        "step"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id"
+      ],
+      "required_correlation_fields": [
+        "session_id",
+        "operation_id"
+      ],
+      "require_subject_ref": false,
+      "allowed_subject_ref_roles": [],
+      "allowed_cause_ref_roles": [
+        "policy_cause"
+      ],
+      "allowed_related_ref_roles": [
+        "lease",
+        "evidence",
+        "receipt"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
+      "audit_event_type": "secrets_lease_expired",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.secrets-lease-expired.v0"
+      ],
+      "allowed_signer_purposes": [
+        "secrets_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage",
+        "step"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id"
+      ],
+      "required_correlation_fields": [
+        "session_id",
+        "operation_id"
+      ],
+      "require_subject_ref": false,
+      "allowed_subject_ref_roles": [],
+      "allowed_cause_ref_roles": [
+        "lease"
+      ],
+      "allowed_related_ref_roles": [
+        "lease",
+        "evidence",
+        "receipt"
+      ],
+      "require_gateway_context": false,
+      "allowed_gateway_egress_categories": [],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
       "audit_event_type": "secrets_lease_released",
       "allowed_payload_schema_ids": [
         "runecode.protocol.audit.payload.secrets-lease-released.v0"
