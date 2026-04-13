@@ -396,7 +396,7 @@ func sha256Hex(value []byte) string {
 
 func setBrokerServiceForTest(t *testing.T) string {
 	t.Helper()
-	root := filepath.Join(t.TempDir(), "store")
+	root := filepath.Join(canonicalTempDir(t), "store")
 	secretsRoot := filepath.Join(root, "secrets-state")
 	seedBrokerSecretsReadinessState(t, secretsRoot)
 	t.Setenv("RUNE_SECRETS_STATE_ROOT", secretsRoot)
@@ -428,6 +428,16 @@ func seedBrokerSecretsReadinessState(t *testing.T, root string) {
 	if _, err := svc.RevokeLease(secretsd.RevokeLeaseRequest{LeaseID: lease.LeaseID, ConsumerID: "principal:runner:1", RoleKind: "runner", Scope: "stage:alpha", Reason: "operator"}); err != nil {
 		t.Fatalf("RevokeLease returned error: %v", err)
 	}
+}
+
+func canonicalTempDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q) returned error: %v", dir, err)
+	}
+	return resolved
 }
 
 func testDigest(seed string) string {

@@ -287,6 +287,13 @@ func TestEvaluateGatewayDeniesWhenStreamQuotaExceedsLimit(t *testing.T) {
 	}
 }
 
+func TestGatewayQuotaPhaseReasonRejectsUnknownPhase(t *testing.T) {
+	reason := gatewayQuotaPhaseReason(gatewayQuotaContext{Phase: "egress"}, "invoke_model")
+	if reason != "unknown_gateway_quota_phase" {
+		t.Fatalf("reason = %q, want unknown_gateway_quota_phase", reason)
+	}
+}
+
 func TestEvaluateGatewayDeniesDisallowedModelGatewayEgressDataClassAtBoundary(t *testing.T) {
 	compiled := mustCompile(t, compileGatewayInputWithOneCapability("model-gateway", "cap_gateway", validAllowlistPayloadForGateway("allowlist-model", "model-gateway", "model_endpoint", "invoke_model", "unapproved_file_excerpts")))
 	action := validGatewayEgressActionRequest("cap_gateway", "gateway", "model-gateway", "model-gateway", "model_endpoint", ActionKindGatewayEgress)

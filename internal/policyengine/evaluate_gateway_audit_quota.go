@@ -125,6 +125,9 @@ func gatewayAuditHashBinding(payloadHash *trustpolicy.Digest, audit *gatewayAudi
 }
 
 func gatewayQuotaPhaseReason(quota gatewayQuotaContext, operation string) string {
+	if quota.Phase != "admission" && quota.Phase != "stream" {
+		return "unknown_gateway_quota_phase"
+	}
 	if quota.Phase == "stream" && operation != "invoke_model" {
 		return "stream_quota_phase_requires_model_invoke_operation"
 	}

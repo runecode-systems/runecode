@@ -10,6 +10,8 @@ import (
 
 var replaceFileLocksMu sync.Mutex
 var replaceFileLocks = map[string]*sync.Mutex{}
+var renameFile = os.Rename
+var removeFile = os.Remove
 
 func (s *Service) persistState() error {
 	b, err := json.MarshalIndent(s.state, "", "  ")
@@ -49,7 +51,7 @@ func writeFileAtomic(path string, b []byte, mode os.FileMode) error {
 func replaceFile(src, dst string) error {
 	release := lockReplaceTarget(dst)
 	defer release()
-	if err := os.Rename(src, dst); err == nil {
+	if err := renameFile(src, dst); err == nil {
 		return nil
 	} else if os.IsNotExist(err) {
 		return err
@@ -58,7 +60,7 @@ func replaceFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.Rename(src, dst); err != nil {
+	if err := renameFile(src, dst); err != nil {
 		if restoreErr := restoreReplaceBackup(backup, dst); restoreErr != nil {
 			return fmt.Errorf("replace %s: rename failed: %w (restore backup: %v)", dst, err, restoreErr)
 		}
@@ -67,7 +69,7 @@ func replaceFile(src, dst string) error {
 	if backup == "" {
 		return nil
 	}
-	if err := os.Remove(backup); err != nil && !os.IsNotExist(err) {
+	if err := removeFile(backup); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
@@ -94,10 +96,10 @@ func createReplaceBackup(dst string) (string, error) {
 		return "", err
 	}
 	backup := dst + ".bak"
-	if err := os.Remove(backup); err != nil && !os.IsNotExist(err) {
+	if err := removeFile(backup); err != nil && !os.IsNotExist(err) {
 		return "", err
 	}
-	if err := os.Rename(dst, backup); err != nil {
+	if err := renameFile(dst, backup); err != nil {
 		return "", err
 	}
 	return backup, nil
@@ -113,8 +115,8 @@ func restoreReplaceBackup(backup, dst string) error {
 		}
 		return err
 	}
-	if err := os.Remove(dst); err != nil && !os.IsNotExist(err) {
+	if err := removeFile(dst); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	return os.Rename(backup, dst)
+	return renameFile(backup, dst)
 }

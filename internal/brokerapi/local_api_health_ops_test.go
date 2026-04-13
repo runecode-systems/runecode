@@ -15,7 +15,7 @@ import (
 )
 
 func TestHandleReadinessGetProjectsHealthySecretsPosture(t *testing.T) {
-	secretsRoot := filepath.Join(t.TempDir(), "secrets-state")
+	secretsRoot := filepath.Join(canonicalTempDir(t), "secrets-state")
 	t.Setenv("RUNE_SECRETS_STATE_ROOT", secretsRoot)
 	seedSecretsReadinessState(t, secretsRoot)
 
@@ -112,7 +112,7 @@ func TestHandleReadinessGetSecretsUnavailableFailsClosed(t *testing.T) {
 }
 
 func TestHandleReadinessGetSecretsInvalidStateFailsClosedAndDegraded(t *testing.T) {
-	secretsRoot := filepath.Join(t.TempDir(), "secrets-invalid")
+	secretsRoot := filepath.Join(canonicalTempDir(t), "secrets-invalid")
 	if err := os.MkdirAll(filepath.Join(secretsRoot, "secrets"), 0o700); err != nil {
 		t.Fatalf("MkdirAll returned error: %v", err)
 	}
@@ -164,6 +164,16 @@ func seedSecretsReadinessState(t *testing.T, root string) {
 	if !errors.Is(err, secretsd.ErrAccessDenied) {
 		t.Fatalf("IssueLease missing secret error = %v, want ErrAccessDenied", err)
 	}
+}
+
+func canonicalTempDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q) returned error: %v", dir, err)
+	}
+	return resolved
 }
 
 func TestHandleReadinessGetProjectsModelGatewayPostureFromAllowlist(t *testing.T) {
@@ -313,6 +323,9 @@ func TestHandleReadinessGetModelGatewayAllowlistDecodeFailureIsDegraded(t *testi
 	}
 	if resp.Readiness.ModelGatewayReady {
 		t.Fatal("model_gateway_ready = true, want false for degraded catalog")
+	}
+	if resp.Readiness.Ready {
+		t.Fatal("ready = true, want false for degraded model gateway posture")
 	}
 	if resp.Readiness.ModelGatewayPosture != nil {
 		payload, marshalErr := json.Marshal(resp.Readiness.ModelGatewayPosture)

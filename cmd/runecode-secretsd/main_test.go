@@ -13,7 +13,7 @@ import (
 )
 
 func TestValidateSignRequestCLI(t *testing.T) {
-	requestPath := filepath.Join(t.TempDir(), "request.json")
+	requestPath := filepath.Join(canonicalTempDir(t), "request.json")
 	if err := os.WriteFile(requestPath, []byte(`{
   "logical_purpose": "approval_authority",
   "logical_scope": "user",
@@ -38,7 +38,7 @@ func TestImportIssueRenewRevokeRetrieveLifecycle(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("lease-retrieve output-fd path is non-windows")
 	}
-	stateRoot := t.TempDir()
+	stateRoot := canonicalTempDir(t)
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 	secret := "super-secret-material"
@@ -82,7 +82,7 @@ func TestRevocationPersistenceRecoveryFailClosed(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("lease-retrieve output-fd path is non-windows")
 	}
-	stateRoot := t.TempDir()
+	stateRoot := canonicalTempDir(t)
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 	if err := run([]string{"import-secret", "--state-root", stateRoot, "--secret-ref", "secrets/prod/api"}, strings.NewReader("token-xyz"), stdout, stderr); err != nil {
@@ -118,7 +118,7 @@ func TestOnboardingFDMode(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fd onboarding is non-windows only")
 	}
-	stateRoot := t.TempDir()
+	stateRoot := canonicalTempDir(t)
 	filePath := filepath.Join(t.TempDir(), "secret.bin")
 	if err := os.WriteFile(filePath, []byte("fd-secret"), 0o600); err != nil {
 		t.Fatalf("WriteFile returned error: %v", err)
@@ -149,7 +149,7 @@ func TestValidateSignRequestUsageError(t *testing.T) {
 }
 
 func TestValidateSignRequestRejectsDirectoryPath(t *testing.T) {
-	dirPath := t.TempDir()
+	dirPath := canonicalTempDir(t)
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 	err := run([]string{"validate-sign-request", "--file", dirPath}, strings.NewReader(""), stdout, stderr)
@@ -165,7 +165,8 @@ func TestValidateSignRequestRejectsSymlinkPath(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlink creation requires elevated privileges on typical Windows hosts")
 	}
-	targetPath := filepath.Join(t.TempDir(), "request.json")
+	testRoot := canonicalTempDir(t)
+	targetPath := filepath.Join(testRoot, "request.json")
 	if err := os.WriteFile(targetPath, []byte(`{
   "logical_purpose": "approval_authority",
   "logical_scope": "user",
@@ -175,7 +176,7 @@ func TestValidateSignRequestRejectsSymlinkPath(t *testing.T) {
 }`), 0o600); err != nil {
 		t.Fatalf("WriteFile returned error: %v", err)
 	}
-	linkPath := filepath.Join(t.TempDir(), "request-link.json")
+	linkPath := filepath.Join(testRoot, "request-link.json")
 	if err := os.Symlink(targetPath, linkPath); err != nil {
 		t.Fatalf("Symlink returned error: %v", err)
 	}
@@ -194,7 +195,7 @@ func TestValidateSignRequestRejectsSymlinkInParentPath(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlink creation requires elevated privileges on typical Windows hosts")
 	}
-	parent := t.TempDir()
+	parent := canonicalTempDir(t)
 	targetDir := filepath.Join(parent, "target")
 	if err := os.MkdirAll(targetDir, 0o700); err != nil {
 		t.Fatalf("MkdirAll returned error: %v", err)
@@ -228,7 +229,7 @@ func TestRetrievalBindingChecks(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("lease-retrieve output-fd path is non-windows")
 	}
-	stateRoot := t.TempDir()
+	stateRoot := canonicalTempDir(t)
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 	if err := run([]string{"import-secret", "--state-root", stateRoot, "--secret-ref", "secrets/prod/bind"}, strings.NewReader("bind-secret"), stdout, stderr); err != nil {
@@ -277,4 +278,14 @@ func runLeaseRetrieveToPipe(stateRoot, leaseID, consumerID, roleKind, scope stri
 		return "", readErr
 	}
 	return string(b), runErr
+}
+
+func canonicalTempDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q) returned error: %v", dir, err)
+	}
+	return resolved
 }
