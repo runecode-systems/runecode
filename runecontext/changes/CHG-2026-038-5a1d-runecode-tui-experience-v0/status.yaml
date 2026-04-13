@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-038-5a1d-runecode-tui-experience-v0
 title: RuneCode TUI Experience v0
-status: planned
+status: implemented
 type: project
 size: medium
 verification_status: pending

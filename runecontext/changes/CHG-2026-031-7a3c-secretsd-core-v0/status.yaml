@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-031-7a3c-secretsd-core-v0
 title: Secretsd Core v0
-status: planned
+status: implemented
 type: feature
 size: medium
 verification_status: pending

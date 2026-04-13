@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0
 title: Interactive Control-Plane UX Contracts v0
-status: planned
+status: implemented
 type: project
 size: medium
 verification_status: pending
