@@ -251,6 +251,18 @@ func validBrokerReadinessWithSecretsHealthAndMetrics() map[string]any {
 		"secrets_health_state":        "ok",
 		"secrets_operational_metrics": map[string]any{"lease_issue_count": 12, "lease_renew_count": 7, "lease_revoke_count": 3, "lease_denied_count": 1, "active_lease_count": 4},
 		"secrets_storage_posture":     validSecretStoragePostureSecureDefault(),
+		"model_gateway_ready":         true,
+		"model_gateway_health_state":  "ok",
+		"model_gateway_posture_projection": map[string]any{
+			"schema_id":              "runecode.protocol.v0.ModelGatewayPostureProjection",
+			"schema_version":         "0.1.0",
+			"projection_kind":        "broker_projected",
+			"gateway_role_kind":      "model-gateway",
+			"destination_scope_kind": "gateway_destination",
+			"configuration_state":    "configured",
+			"egress_policy_posture":  "allowlist_only",
+			"surface_channel":        "broker_local_api",
+		},
 	}
 }
 
@@ -264,5 +276,29 @@ func invalidBrokerReadinessSecretsMetricsWithoutReadyFlag() map[string]any {
 	readiness := validBrokerReadinessWithSecretsHealthAndMetrics()
 	delete(readiness, "secrets_ready")
 	delete(readiness, "secrets_health_state")
+	return readiness
+}
+
+func invalidBrokerReadinessModelGatewayHealthWithoutReadyFlag() map[string]any {
+	readiness := validBrokerReadinessWithSecretsHealthAndMetrics()
+	delete(readiness, "model_gateway_ready")
+	delete(readiness, "secrets_health_state")
+	delete(readiness, "secrets_operational_metrics")
+	return readiness
+}
+
+func invalidBrokerReadinessModelGatewayPostureWithoutReadyFlag() map[string]any {
+	readiness := validBrokerReadinessWithSecretsHealthAndMetrics()
+	delete(readiness, "model_gateway_ready")
+	delete(readiness, "secrets_health_state")
+	delete(readiness, "secrets_operational_metrics")
+	delete(readiness, "model_gateway_health_state")
+	return readiness
+}
+
+func invalidBrokerReadinessModelGatewayPostureWithoutConfigurationState() map[string]any {
+	readiness := validBrokerReadinessWithSecretsHealthAndMetrics()
+	posture := readiness["model_gateway_posture_projection"].(map[string]any)
+	delete(posture, "configuration_state")
 	return readiness
 }

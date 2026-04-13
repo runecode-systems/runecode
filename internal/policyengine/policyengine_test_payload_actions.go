@@ -1,6 +1,8 @@
 package policyengine
 
-import "strings"
+import (
+	"strings"
+)
 
 func newActionRequest(actionKind, capabilityID, payloadSchemaID string, payload map[string]any, roleFamily, roleKind string) ActionRequest {
 	return ActionRequest{
@@ -54,40 +56,6 @@ func validExecutorRunActionRequest(capabilityID string, executorClass string, ar
 		}),
 		"workspace",
 		"workspace-edit",
-	)
-}
-
-func validGatewayEgressActionRequest(capabilityID string, roleFamily string, roleKind string, gatewayRoleKind string, destinationKind string, actionKind string) ActionRequest {
-	return newActionRequest(
-		actionKind,
-		capabilityID,
-		actionPayloadGatewaySchemaID,
-		newSchemaPayload(actionPayloadGatewaySchemaID, map[string]any{
-			"gateway_role_kind": gatewayRoleKind,
-			"destination_kind":  destinationKind,
-			"destination_ref":   "provider.example.com",
-			"egress_data_class": "spec_text",
-			"operation":         "invoke_model",
-		}),
-		roleFamily,
-		roleKind,
-	)
-}
-
-func validDependencyFetchActionRequest(capabilityID string, roleKind string, refName string) ActionRequest {
-	return newActionRequest(
-		ActionKindDependencyFetch,
-		capabilityID,
-		actionPayloadGatewaySchemaID,
-		newSchemaPayload(actionPayloadGatewaySchemaID, map[string]any{
-			"gateway_role_kind": "dependency-fetch",
-			"destination_kind":  "package_registry",
-			"destination_ref":   refName + ".example.com",
-			"egress_data_class": "spec_text",
-			"operation":         "fetch_dependency",
-		}),
-		"gateway",
-		roleKind,
 	)
 }
 
@@ -171,61 +139,4 @@ func validStageSummarySignOffActionRequest(capabilityID, summaryHash string) Act
 		"workspace",
 		"workspace-edit",
 	)
-}
-
-func compileGatewayInputWithOneCapability(roleKind string, capability string, allowlist map[string]any) CompileInput {
-	role := validRoleManifestPayload()
-	role["role_family"] = "gateway"
-	role["role_kind"] = roleKind
-	role["capability_opt_ins"] = []any{capability}
-	rolePrincipal := role["principal"].(map[string]any)
-	rolePrincipal["role_family"] = "gateway"
-	rolePrincipal["role_kind"] = roleKind
-	role["allowlist_refs"] = []any{mustDigestObject(testAllowlistHash(nil, allowlist))}
-
-	run := validRunCapabilityManifestPayload()
-	run["capability_opt_ins"] = []any{capability}
-	runPrincipal := run["principal"].(map[string]any)
-	runPrincipal["role_family"] = "gateway"
-	runPrincipal["role_kind"] = roleKind
-	run["allowlist_refs"] = []any{mustDigestObject(testAllowlistHash(nil, allowlist))}
-
-	return CompileInput{
-		FixedInvariants: FixedInvariants{},
-		RoleManifest:    testManifestInput(nil, role, ""),
-		RunManifest:     testManifestInput(nil, run, ""),
-		Allowlists:      []ManifestInput{testManifestInput(nil, allowlist, "")},
-	}
-}
-
-func validAllowlistPayloadForGateway(entry string, gatewayRole string, descriptorKind string, operation string, dataClass string) map[string]any {
-	return map[string]any{
-		"schema_id":       policyAllowlistSchemaID,
-		"schema_version":  policyAllowlistSchemaVersion,
-		"allowlist_kind":  "gateway_scope_rule",
-		"entry_schema_id": gatewayScopeRuleSchemaID,
-		"entries": []any{map[string]any{
-			"schema_id":                   gatewayScopeRuleSchemaID,
-			"schema_version":              gatewayScopeRuleVersion,
-			"scope_kind":                  "gateway_destination",
-			"gateway_role_kind":           gatewayRole,
-			"destination":                 validDestinationDescriptorForKind(entry, descriptorKind),
-			"permitted_operations":        []any{operation},
-			"allowed_egress_data_classes": []any{dataClass},
-			"redirect_posture":            "allowlist_only",
-		}},
-	}
-}
-
-func validDestinationDescriptorForKind(name, kind string) map[string]any {
-	return map[string]any{
-		"schema_id":                destinationDescriptorSchemaID,
-		"schema_version":           destinationDescriptorVersion,
-		"descriptor_kind":          kind,
-		"canonical_host":           name + ".example.com",
-		"provider_or_namespace":    name,
-		"tls_required":             true,
-		"private_range_blocking":   "enforced",
-		"dns_rebinding_protection": "enforced",
-	}
 }

@@ -15,20 +15,21 @@ import (
 )
 
 func seedDevManualAuditLedger(root string) (string, error) {
-	if err := ensureDevManualLedgerDirs(root); err != nil {
+	validatedRoot, err := ensureDevManualLedgerDirs(root)
+	if err != nil {
 		return "", err
 	}
 	recordDigest, canonicalEnvelope, err := devManualAuditEnvelopeAndDigest()
 	if err != nil {
 		return "", err
 	}
-	if err := writeDevManualSegments(root, recordDigest, canonicalEnvelope); err != nil {
+	if err := writeDevManualSegments(validatedRoot, recordDigest, canonicalEnvelope); err != nil {
 		return "", err
 	}
-	if err := writeDevManualSeal(root, recordDigest); err != nil {
+	if err := writeDevManualSeal(validatedRoot, recordDigest); err != nil {
 		return "", err
 	}
-	ledger, err := auditd.Open(root)
+	ledger, err := auditd.Open(validatedRoot)
 	if err != nil {
 		return "", err
 	}
@@ -41,31 +42,32 @@ func seedDevManualAuditLedger(root string) (string, error) {
 	if _, err := ledger.PersistVerificationReport(devManualVerificationReport()); err != nil {
 		return "", err
 	}
-	if err := writeDevManualSeedMarker(root); err != nil {
+	if err := writeDevManualSeedMarker(validatedRoot); err != nil {
 		return "", err
 	}
 	return recordDigestIdentity(recordDigest)
 }
 
-func ensureDevManualLedgerDirs(root string) error {
-	if err := ensureDevManualSeedLedgerAllowed(root); err != nil {
-		return err
+func ensureDevManualLedgerDirs(root string) (string, error) {
+	validatedRoot, err := ensureDevManualSeedLedgerAllowed(root)
+	if err != nil {
+		return "", err
 	}
 	paths := []string{
-		filepath.Join(root, "segments"),
-		filepath.Join(root, "sidecar", "segment-seals"),
-		filepath.Join(root, "sidecar", "verification-reports"),
-		filepath.Join(root, "contracts"),
+		filepath.Join(validatedRoot, "segments"),
+		filepath.Join(validatedRoot, "sidecar", "segment-seals"),
+		filepath.Join(validatedRoot, "sidecar", "verification-reports"),
+		filepath.Join(validatedRoot, "contracts"),
 	}
 	for _, path := range paths {
 		if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
-			return err
+			return "", err
 		}
 		if err := os.MkdirAll(path, 0o700); err != nil {
-			return err
+			return "", err
 		}
 	}
-	return nil
+	return validatedRoot, nil
 }
 
 func devManualLedgerSeedMarkerPath(root string) string {

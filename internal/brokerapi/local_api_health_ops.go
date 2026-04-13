@@ -2,7 +2,11 @@ package brokerapi
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
+	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
@@ -45,9 +49,7 @@ func (s *Service) HandleAuditVerificationGet(ctx context.Context, req AuditVerif
 		return AuditVerificationGetResponse{}, errResp
 	}
 	limit := req.ViewLimit
-	if limit <= 0 {
-		limit = 50
-	}
+	limit = normalizeLimit(limit, 50, 500)
 	surface, err := s.LatestAuditVerificationSurface(limit)
 	if err != nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
@@ -83,12 +85,93 @@ func (s *Service) HandleReadinessGet(ctx context.Context, req ReadinessGetReques
 		VerifierMaterialAvailable: readiness.VerifierMaterialAvailable,
 		DerivedIndexCaughtUp:      readiness.DerivedIndexCaughtUp,
 	}
+	model.ModelGatewayReady, model.ModelGatewayHealthState, model.ModelGatewayPosture = s.projectModelGatewayPostureForReadiness()
 	resp := ReadinessGetResponse{SchemaID: "runecode.protocol.v0.ReadinessGetResponse", SchemaVersion: "0.1.0", RequestID: requestID, Readiness: model}
 	if err := s.validateResponse(resp, readinessGetResponseSchemaPath); err != nil {
 		errOut := s.errorFromValidation(requestID, err)
 		return ReadinessGetResponse{}, &errOut
 	}
 	return resp, nil
+}
+
+func (s *Service) projectModelGatewayPostureForReadiness() (bool, string, *ModelGatewayPostureProjection) {
+	posture := defaultModelGatewayPostureProjection()
+	runtime := policyRuntime{service: s}
+	catalog, err := runtime.trustedPolicyCatalog()
+	if err != nil {
+		return false, "failed", nil
+	}
+	return projectModelGatewayPostureFromCatalog(runtime, catalog, posture)
+}
+
+func projectModelGatewayPostureFromCatalog(runtime policyRuntime, catalog trustedPolicyCatalog, posture *ModelGatewayPostureProjection) (bool, string, *ModelGatewayPostureProjection) {
+	for _, record := range catalog.byKind[artifacts.TrustedContractImportKindPolicyAllowlist] {
+		allowlist, unmarshalErr := decodePolicyAllowlist(runtime, record)
+		if unmarshalErr != nil {
+			return false, "degraded", nil
+		}
+		if allowlistHasModelGatewayEntry(allowlist) {
+			posture.ConfigurationState = "configured"
+			posture.EgressPolicyPosture = "allowlist_only"
+			return true, "ok", posture
+		}
+	}
+	return true, "ok", posture
+}
+
+func defaultModelGatewayPostureProjection() *ModelGatewayPostureProjection {
+	return &ModelGatewayPostureProjection{
+		SchemaID:             "runecode.protocol.v0.ModelGatewayPostureProjection",
+		SchemaVersion:        "0.1.0",
+		ProjectionKind:       "broker_projected",
+		GatewayRoleKind:      "model-gateway",
+		DestinationScopeKind: "gateway_destination",
+		ConfigurationState:   "not_configured",
+		EgressPolicyPosture:  "deny_by_default",
+		SurfaceChannel:       "broker_local_api",
+	}
+}
+
+func decodePolicyAllowlist(runtime policyRuntime, record artifacts.ArtifactRecord) (policyengine.PolicyAllowlist, error) {
+	manifestInput, readErr := runtime.readManifestInput(record)
+	if readErr != nil {
+		return policyengine.PolicyAllowlist{}, readErr
+	}
+	if computedDigest := artifacts.DigestBytes(manifestInput.Payload); computedDigest != record.Reference.Digest {
+		return policyengine.PolicyAllowlist{}, fmt.Errorf("trusted allowlist payload digest mismatch: expected %s got %s", record.Reference.Digest, computedDigest)
+	}
+	allowlist := policyengine.PolicyAllowlist{}
+	if unmarshalErr := json.Unmarshal(manifestInput.Payload, &allowlist); unmarshalErr != nil {
+		return policyengine.PolicyAllowlist{}, unmarshalErr
+	}
+	return allowlist, nil
+}
+
+func allowlistHasModelGatewayEntry(allowlist policyengine.PolicyAllowlist) bool {
+	for _, entry := range allowlist.Entries {
+		if isModelGatewayConfiguredEntry(entry) {
+			return true
+		}
+	}
+	return false
+}
+
+func isModelGatewayConfiguredEntry(entry policyengine.GatewayScopeRule) bool {
+	if entry.ScopeKind != "gateway_destination" {
+		return false
+	}
+	if entry.GatewayRoleKind != "model-gateway" {
+		return false
+	}
+	if entry.Destination.DescriptorKind != "model_endpoint" {
+		return false
+	}
+	for _, operation := range entry.PermittedOperations {
+		if operation == "invoke_model" {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) HandleVersionInfoGet(ctx context.Context, req VersionInfoGetRequest, meta RequestContext) (VersionInfoGetResponse, *ErrorResponse) {

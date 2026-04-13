@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
@@ -70,7 +73,12 @@ func handleValidateSignRequest(args []string, stdout io.Writer) error {
 }
 
 func loadSignRequest(filePath string) (trustpolicy.SignRequestPreconditions, error) {
-	b, err := os.ReadFile(filePath)
+	f, err := openValidatedSignRequestFile(filePath)
+	if err != nil {
+		return trustpolicy.SignRequestPreconditions{}, err
+	}
+	defer f.Close()
+	b, err := io.ReadAll(f)
 	if err != nil {
 		return trustpolicy.SignRequestPreconditions{}, err
 	}
@@ -79,6 +87,73 @@ func loadSignRequest(filePath string) (trustpolicy.SignRequestPreconditions, err
 		return trustpolicy.SignRequestPreconditions{}, err
 	}
 	return req, nil
+}
+
+func openValidatedSignRequestFile(filePath string) (*os.File, error) {
+	trimmed := strings.TrimSpace(filePath)
+	if trimmed == "" {
+		return nil, fmt.Errorf("--file path is required")
+	}
+	cleanPath, err := filepath.Abs(filepath.Clean(trimmed))
+	if err != nil {
+		return nil, err
+	}
+	resolvedPath, err := filepath.EvalSymlinks(cleanPath)
+	if err != nil {
+		return nil, err
+	}
+	if initialSymlink, err := isSymlinkPath(cleanPath); err != nil {
+		return nil, err
+	} else if initialSymlink {
+		return nil, fmt.Errorf("--file path must not be a symlink")
+	}
+	if !sameCanonicalPath(cleanPath, resolvedPath) {
+		return nil, fmt.Errorf("--file path must not contain symlink path components")
+	}
+	initialInfo, err := os.Lstat(cleanPath)
+	if err != nil {
+		return nil, err
+	}
+	if initialInfo.IsDir() {
+		return nil, fmt.Errorf("--file path must point to a regular file")
+	}
+	if initialInfo.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("--file path must not be a symlink")
+	}
+	if !initialInfo.Mode().IsRegular() {
+		return nil, fmt.Errorf("--file path must point to a regular file")
+	}
+	f, err := os.Open(cleanPath)
+	if err != nil {
+		return nil, err
+	}
+	openedInfo, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	if !os.SameFile(initialInfo, openedInfo) {
+		_ = f.Close()
+		return nil, fmt.Errorf("--file path changed during validation")
+	}
+	return f, nil
+}
+
+func isSymlinkPath(path string) (bool, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return false, err
+	}
+	return info.Mode()&os.ModeSymlink != 0, nil
+}
+
+func sameCanonicalPath(first string, second string) bool {
+	left := filepath.Clean(first)
+	right := filepath.Clean(second)
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(left, right)
+	}
+	return left == right
 }
 
 func writeHelp(w io.Writer) error {

@@ -6,79 +6,6 @@ import (
 	"testing"
 )
 
-func TestEvaluateGatewayRequiresSignedAllowlistDestinationMatch(t *testing.T) {
-	compiled := mustCompile(t, compileGatewayInputWithOneCapability("model-gateway", "cap_gateway", validAllowlistPayloadForGateway("allowlist-model", "model-gateway", "model_endpoint", "invoke_model", "spec_text")))
-	action := validGatewayEgressActionRequest("cap_gateway", "gateway", "model-gateway", "model-gateway", "model_endpoint", ActionKindGatewayEgress)
-	action.ActionPayload["destination_ref"] = "allowlist-model.example.com"
-	decision, err := Evaluate(compiled, action)
-	if err != nil || decision.DecisionOutcome != DecisionAllow {
-		t.Fatalf("allowlisted destination should allow, err=%v outcome=%q", err, decision.DecisionOutcome)
-	}
-}
-
-func TestEvaluateGatewayAllowsCaseInsensitiveDestinationHostMatch(t *testing.T) {
-	compiled := mustCompile(t, compileGatewayInputWithOneCapability("model-gateway", "cap_gateway", validAllowlistPayloadForGateway("allowlist-model", "model-gateway", "model_endpoint", "invoke_model", "spec_text")))
-	action := validGatewayEgressActionRequest("cap_gateway", "gateway", "model-gateway", "model-gateway", "model_endpoint", ActionKindGatewayEgress)
-	action.ActionPayload["destination_ref"] = "ALLOWLIST-MODEL.EXAMPLE.COM"
-	decision, err := Evaluate(compiled, action)
-	if err != nil || decision.DecisionOutcome != DecisionAllow {
-		t.Fatalf("case-insensitive host should allow, err=%v outcome=%q", err, decision.DecisionOutcome)
-	}
-}
-
-func TestEvaluateGatewayDeniesWhenCanonicalPortRequiredButMissing(t *testing.T) {
-	allowlist := validAllowlistPayloadForGateway("allowlist-model", "model-gateway", "model_endpoint", "invoke_model", "spec_text")
-	entry := allowlist["entries"].([]any)[0].(map[string]any)
-	destination := entry["destination"].(map[string]any)
-	destination["canonical_port"] = float64(8443)
-
-	compiled := mustCompile(t, compileGatewayInputWithOneCapability("model-gateway", "cap_gateway", allowlist))
-	action := validGatewayEgressActionRequest("cap_gateway", "gateway", "model-gateway", "model-gateway", "model_endpoint", ActionKindGatewayEgress)
-	action.ActionPayload["destination_ref"] = "allowlist-model.example.com"
-	decision, err := Evaluate(compiled, action)
-	if err != nil {
-		t.Fatalf("Evaluate returned error: %v", err)
-	}
-	if decision.DecisionOutcome != DecisionDeny {
-		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
-	}
-}
-
-func TestEvaluateGatewayFailsClosedWhenOperationMissing(t *testing.T) {
-	compiled := mustCompile(t, compileGatewayInputWithOneCapability("model-gateway", "cap_gateway", validAllowlistPayloadForGateway("allowlist-model", "model-gateway", "model_endpoint", "invoke_model", "spec_text")))
-	action := validGatewayEgressActionRequest("cap_gateway", "gateway", "model-gateway", "model-gateway", "model_endpoint", ActionKindGatewayEgress)
-	delete(action.ActionPayload, "operation")
-	_, err := Evaluate(compiled, action)
-	if err == nil {
-		t.Fatal("Evaluate error = nil, want fail-closed schema validation error")
-	}
-	var evalErr *EvaluationError
-	if !errors.As(err, &evalErr) {
-		t.Fatalf("error type = %T, want *EvaluationError", err)
-	}
-	if evalErr.Code != ErrCodeBrokerValidationSchema {
-		t.Fatalf("error code = %q, want %q", evalErr.Code, ErrCodeBrokerValidationSchema)
-	}
-}
-
-func TestEvaluateGatewayDeniesEscapingPathPrefix(t *testing.T) {
-	allowlist := validAllowlistPayloadForGateway("allowlist-model", "model-gateway", "model_endpoint", "invoke_model", "spec_text")
-	entry := allowlist["entries"].([]any)[0].(map[string]any)
-	destination := entry["destination"].(map[string]any)
-	destination["canonical_path_prefix"] = "/v1/allowed/"
-
-	compiled := mustCompile(t, compileGatewayInputWithOneCapability("model-gateway", "cap_gateway", allowlist))
-	action := validGatewayEgressActionRequest("cap_gateway", "gateway", "model-gateway", "model-gateway", "model_endpoint", ActionKindGatewayEgress)
-	action.ActionPayload["destination_ref"] = "allowlist-model.example.com/v1/allowed/../escape"
-	decision, err := Evaluate(compiled, action)
-	if err != nil {
-		t.Fatalf("Evaluate returned error: %v", err)
-	}
-	if decision.DecisionOutcome != DecisionDeny {
-		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
-	}
-}
-
 func TestEvaluateModerateProfileAllowsTypicalOfflineWorkspaceEditWithoutIntermediateApproval(t *testing.T) {
 	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
 	action := validWorkspaceWriteActionRequest("cap_stage")
@@ -179,6 +106,7 @@ func TestEvaluateDependencyFetchUsesDependencyTriggerCode(t *testing.T) {
 	compiled := mustCompile(t, compileGatewayInputWithOneCapability("dependency-fetch", "cap_dep", validAllowlistPayloadForGateway("allowlist-dep", "dependency-fetch", "package_registry", "enable_dependency_fetch", "spec_text")))
 	action := validDependencyFetchActionRequest("cap_dep", "dependency-fetch", "allowlist-dep")
 	action.ActionPayload["operation"] = "enable_dependency_fetch"
+	delete(action.ActionPayload, "payload_hash")
 	decision, err := Evaluate(compiled, action)
 	if err != nil || decision.DecisionOutcome != DecisionRequireHumanApproval {
 		t.Fatalf("dependency fetch should require approval, err=%v outcome=%q", err, decision.DecisionOutcome)

@@ -132,6 +132,7 @@ func TestPolicyRuleSetAndAllowlistSchemasValidateDeclarativePolicyInputs(t *test
 	runObjectSchemaCases(t, bundle, "objects/PolicyAllowlist.schema.json", "allowlist", policyAllowlistCases())
 	runObjectSchemaCases(t, bundle, "objects/GatewayScopeRule.schema.json", "gateway-scope-rule", gatewayScopeRuleCases())
 	runObjectSchemaCases(t, bundle, "objects/DestinationDescriptor.schema.json", "destination-descriptor", destinationDescriptorCases())
+	runObjectSchemaCases(t, bundle, "objects/ActionPayloadGatewayEgress.schema.json", "gateway-egress-payload", gatewayEgressPayloadCases())
 	runObjectSchemaCases(t, bundle, "objects/ActionPayloadSecretAccess.schema.json", "secret-access-payload", secretAccessPayloadCases())
 	runObjectSchemaCases(t, bundle, "objects/SecretLease.schema.json", "secret-lease", secretLeaseCases())
 	runObjectSchemaCases(t, bundle, "objects/SecretStoragePosture.schema.json", "secret-storage-posture", secretStoragePostureCases())
@@ -274,6 +275,7 @@ func gatewayScopeRuleCases() []validationCase {
 	return []validationCase{
 		{name: "valid gateway scope rule", value: validGatewayScopeRule("provider-a")},
 		{name: "unknown scope kind fails closed", value: invalidGatewayScopeRuleKind(), wantErr: true},
+		{name: "timeout bound over hard limit fails closed", value: invalidGatewayScopeRuleTimeoutOutOfBounds(), wantErr: true},
 	}
 }
 
@@ -281,6 +283,29 @@ func destinationDescriptorCases() []validationCase {
 	return []validationCase{
 		{name: "valid destination descriptor", value: validDestinationDescriptor("provider-a")},
 		{name: "unknown descriptor kind fails closed", value: invalidDestinationDescriptorKind(), wantErr: true},
+	}
+}
+
+func gatewayEgressPayloadCases() []validationCase {
+	return []validationCase{
+		{name: "request operation requires payload hash", value: validActionPayloadGatewayEgressRequestOperation()},
+		{name: "request operation accepts timeout bound", value: validActionPayloadGatewayEgressRequestOperationWithTimeout()},
+		{name: "stream quota phase accepts explicit stream limit", value: validActionPayloadGatewayEgressStreamQuotaOperation()},
+		{name: "request operation accepts canonical destination host port path", value: validActionPayloadGatewayEgressRequestOperationWithPortAndPath()},
+		{name: "scope operation forbids payload hash", value: validActionPayloadGatewayEgressScopeOperation()},
+		{name: "unknown operation fails closed", value: invalidActionPayloadGatewayEgressUnknownOperation(), wantErr: true},
+		{name: "request operation missing payload hash fails closed", value: invalidActionPayloadGatewayEgressRequestMissingPayloadHash(), wantErr: true},
+		{name: "dependency request operation missing payload hash fails closed", value: invalidActionPayloadGatewayEgressDependencyRequestMissingPayloadHash(), wantErr: true},
+		{name: "scope operation with payload hash fails closed", value: invalidActionPayloadGatewayEgressScopeWithPayloadHash(), wantErr: true},
+		{name: "raw url destination ref fails closed", value: invalidActionPayloadGatewayEgressRawURLDestinationRef(), wantErr: true},
+		{name: "timeout bound over hard limit fails closed", value: invalidActionPayloadGatewayEgressTimeoutOutOfBounds(), wantErr: true},
+		{name: "request operation missing audit context fails closed", value: invalidActionPayloadGatewayEgressMissingAuditContext(), wantErr: true},
+		{name: "request operation missing quota context fails closed", value: invalidActionPayloadGatewayEgressMissingQuotaContext(), wantErr: true},
+		{name: "auth exchange request missing audit context fails closed", value: invalidActionPayloadGatewayEgressAuthRequestMissingAuditContext(), wantErr: true},
+		{name: "auth refresh request missing quota context fails closed", value: invalidActionPayloadGatewayEgressAuthRequestMissingQuotaContext(), wantErr: true},
+		{name: "hybrid quota requires entitlement meter", value: invalidActionPayloadGatewayEgressHybridQuotaMissingEntitlementMeter(), wantErr: true},
+		{name: "hybrid quota requires token meter", value: invalidActionPayloadGatewayEgressHybridQuotaMissingTokenMeter(), wantErr: true},
+		{name: "stream phase without stream limit fails closed", value: invalidActionPayloadGatewayEgressStreamPhaseWithoutLimit(), wantErr: true},
 	}
 }
 
@@ -319,6 +344,9 @@ func brokerReadinessCases() []validationCase {
 		{name: "broker readiness includes secrets health and metrics", value: validBrokerReadinessWithSecretsHealthAndMetrics()},
 		{name: "secrets health requires readiness flag", value: invalidBrokerReadinessSecretsHealthWithoutReadyFlag(), wantErr: true},
 		{name: "secrets metrics require readiness flag", value: invalidBrokerReadinessSecretsMetricsWithoutReadyFlag(), wantErr: true},
+		{name: "model gateway health requires readiness flag", value: invalidBrokerReadinessModelGatewayHealthWithoutReadyFlag(), wantErr: true},
+		{name: "model gateway posture projection requires readiness flag", value: invalidBrokerReadinessModelGatewayPostureWithoutReadyFlag(), wantErr: true},
+		{name: "model gateway posture projection requires configuration state", value: invalidBrokerReadinessModelGatewayPostureWithoutConfigurationState(), wantErr: true},
 	}
 }
 

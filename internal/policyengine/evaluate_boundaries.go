@@ -18,6 +18,9 @@ func evaluateHardBoundaryInvariants(compiled *CompiledContext, action ActionRequ
 		if decision, denied := evaluateGatewayNoWorkspaceAccess(compiled, action, actionHash); denied {
 			return decision, true
 		}
+		if decision, denied := evaluateGatewayNoSecretAccess(compiled, action, actionHash); denied {
+			return decision, true
+		}
 	}
 
 	switch action.ActionKind {
@@ -170,7 +173,29 @@ func evaluateGatewayNoWorkspaceAccess(compiled *CompiledContext, action ActionRe
 			"active_role_kind": compiled.Context.ActiveRoleKind,
 			"action_kind":      action.ActionKind,
 		}), true
+	case ActionKindArtifactRead:
+		return denyInvariantDecision(compiled, action, actionHash, map[string]any{
+			"precedence":       "invariants_first",
+			"invariant":        "gateway_no_workspace_access",
+			"non_approvable":   true,
+			"active_role_kind": compiled.Context.ActiveRoleKind,
+			"action_kind":      action.ActionKind,
+		}), true
 	default:
 		return PolicyDecision{}, false
 	}
+}
+
+func evaluateGatewayNoSecretAccess(compiled *CompiledContext, action ActionRequest, actionHash string) (PolicyDecision, bool) {
+	if action.ActionKind != ActionKindSecretAccess {
+		return PolicyDecision{}, false
+	}
+	return denyInvariantDecision(compiled, action, actionHash, map[string]any{
+		"precedence":       "invariants_first",
+		"invariant":        "gateway_no_long_lived_secret_storage",
+		"non_approvable":   true,
+		"active_role_kind": compiled.Context.ActiveRoleKind,
+		"action_kind":      action.ActionKind,
+		"reason":           "gateway_roles_must_consume_short_lived_leases_only",
+	}), true
 }

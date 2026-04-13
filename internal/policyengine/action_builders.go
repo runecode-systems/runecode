@@ -103,38 +103,6 @@ func NewPromotionAction(input PromotionActionInput) ActionRequest {
 	return buildActionRequest(ActionKindPromotion, actionPayloadPromotionSchemaID, payload, input.ActionEnvelope)
 }
 
-func NewGatewayEgressAction(input GatewayEgressActionInput) ActionRequest {
-	payload := map[string]any{
-		"schema_id":         actionPayloadGatewaySchemaID,
-		"schema_version":    "0.1.0",
-		"gateway_role_kind": input.GatewayRoleKind,
-		"destination_kind":  input.DestinationKind,
-		"destination_ref":   input.DestinationRef,
-		"egress_data_class": input.EgressDataClass,
-		"operation":         input.Operation,
-	}
-	if input.PayloadHash != nil {
-		payload["payload_hash"] = *input.PayloadHash
-	}
-	return buildActionRequest(ActionKindGatewayEgress, actionPayloadGatewaySchemaID, payload, input.ActionEnvelope)
-}
-
-func NewDependencyFetchAction(input GatewayEgressActionInput) ActionRequest {
-	payload := map[string]any{
-		"schema_id":         actionPayloadGatewaySchemaID,
-		"schema_version":    "0.1.0",
-		"gateway_role_kind": input.GatewayRoleKind,
-		"destination_kind":  input.DestinationKind,
-		"destination_ref":   input.DestinationRef,
-		"egress_data_class": input.EgressDataClass,
-		"operation":         input.Operation,
-	}
-	if input.PayloadHash != nil {
-		payload["payload_hash"] = *input.PayloadHash
-	}
-	return buildActionRequest(ActionKindDependencyFetch, actionPayloadGatewaySchemaID, payload, input.ActionEnvelope)
-}
-
 func NewBackendPostureChangeAction(input BackendPostureChangeActionInput) ActionRequest {
 	payload := map[string]any{
 		"schema_id":         actionPayloadBackendSchemaID,

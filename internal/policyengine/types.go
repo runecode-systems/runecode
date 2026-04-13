@@ -112,15 +112,6 @@ const (
 	ApprovalProfileModerate ApprovalProfile = "moderate"
 )
 
-type HardFloorOperationClass string
-
-const (
-	HardFloorTrustRootChange                  HardFloorOperationClass = "trust_root_change"
-	HardFloorSecurityPostureWeakening         HardFloorOperationClass = "security_posture_weakening"
-	HardFloorAuthoritativeStateReconciliation HardFloorOperationClass = "authoritative_state_reconciliation"
-	HardFloorDeploymentBootstrapAuthority     HardFloorOperationClass = "deployment_bootstrap_authority_change"
-)
-
 type ApprovalAssuranceLevel string
 
 const (
@@ -188,6 +179,7 @@ type GatewayScopeRule struct {
 	PermittedOperations      []string              `json:"permitted_operations"`
 	AllowedEgressDataClasses []string              `json:"allowed_egress_data_classes"`
 	RedirectPosture          string                `json:"redirect_posture"`
+	MaxTimeoutSeconds        *int                  `json:"max_timeout_seconds,omitempty"`
 	AllowCredentials         *bool                 `json:"allow_credentials,omitempty"`
 	MaxResponseBytes         *int                  `json:"max_response_bytes,omitempty"`
 }

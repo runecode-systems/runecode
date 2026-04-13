@@ -44,16 +44,30 @@ type ArtifactSummary struct {
 }
 
 type BrokerReadiness struct {
-	SchemaID                  string `json:"schema_id"`
-	SchemaVersion             string `json:"schema_version"`
-	Ready                     bool   `json:"ready"`
-	LocalOnly                 bool   `json:"local_only"`
-	ConsumptionChannel        string `json:"consumption_channel"`
-	RecoveryComplete          bool   `json:"recovery_complete"`
-	AppendPositionStable      bool   `json:"append_position_stable"`
-	CurrentSegmentWritable    bool   `json:"current_segment_writable"`
-	VerifierMaterialAvailable bool   `json:"verifier_material_available"`
-	DerivedIndexCaughtUp      bool   `json:"derived_index_caught_up"`
+	SchemaID                  string                         `json:"schema_id"`
+	SchemaVersion             string                         `json:"schema_version"`
+	Ready                     bool                           `json:"ready"`
+	LocalOnly                 bool                           `json:"local_only"`
+	ConsumptionChannel        string                         `json:"consumption_channel"`
+	RecoveryComplete          bool                           `json:"recovery_complete"`
+	AppendPositionStable      bool                           `json:"append_position_stable"`
+	CurrentSegmentWritable    bool                           `json:"current_segment_writable"`
+	VerifierMaterialAvailable bool                           `json:"verifier_material_available"`
+	DerivedIndexCaughtUp      bool                           `json:"derived_index_caught_up"`
+	ModelGatewayReady         bool                           `json:"model_gateway_ready"`
+	ModelGatewayHealthState   string                         `json:"model_gateway_health_state,omitempty"`
+	ModelGatewayPosture       *ModelGatewayPostureProjection `json:"model_gateway_posture_projection,omitempty"`
+}
+
+type ModelGatewayPostureProjection struct {
+	SchemaID             string `json:"schema_id"`
+	SchemaVersion        string `json:"schema_version"`
+	ProjectionKind       string `json:"projection_kind"`
+	GatewayRoleKind      string `json:"gateway_role_kind"`
+	DestinationScopeKind string `json:"destination_scope_kind"`
+	ConfigurationState   string `json:"configuration_state"`
+	EgressPolicyPosture  string `json:"egress_policy_posture"`
+	SurfaceChannel       string `json:"surface_channel"`
 }
 
 type BrokerVersionInfo struct {

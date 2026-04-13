@@ -131,7 +131,7 @@ Commands:
   show-policy
   set-reserved-classes --enabled=true|false
   import-trusted-contract --kind verifier-record --file verifier.json --evidence import-evidence.json
-  seed-dev-manual-scenario --dev-only [--profile tui-rich-v1]
+  seed-dev-manual-scenario --dev-only [--profile tui-rich-v1] (requires dev-seed build tag)
   audit-readiness
   audit-verification [--limit N]
   audit-record-get --record-digest sha256:...

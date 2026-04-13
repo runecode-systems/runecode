@@ -39,6 +39,9 @@ func (s *Service) SeedDevManualScenario() (DevManualSeedResult, error) {
 	if s == nil || s.store == nil {
 		return DevManualSeedResult{}, fmt.Errorf("broker store unavailable")
 	}
+	if !DevManualSeedBuildEnabled() {
+		return DevManualSeedResult{}, fmt.Errorf("dev manual seeding unavailable in this build")
+	}
 	if strings.TrimSpace(os.Getenv(devManualSeedEnvVar)) != "1" {
 		return DevManualSeedResult{}, fmt.Errorf("dev manual seeding requires %s=1", devManualSeedEnvVar)
 	}
@@ -57,6 +60,8 @@ func (s *Service) SeedDevManualScenario() (DevManualSeedResult, error) {
 		ArtifactDigests:   seedState.artifactDigests,
 	}, nil
 }
+
+func DevManualSeedBuildEnabled() bool { return devManualSeedBuildEnabled }
 
 type devManualSeedState struct {
 	auditRecordDigest string
