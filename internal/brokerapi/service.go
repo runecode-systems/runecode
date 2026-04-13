@@ -153,7 +153,13 @@ func (s *Service) RevokeApprovedExcerpt(digest, actor string) error {
 }
 
 func (s *Service) SetRunStatus(runID, status string) error {
-	return s.store.SetRunStatus(runID, status)
+	if err := s.store.SetRunStatus(runID, status); err != nil {
+		return err
+	}
+	if s.gatewayQuota != nil && isTerminalRunStatus(status) {
+		s.gatewayQuota.releaseRun(runID)
+	}
+	return nil
 }
 
 func (s *Service) RecordRunnerCheckpoint(runID string, checkpoint artifacts.RunnerCheckpointAdvisory) (bool, error) {
@@ -280,6 +286,4 @@ func (s *Service) LatestAuditVerificationSurface(limit int) (AuditVerificationSu
 	return AuditVerificationSurface{Summary: summary, Report: report, Views: views}, nil
 }
 
-func (s *Service) APILimits() Limits {
-	return s.apiConfig.Limits
-}
+func (s *Service) APILimits() Limits { return s.apiConfig.Limits }

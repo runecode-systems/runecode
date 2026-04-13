@@ -213,6 +213,25 @@ func TestSeedDevManualScenarioRejectsLedgerWithMultipleBootstrapSegments(t *test
 	}
 }
 
+func TestSeedDevManualScenarioRejectsOversizedSeedMarker(t *testing.T) {
+	if !DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
+	service := newDevManualSeedService(t)
+	t.Setenv(devManualSeedEnvVar, "1")
+	markerPath := devManualLedgerSeedMarkerPath(service.auditRoot)
+	if err := os.WriteFile(markerPath, []byte(strings.Repeat("x", devManualSeedMarkerMaxBytes+1)), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	_, err := service.SeedDevManualScenario()
+	if err == nil {
+		t.Fatal("SeedDevManualScenario expected oversized marker rejection")
+	}
+	if err.Error() != "dev manual seeding refuses populated audit ledger root" {
+		t.Fatalf("SeedDevManualScenario error = %q, want populated-ledger refusal", err.Error())
+	}
+}
+
 func TestSeedDevManualScenarioUnavailableWhenBuildTagDisabled(t *testing.T) {
 	if DevManualSeedBuildEnabled() {
 		t.Skip("dev manual seed is enabled in this build")

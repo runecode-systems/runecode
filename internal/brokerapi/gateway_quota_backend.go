@@ -2,7 +2,9 @@ package brokerapi
 
 import (
 	"math"
+	"strings"
 	"sync"
+	"time"
 )
 
 type GatewayQuotaLimits struct {
@@ -19,6 +21,7 @@ type gatewayQuotaBackend struct {
 	mu     sync.Mutex
 	limits GatewayQuotaLimits
 	state  map[string]gatewayQuotaState
+	now    func() time.Time
 }
 
 type gatewayQuotaState struct {
@@ -29,10 +32,13 @@ type gatewayQuotaState struct {
 	ConcurrencyUnits int64
 	SpendMicros      int64
 	EntitlementUnits int64
+	UpdatedAt        time.Time
 }
 
+const gatewayQuotaStateTTL = 15 * time.Minute
+
 func newGatewayQuotaBackend() *gatewayQuotaBackend {
-	return &gatewayQuotaBackend{state: map[string]gatewayQuotaState{}}
+	return &gatewayQuotaBackend{state: map[string]gatewayQuotaState{}, now: time.Now}
 }
 
 func (q *gatewayQuotaBackend) setLimits(limits GatewayQuotaLimits) {
@@ -44,6 +50,7 @@ func (q *gatewayQuotaBackend) setLimits(limits GatewayQuotaLimits) {
 func (q *gatewayQuotaBackend) evaluateAndApply(key string, quota gatewayQuotaContextPayload) (string, map[string]any, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	q.pruneStaleStateLocked()
 	if reason, details, blocked := quotaMeterValidationReason(quota); blocked {
 		return reason, details, true
 	}
@@ -58,8 +65,34 @@ func (q *gatewayQuotaBackend) evaluateAndApply(key string, quota gatewayQuotaCon
 		return reason, details, true
 	}
 
+	next.UpdatedAt = q.now().UTC()
 	q.state[key] = next
 	return "", nil, false
+}
+
+func (q *gatewayQuotaBackend) releaseRun(runID string) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	prefix := strings.TrimSpace(runID)
+	if prefix == "" {
+		return
+	}
+	prefix += ":"
+	for key := range q.state {
+		if strings.HasPrefix(key, prefix) {
+			delete(q.state, key)
+		}
+	}
+}
+
+func (q *gatewayQuotaBackend) pruneStaleStateLocked() {
+	now := q.now().UTC()
+	for key, entry := range q.state {
+		if entry.UpdatedAt.IsZero() || now.Sub(entry.UpdatedAt) <= gatewayQuotaStateTTL {
+			continue
+		}
+		delete(q.state, key)
+	}
 }
 
 func (q *gatewayQuotaBackend) quotaLimitReason(next gatewayQuotaState, quota gatewayQuotaContextPayload) (string, map[string]any, bool) {
@@ -93,7 +126,6 @@ func quotaMeterValidationReason(quota gatewayQuotaContextPayload) (string, map[s
 		"input_tokens":      quota.Meters.InputTokens,
 		"output_tokens":     quota.Meters.OutputTokens,
 		"streamed_bytes":    quota.Meters.StreamedBytes,
-		"concurrency_units": quota.Meters.ConcurrencyUnits,
 		"spend_micros":      quota.Meters.SpendMicros,
 		"entitlement_units": quota.Meters.EntitlementUnits,
 	} {
@@ -156,7 +188,6 @@ func applyQuotaMeterDeltas(next *gatewayQuotaState, meters gatewayQuotaMetersPay
 		{meter: "input_tokens", delta: meters.InputTokens, get: func(s *gatewayQuotaState) *int64 { return &s.InputTokens }},
 		{meter: "output_tokens", delta: meters.OutputTokens, get: func(s *gatewayQuotaState) *int64 { return &s.OutputTokens }},
 		{meter: "streamed_bytes", delta: meters.StreamedBytes, get: func(s *gatewayQuotaState) *int64 { return &s.StreamedBytes }},
-		{meter: "concurrency_units", delta: meters.ConcurrencyUnits, get: func(s *gatewayQuotaState) *int64 { return &s.ConcurrencyUnits }},
 		{meter: "spend_micros", delta: meters.SpendMicros, get: func(s *gatewayQuotaState) *int64 { return &s.SpendMicros }},
 		{meter: "entitlement_units", delta: meters.EntitlementUnits, get: func(s *gatewayQuotaState) *int64 { return &s.EntitlementUnits }},
 	}
@@ -164,6 +195,9 @@ func applyQuotaMeterDeltas(next *gatewayQuotaState, meters gatewayQuotaMetersPay
 		if reason, details, blocked := applySingleQuotaMeterDelta(next, update.meter, update.delta, update.get); blocked {
 			return reason, details, true
 		}
+	}
+	if reason, details, blocked := applyConcurrencyQuotaDelta(next, meters.ConcurrencyUnits); blocked {
+		return reason, details, true
 	}
 	return "", nil, false
 }
@@ -178,5 +212,20 @@ func applySingleQuotaMeterDelta(next *gatewayQuotaState, meter string, delta *in
 		return "invalid_quota_meter_overflow", map[string]any{"meter": meter}, true
 	}
 	*current = updated
+	return "", nil, false
+}
+
+func applyConcurrencyQuotaDelta(next *gatewayQuotaState, delta *int64) (string, map[string]any, bool) {
+	if delta == nil {
+		return "", nil, false
+	}
+	updated, ok := safeAddInt64(next.ConcurrencyUnits, *delta)
+	if !ok {
+		return "invalid_quota_meter_overflow", map[string]any{"meter": "concurrency_units"}, true
+	}
+	if updated < 0 {
+		return "invalid_quota_meter_underflow", map[string]any{"meter": "concurrency_units", "value": updated}, true
+	}
+	next.ConcurrencyUnits = updated
 	return "", nil, false
 }

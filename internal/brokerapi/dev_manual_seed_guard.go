@@ -13,6 +13,8 @@ import (
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
+const devManualSeedMarkerMaxBytes = 64
+
 func ensureDevManualSeedLedgerAllowed(root string) (string, error) {
 	canonicalRoot, err := canonicalPathWithoutSymlinkComponents(root)
 	if err != nil {
@@ -64,8 +66,11 @@ func hasDevManualSeedMarker(root string) bool {
 	if !os.SameFile(info, openedInfo) {
 		return false
 	}
-	b, err := io.ReadAll(f)
+	b, err := io.ReadAll(io.LimitReader(f, devManualSeedMarkerMaxBytes+1))
 	if err != nil {
+		return false
+	}
+	if len(b) > devManualSeedMarkerMaxBytes {
 		return false
 	}
 	if strings.TrimSpace(string(b)) != devManualSeedProfile {

@@ -5,6 +5,7 @@ import (
 	"net"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/policyengine"
@@ -139,6 +140,66 @@ func TestPolicyRuntimeGatewayStreamQuotaNotEnforcedWhenDisabled(t *testing.T) {
 	})
 	if blocked {
 		t.Fatalf("blocked = true, want false (reason=%q)", reason)
+	}
+}
+
+func TestPolicyRuntimeGatewayConcurrencySupportsRelease(t *testing.T) {
+	backend := newGatewayQuotaBackend()
+	backend.setLimits(GatewayQuotaLimits{MaxConcurrencyUnits: 1})
+	one := int64(1)
+	minusOne := int64(-1)
+	if reason, _, blocked := backend.evaluateAndApply("quota-key", gatewayQuotaContextPayload{QuotaProfileKind: "hybrid", Phase: "admission", Meters: gatewayQuotaMetersPayload{ConcurrencyUnits: &one}}); blocked {
+		t.Fatalf("initial acquire blocked with reason %q", reason)
+	}
+	if reason, _, blocked := backend.evaluateAndApply("quota-key", gatewayQuotaContextPayload{QuotaProfileKind: "hybrid", Phase: "admission", Meters: gatewayQuotaMetersPayload{ConcurrencyUnits: &minusOne}}); blocked {
+		t.Fatalf("release blocked with reason %q", reason)
+	}
+	if reason, _, blocked := backend.evaluateAndApply("quota-key", gatewayQuotaContextPayload{QuotaProfileKind: "hybrid", Phase: "admission", Meters: gatewayQuotaMetersPayload{ConcurrencyUnits: &one}}); blocked {
+		t.Fatalf("reacquire blocked with reason %q", reason)
+	}
+	if got := backend.state["quota-key"].ConcurrencyUnits; got != 1 {
+		t.Fatalf("concurrency_units = %d, want 1", got)
+	}
+}
+
+func TestPolicyRuntimeGatewayConcurrencyUnderflowDenied(t *testing.T) {
+	backend := newGatewayQuotaBackend()
+	minusOne := int64(-1)
+	reason, _, blocked := backend.evaluateAndApply("quota-key", gatewayQuotaContextPayload{QuotaProfileKind: "hybrid", Phase: "admission", Meters: gatewayQuotaMetersPayload{ConcurrencyUnits: &minusOne}})
+	if !blocked {
+		t.Fatal("blocked = false, want true")
+	}
+	if reason != "invalid_quota_meter_underflow" {
+		t.Fatalf("reason = %q, want invalid_quota_meter_underflow", reason)
+	}
+}
+
+func TestPolicyRuntimeGatewayQuotaStatePrunedByRunCompletionAndTTL(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, time.April, 13, 21, 0, 0, 0, time.UTC)
+	s.gatewayQuota.now = func() time.Time { return now }
+	one := int64(1)
+	if reason, _, blocked := s.gatewayQuota.evaluateAndApply("run-prune:model:model_endpoint:model.example.com/v1:hybrid", gatewayQuotaContextPayload{QuotaProfileKind: "hybrid", Phase: "admission", Meters: gatewayQuotaMetersPayload{RequestUnits: &one}}); blocked {
+		t.Fatalf("evaluateAndApply blocked with reason %q", reason)
+	}
+	if len(s.gatewayQuota.state) != 1 {
+		t.Fatalf("quota state len = %d, want 1", len(s.gatewayQuota.state))
+	}
+	if err := s.SetRunStatus("run-prune", "completed"); err != nil {
+		t.Fatalf("SetRunStatus returned error: %v", err)
+	}
+	if len(s.gatewayQuota.state) != 0 {
+		t.Fatalf("quota state len after releaseRun = %d, want 0", len(s.gatewayQuota.state))
+	}
+	if reason, _, blocked := s.gatewayQuota.evaluateAndApply("stale:model:model_endpoint:model.example.com/v1:hybrid", gatewayQuotaContextPayload{QuotaProfileKind: "hybrid", Phase: "admission", Meters: gatewayQuotaMetersPayload{RequestUnits: &one}}); blocked {
+		t.Fatalf("evaluateAndApply stale setup blocked with reason %q", reason)
+	}
+	now = now.Add(gatewayQuotaStateTTL + time.Minute)
+	if reason, _, blocked := s.gatewayQuota.evaluateAndApply("fresh:model:model_endpoint:model.example.com/v1:hybrid", gatewayQuotaContextPayload{QuotaProfileKind: "hybrid", Phase: "admission", Meters: gatewayQuotaMetersPayload{RequestUnits: &one}}); blocked {
+		t.Fatalf("evaluateAndApply fresh blocked with reason %q", reason)
+	}
+	if _, ok := s.gatewayQuota.state["stale:model:model_endpoint:model.example.com/v1:hybrid"]; ok {
+		t.Fatal("stale quota key still present after TTL prune")
 	}
 }
 

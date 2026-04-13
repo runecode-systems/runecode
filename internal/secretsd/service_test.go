@@ -55,3 +55,41 @@ func TestRecoveryFailClosedWithCorruptState(t *testing.T) {
 		t.Fatalf("Open error = %v, want ErrStateRecoveryFailed", err)
 	}
 }
+
+func TestImportSecretUsesDistinctSecretIDPrefix(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	metadata, err := svc.ImportSecret("secrets/prod/api", strings.NewReader("api-secret"))
+	if err != nil {
+		t.Fatalf("ImportSecret returned error: %v", err)
+	}
+	lease, err := svc.IssueLease(IssueLeaseRequest{SecretRef: "secrets/prod/api", ConsumerID: "principal:runner:1", RoleKind: "runner", Scope: "stage:alpha", TTLSeconds: 60})
+	if err != nil {
+		t.Fatalf("IssueLease returned error: %v", err)
+	}
+	if !strings.HasPrefix(metadata.SecretID, "secret_") {
+		t.Fatalf("secret_id = %q, want secret_ prefix", metadata.SecretID)
+	}
+	if !strings.HasPrefix(lease.LeaseID, "lease_") {
+		t.Fatalf("lease_id = %q, want lease_ prefix", lease.LeaseID)
+	}
+}
+
+func TestWriteFileAtomicReplacesExistingStateFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), stateFileName)
+	if err := os.WriteFile(path, []byte("old-state"), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	if err := writeFileAtomic(path, []byte("new-state"), 0o600); err != nil {
+		t.Fatalf("writeFileAtomic returned error: %v", err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile returned error: %v", err)
+	}
+	if string(b) != "new-state" {
+		t.Fatalf("state file contents = %q, want new-state", string(b))
+	}
+}

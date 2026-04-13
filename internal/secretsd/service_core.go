@@ -42,7 +42,7 @@ func (s *Service) ImportSecret(secretRef string, r io.Reader) (SecretMetadata, e
 		return SecretMetadata{}, fmt.Errorf("secret input is empty")
 	}
 	now := s.now().UTC()
-	secretID, err := randomID(s.rand)
+	secretID, err := randomSecretID(s.rand)
 	if err != nil {
 		return SecretMetadata{}, err
 	}
@@ -76,7 +76,7 @@ func (s *Service) IssueLease(req IssueLeaseRequest) (Lease, error) {
 		return Lease{}, ErrAccessDenied
 	}
 	now := s.now().UTC()
-	leaseID, err := randomID(s.rand)
+	leaseID, err := randomLeaseID(s.rand)
 	if err != nil {
 		return Lease{}, err
 	}

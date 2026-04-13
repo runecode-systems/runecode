@@ -34,12 +34,20 @@ func effectiveTTL(requested int) int {
 	return requested
 }
 
-func randomID(r io.Reader) (string, error) {
+func randomID(r io.Reader, prefix string) (string, error) {
 	b := make([]byte, 16)
 	if _, err := io.ReadFull(r, b); err != nil {
 		return "", err
 	}
-	return "lease_" + hex.EncodeToString(b), nil
+	return prefix + hex.EncodeToString(b), nil
+}
+
+func randomSecretID(r io.Reader) (string, error) {
+	return randomID(r, "secret_")
+}
+
+func randomLeaseID(r io.Reader) (string, error) {
+	return randomID(r, "lease_")
 }
 
 func digestHex(b []byte) string {
