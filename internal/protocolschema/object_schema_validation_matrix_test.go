@@ -128,42 +128,14 @@ func TestIsolateSessionAuditPayloadSchemasValidateReferenceHeavyTopologyNeutralS
 
 func TestPolicyRuleSetAndAllowlistSchemasValidateDeclarativePolicyInputs(t *testing.T) {
 	bundle := newCompiledBundle(t, loadManifest(t))
-	ruleSetSchema := mustCompileObjectSchema(t, bundle, "objects/PolicyRuleSet.schema.json")
-	allowlistSchema := mustCompileObjectSchema(t, bundle, "objects/PolicyAllowlist.schema.json")
-	gatewayScopeRuleSchema := mustCompileObjectSchema(t, bundle, "objects/GatewayScopeRule.schema.json")
-	destinationDescriptorSchema := mustCompileObjectSchema(t, bundle, "objects/DestinationDescriptor.schema.json")
-
-	for _, testCase := range policyRuleSetCases() {
-		testCase := testCase
-		t.Run("rule-set/"+testCase.name, func(t *testing.T) {
-			err := ruleSetSchema.Validate(testCase.value)
-			assertValidationOutcome(t, err, testCase.wantErr)
-		})
-	}
-
-	for _, testCase := range policyAllowlistCases() {
-		testCase := testCase
-		t.Run("allowlist/"+testCase.name, func(t *testing.T) {
-			err := allowlistSchema.Validate(testCase.value)
-			assertValidationOutcome(t, err, testCase.wantErr)
-		})
-	}
-
-	for _, testCase := range gatewayScopeRuleCases() {
-		testCase := testCase
-		t.Run("gateway-scope-rule/"+testCase.name, func(t *testing.T) {
-			err := gatewayScopeRuleSchema.Validate(testCase.value)
-			assertValidationOutcome(t, err, testCase.wantErr)
-		})
-	}
-
-	for _, testCase := range destinationDescriptorCases() {
-		testCase := testCase
-		t.Run("destination-descriptor/"+testCase.name, func(t *testing.T) {
-			err := destinationDescriptorSchema.Validate(testCase.value)
-			assertValidationOutcome(t, err, testCase.wantErr)
-		})
-	}
+	runObjectSchemaCases(t, bundle, "objects/PolicyRuleSet.schema.json", "rule-set", policyRuleSetCases())
+	runObjectSchemaCases(t, bundle, "objects/PolicyAllowlist.schema.json", "allowlist", policyAllowlistCases())
+	runObjectSchemaCases(t, bundle, "objects/GatewayScopeRule.schema.json", "gateway-scope-rule", gatewayScopeRuleCases())
+	runObjectSchemaCases(t, bundle, "objects/DestinationDescriptor.schema.json", "destination-descriptor", destinationDescriptorCases())
+	runObjectSchemaCases(t, bundle, "objects/ActionPayloadSecretAccess.schema.json", "secret-access-payload", secretAccessPayloadCases())
+	runObjectSchemaCases(t, bundle, "objects/SecretLease.schema.json", "secret-lease", secretLeaseCases())
+	runObjectSchemaCases(t, bundle, "objects/SecretStoragePosture.schema.json", "secret-storage-posture", secretStoragePostureCases())
+	runObjectSchemaCases(t, bundle, "objects/BrokerReadiness.schema.json", "broker-readiness", brokerReadinessCases())
 }
 
 func TestRunPlanningSchemasValidateDeterministicPlanningInputsAndOutputs(t *testing.T) {
@@ -309,6 +281,44 @@ func destinationDescriptorCases() []validationCase {
 	return []validationCase{
 		{name: "valid destination descriptor", value: validDestinationDescriptor("provider-a")},
 		{name: "unknown descriptor kind fails closed", value: invalidDestinationDescriptorKind(), wantErr: true},
+	}
+}
+
+func secretAccessPayloadCases() []validationCase {
+	return []validationCase{
+		{name: "secret access lease issue", value: validActionPayloadSecretAccessLeaseIssue()},
+		{name: "secret access lease renew", value: validActionPayloadSecretAccessLeaseRenew()},
+		{name: "secret access lease revoke", value: validActionPayloadSecretAccessLeaseRevoke()},
+		{name: "secret access renew requires lease id", value: invalidActionPayloadSecretAccessLeaseRenewWithoutLeaseID(), wantErr: true},
+		{name: "secret access renew requires renewal context", value: invalidActionPayloadSecretAccessLeaseRenewWithoutRenewalContext(), wantErr: true},
+		{name: "secret access revoke forbids ttl", value: invalidActionPayloadSecretAccessLeaseRevokeWithTTL(), wantErr: true},
+	}
+}
+
+func secretStoragePostureCases() []validationCase {
+	return []validationCase{
+		{name: "secret storage secure default", value: validSecretStoragePostureSecureDefault()},
+		{name: "secret storage explicit portable degraded", value: validSecretStoragePosturePortableDegraded()},
+		{name: "secure storage unavailable requires explicit opt in", value: invalidSecretStoragePostureUnavailableWithoutOptIn(), wantErr: true},
+	}
+}
+
+func secretLeaseCases() []validationCase {
+	return []validationCase{
+		{name: "persisted secret active lease", value: validSecretLeasePersistedSecretActive()},
+		{name: "derived token revoked lease", value: validSecretLeaseDerivedTokenRevoked()},
+		{name: "derived token requires source lease identity", value: invalidSecretLeaseDerivedTokenMissingSourceLeaseID(), wantErr: true},
+		{name: "revoked status requires revocation metadata", value: invalidSecretLeaseRevokedWithoutRevocationMetadata(), wantErr: true},
+		{name: "revoked lease requires durable persisted state", value: invalidSecretLeaseRevokedWithUndurableState(), wantErr: true},
+		{name: "lease requires trusted local delivery binding", value: invalidSecretLeaseWithoutTrustedLocalDeliveryBinding(), wantErr: true},
+	}
+}
+
+func brokerReadinessCases() []validationCase {
+	return []validationCase{
+		{name: "broker readiness includes secrets health and metrics", value: validBrokerReadinessWithSecretsHealthAndMetrics()},
+		{name: "secrets health requires readiness flag", value: invalidBrokerReadinessSecretsHealthWithoutReadyFlag(), wantErr: true},
+		{name: "secrets metrics require readiness flag", value: invalidBrokerReadinessSecretsMetricsWithoutReadyFlag(), wantErr: true},
 	}
 }
 

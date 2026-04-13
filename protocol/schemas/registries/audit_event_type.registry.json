@@ -54,6 +54,18 @@
       "summary": "Records issuance of a secrets access lease with non-secret lease identity and scope context."
     },
     {
+      "code": "secrets_lease_renewed",
+      "summary": "Records renewal of a secrets access lease when consumer, scope, and policy context still match the active lease binding."
+    },
+    {
+      "code": "secrets_lease_denied",
+      "summary": "Records deterministic denial of secrets lease issue, renew, or revoke operations under fail-closed policy and lifecycle checks."
+    },
+    {
+      "code": "secrets_lease_expired",
+      "summary": "Records expiry of a secrets access lease identity without disclosing secret material."
+    },
+    {
       "code": "secrets_lease_released",
       "summary": "Records normal release, expiry, or revocation of a secrets access lease without secret values."
     },

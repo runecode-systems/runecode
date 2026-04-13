@@ -32,6 +32,7 @@ func evaluateWorkspaceRoleExecutorMatrix(compiled *CompiledContext, action Actio
 		denyWorkspaceExecutorArgvLengthMismatch,
 		denyWorkspaceExecutorTimeoutMismatch,
 		denyWorkspaceExecutorArgvShapeMismatch,
+		denyWorkspaceExecutorSecretMaterialLeakage,
 		denyWorkspaceExecutorEnvironmentMismatch,
 	}
 	for _, validate := range validators {
@@ -109,7 +110,20 @@ func denyWorkspaceExecutorNetworkMismatch(compiled *CompiledContext, action Acti
 }
 
 func denyWorkspaceExecutorWorkingDirMismatch(compiled *CompiledContext, action ActionRequest, actionHash string, payload executorRunPayload, contract typedExecutorContract) (PolicyDecision, bool) {
-	if !contract.RequireWorkspace || payload.WorkingDir == "" || isWorkspaceRelativePath(payload.WorkingDir) {
+	if !contract.RequireWorkspace {
+		return PolicyDecision{}, false
+	}
+	if payload.WorkingDir == "" {
+		return denyInvariantDecision(compiled, action, actionHash, map[string]any{
+			"precedence":       "invariants_first",
+			"invariant":        "workspace_executor_contract_matrix",
+			"non_approvable":   true,
+			"active_role_kind": compiled.Context.ActiveRoleKind,
+			"executor_id":      payload.ExecutorID,
+			"reason":           "working_directory_required_but_missing",
+		}), true
+	}
+	if isWorkspaceRelativePath(payload.WorkingDir) {
 		return PolicyDecision{}, false
 	}
 	return denyInvariantDecision(compiled, action, actionHash, map[string]any{

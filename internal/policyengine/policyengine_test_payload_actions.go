@@ -173,20 +173,6 @@ func validStageSummarySignOffActionRequest(capabilityID, summaryHash string) Act
 	)
 }
 
-func validSecretAccessActionRequest(capabilityID string) ActionRequest {
-	return newActionRequest(
-		ActionKindSecretAccess,
-		capabilityID,
-		actionPayloadSecretAccessID,
-		newSchemaPayload(actionPayloadSecretAccessID, map[string]any{
-			"secret_ref":  "secrets/prod/db-password",
-			"access_mode": "lease_issue",
-		}),
-		"workspace",
-		"workspace-edit",
-	)
-}
-
 func compileGatewayInputWithOneCapability(roleKind string, capability string, allowlist map[string]any) CompileInput {
 	role := validRoleManifestPayload()
 	role["role_family"] = "gateway"

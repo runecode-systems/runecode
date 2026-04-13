@@ -266,6 +266,20 @@
       "status": "mvp"
     },
     {
+      "path": "objects/SecretLease.schema.json",
+      "schema_id": "runecode.protocol.v0.SecretLease",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SecretStoragePosture.schema.json",
+      "schema_id": "runecode.protocol.v0.SecretStoragePosture",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/LLMRequest.schema.json",
       "schema_id": "runecode.protocol.v0.LLMRequest",
       "schema_version": "0.3.0",

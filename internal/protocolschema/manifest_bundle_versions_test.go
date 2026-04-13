@@ -71,6 +71,8 @@ func localBrokerApprovalAndArtifactSchemaVersionPairs() map[string]string {
 		"runecode.protocol.v0.ApprovalBoundScope":            "0.1.0",
 		"runecode.protocol.v0.ArtifactSummary":               "0.1.0",
 		"runecode.protocol.v0.BrokerReadiness":               "0.1.0",
+		"runecode.protocol.v0.SecretLease":                   "0.1.0",
+		"runecode.protocol.v0.SecretStoragePosture":          "0.1.0",
 		"runecode.protocol.v0.BrokerVersionInfo":             "0.1.0",
 		"runecode.protocol.v0.ApprovalResolveRequest":        "0.1.0",
 		"runecode.protocol.v0.ApprovalResolveResponse":       "0.1.0",

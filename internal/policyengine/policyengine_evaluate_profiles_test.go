@@ -194,6 +194,128 @@ func TestEvaluateSecretAccessRequiresModerateApproval(t *testing.T) {
 	}
 }
 
+func TestEvaluateSecretAccessLeaseRenewRequiresModerateApproval(t *testing.T) {
+	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
+	action := validSecretAccessLeaseRenewActionRequest("cap_stage")
+	decision, err := Evaluate(compiled, action)
+	if err != nil || decision.DecisionOutcome != DecisionRequireHumanApproval {
+		t.Fatalf("secret access lease renew should require approval, err=%v outcome=%q", err, decision.DecisionOutcome)
+	}
+}
+
+func TestEvaluateSecretAccessLeaseRevokeValidatesAndRequiresModerateApproval(t *testing.T) {
+	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
+	action := validSecretAccessLeaseRevokeActionRequest("cap_stage")
+	decision, err := Evaluate(compiled, action)
+	if err != nil || decision.DecisionOutcome != DecisionRequireHumanApproval {
+		t.Fatalf("secret access lease revoke should require approval, err=%v outcome=%q", err, decision.DecisionOutcome)
+	}
+}
+
+func TestEvaluateSecretAccessLeaseRenewFailsClosedWhenLeaseIDMissing(t *testing.T) {
+	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
+	action := validSecretAccessLeaseRenewActionRequest("cap_stage")
+	delete(action.ActionPayload, "lease_id")
+	_, err := Evaluate(compiled, action)
+	if err == nil {
+		t.Fatal("Evaluate error = nil, want fail-closed schema validation error")
+	}
+	var evalErr *EvaluationError
+	if !errors.As(err, &evalErr) {
+		t.Fatalf("error type = %T, want *EvaluationError", err)
+	}
+	if evalErr.Code != ErrCodeBrokerValidationSchema {
+		t.Fatalf("error code = %q, want %q", evalErr.Code, ErrCodeBrokerValidationSchema)
+	}
+}
+
+func TestEvaluateSecretAccessLeaseRevokeFailsClosedWhenTTLProvided(t *testing.T) {
+	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
+	action := validSecretAccessLeaseRevokeActionRequest("cap_stage")
+	action.ActionPayload["lease_ttl_seconds"] = 120
+	_, err := Evaluate(compiled, action)
+	if err == nil {
+		t.Fatal("Evaluate error = nil, want fail-closed schema validation error")
+	}
+	var evalErr *EvaluationError
+	if !errors.As(err, &evalErr) {
+		t.Fatalf("error type = %T, want *EvaluationError", err)
+	}
+	if evalErr.Code != ErrCodeBrokerValidationSchema {
+		t.Fatalf("error code = %q, want %q", evalErr.Code, ErrCodeBrokerValidationSchema)
+	}
+}
+
+func TestEvaluateSecretAccessLeaseRenewFailsClosedWhenPolicyContextHashMissing(t *testing.T) {
+	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
+	action := validSecretAccessLeaseRenewActionRequest("cap_stage")
+	renewalContext := action.ActionPayload["renewal_context"].(map[string]any)
+	delete(renewalContext, "policy_context_hash")
+	_, err := Evaluate(compiled, action)
+	if err == nil {
+		t.Fatal("Evaluate error = nil, want fail-closed schema validation error")
+	}
+	var evalErr *EvaluationError
+	if !errors.As(err, &evalErr) {
+		t.Fatalf("error type = %T, want *EvaluationError", err)
+	}
+	if evalErr.Code != ErrCodeBrokerValidationSchema {
+		t.Fatalf("error code = %q, want %q", evalErr.Code, ErrCodeBrokerValidationSchema)
+	}
+}
+
+func TestEvaluateWorkspaceExecutorContractsRejectLikelySecretInSplitArgvFlagValue(t *testing.T) {
+	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
+	action := validExecutorRunActionRequest("cap_stage", "workspace_ordinary", []string{"python", "script.py", "--token", "ghp_secretvalue"})
+	action.ActionPayload["executor_id"] = "python"
+	action.ActionPayload["working_directory"] = "."
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionDeny {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	}
+	if got, _ := decision.Details["reason"].(string); got != "argv_contains_likely_secret_material" {
+		t.Fatalf("reason = %q, want argv_contains_likely_secret_material", got)
+	}
+}
+
+func TestEvaluateWorkspaceExecutorContractsRejectLikelySecretInAWSStyleEnvironmentValue(t *testing.T) {
+	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
+	action := validExecutorRunActionRequest("cap_stage", "workspace_ordinary", []string{"python", "script.py"})
+	action.ActionPayload["executor_id"] = "python"
+	action.ActionPayload["working_directory"] = "."
+	action.ActionPayload["environment"] = map[string]any{"PYTHONPATH": "AKIAIOSFODNN7EXAMPLE"}
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionDeny {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	}
+	if got, _ := decision.Details["reason"].(string); got != "environment_contains_likely_secret_material" {
+		t.Fatalf("reason = %q, want environment_contains_likely_secret_material", got)
+	}
+}
+
+func TestEvaluateWorkspaceExecutorContractsRejectMissingWorkingDirectoryWhenWorkspaceRequired(t *testing.T) {
+	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
+	action := validExecutorRunActionRequest("cap_stage", "workspace_ordinary", []string{"python", "script.py"})
+	action.ActionPayload["executor_id"] = "python"
+	delete(action.ActionPayload, "working_directory")
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionDeny {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	}
+	if got, _ := decision.Details["reason"].(string); got != "working_directory_required_but_missing" {
+		t.Fatalf("reason = %q, want working_directory_required_but_missing", got)
+	}
+}
+
 func TestStageSignOffStaleBindingChangesWithSummaryHash(t *testing.T) {
 	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
 	actionA := validStageSummarySignOffActionRequest("cap_stage", "sha256:"+strings.Repeat("7", 64))
@@ -342,5 +464,40 @@ func TestEvaluateWorkspaceExecutorContractsRejectEnvironmentOutsideContract(t *t
 	}
 	if decision.DecisionOutcome != DecisionDeny {
 		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	}
+}
+
+func TestEvaluateWorkspaceExecutorContractsRejectLikelySecretInArgv(t *testing.T) {
+	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
+	action := validExecutorRunActionRequest("cap_stage", "workspace_ordinary", []string{"python", "script.py", "--token=ghp_secretvalue"})
+	action.ActionPayload["executor_id"] = "python"
+	action.ActionPayload["working_directory"] = "."
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionDeny {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	}
+	if got, _ := decision.Details["reason"].(string); got != "argv_contains_likely_secret_material" {
+		t.Fatalf("reason = %q, want argv_contains_likely_secret_material", got)
+	}
+}
+
+func TestEvaluateWorkspaceExecutorContractsRejectLikelySecretInEnvironmentValue(t *testing.T) {
+	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
+	action := validExecutorRunActionRequest("cap_stage", "workspace_ordinary", []string{"python", "script.py"})
+	action.ActionPayload["executor_id"] = "python"
+	action.ActionPayload["working_directory"] = "."
+	action.ActionPayload["environment"] = map[string]any{"PYTHONPATH": "ghp_secretvalue"}
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionDeny {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	}
+	if got, _ := decision.Details["reason"].(string); got != "environment_contains_likely_secret_material" {
+		t.Fatalf("reason = %q, want environment_contains_likely_secret_material", got)
 	}
 }

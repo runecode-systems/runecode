@@ -2,6 +2,12 @@ package policyengine
 
 import "github.com/runecode-ai/runecode/internal/trustpolicy"
 
+type SecretLeaseRenewalContext struct {
+	ConsumerPrincipalRef string
+	TargetRef            string
+	PolicyContextHash    trustpolicy.Digest
+}
+
 type ActionActor struct {
 	ActorKind  string
 	RoleFamily string
@@ -94,8 +100,10 @@ type GateOverrideActionInput struct {
 type SecretAccessActionInput struct {
 	ActionEnvelope
 	SecretRef       string
+	LeaseID         string
 	AccessMode      string
 	LeaseTTLSeconds *int
+	RenewalContext  *SecretLeaseRenewalContext
 	Justification   string
 	RequiresEgress  *bool
 	TargetSystem    string
