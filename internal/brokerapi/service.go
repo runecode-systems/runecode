@@ -23,14 +23,16 @@ const (
 )
 
 type Service struct {
-	store       *artifacts.Store
-	auditLedger *auditd.Ledger
-	auditor     *brokerAuditEmitter
-	auditRoot   string
-	apiConfig   APIConfig
-	apiInflight *inFlightGate
-	versionInfo BrokerVersionInfo
-	now         func() time.Time
+	store          *artifacts.Store
+	auditLedger    *auditd.Ledger
+	auditor        *brokerAuditEmitter
+	auditRoot      string
+	gatewayQuota   *gatewayQuotaBackend
+	gatewayRuntime *modelGatewayRuntime
+	apiConfig      APIConfig
+	apiInflight    *inFlightGate
+	versionInfo    BrokerVersionInfo
+	now            func() time.Time
 }
 
 func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
@@ -51,16 +53,23 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 	if err != nil {
 		return nil, err
 	}
-	return &Service{
-		store:       store,
-		auditLedger: ledger,
-		auditor:     auditor,
-		auditRoot:   ledgerRoot,
-		apiConfig:   resolved,
-		apiInflight: newInFlightGate(resolved.Limits),
-		now:         time.Now,
-		versionInfo: defaultBrokerVersionInfo(),
-	}, nil
+	quotaBackend := newGatewayQuotaBackend()
+	quotaBackend.setLimits(resolved.GatewayQuota)
+	runtime := newModelGatewayRuntime(quotaBackend)
+	svc := &Service{
+		store:          store,
+		auditLedger:    ledger,
+		auditor:        auditor,
+		auditRoot:      ledgerRoot,
+		gatewayQuota:   quotaBackend,
+		gatewayRuntime: runtime,
+		apiConfig:      resolved,
+		apiInflight:    newInFlightGate(resolved.Limits),
+		now:            time.Now,
+		versionInfo:    defaultBrokerVersionInfo(),
+	}
+	runtime.auditFn = svc.AppendTrustedAuditEvent
+	return svc, nil
 }
 
 func defaultBrokerVersionInfo() BrokerVersionInfo {

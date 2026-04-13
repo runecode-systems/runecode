@@ -1,0 +1,23 @@
+package brokerapi
+
+const (
+	artifactSummarySchemaPath              = "objects/ArtifactSummary.schema.json"
+	brokerReadinessSchemaPath              = "objects/BrokerReadiness.schema.json"
+	brokerVersionInfoSchemaPath            = "objects/BrokerVersionInfo.schema.json"
+	artifactListRequestSchemaPath          = "objects/ArtifactListRequest.schema.json"
+	artifactListResponseSchemaPath         = "objects/ArtifactListResponse.schema.json"
+	artifactHeadRequestSchemaPath          = "objects/ArtifactHeadRequest.schema.json"
+	artifactHeadResponseSchemaPath         = "objects/ArtifactHeadResponse.schema.json"
+	artifactReadRequestSchemaPath          = "objects/ArtifactReadRequest.schema.json"
+	artifactStreamEventSchemaPath          = "objects/ArtifactStreamEvent.schema.json"
+	logStreamEventSchemaPath               = "objects/LogStreamEvent.schema.json"
+	logStreamRequestSchemaPath             = "objects/LogStreamRequest.schema.json"
+	readinessGetRequestSchemaPath          = "objects/ReadinessGetRequest.schema.json"
+	readinessGetResponseSchemaPath         = "objects/ReadinessGetResponse.schema.json"
+	versionInfoGetRequestSchemaPath        = "objects/VersionInfoGetRequest.schema.json"
+	versionInfoGetResponseSchemaPath       = "objects/VersionInfoGetResponse.schema.json"
+	auditTimelineRequestSchemaPath         = "objects/AuditTimelineRequest.schema.json"
+	auditTimelineResponseSchemaPath        = "objects/AuditTimelineResponse.schema.json"
+	auditVerificationGetRequestSchemaPath  = "objects/AuditVerificationGetRequest.schema.json"
+	auditVerificationGetResponseSchemaPath = "objects/AuditVerificationGetResponse.schema.json"
+)
