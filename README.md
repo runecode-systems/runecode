@@ -1,7 +1,7 @@
 # RuneCode — Security-first AI coding: isolated execution, signed, auditable
 
 [![CI](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml/badge.svg)](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml)
-[![Status: alpha.2 release](https://img.shields.io/badge/status-alpha.2%20release-orange)](runecontext/project/roadmap.md)
+[![Status: alpha.3 release](https://img.shields.io/badge/status-alpha.3%20release-orange)](runecontext/project/roadmap.md)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 RuneCode is a security-first agentic automation platform for software engineering.
@@ -9,7 +9,7 @@ It treats isolation and cryptographic provenance as co-equal pillars: work runs 
 
 ## Status
 
-The latest published release is `v0.1.0-alpha.2`, and the repository mainline already includes additional alpha.3 work in progress.
+The latest published release is `v0.1.0-alpha.3`, and the repository mainline already includes additional alpha.4 work in progress.
 RuneCode remains pre-production: the signed, tag-driven release pipeline exists, but the shipped Go binaries are still scaffold-heavy and not feature-complete.
 
 ## Why RuneCode
@@ -154,14 +154,17 @@ This quick path verifies signed checksums and the signed archive before install.
 - Store-layer atomic persistence for canonical approval records plus runner-advisory approval mirrors, with rollback that restores durable runner journal/snapshot state consistently on failure
 - A trusted local audit ledger with append/seal persistence, segment recovery, digest-addressed sidecar evidence, readiness evaluation, audit verification reports, and broker-facing audit verification/readiness surfaces
 - A broker local API with fail-closed local auth, schema-validated typed operations for runs, approvals, artifacts, audit, readiness, and version info, plus uniform log and artifact read streaming semantics
+- A trusted local secrets daemon with durable secret import plus short-lived lease issue/renew/revoke/retrieve flows, fail-closed recovery, and secret-safe onboarding that avoids CLI-arg or environment-variable transport
 - Broker run read models that keep authoritative trusted state distinct from runner-advisory projection, including durable approval-wait, lifecycle, checkpoint, result, and attempt hints
+- Broker-projected subsystem readiness for secrets and model-gateway posture, plus model-gateway runtime enforcement for allowlisted destinations, canonical request binding, quota context, and audit-bound egress decisions
 - A trusted launcher daemon/service plus a Linux-first microVM/QEMU/KVM MVP vertical slice, including a deterministic `runecode-launcher serve --hello-world` path for end-to-end launcher->broker runtime reporting
 - Durable launcher runtime evidence persistence and broker-derived authoritative runtime projection for `backend_kind`, `isolation_assurance_level`, `provisioning_posture`, lifecycle, and terminal state
 - Broker-owned runtime audit emission for `isolate_session_started` and `isolate_session_bound`, with reference-heavy payloads bound to persisted launcher evidence digests
 
 Still incremental / not implemented end-to-end yet:
-- Secrets handling remains scaffolded, and the real isolation backend path is currently Linux-first microVM/QEMU/KVM MVP only; container, Windows, and macOS runtime paths remain future work
-- The broker and artifact store now implement local runtime behavior, but the overall system is still pre-alpha and not production-ready
+- Secrets lifecycle foundations and broker-projected secrets/model-gateway posture now exist, but secure-storage posture projection and downstream provider/auth integrations remain incremental
+- The real isolation backend path is currently Linux-first microVM/QEMU/KVM MVP only; container, Windows, and macOS runtime paths remain future work
+- The broker and artifact store now implement local runtime behavior, but the overall system is still early alpha and not production-ready
 
 - Roadmap: `runecontext/project/roadmap.md`
 
@@ -181,6 +184,7 @@ Still incremental / not implemented end-to-end yet:
 Current MVP object families cover:
 - manifests: `RoleManifest`, `CapabilityManifest`
 - identity and content addressing: `PrincipalIdentity`, `Digest`, `ArtifactReference`, `ArtifactPolicy`, `ProvenanceReceipt`
+- secrets custody and posture: `SecretLease`, `SecretStoragePosture`
 - audit, approvals, and policy: `AuditEvent`, `AuditReceipt`, `AuditSegmentFile`, `AuditSegmentSeal`, `AuditVerificationReport`, `ApprovalRequest`, `ApprovalDecision`, `PolicyDecision`, `PolicyRuleSet`, `PolicyAllowlist`
 - workflow planning and deterministic gates: `WorkflowDefinition`, `ProcessDefinition`, `RunPlan`, `GateDefinition`, `GateContract`, `RunnerCheckpointReport`, `RunnerResultReport`, `GateCheckpointReport`, `GateResultReport`, `GateEvidence`
 - runtime evidence and session lifecycle payloads: `RuntimeImageDescriptor`, `IsolateSessionStartedPayload`, `IsolateSessionBoundPayload`
@@ -241,7 +245,7 @@ just ci
 
 ## Components
 
-The Go binaries currently shipped by the release pipeline remain pre-alpha and intentionally do not expose the full production system surface.
+The Go binaries currently shipped by the release pipeline remain pre-production and intentionally do not expose the full production system surface.
 
 Alongside that still-incremental surface, the repository already includes working foundations with:
 - manifest-verified schemas and registries
@@ -251,6 +255,8 @@ Alongside that still-incremental surface, the repository already includes workin
 - a trusted local artifact store and broker CLI for artifact put/get/head/list, flow checks, excerpt promotion and revocation, run-status updates, GC, and backup/restore
 - a trusted local audit ledger plus broker/auditd CLI surfaces for audit readiness and audit verification inspection
 - a broker local IPC API and CLI read surfaces for run list/detail, approval list/detail/resolve, policy-backed artifact reads, audit verification/readiness, version inspection, and structured log streaming
+- a trusted local secrets daemon CLI for secret import and short-lived lease issue/renew/revoke/retrieve flows without passing secret values through CLI args or environment variables
+- broker-projected secrets and model-gateway readiness surfaces plus model-gateway runtime enforcement for allowlisted destinations, canonical request binding, quota admission/stream checks, and audit-backed egress decisions
 - a trusted launcher service with `serve`, `--once`, and Linux-first `--hello-world` operator paths
 - launcher-produced runtime evidence persisted durably and projected into broker `RunSummary` / `RunDetail` authoritative state
 - broker-emitted runtime lifecycle audit events referencing persisted launcher evidence rather than transient launcher-local state

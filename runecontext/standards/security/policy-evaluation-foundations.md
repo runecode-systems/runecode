@@ -17,6 +17,8 @@ When trusted RuneCode services evaluate whether work is allowed, denied, or requ
 - Treat `manifest_hash` as the digest of the compiled effective policy context, not as shorthand for one raw source manifest; keep contributing source manifest and allowlist hashes explicit in `policy_input_hashes`
 - Evaluate one canonical typed `ActionRequest` contract and derive `action_request_hash` from canonical RFC 8785 JCS bytes of that contract
 - Evaluate gateway egress actions only when the typed gateway payload is structurally complete, including an explicit `operation`; missing policy-critical fields must fail closed at schema and evaluation boundaries rather than degrade to optional semantics
+- Keep canonical gateway destination identity stable across policy and runtime enforcement; use one `destination_ref` form and one closed operation set rather than per-feature ad hoc egress labels
+- For request-execution gateway operations, require `payload_hash` to bind to the canonical request object hash; model invocation binds to the canonical `LLMRequest` hash rather than provider-native payloads or transport-local bodies
 - Fail closed on unknown `action_kind`, unknown action-payload schema IDs, unknown profile values, unknown role kinds, and unknown destination descriptor kinds
 - Use fixed decision precedence `deny -> require_human_approval -> allow`
 - Emit `PolicyDecision` for every successful evaluation, including deny outcomes; reserve the shared protocol `Error` envelope for failed evaluation or failed approval-consumption behavior
@@ -27,4 +29,6 @@ When trusted RuneCode services evaluate whether work is allowed, denied, or requ
 - Route authorization semantics through one shared trusted policy engine boundary; component-local checks may validate structure or integrity, but must not invent competing allow/deny/approval semantics
 - Keep trusted executor-binding and plan-compilation inputs separate from untrusted runner execution; evaluation may reason about executor posture and action contracts, but the runner must not become the authority for policy inputs, executor identity, or compiled gate semantics
 - Evaluate public egress only through explicit gateway role-family actions using typed destination descriptors and signed allowlist inputs; do not treat raw URLs, transport identity, or ambient process context as policy authority
+- Require explicit gateway audit and quota context for request-execution operations; missing or inconsistent request hash, response hash, quota phase, or quota meters must fail closed before public egress proceeds
+- Runtime gateway enforcement may add hard denials for transport safety, role separation, allowlist mismatch, or quota exhaustion, but it must not invent a second independent allow path outside the shared trusted policy boundary
 - Persist policy decisions as typed objects with stable digests and signed audit binding; do not add a separate policy-signing authority unless a later trust boundary concretely requires it
