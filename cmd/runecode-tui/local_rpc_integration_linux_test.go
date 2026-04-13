@@ -24,6 +24,7 @@ import (
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-ai/runecode/internal/secretsd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
@@ -437,9 +438,14 @@ func newTUILocalRPCService(t *testing.T) *brokerapi.Service {
 	t.Helper()
 	storeRoot := t.TempDir()
 	ledgerRoot := filepath.Join(t.TempDir(), "ledger")
+	secretsRoot := filepath.Join(t.TempDir(), "secrets-state")
 	if err := seedLedgerForTUILocalRPCTest(ledgerRoot); err != nil {
 		t.Fatalf("seedLedgerForTUILocalRPCTest returned error: %v", err)
 	}
+	if err := seedSecretsForTUILocalRPCTest(secretsRoot); err != nil {
+		t.Fatalf("seedSecretsForTUILocalRPCTest returned error: %v", err)
+	}
+	t.Setenv("RUNE_SECRETS_STATE_ROOT", secretsRoot)
 	service, err := brokerapi.NewService(storeRoot, ledgerRoot)
 	if err != nil {
 		t.Fatalf("NewService returned error: %v", err)
@@ -459,6 +465,27 @@ func newTUILocalRPCService(t *testing.T) *brokerapi.Service {
 	seedTUIApproval(t, service)
 	seedTUIAudit(t, service)
 	return service
+}
+
+func seedSecretsForTUILocalRPCTest(root string) error {
+	svc, err := secretsd.Open(root)
+	if err != nil {
+		return err
+	}
+	if _, err := svc.ImportSecret("secrets/prod/db", strings.NewReader("db-secret")); err != nil {
+		return err
+	}
+	lease, err := svc.IssueLease(secretsd.IssueLeaseRequest{SecretRef: "secrets/prod/db", ConsumerID: "principal:runner:1", RoleKind: "runner", Scope: "stage:alpha", TTLSeconds: 120})
+	if err != nil {
+		return err
+	}
+	if _, err := svc.RenewLease(secretsd.RenewLeaseRequest{LeaseID: lease.LeaseID, ConsumerID: "principal:runner:1", RoleKind: "runner", Scope: "stage:alpha", TTLSeconds: 120}); err != nil {
+		return err
+	}
+	if _, err := svc.RevokeLease(secretsd.RevokeLeaseRequest{LeaseID: lease.LeaseID, ConsumerID: "principal:runner:1", RoleKind: "runner", Scope: "stage:alpha", Reason: "operator"}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func seedTUIRunArtifacts(t *testing.T, service *brokerapi.Service) {

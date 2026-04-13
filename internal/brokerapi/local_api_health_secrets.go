@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/secretsd"
@@ -60,26 +59,13 @@ func validatedSecretsStateRoot(root string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	resolved, err := filepath.EvalSymlinks(abs)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return abs, nil
+	if err := rejectLinkedPathComponents(filepath.Dir(abs)); err != nil {
+		if errors.Is(err, errLinkedPathComponent) {
+			return "", fmt.Errorf("secrets state root must not contain symlink components")
 		}
 		return "", err
 	}
-	left := filepath.Clean(abs)
-	right := filepath.Clean(resolved)
-	if rootHasSymlinkComponent(left, right) {
-		return "", fmt.Errorf("secrets state root must not contain symlink components")
-	}
 	return validateSecretsRootType(abs)
-}
-
-func rootHasSymlinkComponent(left, right string) bool {
-	if runtime.GOOS == "windows" {
-		return !strings.EqualFold(left, right)
-	}
-	return left != right
 }
 
 func validateSecretsRootType(abs string) (string, error) {
@@ -90,7 +76,11 @@ func validateSecretsRootType(abs string) (string, error) {
 		}
 		return "", statErr
 	}
-	if info.Mode()&os.ModeSymlink != 0 {
+	linked, err := pathEntryIsLinkOrReparse(abs, info)
+	if err != nil {
+		return "", err
+	}
+	if linked {
 		return "", fmt.Errorf("secrets state root must not be a symlink")
 	}
 	if !info.IsDir() {

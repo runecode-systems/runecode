@@ -2,11 +2,11 @@ package brokerapi
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/auditd"
@@ -16,67 +16,108 @@ import (
 const devManualSeedMarkerMaxBytes = 64
 
 func ensureDevManualSeedLedgerAllowed(root string) (string, error) {
-	canonicalRoot, err := canonicalPathWithoutSymlinkComponents(root)
+	canonicalRoot, err := normalizeDevManualSeedRoot(root)
 	if err != nil {
 		return "", err
 	}
-	root = canonicalRoot
-	if same, err := pathsReferToSameLocation(root, auditd.DefaultLedgerRoot()); err != nil {
+	markerState, err := devManualSeedMarkerState(canonicalRoot)
+	if err != nil {
 		return "", err
-	} else if same {
-		return "", fmt.Errorf("dev manual seeding refuses default audit ledger root")
 	}
-	if hasDevManualSeedMarker(root) {
-		matches, err := devManualLedgerMatchesSeedFootprint(root)
-		if err != nil {
-			return "", err
-		}
-		if matches {
-			return root, nil
-		}
+	if markerState == devManualSeedMarkerInvalid {
+		return "", fmt.Errorf("dev manual seeding refuses tampered seed marker")
 	}
-	populated, err := devManualLedgerHasRecordedData(root)
+	if markerState == devManualSeedMarkerValid {
+		return canonicalRoot, ensureValidSeedMarkerLedger(canonicalRoot)
+	}
+	populated, err := devManualLedgerHasRecordedData(canonicalRoot)
 	if err != nil {
 		return "", err
 	}
 	if populated {
 		return "", fmt.Errorf("dev manual seeding refuses populated audit ledger root")
 	}
-	return root, nil
+	return canonicalRoot, nil
 }
 
+func normalizeDevManualSeedRoot(root string) (string, error) {
+	canonicalRoot, err := canonicalPathWithoutSymlinkComponents(root)
+	if err != nil {
+		return "", err
+	}
+	if same, err := pathsReferToSameLocation(canonicalRoot, auditd.DefaultLedgerRoot()); err != nil {
+		return "", err
+	} else if same {
+		return "", fmt.Errorf("dev manual seeding refuses default audit ledger root")
+	}
+	return canonicalRoot, nil
+}
+
+func ensureValidSeedMarkerLedger(root string) error {
+	matches, err := devManualLedgerMatchesSeedFootprint(root)
+	if err != nil {
+		return err
+	}
+	if !matches {
+		return fmt.Errorf("dev manual seeding refuses populated audit ledger root")
+	}
+	return nil
+}
+
+type devManualSeedMarkerStatus int
+
+const (
+	devManualSeedMarkerAbsent devManualSeedMarkerStatus = iota
+	devManualSeedMarkerValid
+	devManualSeedMarkerInvalid
+)
+
 func hasDevManualSeedMarker(root string) bool {
+	state, _ := devManualSeedMarkerState(root)
+	return state == devManualSeedMarkerValid
+}
+
+func devManualSeedMarkerState(root string) (devManualSeedMarkerStatus, error) {
 	markerPath := devManualLedgerSeedMarkerPath(root)
+	info, status, err := loadSeedMarkerInfo(markerPath)
+	if status != devManualSeedMarkerValid {
+		return status, err
+	}
+	return evaluateSeedMarkerFile(markerPath, info), nil
+}
+
+func loadSeedMarkerInfo(markerPath string) (os.FileInfo, devManualSeedMarkerStatus, error) {
 	info, err := os.Lstat(markerPath)
 	if err != nil {
-		return false
+		if os.IsNotExist(err) {
+			return nil, devManualSeedMarkerAbsent, nil
+		}
+		return nil, devManualSeedMarkerInvalid, err
 	}
 	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-		return false
+		return nil, devManualSeedMarkerInvalid, nil
 	}
+	return info, devManualSeedMarkerValid, nil
+}
+
+func evaluateSeedMarkerFile(markerPath string, info os.FileInfo) devManualSeedMarkerStatus {
 	f, err := openReadOnlyNoFollow(markerPath)
 	if err != nil {
-		return false
+		return devManualSeedMarkerInvalid
 	}
 	defer f.Close()
 	openedInfo, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	if !os.SameFile(info, openedInfo) {
-		return false
+	if err != nil || !os.SameFile(info, openedInfo) {
+		return devManualSeedMarkerInvalid
 	}
 	b, err := io.ReadAll(io.LimitReader(f, devManualSeedMarkerMaxBytes+1))
-	if err != nil {
-		return false
-	}
-	if len(b) > devManualSeedMarkerMaxBytes {
-		return false
+	if err != nil || len(b) > devManualSeedMarkerMaxBytes {
+		return devManualSeedMarkerInvalid
 	}
 	if strings.TrimSpace(string(b)) != devManualSeedProfile {
-		return false
+		return devManualSeedMarkerInvalid
 	}
-	return true
+	return devManualSeedMarkerValid
 }
 
 func canonicalPathWithoutSymlinkComponents(path string) (string, error) {
@@ -84,55 +125,27 @@ func canonicalPathWithoutSymlinkComponents(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	resolvedPath, err := filepath.EvalSymlinks(cleanPath)
+	if err := rejectLinkedPathComponents(filepath.Dir(cleanPath)); err != nil {
+		if errors.Is(err, errLinkedPathComponent) {
+			return "", fmt.Errorf("dev manual seeding refuses ledger root paths containing symlink components")
+		}
+		return "", err
+	}
+	info, err := os.Lstat(cleanPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return cleanPath, nil
 		}
 		return "", err
 	}
-	if !sameFilesystemPath(cleanPath, resolvedPath) {
+	linked, err := pathEntryIsLinkOrReparse(cleanPath, info)
+	if err != nil {
+		return "", err
+	}
+	if linked {
 		return "", fmt.Errorf("dev manual seeding refuses ledger root paths containing symlink components")
 	}
 	return cleanPath, nil
-}
-
-func pathsReferToSameLocation(first string, second string) (bool, error) {
-	firstAbs, err := filepath.Abs(first)
-	if err != nil {
-		return false, err
-	}
-	secondAbs, err := filepath.Abs(second)
-	if err != nil {
-		return false, err
-	}
-	firstResolved, err := filepath.EvalSymlinks(firstAbs)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return false, err
-		}
-		firstResolved = firstAbs
-	}
-	secondResolved, err := filepath.EvalSymlinks(secondAbs)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return false, err
-		}
-		secondResolved = secondAbs
-	}
-	firstInfo, firstStatErr := os.Stat(firstResolved)
-	secondInfo, secondStatErr := os.Stat(secondResolved)
-	if firstStatErr == nil && secondStatErr == nil {
-		return os.SameFile(firstInfo, secondInfo), nil
-	}
-	return sameFilesystemPath(firstResolved, secondResolved), nil
-}
-
-func sameFilesystemPath(first string, second string) bool {
-	if runtime.GOOS == "windows" {
-		return strings.EqualFold(filepath.Clean(first), filepath.Clean(second))
-	}
-	return filepath.Clean(first) == filepath.Clean(second)
 }
 
 func devManualLedgerHasRecordedData(root string) (bool, error) {

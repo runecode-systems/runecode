@@ -227,8 +227,27 @@ func TestSeedDevManualScenarioRejectsOversizedSeedMarker(t *testing.T) {
 	if err == nil {
 		t.Fatal("SeedDevManualScenario expected oversized marker rejection")
 	}
-	if err.Error() != "dev manual seeding refuses populated audit ledger root" {
-		t.Fatalf("SeedDevManualScenario error = %q, want populated-ledger refusal", err.Error())
+	if err.Error() != "dev manual seeding refuses tampered seed marker" {
+		t.Fatalf("SeedDevManualScenario error = %q, want tampered-marker refusal", err.Error())
+	}
+}
+
+func TestSeedDevManualScenarioRejectsInvalidSeedMarkerContent(t *testing.T) {
+	if !DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
+	service := newDevManualSeedService(t)
+	t.Setenv(devManualSeedEnvVar, "1")
+	markerPath := devManualLedgerSeedMarkerPath(service.auditRoot)
+	if err := os.WriteFile(markerPath, []byte("tampered\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	_, err := service.SeedDevManualScenario()
+	if err == nil {
+		t.Fatal("SeedDevManualScenario expected invalid marker rejection")
+	}
+	if err.Error() != "dev manual seeding refuses tampered seed marker" {
+		t.Fatalf("SeedDevManualScenario error = %q, want tampered-marker refusal", err.Error())
 	}
 }
 

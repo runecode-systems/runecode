@@ -203,6 +203,63 @@ func TestPolicyRuntimeGatewayQuotaStatePrunedByRunCompletionAndTTL(t *testing.T)
 	}
 }
 
+func TestPolicyRuntimeGatewayReleasesConcurrencyOnTerminalOutcome(t *testing.T) {
+	backend := newGatewayQuotaBackend()
+	s := &modelGatewayRuntime{quota: backend}
+	one := int64(1)
+	payload := gatewayActionPayloadRuntime{
+		GatewayRoleKind: "model-gateway",
+		DestinationKind: "model_endpoint",
+		DestinationRef:  "model.example.com/v1/chat/completions",
+		QuotaContext: &gatewayQuotaContextPayload{
+			QuotaProfileKind: "hybrid",
+			Phase:            "admission",
+			Meters: gatewayQuotaMetersPayload{
+				ConcurrencyUnits: &one,
+			},
+		},
+		AuditContext: &gatewayAuditContextPayload{Outcome: "succeeded"},
+	}
+	key := runtimeQuotaStateKey("run-1", payload)
+	if reason, _, blocked := backend.evaluateAndApply(key, *payload.QuotaContext); blocked {
+		t.Fatalf("evaluateAndApply blocked with reason %q", reason)
+	}
+	if got := backend.state[key].ConcurrencyUnits; got != 1 {
+		t.Fatalf("concurrency_units before release = %d, want 1", got)
+	}
+	s.releaseQuotaUsage("run-1", payload)
+	if got := backend.state[key].ConcurrencyUnits; got != 0 {
+		t.Fatalf("concurrency_units after release = %d, want 0", got)
+	}
+}
+
+func TestPolicyRuntimeGatewayDoesNotReleaseConcurrencyForInProgressStream(t *testing.T) {
+	backend := newGatewayQuotaBackend()
+	s := &modelGatewayRuntime{quota: backend}
+	one := int64(1)
+	payload := gatewayActionPayloadRuntime{
+		GatewayRoleKind: "model-gateway",
+		DestinationKind: "model_endpoint",
+		DestinationRef:  "model.example.com/v1/chat/completions",
+		QuotaContext: &gatewayQuotaContextPayload{
+			QuotaProfileKind: "hybrid",
+			Phase:            "stream",
+			Meters: gatewayQuotaMetersPayload{
+				ConcurrencyUnits: &one,
+			},
+		},
+		AuditContext: &gatewayAuditContextPayload{Outcome: "streaming_in_progress"},
+	}
+	key := runtimeQuotaStateKey("run-2", payload)
+	if reason, _, blocked := backend.evaluateAndApply(key, *payload.QuotaContext); blocked {
+		t.Fatalf("evaluateAndApply blocked with reason %q", reason)
+	}
+	s.releaseQuotaUsage("run-2", payload)
+	if got := backend.state[key].ConcurrencyUnits; got != 1 {
+		t.Fatalf("concurrency_units after no-release outcome = %d, want 1", got)
+	}
+}
+
 func TestPolicyRuntimeGatewayEmitsAuditWithCanonicalBindings(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	runID := "run-gateway-audit"

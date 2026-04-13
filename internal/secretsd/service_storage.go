@@ -68,7 +68,7 @@ func replaceFile(src, dst string) error {
 		return nil
 	}
 	if err := os.Remove(backup); err != nil && !os.IsNotExist(err) {
-		return nil
+		return err
 	}
 	return nil
 }

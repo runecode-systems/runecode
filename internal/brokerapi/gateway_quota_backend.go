@@ -24,6 +24,10 @@ type gatewayQuotaBackend struct {
 	now    func() time.Time
 }
 
+type gatewayQuotaRelease struct {
+	ConcurrencyUnits int64
+}
+
 type gatewayQuotaState struct {
 	RequestUnits     int64
 	InputTokens      int64
@@ -83,6 +87,27 @@ func (q *gatewayQuotaBackend) releaseRun(runID string) {
 			delete(q.state, key)
 		}
 	}
+}
+
+func (q *gatewayQuotaBackend) release(key string, release gatewayQuotaRelease) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if strings.TrimSpace(key) == "" {
+		return
+	}
+	state, ok := q.state[key]
+	if !ok {
+		return
+	}
+	if release.ConcurrencyUnits > 0 {
+		next := state.ConcurrencyUnits - release.ConcurrencyUnits
+		if next < 0 {
+			next = 0
+		}
+		state.ConcurrencyUnits = next
+	}
+	state.UpdatedAt = q.now().UTC()
+	q.state[key] = state
 }
 
 func (q *gatewayQuotaBackend) pruneStaleStateLocked() {

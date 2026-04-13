@@ -78,8 +78,10 @@ func (r policyRuntime) enforceGatewayRuntime(runID string, compiled *policyengin
 	}
 
 	if err := r.service.gatewayRuntime.emitGatewayAuditEvent(runID, decision, payload); err != nil {
+		r.service.gatewayRuntime.releaseQuotaUsage(runID, payload)
 		return runtimeGatewayDenyDecision(compiled, decision, payload, "runtime_gateway_audit_emit_failed", map[string]any{"error": err.Error()})
 	}
+	r.service.gatewayRuntime.releaseQuotaUsage(runID, payload)
 	return decision
 }
 

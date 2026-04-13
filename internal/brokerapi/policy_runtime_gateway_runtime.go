@@ -73,7 +73,7 @@ func (g *modelGatewayRuntime) runtimeQuotaReason(runID string, payload gatewayAc
 	if payload.QuotaContext == nil {
 		return "", nil
 	}
-	quotaKey := fmt.Sprintf("%s:%s:%s:%s:%s", runID, payload.GatewayRoleKind, payload.DestinationKind, payload.DestinationRef, payload.QuotaContext.QuotaProfileKind)
+	quotaKey := runtimeQuotaStateKey(runID, payload)
 	reason, details, blocked := g.quota.evaluateAndApply(quotaKey, *payload.QuotaContext)
 	if !blocked {
 		return "", nil
@@ -86,17 +86,49 @@ func (g *modelGatewayRuntime) runtimeQuotaReason(runID string, payload gatewayAc
 	return reason, details
 }
 
+func runtimeQuotaStateKey(runID string, payload gatewayActionPayloadRuntime) string {
+	return fmt.Sprintf("%s:%s:%s:%s:%s", runID, payload.GatewayRoleKind, payload.DestinationKind, payload.DestinationRef, payload.QuotaContext.QuotaProfileKind)
+}
+
+func (g *modelGatewayRuntime) releaseQuotaUsage(runID string, payload gatewayActionPayloadRuntime) {
+	if g == nil || g.quota == nil || payload.QuotaContext == nil {
+		return
+	}
+	if !gatewayAuditOutcomeReleasesConcurrency(payload.AuditContext) {
+		return
+	}
+	if payload.QuotaContext.Meters.ConcurrencyUnits == nil || *payload.QuotaContext.Meters.ConcurrencyUnits <= 0 {
+		return
+	}
+	g.quota.release(runtimeQuotaStateKey(runID, payload), gatewayQuotaRelease{ConcurrencyUnits: *payload.QuotaContext.Meters.ConcurrencyUnits})
+}
+
+func gatewayAuditOutcomeReleasesConcurrency(audit *gatewayAuditContextPayload) bool {
+	if audit == nil {
+		return false
+	}
+	switch audit.Outcome {
+	case "admission_denied", "streaming_truncated", "succeeded", "failed", "timeout":
+		return true
+	default:
+		return false
+	}
+}
+
 func (g *modelGatewayRuntime) runtimeEnforcementDenyReason(runID string, entry policyengine.GatewayScopeRule, payload gatewayActionPayloadRuntime) (string, map[string]any, bool) {
 	reason, details, denied := runtimeGatewayRuntimeDenyReason(entry, payload)
 	if denied {
+		g.releaseQuotaUsage(runID, payload)
 		return reason, details, true
 	}
 	reason, details = g.runtimeDestinationNetworkReason(payload, entry)
 	if reason != "" {
+		g.releaseQuotaUsage(runID, payload)
 		return reason, details, true
 	}
 	reason, details = g.runtimeQuotaReason(runID, payload)
 	if reason != "" {
+		g.releaseQuotaUsage(runID, payload)
 		return reason, details, true
 	}
 	return "", nil, false

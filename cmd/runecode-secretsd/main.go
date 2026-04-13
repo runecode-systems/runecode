@@ -274,17 +274,11 @@ func openValidatedSignRequestFile(filePath string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	resolvedPath, err := filepath.EvalSymlinks(cleanPath)
-	if err != nil {
+	if err := rejectLinkedPathComponents(filepath.Dir(cleanPath)); err != nil {
+		if errors.Is(err, errLinkedPathComponent) {
+			return nil, fmt.Errorf("--file path must not contain symlink path components")
+		}
 		return nil, err
-	}
-	if initialSymlink, err := isSymlinkPath(cleanPath); err != nil {
-		return nil, err
-	} else if initialSymlink {
-		return nil, fmt.Errorf("--file path must not be a symlink")
-	}
-	if !sameCanonicalPath(cleanPath, resolvedPath) {
-		return nil, fmt.Errorf("--file path must not contain symlink path components")
 	}
 	initialInfo, err := os.Lstat(cleanPath)
 	if err != nil {
@@ -293,7 +287,11 @@ func openValidatedSignRequestFile(filePath string) (*os.File, error) {
 	if initialInfo.IsDir() {
 		return nil, fmt.Errorf("--file path must point to a regular file")
 	}
-	if initialInfo.Mode()&os.ModeSymlink != 0 {
+	linked, err := pathEntryIsLinkOrReparse(cleanPath, initialInfo)
+	if err != nil {
+		return nil, err
+	}
+	if linked {
 		return nil, fmt.Errorf("--file path must not be a symlink")
 	}
 	if !initialInfo.Mode().IsRegular() {
@@ -313,23 +311,6 @@ func openValidatedSignRequestFile(filePath string) (*os.File, error) {
 		return nil, fmt.Errorf("--file path changed during validation")
 	}
 	return f, nil
-}
-
-func isSymlinkPath(path string) (bool, error) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return false, err
-	}
-	return info.Mode()&os.ModeSymlink != 0, nil
-}
-
-func sameCanonicalPath(first string, second string) bool {
-	left := filepath.Clean(first)
-	right := filepath.Clean(second)
-	if runtime.GOOS == "windows" {
-		return strings.EqualFold(left, right)
-	}
-	return left == right
 }
 
 func writeJSON(w io.Writer, value interface{}) error {
@@ -361,15 +342,11 @@ func resolveValidatedStateRoot(root string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	resolvedPath, err := filepath.EvalSymlinks(cleanPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return cleanPath, nil
+	if err := rejectLinkedPathComponents(filepath.Dir(cleanPath)); err != nil {
+		if errors.Is(err, errLinkedPathComponent) {
+			return "", fmt.Errorf("state root must not contain symlink path components")
 		}
 		return "", err
-	}
-	if !sameCanonicalPath(cleanPath, resolvedPath) {
-		return "", fmt.Errorf("state root must not contain symlink path components")
 	}
 	info, err := os.Lstat(cleanPath)
 	if err != nil {
@@ -378,7 +355,11 @@ func resolveValidatedStateRoot(root string) (string, error) {
 		}
 		return "", err
 	}
-	if info.Mode()&os.ModeSymlink != 0 {
+	linked, err := pathEntryIsLinkOrReparse(cleanPath, info)
+	if err != nil {
+		return "", err
+	}
+	if linked {
 		return "", fmt.Errorf("state root must not be a symlink")
 	}
 	if !info.IsDir() {
