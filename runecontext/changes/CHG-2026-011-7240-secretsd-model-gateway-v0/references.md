@@ -15,9 +15,17 @@
 - `runecontext/changes/CHG-2026-003-b567-audit-log-v0-verify/`
 - `runecontext/changes/CHG-2026-004-acdb-artifact-store-data-classes-v0/`
 - `runecontext/changes/CHG-2026-018-5900-auth-gateway-role-v0/`
+- `runecontext/changes/CHG-2026-019-40c5-bridge-runtime-protocol-v0/`
 - `runecontext/changes/CHG-2026-014-0c5d-approval-profiles-strict-permissive/`
+- `runecontext/changes/CHG-2026-036-a4f9-secure-model-provider-access-v0/`
 - `runecontext/changes/CHG-2026-020-4425-openai-chatgpt-subscription-provider-oauth-codex-bridge/`
 - `runecontext/changes/CHG-2026-022-8051-github-copilot-subscription-provider-official-runtime-bridge/`
+
+## Related Standards
+
+- `runecontext/standards/security/policy-evaluation-foundations.md`
+- `runecontext/standards/global/control-plane-api-contract-shape.md`
+- `runecontext/standards/security/trusted-local-artifact-persistence.md`
 
 ## Similar Implementations
 

@@ -4,8 +4,9 @@
 - `standards/security/trust-boundary-layered-enforcement.md`
 - `standards/security/trust-boundary-change-checklist.md`
 - `standards/security/policy-evaluation-foundations.md`
+- `standards/global/control-plane-api-contract-shape.md`
 - `standards/global/deterministic-check-write-tools.md`
 - `standards/ci/worktree-cleanliness.md`
 
 ## Resolution Notes
-Split from `CHG-2026-011-7240-secretsd-model-gateway-v0` and now also inherits the shared policy-foundation standard for typed destination descriptors and auditable gateway authorization semantics.
+Split from `CHG-2026-011-7240-secretsd-model-gateway-v0`, now also inherits the shared policy-foundation standard for typed destination descriptors and auditable gateway authorization semantics, and explicitly adopts the typed control-plane contract standard for the canonical model boundary.
