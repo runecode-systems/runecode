@@ -62,6 +62,7 @@ The change must define operation-specific object families for at least:
 - `ReadinessGetRequest` / `ReadinessGetResponse`
 - `VersionInfoGetRequest` / `VersionInfoGetResponse`
 
+
 The logical API should also be ready to grow typed runner->broker workflow orchestration write families for checkpoint/result reporting without changing the transport-neutral modeling approach.
 
 These object families are the semantic API surface that later protobuf/gRPC transport work maps 1:1.
