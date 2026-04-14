@@ -15,14 +15,16 @@ import (
 func TestRunDetailAuthoritativeStateIncludesBackendPostureSelectionEvidenceRefs(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	const runID = "run-backend-evidence"
+	const instanceID = "launcher-instance-1"
+	const selectorRunID = "instance-control:launcher-instance-1"
 	const manifestHash = "sha256:" + "1111111111111111111111111111111111111111111111111111111111111111"
 	const actionHash = "sha256:" + "3333333333333333333333333333333333333333333333333333333333333333"
 	const requestDigest = "sha256:" + "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	const decisionDigest = "sha256:" + "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 
 	_ = putRunScopedArtifactForLocalOpsTest(t, s, runID, "step-1")
-	policyRef := recordBackendPosturePolicyDecisionForRun(t, s, runID, manifestHash, actionHash)
-	approvalID := recordBackendPostureApprovalForRun(t, s, runID, policyRef, manifestHash, actionHash, requestDigest, decisionDigest)
+	policyRef := recordBackendPosturePolicyDecisionForRun(t, s, selectorRunID, manifestHash, actionHash, instanceID)
+	approvalID := recordBackendPostureApprovalForRun(t, s, runID, selectorRunID, policyRef, manifestHash, actionHash, requestDigest, decisionDigest, instanceID)
 	recordContainerRuntimeFactsForBackendEvidence(t, s, runID)
 
 	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-backend-evidence", RunID: runID}, RequestContext{})
@@ -75,7 +77,7 @@ func TestRunSummaryKeepsAuditPostureDistinctFromBackendAndRuntimePosture(t *test
 	}
 }
 
-func recordBackendPosturePolicyDecisionForRun(t *testing.T, s *Service, runID, manifestHash, actionHash string) string {
+func recordBackendPosturePolicyDecisionForRun(t *testing.T, s *Service, runID, manifestHash, actionHash, instanceID string) string {
 	t.Helper()
 	decision := policyengine.PolicyDecision{
 		SchemaID:               "runecode.protocol.v0.PolicyDecision",
@@ -87,7 +89,7 @@ func recordBackendPosturePolicyDecisionForRun(t *testing.T, s *Service, runID, m
 		ActionRequestHash:      actionHash,
 		RelevantArtifactHashes: []string{"sha256:" + strings.Repeat("4", 64)},
 		DetailsSchemaID:        "runecode.protocol.details.policy.evaluation.v0",
-		Details:                map[string]any{"precedence": "approval_profile_moderate"},
+		Details:                map[string]any{"precedence": "approval_profile_moderate", "instance_id": instanceID},
 	}
 	if err := s.RecordPolicyDecision(runID, "", decision); err != nil {
 		t.Fatalf("RecordPolicyDecision returned error: %v", err)
@@ -99,7 +101,7 @@ func recordBackendPosturePolicyDecisionForRun(t *testing.T, s *Service, runID, m
 	return refs[0]
 }
 
-func recordBackendPostureApprovalForRun(t *testing.T, s *Service, runID, policyRef, manifestHash, actionHash, requestDigest, decisionDigest string) string {
+func recordBackendPostureApprovalForRun(t *testing.T, s *Service, runID, selectorRunID, policyRef, manifestHash, actionHash, requestDigest, decisionDigest, instanceID string) string {
 	t.Helper()
 	approvalID := "sha256:" + strings.Repeat("a", 64)
 	now := time.Now().UTC().Round(0)
@@ -107,7 +109,8 @@ func recordBackendPostureApprovalForRun(t *testing.T, s *Service, runID, policyR
 		ApprovalID:             approvalID,
 		Status:                 "consumed",
 		WorkspaceID:            workspaceIDForRun(runID),
-		RunID:                  runID,
+		InstanceID:             instanceID,
+		RunID:                  selectorRunID,
 		ActionKind:             policyengine.ActionKindBackendPosture,
 		RequestedAt:            now.Add(-2 * time.Minute),
 		DecidedAt:              func() *time.Time { t := now.Add(-1 * time.Minute); return &t }(),

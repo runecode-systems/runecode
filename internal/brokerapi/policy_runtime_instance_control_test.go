@@ -37,6 +37,12 @@ func TestEvaluateInstanceControlActionUsesStableSelectorAndIgnoresUnrelatedNewes
 	if decision.PolicyReasonCode != "approval_required" {
 		t.Fatalf("policy_reason_code = %q, want approval_required", decision.PolicyReasonCode)
 	}
+	assertBackendPostureDecisionScope(t, decision)
+	assertPolicyDecisionStoredForControlRun(t, s, ctx.controlRunID)
+}
+
+func assertBackendPostureDecisionScope(t *testing.T, decision policyengine.PolicyDecision) {
+	t.Helper()
 	if decision.ManifestHash == "" {
 		t.Fatal("manifest_hash empty")
 	}
@@ -46,6 +52,19 @@ func TestEvaluateInstanceControlActionUsesStableSelectorAndIgnoresUnrelatedNewes
 	}
 	if scope["instance_id"] != "launcher-instance-1" {
 		t.Fatalf("required_approval.scope.instance_id = %v, want launcher-instance-1", scope["instance_id"])
+	}
+}
+
+func assertPolicyDecisionStoredForControlRun(t *testing.T, s *Service, controlRunID string) {
+	t.Helper()
+	refs := s.PolicyDecisionRefsForRun(controlRunID)
+	if len(refs) != 1 {
+		t.Fatalf("PolicyDecisionRefsForRun(%q) len = %d, want 1", controlRunID, len(refs))
+	}
+	if rec, ok := s.PolicyDecisionGet(refs[0]); !ok {
+		t.Fatalf("PolicyDecisionGet(%q) missing", refs[0])
+	} else if rec.RunID != controlRunID {
+		t.Fatalf("policy decision run_id = %q, want %q", rec.RunID, controlRunID)
 	}
 }
 

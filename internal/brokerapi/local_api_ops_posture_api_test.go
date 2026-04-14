@@ -55,6 +55,7 @@ func TestBackendPostureChangeRequiresApprovalAndThenAppliesViaSharedApprovalReso
 	seedBackendSelectionE2EContext(t, s, "run-posture-e2e")
 	changeResp := requireBackendPostureApprovalRequired(t, s, s.currentInstanceBackendPosture().InstanceID)
 	pending := requirePendingBackendPostureApproval(t, s, changeResp.Outcome.ApprovalID)
+	requireBackendPosturePolicyDecisionRecordedForInstanceSelector(t, s, pending)
 	resolveResp := resolveBackendPostureApproval(t, s, pending, "container")
 	if resolveResp.ResolutionReasonCode != "approval_consumed" {
 		t.Fatalf("resolution_reason_code=%q, want approval_consumed", resolveResp.ResolutionReasonCode)
@@ -106,6 +107,24 @@ func requirePendingBackendPostureApproval(t *testing.T, s *Service, approvalID s
 		t.Fatalf("unexpected pending approval state: %+v", pending)
 	}
 	return pending
+}
+
+func requireBackendPosturePolicyDecisionRecordedForInstanceSelector(t *testing.T, s *Service, pending artifacts.ApprovalRecord) {
+	t.Helper()
+	selectorRunID := instanceControlRunIDForTests(pending.InstanceID)
+	refs := s.PolicyDecisionRefsForRun(selectorRunID)
+	if len(refs) == 0 {
+		t.Fatalf("PolicyDecisionRefsForRun(%q) = empty, want backend-posture decision", selectorRunID)
+	}
+	if pending.PolicyDecisionHash == "" {
+		t.Fatalf("pending policy_decision_hash empty for approval %q", pending.ApprovalID)
+	}
+	for _, ref := range refs {
+		if ref == pending.PolicyDecisionHash {
+			return
+		}
+	}
+	t.Fatalf("pending policy_decision_hash %q not found in selector refs %v", pending.PolicyDecisionHash, refs)
 }
 
 func resolveBackendPostureApproval(t *testing.T, s *Service, pending artifacts.ApprovalRecord, targetBackend string) ApprovalResolveResponse {

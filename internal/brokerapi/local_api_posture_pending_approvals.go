@@ -8,31 +8,26 @@ import (
 	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
-func (s *Service) recordPendingBackendPostureApproval(decision policyengine.PolicyDecision, _ BackendPostureChangeRequest, _ policyengine.ActionRequest) (string, error) {
-	runID := strings.TrimSpace(scopeString(decision.RequiredApproval, "run_id"))
-	if err := s.RecordPolicyDecision(runID, "", decision); err != nil {
-		return "", err
+func (s *Service) recordPendingBackendPostureApproval(decision policyengine.PolicyDecision, _ BackendPostureChangeRequest, action policyengine.ActionRequest) (string, error) {
+	selectorRunID := instanceControlSelectorRunIDForDecision(action, decision)
+	if selectorRunID == "" {
+		return "", fmt.Errorf("instance-control selector run_id is required for backend posture approvals")
 	}
-	policyDigest := latestPolicyDecisionRefForRun(s, runID)
-	best := latestMatchingPendingBackendPostureApproval(s.ApprovalList(), decision, policyDigest)
+	policyDigest := strings.TrimSpace(decisionDigestIdentity(decision))
+	if policyDigest == "" {
+		return "", fmt.Errorf("backend posture policy decision hash unavailable")
+	}
+	best := latestMatchingPendingBackendPostureApproval(s.ApprovalList(), decision, policyDigest, selectorRunID)
 	if best == nil {
 		return "", fmt.Errorf("derived pending backend-posture approval not found")
 	}
 	return best.ApprovalID, nil
 }
 
-func latestPolicyDecisionRefForRun(s *Service, runID string) string {
-	refs := s.PolicyDecisionRefsForRun(runID)
-	if len(refs) == 0 {
-		return ""
-	}
-	return strings.TrimSpace(refs[len(refs)-1])
-}
-
-func latestMatchingPendingBackendPostureApproval(records []artifacts.ApprovalRecord, decision policyengine.PolicyDecision, policyDigest string) *artifacts.ApprovalRecord {
+func latestMatchingPendingBackendPostureApproval(records []artifacts.ApprovalRecord, decision policyengine.PolicyDecision, policyDigest string, selectorRunID string) *artifacts.ApprovalRecord {
 	var best *artifacts.ApprovalRecord
 	for _, rec := range records {
-		if !matchesPendingBackendPostureApproval(rec, decision, policyDigest) {
+		if !matchesPendingBackendPostureApproval(rec, decision, policyDigest, selectorRunID) {
 			continue
 		}
 		current := rec
@@ -43,8 +38,11 @@ func latestMatchingPendingBackendPostureApproval(records []artifacts.ApprovalRec
 	return best
 }
 
-func matchesPendingBackendPostureApproval(rec artifacts.ApprovalRecord, decision policyengine.PolicyDecision, policyDigest string) bool {
+func matchesPendingBackendPostureApproval(rec artifacts.ApprovalRecord, decision policyengine.PolicyDecision, policyDigest string, selectorRunID string) bool {
 	if rec.Status != "pending" || rec.ActionKind != policyengine.ActionKindBackendPosture {
+		return false
+	}
+	if strings.TrimSpace(rec.RunID) != strings.TrimSpace(selectorRunID) {
 		return false
 	}
 	if strings.TrimSpace(rec.ActionRequestHash) != strings.TrimSpace(decision.ActionRequestHash) {
@@ -53,14 +51,12 @@ func matchesPendingBackendPostureApproval(rec artifacts.ApprovalRecord, decision
 	if strings.TrimSpace(rec.ManifestHash) != strings.TrimSpace(decision.ManifestHash) {
 		return false
 	}
-	if policyDigest != "" && strings.TrimSpace(rec.PolicyDecisionHash) != policyDigest {
+	if strings.TrimSpace(rec.PolicyDecisionHash) != strings.TrimSpace(policyDigest) {
+		return false
+	}
+	instanceID := requiredApprovalScopeString(decision.RequiredApproval, "instance_id")
+	if instanceID != "" && strings.TrimSpace(rec.InstanceID) != instanceID {
 		return false
 	}
 	return true
-}
-
-func scopeString(required map[string]any, key string) string {
-	scope, _ := required["scope"].(map[string]any)
-	value, _ := scope[key].(string)
-	return strings.TrimSpace(value)
 }

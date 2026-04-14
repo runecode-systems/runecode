@@ -1,12 +1,14 @@
 package brokerapi
 
 import (
+	"strings"
+
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
-func buildAuthoritativeRunState(summary RunSummary, artifactsForRun []artifacts.ArtifactRecord, pendingIDs []string, manifestHashes []string, policyRefs []string, approvals []ApprovalSummary, runtimeFacts launcherbackend.RuntimeFactsSnapshot) map[string]any {
+func buildAuthoritativeRunState(summary RunSummary, artifactsForRun []artifacts.ArtifactRecord, pendingIDs []string, manifestHashes []string, policyRefs []string, approvals []ApprovalSummary, runtimeFacts launcherbackend.RuntimeFactsSnapshot, currentInstanceID string) map[string]any {
 	receipt := runtimeFacts.LaunchReceipt.Normalized()
 	state := buildBaseAuthoritativeRunState(summary, len(artifactsForRun), len(pendingIDs), receipt)
 	projectReceiptIdentityState(state, receipt)
@@ -15,21 +17,27 @@ func buildAuthoritativeRunState(summary RunSummary, artifactsForRun []artifacts.
 	projectReceiptSessionAndAttachmentState(state, receipt)
 	projectReceiptLifecycleAndCacheState(state, receipt)
 	projectHardeningAndTerminalState(state, runtimeFacts)
-	projectBackendPostureSelectionEvidenceState(state, summary.RunID, policyRefs, approvals)
+	projectBackendPostureSelectionEvidenceState(state, currentInstanceID, summary.RunID, policyRefs, approvals)
 	projectWorkflowDerivedState(state, summary, manifestHashes)
 	return state
 }
 
-func projectBackendPostureSelectionEvidenceState(state map[string]any, runID string, policyRefs []string, approvals []ApprovalSummary) {
+func projectBackendPostureSelectionEvidenceState(state map[string]any, instanceID string, runID string, policyRefs []string, approvals []ApprovalSummary) {
 	reducedAssurance := state["backend_kind"] == launcherbackend.BackendKindContainer || state["runtime_posture_degraded"] == true
 	if !reducedAssurance {
 		return
 	}
 	evidence := map[string]any{}
+	approvalEvidence := backendPostureApprovalEvidence(instanceID, runID, approvals)
+	if len(policyRefs) == 0 {
+		if approvalPolicyHash, ok := approvalEvidence["policy_decision_hash"].(string); ok && approvalPolicyHash != "" {
+			policyRefs = []string{approvalPolicyHash}
+		}
+	}
 	if len(policyRefs) > 0 {
 		evidence["policy_decision_refs"] = append([]string{}, policyRefs...)
 	}
-	if approvalEvidence := backendPostureApprovalEvidenceForRun(runID, approvals); len(approvalEvidence) > 0 {
+	if len(approvalEvidence) > 0 {
 		evidence["approval"] = approvalEvidence
 	}
 	if len(evidence) > 0 {
@@ -37,11 +45,11 @@ func projectBackendPostureSelectionEvidenceState(state map[string]any, runID str
 	}
 }
 
-func backendPostureApprovalEvidenceForRun(runID string, approvals []ApprovalSummary) map[string]any {
-	if runID == "" {
+func backendPostureApprovalEvidence(instanceID, runID string, approvals []ApprovalSummary) map[string]any {
+	if instanceID == "" {
 		return nil
 	}
-	best, ok := bestBackendPostureApprovalForRun(runID, approvals)
+	best, ok := bestBackendPostureApproval(instanceID, runID, approvals)
 	if !ok {
 		return nil
 	}
@@ -62,11 +70,11 @@ func backendPostureApprovalEvidenceForRun(runID string, approvals []ApprovalSumm
 	return evidence
 }
 
-func bestBackendPostureApprovalForRun(runID string, approvals []ApprovalSummary) (ApprovalSummary, bool) {
+func bestBackendPostureApproval(instanceID, runID string, approvals []ApprovalSummary) (ApprovalSummary, bool) {
 	var best ApprovalSummary
 	found := false
 	for _, approval := range approvals {
-		if !isBackendPostureApprovalForRun(runID, approval) {
+		if !isBackendPostureApproval(instanceID, runID, approval) {
 			continue
 		}
 		if !found || approvalEvidencePrecedes(approval, best) {
@@ -77,11 +85,31 @@ func bestBackendPostureApprovalForRun(runID string, approvals []ApprovalSummary)
 	return best, found
 }
 
-func isBackendPostureApprovalForRun(runID string, approval ApprovalSummary) bool {
-	if approval.BoundScope.RunID != runID {
+func isBackendPostureApproval(instanceID, runID string, approval ApprovalSummary) bool {
+	if approval.BoundScope.ActionKind != policyengine.ActionKindBackendPosture {
 		return false
 	}
-	return approval.BoundScope.ActionKind == policyengine.ActionKindBackendPosture
+	if instanceID == "" {
+		return false
+	}
+	if approval.BoundScope.InstanceID != instanceID {
+		return false
+	}
+	expectedSelectorRunID := instanceControlRunIDForInstanceID(instanceID)
+	if expectedSelectorRunID == "" {
+		return false
+	}
+	boundRunID := approval.BoundScope.RunID
+	if boundRunID == "" {
+		return false
+	}
+	if strings.HasPrefix(boundRunID, "instance-control:") {
+		return boundRunID == expectedSelectorRunID
+	}
+	if runID == "" {
+		return false
+	}
+	return boundRunID == runID
 }
 
 func approvalEvidencePrecedes(candidate ApprovalSummary, existing ApprovalSummary) bool {

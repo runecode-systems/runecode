@@ -27,7 +27,11 @@ func (r policyRuntime) EvaluateInstanceControlAction(action policyengine.ActionR
 	if err != nil {
 		return policyengine.PolicyDecision{}, err
 	}
-	if err := r.service.RecordPolicyDecision("", "", decision); err != nil {
+	selectorRunID := instanceControlSelectorRunIDForDecision(action, decision)
+	if strings.TrimSpace(selectorRunID) == "" {
+		return policyengine.PolicyDecision{}, fmt.Errorf("instance-control selector run_id required for policy decision persistence")
+	}
+	if err := r.service.RecordPolicyDecision(selectorRunID, "", decision); err != nil {
 		return policyengine.PolicyDecision{}, err
 	}
 	return decision, nil

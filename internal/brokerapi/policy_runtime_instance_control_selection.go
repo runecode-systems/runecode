@@ -40,6 +40,34 @@ func instanceControlRunIDFromAction(action policyengine.ActionRequest) string {
 	return ""
 }
 
+func instanceControlRunIDForInstanceID(instanceID string) string {
+	target := strings.TrimSpace(instanceID)
+	if target == "" {
+		return ""
+	}
+	return "instance-control:" + target
+}
+
+func instanceControlSelectorRunIDForDecision(action policyengine.ActionRequest, decision policyengine.PolicyDecision) string {
+	if runID := instanceControlRunIDFromAction(action); runID != "" {
+		return runID
+	}
+	if instanceID := requiredApprovalScopeString(decision.RequiredApproval, "instance_id"); instanceID != "" {
+		return instanceControlRunIDForInstanceID(instanceID)
+	}
+	runID := strings.TrimSpace(requiredApprovalScopeString(decision.RequiredApproval, "run_id"))
+	if strings.HasPrefix(runID, "instance-control:") {
+		return runID
+	}
+	return ""
+}
+
+func requiredApprovalScopeString(required map[string]any, key string) string {
+	scope, _ := required["scope"].(map[string]any)
+	value, _ := scope[key].(string)
+	return strings.TrimSpace(value)
+}
+
 func inferSingleInstanceControlRunID(roleRecords, runRecords []artifacts.ArtifactRecord) (string, error) {
 	runsWithRole := map[string]struct{}{}
 	for _, rec := range roleRecords {
