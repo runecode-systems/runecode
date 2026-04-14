@@ -21,6 +21,7 @@ type trustedPolicyContextDigests struct {
 	stageDigest     string
 	allowlistDigest string
 	ruleSetDigest   string
+	controlRunID    string
 }
 
 func decisionAuditDetailsByDigest(t *testing.T, s *Service, digest string) (map[string]interface{}, bool) {
@@ -57,7 +58,11 @@ func putTrustedPolicyContextForRun(t *testing.T, s *Service, runID string, withR
 	stagePayload := trustedCapabilityManifestPayload(t, verifier, privateKey, runID, "artifact_flow", "stage", allowlistDigest)
 	stageDigest := putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindStageCapability, stagePayload)
 	ruleSetDigest := maybePutTrustedRuleSet(t, s, runID, withRuleSet)
-	return trustedPolicyContextDigests{roleDigest: roleDigest, runDigest: runDigest, stageDigest: stageDigest, allowlistDigest: allowlistDigest, ruleSetDigest: ruleSetDigest}
+	return trustedPolicyContextDigests{roleDigest: roleDigest, runDigest: runDigest, stageDigest: stageDigest, allowlistDigest: allowlistDigest, ruleSetDigest: ruleSetDigest, controlRunID: instanceControlRunIDForTests("launcher-instance-1")}
+}
+
+func instanceControlRunIDForTests(targetInstanceID string) string {
+	return "instance-control:" + strings.TrimSpace(targetInstanceID)
 }
 
 func trustedPolicyAllowlistPayload(t *testing.T) []byte {

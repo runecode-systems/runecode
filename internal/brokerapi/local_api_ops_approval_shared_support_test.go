@@ -322,7 +322,7 @@ func backendPostureTargetInstanceFromPayload(payload []byte) string {
 }
 
 func backendPostureActionHashForBrokerTests(backendKind, selectionMode, changeKind, assuranceChangeKind, optInKind string) string {
-	action := policyengine.NewBackendPostureChangeAction(policyengine.BackendPostureChangeActionInput{ActionEnvelope: policyengine.ActionEnvelope{CapabilityID: "cap_stage", Actor: policyengine.ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"}}, TargetInstanceID: "launcher-instance-1", TargetBackendKind: backendKind, SelectionMode: selectionMode, ChangeKind: changeKind, AssuranceChangeKind: assuranceChangeKind, OptInKind: optInKind, ReducedAssuranceAcknowledged: true, Reason: "operator_requested_reduced_assurance_backend_opt_in"})
+	action := policyengine.NewBackendPostureChangeAction(policyengine.BackendPostureChangeActionInput{ActionEnvelope: policyengine.ActionEnvelope{CapabilityID: "cap_stage", Actor: policyengine.ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"}}, RunID: "instance-control:launcher-instance-1", TargetInstanceID: "launcher-instance-1", TargetBackendKind: backendKind, SelectionMode: selectionMode, ChangeKind: changeKind, AssuranceChangeKind: assuranceChangeKind, OptInKind: optInKind, ReducedAssuranceAcknowledged: true, Reason: "operator_requested_reduced_assurance_backend_opt_in"})
 	hash, err := policyengine.CanonicalActionRequestHash(action)
 	if err != nil {
 		panic(err)

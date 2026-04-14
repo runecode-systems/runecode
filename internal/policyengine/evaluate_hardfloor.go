@@ -1,5 +1,7 @@
 package policyengine
 
+import "strings"
+
 func classifyHardFloorOperation(action ActionRequest, exec *executorRunPayload) ([]HardFloorOperationClass, ApprovalAssuranceLevel) {
 	classes := []HardFloorOperationClass{}
 
@@ -93,18 +95,20 @@ func firstTrigger(triggers []string, fallback string) string {
 }
 
 func approvalScopeForAction(action ActionRequest) map[string]any {
-	targetInstanceID := ""
-	if action.ActionKind == ActionKindBackendPosture {
-		if raw, ok := action.ActionPayload["target_instance_id"].(string); ok {
-			targetInstanceID = raw
-		}
-	}
-	return map[string]any{
+	scope := map[string]any{
 		"schema_id":      "runecode.protocol.v0.ApprovalBoundScope",
 		"schema_version": "0.1.0",
 		"action_kind":    action.ActionKind,
-		"instance_id":    targetInstanceID,
 	}
+	if action.ActionKind != ActionKindBackendPosture {
+		return scope
+	}
+	if raw, ok := action.ActionPayload["target_instance_id"].(string); ok {
+		if targetInstanceID := strings.TrimSpace(raw); targetInstanceID != "" {
+			scope["instance_id"] = targetInstanceID
+		}
+	}
+	return scope
 }
 
 func hardFloorChangesIfApproved(action ActionRequest) string {

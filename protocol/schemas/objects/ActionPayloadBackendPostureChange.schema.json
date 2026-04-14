@@ -5,7 +5,7 @@
   "description": "Typed action payload for backend posture change operations.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 10,
+  "maxProperties": 11,
   "required": [
     "schema_id",
     "schema_version",
@@ -26,6 +26,14 @@
     "schema_version": {
       "const": "0.1.0",
       "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Stable instance-control policy context selector run identity.",
       "x-data-class": "public"
     },
     "target_instance_id": {

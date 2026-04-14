@@ -2,10 +2,12 @@ package brokerapi
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/launcherbackend"
 	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
@@ -23,6 +25,28 @@ func TestBackendPostureGetReturnsTypedState(t *testing.T) {
 	}
 	if len(resp.Posture.Availability) < 2 {
 		t.Fatalf("availability len=%d, want >=2", len(resp.Posture.Availability))
+	}
+	assertBackendAvailabilityByPlatform(t, resp.Posture.Availability)
+}
+
+func assertBackendAvailabilityByPlatform(t *testing.T, availability []BackendPostureAvailability) {
+	t.Helper()
+	microvmAvailable := false
+	containerAvailable := false
+	for _, entry := range availability {
+		switch entry.BackendKind {
+		case launcherbackend.BackendKindMicroVM:
+			microvmAvailable = entry.Available
+		case launcherbackend.BackendKindContainer:
+			containerAvailable = entry.Available
+		}
+	}
+	if !microvmAvailable {
+		t.Fatal("microvm availability should be true")
+	}
+	wantContainer := runtime.GOOS == "linux"
+	if containerAvailable != wantContainer {
+		t.Fatalf("container availability=%t, want %t on %s", containerAvailable, wantContainer, runtime.GOOS)
 	}
 }
 

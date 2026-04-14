@@ -339,6 +339,7 @@ func TestPolicyRuntimeE2EContainerFallbackDenied(t *testing.T) {
 				RoleKind:   "workspace-edit",
 			},
 		},
+		RunID:                        "instance-control:launcher-instance-1",
 		TargetInstanceID:             "launcher-instance-1",
 		TargetBackendKind:            "container",
 		SelectionMode:                "automatic_fallback_attempt",
@@ -381,6 +382,7 @@ func seedBackendSelectionE2EContext(t *testing.T, s *Service, runID string) {
 		roleKind:     "workspace-edit",
 		capabilities: []string{"cap_backend"},
 	})
+	putTrustedPolicyContextForE2ERun(t, s, e2eContextInput{runID: instanceControlRunIDForTests("launcher-instance-1"), roleFamily: "workspace", roleKind: "workspace-edit", capabilities: []string{"cap_backend"}})
 }
 
 func explicitContainerBackendSelectionAction() policyengine.ActionRequest {
@@ -393,6 +395,7 @@ func explicitContainerBackendSelectionAction() policyengine.ActionRequest {
 				RoleKind:   "workspace-edit",
 			},
 		},
+		RunID:                        "instance-control:launcher-instance-1",
 		TargetInstanceID:             "launcher-instance-1",
 		TargetBackendKind:            "container",
 		SelectionMode:                "explicit_selection",

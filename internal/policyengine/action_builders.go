@@ -115,6 +115,9 @@ func NewBackendPostureChangeAction(input BackendPostureChangeActionInput) Action
 		"opt_in_kind":                    input.OptInKind,
 		"reduced_assurance_acknowledged": input.ReducedAssuranceAcknowledged,
 	}
+	if input.RunID != "" {
+		payload["run_id"] = input.RunID
+	}
 	if input.Reason != "" {
 		payload["reason"] = input.Reason
 	}

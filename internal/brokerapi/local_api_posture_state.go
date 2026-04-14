@@ -1,9 +1,11 @@
 package brokerapi
 
 import (
+	"runtime"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/launcherbackend"
 	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
@@ -15,10 +17,7 @@ func (s *Service) currentBackendPostureState() BackendPostureState {
 		InstanceID:           strings.TrimSpace(posture.InstanceID),
 		BackendKind:          strings.TrimSpace(posture.BackendKind),
 		PreferredBackendKind: strings.TrimSpace(posture.PreferredBackendKind),
-		Availability: []BackendPostureAvailability{
-			{SchemaID: "runecode.protocol.v0.BackendPostureAvailability", SchemaVersion: "0.1.0", BackendKind: "microvm", Available: true},
-			{SchemaID: "runecode.protocol.v0.BackendPostureAvailability", SchemaVersion: "0.1.0", BackendKind: "container", Available: true},
-		},
+		Availability:         backendPostureAvailabilitySnapshot(),
 	}
 	state.ReducedAssuranceActive = strings.EqualFold(state.BackendKind, "container")
 	approval := s.latestPendingBackendPostureApprovalForInstance(state.InstanceID)
@@ -93,4 +92,21 @@ func matchesBackendPostureAppliedEvent(event artifacts.AuditEvent, instanceID st
 func approvalRequestHashFromAuditEvent(event artifacts.AuditEvent) string {
 	hash, _ := event.Details["approval_request_hash"].(string)
 	return strings.TrimSpace(hash)
+}
+
+func backendPostureAvailabilitySnapshot() []BackendPostureAvailability {
+	return []BackendPostureAvailability{
+		{
+			SchemaID:      "runecode.protocol.v0.BackendPostureAvailability",
+			SchemaVersion: "0.1.0",
+			BackendKind:   launcherbackend.BackendKindMicroVM,
+			Available:     true,
+		},
+		{
+			SchemaID:      "runecode.protocol.v0.BackendPostureAvailability",
+			SchemaVersion: "0.1.0",
+			BackendKind:   launcherbackend.BackendKindContainer,
+			Available:     runtime.GOOS == "linux",
+		},
+	}
 }

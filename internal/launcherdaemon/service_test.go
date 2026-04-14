@@ -157,8 +157,23 @@ func TestServiceMicroVMLaunchFailureDoesNotAutoSwitchToContainerMode(t *testing.
 		t.Fatalf("instance backend after failure = %q, want %q", got, launcherbackend.BackendKindMicroVM)
 	}
 
-	if _, err := svc.Launch(context.Background(), validSpecForTests()); err != nil {
-		t.Fatalf("second Launch returned error: %v", err)
+	_, err = svc.Launch(context.Background(), validSpecForTests())
+	assertSecondLaunchOutcomeByPlatform(t, controller, err)
+}
+
+func assertSecondLaunchOutcomeByPlatform(t *testing.T, controller *failOnceController, secondLaunchErr error) {
+	t.Helper()
+	if runtime.GOOS == "linux" {
+		assertLinuxSecondMicroVMLaunchSucceeds(t, controller, secondLaunchErr)
+		return
+	}
+	assertNonLinuxSecondMicroVMLaunchFailsValidation(t, controller, secondLaunchErr)
+}
+
+func assertLinuxSecondMicroVMLaunchSucceeds(t *testing.T, controller *failOnceController, secondLaunchErr error) {
+	t.Helper()
+	if secondLaunchErr != nil {
+		t.Fatalf("second Launch returned error: %v", secondLaunchErr)
 	}
 	if len(controller.launchedSpecs) != 2 {
 		t.Fatalf("launch count = %d, want 2", len(controller.launchedSpecs))
@@ -171,13 +186,34 @@ func TestServiceMicroVMLaunchFailureDoesNotAutoSwitchToContainerMode(t *testing.
 	}
 }
 
+func assertNonLinuxSecondMicroVMLaunchFailsValidation(t *testing.T, controller *failOnceController, secondLaunchErr error) {
+	t.Helper()
+	if secondLaunchErr == nil {
+		t.Fatal("second Launch expected microvm acceleration unsupported error")
+	}
+	if len(controller.launchedSpecs) != 0 {
+		t.Fatalf("launch count = %d, want 0", len(controller.launchedSpecs))
+	}
+}
+
 func TestServiceInstanceScopedBackendSelectionAffectsFutureLaunchesOnly(t *testing.T) {
 	state := setupServiceWithFakeController(t)
 	assertInitialMicroVMSelection(t, state.service)
-	state.launchAndAssertBackend(t, validSpecForTests(), launcherbackend.BackendKindMicroVM)
+	if runtime.GOOS == "linux" {
+		state.launchAndAssertBackend(t, validSpecForTests(), launcherbackend.BackendKindMicroVM)
+	} else {
+		if _, err := state.service.Launch(context.Background(), validSpecForTests()); err == nil {
+			t.Fatal("Launch expected microvm acceleration unsupported error")
+		}
+		if len(state.controller.launchedSpecs) != 0 {
+			t.Fatalf("launch count = %d, want 0", len(state.controller.launchedSpecs))
+		}
+	}
 	assertNoLiveMigrationOnPostureChange(t, state)
 	state.launchAndAssertBackend(t, validContainerSpecForTests(), launcherbackend.BackendKindContainer)
-	state.assertFirstLaunchRemainsMicroVM(t)
+	if runtime.GOOS == "linux" {
+		state.assertFirstLaunchRemainsMicroVM(t)
+	}
 }
 
 type serviceHarness struct {

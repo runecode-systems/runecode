@@ -38,7 +38,7 @@ func (r policyRuntime) loadInstanceControlCompileInput(action policyengine.Actio
 	if err != nil {
 		return policyengine.CompileInput{}, err
 	}
-	roleInput, roleManifest, runInput, runManifest, err := r.readInstanceControlManifests(catalog)
+	roleInput, roleManifest, runInput, runManifest, err := r.readInstanceControlManifests(catalog, action)
 	if err != nil {
 		return policyengine.CompileInput{}, err
 	}
@@ -66,12 +66,8 @@ func (r policyRuntime) loadInstanceControlCompileInput(action policyengine.Actio
 	return compileInput, nil
 }
 
-func (r policyRuntime) readInstanceControlManifests(catalog trustedPolicyCatalog) (policyengine.ManifestInput, policyengine.RoleManifest, policyengine.ManifestInput, policyengine.CapabilityManifest, error) {
-	roleRecord, err := pickLatestRecord(catalog.byKind[artifacts.TrustedContractImportKindRoleManifest], artifacts.TrustedContractImportKindRoleManifest)
-	if err != nil {
-		return policyengine.ManifestInput{}, policyengine.RoleManifest{}, policyengine.ManifestInput{}, policyengine.CapabilityManifest{}, err
-	}
-	runRecord, err := pickLatestRecord(catalog.byKind[artifacts.TrustedContractImportKindRunCapability], artifacts.TrustedContractImportKindRunCapability)
+func (r policyRuntime) readInstanceControlManifests(catalog trustedPolicyCatalog, action policyengine.ActionRequest) (policyengine.ManifestInput, policyengine.RoleManifest, policyengine.ManifestInput, policyengine.CapabilityManifest, error) {
+	roleRecord, runRecord, err := r.selectInstanceControlManifestRecords(catalog, action)
 	if err != nil {
 		return policyengine.ManifestInput{}, policyengine.RoleManifest{}, policyengine.ManifestInput{}, policyengine.CapabilityManifest{}, err
 	}

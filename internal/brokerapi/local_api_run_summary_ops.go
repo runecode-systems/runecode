@@ -80,7 +80,7 @@ func buildRunSummary(runID string, records []artifacts.ArtifactRecord, status st
 		BackendKind:             backendKind,
 		IsolationAssuranceLevel: isolationAssuranceLevel,
 		ProvisioningPosture:     provisioningPosture,
-		RuntimePostureDegraded:  isolationAssuranceLevel == launcherbackend.IsolationAssuranceDegraded,
+		RuntimePostureDegraded:  runtimePostureDegraded(backendKind, isolationAssuranceLevel),
 		AssuranceLevel:          isolationAssuranceLevel,
 		AuditIntegrityStatus:    verification.Summary.IntegrityStatus,
 		AuditAnchoringStatus:    verification.Summary.AnchoringStatus,

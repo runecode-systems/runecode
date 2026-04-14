@@ -291,6 +291,13 @@ func assertBackendSelectionApprovalScope(t *testing.T, decision PolicyDecision) 
 	}
 }
 
+func TestApprovalScopeForNonBackendActionOmitsInstanceID(t *testing.T) {
+	scope := approvalScopeForAction(ActionRequest{ActionKind: ActionKindPromotion, ActionPayload: map[string]any{}})
+	if _, ok := scope["instance_id"]; ok {
+		t.Fatalf("required_approval.scope.instance_id present for non-backend action: %v", scope["instance_id"])
+	}
+}
+
 func assertBackendSelectionApprovalHashes(t *testing.T, decision PolicyDecision) {
 	t.Helper()
 	related, ok := decision.RequiredApproval["related_hashes"].(map[string]any)

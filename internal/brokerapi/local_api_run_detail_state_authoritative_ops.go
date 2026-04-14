@@ -125,7 +125,7 @@ func buildBaseAuthoritativeRunState(summary RunSummary, artifactCount int, pendi
 		"workspace_id":              summary.WorkspaceID,
 		"backend_kind":              receipt.BackendKind,
 		"isolation_assurance_level": receipt.IsolationAssuranceLevel,
-		"runtime_posture_degraded":  receipt.IsolationAssuranceLevel == launcherbackend.IsolationAssuranceDegraded,
+		"runtime_posture_degraded":  runtimePostureDegraded(receipt.BackendKind, receipt.IsolationAssuranceLevel),
 		"provisioning_posture":      receipt.ProvisioningPosture,
 		"runtime_facts_source":      "launcher_backend_receipt",
 	}

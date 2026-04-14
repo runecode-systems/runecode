@@ -101,6 +101,7 @@ func newBackendPostureChangeAction(req BackendPostureChangeRequest) policyengine
 			CapabilityID: "cap_backend",
 			Actor:        policyengine.ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"},
 		},
+		RunID:                        backendPostureActionRunID(req),
 		TargetInstanceID:             strings.TrimSpace(req.TargetInstanceID),
 		TargetBackendKind:            strings.TrimSpace(req.TargetBackendKind),
 		SelectionMode:                strings.TrimSpace(req.SelectionMode),
@@ -110,6 +111,14 @@ func newBackendPostureChangeAction(req BackendPostureChangeRequest) policyengine
 		ReducedAssuranceAcknowledged: req.ReducedAssuranceAcknowledged,
 		Reason:                       strings.TrimSpace(req.Reason),
 	})
+}
+
+func backendPostureActionRunID(req BackendPostureChangeRequest) string {
+	target := strings.TrimSpace(req.TargetInstanceID)
+	if target == "" {
+		return "instance-control:active"
+	}
+	return "instance-control:" + target
 }
 
 func (s *Service) backendPostureChangeOutcomeFromDecision(requestID string, req BackendPostureChangeRequest, action policyengine.ActionRequest, decision policyengine.PolicyDecision) (BackendPostureState, BackendPostureChangeOutcome, *ErrorResponse) {
