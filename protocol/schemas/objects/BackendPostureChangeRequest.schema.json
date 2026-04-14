@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/BackendPostureChangeRequest.schema.json",
+  "title": "BackendPostureChangeRequest",
+  "description": "Typed backend posture change request routed through broker local API.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 11,
+  "required": ["schema_id", "schema_version", "request_id", "target_instance_id", "target_backend_kind", "selection_mode", "change_kind", "assurance_change_kind", "opt_in_kind", "reduced_assurance_acknowledged"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.BackendPostureChangeRequest", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable request identifier.", "x-data-class": "public" },
+    "target_instance_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Target launcher instance identity.", "x-data-class": "public" },
+    "target_backend_kind": { "type": "string", "enum": ["microvm", "container"], "description": "Requested backend kind.", "x-data-class": "public" },
+    "selection_mode": { "type": "string", "enum": ["explicit_selection", "automatic_fallback_attempt", "unknown"], "description": "Selection mode for this backend posture change request.", "x-data-class": "public" },
+    "change_kind": { "type": "string", "enum": ["select_backend", "relax_isolation", "unknown"], "description": "Change-kind classification.", "x-data-class": "public" },
+    "assurance_change_kind": { "type": "string", "enum": ["reduce_assurance", "maintain_assurance", "increase_assurance", "unknown"], "description": "Assurance delta classification.", "x-data-class": "public" },
+    "opt_in_kind": { "type": "string", "enum": ["exact_action_approval", "none", "unknown"], "description": "Opt-in contract posture.", "x-data-class": "public" },
+    "reduced_assurance_acknowledged": { "type": "boolean", "description": "Whether user acknowledged reduced assurance posture.", "x-data-class": "public" },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Optional operator-supplied reason.", "x-data-class": "public" }
+  }
+}

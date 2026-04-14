@@ -23,16 +23,17 @@ const (
 )
 
 type Service struct {
-	store          *artifacts.Store
-	auditLedger    *auditd.Ledger
-	auditor        *brokerAuditEmitter
-	auditRoot      string
-	gatewayQuota   *gatewayQuotaBackend
-	gatewayRuntime *modelGatewayRuntime
-	apiConfig      APIConfig
-	apiInflight    *inFlightGate
-	versionInfo    BrokerVersionInfo
-	now            func() time.Time
+	store                     *artifacts.Store
+	auditLedger               *auditd.Ledger
+	auditor                   *brokerAuditEmitter
+	auditRoot                 string
+	gatewayQuota              *gatewayQuotaBackend
+	gatewayRuntime            *modelGatewayRuntime
+	instancePostureController instanceBackendPostureController
+	apiConfig                 APIConfig
+	apiInflight               *inFlightGate
+	versionInfo               BrokerVersionInfo
+	now                       func() time.Time
 }
 
 func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
@@ -57,16 +58,17 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 	quotaBackend.setLimits(resolved.GatewayQuota)
 	runtime := newModelGatewayRuntime(quotaBackend)
 	svc := &Service{
-		store:          store,
-		auditLedger:    ledger,
-		auditor:        auditor,
-		auditRoot:      ledgerRoot,
-		gatewayQuota:   quotaBackend,
-		gatewayRuntime: runtime,
-		apiConfig:      resolved,
-		apiInflight:    newInFlightGate(resolved.Limits),
-		now:            time.Now,
-		versionInfo:    defaultBrokerVersionInfo(),
+		store:                     store,
+		auditLedger:               ledger,
+		auditor:                   auditor,
+		auditRoot:                 ledgerRoot,
+		gatewayQuota:              quotaBackend,
+		gatewayRuntime:            runtime,
+		instancePostureController: newLocalInstanceBackendPostureController(),
+		apiConfig:                 resolved,
+		apiInflight:               newInFlightGate(resolved.Limits),
+		now:                       time.Now,
+		versionInfo:               defaultBrokerVersionInfo(),
 	}
 	runtime.auditFn = svc.AppendTrustedAuditEvent
 	return svc, nil

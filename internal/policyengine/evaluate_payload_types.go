@@ -64,6 +64,7 @@ type gatewayQuotaMeters struct {
 type backendPosturePayload struct {
 	SchemaID                     string `json:"schema_id"`
 	SchemaVersion                string `json:"schema_version"`
+	TargetInstanceID             string `json:"target_instance_id"`
 	TargetBackendKind            string `json:"target_backend_kind"`
 	SelectionMode                string `json:"selection_mode"`
 	ChangeKind                   string `json:"change_kind"`

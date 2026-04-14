@@ -34,19 +34,38 @@ func (s *Service) resolveApprovalForPersistence(requestID string, req ApprovalRe
 	if errResp != nil {
 		return resolvedApprovalResult{}, errResp
 	}
+	record, errResp := s.buildResolvedApprovalRecord(requestID, req, current, resolvedInput, resolvedStatus, resumeResult)
+	if errResp != nil {
+		return resolvedApprovalResult{}, errResp
+	}
+	return resolvedApprovalResult{record: record, resumeResult: resumeResult}, nil
+}
+
+func (s *Service) buildResolvedApprovalRecord(requestID string, req ApprovalResolveRequest, current approvalRecord, input approvalResolutionInput, resolvedStatus string, resumeResult approvalResumeResult) (approvalRecord, *ErrorResponse) {
 	if resumeResult.statusOverride != "" {
 		resolvedStatus = resumeResult.statusOverride
 	}
 	resolvedAt := s.now().UTC()
-	record, buildErr := buildResolvedApprovalRecordForOutcome(req, current, resolvedInput.approvalID, resolvedInput.decisionDigest, resolvedStatus, resumeResult.supersededByID, resolvedAt)
-	if buildErr != nil {
-		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, buildErr.Error())
-		return resolvedApprovalResult{}, &errOut
+	record, err := buildResolvedApprovalRecordForOutcome(req, current, input.approvalID, input.decisionDigest, resolvedStatus, resumeResult.supersededByID, resolvedAt)
+	if err != nil {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
+		return approvalRecord{}, &errOut
 	}
+	applyResolvedApprovalRecordSummary(&record, req, current, resolvedStatus, resolvedAt)
+	return record, nil
+}
+
+func applyResolvedApprovalRecordSummary(record *approvalRecord, req ApprovalResolveRequest, current approvalRecord, resolvedStatus string, resolvedAt time.Time) {
 	if resolvedStatus == "consumed" {
 		record.Summary.ConsumedAt = resolvedAt.Format(time.RFC3339)
 	}
-	return resolvedApprovalResult{record: record, resumeResult: resumeResult}, nil
+	if current.Summary.BoundScope.ActionKind != policyengine.ActionKindBackendPosture {
+		return
+	}
+	selection := req.normalizedResolutionDetails().BackendPostureSelection
+	if selection != nil {
+		record.Summary.BoundScope.InstanceID = selection.TargetInstanceID
+	}
 }
 
 func (s *Service) enforcePendingApprovalFreshness(requestID string, current approvalRecord) *ErrorResponse {
@@ -91,6 +110,9 @@ func (s *Service) dispatchApprovalResumeHandler(requestID string, req ApprovalRe
 	if input.outcome != "approve" {
 		return approvalResumeResult{}, nil
 	}
+	if current.Summary.BoundScope.ActionKind == policyengine.ActionKindBackendPosture {
+		return s.resumeBackendPostureApproval(requestID, req, current)
+	}
 	switch current.Summary.BoundScope.ActionKind {
 	case policyengine.ActionKindPromotion:
 		artifact, errResp := s.resumePromotionApproval(requestID, req)
@@ -103,6 +125,22 @@ func (s *Service) dispatchApprovalResumeHandler(requestID string, req ApprovalRe
 	default:
 		return s.resumeExactActionApproval(requestID, current)
 	}
+}
+
+func (s *Service) resumeBackendPostureApproval(requestID string, req ApprovalResolveRequest, current approvalRecord) (approvalResumeResult, *ErrorResponse) {
+	if strings.TrimSpace(current.ActionRequestHash) == "" {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "backend posture approval missing bound action_request_hash")
+		return approvalResumeResult{}, &errOut
+	}
+	if err := s.validateBackendPostureBinding(current, req); err != nil {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
+		return approvalResumeResult{}, &errOut
+	}
+	if err := s.applyResolvedBackendPosture(current, req); err != nil {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
+		return approvalResumeResult{}, &errOut
+	}
+	return approvalResumeResult{statusOverride: "consumed", resolutionReason: "approval_consumed"}, nil
 }
 
 func (s *Service) resumeExactActionApproval(requestID string, current approvalRecord) (approvalResumeResult, *ErrorResponse) {
@@ -139,118 +177,4 @@ func (s *Service) resumeStageSummarySignOff(requestID string, current approvalRe
 		return approvalResumeResult{statusOverride: "superseded", resolutionReason: "approval_superseded", supersededByID: latestID}, nil
 	}
 	return approvalResumeResult{statusOverride: "consumed", resolutionReason: "approval_consumed"}, nil
-}
-
-func stageSignOffBindingFromRequestPayload(payload map[string]any) (string, int64, bool, error) {
-	details, _ := payload["details"].(map[string]any)
-	if len(details) == 0 {
-		return "", 0, false, fmt.Errorf("stage sign-off approval request missing details payload")
-	}
-	stageSummaryHash, err := digestIdentityFromPayloadObject(details, "stage_summary_hash")
-	if err != nil {
-		return "", 0, false, fmt.Errorf("details.stage_summary_hash: %w", err)
-	}
-	revisionRaw, ok := details["summary_revision"]
-	if !ok {
-		return stageSummaryHash, 0, false, nil
-	}
-	switch value := revisionRaw.(type) {
-	case float64:
-		return stageSummaryHash, int64(value), true, nil
-	case int64:
-		return stageSummaryHash, value, true, nil
-	case int:
-		return stageSummaryHash, int64(value), true, nil
-	default:
-		return "", 0, false, fmt.Errorf("details.summary_revision has unsupported type %T", revisionRaw)
-	}
-}
-
-func (s *Service) latestPendingStageSignOffBinding(current approvalRecord, currentApprovalID string) (string, int64, string, bool) {
-	approvals := s.approvalRecordsByID()
-	latest := latestStageBinding{}
-	for _, rec := range approvals {
-		candidate, ok := pendingStageBindingCandidate(rec, current)
-		if !ok {
-			continue
-		}
-		if prefersStageBindingCandidate(candidate, latest) {
-			latest = candidate
-		}
-	}
-	if latest.approvalID == "" {
-		return "", 0, "", false
-	}
-	if latest.approvalID == currentApprovalID {
-		return latest.digest, latest.revision, latest.approvalID, true
-	}
-	if !latest.hasRevision {
-		return latest.digest, latest.revision, latest.approvalID, true
-	}
-	return latest.digest, latest.revision, latest.approvalID, true
-}
-
-type latestStageBinding struct {
-	approvalID  string
-	requestedAt time.Time
-	digest      string
-	revision    int64
-	hasRevision bool
-}
-
-func pendingStageBindingCandidate(rec approvalRecord, current approvalRecord) (latestStageBinding, bool) {
-	if rec.Summary.Status != "pending" {
-		return latestStageBinding{}, false
-	}
-	if rec.Summary.BoundScope.ActionKind != policyengine.ActionKindStageSummarySign {
-		return latestStageBinding{}, false
-	}
-	if rec.Summary.BoundScope.RunID != current.Summary.BoundScope.RunID || rec.Summary.BoundScope.StageID != current.Summary.BoundScope.StageID {
-		return latestStageBinding{}, false
-	}
-	if rec.RequestEnvelope == nil {
-		return latestStageBinding{}, false
-	}
-	payload, err := decodeApprovalRequestPayload(*rec.RequestEnvelope)
-	if err != nil {
-		return latestStageBinding{}, false
-	}
-	digest, rev, revOK, err := stageSignOffBindingFromRequestPayload(payload)
-	if err != nil || strings.TrimSpace(digest) == "" {
-		return latestStageBinding{}, false
-	}
-	return latestStageBinding{
-		approvalID:  rec.Summary.ApprovalID,
-		requestedAt: parseRequestedAt(rec.Summary.RequestedAt),
-		digest:      digest,
-		revision:    rev,
-		hasRevision: revOK,
-	}, true
-}
-
-func parseRequestedAt(value string) time.Time {
-	ts, ok := parseRFC3339(strings.TrimSpace(value))
-	if !ok {
-		return time.Time{}
-	}
-	return ts
-}
-
-func prefersStageBindingCandidate(candidate, latest latestStageBinding) bool {
-	if latest.approvalID == "" {
-		return true
-	}
-	switch {
-	case candidate.hasRevision && !latest.hasRevision:
-		return true
-	case candidate.hasRevision && latest.hasRevision && candidate.revision > latest.revision:
-		return true
-	case candidate.hasRevision == latest.hasRevision && candidate.revision == latest.revision:
-		if candidate.requestedAt.After(latest.requestedAt) {
-			return true
-		}
-		return candidate.requestedAt.Equal(latest.requestedAt) && candidate.approvalID > latest.approvalID
-	default:
-		return false
-	}
 }

@@ -17,6 +17,7 @@ type approvalDecisionDerivedSummary struct {
 	assurance      string
 	presence       string
 	workspaceID    string
+	instanceID     string
 	runID          string
 	stageID        string
 	stepID         string
@@ -50,6 +51,7 @@ func approvalDecisionSummary(record PolicyDecisionRecord, required map[string]an
 		assurance:      stringField(required, "approval_assurance_level", approvalDefaultAssuranceLevel),
 		presence:       stringField(required, "presence_mode", approvalDefaultPresenceMode),
 		workspaceID:    stringField(scope, "workspace_id", ""),
+		instanceID:     stringField(scope, "instance_id", ""),
 		runID:          stringField(scope, "run_id", strings.TrimSpace(record.RunID)),
 		stageID:        stringField(scope, "stage_id", ""),
 		stepID:         stringField(scope, "step_id", ""),
@@ -161,24 +163,35 @@ func approvalRequesterIdentity(runID string) map[string]any {
 }
 
 func approvalDetailsFromRequired(required map[string]any, runID, stepID string) map[string]any {
+	if details, ok := required["details"].(map[string]any); ok && len(details) > 0 {
+		return addApprovalContext(copyAnyMap(details), runID, stepID)
+	}
 	if len(required) == 0 {
 		return map[string]any{"run_id": runID, "step_id": stepID}
 	}
+	return addApprovalContext(copyAnyMap(required), runID, stepID)
+}
+
+func copyAnyMap(src map[string]any) map[string]any {
 	copyMap := map[string]any{}
-	for k, v := range required {
+	for k, v := range src {
 		copyMap[k] = v
 	}
+	return copyMap
+}
+
+func addApprovalContext(details map[string]any, runID, stepID string) map[string]any {
 	if runID != "" {
-		if _, ok := copyMap["run_id"]; !ok {
-			copyMap["run_id"] = runID
+		if _, ok := details["run_id"]; !ok {
+			details["run_id"] = runID
 		}
 	}
 	if stepID != "" {
-		if _, ok := copyMap["step_id"]; !ok {
-			copyMap["step_id"] = stepID
+		if _, ok := details["step_id"]; !ok {
+			details["step_id"] = stepID
 		}
 	}
-	return copyMap
+	return details
 }
 
 func pendingApprovalSignatures() []map[string]any {

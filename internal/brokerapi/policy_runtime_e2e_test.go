@@ -339,6 +339,7 @@ func TestPolicyRuntimeE2EContainerFallbackDenied(t *testing.T) {
 				RoleKind:   "workspace-edit",
 			},
 		},
+		TargetInstanceID:             "launcher-instance-1",
 		TargetBackendKind:            "container",
 		SelectionMode:                "automatic_fallback_attempt",
 		ChangeKind:                   "select_backend",
@@ -392,6 +393,7 @@ func explicitContainerBackendSelectionAction() policyengine.ActionRequest {
 				RoleKind:   "workspace-edit",
 			},
 		},
+		TargetInstanceID:             "launcher-instance-1",
 		TargetBackendKind:            "container",
 		SelectionMode:                "explicit_selection",
 		ChangeKind:                   "select_backend",
@@ -433,5 +435,8 @@ func assertContainerBackendRequiredApprovalBinding(t *testing.T, decision policy
 	}
 	if scope["action_kind"] != policyengine.ActionKindBackendPosture {
 		t.Fatalf("required_approval.scope.action_kind = %v, want %q", scope["action_kind"], policyengine.ActionKindBackendPosture)
+	}
+	if scope["instance_id"] != "launcher-instance-1" {
+		t.Fatalf("required_approval.scope.instance_id = %v, want launcher-instance-1", scope["instance_id"])
 	}
 }

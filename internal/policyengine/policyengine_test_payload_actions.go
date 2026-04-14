@@ -94,6 +94,7 @@ func validBackendPostureActionRequest(capabilityID string) ActionRequest {
 		capabilityID,
 		actionPayloadBackendSchemaID,
 		newSchemaPayload(actionPayloadBackendSchemaID, map[string]any{
+			"target_instance_id":             "launcher-instance-1",
 			"target_backend_kind":            "microvm",
 			"selection_mode":                 "explicit_selection",
 			"change_kind":                    "select_backend",

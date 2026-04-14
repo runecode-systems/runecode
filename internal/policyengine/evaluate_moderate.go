@@ -76,7 +76,7 @@ func requiredApprovalForModerateProfile(compiled *CompiledContext, action Action
 	case ActionKindGateOverride:
 		return requiredApprovalModerateGateSchemaID, moderateGateOverrideApprovalPayload(base)
 	case ActionKindBackendPosture:
-		return requiredApprovalModerateBackendSchemaID, moderateBackendApprovalPayload(base)
+		return requiredApprovalModerateBackendSchemaID, moderateBackendApprovalPayload(base, action)
 	case ActionKindGatewayEgress, ActionKindDependencyFetch:
 		if !isModerateGatewayCheckpointAction(action) {
 			return "", nil
@@ -132,13 +132,32 @@ func moderateGateOverrideApprovalPayload(base map[string]any) map[string]any {
 	return payload
 }
 
-func moderateBackendApprovalPayload(base map[string]any) map[string]any {
+func moderateBackendApprovalPayload(base map[string]any, action ActionRequest) map[string]any {
 	payload := cloneMap(base)
+	targetInstanceID, _ := action.ActionPayload["target_instance_id"].(string)
+	targetBackendKind, _ := action.ActionPayload["target_backend_kind"].(string)
+	selectionMode, _ := action.ActionPayload["selection_mode"].(string)
+	changeKind, _ := action.ActionPayload["change_kind"].(string)
+	assuranceChangeKind, _ := action.ActionPayload["assurance_change_kind"].(string)
+	optInKind, _ := action.ActionPayload["opt_in_kind"].(string)
+	reducedAssuranceAcknowledged, _ := action.ActionPayload["reduced_assurance_acknowledged"].(bool)
 	payload["approval_trigger_code"] = "reduced_assurance_backend"
 	payload["approval_assurance_level"] = string(ApprovalAssuranceReauthenticated)
 	payload["why_required"] = "Moderate profile requires explicit approval for reduced-assurance backend opt-ins."
 	payload["changes_if_approved"] = "Reduced-assurance backend posture change may be applied."
 	payload["security_posture_impact"] = "high"
+	payload["future_launches_only"] = true
+	payload["existing_isolates_unaffected"] = true
+	payload["details"] = map[string]any{
+		"target_instance_id":             targetInstanceID,
+		"target_backend_kind":            targetBackendKind,
+		"selection_mode":                 selectionMode,
+		"change_kind":                    changeKind,
+		"assurance_change_kind":          assuranceChangeKind,
+		"opt_in_kind":                    optInKind,
+		"reduced_assurance_acknowledged": reducedAssuranceAcknowledged,
+		"requested_posture":              "container_mode_explicit_opt_in",
+	}
 	return payload
 }
 

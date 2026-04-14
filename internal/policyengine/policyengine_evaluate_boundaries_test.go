@@ -286,6 +286,9 @@ func assertBackendSelectionApprovalScope(t *testing.T, decision PolicyDecision) 
 	if scope["action_kind"] != ActionKindBackendPosture {
 		t.Fatalf("required_approval.scope.action_kind = %v, want %q", scope["action_kind"], ActionKindBackendPosture)
 	}
+	if scope["instance_id"] != "launcher-instance-1" {
+		t.Fatalf("required_approval.scope.instance_id = %v, want launcher-instance-1", scope["instance_id"])
+	}
 }
 
 func assertBackendSelectionApprovalHashes(t *testing.T, decision PolicyDecision) {

@@ -107,6 +107,7 @@ func NewBackendPostureChangeAction(input BackendPostureChangeActionInput) Action
 	payload := map[string]any{
 		"schema_id":                      actionPayloadBackendSchemaID,
 		"schema_version":                 "0.1.0",
+		"target_instance_id":             input.TargetInstanceID,
 		"target_backend_kind":            input.TargetBackendKind,
 		"selection_mode":                 input.SelectionMode,
 		"change_kind":                    input.ChangeKind,

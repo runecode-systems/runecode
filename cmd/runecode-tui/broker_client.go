@@ -41,6 +41,8 @@ type localBrokerClient interface {
 	ApprovalGet(ctx context.Context, approvalID string) (brokerapi.ApprovalGetResponse, error)
 	ApprovalResolve(ctx context.Context, req brokerapi.ApprovalResolveRequest) (brokerapi.ApprovalResolveResponse, error)
 	ApprovalWatch(ctx context.Context, req brokerapi.ApprovalWatchRequest) ([]brokerapi.ApprovalWatchEvent, error)
+	BackendPostureGet(ctx context.Context) (brokerapi.BackendPostureGetResponse, error)
+	BackendPostureChange(ctx context.Context, req brokerapi.BackendPostureChangeRequest) (brokerapi.BackendPostureChangeResponse, error)
 	ArtifactList(ctx context.Context, limit int, dataClass string) (brokerapi.LocalArtifactListResponse, error)
 	ArtifactHead(ctx context.Context, digest string) (brokerapi.LocalArtifactHeadResponse, error)
 	ArtifactRead(ctx context.Context, req brokerapi.ArtifactReadRequest) ([]brokerapi.ArtifactStreamEvent, error)
@@ -136,6 +138,20 @@ func (c *rpcBrokerClient) ApprovalWatch(ctx context.Context, req brokerapi.Appro
 	req.RequestID = newRequestID("approval-watch")
 	events := []brokerapi.ApprovalWatchEvent{}
 	return events, c.invoke(ctx, "approval_watch", req, &events)
+}
+
+func (c *rpcBrokerClient) BackendPostureGet(ctx context.Context) (brokerapi.BackendPostureGetResponse, error) {
+	req := brokerapi.BackendPostureGetRequest{SchemaID: "runecode.protocol.v0.BackendPostureGetRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("backend-posture-get")}
+	resp := brokerapi.BackendPostureGetResponse{}
+	return resp, c.invoke(ctx, "backend_posture_get", req, &resp)
+}
+
+func (c *rpcBrokerClient) BackendPostureChange(ctx context.Context, req brokerapi.BackendPostureChangeRequest) (brokerapi.BackendPostureChangeResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.BackendPostureChangeRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("backend-posture-change")
+	resp := brokerapi.BackendPostureChangeResponse{}
+	return resp, c.invoke(ctx, "backend_posture_change", req, &resp)
 }
 
 func (c *rpcBrokerClient) ArtifactList(ctx context.Context, limit int, dataClass string) (brokerapi.LocalArtifactListResponse, error) {

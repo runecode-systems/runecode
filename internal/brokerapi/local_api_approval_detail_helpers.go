@@ -56,6 +56,7 @@ func approvalBackendPostureSelectionFromRecord(record approvalRecord) (ApprovalB
 	selection := ApprovalBackendPostureSelection{
 		SchemaID:                     "runecode.protocol.v0.ApprovalBackendPostureSelection",
 		SchemaVersion:                "0.1.0",
+		TargetInstanceID:             valueOrUnknown(strings.TrimSpace(stringFieldOrEmpty(details, "target_instance_id")), "unknown"),
 		TargetBackendKind:            valueOrUnknown(strings.TrimSpace(stringFieldOrEmpty(details, "target_backend_kind")), "unknown"),
 		SelectionMode:                valueOrUnknown(strings.TrimSpace(stringFieldOrEmpty(details, "selection_mode")), "explicit_selection"),
 		ChangeKind:                   valueOrUnknown(strings.TrimSpace(stringFieldOrEmpty(details, "change_kind")), "unknown"),

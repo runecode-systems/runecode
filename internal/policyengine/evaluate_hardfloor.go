@@ -93,10 +93,17 @@ func firstTrigger(triggers []string, fallback string) string {
 }
 
 func approvalScopeForAction(action ActionRequest) map[string]any {
+	targetInstanceID := ""
+	if action.ActionKind == ActionKindBackendPosture {
+		if raw, ok := action.ActionPayload["target_instance_id"].(string); ok {
+			targetInstanceID = raw
+		}
+	}
 	return map[string]any{
 		"schema_id":      "runecode.protocol.v0.ApprovalBoundScope",
 		"schema_version": "0.1.0",
 		"action_kind":    action.ActionKind,
+		"instance_id":    targetInstanceID,
 	}
 }
 

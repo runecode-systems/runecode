@@ -182,6 +182,7 @@ func approvalRecordFromDecisionSummary(record PolicyDecisionRecord, summary appr
 		ApprovalID:             requestDigest,
 		Status:                 "pending",
 		WorkspaceID:            summary.workspaceID,
+		InstanceID:             summary.instanceID,
 		RunID:                  summary.runID,
 		StageID:                summary.stageID,
 		StepID:                 summary.stepID,

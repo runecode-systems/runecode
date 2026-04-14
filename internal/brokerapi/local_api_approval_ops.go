@@ -7,6 +7,7 @@ import (
 )
 
 func (s *Service) HandleApprovalResolve(ctx context.Context, req ApprovalResolveRequest, meta RequestContext) (ApprovalResolveResponse, *ErrorResponse) {
+	req = normalizeApprovalResolveRequest(req)
 	requestID, requestCtx, done, errResp := s.prepareApprovalResolveExecution(ctx, req, meta)
 	if errResp != nil {
 		return ApprovalResolveResponse{}, errResp
@@ -92,7 +93,8 @@ func (s *Service) resolveCurrentPendingApproval(requestID string, req ApprovalRe
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, fmt.Sprintf("approval %q stored request digest does not match approval id", approvalID))
 		return approvalRecord{}, &errOut
 	}
-	if current.SourceDigest != "" && current.SourceDigest != req.UnapprovedDigest {
+	promotion := req.promotionResolveDetails()
+	if current.SourceDigest != "" && current.SourceDigest != promotion.UnapprovedDigest {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "unapproved_digest does not match pending approval source")
 		return approvalRecord{}, &errOut
 	}
@@ -109,6 +111,7 @@ func validateBoundScopeMatchesStored(requestID string, stored, requested Approva
 		requested string
 	}{
 		{name: "action_kind", stored: stored.ActionKind, requested: requested.ActionKind},
+		{name: "instance_id", stored: stored.InstanceID, requested: requested.InstanceID},
 		{name: "workspace_id", stored: stored.WorkspaceID, requested: requested.WorkspaceID},
 		{name: "run_id", stored: stored.RunID, requested: requested.RunID},
 		{name: "stage_id", stored: stored.StageID, requested: requested.StageID},

@@ -22,6 +22,26 @@ type fakeController struct {
 	state InstanceState
 }
 
+type fakeContainerController struct {
+	launchedSpecs []launcherbackend.BackendLaunchSpec
+	state         InstanceState
+}
+
+func (f *fakeContainerController) Launch(_ context.Context, spec launcherbackend.BackendLaunchSpec) (<-chan RuntimeUpdate, error) {
+	f.launchedSpecs = append(f.launchedSpecs, spec)
+	updates := make(chan RuntimeUpdate, 1)
+	close(updates)
+	return updates, nil
+}
+
+func (f *fakeContainerController) Terminate(context.Context, InstanceRef) error { return nil }
+
+func (f *fakeContainerController) GetState(context.Context, InstanceRef) (InstanceState, error) {
+	return f.state, nil
+}
+
+func (f *fakeContainerController) Shutdown(context.Context) error { return nil }
+
 type failOnceController struct {
 	launches      int
 	launchedSpecs []launcherbackend.BackendLaunchSpec
@@ -74,22 +94,6 @@ type fakeReporter struct {
 	lifecycle []launcherbackend.RuntimeLifecycleState
 	factsErr  error
 	stateErr  error
-}
-
-func (f *fakeReporter) RecordRuntimeFacts(_ string, facts launcherbackend.RuntimeFactsSnapshot) error {
-	if f.factsErr != nil {
-		return f.factsErr
-	}
-	f.facts = append(f.facts, facts)
-	return nil
-}
-
-func (f *fakeReporter) RecordRuntimeLifecycleState(_ string, lifecycle launcherbackend.RuntimeLifecycleState) error {
-	if f.stateErr != nil {
-		return f.stateErr
-	}
-	f.lifecycle = append(f.lifecycle, lifecycle)
-	return nil
 }
 
 func TestServiceStartStopLifecycle(t *testing.T) {
@@ -196,6 +200,9 @@ func setupServiceWithFakeController(t *testing.T) serviceHarness {
 
 func assertInitialMicroVMSelection(t *testing.T, svc *Service) {
 	t.Helper()
+	if got := svc.ActiveInstanceID(); got == "" {
+		t.Fatal("active instance id should be minted after start")
+	}
 	if got := svc.InstanceBackendKind(); got != launcherbackend.BackendKindMicroVM {
 		t.Fatalf("initial instance backend = %q, want %q", got, launcherbackend.BackendKindMicroVM)
 	}
@@ -247,6 +254,10 @@ func TestServiceRestartResetsInstanceBackendToPreferredMicroVM(t *testing.T) {
 	if err := svc.Start(context.Background()); err != nil {
 		t.Fatalf("Start returned error: %v", err)
 	}
+	before := svc.ActiveInstanceID()
+	if before == "" {
+		t.Fatal("initial instance id should be set")
+	}
 	if err := svc.SetInstanceBackendKind(launcherbackend.BackendKindContainer); err != nil {
 		t.Fatalf("SetInstanceBackendKind(container) returned error: %v", err)
 	}
@@ -256,8 +267,32 @@ func TestServiceRestartResetsInstanceBackendToPreferredMicroVM(t *testing.T) {
 	if err := svc.Start(context.Background()); err != nil {
 		t.Fatalf("Start(restart) returned error: %v", err)
 	}
+	after := svc.ActiveInstanceID()
+	if after == "" || after == before {
+		t.Fatalf("instance id after restart = %q, want new non-empty instance id different from %q", after, before)
+	}
 	if got := svc.InstanceBackendKind(); got != launcherbackend.BackendKindMicroVM {
 		t.Fatalf("instance backend after restart = %q, want %q", got, launcherbackend.BackendKindMicroVM)
+	}
+}
+
+func TestServiceApplyInstanceBackendPostureRequiresMatchingInstanceID(t *testing.T) {
+	controller := &fakeController{}
+	svc, err := New(Config{Controller: controller})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	if err := svc.Start(context.Background()); err != nil {
+		t.Fatalf("Start returned error: %v", err)
+	}
+	if err := svc.ApplyInstanceBackendPosture("launcher-instance-wrong", launcherbackend.BackendKindContainer); err == nil {
+		t.Fatal("ApplyInstanceBackendPosture expected instance mismatch error")
+	}
+	if err := svc.ApplyInstanceBackendPosture(svc.ActiveInstanceID(), launcherbackend.BackendKindContainer); err != nil {
+		t.Fatalf("ApplyInstanceBackendPosture returned error: %v", err)
+	}
+	if got := svc.InstanceBackendKind(); got != launcherbackend.BackendKindContainer {
+		t.Fatalf("instance backend after apply = %q, want %q", got, launcherbackend.BackendKindContainer)
 	}
 }
 
@@ -280,6 +315,54 @@ func TestServiceLaunchRejectsContainerBackendOutsideWorkspaceRoleFamily(t *testi
 	}
 	if len(controller.launchedSpecs) != 0 {
 		t.Fatalf("controller launches = %d, want 0", len(controller.launchedSpecs))
+	}
+}
+
+func TestServiceRoutesContainerLaunchToContainerController(t *testing.T) {
+	micro := &fakeController{}
+	container := &fakeContainerController{}
+	svc, err := New(Config{MicroVMController: micro, ContainerController: container})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	if err := svc.Start(context.Background()); err != nil {
+		t.Fatalf("Start returned error: %v", err)
+	}
+	if err := svc.SetInstanceBackendKind(launcherbackend.BackendKindContainer); err != nil {
+		t.Fatalf("SetInstanceBackendKind(container) returned error: %v", err)
+	}
+	if _, err := svc.Launch(context.Background(), validContainerSpecForTests()); err != nil {
+		t.Fatalf("Launch returned error: %v", err)
+	}
+	if len(container.launchedSpecs) != 1 {
+		t.Fatalf("container launch count = %d, want 1", len(container.launchedSpecs))
+	}
+	if len(micro.launchedSpecs) != 0 {
+		t.Fatalf("microvm launch count = %d, want 0 for container route", len(micro.launchedSpecs))
+	}
+}
+
+func TestServiceLaunchRejectsBackendConflictWithActiveInstancePosture(t *testing.T) {
+	micro := &fakeController{}
+	container := &fakeContainerController{}
+	svc, err := New(Config{MicroVMController: micro, ContainerController: container})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	if err := svc.Start(context.Background()); err != nil {
+		t.Fatalf("Start returned error: %v", err)
+	}
+	if err := svc.SetInstanceBackendKind(launcherbackend.BackendKindContainer); err != nil {
+		t.Fatalf("SetInstanceBackendKind(container) returned error: %v", err)
+	}
+	if _, err := svc.Launch(context.Background(), validSpecForTests()); err == nil {
+		t.Fatal("Launch expected backend conflict error")
+	}
+	if len(micro.launchedSpecs) != 0 {
+		t.Fatalf("microvm launch count = %d, want 0", len(micro.launchedSpecs))
+	}
+	if len(container.launchedSpecs) != 0 {
+		t.Fatalf("container launch count = %d, want 0", len(container.launchedSpecs))
 	}
 }
 
@@ -354,12 +437,9 @@ func TestServiceTerminateAndGetState(t *testing.T) {
 		t.Fatalf("Start returned error: %v", err)
 	}
 	ref := InstanceRef{RunID: "run-1", StageID: "stage-1", RoleInstanceID: "role-1"}
-	if err := svc.Terminate(context.Background(), ref); err != nil {
-		t.Fatalf("Terminate returned error: %v", err)
-	}
-	if controller.stops != 1 {
-		t.Fatalf("controller stops = %d, want 1", controller.stops)
-	}
+	svc.mu.Lock()
+	svc.instanceBackendByKey[instanceKey(ref)] = launcherbackend.BackendKindMicroVM
+	svc.mu.Unlock()
 	state, err := svc.GetState(context.Background(), ref)
 	if err != nil {
 		t.Fatalf("GetState returned error: %v", err)
@@ -367,79 +447,31 @@ func TestServiceTerminateAndGetState(t *testing.T) {
 	if !state.Active {
 		t.Fatal("GetState active=false, want true")
 	}
-}
-
-type scriptedController struct{}
-
-func (scriptedController) Launch(context.Context, launcherbackend.BackendLaunchSpec) (<-chan RuntimeUpdate, error) {
-	updates := make(chan RuntimeUpdate, 2)
-	facts := launcherbackend.DefaultRuntimeFacts("run-1")
-	facts.LaunchReceipt.BackendKind = launcherbackend.BackendKindMicroVM
-	updates <- RuntimeUpdate{RunID: "run-1", Facts: &facts}
-	updates <- RuntimeUpdate{RunID: "run-1", Lifecycle: &launcherbackend.RuntimeLifecycleState{BackendLifecycle: &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateActive, PreviousState: launcherbackend.BackendLifecycleStateBinding, TerminateBetweenSteps: true, TransitionCount: 3}}}
-	close(updates)
-	return updates, nil
-}
-
-func (scriptedController) Terminate(context.Context, InstanceRef) error { return nil }
-
-func (scriptedController) GetState(context.Context, InstanceRef) (InstanceState, error) {
-	return InstanceState{}, nil
-}
-
-func (scriptedController) Shutdown(context.Context) error { return nil }
-
-func repeatHex(ch byte) string {
-	b := make([]byte, 64)
-	for i := range b {
-		b[i] = ch
+	if err := svc.Terminate(context.Background(), ref); err != nil {
+		t.Fatalf("Terminate returned error: %v", err)
 	}
-	return string(b)
-}
-
-func validSpecForTests() launcherbackend.BackendLaunchSpec {
-	return launcherbackend.BackendLaunchSpec{
-		RunID:                     "run-1",
-		StageID:                   "stage-1",
-		RoleInstanceID:            "role-1",
-		RoleFamily:                "role",
-		RoleKind:                  "hello",
-		RequestedBackend:          launcherbackend.BackendKindMicroVM,
-		RequestedAccelerationKind: launcherbackend.AccelerationKindKVM,
-		ControlTransportKind:      launcherbackend.TransportKindVSock,
-		Image: launcherbackend.RuntimeImageDescriptor{
-			DescriptorDigest:      "sha256:" + repeatHex('a'),
-			BackendKind:           launcherbackend.BackendKindMicroVM,
-			BootContractVersion:   "v1",
-			PlatformCompatibility: launcherbackend.RuntimeImagePlatformCompat{OS: "linux", Architecture: "amd64", AccelerationKind: launcherbackend.AccelerationKindKVM},
-			ComponentDigests:      map[string]string{"kernel": "sha256:" + repeatHex('b'), "rootfs": "sha256:" + repeatHex('c')},
-			Signing:               &launcherbackend.RuntimeImageSigningHooks{SignerRef: "test", SignatureDigest: "sha256:" + repeatHex('d')},
-		},
-		Attachments: launcherbackend.AttachmentPlan{
-			ByRole: map[string]launcherbackend.AttachmentBinding{
-				launcherbackend.AttachmentRoleLaunchContext:  {ReadOnly: true, ChannelKind: launcherbackend.AttachmentChannelReadOnlyVolume, RequiredDigests: []string{"sha256:" + repeatHex('e')}},
-				launcherbackend.AttachmentRoleWorkspace:      {ReadOnly: false, ChannelKind: launcherbackend.AttachmentChannelWritableVolume},
-				launcherbackend.AttachmentRoleInputArtifacts: {ReadOnly: true, ChannelKind: launcherbackend.AttachmentChannelArtifactImage, RequiredDigests: []string{"sha256:" + repeatHex('f')}},
-				launcherbackend.AttachmentRoleScratch:        {ReadOnly: false, ChannelKind: launcherbackend.AttachmentChannelEphemeralVolume},
-			},
-			Constraints:         launcherbackend.AttachmentRealizationConstraints{NoHostFilesystemMounts: true},
-			WorkspaceEncryption: &launcherbackend.WorkspaceEncryptionPosture{Required: true, AtRestProtection: launcherbackend.WorkspaceAtRestProtectionHostManagedEncryption, KeyProtectionPosture: launcherbackend.WorkspaceKeyProtectionOSKeystore, Effective: true},
-		},
-		ResourceLimits:  launcherbackend.BackendResourceLimits{VCPUCount: 1, MemoryMiB: 256, DiskMiB: 128, LaunchTimeoutSeconds: 30, BindTimeoutSeconds: 10, ActiveTimeoutSeconds: 30, TerminationGraceSeconds: 2},
-		WatchdogPolicy:  launcherbackend.BackendWatchdogPolicy{Enabled: true, TerminateOnMisbehavior: true, HeartbeatTimeoutSeconds: 5, NoProgressTimeoutSeconds: 10},
-		LifecyclePolicy: launcherbackend.BackendLifecyclePolicy{TerminateBetweenSteps: true},
-		CachePosture:    launcherbackend.BackendCachePosture{ResetOrDestroyBeforeReuse: true, DigestPinned: true, SignaturePinned: true},
+	if controller.stops != 1 {
+		t.Fatalf("controller stops = %d, want 1", controller.stops)
+	}
+	if _, err := svc.GetState(context.Background(), ref); err == nil {
+		t.Fatal("GetState expected unknown backend routing error after terminate removed routing")
 	}
 }
 
-func validContainerSpecForTests() launcherbackend.BackendLaunchSpec {
-	spec := validSpecForTests()
-	spec.RoleFamily = "workspace"
-	spec.RequestedBackend = launcherbackend.BackendKindContainer
-	spec.RequestedAccelerationKind = ""
-	spec.ControlTransportKind = ""
-	spec.Image.BackendKind = launcherbackend.BackendKindContainer
-	spec.Image.PlatformCompatibility.AccelerationKind = ""
-	spec.Image.ComponentDigests = map[string]string{"image": "sha256:" + repeatHex('b')}
-	return spec
+func TestServiceTerminateAndGetStateFailClosedWhenBackendRoutingUnknown(t *testing.T) {
+	controller := &fakeController{state: InstanceState{Active: true}}
+	svc, err := New(Config{Controller: controller})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	if err := svc.Start(context.Background()); err != nil {
+		t.Fatalf("Start returned error: %v", err)
+	}
+	ref := InstanceRef{RunID: "run-1", StageID: "stage-1", RoleInstanceID: "role-1"}
+	if _, err := svc.GetState(context.Background(), ref); err == nil {
+		t.Fatal("GetState expected unknown backend routing error")
+	}
+	if err := svc.Terminate(context.Background(), ref); err == nil {
+		t.Fatal("Terminate expected unknown backend routing error")
+	}
 }

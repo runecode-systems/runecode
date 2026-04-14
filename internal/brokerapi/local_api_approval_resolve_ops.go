@@ -111,18 +111,19 @@ func (s *Service) verifyApprovalBindingAndOutcome(requestID string, req Approval
 }
 
 func (s *Service) promoteAndHeadResolvedArtifact(requestID string, req ApprovalResolveRequest) (artifacts.ArtifactRecord, *ErrorResponse) {
+	promotion := req.promotionResolveDetails()
 	ref, promoteErr := s.PromoteApprovedExcerpt(artifacts.PromotionRequest{
-		UnapprovedDigest:      req.UnapprovedDigest,
-		Approver:              req.Approver,
+		UnapprovedDigest:      promotion.UnapprovedDigest,
+		Approver:              promotion.Approver,
 		ApprovalRequest:       &req.SignedApprovalRequest,
 		ApprovalDecision:      &req.SignedApprovalDecision,
-		RepoPath:              req.RepoPath,
-		Commit:                req.Commit,
-		ExtractorToolVersion:  req.ExtractorToolVersion,
-		FullContentVisible:    req.FullContentVisible,
-		ExplicitViewFull:      req.ExplicitViewFull,
-		BulkRequest:           req.BulkRequest,
-		BulkApprovalConfirmed: req.BulkApprovalConfirmed,
+		RepoPath:              promotion.RepoPath,
+		Commit:                promotion.Commit,
+		ExtractorToolVersion:  promotion.ExtractorToolVersion,
+		FullContentVisible:    promotion.FullContentVisible,
+		ExplicitViewFull:      promotion.ExplicitViewFull,
+		BulkRequest:           promotion.BulkRequest,
+		BulkApprovalConfirmed: promotion.BulkApprovalConfirmed,
 	})
 	if promoteErr != nil {
 		errOut := s.errorFromStore(requestID, promoteErr)
@@ -181,7 +182,7 @@ func (s *Service) verifyApprovalDecisionApproverBinding(req ApprovalResolveReque
 	if strings.TrimSpace(decision.Approver.PrincipalID) == "" {
 		return fmt.Errorf("approval decision approver principal is required")
 	}
-	if strings.TrimSpace(req.Approver) != "" && strings.TrimSpace(req.Approver) != strings.TrimSpace(decision.Approver.PrincipalID) {
+	if requestApprover := strings.TrimSpace(req.requestApprover()); requestApprover != "" && requestApprover != strings.TrimSpace(decision.Approver.PrincipalID) {
 		return fmt.Errorf("approval decision approver does not match request approver")
 	}
 	verifiers, err := s.trustedApprovalVerifiersForEnvelope(req.SignedApprovalDecision)
@@ -194,6 +195,22 @@ func (s *Service) verifyApprovalDecisionApproverBinding(req ApprovalResolveReque
 		}
 	}
 	return fmt.Errorf("approval decision approver does not match verifier owner identity")
+}
+
+func (req ApprovalResolveRequest) promotionResolveDetails() ApprovalResolvePromotionDetails {
+	details := req.normalizedResolutionDetails()
+	if details.Promotion != nil {
+		return *details.Promotion
+	}
+	return ApprovalResolvePromotionDetails{}
+}
+
+func (req ApprovalResolveRequest) requestApprover() string {
+	promotion := req.promotionResolveDetails()
+	if strings.TrimSpace(promotion.Approver) != "" {
+		return promotion.Approver
+	}
+	return req.Approver
 }
 
 func samePrincipalIdentity(left trustpolicy.PrincipalIdentity, right trustpolicy.PrincipalIdentity) bool {

@@ -336,6 +336,10 @@ func dispatchTUILocalRPCJSONOps(service *brokerapi.Service, wire brokerapi.Local
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleReadinessGet), true
 	case "version_info_get":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleVersionInfoGet), true
+	case "backend_posture_get":
+		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleBackendPostureGet), true
+	case "backend_posture_change":
+		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleBackendPostureChange), true
 	default:
 		return brokerapi.LocalRPCResponse{}, false
 	}

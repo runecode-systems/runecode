@@ -83,6 +83,7 @@ type ApprovalRecord struct {
 	ApprovalID             string                            `json:"approval_id"`
 	Status                 string                            `json:"status"`
 	WorkspaceID            string                            `json:"workspace_id,omitempty"`
+	InstanceID             string                            `json:"instance_id,omitempty"`
 	RunID                  string                            `json:"run_id,omitempty"`
 	StageID                string                            `json:"stage_id,omitempty"`
 	StepID                 string                            `json:"step_id,omitempty"`

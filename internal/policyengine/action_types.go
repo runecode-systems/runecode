@@ -108,6 +108,7 @@ type GatewayQuotaMetersInput struct {
 
 type BackendPostureChangeActionInput struct {
 	ActionEnvelope
+	TargetInstanceID             string
 	TargetBackendKind            string
 	SelectionMode                string
 	ChangeKind                   string

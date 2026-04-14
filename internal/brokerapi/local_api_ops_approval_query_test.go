@@ -118,13 +118,31 @@ func TestApprovalGetBackendPostureDetailUsesExactActionBindingAndTypedSelection(
 	if resp.ApprovalDetail.BoundActionHash == "" {
 		t.Fatal("approval_detail.bound_action_hash should be populated for exact_action")
 	}
-	if resp.ApprovalDetail.WhatChangesIfApproved.EffectKind != "backend_posture_change" {
-		t.Fatalf("approval_detail.what_changes_if_approved.effect_kind = %q, want backend_posture_change", resp.ApprovalDetail.WhatChangesIfApproved.EffectKind)
+	assertBackendPostureApprovalDetail(t, resp.ApprovalDetail)
+}
+
+func assertBackendPostureApprovalDetail(t *testing.T, detail ApprovalDetail) {
+	t.Helper()
+	if detail.WhatChangesIfApproved.EffectKind != "backend_posture_change" {
+		t.Fatalf("approval_detail.what_changes_if_approved.effect_kind = %q, want backend_posture_change", detail.WhatChangesIfApproved.EffectKind)
 	}
-	if resp.ApprovalDetail.BackendPostureSelection == nil {
+	selection := requireBackendPostureSelection(t, detail)
+	assertBackendPostureSelectionFields(t, selection)
+}
+
+func requireBackendPostureSelection(t *testing.T, detail ApprovalDetail) *ApprovalBackendPostureSelection {
+	t.Helper()
+	if detail.BackendPostureSelection == nil {
 		t.Fatal("approval_detail.backend_posture_selection should be present for backend_posture_change")
 	}
-	selection := resp.ApprovalDetail.BackendPostureSelection
+	return detail.BackendPostureSelection
+}
+
+func assertBackendPostureSelectionFields(t *testing.T, selection *ApprovalBackendPostureSelection) {
+	t.Helper()
+	if selection.TargetInstanceID != "launcher-instance-1" {
+		t.Fatalf("backend_posture_selection.target_instance_id = %q, want launcher-instance-1", selection.TargetInstanceID)
+	}
 	if selection.TargetBackendKind != "container" || selection.SelectionMode != "explicit_selection" || selection.ChangeKind != "select_backend" || selection.AssuranceChangeKind != "reduce_assurance" || selection.OptInKind != "exact_action_approval" {
 		t.Fatalf("unexpected backend_posture_selection: %+v", selection)
 	}

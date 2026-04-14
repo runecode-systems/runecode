@@ -44,7 +44,12 @@ func (s *Service) failRuntimeUpdates(ref InstanceRef, updateID uint64) {
 	}
 	s.mu.Unlock()
 	if current.id == updateID {
-		_ = s.controller.Terminate(context.Background(), ref)
+		controller, err := s.controllerForRef(ref)
+		if err == nil {
+			if terminateErr := controller.Terminate(context.Background(), ref); terminateErr != nil {
+				return
+			}
+		}
 	}
 }
 

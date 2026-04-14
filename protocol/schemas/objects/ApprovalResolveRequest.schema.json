@@ -2,27 +2,99 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/ApprovalResolveRequest.schema.json",
   "title": "ApprovalResolveRequest",
-  "description": "Typed approval resolve request that consumes signed ApprovalRequest and ApprovalDecision artifacts with bound-scope metadata.",
+  "description": "Typed approval resolve request with action-generic top-level fields and action-specific resolution detail objects.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 17,
-  "required": ["schema_id", "schema_version", "request_id", "bound_scope", "unapproved_digest", "approver", "repo_path", "commit", "extractor_tool_version", "full_content_visible", "explicit_view_full", "bulk_request", "bulk_approval_confirmed", "signed_approval_request", "signed_approval_decision"],
+  "maxProperties": 8,
+  "required": ["schema_id", "schema_version", "request_id", "bound_scope", "resolution_details", "signed_approval_request", "signed_approval_decision"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.ApprovalResolveRequest", "description": "Protocol schema identifier.", "x-data-class": "public" },
     "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
     "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable request identifier.", "x-data-class": "public" },
     "approval_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Optional explicit approval identity (must match signed request digest).", "x-data-class": "public" },
     "bound_scope": { "$ref": "ApprovalBoundScope.schema.json", "description": "Machine-readable bound scope metadata.", "x-data-class": "public" },
-    "unapproved_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Unapproved source artifact digest.", "x-data-class": "public" },
-    "approver": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Approver identity string for policy checks.", "x-data-class": "public" },
-    "repo_path": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Repo path bound in promotion action hash.", "x-data-class": "public" },
-    "commit": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Commit identifier bound in promotion action hash.", "x-data-class": "public" },
-    "extractor_tool_version": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Extractor tool version bound in promotion action hash.", "x-data-class": "public" },
-    "full_content_visible": { "type": "boolean", "description": "Policy-required full content visibility assertion.", "x-data-class": "public" },
-    "explicit_view_full": { "type": "boolean", "description": "Policy-required explicit view-full assertion.", "x-data-class": "public" },
-    "bulk_request": { "type": "boolean", "description": "Policy bulk-request flag.", "x-data-class": "public" },
-    "bulk_approval_confirmed": { "type": "boolean", "description": "Policy bulk confirmation flag.", "x-data-class": "public" },
-    "signed_approval_request": { "allOf": [ { "$ref": "SignedObjectEnvelope.schema.json" }, { "type": "object", "maxProperties": 7, "required": ["payload_schema_id", "payload_schema_version"], "properties": { "payload_schema_id": { "const": "runecode.protocol.v0.ApprovalRequest", "description": "Expected signed payload schema id.", "x-data-class": "public" }, "payload_schema_version": { "const": "0.3.0", "description": "Expected signed payload schema version.", "x-data-class": "public" } } } ], "description": "Signed ApprovalRequest envelope.", "x-data-class": "sensitive" },
-    "signed_approval_decision": { "allOf": [ { "$ref": "SignedObjectEnvelope.schema.json" }, { "type": "object", "maxProperties": 7, "required": ["payload_schema_id", "payload_schema_version"], "properties": { "payload_schema_id": { "const": "runecode.protocol.v0.ApprovalDecision", "description": "Expected signed payload schema id.", "x-data-class": "public" }, "payload_schema_version": { "const": "0.3.0", "description": "Expected signed payload schema version.", "x-data-class": "public" } } } ], "description": "Signed ApprovalDecision envelope.", "x-data-class": "sensitive" }
-  }
+    "resolution_details": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 4,
+      "required": ["schema_id", "schema_version"],
+      "properties": {
+        "schema_id": { "const": "runecode.protocol.v0.ApprovalResolveDetails", "description": "Resolution detail envelope schema identifier.", "x-data-class": "public" },
+        "schema_version": { "const": "0.1.0", "description": "Resolution detail envelope schema version.", "x-data-class": "public" },
+        "promotion": {
+          "type": "object",
+          "description": "Typed promotion resolution inputs for promotion approvals.",
+          "x-data-class": "public",
+          "additionalProperties": false,
+          "maxProperties": 12,
+          "required": ["schema_id", "schema_version", "unapproved_digest", "approver", "repo_path", "commit", "extractor_tool_version", "full_content_visible", "explicit_view_full", "bulk_request", "bulk_approval_confirmed"],
+          "properties": {
+            "schema_id": { "const": "runecode.protocol.v0.ApprovalResolvePromotionDetails", "description": "Promotion resolution detail schema identifier.", "x-data-class": "public" },
+            "schema_version": { "const": "0.1.0", "description": "Promotion resolution detail schema version.", "x-data-class": "public" },
+            "unapproved_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Unapproved source artifact digest.", "x-data-class": "public" },
+            "approver": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Approver identity string for policy checks.", "x-data-class": "public" },
+            "repo_path": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Repo path bound in promotion action hash.", "x-data-class": "public" },
+            "commit": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Commit identifier bound in promotion action hash.", "x-data-class": "public" },
+            "extractor_tool_version": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Extractor tool version bound in promotion action hash.", "x-data-class": "public" },
+            "full_content_visible": { "type": "boolean", "description": "Policy-required full content visibility assertion.", "x-data-class": "public" },
+            "explicit_view_full": { "type": "boolean", "description": "Policy-required explicit view-full assertion.", "x-data-class": "public" },
+            "bulk_request": { "type": "boolean", "description": "Policy bulk-request flag.", "x-data-class": "public" },
+            "bulk_approval_confirmed": { "type": "boolean", "description": "Policy bulk confirmation flag.", "x-data-class": "public" }
+          }
+        },
+        "backend_posture_selection": {
+          "type": "object",
+          "description": "Typed backend posture selection resolution inputs for backend posture approvals.",
+          "x-data-class": "public",
+          "additionalProperties": false,
+          "maxProperties": 4,
+          "required": ["schema_id", "schema_version", "target_instance_id", "target_backend_kind"],
+          "properties": {
+            "schema_id": { "const": "runecode.protocol.v0.ApprovalResolveBackendPostureSelectionDetail", "description": "Backend posture selection resolution detail schema identifier.", "x-data-class": "public" },
+            "schema_version": { "const": "0.1.0", "description": "Backend posture selection resolution detail schema version.", "x-data-class": "public" },
+            "target_instance_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Target launcher instance identity for posture application.", "x-data-class": "public" },
+            "target_backend_kind": { "type": "string", "enum": ["microvm", "container"], "description": "Backend kind to apply after approval verification.", "x-data-class": "public" }
+          }
+        }
+      },
+      "not": {
+        "required": ["promotion", "backend_posture_selection"]
+      },
+      "description": "Action-specific resolution details with typed sub-objects used by per-action approval side effects.",
+      "x-data-class": "public"
+    },
+    "signed_approval_request": {
+      "allOf": [
+        { "$ref": "SignedObjectEnvelope.schema.json" },
+        {
+          "type": "object",
+          "maxProperties": 7,
+          "required": ["payload_schema_id", "payload_schema_version"],
+          "properties": {
+            "payload_schema_id": { "const": "runecode.protocol.v0.ApprovalRequest", "description": "Expected signed payload schema id.", "x-data-class": "public" },
+            "payload_schema_version": { "const": "0.3.0", "description": "Expected signed payload schema version.", "x-data-class": "public" }
+          }
+        }
+      ],
+      "description": "Signed ApprovalRequest envelope.",
+      "x-data-class": "sensitive"
+    },
+    "signed_approval_decision": {
+      "allOf": [
+        { "$ref": "SignedObjectEnvelope.schema.json" },
+        {
+          "type": "object",
+          "maxProperties": 7,
+          "required": ["payload_schema_id", "payload_schema_version"],
+          "properties": {
+            "payload_schema_id": { "const": "runecode.protocol.v0.ApprovalDecision", "description": "Expected signed payload schema id.", "x-data-class": "public" },
+            "payload_schema_version": { "const": "0.3.0", "description": "Expected signed payload schema version.", "x-data-class": "public" }
+          }
+        }
+      ],
+      "description": "Signed ApprovalDecision envelope.",
+      "x-data-class": "sensitive"
+    }
+  },
+  "description": "Resolve request with generic top-level binding and typed action-specific resolution detail blocks."
 }

@@ -525,6 +525,55 @@
       "status": "mvp"
     },
     {
+      "path": "objects/BackendPostureAvailability.schema.json",
+      "schema_id": "runecode.protocol.v0.BackendPostureAvailability",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BackendPostureState.schema.json",
+      "schema_id": "runecode.protocol.v0.BackendPostureState",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BackendPostureGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.BackendPostureGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BackendPostureGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.BackendPostureGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BackendPostureChangeOutcome.schema.json",
+      "schema_id": "runecode.protocol.v0.BackendPostureChangeOutcome",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BackendPostureChangeRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.BackendPostureChangeRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/BackendPostureChangeResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.BackendPostureChangeResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/ArtifactSummary.schema.json",
       "schema_id": "runecode.protocol.v0.ArtifactSummary",
       "schema_version": "0.1.0",

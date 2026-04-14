@@ -59,6 +59,13 @@ func pickOptionalExactRunRecord(records []artifacts.ArtifactRecord, runID string
 	return nil
 }
 
+func pickLatestRecord(records []artifacts.ArtifactRecord, kind string) (artifacts.ArtifactRecord, error) {
+	if len(records) == 0 {
+		return artifacts.ArtifactRecord{}, fmt.Errorf("%w: no trusted %s available", errPolicyContextUnavailable, kind)
+	}
+	return records[0], nil
+}
+
 func digestFromIdentity(identity string) (trustpolicy.Digest, error) {
 	if !strings.HasPrefix(identity, "sha256:") || len(identity) != 71 {
 		return trustpolicy.Digest{}, fmt.Errorf("invalid digest identity %q", identity)
