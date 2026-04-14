@@ -7,9 +7,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ### v0.1.0-alpha.4
 
-- Container Backend v0 (Explicit Opt-In)
-  - Container isolation is available only via explicit opt-in with reduced-assurance UX after the primary high-assurance path exists.
-  - Planned change: `runecontext/changes/CHG-2026-010-54b7-container-backend-v0-explicit-opt-in/`
 - Audit Anchoring v0
   - Audit segment roots can be anchored with verifiable receipts to strengthen tamper-evidence beyond local verification.
   - Planned change: `runecontext/changes/CHG-2026-006-84f0-audit-anchoring-v0/`
@@ -141,4 +138,7 @@ No unscheduled items are currently tracked outside the planned work listed above
   - Model egress is centralized behind a gateway with scoped secret leases and auditing, delivered through scoped child features.
   - Project change: `runecontext/changes/CHG-2026-011-7240-secretsd-model-gateway-v0/`
   - Feature changes: `runecontext/changes/CHG-2026-031-7a3c-secretsd-core-v0/`, `runecontext/changes/CHG-2026-032-4d1f-model-gateway-v0/`
+- Container Backend v0 (Explicit Opt-In)
+  - Container isolation is available only via explicit opt-in with reduced-assurance UX after the primary high-assurance path exists.
+  - Planned change: `runecontext/changes/CHG-2026-010-54b7-container-backend-v0-explicit-opt-in/`
 
