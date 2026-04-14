@@ -17,6 +17,8 @@ Define post-MVP approval profiles that adjust approval timing without weakening 
 - Profiles must preserve the shared approval split between exact-action approvals and stage sign-off rather than collapsing them into one profile-local approval type.
 - Gate overrides remain exact explicit approvals across all profiles.
 - Profile expansion must respect the shared role-kind versus executor-class model and must not silently let `workspace-test` or other ordinary workspace roles inherit `system_modifying` behavior.
+- Reduced-assurance backend selection, including explicit `container mode` opt-in, remains an exact-action approval across all profiles and must not become a stage-sign-off, batched ambient acknowledgment, or durable backend preference.
+- Approval profiles may tune ordinary approval timing and assurance where policy allows, but they must not weaken the minimum assurance or exact binding required for reduced-assurance backend posture changes.
 
 ## Main Workstreams
 - Approval Profile Model (Post-MVP)

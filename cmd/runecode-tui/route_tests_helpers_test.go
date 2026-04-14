@@ -108,6 +108,16 @@ func (r *recordingBrokerClient) ApprovalWatch(ctx context.Context, req brokerapi
 	return r.base.ApprovalWatch(ctx, req)
 }
 
+func (r *recordingBrokerClient) BackendPostureGet(ctx context.Context) (brokerapi.BackendPostureGetResponse, error) {
+	r.record("BackendPostureGet")
+	return r.base.BackendPostureGet(ctx)
+}
+
+func (r *recordingBrokerClient) BackendPostureChange(ctx context.Context, req brokerapi.BackendPostureChangeRequest) (brokerapi.BackendPostureChangeResponse, error) {
+	r.record("BackendPostureChange")
+	return r.base.BackendPostureChange(ctx, req)
+}
+
 func (r *recordingBrokerClient) ArtifactList(ctx context.Context, limit int, dataClass string) (brokerapi.LocalArtifactListResponse, error) {
 	r.record("ArtifactList")
 	return r.base.ArtifactList(ctx, limit, dataClass)
@@ -244,6 +254,22 @@ func (f *fakeBrokerClient) ApprovalResolve(ctx context.Context, req brokerapi.Ap
 	}, nil
 }
 
+func (f *fakeBrokerClient) BackendPostureGet(ctx context.Context) (brokerapi.BackendPostureGetResponse, error) {
+	_ = ctx
+	return brokerapi.BackendPostureGetResponse{Posture: brokerapi.BackendPostureState{InstanceID: "launcher-instance-1", BackendKind: "microvm", PreferredBackendKind: "microvm", Availability: []brokerapi.BackendPostureAvailability{{BackendKind: "microvm", Available: true}, {BackendKind: "container", Available: true}}}}, nil
+}
+
+func (f *fakeBrokerClient) BackendPostureChange(ctx context.Context, req brokerapi.BackendPostureChangeRequest) (brokerapi.BackendPostureChangeResponse, error) {
+	_ = ctx
+	if strings.TrimSpace(req.TargetInstanceID) == "" {
+		return brokerapi.BackendPostureChangeResponse{}, fmt.Errorf("target instance id required")
+	}
+	if req.TargetBackendKind == "container" {
+		return brokerapi.BackendPostureChangeResponse{Outcome: brokerapi.BackendPostureChangeOutcome{Outcome: "approval_required", OutcomeReasonCode: "approval_required", ApprovalID: "sha256:" + strings.Repeat("a", 64)}, Posture: brokerapi.BackendPostureState{InstanceID: req.TargetInstanceID, BackendKind: "microvm", PreferredBackendKind: "microvm", PendingApproval: true, PendingApprovalID: "sha256:" + strings.Repeat("a", 64), Availability: []brokerapi.BackendPostureAvailability{{BackendKind: "microvm", Available: true}, {BackendKind: "container", Available: true}}}}, nil
+	}
+	return brokerapi.BackendPostureChangeResponse{Outcome: brokerapi.BackendPostureChangeOutcome{Outcome: "applied", OutcomeReasonCode: "policy_allow"}, Posture: brokerapi.BackendPostureState{InstanceID: req.TargetInstanceID, BackendKind: req.TargetBackendKind, PreferredBackendKind: "microvm", Availability: []brokerapi.BackendPostureAvailability{{BackendKind: "microvm", Available: true}, {BackendKind: "container", Available: true}}}}, nil
+}
+
 func (f *reloadAwareBrokerClient) RunList(ctx context.Context, limit int) (brokerapi.RunListResponse, error) {
 	_ = ctx
 	_ = limit
@@ -305,6 +331,14 @@ func (f *reloadAwareBrokerClient) ApprovalGet(ctx context.Context, approvalID st
 
 func (f *reloadAwareBrokerClient) ApprovalResolve(ctx context.Context, req brokerapi.ApprovalResolveRequest) (brokerapi.ApprovalResolveResponse, error) {
 	return (&fakeBrokerClient{}).ApprovalResolve(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) BackendPostureGet(ctx context.Context) (brokerapi.BackendPostureGetResponse, error) {
+	return (&fakeBrokerClient{}).BackendPostureGet(ctx)
+}
+
+func (f *reloadAwareBrokerClient) BackendPostureChange(ctx context.Context, req brokerapi.BackendPostureChangeRequest) (brokerapi.BackendPostureChangeResponse, error) {
+	return (&fakeBrokerClient{}).BackendPostureChange(ctx, req)
 }
 
 func (f *reloadAwareBrokerClient) ApprovalWatch(ctx context.Context, req brokerapi.ApprovalWatchRequest) ([]brokerapi.ApprovalWatchEvent, error) {

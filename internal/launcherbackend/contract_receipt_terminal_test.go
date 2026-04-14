@@ -190,6 +190,33 @@ func TestBackendLaunchReceiptNormalizationSurfacesTOFUDegradedProvisioning(t *te
 	}
 }
 
+func TestBackendLaunchReceiptNormalizationUsesNotApplicableForContainerSpecificMechanics(t *testing.T) {
+	receipt := BackendLaunchReceipt{
+		BackendKind:              BackendKindContainer,
+		IsolationAssuranceLevel:  IsolationAssuranceDegraded,
+		ProvisioningPosture:      "",
+		HypervisorImplementation: "",
+		AccelerationKind:         "",
+		TransportKind:            "",
+	}
+	normalized := receipt.Normalized()
+	if normalized.ProvisioningPosture != ProvisioningPostureNotApplicable {
+		t.Fatalf("provisioning_posture = %q, want %q", normalized.ProvisioningPosture, ProvisioningPostureNotApplicable)
+	}
+	if normalized.HypervisorImplementation != HypervisorImplementationNotApplicable {
+		t.Fatalf("hypervisor_implementation = %q, want %q", normalized.HypervisorImplementation, HypervisorImplementationNotApplicable)
+	}
+	if normalized.AccelerationKind != AccelerationKindNotApplicable {
+		t.Fatalf("acceleration_kind = %q, want %q", normalized.AccelerationKind, AccelerationKindNotApplicable)
+	}
+	if normalized.TransportKind != TransportKindNotApplicable {
+		t.Fatalf("transport_kind = %q, want %q", normalized.TransportKind, TransportKindNotApplicable)
+	}
+	if normalized.ProvisioningPostureDegraded {
+		t.Fatal("provisioning_posture_degraded = true, want false for not_applicable posture")
+	}
+}
+
 func TestQEMUProvenanceRejectsHostPathLeakage(t *testing.T) {
 	provenance := QEMUProvenance{Version: "9.1.0", BuildIdentity: "/usr/local/bin/qemu-system-x86_64"}
 	if err := provenance.Validate(); err == nil {

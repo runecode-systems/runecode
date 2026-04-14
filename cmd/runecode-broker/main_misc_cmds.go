@@ -41,24 +41,7 @@ func handlePromoteExcerpt(args []string, service *brokerapi.Service, stdout io.W
 	if err != nil {
 		return err
 	}
-	resolveReq := brokerapi.ApprovalResolveRequest{
-		SchemaID:               "runecode.protocol.v0.ApprovalResolveRequest",
-		SchemaVersion:          "0.1.0",
-		RequestID:              defaultRequestID(),
-		ApprovalID:             approvalID,
-		BoundScope:             boundScope,
-		UnapprovedDigest:       *unapprovedDigest,
-		Approver:               *approver,
-		RepoPath:               *repoPath,
-		Commit:                 *commit,
-		ExtractorToolVersion:   *extractorVersion,
-		FullContentVisible:     *fullContentVisible,
-		ExplicitViewFull:       *explicitViewFull,
-		BulkRequest:            *bulk,
-		BulkApprovalConfirmed:  *bulkApproved,
-		SignedApprovalRequest:  *approvalRequest,
-		SignedApprovalDecision: *approvalEnvelope,
-	}
+	resolveReq := promotionResolveRequest(approvalID, boundScope, *unapprovedDigest, *approver, *repoPath, *commit, *extractorVersion, *fullContentVisible, *explicitViewFull, *bulk, *bulkApproved, *approvalRequest, *approvalEnvelope)
 	resolveResp, errResp := api.ApprovalResolve(ctx, resolveReq)
 	if errResp != nil {
 		return localAPIError(errResp)
@@ -67,6 +50,44 @@ func handlePromoteExcerpt(args []string, service *brokerapi.Service, stdout io.W
 		return fmt.Errorf("gateway_failure: approval resolved without approved artifact")
 	}
 	return writeJSON(stdout, resolveResp.ApprovedArtifact.Reference)
+}
+
+func promotionResolveRequest(approvalID string, boundScope brokerapi.ApprovalBoundScope, unapprovedDigest, approver, repoPath, commit, extractorVersion string, fullContentVisible, explicitViewFull, bulk, bulkApproved bool, approvalRequest, approvalEnvelope trustpolicy.SignedObjectEnvelope) brokerapi.ApprovalResolveRequest {
+	return brokerapi.ApprovalResolveRequest{
+		SchemaID:      "runecode.protocol.v0.ApprovalResolveRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     defaultRequestID(),
+		ApprovalID:    approvalID,
+		BoundScope:    boundScope,
+		ResolutionDetails: brokerapi.ApprovalResolveDetails{
+			SchemaID:      "runecode.protocol.v0.ApprovalResolveDetails",
+			SchemaVersion: "0.1.0",
+			Promotion: &brokerapi.ApprovalResolvePromotionDetails{
+				SchemaID:              "runecode.protocol.v0.ApprovalResolvePromotionDetails",
+				SchemaVersion:         "0.1.0",
+				UnapprovedDigest:      unapprovedDigest,
+				Approver:              approver,
+				RepoPath:              repoPath,
+				Commit:                commit,
+				ExtractorToolVersion:  extractorVersion,
+				FullContentVisible:    fullContentVisible,
+				ExplicitViewFull:      explicitViewFull,
+				BulkRequest:           bulk,
+				BulkApprovalConfirmed: bulkApproved,
+			},
+		},
+		UnapprovedDigest:       unapprovedDigest,
+		Approver:               approver,
+		RepoPath:               repoPath,
+		Commit:                 commit,
+		ExtractorToolVersion:   extractorVersion,
+		FullContentVisible:     fullContentVisible,
+		ExplicitViewFull:       explicitViewFull,
+		BulkRequest:            bulk,
+		BulkApprovalConfirmed:  bulkApproved,
+		SignedApprovalRequest:  approvalRequest,
+		SignedApprovalDecision: approvalEnvelope,
+	}
 }
 
 func loadPromotionResolveEnvelopes(approvalRequestPath, approvalEnvelopePath string) (*trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope, error) {

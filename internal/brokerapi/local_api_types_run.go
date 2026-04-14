@@ -31,6 +31,7 @@ type RunSummary struct {
 	AuditIntegrityStatus   string `json:"audit_integrity_status"`
 	AuditAnchoringStatus   string `json:"audit_anchoring_status"`
 	AuditCurrentlyDegraded bool   `json:"audit_currently_degraded"`
+	RuntimePostureDegraded bool   `json:"runtime_posture_degraded"`
 }
 
 type RunStageSummary struct {

@@ -70,7 +70,7 @@ func routeActivationCases() []routeActivationCase {
 			newModel: func(client localBrokerClient) routeModel {
 				return newStatusRouteModel(routeDefinition{ID: routeStatus, Label: "Status"}, client)
 			},
-			expected: []string{"ReadinessGet", "VersionInfoGet"},
+			expected: []string{"ReadinessGet", "VersionInfoGet", "BackendPostureGet"},
 		},
 	}
 }

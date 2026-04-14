@@ -61,7 +61,7 @@ func validAttachmentPlanForContractTests() AttachmentPlan {
 		ByRole: map[string]AttachmentBinding{
 			AttachmentRoleLaunchContext:  {ReadOnly: true, ChannelKind: AttachmentChannelReadOnlyChannel, RequiredDigests: []string{testDigest("3")}},
 			AttachmentRoleWorkspace:      {ReadOnly: false, ChannelKind: AttachmentChannelVirtualDisk},
-			AttachmentRoleInputArtifacts: {ReadOnly: true, ChannelKind: AttachmentChannelVirtualDisk, RequiredDigests: []string{testDigest("6")}},
+			AttachmentRoleInputArtifacts: {ReadOnly: true, ChannelKind: AttachmentChannelArtifactImage, RequiredDigests: []string{testDigest("6")}},
 			AttachmentRoleScratch:        {ReadOnly: false, ChannelKind: AttachmentChannelEphemeralDisk},
 		},
 		Constraints: AttachmentRealizationConstraints{NoHostFilesystemMounts: true},

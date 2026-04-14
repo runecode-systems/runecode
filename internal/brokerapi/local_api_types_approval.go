@@ -10,6 +10,7 @@ type ApprovalBoundScope struct {
 	SchemaID           string `json:"schema_id"`
 	SchemaVersion      string `json:"schema_version"`
 	WorkspaceID        string `json:"workspace_id,omitempty"`
+	InstanceID         string `json:"instance_id,omitempty"`
 	RunID              string `json:"run_id,omitempty"`
 	StageID            string `json:"stage_id,omitempty"`
 	StepID             string `json:"step_id,omitempty"`
@@ -39,17 +40,31 @@ type ApprovalSummary struct {
 }
 
 type ApprovalDetail struct {
-	SchemaID              string                        `json:"schema_id"`
-	SchemaVersion         string                        `json:"schema_version"`
-	ApprovalID            string                        `json:"approval_id"`
-	PolicyReasonCode      string                        `json:"policy_reason_code,omitempty"`
-	LifecycleDetail       ApprovalLifecycleDetail       `json:"lifecycle_detail"`
-	BindingKind           string                        `json:"binding_kind"`
-	BoundActionHash       string                        `json:"bound_action_hash,omitempty"`
-	BoundStageSummaryHash string                        `json:"bound_stage_summary_hash,omitempty"`
-	WhatChangesIfApproved ApprovalWhatChangesIfApproved `json:"what_changes_if_approved"`
-	BlockedWorkScope      ApprovalBlockedWorkScope      `json:"blocked_work_scope"`
-	BoundIdentity         ApprovalBoundIdentity         `json:"bound_identity"`
+	SchemaID                string                           `json:"schema_id"`
+	SchemaVersion           string                           `json:"schema_version"`
+	ApprovalID              string                           `json:"approval_id"`
+	PolicyReasonCode        string                           `json:"policy_reason_code,omitempty"`
+	LifecycleDetail         ApprovalLifecycleDetail          `json:"lifecycle_detail"`
+	BindingKind             string                           `json:"binding_kind"`
+	BoundActionHash         string                           `json:"bound_action_hash,omitempty"`
+	BoundStageSummaryHash   string                           `json:"bound_stage_summary_hash,omitempty"`
+	BackendPostureSelection *ApprovalBackendPostureSelection `json:"backend_posture_selection,omitempty"`
+	WhatChangesIfApproved   ApprovalWhatChangesIfApproved    `json:"what_changes_if_approved"`
+	BlockedWorkScope        ApprovalBlockedWorkScope         `json:"blocked_work_scope"`
+	BoundIdentity           ApprovalBoundIdentity            `json:"bound_identity"`
+}
+
+type ApprovalBackendPostureSelection struct {
+	SchemaID                     string `json:"schema_id"`
+	SchemaVersion                string `json:"schema_version"`
+	TargetInstanceID             string `json:"target_instance_id"`
+	TargetBackendKind            string `json:"target_backend_kind"`
+	SelectionMode                string `json:"selection_mode"`
+	ChangeKind                   string `json:"change_kind"`
+	RequestedPosture             string `json:"requested_posture"`
+	AssuranceChangeKind          string `json:"assurance_change_kind"`
+	OptInKind                    string `json:"opt_in_kind"`
+	ReducedAssuranceAcknowledged bool   `json:"reduced_assurance_acknowledged"`
 }
 
 type ApprovalLifecycleDetail struct {
@@ -143,17 +158,48 @@ type ApprovalResolveRequest struct {
 	RequestID              string                           `json:"request_id"`
 	ApprovalID             string                           `json:"approval_id,omitempty"`
 	BoundScope             ApprovalBoundScope               `json:"bound_scope"`
-	UnapprovedDigest       string                           `json:"unapproved_digest"`
-	Approver               string                           `json:"approver"`
-	RepoPath               string                           `json:"repo_path"`
-	Commit                 string                           `json:"commit"`
-	ExtractorToolVersion   string                           `json:"extractor_tool_version"`
-	FullContentVisible     bool                             `json:"full_content_visible"`
-	ExplicitViewFull       bool                             `json:"explicit_view_full"`
-	BulkRequest            bool                             `json:"bulk_request"`
-	BulkApprovalConfirmed  bool                             `json:"bulk_approval_confirmed"`
+	ResolutionDetails      ApprovalResolveDetails           `json:"resolution_details"`
 	SignedApprovalRequest  trustpolicy.SignedObjectEnvelope `json:"signed_approval_request"`
 	SignedApprovalDecision trustpolicy.SignedObjectEnvelope `json:"signed_approval_decision"`
+
+	// Legacy internal fields retained for compatibility with existing tests.
+	UnapprovedDigest      string `json:"-"`
+	Approver              string `json:"-"`
+	RepoPath              string `json:"-"`
+	Commit                string `json:"-"`
+	ExtractorToolVersion  string `json:"-"`
+	FullContentVisible    bool   `json:"-"`
+	ExplicitViewFull      bool   `json:"-"`
+	BulkRequest           bool   `json:"-"`
+	BulkApprovalConfirmed bool   `json:"-"`
+}
+
+type ApprovalResolveDetails struct {
+	SchemaID                string                                        `json:"schema_id"`
+	SchemaVersion           string                                        `json:"schema_version"`
+	Promotion               *ApprovalResolvePromotionDetails              `json:"promotion,omitempty"`
+	BackendPostureSelection *ApprovalResolveBackendPostureSelectionDetail `json:"backend_posture_selection,omitempty"`
+}
+
+type ApprovalResolvePromotionDetails struct {
+	SchemaID              string `json:"schema_id"`
+	SchemaVersion         string `json:"schema_version"`
+	UnapprovedDigest      string `json:"unapproved_digest"`
+	Approver              string `json:"approver"`
+	RepoPath              string `json:"repo_path"`
+	Commit                string `json:"commit"`
+	ExtractorToolVersion  string `json:"extractor_tool_version"`
+	FullContentVisible    bool   `json:"full_content_visible"`
+	ExplicitViewFull      bool   `json:"explicit_view_full"`
+	BulkRequest           bool   `json:"bulk_request"`
+	BulkApprovalConfirmed bool   `json:"bulk_approval_confirmed"`
+}
+
+type ApprovalResolveBackendPostureSelectionDetail struct {
+	SchemaID          string `json:"schema_id"`
+	SchemaVersion     string `json:"schema_version"`
+	TargetInstanceID  string `json:"target_instance_id"`
+	TargetBackendKind string `json:"target_backend_kind"`
 }
 
 type ApprovalResolveResponse struct {

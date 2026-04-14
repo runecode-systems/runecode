@@ -144,7 +144,7 @@ func validateIsolateSessionPayloadCommon(schemaID string, wantSchemaID string, s
 	if !containsString([]string{"isolated", "degraded", "unknown"}, isolationAssuranceLevel) {
 		return fmt.Errorf("%s isolation_assurance_level %q is unsupported", payloadName, isolationAssuranceLevel)
 	}
-	if !containsString([]string{"tofu", "attested", "unknown"}, provisioningPosture) {
+	if !containsString([]string{"tofu", "attested", "not_applicable", "unknown"}, provisioningPosture) {
 		return fmt.Errorf("%s provisioning_posture %q is unsupported", payloadName, provisioningPosture)
 	}
 	return nil

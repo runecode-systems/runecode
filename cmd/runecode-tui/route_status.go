@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
@@ -10,17 +11,25 @@ import (
 type statusLoadedMsg struct {
 	readiness brokerapi.BrokerReadiness
 	version   brokerapi.BrokerVersionInfo
+	posture   brokerapi.BackendPostureState
 	err       error
 	seq       uint64
 }
 
+type postureChangedMsg struct {
+	resp brokerapi.BackendPostureChangeResponse
+	err  error
+}
+
 type statusRouteModel struct {
-	def     routeDefinition
-	client  localBrokerClient
-	loading bool
-	errText string
-	data    statusLoadedMsg
-	loadSeq uint64
+	def      routeDefinition
+	client   localBrokerClient
+	loading  bool
+	changing bool
+	errText  string
+	status   string
+	data     statusLoadedMsg
+	loadSeq  uint64
 }
 
 func newStatusRouteModel(def routeDefinition, client localBrokerClient) routeModel {
@@ -34,36 +43,83 @@ func (m statusRouteModel) Title() string { return m.def.Label }
 func (m statusRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 	switch typed := msg.(type) {
 	case routeActivatedMsg:
-		if typed.RouteID != m.def.ID {
-			return m, nil
-		}
-		m.loading = true
-		m.errText = ""
-		m.loadSeq++
-		return m, m.loadCmd(m.loadSeq)
+		return m.handleRouteActivated(typed)
 	case tea.KeyMsg:
-		if typed.String() != "r" {
-			return m, nil
-		}
-		m.loading = true
-		m.errText = ""
-		m.loadSeq++
-		return m, m.loadCmd(m.loadSeq)
+		return m.handleKeyMsg(typed)
 	case statusLoadedMsg:
-		if typed.seq != m.loadSeq {
-			return m, nil
-		}
-		m.loading = false
-		if typed.err != nil {
-			m.errText = safeUIErrorText(typed.err)
-			return m, nil
-		}
-		m.data = typed
-		m.errText = ""
-		return m, nil
+		return m.handleStatusLoaded(typed)
+	case postureChangedMsg:
+		return m.handlePostureChanged(typed)
 	default:
 		return m, nil
 	}
+}
+
+func (m statusRouteModel) handleRouteActivated(msg routeActivatedMsg) (routeModel, tea.Cmd) {
+	if msg.RouteID != m.def.ID {
+		return m, nil
+	}
+	m = m.beginLoad()
+	return m, m.loadCmd(m.loadSeq)
+}
+
+func (m statusRouteModel) handleKeyMsg(msg tea.KeyMsg) (routeModel, tea.Cmd) {
+	switch msg.String() {
+	case "r":
+		m = m.beginLoad()
+		return m, m.loadCmd(m.loadSeq)
+	case "c":
+		if m.changing || m.loading {
+			return m, nil
+		}
+		m.changing = true
+		m.errText = ""
+		m.status = ""
+		return m, m.changeCmd()
+	default:
+		return m, nil
+	}
+}
+
+func (m statusRouteModel) handleStatusLoaded(msg statusLoadedMsg) (routeModel, tea.Cmd) {
+	if msg.seq != m.loadSeq {
+		return m, nil
+	}
+	m.loading = false
+	if msg.err != nil {
+		m.errText = safeUIErrorText(msg.err)
+		return m, nil
+	}
+	m.data = msg
+	m.errText = ""
+	if m.status == "" {
+		m.status = "Press c to request backend posture change (microvm/container)."
+	}
+	return m, nil
+}
+
+func (m statusRouteModel) handlePostureChanged(msg postureChangedMsg) (routeModel, tea.Cmd) {
+	m.changing = false
+	if msg.err != nil {
+		m.errText = safeUIErrorText(msg.err)
+		m.status = ""
+		return m, nil
+	}
+	m.errText = ""
+	m = m.beginLoad()
+	if msg.resp.Outcome.Outcome == "approval_required" {
+		m.status = "Backend posture change requires approval; opening shared Approvals route."
+		return m, tea.Batch(func() tea.Msg { return routeSwitchMsg{RouteID: routeApprovals} }, m.loadCmd(m.loadSeq))
+	}
+	m.status = fmt.Sprintf("Backend posture outcome=%s reason=%s", msg.resp.Outcome.Outcome, msg.resp.Outcome.OutcomeReasonCode)
+	return m, m.loadCmd(m.loadSeq)
+}
+
+func (m statusRouteModel) beginLoad() statusRouteModel {
+	m.loading = true
+	m.errText = ""
+	m.loadSeq++
+	return m
 }
 
 func (m statusRouteModel) View(width, height int, focus focusArea) string {
@@ -71,6 +127,9 @@ func (m statusRouteModel) View(width, height int, focus focusArea) string {
 	_ = height
 	if m.loading {
 		return "Loading status route from readiness/version contracts..."
+	}
+	if m.changing {
+		return "Submitting backend posture change through broker local API..."
 	}
 	if m.errText != "" {
 		return compactLines("Status", "Load failed: "+m.errText, "Press r to retry.")
@@ -87,8 +146,17 @@ func (m statusRouteModel) View(width, height int, focus focusArea) string {
 		diagnostics,
 		fmt.Sprintf("Version posture: product=%s revision=%s build=%s", v.ProductVersion, v.BuildRevision, v.BuildTime),
 		fmt.Sprintf("Protocol posture: bundle=%s manifest=%s api=%s/%s", v.ProtocolBundleVersion, v.ProtocolBundleManifestHash, v.APIFamily, v.APIVersion),
-		keyHint("Route keys: r reload"),
+		renderBackendPostureLine(m.data.posture),
+		m.status,
+		keyHint("Route keys: r reload, c request backend posture change"),
 	)
+}
+
+func renderBackendPostureLine(posture brokerapi.BackendPostureState) string {
+	if strings.TrimSpace(posture.InstanceID) == "" {
+		return "Backend posture: unavailable"
+	}
+	return fmt.Sprintf("Backend posture: instance=%s backend=%s reduced_assurance=%t pending_approval=%t", valueOrNA(posture.InstanceID), valueOrNA(posture.BackendKind), posture.ReducedAssuranceActive, posture.PendingApproval)
 }
 
 func renderStatusSafetyStrip(r brokerapi.BrokerReadiness) string {
@@ -144,6 +212,36 @@ func (m statusRouteModel) loadCmd(seq uint64) tea.Cmd {
 		if err != nil {
 			return statusLoadedMsg{err: err, seq: seq}
 		}
-		return statusLoadedMsg{readiness: readinessResp.Readiness, version: versionResp.VersionInfo, seq: seq}
+		postureResp, err := m.client.BackendPostureGet(ctx)
+		if err != nil {
+			return statusLoadedMsg{err: err, seq: seq}
+		}
+		return statusLoadedMsg{readiness: readinessResp.Readiness, version: versionResp.VersionInfo, posture: postureResp.Posture, seq: seq}
+	}
+}
+
+func (m statusRouteModel) changeCmd() tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := withLoadTimeout()
+		defer cancel()
+		current := m.data.posture
+		targetBackend := "container"
+		if strings.EqualFold(strings.TrimSpace(current.BackendKind), "container") {
+			targetBackend = "microvm"
+		}
+		resp, err := m.client.BackendPostureChange(ctx, brokerapi.BackendPostureChangeRequest{
+			TargetInstanceID:             strings.TrimSpace(current.InstanceID),
+			TargetBackendKind:            targetBackend,
+			SelectionMode:                "explicit_selection",
+			ChangeKind:                   "select_backend",
+			AssuranceChangeKind:          "reduce_assurance",
+			OptInKind:                    "exact_action_approval",
+			ReducedAssuranceAcknowledged: true,
+			Reason:                       "operator_requested_reduced_assurance_backend_opt_in",
+		})
+		if err != nil {
+			return postureChangedMsg{err: err}
+		}
+		return postureChangedMsg{resp: resp}
 	}
 }

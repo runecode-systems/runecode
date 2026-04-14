@@ -160,6 +160,7 @@
         "approval_required",
         "allow_microvm_default",
         "deny_container_opt_in_required",
+        "deny_container_acknowledgment_required",
         "deny_container_automatic_fallback",
         "artifact_flow_denied",
         "unapproved_excerpt_egress_denied",

@@ -110,10 +110,10 @@ func launcherRuntimeFactsReceiptFixture() launcherbackend.BackendLaunchReceipt {
 func runtimeFactsAttachmentPlanSummaryFixture() *launcherbackend.AttachmentPlanSummary {
 	return &launcherbackend.AttachmentPlanSummary{
 		Roles: []launcherbackend.AttachmentRoleSummary{
-			{Role: launcherbackend.AttachmentRoleLaunchContext, ReadOnly: true, ChannelKind: launcherbackend.AttachmentChannelReadOnlyChannel, DigestCount: 1},
-			{Role: launcherbackend.AttachmentRoleWorkspace, ReadOnly: false, ChannelKind: launcherbackend.AttachmentChannelVirtualDisk},
-			{Role: launcherbackend.AttachmentRoleInputArtifacts, ReadOnly: true, ChannelKind: launcherbackend.AttachmentChannelVirtualDisk, DigestCount: 2},
-			{Role: launcherbackend.AttachmentRoleScratch, ReadOnly: false, ChannelKind: launcherbackend.AttachmentChannelEphemeralDisk},
+			{Role: launcherbackend.AttachmentRoleLaunchContext, ReadOnly: true, ChannelKind: launcherbackend.AttachmentChannelReadOnlyVolume, DigestCount: 1},
+			{Role: launcherbackend.AttachmentRoleWorkspace, ReadOnly: false, ChannelKind: launcherbackend.AttachmentChannelWritableVolume},
+			{Role: launcherbackend.AttachmentRoleInputArtifacts, ReadOnly: true, ChannelKind: launcherbackend.AttachmentChannelArtifactImage, DigestCount: 2},
+			{Role: launcherbackend.AttachmentRoleScratch, ReadOnly: false, ChannelKind: launcherbackend.AttachmentChannelEphemeralVolume},
 		},
 		Constraints: launcherbackend.AttachmentRealizationConstraints{NoHostFilesystemMounts: true, HostLocalPathsVisible: false, DeviceNumberingVisible: false, GuestMountAsContractIdentity: false},
 	}
@@ -166,6 +166,9 @@ func assertRuntimeFactsRunListProjection(t *testing.T, runs []RunSummary) {
 	}
 	if runs[0].AssuranceLevel != runs[0].IsolationAssuranceLevel {
 		t.Fatalf("assurance_level alias = %q, want %q", runs[0].AssuranceLevel, runs[0].IsolationAssuranceLevel)
+	}
+	if runs[0].RuntimePostureDegraded {
+		t.Fatalf("runtime_posture_degraded = %v, want false for isolated microvm", runs[0].RuntimePostureDegraded)
 	}
 }
 
@@ -342,24 +345,90 @@ func assertRuntimeFactsHardeningProjection(t *testing.T, state map[string]any, h
 
 func assertRuntimeFactsAttachmentProjection(t *testing.T, state map[string]any) {
 	t.Helper()
-	attachmentPlan, ok := state["attachment_plan"].(map[string]any)
-	if !ok {
-		t.Fatalf("authoritative_state.attachment_plan = %T, want map", state["attachment_plan"])
+	attachmentPlan := requireStateMap(t, state, "attachment_plan")
+	constraints := requireNestedMap(t, attachmentPlan, "constraints", "authoritative_state.attachment_plan.constraints")
+	assertAttachmentConstraints(t, constraints)
+	roles := requireAttachmentRoles(t, attachmentPlan["roles"])
+	if len(roles) != 4 {
+		t.Fatalf("authoritative_state.attachment_plan.roles len = %d, want 4", len(roles))
 	}
-	constraints, ok := attachmentPlan["constraints"].(map[string]any)
+	assertAttachmentRoleChannelsUseBackendNeutralVocabulary(t, roles)
+	assertRuntimeFactsWorkspaceEncryptionProjection(t, state)
+}
+
+func requireStateMap(t *testing.T, state map[string]any, key string) map[string]any {
+	t.Helper()
+	value, ok := state[key].(map[string]any)
 	if !ok {
-		t.Fatalf("authoritative_state.attachment_plan.constraints = %T, want map", attachmentPlan["constraints"])
+		t.Fatalf("authoritative_state.%s = %T, want map", key, state[key])
 	}
+	return value
+}
+
+func requireNestedMap(t *testing.T, parent map[string]any, key string, field string) map[string]any {
+	t.Helper()
+	value, ok := parent[key].(map[string]any)
+	if !ok {
+		t.Fatalf("%s = %T, want map", field, parent[key])
+	}
+	return value
+}
+
+func assertAttachmentConstraints(t *testing.T, constraints map[string]any) {
+	t.Helper()
 	if constraints["no_host_filesystem_mounts"] != true {
 		t.Fatalf("authoritative_state.attachment_plan.constraints.no_host_filesystem_mounts = %v, want true", constraints["no_host_filesystem_mounts"])
 	}
-	if constraints["host_local_paths_visible"] != false || constraints["device_numbering_visible"] != false || constraints["guest_mount_as_contract_identity"] != false {
-		t.Fatalf("authoritative_state.attachment_plan.constraints = %#v, want all leakage toggles false", constraints)
+	if constraints["host_local_paths_visible"] != false {
+		t.Fatalf("authoritative_state.attachment_plan.constraints.host_local_paths_visible = %v, want false", constraints["host_local_paths_visible"])
 	}
-	if got := attachmentRolesLen(attachmentPlan["roles"]); got != 4 {
-		t.Fatalf("authoritative_state.attachment_plan.roles len = %d, want 4", got)
+	if constraints["device_numbering_visible"] != false {
+		t.Fatalf("authoritative_state.attachment_plan.constraints.device_numbering_visible = %v, want false", constraints["device_numbering_visible"])
 	}
-	assertRuntimeFactsWorkspaceEncryptionProjection(t, state)
+	if constraints["guest_mount_as_contract_identity"] != false {
+		t.Fatalf("authoritative_state.attachment_plan.constraints.guest_mount_as_contract_identity = %v, want false", constraints["guest_mount_as_contract_identity"])
+	}
+}
+
+func requireAttachmentRoles(t *testing.T, value any) []map[string]any {
+	t.Helper()
+	if typed, ok := value.([]map[string]any); ok {
+		return typed
+	}
+	anyRoles, ok := value.([]any)
+	if !ok {
+		t.Fatalf("authoritative_state.attachment_plan.roles = %T, want slice", value)
+	}
+	roles := make([]map[string]any, 0, len(anyRoles))
+	for _, entry := range anyRoles {
+		mapped, ok := entry.(map[string]any)
+		if !ok {
+			t.Fatalf("authoritative_state.attachment_plan.roles entry = %T, want map", entry)
+		}
+		roles = append(roles, mapped)
+	}
+	return roles
+}
+
+func assertAttachmentRoleChannelsUseBackendNeutralVocabulary(t *testing.T, roles []map[string]any) {
+	t.Helper()
+	channelByRole := map[string]string{}
+	for _, role := range roles {
+		name, _ := role["role"].(string)
+		channel, _ := role["channel_kind"].(string)
+		channelByRole[name] = channel
+	}
+	wants := map[string]string{
+		launcherbackend.AttachmentRoleLaunchContext:  launcherbackend.AttachmentChannelReadOnlyVolume,
+		launcherbackend.AttachmentRoleWorkspace:      launcherbackend.AttachmentChannelWritableVolume,
+		launcherbackend.AttachmentRoleInputArtifacts: launcherbackend.AttachmentChannelArtifactImage,
+		launcherbackend.AttachmentRoleScratch:        launcherbackend.AttachmentChannelEphemeralVolume,
+	}
+	for role, wantChannel := range wants {
+		if got := channelByRole[role]; got != wantChannel {
+			t.Fatalf("attachment role %q channel_kind = %q, want %q", role, got, wantChannel)
+		}
+	}
 }
 
 func assertRuntimeFactsWorkspaceEncryptionProjection(t *testing.T, state map[string]any) {
@@ -377,16 +446,6 @@ func assertRuntimeFactsWorkspaceEncryptionProjection(t *testing.T, state map[str
 	if workspaceEncryption["key_protection_posture"] != launcherbackend.WorkspaceKeyProtectionHardwareBacked {
 		t.Fatalf("authoritative_state.workspace_encryption_posture.key_protection_posture = %v, want %q", workspaceEncryption["key_protection_posture"], launcherbackend.WorkspaceKeyProtectionHardwareBacked)
 	}
-}
-
-func attachmentRolesLen(value any) int {
-	if typed, ok := value.([]map[string]any); ok {
-		return len(typed)
-	}
-	if typed, ok := value.([]any); ok {
-		return len(typed)
-	}
-	return -1
 }
 
 func assertRuntimeFactsTerminalProjection(t *testing.T, state map[string]any) {

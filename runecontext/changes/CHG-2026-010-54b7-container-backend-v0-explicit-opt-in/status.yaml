@@ -3,7 +3,7 @@ id: CHG-2026-010-54b7-container-backend-v0-explicit-opt-in
 title: Container Backend v0 (Explicit Opt-In)
 status: planned
 type: feature
-size: medium
+size: large
 verification_status: pending
 context_bundles:
   - product-planning
@@ -17,8 +17,15 @@ related_changes:
   - CHG-2026-007-2315-policy-engine-v0
   - CHG-2026-009-1672-launcher-microvm-backend-v0
   - CHG-2026-029-5e5e-macos-virtualization-polish
-depends_on: []
-informed_by: []
+depends_on:
+  - CHG-2026-009-1672-launcher-microvm-backend-v0
+informed_by:
+  - CHG-2026-007-2315-policy-engine-v0
+  - CHG-2026-008-62e1-broker-local-api-v0
+  - CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0
+  - CHG-2026-013-d2c9-minimal-tui-v0
+  - CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0
+  - CHG-2026-041-4d8a-approval-review-detail-models-v0
 supersedes: []
 superseded_by: []
 created_at: "2026-04-03"

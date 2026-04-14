@@ -192,6 +192,7 @@ func renderRunInspector(detail *brokerapi.RunDetail) string {
 	return compactLines(
 		fmt.Sprintf("  backend_kind=%s", summary.BackendKind),
 		"  Runtime isolation assurance (authoritative): "+renderRuntimeIsolationCue(summary.BackendKind, summary.IsolationAssuranceLevel),
+		fmt.Sprintf("  Runtime posture degraded (authoritative): %t %s", summary.RuntimePostureDegraded, renderRuntimePostureDegradedBadge(summary.RuntimePostureDegraded)),
 		"  Provisioning/binding posture (authoritative): "+renderProvisioningPostureCue(summary.ProvisioningPosture),
 		"  Audit posture (authoritative): "+renderAuditPostureCue(summary.AuditIntegrityStatus, summary.AuditAnchoringStatus, summary.AuditCurrentlyDegraded),
 		fmt.Sprintf("  Approval profile (authoritative): %s", renderApprovalProfileCue(summary.ApprovalProfile)),

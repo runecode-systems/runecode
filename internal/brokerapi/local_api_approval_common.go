@@ -121,6 +121,7 @@ func approvalBoundScopeFromStore(record artifacts.ApprovalRecord) ApprovalBoundS
 		SchemaID:           "runecode.protocol.v0.ApprovalBoundScope",
 		SchemaVersion:      "0.1.0",
 		WorkspaceID:        record.WorkspaceID,
+		InstanceID:         record.InstanceID,
 		RunID:              record.RunID,
 		StageID:            record.StageID,
 		StepID:             record.StepID,

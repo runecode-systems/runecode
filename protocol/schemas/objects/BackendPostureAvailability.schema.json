@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/BackendPostureAvailability.schema.json",
+  "title": "BackendPostureAvailability",
+  "description": "Typed availability for a backend posture target kind.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 5,
+  "required": ["schema_id", "schema_version", "backend_kind", "available"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.BackendPostureAvailability", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "backend_kind": { "type": "string", "enum": ["microvm", "container"], "description": "Backend kind represented by this availability row.", "x-data-class": "public" },
+    "available": { "type": "boolean", "description": "Whether this backend kind is currently available for selection.", "x-data-class": "public" },
+    "availability_summary": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Optional human-readable availability note.", "x-data-class": "public" }
+  }
+}

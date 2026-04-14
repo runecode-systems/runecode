@@ -7,22 +7,33 @@ const (
 	BackendKindContainer = "container"
 	BackendKindUnknown   = "unknown"
 
-	IsolationAssuranceIsolated = "isolated"
-	IsolationAssuranceDegraded = "degraded"
-	IsolationAssuranceUnknown  = "unknown"
+	IsolationAssuranceIsolated      = "isolated"
+	IsolationAssuranceDegraded      = "degraded"
+	IsolationAssuranceUnknown       = "unknown"
+	IsolationAssuranceNotApplicable = "not_applicable"
 
-	ProvisioningPostureTOFU     = "tofu"
-	ProvisioningPostureAttested = "attested"
-	ProvisioningPostureUnknown  = "unknown"
+	ProvisioningPostureTOFU          = "tofu"
+	ProvisioningPostureAttested      = "attested"
+	ProvisioningPostureUnknown       = "unknown"
+	ProvisioningPostureNotApplicable = "not_applicable"
 
 	AttachmentRoleLaunchContext  = "launch_context"
 	AttachmentRoleWorkspace      = "workspace"
 	AttachmentRoleInputArtifacts = "input_artifacts"
 	AttachmentRoleScratch        = "scratch"
 
-	AttachmentChannelVirtualDisk     = "virtual_disk"
-	AttachmentChannelReadOnlyChannel = "read_only_channel"
-	AttachmentChannelEphemeralDisk   = "ephemeral_disk"
+	AttachmentChannelArtifactImage   = "artifact_image"
+	AttachmentChannelReadOnlyVolume  = "read_only_volume"
+	AttachmentChannelWritableVolume  = "writable_volume"
+	AttachmentChannelEphemeralVolume = "ephemeral_volume"
+
+	// Deprecated compatibility aliases.
+	//
+	// Keep these aliases while persisted runtime facts can still include legacy
+	// values from the microVM-only vocabulary.
+	AttachmentChannelVirtualDisk     = AttachmentChannelWritableVolume
+	AttachmentChannelReadOnlyChannel = AttachmentChannelReadOnlyVolume
+	AttachmentChannelEphemeralDisk   = AttachmentChannelEphemeralVolume
 
 	WorkspaceAtRestProtectionHostManagedEncryption = "host_managed_encryption"
 	WorkspaceAtRestProtectionUnknown               = "unknown"
@@ -32,18 +43,21 @@ const (
 	WorkspaceKeyProtectionExplicitDevOptIn = "explicit_dev_opt_in"
 	WorkspaceKeyProtectionUnknown          = "unknown"
 
-	HypervisorImplementationQEMU    = "qemu"
-	HypervisorImplementationUnknown = "unknown"
+	HypervisorImplementationQEMU          = "qemu"
+	HypervisorImplementationUnknown       = "unknown"
+	HypervisorImplementationNotApplicable = "not_applicable"
 
-	AccelerationKindKVM     = "kvm"
-	AccelerationKindHVF     = "hvf"
-	AccelerationKindWHPX    = "whpx"
-	AccelerationKindNone    = "none"
-	AccelerationKindUnknown = "unknown"
+	AccelerationKindKVM           = "kvm"
+	AccelerationKindHVF           = "hvf"
+	AccelerationKindWHPX          = "whpx"
+	AccelerationKindNone          = "none"
+	AccelerationKindUnknown       = "unknown"
+	AccelerationKindNotApplicable = "not_applicable"
 
-	TransportKindVSock        = "vsock"
-	TransportKindVirtioSerial = "virtio-serial"
-	TransportKindUnknown      = "unknown"
+	TransportKindVSock         = "vsock"
+	TransportKindVirtioSerial  = "virtio-serial"
+	TransportKindUnknown       = "unknown"
+	TransportKindNotApplicable = "not_applicable"
 
 	SessionFramingLengthPrefixedV1 = "length_prefixed_v1"
 
@@ -83,6 +97,33 @@ const (
 	HardeningDeviceSurfaceAllowlist = "allowlist"
 	HardeningDeviceSurfaceBroad     = "broad"
 	HardeningDeviceSurfaceUnknown   = "unknown"
+
+	HardeningRootlessEnabled    = "enabled"
+	HardeningRootlessDisabled   = "disabled"
+	HardeningRootlessUnknown    = "unknown"
+	HardeningRootlessBestEffort = "best_effort"
+
+	HardeningCapabilitiesDropped = "dropped"
+	HardeningCapabilitiesBroad   = "broad"
+	HardeningCapabilitiesUnknown = "unknown"
+
+	HardeningWritableLayersEphemeral  = "ephemeral_only"
+	HardeningWritableLayersPersistent = "persistent"
+	HardeningWritableLayersUnknown    = "unknown"
+
+	HardeningNetworkNamespacePerRole = "per_role"
+	HardeningNetworkNamespaceShared  = "shared"
+	HardeningNetworkNamespaceUnknown = "unknown"
+
+	HardeningNetworkDefaultNone         = "none"
+	HardeningNetworkDefaultLoopbackOnly = "loopback_only"
+	HardeningNetworkDefaultEgress       = "egress"
+	HardeningNetworkDefaultUnknown      = "unknown"
+
+	HardeningEgressEnforcementHostLevel   = "host_level_allowlist"
+	HardeningEgressEnforcementInContainer = "in_container"
+	HardeningEgressEnforcementNone        = "none"
+	HardeningEgressEnforcementUnknown     = "unknown"
 
 	BackendLifecycleStatePlanned     = "planned"
 	BackendLifecycleStateLaunching   = "launching"

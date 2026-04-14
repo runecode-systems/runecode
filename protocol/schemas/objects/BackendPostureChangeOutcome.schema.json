@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/BackendPostureChangeOutcome.schema.json",
+  "title": "BackendPostureChangeOutcome",
+  "description": "Typed outcome summary for backend posture change requests.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 8,
+  "required": ["schema_id", "schema_version", "outcome", "outcome_reason_code"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.BackendPostureChangeOutcome", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "outcome": { "type": "string", "enum": ["applied", "approval_required", "rejected"], "description": "Typed backend posture change result.", "x-data-class": "public" },
+    "outcome_reason_code": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Reason code for outcome.", "x-data-class": "public" },
+    "approval_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Pending approval id when outcome is approval_required.", "x-data-class": "public" },
+    "policy_decision_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Policy decision digest bound to this outcome.", "x-data-class": "public" },
+    "action_request_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Action request digest bound to this outcome.", "x-data-class": "public" }
+  }
+}

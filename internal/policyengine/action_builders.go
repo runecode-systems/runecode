@@ -105,14 +105,18 @@ func NewPromotionAction(input PromotionActionInput) ActionRequest {
 
 func NewBackendPostureChangeAction(input BackendPostureChangeActionInput) ActionRequest {
 	payload := map[string]any{
-		"schema_id":         actionPayloadBackendSchemaID,
-		"schema_version":    "0.1.0",
-		"backend_class":     input.BackendClass,
-		"change_kind":       input.ChangeKind,
-		"requested_posture": input.RequestedPosture,
+		"schema_id":                      actionPayloadBackendSchemaID,
+		"schema_version":                 "0.1.0",
+		"target_instance_id":             input.TargetInstanceID,
+		"target_backend_kind":            input.TargetBackendKind,
+		"selection_mode":                 input.SelectionMode,
+		"change_kind":                    input.ChangeKind,
+		"assurance_change_kind":          input.AssuranceChangeKind,
+		"opt_in_kind":                    input.OptInKind,
+		"reduced_assurance_acknowledged": input.ReducedAssuranceAcknowledged,
 	}
-	if input.RequiresOptIn != nil {
-		payload["requires_opt_in"] = *input.RequiresOptIn
+	if input.RunID != "" {
+		payload["run_id"] = input.RunID
 	}
 	if input.Reason != "" {
 		payload["reason"] = input.Reason

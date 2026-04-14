@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-011-7240-secretsd-model-gateway-v0
 title: Secretsd + Model Gateway v0
-status: planned
+status: implemented
 type: project
 size: large
 verification_status: pending

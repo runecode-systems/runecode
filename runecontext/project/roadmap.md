@@ -7,10 +7,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ### v0.1.0-alpha.4
 
-- Secretsd + Model Gateway v0
-  - Model egress is centralized behind a gateway with scoped secret leases and auditing, delivered through scoped child features.
-  - Project change: `runecontext/changes/CHG-2026-011-7240-secretsd-model-gateway-v0/`
-  - Feature changes: `runecontext/changes/CHG-2026-031-7a3c-secretsd-core-v0/`, `runecontext/changes/CHG-2026-032-4d1f-model-gateway-v0/`
 - Container Backend v0 (Explicit Opt-In)
   - Container isolation is available only via explicit opt-in with reduced-assurance UX after the primary high-assurance path exists.
   - Planned change: `runecontext/changes/CHG-2026-010-54b7-container-backend-v0-explicit-opt-in/`
@@ -139,6 +135,10 @@ No unscheduled items are currently tracked outside the planned work listed above
 - Minimal TUI v0
   - Users land in a dashboard-first terminal client, can enter a first-class chat route, approve actions, and inspect runs, artifacts, and audit timelines through the real secure local API.
   - Planned change: `runecontext/changes/CHG-2026-013-d2c9-minimal-tui-v0/`
-  - Callout: TUI delivery is tracked under `CHG-2026-038-5a1d-runecode-tui-experience-v0/`, and the alpha implementation is sequenced after the prerequisite contract lane in `CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0/`.
+  - Callout: TUI delivery was tracked under `CHG-2026-038-5a1d-runecode-tui-experience-v0/`, and the alpha implementation was sequenced after the prerequisite contract lane in `CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0/`.
 
+- Secretsd + Model Gateway v0
+  - Model egress is centralized behind a gateway with scoped secret leases and auditing, delivered through scoped child features.
+  - Project change: `runecontext/changes/CHG-2026-011-7240-secretsd-model-gateway-v0/`
+  - Feature changes: `runecontext/changes/CHG-2026-031-7a3c-secretsd-core-v0/`, `runecontext/changes/CHG-2026-032-4d1f-model-gateway-v0/`
 

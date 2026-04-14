@@ -237,10 +237,10 @@ func helloWorldLaunchSpec(runID string) launcherbackend.BackendLaunchSpec {
 		},
 		Attachments: launcherbackend.AttachmentPlan{
 			ByRole: map[string]launcherbackend.AttachmentBinding{
-				launcherbackend.AttachmentRoleLaunchContext:  {ReadOnly: true, ChannelKind: launcherbackend.AttachmentChannelReadOnlyChannel, RequiredDigests: []string{"sha256:" + repeatHex('e')}},
-				launcherbackend.AttachmentRoleWorkspace:      {ReadOnly: false, ChannelKind: launcherbackend.AttachmentChannelVirtualDisk},
-				launcherbackend.AttachmentRoleInputArtifacts: {ReadOnly: true, ChannelKind: launcherbackend.AttachmentChannelVirtualDisk, RequiredDigests: []string{"sha256:" + repeatHex('f')}},
-				launcherbackend.AttachmentRoleScratch:        {ReadOnly: false, ChannelKind: launcherbackend.AttachmentChannelEphemeralDisk},
+				launcherbackend.AttachmentRoleLaunchContext:  {ReadOnly: true, ChannelKind: launcherbackend.AttachmentChannelReadOnlyVolume, RequiredDigests: []string{"sha256:" + repeatHex('e')}},
+				launcherbackend.AttachmentRoleWorkspace:      {ReadOnly: false, ChannelKind: launcherbackend.AttachmentChannelWritableVolume},
+				launcherbackend.AttachmentRoleInputArtifacts: {ReadOnly: true, ChannelKind: launcherbackend.AttachmentChannelArtifactImage, RequiredDigests: []string{"sha256:" + repeatHex('f')}},
+				launcherbackend.AttachmentRoleScratch:        {ReadOnly: false, ChannelKind: launcherbackend.AttachmentChannelEphemeralVolume},
 			},
 			Constraints: launcherbackend.AttachmentRealizationConstraints{NoHostFilesystemMounts: true},
 			WorkspaceEncryption: &launcherbackend.WorkspaceEncryptionPosture{

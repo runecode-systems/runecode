@@ -62,12 +62,15 @@ type gatewayQuotaMeters struct {
 }
 
 type backendPosturePayload struct {
-	SchemaID         string `json:"schema_id"`
-	SchemaVersion    string `json:"schema_version"`
-	BackendClass     string `json:"backend_class"`
-	ChangeKind       string `json:"change_kind"`
-	RequestedPosture string `json:"requested_posture"`
-	RequiresOptIn    bool   `json:"requires_opt_in"`
+	SchemaID                     string `json:"schema_id"`
+	SchemaVersion                string `json:"schema_version"`
+	TargetInstanceID             string `json:"target_instance_id"`
+	TargetBackendKind            string `json:"target_backend_kind"`
+	SelectionMode                string `json:"selection_mode"`
+	ChangeKind                   string `json:"change_kind"`
+	AssuranceChangeKind          string `json:"assurance_change_kind"`
+	OptInKind                    string `json:"opt_in_kind"`
+	ReducedAssuranceAcknowledged bool   `json:"reduced_assurance_acknowledged"`
 }
 
 type promotionPayload struct {

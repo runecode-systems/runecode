@@ -31,9 +31,15 @@ func DefaultAppliedHardeningPosture() AppliedHardeningPosture {
 		Effective:                 HardeningEffectiveDegraded,
 		DegradedReasons:           []string{"hardening_posture_unspecified"},
 		ExecutionIdentityPosture:  HardeningExecutionIdentityUnknown,
+		RootlessPosture:           HardeningRootlessUnknown,
 		FilesystemExposurePosture: HardeningFilesystemExposureUnknown,
+		WritableLayersPosture:     HardeningWritableLayersUnknown,
 		NetworkExposurePosture:    HardeningNetworkExposureUnknown,
+		NetworkNamespacePosture:   HardeningNetworkNamespaceUnknown,
+		NetworkDefaultPosture:     HardeningNetworkDefaultUnknown,
+		EgressEnforcementPosture:  HardeningEgressEnforcementUnknown,
 		SyscallFilteringPosture:   HardeningSyscallFilteringUnknown,
+		CapabilitiesPosture:       HardeningCapabilitiesUnknown,
 		DeviceSurfacePosture:      HardeningDeviceSurfaceUnknown,
 		ControlChannelKind:        TransportKindUnknown,
 		AccelerationKind:          AccelerationKindUnknown,
@@ -49,9 +55,15 @@ func (p AppliedHardeningPosture) Normalized() AppliedHardeningPosture {
 	out.Requested = normalizeHardeningRequested(out.Requested)
 	out.Effective = normalizeHardeningEffective(out.Effective)
 	out.ExecutionIdentityPosture = normalizeExecutionIdentityPosture(out.ExecutionIdentityPosture)
+	out.RootlessPosture = normalizeRootlessPosture(out.RootlessPosture)
 	out.FilesystemExposurePosture = normalizeFilesystemExposurePosture(out.FilesystemExposurePosture)
+	out.WritableLayersPosture = normalizeWritableLayersPosture(out.WritableLayersPosture)
 	out.NetworkExposurePosture = normalizeNetworkExposurePosture(out.NetworkExposurePosture)
+	out.NetworkNamespacePosture = normalizeNetworkNamespacePosture(out.NetworkNamespacePosture)
+	out.NetworkDefaultPosture = normalizeNetworkDefaultPosture(out.NetworkDefaultPosture)
+	out.EgressEnforcementPosture = normalizeEgressEnforcementPosture(out.EgressEnforcementPosture)
 	out.SyscallFilteringPosture = normalizeSyscallFilteringPosture(out.SyscallFilteringPosture)
+	out.CapabilitiesPosture = normalizeCapabilitiesPosture(out.CapabilitiesPosture)
 	out.DeviceSurfacePosture = normalizeDeviceSurfacePosture(out.DeviceSurfacePosture)
 	out.ControlChannelKind = normalizeTransportKind(out.ControlChannelKind)
 	out.AccelerationKind = normalizeAccelerationKind(out.AccelerationKind)

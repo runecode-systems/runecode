@@ -22,6 +22,16 @@ func runRPCOperations(service *brokerapi.Service, ctx context.Context, meta brok
 		"run_watch": {requestSchemaPath: "objects/RunWatchRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandleRunWatch(service, ctx, raw, meta)
 		}},
+		"backend_posture_get": {requestSchemaPath: "objects/BackendPostureGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.BackendPostureGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleBackendPostureGet(ctx, req, meta)
+			})
+		}},
+		"backend_posture_change": {requestSchemaPath: "objects/BackendPostureChangeRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.BackendPostureChangeRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleBackendPostureChange(ctx, req, meta)
+			})
+		}},
 	}
 }
 

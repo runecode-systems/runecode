@@ -78,9 +78,10 @@
       "enum": [
         "tofu",
         "attested",
+        "not_applicable",
         "unknown"
       ],
-      "description": "Provisioning/binding posture kept distinct from runtime isolation and audit posture.",
+      "description": "Provisioning/binding posture kept distinct from runtime isolation and audit posture, including not_applicable where backend mechanics differ.",
       "x-data-class": "public"
     },
     "launch_context_digest": {
