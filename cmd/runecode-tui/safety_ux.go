@@ -8,10 +8,12 @@ import (
 )
 
 func renderRunSafetyStrip(summary brokerapi.RunSummary) string {
+	runtimeDegraded := summary.RuntimePostureDegraded || strings.EqualFold(strings.TrimSpace(summary.IsolationAssuranceLevel), "degraded") || strings.EqualFold(strings.TrimSpace(summary.BackendKind), "container")
 	parts := []string{
 		tableHeader("Safety strip"),
 		fmt.Sprintf("backend_kind=%s", valueOrNA(summary.BackendKind)),
 		renderRuntimeIsolationCue(summary.BackendKind, summary.IsolationAssuranceLevel),
+		fmt.Sprintf("runtime_posture_degraded=%t %s", runtimeDegraded, renderRuntimePostureDegradedBadge(runtimeDegraded)),
 		renderProvisioningPostureCue(summary.ProvisioningPosture),
 		renderAuditPostureCue(summary.AuditIntegrityStatus, summary.AuditAnchoringStatus, summary.AuditCurrentlyDegraded),
 		renderApprovalProfileCue(summary.ApprovalProfile),
@@ -19,11 +21,18 @@ func renderRunSafetyStrip(summary brokerapi.RunSummary) string {
 	return strings.Join(parts, " | ")
 }
 
+func renderRuntimePostureDegradedBadge(degraded bool) string {
+	if degraded {
+		return reducedAssuranceBadge("RUNTIME_POSTURE_DEGRADED")
+	}
+	return successBadge("RUNTIME_POSTURE_NOMINAL")
+}
+
 func renderRuntimeIsolationCue(backendKind, isolation string) string {
 	nBackend := strings.ToLower(strings.TrimSpace(backendKind))
 	nIsolation := strings.ToLower(strings.TrimSpace(isolation))
 	if nBackend == "container" || strings.Contains(nIsolation, "container") {
-		return "runtime isolation=container mode (reduced runtime isolation assurance) " + reducedAssuranceBadge("RUNTIME_REDUCED_CONTAINER")
+		return "runtime isolation=container (reduced assurance) " + reducedAssuranceBadge("RUNTIME_REDUCED_CONTAINER")
 	}
 	switch nIsolation {
 	case "sandboxed", "isolated", "microvm":

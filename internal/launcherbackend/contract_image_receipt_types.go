@@ -76,9 +76,15 @@ type AppliedHardeningPosture struct {
 	Effective                 string   `json:"effective"`
 	DegradedReasons           []string `json:"degraded_reasons,omitempty"`
 	ExecutionIdentityPosture  string   `json:"execution_identity_posture,omitempty"`
+	RootlessPosture           string   `json:"rootless_posture,omitempty"`
 	FilesystemExposurePosture string   `json:"filesystem_exposure_posture,omitempty"`
+	WritableLayersPosture     string   `json:"writable_layers_posture,omitempty"`
 	NetworkExposurePosture    string   `json:"network_exposure_posture,omitempty"`
+	NetworkNamespacePosture   string   `json:"network_namespace_posture,omitempty"`
+	NetworkDefaultPosture     string   `json:"network_default_posture,omitempty"`
+	EgressEnforcementPosture  string   `json:"egress_enforcement_posture,omitempty"`
 	SyscallFilteringPosture   string   `json:"syscall_filtering_posture,omitempty"`
+	CapabilitiesPosture       string   `json:"capabilities_posture,omitempty"`
 	DeviceSurfacePosture      string   `json:"device_surface_posture,omitempty"`
 	ControlChannelKind        string   `json:"control_channel_kind,omitempty"`
 	AccelerationKind          string   `json:"acceleration_kind,omitempty"`

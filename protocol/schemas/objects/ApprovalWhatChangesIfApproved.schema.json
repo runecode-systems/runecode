@@ -11,6 +11,6 @@
     "schema_id": { "const": "runecode.protocol.v0.ApprovalWhatChangesIfApproved", "description": "Protocol schema identifier.", "x-data-class": "public" },
     "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
     "summary": { "type": "string", "minLength": 1, "maxLength": 2048, "description": "Human-readable summary of the approval effect.", "x-data-class": "public" },
-    "effect_kind": { "type": "string", "enum": ["promotion", "stage_sign_off", "action_execution"], "description": "Typed effect family for operator-facing explanation.", "x-data-class": "public" }
+    "effect_kind": { "type": "string", "enum": ["promotion", "stage_sign_off", "backend_posture_change", "action_execution"], "description": "Typed effect family for operator-facing explanation.", "x-data-class": "public" }
   }
 }

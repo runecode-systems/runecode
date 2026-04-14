@@ -253,6 +253,27 @@ func setupServiceWithSupersededStageSignOffApprovals(t *testing.T) (*Service, *t
 	return s, oldReq, oldDec, newApprovalID
 }
 
+func setupServiceWithBackendPostureApprovalFixture(t *testing.T) (*Service, *trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope) {
+	t.Helper()
+	root := t.TempDir()
+	ledgerRoot := root + "/audit-ledger"
+	if err := seedLedgerForBrokerSurfaceTest(ledgerRoot); err != nil {
+		t.Fatalf("seedLedgerForBrokerSurfaceTest returned error: %v", err)
+	}
+	s, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig returned error: %v", err)
+	}
+	requestEnv, decisionEnv, verifiers := signedBackendPostureApprovalArtifactsForBrokerTests(t, "human", "container", "explicit_selection", "select_backend", "reduce_assurance", "exact_action_approval", "approve")
+	for _, verifier := range verifiers {
+		if err := putTrustedVerifierRecordForService(s, verifier); err != nil {
+			t.Fatalf("putTrustedVerifierRecordForService returned error: %v", err)
+		}
+	}
+	seedPendingBackendPostureApprovalForSignedRequest(t, s, *requestEnv)
+	return s, requestEnv, decisionEnv
+}
+
 func seedPendingStageSignOffApprovalForSignedRequest(t *testing.T, s *Service, runID, stageID string, requestEnv trustpolicy.SignedObjectEnvelope) string {
 	t.Helper()
 	approvalID, err := approvalIDFromRequest(requestEnv)
@@ -364,6 +385,82 @@ func stageSignOffActionHashForBrokerTests(runID, stageID, stageSummaryDigest str
 		panic(err)
 	}
 	action := policyengine.NewStageSummarySignOffAction(policyengine.StageSummarySignOffActionInput{ActionEnvelope: policyengine.ActionEnvelope{CapabilityID: "cap_stage", Actor: policyengine.ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"}}, RunID: runID, StageID: stageID, StageSummaryHash: stageSummaryHash, ApprovalProfile: "moderate", SummaryRevision: &summaryRevision})
+	hash, err := policyengine.CanonicalActionRequestHash(action)
+	if err != nil {
+		panic(err)
+	}
+	return hash
+}
+
+func seedPendingBackendPostureApprovalForSignedRequest(t *testing.T, s *Service, requestEnv trustpolicy.SignedObjectEnvelope) string {
+	t.Helper()
+	approvalID, err := approvalIDFromRequest(requestEnv)
+	if err != nil {
+		t.Fatalf("approvalIDFromRequest returned error: %v", err)
+	}
+	payload := map[string]any{}
+	if err := json.Unmarshal(requestEnv.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal approval request payload returned error: %v", err)
+	}
+	runID := "run-backend"
+	seedPolicyDecisionForPendingApproval(t, s, runID, payload)
+	requestedAt := parseRFC3339OrNow(payload, "requested_at")
+	expiresAt := parseRFC3339OrNow(payload, "expires_at")
+	if err := s.RecordApproval(artifacts.ApprovalRecord{ApprovalID: approvalID, Status: "pending", WorkspaceID: workspaceIDForRun(runID), RunID: runID, ActionKind: policyengine.ActionKindBackendPosture, RequestedAt: requestedAt, ExpiresAt: &expiresAt, ApprovalTriggerCode: stringFieldFromPayload(payload, "approval_trigger_code", "reduced_assurance_backend"), ChangesIfApproved: stringFieldFromPayload(payload, "changes_if_approved", "Reduced-assurance backend posture change may be applied."), ApprovalAssuranceLevel: stringFieldFromPayload(payload, "approval_assurance_level", "reauthenticated"), PresenceMode: stringFieldFromPayload(payload, "presence_mode", "hardware_touch"), ManifestHash: digestFromPayloadField(payload, "manifest_hash"), ActionRequestHash: digestFromPayloadField(payload, "action_request_hash"), RequestDigest: approvalID, SourceDigest: "", RequestEnvelope: &requestEnv}); err != nil {
+		t.Fatalf("RecordApproval returned error: %v", err)
+	}
+	return approvalID
+}
+
+func signedBackendPostureApprovalArtifactsForBrokerTests(t *testing.T, approver, backendKind, selectionMode, changeKind, assuranceChangeKind, optInKind, outcome string) (*trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope, []trustpolicy.VerifierRecord) {
+	t.Helper()
+	now := time.Now().UTC()
+	requestedAt, expiresAt, decidedAt := approvalTimestamps(now)
+	publicKey, privateKey, keyIDValue := approvalSigningIdentity(t)
+	actionHash := backendPostureActionHashForBrokerTests(backendKind, selectionMode, changeKind, assuranceChangeKind, optInKind)
+	requestEnv := signedApprovalRequestEnvelopeForBrokerTests(t, privateKey, keyIDValue, backendPostureApprovalRequestPayload(actionHash, backendKind, selectionMode, changeKind, assuranceChangeKind, optInKind, requestedAt, expiresAt))
+	requestDigest, err := approvalIDFromRequest(*requestEnv)
+	if err != nil {
+		t.Fatalf("approvalIDFromRequest returned error: %v", err)
+	}
+	decisionEnv := signedApprovalDecisionEnvelopeForBrokerTests(t, privateKey, keyIDValue, approver, outcome, decidedAt, requestDigest)
+	verifier := approvalVerifierRecordForBrokerTests(publicKey, keyIDValue, approver)
+	return requestEnv, decisionEnv, []trustpolicy.VerifierRecord{verifier}
+}
+
+func backendPostureApprovalRequestPayload(actionHash, backendKind, selectionMode, changeKind, assuranceChangeKind, optInKind, requestedAt, expiresAt string) map[string]any {
+	return map[string]any{
+		"schema_id":                trustpolicy.ApprovalRequestSchemaID,
+		"schema_version":           trustpolicy.ApprovalRequestSchemaVersion,
+		"approval_profile":         "moderate",
+		"requester":                map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "broker", "instance_id": "broker-1"},
+		"approval_trigger_code":    "reduced_assurance_backend",
+		"manifest_hash":            map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("1", 64)},
+		"action_request_hash":      map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(actionHash, "sha256:")},
+		"relevant_artifact_hashes": []any{},
+		"details_schema_id":        "runecode.protocol.details.policy.required_approval.reduced_assurance_backend.v0",
+		"details": map[string]any{
+			"target_backend_kind":            backendKind,
+			"selection_mode":                 selectionMode,
+			"change_kind":                    changeKind,
+			"requested_posture":              "container_mode_explicit_opt_in",
+			"assurance_change_kind":          assuranceChangeKind,
+			"opt_in_kind":                    optInKind,
+			"reduced_assurance_acknowledged": true,
+			"approval_binding_posture":       "exact_action",
+		},
+		"approval_assurance_level": "reauthenticated",
+		"presence_mode":            "hardware_touch",
+		"requested_at":             requestedAt,
+		"expires_at":               expiresAt,
+		"staleness_posture":        "invalidate_on_bound_input_change",
+		"changes_if_approved":      "Reduced-assurance backend posture change may be applied.",
+		"signatures":               []any{map[string]any{"alg": "ed25519", "key_id": trustpolicy.KeyIDProfile, "key_id_value": "", "signature": "c2ln"}},
+	}
+}
+
+func backendPostureActionHashForBrokerTests(backendKind, selectionMode, changeKind, assuranceChangeKind, optInKind string) string {
+	action := policyengine.NewBackendPostureChangeAction(policyengine.BackendPostureChangeActionInput{ActionEnvelope: policyengine.ActionEnvelope{CapabilityID: "cap_stage", Actor: policyengine.ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"}}, TargetBackendKind: backendKind, SelectionMode: selectionMode, ChangeKind: changeKind, AssuranceChangeKind: assuranceChangeKind, OptInKind: optInKind, ReducedAssuranceAcknowledged: true, Reason: "operator_requested_reduced_assurance_backend_opt_in"})
 	hash, err := policyengine.CanonicalActionRequestHash(action)
 	if err != nil {
 		panic(err)

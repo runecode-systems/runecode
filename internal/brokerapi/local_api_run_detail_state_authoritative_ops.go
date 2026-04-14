@@ -3,9 +3,10 @@ package brokerapi
 import (
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
-func buildAuthoritativeRunState(summary RunSummary, artifactsForRun []artifacts.ArtifactRecord, pendingIDs []string, manifestHashes []string, runtimeFacts launcherbackend.RuntimeFactsSnapshot) map[string]any {
+func buildAuthoritativeRunState(summary RunSummary, artifactsForRun []artifacts.ArtifactRecord, pendingIDs []string, manifestHashes []string, policyRefs []string, approvals []ApprovalSummary, runtimeFacts launcherbackend.RuntimeFactsSnapshot) map[string]any {
 	receipt := runtimeFacts.LaunchReceipt.Normalized()
 	state := buildBaseAuthoritativeRunState(summary, len(artifactsForRun), len(pendingIDs), receipt)
 	projectReceiptIdentityState(state, receipt)
@@ -14,8 +15,104 @@ func buildAuthoritativeRunState(summary RunSummary, artifactsForRun []artifacts.
 	projectReceiptSessionAndAttachmentState(state, receipt)
 	projectReceiptLifecycleAndCacheState(state, receipt)
 	projectHardeningAndTerminalState(state, runtimeFacts)
+	projectBackendPostureSelectionEvidenceState(state, summary.RunID, policyRefs, approvals)
 	projectWorkflowDerivedState(state, summary, manifestHashes)
 	return state
+}
+
+func projectBackendPostureSelectionEvidenceState(state map[string]any, runID string, policyRefs []string, approvals []ApprovalSummary) {
+	reducedAssurance := state["backend_kind"] == launcherbackend.BackendKindContainer || state["runtime_posture_degraded"] == true
+	if !reducedAssurance {
+		return
+	}
+	evidence := map[string]any{}
+	if len(policyRefs) > 0 {
+		evidence["policy_decision_refs"] = append([]string{}, policyRefs...)
+	}
+	if approvalEvidence := backendPostureApprovalEvidenceForRun(runID, approvals); len(approvalEvidence) > 0 {
+		evidence["approval"] = approvalEvidence
+	}
+	if len(evidence) > 0 {
+		state["backend_posture_selection_evidence"] = evidence
+	}
+}
+
+func backendPostureApprovalEvidenceForRun(runID string, approvals []ApprovalSummary) map[string]any {
+	if runID == "" {
+		return nil
+	}
+	best, ok := bestBackendPostureApprovalForRun(runID, approvals)
+	if !ok {
+		return nil
+	}
+	approval := best
+	evidence := map[string]any{"approval_id": approval.ApprovalID}
+	if approval.RequestDigest != "" {
+		evidence["approval_request_digest"] = approval.RequestDigest
+	}
+	if approval.DecisionDigest != "" {
+		evidence["approval_decision_digest"] = approval.DecisionDigest
+	}
+	if approval.PolicyDecisionHash != "" {
+		evidence["policy_decision_hash"] = approval.PolicyDecisionHash
+	}
+	if approval.Status != "" {
+		evidence["status"] = approval.Status
+	}
+	return evidence
+}
+
+func bestBackendPostureApprovalForRun(runID string, approvals []ApprovalSummary) (ApprovalSummary, bool) {
+	var best ApprovalSummary
+	found := false
+	for _, approval := range approvals {
+		if !isBackendPostureApprovalForRun(runID, approval) {
+			continue
+		}
+		if !found || approvalEvidencePrecedes(approval, best) {
+			best = approval
+			found = true
+		}
+	}
+	return best, found
+}
+
+func isBackendPostureApprovalForRun(runID string, approval ApprovalSummary) bool {
+	if approval.BoundScope.RunID != runID {
+		return false
+	}
+	return approval.BoundScope.ActionKind == policyengine.ActionKindBackendPosture
+}
+
+func approvalEvidencePrecedes(candidate ApprovalSummary, existing ApprovalSummary) bool {
+	if approvalEvidenceStatusRank(candidate.Status) != approvalEvidenceStatusRank(existing.Status) {
+		return approvalEvidenceStatusRank(candidate.Status) < approvalEvidenceStatusRank(existing.Status)
+	}
+	if candidate.RequestedAt != existing.RequestedAt {
+		return candidate.RequestedAt > existing.RequestedAt
+	}
+	return candidate.ApprovalID > existing.ApprovalID
+}
+
+func approvalEvidenceStatusRank(status string) int {
+	switch status {
+	case "consumed":
+		return 0
+	case "approved":
+		return 1
+	case "pending":
+		return 2
+	case "superseded":
+		return 3
+	case "denied":
+		return 4
+	case "expired":
+		return 5
+	case "cancelled":
+		return 6
+	default:
+		return 7
+	}
 }
 
 func buildBaseAuthoritativeRunState(summary RunSummary, artifactCount int, pendingCount int, receipt launcherbackend.BackendLaunchReceipt) map[string]any {
@@ -28,6 +125,7 @@ func buildBaseAuthoritativeRunState(summary RunSummary, artifactCount int, pendi
 		"workspace_id":              summary.WorkspaceID,
 		"backend_kind":              receipt.BackendKind,
 		"isolation_assurance_level": receipt.IsolationAssuranceLevel,
+		"runtime_posture_degraded":  receipt.IsolationAssuranceLevel == launcherbackend.IsolationAssuranceDegraded,
 		"provisioning_posture":      receipt.ProvisioningPosture,
 		"runtime_facts_source":      "launcher_backend_receipt",
 	}

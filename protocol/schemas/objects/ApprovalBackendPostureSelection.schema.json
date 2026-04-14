@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ApprovalBackendPostureSelection.schema.json",
+  "title": "ApprovalBackendPostureSelection",
+  "description": "Typed broker-projected detail describing reduced-assurance backend posture selection semantics.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 9,
+  "required": ["schema_id", "schema_version", "target_backend_kind", "selection_mode", "change_kind", "requested_posture", "assurance_change_kind", "opt_in_kind", "reduced_assurance_acknowledged"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ApprovalBackendPostureSelection", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "target_backend_kind": { "type": "string", "enum": ["microvm", "container", "unknown"], "description": "Backend kind selected by this approval request.", "x-data-class": "public" },
+    "selection_mode": { "type": "string", "enum": ["explicit_selection", "automatic_fallback_attempt", "unknown"], "description": "Selection posture mode for backend request.", "x-data-class": "public" },
+    "change_kind": { "type": "string", "enum": ["select_backend", "relax_isolation", "unknown"], "description": "Backend posture change kind bound to action identity.", "x-data-class": "public" },
+    "requested_posture": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Requested posture label from the signed approval request details payload.", "x-data-class": "public" },
+    "assurance_change_kind": { "type": "string", "enum": ["reduce_assurance", "maintain_assurance", "increase_assurance", "unknown"], "description": "Typed assurance delta for the requested backend posture change.", "x-data-class": "public" },
+    "opt_in_kind": { "type": "string", "enum": ["exact_action_approval", "none", "unknown"], "description": "Typed opt-in posture for backend selection trust semantics.", "x-data-class": "public" },
+    "reduced_assurance_acknowledged": { "type": "boolean", "description": "Whether the user explicitly acknowledged reduced assurance before requesting container mode.", "x-data-class": "public" }
+  }
+}

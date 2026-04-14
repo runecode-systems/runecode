@@ -101,9 +101,16 @@ func (s *Service) dispatchApprovalResumeHandler(requestID string, req ApprovalRe
 	case policyengine.ActionKindStageSummarySign:
 		return s.resumeStageSummarySignOff(requestID, current, input)
 	default:
-		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, fmt.Sprintf("resume handler not yet supported for action_kind %q", current.Summary.BoundScope.ActionKind))
+		return s.resumeExactActionApproval(requestID, current)
+	}
+}
+
+func (s *Service) resumeExactActionApproval(requestID string, current approvalRecord) (approvalResumeResult, *ErrorResponse) {
+	if strings.TrimSpace(current.ActionRequestHash) == "" {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "exact-action approval missing bound action_request_hash")
 		return approvalResumeResult{}, &errOut
 	}
+	return approvalResumeResult{statusOverride: "consumed", resolutionReason: "approval_consumed"}, nil
 }
 
 func (s *Service) resumeStageSummarySignOff(requestID string, current approvalRecord, input approvalResolutionInput) (approvalResumeResult, *ErrorResponse) {

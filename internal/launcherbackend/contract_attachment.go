@@ -107,7 +107,7 @@ func (b AttachmentBinding) ValidateForRole(role string) error {
 func validateAttachmentBindingCommon(binding AttachmentBinding) (string, error) {
 	channelKind := normalizeAttachmentChannelKind(binding.ChannelKind)
 	if channelKind == "" {
-		return "", fmt.Errorf("channel_kind must be one of %q, %q, or %q", AttachmentChannelVirtualDisk, AttachmentChannelReadOnlyChannel, AttachmentChannelEphemeralDisk)
+		return "", fmt.Errorf("channel_kind must be one of %q, %q, %q, or %q", AttachmentChannelArtifactImage, AttachmentChannelReadOnlyVolume, AttachmentChannelWritableVolume, AttachmentChannelEphemeralVolume)
 	}
 	for _, digest := range binding.RequiredDigests {
 		if strings.TrimSpace(digest) == "" {
@@ -124,8 +124,8 @@ func validateLaunchContextBinding(binding AttachmentBinding, channelKind string)
 	if !binding.ReadOnly {
 		return fmt.Errorf("launch_context must be read_only")
 	}
-	if channelKind != AttachmentChannelVirtualDisk && channelKind != AttachmentChannelReadOnlyChannel {
-		return fmt.Errorf("launch_context channel_kind must be %q or %q", AttachmentChannelVirtualDisk, AttachmentChannelReadOnlyChannel)
+	if channelKind != AttachmentChannelArtifactImage && channelKind != AttachmentChannelReadOnlyVolume {
+		return fmt.Errorf("launch_context channel_kind must be %q or %q", AttachmentChannelArtifactImage, AttachmentChannelReadOnlyVolume)
 	}
 	if len(binding.RequiredDigests) == 0 {
 		return fmt.Errorf("launch_context requires at least one digest")
@@ -137,8 +137,8 @@ func validateInputArtifactsBinding(binding AttachmentBinding, channelKind string
 	if !binding.ReadOnly {
 		return fmt.Errorf("input_artifacts must be read_only")
 	}
-	if channelKind != AttachmentChannelVirtualDisk && channelKind != AttachmentChannelReadOnlyChannel {
-		return fmt.Errorf("input_artifacts channel_kind must be %q or %q", AttachmentChannelVirtualDisk, AttachmentChannelReadOnlyChannel)
+	if channelKind != AttachmentChannelArtifactImage && channelKind != AttachmentChannelReadOnlyVolume {
+		return fmt.Errorf("input_artifacts channel_kind must be %q or %q", AttachmentChannelArtifactImage, AttachmentChannelReadOnlyVolume)
 	}
 	if len(binding.RequiredDigests) == 0 {
 		return fmt.Errorf("input_artifacts requires at least one digest")
@@ -150,8 +150,8 @@ func validateWorkspaceBinding(binding AttachmentBinding, channelKind string) err
 	if binding.ReadOnly {
 		return fmt.Errorf("workspace must be read-write")
 	}
-	if channelKind != AttachmentChannelVirtualDisk {
-		return fmt.Errorf("workspace channel_kind must be %q", AttachmentChannelVirtualDisk)
+	if channelKind != AttachmentChannelWritableVolume {
+		return fmt.Errorf("workspace channel_kind must be %q", AttachmentChannelWritableVolume)
 	}
 	return nil
 }
@@ -160,8 +160,8 @@ func validateScratchBinding(binding AttachmentBinding, channelKind string) error
 	if binding.ReadOnly {
 		return fmt.Errorf("scratch must be read-write")
 	}
-	if channelKind != AttachmentChannelEphemeralDisk && channelKind != AttachmentChannelVirtualDisk {
-		return fmt.Errorf("scratch channel_kind must be %q or %q", AttachmentChannelEphemeralDisk, AttachmentChannelVirtualDisk)
+	if channelKind != AttachmentChannelEphemeralVolume && channelKind != AttachmentChannelWritableVolume {
+		return fmt.Errorf("scratch channel_kind must be %q or %q", AttachmentChannelEphemeralVolume, AttachmentChannelWritableVolume)
 	}
 	if len(binding.RequiredDigests) > 0 {
 		return fmt.Errorf("scratch must not include required_digests")

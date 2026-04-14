@@ -178,6 +178,9 @@ func (p BackendCachePosture) Validate() error {
 func validateAccelerationForPlatform(kind string, requestedBackend string) error {
 	normalizedBackend := normalizeBackendKind(requestedBackend)
 	if normalizedBackend != BackendKindMicroVM {
+		if strings.TrimSpace(kind) != "" {
+			return fmt.Errorf("requested_acceleration_kind must be empty for backend_kind %q", normalizedBackend)
+		}
 		return nil
 	}
 	normalized := normalizeAccelerationKind(kind)
@@ -196,6 +199,9 @@ func validateAccelerationForPlatform(kind string, requestedBackend string) error
 func validateControlTransportKind(kind string, requestedBackend string) error {
 	normalizedBackend := normalizeBackendKind(requestedBackend)
 	if normalizedBackend != BackendKindMicroVM {
+		if strings.TrimSpace(kind) != "" {
+			return fmt.Errorf("control_transport_kind must be empty for backend_kind %q", normalizedBackend)
+		}
 		return nil
 	}
 	normalized := normalizeTransportKind(kind)

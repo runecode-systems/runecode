@@ -108,11 +108,13 @@ type GatewayQuotaMetersInput struct {
 
 type BackendPostureChangeActionInput struct {
 	ActionEnvelope
-	BackendClass     string
-	ChangeKind       string
-	RequestedPosture string
-	RequiresOptIn    *bool
-	Reason           string
+	TargetBackendKind            string
+	SelectionMode                string
+	ChangeKind                   string
+	AssuranceChangeKind          string
+	OptInKind                    string
+	ReducedAssuranceAcknowledged bool
+	Reason                       string
 }
 
 type GateOverrideActionInput struct {

@@ -61,6 +61,9 @@ func assertRunListSummaryForLocalOps(t *testing.T, runs []RunSummary) {
 	if runs[0].AssuranceLevel != runs[0].IsolationAssuranceLevel {
 		t.Fatalf("assurance_level alias = %q, want %q", runs[0].AssuranceLevel, runs[0].IsolationAssuranceLevel)
 	}
+	if runs[0].RuntimePostureDegraded {
+		t.Fatalf("runtime_posture_degraded = %v, want false", runs[0].RuntimePostureDegraded)
+	}
 }
 
 func assertRunDetailForLocalOps(t *testing.T, detail RunDetail) {
@@ -102,6 +105,9 @@ func assertRunDetailAuthoritativeStateForLocalOps(t *testing.T, state map[string
 	}
 	if state["isolation_assurance_level"] != launcherbackend.IsolationAssuranceUnknown {
 		t.Fatalf("authoritative_state.isolation_assurance_level = %v, want %q", state["isolation_assurance_level"], launcherbackend.IsolationAssuranceUnknown)
+	}
+	if state["runtime_posture_degraded"] != false {
+		t.Fatalf("authoritative_state.runtime_posture_degraded = %v, want false", state["runtime_posture_degraded"])
 	}
 	if state["provisioning_posture"] != launcherbackend.ProvisioningPostureUnknown {
 		t.Fatalf("authoritative_state.provisioning_posture = %v, want %q", state["provisioning_posture"], launcherbackend.ProvisioningPostureUnknown)

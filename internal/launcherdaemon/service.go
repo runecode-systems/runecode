@@ -74,10 +74,12 @@ type Service struct {
 	controller Controller
 	reporter   RuntimeReporter
 
-	mu           sync.RWMutex
-	state        State
-	nextUpdateID uint64
-	updates      map[string]updateRegistration
+	mu                   sync.RWMutex
+	state                State
+	preferredBackendKind string
+	instanceBackendKind  string
+	nextUpdateID         uint64
+	updates              map[string]updateRegistration
 }
 
 type updateRegistration struct {
@@ -94,7 +96,14 @@ func New(cfg Config) (*Service, error) {
 	if reporter == nil {
 		reporter = discardReporter{}
 	}
-	return &Service{controller: controller, reporter: reporter, state: StatePlanned, updates: map[string]updateRegistration{}}, nil
+	return &Service{
+		controller:           controller,
+		reporter:             reporter,
+		state:                StatePlanned,
+		preferredBackendKind: launcherbackend.BackendKindMicroVM,
+		instanceBackendKind:  launcherbackend.BackendKindMicroVM,
+		updates:              map[string]updateRegistration{},
+	}, nil
 }
 
 func (s *Service) State() State {
@@ -115,7 +124,28 @@ func (s *Service) Start(ctx context.Context) error {
 
 	s.mu.Lock()
 	s.state = StateServing
+	s.instanceBackendKind = s.preferredBackendKind
 	s.mu.Unlock()
+	return nil
+}
+
+func (s *Service) InstanceBackendKind() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.instanceBackendKind
+}
+
+func (s *Service) SetInstanceBackendKind(backendKind string) error {
+	normalized := normalizeInstanceBackendKind(backendKind)
+	if normalized == launcherbackend.BackendKindUnknown {
+		return fmt.Errorf("instance backend kind must be %q or %q", launcherbackend.BackendKindMicroVM, launcherbackend.BackendKindContainer)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state != StateServing {
+		return fmt.Errorf("launcher service cannot update instance backend posture from state %s", s.state)
+	}
+	s.instanceBackendKind = normalized
 	return nil
 }
 
@@ -152,6 +182,10 @@ func (s *Service) Stop(ctx context.Context) error {
 }
 
 func (s *Service) Launch(ctx context.Context, spec launcherbackend.BackendLaunchSpec) (InstanceRef, error) {
+	spec = s.specWithInstanceBackendPosture(spec)
+	if err := validateContainerRoleScope(spec); err != nil {
+		return InstanceRef{}, err
+	}
 	if err := spec.Validate(); err != nil {
 		return InstanceRef{}, err
 	}
@@ -199,68 +233,4 @@ func (s *Service) Terminate(ctx context.Context, ref InstanceRef) error {
 
 func (s *Service) GetState(ctx context.Context, ref InstanceRef) (InstanceState, error) {
 	return s.controller.GetState(ctx, ref)
-}
-
-func (s *Service) consumeRuntimeUpdates(ctx context.Context, ref InstanceRef, updateID uint64, updates <-chan RuntimeUpdate) {
-	defer func() {
-		s.unregisterUpdate(ref, updateID)
-	}()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case update, ok := <-updates:
-			if !ok {
-				return
-			}
-			if err := s.handleRuntimeUpdate(ref, update); err != nil {
-				s.failRuntimeUpdates(ref, updateID)
-				return
-			}
-		}
-	}
-}
-
-func (s *Service) unregisterUpdate(ref InstanceRef, updateID uint64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	registration, ok := s.updates[instanceKey(ref)]
-	if !ok || registration.id != updateID {
-		return
-	}
-	registration.cancel()
-	delete(s.updates, instanceKey(ref))
-}
-
-func (s *Service) failRuntimeUpdates(ref InstanceRef, updateID uint64) {
-	s.mu.Lock()
-	current := s.updates[instanceKey(ref)]
-	if s.state == StateServing {
-		s.state = StateFailed
-	}
-	s.mu.Unlock()
-	if current.id == updateID {
-		_ = s.controller.Terminate(context.Background(), ref)
-	}
-}
-
-func (s *Service) handleRuntimeUpdate(ref InstanceRef, update RuntimeUpdate) error {
-	if update.RunID == "" {
-		update.RunID = ref.RunID
-	}
-	if update.Facts != nil {
-		if err := s.reporter.RecordRuntimeFacts(update.RunID, *update.Facts); err != nil {
-			return err
-		}
-	}
-	if update.Lifecycle != nil {
-		if err := s.reporter.RecordRuntimeLifecycleState(update.RunID, *update.Lifecycle); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func instanceKey(ref InstanceRef) string {
-	return fmt.Sprintf("%d:%s|%d:%s|%d:%s", len(ref.RunID), ref.RunID, len(ref.StageID), ref.StageID, len(ref.RoleInstanceID), ref.RoleInstanceID)
 }

@@ -26,6 +26,10 @@
       "summary": "Container backend selection is denied unless explicit opt-in is present and approval is requested."
     },
     {
+      "code": "deny_container_acknowledgment_required",
+      "summary": "Container backend selection is denied unless reduced-assurance acknowledgment is explicitly provided."
+    },
+    {
       "code": "deny_container_automatic_fallback",
       "summary": "Automatic fallback from microVM to container backend is denied fail-closed."
     },

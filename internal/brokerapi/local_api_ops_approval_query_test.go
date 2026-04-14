@@ -102,6 +102,40 @@ func TestApprovalGetStageSignOffDetailIncludesStageBindingKindAndHash(t *testing
 	}
 }
 
+func TestApprovalGetBackendPostureDetailUsesExactActionBindingAndTypedSelection(t *testing.T) {
+	s, requestEnv, _ := setupServiceWithBackendPostureApprovalFixture(t)
+	approvalID, err := approvalIDFromRequest(*requestEnv)
+	if err != nil {
+		t.Fatalf("approvalIDFromRequest returned error: %v", err)
+	}
+	resp, errResp := s.HandleApprovalGet(context.Background(), ApprovalGetRequest{SchemaID: "runecode.protocol.v0.ApprovalGetRequest", SchemaVersion: "0.1.0", RequestID: "req-backend-approval-get", ApprovalID: approvalID}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleApprovalGet error response: %+v", errResp)
+	}
+	if resp.ApprovalDetail.BindingKind != "exact_action" {
+		t.Fatalf("approval_detail.binding_kind = %q, want exact_action", resp.ApprovalDetail.BindingKind)
+	}
+	if resp.ApprovalDetail.BoundActionHash == "" {
+		t.Fatal("approval_detail.bound_action_hash should be populated for exact_action")
+	}
+	if resp.ApprovalDetail.WhatChangesIfApproved.EffectKind != "backend_posture_change" {
+		t.Fatalf("approval_detail.what_changes_if_approved.effect_kind = %q, want backend_posture_change", resp.ApprovalDetail.WhatChangesIfApproved.EffectKind)
+	}
+	if resp.ApprovalDetail.BackendPostureSelection == nil {
+		t.Fatal("approval_detail.backend_posture_selection should be present for backend_posture_change")
+	}
+	selection := resp.ApprovalDetail.BackendPostureSelection
+	if selection.TargetBackendKind != "container" || selection.SelectionMode != "explicit_selection" || selection.ChangeKind != "select_backend" || selection.AssuranceChangeKind != "reduce_assurance" || selection.OptInKind != "exact_action_approval" {
+		t.Fatalf("unexpected backend_posture_selection: %+v", selection)
+	}
+	if selection.RequestedPosture != "container_mode_explicit_opt_in" {
+		t.Fatalf("backend_posture_selection.requested_posture = %q, want container_mode_explicit_opt_in", selection.RequestedPosture)
+	}
+	if !selection.ReducedAssuranceAcknowledged {
+		t.Fatal("backend_posture_selection.reduced_assurance_acknowledged = false, want true")
+	}
+}
+
 func createPendingApprovalForGetTest(t *testing.T, s *Service) string {
 	t.Helper()
 	ref, err := s.Put(artifacts.PutRequest{Payload: []byte("private excerpt"), ContentType: "text/plain", DataClass: artifacts.DataClassUnapprovedFileExcerpts, ProvenanceReceiptHash: "sha256:" + strings.Repeat("b", 64), CreatedByRole: "workspace", RunID: "run-approval-get"})

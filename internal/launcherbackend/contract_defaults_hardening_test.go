@@ -35,9 +35,15 @@ func TestAppliedHardeningPostureNormalizedFailClosedUnknownAndNone(t *testing.T)
 		Requested:                 "unknown",
 		Effective:                 "hardened",
 		ExecutionIdentityPosture:  "none",
+		RootlessPosture:           "disabled",
 		FilesystemExposurePosture: "broad",
+		WritableLayersPosture:     "persistent",
 		NetworkExposurePosture:    "open",
+		NetworkNamespacePosture:   "shared",
+		NetworkDefaultPosture:     "egress",
+		EgressEnforcementPosture:  "in_container",
 		SyscallFilteringPosture:   "none",
+		CapabilitiesPosture:       "broad",
 		DeviceSurfacePosture:      "broad",
 		ControlChannelKind:        "unknown",
 		AccelerationKind:          "none",
@@ -51,6 +57,29 @@ func TestAppliedHardeningPostureNormalizedFailClosedUnknownAndNone(t *testing.T)
 	}
 	if len(normalized.DegradedReasons) == 0 {
 		t.Fatal("degraded_reasons should not be empty for insecure posture")
+	}
+	assertNormalizedHardeningInsecurePosture(t, normalized)
+}
+
+func assertNormalizedHardeningInsecurePosture(t *testing.T, normalized AppliedHardeningPosture) {
+	t.Helper()
+	if normalized.RootlessPosture != HardeningRootlessDisabled {
+		t.Fatalf("rootless_posture = %q, want %q", normalized.RootlessPosture, HardeningRootlessDisabled)
+	}
+	if normalized.WritableLayersPosture != HardeningWritableLayersPersistent {
+		t.Fatalf("writable_layers_posture = %q, want %q", normalized.WritableLayersPosture, HardeningWritableLayersPersistent)
+	}
+	if normalized.NetworkNamespacePosture != HardeningNetworkNamespaceShared {
+		t.Fatalf("network_namespace_posture = %q, want %q", normalized.NetworkNamespacePosture, HardeningNetworkNamespaceShared)
+	}
+	if normalized.NetworkDefaultPosture != HardeningNetworkDefaultEgress {
+		t.Fatalf("network_default_posture = %q, want %q", normalized.NetworkDefaultPosture, HardeningNetworkDefaultEgress)
+	}
+	if normalized.EgressEnforcementPosture != HardeningEgressEnforcementInContainer {
+		t.Fatalf("egress_enforcement_posture = %q, want %q", normalized.EgressEnforcementPosture, HardeningEgressEnforcementInContainer)
+	}
+	if normalized.CapabilitiesPosture != HardeningCapabilitiesBroad {
+		t.Fatalf("capabilities_posture = %q, want %q", normalized.CapabilitiesPosture, HardeningCapabilitiesBroad)
 	}
 }
 

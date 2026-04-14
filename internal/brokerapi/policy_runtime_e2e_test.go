@@ -330,7 +330,6 @@ func TestPolicyRuntimeE2EContainerFallbackDenied(t *testing.T) {
 		capabilities: []string{"cap_backend"},
 	})
 
-	requiresOptIn := true
 	action := policyengine.NewBackendPostureChangeAction(policyengine.BackendPostureChangeActionInput{
 		ActionEnvelope: policyengine.ActionEnvelope{
 			CapabilityID: "cap_backend",
@@ -340,10 +339,12 @@ func TestPolicyRuntimeE2EContainerFallbackDenied(t *testing.T) {
 				RoleKind:   "workspace-edit",
 			},
 		},
-		BackendClass:     "container",
-		ChangeKind:       "select_backend",
-		RequestedPosture: "automatic_fallback",
-		RequiresOptIn:    &requiresOptIn,
+		TargetBackendKind:            "container",
+		SelectionMode:                "automatic_fallback_attempt",
+		ChangeKind:                   "select_backend",
+		AssuranceChangeKind:          "reduce_assurance",
+		OptInKind:                    "exact_action_approval",
+		ReducedAssuranceAcknowledged: true,
 	})
 
 	decision, err := s.EvaluateAction(runID, action)
@@ -355,5 +356,82 @@ func TestPolicyRuntimeE2EContainerFallbackDenied(t *testing.T) {
 	}
 	if decision.PolicyReasonCode != "deny_container_automatic_fallback" {
 		t.Fatalf("policy_reason_code = %q, want deny_container_automatic_fallback", decision.PolicyReasonCode)
+	}
+}
+
+func TestPolicyRuntimeE2EContainerExplicitSelectionRequiresSharedExactActionApproval(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-container-explicit-opt-in"
+	seedBackendSelectionE2EContext(t, s, runID)
+	action := explicitContainerBackendSelectionAction()
+
+	decision, err := s.EvaluateAction(runID, action)
+	if err != nil {
+		t.Fatalf("EvaluateAction returned error: %v", err)
+	}
+	assertContainerExplicitSelectionApprovalDecision(t, decision)
+}
+
+func seedBackendSelectionE2EContext(t *testing.T, s *Service, runID string) {
+	t.Helper()
+	putTrustedPolicyContextForE2ERun(t, s, e2eContextInput{
+		runID:        runID,
+		roleFamily:   "workspace",
+		roleKind:     "workspace-edit",
+		capabilities: []string{"cap_backend"},
+	})
+}
+
+func explicitContainerBackendSelectionAction() policyengine.ActionRequest {
+	return policyengine.NewBackendPostureChangeAction(policyengine.BackendPostureChangeActionInput{
+		ActionEnvelope: policyengine.ActionEnvelope{
+			CapabilityID: "cap_backend",
+			Actor: policyengine.ActionActor{
+				ActorKind:  "role_instance",
+				RoleFamily: "workspace",
+				RoleKind:   "workspace-edit",
+			},
+		},
+		TargetBackendKind:            "container",
+		SelectionMode:                "explicit_selection",
+		ChangeKind:                   "select_backend",
+		AssuranceChangeKind:          "reduce_assurance",
+		OptInKind:                    "exact_action_approval",
+		ReducedAssuranceAcknowledged: true,
+	})
+}
+
+func assertContainerExplicitSelectionApprovalDecision(t *testing.T, decision policyengine.PolicyDecision) {
+	t.Helper()
+	if decision.DecisionOutcome != policyengine.DecisionRequireHumanApproval {
+		t.Fatalf("decision_outcome = %q, want require_human_approval", decision.DecisionOutcome)
+	}
+	if decision.PolicyReasonCode != "approval_required" {
+		t.Fatalf("policy_reason_code = %q, want approval_required", decision.PolicyReasonCode)
+	}
+	if decision.RequiredApprovalSchemaID != "runecode.protocol.details.policy.required_approval.reduced_assurance_backend.v0" {
+		t.Fatalf("required_approval_schema_id = %q", decision.RequiredApprovalSchemaID)
+	}
+	assertContainerBackendRequiredApprovalBinding(t, decision)
+}
+
+func assertContainerBackendRequiredApprovalBinding(t *testing.T, decision policyengine.PolicyDecision) {
+	t.Helper()
+	if got, _ := decision.RequiredApproval["approval_trigger_code"].(string); got != "reduced_assurance_backend" {
+		t.Fatalf("required_approval.approval_trigger_code = %q, want reduced_assurance_backend", got)
+	}
+	related, ok := decision.RequiredApproval["related_hashes"].(map[string]any)
+	if !ok {
+		t.Fatalf("required_approval.related_hashes = %T, want map", decision.RequiredApproval["related_hashes"])
+	}
+	if related["action_request_hash"] != decision.ActionRequestHash {
+		t.Fatalf("required_approval.related_hashes.action_request_hash = %v, want %q", related["action_request_hash"], decision.ActionRequestHash)
+	}
+	scope, ok := decision.RequiredApproval["scope"].(map[string]any)
+	if !ok {
+		t.Fatalf("required_approval.scope = %T, want map", decision.RequiredApproval["scope"])
+	}
+	if scope["action_kind"] != policyengine.ActionKindBackendPosture {
+		t.Fatalf("required_approval.scope.action_kind = %v, want %q", scope["action_kind"], policyengine.ActionKindBackendPosture)
 	}
 }

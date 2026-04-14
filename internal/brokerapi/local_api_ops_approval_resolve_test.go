@@ -294,6 +294,39 @@ func TestApprovalResolveStageSummarySignOffSupersededWhenNewerPendingExists(t *t
 	}
 }
 
+func TestApprovalResolveBackendPostureConsumesViaGenericExactActionPath(t *testing.T) {
+	s, requestEnv, decisionEnv := setupServiceWithBackendPostureApprovalFixture(t)
+	approvalID := approvalIDForBrokerTest(t, requestEnv)
+	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, approvalID)
+	resolveReq := ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-backend-posture-resolve", ApprovalID: approvalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-backend"), RunID: "run-backend", ActionKind: policyengine.ActionKindBackendPosture, PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: "sha256:" + strings.Repeat("d", 64), Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *requestEnv, SignedApprovalDecision: *decisionEnv}
+	resolveResp, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleApprovalResolve error response: %+v", errResp)
+	}
+	if resolveResp.Approval.Status != "consumed" || resolveResp.ResolutionReasonCode != "approval_consumed" || resolveResp.ApprovedArtifact != nil {
+		t.Fatalf("unexpected resolve response: %+v", resolveResp)
+	}
+}
+
+func TestApprovalResolveBackendPostureStaysDistinctFromStageSupersessionSemantics(t *testing.T) {
+	s, oldRequestEnv, oldDecisionEnv := setupServiceWithBackendPostureApprovalFixture(t)
+	newRequestEnv, _, _ := signedBackendPostureApprovalArtifactsForBrokerTests(t, "human", "container", "explicit_selection", "select_backend", "reduce_assurance", "exact_action_approval", "approve")
+	newApprovalID := seedPendingBackendPostureApprovalForSignedRequest(t, s, *newRequestEnv)
+	if newApprovalID == "" {
+		t.Fatal("expected second pending backend-posture approval")
+	}
+	oldApprovalID := approvalIDForBrokerTest(t, oldRequestEnv)
+	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, oldApprovalID)
+	resolveReq := ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-backend-posture-not-stage-superseded", ApprovalID: oldApprovalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-backend"), RunID: "run-backend", ActionKind: policyengine.ActionKindBackendPosture, PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: "sha256:" + strings.Repeat("d", 64), Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *oldRequestEnv, SignedApprovalDecision: *oldDecisionEnv}
+	resolveResp, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleApprovalResolve error response: %+v", errResp)
+	}
+	if resolveResp.ResolutionStatus != "resolved" || resolveResp.ResolutionReasonCode != "approval_consumed" || resolveResp.Approval.Status != "consumed" || resolveResp.Approval.SupersededByApprovalID != "" {
+		t.Fatalf("unexpected resolve response: %+v", resolveResp)
+	}
+}
+
 func TestApprovalResolveRejectsTerminalReresolution(t *testing.T) {
 	s, unapproved, requestEnv, decisionEnv := setupServiceWithApprovalFixtureAndOutcome(t, "deny")
 	approvalID := approvalIDForBrokerTest(t, requestEnv)

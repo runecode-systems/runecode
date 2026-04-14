@@ -62,3 +62,31 @@ func TestBackendLaunchSpecAcceptsPlatformMVPAccelerationAndTransport(t *testing.
 		t.Fatalf("Validate returned error: %v", err)
 	}
 }
+
+func TestContainerLaunchSpecRejectsMicroVMSpecificAccelerationAndTransportFields(t *testing.T) {
+	spec := validMicroVMSpecForContractTests()
+	spec.RequestedBackend = BackendKindContainer
+	spec.RequestedAccelerationKind = AccelerationKindKVM
+	spec.ControlTransportKind = TransportKindVSock
+	spec.Image = RuntimeImageDescriptor{
+		DescriptorDigest:      testDigest("7"),
+		BackendKind:           BackendKindContainer,
+		PlatformCompatibility: RuntimeImagePlatformCompat{OS: "linux", Architecture: "amd64"},
+		BootContractVersion:   "v1",
+		ComponentDigests:      map[string]string{"image": testDigest("8")},
+		Signing:               &RuntimeImageSigningHooks{SignerRef: "signer:trusted-ci", SignatureDigest: testDigest("9")},
+	}
+	if err := spec.Validate(); err == nil {
+		t.Fatal("Validate expected container rejection for non-empty acceleration/transport")
+	}
+
+	spec.RequestedAccelerationKind = ""
+	if err := spec.Validate(); err == nil {
+		t.Fatal("Validate expected container rejection for non-empty transport")
+	}
+
+	spec.ControlTransportKind = ""
+	if err := spec.Validate(); err != nil {
+		t.Fatalf("Validate returned error after clearing microvm-only fields: %v", err)
+	}
+}

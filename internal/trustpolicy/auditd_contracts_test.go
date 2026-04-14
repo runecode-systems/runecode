@@ -20,6 +20,27 @@ func TestValidateAuditAdmissionRequestAcceptsValidEnvelopeAndContracts(t *testin
 	}
 }
 
+func TestValidateIsolateSessionBoundPayloadAcceptsNotApplicableProvisioningPosture(t *testing.T) {
+	payload := IsolateSessionBoundPayload{
+		SchemaID:                      IsolateSessionBoundPayloadSchemaID,
+		SchemaVersion:                 IsolateSessionBoundPayloadSchemaVersion,
+		RunID:                         "run-1",
+		IsolateID:                     "isolate-1",
+		SessionID:                     "session-1",
+		BackendKind:                   "container",
+		IsolationAssuranceLevel:       "degraded",
+		ProvisioningPosture:           "not_applicable",
+		LaunchContextDigest:           "sha256:" + strings.Repeat("1", 64),
+		HandshakeTranscriptHash:       "sha256:" + strings.Repeat("2", 64),
+		SessionBindingDigest:          "sha256:" + strings.Repeat("3", 64),
+		RuntimeImageDescriptorDigest:  "sha256:" + strings.Repeat("4", 64),
+		AppliedHardeningPostureDigest: "sha256:" + strings.Repeat("5", 64),
+	}
+	if err := validateIsolateSessionBoundPayload(payload); err != nil {
+		t.Fatalf("validateIsolateSessionBoundPayload returned error: %v", err)
+	}
+}
+
 func TestValidateAuditAdmissionRequestFailsClosedOnMissingSignerEvidence(t *testing.T) {
 	request := validAuditAdmissionRequestFixture(t)
 	request.SignerEvidence = nil

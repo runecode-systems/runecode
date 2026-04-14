@@ -30,18 +30,44 @@ func normalizeProvisioningPosture(value string) string {
 		return ProvisioningPostureTOFU
 	case ProvisioningPostureAttested:
 		return ProvisioningPostureAttested
+	case ProvisioningPostureNotApplicable:
+		return ProvisioningPostureNotApplicable
 	default:
 		return ProvisioningPostureUnknown
 	}
+}
+
+func normalizeProvisioningPostureForBackend(value string, backendKind string) string {
+	normalized := normalizeProvisioningPosture(value)
+	if normalized != ProvisioningPostureUnknown {
+		return normalized
+	}
+	if normalizeBackendKind(backendKind) == BackendKindContainer {
+		return ProvisioningPostureNotApplicable
+	}
+	return ProvisioningPostureUnknown
 }
 
 func normalizeHypervisorImplementation(value string) string {
 	switch strings.TrimSpace(strings.ToLower(value)) {
 	case HypervisorImplementationQEMU:
 		return HypervisorImplementationQEMU
+	case HypervisorImplementationNotApplicable:
+		return HypervisorImplementationNotApplicable
 	default:
 		return HypervisorImplementationUnknown
 	}
+}
+
+func normalizeHypervisorImplementationForBackend(value string, backendKind string) string {
+	normalized := normalizeHypervisorImplementation(value)
+	if normalized != HypervisorImplementationUnknown {
+		return normalized
+	}
+	if normalizeBackendKind(backendKind) == BackendKindContainer {
+		return HypervisorImplementationNotApplicable
+	}
+	return HypervisorImplementationUnknown
 }
 
 func normalizeAccelerationKind(value string) string {
@@ -54,9 +80,22 @@ func normalizeAccelerationKind(value string) string {
 		return AccelerationKindWHPX
 	case AccelerationKindNone:
 		return AccelerationKindNone
+	case AccelerationKindNotApplicable:
+		return AccelerationKindNotApplicable
 	default:
 		return AccelerationKindUnknown
 	}
+}
+
+func normalizeAccelerationKindForBackend(value string, backendKind string) string {
+	normalized := normalizeAccelerationKind(value)
+	if normalized != AccelerationKindUnknown {
+		return normalized
+	}
+	if normalizeBackendKind(backendKind) == BackendKindContainer {
+		return AccelerationKindNotApplicable
+	}
+	return AccelerationKindUnknown
 }
 
 func normalizeTransportKind(value string) string {
@@ -65,9 +104,22 @@ func normalizeTransportKind(value string) string {
 		return TransportKindVSock
 	case TransportKindVirtioSerial:
 		return TransportKindVirtioSerial
+	case TransportKindNotApplicable:
+		return TransportKindNotApplicable
 	default:
 		return TransportKindUnknown
 	}
+}
+
+func normalizeTransportKindForBackend(value string, backendKind string) string {
+	normalized := normalizeTransportKind(value)
+	if normalized != TransportKindUnknown {
+		return normalized
+	}
+	if normalizeBackendKind(backendKind) == BackendKindContainer {
+		return TransportKindNotApplicable
+	}
+	return TransportKindUnknown
 }
 
 func normalizeBackendLifecycleState(value string) string {
@@ -163,12 +215,14 @@ func normalizeCacheResult(value string) string {
 
 func normalizeAttachmentChannelKind(value string) string {
 	switch strings.TrimSpace(strings.ToLower(value)) {
-	case AttachmentChannelVirtualDisk:
-		return AttachmentChannelVirtualDisk
-	case AttachmentChannelReadOnlyChannel:
-		return AttachmentChannelReadOnlyChannel
-	case AttachmentChannelEphemeralDisk:
-		return AttachmentChannelEphemeralDisk
+	case AttachmentChannelArtifactImage:
+		return AttachmentChannelArtifactImage
+	case AttachmentChannelReadOnlyVolume, "read_only_channel":
+		return AttachmentChannelReadOnlyVolume
+	case AttachmentChannelWritableVolume, "virtual_disk":
+		return AttachmentChannelWritableVolume
+	case AttachmentChannelEphemeralVolume, "ephemeral_disk":
+		return AttachmentChannelEphemeralVolume
 	default:
 		return ""
 	}

@@ -476,6 +476,13 @@
       "status": "mvp"
     },
     {
+      "path": "objects/ApprovalBackendPostureSelection.schema.json",
+      "schema_id": "runecode.protocol.v0.ApprovalBackendPostureSelection",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/ApprovalDetail.schema.json",
       "schema_id": "runecode.protocol.v0.ApprovalDetail",
       "schema_version": "0.1.0",

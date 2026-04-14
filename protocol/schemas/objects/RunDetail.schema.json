@@ -24,15 +24,47 @@
       "maxProperties": 64,
       "description": "Trusted authoritative run state details projected from launcher backend runtime facts plus broker-owned state.",
       "x-data-class": "public",
-      "required": ["source", "provenance", "status", "backend_kind", "isolation_assurance_level", "provisioning_posture", "runtime_facts_source"],
+      "required": ["source", "provenance", "status", "backend_kind", "isolation_assurance_level", "provisioning_posture", "runtime_facts_source", "runtime_posture_degraded"],
       "properties": {
         "source": { "type": "string", "const": "broker_store", "description": "Trusted source for authoritative projection.", "x-data-class": "public" },
         "provenance": { "type": "string", "const": "trusted_derived", "description": "Authoritative provenance posture.", "x-data-class": "public" },
         "status": { "type": "string", "maxLength": 64, "description": "Authoritative run lifecycle status.", "x-data-class": "public" },
         "backend_kind": { "type": "string", "enum": ["microvm", "container", "unknown"], "description": "Projected launcher backend kind (closed vocabulary).", "x-data-class": "public" },
         "isolation_assurance_level": { "type": "string", "enum": ["isolated", "degraded", "unknown"], "description": "Projected runtime isolation assurance posture.", "x-data-class": "public" },
-        "provisioning_posture": { "type": "string", "enum": ["tofu", "attested", "unknown"], "description": "Projected key provisioning/binding posture.", "x-data-class": "public" },
-        "runtime_facts_source": { "type": "string", "const": "launcher_backend_receipt", "description": "Identifier for launcher runtime fact projection source.", "x-data-class": "public" }
+        "provisioning_posture": { "type": "string", "enum": ["tofu", "attested", "not_applicable", "unknown"], "description": "Projected key provisioning/binding posture; supports not_applicable where backend mechanics differ.", "x-data-class": "public" },
+        "runtime_facts_source": { "type": "string", "const": "launcher_backend_receipt", "description": "Identifier for launcher runtime fact projection source.", "x-data-class": "public" },
+        "runtime_posture_degraded": { "type": "boolean", "description": "True when runtime isolation posture is reduced/degraded compared with the primary microVM path.", "x-data-class": "public" },
+        "backend_posture_selection_evidence": {
+          "type": "object",
+          "maxProperties": 8,
+          "description": "Optional reduced-assurance backend posture evidence references linking authoritative runtime projection to bound approval/policy records.",
+          "x-data-class": "public",
+          "properties": {
+            "policy_decision_refs": {
+              "type": "array",
+              "maxItems": 256,
+              "description": "Policy decision references relevant to backend posture selection for this run.",
+              "x-data-class": "public",
+              "items": { "type": "string", "maxLength": 256, "description": "Policy decision reference.", "x-data-class": "public" }
+            },
+            "approval": {
+              "type": "object",
+              "maxProperties": 8,
+              "description": "Selected approval evidence reference for backend posture selection.",
+              "x-data-class": "public",
+              "properties": {
+                "approval_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Approval identifier.", "x-data-class": "public" },
+                "approval_request_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Bound approval request digest.", "x-data-class": "public" },
+                "approval_decision_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Bound approval decision digest.", "x-data-class": "public" },
+                "policy_decision_hash": { "type": "string", "maxLength": 256, "description": "Policy decision hash/reference bound to the approval.", "x-data-class": "public" },
+                "status": { "type": "string", "enum": ["pending", "approved", "denied", "expired", "cancelled", "superseded", "consumed"], "description": "Current approval lifecycle state.", "x-data-class": "public" }
+              },
+              "required": ["approval_id"],
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": true
     },

@@ -171,32 +171,32 @@ func projectHardeningState(state map[string]any, hardening launcherbackend.Appli
 }
 
 func projectOptionalHardeningSummaryFields(summary map[string]any, hardening launcherbackend.AppliedHardeningPosture) {
-	if len(hardening.DegradedReasons) > 0 {
-		summary["degraded_reasons"] = hardening.DegradedReasons
+	projectHardeningStringField(summary, "execution_identity_posture", hardening.ExecutionIdentityPosture)
+	projectHardeningStringField(summary, "rootless_posture", hardening.RootlessPosture)
+	projectHardeningStringField(summary, "filesystem_exposure_posture", hardening.FilesystemExposurePosture)
+	projectHardeningStringField(summary, "writable_layers_posture", hardening.WritableLayersPosture)
+	projectHardeningStringField(summary, "network_exposure_posture", hardening.NetworkExposurePosture)
+	projectHardeningStringField(summary, "network_namespace_posture", hardening.NetworkNamespacePosture)
+	projectHardeningStringField(summary, "network_default_posture", hardening.NetworkDefaultPosture)
+	projectHardeningStringField(summary, "egress_enforcement_posture", hardening.EgressEnforcementPosture)
+	projectHardeningStringField(summary, "syscall_filtering_posture", hardening.SyscallFilteringPosture)
+	projectHardeningStringField(summary, "capabilities_posture", hardening.CapabilitiesPosture)
+	projectHardeningStringField(summary, "device_surface_posture", hardening.DeviceSurfacePosture)
+	projectHardeningStringField(summary, "control_channel_kind", hardening.ControlChannelKind)
+	projectHardeningStringField(summary, "acceleration_kind", hardening.AccelerationKind)
+	projectHardeningSliceField(summary, "degraded_reasons", hardening.DegradedReasons)
+	projectHardeningSliceField(summary, "backend_evidence_refs", hardening.BackendEvidenceRefs)
+}
+
+func projectHardeningStringField(summary map[string]any, key, value string) {
+	if value != "" {
+		summary[key] = value
 	}
-	if hardening.ExecutionIdentityPosture != "" {
-		summary["execution_identity_posture"] = hardening.ExecutionIdentityPosture
-	}
-	if hardening.FilesystemExposurePosture != "" {
-		summary["filesystem_exposure_posture"] = hardening.FilesystemExposurePosture
-	}
-	if hardening.NetworkExposurePosture != "" {
-		summary["network_exposure_posture"] = hardening.NetworkExposurePosture
-	}
-	if hardening.SyscallFilteringPosture != "" {
-		summary["syscall_filtering_posture"] = hardening.SyscallFilteringPosture
-	}
-	if hardening.DeviceSurfacePosture != "" {
-		summary["device_surface_posture"] = hardening.DeviceSurfacePosture
-	}
-	if hardening.ControlChannelKind != "" {
-		summary["control_channel_kind"] = hardening.ControlChannelKind
-	}
-	if hardening.AccelerationKind != "" {
-		summary["acceleration_kind"] = hardening.AccelerationKind
-	}
-	if len(hardening.BackendEvidenceRefs) > 0 {
-		summary["backend_evidence_refs"] = hardening.BackendEvidenceRefs
+}
+
+func projectHardeningSliceField(summary map[string]any, key string, values []string) {
+	if len(values) > 0 {
+		summary[key] = values
 	}
 }
 

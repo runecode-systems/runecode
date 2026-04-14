@@ -5,13 +5,16 @@
   "description": "Typed action payload for backend posture change operations.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 7,
+  "maxProperties": 9,
   "required": [
     "schema_id",
     "schema_version",
-    "backend_class",
+    "target_backend_kind",
+    "selection_mode",
     "change_kind",
-    "requested_posture"
+    "assurance_change_kind",
+    "opt_in_kind",
+    "reduced_assurance_acknowledged"
   ],
   "properties": {
     "schema_id": {
@@ -24,13 +27,22 @@
       "description": "Protocol schema version.",
       "x-data-class": "public"
     },
-    "backend_class": {
+    "target_backend_kind": {
       "type": "string",
       "enum": [
         "microvm",
         "container"
       ],
-      "description": "Execution backend class.",
+      "description": "Typed target backend selection.",
+      "x-data-class": "public"
+    },
+    "selection_mode": {
+      "type": "string",
+      "enum": [
+        "explicit_selection",
+        "automatic_fallback_attempt"
+      ],
+      "description": "Typed selection posture for explicit selection vs fallback attempt semantics.",
       "x-data-class": "public"
     },
     "change_kind": {
@@ -42,16 +54,28 @@
       "description": "Backend posture change kind.",
       "x-data-class": "public"
     },
-    "requested_posture": {
+    "assurance_change_kind": {
       "type": "string",
-      "minLength": 1,
-      "maxLength": 128,
-      "description": "Requested backend posture profile.",
+      "enum": [
+        "reduce_assurance",
+        "maintain_assurance",
+        "increase_assurance"
+      ],
+      "description": "Typed assurance delta classification for backend posture transitions.",
       "x-data-class": "public"
     },
-    "requires_opt_in": {
+    "opt_in_kind": {
+      "type": "string",
+      "enum": [
+        "exact_action_approval",
+        "none"
+      ],
+      "description": "Typed opt-in semantics; trust root remains exact-action approval binding.",
+      "x-data-class": "public"
+    },
+    "reduced_assurance_acknowledged": {
       "type": "boolean",
-      "description": "Whether this change requires explicit user opt-in.",
+      "description": "Explicit user acknowledgment that container mode reduces runtime isolation assurance.",
       "x-data-class": "public"
     },
     "reason": {

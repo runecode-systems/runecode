@@ -39,17 +39,30 @@ type ApprovalSummary struct {
 }
 
 type ApprovalDetail struct {
-	SchemaID              string                        `json:"schema_id"`
-	SchemaVersion         string                        `json:"schema_version"`
-	ApprovalID            string                        `json:"approval_id"`
-	PolicyReasonCode      string                        `json:"policy_reason_code,omitempty"`
-	LifecycleDetail       ApprovalLifecycleDetail       `json:"lifecycle_detail"`
-	BindingKind           string                        `json:"binding_kind"`
-	BoundActionHash       string                        `json:"bound_action_hash,omitempty"`
-	BoundStageSummaryHash string                        `json:"bound_stage_summary_hash,omitempty"`
-	WhatChangesIfApproved ApprovalWhatChangesIfApproved `json:"what_changes_if_approved"`
-	BlockedWorkScope      ApprovalBlockedWorkScope      `json:"blocked_work_scope"`
-	BoundIdentity         ApprovalBoundIdentity         `json:"bound_identity"`
+	SchemaID                string                           `json:"schema_id"`
+	SchemaVersion           string                           `json:"schema_version"`
+	ApprovalID              string                           `json:"approval_id"`
+	PolicyReasonCode        string                           `json:"policy_reason_code,omitempty"`
+	LifecycleDetail         ApprovalLifecycleDetail          `json:"lifecycle_detail"`
+	BindingKind             string                           `json:"binding_kind"`
+	BoundActionHash         string                           `json:"bound_action_hash,omitempty"`
+	BoundStageSummaryHash   string                           `json:"bound_stage_summary_hash,omitempty"`
+	BackendPostureSelection *ApprovalBackendPostureSelection `json:"backend_posture_selection,omitempty"`
+	WhatChangesIfApproved   ApprovalWhatChangesIfApproved    `json:"what_changes_if_approved"`
+	BlockedWorkScope        ApprovalBlockedWorkScope         `json:"blocked_work_scope"`
+	BoundIdentity           ApprovalBoundIdentity            `json:"bound_identity"`
+}
+
+type ApprovalBackendPostureSelection struct {
+	SchemaID                     string `json:"schema_id"`
+	SchemaVersion                string `json:"schema_version"`
+	TargetBackendKind            string `json:"target_backend_kind"`
+	SelectionMode                string `json:"selection_mode"`
+	ChangeKind                   string `json:"change_kind"`
+	RequestedPosture             string `json:"requested_posture"`
+	AssuranceChangeKind          string `json:"assurance_change_kind"`
+	OptInKind                    string `json:"opt_in_kind"`
+	ReducedAssuranceAcknowledged bool   `json:"reduced_assurance_acknowledged"`
 }
 
 type ApprovalLifecycleDetail struct {

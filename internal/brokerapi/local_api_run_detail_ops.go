@@ -22,8 +22,9 @@ func (s *Service) runDetail(runID string) (RunDetail, bool, error) {
 	pendingIDs := runPendingApprovalIDs(s.listApprovals(), runID)
 	verification := s.runAuditVerificationOrFallback()
 	runtimeFacts := s.RuntimeFacts(runID)
+	approvals := s.listApprovals()
 	runnerAdvisory, _ := s.RunnerAdvisory(runID)
-	return buildRunDetail(summary, verification, artifactsForRun, classCount, pendingIDs, policyRefs, runtimeFacts, runnerAdvisory), true, nil
+	return buildRunDetail(summary, verification, artifactsForRun, classCount, pendingIDs, policyRefs, approvals, runtimeFacts, runnerAdvisory), true, nil
 }
 
 func findRunSummary(summaries []RunSummary, runID string) (RunSummary, bool) {
@@ -59,11 +60,11 @@ func runPendingApprovalIDs(approvals []ApprovalSummary, runID string) []string {
 	return pendingIDs
 }
 
-func buildRunDetail(summary RunSummary, verification AuditVerificationSurface, artifactsForRun []artifacts.ArtifactRecord, classCount map[string]int, pendingIDs []string, policyRefs []string, runtimeFacts launcherbackend.RuntimeFactsSnapshot, runnerAdvisory artifacts.RunnerAdvisoryState) RunDetail {
+func buildRunDetail(summary RunSummary, verification AuditVerificationSurface, artifactsForRun []artifacts.ArtifactRecord, classCount map[string]int, pendingIDs []string, policyRefs []string, approvals []ApprovalSummary, runtimeFacts launcherbackend.RuntimeFactsSnapshot, runnerAdvisory artifacts.RunnerAdvisoryState) RunDetail {
 	manifestHashes := activeManifestHashes(artifactsForRun)
 	stageSummaries := []RunStageSummary{buildRunStageSummary(summary, artifactsForRun, pendingIDs)}
 	roleSummaries := buildRunRoleSummaries(summary, artifactsForRun)
-	authoritativeState := buildAuthoritativeRunState(summary, artifactsForRun, pendingIDs, manifestHashes, runtimeFacts)
+	authoritativeState := buildAuthoritativeRunState(summary, artifactsForRun, pendingIDs, manifestHashes, policyRefs, approvals, runtimeFacts)
 	advisoryState := buildAdvisoryRunState(runnerAdvisory)
 	return RunDetail{
 		SchemaID:                 "runecode.protocol.v0.RunDetail",

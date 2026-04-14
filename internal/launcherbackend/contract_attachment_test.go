@@ -34,6 +34,26 @@ func TestAttachmentPlanRejectsBoundaryLeakageAndDeviceNumbering(t *testing.T) {
 	}
 }
 
+func TestAttachmentPlanAcceptsBackendNeutralChannelVocabularyAndLegacyAliases(t *testing.T) {
+	plan := validAttachmentPlanForContractTests()
+	plan.ByRole[AttachmentRoleLaunchContext] = AttachmentBinding{ReadOnly: true, ChannelKind: AttachmentChannelArtifactImage, RequiredDigests: []string{testDigest("a")}}
+	plan.ByRole[AttachmentRoleWorkspace] = AttachmentBinding{ReadOnly: false, ChannelKind: AttachmentChannelWritableVolume}
+	plan.ByRole[AttachmentRoleInputArtifacts] = AttachmentBinding{ReadOnly: true, ChannelKind: AttachmentChannelReadOnlyVolume, RequiredDigests: []string{testDigest("b")}}
+	plan.ByRole[AttachmentRoleScratch] = AttachmentBinding{ReadOnly: false, ChannelKind: AttachmentChannelEphemeralVolume}
+	if err := plan.Validate(); err != nil {
+		t.Fatalf("Validate returned error with backend-neutral vocabulary: %v", err)
+	}
+
+	legacy := validAttachmentPlanForContractTests()
+	legacy.ByRole[AttachmentRoleInputArtifacts] = AttachmentBinding{ReadOnly: true, ChannelKind: AttachmentChannelArtifactImage, RequiredDigests: []string{testDigest("c")}}
+	legacy.ByRole[AttachmentRoleLaunchContext] = AttachmentBinding{ReadOnly: true, ChannelKind: "read_only_channel", RequiredDigests: []string{testDigest("d")}}
+	legacy.ByRole[AttachmentRoleWorkspace] = AttachmentBinding{ReadOnly: false, ChannelKind: "virtual_disk"}
+	legacy.ByRole[AttachmentRoleScratch] = AttachmentBinding{ReadOnly: false, ChannelKind: "ephemeral_disk"}
+	if err := legacy.Validate(); err != nil {
+		t.Fatalf("Validate returned error for legacy compatibility aliases: %v", err)
+	}
+}
+
 func TestWorkspaceEncryptionPostureValidateFailClosedDefaults(t *testing.T) {
 	posture := WorkspaceEncryptionPosture{Required: true, AtRestProtection: WorkspaceAtRestProtectionHostManagedEncryption, KeyProtectionPosture: WorkspaceKeyProtectionHardwareBacked, Effective: true}
 	if err := posture.Validate(); err != nil {

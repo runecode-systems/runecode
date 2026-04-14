@@ -5,7 +5,7 @@
   "description": "Typed broker-projected approval detail model for review surfaces.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 12,
+  "maxProperties": 13,
   "required": ["schema_id", "schema_version", "approval_id", "lifecycle_detail", "binding_kind", "what_changes_if_approved", "blocked_work_scope", "bound_identity"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.ApprovalDetail", "description": "Protocol schema identifier.", "x-data-class": "public" },
@@ -16,6 +16,7 @@
     "binding_kind": { "type": "string", "enum": ["exact_action", "stage_sign_off"], "description": "Explicit approval binding kind.", "x-data-class": "public" },
     "bound_action_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Canonical ActionRequest hash when binding_kind is exact_action.", "x-data-class": "public" },
     "bound_stage_summary_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Canonical stage summary hash when binding_kind is stage_sign_off.", "x-data-class": "public" },
+    "backend_posture_selection": { "$ref": "ApprovalBackendPostureSelection.schema.json", "description": "Optional typed backend-posture explanation for reduced-assurance backend approvals.", "x-data-class": "public" },
     "what_changes_if_approved": { "$ref": "ApprovalWhatChangesIfApproved.schema.json", "description": "Structured explanation of the effect when approval is granted.", "x-data-class": "public" },
     "blocked_work_scope": { "$ref": "ApprovalBlockedWorkScope.schema.json", "description": "Typed scope for work currently blocked pending this approval.", "x-data-class": "public" },
     "bound_identity": { "$ref": "ApprovalBoundIdentity.schema.json", "description": "Typed bound identity detail for request/decision verification context.", "x-data-class": "public" }

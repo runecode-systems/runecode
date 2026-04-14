@@ -22,7 +22,8 @@
       "assurance_level": "isolated",
       "audit_integrity_status": "ok",
       "audit_anchoring_status": "ok",
-      "audit_currently_degraded": false
+      "audit_currently_degraded": false,
+      "runtime_posture_degraded": false
     }
   },
   {
@@ -49,7 +50,8 @@
       "blocking_reason_code": "manual_approval_required",
       "audit_integrity_status": "ok",
       "audit_anchoring_status": "ok",
-      "audit_currently_degraded": false
+      "audit_currently_degraded": false,
+      "runtime_posture_degraded": false
     }
   },
   {

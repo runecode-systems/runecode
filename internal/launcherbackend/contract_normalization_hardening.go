@@ -37,6 +37,19 @@ func normalizeExecutionIdentityPosture(value string) string {
 	}
 }
 
+func normalizeRootlessPosture(value string) string {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case HardeningRootlessEnabled:
+		return HardeningRootlessEnabled
+	case HardeningRootlessDisabled:
+		return HardeningRootlessDisabled
+	case HardeningRootlessBestEffort:
+		return HardeningRootlessBestEffort
+	default:
+		return HardeningRootlessUnknown
+	}
+}
+
 func normalizeFilesystemExposurePosture(value string) string {
 	switch strings.TrimSpace(strings.ToLower(value)) {
 	case HardeningFilesystemExposureRestricted:
@@ -61,6 +74,43 @@ func normalizeNetworkExposurePosture(value string) string {
 	}
 }
 
+func normalizeNetworkNamespacePosture(value string) string {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case HardeningNetworkNamespacePerRole:
+		return HardeningNetworkNamespacePerRole
+	case HardeningNetworkNamespaceShared:
+		return HardeningNetworkNamespaceShared
+	default:
+		return HardeningNetworkNamespaceUnknown
+	}
+}
+
+func normalizeNetworkDefaultPosture(value string) string {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case HardeningNetworkDefaultNone:
+		return HardeningNetworkDefaultNone
+	case HardeningNetworkDefaultLoopbackOnly:
+		return HardeningNetworkDefaultLoopbackOnly
+	case HardeningNetworkDefaultEgress:
+		return HardeningNetworkDefaultEgress
+	default:
+		return HardeningNetworkDefaultUnknown
+	}
+}
+
+func normalizeEgressEnforcementPosture(value string) string {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case HardeningEgressEnforcementHostLevel:
+		return HardeningEgressEnforcementHostLevel
+	case HardeningEgressEnforcementInContainer:
+		return HardeningEgressEnforcementInContainer
+	case HardeningEgressEnforcementNone:
+		return HardeningEgressEnforcementNone
+	default:
+		return HardeningEgressEnforcementUnknown
+	}
+}
+
 func normalizeSyscallFilteringPosture(value string) string {
 	switch strings.TrimSpace(strings.ToLower(value)) {
 	case HardeningSyscallFilteringSeccomp:
@@ -69,6 +119,28 @@ func normalizeSyscallFilteringPosture(value string) string {
 		return HardeningSyscallFilteringNone
 	default:
 		return HardeningSyscallFilteringUnknown
+	}
+}
+
+func normalizeCapabilitiesPosture(value string) string {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case HardeningCapabilitiesDropped:
+		return HardeningCapabilitiesDropped
+	case HardeningCapabilitiesBroad:
+		return HardeningCapabilitiesBroad
+	default:
+		return HardeningCapabilitiesUnknown
+	}
+}
+
+func normalizeWritableLayersPosture(value string) string {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case HardeningWritableLayersEphemeral:
+		return HardeningWritableLayersEphemeral
+	case HardeningWritableLayersPersistent:
+		return HardeningWritableLayersPersistent
+	default:
+		return HardeningWritableLayersUnknown
 	}
 }
 
