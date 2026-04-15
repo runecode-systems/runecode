@@ -213,87 +213,6 @@ func validateRawRPCPayload(raw json.RawMessage, schemaPath string, limits broker
 	return nil
 }
 
-func localRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
-	operations := map[string]rpcOperation{}
-	mergeRPCOperations(operations, runApprovalRPCOperations(service, ctx, meta))
-	mergeRPCOperations(operations, artifactRPCOperations(service, ctx, meta))
-	mergeRPCOperations(operations, auditHealthRPCOperations(service, ctx, meta))
-	return operations
-}
-
-func mergeRPCOperations(dst, src map[string]rpcOperation) {
-	for key, op := range src {
-		dst[key] = op
-	}
-}
-
-func runApprovalRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
-	operations := map[string]rpcOperation{}
-	mergeRPCOperations(operations, runRPCOperations(service, ctx, meta))
-	mergeRPCOperations(operations, sessionRPCOperations(service, ctx, meta))
-	mergeRPCOperations(operations, approvalRunnerRPCOperations(service, ctx, meta))
-	return operations
-}
-
-func artifactRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
-	return map[string]rpcOperation{
-		"artifact_list": {requestSchemaPath: "objects/ArtifactListRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.LocalArtifactListRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleArtifactListV0(ctx, req, meta)
-			})
-		}},
-		"artifact_head": {requestSchemaPath: "objects/ArtifactHeadRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.LocalArtifactHeadRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleArtifactHeadV0(ctx, req, meta)
-			})
-		}},
-		"artifact_read": {requestSchemaPath: "objects/ArtifactReadRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandleArtifactRead(service, ctx, raw, meta)
-		}},
-		"log_stream": {requestSchemaPath: "objects/LogStreamRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse { return decodeAndHandleLogStream(service, ctx, raw, meta) }},
-	}
-}
-
-func auditHealthRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
-	return map[string]rpcOperation{
-		"audit_timeline": {requestSchemaPath: "objects/AuditTimelineRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.AuditTimelineRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditTimeline(ctx, req, meta)
-			})
-		}},
-		"audit_verification_get": {requestSchemaPath: "objects/AuditVerificationGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.AuditVerificationGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditVerificationGet(ctx, req, meta)
-			})
-		}},
-		"audit_record_get": {requestSchemaPath: "objects/AuditRecordGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.AuditRecordGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditRecordGet(ctx, req, meta)
-			})
-		}},
-		"audit_anchor_presence_get": {requestSchemaPath: "objects/AuditAnchorPresenceGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.AuditAnchorPresenceGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditAnchorPresenceGet(ctx, req, meta)
-			})
-		}},
-		"audit_anchor_segment": {requestSchemaPath: "objects/AuditAnchorSegmentRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.AuditAnchorSegmentRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditAnchorSegment(ctx, req, meta)
-			})
-		}},
-		"readiness_get": {requestSchemaPath: "objects/ReadinessGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.ReadinessGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleReadinessGet(ctx, req, meta)
-			})
-		}},
-		"version_info_get": {requestSchemaPath: "objects/VersionInfoGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.VersionInfoGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleVersionInfoGet(ctx, req, meta)
-			})
-		}},
-	}
-}
-
 func decodeAndHandle[T any](raw json.RawMessage, handle func(T) (any, *brokerapi.ErrorResponse)) localRPCResponse {
 	var req T
 	decoder := json.NewDecoder(bytes.NewReader(raw))
@@ -342,6 +261,38 @@ func decodeAndHandleLogStream(service *brokerapi.Service, ctx context.Context, r
 		return localRPCResponse{OK: false, Error: decodeWireError(req.RequestID, err)}
 	}
 	return localRPCOKResponse(events)
+}
+
+func decodeAndHandleLLMInvoke(service *brokerapi.Service, ctx context.Context, raw json.RawMessage, meta brokerapi.RequestContext) localRPCResponse {
+	req := brokerapi.LLMInvokeRequest{}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
+	}
+	resp, errResp := service.HandleLLMInvoke(ctx, req, meta)
+	if errResp != nil {
+		return localRPCResponse{OK: false, Error: errResp}
+	}
+	return localRPCOKResponse(resp)
+}
+
+func decodeAndHandleLLMStream(service *brokerapi.Service, ctx context.Context, raw json.RawMessage, meta brokerapi.RequestContext) localRPCResponse {
+	req := brokerapi.LLMStreamRequest{}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
+	}
+	ack, binding, inputRef, errResp := service.HandleLLMStreamRequest(ctx, req, meta)
+	if errResp != nil {
+		return localRPCResponse{OK: false, Error: errResp}
+	}
+	resp, err := service.StreamLLMEvents(ack, binding, inputRef)
+	if err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError(req.RequestID, err)}
+	}
+	return localRPCOKResponse(resp)
 }
 
 func localRPCOKResponse(value any) localRPCResponse {

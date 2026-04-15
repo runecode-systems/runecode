@@ -301,6 +301,34 @@
       "status": "mvp"
     },
     {
+      "path": "objects/LLMInvokeRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.LLMInvokeRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/LLMInvokeResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.LLMInvokeResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/LLMStreamRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.LLMStreamRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/LLMStreamEnvelope.schema.json",
+      "schema_id": "runecode.protocol.v0.LLMStreamEnvelope",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/SignedObjectEnvelope.schema.json",
       "schema_id": "runecode.protocol.v0.SignedObjectEnvelope",
       "schema_version": "0.2.0",
@@ -861,6 +889,20 @@
       "status": "mvp"
     },
     {
+      "path": "objects/AuditAnchorPreflightGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditAnchorPreflightGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditAnchorPreflightGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditAnchorPreflightGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/AuditAnchorPresenceGetRequest.schema.json",
       "schema_id": "runecode.protocol.v0.AuditAnchorPresenceGetRequest",
       "schema_version": "0.1.0",
@@ -912,6 +954,20 @@
     {
       "path": "objects/AuditVerificationGetResponse.schema.json",
       "schema_id": "runecode.protocol.v0.AuditVerificationGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditFinalizeVerifyRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditFinalizeVerifyRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditFinalizeVerifyResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditFinalizeVerifyResponse",
       "schema_version": "0.1.0",
       "owner": "protocol",
       "status": "mvp"

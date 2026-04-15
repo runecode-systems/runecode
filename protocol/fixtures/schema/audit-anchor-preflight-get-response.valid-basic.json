@@ -1,0 +1,30 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditAnchorPreflightGetResponse",
+  "schema_version": "0.1.0",
+  "request_id": "req-audit-anchor-preflight",
+  "latest_anchorable_seal": {
+    "segment_id": "segment-000042",
+    "seal_digest": {
+      "hash_alg": "sha256",
+      "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "signer_readiness": {
+    "ready": true,
+    "presence_mode": "os_confirmation",
+    "signer_logical_scope": "node"
+  },
+  "verifier_readiness": {
+    "ready": true
+  },
+  "presence_requirements": {
+    "required": true,
+    "attestation_mode": "os_confirmation",
+    "attestation_ready": true
+  },
+  "approval_requirements": {
+    "required": false,
+    "reason_code": "approval_not_required",
+    "message": "no approval requirement declared"
+  }
+}

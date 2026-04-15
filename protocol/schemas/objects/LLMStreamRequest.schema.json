@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/LLMStreamRequest.schema.json",
+  "title": "LLMStreamRequest",
+  "description": "Typed broker-local model stream request carrying canonical LLMRequest payload and stream controls.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 8,
+  "required": ["schema_id", "schema_version", "request_id", "run_id", "stream_id", "llm_request", "follow"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.LLMStreamRequest", "description": "Stable protocol object-family identifier for broker-local LLM stream request wrappers.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Exact protocol schema version used to validate this broker-local LLM stream request wrapper.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Typed broker request correlation identifier.", "x-data-class": "public" },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Run identifier whose trusted policy context governs this model stream.", "x-data-class": "public" },
+    "stream_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Stable stream identity for the returned ordered LLMStreamEvent sequence.", "x-data-class": "public" },
+    "llm_request": { "$ref": "LLMRequest.schema.json", "description": "Canonical model request object carried through the broker-local stream API.", "x-data-class": "sensitive" },
+    "request_digest": { "$ref": "Digest.schema.json#/$defs/digestValue", "description": "Optional canonical digest for llm_request. When supplied, it must match the RFC8785-JCS sha256 of llm_request bytes.", "x-data-class": "public" },
+    "follow": { "type": "boolean", "description": "Whether the broker should keep stream transport open for future server-initiated additions.", "x-data-class": "public" }
+  }
+}

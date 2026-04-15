@@ -213,3 +213,37 @@ func TestDecodeArtifactStreamRequiresTerminalEvent(t *testing.T) {
 		t.Fatalf("expected artifact_stream_incomplete, got %q", got)
 	}
 }
+
+func TestLocalIPCConfigProviderWithOverridesUsesFallbackWhenBaseUnavailable(t *testing.T) {
+	provider := localIPCConfigProviderWithOverrides(
+		func() (brokerapi.LocalIPCConfig, error) {
+			return brokerapi.LocalIPCConfig{}, errors.New("local ipc listener is linux-only for MVP")
+		},
+		"/tmp/runecode-dev/runtime",
+		"broker.dev.sock",
+	)
+	cfg, err := provider()
+	if err != nil {
+		t.Fatalf("provider returned error: %v", err)
+	}
+	if cfg.RuntimeDir != "/tmp/runecode-dev/runtime" || cfg.SocketName != "broker.dev.sock" {
+		t.Fatalf("provider cfg = %+v, want override values", cfg)
+	}
+}
+
+func TestLocalIPCConfigProviderWithOverridesPropagatesBaseErrorWithoutOverrides(t *testing.T) {
+	provider := localIPCConfigProviderWithOverrides(
+		func() (brokerapi.LocalIPCConfig, error) {
+			return brokerapi.LocalIPCConfig{}, errors.New("local ipc listener is linux-only for MVP")
+		},
+		"",
+		"",
+	)
+	_, err := provider()
+	if err == nil {
+		t.Fatal("provider expected error")
+	}
+	if got := err.Error(); got != "local ipc listener is linux-only for MVP" {
+		t.Fatalf("provider error = %q", got)
+	}
+}

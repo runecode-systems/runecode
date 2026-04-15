@@ -16,6 +16,8 @@ import (
 
 const anchorApprovalPolicySelectorRunID = "audit-anchor"
 
+var errAuditAnchorDeniedByPolicy = errors.New("audit anchor denied by policy decision")
+
 func (s *Service) anchorApprovalRequirement(sealDigest trustpolicy.Digest) (anchorApprovalRequirement, error) {
 	actionHash, err := anchorActionRequestHash(sealDigest)
 	if err != nil {
@@ -39,7 +41,7 @@ func anchorApprovalRequirementFromDecision(policyRef string, decision artifacts.
 			PolicyDecisionRef: strings.TrimSpace(policyRef),
 		}, nil
 	case string(policyengine.DecisionDeny):
-		return anchorApprovalRequirement{}, errors.New("audit anchor denied by policy decision")
+		return anchorApprovalRequirement{}, errAuditAnchorDeniedByPolicy
 	default:
 		return anchorApprovalRequirement{}, fmt.Errorf("unsupported anchor policy decision outcome %q", decision.DecisionOutcome)
 	}

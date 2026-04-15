@@ -12,6 +12,8 @@ type brokerLocalAPI interface {
 	RunList(context.Context, brokerapi.RunListRequest) (brokerapi.RunListResponse, *brokerapi.ErrorResponse)
 	RunGet(context.Context, brokerapi.RunGetRequest) (brokerapi.RunGetResponse, *brokerapi.ErrorResponse)
 	RunWatch(context.Context, brokerapi.RunWatchRequest) ([]brokerapi.RunWatchEvent, *brokerapi.ErrorResponse)
+	BackendPostureGet(context.Context, brokerapi.BackendPostureGetRequest) (brokerapi.BackendPostureGetResponse, *brokerapi.ErrorResponse)
+	BackendPostureChange(context.Context, brokerapi.BackendPostureChangeRequest) (brokerapi.BackendPostureChangeResponse, *brokerapi.ErrorResponse)
 	SessionList(context.Context, brokerapi.SessionListRequest) (brokerapi.SessionListResponse, *brokerapi.ErrorResponse)
 	SessionGet(context.Context, brokerapi.SessionGetRequest) (brokerapi.SessionGetResponse, *brokerapi.ErrorResponse)
 	SessionSendMessage(context.Context, brokerapi.SessionSendMessageRequest) (brokerapi.SessionSendMessageResponse, *brokerapi.ErrorResponse)
@@ -26,10 +28,14 @@ type brokerLocalAPI interface {
 	ArtifactHead(context.Context, brokerapi.LocalArtifactHeadRequest) (brokerapi.LocalArtifactHeadResponse, *brokerapi.ErrorResponse)
 	ArtifactRead(context.Context, brokerapi.ArtifactReadRequest) ([]brokerapi.ArtifactStreamEvent, *brokerapi.ErrorResponse)
 	LogStream(context.Context, brokerapi.LogStreamRequest) ([]brokerapi.LogStreamEvent, *brokerapi.ErrorResponse)
+	LLMInvoke(context.Context, brokerapi.LLMInvokeRequest) (brokerapi.LLMInvokeResponse, *brokerapi.ErrorResponse)
+	LLMStream(context.Context, brokerapi.LLMStreamRequest) (brokerapi.LLMStreamEnvelope, *brokerapi.ErrorResponse)
 	ReadinessGet(context.Context, brokerapi.ReadinessGetRequest) (brokerapi.ReadinessGetResponse, *brokerapi.ErrorResponse)
 	VersionInfoGet(context.Context, brokerapi.VersionInfoGetRequest) (brokerapi.VersionInfoGetResponse, *brokerapi.ErrorResponse)
 	AuditVerificationGet(context.Context, brokerapi.AuditVerificationGetRequest) (brokerapi.AuditVerificationGetResponse, *brokerapi.ErrorResponse)
+	AuditFinalizeVerify(context.Context, brokerapi.AuditFinalizeVerifyRequest) (brokerapi.AuditFinalizeVerifyResponse, *brokerapi.ErrorResponse)
 	AuditRecordGet(context.Context, brokerapi.AuditRecordGetRequest) (brokerapi.AuditRecordGetResponse, *brokerapi.ErrorResponse)
+	AuditAnchorPreflightGet(context.Context, brokerapi.AuditAnchorPreflightGetRequest) (brokerapi.AuditAnchorPreflightGetResponse, *brokerapi.ErrorResponse)
 	AuditAnchorPresenceGet(context.Context, brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, *brokerapi.ErrorResponse)
 	AuditAnchorSegment(context.Context, brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, *brokerapi.ErrorResponse)
 }
@@ -96,6 +102,16 @@ func (c *localAPIClient) RunGet(ctx context.Context, req brokerapi.RunGetRequest
 func (c *localAPIClient) RunWatch(ctx context.Context, req brokerapi.RunWatchRequest) ([]brokerapi.RunWatchEvent, *brokerapi.ErrorResponse) {
 	events := []brokerapi.RunWatchEvent{}
 	return events, c.invoke(ctx, "run_watch", req, &events)
+}
+
+func (c *localAPIClient) BackendPostureGet(ctx context.Context, req brokerapi.BackendPostureGetRequest) (brokerapi.BackendPostureGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.BackendPostureGetResponse{}
+	return resp, c.invoke(ctx, "backend_posture_get", req, &resp)
+}
+
+func (c *localAPIClient) BackendPostureChange(ctx context.Context, req brokerapi.BackendPostureChangeRequest) (brokerapi.BackendPostureChangeResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.BackendPostureChangeResponse{}
+	return resp, c.invoke(ctx, "backend_posture_change", req, &resp)
 }
 
 func (c *localAPIClient) SessionList(ctx context.Context, req brokerapi.SessionListRequest) (brokerapi.SessionListResponse, *brokerapi.ErrorResponse) {
@@ -168,6 +184,16 @@ func (c *localAPIClient) LogStream(ctx context.Context, req brokerapi.LogStreamR
 	return events, c.invoke(ctx, "log_stream", req, &events)
 }
 
+func (c *localAPIClient) LLMInvoke(ctx context.Context, req brokerapi.LLMInvokeRequest) (brokerapi.LLMInvokeResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.LLMInvokeResponse{}
+	return resp, c.invoke(ctx, "llm_invoke", req, &resp)
+}
+
+func (c *localAPIClient) LLMStream(ctx context.Context, req brokerapi.LLMStreamRequest) (brokerapi.LLMStreamEnvelope, *brokerapi.ErrorResponse) {
+	resp := brokerapi.LLMStreamEnvelope{}
+	return resp, c.invoke(ctx, "llm_stream", req, &resp)
+}
+
 func (c *localAPIClient) ReadinessGet(ctx context.Context, req brokerapi.ReadinessGetRequest) (brokerapi.ReadinessGetResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.ReadinessGetResponse{}
 	return resp, c.invoke(ctx, "readiness_get", req, &resp)
@@ -183,9 +209,19 @@ func (c *localAPIClient) AuditVerificationGet(ctx context.Context, req brokerapi
 	return resp, c.invoke(ctx, "audit_verification_get", req, &resp)
 }
 
+func (c *localAPIClient) AuditFinalizeVerify(ctx context.Context, req brokerapi.AuditFinalizeVerifyRequest) (brokerapi.AuditFinalizeVerifyResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.AuditFinalizeVerifyResponse{}
+	return resp, c.invoke(ctx, "audit_finalize_verify", req, &resp)
+}
+
 func (c *localAPIClient) AuditRecordGet(ctx context.Context, req brokerapi.AuditRecordGetRequest) (brokerapi.AuditRecordGetResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.AuditRecordGetResponse{}
 	return resp, c.invoke(ctx, "audit_record_get", req, &resp)
+}
+
+func (c *localAPIClient) AuditAnchorPreflightGet(ctx context.Context, req brokerapi.AuditAnchorPreflightGetRequest) (brokerapi.AuditAnchorPreflightGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.AuditAnchorPreflightGetResponse{}
+	return resp, c.invoke(ctx, "audit_anchor_preflight_get", req, &resp)
 }
 
 func (c *localAPIClient) AuditAnchorPresenceGet(ctx context.Context, req brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, *brokerapi.ErrorResponse) {

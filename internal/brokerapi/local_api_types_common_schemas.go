@@ -2,6 +2,9 @@ package brokerapi
 
 const (
 	artifactSummarySchemaPath              = "objects/ArtifactSummary.schema.json"
+	llmRequestSchemaPath                   = "objects/LLMRequest.schema.json"
+	llmResponseSchemaPath                  = "objects/LLMResponse.schema.json"
+	llmStreamEventSchemaPath               = "objects/LLMStreamEvent.schema.json"
 	brokerReadinessSchemaPath              = "objects/BrokerReadiness.schema.json"
 	brokerVersionInfoSchemaPath            = "objects/BrokerVersionInfo.schema.json"
 	artifactListRequestSchemaPath          = "objects/ArtifactListRequest.schema.json"

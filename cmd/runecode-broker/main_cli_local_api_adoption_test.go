@@ -23,7 +23,8 @@ func TestCLIAdoptionRoutesRunApprovalVersionAndLogThroughLocalRPC(t *testing.T) 
 
 	installRunApprovalVersionLogDispatchStub(t, &requestedOps)
 
-	commands := [][]string{{"run-list"}, {"run-get", "--run-id", "run-1"}, {"run-watch"}, {"session-list"}, {"session-get", "--session-id", "sess-1"}, {"session-send-message", "--session-id", "sess-1", "--content", "hello"}, {"session-watch"}, {"approval-list"}, {"approval-get", "--approval-id", testDigest("a")}, {"approval-watch"}, {"version-info"}, {"stream-logs"}, {"stream-logs", "--stream-id", "custom-stream"}}
+	llmRequestPath := writeLLMRequestFile(t)
+	commands := [][]string{{"run-list"}, {"run-get", "--run-id", "run-1"}, {"run-watch"}, {"backend-posture-get"}, {"backend-posture-change", "--target-backend-kind", "container", "--reduced-assurance-acknowledged"}, {"session-list"}, {"session-get", "--session-id", "sess-1"}, {"session-send-message", "--session-id", "sess-1", "--content", "hello"}, {"session-watch"}, {"approval-list"}, {"approval-get", "--approval-id", testDigest("a")}, {"approval-watch"}, {"version-info"}, {"stream-logs"}, {"stream-logs", "--stream-id", "custom-stream"}, {"llm-invoke", "--run-id", "run-1", "--request-file", llmRequestPath}, {"llm-stream", "--run-id", "run-1", "--request-file", llmRequestPath, "--stream-id", "llm-s-1"}}
 	for _, args := range commands {
 		stdout.Reset()
 		if err := run(args, stdout, stderr); err != nil {
@@ -31,7 +32,7 @@ func TestCLIAdoptionRoutesRunApprovalVersionAndLogThroughLocalRPC(t *testing.T) 
 		}
 	}
 
-	want := []string{"run_list", "run_get", "run_watch", "session_list", "session_get", "session_send_message", "session_watch", "approval_list", "approval_get", "approval_watch", "version_info_get", "log_stream", "log_stream"}
+	want := []string{"run_list", "run_get", "run_watch", "backend_posture_get", "backend_posture_get", "backend_posture_change", "session_list", "session_get", "session_send_message", "session_watch", "approval_list", "approval_get", "approval_watch", "version_info_get", "log_stream", "log_stream", "llm_invoke", "llm_stream"}
 	assertRequestedOps(t, requestedOps, want)
 }
 
@@ -60,6 +61,10 @@ func installRunApprovalVersionLogDispatchStub(t *testing.T, requestedOps *[]stri
 			return mustOKLocalRPCResponse(t, brokerapi.RunGetResponse{SchemaID: "runecode.protocol.v0.RunGetResponse", SchemaVersion: "0.1.0", RequestID: "req-run-get", Run: brokerapi.RunDetail{SchemaID: "runecode.protocol.v0.RunDetail", SchemaVersion: "0.2.0", Summary: brokerapi.RunSummary{SchemaID: "runecode.protocol.v0.RunSummary", SchemaVersion: "0.2.0", RunID: "run-1", WorkspaceID: "workspace-local", CreatedAt: "2026-01-01T00:00:00Z", UpdatedAt: "2026-01-01T00:00:00Z", LifecycleState: "pending", PendingApprovalCount: 0, ApprovalProfile: "unknown", BackendKind: "unknown", IsolationAssuranceLevel: "unknown", ProvisioningPosture: "unknown", AssuranceLevel: "unknown", AuditIntegrityStatus: "ok", AuditAnchoringStatus: "ok", AuditCurrentlyDegraded: false, RuntimePostureDegraded: false}}})
 		case "run_watch":
 			return mustOKLocalRPCResponse(t, []brokerapi.RunWatchEvent{{SchemaID: "runecode.protocol.v0.RunWatchEvent", SchemaVersion: "0.1.0", StreamID: "rw-1", RequestID: "req-run-watch", Seq: 1, EventType: "run_watch_snapshot", Run: &brokerapi.RunSummary{SchemaID: "runecode.protocol.v0.RunSummary", SchemaVersion: "0.2.0", RunID: "run-1", WorkspaceID: "workspace-local", CreatedAt: "2026-01-01T00:00:00Z", UpdatedAt: "2026-01-01T00:00:00Z", LifecycleState: "pending", PendingApprovalCount: 0, ApprovalProfile: "unknown", BackendKind: "unknown", IsolationAssuranceLevel: "unknown", ProvisioningPosture: "unknown", AssuranceLevel: "unknown", AuditIntegrityStatus: "ok", AuditAnchoringStatus: "ok", AuditCurrentlyDegraded: false, RuntimePostureDegraded: false}}, {SchemaID: "runecode.protocol.v0.RunWatchEvent", SchemaVersion: "0.1.0", StreamID: "rw-1", RequestID: "req-run-watch", Seq: 2, EventType: "run_watch_terminal", Terminal: true, TerminalStatus: "completed"}})
+		case "backend_posture_get":
+			return mustOKLocalRPCResponse(t, brokerapi.BackendPostureGetResponse{SchemaID: "runecode.protocol.v0.BackendPostureGetResponse", SchemaVersion: "0.1.0", RequestID: "req-backend-posture-get", Posture: brokerapi.BackendPostureState{SchemaID: "runecode.protocol.v0.BackendPostureState", SchemaVersion: "0.1.0", InstanceID: "launcher-instance-1", BackendKind: "microvm", PreferredBackendKind: "microvm", Availability: []brokerapi.BackendPostureAvailability{{SchemaID: "runecode.protocol.v0.BackendPostureAvailability", SchemaVersion: "0.1.0", BackendKind: "microvm", Available: true}, {SchemaID: "runecode.protocol.v0.BackendPostureAvailability", SchemaVersion: "0.1.0", BackendKind: "container", Available: true}}}})
+		case "backend_posture_change":
+			return mustOKLocalRPCResponse(t, brokerapi.BackendPostureChangeResponse{SchemaID: "runecode.protocol.v0.BackendPostureChangeResponse", SchemaVersion: "0.1.0", RequestID: "req-backend-posture-change", Outcome: brokerapi.BackendPostureChangeOutcome{SchemaID: "runecode.protocol.v0.BackendPostureChangeOutcome", SchemaVersion: "0.1.0", Outcome: "approval_required", OutcomeReasonCode: "approval_required", ApprovalID: testDigest("a")}, Posture: brokerapi.BackendPostureState{SchemaID: "runecode.protocol.v0.BackendPostureState", SchemaVersion: "0.1.0", InstanceID: "launcher-instance-1", BackendKind: "microvm", PendingApproval: true, PendingApprovalID: testDigest("a")}})
 		case "session_list":
 			return mustOKLocalRPCResponse(t, brokerapi.SessionListResponse{SchemaID: "runecode.protocol.v0.SessionListResponse", SchemaVersion: "0.1.0", RequestID: "req-session-list", Order: "updated_at_desc", Sessions: []brokerapi.SessionSummary{{SchemaID: "runecode.protocol.v0.SessionSummary", SchemaVersion: "0.1.0", Identity: brokerapi.SessionIdentity{SchemaID: "runecode.protocol.v0.SessionIdentity", SchemaVersion: "0.1.0", SessionID: "sess-1", WorkspaceID: "workspace-local", CreatedAt: "2026-01-01T00:00:00Z"}, UpdatedAt: "2026-01-01T00:00:00Z", Status: "active", LastActivityKind: "run_progress", TurnCount: 0, LinkedRunCount: 1, LinkedApprovalCount: 0, LinkedArtifactCount: 0, LinkedAuditEventCount: 0, HasIncompleteTurn: false}}})
 		case "session_get":
@@ -78,11 +83,61 @@ func installRunApprovalVersionLogDispatchStub(t *testing.T, requestedOps *[]stri
 			return mustOKLocalRPCResponse(t, brokerapi.VersionInfoGetResponse{SchemaID: "runecode.protocol.v0.VersionInfoGetResponse", SchemaVersion: "0.1.0", RequestID: "req-version", VersionInfo: brokerapi.BrokerVersionInfo{SchemaID: "runecode.protocol.v0.BrokerVersionInfo", SchemaVersion: "0.1.0"}})
 		case "log_stream":
 			return handleLogStreamDispatchForTest(t, wire, len(*requestedOps))
+		case "llm_invoke":
+			return mustOKLocalRPCResponse(t, brokerapi.LLMInvokeResponse{SchemaID: "runecode.protocol.v0.LLMInvokeResponse", SchemaVersion: "0.1.0", RequestID: "req-llm-invoke", RunID: "run-1", RequestDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)}, Response: map[string]any{"schema_id": "runecode.protocol.v0.LLMResponse", "schema_version": "0.3.0"}})
+		case "llm_stream":
+			return mustOKLocalRPCResponse(t, brokerapi.LLMStreamEnvelope{SchemaID: "runecode.protocol.v0.LLMStreamEnvelope", SchemaVersion: "0.1.0", RequestID: "req-llm-stream", RunID: "run-1", RequestDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)}, Events: []brokerapi.LLMStreamAny{{"schema_id": "runecode.protocol.v0.LLMStreamEvent", "schema_version": "0.3.0", "stream_id": "llm-s-1", "request_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("1", 64)}, "seq": 1.0, "event_type": "response_start", "emitter": map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "role_instance", "principal_id": "brokerapi", "instance_id": "brokerapi-1", "role_family": "gateway", "role_kind": "model-gateway"}}, {"schema_id": "runecode.protocol.v0.LLMStreamEvent", "schema_version": "0.3.0", "stream_id": "llm-s-1", "request_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("1", 64)}, "seq": 2.0, "event_type": "response_terminal", "terminal_status": "success", "final_response_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("2", 64)}, "emitter": map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "role_instance", "principal_id": "brokerapi", "instance_id": "brokerapi-1", "role_family": "gateway", "role_kind": "model-gateway"}}}})
 		default:
 			return localRPCResponse{OK: false}
 		}
 	}
 	t.Cleanup(func() { localRPCDispatch = originalDispatch })
+}
+
+func writeLLMRequestFile(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "llm-request.json")
+	requestDigest := strings.Repeat("1", 64)
+	provenanceDigest := strings.Repeat("2", 64)
+	payload := map[string]any{
+		"schema_id":        "runecode.protocol.v0.LLMRequest",
+		"schema_version":   "0.3.0",
+		"selection_source": "signed_allowlist",
+		"provider":         "provider-test",
+		"model":            "model-test",
+		"tool_allowlist": []any{
+			map[string]any{
+				"tool_name":                "noop",
+				"arguments_schema_id":      "runecode.protocol.tools.noop.args",
+				"arguments_schema_version": "0.1.0",
+			},
+		},
+		"input_artifacts": []any{
+			map[string]any{
+				"schema_id":      "runecode.protocol.v0.ArtifactReference",
+				"schema_version": "0.3.0",
+				"digest":         map[string]any{"hash_alg": "sha256", "hash": requestDigest},
+				"size_bytes":     5,
+				"content_type":   "text/plain",
+				"data_class":     "spec_text",
+				"provenance_receipt_hash": map[string]any{
+					"hash_alg": "sha256",
+					"hash":     provenanceDigest,
+				},
+			},
+		},
+		"response_mode":  "text",
+		"streaming_mode": "stream",
+		"request_limits": map[string]any{"max_request_bytes": 262144, "max_tool_calls": 8, "max_total_tool_call_argument_bytes": 65536, "max_structured_output_bytes": 262144, "max_streamed_bytes": 16777216, "max_stream_chunk_bytes": 65536, "stream_idle_timeout_ms": 15000},
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal llm request payload error: %v", err)
+	}
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		t.Fatalf("WriteFile llm request payload error: %v", err)
+	}
+	return path
 }
 
 func handleLogStreamDispatchForTest(t *testing.T, wire localRPCRequest, opCount int) localRPCResponse {
@@ -91,10 +146,10 @@ func handleLogStreamDispatchForTest(t *testing.T, wire localRPCRequest, opCount 
 	if err := json.Unmarshal(wire.Request, &request); err != nil {
 		t.Fatalf("Unmarshal log stream request error: %v", err)
 	}
-	if opCount == 12 && (request.StreamID == "" || request.StreamID == request.RequestID) {
+	if opCount == 17 && (request.StreamID == "" || request.StreamID == request.RequestID) {
 		t.Fatalf("default stream-logs request stream_id = %q, want derived non-empty stream id", request.StreamID)
 	}
-	if opCount == 13 && request.StreamID != "custom-stream" {
+	if opCount == 18 && request.StreamID != "custom-stream" {
 		t.Fatalf("explicit stream-logs request stream_id = %q, want custom-stream", request.StreamID)
 	}
 	return mustOKLocalRPCResponse(t, []brokerapi.LogStreamEvent{{SchemaID: "runecode.protocol.v0.LogStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-log", Seq: 1, EventType: "log_stream_start"}, {SchemaID: "runecode.protocol.v0.LogStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-log", Seq: 2, EventType: "log_stream_terminal", Terminal: true, TerminalStatus: "completed"}})
@@ -109,7 +164,7 @@ func TestCLIAdoptionRoutesArtifactAuditAndResolveThroughLocalRPC(t *testing.T) {
 	installArtifactAuditResolveDispatchStub(t, &requestedOps)
 	runArtifactAuditResolveCommands(t, stdout, stderr)
 
-	want := []string{"artifact_list", "artifact_head", "artifact_read", "approval_get", "approval_resolve", "readiness_get", "audit_verification_get", "audit_record_get", "audit_anchor_presence_get", "audit_anchor_segment"}
+	want := []string{"artifact_list", "artifact_head", "artifact_read", "approval_get", "approval_resolve", "readiness_get", "audit_verification_get", "audit_finalize_verify", "audit_record_get", "audit_anchor_preflight_get", "audit_anchor_presence_get", "audit_anchor_segment"}
 	assertRequestedOps(t, requestedOps, want)
 }
 
@@ -141,6 +196,9 @@ func artifactAuditResolveStaticResponse(t *testing.T, operation string) (localRP
 		return mustOKLocalRPCResponse(t, brokerapi.ReadinessGetResponse{SchemaID: "runecode.protocol.v0.ReadinessGetResponse", SchemaVersion: "0.1.0", RequestID: "req-readiness", Readiness: brokerapi.BrokerReadiness{SchemaID: "runecode.protocol.v0.BrokerReadiness", SchemaVersion: "0.1.0", Ready: true, LocalOnly: true, ConsumptionChannel: "broker_local_api", RecoveryComplete: true, AppendPositionStable: true, CurrentSegmentWritable: true, VerifierMaterialAvailable: true, DerivedIndexCaughtUp: true}}), true
 	case "audit_verification_get":
 		return mustOKLocalRPCResponse(t, brokerapi.AuditVerificationGetResponse{SchemaID: "runecode.protocol.v0.AuditVerificationGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit"}), true
+	case "audit_finalize_verify":
+		report := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("e", 64)}
+		return mustOKLocalRPCResponse(t, brokerapi.AuditFinalizeVerifyResponse{SchemaID: "runecode.protocol.v0.AuditFinalizeVerifyResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-finalize", ActionStatus: "ok", SegmentID: "segment-000001", ReportDigest: &report}), true
 	default:
 		return localRPCResponse{}, false
 	}
@@ -153,6 +211,8 @@ func artifactAuditResolveDynamicResponse(t *testing.T, wire localRPCRequest) loc
 		return artifactAuditResolveApprovalGetResponse(t, wire)
 	case "audit_record_get":
 		return mustOKLocalRPCResponse(t, brokerapi.AuditRecordGetResponse{SchemaID: "runecode.protocol.v0.AuditRecordGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-record", Record: brokerapi.AuditRecordDetail{SchemaID: "runecode.protocol.v0.AuditRecordDetail", SchemaVersion: "0.1.0", RecordDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}, RecordFamily: "audit_event", OccurredAt: "2026-01-01T00:00:00Z", EventType: "isolate_session_bound", Summary: "Audit event isolate_session_bound recorded.", LinkedReferences: []brokerapi.AuditRecordLinkedReference{}}})
+	case "audit_anchor_preflight_get":
+		return artifactAuditResolveAnchorPreflightResponse(t, wire)
 	case "audit_anchor_segment":
 		return artifactAuditResolveAnchorSegmentResponse(t, wire)
 	case "audit_anchor_presence_get":
@@ -193,6 +253,28 @@ func artifactAuditResolveAnchorPresenceResponse(t *testing.T, wire localRPCReque
 		t.Fatalf("audit_anchor_presence_get invalid seal_digest: %v", err)
 	}
 	return mustOKLocalRPCResponse(t, brokerapi.AuditAnchorPresenceGetResponse{SchemaID: "runecode.protocol.v0.AuditAnchorPresenceGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-presence", SealDigest: request.SealDigest, PresenceMode: "os_confirmation", PresenceAttestation: &brokerapi.AuditAnchorPresenceAttestation{Challenge: "presence-challenge-0123456789abcdef", AcknowledgmentToken: strings.Repeat("a", 64)}})
+}
+
+func artifactAuditResolveAnchorPreflightResponse(t *testing.T, wire localRPCRequest) localRPCResponse {
+	t.Helper()
+	request := brokerapi.AuditAnchorPreflightGetRequest{}
+	if err := json.Unmarshal(wire.Request, &request); err != nil {
+		t.Fatalf("Unmarshal audit_anchor_preflight_get request error: %v", err)
+	}
+	seal := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}
+	return mustOKLocalRPCResponse(t, brokerapi.AuditAnchorPreflightGetResponse{
+		SchemaID:      "runecode.protocol.v0.AuditAnchorPreflightGetResponse",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-audit-preflight",
+		LatestAnchorableSeal: &brokerapi.AuditAnchorableSealRef{
+			SegmentID:  "segment-000001",
+			SealDigest: seal,
+		},
+		SignerReadiness:      brokerapi.AuditAnchorSignerReadiness{Ready: true, PresenceMode: "os_confirmation", SignerLogicalScope: "node"},
+		VerifierReadiness:    brokerapi.AuditAnchorVerifierReadiness{Ready: true},
+		PresenceRequirements: brokerapi.AuditAnchorPresenceRequirements{Required: true, AttestationMode: "os_confirmation", AttestationReady: true},
+		ApprovalRequirements: brokerapi.AuditAnchorApprovalRequirements{Required: false, ReasonCode: "approval_not_required", Message: "no approval requirement declared"},
+	})
 }
 
 func assertAuditAnchorPresenceAttestationForCLI(t *testing.T, att *brokerapi.AuditAnchorPresenceAttestation) {
@@ -238,6 +320,9 @@ func runArtifactAuditResolveCommands(t *testing.T, stdout *bytes.Buffer, stderr 
 	}
 	if err := run([]string{"audit-verification"}, stdout, stderr); err != nil {
 		t.Fatalf("audit-verification returned error: %v", err)
+	}
+	if err := run([]string{"audit-finalize-verify"}, stdout, stderr); err != nil {
+		t.Fatalf("audit-finalize-verify returned error: %v", err)
 	}
 	if err := run([]string{"audit-record-get", "--record-digest", testDigest("a")}, stdout, stderr); err != nil {
 		t.Fatalf("audit-record-get returned error: %v", err)

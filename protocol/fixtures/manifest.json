@@ -475,6 +475,18 @@
       "expect_valid": false
     },
     {
+      "id": "audit-anchor-preflight-get-request.valid-basic",
+      "schema_path": "objects/AuditAnchorPreflightGetRequest.schema.json",
+      "fixture_path": "schema/audit-anchor-preflight-get-request.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-anchor-preflight-get-response.valid-basic",
+      "schema_path": "objects/AuditAnchorPreflightGetResponse.schema.json",
+      "fixture_path": "schema/audit-anchor-preflight-get-response.valid-basic.json",
+      "expect_valid": true
+    },
+    {
       "id": "audit-anchor-presence-get-request.valid-basic",
       "schema_path": "objects/AuditAnchorPresenceGetRequest.schema.json",
       "fixture_path": "schema/audit-anchor-presence-get-request.valid-basic.json",

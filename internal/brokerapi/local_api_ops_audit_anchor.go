@@ -19,6 +19,15 @@ const (
 	auditAnchorFailureMessageRequestInvalid = "anchor request validation failed"
 	auditAnchorFailureMessageReceiptInvalid = "anchor receipt validation failed"
 	auditAnchorGatewayFailureMessage        = "audit anchor ledger operation failed"
+
+	auditAnchorErrorCodeLedgerUnavailable            = "broker_dependency_audit_ledger_unavailable"
+	auditAnchorErrorCodeSignerUnavailable            = "broker_dependency_audit_anchor_signer_unavailable"
+	auditAnchorErrorCodePresenceModeUnavailable      = "broker_dependency_audit_anchor_presence_mode_unavailable"
+	auditAnchorErrorCodePresenceChallengeUnavailable = "broker_dependency_audit_anchor_presence_challenge_unavailable"
+	auditAnchorErrorCodePresenceTokenUnavailable     = "broker_dependency_audit_anchor_presence_token_unavailable"
+	auditAnchorErrorCodeAnchorActionUnavailable      = "broker_dependency_audit_anchor_action_unavailable"
+	auditAnchorErrorCodeResultInvalid                = "broker_dependency_audit_anchor_result_invalid"
+	auditAnchorErrorCodeReadinessUnavailable         = "broker_dependency_audit_readiness_unavailable"
 )
 
 func (s *Service) HandleAuditAnchorSegment(ctx context.Context, req AuditAnchorSegmentRequest, meta RequestContext) (AuditAnchorSegmentResponse, *ErrorResponse) {
@@ -43,7 +52,7 @@ func (s *Service) handleAuditAnchorSegmentValidated(requestCtx context.Context, 
 		return AuditAnchorSegmentResponse{}, &errOut
 	}
 	if s.auditLedger == nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, "audit ledger unavailable")
+		errOut := s.makeError(requestID, auditAnchorErrorCodeLedgerUnavailable, "internal", false, "audit ledger unavailable")
 		return AuditAnchorSegmentResponse{}, &errOut
 	}
 	if s.secretsSvc == nil {
@@ -59,7 +68,7 @@ func (s *Service) handleAuditAnchorSegmentValidated(requestCtx context.Context, 
 			s.recordAnchorReceiptFailureAuthoritativePosture(req.SealDigest)
 			return s.validatedAuditAnchorSegmentResponse(anchorSegmentFailedResponse(requestID, req.SealDigest, auditAnchorFailureCodeReceiptInvalid, auditAnchorFailureMessageReceiptInvalid))
 		}
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, auditAnchorGatewayFailureMessage)
+		errOut := s.makeError(requestID, auditAnchorErrorCodeAnchorActionUnavailable, "internal", false, auditAnchorGatewayFailureMessage)
 		return AuditAnchorSegmentResponse{}, &errOut
 	}
 
@@ -77,7 +86,7 @@ func (s *Service) handleAuditAnchorSegmentValidated(requestCtx context.Context, 
 func buildAnchorSegmentResponse(requestID string, result auditd.AnchorSegmentResult) (AuditAnchorSegmentResponse, *ErrorResponse) {
 	anchorStatus := strings.TrimSpace(result.AnchorStatus)
 	if anchorStatus == "" {
-		errOut := toErrorResponse(requestID, "gateway_failure", "internal", false, auditAnchorGatewayFailureMessage)
+		errOut := toErrorResponse(requestID, auditAnchorErrorCodeResultInvalid, "internal", false, auditAnchorGatewayFailureMessage)
 		return AuditAnchorSegmentResponse{}, &errOut
 	}
 	resp := AuditAnchorSegmentResponse{

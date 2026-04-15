@@ -11,6 +11,7 @@ import (
 type auditLoadedMsg struct {
 	timeline []brokerapi.AuditTimelineViewEntry
 	verify   *brokerapi.AuditVerificationGetResponse
+	finalize *brokerapi.AuditFinalizeVerifyResponse
 	record   *brokerapi.AuditRecordGetResponse
 	cursor   string
 	next     string
@@ -38,6 +39,7 @@ type auditRouteModel struct {
 	timeline     []brokerapi.AuditTimelineViewEntry
 	selected     int
 	verify       *brokerapi.AuditVerificationGetResponse
+	finalize     *brokerapi.AuditFinalizeVerifyResponse
 	active       *brokerapi.AuditRecordGetResponse
 	cursor       string
 	nextCursor   string
@@ -100,6 +102,9 @@ func (m auditRouteModel) handleAuditLoaded(msg auditLoadedMsg) (routeModel, tea.
 		m.selected = 0
 	}
 	m.verify = msg.verify
+	if msg.finalize != nil {
+		m.finalize = msg.finalize
+	}
 	m.active = msg.record
 	m.cursor = msg.cursor
 	m.nextCursor = msg.next
@@ -170,6 +175,7 @@ func (m auditRouteModel) View(width, height int, focus focusArea) string {
 	body := []string{
 		sectionTitle("Audit") + " " + focusBadge(focus),
 		renderAuditSafetyAlertStrip(m.verify),
+		renderAuditFinalizeSummary(m.finalize),
 		renderAuditAnchorActionSummary(m),
 		renderAuditPageSummary(m.cursor, m.nextCursor, len(m.prevCursors), len(m.timeline)),
 		renderAuditSummary(m.verify),
@@ -182,53 +188,97 @@ func (m auditRouteModel) View(width, height int, focus focusArea) string {
 		body = append(body, tableHeader("Inspector")+" "+appTheme.InspectorHint.Render("(typed record details)"))
 		body = append(body, renderAuditInspector(m.active, m.presentation))
 	}
-	body = append(body, keyHint("Route keys: j/k move, enter record detail, a anchor selected/latest sealed segment, x toggle anchor export-copy, n next page, p previous page, v cycle rendered/raw/structured, i toggle inspector, r reload"))
+	body = append(body, keyHint("Route keys: j/k move, enter record detail, f finalize+verify sealed segment posture, a anchor selected/latest sealed segment, x toggle anchor export-copy, n next page, p previous page, v cycle rendered/raw/structured, i toggle inspector, r reload"))
 	return compactLines(body...)
 }
 
 func (m auditRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 	s := key.String()
-	if s == "r" {
-		return m.reload()
+	if model, cmd, handled := m.handleReloadAndPagingKey(s); handled {
+		return model, cmd
 	}
-	if s == "n" {
-		return m.loadNextPage()
+	if model, cmd, handled := m.handlePresentationAndInspectorKey(s); handled {
+		return model, cmd
 	}
-	if s == "p" {
-		return m.loadPrevPage()
+	if model, cmd, handled := m.handleAnchorAndFinalizeKey(s); handled {
+		return model, cmd
 	}
-	if s == "i" {
+	if model, cmd, handled := m.handleSelectionKey(s); handled {
+		return model, cmd
+	}
+	return m, nil
+}
+
+func (m auditRouteModel) handleReloadAndPagingKey(key string) (routeModel, tea.Cmd, bool) {
+	switch key {
+	case "r":
+		model, cmd := m.reload()
+		return model, cmd, true
+	case "n":
+		model, cmd := m.loadNextPage()
+		return model, cmd, true
+	case "p":
+		model, cmd := m.loadPrevPage()
+		return model, cmd, true
+	default:
+		return m, nil, false
+	}
+}
+
+func (m auditRouteModel) handlePresentationAndInspectorKey(key string) (routeModel, tea.Cmd, bool) {
+	switch key {
+	case "i":
 		m.inspectorOn = !m.inspectorOn
-		return m, nil
-	}
-	if s == "x" {
+		return m, nil, true
+	case "x":
 		m.exportCopy = !m.exportCopy
 		state := "disabled"
 		if m.exportCopy {
 			state = "enabled"
 		}
 		m.statusText = fmt.Sprintf("Anchor receipt export copy %s for next action.", state)
-		return m, nil
-	}
-	if s == "v" {
+		return m, nil, true
+	case "v":
 		m.presentation = nextPresentationMode(m.presentation)
-		return m, nil
+		return m, nil, true
+	default:
+		return m, nil, false
 	}
-	if s == "a" {
+}
+
+func (m auditRouteModel) handleAnchorAndFinalizeKey(key string) (routeModel, tea.Cmd, bool) {
+	switch key {
+	case "a":
 		if m.anchoring {
 			m.statusText = "Anchor action already in progress; wait for completion."
-			return m, nil
+			return m, nil, true
 		}
-		return m.anchorSelectedOrLatestSeal()
+		model, cmd := m.anchorSelectedOrLatestSeal()
+		return model, cmd, true
+	case "f":
+		if m.loading {
+			return m, nil, true
+		}
+		m.loading = true
+		m.errText = ""
+		m.loadSeq++
+		return m, m.loadFinalizeVerifyCmd(m.loadSeq), true
+	default:
+		return m, nil, false
 	}
-	if s == "j" || s == "down" || s == "k" || s == "up" {
-		m.moveTimelineSelection(s == "j" || s == "down")
-		return m, nil
+}
+
+func (m auditRouteModel) handleSelectionKey(key string) (routeModel, tea.Cmd, bool) {
+	switch key {
+	case "j", "down", "k", "up":
+		m.moveTimelineSelection(key == "j" || key == "down")
+		return m, nil, true
+	case "enter":
+		model, cmd := m.loadSelectedRecord()
+		return model, cmd, true
+	default:
+		return m, nil, false
 	}
-	if s == "enter" {
-		return m.loadSelectedRecord()
-	}
-	return m, nil
 }
 
 func (m auditRouteModel) loadNextPage() (routeModel, tea.Cmd) {
@@ -303,6 +353,18 @@ func (m auditRouteModel) loadPageCmd(cursor string, seq uint64, nav auditPageNav
 			return auditLoadedMsg{err: err, seq: seq}
 		}
 		return auditLoadedMsg{timeline: timelineResp.Views, verify: &verifyResp, cursor: cursor, next: timelineResp.NextCursor, seq: seq, nav: nav, from: from}
+	}
+}
+
+func (m auditRouteModel) loadFinalizeVerifyCmd(seq uint64) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := withLoadTimeout()
+		defer cancel()
+		finalizeResp, err := m.client.AuditFinalizeVerify(ctx)
+		if err != nil {
+			return auditLoadedMsg{err: err, seq: seq}
+		}
+		return auditLoadedMsg{timeline: m.timeline, verify: m.verify, finalize: &finalizeResp, record: m.active, cursor: m.cursor, next: m.nextCursor, seq: seq}
 	}
 }
 

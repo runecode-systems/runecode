@@ -99,8 +99,8 @@ func TestApprovalsRouteSupportsTypedResolveFlowPath(t *testing.T) {
 	if !strings.Contains(view, "Flow path: workspace=ws-1 run=run-1 stage=stage-1 action=promotion") {
 		t.Fatalf("expected typed flow-path summary in view, got %q", view)
 	}
-	if !strings.Contains(view, "typed approval_resolve currently disabled pending typed origin metadata") {
-		t.Fatalf("expected disabled resolve copy in flow path, got %q", view)
+	if !strings.Contains(view, "typed approval_resolve -> resume signal") {
+		t.Fatalf("expected typed resolve copy in flow path, got %q", view)
 	}
 
 	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
@@ -114,8 +114,45 @@ func TestApprovalsRouteSupportsTypedResolveFlowPath(t *testing.T) {
 	}
 
 	view = updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "Status: approval resolve is disabled until approval detail exposes typed origin metadata required by ApprovalResolveRequest") {
+	if !strings.Contains(view, "Status: promotion approvals must be resolved via promote-excerpt to preserve exact promotion binding") {
 		t.Fatalf("expected fail-closed approval status in view, got %q", view)
+	}
+}
+
+func TestApprovalsRouteResolvesBackendPostureViaTypedApprovalResolve(t *testing.T) {
+	base := &backendResolveReadyBrokerClient{fakeBrokerClient: &fakeBrokerClient{}}
+	spy := newRecordingBrokerClient(base)
+	model := newApprovalsRouteModel(routeDefinition{ID: routeApprovals, Label: "Approvals"}, spy)
+
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeApprovals})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected detail load command for selected backend-posture approval")
+	}
+	updated, _ = updated.Update(cmd())
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if cmd == nil {
+		t.Fatal("expected resolve command for backend-posture approval")
+	}
+	updated, cmd = updated.Update(cmd())
+	if cmd == nil {
+		t.Fatal("expected post-resolve reload command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	calls := spy.Calls()
+	if !containsCall(calls, "ApprovalResolve") {
+		t.Fatalf("expected ApprovalResolve to be called, got %v", calls)
+	}
+	view := updated.View(120, 40, focusContent)
+	if !strings.Contains(view, "resolved via typed ApprovalResolve") {
+		t.Fatalf("expected resolve success status in view, got %q", view)
 	}
 }
 

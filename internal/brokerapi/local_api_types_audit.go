@@ -44,6 +44,23 @@ type AuditVerificationGetResponse struct {
 	Views         []trustpolicy.AuditOperationalView             `json:"views"`
 }
 
+type AuditFinalizeVerifyRequest struct {
+	SchemaID      string `json:"schema_id"`
+	SchemaVersion string `json:"schema_version"`
+	RequestID     string `json:"request_id"`
+}
+
+type AuditFinalizeVerifyResponse struct {
+	SchemaID       string              `json:"schema_id"`
+	SchemaVersion  string              `json:"schema_version"`
+	RequestID      string              `json:"request_id"`
+	ActionStatus   string              `json:"action_status"`
+	SegmentID      string              `json:"segment_id,omitempty"`
+	ReportDigest   *trustpolicy.Digest `json:"report_digest,omitempty"`
+	FailureCode    string              `json:"failure_code,omitempty"`
+	FailureMessage string              `json:"failure_message,omitempty"`
+}
+
 type AuditRecordLinkedReference struct {
 	ReferenceKind string `json:"reference_kind"`
 	ReferenceID   string `json:"reference_id"`
@@ -115,6 +132,58 @@ type AuditAnchorPresenceGetRequest struct {
 	SchemaVersion string             `json:"schema_version"`
 	RequestID     string             `json:"request_id"`
 	SealDigest    trustpolicy.Digest `json:"seal_digest"`
+}
+
+type AuditAnchorPreflightGetRequest struct {
+	SchemaID      string `json:"schema_id"`
+	SchemaVersion string `json:"schema_version"`
+	RequestID     string `json:"request_id"`
+}
+
+type AuditAnchorPreflightGetResponse struct {
+	SchemaID             string                          `json:"schema_id"`
+	SchemaVersion        string                          `json:"schema_version"`
+	RequestID            string                          `json:"request_id"`
+	LatestAnchorableSeal *AuditAnchorableSealRef         `json:"latest_anchorable_seal,omitempty"`
+	SignerReadiness      AuditAnchorSignerReadiness      `json:"signer_readiness"`
+	VerifierReadiness    AuditAnchorVerifierReadiness    `json:"verifier_readiness"`
+	PresenceRequirements AuditAnchorPresenceRequirements `json:"presence_requirements"`
+	ApprovalRequirements AuditAnchorApprovalRequirements `json:"approval_requirements"`
+}
+
+type AuditAnchorableSealRef struct {
+	SegmentID  string             `json:"segment_id"`
+	SealDigest trustpolicy.Digest `json:"seal_digest"`
+}
+
+type AuditAnchorSignerReadiness struct {
+	Ready              bool   `json:"ready"`
+	PresenceMode       string `json:"presence_mode,omitempty"`
+	SignerLogicalScope string `json:"signer_logical_scope,omitempty"`
+	ReasonCode         string `json:"reason_code,omitempty"`
+	Message            string `json:"message,omitempty"`
+}
+
+type AuditAnchorVerifierReadiness struct {
+	Ready      bool   `json:"ready"`
+	ReasonCode string `json:"reason_code,omitempty"`
+	Message    string `json:"message,omitempty"`
+}
+
+type AuditAnchorPresenceRequirements struct {
+	Required         bool   `json:"required"`
+	AttestationMode  string `json:"attestation_mode,omitempty"`
+	AttestationReady bool   `json:"attestation_ready,omitempty"`
+	ReasonCode       string `json:"reason_code,omitempty"`
+	Message          string `json:"message,omitempty"`
+}
+
+type AuditAnchorApprovalRequirements struct {
+	Required               bool   `json:"required"`
+	RequiredAssuranceLevel string `json:"required_assurance_level,omitempty"`
+	PolicyDecisionRef      string `json:"policy_decision_ref,omitempty"`
+	ReasonCode             string `json:"reason_code,omitempty"`
+	Message                string `json:"message,omitempty"`
 }
 
 type AuditAnchorPresenceGetResponse struct {

@@ -22,6 +22,8 @@ func TestAuditRouteShowsPagedTimelineAndVerificationReasonCodes(t *testing.T) {
 
 	mustContainAll(t, view,
 		"Audit safety strip",
+		"Finalize/verify",
+		"status=unavailable",
 		"UNANCHORED_OR_DEGRADED_AUDIT",
 		"Timeline paging: page=1 entries=1 has_next=yes",
 		"anchoring=degraded (unanchored/degraded)",
@@ -135,23 +137,59 @@ func (c *auditAnchorProbeClient) AuditAnchorSegment(ctx context.Context, req bro
 	return c.anchorResp, nil
 }
 
+func (c *auditAnchorProbeClient) LLMInvoke(ctx context.Context, req brokerapi.LLMInvokeRequest) (brokerapi.LLMInvokeResponse, error) {
+	return c.fakeBrokerClient.LLMInvoke(ctx, req)
+}
+
+func (c *auditAnchorProbeClient) LLMStream(ctx context.Context, req brokerapi.LLMStreamRequest) (brokerapi.LLMStreamEnvelope, error) {
+	return c.fakeBrokerClient.LLMStream(ctx, req)
+}
+
 func TestAuditRouteAnchorActionDispatchesToBrokerAndRendersSuccess(t *testing.T) {
 	client := &auditAnchorProbeClient{includeSeal: true}
 	spy := newRecordingBrokerClient(client)
 	model := newAuditRouteModel(routeDefinition{ID: routeAudit, Label: "Audit"}, spy)
+	updated := mustActivateAuditRoute(t, model)
+	updated = mustRunAuditRouteKey(t, updated, 'a', "expected anchor command")
+	assertAuditRouteAnchorRequest(t, client, spy)
+	view := updated.View(120, 40, focusContent)
+	mustContainAll(t, view,
+		"Anchor action",
+		"Anchor action: ok",
+		"receipt=sha256:",
+		"export_copy=off",
+	)
+	updated = mustRunAuditRouteKey(t, updated, 'f', "expected finalize+verify command")
+	view = updated.View(120, 40, focusContent)
+	mustContainAll(t, view,
+		"Finalize/verify",
+		"status=ok",
+		"segment=segment-000001",
+	)
+}
 
+func mustActivateAuditRoute(t *testing.T, model routeModel) routeModel {
+	t.Helper()
 	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeAudit})
 	if cmd == nil {
 		t.Fatal("expected activation load command")
 	}
 	updated, _ = updated.Update(cmd())
+	return updated
+}
 
-	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+func mustRunAuditRouteKey(t *testing.T, model routeModel, key rune, nilMessage string) routeModel {
+	t.Helper()
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
 	if cmd == nil {
-		t.Fatal("expected anchor command")
+		t.Fatal(nilMessage)
 	}
 	updated, _ = updated.Update(cmd())
+	return updated
+}
 
+func assertAuditRouteAnchorRequest(t *testing.T, client *auditAnchorProbeClient, spy *recordingBrokerClient) {
+	t.Helper()
 	if client.lastAnchor == nil {
 		t.Fatal("expected AuditAnchorSegment request capture")
 	}
@@ -165,22 +203,14 @@ func TestAuditRouteAnchorActionDispatchesToBrokerAndRendersSuccess(t *testing.T)
 	if gotSeal != "sha256:"+strings.Repeat("e", 64) {
 		t.Fatalf("expected selected/latest seal digest, got %q", gotSeal)
 	}
-	if !containsCall(spy.Calls(), "AuditAnchorSegment") {
-		t.Fatalf("expected AuditAnchorSegment call, got %v", spy.Calls())
-	}
-	if !containsCall(spy.Calls(), "AuditAnchorPresenceGet") {
-		t.Fatalf("expected AuditAnchorPresenceGet call, got %v", spy.Calls())
+	for _, call := range []string{"AuditAnchorSegment", "AuditAnchorPreflightGet", "AuditAnchorPresenceGet"} {
+		if !containsCall(spy.Calls(), call) {
+			t.Fatalf("expected %s call, got %v", call, spy.Calls())
+		}
 	}
 	if client.lastAnchor.PresenceAttestation == nil {
 		t.Fatal("expected broker-owned presence attestation on anchor request")
 	}
-	view := updated.View(120, 40, focusContent)
-	mustContainAll(t, view,
-		"Anchor action",
-		"Anchor action: ok",
-		"receipt=sha256:",
-		"export_copy=off",
-	)
 }
 
 func TestAuditRouteAnchorActionRendersFailureReason(t *testing.T) {

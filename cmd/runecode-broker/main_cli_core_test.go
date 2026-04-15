@@ -27,8 +27,23 @@ func TestHelpAndUnknownCommand(t *testing.T) {
 	if !strings.Contains(stdout.String(), "Usage: runecode-broker") {
 		t.Fatalf("help output missing usage: %q", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "--state-root path") {
+		t.Fatalf("help output missing --state-root global option: %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "--audit-ledger-root path") {
+		t.Fatalf("help output missing --audit-ledger-root global option: %q", stdout.String())
+	}
 	if !strings.Contains(stdout.String(), "audit-anchor-segment") {
 		t.Fatalf("help output missing audit-anchor-segment command: %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "audit-finalize-verify") {
+		t.Fatalf("help output missing audit-finalize-verify command: %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "backend-posture-get") {
+		t.Fatalf("help output missing backend-posture-get command: %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "approval-resolve") {
+		t.Fatalf("help output missing approval-resolve command: %q", stdout.String())
 	}
 	err := run([]string{"not-a-command"}, stdout, stderr)
 	if err == nil {
@@ -36,6 +51,33 @@ func TestHelpAndUnknownCommand(t *testing.T) {
 	}
 	if _, ok := err.(*usageError); !ok {
 		t.Fatalf("unknown command error type = %T, want *usageError", err)
+	}
+}
+
+func TestGlobalStateAndLedgerRootsAreAppliedBeforeCommand(t *testing.T) {
+	setBrokerServiceForTest(t)
+	var captured brokerServiceRoots
+	originalFactory := brokerServiceFactory
+	brokerServiceFactory = func(roots brokerServiceRoots) (*brokerapi.Service, error) {
+		captured = roots
+		return newBrokerService(roots)
+	}
+	t.Cleanup(func() {
+		brokerServiceFactory = originalFactory
+	})
+
+	stateRoot := filepath.Join(t.TempDir(), "state-root")
+	ledgerRoot := filepath.Join(t.TempDir(), "audit-ledger-root")
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	if err := run([]string{"--state-root", stateRoot, "--audit-ledger-root", ledgerRoot, "run-list", "--limit", "1"}, stdout, stderr); err != nil {
+		t.Fatalf("run with global roots returned error: %v", err)
+	}
+	if captured.stateRoot != stateRoot {
+		t.Fatalf("captured state root = %q, want %q", captured.stateRoot, stateRoot)
+	}
+	if captured.auditLedgerRoot != ledgerRoot {
+		t.Fatalf("captured audit ledger root = %q, want %q", captured.auditLedgerRoot, ledgerRoot)
 	}
 }
 
@@ -327,7 +369,7 @@ func TestServeLocalSessionSendMessageReturnsTypedAck(t *testing.T) {
 		t.Skip("serve-local IPC peer-credential path is linux-only")
 	}
 	setBrokerServiceForTest(t)
-	seedService, err := brokerServiceFactory()
+	seedService, err := brokerServiceFactory(defaultBrokerServiceRoots())
 	if err != nil {
 		t.Fatalf("brokerServiceFactory seed returned error: %v", err)
 	}

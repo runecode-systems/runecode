@@ -46,7 +46,7 @@ func (s *Service) startAuditAnchorPresenceGet(ctx context.Context, req AuditAnch
 
 func (s *Service) auditAnchorPresenceGetResponse(requestID string, req AuditAnchorPresenceGetRequest) (AuditAnchorPresenceGetResponse, *ErrorResponse) {
 	if s.secretsSvc == nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, "audit anchor signer unavailable")
+		errOut := s.makeError(requestID, auditAnchorErrorCodeSignerUnavailable, "internal", false, "audit anchor signer unavailable")
 		return AuditAnchorPresenceGetResponse{}, &errOut
 	}
 	if _, err := req.SealDigest.Identity(); err != nil {
@@ -55,7 +55,7 @@ func (s *Service) auditAnchorPresenceGetResponse(requestID string, req AuditAnch
 	}
 	mode := strings.TrimSpace(s.secretsSvc.AuditAnchorPresenceMode())
 	if !isAuditAnchorPresenceMode(mode) {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, "audit anchor presence mode unavailable")
+		errOut := s.makeError(requestID, auditAnchorErrorCodePresenceModeUnavailable, "internal", false, "audit anchor presence mode unavailable")
 		return AuditAnchorPresenceGetResponse{}, &errOut
 	}
 	resp := AuditAnchorPresenceGetResponse{
@@ -79,12 +79,12 @@ func (s *Service) auditAnchorPresenceAttestation(requestID string, mode string, 
 	}
 	challenge, err := newAuditAnchorPresenceChallenge()
 	if err != nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, "audit anchor presence challenge unavailable")
+		errOut := s.makeError(requestID, auditAnchorErrorCodePresenceChallengeUnavailable, "internal", false, "audit anchor presence challenge unavailable")
 		return nil, &errOut
 	}
 	token, err := s.secretsSvc.ComputeAuditAnchorPresenceAcknowledgmentToken(mode, sealDigest, challenge)
 	if err != nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, "audit anchor presence token unavailable")
+		errOut := s.makeError(requestID, auditAnchorErrorCodePresenceTokenUnavailable, "internal", false, "audit anchor presence token unavailable")
 		return nil, &errOut
 	}
 	return &AuditAnchorPresenceAttestation{Challenge: challenge, AcknowledgmentToken: token}, nil

@@ -1,0 +1,5 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditAnchorPreflightGetRequest",
+  "schema_version": "0.1.0",
+  "request_id": "req-audit-anchor-preflight"
+}

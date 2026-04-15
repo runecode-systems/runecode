@@ -103,7 +103,7 @@ func TestSeedDevManualScenarioIsIdempotentForPolicyAndPrimaryIdentifiers(t *test
 	if first.RunID != second.RunID || first.SessionID != second.SessionID || first.ApprovalID != second.ApprovalID || first.AuditRecordDigest != second.AuditRecordDigest {
 		t.Fatalf("seed identifiers changed across repeated runs: first=%+v second=%+v", first, second)
 	}
-	service, err := brokerServiceFactory()
+	service, err := brokerServiceFactory(defaultBrokerServiceRoots())
 	if err != nil {
 		t.Fatalf("brokerServiceFactory returned error: %v", err)
 	}

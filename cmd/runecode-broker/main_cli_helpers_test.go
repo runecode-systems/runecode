@@ -116,7 +116,7 @@ func promoteViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, digest string, ap
 
 func seedPendingPromotionApprovalForCLI(t *testing.T, digest, approvalRequestPath string) {
 	t.Helper()
-	service, err := brokerServiceFactory()
+	service, err := brokerServiceFactory(defaultBrokerServiceRoots())
 	if err != nil {
 		t.Fatalf("brokerServiceFactory returned error: %v", err)
 	}
@@ -400,11 +400,11 @@ func setBrokerServiceForTest(t *testing.T) string {
 	secretsRoot := filepath.Join(root, "secrets-state")
 	seedBrokerSecretsReadinessState(t, secretsRoot)
 	t.Setenv("RUNE_SECRETS_STATE_ROOT", secretsRoot)
-	brokerServiceFactory = func() (*brokerapi.Service, error) {
+	brokerServiceFactory = func(_ brokerServiceRoots) (*brokerapi.Service, error) {
 		return brokerapi.NewService(root, filepath.Join(root, "audit-ledger"))
 	}
 	t.Cleanup(func() {
-		brokerServiceFactory = brokerService
+		brokerServiceFactory = newBrokerService
 	})
 	return root
 }

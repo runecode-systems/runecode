@@ -47,6 +47,17 @@ func handleAuditAnchorSegment(args []string, service *brokerapi.Service, stdout 
 	api := localAPIForService(service)
 	ctx, cancel := commandRequestContext(context.Background())
 	defer cancel()
+	preflightResp, errResp := api.AuditAnchorPreflightGet(ctx, brokerapi.AuditAnchorPreflightGetRequest{
+		SchemaID:      "runecode.protocol.v0.AuditAnchorPreflightGetRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     defaultRequestID(),
+	})
+	if errResp != nil {
+		return localAPIError(errResp)
+	}
+	if err := validateAuditAnchorPreflightResponse(preflightResp, input.sealDigest); err != nil {
+		return err
+	}
 	presenceResp, errResp := api.AuditAnchorPresenceGet(ctx, brokerapi.AuditAnchorPresenceGetRequest{
 		SchemaID:      "runecode.protocol.v0.AuditAnchorPresenceGetRequest",
 		SchemaVersion: "0.1.0",
@@ -121,6 +132,42 @@ func validateAuditAnchorPresenceResponse(resp brokerapi.AuditAnchorPresenceGetRe
 	}
 	if (mode == "os_confirmation" || mode == "hardware_touch") && resp.PresenceAttestation == nil {
 		return fmt.Errorf("audit anchor failed: presence attestation unavailable")
+	}
+	return nil
+}
+
+func validateAuditAnchorPreflightResponse(resp brokerapi.AuditAnchorPreflightGetResponse, requestedDigest trustpolicy.Digest) error {
+	if !resp.SignerReadiness.Ready {
+		if reason := strings.TrimSpace(resp.SignerReadiness.ReasonCode); reason != "" {
+			return fmt.Errorf("audit anchor failed: %s", reason)
+		}
+		return fmt.Errorf("audit anchor failed: signer unavailable")
+	}
+	if !resp.VerifierReadiness.Ready {
+		if reason := strings.TrimSpace(resp.VerifierReadiness.ReasonCode); reason != "" {
+			return fmt.Errorf("audit anchor failed: %s", reason)
+		}
+		return fmt.Errorf("audit anchor failed: verifier unavailable")
+	}
+	if resp.PresenceRequirements.Required && !resp.PresenceRequirements.AttestationReady {
+		if reason := strings.TrimSpace(resp.PresenceRequirements.ReasonCode); reason != "" {
+			return fmt.Errorf("audit anchor failed: %s", reason)
+		}
+		return fmt.Errorf("audit anchor failed: presence attestation unavailable")
+	}
+	if resp.LatestAnchorableSeal == nil {
+		return fmt.Errorf("audit anchor failed: latest anchorable seal unavailable")
+	}
+	want, err := requestedDigest.Identity()
+	if err != nil {
+		return fmt.Errorf("audit anchor failed: invalid requested seal digest")
+	}
+	got, err := resp.LatestAnchorableSeal.SealDigest.Identity()
+	if err != nil {
+		return fmt.Errorf("audit anchor failed: latest anchorable seal digest invalid")
+	}
+	if got != want {
+		return fmt.Errorf("audit anchor failed: requested seal is not latest anchorable seal")
 	}
 	return nil
 }
