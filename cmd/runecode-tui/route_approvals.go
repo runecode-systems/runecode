@@ -226,6 +226,8 @@ func validateApprovalResolveInput(resp brokerapi.ApprovalGetResponse) error {
 		}
 	case "promotion":
 		return fmt.Errorf("promotion approvals must be resolved via promote-excerpt to preserve exact promotion binding")
+	default:
+		return fmt.Errorf("approval resolve does not support this action kind")
 	}
 	return nil
 }

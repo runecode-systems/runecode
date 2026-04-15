@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -215,19 +216,120 @@ func TestDecodeArtifactStreamRequiresTerminalEvent(t *testing.T) {
 }
 
 func TestLocalIPCConfigProviderWithOverridesUsesFallbackWhenBaseUnavailable(t *testing.T) {
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
 	provider := localIPCConfigProviderWithOverrides(
 		func() (brokerapi.LocalIPCConfig, error) {
 			return brokerapi.LocalIPCConfig{}, errors.New("local ipc listener is linux-only for MVP")
 		},
-		"/tmp/runecode-dev/runtime",
+		runtimeDir,
 		"broker.dev.sock",
 	)
 	cfg, err := provider()
 	if err != nil {
 		t.Fatalf("provider returned error: %v", err)
 	}
-	if cfg.RuntimeDir != "/tmp/runecode-dev/runtime" || cfg.SocketName != "broker.dev.sock" {
+	if cfg.RuntimeDir != runtimeDir || cfg.SocketName != "broker.dev.sock" {
 		t.Fatalf("provider cfg = %+v, want override values", cfg)
+	}
+}
+
+func TestLocalIPCConfigProviderWithOverridesPropagatesBaseErrorWhenOnlyOneOverrideProvided(t *testing.T) {
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	provider := localIPCConfigProviderWithOverrides(
+		func() (brokerapi.LocalIPCConfig, error) {
+			return brokerapi.LocalIPCConfig{}, errors.New("local ipc listener is linux-only for MVP")
+		},
+		runtimeDir,
+		"",
+	)
+	_, err := provider()
+	if err == nil {
+		t.Fatal("provider expected error")
+	}
+	if got := err.Error(); got != "local ipc listener is linux-only for MVP" {
+		t.Fatalf("provider error = %q", got)
+	}
+}
+
+func TestLocalIPCConfigProviderWithOverridesMergesSuccessfulBaseConfig(t *testing.T) {
+	baseRuntimeDir := filepath.Join(t.TempDir(), "base-runtime")
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	provider := localIPCConfigProviderWithOverrides(
+		func() (brokerapi.LocalIPCConfig, error) {
+			return brokerapi.LocalIPCConfig{RuntimeDir: baseRuntimeDir, SocketName: "broker.sock"}, nil
+		},
+		runtimeDir,
+		"broker.dev.sock",
+	)
+	cfg, err := provider()
+	if err != nil {
+		t.Fatalf("provider returned error: %v", err)
+	}
+	if cfg.RuntimeDir != runtimeDir || cfg.SocketName != "broker.dev.sock" {
+		t.Fatalf("provider cfg = %+v, want merged override values", cfg)
+	}
+}
+
+func TestLocalIPCConfigProviderWithOverridesPropagatesBaseErrorWhenFallbackRuntimeDirInvalid(t *testing.T) {
+	provider := localIPCConfigProviderWithOverrides(
+		func() (brokerapi.LocalIPCConfig, error) {
+			return brokerapi.LocalIPCConfig{}, errors.New("local ipc listener is linux-only for MVP")
+		},
+		"relative/runtime",
+		"broker.dev.sock",
+	)
+	_, err := provider()
+	if err == nil {
+		t.Fatal("provider expected base error")
+	}
+	if got := err.Error(); got != "local ipc listener is linux-only for MVP" {
+		t.Fatalf("provider error = %q", got)
+	}
+}
+
+func TestLocalIPCConfigProviderWithOverridesRejectsInvalidMergedConfigWhenBaseSucceeds(t *testing.T) {
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	provider := localIPCConfigProviderWithOverrides(
+		func() (brokerapi.LocalIPCConfig, error) {
+			return brokerapi.LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"}, nil
+		},
+		"relative/runtime",
+		"broker.dev.sock",
+	)
+	_, err := provider()
+	if err == nil {
+		t.Fatal("provider expected validation error")
+	}
+	if got := err.Error(); got != "runtime directory must be absolute" {
+		t.Fatalf("provider error = %q", got)
+	}
+}
+
+func TestValidatedLocalIPCConfigRejectsRootRuntimeDir(t *testing.T) {
+	_, err := validatedLocalIPCConfig(brokerapi.LocalIPCConfig{RuntimeDir: string(filepath.Separator), SocketName: "broker.sock"})
+	if err == nil {
+		t.Fatal("validatedLocalIPCConfig expected error")
+	}
+	if got := err.Error(); got != "runtime directory must be a non-root absolute path" {
+		t.Fatalf("validatedLocalIPCConfig error = %q", got)
+	}
+}
+
+func TestLocalIPCConfigProviderWithOverridesPropagatesBaseErrorWhenFallbackSocketNameInvalid(t *testing.T) {
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	provider := localIPCConfigProviderWithOverrides(
+		func() (brokerapi.LocalIPCConfig, error) {
+			return brokerapi.LocalIPCConfig{}, errors.New("local ipc listener is linux-only for MVP")
+		},
+		runtimeDir,
+		"nested/broker.sock",
+	)
+	_, err := provider()
+	if err == nil {
+		t.Fatal("provider expected base error")
+	}
+	if got := err.Error(); got != "local ipc listener is linux-only for MVP" {
+		t.Fatalf("provider error = %q", got)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -298,6 +299,66 @@ func TestHandleAuditFinalizeVerifyReturnsFailedStatusWhenNoSealedSegmentExists(t
 	}
 	if err := service.validateResponse(resp, auditFinalizeVerifyResponseSchemaPath); err != nil {
 		t.Fatalf("validateResponse(auditFinalizeVerifyResponse) returned error: %v", err)
+	}
+}
+
+func TestHandleAuditFinalizeVerifyDoesNotLeakUnexpectedLedgerErrors(t *testing.T) {
+	storeRoot := filepath.Join(t.TempDir(), "store")
+	ledgerRoot := filepath.Join(t.TempDir(), "ledger")
+	if err := seedLedgerForBrokerSurfaceTest(ledgerRoot); err != nil {
+		t.Fatalf("seedLedgerForBrokerSurfaceTest returned error: %v", err)
+	}
+	contractsDir := filepath.Join(ledgerRoot, "contracts")
+	if err := os.Remove(filepath.Join(contractsDir, "verifier-records.json")); err != nil {
+		t.Fatalf("Remove verifier-records.json returned error: %v", err)
+	}
+	service, err := NewService(storeRoot, ledgerRoot)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
+	resp, errResp := service.HandleAuditFinalizeVerify(context.Background(), AuditFinalizeVerifyRequest{
+		SchemaID:      "runecode.protocol.v0.AuditFinalizeVerifyRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-audit-finalize-verify-internal-error",
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleAuditFinalizeVerify returned error: %+v", errResp)
+	}
+	if resp.ActionStatus != "failed" {
+		t.Fatalf("action_status = %q, want failed", resp.ActionStatus)
+	}
+	if resp.FailureCode != auditFinalizeVerifyFailureCodeUnavailable {
+		t.Fatalf("failure_code = %q, want %q", resp.FailureCode, auditFinalizeVerifyFailureCodeUnavailable)
+	}
+	if resp.FailureMessage != auditFinalizeVerifyFailureMessageInternal {
+		t.Fatalf("failure_message = %q, want %q", resp.FailureMessage, auditFinalizeVerifyFailureMessageInternal)
+	}
+	if strings.Contains(strings.ToLower(resp.FailureMessage), "verifier-records") {
+		t.Fatalf("failure_message leaked internal detail: %q", resp.FailureMessage)
+	}
+	if err := service.validateResponse(resp, auditFinalizeVerifyResponseSchemaPath); err != nil {
+		t.Fatalf("validateResponse(auditFinalizeVerifyResponse) returned error: %v", err)
+	}
+}
+
+func TestHandleAuditFinalizeVerifyNilServiceFailsClosed(t *testing.T) {
+	var service *Service
+	resp, errResp := service.HandleAuditFinalizeVerify(context.Background(), AuditFinalizeVerifyRequest{
+		SchemaID:      "runecode.protocol.v0.AuditFinalizeVerifyRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-audit-finalize-nil-service",
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleAuditFinalizeVerify returned error: %+v", errResp)
+	}
+	if resp.ActionStatus != "failed" {
+		t.Fatalf("action_status = %q, want failed", resp.ActionStatus)
+	}
+	if resp.FailureCode != auditFinalizeVerifyFailureCodeUnavailable {
+		t.Fatalf("failure_code = %q, want %q", resp.FailureCode, auditFinalizeVerifyFailureCodeUnavailable)
+	}
+	if resp.FailureMessage != "audit ledger unavailable" {
+		t.Fatalf("failure_message = %q, want audit ledger unavailable", resp.FailureMessage)
 	}
 }
 

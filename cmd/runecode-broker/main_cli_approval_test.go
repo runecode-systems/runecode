@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
@@ -198,6 +199,26 @@ func TestBackendPostureCommandsAndGenericApprovalResolveViaLocalRPC(t *testing.T
 
 	runBackendPostureCommandSequence(t, stdout, stderr)
 	assertBackendPostureRequestedOps(t, requestedOps)
+}
+
+func TestGenericApprovalResolveRequestRejectsUnsupportedActionKind(t *testing.T) {
+	_, err := genericApprovalResolveRequest(
+		"sha256:"+strings.Repeat("a", 64),
+		brokerapi.ApprovalBoundScope{ActionKind: "__unsupported_test_kind__"},
+		brokerapi.ApprovalGetResponse{},
+		trustpolicy.SignedObjectEnvelope{},
+		trustpolicy.SignedObjectEnvelope{},
+	)
+	if err == nil {
+		t.Fatal("expected usage error for unsupported action kind")
+	}
+	usage, ok := err.(*usageError)
+	if !ok {
+		t.Fatalf("error type = %T, want *usageError", err)
+	}
+	if got := usage.Error(); !strings.Contains(got, "approval-resolve does not support this action kind") {
+		t.Fatalf("usage error = %q", got)
+	}
 }
 
 func backendPostureLocalRPCDispatchForTest(t *testing.T, requestedOps *[]string) func(*brokerapi.Service, context.Context, localRPCRequest, brokerapi.RequestContext) localRPCResponse {

@@ -3,6 +3,7 @@ package brokerapi
 import (
 	"context"
 	"errors"
+	"log"
 
 	"github.com/runecode-ai/runecode/internal/auditd"
 )
@@ -10,9 +11,17 @@ import (
 const (
 	auditFinalizeVerifyFailureCodeUnavailable = "audit_finalize_verify_unavailable"
 	auditFinalizeVerifyFailureCodeInvalid     = "audit_finalize_verify_invalid"
+	auditFinalizeVerifyFailureMessageInternal = "audit finalize verification unavailable"
 )
 
 func (s *Service) HandleAuditFinalizeVerify(ctx context.Context, req AuditFinalizeVerifyRequest, meta RequestContext) (AuditFinalizeVerifyResponse, *ErrorResponse) {
+	if s == nil {
+		requestID := resolveRequestID(req.RequestID, meta.RequestID)
+		if requestID == "" {
+			requestID = defaultRequestIDFallback
+		}
+		return validatedAuditFinalizeVerifyResponseWithoutService(auditFinalizeVerifyFailedResponse(requestID, auditFinalizeVerifyFailureCodeUnavailable, "audit ledger unavailable"))
+	}
 	requestID, errResp := s.prepareLocalRequest(req.RequestID, meta.RequestID, meta.AdmissionErr, req, auditFinalizeVerifyRequestSchemaPath)
 	if errResp != nil {
 		return AuditFinalizeVerifyResponse{}, errResp
@@ -53,7 +62,8 @@ func (s *Service) handleAuditFinalizeVerifyValidated(requestCtx context.Context,
 		resp := auditFinalizeVerifyFailedResponse(requestID, auditFinalizeVerifyFailureCodeInvalid, "audit anchor receipt invalid")
 		return s.validatedAuditFinalizeVerifyResponse(resp)
 	}
-	resp := auditFinalizeVerifyFailedResponse(requestID, auditFinalizeVerifyFailureCodeUnavailable, err.Error())
+	log.Printf("brokerapi: audit finalize verification failed request_id=%q category=internal", requestID)
+	resp := auditFinalizeVerifyFailedResponse(requestID, auditFinalizeVerifyFailureCodeUnavailable, auditFinalizeVerifyFailureMessageInternal)
 	return s.validatedAuditFinalizeVerifyResponse(resp)
 }
 
@@ -71,6 +81,14 @@ func auditFinalizeVerifyFailedResponse(requestID, failureCode, failureMessage st
 func (s *Service) validatedAuditFinalizeVerifyResponse(resp AuditFinalizeVerifyResponse) (AuditFinalizeVerifyResponse, *ErrorResponse) {
 	if err := s.validateResponse(resp, auditFinalizeVerifyResponseSchemaPath); err != nil {
 		errOut := s.errorFromValidation(resp.RequestID, err)
+		return AuditFinalizeVerifyResponse{}, &errOut
+	}
+	return resp, nil
+}
+
+func validatedAuditFinalizeVerifyResponseWithoutService(resp AuditFinalizeVerifyResponse) (AuditFinalizeVerifyResponse, *ErrorResponse) {
+	if err := validateJSONEnvelope(resp, auditFinalizeVerifyResponseSchemaPath); err != nil {
+		errOut := toErrorResponse(resp.RequestID, "broker_validation_schema_invalid", "validation", false, err.Error())
 		return AuditFinalizeVerifyResponse{}, &errOut
 	}
 	return resp, nil

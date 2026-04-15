@@ -70,25 +70,6 @@ func newLocalBrokerClient() localBrokerClient {
 	return localBrokerClientFactory()
 }
 
-func localIPCConfigProviderWithOverrides(base func() (brokerapi.LocalIPCConfig, error), runtimeDir, socketName string) func() (brokerapi.LocalIPCConfig, error) {
-	return func() (brokerapi.LocalIPCConfig, error) {
-		cfg, err := base()
-		if err != nil {
-			cfg = brokerapi.LocalIPCConfig{}
-		}
-		if strings.TrimSpace(runtimeDir) != "" {
-			cfg.RuntimeDir = runtimeDir
-		}
-		if strings.TrimSpace(socketName) != "" {
-			cfg.SocketName = socketName
-		}
-		if err != nil && strings.TrimSpace(runtimeDir) == "" && strings.TrimSpace(socketName) == "" {
-			return brokerapi.LocalIPCConfig{}, err
-		}
-		return cfg, nil
-	}
-}
-
 func (c *rpcBrokerClient) RunList(ctx context.Context, limit int) (brokerapi.RunListResponse, error) {
 	req := brokerapi.RunListRequest{SchemaID: "runecode.protocol.v0.RunListRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("run-list"), Limit: limit}
 	resp := brokerapi.RunListResponse{}

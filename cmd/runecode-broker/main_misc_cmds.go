@@ -79,6 +79,8 @@ func genericApprovalResolveRequest(approvalID string, boundScope brokerapi.Appro
 			TargetInstanceID:  selection.TargetInstanceID,
 			TargetBackendKind: selection.TargetBackendKind,
 		}
+	default:
+		return brokerapi.ApprovalResolveRequest{}, &usageError{message: "approval-resolve does not support this action kind"}
 	}
 	return resolveReq, nil
 }
