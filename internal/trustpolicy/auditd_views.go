@@ -12,7 +12,7 @@ import (
 
 const (
 	AuditReceiptSchemaID      = "runecode.protocol.v0.AuditReceipt"
-	AuditReceiptSchemaVersion = "0.4.0"
+	AuditReceiptSchemaVersion = "0.5.0"
 
 	AuditOperationalViewPolicyID      = "audit_default_operational_view"
 	AuditOperationalViewPolicyVersion = "0.1.0"
@@ -65,23 +65,13 @@ type AuditReceiptOperationalView struct {
 	SubjectFamily        string          `json:"subject_family,omitempty"`
 	RecordedAt           string          `json:"recorded_at"`
 	ReceiptPayloadSchema string          `json:"receipt_payload_schema_id,omitempty"`
+	AnchorKind           string          `json:"anchor_kind,omitempty"`
+	KeyProtectionPosture string          `json:"key_protection_posture,omitempty"`
+	PresenceMode         string          `json:"presence_mode,omitempty"`
+	ApprovalAssurance    string          `json:"approval_assurance_level,omitempty"`
+	ApprovalDecision     *Digest         `json:"approval_decision_digest,omitempty"`
+	AnchorWitnessDigest  *Digest         `json:"anchor_witness_digest,omitempty"`
 	AuthorityContext     json.RawMessage `json:"authority_context,omitempty"`
-}
-
-type auditReceiptPayload struct {
-	SchemaID             string          `json:"schema_id"`
-	SchemaVersion        string          `json:"schema_version"`
-	SubjectDigest        Digest          `json:"subject_digest"`
-	AuditReceiptKind     string          `json:"audit_receipt_kind"`
-	SubjectFamily        string          `json:"subject_family,omitempty"`
-	Recorder             json.RawMessage `json:"recorder,omitempty"`
-	RecordedAt           string          `json:"recorded_at"`
-	ReceiptPayloadSchema string          `json:"receipt_payload_schema_id,omitempty"`
-	ReceiptPayload       json.RawMessage `json:"receipt_payload,omitempty"`
-}
-
-type auditImportRestoreOperationalPayload struct {
-	AuthorityContext json.RawMessage `json:"authority_context,omitempty"`
 }
 
 func ComputeSignedEnvelopeAuditRecordDigest(envelope SignedObjectEnvelope) (Digest, error) {
@@ -188,81 +178,4 @@ func buildAuditEventOperationalPayload(event AuditEventPayload) *AuditEventOpera
 		Correlation:                event.Correlation,
 		GatewayContext:             event.GatewayContext,
 	}
-}
-
-func populateOperationalReceiptView(view *AuditOperationalView, envelope SignedObjectEnvelope) error {
-	if envelope.PayloadSchemaVersion != AuditReceiptSchemaVersion {
-		return fmt.Errorf("unsupported audit receipt schema version %q", envelope.PayloadSchemaVersion)
-	}
-	receipt, err := decodeAndValidateOperationalReceipt(envelope.Payload)
-	if err != nil {
-		return err
-	}
-	operationalReceipt, err := buildAuditReceiptOperationalView(receipt)
-	if err != nil {
-		return err
-	}
-	view.Receipt = operationalReceipt
-	view.Redaction.RedactedFields = []string{"receipt_payload", "recorder"}
-	return nil
-}
-
-func decodeAndValidateOperationalReceipt(payload json.RawMessage) (auditReceiptPayload, error) {
-	receipt := auditReceiptPayload{}
-	if err := json.Unmarshal(payload, &receipt); err != nil {
-		return auditReceiptPayload{}, fmt.Errorf("decode audit receipt payload: %w", err)
-	}
-	if receipt.SchemaID != AuditReceiptSchemaID {
-		return auditReceiptPayload{}, fmt.Errorf("unexpected audit receipt schema_id %q", receipt.SchemaID)
-	}
-	if receipt.SchemaVersion != AuditReceiptSchemaVersion {
-		return auditReceiptPayload{}, fmt.Errorf("unexpected audit receipt schema_version %q", receipt.SchemaVersion)
-	}
-	if _, err := receipt.SubjectDigest.Identity(); err != nil {
-		return auditReceiptPayload{}, fmt.Errorf("subject_digest: %w", err)
-	}
-	return receipt, nil
-}
-
-func buildAuditReceiptOperationalView(receipt auditReceiptPayload) (*AuditReceiptOperationalView, error) {
-	authorityContext, err := extractOperationalAuthorityContext(receipt)
-	if err != nil {
-		return nil, err
-	}
-	return &AuditReceiptOperationalView{
-		SchemaID:             receipt.SchemaID,
-		SchemaVersion:        receipt.SchemaVersion,
-		SubjectDigest:        receipt.SubjectDigest,
-		AuditReceiptKind:     receipt.AuditReceiptKind,
-		SubjectFamily:        receipt.SubjectFamily,
-		RecordedAt:           receipt.RecordedAt,
-		ReceiptPayloadSchema: receipt.ReceiptPayloadSchema,
-		AuthorityContext:     authorityContext,
-	}, nil
-}
-
-func extractOperationalAuthorityContext(receipt auditReceiptPayload) (json.RawMessage, error) {
-	if (receipt.AuditReceiptKind != "import" && receipt.AuditReceiptKind != "restore") || len(receipt.ReceiptPayload) == 0 {
-		return nil, nil
-	}
-	payload := auditImportRestoreOperationalPayload{}
-	if err := json.Unmarshal(receipt.ReceiptPayload, &payload); err != nil {
-		return nil, fmt.Errorf("decode import/restore receipt_payload for operational view: %w", err)
-	}
-	if len(payload.AuthorityContext) == 0 {
-		return nil, nil
-	}
-	if !isJSONObject(payload.AuthorityContext) {
-		return nil, fmt.Errorf("authority_context must be a JSON object")
-	}
-	return payload.AuthorityContext, nil
-}
-
-func isJSONObject(raw json.RawMessage) bool {
-	var value any
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return false
-	}
-	_, ok := value.(map[string]any)
-	return ok
 }

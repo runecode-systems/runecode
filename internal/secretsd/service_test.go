@@ -1,11 +1,17 @@
 package secretsd
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func TestLeaseLifecycleAndBinding(t *testing.T) {
@@ -164,4 +170,156 @@ func TestReplaceFileFallbackPromotesSourceAndRemovesBackup(t *testing.T) {
 	if _, statErr := os.Stat(dst + ".bak"); !os.IsNotExist(statErr) {
 		t.Fatalf("backup presence err = %v, want not exist", statErr)
 	}
+}
+
+func TestSignAuditAnchorRejectsUnsupportedScopeFailClosed(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	req := testAuditAnchorSignRequest(t)
+	req.LogicalScope = "user"
+	if _, err := svc.SignAuditAnchor(req); err == nil {
+		t.Fatal("SignAuditAnchor expected fail-closed scope validation error")
+	}
+}
+
+func TestSignAuditAnchorSucceedsWithValidPresenceAttestation(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	req := testAuditAnchorSignRequest(t)
+	req.PresenceAttestation = mustAuditAnchorPresenceAttestationForSignTest(t, svc, "os_confirmation", req.TargetSealDigest)
+	if _, err := svc.SignAuditAnchor(req); err != nil {
+		t.Fatalf("SignAuditAnchor returned error: %v", err)
+	}
+}
+
+func TestSignAuditAnchorFailsClosedWithoutPresenceAttestation(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	req := testAuditAnchorSignRequest(t)
+	if _, err := svc.SignAuditAnchor(req); err == nil {
+		t.Fatal("SignAuditAnchor expected fail-closed missing presence attestation error")
+	}
+}
+
+func TestSignAuditAnchorHardwareTouchFailsClosedWithoutPresenceAttestation(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	t.Setenv(envAuditAnchorPresenceMode, "hardware_touch")
+	req := testAuditAnchorSignRequest(t)
+	if _, err := svc.SignAuditAnchor(req); err == nil {
+		t.Fatal("SignAuditAnchor expected fail-closed missing presence attestation error for hardware_touch")
+	}
+}
+
+func TestSignAuditAnchorFailsClosedWithInvalidPresenceAttestation(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	req := testAuditAnchorSignRequest(t)
+	req.PresenceAttestation = &AuditAnchorPresenceAttestation{Challenge: "presence-challenge", AcknowledgmentToken: "deadbeef"}
+	if _, err := svc.SignAuditAnchor(req); err == nil {
+		t.Fatal("SignAuditAnchor expected fail-closed invalid presence attestation error")
+	}
+}
+
+func TestSignAuditAnchorRejectsPassphraseWithoutExplicitSupport(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	t.Setenv(envAuditAnchorPresenceMode, "passphrase")
+	req := testAuditAnchorSignRequest(t)
+	if _, err := svc.SignAuditAnchor(req); err == nil {
+		t.Fatal("SignAuditAnchor expected passphrase opt-in enforcement")
+	}
+}
+
+func TestSignAuditAnchorRejectsInconsistentPassphrasePosture(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	t.Setenv(envAuditAnchorAllowPassphrase, "true")
+	t.Setenv(envAuditAnchorPresenceMode, "passphrase")
+	t.Setenv(envAuditAnchorKeyPosture, "os_keystore")
+	req := testAuditAnchorSignRequest(t)
+	if _, err := svc.SignAuditAnchor(req); err == nil {
+		t.Fatal("SignAuditAnchor expected fail-closed inconsistent passphrase posture error")
+	}
+}
+
+func TestSignAuditAnchorPassphraseOptInBehaviorUnchanged(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	t.Setenv(envAuditAnchorAllowPassphrase, "true")
+	t.Setenv(envAuditAnchorPresenceMode, "passphrase")
+	t.Setenv(envAuditAnchorKeyPosture, "passphrase_wrapped")
+	req := testAuditAnchorSignRequest(t)
+	if _, err := svc.SignAuditAnchor(req); err != nil {
+		t.Fatalf("SignAuditAnchor returned error: %v", err)
+	}
+}
+
+func TestComputeAuditAnchorPresenceAcknowledgmentTokenRejectsInvalidInlineKey(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	t.Setenv(envAuditAnchorPresenceKeyB64, "invalid-base64")
+	if _, err := svc.ComputeAuditAnchorPresenceAcknowledgmentToken("os_confirmation", testAuditAnchorSignRequest(t).TargetSealDigest, "presence-challenge"); err == nil {
+		t.Fatal("ComputeAuditAnchorPresenceAcknowledgmentToken expected decode failure for invalid inline key")
+	}
+}
+
+func TestComputeAuditAnchorPresenceAcknowledgmentTokenRejectsWrongKeyLength(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	t.Setenv(envAuditAnchorPresenceKeyB64, "YQ==")
+	if _, err := svc.ComputeAuditAnchorPresenceAcknowledgmentToken("os_confirmation", testAuditAnchorSignRequest(t).TargetSealDigest, "presence-challenge"); err == nil {
+		t.Fatal("ComputeAuditAnchorPresenceAcknowledgmentToken expected key length validation error")
+	}
+}
+
+func testAuditAnchorSignRequest(t *testing.T) AuditAnchorSignRequest {
+	t.Helper()
+	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey returned error: %v", err)
+	}
+	sum := sha256.Sum256(pub)
+	return AuditAnchorSignRequest{
+		PayloadCanonicalBytes: []byte("anchor-payload"),
+		TargetSealDigest: trustpolicy.Digest{
+			HashAlg: "sha256",
+			Hash:    hex.EncodeToString(sum[:]),
+		},
+		LogicalScope: "node",
+	}
+}
+
+func mustAuditAnchorPresenceAttestationForSignTest(t *testing.T, svc *Service, mode string, sealDigest trustpolicy.Digest) *AuditAnchorPresenceAttestation {
+	t.Helper()
+	if svc == nil {
+		t.Fatal("secrets service is required")
+	}
+	challenge := "presence-challenge"
+	challenge += "-seed-0001"
+	token, err := svc.ComputeAuditAnchorPresenceAcknowledgmentToken(mode, sealDigest, challenge)
+	if err != nil {
+		t.Fatalf("ComputeAuditAnchorPresenceAcknowledgmentToken returned error: %v", err)
+	}
+	return &AuditAnchorPresenceAttestation{Challenge: challenge, AcknowledgmentToken: token}
 }

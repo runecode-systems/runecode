@@ -152,8 +152,8 @@ This quick path verifies signed checksums and the signed archive before install.
 - A trusted local artifact store with immutable hash-addressed artifact persistence, broker-facing flow checks, quota enforcement, retention/GC, backup/restore, approval records, persisted policy decisions, and audit event recording for artifact and approval actions
 - Approval promotion, resolution, and revocation flows for `unapproved_file_excerpts` and `approved_file_excerpts`, including signed request/decision verification bound to canonical request bytes, promoted inputs, verifier owner identity, and durable policy-decision linkage
 - Store-layer atomic persistence for canonical approval records plus runner-advisory approval mirrors, with rollback that restores durable runner journal/snapshot state consistently on failure
-- A trusted local audit ledger with append/seal persistence, segment recovery, digest-addressed sidecar evidence, readiness evaluation, audit verification reports, and broker-facing audit verification/readiness surfaces
-- A broker local API with fail-closed local auth, schema-validated typed operations for runs, approvals, artifacts, audit, readiness, version info, and backend posture, plus uniform log and artifact read streaming semantics
+- A trusted local audit ledger with append/seal persistence, segment recovery, digest-addressed sidecar evidence, explicit audit anchoring over signed segment seals, readiness evaluation, audit verification reports, and broker/TUI-facing audit verification, record inspection, anchoring, and readiness surfaces
+- A broker local API with fail-closed local auth, schema-validated typed operations for runs, approvals, artifacts, audit timeline and record inspection, audit anchor presence and action flows, readiness, version info, and backend posture, plus uniform log and artifact read streaming semantics
 - A trusted local secrets daemon with durable secret import plus short-lived lease issue/renew/revoke/retrieve flows, fail-closed recovery, and secret-safe onboarding that avoids CLI-arg or environment-variable transport
 - Broker run read models that keep authoritative trusted state distinct from runner-advisory projection, including durable approval-wait, lifecycle, checkpoint, result, and attempt hints
 - Broker-projected subsystem readiness for secrets and model-gateway posture, plus model-gateway runtime enforcement for allowlisted destinations, canonical request binding, quota context, and audit-bound egress decisions
@@ -191,7 +191,7 @@ Current MVP object families cover:
 - runtime evidence and session lifecycle payloads: `RuntimeImageDescriptor`, `IsolateSessionStartedPayload`, `IsolateSessionBoundPayload`
 - policy actions and destinations: `ActionRequest`, `ActionPayloadArtifactRead`, `ActionPayloadPromotion`, `ActionPayloadGatewayEgress`, `ActionPayloadSecretAccess`, `ActionPayloadWorkspaceWrite`, `ActionPayloadExecutorRun`, `ActionPayloadBackendPostureChange`, `ActionPayloadGateOverride`, `ActionPayloadStageSummarySignOff`, `DestinationDescriptor`, `GatewayScopeRule`
 - model traffic: `LLMRequest`, `LLMResponse`, `LLMStreamEvent`
-- broker local API requests/responses: `RunListRequest`, `RunGetRequest`, `ApprovalListRequest`, `ApprovalGetRequest`, `ApprovalResolveRequest`, `BackendPostureGetRequest`, `BackendPostureChangeRequest`, `ArtifactListRequest`, `ArtifactHeadRequest`, `ArtifactReadRequest`, `AuditTimelineRequest`, `AuditVerificationGetRequest`, `ReadinessGetRequest`, `VersionInfoGetRequest`
+- broker local API requests/responses: `RunListRequest`, `RunGetRequest`, `ApprovalListRequest`, `ApprovalGetRequest`, `ApprovalResolveRequest`, `BackendPostureGetRequest`, `BackendPostureChangeRequest`, `ArtifactListRequest`, `ArtifactHeadRequest`, `ArtifactReadRequest`, `AuditTimelineRequest`, `AuditRecordGetRequest`, `AuditVerificationGetRequest`, `AuditAnchorPresenceGetRequest`, `AuditAnchorSegmentRequest`, `ReadinessGetRequest`, `VersionInfoGetRequest`
 - broker local API read models: `RunSummary`, `RunDetail`, `RunStageSummary`, `RunRoleSummary`, `RunCoordinationSummary`, `ApprovalSummary`, `ApprovalBoundScope`, `BackendPostureState`, `BackendPostureAvailability`, `ArtifactSummary`, `BrokerReadiness`, `BrokerVersionInfo`
 - broker local API streams and error envelopes: `LogStreamEvent`, `ArtifactStreamEvent`, `BrokerErrorResponse`
 - wrappers and shared errors: `SignedObjectEnvelope`, `Error`
@@ -254,8 +254,8 @@ Alongside that still-incremental surface, the repository already includes workin
 - canonicalization/hash golden tests
 - runner trust-boundary static checks
 - a trusted local artifact store and broker CLI for artifact put/get/head/list, flow checks, excerpt promotion and revocation, run-status updates, GC, and backup/restore
-- a trusted local audit ledger plus broker/auditd CLI surfaces for audit readiness and audit verification inspection
-- a broker local IPC API and CLI read surfaces for run list/detail, approval list/detail/resolve, policy-backed artifact reads, audit verification/readiness, version inspection, structured log streaming, and broker-projected backend posture get/change operations
+- a trusted local audit ledger plus broker/auditd CLI surfaces for audit readiness, audit verification inspection, audit record inspection, and explicit audit anchoring over signed segment seals
+- a broker local IPC API and CLI read/action surfaces for run list/detail, approval list/detail/resolve, policy-backed artifact reads, audit timeline/record inspection, audit anchoring presence/action, audit verification/readiness, version inspection, structured log streaming, and broker-projected backend posture get/change operations
 - a trusted local secrets daemon CLI for secret import and short-lived lease issue/renew/revoke/retrieve flows without passing secret values through CLI args or environment variables
 - broker-projected secrets and model-gateway readiness surfaces plus model-gateway runtime enforcement for allowlisted destinations, canonical request binding, quota admission/stream checks, and audit-backed egress decisions
 - a trusted launcher service with `serve`, `--once`, Linux-first `--hello-world` operator paths, and a Linux-only explicit-opt-in container backend posture for offline `workspace` launches
@@ -283,6 +283,8 @@ go run ./cmd/runecode-broker approval-get --help
 go run ./cmd/runecode-broker promote-excerpt --help
 go run ./cmd/runecode-broker revoke-approved-excerpt --help
 go run ./cmd/runecode-broker audit-verification --help
+go run ./cmd/runecode-broker audit-record-get --help
+go run ./cmd/runecode-broker audit-anchor-segment --help
 go run ./cmd/runecode-broker audit-readiness --help
 go run ./cmd/runecode-broker version-info --help
 go run ./cmd/runecode-broker stream-logs --help

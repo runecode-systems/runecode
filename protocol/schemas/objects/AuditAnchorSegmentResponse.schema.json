@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditAnchorSegmentResponse.schema.json",
+  "title": "AuditAnchorSegmentResponse",
+  "description": "Explicit broker-owned local anchor action result for one segment seal digest.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 10,
+  "required": ["schema_id", "schema_version", "request_id", "seal_digest", "anchoring_status"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.AuditAnchorSegmentResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Echoed request identifier.", "x-data-class": "public" },
+    "seal_digest": { "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue", "description": "Digest identity of the targeted segment seal.", "x-data-class": "public" },
+    "receipt_digest": { "$ref": "Digest.schema.json#/$defs/digestValue", "description": "Digest identity of the persisted anchor receipt envelope when produced.", "x-data-class": "public" },
+    "verification_report_digest": { "$ref": "Digest.schema.json#/$defs/digestValue", "description": "Digest identity of the verification report persisted after anchoring attempt.", "x-data-class": "public" },
+    "anchoring_status": { "type": "string", "enum": ["ok", "degraded", "failed"], "description": "Resulting anchoring posture for this explicit action.", "x-data-class": "public" },
+    "exported_receipt_ref": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Best-effort artifact digest/ref for exported receipt copy.", "x-data-class": "public" },
+    "failure_code": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z0-9._:-]+$", "description": "Stable machine-readable failure code.", "x-data-class": "public" },
+    "failure_message": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Human-readable failure context.", "x-data-class": "public" }
+  }
+}

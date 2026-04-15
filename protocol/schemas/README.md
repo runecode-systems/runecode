@@ -36,6 +36,7 @@
   - `build_logs`
   - `audit_events`
   - `audit_verification_report`
+  - `audit_receipt_export_copy`
   - `web_query` (reserved)
   - `web_citations` (reserved)
 - `web_query` and `web_citations` are reserved for future role work and remain fail-closed unless explicitly enabled by later signed-manifest policy surfaces.
@@ -48,6 +49,7 @@
 - Canonical audit-record identity is `sha256(JCS(SignedObjectEnvelope))`, modeled as `AuditRecordDigest` for reuse across event chaining, receipt targeting, segment first/last references, seal chaining, import/restore references, and verifier findings.
 - `SignedObjectEnvelope` remains a single-signature envelope contract for this foundation. Additional attestations are modeled as separate signed objects/receipts rather than multiple independent signatures on one envelope.
 - Open and sealed segment leaves are limited to signed `AuditEvent` envelopes; receipts, seals, and verification reports are sidecar evidence keyed by digest.
+- Anchor receipts keep the shared `AuditReceipt(kind=anchor)` envelope and `AuditSegmentSeal` subject model. MVP runtime verification currently admits `anchor_kind=local_user_presence_signature` (with local witness kind) while schema contracts stay additive for post-MVP anchor kinds in `CHG-2026-025`.
 
 ## Append-Only Writer + Recovery Contract Foundation
 

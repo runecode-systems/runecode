@@ -109,7 +109,7 @@ func TestCLIAdoptionRoutesArtifactAuditAndResolveThroughLocalRPC(t *testing.T) {
 	installArtifactAuditResolveDispatchStub(t, &requestedOps)
 	runArtifactAuditResolveCommands(t, stdout, stderr)
 
-	want := []string{"artifact_list", "artifact_head", "artifact_read", "approval_get", "approval_resolve", "readiness_get", "audit_verification_get", "audit_record_get"}
+	want := []string{"artifact_list", "artifact_head", "artifact_read", "approval_get", "approval_resolve", "readiness_get", "audit_verification_get", "audit_record_get", "audit_anchor_presence_get", "audit_anchor_segment"}
 	assertRequestedOps(t, requestedOps, want)
 }
 
@@ -118,32 +118,94 @@ func installArtifactAuditResolveDispatchStub(t *testing.T, requestedOps *[]strin
 	originalDispatch := localRPCDispatch
 	localRPCDispatch = func(_ *brokerapi.Service, _ context.Context, wire localRPCRequest, _ brokerapi.RequestContext) localRPCResponse {
 		*requestedOps = append(*requestedOps, wire.Operation)
-		switch wire.Operation {
-		case "artifact_list":
-			return mustOKLocalRPCResponse(t, brokerapi.LocalArtifactListResponse{SchemaID: "runecode.protocol.v0.ArtifactListResponse", SchemaVersion: "0.1.0", RequestID: "req-art-list", Artifacts: []brokerapi.ArtifactSummary{{SchemaID: "runecode.protocol.v0.ArtifactSummary", SchemaVersion: "0.1.0", Reference: artifacts.ArtifactReference{Digest: testDigest("b"), DataClass: artifacts.DataClassSpecText}, CreatedAt: "2026-01-01T00:00:00Z", CreatedByRole: "workspace"}}})
-		case "artifact_head":
-			return mustOKLocalRPCResponse(t, brokerapi.LocalArtifactHeadResponse{SchemaID: "runecode.protocol.v0.ArtifactHeadResponse", SchemaVersion: "0.1.0", RequestID: "req-art-head", Artifact: brokerapi.ArtifactSummary{SchemaID: "runecode.protocol.v0.ArtifactSummary", SchemaVersion: "0.1.0", Reference: artifacts.ArtifactReference{Digest: testDigest("b"), DataClass: artifacts.DataClassSpecText}, CreatedAt: "2026-01-01T00:00:00Z", CreatedByRole: "workspace"}})
-		case "artifact_read":
-			return mustOKLocalRPCResponse(t, []brokerapi.ArtifactStreamEvent{{SchemaID: "runecode.protocol.v0.ArtifactStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-art-read", Seq: 1, EventType: "artifact_stream_start", Digest: testDigest("b"), DataClass: "spec_text"}, {SchemaID: "runecode.protocol.v0.ArtifactStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-art-read", Seq: 2, EventType: "artifact_stream_chunk", Digest: testDigest("b"), DataClass: "spec_text", ChunkBase64: base64.StdEncoding.EncodeToString([]byte("hello")), ChunkBytes: 5}, {SchemaID: "runecode.protocol.v0.ArtifactStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-art-read", Seq: 3, EventType: "artifact_stream_terminal", Digest: testDigest("b"), DataClass: "spec_text", Terminal: true, TerminalStatus: "completed"}})
-		case "approval_get":
-			request := brokerapi.ApprovalGetRequest{}
-			if err := json.Unmarshal(wire.Request, &request); err != nil {
-				t.Fatalf("Unmarshal approval_get request error: %v", err)
-			}
-			return mustOKLocalRPCResponse(t, brokerapi.ApprovalGetResponse{SchemaID: "runecode.protocol.v0.ApprovalGetResponse", SchemaVersion: "0.1.0", RequestID: "req-approval-get", Approval: brokerapi.ApprovalSummary{SchemaID: "runecode.protocol.v0.ApprovalSummary", SchemaVersion: "0.1.0", ApprovalID: request.ApprovalID, BoundScope: brokerapi.ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", ActionKind: "promotion"}}, ApprovalDetail: brokerapi.ApprovalDetail{SchemaID: "runecode.protocol.v0.ApprovalDetail", SchemaVersion: "0.1.0", ApprovalID: request.ApprovalID, PolicyReasonCode: "approval_required", LifecycleDetail: brokerapi.ApprovalLifecycleDetail{SchemaID: "runecode.protocol.v0.ApprovalLifecycleDetail", SchemaVersion: "0.1.0", LifecycleState: "pending", LifecycleReasonCode: "approval_pending", Stale: false}, BindingKind: "exact_action", BoundActionHash: testDigest("e"), WhatChangesIfApproved: brokerapi.ApprovalWhatChangesIfApproved{SchemaID: "runecode.protocol.v0.ApprovalWhatChangesIfApproved", SchemaVersion: "0.1.0", Summary: "Promote reviewed file excerpts for downstream use.", EffectKind: "promotion"}, BlockedWorkScope: brokerapi.ApprovalBlockedWorkScope{SchemaID: "runecode.protocol.v0.ApprovalBlockedWorkScope", SchemaVersion: "0.1.0", ScopeKind: "action_kind", ActionKind: "promotion"}, BoundIdentity: brokerapi.ApprovalBoundIdentity{SchemaID: "runecode.protocol.v0.ApprovalBoundIdentity", SchemaVersion: "0.1.0", ApprovalRequestDigest: request.ApprovalID, ManifestHash: testDigest("f"), BindingKind: "exact_action", BoundActionHash: testDigest("e")}}})
-		case "approval_resolve":
-			return mustOKLocalRPCResponse(t, brokerapi.ApprovalResolveResponse{SchemaID: "runecode.protocol.v0.ApprovalResolveResponse", SchemaVersion: "0.1.0", RequestID: "req-resolve", ResolutionStatus: "resolved", ResolutionReasonCode: "approval_approved", Approval: brokerapi.ApprovalSummary{SchemaID: "runecode.protocol.v0.ApprovalSummary", SchemaVersion: "0.1.0", ApprovalID: testDigest("c")}, ApprovedArtifact: &brokerapi.ArtifactSummary{SchemaID: "runecode.protocol.v0.ArtifactSummary", SchemaVersion: "0.1.0", Reference: artifacts.ArtifactReference{Digest: testDigest("d"), DataClass: artifacts.DataClassApprovedFileExcerpts}, CreatedAt: "2026-01-01T00:00:00Z", CreatedByRole: "workspace"}})
-		case "readiness_get":
-			return mustOKLocalRPCResponse(t, brokerapi.ReadinessGetResponse{SchemaID: "runecode.protocol.v0.ReadinessGetResponse", SchemaVersion: "0.1.0", RequestID: "req-readiness", Readiness: brokerapi.BrokerReadiness{SchemaID: "runecode.protocol.v0.BrokerReadiness", SchemaVersion: "0.1.0", Ready: true, LocalOnly: true, ConsumptionChannel: "broker_local_api", RecoveryComplete: true, AppendPositionStable: true, CurrentSegmentWritable: true, VerifierMaterialAvailable: true, DerivedIndexCaughtUp: true}})
-		case "audit_verification_get":
-			return mustOKLocalRPCResponse(t, brokerapi.AuditVerificationGetResponse{SchemaID: "runecode.protocol.v0.AuditVerificationGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit"})
-		case "audit_record_get":
-			return mustOKLocalRPCResponse(t, brokerapi.AuditRecordGetResponse{SchemaID: "runecode.protocol.v0.AuditRecordGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-record", Record: brokerapi.AuditRecordDetail{SchemaID: "runecode.protocol.v0.AuditRecordDetail", SchemaVersion: "0.1.0", RecordDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}, RecordFamily: "audit_event", OccurredAt: "2026-01-01T00:00:00Z", EventType: "isolate_session_bound", Summary: "Audit event isolate_session_bound recorded.", LinkedReferences: []brokerapi.AuditRecordLinkedReference{}}})
-		default:
-			return localRPCResponse{OK: false}
+		if resp, ok := artifactAuditResolveStaticResponse(t, wire.Operation); ok {
+			return resp
 		}
+		return artifactAuditResolveDynamicResponse(t, wire)
 	}
 	t.Cleanup(func() { localRPCDispatch = originalDispatch })
+}
+
+func artifactAuditResolveStaticResponse(t *testing.T, operation string) (localRPCResponse, bool) {
+	t.Helper()
+	switch operation {
+	case "artifact_list":
+		return mustOKLocalRPCResponse(t, brokerapi.LocalArtifactListResponse{SchemaID: "runecode.protocol.v0.ArtifactListResponse", SchemaVersion: "0.1.0", RequestID: "req-art-list", Artifacts: []brokerapi.ArtifactSummary{{SchemaID: "runecode.protocol.v0.ArtifactSummary", SchemaVersion: "0.1.0", Reference: artifacts.ArtifactReference{Digest: testDigest("b"), DataClass: artifacts.DataClassSpecText}, CreatedAt: "2026-01-01T00:00:00Z", CreatedByRole: "workspace"}}}), true
+	case "artifact_head":
+		return mustOKLocalRPCResponse(t, brokerapi.LocalArtifactHeadResponse{SchemaID: "runecode.protocol.v0.ArtifactHeadResponse", SchemaVersion: "0.1.0", RequestID: "req-art-head", Artifact: brokerapi.ArtifactSummary{SchemaID: "runecode.protocol.v0.ArtifactSummary", SchemaVersion: "0.1.0", Reference: artifacts.ArtifactReference{Digest: testDigest("b"), DataClass: artifacts.DataClassSpecText}, CreatedAt: "2026-01-01T00:00:00Z", CreatedByRole: "workspace"}}), true
+	case "artifact_read":
+		return mustOKLocalRPCResponse(t, []brokerapi.ArtifactStreamEvent{{SchemaID: "runecode.protocol.v0.ArtifactStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-art-read", Seq: 1, EventType: "artifact_stream_start", Digest: testDigest("b"), DataClass: "spec_text"}, {SchemaID: "runecode.protocol.v0.ArtifactStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-art-read", Seq: 2, EventType: "artifact_stream_chunk", Digest: testDigest("b"), DataClass: "spec_text", ChunkBase64: base64.StdEncoding.EncodeToString([]byte("hello")), ChunkBytes: 5}, {SchemaID: "runecode.protocol.v0.ArtifactStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-art-read", Seq: 3, EventType: "artifact_stream_terminal", Digest: testDigest("b"), DataClass: "spec_text", Terminal: true, TerminalStatus: "completed"}}), true
+	case "approval_resolve":
+		return mustOKLocalRPCResponse(t, brokerapi.ApprovalResolveResponse{SchemaID: "runecode.protocol.v0.ApprovalResolveResponse", SchemaVersion: "0.1.0", RequestID: "req-resolve", ResolutionStatus: "resolved", ResolutionReasonCode: "approval_approved", Approval: brokerapi.ApprovalSummary{SchemaID: "runecode.protocol.v0.ApprovalSummary", SchemaVersion: "0.1.0", ApprovalID: testDigest("c")}, ApprovedArtifact: &brokerapi.ArtifactSummary{SchemaID: "runecode.protocol.v0.ArtifactSummary", SchemaVersion: "0.1.0", Reference: artifacts.ArtifactReference{Digest: testDigest("d"), DataClass: artifacts.DataClassApprovedFileExcerpts}, CreatedAt: "2026-01-01T00:00:00Z", CreatedByRole: "workspace"}}), true
+	case "readiness_get":
+		return mustOKLocalRPCResponse(t, brokerapi.ReadinessGetResponse{SchemaID: "runecode.protocol.v0.ReadinessGetResponse", SchemaVersion: "0.1.0", RequestID: "req-readiness", Readiness: brokerapi.BrokerReadiness{SchemaID: "runecode.protocol.v0.BrokerReadiness", SchemaVersion: "0.1.0", Ready: true, LocalOnly: true, ConsumptionChannel: "broker_local_api", RecoveryComplete: true, AppendPositionStable: true, CurrentSegmentWritable: true, VerifierMaterialAvailable: true, DerivedIndexCaughtUp: true}}), true
+	case "audit_verification_get":
+		return mustOKLocalRPCResponse(t, brokerapi.AuditVerificationGetResponse{SchemaID: "runecode.protocol.v0.AuditVerificationGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit"}), true
+	default:
+		return localRPCResponse{}, false
+	}
+}
+
+func artifactAuditResolveDynamicResponse(t *testing.T, wire localRPCRequest) localRPCResponse {
+	t.Helper()
+	switch wire.Operation {
+	case "approval_get":
+		return artifactAuditResolveApprovalGetResponse(t, wire)
+	case "audit_record_get":
+		return mustOKLocalRPCResponse(t, brokerapi.AuditRecordGetResponse{SchemaID: "runecode.protocol.v0.AuditRecordGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-record", Record: brokerapi.AuditRecordDetail{SchemaID: "runecode.protocol.v0.AuditRecordDetail", SchemaVersion: "0.1.0", RecordDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}, RecordFamily: "audit_event", OccurredAt: "2026-01-01T00:00:00Z", EventType: "isolate_session_bound", Summary: "Audit event isolate_session_bound recorded.", LinkedReferences: []brokerapi.AuditRecordLinkedReference{}}})
+	case "audit_anchor_segment":
+		return artifactAuditResolveAnchorSegmentResponse(t, wire)
+	case "audit_anchor_presence_get":
+		return artifactAuditResolveAnchorPresenceResponse(t, wire)
+	default:
+		return localRPCResponse{OK: false}
+	}
+}
+
+func artifactAuditResolveApprovalGetResponse(t *testing.T, wire localRPCRequest) localRPCResponse {
+	t.Helper()
+	request := brokerapi.ApprovalGetRequest{}
+	if err := json.Unmarshal(wire.Request, &request); err != nil {
+		t.Fatalf("Unmarshal approval_get request error: %v", err)
+	}
+	return mustOKLocalRPCResponse(t, brokerapi.ApprovalGetResponse{SchemaID: "runecode.protocol.v0.ApprovalGetResponse", SchemaVersion: "0.1.0", RequestID: "req-approval-get", Approval: brokerapi.ApprovalSummary{SchemaID: "runecode.protocol.v0.ApprovalSummary", SchemaVersion: "0.1.0", ApprovalID: request.ApprovalID, BoundScope: brokerapi.ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", ActionKind: "promotion"}}, ApprovalDetail: brokerapi.ApprovalDetail{SchemaID: "runecode.protocol.v0.ApprovalDetail", SchemaVersion: "0.1.0", ApprovalID: request.ApprovalID, PolicyReasonCode: "approval_required", LifecycleDetail: brokerapi.ApprovalLifecycleDetail{SchemaID: "runecode.protocol.v0.ApprovalLifecycleDetail", SchemaVersion: "0.1.0", LifecycleState: "pending", LifecycleReasonCode: "approval_pending", Stale: false}, BindingKind: "exact_action", BoundActionHash: testDigest("e"), WhatChangesIfApproved: brokerapi.ApprovalWhatChangesIfApproved{SchemaID: "runecode.protocol.v0.ApprovalWhatChangesIfApproved", SchemaVersion: "0.1.0", Summary: "Promote reviewed file excerpts for downstream use.", EffectKind: "promotion"}, BlockedWorkScope: brokerapi.ApprovalBlockedWorkScope{SchemaID: "runecode.protocol.v0.ApprovalBlockedWorkScope", SchemaVersion: "0.1.0", ScopeKind: "action_kind", ActionKind: "promotion"}, BoundIdentity: brokerapi.ApprovalBoundIdentity{SchemaID: "runecode.protocol.v0.ApprovalBoundIdentity", SchemaVersion: "0.1.0", ApprovalRequestDigest: request.ApprovalID, ManifestHash: testDigest("f"), BindingKind: "exact_action", BoundActionHash: testDigest("e")}}})
+}
+
+func artifactAuditResolveAnchorSegmentResponse(t *testing.T, wire localRPCRequest) localRPCResponse {
+	t.Helper()
+	request := brokerapi.AuditAnchorSegmentRequest{}
+	if err := json.Unmarshal(wire.Request, &request); err != nil {
+		t.Fatalf("Unmarshal audit_anchor_segment request error: %v", err)
+	}
+	assertAuditAnchorPresenceAttestationForCLI(t, request.PresenceAttestation)
+	receipt := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("c", 64)}
+	report := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("d", 64)}
+	return mustOKLocalRPCResponse(t, brokerapi.AuditAnchorSegmentResponse{SchemaID: "runecode.protocol.v0.AuditAnchorSegmentResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-anchor", SealDigest: request.SealDigest, ReceiptDigest: &receipt, VerificationReportDigest: &report, AnchoringStatus: "ok"})
+}
+
+func artifactAuditResolveAnchorPresenceResponse(t *testing.T, wire localRPCRequest) localRPCResponse {
+	t.Helper()
+	request := brokerapi.AuditAnchorPresenceGetRequest{}
+	if err := json.Unmarshal(wire.Request, &request); err != nil {
+		t.Fatalf("Unmarshal audit_anchor_presence_get request error: %v", err)
+	}
+	if _, err := request.SealDigest.Identity(); err != nil {
+		t.Fatalf("audit_anchor_presence_get invalid seal_digest: %v", err)
+	}
+	return mustOKLocalRPCResponse(t, brokerapi.AuditAnchorPresenceGetResponse{SchemaID: "runecode.protocol.v0.AuditAnchorPresenceGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-presence", SealDigest: request.SealDigest, PresenceMode: "os_confirmation", PresenceAttestation: &brokerapi.AuditAnchorPresenceAttestation{Challenge: "presence-challenge-0123456789abcdef", AcknowledgmentToken: strings.Repeat("a", 64)}})
+}
+
+func assertAuditAnchorPresenceAttestationForCLI(t *testing.T, att *brokerapi.AuditAnchorPresenceAttestation) {
+	t.Helper()
+	if att == nil {
+		t.Fatal("audit_anchor_segment request missing presence attestation")
+	}
+	if strings.TrimSpace(att.Challenge) == "" {
+		t.Fatal("audit_anchor_segment presence challenge is empty")
+	}
+	if len(att.AcknowledgmentToken) != 64 {
+		t.Fatalf("audit_anchor_segment presence acknowledgment token length = %d, want 64", len(att.AcknowledgmentToken))
+	}
 }
 
 func runArtifactAuditResolveCommands(t *testing.T, stdout *bytes.Buffer, stderr *bytes.Buffer) {
@@ -179,6 +241,9 @@ func runArtifactAuditResolveCommands(t *testing.T, stdout *bytes.Buffer, stderr 
 	}
 	if err := run([]string{"audit-record-get", "--record-digest", testDigest("a")}, stdout, stderr); err != nil {
 		t.Fatalf("audit-record-get returned error: %v", err)
+	}
+	if err := run([]string{"audit-anchor-segment", "--seal-digest", testDigest("a")}, stdout, stderr); err != nil {
+		t.Fatalf("audit-anchor-segment returned error: %v", err)
 	}
 }
 

@@ -130,6 +130,8 @@ func localBrokerReadApiAuditAndStatusSchemaVersionPairs() map[string]string {
 		"runecode.protocol.v0.AuditRecordDetail":            "0.1.0",
 		"runecode.protocol.v0.AuditRecordGetRequest":        "0.1.0",
 		"runecode.protocol.v0.AuditRecordGetResponse":       "0.1.0",
+		"runecode.protocol.v0.AuditAnchorSegmentRequest":    "0.1.0",
+		"runecode.protocol.v0.AuditAnchorSegmentResponse":   "0.1.0",
 		"runecode.protocol.v0.AuditTimelineRequest":         "0.1.0",
 		"runecode.protocol.v0.AuditTimelineResponse":        "0.1.0",
 		"runecode.protocol.v0.AuditVerificationGetRequest":  "0.1.0",

@@ -43,6 +43,7 @@ func (l *Ledger) currentVerificationContextLocked() (trustpolicy.AuditSegmentFil
 		RawFramedSegmentBytes:    rawBytes,
 		SegmentSealEnvelope:      sealEnvelope,
 		PreviousSealEnvelopeHash: previousDigest,
+		KnownSealDigests:         runtimeInputs.knownSealDigests,
 		ReceiptEnvelopes:         runtimeInputs.receipts,
 		VerifierRecords:          runtimeInputs.verifierRecords,
 		EventContractCatalog:     runtimeInputs.catalog,
@@ -82,11 +83,12 @@ func (l *Ledger) currentSegmentEvidenceLocked() (trustpolicy.AuditSegmentFilePay
 }
 
 type verificationInputs struct {
-	verifierRecords []trustpolicy.VerifierRecord
-	catalog         trustpolicy.AuditEventContractCatalog
-	signerEvidence  []trustpolicy.AuditSignerEvidenceReference
-	storagePosture  *trustpolicy.AuditStoragePostureEvidence
-	receipts        []trustpolicy.SignedObjectEnvelope
+	verifierRecords  []trustpolicy.VerifierRecord
+	catalog          trustpolicy.AuditEventContractCatalog
+	signerEvidence   []trustpolicy.AuditSignerEvidenceReference
+	storagePosture   *trustpolicy.AuditStoragePostureEvidence
+	knownSealDigests []trustpolicy.Digest
+	receipts         []trustpolicy.SignedObjectEnvelope
 }
 
 func (l *Ledger) loadVerificationInputsLocked() (verificationInputs, error) {
@@ -105,6 +107,11 @@ func (l *Ledger) loadVerificationInputsLocked() (verificationInputs, error) {
 	if err := loadOptionalContractFiles(contractsDir, &inputs); err != nil {
 		return verificationInputs{}, err
 	}
+	sealDigests, err := l.loadAllSealDigestsLocked()
+	if err != nil {
+		return verificationInputs{}, err
+	}
+	inputs.knownSealDigests = sealDigests
 	receipts, err := l.loadAllReceiptsLocked()
 	if err != nil {
 		return verificationInputs{}, err
@@ -138,25 +145,6 @@ func loadOptionalContractFiles(contractsDir string, inputs *verificationInputs) 
 	}
 	inputs.storagePosture = &posture
 	return nil
-}
-
-func (l *Ledger) loadAllReceiptsLocked() ([]trustpolicy.SignedObjectEnvelope, error) {
-	entries, err := os.ReadDir(filepath.Join(l.rootDir, sidecarDirName, receiptsDirName))
-	if err != nil {
-		return nil, err
-	}
-	receipts := make([]trustpolicy.SignedObjectEnvelope, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-			continue
-		}
-		envelope := trustpolicy.SignedObjectEnvelope{}
-		if err := readJSONFile(filepath.Join(l.rootDir, sidecarDirName, receiptsDirName, entry.Name()), &envelope); err != nil {
-			return nil, err
-		}
-		receipts = append(receipts, envelope)
-	}
-	return receipts, nil
 }
 
 func (l *Ledger) loadSealEnvelopeForSegmentLocked(segmentID string) (trustpolicy.SignedObjectEnvelope, trustpolicy.Digest, trustpolicy.AuditSegmentSealPayload, error) {

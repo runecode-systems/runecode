@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-006-84f0-audit-anchoring-v0
 title: Audit Anchoring v0
-status: planned
+status: implemented
 type: feature
 size: medium
 verification_status: pending
@@ -15,11 +15,15 @@ related_decisions:
   - decisions/DEC-2026-004-runecode-ux-ownership-and-runecontext-generic-boundary.md
 related_changes:
   - CHG-2026-003-b567-audit-log-v0-verify
+  - CHG-2026-004-acdb-artifact-store-data-classes-v0
   - CHG-2026-005-cfd0-crypto-key-management-v0
+  - CHG-2026-008-62e1-broker-local-api-v0
   - CHG-2026-013-d2c9-minimal-tui-v0
   - CHG-2026-016-8cdb-zk-proof-v0-one-narrow-proof-verify
   - CHG-2026-025-5679-external-audit-anchoring-v0
-depends_on: []
+depends_on:
+  - CHG-2026-003-b567-audit-log-v0-verify
+  - CHG-2026-005-cfd0-crypto-key-management-v0
 informed_by: []
 supersedes: []
 superseded_by: []

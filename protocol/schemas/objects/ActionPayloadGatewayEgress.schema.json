@@ -103,6 +103,7 @@
         "build_logs",
         "audit_events",
         "audit_verification_report",
+        "audit_receipt_export_copy",
         "gate_evidence",
         "web_query",
         "web_citations"

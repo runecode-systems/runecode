@@ -13,6 +13,7 @@ suggested_context_bundles:
 When trusted Go services persist artifact-store state, audit logs, backup material, or other authoritative local state:
 
 - Treat `state.json`, `audit.log`, backup manifests, backup signatures, and artifact blobs as sensitive local data
+- Treat authoritative audit sidecars such as audit receipts, segment seals, and verification reports as audit-owned truth; artifact-store export copies remain derivatives and must not replace or overwrite those authoritative sidecars
 - Treat `secretsd` secret metadata, protected secret-material files, lease state, revocation state, and linkage metadata as trusted local state with the same fail-closed expectations as artifact and audit persistence
 - Create trusted local persistence paths with private-by-default permissions on platforms that honor POSIX mode bits
 - Normalize trusted local directory permissions on startup/open so pre-existing installs do not retain broader legacy modes after an upgrade

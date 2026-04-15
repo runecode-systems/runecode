@@ -1,0 +1,18 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditAnchorSegmentResponse",
+  "schema_version": "0.1.0",
+  "request_id": "req-anchor-1",
+  "seal_digest": {
+    "hash_alg": "sha256",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "receipt_digest": {
+    "hash_alg": "sha256",
+    "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "verification_report_digest": {
+    "hash_alg": "sha256",
+    "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "anchoring_status": "ok"
+}

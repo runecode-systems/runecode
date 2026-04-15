@@ -1,6 +1,14 @@
 package auditd
 
-import "github.com/runecode-ai/runecode/internal/trustpolicy"
+import (
+	"errors"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
+)
+
+var (
+	ErrAnchorReceiptInvalid = errors.New("anchor receipt invalid")
+)
 
 type AppendResult struct {
 	SegmentID    string             `json:"segment_id"`
@@ -19,6 +27,33 @@ type VerificationResult struct {
 	SegmentID    string                                     `json:"segment_id"`
 	ReportDigest trustpolicy.Digest                         `json:"report_digest"`
 	Report       trustpolicy.AuditVerificationReportPayload `json:"report"`
+}
+
+type AnchorSegmentRequest struct {
+	SealDigest             trustpolicy.Digest
+	ApprovalDecisionDigest *trustpolicy.Digest
+	ApprovalAssuranceLevel string
+	AnchorKind             string
+	KeyProtectionPosture   string
+	PresenceMode           string
+	AnchorWitnessKind      string
+	AnchorWitnessDigest    trustpolicy.Digest
+	Signature              trustpolicy.SignatureBlock
+	Recorder               trustpolicy.PrincipalIdentity
+	SignerPublicKeyBase64  string
+	SignerKeyIDValue       string
+	SignerLogicalScope     string
+	SignerInstanceID       string
+	RecordedAtRFC3339      string
+}
+
+type AnchorSegmentResult struct {
+	SealDigest           trustpolicy.Digest `json:"seal_digest"`
+	ReceiptDigest        trustpolicy.Digest `json:"receipt_digest"`
+	VerificationDigest   trustpolicy.Digest `json:"verification_digest"`
+	AnchorStatus         string             `json:"anchor_status"`
+	FailureReasonCode    string             `json:"failure_reason_code,omitempty"`
+	FailureReasonMessage string             `json:"failure_reason_message,omitempty"`
 }
 
 type TimelinePointer struct {

@@ -211,6 +211,7 @@ func artifactDataClassCases() []validationCase {
 		{name: "build logs class", value: artifactReferenceWithDataClass("build_logs")},
 		{name: "audit events class", value: artifactReferenceWithDataClass("audit_events")},
 		{name: "audit verification report class", value: artifactReferenceWithDataClass("audit_verification_report")},
+		{name: "audit receipt export copy class", value: artifactReferenceWithDataClass("audit_receipt_export_copy")},
 		{name: "reserved web query class", value: artifactReferenceWithDataClass("web_query")},
 		{name: "reserved web citations class", value: artifactReferenceWithDataClass("web_citations")},
 	}
@@ -409,6 +410,10 @@ func auditReceiptCases() []validationCase {
 		{name: "restore provenance receipt", value: validRestoreAuditReceipt()},
 		{name: "receipt kind enforces identifier format", value: invalidAuditReceiptWithBadKind(), wantErr: true},
 		{name: "payload requires schema id", value: invalidAuditReceiptWithoutPayloadSchema(), wantErr: true},
+		{name: "anchor receipt requires typed anchor payload schema", value: invalidAnchorAuditReceiptWithWrongPayloadSchema(), wantErr: true},
+		{name: "anchor payload requires typed witness", value: invalidAnchorAuditReceiptWithoutWitness(), wantErr: true},
+		{name: "anchor schema remains additive for future anchor kinds", value: validAnchorAuditReceiptWithFutureAnchorKind()},
+		{name: "local anchor kind requires local witness kind", value: invalidAnchorAuditReceiptLocalKindWithMismatchedWitnessKind(), wantErr: true},
 		{name: "import receipt requires import provenance payload", value: invalidImportAuditReceiptWithWrongPayloadSchema(), wantErr: true},
 		{name: "import payload requires byte identity verification", value: invalidImportAuditReceiptWithoutByteIdentity(), wantErr: true},
 		{name: "restore receipt provenance action must match kind", value: invalidRestoreAuditReceiptWithImportAction(), wantErr: true},

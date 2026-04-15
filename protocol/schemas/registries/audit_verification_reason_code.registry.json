@@ -86,6 +86,10 @@
       "summary": "An anchor receipt is present but invalid, requiring fail-closed verification."
     },
     {
+      "code": "anchor_passphrase_presence_degraded",
+      "summary": "Anchor receipt used passphrase presence posture, which remains explicitly allowed but degraded versus os_confirmation/hardware_touch."
+    },
+    {
       "code": "segment_lifecycle_inconsistent",
       "summary": "Segment lifecycle posture is inconsistent with segment header, lifecycle marker, seal state, or receipts."
     },

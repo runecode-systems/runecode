@@ -2,7 +2,6 @@ package trustpolicy
 
 import (
 	"fmt"
-	"time"
 )
 
 func processReceiptByKind(index int, input AuditVerificationInput, report *AuditVerificationReportPayload, receipt auditReceiptPayloadStrict, sealDigest *Digest, sealPayload AuditSegmentSealPayload, anchorReceipts int, validAnchorForSeal bool) (int, bool) {
@@ -10,18 +9,35 @@ func processReceiptByKind(index int, input AuditVerificationInput, report *Audit
 		return ok.anchorReceipts, ok.validAnchor
 	}
 	if receipt.AuditReceiptKind == "anchor" {
-		if !anchorReceiptFamilyMatchesSeal(receipt) {
-			addHardFailure(report, AuditVerificationReasonAnchorReceiptInvalid, AuditVerificationDimensionAnchoring, fmt.Sprintf("anchor receipt[%d] subject_family must be audit_segment_seal", index), input.Segment.Header.SegmentID, nil)
-			return anchorReceipts, validAnchorForSeal
-		}
-		return anchorReceipts + 1, true
+		return processAnchorReceipt(index, input, report, receipt, *sealDigest, anchorReceipts, validAnchorForSeal)
 	}
-	if receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore" {
+	if receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore" || receipt.AuditReceiptKind == "reconciliation" {
 		if err := verifyImportRestoreConsistency(receipt, *sealDigest, sealPayload); err != nil {
 			addHardFailure(report, AuditVerificationReasonImportRestoreProvenanceInconsistent, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] import/restore consistency failed: %v", index, err), input.Segment.Header.SegmentID, nil)
 		}
 	}
 	return anchorReceipts, validAnchorForSeal
+}
+
+func processAnchorReceipt(index int, input AuditVerificationInput, report *AuditVerificationReportPayload, receipt auditReceiptPayloadStrict, sealDigest Digest, anchorReceipts int, validAnchorForSeal bool) (int, bool) {
+	if mustDigestIdentity(receipt.SubjectDigest) != mustDigestIdentity(sealDigest) {
+		addHardFailure(report, AuditVerificationReasonAnchorReceiptInvalid, AuditVerificationDimensionAnchoring, fmt.Sprintf("anchor receipt[%d] subject_digest does not match segment seal digest", index), input.Segment.Header.SegmentID, nil)
+		return anchorReceipts, validAnchorForSeal
+	}
+	if !anchorReceiptFamilyMatchesSeal(receipt) {
+		addHardFailure(report, AuditVerificationReasonAnchorReceiptInvalid, AuditVerificationDimensionAnchoring, fmt.Sprintf("anchor receipt[%d] subject_family must be audit_segment_seal", index), input.Segment.Header.SegmentID, nil)
+		return anchorReceipts, validAnchorForSeal
+	}
+	maybeAddPassphraseAnchorDegraded(index, input, report, receipt)
+	return anchorReceipts + 1, true
+}
+
+func maybeAddPassphraseAnchorDegraded(index int, input AuditVerificationInput, report *AuditVerificationReportPayload, receipt auditReceiptPayloadStrict) {
+	payload := anchorReceiptPayload{}
+	if err := unmarshalJSONStrict(receipt.ReceiptPayload, &payload); err != nil || payload.PresenceMode != "passphrase" {
+		return
+	}
+	addDegraded(report, AuditVerificationReasonAnchorPassphrasePresenceDegraded, AuditVerificationDimensionAnchoring, fmt.Sprintf("anchor receipt[%d] uses passphrase presence mode which is degraded assurance", index), input.Segment.Header.SegmentID, nil)
 }
 
 func anchorReceiptFamilyMatchesSeal(receipt auditReceiptPayloadStrict) bool {
@@ -40,7 +56,7 @@ func processReceiptTarget(index int, input AuditVerificationInput, report *Audit
 	if mustDigestIdentity(receipt.SubjectDigest) == mustDigestIdentity(*sealDigest) {
 		return receiptProcessingState{anchorReceipts: anchorReceipts, validAnchor: validAnchor}, false
 	}
-	if receiptIsHistoricalForCurrentSeal(receipt, sealPayload) {
+	if receiptTargetsKnownHistoricalSeal(receipt, *sealDigest, input.KnownSealDigests) {
 		return receiptProcessingState{anchorReceipts: anchorReceipts, validAnchor: validAnchor}, true
 	}
 	addMismatchedReceiptFailure(index, input, report, receipt)
@@ -51,19 +67,20 @@ func receiptRequiresCurrentSealMatch(receipt auditReceiptPayloadStrict) bool {
 	return receipt.AuditReceiptKind == "anchor" || receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore" || receipt.AuditReceiptKind == "reconciliation"
 }
 
-func receiptIsHistoricalForCurrentSeal(receipt auditReceiptPayloadStrict, sealPayload AuditSegmentSealPayload) bool {
-	if receipt.RecordedAt == "" || sealPayload.SealedAt == "" {
+func receiptTargetsKnownHistoricalSeal(receipt auditReceiptPayloadStrict, currentSealDigest Digest, knownSealDigests []Digest) bool {
+	receiptDigest := mustDigestIdentity(receipt.SubjectDigest)
+	if receiptDigest == "" {
 		return false
 	}
-	recordedAt, err := time.Parse(time.RFC3339, receipt.RecordedAt)
-	if err != nil {
+	if receiptDigest == mustDigestIdentity(currentSealDigest) {
 		return false
 	}
-	sealedAt, err := time.Parse(time.RFC3339, sealPayload.SealedAt)
-	if err != nil {
-		return false
+	for _, known := range knownSealDigests {
+		if receiptDigest == mustDigestIdentity(known) {
+			return true
+		}
 	}
-	return recordedAt.Before(sealedAt)
+	return false
 }
 
 func addMismatchedReceiptFailure(index int, input AuditVerificationInput, report *AuditVerificationReportPayload, receipt auditReceiptPayloadStrict) {
@@ -71,11 +88,8 @@ func addMismatchedReceiptFailure(index int, input AuditVerificationInput, report
 		addHardFailure(report, AuditVerificationReasonAnchorReceiptInvalid, AuditVerificationDimensionAnchoring, fmt.Sprintf("anchor receipt[%d] subject_digest does not match segment seal digest", index), input.Segment.Header.SegmentID, nil)
 		return
 	}
-	if receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore" {
+	if receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore" || receipt.AuditReceiptKind == "reconciliation" {
 		addHardFailure(report, AuditVerificationReasonImportRestoreProvenanceInconsistent, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] subject_digest does not match segment seal digest", index), input.Segment.Header.SegmentID, nil)
 		return
-	}
-	if receipt.AuditReceiptKind == "reconciliation" {
-		addHardFailure(report, AuditVerificationReasonReceiptInvalid, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] subject_digest does not match segment seal digest", index), input.Segment.Header.SegmentID, nil)
 	}
 }

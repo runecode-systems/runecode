@@ -140,7 +140,7 @@ func assertSchemaVersionsCore(t *testing.T, manifest manifestFile) {
 		"runecode.protocol.v0.AuditRecordDigest":            "0.1.0",
 		"runecode.protocol.v0.AuditEvent":                   "0.5.0",
 		"runecode.protocol.v0.AuditEventContractCatalog":    "0.1.0",
-		"runecode.protocol.v0.AuditReceipt":                 "0.4.0",
+		"runecode.protocol.v0.AuditReceipt":                 "0.5.0",
 		"runecode.protocol.v0.AuditSegmentSeal":             "0.2.0",
 		"runecode.protocol.v0.AuditSegmentFile":             "0.1.0",
 		"runecode.protocol.v0.AuditVerificationReport":      "0.1.0",

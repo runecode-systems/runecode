@@ -27,6 +27,9 @@ func TestHelpAndUnknownCommand(t *testing.T) {
 	if !strings.Contains(stdout.String(), "Usage: runecode-broker") {
 		t.Fatalf("help output missing usage: %q", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "audit-anchor-segment") {
+		t.Fatalf("help output missing audit-anchor-segment command: %q", stdout.String())
+	}
 	err := run([]string{"not-a-command"}, stdout, stderr)
 	if err == nil {
 		t.Fatal("expected usage error for unknown command")

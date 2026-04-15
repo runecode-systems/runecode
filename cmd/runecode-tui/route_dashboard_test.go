@@ -48,6 +48,14 @@ func (c *dashboardAuditUnavailableClient) AuditVerificationGet(ctx context.Conte
 	return brokerapi.AuditVerificationGetResponse{}, errors.New("gateway_failure")
 }
 
+func (c *dashboardAuditUnavailableClient) AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error) {
+	return c.fakeBrokerClient.AuditAnchorSegment(ctx, req)
+}
+
+func (c *dashboardAuditUnavailableClient) AuditAnchorPresenceGet(ctx context.Context, req brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, error) {
+	return c.fakeBrokerClient.AuditAnchorPresenceGet(ctx, req)
+}
+
 func TestDashboardRouteFallsBackWhenAuditVerificationUnavailable(t *testing.T) {
 	model := newDashboardRouteModel(routeDefinition{ID: routeDashboard, Label: "Dashboard"}, &dashboardAuditUnavailableClient{})
 	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeDashboard})

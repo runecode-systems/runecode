@@ -96,3 +96,50 @@ type AuditRecordGetResponse struct {
 	RequestID     string            `json:"request_id"`
 	Record        AuditRecordDetail `json:"record"`
 }
+
+type AuditAnchorSegmentRequest struct {
+	SchemaID               string                          `json:"schema_id"`
+	SchemaVersion          string                          `json:"schema_version"`
+	RequestID              string                          `json:"request_id"`
+	SealDigest             trustpolicy.Digest              `json:"seal_digest"`
+	ApprovalDecisionDigest *trustpolicy.Digest             `json:"approval_decision_digest,omitempty"`
+	ApprovalAssuranceLevel string                          `json:"approval_assurance_level,omitempty"`
+	SignerLogicalScope     string                          `json:"signer_logical_scope,omitempty"`
+	SignerInstanceID       string                          `json:"signer_instance_id,omitempty"`
+	PresenceAttestation    *AuditAnchorPresenceAttestation `json:"presence_attestation,omitempty"`
+	ExportReceiptCopy      bool                            `json:"export_receipt_copy,omitempty"`
+}
+
+type AuditAnchorPresenceGetRequest struct {
+	SchemaID      string             `json:"schema_id"`
+	SchemaVersion string             `json:"schema_version"`
+	RequestID     string             `json:"request_id"`
+	SealDigest    trustpolicy.Digest `json:"seal_digest"`
+}
+
+type AuditAnchorPresenceGetResponse struct {
+	SchemaID            string                          `json:"schema_id"`
+	SchemaVersion       string                          `json:"schema_version"`
+	RequestID           string                          `json:"request_id"`
+	SealDigest          trustpolicy.Digest              `json:"seal_digest"`
+	PresenceMode        string                          `json:"presence_mode"`
+	PresenceAttestation *AuditAnchorPresenceAttestation `json:"presence_attestation,omitempty"`
+}
+
+type AuditAnchorPresenceAttestation struct {
+	Challenge           string `json:"challenge"`
+	AcknowledgmentToken string `json:"acknowledgment_token"`
+}
+
+type AuditAnchorSegmentResponse struct {
+	SchemaID                 string              `json:"schema_id"`
+	SchemaVersion            string              `json:"schema_version"`
+	RequestID                string              `json:"request_id"`
+	SealDigest               trustpolicy.Digest  `json:"seal_digest"`
+	ReceiptDigest            *trustpolicy.Digest `json:"receipt_digest,omitempty"`
+	VerificationReportDigest *trustpolicy.Digest `json:"verification_report_digest,omitempty"`
+	AnchoringStatus          string              `json:"anchoring_status"`
+	ExportedReceiptRef       string              `json:"exported_receipt_ref,omitempty"`
+	FailureCode              string              `json:"failure_code,omitempty"`
+	FailureMessage           string              `json:"failure_message,omitempty"`
+}

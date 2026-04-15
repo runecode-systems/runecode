@@ -177,10 +177,60 @@ func projectAuditReceiptRecordDetail(detail *AuditRecordDetail, receipt *trustpo
 	detail.RecordFamily = "audit_receipt"
 	detail.OccurredAt = receipt.RecordedAt
 	detail.Summary = fmt.Sprintf("Audit receipt (%s) recorded.", strings.TrimSpace(receipt.AuditReceiptKind))
-	if subject, err := receipt.SubjectDigest.Identity(); err == nil && subject != "" {
-		detail.LinkedReferences = append(detail.LinkedReferences, AuditRecordLinkedReference{ReferenceKind: "audit_record", ReferenceID: subject, Relation: "subject"})
+	if subjectRef, ok := projectedReceiptSubjectReference(receipt); ok {
+		detail.LinkedReferences = append(detail.LinkedReferences, subjectRef)
 	}
+	if receipt.ApprovalDecision != nil {
+		detail.LinkedReferences = append(detail.LinkedReferences, digestPointerLinkedReference(receipt.ApprovalDecision, "approval", "approval_decision"))
+	}
+	if receipt.AnchorWitnessDigest != nil {
+		detail.LinkedReferences = append(detail.LinkedReferences, digestPointerLinkedReference(receipt.AnchorWitnessDigest, "artifact", "anchor_witness"))
+	}
+	detail.LinkedReferences = filterEmptyLinkedReferences(detail.LinkedReferences)
 	return nil
+}
+
+func projectedReceiptSubjectReference(receipt *trustpolicy.AuditReceiptOperationalView) (AuditRecordLinkedReference, bool) {
+	if receipt == nil {
+		return AuditRecordLinkedReference{}, false
+	}
+	relation := "subject"
+	subjectFamily := strings.TrimSpace(receipt.SubjectFamily)
+	receiptKind := strings.TrimSpace(receipt.AuditReceiptKind)
+	if subjectFamily == "audit_segment_seal" || (subjectFamily == "" && receiptKind == "anchor") {
+		relation = "subject_segment_seal"
+	}
+	ref := digestLinkedReference(receipt.SubjectDigest, "audit_record", relation)
+	if strings.TrimSpace(ref.ReferenceID) == "" {
+		return AuditRecordLinkedReference{}, false
+	}
+	return ref, true
+}
+
+func digestLinkedReference(digest trustpolicy.Digest, kind string, relation string) AuditRecordLinkedReference {
+	identity, err := digest.Identity()
+	if err != nil || identity == "" {
+		return AuditRecordLinkedReference{}
+	}
+	return AuditRecordLinkedReference{ReferenceKind: kind, ReferenceID: identity, Relation: relation}
+}
+
+func digestPointerLinkedReference(digest *trustpolicy.Digest, kind string, relation string) AuditRecordLinkedReference {
+	if digest == nil {
+		return AuditRecordLinkedReference{}
+	}
+	return digestLinkedReference(*digest, kind, relation)
+}
+
+func filterEmptyLinkedReferences(in []AuditRecordLinkedReference) []AuditRecordLinkedReference {
+	out := in[:0]
+	for _, ref := range in {
+		if strings.TrimSpace(ref.ReferenceID) == "" {
+			continue
+		}
+		out = append(out, ref)
+	}
+	return out
 }
 
 func projectAuditSegmentSealRecordDetail(detail *AuditRecordDetail, payload json.RawMessage) error {

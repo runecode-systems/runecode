@@ -1,0 +1,14 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditAnchorSegmentRequest",
+  "schema_version": "0.1.0",
+  "request_id": "req-anchor-1",
+  "seal_digest": {
+    "hash_alg": "sha256",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "presence_attestation": {
+    "challenge": "presence-challenge-0123456789abcdef",
+    "acknowledgment_token": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "export_receipt_copy": false
+}
