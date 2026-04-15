@@ -306,13 +306,21 @@ func TestLocalIPCConfigProviderWithOverridesRejectsInvalidMergedConfigWhenBaseSu
 }
 
 func TestValidatedLocalIPCConfigRejectsRootRuntimeDir(t *testing.T) {
-	_, err := validatedLocalIPCConfig(brokerapi.LocalIPCConfig{RuntimeDir: string(filepath.Separator), SocketName: "broker.sock"})
+	_, err := validatedLocalIPCConfig(brokerapi.LocalIPCConfig{RuntimeDir: localIPCRootRuntimeDirForPlatform(t), SocketName: "broker.sock"})
 	if err == nil {
 		t.Fatal("validatedLocalIPCConfig expected error")
 	}
 	if got := err.Error(); got != "runtime directory must be a non-root absolute path" {
 		t.Fatalf("validatedLocalIPCConfig error = %q", got)
 	}
+}
+
+func localIPCRootRuntimeDirForPlatform(t *testing.T) string {
+	t.Helper()
+	if volume := filepath.VolumeName(filepath.Clean(t.TempDir())); volume != "" {
+		return volume + string(filepath.Separator)
+	}
+	return string(filepath.Separator)
 }
 
 func TestLocalIPCConfigProviderWithOverridesPropagatesBaseErrorWhenFallbackSocketNameInvalid(t *testing.T) {
