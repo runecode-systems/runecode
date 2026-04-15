@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -91,5 +93,141 @@ func TestStatusRouteExplainsDegradedSubsystemPosture(t *testing.T) {
 		"Diagnostics: degraded subsystems=verifier_material=missing",
 		"Version posture: product=0.1.0",
 		"Protocol posture: bundle=0.9.0",
+	)
+}
+
+type auditAnchorProbeClient struct {
+	fakeBrokerClient
+	anchorResp  brokerapi.AuditAnchorSegmentResponse
+	anchorErr   error
+	lastAnchor  *brokerapi.AuditAnchorSegmentRequest
+	includeSeal bool
+}
+
+func (c *auditAnchorProbeClient) AuditTimeline(ctx context.Context, limit int, cursor string) (brokerapi.AuditTimelineResponse, error) {
+	if !c.includeSeal {
+		return c.fakeBrokerClient.AuditTimeline(ctx, limit, cursor)
+	}
+	_ = ctx
+	_ = limit
+	_ = cursor
+	entry := brokerapi.AuditTimelineViewEntry{
+		RecordDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
+		EventType:    "audit_receipt",
+		Summary:      "anchor receipt recorded",
+		LinkedReferences: []brokerapi.AuditRecordLinkedReference{
+			{ReferenceKind: "audit_segment_seal_digest", ReferenceID: "sha256:" + strings.Repeat("e", 64)},
+		},
+	}
+	return brokerapi.AuditTimelineResponse{Views: []brokerapi.AuditTimelineViewEntry{entry}}, nil
+}
+
+func (c *auditAnchorProbeClient) AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error) {
+	_ = ctx
+	copyReq := req
+	c.lastAnchor = &copyReq
+	if c.anchorErr != nil {
+		return brokerapi.AuditAnchorSegmentResponse{}, c.anchorErr
+	}
+	if strings.TrimSpace(c.anchorResp.AnchoringStatus) == "" {
+		return c.fakeBrokerClient.AuditAnchorSegment(ctx, req)
+	}
+	return c.anchorResp, nil
+}
+
+func TestAuditRouteAnchorActionDispatchesToBrokerAndRendersSuccess(t *testing.T) {
+	client := &auditAnchorProbeClient{includeSeal: true}
+	spy := newRecordingBrokerClient(client)
+	model := newAuditRouteModel(routeDefinition{ID: routeAudit, Label: "Audit"}, spy)
+
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeAudit})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if cmd == nil {
+		t.Fatal("expected anchor command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	if client.lastAnchor == nil {
+		t.Fatal("expected AuditAnchorSegment request capture")
+	}
+	if client.lastAnchor.ExportReceiptCopy {
+		t.Fatalf("expected export copy default false, got true")
+	}
+	gotSeal, err := client.lastAnchor.SealDigest.Identity()
+	if err != nil {
+		t.Fatalf("expected valid seal digest in request: %v", err)
+	}
+	if gotSeal != "sha256:"+strings.Repeat("e", 64) {
+		t.Fatalf("expected selected/latest seal digest, got %q", gotSeal)
+	}
+	if !containsCall(spy.Calls(), "AuditAnchorSegment") {
+		t.Fatalf("expected AuditAnchorSegment call, got %v", spy.Calls())
+	}
+	view := updated.View(120, 40, focusContent)
+	mustContainAll(t, view,
+		"Anchor action",
+		"Anchor action: ok",
+		"receipt=sha256:",
+		"export_copy=off",
+	)
+}
+
+func TestAuditRouteAnchorActionRendersFailureReason(t *testing.T) {
+	client := &auditAnchorProbeClient{
+		includeSeal: true,
+		anchorResp: brokerapi.AuditAnchorSegmentResponse{
+			AnchoringStatus: "failed",
+			FailureCode:     "approval_required",
+		},
+	}
+	model := newAuditRouteModel(routeDefinition{ID: routeAudit, Label: "Audit"}, client)
+
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeAudit})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if cmd == nil {
+		t.Fatal("expected anchor command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	view := updated.View(120, 40, focusContent)
+	mustContainAll(t, view,
+		"Anchor action: failed",
+		"reason=approval_required",
+	)
+}
+
+func TestAuditRouteAnchorActionWithoutDigestSkipsBrokerCall(t *testing.T) {
+	base := &auditAnchorProbeClient{includeSeal: false, anchorErr: errors.New("should not be called")}
+	spy := newRecordingBrokerClient(base)
+	model := newAuditRouteModel(routeDefinition{ID: routeAudit, Label: "Audit"}, spy)
+
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeAudit})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if cmd != nil {
+		t.Fatal("expected no anchor command when no seal digest is available")
+	}
+	if containsCall(spy.Calls(), "AuditAnchorSegment") {
+		t.Fatalf("expected AuditAnchorSegment not called, got %v", spy.Calls())
+	}
+
+	view := updated.View(120, 40, focusContent)
+	mustContainAll(t, view,
+		"no sealed segment digest available",
+		"no broker call made",
 	)
 }

@@ -184,6 +184,53 @@ func TestSignAuditAnchorRejectsUnsupportedScopeFailClosed(t *testing.T) {
 	}
 }
 
+func TestSignAuditAnchorSucceedsWithValidPresenceAttestation(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	req := testAuditAnchorSignRequest(t)
+	req.PresenceAttestation = mustAuditAnchorPresenceAttestationForSignTest(t, "os_confirmation", req.TargetSealDigest)
+	if _, err := svc.SignAuditAnchor(req); err != nil {
+		t.Fatalf("SignAuditAnchor returned error: %v", err)
+	}
+}
+
+func TestSignAuditAnchorFailsClosedWithoutPresenceAttestation(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	req := testAuditAnchorSignRequest(t)
+	if _, err := svc.SignAuditAnchor(req); err == nil {
+		t.Fatal("SignAuditAnchor expected fail-closed missing presence attestation error")
+	}
+}
+
+func TestSignAuditAnchorHardwareTouchFailsClosedWithoutPresenceAttestation(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	t.Setenv(envAuditAnchorPresenceMode, "hardware_touch")
+	req := testAuditAnchorSignRequest(t)
+	if _, err := svc.SignAuditAnchor(req); err == nil {
+		t.Fatal("SignAuditAnchor expected fail-closed missing presence attestation error for hardware_touch")
+	}
+}
+
+func TestSignAuditAnchorFailsClosedWithInvalidPresenceAttestation(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	req := testAuditAnchorSignRequest(t)
+	req.PresenceAttestation = &AuditAnchorPresenceAttestation{Challenge: "presence-challenge", AcknowledgmentToken: "deadbeef"}
+	if _, err := svc.SignAuditAnchor(req); err == nil {
+		t.Fatal("SignAuditAnchor expected fail-closed invalid presence attestation error")
+	}
+}
+
 func TestSignAuditAnchorRejectsPassphraseWithoutExplicitSupport(t *testing.T) {
 	svc, err := Open(t.TempDir())
 	if err != nil {
@@ -210,6 +257,20 @@ func TestSignAuditAnchorRejectsInconsistentPassphrasePosture(t *testing.T) {
 	}
 }
 
+func TestSignAuditAnchorPassphraseOptInBehaviorUnchanged(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	t.Setenv(envAuditAnchorAllowPassphrase, "true")
+	t.Setenv(envAuditAnchorPresenceMode, "passphrase")
+	t.Setenv(envAuditAnchorKeyPosture, "passphrase_wrapped")
+	req := testAuditAnchorSignRequest(t)
+	if _, err := svc.SignAuditAnchor(req); err != nil {
+		t.Fatalf("SignAuditAnchor returned error: %v", err)
+	}
+}
+
 func testAuditAnchorSignRequest(t *testing.T) AuditAnchorSignRequest {
 	t.Helper()
 	pub, _, err := ed25519.GenerateKey(rand.Reader)
@@ -225,4 +286,14 @@ func testAuditAnchorSignRequest(t *testing.T) AuditAnchorSignRequest {
 		},
 		LogicalScope: "node",
 	}
+}
+
+func mustAuditAnchorPresenceAttestationForSignTest(t *testing.T, mode string, sealDigest trustpolicy.Digest) *AuditAnchorPresenceAttestation {
+	t.Helper()
+	challenge := "presence-challenge"
+	token, err := ComputeAuditAnchorPresenceAcknowledgmentToken(mode, sealDigest, challenge)
+	if err != nil {
+		t.Fatalf("ComputeAuditAnchorPresenceAcknowledgmentToken returned error: %v", err)
+	}
+	return &AuditAnchorPresenceAttestation{Challenge: challenge, AcknowledgmentToken: token}
 }

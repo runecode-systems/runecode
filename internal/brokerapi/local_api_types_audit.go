@@ -98,15 +98,21 @@ type AuditRecordGetResponse struct {
 }
 
 type AuditAnchorSegmentRequest struct {
-	SchemaID               string              `json:"schema_id"`
-	SchemaVersion          string              `json:"schema_version"`
-	RequestID              string              `json:"request_id"`
-	SealDigest             trustpolicy.Digest  `json:"seal_digest"`
-	ApprovalDecisionDigest *trustpolicy.Digest `json:"approval_decision_digest,omitempty"`
-	ApprovalAssuranceLevel string              `json:"approval_assurance_level,omitempty"`
-	SignerLogicalScope     string              `json:"signer_logical_scope,omitempty"`
-	SignerInstanceID       string              `json:"signer_instance_id,omitempty"`
-	ExportReceiptCopy      bool                `json:"export_receipt_copy,omitempty"`
+	SchemaID               string                          `json:"schema_id"`
+	SchemaVersion          string                          `json:"schema_version"`
+	RequestID              string                          `json:"request_id"`
+	SealDigest             trustpolicy.Digest              `json:"seal_digest"`
+	ApprovalDecisionDigest *trustpolicy.Digest             `json:"approval_decision_digest,omitempty"`
+	ApprovalAssuranceLevel string                          `json:"approval_assurance_level,omitempty"`
+	SignerLogicalScope     string                          `json:"signer_logical_scope,omitempty"`
+	SignerInstanceID       string                          `json:"signer_instance_id,omitempty"`
+	PresenceAttestation    *AuditAnchorPresenceAttestation `json:"presence_attestation,omitempty"`
+	ExportReceiptCopy      bool                            `json:"export_receipt_copy,omitempty"`
+}
+
+type AuditAnchorPresenceAttestation struct {
+	Challenge           string `json:"challenge"`
+	AcknowledgmentToken string `json:"acknowledgment_token"`
 }
 
 type AuditAnchorSegmentResponse struct {

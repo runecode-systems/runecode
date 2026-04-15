@@ -12,6 +12,7 @@ const (
 	DataClassBuildLogs               DataClass = "build_logs"
 	DataClassAuditEvents             DataClass = "audit_events"
 	DataClassAuditVerificationReport DataClass = "audit_verification_report"
+	DataClassAuditReceiptExportCopy  DataClass = "audit_receipt_export_copy"
 	DataClassGateEvidence            DataClass = "gate_evidence"
 	DataClassWebQuery                DataClass = "web_query"
 	DataClassWebCitations            DataClass = "web_citations"
@@ -25,6 +26,7 @@ var allDataClasses = map[DataClass]struct{}{
 	DataClassBuildLogs:               {},
 	DataClassAuditEvents:             {},
 	DataClassAuditVerificationReport: {},
+	DataClassAuditReceiptExportCopy:  {},
 	DataClassGateEvidence:            {},
 	DataClassWebQuery:                {},
 	DataClassWebCitations:            {},

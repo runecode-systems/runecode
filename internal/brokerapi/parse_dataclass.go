@@ -16,6 +16,8 @@ func ParseDataClass(value string) (artifacts.DataClass, error) {
 		artifacts.DataClassBuildLogs,
 		artifacts.DataClassAuditEvents,
 		artifacts.DataClassAuditVerificationReport,
+		artifacts.DataClassGateEvidence,
+		artifacts.DataClassAuditReceiptExportCopy,
 		artifacts.DataClassWebQuery,
 		artifacts.DataClassWebCitations:
 		return class, nil

@@ -112,7 +112,7 @@ func (s *Service) exportAnchorReceiptCopy(receiptDigest trustpolicy.Digest, seal
 	ref, err := s.Put(artifacts.PutRequest{
 		Payload:               payload,
 		ContentType:           "application/json",
-		DataClass:             artifacts.DataClassAuditVerificationReport,
+		DataClass:             artifacts.DataClassAuditReceiptExportCopy,
 		ProvenanceReceiptHash: sealDigestID,
 		CreatedByRole:         "auditd",
 		TrustedSource:         true,
@@ -136,7 +136,7 @@ func digestPtr(d trustpolicy.Digest) *trustpolicy.Digest {
 func nonEmptyAnchorStatus(status string) string {
 	status = strings.TrimSpace(status)
 	if status == "" {
-		return "ok"
+		return "failed"
 	}
 	return status
 }

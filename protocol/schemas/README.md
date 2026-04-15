@@ -36,6 +36,7 @@
   - `build_logs`
   - `audit_events`
   - `audit_verification_report`
+  - `audit_receipt_export_copy`
   - `web_query` (reserved)
   - `web_citations` (reserved)
 - `web_query` and `web_citations` are reserved for future role work and remain fail-closed unless explicitly enabled by later signed-manifest policy surfaces.

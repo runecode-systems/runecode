@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-006-84f0-audit-anchoring-v0
 title: Audit Anchoring v0
-status: planned
+status: implemented
 type: feature
 size: medium
 verification_status: pending

@@ -211,6 +211,7 @@ func artifactDataClassCases() []validationCase {
 		{name: "build logs class", value: artifactReferenceWithDataClass("build_logs")},
 		{name: "audit events class", value: artifactReferenceWithDataClass("audit_events")},
 		{name: "audit verification report class", value: artifactReferenceWithDataClass("audit_verification_report")},
+		{name: "audit receipt export copy class", value: artifactReferenceWithDataClass("audit_receipt_export_copy")},
 		{name: "reserved web query class", value: artifactReferenceWithDataClass("web_query")},
 		{name: "reserved web citations class", value: artifactReferenceWithDataClass("web_citations")},
 	}

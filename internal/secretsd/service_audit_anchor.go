@@ -27,6 +27,12 @@ type AuditAnchorSignRequest struct {
 	TargetSealDigest      trustpolicy.Digest
 	LogicalScope          string
 	ApprovalDecision      *trustpolicy.ApprovalDecision
+	PresenceAttestation   *AuditAnchorPresenceAttestation
+}
+
+type AuditAnchorPresenceAttestation struct {
+	Challenge           string
+	AcknowledgmentToken string
 }
 
 type AuditAnchorSignResult struct {
@@ -52,6 +58,9 @@ func (s *Service) SignAuditAnchor(req AuditAnchorSignRequest) (AuditAnchorSignRe
 	}
 	preconditions, err := buildAuditAnchorSignPreconditions(req)
 	if err != nil {
+		return AuditAnchorSignResult{}, err
+	}
+	if err := validateAuditAnchorPresenceAttestation(req, preconditions.PresenceMode); err != nil {
 		return AuditAnchorSignResult{}, err
 	}
 	witness := buildAuditAnchorWitness(req.TargetSealDigest, keyIDValue)

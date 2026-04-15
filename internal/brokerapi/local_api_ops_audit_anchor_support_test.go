@@ -344,6 +344,15 @@ func assertAnchorReceiptSidecarExists(t *testing.T, ledgerRoot string, digest tr
 	}
 }
 
+func assertAnchorVerificationReportSidecarExists(t *testing.T, ledgerRoot string, digest trustpolicy.Digest) {
+	t.Helper()
+	id, _ := digest.Identity()
+	path := filepath.Join(ledgerRoot, "sidecar", "verification-reports", strings.TrimPrefix(id, "sha256:")+".json")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("verification report sidecar not found at %q: %v", path, err)
+	}
+}
+
 func sidecarPathForDigest(ledgerRoot string, sidecarDir string, digest trustpolicy.Digest) string {
 	id, _ := digest.Identity()
 	return filepath.Join(ledgerRoot, "sidecar", sidecarDir, strings.TrimPrefix(id, "sha256:")+".json")
@@ -462,4 +471,18 @@ func mustAnchorReceiptPayload(t *testing.T, envelope trustpolicy.SignedObjectEnv
 func mustDigestIdentityForAnchorTest(d trustpolicy.Digest) string {
 	id, _ := d.Identity()
 	return id
+}
+
+func mustAuditAnchorPresenceAttestation(t *testing.T, mode string, sealDigest trustpolicy.Digest) *AuditAnchorPresenceAttestation {
+	t.Helper()
+	challenge := "presence-challenge-" + strings.Repeat("a", 16)
+	token, err := auditAnchorPresenceTokenForBrokerTest(mode, sealDigest, challenge)
+	if err != nil {
+		t.Fatalf("auditAnchorPresenceTokenForBrokerTest returned error: %v", err)
+	}
+	return &AuditAnchorPresenceAttestation{Challenge: challenge, AcknowledgmentToken: token}
+}
+
+func auditAnchorPresenceTokenForBrokerTest(mode string, sealDigest trustpolicy.Digest, challenge string) (string, error) {
+	return secretsd.ComputeAuditAnchorPresenceAcknowledgmentToken(mode, sealDigest, challenge)
 }

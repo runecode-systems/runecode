@@ -25,20 +25,15 @@ func (l *Ledger) AnchorCurrentSegment(req AnchorSegmentRequest) (AnchorSegmentRe
 	if err != nil {
 		return AnchorSegmentResult{}, fmt.Errorf("%w: %v", ErrAnchorReceiptInvalid, err)
 	}
-
-	verificationInput, err := l.verificationInputWithExtraReceipt(segment, sealEnvelope, rawBytes, receiptEnvelope, req)
+	anchorVerifier, err := anchorVerifierRecordFromRequest(req)
+	if err != nil {
+		return AnchorSegmentResult{}, fmt.Errorf("%w: %v", ErrAnchorReceiptInvalid, err)
+	}
+	report, err := l.verifyAnchorEvidenceWithReceiptLocked(segment, sealEnvelope, rawBytes, receiptEnvelope, anchorVerifier)
 	if err != nil {
 		return AnchorSegmentResult{}, err
 	}
-	report, err := trustpolicy.VerifyAuditEvidence(verificationInput)
-	if err != nil {
-		return AnchorSegmentResult{}, err
-	}
-	receiptDigest, err := l.persistEnvelopeSidecar(receiptsDirName, receiptEnvelope)
-	if err != nil {
-		return AnchorSegmentResult{}, err
-	}
-	verificationDigest, err := l.persistVerificationReportLocked(report)
+	receiptDigest, verificationDigest, err := l.persistAnchorVerificationArtifactsLocked(anchorVerifier, receiptEnvelope, report)
 	if err != nil {
 		return AnchorSegmentResult{}, err
 	}
@@ -49,6 +44,29 @@ func (l *Ledger) AnchorCurrentSegment(req AnchorSegmentRequest) (AnchorSegmentRe
 		VerificationDigest: verificationDigest,
 		AnchorStatus:       strings.TrimSpace(report.AnchoringStatus),
 	}, nil
+}
+
+func (l *Ledger) verifyAnchorEvidenceWithReceiptLocked(segment trustpolicy.AuditSegmentFilePayload, sealEnvelope trustpolicy.SignedObjectEnvelope, rawBytes []byte, receiptEnvelope trustpolicy.SignedObjectEnvelope, anchorVerifier trustpolicy.VerifierRecord) (trustpolicy.AuditVerificationReportPayload, error) {
+	verificationInput, err := l.verificationInputWithExtraReceipt(segment, sealEnvelope, rawBytes, receiptEnvelope, anchorVerifier)
+	if err != nil {
+		return trustpolicy.AuditVerificationReportPayload{}, err
+	}
+	return trustpolicy.VerifyAuditEvidence(verificationInput)
+}
+
+func (l *Ledger) persistAnchorVerificationArtifactsLocked(anchorVerifier trustpolicy.VerifierRecord, receiptEnvelope trustpolicy.SignedObjectEnvelope, report trustpolicy.AuditVerificationReportPayload) (trustpolicy.Digest, trustpolicy.Digest, error) {
+	if err := l.ensureVerifierRecordDurableLocked(anchorVerifier); err != nil {
+		return trustpolicy.Digest{}, trustpolicy.Digest{}, err
+	}
+	receiptDigest, err := l.persistEnvelopeSidecar(receiptsDirName, receiptEnvelope)
+	if err != nil {
+		return trustpolicy.Digest{}, trustpolicy.Digest{}, err
+	}
+	verificationDigest, err := l.persistVerificationReportLocked(report)
+	if err != nil {
+		return trustpolicy.Digest{}, trustpolicy.Digest{}, err
+	}
+	return receiptDigest, verificationDigest, nil
 }
 
 func (l *Ledger) requireMatchingCurrentSealDigestLocked(segmentID string, requested trustpolicy.Digest) error {
@@ -65,7 +83,7 @@ func (l *Ledger) requireMatchingCurrentSealDigestLocked(segmentID string, reques
 	return nil
 }
 
-func (l *Ledger) verificationInputWithExtraReceipt(segment trustpolicy.AuditSegmentFilePayload, sealEnvelope trustpolicy.SignedObjectEnvelope, rawBytes []byte, receiptEnvelope trustpolicy.SignedObjectEnvelope, req AnchorSegmentRequest) (trustpolicy.AuditVerificationInput, error) {
+func (l *Ledger) verificationInputWithExtraReceipt(segment trustpolicy.AuditSegmentFilePayload, sealEnvelope trustpolicy.SignedObjectEnvelope, rawBytes []byte, receiptEnvelope trustpolicy.SignedObjectEnvelope, anchorVerifier trustpolicy.VerifierRecord) (trustpolicy.AuditVerificationInput, error) {
 	_, _, sealPayload, err := l.loadSealEnvelopeForSegmentLocked(segment.Header.SegmentID)
 	if err != nil {
 		return trustpolicy.AuditVerificationInput{}, err
@@ -78,11 +96,10 @@ func (l *Ledger) verificationInputWithExtraReceipt(segment trustpolicy.AuditSegm
 	if err != nil {
 		return trustpolicy.AuditVerificationInput{}, err
 	}
-	anchorVerifier, err := anchorVerifierRecordFromRequest(req)
+	verifiers, _, err := addVerifierRecordIfMissing(runtimeInputs.verifierRecords, anchorVerifier)
 	if err != nil {
-		return trustpolicy.AuditVerificationInput{}, fmt.Errorf("%w: %v", ErrAnchorReceiptInvalid, err)
+		return trustpolicy.AuditVerificationInput{}, err
 	}
-	runtimeInputs.verifierRecords = append(runtimeInputs.verifierRecords, anchorVerifier)
 	receipts := append([]trustpolicy.SignedObjectEnvelope{}, runtimeInputs.receipts...)
 	receipts = append(receipts, receiptEnvelope)
 	return trustpolicy.AuditVerificationInput{
@@ -93,7 +110,7 @@ func (l *Ledger) verificationInputWithExtraReceipt(segment trustpolicy.AuditSegm
 		PreviousSealEnvelopeHash: previousDigest,
 		KnownSealDigests:         runtimeInputs.knownSealDigests,
 		ReceiptEnvelopes:         receipts,
-		VerifierRecords:          runtimeInputs.verifierRecords,
+		VerifierRecords:          verifiers,
 		EventContractCatalog:     runtimeInputs.catalog,
 		SignerEvidence:           runtimeInputs.signerEvidence,
 		StoragePostureEvidence:   runtimeInputs.storagePosture,

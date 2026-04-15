@@ -3,7 +3,6 @@ package brokerapi
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"strings"
 	"time"
 
@@ -17,7 +16,11 @@ func (s *Service) buildAnchorSegmentRequest(req AuditAnchorSegmentRequest) (audi
 	if _, err := req.SealDigest.Identity(); err != nil {
 		return auditd.AnchorSegmentRequest{}, err
 	}
-	approvalDigest, approvalDecision, approvalAssurance, err := s.resolveAnchorApprovalContext(req)
+	requiredApproval, err := s.anchorApprovalRequirement(req.SealDigest)
+	if err != nil {
+		return auditd.AnchorSegmentRequest{}, err
+	}
+	approvalDigest, approvalDecision, approvalAssurance, err := s.resolveAnchorApprovalContext(req, requiredApproval)
 	if err != nil {
 		return auditd.AnchorSegmentRequest{}, err
 	}
@@ -30,19 +33,21 @@ func (s *Service) buildAnchorSegmentRequest(req AuditAnchorSegmentRequest) (audi
 		SignerLogicalScope:     strings.TrimSpace(req.SignerLogicalScope),
 		SignerInstanceID:       strings.TrimSpace(req.SignerInstanceID),
 	}
-	return s.signAndFinalizeAnchorRequest(base, approvalDecision)
+	return s.signAndFinalizeAnchorRequest(base, approvalDecision, req.PresenceAttestation)
 }
 
-func (s *Service) signAndFinalizeAnchorRequest(base auditd.AnchorSegmentRequest, approvalDecision *trustpolicy.ApprovalDecision) (auditd.AnchorSegmentRequest, error) {
+func (s *Service) signAndFinalizeAnchorRequest(base auditd.AnchorSegmentRequest, approvalDecision *trustpolicy.ApprovalDecision, presenceAttestation *AuditAnchorPresenceAttestation) (auditd.AnchorSegmentRequest, error) {
 	previewCanonical, err := canonicalAnchorReceiptPayloadBytes(base)
 	if err != nil {
 		return auditd.AnchorSegmentRequest{}, err
 	}
+	secretsPresence := toSecretsAuditAnchorPresenceAttestation(presenceAttestation)
 	preview, err := s.secretsSvc.SignAuditAnchor(secretsd.AuditAnchorSignRequest{
 		PayloadCanonicalBytes: previewCanonical,
 		TargetSealDigest:      base.SealDigest,
 		LogicalScope:          base.SignerLogicalScope,
 		ApprovalDecision:      approvalDecision,
+		PresenceAttestation:   secretsPresence,
 	})
 	if err != nil {
 		return auditd.AnchorSegmentRequest{}, err
@@ -55,16 +60,7 @@ func (s *Service) signAndFinalizeAnchorRequest(base auditd.AnchorSegmentRequest,
 	finalReq.AnchorWitnessKind = strings.TrimSpace(preview.AnchorWitnessKind)
 	finalReq.AnchorWitnessDigest = preview.AnchorWitnessDigest
 
-	finalCanonical, err := canonicalAnchorReceiptPayloadBytes(finalReq)
-	if err != nil {
-		return auditd.AnchorSegmentRequest{}, err
-	}
-	finalSig, err := s.secretsSvc.SignAuditAnchor(secretsd.AuditAnchorSignRequest{
-		PayloadCanonicalBytes: finalCanonical,
-		TargetSealDigest:      finalReq.SealDigest,
-		LogicalScope:          finalReq.SignerLogicalScope,
-		ApprovalDecision:      approvalDecision,
-	})
+	finalSig, err := s.finalAnchorSignature(finalReq, approvalDecision, secretsPresence)
 	if err != nil {
 		return auditd.AnchorSegmentRequest{}, err
 	}
@@ -74,38 +70,34 @@ func (s *Service) signAndFinalizeAnchorRequest(base auditd.AnchorSegmentRequest,
 	return finalReq, nil
 }
 
-func (s *Service) resolveAnchorApprovalContext(req AuditAnchorSegmentRequest) (*trustpolicy.Digest, *trustpolicy.ApprovalDecision, string, error) {
-	requestedAssurance := strings.TrimSpace(req.ApprovalAssuranceLevel)
-	if req.ApprovalDecisionDigest == nil {
-		return nil, nil, requestedAssurance, nil
-	}
-	decisionDigestIdentity, err := req.ApprovalDecisionDigest.Identity()
+func (s *Service) finalAnchorSignature(finalReq auditd.AnchorSegmentRequest, approvalDecision *trustpolicy.ApprovalDecision, presenceAttestation *secretsd.AuditAnchorPresenceAttestation) (secretsd.AuditAnchorSignResult, error) {
+	finalCanonical, err := canonicalAnchorReceiptPayloadBytes(finalReq)
 	if err != nil {
-		return nil, nil, "", err
+		return secretsd.AuditAnchorSignResult{}, err
 	}
-	approval, found := s.findApprovalByDecisionDigest(decisionDigestIdentity)
-	if !found {
-		return nil, nil, "", errors.New("approval decision digest is not available")
+	return s.secretsSvc.SignAuditAnchor(secretsd.AuditAnchorSignRequest{
+		PayloadCanonicalBytes: finalCanonical,
+		TargetSealDigest:      finalReq.SealDigest,
+		LogicalScope:          finalReq.SignerLogicalScope,
+		ApprovalDecision:      approvalDecision,
+		PresenceAttestation:   presenceAttestation,
+	})
+}
+
+func toSecretsAuditAnchorPresenceAttestation(att *AuditAnchorPresenceAttestation) *secretsd.AuditAnchorPresenceAttestation {
+	if att == nil {
+		return nil
 	}
-	if strings.TrimSpace(approval.Summary.Status) != "consumed" {
-		return nil, nil, "", errors.New("approval decision is not consumed")
+	return &secretsd.AuditAnchorPresenceAttestation{
+		Challenge:           strings.TrimSpace(att.Challenge),
+		AcknowledgmentToken: strings.TrimSpace(att.AcknowledgmentToken),
 	}
-	if approval.DecisionEnvelope == nil {
-		return nil, nil, "", errors.New("approval decision envelope is missing")
-	}
-	decision, err := decodeApprovalDecision(*approval.DecisionEnvelope)
-	if err != nil {
-		return nil, nil, "", err
-	}
-	derivedAssurance := strings.TrimSpace(decision.ApprovalAssuranceLevel)
-	if requestedAssurance != "" && requestedAssurance != derivedAssurance {
-		return nil, nil, "", errors.New("approval_assurance_level does not match approval decision")
-	}
-	if requestedAssurance != "" {
-		derivedAssurance = requestedAssurance
-	}
-	resolvedDigest := *req.ApprovalDecisionDigest
-	return &resolvedDigest, &decision, derivedAssurance, nil
+}
+
+type anchorApprovalRequirement struct {
+	Required          bool
+	RequiredAssurance string
+	PolicyDecisionRef string
 }
 
 func (s *Service) findApprovalByDecisionDigest(decisionDigestIdentity string) (approvalRecord, bool) {
