@@ -475,6 +475,24 @@
       "expect_valid": false
     },
     {
+      "id": "audit-anchor-presence-get-request.valid-basic",
+      "schema_path": "objects/AuditAnchorPresenceGetRequest.schema.json",
+      "fixture_path": "schema/audit-anchor-presence-get-request.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-anchor-presence-get-response.valid-os-confirmation",
+      "schema_path": "objects/AuditAnchorPresenceGetResponse.schema.json",
+      "fixture_path": "schema/audit-anchor-presence-get-response.valid-os-confirmation.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-anchor-presence-get-response.valid-passphrase",
+      "schema_path": "objects/AuditAnchorPresenceGetResponse.schema.json",
+      "fixture_path": "schema/audit-anchor-presence-get-response.valid-passphrase.json",
+      "expect_valid": true
+    },
+    {
       "id": "audit-anchor-segment-request.valid-basic",
       "schema_path": "objects/AuditAnchorSegmentRequest.schema.json",
       "fixture_path": "schema/audit-anchor-segment-request.valid-basic.json",

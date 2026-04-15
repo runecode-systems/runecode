@@ -137,6 +137,7 @@ func TestHandleAuditAnchorSegmentFailsClosedWithoutPresenceAttestation(t *testin
 	if resp.ReceiptDigest != nil {
 		t.Fatalf("receipt_digest = %+v, want nil", resp.ReceiptDigest)
 	}
+	assertAnchorFailureDoesNotMutateAuthoritativePosture(t, service)
 }
 
 func TestHandleAuditAnchorSegmentFailsClosedWithInvalidPresenceAttestation(t *testing.T) {
@@ -166,6 +167,7 @@ func TestHandleAuditAnchorSegmentFailsClosedWithInvalidPresenceAttestation(t *te
 	if resp.ReceiptDigest != nil {
 		t.Fatalf("receipt_digest = %+v, want nil", resp.ReceiptDigest)
 	}
+	assertAnchorFailureDoesNotMutateAuthoritativePosture(t, service)
 }
 
 func TestHandleAuditAnchorSegmentSignerPresenceValidationFailsClosed(t *testing.T) {
@@ -195,6 +197,7 @@ func TestHandleAuditAnchorSegmentSignerPresenceValidationFailsClosed(t *testing.
 	if resp.ReceiptDigest != nil {
 		t.Fatalf("receipt_digest = %+v, want nil", resp.ReceiptDigest)
 	}
+	assertAnchorFailureDoesNotMutateAuthoritativePosture(t, service)
 }
 
 func TestHandleAuditAnchorSegmentInvalidAnchorSemanticReturnsFailed(t *testing.T) {
@@ -477,15 +480,6 @@ func TestHandleAuditAnchorSegmentRestartVerificationKeepsAnchoringOK(t *testing.
 	if containsReasonCodeForAnchorTest(verification.Report.HardFailures, trustpolicy.AuditVerificationReasonAnchorReceiptInvalid) {
 		t.Fatalf("hard_failures = %v, did not want %q", verification.Report.HardFailures, trustpolicy.AuditVerificationReasonAnchorReceiptInvalid)
 	}
-}
-
-func containsReasonCodeForAnchorTest(codes []string, code string) bool {
-	for idx := range codes {
-		if codes[idx] == code {
-			return true
-		}
-	}
-	return false
 }
 
 func TestHandleAuditAnchorSegmentReceiptRecorderIdentityIsAuditd(t *testing.T) {

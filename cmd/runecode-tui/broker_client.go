@@ -49,6 +49,7 @@ type localBrokerClient interface {
 	AuditTimeline(ctx context.Context, limit int, cursor string) (brokerapi.AuditTimelineResponse, error)
 	AuditVerificationGet(ctx context.Context, viewLimit int) (brokerapi.AuditVerificationGetResponse, error)
 	AuditRecordGet(ctx context.Context, digest string) (brokerapi.AuditRecordGetResponse, error)
+	AuditAnchorPresenceGet(ctx context.Context, req brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, error)
 	AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error)
 	ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error)
 	VersionInfoGet(ctx context.Context) (brokerapi.VersionInfoGetResponse, error)
@@ -193,6 +194,14 @@ func (c *rpcBrokerClient) AuditRecordGet(ctx context.Context, digest string) (br
 	return resp, c.invoke(ctx, "audit_record_get", req, &resp)
 }
 
+func (c *rpcBrokerClient) AuditAnchorPresenceGet(ctx context.Context, req brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.AuditAnchorPresenceGetRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("audit-anchor-presence")
+	resp := brokerapi.AuditAnchorPresenceGetResponse{}
+	return resp, c.invoke(ctx, "audit_anchor_presence_get", req, &resp)
+}
+
 func (c *rpcBrokerClient) AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error) {
 	req.SchemaID = "runecode.protocol.v0.AuditAnchorSegmentRequest"
 	req.SchemaVersion = localAPISchemaVersion
@@ -231,7 +240,11 @@ func (c *rpcBrokerClient) invoke(ctx context.Context, operation string, req any,
 		if code == "" {
 			code = "broker_rpc_error"
 		}
-		return fmt.Errorf("%s", code)
+		message := strings.TrimSpace(errResp.Error.Message)
+		if message == "" {
+			return fmt.Errorf("%s", code)
+		}
+		return fmt.Errorf("%s: %s", code, message)
 	}
 	return nil
 }

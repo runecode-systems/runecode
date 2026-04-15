@@ -28,4 +28,5 @@ func TestHandleAuditAnchorSegmentReturnsSignerUnavailableWhenSignerMissing(t *te
 	if got := strings.TrimSpace(resp.FailureMessage); got != "audit anchor signer unavailable" {
 		t.Fatalf("failure_message = %q, want audit anchor signer unavailable", got)
 	}
+	assertAnchorFailureDoesNotMutateAuthoritativePosture(t, service)
 }

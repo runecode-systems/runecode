@@ -188,6 +188,11 @@ func auditAnchorPresenceMode() string {
 	return mode
 }
 
+func (s *Service) AuditAnchorPresenceMode() string {
+	_ = s
+	return auditAnchorPresenceMode()
+}
+
 func auditAnchorKeyProtectionPosture() string {
 	posture := strings.TrimSpace(os.Getenv(envAuditAnchorKeyPosture))
 	if posture == "" {

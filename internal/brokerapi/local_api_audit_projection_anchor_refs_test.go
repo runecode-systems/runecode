@@ -19,7 +19,7 @@ func TestProjectAuditReceiptRecordDetailAddsAnchorApprovalAndWitnessReferences(t
 		t.Fatalf("projectAuditReceiptRecordDetail returned error: %v", err)
 	}
 
-	assertHasLinkedReference(t, detail.LinkedReferences, "audit_record", "subject")
+	assertHasLinkedReference(t, detail.LinkedReferences, "audit_record", "subject_segment_seal")
 	assertHasLinkedReference(t, detail.LinkedReferences, "approval", "approval_decision")
 	assertHasLinkedReference(t, detail.LinkedReferences, "artifact", "anchor_witness")
 }
@@ -39,7 +39,7 @@ func TestProjectAuditTimelineEntryAddsAnchorApprovalAndWitnessReferences(t *test
 	if !ok {
 		t.Fatal("projectAuditTimelineEntry returned ok=false")
 	}
-	assertHasLinkedReference(t, entry.LinkedReferences, "audit_record", "subject")
+	assertHasLinkedReference(t, entry.LinkedReferences, "audit_record", "subject_segment_seal")
 	assertHasLinkedReference(t, entry.LinkedReferences, "approval", "approval_decision")
 	assertHasLinkedReference(t, entry.LinkedReferences, "artifact", "anchor_witness")
 }

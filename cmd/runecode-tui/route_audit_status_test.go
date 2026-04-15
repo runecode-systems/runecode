@@ -116,7 +116,7 @@ func (c *auditAnchorProbeClient) AuditTimeline(ctx context.Context, limit int, c
 		EventType:    "audit_receipt",
 		Summary:      "anchor receipt recorded",
 		LinkedReferences: []brokerapi.AuditRecordLinkedReference{
-			{ReferenceKind: "audit_segment_seal_digest", ReferenceID: "sha256:" + strings.Repeat("e", 64)},
+			{ReferenceKind: "audit_record", ReferenceID: "sha256:" + strings.Repeat("e", 64), Relation: "subject_segment_seal"},
 		},
 	}
 	return brokerapi.AuditTimelineResponse{Views: []brokerapi.AuditTimelineViewEntry{entry}}, nil
@@ -167,6 +167,12 @@ func TestAuditRouteAnchorActionDispatchesToBrokerAndRendersSuccess(t *testing.T)
 	}
 	if !containsCall(spy.Calls(), "AuditAnchorSegment") {
 		t.Fatalf("expected AuditAnchorSegment call, got %v", spy.Calls())
+	}
+	if !containsCall(spy.Calls(), "AuditAnchorPresenceGet") {
+		t.Fatalf("expected AuditAnchorPresenceGet call, got %v", spy.Calls())
+	}
+	if client.lastAnchor.PresenceAttestation == nil {
+		t.Fatal("expected broker-owned presence attestation on anchor request")
 	}
 	view := updated.View(120, 40, focusContent)
 	mustContainAll(t, view,

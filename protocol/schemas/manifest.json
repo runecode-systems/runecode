@@ -861,6 +861,20 @@
       "status": "mvp"
     },
     {
+      "path": "objects/AuditAnchorPresenceGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditAnchorPresenceGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditAnchorPresenceGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditAnchorPresenceGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/AuditAnchorSegmentRequest.schema.json",
       "schema_id": "runecode.protocol.v0.AuditAnchorSegmentRequest",
       "schema_version": "0.1.0",

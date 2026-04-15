@@ -110,6 +110,22 @@ type AuditAnchorSegmentRequest struct {
 	ExportReceiptCopy      bool                            `json:"export_receipt_copy,omitempty"`
 }
 
+type AuditAnchorPresenceGetRequest struct {
+	SchemaID      string             `json:"schema_id"`
+	SchemaVersion string             `json:"schema_version"`
+	RequestID     string             `json:"request_id"`
+	SealDigest    trustpolicy.Digest `json:"seal_digest"`
+}
+
+type AuditAnchorPresenceGetResponse struct {
+	SchemaID            string                          `json:"schema_id"`
+	SchemaVersion       string                          `json:"schema_version"`
+	RequestID           string                          `json:"request_id"`
+	SealDigest          trustpolicy.Digest              `json:"seal_digest"`
+	PresenceMode        string                          `json:"presence_mode"`
+	PresenceAttestation *AuditAnchorPresenceAttestation `json:"presence_attestation,omitempty"`
+}
+
 type AuditAnchorPresenceAttestation struct {
 	Challenge           string `json:"challenge"`
 	AcknowledgmentToken string `json:"acknowledgment_token"`

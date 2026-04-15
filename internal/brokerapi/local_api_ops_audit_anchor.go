@@ -56,6 +56,7 @@ func (s *Service) handleAuditAnchorSegmentValidated(requestCtx context.Context, 
 	result, err := s.auditLedger.AnchorCurrentSegment(anchorReq)
 	if err != nil {
 		if errors.Is(err, auditd.ErrAnchorReceiptInvalid) {
+			s.recordAnchorReceiptFailureAuthoritativePosture(req.SealDigest)
 			return s.validatedAuditAnchorSegmentResponse(anchorSegmentFailedResponse(requestID, req.SealDigest, auditAnchorFailureCodeReceiptInvalid, auditAnchorFailureMessageReceiptInvalid))
 		}
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, auditAnchorGatewayFailureMessage)
@@ -109,6 +110,75 @@ func (s *Service) validatedAuditAnchorSegmentResponse(resp AuditAnchorSegmentRes
 		return AuditAnchorSegmentResponse{}, &errOut
 	}
 	return resp, nil
+}
+
+func (s *Service) recordAnchorReceiptFailureAuthoritativePosture(sealDigest trustpolicy.Digest) {
+	if s == nil || s.auditLedger == nil {
+		return
+	}
+	report, err := s.auditLedger.LatestVerificationReport()
+	if err != nil {
+		log.Printf("brokerapi: audit anchor failure posture persistence skipped reason=latest_report_unavailable error_type=%T error=%v", err, err)
+		return
+	}
+	report.AnchoringStatus = trustpolicy.AuditVerificationStatusFailed
+	if !containsReasonCode(report.HardFailures, trustpolicy.AuditVerificationReasonAnchorReceiptInvalid) {
+		report.HardFailures = append(report.HardFailures, trustpolicy.AuditVerificationReasonAnchorReceiptInvalid)
+	}
+	report.Findings = append(report.Findings, trustpolicy.AuditVerificationFinding{
+		Code:                 trustpolicy.AuditVerificationReasonAnchorReceiptInvalid,
+		Dimension:            trustpolicy.AuditVerificationDimensionAnchoring,
+		Severity:             trustpolicy.AuditVerificationSeverityError,
+		Message:              "audit_anchor_segment failed due to invalid anchor receipt evidence",
+		SegmentID:            strings.TrimSpace(report.VerificationScope.LastSegmentID),
+		SubjectRecordDigest:  cloneDigestPointer(sealDigest),
+		RelatedRecordDigests: s.latestVerificationViewDigests(500),
+	})
+	report.Summary = "Audit verification failed with authoritative anchoring failure recorded."
+	if _, err := s.auditLedger.PersistVerificationReport(report); err != nil {
+		log.Printf("brokerapi: audit anchor failure posture persistence skipped reason=persist_failed error_type=%T error=%v", err, err)
+	}
+}
+
+func containsReasonCode(codes []string, code string) bool {
+	for idx := range codes {
+		if codes[idx] == code {
+			return true
+		}
+	}
+	return false
+}
+
+func cloneDigestPointer(d trustpolicy.Digest) *trustpolicy.Digest {
+	if _, err := d.Identity(); err != nil {
+		return nil
+	}
+	v := d
+	return &v
+}
+
+func (s *Service) latestVerificationViewDigests(limit int) []trustpolicy.Digest {
+	if s == nil || s.auditLedger == nil {
+		return nil
+	}
+	_, views, _, err := s.auditLedger.LatestVerificationSummaryAndViews(limit)
+	if err != nil {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	digests := make([]trustpolicy.Digest, 0, len(views))
+	for _, view := range views {
+		id, identityErr := view.RecordDigest.Identity()
+		if identityErr != nil || id == "" {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		digests = append(digests, view.RecordDigest)
+	}
+	return digests
 }
 
 func (s *Service) exportAnchorReceiptCopy(requestID string, result auditd.AnchorSegmentResult) string {

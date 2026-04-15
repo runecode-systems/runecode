@@ -148,6 +148,11 @@ func (r *recordingBrokerClient) AuditRecordGet(ctx context.Context, digest strin
 	return r.base.AuditRecordGet(ctx, digest)
 }
 
+func (r *recordingBrokerClient) AuditAnchorPresenceGet(ctx context.Context, req brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, error) {
+	r.record("AuditAnchorPresenceGet")
+	return r.base.AuditAnchorPresenceGet(ctx, req)
+}
+
 func (r *recordingBrokerClient) AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error) {
 	r.record("AuditAnchorSegment")
 	return r.base.AuditAnchorSegment(ctx, req)
@@ -407,6 +412,10 @@ func (f *reloadAwareBrokerClient) AuditRecordGet(ctx context.Context, digest str
 	return (&fakeBrokerClient{}).AuditRecordGet(ctx, digest)
 }
 
+func (f *reloadAwareBrokerClient) AuditAnchorPresenceGet(ctx context.Context, req brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, error) {
+	return (&fakeBrokerClient{}).AuditAnchorPresenceGet(ctx, req)
+}
+
 func (f *reloadAwareBrokerClient) AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error) {
 	return (&fakeBrokerClient{}).AuditAnchorSegment(ctx, req)
 }
@@ -503,6 +512,24 @@ func (f *fakeBrokerClient) AuditRecordGet(ctx context.Context, digest string) (b
 		return brokerapi.AuditRecordGetResponse{}, fmt.Errorf("digest required")
 	}
 	return brokerapi.AuditRecordGetResponse{Record: brokerapi.AuditRecordDetail{RecordFamily: "audit_event", EventType: "run_state", OccurredAt: "2026-01-01T00:00:00Z", LinkedReferences: []brokerapi.AuditRecordLinkedReference{{ReferenceKind: "run", ReferenceID: "run-1"}}, VerificationPosture: &brokerapi.AuditRecordVerificationPosture{Status: "degraded", ReasonCodes: []string{"anchor_delayed"}}}}, nil
+}
+
+func (f *fakeBrokerClient) AuditAnchorPresenceGet(ctx context.Context, req brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, error) {
+	_ = ctx
+	if _, err := req.SealDigest.Identity(); err != nil {
+		return brokerapi.AuditAnchorPresenceGetResponse{}, fmt.Errorf("invalid seal digest")
+	}
+	return brokerapi.AuditAnchorPresenceGetResponse{
+		SchemaID:      "runecode.protocol.v0.AuditAnchorPresenceGetResponse",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-anchor-presence",
+		SealDigest:    req.SealDigest,
+		PresenceMode:  "os_confirmation",
+		PresenceAttestation: &brokerapi.AuditAnchorPresenceAttestation{
+			Challenge:           "presence-challenge-0123456789abcdef",
+			AcknowledgmentToken: strings.Repeat("a", 64),
+		},
+	}, nil
 }
 
 func (f *fakeBrokerClient) AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error) {

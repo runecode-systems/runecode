@@ -177,7 +177,9 @@ func projectAuditReceiptRecordDetail(detail *AuditRecordDetail, receipt *trustpo
 	detail.RecordFamily = "audit_receipt"
 	detail.OccurredAt = receipt.RecordedAt
 	detail.Summary = fmt.Sprintf("Audit receipt (%s) recorded.", strings.TrimSpace(receipt.AuditReceiptKind))
-	detail.LinkedReferences = append(detail.LinkedReferences, digestLinkedReference(receipt.SubjectDigest, "audit_record", "subject"))
+	if subjectRef, ok := projectedReceiptSubjectReference(receipt); ok {
+		detail.LinkedReferences = append(detail.LinkedReferences, subjectRef)
+	}
 	if receipt.ApprovalDecision != nil {
 		detail.LinkedReferences = append(detail.LinkedReferences, digestPointerLinkedReference(receipt.ApprovalDecision, "approval", "approval_decision"))
 	}
@@ -186,6 +188,23 @@ func projectAuditReceiptRecordDetail(detail *AuditRecordDetail, receipt *trustpo
 	}
 	detail.LinkedReferences = filterEmptyLinkedReferences(detail.LinkedReferences)
 	return nil
+}
+
+func projectedReceiptSubjectReference(receipt *trustpolicy.AuditReceiptOperationalView) (AuditRecordLinkedReference, bool) {
+	if receipt == nil {
+		return AuditRecordLinkedReference{}, false
+	}
+	relation := "subject"
+	subjectFamily := strings.TrimSpace(receipt.SubjectFamily)
+	receiptKind := strings.TrimSpace(receipt.AuditReceiptKind)
+	if subjectFamily == "audit_segment_seal" || (subjectFamily == "" && receiptKind == "anchor") {
+		relation = "subject_segment_seal"
+	}
+	ref := digestLinkedReference(receipt.SubjectDigest, "audit_record", relation)
+	if strings.TrimSpace(ref.ReferenceID) == "" {
+		return AuditRecordLinkedReference{}, false
+	}
+	return ref, true
 }
 
 func digestLinkedReference(digest trustpolicy.Digest, kind string, relation string) AuditRecordLinkedReference {

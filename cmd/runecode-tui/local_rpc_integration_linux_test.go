@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -30,7 +32,7 @@ import (
 )
 
 func TestTUIRoutesUseRealLocalRPCBrokerContracts(t *testing.T) {
-	listener, errCh := startTUILocalRPCServer(t)
+	listener, service, ledgerRoot, errCh := startTUILocalRPCServer(t)
 	defer func() {
 		_ = listener.Close()
 		select {
@@ -42,17 +44,17 @@ func TestTUIRoutesUseRealLocalRPCBrokerContracts(t *testing.T) {
 			t.Fatal("timed out waiting for local RPC server shutdown")
 		}
 	}()
-	probeTUILocalRPCClient(t)
+	probeTUILocalRPCClient(t, service, ledgerRoot)
 	assertTUIBrokerBackedRoutes(t)
 }
 
-func startTUILocalRPCServer(t *testing.T) (*brokerapi.LocalIPCListener, <-chan error) {
+func startTUILocalRPCServer(t *testing.T) (*brokerapi.LocalIPCListener, *brokerapi.Service, string, <-chan error) {
 	t.Helper()
 	runtimeDir := filepath.Join(t.TempDir(), "runtime")
 	if err := os.MkdirAll(runtimeDir, 0o700); err != nil {
 		t.Fatalf("MkdirAll returned error: %v", err)
 	}
-	service := newTUILocalRPCService(t)
+	service, ledgerRoot := newTUILocalRPCService(t)
 	listener, err := brokerapi.ListenLocalIPC(brokerapi.LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
 	if err != nil {
 		t.Fatalf("ListenLocalIPC returned error: %v", err)
@@ -62,7 +64,7 @@ func startTUILocalRPCServer(t *testing.T) (*brokerapi.LocalIPCListener, <-chan e
 	go func() {
 		errCh <- serveTUILocalRPCConn(t, listener, service)
 	}()
-	return listener, errCh
+	return listener, service, ledgerRoot, errCh
 }
 
 func configureTUILocalRPCClient(t *testing.T, runtimeDir string) {
@@ -81,9 +83,16 @@ func configureTUILocalRPCClient(t *testing.T, runtimeDir string) {
 	})
 }
 
-func probeTUILocalRPCClient(t *testing.T) {
+func probeTUILocalRPCClient(t *testing.T, service *brokerapi.Service, ledgerRoot string) {
 	t.Helper()
 	client := &rpcBrokerClient{}
+	assertTUILocalRPCRunList(t, client)
+	assertTUILocalRPCReadSurfaces(t, client)
+	assertTUILocalRPCAnchorFlow(t, client, service, ledgerRoot)
+}
+
+func assertTUILocalRPCRunList(t *testing.T, client *rpcBrokerClient) {
+	t.Helper()
 	resp, err := client.RunList(context.Background(), 5)
 	if err != nil {
 		t.Fatalf("RunList returned error: %v", err)
@@ -94,6 +103,10 @@ func probeTUILocalRPCClient(t *testing.T) {
 	if resp.Runs[0].RunID != "run-tui" {
 		t.Fatalf("RunList first run_id = %q, want run-tui", resp.Runs[0].RunID)
 	}
+}
+
+func assertTUILocalRPCReadSurfaces(t *testing.T, client *rpcBrokerClient) {
+	t.Helper()
 	if _, err := client.ReadinessGet(context.Background()); err != nil {
 		t.Fatalf("ReadinessGet returned error: %v", err)
 	}
@@ -102,6 +115,9 @@ func probeTUILocalRPCClient(t *testing.T) {
 	}
 	if _, err := client.ApprovalList(context.Background(), 5); err != nil {
 		t.Fatalf("ApprovalList returned error: %v", err)
+	}
+	if _, err := client.AuditTimeline(context.Background(), 5, ""); err != nil {
+		t.Fatalf("AuditTimeline returned error: %v", err)
 	}
 	if _, err := client.AuditVerificationGet(context.Background(), 20); err != nil {
 		t.Fatalf("AuditVerificationGet returned error: %v", err)
@@ -115,6 +131,65 @@ func probeTUILocalRPCClient(t *testing.T) {
 	if _, err := client.SessionWatch(context.Background(), brokerapi.SessionWatchRequest{StreamID: "probe-session-watch", IncludeSnapshot: true}); err != nil {
 		t.Fatalf("SessionWatch returned error: %v", err)
 	}
+}
+
+func assertTUILocalRPCAnchorFlow(t *testing.T, client *rpcBrokerClient, service *brokerapi.Service, ledgerRoot string) {
+	t.Helper()
+	sealDigest := mustLatestSealDigestForTUILocalRPCProbe(t, service, ledgerRoot)
+	failedResp, err := client.AuditAnchorSegment(context.Background(), brokerapi.AuditAnchorSegmentRequest{SealDigest: sealDigest})
+	if err != nil {
+		t.Fatalf("AuditAnchorSegment (missing presence) returned error: %v", err)
+	}
+	if strings.TrimSpace(failedResp.AnchoringStatus) != "failed" {
+		t.Fatalf("AuditAnchorSegment (missing presence) status = %q, want failed", failedResp.AnchoringStatus)
+	}
+	if strings.TrimSpace(failedResp.FailureCode) != "anchor_request_invalid" {
+		t.Fatalf("AuditAnchorSegment (missing presence) failure_code = %q, want anchor_request_invalid", failedResp.FailureCode)
+	}
+	presenceResp, err := client.AuditAnchorPresenceGet(context.Background(), brokerapi.AuditAnchorPresenceGetRequest{SealDigest: sealDigest})
+	if err != nil {
+		t.Fatalf("AuditAnchorPresenceGet returned error: %v", err)
+	}
+	if strings.TrimSpace(presenceResp.PresenceMode) != "os_confirmation" {
+		t.Fatalf("AuditAnchorPresenceGet presence_mode = %q, want os_confirmation", presenceResp.PresenceMode)
+	}
+	if presenceResp.PresenceAttestation == nil {
+		t.Fatal("AuditAnchorPresenceGet expected presence_attestation for os_confirmation")
+	}
+	successResp, err := client.AuditAnchorSegment(context.Background(), brokerapi.AuditAnchorSegmentRequest{SealDigest: sealDigest, PresenceAttestation: presenceResp.PresenceAttestation})
+	if err != nil {
+		t.Fatalf("AuditAnchorSegment (with broker-owned presence) returned error: %v", err)
+	}
+	if strings.TrimSpace(successResp.AnchoringStatus) != "ok" {
+		t.Fatalf("AuditAnchorSegment (with broker-owned presence) status = %q, want ok (failure_code=%q failure_message=%q)", successResp.AnchoringStatus, successResp.FailureCode, successResp.FailureMessage)
+	}
+}
+
+func mustLatestSealDigestForTUILocalRPCProbe(t *testing.T, service *brokerapi.Service, ledgerRoot string) trustpolicy.Digest {
+	t.Helper()
+	if service == nil {
+		t.Fatal("service is required")
+	}
+	entries, err := os.ReadDir(filepath.Join(ledgerRoot, "sidecar", "segment-seals"))
+	if err != nil {
+		t.Fatalf("ReadDir(segment-seals) returned error: %v", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := strings.TrimSpace(entry.Name())
+		if !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		hash := strings.TrimSuffix(name, ".json")
+		digest := trustpolicy.Digest{HashAlg: "sha256", Hash: hash}
+		if _, err := digest.Identity(); err == nil {
+			return digest
+		}
+	}
+	t.Fatal("no valid segment seal digest found in sidecar")
+	return trustpolicy.Digest{}
 }
 
 func assertTUIBrokerBackedRoutes(t *testing.T) {
@@ -217,10 +292,13 @@ func assertAuditRouteSupportsDrillDown(t *testing.T, model routeModel) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	for _, needle := range []string{"Audit safety strip", "Timeline paging: page=1 entries=1 has_next=no", "Verification posture: integrity=ok", "Verification findings: none"} {
+	for _, needle := range []string{"Audit safety strip", "Timeline paging: page=1 entries=1 has_next=no", "Verification posture:"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("audit view missing %q: %s", needle, view)
 		}
+	}
+	if !strings.Contains(view, "Verification findings:") && !strings.Contains(view, "Verification findings (machine-readable):") {
+		t.Fatalf("audit view missing verification findings section: %s", view)
 	}
 	updated, cmd = updated.Update(teaKey("enter"))
 	if cmd == nil {
@@ -305,6 +383,19 @@ func dispatchTUILocalRPC(service *brokerapi.Service, wire brokerapi.LocalRPCRequ
 }
 
 func dispatchTUILocalRPCJSONOps(service *brokerapi.Service, wire brokerapi.LocalRPCRequest, meta brokerapi.RequestContext) (brokerapi.LocalRPCResponse, bool) {
+	if resp, ok := dispatchTUILocalRPCJSONCoreOps(service, wire, meta); ok {
+		return resp, true
+	}
+	if resp, ok := dispatchTUILocalRPCJSONAuditOps(service, wire, meta); ok {
+		return resp, true
+	}
+	if resp, ok := dispatchTUILocalRPCJSONBackendOps(service, wire, meta); ok {
+		return resp, true
+	}
+	return brokerapi.LocalRPCResponse{}, false
+}
+
+func dispatchTUILocalRPCJSONCoreOps(service *brokerapi.Service, wire brokerapi.LocalRPCRequest, meta brokerapi.RequestContext) (brokerapi.LocalRPCResponse, bool) {
 	switch wire.Operation {
 	case "run_list":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleRunList), true
@@ -326,12 +417,30 @@ func dispatchTUILocalRPCJSONOps(service *brokerapi.Service, wire brokerapi.Local
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleArtifactListV0), true
 	case "artifact_head":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleArtifactHeadV0), true
+	default:
+		return brokerapi.LocalRPCResponse{}, false
+	}
+}
+
+func dispatchTUILocalRPCJSONAuditOps(service *brokerapi.Service, wire brokerapi.LocalRPCRequest, meta brokerapi.RequestContext) (brokerapi.LocalRPCResponse, bool) {
+	switch wire.Operation {
 	case "audit_timeline":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleAuditTimeline), true
 	case "audit_verification_get":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleAuditVerificationGet), true
 	case "audit_record_get":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleAuditRecordGet), true
+	case "audit_anchor_presence_get":
+		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleAuditAnchorPresenceGet), true
+	case "audit_anchor_segment":
+		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleAuditAnchorSegment), true
+	default:
+		return brokerapi.LocalRPCResponse{}, false
+	}
+}
+
+func dispatchTUILocalRPCJSONBackendOps(service *brokerapi.Service, wire brokerapi.LocalRPCRequest, meta brokerapi.RequestContext) (brokerapi.LocalRPCResponse, bool) {
+	switch wire.Operation {
 	case "readiness_get":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleReadinessGet), true
 	case "version_info_get":
@@ -438,12 +547,22 @@ func validateTUIRawMessageLimits(service *brokerapi.Service, raw json.RawMessage
 	return brokerapi.ValidateRawMessageLimits(raw, service.APILimits())
 }
 
-func newTUILocalRPCService(t *testing.T) *brokerapi.Service {
+func newTUILocalRPCService(t *testing.T) (*brokerapi.Service, string) {
 	t.Helper()
 	storeRoot := t.TempDir()
 	ledgerRoot := filepath.Join(t.TempDir(), "ledger")
 	secretsRoot := filepath.Join(t.TempDir(), "secrets-state")
-	if err := seedLedgerForTUILocalRPCTest(ledgerRoot); err != nil {
+	seedPublic, seedPrivate, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey(seed) returned error: %v", err)
+	}
+	seedKeyID := sha256.Sum256(seedPublic)
+	anchorPub, anchorPriv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey returned error: %v", err)
+	}
+	t.Setenv("RUNE_AUDIT_ANCHOR_PRIVATE_KEY_B64", base64.StdEncoding.EncodeToString(anchorPriv))
+	if err := seedLedgerForTUILocalRPCTest(ledgerRoot, seedPrivate, hex.EncodeToString(seedKeyID[:]), seedPublic, anchorPub); err != nil {
 		t.Fatalf("seedLedgerForTUILocalRPCTest returned error: %v", err)
 	}
 	if err := seedSecretsForTUILocalRPCTest(secretsRoot); err != nil {
@@ -468,7 +587,7 @@ func newTUILocalRPCService(t *testing.T) *brokerapi.Service {
 	}
 	seedTUIApproval(t, service)
 	seedTUIAudit(t, service)
-	return service
+	return service, ledgerRoot
 }
 
 func seedSecretsForTUILocalRPCTest(root string) error {
@@ -549,25 +668,25 @@ func seedTUIAudit(t *testing.T, service *brokerapi.Service) {
 	}
 }
 
-func seedLedgerForTUILocalRPCTest(root string) error {
+func seedLedgerForTUILocalRPCTest(root string, seedPrivateKey ed25519.PrivateKey, seedKeyID string, seedPublicKey ed25519.PublicKey, anchorPublicKey ed25519.PublicKey) error {
 	if err := prepareTUILedgerDirs(root); err != nil {
 		return err
 	}
-	evidence, err := buildTUISeedEventEvidence("session-tui")
+	evidence, err := buildTUISeedEventEvidence("session-tui", seedPrivateKey, seedKeyID)
 	if err != nil {
 		return err
 	}
 	if err := writeTUISeedSegment(root, "segment-000001", evidence.recordDigest, evidence.canonicalEnvelope); err != nil {
 		return err
 	}
-	if err := writeTUISeedSeal(root, "segment-000001", evidence.recordDigest, 0); err != nil {
+	if err := writeTUISeedSeal(root, "segment-000001", evidence.recordDigest, 0, seedPrivateKey, seedKeyID); err != nil {
 		return err
 	}
 	ledger, err := auditd.Open(root)
 	if err != nil {
 		return err
 	}
-	if err := configureTUISeedContractsAndIndex(ledger); err != nil {
+	if err := configureTUISeedContractsAndIndex(ledger, seedPublicKey, seedKeyID, anchorPublicKey); err != nil {
 		return err
 	}
 	return persistTUISeedReport(ledger)
@@ -587,11 +706,14 @@ func prepareTUILedgerDirs(root string) error {
 	return nil
 }
 
-func buildTUISeedEventEvidence(sessionID string) (tuiSeedEvidence, error) {
+func buildTUISeedEventEvidence(sessionID string, privateKey ed25519.PrivateKey, keyID string) (tuiSeedEvidence, error) {
 	eventPayload := map[string]any{"session_id": sessionID}
 	eventPayloadHash := sha256.Sum256(mustTUICanonicalJSON(eventPayload))
 	event := tuiSeedAuditEventEnvelopePayload(sessionID, eventPayloadHash)
-	envelope := tuiSeedSignedEventEnvelope(event)
+	envelope, err := tuiSeedSignedEnvelope(trustpolicy.AuditEventSchemaID, trustpolicy.AuditEventSchemaVersion, event, privateKey, keyID)
+	if err != nil {
+		return tuiSeedEvidence{}, err
+	}
 	canonicalEnvelope := mustTUICanonicalJSON(envelope)
 	sum := sha256.Sum256(canonicalEnvelope)
 	return tuiSeedEvidence{recordDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: hex.EncodeToString(sum[:])}, canonicalEnvelope: canonicalEnvelope}, nil
@@ -633,18 +755,17 @@ func tuiSeedAuditEventEnvelopePayload(sessionID string, eventPayloadHash [32]byt
 	}
 }
 
-func tuiSeedSignedEventEnvelope(event map[string]any) trustpolicy.SignedObjectEnvelope {
-	return trustpolicy.SignedObjectEnvelope{SchemaID: trustpolicy.EnvelopeSchemaID, SchemaVersion: trustpolicy.EnvelopeSchemaVersion, PayloadSchemaID: trustpolicy.AuditEventSchemaID, PayloadSchemaVersion: trustpolicy.AuditEventSchemaVersion, Payload: mustTUIJSON(event), SignatureInput: trustpolicy.SignatureInputProfile, Signature: trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: strings.Repeat("a", 64), Signature: base64.StdEncoding.EncodeToString([]byte("sig"))}}
-}
-
 func writeTUISeedSegment(root, segmentID string, recordDigest trustpolicy.Digest, canonicalEnvelope []byte) error {
 	segment := trustpolicy.AuditSegmentFilePayload{SchemaID: "runecode.protocol.v0.AuditSegmentFile", SchemaVersion: "0.1.0", Header: trustpolicy.AuditSegmentHeader{Format: "audit_segment_framed_v1", SegmentID: segmentID, SegmentState: trustpolicy.AuditSegmentStateSealed, CreatedAt: "2026-03-13T12:00:00Z", Writer: "auditd"}, Frames: []trustpolicy.AuditSegmentRecordFrame{{RecordDigest: recordDigest, ByteLength: int64(len(canonicalEnvelope)), CanonicalSignedEnvelopeBytes: base64.StdEncoding.EncodeToString(canonicalEnvelope)}}, LifecycleMarker: trustpolicy.AuditSegmentLifecycleMarker{State: trustpolicy.AuditSegmentStateSealed, MarkedAt: "2026-03-13T12:20:00Z"}}
 	return writeTUICanonicalJSON(filepath.Join(root, "segments", segmentID+".json"), segment)
 }
 
-func writeTUISeedSeal(root, segmentID string, recordDigest trustpolicy.Digest, chainIndex int64) error {
+func writeTUISeedSeal(root, segmentID string, recordDigest trustpolicy.Digest, chainIndex int64, privateKey ed25519.PrivateKey, keyID string) error {
 	sealPayload := trustpolicy.AuditSegmentSealPayload{SchemaID: trustpolicy.AuditSegmentSealSchemaID, SchemaVersion: trustpolicy.AuditSegmentSealSchemaVersion, SegmentID: segmentID, SealedAfterState: trustpolicy.AuditSegmentStateOpen, SegmentState: trustpolicy.AuditSegmentStateSealed, SegmentCut: trustpolicy.AuditSegmentCutWindowPolicy{OwnershipScope: trustpolicy.AuditSegmentOwnershipScopeInstanceGlobal, MaxSegmentBytes: 2048, CutTrigger: trustpolicy.AuditSegmentCutTriggerSizeWindow}, EventCount: 1, FirstRecordDigest: recordDigest, LastRecordDigest: recordDigest, MerkleProfile: trustpolicy.AuditSegmentMerkleProfileOrderedDSEv1, MerkleRoot: recordDigest, SegmentFileHashScope: trustpolicy.AuditSegmentFileHashScopeRawFramedV1, SegmentFileHash: recordDigest, SealChainIndex: chainIndex, AnchoringSubject: trustpolicy.AuditSegmentAnchoringSubjectSeal, SealedAt: "2026-03-13T12:20:00Z", ProtocolBundleManifestHash: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)}, SealReason: "size_threshold"}
-	sealEnvelope := trustpolicy.SignedObjectEnvelope{SchemaID: trustpolicy.EnvelopeSchemaID, SchemaVersion: trustpolicy.EnvelopeSchemaVersion, PayloadSchemaID: trustpolicy.AuditSegmentSealSchemaID, PayloadSchemaVersion: trustpolicy.AuditSegmentSealSchemaVersion, Payload: mustTUIJSON(sealPayload), SignatureInput: trustpolicy.SignatureInputProfile, Signature: trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: strings.Repeat("a", 64), Signature: base64.StdEncoding.EncodeToString([]byte("sig"))}}
+	sealEnvelope, err := tuiSeedSignedEnvelope(trustpolicy.AuditSegmentSealSchemaID, trustpolicy.AuditSegmentSealSchemaVersion, sealPayload, privateKey, keyID)
+	if err != nil {
+		return err
+	}
 	sealDigest, err := trustpolicy.ComputeSignedEnvelopeAuditRecordDigest(sealEnvelope)
 	if err != nil {
 		return err
@@ -653,8 +774,8 @@ func writeTUISeedSeal(root, segmentID string, recordDigest trustpolicy.Digest, c
 	return writeTUICanonicalJSON(filepath.Join(root, "sidecar", "segment-seals", strings.TrimPrefix(identity, "sha256:")+".json"), sealEnvelope)
 }
 
-func configureTUISeedContractsAndIndex(ledger *auditd.Ledger) error {
-	if err := ledger.ConfigureVerificationInputs(auditd.VerificationConfiguration{VerifierRecords: []trustpolicy.VerifierRecord{tuiSeedVerifierRecord()}, EventContractCatalog: tuiSeedEventContractCatalog()}); err != nil {
+func configureTUISeedContractsAndIndex(ledger *auditd.Ledger, seedPublicKey ed25519.PublicKey, seedKeyID string, anchorPublicKey ed25519.PublicKey) error {
+	if err := ledger.ConfigureVerificationInputs(auditd.VerificationConfiguration{VerifierRecords: []trustpolicy.VerifierRecord{tuiSeedSessionVerifierRecord(seedPublicKey, seedKeyID), tuiSeedAuditAnchorVerifierRecord(anchorPublicKey)}, EventContractCatalog: tuiSeedEventContractCatalog()}); err != nil {
 		return err
 	}
 	_, err := ledger.BuildIndex()
@@ -667,10 +788,26 @@ func persistTUISeedReport(ledger *auditd.Ledger) error {
 	return err
 }
 
-func tuiSeedVerifierRecord() trustpolicy.VerifierRecord {
-	publicKey := []byte(strings.Repeat("k", 32))
+func tuiSeedSessionVerifierRecord(publicKey ed25519.PublicKey, keyID string) trustpolicy.VerifierRecord {
+	return trustpolicy.VerifierRecord{SchemaID: trustpolicy.VerifierSchemaID, SchemaVersion: trustpolicy.VerifierSchemaVersion, KeyID: trustpolicy.KeyIDProfile, KeyIDValue: strings.TrimSpace(keyID), Alg: "ed25519", PublicKey: trustpolicy.PublicKey{Encoding: "base64", Value: base64.StdEncoding.EncodeToString(publicKey)}, LogicalPurpose: "isolate_session_identity", LogicalScope: "session", OwnerPrincipal: trustpolicy.PrincipalIdentity{SchemaID: "runecode.protocol.v0.PrincipalIdentity", SchemaVersion: "0.2.0", ActorKind: "daemon", PrincipalID: "auditd", InstanceID: "auditd-1"}, KeyProtectionPosture: "os_keystore", IdentityBindingPosture: "attested", PresenceMode: "os_confirmation", CreatedAt: "2026-03-13T12:00:00Z", Status: "active"}
+}
+
+func tuiSeedAuditAnchorVerifierRecord(publicKey []byte) trustpolicy.VerifierRecord {
 	keyID := sha256.Sum256(publicKey)
-	return trustpolicy.VerifierRecord{SchemaID: trustpolicy.VerifierSchemaID, SchemaVersion: trustpolicy.VerifierSchemaVersion, KeyID: trustpolicy.KeyIDProfile, KeyIDValue: hex.EncodeToString(keyID[:]), Alg: "ed25519", PublicKey: trustpolicy.PublicKey{Encoding: "base64", Value: base64.StdEncoding.EncodeToString(publicKey)}, LogicalPurpose: "isolate_session_identity", LogicalScope: "session", OwnerPrincipal: trustpolicy.PrincipalIdentity{SchemaID: "runecode.protocol.v0.PrincipalIdentity", SchemaVersion: "0.2.0", ActorKind: "daemon", PrincipalID: "auditd", InstanceID: "auditd-1"}, KeyProtectionPosture: "os_keystore", IdentityBindingPosture: "attested", PresenceMode: "os_confirmation", CreatedAt: "2026-03-13T12:00:00Z", Status: "active"}
+	return trustpolicy.VerifierRecord{SchemaID: trustpolicy.VerifierSchemaID, SchemaVersion: trustpolicy.VerifierSchemaVersion, KeyID: trustpolicy.KeyIDProfile, KeyIDValue: hex.EncodeToString(keyID[:]), Alg: "ed25519", PublicKey: trustpolicy.PublicKey{Encoding: "base64", Value: base64.StdEncoding.EncodeToString(publicKey)}, LogicalPurpose: "audit_anchor", LogicalScope: "node", OwnerPrincipal: trustpolicy.PrincipalIdentity{SchemaID: "runecode.protocol.v0.PrincipalIdentity", SchemaVersion: "0.2.0", ActorKind: "daemon", PrincipalID: "secretsd", InstanceID: "secretsd-1"}, KeyProtectionPosture: "os_keystore", IdentityBindingPosture: "attested", PresenceMode: "os_confirmation", CreatedAt: "2026-03-13T12:00:00Z", Status: "active"}
+}
+
+func tuiSeedSignedEnvelope(payloadSchemaID string, payloadSchemaVersion string, payload any, privateKey ed25519.PrivateKey, keyID string) (trustpolicy.SignedObjectEnvelope, error) {
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return trustpolicy.SignedObjectEnvelope{}, err
+	}
+	canonicalPayload, err := jsoncanonicalizer.Transform(payloadBytes)
+	if err != nil {
+		return trustpolicy.SignedObjectEnvelope{}, err
+	}
+	signature := ed25519.Sign(privateKey, canonicalPayload)
+	return trustpolicy.SignedObjectEnvelope{SchemaID: trustpolicy.EnvelopeSchemaID, SchemaVersion: trustpolicy.EnvelopeSchemaVersion, PayloadSchemaID: payloadSchemaID, PayloadSchemaVersion: payloadSchemaVersion, Payload: payloadBytes, SignatureInput: trustpolicy.SignatureInputProfile, Signature: trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: strings.TrimSpace(keyID), Signature: base64.StdEncoding.EncodeToString(signature)}}, nil
 }
 
 func tuiSeedEventContractCatalog() trustpolicy.AuditEventContractCatalog {

@@ -76,7 +76,7 @@ func latestVerificationSealDigest(verify *brokerapi.AuditVerificationGetResponse
 
 func sealDigestFromReferences(refs []brokerapi.AuditRecordLinkedReference) (string, bool) {
 	for _, ref := range refs {
-		if !isSealReferenceKind(ref.ReferenceKind) {
+		if !isSealReference(ref.ReferenceKind, ref.Relation) {
 			continue
 		}
 		digest := parseDigestIdentity(ref.ReferenceID)
@@ -88,14 +88,11 @@ func sealDigestFromReferences(refs []brokerapi.AuditRecordLinkedReference) (stri
 	return "", false
 }
 
-func isSealReferenceKind(kind string) bool {
-	norm := strings.ToLower(strings.TrimSpace(kind))
-	switch norm {
-	case "audit_segment_seal_digest", "segment_seal_digest":
-		return true
-	default:
+func isSealReference(kind string, relation string) bool {
+	if strings.ToLower(strings.TrimSpace(kind)) != "audit_record" {
 		return false
 	}
+	return strings.ToLower(strings.TrimSpace(relation)) == "subject_segment_seal"
 }
 
 func (m auditRouteModel) anchorSealCmd(sealDigest string, exportCopy bool) tea.Cmd {
@@ -106,12 +103,24 @@ func (m auditRouteModel) anchorSealCmd(sealDigest string, exportCopy bool) tea.C
 		}
 		ctx, cancel := withLoadTimeout()
 		defer cancel()
-		resp, err := m.client.AuditAnchorSegment(ctx, brokerapi.AuditAnchorSegmentRequest{SealDigest: parsed, ExportReceiptCopy: exportCopy})
+		presenceResp, err := m.client.AuditAnchorPresenceGet(ctx, brokerapi.AuditAnchorPresenceGetRequest{SealDigest: parsed})
+		if err != nil {
+			return auditAnchorCompletedMsg{sealDigest: sealDigest, err: err}
+		}
+		if auditAnchorPresenceAttestationRequired(strings.TrimSpace(presenceResp.PresenceMode)) && presenceResp.PresenceAttestation == nil {
+			return auditAnchorCompletedMsg{sealDigest: sealDigest, err: fmt.Errorf("presence attestation unavailable")}
+		}
+		resp, err := m.client.AuditAnchorSegment(ctx, brokerapi.AuditAnchorSegmentRequest{SealDigest: parsed, PresenceAttestation: presenceResp.PresenceAttestation, ExportReceiptCopy: exportCopy})
 		if err != nil {
 			return auditAnchorCompletedMsg{sealDigest: sealDigest, err: err}
 		}
 		return auditAnchorCompletedMsg{response: &resp, sealDigest: sealDigest}
 	}
+}
+
+func auditAnchorPresenceAttestationRequired(mode string) bool {
+	mode = strings.TrimSpace(mode)
+	return mode == "os_confirmation" || mode == "hardware_touch"
 }
 
 func renderAuditAnchorActionSummary(m auditRouteModel) string {

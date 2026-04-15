@@ -52,8 +52,8 @@ func projectTimelineReceiptSection(entry *AuditTimelineViewEntry, receipt *trust
 		return
 	}
 	entry.Summary = fmt.Sprintf("Audit receipt (%s) recorded.", strings.TrimSpace(receipt.AuditReceiptKind))
-	if subject, ok := digestIdentity(receipt.SubjectDigest); ok {
-		entry.LinkedReferences = append(entry.LinkedReferences, AuditRecordLinkedReference{ReferenceKind: "audit_record", ReferenceID: subject, Relation: "subject"})
+	if subjectRef, ok := projectedReceiptSubjectReference(receipt); ok {
+		entry.LinkedReferences = append(entry.LinkedReferences, subjectRef)
 	}
 	if receipt.ApprovalDecision != nil {
 		if approvalID, ok := digestIdentity(*receipt.ApprovalDecision); ok {
