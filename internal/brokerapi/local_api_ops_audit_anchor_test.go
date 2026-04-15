@@ -2,11 +2,9 @@ package brokerapi
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/auditd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
@@ -27,29 +25,10 @@ func TestHandleAuditAnchorSegmentSuccessPersistsReceiptAndVerification(t *testin
 		t.Fatalf("HandleAuditAnchorSegment returned error: %+v", errResp)
 	}
 	if resp.AnchoringStatus != "ok" {
+		t.Logf("failure_code=%q failure_message=%q", resp.FailureCode, resp.FailureMessage)
 		t.Fatalf("anchoring_status = %q, want ok", resp.AnchoringStatus)
 	}
-	if resp.ReceiptDigest == nil {
-		t.Fatal("receipt_digest missing")
-	}
-	if resp.VerificationReportDigest == nil {
-		t.Fatal("verification_report_digest missing")
-	}
-	if strings.TrimSpace(resp.ExportedReceiptRef) == "" {
-		t.Fatal("exported_receipt_ref missing")
-	}
-	exported, err := service.Head(resp.ExportedReceiptRef)
-	if err != nil {
-		t.Fatalf("Head(exported_receipt_ref) returned error: %v", err)
-	}
-	if exported.Reference.DataClass != artifacts.DataClassAuditReceiptExportCopy {
-		t.Fatalf("exported receipt data_class = %q, want %q", exported.Reference.DataClass, artifacts.DataClassAuditReceiptExportCopy)
-	}
-	if resp.VerificationReportDigest != nil && exported.Reference.Digest == mustDigestIdentityForAnchorTest(*resp.VerificationReportDigest) {
-		t.Fatalf("exported receipt digest must not alias verification report digest %q", mustDigestIdentityForAnchorTest(*resp.VerificationReportDigest))
-	}
-	assertAnchorReceiptSidecarExists(t, ledgerRoot, *resp.ReceiptDigest)
-	assertAnchorVerificationReportSidecarExists(t, ledgerRoot, *resp.VerificationReportDigest)
+	assertAnchorSuccessArtifacts(t, service, ledgerRoot, sealDigest, resp)
 }
 
 func TestHandleAuditAnchorSegmentExportCopyIsOptional(t *testing.T) {
@@ -67,6 +46,7 @@ func TestHandleAuditAnchorSegmentExportCopyIsOptional(t *testing.T) {
 		t.Fatalf("HandleAuditAnchorSegment returned error: %+v", errResp)
 	}
 	if resp.AnchoringStatus != "ok" {
+		t.Logf("failure_code=%q failure_message=%q", resp.FailureCode, resp.FailureMessage)
 		t.Fatalf("anchoring_status = %q, want ok", resp.AnchoringStatus)
 	}
 	if resp.ReceiptDigest == nil {
@@ -97,6 +77,7 @@ func TestHandleAuditAnchorSegmentDoesNotMutateSegmentBytesOrSealIdentity(t *test
 		t.Fatalf("HandleAuditAnchorSegment returned error: %+v", errResp)
 	}
 	if resp.AnchoringStatus != "ok" {
+		t.Logf("req-anchor-consumed-approval failure_code=%q failure_message=%q", resp.FailureCode, resp.FailureMessage)
 		t.Fatalf("anchoring_status = %q, want ok", resp.AnchoringStatus)
 	}
 	assertAnchorImmutabilityAfterAnchor(t, service, immutability)
@@ -120,6 +101,7 @@ func TestHandleAuditAnchorSegmentExportFailureDoesNotFailAnchoring(t *testing.T)
 		t.Fatalf("HandleAuditAnchorSegment returned error: %+v", errResp)
 	}
 	if resp.AnchoringStatus != "ok" {
+		t.Logf("req-anchor-policy-required-consumed-decision failure_code=%q failure_message=%q", resp.FailureCode, resp.FailureMessage)
 		t.Fatalf("anchoring_status = %q, want ok", resp.AnchoringStatus)
 	}
 	if resp.ReceiptDigest == nil {
@@ -146,8 +128,11 @@ func TestHandleAuditAnchorSegmentFailsClosedWithoutPresenceAttestation(t *testin
 	if resp.AnchoringStatus != "failed" {
 		t.Fatalf("anchoring_status = %q, want failed", resp.AnchoringStatus)
 	}
-	if resp.FailureCode != "anchor_receipt_invalid" {
-		t.Fatalf("failure_code = %q, want anchor_receipt_invalid", resp.FailureCode)
+	if resp.FailureCode != "anchor_request_invalid" {
+		t.Fatalf("failure_code = %q, want anchor_request_invalid", resp.FailureCode)
+	}
+	if got := strings.TrimSpace(resp.FailureMessage); got != "anchor request validation failed" {
+		t.Fatalf("failure_message = %q, want anchor request validation failed", got)
 	}
 	if resp.ReceiptDigest != nil {
 		t.Fatalf("receipt_digest = %+v, want nil", resp.ReceiptDigest)
@@ -172,8 +157,11 @@ func TestHandleAuditAnchorSegmentFailsClosedWithInvalidPresenceAttestation(t *te
 	if resp.AnchoringStatus != "failed" {
 		t.Fatalf("anchoring_status = %q, want failed", resp.AnchoringStatus)
 	}
-	if resp.FailureCode != "anchor_receipt_invalid" {
-		t.Fatalf("failure_code = %q, want anchor_receipt_invalid", resp.FailureCode)
+	if resp.FailureCode != "anchor_request_invalid" {
+		t.Fatalf("failure_code = %q, want anchor_request_invalid", resp.FailureCode)
+	}
+	if got := strings.TrimSpace(resp.FailureMessage); got != "anchor request validation failed" {
+		t.Fatalf("failure_message = %q, want anchor request validation failed", got)
 	}
 	if resp.ReceiptDigest != nil {
 		t.Fatalf("receipt_digest = %+v, want nil", resp.ReceiptDigest)
@@ -198,8 +186,11 @@ func TestHandleAuditAnchorSegmentSignerPresenceValidationFailsClosed(t *testing.
 	if resp.AnchoringStatus != "failed" {
 		t.Fatalf("anchoring_status = %q, want failed", resp.AnchoringStatus)
 	}
-	if resp.FailureCode != "anchor_receipt_invalid" {
-		t.Fatalf("failure_code = %q, want anchor_receipt_invalid", resp.FailureCode)
+	if resp.FailureCode != "anchor_request_invalid" {
+		t.Fatalf("failure_code = %q, want anchor_request_invalid", resp.FailureCode)
+	}
+	if got := strings.TrimSpace(resp.FailureMessage); got != "anchor request validation failed" {
+		t.Fatalf("failure_message = %q, want anchor request validation failed", got)
 	}
 	if resp.ReceiptDigest != nil {
 		t.Fatalf("receipt_digest = %+v, want nil", resp.ReceiptDigest)
@@ -224,8 +215,39 @@ func TestHandleAuditAnchorSegmentInvalidAnchorSemanticReturnsFailed(t *testing.T
 	if resp.AnchoringStatus != "failed" {
 		t.Fatalf("anchoring_status = %q, want failed", resp.AnchoringStatus)
 	}
-	if resp.FailureCode != "anchor_receipt_invalid" {
-		t.Fatalf("failure_code = %q, want anchor_receipt_invalid", resp.FailureCode)
+	if resp.FailureCode != "anchor_request_invalid" {
+		t.Fatalf("failure_code = %q, want anchor_request_invalid", resp.FailureCode)
+	}
+	if got := strings.TrimSpace(resp.FailureMessage); got != "anchor request validation failed" {
+		t.Fatalf("failure_message = %q, want anchor request validation failed", got)
+	}
+}
+
+func TestHandleAuditAnchorSegmentFailsClosedOnApprovalDigestFromDifferentAction(t *testing.T) {
+	service, _ := newAuditAnchorTestService(t)
+	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
+	decisionDigest := mustSeedConsumedApprovalForAnchorTest(t, service, sealDigest)
+	mustSeedAnchorPolicyDecision(t, service, sealDigest, "allow", "")
+	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
+		SchemaID:               "runecode.protocol.v0.AuditAnchorSegmentRequest",
+		SchemaVersion:          "0.1.0",
+		RequestID:              "req-anchor-foreign-approval-action",
+		SealDigest:             sealDigest,
+		ApprovalDecisionDigest: &decisionDigest,
+		PresenceAttestation:    presence,
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleAuditAnchorSegment returned error: %+v", errResp)
+	}
+	if resp.AnchoringStatus != "failed" {
+		t.Fatalf("anchoring_status = %q, want failed", resp.AnchoringStatus)
+	}
+	if resp.FailureCode != "anchor_request_invalid" {
+		t.Fatalf("failure_code = %q, want anchor_request_invalid", resp.FailureCode)
+	}
+	if got := strings.TrimSpace(resp.FailureMessage); got != "anchor request validation failed" {
+		t.Fatalf("failure_message = %q, want anchor request validation failed", got)
 	}
 }
 
@@ -233,7 +255,7 @@ func TestHandleAuditAnchorSegmentWithConsumedSignedApprovalContext(t *testing.T)
 	service, ledgerRoot := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
 	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
-	decisionDigest := mustSeedConsumedApprovalForAnchorTest(t, service)
+	decisionDigest := mustSeedConsumedApprovalForAnchorTest(t, service, sealDigest)
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:               "runecode.protocol.v0.AuditAnchorSegmentRequest",
 		SchemaVersion:          "0.1.0",
@@ -246,7 +268,7 @@ func TestHandleAuditAnchorSegmentWithConsumedSignedApprovalContext(t *testing.T)
 		t.Fatalf("HandleAuditAnchorSegment returned error: %+v", errResp)
 	}
 	if resp.AnchoringStatus != "ok" {
-		t.Fatalf("anchoring_status = %q, want ok", resp.AnchoringStatus)
+		t.Fatalf("anchoring_status = %q, want ok (failure_code=%q failure_message=%q)", resp.AnchoringStatus, resp.FailureCode, resp.FailureMessage)
 	}
 	if resp.ReceiptDigest == nil {
 		t.Fatal("receipt_digest missing")
@@ -280,8 +302,11 @@ func TestHandleAuditAnchorSegmentPolicyRequiresApprovalFailsClosedWhenMissingDec
 	if resp.AnchoringStatus != "failed" {
 		t.Fatalf("anchoring_status = %q, want failed", resp.AnchoringStatus)
 	}
-	if resp.FailureCode != "anchor_receipt_invalid" {
-		t.Fatalf("failure_code = %q, want anchor_receipt_invalid", resp.FailureCode)
+	if resp.FailureCode != "anchor_request_invalid" {
+		t.Fatalf("failure_code = %q, want anchor_request_invalid", resp.FailureCode)
+	}
+	if got := strings.TrimSpace(resp.FailureMessage); got != "anchor request validation failed" {
+		t.Fatalf("failure_message = %q, want anchor request validation failed", got)
 	}
 	if resp.ReceiptDigest != nil {
 		t.Fatalf("receipt_digest = %+v, want nil", resp.ReceiptDigest)
@@ -305,7 +330,7 @@ func TestHandleAuditAnchorSegmentPolicyRequiresApprovalWithConsumedDecisionSucce
 		t.Fatalf("HandleAuditAnchorSegment returned error: %+v", errResp)
 	}
 	if resp.AnchoringStatus != "ok" {
-		t.Fatalf("anchoring_status = %q, want ok", resp.AnchoringStatus)
+		t.Fatalf("anchoring_status = %q, want ok (failure_code=%q failure_message=%q)", resp.AnchoringStatus, resp.FailureCode, resp.FailureMessage)
 	}
 	if resp.ReceiptDigest == nil {
 		t.Fatal("receipt_digest missing")
@@ -356,8 +381,11 @@ func TestHandleAuditAnchorSegmentPolicyRequiredAssuranceMismatchFailsClosed(t *t
 	if resp.AnchoringStatus != "failed" {
 		t.Fatalf("anchoring_status = %q, want failed", resp.AnchoringStatus)
 	}
-	if resp.FailureCode != "anchor_receipt_invalid" {
-		t.Fatalf("failure_code = %q, want anchor_receipt_invalid", resp.FailureCode)
+	if resp.FailureCode != "anchor_request_invalid" {
+		t.Fatalf("failure_code = %q, want anchor_request_invalid", resp.FailureCode)
+	}
+	if got := strings.TrimSpace(resp.FailureMessage); got != "anchor request validation failed" {
+		t.Fatalf("failure_message = %q, want anchor request validation failed", got)
 	}
 }
 
@@ -365,7 +393,7 @@ func TestHandleAuditAnchorSegmentFailsClosedOnUnconsumedApproval(t *testing.T) {
 	service, _ := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
 	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
-	decisionDigest := mustSeedPendingApprovalForAnchorTest(t, service)
+	decisionDigest := mustSeedPendingApprovalForAnchorTest(t, service, sealDigest)
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:               "runecode.protocol.v0.AuditAnchorSegmentRequest",
 		SchemaVersion:          "0.1.0",
@@ -380,8 +408,11 @@ func TestHandleAuditAnchorSegmentFailsClosedOnUnconsumedApproval(t *testing.T) {
 	if resp.AnchoringStatus != "failed" {
 		t.Fatalf("anchoring_status = %q, want failed", resp.AnchoringStatus)
 	}
-	if resp.FailureCode != "anchor_receipt_invalid" {
-		t.Fatalf("failure_code = %q, want anchor_receipt_invalid", resp.FailureCode)
+	if resp.FailureCode != "anchor_request_invalid" {
+		t.Fatalf("failure_code = %q, want anchor_request_invalid", resp.FailureCode)
+	}
+	if got := strings.TrimSpace(resp.FailureMessage); got != "anchor request validation failed" {
+		t.Fatalf("failure_message = %q, want anchor request validation failed", got)
 	}
 }
 
@@ -389,7 +420,7 @@ func TestHandleAuditAnchorSegmentFailsClosedOnApprovalAssuranceMismatch(t *testi
 	service, _ := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
 	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
-	decisionDigest := mustSeedConsumedApprovalForAnchorTest(t, service)
+	decisionDigest := mustSeedConsumedApprovalForAnchorTest(t, service, sealDigest)
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:               "runecode.protocol.v0.AuditAnchorSegmentRequest",
 		SchemaVersion:          "0.1.0",
@@ -405,8 +436,11 @@ func TestHandleAuditAnchorSegmentFailsClosedOnApprovalAssuranceMismatch(t *testi
 	if resp.AnchoringStatus != "failed" {
 		t.Fatalf("anchoring_status = %q, want failed", resp.AnchoringStatus)
 	}
-	if resp.FailureCode != "anchor_receipt_invalid" {
-		t.Fatalf("failure_code = %q, want anchor_receipt_invalid", resp.FailureCode)
+	if resp.FailureCode != "anchor_request_invalid" {
+		t.Fatalf("failure_code = %q, want anchor_request_invalid", resp.FailureCode)
+	}
+	if got := strings.TrimSpace(resp.FailureMessage); got != "anchor request validation failed" {
+		t.Fatalf("failure_message = %q, want anchor request validation failed", got)
 	}
 }
 
@@ -454,11 +488,6 @@ func containsReasonCodeForAnchorTest(codes []string, code string) bool {
 	return false
 }
 
-type anchorReceiptPayloadForTest struct {
-	ApprovalAssurance string              `json:"approval_assurance_level,omitempty"`
-	ApprovalDecision  *trustpolicy.Digest `json:"approval_decision_digest,omitempty"`
-}
-
 func TestHandleAuditAnchorSegmentReceiptRecorderIdentityIsAuditd(t *testing.T) {
 	service, ledgerRoot := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
@@ -476,24 +505,5 @@ func TestHandleAuditAnchorSegmentReceiptRecorderIdentityIsAuditd(t *testing.T) {
 	if resp.ReceiptDigest == nil {
 		t.Fatal("receipt_digest missing")
 	}
-	envelope := mustReadAnchorReceiptSidecar(t, ledgerRoot, *resp.ReceiptDigest)
-	receipt := map[string]any{}
-	if err := json.Unmarshal(envelope.Payload, &receipt); err != nil {
-		t.Fatalf("Unmarshal anchor receipt payload returned error: %v", err)
-	}
-	recorder, ok := receipt["recorder"].(map[string]any)
-	if !ok {
-		t.Fatalf("recorder = %+v, want object", receipt["recorder"])
-	}
-	if got := strings.TrimSpace(stringValueForAnchorTest(recorder, "principal_id")); got != "auditd" {
-		t.Fatalf("recorder.principal_id = %q, want auditd", got)
-	}
-	if got := strings.TrimSpace(stringValueForAnchorTest(recorder, "instance_id")); got != "auditd-1" {
-		t.Fatalf("recorder.instance_id = %q, want auditd-1", got)
-	}
-}
-
-func stringValueForAnchorTest(m map[string]any, key string) string {
-	v, _ := m[key].(string)
-	return v
+	assertAnchorReceiptRecorderIdentity(t, ledgerRoot, *resp.ReceiptDigest)
 }

@@ -31,7 +31,7 @@ func (s *Service) anchorApprovalRequirement(sealDigest trustpolicy.Digest) (anch
 func anchorApprovalRequirementFromDecision(policyRef string, decision artifacts.PolicyDecisionRecord) (anchorApprovalRequirement, error) {
 	switch strings.TrimSpace(decision.DecisionOutcome) {
 	case string(policyengine.DecisionAllow):
-		return anchorApprovalRequirement{}, nil
+		return anchorApprovalRequirement{PolicyDecisionRef: strings.TrimSpace(policyRef)}, nil
 	case string(policyengine.DecisionRequireHumanApproval):
 		return anchorApprovalRequirement{
 			Required:          true,
@@ -59,13 +59,57 @@ func (s *Service) latestAnchorPolicyDecisionByActionHash(actionHash string) (str
 		if strings.TrimSpace(rec.ActionRequestHash) != actionHash {
 			continue
 		}
-		latestRef = ref
-		latestRecord = rec
+		if shouldReplaceAnchorPolicyDecision(latestRef, latestRecord, ref, rec) {
+			latestRef = ref
+			latestRecord = rec
+		}
 	}
 	if strings.TrimSpace(latestRef) == "" {
 		return "", artifacts.PolicyDecisionRecord{}, false
 	}
 	return latestRef, latestRecord, true
+}
+
+func shouldReplaceAnchorPolicyDecision(currentRef string, currentRecord artifacts.PolicyDecisionRecord, candidateRef string, candidateRecord artifacts.PolicyDecisionRecord) bool {
+	if strings.TrimSpace(currentRef) == "" {
+		return true
+	}
+	if candidateRecord.RecordedAt.After(currentRecord.RecordedAt) {
+		return true
+	}
+	if candidateRecord.RecordedAt.Before(currentRecord.RecordedAt) {
+		return false
+	}
+	if candidateRecord.AuditEventSeq > currentRecord.AuditEventSeq {
+		return true
+	}
+	if candidateRecord.AuditEventSeq < currentRecord.AuditEventSeq {
+		return false
+	}
+	if candidateRank, currentRank := anchorPolicyDecisionRestrictiveness(candidateRecord.DecisionOutcome), anchorPolicyDecisionRestrictiveness(currentRecord.DecisionOutcome); candidateRank > currentRank {
+		return true
+	} else if candidateRank < currentRank {
+		return false
+	}
+	candidateRef = strings.TrimSpace(candidateRef)
+	currentRef = strings.TrimSpace(currentRef)
+	if candidateRef == "" {
+		return false
+	}
+	return candidateRef < currentRef
+}
+
+func anchorPolicyDecisionRestrictiveness(outcome string) int {
+	switch strings.TrimSpace(outcome) {
+	case string(policyengine.DecisionAllow):
+		return 1
+	case string(policyengine.DecisionRequireHumanApproval):
+		return 2
+	case string(policyengine.DecisionDeny):
+		return 3
+	default:
+		return 4
+	}
 }
 
 func requiredApprovalField(required map[string]any, key string) string {
@@ -97,7 +141,7 @@ func (s *Service) resolveAnchorApprovalContext(req AuditAnchorSegmentRequest, re
 	if req.ApprovalDecisionDigest == nil {
 		return resolveAnchorApprovalWithoutDecision(requestedAssurance, required)
 	}
-	decision, err := s.loadConsumedAnchorApprovalDecision(*req.ApprovalDecisionDigest, required)
+	decision, err := s.loadConsumedAnchorApprovalDecision(*req.ApprovalDecisionDigest, req.SealDigest, required)
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -113,28 +157,57 @@ func resolveAnchorApprovalWithoutDecision(requestedAssurance string, required an
 	if required.Required {
 		return nil, nil, "", errors.New("approval decision digest is required by policy")
 	}
+	if strings.TrimSpace(requestedAssurance) != "" {
+		return nil, nil, "", errors.New("approval_assurance_level requires approval decision digest")
+	}
 	return nil, nil, requestedAssurance, nil
 }
 
-func (s *Service) loadConsumedAnchorApprovalDecision(decisionDigest trustpolicy.Digest, required anchorApprovalRequirement) (trustpolicy.ApprovalDecision, error) {
+func (s *Service) loadConsumedAnchorApprovalDecision(decisionDigest trustpolicy.Digest, sealDigest trustpolicy.Digest, required anchorApprovalRequirement) (trustpolicy.ApprovalDecision, error) {
 	decisionDigestIdentity, err := decisionDigest.Identity()
 	if err != nil {
 		return trustpolicy.ApprovalDecision{}, err
 	}
-	approval, found := s.findApprovalByDecisionDigest(decisionDigestIdentity)
-	if !found {
-		return trustpolicy.ApprovalDecision{}, errors.New("approval decision digest is not available")
+	approval, err := s.lookupConsumedAnchorApproval(decisionDigestIdentity)
+	if err != nil {
+		return trustpolicy.ApprovalDecision{}, err
 	}
-	if strings.TrimSpace(approval.Summary.Status) != "consumed" {
-		return trustpolicy.ApprovalDecision{}, errors.New("approval decision is not consumed")
-	}
-	if required.Required && strings.TrimSpace(approval.Summary.PolicyDecisionHash) != strings.TrimSpace(required.PolicyDecisionRef) {
-		return trustpolicy.ApprovalDecision{}, errors.New("approval decision is not bound to required policy decision")
+	if err := validateConsumedAnchorApprovalBinding(approval, sealDigest, required); err != nil {
+		return trustpolicy.ApprovalDecision{}, err
 	}
 	if approval.DecisionEnvelope == nil {
 		return trustpolicy.ApprovalDecision{}, errors.New("approval decision envelope is missing")
 	}
 	return decodeApprovalDecision(*approval.DecisionEnvelope)
+}
+
+func (s *Service) lookupConsumedAnchorApproval(decisionDigestIdentity string) (approvalRecord, error) {
+	approval, found := s.findApprovalByDecisionDigest(decisionDigestIdentity)
+	if !found {
+		return approvalRecord{}, errors.New("approval decision digest is not available")
+	}
+	if strings.TrimSpace(approval.Summary.Status) != "consumed" {
+		return approvalRecord{}, errors.New("approval decision is not consumed")
+	}
+	return approval, nil
+}
+
+func validateConsumedAnchorApprovalBinding(approval approvalRecord, sealDigest trustpolicy.Digest, required anchorApprovalRequirement) error {
+	expectedActionHash, err := anchorActionRequestHash(sealDigest)
+	if err != nil {
+		return err
+	}
+	if actionHash := strings.TrimSpace(approval.ActionRequestHash); actionHash == "" || actionHash != expectedActionHash {
+		return errors.New("approval decision is not bound to current anchor action")
+	}
+	policyDecisionRef := strings.TrimSpace(required.PolicyDecisionRef)
+	if required.Required && policyDecisionRef == "" {
+		return errors.New("required policy decision ref is missing")
+	}
+	if policyDecisionRef != "" && strings.TrimSpace(approval.Summary.PolicyDecisionHash) != policyDecisionRef {
+		return errors.New("approval decision is not bound to required policy decision")
+	}
+	return nil
 }
 
 func resolveAnchorApprovalAssurance(requested, required, decision string) (string, error) {

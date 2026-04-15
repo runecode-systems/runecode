@@ -16,7 +16,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/auditd"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/secretsd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
@@ -375,15 +377,19 @@ func mustListSealSidecars(t *testing.T, ledgerRoot string) []string {
 	return out
 }
 
-func mustSeedPendingApprovalForAnchorTest(t *testing.T, service *Service) trustpolicy.Digest {
+func mustSeedPendingApprovalForAnchorTest(t *testing.T, service *Service, sealDigest trustpolicy.Digest) trustpolicy.Digest {
 	t.Helper()
 	requestEnv, _, verifiers := signedApprovalArtifactsForBrokerTestsWithOutcome(t, "human", "sha256:"+strings.Repeat("d", 64), "approve")
+	actionHash, err := anchorActionRequestHash(sealDigest)
+	if err != nil {
+		t.Fatalf("anchorActionRequestHash returned error: %v", err)
+	}
 	for _, verifier := range verifiers {
 		if err := putTrustedVerifierRecordForService(service, verifier); err != nil {
 			t.Fatalf("putTrustedVerifierRecordForService returned error: %v", err)
 		}
 	}
-	seedPendingApprovalForSignedRequest(t, service, "run-anchor", "step-anchor", "sha256:"+strings.Repeat("d", 64), *requestEnv)
+	seedPendingAnchorApprovalForSignedRequest(t, service, *requestEnv, actionHash)
 	approvalID, err := approvalIDFromRequest(*requestEnv)
 	if err != nil {
 		t.Fatalf("approvalIDFromRequest returned error: %v", err)
@@ -395,15 +401,19 @@ func mustSeedPendingApprovalForAnchorTest(t *testing.T, service *Service) trustp
 	return decisionDigest
 }
 
-func mustSeedConsumedApprovalForAnchorTest(t *testing.T, service *Service) trustpolicy.Digest {
+func mustSeedConsumedApprovalForAnchorTest(t *testing.T, service *Service, sealDigest trustpolicy.Digest) trustpolicy.Digest {
 	t.Helper()
 	requestEnv, decisionEnv, verifiers := signedApprovalArtifactsForBrokerTestsWithOutcome(t, "human", "sha256:"+strings.Repeat("d", 64), "approve")
+	actionHash, err := anchorActionRequestHash(sealDigest)
+	if err != nil {
+		t.Fatalf("anchorActionRequestHash returned error: %v", err)
+	}
 	for _, verifier := range verifiers {
 		if err := putTrustedVerifierRecordForService(service, verifier); err != nil {
 			t.Fatalf("putTrustedVerifierRecordForService returned error: %v", err)
 		}
 	}
-	seedPendingApprovalForSignedRequest(t, service, "run-anchor", "step-anchor", "sha256:"+strings.Repeat("d", 64), *requestEnv)
+	seedPendingAnchorApprovalForSignedRequest(t, service, *requestEnv, actionHash)
 	approvalID, err := approvalIDFromRequest(*requestEnv)
 	if err != nil {
 		t.Fatalf("approvalIDFromRequest returned error: %v", err)
@@ -432,60 +442,86 @@ func mustSeedConsumedApprovalForAnchorTest(t *testing.T, service *Service) trust
 	return decisionDigest
 }
 
-func mustReadAnchorReceiptSidecar(t *testing.T, ledgerRoot string, digest trustpolicy.Digest) trustpolicy.SignedObjectEnvelope {
+func seedPendingAnchorApprovalForSignedRequest(t *testing.T, s *Service, requestEnv trustpolicy.SignedObjectEnvelope, actionHash string) {
 	t.Helper()
-	id, _ := digest.Identity()
-	path := filepath.Join(ledgerRoot, "sidecar", "receipts", strings.TrimPrefix(id, "sha256:")+".json")
-	b, err := os.ReadFile(path)
+	approvalID, err := approvalIDFromRequest(requestEnv)
 	if err != nil {
-		t.Fatalf("ReadFile(%q) returned error: %v", path, err)
+		t.Fatalf("approvalIDFromRequest returned error: %v", err)
 	}
-	env := trustpolicy.SignedObjectEnvelope{}
-	if err := json.Unmarshal(b, &env); err != nil {
-		t.Fatalf("Unmarshal anchor receipt envelope returned error: %v", err)
+	payload := map[string]any{}
+	if err := json.Unmarshal(requestEnv.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal approval request payload returned error: %v", err)
 	}
-	return env
+	if strings.TrimSpace(actionHash) == "" {
+		actionHash = digestFromPayloadField(payload, "action_request_hash")
+	}
+	manifestHash := digestFromPayloadField(payload, "manifest_hash")
+	mustRecordSeededAnchorPolicyDecision(t, s, manifestHash, actionHash, payload)
+	pending := seededPendingAnchorApprovalRecord(t, s, approvalID, requestEnv, manifestHash, actionHash, payload)
+	if err := s.RecordApproval(pending); err != nil {
+		t.Fatalf("RecordApproval returned error: %v", err)
+	}
 }
 
-func mustAnchorReceiptPayload(t *testing.T, envelope trustpolicy.SignedObjectEnvelope) anchorReceiptPayloadForTest {
+func mustRecordSeededAnchorPolicyDecision(t *testing.T, s *Service, manifestHash string, actionHash string, payload map[string]any) {
 	t.Helper()
-	receipt := map[string]any{}
-	if err := json.Unmarshal(envelope.Payload, &receipt); err != nil {
-		t.Fatalf("Unmarshal receipt payload returned error: %v", err)
+	decision := seededAnchorRequireApprovalDecision(manifestHash, actionHash, payload)
+	if err := s.RecordPolicyDecision(anchorApprovalPolicySelectorRunID, "", decision); err != nil {
+		t.Fatalf("RecordPolicyDecision returned error: %v", err)
 	}
-	rawPayload, ok := receipt["receipt_payload"]
-	if !ok {
-		t.Fatal("receipt_payload missing")
-	}
-	payloadBytes, err := json.Marshal(rawPayload)
-	if err != nil {
-		t.Fatalf("Marshal receipt_payload returned error: %v", err)
-	}
-	payload := anchorReceiptPayloadForTest{}
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		t.Fatalf("Unmarshal typed receipt_payload returned error: %v", err)
-	}
-	return payload
 }
 
-func mustDigestIdentityForAnchorTest(d trustpolicy.Digest) string {
-	id, _ := d.Identity()
-	return id
-}
-
-func mustAuditAnchorPresenceAttestation(t *testing.T, service *Service, mode string, sealDigest trustpolicy.Digest) *AuditAnchorPresenceAttestation {
+func seededPendingAnchorApprovalRecord(t *testing.T, s *Service, approvalID string, requestEnv trustpolicy.SignedObjectEnvelope, manifestHash string, actionHash string, payload map[string]any) artifacts.ApprovalRecord {
 	t.Helper()
-	challenge := "presence-challenge-" + strings.Repeat("a", 16)
-	token, err := auditAnchorPresenceTokenForBrokerTest(service, mode, sealDigest, challenge)
-	if err != nil {
-		t.Fatalf("auditAnchorPresenceTokenForBrokerTest returned error: %v", err)
+	requestedAt := parseRFC3339OrNow(payload, "requested_at")
+	expiresAt := parseRFC3339OrNow(payload, "expires_at")
+	return artifacts.ApprovalRecord{
+		ApprovalID:             approvalID,
+		Status:                 "pending",
+		WorkspaceID:            workspaceIDForRun(anchorApprovalPolicySelectorRunID),
+		RunID:                  anchorApprovalPolicySelectorRunID,
+		StageID:                "artifact_flow",
+		StepID:                 "step-anchor",
+		ActionKind:             policyengine.ActionKindPromotion,
+		RequestedAt:            requestedAt,
+		ExpiresAt:              &expiresAt,
+		ApprovalTriggerCode:    stringFieldFromPayload(payload, "approval_trigger_code", "system_command_execution"),
+		ChangesIfApproved:      stringFieldFromPayload(payload, "changes_if_approved", "Approve anchor action for this exact seal digest."),
+		ApprovalAssuranceLevel: stringFieldFromPayload(payload, "approval_assurance_level", "reauthenticated"),
+		PresenceMode:           stringFieldFromPayload(payload, "presence_mode", "hardware_touch"),
+		PolicyDecisionHash:     mustFindAnchorPolicyDecisionRefForActionHash(t, s, actionHash),
+		ManifestHash:           manifestHash,
+		ActionRequestHash:      actionHash,
+		RequestDigest:          approvalID,
+		RequestEnvelope:        &requestEnv,
 	}
-	return &AuditAnchorPresenceAttestation{Challenge: challenge, AcknowledgmentToken: token}
 }
 
-func auditAnchorPresenceTokenForBrokerTest(service *Service, mode string, sealDigest trustpolicy.Digest, challenge string) (string, error) {
-	if service == nil || service.secretsSvc == nil {
-		return "", fmt.Errorf("secrets service unavailable")
+func seededAnchorRequireApprovalDecision(manifestHash string, actionHash string, payload map[string]any) policyengine.PolicyDecision {
+	return policyengine.PolicyDecision{
+		SchemaID:                 "runecode.protocol.v0.PolicyDecision",
+		SchemaVersion:            "0.3.0",
+		DecisionOutcome:          policyengine.DecisionRequireHumanApproval,
+		PolicyReasonCode:         "approval_required",
+		ManifestHash:             manifestHash,
+		ActionRequestHash:        actionHash,
+		PolicyInputHashes:        []string{manifestHash},
+		RelevantArtifactHashes:   []string{},
+		DetailsSchemaID:          "runecode.protocol.details.policy.evaluation.v0",
+		Details:                  map[string]any{"precedence": "test_seed_anchor"},
+		RequiredApprovalSchemaID: "runecode.protocol.details.policy.required_approval.hard_floor.v0",
+		RequiredApproval: map[string]any{
+			"approval_trigger_code":    stringFieldFromPayload(payload, "approval_trigger_code", "system_command_execution"),
+			"approval_assurance_level": stringFieldFromPayload(payload, "approval_assurance_level", "reauthenticated"),
+			"presence_mode":            stringFieldFromPayload(payload, "presence_mode", "hardware_touch"),
+			"scope": map[string]any{
+				"schema_id":      "runecode.protocol.v0.ApprovalBoundScope",
+				"schema_version": "0.1.0",
+				"run_id":         anchorApprovalPolicySelectorRunID,
+				"action_kind":    policyengine.ActionKindPromotion,
+			},
+			"changes_if_approved":  stringFieldFromPayload(payload, "changes_if_approved", "Approve anchor action for this exact seal digest."),
+			"approval_ttl_seconds": 1800,
+		},
 	}
-	return service.secretsSvc.ComputeAuditAnchorPresenceAcknowledgmentToken(mode, sealDigest, challenge)
 }

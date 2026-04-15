@@ -144,6 +144,7 @@ func installArtifactAuditResolveDispatchStub(t *testing.T, requestedOps *[]strin
 			if err := json.Unmarshal(wire.Request, &request); err != nil {
 				t.Fatalf("Unmarshal audit_anchor_segment request error: %v", err)
 			}
+			assertAuditAnchorPresenceAttestationForCLI(t, request.PresenceAttestation)
 			receipt := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("c", 64)}
 			report := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("d", 64)}
 			return mustOKLocalRPCResponse(t, brokerapi.AuditAnchorSegmentResponse{SchemaID: "runecode.protocol.v0.AuditAnchorSegmentResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-anchor", SealDigest: request.SealDigest, ReceiptDigest: &receipt, VerificationReportDigest: &report, AnchoringStatus: "ok"})
@@ -152,6 +153,19 @@ func installArtifactAuditResolveDispatchStub(t *testing.T, requestedOps *[]strin
 		}
 	}
 	t.Cleanup(func() { localRPCDispatch = originalDispatch })
+}
+
+func assertAuditAnchorPresenceAttestationForCLI(t *testing.T, att *brokerapi.AuditAnchorPresenceAttestation) {
+	t.Helper()
+	if att == nil {
+		t.Fatal("audit_anchor_segment request missing presence attestation")
+	}
+	if att.Challenge != "challenge-test" {
+		t.Fatalf("audit_anchor_segment presence challenge = %q, want challenge-test", att.Challenge)
+	}
+	if att.AcknowledgmentToken != "token-test" {
+		t.Fatalf("audit_anchor_segment presence acknowledgment token = %q, want token-test", att.AcknowledgmentToken)
+	}
 }
 
 func runArtifactAuditResolveCommands(t *testing.T, stdout *bytes.Buffer, stderr *bytes.Buffer) {
@@ -188,7 +202,7 @@ func runArtifactAuditResolveCommands(t *testing.T, stdout *bytes.Buffer, stderr 
 	if err := run([]string{"audit-record-get", "--record-digest", testDigest("a")}, stdout, stderr); err != nil {
 		t.Fatalf("audit-record-get returned error: %v", err)
 	}
-	if err := run([]string{"audit-anchor-segment", "--seal-digest", testDigest("a")}, stdout, stderr); err != nil {
+	if err := run([]string{"audit-anchor-segment", "--seal-digest", testDigest("a"), "--presence-challenge", "challenge-test", "--presence-ack-token", "token-test"}, stdout, stderr); err != nil {
 		t.Fatalf("audit-anchor-segment returned error: %v", err)
 	}
 }
