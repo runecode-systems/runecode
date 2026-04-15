@@ -190,7 +190,7 @@ func TestSignAuditAnchorSucceedsWithValidPresenceAttestation(t *testing.T) {
 		t.Fatalf("Open returned error: %v", err)
 	}
 	req := testAuditAnchorSignRequest(t)
-	req.PresenceAttestation = mustAuditAnchorPresenceAttestationForSignTest(t, "os_confirmation", req.TargetSealDigest)
+	req.PresenceAttestation = mustAuditAnchorPresenceAttestationForSignTest(t, svc, "os_confirmation", req.TargetSealDigest)
 	if _, err := svc.SignAuditAnchor(req); err != nil {
 		t.Fatalf("SignAuditAnchor returned error: %v", err)
 	}
@@ -271,6 +271,28 @@ func TestSignAuditAnchorPassphraseOptInBehaviorUnchanged(t *testing.T) {
 	}
 }
 
+func TestComputeAuditAnchorPresenceAcknowledgmentTokenRejectsInvalidInlineKey(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	t.Setenv(envAuditAnchorPresenceKeyB64, "invalid-base64")
+	if _, err := svc.ComputeAuditAnchorPresenceAcknowledgmentToken("os_confirmation", testAuditAnchorSignRequest(t).TargetSealDigest, "presence-challenge"); err == nil {
+		t.Fatal("ComputeAuditAnchorPresenceAcknowledgmentToken expected decode failure for invalid inline key")
+	}
+}
+
+func TestComputeAuditAnchorPresenceAcknowledgmentTokenRejectsWrongKeyLength(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	t.Setenv(envAuditAnchorPresenceKeyB64, "YQ==")
+	if _, err := svc.ComputeAuditAnchorPresenceAcknowledgmentToken("os_confirmation", testAuditAnchorSignRequest(t).TargetSealDigest, "presence-challenge"); err == nil {
+		t.Fatal("ComputeAuditAnchorPresenceAcknowledgmentToken expected key length validation error")
+	}
+}
+
 func testAuditAnchorSignRequest(t *testing.T) AuditAnchorSignRequest {
 	t.Helper()
 	pub, _, err := ed25519.GenerateKey(rand.Reader)
@@ -288,10 +310,14 @@ func testAuditAnchorSignRequest(t *testing.T) AuditAnchorSignRequest {
 	}
 }
 
-func mustAuditAnchorPresenceAttestationForSignTest(t *testing.T, mode string, sealDigest trustpolicy.Digest) *AuditAnchorPresenceAttestation {
+func mustAuditAnchorPresenceAttestationForSignTest(t *testing.T, svc *Service, mode string, sealDigest trustpolicy.Digest) *AuditAnchorPresenceAttestation {
 	t.Helper()
+	if svc == nil {
+		t.Fatal("secrets service is required")
+	}
 	challenge := "presence-challenge"
-	token, err := ComputeAuditAnchorPresenceAcknowledgmentToken(mode, sealDigest, challenge)
+	challenge += "-seed-0001"
+	token, err := svc.ComputeAuditAnchorPresenceAcknowledgmentToken(mode, sealDigest, challenge)
 	if err != nil {
 		t.Fatalf("ComputeAuditAnchorPresenceAcknowledgmentToken returned error: %v", err)
 	}

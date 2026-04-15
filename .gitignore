@@ -15,3 +15,8 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Local secretsd runtime state
+cmd/runecode-broker/.runecode-secretsd/
+audit-anchor-ed25519.private
+audit-anchor-presence-hmac.key

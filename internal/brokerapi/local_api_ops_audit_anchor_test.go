@@ -2,6 +2,7 @@ package brokerapi
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -13,7 +14,7 @@ import (
 func TestHandleAuditAnchorSegmentSuccessPersistsReceiptAndVerification(t *testing.T) {
 	service, ledgerRoot := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", sealDigest)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:            "runecode.protocol.v0.AuditAnchorSegmentRequest",
 		SchemaVersion:       "0.1.0",
@@ -54,7 +55,7 @@ func TestHandleAuditAnchorSegmentSuccessPersistsReceiptAndVerification(t *testin
 func TestHandleAuditAnchorSegmentExportCopyIsOptional(t *testing.T) {
 	service, ledgerRoot := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", sealDigest)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:            "runecode.protocol.v0.AuditAnchorSegmentRequest",
 		SchemaVersion:       "0.1.0",
@@ -83,7 +84,7 @@ func TestHandleAuditAnchorSegmentExportCopyIsOptional(t *testing.T) {
 func TestHandleAuditAnchorSegmentDoesNotMutateSegmentBytesOrSealIdentity(t *testing.T) {
 	service, ledgerRoot := newAuditAnchorTestService(t)
 	immutability := captureAnchorImmutabilityBaseline(t, service, ledgerRoot)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", immutability.sealDigest)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", immutability.sealDigest)
 
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:            "runecode.protocol.v0.AuditAnchorSegmentRequest",
@@ -104,7 +105,7 @@ func TestHandleAuditAnchorSegmentDoesNotMutateSegmentBytesOrSealIdentity(t *test
 func TestHandleAuditAnchorSegmentExportFailureDoesNotFailAnchoring(t *testing.T) {
 	service, ledgerRoot := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", sealDigest)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
 	service.store = nil
 
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
@@ -156,8 +157,8 @@ func TestHandleAuditAnchorSegmentFailsClosedWithoutPresenceAttestation(t *testin
 func TestHandleAuditAnchorSegmentFailsClosedWithInvalidPresenceAttestation(t *testing.T) {
 	service, _ := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", sealDigest)
-	presence.AcknowledgmentToken = "deadbeef"
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
+	presence.AcknowledgmentToken = strings.Repeat("d", 64)
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:            "runecode.protocol.v0.AuditAnchorSegmentRequest",
 		SchemaVersion:       "0.1.0",
@@ -182,7 +183,7 @@ func TestHandleAuditAnchorSegmentFailsClosedWithInvalidPresenceAttestation(t *te
 func TestHandleAuditAnchorSegmentSignerPresenceValidationFailsClosed(t *testing.T) {
 	service, _ := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", sealDigest)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
 	t.Setenv("RUNE_AUDIT_ANCHOR_PRESENCE_MODE", "invalid_presence")
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:            "runecode.protocol.v0.AuditAnchorSegmentRequest",
@@ -208,7 +209,7 @@ func TestHandleAuditAnchorSegmentSignerPresenceValidationFailsClosed(t *testing.
 func TestHandleAuditAnchorSegmentInvalidAnchorSemanticReturnsFailed(t *testing.T) {
 	service, _ := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", sealDigest)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
 	t.Setenv("RUNE_AUDIT_ANCHOR_KEY_PROTECTION_POSTURE", "invalid_posture")
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:            "runecode.protocol.v0.AuditAnchorSegmentRequest",
@@ -231,7 +232,7 @@ func TestHandleAuditAnchorSegmentInvalidAnchorSemanticReturnsFailed(t *testing.T
 func TestHandleAuditAnchorSegmentWithConsumedSignedApprovalContext(t *testing.T) {
 	service, ledgerRoot := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", sealDigest)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
 	decisionDigest := mustSeedConsumedApprovalForAnchorTest(t, service)
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:               "runecode.protocol.v0.AuditAnchorSegmentRequest",
@@ -264,7 +265,7 @@ func TestHandleAuditAnchorSegmentWithConsumedSignedApprovalContext(t *testing.T)
 func TestHandleAuditAnchorSegmentPolicyRequiresApprovalFailsClosedWhenMissingDecision(t *testing.T) {
 	service, _ := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", sealDigest)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
 	mustSeedAnchorPolicyDecision(t, service, sealDigest, "require_human_approval", "reauthenticated")
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:            "runecode.protocol.v0.AuditAnchorSegmentRequest",
@@ -290,7 +291,7 @@ func TestHandleAuditAnchorSegmentPolicyRequiresApprovalFailsClosedWhenMissingDec
 func TestHandleAuditAnchorSegmentPolicyRequiresApprovalWithConsumedDecisionSucceeds(t *testing.T) {
 	service, ledgerRoot := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", sealDigest)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
 	decisionDigest := mustSeedConsumedApprovalForRequiredAnchorPolicy(t, service, sealDigest, "reauthenticated")
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:               "runecode.protocol.v0.AuditAnchorSegmentRequest",
@@ -315,7 +316,7 @@ func TestHandleAuditAnchorSegmentPolicyRequiresApprovalWithConsumedDecisionSucce
 func TestHandleAuditAnchorSegmentPolicyDoesNotRequireApprovalWithoutDecisionSucceeds(t *testing.T) {
 	service, ledgerRoot := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", sealDigest)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
 	mustSeedAnchorPolicyDecision(t, service, sealDigest, "allow", "")
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:            "runecode.protocol.v0.AuditAnchorSegmentRequest",
@@ -339,7 +340,7 @@ func TestHandleAuditAnchorSegmentPolicyDoesNotRequireApprovalWithoutDecisionSucc
 func TestHandleAuditAnchorSegmentPolicyRequiredAssuranceMismatchFailsClosed(t *testing.T) {
 	service, _ := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", sealDigest)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
 	decisionDigest := mustSeedConsumedApprovalForRequiredAnchorPolicy(t, service, sealDigest, "hardware_backed")
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:               "runecode.protocol.v0.AuditAnchorSegmentRequest",
@@ -363,7 +364,7 @@ func TestHandleAuditAnchorSegmentPolicyRequiredAssuranceMismatchFailsClosed(t *t
 func TestHandleAuditAnchorSegmentFailsClosedOnUnconsumedApproval(t *testing.T) {
 	service, _ := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", sealDigest)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
 	decisionDigest := mustSeedPendingApprovalForAnchorTest(t, service)
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:               "runecode.protocol.v0.AuditAnchorSegmentRequest",
@@ -387,7 +388,7 @@ func TestHandleAuditAnchorSegmentFailsClosedOnUnconsumedApproval(t *testing.T) {
 func TestHandleAuditAnchorSegmentFailsClosedOnApprovalAssuranceMismatch(t *testing.T) {
 	service, _ := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", sealDigest)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
 	decisionDigest := mustSeedConsumedApprovalForAnchorTest(t, service)
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:               "runecode.protocol.v0.AuditAnchorSegmentRequest",
@@ -412,7 +413,7 @@ func TestHandleAuditAnchorSegmentFailsClosedOnApprovalAssuranceMismatch(t *testi
 func TestHandleAuditAnchorSegmentRestartVerificationKeepsAnchoringOK(t *testing.T) {
 	service, ledgerRoot := newAuditAnchorTestService(t)
 	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
-	presence := mustAuditAnchorPresenceAttestation(t, "os_confirmation", sealDigest)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
 
 	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
 		SchemaID:            "runecode.protocol.v0.AuditAnchorSegmentRequest",
@@ -456,4 +457,43 @@ func containsReasonCodeForAnchorTest(codes []string, code string) bool {
 type anchorReceiptPayloadForTest struct {
 	ApprovalAssurance string              `json:"approval_assurance_level,omitempty"`
 	ApprovalDecision  *trustpolicy.Digest `json:"approval_decision_digest,omitempty"`
+}
+
+func TestHandleAuditAnchorSegmentReceiptRecorderIdentityIsAuditd(t *testing.T) {
+	service, ledgerRoot := newAuditAnchorTestService(t)
+	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
+	presence := mustAuditAnchorPresenceAttestation(t, service, "os_confirmation", sealDigest)
+	resp, errResp := service.HandleAuditAnchorSegment(context.Background(), AuditAnchorSegmentRequest{
+		SchemaID:            "runecode.protocol.v0.AuditAnchorSegmentRequest",
+		SchemaVersion:       "0.1.0",
+		RequestID:           "req-anchor-recorder-identity",
+		SealDigest:          sealDigest,
+		PresenceAttestation: presence,
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleAuditAnchorSegment returned error: %+v", errResp)
+	}
+	if resp.ReceiptDigest == nil {
+		t.Fatal("receipt_digest missing")
+	}
+	envelope := mustReadAnchorReceiptSidecar(t, ledgerRoot, *resp.ReceiptDigest)
+	receipt := map[string]any{}
+	if err := json.Unmarshal(envelope.Payload, &receipt); err != nil {
+		t.Fatalf("Unmarshal anchor receipt payload returned error: %v", err)
+	}
+	recorder, ok := receipt["recorder"].(map[string]any)
+	if !ok {
+		t.Fatalf("recorder = %+v, want object", receipt["recorder"])
+	}
+	if got := strings.TrimSpace(stringValueForAnchorTest(recorder, "principal_id")); got != "auditd" {
+		t.Fatalf("recorder.principal_id = %q, want auditd", got)
+	}
+	if got := strings.TrimSpace(stringValueForAnchorTest(recorder, "instance_id")); got != "auditd-1" {
+		t.Fatalf("recorder.instance_id = %q, want auditd-1", got)
+	}
+}
+
+func stringValueForAnchorTest(m map[string]any, key string) string {
+	v, _ := m[key].(string)
+	return v
 }

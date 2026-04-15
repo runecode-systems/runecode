@@ -15,11 +15,13 @@ import (
 )
 
 const (
-	auditAnchorPrivateKeyFileName = "audit-anchor-ed25519.private"
-	envAuditAnchorPrivateKeyB64   = "RUNE_AUDIT_ANCHOR_PRIVATE_KEY_B64"
-	envAuditAnchorPresenceMode    = "RUNE_AUDIT_ANCHOR_PRESENCE_MODE"
-	envAuditAnchorKeyPosture      = "RUNE_AUDIT_ANCHOR_KEY_PROTECTION_POSTURE"
-	envAuditAnchorAllowPassphrase = "RUNE_AUDIT_ANCHOR_ALLOW_PASSPHRASE"
+	auditAnchorPrivateKeyFileName  = "audit-anchor-ed25519.private"
+	auditAnchorPresenceKeyFileName = "audit-anchor-presence-hmac.key"
+	envAuditAnchorPrivateKeyB64    = "RUNE_AUDIT_ANCHOR_PRIVATE_KEY_B64"
+	envAuditAnchorPresenceKeyB64   = "RUNE_AUDIT_ANCHOR_PRESENCE_KEY_B64"
+	envAuditAnchorPresenceMode     = "RUNE_AUDIT_ANCHOR_PRESENCE_MODE"
+	envAuditAnchorKeyPosture       = "RUNE_AUDIT_ANCHOR_KEY_PROTECTION_POSTURE"
+	envAuditAnchorAllowPassphrase  = "RUNE_AUDIT_ANCHOR_ALLOW_PASSPHRASE"
 )
 
 type AuditAnchorSignRequest struct {
@@ -36,13 +38,12 @@ type AuditAnchorPresenceAttestation struct {
 }
 
 type AuditAnchorSignResult struct {
-	Signature            trustpolicy.SignatureBlock
-	Preconditions        trustpolicy.SignRequestPreconditions
-	AnchorWitnessDigest  trustpolicy.Digest
-	AnchorWitnessKind    string
-	SignerPublicKey      []byte
-	SignerKeyIDValue     string
-	SignatureRawMaterial []byte
+	Signature           trustpolicy.SignatureBlock
+	Preconditions       trustpolicy.SignRequestPreconditions
+	AnchorWitnessDigest trustpolicy.Digest
+	AnchorWitnessKind   string
+	SignerPublicKey     []byte
+	SignerKeyIDValue    string
 }
 
 func (s *Service) SignAuditAnchor(req AuditAnchorSignRequest) (AuditAnchorSignResult, error) {
@@ -60,7 +61,7 @@ func (s *Service) SignAuditAnchor(req AuditAnchorSignRequest) (AuditAnchorSignRe
 	if err != nil {
 		return AuditAnchorSignResult{}, err
 	}
-	if err := validateAuditAnchorPresenceAttestation(req, preconditions.PresenceMode); err != nil {
+	if err := validateAuditAnchorPresenceAttestation(s, req, preconditions.PresenceMode); err != nil {
 		return AuditAnchorSignResult{}, err
 	}
 	witness := buildAuditAnchorWitness(req.TargetSealDigest, keyIDValue)
@@ -114,12 +115,11 @@ func buildAuditAnchorSignResult(preconditions trustpolicy.SignRequestPreconditio
 			KeyIDValue: keyIDValue,
 			Signature:  base64.StdEncoding.EncodeToString(rawSignature),
 		},
-		Preconditions:        preconditions,
-		AnchorWitnessDigest:  witness,
-		AnchorWitnessKind:    "local_user_presence_signature_v0",
-		SignerPublicKey:      append([]byte(nil), publicKey...),
-		SignerKeyIDValue:     keyIDValue,
-		SignatureRawMaterial: append([]byte(nil), rawSignature...),
+		Preconditions:       preconditions,
+		AnchorWitnessDigest: witness,
+		AnchorWitnessKind:   "local_user_presence_signature_v0",
+		SignerPublicKey:     append([]byte(nil), publicKey...),
+		SignerKeyIDValue:    keyIDValue,
 	}
 }
 

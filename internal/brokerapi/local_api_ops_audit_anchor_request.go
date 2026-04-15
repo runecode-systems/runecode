@@ -152,8 +152,8 @@ func anchorReceiptRecorderPrincipal() trustpolicy.PrincipalIdentity {
 		SchemaID:      "runecode.protocol.v0.PrincipalIdentity",
 		SchemaVersion: "0.2.0",
 		ActorKind:     "daemon",
-		PrincipalID:   "secretsd",
-		InstanceID:    "secretsd-1",
+		PrincipalID:   "auditd",
+		InstanceID:    "auditd-1",
 	}
 }
 

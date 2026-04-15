@@ -22,8 +22,8 @@
       "maxProperties": 2,
       "required": ["challenge", "acknowledgment_token"],
       "properties": {
-        "challenge": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Caller-provided trusted-domain challenge nonce for local user presence.", "x-data-class": "public" },
-        "acknowledgment_token": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-fA-F0-9]+$", "description": "Trusted-domain acknowledgment token bound to presence_mode, seal_digest, and challenge.", "x-data-class": "public" }
+        "challenge": { "type": "string", "minLength": 16, "maxLength": 256, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Caller-provided trusted-domain challenge nonce for local user presence.", "x-data-class": "public" },
+        "acknowledgment_token": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$", "description": "Trusted-domain acknowledgment token bound to presence_mode, seal_digest, and challenge.", "x-data-class": "public" }
       },
       "description": "Optional explicit local presence attestation; required by signer when presence_mode is os_confirmation or hardware_touch.",
       "x-data-class": "public"
