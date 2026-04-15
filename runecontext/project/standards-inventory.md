@@ -11,6 +11,7 @@ Recent notable standards for this branch:
 - `runecontext/standards/security/policy-evaluation-foundations.md`
 - `runecontext/standards/security/secret-lease-lifecycle-and-binding.md`
 - `runecontext/standards/security/approval-binding-and-verifier-identity.md`
+- `runecontext/standards/security/audit-anchoring-receipt-and-verification.md`
 - `runecontext/standards/security/audit-verification-scope-and-evidence-binding.md`
 - `runecontext/standards/security/trusted-local-path-link-protection.md`
 - `runecontext/standards/security/trusted-local-artifact-persistence.md`
