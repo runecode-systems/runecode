@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -36,7 +37,11 @@ func (s *Service) prepareLLMRequestContext(ctx context.Context, requestID string
 }
 
 func (s *Service) buildLLMResponseObject(requestID string, binding llmExecutionBinding, inputRef artifacts.ArtifactReference) (llmExecutionBinding, map[string]any, *ErrorResponse) {
-	responseObj := llmResponseObject(binding.RequestHash, inputRef)
+	responseObj, err := llmResponseObject(binding.RequestHash, inputRef)
+	if err != nil {
+		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
+		return llmExecutionBinding{}, nil, &errOut
+	}
 	if err := validateJSONEnvelope(responseObj, llmResponseSchemaPath); err != nil {
 		errOut := s.errorFromValidation(requestID, err)
 		return llmExecutionBinding{}, nil, &errOut
@@ -61,7 +66,11 @@ func (s *Service) resolveLLMRequestArtifact(requestID, runID string, expectedDig
 	}
 	reqRecord, err := s.Head(reqIdentity)
 	if err != nil {
-		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "llm_request must be artifact-backed by canonical digest")
+		if errors.Is(err, artifacts.ErrArtifactNotFound) {
+			errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "llm_request must be artifact-backed by canonical digest")
+			return "", trustpolicy.Digest{}, &errOut
+		}
+		errOut := s.errorFromStore(requestID, err)
 		return "", trustpolicy.Digest{}, &errOut
 	}
 	if strings.TrimSpace(reqRecord.RunID) != trimmedRunID {
@@ -218,23 +227,15 @@ func digestIdentityStrict(d trustpolicy.Digest) (string, error) {
 	return id, nil
 }
 
-func digestFromIdentityOrNil(identity string) *trustpolicy.Digest {
+func digestFromIdentityOrNil(identity string) (*trustpolicy.Digest, error) {
 	if strings.TrimSpace(identity) == "" {
-		return nil
+		return nil, nil
 	}
 	d, err := digestFromIdentity(identity)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return &d
-}
-
-func digestFromIdentityOrPanic(identity string) trustpolicy.Digest {
-	d, err := digestFromIdentity(identity)
-	if err != nil {
-		panic(err)
-	}
-	return d
+	return &d, nil
 }
 
 func (s *Service) llmExecutionUnavailable(requestID string) *ErrorResponse {

@@ -2,6 +2,7 @@ package brokerapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -9,11 +10,15 @@ import (
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
+const llmLeaseIDUnavailableSentinel = "lease-unavailable-until-authoritative-wiring"
+
 func (s *Service) HandleLLMInvoke(ctx context.Context, req LLMInvokeRequest, meta RequestContext) (LLMInvokeResponse, *ErrorResponse) {
-	requestID, _, _, _, errResp := s.prepareLLMRequestContext(ctx, req.RequestID, meta, req, llmInvokeRequestSchemaPath)
+	requestID, _, release, cancel, errResp := s.prepareLLMRequestContext(ctx, req.RequestID, meta, req, llmInvokeRequestSchemaPath)
 	if errResp != nil {
 		return LLMInvokeResponse{}, errResp
 	}
+	defer release()
+	defer cancel()
 	return LLMInvokeResponse{}, s.llmExecutionUnavailable(requestID)
 }
 
@@ -21,10 +26,12 @@ func (s *Service) HandleLLMStreamRequest(ctx context.Context, req LLMStreamReque
 	if strings.TrimSpace(req.StreamID) == "" {
 		req.StreamID = "llm-stream-" + resolveRequestID(req.RequestID, meta.RequestID)
 	}
-	requestID, errResp := s.prepareLocalRequest(req.RequestID, meta.RequestID, meta.AdmissionErr, req, llmStreamRequestSchemaPath)
+	requestID, _, release, cancel, errResp := s.prepareLLMRequestContext(ctx, req.RequestID, meta, req, llmStreamRequestSchemaPath)
 	if errResp != nil {
 		return LLMStreamRequest{}, llmExecutionBinding{}, artifacts.ArtifactReference{}, errResp
 	}
+	defer release()
+	defer cancel()
 	return LLMStreamRequest{}, llmExecutionBinding{}, artifacts.ArtifactReference{}, s.llmExecutionUnavailable(requestID)
 }
 
@@ -49,34 +56,45 @@ func (s *Service) bindLLMRequestToArtifacts(requestID, runID string, expectedDig
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "llm_request input_artifacts must be non-empty")
 		return llmExecutionBinding{}, artifacts.ArtifactReference{}, &errOut
 	}
-	if errResp := s.ensureInputArtifactsExist(requestID, runID, inputRefs); errResp != nil {
+	primaryInputRecord, errResp := s.ensureInputArtifactsExist(requestID, runID, inputRefs)
+	if errResp != nil {
 		return llmExecutionBinding{}, artifacts.ArtifactReference{}, errResp
 	}
-	primaryInputRecord, err := s.Head(strings.TrimSpace(inputRefs[0].Digest))
-	if err != nil {
-		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "llm_request input_artifact digest must exist")
-		return llmExecutionBinding{}, artifacts.ArtifactReference{}, &errOut
+	binding := llmExecutionBinding{
+		RequestDigest: reqDigest,
+		RequestHash:   reqDigest,
+		LeaseID:       llmLeaseIDUnavailableSentinel,
 	}
-	binding := llmExecutionBinding{RequestDigest: reqDigest, RequestHash: reqDigest, LeaseID: "lease-model-1"}
 	return binding, primaryInputRecord.Reference, nil
 }
 
-func (s *Service) ensureInputArtifactsExist(requestID, runID string, refs []artifacts.ArtifactReference) *ErrorResponse {
+func (s *Service) ensureInputArtifactsExist(requestID, runID string, refs []artifacts.ArtifactReference) (artifacts.ArtifactRecord, *ErrorResponse) {
+	var primary artifacts.ArtifactRecord
 	for _, ref := range refs {
 		record, err := s.Head(trimArtifactRefDigest(ref))
 		if err != nil {
-			errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "llm_request input_artifact digest must exist")
-			return &errOut
+			if errors.Is(err, artifacts.ErrArtifactNotFound) {
+				errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "llm_request input_artifact digest must exist")
+				return artifacts.ArtifactRecord{}, &errOut
+			}
+			errOut := s.errorFromStore(requestID, err)
+			return artifacts.ArtifactRecord{}, &errOut
 		}
-		if strings.TrimSpace(record.RunID) != "" && strings.TrimSpace(record.RunID) != runID {
+		if strings.TrimSpace(record.RunID) != runID {
 			errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "llm_request input_artifact run binding mismatch")
-			return &errOut
+			return artifacts.ArtifactRecord{}, &errOut
+		}
+		if primary.Reference.Digest == "" {
+			primary = record
 		}
 	}
-	return nil
+	return primary, nil
 }
 
 func validateLLMStreamEvents(events []LLMStreamAny) error {
+	if err := validateLLMStreamEventSchemas(events); err != nil {
+		return err
+	}
 	if len(events) == 0 {
 		return fmt.Errorf("llm stream must emit at least one event")
 	}

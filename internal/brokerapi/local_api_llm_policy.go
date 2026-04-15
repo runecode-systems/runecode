@@ -1,14 +1,27 @@
 package brokerapi
 
 import (
+	"encoding/json"
 	"fmt"
+	"path"
+	"strings"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func (s *Service) evaluateModelGatewayInvoke(requestID, runID string, binding llmExecutionBinding, outcome string) (policyengine.PolicyDecision, *ErrorResponse) {
-	action := llmGatewayEgressAction(binding, outcome)
+	if err := validateLLMExecutionBindingForPolicy(binding); err != nil {
+		errOut := s.makeError(requestID, "gateway_failure", "internal", false, llmExecutionUnavailableMessage)
+		return policyengine.PolicyDecision{}, &errOut
+	}
+	destinationRef, err := s.trustedLLMDestinationRefForRun(runID)
+	if err != nil {
+		errOut := s.makeError(requestID, "gateway_failure", "internal", false, llmExecutionUnavailableMessage)
+		return policyengine.PolicyDecision{}, &errOut
+	}
+	action := llmGatewayEgressAction(binding, outcome, destinationRef)
 	decision, err := s.EvaluateAction(runID, action)
 	if err != nil {
 		errOut := s.errorFromPolicyEvaluation(requestID, err)
@@ -21,12 +34,12 @@ func (s *Service) evaluateModelGatewayInvoke(requestID, runID string, binding ll
 	return decision, nil
 }
 
-func llmGatewayEgressAction(binding llmExecutionBinding, outcome string) policyengine.ActionRequest {
+func llmGatewayEgressAction(binding llmExecutionBinding, outcome, destinationRef string) policyengine.ActionRequest {
 	return policyengine.NewGatewayEgressAction(policyengine.GatewayEgressActionInput{
 		ActionEnvelope:  llmGatewayActionEnvelope(binding),
 		GatewayRoleKind: "model-gateway",
 		DestinationKind: "model_endpoint",
-		DestinationRef:  "model.example.com/v1/chat/completions",
+		DestinationRef:  destinationRef,
 		EgressDataClass: "spec_text",
 		Operation:       "invoke_model",
 		TimeoutSeconds:  llmTimeoutSeconds(),
@@ -45,10 +58,18 @@ func llmGatewayActionEnvelope(binding llmExecutionBinding) policyengine.ActionEn
 }
 
 func llmGatewayAuditContext(binding llmExecutionBinding, outcome string) *policyengine.GatewayAuditContextInput {
+	startedAt := ""
+	completedAt := ""
+	if !binding.StartedAt.IsZero() {
+		startedAt = binding.StartedAt.UTC().Format(time.RFC3339)
+	}
+	if !binding.CompletedAt.IsZero() {
+		completedAt = binding.CompletedAt.UTC().Format(time.RFC3339)
+	}
 	return &policyengine.GatewayAuditContextInput{
-		OutboundBytes: 128,
-		StartedAt:     "2026-04-12T10:00:00Z",
-		CompletedAt:   "2026-04-12T10:00:01Z",
+		OutboundBytes: binding.OutboundBytes,
+		StartedAt:     startedAt,
+		CompletedAt:   completedAt,
 		Outcome:       outcome,
 		RequestHash:   &binding.RequestHash,
 		ResponseHash:  &binding.ResponseHash,
@@ -82,11 +103,22 @@ func llmMeterInt64(value int64) *int64 {
 }
 
 func (s *Service) emitModelGatewayAudit(runID string, decision policyengine.PolicyDecision, outcome string, binding llmExecutionBinding) error {
+	if err := validateLLMExecutionBindingForAudit(binding); err != nil {
+		return fmt.Errorf("llm execution metadata unavailable: %w", err)
+	}
+	destinationRef, err := s.trustedLLMDestinationRefForRun(runID)
+	if err != nil {
+		return fmt.Errorf("llm execution metadata unavailable: %w", err)
+	}
 	policyHash := decisionDigestIdentity(decision)
+	policyDecisionHash, err := digestFromIdentityOrNil(policyHash)
+	if err != nil {
+		return fmt.Errorf("llm execution metadata unavailable: invalid policy decision hash: %w", err)
+	}
 	return s.gatewayRuntime.emitGatewayAuditEvent(runID, decision, gatewayActionPayloadRuntime{
 		GatewayRoleKind: "model-gateway",
 		DestinationKind: "model_endpoint",
-		DestinationRef:  "model.example.com/v1/chat/completions",
+		DestinationRef:  destinationRef,
 		Operation:       "invoke_model",
 		PayloadHash:     &binding.RequestHash,
 		AuditContext: &gatewayAuditContextPayload{
@@ -94,7 +126,132 @@ func (s *Service) emitModelGatewayAudit(runID string, decision policyengine.Poli
 			RequestHash:        &binding.RequestHash,
 			ResponseHash:       &binding.ResponseHash,
 			LeaseID:            binding.LeaseID,
-			PolicyDecisionHash: digestFromIdentityOrNil(policyHash),
+			PolicyDecisionHash: policyDecisionHash,
 		},
 	})
+}
+
+func (s *Service) trustedLLMDestinationRefForRun(runID string) (string, error) {
+	runtime := policyRuntime{service: s}
+	compileInput, err := runtime.loadCompileInput(strings.TrimSpace(runID))
+	if err != nil {
+		return "", err
+	}
+	return resolveLLMDestinationRefFromAllowlists(compileInput.Allowlists)
+}
+
+func resolveLLMDestinationRefFromAllowlists(allowlists []policyengine.ManifestInput) (string, error) {
+	for _, allowlistInput := range allowlists {
+		allowlist := policyengine.PolicyAllowlist{}
+		if err := json.Unmarshal(allowlistInput.Payload, &allowlist); err != nil {
+			return "", fmt.Errorf("decode trusted allowlist payload: %w", err)
+		}
+		for _, entry := range allowlist.Entries {
+			if !entrySupportsLLMInvoke(entry) {
+				continue
+			}
+			return destinationRefFromDescriptor(entry.Destination), nil
+		}
+	}
+	return "", fmt.Errorf("trusted model gateway destination unavailable")
+}
+
+func entrySupportsLLMInvoke(entry policyengine.GatewayScopeRule) bool {
+	if entry.ScopeKind != "gateway_destination" {
+		return false
+	}
+	if !isHardenedModelDestination(entry.Destination) {
+		return false
+	}
+	roleKind := strings.TrimSpace(entry.GatewayRoleKind)
+	if roleKind != "" && roleKind != "model-gateway" {
+		return false
+	}
+	for _, operation := range entry.PermittedOperations {
+		if operation == "invoke_model" {
+			return true
+		}
+	}
+	return false
+}
+
+func isHardenedModelDestination(destination policyengine.DestinationDescriptor) bool {
+	if destination.DescriptorKind != "model_endpoint" {
+		return false
+	}
+	if strings.TrimSpace(destination.CanonicalHost) == "" {
+		return false
+	}
+	if strings.Contains(destination.CanonicalPathPrefix, "..") {
+		return false
+	}
+	if !destination.TLSRequired {
+		return false
+	}
+	if destination.PrivateRangeBlocking != "enforced" {
+		return false
+	}
+	if destination.DNSRebindingProtection != "enforced" {
+		return false
+	}
+	return true
+}
+
+func destinationRefFromDescriptor(descriptor policyengine.DestinationDescriptor) string {
+	ref := strings.TrimSpace(descriptor.CanonicalHost)
+	if descriptor.CanonicalPort != nil && *descriptor.CanonicalPort != 443 {
+		ref = fmt.Sprintf("%s:%d", ref, *descriptor.CanonicalPort)
+	}
+	return ref + normalizeDestinationPathPrefix(descriptor.CanonicalPathPrefix)
+}
+
+func normalizeDestinationPathPrefix(rawPath string) string {
+	trimmed := strings.TrimSpace(rawPath)
+	if trimmed == "" {
+		return "/"
+	}
+	if !strings.HasPrefix(trimmed, "/") {
+		trimmed = "/" + trimmed
+	}
+	normalized := path.Clean(trimmed)
+	if normalized == "." {
+		return "/"
+	}
+	return normalized
+}
+
+func validateLLMExecutionBindingForPolicy(binding llmExecutionBinding) error {
+	if err := validateLLMExecutionBindingCore(binding); err != nil {
+		return err
+	}
+	if strings.TrimSpace(binding.LeaseID) == "" {
+		return fmt.Errorf("lease_id missing")
+	}
+	if binding.LeaseID == llmLeaseIDUnavailableSentinel {
+		return fmt.Errorf("lease_id unavailable")
+	}
+	return nil
+}
+
+func validateLLMExecutionBindingForAudit(binding llmExecutionBinding) error {
+	if err := validateLLMExecutionBindingForPolicy(binding); err != nil {
+		return err
+	}
+	if binding.StartedAt.IsZero() || binding.CompletedAt.IsZero() {
+		return fmt.Errorf("timing metadata missing")
+	}
+	if !binding.CompletedAt.After(binding.StartedAt) {
+		return fmt.Errorf("timing metadata invalid")
+	}
+	if binding.OutboundBytes <= 0 {
+		return fmt.Errorf("outbound byte count missing")
+	}
+	return nil
+}
+
+func validateLLMExecutionBindingCore(binding llmExecutionBinding) error {
+	if _, err := binding.RequestHash.Identity(); err != nil {
+		return fmt.Errorf("request_hash missing")
+	}
+	return nil
 }

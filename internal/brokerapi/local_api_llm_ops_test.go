@@ -120,3 +120,66 @@ func mustCanonicalJSONBytes(t *testing.T, value any) []byte {
 	}
 	return canonical
 }
+
+func TestBindLLMRequestToArtifactsSetsLeaseID(t *testing.T) {
+	s, _, requestObject, requestDigest, _ := prepareCanonicalLLMInvokeTest(t)
+	binding, _, errResp := s.bindLLMRequestToArtifacts("req-bind", "run-llm-local-api", &requestDigest, requestObject)
+	if errResp != nil {
+		t.Fatalf("bindLLMRequestToArtifacts returned error response: %+v", errResp)
+	}
+	if got := binding.LeaseID; got != llmLeaseIDUnavailableSentinel {
+		t.Fatalf("lease_id = %q, want %q", got, llmLeaseIDUnavailableSentinel)
+	}
+}
+
+func TestHandleLLMStreamRequestRejectsInFlightLimit(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{Limits: Limits{MaxInFlightPerClient: 1, MaxInFlightPerLane: 1}})
+	runID := "run-llm-local-api"
+	input := putPayloadArtifactForLocalOpsTest(t, s, "llm input", runID, "step-input")
+	requestObject := validLLMRequestPayload(input)
+	requestDigest := mustDigestFromIdentityForTest(t, mustPutCanonicalLLMRequestArtifact(t, s, runID, requestObject))
+	release, err := s.apiInflight.acquire("client-a", "lane-a")
+	if err != nil {
+		t.Fatalf("acquire precondition returned error: %v", err)
+	}
+	defer release()
+	_, _, _, errResp := s.HandleLLMStreamRequest(
+		context.Background(),
+		LLMStreamRequest{SchemaID: "runecode.protocol.v0.LLMStreamRequest", SchemaVersion: "0.1.0", RequestID: "req-llm-stream-limit", RunID: runID, StreamID: "llm-stream-limit", LLMRequest: requestObject, RequestDigest: &requestDigest, Follow: false},
+		RequestContext{ClientID: "client-a", LaneID: "lane-a"},
+	)
+	if errResp == nil {
+		t.Fatal("expected in-flight limit rejection")
+	}
+	if errResp.Error.Code != "broker_limit_in_flight_exceeded" {
+		t.Fatalf("error code = %q, want broker_limit_in_flight_exceeded", errResp.Error.Code)
+	}
+}
+
+func TestEnsureInputArtifactsExistRejectsEmptyRunBinding(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	ref, err := s.Put(artifacts.PutRequest{Payload: []byte("input"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64), CreatedByRole: "workspace", TrustedSource: false})
+	if err != nil {
+		t.Fatalf("Put input artifact returned error: %v", err)
+	}
+	_, errResp := s.ensureInputArtifactsExist("req-llm-inputs", "run-llm-local-api", []artifacts.ArtifactReference{{Digest: ref.Digest}})
+	if errResp == nil {
+		t.Fatal("expected run binding mismatch error for empty run_id artifact")
+	}
+	if errResp.Error.Code != "broker_validation_schema_invalid" {
+		t.Fatalf("error code = %q, want broker_validation_schema_invalid", errResp.Error.Code)
+	}
+	if !strings.Contains(errResp.Error.Message, "run binding mismatch") {
+		t.Fatalf("error message = %q, want run binding mismatch", errResp.Error.Message)
+	}
+}
+
+func mustPutCanonicalLLMRequestArtifact(t *testing.T, s *Service, runID string, requestObject map[string]any) string {
+	t.Helper()
+	llmRequestRaw := mustCanonicalJSONBytes(t, requestObject)
+	ref, err := s.Put(artifacts.PutRequest{Payload: llmRequestRaw, ContentType: "application/json", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64), CreatedByRole: "broker", TrustedSource: true, RunID: runID, StepID: "step-llm"})
+	if err != nil {
+		t.Fatalf("Put canonical LLMRequest artifact returned error: %v", err)
+	}
+	return ref.Digest
+}
