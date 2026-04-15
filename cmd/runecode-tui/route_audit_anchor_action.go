@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func (m auditRouteModel) anchorSelectedOrLatestSeal() (routeModel, tea.Cmd) {
@@ -103,6 +104,13 @@ func (m auditRouteModel) anchorSealCmd(sealDigest string, exportCopy bool) tea.C
 		}
 		ctx, cancel := withLoadTimeout()
 		defer cancel()
+		preflight, err := m.client.AuditAnchorPreflightGet(ctx, brokerapi.AuditAnchorPreflightGetRequest{})
+		if err != nil {
+			return auditAnchorCompletedMsg{sealDigest: sealDigest, err: err}
+		}
+		if err := validateAuditAnchorPreflightForTUI(preflight, parsed); err != nil {
+			return auditAnchorCompletedMsg{sealDigest: sealDigest, err: err}
+		}
 		presenceResp, err := m.client.AuditAnchorPresenceGet(ctx, brokerapi.AuditAnchorPresenceGetRequest{SealDigest: parsed})
 		if err != nil {
 			return auditAnchorCompletedMsg{sealDigest: sealDigest, err: err}
@@ -121,6 +129,42 @@ func (m auditRouteModel) anchorSealCmd(sealDigest string, exportCopy bool) tea.C
 func auditAnchorPresenceAttestationRequired(mode string) bool {
 	mode = strings.TrimSpace(mode)
 	return mode == "os_confirmation" || mode == "hardware_touch"
+}
+
+func validateAuditAnchorPreflightForTUI(preflight brokerapi.AuditAnchorPreflightGetResponse, requested trustpolicy.Digest) error {
+	if !preflight.SignerReadiness.Ready {
+		if code := strings.TrimSpace(preflight.SignerReadiness.ReasonCode); code != "" {
+			return fmt.Errorf("%s", code)
+		}
+		return fmt.Errorf("anchor signer unavailable")
+	}
+	if !preflight.VerifierReadiness.Ready {
+		if code := strings.TrimSpace(preflight.VerifierReadiness.ReasonCode); code != "" {
+			return fmt.Errorf("%s", code)
+		}
+		return fmt.Errorf("audit verifier unavailable")
+	}
+	if preflight.PresenceRequirements.Required && !preflight.PresenceRequirements.AttestationReady {
+		if code := strings.TrimSpace(preflight.PresenceRequirements.ReasonCode); code != "" {
+			return fmt.Errorf("%s", code)
+		}
+		return fmt.Errorf("presence attestation unavailable")
+	}
+	if preflight.LatestAnchorableSeal == nil {
+		return fmt.Errorf("no latest anchorable seal")
+	}
+	want, err := requested.Identity()
+	if err != nil {
+		return fmt.Errorf("invalid requested seal digest")
+	}
+	got, err := preflight.LatestAnchorableSeal.SealDigest.Identity()
+	if err != nil {
+		return fmt.Errorf("invalid latest anchorable seal digest")
+	}
+	if got != want {
+		return fmt.Errorf("selected seal is not latest anchorable seal")
+	}
+	return nil
 }
 
 func renderAuditAnchorActionSummary(m auditRouteModel) string {

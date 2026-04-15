@@ -50,6 +50,9 @@ func TestSafeUIErrorTextAddsRemediationForLocalIPCConfigFallbackCode(t *testing.
 	if !strings.Contains(got, "Linux") {
 		t.Fatalf("expected platform hint in %q", got)
 	}
+	if !strings.Contains(got, "--runtime-dir/--socket-name") {
+		t.Fatalf("expected ipc override hint in %q", got)
+	}
 	if strings.Contains(got, "local_ipc_config_error") {
 		t.Fatalf("expected user-facing remediation text, got %q", got)
 	}

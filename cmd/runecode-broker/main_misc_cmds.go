@@ -5,10 +5,85 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
+
+func handleApprovalResolve(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	fs := flag.NewFlagSet("approval-resolve", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	approvalIDFlag := fs.String("approval-id", "", "optional approval id (must match signed approval request digest)")
+	approvalRequestPath := fs.String("approval-request", "", "path to signed approval request envelope JSON")
+	approvalEnvelopePath := fs.String("approval-envelope", "", "path to signed approval decision envelope JSON")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "approval-resolve usage: runecode-broker approval-resolve --approval-request approval-request.json --approval-envelope approval.json [--approval-id sha256:...]"}
+	}
+	approvalRequest, approvalEnvelope, err := loadPromotionResolveEnvelopes(*approvalRequestPath, *approvalEnvelopePath)
+	if err != nil {
+		return err
+	}
+	api := localAPIForService(service)
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	derivedApprovalID, boundScope, err := promotionBoundScopeForResolve(ctx, api, approvalRequest.Payload)
+	if err != nil {
+		return err
+	}
+	if provided := strings.TrimSpace(*approvalIDFlag); provided != "" && provided != derivedApprovalID {
+		return &usageError{message: "approval-resolve --approval-id does not match signed approval request digest"}
+	}
+	getResp, getErr := api.ApprovalGet(ctx, brokerapi.ApprovalGetRequest{SchemaID: "runecode.protocol.v0.ApprovalGetRequest", SchemaVersion: "0.1.0", RequestID: defaultRequestID(), ApprovalID: derivedApprovalID})
+	if getErr != nil {
+		return localAPIError(getErr)
+	}
+	resolveReq, err := genericApprovalResolveRequest(derivedApprovalID, boundScope, getResp, *approvalRequest, *approvalEnvelope)
+	if err != nil {
+		return err
+	}
+	resolveResp, errResp := api.ApprovalResolve(ctx, resolveReq)
+	if errResp != nil {
+		return localAPIError(errResp)
+	}
+	return writeJSON(stdout, resolveResp)
+}
+
+func genericApprovalResolveRequest(approvalID string, boundScope brokerapi.ApprovalBoundScope, getResp brokerapi.ApprovalGetResponse, approvalRequest, approvalEnvelope trustpolicy.SignedObjectEnvelope) (brokerapi.ApprovalResolveRequest, error) {
+	detail := getResp.ApprovalDetail
+	resolveReq := brokerapi.ApprovalResolveRequest{
+		SchemaID:      "runecode.protocol.v0.ApprovalResolveRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     defaultRequestID(),
+		ApprovalID:    approvalID,
+		BoundScope:    boundScope,
+		ResolutionDetails: brokerapi.ApprovalResolveDetails{
+			SchemaID:      "runecode.protocol.v0.ApprovalResolveDetails",
+			SchemaVersion: "0.1.0",
+		},
+		SignedApprovalRequest:  approvalRequest,
+		SignedApprovalDecision: approvalEnvelope,
+	}
+	switch strings.TrimSpace(boundScope.ActionKind) {
+	case policyengine.ActionKindPromotion:
+		return brokerapi.ApprovalResolveRequest{}, &usageError{message: "approval-resolve does not support promotion approvals; use promote-excerpt to preserve exact promotion binding checks"}
+	case policyengine.ActionKindBackendPosture:
+		selection := detail.BackendPostureSelection
+		if selection == nil {
+			return brokerapi.ApprovalResolveRequest{}, &usageError{message: "approval-resolve requires approval detail backend_posture_selection for backend posture approvals"}
+		}
+		resolveReq.ResolutionDetails.BackendPostureSelection = &brokerapi.ApprovalResolveBackendPostureSelectionDetail{
+			SchemaID:          "runecode.protocol.v0.ApprovalResolveBackendPostureSelectionDetail",
+			SchemaVersion:     "0.1.0",
+			TargetInstanceID:  selection.TargetInstanceID,
+			TargetBackendKind: selection.TargetBackendKind,
+		}
+	default:
+		return brokerapi.ApprovalResolveRequest{}, &usageError{message: "approval-resolve does not support this action kind"}
+	}
+	return resolveReq, nil
+}
 
 func handlePromoteExcerpt(args []string, service *brokerapi.Service, stdout io.Writer) error {
 	fs := flag.NewFlagSet("promote-excerpt", flag.ContinueOnError)
@@ -251,6 +326,31 @@ func handleAuditVerification(args []string, service *brokerapi.Service, stdout i
 		return localAPIError(errResp)
 	}
 	return writeJSON(stdout, brokerapi.AuditVerificationSurface{Summary: resp.Summary, Report: resp.Report, Views: resp.Views})
+}
+
+func handleAuditFinalizeVerify(_ []string, service *brokerapi.Service, stdout io.Writer) error {
+	api := localAPIForService(service)
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.AuditFinalizeVerify(ctx, brokerapi.AuditFinalizeVerifyRequest{
+		SchemaID:      "runecode.protocol.v0.AuditFinalizeVerifyRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     defaultRequestID(),
+	})
+	if errResp != nil {
+		return localAPIError(errResp)
+	}
+	if resp.ActionStatus != "ok" {
+		reason := strings.TrimSpace(resp.FailureCode)
+		if reason == "" {
+			reason = strings.TrimSpace(resp.FailureMessage)
+		}
+		if reason == "" {
+			reason = "audit finalize/verify failed"
+		}
+		return fmt.Errorf("audit finalize/verify failed: %s", reason)
+	}
+	return writeJSON(stdout, resp)
 }
 
 func handleImportTrustedContract(args []string, service *brokerapi.Service, _ io.Writer) error {

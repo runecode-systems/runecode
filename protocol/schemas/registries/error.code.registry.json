@@ -34,6 +34,38 @@
       "summary": "The streamed request was cancelled before a successful terminal response was produced."
     },
     {
+      "code": "broker_dependency_audit_ledger_unavailable",
+      "summary": "The broker could not perform the operation because the audit ledger dependency was unavailable."
+    },
+    {
+      "code": "broker_dependency_audit_anchor_signer_unavailable",
+      "summary": "The broker could not perform audit anchoring because the audit-anchor signer dependency was unavailable."
+    },
+    {
+      "code": "broker_dependency_audit_anchor_presence_mode_unavailable",
+      "summary": "The broker could not resolve audit-anchor presence mode from signer posture."
+    },
+    {
+      "code": "broker_dependency_audit_anchor_presence_challenge_unavailable",
+      "summary": "The broker could not mint a presence challenge for audit-anchor attestation."
+    },
+    {
+      "code": "broker_dependency_audit_anchor_presence_token_unavailable",
+      "summary": "The broker could not mint a presence attestation token for audit anchoring."
+    },
+    {
+      "code": "broker_dependency_audit_anchor_action_unavailable",
+      "summary": "The broker could not complete an audit-anchor action due to an authoritative audit dependency failure."
+    },
+    {
+      "code": "broker_dependency_audit_anchor_result_invalid",
+      "summary": "The broker received an invalid or incomplete audit-anchor action result from an authoritative dependency."
+    },
+    {
+      "code": "broker_dependency_audit_readiness_unavailable",
+      "summary": "The broker could not load audit readiness state required for anchor preflight posture."
+    },
+    {
       "code": "broker_auth_peer_credentials_required",
       "summary": "The broker rejected the request because local transport authentication credentials were unavailable or invalid."
     },

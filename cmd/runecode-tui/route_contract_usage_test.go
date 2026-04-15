@@ -103,11 +103,11 @@ func TestApprovalsResolveUsesTypedBrokerContract(t *testing.T) {
 
 	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	if cmd != nil {
-		t.Fatal("expected resolve to stay fail-closed without typed origin metadata")
+		t.Fatal("expected promotion approval resolve to stay fail-closed")
 	}
 
 	view := updated.View(120, 40, focusContent)
-	if want := "approval resolve is disabled until approval detail exposes typed origin metadata required by ApprovalResolveRequest"; !containsSubstring(view, want) {
+	if want := "promotion approvals must be resolved via promote-excerpt to preserve exact promotion binding"; !containsSubstring(view, want) {
 		t.Fatalf("expected fail-closed status %q in view, got %q", want, view)
 	}
 

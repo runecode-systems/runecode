@@ -34,6 +34,8 @@ type fakeBrokerClient struct{}
 
 type reloadAwareBrokerClient struct{}
 
+type backendResolveReadyBrokerClient struct{ *fakeBrokerClient }
+
 type recordingBrokerClient struct {
 	base  localBrokerClient
 	calls []string
@@ -133,6 +135,16 @@ func (r *recordingBrokerClient) ArtifactRead(ctx context.Context, req brokerapi.
 	return r.base.ArtifactRead(ctx, req)
 }
 
+func (r *recordingBrokerClient) LLMInvoke(ctx context.Context, req brokerapi.LLMInvokeRequest) (brokerapi.LLMInvokeResponse, error) {
+	r.record("LLMInvoke")
+	return r.base.LLMInvoke(ctx, req)
+}
+
+func (r *recordingBrokerClient) LLMStream(ctx context.Context, req brokerapi.LLMStreamRequest) (brokerapi.LLMStreamEnvelope, error) {
+	r.record("LLMStream")
+	return r.base.LLMStream(ctx, req)
+}
+
 func (r *recordingBrokerClient) AuditTimeline(ctx context.Context, limit int, cursor string) (brokerapi.AuditTimelineResponse, error) {
 	r.record("AuditTimeline")
 	return r.base.AuditTimeline(ctx, limit, cursor)
@@ -143,9 +155,19 @@ func (r *recordingBrokerClient) AuditVerificationGet(ctx context.Context, viewLi
 	return r.base.AuditVerificationGet(ctx, viewLimit)
 }
 
+func (r *recordingBrokerClient) AuditFinalizeVerify(ctx context.Context) (brokerapi.AuditFinalizeVerifyResponse, error) {
+	r.record("AuditFinalizeVerify")
+	return r.base.AuditFinalizeVerify(ctx)
+}
+
 func (r *recordingBrokerClient) AuditRecordGet(ctx context.Context, digest string) (brokerapi.AuditRecordGetResponse, error) {
 	r.record("AuditRecordGet")
 	return r.base.AuditRecordGet(ctx, digest)
+}
+
+func (r *recordingBrokerClient) AuditAnchorPreflightGet(ctx context.Context, req brokerapi.AuditAnchorPreflightGetRequest) (brokerapi.AuditAnchorPreflightGetResponse, error) {
+	r.record("AuditAnchorPreflightGet")
+	return r.base.AuditAnchorPreflightGet(ctx, req)
 }
 
 func (r *recordingBrokerClient) AuditAnchorPresenceGet(ctx context.Context, req brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, error) {
@@ -262,6 +284,19 @@ func (f *fakeBrokerClient) ApprovalResolve(ctx context.Context, req brokerapi.Ap
 		ResolutionStatus:     "resolved",
 		ResolutionReasonCode: "approval_consumed",
 	}, nil
+}
+
+func (f *backendResolveReadyBrokerClient) ApprovalList(ctx context.Context, limit int) (brokerapi.ApprovalListResponse, error) {
+	_ = ctx
+	_ = limit
+	return brokerapi.ApprovalListResponse{Approvals: []brokerapi.ApprovalSummary{{ApprovalID: "ap-1", Status: "pending", ApprovalTriggerCode: "policy_gate", BoundScope: brokerapi.ApprovalBoundScope{ActionKind: "promotion"}}, {ApprovalID: "ap-2", Status: "pending", ApprovalTriggerCode: "policy_gate", BoundScope: brokerapi.ApprovalBoundScope{WorkspaceID: "ws-1", RunID: "run-1", ActionKind: "backend_posture_change"}}}}, nil
+}
+
+func (f *backendResolveReadyBrokerClient) ApprovalGet(ctx context.Context, approvalID string) (brokerapi.ApprovalGetResponse, error) {
+	if approvalID == "ap-2" {
+		return brokerapi.ApprovalGetResponse{Approval: brokerapi.ApprovalSummary{ApprovalID: approvalID, Status: "pending", ApprovalTriggerCode: "policy_gate", BoundScope: brokerapi.ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: "ws-1", RunID: "run-1", InstanceID: "launcher-instance-1", ActionKind: "backend_posture_change", PolicyDecisionHash: "sha256:policy"}}, ApprovalDetail: brokerapi.ApprovalDetail{BindingKind: "exact_action", PolicyReasonCode: "requires_human_review", LifecycleDetail: brokerapi.ApprovalLifecycleDetail{LifecycleState: "pending", LifecycleReasonCode: "awaiting_decision"}, WhatChangesIfApproved: brokerapi.ApprovalWhatChangesIfApproved{Summary: "Backend posture changes", EffectKind: "backend_posture_selection"}, BlockedWorkScope: brokerapi.ApprovalBlockedWorkScope{ScopeKind: "action_kind", ActionKind: "backend_posture_change"}, BoundIdentity: brokerapi.ApprovalBoundIdentity{ApprovalRequestDigest: "sha256:req", ManifestHash: "sha256:manifest", PolicyDecisionHash: "sha256:policy"}, BackendPostureSelection: &brokerapi.ApprovalBackendPostureSelection{TargetInstanceID: "launcher-instance-1", TargetBackendKind: "container", SelectionMode: "explicit_selection", ChangeKind: "select_backend", AssuranceChangeKind: "reduce_assurance", OptInKind: "exact_action_approval", ReducedAssuranceAcknowledged: true}}, SignedApprovalRequest: testSignedApprovalRequest, SignedApprovalDecision: testSignedApprovalDecision}, nil
+	}
+	return f.fakeBrokerClient.ApprovalGet(ctx, approvalID)
 }
 
 func (f *fakeBrokerClient) BackendPostureGet(ctx context.Context) (brokerapi.BackendPostureGetResponse, error) {
@@ -400,6 +435,14 @@ func (f *reloadAwareBrokerClient) ArtifactRead(ctx context.Context, req brokerap
 	return []brokerapi.ArtifactStreamEvent{{EventType: "artifact_stream_chunk", ChunkBase64: chunk}, {EventType: "artifact_stream_terminal", Terminal: true, TerminalStatus: "completed"}}, nil
 }
 
+func (f *reloadAwareBrokerClient) LLMInvoke(ctx context.Context, req brokerapi.LLMInvokeRequest) (brokerapi.LLMInvokeResponse, error) {
+	return (&fakeBrokerClient{}).LLMInvoke(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) LLMStream(ctx context.Context, req brokerapi.LLMStreamRequest) (brokerapi.LLMStreamEnvelope, error) {
+	return (&fakeBrokerClient{}).LLMStream(ctx, req)
+}
+
 func (f *reloadAwareBrokerClient) AuditTimeline(ctx context.Context, limit int, cursor string) (brokerapi.AuditTimelineResponse, error) {
 	return (&fakeBrokerClient{}).AuditTimeline(ctx, limit, cursor)
 }
@@ -408,8 +451,16 @@ func (f *reloadAwareBrokerClient) AuditVerificationGet(ctx context.Context, view
 	return (&fakeBrokerClient{}).AuditVerificationGet(ctx, viewLimit)
 }
 
+func (f *reloadAwareBrokerClient) AuditFinalizeVerify(ctx context.Context) (brokerapi.AuditFinalizeVerifyResponse, error) {
+	return (&fakeBrokerClient{}).AuditFinalizeVerify(ctx)
+}
+
 func (f *reloadAwareBrokerClient) AuditRecordGet(ctx context.Context, digest string) (brokerapi.AuditRecordGetResponse, error) {
 	return (&fakeBrokerClient{}).AuditRecordGet(ctx, digest)
+}
+
+func (f *reloadAwareBrokerClient) AuditAnchorPreflightGet(ctx context.Context, req brokerapi.AuditAnchorPreflightGetRequest) (brokerapi.AuditAnchorPreflightGetResponse, error) {
+	return (&fakeBrokerClient{}).AuditAnchorPreflightGet(ctx, req)
 }
 
 func (f *reloadAwareBrokerClient) AuditAnchorPresenceGet(ctx context.Context, req brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, error) {
@@ -480,6 +531,51 @@ func (f *fakeBrokerClient) ArtifactRead(ctx context.Context, req brokerapi.Artif
 	}, nil
 }
 
+func (f *fakeBrokerClient) LLMInvoke(ctx context.Context, req brokerapi.LLMInvokeRequest) (brokerapi.LLMInvokeResponse, error) {
+	_ = ctx
+	if strings.TrimSpace(req.RunID) == "" {
+		return brokerapi.LLMInvokeResponse{}, fmt.Errorf("run id required")
+	}
+	if req.LLMRequest == nil {
+		return brokerapi.LLMInvokeResponse{}, fmt.Errorf("llm_request required")
+	}
+	return brokerapi.LLMInvokeResponse{
+		SchemaID:      "runecode.protocol.v0.LLMInvokeResponse",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-llm-invoke",
+		RunID:         req.RunID,
+		RequestDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)},
+		Response: map[string]any{
+			"schema_id":      "runecode.protocol.v0.LLMResponse",
+			"schema_version": "0.1.0",
+			"response_id":    "resp-1",
+			"status":         "completed",
+			"output_text":    "stubbed response",
+		},
+	}, nil
+}
+
+func (f *fakeBrokerClient) LLMStream(ctx context.Context, req brokerapi.LLMStreamRequest) (brokerapi.LLMStreamEnvelope, error) {
+	_ = ctx
+	if strings.TrimSpace(req.RunID) == "" {
+		return brokerapi.LLMStreamEnvelope{}, fmt.Errorf("run id required")
+	}
+	if req.LLMRequest == nil {
+		return brokerapi.LLMStreamEnvelope{}, fmt.Errorf("llm_request required")
+	}
+	return brokerapi.LLMStreamEnvelope{
+		SchemaID:      "runecode.protocol.v0.LLMStreamEnvelope",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-llm-stream",
+		RunID:         req.RunID,
+		RequestDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)},
+		Events: []brokerapi.LLMStreamAny{
+			map[string]any{"schema_id": "runecode.protocol.v0.LLMStreamEvent", "schema_version": "0.1.0", "event_type": "response.delta", "seq": 1, "delta_text": "stub"},
+			map[string]any{"schema_id": "runecode.protocol.v0.LLMStreamEvent", "schema_version": "0.1.0", "event_type": "response.completed", "seq": 2},
+		},
+	}, nil
+}
+
 func (f *fakeBrokerClient) AuditTimeline(ctx context.Context, limit int, cursor string) (brokerapi.AuditTimelineResponse, error) {
 	_ = ctx
 	_ = limit
@@ -506,6 +602,19 @@ func (f *fakeBrokerClient) AuditVerificationGet(ctx context.Context, viewLimit i
 	return brokerapi.AuditVerificationGetResponse{Summary: trustpolicy.DerivedRunAuditVerificationSummary{IntegrityStatus: "ok", AnchoringStatus: "degraded", CurrentlyDegraded: true, FindingCount: 2}, Report: report}, nil
 }
 
+func (f *fakeBrokerClient) AuditFinalizeVerify(ctx context.Context) (brokerapi.AuditFinalizeVerifyResponse, error) {
+	_ = ctx
+	report := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("e", 64)}
+	return brokerapi.AuditFinalizeVerifyResponse{
+		SchemaID:      "runecode.protocol.v0.AuditFinalizeVerifyResponse",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-finalize",
+		ActionStatus:  "ok",
+		SegmentID:     "segment-000001",
+		ReportDigest:  &report,
+	}, nil
+}
+
 func (f *fakeBrokerClient) AuditRecordGet(ctx context.Context, digest string) (brokerapi.AuditRecordGetResponse, error) {
 	_ = ctx
 	if digest == "" {
@@ -529,6 +638,25 @@ func (f *fakeBrokerClient) AuditAnchorPresenceGet(ctx context.Context, req broke
 			Challenge:           "presence-challenge-0123456789abcdef",
 			AcknowledgmentToken: strings.Repeat("a", 64),
 		},
+	}, nil
+}
+
+func (f *fakeBrokerClient) AuditAnchorPreflightGet(ctx context.Context, req brokerapi.AuditAnchorPreflightGetRequest) (brokerapi.AuditAnchorPreflightGetResponse, error) {
+	_ = ctx
+	_ = req
+	seal := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("e", 64)}
+	return brokerapi.AuditAnchorPreflightGetResponse{
+		SchemaID:      "runecode.protocol.v0.AuditAnchorPreflightGetResponse",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-anchor-preflight",
+		LatestAnchorableSeal: &brokerapi.AuditAnchorableSealRef{
+			SegmentID:  "segment-000001",
+			SealDigest: seal,
+		},
+		SignerReadiness:      brokerapi.AuditAnchorSignerReadiness{Ready: true, PresenceMode: "os_confirmation", SignerLogicalScope: "node"},
+		VerifierReadiness:    brokerapi.AuditAnchorVerifierReadiness{Ready: true},
+		PresenceRequirements: brokerapi.AuditAnchorPresenceRequirements{Required: true, AttestationMode: "os_confirmation", AttestationReady: true},
+		ApprovalRequirements: brokerapi.AuditAnchorApprovalRequirements{Required: false, ReasonCode: "approval_not_required", Message: "no approval requirement declared"},
 	}, nil
 }
 

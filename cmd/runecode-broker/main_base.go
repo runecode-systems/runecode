@@ -15,6 +15,13 @@ type usageError struct{ message string }
 
 func (e *usageError) Error() string { return e.message }
 
+type brokerServiceRoots struct {
+	stateRoot       string
+	auditLedgerRoot string
+}
+
+type brokerServiceFactoryFunc func(brokerServiceRoots) (*brokerapi.Service, error)
+
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		if _, errWrite := fmt.Fprintln(os.Stderr, err.Error()); errWrite != nil {
@@ -28,22 +35,26 @@ func main() {
 }
 
 func run(args []string, stdout io.Writer, stderr io.Writer) error {
-	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" || args[0] == "help" {
+	roots, commandArgs, err := parseBrokerGlobalArgs(args)
+	if err != nil {
+		return err
+	}
+	if len(commandArgs) == 0 || isHelpArg(commandArgs[0]) {
 		return writeHelp(stdout)
 	}
-	handler, ok := commandHandlers()[args[0]]
+	handler, ok := commandHandlers()[commandArgs[0]]
 	if !ok {
 		_ = writeHelp(stderr)
-		return &usageError{message: fmt.Sprintf("unknown command %q", args[0])}
+		return &usageError{message: fmt.Sprintf("unknown command %q", commandArgs[0])}
 	}
-	service, err := brokerServiceFactory()
+	service, err := brokerServiceFactory(roots)
 	if err != nil {
 		return fmt.Errorf("runecode-broker failed to initialize store: %w", err)
 	}
-	return handler(args[1:], service, stdout)
+	return handler(commandArgs[1:], service, stdout)
 }
 
-var brokerServiceFactory = brokerService
+var brokerServiceFactory brokerServiceFactoryFunc = newBrokerService
 var localIPCListen = brokerapi.ListenLocalIPC
 
 type commandHandler func([]string, *brokerapi.Service, io.Writer) error
@@ -54,12 +65,15 @@ func commandHandlers() map[string]commandHandler {
 		"run-list":                 handleRunList,
 		"run-get":                  handleRunGet,
 		"run-watch":                handleRunWatch,
+		"backend-posture-get":      handleBackendPostureGet,
+		"backend-posture-change":   handleBackendPostureChange,
 		"session-list":             handleSessionList,
 		"session-get":              handleSessionGet,
 		"session-send-message":     handleSessionSendMessage,
 		"session-watch":            handleSessionWatch,
 		"approval-list":            handleApprovalList,
 		"approval-get":             handleApprovalGet,
+		"approval-resolve":         handleApprovalResolve,
 		"approval-watch":           handleApprovalWatch,
 		"list-artifacts":           handleListArtifacts,
 		"head-artifact":            handleHeadArtifact,
@@ -79,11 +93,38 @@ func commandHandlers() map[string]commandHandler {
 		"seed-dev-manual-scenario": handleSeedDevManualScenario,
 		"audit-readiness":          handleAuditReadiness,
 		"audit-verification":       handleAuditVerification,
+		"audit-finalize-verify":    handleAuditFinalizeVerify,
 		"audit-record-get":         handleAuditRecordGet,
 		"audit-anchor-segment":     handleAuditAnchorSegment,
 		"version-info":             handleVersionInfo,
 		"stream-logs":              handleStreamLogs,
+		"llm-invoke":               handleLLMInvoke,
+		"llm-stream":               handleLLMStream,
 	}
+}
+
+func parseBrokerGlobalArgs(args []string) (brokerServiceRoots, []string, error) {
+	roots := defaultBrokerServiceRoots()
+	if len(args) == 0 {
+		return roots, nil, nil
+	}
+	if isHelpArg(args[0]) {
+		return roots, args, nil
+	}
+	fs := flag.NewFlagSet("runecode-broker", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	stateRoot := fs.String("state-root", roots.stateRoot, "broker state root")
+	auditLedgerRoot := fs.String("audit-ledger-root", roots.auditLedgerRoot, "audit ledger root")
+	if err := fs.Parse(args); err != nil {
+		return brokerServiceRoots{}, nil, &usageError{message: "usage: runecode-broker [--state-root path] [--audit-ledger-root path] <command> [flags]"}
+	}
+	roots.stateRoot = *stateRoot
+	roots.auditLedgerRoot = *auditLedgerRoot
+	return roots, fs.Args(), nil
+}
+
+func isHelpArg(arg string) bool {
+	return arg == "-h" || arg == "--help" || arg == "help"
 }
 
 func parseServeLocalArgs(args []string) (brokerapi.LocalIPCConfig, bool, error) {
@@ -103,19 +144,26 @@ func parseServeLocalArgs(args []string) (brokerapi.LocalIPCConfig, bool, error) 
 }
 
 func writeHelp(w io.Writer) error {
-	_, err := fmt.Fprintln(w, `Usage: runecode-broker <command> [flags]
+	_, err := fmt.Fprintln(w, `Usage: runecode-broker [--state-root path] [--audit-ledger-root path] <command> [flags]
+
+Global options:
+  --state-root path         broker state root (artifact store and broker-owned local state)
+  --audit-ledger-root path  audit ledger root
 
 Commands:
   serve-local [--runtime-dir dir] [--socket-name broker.sock] [--once]
   run-list [--limit N]
   run-get --run-id id
   run-watch [--stream-id id] [--run-id id] [--workspace-id id] [--lifecycle-state state] [--follow] [--include-snapshot]
+  backend-posture-get
+  backend-posture-change --target-backend-kind microvm|container [--target-instance-id id] [--selection-mode explicit_selection|automatic_fallback_attempt] [--change-kind select_backend] [--assurance-change-kind reduce_assurance|maintain_assurance] [--opt-in-kind exact_action_approval|none] [--reduced-assurance-acknowledged] [--reason text]
   session-list [--limit N]
   session-get --session-id id
   session-send-message --session-id id --content text [--role user|assistant|system|tool] [--idempotency-key key]
   session-watch [--stream-id id] [--session-id id] [--workspace-id id] [--status active|completed|archived] [--last-activity-kind kind] [--follow] [--include-snapshot]
   approval-list [--run-id id] [--status pending|approved|denied|expired|cancelled|superseded|consumed] [--limit N]
   approval-get --approval-id sha256:...
+  approval-resolve --approval-request approval-request.json --approval-envelope approval.json [--approval-id sha256:...]
   approval-watch [--stream-id id] [--approval-id sha256:...] [--run-id id] [--workspace-id id] [--status pending|approved|denied|expired|cancelled|superseded|consumed] [--follow] [--include-snapshot]
   list-artifacts
   head-artifact --digest sha256:...
@@ -133,15 +181,29 @@ Commands:
   set-reserved-classes --enabled=true|false
   import-trusted-contract --kind verifier-record --file verifier.json --evidence import-evidence.json
   seed-dev-manual-scenario --dev-only [--profile tui-rich-v1] (requires dev-seed build tag)
-  audit-readiness
-  audit-verification [--limit N]
-  audit-record-get --record-digest sha256:...
-  audit-anchor-segment --seal-digest sha256:... [--approval-decision-digest sha256:...] [--approval-assurance-level level] [--export-receipt-copy]
+	  audit-readiness
+	  audit-verification [--limit N]
+	  audit-finalize-verify
+	  audit-record-get --record-digest sha256:...
+	  audit-anchor-segment --seal-digest sha256:... [--approval-decision-digest sha256:...] [--approval-assurance-level level] [--export-receipt-copy]
   version-info
-  stream-logs [--stream-id id] [--run-id id] [--role-instance-id id] [--start-cursor cursor] [--follow] [--include-backlog]`)
+  stream-logs [--stream-id id] [--run-id id] [--role-instance-id id] [--start-cursor cursor] [--follow] [--include-backlog]
+  llm-invoke --run-id id --request-file path [--request-digest sha256:...]
+  llm-stream --run-id id --request-file path [--request-digest sha256:...] [--stream-id id] [--follow]`)
 	return err
 }
 
-func brokerService() (*brokerapi.Service, error) {
-	return brokerapi.NewService(defaultBrokerStoreRoot(), auditd.DefaultLedgerRoot())
+func defaultBrokerServiceRoots() brokerServiceRoots {
+	return brokerServiceRoots{stateRoot: defaultBrokerStoreRoot(), auditLedgerRoot: auditd.DefaultLedgerRoot()}
+}
+
+func newBrokerService(roots brokerServiceRoots) (*brokerapi.Service, error) {
+	resolved := roots
+	if resolved.stateRoot == "" {
+		resolved.stateRoot = defaultBrokerStoreRoot()
+	}
+	if resolved.auditLedgerRoot == "" {
+		resolved.auditLedgerRoot = auditd.DefaultLedgerRoot()
+	}
+	return brokerapi.NewService(resolved.stateRoot, resolved.auditLedgerRoot)
 }

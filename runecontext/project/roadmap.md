@@ -5,17 +5,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ## Upcoming Features
 
-### v0.1.0-alpha.4
-
-- Audit Anchoring v0
-  - Audit segment roots can be anchored with verifiable receipts to strengthen tamper-evidence beyond local verification.
-  - Planned change: `runecontext/changes/CHG-2026-006-84f0-audit-anchoring-v0/`
-- Alpha Implementation Callouts
-  - `Minimal TUI v0` must remain a strict client of the brokered local API and real policy, audit, artifact, and approval surfaces.
-  - The first end-to-end demo must use explicit artifact handoff, audit capture plus verify, signed policy decisions, and one real isolated backend with no trust-boundary shortcuts.
-  - `Workflow Runner + Workspace Roles + Deterministic Gates v0` is sequenced as a thin MVP in `v0.1.0-alpha.3`; remaining hardening and scope complete in `v0.1.0-alpha.4`.
-  - `Audit Anchoring v0` and `Container Backend v0 (Explicit Opt-In)` remain follow-on hardening work and must not displace the primary secure path.
-
 ### v0.1.0-beta.1
 
 - Formal Spec v0 (TLA+ + CI Model Checking)
@@ -141,4 +130,12 @@ No unscheduled items are currently tracked outside the planned work listed above
 - Container Backend v0 (Explicit Opt-In)
   - Container isolation is available only via explicit opt-in with reduced-assurance UX after the primary high-assurance path exists.
   - Planned change: `runecontext/changes/CHG-2026-010-54b7-container-backend-v0-explicit-opt-in/`
+- Audit Anchoring v0
+  - Audit segment roots can be anchored with verifiable receipts to strengthen tamper-evidence beyond local verification.
+  - Planned change: `runecontext/changes/CHG-2026-006-84f0-audit-anchoring-v0/`
+- Alpha Implementation Callouts
+  - `Minimal TUI v0` must remain a strict client of the brokered local API and real policy, audit, artifact, and approval surfaces.
+  - The first end-to-end demo must use explicit artifact handoff, audit capture plus verify, signed policy decisions, and one real isolated backend with no trust-boundary shortcuts.
+  - `Workflow Runner + Workspace Roles + Deterministic Gates v0` is sequenced as a thin MVP in `v0.1.0-alpha.3`; remaining hardening and scope complete in `v0.1.0-alpha.4`.
+  - `Audit Anchoring v0` and `Container Backend v0 (Explicit Opt-In)` remain follow-on hardening work and must not displace the primary secure path.
 

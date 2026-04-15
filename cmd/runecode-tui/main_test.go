@@ -13,9 +13,10 @@ func TestWriteHelpDescribesInteractiveBrokerBackedUI(t *testing.T) {
 	}
 	written := out.String()
 	for _, want := range []string{
-		"Usage: runecode-tui [--help]",
+		"Usage: runecode-tui [--runtime-dir dir] [--socket-name broker.sock] [--help]",
 		"Interactive terminal UI for the local RuneCode broker API.",
 		"runecode-broker serve-local",
+		"isolated manual/dev workflows",
 	} {
 		if !strings.Contains(written, want) {
 			t.Fatalf("help output missing %q in %q", want, written)
@@ -23,16 +24,26 @@ func TestWriteHelpDescribesInteractiveBrokerBackedUI(t *testing.T) {
 	}
 }
 
-func TestValidateArgsRejectsUnexpectedFlagsWithUsageError(t *testing.T) {
-	err := validateArgs([]string{"--verbose"})
+func TestParseCLIConfigRejectsUnexpectedFlagsWithUsageError(t *testing.T) {
+	_, err := parseCLIConfig([]string{"--verbose"})
 	if err == nil {
-		t.Fatal("validateArgs expected error")
+		t.Fatal("parseCLIConfig expected error")
 	}
 	if _, ok := err.(*usageError); !ok {
-		t.Fatalf("validateArgs error type = %T, want *usageError", err)
+		t.Fatalf("parseCLIConfig error type = %T, want *usageError", err)
 	}
-	if got := err.Error(); got != "runecode-tui accepts no arguments; use --help for usage" {
-		t.Fatalf("validateArgs error = %q", got)
+	if got := err.Error(); got != "runecode-tui usage: runecode-tui [--runtime-dir dir] [--socket-name broker.sock] [--help]" {
+		t.Fatalf("parseCLIConfig error = %q", got)
+	}
+}
+
+func TestParseCLIConfigParsesIPCOverrides(t *testing.T) {
+	cfg, err := parseCLIConfig([]string{"--runtime-dir", "/tmp/runtime", "--socket-name", "broker.dev.sock"})
+	if err != nil {
+		t.Fatalf("parseCLIConfig returned error: %v", err)
+	}
+	if cfg.runtimeDir != "/tmp/runtime" || cfg.socketName != "broker.dev.sock" {
+		t.Fatalf("parseCLIConfig cfg = %+v, want runtime+socket overrides", cfg)
 	}
 }
 
@@ -45,7 +56,7 @@ func TestWriteNonInteractiveMessageIncludesBrokerRemediation(t *testing.T) {
 	for _, want := range []string{
 		"interactive terminal UI",
 		"Interactive terminal required to launch UI.",
-		"runecode-broker serve-local",
+		"runecode-broker serve-local [--runtime-dir dir] [--socket-name broker.sock]",
 	} {
 		if !strings.Contains(written, want) {
 			t.Fatalf("non-interactive output missing %q in %q", want, written)

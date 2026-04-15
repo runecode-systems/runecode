@@ -17,6 +17,7 @@ type approvalsLoadedMsg struct {
 
 type approvalResolvedMsg struct {
 	approvalID string
+	result     string
 	err        error
 }
 
@@ -75,7 +76,7 @@ func (m approvalsRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 			return m, nil
 		}
 		m.errText = ""
-		m.statusText = fmt.Sprintf("Approval %s resolved via typed ApprovalResolve; run can continue.", typed.approvalID)
+		m.statusText = fmt.Sprintf("Approval %s resolved via typed ApprovalResolve (%s).", typed.approvalID, valueOrNA(typed.result))
 		m.loading = true
 		m.loadSeq++
 		return m, m.loadCmd("", m.loadSeq)
@@ -110,7 +111,7 @@ func (m approvalsRouteModel) View(width, height int, focus focusArea) string {
 		body = append(body, tableHeader("Inspector")+" "+appTheme.InspectorHint.Render("(policy/trigger/system cues are distinct)"))
 		body = append(body, renderApprovalInspector(m.active))
 	}
-	body = append(body, keyHint("Route keys: j/k move, enter load detail, a resolve current (currently disabled pending typed origin metadata), i toggle inspector, r reload"))
+	body = append(body, keyHint("Route keys: j/k move, enter load detail, a resolve current approval where supported, i toggle inspector, r reload"))
 	return compactLines(body...)
 }
 
@@ -183,10 +184,24 @@ func (m approvalsRouteModel) reload() (routeModel, tea.Cmd) {
 
 func (m approvalsRouteModel) resolveCmd(resp brokerapi.ApprovalGetResponse) tea.Cmd {
 	return func() tea.Msg {
-		if err := validateApprovalResolveInput(resp); err != nil {
+		resolveReq, err := approvalResolveRequestFromDetail(resp)
+		if err != nil {
 			return approvalResolvedMsg{approvalID: strings.TrimSpace(resp.Approval.ApprovalID), err: err}
 		}
-		return approvalResolvedMsg{approvalID: strings.TrimSpace(resp.Approval.ApprovalID), err: fmt.Errorf("approval resolve is disabled until approval detail exposes typed origin metadata required by ApprovalResolveRequest")}
+		ctx, cancel := withLoadTimeout()
+		defer cancel()
+		resolveResp, err := m.client.ApprovalResolve(ctx, resolveReq)
+		if err != nil {
+			return approvalResolvedMsg{approvalID: strings.TrimSpace(resp.Approval.ApprovalID), err: err}
+		}
+		result := strings.TrimSpace(resolveResp.ResolutionReasonCode)
+		if result == "" {
+			result = strings.TrimSpace(resolveResp.ResolutionStatus)
+		}
+		if result == "" {
+			result = "resolved"
+		}
+		return approvalResolvedMsg{approvalID: strings.TrimSpace(resp.Approval.ApprovalID), result: result}
 	}
 }
 
@@ -198,7 +213,59 @@ func validateApprovalResolveInput(resp brokerapi.ApprovalGetResponse) error {
 	if resp.SignedApprovalRequest == nil || resp.SignedApprovalDecision == nil {
 		return fmt.Errorf("approval resolve requires signed approval request and decision envelopes")
 	}
-	return fmt.Errorf("approval resolve is disabled until approval detail exposes typed origin metadata required by ApprovalResolveRequest")
+	boundScope := resp.Approval.BoundScope
+	actionKind := strings.TrimSpace(boundScope.ActionKind)
+	switch actionKind {
+	case "backend_posture_change":
+		selection := resp.ApprovalDetail.BackendPostureSelection
+		if selection == nil {
+			return fmt.Errorf("approval resolve requires typed backend posture selection detail")
+		}
+		if strings.TrimSpace(selection.TargetInstanceID) == "" || strings.TrimSpace(selection.TargetBackendKind) == "" {
+			return fmt.Errorf("approval resolve requires backend posture target instance and backend kind")
+		}
+	case "promotion":
+		return fmt.Errorf("promotion approvals must be resolved via promote-excerpt to preserve exact promotion binding")
+	default:
+		return fmt.Errorf("approval resolve does not support this action kind")
+	}
+	return nil
+}
+
+func approvalResolveRequestFromDetail(resp brokerapi.ApprovalGetResponse) (brokerapi.ApprovalResolveRequest, error) {
+	if err := validateApprovalResolveInput(resp); err != nil {
+		return brokerapi.ApprovalResolveRequest{}, err
+	}
+	summary := resp.Approval
+	boundScope := summary.BoundScope
+	if strings.TrimSpace(boundScope.SchemaID) == "" {
+		boundScope.SchemaID = "runecode.protocol.v0.ApprovalBoundScope"
+	}
+	if strings.TrimSpace(boundScope.SchemaVersion) == "" {
+		boundScope.SchemaVersion = "0.1.0"
+	}
+	resolveReq := brokerapi.ApprovalResolveRequest{
+		SchemaID:      "runecode.protocol.v0.ApprovalResolveRequest",
+		SchemaVersion: localAPISchemaVersion,
+		ApprovalID:    strings.TrimSpace(summary.ApprovalID),
+		BoundScope:    boundScope,
+		ResolutionDetails: brokerapi.ApprovalResolveDetails{
+			SchemaID:      "runecode.protocol.v0.ApprovalResolveDetails",
+			SchemaVersion: "0.1.0",
+		},
+		SignedApprovalRequest:  *resp.SignedApprovalRequest,
+		SignedApprovalDecision: *resp.SignedApprovalDecision,
+	}
+	if strings.TrimSpace(boundScope.ActionKind) == "backend_posture_change" && resp.ApprovalDetail.BackendPostureSelection != nil {
+		selection := resp.ApprovalDetail.BackendPostureSelection
+		resolveReq.ResolutionDetails.BackendPostureSelection = &brokerapi.ApprovalResolveBackendPostureSelectionDetail{
+			SchemaID:          "runecode.protocol.v0.ApprovalResolveBackendPostureSelectionDetail",
+			SchemaVersion:     "0.1.0",
+			TargetInstanceID:  strings.TrimSpace(selection.TargetInstanceID),
+			TargetBackendKind: strings.TrimSpace(selection.TargetBackendKind),
+		}
+	}
+	return resolveReq, nil
 }
 
 func (m approvalsRouteModel) loadCmd(approvalID string, seq uint64) tea.Cmd {
@@ -329,12 +396,12 @@ func renderApprovalSafetyStrip(resp *brokerapi.ApprovalGetResponse) string {
 
 func renderApprovalFlowPath(resp *brokerapi.ApprovalGetResponse) string {
 	if resp == nil {
-		return "Flow path: run -> approval -> typed resolve (currently disabled pending typed origin metadata) -> run resumes (load an approval detail to inspect)"
+		return "Flow path: run -> approval -> typed resolve (shared exact-action path) -> run resumes (load an approval detail to inspect)"
 	}
 	s := resp.Approval
 	workspace := valueOrNA(s.BoundScope.WorkspaceID)
 	run := valueOrNA(s.BoundScope.RunID)
 	stage := valueOrNA(s.BoundScope.StageID)
 	action := valueOrNA(s.BoundScope.ActionKind)
-	return fmt.Sprintf("Flow path: workspace=%s run=%s stage=%s action=%s -> approval=%s -> typed approval_resolve currently disabled pending typed origin metadata -> resume signal", workspace, run, stage, action, s.ApprovalID)
+	return fmt.Sprintf("Flow path: workspace=%s run=%s stage=%s action=%s -> approval=%s -> typed approval_resolve -> resume signal", workspace, run, stage, action, s.ApprovalID)
 }

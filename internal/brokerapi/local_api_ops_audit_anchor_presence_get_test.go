@@ -74,3 +74,21 @@ func TestHandleAuditAnchorPresenceGetRejectsInvalidSealDigest(t *testing.T) {
 		t.Fatalf("error code = %q, want broker_validation_schema_invalid", errResp.Error.Code)
 	}
 }
+
+func TestHandleAuditAnchorPresenceGetReturnsTypedSignerUnavailableError(t *testing.T) {
+	service, _ := newAuditAnchorTestService(t)
+	service.secretsSvc = nil
+	sealDigest := mustLatestSealDigestForAnchorTest(t, service)
+	_, errResp := service.HandleAuditAnchorPresenceGet(context.Background(), AuditAnchorPresenceGetRequest{
+		SchemaID:      "runecode.protocol.v0.AuditAnchorPresenceGetRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-anchor-presence-no-signer",
+		SealDigest:    sealDigest,
+	}, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleAuditAnchorPresenceGet expected typed error response")
+	}
+	if errResp.Error.Code != auditAnchorErrorCodeSignerUnavailable {
+		t.Fatalf("error code = %q, want %q", errResp.Error.Code, auditAnchorErrorCodeSignerUnavailable)
+	}
+}

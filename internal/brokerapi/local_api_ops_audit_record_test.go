@@ -108,7 +108,7 @@ func TestAuditRecordGetSchemaShapePreventsPrivateLeak(t *testing.T) {
 
 func TestAuditRecordPostureFromLatestReportTreatsInfoAsOK(t *testing.T) {
 	service, digest := seededAuditRecordTestServiceAndDigest(t)
-	digestID := mustDigestIdentity(t, digest)
+	digestID := mustTestDigestIdentity(t, digest)
 	assertAuditRecordPosture(t, service, digestID, "ok", nil)
 	persistInfoOnlyReportForDigest(t, service, digest)
 	assertAuditRecordPosture(t, service, digestID, "ok", []string{trustpolicy.AuditVerificationReasonEventContractMissing})
@@ -116,11 +116,11 @@ func TestAuditRecordPostureFromLatestReportTreatsInfoAsOK(t *testing.T) {
 
 func TestAuditRecordPostureDefaultsToOKWhenReportHasNoFindingForRecord(t *testing.T) {
 	service, digest := seededAuditRecordTestServiceAndDigest(t)
-	digestID := mustDigestIdentity(t, digest)
+	digestID := mustTestDigestIdentity(t, digest)
 	assertAuditRecordPosture(t, service, digestID, "ok", nil)
 }
 
-func mustDigestIdentity(t *testing.T, digest trustpolicy.Digest) string {
+func mustTestDigestIdentity(t *testing.T, digest trustpolicy.Digest) string {
 	t.Helper()
 	digestID, err := digest.Identity()
 	if err != nil {

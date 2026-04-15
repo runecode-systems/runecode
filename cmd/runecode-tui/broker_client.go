@@ -46,9 +46,13 @@ type localBrokerClient interface {
 	ArtifactList(ctx context.Context, limit int, dataClass string) (brokerapi.LocalArtifactListResponse, error)
 	ArtifactHead(ctx context.Context, digest string) (brokerapi.LocalArtifactHeadResponse, error)
 	ArtifactRead(ctx context.Context, req brokerapi.ArtifactReadRequest) ([]brokerapi.ArtifactStreamEvent, error)
+	LLMInvoke(ctx context.Context, req brokerapi.LLMInvokeRequest) (brokerapi.LLMInvokeResponse, error)
+	LLMStream(ctx context.Context, req brokerapi.LLMStreamRequest) (brokerapi.LLMStreamEnvelope, error)
 	AuditTimeline(ctx context.Context, limit int, cursor string) (brokerapi.AuditTimelineResponse, error)
 	AuditVerificationGet(ctx context.Context, viewLimit int) (brokerapi.AuditVerificationGetResponse, error)
+	AuditFinalizeVerify(ctx context.Context) (brokerapi.AuditFinalizeVerifyResponse, error)
 	AuditRecordGet(ctx context.Context, digest string) (brokerapi.AuditRecordGetResponse, error)
+	AuditAnchorPreflightGet(ctx context.Context, req brokerapi.AuditAnchorPreflightGetRequest) (brokerapi.AuditAnchorPreflightGetResponse, error)
 	AuditAnchorPresenceGet(ctx context.Context, req brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, error)
 	AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error)
 	ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error)
@@ -176,6 +180,22 @@ func (c *rpcBrokerClient) ArtifactRead(ctx context.Context, req brokerapi.Artifa
 	return events, c.invoke(ctx, "artifact_read", req, &events)
 }
 
+func (c *rpcBrokerClient) LLMInvoke(ctx context.Context, req brokerapi.LLMInvokeRequest) (brokerapi.LLMInvokeResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.LLMInvokeRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("llm-invoke")
+	resp := brokerapi.LLMInvokeResponse{}
+	return resp, c.invoke(ctx, "llm_invoke", req, &resp)
+}
+
+func (c *rpcBrokerClient) LLMStream(ctx context.Context, req brokerapi.LLMStreamRequest) (brokerapi.LLMStreamEnvelope, error) {
+	req.SchemaID = "runecode.protocol.v0.LLMStreamRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("llm-stream")
+	resp := brokerapi.LLMStreamEnvelope{}
+	return resp, c.invoke(ctx, "llm_stream", req, &resp)
+}
+
 func (c *rpcBrokerClient) AuditTimeline(ctx context.Context, limit int, cursor string) (brokerapi.AuditTimelineResponse, error) {
 	req := brokerapi.AuditTimelineRequest{SchemaID: "runecode.protocol.v0.AuditTimelineRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("audit-timeline"), Limit: limit, Cursor: cursor}
 	resp := brokerapi.AuditTimelineResponse{}
@@ -188,10 +208,24 @@ func (c *rpcBrokerClient) AuditVerificationGet(ctx context.Context, viewLimit in
 	return resp, c.invoke(ctx, "audit_verification_get", req, &resp)
 }
 
+func (c *rpcBrokerClient) AuditFinalizeVerify(ctx context.Context) (brokerapi.AuditFinalizeVerifyResponse, error) {
+	req := brokerapi.AuditFinalizeVerifyRequest{SchemaID: "runecode.protocol.v0.AuditFinalizeVerifyRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("audit-finalize-verify")}
+	resp := brokerapi.AuditFinalizeVerifyResponse{}
+	return resp, c.invoke(ctx, "audit_finalize_verify", req, &resp)
+}
+
 func (c *rpcBrokerClient) AuditRecordGet(ctx context.Context, digest string) (brokerapi.AuditRecordGetResponse, error) {
 	req := brokerapi.AuditRecordGetRequest{SchemaID: "runecode.protocol.v0.AuditRecordGetRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("audit-record"), RecordDigest: parseDigestIdentity(digest)}
 	resp := brokerapi.AuditRecordGetResponse{}
 	return resp, c.invoke(ctx, "audit_record_get", req, &resp)
+}
+
+func (c *rpcBrokerClient) AuditAnchorPreflightGet(ctx context.Context, req brokerapi.AuditAnchorPreflightGetRequest) (brokerapi.AuditAnchorPreflightGetResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.AuditAnchorPreflightGetRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("audit-anchor-preflight")
+	resp := brokerapi.AuditAnchorPreflightGetResponse{}
+	return resp, c.invoke(ctx, "audit_anchor_preflight_get", req, &resp)
 }
 
 func (c *rpcBrokerClient) AuditAnchorPresenceGet(ctx context.Context, req brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, error) {

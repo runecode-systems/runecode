@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/LLMInvokeResponse.schema.json",
+  "title": "LLMInvokeResponse",
+  "description": "Typed broker-local model invoke response carrying canonical digest linkage and one LLMResponse object.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 7,
+  "required": ["schema_id", "schema_version", "request_id", "run_id", "request_digest", "response"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.LLMInvokeResponse", "description": "Stable protocol object-family identifier for broker-local LLM invoke response wrappers.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Exact protocol schema version used to validate this broker-local LLM invoke response wrapper.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Typed broker request correlation identifier.", "x-data-class": "public" },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Run identifier whose trusted policy context governed this model invocation.", "x-data-class": "public" },
+    "request_digest": { "$ref": "Digest.schema.json#/$defs/digestValue", "description": "Canonical digest for the LLMRequest object this response resolves.", "x-data-class": "public" },
+    "response": { "$ref": "LLMResponse.schema.json", "description": "Canonical typed LLMResponse object returned by broker-mediated model invocation.", "x-data-class": "sensitive" }
+  }
+}

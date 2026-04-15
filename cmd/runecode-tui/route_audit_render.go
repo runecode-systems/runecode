@@ -16,6 +16,34 @@ func renderAuditSummary(verify *brokerapi.AuditVerificationGetResponse) string {
 	return fmt.Sprintf("Verification posture: integrity=%s %s anchoring=%s (%s) storage=%s lifecycle=%s degraded=%t %s findings=%d", s.IntegrityStatus, postureBadge(s.IntegrityStatus), s.AnchoringStatus, anchorLabel, s.StoragePostureStatus, s.SegmentLifecycleStatus, s.CurrentlyDegraded, boolBadge("degraded", s.CurrentlyDegraded), s.FindingCount)
 }
 
+func renderAuditFinalizeSummary(finalize *brokerapi.AuditFinalizeVerifyResponse) string {
+	if finalize == nil {
+		return tableHeader("Finalize/verify") + " status=unavailable"
+	}
+	status := strings.TrimSpace(finalize.ActionStatus)
+	if status == "" {
+		status = "unknown"
+	}
+	report := "n/a"
+	if finalize.ReportDigest != nil {
+		if id, err := finalize.ReportDigest.Identity(); err == nil {
+			report = id
+		}
+	}
+	line := fmt.Sprintf("%s status=%s segment=%s report=%s", tableHeader("Finalize/verify"), status, valueOrNA(strings.TrimSpace(finalize.SegmentID)), report)
+	if status == "ok" {
+		return line
+	}
+	reason := strings.TrimSpace(finalize.FailureCode)
+	if reason == "" {
+		reason = strings.TrimSpace(finalize.FailureMessage)
+	}
+	if reason != "" {
+		line += " reason=" + reason
+	}
+	return line
+}
+
 func renderAuditPageSummary(cursor, next string, backDepth, count int) string {
 	page := "page=1"
 	if cursor != "" {
