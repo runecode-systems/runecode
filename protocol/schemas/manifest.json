@@ -118,7 +118,7 @@
     {
       "path": "objects/AuditReceipt.schema.json",
       "schema_id": "runecode.protocol.v0.AuditReceipt",
-      "schema_version": "0.4.0",
+      "schema_version": "0.5.0",
       "owner": "protocol",
       "status": "mvp"
     },
@@ -856,6 +856,20 @@
     {
       "path": "objects/AuditRecordGetResponse.schema.json",
       "schema_id": "runecode.protocol.v0.AuditRecordGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditAnchorSegmentRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditAnchorSegmentRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditAnchorSegmentResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditAnchorSegmentResponse",
       "schema_version": "0.1.0",
       "owner": "protocol",
       "status": "mvp"

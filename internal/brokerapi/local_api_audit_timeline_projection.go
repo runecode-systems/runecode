@@ -25,17 +25,8 @@ func projectAuditTimelineEntry(view trustpolicy.AuditOperationalView, postures m
 		return AuditTimelineViewEntry{}, false
 	}
 	entry := AuditTimelineViewEntry{RecordDigest: view.RecordDigest}
-	if view.Event != nil {
-		entry.EventType = strings.TrimSpace(view.Event.AuditEventType)
-		entry.Summary = fmt.Sprintf("Audit event %s recorded.", entry.EventType)
-		entry.LinkedReferences = append(entry.LinkedReferences, projectEventRefs(view.Event)...)
-	}
-	if view.Receipt != nil {
-		entry.Summary = fmt.Sprintf("Audit receipt (%s) recorded.", strings.TrimSpace(view.Receipt.AuditReceiptKind))
-		if subject, err := view.Receipt.SubjectDigest.Identity(); err == nil && subject != "" {
-			entry.LinkedReferences = append(entry.LinkedReferences, AuditRecordLinkedReference{ReferenceKind: "audit_record", ReferenceID: subject, Relation: "subject"})
-		}
-	}
+	projectTimelineEventSection(&entry, view.Event)
+	projectTimelineReceiptSection(&entry, view.Receipt)
 	if posture := timelineVerificationPosture(recordDigest, postures); posture != nil {
 		entry.VerificationPosture = posture
 		entry.LinkedReferences = append(entry.LinkedReferences, verificationReasonRefs(posture.ReasonCodes)...)
@@ -45,6 +36,43 @@ func projectAuditTimelineEntry(view trustpolicy.AuditOperationalView, postures m
 		entry.Summary = "Audit record projected for timeline."
 	}
 	return entry, true
+}
+
+func projectTimelineEventSection(entry *AuditTimelineViewEntry, event *trustpolicy.AuditEventOperationalPayload) {
+	if entry == nil || event == nil {
+		return
+	}
+	entry.EventType = strings.TrimSpace(event.AuditEventType)
+	entry.Summary = fmt.Sprintf("Audit event %s recorded.", entry.EventType)
+	entry.LinkedReferences = append(entry.LinkedReferences, projectEventRefs(event)...)
+}
+
+func projectTimelineReceiptSection(entry *AuditTimelineViewEntry, receipt *trustpolicy.AuditReceiptOperationalView) {
+	if entry == nil || receipt == nil {
+		return
+	}
+	entry.Summary = fmt.Sprintf("Audit receipt (%s) recorded.", strings.TrimSpace(receipt.AuditReceiptKind))
+	if subject, ok := digestIdentity(receipt.SubjectDigest); ok {
+		entry.LinkedReferences = append(entry.LinkedReferences, AuditRecordLinkedReference{ReferenceKind: "audit_record", ReferenceID: subject, Relation: "subject"})
+	}
+	if receipt.ApprovalDecision != nil {
+		if approvalID, ok := digestIdentity(*receipt.ApprovalDecision); ok {
+			entry.LinkedReferences = append(entry.LinkedReferences, AuditRecordLinkedReference{ReferenceKind: "approval", ReferenceID: approvalID, Relation: "approval_decision"})
+		}
+	}
+	if receipt.AnchorWitnessDigest != nil {
+		if witnessID, ok := digestIdentity(*receipt.AnchorWitnessDigest); ok {
+			entry.LinkedReferences = append(entry.LinkedReferences, AuditRecordLinkedReference{ReferenceKind: "artifact", ReferenceID: witnessID, Relation: "anchor_witness"})
+		}
+	}
+}
+
+func digestIdentity(d trustpolicy.Digest) (string, bool) {
+	identity, err := d.Identity()
+	if err != nil || identity == "" {
+		return "", false
+	}
+	return identity, true
 }
 
 func deriveRecordVerificationPosturesFromFindings(findings []trustpolicy.AuditVerificationFinding) map[string]AuditRecordVerificationPosture {

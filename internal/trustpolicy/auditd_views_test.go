@@ -188,6 +188,89 @@ func receiptPayloadFixture() map[string]any {
 	}
 }
 
+func anchorReceiptEnvelopeFixture(t *testing.T) SignedObjectEnvelope {
+	t.Helper()
+	payload := map[string]any{
+		"schema_id":                 AuditReceiptSchemaID,
+		"schema_version":            AuditReceiptSchemaVersion,
+		"subject_digest":            map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("a", 64)},
+		"audit_receipt_kind":        "anchor",
+		"subject_family":            "audit_segment_seal",
+		"recorded_at":               "2026-03-13T12:16:00Z",
+		"recorder":                  map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "auditd", "instance_id": "auditd-1"},
+		"receipt_payload_schema_id": "runecode.protocol.audit.receipt.anchor.v0",
+		"receipt_payload": map[string]any{
+			"anchor_kind":              "local_user_presence_signature",
+			"key_protection_posture":   "os_keystore",
+			"presence_mode":            "os_confirmation",
+			"approval_assurance_level": "session_authenticated",
+			"approval_decision_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("b", 64)},
+			"anchor_witness": map[string]any{
+				"witness_kind":   "local_user_presence_signature_v0",
+				"witness_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("c", 64)},
+			},
+		},
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal anchor receipt payload returned error: %v", err)
+	}
+	return SignedObjectEnvelope{
+		SchemaID:             EnvelopeSchemaID,
+		SchemaVersion:        EnvelopeSchemaVersion,
+		PayloadSchemaID:      AuditReceiptSchemaID,
+		PayloadSchemaVersion: AuditReceiptSchemaVersion,
+		Payload:              payloadBytes,
+		SignatureInput:       SignatureInputProfile,
+		Signature:            SignatureBlock{Alg: "ed25519", KeyID: KeyIDProfile, KeyIDValue: strings.Repeat("f", 64), Signature: "c2ln"},
+	}
+}
+
+func TestBuildDefaultOperationalAuditViewProjectsAnchorReceiptReferenceableFields(t *testing.T) {
+	envelope := anchorReceiptEnvelopeFixture(t)
+	view, err := BuildDefaultOperationalAuditView(envelope)
+	if err != nil {
+		t.Fatalf("BuildDefaultOperationalAuditView returned error: %v", err)
+	}
+	if view.Receipt == nil {
+		t.Fatal("expected receipt operational payload in view")
+	}
+	if view.Receipt.AnchorKind != "local_user_presence_signature" {
+		t.Fatalf("anchor_kind = %q, want local_user_presence_signature", view.Receipt.AnchorKind)
+	}
+	if view.Receipt.KeyProtectionPosture != "os_keystore" {
+		t.Fatalf("key_protection_posture = %q, want os_keystore", view.Receipt.KeyProtectionPosture)
+	}
+	if view.Receipt.PresenceMode != "os_confirmation" {
+		t.Fatalf("presence_mode = %q, want os_confirmation", view.Receipt.PresenceMode)
+	}
+	if view.Receipt.ApprovalAssurance != "session_authenticated" {
+		t.Fatalf("approval_assurance_level = %q, want session_authenticated", view.Receipt.ApprovalAssurance)
+	}
+	if view.Receipt.ApprovalDecision == nil || view.Receipt.AnchorWitnessDigest == nil {
+		t.Fatalf("expected approval_decision_digest and anchor_witness_digest in operational view: %+v", view.Receipt)
+	}
+}
+
+func TestBuildDefaultOperationalAuditViewFailsClosedOnAnchorWitnessDigestShape(t *testing.T) {
+	envelope := anchorReceiptEnvelopeFixture(t)
+	var payload map[string]any
+	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal anchor payload returned error: %v", err)
+	}
+	anchorPayload := payload["receipt_payload"].(map[string]any)
+	anchorWitness := anchorPayload["anchor_witness"].(map[string]any)
+	anchorWitness["witness_digest"] = map[string]any{"hash_alg": "sha512", "hash": strings.Repeat("a", 64)}
+	mutatedPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal mutated payload returned error: %v", err)
+	}
+	envelope.Payload = mutatedPayload
+	if _, err := BuildDefaultOperationalAuditView(envelope); err == nil {
+		t.Fatal("BuildDefaultOperationalAuditView expected failure for malformed anchor_witness.witness_digest")
+	}
+}
+
 func TestBuildDefaultOperationalAuditViewFailsClosedOnUnsupportedPayloadFamily(t *testing.T) {
 	envelope := SignedObjectEnvelope{
 		SchemaID:             EnvelopeSchemaID,

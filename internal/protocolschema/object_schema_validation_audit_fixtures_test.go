@@ -130,9 +130,9 @@ func invalidAuditEventContractCatalogGatewayRule() map[string]any {
 func validAuditReceipt() map[string]any {
 	return map[string]any{
 		"schema_id":          "runecode.protocol.v0.AuditReceipt",
-		"schema_version":     "0.4.0",
+		"schema_version":     "0.5.0",
 		"subject_digest":     testDigestValue("c"),
-		"audit_receipt_kind": "anchor",
+		"audit_receipt_kind": "reconciliation",
 		"subject_family":     "audit_segment_seal",
 		"recorder":           manifestPrincipal(),
 		"recorded_at":        "2026-03-13T12:16:00Z",
@@ -141,9 +141,22 @@ func validAuditReceipt() map[string]any {
 
 func validAuditReceiptWithPayload() map[string]any {
 	receipt := validAuditReceipt()
+	receipt["audit_receipt_kind"] = "anchor"
 	receipt["receipt_payload_schema_id"] = "runecode.protocol.audit.receipt.anchor.v0"
-	receipt["receipt_payload"] = map[string]any{"anchor_kind": "local"}
+	receipt["receipt_payload"] = validAnchorReceiptPayload()
 	return receipt
+}
+
+func validAnchorReceiptPayload() map[string]any {
+	return map[string]any{
+		"anchor_kind":            "local_user_presence_signature",
+		"key_protection_posture": "os_keystore",
+		"presence_mode":          "os_confirmation",
+		"anchor_witness": map[string]any{
+			"witness_kind":   "local_user_presence_signature_v0",
+			"witness_digest": testDigestValue("d"),
+		},
+	}
 }
 
 func invalidAuditReceiptWithoutPayloadSchema() map[string]any {
@@ -155,6 +168,36 @@ func invalidAuditReceiptWithoutPayloadSchema() map[string]any {
 func invalidAuditReceiptWithBadKind() map[string]any {
 	receipt := validAuditReceipt()
 	receipt["audit_receipt_kind"] = "Write-Ack"
+	return receipt
+}
+
+func invalidAnchorAuditReceiptWithWrongPayloadSchema() map[string]any {
+	receipt := validAuditReceiptWithPayload()
+	receipt["receipt_payload_schema_id"] = "runecode.protocol.audit.receipt.import_restore_provenance.v0"
+	return receipt
+}
+
+func invalidAnchorAuditReceiptWithoutWitness() map[string]any {
+	receipt := validAuditReceiptWithPayload()
+	payload := receipt["receipt_payload"].(map[string]any)
+	delete(payload, "anchor_witness")
+	return receipt
+}
+
+func validAnchorAuditReceiptWithFutureAnchorKind() map[string]any {
+	receipt := validAuditReceiptWithPayload()
+	payload := receipt["receipt_payload"].(map[string]any)
+	payload["anchor_kind"] = "external_transparency_log_v0"
+	witness := payload["anchor_witness"].(map[string]any)
+	witness["witness_kind"] = "external_transparency_log_entry_v0"
+	return receipt
+}
+
+func invalidAnchorAuditReceiptLocalKindWithMismatchedWitnessKind() map[string]any {
+	receipt := validAuditReceiptWithPayload()
+	payload := receipt["receipt_payload"].(map[string]any)
+	witness := payload["anchor_witness"].(map[string]any)
+	witness["witness_kind"] = "external_transparency_log_entry_v0"
 	return receipt
 }
 

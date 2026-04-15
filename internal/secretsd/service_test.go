@@ -1,11 +1,17 @@
 package secretsd
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func TestLeaseLifecycleAndBinding(t *testing.T) {
@@ -163,5 +169,60 @@ func TestReplaceFileFallbackPromotesSourceAndRemovesBackup(t *testing.T) {
 	}
 	if _, statErr := os.Stat(dst + ".bak"); !os.IsNotExist(statErr) {
 		t.Fatalf("backup presence err = %v, want not exist", statErr)
+	}
+}
+
+func TestSignAuditAnchorRejectsUnsupportedScopeFailClosed(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	req := testAuditAnchorSignRequest(t)
+	req.LogicalScope = "user"
+	if _, err := svc.SignAuditAnchor(req); err == nil {
+		t.Fatal("SignAuditAnchor expected fail-closed scope validation error")
+	}
+}
+
+func TestSignAuditAnchorRejectsPassphraseWithoutExplicitSupport(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	t.Setenv(envAuditAnchorPresenceMode, "passphrase")
+	req := testAuditAnchorSignRequest(t)
+	if _, err := svc.SignAuditAnchor(req); err == nil {
+		t.Fatal("SignAuditAnchor expected passphrase opt-in enforcement")
+	}
+}
+
+func TestSignAuditAnchorRejectsInconsistentPassphrasePosture(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	t.Setenv(envAuditAnchorAllowPassphrase, "true")
+	t.Setenv(envAuditAnchorPresenceMode, "passphrase")
+	t.Setenv(envAuditAnchorKeyPosture, "os_keystore")
+	req := testAuditAnchorSignRequest(t)
+	if _, err := svc.SignAuditAnchor(req); err == nil {
+		t.Fatal("SignAuditAnchor expected fail-closed inconsistent passphrase posture error")
+	}
+}
+
+func testAuditAnchorSignRequest(t *testing.T) AuditAnchorSignRequest {
+	t.Helper()
+	pub, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey returned error: %v", err)
+	}
+	sum := sha256.Sum256(pub)
+	return AuditAnchorSignRequest{
+		PayloadCanonicalBytes: []byte("anchor-payload"),
+		TargetSealDigest: trustpolicy.Digest{
+			HashAlg: "sha256",
+			Hash:    hex.EncodeToString(sum[:]),
+		},
+		LogicalScope: "node",
 	}
 }

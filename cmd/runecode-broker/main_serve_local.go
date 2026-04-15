@@ -271,6 +271,11 @@ func auditHealthRPCOperations(service *brokerapi.Service, ctx context.Context, m
 				return service.HandleAuditRecordGet(ctx, req, meta)
 			})
 		}},
+		"audit_anchor_segment": {requestSchemaPath: "objects/AuditAnchorSegmentRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.AuditAnchorSegmentRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleAuditAnchorSegment(ctx, req, meta)
+			})
+		}},
 		"readiness_get": {requestSchemaPath: "objects/ReadinessGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.ReadinessGetRequest) (any, *brokerapi.ErrorResponse) {
 				return service.HandleReadinessGet(ctx, req, meta)

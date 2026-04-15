@@ -227,6 +227,7 @@ func assertAuditVerificationReasonRegistryCodes(t *testing.T) {
 		"receipt_invalid",
 		"anchor_receipt_missing",
 		"anchor_receipt_invalid",
+		"anchor_passphrase_presence_degraded",
 		"segment_lifecycle_inconsistent",
 		"storage_posture_degraded",
 		"storage_posture_invalid",

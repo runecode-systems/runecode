@@ -109,7 +109,7 @@ func TestCLIAdoptionRoutesArtifactAuditAndResolveThroughLocalRPC(t *testing.T) {
 	installArtifactAuditResolveDispatchStub(t, &requestedOps)
 	runArtifactAuditResolveCommands(t, stdout, stderr)
 
-	want := []string{"artifact_list", "artifact_head", "artifact_read", "approval_get", "approval_resolve", "readiness_get", "audit_verification_get", "audit_record_get"}
+	want := []string{"artifact_list", "artifact_head", "artifact_read", "approval_get", "approval_resolve", "readiness_get", "audit_verification_get", "audit_record_get", "audit_anchor_segment"}
 	assertRequestedOps(t, requestedOps, want)
 }
 
@@ -139,6 +139,14 @@ func installArtifactAuditResolveDispatchStub(t *testing.T, requestedOps *[]strin
 			return mustOKLocalRPCResponse(t, brokerapi.AuditVerificationGetResponse{SchemaID: "runecode.protocol.v0.AuditVerificationGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit"})
 		case "audit_record_get":
 			return mustOKLocalRPCResponse(t, brokerapi.AuditRecordGetResponse{SchemaID: "runecode.protocol.v0.AuditRecordGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-record", Record: brokerapi.AuditRecordDetail{SchemaID: "runecode.protocol.v0.AuditRecordDetail", SchemaVersion: "0.1.0", RecordDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}, RecordFamily: "audit_event", OccurredAt: "2026-01-01T00:00:00Z", EventType: "isolate_session_bound", Summary: "Audit event isolate_session_bound recorded.", LinkedReferences: []brokerapi.AuditRecordLinkedReference{}}})
+		case "audit_anchor_segment":
+			request := brokerapi.AuditAnchorSegmentRequest{}
+			if err := json.Unmarshal(wire.Request, &request); err != nil {
+				t.Fatalf("Unmarshal audit_anchor_segment request error: %v", err)
+			}
+			receipt := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("c", 64)}
+			report := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("d", 64)}
+			return mustOKLocalRPCResponse(t, brokerapi.AuditAnchorSegmentResponse{SchemaID: "runecode.protocol.v0.AuditAnchorSegmentResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-anchor", SealDigest: request.SealDigest, ReceiptDigest: &receipt, VerificationReportDigest: &report, AnchoringStatus: "ok"})
 		default:
 			return localRPCResponse{OK: false}
 		}
@@ -179,6 +187,9 @@ func runArtifactAuditResolveCommands(t *testing.T, stdout *bytes.Buffer, stderr 
 	}
 	if err := run([]string{"audit-record-get", "--record-digest", testDigest("a")}, stdout, stderr); err != nil {
 		t.Fatalf("audit-record-get returned error: %v", err)
+	}
+	if err := run([]string{"audit-anchor-segment", "--seal-digest", testDigest("a")}, stdout, stderr); err != nil {
+		t.Fatalf("audit-anchor-segment returned error: %v", err)
 	}
 }
 

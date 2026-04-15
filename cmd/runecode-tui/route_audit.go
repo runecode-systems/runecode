@@ -362,7 +362,7 @@ func renderAuditSafetyAlertStrip(verify *brokerapi.AuditVerificationGetResponse)
 	}
 	s := verify.Summary
 	parts := []string{tableHeader("Audit safety strip")}
-	if strings.EqualFold(strings.TrimSpace(s.AnchoringStatus), "degraded") || strings.EqualFold(strings.TrimSpace(s.AnchoringStatus), "unanchored") || s.CurrentlyDegraded {
+	if strings.EqualFold(strings.TrimSpace(s.AnchoringStatus), "degraded") || s.CurrentlyDegraded {
 		parts = append(parts, auditDegradedBadge("UNANCHORED_OR_DEGRADED_AUDIT"))
 	}
 	if strings.EqualFold(strings.TrimSpace(s.AnchoringStatus), "failed") || strings.EqualFold(strings.TrimSpace(s.IntegrityStatus), "failed") || strings.EqualFold(strings.TrimSpace(s.IntegrityStatus), "invalid") {

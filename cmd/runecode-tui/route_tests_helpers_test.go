@@ -148,6 +148,11 @@ func (r *recordingBrokerClient) AuditRecordGet(ctx context.Context, digest strin
 	return r.base.AuditRecordGet(ctx, digest)
 }
 
+func (r *recordingBrokerClient) AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error) {
+	r.record("AuditAnchorSegment")
+	return r.base.AuditAnchorSegment(ctx, req)
+}
+
 func (r *recordingBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error) {
 	r.record("ReadinessGet")
 	return r.base.ReadinessGet(ctx)
@@ -402,6 +407,10 @@ func (f *reloadAwareBrokerClient) AuditRecordGet(ctx context.Context, digest str
 	return (&fakeBrokerClient{}).AuditRecordGet(ctx, digest)
 }
 
+func (f *reloadAwareBrokerClient) AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error) {
+	return (&fakeBrokerClient{}).AuditAnchorSegment(ctx, req)
+}
+
 func (f *reloadAwareBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error) {
 	return (&fakeBrokerClient{}).ReadinessGet(ctx)
 }
@@ -494,6 +503,24 @@ func (f *fakeBrokerClient) AuditRecordGet(ctx context.Context, digest string) (b
 		return brokerapi.AuditRecordGetResponse{}, fmt.Errorf("digest required")
 	}
 	return brokerapi.AuditRecordGetResponse{Record: brokerapi.AuditRecordDetail{RecordFamily: "audit_event", EventType: "run_state", OccurredAt: "2026-01-01T00:00:00Z", LinkedReferences: []brokerapi.AuditRecordLinkedReference{{ReferenceKind: "run", ReferenceID: "run-1"}}, VerificationPosture: &brokerapi.AuditRecordVerificationPosture{Status: "degraded", ReasonCodes: []string{"anchor_delayed"}}}}, nil
+}
+
+func (f *fakeBrokerClient) AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error) {
+	_ = ctx
+	if _, err := req.SealDigest.Identity(); err != nil {
+		return brokerapi.AuditAnchorSegmentResponse{}, fmt.Errorf("invalid seal digest")
+	}
+	receipt := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("c", 64)}
+	report := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("d", 64)}
+	return brokerapi.AuditAnchorSegmentResponse{
+		SchemaID:                 "runecode.protocol.v0.AuditAnchorSegmentResponse",
+		SchemaVersion:            "0.1.0",
+		RequestID:                "req-anchor",
+		SealDigest:               req.SealDigest,
+		ReceiptDigest:            &receipt,
+		VerificationReportDigest: &report,
+		AnchoringStatus:          "ok",
+	}, nil
 }
 
 func (f *fakeBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error) {

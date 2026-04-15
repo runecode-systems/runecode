@@ -46,6 +46,7 @@ const (
 	AuditVerificationReasonReceiptInvalid                      = "receipt_invalid"
 	AuditVerificationReasonAnchorReceiptMissing                = "anchor_receipt_missing"
 	AuditVerificationReasonAnchorReceiptInvalid                = "anchor_receipt_invalid"
+	AuditVerificationReasonAnchorPassphrasePresenceDegraded    = "anchor_passphrase_presence_degraded"
 	AuditVerificationReasonSegmentLifecycleInconsistent        = "segment_lifecycle_inconsistent"
 	AuditVerificationReasonStoragePostureDegraded              = "storage_posture_degraded"
 	AuditVerificationReasonStoragePostureInvalid               = "storage_posture_invalid"
@@ -74,6 +75,7 @@ var (
 		AuditVerificationReasonReceiptInvalid:                      {},
 		AuditVerificationReasonAnchorReceiptMissing:                {},
 		AuditVerificationReasonAnchorReceiptInvalid:                {},
+		AuditVerificationReasonAnchorPassphrasePresenceDegraded:    {},
 		AuditVerificationReasonSegmentLifecycleInconsistent:        {},
 		AuditVerificationReasonStoragePostureDegraded:              {},
 		AuditVerificationReasonStoragePostureInvalid:               {},
@@ -150,6 +152,7 @@ type AuditVerificationInput struct {
 	RawFramedSegmentBytes    []byte
 	SegmentSealEnvelope      SignedObjectEnvelope
 	PreviousSealEnvelopeHash *Digest
+	KnownSealDigests         []Digest
 	ReceiptEnvelopes         []SignedObjectEnvelope
 	VerifierRecords          []VerifierRecord
 	EventContractCatalog     AuditEventContractCatalog

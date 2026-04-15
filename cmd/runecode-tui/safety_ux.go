@@ -66,7 +66,7 @@ func renderAuditPostureCue(integrity, anchoring string, degraded bool) string {
 	if nAnchoring == "failed" || nIntegrity == "failed" || nIntegrity == "invalid" {
 		return fmt.Sprintf("audit posture=%s/%s (invalid/failed anchoring) %s", valueOrNA(integrity), valueOrNA(anchoring), dangerBadge("AUDIT_FAILED"))
 	}
-	if degraded || nAnchoring == "degraded" || nAnchoring == "unanchored" {
+	if degraded || nAnchoring == "degraded" {
 		return fmt.Sprintf("audit posture=%s/%s (unanchored/degraded) %s", valueOrNA(integrity), valueOrNA(anchoring), auditDegradedBadge("AUDIT_UNANCHORED_OR_DEGRADED"))
 	}
 	return fmt.Sprintf("audit posture=%s/%s %s", valueOrNA(integrity), valueOrNA(anchoring), successBadge("AUDIT_ANCHORED"))

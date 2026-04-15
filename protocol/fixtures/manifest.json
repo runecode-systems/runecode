@@ -325,6 +325,18 @@
       "expect_valid": true
     },
     {
+      "id": "audit-receipt.anchor.valid",
+      "schema_path": "objects/AuditReceipt.schema.json",
+      "fixture_path": "schema/audit-receipt.anchor.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-receipt.anchor.invalid-missing-witness",
+      "schema_path": "objects/AuditReceipt.schema.json",
+      "fixture_path": "schema/audit-receipt.anchor.invalid-missing-witness.json",
+      "expect_valid": false
+    },
+    {
       "id": "audit-receipt.import.valid",
       "schema_path": "objects/AuditReceipt.schema.json",
       "fixture_path": "schema/audit-receipt.import.valid.json",
@@ -461,6 +473,18 @@
       "schema_path": "objects/AuditRecordGetResponse.schema.json",
       "fixture_path": "schema/audit-record-get-response.invalid-daemon-private-storage-access.json",
       "expect_valid": false
+    },
+    {
+      "id": "audit-anchor-segment-request.valid-basic",
+      "schema_path": "objects/AuditAnchorSegmentRequest.schema.json",
+      "fixture_path": "schema/audit-anchor-segment-request.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-anchor-segment-response.valid-ok",
+      "schema_path": "objects/AuditAnchorSegmentResponse.schema.json",
+      "fixture_path": "schema/audit-anchor-segment-response.valid-ok.json",
+      "expect_valid": true
     },
     {
       "id": "audit-record-detail.invalid-approval-link-format",

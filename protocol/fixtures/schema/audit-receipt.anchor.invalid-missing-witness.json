@@ -1,0 +1,24 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditReceipt",
+  "schema_version": "0.5.0",
+  "subject_digest": {
+    "hash_alg": "sha256",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "audit_receipt_kind": "anchor",
+  "subject_family": "audit_segment_seal",
+  "recorder": {
+    "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+    "schema_version": "0.2.0",
+    "actor_kind": "daemon",
+    "principal_id": "auditd",
+    "instance_id": "auditd-1"
+  },
+  "recorded_at": "2026-03-13T12:25:00Z",
+  "receipt_payload_schema_id": "runecode.protocol.audit.receipt.anchor.v0",
+  "receipt_payload": {
+    "anchor_kind": "local_user_presence_signature",
+    "key_protection_posture": "os_keystore",
+    "presence_mode": "os_confirmation"
+  }
+}

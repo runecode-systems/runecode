@@ -80,6 +80,7 @@ func commandHandlers() map[string]commandHandler {
 		"audit-readiness":          handleAuditReadiness,
 		"audit-verification":       handleAuditVerification,
 		"audit-record-get":         handleAuditRecordGet,
+		"audit-anchor-segment":     handleAuditAnchorSegment,
 		"version-info":             handleVersionInfo,
 		"stream-logs":              handleStreamLogs,
 	}
@@ -135,6 +136,7 @@ Commands:
   audit-readiness
   audit-verification [--limit N]
   audit-record-get --record-digest sha256:...
+  audit-anchor-segment --seal-digest sha256:... [--export-receipt-copy]
   version-info
   stream-logs [--stream-id id] [--run-id id] [--role-instance-id id] [--start-cursor cursor] [--follow] [--include-backlog]`)
 	return err

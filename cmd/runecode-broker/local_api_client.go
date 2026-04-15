@@ -30,6 +30,7 @@ type brokerLocalAPI interface {
 	VersionInfoGet(context.Context, brokerapi.VersionInfoGetRequest) (brokerapi.VersionInfoGetResponse, *brokerapi.ErrorResponse)
 	AuditVerificationGet(context.Context, brokerapi.AuditVerificationGetRequest) (brokerapi.AuditVerificationGetResponse, *brokerapi.ErrorResponse)
 	AuditRecordGet(context.Context, brokerapi.AuditRecordGetRequest) (brokerapi.AuditRecordGetResponse, *brokerapi.ErrorResponse)
+	AuditAnchorSegment(context.Context, brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, *brokerapi.ErrorResponse)
 }
 
 type localRPCInvokeFunc func(ctx context.Context, operation string, request any, out any) *brokerapi.ErrorResponse
@@ -184,4 +185,9 @@ func (c *localAPIClient) AuditVerificationGet(ctx context.Context, req brokerapi
 func (c *localAPIClient) AuditRecordGet(ctx context.Context, req brokerapi.AuditRecordGetRequest) (brokerapi.AuditRecordGetResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.AuditRecordGetResponse{}
 	return resp, c.invoke(ctx, "audit_record_get", req, &resp)
+}
+
+func (c *localAPIClient) AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.AuditAnchorSegmentResponse{}
+	return resp, c.invoke(ctx, "audit_anchor_segment", req, &resp)
 }

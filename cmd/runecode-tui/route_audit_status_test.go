@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func TestAuditRouteShowsPagedTimelineAndVerificationReasonCodes(t *testing.T) {
@@ -48,6 +50,26 @@ func TestAuditRouteShowsPagedTimelineAndVerificationReasonCodes(t *testing.T) {
 	view = updated.View(120, 40, focusContent)
 	if !strings.Contains(view, "Verification posture: degraded (unanchored/degraded)") {
 		t.Fatalf("expected record inspector posture rendering, got %q", view)
+	}
+}
+
+func TestRenderAuditSafetyAlertStripUsesVerifierAnchoringStatusOnly(t *testing.T) {
+	strip := renderAuditSafetyAlertStrip(&brokerapi.AuditVerificationGetResponse{Summary: trustpolicy.DerivedRunAuditVerificationSummary{
+		AnchoringStatus:   "ok",
+		IntegrityStatus:   "ok",
+		CurrentlyDegraded: true,
+	}})
+	if !strings.Contains(strip, "UNANCHORED_OR_DEGRADED_AUDIT") {
+		t.Fatalf("expected degraded badge when currently_degraded=true, got %q", strip)
+	}
+
+	strip = renderAuditSafetyAlertStrip(&brokerapi.AuditVerificationGetResponse{Summary: trustpolicy.DerivedRunAuditVerificationSummary{
+		AnchoringStatus:   "unanchored",
+		IntegrityStatus:   "ok",
+		CurrentlyDegraded: false,
+	}})
+	if strings.Contains(strip, "UNANCHORED_OR_DEGRADED_AUDIT") {
+		t.Fatalf("unexpected degraded badge for legacy non-schema anchoring status, got %q", strip)
 	}
 }
 

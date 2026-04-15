@@ -3,14 +3,11 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"io"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func commandRequestContext(parent context.Context) (context.Context, context.CancelFunc) {
@@ -368,42 +365,6 @@ func handleStreamLogs(args []string, service *brokerapi.Service, stdout io.Write
 		return localAPIError(errResp)
 	}
 	return writeJSON(stdout, events)
-}
-
-func handleAuditRecordGet(args []string, service *brokerapi.Service, stdout io.Writer) error {
-	fs := flag.NewFlagSet("audit-record-get", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	recordDigest := fs.String("record-digest", "", "audit record digest")
-	if err := fs.Parse(args); err != nil {
-		return &usageError{message: "audit-record-get usage: runecode-broker audit-record-get --record-digest sha256:..."}
-	}
-	if strings.TrimSpace(*recordDigest) == "" {
-		return &usageError{message: "audit-record-get requires --record-digest"}
-	}
-	parts := strings.SplitN(strings.TrimSpace(*recordDigest), ":", 2)
-	if len(parts) != 2 {
-		return &usageError{message: "audit-record-get --record-digest must use sha256:<64 lowercase hex>"}
-	}
-	if parts[0] != "sha256" {
-		return &usageError{message: "audit-record-get --record-digest must use sha256:<64 lowercase hex>"}
-	}
-	digest := trustpolicy.Digest{HashAlg: parts[0], Hash: parts[1]}
-	if _, err := digest.Identity(); err != nil {
-		return &usageError{message: fmt.Sprintf("audit-record-get --record-digest invalid: %v", err)}
-	}
-	api := localAPIForService(service)
-	ctx, cancel := commandRequestContext(context.Background())
-	defer cancel()
-	resp, errResp := api.AuditRecordGet(ctx, brokerapi.AuditRecordGetRequest{
-		SchemaID:      "runecode.protocol.v0.AuditRecordGetRequest",
-		SchemaVersion: "0.1.0",
-		RequestID:     defaultRequestID(),
-		RecordDigest:  digest,
-	})
-	if errResp != nil {
-		return localAPIError(errResp)
-	}
-	return writeJSON(stdout, resp.Record)
 }
 
 func validSessionMessageRole(role string) bool {

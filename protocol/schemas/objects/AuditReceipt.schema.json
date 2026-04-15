@@ -5,7 +5,7 @@
   "description": "Protocol-owned unsigned audit receipt payload family for signed sidecar attestations over signed audit objects, including import/restore provenance evidence without segment-byte rewrites.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 10,
+  "maxProperties": 11,
   "$defs": {
     "importedSegmentLink": {
       "description": "One imported or restored historical segment linkage proving sealed-byte identity and binding local provenance to prior sealed evidence.",
@@ -156,6 +156,137 @@
           "x-data-class": "public"
         }
       }
+    },
+    "anchorWitness": {
+      "description": "Typed witness payload for anchor acts. MVP verification currently admits local user-presence witness kinds while preserving additive witness-kind extension in this shared anchor receipt family.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 2,
+      "required": [
+        "witness_kind",
+        "witness_digest"
+      ],
+      "properties": {
+        "witness_kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Typed witness discriminator for anchor evidence payloads.",
+          "x-data-class": "public"
+        },
+        "witness_digest": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Digest reference to sidecar evidence proving the local anchor act.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "anchorReceiptPayload": {
+      "description": "Typed anchor payload binding minimal non-duplicative posture and witness references for anchor receipts. `anchor_kind` remains additive in this shared family while MVP verifier policy still admits local-only kinds.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 6,
+      "required": [
+        "anchor_kind",
+        "key_protection_posture",
+        "presence_mode",
+        "anchor_witness"
+      ],
+      "properties": {
+        "anchor_kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Machine-consumed anchor target kind for this receipt payload. MVP baseline is `local_user_presence_signature`; later kinds are additive follow-on work.",
+          "x-data-class": "public"
+        },
+        "key_protection_posture": {
+          "type": "string",
+          "enum": [
+            "hardware_backed",
+            "os_keystore",
+            "passphrase_wrapped",
+            "ephemeral_memory"
+          ],
+          "description": "Signer key-protection posture recorded for the anchor act.",
+          "x-data-class": "public"
+        },
+        "presence_mode": {
+          "type": "string",
+          "enum": [
+            "os_confirmation",
+            "passphrase",
+            "hardware_touch"
+          ],
+          "description": "Presence mode used for the anchor act.",
+          "x-data-class": "public"
+        },
+        "approval_assurance_level": {
+          "type": "string",
+          "enum": [
+            "none",
+            "session_authenticated",
+            "reauthenticated",
+            "hardware_backed"
+          ],
+          "description": "Optional assurance level from linked approval context when policy required approval.",
+          "x-data-class": "public"
+        },
+        "approval_decision_digest": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Optional digest identity of the signed ApprovalDecision consumed before anchoring.",
+          "x-data-class": "public"
+        },
+        "anchor_witness": {
+          "$ref": "#/$defs/anchorWitness",
+          "description": "Typed witness payload proving the anchor act itself.",
+          "x-data-class": "public"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "anchor_kind": {
+                "const": "local_user_presence_signature"
+              }
+            },
+            "required": [
+              "anchor_kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "anchor_witness": {
+                "properties": {
+                  "witness_kind": {
+                    "const": "local_user_presence_signature_v0"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "approval_assurance_level": {
+                "const": "hardware_backed"
+              }
+            },
+            "required": [
+              "approval_assurance_level"
+            ]
+          },
+          "then": {
+            "required": [
+              "approval_decision_digest"
+            ]
+          }
+        }
+      ]
     }
   },
   "allOf": [
@@ -181,6 +312,32 @@
         "required": [
           "receipt_payload"
         ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "audit_receipt_kind"
+        ],
+        "properties": {
+          "audit_receipt_kind": {
+            "const": "anchor"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "receipt_payload_schema_id",
+          "receipt_payload"
+        ],
+        "properties": {
+          "receipt_payload_schema_id": {
+            "const": "runecode.protocol.audit.receipt.anchor.v0"
+          },
+          "receipt_payload": {
+            "$ref": "#/$defs/anchorReceiptPayload"
+          }
+        }
       }
     },
     {
@@ -274,7 +431,7 @@
       "x-data-class": "public"
     },
     "schema_version": {
-      "const": "0.4.0",
+      "const": "0.5.0",
       "description": "Exact protocol schema version used to validate this audit receipt.",
       "x-data-class": "public"
     },

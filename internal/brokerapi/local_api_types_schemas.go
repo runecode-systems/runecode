@@ -39,6 +39,8 @@ const (
 	auditRecordDetailSchemaPath            = "objects/AuditRecordDetail.schema.json"
 	auditRecordGetRequestSchemaPath        = "objects/AuditRecordGetRequest.schema.json"
 	auditRecordGetResponseSchemaPath       = "objects/AuditRecordGetResponse.schema.json"
+	auditAnchorSegmentRequestSchemaPath    = "objects/AuditAnchorSegmentRequest.schema.json"
+	auditAnchorSegmentResponseSchemaPath   = "objects/AuditAnchorSegmentResponse.schema.json"
 	sessionIdentitySchemaPath              = "objects/SessionIdentity.schema.json"
 	sessionSummarySchemaPath               = "objects/SessionSummary.schema.json"
 	sessionDetailSchemaPath                = "objects/SessionDetail.schema.json"

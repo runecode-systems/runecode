@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "secrets": {},
+  "leases": {},
+  "metrics": {
+    "lease_issue_count": 0,
+    "lease_renew_count": 0,
+    "lease_revoke_count": 0,
+    "lease_deny_count": 0
+  }
+}

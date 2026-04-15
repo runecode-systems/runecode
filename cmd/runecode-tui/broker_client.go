@@ -49,6 +49,7 @@ type localBrokerClient interface {
 	AuditTimeline(ctx context.Context, limit int, cursor string) (brokerapi.AuditTimelineResponse, error)
 	AuditVerificationGet(ctx context.Context, viewLimit int) (brokerapi.AuditVerificationGetResponse, error)
 	AuditRecordGet(ctx context.Context, digest string) (brokerapi.AuditRecordGetResponse, error)
+	AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error)
 	ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error)
 	VersionInfoGet(ctx context.Context) (brokerapi.VersionInfoGetResponse, error)
 }
@@ -190,6 +191,14 @@ func (c *rpcBrokerClient) AuditRecordGet(ctx context.Context, digest string) (br
 	req := brokerapi.AuditRecordGetRequest{SchemaID: "runecode.protocol.v0.AuditRecordGetRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("audit-record"), RecordDigest: parseDigestIdentity(digest)}
 	resp := brokerapi.AuditRecordGetResponse{}
 	return resp, c.invoke(ctx, "audit_record_get", req, &resp)
+}
+
+func (c *rpcBrokerClient) AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.AuditAnchorSegmentRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("audit-anchor")
+	resp := brokerapi.AuditAnchorSegmentResponse{}
+	return resp, c.invoke(ctx, "audit_anchor_segment", req, &resp)
 }
 
 func (c *rpcBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error) {
