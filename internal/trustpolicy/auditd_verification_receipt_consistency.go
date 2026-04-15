@@ -1,15 +1,8 @@
 package trustpolicy
 
 import (
-	"encoding/json"
 	"fmt"
 )
-
-var allowedAnchorPresenceModes = map[string]struct{}{
-	"os_confirmation": {},
-	"passphrase":      {},
-	"hardware_touch":  {},
-}
 
 const (
 	mvpAnchorKindLocalUserPresence      = "local_user_presence_signature"
@@ -30,7 +23,7 @@ func validateImportRestoreReceiptPayload(receipt auditReceiptPayloadStrict) erro
 		return fmt.Errorf("%s receipts require import/restore provenance payload schema", receipt.AuditReceiptKind)
 	}
 	payload := importRestoreReceiptPayload{}
-	if err := json.Unmarshal(receipt.ReceiptPayload, &payload); err != nil {
+	if err := unmarshalJSONStrict(receipt.ReceiptPayload, &payload); err != nil {
 		return fmt.Errorf("decode import/restore payload: %w", err)
 	}
 	if err := validateImportRestoreReceiptPayloadHeader(receipt, payload); err != nil {
@@ -120,7 +113,7 @@ func decodeAnchorReceiptPayload(receipt auditReceiptPayloadStrict) (anchorReceip
 		return anchorReceiptPayload{}, fmt.Errorf("anchor receipts require anchor payload schema")
 	}
 	payload := anchorReceiptPayload{}
-	if err := json.Unmarshal(receipt.ReceiptPayload, &payload); err != nil {
+	if err := unmarshalJSONStrict(receipt.ReceiptPayload, &payload); err != nil {
 		return anchorReceiptPayload{}, fmt.Errorf("decode anchor payload: %w", err)
 	}
 	return payload, nil
@@ -135,27 +128,53 @@ func validateAnchorPayloadCore(payload anchorReceiptPayload) error {
 	if _, ok := allowedKeyProtectionPostures[payload.KeyProtectionPosture]; !ok {
 		return fmt.Errorf("unsupported key_protection_posture %q", payload.KeyProtectionPosture)
 	}
-	if _, ok := allowedAnchorPresenceModes[payload.PresenceMode]; !ok {
+	if _, ok := allowedPresenceModes[payload.PresenceMode]; !ok {
+		return fmt.Errorf("unsupported presence_mode %q", payload.PresenceMode)
+	}
+	if payload.PresenceMode == "none" {
 		return fmt.Errorf("unsupported presence_mode %q", payload.PresenceMode)
 	}
 	return nil
 }
 
 func validateAnchorPayloadApprovalFields(payload anchorReceiptPayload) error {
-	if payload.ApprovalAssurance != "" {
-		if _, ok := allowedAssuranceLevels[payload.ApprovalAssurance]; !ok {
-			return fmt.Errorf("unsupported approval_assurance_level %q", payload.ApprovalAssurance)
-		}
+	if err := validateAnchorPayloadApprovalAssurance(payload.ApprovalAssurance); err != nil {
+		return err
 	}
-	if payload.ApprovalDecision != nil {
-		if _, err := payload.ApprovalDecision.Identity(); err != nil {
-			return fmt.Errorf("approval_decision_digest: %w", err)
-		}
+	if err := validateAnchorPayloadApprovalDecision(payload.ApprovalDecision); err != nil {
+		return err
 	}
-	if payload.ApprovalAssurance == "hardware_backed" && payload.ApprovalDecision == nil {
+	return validateAnchorPayloadApprovalCoupling(payload.ApprovalAssurance, payload.ApprovalDecision != nil)
+}
+
+func validateAnchorPayloadApprovalAssurance(assurance string) error {
+	if assurance == "" {
+		return nil
+	}
+	if _, ok := allowedAssuranceLevels[assurance]; !ok {
+		return fmt.Errorf("unsupported approval_assurance_level %q", assurance)
+	}
+	return nil
+}
+
+func validateAnchorPayloadApprovalDecision(decision *Digest) error {
+	if decision == nil {
+		return nil
+	}
+	if _, err := decision.Identity(); err != nil {
+		return fmt.Errorf("approval_decision_digest: %w", err)
+	}
+	return nil
+}
+
+func validateAnchorPayloadApprovalCoupling(assurance string, hasDecision bool) error {
+	if assurance == "none" && hasDecision {
+		return fmt.Errorf("approval_assurance_level=none cannot declare approval_decision_digest")
+	}
+	if assurance == "hardware_backed" && !hasDecision {
 		return fmt.Errorf("approval_decision_digest is required when approval_assurance_level=hardware_backed")
 	}
-	if payload.ApprovalDecision != nil && payload.ApprovalAssurance == "" {
+	if hasDecision && assurance == "" {
 		return fmt.Errorf("approval_assurance_level is required when approval_decision_digest is present")
 	}
 	return nil
@@ -172,9 +191,6 @@ func validateAnchorPayloadWitness(payload anchorReceiptPayload) error {
 }
 
 func validateAnchorApprovalLinkAndPosture(payload anchorReceiptPayload) error {
-	if payload.ApprovalDecision != nil && payload.ApprovalAssurance == "none" {
-		return fmt.Errorf("approval_assurance_level=none cannot declare approval_decision_digest")
-	}
 	if payload.ApprovalAssurance != "hardware_backed" {
 		return nil
 	}
@@ -198,7 +214,7 @@ func validateReceiptSignerContract(receipt auditReceiptPayloadStrict, verifier V
 		return fmt.Errorf("anchor receipts require verifier logical_scope node or deployment")
 	}
 	payload := anchorReceiptPayload{}
-	if err := json.Unmarshal(receipt.ReceiptPayload, &payload); err != nil {
+	if err := unmarshalJSONStrict(receipt.ReceiptPayload, &payload); err != nil {
 		return fmt.Errorf("decode anchor payload for signer posture check: %w", err)
 	}
 	if payload.KeyProtectionPosture != verifier.KeyProtectionPosture {
@@ -212,7 +228,7 @@ func validateReceiptSignerContract(receipt auditReceiptPayloadStrict, verifier V
 
 func verifyImportRestoreConsistency(receipt auditReceiptPayloadStrict, sealDigest Digest, sealPayload AuditSegmentSealPayload) error {
 	payload := importRestoreReceiptPayload{}
-	if err := json.Unmarshal(receipt.ReceiptPayload, &payload); err != nil {
+	if err := unmarshalJSONStrict(receipt.ReceiptPayload, &payload); err != nil {
 		return fmt.Errorf("decode import/restore payload: %w", err)
 	}
 	sealDigestID := mustDigestIdentity(sealDigest)

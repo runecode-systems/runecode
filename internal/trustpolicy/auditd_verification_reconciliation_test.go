@@ -10,8 +10,8 @@ func TestVerifyAuditEvidenceReconciliationReceiptFailsWhenSubjectDigestMismatche
 	fixture := newAuditVerificationFixture(t, verifierStatusFixture{status: "active"})
 	receipt := fixture.reconciliationReceiptEnvelope(t, testDigestFromByte('9'))
 	report := mustVerifyAuditEvidenceReport(t, fixture, []SignedObjectEnvelope{receipt})
-	if !containsReasonCode(report.HardFailures, AuditVerificationReasonReceiptInvalid) {
-		t.Fatalf("hard_failures = %v, want %q", report.HardFailures, AuditVerificationReasonReceiptInvalid)
+	if !containsReasonCode(report.HardFailures, AuditVerificationReasonImportRestoreProvenanceInconsistent) {
+		t.Fatalf("hard_failures = %v, want %q", report.HardFailures, AuditVerificationReasonImportRestoreProvenanceInconsistent)
 	}
 }
 
@@ -52,6 +52,7 @@ func (f auditVerificationFixture) reconciliationReceiptEnvelope(t *testing.T, su
 func TestVerifyAuditEvidenceReconciliationReceiptPassesWhenSubjectDigestMatchesSeal(t *testing.T) {
 	fixture := newAuditVerificationFixture(t, verifierStatusFixture{status: "active"})
 	receipt := fixture.reconciliationReceiptEnvelope(t, fixture.sealEnvelopeDigest)
+	sealing := mustDecodeSealPayloadFixture(t, fixture.sealEnvelope.Payload)
 
 	var payload map[string]any
 	if err := json.Unmarshal(receipt.Payload, &payload); err != nil {
@@ -60,14 +61,35 @@ func TestVerifyAuditEvidenceReconciliationReceiptPassesWhenSubjectDigestMatchesS
 	receiptPayload := payload["receipt_payload"].(map[string]any)
 	segments := receiptPayload["imported_segments"].([]any)
 	matching := segments[0].(map[string]any)
-	matching["imported_segment_root"] = map[string]any{"hash_alg": fixture.sealEnvelopeDigest.HashAlg, "hash": fixture.sealEnvelopeDigest.Hash}
-	matching["source_segment_file_hash"] = map[string]any{"hash_alg": fixture.sealEnvelopeDigest.HashAlg, "hash": fixture.sealEnvelopeDigest.Hash}
-	matching["local_segment_file_hash"] = map[string]any{"hash_alg": fixture.sealEnvelopeDigest.HashAlg, "hash": fixture.sealEnvelopeDigest.Hash}
+	matching["imported_segment_root"] = map[string]any{"hash_alg": sealing.MerkleRoot.HashAlg, "hash": sealing.MerkleRoot.Hash}
+	matching["source_segment_file_hash"] = map[string]any{"hash_alg": sealing.SegmentFileHash.HashAlg, "hash": sealing.SegmentFileHash.Hash}
+	matching["local_segment_file_hash"] = map[string]any{"hash_alg": sealing.SegmentFileHash.HashAlg, "hash": sealing.SegmentFileHash.Hash}
 	receipt.Payload = marshalJSONFixture(t, payload)
 	receipt = resignEnvelopeFixture(t, fixture.privateKey, receipt)
 
 	report := mustVerifyAuditEvidenceReport(t, fixture, []SignedObjectEnvelope{receipt})
-	if containsReasonCode(report.HardFailures, AuditVerificationReasonReceiptInvalid) {
-		t.Fatalf("hard_failures = %v, unexpected %q", report.HardFailures, AuditVerificationReasonReceiptInvalid)
+	if containsReasonCode(report.HardFailures, AuditVerificationReasonImportRestoreProvenanceInconsistent) {
+		t.Fatalf("hard_failures = %v, unexpected %q", report.HardFailures, AuditVerificationReasonImportRestoreProvenanceInconsistent)
+	}
+}
+
+func TestVerifyAuditEvidenceReconciliationReceiptFailsWhenConsistencyCheckMismatches(t *testing.T) {
+	fixture := newAuditVerificationFixture(t, verifierStatusFixture{status: "active"})
+	receipt := fixture.reconciliationReceiptEnvelope(t, fixture.sealEnvelopeDigest)
+
+	var payload map[string]any
+	if err := json.Unmarshal(receipt.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal reconciliation receipt payload returned error: %v", err)
+	}
+	receiptPayload := payload["receipt_payload"].(map[string]any)
+	segments := receiptPayload["imported_segments"].([]any)
+	mismatch := segments[0].(map[string]any)
+	mismatch["imported_segment_root"] = map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("1", 64)}
+	receipt.Payload = marshalJSONFixture(t, payload)
+	receipt = resignEnvelopeFixture(t, fixture.privateKey, receipt)
+
+	report := mustVerifyAuditEvidenceReport(t, fixture, []SignedObjectEnvelope{receipt})
+	if !containsReasonCode(report.HardFailures, AuditVerificationReasonImportRestoreProvenanceInconsistent) {
+		t.Fatalf("hard_failures = %v, want %q", report.HardFailures, AuditVerificationReasonImportRestoreProvenanceInconsistent)
 	}
 }

@@ -1,7 +1,6 @@
 package trustpolicy
 
 import (
-	"encoding/json"
 	"fmt"
 )
 
@@ -10,9 +9,9 @@ func processReceiptByKind(index int, input AuditVerificationInput, report *Audit
 		return ok.anchorReceipts, ok.validAnchor
 	}
 	if receipt.AuditReceiptKind == "anchor" {
-		return processAnchorReceipt(index, input, report, receipt, anchorReceipts, validAnchorForSeal)
+		return processAnchorReceipt(index, input, report, receipt, *sealDigest, anchorReceipts, validAnchorForSeal)
 	}
-	if receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore" {
+	if receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore" || receipt.AuditReceiptKind == "reconciliation" {
 		if err := verifyImportRestoreConsistency(receipt, *sealDigest, sealPayload); err != nil {
 			addHardFailure(report, AuditVerificationReasonImportRestoreProvenanceInconsistent, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] import/restore consistency failed: %v", index, err), input.Segment.Header.SegmentID, nil)
 		}
@@ -20,7 +19,11 @@ func processReceiptByKind(index int, input AuditVerificationInput, report *Audit
 	return anchorReceipts, validAnchorForSeal
 }
 
-func processAnchorReceipt(index int, input AuditVerificationInput, report *AuditVerificationReportPayload, receipt auditReceiptPayloadStrict, anchorReceipts int, validAnchorForSeal bool) (int, bool) {
+func processAnchorReceipt(index int, input AuditVerificationInput, report *AuditVerificationReportPayload, receipt auditReceiptPayloadStrict, sealDigest Digest, anchorReceipts int, validAnchorForSeal bool) (int, bool) {
+	if mustDigestIdentity(receipt.SubjectDigest) != mustDigestIdentity(sealDigest) {
+		addHardFailure(report, AuditVerificationReasonAnchorReceiptInvalid, AuditVerificationDimensionAnchoring, fmt.Sprintf("anchor receipt[%d] subject_digest does not match segment seal digest", index), input.Segment.Header.SegmentID, nil)
+		return anchorReceipts, validAnchorForSeal
+	}
 	if !anchorReceiptFamilyMatchesSeal(receipt) {
 		addHardFailure(report, AuditVerificationReasonAnchorReceiptInvalid, AuditVerificationDimensionAnchoring, fmt.Sprintf("anchor receipt[%d] subject_family must be audit_segment_seal", index), input.Segment.Header.SegmentID, nil)
 		return anchorReceipts, validAnchorForSeal
@@ -31,7 +34,7 @@ func processAnchorReceipt(index int, input AuditVerificationInput, report *Audit
 
 func maybeAddPassphraseAnchorDegraded(index int, input AuditVerificationInput, report *AuditVerificationReportPayload, receipt auditReceiptPayloadStrict) {
 	payload := anchorReceiptPayload{}
-	if err := json.Unmarshal(receipt.ReceiptPayload, &payload); err != nil || payload.PresenceMode != "passphrase" {
+	if err := unmarshalJSONStrict(receipt.ReceiptPayload, &payload); err != nil || payload.PresenceMode != "passphrase" {
 		return
 	}
 	addDegraded(report, AuditVerificationReasonAnchorPassphrasePresenceDegraded, AuditVerificationDimensionAnchoring, fmt.Sprintf("anchor receipt[%d] uses passphrase presence mode which is degraded assurance", index), input.Segment.Header.SegmentID, nil)
@@ -85,11 +88,8 @@ func addMismatchedReceiptFailure(index int, input AuditVerificationInput, report
 		addHardFailure(report, AuditVerificationReasonAnchorReceiptInvalid, AuditVerificationDimensionAnchoring, fmt.Sprintf("anchor receipt[%d] subject_digest does not match segment seal digest", index), input.Segment.Header.SegmentID, nil)
 		return
 	}
-	if receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore" {
+	if receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore" || receipt.AuditReceiptKind == "reconciliation" {
 		addHardFailure(report, AuditVerificationReasonImportRestoreProvenanceInconsistent, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] subject_digest does not match segment seal digest", index), input.Segment.Header.SegmentID, nil)
 		return
-	}
-	if receipt.AuditReceiptKind == "reconciliation" {
-		addHardFailure(report, AuditVerificationReasonReceiptInvalid, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] subject_digest does not match segment seal digest", index), input.Segment.Header.SegmentID, nil)
 	}
 }

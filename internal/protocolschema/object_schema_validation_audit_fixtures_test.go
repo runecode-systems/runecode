@@ -129,13 +129,15 @@ func invalidAuditEventContractCatalogGatewayRule() map[string]any {
 
 func validAuditReceipt() map[string]any {
 	return map[string]any{
-		"schema_id":          "runecode.protocol.v0.AuditReceipt",
-		"schema_version":     "0.5.0",
-		"subject_digest":     testDigestValue("c"),
-		"audit_receipt_kind": "reconciliation",
-		"subject_family":     "audit_segment_seal",
-		"recorder":           manifestPrincipal(),
-		"recorded_at":        "2026-03-13T12:16:00Z",
+		"schema_id":                 "runecode.protocol.v0.AuditReceipt",
+		"schema_version":            "0.5.0",
+		"subject_digest":            testDigestValue("c"),
+		"audit_receipt_kind":        "import",
+		"subject_family":            "audit_segment_seal",
+		"recorder":                  manifestPrincipal(),
+		"recorded_at":               "2026-03-13T12:16:00Z",
+		"receipt_payload_schema_id": "runecode.protocol.audit.receipt.import_restore_provenance.v0",
+		"receipt_payload":           validImportRestoreReceiptPayload("import"),
 	}
 }
 

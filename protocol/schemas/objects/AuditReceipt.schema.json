@@ -89,7 +89,7 @@
       }
     },
     "importRestoreProvenancePayload": {
-      "description": "Typed import/restore provenance payload binding historical segment linkage and source-manifest evidence while preserving sealed byte identity.",
+      "description": "Typed import/restore/reconciliation provenance payload binding historical segment linkage and source-manifest evidence while preserving sealed byte identity.",
       "type": "object",
       "additionalProperties": false,
       "maxProperties": 7,
@@ -104,7 +104,8 @@
           "type": "string",
           "enum": [
             "import",
-            "restore"
+            "restore",
+            "reconciliation"
           ],
           "description": "Operation kind proven by this receipt payload.",
           "x-data-class": "public"
@@ -271,6 +272,37 @@
         },
         {
           "if": {
+            "required": [
+              "approval_decision_digest"
+            ]
+          },
+          "then": {
+            "required": [
+              "approval_assurance_level"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "approval_assurance_level": {
+                "const": "none"
+              }
+            },
+            "required": [
+              "approval_assurance_level"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "approval_decision_digest"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
             "properties": {
               "approval_assurance_level": {
                 "const": "hardware_backed"
@@ -283,7 +315,15 @@
           "then": {
             "required": [
               "approval_decision_digest"
-            ]
+            ],
+            "properties": {
+              "presence_mode": {
+                "const": "hardware_touch"
+              },
+              "key_protection_posture": {
+                "const": "hardware_backed"
+              }
+            }
           }
         }
       ]
@@ -349,7 +389,8 @@
           "audit_receipt_kind": {
             "enum": [
               "import",
-              "restore"
+              "restore",
+              "reconciliation"
             ]
           }
         }
@@ -365,6 +406,29 @@
           },
           "receipt_payload": {
             "$ref": "#/$defs/importRestoreProvenancePayload"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "audit_receipt_kind"
+        ],
+        "properties": {
+          "audit_receipt_kind": {
+            "const": "reconciliation"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "receipt_payload": {
+            "properties": {
+              "provenance_action": {
+                "const": "reconciliation"
+              }
+            }
           }
         }
       }
@@ -478,7 +542,7 @@
     "receipt_payload": {
       "type": "object",
       "minProperties": 1,
-      "maxProperties": 32,
+      "maxProperties": 7,
       "description": "Optional typed receipt payload whose shape is defined by receipt_payload_schema_id.",
       "x-data-class": "sensitive"
     }

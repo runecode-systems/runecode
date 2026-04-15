@@ -53,6 +53,30 @@ func addReceiptValidationFailure(report *AuditVerificationReportPayload, segment
 }
 
 func decodeAuditReceiptPayload(raw json.RawMessage) (auditReceiptPayloadStrict, error) {
+	allowedFields := map[string]struct{}{
+		"schema_id":                 {},
+		"schema_version":            {},
+		"subject_digest":            {},
+		"audit_receipt_kind":        {},
+		"subject_family":            {},
+		"recorder":                  {},
+		"recorded_at":               {},
+		"receipt_payload_schema_id": {},
+		"receipt_payload":           {},
+	}
+	obj := map[string]json.RawMessage{}
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return auditReceiptPayloadStrict{}, fmt.Errorf("decode audit receipt payload object: %w", err)
+	}
+	maxAuditReceiptProperties := len(allowedFields)
+	if len(obj) > maxAuditReceiptProperties {
+		return auditReceiptPayloadStrict{}, fmt.Errorf("audit receipt has too many properties: got %d, max %d", len(obj), maxAuditReceiptProperties)
+	}
+	for key := range obj {
+		if _, ok := allowedFields[key]; !ok {
+			return auditReceiptPayloadStrict{}, fmt.Errorf("unsupported audit receipt field %q", key)
+		}
+	}
 	receipt := auditReceiptPayloadStrict{}
 	if err := json.Unmarshal(raw, &receipt); err != nil {
 		return auditReceiptPayloadStrict{}, fmt.Errorf("decode audit receipt payload: %w", err)
@@ -67,13 +91,14 @@ func validateAuditReceiptPayload(receipt auditReceiptPayloadStrict) error {
 	if err := validateAuditReceiptPayloadPresence(receipt); err != nil {
 		return err
 	}
-	if receipt.AuditReceiptKind == "anchor" {
+	switch receipt.AuditReceiptKind {
+	case "anchor":
 		return validateAnchorReceiptPayload(receipt)
+	case "import", "restore", "reconciliation":
+		return validateImportRestoreReceiptPayload(receipt)
+	default:
+		return fmt.Errorf("unsupported audit_receipt_kind %q for payload validation", receipt.AuditReceiptKind)
 	}
-	if receipt.AuditReceiptKind != "import" && receipt.AuditReceiptKind != "restore" {
-		return nil
-	}
-	return validateImportRestoreReceiptPayload(receipt)
 }
 
 func validateAuditReceiptCoreFields(receipt auditReceiptPayloadStrict) error {

@@ -169,6 +169,28 @@ func TestVerifyAuditEvidenceFailsClosedOnAnchorEnvelopeSignatureInvalid(t *testi
 	}
 }
 
+func TestVerifyAuditEvidenceFailsClosedOnAnchorPayloadWithUnknownField(t *testing.T) {
+	fixture := newAuditVerificationFixture(t, verifierStatusFixture{status: "active"})
+	receipt := fixture.anchorReceiptEnvelope(t, fixture.sealEnvelopeDigest)
+
+	var payload map[string]any
+	if err := json.Unmarshal(receipt.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal receipt payload returned error: %v", err)
+	}
+	receiptPayload := payload["receipt_payload"].(map[string]any)
+	receiptPayload["unexpected_field"] = "unexpected"
+	receipt.Payload = marshalJSONFixture(t, payload)
+	receipt = resignEnvelopeFixture(t, fixture.privateKey, receipt)
+
+	report := mustVerifyAuditEvidenceReport(t, fixture, []SignedObjectEnvelope{receipt})
+	if report.AnchoringStatus != AuditVerificationStatusFailed {
+		t.Fatalf("anchoring_status = %q, want %q", report.AnchoringStatus, AuditVerificationStatusFailed)
+	}
+	if !containsReasonCode(report.HardFailures, AuditVerificationReasonAnchorReceiptInvalid) {
+		t.Fatalf("hard_failures = %v, want %q", report.HardFailures, AuditVerificationReasonAnchorReceiptInvalid)
+	}
+}
+
 func TestVerifyAuditEvidenceFailsClosedOnAnchorReceiptApprovalLinkAssuranceNone(t *testing.T) {
 	fixture := newAuditVerificationFixture(t, verifierStatusFixture{status: "active"})
 	receipt := fixture.anchorReceiptEnvelope(t, fixture.sealEnvelopeDigest)

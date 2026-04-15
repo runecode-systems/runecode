@@ -20,6 +20,15 @@ type importRestoreReceiptPayload struct {
 	ImportedSegments      []importRestoreSegmentLink `json:"imported_segments"`
 	SourceManifestDigests []Digest                   `json:"source_manifest_digests"`
 	SourceInstanceID      string                     `json:"source_instance_id,omitempty"`
+	Operator              *PrincipalIdentity         `json:"operator,omitempty"`
+	AuthorityContext      *importRestoreAuthority    `json:"authority_context,omitempty"`
+}
+
+type importRestoreAuthority struct {
+	AuthorityKind               string  `json:"authority_kind"`
+	AuthorityID                 string  `json:"authority_id"`
+	AuthorizationManifestDigest *Digest `json:"authorization_manifest_digest,omitempty"`
+	Note                        string  `json:"note,omitempty"`
 }
 
 type importRestoreSegmentLink struct {
