@@ -1,7 +1,7 @@
 # RuneCode — Security-first AI coding: isolated execution, signed, auditable
 
 [![CI](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml/badge.svg)](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml)
-[![Status: alpha.3 release](https://img.shields.io/badge/status-alpha.3%20release-orange)](runecontext/project/roadmap.md)
+[![Status: alpha.4 release](https://img.shields.io/badge/status-alpha.4%20release-orange)](runecontext/project/roadmap.md)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 RuneCode is a security-first agentic automation platform for software engineering.
@@ -9,7 +9,7 @@ It treats isolation and cryptographic provenance as co-equal pillars: work runs 
 
 ## Status
 
-The latest published release is `v0.1.0-alpha.3`, and the repository mainline already includes additional alpha.4 work in progress.
+The latest published release is `v0.1.0-alpha.4`, and the repository mainline already includes additional alpha.5 work in progress.
 RuneCode remains pre-production: the signed, tag-driven release pipeline exists, but the shipped Go binaries are still scaffold-heavy and not feature-complete.
 
 ## Why RuneCode
@@ -49,6 +49,7 @@ Details (diagram, allowed interfaces, prohibited bypasses, and CI guardrail): `d
 ## Repository Layout
 
 - `cmd/` — trusted Go binaries (launcher, broker, secretsd, auditd, TUI)
+- `formal/` — checked-in formal specifications and model-checking assets
 - `internal/` — trusted Go libraries
 - `nix/` — canonical release metadata, build definitions, and flake checks
 - `runner/` — untrusted TS/Node workflow runner package
@@ -161,6 +162,7 @@ This quick path verifies signed checksums and the signed archive before install.
 - A trusted launcher daemon/service plus a Linux-first microVM/QEMU/KVM MVP vertical slice and a Linux-only explicit-opt-in container backend slice for offline `workspace` launches, including a deterministic `runecode-launcher serve --hello-world` path for end-to-end launcher->broker runtime reporting
 - Durable launcher runtime evidence persistence and broker-derived authoritative runtime projection for `backend_kind`, `isolation_assurance_level`, `provisioning_posture`, lifecycle, and terminal state
 - Broker-owned runtime audit emission for `isolate_session_started` and `isolate_session_bound`, with reference-heavy payloads bound to persisted launcher evidence digests
+- Checked-in bounded TLA+ security-kernel artifacts plus deterministic TLC model-checking wired into `just model-check` and `just ci`
 
 Still incremental / not implemented end-to-end yet:
 - Secrets lifecycle foundations and broker-projected secrets/model-gateway posture now exist, but secure-storage posture projection and downstream provider/auth integrations remain incremental
@@ -188,10 +190,11 @@ Current MVP object families cover:
 - secrets custody and posture: `SecretLease`, `SecretStoragePosture`
 - audit, approvals, and policy: `AuditEvent`, `AuditReceipt`, `AuditSegmentFile`, `AuditSegmentSeal`, `AuditVerificationReport`, `ApprovalRequest`, `ApprovalDecision`, `ApprovalBackendPostureSelection`, `PolicyDecision`, `PolicyRuleSet`, `PolicyAllowlist`
 - workflow planning and deterministic gates: `WorkflowDefinition`, `ProcessDefinition`, `RunPlan`, `GateDefinition`, `GateContract`, `RunnerCheckpointReport`, `RunnerResultReport`, `GateCheckpointReport`, `GateResultReport`, `GateEvidence`
+- stage summaries and sign-off payloads: `StageSummary`, `RunStageSummary`, `ActionPayloadStageSummarySignOff`
 - runtime evidence and session lifecycle payloads: `RuntimeImageDescriptor`, `IsolateSessionStartedPayload`, `IsolateSessionBoundPayload`
 - policy actions and destinations: `ActionRequest`, `ActionPayloadArtifactRead`, `ActionPayloadPromotion`, `ActionPayloadGatewayEgress`, `ActionPayloadSecretAccess`, `ActionPayloadWorkspaceWrite`, `ActionPayloadExecutorRun`, `ActionPayloadBackendPostureChange`, `ActionPayloadGateOverride`, `ActionPayloadStageSummarySignOff`, `DestinationDescriptor`, `GatewayScopeRule`
-- model traffic: `LLMRequest`, `LLMResponse`, `LLMStreamEvent`
-- broker local API requests/responses: `RunListRequest`, `RunGetRequest`, `ApprovalListRequest`, `ApprovalGetRequest`, `ApprovalResolveRequest`, `BackendPostureGetRequest`, `BackendPostureChangeRequest`, `ArtifactListRequest`, `ArtifactHeadRequest`, `ArtifactReadRequest`, `AuditTimelineRequest`, `AuditRecordGetRequest`, `AuditVerificationGetRequest`, `AuditAnchorPresenceGetRequest`, `AuditAnchorSegmentRequest`, `ReadinessGetRequest`, `VersionInfoGetRequest`
+- model traffic: `LLMRequest`, `LLMResponse`, `LLMStreamEvent`, `LLMInvokeRequest`, `LLMInvokeResponse`, `LLMStreamRequest`, `LLMStreamEnvelope`
+- broker local API requests/responses: `RunListRequest`, `RunGetRequest`, `ApprovalListRequest`, `ApprovalGetRequest`, `ApprovalResolveRequest`, `BackendPostureGetRequest`, `BackendPostureChangeRequest`, `ArtifactListRequest`, `ArtifactHeadRequest`, `ArtifactReadRequest`, `AuditTimelineRequest`, `AuditRecordGetRequest`, `AuditVerificationGetRequest`, `AuditAnchorPresenceGetRequest`, `AuditAnchorPreflightGetRequest`, `AuditAnchorPreflightGetResponse`, `AuditAnchorSegmentRequest`, `AuditFinalizeVerifyRequest`, `AuditFinalizeVerifyResponse`, `ReadinessGetRequest`, `VersionInfoGetRequest`
 - broker local API read models: `RunSummary`, `RunDetail`, `RunStageSummary`, `RunRoleSummary`, `RunCoordinationSummary`, `ApprovalSummary`, `ApprovalBoundScope`, `BackendPostureState`, `BackendPostureAvailability`, `ArtifactSummary`, `BrokerReadiness`, `BrokerVersionInfo`
 - broker local API streams and error envelopes: `LogStreamEvent`, `ArtifactStreamEvent`, `BrokerErrorResponse`
 - wrappers and shared errors: `SignedObjectEnvelope`, `Error`
@@ -216,6 +219,7 @@ Common commands:
 ```sh
 just fmt
 just lint
+just model-check
 just test
 just ci
 ```
@@ -232,13 +236,19 @@ cd runner && npm run boundary-check
 
 These checks are also covered by `just ci`.
 
+Formal model checking entrypoint:
+
+```sh
+just model-check
+```
+
 Optional: enable automatic dev-shell entry with `direnv` + `nix-direnv`:
 
 ```sh
 direnv allow
 ```
 
-Non-Nix fallback (e.g., Windows): install Go 1.25.x, Node `>=22.22.1 <25` with npm, and `just`, then run:
+Non-Nix fallback (e.g., Windows): install Go 1.25.x, Node `>=22.22.1 <25` with npm, `just`, and either a `tlc` binary or Java 17+ plus `tla2tools.jar` (or set `TLA2TOOLS_JAR`), then run:
 
 ```sh
 just ci
@@ -301,6 +311,7 @@ go run ./cmd/runecode-broker stream-logs --help
 - Trust boundaries: `docs/trust-boundaries.md`
 - Protocol schemas: `protocol/schemas/README.md`
 - Protocol/schema spec: `runecontext/specs/protocol-schema-bundle-v0.md`
+- Formal security-kernel model: `formal/tla/security-kernel/README.md`
 - Agent and AI contributor guidance: `AGENTS.md`
 
 ## Uninstall

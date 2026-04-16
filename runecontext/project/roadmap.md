@@ -10,9 +10,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 - TUI Multi-Session + Power Workspace v0
   - The terminal client grows into a multi-session, power-user workbench with richer live activity, deeper inspection, saved layouts, and theme presets while staying on the same secure brokered control-plane.
   - Planned change: `runecontext/changes/CHG-2026-037-91be-tui-multi-session-power-workspace-v0/`
-- Formal Spec v0 (TLA+ + CI Model Checking)
-  - Critical separation and audit invariants are formally specified and model-checked in CI.
-  - Planned change: `runecontext/changes/CHG-2026-015-cae6-formal-spec-v0-tla-ci-model-checking/`
 - Git Gateway (Commit/Push/PR)
   - Git operations are isolated behind a gateway with outbound patch verification.
   - Planned change: `runecontext/changes/CHG-2026-002-33c5-git-gateway-commit-push-pr/`
@@ -141,3 +138,8 @@ No unscheduled items are currently tracked outside the planned work listed above
   - The first end-to-end demo must use explicit artifact handoff, audit capture plus verify, signed policy decisions, and one real isolated backend with no trust-boundary shortcuts.
   - `Workflow Runner + Workspace Roles + Deterministic Gates v0` is sequenced as a thin MVP in `v0.1.0-alpha.3`; remaining hardening and scope complete in `v0.1.0-alpha.4`.
   - `Audit Anchoring v0` and `Container Backend v0 (Explicit Opt-In)` remain follow-on hardening work and must not displace the primary secure path.
+
+- Formal Spec v0 (TLA+ + CI Model Checking)
+  - Critical separation and audit invariants are formally specified and model-checked in CI.
+  - Planned change: `runecontext/changes/CHG-2026-015-cae6-formal-spec-v0-tla-ci-model-checking/`
+
