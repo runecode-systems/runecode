@@ -6,6 +6,7 @@
 - `standards/security/runner-boundary-check.md`
 - `standards/security/policy-evaluation-foundations.md`
 - `standards/security/approval-binding-and-verifier-identity.md`
+- `standards/security/runner-durable-state-and-replay.md`
 
 ## Resolution Notes
-This optional follow-on change exists to keep any future LangGraph adoption explicitly subordinate to RuneCode's trust-boundary, broker-authority, and approval-binding standards rather than treating a third-party runtime as the architectural source of truth.
+This optional follow-on change exists to keep any future LangGraph adoption explicitly subordinate to RuneCode's trust-boundary, broker-authority, approval-binding, and runner-replay standards rather than treating a third-party runtime as the architectural source of truth.
