@@ -294,6 +294,17 @@ func TestApprovalResolveStageSummarySignOffSupersededWhenNewerPendingExists(t *t
 	}
 }
 
+func TestApprovalResolveStageSummarySignOffSupersededWhenPlanBindingChanges(t *testing.T) {
+	s, oldRequestEnv, oldDecisionEnv, newApprovalID := setupServiceWithPlanScopedSupersededStageSignOffApprovals(t)
+	oldApprovalID := approvalIDForBrokerTest(t, oldRequestEnv)
+	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, oldApprovalID)
+	resolveReq := ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-stage-signoff-superseded-plan", ApprovalID: oldApprovalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-stage"), RunID: "run-stage", StageID: "stage-1", ActionKind: "stage_summary_sign_off", PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: "sha256:" + strings.Repeat("d", 64), Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *oldRequestEnv, SignedApprovalDecision: *oldDecisionEnv}
+	resolveResp, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{})
+	if errResp != nil || resolveResp.ResolutionStatus != "no_change" || resolveResp.ResolutionReasonCode != "approval_superseded" || resolveResp.Approval.Status != "superseded" || resolveResp.Approval.SupersededByApprovalID != newApprovalID {
+		t.Fatalf("unexpected resolve response: resp=%+v err=%+v", resolveResp, errResp)
+	}
+}
+
 func TestApprovalResolveBackendPostureConsumesViaGenericExactActionPath(t *testing.T) {
 	s, requestEnv, decisionEnv := setupServiceWithBackendPostureApprovalFixture(t)
 	approvalID := approvalIDForBrokerTest(t, requestEnv)

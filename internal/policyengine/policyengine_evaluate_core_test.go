@@ -1,6 +1,11 @@
 package policyengine
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
+)
 
 func TestEvaluateUsesPrecedenceDenyThenApprovalThenAllow(t *testing.T) { /* moved unchanged */
 	rules := validRuleSetPayload()
@@ -61,5 +66,22 @@ func TestEvaluateFailsClosedOnUnknownActionPayloadSchemaID(t *testing.T) {
 	evalErr, ok := err.(*EvaluationError)
 	if !ok || evalErr.Code != ErrCodeBrokerValidationSchema {
 		t.Fatalf("error=%v, want validation schema error", err)
+	}
+}
+
+func TestNewStageSummarySignOffActionFailsWithoutPlanID(t *testing.T) {
+	manifestHash := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)}
+	stageSummaryHash := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("2", 64)}
+
+	_, err := NewStageSummarySignOffAction(StageSummarySignOffActionInput{
+		ActionEnvelope:   ActionEnvelope{CapabilityID: "cap_stage", Actor: ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"}},
+		RunID:            "run-1",
+		StageID:          "stage-1",
+		ManifestHash:     manifestHash,
+		StageSummaryHash: stageSummaryHash,
+		ApprovalProfile:  "moderate",
+	})
+	if err == nil {
+		t.Fatal("NewStageSummarySignOffAction returned nil error without plan_id")
 	}
 }

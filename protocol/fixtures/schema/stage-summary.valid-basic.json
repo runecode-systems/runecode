@@ -1,0 +1,28 @@
+{
+  "schema_id": "runecode.protocol.v0.StageSummary",
+  "schema_version": "0.1.0",
+  "run_id": "run-123",
+  "plan_id": "plan-abc",
+  "stage_id": "stage-1",
+  "summary_revision": 3,
+  "manifest_hash": {
+    "hash_alg": "sha256",
+    "hash": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "stage_capability_context": {
+    "approval_profile": "moderate",
+    "checkpoint_model": "stage_sign_off"
+  },
+  "requested_high_risk_capability_categories": [
+    "stage_sign_off"
+  ],
+  "requested_scope_change_types": [
+    "none"
+  ],
+  "relevant_artifact_hashes": [
+    {
+      "hash_alg": "sha256",
+      "hash": "2222222222222222222222222222222222222222222222222222222222222222"
+    }
+  ]
+}

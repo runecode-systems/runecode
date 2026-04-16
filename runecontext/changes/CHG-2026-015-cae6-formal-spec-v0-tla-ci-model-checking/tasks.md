@@ -2,24 +2,24 @@
 
 ## Freeze Shared Workflow-Kernel Semantics
 
-- [ ] Freeze canonical approval lifecycle semantics:
+- [x] Freeze canonical approval lifecycle semantics:
   - distinguish decision acceptance from approval consumption
   - keep consumption broker-only
   - require consumption to be atomic with trusted application of the exact bound continuation when it occurs
   - keep `consumed`, `denied`, `expired`, `cancelled`, and `superseded` terminal
-- [ ] Freeze stage-sign-off semantics:
+- [x] Freeze stage-sign-off semantics:
   - add a canonical `StageSummary` contract for sign-off binding
   - define `stage_summary_hash` as the RFC 8785 JCS hash of that contract
   - keep `summary_revision` monotonic but non-authoritative by itself
   - supersede stale sign-off requests when the canonical stage summary changes for the same logical stage scope under the active plan
-- [ ] Freeze gate-evidence authority semantics:
+- [x] Freeze gate-evidence authority semantics:
   - runner reports remain advisory
   - broker validates gate identity, attempt identity, plan binding, and normalized inputs
   - broker materializes the canonical trusted gate-evidence artifact or reference
-- [ ] Freeze public lifecycle versus partial-blocking semantics:
+- [x] Freeze public lifecycle versus partial-blocking semantics:
   - public lifecycle is `blocked` only when no eligible work can progress
   - partial blocking remains coordination and detail state
-- [ ] Freeze a closed `v0` transition-obligation matrix for required audit evidence before authoritative state advances.
+- [x] Freeze a closed `v0` transition-obligation matrix for required audit evidence before authoritative state advances.
 
 Parallelization: this semantic freeze is foundational; later spec, CI, and traceability work should build on one explicit kernel rather than discovering semantics piecemeal.
 

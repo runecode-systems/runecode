@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/RunStageSummary.schema.json",
   "title": "RunStageSummary",
-  "description": "Stable stage-level run detail summary for broker local API responses.",
+  "description": "Stable stage-level run detail summary for broker local API responses. Derived operator-facing read model only; not the canonical sign-off trust-root contract.",
   "type": "object",
   "additionalProperties": false,
   "maxProperties": 8,

@@ -420,6 +420,13 @@
       "status": "mvp"
     },
     {
+      "path": "objects/StageSummary.schema.json",
+      "schema_id": "runecode.protocol.v0.StageSummary",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/RunRoleSummary.schema.json",
       "schema_id": "runecode.protocol.v0.RunRoleSummary",
       "schema_version": "0.1.0",

@@ -31,6 +31,24 @@
       "expect_valid": true
     },
     {
+      "id": "stage-summary.valid-basic",
+      "schema_path": "objects/StageSummary.schema.json",
+      "fixture_path": "schema/stage-summary.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "action-payload-stage-summary-sign-off.valid-basic",
+      "schema_path": "objects/ActionPayloadStageSummarySignOff.schema.json",
+      "fixture_path": "schema/action-payload-stage-summary-sign-off.valid-basic.json",
+      "expect_valid": true
+    },
+    {
+      "id": "run-stage-summary.valid-basic",
+      "schema_path": "objects/RunStageSummary.schema.json",
+      "fixture_path": "schema/run-stage-summary.valid-basic.json",
+      "expect_valid": true
+    },
+    {
       "id": "action-payload-secret-access.valid-lease-renew",
       "schema_path": "objects/ActionPayloadSecretAccess.schema.json",
       "fixture_path": "schema/action-payload-secret-access.valid-lease-renew.json",

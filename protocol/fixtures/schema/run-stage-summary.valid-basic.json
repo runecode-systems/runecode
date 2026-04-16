@@ -1,0 +1,9 @@
+{
+  "schema_id": "runecode.protocol.v0.RunStageSummary",
+  "schema_version": "0.1.0",
+  "stage_id": "artifact_flow",
+  "lifecycle_state": "blocked",
+  "started_at": "2026-04-10T12:00:00Z",
+  "pending_approval_count": 1,
+  "artifact_count": 2
+}

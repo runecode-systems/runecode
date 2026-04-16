@@ -36,6 +36,7 @@
 - `protocol/schemas/manifest.json`
 - `protocol/schemas/objects/ActionRequest.schema.json`
 - `protocol/schemas/objects/ActionPayloadStageSummarySignOff.schema.json`
+- `protocol/schemas/objects/StageSummary.schema.json`
 - `protocol/schemas/objects/ActionPayloadGateOverride.schema.json`
 - `protocol/schemas/objects/PolicyDecision.schema.json`
 - `protocol/schemas/objects/ApprovalRequest.schema.json`
@@ -63,6 +64,11 @@
 - `internal/brokerapi/local_api_runner_report_ops_gate_validation_evidence.go`
 - `runner/src/durable-state/types.ts`
 - `runner/src/durable-state/helpers.ts`
+
+## Semantic Freeze Artifacts
+
+- `runecontext/changes/CHG-2026-015-cae6-formal-spec-v0-tla-ci-model-checking/workflow-kernel-semantics-freeze-v0.md`
+- `runecontext/changes/CHG-2026-015-cae6-formal-spec-v0-tla-ci-model-checking/transition-obligation-matrix-v0.md`
 
 ## Similar Implementations
 

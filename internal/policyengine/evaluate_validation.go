@@ -3,6 +3,9 @@ package policyengine
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func validateActionRequest(action ActionRequest) error {
@@ -20,7 +23,64 @@ func validateActionRequest(action ActionRequest) error {
 	if err := validateTypedActionPayload(action.ActionPayload, descriptor.schemaPath); err != nil {
 		return err
 	}
+	if err := validateActionBindingInvariant(action); err != nil {
+		return err
+	}
 	return nil
+}
+
+func validateActionBindingInvariant(action ActionRequest) error {
+	if action.ActionKind != ActionKindStageSummarySign {
+		return nil
+	}
+	return validateStageSummarySignOffPayload(action.ActionPayload)
+}
+
+func validateStageSummarySignOffPayload(payload map[string]any) error {
+	stageSummary, ok := payload["stage_summary"].(map[string]any)
+	if !ok || len(stageSummary) == 0 {
+		return &EvaluationError{Code: ErrCodeBrokerValidationSchema, Category: "validation", Retryable: false, Message: "stage_summary_sign_off requires canonical stage_summary object"}
+	}
+	runID, _ := payload["run_id"].(string)
+	stageID, _ := payload["stage_id"].(string)
+	summaryRunID, _ := stageSummary["run_id"].(string)
+	summaryStageID, _ := stageSummary["stage_id"].(string)
+	if strings.TrimSpace(runID) == "" || strings.TrimSpace(stageID) == "" {
+		return &EvaluationError{Code: ErrCodeBrokerValidationSchema, Category: "validation", Retryable: false, Message: "stage_summary_sign_off requires run_id and stage_id"}
+	}
+	if strings.TrimSpace(summaryRunID) != strings.TrimSpace(runID) {
+		return &EvaluationError{Code: ErrCodeBrokerValidationSchema, Category: "validation", Retryable: false, Message: "stage_summary.run_id must match payload run_id"}
+	}
+	if strings.TrimSpace(summaryStageID) != strings.TrimSpace(stageID) {
+		return &EvaluationError{Code: ErrCodeBrokerValidationSchema, Category: "validation", Retryable: false, Message: "stage_summary.stage_id must match payload stage_id"}
+	}
+
+	summaryHash, err := canonicalHashValue(stageSummary)
+	if err != nil {
+		return &EvaluationError{Code: ErrCodeBrokerValidationSchema, Category: "validation", Retryable: false, Message: fmt.Sprintf("canonical stage_summary hash failed: %v", err)}
+	}
+	payloadHash, err := digestIdentityFromPayloadValue(payload["stage_summary_hash"])
+	if err != nil {
+		return &EvaluationError{Code: ErrCodeBrokerValidationSchema, Category: "validation", Retryable: false, Message: fmt.Sprintf("stage_summary_hash invalid: %v", err)}
+	}
+	if payloadHash != summaryHash {
+		return &EvaluationError{Code: ErrCodeBrokerValidationSchema, Category: "validation", Retryable: false, Message: "stage_summary_hash must match canonical stage_summary digest"}
+	}
+	return nil
+}
+
+func digestIdentityFromPayloadValue(value any) (string, error) {
+	switch typed := value.(type) {
+	case trustpolicy.Digest:
+		return typed.Identity()
+	case map[string]any:
+		hashAlg, _ := typed["hash_alg"].(string)
+		hash, _ := typed["hash"].(string)
+		digest := trustpolicy.Digest{HashAlg: hashAlg, Hash: hash}
+		return digest.Identity()
+	default:
+		return "", fmt.Errorf("must be digest object")
+	}
 }
 
 func validateActionEnvelope(action ActionRequest) error {

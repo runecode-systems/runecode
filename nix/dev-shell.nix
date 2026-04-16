@@ -14,6 +14,7 @@ pkgs.mkShell {
     ripgrep
     fd
     curl
+    tlaplus
   ];
 
   shellHook = ''

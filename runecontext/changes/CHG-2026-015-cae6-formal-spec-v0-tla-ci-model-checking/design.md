@@ -203,6 +203,9 @@ The spec should include a maintained mapping from modeled concepts and invariant
 
 This mapping should be close enough to the spec that a CI failure can be traced to the owning contract without code archaeology.
 
+Maintained artifact location for this change:
+- `runecontext/changes/CHG-2026-015-cae6-formal-spec-v0-tla-ci-model-checking/traceability.md`
+
 ## Foundation Shortcuts To Avoid
 - Do not model UI-local or transport-local semantics as if they were trust roots.
 - Do not treat runner-local durable state as public or authoritative truth.

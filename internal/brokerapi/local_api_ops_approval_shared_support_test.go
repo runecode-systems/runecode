@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/policyengine"
@@ -192,6 +193,30 @@ func setupServiceWithSupersededStageSignOffApprovals(t *testing.T) (*Service, *t
 	return s, oldReq, oldDec, newApprovalID
 }
 
+func setupServiceWithPlanScopedSupersededStageSignOffApprovals(t *testing.T) (*Service, *trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope, string) {
+	t.Helper()
+	root := t.TempDir()
+	ledgerRoot := root + "/audit-ledger"
+	if err := seedLedgerForBrokerSurfaceTest(ledgerRoot); err != nil {
+		t.Fatalf("seedLedgerForBrokerSurfaceTest returned error: %v", err)
+	}
+	s, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig returned error: %v", err)
+	}
+	baseNow := time.Now().UTC()
+	oldReq, oldDec, verifiers := signedStageSummaryApprovalArtifactsForBrokerTestsWithPlanAt(t, "human", "run-stage", "plan-a", "stage-1", "sha256:"+strings.Repeat("6", 64), 1, "approve", baseNow)
+	for _, verifier := range verifiers {
+		if err := putTrustedVerifierRecordForService(s, verifier); err != nil {
+			t.Fatalf("putTrustedVerifierRecordForService returned error: %v", err)
+		}
+	}
+	_ = seedPendingStageSignOffApprovalForSignedRequest(t, s, "run-stage", "stage-1", *oldReq)
+	newReq, _, _ := signedStageSummaryApprovalArtifactsForBrokerTestsWithPlanAt(t, "human", "run-stage", "plan-b", "stage-1", "sha256:"+strings.Repeat("6", 64), 1, "approve", baseNow.Add(time.Minute))
+	newApprovalID := seedPendingStageSignOffApprovalForSignedRequest(t, s, "run-stage", "stage-1", *newReq)
+	return s, oldReq, oldDec, newApprovalID
+}
+
 func setupServiceWithBackendPostureApprovalFixture(t *testing.T) (*Service, *trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope) {
 	t.Helper()
 	root := t.TempDir()
@@ -232,12 +257,19 @@ func seedPendingStageSignOffApprovalForSignedRequest(t *testing.T, s *Service, r
 	return approvalID
 }
 
-func stageSignOffActionHashForBrokerTests(runID, stageID, stageSummaryDigest string, summaryRevision int64) string {
+func stageSignOffActionHashForBrokerTests(runID, planID, stageID, stageSummaryDigest string, summaryRevision int64) string {
+	manifestHash, err := digestFromIdentity("sha256:" + strings.Repeat("1", 64))
+	if err != nil {
+		panic(err)
+	}
 	stageSummaryHash, err := digestFromIdentity(stageSummaryDigest)
 	if err != nil {
 		panic(err)
 	}
-	action := policyengine.NewStageSummarySignOffAction(policyengine.StageSummarySignOffActionInput{ActionEnvelope: policyengine.ActionEnvelope{CapabilityID: "cap_stage", Actor: policyengine.ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"}}, RunID: runID, StageID: stageID, StageSummaryHash: stageSummaryHash, ApprovalProfile: "moderate", SummaryRevision: &summaryRevision})
+	action, err := policyengine.NewStageSummarySignOffAction(policyengine.StageSummarySignOffActionInput{ActionEnvelope: policyengine.ActionEnvelope{CapabilityID: "cap_stage", Actor: policyengine.ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"}}, RunID: runID, PlanID: planID, StageID: stageID, ManifestHash: manifestHash, StageSummaryHash: stageSummaryHash, ApprovalProfile: "moderate", SummaryRevision: &summaryRevision})
+	if err != nil {
+		panic(err)
+	}
 	hash, err := policyengine.CanonicalActionRequestHash(action)
 	if err != nil {
 		panic(err)

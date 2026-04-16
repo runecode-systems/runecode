@@ -70,12 +70,19 @@ func promotionApprovalRequestPayload(actionHash, digest, requestedAt, expiresAt 
 }
 
 func signedStageSummaryApprovalArtifactsForBrokerTests(t *testing.T, approver, runID, stageID, stageSummaryDigest string, summaryRevision int64, outcome string) (*trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope, []trustpolicy.VerifierRecord) {
+	return signedStageSummaryApprovalArtifactsForBrokerTestsWithPlan(t, approver, runID, "", stageID, stageSummaryDigest, summaryRevision, outcome)
+}
+
+func signedStageSummaryApprovalArtifactsForBrokerTestsWithPlan(t *testing.T, approver, runID, planID, stageID, stageSummaryDigest string, summaryRevision int64, outcome string) (*trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope, []trustpolicy.VerifierRecord) {
+	return signedStageSummaryApprovalArtifactsForBrokerTestsWithPlanAt(t, approver, runID, planID, stageID, stageSummaryDigest, summaryRevision, outcome, time.Now().UTC())
+}
+
+func signedStageSummaryApprovalArtifactsForBrokerTestsWithPlanAt(t *testing.T, approver, runID, planID, stageID, stageSummaryDigest string, summaryRevision int64, outcome string, now time.Time) (*trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope, []trustpolicy.VerifierRecord) {
 	t.Helper()
-	now := time.Now().UTC()
 	requestedAt, expiresAt, decidedAt := approvalTimestamps(now)
 	publicKey, privateKey, keyIDValue := approvalSigningIdentity(t)
-	actionHash := stageSignOffActionHashForBrokerTests(runID, stageID, stageSummaryDigest, summaryRevision)
-	requestEnv := signedApprovalRequestEnvelopeForBrokerTests(t, privateKey, keyIDValue, stageSummaryApprovalRequestPayload(actionHash, runID, stageID, stageSummaryDigest, summaryRevision, requestedAt, expiresAt))
+	actionHash := stageSignOffActionHashForBrokerTests(runID, effectiveStageSignOffPlanID(planID), stageID, stageSummaryDigest, summaryRevision)
+	requestEnv := signedApprovalRequestEnvelopeForBrokerTests(t, privateKey, keyIDValue, stageSummaryApprovalRequestPayload(actionHash, runID, planID, stageID, stageSummaryDigest, summaryRevision, requestedAt, expiresAt))
 	requestDigest, err := approvalIDFromRequest(*requestEnv)
 	if err != nil {
 		t.Fatalf("approvalIDFromRequest returned error: %v", err)
@@ -83,6 +90,13 @@ func signedStageSummaryApprovalArtifactsForBrokerTests(t *testing.T, approver, r
 	decisionEnv := signedApprovalDecisionEnvelopeForBrokerTests(t, privateKey, keyIDValue, approver, outcome, decidedAt, requestDigest)
 	verifier := approvalVerifierRecordForBrokerTests(publicKey, keyIDValue, approver)
 	return requestEnv, decisionEnv, []trustpolicy.VerifierRecord{verifier}
+}
+
+func effectiveStageSignOffPlanID(planID string) string {
+	if strings.TrimSpace(planID) == "" {
+		return "plan-1"
+	}
+	return strings.TrimSpace(planID)
 }
 
 func approvalTimestamps(now time.Time) (string, string, string) {
@@ -99,7 +113,11 @@ func approvalSigningIdentity(t *testing.T) (ed25519.PublicKey, ed25519.PrivateKe
 	return publicKey, privateKey, hex.EncodeToString(keyID[:])
 }
 
-func stageSummaryApprovalRequestPayload(actionHash, runID, stageID, stageSummaryDigest string, summaryRevision int64, requestedAt, expiresAt string) map[string]any {
+func stageSummaryApprovalRequestPayload(actionHash, runID, planID, stageID, stageSummaryDigest string, summaryRevision int64, requestedAt, expiresAt string) map[string]any {
+	details := map[string]any{"run_id": runID, "stage_id": stageID, "stage_summary_hash": map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(stageSummaryDigest, "sha256:")}, "summary_revision": summaryRevision}
+	if strings.TrimSpace(planID) != "" {
+		details["plan_id"] = strings.TrimSpace(planID)
+	}
 	return map[string]any{
 		"schema_id":                trustpolicy.ApprovalRequestSchemaID,
 		"schema_version":           trustpolicy.ApprovalRequestSchemaVersion,
@@ -110,7 +128,7 @@ func stageSummaryApprovalRequestPayload(actionHash, runID, stageID, stageSummary
 		"action_request_hash":      map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(actionHash, "sha256:")},
 		"relevant_artifact_hashes": []any{map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("d", 64)}},
 		"details_schema_id":        "runecode.protocol.details.policy.required_approval.stage_sign_off.v0",
-		"details":                  map[string]any{"run_id": runID, "stage_id": stageID, "stage_summary_hash": map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(stageSummaryDigest, "sha256:")}, "summary_revision": summaryRevision},
+		"details":                  details,
 		"approval_assurance_level": "reauthenticated",
 		"presence_mode":            "hardware_touch",
 		"requested_at":             requestedAt,

@@ -1,6 +1,7 @@
 package policyengine
 
 import (
+	"encoding/json"
 	"strings"
 )
 
@@ -128,6 +129,28 @@ func validGateOverrideActionRequest(capabilityID string) ActionRequest {
 }
 
 func validStageSummarySignOffActionRequest(capabilityID, summaryHash string) ActionRequest {
+	relevantDigest := mustDigestObject(summaryHash)
+	stageSummary := map[string]any{
+		"schema_id":                "runecode.protocol.v0.StageSummary",
+		"schema_version":           "0.1.0",
+		"run_id":                   "run-1",
+		"plan_id":                  "plan-1",
+		"stage_id":                 "stage-1",
+		"summary_revision":         float64(1),
+		"manifest_hash":            mustDigestObject("sha256:" + strings.Repeat("1", 64)),
+		"stage_capability_context": map[string]any{},
+		"requested_high_risk_capability_categories": []any{"stage_sign_off"},
+		"requested_scope_change_types":              []any{},
+		"relevant_artifact_hashes":                  []any{relevantDigest},
+	}
+	stageSummaryBytes, err := json.Marshal(stageSummary)
+	if err != nil {
+		panic(err)
+	}
+	canonicalSummaryHash, err := canonicalHashBytes(stageSummaryBytes)
+	if err != nil {
+		panic(err)
+	}
 	return newActionRequest(
 		ActionKindStageSummarySign,
 		capabilityID,
@@ -135,7 +158,8 @@ func validStageSummarySignOffActionRequest(capabilityID, summaryHash string) Act
 		newSchemaPayload(actionPayloadStageSchemaID, map[string]any{
 			"run_id":             "run-1",
 			"stage_id":           "stage-1",
-			"stage_summary_hash": mustDigestObject(summaryHash),
+			"stage_summary":      stageSummary,
+			"stage_summary_hash": mustDigestObject(canonicalSummaryHash),
 			"approval_profile":   "moderate",
 			"summary_revision":   float64(1),
 		}),

@@ -1,6 +1,11 @@
 package policyengine
 
-import "github.com/runecode-ai/runecode/internal/trustpolicy"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
+)
 
 func NewWorkspaceWriteAction(input WorkspaceWriteActionInput) ActionRequest {
 	payload := map[string]any{
@@ -181,12 +186,17 @@ func NewSecretAccessAction(input SecretAccessActionInput) ActionRequest {
 	return buildActionRequest(ActionKindSecretAccess, actionPayloadSecretAccessID, payload, input.ActionEnvelope)
 }
 
-func NewStageSummarySignOffAction(input StageSummarySignOffActionInput) ActionRequest {
+func NewStageSummarySignOffAction(input StageSummarySignOffActionInput) (ActionRequest, error) {
+	planID := strings.TrimSpace(input.PlanID)
+	if planID == "" {
+		return ActionRequest{}, fmt.Errorf("stage summary sign-off action requires plan_id")
+	}
 	payload := map[string]any{
 		"schema_id":          actionPayloadStageSchemaID,
 		"schema_version":     "0.1.0",
 		"run_id":             input.RunID,
 		"stage_id":           input.StageID,
+		"stage_summary":      canonicalStageSummaryPayload(input, planID),
 		"stage_summary_hash": input.StageSummaryHash,
 	}
 	if input.ApprovalProfile != "" {
@@ -195,7 +205,41 @@ func NewStageSummarySignOffAction(input StageSummarySignOffActionInput) ActionRe
 	if input.SummaryRevision != nil {
 		payload["summary_revision"] = *input.SummaryRevision
 	}
-	return buildActionRequest(ActionKindStageSummarySign, actionPayloadStageSchemaID, payload, input.ActionEnvelope)
+	return buildActionRequest(ActionKindStageSummarySign, actionPayloadStageSchemaID, payload, input.ActionEnvelope), nil
+}
+
+func canonicalStageSummaryPayload(input StageSummarySignOffActionInput, planID string) map[string]any {
+	stageSummary := map[string]any{}
+	for key, value := range input.StageSummary {
+		stageSummary[key] = value
+	}
+	stageSummary["schema_id"] = "runecode.protocol.v0.StageSummary"
+	stageSummary["schema_version"] = "0.1.0"
+	stageSummary["run_id"] = input.RunID
+	stageSummary["plan_id"] = planID
+	stageSummary["stage_id"] = input.StageID
+	stageSummary["summary_revision"] = int64(1)
+	if input.SummaryRevision != nil {
+		stageSummary["summary_revision"] = *input.SummaryRevision
+	}
+	stageSummary["manifest_hash"] = input.ManifestHash
+	ensureStageSummaryPayloadDefaults(stageSummary)
+	return stageSummary
+}
+
+func ensureStageSummaryPayloadDefaults(stageSummary map[string]any) {
+	if _, ok := stageSummary["stage_capability_context"]; !ok {
+		stageSummary["stage_capability_context"] = map[string]any{}
+	}
+	if _, ok := stageSummary["requested_high_risk_capability_categories"]; !ok {
+		stageSummary["requested_high_risk_capability_categories"] = []any{}
+	}
+	if _, ok := stageSummary["requested_scope_change_types"]; !ok {
+		stageSummary["requested_scope_change_types"] = []any{}
+	}
+	if _, ok := stageSummary["relevant_artifact_hashes"]; !ok {
+		stageSummary["relevant_artifact_hashes"] = []any{}
+	}
 }
 
 func CanonicalActionRequestHash(action ActionRequest) (string, error) {
