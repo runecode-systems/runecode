@@ -4,7 +4,7 @@ title: Formal Spec v0 (TLA+ + CI Model Checking)
 status: implemented
 type: feature
 size: large
-verification_status: complete
+verification_status: passed
 context_bundles:
   - product-planning
 related_specs: []
@@ -27,7 +27,7 @@ informed_by: []
 supersedes: []
 superseded_by: []
 created_at: "2026-04-03"
-closed_at: "2026-04-16"
+closed_at: null
 promotion_assessment:
   status: pending
   suggested_targets: []
