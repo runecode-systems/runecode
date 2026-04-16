@@ -92,7 +92,8 @@ func TestResolveTLCRunnerRejectsRelativeTLA2TOOLSJar(t *testing.T) {
 }
 
 func TestResolveTLCRunnerRejectsNonJarTLA2TOOLSPath(t *testing.T) {
-	t.Setenv("TLA2TOOLS_JAR", "/tmp/not-a-jar.txt")
+	badPath := filepath.Join(t.TempDir(), "not-a-jar.txt")
+	t.Setenv("TLA2TOOLS_JAR", badPath)
 
 	_, err := resolveTLCRunnerWithLookPath("/workspace/runecode", lookPathStub(map[string]string{"java": "/usr/bin/java"}))
 	if err == nil || !strings.Contains(err.Error(), "must point to a .jar file") {
