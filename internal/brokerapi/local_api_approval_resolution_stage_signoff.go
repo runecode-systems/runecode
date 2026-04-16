@@ -22,32 +22,36 @@ func stageSignOffBindingFromRequestPayload(payload map[string]any) (string, int6
 	if !ok {
 		return stageSummaryHash, 0, false, nil
 	}
-	revision, err := parsePositiveSummaryRevision(revisionRaw)
+	revision, err := parseNonNegativeSummaryRevision(revisionRaw)
 	if err != nil {
 		return "", 0, false, err
 	}
 	return stageSummaryHash, revision, true, nil
 }
 
-func parsePositiveSummaryRevision(value any) (int64, error) {
-	const maxSafeInteger = 9007199254740991
+func parseNonNegativeSummaryRevision(value any) (int64, error) {
+	const (
+		maxSafeInteger      int64   = 9007199254740991
+		maxSafeIntegerFloat float64 = 9007199254740991
+	)
 
 	switch typed := value.(type) {
 	case float64:
-		if typed < 1 || typed > maxSafeInteger || math.Trunc(typed) != typed {
-			return 0, fmt.Errorf("details.summary_revision must be a positive integer")
+		if typed < 0 || typed > maxSafeIntegerFloat || math.Trunc(typed) != typed {
+			return 0, fmt.Errorf("details.summary_revision must be a non-negative integer")
 		}
 		return int64(typed), nil
 	case int64:
-		if typed < 1 || typed > maxSafeInteger {
-			return 0, fmt.Errorf("details.summary_revision must be a positive integer")
+		if typed < 0 || typed > maxSafeInteger {
+			return 0, fmt.Errorf("details.summary_revision must be a non-negative integer")
 		}
 		return typed, nil
 	case int:
-		if typed < 1 || typed > maxSafeInteger {
-			return 0, fmt.Errorf("details.summary_revision must be a positive integer")
+		typed64 := int64(typed)
+		if typed64 < 0 || typed64 > maxSafeInteger {
+			return 0, fmt.Errorf("details.summary_revision must be a non-negative integer")
 		}
-		return int64(typed), nil
+		return typed64, nil
 	default:
 		return 0, fmt.Errorf("details.summary_revision has unsupported type %T", value)
 	}

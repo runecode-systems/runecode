@@ -101,6 +101,26 @@ func TestResolveTLCRunnerRejectsNonJarTLA2TOOLSPath(t *testing.T) {
 	}
 }
 
+func TestResolveTLCRunnerMissingRunnerErrorMentionsJavaUnavailable(t *testing.T) {
+	_, err := resolveTLCRunnerWithLookPath("/workspace/runecode", lookPathStub(map[string]string{}))
+	if err == nil {
+		t.Fatal("resolveTLCRunnerWithLookPath() error = nil, want runner resolution error")
+	}
+	if !strings.Contains(err.Error(), "java unavailable") {
+		t.Fatalf("resolveTLCRunnerWithLookPath() error = %v, want java unavailable message", err)
+	}
+}
+
+func TestResolveTLCRunnerMissingRunnerErrorMentionsJarMissingWhenJavaExists(t *testing.T) {
+	_, err := resolveTLCRunnerWithLookPath("/workspace/runecode", lookPathStub(map[string]string{"java": "/usr/bin/java"}))
+	if err == nil {
+		t.Fatal("resolveTLCRunnerWithLookPath() error = nil, want runner resolution error")
+	}
+	if !strings.Contains(err.Error(), "java is available but no tla2tools.jar") {
+		t.Fatalf("resolveTLCRunnerWithLookPath() error = %v, want java-available jar-missing message", err)
+	}
+}
+
 func TestFindRepoRootWalksUpToRepoMarkers(t *testing.T) {
 	repoRoot := t.TempDir()
 	writeFile(t, filepath.Join(repoRoot, "go.mod"), "module github.com/runecode-ai/runecode\n")

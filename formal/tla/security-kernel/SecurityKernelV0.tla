@@ -73,7 +73,7 @@ ASSUME
   /\ Cardinality(Plans) >= 2
   /\ Cardinality(Stages) >= 1
   /\ Cardinality(Actions) >= 3
-  /\ Cardinality(Approvals) >= 3
+  /\ Cardinality(Approvals) >= 4
   /\ Cardinality(GateAttempts) >= 1
   /\ Cardinality(HashTokens) >= 2
   /\ Cardinality(ArtifactDigests) >= 1
@@ -101,7 +101,9 @@ ExactApproval == CHOOSE a \in Approvals : TRUE
 
 StageApproval == CHOOSE a \in (Approvals \ {ExactApproval}) : TRUE
 
-DeniedApproval == CHOOSE a \in (Approvals \ {ExactApproval, StageApproval}) : TRUE
+OverrideApproval == CHOOSE a \in (Approvals \ {ExactApproval, StageApproval}) : TRUE
+
+DeniedApproval == CHOOSE a \in (Approvals \ {ExactApproval, StageApproval, OverrideApproval}) : TRUE
 
 PrimaryGateAttempt == CHOOSE ga \in GateAttempts : TRUE
 
@@ -225,6 +227,7 @@ Init ==
       [a \in Approvals |->
         CASE a = ExactApproval -> PrimaryRun
           [] a = StageApproval -> PrimaryRun
+          [] a = OverrideApproval -> PrimaryRun
           [] OTHER -> SecondaryRun]
     initApprovalPlan == [a \in Approvals |-> initRunPlan[initApprovalRun[a]]]
     initApprovalStage == [a \in Approvals |-> PrimaryStage]
@@ -260,9 +263,10 @@ Init ==
        [a \in Approvals |-> IF a = StageApproval THEN "stage_sign_off" ELSE "exact_action"]
   /\ approvalBoundAction =
        [a \in Approvals |->
-         CASE a = ExactApproval -> ExactAction
-           [] a = StageApproval -> StageAction
-           [] OTHER -> ExactAction]
+          CASE a = ExactApproval -> ExactAction
+            [] a = StageApproval -> StageAction
+            [] a = OverrideApproval -> OverrideAction
+            [] OTHER -> ExactAction]
   /\ approvalBoundStageHash = initApprovalBoundStageHash
   /\ approvalManifestHash = [a \in Approvals |-> PrimaryPolicyHash]
   /\ approvalPolicyInputHash = [a \in Approvals |-> PrimaryPolicyInputHash]
@@ -300,10 +304,10 @@ Init ==
   /\ stepCount = 0
 
 AcceptApprovalDecision ==
-  \E a \in {ExactApproval, StageApproval, DeniedApproval}, decision \in {"approved", "denied"} :
+  \E a \in {ExactApproval, StageApproval, OverrideApproval, DeniedApproval}, decision \in {"approved", "denied"} :
     /\ approvalState[a] = "pending"
     /\ (a = DeniedApproval => decision = "denied")
-    /\ (a # DeniedApproval => decision = "approved")
+    /\ (a \in {ExactApproval, StageApproval} => decision = "approved")
     /\ approvalState' = [approvalState EXCEPT ![a] = decision]
     /\ effectiveApprovalState' = [effectiveApprovalState EXCEPT ![a] = decision]
     /\ approvalDecisionAuditState' = [approvalDecisionAuditState EXCEPT ![a] = "required_recorded"]
@@ -347,7 +351,7 @@ ExpireOrCancelApproval ==
         >>
 
 ConsumeApproval ==
-  \E a \in {ExactApproval, StageApproval}, act \in {ExactAction, StageAction, OverrideAction} :
+  \E a \in {ExactApproval, StageApproval, OverrideApproval}, act \in {ExactAction, StageAction, OverrideAction} :
     LET
       isStageSignoff == approvalBindingKind[a] = "stage_sign_off"
       isGateOverride == actionKind[act] = "gate_override"

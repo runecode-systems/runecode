@@ -20,6 +20,14 @@ var modelConfigs = []string{
 	"SecurityKernelV0.replay.cfg",
 }
 
+var (
+	errJavaUnavailable          = errors.New("java unavailable")
+	errJavaAvailableNoTLCJar    = errors.New("java available but no tla2tools.jar available")
+	errTLCRunnerJavaUnavailable = errors.New("tlc binary not found in PATH and java unavailable; install tlaplus, install java (optionally with TLA2TOOLS_JAR), or use nix develop")
+	errTLCRunnerJavaNoJar       = errors.New("tlc binary not found in PATH, java is available but no tla2tools.jar was found, and nix unavailable; set TLA2TOOLS_JAR, vendor third_party/tlaplus/tla2tools.jar, install tlaplus, or use nix develop")
+	errTLCRunnerNoJar           = errors.New("tlc binary not found in PATH and no tla2tools.jar available; set TLA2TOOLS_JAR, install tlaplus, or use nix develop")
+)
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "tlc model check failed: %v\n", err)
@@ -148,7 +156,7 @@ func tlcJarCandidates(repoRoot string) ([]string, error) {
 func resolveJavaTLCRunner(jarCandidates []string, lookup func(string) (string, error)) (tlcRunner, error) {
 	javaPath, err := lookup("java")
 	if err != nil {
-		return tlcRunner{}, err
+		return tlcRunner{}, fmt.Errorf("%w: %v", errJavaUnavailable, err)
 	}
 	for _, candidate := range jarCandidates {
 		if fileExists(candidate) {
@@ -159,7 +167,7 @@ func resolveJavaTLCRunner(jarCandidates []string, lookup func(string) (string, e
 			}, nil
 		}
 	}
-	return tlcRunner{}, errors.New("java found but no tla2tools.jar available")
+	return tlcRunner{}, errJavaAvailableNoTLCJar
 }
 
 func resolveNixFallbackRunner(repoRoot string, lookup func(string) (string, error)) (tlcRunner, bool, error) {
@@ -174,10 +182,13 @@ func resolveNixFallbackRunner(repoRoot string, lookup func(string) (string, erro
 }
 
 func missingRunnerError(javaErr error) (tlcRunner, error) {
-	if javaErr != nil {
-		return tlcRunner{}, errors.New("tlc binary not found in PATH, no tla2tools.jar configured, and java unavailable; install tlaplus, set TLA2TOOLS_JAR with java on PATH, or use nix develop")
+	if errors.Is(javaErr, errJavaUnavailable) {
+		return tlcRunner{}, errTLCRunnerJavaUnavailable
 	}
-	return tlcRunner{}, errors.New("tlc binary not found in PATH and no tla2tools.jar available; set TLA2TOOLS_JAR, install tlaplus, or use nix develop")
+	if errors.Is(javaErr, errJavaAvailableNoTLCJar) {
+		return tlcRunner{}, errTLCRunnerJavaNoJar
+	}
+	return tlcRunner{}, errTLCRunnerNoJar
 }
 
 func nixTLCRunner(repoRoot, nixPath string) tlcRunner {
