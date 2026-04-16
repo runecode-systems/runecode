@@ -11,7 +11,7 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - PR Creation.
 
 ## Why Now
-This work remains scheduled for v0.2, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
+This work now lands in `v0.1.0-alpha.5`, after the audit, artifact, policy, broker, and scoped-credential foundations exist, so RuneCode can finish the secure local development loop before MVP. Keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
 
 ## Assumptions
 - `runecontext/changes/*` is the canonical planning surface for this repository.

@@ -11,7 +11,7 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - CLI Integration.
 
 ## Why Now
-This work remains scheduled for v0.1.0-beta.1, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
+This work now lands in `v0.1.0-alpha.6`, after the MVP foundation and the larger `v0.1.0-alpha.5` hardening and workbench changes settle, so RuneCode can evaluate one narrow proof path pre-MVP without displacing the core product cut. Keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
 
 ## Assumptions
 - `runecontext/changes/*` is the canonical planning surface for this repository.

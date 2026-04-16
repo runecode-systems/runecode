@@ -11,7 +11,7 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Traceability.
 
 ## Why Now
-This work remains scheduled for v0.1.0-beta.1, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
+This work now lands in `v0.1.0-alpha.5`, after the core workflow, policy, audit, and broker foundations are in place, so the highest-risk invariants can be frozen and model-checked before MVP. Keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
 
 ## Assumptions
 - `runecontext/changes/*` is the canonical planning surface for this repository.
