@@ -105,7 +105,7 @@ jobs:
           choco install -y jq --version=1.8.1 --allow-downgrade
 
       - name: Setup Java for TLC
-        uses: actions/setup-java@5ee8f1ffb807478cf991ab9c7d6d0291643e2427 # v5.0.0
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
         with:
           distribution: temurin
           java-version: "17"
