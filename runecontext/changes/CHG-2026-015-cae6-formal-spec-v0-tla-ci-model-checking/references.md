@@ -23,6 +23,7 @@
 - `runecontext/standards/security/approval-binding-and-verifier-identity.md`
 - `runecontext/standards/security/runner-durable-state-and-replay.md`
 - `runecontext/standards/security/trusted-local-artifact-persistence.md`
+- `runecontext/standards/security/trusted-runtime-evidence-and-broker-projection.md`
 
 ## Protocol Foundation Standards
 
@@ -57,11 +58,13 @@
 ## Current Runtime Ownership Surfaces
 
 - `internal/policyengine/compile.go`
+- `internal/policyengine/compile_context.go`
 - `internal/policyengine/evaluate_moderate.go`
 - `internal/artifacts/store_approvals.go`
 - `internal/brokerapi/local_api_approval_resolution_flow.go`
 - `internal/brokerapi/local_api_approval_resolution_stage_signoff.go`
 - `internal/brokerapi/local_api_runner_report_ops_gate_validation_evidence.go`
+- `internal/brokerapi/local_api_runner_report_ops_override_bindings.go`
 - `runner/src/durable-state/types.ts`
 - `runner/src/durable-state/helpers.ts`
 
@@ -69,6 +72,7 @@
 
 - `runecontext/changes/CHG-2026-015-cae6-formal-spec-v0-tla-ci-model-checking/workflow-kernel-semantics-freeze-v0.md`
 - `runecontext/changes/CHG-2026-015-cae6-formal-spec-v0-tla-ci-model-checking/transition-obligation-matrix-v0.md`
+- `runecontext/changes/CHG-2026-015-cae6-formal-spec-v0-tla-ci-model-checking/effective-policy-context-hash-contract-v0.md`
 
 ## Similar Implementations
 
