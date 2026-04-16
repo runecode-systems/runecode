@@ -18,11 +18,15 @@ test:
   go test ./...
   cd runner && npm test
 
+model-check:
+  go run ./tools/tlccheck
+
 ci:
   go run ./tools/gofmtcheck
   go run {{golangci_lint}} run
   go vet ./...
   go run ./tools/checksourcequality
+  just model-check
   go test ./...
   go build ./cmd/...
   cd runner && npm ci

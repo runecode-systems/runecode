@@ -70,12 +70,25 @@ func promotionApprovalRequestPayload(actionHash, digest, requestedAt, expiresAt 
 }
 
 func signedStageSummaryApprovalArtifactsForBrokerTests(t *testing.T, approver, runID, stageID, stageSummaryDigest string, summaryRevision int64, outcome string) (*trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope, []trustpolicy.VerifierRecord) {
+	return signedStageSummaryApprovalArtifactsForBrokerTestsWithPlan(t, approver, runID, "plan-1", stageID, stageSummaryDigest, summaryRevision, outcome)
+}
+
+func signedStageSummaryApprovalArtifactsForBrokerTestsWithPlan(t *testing.T, approver, runID, planID, stageID, stageSummaryDigest string, summaryRevision int64, outcome string) (*trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope, []trustpolicy.VerifierRecord) {
+	return signedStageSummaryApprovalArtifactsForBrokerTestsWithPlanAt(t, approver, runID, planID, stageID, stageSummaryDigest, summaryRevision, outcome, time.Now().UTC())
+}
+
+func signedStageSummaryApprovalArtifactsForBrokerTestsWithPlanAt(t *testing.T, approver, runID, planID, stageID, stageSummaryDigest string, summaryRevision int64, outcome string, now time.Time) (*trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope, []trustpolicy.VerifierRecord) {
 	t.Helper()
-	now := time.Now().UTC()
 	requestedAt, expiresAt, decidedAt := approvalTimestamps(now)
 	publicKey, privateKey, keyIDValue := approvalSigningIdentity(t)
-	actionHash := stageSignOffActionHashForBrokerTests(runID, stageID, stageSummaryDigest, summaryRevision)
-	requestEnv := signedApprovalRequestEnvelopeForBrokerTests(t, privateKey, keyIDValue, stageSummaryApprovalRequestPayload(actionHash, runID, stageID, stageSummaryDigest, summaryRevision, requestedAt, expiresAt))
+	effectivePlanID := strings.TrimSpace(planID)
+	if effectivePlanID == "" {
+		t.Fatal("stage-sign-off test helper requires plan_id")
+	}
+	stageSummary := stageSummaryForApprovalSigningTests(runID, effectivePlanID, stageID, summaryRevision, stageSummaryDigest)
+	stageSummaryDigest = canonicalStageSummaryDigestForApprovalSigningTests(t, stageSummary)
+	actionHash := stageSignOffActionHashForBrokerTests(runID, effectivePlanID, stageID, stageSummary, stageSummaryDigest, summaryRevision)
+	requestEnv := signedApprovalRequestEnvelopeForBrokerTests(t, privateKey, keyIDValue, stageSummaryApprovalRequestPayload(actionHash, runID, effectivePlanID, stageID, stageSummaryDigest, summaryRevision, requestedAt, expiresAt))
 	requestDigest, err := approvalIDFromRequest(*requestEnv)
 	if err != nil {
 		t.Fatalf("approvalIDFromRequest returned error: %v", err)
@@ -83,6 +96,40 @@ func signedStageSummaryApprovalArtifactsForBrokerTests(t *testing.T, approver, r
 	decisionEnv := signedApprovalDecisionEnvelopeForBrokerTests(t, privateKey, keyIDValue, approver, outcome, decidedAt, requestDigest)
 	verifier := approvalVerifierRecordForBrokerTests(publicKey, keyIDValue, approver)
 	return requestEnv, decisionEnv, []trustpolicy.VerifierRecord{verifier}
+}
+
+func stageSummaryForApprovalSigningTests(runID, planID, stageID string, summaryRevision int64, categorySeed string) map[string]any {
+	category := strings.TrimSpace(strings.TrimPrefix(categorySeed, "sha256:"))
+	if category == "" {
+		category = "stage_sign_off"
+	}
+	return map[string]any{
+		"schema_id":                "runecode.protocol.v0.StageSummary",
+		"schema_version":           "0.1.0",
+		"run_id":                   runID,
+		"plan_id":                  planID,
+		"stage_id":                 stageID,
+		"summary_revision":         summaryRevision,
+		"manifest_hash":            map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("1", 64)},
+		"stage_capability_context": map[string]any{},
+		"requested_high_risk_capability_categories": []any{category},
+		"requested_scope_change_types":              []any{},
+		"relevant_artifact_hashes":                  []any{},
+	}
+}
+
+func canonicalStageSummaryDigestForApprovalSigningTests(t *testing.T, stageSummary map[string]any) string {
+	t.Helper()
+	summaryBytes, err := json.Marshal(stageSummary)
+	if err != nil {
+		t.Fatalf("Marshal stage summary returned error: %v", err)
+	}
+	canonicalSummary, err := jsoncanonicalizer.Transform(summaryBytes)
+	if err != nil {
+		t.Fatalf("canonicalize stage summary returned error: %v", err)
+	}
+	sum := sha256.Sum256(canonicalSummary)
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func approvalTimestamps(now time.Time) (string, string, string) {
@@ -99,7 +146,11 @@ func approvalSigningIdentity(t *testing.T) (ed25519.PublicKey, ed25519.PrivateKe
 	return publicKey, privateKey, hex.EncodeToString(keyID[:])
 }
 
-func stageSummaryApprovalRequestPayload(actionHash, runID, stageID, stageSummaryDigest string, summaryRevision int64, requestedAt, expiresAt string) map[string]any {
+func stageSummaryApprovalRequestPayload(actionHash, runID, planID, stageID, stageSummaryDigest string, summaryRevision int64, requestedAt, expiresAt string) map[string]any {
+	details := map[string]any{"run_id": runID, "stage_id": stageID, "stage_summary_hash": map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(stageSummaryDigest, "sha256:")}, "summary_revision": summaryRevision}
+	if strings.TrimSpace(planID) != "" {
+		details["plan_id"] = strings.TrimSpace(planID)
+	}
 	return map[string]any{
 		"schema_id":                trustpolicy.ApprovalRequestSchemaID,
 		"schema_version":           trustpolicy.ApprovalRequestSchemaVersion,
@@ -110,7 +161,7 @@ func stageSummaryApprovalRequestPayload(actionHash, runID, stageID, stageSummary
 		"action_request_hash":      map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(actionHash, "sha256:")},
 		"relevant_artifact_hashes": []any{map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("d", 64)}},
 		"details_schema_id":        "runecode.protocol.details.policy.required_approval.stage_sign_off.v0",
-		"details":                  map[string]any{"run_id": runID, "stage_id": stageID, "stage_summary_hash": map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(stageSummaryDigest, "sha256:")}, "summary_revision": summaryRevision},
+		"details":                  details,
 		"approval_assurance_level": "reauthenticated",
 		"presence_mode":            "hardware_touch",
 		"requested_at":             requestedAt,

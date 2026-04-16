@@ -1,6 +1,11 @@
 package policyengine
 
-import "github.com/runecode-ai/runecode/internal/trustpolicy"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
+)
 
 func NewWorkspaceWriteAction(input WorkspaceWriteActionInput) ActionRequest {
 	payload := map[string]any{
@@ -181,13 +186,22 @@ func NewSecretAccessAction(input SecretAccessActionInput) ActionRequest {
 	return buildActionRequest(ActionKindSecretAccess, actionPayloadSecretAccessID, payload, input.ActionEnvelope)
 }
 
-func NewStageSummarySignOffAction(input StageSummarySignOffActionInput) ActionRequest {
+func NewStageSummarySignOffAction(input StageSummarySignOffActionInput) (ActionRequest, error) {
+	planID := strings.TrimSpace(input.PlanID)
+	if planID == "" {
+		return ActionRequest{}, fmt.Errorf("stage summary sign-off action requires plan_id")
+	}
+	stageSummary, summaryHashIdentity, err := canonicalStageSummaryPayloadAndHash(input, planID)
+	if err != nil {
+		return ActionRequest{}, err
+	}
 	payload := map[string]any{
 		"schema_id":          actionPayloadStageSchemaID,
 		"schema_version":     "0.1.0",
 		"run_id":             input.RunID,
 		"stage_id":           input.StageID,
-		"stage_summary_hash": input.StageSummaryHash,
+		"stage_summary":      stageSummary,
+		"stage_summary_hash": trustpolicy.Digest{HashAlg: "sha256", Hash: strings.TrimPrefix(summaryHashIdentity, "sha256:")},
 	}
 	if input.ApprovalProfile != "" {
 		payload["approval_profile"] = input.ApprovalProfile
@@ -195,7 +209,7 @@ func NewStageSummarySignOffAction(input StageSummarySignOffActionInput) ActionRe
 	if input.SummaryRevision != nil {
 		payload["summary_revision"] = *input.SummaryRevision
 	}
-	return buildActionRequest(ActionKindStageSummarySign, actionPayloadStageSchemaID, payload, input.ActionEnvelope)
+	return buildActionRequest(ActionKindStageSummarySign, actionPayloadStageSchemaID, payload, input.ActionEnvelope), nil
 }
 
 func CanonicalActionRequestHash(action ActionRequest) (string, error) {

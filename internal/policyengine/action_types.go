@@ -148,8 +148,11 @@ type SecretAccessActionInput struct {
 type StageSummarySignOffActionInput struct {
 	ActionEnvelope
 	RunID            string
+	PlanID           string
 	StageID          string
+	ManifestHash     trustpolicy.Digest
 	StageSummaryHash trustpolicy.Digest
 	ApprovalProfile  string
 	SummaryRevision  *int64
+	StageSummary     map[string]any
 }

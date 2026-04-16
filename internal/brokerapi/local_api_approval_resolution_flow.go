@@ -152,29 +152,48 @@ func (s *Service) resumeExactActionApproval(requestID string, current approvalRe
 }
 
 func (s *Service) resumeStageSummarySignOff(requestID string, current approvalRecord, input approvalResolutionInput) (approvalResumeResult, *ErrorResponse) {
-	if current.RequestEnvelope == nil {
-		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "stage sign-off approval has no stored signed request")
-		return approvalResumeResult{}, &errOut
-	}
-	payload, err := decodeApprovalRequestPayload(*current.RequestEnvelope)
-	if err != nil {
-		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
-		return approvalResumeResult{}, &errOut
-	}
-	boundDigest, revision, hasRevision, err := stageSignOffBindingFromRequestPayload(payload)
-	if err != nil {
-		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
-		return approvalResumeResult{}, &errOut
+	bound, errResp := s.resolveStoredStageSignOffBinding(requestID, current)
+	if errResp != nil {
+		return approvalResumeResult{}, errResp
 	}
 	latestDigest, latestRevision, latestID, hasLatest := s.latestPendingStageSignOffBinding(current, input.approvalID)
 	if !hasLatest {
 		return approvalResumeResult{statusOverride: "superseded", resolutionReason: "approval_superseded", supersededByID: latestID}, nil
 	}
-	if latestDigest != boundDigest {
+	if bound.planID != "" {
+		latestPlanID := s.latestPendingStageSignOffPlanID(current, latestID)
+		if latestPlanID != "" && latestPlanID != bound.planID {
+			return approvalResumeResult{statusOverride: "superseded", resolutionReason: "approval_superseded", supersededByID: latestID}, nil
+		}
+	}
+	if latestDigest != bound.digest {
 		return approvalResumeResult{statusOverride: "superseded", resolutionReason: "approval_superseded", supersededByID: latestID}, nil
 	}
-	if hasRevision && latestRevision > revision {
+	if bound.hasRevision && latestRevision > bound.revision {
 		return approvalResumeResult{statusOverride: "superseded", resolutionReason: "approval_superseded", supersededByID: latestID}, nil
 	}
 	return approvalResumeResult{statusOverride: "consumed", resolutionReason: "approval_consumed"}, nil
+}
+
+func (s *Service) resolveStoredStageSignOffBinding(requestID string, current approvalRecord) (latestStageBinding, *ErrorResponse) {
+	if current.RequestEnvelope == nil {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "stage sign-off approval has no stored signed request")
+		return latestStageBinding{}, &errOut
+	}
+	payload, err := decodeApprovalRequestPayload(*current.RequestEnvelope)
+	if err != nil {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
+		return latestStageBinding{}, &errOut
+	}
+	digest, revision, hasRevision, err := stageSignOffBindingFromRequestPayload(payload)
+	if err != nil {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
+		return latestStageBinding{}, &errOut
+	}
+	return latestStageBinding{
+		planID:      stagePlanIDFromRequestPayload(payload),
+		digest:      digest,
+		revision:    revision,
+		hasRevision: hasRevision,
+	}, nil
 }

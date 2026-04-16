@@ -183,8 +183,8 @@ func TestPolicyRuntimeE2EPromotionApprovalLifecycleUsesDurableStoreAndLinkedPoli
 
 func TestPolicyRuntimeE2EStageSignOffStaleThenCurrentLifecycle(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	oldRequest, oldDecision, oldVerifiers := signedStageSummaryApprovalArtifactsForBrokerTests(t, "human", "run-stage-e2e", "stage-1", "sha256:"+strings.Repeat("6", 64), 1, "approve")
-	newRequest, newDecision, newVerifiers := signedStageSummaryApprovalArtifactsForBrokerTests(t, "human", "run-stage-e2e", "stage-1", "sha256:"+strings.Repeat("7", 64), 2, "approve")
+	oldRequest, oldDecision, oldVerifiers := signedStageSummaryApprovalArtifactsForBrokerTests(t, "human", "run-stage-e2e", "stage-1", "stage-signoff-e2e-a", 1, "approve")
+	newRequest, newDecision, newVerifiers := signedStageSummaryApprovalArtifactsForBrokerTests(t, "human", "run-stage-e2e", "stage-1", "stage-signoff-e2e-b", 2, "approve")
 	for _, verifier := range append(oldVerifiers, newVerifiers...) {
 		if err := putTrustedVerifierRecordForService(s, verifier); err != nil {
 			t.Fatalf("putTrustedVerifierRecordForService returned error: %v", err)

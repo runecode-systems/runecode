@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/StageSummary.schema.json",
+  "title": "StageSummary",
+  "description": "Canonical stage summary contract used as the trust-root binding for stage sign-off approvals.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 12,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "run_id",
+    "plan_id",
+    "stage_id",
+    "summary_revision",
+    "manifest_hash",
+    "requested_high_risk_capability_categories",
+    "requested_scope_change_types",
+    "relevant_artifact_hashes"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.StageSummary",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Run identifier under active plan binding.",
+      "x-data-class": "sensitive"
+    },
+    "plan_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Immutable compiled run-plan identity.",
+      "x-data-class": "public"
+    },
+    "stage_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Logical stage scope identity.",
+      "x-data-class": "sensitive"
+    },
+    "summary_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonic non-authoritative revision metadata for ordering and UX.",
+      "x-data-class": "public"
+    },
+    "manifest_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Compiled effective policy-context digest in force for this summary.",
+      "x-data-class": "public"
+    },
+    "stage_capability_context": {
+      "type": "object",
+      "maxProperties": 64,
+      "description": "Optional stage-scoped capability context summary used by policy/approval review.",
+      "x-data-class": "public",
+      "additionalProperties": true
+    },
+    "requested_high_risk_capability_categories": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "description": "Requested high-risk capability categories relevant to this sign-off checkpoint.",
+      "x-data-class": "public",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "maxLength": 128,
+        "description": "Capability category code.",
+        "x-data-class": "public"
+      }
+    },
+    "requested_scope_change_types": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "description": "Requested gateway/dependency scope change categories relevant to this sign-off checkpoint.",
+      "x-data-class": "public",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "maxLength": 128,
+        "description": "Scope change category code.",
+        "x-data-class": "public"
+      }
+    },
+    "relevant_artifact_hashes": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "description": "Relevant artifact digests bound into this canonical stage summary.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "Digest.schema.json#/$defs/digestValue",
+        "description": "Artifact digest identity.",
+        "x-data-class": "public"
+      }
+    }
+  }
+}

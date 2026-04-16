@@ -6,7 +6,7 @@
 - `just test`
 
 ## Verification Notes
-- Confirm the change is scheduled pre-MVP and after `CHG-2026-013-d2c9-minimal-tui-v0`, in `v0.1.0-beta.1`.
+- Confirm the change is scheduled pre-MVP and after `CHG-2026-013-d2c9-minimal-tui-v0`, in `v0.1.0-alpha.5`.
 - Confirm the change extends the MVP TUI foundation rather than replacing or superseding its trust model.
 - Confirm multi-session and workspace behavior is framed around canonical session identity rather than client-local tabs.
 - Confirm advanced live activity depends on typed watch/event families rather than log scraping alone.

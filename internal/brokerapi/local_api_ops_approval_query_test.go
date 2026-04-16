@@ -79,13 +79,16 @@ func TestApprovalGetStageSignOffDetailIncludesStageBindingKindAndHash(t *testing
 	if errResp != nil {
 		t.Fatalf("HandleApprovalGet error response: %+v", errResp)
 	}
+	requestPayload := decodeApprovalPayloadMap(requestEnv.Payload)
+	requestDetails, _ := requestPayload["details"].(map[string]any)
+	expectedStageSummaryHash := digestFromPayloadField(requestDetails, "stage_summary_hash")
 	if resp.ApprovalDetail.BindingKind != "stage_sign_off" {
 		t.Fatalf("approval_detail.binding_kind = %q, want stage_sign_off", resp.ApprovalDetail.BindingKind)
 	}
 	if resp.ApprovalDetail.LifecycleDetail.LifecycleState != "pending" || resp.ApprovalDetail.LifecycleDetail.LifecycleReasonCode != "approval_pending" || resp.ApprovalDetail.LifecycleDetail.Stale {
 		t.Fatalf("unexpected lifecycle detail for stage-sign-off pending approval: %+v", resp.ApprovalDetail.LifecycleDetail)
 	}
-	if resp.ApprovalDetail.BoundStageSummaryHash != "sha256:"+strings.Repeat("6", 64) {
+	if resp.ApprovalDetail.BoundStageSummaryHash != expectedStageSummaryHash {
 		t.Fatalf("approval_detail.bound_stage_summary_hash = %q", resp.ApprovalDetail.BoundStageSummaryHash)
 	}
 	if resp.ApprovalDetail.WhatChangesIfApproved.EffectKind != "stage_sign_off" {
@@ -97,7 +100,7 @@ func TestApprovalGetStageSignOffDetailIncludesStageBindingKindAndHash(t *testing
 	if resp.ApprovalDetail.BoundIdentity.BindingKind != "stage_sign_off" {
 		t.Fatalf("approval_detail.bound_identity.binding_kind = %q, want stage_sign_off", resp.ApprovalDetail.BoundIdentity.BindingKind)
 	}
-	if resp.ApprovalDetail.BoundIdentity.BoundStageSummaryHash != "sha256:"+strings.Repeat("6", 64) {
+	if resp.ApprovalDetail.BoundIdentity.BoundStageSummaryHash != expectedStageSummaryHash {
 		t.Fatalf("approval_detail.bound_identity.bound_stage_summary_hash = %q", resp.ApprovalDetail.BoundIdentity.BoundStageSummaryHash)
 	}
 }

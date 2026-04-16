@@ -27,7 +27,7 @@ If these enhancements are not planned explicitly now, they are likely to accrete
 - Preserve local-first UX while keeping the client topology-neutral for future remote or scaled backends.
 
 ## Why Now
-This work belongs in `v0.1.0-beta.1`, after the alpha TUI foundation and secure model/provider-access foundations exist, but before RuneCode considers its terminal experience mature enough for MVP.
+This work belongs in `v0.1.0-alpha.5`, after the alpha TUI foundation and secure model/provider-access foundations exist, but before RuneCode considers its terminal experience mature enough for MVP.
 
 Doing this before MVP avoids a common trap: shipping a permanently minimal console and then layering advanced behavior onto it through shortcuts. This change instead keeps the same underlying trust model while making the user-facing experience strong enough for serious daily use.
 

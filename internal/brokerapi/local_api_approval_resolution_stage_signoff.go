@@ -2,6 +2,7 @@ package brokerapi
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -21,15 +22,38 @@ func stageSignOffBindingFromRequestPayload(payload map[string]any) (string, int6
 	if !ok {
 		return stageSummaryHash, 0, false, nil
 	}
-	switch value := revisionRaw.(type) {
+	revision, err := parseNonNegativeSummaryRevision(revisionRaw)
+	if err != nil {
+		return "", 0, false, err
+	}
+	return stageSummaryHash, revision, true, nil
+}
+
+func parseNonNegativeSummaryRevision(value any) (int64, error) {
+	const (
+		maxSafeInteger      int64   = 9007199254740991
+		maxSafeIntegerFloat float64 = 9007199254740991
+	)
+
+	switch typed := value.(type) {
 	case float64:
-		return stageSummaryHash, int64(value), true, nil
+		if typed < 0 || typed > maxSafeIntegerFloat || math.Trunc(typed) != typed {
+			return 0, fmt.Errorf("details.summary_revision must be a non-negative integer")
+		}
+		return int64(typed), nil
 	case int64:
-		return stageSummaryHash, value, true, nil
+		if typed < 0 || typed > maxSafeInteger {
+			return 0, fmt.Errorf("details.summary_revision must be a non-negative integer")
+		}
+		return typed, nil
 	case int:
-		return stageSummaryHash, int64(value), true, nil
+		typed64 := int64(typed)
+		if typed64 < 0 || typed64 > maxSafeInteger {
+			return 0, fmt.Errorf("details.summary_revision must be a non-negative integer")
+		}
+		return typed64, nil
 	default:
-		return "", 0, false, fmt.Errorf("details.summary_revision has unsupported type %T", revisionRaw)
+		return 0, fmt.Errorf("details.summary_revision has unsupported type %T", value)
 	}
 }
 
@@ -51,9 +75,26 @@ func (s *Service) latestPendingStageSignOffBinding(current approvalRecord, curre
 	return latest.digest, latest.revision, latest.approvalID, true
 }
 
+func (s *Service) latestPendingStageSignOffPlanID(current approvalRecord, approvalID string) string {
+	if strings.TrimSpace(approvalID) == "" {
+		return ""
+	}
+	records := s.approvalRecordsByID()
+	rec, ok := records[approvalID]
+	if !ok {
+		return ""
+	}
+	candidate, ok := pendingStageBindingCandidate(rec, current)
+	if !ok {
+		return ""
+	}
+	return candidate.planID
+}
+
 type latestStageBinding struct {
 	approvalID  string
 	requestedAt time.Time
+	planID      string
 	digest      string
 	revision    int64
 	hasRevision bool
@@ -83,10 +124,20 @@ func pendingStageBindingCandidate(rec approvalRecord, current approvalRecord) (l
 	return latestStageBinding{
 		approvalID:  rec.Summary.ApprovalID,
 		requestedAt: parseRequestedAt(rec.Summary.RequestedAt),
+		planID:      stagePlanIDFromRequestPayload(payload),
 		digest:      digest,
 		revision:    rev,
 		hasRevision: revOK,
 	}, true
+}
+
+func stagePlanIDFromRequestPayload(payload map[string]any) string {
+	details, _ := payload["details"].(map[string]any)
+	if len(details) == 0 {
+		return ""
+	}
+	planID, _ := details["plan_id"].(string)
+	return strings.TrimSpace(planID)
 }
 
 func parseRequestedAt(value string) time.Time {
@@ -101,17 +152,37 @@ func prefersStageBindingCandidate(candidate, latest latestStageBinding) bool {
 	if latest.approvalID == "" {
 		return true
 	}
+	if preferred, decided := compareStageBindingPlan(candidate, latest); decided {
+		return preferred
+	}
 	switch {
 	case candidate.hasRevision && !latest.hasRevision:
 		return true
-	case candidate.hasRevision && latest.hasRevision && candidate.revision > latest.revision:
-		return true
-	case candidate.hasRevision == latest.hasRevision && candidate.revision == latest.revision:
-		if candidate.requestedAt.After(latest.requestedAt) {
-			return true
-		}
-		return candidate.requestedAt.Equal(latest.requestedAt) && candidate.approvalID > latest.approvalID
-	default:
+	case !candidate.hasRevision && latest.hasRevision:
 		return false
+	case candidate.hasRevision && latest.hasRevision && candidate.revision != latest.revision:
+		return candidate.revision > latest.revision
+	default:
+		return prefersMoreRecentStageBinding(candidate, latest)
 	}
+}
+
+func compareStageBindingPlan(candidate, latest latestStageBinding) (bool, bool) {
+	switch {
+	case candidate.planID != "" && latest.planID == "":
+		return true, true
+	case candidate.planID == "" && latest.planID != "":
+		return false, true
+	case candidate.planID != "" && latest.planID != "" && candidate.planID != latest.planID:
+		return prefersMoreRecentStageBinding(candidate, latest), true
+	default:
+		return false, false
+	}
+}
+
+func prefersMoreRecentStageBinding(candidate, latest latestStageBinding) bool {
+	if candidate.requestedAt.After(latest.requestedAt) {
+		return true
+	}
+	return candidate.requestedAt.Equal(latest.requestedAt) && candidate.approvalID > latest.approvalID
 }
