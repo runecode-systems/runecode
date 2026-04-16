@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -27,9 +28,9 @@ func main() {
 }
 
 func run() error {
-	repoRoot, err := os.Getwd()
+	repoRoot, err := resolveRepoRoot()
 	if err != nil {
-		return fmt.Errorf("resolve workspace root: %w", err)
+		return err
 	}
 
 	specDir := filepath.Join(repoRoot, specDirRelative)
@@ -94,42 +95,135 @@ type tlcRunner struct {
 }
 
 func resolveTLCRunner(repoRoot string) (tlcRunner, error) {
-	if path, err := exec.LookPath("tlc"); err == nil {
-		return tlcRunner{program: path, description: "tlc binary"}, nil
+	return resolveTLCRunnerWithLookPath(repoRoot, exec.LookPath)
+}
+
+func resolveTLCRunnerWithLookPath(repoRoot string, lookup func(string) (string, error)) (tlcRunner, error) {
+	if runner, ok := resolveNativeTLCRunner(lookup); ok {
+		return runner, nil
 	}
 
+	jarCandidates, err := tlcJarCandidates(repoRoot)
+	if err != nil {
+		return tlcRunner{}, err
+	}
+
+	javaRunner, javaErr := resolveJavaTLCRunner(jarCandidates, lookup)
+	if javaErr == nil {
+		return javaRunner, nil
+	}
+
+	if runner, ok, err := resolveNixFallbackRunner(repoRoot, lookup); err != nil {
+		return tlcRunner{}, err
+	} else if ok {
+		return runner, nil
+	}
+
+	return missingRunnerError(javaErr)
+}
+
+func resolveNativeTLCRunner(lookup func(string) (string, error)) (tlcRunner, bool) {
+	path, err := lookup("tlc")
+	if err != nil {
+		return tlcRunner{}, false
+	}
+	return tlcRunner{program: path, description: "tlc binary"}, true
+}
+
+func tlcJarCandidates(repoRoot string) ([]string, error) {
 	jarCandidates := []string{}
 	if envJar := os.Getenv("TLA2TOOLS_JAR"); envJar != "" {
+		if !filepath.IsAbs(envJar) {
+			return nil, fmt.Errorf("TLA2TOOLS_JAR must be an absolute path: %q", envJar)
+		}
+		if !strings.EqualFold(filepath.Ext(envJar), ".jar") {
+			return nil, fmt.Errorf("TLA2TOOLS_JAR must point to a .jar file: %q", envJar)
+		}
 		jarCandidates = append(jarCandidates, envJar)
 	}
 	jarCandidates = append(jarCandidates, filepath.Join(repoRoot, "third_party", "tlaplus", "tla2tools.jar"))
+	return jarCandidates, nil
+}
 
-	javaPath, javaErr := exec.LookPath("java")
-	if javaErr == nil {
-		for _, candidate := range jarCandidates {
-			if fileExists(candidate) {
-				return tlcRunner{
-					program:     javaPath,
-					argsPrefix:  []string{"-cp", candidate, "tlc2.TLC"},
-					description: "java + tla2tools.jar",
-				}, nil
-			}
+func resolveJavaTLCRunner(jarCandidates []string, lookup func(string) (string, error)) (tlcRunner, error) {
+	javaPath, err := lookup("java")
+	if err != nil {
+		return tlcRunner{}, err
+	}
+	for _, candidate := range jarCandidates {
+		if fileExists(candidate) {
+			return tlcRunner{
+				program:     javaPath,
+				argsPrefix:  []string{"-cp", candidate, "tlc2.TLC"},
+				description: "java + tla2tools.jar",
+			}, nil
 		}
 	}
+	return tlcRunner{}, errors.New("java found but no tla2tools.jar available")
+}
 
-	if nixPath, err := exec.LookPath("nix"); err == nil {
-		return tlcRunner{
-			program:     nixPath,
-			argsPrefix:  []string{"develop", "--no-write-lock-file", "-c", "tlc"},
-			description: "nix develop tlc",
-		}, nil
+func resolveNixFallbackRunner(repoRoot string, lookup func(string) (string, error)) (tlcRunner, bool, error) {
+	nixPath, err := lookup("nix")
+	if err != nil {
+		return tlcRunner{}, false, nil
 	}
+	if !fileExists(filepath.Join(repoRoot, "flake.nix")) {
+		return tlcRunner{}, false, fmt.Errorf("nix fallback requires flake.nix at repo root: %s", repoRoot)
+	}
+	return nixTLCRunner(repoRoot, nixPath), true, nil
+}
 
+func missingRunnerError(javaErr error) (tlcRunner, error) {
 	if javaErr != nil {
 		return tlcRunner{}, errors.New("tlc binary not found in PATH, no tla2tools.jar configured, and java unavailable; install tlaplus, set TLA2TOOLS_JAR with java on PATH, or use nix develop")
 	}
-
 	return tlcRunner{}, errors.New("tlc binary not found in PATH and no tla2tools.jar available; set TLA2TOOLS_JAR, install tlaplus, or use nix develop")
+}
+
+func nixTLCRunner(repoRoot, nixPath string) tlcRunner {
+	return tlcRunner{
+		program:     nixPath,
+		argsPrefix:  []string{"develop", "--no-write-lock-file", "--flake", repoRoot, "-c", "tlc"},
+		description: "nix develop tlc",
+	}
+}
+
+func resolveRepoRoot() (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("resolve current directory: %w", err)
+	}
+
+	root, ok := findRepoRoot(cwd)
+	if !ok {
+		return "", fmt.Errorf("resolve repo root from %s: required markers go.mod, justfile, and %s", cwd, specDirRelative)
+	}
+
+	return root, nil
+}
+
+func findRepoRoot(start string) (string, bool) {
+	dir := start
+	for {
+		if looksLikeRepoRoot(dir) {
+			return dir, true
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", false
+		}
+		dir = parent
+	}
+}
+
+func looksLikeRepoRoot(path string) bool {
+	if !fileExists(filepath.Join(path, "go.mod")) {
+		return false
+	}
+	if !fileExists(filepath.Join(path, "justfile")) {
+		return false
+	}
+	return dirExists(filepath.Join(path, specDirRelative))
 }
 
 func ensureDir(path string) error {
@@ -163,4 +257,13 @@ func fileExists(path string) bool {
 	}
 
 	return !info.IsDir()
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+
+	return info.IsDir()
 }
