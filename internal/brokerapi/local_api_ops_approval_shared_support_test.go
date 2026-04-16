@@ -176,7 +176,7 @@ func setupServiceWithStageSignOffApprovalFixture(t *testing.T) (*Service, *trust
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
-	requestEnv, decisionEnv, verifiers := signedStageSummaryApprovalArtifactsForBrokerTests(t, "human", "run-stage", "stage-1", "sha256:"+strings.Repeat("6", 64), 1, "approve")
+	requestEnv, decisionEnv, verifiers := signedStageSummaryApprovalArtifactsForBrokerTests(t, "human", "run-stage", "stage-1", "stage-signoff-a", 1, "approve")
 	for _, verifier := range verifiers {
 		if err := putTrustedVerifierRecordForService(s, verifier); err != nil {
 			t.Fatalf("putTrustedVerifierRecordForService returned error: %v", err)
@@ -188,7 +188,7 @@ func setupServiceWithStageSignOffApprovalFixture(t *testing.T) (*Service, *trust
 
 func setupServiceWithSupersededStageSignOffApprovals(t *testing.T) (*Service, *trustpolicy.SignedObjectEnvelope, *trustpolicy.SignedObjectEnvelope, string) {
 	s, oldReq, oldDec := setupServiceWithStageSignOffApprovalFixture(t)
-	newReq, _, _ := signedStageSummaryApprovalArtifactsForBrokerTests(t, "human", "run-stage", "stage-1", "sha256:"+strings.Repeat("7", 64), 2, "approve")
+	newReq, _, _ := signedStageSummaryApprovalArtifactsForBrokerTests(t, "human", "run-stage", "stage-1", "stage-signoff-b", 2, "approve")
 	newApprovalID := seedPendingStageSignOffApprovalForSignedRequest(t, s, "run-stage", "stage-1", *newReq)
 	return s, oldReq, oldDec, newApprovalID
 }
@@ -205,14 +205,14 @@ func setupServiceWithPlanScopedSupersededStageSignOffApprovals(t *testing.T) (*S
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
 	baseNow := time.Now().UTC()
-	oldReq, oldDec, verifiers := signedStageSummaryApprovalArtifactsForBrokerTestsWithPlanAt(t, "human", "run-stage", "plan-a", "stage-1", "sha256:"+strings.Repeat("6", 64), 1, "approve", baseNow)
+	oldReq, oldDec, verifiers := signedStageSummaryApprovalArtifactsForBrokerTestsWithPlanAt(t, "human", "run-stage", "plan-a", "stage-1", "stage-signoff-plan", 1, "approve", baseNow)
 	for _, verifier := range verifiers {
 		if err := putTrustedVerifierRecordForService(s, verifier); err != nil {
 			t.Fatalf("putTrustedVerifierRecordForService returned error: %v", err)
 		}
 	}
 	_ = seedPendingStageSignOffApprovalForSignedRequest(t, s, "run-stage", "stage-1", *oldReq)
-	newReq, _, _ := signedStageSummaryApprovalArtifactsForBrokerTestsWithPlanAt(t, "human", "run-stage", "plan-b", "stage-1", "sha256:"+strings.Repeat("6", 64), 1, "approve", baseNow.Add(time.Minute))
+	newReq, _, _ := signedStageSummaryApprovalArtifactsForBrokerTestsWithPlanAt(t, "human", "run-stage", "plan-b", "stage-1", "stage-signoff-plan", 1, "approve", baseNow.Add(time.Minute))
 	newApprovalID := seedPendingStageSignOffApprovalForSignedRequest(t, s, "run-stage", "stage-1", *newReq)
 	return s, oldReq, oldDec, newApprovalID
 }
@@ -257,7 +257,7 @@ func seedPendingStageSignOffApprovalForSignedRequest(t *testing.T, s *Service, r
 	return approvalID
 }
 
-func stageSignOffActionHashForBrokerTests(runID, planID, stageID, stageSummaryDigest string, summaryRevision int64) string {
+func stageSignOffActionHashForBrokerTests(runID, planID, stageID string, stageSummary map[string]any, stageSummaryDigest string, summaryRevision int64) string {
 	manifestHash, err := digestFromIdentity("sha256:" + strings.Repeat("1", 64))
 	if err != nil {
 		panic(err)
@@ -266,7 +266,7 @@ func stageSignOffActionHashForBrokerTests(runID, planID, stageID, stageSummaryDi
 	if err != nil {
 		panic(err)
 	}
-	action, err := policyengine.NewStageSummarySignOffAction(policyengine.StageSummarySignOffActionInput{ActionEnvelope: policyengine.ActionEnvelope{CapabilityID: "cap_stage", Actor: policyengine.ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"}}, RunID: runID, PlanID: planID, StageID: stageID, ManifestHash: manifestHash, StageSummaryHash: stageSummaryHash, ApprovalProfile: "moderate", SummaryRevision: &summaryRevision})
+	action, err := policyengine.NewStageSummarySignOffAction(policyengine.StageSummarySignOffActionInput{ActionEnvelope: policyengine.ActionEnvelope{CapabilityID: "cap_stage", Actor: policyengine.ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"}}, RunID: runID, PlanID: planID, StageID: stageID, ManifestHash: manifestHash, StageSummaryHash: stageSummaryHash, ApprovalProfile: "moderate", SummaryRevision: &summaryRevision, StageSummary: stageSummary})
 	if err != nil {
 		panic(err)
 	}

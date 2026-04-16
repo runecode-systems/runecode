@@ -85,3 +85,105 @@ func TestNewStageSummarySignOffActionFailsWithoutPlanID(t *testing.T) {
 		t.Fatal("NewStageSummarySignOffAction returned nil error without plan_id")
 	}
 }
+
+func TestNewStageSummarySignOffActionDerivesCanonicalSummaryHash(t *testing.T) {
+	manifestHash := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)}
+	action, err := NewStageSummarySignOffAction(StageSummarySignOffActionInput{
+		ActionEnvelope:  ActionEnvelope{CapabilityID: "cap_stage", Actor: ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"}},
+		RunID:           "run-1",
+		PlanID:          "plan-1",
+		StageID:         "stage-1",
+		ManifestHash:    manifestHash,
+		ApprovalProfile: "moderate",
+	})
+	if err != nil {
+		t.Fatalf("NewStageSummarySignOffAction returned error: %v", err)
+	}
+	payload := action.ActionPayload
+	stageSummary, ok := payload["stage_summary"].(map[string]any)
+	if !ok {
+		t.Fatalf("stage_summary missing or wrong type: %#v", payload["stage_summary"])
+	}
+	expectedHash, err := canonicalHashValue(stageSummary)
+	if err != nil {
+		t.Fatalf("canonicalHashValue(stage_summary) returned error: %v", err)
+	}
+	payloadHash, err := digestIdentityFromPayloadValue(payload["stage_summary_hash"])
+	if err != nil {
+		t.Fatalf("digestIdentityFromPayloadValue(stage_summary_hash) returned error: %v", err)
+	}
+	if payloadHash != expectedHash {
+		t.Fatalf("stage_summary_hash = %q, want %q", payloadHash, expectedHash)
+	}
+}
+
+func TestNewStageSummarySignOffActionRejectsMismatchedStageSummaryHash(t *testing.T) {
+	manifestHash := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)}
+	_, err := NewStageSummarySignOffAction(StageSummarySignOffActionInput{
+		ActionEnvelope:   ActionEnvelope{CapabilityID: "cap_stage", Actor: ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"}},
+		RunID:            "run-1",
+		PlanID:           "plan-1",
+		StageID:          "stage-1",
+		ManifestHash:     manifestHash,
+		StageSummaryHash: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("2", 64)},
+		ApprovalProfile:  "moderate",
+	})
+	if err == nil {
+		t.Fatal("NewStageSummarySignOffAction returned nil error for mismatched stage_summary_hash")
+	}
+	if !strings.Contains(err.Error(), "stage_summary_hash must match canonical stage_summary digest") {
+		t.Fatalf("error = %q, want mismatch digest error", err.Error())
+	}
+}
+
+func TestNewStageSummarySignOffActionClonesNestedStageSummaryData(t *testing.T) {
+	manifestHash := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)}
+	originalNested := map[string]any{"mode": "strict"}
+	input := StageSummarySignOffActionInput{
+		ActionEnvelope: ActionEnvelope{CapabilityID: "cap_stage", Actor: ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"}},
+		RunID:          "run-1",
+		PlanID:         "plan-1",
+		StageID:        "stage-1",
+		ManifestHash:   manifestHash,
+		StageSummary: map[string]any{
+			"stage_capability_context": originalNested,
+		},
+	}
+	action, err := NewStageSummarySignOffAction(input)
+	if err != nil {
+		t.Fatalf("NewStageSummarySignOffAction returned error: %v", err)
+	}
+	originalNested["mode"] = "relaxed"
+
+	payloadSummary, ok := action.ActionPayload["stage_summary"].(map[string]any)
+	if !ok {
+		t.Fatalf("stage_summary missing or wrong type: %#v", action.ActionPayload["stage_summary"])
+	}
+	nested, ok := payloadSummary["stage_capability_context"].(map[string]any)
+	if !ok {
+		t.Fatalf("stage_capability_context missing or wrong type: %#v", payloadSummary["stage_capability_context"])
+	}
+	if got, _ := nested["mode"].(string); got != "strict" {
+		t.Fatalf("stage_capability_context.mode = %q, want strict", got)
+	}
+}
+
+func TestNewStageSummarySignOffActionRejectsNonSerializableStageSummary(t *testing.T) {
+	manifestHash := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)}
+	_, err := NewStageSummarySignOffAction(StageSummarySignOffActionInput{
+		ActionEnvelope: ActionEnvelope{CapabilityID: "cap_stage", Actor: ActionActor{ActorKind: "daemon", RoleFamily: "workspace", RoleKind: "workspace-edit"}},
+		RunID:          "run-1",
+		PlanID:         "plan-1",
+		StageID:        "stage-1",
+		ManifestHash:   manifestHash,
+		StageSummary: map[string]any{
+			"unsupported": func() {},
+		},
+	})
+	if err == nil {
+		t.Fatal("NewStageSummarySignOffAction returned nil error for non-serializable stage_summary")
+	}
+	if !strings.Contains(err.Error(), "invalid stage_summary payload") && !strings.Contains(err.Error(), "unsupported type") {
+		t.Fatalf("error = %q, want stage_summary payload serialization error", err.Error())
+	}
+}
