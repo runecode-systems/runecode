@@ -102,6 +102,8 @@ func TestResolveTLCRunnerRejectsNonJarTLA2TOOLSPath(t *testing.T) {
 }
 
 func TestResolveTLCRunnerMissingRunnerErrorMentionsJavaUnavailable(t *testing.T) {
+	t.Setenv("TLA2TOOLS_JAR", "")
+
 	_, err := resolveTLCRunnerWithLookPath("/workspace/runecode", lookPathStub(map[string]string{}))
 	if err == nil {
 		t.Fatal("resolveTLCRunnerWithLookPath() error = nil, want runner resolution error")
@@ -112,6 +114,8 @@ func TestResolveTLCRunnerMissingRunnerErrorMentionsJavaUnavailable(t *testing.T)
 }
 
 func TestResolveTLCRunnerMissingRunnerErrorMentionsJarMissingWhenJavaExists(t *testing.T) {
+	t.Setenv("TLA2TOOLS_JAR", "")
+
 	_, err := resolveTLCRunnerWithLookPath("/workspace/runecode", lookPathStub(map[string]string{"java": "/usr/bin/java"}))
 	if err == nil {
 		t.Fatal("resolveTLCRunnerWithLookPath() error = nil, want runner resolution error")
