@@ -211,14 +211,15 @@ func assertTUIBrokerBackedRoutes(t *testing.T) {
 		"backend_kind=unknown",
 		"Live Activity",
 		"Live activity (typed watch families; logs are supplemental inspection only):",
-		"totals events=2 snapshot=1 upsert=0 terminal=1 errors=0",
-		"last_event=run_watch_terminal subject=run-tui status=completed",
+		"feed: waiting for shell watch manager",
 	)
 
 	chat := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, recording)
 	assertRouteOutputContainsAll(t, chat, routeChat,
 		"Sessions: 1 active=session-tui",
 		"Composer: idle",
+	)
+	assertRouteInspectorContainsAll(t, chat, routeChat,
 		"Inspector",
 		"Linked runs: run-tui",
 	)
@@ -226,6 +227,8 @@ func assertTUIBrokerBackedRoutes(t *testing.T) {
 	runs := newRunsRouteModel(routeDefinition{ID: routeRuns, Label: "Runs"}, recording)
 	assertRouteOutputContainsAll(t, runs, routeRuns,
 		"backend_kind=unknown",
+	)
+	assertRouteInspectorContainsAll(t, runs, routeRuns,
 		"Authoritative broker state (control-plane truth):",
 		"Coordination summary:",
 	)
@@ -233,6 +236,8 @@ func assertTUIBrokerBackedRoutes(t *testing.T) {
 	approvals := newApprovalsRouteModel(routeDefinition{ID: routeApprovals, Label: "Approvals"}, recording)
 	assertRouteOutputContainsAll(t, approvals, routeApprovals,
 		"Approval safety strip",
+	)
+	assertRouteInspectorContainsAll(t, approvals, routeApprovals,
 		"Approval trigger code:",
 		"Canonical bound identity:",
 	)
@@ -250,8 +255,24 @@ func assertTUIBrokerBackedRoutes(t *testing.T) {
 		"Protocol posture:",
 	)
 
-	if !containsCall(recording.Calls(), "RunWatch") || !containsCall(recording.Calls(), "ArtifactRead") || !containsCall(recording.Calls(), "AuditVerificationGet") || !containsCall(recording.Calls(), "AuditRecordGet") {
+	if !containsCall(recording.Calls(), "ArtifactRead") || !containsCall(recording.Calls(), "AuditVerificationGet") || !containsCall(recording.Calls(), "AuditRecordGet") {
 		t.Fatalf("expected broker-backed route calls, got %v", recording.Calls())
+	}
+}
+
+func assertRouteInspectorContainsAll(t *testing.T, model routeModel, id routeID, want ...string) {
+	t.Helper()
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: id})
+	if cmd == nil {
+		t.Fatalf("route %s activation returned nil command", id)
+	}
+	loaded := cmd()
+	updated, _ = updated.Update(loaded)
+	inspector := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body
+	for _, needle := range want {
+		if !strings.Contains(inspector, needle) {
+			t.Fatalf("route %s inspector missing %q: %s", id, needle, inspector)
+		}
 	}
 }
 
@@ -284,7 +305,7 @@ func assertArtifactsRouteRedactsDiffContent(t *testing.T, model routeModel) {
 		t.Fatal("artifacts enter returned nil command")
 	}
 	updated, _ = updated.Update(cmd())
-	view := updated.View(120, 40, focusContent)
+	view := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body
 	for _, needle := range []string{"Typed detail mode:", "diff content unavailable: broker_limit_policy_rejected"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("artifacts view missing %q: %s", needle, view)
@@ -313,7 +334,7 @@ func assertAuditRouteSupportsDrillDown(t *testing.T, model routeModel) {
 		t.Fatal("audit enter returned nil command")
 	}
 	updated, _ = updated.Update(cmd())
-	view = updated.View(120, 40, focusContent)
+	view = updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body
 	for _, needle := range []string{"Record family:", "Verification posture:", "Linked references:"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("audit drill-down view missing %q: %s", needle, view)

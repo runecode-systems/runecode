@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
@@ -14,20 +15,26 @@ type runsLoadedMsg struct {
 	seq    uint64
 }
 
+type runsSelectRunMsg struct {
+	RunID string
+}
+
 type runsRouteModel struct {
-	def         routeDefinition
-	client      localBrokerClient
-	loading     bool
-	errText     string
-	runs        []brokerapi.RunSummary
-	selected    int
-	active      *brokerapi.RunDetail
-	inspectorOn bool
-	loadSeq     uint64
+	def          routeDefinition
+	client       localBrokerClient
+	loading      bool
+	errText      string
+	runs         []brokerapi.RunSummary
+	selected     int
+	active       *brokerapi.RunDetail
+	presentation contentPresentationMode
+	inspectorOn  bool
+	loadSeq      uint64
+	detailDoc    longFormDocumentState
 }
 
 func newRunsRouteModel(def routeDefinition, client localBrokerClient) routeModel {
-	return runsRouteModel{def: def, client: client, inspectorOn: true}
+	return runsRouteModel{def: def, client: client, inspectorOn: true, presentation: presentationRendered, detailDoc: newLongFormDocumentState()}
 }
 
 func (m runsRouteModel) ID() routeID { return m.def.ID }
@@ -37,12 +44,17 @@ func (m runsRouteModel) Title() string { return m.def.Label }
 func (m runsRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 	switch typed := msg.(type) {
 	case routeActivatedMsg:
-		if typed.RouteID != m.def.ID {
-			return m, nil
-		}
-		return m.reload()
+		return m.handleRouteActivated(typed)
 	case tea.KeyMsg:
 		return m.handleKey(typed)
+	case runsSelectRunMsg:
+		return m.handleRunSelect(typed)
+	case routeViewportScrollMsg:
+		return m.handleViewportScroll(typed)
+	case routeViewportResizeMsg:
+		return m.handleViewportResize(typed)
+	case routeShellPreferencesMsg:
+		return m.handleShellPreferences(typed)
 	case runsLoadedMsg:
 		if typed.seq != m.loadSeq {
 			return m, nil
@@ -58,33 +70,125 @@ func (m runsRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 			m.selected = 0
 		}
 		m.active = typed.detail
+		if typed.detail != nil {
+			m.selected = selectedRunIndex(m.runs, typed.detail.Summary.RunID)
+		}
+		m.syncDetailDocument()
 		return m, nil
 	default:
 		return m, nil
 	}
 }
 
+func (m runsRouteModel) handleRouteActivated(msg routeActivatedMsg) (routeModel, tea.Cmd) {
+	if msg.RouteID != m.def.ID {
+		return m, nil
+	}
+	if msg.InspectorSet {
+		m.inspectorOn = msg.InspectorVisible
+	}
+	m.presentation = normalizePresentationMode(msg.PreferredMode)
+	return m.reload()
+}
+
+func (m runsRouteModel) handleRunSelect(msg runsSelectRunMsg) (routeModel, tea.Cmd) {
+	runID := strings.TrimSpace(msg.RunID)
+	if runID == "" {
+		return m, nil
+	}
+	m.loading = true
+	m.errText = ""
+	m.loadSeq++
+	return m, m.loadCmd(runID, m.loadSeq)
+}
+
+func selectedRunIndex(runs []brokerapi.RunSummary, runID string) int {
+	runID = strings.TrimSpace(runID)
+	for i, run := range runs {
+		if strings.TrimSpace(run.RunID) == runID {
+			return i
+		}
+	}
+	return 0
+}
+
+func (m runsRouteModel) handleViewportScroll(msg routeViewportScrollMsg) (routeModel, tea.Cmd) {
+	if msg.Region == routeRegionInspector {
+		m.detailDoc.Scroll(msg.Delta)
+	}
+	return m, nil
+}
+
+func (m runsRouteModel) handleViewportResize(msg routeViewportResizeMsg) (routeModel, tea.Cmd) {
+	width, height := longFormViewportSizeForShell(msg.Width, msg.Height)
+	m.detailDoc.Resize(width, height)
+	return m, nil
+}
+
+func (m runsRouteModel) handleShellPreferences(msg routeShellPreferencesMsg) (routeModel, tea.Cmd) {
+	if msg.RouteID != m.def.ID {
+		return m, nil
+	}
+	m.inspectorOn = msg.InspectorVisible
+	m.presentation = normalizePresentationMode(msg.PreferredMode)
+	m.syncDetailDocument()
+	return m, nil
+}
+
 func (m runsRouteModel) View(width, height int, focus focusArea) string {
 	_ = width
 	_ = height
 	if m.loading {
-		return "Loading runs from broker run summaries/details..."
+		return renderStateCard(routeLoadStateLoading, "Runs", "Loading runs from broker run summaries/details...")
 	}
 	if m.errText != "" {
-		return compactLines("Runs", "Load failed: "+m.errText, "Press r to retry.")
+		return renderStateCard(routeLoadStateError, "Runs", "Load failed: "+m.errText+" (press r to retry)")
 	}
 	body := []string{
 		sectionTitle("Runs") + " " + focusBadge(focus),
-		renderRunSafetyStrip(m.activeSummary()),
-		tableHeader("Run list"),
-		renderRunList(m.runs, m.selected),
+		renderRunSafetyStrip(m.activeSummary(), width-4),
+		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
+		renderDirectory("Run directory", renderRunDirectoryItems(m.runs), m.selected),
 	}
-	if m.inspectorOn {
-		body = append(body, tableHeader("Inspector")+" "+appTheme.InspectorHint.Render("(authoritative vs advisory state shown)"))
-		body = append(body, renderRunInspector(m.active))
+	if len(m.runs) == 0 {
+		body = append(body, muted("No runs are available yet; reload after the broker reports canonical run activity."))
 	}
-	body = append(body, keyHint("Route keys: j/k move, enter load detail, i toggle inspector, r reload"))
+	body = append(body, keyHint("Route keys: j/k move, enter load detail, i toggle inspector, v cycle rendered/raw/structured, r reload"))
 	return compactLines(body...)
+}
+
+func (m runsRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
+	mainWidth := routeRegionWidth(ctx.Regions.Main, ctx.Width)
+	mainHeight := routeRegionHeight(ctx.Regions.Main, ctx.Height)
+	breadcrumbs := []string{"Home", m.def.Label}
+	if m.active != nil && m.active.Summary.RunID != "" {
+		breadcrumbs = append(breadcrumbs, m.active.Summary.RunID)
+	}
+	status := ""
+	if m.errText != "" {
+		status = "Load failed: " + m.errText
+	}
+	inspector := ""
+	if m.inspectorOn {
+		inspector = renderRunInspector(m.active, m.presentation, &m.detailDoc)
+	}
+	return routeSurface{
+		Regions: routeSurfaceRegions{
+			Main:      routeSurfaceRegion{Title: "Run workbench", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
+			Inspector: routeSurfaceRegion{Title: "Run inspector", Body: inspector},
+			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, i toggle inspector, v cycle rendered/raw/structured, r reload")},
+			Status:    routeSurfaceRegion{Body: status},
+		},
+		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
+		Chrome:       routeSurfaceChrome{Breadcrumbs: breadcrumbs},
+		Actions: routeSurfaceActions{
+			ModeTabs:         []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
+			ActiveTab:        string(normalizePresentationMode(m.presentation)),
+			CopyActions:      runRouteCopyActions(m.active),
+			ReferenceActions: runInspectorReferenceActions(m.active),
+			LocalActions:     runInspectorLocalActions(),
+		},
+	}
 }
 
 func (m runsRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
@@ -93,6 +197,10 @@ func (m runsRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 		return m.reload()
 	case "i":
 		m.inspectorOn = !m.inspectorOn
+		return m, nil
+	case "v":
+		m.presentation = nextPresentationMode(m.presentation)
+		m.syncDetailDocument()
 		return m, nil
 	case "j", "down":
 		if len(m.runs) == 0 {
@@ -142,6 +250,9 @@ func (m runsRouteModel) loadCmd(runID string, seq uint64) tea.Cmd {
 			return runsLoadedMsg{err: err, seq: seq}
 		}
 		target := runID
+		if target != "" && !containsRunSummary(listResp.Runs, target) {
+			target = ""
+		}
 		if target == "" && len(listResp.Runs) > 0 {
 			target = listResp.Runs[0].RunID
 		}
@@ -154,6 +265,19 @@ func (m runsRouteModel) loadCmd(runID string, seq uint64) tea.Cmd {
 		}
 		return runsLoadedMsg{runs: listResp.Runs, detail: &getResp.Run, seq: seq}
 	}
+}
+
+func containsRunSummary(items []brokerapi.RunSummary, runID string) bool {
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return false
+	}
+	for _, item := range items {
+		if strings.TrimSpace(item.RunID) == runID {
+			return true
+		}
+	}
+	return false
 }
 
 func renderRunList(runs []brokerapi.RunSummary, selected int) string {
@@ -172,47 +296,10 @@ func renderRunList(runs []brokerapi.RunSummary, selected int) string {
 	return line
 }
 
-func renderRunInspector(detail *brokerapi.RunDetail) string {
-	if detail == nil {
-		return "  Select a run and press enter to load detail."
+func renderRunDirectoryItems(runs []brokerapi.RunSummary) []string {
+	items := make([]string, 0, len(runs))
+	for _, run := range runs {
+		items = append(items, fmt.Sprintf("%s %s approvals=%d", run.RunID, stateBadgeWithLabel("state", run.LifecycleState), run.PendingApprovalCount))
 	}
-	summary := detail.Summary
-	waitingStages := 0
-	for _, stage := range detail.StageSummaries {
-		if stage.PendingApprovalCount > 0 {
-			waitingStages++
-		}
-	}
-	waitingRoles := 0
-	for _, role := range detail.RoleSummaries {
-		if role.WaitReasonCode != "" {
-			waitingRoles++
-		}
-	}
-	return compactLines(
-		fmt.Sprintf("  backend_kind=%s", summary.BackendKind),
-		"  Runtime isolation assurance (authoritative): "+renderRuntimeIsolationCue(summary.BackendKind, summary.IsolationAssuranceLevel),
-		fmt.Sprintf("  Runtime posture degraded (authoritative): %t %s", summary.RuntimePostureDegraded, renderRuntimePostureDegradedBadge(summary.RuntimePostureDegraded)),
-		"  Provisioning/binding posture (authoritative): "+renderProvisioningPostureCue(summary.ProvisioningPosture),
-		"  Audit posture (authoritative): "+renderAuditPostureCue(summary.AuditIntegrityStatus, summary.AuditAnchoringStatus, summary.AuditCurrentlyDegraded),
-		fmt.Sprintf("  Approval profile (authoritative): %s", renderApprovalProfileCue(summary.ApprovalProfile)),
-		fmt.Sprintf("  Authoritative broker state (control-plane truth): %d keys", len(detail.AuthoritativeState)),
-		fmt.Sprintf("  Advisory state (non-authoritative runner hints): %d keys %s", len(detail.AdvisoryState), renderAdvisoryStateCue(detail.AdvisoryState)),
-		fmt.Sprintf("  Coordination summary: blocked=%t wait_reason=%s mode=%s locks=%d conflicts=%d", detail.Coordination.Blocked, detail.Coordination.WaitReasonCode, detail.Coordination.CoordinationMode, detail.Coordination.LockCount, detail.Coordination.ConflictCount),
-		fmt.Sprintf("  Blocking cue: %s (reason=%s)", renderBlockingStateCue(detail.Coordination.Blocked, detail.Coordination.WaitReasonCode), valueOrNA(detail.Coordination.WaitReasonCode)),
-		fmt.Sprintf("  Lifecycle blocking reason code: %s -> %s", valueOrNA(summary.BlockingReasonCode), renderBlockingStateCue(summary.BlockingReasonCode != "", summary.BlockingReasonCode)),
-		fmt.Sprintf("  Stage summaries: %d total, %d with pending approvals", len(detail.StageSummaries), waitingStages),
-		fmt.Sprintf("  Role summaries: %d total, %d reporting coordination waits", len(detail.RoleSummaries), waitingRoles),
-		fmt.Sprintf("  Pending approvals=%d active manifests=%d policy refs=%d", len(detail.PendingApprovalIDs), len(detail.ActiveManifestHashes), len(detail.LatestPolicyDecisionRefs)),
-	)
-}
-
-func (m runsRouteModel) activeSummary() brokerapi.RunSummary {
-	if m.active != nil {
-		return m.active.Summary
-	}
-	if len(m.runs) > 0 {
-		return m.runs[m.selected]
-	}
-	return brokerapi.RunSummary{}
+	return items
 }

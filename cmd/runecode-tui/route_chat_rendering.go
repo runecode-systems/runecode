@@ -27,6 +27,32 @@ func renderLinkedReferenceLine(prefix string, refs []string) string {
 	return fmt.Sprintf("%s: %s", prefix, strings.Join(refs, ", "))
 }
 
+func renderSessionDirectoryItems(sessions []brokerapi.SessionSummary) []string {
+	items := make([]string, 0, len(sessions))
+	for _, s := range sessions {
+		items = append(items, fmt.Sprintf("%s %s turns=%d", s.Identity.SessionID, stateBadgeWithLabel("status", s.Status), s.TurnCount))
+	}
+	return items
+}
+
+func activeSessionSummaryLine(detail *brokerapi.SessionDetail) string {
+	if detail == nil {
+		return "none selected"
+	}
+	s := detail.Summary
+	return fmt.Sprintf("%s | ws=%s | cue=%s | activity=%s/%s | preview=%q | incomplete=%t | runs=%d approvals=%d",
+		s.Identity.SessionID,
+		s.Identity.WorkspaceID,
+		sessionHighLevelCue(s),
+		defaultPlaceholder(s.LastActivityAt, "n/a"),
+		defaultPlaceholder(s.LastActivityKind, "n/a"),
+		truncateText(s.LastActivityPreview, 64),
+		s.HasIncompleteTurn,
+		s.LinkedRunCount,
+		s.LinkedApprovalCount,
+	)
+}
+
 func renderTranscriptTurns(turns []brokerapi.SessionTranscriptTurn) string {
 	orderedTurns := sortTranscriptTurns(turns)
 	if len(orderedTurns) == 0 {
@@ -36,7 +62,7 @@ func renderTranscriptTurns(turns []brokerapi.SessionTranscriptTurn) string {
 	for _, turn := range orderedTurns {
 		b.WriteString(fmt.Sprintf("    - turn[%d] %s status=%s\n", turn.TurnIndex, turn.TurnID, turn.Status))
 		for _, msg := range sortTranscriptMessages(turn.Messages) {
-			b.WriteString(fmt.Sprintf("      • msg[%d] %s: %s\n", msg.MessageIndex, msg.Role, redactSecrets(msg.ContentText)))
+			b.WriteString(fmt.Sprintf("      • msg[%d] %s: %s\n", msg.MessageIndex, msg.Role, sanitizeUIText(msg.ContentText)))
 			related := flattenRelatedLinks(msg.RelatedLinks)
 			if related != "" {
 				b.WriteString(fmt.Sprintf("        links: %s\n", related))
@@ -63,9 +89,12 @@ func flattenRelatedLinks(links brokerapi.SessionTranscriptLinks) string {
 	return strings.Join(parts, " ")
 }
 
-func renderComposer(on bool, draft string) string {
+func renderComposer(on bool, draft string, textareaView string) string {
 	if !on {
 		return "Composer: press c to compose and send to active session"
+	}
+	if strings.TrimSpace(textareaView) != "" {
+		return compactLines("Compose draft:", textareaView)
 	}
 	return fmt.Sprintf("Compose draft: %q", redactSecrets(draft))
 }

@@ -6,7 +6,42 @@ import (
 )
 
 func TestValidateObjectPayloadAgainstSchemaRejectsUnknownFields(t *testing.T) {
-	payload := map[string]any{
+	payload := validApprovalDecisionPayloadForSchemaTests()
+	payload["unknown_field"] = "fail-closed"
+	b, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal payload returned error: %v", err)
+	}
+	if err := validateObjectPayloadAgainstSchema(b, "objects/ApprovalDecision.schema.json"); err == nil {
+		t.Fatal("validateObjectPayloadAgainstSchema expected unknown field failure")
+	}
+}
+
+func TestValidateObjectPayloadAgainstSchemaAcceptsValidPayload(t *testing.T) {
+	payload := validApprovalDecisionPayloadForSchemaTests()
+	b, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal payload returned error: %v", err)
+	}
+	if err := validateObjectPayloadAgainstSchema(b, "objects/ApprovalDecision.schema.json"); err != nil {
+		t.Fatalf("validateObjectPayloadAgainstSchema returned error: %v", err)
+	}
+}
+
+func TestValidateObjectPayloadAgainstSchemaRejectsTrailingJSON(t *testing.T) {
+	payload := validApprovalDecisionPayloadForSchemaTests()
+	b, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal payload returned error: %v", err)
+	}
+	b = append(b, []byte("{}")...)
+	if err := validateObjectPayloadAgainstSchema(b, "objects/ApprovalDecision.schema.json"); err == nil {
+		t.Fatal("validateObjectPayloadAgainstSchema expected trailing JSON failure")
+	}
+}
+
+func validApprovalDecisionPayloadForSchemaTests() map[string]any {
+	return map[string]any{
 		"schema_id":                "runecode.protocol.v0.ApprovalDecision",
 		"schema_version":           "0.3.0",
 		"approval_request_hash":    map[string]any{"hash_alg": "sha256", "hash": testDigestHash("d")},
@@ -19,14 +54,6 @@ func TestValidateObjectPayloadAgainstSchemaRejectsUnknownFields(t *testing.T) {
 		"decided_at":               "2026-03-13T12:05:00Z",
 		"consumption_posture":      "single_use",
 		"signatures":               []any{signatureBlockForSchemaTests()},
-		"unknown_field":            "fail-closed",
-	}
-	b, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatalf("Marshal payload returned error: %v", err)
-	}
-	if err := validateObjectPayloadAgainstSchema(b, "objects/ApprovalDecision.schema.json"); err == nil {
-		t.Fatal("validateObjectPayloadAgainstSchema expected unknown field failure")
 	}
 }
 

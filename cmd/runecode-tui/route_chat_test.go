@@ -78,23 +78,35 @@ func TestChatRouteRendersOrderedTranscriptAndLinkedReferences(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
+	surface := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
+	inspector := surface.Regions.Inspector.Body
 
-	turnOnePos := strings.Index(view, "turn[1] turn-1")
-	turnTwoPos := strings.Index(view, "turn[2] turn-2")
+	turnOnePos := strings.Index(inspector, "turn[1] turn-1")
+	turnTwoPos := strings.Index(inspector, "turn[2] turn-2")
 	if turnOnePos < 0 || turnTwoPos < 0 || turnOnePos > turnTwoPos {
-		t.Fatalf("expected ordered transcript turns in view, got %q", view)
+		t.Fatalf("expected ordered transcript turns in inspector, got %q", inspector)
 	}
-	if !strings.Contains(view, "Linked runs: run-1") {
-		t.Fatalf("expected linked run reference in view, got %q", view)
+	if !strings.Contains(inspector, "Linked runs: run-1") {
+		t.Fatalf("expected linked run reference in inspector, got %q", inspector)
 	}
-	if !strings.Contains(view, "Linked approvals: ap-1") {
-		t.Fatalf("expected linked approval reference in view, got %q", view)
+	if !strings.Contains(inspector, "Linked approvals: ap-1") {
+		t.Fatalf("expected linked approval reference in inspector, got %q", inspector)
 	}
-	if !strings.Contains(view, "Linked artifacts: sha256:bbbb") {
-		t.Fatalf("expected linked artifact reference in view, got %q", view)
+	if !strings.Contains(inspector, "Linked artifacts: sha256:bbbb") {
+		t.Fatalf("expected linked artifact reference in inspector, got %q", inspector)
 	}
-	if !strings.Contains(view, "Linked audit: sha256:aaaa") {
-		t.Fatalf("expected linked audit reference in view, got %q", view)
+	if !strings.Contains(inspector, "Linked audit: sha256:aaaa") {
+		t.Fatalf("expected linked audit reference in inspector, got %q", inspector)
+	}
+	mustContainAll(t, inspector,
+		"Summary:",
+		"Identity: session=session-1 workspace=ws-1",
+		"Local actions: jump:runs | jump:approvals | jump:artifacts | jump:audit | copy:session_id",
+		"Copy actions: session id | workspace id | transcript excerpt | linked references",
+		"Long-form transcript:",
+	)
+	if strings.Contains(view, "Long-form transcript:") {
+		t.Fatalf("expected transcript detail to render only in inspector region, got %q", view)
 	}
 }
 
@@ -111,9 +123,9 @@ func TestChatRouteComposeSendsTypedSessionMessageRequest(t *testing.T) {
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
-	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
 	if cmd == nil {
-		t.Fatal("expected send command from compose enter")
+		t.Fatal("expected send command from compose alt+enter")
 	}
 	updated, _ = updated.Update(cmd())
 
@@ -133,5 +145,32 @@ func TestChatRouteComposeSendsTypedSessionMessageRequest(t *testing.T) {
 	view := updated.View(120, 40, focusContent)
 	if !strings.Contains(view, "Status: Message appended to canonical transcript.") {
 		t.Fatalf("expected send ack status in view, got %q", view)
+	}
+}
+
+func TestChatRouteComposeSupportsMultilineBracketedPaste(t *testing.T) {
+	model := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, &fakeBrokerClient{})
+
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeChat})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("first line\nsecond line"), Paste: true})
+
+	chat := updated.(chatRouteModel)
+	if got := chat.composer.Value(); got != "first line\nsecond line" {
+		t.Fatalf("expected multiline pasted draft, got %q", got)
+	}
+
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Fatal("expected plain enter to remain newline in compose mode")
+	}
+	chat = updated.(chatRouteModel)
+	if !strings.Contains(chat.composer.Value(), "\n") {
+		t.Fatalf("expected newline retained in composer, got %q", chat.composer.Value())
 	}
 }

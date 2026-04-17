@@ -4,9 +4,10 @@
 
 - **Mission:** `runecontext/project/mission.md`
 - **Tech stack:** `runecontext/project/tech-stack.md`
+- **Standards inventory:** `runecontext/project/standards-inventory.md`
 - **Trust boundaries:** `docs/trust-boundaries.md`
 
-## External References
+## UX And Implementation References
 
 - Bubble Tea: https://github.com/charmbracelet/bubbletea
 - Bubbles: https://github.com/charmbracelet/bubbles
@@ -20,6 +21,11 @@
 ## Related Changes
 
 - `runecontext/changes/CHG-2026-013-d2c9-minimal-tui-v0/`
+- `runecontext/changes/CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0/`
+- `runecontext/changes/CHG-2026-040-2b7f-session-transcript-model-v0/`
+- `runecontext/changes/CHG-2026-041-4d8a-approval-review-detail-models-v0/`
+- `runecontext/changes/CHG-2026-042-6f3c-audit-record-drill-down-v0/`
+- `runecontext/changes/CHG-2026-043-8e9b-live-activity-watch-streams-v0/`
 - `runecontext/changes/CHG-2026-008-62e1-broker-local-api-v0/`
 - `runecontext/changes/CHG-2026-003-b567-audit-log-v0-verify/`
 - `runecontext/changes/CHG-2026-006-84f0-audit-anchoring-v0/`
@@ -28,6 +34,9 @@
 - `runecontext/changes/CHG-2026-014-0c5d-approval-profiles-strict-permissive/`
 - `runecontext/changes/CHG-2026-019-40c5-bridge-runtime-protocol-v0/`
 
-## Notes
+## Planning Notes
 
-- This change intentionally captures advanced TUI and workbench behavior only after the MVP shell foundation is established.
+- Visual direction was informed by fullscreen workbench references reviewed during planning, especially OpenCode-style compositions with centered overlays, strong focus cues, integrated output surfaces, and a calm dark palette.
+- Follow-up architectural analysis also reviewed Charmbracelet `crush` directly. The durable conclusion was to borrow its bounded-component rendering discipline, reusable list and overlay patterns, and layout-test posture, but not its root screen-buffer architecture.
+- User-local screenshot filesystem paths are intentionally not recorded in repo docs; only the durable design conclusions are captured here.
+- This change intentionally freezes the shell, navigation, activity, and copy or paste foundation before the larger visual pass begins.

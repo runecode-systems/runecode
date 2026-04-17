@@ -9,6 +9,7 @@ const (
 	routeChat      routeID = "chat"
 	routeRuns      routeID = "runs"
 	routeApprovals routeID = "approvals"
+	routeAction    routeID = "action-center"
 	routeArtifacts routeID = "artifacts"
 	routeAudit     routeID = "audit"
 	routeStatus    routeID = "status"
@@ -27,9 +28,10 @@ func shellRoutes() []routeDefinition {
 		{ID: routeChat, Label: "Chat", Description: "Session transcript and operator interaction", Index: 2},
 		{ID: routeRuns, Label: "Runs", Description: "Run list and run detail workbench", Index: 3},
 		{ID: routeApprovals, Label: "Approvals", Description: "Approval queue and decision center", Index: 4},
-		{ID: routeArtifacts, Label: "Artifacts", Description: "Artifact browsing and drill-down", Index: 5},
-		{ID: routeAudit, Label: "Audit", Description: "Audit timeline and verification posture", Index: 6},
-		{ID: routeStatus, Label: "Status", Description: "Broker readiness and subsystem posture", Index: 7},
+		{ID: routeAction, Label: "Action Center", Description: "Interactive/operator-attention queues and blocked-work impact", Index: 5},
+		{ID: routeArtifacts, Label: "Artifacts", Description: "Artifact browsing and drill-down", Index: 6},
+		{ID: routeAudit, Label: "Audit", Description: "Audit timeline and verification posture", Index: 7},
+		{ID: routeStatus, Label: "Status", Description: "Broker readiness and subsystem posture", Index: 8},
 	}
 }
 

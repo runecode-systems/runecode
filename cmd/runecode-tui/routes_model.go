@@ -12,10 +12,31 @@ type routeModel interface {
 	Title() string
 	Update(msg tea.Msg) (routeModel, tea.Cmd)
 	View(width, height int, focus focusArea) string
+	ShellSurface(ctx routeShellContext) routeSurface
 }
 
 type routeActivatedMsg struct {
-	RouteID routeID
+	RouteID          routeID
+	ActiveSessionID  string
+	InspectorVisible bool
+	InspectorSet     bool
+	PreferredMode    contentPresentationMode
+}
+
+type routeViewportScrollMsg struct {
+	Region routeRegionFocus
+	Delta  int
+}
+
+type routeViewportResizeMsg struct {
+	Width  int
+	Height int
+}
+
+type routeShellPreferencesMsg struct {
+	RouteID          routeID
+	InspectorVisible bool
+	PreferredMode    contentPresentationMode
 }
 
 type routeErrorModel struct {
@@ -49,6 +70,18 @@ func (m routeErrorModel) View(width, height int, focus focusArea) string {
 	)
 }
 
+func (m routeErrorModel) ShellSurface(ctx routeShellContext) routeSurface {
+	mainWidth := routeRegionWidth(ctx.Regions.Main, ctx.Width)
+	mainHeight := routeRegionHeight(ctx.Regions.Main, ctx.Height)
+	return routeSurface{
+		Regions: routeSurfaceRegions{
+			Main: routeSurfaceRegion{Body: m.View(mainWidth, mainHeight, ctx.Focus)},
+		},
+		Capabilities: routeSurfaceCapabilities{},
+		Chrome:       routeSurfaceChrome{Breadcrumbs: []string{"Home", m.def.Label}},
+	}
+}
+
 func newRouteModels(defs []routeDefinition) map[routeID]routeModel {
 	client := newLocalBrokerClient()
 	models := make(map[routeID]routeModel, len(defs))
@@ -62,6 +95,8 @@ func newRouteModels(defs []routeDefinition) map[routeID]routeModel {
 			models[def.ID] = newRunsRouteModel(def, client)
 		case routeApprovals:
 			models[def.ID] = newApprovalsRouteModel(def, client)
+		case routeAction:
+			models[def.ID] = newActionCenterRouteModel(def, client)
 		case routeArtifacts:
 			models[def.ID] = newArtifactsRouteModel(def, client)
 		case routeAudit:
@@ -95,7 +130,7 @@ func safeUIErrorText(err error) string {
 	if text == "" {
 		return "unknown_error"
 	}
-	return redactSecrets(remediateBrokerErrorText(text))
+	return sanitizeUIText(remediateBrokerErrorText(text))
 }
 
 func remediateBrokerErrorText(text string) string {

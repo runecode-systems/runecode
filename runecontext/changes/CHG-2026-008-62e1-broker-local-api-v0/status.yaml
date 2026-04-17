@@ -18,11 +18,13 @@ related_changes:
   - CHG-2026-003-b567-audit-log-v0-verify
   - CHG-2026-004-acdb-artifact-store-data-classes-v0
   - CHG-2026-005-cfd0-crypto-key-management-v0
+  - CHG-2026-006-84f0-audit-anchoring-v0
   - CHG-2026-007-2315-policy-engine-v0
   - CHG-2026-009-1672-launcher-microvm-backend-v0
   - CHG-2026-013-d2c9-minimal-tui-v0
   - CHG-2026-011-7240-secretsd-model-gateway-v0
   - CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0
+  - CHG-2026-015-cae6-formal-spec-v0-tla-ci-model-checking
   - CHG-2026-018-5900-auth-gateway-role-v0
   - CHG-2026-020-4425-openai-chatgpt-subscription-provider-oauth-codex-bridge
   - CHG-2026-021-8d6d-local-ipc-protobuf-transport-v0

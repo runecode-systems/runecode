@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -27,6 +28,10 @@ const (
 	artifactModeResult artifactDetailMode = "result"
 )
 
+type artifactsSelectDigestMsg struct {
+	Digest string
+}
+
 type artifactsRouteModel struct {
 	def          routeDefinition
 	client       localBrokerClient
@@ -42,10 +47,11 @@ type artifactsRouteModel struct {
 	presentation contentPresentationMode
 	inspectorOn  bool
 	loadSeq      uint64
+	detailDoc    longFormDocumentState
 }
 
 func newArtifactsRouteModel(def routeDefinition, client localBrokerClient) routeModel {
-	return artifactsRouteModel{def: def, client: client, inspectorOn: true, presentation: presentationRendered}
+	return artifactsRouteModel{def: def, client: client, inspectorOn: true, presentation: presentationRendered, detailDoc: newLongFormDocumentState()}
 }
 
 func (m artifactsRouteModel) ID() routeID { return m.def.ID }
@@ -55,60 +61,145 @@ func (m artifactsRouteModel) Title() string { return m.def.Label }
 func (m artifactsRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 	switch typed := msg.(type) {
 	case routeActivatedMsg:
+		return m.handleRouteActivated(typed)
+	case tea.KeyMsg:
+		return m.handleKey(typed)
+	case artifactsSelectDigestMsg:
+		return m.handleSelectDigest(typed)
+	case routeViewportScrollMsg:
+		return m.handleViewportScroll(typed)
+	case routeViewportResizeMsg:
+		return m.handleViewportResize(typed)
+	case routeShellPreferencesMsg:
 		if typed.RouteID != m.def.ID {
 			return m, nil
 		}
-		return m.reload()
-	case tea.KeyMsg:
-		return m.handleKey(typed)
-	case artifactsLoadedMsg:
-		if typed.seq != m.loadSeq {
-			return m, nil
-		}
-		m.loading = false
-		if typed.err != nil {
-			m.errText = safeUIErrorText(typed.err)
-			return m, nil
-		}
-		m.errText = ""
-		m.items = typed.items
-		if m.selected >= len(m.items) {
-			m.selected = 0
-		}
-		m.active = typed.head
-		m.content = typed.content
-		m.contentErr = typed.contentErr
-		if m.active != nil {
-			m.mode = preferredArtifactMode(m.active.Artifact.Reference.DataClass)
-		}
+		m.inspectorOn = typed.InspectorVisible
+		m.presentation = normalizePresentationMode(typed.PreferredMode)
+		m.syncDetailDocument()
 		return m, nil
+	case artifactsLoadedMsg:
+		return m.handleArtifactsLoaded(typed)
 	default:
 		return m, nil
 	}
+}
+
+func (m artifactsRouteModel) handleRouteActivated(msg routeActivatedMsg) (routeModel, tea.Cmd) {
+	if msg.RouteID != m.def.ID {
+		return m, nil
+	}
+	if msg.InspectorSet {
+		m.inspectorOn = msg.InspectorVisible
+	}
+	m.presentation = normalizePresentationMode(msg.PreferredMode)
+	return m.reload()
+}
+
+func (m artifactsRouteModel) handleSelectDigest(msg artifactsSelectDigestMsg) (routeModel, tea.Cmd) {
+	digest := strings.TrimSpace(msg.Digest)
+	if digest == "" {
+		return m, nil
+	}
+	m.loading = true
+	m.errText = ""
+	m.loadSeq++
+	return m, m.loadCmd(digest, m.loadSeq)
+}
+
+func (m artifactsRouteModel) handleViewportScroll(msg routeViewportScrollMsg) (routeModel, tea.Cmd) {
+	if msg.Region == routeRegionInspector {
+		m.detailDoc.Scroll(msg.Delta)
+	}
+	return m, nil
+}
+
+func (m artifactsRouteModel) handleViewportResize(msg routeViewportResizeMsg) (routeModel, tea.Cmd) {
+	width, height := longFormViewportSizeForShell(msg.Width, msg.Height)
+	m.detailDoc.Resize(width, height)
+	return m, nil
+}
+
+func (m artifactsRouteModel) handleArtifactsLoaded(msg artifactsLoadedMsg) (routeModel, tea.Cmd) {
+	if msg.seq != m.loadSeq {
+		return m, nil
+	}
+	m.loading = false
+	if msg.err != nil {
+		m.errText = safeUIErrorText(msg.err)
+		return m, nil
+	}
+	m.errText = ""
+	m.items = msg.items
+	if m.selected >= len(m.items) {
+		m.selected = 0
+	}
+	m.active = msg.head
+	m.content = msg.content
+	m.contentErr = msg.contentErr
+	if m.active != nil {
+		m.mode = preferredArtifactMode(m.active.Artifact.Reference.DataClass)
+	}
+	m.syncDetailDocument()
+	return m, nil
 }
 
 func (m artifactsRouteModel) View(width, height int, focus focusArea) string {
 	_ = width
 	_ = height
 	if m.loading {
-		return "Loading artifacts from typed broker artifact contracts..."
+		return renderStateCard(routeLoadStateLoading, "Artifacts", "Loading artifacts from typed broker artifact contracts...")
 	}
 	if m.errText != "" {
-		return compactLines("Artifacts", "Load failed: "+m.errText, "Press r to retry.")
+		return renderStateCard(routeLoadStateError, "Artifacts", "Load failed: "+m.errText+" (press r to retry)")
 	}
 	body := []string{
 		sectionTitle("Artifacts") + " " + focusBadge(focus),
 		fmt.Sprintf("Filter data_class=%q", artifactClassFilters[m.classIndex]),
-		fmt.Sprintf("Presentation mode=%s", normalizePresentationMode(m.presentation)),
-		tableHeader("Artifact list"),
-		renderArtifactList(m.items, m.selected),
+		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
+		renderDirectory("Artifact directory", renderArtifactDirectoryItems(m.items), m.selected),
 	}
-	if m.inspectorOn {
-		body = append(body, tableHeader("Inspector")+" "+appTheme.InspectorHint.Render("(typed metadata first)"))
-		body = append(body, renderArtifactInspector(m.active, m.mode, m.presentation, m.content, m.contentErr))
+	if len(m.items) == 0 {
+		body = append(body, muted("No artifacts match the current class filter; switch filters or reload after new evidence arrives."))
 	}
 	body = append(body, keyHint("Route keys: j/k move, enter load detail, [/] class filter, m cycle detail mode, v cycle rendered/raw/structured, i toggle inspector, r reload"))
 	return compactLines(body...)
+}
+
+func (m artifactsRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
+	mainWidth := routeRegionWidth(ctx.Regions.Main, ctx.Width)
+	mainHeight := routeRegionHeight(ctx.Regions.Main, ctx.Height)
+	breadcrumbs := []string{"Home", m.def.Label}
+	if m.active != nil && strings.TrimSpace(m.active.Artifact.Reference.Digest) != "" {
+		breadcrumbs = append(breadcrumbs, strings.TrimSpace(m.active.Artifact.Reference.Digest))
+	}
+	status := ""
+	if strings.TrimSpace(m.errText) != "" {
+		status = "Load failed: " + strings.TrimSpace(m.errText)
+	} else if strings.TrimSpace(m.contentErr) != "" {
+		status = "Content unavailable: " + strings.TrimSpace(m.contentErr)
+	}
+	inspector := ""
+	if m.inspectorOn {
+		inspector = renderArtifactInspector(m.active, m.mode, m.presentation, m.content, m.contentErr, &m.detailDoc)
+	}
+	return routeSurface{
+		Regions: routeSurfaceRegions{
+			Main:      routeSurfaceRegion{Title: "Artifact workspace", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
+			Inspector: routeSurfaceRegion{Title: "Artifact inspector", Body: inspector},
+			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, [/] class filter, m cycle detail mode, v cycle rendered/raw/structured, i toggle inspector, r reload")},
+			Status:    routeSurfaceRegion{Body: status},
+		},
+		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
+		Chrome:       routeSurfaceChrome{Breadcrumbs: breadcrumbs},
+		Actions: routeSurfaceActions{
+			ModeTabs:         []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
+			ActiveTab:        string(normalizePresentationMode(m.presentation)),
+			CopyActions:      artifactRouteCopyActions(m.active, m.content),
+			ReferenceActions: artifactInspectorReferenceActions(m.active),
+			LocalActions:     artifactInspectorLocalActions(),
+		},
+	}
 }
 
 func (m artifactsRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
@@ -122,10 +213,12 @@ func (m artifactsRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 	}
 	if s == "m" {
 		m.mode = nextArtifactMode(m.mode)
+		m.syncDetailDocument()
 		return m, nil
 	}
 	if s == "v" {
 		m.presentation = nextPresentationMode(m.presentation)
+		m.syncDetailDocument()
 		return m, nil
 	}
 	if s == "[" || s == "]" {
@@ -193,136 +286,59 @@ func (m artifactsRouteModel) loadCmd(digest string, seq uint64) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := withLoadTimeout()
 		defer cancel()
-		class := artifactClassFilters[m.classIndex]
-		listResp, err := m.client.ArtifactList(ctx, 40, class)
+		listResp, err := m.client.ArtifactList(ctx, 40, artifactClassFilters[m.classIndex])
 		if err != nil {
 			return artifactsLoadedMsg{err: err, seq: seq}
 		}
-		target := digest
-		if target == "" && len(listResp.Artifacts) > 0 {
-			target = listResp.Artifacts[0].Reference.Digest
-		}
+		target := resolveArtifactTarget(listResp.Artifacts, digest)
 		if target == "" {
 			return artifactsLoadedMsg{items: listResp.Artifacts, seq: seq}
 		}
-		headResp, err := m.client.ArtifactHead(ctx, target)
-		if err != nil {
-			return artifactsLoadedMsg{err: err, seq: seq}
-		}
-		readReq := brokerapi.ArtifactReadRequest{Digest: target, ProducerRole: "workspace", ConsumerRole: "model_gateway", DataClass: string(headResp.Artifact.Reference.DataClass)}
-		events, readErr := m.client.ArtifactRead(ctx, readReq)
-		if readErr != nil {
-			return artifactsLoadedMsg{items: listResp.Artifacts, head: &headResp, contentErr: safeUIErrorText(readErr), seq: seq}
-		}
-		text, decodeErr := decodeArtifactStream(events)
-		if decodeErr != nil {
-			return artifactsLoadedMsg{items: listResp.Artifacts, head: &headResp, contentErr: safeUIErrorText(decodeErr), seq: seq}
-		}
-		return artifactsLoadedMsg{items: listResp.Artifacts, head: &headResp, content: text, seq: seq}
+		return m.loadArtifactDetail(ctx, listResp.Artifacts, target, seq)
 	}
 }
 
-func renderArtifactList(items []brokerapi.ArtifactSummary, selected int) string {
-	if len(items) == 0 {
-		return "  - no artifacts"
+func resolveArtifactTarget(items []brokerapi.ArtifactSummary, digest string) string {
+	target := strings.TrimSpace(digest)
+	if target != "" && !containsArtifactSummary(items, target) {
+		target = ""
 	}
-	line := ""
-	for i, item := range items {
-		marker := " "
-		if i == selected {
-			marker = ">"
-		}
-		line += selectedLine(i == selected, fmt.Sprintf("  %s %s class=%s bytes=%d run=%s", marker, item.Reference.Digest, item.Reference.DataClass, item.Reference.SizeBytes, item.RunID)) + "\n"
+	if target == "" && len(items) > 0 {
+		target = strings.TrimSpace(items[0].Reference.Digest)
 	}
-	return line
+	return target
 }
 
-func renderArtifactInspector(head *brokerapi.LocalArtifactHeadResponse, mode artifactDetailMode, presentation contentPresentationMode, content, contentErr string) string {
-	if head == nil {
-		return "  Select an artifact and press enter to load detail."
+func (m artifactsRouteModel) loadArtifactDetail(ctx context.Context, items []brokerapi.ArtifactSummary, digest string, seq uint64) artifactsLoadedMsg {
+	headResp, err := m.client.ArtifactHead(ctx, digest)
+	if err != nil {
+		return artifactsLoadedMsg{err: err, seq: seq}
 	}
-	a := head.Artifact
-	mode = normalizeArtifactMode(mode)
-	presentation = normalizePresentationMode(presentation)
-	contentView := renderArtifactContent(mode, presentation, content, contentErr)
-	return compactLines(
-		fmt.Sprintf("  Digest: %s", a.Reference.Digest),
-		fmt.Sprintf("  Content type: %s", a.Reference.ContentType),
-		fmt.Sprintf("  Data class: %s", a.Reference.DataClass),
-		fmt.Sprintf("  Typed detail mode: %s (metadata remains control-plane truth)", mode),
-		fmt.Sprintf("  Presentation mode: %s", presentation),
-		fmt.Sprintf("  Provenance receipt: %s", a.Reference.ProvenanceReceiptHash),
-		"  Inspectable content is supplemental evidence, not authoritative run/approval truth.",
-		contentView,
-	)
+	return m.loadArtifactContent(ctx, items, digest, headResp, seq)
 }
 
-func preferredArtifactMode(dataClass any) artifactDetailMode {
-	value := strings.ToLower(fmt.Sprintf("%v", dataClass))
-	switch {
-	case strings.Contains(value, "diff"):
-		return artifactModeDiff
-	case strings.Contains(value, "log"):
-		return artifactModeLog
-	default:
-		return artifactModeResult
+func (m artifactsRouteModel) loadArtifactContent(ctx context.Context, items []brokerapi.ArtifactSummary, digest string, headResp brokerapi.LocalArtifactHeadResponse, seq uint64) artifactsLoadedMsg {
+	readReq := brokerapi.ArtifactReadRequest{Digest: digest, ProducerRole: "workspace", ConsumerRole: "model_gateway", DataClass: string(headResp.Artifact.Reference.DataClass)}
+	events, readErr := m.client.ArtifactRead(ctx, readReq)
+	if readErr != nil {
+		return artifactsLoadedMsg{items: items, head: &headResp, contentErr: safeUIErrorText(readErr), seq: seq}
 	}
+	text, decodeErr := decodeArtifactStream(events)
+	if decodeErr != nil {
+		return artifactsLoadedMsg{items: items, head: &headResp, contentErr: safeUIErrorText(decodeErr), seq: seq}
+	}
+	return artifactsLoadedMsg{items: items, head: &headResp, content: text, seq: seq}
 }
 
-func normalizeArtifactMode(mode artifactDetailMode) artifactDetailMode {
-	switch mode {
-	case artifactModeDiff, artifactModeLog, artifactModeResult:
-		return mode
-	default:
-		return artifactModeResult
+func containsArtifactSummary(items []brokerapi.ArtifactSummary, digest string) bool {
+	digest = strings.TrimSpace(digest)
+	if digest == "" {
+		return false
 	}
-}
-
-func nextArtifactMode(current artifactDetailMode) artifactDetailMode {
-	switch normalizeArtifactMode(current) {
-	case artifactModeDiff:
-		return artifactModeLog
-	case artifactModeLog:
-		return artifactModeResult
-	default:
-		return artifactModeDiff
-	}
-}
-
-func renderArtifactContent(mode artifactDetailMode, presentation contentPresentationMode, content, contentErr string) string {
-	presentation = normalizePresentationMode(presentation)
-	if contentErr != "" {
-		return fmt.Sprintf("  %s content unavailable: %s", mode, contentErr)
-	}
-	if strings.TrimSpace(content) == "" {
-		return fmt.Sprintf("  %s content unavailable for current artifact.", mode)
-	}
-	if presentation == presentationRaw {
-		return fmt.Sprintf("  %s raw (secrets redacted):\n%s", mode, redactSecrets(content))
-	}
-	lines := strings.Split(content, "\n")
-	if presentation == presentationStructured {
-		first := strings.TrimSpace(lines[0])
-		last := strings.TrimSpace(lines[len(lines)-1])
-		first = redactSecrets(first)
-		last = redactSecrets(last)
-		if len(lines) > 12 {
-			return fmt.Sprintf("  %s structured:\n  - lines=%d\n  - non_empty=%d\n  - preview_first=%q\n  - preview_last=%q", mode, len(lines), countNonEmptyLines(lines), first, last)
-		}
-		return fmt.Sprintf("  %s structured:\n  - lines=%d\n  - non_empty=%d\n  - preview=%q", mode, len(lines), countNonEmptyLines(lines), redactSecrets(strings.TrimSpace(content)))
-	}
-	if len(lines) > 10 {
-		return fmt.Sprintf("  %s preview (secrets redacted):\n%s\n  ... (%d more lines)", mode, redactSecrets(strings.Join(lines[:10], "\n")), len(lines)-10)
-	}
-	return fmt.Sprintf("  %s preview (secrets redacted):\n%s", mode, redactSecrets(content))
-}
-
-func countNonEmptyLines(lines []string) int {
-	total := 0
-	for _, line := range lines {
-		if strings.TrimSpace(line) != "" {
-			total++
+	for _, item := range items {
+		if strings.TrimSpace(item.Reference.Digest) == digest {
+			return true
 		}
 	}
-	return total
+	return false
 }

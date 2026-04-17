@@ -14,65 +14,77 @@ type routeActivationCase struct {
 	expected []string
 }
 
+var routeActivationCaseData = []routeActivationCase{
+	{
+		name:    "dashboard uses typed status/run/approval/audit contracts",
+		routeID: routeDashboard,
+		newModel: func(client localBrokerClient) routeModel {
+			return newDashboardRouteModel(routeDefinition{ID: routeDashboard, Label: "Dashboard"}, client)
+		},
+		expected: []string{"ReadinessGet", "VersionInfoGet", "RunList", "ApprovalList", "AuditVerificationGet"},
+	},
+	{
+		name:    "chat uses typed session contracts",
+		routeID: routeChat,
+		newModel: func(client localBrokerClient) routeModel {
+			return newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, client)
+		},
+		expected: []string{"SessionList", "SessionGet"},
+	},
+	{
+		name:    "runs uses typed run contracts",
+		routeID: routeRuns,
+		newModel: func(client localBrokerClient) routeModel {
+			return newRunsRouteModel(routeDefinition{ID: routeRuns, Label: "Runs"}, client)
+		},
+		expected: []string{"RunList", "RunGet"},
+	},
+	{
+		name:    "approvals uses typed approval contracts",
+		routeID: routeApprovals,
+		newModel: func(client localBrokerClient) routeModel {
+			return newApprovalsRouteModel(routeDefinition{ID: routeApprovals, Label: "Approvals"}, client)
+		},
+		expected: []string{"ApprovalList", "ApprovalGet"},
+	},
+	{
+		name:    "action center uses typed approval/run/audit contracts",
+		routeID: routeAction,
+		newModel: func(client localBrokerClient) routeModel {
+			return newActionCenterRouteModel(routeDefinition{ID: routeAction, Label: "Action Center"}, client)
+		},
+		expected: []string{"ApprovalList", "RunList", "AuditVerificationGet"},
+	},
+	{
+		name:    "artifacts uses typed artifact contracts",
+		routeID: routeArtifacts,
+		newModel: func(client localBrokerClient) routeModel {
+			return newArtifactsRouteModel(routeDefinition{ID: routeArtifacts, Label: "Artifacts"}, client)
+		},
+		expected: []string{"ArtifactList", "ArtifactHead", "ArtifactRead"},
+	},
+	{
+		name:    "audit uses typed timeline verification contracts",
+		routeID: routeAudit,
+		newModel: func(client localBrokerClient) routeModel {
+			return newAuditRouteModel(routeDefinition{ID: routeAudit, Label: "Audit"}, client)
+		},
+		expected: []string{"AuditTimeline", "AuditVerificationGet"},
+	},
+	{
+		name:    "status uses typed readiness/version contracts",
+		routeID: routeStatus,
+		newModel: func(client localBrokerClient) routeModel {
+			return newStatusRouteModel(routeDefinition{ID: routeStatus, Label: "Status"}, client)
+		},
+		expected: []string{"ReadinessGet", "VersionInfoGet", "BackendPostureGet"},
+	},
+}
+
 func routeActivationCases() []routeActivationCase {
-	return []routeActivationCase{
-		{
-			name:    "dashboard uses typed status/run/approval/audit/watch contracts",
-			routeID: routeDashboard,
-			newModel: func(client localBrokerClient) routeModel {
-				return newDashboardRouteModel(routeDefinition{ID: routeDashboard, Label: "Dashboard"}, client)
-			},
-			expected: []string{"ReadinessGet", "VersionInfoGet", "RunList", "ApprovalList", "AuditVerificationGet", "RunWatch", "ApprovalWatch", "SessionWatch"},
-		},
-		{
-			name:    "chat uses typed session contracts",
-			routeID: routeChat,
-			newModel: func(client localBrokerClient) routeModel {
-				return newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, client)
-			},
-			expected: []string{"SessionList", "SessionGet"},
-		},
-		{
-			name:    "runs uses typed run contracts",
-			routeID: routeRuns,
-			newModel: func(client localBrokerClient) routeModel {
-				return newRunsRouteModel(routeDefinition{ID: routeRuns, Label: "Runs"}, client)
-			},
-			expected: []string{"RunList", "RunGet"},
-		},
-		{
-			name:    "approvals uses typed approval contracts",
-			routeID: routeApprovals,
-			newModel: func(client localBrokerClient) routeModel {
-				return newApprovalsRouteModel(routeDefinition{ID: routeApprovals, Label: "Approvals"}, client)
-			},
-			expected: []string{"ApprovalList", "ApprovalGet"},
-		},
-		{
-			name:    "artifacts uses typed artifact contracts",
-			routeID: routeArtifacts,
-			newModel: func(client localBrokerClient) routeModel {
-				return newArtifactsRouteModel(routeDefinition{ID: routeArtifacts, Label: "Artifacts"}, client)
-			},
-			expected: []string{"ArtifactList", "ArtifactHead", "ArtifactRead"},
-		},
-		{
-			name:    "audit uses typed timeline verification contracts",
-			routeID: routeAudit,
-			newModel: func(client localBrokerClient) routeModel {
-				return newAuditRouteModel(routeDefinition{ID: routeAudit, Label: "Audit"}, client)
-			},
-			expected: []string{"AuditTimeline", "AuditVerificationGet"},
-		},
-		{
-			name:    "status uses typed readiness/version contracts",
-			routeID: routeStatus,
-			newModel: func(client localBrokerClient) routeModel {
-				return newStatusRouteModel(routeDefinition{ID: routeStatus, Label: "Status"}, client)
-			},
-			expected: []string{"ReadinessGet", "VersionInfoGet", "BackendPostureGet"},
-		},
-	}
+	out := make([]routeActivationCase, len(routeActivationCaseData))
+	copy(out, routeActivationCaseData)
+	return out
 }
 
 func TestRouteActivationUsesTypedBrokerContractsOnly(t *testing.T) {

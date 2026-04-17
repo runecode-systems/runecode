@@ -274,7 +274,7 @@ func (c *rpcBrokerClient) invoke(ctx context.Context, operation string, req any,
 		if code == "" {
 			code = "broker_rpc_error"
 		}
-		message := strings.TrimSpace(errResp.Error.Message)
+		message := sanitizeUIText(errResp.Error.Message)
 		if message == "" {
 			return fmt.Errorf("%s", code)
 		}

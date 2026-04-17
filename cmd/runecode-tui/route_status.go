@@ -109,7 +109,9 @@ func (m statusRouteModel) handlePostureChanged(msg postureChangedMsg) (routeMode
 	m = m.beginLoad()
 	if msg.resp.Outcome.Outcome == "approval_required" {
 		m.status = "Backend posture change requires approval; opening shared Approvals route."
-		return m, tea.Batch(func() tea.Msg { return routeSwitchMsg{RouteID: routeApprovals} }, m.loadCmd(m.loadSeq))
+		return m, tea.Batch(func() tea.Msg {
+			return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeApprovals}}
+		}, m.loadCmd(m.loadSeq))
 	}
 	m.status = fmt.Sprintf("Backend posture outcome=%s reason=%s", msg.resp.Outcome.Outcome, msg.resp.Outcome.OutcomeReasonCode)
 	return m, m.loadCmd(m.loadSeq)
@@ -126,13 +128,13 @@ func (m statusRouteModel) View(width, height int, focus focusArea) string {
 	_ = width
 	_ = height
 	if m.loading {
-		return "Loading status route from readiness/version contracts..."
+		return renderStateCard(routeLoadStateLoading, "Status", "Loading status route from readiness/version contracts...")
 	}
 	if m.changing {
-		return "Submitting backend posture change through broker local API..."
+		return renderStateCard(routeLoadStateLoading, "Status", "Submitting backend posture change through broker local API...")
 	}
 	if m.errText != "" {
-		return compactLines("Status", "Load failed: "+m.errText, "Press r to retry.")
+		return renderStateCard(routeLoadStateError, "Status", "Load failed: "+m.errText+" (press r to retry)")
 	}
 	r := m.data.readiness
 	v := m.data.version
@@ -150,6 +152,24 @@ func (m statusRouteModel) View(width, height int, focus focusArea) string {
 		m.status,
 		keyHint("Route keys: r reload, c request backend posture change"),
 	)
+}
+
+func (m statusRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
+	mainWidth := routeRegionWidth(ctx.Regions.Main, ctx.Width)
+	mainHeight := routeRegionHeight(ctx.Regions.Main, ctx.Height)
+	status := strings.TrimSpace(m.status)
+	if status == "" && strings.TrimSpace(m.errText) != "" {
+		status = "Load failed: " + strings.TrimSpace(m.errText)
+	}
+	return routeSurface{
+		Regions: routeSurfaceRegions{
+			Main:   routeSurfaceRegion{Title: "System status", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
+			Bottom: routeSurfaceRegion{Body: keyHint("Route keys: r reload, c request backend posture change")},
+			Status: routeSurfaceRegion{Body: status},
+		},
+		Capabilities: routeSurfaceCapabilities{},
+		Chrome:       routeSurfaceChrome{Breadcrumbs: []string{"Home", m.def.Label}},
+	}
 }
 
 func renderBackendPostureLine(posture brokerapi.BackendPostureState) string {
