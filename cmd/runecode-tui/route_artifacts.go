@@ -159,6 +159,9 @@ func (m artifactsRouteModel) View(width, height int, focus focusArea) string {
 		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
 		renderDirectory("Artifact directory", renderArtifactDirectoryItems(m.items), m.selected),
 	}
+	if len(m.items) == 0 {
+		body = append(body, muted("No artifacts match the current class filter; switch filters or reload after new evidence arrives."))
+	}
 	body = append(body, keyHint("Route keys: j/k move, enter load detail, [/] class filter, m cycle detail mode, v cycle rendered/raw/structured, i toggle inspector, r reload"))
 	return compactLines(body...)
 }

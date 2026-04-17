@@ -55,11 +55,12 @@ func renderShellPane(spec shellPaneSpec) string {
 	}
 
 	contentBody := joinLinesPreserveEmpty(header, body)
-	content := lipgloss.NewStyle().
+	content := appTheme.SurfaceBase.
 		Width(innerWidth).
 		Height(innerHeight).
 		MaxWidth(innerWidth).
 		MaxHeight(innerHeight).
+		Padding(0, 0).
 		Render(contentBody)
 
 	borders := spec.Border
@@ -67,7 +68,7 @@ func renderShellPane(spec shellPaneSpec) string {
 		borders = shellPaneBorder{Top: true, Bottom: true, Left: true, Right: true}
 	}
 
-	border := appTheme.SurfaceElevated.
+	border := appTheme.SurfaceBase.
 		Border(lipgloss.NormalBorder(), borders.Top, borders.Right, borders.Bottom, borders.Left).
 		BorderForeground(appTheme.BorderSubtle.GetForeground()).
 		Width(innerWidth).

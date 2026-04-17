@@ -150,6 +150,9 @@ func (m runsRouteModel) View(width, height int, focus focusArea) string {
 		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
 		renderDirectory("Run directory", renderRunDirectoryItems(m.runs), m.selected),
 	}
+	if len(m.runs) == 0 {
+		body = append(body, muted("No runs are available yet; reload after the broker reports canonical run activity."))
+	}
 	body = append(body, keyHint("Route keys: j/k move, enter load detail, i toggle inspector, v cycle rendered/raw/structured, r reload"))
 	return compactLines(body...)
 }

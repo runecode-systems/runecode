@@ -173,7 +173,7 @@ func (m paletteModel) matchIndexAtPosition(x int, y int, paletteStartY int, layo
 	if x < startX || x > endX {
 		return 0, false
 	}
-	startY := paletteStartY + 3
+	startY := paletteStartY + 5
 	for _, candidateY := range []int{y, y - 1} {
 		index := candidateY - startY
 		if index >= 0 && index < len(m.matches) {
@@ -193,7 +193,7 @@ func paletteMatchLine(entry paletteEntry, selected bool) string {
 		marker = "▶"
 	}
 	line := " " + marker + " " + fmt.Sprintf("%d. %s — %s", entry.Index, entry.Label, entry.Description)
-	return selectedLine(selected, line)
+	return line
 }
 
 func isTypingKey(msg tea.KeyMsg) bool {

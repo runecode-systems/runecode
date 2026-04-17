@@ -103,6 +103,9 @@ func (m chatRouteModel) View(width, height int, focus focusArea) string {
 		renderStateCard(routeLoadStateReady, "Active session", activeSessionSummaryLine(m.active)),
 		renderComposer(m.composeOn, m.draft, m.composer.View()),
 	}
+	if m.active == nil {
+		body = append(body, muted("Select a canonical session to load transcript detail or open the composer against the active session."))
+	}
 	if m.statusText != "" {
 		body = append(body, "Status: "+m.statusText)
 	}

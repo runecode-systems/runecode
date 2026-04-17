@@ -143,6 +143,7 @@ func (m actionCenterRouteModel) View(width, height int, focus focusArea) string 
 		renderDirectory("Approvals queue (canonical)", renderActionCenterItems(families[actionCenterFamilyApprovals]), m.selectedIndex(actionCenterFamilyApprovals, len(families[actionCenterFamilyApprovals]))),
 		renderDirectory("Operational attention", renderActionCenterItems(families[actionCenterFamilyOps]), m.selectedIndex(actionCenterFamilyOps, len(families[actionCenterFamilyOps]))),
 		renderDirectory("Blocked-work impact", renderActionCenterItems(families[actionCenterFamilyBlocked]), m.selectedIndex(actionCenterFamilyBlocked, len(families[actionCenterFamilyBlocked]))),
+		muted("If every bucket is empty, the control plane is currently waiting on new canonical work or operator intervention."),
 		keyHint("Route keys: [/] change family, j/k move, enter drill-down, i toggle inspector, r reload"),
 	)
 }

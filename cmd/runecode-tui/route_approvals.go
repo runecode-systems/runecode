@@ -158,6 +158,9 @@ func (m approvalsRouteModel) View(width, height int, focus focusArea) string {
 		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
 		renderDirectory("Approval queue", renderApprovalDirectoryItems(m.items), m.selected),
 	}
+	if len(m.items) == 0 {
+		body = append(body, muted("The approval queue is empty; this screen becomes actionable when canonical broker approvals are pending."))
+	}
 	if m.statusText != "" {
 		body = append(body, "Status: "+m.statusText)
 	}

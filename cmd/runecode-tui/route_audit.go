@@ -220,6 +220,9 @@ func (m auditRouteModel) View(width, height int, focus focusArea) string {
 		renderDirectory("Timeline directory", renderAuditDirectoryItems(m.timeline), m.selected),
 		renderAuditTimeline(m.timeline, m.selected),
 	}
+	if len(m.timeline) == 0 {
+		body = append(body, muted("The audit timeline is empty; retry after the broker persists verification posture or sealed timeline records."))
+	}
 	body = append(body, keyHint("Route keys: j/k move, enter record detail, f finalize+verify sealed segment posture, a anchor selected/latest sealed segment, x toggle anchor export-copy, n next page, p previous page, v cycle rendered/raw/structured, i toggle inspector, r reload"))
 	return compactLines(body...)
 }

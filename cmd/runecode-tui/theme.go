@@ -19,6 +19,8 @@ type themeTokens struct {
 	SurfaceBase     lipgloss.Style
 	SurfaceElevated lipgloss.Style
 	SurfaceOverlay  lipgloss.Style
+	SurfaceChrome   lipgloss.Style
+	SurfaceCard     lipgloss.Style
 	BorderSubtle    lipgloss.Style
 	BorderStrong    lipgloss.Style
 	FocusRing       lipgloss.Style
@@ -47,6 +49,8 @@ type themeTokens struct {
 	BadgeOverride   lipgloss.Style
 	BadgeApproval   lipgloss.Style
 	BadgeSystem     lipgloss.Style
+	RowSelected     lipgloss.Style
+	RowActive       lipgloss.Style
 	Selected        lipgloss.Style
 	FocusLine       lipgloss.Style
 	KeyHint         lipgloss.Style
@@ -91,12 +95,14 @@ func newTheme(preset themePreset) themeTokens {
 func newDuskTheme() themeTokens {
 	return themeTokens{
 		SurfaceBase:     lipgloss.NewStyle().Foreground(lipgloss.Color("253")).Background(lipgloss.Color("235")),
-		SurfaceElevated: lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("237")),
+		SurfaceElevated: lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("236")),
 		SurfaceOverlay:  lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Background(lipgloss.Color("60")),
+		SurfaceChrome:   lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("236")),
+		SurfaceCard:     lipgloss.NewStyle().Foreground(lipgloss.Color("253")).Background(lipgloss.Color("236")),
 		BorderSubtle:    lipgloss.NewStyle().Foreground(lipgloss.Color("242")),
 		BorderStrong:    lipgloss.NewStyle().Foreground(lipgloss.Color("182")).Bold(true),
 		FocusRing:       lipgloss.NewStyle().Foreground(lipgloss.Color("183")).Bold(true),
-		SelectionRing:   lipgloss.NewStyle().Foreground(lipgloss.Color("225")).Bold(true),
+		SelectionRing:   lipgloss.NewStyle().Foreground(lipgloss.Color("225")).Background(lipgloss.Color("60")).Bold(true),
 		TextPrimary:     lipgloss.NewStyle().Foreground(lipgloss.Color("255")),
 		TextSecondary:   lipgloss.NewStyle().Foreground(lipgloss.Color("251")),
 		TextTertiary:    lipgloss.NewStyle().Foreground(lipgloss.Color("247")),
@@ -121,6 +127,8 @@ func newDuskTheme() themeTokens {
 		BadgeOverride:   lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("97")).Padding(0, 1),
 		BadgeApproval:   lipgloss.NewStyle().Foreground(lipgloss.Color("232")).Background(lipgloss.Color("221")).Padding(0, 1),
 		BadgeSystem:     lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("231")).Background(lipgloss.Color("196")).Padding(0, 1),
+		RowSelected:     lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Background(lipgloss.Color("60")).Bold(true),
+		RowActive:       lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Background(lipgloss.Color("238")).Bold(true),
 		Selected:        lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("225")),
 		FocusLine:       lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("183")),
 		KeyHint:         lipgloss.NewStyle().Foreground(lipgloss.Color("186")),
@@ -133,6 +141,8 @@ func newHighContrastTheme() themeTokens {
 		SurfaceBase:     lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("16")),
 		SurfaceElevated: lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("233")),
 		SurfaceOverlay:  lipgloss.NewStyle().Foreground(lipgloss.Color("16")).Background(lipgloss.Color("229")),
+		SurfaceChrome:   lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("233")),
+		SurfaceCard:     lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("233")),
 		BorderSubtle:    lipgloss.NewStyle().Foreground(lipgloss.Color("250")).Bold(true),
 		BorderStrong:    lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Bold(true),
 		FocusRing:       lipgloss.NewStyle().Foreground(lipgloss.Color("51")).Bold(true).Underline(true),
@@ -161,6 +171,8 @@ func newHighContrastTheme() themeTokens {
 		BadgeOverride:   lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("93")).Padding(0, 1).Bold(true),
 		BadgeApproval:   lipgloss.NewStyle().Foreground(lipgloss.Color("16")).Background(lipgloss.Color("227")).Padding(0, 1).Bold(true),
 		BadgeSystem:     lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("231")).Background(lipgloss.Color("196")).Padding(0, 1),
+		RowSelected:     lipgloss.NewStyle().Foreground(lipgloss.Color("16")).Background(lipgloss.Color("229")).Bold(true),
+		RowActive:       lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("18")).Bold(true),
 		Selected:        lipgloss.NewStyle().Bold(true).Underline(true).Foreground(lipgloss.Color("229")),
 		FocusLine:       lipgloss.NewStyle().Bold(true).Underline(true).Foreground(lipgloss.Color("51")),
 		KeyHint:         lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("51")),
@@ -171,12 +183,14 @@ func newHighContrastTheme() themeTokens {
 func newDarkTheme() themeTokens {
 	return themeTokens{
 		SurfaceBase:     lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("234")),
-		SurfaceElevated: lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("236")),
-		SurfaceOverlay:  lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("238")),
+		SurfaceElevated: lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("235")),
+		SurfaceOverlay:  lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("237")),
+		SurfaceChrome:   lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("235")),
+		SurfaceCard:     lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("236")),
 		BorderSubtle:    lipgloss.NewStyle().Foreground(lipgloss.Color("241")),
 		BorderStrong:    lipgloss.NewStyle().Foreground(lipgloss.Color("117")).Bold(true),
 		FocusRing:       lipgloss.NewStyle().Foreground(lipgloss.Color("45")).Bold(true),
-		SelectionRing:   lipgloss.NewStyle().Foreground(lipgloss.Color("51")).Bold(true),
+		SelectionRing:   lipgloss.NewStyle().Foreground(lipgloss.Color("51")).Background(lipgloss.Color("24")).Bold(true),
 		TextPrimary:     lipgloss.NewStyle().Foreground(lipgloss.Color("255")),
 		TextSecondary:   lipgloss.NewStyle().Foreground(lipgloss.Color("252")),
 		TextTertiary:    lipgloss.NewStyle().Foreground(lipgloss.Color("245")),
@@ -201,6 +215,8 @@ func newDarkTheme() themeTokens {
 		BadgeOverride:   lipgloss.NewStyle().Foreground(lipgloss.Color("231")).Background(lipgloss.Color("93")).Padding(0, 1),
 		BadgeApproval:   lipgloss.NewStyle().Foreground(lipgloss.Color("232")).Background(lipgloss.Color("221")).Padding(0, 1),
 		BadgeSystem:     lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("231")).Background(lipgloss.Color("196")).Padding(0, 1),
+		RowSelected:     lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Background(lipgloss.Color("24")).Bold(true),
+		RowActive:       lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Background(lipgloss.Color("237")).Bold(true),
 		Selected:        lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("51")),
 		FocusLine:       lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("45")),
 		KeyHint:         lipgloss.NewStyle().Foreground(lipgloss.Color("114")),
@@ -229,6 +245,27 @@ func selectedLine(selected bool, line string) string {
 		return line
 	}
 	return appTheme.Selected.Render(line)
+}
+
+func renderSelectableRow(line string, width int, selected bool, active bool) string {
+	line = strings.TrimRight(line, "\n")
+	if width <= 0 {
+		if selected {
+			return appTheme.RowSelected.Render(line)
+		}
+		if active {
+			return appTheme.RowActive.Render(line)
+		}
+		return line
+	}
+	style := lipgloss.NewStyle().Width(width).MaxWidth(width)
+	switch {
+	case selected:
+		style = style.Inherit(appTheme.RowSelected)
+	case active:
+		style = style.Inherit(appTheme.RowActive)
+	}
+	return style.Render(line)
 }
 
 func focusBadge(focus focusArea) string {

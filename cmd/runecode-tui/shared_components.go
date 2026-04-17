@@ -8,6 +8,7 @@ import (
 type boundedListRow struct {
 	Text       string
 	Selectable bool
+	Active     bool
 }
 
 type boundedListSpec struct {
@@ -19,6 +20,7 @@ type boundedListSpec struct {
 	Empty         string
 	PreserveGaps  bool
 	ApplySelected bool
+	ActiveFill    bool
 }
 
 type inspectorContentKind string
@@ -75,7 +77,7 @@ func renderDirectory(title string, items []string, selected int) string {
 	}
 	return compactLines(
 		tableHeader(title),
-		renderBoundedList(boundedListSpec{Rows: rows, Selected: selected, ApplySelected: true, PreserveGaps: true}),
+		renderBoundedList(boundedListSpec{Rows: rows, Selected: selected, Width: 0, ApplySelected: true, PreserveGaps: true}),
 	)
 }
 
@@ -86,7 +88,7 @@ func renderBoundedList(spec boundedListSpec) string {
 		if empty == "" {
 			empty = "no items"
 		}
-		return clipBoundedListText(empty, spec.Width)
+		return renderStateCard(routeLoadStateEmpty, titleOrFallback(spec.Empty, "Directory"), empty)
 	}
 
 	selectedRow := boundedListSelectedRow(rows, spec.Selected)
@@ -102,9 +104,7 @@ func renderBoundedList(spec boundedListSpec) string {
 	}
 	for rowIdx := windowStart; rowIdx < windowEnd; rowIdx++ {
 		line := clipBoundedListText(rows[rowIdx].Text, spec.Width)
-		if spec.ApplySelected {
-			line = selectedLine(rowIdx == selectedRow && rows[rowIdx].Selectable, line)
-		}
+		line = renderSelectableRow(line, spec.Width, spec.ApplySelected && rowIdx == selectedRow && rows[rowIdx].Selectable, spec.ActiveFill && rows[rowIdx].Active)
 		lines = append(lines, line)
 	}
 	if showBottomGap {
@@ -280,13 +280,13 @@ func renderInspectorShell(spec inspectorShellSpec) string {
 
 func renderInspectorOverview(spec inspectorShellSpec) []string {
 	lines := []string{tableHeader("Overview")}
-	if summary := strings.TrimSpace(spec.Summary); summary != "" {
+	if summary := sanitizeUIText(spec.Summary); summary != "" {
 		lines = append(lines, "Summary: "+summary)
 	}
-	if identity := strings.TrimSpace(spec.Identity); identity != "" {
+	if identity := sanitizeUIText(spec.Identity); identity != "" {
 		lines = append(lines, "Identity: "+identity)
 	}
-	if status := strings.TrimSpace(spec.Status); status != "" {
+	if status := sanitizeUIText(spec.Status); status != "" {
 		lines = append(lines, "Status: "+status)
 	}
 	if len(spec.ModeTabs) > 0 {
@@ -393,8 +393,29 @@ func renderStateCard(state routeLoadState, title, message string) string {
 	if strings.TrimSpace(message) == "" {
 		message = "n/a"
 	}
-	return compactLines(
-		tableHeader(strings.ToUpper(label))+" "+title,
-		message,
-	)
+	headline := tableHeader(strings.ToUpper(label)) + " " + strings.TrimSpace(title)
+	detail := appTheme.SurfaceCard.Padding(0, 1).Render(strings.TrimSpace(message))
+	next := muted(stateCardNextStep(state))
+	return compactLines(headline, detail, next)
+}
+
+func stateCardNextStep(state routeLoadState) string {
+	switch state {
+	case routeLoadStateLoading:
+		return "Waiting for the broker response to settle."
+	case routeLoadStateError:
+		return "Use the route reload shortcut to try again."
+	case routeLoadStateEmpty:
+		return "No matching records are available for the current route state."
+	default:
+		return ""
+	}
+}
+
+func titleOrFallback(title string, fallback string) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return fallback
+	}
+	return title
 }

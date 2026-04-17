@@ -46,11 +46,11 @@ func TestPaletteMatchLineUsesSelectedStyling(t *testing.T) {
 
 func TestPaletteMousePickTriggersOnlyOnRelease(t *testing.T) {
 	m := newPaletteModel([]paletteEntry{{Index: 1, Label: "back", Description: "go back", Action: paletteActionMsg{Verb: verbBack}}}).Open()
-	updated, action, changed := m.UpdateMouse(tea.MouseMsg{X: 30, Y: 7, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress}, 4, 80)
+	updated, action, changed := m.UpdateMouse(tea.MouseMsg{X: 30, Y: 9, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress}, 3, 80)
 	if changed {
 		t.Fatalf("expected press to only select, not emit action: %+v", action)
 	}
-	updated, action, changed = updated.UpdateMouse(tea.MouseMsg{X: 30, Y: 7, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease}, 4, 80)
+	updated, action, changed = updated.UpdateMouse(tea.MouseMsg{X: 30, Y: 9, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease}, 3, 80)
 	if !changed {
 		t.Fatal("expected release to emit palette action")
 	}
@@ -61,7 +61,7 @@ func TestPaletteMousePickTriggersOnlyOnRelease(t *testing.T) {
 
 func TestPaletteMouseIgnoresClicksOutsideOverlayBounds(t *testing.T) {
 	m := newPaletteModel([]paletteEntry{{Index: 1, Label: "back", Description: "go back", Action: paletteActionMsg{Verb: verbBack}}}).Open()
-	updated, _, changed := m.UpdateMouse(tea.MouseMsg{X: 0, Y: 7, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease}, 4, 80)
+	updated, _, changed := m.UpdateMouse(tea.MouseMsg{X: 0, Y: 9, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease}, 3, 80)
 	if changed {
 		t.Fatal("expected click outside overlay bounds to be ignored")
 	}
@@ -72,7 +72,7 @@ func TestPaletteMouseIgnoresClicksOutsideOverlayBounds(t *testing.T) {
 
 func TestPaletteMouseIgnoresClicksInsideFrameOutsideContentBounds(t *testing.T) {
 	m := newPaletteModel([]paletteEntry{{Index: 1, Label: "back", Description: "go back", Action: paletteActionMsg{Verb: verbBack}}}).Open()
-	updated, _, changed := m.UpdateMouse(tea.MouseMsg{X: 4, Y: 7, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease}, 4, 80)
+	updated, _, changed := m.UpdateMouse(tea.MouseMsg{X: 4, Y: 9, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease}, 3, 80)
 	if changed {
 		t.Fatal("expected click on overlay frame edge to be ignored")
 	}
@@ -83,7 +83,7 @@ func TestPaletteMouseIgnoresClicksInsideFrameOutsideContentBounds(t *testing.T) 
 
 func TestPaletteMouseUsesRealViewportWidthForBounds(t *testing.T) {
 	m := newPaletteModel([]paletteEntry{{Index: 1, Label: "back", Description: "go back", Action: paletteActionMsg{Verb: verbBack}}}).Open()
-	updated, action, changed := m.UpdateMouse(tea.MouseMsg{X: 4, Y: 7, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease}, 4, 42)
+	updated, action, changed := m.UpdateMouse(tea.MouseMsg{X: 4, Y: 9, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease}, 3, 42)
 	if !changed {
 		t.Fatal("expected narrow viewport click inside real content bounds to trigger selection")
 	}

@@ -38,7 +38,7 @@ func (s *shellToastService) SetActivity(active bool) {
 }
 
 func (s *shellToastService) Push(level toastLevel, text string) {
-	text = strings.TrimSpace(text)
+	text = sanitizeUIText(text)
 	if text == "" {
 		return
 	}

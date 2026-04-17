@@ -78,7 +78,11 @@ func (m shellModel) overlayBodyWithHeight(surface routeSurface, layout shellLayo
 	if len(parts) == 0 {
 		return "", 0
 	}
-	content := constrainShellBlock(strings.Join(parts, "\n"), overlayWidth, maxOverlayHeight)
+	contentHeight := lipgloss.Height(strings.Join(parts, "\n"))
+	if contentHeight > maxOverlayHeight {
+		contentHeight = maxOverlayHeight
+	}
+	content := constrainShellBlock(strings.Join(parts, "\n"), overlayWidth, contentHeight)
 	return content, lipgloss.Height(content)
 }
 
@@ -193,21 +197,39 @@ func constrainShellBlock(block string, width int, height int) string {
 
 func (m shellModel) renderTopStatus(surface routeSurface, layout shellLayoutPlan) string {
 	selection := "off"
-	mouseCapture := "on"
+	activity := renderShellActivityState(m.watch.projection.Activity.State)
 	if m.selectionMode {
 		selection = "on"
-		mouseCapture = "off"
+	}
+	routeSummary := fmt.Sprintf("%s  %s", appTheme.AppTitle.Render("Runecode TUI α shell"), neutralBadge("THEME "+string(m.themePreset)))
+	workbenchSummary := []string{
+		fmt.Sprintf("route=%s", m.routeLabel(m.currentRouteID())),
+		fmt.Sprintf("focus=%s", strings.ToUpper(m.focus.Label())),
+		fmt.Sprintf("layout=%s", layout.Breakpoint),
+		fmt.Sprintf("selection=%s", selection),
+	}
+	if routeInspectorAvailable(surface) {
+		workbenchSummary = append(workbenchSummary, fmt.Sprintf("inspector=%t", layout.InspectorVisible))
+	}
+	if strings.TrimSpace(m.activeSessionID) != "" {
+		workbenchSummary = append(workbenchSummary, fmt.Sprintf("session=%s", sanitizeUIText(m.activeSessionID)))
 	}
 	return compactLines(
-		appTheme.AppTitle.Render("Runecode TUI α shell")+" "+neutralBadge("THEME "+string(m.themePreset)),
-		fmt.Sprintf("Top status | route=%s breakpoint=%s focus=%s sidebar=%t inspector=%t overlays=%d active_session=%s selection=%s mouse_capture=%s activity=%s %s", m.routeLabel(m.currentRouteID()), layout.Breakpoint, m.focus.Label(), layout.NavigationVisible, layout.InspectorVisible, len(m.overlays), defaultPlaceholder(m.activeSessionID, "none"), selection, mouseCapture, renderShellActivityState(m.watch.projection.Activity.State), m.renderRunningIndicator()),
-		fmt.Sprintf("Route caps | inspector_supported=%t inspector_enabled=%t", surface.Capabilities.Inspector.Supported, surface.Capabilities.Inspector.Enabled),
-		fmt.Sprintf("Layout(wide): sidebar=%.0f%% inspector=%.0f%% collapsed=(sidebar:%t inspector:%t)", clampPaneRatio(m.sidebarRatio)*100, clampPaneRatio(m.inspectorRatio)*100, m.sidebarFolded, m.inspectorFolded),
+		appTheme.SurfaceChrome.Padding(0, 1).Render(routeSummary),
+		appTheme.SurfaceChrome.Padding(0, 1).Render(strings.Join(append(workbenchSummary, activity), "  •  ")+renderRunningSuffix(m.renderRunningIndicator())),
 	)
 }
 
+func renderRunningSuffix(indicator string) string {
+	indicator = strings.TrimSpace(indicator)
+	if indicator == "" {
+		return ""
+	}
+	return "  •  " + indicator
+}
+
 func (m shellModel) renderSyncHealth() string {
-	text := "Shell sync health: " + renderShellSyncState(m.watch.projection.Health.State)
+	text := "Sync health: " + renderShellSyncState(m.watch.projection.Health.State)
 	if strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" {
 		text += " " + infoBadge(fmt.Sprintf("active_%s=%s", sanitizeUIText(m.watch.projection.Activity.Active.Kind), sanitizeUIText(m.watch.projection.Activity.Active.ID)))
 	}
@@ -233,7 +255,7 @@ func (m shellModel) renderBreadcrumbs(surface routeSurface) string {
 	if len(safe) == 0 {
 		safe = []string{"Home", sanitizeUIText(m.routeLabel(m.currentRouteID()))}
 	}
-	return "Breadcrumbs: " + strings.Join(safe, " > ")
+	return muted("Path: " + strings.Join(safe, " > "))
 }
 
 func (m shellModel) renderHistory() string {
@@ -252,6 +274,9 @@ func (m shellModel) renderHistory() string {
 			}
 		}
 		items = append(items, entry)
+	}
+	if len(items) > 5 {
+		items = items[len(items)-5:]
 	}
 	return muted("History: " + strings.Join(items, " <- "))
 }
@@ -309,7 +334,7 @@ func padShellBlock(block string, width int, height int) string {
 	lines := strings.Split(trimmed, "\n")
 	currentHeight := lipgloss.Height(trimmed)
 	if currentHeight >= height {
-		return strings.Join(lines[:height], "\n") + "\x1b[0m"
+		return strings.Join(lines[:height], "\n")
 	}
 	padLines := make([]string, 0, height-currentHeight)
 	blank := appTheme.SurfaceBase.Width(width).Render("")
@@ -325,21 +350,25 @@ func (m shellModel) renderSidebar() string {
 	}
 	entries := m.sidebarEntries()
 	cursor := m.normalizedSidebarCursor(entries)
+	width := m.planShellLayout(m.activeShellSurface()).Regions.Sidebar.Width - 2
+	if width < 12 {
+		width = 12
+	}
 	lines := make([]string, 0, len(entries)+6)
 	lines = append(lines, tableHeader("Navigation"))
-	lines = m.appendSidebarRouteLines(lines, cursor)
-	lines = m.appendSidebarSessionLines(lines, entries, cursor)
+	lines = m.appendSidebarRouteLines(lines, cursor, width)
+	lines = m.appendSidebarSessionLines(lines, entries, cursor, width)
 	return strings.Join(lines, "\n")
 }
 
 func (m shellModel) renderBottomStrip(surface routeSurface) string {
 	bottom := strings.TrimSpace(surface.Regions.Bottom.Body)
 	if bottom == "" {
-		bottom = muted("Bottom strip: no route composer/status actions")
+		bottom = muted("No route composer or status actions for this screen.")
 	}
-	selectionHint := "Selection mode off (ctrl+t toggles; mouse capture on)."
+	selectionHint := "Selection mode off; mouse capture remains enabled."
 	if m.selectionMode {
-		selectionHint = "Selection mode ON (ctrl+t to exit); mouse capture disabled so drag-to-select works."
+		selectionHint = "Selection mode on; drag-to-select is enabled until you exit it."
 	}
 	return compactLines(
 		tableHeader("Bottom strip"),
@@ -359,7 +388,7 @@ func (m shellModel) renderRouteActionHints(surface routeSurface) string {
 		parts = append(parts, fmt.Sprintf("Local actions executable=%d", len(surface.Actions.LocalActions)))
 	}
 	if len(parts) == 0 {
-		return muted("Actionable refs/actions: none")
+		return muted("Actionable refs/actions: none for the current view")
 	}
 	return "Actionable refs/actions: " + strings.Join(parts, " | ")
 }

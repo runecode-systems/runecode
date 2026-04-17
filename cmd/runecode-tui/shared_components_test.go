@@ -30,11 +30,33 @@ func TestRenderBoundedListAppliesWidthBoundingAndSelection(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("expected two rendered lines, got %d: %q", len(lines), got)
 	}
-	if lines[0] != "alp..." {
+	if !strings.Contains(lines[0], "alp...") {
 		t.Fatalf("expected first line clipped to width with ascii ellipsis, got %q", lines[0])
 	}
 	if lines[1] != "  beta" {
 		t.Fatalf("expected second line unchanged, got %q", lines[1])
+	}
+}
+
+func TestRenderSelectableRowFillsRequestedWidth(t *testing.T) {
+	got := renderSelectableRow("> 2 Chat", 18, true, false)
+	if width := lipgloss.Width(got); width != 18 {
+		t.Fatalf("expected selected row width 18, got %d in %q", width, got)
+	}
+	if !strings.Contains(got, "> 2 Chat") {
+		t.Fatalf("expected row content preserved, got %q", got)
+	}
+}
+
+func TestRenderInspectorOverviewSanitizesSummaryIdentityAndStatus(t *testing.T) {
+	lines := renderInspectorOverview(inspectorShellSpec{
+		Summary:  "session\nspoof",
+		Identity: "id\x1b[31m",
+		Status:   "ready\rspoof",
+	})
+	joined := strings.Join(lines, "\n")
+	if strings.Contains(joined, "\nspoof") || strings.Contains(joined, "\x1b") || strings.Contains(joined, "\r") {
+		t.Fatalf("expected inspector overview text sanitized, got %q", joined)
 	}
 }
 

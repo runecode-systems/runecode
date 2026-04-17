@@ -40,6 +40,7 @@ func (m shellModel) renderPalette() string {
 		GapMarker:     "...",
 		PreserveGaps:  true,
 		ApplySelected: true,
+		ActiveFill:    true,
 	}))
 	b.WriteString("\n")
 	return b.String()
@@ -88,6 +89,7 @@ func (m shellModel) renderSessionQuickSwitcher() string {
 		GapMarker:     "...",
 		PreserveGaps:  true,
 		ApplySelected: true,
+		ActiveFill:    true,
 	}))
 	b.WriteString("\n")
 	return b.String()
@@ -105,13 +107,25 @@ func boundedOverlayListWidth(viewportWidth int) int {
 }
 
 func (m shellModel) paletteStartY() int {
-	return 4
+	return 3
 }
 
 func (m shellModel) sidebarYRange() (startY int, endY int) {
-	startY = 5
-	endY = startY + len(m.sidebarEntries()) - 1
+	startY = shellTopStatusHeight + shellSyncHealthHeight + shellBreadcrumbHeight + shellHistoryHeight + shellPaneSpacerHeight + 3
+	endY = startY + m.sidebarMouseRowCount() - 1
 	return startY, endY
+}
+
+func (m shellModel) sidebarMouseRowCount() int {
+	rows := len(m.routes)
+	if m.sessionLoading || strings.TrimSpace(m.sessionLoadError) != "" {
+		return rows
+	}
+	sessionCount := len(sortedSessionDirectorySummaries(m.sessionItems, m.recentSessions))
+	if sessionCount == 0 {
+		return rows
+	}
+	return rows + 2 + sessionCount
 }
 
 func (m shellModel) sidebarIndexAtMouse(mouseX int, mouseY int) (int, bool) {

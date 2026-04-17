@@ -8,7 +8,7 @@ type shellLayoutPlan struct {
 }
 
 const (
-	shellTopStatusHeight   = 4
+	shellTopStatusHeight   = 2
 	shellSyncHealthHeight  = 1
 	shellBreadcrumbHeight  = 1
 	shellHistoryHeight     = 1

@@ -129,7 +129,7 @@ func (m shellModel) normalizedSidebarCursor(entries []sidebarEntry) int {
 	return cursor
 }
 
-func (m shellModel) appendSidebarRouteLines(lines []string, cursor int) []string {
+func (m shellModel) appendSidebarRouteLines(lines []string, cursor int, width int) []string {
 	for i, r := range m.routes {
 		selected := i == cursor
 		active := r.ID == m.currentRouteID()
@@ -139,12 +139,12 @@ func (m shellModel) appendSidebarRouteLines(lines []string, cursor int) []string
 		} else if active {
 			marker = "*"
 		}
-		lines = append(lines, selectedLine(selected, fmt.Sprintf("%s %d %s", marker, r.Index, r.Label)))
+		lines = append(lines, renderSelectableRow(fmt.Sprintf("%s %d %s", marker, r.Index, r.Label), width, selected, active && !selected))
 	}
 	return lines
 }
 
-func (m shellModel) appendSidebarSessionLines(lines []string, entries []sidebarEntry, cursor int) []string {
+func (m shellModel) appendSidebarSessionLines(lines []string, entries []sidebarEntry, cursor int, width int) []string {
 	if m.sessionLoading {
 		return append(lines, "", tableHeader("Sessions"), "  loading canonical session directory...")
 	}
@@ -163,7 +163,8 @@ func (m shellModel) appendSidebarSessionLines(lines []string, entries []sidebarE
 		if selected {
 			marker = ">"
 		}
-		lines = append(lines, selectedLine(selected, fmt.Sprintf("%s %s", marker, item)))
+		active := strings.TrimSpace(entry.Session.Identity.SessionID) != "" && strings.TrimSpace(entry.Session.Identity.SessionID) == strings.TrimSpace(m.activeSessionID)
+		lines = append(lines, renderSelectableRow(fmt.Sprintf("%s %s", marker, item), width, selected, active && !selected))
 	}
 	return lines
 }

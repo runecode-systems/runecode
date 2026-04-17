@@ -30,7 +30,7 @@ func TestActionCenterViewKeepsFamiliesDistinctAndReservedQANotice(t *testing.T) 
 	mustContainAll(t, view,
 		"Action Center",
 		"Queue families:",
-		"approvals=",
+		"approvals",
 		"operational_attention",
 		"blocked_work_impact",
 		"Approvals queue (canonical)",

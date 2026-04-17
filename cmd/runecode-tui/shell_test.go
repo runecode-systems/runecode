@@ -331,6 +331,11 @@ func TestShellSidebarRenderShowsSingleSelectedRouteAndActiveMarker(t *testing.T)
 	if strings.Count(v, "> 2 Chat") != 0 {
 		t.Fatalf("did not expect non-cursor route selected, got %q", v)
 	}
+	for _, line := range strings.Split(v, "\n") {
+		if strings.Contains(line, "> 3 Runs") && lipgloss.Width(line) < 12 {
+			t.Fatalf("expected selected row to render as full-width line, got %q", line)
+		}
+	}
 }
 
 func TestShellSelectionModeDisablesMouseInteractions(t *testing.T) {
@@ -367,7 +372,7 @@ func TestShellViewRendersShellSurfaces(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
 	v := m.View()
-	for _, want := range []string{"Top status", "Breadcrumbs:", "History:", "Main pane", "Sidebar", "Bottom strip", "Status:"} {
+	for _, want := range []string{"Runecode TUI α shell", "Path:", "History:", "Main pane", "Sidebar", "Bottom strip", "Status:"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected %q in view, got %q", want, v)
 		}
@@ -651,8 +656,8 @@ func TestShellBottomStripSelectionHintUsesCtrlT(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
 	v := m.View()
-	if !strings.Contains(v, "ctrl+t") {
-		t.Fatalf("expected ctrl+t in selection hint, got %q", v)
+	if !strings.Contains(v, "Selection mode off") {
+		t.Fatalf("expected updated selection hint in bottom strip, got %q", v)
 	}
 }
 
@@ -853,7 +858,7 @@ func TestShellWatchManagerUpdatesRoutesAndSyncHealth(t *testing.T) {
 	}
 	view := shell.View()
 	mustContainAll(t, view,
-		"Shell sync health:",
+		"Sync health:",
 		"sync=healthy",
 		"last_event=run_watch_terminal subject=run-1 status=completed",
 		"event=session_watch_terminal subject=session-1 status=completed",

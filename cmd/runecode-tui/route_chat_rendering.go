@@ -62,7 +62,7 @@ func renderTranscriptTurns(turns []brokerapi.SessionTranscriptTurn) string {
 	for _, turn := range orderedTurns {
 		b.WriteString(fmt.Sprintf("    - turn[%d] %s status=%s\n", turn.TurnIndex, turn.TurnID, turn.Status))
 		for _, msg := range sortTranscriptMessages(turn.Messages) {
-			b.WriteString(fmt.Sprintf("      • msg[%d] %s: %s\n", msg.MessageIndex, msg.Role, redactSecrets(msg.ContentText)))
+			b.WriteString(fmt.Sprintf("      • msg[%d] %s: %s\n", msg.MessageIndex, msg.Role, sanitizeUIText(msg.ContentText)))
 			related := flattenRelatedLinks(msg.RelatedLinks)
 			if related != "" {
 				b.WriteString(fmt.Sprintf("        links: %s\n", related))
