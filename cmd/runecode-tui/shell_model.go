@@ -114,7 +114,8 @@ func newShellModel() shellModel {
 	defaultRoute := routeChat
 	commands := defaultShellCommandRegistry()
 	workbench := newDefaultWorkbenchStateStore()
-	if strings.HasSuffix(os.Args[0], ".test") {
+	binaryPath := strings.ToLower(strings.TrimSpace(os.Args[0]))
+	if strings.HasSuffix(binaryPath, ".test") || strings.HasSuffix(binaryPath, ".test.exe") {
 		workbench = &memoryWorkbenchStateStore{}
 	}
 	scope := logicalBrokerTargetKey()
