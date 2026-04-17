@@ -261,12 +261,12 @@ func (m shellModel) handleNavFocusKeys(key tea.KeyMsg) (tea.Model, tea.Cmd, bool
 	if m.focus != focusNav || !m.navigationSurfaceVisible() {
 		return m, nil, false
 	}
-	if m.keys.SessionNext.matches(key) {
-		m.moveSessionSelection(1)
+	if m.keys.RouteNext.matches(key) || m.keys.SessionNext.matches(key) {
+		m.moveSidebarCursor(1)
 		return m, nil, true
 	}
-	if m.keys.SessionPrev.matches(key) {
-		m.moveSessionSelection(-1)
+	if m.keys.RoutePrev.matches(key) || m.keys.SessionPrev.matches(key) {
+		m.moveSidebarCursor(-1)
 		return m, nil, true
 	}
 	if m.keys.SessionPin.matches(key) {
@@ -274,22 +274,20 @@ func (m shellModel) handleNavFocusKeys(key tea.KeyMsg) (tea.Model, tea.Cmd, bool
 		m.persistWorkbenchState()
 		return m, nil, true
 	}
-	if m.keys.SessionOpen.matches(key) {
-		updated, cmd := m.activateSelectedSessionFromSidebar()
-		return updated, cmd, true
-	}
-	if m.keys.RouteNext.matches(key) {
-		m.nav.MoveNext()
+	if m.keys.RouteOpen.matches(key) || m.keys.SessionOpen.matches(key) {
+		entry, ok := m.selectedSidebarEntry()
+		if !ok {
+			return m, nil, true
+		}
+		switch entry.Kind {
+		case sidebarEntryRoute:
+			updated, cmd := m.applyPaletteAction(paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: entry.Route.ID}})
+			return updated, cmd, true
+		case sidebarEntrySession:
+			updated, cmd := m.activateSessionFromSidebarByID(entry.Session.Identity.SessionID)
+			return updated, cmd, true
+		}
 		return m, nil, true
-	}
-	if m.keys.RoutePrev.matches(key) {
-		m.nav.MovePrev()
-		return m, nil, true
-	}
-	if m.keys.RouteOpen.matches(key) {
-		route := m.nav.Selected()
-		updated, cmd := m.applyPaletteAction(paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: route.ID}})
-		return updated, cmd, true
 	}
 	return m, nil, false
 }

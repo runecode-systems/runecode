@@ -18,14 +18,16 @@ func (m shellModel) renderOverlayStack() string {
 
 func (m shellModel) renderPalette() string {
 	b := strings.Builder{}
-	b.WriteString("Workbench Command Surface (: / ctrl+p)\n")
-	b.WriteString("Verbs: open, inspect, jump, back\n")
+	b.WriteString(tableHeader("Workbench Command Surface") + " " + neutralBadge("toggle=: / ctrl+p") + "\n")
+	b.WriteString("Verbs: " + strings.Join([]string{infoBadge("open"), infoBadge("inspect"), infoBadge("jump"), infoBadge("back")}, " ") + "\n")
 	b.WriteString(fmt.Sprintf("Query: %q\n", m.palette.query))
 	if len(m.palette.matches) == 0 {
-		b.WriteString("No matches. Press esc to close.\n")
+		b.WriteString(muted("No matches. Press esc to close."))
+		b.WriteString("\n")
 		return b.String()
 	}
-	b.WriteString("Matches:\n")
+	b.WriteString(tableHeader("Matches"))
+	b.WriteString("\n")
 	for i, entry := range m.palette.matches {
 		b.WriteString(paletteMatchLine(entry, i == m.palette.selectedIndex))
 		b.WriteString("\n")
@@ -35,21 +37,23 @@ func (m shellModel) renderPalette() string {
 
 func (m shellModel) renderSessionQuickSwitcher() string {
 	b := strings.Builder{}
-	b.WriteString("Session Quick Switcher (ctrl+j)\n")
+	b.WriteString(tableHeader("Session Quick Switcher") + " " + neutralBadge("toggle=ctrl+j") + "\n")
 	b.WriteString(fmt.Sprintf("Query: %q\n", m.sessions.query))
 	if len(m.sessions.matches) == 0 {
-		b.WriteString("No matches. Press esc to close.\n")
+		b.WriteString(muted("No matches. Press esc to close."))
+		b.WriteString("\n")
 		return b.String()
 	}
-	b.WriteString("Matches:\n")
+	b.WriteString(tableHeader("Matches"))
+	b.WriteString("\n")
 	for i, s := range m.sessions.matches {
 		marker := " "
 		if i == m.sessions.selectedIndex {
-			marker = ">"
+			marker = "▶"
 		}
 		sessionLabel := s.Identity.SessionID
 		if m.watch.projection.Activity.Active.Kind == "session" && strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" && m.watch.projection.Activity.Active.ID == s.Identity.SessionID {
-			sessionLabel = "▶ " + sessionLabel
+			sessionLabel = "● " + sessionLabel
 		}
 		line := fmt.Sprintf(" %s %s | ws=%s | activity=%s/%s | cue=%s | preview=%q | incomplete=%t | runs=%d approvals=%d",
 			marker,
@@ -63,6 +67,7 @@ func (m shellModel) renderSessionQuickSwitcher() string {
 			s.LinkedRunCount,
 			s.LinkedApprovalCount,
 		)
+		line = selectedLine(i == m.sessions.selectedIndex, line)
 		b.WriteString(line)
 		b.WriteString("\n")
 	}
@@ -75,7 +80,7 @@ func (m shellModel) paletteStartY() int {
 
 func (m shellModel) sidebarYRange() (startY int, endY int) {
 	startY = 5
-	endY = startY + len(m.routes) - 1
+	endY = startY + len(m.sidebarEntries()) - 1
 	return startY, endY
 }
 
@@ -92,7 +97,8 @@ func (m shellModel) sidebarIndexAtMouse(mouseX int, mouseY int) (int, bool) {
 		return 0, false
 	}
 	idx := mouseY - startY
-	if idx < 0 || idx >= len(m.routes) {
+	entries := m.sidebarEntries()
+	if idx < 0 || idx >= len(entries) {
 		return 0, false
 	}
 	return idx, true

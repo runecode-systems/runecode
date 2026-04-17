@@ -73,14 +73,13 @@ func (m paletteModel) UpdateMouse(msg tea.MouseMsg, paletteStartY int, layoutWid
 	if !m.open {
 		return m, paletteActionMsg{}, false
 	}
-	_ = layoutWidth
 	if msg.Button != tea.MouseButtonLeft {
 		return m, paletteActionMsg{}, false
 	}
-	if msg.Action != tea.MouseActionPress && msg.Action != tea.MouseActionRelease {
+	if msg.Action != tea.MouseActionRelease {
 		return m, paletteActionMsg{}, false
 	}
-	index, ok := m.matchIndexAtPosition(msg.Y, paletteStartY, layoutWidth)
+	index, ok := m.matchIndexAtPosition(msg.X, msg.Y, paletteStartY, layoutWidth)
 	if !ok {
 		return m, paletteActionMsg{}, false
 	}
@@ -147,7 +146,7 @@ func (m paletteModel) deleteQueryRune() paletteModel {
 
 func (m *paletteModel) rebuildMatches() {
 	needle := strings.ToLower(strings.TrimSpace(m.query))
-	m.matches = m.matches[:0]
+	m.matches = m.matches[:0:0]
 	if needle == "" {
 		m.matches = append(m.matches, m.entries...)
 	} else {
@@ -166,11 +165,14 @@ func (m *paletteModel) rebuildMatches() {
 	}
 }
 
-func (m paletteModel) matchIndexAtPosition(y int, paletteStartY int, layoutWidth int) (int, bool) {
+func (m paletteModel) matchIndexAtPosition(x int, y int, paletteStartY int, layoutWidth int) (int, bool) {
 	if len(m.matches) == 0 {
 		return 0, false
 	}
-	_ = layoutWidth
+	startX, endX := paletteOverlayBounds(layoutWidth)
+	if x < startX || x > endX {
+		return 0, false
+	}
 	startY := paletteStartY + 3
 	for _, candidateY := range []int{y, y - 1} {
 		index := candidateY - startY
@@ -181,12 +183,29 @@ func (m paletteModel) matchIndexAtPosition(y int, paletteStartY int, layoutWidth
 	return 0, false
 }
 
-func paletteMatchLine(entry paletteEntry, selected bool) string {
-	marker := " "
-	if selected {
-		marker = ">"
+func paletteOverlayBounds(layoutWidth int) (int, int) {
+	if layoutWidth <= 0 {
+		layoutWidth = 120
 	}
-	return " " + marker + " " + fmt.Sprintf("%d. %s — %s", entry.Index, entry.Label, entry.Description)
+	width := overlayBlockWidth(layoutWidth)
+	startX := (layoutWidth - width) / 2
+	if startX < 0 {
+		startX = 0
+	}
+	endX := startX + width - 1
+	if endX < startX {
+		endX = startX
+	}
+	return startX, endX
+}
+
+func paletteMatchLine(entry paletteEntry, selected bool) string {
+	marker := "•"
+	if selected {
+		marker = "▶"
+	}
+	line := " " + marker + " " + fmt.Sprintf("%d. %s — %s", entry.Index, entry.Label, entry.Description)
+	return selectedLine(selected, line)
 }
 
 func isTypingKey(msg tea.KeyMsg) bool {

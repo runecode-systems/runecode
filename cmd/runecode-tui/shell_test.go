@@ -165,6 +165,9 @@ func TestShellViewCompositorPlacesPanesHorizontally(t *testing.T) {
 	if !strings.Contains(v, "┌") || !strings.Contains(v, "┐") {
 		t.Fatalf("expected lipgloss pane borders in compositor output, got %q", v)
 	}
+	if strings.Contains(v, "││") {
+		t.Fatalf("expected single-width shared pane separators without doubled borders, got %q", v)
+	}
 	if !strings.Contains(v, "Main pane") || !strings.Contains(v, "Sidebar") {
 		t.Fatalf("expected main+sidebar pane titles in compositor output, got %q", v)
 	}
@@ -229,6 +232,73 @@ func TestShellMouseHitboxUsesPlannedSidebarWidth(t *testing.T) {
 	}
 }
 
+func TestShellSidebarCursorMovesVerticallyAndEnterOpensSession(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	m.applySessionWorkspaceLoaded(sessionWorkspaceLoadedMsg{sessions: []brokerapi.SessionSummary{
+		{Identity: brokerapi.SessionIdentity{SessionID: "session-1", WorkspaceID: "ws-1"}},
+		{Identity: brokerapi.SessionIdentity{SessionID: "session-2", WorkspaceID: "ws-1"}},
+	}})
+	m.setFocus(focusNav)
+	start := m.sidebarCursor
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	shell := updated.(shellModel)
+	if shell.sidebarCursor != start+1 {
+		t.Fatalf("expected sidebar cursor to move down, got %d from %d", shell.sidebarCursor, start)
+	}
+
+	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyDown})
+	shell = updated.(shellModel)
+	if shell.sidebarCursor != start+2 {
+		t.Fatalf("expected sidebar cursor to move down with arrow, got %d", shell.sidebarCursor)
+	}
+
+	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyUp})
+	shell = updated.(shellModel)
+	if shell.sidebarCursor != start+1 {
+		t.Fatalf("expected sidebar cursor to move up with arrow, got %d", shell.sidebarCursor)
+	}
+
+	for i := 0; i < len(shell.routes)-1; i++ {
+		updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+		shell = updated.(shellModel)
+	}
+	if entry, ok := shell.selectedSidebarEntry(); !ok || entry.Kind != sidebarEntrySession {
+		t.Fatalf("expected cursor at a session entry, got ok=%t kind=%q", ok, entry.Kind)
+	}
+
+	updated, cmd := shell.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected route/session activation command from enter")
+	}
+	shell = updated.(shellModel)
+	if shell.activeSessionID != "session-1" {
+		t.Fatalf("expected active session switched to session-1, got %q", shell.activeSessionID)
+	}
+	if shell.currentRouteID() != routeChat {
+		t.Fatalf("expected session open to keep chat route, got %q", shell.currentRouteID())
+	}
+}
+
+func TestShellSidebarRenderShowsSingleSelectedRouteAndActiveMarker(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	m.location.Primary = shellObjectLocation{RouteID: routeRuns, Object: workbenchObjectRef{Kind: "route", ID: string(routeRuns)}}
+	m.syncSidebarCursorToLocation()
+
+	v := m.renderSidebar()
+	if strings.Count(v, "> 3 Runs") != 1 {
+		t.Fatalf("expected one selected runs row, got %q", v)
+	}
+	if strings.Count(v, "* 3 Runs") != 0 {
+		t.Fatalf("did not expect active marker on selected row, got %q", v)
+	}
+	if strings.Count(v, "> 2 Chat") != 0 {
+		t.Fatalf("did not expect non-cursor route selected, got %q", v)
+	}
+}
+
 func TestShellSelectionModeDisablesMouseInteractions(t *testing.T) {
 	m := newShellModel()
 	m.width = 120
@@ -285,6 +355,11 @@ func TestShellOverlayRemainsVisibleWithinViewport(t *testing.T) {
 	}
 	if !strings.Contains(v, "Workbench Command Surface") {
 		t.Fatalf("expected palette overlay content in viewport, got %q", v)
+	}
+	for _, want := range []string{"Overlay", "Matches"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("expected styled overlay affordance %q in viewport, got %q", want, v)
+		}
 	}
 }
 

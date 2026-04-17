@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 )
 
@@ -157,17 +158,44 @@ func (m *shellOverlayManager) Stack() []shellOverlayID {
 	return out
 }
 
-func centeredOverlayBlock(title shellOverlayID, body string) string {
+func centeredOverlayBlock(title shellOverlayID, body string, viewportWidth int) string {
 	body = strings.TrimSpace(body)
 	if body == "" {
 		body = "(empty overlay)"
 	}
+	width := overlayBlockWidth(viewportWidth)
+
+	content := appTheme.SurfaceOverlay.
+		Width(width).
+		MaxWidth(width).
+		Padding(0, 1).
+		Render(body)
+
+	frame := appTheme.SurfaceOverlay.
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(appTheme.BorderStrong.GetForeground()).
+		Width(width).
+		MaxWidth(width).
+		Render(content)
+
 	return compactLines(
-		tableHeader("Centered overlay")+" "+string(title),
-		"┌──────────────────────────────────────────────┐",
-		body,
-		"└──────────────────────────────────────────────┘",
+		tableHeader("Overlay")+" "+neutralBadge(strings.ToUpper(string(title))),
+		lipgloss.NewStyle().Width(viewportWidth).Align(lipgloss.Center).Render(frame),
 	)
+}
+
+func overlayBlockWidth(viewportWidth int) int {
+	width := viewportWidth - 8
+	if width < 48 {
+		width = 48
+	}
+	if width > viewportWidth {
+		width = viewportWidth
+	}
+	if width < 1 {
+		width = 1
+	}
+	return width
 }
 
 type shellCommand struct {
@@ -239,6 +267,7 @@ type memoryClipboardService struct {
 }
 
 func (m *memoryClipboardService) Copy(text string) {
+	text = strings.TrimSpace(redactSecrets(text))
 	m.last = text
 	if !m.osc52 || m.osc52Writer == nil || strings.TrimSpace(text) == "" {
 		return

@@ -12,6 +12,14 @@ type shellPaneSpec struct {
 	Width   int
 	Height  int
 	Focused bool
+	Border  shellPaneBorder
+}
+
+type shellPaneBorder struct {
+	Top    bool
+	Bottom bool
+	Left   bool
+	Right  bool
 }
 
 func renderShellPane(spec shellPaneSpec) string {
@@ -53,13 +61,18 @@ func renderShellPane(spec shellPaneSpec) string {
 		MaxHeight(innerHeight).
 		Render(compactLines(header, body))
 
-	border := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("242")).
+	borders := spec.Border
+	if !borders.Top && !borders.Bottom && !borders.Left && !borders.Right {
+		borders = shellPaneBorder{Top: true, Bottom: true, Left: true, Right: true}
+	}
+
+	border := appTheme.SurfaceElevated.
+		Border(lipgloss.NormalBorder(), borders.Top, borders.Right, borders.Bottom, borders.Left).
+		BorderForeground(appTheme.BorderSubtle.GetForeground()).
 		Width(width).
 		Height(height)
 	if spec.Focused {
-		border = border.BorderForeground(lipgloss.Color("183"))
+		border = border.BorderForeground(appTheme.FocusRing.GetForeground())
 	}
 	return border.Render(content)
 }

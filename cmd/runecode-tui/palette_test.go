@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -33,6 +34,39 @@ func TestPalettePickReturnsActionMessage(t *testing.T) {
 	}
 	if updated.IsOpen() {
 		t.Fatal("expected palette to close after pick")
+	}
+}
+
+func TestPaletteMatchLineUsesSelectedStyling(t *testing.T) {
+	line := paletteMatchLine(paletteEntry{Index: 1, Label: "open route chat", Description: "go to chat"}, true)
+	if !strings.Contains(line, "▶") {
+		t.Fatalf("expected selected marker in palette match line, got %q", line)
+	}
+}
+
+func TestPaletteMousePickTriggersOnlyOnRelease(t *testing.T) {
+	m := newPaletteModel([]paletteEntry{{Index: 1, Label: "back", Description: "go back", Action: paletteActionMsg{Verb: verbBack}}}).Open()
+	updated, action, changed := m.UpdateMouse(tea.MouseMsg{X: 30, Y: 7, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress}, 4, 80)
+	if changed {
+		t.Fatalf("expected press to only select, not emit action: %+v", action)
+	}
+	updated, action, changed = updated.UpdateMouse(tea.MouseMsg{X: 30, Y: 7, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease}, 4, 80)
+	if !changed {
+		t.Fatal("expected release to emit palette action")
+	}
+	if action.Verb != verbBack {
+		t.Fatalf("expected back verb, got %q", action.Verb)
+	}
+}
+
+func TestPaletteMouseIgnoresClicksOutsideOverlayBounds(t *testing.T) {
+	m := newPaletteModel([]paletteEntry{{Index: 1, Label: "back", Description: "go back", Action: paletteActionMsg{Verb: verbBack}}}).Open()
+	updated, _, changed := m.UpdateMouse(tea.MouseMsg{X: 0, Y: 7, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease}, 4, 80)
+	if changed {
+		t.Fatal("expected click outside overlay bounds to be ignored")
+	}
+	if !updated.IsOpen() {
+		t.Fatal("expected palette to remain open after ignored click")
 	}
 }
 

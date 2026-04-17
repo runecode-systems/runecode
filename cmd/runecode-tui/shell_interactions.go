@@ -24,11 +24,22 @@ func (m shellModel) handleMouseLeftClick(mouse tea.MouseMsg) (tea.Model, tea.Cmd
 	if mouse.Button != tea.MouseButtonLeft || mouse.Action != tea.MouseActionRelease {
 		return m, nil, false
 	}
-	if m.effectiveSidebarVisible() {
+	if m.navigationSurfaceVisible() {
 		if idx, ok := m.sidebarIndexAtMouse(mouse.X, mouse.Y); ok {
-			route := m.routes[idx]
-			updated, cmd := m.applyPaletteAction(paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: route.ID}})
-			return updated, cmd, true
+			entries := m.sidebarEntries()
+			if idx >= 0 && idx < len(entries) {
+				m.sidebarCursor = idx
+				entry := entries[idx]
+				switch entry.Kind {
+				case sidebarEntryRoute:
+					updated, cmd := m.applyPaletteAction(paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: entry.Route.ID}})
+					return updated, cmd, true
+				case sidebarEntrySession:
+					updated, cmd := m.activateSessionFromSidebarByID(entry.Session.Identity.SessionID)
+					return updated, cmd, true
+				}
+			}
+			return m, nil, true
 		}
 	}
 	m.setFocus(focusContent)

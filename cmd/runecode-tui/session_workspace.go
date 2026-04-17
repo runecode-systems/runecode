@@ -168,32 +168,47 @@ func sessionHighLevelCue(summary brokerapi.SessionSummary) string {
 }
 
 func sessionDirectoryItems(summaries []brokerapi.SessionSummary, activeSessionID string, pinned map[string]struct{}, recents []string, viewed map[string]string, active shellActivityFocus) []string {
+	recentOrder := recentSessionOrder(recents)
+	ordered := sortedSessionDirectorySummaries(summaries, recents)
+	items := make([]string, 0, len(ordered))
+	for _, s := range ordered {
+		items = append(items, sessionDirectoryLine(s, activeSessionID, pinned, recentOrder, viewed, active))
+	}
+	return items
+}
+
+func sessionDirectoryLine(summary brokerapi.SessionSummary, activeSessionID string, pinned map[string]struct{}, recentOrder map[string]int, viewed map[string]string, active shellActivityFocus) string {
+	sid := summary.Identity.SessionID
+	markerText := formatSessionDirectoryMarkers(summary, activeSessionID, pinned, recentOrder, viewed[sid], active)
+	return fmt.Sprintf("%s%s | ws=%s | at=%s kind=%s | preview=%q | incomplete=%t cue=%s | runs=%d approvals=%d",
+		sid,
+		markerText,
+		summary.Identity.WorkspaceID,
+		defaultPlaceholder(summary.LastActivityAt, "n/a"),
+		defaultPlaceholder(summary.LastActivityKind, "n/a"),
+		truncateText(summary.LastActivityPreview, 52),
+		summary.HasIncompleteTurn,
+		sessionHighLevelCue(summary),
+		summary.LinkedRunCount,
+		summary.LinkedApprovalCount,
+	)
+}
+
+func recentSessionOrder(recents []string) map[string]int {
 	recentOrder := map[string]int{}
 	for i, sid := range recents {
 		recentOrder[sid] = i
 	}
+	return recentOrder
+}
+
+func sortedSessionDirectorySummaries(summaries []brokerapi.SessionSummary, recents []string) []brokerapi.SessionSummary {
 	ordered := append([]brokerapi.SessionSummary(nil), summaries...)
+	recentOrder := recentSessionOrder(recents)
 	sort.SliceStable(ordered, func(i, j int) bool {
 		return sessionSortLess(ordered[i], ordered[j], recentOrder)
 	})
-	items := make([]string, 0, len(ordered))
-	for _, s := range ordered {
-		sid := s.Identity.SessionID
-		markerText := formatSessionDirectoryMarkers(s, activeSessionID, pinned, recentOrder, viewed[sid], active)
-		items = append(items, fmt.Sprintf("%s%s | ws=%s | at=%s kind=%s | preview=%q | incomplete=%t cue=%s | runs=%d approvals=%d",
-			sid,
-			markerText,
-			s.Identity.WorkspaceID,
-			defaultPlaceholder(s.LastActivityAt, "n/a"),
-			defaultPlaceholder(s.LastActivityKind, "n/a"),
-			truncateText(s.LastActivityPreview, 52),
-			s.HasIncompleteTurn,
-			sessionHighLevelCue(s),
-			s.LinkedRunCount,
-			s.LinkedApprovalCount,
-		))
-	}
-	return items
+	return ordered
 }
 
 func sessionSortLess(left, right brokerapi.SessionSummary, recentOrder map[string]int) bool {
@@ -240,13 +255,20 @@ func sessionDirectoryMarkers(summary brokerapi.SessionSummary, activeSessionID s
 
 func truncateText(text string, maxLen int) string {
 	trimmed := strings.TrimSpace(redactSecrets(text))
-	if maxLen <= 0 || len(trimmed) <= maxLen {
+	if maxLen <= 0 {
+		return trimmed
+	}
+	if utf8.RuneCountInString(trimmed) <= maxLen {
 		return trimmed
 	}
 	if maxLen <= 1 {
-		return trimmed[:maxLen]
+		for _, r := range trimmed {
+			return string(r)
+		}
+		return ""
 	}
-	return trimmed[:maxLen-1] + "…"
+	runes := []rune(trimmed)
+	return string(runes[:maxLen-1]) + "…"
 }
 
 func defaultPlaceholder(text string, placeholder string) string {

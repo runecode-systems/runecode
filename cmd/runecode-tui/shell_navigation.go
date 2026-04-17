@@ -39,6 +39,7 @@ func (m shellModel) applyPaletteInspect(target paletteTarget) (tea.Model, tea.Cm
 	}
 	m.location.Inspector = &loc.Primary
 	m.copyActionIndex = 0
+	m.syncSidebarCursorToLocation()
 	m.setFocus(focusContent)
 	if m.breakpoint() == shellBreakpointNarrow && m.inspectorOn {
 		m.beginOverlaySession()
@@ -59,6 +60,7 @@ func (m shellModel) navigateBack() (tea.Model, tea.Cmd) {
 	m.history = m.history[:len(m.history)-1]
 	m.location = prev
 	m.nav.SelectByRouteID(prev.Primary.RouteID)
+	m.syncSidebarCursorToLocation()
 	m.setFocus(focusContent)
 	m.persistWorkbenchState()
 	return m, m.activateCurrentRouteCmd()
@@ -96,6 +98,11 @@ func (m shellModel) applyPaletteTargetByKind(target paletteTarget, verb navigati
 	}
 	m.copyActionIndex = 0
 	m.nav.SelectByRouteID(loc.Primary.RouteID)
+	if target.Kind == "session" {
+		m.syncSidebarCursorToSessionID(target.SessionID)
+	} else {
+		m.syncSidebarCursorToLocation()
+	}
 	m.setFocus(focusContent)
 	m.publishShellPreferencesToCurrentRoute()
 	m.persistWorkbenchState()
@@ -144,6 +151,7 @@ func (m shellModel) locationForSessionTarget(target paletteTarget) shellWorkbenc
 	if sid != "" {
 		m.activeSessionID = sid
 		m.sessionSelected = selectedSessionIndex(m.sessionItems, sid)
+		m.syncSidebarCursorToSessionID(sid)
 		m.trackRecentSession(sid)
 		m.markSessionViewed(sid)
 		if ws != "" {
@@ -187,38 +195,7 @@ func (m shellModel) locationForAuditTarget(target paletteTarget) shellWorkbenchL
 	return shellWorkbenchLocation{Primary: shellObjectLocation{RouteID: routeAudit, Object: obj}}
 }
 func (m *shellModel) toggleActiveInspector() {
-	model, ok := m.routeModels[m.currentRouteID()]
-	if !ok || model == nil {
-		return
-	}
-	switch typed := model.(type) {
-	case chatRouteModel:
-		typed.inspectorOn = !typed.inspectorOn
-		m.inspectorOn = typed.inspectorOn
-		m.routeModels[m.currentRouteID()] = typed
-	case runsRouteModel:
-		typed.inspectorOn = !typed.inspectorOn
-		m.inspectorOn = typed.inspectorOn
-		m.routeModels[m.currentRouteID()] = typed
-	case approvalsRouteModel:
-		typed.inspectorOn = !typed.inspectorOn
-		m.inspectorOn = typed.inspectorOn
-		m.routeModels[m.currentRouteID()] = typed
-	case actionCenterRouteModel:
-		typed.inspectorOn = !typed.inspectorOn
-		m.inspectorOn = typed.inspectorOn
-		m.routeModels[m.currentRouteID()] = typed
-	case artifactsRouteModel:
-		typed.inspectorOn = !typed.inspectorOn
-		m.inspectorOn = typed.inspectorOn
-		m.routeModels[m.currentRouteID()] = typed
-	case auditRouteModel:
-		typed.inspectorOn = !typed.inspectorOn
-		m.inspectorOn = typed.inspectorOn
-		m.routeModels[m.currentRouteID()] = typed
-	default:
-		return
-	}
+	m.inspectorOn = !m.inspectorOn
 	if m.breakpoint() == shellBreakpointNarrow {
 		if m.inspectorOn {
 			m.beginOverlaySession()

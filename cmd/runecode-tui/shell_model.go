@@ -91,6 +91,7 @@ type shellModel struct {
 	overlayReturn   focusArea
 
 	sessionItems     []brokerapi.SessionSummary
+	sidebarCursor    int
 	sessionSelected  int
 	activeSessionID  string
 	sessionLoadError string
@@ -158,6 +159,7 @@ func newShellModel() shellModel {
 		overlayReturn:    focusContent,
 	}
 	m.restoreWorkbenchState()
+	m.syncSidebarCursorToLocation()
 	return m
 }
 
@@ -228,7 +230,7 @@ func (m shellModel) activeShellSurface() routeSurface {
 			Chrome:       routeSurfaceChrome{Breadcrumbs: []string{"Home", string(m.currentRouteID())}},
 		}
 	}
-	baseCtx := routeShellContext{Width: m.width, Height: m.height, Focus: m.focus, Focused: m.focusedRouteRegion(), Breakpoint: m.breakpoint(), Render: routeShellRenderPreferences{PreferredPresentation: normalizePresentationMode(m.preferredMode), ThemePreset: normalizeThemePreset(m.themePreset)}}
+	baseCtx := routeShellContext{Width: m.width, Height: m.availableShellHeight(), Focus: m.focus, Focused: m.focusedRouteRegion(), Breakpoint: m.breakpoint(), Render: routeShellRenderPreferences{PreferredPresentation: normalizePresentationMode(m.preferredMode), ThemePreset: normalizeThemePreset(m.themePreset)}}
 	surface := active.ShellSurface(baseCtx)
 	layout := m.planShellLayout(surface)
 	ctx := baseCtx
@@ -236,6 +238,21 @@ func (m shellModel) activeShellSurface() routeSurface {
 	ctx.Breakpoint = layout.Breakpoint
 	surface = active.ShellSurface(ctx)
 	return m.withLocationChrome(surface)
+}
+
+func (m shellModel) availableShellHeight() int {
+	_, viewportHeight := normalizedShellViewport(m.width, m.height)
+	if viewportHeight <= 0 {
+		return viewportHeight
+	}
+	if overlayHeight := m.activeOverlayHeight(viewportHeight); overlayHeight > 0 {
+		available := viewportHeight - overlayHeight
+		if available < 1 {
+			return 1
+		}
+		return available
+	}
+	return viewportHeight
 }
 
 func (m shellModel) focusedRouteRegion() routeRegionFocus {

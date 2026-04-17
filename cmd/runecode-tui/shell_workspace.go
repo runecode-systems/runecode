@@ -33,6 +33,7 @@ func (m *shellModel) applySessionWorkspaceLoaded(msg sessionWorkspaceLoadedMsg) 
 	m.sessions = m.sessions.UpdateSessions(m.sessionItems)
 	m.ensureActiveSessionSelection()
 	m.sessionSelected = selectedSessionIndex(m.sessionItems, m.activeSessionID)
+	m.syncSidebarCursorToLocation()
 	m.trackActiveSessionState()
 	m.refreshObjectIndexFromShellState()
 	m.persistWorkbenchState()
@@ -87,25 +88,15 @@ func (m *shellModel) trackActiveSessionState() {
 }
 
 func (m *shellModel) moveSessionSelection(delta int) {
-	if len(m.sessionItems) == 0 {
-		m.sessionSelected = 0
-		return
-	}
-	if delta > 0 {
-		m.sessionSelected = (m.sessionSelected + 1) % len(m.sessionItems)
-		return
-	}
-	m.sessionSelected--
-	if m.sessionSelected < 0 {
-		m.sessionSelected = len(m.sessionItems) - 1
-	}
+	m.moveSidebarCursor(delta)
 }
 
 func (m *shellModel) toggleSelectedSessionPin() {
-	if len(m.sessionItems) == 0 || m.sessionSelected < 0 || m.sessionSelected >= len(m.sessionItems) {
+	entry, ok := m.selectedSidebarEntry()
+	if !ok || entry.Kind != sidebarEntrySession {
 		return
 	}
-	sid := strings.TrimSpace(m.sessionItems[m.sessionSelected].Identity.SessionID)
+	sid := strings.TrimSpace(entry.Session.Identity.SessionID)
 	if sid == "" {
 		return
 	}
@@ -119,13 +110,15 @@ func (m *shellModel) toggleSelectedSessionPin() {
 }
 
 func (m shellModel) activateSelectedSessionFromSidebar() (tea.Model, tea.Cmd) {
-	if len(m.sessionItems) == 0 || m.sessionSelected < 0 || m.sessionSelected >= len(m.sessionItems) {
+	entry, ok := m.selectedSidebarEntry()
+	if !ok || entry.Kind != sidebarEntrySession {
 		return m, nil
 	}
-	sid := strings.TrimSpace(m.sessionItems[m.sessionSelected].Identity.SessionID)
+	sid := strings.TrimSpace(entry.Session.Identity.SessionID)
 	if sid == "" {
 		return m, nil
 	}
+	m.syncSidebarCursorToSessionID(sid)
 	return m.activateSessionFromSidebarByID(sid)
 }
 
