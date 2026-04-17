@@ -138,6 +138,9 @@ func (m shellModel) handlePaletteMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool)
 }
 
 func (m shellModel) handleSessionQuickSwitchMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
+	if _, ok := msg.(tea.MouseMsg); ok {
+		return m, nil, true
+	}
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return m, nil, false
@@ -176,7 +179,7 @@ func (m shellModel) handleSessionQuickSwitchMessage(msg tea.Msg) (tea.Model, tea
 }
 
 func (m shellModel) handlePaletteMouse(mouse tea.MouseMsg) (tea.Model, tea.Cmd, bool) {
-	updatedPalette, routeMsg, changed := m.palette.UpdateMouse(mouse, m.paletteStartY(), 0)
+	updatedPalette, routeMsg, changed := m.palette.UpdateMouse(mouse, m.paletteStartY(), m.width)
 	m.palette = updatedPalette
 	m.syncOverlayStack()
 	m.restoreFocusAfterOverlayClose()

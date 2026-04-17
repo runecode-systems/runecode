@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 )
 
@@ -156,50 +155,6 @@ func (m *shellOverlayManager) Stack() []shellOverlayID {
 	out := make([]shellOverlayID, len(m.stack))
 	copy(out, m.stack)
 	return out
-}
-
-func centeredOverlayBlock(title shellOverlayID, body string, viewportWidth int) string {
-	body = strings.TrimSpace(body)
-	if body == "" {
-		body = "(empty overlay)"
-	}
-	width := overlayBlockWidth(viewportWidth)
-	innerWidth := width - 2
-	if innerWidth < 1 {
-		innerWidth = 1
-	}
-
-	content := appTheme.SurfaceOverlay.
-		Width(innerWidth).
-		MaxWidth(innerWidth).
-		Padding(0, 1).
-		Render(body)
-
-	frame := appTheme.SurfaceOverlay.
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(appTheme.BorderStrong.GetForeground()).
-		Width(innerWidth).
-		MaxWidth(innerWidth).
-		Render(content)
-
-	return compactLines(
-		tableHeader("Overlay")+" "+neutralBadge(strings.ToUpper(string(title))),
-		lipgloss.NewStyle().Width(viewportWidth).Align(lipgloss.Center).Render(frame),
-	)
-}
-
-func overlayBlockWidth(viewportWidth int) int {
-	width := viewportWidth - 8
-	if width < 48 {
-		width = 48
-	}
-	if width > viewportWidth {
-		width = viewportWidth
-	}
-	if width < 1 {
-		width = 1
-	}
-	return width
 }
 
 type shellCommand struct {

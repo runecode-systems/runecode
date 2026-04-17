@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func TestShellFocusManagerCyclesBySidebarVisibility(t *testing.T) {
@@ -161,5 +163,23 @@ func TestNormalizeBrokerTargetAlias(t *testing.T) {
 	veryLong := strings.Repeat("a", 200)
 	if got := len(normalizeBrokerTargetAlias(veryLong)); got > 128 {
 		t.Fatalf("expected alias length <= 128, got %d", got)
+	}
+}
+
+func TestCenteredOverlayBlockBoundedClipsToHeight(t *testing.T) {
+	body := strings.Repeat("line\n", 40)
+	rendered := centeredOverlayBlockBounded(overlayIDQuickJump, body, 80, 6)
+	if got := lipgloss.Height(rendered); got != 6 {
+		t.Fatalf("expected bounded overlay height=6, got %d", got)
+	}
+	if got := lipgloss.Width(rendered); got != 80 {
+		t.Fatalf("expected bounded overlay width=80, got %d", got)
+	}
+}
+
+func TestCenteredOverlayContentBoundsUseInnerContentArea(t *testing.T) {
+	start, end := centeredOverlayContentBounds(80)
+	if start != 6 || end != 73 {
+		t.Fatalf("expected content bounds [6,73], got [%d,%d]", start, end)
 	}
 }

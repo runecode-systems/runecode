@@ -1,6 +1,10 @@
 package main
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 func (m shellModel) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	for _, handler := range []func(tea.KeyMsg) (tea.Model, tea.Cmd, bool){
@@ -203,6 +207,9 @@ func (m shellModel) toggleNarrowInspectorOverlay() shellModel {
 	m.narrowInspectOn = !m.narrowInspectOn
 	if m.narrowInspectOn {
 		m.narrowSidebarOn = false
+		if strings.TrimSpace(surface.Regions.Inspector.Body) == "" {
+			m.toasts.Push(toastInfo, "Inspector opened with no selected detail; showing empty-state inspector.")
+		}
 		m.setFocus(focusInspector)
 	} else {
 		m.restoreFocusAfterOverlayClose()

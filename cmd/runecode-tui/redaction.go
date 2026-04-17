@@ -37,7 +37,7 @@ func sanitizeUIText(text string) string {
 	}
 	var b strings.Builder
 	for _, r := range text {
-		if r == '\n' || r == '\t' || (unicode.IsPrint(r) && r != 0x1b) {
+		if r == '\t' || (unicode.IsPrint(r) && r != 0x1b && r != '\n' && r != '\r') {
 			b.WriteRune(r)
 		}
 	}

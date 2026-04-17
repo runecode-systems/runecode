@@ -45,6 +45,7 @@ If these enhancements are not planned explicitly now, they are likely to accrete
 - Treat copy/paste as first-class architecture: preserve ordinary terminal text selection, add explicit in-app copy actions, and upgrade compose input to a proper multiline paste-friendly text area.
 - Persist local workbench state such as sidebar visibility, pane ratios, inspector visibility, theme preset, recents, pinned sessions, and last active session per workspace without elevating it into trusted control-plane state.
 - Use an OpenCode-style fullscreen workbench level of polish as visual inspiration while preserving RuneCode's own semantics, trust posture, and information hierarchy.
+- Borrow selected implementation patterns from Charmbracelet `crush` where they improve bounded rendering, reusable list and overlay primitives, and layout regression coverage, while preserving RuneCode's shell planner plus route-surface architecture.
 - Defer the larger route-level visual pass until workflow semantics and first-round dogfooding stabilize, while still making the shell substrate itself feel polished from the start.
 - Preserve local-first UX while keeping the client topology-neutral for future remote or scaled backends.
 
@@ -60,11 +61,14 @@ Doing this before MVP avoids a common trap: shipping a permanently minimal conso
 - `CHG-2026-013-d2c9-minimal-tui-v0` lands first and remains the base shell/foundation for this work.
 - Raw model chain-of-thought remains out of scope; richer inspection focuses on typed traces, decisions, audit records, artifacts, rationale summaries, and live activity streams.
 - Planning reviewed OpenCode-style fullscreen workbench references and the Bubble Tea/Lip Gloss ecosystem as positive directional input for the shell and visual foundation.
+- Planning and follow-up implementation review also examined Charmbracelet `crush` directly. The review concluded that `crush` shares the same Go, Bubble Tea, and Lip Gloss ecosystem, but uses a more component-local, rectangle-bounded draw model than RuneCode's shell compositor. RuneCode should adopt the bounded-component discipline and regression-test posture from `crush` without rewriting the workbench around a different root rendering architecture.
 - The larger visual redesign should be sequenced after the shell substrate, route semantics, and immediate broker-workflow fixes settle, so the project does not repeatedly repaint screens whose meaning is still changing.
 
 ## Out of Scope
 - Replacing the MVP TUI foundation rather than extending it.
 - Replacing Bubble Tea or Lip Gloss with a different UI foundation.
+- Rewriting the workbench around `crush`'s screen-buffer and rectangle-draw architecture.
+- Replacing the shell planner plus route-surface contracts with a chat-first monolithic UI model.
 - Remote/network transport changes or alternate trust models for approvals and actions.
 - Inventing pending-question or pending-answer semantics in the TUI before a canonical broker object model exists.
 - Treating persisted theme, layout, recents, pinned sessions, or workspace UI state as trusted system state.

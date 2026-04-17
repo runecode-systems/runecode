@@ -21,6 +21,8 @@ This change does not replace the MVP foundation. It freezes the next layer of pr
 ## Non-Goals
 - replacing Bubble Tea or Lip Gloss with another framework
 - collapsing the shell plus child-model architecture back into one monolithic model
+- rewriting RuneCode's workbench around `crush`'s screen-buffer and rectangle-draw architecture
+- treating the `crush` codebase as a template to copy wholesale rather than a source of bounded-rendering and component-discipline patterns
 - inventing pending-question or answer-required semantics before a canonical broker model exists
 - persisting local layout or theme state as authority
 - turning the TUI into a log console that infers truth from daemon output
@@ -43,6 +45,27 @@ This change does not replace the MVP foundation. It freezes the next layer of pr
 - Copy and paste must support both terminal text selection and explicit in-app copy actions; terminal selection must never be sacrificed.
 - The shell must show a small running animation indicator when canonical work is actively progressing.
 - The larger route-level visual pass is downstream of workflow semantic stabilization and first-round dogfooding.
+
+## External Reference Review: Charmbracelet Crush
+
+The project reviewed Charmbracelet `crush` directly as a current Go, Bubble Tea, and Lip Gloss reference implementation.
+
+Key conclusions:
+- `crush` uses the same core ecosystem, but not the same root architecture.
+- `crush` is more component-oriented and rectangle-bounded, with component-local draw ownership and a screen-buffer composition pass.
+- RuneCode's TUI is intentionally shell-planner and route-surface oriented, with the shell composing pane contracts returned by routes.
+- RuneCode should keep that shell architecture because it matches the product's multi-pane, object-workbench posture and existing trust-boundary-aware shell ownership.
+
+Patterns worth borrowing from `crush`:
+- component-local bounded rendering so already-rendered blocks are not repeatedly flattened and re-constrained by higher-level shell code
+- reusable list and overlay primitives that own selection, scrolling, gaps, and bounded viewport math locally
+- stronger overlay layering and clipping discipline so dialogs and switchers render within explicit bounds instead of relying on incidental whole-screen string composition behavior
+- broader layout regression tests around resizing, anchoring, clipping, gap preservation, and narrow or medium breakpoint behavior
+
+Patterns explicitly not adopted from `crush`:
+- a root rewrite to a screen-buffer-first draw model
+- a chat-first UI decomposition that would weaken RuneCode's route and inspector contracts
+- wholesale copying of `crush` package structure or large model files
 
 ## Terminology And Identity
 - `workspace`: canonical broker or control-plane workspace identity.
@@ -106,7 +129,7 @@ The shell owns overlays so focus, dismissal, and stacking remain consistent:
 ## Shared Component And Service Layer
 
 ### Shared UI Primitives
-- selectable directories and lists
+- selectable directories and lists with bounded rendering ownership rather than shell-level post-processing of already-rendered rows
 - long-form scrollable viewports for transcript, diff, log, markdown, and raw structured content
 - inspector headers and identity or status badges
 - tabs or mode switches for `rendered`, `raw`, and `structured` views
@@ -129,6 +152,8 @@ The shell owns overlays so focus, dismissal, and stacking remain consistent:
 - use Lip Gloss semantic tokens for surface hierarchy, borders, focus, selection, and semantic state cues
 - use Bubbles selectively where it accelerates the foundation without forcing generic UX
 - prefer custom selectors or palette models when stock list or table models do not match the intended workbench behavior
+- prefer component-local width and height ownership for lists, overlays, and pane detail blocks so the shell does not reflow or clip already-rendered subcomponents line by line
+- add regression tests whenever a layout or overlay bug is fixed so width, clipping, section-gap, and viewport anchoring behavior remain stable across breakpoints
 
 ## Navigation And Object Model
 

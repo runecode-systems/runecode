@@ -166,3 +166,22 @@ func TestShellLayoutPlannerAccountsForPaneBorderHeight(t *testing.T) {
 		t.Fatalf("expected pane row to leave room for footer and lower chrome, got row height=%d", got)
 	}
 }
+
+func TestShellLayoutPlannerClampsMainWidthWhenViewportBelowMinimum(t *testing.T) {
+	m := newShellModel()
+	m.width = 30
+	m.height = 24
+	m.sidebarVisible = false
+	m.inspectorOn = false
+
+	plan := m.planShellLayout(routeSurface{})
+	if got := plan.Regions.Main.Width; got != 30 {
+		t.Fatalf("expected main width clamped to viewport width=30, got %d", got)
+	}
+	if plan.Regions.Sidebar.Width != 0 {
+		t.Fatalf("expected hidden sidebar width=0, got %d", plan.Regions.Sidebar.Width)
+	}
+	if plan.Regions.Inspector.Width != 0 {
+		t.Fatalf("expected hidden inspector width=0, got %d", plan.Regions.Inspector.Width)
+	}
+}

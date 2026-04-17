@@ -12,6 +12,7 @@
 - Bubble Tea: https://github.com/charmbracelet/bubbletea
 - Bubbles: https://github.com/charmbracelet/bubbles
 - Lip Gloss: https://github.com/charmbracelet/lipgloss
+- Crush: https://github.com/charmbracelet/crush
 - OpenCode: https://github.com/anomalyco/opencode
 - Tips for building Bubble Tea programs: https://leg100.github.io/en/posts/building-bubbletea-programs/
 - Hamburger Menus and Hidden Navigation Hurt UX Metrics: https://www.nngroup.com/articles/hamburger-menus/
@@ -36,5 +37,6 @@
 ## Planning Notes
 
 - Visual direction was informed by fullscreen workbench references reviewed during planning, especially OpenCode-style compositions with centered overlays, strong focus cues, integrated output surfaces, and a calm dark palette.
+- Follow-up architectural analysis also reviewed Charmbracelet `crush` directly. The durable conclusion was to borrow its bounded-component rendering discipline, reusable list and overlay patterns, and layout-test posture, but not its root screen-buffer architecture.
 - User-local screenshot filesystem paths are intentionally not recorded in repo docs; only the durable design conclusions are captured here.
 - This change intentionally freezes the shell, navigation, activity, and copy or paste foundation before the larger visual pass begins.

@@ -28,10 +28,20 @@ func (m shellModel) renderPalette() string {
 	}
 	b.WriteString(tableHeader("Matches"))
 	b.WriteString("\n")
-	for i, entry := range m.palette.matches {
-		b.WriteString(paletteMatchLine(entry, i == m.palette.selectedIndex))
-		b.WriteString("\n")
+	rows := make([]boundedListRow, 0, len(m.palette.matches))
+	for _, entry := range m.palette.matches {
+		rows = append(rows, boundedListRow{Text: paletteMatchLine(entry, false), Selectable: true})
 	}
+	b.WriteString(renderBoundedList(boundedListSpec{
+		Rows:          rows,
+		Selected:      m.palette.selectedIndex,
+		Width:         boundedOverlayListWidth(m.width),
+		Height:        8,
+		GapMarker:     "...",
+		PreserveGaps:  true,
+		ApplySelected: true,
+	}))
+	b.WriteString("\n")
 	return b.String()
 }
 
@@ -46,6 +56,7 @@ func (m shellModel) renderSessionQuickSwitcher() string {
 	}
 	b.WriteString(tableHeader("Matches"))
 	b.WriteString("\n")
+	rows := make([]boundedListRow, 0, len(m.sessions.matches))
 	for i, s := range m.sessions.matches {
 		marker := " "
 		if i == m.sessions.selectedIndex {
@@ -67,11 +78,30 @@ func (m shellModel) renderSessionQuickSwitcher() string {
 			s.LinkedRunCount,
 			s.LinkedApprovalCount,
 		)
-		line = selectedLine(i == m.sessions.selectedIndex, line)
-		b.WriteString(line)
-		b.WriteString("\n")
+		rows = append(rows, boundedListRow{Text: line, Selectable: true})
 	}
+	b.WriteString(renderBoundedList(boundedListSpec{
+		Rows:          rows,
+		Selected:      m.sessions.selectedIndex,
+		Width:         boundedOverlayListWidth(m.width),
+		Height:        8,
+		GapMarker:     "...",
+		PreserveGaps:  true,
+		ApplySelected: true,
+	}))
+	b.WriteString("\n")
 	return b.String()
+}
+
+func boundedOverlayListWidth(viewportWidth int) int {
+	if viewportWidth <= 0 {
+		return 0
+	}
+	width := overlayBlockWidth(viewportWidth) - 4
+	if width < 1 {
+		return 1
+	}
+	return width
 }
 
 func (m shellModel) paletteStartY() int {
@@ -123,7 +153,7 @@ func (m shellModel) renderPaneActivityMarker() string {
 	if strings.TrimSpace(m.watch.projection.Activity.Active.Kind) == "" || strings.TrimSpace(m.watch.projection.Activity.Active.ID) == "" {
 		return infoBadge("ACTIVE")
 	}
-	return infoBadge(fmt.Sprintf("ACTIVE %s=%s", m.watch.projection.Activity.Active.Kind, m.watch.projection.Activity.Active.ID))
+	return infoBadge(fmt.Sprintf("ACTIVE %s=%s", sanitizeUIText(m.watch.projection.Activity.Active.Kind), sanitizeUIText(m.watch.projection.Activity.Active.ID)))
 }
 
 func (m shellModel) renderRunningIndicator() string {
@@ -133,7 +163,7 @@ func (m shellModel) renderRunningIndicator() string {
 	frames := []string{"⠁", "⠂", "⠄", "⠂", "⠁", "⠈", "⠐", "⠈"}
 	label := "running"
 	if strings.TrimSpace(m.watch.projection.Activity.Active.Kind) != "" && strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" {
-		label = fmt.Sprintf("running %s:%s", m.watch.projection.Activity.Active.Kind, m.watch.projection.Activity.Active.ID)
+		label = fmt.Sprintf("running %s:%s", sanitizeUIText(m.watch.projection.Activity.Active.Kind), sanitizeUIText(m.watch.projection.Activity.Active.ID))
 	}
 	return infoBadge(frames[m.activityFrame%len(frames)] + " " + label)
 }

@@ -70,6 +70,31 @@ func TestPaletteMouseIgnoresClicksOutsideOverlayBounds(t *testing.T) {
 	}
 }
 
+func TestPaletteMouseIgnoresClicksInsideFrameOutsideContentBounds(t *testing.T) {
+	m := newPaletteModel([]paletteEntry{{Index: 1, Label: "back", Description: "go back", Action: paletteActionMsg{Verb: verbBack}}}).Open()
+	updated, _, changed := m.UpdateMouse(tea.MouseMsg{X: 4, Y: 7, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease}, 4, 80)
+	if changed {
+		t.Fatal("expected click on overlay frame edge to be ignored")
+	}
+	if !updated.IsOpen() {
+		t.Fatal("expected palette to remain open after frame-edge click")
+	}
+}
+
+func TestPaletteMouseUsesRealViewportWidthForBounds(t *testing.T) {
+	m := newPaletteModel([]paletteEntry{{Index: 1, Label: "back", Description: "go back", Action: paletteActionMsg{Verb: verbBack}}}).Open()
+	updated, action, changed := m.UpdateMouse(tea.MouseMsg{X: 4, Y: 7, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease}, 4, 42)
+	if !changed {
+		t.Fatal("expected narrow viewport click inside real content bounds to trigger selection")
+	}
+	if action.Verb != verbBack {
+		t.Fatalf("expected back verb, got %q", action.Verb)
+	}
+	if updated.IsOpen() {
+		t.Fatal("expected palette to close after successful pick")
+	}
+}
+
 func keyMsg(key string) tea.KeyMsg {
 	switch key {
 	case "enter":

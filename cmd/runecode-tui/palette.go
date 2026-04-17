@@ -169,7 +169,7 @@ func (m paletteModel) matchIndexAtPosition(x int, y int, paletteStartY int, layo
 	if len(m.matches) == 0 {
 		return 0, false
 	}
-	startX, endX := paletteOverlayBounds(layoutWidth)
+	startX, endX := centeredOverlayContentBounds(layoutWidth)
 	if x < startX || x > endX {
 		return 0, false
 	}
@@ -184,19 +184,7 @@ func (m paletteModel) matchIndexAtPosition(x int, y int, paletteStartY int, layo
 }
 
 func paletteOverlayBounds(layoutWidth int) (int, int) {
-	if layoutWidth <= 0 {
-		layoutWidth = 120
-	}
-	width := overlayBlockWidth(layoutWidth)
-	startX := (layoutWidth - width) / 2
-	if startX < 0 {
-		startX = 0
-	}
-	endX := startX + width - 1
-	if endX < startX {
-		endX = startX
-	}
-	return startX, endX
+	return centeredOverlayContentBounds(layoutWidth)
 }
 
 func paletteMatchLine(entry paletteEntry, selected bool) string {

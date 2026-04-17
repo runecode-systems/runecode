@@ -36,4 +36,7 @@ func TestSanitizeUITextStripsEscapesAndCapsLength(t *testing.T) {
 	if len(got) > 515 {
 		t.Fatalf("expected capped output length, got %d", len(got))
 	}
+	if strings.Contains(got, "\n") || strings.Contains(got, "\r") {
+		t.Fatalf("expected newlines removed from sanitized UI text, got %q", got)
+	}
 }

@@ -139,3 +139,26 @@ func TestDashboardViewWrapsLongRowsToWidth(t *testing.T) {
 		t.Fatalf("expected wrapped long audit cue retained, got %q", view)
 	}
 }
+
+func TestDashboardViewNarrowWidthKeepsBoundedLinesAndSectionSpacing(t *testing.T) {
+	model := newDashboardRouteModel(routeDefinition{ID: routeDashboard, Label: "Dashboard"}, &fakeBrokerClient{})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeDashboard})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	view := updated.View(44, 24, focusContent)
+	if strings.Contains(view, "\n\n\n") {
+		t.Fatalf("expected no triple blank section gaps in narrow view, got %q", view)
+	}
+	if !strings.Contains(view, "\n\nSafety Summary") {
+		t.Fatalf("expected preserved single blank section gap before Safety Summary, got %q", view)
+	}
+	mustContainAll(t, view,
+		"Dashboard",
+		"Safety Summary",
+		"Control Plane",
+		"Live Activity",
+	)
+}

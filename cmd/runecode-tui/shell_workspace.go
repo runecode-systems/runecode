@@ -102,11 +102,11 @@ func (m *shellModel) toggleSelectedSessionPin() {
 	}
 	if _, ok := m.pinnedSessions[sid]; ok {
 		delete(m.pinnedSessions, sid)
-		m.toasts.Push(toastInfo, "Session unpinned: "+sid)
+		m.toasts.Push(toastInfo, "Session unpinned: "+sanitizeUIText(sid))
 		return
 	}
 	m.pinnedSessions[sid] = struct{}{}
-	m.toasts.Push(toastInfo, "Session pinned: "+sid)
+	m.toasts.Push(toastInfo, "Session pinned: "+sanitizeUIText(sid))
 }
 
 func (m shellModel) activateSelectedSessionFromSidebar() (tea.Model, tea.Cmd) {
@@ -126,7 +126,7 @@ func (m shellModel) activateSessionFromSidebarByID(sessionID string) (tea.Model,
 	updated, cmd := m.applyPaletteAction(paletteActionMsg{Verb: verbOpen, Target: paletteTarget{Kind: "session", SessionID: strings.TrimSpace(sessionID)}})
 	shell, ok := updated.(shellModel)
 	if ok {
-		shell.toasts.Push(toastInfo, "Active session switched: "+shell.activeSessionID)
+		shell.toasts.Push(toastInfo, "Active session switched: "+sanitizeUIText(shell.activeSessionID))
 		return shell, cmd
 	}
 	return updated, cmd

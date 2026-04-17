@@ -5,6 +5,22 @@ import (
 	"strings"
 )
 
+type boundedListRow struct {
+	Text       string
+	Selectable bool
+}
+
+type boundedListSpec struct {
+	Rows          []boundedListRow
+	Selected      int
+	Width         int
+	Height        int
+	GapMarker     string
+	Empty         string
+	PreserveGaps  bool
+	ApplySelected bool
+}
+
 type inspectorContentKind string
 
 const (
@@ -49,16 +65,173 @@ func renderDirectory(title string, items []string, selected int) string {
 	if len(items) == 0 {
 		return renderStateCard(routeLoadStateEmpty, title, "no items")
 	}
-	lines := make([]string, 0, len(items)+1)
-	lines = append(lines, tableHeader(title))
+	rows := make([]boundedListRow, 0, len(items))
 	for i, item := range items {
 		marker := " "
 		if i == selected {
 			marker = ">"
 		}
-		lines = append(lines, selectedLine(i == selected, fmt.Sprintf(" %s %s", marker, item)))
+		rows = append(rows, boundedListRow{Text: fmt.Sprintf(" %s %s", marker, item), Selectable: true})
 	}
-	return compactLines(lines...)
+	return compactLines(
+		tableHeader(title),
+		renderBoundedList(boundedListSpec{Rows: rows, Selected: selected, ApplySelected: true, PreserveGaps: true}),
+	)
+}
+
+func renderBoundedList(spec boundedListSpec) string {
+	rows := normalizeBoundedListRows(spec.Rows, spec.PreserveGaps)
+	if len(rows) == 0 {
+		empty := strings.TrimSpace(spec.Empty)
+		if empty == "" {
+			empty = "no items"
+		}
+		return clipBoundedListText(empty, spec.Width)
+	}
+
+	selectedRow := boundedListSelectedRow(rows, spec.Selected)
+	windowStart, windowEnd, showTopGap, showBottomGap := boundedListWindow(len(rows), selectedRow, spec.Height)
+	gap := strings.TrimSpace(spec.GapMarker)
+	if gap == "" {
+		gap = "..."
+	}
+
+	lines := make([]string, 0, (windowEnd-windowStart)+2)
+	if showTopGap {
+		lines = append(lines, clipBoundedListText(gap, spec.Width))
+	}
+	for rowIdx := windowStart; rowIdx < windowEnd; rowIdx++ {
+		line := clipBoundedListText(rows[rowIdx].Text, spec.Width)
+		if spec.ApplySelected {
+			line = selectedLine(rowIdx == selectedRow && rows[rowIdx].Selectable, line)
+		}
+		lines = append(lines, line)
+	}
+	if showBottomGap {
+		lines = append(lines, clipBoundedListText(gap, spec.Width))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func normalizeBoundedListRows(rows []boundedListRow, preserveGaps bool) []boundedListRow {
+	if preserveGaps {
+		return append([]boundedListRow(nil), rows...)
+	}
+	normalized := make([]boundedListRow, 0, len(rows))
+	for _, row := range rows {
+		if strings.TrimSpace(row.Text) == "" {
+			continue
+		}
+		normalized = append(normalized, row)
+	}
+	return normalized
+}
+
+func boundedListSelectedRow(rows []boundedListRow, selected int) int {
+	selectable := make([]int, 0, len(rows))
+	for i, row := range rows {
+		if row.Selectable {
+			selectable = append(selectable, i)
+		}
+	}
+	if len(selectable) == 0 {
+		return -1
+	}
+	if selected < 0 {
+		selected = 0
+	}
+	if selected >= len(selectable) {
+		selected = len(selectable) - 1
+	}
+	return selectable[selected]
+}
+
+func boundedListWindow(totalRows int, selectedRow int, height int) (start int, end int, showTopGap bool, showBottomGap bool) {
+	if totalRows <= 0 {
+		return 0, 0, false, false
+	}
+	if height <= 0 || totalRows <= height {
+		return 0, totalRows, false, false
+	}
+	selectedRow = clampBoundedListSelectedRow(selectedRow, totalRows)
+	if height == 1 {
+		return selectedRow, selectedRow + 1, false, false
+	}
+	showTopGap, showBottomGap = boundedListGapFlags(totalRows, selectedRow, height)
+	if height == 2 {
+		return boundedListTwoRowWindow(selectedRow, showTopGap, showBottomGap)
+	}
+	dataSlots := boundedListDataSlots(height, showTopGap, showBottomGap)
+	start = boundedListWindowStart(totalRows, selectedRow, dataSlots)
+	end = start + dataSlots
+	if end > totalRows {
+		end = totalRows
+	}
+	showTopGap = start > 0
+	showBottomGap = end < totalRows
+	return start, end, showTopGap, showBottomGap
+}
+
+func clampBoundedListSelectedRow(selectedRow int, totalRows int) int {
+	if selectedRow < 0 || selectedRow >= totalRows {
+		return 0
+	}
+	return selectedRow
+}
+
+func boundedListGapFlags(totalRows int, selectedRow int, height int) (bool, bool) {
+	nearTopThreshold := (height - 2) / 2
+	nearBottomThreshold := totalRows - 1 - nearTopThreshold
+	return selectedRow > nearTopThreshold, selectedRow < nearBottomThreshold
+}
+
+func boundedListTwoRowWindow(selectedRow int, showTopGap bool, showBottomGap bool) (int, int, bool, bool) {
+	if showTopGap && !showBottomGap {
+		return selectedRow, selectedRow + 1, true, false
+	}
+	return selectedRow, selectedRow + 1, false, true
+}
+
+func boundedListDataSlots(height int, showTopGap bool, showBottomGap bool) int {
+	dataSlots := height
+	if showTopGap {
+		dataSlots--
+	}
+	if showBottomGap {
+		dataSlots--
+	}
+	if dataSlots < 1 {
+		return 1
+	}
+	return dataSlots
+}
+
+func boundedListWindowStart(totalRows int, selectedRow int, dataSlots int) int {
+	start := selectedRow - (dataSlots / 2)
+	if start < 0 {
+		start = 0
+	}
+	if start+dataSlots > totalRows {
+		start = totalRows - dataSlots
+	}
+	if start < 0 {
+		return 0
+	}
+	return start
+}
+
+func clipBoundedListText(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+	runes := []rune(text)
+	if len(runes) <= width {
+		return text
+	}
+	if width <= 3 {
+		return string(runes[:width])
+	}
+	return string(runes[:width-3]) + "..."
 }
 
 func renderInspectorHeader(title string, badges ...string) string {

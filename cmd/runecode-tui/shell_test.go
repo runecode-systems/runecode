@@ -346,6 +346,23 @@ func TestShellSelectionModeDisablesMouseInteractions(t *testing.T) {
 	}
 }
 
+func TestSessionQuickSwitchOverlayConsumesMouseWithoutClickThrough(t *testing.T) {
+	m := newShellModel()
+	m.width = 120
+	m.applySessionWorkspaceLoaded(sessionWorkspaceLoadedMsg{sessions: []brokerapi.SessionSummary{{Identity: brokerapi.SessionIdentity{SessionID: "session-1", WorkspaceID: "ws-1"}}}})
+	m.sessions = m.sessions.Open(m.sessionItems)
+	startY, _ := m.sidebarYRange()
+
+	updated, _ := m.Update(tea.MouseMsg{X: 2, Y: startY + 1, Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft})
+	shell := updated.(shellModel)
+	if len(shell.history) != 0 {
+		t.Fatalf("expected no click-through history mutation while session overlay open, got %+v", shell.history)
+	}
+	if !shell.sessions.IsOpen() {
+		t.Fatal("expected session overlay to remain open after consumed mouse event")
+	}
+}
+
 func TestShellViewRendersShellSurfaces(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
@@ -393,6 +410,100 @@ func TestShellOverlayRemainsVisibleWithinViewport(t *testing.T) {
 	for _, want := range []string{"Overlay", "Matches"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected styled overlay affordance %q in viewport, got %q", want, v)
+		}
+	}
+}
+
+func TestShellOverlayNarrowViewportKeepsFrameBounds(t *testing.T) {
+	m := newShellModel()
+	m.width = 42
+	m.height = 16
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	shell := updated.(shellModel)
+	v := shell.View()
+
+	if got := lipgloss.Width(v); got != 42 {
+		t.Fatalf("expected full-frame width=42 with overlay open, got %d", got)
+	}
+	if got := lipgloss.Height(v); got != 16 {
+		t.Fatalf("expected full-frame height=16 with overlay open, got %d", got)
+	}
+	for _, line := range strings.Split(v, "\n") {
+		if lipgloss.Width(line) > 42 {
+			t.Fatalf("expected overlay/frame line width <= 42, got %d in %q", lipgloss.Width(line), line)
+		}
+	}
+	if !strings.Contains(v, "Workbench Command Surface") {
+		t.Fatalf("expected palette overlay content in narrow viewport, got %q", v)
+	}
+}
+
+func TestShellOverlayBodyHeightClampsToViewportBudget(t *testing.T) {
+	m := newShellModel()
+	m.width = 52
+	m.height = 12
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	shell := updated.(shellModel)
+	surface := shell.activeShellSurface()
+	layout := shell.planShellLayout(surface)
+	overlay, overlayHeight := shell.overlayBodyWithHeight(surface, layout, shell.height)
+
+	if overlayHeight != 4 {
+		t.Fatalf("expected overlay height=4 from viewport budget (12-8), got %d", overlayHeight)
+	}
+	if got := lipgloss.Height(overlay); got != 4 {
+		t.Fatalf("expected rendered overlay block height=4, got %d", got)
+	}
+	for _, line := range strings.Split(overlay, "\n") {
+		if lipgloss.Width(line) > 52 {
+			t.Fatalf("expected overlay line width <= 52, got %d in %q", lipgloss.Width(line), line)
+		}
+	}
+}
+
+func TestNarrowInspectorOverlayShowsEmptyStateWhenNoDetailSelected(t *testing.T) {
+	m := newShellModel()
+	m.width = 80
+	m.height = 24
+	m.location.Primary = shellObjectLocation{RouteID: routeChat, Object: workbenchObjectRef{Kind: "route", ID: string(routeChat)}}
+	m.routeModels[routeChat] = &captureRouteModel{
+		id:    routeChat,
+		title: "Capture",
+		surface: routeSurface{
+			Regions:      routeSurfaceRegions{Inspector: routeSurfaceRegion{Title: "Empty Inspector", Body: ""}},
+			Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: true}},
+		},
+	}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	shell := updated.(shellModel)
+	if !shell.narrowInspectOn {
+		t.Fatal("expected narrow inspector overlay enabled")
+	}
+	v := shell.View()
+	if !strings.Contains(v, "No inspector item selected.") {
+		t.Fatalf("expected empty-state narrow inspector overlay, got %q", v)
+	}
+}
+
+func TestShellChromeSanitizesBreadcrumbsHistoryAndActivityLabels(t *testing.T) {
+	m := newShellModel()
+	m.width = 120
+	m.height = 32
+	m.history = []shellWorkbenchLocation{{Primary: shellObjectLocation{RouteID: routeRuns, Object: workbenchObjectRef{Kind: "run", ID: "run-1\nspoof"}}}}
+	m.watch.projection.Activity = shellActivitySemantics{State: shellActivityStateRunning, Active: shellActivityFocus{Kind: "session\nkind", ID: "session-1\nspoof"}}
+	surface := routeSurface{Chrome: routeSurfaceChrome{Breadcrumbs: []string{"Home", "Runs\nSpoof"}}}
+
+	breadcrumbs := m.renderBreadcrumbs(surface)
+	history := m.renderHistory()
+	sync := m.renderSyncHealth()
+	running := m.renderRunningIndicator()
+
+	for _, got := range []string{breadcrumbs, history, sync, running} {
+		if strings.Contains(got, "\n") || strings.Contains(got, "\r") {
+			t.Fatalf("expected sanitized single-line shell chrome, got %q", got)
 		}
 	}
 }

@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func TestRenderDirectoryEmptyAndSelected(t *testing.T) {
@@ -12,6 +14,86 @@ func TestRenderDirectoryEmptyAndSelected(t *testing.T) {
 	got := renderDirectory("Runs", []string{"run-1", "run-2"}, 1)
 	if !strings.Contains(got, "> run-2") {
 		t.Fatalf("expected selected marker in %q", got)
+	}
+}
+
+func TestRenderBoundedListAppliesWidthBoundingAndSelection(t *testing.T) {
+	got := renderBoundedList(boundedListSpec{
+		Rows: []boundedListRow{
+			{Text: "  alpha-long", Selectable: true},
+			{Text: "  beta", Selectable: true},
+		},
+		Selected: 0,
+		Width:    8,
+	})
+	lines := strings.Split(strings.TrimSpace(got), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected two rendered lines, got %d: %q", len(lines), got)
+	}
+	if lines[0] != "alp..." {
+		t.Fatalf("expected first line clipped to width with ascii ellipsis, got %q", lines[0])
+	}
+	if lines[1] != "  beta" {
+		t.Fatalf("expected second line unchanged, got %q", lines[1])
+	}
+}
+
+func TestRenderBoundedListPreservesGapRows(t *testing.T) {
+	got := renderBoundedList(boundedListSpec{
+		Rows: []boundedListRow{
+			{Text: "row-1", Selectable: true},
+			{Text: "", Selectable: false},
+			{Text: "row-2", Selectable: true},
+		},
+		Selected:     1,
+		PreserveGaps: true,
+	})
+	if !strings.Contains(got, "row-1\n\nrow-2") {
+		t.Fatalf("expected blank gap row preserved, got %q", got)
+	}
+}
+
+func TestRenderBoundedListHeightUsesGapMarkersAroundSelection(t *testing.T) {
+	got := renderBoundedList(boundedListSpec{
+		Rows: []boundedListRow{
+			{Text: "row-0", Selectable: true},
+			{Text: "row-1", Selectable: true},
+			{Text: "row-2", Selectable: true},
+			{Text: "row-3", Selectable: true},
+			{Text: "row-4", Selectable: true},
+			{Text: "row-5", Selectable: true},
+			{Text: "row-6", Selectable: true},
+		},
+		Selected:  3,
+		Height:    5,
+		GapMarker: "...",
+	})
+	lines := strings.Split(strings.TrimSpace(got), "\n")
+	if len(lines) != 5 {
+		t.Fatalf("expected bounded height 5, got %d: %q", len(lines), got)
+	}
+	if lines[0] != "..." || lines[len(lines)-1] != "..." {
+		t.Fatalf("expected top/bottom gap markers, got %q", got)
+	}
+	if !strings.Contains(got, "row-3") {
+		t.Fatalf("expected selected neighborhood to include row-3, got %q", got)
+	}
+}
+
+func TestRenderDirectorySelectedMarkerSurvivesWidthClipping(t *testing.T) {
+	got := renderDirectory("Runs", []string{"run-1", "run-2-with-a-very-long-suffix-that-will-be-clipped"}, 1)
+	if !strings.Contains(got, "> run-2-with-a-very-long-suffix-that-will-be-clipped") {
+		t.Fatalf("expected selected marker before clipping, got %q", got)
+	}
+
+	clipped := lipgloss.NewStyle().Width(12).MaxWidth(12).Render(got)
+	if !strings.Contains(clipped, ">") {
+		t.Fatalf("expected selected marker to survive clipping, got %q", clipped)
+	}
+	for _, line := range strings.Split(clipped, "\n") {
+		if lipgloss.Width(line) > 12 {
+			t.Fatalf("expected clipped directory line width <= 12, got %d in %q", lipgloss.Width(line), line)
+		}
 	}
 }
 

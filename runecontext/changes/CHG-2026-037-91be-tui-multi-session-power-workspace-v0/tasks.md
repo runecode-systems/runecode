@@ -14,6 +14,7 @@ Parallelization: this phase should land before broad route migration or deep vis
 ## Phase 2: Shared Component And Service Layer
 
 - [x] Add reusable selectors or directories, long-form viewports, inspector headers, tabs or mode switches, empty/loading/error states, and centered overlay surfaces.
+- [x] Borrow `crush`-style component-local bounded rendering patterns for shared lists and overlays without replacing RuneCode's shell planner plus route-surface architecture.
 - [x] Add a shell-owned focus manager.
 - [x] Add a shell-owned overlay manager.
 - [x] Add a shell-owned command registry.
@@ -125,6 +126,7 @@ Parallelization: should track shell and inspector work continuously.
 
 - [x] After route semantics, Action Center semantics, dashboard data expectations, and first-round dogfooding stabilize, deepen the visual workbench pass.
 - [x] Strengthen pane framing, hierarchy, spacing, focus affordances, and summary-to-detail transitions so the TUI feels like a polished terminal application rather than formatted route text.
+- [x] Adopt `crush`-informed refinements for bounded overlay composition, reusable list behavior, and resize or clipping regression tests while keeping RuneCode's existing shell architecture.
 - [x] Refine diff, markdown, and structured viewers plus inspector grouping for lower cognitive load.
 - [x] Capture repeatable screenshots or VHS tapes for the key workbench flows.
 - [x] Keep the larger visual pass explicitly downstream of semantic stabilization so the project does not repeatedly repaint moving workflows.
