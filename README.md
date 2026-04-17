@@ -155,6 +155,7 @@ This quick path verifies signed checksums and the signed archive before install.
 - Store-layer atomic persistence for canonical approval records plus runner-advisory approval mirrors, with rollback that restores durable runner journal/snapshot state consistently on failure
 - A trusted local audit ledger with append/seal persistence, segment recovery, digest-addressed sidecar evidence, explicit audit anchoring over signed segment seals, readiness evaluation, audit verification reports, and broker/TUI-facing audit verification, record inspection, anchoring, and readiness surfaces
 - A broker local API with fail-closed local auth, schema-validated typed operations for runs, approvals, artifacts, audit timeline and record inspection, audit anchor presence and action flows, readiness, version info, and backend posture, plus uniform log and artifact read streaming semantics
+- A trusted full-screen TUI workbench that launches in alt-screen mode, keeps sidebar/main/inspector composition in the shell, supports multi-session workspace navigation and quick switching, exposes an object-aware palette plus Action Center, derives live activity and sync health from typed watch families, preserves ordinary terminal selection alongside explicit copy actions, and persists layout/theme/session convenience state locally without promoting it to control-plane authority
 - A trusted local secrets daemon with durable secret import plus short-lived lease issue/renew/revoke/retrieve flows, fail-closed recovery, and secret-safe onboarding that avoids CLI-arg or environment-variable transport
 - Broker run read models that keep authoritative trusted state distinct from runner-advisory projection, including durable approval-wait, lifecycle, checkpoint, result, and attempt hints
 - Broker-projected subsystem readiness for secrets and model-gateway posture, plus model-gateway runtime enforcement for allowlisted destinations, canonical request binding, quota context, and audit-bound egress decisions
@@ -263,6 +264,7 @@ Alongside that still-incremental surface, the repository already includes workin
 - cross-language fixture validation
 - canonicalization/hash golden tests
 - runner trust-boundary static checks
+- a trusted full-screen `runecode-tui` workbench with dashboard/chat/runs/approvals/Action Center/artifacts/audit/status routes, shell-owned pane composition, session quick switching, typed watch-backed live activity, selection-mode copy ergonomics, and local-only layout/theme persistence
 - a trusted local artifact store and broker CLI for artifact put/get/head/list, flow checks, excerpt promotion and revocation, run-status updates, GC, and backup/restore
 - a trusted local audit ledger plus broker/auditd CLI surfaces for audit readiness, audit verification inspection, audit record inspection, and explicit audit anchoring over signed segment seals
 - a broker local IPC API and CLI read/action surfaces for run list/detail, approval list/detail/resolve, policy-backed artifact reads, audit timeline/record inspection, audit anchoring presence/action, audit verification/readiness, version inspection, structured log streaming, and broker-projected backend posture get/change operations
@@ -281,6 +283,8 @@ go run ./cmd/runecode-broker --help
 go run ./cmd/runecode-secretsd --help
 go run ./cmd/runecode-auditd --help
 ```
+
+`runecode-tui` expects a local broker API listener in another terminal, typically `runecode-broker serve-local`, and also supports `--runtime-dir` / `--socket-name` for isolated local-dev IPC overrides.
 
 The broker help surface currently includes local API and operator commands such as:
 

@@ -21,6 +21,7 @@ Boundary-visible control-plane APIs must keep their logical contract explicit, t
   - expose policy decision hashes or equivalent canonical identifiers where operator UX needs stable identity
   - keep `policy_reason_code`, `approval_trigger_code`, and system `error.code` distinct rather than overloading one status field
   - treat bound-scope summaries as explanatory UX data, not as substitutes for signed request or decision hashes
+- When surfacing live activity, operator attention, or other cross-object status views, derive them from typed broker-owned read models and watch-event families rather than CLI scraping, daemon-private storage inspection, or client-local heuristic log parsing.
 - When one logical API operation resolves approvals for multiple action kinds, keep the top-level resolve envelope action-generic and move action-specific inputs into typed nested detail objects instead of accumulating unrelated top-level per-action fields
 - When surfacing deterministic gates, keep gate identity explicit and stable across planning and reporting: `gate_id`, `gate_kind`, `gate_version`, checkpoint identity, and relevant policy/approval references must not be collapsed into one ambiguous label.
 - Stream families must use explicit typed events with stable stream identity, monotonic sequence numbers, and exactly one terminal event.
