@@ -63,9 +63,17 @@ func TestSchemaBundleRetriesAfterTransientLoadFailure(t *testing.T) {
 	bundleLoaded = false
 	schemaBundleMu.Unlock()
 
-	root := os.Getenv("RUNE_REPO_ROOT")
+	root, hadRoot := os.LookupEnv("RUNE_REPO_ROOT")
+	restoreRepoRoot := func() error {
+		if hadRoot {
+			return os.Setenv("RUNE_REPO_ROOT", root)
+		}
+		return os.Unsetenv("RUNE_REPO_ROOT")
+	}
 	t.Cleanup(func() {
-		_ = os.Setenv("RUNE_REPO_ROOT", root)
+		if err := restoreRepoRoot(); err != nil {
+			t.Fatalf("restore RUNE_REPO_ROOT returned error: %v", err)
+		}
 		schemaBundleMu.Lock()
 		loadedBundle = compiledSchemaBundle{}
 		bundleLoaded = false
@@ -80,8 +88,8 @@ func TestSchemaBundleRetriesAfterTransientLoadFailure(t *testing.T) {
 		t.Fatal("expected schemaBundle to fail for invalid repo root")
 	}
 
-	if err := os.Setenv("RUNE_REPO_ROOT", "/home/zeb/code/runecode-systems/runecode"); err != nil {
-		t.Fatalf("Setenv returned error: %v", err)
+	if err := restoreRepoRoot(); err != nil {
+		t.Fatalf("restore RUNE_REPO_ROOT returned error: %v", err)
 	}
 	if _, err := schemaBundle(); err != nil {
 		t.Fatalf("expected schemaBundle retry to recover after transient failure, got %v", err)

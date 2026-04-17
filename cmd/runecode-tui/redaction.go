@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 var secretLinePatterns = []*regexp.Regexp{
@@ -43,7 +44,11 @@ func sanitizeUIText(text string) string {
 	}
 	sanitized := strings.TrimSpace(b.String())
 	if len(sanitized) > 512 {
-		return sanitized[:512] + "..."
+		cutoff := 512
+		for cutoff > 0 && !utf8.RuneStart(sanitized[cutoff]) {
+			cutoff--
+		}
+		return sanitized[:cutoff] + "..."
 	}
 	return sanitized
 }

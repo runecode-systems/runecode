@@ -17,6 +17,29 @@ func TestValidateObjectPayloadAgainstSchemaRejectsUnknownFields(t *testing.T) {
 	}
 }
 
+func TestValidateObjectPayloadAgainstSchemaAcceptsValidPayload(t *testing.T) {
+	payload := validApprovalDecisionPayloadForSchemaTests()
+	b, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal payload returned error: %v", err)
+	}
+	if err := validateObjectPayloadAgainstSchema(b, "objects/ApprovalDecision.schema.json"); err != nil {
+		t.Fatalf("validateObjectPayloadAgainstSchema returned error: %v", err)
+	}
+}
+
+func TestValidateObjectPayloadAgainstSchemaRejectsTrailingJSON(t *testing.T) {
+	payload := validApprovalDecisionPayloadForSchemaTests()
+	b, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal payload returned error: %v", err)
+	}
+	b = append(b, []byte("{}")...)
+	if err := validateObjectPayloadAgainstSchema(b, "objects/ApprovalDecision.schema.json"); err == nil {
+		t.Fatal("validateObjectPayloadAgainstSchema expected trailing JSON failure")
+	}
+}
+
 func validApprovalDecisionPayloadForSchemaTests() map[string]any {
 	return map[string]any{
 		"schema_id":                "runecode.protocol.v0.ApprovalDecision",

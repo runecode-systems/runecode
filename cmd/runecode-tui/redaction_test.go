@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestRedactSecretsMasksCommonCredentialPatterns(t *testing.T) {
@@ -38,5 +39,23 @@ func TestSanitizeUITextStripsEscapesAndCapsLength(t *testing.T) {
 	}
 	if strings.Contains(got, "\n") || strings.Contains(got, "\r") {
 		t.Fatalf("expected newlines removed from sanitized UI text, got %q", got)
+	}
+	if !utf8.ValidString(got) {
+		t.Fatalf("expected sanitized output to remain valid UTF-8, got %q", got)
+	}
+}
+
+func TestSanitizeUITextTruncatesOnRuneBoundary(t *testing.T) {
+	input := strings.Repeat("a", 511) + "€" + "tail"
+	got := sanitizeUIText(input)
+
+	if !strings.HasSuffix(got, "...") {
+		t.Fatalf("expected truncated output to include ellipsis, got %q", got)
+	}
+	if !utf8.ValidString(got) {
+		t.Fatalf("expected truncated output to remain valid UTF-8, got %q", got)
+	}
+	if len(got) != 514 {
+		t.Fatalf("expected rune-safe truncation at 511 bytes plus ellipsis, got %d", len(got))
 	}
 }

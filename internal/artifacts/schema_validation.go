@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -22,6 +23,9 @@ func ValidateObjectPayloadAgainstSchema(payload []byte, schemaPath string) error
 	decoder.UseNumber()
 	if err := decoder.Decode(&value); err != nil {
 		return fmt.Errorf("decode payload: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return fmt.Errorf("decode payload: unexpected trailing json tokens")
 	}
 	if err := schema.Validate(value); err != nil {
 		return fmt.Errorf("validate payload against %q: %w", schemaPath, err)
