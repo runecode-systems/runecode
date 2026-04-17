@@ -27,6 +27,10 @@ const (
 	artifactModeResult artifactDetailMode = "result"
 )
 
+type artifactsSelectDigestMsg struct {
+	Digest string
+}
+
 type artifactsRouteModel struct {
 	def          routeDefinition
 	client       localBrokerClient
@@ -61,6 +65,15 @@ func (m artifactsRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		return m.reload()
 	case tea.KeyMsg:
 		return m.handleKey(typed)
+	case artifactsSelectDigestMsg:
+		digest := strings.TrimSpace(typed.Digest)
+		if digest == "" {
+			return m, nil
+		}
+		m.loading = true
+		m.errText = ""
+		m.loadSeq++
+		return m, m.loadCmd(digest, m.loadSeq)
 	case artifactsLoadedMsg:
 		if typed.seq != m.loadSeq {
 			return m, nil
@@ -91,24 +104,47 @@ func (m artifactsRouteModel) View(width, height int, focus focusArea) string {
 	_ = width
 	_ = height
 	if m.loading {
-		return "Loading artifacts from typed broker artifact contracts..."
+		return renderStateCard(routeLoadStateLoading, "Artifacts", "Loading artifacts from typed broker artifact contracts...")
 	}
 	if m.errText != "" {
-		return compactLines("Artifacts", "Load failed: "+m.errText, "Press r to retry.")
+		return renderStateCard(routeLoadStateError, "Artifacts", "Load failed: "+m.errText+" (press r to retry)")
 	}
 	body := []string{
 		sectionTitle("Artifacts") + " " + focusBadge(focus),
 		fmt.Sprintf("Filter data_class=%q", artifactClassFilters[m.classIndex]),
-		fmt.Sprintf("Presentation mode=%s", normalizePresentationMode(m.presentation)),
-		tableHeader("Artifact list"),
-		renderArtifactList(m.items, m.selected),
+		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
+		renderDirectory("Artifact directory", renderArtifactDirectoryItems(m.items), m.selected),
 	}
 	if m.inspectorOn {
-		body = append(body, tableHeader("Inspector")+" "+appTheme.InspectorHint.Render("(typed metadata first)"))
 		body = append(body, renderArtifactInspector(m.active, m.mode, m.presentation, m.content, m.contentErr))
 	}
 	body = append(body, keyHint("Route keys: j/k move, enter load detail, [/] class filter, m cycle detail mode, v cycle rendered/raw/structured, i toggle inspector, r reload"))
 	return compactLines(body...)
+}
+
+func (m artifactsRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
+	breadcrumbs := []string{"Home", m.def.Label}
+	if m.active != nil && strings.TrimSpace(m.active.Artifact.Reference.Digest) != "" {
+		breadcrumbs = append(breadcrumbs, strings.TrimSpace(m.active.Artifact.Reference.Digest))
+	}
+	status := ""
+	if strings.TrimSpace(m.errText) != "" {
+		status = "Load failed: " + strings.TrimSpace(m.errText)
+	} else if strings.TrimSpace(m.contentErr) != "" {
+		status = "Content unavailable: " + strings.TrimSpace(m.contentErr)
+	}
+	return routeSurface{
+		Main:           m.View(ctx.Width, ctx.Height, ctx.Focus),
+		Inspector:      renderArtifactInspector(m.active, m.mode, m.presentation, m.content, m.contentErr),
+		BottomStrip:    keyHint("Route keys: j/k move, enter load detail, [/] class filter, m cycle detail mode, v cycle rendered/raw/structured, i toggle inspector, r reload"),
+		Status:         status,
+		Breadcrumbs:    breadcrumbs,
+		MainTitle:      "Artifact workspace",
+		InspectorTitle: "Artifact inspector",
+		ModeTabs:       []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
+		ActiveTab:      string(normalizePresentationMode(m.presentation)),
+		CopyActions:    artifactRouteCopyActions(m.active, m.content),
+	}
 }
 
 func (m artifactsRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
@@ -237,6 +273,14 @@ func renderArtifactList(items []brokerapi.ArtifactSummary, selected int) string 
 	return line
 }
 
+func renderArtifactDirectoryItems(items []brokerapi.ArtifactSummary) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		out = append(out, fmt.Sprintf("%s class=%s bytes=%d", item.Reference.Digest, item.Reference.DataClass, item.Reference.SizeBytes))
+	}
+	return out
+}
+
 func renderArtifactInspector(head *brokerapi.LocalArtifactHeadResponse, mode artifactDetailMode, presentation contentPresentationMode, content, contentErr string) string {
 	if head == nil {
 		return "  Select an artifact and press enter to load detail."
@@ -245,16 +289,71 @@ func renderArtifactInspector(head *brokerapi.LocalArtifactHeadResponse, mode art
 	mode = normalizeArtifactMode(mode)
 	presentation = normalizePresentationMode(presentation)
 	contentView := renderArtifactContent(mode, presentation, content, contentErr)
-	return compactLines(
-		fmt.Sprintf("  Digest: %s", a.Reference.Digest),
-		fmt.Sprintf("  Content type: %s", a.Reference.ContentType),
-		fmt.Sprintf("  Data class: %s", a.Reference.DataClass),
-		fmt.Sprintf("  Typed detail mode: %s (metadata remains control-plane truth)", mode),
-		fmt.Sprintf("  Presentation mode: %s", presentation),
-		fmt.Sprintf("  Provenance receipt: %s", a.Reference.ProvenanceReceiptHash),
-		"  Inspectable content is supplemental evidence, not authoritative run/approval truth.",
-		contentView,
-	)
+	kind := artifactContentKind(mode, a.Reference.ContentType, presentation)
+	return renderInspectorShell(inspectorShellSpec{
+		Title:        "Artifact inspector",
+		Summary:      fmt.Sprintf("artifact=%s class=%s bytes=%d", a.Reference.Digest, a.Reference.DataClass, a.Reference.SizeBytes),
+		Identity:     fmt.Sprintf("digest=%s", a.Reference.Digest),
+		Status:       fmt.Sprintf("data_class=%s content_type=%s", a.Reference.DataClass, a.Reference.ContentType),
+		Badges:       []string{stateBadgeWithLabel("class", fmt.Sprintf("%v", a.Reference.DataClass)), appTheme.InspectorHint.Render("typed metadata first")},
+		References:   []inspectorReference{{Label: "run", Items: []string{a.RunID}}},
+		LocalActions: []string{"jump:runs", "jump:audit", "copy:digest", "copy:provenance_receipt"},
+		CopyActions:  artifactRouteCopyActions(head, content),
+		ModeTabs:     []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
+		ActiveMode:   string(presentation),
+		ContentKind:  kind,
+		ContentLabel: fmt.Sprintf("%s content", mode),
+		Content: compactLines(
+			fmt.Sprintf("Data class: %s", a.Reference.DataClass),
+			fmt.Sprintf("Typed detail mode: %s (metadata remains control-plane truth)", mode),
+			fmt.Sprintf("Presentation mode: %s", presentation),
+			fmt.Sprintf("Provenance receipt: %s", a.Reference.ProvenanceReceiptHash),
+			"Inspectable content is supplemental evidence, not authoritative run/approval truth.",
+			contentView,
+		),
+		ViewportWidth:  96,
+		ViewportHeight: 14,
+	})
+}
+
+func artifactRouteCopyActions(head *brokerapi.LocalArtifactHeadResponse, content string) []routeCopyAction {
+	if head == nil {
+		return nil
+	}
+	ref := head.Artifact.Reference
+	preview := strings.TrimSpace(content)
+	if preview != "" {
+		lines := strings.Split(preview, "\n")
+		if len(lines) > 8 {
+			preview = strings.Join(lines[:8], "\n") + fmt.Sprintf("\n... (%d more lines)", len(lines)-8)
+		}
+	}
+	return compactCopyActions([]routeCopyAction{
+		{ID: "digest", Label: "artifact digest", Text: ref.Digest},
+		{ID: "provenance_receipt", Label: "provenance receipt", Text: ref.ProvenanceReceiptHash},
+		{ID: "artifact_preview", Label: "artifact preview", Text: preview},
+	})
+}
+
+func artifactContentKind(mode artifactDetailMode, contentType string, presentation contentPresentationMode) inspectorContentKind {
+	if presentation == presentationRaw {
+		return inspectorContentRaw
+	}
+	if presentation == presentationStructured {
+		return inspectorContentStructured
+	}
+	lowerType := strings.ToLower(strings.TrimSpace(contentType))
+	if strings.Contains(lowerType, "markdown") {
+		return inspectorContentMarkdown
+	}
+	switch mode {
+	case artifactModeDiff:
+		return inspectorContentDiff
+	case artifactModeLog:
+		return inspectorContentLog
+	default:
+		return inspectorContentRaw
+	}
 }
 
 func preferredArtifactMode(dataClass any) artifactDetailMode {

@@ -17,6 +17,10 @@ func TestRunsRouteExplainsBrokerPostureAndStateTaxonomy(t *testing.T) {
 	view := updated.View(120, 40, focusContent)
 
 	mustContainAll(t, view,
+		"Summary: run=run-1 lifecycle=n/a pending_approvals=0",
+		"Identity: run=run-1 backend=workspace",
+		"Local actions: jump:approvals | jump:artifacts | jump:audit | copy:run_id",
+		"Copy actions: run id | raw block",
 		"backend_kind=workspace",
 		"Runtime isolation assurance (authoritative): runtime isolation=sandboxed",
 		"Provisioning/binding posture (authoritative): provisioning posture=ok",
@@ -42,6 +46,10 @@ func TestApprovalsRouteDistinguishesCodesLifecycleAndBinding(t *testing.T) {
 	view := updated.View(120, 40, focusContent)
 
 	mustContainAll(t, view,
+		"Summary: approval=ap-1 status=pending trigger=policy_gate",
+		"Identity: approval=ap-1 run=run-1",
+		"Local actions: resolve:typed | jump:runs | jump:audit | copy:approval_id",
+		"Copy actions: approval id | bound run id | raw block",
 		"Approval type: exact-action approval (binding_kind=exact_action)",
 		"Approval safety strip",
 		"Lifecycle state: pending (stale)",
@@ -66,6 +74,10 @@ func TestArtifactsRouteUsesTypedReadAndInspectableModes(t *testing.T) {
 	view := updated.View(120, 40, focusContent)
 
 	mustContainAll(t, view,
+		"Summary: artifact=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb class=diffs bytes=128",
+		"Identity: digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		"Local actions: jump:runs | jump:audit | copy:digest | copy:provenance_receipt",
+		"Copy actions: artifact digest | provenance receipt | artifact preview",
 		"Typed detail mode:",
 		"Inspectable content is supplemental evidence, not authoritative run/approval truth.",
 		"diff preview (secrets redacted):",

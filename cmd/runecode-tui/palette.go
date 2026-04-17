@@ -12,12 +12,18 @@ type paletteModel struct {
 	open          bool
 	query         string
 	selectedIndex int
-	matches       []routeDefinition
-	routes        []routeDefinition
+	matches       []paletteEntry
+	entries       []paletteEntry
 }
 
-func newPaletteModel(routes []routeDefinition) paletteModel {
-	m := paletteModel{routes: routes}
+func newPaletteModel(entries []paletteEntry) paletteModel {
+	m := paletteModel{entries: entries}
+	m.rebuildMatches()
+	return m
+}
+
+func (m paletteModel) UpdateEntries(entries []paletteEntry) paletteModel {
+	m.entries = append([]paletteEntry(nil), entries...)
 	m.rebuildMatches()
 	return m
 }
@@ -39,9 +45,9 @@ func (m paletteModel) IsOpen() bool {
 	return m.open
 }
 
-func (m paletteModel) SelectedRoute() (routeDefinition, bool) {
+func (m paletteModel) SelectedEntry() (paletteEntry, bool) {
 	if len(m.matches) == 0 {
-		return routeDefinition{}, false
+		return paletteEntry{}, false
 	}
 	if m.selectedIndex < 0 {
 		m.selectedIndex = 0
@@ -52,63 +58,63 @@ func (m paletteModel) SelectedRoute() (routeDefinition, bool) {
 	return m.matches[m.selectedIndex], true
 }
 
-func (m paletteModel) Update(msg tea.Msg, keys shellKeyMap) (paletteModel, routeSwitchMsg, bool) {
+func (m paletteModel) Update(msg tea.Msg, keys shellKeyMap) (paletteModel, paletteActionMsg, bool) {
 	if !m.open {
-		return m, routeSwitchMsg{}, false
+		return m, paletteActionMsg{}, false
 	}
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
-		return m, routeSwitchMsg{}, false
+		return m, paletteActionMsg{}, false
 	}
 	return m.updateKey(key, keys)
 }
 
-func (m paletteModel) UpdateMouse(msg tea.MouseMsg, paletteStartY int, layoutWidth int) (paletteModel, routeSwitchMsg, bool) {
+func (m paletteModel) UpdateMouse(msg tea.MouseMsg, paletteStartY int, layoutWidth int) (paletteModel, paletteActionMsg, bool) {
 	if !m.open {
-		return m, routeSwitchMsg{}, false
+		return m, paletteActionMsg{}, false
 	}
 	_ = layoutWidth
 	if msg.Button != tea.MouseButtonLeft {
-		return m, routeSwitchMsg{}, false
+		return m, paletteActionMsg{}, false
 	}
 	if msg.Action != tea.MouseActionPress && msg.Action != tea.MouseActionRelease {
-		return m, routeSwitchMsg{}, false
+		return m, paletteActionMsg{}, false
 	}
 	index, ok := m.matchIndexAtPosition(msg.Y, paletteStartY, layoutWidth)
 	if !ok {
-		return m, routeSwitchMsg{}, false
+		return m, paletteActionMsg{}, false
 	}
 	m.selectedIndex = index
 	return m.pickRoute()
 }
 
-func (m paletteModel) updateKey(key tea.KeyMsg, keys shellKeyMap) (paletteModel, routeSwitchMsg, bool) {
+func (m paletteModel) updateKey(key tea.KeyMsg, keys shellKeyMap) (paletteModel, paletteActionMsg, bool) {
 	switch {
 	case keys.PaletteClose.matches(key):
-		return m.Close(), routeSwitchMsg{}, false
+		return m.Close(), paletteActionMsg{}, false
 	case keys.PalettePick.matches(key):
 		return m.pickRoute()
 	case keys.PaletteNext.matches(key):
-		return m.stepSelection(1), routeSwitchMsg{}, false
+		return m.stepSelection(1), paletteActionMsg{}, false
 	case keys.PalettePrev.matches(key):
-		return m.stepSelection(-1), routeSwitchMsg{}, false
+		return m.stepSelection(-1), paletteActionMsg{}, false
 	case key.Type == tea.KeyBackspace || key.Type == tea.KeyDelete:
-		return m.deleteQueryRune(), routeSwitchMsg{}, false
+		return m.deleteQueryRune(), paletteActionMsg{}, false
 	case isTypingKey(key):
 		m.query += key.String()
 		m.rebuildMatches()
-		return m, routeSwitchMsg{}, false
+		return m, paletteActionMsg{}, false
 	default:
-		return m, routeSwitchMsg{}, false
+		return m, paletteActionMsg{}, false
 	}
 }
 
-func (m paletteModel) pickRoute() (paletteModel, routeSwitchMsg, bool) {
-	r, ok := m.SelectedRoute()
+func (m paletteModel) pickRoute() (paletteModel, paletteActionMsg, bool) {
+	r, ok := m.SelectedEntry()
 	if !ok {
-		return m.Close(), routeSwitchMsg{}, false
+		return m.Close(), paletteActionMsg{}, false
 	}
-	return m.Close(), routeSwitchMsg{RouteID: r.ID}, true
+	return m.Close(), r.Action, true
 }
 
 func (m paletteModel) stepSelection(delta int) paletteModel {
@@ -143,10 +149,10 @@ func (m *paletteModel) rebuildMatches() {
 	needle := strings.ToLower(strings.TrimSpace(m.query))
 	m.matches = m.matches[:0]
 	if needle == "" {
-		m.matches = append(m.matches, m.routes...)
+		m.matches = append(m.matches, m.entries...)
 	} else {
-		for _, r := range m.routes {
-			if strings.Contains(strings.ToLower(r.Label), needle) || strings.Contains(strings.ToLower(r.Description), needle) {
+		for _, r := range m.entries {
+			if strings.Contains(strings.ToLower(r.Label), needle) || strings.Contains(strings.ToLower(r.Description), needle) || strings.Contains(strings.ToLower(r.Search), needle) {
 				m.matches = append(m.matches, r)
 			}
 		}
@@ -175,12 +181,12 @@ func (m paletteModel) matchIndexAtPosition(y int, paletteStartY int, layoutWidth
 	return 0, false
 }
 
-func paletteMatchLine(route routeDefinition, selected bool) string {
+func paletteMatchLine(entry paletteEntry, selected bool) string {
 	marker := " "
 	if selected {
 		marker = ">"
 	}
-	return " " + marker + " " + fmt.Sprintf("%d. %s — %s", route.Index, route.Label, route.Description)
+	return " " + marker + " " + fmt.Sprintf("%d. %s — %s", entry.Index, entry.Label, entry.Description)
 }
 
 func isTypingKey(msg tea.KeyMsg) bool {

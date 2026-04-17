@@ -96,6 +96,13 @@ func TestChatRouteRendersOrderedTranscriptAndLinkedReferences(t *testing.T) {
 	if !strings.Contains(view, "Linked audit: sha256:aaaa") {
 		t.Fatalf("expected linked audit reference in view, got %q", view)
 	}
+	mustContainAll(t, view,
+		"Summary:",
+		"Identity: session=session-1 workspace=ws-1",
+		"Local actions: jump:runs | jump:approvals | jump:artifacts | jump:audit | copy:session_id",
+		"Copy actions: session id | workspace id | transcript excerpt | linked references",
+		"Long-form transcript:",
+	)
 }
 
 func TestChatRouteComposeSendsTypedSessionMessageRequest(t *testing.T) {
@@ -111,9 +118,9 @@ func TestChatRouteComposeSendsTypedSessionMessageRequest(t *testing.T) {
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
-	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
 	if cmd == nil {
-		t.Fatal("expected send command from compose enter")
+		t.Fatal("expected send command from compose alt+enter")
 	}
 	updated, _ = updated.Update(cmd())
 
@@ -133,5 +140,32 @@ func TestChatRouteComposeSendsTypedSessionMessageRequest(t *testing.T) {
 	view := updated.View(120, 40, focusContent)
 	if !strings.Contains(view, "Status: Message appended to canonical transcript.") {
 		t.Fatalf("expected send ack status in view, got %q", view)
+	}
+}
+
+func TestChatRouteComposeSupportsMultilineBracketedPaste(t *testing.T) {
+	model := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, &fakeBrokerClient{})
+
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeChat})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("first line\nsecond line"), Paste: true})
+
+	chat := updated.(chatRouteModel)
+	if got := chat.composer.Value(); got != "first line\nsecond line" {
+		t.Fatalf("expected multiline pasted draft, got %q", got)
+	}
+
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Fatal("expected plain enter to remain newline in compose mode")
+	}
+	chat = updated.(chatRouteModel)
+	if !strings.Contains(chat.composer.Value(), "\n") {
+		t.Fatalf("expected newline retained in composer, got %q", chat.composer.Value())
 	}
 }

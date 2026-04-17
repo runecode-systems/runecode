@@ -15,6 +15,14 @@ func TestDashboardRouteShowsTypedLiveWatchFamilies(t *testing.T) {
 		t.Fatal("expected activation load command")
 	}
 	updated, _ = updated.Update(cmd())
+	updated, _ = updated.Update(shellLiveActivityUpdatedMsg{
+		Live: dashboardLiveActivity{
+			runWatch:      summarizeRunWatchEvents([]brokerapi.RunWatchEvent{{EventType: "run_watch_snapshot", Seq: 1, Run: &brokerapi.RunSummary{RunID: "run-1"}}, {EventType: "run_watch_terminal", Seq: 2, Terminal: true, TerminalStatus: "completed"}}),
+			approvalWatch: summarizeApprovalWatchEvents([]brokerapi.ApprovalWatchEvent{{EventType: "approval_watch_snapshot", Seq: 1, Approval: &brokerapi.ApprovalSummary{ApprovalID: "ap-1"}}, {EventType: "approval_watch_terminal", Seq: 2, Terminal: true, TerminalStatus: "completed"}}),
+			sessionWatch:  summarizeSessionWatchEvents([]brokerapi.SessionWatchEvent{{EventType: "session_watch_snapshot", Seq: 1, Session: &brokerapi.SessionSummary{Identity: brokerapi.SessionIdentity{SessionID: "session-1"}}}, {EventType: "session_watch_terminal", Seq: 2, Terminal: true, TerminalStatus: "completed"}}),
+		},
+		Feed: []shellLiveActivityEntry{{Family: "session_watch", EventType: "session_watch_terminal", Subject: "session-1", Status: "completed"}},
+	})
 	view := updated.View(120, 40, focusContent)
 
 	mustContainAll(t, view,
@@ -35,6 +43,8 @@ func TestDashboardRouteShowsTypedLiveWatchFamilies(t *testing.T) {
 		"last_event=run_watch_terminal subject=run-1 status=completed",
 		"last_event=approval_watch_terminal subject=ap-1 status=completed",
 		"last_event=session_watch_terminal subject=session-1 status=completed",
+		"feed:",
+		"event=session_watch_terminal subject=session-1 status=completed",
 		"Actions",
 		"tab moves focus",
 	)

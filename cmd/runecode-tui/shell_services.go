@@ -1,0 +1,453 @@
+package main
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/charmbracelet/bubbles/spinner"
+	"golang.org/x/term"
+)
+
+type shellFocusManager struct {
+	current focusArea
+}
+
+func newShellFocusManager(initial focusArea) shellFocusManager {
+	return shellFocusManager{current: initial}
+}
+
+func (m *shellFocusManager) Current() focusArea {
+	return m.current
+}
+
+func (m *shellFocusManager) Set(area focusArea) {
+	m.current = area
+}
+
+func (m *shellFocusManager) Next(sidebarVisible bool, paletteOpen bool) {
+	if paletteOpen {
+		m.current = focusPalette
+		return
+	}
+	if sidebarVisible {
+		if m.current == focusNav {
+			m.current = focusContent
+			return
+		}
+		m.current = focusNav
+		return
+	}
+	m.current = focusContent
+}
+
+func (m *shellFocusManager) Prev(sidebarVisible bool, paletteOpen bool) {
+	m.Next(sidebarVisible, paletteOpen)
+}
+
+type shellOverlayManager struct {
+	stack []string
+}
+
+func (m *shellOverlayManager) Open(id string) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return
+	}
+	for _, existing := range m.stack {
+		if existing == id {
+			return
+		}
+	}
+	m.stack = append(m.stack, id)
+}
+
+func (m *shellOverlayManager) Close(id string) {
+	id = strings.TrimSpace(id)
+	if id == "" || len(m.stack) == 0 {
+		return
+	}
+	filtered := make([]string, 0, len(m.stack))
+	for _, existing := range m.stack {
+		if existing != id {
+			filtered = append(filtered, existing)
+		}
+	}
+	m.stack = filtered
+}
+
+func (m *shellOverlayManager) Replace(ids ...string) {
+	m.stack = m.stack[:0]
+	for _, id := range ids {
+		m.Open(id)
+	}
+}
+
+func (m *shellOverlayManager) Contains(id string) bool {
+	for _, existing := range m.stack {
+		if existing == id {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *shellOverlayManager) Stack() []string {
+	out := make([]string, len(m.stack))
+	copy(out, m.stack)
+	return out
+}
+
+func centeredOverlayBlock(title string, body string) string {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		body = "(empty overlay)"
+	}
+	return compactLines(
+		tableHeader("Centered overlay")+" "+title,
+		"┌──────────────────────────────────────────────┐",
+		body,
+		"└──────────────────────────────────────────────┘",
+	)
+}
+
+func framedPaneBlock(title string, body string, focused bool) string {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		body = "(empty pane)"
+	}
+	header := tableHeader(title)
+	if focused {
+		header = appTheme.FocusLine.Render(title) + " " + infoBadge("FOCUS")
+	}
+	return compactLines(
+		header,
+		"┌──────────────────────────────────────────────┐",
+		body,
+		"└──────────────────────────────────────────────┘",
+	)
+}
+
+type shellCommand struct {
+	ID          string
+	Title       string
+	Description string
+	Run         func(*shellModel)
+}
+
+type shellCommandRegistry struct {
+	commands map[string]shellCommand
+	order    []string
+}
+
+func newShellCommandRegistry() shellCommandRegistry {
+	return shellCommandRegistry{commands: map[string]shellCommand{}}
+}
+
+func (r *shellCommandRegistry) Register(cmd shellCommand) {
+	if strings.TrimSpace(cmd.ID) == "" || cmd.Run == nil {
+		return
+	}
+	if _, exists := r.commands[cmd.ID]; !exists {
+		r.order = append(r.order, cmd.ID)
+	}
+	r.commands[cmd.ID] = cmd
+}
+
+func (r *shellCommandRegistry) List() []shellCommand {
+	out := make([]shellCommand, 0, len(r.commands))
+	for _, id := range r.order {
+		cmd, ok := r.commands[id]
+		if ok {
+			out = append(out, cmd)
+		}
+	}
+	if len(out) == 0 {
+		return out
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].Title < out[j].Title
+	})
+	return out
+}
+
+func (r *shellCommandRegistry) Execute(id string, model *shellModel) bool {
+	cmd, ok := r.commands[id]
+	if !ok || cmd.Run == nil || model == nil {
+		return false
+	}
+	cmd.Run(model)
+	return true
+}
+
+type shellClipboardService interface {
+	Copy(text string)
+	Last() string
+	IntegrationHint() string
+}
+
+type memoryClipboardService struct {
+	last        string
+	osc52       bool
+	osc52Writer io.Writer
+}
+
+func (m *memoryClipboardService) Copy(text string) {
+	m.last = text
+	if !m.osc52 || m.osc52Writer == nil || strings.TrimSpace(text) == "" {
+		return
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(text))
+	_, _ = io.WriteString(m.osc52Writer, "\x1b]52;c;"+encoded+"\x07")
+}
+
+func (m *memoryClipboardService) Last() string {
+	return m.last
+}
+
+func (m *memoryClipboardService) IntegrationHint() string {
+	if m.osc52 {
+		return "shell clipboard + OSC52"
+	}
+	return "shell clipboard"
+}
+
+func newShellClipboardService() shellClipboardService {
+	clip := &memoryClipboardService{}
+	if term.IsTerminal(int(os.Stdout.Fd())) && osc52EnabledByEnv(os.Getenv("RUNECODE_TUI_OSC52")) {
+		clip.osc52 = true
+		clip.osc52Writer = os.Stdout
+	}
+	return clip
+}
+
+func osc52EnabledByEnv(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+type workbenchLocalState struct {
+	SidebarVisible     bool
+	InspectorVisible   bool
+	InspectorMode      contentPresentationMode
+	ThemePreset        themePreset
+	LastRouteID        routeID
+	LastSessionID      string
+	LastSessionByWS    map[string]string
+	PinnedSessions     []workbenchSessionRef
+	RecentSessions     []workbenchSessionRef
+	RecentObjects      []workbenchObjectRef
+	ViewedActivity     map[string]string
+	SidebarPaneRatio   float64
+	InspectorPaneRatio float64
+	SidebarCollapsed   bool
+	InspectorCollapsed bool
+}
+
+type shellWorkbenchStateStore interface {
+	Read(targetKey string) workbenchLocalState
+	Write(targetKey string, next workbenchLocalState)
+}
+
+type memoryWorkbenchStateStore struct {
+	states map[string]workbenchLocalState
+}
+
+func (s *memoryWorkbenchStateStore) Read(targetKey string) workbenchLocalState {
+	if s == nil || strings.TrimSpace(targetKey) == "" {
+		return workbenchLocalState{}
+	}
+	if s.states == nil {
+		return workbenchLocalState{}
+	}
+	return s.states[targetKey]
+}
+
+func (s *memoryWorkbenchStateStore) Write(targetKey string, next workbenchLocalState) {
+	if s == nil || strings.TrimSpace(targetKey) == "" {
+		return
+	}
+	if s.states == nil {
+		s.states = map[string]workbenchLocalState{}
+	}
+	s.states[targetKey] = next
+}
+
+type workbenchSessionRef struct {
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+}
+
+type workbenchObjectRef struct {
+	Kind        string `json:"kind"`
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
+}
+
+type workbenchPersistenceEnvelope struct {
+	SchemaVersion int                            `json:"schema_version"`
+	Targets       map[string]workbenchLocalState `json:"targets"`
+}
+
+const workbenchPersistenceSchemaVersion = 1
+
+type fileWorkbenchStateStore struct {
+	path string
+}
+
+func newDefaultWorkbenchStateStore() shellWorkbenchStateStore {
+	configRoot, err := os.UserConfigDir()
+	if err != nil || strings.TrimSpace(configRoot) == "" {
+		return &memoryWorkbenchStateStore{}
+	}
+	return &fileWorkbenchStateStore{path: filepath.Join(configRoot, "runecode", "tui", "workbench-state.json")}
+}
+
+func (s *fileWorkbenchStateStore) Read(targetKey string) workbenchLocalState {
+	env := s.readEnvelope()
+	if env.Targets == nil {
+		return workbenchLocalState{}
+	}
+	return env.Targets[strings.TrimSpace(targetKey)]
+}
+
+func (s *fileWorkbenchStateStore) Write(targetKey string, next workbenchLocalState) {
+	targetKey = strings.TrimSpace(targetKey)
+	if targetKey == "" || strings.TrimSpace(s.path) == "" {
+		return
+	}
+	env := s.readEnvelope()
+	if env.Targets == nil {
+		env.Targets = map[string]workbenchLocalState{}
+	}
+	env.SchemaVersion = workbenchPersistenceSchemaVersion
+	env.Targets[targetKey] = next
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+		return
+	}
+	raw, err := json.MarshalIndent(env, "", "  ")
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(s.path, raw, 0o600)
+}
+
+func (s *fileWorkbenchStateStore) readEnvelope() workbenchPersistenceEnvelope {
+	if strings.TrimSpace(s.path) == "" {
+		return workbenchPersistenceEnvelope{SchemaVersion: workbenchPersistenceSchemaVersion, Targets: map[string]workbenchLocalState{}}
+	}
+	raw, err := os.ReadFile(s.path)
+	if err != nil || len(raw) == 0 {
+		return workbenchPersistenceEnvelope{SchemaVersion: workbenchPersistenceSchemaVersion, Targets: map[string]workbenchLocalState{}}
+	}
+	var env workbenchPersistenceEnvelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return workbenchPersistenceEnvelope{SchemaVersion: workbenchPersistenceSchemaVersion, Targets: map[string]workbenchLocalState{}}
+	}
+	if env.Targets == nil {
+		env.Targets = map[string]workbenchLocalState{}
+	}
+	if env.SchemaVersion <= 0 {
+		env.SchemaVersion = workbenchPersistenceSchemaVersion
+	}
+	return env
+}
+
+func logicalBrokerTargetKey() string {
+	alias := strings.TrimSpace(os.Getenv("RUNECODE_TUI_BROKER_TARGET"))
+	if alias == "" {
+		return localAPIFamily + ":local-default"
+	}
+	alias = normalizeBrokerTargetAlias(alias)
+	return localAPIFamily + ":" + alias
+}
+
+func normalizeBrokerTargetAlias(alias string) string {
+	const maxAliasLen = 128
+	b := strings.Builder{}
+	lastDash := false
+	for _, r := range strings.ToLower(strings.TrimSpace(alias)) {
+		isAlphaNum := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+		if isAlphaNum || r == '-' || r == '_' {
+			b.WriteRune(r)
+			lastDash = false
+		} else if !lastDash && b.Len() > 0 {
+			b.WriteByte('-')
+			lastDash = true
+		}
+		if b.Len() >= maxAliasLen {
+			break
+		}
+	}
+	normalized := strings.Trim(b.String(), "-")
+	if normalized == "" {
+		return "local-default"
+	}
+	return normalized
+}
+
+type toastLevel string
+
+const (
+	toastInfo  toastLevel = "info"
+	toastWarn  toastLevel = "warn"
+	toastError toastLevel = "error"
+)
+
+type toastMessage struct {
+	Level toastLevel
+	Text  string
+}
+
+type shellToastService struct {
+	items   []toastMessage
+	spin    spinner.Model
+	active  bool
+	maxSize int
+}
+
+func newShellToastService() shellToastService {
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+	return shellToastService{spin: sp, maxSize: 8}
+}
+
+func (s *shellToastService) SetActivity(active bool) {
+	s.active = active
+}
+
+func (s *shellToastService) Push(level toastLevel, text string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return
+	}
+	s.items = append(s.items, toastMessage{Level: level, Text: text})
+	if len(s.items) > s.maxSize {
+		s.items = s.items[len(s.items)-s.maxSize:]
+	}
+}
+
+func (s *shellToastService) Latest() string {
+	if len(s.items) == 0 {
+		return ""
+	}
+	last := s.items[len(s.items)-1]
+	return fmt.Sprintf("%s: %s", strings.ToUpper(string(last.Level)), last.Text)
+}
+
+func (s *shellToastService) ActivityIndicator() string {
+	if !s.active {
+		return ""
+	}
+	return s.spin.View() + " running"
+}

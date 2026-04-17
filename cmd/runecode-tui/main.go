@@ -43,7 +43,7 @@ func main() {
 
 	setCLIIPCConfigOverrides(cfg)
 
-	p := tea.NewProgram(newShellModel(), tea.WithMouseCellMotion())
+	p := tea.NewProgram(newShellModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "runecode-tui failed: %v\n", err)
 		os.Exit(1)

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -30,6 +29,7 @@ type dashboardLiveActivity struct {
 	runWatch      watchFamilySummary
 	approvalWatch watchFamilySummary
 	sessionWatch  watchFamilySummary
+	feed          []shellLiveActivityEntry
 }
 
 type watchFamilySummary struct {
@@ -54,7 +54,11 @@ type dashboardRouteModel struct {
 }
 
 func newDashboardRouteModel(def routeDefinition, client localBrokerClient) routeModel {
-	return dashboardRouteModel{def: def, client: client}
+	return dashboardRouteModel{def: def, client: client, data: dashboardData{live: dashboardLiveActivity{
+		runWatch:      watchFamilySummary{family: "run_watch", lastStatus: "ok"},
+		approvalWatch: watchFamilySummary{family: "approval_watch", lastStatus: "ok"},
+		sessionWatch:  watchFamilySummary{family: "session_watch", lastStatus: "ok"},
+	}}}
 }
 
 func (m dashboardRouteModel) ID() routeID { return m.def.ID }
@@ -88,8 +92,14 @@ func (m dashboardRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 			m.errText = safeUIErrorText(typed.err)
 			return m, nil
 		}
+		live := m.data.live
 		m.data = typed.data
+		m.data.live = live
 		m.errText = ""
+		return m, nil
+	case shellLiveActivityUpdatedMsg:
+		m.data.live = typed.Live
+		m.data.live.feed = append([]shellLiveActivityEntry(nil), typed.Feed...)
 		return m, nil
 	default:
 		return m, nil
@@ -100,14 +110,10 @@ func (m dashboardRouteModel) View(width, height int, focus focusArea) string {
 	_ = width
 	_ = height
 	if m.loading {
-		return "Loading dashboard from broker API..."
+		return renderStateCard(routeLoadStateLoading, "Dashboard", "Loading dashboard from broker API...")
 	}
 	if m.errText != "" {
-		return compactLines(
-			"Dashboard overview",
-			"Load failed: "+m.errText,
-			"Press r to retry.",
-		)
+		return renderStateCard(routeLoadStateError, "Dashboard", "Load failed: "+m.errText+" (press r to retry)")
 	}
 	focusLabel := "inactive"
 	if focus == focusContent {
@@ -135,6 +141,7 @@ func (m dashboardRouteModel) View(width, height int, focus focusArea) string {
 		renderWatchFamilySummary(m.data.live.runWatch),
 		renderWatchFamilySummary(m.data.live.approvalWatch),
 		renderWatchFamilySummary(m.data.live.sessionWatch),
+		renderLiveActivityFeed(m.data.live.feed),
 		"",
 		tableHeader("Highlights"),
 		renderRunHighlights(m.data.runs),
@@ -143,6 +150,14 @@ func (m dashboardRouteModel) View(width, height int, focus focusArea) string {
 		tableHeader("Actions")+" "+keyHint("r reload")+" "+muted("tab moves focus • : opens command surface"),
 		keyHint("Route keys: r reload"),
 	)
+}
+
+func (m dashboardRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
+	return routeSurface{
+		Main:        m.View(ctx.Width, ctx.Height, ctx.Focus),
+		Breadcrumbs: []string{"Home", m.def.Label},
+		MainTitle:   "Dashboard",
+	}
 }
 
 func (m dashboardRouteModel) loadCmd(seq uint64) tea.Cmd {
@@ -172,8 +187,7 @@ func (m dashboardRouteModel) loadCmd(seq uint64) tea.Cmd {
 		} else {
 			auditErr = safeUIErrorText(err)
 		}
-		live := loadLiveActivity(ctx, m.client)
-		return dashboardLoadedMsg{data: dashboardData{readiness: readinessResp.Readiness, version: versionResp.VersionInfo, runs: runResp.Runs, approvals: approvalResp.Approvals, audit: auditResp, auditErr: auditErr, live: live}, seq: seq}
+		return dashboardLoadedMsg{data: dashboardData{readiness: readinessResp.Readiness, version: versionResp.VersionInfo, runs: runResp.Runs, approvals: approvalResp.Approvals, audit: auditResp, auditErr: auditErr}, seq: seq}
 	}
 }
 
@@ -217,37 +231,6 @@ func renderDashboardNowBar(run brokerapi.RunSummary, approvalCount int, focusAct
 	return strings.Join(parts, " ")
 }
 
-func loadLiveActivity(ctx context.Context, client localBrokerClient) dashboardLiveActivity {
-	runSummary := watchFamilySummary{family: "run_watch", lastStatus: "ok"}
-	runEvents, err := client.RunWatch(ctx, brokerapi.RunWatchRequest{StreamID: newRequestID("run-watch-stream"), IncludeSnapshot: true, Follow: false})
-	if err != nil {
-		runSummary.lastStatus = "watch_error"
-		runSummary.lastSubject = "ipc_watch_error"
-	} else {
-		runSummary = summarizeRunWatchEvents(runEvents)
-	}
-
-	approvalSummary := watchFamilySummary{family: "approval_watch", lastStatus: "ok"}
-	approvalEvents, err := client.ApprovalWatch(ctx, brokerapi.ApprovalWatchRequest{StreamID: newRequestID("approval-watch-stream"), IncludeSnapshot: true, Follow: false})
-	if err != nil {
-		approvalSummary.lastStatus = "watch_error"
-		approvalSummary.lastSubject = "ipc_watch_error"
-	} else {
-		approvalSummary = summarizeApprovalWatchEvents(approvalEvents)
-	}
-
-	sessionSummary := watchFamilySummary{family: "session_watch", lastStatus: "ok"}
-	sessionEvents, err := client.SessionWatch(ctx, brokerapi.SessionWatchRequest{StreamID: newRequestID("session-watch-stream"), IncludeSnapshot: true, Follow: false})
-	if err != nil {
-		sessionSummary.lastStatus = "watch_error"
-		sessionSummary.lastSubject = "ipc_watch_error"
-	} else {
-		sessionSummary = summarizeSessionWatchEvents(sessionEvents)
-	}
-
-	return dashboardLiveActivity{runWatch: runSummary, approvalWatch: approvalSummary, sessionWatch: sessionSummary}
-}
-
 func summarizeRunWatchEvents(events []brokerapi.RunWatchEvent) watchFamilySummary {
 	s := watchFamilySummary{family: "run_watch", eventCount: len(events), lastStatus: "ok"}
 	for _, event := range events {
@@ -271,6 +254,19 @@ func summarizeRunWatchEvents(events []brokerapi.RunWatchEvent) watchFamilySummar
 		}
 	}
 	return s
+}
+
+func renderLiveActivityFeed(feed []shellLiveActivityEntry) string {
+	if len(feed) == 0 {
+		return "  feed: waiting for shell watch manager"
+	}
+	lines := make([]string, 0, len(feed)+1)
+	lines = append(lines, "  feed:")
+	for i := len(feed) - 1; i >= 0; i-- {
+		e := feed[i]
+		lines = append(lines, fmt.Sprintf("    %s event=%s subject=%s status=%s", infoBadge(e.Family), valueOrNA(e.EventType), valueOrNA(e.Subject), valueOrNA(e.Status)))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func summarizeApprovalWatchEvents(events []brokerapi.ApprovalWatchEvent) watchFamilySummary {

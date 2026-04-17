@@ -23,6 +23,10 @@ type chatMessageSentMsg struct {
 	err      error
 }
 
+type chatSelectSessionMsg struct {
+	SessionID string
+}
+
 type chatRouteModel struct {
 	def          routeDefinition
 	client       localBrokerClient
@@ -38,11 +42,12 @@ type chatRouteModel struct {
 	composeOn    bool
 	presentation contentPresentationMode
 	draft        string
+	composer     composeTextarea
 	loadSeq      uint64
 }
 
 func newChatRouteModel(def routeDefinition, client localBrokerClient) routeModel {
-	return chatRouteModel{def: def, client: client, inspectorOn: true, presentation: presentationRendered}
+	return chatRouteModel{def: def, client: client, inspectorOn: true, presentation: presentationRendered, composer: newComposeTextarea()}
 }
 
 func (m chatRouteModel) ID() routeID { return m.def.ID }
@@ -55,6 +60,9 @@ func (m chatRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		if typed.RouteID != m.def.ID {
 			return m, nil
 		}
+		if strings.TrimSpace(typed.ActiveSessionID) != "" {
+			m.activeID = strings.TrimSpace(typed.ActiveSessionID)
+		}
 		return m.reload()
 	case tea.KeyMsg:
 		return m.handleKey(typed)
@@ -62,6 +70,15 @@ func (m chatRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		return m.applyLoaded(typed)
 	case chatMessageSentMsg:
 		return m.applySent(typed)
+	case chatSelectSessionMsg:
+		if strings.TrimSpace(typed.SessionID) == "" {
+			return m, nil
+		}
+		m.statusText = ""
+		m.loading = true
+		m.errText = ""
+		m.loadSeq++
+		return m, m.loadCmd(strings.TrimSpace(typed.SessionID), m.loadSeq)
 	default:
 		return m, nil
 	}
@@ -95,6 +112,8 @@ func (m chatRouteModel) applySent(typed chatMessageSentMsg) (routeModel, tea.Cmd
 	m.errText = ""
 	m.statusText = "Message appended to canonical transcript."
 	m.draft = ""
+	m.composer.SetValue("")
+	m.composer.Blur()
 	m.composeOn = false
 	if typed.ack != nil {
 		m.activeID = typed.ack.SessionID
@@ -113,13 +132,13 @@ func (m chatRouteModel) View(width, height int, focus focusArea) string {
 	_ = width
 	_ = height
 	if m.loading {
-		return "Loading chat route from broker session contracts..."
+		return renderStateCard(routeLoadStateLoading, "Chat", "Loading chat route from broker session contracts...")
 	}
 	if m.sending {
-		return "Sending message via broker SessionSendMessage..."
+		return renderStateCard(routeLoadStateLoading, "Chat", "Sending message via broker SessionSendMessage...")
 	}
 	if m.errText != "" {
-		return compactLines("Chat", "Load failed: "+m.errText, "Press r to retry.")
+		return renderStateCard(routeLoadStateError, "Chat", "Load failed: "+m.errText+" (press r to retry)")
 	}
 	active := "none"
 	if m.activeID != "" {
@@ -128,87 +147,151 @@ func (m chatRouteModel) View(width, height int, focus focusArea) string {
 	body := []string{
 		sectionTitle("Chat") + " " + focusBadge(focus),
 		fmt.Sprintf("Sessions: %d active=%s", len(m.sessions), active),
+		"Main pane default: one active canonical session",
 		fmt.Sprintf("Composer: %s", composerState(m.composeOn)),
-		fmt.Sprintf("Presentation mode=%s", normalizePresentationMode(m.presentation)),
-		tableHeader("Session list"),
-		renderSessionList(m.sessions, m.selected),
-		renderComposer(m.composeOn, m.draft),
+		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
+		renderStateCard(routeLoadStateReady, "Active session", activeSessionSummaryLine(m.active)),
+		renderComposer(m.composeOn, m.draft, m.composer.View()),
 	}
 	if m.statusText != "" {
 		body = append(body, "Status: "+m.statusText)
 	}
 	if m.inspectorOn {
-		body = append(body, tableHeader("Inspector")+" "+appTheme.InspectorHint.Render("(linked refs + ordered transcript)"))
 		body = append(body, renderSessionInspector(m.active, m.presentation))
 	}
-	body = append(body, keyHint("Route keys: j/k move, enter load detail, i toggle inspector, c compose, v cycle rendered/raw/structured, r reload"))
+	body = append(body, keyHint("Route keys: j/k move, enter load detail, i toggle inspector, c compose, ctrl+enter send, enter newline, v cycle rendered/raw/structured, r reload"))
 	return compactLines(body...)
+}
+
+func (m chatRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
+	breadcrumbs := []string{"Home", m.def.Label}
+	if strings.TrimSpace(m.activeID) != "" {
+		breadcrumbs = append(breadcrumbs, m.activeID)
+	}
+	status := strings.TrimSpace(m.statusText)
+	if status == "" && strings.TrimSpace(m.errText) != "" {
+		status = "Load failed: " + strings.TrimSpace(m.errText)
+	}
+	return routeSurface{
+		Main:           m.View(ctx.Width, ctx.Height, ctx.Focus),
+		Inspector:      renderSessionInspector(m.active, m.presentation),
+		BottomStrip:    keyHint("Route keys: j/k move, enter load detail, i toggle inspector, c compose, ctrl+enter send, enter newline, v cycle rendered/raw/structured, r reload"),
+		Status:         status,
+		Breadcrumbs:    breadcrumbs,
+		MainTitle:      "Chat workspace",
+		InspectorTitle: "Session inspector",
+		ModeTabs:       []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
+		ActiveTab:      string(normalizePresentationMode(m.presentation)),
+		CopyActions:    chatRouteCopyActions(m.active),
+	}
 }
 
 func (m chatRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 	if m.composeOn {
 		return m.handleComposeKey(key)
 	}
-	switch key.String() {
-	case "r":
-		return m.reload()
-	case "i":
-		m.inspectorOn = !m.inspectorOn
-		return m, nil
-	case "c":
-		if m.activeID == "" {
-			m.statusText = "Select a session first before composing."
-			return m, nil
+	for _, handler := range []func(tea.KeyMsg) (routeModel, tea.Cmd, bool){
+		m.handleReloadKey,
+		m.handleToggleInspectorKey,
+		m.handleComposeToggleKey,
+		m.handleCyclePresentationKey,
+		m.handleSessionNextKey,
+		m.handleSessionPrevKey,
+		m.handleSessionOpenKey,
+	} {
+		if updated, cmd, handled := handler(key); handled {
+			return updated, cmd
 		}
-		m.composeOn = true
-		m.statusText = ""
-		return m, nil
-	case "v":
-		m.presentation = nextPresentationMode(m.presentation)
-		return m, nil
-	case "j", "down":
-		if len(m.sessions) == 0 {
-			return m, nil
-		}
-		m.selected = (m.selected + 1) % len(m.sessions)
-		return m, nil
-	case "k", "up":
-		if len(m.sessions) == 0 {
-			return m, nil
-		}
-		m.selected--
-		if m.selected < 0 {
-			m.selected = len(m.sessions) - 1
-		}
-		return m, nil
-	case "enter":
-		if len(m.sessions) == 0 {
-			return m, nil
-		}
-		m.statusText = ""
-		m.loading = true
-		m.errText = ""
-		m.loadSeq++
-		return m, m.loadCmd(m.sessions[m.selected].Identity.SessionID, m.loadSeq)
-	default:
-		return m, nil
 	}
+	return m, nil
+}
+
+func (m chatRouteModel) handleReloadKey(key tea.KeyMsg) (routeModel, tea.Cmd, bool) {
+	if key.String() != "r" {
+		return m, nil, false
+	}
+	updated, cmd := m.reload()
+	return updated, cmd, true
+}
+
+func (m chatRouteModel) handleToggleInspectorKey(key tea.KeyMsg) (routeModel, tea.Cmd, bool) {
+	if key.String() != "i" {
+		return m, nil, false
+	}
+	m.inspectorOn = !m.inspectorOn
+	return m, nil, true
+}
+
+func (m chatRouteModel) handleComposeToggleKey(key tea.KeyMsg) (routeModel, tea.Cmd, bool) {
+	if key.String() != "c" {
+		return m, nil, false
+	}
+	if m.activeID == "" {
+		m.statusText = "Select a session first before composing."
+		return m, nil, true
+	}
+	m.composeOn = true
+	m.composer.Focus()
+	m.statusText = ""
+	return m, nil, true
+}
+
+func (m chatRouteModel) handleCyclePresentationKey(key tea.KeyMsg) (routeModel, tea.Cmd, bool) {
+	if key.String() != "v" {
+		return m, nil, false
+	}
+	m.presentation = nextPresentationMode(m.presentation)
+	return m, nil, true
+}
+
+func (m chatRouteModel) handleSessionNextKey(key tea.KeyMsg) (routeModel, tea.Cmd, bool) {
+	if key.String() != "j" && key.String() != "down" {
+		return m, nil, false
+	}
+	if len(m.sessions) == 0 {
+		return m, nil, true
+	}
+	m.selected = (m.selected + 1) % len(m.sessions)
+	return m, nil, true
+}
+
+func (m chatRouteModel) handleSessionPrevKey(key tea.KeyMsg) (routeModel, tea.Cmd, bool) {
+	if key.String() != "k" && key.String() != "up" {
+		return m, nil, false
+	}
+	if len(m.sessions) == 0 {
+		return m, nil, true
+	}
+	m.selected--
+	if m.selected < 0 {
+		m.selected = len(m.sessions) - 1
+	}
+	return m, nil, true
+}
+
+func (m chatRouteModel) handleSessionOpenKey(key tea.KeyMsg) (routeModel, tea.Cmd, bool) {
+	if key.String() != "enter" {
+		return m, nil, false
+	}
+	if len(m.sessions) == 0 {
+		return m, nil, true
+	}
+	m.statusText = ""
+	m.loading = true
+	m.errText = ""
+	m.loadSeq++
+	return m, m.loadCmd(m.sessions[m.selected].Identity.SessionID, m.loadSeq), true
 }
 
 func (m chatRouteModel) handleComposeKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
-	switch key.String() {
-	case "esc":
+	if key.String() == "esc" {
 		m.composeOn = false
+		m.composer.Blur()
 		m.statusText = "Compose canceled."
 		return m, nil
-	case "backspace", "ctrl+h":
-		if len(m.draft) > 0 {
-			runes := []rune(m.draft)
-			m.draft = string(runes[:len(runes)-1])
-		}
-		return m, nil
-	case "enter":
-		content := strings.TrimSpace(m.draft)
+	}
+	if key.Type == tea.KeyEnter && (key.Alt || key.String() == "ctrl+enter") {
+		content := strings.TrimSpace(m.composer.Value())
 		if content == "" {
 			m.statusText = "Draft is empty; type a message or press esc."
 			return m, nil
@@ -220,14 +303,12 @@ func (m chatRouteModel) handleComposeKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 		m.sending = true
 		m.errText = ""
 		m.statusText = ""
+		m.draft = content
 		return m, m.sendCmd(m.activeID, content)
-	default:
-		if key.Type == tea.KeyRunes {
-			m.draft += string(key.Runes)
-			return m, nil
-		}
-		return m, nil
 	}
+	m.composer.BubbleUpdate(key)
+	m.draft = m.composer.Value()
+	return m, nil
 }
 
 func (m chatRouteModel) reload() (routeModel, tea.Cmd) {
@@ -283,43 +364,4 @@ func (m chatRouteModel) sendCmd(sessionID, content string) tea.Cmd {
 		}
 		return chatMessageSentMsg{sessions: listResp.Sessions, detail: &getResp.Session, ack: &sendResp}
 	}
-}
-
-func renderSessionList(sessions []brokerapi.SessionSummary, selected int) string {
-	if len(sessions) == 0 {
-		return "  - no sessions"
-	}
-	line := ""
-	for i, s := range sessions {
-		marker := " "
-		if i == selected {
-			marker = ">"
-		}
-		line += selectedLine(i == selected, fmt.Sprintf("  %s %s %s turns=%d", marker, s.Identity.SessionID, stateBadgeWithLabel("status", s.Status), s.TurnCount)) + "\n"
-	}
-	return line
-}
-
-func renderSessionInspector(detail *brokerapi.SessionDetail, presentation contentPresentationMode) string {
-	if detail == nil {
-		return "  Select a session and press enter to load transcript."
-	}
-	presentation = normalizePresentationMode(presentation)
-	transcript := renderTranscriptTurns(detail.TranscriptTurns)
-	if presentation == presentationRaw {
-		transcript = renderTranscriptRaw(detail.TranscriptTurns)
-	}
-	if presentation == presentationStructured {
-		transcript = renderTranscriptStructured(detail.TranscriptTurns)
-	}
-	body := []string{
-		fmt.Sprintf("  Workspace: %s", detail.Summary.Identity.WorkspaceID),
-		renderLinkedReferenceLine("  Linked runs", detail.LinkedRunIDs),
-		renderLinkedReferenceLine("  Linked approvals", detail.LinkedApprovalIDs),
-		renderLinkedReferenceLine("  Linked artifacts", detail.LinkedArtifactDigests),
-		renderLinkedReferenceLine("  Linked audit", detail.LinkedAuditRecordDigests),
-		"  Transcript:",
-		transcript,
-	}
-	return compactLines(body...)
 }

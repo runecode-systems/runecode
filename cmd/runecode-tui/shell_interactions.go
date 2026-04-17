@@ -1,0 +1,115 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+func (m shellModel) handleMouse(mouse tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.selectionMode {
+		return m, nil
+	}
+	if updated, cmd, handled := m.handleMouseLeftClick(mouse); handled {
+		return updated, cmd
+	}
+	if updated, cmd, handled := m.handleMouseWheel(mouse); handled {
+		return updated, cmd
+	}
+	return m, nil
+}
+
+func (m shellModel) handleMouseLeftClick(mouse tea.MouseMsg) (tea.Model, tea.Cmd, bool) {
+	if mouse.Button != tea.MouseButtonLeft || (mouse.Action != tea.MouseActionPress && mouse.Action != tea.MouseActionRelease) {
+		return m, nil, false
+	}
+	if m.effectiveSidebarVisible() {
+		if idx, ok := m.sidebarIndexAtMouse(mouse.X, mouse.Y); ok {
+			route := m.routes[idx]
+			updated, cmd := m.switchToRoute(route.ID, true)
+			return updated, cmd, true
+		}
+	}
+	m.focus = focusContent
+	m.focusManager.Set(focusContent)
+	return m, nil, true
+}
+
+func (m shellModel) handleMouseWheel(mouse tea.MouseMsg) (tea.Model, tea.Cmd, bool) {
+	if mouse.Button != tea.MouseButtonWheelUp && mouse.Button != tea.MouseButtonWheelDown {
+		return m, nil, false
+	}
+	switch mouse.Button {
+	case tea.MouseButtonWheelUp:
+		if m.scroll > 0 {
+			m.scroll--
+		}
+	case tea.MouseButtonWheelDown:
+		m.scroll++
+	}
+	m.focusManager.Set(focusContent)
+	m.focus = m.focusManager.Current()
+	return m, nil, true
+}
+
+func (m shellModel) switchToRoute(id routeID, pushBack bool) (tea.Model, tea.Cmd) {
+	if id == "" {
+		return m, nil
+	}
+	m.trackRecentObject(workbenchObjectRef{Kind: "route", ID: string(id)})
+	if pushBack && id != m.currentID {
+		m.backstack = append(m.backstack, m.currentID)
+	}
+	m.currentID = id
+	m.copyActionIndex = 0
+	m.nav.SelectByRouteID(id)
+	m.focusManager.Set(focusContent)
+	m.focus = m.focusManager.Current()
+	m.persistWorkbenchState()
+	return m, m.activateCurrentRouteCmd()
+}
+
+func (m *shellModel) copyCurrentIdentity() {
+	breadcrumbs := m.activeShellSurface().Breadcrumbs
+	identity := m.routeLabel(m.currentID)
+	if len(breadcrumbs) > 0 {
+		identity = breadcrumbs[len(breadcrumbs)-1]
+	}
+	m.copyText(identity, "Copied identity")
+}
+
+func (m *shellModel) copyNextRouteAction() {
+	actions := m.activeShellSurface().CopyActions
+	if len(actions) == 0 {
+		m.toasts.Push(toastWarn, "No route copy actions available; use terminal selection mode for long-form content.")
+		return
+	}
+	if m.copyActionIndex >= len(actions) {
+		m.copyActionIndex = 0
+	}
+	action := actions[m.copyActionIndex]
+	m.copyActionIndex = (m.copyActionIndex + 1) % len(actions)
+	text := strings.TrimSpace(action.Text)
+	if text == "" {
+		m.toasts.Push(toastWarn, "Route copy action has empty content: "+defaultPlaceholder(action.Label, action.ID))
+		return
+	}
+	label := strings.TrimSpace(action.Label)
+	if label == "" {
+		label = strings.TrimSpace(action.ID)
+	}
+	if label == "" {
+		label = "route action"
+	}
+	m.copyText(text, "Copied "+label)
+}
+
+func (m *shellModel) copyText(text string, label string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return
+	}
+	m.clipboard.Copy(text)
+	m.toasts.Push(toastInfo, fmt.Sprintf("%s via %s", label, m.clipboard.IntegrationHint()))
+}

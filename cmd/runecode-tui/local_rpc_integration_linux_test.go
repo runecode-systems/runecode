@@ -211,8 +211,7 @@ func assertTUIBrokerBackedRoutes(t *testing.T) {
 		"backend_kind=unknown",
 		"Live Activity",
 		"Live activity (typed watch families; logs are supplemental inspection only):",
-		"totals events=2 snapshot=1 upsert=0 terminal=1 errors=0",
-		"last_event=run_watch_terminal subject=run-tui status=completed",
+		"feed: waiting for shell watch manager",
 	)
 
 	chat := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, recording)
@@ -250,7 +249,7 @@ func assertTUIBrokerBackedRoutes(t *testing.T) {
 		"Protocol posture:",
 	)
 
-	if !containsCall(recording.Calls(), "RunWatch") || !containsCall(recording.Calls(), "ArtifactRead") || !containsCall(recording.Calls(), "AuditVerificationGet") || !containsCall(recording.Calls(), "AuditRecordGet") {
+	if !containsCall(recording.Calls(), "ArtifactRead") || !containsCall(recording.Calls(), "AuditVerificationGet") || !containsCall(recording.Calls(), "AuditRecordGet") {
 		t.Fatalf("expected broker-backed route calls, got %v", recording.Calls())
 	}
 }

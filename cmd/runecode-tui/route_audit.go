@@ -56,6 +56,10 @@ type auditAnchorCompletedMsg struct {
 	sealDigest string
 }
 
+type auditSelectRecordMsg struct {
+	Digest string
+}
+
 func newAuditRouteModel(def routeDefinition, client localBrokerClient) routeModel {
 	return auditRouteModel{def: def, client: client, inspectorOn: true, presentation: presentationRendered}
 }
@@ -70,6 +74,15 @@ func (m auditRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		return m.handleRouteActivated(typed)
 	case tea.KeyMsg:
 		return m.handleKey(typed)
+	case auditSelectRecordMsg:
+		digest := strings.TrimSpace(typed.Digest)
+		if digest == "" {
+			return m, nil
+		}
+		m.loading = true
+		m.errText = ""
+		m.loadSeq++
+		return m, m.loadRecordCmd(digest, m.loadSeq)
 	case auditLoadedMsg:
 		return m.handleAuditLoaded(typed)
 	case auditAnchorCompletedMsg:
@@ -167,10 +180,10 @@ func (m auditRouteModel) View(width, height int, focus focusArea) string {
 	_ = width
 	_ = height
 	if m.loading {
-		return "Loading audit timeline and verification posture..."
+		return renderStateCard(routeLoadStateLoading, "Audit", "Loading audit timeline and verification posture...")
 	}
 	if m.errText != "" {
-		return compactLines("Audit", "Load failed: "+m.errText, "Press r to retry.")
+		return renderStateCard(routeLoadStateError, "Audit", "Load failed: "+m.errText+" (press r to retry)")
 	}
 	body := []string{
 		sectionTitle("Audit") + " " + focusBadge(focus),
@@ -180,16 +193,40 @@ func (m auditRouteModel) View(width, height int, focus focusArea) string {
 		renderAuditPageSummary(m.cursor, m.nextCursor, len(m.prevCursors), len(m.timeline)),
 		renderAuditSummary(m.verify),
 		renderAuditFindings(m.verify, m.presentation),
-		fmt.Sprintf("Presentation mode=%s", normalizePresentationMode(m.presentation)),
-		tableHeader("Timeline"),
+		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
+		renderDirectory("Timeline directory", renderAuditDirectoryItems(m.timeline), m.selected),
 		renderAuditTimeline(m.timeline, m.selected),
 	}
 	if m.inspectorOn {
-		body = append(body, tableHeader("Inspector")+" "+appTheme.InspectorHint.Render("(typed record details)"))
 		body = append(body, renderAuditInspector(m.active, m.presentation))
 	}
 	body = append(body, keyHint("Route keys: j/k move, enter record detail, f finalize+verify sealed segment posture, a anchor selected/latest sealed segment, x toggle anchor export-copy, n next page, p previous page, v cycle rendered/raw/structured, i toggle inspector, r reload"))
 	return compactLines(body...)
+}
+
+func (m auditRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
+	breadcrumbs := []string{"Home", m.def.Label}
+	if m.active != nil {
+		if identity, err := m.active.Record.RecordDigest.Identity(); err == nil && strings.TrimSpace(identity) != "" {
+			breadcrumbs = append(breadcrumbs, identity)
+		}
+	}
+	status := strings.TrimSpace(m.statusText)
+	if status == "" && strings.TrimSpace(m.errText) != "" {
+		status = "Load failed: " + strings.TrimSpace(m.errText)
+	}
+	return routeSurface{
+		Main:           m.View(ctx.Width, ctx.Height, ctx.Focus),
+		Inspector:      renderAuditInspector(m.active, m.presentation),
+		BottomStrip:    keyHint("Route keys: j/k move, enter record detail, f finalize+verify sealed segment posture, a anchor selected/latest sealed segment, x toggle anchor export-copy, n next page, p previous page, v cycle rendered/raw/structured, i toggle inspector, r reload"),
+		Status:         status,
+		Breadcrumbs:    breadcrumbs,
+		MainTitle:      "Audit workspace",
+		InspectorTitle: "Audit inspector",
+		ModeTabs:       []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
+		ActiveTab:      string(normalizePresentationMode(m.presentation)),
+		CopyActions:    auditRouteCopyActions(m.active),
+	}
 }
 
 func (m auditRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {

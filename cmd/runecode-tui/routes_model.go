@@ -12,10 +12,12 @@ type routeModel interface {
 	Title() string
 	Update(msg tea.Msg) (routeModel, tea.Cmd)
 	View(width, height int, focus focusArea) string
+	ShellSurface(ctx routeShellContext) routeSurface
 }
 
 type routeActivatedMsg struct {
-	RouteID routeID
+	RouteID         routeID
+	ActiveSessionID string
 }
 
 type routeErrorModel struct {
@@ -49,6 +51,13 @@ func (m routeErrorModel) View(width, height int, focus focusArea) string {
 	)
 }
 
+func (m routeErrorModel) ShellSurface(ctx routeShellContext) routeSurface {
+	return routeSurface{
+		Main:        m.View(ctx.Width, ctx.Height, ctx.Focus),
+		Breadcrumbs: []string{"Home", m.def.Label},
+	}
+}
+
 func newRouteModels(defs []routeDefinition) map[routeID]routeModel {
 	client := newLocalBrokerClient()
 	models := make(map[routeID]routeModel, len(defs))
@@ -62,6 +71,8 @@ func newRouteModels(defs []routeDefinition) map[routeID]routeModel {
 			models[def.ID] = newRunsRouteModel(def, client)
 		case routeApprovals:
 			models[def.ID] = newApprovalsRouteModel(def, client)
+		case routeAction:
+			models[def.ID] = newActionCenterRouteModel(def, client)
 		case routeArtifacts:
 			models[def.ID] = newArtifactsRouteModel(def, client)
 		case routeAudit:

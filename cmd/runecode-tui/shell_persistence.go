@@ -1,0 +1,238 @@
+package main
+
+import "strings"
+
+func (m *shellModel) persistWorkbenchState() {
+	if m.workbench == nil {
+		return
+	}
+	m.workbench.Write(m.workbenchScope, workbenchLocalState{
+		SidebarVisible:     m.sidebarVisible,
+		InspectorVisible:   m.inspectorOn,
+		InspectorMode:      normalizePresentationMode(m.preferredMode),
+		ThemePreset:        normalizeThemePreset(m.themePreset),
+		LastRouteID:        m.currentID,
+		LastSessionID:      m.activeSessionID,
+		LastSessionByWS:    cloneSessionMap(m.lastSessionByWS),
+		PinnedSessions:     m.persistedPinnedSessionRefs(),
+		RecentSessions:     m.persistedRecentSessionRefs(),
+		RecentObjects:      append([]workbenchObjectRef(nil), m.recentObjects...),
+		ViewedActivity:     cloneViewedActivity(m.viewedActivity),
+		SidebarPaneRatio:   clampPaneRatio(m.sidebarRatio),
+		InspectorPaneRatio: clampPaneRatio(m.inspectorRatio),
+		SidebarCollapsed:   m.sidebarFolded,
+		InspectorCollapsed: m.inspectorFolded,
+	})
+}
+
+func (m *shellModel) restoreWorkbenchState() {
+	if m.workbench == nil {
+		return
+	}
+	state := m.workbench.Read(m.workbenchScope)
+	if isZeroWorkbenchState(state) {
+		return
+	}
+	m.restoreWorkbenchLayoutState(state)
+	m.restoreWorkbenchRouteAndTheme(state)
+	m.restoreWorkbenchSessionState(state)
+	m.restoreWorkbenchRecentState(state)
+	m.applyInspectorVisibilityToRoutes()
+	m.applyPreferredPresentationToRoutes()
+}
+
+func (m *shellModel) restoreWorkbenchLayoutState(state workbenchLocalState) {
+	m.sidebarVisible = state.SidebarVisible
+	m.inspectorOn = state.InspectorVisible
+	m.sidebarRatio = restorePaneRatio(state.SidebarPaneRatio, 0.22)
+	m.inspectorRatio = restorePaneRatio(state.InspectorPaneRatio, 0.30)
+	m.sidebarFolded = state.SidebarCollapsed
+	m.inspectorFolded = state.InspectorCollapsed
+}
+
+func restorePaneRatio(raw float64, fallback float64) float64 {
+	ratio := clampPaneRatio(raw)
+	if ratio <= 0 {
+		return fallback
+	}
+	return ratio
+}
+
+func (m *shellModel) restoreWorkbenchRouteAndTheme(state workbenchLocalState) {
+	m.preferredMode = normalizePresentationMode(state.InspectorMode)
+	if m.preferredMode == "" {
+		m.preferredMode = presentationRendered
+	}
+	if state.LastRouteID != "" {
+		m.currentID = state.LastRouteID
+		m.nav.SelectByRouteID(state.LastRouteID)
+	}
+	m.themePreset = normalizeThemePreset(state.ThemePreset)
+	if m.themePreset == "" {
+		m.themePreset = themePresetDark
+	}
+	appTheme = newTheme(m.themePreset)
+}
+
+func (m *shellModel) restoreWorkbenchSessionState(state workbenchLocalState) {
+	m.activeSessionID = strings.TrimSpace(state.LastSessionID)
+	m.pinnedSessions = map[string]struct{}{}
+	for _, ref := range state.PinnedSessions {
+		sid := strings.TrimSpace(ref.SessionID)
+		if sid == "" {
+			continue
+		}
+		m.pinnedSessions[sid] = struct{}{}
+		m.rememberSessionWorkspace(sid, ref.WorkspaceID)
+	}
+	m.recentSessions = make([]string, 0, len(state.RecentSessions))
+	for _, ref := range state.RecentSessions {
+		sid := strings.TrimSpace(ref.SessionID)
+		if sid == "" {
+			continue
+		}
+		m.recentSessions = append(m.recentSessions, sid)
+		m.rememberSessionWorkspace(sid, ref.WorkspaceID)
+	}
+}
+
+func (m *shellModel) rememberSessionWorkspace(sessionID string, workspaceID string) {
+	if ws := strings.TrimSpace(workspaceID); ws != "" {
+		m.sessionWorkspace[sessionID] = ws
+	}
+}
+
+func (m *shellModel) restoreWorkbenchRecentState(state workbenchLocalState) {
+	m.recentObjects = append([]workbenchObjectRef(nil), state.RecentObjects...)
+	m.lastSessionByWS = cloneSessionMap(state.LastSessionByWS)
+	m.viewedActivity = cloneViewedActivity(state.ViewedActivity)
+}
+
+func (m *shellModel) capturePreferredPresentationFromActiveSurface() {
+	surface := m.activeShellSurface()
+	mode := normalizePresentationMode(contentPresentationMode(strings.TrimSpace(surface.ActiveTab)))
+	if mode == "" {
+		mode = presentationRendered
+	}
+	if mode == m.preferredMode {
+		return
+	}
+	m.preferredMode = mode
+	m.applyPreferredPresentationToRoutes()
+	m.persistWorkbenchState()
+}
+
+func (m *shellModel) captureInspectorVisibilityFromActiveRoute() {
+	before := m.inspectorOn
+	model := m.routeModels[m.currentID]
+	switch typed := model.(type) {
+	case chatRouteModel:
+		m.inspectorOn = typed.inspectorOn
+	case runsRouteModel:
+		m.inspectorOn = typed.inspectorOn
+	case approvalsRouteModel:
+		m.inspectorOn = typed.inspectorOn
+	case artifactsRouteModel:
+		m.inspectorOn = typed.inspectorOn
+	case auditRouteModel:
+		m.inspectorOn = typed.inspectorOn
+	}
+	if before != m.inspectorOn {
+		m.applyInspectorVisibilityToRoutes()
+		m.persistWorkbenchState()
+	}
+}
+
+func (m *shellModel) applyInspectorVisibilityToRoutes() {
+	for id, model := range m.routeModels {
+		switch typed := model.(type) {
+		case chatRouteModel:
+			typed.inspectorOn = m.inspectorOn
+			m.routeModels[id] = typed
+		case runsRouteModel:
+			typed.inspectorOn = m.inspectorOn
+			m.routeModels[id] = typed
+		case approvalsRouteModel:
+			typed.inspectorOn = m.inspectorOn
+			m.routeModels[id] = typed
+		case artifactsRouteModel:
+			typed.inspectorOn = m.inspectorOn
+			m.routeModels[id] = typed
+		case auditRouteModel:
+			typed.inspectorOn = m.inspectorOn
+			m.routeModels[id] = typed
+		}
+	}
+}
+
+func (m *shellModel) applyPreferredPresentationToRoutes() {
+	mode := normalizePresentationMode(m.preferredMode)
+	for id, model := range m.routeModels {
+		switch typed := model.(type) {
+		case chatRouteModel:
+			typed.presentation = mode
+			m.routeModels[id] = typed
+		case runsRouteModel:
+			typed.presentation = mode
+			m.routeModels[id] = typed
+		case approvalsRouteModel:
+			typed.presentation = mode
+			m.routeModels[id] = typed
+		case artifactsRouteModel:
+			typed.presentation = mode
+			m.routeModels[id] = typed
+		case auditRouteModel:
+			typed.presentation = mode
+			m.routeModels[id] = typed
+		}
+	}
+}
+
+func (m *shellModel) persistedPinnedSessionRefs() []workbenchSessionRef {
+	keys := sortedSessionKeys(m.pinnedSessions)
+	out := make([]workbenchSessionRef, 0, len(keys))
+	for _, sid := range keys {
+		out = append(out, workbenchSessionRef{WorkspaceID: strings.TrimSpace(m.sessionWorkspace[sid]), SessionID: sid})
+	}
+	return out
+}
+
+func (m *shellModel) persistedRecentSessionRefs() []workbenchSessionRef {
+	out := make([]workbenchSessionRef, 0, len(m.recentSessions))
+	for _, sid := range m.recentSessions {
+		sid = strings.TrimSpace(sid)
+		if sid == "" {
+			continue
+		}
+		out = append(out, workbenchSessionRef{WorkspaceID: strings.TrimSpace(m.sessionWorkspace[sid]), SessionID: sid})
+	}
+	return out
+}
+
+func cloneSessionMap(in map[string]string) map[string]string {
+	if in == nil {
+		return map[string]string{}
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+func clampPaneRatio(v float64) float64 {
+	if v <= 0 {
+		return 0
+	}
+	if v < 0.15 {
+		return 0.15
+	}
+	if v > 0.5 {
+		return 0.5
+	}
+	return v
+}
+
+func isZeroWorkbenchState(state workbenchLocalState) bool {
+	return state.LastRouteID == "" && state.LastSessionID == "" && len(state.PinnedSessions) == 0 && len(state.RecentSessions) == 0 && len(state.ViewedActivity) == 0 && len(state.RecentObjects) == 0 && state.ThemePreset == "" && state.SidebarPaneRatio == 0 && state.InspectorPaneRatio == 0
+}
