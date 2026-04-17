@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
@@ -254,6 +255,51 @@ func TestShellViewRendersShellSurfaces(t *testing.T) {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected pane framing affordance %q in view, got %q", want, v)
 		}
+	}
+}
+
+func TestShellViewFillsViewportWithRootSurface(t *testing.T) {
+	m := newShellModel()
+	m.width = 110
+	m.height = 32
+
+	v := m.View()
+	if got := lipgloss.Width(v); got != 110 {
+		t.Fatalf("expected full-frame width=110, got %d", got)
+	}
+	if got := lipgloss.Height(v); got != 32 {
+		t.Fatalf("expected full-frame height=32, got %d", got)
+	}
+}
+
+func TestShellOverlayRemainsVisibleWithinViewport(t *testing.T) {
+	m := newShellModel()
+	m.width = 100
+	m.height = 28
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	shell := updated.(shellModel)
+	v := shell.View()
+	if got := lipgloss.Height(v); got != 28 {
+		t.Fatalf("expected full-frame height=28 with overlay open, got %d", got)
+	}
+	if !strings.Contains(v, "Workbench Command Surface") {
+		t.Fatalf("expected palette overlay content in viewport, got %q", v)
+	}
+}
+
+func TestShellToastRemainsVisibleWithinViewport(t *testing.T) {
+	m := newShellModel()
+	m.width = 100
+	m.height = 28
+	m.toasts.Push(toastInfo, "Sidebar visibility changed.")
+
+	v := m.View()
+	if got := lipgloss.Height(v); got != 28 {
+		t.Fatalf("expected full-frame height=28 with toast visible, got %d", got)
+	}
+	if !strings.Contains(v, "Toast: INFO: Sidebar visibility changed.") {
+		t.Fatalf("expected toast content in viewport, got %q", v)
 	}
 }
 
@@ -563,6 +609,8 @@ func TestShellStandardizedBackVerb(t *testing.T) {
 
 func TestShellWatchManagerUpdatesRoutesAndSyncHealth(t *testing.T) {
 	m := newShellModel()
+	m.width = 160
+	m.height = 90
 	m.location.Primary = shellObjectLocation{RouteID: routeDashboard, Object: workbenchObjectRef{Kind: "route", ID: string(routeDashboard)}}
 	updated, _ := m.Update(shellWatchTransportLoadedMsg{
 		Run: shellWatchRunTransportResult{Events: []brokerapi.RunWatchEvent{

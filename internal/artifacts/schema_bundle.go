@@ -21,23 +21,36 @@ type schemaBundleManifestEntry struct {
 }
 
 type compiledSchemaBundle struct {
-	compiler   *jsonschema.Compiler
-	schemaDocs map[string]map[string]any
+	schemaDocs      map[string]map[string]any
+	compiledSchemas map[string]*jsonschema.Schema
 }
 
 var (
-	schemaBundleOnce sync.Once
-	loadedBundle     compiledSchemaBundle
-	bundleErr        error
+	schemaBundleMu sync.RWMutex
+	loadedBundle   compiledSchemaBundle
+	bundleLoaded   bool
 )
 
 func schemaBundle() (compiledSchemaBundle, error) {
-	schemaBundleOnce.Do(func() {
-		loadedBundle, bundleErr = loadSchemaBundle()
-	})
-	if bundleErr != nil {
-		return compiledSchemaBundle{}, bundleErr
+	schemaBundleMu.RLock()
+	if bundleLoaded {
+		bundle := loadedBundle
+		schemaBundleMu.RUnlock()
+		return bundle, nil
 	}
+	schemaBundleMu.RUnlock()
+
+	schemaBundleMu.Lock()
+	defer schemaBundleMu.Unlock()
+	if bundleLoaded {
+		return loadedBundle, nil
+	}
+	bundle, err := loadSchemaBundle()
+	if err != nil {
+		return compiledSchemaBundle{}, err
+	}
+	loadedBundle = bundle
+	bundleLoaded = true
 	return loadedBundle, nil
 }
 
@@ -50,27 +63,67 @@ func loadSchemaBundle() (compiledSchemaBundle, error) {
 	if err := loadJSONFile(manifestPath, &manifest); err != nil {
 		return compiledSchemaBundle{}, err
 	}
-	compiler, schemaDocs, err := compileSchemaDocs(manifest.SchemaFiles)
+	schemaDocs, compiledSchemas, err := compileSchemaDocs(manifest.SchemaFiles)
 	if err != nil {
 		return compiledSchemaBundle{}, err
 	}
-	return compiledSchemaBundle{compiler: compiler, schemaDocs: schemaDocs}, nil
+	return compiledSchemaBundle{schemaDocs: schemaDocs, compiledSchemas: compiledSchemas}, nil
 }
 
-func compileSchemaDocs(entries []schemaBundleManifestEntry) (*jsonschema.Compiler, map[string]map[string]any, error) {
+func compileSchemaDocs(entries []schemaBundleManifestEntry) (map[string]map[string]any, map[string]*jsonschema.Schema, error) {
 	compiler := jsonschema.NewCompiler()
+	schemaDocs, err := loadAndRegisterSchemaDocs(entries, compiler)
+	if err != nil {
+		return nil, nil, err
+	}
+	compiledSchemas, err := compileRegisteredSchemas(entries, schemaDocs, compiler)
+	if err != nil {
+		return nil, nil, err
+	}
+	return schemaDocs, compiledSchemas, nil
+}
+
+func loadAndRegisterSchemaDocs(entries []schemaBundleManifestEntry, compiler *jsonschema.Compiler) (map[string]map[string]any, error) {
 	schemaDocs := map[string]map[string]any{}
 	for _, entry := range entries {
 		schemaDoc, err := loadSchemaDoc(entry.Path)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if err := addSchemaDocResource(compiler, entry.Path, schemaDoc); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		schemaDocs[entry.Path] = schemaDoc
 	}
-	return compiler, schemaDocs, nil
+	return schemaDocs, nil
+}
+
+func compileRegisteredSchemas(entries []schemaBundleManifestEntry, schemaDocs map[string]map[string]any, compiler *jsonschema.Compiler) (map[string]*jsonschema.Schema, error) {
+	compiledSchemas := map[string]*jsonschema.Schema{}
+	for _, entry := range entries {
+		schema, err := compileRegisteredSchema(entry.Path, schemaDocs, compiler)
+		if err != nil {
+			return nil, err
+		}
+		compiledSchemas[entry.Path] = schema
+	}
+	return compiledSchemas, nil
+}
+
+func compileRegisteredSchema(schemaPath string, schemaDocs map[string]map[string]any, compiler *jsonschema.Compiler) (*jsonschema.Schema, error) {
+	doc, ok := schemaDocs[schemaPath]
+	if !ok {
+		return nil, fmt.Errorf("schema document %q not found", schemaPath)
+	}
+	id, err := stringFieldValue(doc, "$id")
+	if err != nil {
+		return nil, fmt.Errorf("schema document %q: %w", schemaPath, err)
+	}
+	schema, err := compiler.Compile(id)
+	if err != nil {
+		return nil, fmt.Errorf("compile schema %q: %w", schemaPath, err)
+	}
+	return schema, nil
 }
 
 func loadSchemaDoc(schemaRelPath string) (map[string]any, error) {

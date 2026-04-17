@@ -14,104 +14,132 @@ func (m shellModel) View() string {
 
 	surface := m.activeShellSurface()
 	layout := m.planShellLayout(surface)
+	viewportWidth, viewportHeight := normalizedShellViewport(m.width, m.height)
+	workbench := m.renderShellWorkbench(surface, layout, viewportWidth, viewportHeight)
+	root := appTheme.SurfaceBase.
+		Width(viewportWidth).
+		MaxWidth(viewportWidth).
+		Height(viewportHeight).
+		MaxHeight(viewportHeight)
+	return root.Render(workbench)
+}
+
+func (m shellModel) renderShellWorkbench(surface routeSurface, layout shellLayoutPlan, viewportWidth int, viewportHeight int) string {
+	overlayBody, overlayHeight := m.overlayBodyWithHeight(surface, layout, viewportHeight)
+	frameHeight := viewportHeight - overlayHeight
+	if frameHeight < 1 {
+		frameHeight = 1
+	}
 	b := strings.Builder{}
 	m.writeShellFrame(&b, surface, layout)
-	m.writeShellToast(&b)
-	m.writeShellOverlays(&b, surface, layout)
 	m.writeShellFooter(&b)
-	return b.String()
+	frame := constrainShellBlock(strings.TrimRight(b.String(), "\n"), viewportWidth, frameHeight)
+	if strings.TrimSpace(overlayBody) == "" {
+		return lipgloss.JoinVertical(lipgloss.Left, frame)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, frame, overlayBody)
 }
 
 func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, layout shellLayoutPlan) {
-	b.WriteString(m.renderTopStatus(surface, layout))
+	viewportWidth, _ := normalizedShellViewport(m.width, m.height)
+	b.WriteString(constrainShellBlock(m.renderTopStatus(surface, layout), viewportWidth, shellTopStatusHeight))
 	b.WriteString("\n")
-	b.WriteString(m.renderSyncHealth())
+	b.WriteString(constrainShellBlock(m.renderSyncHealth(), viewportWidth, shellSyncHealthHeight))
 	b.WriteString("\n")
-	b.WriteString(m.renderBreadcrumbs(surface))
+	b.WriteString(constrainShellBlock(m.renderBreadcrumbs(surface), viewportWidth, shellBreadcrumbHeight))
 	b.WriteString("\n")
-	b.WriteString(m.renderHistory())
-	b.WriteString("\n\n")
+	b.WriteString(constrainShellBlock(m.renderHistory(), viewportWidth, shellHistoryHeight))
+	b.WriteString("\n")
+	b.WriteString(constrainShellBlock("", viewportWidth, shellPaneSpacerHeight))
+	b.WriteString("\n")
 	b.WriteString(m.renderShellPanes(surface, layout))
 	b.WriteString("\n")
-	b.WriteString(m.renderBottomStrip(surface))
+	b.WriteString(constrainShellBlock(m.renderBottomStrip(surface), viewportWidth, layout.Regions.Bottom.Height))
 	b.WriteString("\n")
-	b.WriteString(m.renderStatusSurface(surface))
-	b.WriteString("\n")
-}
-
-func (m shellModel) writeShellToast(b *strings.Builder) {
-	if toast := strings.TrimSpace(m.toasts.Latest()); toast != "" {
-		b.WriteString("Toast: ")
-		b.WriteString(toast)
-		b.WriteString("\n")
-	}
-}
-
-func (m shellModel) writeShellOverlays(b *strings.Builder, surface routeSurface, layout shellLayoutPlan) {
-	m.writePaletteOverlay(b)
-	m.writeSessionOverlay(b)
-	m.writeNarrowSidebarOverlay(b)
-	m.writeNarrowInspectorOverlay(b, surface, layout)
-}
-
-func (m shellModel) writePaletteOverlay(b *strings.Builder) {
-	if !m.palette.IsOpen() {
-		return
-	}
-	b.WriteString(m.renderOverlayStack())
-	b.WriteString("\n")
-	b.WriteString(centeredOverlayBlock(overlayIDQuickJump, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderPalette())))
-	b.WriteString("\n")
-}
-
-func (m shellModel) writeSessionOverlay(b *strings.Builder) {
-	if !m.sessions.IsOpen() {
-		return
-	}
-	b.WriteString(m.renderOverlayStack())
-	b.WriteString("\n")
-	b.WriteString(centeredOverlayBlock(overlayIDSessions, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderSessionQuickSwitcher())))
-	b.WriteString("\n")
-}
-
-func (m shellModel) writeNarrowSidebarOverlay(b *strings.Builder) {
-	if !m.narrowSidebarOn || m.breakpoint() != shellBreakpointNarrow {
-		return
-	}
-	b.WriteString(m.renderOverlayStack())
-	b.WriteString("\n")
-	b.WriteString(centeredOverlayBlock(overlayIDSidebar, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderSidebar())))
-	b.WriteString("\n")
-}
-
-func (m shellModel) writeNarrowInspectorOverlay(b *strings.Builder, surface routeSurface, layout shellLayoutPlan) {
-	if !m.narrowInspectOn || m.breakpoint() != shellBreakpointNarrow {
-		return
-	}
-	inspector := strings.TrimSpace(surface.Regions.Inspector.Body)
-	if inspector != "" && routeInspectorAvailable(surface) && m.inspectorOn {
-		b.WriteString(m.renderOverlayStack())
-		b.WriteString("\n")
-		title := strings.TrimSpace(surface.Regions.Inspector.Title)
-		if title == "" {
-			title = "Inspector"
-		}
-		b.WriteString(centeredOverlayBlock(overlayIDInspector, compactLines("Return focus: "+m.overlayReturn.Label(), title, inspector)))
-		b.WriteString("\n")
-	} else if !layout.InspectorVisible && !routeInspectorAvailable(surface) {
-		b.WriteString(centeredOverlayBlock(overlayIDInspector, compactLines("Return focus: "+m.overlayReturn.Label(), "Inspector unavailable for current route.")))
-		b.WriteString("\n")
-	}
+	b.WriteString(constrainShellBlock(m.renderStatusSurface(surface), viewportWidth, layout.Regions.Status.Height))
 	b.WriteString("\n")
 }
 
 func (m shellModel) writeShellFooter(b *strings.Builder) {
-	b.WriteString(renderHelp(m.keys, m.palette.IsOpen() || m.sessions.IsOpen()))
+	viewportWidth, _ := normalizedShellViewport(m.width, m.height)
+	b.WriteString(constrainShellBlock(renderHelp(m.keys, m.palette.IsOpen() || m.sessions.IsOpen()), viewportWidth, 1))
 	b.WriteString("\n")
-	b.WriteString(muted(localBrokerBoundaryPosture()))
+	b.WriteString(constrainShellBlock(muted(localBrokerBoundaryPosture()), viewportWidth, 1))
 	b.WriteString("\n")
-	b.WriteString(muted("Trust boundary: typed broker contracts only; no CLI scraping or daemon-private path modeling."))
+	b.WriteString(constrainShellBlock(muted("Trust boundary: typed broker contracts only; no CLI scraping or daemon-private path modeling."), viewportWidth, 1))
 	b.WriteString("\n")
+}
+
+func (m shellModel) overlayBodyWithHeight(surface routeSurface, layout shellLayoutPlan, viewportHeight int) (string, int) {
+	parts := []string{}
+	if toast := strings.TrimSpace(m.toasts.Latest()); toast != "" {
+		parts = append(parts, "Toast: "+sanitizeUIText(toast))
+	}
+	overlay := ""
+	switch {
+	case m.palette.IsOpen():
+		overlay = compactLines(m.renderOverlayStack(), centeredOverlayBlock(overlayIDQuickJump, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderPalette())))
+	case m.sessions.IsOpen():
+		overlay = compactLines(m.renderOverlayStack(), centeredOverlayBlock(overlayIDSessions, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderSessionQuickSwitcher())))
+	case m.narrowSidebarOn && m.breakpoint() == shellBreakpointNarrow:
+		overlay = compactLines(m.renderOverlayStack(), centeredOverlayBlock(overlayIDSidebar, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderSidebar())))
+	case m.narrowInspectOn && m.breakpoint() == shellBreakpointNarrow:
+		inspector := strings.TrimSpace(surface.Regions.Inspector.Body)
+		if inspector != "" && routeInspectorAvailable(surface) && m.inspectorOn {
+			title := strings.TrimSpace(surface.Regions.Inspector.Title)
+			if title == "" {
+				title = "Inspector"
+			}
+			overlay = compactLines(m.renderOverlayStack(), centeredOverlayBlock(overlayIDInspector, compactLines("Return focus: "+m.overlayReturn.Label(), title, inspector)))
+		} else if !layout.InspectorVisible && !routeInspectorAvailable(surface) {
+			overlay = centeredOverlayBlock(overlayIDInspector, compactLines("Return focus: "+m.overlayReturn.Label(), "Inspector unavailable for current route."))
+		}
+	}
+	if strings.TrimSpace(overlay) != "" {
+		parts = append(parts, overlay)
+	}
+	if len(parts) == 0 {
+		return "", 0
+	}
+	maxOverlayHeight := viewportHeight / 2
+	if maxOverlayHeight < 1 {
+		maxOverlayHeight = 1
+	}
+	content := constrainShellBlock(strings.Join(parts, "\n"), normalizedOverlayWidth(m.width), maxOverlayHeight)
+	return content, lipgloss.Height(content)
+}
+
+func normalizedOverlayWidth(width int) int {
+	if width <= 0 {
+		return 1
+	}
+	return width
+}
+
+func constrainShellBlock(block string, width int, height int) string {
+	if height <= 0 {
+		return ""
+	}
+	if width <= 0 {
+		width = 1
+	}
+	trimmed := strings.TrimRight(block, "\n")
+	if trimmed == "" {
+		return strings.TrimRight(lipgloss.NewStyle().Width(width).Height(height).Render(""), "\n")
+	}
+	rawLines := strings.Split(trimmed, "\n")
+	lines := make([]string, 0, height)
+	lineStyle := lipgloss.NewStyle().Width(width).MaxWidth(width).Height(1).MaxHeight(1)
+	for _, line := range rawLines {
+		if len(lines) >= height {
+			break
+		}
+		lines = append(lines, lineStyle.Render(strings.TrimRight(line, "\r")))
+	}
+	for len(lines) < height {
+		lines = append(lines, lineStyle.Render(""))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m shellModel) renderTopStatus(surface routeSurface, layout shellLayoutPlan) string {
@@ -135,7 +163,7 @@ func (m shellModel) renderSyncHealth() string {
 		text += " " + infoBadge(fmt.Sprintf("active_%s=%s", m.watch.projection.Activity.Active.Kind, m.watch.projection.Activity.Active.ID))
 	}
 	if strings.TrimSpace(m.watch.projection.Health.ErrorText) != "" {
-		text += " " + muted("("+m.watch.projection.Health.ErrorText+")")
+		text += " " + muted("("+sanitizeUIText(m.watch.projection.Health.ErrorText)+")")
 	}
 	return text
 }
@@ -169,6 +197,7 @@ func (m shellModel) renderHistory() string {
 }
 
 func (m shellModel) renderShellPanes(surface routeSurface, layout shellLayoutPlan) string {
+	viewportWidth, viewportHeight := normalizedShellViewport(m.width, m.height)
 	mainTitle := "Main pane"
 	if title := strings.TrimSpace(surface.Regions.Main.Title); title != "" {
 		mainTitle += " — " + title
@@ -176,10 +205,12 @@ func (m shellModel) renderShellPanes(surface routeSurface, layout shellLayoutPla
 	if activity := strings.TrimSpace(m.renderPaneActivityMarker()); activity != "" {
 		mainTitle += " " + activity
 	}
-	mainPane := renderShellPane(shellPaneSpec{Title: mainTitle, Body: strings.TrimSpace(surface.Regions.Main.Body), Width: routeRegionWidth(layout.Regions.Main, m.width), Height: routeRegionHeight(layout.Regions.Main, m.height), Focused: m.focus == focusContent})
+	mainPane := renderShellPane(shellPaneSpec{Title: mainTitle, Body: strings.TrimSpace(surface.Regions.Main.Body), Width: routeRegionWidth(layout.Regions.Main, viewportWidth), Height: routeRegionHeight(layout.Regions.Main, viewportHeight), Focused: m.focus == focusContent})
 	center := mainPane
+	paneFrameHeight := layout.Regions.Main.Height
 	if modes := renderModeSwitchTabs(surface.Actions.ModeTabs, surface.Actions.ActiveTab); strings.TrimSpace(modes) != "" {
 		center = joinPanesVertical(mainPane, modes)
+		paneFrameHeight++
 	}
 	row := center
 	if layout.NavigationVisible {
@@ -187,7 +218,7 @@ func (m shellModel) renderShellPanes(surface routeSurface, layout shellLayoutPla
 		if layout.Breakpoint == shellBreakpointWide {
 			sidebarTitle += fmt.Sprintf(" (%.0f%%)", clampPaneRatio(m.sidebarRatio)*100)
 		}
-		sidebarPane := renderShellPane(shellPaneSpec{Title: sidebarTitle, Body: m.renderSidebar(), Width: routeRegionWidth(layout.Regions.Sidebar, m.width/4), Height: routeRegionHeight(layout.Regions.Sidebar, m.height), Focused: m.focus == focusNav})
+		sidebarPane := renderShellPane(shellPaneSpec{Title: sidebarTitle, Body: m.renderSidebar(), Width: routeRegionWidth(layout.Regions.Sidebar, viewportWidth/4), Height: routeRegionHeight(layout.Regions.Sidebar, viewportHeight), Focused: m.focus == focusNav})
 		row = joinPanesHorizontal(sidebarPane, row)
 	}
 	if layout.InspectorVisible {
@@ -198,10 +229,11 @@ func (m shellModel) renderShellPanes(surface routeSurface, layout shellLayoutPla
 		if layout.Breakpoint == shellBreakpointWide {
 			inspectorTitle += fmt.Sprintf(" (%.0f%%)", clampPaneRatio(m.inspectorRatio)*100)
 		}
-		inspectorPane := renderShellPane(shellPaneSpec{Title: inspectorTitle, Body: strings.TrimSpace(surface.Regions.Inspector.Body), Width: routeRegionWidth(layout.Regions.Inspector, m.width/3), Height: routeRegionHeight(layout.Regions.Inspector, m.height), Focused: m.focus == focusInspector})
+		inspectorPane := renderShellPane(shellPaneSpec{Title: inspectorTitle, Body: strings.TrimSpace(surface.Regions.Inspector.Body), Width: routeRegionWidth(layout.Regions.Inspector, viewportWidth/3), Height: routeRegionHeight(layout.Regions.Inspector, viewportHeight), Focused: m.focus == focusInspector})
 		row = joinPanesHorizontal(row, inspectorPane)
 	}
-	return lipgloss.NewStyle().Width(nonNegativeDimension(m.width)).Render(row)
+	row = lipgloss.NewStyle().Width(viewportWidth).MaxWidth(viewportWidth).Render(row)
+	return constrainShellBlock(row, viewportWidth, paneFrameHeight)
 }
 
 func (m shellModel) renderSidebar() string {
@@ -280,7 +312,7 @@ func (m shellModel) renderStatusSurface(surface routeSurface) string {
 	if m.selectionMode {
 		selection = "selection=on"
 	}
-	return "Status: " + status + " | " + selection + " | clipboard=" + m.clipboard.IntegrationHint()
+	return "Status: " + status + " | " + selection + " | clipboard=" + sanitizeUIText(m.clipboard.IntegrationHint())
 }
 
 func (m shellModel) renderRouteCopyActions() string {

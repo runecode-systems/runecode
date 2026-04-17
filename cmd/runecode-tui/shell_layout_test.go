@@ -123,3 +123,33 @@ func TestShellLayoutPlannerClampsSecondaryPanesToViewportBudget(t *testing.T) {
 		t.Fatalf("expected main pane width >= minimum, got %d", plan.Regions.Main.Width)
 	}
 }
+
+func TestShellLayoutPlannerBudgetsMainHeightFromShellChrome(t *testing.T) {
+	m := newShellModel()
+	m.width = 120
+	m.height = 40
+
+	plan := m.planShellLayout(routeSurface{})
+	want := 40 - shellChromeReservedHeight()
+	if got := plan.Regions.Main.Height; got != want {
+		t.Fatalf("expected main height=%d from viewport-shell chrome budget, got %d", want, got)
+	}
+	if got := plan.Regions.Bottom.Height; got != shellBottomStripHeight {
+		t.Fatalf("expected bottom strip height=%d, got %d", shellBottomStripHeight, got)
+	}
+	if got := plan.Regions.Status.Height; got != shellStatusHeight {
+		t.Fatalf("expected status height=%d, got %d", shellStatusHeight, got)
+	}
+}
+
+func TestShellLayoutPlannerBudgetsModeTabsAsVerticalChrome(t *testing.T) {
+	m := newShellModel()
+	m.width = 120
+	m.height = 40
+
+	plan := m.planShellLayout(routeSurface{Actions: routeSurfaceActions{ModeTabs: []string{"rendered", "raw"}}})
+	want := 40 - shellChromeReservedHeight() - 1
+	if got := plan.Regions.Main.Height; got != want {
+		t.Fatalf("expected mode tabs to reserve one line and main height=%d, got %d", want, got)
+	}
+}

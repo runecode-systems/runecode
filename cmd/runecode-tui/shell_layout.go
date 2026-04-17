@@ -7,12 +7,34 @@ type shellLayoutPlan struct {
 	InspectorVisible  bool
 }
 
+const (
+	shellTopStatusHeight   = 4
+	shellSyncHealthHeight  = 1
+	shellBreadcrumbHeight  = 1
+	shellHistoryHeight     = 1
+	shellPaneSpacerHeight  = 1
+	shellBottomStripHeight = 5
+	shellStatusHeight      = 1
+	shellFooterHeight      = 3
+)
+
+func shellChromeReservedHeight() int {
+	return shellTopStatusHeight +
+		shellSyncHealthHeight +
+		shellBreadcrumbHeight +
+		shellHistoryHeight +
+		shellPaneSpacerHeight +
+		shellBottomStripHeight +
+		shellStatusHeight +
+		shellFooterHeight
+}
+
 func (m shellModel) planShellLayout(surface routeSurface) shellLayoutPlan {
 	viewportWidth, viewportHeight := normalizedShellViewport(m.width, m.height)
 	breakpoint := m.breakpoint()
 	navigationVisible := m.effectiveSidebarVisible()
 	inspectorVisible := m.shellInspectorVisible(surface, breakpoint)
-	regions := m.planShellRegions(viewportWidth, viewportHeight, breakpoint, navigationVisible, inspectorVisible)
+	regions := m.planShellRegions(viewportWidth, viewportHeight, breakpoint, navigationVisible, inspectorVisible, surfaceHasModeTabs(surface))
 	return shellLayoutPlan{
 		Breakpoint:        breakpoint,
 		NavigationVisible: navigationVisible,
@@ -33,7 +55,7 @@ func normalizedShellViewport(width, height int) (int, int) {
 	return viewportWidth, viewportHeight
 }
 
-func (m shellModel) planShellRegions(viewportWidth int, viewportHeight int, breakpoint shellBreakpoint, navigationVisible bool, inspectorVisible bool) routeShellRegions {
+func (m shellModel) planShellRegions(viewportWidth int, viewportHeight int, breakpoint shellBreakpoint, navigationVisible bool, inspectorVisible bool, modeTabsVisible bool) routeShellRegions {
 	mainMinWidth := minimumMainPaneWidth(breakpoint)
 	sidebarWidth, inspectorWidth := m.planSecondaryPaneWidths(viewportWidth, mainMinWidth, navigationVisible, inspectorVisible)
 	mainWidth := viewportWidth - sidebarWidth - inspectorWidth
@@ -44,15 +66,18 @@ func (m shellModel) planShellRegions(viewportWidth int, viewportHeight int, brea
 		mainWidth = viewportWidth
 	}
 
-	mainHeight := viewportHeight - 12
+	mainHeight := viewportHeight - shellChromeReservedHeight()
+	if modeTabsVisible {
+		mainHeight--
+	}
 	if mainHeight < 1 {
 		mainHeight = 1
 	}
 	regions := routeShellRegions{
 		Main:      routeRegionDimensions{Width: mainWidth, Height: mainHeight},
 		Inspector: routeRegionDimensions{Width: inspectorWidth, Height: mainHeight},
-		Bottom:    routeRegionDimensions{Width: viewportWidth, Height: 3},
-		Status:    routeRegionDimensions{Width: viewportWidth, Height: 1},
+		Bottom:    routeRegionDimensions{Width: viewportWidth, Height: shellBottomStripHeight},
+		Status:    routeRegionDimensions{Width: viewportWidth, Height: shellStatusHeight},
 		Sidebar:   routeRegionDimensions{Width: sidebarWidth, Height: mainHeight},
 	}
 	if !navigationVisible {
@@ -62,6 +87,15 @@ func (m shellModel) planShellRegions(viewportWidth int, viewportHeight int, brea
 		regions.Inspector = routeRegionDimensions{}
 	}
 	return regions
+}
+
+func surfaceHasModeTabs(surface routeSurface) bool {
+	for _, tab := range surface.Actions.ModeTabs {
+		if tab != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (m shellModel) planSecondaryPaneWidths(viewportWidth int, mainMinWidth int, navigationVisible bool, inspectorVisible bool) (int, int) {
