@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func (m shellModel) View() string {
@@ -11,16 +13,17 @@ func (m shellModel) View() string {
 	}
 
 	surface := m.activeShellSurface()
+	layout := m.planShellLayout(surface)
 	b := strings.Builder{}
-	m.writeShellFrame(&b, surface)
+	m.writeShellFrame(&b, surface, layout)
 	m.writeShellToast(&b)
-	m.writeShellOverlays(&b, surface)
+	m.writeShellOverlays(&b, surface, layout)
 	m.writeShellFooter(&b)
 	return b.String()
 }
 
-func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface) {
-	b.WriteString(m.renderTopStatus(surface))
+func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, layout shellLayoutPlan) {
+	b.WriteString(m.renderTopStatus(surface, layout))
 	b.WriteString("\n")
 	b.WriteString(m.renderSyncHealth())
 	b.WriteString("\n")
@@ -28,7 +31,7 @@ func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface) {
 	b.WriteString("\n")
 	b.WriteString(m.renderHistory())
 	b.WriteString("\n\n")
-	b.WriteString(m.renderShellPanes(surface))
+	b.WriteString(m.renderShellPanes(surface, layout))
 	b.WriteString("\n")
 	b.WriteString(m.renderBottomStrip(surface))
 	b.WriteString("\n")
@@ -44,11 +47,11 @@ func (m shellModel) writeShellToast(b *strings.Builder) {
 	}
 }
 
-func (m shellModel) writeShellOverlays(b *strings.Builder, surface routeSurface) {
+func (m shellModel) writeShellOverlays(b *strings.Builder, surface routeSurface, layout shellLayoutPlan) {
 	m.writePaletteOverlay(b)
 	m.writeSessionOverlay(b)
 	m.writeNarrowSidebarOverlay(b)
-	m.writeNarrowInspectorOverlay(b, surface)
+	m.writeNarrowInspectorOverlay(b, surface, layout)
 }
 
 func (m shellModel) writePaletteOverlay(b *strings.Builder) {
@@ -57,7 +60,7 @@ func (m shellModel) writePaletteOverlay(b *strings.Builder) {
 	}
 	b.WriteString(m.renderOverlayStack())
 	b.WriteString("\n")
-	b.WriteString(centeredOverlayBlock(overlayIDQuickJump, m.renderPalette()))
+	b.WriteString(centeredOverlayBlock(overlayIDQuickJump, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderPalette())))
 	b.WriteString("\n")
 }
 
@@ -67,7 +70,7 @@ func (m shellModel) writeSessionOverlay(b *strings.Builder) {
 	}
 	b.WriteString(m.renderOverlayStack())
 	b.WriteString("\n")
-	b.WriteString(centeredOverlayBlock(overlayIDSessions, m.renderSessionQuickSwitcher()))
+	b.WriteString(centeredOverlayBlock(overlayIDSessions, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderSessionQuickSwitcher())))
 	b.WriteString("\n")
 }
 
@@ -77,19 +80,26 @@ func (m shellModel) writeNarrowSidebarOverlay(b *strings.Builder) {
 	}
 	b.WriteString(m.renderOverlayStack())
 	b.WriteString("\n")
-	b.WriteString(centeredOverlayBlock(overlayIDSidebar, m.renderSidebar()))
+	b.WriteString(centeredOverlayBlock(overlayIDSidebar, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderSidebar())))
 	b.WriteString("\n")
 }
 
-func (m shellModel) writeNarrowInspectorOverlay(b *strings.Builder, surface routeSurface) {
+func (m shellModel) writeNarrowInspectorOverlay(b *strings.Builder, surface routeSurface, layout shellLayoutPlan) {
 	if !m.narrowInspectOn || m.breakpoint() != shellBreakpointNarrow {
 		return
 	}
 	inspector := strings.TrimSpace(surface.Regions.Inspector.Body)
-	if inspector != "" && m.inspectorOn {
+	if inspector != "" && routeInspectorAvailable(surface) && m.inspectorOn {
 		b.WriteString(m.renderOverlayStack())
 		b.WriteString("\n")
-		b.WriteString(centeredOverlayBlock(overlayIDInspector, inspector))
+		title := strings.TrimSpace(surface.Regions.Inspector.Title)
+		if title == "" {
+			title = "Inspector"
+		}
+		b.WriteString(centeredOverlayBlock(overlayIDInspector, compactLines("Return focus: "+m.overlayReturn.Label(), title, inspector)))
+		b.WriteString("\n")
+	} else if !layout.InspectorVisible && !routeInspectorAvailable(surface) {
+		b.WriteString(centeredOverlayBlock(overlayIDInspector, compactLines("Return focus: "+m.overlayReturn.Label(), "Inspector unavailable for current route.")))
 		b.WriteString("\n")
 	}
 	b.WriteString("\n")
@@ -104,7 +114,7 @@ func (m shellModel) writeShellFooter(b *strings.Builder) {
 	b.WriteString("\n")
 }
 
-func (m shellModel) renderTopStatus(surface routeSurface) string {
+func (m shellModel) renderTopStatus(surface routeSurface, layout shellLayoutPlan) string {
 	selection := "off"
 	mouseCapture := "on"
 	if m.selectionMode {
@@ -113,7 +123,8 @@ func (m shellModel) renderTopStatus(surface routeSurface) string {
 	}
 	return compactLines(
 		appTheme.AppTitle.Render("Runecode TUI α shell")+" "+neutralBadge("THEME "+string(m.themePreset)),
-		fmt.Sprintf("Top status | route=%s breakpoint=%s focus=%s sidebar=%t inspector=%t overlays=%d active_session=%s selection=%s mouse_capture=%s activity=%s %s", m.routeLabel(m.currentRouteID()), m.breakpoint(), m.focus.Label(), m.effectiveSidebarVisible(), m.shouldShowInspector(surface), len(m.overlays), defaultPlaceholder(m.activeSessionID, "none"), selection, mouseCapture, renderShellActivityState(m.watch.projection.Activity.State), m.renderRunningIndicator()),
+		fmt.Sprintf("Top status | route=%s breakpoint=%s focus=%s sidebar=%t inspector=%t overlays=%d active_session=%s selection=%s mouse_capture=%s activity=%s %s", m.routeLabel(m.currentRouteID()), layout.Breakpoint, m.focus.Label(), layout.NavigationVisible, layout.InspectorVisible, len(m.overlays), defaultPlaceholder(m.activeSessionID, "none"), selection, mouseCapture, renderShellActivityState(m.watch.projection.Activity.State), m.renderRunningIndicator()),
+		fmt.Sprintf("Route caps | inspector_supported=%t inspector_enabled=%t", surface.Capabilities.Inspector.Supported, surface.Capabilities.Inspector.Enabled),
 		fmt.Sprintf("Layout(wide): sidebar=%.0f%% inspector=%.0f%% collapsed=(sidebar:%t inspector:%t)", clampPaneRatio(m.sidebarRatio)*100, clampPaneRatio(m.inspectorRatio)*100, m.sidebarFolded, m.inspectorFolded),
 	)
 }
@@ -157,40 +168,40 @@ func (m shellModel) renderHistory() string {
 	return muted("History: " + strings.Join(items, " <- "))
 }
 
-func (m shellModel) renderShellPanes(surface routeSurface) string {
-	mainTitle := strings.TrimSpace(surface.Regions.Main.Title)
-	mainHeader := "Main pane"
-	if mainTitle != "" {
-		mainHeader += " — " + mainTitle
-	}
-	if m.breakpoint() == shellBreakpointWide {
-		mainHeader += fmt.Sprintf(" (%.0f%%)", (1.0-clampPaneRatio(m.sidebarRatio)-clampPaneRatio(m.inspectorRatio))*100)
+func (m shellModel) renderShellPanes(surface routeSurface, layout shellLayoutPlan) string {
+	mainTitle := "Main pane"
+	if title := strings.TrimSpace(surface.Regions.Main.Title); title != "" {
+		mainTitle += " — " + title
 	}
 	if activity := strings.TrimSpace(m.renderPaneActivityMarker()); activity != "" {
-		mainHeader += " " + activity
+		mainTitle += " " + activity
 	}
-	parts := []string{framedPaneBlock(mainHeader, strings.TrimSpace(surface.Regions.Main.Body), m.focus == focusContent)}
+	mainPane := renderShellPane(shellPaneSpec{Title: mainTitle, Body: strings.TrimSpace(surface.Regions.Main.Body), Width: routeRegionWidth(layout.Regions.Main, m.width), Height: routeRegionHeight(layout.Regions.Main, m.height), Focused: m.focus == focusContent})
+	center := mainPane
 	if modes := renderModeSwitchTabs(surface.Actions.ModeTabs, surface.Actions.ActiveTab); strings.TrimSpace(modes) != "" {
-		parts = append(parts, modes)
+		center = joinPanesVertical(mainPane, modes)
 	}
-	if m.effectiveSidebarVisible() {
+	row := center
+	if layout.NavigationVisible {
 		sidebarTitle := "Sidebar"
-		if m.breakpoint() == shellBreakpointWide {
+		if layout.Breakpoint == shellBreakpointWide {
 			sidebarTitle += fmt.Sprintf(" (%.0f%%)", clampPaneRatio(m.sidebarRatio)*100)
 		}
-		parts = append([]string{framedPaneBlock(sidebarTitle, m.renderSidebar(), m.focus == focusNav)}, parts...)
+		sidebarPane := renderShellPane(shellPaneSpec{Title: sidebarTitle, Body: m.renderSidebar(), Width: routeRegionWidth(layout.Regions.Sidebar, m.width/4), Height: routeRegionHeight(layout.Regions.Sidebar, m.height), Focused: m.focus == focusNav})
+		row = joinPanesHorizontal(sidebarPane, row)
 	}
-	if m.shouldShowInspector(surface) {
+	if layout.InspectorVisible {
 		inspectorTitle := strings.TrimSpace(surface.Regions.Inspector.Title)
 		if inspectorTitle == "" {
 			inspectorTitle = "Inspector pane"
 		}
-		if m.breakpoint() == shellBreakpointWide {
+		if layout.Breakpoint == shellBreakpointWide {
 			inspectorTitle += fmt.Sprintf(" (%.0f%%)", clampPaneRatio(m.inspectorRatio)*100)
 		}
-		parts = append(parts, framedPaneBlock(inspectorTitle, strings.TrimSpace(surface.Regions.Inspector.Body), false))
+		inspectorPane := renderShellPane(shellPaneSpec{Title: inspectorTitle, Body: strings.TrimSpace(surface.Regions.Inspector.Body), Width: routeRegionWidth(layout.Regions.Inspector, m.width/3), Height: routeRegionHeight(layout.Regions.Inspector, m.height), Focused: m.focus == focusInspector})
+		row = joinPanesHorizontal(row, inspectorPane)
 	}
-	return compactLines(parts...)
+	return lipgloss.NewStyle().Width(nonNegativeDimension(m.width)).Render(row)
 }
 
 func (m shellModel) renderSidebar() string {

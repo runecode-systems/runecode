@@ -11,10 +11,15 @@ import (
 const (
 	shellMediumMinWidth = 90
 	shellWideMinWidth   = 130
-	overlayIDQuickJump  = "quick-jump"
-	overlayIDSessions   = "session-switcher"
-	overlayIDSidebar    = "sidebar-drawer"
-	overlayIDInspector  = "inspector-sheet"
+)
+
+type shellOverlayID string
+
+const (
+	overlayIDQuickJump shellOverlayID = "quick-jump"
+	overlayIDSessions  shellOverlayID = "session-switcher"
+	overlayIDSidebar   shellOverlayID = "sidebar-drawer"
+	overlayIDInspector shellOverlayID = "inspector-sheet"
 )
 
 type focusArea int
@@ -22,6 +27,7 @@ type focusArea int
 const (
 	focusNav focusArea = iota
 	focusContent
+	focusInspector
 	focusPalette
 )
 
@@ -31,6 +37,8 @@ func (f focusArea) Label() string {
 		return "sidebar"
 	case focusContent:
 		return "main"
+	case focusInspector:
+		return "inspector"
 	case focusPalette:
 		return "overlay"
 	default:
@@ -79,7 +87,8 @@ type shellModel struct {
 	inspectorFolded bool
 	narrowSidebarOn bool
 	narrowInspectOn bool
-	overlays        []string
+	overlays        []shellOverlayID
+	overlayReturn   focusArea
 
 	sessionItems     []brokerapi.SessionSummary
 	sessionSelected  int
@@ -146,6 +155,7 @@ func newShellModel() shellModel {
 		viewedActivity:   map[string]string{},
 		watch:            newShellWatchManager(),
 		objectIndex:      newShellDiscoverabilityIndex(routes, commands.List()),
+		overlayReturn:    focusContent,
 	}
 	m.restoreWorkbenchState()
 	return m
@@ -180,8 +190,10 @@ func (m shellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m shellModel) activateCurrentRouteCmd() tea.Cmd {
 	active := m.currentRouteID()
 	activeSessionID := m.activeSessionID
+	inspectorVisible := m.inspectorOn
+	preferredMode := normalizePresentationMode(m.preferredMode)
 	return func() tea.Msg {
-		return routeActivatedMsg{RouteID: active, ActiveSessionID: activeSessionID}
+		return routeActivatedMsg{RouteID: active, ActiveSessionID: activeSessionID, InspectorVisible: inspectorVisible, InspectorSet: true, PreferredMode: preferredMode}
 	}
 }
 
@@ -195,6 +207,16 @@ func (m shellModel) updateActiveRoute(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m *shellModel) publishShellPreferencesToCurrentRoute() {
+	activeID := m.currentRouteID()
+	active := m.routeModels[activeID]
+	if active == nil {
+		return
+	}
+	updated, _ := active.Update(routeShellPreferencesMsg{RouteID: activeID, InspectorVisible: m.inspectorOn, PreferredMode: normalizePresentationMode(m.preferredMode)})
+	m.routeModels[activeID] = updated
+}
+
 func (m shellModel) activeShellSurface() routeSurface {
 	active := m.routeModels[m.currentRouteID()]
 	if active == nil {
@@ -202,11 +224,17 @@ func (m shellModel) activeShellSurface() routeSurface {
 			Regions: routeSurfaceRegions{
 				Main: routeSurfaceRegion{Body: "Route not available"},
 			},
-			Chrome: routeSurfaceChrome{Breadcrumbs: []string{"Home", string(m.currentRouteID())}},
+			Capabilities: routeSurfaceCapabilities{},
+			Chrome:       routeSurfaceChrome{Breadcrumbs: []string{"Home", string(m.currentRouteID())}},
 		}
 	}
-	ctx := routeShellContext{Width: m.width, Height: m.height, Focus: m.focus, Focused: m.focusedRouteRegion(), Breakpoint: m.breakpoint()}
-	surface := active.ShellSurface(ctx)
+	baseCtx := routeShellContext{Width: m.width, Height: m.height, Focus: m.focus, Focused: m.focusedRouteRegion(), Breakpoint: m.breakpoint(), Render: routeShellRenderPreferences{PreferredPresentation: normalizePresentationMode(m.preferredMode), ThemePreset: normalizeThemePreset(m.themePreset)}}
+	surface := active.ShellSurface(baseCtx)
+	layout := m.planShellLayout(surface)
+	ctx := baseCtx
+	ctx.Regions = layout.Regions
+	ctx.Breakpoint = layout.Breakpoint
+	surface = active.ShellSurface(ctx)
 	return m.withLocationChrome(surface)
 }
 
@@ -214,7 +242,10 @@ func (m shellModel) focusedRouteRegion() routeRegionFocus {
 	if m.palette.IsOpen() || m.sessions.IsOpen() {
 		return routeRegionOverlay
 	}
-	if m.focus == focusContent {
+	if m.narrowInspectOn {
+		return routeRegionInspector
+	}
+	if m.focus == focusInspector {
 		return routeRegionInspector
 	}
 	return routeRegionMain
@@ -255,13 +286,7 @@ func (m shellModel) navigationSurfaceVisible() bool {
 }
 
 func (m shellModel) shouldShowInspector(surface routeSurface) bool {
-	if strings.TrimSpace(surface.Regions.Inspector.Body) == "" {
-		return false
-	}
-	if !m.inspectorOn || m.inspectorFolded {
-		return false
-	}
-	return m.breakpoint() == shellBreakpointWide
+	return m.planShellLayout(surface).InspectorVisible
 }
 
 func (m shellModel) isTextEntryActive() bool {

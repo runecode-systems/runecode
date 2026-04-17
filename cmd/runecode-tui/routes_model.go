@@ -16,8 +16,11 @@ type routeModel interface {
 }
 
 type routeActivatedMsg struct {
-	RouteID         routeID
-	ActiveSessionID string
+	RouteID          routeID
+	ActiveSessionID  string
+	InspectorVisible bool
+	InspectorSet     bool
+	PreferredMode    contentPresentationMode
 }
 
 type routeViewportScrollMsg struct {
@@ -28,6 +31,12 @@ type routeViewportScrollMsg struct {
 type routeViewportResizeMsg struct {
 	Width  int
 	Height int
+}
+
+type routeShellPreferencesMsg struct {
+	RouteID          routeID
+	InspectorVisible bool
+	PreferredMode    contentPresentationMode
 }
 
 type routeErrorModel struct {
@@ -62,11 +71,14 @@ func (m routeErrorModel) View(width, height int, focus focusArea) string {
 }
 
 func (m routeErrorModel) ShellSurface(ctx routeShellContext) routeSurface {
+	mainWidth := routeRegionWidth(ctx.Regions.Main, ctx.Width)
+	mainHeight := routeRegionHeight(ctx.Regions.Main, ctx.Height)
 	return routeSurface{
 		Regions: routeSurfaceRegions{
-			Main: routeSurfaceRegion{Body: m.View(ctx.Width, ctx.Height, ctx.Focus)},
+			Main: routeSurfaceRegion{Body: m.View(mainWidth, mainHeight, ctx.Focus)},
 		},
-		Chrome: routeSurfaceChrome{Breadcrumbs: []string{"Home", m.def.Label}},
+		Capabilities: routeSurfaceCapabilities{},
+		Chrome:       routeSurfaceChrome{Breadcrumbs: []string{"Home", m.def.Label}},
 	}
 }
 

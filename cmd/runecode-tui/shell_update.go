@@ -105,16 +105,15 @@ func (m shellModel) handleWindowSize(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	if prev != shellBreakpointNarrow && m.breakpoint() == shellBreakpointNarrow {
 		m.narrowSidebarOn = false
 		m.narrowInspectOn = false
+		m.restoreFocusAfterOverlayClose()
 	}
 	if prev == shellBreakpointNarrow && m.breakpoint() != shellBreakpointNarrow {
 		m.narrowSidebarOn = false
 		m.narrowInspectOn = false
-	}
-	if !m.navigationSurfaceVisible() && m.focus == focusNav {
-		m.focusManager.Set(focusContent)
-		m.focus = m.focusManager.Current()
+		m.restoreFocusAfterOverlayClose()
 	}
 	m.syncOverlayStack()
+	m.normalizeFocusForLayout()
 	updated, cmd := m.updateActiveRoute(routeViewportResizeMsg{Width: m.width, Height: m.height})
 	return updated, cmd, true
 }
@@ -147,13 +146,13 @@ func (m shellModel) handleSessionQuickSwitchMessage(msg tea.Msg) (tea.Model, tea
 	case m.keys.SessionQuickSwitchClose.matches(key):
 		m.sessions = m.sessions.Close()
 		m.syncOverlayStack()
-		m.resetFocusAfterPaletteClose()
+		m.restoreFocusAfterOverlayClose()
 		return m, nil, true
 	case m.keys.SessionQuickSwitchPick.matches(key):
 		sid := strings.TrimSpace(m.sessions.SelectedSessionID())
 		m.sessions = m.sessions.Close()
 		m.syncOverlayStack()
-		m.resetFocusAfterPaletteClose()
+		m.restoreFocusAfterOverlayClose()
 		if sid == "" {
 			return m, nil, true
 		}
@@ -180,7 +179,7 @@ func (m shellModel) handlePaletteMouse(mouse tea.MouseMsg) (tea.Model, tea.Cmd, 
 	updatedPalette, routeMsg, changed := m.palette.UpdateMouse(mouse, m.paletteStartY(), 0)
 	m.palette = updatedPalette
 	m.syncOverlayStack()
-	m.resetFocusAfterPaletteClose()
+	m.restoreFocusAfterOverlayClose()
 	if changed {
 		return m, func() tea.Msg { return routeMsg }, true
 	}
@@ -191,7 +190,7 @@ func (m shellModel) handlePaletteKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) 
 	updatedPalette, routeMsg, changed := m.palette.Update(key, m.keys)
 	m.palette = updatedPalette
 	m.syncOverlayStack()
-	m.resetFocusAfterPaletteClose()
+	m.restoreFocusAfterOverlayClose()
 	if changed {
 		return m, func() tea.Msg { return routeMsg }, true
 	}
@@ -199,7 +198,7 @@ func (m shellModel) handlePaletteKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) 
 }
 
 func (m *shellModel) syncOverlayStack() {
-	ids := make([]string, 0, 4)
+	ids := make([]shellOverlayID, 0, 4)
 	if m.palette.IsOpen() {
 		ids = append(ids, overlayIDQuickJump)
 	}
@@ -220,15 +219,4 @@ func (m *shellModel) syncOverlayStack() {
 		return
 	}
 	m.overlays = m.overlayManager.Stack()
-}
-
-func (m *shellModel) resetFocusAfterPaletteClose() {
-	if !m.palette.IsOpen() && !m.sessions.IsOpen() && m.focus == focusPalette {
-		if m.navigationSurfaceVisible() {
-			m.focusManager.Set(focusNav)
-		} else {
-			m.focusManager.Set(focusContent)
-		}
-		m.focus = m.focusManager.Current()
-	}
 }

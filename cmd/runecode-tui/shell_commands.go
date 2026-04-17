@@ -9,8 +9,7 @@ func defaultShellCommandRegistry() shellCommandRegistry {
 		m.toasts.Push(toastInfo, "Sidebar visibility toggled from command registry.")
 	}})
 	r.Register(shellCommand{ID: "shell.focus_main", Title: "Focus Main Pane", Description: "Move focus to main content", Run: func(m *shellModel) {
-		m.focusManager.Set(focusContent)
-		m.focus = m.focusManager.Current()
+		m.setFocus(focusContent)
 	}})
 	r.Register(shellCommand{ID: "shell.toggle_inspector", Title: "Toggle Inspector Pane", Description: "Toggle route inspector visibility", Run: func(m *shellModel) {
 		m.toggleActiveInspector()

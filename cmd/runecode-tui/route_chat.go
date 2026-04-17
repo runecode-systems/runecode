@@ -58,13 +58,7 @@ func (m chatRouteModel) Title() string { return m.def.Label }
 func (m chatRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 	switch typed := msg.(type) {
 	case routeActivatedMsg:
-		if typed.RouteID != m.def.ID {
-			return m, nil
-		}
-		if strings.TrimSpace(typed.ActiveSessionID) != "" {
-			m.activeID = strings.TrimSpace(typed.ActiveSessionID)
-		}
-		return m.reload()
+		return m.handleRouteActivated(typed)
 	case tea.KeyMsg:
 		return m.handleKey(typed)
 	case chatLoadedMsg:
@@ -72,72 +66,16 @@ func (m chatRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 	case chatMessageSentMsg:
 		return m.applySent(typed)
 	case chatSelectSessionMsg:
-		if strings.TrimSpace(typed.SessionID) == "" {
-			return m, nil
-		}
-		m.statusText = ""
-		m.loading = true
-		m.errText = ""
-		m.loadSeq++
-		return m, m.loadCmd(strings.TrimSpace(typed.SessionID), m.loadSeq)
+		return m.handleSessionSelect(typed)
 	case routeViewportScrollMsg:
-		if typed.Region == routeRegionInspector {
-			m.detailDoc.Scroll(typed.Delta)
-		}
-		return m, nil
+		return m.handleViewportScroll(typed)
 	case routeViewportResizeMsg:
-		width, height := longFormViewportSizeForShell(typed.Width, typed.Height)
-		m.detailDoc.Resize(width, height)
-		return m, nil
+		return m.handleViewportResize(typed)
+	case routeShellPreferencesMsg:
+		return m.handleShellPreferences(typed)
 	default:
 		return m, nil
 	}
-}
-
-func (m chatRouteModel) applyLoaded(typed chatLoadedMsg) (routeModel, tea.Cmd) {
-	if typed.seq != m.loadSeq {
-		return m, nil
-	}
-	m.loading = false
-	if typed.err != nil {
-		m.errText = safeUIErrorText(typed.err)
-		m.statusText = ""
-		return m, nil
-	}
-	m.errText = ""
-	m.statusText = ""
-	m.sessions = typed.sessions
-	m.selected = selectedSessionIndex(m.sessions, typed.activeSessionID)
-	m.activeID = typed.activeSessionID
-	m.active = typed.detail
-	m.syncDetailDocument()
-	return m, nil
-}
-
-func (m chatRouteModel) applySent(typed chatMessageSentMsg) (routeModel, tea.Cmd) {
-	m.sending = false
-	if typed.err != nil {
-		m.errText = safeUIErrorText(typed.err)
-		return m, nil
-	}
-	m.errText = ""
-	m.statusText = "Message appended to canonical transcript."
-	m.draft = ""
-	m.composer.SetValue("")
-	m.composer.Blur()
-	m.composeOn = false
-	if typed.ack != nil {
-		m.activeID = typed.ack.SessionID
-	}
-	if typed.detail != nil {
-		m.active = typed.detail
-	}
-	if typed.sessions != nil {
-		m.sessions = typed.sessions
-		m.selected = selectedSessionIndex(m.sessions, m.activeID)
-	}
-	m.syncDetailDocument()
-	return m, nil
 }
 
 func (m chatRouteModel) View(width, height int, focus focusArea) string {
@@ -173,6 +111,8 @@ func (m chatRouteModel) View(width, height int, focus focusArea) string {
 }
 
 func (m chatRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
+	mainWidth := routeRegionWidth(ctx.Regions.Main, ctx.Width)
+	mainHeight := routeRegionHeight(ctx.Regions.Main, ctx.Height)
 	breadcrumbs := []string{"Home", m.def.Label}
 	if strings.TrimSpace(m.activeID) != "" {
 		breadcrumbs = append(breadcrumbs, m.activeID)
@@ -187,12 +127,13 @@ func (m chatRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 	}
 	return routeSurface{
 		Regions: routeSurfaceRegions{
-			Main:      routeSurfaceRegion{Title: "Chat workspace", Body: m.View(ctx.Width, ctx.Height, ctx.Focus)},
+			Main:      routeSurfaceRegion{Title: "Chat workspace", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
 			Inspector: routeSurfaceRegion{Title: "Session inspector", Body: inspector},
 			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, i toggle inspector, c compose, ctrl+enter send, enter newline, v cycle rendered/raw/structured, r reload")},
 			Status:    routeSurfaceRegion{Body: status},
 		},
-		Chrome: routeSurfaceChrome{Breadcrumbs: breadcrumbs},
+		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
+		Chrome:       routeSurfaceChrome{Breadcrumbs: breadcrumbs},
 		Actions: routeSurfaceActions{
 			ModeTabs:         []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
 			ActiveTab:        string(normalizePresentationMode(m.presentation)),
@@ -327,80 +268,4 @@ func (m chatRouteModel) handleComposeKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 	m.composer.BubbleUpdate(key)
 	m.draft = m.composer.Value()
 	return m, nil
-}
-
-func (m chatRouteModel) reload() (routeModel, tea.Cmd) {
-	m.loading = true
-	m.errText = ""
-	m.statusText = ""
-	m.loadSeq++
-	return m, m.loadCmd(m.activeID, m.loadSeq)
-}
-
-func (m *chatRouteModel) syncDetailDocument() {
-	if m.active == nil {
-		m.detailDoc.SetDocument(workbenchObjectRef{Kind: "session", ID: "none"}, inspectorContentTranscript, "transcript", "")
-		return
-	}
-	presentation := normalizePresentationMode(m.presentation)
-	transcript := renderTranscriptTurns(m.active.TranscriptTurns)
-	kind := inspectorContentTranscript
-	if presentation == presentationRaw {
-		transcript = renderTranscriptRaw(m.active.TranscriptTurns)
-		kind = inspectorContentRaw
-	}
-	if presentation == presentationStructured {
-		transcript = renderTranscriptStructured(m.active.TranscriptTurns)
-		kind = inspectorContentStructured
-	}
-	summary := m.active.Summary
-	ref := workbenchObjectRef{Kind: "session", ID: strings.TrimSpace(summary.Identity.SessionID), WorkspaceID: strings.TrimSpace(summary.Identity.WorkspaceID), SessionID: strings.TrimSpace(summary.Identity.SessionID)}
-	m.detailDoc.SetDocument(ref, kind, "transcript", transcript)
-}
-
-func (m chatRouteModel) loadCmd(preferredSessionID string, seq uint64) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := withLoadTimeout()
-		defer cancel()
-		listResp, err := m.client.SessionList(ctx, 20)
-		if err != nil {
-			return chatLoadedMsg{err: err, seq: seq}
-		}
-		target := preferredSessionID
-		if target == "" && len(listResp.Sessions) > 0 {
-			target = listResp.Sessions[0].Identity.SessionID
-		}
-		if target == "" {
-			return chatLoadedMsg{sessions: listResp.Sessions, activeSessionID: "", seq: seq}
-		}
-		getResp, err := m.client.SessionGet(ctx, target)
-		if err != nil {
-			return chatLoadedMsg{err: err, seq: seq}
-		}
-		return chatLoadedMsg{sessions: listResp.Sessions, detail: &getResp.Session, activeSessionID: target, seq: seq}
-	}
-}
-
-func (m chatRouteModel) sendCmd(sessionID, content string) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := withLoadTimeout()
-		defer cancel()
-		sendResp, err := m.client.SessionSendMessage(ctx, brokerapi.SessionSendMessageRequest{
-			SessionID:   sessionID,
-			Role:        "user",
-			ContentText: content,
-		})
-		if err != nil {
-			return chatMessageSentMsg{err: err}
-		}
-		getResp, err := m.client.SessionGet(ctx, sessionID)
-		if err != nil {
-			return chatMessageSentMsg{err: err}
-		}
-		listResp, err := m.client.SessionList(ctx, 20)
-		if err != nil {
-			return chatMessageSentMsg{err: err}
-		}
-		return chatMessageSentMsg{sessions: listResp.Sessions, detail: &getResp.Session, ack: &sendResp}
-	}
 }

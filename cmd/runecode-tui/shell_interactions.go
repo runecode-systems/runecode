@@ -31,8 +31,7 @@ func (m shellModel) handleMouseLeftClick(mouse tea.MouseMsg) (tea.Model, tea.Cmd
 			return updated, cmd, true
 		}
 	}
-	m.focus = focusContent
-	m.focusManager.Set(focusContent)
+	m.setFocus(focusContent)
 	return m, nil, true
 }
 
@@ -47,8 +46,7 @@ func (m shellModel) handleMouseWheel(mouse tea.MouseMsg) (tea.Model, tea.Cmd, bo
 	case tea.MouseButtonWheelDown:
 		delta = 1
 	}
-	m.focusManager.Set(focusContent)
-	m.focus = m.focusManager.Current()
+	m.setFocus(focusContent)
 	updated, cmd := m.updateActiveRoute(routeViewportScrollMsg{Region: m.focusedRouteRegion(), Delta: delta})
 	return updated, cmd, true
 }

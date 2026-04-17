@@ -83,6 +83,9 @@ func (m actionCenterRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		if typed.RouteID != m.def.ID {
 			return m, nil
 		}
+		if typed.InspectorSet {
+			m.inspectorOn = typed.InspectorVisible
+		}
 		m.loading = true
 		m.errText = ""
 		m.statusText = ""
@@ -90,6 +93,12 @@ func (m actionCenterRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		return m, m.loadCmd(m.loadSeq)
 	case tea.KeyMsg:
 		return m.handleKey(typed)
+	case routeShellPreferencesMsg:
+		if typed.RouteID != m.def.ID {
+			return m, nil
+		}
+		m.inspectorOn = typed.InspectorVisible
+		return m, nil
 	case actionCenterLoadedMsg:
 		if typed.seq != m.loadSeq {
 			return m, nil
@@ -139,6 +148,8 @@ func (m actionCenterRouteModel) View(width, height int, focus focusArea) string 
 }
 
 func (m actionCenterRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
+	mainWidth := routeRegionWidth(ctx.Regions.Main, ctx.Width)
+	mainHeight := routeRegionHeight(ctx.Regions.Main, ctx.Height)
 	status := strings.TrimSpace(m.statusText)
 	if status == "" && strings.TrimSpace(m.errText) != "" {
 		status = "Load failed: " + strings.TrimSpace(m.errText)
@@ -152,12 +163,13 @@ func (m actionCenterRouteModel) ShellSurface(ctx routeShellContext) routeSurface
 	}
 	return routeSurface{
 		Regions: routeSurfaceRegions{
-			Main:      routeSurfaceRegion{Title: "Action Center", Body: m.View(ctx.Width, ctx.Height, ctx.Focus)},
+			Main:      routeSurfaceRegion{Title: "Action Center", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
 			Inspector: routeSurfaceRegion{Title: "Action Center inspector", Body: inspector},
 			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: [/] change family, j/k move, enter drill-down, i toggle inspector, r reload")},
 			Status:    routeSurfaceRegion{Body: status},
 		},
-		Chrome: routeSurfaceChrome{Breadcrumbs: []string{"Home", m.def.Label}},
+		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
+		Chrome:       routeSurfaceChrome{Breadcrumbs: []string{"Home", m.def.Label}},
 	}
 }
 

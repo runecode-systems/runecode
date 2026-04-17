@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
@@ -111,5 +112,103 @@ func TestShellRestoreInvalidPersistedRouteFallsBackToChat(t *testing.T) {
 
 	if m.currentRouteID() != routeChat {
 		t.Fatalf("expected invalid restored route to fall back to chat, got %q", m.currentRouteID())
+	}
+}
+
+func TestShellRestoredPaneRatiosDriveCompositorGeometry(t *testing.T) {
+	store := &memoryWorkbenchStateStore{}
+	scope := "broker_local_api:test-layout-geometry"
+	store.Write(scope, workbenchLocalState{
+		SidebarVisible:     true,
+		InspectorVisible:   true,
+		InspectorMode:      presentationStructured,
+		LastRouteID:        routeRuns,
+		SidebarPaneRatio:   0.35,
+		InspectorPaneRatio: 0.25,
+		SidebarCollapsed:   false,
+		InspectorCollapsed: false,
+	})
+
+	m := newShellModel()
+	m.workbench = store
+	m.workbenchScope = scope
+	m.restoreWorkbenchState()
+	m.width = 200
+	m.height = 50
+
+	surface := m.activeShellSurface()
+	layout := m.planShellLayout(surface)
+	if !layout.NavigationVisible || !layout.InspectorVisible {
+		t.Fatalf("expected sidebar+inspector visible, got sidebar=%t inspector=%t", layout.NavigationVisible, layout.InspectorVisible)
+	}
+	secondaryBudget := 200 - minimumMainPaneWidth(layout.Breakpoint)
+	wantSidebar := paneWidthForRatio(secondaryBudget, 0.35, 20, secondaryBudget)
+	remainingBudget := secondaryBudget - wantSidebar
+	if remainingBudget < 0 {
+		remainingBudget = 0
+	}
+	wantInspector := paneWidthForRatio(remainingBudget, 0.25, 24, remainingBudget)
+	if got := layout.Regions.Sidebar.Width; got != wantSidebar {
+		t.Fatalf("expected sidebar width %d from persisted ratio, got %d", wantSidebar, got)
+	}
+	if got := layout.Regions.Inspector.Width; got != wantInspector {
+		t.Fatalf("expected inspector width %d from persisted ratio, got %d", wantInspector, got)
+	}
+	wantMain := 200 - wantSidebar - wantInspector
+	if got := layout.Regions.Main.Width; got != wantMain {
+		t.Fatalf("expected main width %d after pane allocation, got %d", wantMain, got)
+	}
+}
+
+func TestShellRestoredCollapsedPanesAffectRenderedLayout(t *testing.T) {
+	store := &memoryWorkbenchStateStore{}
+	scope := "broker_local_api:test-layout-collapse"
+	store.Write(scope, workbenchLocalState{
+		SidebarVisible:     true,
+		InspectorVisible:   true,
+		LastRouteID:        routeRuns,
+		SidebarPaneRatio:   0.30,
+		InspectorPaneRatio: 0.30,
+		SidebarCollapsed:   true,
+		InspectorCollapsed: true,
+	})
+
+	m := newShellModel()
+	m.workbench = store
+	m.workbenchScope = scope
+	m.restoreWorkbenchState()
+	m.width = 180
+	m.height = 44
+
+	surface := m.activeShellSurface()
+	layout := m.planShellLayout(surface)
+	if layout.NavigationVisible {
+		t.Fatal("expected sidebar hidden by restored collapsed state")
+	}
+	if layout.InspectorVisible {
+		t.Fatal("expected inspector hidden by restored collapsed state")
+	}
+	v := m.View()
+	if contains := "Sidebar ("; hasSubstring(v, contains) {
+		t.Fatalf("expected collapsed sidebar not rendered, still found %q", contains)
+	}
+	if contains := "Inspector pane"; hasSubstring(v, contains) {
+		t.Fatalf("expected collapsed inspector not rendered, still found %q", contains)
+	}
+}
+
+func hasSubstring(text string, want string) bool {
+	return strings.Contains(text, want)
+}
+
+func TestShellCaptureInspectorVisibilityIgnoresRoutesWithoutInspectorSupport(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	m.inspectorOn = true
+	m.location.Primary = shellObjectLocation{RouteID: routeDashboard, Object: workbenchObjectRef{Kind: "route", ID: string(routeDashboard)}}
+
+	m.captureInspectorVisibilityFromActiveRoute()
+	if !m.inspectorOn {
+		t.Fatal("expected global inspector preference unchanged for route without inspector support")
 	}
 }

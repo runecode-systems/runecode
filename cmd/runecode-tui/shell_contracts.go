@@ -16,6 +16,26 @@ type routeShellContext struct {
 	Focus      focusArea
 	Focused    routeRegionFocus
 	Breakpoint shellBreakpoint
+	Regions    routeShellRegions
+	Render     routeShellRenderPreferences
+}
+
+type routeShellRenderPreferences struct {
+	PreferredPresentation contentPresentationMode
+	ThemePreset           themePreset
+}
+
+type routeShellRegions struct {
+	Main      routeRegionDimensions
+	Inspector routeRegionDimensions
+	Bottom    routeRegionDimensions
+	Status    routeRegionDimensions
+	Sidebar   routeRegionDimensions
+}
+
+type routeRegionDimensions struct {
+	Width  int
+	Height int
 }
 
 type routeRegionFocus string
@@ -33,9 +53,19 @@ type routeCopyAction struct {
 }
 
 type routeSurface struct {
-	Regions routeSurfaceRegions
-	Chrome  routeSurfaceChrome
-	Actions routeSurfaceActions
+	Regions      routeSurfaceRegions
+	Chrome       routeSurfaceChrome
+	Actions      routeSurfaceActions
+	Capabilities routeSurfaceCapabilities
+}
+
+type routeSurfaceCapabilities struct {
+	Inspector routeInspectorCapability
+}
+
+type routeInspectorCapability struct {
+	Supported bool
+	Enabled   bool
 }
 
 type routeSurfaceRegions struct {
@@ -98,4 +128,18 @@ func combineLegacyRouteView(surface routeSurface) string {
 		parts = append(parts, "Status: "+strings.TrimSpace(surface.Regions.Status.Body))
 	}
 	return compactLines(parts...)
+}
+
+func routeRegionWidth(region routeRegionDimensions, fallback int) int {
+	if region.Width > 0 {
+		return region.Width
+	}
+	return fallback
+}
+
+func routeRegionHeight(region routeRegionDimensions, fallback int) int {
+	if region.Height > 0 {
+		return region.Height
+	}
+	return fallback
 }

@@ -37,8 +37,7 @@ func (m *shellModel) restoreWorkbenchState() {
 	m.restoreWorkbenchRouteAndTheme(state)
 	m.restoreWorkbenchSessionState(state)
 	m.restoreWorkbenchRecentState(state)
-	m.applyInspectorVisibilityToRoutes()
-	m.applyPreferredPresentationToRoutes()
+	m.publishShellPreferencesToCurrentRoute()
 	m.refreshObjectIndexFromShellState()
 }
 
@@ -124,91 +123,6 @@ func (m *shellModel) restoreWorkbenchRecentState(state workbenchLocalState) {
 	m.recentObjects = append([]workbenchObjectRef(nil), state.RecentObjects...)
 	m.lastSessionByWS = cloneSessionMap(state.LastSessionByWS)
 	m.viewedActivity = cloneViewedActivity(state.ViewedActivity)
-}
-
-func (m *shellModel) capturePreferredPresentationFromActiveSurface() {
-	surface := m.activeShellSurface()
-	mode := normalizePresentationMode(contentPresentationMode(strings.TrimSpace(surface.Actions.ActiveTab)))
-	if mode == "" {
-		mode = presentationRendered
-	}
-	if mode == m.preferredMode {
-		return
-	}
-	m.preferredMode = mode
-	m.applyPreferredPresentationToRoutes()
-	m.persistWorkbenchState()
-}
-
-func (m *shellModel) captureInspectorVisibilityFromActiveRoute() {
-	before := m.inspectorOn
-	model := m.routeModels[m.currentRouteID()]
-	switch typed := model.(type) {
-	case chatRouteModel:
-		m.inspectorOn = typed.inspectorOn
-	case runsRouteModel:
-		m.inspectorOn = typed.inspectorOn
-	case approvalsRouteModel:
-		m.inspectorOn = typed.inspectorOn
-	case actionCenterRouteModel:
-		m.inspectorOn = typed.inspectorOn
-	case artifactsRouteModel:
-		m.inspectorOn = typed.inspectorOn
-	case auditRouteModel:
-		m.inspectorOn = typed.inspectorOn
-	}
-	if before != m.inspectorOn {
-		m.applyInspectorVisibilityToRoutes()
-		m.persistWorkbenchState()
-	}
-}
-
-func (m *shellModel) applyInspectorVisibilityToRoutes() {
-	for id, model := range m.routeModels {
-		switch typed := model.(type) {
-		case chatRouteModel:
-			typed.inspectorOn = m.inspectorOn
-			m.routeModels[id] = typed
-		case runsRouteModel:
-			typed.inspectorOn = m.inspectorOn
-			m.routeModels[id] = typed
-		case approvalsRouteModel:
-			typed.inspectorOn = m.inspectorOn
-			m.routeModels[id] = typed
-		case actionCenterRouteModel:
-			typed.inspectorOn = m.inspectorOn
-			m.routeModels[id] = typed
-		case artifactsRouteModel:
-			typed.inspectorOn = m.inspectorOn
-			m.routeModels[id] = typed
-		case auditRouteModel:
-			typed.inspectorOn = m.inspectorOn
-			m.routeModels[id] = typed
-		}
-	}
-}
-
-func (m *shellModel) applyPreferredPresentationToRoutes() {
-	mode := normalizePresentationMode(m.preferredMode)
-	for id, model := range m.routeModels {
-		switch typed := model.(type) {
-		case chatRouteModel:
-			typed.presentation = mode
-			m.routeModels[id] = typed
-		case runsRouteModel:
-			typed.presentation = mode
-			m.routeModels[id] = typed
-		case approvalsRouteModel:
-			typed.presentation = mode
-			m.routeModels[id] = typed
-		case artifactsRouteModel:
-			typed.presentation = mode
-			m.routeModels[id] = typed
-		case auditRouteModel:
-			typed.presentation = mode
-			m.routeModels[id] = typed
-		}
-	}
 }
 
 func (m *shellModel) persistedPinnedSessionRefs() []workbenchSessionRef {

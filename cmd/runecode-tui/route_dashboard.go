@@ -153,11 +153,14 @@ func (m dashboardRouteModel) View(width, height int, focus focusArea) string {
 }
 
 func (m dashboardRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
+	mainWidth := routeRegionWidth(ctx.Regions.Main, ctx.Width)
+	mainHeight := routeRegionHeight(ctx.Regions.Main, ctx.Height)
 	return routeSurface{
 		Regions: routeSurfaceRegions{
-			Main: routeSurfaceRegion{Title: "Dashboard", Body: m.View(ctx.Width, ctx.Height, ctx.Focus)},
+			Main: routeSurfaceRegion{Title: "Dashboard", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
 		},
-		Chrome: routeSurfaceChrome{Breadcrumbs: []string{"Home", m.def.Label}},
+		Capabilities: routeSurfaceCapabilities{},
+		Chrome:       routeSurfaceChrome{Breadcrumbs: []string{"Home", m.def.Label}},
 	}
 }
 

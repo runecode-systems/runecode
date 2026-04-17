@@ -1,10 +1,6 @@
 package main
 
-import (
-	"strings"
-
-	tea "github.com/charmbracelet/bubbletea"
-)
+import tea "github.com/charmbracelet/bubbletea"
 
 func (m shellModel) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	for _, handler := range []func(tea.KeyMsg) (tea.Model, tea.Cmd, bool){
@@ -49,10 +45,10 @@ func (m shellModel) handleOpenPaletteKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bo
 	}
 	m.narrowSidebarOn = false
 	m.narrowInspectOn = false
+	m.beginOverlaySession()
 	m.sessions = m.sessions.Close()
 	m.palette = m.palette.UpdateEntries(m.buildPaletteEntries()).Open()
-	m.focusManager.Set(focusPalette)
-	m.focus = m.focusManager.Current()
+	m.setFocus(focusPalette)
 	m.syncOverlayStack()
 	return m, nil, true
 }
@@ -63,10 +59,10 @@ func (m shellModel) handleOpenSessionQuickSwitchKey(key tea.KeyMsg) (tea.Model, 
 	}
 	m.narrowSidebarOn = false
 	m.narrowInspectOn = false
+	m.beginOverlaySession()
 	m.palette = m.palette.Close()
 	m.sessions = m.sessions.Open(m.sessionItems)
-	m.focusManager.Set(focusPalette)
-	m.focus = m.focusManager.Current()
+	m.setFocus(focusPalette)
 	m.syncOverlayStack()
 	return m, nil, true
 }
@@ -85,14 +81,13 @@ func (m shellModel) handleToggleSidebarKey(key tea.KeyMsg) (tea.Model, tea.Cmd, 
 		return m, nil, false
 	}
 	if m.breakpoint() == shellBreakpointNarrow {
+		m.beginOverlaySession()
 		m.narrowSidebarOn = !m.narrowSidebarOn
 		if m.narrowSidebarOn {
 			m.narrowInspectOn = false
-			m.focusManager.Set(focusNav)
-			m.focus = m.focusManager.Current()
+			m.setFocus(focusNav)
 		} else if m.focus == focusNav {
-			m.focusManager.Set(focusContent)
-			m.focus = m.focusManager.Current()
+			m.restoreFocusAfterOverlayClose()
 		}
 		m.syncOverlayStack()
 		m.toasts.Push(toastInfo, "Sidebar overlay toggled for narrow layout.")
@@ -100,10 +95,7 @@ func (m shellModel) handleToggleSidebarKey(key tea.KeyMsg) (tea.Model, tea.Cmd, 
 	}
 	m.sidebarVisible = !m.sidebarVisible
 	m.sidebarFolded = false
-	if !m.effectiveSidebarVisible() && m.focus == focusNav {
-		m.focusManager.Set(focusContent)
-		m.focus = m.focusManager.Current()
-	}
+	m.normalizeFocusForLayout()
 	m.persistWorkbenchState()
 	m.toasts.Push(toastInfo, "Sidebar visibility changed.")
 	return m, nil, true
@@ -152,8 +144,7 @@ func (m shellModel) handleCycleThemeKey(key tea.KeyMsg) (tea.Model, tea.Cmd, boo
 		return m, nil, false
 	}
 	cmd := m.commands.Execute("shell.cycle_theme", &m)
-	m.applyPreferredPresentationToRoutes()
-	m.applyInspectorVisibilityToRoutes()
+	m.publishShellPreferencesToCurrentRoute()
 	m.persistWorkbenchState()
 	return m, cmd, true
 }
@@ -183,6 +174,7 @@ func (m shellModel) handleLayoutCommandKey(key tea.KeyMsg, binding keyBinding, c
 		return m, nil, false
 	}
 	cmd := m.commands.Execute(commandID, &m)
+	m.publishShellPreferencesToCurrentRoute()
 	m.persistWorkbenchState()
 	return m, cmd, true
 }
@@ -192,23 +184,30 @@ func (m shellModel) handleLayoutToggleInspectorCollapseKey(key tea.KeyMsg) (tea.
 		return m, nil, false
 	}
 	if m.breakpoint() == shellBreakpointNarrow {
+		m.beginOverlaySession()
 		return m.toggleNarrowInspectorOverlay(), nil, true
 	}
 	cmd := m.commands.Execute("shell.layout.toggle_inspector_collapse", &m)
+	m.publishShellPreferencesToCurrentRoute()
+	m.normalizeFocusForLayout()
 	m.persistWorkbenchState()
 	return m, cmd, true
 }
 
 func (m shellModel) toggleNarrowInspectorOverlay() shellModel {
 	surface := m.activeShellSurface()
-	if strings.TrimSpace(surface.Regions.Inspector.Body) == "" {
+	if !routeInspectorAvailable(surface) {
 		m.toasts.Push(toastWarn, "Inspector unavailable for current route.")
 		return m
 	}
 	m.narrowInspectOn = !m.narrowInspectOn
 	if m.narrowInspectOn {
 		m.narrowSidebarOn = false
+		m.setFocus(focusInspector)
+	} else {
+		m.restoreFocusAfterOverlayClose()
 	}
+	m.publishShellPreferencesToCurrentRoute()
 	m.syncOverlayStack()
 	return m
 }
@@ -220,10 +219,7 @@ func (m shellModel) handleEscapeCloseNarrowOverlaysKey(key tea.KeyMsg) (tea.Mode
 	m.narrowSidebarOn = false
 	m.narrowInspectOn = false
 	m.syncOverlayStack()
-	if m.focus == focusPalette || (m.focus == focusNav && !m.navigationSurfaceVisible()) {
-		m.focusManager.Set(focusContent)
-		m.focus = m.focusManager.Current()
-	}
+	m.restoreFocusAfterOverlayClose()
 	return m, nil, true
 }
 
@@ -247,7 +243,7 @@ func (m shellModel) handleCycleFocusNextKey(key tea.KeyMsg) (tea.Model, tea.Cmd,
 	if !m.keys.CycleFocusNext.matches(key) {
 		return m, nil, false
 	}
-	m.focusManager.Next(m.navigationSurfaceVisible(), m.palette.IsOpen() || m.sessions.IsOpen())
+	m.focusManager.Next(m.planShellLayout(m.activeShellSurface()), m.commandOverlayOpen())
 	m.focus = m.focusManager.Current()
 	return m, nil, true
 }
@@ -256,7 +252,7 @@ func (m shellModel) handleCycleFocusPrevKey(key tea.KeyMsg) (tea.Model, tea.Cmd,
 	if !m.keys.CycleFocusPrev.matches(key) {
 		return m, nil, false
 	}
-	m.focusManager.Prev(m.navigationSurfaceVisible(), m.palette.IsOpen() || m.sessions.IsOpen())
+	m.focusManager.Prev(m.planShellLayout(m.activeShellSurface()), m.commandOverlayOpen())
 	m.focus = m.focusManager.Current()
 	return m, nil, true
 }

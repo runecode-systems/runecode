@@ -39,11 +39,12 @@ func (m shellModel) applyPaletteInspect(target paletteTarget) (tea.Model, tea.Cm
 	}
 	m.location.Inspector = &loc.Primary
 	m.copyActionIndex = 0
-	m.focusManager.Set(focusContent)
-	m.focus = m.focusManager.Current()
+	m.setFocus(focusContent)
 	if m.breakpoint() == shellBreakpointNarrow && m.inspectorOn {
+		m.beginOverlaySession()
 		m.narrowInspectOn = true
 		m.narrowSidebarOn = false
+		m.setFocus(focusInspector)
 		m.syncOverlayStack()
 	}
 	m.persistWorkbenchState()
@@ -58,8 +59,7 @@ func (m shellModel) navigateBack() (tea.Model, tea.Cmd) {
 	m.history = m.history[:len(m.history)-1]
 	m.location = prev
 	m.nav.SelectByRouteID(prev.Primary.RouteID)
-	m.focusManager.Set(focusContent)
-	m.focus = m.focusManager.Current()
+	m.setFocus(focusContent)
 	m.persistWorkbenchState()
 	return m, m.activateCurrentRouteCmd()
 }
@@ -78,8 +78,7 @@ func (m shellModel) applyPaletteTargetByKind(target paletteTarget, verb navigati
 	}
 	if target.Kind == "command" {
 		cmd := m.commands.Execute(target.CommandID, &m)
-		m.applyInspectorVisibilityToRoutes()
-		m.applyPreferredPresentationToRoutes()
+		m.publishShellPreferencesToCurrentRoute()
 		m.persistWorkbenchState()
 		m.syncOverlayStack()
 		return m, cmd
@@ -97,8 +96,8 @@ func (m shellModel) applyPaletteTargetByKind(target paletteTarget, verb navigati
 	}
 	m.copyActionIndex = 0
 	m.nav.SelectByRouteID(loc.Primary.RouteID)
-	m.focusManager.Set(focusContent)
-	m.focus = m.focusManager.Current()
+	m.setFocus(focusContent)
+	m.publishShellPreferencesToCurrentRoute()
 	m.persistWorkbenchState()
 	if m.breakpoint() == shellBreakpointNarrow {
 		m.syncOverlayStack()
@@ -220,15 +219,19 @@ func (m *shellModel) toggleActiveInspector() {
 	default:
 		return
 	}
-	m.applyInspectorVisibilityToRoutes()
 	if m.breakpoint() == shellBreakpointNarrow {
 		if m.inspectorOn {
+			m.beginOverlaySession()
 			m.narrowInspectOn = true
 			m.narrowSidebarOn = false
+			m.setFocus(focusInspector)
 		} else {
 			m.narrowInspectOn = false
+			m.restoreFocusAfterOverlayClose()
 		}
 		m.syncOverlayStack()
 	}
+	m.publishShellPreferencesToCurrentRoute()
+	m.normalizeFocusForLayout()
 	m.persistWorkbenchState()
 }

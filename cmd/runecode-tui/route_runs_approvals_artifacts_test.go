@@ -260,6 +260,81 @@ func TestArtifactsReloadKeepsSelectedDetailAligned(t *testing.T) {
 	}
 }
 
+func TestRunsReloadFallsBackWhenSelectedRunDisappears(t *testing.T) {
+	model := newRunsRouteModel(routeDefinition{ID: routeRuns, Label: "Runs"}, &reloadAwareBrokerClient{})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeRuns})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, cmd = updated.Update(runsSelectRunMsg{RunID: "run-missing"})
+	if cmd == nil {
+		t.Fatal("expected load command for missing run selection")
+	}
+	updated, _ = updated.Update(cmd())
+	view := updated.View(120, 40, focusContent)
+	if strings.Contains(view, "Load failed") {
+		t.Fatalf("expected graceful fallback instead of load failure, got %q", view)
+	}
+	if !strings.Contains(view, "> run-1") {
+		t.Fatalf("expected fallback selection to available run, got %q", view)
+	}
+	if !strings.Contains(updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body, "run=run-1") {
+		t.Fatalf("expected fallback detail for run-1, got %q", updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body)
+	}
+}
+
+func TestApprovalsReloadFallsBackWhenSelectedApprovalDisappears(t *testing.T) {
+	model := newApprovalsRouteModel(routeDefinition{ID: routeApprovals, Label: "Approvals"}, &reloadAwareBrokerClient{})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeApprovals})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, cmd = updated.Update(approvalsSelectMsg{ApprovalID: "ap-missing"})
+	if cmd == nil {
+		t.Fatal("expected load command for missing approval selection")
+	}
+	updated, _ = updated.Update(cmd())
+	view := updated.View(120, 40, focusContent)
+	if strings.Contains(view, "Load failed") {
+		t.Fatalf("expected graceful fallback instead of load failure, got %q", view)
+	}
+	if !strings.Contains(view, "> ap-1") {
+		t.Fatalf("expected fallback selection to available approval, got %q", view)
+	}
+	if !strings.Contains(updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body, "approval=ap-1") {
+		t.Fatalf("expected fallback detail for ap-1, got %q", updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body)
+	}
+}
+
+func TestArtifactsReloadFallsBackWhenSelectedArtifactDisappears(t *testing.T) {
+	model := newArtifactsRouteModel(routeDefinition{ID: routeArtifacts, Label: "Artifacts"}, &reloadAwareBrokerClient{})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeArtifacts})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, cmd = updated.Update(artifactsSelectDigestMsg{Digest: "sha256:missing"})
+	if cmd == nil {
+		t.Fatal("expected load command for missing artifact selection")
+	}
+	updated, _ = updated.Update(cmd())
+	view := updated.View(120, 40, focusContent)
+	if strings.Contains(view, "Load failed") {
+		t.Fatalf("expected graceful fallback instead of load failure, got %q", view)
+	}
+	if !strings.Contains(view, "> sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb") {
+		t.Fatalf("expected fallback selection to first available artifact, got %q", view)
+	}
+	if !strings.Contains(updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body, "artifact=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb") {
+		t.Fatalf("expected fallback detail for first artifact, got %q", updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body)
+	}
+}
+
 func TestRouteInspectorViewportScrollAndResizePersistence(t *testing.T) {
 	runs := newRunsRouteModel(routeDefinition{ID: routeRuns, Label: "Runs"}, &fakeBrokerClient{})
 	updated, cmd := runs.Update(routeActivatedMsg{RouteID: routeRuns})

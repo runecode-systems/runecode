@@ -116,6 +116,57 @@ func TestShellNarrowInspectVerbOpensInspectorOverlay(t *testing.T) {
 	if !shell.overlayManager.Contains(overlayIDInspector) {
 		t.Fatalf("expected inspector overlay in stack, got %v", shell.overlays)
 	}
+	if shell.focus != focusInspector {
+		t.Fatalf("expected focusInspector, got %v", shell.focus)
+	}
+}
+
+func TestShellOverlayCloseRestoresPreviousFocusTarget(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	m.setFocus(focusNav)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	shell := updated.(shellModel)
+	if shell.focus != focusPalette {
+		t.Fatalf("expected overlay focus while palette open, got %v", shell.focus)
+	}
+
+	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	shell = updated.(shellModel)
+	if shell.focus != focusNav {
+		t.Fatalf("expected focus restored to nav, got %v", shell.focus)
+	}
+}
+
+func TestShellFocusTraversalIncludesInspectorRegionOnWideLayout(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	m.location.Primary = shellObjectLocation{RouteID: routeRuns, Object: workbenchObjectRef{Kind: "route", ID: string(routeRuns)}}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	shell := updated.(shellModel)
+	if shell.focus != focusContent {
+		t.Fatalf("expected first tab to focus content, got %v", shell.focus)
+	}
+
+	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyTab})
+	shell = updated.(shellModel)
+	if shell.focus != focusInspector {
+		t.Fatalf("expected second tab to focus inspector, got %v", shell.focus)
+	}
+}
+
+func TestShellViewCompositorPlacesPanesHorizontally(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	v := m.View()
+	if !strings.Contains(v, "┌") || !strings.Contains(v, "┐") {
+		t.Fatalf("expected lipgloss pane borders in compositor output, got %q", v)
+	}
+	if !strings.Contains(v, "Main pane") || !strings.Contains(v, "Sidebar") {
+		t.Fatalf("expected main+sidebar pane titles in compositor output, got %q", v)
+	}
 }
 
 func TestShellBackKeyPopsBackstack(t *testing.T) {
@@ -147,7 +198,8 @@ func TestShellMouseClickSidebarOpensRoute(t *testing.T) {
 
 func TestShellMousePressDoesNotDuplicateSidebarNavigationHistory(t *testing.T) {
 	m := newShellModel()
-	m.width = 120
+	m.width = 180
+	m.sidebarRatio = 0.3
 	startY, _ := m.sidebarYRange()
 
 	updated, _ := m.Update(tea.MouseMsg{X: 2, Y: startY + 2, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
@@ -160,6 +212,19 @@ func TestShellMousePressDoesNotDuplicateSidebarNavigationHistory(t *testing.T) {
 	shell = updated.(shellModel)
 	if len(shell.history) != 1 {
 		t.Fatalf("expected single history entry after release, got %+v", shell.history)
+	}
+}
+
+func TestShellMouseHitboxUsesPlannedSidebarWidth(t *testing.T) {
+	m := newShellModel()
+	m.width = 180
+	m.sidebarRatio = 0.3
+	startY, _ := m.sidebarYRange()
+
+	updated, _ := m.Update(tea.MouseMsg{X: 30, Y: startY + 2, Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft})
+	shell := updated.(shellModel)
+	if len(shell.history) != 1 {
+		t.Fatalf("expected sidebar click inside planned width to navigate once, got history=%+v", shell.history)
 	}
 }
 
@@ -345,6 +410,7 @@ func TestShellScrollDispatchTargetsRouteViewportState(t *testing.T) {
 	shell = updated.(shellModel)
 	updated, _ = shell.Update(routeViewportScrollMsg{Region: routeRegionInspector, Delta: 2})
 	shell = updated.(shellModel)
+	shell.setFocus(focusInspector)
 
 	before := shell.activeShellSurface().Regions.Inspector.Body
 	if !strings.Contains(before, "offset=2") {

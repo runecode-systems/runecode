@@ -9,7 +9,11 @@ func (m shellModel) renderOverlayStack() string {
 	if len(m.overlays) == 0 {
 		return tableHeader("Overlay stack") + " none"
 	}
-	return tableHeader("Overlay stack") + " " + strings.Join(m.overlays, " -> ")
+	labels := make([]string, 0, len(m.overlays))
+	for _, id := range m.overlays {
+		labels = append(labels, string(id))
+	}
+	return tableHeader("Overlay stack") + " " + strings.Join(labels, " -> ")
 }
 
 func (m shellModel) renderPalette() string {
@@ -76,7 +80,11 @@ func (m shellModel) sidebarYRange() (startY int, endY int) {
 }
 
 func (m shellModel) sidebarIndexAtMouse(mouseX int, mouseY int) (int, bool) {
-	if mouseX < 0 || mouseX > 24 {
+	width := m.planShellLayout(m.activeShellSurface()).Regions.Sidebar.Width
+	if width <= 0 {
+		return 0, false
+	}
+	if mouseX < 0 || mouseX >= width {
 		return 0, false
 	}
 	startY, endY := m.sidebarYRange()

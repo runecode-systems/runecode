@@ -29,32 +29,88 @@ func (m *shellFocusManager) Set(area focusArea) {
 	m.current = area
 }
 
-func (m *shellFocusManager) Next(sidebarVisible bool, paletteOpen bool) {
-	if paletteOpen {
+func (m *shellFocusManager) Next(layout shellLayoutPlan, overlayOpen bool) {
+	if overlayOpen {
 		m.current = focusPalette
 		return
 	}
-	if sidebarVisible {
-		if m.current == focusNav {
-			m.current = focusContent
-			return
-		}
-		m.current = focusNav
+	order := shellFocusOrder(layout)
+	if len(order) == 0 {
+		m.current = focusContent
 		return
 	}
-	m.current = focusContent
+	idx := shellFocusIndex(order, m.current)
+	if idx < 0 {
+		m.current = order[0]
+		return
+	}
+	m.current = order[(idx+1)%len(order)]
 }
 
-func (m *shellFocusManager) Prev(sidebarVisible bool, paletteOpen bool) {
-	m.Next(sidebarVisible, paletteOpen)
+func (m *shellFocusManager) Prev(layout shellLayoutPlan, overlayOpen bool) {
+	if overlayOpen {
+		m.current = focusPalette
+		return
+	}
+	order := shellFocusOrder(layout)
+	if len(order) == 0 {
+		m.current = focusContent
+		return
+	}
+	idx := shellFocusIndex(order, m.current)
+	if idx < 0 {
+		m.current = order[len(order)-1]
+		return
+	}
+	idx--
+	if idx < 0 {
+		idx = len(order) - 1
+	}
+	m.current = order[idx]
+}
+
+func (m *shellFocusManager) Normalize(layout shellLayoutPlan, overlayOpen bool) {
+	if overlayOpen {
+		m.current = focusPalette
+		return
+	}
+	order := shellFocusOrder(layout)
+	if len(order) == 0 {
+		m.current = focusContent
+		return
+	}
+	if shellFocusIndex(order, m.current) >= 0 {
+		return
+	}
+	m.current = order[0]
+}
+
+func shellFocusOrder(layout shellLayoutPlan) []focusArea {
+	order := []focusArea{}
+	if layout.NavigationVisible {
+		order = append(order, focusNav)
+	}
+	order = append(order, focusContent)
+	if layout.InspectorVisible {
+		order = append(order, focusInspector)
+	}
+	return order
+}
+
+func shellFocusIndex(order []focusArea, target focusArea) int {
+	for i, area := range order {
+		if area == target {
+			return i
+		}
+	}
+	return -1
 }
 
 type shellOverlayManager struct {
-	stack []string
+	stack []shellOverlayID
 }
 
-func (m *shellOverlayManager) Open(id string) {
-	id = strings.TrimSpace(id)
+func (m *shellOverlayManager) Open(id shellOverlayID) {
 	if id == "" {
 		return
 	}
@@ -66,12 +122,11 @@ func (m *shellOverlayManager) Open(id string) {
 	m.stack = append(m.stack, id)
 }
 
-func (m *shellOverlayManager) Close(id string) {
-	id = strings.TrimSpace(id)
+func (m *shellOverlayManager) Close(id shellOverlayID) {
 	if id == "" || len(m.stack) == 0 {
 		return
 	}
-	filtered := make([]string, 0, len(m.stack))
+	filtered := make([]shellOverlayID, 0, len(m.stack))
 	for _, existing := range m.stack {
 		if existing != id {
 			filtered = append(filtered, existing)
@@ -80,14 +135,14 @@ func (m *shellOverlayManager) Close(id string) {
 	m.stack = filtered
 }
 
-func (m *shellOverlayManager) Replace(ids ...string) {
+func (m *shellOverlayManager) Replace(ids ...shellOverlayID) {
 	m.stack = m.stack[:0]
 	for _, id := range ids {
 		m.Open(id)
 	}
 }
 
-func (m *shellOverlayManager) Contains(id string) bool {
+func (m *shellOverlayManager) Contains(id shellOverlayID) bool {
 	for _, existing := range m.stack {
 		if existing == id {
 			return true
@@ -96,36 +151,19 @@ func (m *shellOverlayManager) Contains(id string) bool {
 	return false
 }
 
-func (m *shellOverlayManager) Stack() []string {
-	out := make([]string, len(m.stack))
+func (m *shellOverlayManager) Stack() []shellOverlayID {
+	out := make([]shellOverlayID, len(m.stack))
 	copy(out, m.stack)
 	return out
 }
 
-func centeredOverlayBlock(title string, body string) string {
+func centeredOverlayBlock(title shellOverlayID, body string) string {
 	body = strings.TrimSpace(body)
 	if body == "" {
 		body = "(empty overlay)"
 	}
 	return compactLines(
-		tableHeader("Centered overlay")+" "+title,
-		"┌──────────────────────────────────────────────┐",
-		body,
-		"└──────────────────────────────────────────────┘",
-	)
-}
-
-func framedPaneBlock(title string, body string, focused bool) string {
-	body = strings.TrimSpace(body)
-	if body == "" {
-		body = "(empty pane)"
-	}
-	header := tableHeader(title)
-	if focused {
-		header = appTheme.FocusLine.Render(title) + " " + infoBadge("FOCUS")
-	}
-	return compactLines(
-		header,
+		tableHeader("Centered overlay")+" "+string(title),
 		"┌──────────────────────────────────────────────┐",
 		body,
 		"└──────────────────────────────────────────────┘",
@@ -335,7 +373,7 @@ func (s *fileWorkbenchStateStore) Write(targetKey string, next workbenchLocalSta
 	}
 	env.SchemaVersion = workbenchPersistenceSchemaVersion
 	env.Targets[targetKey] = next
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
 		return
 	}
 	raw, err := json.MarshalIndent(env, "", "  ")

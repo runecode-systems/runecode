@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -69,6 +70,14 @@ func (m artifactsRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		return m.handleViewportScroll(typed)
 	case routeViewportResizeMsg:
 		return m.handleViewportResize(typed)
+	case routeShellPreferencesMsg:
+		if typed.RouteID != m.def.ID {
+			return m, nil
+		}
+		m.inspectorOn = typed.InspectorVisible
+		m.presentation = normalizePresentationMode(typed.PreferredMode)
+		m.syncDetailDocument()
+		return m, nil
 	case artifactsLoadedMsg:
 		return m.handleArtifactsLoaded(typed)
 	default:
@@ -80,6 +89,10 @@ func (m artifactsRouteModel) handleRouteActivated(msg routeActivatedMsg) (routeM
 	if msg.RouteID != m.def.ID {
 		return m, nil
 	}
+	if msg.InspectorSet {
+		m.inspectorOn = msg.InspectorVisible
+	}
+	m.presentation = normalizePresentationMode(msg.PreferredMode)
 	return m.reload()
 }
 
@@ -151,6 +164,8 @@ func (m artifactsRouteModel) View(width, height int, focus focusArea) string {
 }
 
 func (m artifactsRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
+	mainWidth := routeRegionWidth(ctx.Regions.Main, ctx.Width)
+	mainHeight := routeRegionHeight(ctx.Regions.Main, ctx.Height)
 	breadcrumbs := []string{"Home", m.def.Label}
 	if m.active != nil && strings.TrimSpace(m.active.Artifact.Reference.Digest) != "" {
 		breadcrumbs = append(breadcrumbs, strings.TrimSpace(m.active.Artifact.Reference.Digest))
@@ -167,12 +182,13 @@ func (m artifactsRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 	}
 	return routeSurface{
 		Regions: routeSurfaceRegions{
-			Main:      routeSurfaceRegion{Title: "Artifact workspace", Body: m.View(ctx.Width, ctx.Height, ctx.Focus)},
+			Main:      routeSurfaceRegion{Title: "Artifact workspace", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
 			Inspector: routeSurfaceRegion{Title: "Artifact inspector", Body: inspector},
 			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, [/] class filter, m cycle detail mode, v cycle rendered/raw/structured, i toggle inspector, r reload")},
 			Status:    routeSurfaceRegion{Body: status},
 		},
-		Chrome: routeSurfaceChrome{Breadcrumbs: breadcrumbs},
+		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
+		Chrome:       routeSurfaceChrome{Breadcrumbs: breadcrumbs},
 		Actions: routeSurfaceActions{
 			ModeTabs:         []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
 			ActiveTab:        string(normalizePresentationMode(m.presentation)),
@@ -267,31 +283,59 @@ func (m artifactsRouteModel) loadCmd(digest string, seq uint64) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := withLoadTimeout()
 		defer cancel()
-		class := artifactClassFilters[m.classIndex]
-		listResp, err := m.client.ArtifactList(ctx, 40, class)
+		listResp, err := m.client.ArtifactList(ctx, 40, artifactClassFilters[m.classIndex])
 		if err != nil {
 			return artifactsLoadedMsg{err: err, seq: seq}
 		}
-		target := digest
-		if target == "" && len(listResp.Artifacts) > 0 {
-			target = listResp.Artifacts[0].Reference.Digest
-		}
+		target := resolveArtifactTarget(listResp.Artifacts, digest)
 		if target == "" {
 			return artifactsLoadedMsg{items: listResp.Artifacts, seq: seq}
 		}
-		headResp, err := m.client.ArtifactHead(ctx, target)
-		if err != nil {
-			return artifactsLoadedMsg{err: err, seq: seq}
-		}
-		readReq := brokerapi.ArtifactReadRequest{Digest: target, ProducerRole: "workspace", ConsumerRole: "model_gateway", DataClass: string(headResp.Artifact.Reference.DataClass)}
-		events, readErr := m.client.ArtifactRead(ctx, readReq)
-		if readErr != nil {
-			return artifactsLoadedMsg{items: listResp.Artifacts, head: &headResp, contentErr: safeUIErrorText(readErr), seq: seq}
-		}
-		text, decodeErr := decodeArtifactStream(events)
-		if decodeErr != nil {
-			return artifactsLoadedMsg{items: listResp.Artifacts, head: &headResp, contentErr: safeUIErrorText(decodeErr), seq: seq}
-		}
-		return artifactsLoadedMsg{items: listResp.Artifacts, head: &headResp, content: text, seq: seq}
+		return m.loadArtifactDetail(ctx, listResp.Artifacts, target, seq)
 	}
+}
+
+func resolveArtifactTarget(items []brokerapi.ArtifactSummary, digest string) string {
+	target := strings.TrimSpace(digest)
+	if target != "" && !containsArtifactSummary(items, target) {
+		target = ""
+	}
+	if target == "" && len(items) > 0 {
+		target = strings.TrimSpace(items[0].Reference.Digest)
+	}
+	return target
+}
+
+func (m artifactsRouteModel) loadArtifactDetail(ctx context.Context, items []brokerapi.ArtifactSummary, digest string, seq uint64) artifactsLoadedMsg {
+	headResp, err := m.client.ArtifactHead(ctx, digest)
+	if err != nil {
+		return artifactsLoadedMsg{err: err, seq: seq}
+	}
+	return m.loadArtifactContent(ctx, items, digest, headResp, seq)
+}
+
+func (m artifactsRouteModel) loadArtifactContent(ctx context.Context, items []brokerapi.ArtifactSummary, digest string, headResp brokerapi.LocalArtifactHeadResponse, seq uint64) artifactsLoadedMsg {
+	readReq := brokerapi.ArtifactReadRequest{Digest: digest, ProducerRole: "workspace", ConsumerRole: "model_gateway", DataClass: string(headResp.Artifact.Reference.DataClass)}
+	events, readErr := m.client.ArtifactRead(ctx, readReq)
+	if readErr != nil {
+		return artifactsLoadedMsg{items: items, head: &headResp, contentErr: safeUIErrorText(readErr), seq: seq}
+	}
+	text, decodeErr := decodeArtifactStream(events)
+	if decodeErr != nil {
+		return artifactsLoadedMsg{items: items, head: &headResp, contentErr: safeUIErrorText(decodeErr), seq: seq}
+	}
+	return artifactsLoadedMsg{items: items, head: &headResp, content: text, seq: seq}
+}
+
+func containsArtifactSummary(items []brokerapi.ArtifactSummary, digest string) bool {
+	digest = strings.TrimSpace(digest)
+	if digest == "" {
+		return false
+	}
+	for _, item := range items {
+		if strings.TrimSpace(item.Reference.Digest) == digest {
+			return true
+		}
+	}
+	return false
 }

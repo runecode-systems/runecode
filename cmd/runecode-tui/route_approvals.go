@@ -66,6 +66,14 @@ func (m approvalsRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		width, height := longFormViewportSizeForShell(typed.Width, typed.Height)
 		m.detailDoc.Resize(width, height)
 		return m, nil
+	case routeShellPreferencesMsg:
+		if typed.RouteID != m.def.ID {
+			return m, nil
+		}
+		m.inspectorOn = typed.InspectorVisible
+		m.presentation = normalizePresentationMode(typed.PreferredMode)
+		m.syncDetailDocument()
+		return m, nil
 	case approvalsLoadedMsg:
 		return m.handleApprovalsLoaded(typed)
 	case approvalResolvedMsg:
@@ -79,6 +87,10 @@ func (m approvalsRouteModel) handleRouteActivated(msg routeActivatedMsg) (routeM
 	if msg.RouteID != m.def.ID {
 		return m, nil
 	}
+	if msg.InspectorSet {
+		m.inspectorOn = msg.InspectorVisible
+	}
+	m.presentation = normalizePresentationMode(msg.PreferredMode)
 	return m.reload()
 }
 
@@ -154,6 +166,8 @@ func (m approvalsRouteModel) View(width, height int, focus focusArea) string {
 }
 
 func (m approvalsRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
+	mainWidth := routeRegionWidth(ctx.Regions.Main, ctx.Width)
+	mainHeight := routeRegionHeight(ctx.Regions.Main, ctx.Height)
 	breadcrumbs := []string{"Home", m.def.Label}
 	if m.active != nil && strings.TrimSpace(m.active.Approval.ApprovalID) != "" {
 		breadcrumbs = append(breadcrumbs, strings.TrimSpace(m.active.Approval.ApprovalID))
@@ -168,12 +182,13 @@ func (m approvalsRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 	}
 	return routeSurface{
 		Regions: routeSurfaceRegions{
-			Main:      routeSurfaceRegion{Title: "Approval workspace", Body: m.View(ctx.Width, ctx.Height, ctx.Focus)},
+			Main:      routeSurfaceRegion{Title: "Approval workspace", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
 			Inspector: routeSurfaceRegion{Title: "Approval inspector", Body: inspector},
 			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, a resolve current approval where supported, v cycle rendered/raw/structured, i toggle inspector, r reload")},
 			Status:    routeSurfaceRegion{Body: status},
 		},
-		Chrome: routeSurfaceChrome{Breadcrumbs: breadcrumbs},
+		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
+		Chrome:       routeSurfaceChrome{Breadcrumbs: breadcrumbs},
 		Actions: routeSurfaceActions{
 			ModeTabs:         []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
 			ActiveTab:        string(normalizePresentationMode(m.presentation)),
@@ -287,6 +302,9 @@ func (m approvalsRouteModel) loadCmd(approvalID string, seq uint64) tea.Cmd {
 			return approvalsLoadedMsg{err: err, seq: seq}
 		}
 		target := approvalID
+		if target != "" && !containsApprovalSummary(listResp.Approvals, target) {
+			target = ""
+		}
 		if target == "" && len(listResp.Approvals) > 0 {
 			target = listResp.Approvals[0].ApprovalID
 		}
@@ -299,6 +317,19 @@ func (m approvalsRouteModel) loadCmd(approvalID string, seq uint64) tea.Cmd {
 		}
 		return approvalsLoadedMsg{items: listResp.Approvals, detail: &getResp, seq: seq}
 	}
+}
+
+func containsApprovalSummary(items []brokerapi.ApprovalSummary, approvalID string) bool {
+	approvalID = strings.TrimSpace(approvalID)
+	if approvalID == "" {
+		return false
+	}
+	for _, item := range items {
+		if strings.TrimSpace(item.ApprovalID) == approvalID {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *approvalsRouteModel) syncDetailDocument() {

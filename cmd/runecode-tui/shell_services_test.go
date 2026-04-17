@@ -10,15 +10,19 @@ import (
 
 func TestShellFocusManagerCyclesBySidebarVisibility(t *testing.T) {
 	mgr := newShellFocusManager(focusNav)
-	mgr.Next(true, false)
+	mgr.Next(shellLayoutPlan{NavigationVisible: true}, false)
 	if mgr.Current() != focusContent {
 		t.Fatalf("expected focusContent, got %v", mgr.Current())
 	}
-	mgr.Next(false, false)
-	if mgr.Current() != focusContent {
-		t.Fatalf("expected focusContent when sidebar hidden, got %v", mgr.Current())
+	mgr.Next(shellLayoutPlan{NavigationVisible: true, InspectorVisible: true}, false)
+	if mgr.Current() != focusInspector {
+		t.Fatalf("expected focusInspector when inspector visible, got %v", mgr.Current())
 	}
-	mgr.Next(true, true)
+	mgr.Next(shellLayoutPlan{NavigationVisible: false, InspectorVisible: false}, false)
+	if mgr.Current() != focusContent {
+		t.Fatalf("expected focusContent when only main available, got %v", mgr.Current())
+	}
+	mgr.Next(shellLayoutPlan{NavigationVisible: true}, true)
 	if mgr.Current() != focusPalette {
 		t.Fatalf("expected focusPalette when palette open, got %v", mgr.Current())
 	}

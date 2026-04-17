@@ -93,6 +93,14 @@ func (m auditRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		width, height := longFormViewportSizeForShell(typed.Width, typed.Height)
 		m.detailDoc.Resize(width, height)
 		return m, nil
+	case routeShellPreferencesMsg:
+		if typed.RouteID != m.def.ID {
+			return m, nil
+		}
+		m.inspectorOn = typed.InspectorVisible
+		m.presentation = normalizePresentationMode(typed.PreferredMode)
+		m.syncDetailDocument()
+		return m, nil
 	case auditLoadedMsg:
 		return m.handleAuditLoaded(typed)
 	case auditAnchorCompletedMsg:
@@ -106,6 +114,10 @@ func (m auditRouteModel) handleRouteActivated(msg routeActivatedMsg) (routeModel
 	if msg.RouteID != m.def.ID {
 		return m, nil
 	}
+	if msg.InspectorSet {
+		m.inspectorOn = msg.InspectorVisible
+	}
+	m.presentation = normalizePresentationMode(msg.PreferredMode)
 	return m.reload()
 }
 
@@ -213,6 +225,8 @@ func (m auditRouteModel) View(width, height int, focus focusArea) string {
 }
 
 func (m auditRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
+	mainWidth := routeRegionWidth(ctx.Regions.Main, ctx.Width)
+	mainHeight := routeRegionHeight(ctx.Regions.Main, ctx.Height)
 	breadcrumbs := []string{"Home", m.def.Label}
 	if m.active != nil {
 		if identity, err := m.active.Record.RecordDigest.Identity(); err == nil && strings.TrimSpace(identity) != "" {
@@ -229,12 +243,13 @@ func (m auditRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 	}
 	return routeSurface{
 		Regions: routeSurfaceRegions{
-			Main:      routeSurfaceRegion{Title: "Audit workspace", Body: m.View(ctx.Width, ctx.Height, ctx.Focus)},
+			Main:      routeSurfaceRegion{Title: "Audit workspace", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
 			Inspector: routeSurfaceRegion{Title: "Audit inspector", Body: inspector},
 			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter record detail, f finalize+verify sealed segment posture, a anchor selected/latest sealed segment, x toggle anchor export-copy, n next page, p previous page, v cycle rendered/raw/structured, i toggle inspector, r reload")},
 			Status:    routeSurfaceRegion{Body: status},
 		},
-		Chrome: routeSurfaceChrome{Breadcrumbs: breadcrumbs},
+		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
+		Chrome:       routeSurfaceChrome{Breadcrumbs: breadcrumbs},
 		Actions: routeSurfaceActions{
 			ModeTabs:         []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
 			ActiveTab:        string(normalizePresentationMode(m.presentation)),
