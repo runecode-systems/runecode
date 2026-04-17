@@ -2,12 +2,7 @@ package main
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
-
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 type inspectorContentKind string
@@ -23,7 +18,12 @@ const (
 
 type inspectorReference struct {
 	Label string
-	Items []string
+	Items []inspectorReferenceItem
+}
+
+type inspectorReferenceItem struct {
+	Label  string
+	Action paletteActionMsg
 }
 
 type inspectorShellSpec struct {
@@ -33,7 +33,7 @@ type inspectorShellSpec struct {
 	Status         string
 	Badges         []string
 	References     []inspectorReference
-	LocalActions   []string
+	LocalActions   []routeActionItem
 	ModeTabs       []string
 	ActiveMode     string
 	ContentKind    inspectorContentKind
@@ -41,6 +41,7 @@ type inspectorShellSpec struct {
 	Content        string
 	ViewportWidth  int
 	ViewportHeight int
+	Document       *longFormDocumentState
 	CopyActions    []routeCopyAction
 }
 
@@ -127,7 +128,15 @@ func renderInspectorReferences(refs []inspectorReference) []string {
 	}
 	lines := []string{tableHeader("Linked references")}
 	for _, ref := range refs {
-		lines = append(lines, renderLinkedReferenceLine("Linked "+defaultInspectorReferenceLabel(ref.Label), ref.Items))
+		items := make([]string, 0, len(ref.Items))
+		for _, item := range ref.Items {
+			label := strings.TrimSpace(item.Label)
+			if label == "" {
+				continue
+			}
+			items = append(items, label)
+		}
+		lines = append(lines, renderLinkedReferenceLine("Linked "+defaultInspectorReferenceLabel(ref.Label), items))
 	}
 	return lines
 }
@@ -140,13 +149,35 @@ func defaultInspectorReferenceLabel(label string) string {
 	return label
 }
 
-func renderInspectorActions(local []string, copyActions []routeCopyAction) []string {
+func mapReferenceIDs(ids []string, build func(string) paletteActionMsg) []inspectorReferenceItem {
+	items := make([]inspectorReferenceItem, 0, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		items = append(items, inspectorReferenceItem{Label: id, Action: build(id)})
+	}
+	return items
+}
+
+func renderInspectorActions(local []routeActionItem, copyActions []routeCopyAction) []string {
 	if len(local) == 0 && len(copyActions) == 0 {
 		return nil
 	}
 	lines := []string{tableHeader("Actions")}
 	if len(local) > 0 {
-		lines = append(lines, "Local actions: "+strings.Join(local, " | "))
+		labels := make([]string, 0, len(local))
+		for _, action := range local {
+			label := strings.TrimSpace(action.Label)
+			if label == "" {
+				continue
+			}
+			labels = append(labels, label)
+		}
+		if len(labels) > 0 {
+			lines = append(lines, "Local actions: "+strings.Join(labels, " | "))
+		}
 	}
 	if labels := inspectorCopyActionLabels(copyActions); len(labels) > 0 {
 		lines = append(lines, "Copy actions: "+strings.Join(labels, " | "))
@@ -170,6 +201,9 @@ func inspectorCopyActionLabels(copyActions []routeCopyAction) []string {
 }
 
 func renderInspectorDetailViewport(spec inspectorShellSpec) []string {
+	if spec.Document != nil {
+		return []string{tableHeader("Detail viewport"), "Long-form " + spec.Document.contentLabel() + ":", spec.Document.Render()}
+	}
 	contentLabel := strings.TrimSpace(spec.ContentLabel)
 	if contentLabel == "" {
 		contentLabel = "content"
@@ -190,226 +224,4 @@ func renderStateCard(state routeLoadState, title, message string) string {
 		tableHeader(strings.ToUpper(label))+" "+title,
 		message,
 	)
-}
-
-type longFormViewport struct {
-	model viewport.Model
-	ready bool
-}
-
-func (v *longFormViewport) SetSize(width, height int) {
-	if width <= 0 {
-		width = 80
-	}
-	if height <= 0 {
-		height = 20
-	}
-	if !v.ready {
-		v.model = viewport.New(width, height)
-		v.ready = true
-		return
-	}
-	v.model.Width = width
-	v.model.Height = height
-}
-
-func (v *longFormViewport) SetContent(text string) {
-	if !v.ready {
-		v.SetSize(80, 20)
-	}
-	v.model.SetContent(text)
-}
-
-func (v *longFormViewport) View() string {
-	if !v.ready {
-		v.SetSize(80, 20)
-	}
-	return v.model.View()
-}
-
-func renderLongFormViewport(text string, width, height int) string {
-	var vp longFormViewport
-	vp.SetSize(width, height)
-	vp.SetContent(text)
-	return vp.View()
-}
-
-func normalizeLongFormViewportSize(width, height int) (int, int) {
-	if width <= 0 {
-		width = 96
-	}
-	if width > 120 {
-		width = 120
-	}
-	if height <= 0 {
-		height = 12
-	}
-	if height > 24 {
-		height = 24
-	}
-	return width, height
-}
-
-func renderInspectorLongForm(kind inspectorContentKind, text string, width, height int) string {
-	if strings.TrimSpace(text) == "" {
-		text = "(empty)"
-	}
-	width, height = normalizeLongFormViewportSize(width, height)
-	label := strings.TrimSpace(string(kind))
-	if label == "" {
-		label = "content"
-	}
-	body := renderLongFormViewport(formatInspectorLongForm(kind, text), width, height)
-	return compactLines(fmt.Sprintf("[%s viewport %dx%d]", label, width, height), body)
-}
-
-func formatInspectorLongForm(kind inspectorContentKind, text string) string {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return "(empty)"
-	}
-	switch kind {
-	case inspectorContentDiff:
-		return formatDiffContent(text)
-	case inspectorContentMarkdown:
-		return formatMarkdownContent(text)
-	case inspectorContentStructured:
-		return formatStructuredContent(text)
-	default:
-		return text
-	}
-}
-
-func formatDiffContent(text string) string {
-	lines := strings.Split(text, "\n")
-	add, del := 0, 0
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "+") && !strings.HasPrefix(trimmed, "+++") {
-			add++
-		}
-		if strings.HasPrefix(trimmed, "-") && !strings.HasPrefix(trimmed, "---") {
-			del++
-		}
-	}
-	head := fmt.Sprintf("Diff summary: lines=%d additions=%d deletions=%d", len(lines), add, del)
-	return head + "\n" + strings.Join(lines, "\n")
-}
-
-func formatMarkdownContent(text string) string {
-	lines := strings.Split(text, "\n")
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "#") {
-			lines[i] = "§ " + strings.TrimLeft(trimmed, "# ")
-			continue
-		}
-		if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") {
-			lines[i] = "• " + strings.TrimSpace(trimmed[2:])
-		}
-	}
-	return "Markdown reading view:\n" + strings.Join(lines, "\n")
-}
-
-func formatStructuredContent(text string) string {
-	lines := strings.Split(text, "\n")
-	structuredLines := 0
-	totalNonEmpty := 0
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		totalNonEmpty++
-		if isStructuredKVLine(trimmed) {
-			structuredLines++
-		}
-	}
-	if totalNonEmpty == 0 || structuredLines*2 < totalNonEmpty {
-		return text
-	}
-	formatted := make([]string, 0, len(lines)+1)
-	formatted = append(formatted, "Structured reading view:")
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		if isStructuredKVLine(trimmed) {
-			parts := strings.SplitN(trimmed, "=", 2)
-			formatted = append(formatted, fmt.Sprintf("%s) %s = %s", strconv.Itoa(i+1), strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])))
-			continue
-		}
-		formatted = append(formatted, fmt.Sprintf("%s) %s", strconv.Itoa(i+1), trimmed))
-	}
-	if len(formatted) == 1 {
-		formatted = append(formatted, "(no fields)")
-	}
-	return strings.Join(formatted, "\n")
-}
-
-func isStructuredKVLine(line string) bool {
-	if !strings.Contains(line, "=") {
-		return false
-	}
-	parts := strings.SplitN(line, "=", 2)
-	key := strings.TrimSpace(parts[0])
-	if key == "" {
-		return false
-	}
-	if strings.Contains(key, " ") || strings.Contains(key, ":") {
-		return false
-	}
-	return true
-}
-
-type composeTextarea struct {
-	model textarea.Model
-	set   bool
-}
-
-func newComposeTextarea() composeTextarea {
-	t := textarea.New()
-	t.Placeholder = "Type a message"
-	t.CharLimit = 4000
-	t.Prompt = "┃ "
-	t.SetHeight(3)
-	return composeTextarea{model: t, set: true}
-}
-
-func (c *composeTextarea) ensure() {
-	if c.set {
-		return
-	}
-	*c = newComposeTextarea()
-}
-
-func (c *composeTextarea) Value() string {
-	c.ensure()
-	return c.model.Value()
-}
-
-func (c *composeTextarea) SetValue(value string) {
-	c.ensure()
-	c.model.SetValue(value)
-}
-
-func (c *composeTextarea) Focus() {
-	c.ensure()
-	c.model.Focus()
-}
-
-func (c *composeTextarea) Blur() {
-	c.ensure()
-	c.model.Blur()
-}
-
-func (c *composeTextarea) BubbleUpdate(msg tea.Msg) {
-	c.ensure()
-	c.model, _ = c.model.Update(msg)
-}
-
-func (c *composeTextarea) View() string {
-	c.ensure()
-	return c.model.View()
 }

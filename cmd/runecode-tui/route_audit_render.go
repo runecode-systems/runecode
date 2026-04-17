@@ -119,32 +119,37 @@ func renderAuditDirectoryItems(timeline []brokerapi.AuditTimelineViewEntry) []st
 	return items
 }
 
-func renderAuditInspector(record *brokerapi.AuditRecordGetResponse, presentation contentPresentationMode) string {
+func renderAuditInspector(record *brokerapi.AuditRecordGetResponse, presentation contentPresentationMode, document *longFormDocumentState) string {
 	if record == nil {
 		return "  Select a timeline record and press enter to load detail."
+	}
+	if document == nil {
+		fallback := newLongFormDocumentState()
+		document = &fallback
 	}
 	presentation = normalizePresentationMode(presentation)
 	r := record.Record
 	status, reasons, reasonCodes := auditInspectorPosture(r)
 	content := auditInspectorContent(r, status, reasons, presentation)
+	identity, _ := r.RecordDigest.Identity()
 	referenceItems := auditInspectorReferenceItems(r)
+	reasonItems := mapReferenceIDs(reasonCodes, func(string) paletteActionMsg {
+		return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeAudit}}
+	})
 	contentKind := auditInspectorContentKind(presentation)
+	document.SetDocument(workbenchObjectRef{Kind: "audit", ID: strings.TrimSpace(identity)}, contentKind, "audit record", content)
 	return renderInspectorShell(inspectorShellSpec{
-		Title:          "Audit inspector",
-		Summary:        fmt.Sprintf("event=%s family=%s linked_refs=%d", valueOrNA(r.EventType), valueOrNA(r.RecordFamily), len(r.LinkedReferences)),
-		Identity:       fmt.Sprintf("record_family=%s event_type=%s", valueOrNA(r.RecordFamily), valueOrNA(r.EventType)),
-		Status:         fmt.Sprintf("verification=%s reasons=%d", valueOrNA(status), reasons),
-		Badges:         []string{stateBadgeWithLabel("posture", status), appTheme.InspectorHint.Render("typed record details")},
-		References:     []inspectorReference{{Label: "records", Items: referenceItems}, {Label: "reason codes", Items: reasonCodes}},
-		LocalActions:   []string{"jump:runs", "jump:approvals", "jump:artifacts", "copy:record_digest"},
-		CopyActions:    auditRouteCopyActions(record),
-		ModeTabs:       []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
-		ActiveMode:     string(presentation),
-		ContentKind:    contentKind,
-		ContentLabel:   "audit record",
-		Content:        content,
-		ViewportWidth:  96,
-		ViewportHeight: 12,
+		Title:        "Audit inspector",
+		Summary:      fmt.Sprintf("event=%s family=%s linked_refs=%d", valueOrNA(r.EventType), valueOrNA(r.RecordFamily), len(r.LinkedReferences)),
+		Identity:     fmt.Sprintf("record_family=%s event_type=%s", valueOrNA(r.RecordFamily), valueOrNA(r.EventType)),
+		Status:       fmt.Sprintf("verification=%s reasons=%d", valueOrNA(status), reasons),
+		Badges:       []string{stateBadgeWithLabel("posture", status), appTheme.InspectorHint.Render("typed record details")},
+		References:   []inspectorReference{{Label: "records", Items: referenceItems}, {Label: "reason codes", Items: reasonItems}},
+		LocalActions: auditInspectorLocalActions(),
+		CopyActions:  auditRouteCopyActions(record),
+		ModeTabs:     []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
+		ActiveMode:   string(presentation),
+		Document:     document,
 	})
 }
 
@@ -182,12 +187,60 @@ func auditInspectorContent(record brokerapi.AuditRecordDetail, status string, re
 	)
 }
 
-func auditInspectorReferenceItems(record brokerapi.AuditRecordDetail) []string {
-	items := make([]string, 0, len(record.LinkedReferences))
+func auditInspectorReferenceItems(record brokerapi.AuditRecordDetail) []inspectorReferenceItem {
+	items := make([]inspectorReferenceItem, 0, len(record.LinkedReferences))
 	for _, ref := range record.LinkedReferences {
-		items = append(items, fmt.Sprintf("%s:%s(%s)", valueOrNA(ref.ReferenceKind), valueOrNA(ref.ReferenceID), valueOrNA(ref.Relation)))
+		label := fmt.Sprintf("%s:%s(%s)", valueOrNA(ref.ReferenceKind), valueOrNA(ref.ReferenceID), valueOrNA(ref.Relation))
+		kind := strings.ToLower(strings.TrimSpace(ref.ReferenceKind))
+		id := strings.TrimSpace(ref.ReferenceID)
+		action := paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeAudit}}
+		switch kind {
+		case "run":
+			action = paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "run", RouteID: routeRuns, RunID: id}}
+		case "approval":
+			action = paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "approval", RouteID: routeApprovals, ApprovalID: id}}
+		case "artifact":
+			action = paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "artifact", RouteID: routeArtifacts, Digest: id}}
+		case "audit", "audit_record":
+			action = paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "audit", RouteID: routeAudit, Digest: id}}
+		}
+		items = append(items, inspectorReferenceItem{Label: label, Action: action})
 	}
 	return items
+}
+
+func auditInspectorLocalActions() []routeActionItem {
+	return []routeActionItem{
+		{Label: "jump:runs", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeRuns}}},
+		{Label: "jump:approvals", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeApprovals}}},
+		{Label: "jump:artifacts", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeArtifacts}}},
+		{Label: "copy:record_digest"},
+	}
+}
+
+func auditInspectorReferenceActions(record *brokerapi.AuditRecordGetResponse) []routeActionItem {
+	if record == nil {
+		return nil
+	}
+	out := make([]routeActionItem, 0, len(record.Record.LinkedReferences))
+	for _, ref := range record.Record.LinkedReferences {
+		kind := strings.ToLower(strings.TrimSpace(ref.ReferenceKind))
+		id := strings.TrimSpace(ref.ReferenceID)
+		if id == "" {
+			continue
+		}
+		switch kind {
+		case "run":
+			out = append(out, routeActionItem{Label: "run:" + id, Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "run", RouteID: routeRuns, RunID: id}}})
+		case "approval":
+			out = append(out, routeActionItem{Label: "approval:" + id, Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "approval", RouteID: routeApprovals, ApprovalID: id}}})
+		case "artifact":
+			out = append(out, routeActionItem{Label: "artifact:" + id, Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "artifact", RouteID: routeArtifacts, Digest: id}}})
+		case "audit", "audit_record":
+			out = append(out, routeActionItem{Label: "record:" + id, Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "audit", RouteID: routeAudit, Digest: id}}})
+		}
+	}
+	return out
 }
 
 func auditInspectorContentKind(presentation contentPresentationMode) inspectorContentKind {

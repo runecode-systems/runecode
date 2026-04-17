@@ -37,9 +37,14 @@ func TestActionCenterViewKeepsFamiliesDistinctAndReservedQANotice(t *testing.T) 
 		"Operational attention",
 		"Blocked-work impact",
 		"Question/answer queues are reserved for future canonical broker models",
+	)
+	surface := updated.ShellSurface(routeShellContext{Width: 140, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
+	inspector := surface.Regions.Inspector.Body
+	mustContainAll(t, inspector,
+		"family=",
 		"urgency=",
 		"expiry=",
-		"stale/superseded=",
+		"stale_or_superseded=",
 		"impact=",
 	)
 }
@@ -73,6 +78,10 @@ func TestActionCenterKeyboardTriageAndDrillDown(t *testing.T) {
 	view := updated.View(140, 40, focusContent)
 	if !strings.Contains(view, "Active triage family") {
 		t.Fatalf("expected family indicator in view, got %q", view)
+	}
+	surface := updated.ShellSurface(routeShellContext{Width: 140, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
+	if !strings.Contains(surface.Regions.Inspector.Body, "drill_down_target=") {
+		t.Fatalf("expected action center drill-down details in inspector, got %q", surface.Regions.Inspector.Body)
 	}
 }
 

@@ -22,9 +22,13 @@ func renderSessionList(sessions []brokerapi.SessionSummary, selected int) string
 	return line
 }
 
-func renderSessionInspector(detail *brokerapi.SessionDetail, presentation contentPresentationMode) string {
+func renderSessionInspector(detail *brokerapi.SessionDetail, presentation contentPresentationMode, document *longFormDocumentState) string {
 	if detail == nil {
 		return "  Select a session and press enter to load transcript."
+	}
+	if document == nil {
+		fallback := newLongFormDocumentState()
+		document = &fallback
 	}
 	presentation = normalizePresentationMode(presentation)
 	transcript := renderTranscriptTurns(detail.TranscriptTurns)
@@ -38,29 +42,68 @@ func renderSessionInspector(detail *brokerapi.SessionDetail, presentation conten
 		contentKind = inspectorContentStructured
 	}
 	summary := detail.Summary
+	ref := workbenchObjectRef{Kind: "session", ID: strings.TrimSpace(summary.Identity.SessionID), WorkspaceID: strings.TrimSpace(summary.Identity.WorkspaceID), SessionID: strings.TrimSpace(summary.Identity.SessionID)}
+	document.SetDocument(ref, contentKind, "transcript", transcript)
+	references := chatInspectorReferences(detail)
+	localActions := chatInspectorLocalActions()
 	return renderInspectorShell(inspectorShellSpec{
 		Title:   "Session inspector",
 		Summary: activeSessionSummaryLine(detail),
 		Identity: fmt.Sprintf("session=%s workspace=%s", summary.Identity.SessionID,
 			valueOrNA(summary.Identity.WorkspaceID)),
-		Status:     fmt.Sprintf("status=%s turn_count=%d", valueOrNA(summary.Status), summary.TurnCount),
-		Badges:     []string{stateBadgeWithLabel("status", summary.Status), appTheme.InspectorHint.Render("linked refs + ordered transcript")},
-		ModeTabs:   []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
-		ActiveMode: string(presentation),
-		References: []inspectorReference{
-			{Label: "runs", Items: detail.LinkedRunIDs},
-			{Label: "approvals", Items: detail.LinkedApprovalIDs},
-			{Label: "artifacts", Items: detail.LinkedArtifactDigests},
-			{Label: "audit", Items: detail.LinkedAuditRecordDigests},
-		},
-		LocalActions:   []string{"jump:runs", "jump:approvals", "jump:artifacts", "jump:audit", "copy:session_id"},
-		CopyActions:    chatRouteCopyActions(detail),
-		ContentKind:    contentKind,
-		ContentLabel:   "transcript",
-		Content:        transcript,
-		ViewportWidth:  96,
-		ViewportHeight: 12,
+		Status:       fmt.Sprintf("status=%s turn_count=%d", valueOrNA(summary.Status), summary.TurnCount),
+		Badges:       []string{stateBadgeWithLabel("status", summary.Status), appTheme.InspectorHint.Render("linked refs + ordered transcript")},
+		ModeTabs:     []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
+		ActiveMode:   string(presentation),
+		References:   references,
+		LocalActions: localActions,
+		CopyActions:  chatRouteCopyActions(detail),
+		Document:     document,
 	})
+}
+
+func chatInspectorReferences(detail *brokerapi.SessionDetail) []inspectorReference {
+	if detail == nil {
+		return nil
+	}
+	return []inspectorReference{
+		{Label: "runs", Items: mapReferenceIDs(detail.LinkedRunIDs, func(id string) paletteActionMsg {
+			return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "run", RouteID: routeRuns, RunID: id}}
+		})},
+		{Label: "approvals", Items: mapReferenceIDs(detail.LinkedApprovalIDs, func(id string) paletteActionMsg {
+			return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "approval", RouteID: routeApprovals, ApprovalID: id}}
+		})},
+		{Label: "artifacts", Items: mapReferenceIDs(detail.LinkedArtifactDigests, func(id string) paletteActionMsg {
+			return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "artifact", RouteID: routeArtifacts, Digest: id}}
+		})},
+		{Label: "audit", Items: mapReferenceIDs(detail.LinkedAuditRecordDigests, func(id string) paletteActionMsg {
+			return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "audit", RouteID: routeAudit, Digest: id}}
+		})},
+	}
+}
+
+func chatInspectorLocalActions() []routeActionItem {
+	return []routeActionItem{
+		{Label: "jump:runs", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeRuns}}},
+		{Label: "jump:approvals", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeApprovals}}},
+		{Label: "jump:artifacts", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeArtifacts}}},
+		{Label: "jump:audit", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeAudit}}},
+		{Label: "copy:session_id"},
+	}
+}
+
+func chatInspectorReferenceActions(detail *brokerapi.SessionDetail) []routeActionItem {
+	refs := chatInspectorReferences(detail)
+	out := make([]routeActionItem, 0, 12)
+	for _, ref := range refs {
+		for _, item := range ref.Items {
+			if strings.TrimSpace(item.Label) == "" {
+				continue
+			}
+			out = append(out, routeActionItem{Label: fmt.Sprintf("%s:%s", ref.Label, item.Label), Action: item.Action})
+		}
+	}
+	return out
 }
 
 func chatRouteCopyActions(detail *brokerapi.SessionDetail) []routeCopyAction {

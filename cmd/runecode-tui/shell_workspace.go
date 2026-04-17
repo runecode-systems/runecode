@@ -24,6 +24,7 @@ func (m *shellModel) applySessionWorkspaceLoaded(msg sessionWorkspaceLoadedMsg) 
 	m.sessionLoading = false
 	if msg.err != nil {
 		m.sessionLoadError = safeUIErrorText(msg.err)
+		m.refreshObjectIndexFromShellState()
 		return
 	}
 	m.sessionLoadError = ""
@@ -33,6 +34,7 @@ func (m *shellModel) applySessionWorkspaceLoaded(msg sessionWorkspaceLoadedMsg) 
 	m.ensureActiveSessionSelection()
 	m.sessionSelected = selectedSessionIndex(m.sessionItems, m.activeSessionID)
 	m.trackActiveSessionState()
+	m.refreshObjectIndexFromShellState()
 	m.persistWorkbenchState()
 }
 
@@ -128,17 +130,13 @@ func (m shellModel) activateSelectedSessionFromSidebar() (tea.Model, tea.Cmd) {
 }
 
 func (m shellModel) activateSessionFromSidebarByID(sessionID string) (tea.Model, tea.Cmd) {
-	m.activeSessionID = strings.TrimSpace(sessionID)
-	m.sessionSelected = selectedSessionIndex(m.sessionItems, m.activeSessionID)
-	m.trackRecentSession(m.activeSessionID)
-	m.trackRecentObject(workbenchObjectRef{Kind: "session", ID: m.activeSessionID, WorkspaceID: m.workspaceForSession(m.activeSessionID), SessionID: m.activeSessionID})
-	m.markSessionViewed(m.activeSessionID)
-	if ws := m.workspaceForSession(m.activeSessionID); ws != "" {
-		m.lastSessionByWS[ws] = m.activeSessionID
+	updated, cmd := m.applyPaletteAction(paletteActionMsg{Verb: verbOpen, Target: paletteTarget{Kind: "session", SessionID: strings.TrimSpace(sessionID)}})
+	shell, ok := updated.(shellModel)
+	if ok {
+		shell.toasts.Push(toastInfo, "Active session switched: "+shell.activeSessionID)
+		return shell, cmd
 	}
-	m.persistWorkbenchState()
-	m.toasts.Push(toastInfo, "Active session switched: "+m.activeSessionID)
-	return m.switchToRoute(routeChat, true)
+	return updated, cmd
 }
 
 func (m *shellModel) trackRecentSession(sessionID string) {
@@ -155,6 +153,7 @@ func (m *shellModel) trackRecentSession(sessionID string) {
 		}
 	}
 	m.recentSessions = filtered
+	m.refreshObjectIndexFromShellState()
 }
 
 func (m *shellModel) trackRecentObject(ref workbenchObjectRef) {
@@ -176,6 +175,7 @@ func (m *shellModel) trackRecentObject(ref workbenchObjectRef) {
 		}
 	}
 	m.recentObjects = out
+	m.refreshObjectIndexFromShellState()
 }
 
 func (m *shellModel) workspaceForSession(sessionID string) string {

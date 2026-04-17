@@ -7,7 +7,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func TestShellQuickJumpSetsRouteAndFocusAndBackstack(t *testing.T) {
@@ -17,14 +16,14 @@ func TestShellQuickJumpSetsRouteAndFocusAndBackstack(t *testing.T) {
 		t.Fatal("expected route activation command")
 	}
 	shell := updated.(shellModel)
-	if shell.currentID != routeRuns {
-		t.Fatalf("expected route %q, got %q", routeRuns, shell.currentID)
+	if shell.currentRouteID() != routeRuns {
+		t.Fatalf("expected route %q, got %q", routeRuns, shell.currentRouteID())
 	}
 	if shell.focus != focusContent {
 		t.Fatalf("expected focusContent, got %v", shell.focus)
 	}
-	if len(shell.backstack) != 1 || shell.backstack[0] != routeChat {
-		t.Fatalf("expected backstack [chat], got %v", shell.backstack)
+	if len(shell.history) != 1 || shell.history[0].Primary.RouteID != routeChat {
+		t.Fatalf("expected history [chat], got %+v", shell.history)
 	}
 }
 
@@ -108,8 +107,8 @@ func TestShellNarrowInspectVerbOpensInspectorOverlay(t *testing.T) {
 
 	updated, _ := m.Update(paletteActionMsg{Verb: verbInspect, Target: paletteTarget{Kind: "run", RunID: "run-1"}})
 	shell := updated.(shellModel)
-	if shell.currentID != routeRuns {
-		t.Fatalf("expected route %q, got %q", routeRuns, shell.currentID)
+	if shell.currentRouteID() != routeChat {
+		t.Fatalf("expected inspect to preserve primary route %q, got %q", routeChat, shell.currentRouteID())
 	}
 	if !shell.narrowInspectOn {
 		t.Fatal("expected narrow inspector overlay on after inspect verb")
@@ -125,13 +124,13 @@ func TestShellBackKeyPopsBackstack(t *testing.T) {
 	shell := updated.(shellModel)
 	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
 	shell = updated.(shellModel)
-	if shell.currentID != routeRuns {
-		t.Fatalf("expected runs route, got %q", shell.currentID)
+	if shell.currentRouteID() != routeRuns {
+		t.Fatalf("expected runs route, got %q", shell.currentRouteID())
 	}
 	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
 	shell = updated.(shellModel)
-	if shell.currentID != routeChat {
-		t.Fatalf("expected back to chat, got %q", shell.currentID)
+	if shell.currentRouteID() != routeChat {
+		t.Fatalf("expected back to chat, got %q", shell.currentRouteID())
 	}
 }
 
@@ -141,21 +140,39 @@ func TestShellMouseClickSidebarOpensRoute(t *testing.T) {
 	startY, _ := m.sidebarYRange()
 	updated, _ := m.Update(tea.MouseMsg{X: 2, Y: startY + 1, Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft})
 	shell := updated.(shellModel)
-	if shell.currentID != routeChat {
-		t.Fatalf("expected route %q, got %q", routeChat, shell.currentID)
+	if shell.currentRouteID() != routeChat {
+		t.Fatalf("expected route %q, got %q", routeChat, shell.currentRouteID())
+	}
+}
+
+func TestShellMousePressDoesNotDuplicateSidebarNavigationHistory(t *testing.T) {
+	m := newShellModel()
+	m.width = 120
+	startY, _ := m.sidebarYRange()
+
+	updated, _ := m.Update(tea.MouseMsg{X: 2, Y: startY + 2, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	shell := updated.(shellModel)
+	if len(shell.history) != 0 {
+		t.Fatalf("expected mouse press not to mutate history, got %+v", shell.history)
+	}
+
+	updated, _ = shell.Update(tea.MouseMsg{X: 2, Y: startY + 2, Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft})
+	shell = updated.(shellModel)
+	if len(shell.history) != 1 {
+		t.Fatalf("expected single history entry after release, got %+v", shell.history)
 	}
 }
 
 func TestShellSelectionModeDisablesMouseInteractions(t *testing.T) {
 	m := newShellModel()
 	m.width = 120
-	m.currentID = routeRuns
+	m.location.Primary = shellObjectLocation{RouteID: routeRuns, Object: workbenchObjectRef{Kind: "route", ID: string(routeRuns)}}
 	m.selectionMode = true
 	startY, _ := m.sidebarYRange()
 	updated, _ := m.Update(tea.MouseMsg{X: 2, Y: startY + 1, Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft})
 	shell := updated.(shellModel)
-	if shell.currentID != routeRuns {
-		t.Fatalf("expected route unchanged while selection mode on, got %q", shell.currentID)
+	if shell.currentRouteID() != routeRuns {
+		t.Fatalf("expected route unchanged while selection mode on, got %q", shell.currentRouteID())
 	}
 }
 
@@ -163,7 +180,7 @@ func TestShellViewRendersShellSurfaces(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
 	v := m.View()
-	for _, want := range []string{"Top status", "Breadcrumbs:", "Backstack:", "Main pane", "Sidebar", "Bottom strip", "Status:"} {
+	for _, want := range []string{"Top status", "Breadcrumbs:", "History:", "Main pane", "Sidebar", "Bottom strip", "Status:"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected %q in view, got %q", want, v)
 		}
@@ -204,7 +221,7 @@ func TestShellCopyRouteActionCopiesInspectorAction(t *testing.T) {
 	runs := m.routeModels[routeRuns].(runsRouteModel)
 	runs.active = &brokerapi.RunDetail{Summary: brokerapi.RunSummary{RunID: "run-1", WorkspaceID: "ws-1", LifecycleState: "active", BackendKind: "workspace"}}
 	m.routeModels[routeRuns] = runs
-	m.currentID = routeRuns
+	m.location.Primary = shellObjectLocation{RouteID: routeRuns, Object: workbenchObjectRef{Kind: "route", ID: string(routeRuns)}}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'Y'}})
 	shell := updated.(shellModel)
@@ -231,10 +248,37 @@ func TestShellSelectionModeToggleReflectsInView(t *testing.T) {
 	}
 }
 
+func TestShellPaletteCommandToggleSelectionModeReturnsMouseCaptureCmd(t *testing.T) {
+	m := newShellModel()
+	updated, cmd := m.Update(paletteActionMsg{Verb: verbOpen, Target: paletteTarget{Kind: "command", CommandID: "shell.toggle_selection_mode"}})
+	if cmd == nil {
+		t.Fatal("expected mouse capture command for palette command toggle")
+	}
+	shell := updated.(shellModel)
+	if !shell.selectionMode {
+		t.Fatal("expected selection mode enabled by palette command")
+	}
+}
+
+func TestShellEscapeCloseNarrowOverlaysResetsHiddenNavFocus(t *testing.T) {
+	m := newShellModel()
+	m.width = 80
+	m.narrowSidebarOn = true
+	m.focusManager.Set(focusNav)
+	m.focus = m.focusManager.Current()
+	m.syncOverlayStack()
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	shell := updated.(shellModel)
+	if shell.focus != focusContent {
+		t.Fatalf("expected focus reset to content, got %v", shell.focus)
+	}
+}
+
 func TestShellTextEntryGuardsGlobalQuitShortcut(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
-	m.currentID = routeChat
+	m.location.Primary = shellObjectLocation{RouteID: routeChat, Object: workbenchObjectRef{Kind: "route", ID: string(routeChat)}}
 	chat := m.routeModels[routeChat].(chatRouteModel)
 	chat.composeOn = true
 	chat.composer.Focus()
@@ -256,19 +300,19 @@ func TestShellTextEntryGuardsGlobalQuitShortcut(t *testing.T) {
 
 func TestShellOverlayDoesNotBlockWatchUpdates(t *testing.T) {
 	m := newShellModel()
-	m.currentID = routeDashboard
+	m.location.Primary = shellObjectLocation{RouteID: routeDashboard, Object: workbenchObjectRef{Kind: "route", ID: string(routeDashboard)}}
 	opened, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
 	shell := opened.(shellModel)
 	if !shell.palette.IsOpen() {
 		t.Fatal("expected palette open")
 	}
 
-	updated, _ := shell.Update(shellWatchLoadedMsg{
-		runEvents: []brokerapi.RunWatchEvent{{EventType: "run_watch_terminal", Seq: 1, Terminal: true, TerminalStatus: "completed", Run: &brokerapi.RunSummary{RunID: "run-1"}}},
+	updated, _ := shell.Update(shellWatchTransportLoadedMsg{
+		Run: shellWatchRunTransportResult{Events: []brokerapi.RunWatchEvent{{EventType: "run_watch_terminal", Seq: 1, Terminal: true, TerminalStatus: "completed", Run: &brokerapi.RunSummary{RunID: "run-1"}}}},
 	})
 	shell = updated.(shellModel)
-	if shell.watchHealth.State != shellSyncStateHealthy {
-		t.Fatalf("expected healthy sync after watch update with palette open, got %s", shell.watchHealth.State)
+	if shell.watch.projection.Health.State != shellSyncStateHealthy {
+		t.Fatalf("expected healthy sync after watch update with palette open, got %s", shell.watch.projection.Health.State)
 	}
 }
 
@@ -278,6 +322,43 @@ func TestShellBottomStripSelectionHintUsesCtrlT(t *testing.T) {
 	v := m.View()
 	if !strings.Contains(v, "ctrl+t") {
 		t.Fatalf("expected ctrl+t in selection hint, got %q", v)
+	}
+}
+
+func TestShellScrollDispatchTargetsRouteViewportState(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	m.location.Primary = shellObjectLocation{RouteID: routeRuns, Object: workbenchObjectRef{Kind: "route", ID: string(routeRuns)}}
+	runs := newRunsRouteModel(routeDefinition{ID: routeRuns, Label: "Runs"}, &fakeBrokerClient{})
+	runsUpdated, runsCmd := runs.Update(routeActivatedMsg{RouteID: routeRuns})
+	if runsCmd == nil {
+		t.Fatal("expected runs load command")
+	}
+	runsUpdated, _ = runsUpdated.Update(runsCmd())
+	m.routeModels[routeRuns] = runsUpdated
+	m.focusManager.Set(focusContent)
+	m.focus = m.focusManager.Current()
+	shell := m
+	var updated tea.Model
+
+	updated, _ = shell.Update(routeViewportResizeMsg{Width: 120, Height: 28})
+	shell = updated.(shellModel)
+	updated, _ = shell.Update(routeViewportScrollMsg{Region: routeRegionInspector, Delta: 2})
+	shell = updated.(shellModel)
+
+	before := shell.activeShellSurface().Regions.Inspector.Body
+	if !strings.Contains(before, "offset=2") {
+		t.Fatalf("expected baseline offset=2, got %q", before)
+	}
+
+	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	shell = updated.(shellModel)
+	after := shell.activeShellSurface().Regions.Inspector.Body
+	if !strings.Contains(after, "offset=3") {
+		t.Fatalf("expected pgdown to dispatch route inspector scroll, got %q", after)
+	}
+	if strings.Contains(after, "scroll=") {
+		t.Fatalf("expected shell-global scroll retired from status, got %q", after)
 	}
 }
 
@@ -296,35 +377,68 @@ func TestShellCommandRegistryExecutesToggleSidebar(t *testing.T) {
 
 func TestShellPaletteEntriesAreObjectAware(t *testing.T) {
 	m := newShellModel()
-	m.sessionItems = []brokerapi.SessionSummary{{Identity: brokerapi.SessionIdentity{SessionID: "session-1", WorkspaceID: "ws-1"}, LastActivityKind: "chat_message", LastActivityPreview: "hello"}}
-
-	runs := m.routeModels[routeRuns].(runsRouteModel)
-	runs.runs = []brokerapi.RunSummary{{RunID: "run-1", LifecycleState: "active", PendingApprovalCount: 1}}
-	m.routeModels[routeRuns] = runs
-
-	approvals := m.routeModels[routeApprovals].(approvalsRouteModel)
-	approvals.items = []brokerapi.ApprovalSummary{{ApprovalID: "ap-1", Status: "pending", ApprovalTriggerCode: "policy_gate"}}
-	m.routeModels[routeApprovals] = approvals
-
-	artifacts := m.routeModels[routeArtifacts].(artifactsRouteModel)
-	artifacts.items = []brokerapi.ArtifactSummary{{Reference: brokerapi.ArtifactSummary{}.Reference}}
-	artifacts.items[0].Reference.Digest = "sha256:cccc"
-	artifacts.items[0].Reference.DataClass = "diffs"
-	m.routeModels[routeArtifacts] = artifacts
-
-	audit := m.routeModels[routeAudit].(auditRouteModel)
-	audit.timeline = []brokerapi.AuditTimelineViewEntry{{RecordDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}, EventType: "run_state", Summary: "changed"}}
-	m.routeModels[routeAudit] = audit
+	m.client = &fakeBrokerClient{}
+	loadedMsg, ok := m.loadObjectIndexCmd()().(shellObjectIndexLoadedMsg)
+	if !ok {
+		t.Fatalf("expected shellObjectIndexLoadedMsg, got %T", m.loadObjectIndexCmd()())
+	}
+	updated, _ := m.Update(loadedMsg)
+	m = updated.(shellModel)
 
 	entries := m.buildPaletteEntries()
 	joined := ""
 	for _, e := range entries {
 		joined += e.Label + "\n"
 	}
-	for _, want := range []string{"open session session-1", "inspect run run-1", "inspect approval ap-1", "inspect artifact sha256:cccc", "inspect audit sha256:"} {
+	for _, want := range []string{"open session session-1", "inspect run run-1", "inspect approval ap-1", "inspect artifact sha256:bbbb", "inspect audit sha256:"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("expected %q in palette labels, got %q", want, joined)
 		}
+	}
+}
+
+func TestShellPaletteNavigationFromFreshLaunchUsesShellIndex(t *testing.T) {
+	m := newShellModel()
+	m.client = &fakeBrokerClient{}
+	runs := m.routeModels[routeRuns].(runsRouteModel)
+	if len(runs.runs) != 0 {
+		t.Fatalf("expected runs model uninitialized at fresh launch, got %d items", len(runs.runs))
+	}
+
+	loadedMsg, ok := m.loadObjectIndexCmd()().(shellObjectIndexLoadedMsg)
+	if !ok {
+		t.Fatalf("expected shellObjectIndexLoadedMsg, got %T", m.loadObjectIndexCmd()())
+	}
+	updated, _ := m.Update(loadedMsg)
+	shell := updated.(shellModel)
+
+	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	shell = updated.(shellModel)
+	for _, r := range "run-1" {
+		updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		shell = updated.(shellModel)
+	}
+	selected, ok := shell.palette.SelectedEntry()
+	if !ok {
+		t.Fatal("expected a selected palette entry")
+	}
+	if !strings.Contains(selected.Label, "inspect run run-1") {
+		t.Fatalf("expected selected run entry after query, got %q", selected.Label)
+	}
+
+	updated, cmd := shell.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected palette pick command")
+	}
+	shell = updated.(shellModel)
+	paletteMsg := cmd()
+	updated, cmd = shell.Update(paletteMsg)
+	if cmd == nil {
+		t.Fatal("expected route activation command for run navigation")
+	}
+	shell = updated.(shellModel)
+	if shell.currentRouteID() != routeRuns {
+		t.Fatalf("expected navigation to %q, got %q", routeRuns, shell.currentRouteID())
 	}
 }
 
@@ -338,8 +452,8 @@ func TestShellPaletteNavigationWorksWhenSidebarHidden(t *testing.T) {
 		t.Fatal("expected command for route activation")
 	}
 	shell := updated.(shellModel)
-	if shell.currentID != routeAudit {
-		t.Fatalf("expected route %q, got %q", routeAudit, shell.currentID)
+	if shell.currentRouteID() != routeAudit {
+		t.Fatalf("expected route %q, got %q", routeAudit, shell.currentRouteID())
 	}
 	if shell.effectiveSidebarVisible() {
 		t.Fatal("expected sidebar to remain hidden")
@@ -355,8 +469,8 @@ func TestShellPaletteNavigationWorksWhenSidebarAutoCollapsedNarrow(t *testing.T)
 		t.Fatal("expected command for route activation")
 	}
 	shell := updated.(shellModel)
-	if shell.currentID != routeAudit {
-		t.Fatalf("expected route %q, got %q", routeAudit, shell.currentID)
+	if shell.currentRouteID() != routeAudit {
+		t.Fatalf("expected route %q, got %q", routeAudit, shell.currentRouteID())
 	}
 	if shell.effectiveSidebarVisible() {
 		t.Fatal("expected sidebar to remain auto-hidden on narrow breakpoint")
@@ -370,38 +484,38 @@ func TestShellStandardizedBackVerb(t *testing.T) {
 	m := newShellModel()
 	updated, _ := m.Update(paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeStatus}})
 	shell := updated.(shellModel)
-	if shell.currentID != routeStatus {
-		t.Fatalf("expected route %q, got %q", routeStatus, shell.currentID)
+	if shell.currentRouteID() != routeStatus {
+		t.Fatalf("expected route %q, got %q", routeStatus, shell.currentRouteID())
 	}
 
 	updated, _ = shell.Update(paletteActionMsg{Verb: verbBack})
 	shell = updated.(shellModel)
-	if shell.currentID != routeChat {
-		t.Fatalf("expected back to %q, got %q", routeChat, shell.currentID)
+	if shell.currentRouteID() != routeChat {
+		t.Fatalf("expected back to %q, got %q", routeChat, shell.currentRouteID())
 	}
 }
 
 func TestShellWatchManagerUpdatesRoutesAndSyncHealth(t *testing.T) {
 	m := newShellModel()
-	m.currentID = routeDashboard
-	updated, _ := m.Update(shellWatchLoadedMsg{
-		runEvents: []brokerapi.RunWatchEvent{
+	m.location.Primary = shellObjectLocation{RouteID: routeDashboard, Object: workbenchObjectRef{Kind: "route", ID: string(routeDashboard)}}
+	updated, _ := m.Update(shellWatchTransportLoadedMsg{
+		Run: shellWatchRunTransportResult{Events: []brokerapi.RunWatchEvent{
 			{EventType: "run_watch_snapshot", Seq: 1, Run: &brokerapi.RunSummary{RunID: "run-1"}},
 			{EventType: "run_watch_terminal", Seq: 2, Terminal: true, TerminalStatus: "completed"},
-		},
-		approvalEvents: []brokerapi.ApprovalWatchEvent{
+		}},
+		Approval: shellWatchApprovalTransportResult{Events: []brokerapi.ApprovalWatchEvent{
 			{EventType: "approval_watch_snapshot", Seq: 1, Approval: &brokerapi.ApprovalSummary{ApprovalID: "ap-1"}},
 			{EventType: "approval_watch_terminal", Seq: 2, Terminal: true, TerminalStatus: "completed"},
-		},
-		sessionEvents: []brokerapi.SessionWatchEvent{
+		}},
+		Session: shellWatchSessionTransportResult{Events: []brokerapi.SessionWatchEvent{
 			{EventType: "session_watch_snapshot", Seq: 1, Session: &brokerapi.SessionSummary{Identity: brokerapi.SessionIdentity{SessionID: "session-1"}}},
 			{EventType: "session_watch_terminal", Seq: 2, Terminal: true, TerminalStatus: "completed"},
-		},
+		}},
 	})
 
 	shell := updated.(shellModel)
-	if shell.watchHealth.State != shellSyncStateHealthy {
-		t.Fatalf("expected healthy sync, got %s", shell.watchHealth.State)
+	if shell.watch.projection.Health.State != shellSyncStateHealthy {
+		t.Fatalf("expected healthy sync, got %s", shell.watch.projection.Health.State)
 	}
 	view := shell.View()
 	mustContainAll(t, view,
@@ -414,14 +528,14 @@ func TestShellWatchManagerUpdatesRoutesAndSyncHealth(t *testing.T) {
 
 func TestShellWatchManagerRendersDisconnectedHealth(t *testing.T) {
 	m := newShellModel()
-	updated, _ := m.Update(shellWatchLoadedMsg{
-		runErr:      errors.New("local_ipc_dial_error"),
-		approvalErr: errors.New("local_ipc_dial_error"),
-		sessionErr:  errors.New("local_ipc_dial_error"),
+	updated, _ := m.Update(shellWatchTransportLoadedMsg{
+		Run:      shellWatchRunTransportResult{Err: errors.New("local_ipc_dial_error")},
+		Approval: shellWatchApprovalTransportResult{Err: errors.New("local_ipc_dial_error")},
+		Session:  shellWatchSessionTransportResult{Err: errors.New("local_ipc_dial_error")},
 	})
 	shell := updated.(shellModel)
-	if shell.watchHealth.State != shellSyncStateDisconnected {
-		t.Fatalf("expected disconnected sync, got %s", shell.watchHealth.State)
+	if shell.watch.projection.Health.State != shellSyncStateDisconnected {
+		t.Fatalf("expected disconnected sync, got %s", shell.watch.projection.Health.State)
 	}
 	if !strings.Contains(shell.View(), "sync=disconnected") {
 		t.Fatalf("expected disconnected indicator in view, got %q", shell.View())

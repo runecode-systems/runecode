@@ -20,6 +20,16 @@ type routeActivatedMsg struct {
 	ActiveSessionID string
 }
 
+type routeViewportScrollMsg struct {
+	Region routeRegionFocus
+	Delta  int
+}
+
+type routeViewportResizeMsg struct {
+	Width  int
+	Height int
+}
+
 type routeErrorModel struct {
 	def routeDefinition
 }
@@ -53,8 +63,10 @@ func (m routeErrorModel) View(width, height int, focus focusArea) string {
 
 func (m routeErrorModel) ShellSurface(ctx routeShellContext) routeSurface {
 	return routeSurface{
-		Main:        m.View(ctx.Width, ctx.Height, ctx.Focus),
-		Breadcrumbs: []string{"Home", m.def.Label},
+		Regions: routeSurfaceRegions{
+			Main: routeSurfaceRegion{Body: m.View(ctx.Width, ctx.Height, ctx.Focus)},
+		},
+		Chrome: routeSurfaceChrome{Breadcrumbs: []string{"Home", m.def.Label}},
 	}
 }
 
@@ -106,7 +118,7 @@ func safeUIErrorText(err error) string {
 	if text == "" {
 		return "unknown_error"
 	}
-	return redactSecrets(remediateBrokerErrorText(text))
+	return sanitizeUIText(remediateBrokerErrorText(text))
 }
 
 func remediateBrokerErrorText(text string) string {

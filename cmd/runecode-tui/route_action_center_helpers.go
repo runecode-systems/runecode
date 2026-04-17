@@ -110,7 +110,7 @@ func buildOperationalAttentionItems(audit *brokerapi.AuditVerificationGetRespons
 }
 
 func operationalSyncHealthItem(health shellSyncHealth) []actionCenterItem {
-	if health.State != shellSyncStateDisconnected && health.State != shellSyncStateDegraded {
+	if health.State != shellSyncStateDisconnected && health.State != shellSyncStateDegraded && health.State != shellSyncStateReconnecting {
 		return nil
 	}
 	urgency := "high"

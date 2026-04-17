@@ -56,9 +56,12 @@ func (m shellModel) handleShellMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case sessionWorkspaceLoadedMsg:
 		m.applySessionWorkspaceLoaded(typed)
 		return m, nil, true
+	case shellObjectIndexLoadedMsg:
+		m.applyObjectIndexLoaded(typed)
+		return m, nil, true
 	case shellWatchPollMsg:
 		return m, m.loadWatchPollCmd(), true
-	case shellWatchLoadedMsg:
+	case shellWatchTransportLoadedMsg:
 		return m.handleShellWatchLoaded(typed)
 	case shellActivityTickMsg:
 		return m.handleShellActivityTick()
@@ -73,17 +76,18 @@ func (m shellModel) handleShellMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	}
 }
 
-func (m shellModel) handleShellWatchLoaded(msg shellWatchLoadedMsg) (tea.Model, tea.Cmd, bool) {
-	m.applyWatchPoll(msg)
-	m.toasts.SetActivity(m.activity.State == shellActivityStateRunning)
-	if m.activity.State == shellActivityStateRunning {
-		return m, tea.Batch(m.watchPollTickCmd(), m.activityTickCmd()), true
+func (m shellModel) handleShellWatchLoaded(msg shellWatchTransportLoadedMsg) (tea.Model, tea.Cmd, bool) {
+	m.applyWatchTransport(msg)
+	activity := m.watch.projection.Activity
+	m.toasts.SetActivity(activity.State == shellActivityStateRunning)
+	if activity.State == shellActivityStateRunning {
+		return m, tea.Batch(m.watchPollTickAfterCmd(m.watch.nextPollDelay()), m.activityTickCmd()), true
 	}
-	return m, m.watchPollTickCmd(), true
+	return m, m.watchPollTickAfterCmd(m.watch.nextPollDelay()), true
 }
 
 func (m shellModel) handleShellActivityTick() (tea.Model, tea.Cmd, bool) {
-	if m.activity.State != shellActivityStateRunning {
+	if m.watch.projection.Activity.State != shellActivityStateRunning {
 		return m, nil, true
 	}
 	m.activityFrame = (m.activityFrame + 1) % 8
@@ -111,7 +115,8 @@ func (m shellModel) handleWindowSize(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		m.focus = m.focusManager.Current()
 	}
 	m.syncOverlayStack()
-	return m, nil, true
+	updated, cmd := m.updateActiveRoute(routeViewportResizeMsg{Width: m.width, Height: m.height})
+	return updated, cmd, true
 }
 
 func (m shellModel) handlePaletteMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {

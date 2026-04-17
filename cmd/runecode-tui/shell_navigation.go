@@ -10,50 +10,58 @@ func (m shellModel) applyPaletteAction(action paletteActionMsg) (tea.Model, tea.
 	switch action.Verb {
 	case verbBack:
 		return m.navigateBack()
-	case verbOpen, verbJump:
-		return m.applyPaletteTarget(action.Target)
+	case verbOpen:
+		return m.applyPaletteOpen(action.Target)
 	case verbInspect:
 		return m.applyPaletteInspect(action.Target)
+	case verbJump:
+		return m.applyPaletteJump(action.Target)
 	default:
 		return m, nil
 	}
 }
 
+func (m shellModel) applyPaletteOpen(target paletteTarget) (tea.Model, tea.Cmd) {
+	m.closeNarrowOverlaysForPaletteTarget()
+	return m.applyPaletteTargetByKind(target, verbOpen)
+}
+
+func (m shellModel) applyPaletteJump(target paletteTarget) (tea.Model, tea.Cmd) {
+	m.closeNarrowOverlaysForPaletteTarget()
+	return m.applyPaletteTargetByKind(target, verbJump)
+}
+
 func (m shellModel) applyPaletteInspect(target paletteTarget) (tea.Model, tea.Cmd) {
-	updated, cmd := m.applyPaletteTarget(target)
-	shell, ok := updated.(shellModel)
-	if !ok {
-		return updated, cmd
+	m.closeNarrowOverlaysForPaletteTarget()
+	loc, cmd := m.locationForPaletteTarget(target)
+	if loc.Primary.RouteID == "" {
+		return m, cmd
 	}
-	if shell.breakpoint() != shellBreakpointNarrow {
-		return shell, cmd
+	m.location.Inspector = &loc.Primary
+	m.copyActionIndex = 0
+	m.focusManager.Set(focusContent)
+	m.focus = m.focusManager.Current()
+	if m.breakpoint() == shellBreakpointNarrow && m.inspectorOn {
+		m.narrowInspectOn = true
+		m.narrowSidebarOn = false
+		m.syncOverlayStack()
 	}
-	if strings.TrimSpace(shell.activeShellSurface().Inspector) == "" || !shell.inspectorOn {
-		return shell, cmd
-	}
-	shell.narrowInspectOn = true
-	shell.narrowSidebarOn = false
-	shell.syncOverlayStack()
-	return shell, cmd
+	m.persistWorkbenchState()
+	return m, cmd
 }
 
 func (m shellModel) navigateBack() (tea.Model, tea.Cmd) {
-	if len(m.backstack) == 0 {
+	if len(m.history) == 0 {
 		return m, nil
 	}
-	prev := m.backstack[len(m.backstack)-1]
-	m.backstack = m.backstack[:len(m.backstack)-1]
-	m.currentID = prev
-	m.nav.SelectByRouteID(prev)
+	prev := m.history[len(m.history)-1]
+	m.history = m.history[:len(m.history)-1]
+	m.location = prev
+	m.nav.SelectByRouteID(prev.Primary.RouteID)
 	m.focusManager.Set(focusContent)
 	m.focus = m.focusManager.Current()
 	m.persistWorkbenchState()
 	return m, m.activateCurrentRouteCmd()
-}
-
-func (m shellModel) applyPaletteTarget(target paletteTarget) (tea.Model, tea.Cmd) {
-	m.closeNarrowOverlaysForPaletteTarget()
-	return m.applyPaletteTargetByKind(target)
 }
 
 func (m *shellModel) closeNarrowOverlaysForPaletteTarget() {
@@ -64,99 +72,123 @@ func (m *shellModel) closeNarrowOverlaysForPaletteTarget() {
 	m.narrowInspectOn = false
 }
 
-func (m shellModel) applyPaletteTargetByKind(target paletteTarget) (tea.Model, tea.Cmd) {
-	switch target.Kind {
-	case "route":
-		return m.applyRouteTarget(target)
-	case "session":
-		return m.applySessionTarget(target)
-	case "run":
-		return m.applyRunTarget(target)
-	case "approval":
-		return m.applyApprovalTarget(target)
-	case "action_center":
-		return m.applyActionCenterTarget()
-	case "artifact":
-		return m.applyArtifactTarget(target)
-	case "audit":
-		return m.applyAuditTarget(target)
-	case "command":
-		return m.applyCommandTarget(target)
-	default:
-		return m, nil
+func (m shellModel) applyPaletteTargetByKind(target paletteTarget, verb navigationVerb) (tea.Model, tea.Cmd) {
+	if verb == verbInspect {
+		return m.applyPaletteInspect(target)
 	}
-}
-
-func (m shellModel) applyRouteTarget(target paletteTarget) (tea.Model, tea.Cmd) {
-	m.trackRecentObject(workbenchObjectRef{Kind: "route", ID: string(target.RouteID)})
-	m.syncNarrowOverlayStackIfNeeded()
-	return m.switchToRoute(target.RouteID, true)
-}
-
-func (m shellModel) applySessionTarget(target paletteTarget) (tea.Model, tea.Cmd) {
-	m.trackRecentObject(workbenchObjectRef{Kind: "session", ID: target.SessionID, WorkspaceID: m.workspaceForSession(target.SessionID), SessionID: target.SessionID})
-	m.syncNarrowOverlayStackIfNeeded()
-	return m.activateSessionFromSidebarByID(target.SessionID)
-}
-
-func (m shellModel) applyRunTarget(target paletteTarget) (tea.Model, tea.Cmd) {
-	m.trackRecentObject(workbenchObjectRef{Kind: "run", ID: target.RunID, WorkspaceID: m.workspaceForSession(m.activeSessionID), SessionID: m.activeSessionID})
-	updated, cmd := m.switchToRoute(routeRuns, true)
-	return withNarrowOverlaySynced(updated, m.breakpoint()), tea.Batch(cmd, func() tea.Msg { return runsSelectRunMsg{RunID: target.RunID} })
-}
-
-func (m shellModel) applyApprovalTarget(target paletteTarget) (tea.Model, tea.Cmd) {
-	m.trackRecentObject(workbenchObjectRef{Kind: "approval", ID: target.ApprovalID, WorkspaceID: m.workspaceForSession(m.activeSessionID), SessionID: m.activeSessionID})
-	updated, cmd := m.switchToRoute(routeApprovals, true)
-	return withNarrowOverlaySynced(updated, m.breakpoint()), tea.Batch(cmd, func() tea.Msg { return approvalsSelectMsg{ApprovalID: target.ApprovalID} })
-}
-
-func (m shellModel) applyActionCenterTarget() (tea.Model, tea.Cmd) {
-	m.trackRecentObject(workbenchObjectRef{Kind: "route", ID: string(routeAction)})
-	m.syncNarrowOverlayStackIfNeeded()
-	return m.switchToRoute(routeAction, true)
-}
-
-func (m shellModel) applyArtifactTarget(target paletteTarget) (tea.Model, tea.Cmd) {
-	m.trackRecentObject(workbenchObjectRef{Kind: "artifact", ID: target.Digest, WorkspaceID: m.workspaceForSession(m.activeSessionID), SessionID: m.activeSessionID})
-	updated, cmd := m.switchToRoute(routeArtifacts, true)
-	return withNarrowOverlaySynced(updated, m.breakpoint()), tea.Batch(cmd, func() tea.Msg { return artifactsSelectDigestMsg{Digest: target.Digest} })
-}
-
-func (m shellModel) applyAuditTarget(target paletteTarget) (tea.Model, tea.Cmd) {
-	m.trackRecentObject(workbenchObjectRef{Kind: "audit", ID: target.Digest, WorkspaceID: m.workspaceForSession(m.activeSessionID), SessionID: m.activeSessionID})
-	updated, cmd := m.switchToRoute(routeAudit, true)
-	return withNarrowOverlaySynced(updated, m.breakpoint()), tea.Batch(cmd, func() tea.Msg { return auditSelectRecordMsg{Digest: target.Digest} })
-}
-
-func (m shellModel) applyCommandTarget(target paletteTarget) (tea.Model, tea.Cmd) {
-	if m.commands.Execute(target.CommandID, &m) {
+	if target.Kind == "command" {
+		cmd := m.commands.Execute(target.CommandID, &m)
 		m.applyInspectorVisibilityToRoutes()
 		m.applyPreferredPresentationToRoutes()
 		m.persistWorkbenchState()
+		m.syncOverlayStack()
+		return m, cmd
 	}
-	m.syncOverlayStack()
-	return m, nil
-}
-
-func (m *shellModel) syncNarrowOverlayStackIfNeeded() {
+	loc, cmd := m.locationForPaletteTarget(target)
+	if loc.Primary.RouteID == "" {
+		return m, cmd
+	}
+	if verb == verbJump {
+		m.history = append(m.history, m.currentLocation())
+	}
+	m.location.Primary = loc.Primary
+	if verb != verbInspect {
+		m.location.Inspector = nil
+	}
+	m.copyActionIndex = 0
+	m.nav.SelectByRouteID(loc.Primary.RouteID)
+	m.focusManager.Set(focusContent)
+	m.focus = m.focusManager.Current()
+	m.persistWorkbenchState()
 	if m.breakpoint() == shellBreakpointNarrow {
 		m.syncOverlayStack()
 	}
+	return m, tea.Batch(m.activateCurrentRouteCmd(), cmd)
 }
 
-func withNarrowOverlaySynced(updated tea.Model, breakpoint shellBreakpoint) tea.Model {
-	shell, ok := updated.(shellModel)
-	if !ok {
-		return updated
+func (m shellModel) locationForPaletteTarget(target paletteTarget) (shellWorkbenchLocation, tea.Cmd) {
+	switch target.Kind {
+	case "route":
+		return m.locationForRouteTarget(target), nil
+	case "session":
+		return m.locationForSessionTarget(target), func() tea.Msg { return chatSelectSessionMsg{SessionID: strings.TrimSpace(target.SessionID)} }
+	case "run":
+		return m.locationForRunTarget(target), func() tea.Msg { return runsSelectRunMsg{RunID: strings.TrimSpace(target.RunID)} }
+	case "approval":
+		return m.locationForApprovalTarget(target), func() tea.Msg { return approvalsSelectMsg{ApprovalID: strings.TrimSpace(target.ApprovalID)} }
+	case "action_center":
+		return m.locationForActionCenterTarget(), nil
+	case "artifact":
+		return m.locationForArtifactTarget(target), func() tea.Msg { return artifactsSelectDigestMsg{Digest: strings.TrimSpace(target.Digest)} }
+	case "audit":
+		return m.locationForAuditTarget(target), func() tea.Msg { return auditSelectRecordMsg{Digest: strings.TrimSpace(target.Digest)} }
+	default:
+		return m.currentLocation(), nil
 	}
-	if breakpoint == shellBreakpointNarrow {
-		shell.syncOverlayStack()
+}
+
+func (m shellModel) locationForRouteTarget(target paletteTarget) shellWorkbenchLocation {
+	rid := target.RouteID
+	if rid == "" {
+		rid = m.currentRouteID()
 	}
-	return shell
+	obj := workbenchObjectRef{Kind: "route", ID: string(rid)}
+	m.trackRecentObject(obj)
+	return shellWorkbenchLocation{Primary: shellObjectLocation{RouteID: rid, Object: obj}}
+}
+
+func (m shellModel) locationForSessionTarget(target paletteTarget) shellWorkbenchLocation {
+	sid := strings.TrimSpace(target.SessionID)
+	ws := m.workspaceForSession(sid)
+	obj := workbenchObjectRef{Kind: "session", ID: sid, WorkspaceID: ws, SessionID: sid}
+	m.trackRecentObject(obj)
+	if sid != "" {
+		m.activeSessionID = sid
+		m.sessionSelected = selectedSessionIndex(m.sessionItems, sid)
+		m.trackRecentSession(sid)
+		m.markSessionViewed(sid)
+		if ws != "" {
+			m.lastSessionByWS[ws] = sid
+		}
+	}
+	return shellWorkbenchLocation{Primary: shellObjectLocation{RouteID: routeChat, Object: obj}}
+}
+
+func (m shellModel) locationForRunTarget(target paletteTarget) shellWorkbenchLocation {
+	runID := strings.TrimSpace(target.RunID)
+	obj := workbenchObjectRef{Kind: "run", ID: runID, WorkspaceID: m.workspaceForSession(m.activeSessionID), SessionID: m.activeSessionID}
+	m.trackRecentObject(obj)
+	return shellWorkbenchLocation{Primary: shellObjectLocation{RouteID: routeRuns, Object: obj}}
+}
+
+func (m shellModel) locationForApprovalTarget(target paletteTarget) shellWorkbenchLocation {
+	approvalID := strings.TrimSpace(target.ApprovalID)
+	obj := workbenchObjectRef{Kind: "approval", ID: approvalID, WorkspaceID: m.workspaceForSession(m.activeSessionID), SessionID: m.activeSessionID}
+	m.trackRecentObject(obj)
+	return shellWorkbenchLocation{Primary: shellObjectLocation{RouteID: routeApprovals, Object: obj}}
+}
+
+func (m shellModel) locationForActionCenterTarget() shellWorkbenchLocation {
+	obj := workbenchObjectRef{Kind: "route", ID: string(routeAction)}
+	m.trackRecentObject(obj)
+	return shellWorkbenchLocation{Primary: shellObjectLocation{RouteID: routeAction, Object: obj}}
+}
+
+func (m shellModel) locationForArtifactTarget(target paletteTarget) shellWorkbenchLocation {
+	digest := strings.TrimSpace(target.Digest)
+	obj := workbenchObjectRef{Kind: "artifact", ID: digest, WorkspaceID: m.workspaceForSession(m.activeSessionID), SessionID: m.activeSessionID}
+	m.trackRecentObject(obj)
+	return shellWorkbenchLocation{Primary: shellObjectLocation{RouteID: routeArtifacts, Object: obj}}
+}
+
+func (m shellModel) locationForAuditTarget(target paletteTarget) shellWorkbenchLocation {
+	digest := strings.TrimSpace(target.Digest)
+	obj := workbenchObjectRef{Kind: "audit", ID: digest, WorkspaceID: m.workspaceForSession(m.activeSessionID), SessionID: m.activeSessionID}
+	m.trackRecentObject(obj)
+	return shellWorkbenchLocation{Primary: shellObjectLocation{RouteID: routeAudit, Object: obj}}
 }
 func (m *shellModel) toggleActiveInspector() {
-	model, ok := m.routeModels[m.currentID]
+	model, ok := m.routeModels[m.currentRouteID()]
 	if !ok || model == nil {
 		return
 	}
@@ -164,23 +196,27 @@ func (m *shellModel) toggleActiveInspector() {
 	case chatRouteModel:
 		typed.inspectorOn = !typed.inspectorOn
 		m.inspectorOn = typed.inspectorOn
-		m.routeModels[m.currentID] = typed
+		m.routeModels[m.currentRouteID()] = typed
 	case runsRouteModel:
 		typed.inspectorOn = !typed.inspectorOn
 		m.inspectorOn = typed.inspectorOn
-		m.routeModels[m.currentID] = typed
+		m.routeModels[m.currentRouteID()] = typed
 	case approvalsRouteModel:
 		typed.inspectorOn = !typed.inspectorOn
 		m.inspectorOn = typed.inspectorOn
-		m.routeModels[m.currentID] = typed
+		m.routeModels[m.currentRouteID()] = typed
+	case actionCenterRouteModel:
+		typed.inspectorOn = !typed.inspectorOn
+		m.inspectorOn = typed.inspectorOn
+		m.routeModels[m.currentRouteID()] = typed
 	case artifactsRouteModel:
 		typed.inspectorOn = !typed.inspectorOn
 		m.inspectorOn = typed.inspectorOn
-		m.routeModels[m.currentID] = typed
+		m.routeModels[m.currentRouteID()] = typed
 	case auditRouteModel:
 		typed.inspectorOn = !typed.inspectorOn
 		m.inspectorOn = typed.inspectorOn
-		m.routeModels[m.currentID] = typed
+		m.routeModels[m.currentRouteID()] = typed
 	default:
 		return
 	}

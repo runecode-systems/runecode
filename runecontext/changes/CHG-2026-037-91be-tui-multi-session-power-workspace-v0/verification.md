@@ -1,14 +1,19 @@
 # Verification
 
-## Planned Automated Checks
-- `runectx validate --json`
-- `runectx status --json`
+## Executed Automated Checks
 - `go test ./cmd/runecode-tui`
-- `go test ./internal/brokerapi`
-- `just lint`
-- `just test`
+- `just ci`
 
-## Planned Interactive Workbench Checks
+## Automated Results
+- `go test ./cmd/runecode-tui`: pass after foundation refactor and follow-up review fixes.
+- `just ci`: pass, including gofmt/lint/vet/source-quality/model-checking/full Go test suite/runner checks/boundary-check.
+
+## Review Lanes
+- `review-code-correctness`: found input/history and command-side-effect issues; fixes applied and reverified.
+- `review-code-integration`: no findings.
+- `review-code-security`: found UI/clipboard redaction and defensive validation gaps; fixes applied and reverified.
+
+## Interactive Workbench Checks
 - Verify the TUI launches in full-screen alt-screen mode and exits cleanly.
 - Verify the sidebar is visible by default, can be toggled off and back on, and palette-only navigation remains fully capable when it is hidden.
 - Verify wide, medium, and narrow terminal behaviors match the shell-level breakpoint model.
@@ -20,6 +25,9 @@
 - Verify the shell-level running indicator appears when canonical work is active and that `loading`, `running`, and `degraded sync` are distinguishable.
 - Verify persisted local workbench state restores sidebar visibility, pane state, presentation mode, theme preset, recents, pinned sessions, and last active session per workspace without affecting canonical system truth.
 - Capture repeatable screenshots or VHS tapes for the key shell, palette, selection-mode, Action Center, and inspector flows.
+
+Interactive coverage note:
+- The branch includes route and shell tests for the major shell semantics above, plus capture assets under `cmd/runecode-tui/capture/`. Manual terminal-flow revalidation should still be performed during release promotion or dogfooding when a live broker is available.
 
 ## Verification Notes
 - Confirm the change is scheduled pre-MVP and after `CHG-2026-013-d2c9-minimal-tui-v0`, in `v0.1.0-alpha.5`.
@@ -38,6 +46,15 @@
 - Confirm theme presets are built on semantic tokens and preserve non-color cues.
 - Confirm remote or scaled backend compatibility is preserved at the logical-contract level without introducing remote transport changes in this change.
 - Confirm raw model chain-of-thought remains out of scope.
+
+## Implemented Foundation Areas
+- shell-owned pane composition, overlays, responsive breakpoints, breadcrumbs/history, and status surfaces
+- canonical multi-session workspace and shell-owned object index for palette discovery
+- shell-owned navigation semantics for `open`, `inspect`, `jump`, and `back`
+- shared inspector and persistent long-form document/viewport model across session/run/approval/artifact/audit surfaces
+- shell-owned watch manager with typed family reduction, health projection, and live activity semantics
+- copy/selection/OSC52-aware clipboard support with defensive UI and clipboard redaction paths
+- local-only persisted workbench layout/theme/session convenience state keyed by logical broker target
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

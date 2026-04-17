@@ -44,10 +44,11 @@ type chatRouteModel struct {
 	draft        string
 	composer     composeTextarea
 	loadSeq      uint64
+	detailDoc    longFormDocumentState
 }
 
 func newChatRouteModel(def routeDefinition, client localBrokerClient) routeModel {
-	return chatRouteModel{def: def, client: client, inspectorOn: true, presentation: presentationRendered, composer: newComposeTextarea()}
+	return chatRouteModel{def: def, client: client, inspectorOn: true, presentation: presentationRendered, composer: newComposeTextarea(), detailDoc: newLongFormDocumentState()}
 }
 
 func (m chatRouteModel) ID() routeID { return m.def.ID }
@@ -79,6 +80,15 @@ func (m chatRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		m.errText = ""
 		m.loadSeq++
 		return m, m.loadCmd(strings.TrimSpace(typed.SessionID), m.loadSeq)
+	case routeViewportScrollMsg:
+		if typed.Region == routeRegionInspector {
+			m.detailDoc.Scroll(typed.Delta)
+		}
+		return m, nil
+	case routeViewportResizeMsg:
+		width, height := longFormViewportSizeForShell(typed.Width, typed.Height)
+		m.detailDoc.Resize(width, height)
+		return m, nil
 	default:
 		return m, nil
 	}
@@ -100,6 +110,7 @@ func (m chatRouteModel) applyLoaded(typed chatLoadedMsg) (routeModel, tea.Cmd) {
 	m.selected = selectedSessionIndex(m.sessions, typed.activeSessionID)
 	m.activeID = typed.activeSessionID
 	m.active = typed.detail
+	m.syncDetailDocument()
 	return m, nil
 }
 
@@ -125,6 +136,7 @@ func (m chatRouteModel) applySent(typed chatMessageSentMsg) (routeModel, tea.Cmd
 		m.sessions = typed.sessions
 		m.selected = selectedSessionIndex(m.sessions, m.activeID)
 	}
+	m.syncDetailDocument()
 	return m, nil
 }
 
@@ -156,9 +168,6 @@ func (m chatRouteModel) View(width, height int, focus focusArea) string {
 	if m.statusText != "" {
 		body = append(body, "Status: "+m.statusText)
 	}
-	if m.inspectorOn {
-		body = append(body, renderSessionInspector(m.active, m.presentation))
-	}
 	body = append(body, keyHint("Route keys: j/k move, enter load detail, i toggle inspector, c compose, ctrl+enter send, enter newline, v cycle rendered/raw/structured, r reload"))
 	return compactLines(body...)
 }
@@ -172,17 +181,25 @@ func (m chatRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 	if status == "" && strings.TrimSpace(m.errText) != "" {
 		status = "Load failed: " + strings.TrimSpace(m.errText)
 	}
+	inspector := ""
+	if m.inspectorOn {
+		inspector = renderSessionInspector(m.active, m.presentation, &m.detailDoc)
+	}
 	return routeSurface{
-		Main:           m.View(ctx.Width, ctx.Height, ctx.Focus),
-		Inspector:      renderSessionInspector(m.active, m.presentation),
-		BottomStrip:    keyHint("Route keys: j/k move, enter load detail, i toggle inspector, c compose, ctrl+enter send, enter newline, v cycle rendered/raw/structured, r reload"),
-		Status:         status,
-		Breadcrumbs:    breadcrumbs,
-		MainTitle:      "Chat workspace",
-		InspectorTitle: "Session inspector",
-		ModeTabs:       []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
-		ActiveTab:      string(normalizePresentationMode(m.presentation)),
-		CopyActions:    chatRouteCopyActions(m.active),
+		Regions: routeSurfaceRegions{
+			Main:      routeSurfaceRegion{Title: "Chat workspace", Body: m.View(ctx.Width, ctx.Height, ctx.Focus)},
+			Inspector: routeSurfaceRegion{Title: "Session inspector", Body: inspector},
+			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, i toggle inspector, c compose, ctrl+enter send, enter newline, v cycle rendered/raw/structured, r reload")},
+			Status:    routeSurfaceRegion{Body: status},
+		},
+		Chrome: routeSurfaceChrome{Breadcrumbs: breadcrumbs},
+		Actions: routeSurfaceActions{
+			ModeTabs:         []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
+			ActiveTab:        string(normalizePresentationMode(m.presentation)),
+			CopyActions:      chatRouteCopyActions(m.active),
+			ReferenceActions: chatInspectorReferenceActions(m.active),
+			LocalActions:     chatInspectorLocalActions(),
+		},
 	}
 }
 
@@ -241,6 +258,7 @@ func (m chatRouteModel) handleCyclePresentationKey(key tea.KeyMsg) (routeModel, 
 		return m, nil, false
 	}
 	m.presentation = nextPresentationMode(m.presentation)
+	m.syncDetailDocument()
 	return m, nil, true
 }
 
@@ -317,6 +335,27 @@ func (m chatRouteModel) reload() (routeModel, tea.Cmd) {
 	m.statusText = ""
 	m.loadSeq++
 	return m, m.loadCmd(m.activeID, m.loadSeq)
+}
+
+func (m *chatRouteModel) syncDetailDocument() {
+	if m.active == nil {
+		m.detailDoc.SetDocument(workbenchObjectRef{Kind: "session", ID: "none"}, inspectorContentTranscript, "transcript", "")
+		return
+	}
+	presentation := normalizePresentationMode(m.presentation)
+	transcript := renderTranscriptTurns(m.active.TranscriptTurns)
+	kind := inspectorContentTranscript
+	if presentation == presentationRaw {
+		transcript = renderTranscriptRaw(m.active.TranscriptTurns)
+		kind = inspectorContentRaw
+	}
+	if presentation == presentationStructured {
+		transcript = renderTranscriptStructured(m.active.TranscriptTurns)
+		kind = inspectorContentStructured
+	}
+	summary := m.active.Summary
+	ref := workbenchObjectRef{Kind: "session", ID: strings.TrimSpace(summary.Identity.SessionID), WorkspaceID: strings.TrimSpace(summary.Identity.WorkspaceID), SessionID: strings.TrimSpace(summary.Identity.SessionID)}
+	m.detailDoc.SetDocument(ref, kind, "transcript", transcript)
 }
 
 func (m chatRouteModel) loadCmd(preferredSessionID string, seq uint64) tea.Cmd {

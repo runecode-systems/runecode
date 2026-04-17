@@ -160,11 +160,12 @@ func (m statusRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 		status = "Load failed: " + strings.TrimSpace(m.errText)
 	}
 	return routeSurface{
-		Main:        m.View(ctx.Width, ctx.Height, ctx.Focus),
-		BottomStrip: keyHint("Route keys: r reload, c request backend posture change"),
-		Status:      status,
-		Breadcrumbs: []string{"Home", m.def.Label},
-		MainTitle:   "System status",
+		Regions: routeSurfaceRegions{
+			Main:   routeSurfaceRegion{Title: "System status", Body: m.View(ctx.Width, ctx.Height, ctx.Focus)},
+			Bottom: routeSurfaceRegion{Body: keyHint("Route keys: r reload, c request backend posture change")},
+			Status: routeSurfaceRegion{Body: status},
+		},
+		Chrome: routeSurfaceChrome{Breadcrumbs: []string{"Home", m.def.Label}},
 	}
 }
 

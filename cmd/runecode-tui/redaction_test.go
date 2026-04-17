@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestRedactSecretsMasksCommonCredentialPatterns(t *testing.T) {
 	input := "token=abc123 api_key:xyz Authorization: Bearer qqq password = secret"
@@ -11,4 +14,26 @@ func TestRedactSecretsMasksCommonCredentialPatterns(t *testing.T) {
 		"Authorization: Bearer [REDACTED]",
 		"password = [REDACTED]",
 	)
+}
+
+func TestRedactSecretsMasksExportAssignmentPattern(t *testing.T) {
+	input := "export GITHUB_TOKEN=ghp_secret_value"
+	got := redactSecrets(input)
+	if !strings.Contains(got, "export GITHUB_TOKEN=[REDACTED]") {
+		t.Fatalf("expected export assignment to be redacted, got %q", got)
+	}
+}
+
+func TestSanitizeUITextStripsEscapesAndCapsLength(t *testing.T) {
+	input := "token=abc123\x1b[31m /tmp/secret\n" + strings.Repeat("a", 600)
+	got := sanitizeUIText(input)
+	if strings.Contains(got, "abc123") {
+		t.Fatalf("expected secret redacted, got %q", got)
+	}
+	if strings.Contains(got, "\x1b") {
+		t.Fatalf("expected escape sequence removed, got %q", got)
+	}
+	if len(got) > 515 {
+		t.Fatalf("expected capped output length, got %d", len(got))
+	}
 }

@@ -52,11 +52,13 @@ func TestAuditRouteShowsPagedTimelineAndVerificationReasonCodes(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 	view = updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "Copy actions: linked references | raw block") {
-		t.Fatalf("expected copy actions after loading record detail, got %q", view)
+	surface := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
+	inspector := surface.Regions.Inspector.Body
+	if !strings.Contains(inspector, "Copy actions: linked references | raw block") {
+		t.Fatalf("expected copy actions after loading record detail, got %q", inspector)
 	}
-	if !strings.Contains(view, "Verification posture: degraded (unanchored/degraded)") {
-		t.Fatalf("expected record inspector posture rendering, got %q", view)
+	if !strings.Contains(inspector, "Verification posture: degraded (unanchored/degraded)") {
+		t.Fatalf("expected record inspector posture rendering, got %q", inspector)
 	}
 }
 

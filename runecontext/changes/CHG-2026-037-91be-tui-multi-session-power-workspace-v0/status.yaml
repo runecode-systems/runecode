@@ -1,10 +1,10 @@
 schema_version: 1
 id: CHG-2026-037-91be-tui-multi-session-power-workspace-v0
 title: TUI Multi-Session + Power Workspace v0
-status: planned
+status: implemented
 type: feature
 size: large
-verification_status: pending
+verification_status: verified
 context_bundles:
   - product-planning
 related_specs: []
@@ -28,7 +28,7 @@ informed_by:
 supersedes: []
 superseded_by: []
 created_at: "2026-04-11"
-closed_at: null
+closed_at: "2026-04-16"
 promotion_assessment:
   status: pending
   suggested_targets: []

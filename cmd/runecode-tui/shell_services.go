@@ -3,14 +3,13 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
 )
 
@@ -138,6 +137,7 @@ type shellCommand struct {
 	Title       string
 	Description string
 	Run         func(*shellModel)
+	PostRun     func(*shellModel) tea.Cmd
 }
 
 type shellCommandRegistry struct {
@@ -176,13 +176,16 @@ func (r *shellCommandRegistry) List() []shellCommand {
 	return out
 }
 
-func (r *shellCommandRegistry) Execute(id string, model *shellModel) bool {
+func (r *shellCommandRegistry) Execute(id string, model *shellModel) tea.Cmd {
 	cmd, ok := r.commands[id]
 	if !ok || cmd.Run == nil || model == nil {
-		return false
+		return nil
 	}
 	cmd.Run(model)
-	return true
+	if cmd.PostRun == nil {
+		return nil
+	}
+	return cmd.PostRun(model)
 }
 
 type shellClipboardService interface {
@@ -361,93 +364,4 @@ func (s *fileWorkbenchStateStore) readEnvelope() workbenchPersistenceEnvelope {
 		env.SchemaVersion = workbenchPersistenceSchemaVersion
 	}
 	return env
-}
-
-func logicalBrokerTargetKey() string {
-	alias := strings.TrimSpace(os.Getenv("RUNECODE_TUI_BROKER_TARGET"))
-	if alias == "" {
-		return localAPIFamily + ":local-default"
-	}
-	alias = normalizeBrokerTargetAlias(alias)
-	return localAPIFamily + ":" + alias
-}
-
-func normalizeBrokerTargetAlias(alias string) string {
-	const maxAliasLen = 128
-	b := strings.Builder{}
-	lastDash := false
-	for _, r := range strings.ToLower(strings.TrimSpace(alias)) {
-		isAlphaNum := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
-		if isAlphaNum || r == '-' || r == '_' {
-			b.WriteRune(r)
-			lastDash = false
-		} else if !lastDash && b.Len() > 0 {
-			b.WriteByte('-')
-			lastDash = true
-		}
-		if b.Len() >= maxAliasLen {
-			break
-		}
-	}
-	normalized := strings.Trim(b.String(), "-")
-	if normalized == "" {
-		return "local-default"
-	}
-	return normalized
-}
-
-type toastLevel string
-
-const (
-	toastInfo  toastLevel = "info"
-	toastWarn  toastLevel = "warn"
-	toastError toastLevel = "error"
-)
-
-type toastMessage struct {
-	Level toastLevel
-	Text  string
-}
-
-type shellToastService struct {
-	items   []toastMessage
-	spin    spinner.Model
-	active  bool
-	maxSize int
-}
-
-func newShellToastService() shellToastService {
-	sp := spinner.New()
-	sp.Spinner = spinner.Dot
-	return shellToastService{spin: sp, maxSize: 8}
-}
-
-func (s *shellToastService) SetActivity(active bool) {
-	s.active = active
-}
-
-func (s *shellToastService) Push(level toastLevel, text string) {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return
-	}
-	s.items = append(s.items, toastMessage{Level: level, Text: text})
-	if len(s.items) > s.maxSize {
-		s.items = s.items[len(s.items)-s.maxSize:]
-	}
-}
-
-func (s *shellToastService) Latest() string {
-	if len(s.items) == 0 {
-		return ""
-	}
-	last := s.items[len(s.items)-1]
-	return fmt.Sprintf("%s: %s", strings.ToUpper(string(last.Level)), last.Text)
-}
-
-func (s *shellToastService) ActivityIndicator() string {
-	if !s.active {
-		return ""
-	}
-	return s.spin.View() + " running"
 }

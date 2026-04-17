@@ -21,13 +21,13 @@ func (m shellModel) handleMouse(mouse tea.MouseMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m shellModel) handleMouseLeftClick(mouse tea.MouseMsg) (tea.Model, tea.Cmd, bool) {
-	if mouse.Button != tea.MouseButtonLeft || (mouse.Action != tea.MouseActionPress && mouse.Action != tea.MouseActionRelease) {
+	if mouse.Button != tea.MouseButtonLeft || mouse.Action != tea.MouseActionRelease {
 		return m, nil, false
 	}
 	if m.effectiveSidebarVisible() {
 		if idx, ok := m.sidebarIndexAtMouse(mouse.X, mouse.Y); ok {
 			route := m.routes[idx]
-			updated, cmd := m.switchToRoute(route.ID, true)
+			updated, cmd := m.applyPaletteAction(paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: route.ID}})
 			return updated, cmd, true
 		}
 	}
@@ -40,39 +40,22 @@ func (m shellModel) handleMouseWheel(mouse tea.MouseMsg) (tea.Model, tea.Cmd, bo
 	if mouse.Button != tea.MouseButtonWheelUp && mouse.Button != tea.MouseButtonWheelDown {
 		return m, nil, false
 	}
+	delta := 0
 	switch mouse.Button {
 	case tea.MouseButtonWheelUp:
-		if m.scroll > 0 {
-			m.scroll--
-		}
+		delta = -1
 	case tea.MouseButtonWheelDown:
-		m.scroll++
+		delta = 1
 	}
 	m.focusManager.Set(focusContent)
 	m.focus = m.focusManager.Current()
-	return m, nil, true
-}
-
-func (m shellModel) switchToRoute(id routeID, pushBack bool) (tea.Model, tea.Cmd) {
-	if id == "" {
-		return m, nil
-	}
-	m.trackRecentObject(workbenchObjectRef{Kind: "route", ID: string(id)})
-	if pushBack && id != m.currentID {
-		m.backstack = append(m.backstack, m.currentID)
-	}
-	m.currentID = id
-	m.copyActionIndex = 0
-	m.nav.SelectByRouteID(id)
-	m.focusManager.Set(focusContent)
-	m.focus = m.focusManager.Current()
-	m.persistWorkbenchState()
-	return m, m.activateCurrentRouteCmd()
+	updated, cmd := m.updateActiveRoute(routeViewportScrollMsg{Region: m.focusedRouteRegion(), Delta: delta})
+	return updated, cmd, true
 }
 
 func (m *shellModel) copyCurrentIdentity() {
-	breadcrumbs := m.activeShellSurface().Breadcrumbs
-	identity := m.routeLabel(m.currentID)
+	breadcrumbs := m.activeShellSurface().Chrome.Breadcrumbs
+	identity := m.routeLabel(m.currentRouteID())
 	if len(breadcrumbs) > 0 {
 		identity = breadcrumbs[len(breadcrumbs)-1]
 	}
@@ -80,7 +63,7 @@ func (m *shellModel) copyCurrentIdentity() {
 }
 
 func (m *shellModel) copyNextRouteAction() {
-	actions := m.activeShellSurface().CopyActions
+	actions := m.activeShellSurface().Actions.CopyActions
 	if len(actions) == 0 {
 		m.toasts.Push(toastWarn, "No route copy actions available; use terminal selection mode for long-form content.")
 		return
@@ -106,7 +89,7 @@ func (m *shellModel) copyNextRouteAction() {
 }
 
 func (m *shellModel) copyText(text string, label string) {
-	text = strings.TrimSpace(text)
+	text = strings.TrimSpace(redactSecrets(text))
 	if text == "" {
 		return
 	}

@@ -46,8 +46,8 @@ func TestShellRestoresPersistedLocalWorkbenchState(t *testing.T) {
 	m.workbenchScope = scope
 	m.restoreWorkbenchState()
 
-	if m.currentID != routeRuns {
-		t.Fatalf("expected restored route runs, got %q", m.currentID)
+	if m.currentRouteID() != routeRuns {
+		t.Fatalf("expected restored route runs, got %q", m.currentRouteID())
 	}
 	if m.sidebarVisible {
 		t.Fatal("expected restored hidden sidebar")
@@ -96,5 +96,20 @@ func TestShellPersistStateUsesWorkspaceScopedSessionRefs(t *testing.T) {
 	}
 	if got := saved.LastSessionByWS["ws-2"]; got != "session-2" {
 		t.Fatalf("expected last session by ws-2, got %q", got)
+	}
+}
+
+func TestShellRestoreInvalidPersistedRouteFallsBackToChat(t *testing.T) {
+	store := &memoryWorkbenchStateStore{}
+	scope := "broker_local_api:test-invalid-route"
+	store.Write(scope, workbenchLocalState{LastRouteID: routeID("missing-route")})
+
+	m := newShellModel()
+	m.workbench = store
+	m.workbenchScope = scope
+	m.restoreWorkbenchState()
+
+	if m.currentRouteID() != routeChat {
+		t.Fatalf("expected invalid restored route to fall back to chat, got %q", m.currentRouteID())
 	}
 }

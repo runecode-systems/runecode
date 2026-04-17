@@ -30,10 +30,11 @@ type runsRouteModel struct {
 	presentation contentPresentationMode
 	inspectorOn  bool
 	loadSeq      uint64
+	detailDoc    longFormDocumentState
 }
 
 func newRunsRouteModel(def routeDefinition, client localBrokerClient) routeModel {
-	return runsRouteModel{def: def, client: client, inspectorOn: true, presentation: presentationRendered}
+	return runsRouteModel{def: def, client: client, inspectorOn: true, presentation: presentationRendered, detailDoc: newLongFormDocumentState()}
 }
 
 func (m runsRouteModel) ID() routeID { return m.def.ID }
@@ -58,6 +59,15 @@ func (m runsRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		m.errText = ""
 		m.loadSeq++
 		return m, m.loadCmd(runID, m.loadSeq)
+	case routeViewportScrollMsg:
+		if typed.Region == routeRegionInspector {
+			m.detailDoc.Scroll(typed.Delta)
+		}
+		return m, nil
+	case routeViewportResizeMsg:
+		width, height := longFormViewportSizeForShell(typed.Width, typed.Height)
+		m.detailDoc.Resize(width, height)
+		return m, nil
 	case runsLoadedMsg:
 		if typed.seq != m.loadSeq {
 			return m, nil
@@ -73,6 +83,7 @@ func (m runsRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 			m.selected = 0
 		}
 		m.active = typed.detail
+		m.syncDetailDocument()
 		return m, nil
 	default:
 		return m, nil
@@ -94,9 +105,6 @@ func (m runsRouteModel) View(width, height int, focus focusArea) string {
 		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
 		renderDirectory("Run directory", renderRunDirectoryItems(m.runs), m.selected),
 	}
-	if m.inspectorOn {
-		body = append(body, renderRunInspector(m.active, m.presentation))
-	}
 	body = append(body, keyHint("Route keys: j/k move, enter load detail, i toggle inspector, v cycle rendered/raw/structured, r reload"))
 	return compactLines(body...)
 }
@@ -110,17 +118,25 @@ func (m runsRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 	if m.errText != "" {
 		status = "Load failed: " + m.errText
 	}
+	inspector := ""
+	if m.inspectorOn {
+		inspector = renderRunInspector(m.active, m.presentation, &m.detailDoc)
+	}
 	return routeSurface{
-		Main:           m.View(ctx.Width, ctx.Height, ctx.Focus),
-		Inspector:      renderRunInspector(m.active, m.presentation),
-		BottomStrip:    keyHint("Route keys: j/k move, enter load detail, i toggle inspector, v cycle rendered/raw/structured, r reload"),
-		Status:         status,
-		Breadcrumbs:    breadcrumbs,
-		MainTitle:      "Run workbench",
-		InspectorTitle: "Run inspector",
-		ModeTabs:       []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
-		ActiveTab:      string(normalizePresentationMode(m.presentation)),
-		CopyActions:    runRouteCopyActions(m.active),
+		Regions: routeSurfaceRegions{
+			Main:      routeSurfaceRegion{Title: "Run workbench", Body: m.View(ctx.Width, ctx.Height, ctx.Focus)},
+			Inspector: routeSurfaceRegion{Title: "Run inspector", Body: inspector},
+			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, i toggle inspector, v cycle rendered/raw/structured, r reload")},
+			Status:    routeSurfaceRegion{Body: status},
+		},
+		Chrome: routeSurfaceChrome{Breadcrumbs: breadcrumbs},
+		Actions: routeSurfaceActions{
+			ModeTabs:         []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
+			ActiveTab:        string(normalizePresentationMode(m.presentation)),
+			CopyActions:      runRouteCopyActions(m.active),
+			ReferenceActions: runInspectorReferenceActions(m.active),
+			LocalActions:     runInspectorLocalActions(),
+		},
 	}
 }
 
@@ -133,6 +149,7 @@ func (m runsRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 		return m, nil
 	case "v":
 		m.presentation = nextPresentationMode(m.presentation)
+		m.syncDetailDocument()
 		return m, nil
 	case "j", "down":
 		if len(m.runs) == 0 {
@@ -220,9 +237,13 @@ func renderRunDirectoryItems(runs []brokerapi.RunSummary) []string {
 	return items
 }
 
-func renderRunInspector(detail *brokerapi.RunDetail, presentation contentPresentationMode) string {
+func renderRunInspector(detail *brokerapi.RunDetail, presentation contentPresentationMode, document *longFormDocumentState) string {
 	if detail == nil {
 		return "  Select a run and press enter to load detail."
+	}
+	if document == nil {
+		fallback := newLongFormDocumentState()
+		document = &fallback
 	}
 	summary := detail.Summary
 	presentation = normalizePresentationMode(presentation)
@@ -230,23 +251,46 @@ func renderRunInspector(detail *brokerapi.RunDetail, presentation contentPresent
 	waitingRoles := waitingRoleCount(detail.RoleSummaries)
 	content := runInspectorContent(summary, detail, waitingStages, waitingRoles, presentation)
 	contentKind := runInspectorContentKind(presentation)
+	ref := workbenchObjectRef{Kind: "run", ID: strings.TrimSpace(summary.RunID), WorkspaceID: strings.TrimSpace(summary.WorkspaceID)}
+	document.SetDocument(ref, contentKind, "run details", content)
 	return renderInspectorShell(inspectorShellSpec{
-		Title:          "Run inspector",
-		Summary:        fmt.Sprintf("run=%s lifecycle=%s pending_approvals=%d", summary.RunID, valueOrNA(summary.LifecycleState), summary.PendingApprovalCount),
-		Identity:       fmt.Sprintf("run=%s backend=%s", summary.RunID, valueOrNA(summary.BackendKind)),
-		Status:         fmt.Sprintf("lifecycle=%s blocked=%t", valueOrNA(summary.LifecycleState), detail.Coordination.Blocked),
-		Badges:         []string{stateBadgeWithLabel("state", summary.LifecycleState), appTheme.InspectorHint.Render("authoritative vs advisory state shown")},
-		References:     []inspectorReference{{Label: "approvals", Items: detail.PendingApprovalIDs}},
-		LocalActions:   []string{"jump:approvals", "jump:artifacts", "jump:audit", "copy:run_id"},
-		CopyActions:    runRouteCopyActions(detail),
-		ModeTabs:       []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
-		ActiveMode:     string(presentation),
-		ContentKind:    contentKind,
-		ContentLabel:   "run details",
-		Content:        content,
-		ViewportWidth:  96,
-		ViewportHeight: 14,
+		Title:    "Run inspector",
+		Summary:  fmt.Sprintf("run=%s lifecycle=%s pending_approvals=%d", summary.RunID, valueOrNA(summary.LifecycleState), summary.PendingApprovalCount),
+		Identity: fmt.Sprintf("run=%s backend=%s", summary.RunID, valueOrNA(summary.BackendKind)),
+		Status:   fmt.Sprintf("lifecycle=%s blocked=%t", valueOrNA(summary.LifecycleState), detail.Coordination.Blocked),
+		Badges:   []string{stateBadgeWithLabel("state", summary.LifecycleState), appTheme.InspectorHint.Render("authoritative vs advisory state shown")},
+		References: []inspectorReference{{Label: "approvals", Items: mapReferenceIDs(detail.PendingApprovalIDs, func(id string) paletteActionMsg {
+			return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "approval", RouteID: routeApprovals, ApprovalID: id}}
+		})}},
+		LocalActions: runInspectorLocalActions(),
+		CopyActions:  runRouteCopyActions(detail),
+		ModeTabs:     []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
+		ActiveMode:   string(presentation),
+		Document:     document,
 	})
+}
+
+func runInspectorLocalActions() []routeActionItem {
+	return []routeActionItem{
+		{Label: "jump:approvals", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeApprovals}}},
+		{Label: "jump:artifacts", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeArtifacts}}},
+		{Label: "jump:audit", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeAudit}}},
+		{Label: "copy:run_id"},
+	}
+}
+
+func runInspectorReferenceActions(detail *brokerapi.RunDetail) []routeActionItem {
+	if detail == nil {
+		return nil
+	}
+	items := mapReferenceIDs(detail.PendingApprovalIDs, func(id string) paletteActionMsg {
+		return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "approval", RouteID: routeApprovals, ApprovalID: id}}
+	})
+	out := make([]routeActionItem, 0, len(items))
+	for _, item := range items {
+		out = append(out, routeActionItem{Label: "approval:" + item.Label, Action: item.Action})
+	}
+	return out
 }
 
 func pendingApprovalStageCount(stages []brokerapi.RunStageSummary) int {
@@ -334,4 +378,19 @@ func (m runsRouteModel) activeSummary() brokerapi.RunSummary {
 		return m.runs[m.selected]
 	}
 	return brokerapi.RunSummary{}
+}
+
+func (m *runsRouteModel) syncDetailDocument() {
+	if m.active == nil {
+		m.detailDoc.SetDocument(workbenchObjectRef{Kind: "run", ID: "none"}, inspectorContentStructured, "run details", "")
+		return
+	}
+	summary := m.active.Summary
+	presentation := normalizePresentationMode(m.presentation)
+	waitingStages := pendingApprovalStageCount(m.active.StageSummaries)
+	waitingRoles := waitingRoleCount(m.active.RoleSummaries)
+	content := runInspectorContent(summary, m.active, waitingStages, waitingRoles, presentation)
+	kind := runInspectorContentKind(presentation)
+	ref := workbenchObjectRef{Kind: "run", ID: strings.TrimSpace(summary.RunID), WorkspaceID: strings.TrimSpace(summary.WorkspaceID)}
+	m.detailDoc.SetDocument(ref, kind, "run details", content)
 }

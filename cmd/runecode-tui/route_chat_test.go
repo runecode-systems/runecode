@@ -78,31 +78,36 @@ func TestChatRouteRendersOrderedTranscriptAndLinkedReferences(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
+	surface := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
+	inspector := surface.Regions.Inspector.Body
 
-	turnOnePos := strings.Index(view, "turn[1] turn-1")
-	turnTwoPos := strings.Index(view, "turn[2] turn-2")
+	turnOnePos := strings.Index(inspector, "turn[1] turn-1")
+	turnTwoPos := strings.Index(inspector, "turn[2] turn-2")
 	if turnOnePos < 0 || turnTwoPos < 0 || turnOnePos > turnTwoPos {
-		t.Fatalf("expected ordered transcript turns in view, got %q", view)
+		t.Fatalf("expected ordered transcript turns in inspector, got %q", inspector)
 	}
-	if !strings.Contains(view, "Linked runs: run-1") {
-		t.Fatalf("expected linked run reference in view, got %q", view)
+	if !strings.Contains(inspector, "Linked runs: run-1") {
+		t.Fatalf("expected linked run reference in inspector, got %q", inspector)
 	}
-	if !strings.Contains(view, "Linked approvals: ap-1") {
-		t.Fatalf("expected linked approval reference in view, got %q", view)
+	if !strings.Contains(inspector, "Linked approvals: ap-1") {
+		t.Fatalf("expected linked approval reference in inspector, got %q", inspector)
 	}
-	if !strings.Contains(view, "Linked artifacts: sha256:bbbb") {
-		t.Fatalf("expected linked artifact reference in view, got %q", view)
+	if !strings.Contains(inspector, "Linked artifacts: sha256:bbbb") {
+		t.Fatalf("expected linked artifact reference in inspector, got %q", inspector)
 	}
-	if !strings.Contains(view, "Linked audit: sha256:aaaa") {
-		t.Fatalf("expected linked audit reference in view, got %q", view)
+	if !strings.Contains(inspector, "Linked audit: sha256:aaaa") {
+		t.Fatalf("expected linked audit reference in inspector, got %q", inspector)
 	}
-	mustContainAll(t, view,
+	mustContainAll(t, inspector,
 		"Summary:",
 		"Identity: session=session-1 workspace=ws-1",
 		"Local actions: jump:runs | jump:approvals | jump:artifacts | jump:audit | copy:session_id",
 		"Copy actions: session id | workspace id | transcript excerpt | linked references",
 		"Long-form transcript:",
 	)
+	if strings.Contains(view, "Long-form transcript:") {
+		t.Fatalf("expected transcript detail to render only in inspector region, got %q", view)
+	}
 }
 
 func TestChatRouteComposeSendsTypedSessionMessageRequest(t *testing.T) {

@@ -142,22 +142,20 @@ func (m shellModel) handleRunCommandKey(key tea.KeyMsg) (tea.Model, tea.Cmd, boo
 	if !m.keys.RunCommand.matches(key) {
 		return m, nil, false
 	}
-	if m.commands.Execute("shell.toggle_sidebar", &m) {
-		m.persistWorkbenchState()
-	}
-	return m, nil, true
+	cmd := m.commands.Execute("shell.toggle_sidebar", &m)
+	m.persistWorkbenchState()
+	return m, cmd, true
 }
 
 func (m shellModel) handleCycleThemeKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	if !m.keys.CycleTheme.matches(key) {
 		return m, nil, false
 	}
-	if m.commands.Execute("shell.cycle_theme", &m) {
-		m.applyPreferredPresentationToRoutes()
-		m.applyInspectorVisibilityToRoutes()
-		m.persistWorkbenchState()
-	}
-	return m, nil, true
+	cmd := m.commands.Execute("shell.cycle_theme", &m)
+	m.applyPreferredPresentationToRoutes()
+	m.applyInspectorVisibilityToRoutes()
+	m.persistWorkbenchState()
+	return m, cmd, true
 }
 
 func (m shellModel) handleLayoutSidebarWiderKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
@@ -184,10 +182,9 @@ func (m shellModel) handleLayoutCommandKey(key tea.KeyMsg, binding keyBinding, c
 	if !binding.matches(key) {
 		return m, nil, false
 	}
-	if m.commands.Execute(commandID, &m) {
-		m.persistWorkbenchState()
-	}
-	return m, nil, true
+	cmd := m.commands.Execute(commandID, &m)
+	m.persistWorkbenchState()
+	return m, cmd, true
 }
 
 func (m shellModel) handleLayoutToggleInspectorCollapseKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
@@ -197,15 +194,14 @@ func (m shellModel) handleLayoutToggleInspectorCollapseKey(key tea.KeyMsg) (tea.
 	if m.breakpoint() == shellBreakpointNarrow {
 		return m.toggleNarrowInspectorOverlay(), nil, true
 	}
-	if m.commands.Execute("shell.layout.toggle_inspector_collapse", &m) {
-		m.persistWorkbenchState()
-	}
-	return m, nil, true
+	cmd := m.commands.Execute("shell.layout.toggle_inspector_collapse", &m)
+	m.persistWorkbenchState()
+	return m, cmd, true
 }
 
 func (m shellModel) toggleNarrowInspectorOverlay() shellModel {
 	surface := m.activeShellSurface()
-	if strings.TrimSpace(surface.Inspector) == "" {
+	if strings.TrimSpace(surface.Regions.Inspector.Body) == "" {
 		m.toasts.Push(toastWarn, "Inspector unavailable for current route.")
 		return m
 	}
@@ -224,7 +220,7 @@ func (m shellModel) handleEscapeCloseNarrowOverlaysKey(key tea.KeyMsg) (tea.Mode
 	m.narrowSidebarOn = false
 	m.narrowInspectOn = false
 	m.syncOverlayStack()
-	if m.focus == focusPalette {
+	if m.focus == focusPalette || (m.focus == focusNav && !m.navigationSurfaceVisible()) {
 		m.focusManager.Set(focusContent)
 		m.focus = m.focusManager.Current()
 	}
@@ -296,7 +292,7 @@ func (m shellModel) handleNavFocusKeys(key tea.KeyMsg) (tea.Model, tea.Cmd, bool
 	}
 	if m.keys.RouteOpen.matches(key) {
 		route := m.nav.Selected()
-		updated, cmd := m.applyPaletteAction(paletteActionMsg{Verb: verbOpen, Target: paletteTarget{Kind: "route", RouteID: route.ID}})
+		updated, cmd := m.applyPaletteAction(paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: route.ID}})
 		return updated, cmd, true
 	}
 	return m, nil, false
@@ -304,14 +300,12 @@ func (m shellModel) handleNavFocusKeys(key tea.KeyMsg) (tea.Model, tea.Cmd, bool
 
 func (m shellModel) handleScrollKeys(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	if m.keys.ScrollDown.matches(key) {
-		m.scroll++
-		return m, nil, true
+		updated, cmd := m.updateActiveRoute(routeViewportScrollMsg{Region: m.focusedRouteRegion(), Delta: 1})
+		return updated, cmd, true
 	}
 	if m.keys.ScrollUp.matches(key) {
-		if m.scroll > 0 {
-			m.scroll--
-		}
-		return m, nil, true
+		updated, cmd := m.updateActiveRoute(routeViewportScrollMsg{Region: m.focusedRouteRegion(), Delta: -1})
+		return updated, cmd, true
 	}
 	return m, nil, false
 }

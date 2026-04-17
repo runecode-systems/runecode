@@ -1,5 +1,7 @@
 package main
 
+import tea "github.com/charmbracelet/bubbletea"
+
 func defaultShellCommandRegistry() shellCommandRegistry {
 	r := newShellCommandRegistry()
 	r.Register(shellCommand{ID: "shell.toggle_sidebar", Title: "Toggle Sidebar", Description: "Show or hide sidebar", Run: func(m *shellModel) {
@@ -47,6 +49,9 @@ func defaultShellCommandRegistry() shellCommandRegistry {
 	}})
 	r.Register(shellCommand{ID: "shell.toggle_selection_mode", Title: "Toggle Selection Mode", Description: "Disable/enable mouse capture for drag-to-select", Run: func(m *shellModel) {
 		m.selectionMode = !m.selectionMode
+	}, PostRun: func(m *shellModel) tea.Cmd {
+		_ = m
+		return m.mouseCaptureCmd()
 	}})
 	return r
 }

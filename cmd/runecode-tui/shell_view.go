@@ -26,7 +26,7 @@ func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface) {
 	b.WriteString("\n")
 	b.WriteString(m.renderBreadcrumbs(surface))
 	b.WriteString("\n")
-	b.WriteString(m.renderBackstack())
+	b.WriteString(m.renderHistory())
 	b.WriteString("\n\n")
 	b.WriteString(m.renderShellPanes(surface))
 	b.WriteString("\n")
@@ -85,7 +85,7 @@ func (m shellModel) writeNarrowInspectorOverlay(b *strings.Builder, surface rout
 	if !m.narrowInspectOn || m.breakpoint() != shellBreakpointNarrow {
 		return
 	}
-	inspector := strings.TrimSpace(surface.Inspector)
+	inspector := strings.TrimSpace(surface.Regions.Inspector.Body)
 	if inspector != "" && m.inspectorOn {
 		b.WriteString(m.renderOverlayStack())
 		b.WriteString("\n")
@@ -113,43 +113,52 @@ func (m shellModel) renderTopStatus(surface routeSurface) string {
 	}
 	return compactLines(
 		appTheme.AppTitle.Render("Runecode TUI α shell")+" "+neutralBadge("THEME "+string(m.themePreset)),
-		fmt.Sprintf("Top status | route=%s breakpoint=%s focus=%s sidebar=%t inspector=%t overlays=%d active_session=%s selection=%s mouse_capture=%s activity=%s %s", m.routeLabel(m.currentID), m.breakpoint(), m.focus.Label(), m.effectiveSidebarVisible(), m.shouldShowInspector(surface), len(m.overlays), defaultPlaceholder(m.activeSessionID, "none"), selection, mouseCapture, renderShellActivityState(m.activity.State), m.renderRunningIndicator()),
+		fmt.Sprintf("Top status | route=%s breakpoint=%s focus=%s sidebar=%t inspector=%t overlays=%d active_session=%s selection=%s mouse_capture=%s activity=%s %s", m.routeLabel(m.currentRouteID()), m.breakpoint(), m.focus.Label(), m.effectiveSidebarVisible(), m.shouldShowInspector(surface), len(m.overlays), defaultPlaceholder(m.activeSessionID, "none"), selection, mouseCapture, renderShellActivityState(m.watch.projection.Activity.State), m.renderRunningIndicator()),
 		fmt.Sprintf("Layout(wide): sidebar=%.0f%% inspector=%.0f%% collapsed=(sidebar:%t inspector:%t)", clampPaneRatio(m.sidebarRatio)*100, clampPaneRatio(m.inspectorRatio)*100, m.sidebarFolded, m.inspectorFolded),
 	)
 }
 
 func (m shellModel) renderSyncHealth() string {
-	text := "Shell sync health: " + renderShellSyncState(m.watchHealth.State)
-	if strings.TrimSpace(m.activity.Active.ID) != "" {
-		text += " " + infoBadge(fmt.Sprintf("active_%s=%s", m.activity.Active.Kind, m.activity.Active.ID))
+	text := "Shell sync health: " + renderShellSyncState(m.watch.projection.Health.State)
+	if strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" {
+		text += " " + infoBadge(fmt.Sprintf("active_%s=%s", m.watch.projection.Activity.Active.Kind, m.watch.projection.Activity.Active.ID))
 	}
-	if strings.TrimSpace(m.watchHealth.ErrorText) != "" {
-		text += " " + muted("("+m.watchHealth.ErrorText+")")
+	if strings.TrimSpace(m.watch.projection.Health.ErrorText) != "" {
+		text += " " + muted("("+m.watch.projection.Health.ErrorText+")")
 	}
 	return text
 }
 
 func (m shellModel) renderBreadcrumbs(surface routeSurface) string {
-	breadcrumbs := surface.Breadcrumbs
+	breadcrumbs := surface.Chrome.Breadcrumbs
 	if len(breadcrumbs) == 0 {
-		breadcrumbs = []string{"Home", m.routeLabel(m.currentID)}
+		breadcrumbs = []string{"Home", m.routeLabel(m.currentRouteID())}
 	}
 	return "Breadcrumbs: " + strings.Join(breadcrumbs, " > ")
 }
 
-func (m shellModel) renderBackstack() string {
-	if len(m.backstack) == 0 {
-		return muted("Backstack: empty")
+func (m shellModel) renderHistory() string {
+	if len(m.history) == 0 {
+		return muted("History: empty")
 	}
-	items := make([]string, 0, len(m.backstack))
-	for _, id := range m.backstack {
-		items = append(items, m.routeLabel(id))
+	items := make([]string, 0, len(m.history))
+	for _, loc := range m.history {
+		entry := m.routeLabel(loc.Primary.RouteID)
+		if id := strings.TrimSpace(loc.Primary.Object.ID); id != "" && strings.ToLower(strings.TrimSpace(loc.Primary.Object.Kind)) != "route" {
+			entry += ":" + id
+		}
+		if loc.Inspector != nil {
+			if inspectID := strings.TrimSpace(loc.Inspector.Object.ID); inspectID != "" {
+				entry += " [inspect:" + inspectID + "]"
+			}
+		}
+		items = append(items, entry)
 	}
-	return muted("Backstack: " + strings.Join(items, " <- "))
+	return muted("History: " + strings.Join(items, " <- "))
 }
 
 func (m shellModel) renderShellPanes(surface routeSurface) string {
-	mainTitle := strings.TrimSpace(surface.MainTitle)
+	mainTitle := strings.TrimSpace(surface.Regions.Main.Title)
 	mainHeader := "Main pane"
 	if mainTitle != "" {
 		mainHeader += " — " + mainTitle
@@ -160,8 +169,8 @@ func (m shellModel) renderShellPanes(surface routeSurface) string {
 	if activity := strings.TrimSpace(m.renderPaneActivityMarker()); activity != "" {
 		mainHeader += " " + activity
 	}
-	parts := []string{framedPaneBlock(mainHeader, strings.TrimSpace(surface.Main), m.focus == focusContent)}
-	if modes := renderModeSwitchTabs(surface.ModeTabs, surface.ActiveTab); strings.TrimSpace(modes) != "" {
+	parts := []string{framedPaneBlock(mainHeader, strings.TrimSpace(surface.Regions.Main.Body), m.focus == focusContent)}
+	if modes := renderModeSwitchTabs(surface.Actions.ModeTabs, surface.Actions.ActiveTab); strings.TrimSpace(modes) != "" {
 		parts = append(parts, modes)
 	}
 	if m.effectiveSidebarVisible() {
@@ -172,14 +181,14 @@ func (m shellModel) renderShellPanes(surface routeSurface) string {
 		parts = append([]string{framedPaneBlock(sidebarTitle, m.renderSidebar(), m.focus == focusNav)}, parts...)
 	}
 	if m.shouldShowInspector(surface) {
-		inspectorTitle := strings.TrimSpace(surface.InspectorTitle)
+		inspectorTitle := strings.TrimSpace(surface.Regions.Inspector.Title)
 		if inspectorTitle == "" {
 			inspectorTitle = "Inspector pane"
 		}
 		if m.breakpoint() == shellBreakpointWide {
 			inspectorTitle += fmt.Sprintf(" (%.0f%%)", clampPaneRatio(m.inspectorRatio)*100)
 		}
-		parts = append(parts, framedPaneBlock(inspectorTitle, strings.TrimSpace(surface.Inspector), false))
+		parts = append(parts, framedPaneBlock(inspectorTitle, strings.TrimSpace(surface.Regions.Inspector.Body), false))
 	}
 	return compactLines(parts...)
 }
@@ -191,7 +200,7 @@ func (m shellModel) renderSidebar() string {
 	lines := make([]string, 0, len(m.routes)+len(m.sessionItems)+6)
 	lines = append(lines, tableHeader("Navigation"))
 	for i, r := range m.routes {
-		selected := r.ID == m.currentID || i == m.nav.selectedIndex
+		selected := r.ID == m.currentRouteID() || i == m.nav.selectedIndex
 		marker := " "
 		if selected {
 			marker = ">"
@@ -207,7 +216,7 @@ func (m shellModel) renderSidebar() string {
 		return strings.Join(lines, "\n")
 	}
 	lines = append(lines, "", tableHeader("Sessions"))
-	items := sessionDirectoryItems(m.sessionItems, m.activeSessionID, m.pinnedSessions, m.recentSessions, m.viewedActivity, m.activity.Active)
+	items := sessionDirectoryItems(m.sessionItems, m.activeSessionID, m.pinnedSessions, m.recentSessions, m.viewedActivity, m.watch.projection.Activity.Active)
 	for i, item := range items {
 		selected := i == m.sessionSelected
 		marker := " "
@@ -220,7 +229,7 @@ func (m shellModel) renderSidebar() string {
 }
 
 func (m shellModel) renderBottomStrip(surface routeSurface) string {
-	bottom := strings.TrimSpace(surface.BottomStrip)
+	bottom := strings.TrimSpace(surface.Regions.Bottom.Body)
 	if bottom == "" {
 		bottom = muted("Bottom strip: no route composer/status actions")
 	}
@@ -231,15 +240,30 @@ func (m shellModel) renderBottomStrip(surface routeSurface) string {
 	return compactLines(
 		tableHeader("Bottom strip"),
 		bottom,
+		m.renderRouteActionHints(surface),
 		m.renderRouteCopyActions(),
 		selectionHint,
 	)
 }
 
+func (m shellModel) renderRouteActionHints(surface routeSurface) string {
+	parts := []string{}
+	if len(surface.Actions.ReferenceActions) > 0 {
+		parts = append(parts, fmt.Sprintf("Linked refs actionable=%d", len(surface.Actions.ReferenceActions)))
+	}
+	if len(surface.Actions.LocalActions) > 0 {
+		parts = append(parts, fmt.Sprintf("Local actions executable=%d", len(surface.Actions.LocalActions)))
+	}
+	if len(parts) == 0 {
+		return muted("Actionable refs/actions: none")
+	}
+	return "Actionable refs/actions: " + strings.Join(parts, " | ")
+}
+
 func (m shellModel) renderStatusSurface(surface routeSurface) string {
-	status := strings.TrimSpace(surface.Status)
+	status := strings.TrimSpace(surface.Regions.Status.Body)
 	if status == "" {
-		status = fmt.Sprintf("route=%s scroll=%d", m.routeLabel(m.currentID), m.scroll)
+		status = fmt.Sprintf("route=%s", m.routeLabel(m.currentRouteID()))
 	}
 	selection := "selection=off"
 	if m.selectionMode {
@@ -249,7 +273,7 @@ func (m shellModel) renderStatusSurface(surface routeSurface) string {
 }
 
 func (m shellModel) renderRouteCopyActions() string {
-	actions := m.activeShellSurface().CopyActions
+	actions := m.activeShellSurface().Actions.CopyActions
 	if len(actions) == 0 {
 		return muted("Copy actions: none (use terminal selection for long-form text).")
 	}

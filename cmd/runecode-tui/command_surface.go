@@ -46,78 +46,37 @@ func (m shellModel) buildPaletteEntries() []paletteEntry {
 	}
 
 	add("back", "Back to previous location", "back jump previous route", paletteActionMsg{Verb: verbBack})
-	m.appendRoutePaletteEntries(add)
-	m.appendSessionPaletteEntries(add)
-	m.appendRunPaletteEntries(add)
-	m.appendApprovalPaletteEntries(add)
+	m.objectIndex.appendPaletteEntries(add)
 	m.appendActionCenterPaletteEntries(add)
-	m.appendArtifactPaletteEntries(add)
-	m.appendAuditPaletteEntries(add)
-	m.appendCommandPaletteEntries(add)
+	m.appendActiveSurfaceActionEntries(add)
 
 	return entries
 }
 
-func (m shellModel) appendRoutePaletteEntries(add func(string, string, string, paletteActionMsg)) {
-	for _, r := range m.routes {
-		add(
-			fmt.Sprintf("jump route %s", strings.ToLower(r.Label)),
-			r.Description,
-			fmt.Sprintf("jump route %s %s", strings.ToLower(r.Label), strings.ToLower(string(r.ID))),
-			paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: r.ID}},
-		)
-	}
-}
-
-func (m shellModel) appendSessionPaletteEntries(add func(string, string, string, paletteActionMsg)) {
-	for _, s := range m.sessionItems {
-		sid := strings.TrimSpace(s.Identity.SessionID)
-		if sid == "" {
+func (m shellModel) appendActiveSurfaceActionEntries(add func(string, string, string, paletteActionMsg)) {
+	surface := m.activeShellSurface()
+	for _, action := range surface.Actions.LocalActions {
+		label := strings.TrimSpace(action.Label)
+		if label == "" {
 			continue
 		}
 		add(
-			"open session "+sid,
-			fmt.Sprintf("ws=%s activity=%s/%s", s.Identity.WorkspaceID, defaultPlaceholder(s.LastActivityAt, "n/a"), defaultPlaceholder(s.LastActivityKind, "n/a")),
-			fmt.Sprintf("open session %s %s %s", sid, s.Identity.WorkspaceID, truncateText(s.LastActivityPreview, 64)),
-			paletteActionMsg{Verb: verbOpen, Target: paletteTarget{Kind: "session", SessionID: sid}},
+			"action "+label,
+			"execute local inspector action",
+			"action local "+strings.ToLower(label),
+			action.Action,
 		)
 	}
-}
-
-func (m shellModel) appendRunPaletteEntries(add func(string, string, string, paletteActionMsg)) {
-	runsModel, ok := m.routeModels[routeRuns].(runsRouteModel)
-	if !ok {
-		return
-	}
-	for _, run := range runsModel.runs {
-		runID := strings.TrimSpace(run.RunID)
-		if runID == "" {
+	for _, action := range surface.Actions.ReferenceActions {
+		label := strings.TrimSpace(action.Label)
+		if label == "" {
 			continue
 		}
 		add(
-			"inspect run "+runID,
-			fmt.Sprintf("state=%s approvals=%d", run.LifecycleState, run.PendingApprovalCount),
-			fmt.Sprintf("inspect run %s %s", runID, run.WorkspaceID),
-			paletteActionMsg{Verb: verbInspect, Target: paletteTarget{Kind: "run", RouteID: routeRuns, RunID: runID}},
-		)
-	}
-}
-
-func (m shellModel) appendApprovalPaletteEntries(add func(string, string, string, paletteActionMsg)) {
-	approvalsModel, ok := m.routeModels[routeApprovals].(approvalsRouteModel)
-	if !ok {
-		return
-	}
-	for _, ap := range approvalsModel.items {
-		approvalID := strings.TrimSpace(ap.ApprovalID)
-		if approvalID == "" {
-			continue
-		}
-		add(
-			"inspect approval "+approvalID,
-			fmt.Sprintf("status=%s trigger=%s", ap.Status, ap.ApprovalTriggerCode),
-			fmt.Sprintf("inspect approval %s %s", approvalID, ap.BoundScope.ActionKind),
-			paletteActionMsg{Verb: verbInspect, Target: paletteTarget{Kind: "approval", RouteID: routeApprovals, ApprovalID: approvalID}},
+			"reference "+label,
+			"open linked reference target",
+			"reference linked "+strings.ToLower(label),
+			action.Action,
 		)
 	}
 }
@@ -143,54 +102,5 @@ func (m shellModel) appendActionCenterPaletteEntries(add func(string, string, st
 				paletteActionMsg{Verb: verbJump, Target: target},
 			)
 		}
-	}
-}
-
-func (m shellModel) appendArtifactPaletteEntries(add func(string, string, string, paletteActionMsg)) {
-	artifactsModel, ok := m.routeModels[routeArtifacts].(artifactsRouteModel)
-	if !ok {
-		return
-	}
-	for _, item := range artifactsModel.items {
-		digest := strings.TrimSpace(item.Reference.Digest)
-		if digest == "" {
-			continue
-		}
-		add(
-			"inspect artifact "+digest,
-			fmt.Sprintf("class=%s bytes=%d", item.Reference.DataClass, item.Reference.SizeBytes),
-			fmt.Sprintf("inspect artifact %s %s", digest, item.Reference.DataClass),
-			paletteActionMsg{Verb: verbInspect, Target: paletteTarget{Kind: "artifact", RouteID: routeArtifacts, Digest: digest}},
-		)
-	}
-}
-
-func (m shellModel) appendAuditPaletteEntries(add func(string, string, string, paletteActionMsg)) {
-	auditModel, ok := m.routeModels[routeAudit].(auditRouteModel)
-	if !ok {
-		return
-	}
-	for _, item := range auditModel.timeline {
-		digest, err := item.RecordDigest.Identity()
-		if err != nil || strings.TrimSpace(digest) == "" {
-			continue
-		}
-		add(
-			"inspect audit "+digest,
-			fmt.Sprintf("event=%s summary=%s", item.EventType, item.Summary),
-			fmt.Sprintf("inspect audit %s", digest),
-			paletteActionMsg{Verb: verbInspect, Target: paletteTarget{Kind: "audit", RouteID: routeAudit, Digest: digest}},
-		)
-	}
-}
-
-func (m shellModel) appendCommandPaletteEntries(add func(string, string, string, paletteActionMsg)) {
-	for _, cmd := range m.commands.List() {
-		add(
-			"open command "+cmd.Title,
-			cmd.Description,
-			"open command "+cmd.ID+" "+cmd.Title+" "+cmd.Description,
-			paletteActionMsg{Verb: verbOpen, Target: paletteTarget{Kind: "command", CommandID: cmd.ID}},
-		)
 	}
 }

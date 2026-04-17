@@ -38,10 +38,11 @@ type approvalsRouteModel struct {
 	presentation contentPresentationMode
 	inspectorOn  bool
 	loadSeq      uint64
+	detailDoc    longFormDocumentState
 }
 
 func newApprovalsRouteModel(def routeDefinition, client localBrokerClient) routeModel {
-	return approvalsRouteModel{def: def, client: client, inspectorOn: true, presentation: presentationRendered}
+	return approvalsRouteModel{def: def, client: client, inspectorOn: true, presentation: presentationRendered, detailDoc: newLongFormDocumentState()}
 }
 
 func (m approvalsRouteModel) ID() routeID { return m.def.ID }
@@ -56,6 +57,15 @@ func (m approvalsRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		return m.handleKey(typed)
 	case approvalsSelectMsg:
 		return m.handleApprovalsSelect(typed)
+	case routeViewportScrollMsg:
+		if typed.Region == routeRegionInspector {
+			m.detailDoc.Scroll(typed.Delta)
+		}
+		return m, nil
+	case routeViewportResizeMsg:
+		width, height := longFormViewportSizeForShell(typed.Width, typed.Height)
+		m.detailDoc.Resize(width, height)
+		return m, nil
 	case approvalsLoadedMsg:
 		return m.handleApprovalsLoaded(typed)
 	case approvalResolvedMsg:
@@ -99,6 +109,7 @@ func (m approvalsRouteModel) handleApprovalsLoaded(msg approvalsLoadedMsg) (rout
 		m.selected = 0
 	}
 	m.active = msg.detail
+	m.syncDetailDocument()
 	return m, nil
 }
 
@@ -138,9 +149,6 @@ func (m approvalsRouteModel) View(width, height int, focus focusArea) string {
 	if m.statusText != "" {
 		body = append(body, "Status: "+m.statusText)
 	}
-	if m.inspectorOn {
-		body = append(body, renderApprovalInspector(m.active, m.presentation))
-	}
 	body = append(body, keyHint("Route keys: j/k move, enter load detail, a resolve current approval where supported, v cycle rendered/raw/structured, i toggle inspector, r reload"))
 	return compactLines(body...)
 }
@@ -154,17 +162,25 @@ func (m approvalsRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 	if status == "" && strings.TrimSpace(m.errText) != "" {
 		status = "Load failed: " + strings.TrimSpace(m.errText)
 	}
+	inspector := ""
+	if m.inspectorOn {
+		inspector = renderApprovalInspector(m.active, m.presentation, &m.detailDoc)
+	}
 	return routeSurface{
-		Main:           m.View(ctx.Width, ctx.Height, ctx.Focus),
-		Inspector:      renderApprovalInspector(m.active, m.presentation),
-		BottomStrip:    keyHint("Route keys: j/k move, enter load detail, a resolve current approval where supported, v cycle rendered/raw/structured, i toggle inspector, r reload"),
-		Status:         status,
-		Breadcrumbs:    breadcrumbs,
-		MainTitle:      "Approval workspace",
-		InspectorTitle: "Approval inspector",
-		ModeTabs:       []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
-		ActiveTab:      string(normalizePresentationMode(m.presentation)),
-		CopyActions:    approvalRouteCopyActions(m.active),
+		Regions: routeSurfaceRegions{
+			Main:      routeSurfaceRegion{Title: "Approval workspace", Body: m.View(ctx.Width, ctx.Height, ctx.Focus)},
+			Inspector: routeSurfaceRegion{Title: "Approval inspector", Body: inspector},
+			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, a resolve current approval where supported, v cycle rendered/raw/structured, i toggle inspector, r reload")},
+			Status:    routeSurfaceRegion{Body: status},
+		},
+		Chrome: routeSurfaceChrome{Breadcrumbs: breadcrumbs},
+		Actions: routeSurfaceActions{
+			ModeTabs:         []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
+			ActiveTab:        string(normalizePresentationMode(m.presentation)),
+			CopyActions:      approvalRouteCopyActions(m.active),
+			ReferenceActions: approvalInspectorReferenceActions(m.active),
+			LocalActions:     approvalInspectorLocalActions(),
+		},
 	}
 }
 
@@ -179,6 +195,7 @@ func (m approvalsRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 		return m, nil
 	case "v":
 		m.presentation = nextPresentationMode(m.presentation)
+		m.syncDetailDocument()
 		return m, nil
 	case "j", "down":
 		if len(m.items) == 0 {
@@ -282,4 +299,23 @@ func (m approvalsRouteModel) loadCmd(approvalID string, seq uint64) tea.Cmd {
 		}
 		return approvalsLoadedMsg{items: listResp.Approvals, detail: &getResp, seq: seq}
 	}
+}
+
+func (m *approvalsRouteModel) syncDetailDocument() {
+	if m.active == nil {
+		m.detailDoc.SetDocument(workbenchObjectRef{Kind: "approval", ID: "none"}, inspectorContentStructured, "approval details", "")
+		return
+	}
+	summary := m.active.Approval
+	detail := m.active.ApprovalDetail
+	identity := detail.BoundIdentity
+	boundScope := summary.BoundScope
+	bindingLabel := approvalBindingLabel(detail.BindingKind)
+	lifecycleState := detail.LifecycleDetail.LifecycleState
+	lifecycleFlags := renderApprovalLifecycleFlags(detail.LifecycleDetail)
+	presentation := normalizePresentationMode(m.presentation)
+	content := approvalInspectorContent(summary, detail, identity, boundScope, bindingLabel, lifecycleState, lifecycleFlags, presentation)
+	kind := approvalInspectorContentKind(presentation)
+	ref := workbenchObjectRef{Kind: "approval", ID: strings.TrimSpace(summary.ApprovalID), WorkspaceID: strings.TrimSpace(boundScope.WorkspaceID)}
+	m.detailDoc.SetDocument(ref, kind, "approval details", content)
 }

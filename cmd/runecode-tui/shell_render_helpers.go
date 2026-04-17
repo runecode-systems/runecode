@@ -44,7 +44,7 @@ func (m shellModel) renderSessionQuickSwitcher() string {
 			marker = ">"
 		}
 		sessionLabel := s.Identity.SessionID
-		if m.activity.Active.Kind == "session" && strings.TrimSpace(m.activity.Active.ID) != "" && m.activity.Active.ID == s.Identity.SessionID {
+		if m.watch.projection.Activity.Active.Kind == "session" && strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" && m.watch.projection.Activity.Active.ID == s.Identity.SessionID {
 			sessionLabel = "▶ " + sessionLabel
 		}
 		line := fmt.Sprintf(" %s %s | ws=%s | activity=%s/%s | cue=%s | preview=%q | incomplete=%t | runs=%d approvals=%d",
@@ -103,23 +103,23 @@ func (m shellModel) routeLabel(id routeID) string {
 }
 
 func (m shellModel) renderPaneActivityMarker() string {
-	if m.activity.State != shellActivityStateRunning {
+	if m.watch.projection.Activity.State != shellActivityStateRunning {
 		return ""
 	}
-	if strings.TrimSpace(m.activity.Active.Kind) == "" || strings.TrimSpace(m.activity.Active.ID) == "" {
+	if strings.TrimSpace(m.watch.projection.Activity.Active.Kind) == "" || strings.TrimSpace(m.watch.projection.Activity.Active.ID) == "" {
 		return infoBadge("ACTIVE")
 	}
-	return infoBadge(fmt.Sprintf("ACTIVE %s=%s", m.activity.Active.Kind, m.activity.Active.ID))
+	return infoBadge(fmt.Sprintf("ACTIVE %s=%s", m.watch.projection.Activity.Active.Kind, m.watch.projection.Activity.Active.ID))
 }
 
 func (m shellModel) renderRunningIndicator() string {
-	if m.activity.State != shellActivityStateRunning {
+	if m.watch.projection.Activity.State != shellActivityStateRunning {
 		return ""
 	}
 	frames := []string{"⠁", "⠂", "⠄", "⠂", "⠁", "⠈", "⠐", "⠈"}
 	label := "running"
-	if strings.TrimSpace(m.activity.Active.Kind) != "" && strings.TrimSpace(m.activity.Active.ID) != "" {
-		label = fmt.Sprintf("running %s:%s", m.activity.Active.Kind, m.activity.Active.ID)
+	if strings.TrimSpace(m.watch.projection.Activity.Active.Kind) != "" && strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" {
+		label = fmt.Sprintf("running %s:%s", m.watch.projection.Activity.Active.Kind, m.watch.projection.Activity.Active.ID)
 	}
 	return infoBadge(frames[m.activityFrame%len(frames)] + " " + label)
 }

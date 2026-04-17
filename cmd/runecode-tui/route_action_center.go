@@ -47,6 +47,7 @@ type actionCenterRouteModel struct {
 	audit       *brokerapi.AuditVerificationGetResponse
 	watch       dashboardLiveActivity
 	watchHealth shellSyncHealth
+	inspectorOn bool
 	family      actionCenterFamily
 	selected    map[actionCenterFamily]int
 	loadSeq     uint64
@@ -54,9 +55,10 @@ type actionCenterRouteModel struct {
 
 func newActionCenterRouteModel(def routeDefinition, client localBrokerClient) routeModel {
 	return actionCenterRouteModel{
-		def:    def,
-		client: client,
-		family: actionCenterFamilyApprovals,
+		def:         def,
+		client:      client,
+		inspectorOn: true,
+		family:      actionCenterFamilyApprovals,
 		selected: map[actionCenterFamily]int{
 			actionCenterFamilyApprovals: 0,
 			actionCenterFamilyOps:       0,
@@ -124,8 +126,6 @@ func (m actionCenterRouteModel) View(width, height int, focus focusArea) string 
 		return renderStateCard(routeLoadStateError, "Action Center", "Load failed: "+m.errText+" (press r to retry)")
 	}
 	families := m.familyBuckets()
-	activeItems := families[m.family]
-	selected := m.selectedIndex(m.family, len(activeItems))
 	return compactLines(
 		sectionTitle("Action Center")+" "+focusBadge(focus),
 		fmt.Sprintf("Queue families: %s=%d %s=%d %s=%d", infoBadge("approvals"), len(families[actionCenterFamilyApprovals]), warnBadge("operational_attention"), len(families[actionCenterFamilyOps]), dangerBadge("blocked_work_impact"), len(families[actionCenterFamilyBlocked])),
@@ -134,8 +134,7 @@ func (m actionCenterRouteModel) View(width, height int, focus focusArea) string 
 		renderDirectory("Approvals queue (canonical)", renderActionCenterItems(families[actionCenterFamilyApprovals]), m.selectedIndex(actionCenterFamilyApprovals, len(families[actionCenterFamilyApprovals]))),
 		renderDirectory("Operational attention", renderActionCenterItems(families[actionCenterFamilyOps]), m.selectedIndex(actionCenterFamilyOps, len(families[actionCenterFamilyOps]))),
 		renderDirectory("Blocked-work impact", renderActionCenterItems(families[actionCenterFamilyBlocked]), m.selectedIndex(actionCenterFamilyBlocked, len(families[actionCenterFamilyBlocked]))),
-		renderActionCenterInspector(m.family, activeItems, selected),
-		keyHint("Route keys: [/] change family, j/k move, enter drill-down, r reload"),
+		keyHint("Route keys: [/] change family, j/k move, enter drill-down, i toggle inspector, r reload"),
 	)
 }
 
@@ -144,12 +143,21 @@ func (m actionCenterRouteModel) ShellSurface(ctx routeShellContext) routeSurface
 	if status == "" && strings.TrimSpace(m.errText) != "" {
 		status = "Load failed: " + strings.TrimSpace(m.errText)
 	}
+	families := m.familyBuckets()
+	activeItems := families[m.family]
+	selected := m.selectedIndex(m.family, len(activeItems))
+	inspector := ""
+	if m.inspectorOn {
+		inspector = renderActionCenterInspector(m.family, activeItems, selected)
+	}
 	return routeSurface{
-		Main:        m.View(ctx.Width, ctx.Height, ctx.Focus),
-		BottomStrip: keyHint("Route keys: [/] change family, j/k move, enter drill-down, r reload"),
-		Status:      status,
-		Breadcrumbs: []string{"Home", m.def.Label},
-		MainTitle:   "Action Center",
+		Regions: routeSurfaceRegions{
+			Main:      routeSurfaceRegion{Title: "Action Center", Body: m.View(ctx.Width, ctx.Height, ctx.Focus)},
+			Inspector: routeSurfaceRegion{Title: "Action Center inspector", Body: inspector},
+			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: [/] change family, j/k move, enter drill-down, i toggle inspector, r reload")},
+			Status:    routeSurfaceRegion{Body: status},
+		},
+		Chrome: routeSurfaceChrome{Breadcrumbs: []string{"Home", m.def.Label}},
 	}
 }
 
@@ -166,6 +174,9 @@ func (m actionCenterRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) 
 		return m, nil
 	case "k", "up":
 		m.moveSelection(-1)
+		return m, nil
+	case "i":
+		m.inspectorOn = !m.inspectorOn
 		return m, nil
 	case "]":
 		m.family = m.nextFamily()

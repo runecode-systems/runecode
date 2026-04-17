@@ -36,8 +36,8 @@ func TestRenderInspectorShellIncludesCanonicalSections(t *testing.T) {
 		Identity:       "session=session-1 workspace=ws-1",
 		Status:         "status=active",
 		Badges:         []string{"[status:active]"},
-		References:     []inspectorReference{{Label: "runs", Items: []string{"run-1"}}},
-		LocalActions:   []string{"jump:runs", "copy:session_id"},
+		References:     []inspectorReference{{Label: "runs", Items: []inspectorReferenceItem{{Label: "run-1"}}}},
+		LocalActions:   []routeActionItem{{Label: "jump:runs"}, {Label: "copy:session_id"}},
 		ModeTabs:       []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
 		ActiveMode:     string(presentationRaw),
 		ContentKind:    inspectorContentTranscript,
@@ -90,4 +90,25 @@ func TestFormatInspectorLongFormStructuredNumbersFields(t *testing.T) {
 		"1) turn_count = 2",
 		"2) message_count = 5",
 	)
+}
+
+func TestLongFormDocumentStatePersistsViewportAndResetsOnDocumentChange(t *testing.T) {
+	doc := newLongFormDocumentState()
+	doc.Resize(96, 8)
+	content := "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\nline11"
+	doc.SetDocument(workbenchObjectRef{Kind: "run", ID: "run-1"}, inspectorContentLog, "log", content)
+	doc.Scroll(3)
+	if got := doc.Render(); !strings.Contains(got, "offset=3") {
+		t.Fatalf("expected offset 3 after scroll, got %q", got)
+	}
+
+	doc.SetDocument(workbenchObjectRef{Kind: "run", ID: "run-1"}, inspectorContentLog, "log", content)
+	if got := doc.Render(); !strings.Contains(got, "offset=3") {
+		t.Fatalf("expected same-document offset persistence, got %q", got)
+	}
+
+	doc.SetDocument(workbenchObjectRef{Kind: "run", ID: "run-2"}, inspectorContentLog, "log", content)
+	if got := doc.Render(); !strings.Contains(got, "offset=0") {
+		t.Fatalf("expected offset reset on document swap, got %q", got)
+	}
 }

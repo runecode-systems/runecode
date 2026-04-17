@@ -43,8 +43,9 @@ func TestShellCommandRegistryRegisterAndExecute(t *testing.T) {
 	called := false
 	r.Register(shellCommand{ID: "test.cmd", Title: "Test", Run: func(_ *shellModel) { called = true }})
 	model := newShellModel()
-	if !r.Execute("test.cmd", &model) {
-		t.Fatal("expected execute success")
+	cmd := r.Execute("test.cmd", &model)
+	if cmd != nil {
+		t.Fatal("expected no follow-up command")
 	}
 	if !called {
 		t.Fatal("expected registered command callback")

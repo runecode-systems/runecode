@@ -14,8 +14,17 @@ type routeShellContext struct {
 	Width      int
 	Height     int
 	Focus      focusArea
+	Focused    routeRegionFocus
 	Breakpoint shellBreakpoint
 }
+
+type routeRegionFocus string
+
+const (
+	routeRegionMain      routeRegionFocus = "main"
+	routeRegionInspector routeRegionFocus = "inspector"
+	routeRegionOverlay   routeRegionFocus = "overlay"
+)
 
 type routeCopyAction struct {
 	ID    string
@@ -24,16 +33,48 @@ type routeCopyAction struct {
 }
 
 type routeSurface struct {
-	Main           string
-	Inspector      string
-	BottomStrip    string
-	Status         string
-	Breadcrumbs    []string
-	MainTitle      string
-	InspectorTitle string
-	ModeTabs       []string
-	ActiveTab      string
-	CopyActions    []routeCopyAction
+	Regions routeSurfaceRegions
+	Chrome  routeSurfaceChrome
+	Actions routeSurfaceActions
+}
+
+type routeSurfaceRegions struct {
+	Main      routeSurfaceRegion
+	Inspector routeSurfaceRegion
+	Bottom    routeSurfaceRegion
+	Status    routeSurfaceRegion
+}
+
+type routeSurfaceRegion struct {
+	Title string
+	Body  string
+}
+
+type routeSurfaceChrome struct {
+	Breadcrumbs []string
+}
+
+type routeSurfaceActions struct {
+	ModeTabs         []string
+	ActiveTab        string
+	CopyActions      []routeCopyAction
+	ReferenceActions []routeActionItem
+	LocalActions     []routeActionItem
+}
+
+type routeActionItem struct {
+	Label  string
+	Action paletteActionMsg
+}
+
+type shellObjectLocation struct {
+	RouteID routeID
+	Object  workbenchObjectRef
+}
+
+type shellWorkbenchLocation struct {
+	Primary   shellObjectLocation
+	Inspector *shellObjectLocation
 }
 
 type routeLoadState string
@@ -46,15 +87,15 @@ const (
 )
 
 func combineLegacyRouteView(surface routeSurface) string {
-	parts := []string{strings.TrimSpace(surface.Main)}
-	if strings.TrimSpace(surface.Inspector) != "" {
-		parts = append(parts, tableHeader("Inspector"), strings.TrimSpace(surface.Inspector))
+	parts := []string{strings.TrimSpace(surface.Regions.Main.Body)}
+	if strings.TrimSpace(surface.Regions.Inspector.Body) != "" {
+		parts = append(parts, tableHeader("Inspector"), strings.TrimSpace(surface.Regions.Inspector.Body))
 	}
-	if strings.TrimSpace(surface.BottomStrip) != "" {
-		parts = append(parts, strings.TrimSpace(surface.BottomStrip))
+	if strings.TrimSpace(surface.Regions.Bottom.Body) != "" {
+		parts = append(parts, strings.TrimSpace(surface.Regions.Bottom.Body))
 	}
-	if strings.TrimSpace(surface.Status) != "" {
-		parts = append(parts, "Status: "+strings.TrimSpace(surface.Status))
+	if strings.TrimSpace(surface.Regions.Status.Body) != "" {
+		parts = append(parts, "Status: "+strings.TrimSpace(surface.Regions.Status.Body))
 	}
 	return compactLines(parts...)
 }

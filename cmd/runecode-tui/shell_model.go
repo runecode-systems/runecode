@@ -57,9 +57,8 @@ type shellModel struct {
 	client   localBrokerClient
 
 	routeModels map[routeID]routeModel
-	currentID   routeID
-	backstack   []routeID
-	scroll      int
+	location    shellWorkbenchLocation
+	history     []shellWorkbenchLocation
 
 	focusManager   shellFocusManager
 	overlayManager shellOverlayManager
@@ -68,6 +67,7 @@ type shellModel struct {
 	workbench      shellWorkbenchStateStore
 	workbenchScope string
 	toasts         shellToastService
+	objectIndex    shellDiscoverabilityIndex
 
 	sidebarVisible  bool
 	inspectorOn     bool
@@ -92,9 +92,7 @@ type shellModel struct {
 	recentObjects    []workbenchObjectRef
 	sessionWorkspace map[string]string
 	viewedActivity   map[string]string
-	watchCache       shellLiveActivityCache
-	watchHealth      shellSyncHealth
-	activity         shellActivitySemantics
+	watch            shellWatchManager
 	activityFrame    int
 	selectionMode    bool
 	copyActionIndex  int
@@ -104,6 +102,7 @@ func newShellModel() shellModel {
 	routes := shellRoutes()
 	models := newRouteModels(routes)
 	defaultRoute := routeChat
+	commands := defaultShellCommandRegistry()
 	workbench := newDefaultWorkbenchStateStore()
 	if strings.HasSuffix(os.Args[0], ".test") {
 		workbench = &memoryWorkbenchStateStore{}
@@ -115,22 +114,24 @@ func newShellModel() shellModel {
 	}
 	appTheme = newTheme(themePresetDark)
 	m := shellModel{
-		keys:             defaultShellKeyMap(),
-		routes:           routes,
-		nav:              newPrimaryNavModel(routes),
-		palette:          newPaletteModel(nil),
-		sessions:         newSessionSwitcherModel(),
-		focus:            focusNav,
-		client:           newLocalBrokerClient(),
-		focusManager:     newShellFocusManager(focusNav),
-		overlayManager:   shellOverlayManager{},
-		commands:         defaultShellCommandRegistry(),
-		clipboard:        newShellClipboardService(),
-		workbench:        workbench,
-		workbenchScope:   scope,
-		toasts:           newShellToastService(),
-		routeModels:      models,
-		currentID:        defaultRoute,
+		keys:           defaultShellKeyMap(),
+		routes:         routes,
+		nav:            newPrimaryNavModel(routes),
+		palette:        newPaletteModel(nil),
+		sessions:       newSessionSwitcherModel(),
+		focus:          focusNav,
+		client:         newLocalBrokerClient(),
+		focusManager:   newShellFocusManager(focusNav),
+		overlayManager: shellOverlayManager{},
+		commands:       commands,
+		clipboard:      newShellClipboardService(),
+		workbench:      workbench,
+		workbenchScope: scope,
+		toasts:         newShellToastService(),
+		routeModels:    models,
+		location: shellWorkbenchLocation{
+			Primary: shellObjectLocation{RouteID: defaultRoute, Object: workbenchObjectRef{Kind: "route", ID: string(defaultRoute)}},
+		},
 		sidebarVisible:   true,
 		inspectorOn:      true,
 		themePreset:      themePresetDark,
@@ -143,15 +144,15 @@ func newShellModel() shellModel {
 		recentObjects:    nil,
 		sessionWorkspace: map[string]string{},
 		viewedActivity:   map[string]string{},
-		watchHealth:      shellSyncHealth{State: shellSyncStateLoading},
-		activity:         shellActivitySemantics{State: shellActivityStateLoading},
+		watch:            newShellWatchManager(),
+		objectIndex:      newShellDiscoverabilityIndex(routes, commands.List()),
 	}
 	m.restoreWorkbenchState()
 	return m
 }
 
 func (m shellModel) Init() tea.Cmd {
-	return tea.Batch(m.activateCurrentRouteCmd(), m.loadSessionWorkspaceCmd(), m.startWatchPollCmd(), m.mouseCaptureCmd())
+	return tea.Batch(m.activateCurrentRouteCmd(), m.loadSessionWorkspaceCmd(), m.loadObjectIndexCmd(), m.startWatchPollCmd(), m.mouseCaptureCmd())
 }
 
 func (m shellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -177,7 +178,7 @@ func (m shellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m shellModel) activateCurrentRouteCmd() tea.Cmd {
-	active := m.currentID
+	active := m.currentRouteID()
 	activeSessionID := m.activeSessionID
 	return func() tea.Msg {
 		return routeActivatedMsg{RouteID: active, ActiveSessionID: activeSessionID}
@@ -185,22 +186,38 @@ func (m shellModel) activateCurrentRouteCmd() tea.Cmd {
 }
 
 func (m shellModel) updateActiveRoute(msg tea.Msg) (tea.Model, tea.Cmd) {
-	active := m.routeModels[m.currentID]
+	active := m.routeModels[m.currentRouteID()]
 	if active == nil {
 		return m, nil
 	}
 	updated, cmd := active.Update(msg)
-	m.routeModels[m.currentID] = updated
+	m.routeModels[m.currentRouteID()] = updated
 	return m, cmd
 }
 
 func (m shellModel) activeShellSurface() routeSurface {
-	active := m.routeModels[m.currentID]
+	active := m.routeModels[m.currentRouteID()]
 	if active == nil {
-		return routeSurface{Main: "Route not available", Breadcrumbs: []string{"Home", string(m.currentID)}}
+		return routeSurface{
+			Regions: routeSurfaceRegions{
+				Main: routeSurfaceRegion{Body: "Route not available"},
+			},
+			Chrome: routeSurfaceChrome{Breadcrumbs: []string{"Home", string(m.currentRouteID())}},
+		}
 	}
-	ctx := routeShellContext{Width: m.width, Height: m.height, Focus: m.focus, Breakpoint: m.breakpoint()}
-	return active.ShellSurface(ctx)
+	ctx := routeShellContext{Width: m.width, Height: m.height, Focus: m.focus, Focused: m.focusedRouteRegion(), Breakpoint: m.breakpoint()}
+	surface := active.ShellSurface(ctx)
+	return m.withLocationChrome(surface)
+}
+
+func (m shellModel) focusedRouteRegion() routeRegionFocus {
+	if m.palette.IsOpen() || m.sessions.IsOpen() {
+		return routeRegionOverlay
+	}
+	if m.focus == focusContent {
+		return routeRegionInspector
+	}
+	return routeRegionMain
 }
 
 func (m shellModel) breakpoint() shellBreakpoint {
@@ -238,7 +255,7 @@ func (m shellModel) navigationSurfaceVisible() bool {
 }
 
 func (m shellModel) shouldShowInspector(surface routeSurface) bool {
-	if strings.TrimSpace(surface.Inspector) == "" {
+	if strings.TrimSpace(surface.Regions.Inspector.Body) == "" {
 		return false
 	}
 	if !m.inspectorOn || m.inspectorFolded {
@@ -248,12 +265,52 @@ func (m shellModel) shouldShowInspector(surface routeSurface) bool {
 }
 
 func (m shellModel) isTextEntryActive() bool {
-	active := m.routeModels[m.currentID]
+	active := m.routeModels[m.currentRouteID()]
 	chat, ok := active.(chatRouteModel)
 	if !ok {
 		return false
 	}
 	return chat.composeOn
+}
+
+func (m shellModel) currentRouteID() routeID {
+	rid := m.location.Primary.RouteID
+	if rid == "" {
+		return routeChat
+	}
+	return rid
+}
+
+func (m shellModel) currentLocation() shellWorkbenchLocation {
+	loc := m.location
+	if loc.Primary.RouteID == "" {
+		loc.Primary.RouteID = routeChat
+		if loc.Primary.Object.Kind == "" || loc.Primary.Object.ID == "" {
+			loc.Primary.Object = workbenchObjectRef{Kind: "route", ID: string(routeChat)}
+		}
+	}
+	if loc.Primary.Object.Kind == "" || loc.Primary.Object.ID == "" {
+		loc.Primary.Object = workbenchObjectRef{Kind: "route", ID: string(loc.Primary.RouteID)}
+	}
+	return loc
+}
+
+func (m shellModel) withLocationChrome(surface routeSurface) routeSurface {
+	breadcrumbs := []string{"Home", m.routeLabel(m.currentRouteID())}
+	loc := m.currentLocation()
+	if ref := strings.TrimSpace(loc.Primary.Object.ID); ref != "" && strings.TrimSpace(strings.ToLower(loc.Primary.Object.Kind)) != "route" {
+		breadcrumbs = append(breadcrumbs, ref)
+	}
+	if loc.Inspector != nil {
+		if ref := strings.TrimSpace(loc.Inspector.Object.ID); ref != "" {
+			breadcrumbs = append(breadcrumbs, "Inspect", ref)
+		}
+	}
+	if len(surface.Chrome.Breadcrumbs) > len(breadcrumbs) {
+		breadcrumbs = surface.Chrome.Breadcrumbs
+	}
+	surface.Chrome.Breadcrumbs = breadcrumbs
+	return surface
 }
 
 func (m shellModel) mouseCaptureCmd() tea.Cmd {

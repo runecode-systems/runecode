@@ -11,7 +11,7 @@ func (m *shellModel) persistWorkbenchState() {
 		InspectorVisible:   m.inspectorOn,
 		InspectorMode:      normalizePresentationMode(m.preferredMode),
 		ThemePreset:        normalizeThemePreset(m.themePreset),
-		LastRouteID:        m.currentID,
+		LastRouteID:        m.currentRouteID(),
 		LastSessionID:      m.activeSessionID,
 		LastSessionByWS:    cloneSessionMap(m.lastSessionByWS),
 		PinnedSessions:     m.persistedPinnedSessionRefs(),
@@ -39,6 +39,7 @@ func (m *shellModel) restoreWorkbenchState() {
 	m.restoreWorkbenchRecentState(state)
 	m.applyInspectorVisibilityToRoutes()
 	m.applyPreferredPresentationToRoutes()
+	m.refreshObjectIndexFromShellState()
 }
 
 func (m *shellModel) restoreWorkbenchLayoutState(state workbenchLocalState) {
@@ -63,15 +64,31 @@ func (m *shellModel) restoreWorkbenchRouteAndTheme(state workbenchLocalState) {
 	if m.preferredMode == "" {
 		m.preferredMode = presentationRendered
 	}
-	if state.LastRouteID != "" {
-		m.currentID = state.LastRouteID
-		m.nav.SelectByRouteID(state.LastRouteID)
+	if rid := m.validatedRouteID(state.LastRouteID); rid != "" {
+		m.location.Primary = shellObjectLocation{RouteID: rid, Object: workbenchObjectRef{Kind: "route", ID: string(rid)}}
+		m.nav.SelectByRouteID(rid)
 	}
 	m.themePreset = normalizeThemePreset(state.ThemePreset)
 	if m.themePreset == "" {
 		m.themePreset = themePresetDark
 	}
 	appTheme = newTheme(m.themePreset)
+}
+
+func (m *shellModel) validatedRouteID(rid routeID) routeID {
+	rid = routeID(strings.TrimSpace(string(rid)))
+	if rid == "" {
+		return ""
+	}
+	if _, ok := m.routeModels[rid]; ok {
+		return rid
+	}
+	for _, def := range m.routes {
+		if def.ID == rid {
+			return rid
+		}
+	}
+	return routeChat
 }
 
 func (m *shellModel) restoreWorkbenchSessionState(state workbenchLocalState) {
@@ -99,6 +116,7 @@ func (m *shellModel) restoreWorkbenchSessionState(state workbenchLocalState) {
 func (m *shellModel) rememberSessionWorkspace(sessionID string, workspaceID string) {
 	if ws := strings.TrimSpace(workspaceID); ws != "" {
 		m.sessionWorkspace[sessionID] = ws
+		m.refreshObjectIndexFromShellState()
 	}
 }
 
@@ -110,7 +128,7 @@ func (m *shellModel) restoreWorkbenchRecentState(state workbenchLocalState) {
 
 func (m *shellModel) capturePreferredPresentationFromActiveSurface() {
 	surface := m.activeShellSurface()
-	mode := normalizePresentationMode(contentPresentationMode(strings.TrimSpace(surface.ActiveTab)))
+	mode := normalizePresentationMode(contentPresentationMode(strings.TrimSpace(surface.Actions.ActiveTab)))
 	if mode == "" {
 		mode = presentationRendered
 	}
@@ -124,13 +142,15 @@ func (m *shellModel) capturePreferredPresentationFromActiveSurface() {
 
 func (m *shellModel) captureInspectorVisibilityFromActiveRoute() {
 	before := m.inspectorOn
-	model := m.routeModels[m.currentID]
+	model := m.routeModels[m.currentRouteID()]
 	switch typed := model.(type) {
 	case chatRouteModel:
 		m.inspectorOn = typed.inspectorOn
 	case runsRouteModel:
 		m.inspectorOn = typed.inspectorOn
 	case approvalsRouteModel:
+		m.inspectorOn = typed.inspectorOn
+	case actionCenterRouteModel:
 		m.inspectorOn = typed.inspectorOn
 	case artifactsRouteModel:
 		m.inspectorOn = typed.inspectorOn
@@ -153,6 +173,9 @@ func (m *shellModel) applyInspectorVisibilityToRoutes() {
 			typed.inspectorOn = m.inspectorOn
 			m.routeModels[id] = typed
 		case approvalsRouteModel:
+			typed.inspectorOn = m.inspectorOn
+			m.routeModels[id] = typed
+		case actionCenterRouteModel:
 			typed.inspectorOn = m.inspectorOn
 			m.routeModels[id] = typed
 		case artifactsRouteModel:
