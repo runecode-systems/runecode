@@ -164,18 +164,22 @@ func centeredOverlayBlock(title shellOverlayID, body string, viewportWidth int) 
 		body = "(empty overlay)"
 	}
 	width := overlayBlockWidth(viewportWidth)
+	innerWidth := width - 2
+	if innerWidth < 1 {
+		innerWidth = 1
+	}
 
 	content := appTheme.SurfaceOverlay.
-		Width(width).
-		MaxWidth(width).
+		Width(innerWidth).
+		MaxWidth(innerWidth).
 		Padding(0, 1).
 		Render(body)
 
 	frame := appTheme.SurfaceOverlay.
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(appTheme.BorderStrong.GetForeground()).
-		Width(width).
-		MaxWidth(width).
+		Width(innerWidth).
+		MaxWidth(innerWidth).
 		Render(content)
 
 	return compactLines(

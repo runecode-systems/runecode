@@ -66,19 +66,19 @@ func (m shellModel) planShellRegions(viewportWidth int, viewportHeight int, brea
 		mainWidth = viewportWidth
 	}
 
-	mainHeight := viewportHeight - shellChromeReservedHeight()
+	paneFrameHeight := viewportHeight - shellChromeReservedHeight() - 2
 	if modeTabsVisible {
-		mainHeight--
+		paneFrameHeight--
 	}
-	if mainHeight < 1 {
-		mainHeight = 1
+	if paneFrameHeight < 1 {
+		paneFrameHeight = 1
 	}
 	regions := routeShellRegions{
-		Main:      routeRegionDimensions{Width: mainWidth, Height: mainHeight},
-		Inspector: routeRegionDimensions{Width: inspectorWidth, Height: mainHeight},
+		Main:      routeRegionDimensions{Width: mainWidth, Height: paneFrameHeight},
+		Inspector: routeRegionDimensions{Width: inspectorWidth, Height: paneFrameHeight},
 		Bottom:    routeRegionDimensions{Width: viewportWidth, Height: shellBottomStripHeight},
 		Status:    routeRegionDimensions{Width: viewportWidth, Height: shellStatusHeight},
-		Sidebar:   routeRegionDimensions{Width: sidebarWidth, Height: mainHeight},
+		Sidebar:   routeRegionDimensions{Width: sidebarWidth, Height: paneFrameHeight},
 	}
 	if !navigationVisible {
 		regions.Sidebar = routeRegionDimensions{}

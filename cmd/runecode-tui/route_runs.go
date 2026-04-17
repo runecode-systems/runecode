@@ -70,6 +70,9 @@ func (m runsRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 			m.selected = 0
 		}
 		m.active = typed.detail
+		if typed.detail != nil {
+			m.selected = selectedRunIndex(m.runs, typed.detail.Summary.RunID)
+		}
 		m.syncDetailDocument()
 		return m, nil
 	default:
@@ -97,6 +100,16 @@ func (m runsRouteModel) handleRunSelect(msg runsSelectRunMsg) (routeModel, tea.C
 	m.errText = ""
 	m.loadSeq++
 	return m, m.loadCmd(runID, m.loadSeq)
+}
+
+func selectedRunIndex(runs []brokerapi.RunSummary, runID string) int {
+	runID = strings.TrimSpace(runID)
+	for i, run := range runs {
+		if strings.TrimSpace(run.RunID) == runID {
+			return i
+		}
+	}
+	return 0
 }
 
 func (m runsRouteModel) handleViewportScroll(msg routeViewportScrollMsg) (routeModel, tea.Cmd) {
@@ -133,7 +146,7 @@ func (m runsRouteModel) View(width, height int, focus focusArea) string {
 	}
 	body := []string{
 		sectionTitle("Runs") + " " + focusBadge(focus),
-		renderRunSafetyStrip(m.activeSummary()),
+		renderRunSafetyStrip(m.activeSummary(), width-4),
 		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
 		renderDirectory("Run directory", renderRunDirectoryItems(m.runs), m.selected),
 	}

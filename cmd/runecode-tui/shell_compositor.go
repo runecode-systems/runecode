@@ -54,12 +54,13 @@ func renderShellPane(spec shellPaneSpec) string {
 		innerHeight = 1
 	}
 
+	contentBody := joinLinesPreserveEmpty(header, body)
 	content := lipgloss.NewStyle().
 		Width(innerWidth).
 		Height(innerHeight).
 		MaxWidth(innerWidth).
 		MaxHeight(innerHeight).
-		Render(compactLines(header, body))
+		Render(contentBody)
 
 	borders := spec.Border
 	if !borders.Top && !borders.Bottom && !borders.Left && !borders.Right {
@@ -69,12 +70,20 @@ func renderShellPane(spec shellPaneSpec) string {
 	border := appTheme.SurfaceElevated.
 		Border(lipgloss.NormalBorder(), borders.Top, borders.Right, borders.Bottom, borders.Left).
 		BorderForeground(appTheme.BorderSubtle.GetForeground()).
-		Width(width).
-		Height(height)
+		Width(innerWidth).
+		Height(innerHeight)
 	if spec.Focused {
 		border = border.BorderForeground(appTheme.FocusRing.GetForeground())
 	}
 	return border.Render(content)
+}
+
+func joinLinesPreserveEmpty(lines ...string) string {
+	parts := make([]string, 0, len(lines))
+	for _, line := range lines {
+		parts = append(parts, strings.TrimRight(line, "\n"))
+	}
+	return strings.Join(parts, "\n")
 }
 
 func joinPanesHorizontal(panes ...string) string {

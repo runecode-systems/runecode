@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type captureRouteModel struct {
@@ -130,7 +131,7 @@ func TestShellLayoutPlannerBudgetsMainHeightFromShellChrome(t *testing.T) {
 	m.height = 40
 
 	plan := m.planShellLayout(routeSurface{})
-	want := 40 - shellChromeReservedHeight()
+	want := 40 - shellChromeReservedHeight() - 2
 	if got := plan.Regions.Main.Height; got != want {
 		t.Fatalf("expected main height=%d from viewport-shell chrome budget, got %d", want, got)
 	}
@@ -148,8 +149,20 @@ func TestShellLayoutPlannerBudgetsModeTabsAsVerticalChrome(t *testing.T) {
 	m.height = 40
 
 	plan := m.planShellLayout(routeSurface{Actions: routeSurfaceActions{ModeTabs: []string{"rendered", "raw"}}})
-	want := 40 - shellChromeReservedHeight() - 1
+	want := 40 - shellChromeReservedHeight() - 2 - 1
 	if got := plan.Regions.Main.Height; got != want {
 		t.Fatalf("expected mode tabs to reserve one line and main height=%d, got %d", want, got)
+	}
+}
+
+func TestShellLayoutPlannerAccountsForPaneBorderHeight(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	m.height = 32
+	surface := m.activeShellSurface()
+	plan := m.planShellLayout(surface)
+	row := m.renderShellPanes(surface, plan)
+	if got := lipgloss.Height(row); got > m.availableShellHeight()-shellBottomStripHeight-shellStatusHeight-shellFooterHeight {
+		t.Fatalf("expected pane row to leave room for footer and lower chrome, got row height=%d", got)
 	}
 }

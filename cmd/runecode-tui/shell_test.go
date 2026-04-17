@@ -173,6 +173,40 @@ func TestShellViewCompositorPlacesPanesHorizontally(t *testing.T) {
 	}
 }
 
+func TestRenderShellPanePreservesInternalBlankLines(t *testing.T) {
+	pane := renderShellPane(shellPaneSpec{Title: "Test", Body: "line one\n\nline two", Width: 40, Height: 8, Focused: false, Border: shellPaneBorder{Top: true, Bottom: true, Left: true, Right: true}})
+	if !strings.Contains(pane, "line one") || !strings.Contains(pane, "line two") {
+		t.Fatalf("expected pane body content preserved, got %q", pane)
+	}
+	foundBlankInterior := false
+	for _, line := range strings.Split(pane, "\n") {
+		if strings.HasPrefix(line, "│") && strings.HasSuffix(line, "│") && strings.Trim(line, "│ ") == "" {
+			foundBlankInterior = true
+			break
+		}
+	}
+	if !foundBlankInterior {
+		t.Fatalf("expected preserved blank content row inside pane body, got %q", pane)
+	}
+}
+
+func TestRenderShellPanesDoesNotDoubleConstrainRenderedRow(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	surface := m.activeShellSurface()
+	layout := m.planShellLayout(surface)
+	row := m.renderShellPanes(surface, layout)
+	if strings.Contains(row, "││") {
+		t.Fatalf("expected rendered pane row not to be re-split into double separators, got %q", row)
+	}
+	if got := lipgloss.Height(row); got < layout.Regions.Main.Height {
+		t.Fatalf("expected pane row height at least %d, got %d", layout.Regions.Main.Height, got)
+	}
+	if strings.Contains(row, "┌") && strings.Count(row, "┌") < 2 {
+		t.Fatalf("expected preserved multi-pane framing, got %q", row)
+	}
+}
+
 func TestShellBackKeyPopsBackstack(t *testing.T) {
 	m := newShellModel()
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})

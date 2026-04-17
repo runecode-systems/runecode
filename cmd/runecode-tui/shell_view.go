@@ -29,7 +29,7 @@ func (m shellModel) renderShellWorkbench(surface routeSurface, layout shellLayou
 	b := strings.Builder{}
 	m.writeShellFrame(&b, surface, layout)
 	m.writeShellFooter(&b)
-	frame := constrainShellBlock(strings.TrimRight(b.String(), "\n"), viewportWidth, m.availableShellHeight())
+	frame := padShellBlock(strings.TrimRight(b.String(), "\n"), viewportWidth, m.availableShellHeight())
 	if strings.TrimSpace(overlayBody) == "" {
 		return lipgloss.JoinVertical(lipgloss.Left, frame)
 	}
@@ -97,11 +97,11 @@ func (m shellModel) overlayBodyWithHeight(surface routeSurface, layout shellLayo
 	if len(parts) == 0 {
 		return "", 0
 	}
-	maxOverlayHeight := viewportHeight / 2
+	maxOverlayHeight := viewportHeight - 8
 	if maxOverlayHeight < 1 {
 		maxOverlayHeight = 1
 	}
-	content := constrainShellBlock(strings.Join(parts, "\n"), normalizedOverlayWidth(m.width), maxOverlayHeight)
+	content := padShellBlock(strings.Join(parts, "\n"), normalizedOverlayWidth(m.width), maxOverlayHeight)
 	return content, lipgloss.Height(content)
 }
 
@@ -227,15 +227,15 @@ func (m shellModel) renderShellPanes(surface routeSurface, layout shellLayoutPla
 	mainPane := renderShellPane(shellPaneSpec{Title: mainTitle, Body: mainBody, Width: routeRegionWidth(layout.Regions.Main, viewportWidth), Height: routeRegionHeight(layout.Regions.Main, viewportHeight), Focused: m.focus == focusContent, Border: shellPaneBorder{Top: true, Bottom: true, Left: true, Right: true}})
 	row := mainPane
 	paneFrameHeight := layout.Regions.Main.Height
-	if layout.NavigationVisible {
+	if layout.NavigationVisible && layout.Regions.Sidebar.Width > 0 {
 		sidebarTitle := "Sidebar"
 		if layout.Breakpoint == shellBreakpointWide {
 			sidebarTitle += fmt.Sprintf(" (%.0f%%)", clampPaneRatio(m.sidebarRatio)*100)
 		}
-		sidebarPane := renderShellPane(shellPaneSpec{Title: sidebarTitle, Body: m.renderSidebar(), Width: routeRegionWidth(layout.Regions.Sidebar, viewportWidth/4), Height: routeRegionHeight(layout.Regions.Sidebar, viewportHeight), Focused: m.focus == focusNav, Border: shellPaneBorder{Top: true, Bottom: true, Left: true, Right: false}})
+		sidebarPane := renderShellPane(shellPaneSpec{Title: sidebarTitle, Body: m.renderSidebar(), Width: routeRegionWidth(layout.Regions.Sidebar, 0), Height: routeRegionHeight(layout.Regions.Sidebar, viewportHeight), Focused: m.focus == focusNav, Border: shellPaneBorder{Top: true, Bottom: true, Left: true, Right: false}})
 		row = joinPanesHorizontal(sidebarPane, row)
 	}
-	if layout.InspectorVisible {
+	if layout.InspectorVisible && layout.Regions.Inspector.Width > 0 {
 		inspectorTitle := strings.TrimSpace(surface.Regions.Inspector.Title)
 		if inspectorTitle == "" {
 			inspectorTitle = "Inspector pane"
@@ -243,11 +243,35 @@ func (m shellModel) renderShellPanes(surface routeSurface, layout shellLayoutPla
 		if layout.Breakpoint == shellBreakpointWide {
 			inspectorTitle += fmt.Sprintf(" (%.0f%%)", clampPaneRatio(m.inspectorRatio)*100)
 		}
-		inspectorPane := renderShellPane(shellPaneSpec{Title: inspectorTitle, Body: strings.TrimSpace(surface.Regions.Inspector.Body), Width: routeRegionWidth(layout.Regions.Inspector, viewportWidth/3), Height: routeRegionHeight(layout.Regions.Inspector, viewportHeight), Focused: m.focus == focusInspector, Border: shellPaneBorder{Top: true, Bottom: true, Left: false, Right: true}})
+		inspectorPane := renderShellPane(shellPaneSpec{Title: inspectorTitle, Body: strings.TrimSpace(surface.Regions.Inspector.Body), Width: routeRegionWidth(layout.Regions.Inspector, 0), Height: routeRegionHeight(layout.Regions.Inspector, viewportHeight), Focused: m.focus == focusInspector, Border: shellPaneBorder{Top: true, Bottom: true, Left: false, Right: true}})
 		row = joinPanesHorizontal(row, inspectorPane)
 	}
 	row = lipgloss.NewStyle().Width(viewportWidth).MaxWidth(viewportWidth).Render(row)
-	return constrainShellBlock(row, viewportWidth, paneFrameHeight)
+	return padShellBlock(row, viewportWidth, paneFrameHeight)
+}
+
+func padShellBlock(block string, width int, height int) string {
+	if height <= 0 {
+		return ""
+	}
+	if width <= 0 {
+		width = 1
+	}
+	trimmed := strings.TrimRight(block, "\n")
+	if trimmed == "" {
+		return strings.TrimRight(appTheme.SurfaceBase.Width(width).Height(height).Render(""), "\n")
+	}
+	lines := strings.Split(trimmed, "\n")
+	currentHeight := lipgloss.Height(trimmed)
+	if currentHeight >= height {
+		return strings.Join(lines[:height], "\n") + "\x1b[0m"
+	}
+	padLines := make([]string, 0, height-currentHeight)
+	blank := appTheme.SurfaceBase.Width(width).Render("")
+	for len(padLines) < height-currentHeight {
+		padLines = append(padLines, blank)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, trimmed, strings.Join(padLines, "\n"))
 }
 
 func (m shellModel) renderSidebar() string {

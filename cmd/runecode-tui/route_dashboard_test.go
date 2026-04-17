@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
@@ -87,4 +89,53 @@ func TestDashboardRouteFallsBackWhenAuditVerificationUnavailable(t *testing.T) {
 		"Live Activity",
 		"Live activity (typed watch families; logs are supplemental inspection only):",
 	)
+}
+
+func TestDashboardViewPreservesSectionGaps(t *testing.T) {
+	model := newDashboardRouteModel(routeDefinition{ID: routeDashboard, Label: "Dashboard"}, &fakeBrokerClient{})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeDashboard})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+	view := updated.View(120, 40, focusContent)
+	for _, want := range []string{"PENDING_APPROVALS=1\n\nSafety Summary", "ALERT_AUDIT_UNANCHORED  audit posture unanchored/degraded\n\nControl Plane", "protocol bundle=0.9.0\n\nLive Activity"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expected preserved blank section gap %q in view, got %q", want, view)
+		}
+	}
+}
+
+func TestDashboardAuditFallbackWithoutErrorDoesNotAddExtraBlankLine(t *testing.T) {
+	model := newDashboardRouteModel(routeDefinition{ID: routeDashboard, Label: "Dashboard"}, &fakeBrokerClient{})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeDashboard})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+	view := updated.View(120, 40, focusContent)
+	if strings.Contains(view, "Safety posture\n\nWorkflow posture") {
+		t.Fatalf("did not expect extra blank line when audit fallback notice absent, got %q", view)
+	}
+}
+
+func TestDashboardViewWrapsLongRowsToWidth(t *testing.T) {
+	model := newDashboardRouteModel(routeDefinition{ID: routeDashboard, Label: "Dashboard"}, &fakeBrokerClient{})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeDashboard})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+	view := updated.View(64, 30, focusContent)
+	for _, line := range strings.Split(view, "\n") {
+		if lipgloss.Width(line) > 60 {
+			t.Fatalf("expected wrapped dashboard line within content width, got width=%d line=%q", lipgloss.Width(line), line)
+		}
+	}
+	if !strings.Contains(view, "runtime_posture_degraded=false") {
+		t.Fatalf("expected wrapped safety strip content retained, got %q", view)
+	}
+	if !strings.Contains(view, "AUDIT_UNANCHORED_OR_DEGRADED") {
+		t.Fatalf("expected wrapped long audit cue retained, got %q", view)
+	}
 }
