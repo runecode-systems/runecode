@@ -9,6 +9,7 @@
   - device-code style flow if needed for headless or constrained environments
 - [ ] Fail closed on OAuth state/redirect mismatches.
 - [ ] RuneCode must not rely on vendor-internal OAuth clients or piggyback registrations.
+- [ ] Surface login and account-linking through broker-mediated setup flows exposed by guided TUI and straightforward CLI clients rather than runtime-local setup.
 
 ## Auth-Gateway Role (Auth Egress Only)
 
@@ -16,6 +17,7 @@
 - [ ] Store refresh token material and rotation metadata only in `secretsd`.
 - [ ] Issue short-lived, scope-bound leases for `idToken` and `accessToken` (or equivalent) to `model-gateway`.
 - [ ] Disallow environment-variable secret injection.
+- [ ] Keep any manual token-entry fallback limited to trusted interactive broker-mediated prompts rather than flags or environment variables.
 
 ## Model-Gateway Bridge via Codex App-Server
 

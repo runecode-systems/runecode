@@ -9,3 +9,5 @@
 
 ## Resolution Notes
 Migrated from the legacy spec standards list, refreshed to canonical RuneContext standard paths, and now explicitly inherits typed control-plane, local-first, lease-lifecycle, and policy-foundation rules needed to keep bridge integrations below the canonical model boundary.
+
+This now also includes broker-owned setup and account-linking authority so provider runtimes do not become a second control-plane surface.

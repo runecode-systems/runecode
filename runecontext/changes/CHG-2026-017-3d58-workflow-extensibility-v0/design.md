@@ -13,6 +13,7 @@ Define schema-validated workflow composition and rebuildable shared-memory accel
 - Shared memory is a rebuildable accelerator for derived artifacts only; authoritative state remains in the run DB, artifact store, and audit trail.
 - `ProcessDefinition` must reuse the shared workflow identity model established by the workflow runner project rather than inventing process-local IDs or retry semantics.
 - Custom workflows must reuse the shared typed gate contract, executor model, approval split, and runner->broker checkpoint/result model rather than defining process-local variants.
+- Custom workflows that compose git remote mutation must reuse the shared typed git request families, signed patch artifact contracts, exact repository identity model, and `git_remote_ops` approval trigger rather than defining process-local git semantics.
 
 ## Shared Contract Reuse
 
@@ -26,6 +27,7 @@ Define schema-validated workflow composition and rebuildable shared-memory accel
 ### Executor Reuse
 - Custom workflows may reference only reviewed typed executors already defined by the shared workspace/gateway execution model.
 - Process definitions must not introduce arbitrary shell strings, raw command passthrough, or unreviewed executor contracts.
+- Process definitions must not introduce ad hoc git mutation steps, raw git transport payloads, or process-local repository-policy mutation channels.
 
 ### Gate Reuse
 - Custom workflows must reuse the shared typed gate contract:
@@ -40,6 +42,8 @@ Define schema-validated workflow composition and rebuildable shared-memory accel
 - Custom workflows must preserve the shared approval split between exact-action approvals and stage sign-off.
 - Stage sign-off should continue to bind one canonical stage summary hash and become stale when that hash changes.
 - Process-defined execution should report progress through the shared runner->broker checkpoint/result contract rather than a process-local status channel.
+- If a workflow composes git remote mutation, it must preserve exact-action approval semantics for `git_remote_ops`; process-level milestones or stage sign-off cannot substitute for final remote-mutation approval.
+- Workflow-defined git steps must bind the same canonical hashes as built-in git flows, including typed git request hash, referenced patch artifact digests, and expected result tree hash.
 
 ## Main Workstreams
 - `ProcessDefinition` Contract

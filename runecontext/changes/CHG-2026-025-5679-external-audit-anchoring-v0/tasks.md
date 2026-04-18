@@ -14,11 +14,14 @@
 
 - [ ] External anchoring requires explicit signed-manifest opt-in and must never silently enable network access.
 - [ ] External anchor traffic must use an explicit allowlist and a non-workspace execution pathway.
+- [ ] Align authenticated external anchor submissions with the shared remote-state-mutation gateway class rather than an ad hoc external-only egress category.
+- [ ] Define canonical target identity and matching rules rather than target-local raw URL policy.
 - [ ] Define how policy and audit distinguish:
   - local-only anchoring
   - configured-but-not-run external anchoring
   - completed external anchoring
 - [ ] Secret material for target authentication, if any, must follow the same no-env-var/no-raw-log posture as other gateway-style integrations.
+- [ ] Define whether external anchor submission is an approved automated posture or an exact-action approval boundary per outbound submission, and keep that decision on shared policy and approval semantics.
 
 ## Receipt, Audit, and Verification Integration
 
@@ -29,6 +32,7 @@
   - deferred or unavailable anchors
   - invalid anchors
 - [ ] Verification remains fail closed on invalid receipts, never rewrites existing audit history, and stays aligned to the shared `AuditVerificationReport` dimension model.
+- [ ] Record canonical target identity, anchoring subject identity, outbound payload or subject hash, bytes, timing, outcome, and any relevant lease or policy bindings in audit evidence.
 
 ## Fixtures + Adapter Conformance
 
@@ -40,3 +44,4 @@
 - [ ] External anchoring targets are defined in a dedicated later spec rather than remaining as a note in the MVP anchoring spec.
 - [ ] External anchoring never silently enables network access.
 - [ ] Receipt verification is typed, auditable, and fail closed on invalid data.
+- [ ] External anchoring inherits shared gateway identity, lease, approval, and audit-evidence discipline rather than inventing an external-only outbound model.

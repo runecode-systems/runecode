@@ -8,6 +8,7 @@ Define the explicit web-research gateway role with strict egress controls, citat
 - Web research must not consume workspace-derived data classes.
 - Fetching is hardened against SSRF/DNS rebinding (block private/reserved IP ranges; constrain redirects).
 - Web destinations should use the shared typed gateway destination/allowlist model so origin identity, redirect posture, and approved operations stay canonical across gateway features.
+- Web research should also stay aligned with the shared gateway operation taxonomy and shared gateway audit field set rather than evolving a web-only outbound vocabulary where the shared model is sufficient.
 
 ## Main Workstreams
 - Web Research Gateway Contract

@@ -9,6 +9,18 @@ Define typed external anchoring targets, receipt verification, and explicit egre
 - `AuditSegmentSeal` remains the canonical anchoring subject for external targets just as it does for local anchors.
 - External anchor receipts remain authoritative as sidecar audit evidence first; artifact-store copies remain optional export/review products.
 - Verification/reporting must distinguish valid external anchors from deferred, unavailable, or invalid states using the shared verifier posture model rather than a separate external-only status taxonomy.
+- External anchor submissions that mutate remote target state should align with the shared gateway remote-state-mutation class rather than an ad hoc outbound category.
+- Target identity, approval scope, lease scope, and audit evidence for external anchoring should use the same reviewed shared-gateway discipline now frozen for git remote mutation.
+
+## Shared Gateway Alignment
+
+- External anchoring should use typed target identity with exact matching rather than raw URL-only policy.
+- If a target requires authenticated remote mutation, short-lived credentials must remain lease-bound through the shared secrets model rather than target-local secret handling.
+- The change should decide explicitly whether a given external anchoring posture is:
+  - an approved automated posture under signed manifests and allowlists
+  - or an exact-action approval boundary for each outbound anchor submission
+- Whatever posture is chosen, it must be expressed through the shared policy and approval vocabulary rather than a target-local approval model.
+- Audit evidence should include canonical target identity, anchoring subject identity, outbound payload or subject hash, bytes, timing, outcome, and any lease or policy bindings needed to verify the outbound action.
 
 ## Main Workstreams
 - Later Anchor Target Model

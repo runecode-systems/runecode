@@ -11,6 +11,9 @@
 - Confirm the change keeps LangGraph internal-only and non-canonical.
 - Confirm the change preserves broker-owned run truth, approval truth, lifecycle state, and immutable `RunPlan` authority.
 - Confirm the change does not weaken trust-boundary, approval-binding, or fail-closed recovery expectations.
+- Confirm the change preserves exact-action wait semantics for `git_remote_ops` and similar hard-floor remote-state-mutation approvals.
+- Confirm wait, replay, and resume preserve canonical action hashes, relevant artifact hashes, and expected result tree identity where those bindings exist.
+- Confirm remote-drift handling remains fail closed under any LangGraph-backed resume path.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

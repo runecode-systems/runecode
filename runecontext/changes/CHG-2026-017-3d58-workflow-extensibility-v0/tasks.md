@@ -9,6 +9,8 @@
 - [ ] Keep retries and reruns on separate attempt identities rather than mutating logical scope IDs.
 - [ ] Restrict custom workflows to reviewed typed executors already defined by the shared execution model; no process-local shell passthrough or unreviewed executor contracts.
 - [ ] Reuse the shared typed gate contract, including gate identity/version, gate-attempt semantics, and gate-evidence linkage.
+- [ ] If custom workflows compose git remote mutation, restrict them to the reviewed typed git request families and signed patch artifact contracts rather than process-local git payloads or ad hoc remote operations.
+- [ ] Forbid process definitions from directly mutating repository policy truth, ref allowlists, or repository-specific commit policy through local settings or untyped side channels.
 
 ## Validation + Canonicalization
 
@@ -28,6 +30,8 @@
 - [ ] Preserve the shared approval split between exact-action approvals and stage sign-off for custom workflows.
 - [ ] Ensure stage-summary changes in custom workflows supersede stale sign-off requests using the same shared hash-bound semantics as built-in workflows.
 - [ ] Route process execution progress through the shared runner->broker checkpoint/result model rather than a process-local status/update channel.
+- [ ] Ensure workflow-composed git remote mutation still routes through `git_remote_ops` exact-action approval rather than workflow-local milestone or stage approval.
+- [ ] Ensure workflow-composed git remote mutation binds canonical repository identity, target refs, referenced patch artifact digests, expected result tree hash, and canonical action request hash.
 
 ## Authoring + UX Surfaces
 
@@ -38,4 +42,4 @@
 
 - [ ] Custom workflows remain schema-validated, hash-bound, and auditable.
 - [ ] Workflow customization does not add new privileged operations or weaken existing trust boundaries.
-- [ ] Custom workflows reuse the shared identity, executor, gate, approval, and runner->broker execution contracts rather than inventing parallel workflow semantics.
+- [ ] Custom workflows reuse the shared identity, executor, gate, approval, git request, patch artifact, and runner->broker execution contracts rather than inventing parallel workflow semantics.

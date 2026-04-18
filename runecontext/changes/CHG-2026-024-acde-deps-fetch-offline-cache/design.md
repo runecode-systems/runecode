@@ -8,6 +8,7 @@ Define the dependency-fetch role and offline cache so workspace roles stay offli
 - Outputs are read-only artifacts.
 - Dependency fetch should use the shared typed gateway destination/allowlist model, while offline consumption of cached dependencies remains ordinary workspace execution rather than implicit egress.
 - This split must also preserve the shared executor-class model: gateway-backed dependency fetch is not ordinary workspace execution, while offline cached dependency use inside the workspace remains `workspace_ordinary` execution.
+- Dependency fetch should also stay aligned with the shared gateway operation taxonomy and shared gateway audit field set rather than inventing dependency-local outbound semantics where the shared model is sufficient.
 
 ## Main Workstreams
 - Dependency Fetch Gateway Contract

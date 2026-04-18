@@ -13,6 +13,7 @@ Define the ChatGPT-subscription provider path using official OAuth, auth-gateway
 - External runtime identity/version are discovered and logged per request; contract tests validate the RPC surface.
 - External runtime compatibility uses a tested range plus compatibility probe so RuneCode does not require updates for every vendor release.
 - Sessions are ephemeral by default; persisted conversation state requires explicit manifest+policy enablement.
+- Provider login, account linking, and auth posture are broker-mediated typed flows surfaced through guided TUI and straightforward CLI clients rather than runtime-local setup authority.
 
 ## Main Workstreams
 - Official OAuth Client Registration

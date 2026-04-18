@@ -9,6 +9,7 @@ Define the shared bridge/runtime contracts for user-installed provider runtimes 
 - Bridge runtimes remain LLM-only and never receive workspace or patch capabilities.
 - Token delivery must avoid environment variables and raw secret logging.
 - Audit and TUI surfaces must make untested-version and persisted-session posture visible.
+- Bridge runtimes must not become their own setup, account-linking, or auth-status authority surface; those remain broker-owned.
 
 ## Canonical Boundary Inheritance
 
@@ -27,11 +28,13 @@ Define the shared bridge/runtime contracts for user-installed provider runtimes 
 - Bridge integrations should inherit canonical destination identity from the shared destination descriptor and `destination_ref` model rather than inventing bridge-local URL semantics.
 - Bridge integrations should also inherit the shared trusted quota model so provider-specific runtime adapters do not redefine usage accounting semantics.
 - Runtime-reported usage and provider headers are advisory inputs to trusted quota handling rather than sole authority.
+- Bridge integrations should inherit the shared broker-owned setup and account posture model so TUI and CLI remain thin adapters over one typed control-plane path.
 
 ## Operator Posture
 
 - Bridge-specific health or compatibility probes may remain local supervision and diagnostics inputs.
 - Any long-lived operator-facing posture should be broker-projected together with the rest of the secure model-provider access stack rather than exposed as a second daemon-style public API.
+- Provider bootstrap, account state, and auth posture should surface through broker-owned typed setup and status APIs rather than runtime-local configuration screens or files.
 
 ## Main Workstreams
 - Bridge Runtime Contract

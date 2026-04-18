@@ -4,7 +4,7 @@ Shared bridge contracts keep user-installed provider runtimes auditable, in expl
 ## Problem
 This feature now has a canonical RuneContext change record, preserving the migrated planning content without relying on legacy Agent OS folders or path aliases.
 
-The newly refined `secretsd` and `model-gateway` foundation narrows what the bridge lane should be allowed to define. Without updating this change, bridge/runtime integrations could still drift into their own token-delivery, destination identity, quota, or request-shape conventions even though those decisions are now meant to be shared and inherited.
+The newly refined `secretsd`, `model-gateway`, and `git-gateway` foundations narrow what the bridge lane should be allowed to define. Without updating this change, bridge/runtime integrations could still drift into their own token-delivery, destination identity, quota, request-shape, or setup-authority conventions even though those decisions are now meant to be shared and inherited.
 
 ## Proposed Change
 - Bridge Runtime Contract.
@@ -12,9 +12,10 @@ The newly refined `secretsd` and `model-gateway` foundation narrows what the bri
 - Token Delivery + Session Rules.
 - Audit + UX Surfaces.
 - Explicit inheritance of the canonical `LLMRequest` / `LLMResponse` / `LLMStreamEvent` boundary and lease-based token handoff model.
+- Explicit inheritance of broker-owned setup, account-linking, and operator-posture authority rather than bridge-local setup surfaces.
 
 ## Why Now
-This work remains scheduled for v0.2, and the bridge lane should now explicitly inherit the shared model-boundary, token-handoff, destination-identity, and quota foundation rather than redefining it during later provider integrations.
+This work remains scheduled for v0.2, and the bridge lane should now explicitly inherit the shared model-boundary, token-handoff, destination-identity, quota, and setup-authority foundation rather than redefining it during later provider integrations.
 
 ## Assumptions
 - `runecontext/changes/*` is the canonical planning surface for this repository.
@@ -26,6 +27,7 @@ This work remains scheduled for v0.2, and the bridge lane should now explicitly 
 - Runtime implementation of the feature during this migration step.
 - Re-introducing legacy Agent OS planning paths as canonical references.
 - Allowing bridge runtimes to redefine the canonical model boundary, secret custody semantics, or operator-facing posture model.
+- Allowing bridge runtimes to own authoritative provider setup, account-linking, or auth-status UX flows.
 
 ## Impact
-Keeps Bridge Runtime Protocol v0 reviewable as a RuneContext-native change, aligned with the reviewed model-gateway and `secretsd` foundation, and avoids a later rewrite of bridge token-delivery and request-boundary semantics.
+Keeps Bridge Runtime Protocol v0 reviewable as a RuneContext-native change, aligned with the reviewed model-gateway, git-gateway, and `secretsd` foundation, and avoids a later rewrite of bridge token-delivery, request-boundary, and setup-authority semantics.
