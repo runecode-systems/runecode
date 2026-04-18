@@ -131,8 +131,8 @@ jobs:
     runs-on: windows-latest
     needs: prepare-tla2tools
     env:
-      TLA2TOOLS_CACHE_DIR: .ci-cache\tlaplus
-      TLA2TOOLS_CACHE_FILE: .ci-cache\tlaplus\tla2tools.jar
+      TLA2TOOLS_CACHE_DIR: .ci-cache/tlaplus
+      TLA2TOOLS_CACHE_FILE: .ci-cache/tlaplus/tla2tools.jar
     strategy:
       fail-fast: false
       matrix:
