@@ -164,6 +164,20 @@ func TestPrincipalIdentityConstrainsRoleKindByActorKind(t *testing.T) {
 	}
 }
 
+func TestPolicyAllowlistEntriesItemsAlignWithSensitiveDataClass(t *testing.T) {
+	schema := loadJSONMap(t, schemaPath(t, "objects/PolicyAllowlist.schema.json"))
+	entries := objectValue(t, objectValue(t, schema, "properties"), "entries")
+
+	if got := stringValue(t, entries, "x-data-class"); got != "sensitive" {
+		t.Fatalf("entries x-data-class = %q, want sensitive", got)
+	}
+
+	items := objectValue(t, entries, "items")
+	if got := stringValue(t, items, "x-data-class"); got != "sensitive" {
+		t.Fatalf("entries.items x-data-class = %q, want sensitive", got)
+	}
+}
+
 func assertSignedEnvelopePayload(t *testing.T, payload map[string]any) {
 	t.Helper()
 

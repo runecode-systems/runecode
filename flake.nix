@@ -32,6 +32,10 @@
           releaseMetadata = releaseMetadata;
         };
 
+        tla2toolsJar = import ./nix/packages/tla2tools-jar.nix {
+          inherit pkgs;
+        };
+
         devShell = import ./nix/dev-shell.nix {
           inherit goToolchain pkgs;
         };
@@ -55,6 +59,7 @@
 
         packages = {
           release-artifacts = releaseArtifacts;
+          tla2tools-jar = tla2toolsJar;
         };
 
         inherit checks;
