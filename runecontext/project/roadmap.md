@@ -5,12 +5,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ## Upcoming Features
 
-### v0.1.0-alpha.5
-
-- Git Gateway (Commit/Push/PR)
-  - Git operations are isolated behind a gateway with outbound patch verification.
-  - Planned change: `runecontext/changes/CHG-2026-002-33c5-git-gateway-commit-push-pr/`
-
 ### v0.1.0-alpha.6
 
 - ZK Proof v0 (One Narrow Proof + Verify)
@@ -142,4 +136,7 @@ No unscheduled items are currently tracked outside the planned work listed above
 - TUI Multi-Session + Power Workspace v0
   - The terminal client grows into a multi-session, power-user workbench with richer live activity, deeper inspection, saved layouts, and theme presets while staying on the same secure brokered control-plane.
   - Planned change: `runecontext/changes/CHG-2026-037-91be-tui-multi-session-power-workspace-v0/`
+- Git Gateway (Commit/Push/PR)
+  - Git operations are isolated behind a gateway with outbound patch verification.
+  - Planned change: `runecontext/changes/CHG-2026-002-33c5-git-gateway-commit-push-pr/`
 
