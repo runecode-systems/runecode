@@ -147,6 +147,39 @@ func TestEvaluateGitRemoteMutationRequiresDedicatedTriggerAndReauthenticatedAssu
 	}
 }
 
+func TestEvaluateGitRemoteMutationAllowsExplicitDefaultHTTPSPortInDestinationRef(t *testing.T) {
+	allowlist := validAllowlistPayloadForGateway("allowlist-git", "git-gateway", "git_remote", "git_ref_update", "diffs")
+	compiled := mustCompile(t, compileGatewayInputWithOneCapability("git-gateway", "cap_git", allowlist))
+	action := validGitRemoteMutationActionRequest("cap_git", "git_ref_update")
+	action.ActionPayload["destination_ref"] = "allowlist-git.example.com:443/org/repo"
+
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionRequireHumanApproval {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionRequireHumanApproval)
+	}
+}
+
+func TestEvaluateGitRemoteMutationDeniesWhenDestinationRefIncludesNonDefaultPort(t *testing.T) {
+	allowlist := validAllowlistPayloadForGateway("allowlist-git", "git-gateway", "git_remote", "git_ref_update", "diffs")
+	compiled := mustCompile(t, compileGatewayInputWithOneCapability("git-gateway", "cap_git", allowlist))
+	action := validGitRemoteMutationActionRequest("cap_git", "git_ref_update")
+	action.ActionPayload["destination_ref"] = "allowlist-git.example.com:8443/org/repo"
+
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionDeny {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	}
+	if got, _ := decision.Details["reason"].(string); got != "destination_not_allowlisted" {
+		t.Fatalf("reason = %q, want destination_not_allowlisted", got)
+	}
+}
+
 func TestEvaluateSecretAccessRequiresModerateApproval(t *testing.T) {
 	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
 	action := validSecretAccessActionRequest("cap_stage")

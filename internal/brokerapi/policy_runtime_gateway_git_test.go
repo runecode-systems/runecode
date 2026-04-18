@@ -56,6 +56,45 @@ func TestPolicyRuntimeGitGatewayEmitsGitEgressAuditProofFields(t *testing.T) {
 	assertGitEgressAuditProofFields(t, requireAuditEventDetails(t, s, "git_egress"))
 }
 
+func TestRuntimeGitRepositoryIdentityMatchesDeniesPortQualifiedDestinationRef(t *testing.T) {
+	descriptor := policyengine.DestinationDescriptor{
+		DescriptorKind:         "git_remote",
+		GitRepositoryIdentity:  "git.example.com/org/repo.git",
+		CanonicalHost:          "git.example.com",
+		CanonicalPathPrefix:    "/org/repo.git",
+		ProviderOrNamespace:    "github",
+		TLSRequired:            true,
+		PrivateRangeBlocking:   "enforced",
+		DNSRebindingProtection: "enforced",
+	}
+	if runtimeGitRepositoryIdentityMatches(descriptor, "git.example.com:8443/org/repo.git") {
+		t.Fatal("runtimeGitRepositoryIdentityMatches matched destination_ref with explicit port, want false")
+	}
+	if !runtimeGitRepositoryIdentityMatches(descriptor, "git.example.com/org/repo.git") {
+		t.Fatal("runtimeGitRepositoryIdentityMatches returned false for exact host/path identity")
+	}
+	if !runtimeGitRepositoryIdentityMatches(descriptor, "git.example.com:443/org/repo.git") {
+		t.Fatal("runtimeGitRepositoryIdentityMatches returned false for explicit default https port")
+	}
+}
+
+func TestPolicyRuntimeGitGatewayAllowlistDeniesPortQualifiedDestinationRef(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-gateway-git-port-qualified-destination-ref"
+	putTrustedGitGatewayContextForRun(t, s, runID, []any{trustedGitGatewayAllowlistEntry()})
+	action := trustedGitGatewayPushAction(t)
+	action.ActionPayload["destination_ref"] = "git.example.com:8443/org/repo.git"
+	bindGitRequestHashes(t, &action)
+	payload, compiled := trustedGitGatewayPayloadAndCompile(t, s, runID, action)
+	_, _, found, reason := findMatchingGatewayAllowlistEntry(compiled, payload)
+	if found {
+		t.Fatal("findMatchingGatewayAllowlistEntry found=true, want false for port-qualified destination_ref")
+	}
+	if reason != "runtime_gateway_destination_not_allowlisted" {
+		t.Fatalf("reason = %q, want runtime_gateway_destination_not_allowlisted", reason)
+	}
+}
+
 func trustedGitGatewayVerificationCase(t *testing.T, runID string, proof map[string]any) (*Service, gatewayActionPayloadRuntime, *policyengine.CompiledContext) {
 	t.Helper()
 	s := newBrokerAPIServiceForTests(t, APIConfig{})

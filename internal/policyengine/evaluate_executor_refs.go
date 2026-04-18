@@ -41,7 +41,13 @@ func destinationPathPrefixMatches(prefix, observedPath string) bool {
 	}
 	normalizedPath := normalizeDestinationPath(observedPath)
 	normalizedPrefix := normalizeDestinationPath(prefix)
-	return strings.HasPrefix(normalizedPath, normalizedPrefix)
+	if normalizedPrefix == "/" {
+		return true
+	}
+	if normalizedPath == normalizedPrefix {
+		return true
+	}
+	return strings.HasPrefix(normalizedPath, normalizedPrefix+"/")
 }
 
 func normalizeDestinationPath(raw string) string {
@@ -93,33 +99,36 @@ func parseDestinationRef(ref string) (string, *int, string) {
 }
 
 func gitRepositoryIdentityMatches(descriptor DestinationDescriptor, destinationRef string) bool {
-	identityHost, identityPath := parseGitRepositoryIdentity(descriptor.GitRepositoryIdentity)
+	identityHost, identityPort, identityPath := parseGitRepositoryIdentity(descriptor.GitRepositoryIdentity)
 	if identityHost == "" || identityPath == "" {
 		return false
 	}
-	host, _, refPath := parseDestinationRef(destinationRef)
+	host, refPort, refPath := parseDestinationRef(destinationRef)
 	if host == "" {
 		return false
 	}
 	if !strings.EqualFold(host, identityHost) {
 		return false
 	}
+	if !destinationPortMatches(identityPort, refPort) {
+		return false
+	}
 	return normalizeDestinationPath(refPath) == identityPath
 }
 
-func parseGitRepositoryIdentity(value string) (string, string) {
+func parseGitRepositoryIdentity(value string) (string, *int, string) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
-		return "", ""
+		return "", nil, ""
 	}
-	host, _, path := parseDestinationRef(trimmed)
+	host, port, path := parseDestinationRef(trimmed)
 	if host == "" {
-		return "", ""
+		return "", nil, ""
 	}
 	if path == "/" {
-		return "", ""
+		return "", nil, ""
 	}
-	return strings.ToLower(host), normalizeDestinationPath(path)
+	return strings.ToLower(host), port, normalizeDestinationPath(path)
 }
 
 func containsString(values []string, want string) bool {
