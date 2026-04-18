@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-010-54b7-container-backend-v0-explicit-opt-in
 title: Container Backend v0 (Explicit Opt-In)
-status: planned
+status: implemented
 type: feature
 size: large
 verification_status: pending

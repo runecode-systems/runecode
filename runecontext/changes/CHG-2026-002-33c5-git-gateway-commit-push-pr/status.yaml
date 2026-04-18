@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-002-33c5-git-gateway-commit-push-pr
 title: Git Gateway (Commit/Push/PR)
-status: planned
+status: implemented
 type: feature
 size: medium
 verification_status: pending
