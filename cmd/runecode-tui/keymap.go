@@ -89,7 +89,7 @@ func defaultShellKeyMap() shellKeyMap {
 		SessionNext:                   keyBinding{Keys: []string{"j", "down"}, Description: "Move session selection down"},
 		SessionPrev:                   keyBinding{Keys: []string{"k", "up"}, Description: "Move session selection up"},
 		SessionPin:                    keyBinding{Keys: []string{"p"}, Description: "Pin/unpin selected session"},
-		QuickJump:                     keyBinding{Keys: []string{"1-8"}, Description: "Open route by number"},
+		QuickJump:                     keyBinding{Keys: []string{"0-9"}, Description: "Open route by number"},
 		OpenPalette:                   keyBinding{Keys: []string{":", "ctrl+p"}, Description: "Open quick jump palette"},
 		OpenSessionQuickSwitch:        keyBinding{Keys: []string{"ctrl+j"}, Description: "Open session quick switcher"},
 		SessionQuickSwitchClose:       keyBinding{Keys: []string{"esc"}, Description: "Close session quick switcher"},

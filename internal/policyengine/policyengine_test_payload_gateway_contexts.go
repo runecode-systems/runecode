@@ -79,9 +79,9 @@ func validGitRemoteMutationRuntimeProof(payloadHash map[string]any) map[string]a
 	}
 }
 
-func validGitRemoteMutationSummary() map[string]any {
+func validGitTypedRefUpdateRequest() map[string]any {
 	return map[string]any{
-		"schema_id":      "runecode.protocol.v0.GitRemoteMutationSummary",
+		"schema_id":      "runecode.protocol.v0.GitRefUpdateRequest",
 		"schema_version": "0.1.0",
 		"request_kind":   "git_ref_update",
 		"repository_identity": map[string]any{
@@ -95,20 +95,24 @@ func validGitRemoteMutationSummary() map[string]any {
 			"private_range_blocking":   "enforced",
 			"dns_rebinding_protection": "enforced",
 		},
-		"target_refs":                       []any{"refs/heads/main"},
+		"target_ref":                        "refs/heads/main",
+		"expected_old_ref_hash":             mustDigestObject("sha256:" + strings.Repeat("4", 64)),
 		"referenced_patch_artifact_digests": []any{mustDigestObject("sha256:" + strings.Repeat("7", 64))},
-		"expected_result_tree_hash":         mustDigestObject("sha256:" + strings.Repeat("6", 64)),
-		"metadata_summary": map[string]any{
-			"commit": map[string]any{
-				"subject":   "Apply approved patch",
-				"author":    map[string]any{"display_name": "Author Example", "email": "author@example.com"},
-				"committer": map[string]any{"display_name": "Committer Example", "email": "committer@example.com"},
-				"signoff":   map[string]any{"display_name": "Signoff Example", "email": "signoff@example.com"},
+		"commit_intent": map[string]any{
+			"schema_id":      "runecode.protocol.v0.GitCommitIntent",
+			"schema_version": "0.1.0",
+			"message": map[string]any{
+				"subject": "Apply approved patch",
+				"body":    "Includes deterministic trailer rendering.",
 			},
-			"commit_policy": map[string]any{
-				"repository_policy_digest": mustDigestObject("sha256:" + strings.Repeat("5", 64)),
-				"required_trailer_rules":   []any{map[string]any{"trailer_key": "Signed-off-by", "identity_role": "signoff"}},
-			},
+			"trailers":  []any{map[string]any{"key": "Signed-off-by", "value": "Signoff Example <signoff@example.com>"}},
+			"author":    map[string]any{"display_name": "Author Example", "email": "author@example.com"},
+			"committer": map[string]any{"display_name": "Committer Example", "email": "committer@example.com"},
+			"signoff":   map[string]any{"display_name": "Signoff Example", "email": "signoff@example.com"},
 		},
+		"expected_result_tree_hash": mustDigestObject("sha256:" + strings.Repeat("6", 64)),
+		"allow_force_push":          false,
+		"allow_ref_deletion":        false,
+		"ref_purpose":               "branch",
 	}
 }

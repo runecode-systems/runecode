@@ -26,7 +26,7 @@ type gatewayActionPayloadRuntime struct {
 	TimeoutSeconds  *int                        `json:"timeout_seconds,omitempty"`
 	PayloadHash     *trustpolicy.Digest         `json:"payload_hash,omitempty"`
 	AuditContext    *gatewayAuditContextPayload `json:"audit_context,omitempty"`
-	GitRequest      *gitRequestSummaryPayload   `json:"git_request_summary,omitempty"`
+	GitRequest      map[string]any              `json:"git_request,omitempty"`
 	GitRuntimeProof *gitRuntimeProofPayload     `json:"git_runtime_proof,omitempty"`
 	QuotaContext    *gatewayQuotaContextPayload `json:"quota_context,omitempty"`
 }

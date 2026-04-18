@@ -1,5 +1,7 @@
 package policyengine
 
+import "github.com/runecode-ai/runecode/internal/trustpolicy"
+
 func NewGatewayEgressAction(input GatewayEgressActionInput) ActionRequest {
 	payload := buildGatewayPayload(input)
 	return buildActionRequest(ActionKindGatewayEgress, actionPayloadGatewaySchemaID, payload, input.ActionEnvelope)
@@ -30,7 +32,7 @@ func buildGatewayPayload(input GatewayEgressActionInput) map[string]any {
 		payload["audit_context"] = buildGatewayAuditPayload(*input.AuditContext)
 	}
 	if input.GitRequest != nil {
-		payload["git_request_summary"] = buildGitRequestSummaryPayload(*input.GitRequest)
+		payload["git_request"] = buildGitTypedRequestPayload(*input.GitRequest)
 	}
 	if input.GitRuntimeProof != nil {
 		payload["git_runtime_proof"] = buildGitRuntimeProofPayload(*input.GitRuntimeProof)
@@ -41,24 +43,14 @@ func buildGatewayPayload(input GatewayEgressActionInput) map[string]any {
 	return payload
 }
 
-func buildGitRequestSummaryPayload(input GitRequestSummaryInput) map[string]any {
-	summary := map[string]any{
-		"schema_id":                 "runecode.protocol.v0.GitRemoteMutationSummary",
-		"schema_version":            "0.1.0",
-		"request_kind":              input.RequestKind,
-		"repository_identity":       buildDestinationDescriptorPayload(input.RepositoryIdentity),
-		"target_refs":               append([]string{}, input.TargetRefs...),
-		"expected_result_tree_hash": input.ExpectedResultTreeHash,
-		"metadata_summary":          buildGitRequestMetadataPayload(input.MetadataSummary),
+func buildGitTypedRequestPayload(input GitTypedRequestInput) map[string]any {
+	if input.RefUpdate != nil {
+		return buildGitRefUpdateRequestPayload(*input.RefUpdate)
 	}
-	if len(input.ReferencedPatchArtifactDigests) > 0 {
-		values := make([]any, 0, len(input.ReferencedPatchArtifactDigests))
-		for _, digest := range input.ReferencedPatchArtifactDigests {
-			values = append(values, digest)
-		}
-		summary["referenced_patch_artifact_digests"] = values
+	if input.PullRequestCreate != nil {
+		return buildGitPullRequestCreateRequestPayload(*input.PullRequestCreate)
 	}
-	return summary
+	return map[string]any{}
 }
 
 func buildDestinationDescriptorPayload(input DestinationDescriptor) map[string]any {
@@ -119,41 +111,71 @@ func buildGitRuntimeProofPayload(input GitRuntimeProofInput) map[string]any {
 	return proof
 }
 
-func buildGitRequestMetadataPayload(input GitRequestMetadataInput) map[string]any {
-	payload := map[string]any{}
-	if input.Commit != nil {
-		payload["commit"] = buildGitCommitMetadataPayload(*input.Commit)
+func buildGitRefUpdateRequestPayload(input GitRefUpdateRequestInput) map[string]any {
+	payload := map[string]any{
+		"schema_id":                         "runecode.protocol.v0.GitRefUpdateRequest",
+		"schema_version":                    "0.1.0",
+		"request_kind":                      "git_ref_update",
+		"repository_identity":               buildDestinationDescriptorPayload(input.RepositoryIdentity),
+		"target_ref":                        input.TargetRef,
+		"expected_old_ref_hash":             input.ExpectedOldRefHash,
+		"commit_intent":                     buildGitCommitIntentPayload(input.CommitIntent),
+		"expected_result_tree_hash":         input.ExpectedResultTreeHash,
+		"allow_force_push":                  input.AllowForcePush,
+		"allow_ref_deletion":                input.AllowRefDeletion,
+		"referenced_patch_artifact_digests": digestSliceToAny(input.ReferencedPatchArtifactDigests),
 	}
-	if input.PullRequest != nil {
-		payload["pull_request"] = map[string]any{
-			"title":    input.PullRequest.Title,
-			"base_ref": input.PullRequest.BaseRef,
-			"head_ref": input.PullRequest.HeadRef,
-		}
+	if input.RefPurpose != "" {
+		payload["ref_purpose"] = input.RefPurpose
 	}
-	if input.CommitPolicy != nil {
-		rules := make([]any, 0, len(input.CommitPolicy.RequiredTrailerRules))
-		for _, rule := range input.CommitPolicy.RequiredTrailerRules {
-			rules = append(rules, map[string]any{
-				"trailer_key":   rule.TrailerKey,
-				"identity_role": rule.IdentityRole,
-			})
-		}
-		payload["commit_policy"] = map[string]any{
-			"repository_policy_digest": input.CommitPolicy.RepositoryPolicyDigest,
-			"required_trailer_rules":   rules,
-		}
+	if input.BaseRef != "" {
+		payload["base_ref"] = input.BaseRef
 	}
 	return payload
 }
 
-func buildGitCommitMetadataPayload(input GitCommitMetadataInput) map[string]any {
+func buildGitPullRequestCreateRequestPayload(input GitPullRequestCreateRequestInput) map[string]any {
 	return map[string]any{
-		"subject":   input.Subject,
+		"schema_id":                         "runecode.protocol.v0.GitPullRequestCreateRequest",
+		"schema_version":                    "0.1.0",
+		"request_kind":                      "git_pull_request_create",
+		"base_repository_identity":          buildDestinationDescriptorPayload(input.BaseRepositoryIdentity),
+		"base_ref":                          input.BaseRef,
+		"head_repository_identity":          buildDestinationDescriptorPayload(input.HeadRepositoryIdentity),
+		"head_ref":                          input.HeadRef,
+		"title":                             input.Title,
+		"body":                              input.Body,
+		"head_commit_or_tree_hash":          input.HeadCommitOrTreeHash,
+		"referenced_patch_artifact_digests": digestSliceToAny(input.ReferencedPatchArtifactDigests),
+		"expected_result_tree_hash":         input.ExpectedResultTreeHash,
+	}
+}
+
+func buildGitCommitIntentPayload(input GitCommitIntentInput) map[string]any {
+	trailers := make([]any, 0, len(input.Trailers))
+	for _, trailer := range input.Trailers {
+		trailers = append(trailers, map[string]any{"key": trailer.Key, "value": trailer.Value})
+	}
+	return map[string]any{
+		"schema_id":      "runecode.protocol.v0.GitCommitIntent",
+		"schema_version": "0.1.0",
+		"message": map[string]any{
+			"subject": input.Message.Subject,
+			"body":    input.Message.Body,
+		},
+		"trailers":  trailers,
 		"author":    map[string]any{"display_name": input.Author.DisplayName, "email": input.Author.Email},
 		"committer": map[string]any{"display_name": input.Committer.DisplayName, "email": input.Committer.Email},
 		"signoff":   map[string]any{"display_name": input.Signoff.DisplayName, "email": input.Signoff.Email},
 	}
+}
+
+func digestSliceToAny(digests []trustpolicy.Digest) []any {
+	values := make([]any, 0, len(digests))
+	for _, digest := range digests {
+		values = append(values, digest)
+	}
+	return values
 }
 
 func buildGatewayAuditPayload(input GatewayAuditContextInput) map[string]any {

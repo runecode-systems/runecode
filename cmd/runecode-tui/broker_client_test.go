@@ -71,6 +71,86 @@ func TestRPCBrokerClientUsesLocalIPCDialAndTypedRequestContract(t *testing.T) {
 	}
 }
 
+func TestRPCBrokerClientGitRemoteMutationMethodsUseTypedContracts(t *testing.T) {
+	origConfigProvider := localIPCConfigProvider
+	origDialer := localRPCDialer
+	t.Cleanup(func() {
+		localIPCConfigProvider = origConfigProvider
+		localRPCDialer = origDialer
+	})
+
+	localIPCConfigProvider = func() (brokerapi.LocalIPCConfig, error) {
+		return brokerapi.LocalIPCConfig{RuntimeDir: "/tmp/test-runtime", SocketName: "broker.sock"}, nil
+	}
+	operations := make([]string, 0, 4)
+	localRPCDialer = func(ctx context.Context, cfg brokerapi.LocalIPCConfig) (localRPCInvoker, error) {
+		_ = ctx
+		_ = cfg
+		return &fakeRPCInvoker{invokeFn: func(_ context.Context, operation string, request any, out any) *brokerapi.ErrorResponse {
+			operations = append(operations, operation)
+			assertGitRemoteMutationRequestContract(t, operation, request)
+			return nil
+		}}, nil
+	}
+
+	client := &rpcBrokerClient{}
+	if _, err := client.GitRemoteMutationPrepare(context.Background(), brokerapi.GitRemoteMutationPrepareRequest{RunID: "run-1", Provider: "github", TypedRequest: map[string]any{"request_kind": "git_ref_update"}}); err != nil {
+		t.Fatalf("GitRemoteMutationPrepare returned error: %v", err)
+	}
+	if _, err := client.GitRemoteMutationGet(context.Background(), brokerapi.GitRemoteMutationGetRequest{PreparedMutationID: "sha256:" + strings.Repeat("1", 64)}); err != nil {
+		t.Fatalf("GitRemoteMutationGet returned error: %v", err)
+	}
+	if _, err := client.GitRemoteMutationIssueExecuteLease(context.Background(), brokerapi.GitRemoteMutationIssueExecuteLeaseRequest{PreparedMutationID: "sha256:" + strings.Repeat("1", 64)}); err != nil {
+		t.Fatalf("GitRemoteMutationIssueExecuteLease returned error: %v", err)
+	}
+	if _, err := client.GitRemoteMutationExecute(context.Background(), brokerapi.GitRemoteMutationExecuteRequest{PreparedMutationID: "sha256:" + strings.Repeat("1", 64), ApprovalID: "sha256:" + strings.Repeat("a", 64)}); err != nil {
+		t.Fatalf("GitRemoteMutationExecute returned error: %v", err)
+	}
+
+	if got := strings.Join(operations, ","); got != "git_remote_mutation_prepare,git_remote_mutation_get,git_remote_mutation_issue_execute_lease,git_remote_mutation_execute" {
+		t.Fatalf("operations=%q", got)
+	}
+}
+
+func assertGitRemoteMutationRequestContract(t *testing.T, operation string, request any) {
+	t.Helper()
+	switch operation {
+	case "git_remote_mutation_prepare":
+		req, ok := request.(brokerapi.GitRemoteMutationPrepareRequest)
+		if !ok {
+			t.Fatalf("prepare request type=%T", request)
+		}
+		assertGitRemoteMutationRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.GitRemoteMutationPrepareRequest", "git-remote-mutation-prepare-")
+	case "git_remote_mutation_get":
+		req, ok := request.(brokerapi.GitRemoteMutationGetRequest)
+		if !ok {
+			t.Fatalf("get request type=%T", request)
+		}
+		assertGitRemoteMutationRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.GitRemoteMutationGetRequest", "git-remote-mutation-get-")
+	case "git_remote_mutation_issue_execute_lease":
+		req, ok := request.(brokerapi.GitRemoteMutationIssueExecuteLeaseRequest)
+		if !ok {
+			t.Fatalf("issue execute lease request type=%T", request)
+		}
+		assertGitRemoteMutationRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.GitRemoteMutationIssueExecuteLeaseRequest", "git-remote-mutation-issue-execute-lease-")
+	case "git_remote_mutation_execute":
+		req, ok := request.(brokerapi.GitRemoteMutationExecuteRequest)
+		if !ok {
+			t.Fatalf("execute request type=%T", request)
+		}
+		assertGitRemoteMutationRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.GitRemoteMutationExecuteRequest", "git-remote-mutation-execute-")
+	default:
+		t.Fatalf("unexpected operation %q", operation)
+	}
+}
+
+func assertGitRemoteMutationRequestMetadata(t *testing.T, schemaID, schemaVersion, requestID, wantSchemaID, wantPrefix string) {
+	t.Helper()
+	if schemaID != wantSchemaID || schemaVersion != localAPISchemaVersion || !strings.HasPrefix(requestID, wantPrefix) {
+		t.Fatalf("request metadata invalid: schema_id=%q schema_version=%q request_id=%q", schemaID, schemaVersion, requestID)
+	}
+}
+
 func configureRunListDialProbe(t *testing.T, probe *runListDialProbe) {
 	t.Helper()
 	localIPCConfigProvider = func() (brokerapi.LocalIPCConfig, error) {

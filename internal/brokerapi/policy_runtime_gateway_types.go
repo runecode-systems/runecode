@@ -1,7 +1,9 @@
 package brokerapi
 
 import (
-	"github.com/runecode-ai/runecode/internal/policyengine"
+	"encoding/json"
+	"fmt"
+
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
@@ -16,14 +18,69 @@ type gatewayAuditContextPayload struct {
 	PolicyDecisionHash *trustpolicy.Digest `json:"policy_decision_hash,omitempty"`
 }
 
-type gitRequestSummaryPayload struct {
-	SchemaID                       string                             `json:"schema_id"`
-	SchemaVersion                  string                             `json:"schema_version"`
-	RequestKind                    string                             `json:"request_kind"`
-	RepositoryIdentity             policyengine.DestinationDescriptor `json:"repository_identity"`
-	TargetRefs                     []string                           `json:"target_refs"`
-	ReferencedPatchArtifactDigests []trustpolicy.Digest               `json:"referenced_patch_artifact_digests"`
-	ExpectedResultTreeHash         trustpolicy.Digest                 `json:"expected_result_tree_hash"`
+type gitTypedRequestPayload struct {
+	RequestKind string
+	Request     map[string]any
+}
+
+type gitRefUpdateRequestPayload struct {
+	ExpectedResultTreeHash         trustpolicy.Digest   `json:"expected_result_tree_hash"`
+	ReferencedPatchArtifactDigests []trustpolicy.Digest `json:"referenced_patch_artifact_digests"`
+}
+
+type gitPullRequestCreateRequestPayload struct {
+	ExpectedResultTreeHash         trustpolicy.Digest   `json:"expected_result_tree_hash"`
+	ReferencedPatchArtifactDigests []trustpolicy.Digest `json:"referenced_patch_artifact_digests"`
+}
+
+func (r gitTypedRequestPayload) expectedResultTreeHash() (trustpolicy.Digest, error) {
+	switch r.RequestKind {
+	case "git_ref_update":
+		decoded, err := decodeGitTypedRequest[gitRefUpdateRequestPayload](r.Request)
+		if err != nil {
+			return trustpolicy.Digest{}, err
+		}
+		return decoded.ExpectedResultTreeHash, nil
+	case "git_pull_request_create":
+		decoded, err := decodeGitTypedRequest[gitPullRequestCreateRequestPayload](r.Request)
+		if err != nil {
+			return trustpolicy.Digest{}, err
+		}
+		return decoded.ExpectedResultTreeHash, nil
+	default:
+		return trustpolicy.Digest{}, fmt.Errorf("unsupported request_kind %q", r.RequestKind)
+	}
+}
+
+func (r gitTypedRequestPayload) referencedPatchArtifactDigests() ([]trustpolicy.Digest, error) {
+	switch r.RequestKind {
+	case "git_ref_update":
+		decoded, err := decodeGitTypedRequest[gitRefUpdateRequestPayload](r.Request)
+		if err != nil {
+			return nil, err
+		}
+		return decoded.ReferencedPatchArtifactDigests, nil
+	case "git_pull_request_create":
+		decoded, err := decodeGitTypedRequest[gitPullRequestCreateRequestPayload](r.Request)
+		if err != nil {
+			return nil, err
+		}
+		return decoded.ReferencedPatchArtifactDigests, nil
+	default:
+		return nil, fmt.Errorf("unsupported request_kind %q", r.RequestKind)
+	}
+}
+
+func decodeGitTypedRequest[T any](request map[string]any) (T, error) {
+	var out T
+	b, err := json.Marshal(request)
+	if err != nil {
+		return out, err
+	}
+	if err := json.Unmarshal(b, &out); err != nil {
+		return out, err
+	}
+	return out, nil
 }
 
 type gitRuntimeProofPayload struct {

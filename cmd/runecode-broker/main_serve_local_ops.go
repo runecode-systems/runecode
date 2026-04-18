@@ -47,6 +47,26 @@ func gitSetupRPCOperations(service *brokerapi.Service, ctx context.Context, meta
 				return service.HandleGitSetupIdentityUpsert(ctx, req, meta)
 			})
 		}},
+		"git_remote_mutation_prepare": {requestSchemaPath: "objects/GitRemoteMutationPrepareRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.GitRemoteMutationPrepareRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleGitRemoteMutationPrepare(ctx, req, meta)
+			})
+		}},
+		"git_remote_mutation_get": {requestSchemaPath: "objects/GitRemoteMutationGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.GitRemoteMutationGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleGitRemoteMutationGet(ctx, req, meta)
+			})
+		}},
+		"git_remote_mutation_issue_execute_lease": {requestSchemaPath: "objects/GitRemoteMutationIssueExecuteLeaseRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.GitRemoteMutationIssueExecuteLeaseRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleGitRemoteMutationIssueExecuteLease(ctx, req, meta)
+			})
+		}},
+		"git_remote_mutation_execute": {requestSchemaPath: "objects/GitRemoteMutationExecuteRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.GitRemoteMutationExecuteRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleGitRemoteMutationExecute(ctx, req, meta)
+			})
+		}},
 	}
 }
 

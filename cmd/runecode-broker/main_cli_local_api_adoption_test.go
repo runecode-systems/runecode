@@ -12,6 +12,7 @@ import (
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-ai/runecode/internal/secretsd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
@@ -24,7 +25,8 @@ func TestCLIAdoptionRoutesRunApprovalVersionAndLogThroughLocalRPC(t *testing.T) 
 	installRunApprovalVersionLogDispatchStub(t, &requestedOps)
 
 	llmRequestPath := writeLLMRequestFile(t)
-	commands := [][]string{{"run-list"}, {"run-get", "--run-id", "run-1"}, {"run-watch"}, {"backend-posture-get"}, {"backend-posture-change", "--target-backend-kind", "container", "--reduced-assurance-acknowledged"}, {"session-list"}, {"session-get", "--session-id", "sess-1"}, {"session-send-message", "--session-id", "sess-1", "--content", "hello"}, {"session-watch"}, {"approval-list"}, {"approval-get", "--approval-id", testDigest("a")}, {"approval-watch"}, {"git-setup-get", "--provider", "github"}, {"git-setup-auth-bootstrap", "--provider", "github", "--mode", "browser"}, {"git-setup-identity-upsert", "--provider", "github", "--profile-id", "default", "--display-name", "Default identity", "--author-name", "RuneCode Operator", "--author-email", "operator@example.invalid", "--committer-name", "RuneCode Operator", "--committer-email", "operator@example.invalid", "--signoff-name", "RuneCode Operator", "--signoff-email", "operator@example.invalid", "--default-profile"}, {"version-info"}, {"stream-logs"}, {"stream-logs", "--stream-id", "custom-stream"}, {"llm-invoke", "--run-id", "run-1", "--request-file", llmRequestPath}, {"llm-stream", "--run-id", "run-1", "--request-file", llmRequestPath, "--stream-id", "llm-s-1"}}
+	prepareReqPath, getReqPath, leaseReqPath, executeReqPath := writeGitRemoteMutationRequestFiles(t)
+	commands := [][]string{{"run-list"}, {"run-get", "--run-id", "run-1"}, {"run-watch"}, {"backend-posture-get"}, {"backend-posture-change", "--target-backend-kind", "container", "--reduced-assurance-acknowledged"}, {"session-list"}, {"session-get", "--session-id", "sess-1"}, {"session-send-message", "--session-id", "sess-1", "--content", "hello"}, {"session-watch"}, {"approval-list"}, {"approval-get", "--approval-id", testDigest("a")}, {"approval-watch"}, {"git-setup-get", "--provider", "github"}, {"git-setup-auth-bootstrap", "--provider", "github", "--mode", "browser"}, {"git-setup-identity-upsert", "--provider", "github", "--profile-id", "default", "--display-name", "Default identity", "--author-name", "RuneCode Operator", "--author-email", "operator@example.invalid", "--committer-name", "RuneCode Operator", "--committer-email", "operator@example.invalid", "--signoff-name", "RuneCode Operator", "--signoff-email", "operator@example.invalid", "--default-profile"}, {"git-remote-mutation-prepare", "--request-file", prepareReqPath}, {"git-remote-mutation-get", "--request-file", getReqPath}, {"git-remote-mutation-issue-execute-lease", "--request-file", leaseReqPath}, {"git-remote-mutation-execute", "--request-file", executeReqPath}, {"version-info"}, {"stream-logs"}, {"stream-logs", "--stream-id", "custom-stream"}, {"llm-invoke", "--run-id", "run-1", "--request-file", llmRequestPath}, {"llm-stream", "--run-id", "run-1", "--request-file", llmRequestPath, "--stream-id", "llm-s-1"}}
 	for _, args := range commands {
 		stdout.Reset()
 		if err := run(args, stdout, stderr); err != nil {
@@ -32,8 +34,21 @@ func TestCLIAdoptionRoutesRunApprovalVersionAndLogThroughLocalRPC(t *testing.T) 
 		}
 	}
 
-	want := []string{"run_list", "run_get", "run_watch", "backend_posture_get", "backend_posture_get", "backend_posture_change", "session_list", "session_get", "session_send_message", "session_watch", "approval_list", "approval_get", "approval_watch", "git_setup_get", "git_setup_auth_bootstrap", "git_setup_identity_upsert", "version_info_get", "log_stream", "log_stream", "llm_invoke", "llm_stream"}
+	want := []string{"run_list", "run_get", "run_watch", "backend_posture_get", "backend_posture_get", "backend_posture_change", "session_list", "session_get", "session_send_message", "session_watch", "approval_list", "approval_get", "approval_watch", "git_setup_get", "git_setup_auth_bootstrap", "git_setup_identity_upsert", "git_remote_mutation_prepare", "git_remote_mutation_get", "git_remote_mutation_issue_execute_lease", "git_remote_mutation_execute", "version_info_get", "log_stream", "log_stream", "llm_invoke", "llm_stream"}
 	assertRequestedOps(t, requestedOps, want)
+}
+
+func TestGitRemoteMutationPrepareRequiresRequestFile(t *testing.T) {
+	setBrokerServiceForTest(t)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := run([]string{"git-remote-mutation-prepare"}, stdout, stderr)
+	if err == nil {
+		t.Fatal("git-remote-mutation-prepare expected usage error when request file is missing")
+	}
+	if _, ok := err.(*usageError); !ok {
+		t.Fatalf("git-remote-mutation-prepare error type = %T, want *usageError", err)
+	}
 }
 
 func TestSessionSendMessageRejectsInvalidRole(t *testing.T) {
@@ -104,6 +119,14 @@ func handleSessionGitLLMStub(t *testing.T, wire localRPCRequest, opCount int) lo
 		return mustOKLocalRPCResponse(t, brokerapi.GitSetupAuthBootstrapResponse{SchemaID: "runecode.protocol.v0.GitSetupAuthBootstrapResponse", SchemaVersion: "0.1.0", RequestID: "req-git-setup-auth", Provider: "github", Mode: "browser", Status: "pending", AccountState: brokerapi.GitProviderAccountState{SchemaID: "runecode.protocol.v0.GitProviderAccountState", SchemaVersion: "0.1.0", Provider: "github", AccountID: "pending", AccountUsername: "pending", Linked: false, Source: "auth_bootstrap"}, AuthPosture: brokerapi.GitAuthPostureState{SchemaID: "runecode.protocol.v0.GitAuthPostureState", SchemaVersion: "0.1.0", Provider: "github", AuthStatus: "not_linked", BootstrapMode: "browser", HeadlessBootstrapSupported: true, InteractiveTokenFallbackSupport: true}})
 	case "git_setup_identity_upsert":
 		return mustOKLocalRPCResponse(t, brokerapi.GitSetupIdentityUpsertResponse{SchemaID: "runecode.protocol.v0.GitSetupIdentityUpsertResponse", SchemaVersion: "0.1.0", RequestID: "req-git-setup-identity", Provider: "github", Profile: brokerapi.GitCommitIdentityProfile{SchemaID: "runecode.protocol.v0.GitCommitIdentityProfile", SchemaVersion: "0.1.0", ProfileID: "default", DisplayName: "Default identity", AuthorName: "RuneCode Operator", AuthorEmail: "operator@example.invalid", CommitterName: "RuneCode Operator", CommitterEmail: "operator@example.invalid", SignoffName: "RuneCode Operator", SignoffEmail: "operator@example.invalid", DefaultProfile: true}, ControlPlaneState: brokerapi.GitControlPlaneState{SchemaID: "runecode.protocol.v0.GitControlPlaneState", SchemaVersion: "0.1.0", Provider: "github", DefaultIdentityProfileID: "default", LastSetupView: "identity", RecentRepositories: []string{}}})
+	case "git_remote_mutation_prepare":
+		return mustOKLocalRPCResponse(t, brokerapi.GitRemoteMutationPrepareResponse{})
+	case "git_remote_mutation_get":
+		return mustOKLocalRPCResponse(t, brokerapi.GitRemoteMutationGetResponse{})
+	case "git_remote_mutation_issue_execute_lease":
+		return mustOKLocalRPCResponse(t, brokerapi.GitRemoteMutationIssueExecuteLeaseResponse{ProviderAuthLeaseID: "lease-1", Lease: secretsd.Lease{LeaseID: "lease-1", SecretRef: "secrets/prod/git/provider-token", ConsumerID: "principal:gateway:git:1", RoleKind: "git-gateway", Scope: "run:run-1", DeliveryKind: "git_gateway", Status: "active"}})
+	case "git_remote_mutation_execute":
+		return mustOKLocalRPCResponse(t, brokerapi.GitRemoteMutationExecuteResponse{})
 	case "version_info_get":
 		return mustOKLocalRPCResponse(t, brokerapi.VersionInfoGetResponse{SchemaID: "runecode.protocol.v0.VersionInfoGetResponse", SchemaVersion: "0.1.0", RequestID: "req-version", VersionInfo: brokerapi.BrokerVersionInfo{SchemaID: "runecode.protocol.v0.BrokerVersionInfo", SchemaVersion: "0.1.0"}})
 	case "log_stream":
@@ -163,17 +186,82 @@ func writeLLMRequestFile(t *testing.T) string {
 	return path
 }
 
+func writeGitRemoteMutationRequestFiles(t *testing.T) (string, string, string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	preparePath := filepath.Join(dir, "git-remote-prepare.json")
+	getPath := filepath.Join(dir, "git-remote-get.json")
+	leasePath := filepath.Join(dir, "git-remote-issue-execute-lease.json")
+	executePath := filepath.Join(dir, "git-remote-execute.json")
+	preparePayload := map[string]any{
+		"schema_id":      "runecode.protocol.v0.GitRemoteMutationPrepareRequest",
+		"schema_version": "0.1.0",
+		"request_id":     "req-git-prepare",
+		"run_id":         "run-1",
+		"provider":       "github",
+		"typed_request": map[string]any{
+			"schema_id":                         "runecode.protocol.v0.GitRefUpdateRequest",
+			"schema_version":                    "0.1.0",
+			"request_kind":                      "git_ref_update",
+			"target_ref":                        "refs/heads/main",
+			"repository_identity":               map[string]any{"canonical_host": "github.com", "canonical_path_prefix": "runecode-ai/runecode", "git_repository_identity": "github.com/runecode-ai/runecode"},
+			"expected_old_ref_hash":             map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("2", 64)},
+			"referenced_patch_artifact_digests": []any{map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("3", 64)}},
+			"expected_result_tree_hash":         map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("4", 64)},
+		},
+	}
+	getPayload := map[string]any{
+		"schema_id":            "runecode.protocol.v0.GitRemoteMutationGetRequest",
+		"schema_version":       "0.1.0",
+		"request_id":           "req-git-get",
+		"prepared_mutation_id": testDigest("1"),
+	}
+	leasePayload := map[string]any{
+		"schema_id":            "runecode.protocol.v0.GitRemoteMutationIssueExecuteLeaseRequest",
+		"schema_version":       "0.1.0",
+		"request_id":           "req-git-issue-execute-lease",
+		"prepared_mutation_id": testDigest("1"),
+	}
+	executePayload := map[string]any{
+		"schema_id":              "runecode.protocol.v0.GitRemoteMutationExecuteRequest",
+		"schema_version":         "0.1.0",
+		"request_id":             "req-git-execute",
+		"prepared_mutation_id":   testDigest("1"),
+		"approval_id":            testDigest("a"),
+		"approval_request_hash":  map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("5", 64)},
+		"approval_decision_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("6", 64)},
+		"provider_auth_lease_id": "lease-1",
+	}
+	writeJSONFixtureFile(t, preparePath, preparePayload)
+	writeJSONFixtureFile(t, getPath, getPayload)
+	writeJSONFixtureFile(t, leasePath, leasePayload)
+	writeJSONFixtureFile(t, executePath, executePayload)
+	return preparePath, getPath, leasePath, executePath
+}
+
+func writeJSONFixtureFile(t *testing.T, path string, payload map[string]any) {
+	t.Helper()
+	b, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal(%q) error: %v", path, err)
+	}
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) error: %v", path, err)
+	}
+}
+
 func handleLogStreamDispatchForTest(t *testing.T, wire localRPCRequest, opCount int) localRPCResponse {
 	t.Helper()
+	_ = opCount
 	request := brokerapi.LogStreamRequest{}
 	if err := json.Unmarshal(wire.Request, &request); err != nil {
 		t.Fatalf("Unmarshal log stream request error: %v", err)
 	}
-	if opCount == 18 && (request.StreamID == "" || request.StreamID == request.RequestID) {
-		t.Fatalf("default stream-logs request stream_id = %q, want derived non-empty stream id", request.StreamID)
+	if request.StreamID == "custom-stream" {
+		return mustOKLocalRPCResponse(t, []brokerapi.LogStreamEvent{{SchemaID: "runecode.protocol.v0.LogStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-log", Seq: 1, EventType: "log_stream_start"}, {SchemaID: "runecode.protocol.v0.LogStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-log", Seq: 2, EventType: "log_stream_terminal", Terminal: true, TerminalStatus: "completed"}})
 	}
-	if opCount == 19 && request.StreamID != "custom-stream" {
-		t.Fatalf("explicit stream-logs request stream_id = %q, want custom-stream", request.StreamID)
+	if request.StreamID == "" || request.StreamID == request.RequestID {
+		t.Fatalf("default stream-logs request stream_id = %q, want derived non-empty stream id", request.StreamID)
 	}
 	return mustOKLocalRPCResponse(t, []brokerapi.LogStreamEvent{{SchemaID: "runecode.protocol.v0.LogStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-log", Seq: 1, EventType: "log_stream_start"}, {SchemaID: "runecode.protocol.v0.LogStreamEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "req-log", Seq: 2, EventType: "log_stream_terminal", Terminal: true, TerminalStatus: "completed"}})
 }

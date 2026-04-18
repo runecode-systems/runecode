@@ -148,6 +148,22 @@ func (s *Service) RecordApproval(record artifacts.ApprovalRecord) error {
 	return s.store.RecordApproval(record)
 }
 
+func (s *Service) GitRemotePreparedUpsert(record artifacts.GitRemotePreparedMutationRecord) error {
+	return s.store.GitRemotePreparedUpsert(record)
+}
+
+func (s *Service) GitRemotePreparedGet(preparedMutationID string) (artifacts.GitRemotePreparedMutationRecord, bool) {
+	return s.store.GitRemotePreparedGet(preparedMutationID)
+}
+
+func (s *Service) GitRemotePreparedTransitionLifecycle(preparedMutationID, expectedLifecycle string, mutate func(artifacts.GitRemotePreparedMutationRecord) artifacts.GitRemotePreparedMutationRecord) (artifacts.GitRemotePreparedMutationRecord, error) {
+	return s.store.GitRemotePreparedTransitionLifecycle(preparedMutationID, expectedLifecycle, mutate)
+}
+
+func (s *Service) GitRemotePreparedRefsForRun(runID string) []string {
+	return s.store.GitRemotePreparedRefsForRun(runID)
+}
+
 func (s *Service) SetPolicy(policy artifacts.Policy) error {
 	return s.store.SetPolicy(policy)
 }

@@ -41,6 +41,10 @@ type brokerLocalAPI interface {
 	GitSetupGet(context.Context, brokerapi.GitSetupGetRequest) (brokerapi.GitSetupGetResponse, *brokerapi.ErrorResponse)
 	GitSetupAuthBootstrap(context.Context, brokerapi.GitSetupAuthBootstrapRequest) (brokerapi.GitSetupAuthBootstrapResponse, *brokerapi.ErrorResponse)
 	GitSetupIdentityUpsert(context.Context, brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, *brokerapi.ErrorResponse)
+	GitRemoteMutationPrepare(context.Context, brokerapi.GitRemoteMutationPrepareRequest) (brokerapi.GitRemoteMutationPrepareResponse, *brokerapi.ErrorResponse)
+	GitRemoteMutationGet(context.Context, brokerapi.GitRemoteMutationGetRequest) (brokerapi.GitRemoteMutationGetResponse, *brokerapi.ErrorResponse)
+	GitRemoteMutationIssueExecuteLease(context.Context, brokerapi.GitRemoteMutationIssueExecuteLeaseRequest) (brokerapi.GitRemoteMutationIssueExecuteLeaseResponse, *brokerapi.ErrorResponse)
+	GitRemoteMutationExecute(context.Context, brokerapi.GitRemoteMutationExecuteRequest) (brokerapi.GitRemoteMutationExecuteResponse, *brokerapi.ErrorResponse)
 }
 
 type localRPCInvokeFunc func(ctx context.Context, operation string, request any, out any) *brokerapi.ErrorResponse
@@ -250,4 +254,24 @@ func (c *localAPIClient) GitSetupAuthBootstrap(ctx context.Context, req brokerap
 func (c *localAPIClient) GitSetupIdentityUpsert(ctx context.Context, req brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.GitSetupIdentityUpsertResponse{}
 	return resp, c.invoke(ctx, "git_setup_identity_upsert", req, &resp)
+}
+
+func (c *localAPIClient) GitRemoteMutationPrepare(ctx context.Context, req brokerapi.GitRemoteMutationPrepareRequest) (brokerapi.GitRemoteMutationPrepareResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.GitRemoteMutationPrepareResponse{}
+	return resp, c.invoke(ctx, "git_remote_mutation_prepare", req, &resp)
+}
+
+func (c *localAPIClient) GitRemoteMutationGet(ctx context.Context, req brokerapi.GitRemoteMutationGetRequest) (brokerapi.GitRemoteMutationGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.GitRemoteMutationGetResponse{}
+	return resp, c.invoke(ctx, "git_remote_mutation_get", req, &resp)
+}
+
+func (c *localAPIClient) GitRemoteMutationIssueExecuteLease(ctx context.Context, req brokerapi.GitRemoteMutationIssueExecuteLeaseRequest) (brokerapi.GitRemoteMutationIssueExecuteLeaseResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.GitRemoteMutationIssueExecuteLeaseResponse{}
+	return resp, c.invoke(ctx, "git_remote_mutation_issue_execute_lease", req, &resp)
+}
+
+func (c *localAPIClient) GitRemoteMutationExecute(ctx context.Context, req brokerapi.GitRemoteMutationExecuteRequest) (brokerapi.GitRemoteMutationExecuteResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.GitRemoteMutationExecuteResponse{}
+	return resp, c.invoke(ctx, "git_remote_mutation_execute", req, &resp)
 }

@@ -87,6 +87,14 @@ var routeActivationCaseData = []routeActivationCase{
 		},
 		expected: []string{"GitSetupGet"},
 	},
+	{
+		name:    "git remote route uses typed prepare/get/execute contracts",
+		routeID: routeGitRemote,
+		newModel: func(client localBrokerClient) routeModel {
+			return newGitRemoteMutationRouteModel(routeDefinition{ID: routeGitRemote, Label: "Git Remote"}, client)
+		},
+		expected: []string{"GitRemoteMutationGet"},
+	},
 }
 
 func routeActivationCases() []routeActivationCase {

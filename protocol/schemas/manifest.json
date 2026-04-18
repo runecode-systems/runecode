@@ -707,6 +707,76 @@
       "status": "mvp"
     },
     {
+      "path": "objects/GitRemoteMutationDerivedSummary.schema.json",
+      "schema_id": "runecode.protocol.v0.GitRemoteMutationDerivedSummary",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitRemoteMutationPreparedState.schema.json",
+      "schema_id": "runecode.protocol.v0.GitRemoteMutationPreparedState",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitRemoteMutationPrepareRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.GitRemoteMutationPrepareRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitRemoteMutationPrepareResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.GitRemoteMutationPrepareResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitRemoteMutationGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.GitRemoteMutationGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitRemoteMutationGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.GitRemoteMutationGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitRemoteMutationIssueExecuteLeaseRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.GitRemoteMutationIssueExecuteLeaseRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitRemoteMutationIssueExecuteLeaseResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.GitRemoteMutationIssueExecuteLeaseResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitRemoteMutationExecuteRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.GitRemoteMutationExecuteRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitRemoteMutationExecuteResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.GitRemoteMutationExecuteResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/ArtifactSummary.schema.json",
       "schema_id": "runecode.protocol.v0.ArtifactSummary",
       "schema_version": "0.1.0",

@@ -23,6 +23,7 @@ related_changes:
   - CHG-2026-031-7a3c-secretsd-core-v0
   - CHG-2026-037-91be-tui-multi-session-power-workspace-v0
   - CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0
+  - CHG-2026-022-8051-github-copilot-subscription-provider-official-runtime-bridge
   - CHG-2026-014-0c5d-approval-profiles-strict-permissive
 depends_on: []
 informed_by: []

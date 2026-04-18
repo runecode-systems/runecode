@@ -25,6 +25,7 @@ type Service struct {
 	store                     *artifacts.Store
 	auditLedger               *auditd.Ledger
 	secretsSvc                *secretsd.Service
+	gitMutationExecutor       gitRemoteMutationExecutor
 	auditor                   *brokerAuditEmitter
 	auditRoot                 string
 	gatewayQuota              *gatewayQuotaBackend

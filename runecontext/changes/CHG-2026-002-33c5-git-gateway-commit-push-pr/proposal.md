@@ -1,5 +1,5 @@
 ## Summary
-RuneCode can perform commit, push, and pull-request operations through a dedicated `git-gateway` role that consumes typed signed patch artifacts, requires exact final approval for remote mutations, binds policy to logical repository identity plus signed ref allowlists, and exposes broker-owned git setup and configuration surfaces consistently through both TUI and CLI thin clients.
+RuneCode will perform commit, push, and pull-request operations through a dedicated `git-gateway` role where full typed git request objects are authoritative, any request summary is derived UX data only, and remote mutation stays on shared gateway policy and approval contracts. The trusted Go control plane orchestrates repo-local mutation and ref push via native git, uses provider adapters for provider APIs (GitHub first), and exposes broker-owned `prepare/get/execute` request flows to thin CLI/TUI clients.
 
 ## Problem
 The repository already has shared gateway, approval, audit, artifact, lease, broker, and TUI foundations, but the high-risk git lane is still underspecified where later implementation and follow-on features are most likely to drift.
@@ -11,6 +11,7 @@ Without freezing those details now, later work is likely to accrete the wrong au
 - repo policy hidden in mutable local settings instead of signed artifacts and manifests
 - setup and auth flows that are CLI-only, TUI-only, or daemon-private rather than broker-owned typed control-plane behavior
 - commit metadata and repo-specific commit requirements such as DCO inferred from ambient `git config` instead of typed policy and identity contracts
+- implementation paths that treat `GitRemoteMutationSummary` (or equivalent request-summary projections) as authority rather than treating summaries as derived-only UX artifacts
 
 ## Proposed Change
 - Refine the shared gateway foundation so git remote mutation stays on the shared `gateway_egress` path and uses a third shared gateway operation class for remote state mutation rather than a git-only exception path.
@@ -18,9 +19,14 @@ Without freezing those details now, later work is likely to accrete the wrong au
 - Define canonical git ref allowlists using signed rules over full refs, with destructive ref mutations denied by default in `v1`.
 - Keep patch artifacts in the existing `diffs` data class, but define a typed signed patch artifact family bound by base identity and expected result tree hash.
 - Define provider-neutral typed git request families, including `GitRefUpdateRequest`, `GitPullRequestCreateRequest`, and shared `GitCommitIntent`, and bind remote mutation through canonical request hashes plus referenced patch artifact digests.
+- Make full typed git request objects authoritative for policy, approval, audit, and runtime verification; any `GitRemoteMutationSummary` or similar summary remains derived-only UX/read-model data.
+- Explicitly migrate git-lane contracts and implementation plans away from `GitRemoteMutationSummary` as any authority surface.
 - Require exact final approval for push, tag, and pull-request remote mutation across approval profiles using a dedicated `git_remote_ops` trigger; stage sign-off remains a prerequisite and never a substitute for the final remote-mutation approval.
 - Use `secretsd` as the only long-lived credential store and issue repo-scoped, operation-scoped, action-bound short-lived leases for git provider access.
 - Extend shared gateway audit evidence for `git_egress`, including matched allowlist entry identity, destination identity, artifact digests, result tree identity, bytes, timing, and outcome.
+- Define broker contract shape around typed request-union operations (`prepare`, `get`, `execute`) and keep CLI/TUI as friendly interaction layers above those typed broker APIs.
+- Keep trusted orchestration in Go, use native git for repo-local mutation and ref push, and put provider-specific API integration behind Go provider adapters.
+- Deliver GitHub as the first provider adapter while keeping request contracts provider-neutral from day one.
 - Make authoritative repo and ref policy artifact-managed only, including optional repo-specific commit rules such as DCO, while keeping authoritative user and account setup broker-managed and exposing both through thin TUI and CLI clients.
 
 ## Why Now
@@ -41,4 +47,4 @@ This work now lands in `v0.1.0-alpha.5`, after the audit, artifact, policy, brok
 - Re-introducing legacy Agent OS planning paths as canonical references.
 
 ## Impact
-This change becomes the durable source of truth for the git gateway's authority model: shared gateway semantics, exact approval binding, logical repo identity, typed patch and git request contracts, artifact-managed repo policy, broker-owned setup surfaces, and thin TUI and CLI clients. Capturing those details now removes the need for a second semantics rewrite later and gives future git-related features a stronger foundation to build on.
+This change becomes the durable source of truth for the git gateway's authority model: shared gateway semantics, exact approval binding, logical repo identity, typed patch and git request contracts as the only authority, migration away from summary-as-authority (`GitRemoteMutationSummary`), artifact-managed repo policy, broker-owned `prepare/get/execute` setup and execution surfaces, Go-native trusted orchestration, and thin TUI/CLI clients. Capturing those details now removes the need for a second semantics rewrite later and gives future git-related features a stronger foundation to build on.

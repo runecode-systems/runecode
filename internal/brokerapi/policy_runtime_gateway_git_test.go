@@ -30,6 +30,20 @@ func TestPolicyRuntimeGitGatewayFailsClosedOnRemoteDriftAndTreeMismatch(t *testi
 	}
 }
 
+func TestPolicyRuntimeGitGatewayFailsClosedWhenTypedRequestMissing(t *testing.T) {
+	s, payload, compiled := trustedGitGatewayVerificationCase(t, "run-gateway-git-missing-request", trustedGitRuntimeProofPayload(t, map[string]any{}))
+	_ = s
+	payload.GitRequest = nil
+	reason, details, denied := runtimeGitOutboundVerificationReason(payload)
+	if !denied {
+		t.Fatal("runtimeGitOutboundVerificationReason denied=false, want true")
+	}
+	decision := runtimeGatewayDenyDecision(compiled, allowGatewayDecision(compiled), payload, reason, details)
+	if got, _ := decision.Details["reason"].(string); got != "runtime_git_request_missing" {
+		t.Fatalf("reason = %q, want runtime_git_request_missing", got)
+	}
+}
+
 func TestPolicyRuntimeGitGatewayEmitsGitEgressAuditProofFields(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	runID := "run-gateway-git-audit"
@@ -153,7 +167,7 @@ func trustedGitGatewayDestination() map[string]any {
 func trustedGitGatewayPushAction(t *testing.T) policyengine.ActionRequest {
 	t.Helper()
 	policyHash, patchDigest, treeDigest := trustedGitDigests(t)
-	action := policyengine.NewGatewayEgressAction(policyengine.GatewayEgressActionInput{ActionEnvelope: policyengine.ActionEnvelope{CapabilityID: "cap_gateway", RelevantArtifactHashes: []trustpolicy.Digest{}, Actor: policyengine.ActionActor{ActorKind: "role_instance", RoleFamily: "gateway", RoleKind: "git-gateway"}}, GatewayRoleKind: "git-gateway", DestinationKind: "git_remote", DestinationRef: "git.example.com/org/repo.git", EgressDataClass: "diffs", Operation: "git_ref_update", AuditContext: trustedGitAuditContextInput(policyHash, treeDigest), GitRequest: trustedGitRequestSummaryInput(patchDigest, treeDigest), GitRuntimeProof: trustedGitRuntimeProofInput(patchDigest, treeDigest)})
+	action := policyengine.NewGatewayEgressAction(policyengine.GatewayEgressActionInput{ActionEnvelope: policyengine.ActionEnvelope{CapabilityID: "cap_gateway", RelevantArtifactHashes: []trustpolicy.Digest{}, Actor: policyengine.ActionActor{ActorKind: "role_instance", RoleFamily: "gateway", RoleKind: "git-gateway"}}, GatewayRoleKind: "git-gateway", DestinationKind: "git_remote", DestinationRef: "git.example.com/org/repo.git", EgressDataClass: "diffs", Operation: "git_ref_update", AuditContext: trustedGitAuditContextInput(policyHash, treeDigest), GitRequest: trustedGitRequestInput(patchDigest, treeDigest), GitRuntimeProof: trustedGitRuntimeProofInput(patchDigest, treeDigest)})
 	bindGitRequestHashes(t, &action)
 	return action
 }
@@ -162,7 +176,7 @@ func trustedGitGatewayPullRequestAction(t *testing.T) policyengine.ActionRequest
 	t.Helper()
 	action := trustedGitGatewayPushAction(t)
 	action.ActionPayload["operation"] = "git_pull_request_create"
-	action.ActionPayload["git_request_summary"] = trustedGitRequestSummaryPayload(t, "git_pull_request_create")
+	action.ActionPayload["git_request"] = trustedGitRequestPayload(t, "git_pull_request_create")
 	action.ActionPayload["git_runtime_proof"] = trustedGitRuntimeProofPayload(t, map[string]any{"provider_kind": "github", "pull_request_number": int64(42), "pull_request_url": "https://github.example/org/repo/pull/42"})
 	bindGitRequestHashes(t, &action)
 	return action
@@ -177,8 +191,8 @@ func trustedGitAuditContextInput(policyHash, treeDigest trustpolicy.Digest) *pol
 	return &policyengine.GatewayAuditContextInput{OutboundBytes: 4096, StartedAt: "2026-04-12T10:00:00Z", CompletedAt: "2026-04-12T10:00:02Z", Outcome: "succeeded", ResponseHash: &treeDigest, LeaseID: "lease-git-1", PolicyDecisionHash: &policyHash}
 }
 
-func trustedGitRequestSummaryInput(patchDigest, treeDigest trustpolicy.Digest) *policyengine.GitRequestSummaryInput {
-	return &policyengine.GitRequestSummaryInput{RequestKind: "git_ref_update", RepositoryIdentity: policyengine.DestinationDescriptor{SchemaID: "runecode.protocol.v0.DestinationDescriptor", SchemaVersion: "0.1.0", DescriptorKind: "git_remote", CanonicalHost: "git.example.com", CanonicalPathPrefix: "/org/repo.git", ProviderOrNamespace: "github", GitRepositoryIdentity: "git.example.com/org/repo.git", TLSRequired: true, PrivateRangeBlocking: "enforced", DNSRebindingProtection: "enforced"}, TargetRefs: []string{"refs/heads/main"}, ReferencedPatchArtifactDigests: []trustpolicy.Digest{patchDigest}, ExpectedResultTreeHash: treeDigest, MetadataSummary: policyengine.GitRequestMetadataInput{Commit: &policyengine.GitCommitMetadataInput{Subject: "Update README", Author: policyengine.GitIdentityInput{DisplayName: "Rune", Email: "rune@example.com"}, Committer: policyengine.GitIdentityInput{DisplayName: "Rune", Email: "rune@example.com"}, Signoff: policyengine.GitIdentityInput{DisplayName: "Rune", Email: "rune@example.com"}}}}
+func trustedGitRequestInput(patchDigest, treeDigest trustpolicy.Digest) *policyengine.GitTypedRequestInput {
+	return &policyengine.GitTypedRequestInput{RefUpdate: &policyengine.GitRefUpdateRequestInput{RepositoryIdentity: policyengine.DestinationDescriptor{SchemaID: "runecode.protocol.v0.DestinationDescriptor", SchemaVersion: "0.1.0", DescriptorKind: "git_remote", CanonicalHost: "git.example.com", CanonicalPathPrefix: "/org/repo.git", ProviderOrNamespace: "github", GitRepositoryIdentity: "git.example.com/org/repo.git", TLSRequired: true, PrivateRangeBlocking: "enforced", DNSRebindingProtection: "enforced"}, TargetRef: "refs/heads/main", ExpectedOldRefHash: treeDigest, ReferencedPatchArtifactDigests: []trustpolicy.Digest{patchDigest}, CommitIntent: policyengine.GitCommitIntentInput{Message: policyengine.GitCommitMessageInput{Subject: "Update README", Body: "typed request authority"}, Trailers: []policyengine.GitCommitTrailerInput{{Key: "Signed-off-by", Value: "Rune <rune@example.com>"}}, Author: policyengine.GitIdentityInput{DisplayName: "Rune", Email: "rune@example.com"}, Committer: policyengine.GitIdentityInput{DisplayName: "Rune", Email: "rune@example.com"}, Signoff: policyengine.GitIdentityInput{DisplayName: "Rune", Email: "rune@example.com"}}, ExpectedResultTreeHash: treeDigest, AllowForcePush: false, AllowRefDeletion: false, RefPurpose: "branch"}}
 }
 
 func trustedGitRuntimeProofInput(patchDigest, treeDigest trustpolicy.Digest) *policyengine.GitRuntimeProofInput {
@@ -193,11 +207,11 @@ func bindGitRequestHashes(t *testing.T, action *policyengine.ActionRequest) {
 		t.Fatalf("decodeGatewayRuntimePayload returned error: %v", err)
 	}
 	if payload.GitRequest == nil {
-		t.Fatal("git_request_summary missing after payload decode")
+		t.Fatal("git_request missing after payload decode")
 	}
-	hashIdentity, err := canonicalGitRequestSummaryHash(*payload.GitRequest)
+	hashIdentity, err := canonicalGitTypedRequestHash(payload.GitRequest)
 	if err != nil {
-		t.Fatalf("canonicalGitRequestSummaryHash returned error: %v", err)
+		t.Fatalf("canonicalGitTypedRequestHash returned error: %v", err)
 	}
 	requestHash := mustDigestIdentityForE2E(t, hashIdentity)
 	action.ActionPayload["payload_hash"] = digestObject(hashIdentity)
@@ -210,13 +224,12 @@ func bindGitRequestHashes(t *testing.T, action *policyengine.ActionRequest) {
 	}
 }
 
-func trustedGitRequestSummaryPayload(t *testing.T, operation string) map[string]any {
+func trustedGitRequestPayload(t *testing.T, operation string) map[string]any {
 	t.Helper()
-	requestKind := "git_ref_update"
 	if operation == "git_pull_request_create" {
-		requestKind = "git_pull_request_create"
+		return map[string]any{"schema_id": "runecode.protocol.v0.GitPullRequestCreateRequest", "schema_version": "0.1.0", "request_kind": "git_pull_request_create", "base_repository_identity": map[string]any{"schema_id": "runecode.protocol.v0.DestinationDescriptor", "schema_version": "0.1.0", "descriptor_kind": "git_remote", "canonical_host": "git.example.com", "canonical_path_prefix": "/org/repo.git", "provider_or_namespace": "github", "git_repository_identity": "git.example.com/org/repo.git", "tls_required": true, "private_range_blocking": "enforced", "dns_rebinding_protection": "enforced"}, "base_ref": "refs/heads/main", "head_repository_identity": map[string]any{"schema_id": "runecode.protocol.v0.DestinationDescriptor", "schema_version": "0.1.0", "descriptor_kind": "git_remote", "canonical_host": "git.example.com", "canonical_path_prefix": "/org/repo.git", "provider_or_namespace": "github", "git_repository_identity": "git.example.com/org/repo.git", "tls_required": true, "private_range_blocking": "enforced", "dns_rebinding_protection": "enforced"}, "head_ref": "refs/heads/rune/docs", "title": "Update docs", "body": "typed request", "head_commit_or_tree_hash": digestObject("sha256:" + strings.Repeat("4", 64)), "referenced_patch_artifact_digests": []any{digestObject("sha256:" + strings.Repeat("5", 64))}, "expected_result_tree_hash": digestObject("sha256:" + strings.Repeat("4", 64))}
 	}
-	return map[string]any{"schema_id": "runecode.protocol.v0.GitRemoteMutationSummary", "schema_version": "0.1.0", "request_kind": requestKind, "repository_identity": map[string]any{"schema_id": "runecode.protocol.v0.DestinationDescriptor", "schema_version": "0.1.0", "descriptor_kind": "git_remote", "canonical_host": "git.example.com", "canonical_path_prefix": "/org/repo.git", "provider_or_namespace": "github", "git_repository_identity": "git.example.com/org/repo.git", "tls_required": true, "private_range_blocking": "enforced", "dns_rebinding_protection": "enforced"}, "target_refs": []any{"refs/heads/main"}, "referenced_patch_artifact_digests": []any{digestObject("sha256:" + strings.Repeat("5", 64))}, "expected_result_tree_hash": digestObject("sha256:" + strings.Repeat("4", 64)), "metadata_summary": map[string]any{"commit": map[string]any{"subject": "Update README", "author": map[string]any{"display_name": "Rune", "email": "rune@example.com"}, "committer": map[string]any{"display_name": "Rune", "email": "rune@example.com"}, "signoff": map[string]any{"display_name": "Rune", "email": "rune@example.com"}}, "pull_request": map[string]any{"title": "Update docs", "base_ref": "refs/heads/main", "head_ref": "refs/heads/rune/docs"}}}
+	return map[string]any{"schema_id": "runecode.protocol.v0.GitRefUpdateRequest", "schema_version": "0.1.0", "request_kind": "git_ref_update", "repository_identity": map[string]any{"schema_id": "runecode.protocol.v0.DestinationDescriptor", "schema_version": "0.1.0", "descriptor_kind": "git_remote", "canonical_host": "git.example.com", "canonical_path_prefix": "/org/repo.git", "provider_or_namespace": "github", "git_repository_identity": "git.example.com/org/repo.git", "tls_required": true, "private_range_blocking": "enforced", "dns_rebinding_protection": "enforced"}, "target_ref": "refs/heads/main", "expected_old_ref_hash": digestObject("sha256:" + strings.Repeat("4", 64)), "referenced_patch_artifact_digests": []any{digestObject("sha256:" + strings.Repeat("5", 64))}, "commit_intent": map[string]any{"schema_id": "runecode.protocol.v0.GitCommitIntent", "schema_version": "0.1.0", "message": map[string]any{"subject": "Update README", "body": "typed request authority"}, "trailers": []any{map[string]any{"key": "Signed-off-by", "value": "Rune <rune@example.com>"}}, "author": map[string]any{"display_name": "Rune", "email": "rune@example.com"}, "committer": map[string]any{"display_name": "Rune", "email": "rune@example.com"}, "signoff": map[string]any{"display_name": "Rune", "email": "rune@example.com"}}, "expected_result_tree_hash": digestObject("sha256:" + strings.Repeat("4", 64)), "allow_force_push": false, "allow_ref_deletion": false}
 }
 
 func trustedGitRuntimeProofPayload(t *testing.T, overrides map[string]any) map[string]any {

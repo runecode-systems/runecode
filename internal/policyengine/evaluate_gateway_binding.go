@@ -82,7 +82,7 @@ func gitRemoteMutationBindingDetails(payload gatewayEgressPayload) (string, map[
 	if err != nil {
 		return "invalid_payload_hash_identity", nil
 	}
-	requestHashIdentity, err := canonicalGitRequestSummaryHash(*payload.GitRequest)
+	requestHashIdentity, requestKind, err := canonicalGitTypedRequestHash(payload.GitRequest)
 	if err != nil {
 		return "invalid_canonical_git_request_hash", nil
 	}
@@ -92,16 +92,21 @@ func gitRemoteMutationBindingDetails(payload gatewayEgressPayload) (string, map[
 	return "payload_hash_not_bound_to_canonical_git_request_hash", map[string]any{
 		"payload_hash":               payloadHashIdentity,
 		"canonical_git_request_hash": requestHashIdentity,
-		"git_request_kind":           payload.GitRequest.RequestKind,
+		"git_request_kind":           requestKind,
 	}
 }
 
-func canonicalGitRequestSummaryHash(summary gitRequestSummary) (string, error) {
-	b, err := json.Marshal(summary)
+func canonicalGitTypedRequestHash(request map[string]any) (string, string, error) {
+	requestKind, _ := request["request_kind"].(string)
+	b, err := json.Marshal(request)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return CanonicalHashBytes(b)
+	hash, err := CanonicalHashBytes(b)
+	if err != nil {
+		return "", "", err
+	}
+	return hash, requestKind, nil
 }
 
 func denyGitRemoteMutationBinding(compiled *CompiledContext, action ActionRequest, actionHash string, payload gatewayEgressPayload, reason string, extra map[string]any) (PolicyDecision, bool) {

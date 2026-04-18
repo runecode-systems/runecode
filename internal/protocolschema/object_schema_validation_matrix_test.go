@@ -307,7 +307,7 @@ func gatewayEgressPayloadCases() []validationCase {
 		{name: "request operation missing payload hash fails closed", value: invalidActionPayloadGatewayEgressRequestMissingPayloadHash(), wantErr: true},
 		{name: "dependency request operation missing payload hash fails closed", value: invalidActionPayloadGatewayEgressDependencyRequestMissingPayloadHash(), wantErr: true},
 		{name: "scope operation with payload hash fails closed", value: invalidActionPayloadGatewayEgressScopeWithPayloadHash(), wantErr: true},
-		{name: "git remote mutation missing summary fails closed", value: invalidActionPayloadGatewayEgressGitRemoteMutationMissingSummary(), wantErr: true},
+		{name: "git remote mutation missing typed request fails closed", value: invalidActionPayloadGatewayEgressGitRemoteMutationMissingSummary(), wantErr: true},
 		{name: "raw url destination ref fails closed", value: invalidActionPayloadGatewayEgressRawURLDestinationRef(), wantErr: true},
 		{name: "timeout bound over hard limit fails closed", value: invalidActionPayloadGatewayEgressTimeoutOutOfBounds(), wantErr: true},
 		{name: "request operation missing audit context fails closed", value: invalidActionPayloadGatewayEgressMissingAuditContext(), wantErr: true},

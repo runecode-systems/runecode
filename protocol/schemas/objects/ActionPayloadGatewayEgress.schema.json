@@ -90,9 +90,9 @@
       "description": "Optional trusted quota context used for admission-time and streaming enforcement decisions.",
       "x-data-class": "public"
     },
-    "git_request_summary": {
-      "$ref": "#/$defs/gitRemoteMutationSummary",
-      "description": "Typed git remote-mutation summary used for exact approval binding and deterministic trailer rendering.",
+    "git_request": {
+      "$ref": "#/$defs/gitTypedRequestUnion",
+      "description": "Authoritative provider-neutral typed git request object used for exact approval and runtime binding.",
       "x-data-class": "public"
     },
     "git_runtime_proof": {
@@ -632,6 +632,18 @@
         }
       }
     },
+    "gitTypedRequestUnion": {
+      "oneOf": [
+        {
+          "$ref": "GitRefUpdateRequest.schema.json"
+        },
+        {
+          "$ref": "GitPullRequestCreateRequest.schema.json"
+        }
+      ],
+      "description": "Authoritative provider-neutral typed git request union for remote-state mutation operations.",
+      "x-data-class": "public"
+    },
     "gitRuntimeProof": {
       "type": "object",
       "additionalProperties": false,
@@ -806,7 +818,7 @@
         "required": [
           "payload_hash",
           "audit_context",
-          "git_request_summary",
+          "git_request",
           "git_runtime_proof"
         ]
       }
@@ -883,7 +895,7 @@
       "then": {
         "description": "Non-git operations must not carry git-specific request or runtime proof payloads.",
         "properties": {
-          "git_request_summary": {
+          "git_request": {
             "not": {}
           },
           "git_runtime_proof": {

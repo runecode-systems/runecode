@@ -66,8 +66,11 @@ func validDependencyFetchActionRequest(capabilityID string, roleKind string, ref
 }
 
 func validGitRemoteMutationActionRequest(capabilityID string, operation string) ActionRequest {
-	gitSummary := validGitRemoteMutationSummary()
-	requestHashIdentity, err := canonicalHashValue(gitSummary)
+	gitRequest := validGitTypedRefUpdateRequest()
+	if operation == "git_pull_request_create" {
+		gitRequest = validGitTypedPullRequestCreateRequest()
+	}
+	requestHashIdentity, err := canonicalHashValue(gitRequest)
 	if err != nil {
 		panic(err)
 	}
@@ -79,21 +82,58 @@ func validGitRemoteMutationActionRequest(capabilityID string, operation string) 
 		capabilityID,
 		actionPayloadGatewaySchemaID,
 		newSchemaPayload(actionPayloadGatewaySchemaID, map[string]any{
-			"gateway_role_kind":   "git-gateway",
-			"destination_kind":    "git_remote",
-			"destination_ref":     "git.example.com/org/repo",
-			"egress_data_class":   "diffs",
-			"operation":           operation,
-			"payload_hash":        payloadHash,
-			"audit_context":       auditContext,
-			"git_request_summary": gitSummary,
-			"git_runtime_proof":   runtimeProof,
+			"gateway_role_kind": "git-gateway",
+			"destination_kind":  "git_remote",
+			"destination_ref":   "git.example.com/org/repo",
+			"egress_data_class": "diffs",
+			"operation":         operation,
+			"payload_hash":      payloadHash,
+			"audit_context":     auditContext,
+			"git_request":       gitRequest,
+			"git_runtime_proof": runtimeProof,
 		}),
 		"gateway",
 		"git-gateway",
 	)
 	action.RelevantArtifactHashes = []trustpolicy.Digest{{HashAlg: "sha256", Hash: strings.Repeat("9", 64)}}
 	return action
+}
+
+func validGitTypedPullRequestCreateRequest() map[string]any {
+	return map[string]any{
+		"schema_id":      "runecode.protocol.v0.GitPullRequestCreateRequest",
+		"schema_version": "0.1.0",
+		"request_kind":   "git_pull_request_create",
+		"base_repository_identity": map[string]any{
+			"schema_id":                destinationDescriptorSchemaID,
+			"schema_version":           destinationDescriptorVersion,
+			"descriptor_kind":          "git_remote",
+			"canonical_host":           "git.example.com",
+			"git_repository_identity":  "git.example.com/org/repo",
+			"provider_or_namespace":    "org/repo",
+			"tls_required":             true,
+			"private_range_blocking":   "enforced",
+			"dns_rebinding_protection": "enforced",
+		},
+		"base_ref": "refs/heads/main",
+		"head_repository_identity": map[string]any{
+			"schema_id":                destinationDescriptorSchemaID,
+			"schema_version":           destinationDescriptorVersion,
+			"descriptor_kind":          "git_remote",
+			"canonical_host":           "git.example.com",
+			"git_repository_identity":  "git.example.com/org/repo",
+			"provider_or_namespace":    "org/repo",
+			"tls_required":             true,
+			"private_range_blocking":   "enforced",
+			"dns_rebinding_protection": "enforced",
+		},
+		"head_ref":                          "refs/heads/runecode/feature-1",
+		"title":                             "Apply approved patch flow",
+		"body":                              "Created from typed pull-request contract.",
+		"head_commit_or_tree_hash":          mustDigestObject("sha256:" + strings.Repeat("9", 64)),
+		"referenced_patch_artifact_digests": []any{mustDigestObject("sha256:" + strings.Repeat("7", 64))},
+		"expected_result_tree_hash":         mustDigestObject("sha256:" + strings.Repeat("6", 64)),
+	}
 }
 
 func compileGatewayInputWithOneCapability(roleKind string, capability string, allowlist map[string]any) CompileInput {

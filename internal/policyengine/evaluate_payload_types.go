@@ -26,48 +26,57 @@ type gatewayEgressPayload struct {
 	PayloadHash     *trustpolicy.Digest  `json:"payload_hash,omitempty"`
 	AuditContext    *gatewayAuditContext `json:"audit_context,omitempty"`
 	QuotaContext    *gatewayQuotaContext `json:"quota_context,omitempty"`
-	GitRequest      *gitRequestSummary   `json:"git_request_summary,omitempty"`
+	GitRequest      map[string]any       `json:"git_request,omitempty"`
 	GitRuntimeProof *gitRuntimeProof     `json:"git_runtime_proof,omitempty"`
 }
 
-type gitRequestSummary struct {
+type gitRefUpdateRequest struct {
 	SchemaID                       string                `json:"schema_id"`
 	SchemaVersion                  string                `json:"schema_version"`
 	RequestKind                    string                `json:"request_kind"`
 	RepositoryIdentity             DestinationDescriptor `json:"repository_identity"`
-	TargetRefs                     []string              `json:"target_refs"`
+	TargetRef                      string                `json:"target_ref"`
+	ExpectedOldRefHash             trustpolicy.Digest    `json:"expected_old_ref_hash"`
+	ReferencedPatchArtifactDigests []trustpolicy.Digest  `json:"referenced_patch_artifact_digests"`
+	CommitIntent                   gitCommitIntent       `json:"commit_intent"`
+	ExpectedResultTreeHash         trustpolicy.Digest    `json:"expected_result_tree_hash"`
+	AllowForcePush                 bool                  `json:"allow_force_push"`
+	AllowRefDeletion               bool                  `json:"allow_ref_deletion"`
+	RefPurpose                     string                `json:"ref_purpose,omitempty"`
+	BaseRef                        string                `json:"base_ref,omitempty"`
+}
+
+type gitPullRequestCreateRequest struct {
+	SchemaID                       string                `json:"schema_id"`
+	SchemaVersion                  string                `json:"schema_version"`
+	RequestKind                    string                `json:"request_kind"`
+	BaseRepositoryIdentity         DestinationDescriptor `json:"base_repository_identity"`
+	BaseRef                        string                `json:"base_ref"`
+	HeadRepositoryIdentity         DestinationDescriptor `json:"head_repository_identity"`
+	HeadRef                        string                `json:"head_ref"`
+	Title                          string                `json:"title"`
+	Body                           string                `json:"body"`
+	HeadCommitOrTreeHash           trustpolicy.Digest    `json:"head_commit_or_tree_hash"`
 	ReferencedPatchArtifactDigests []trustpolicy.Digest  `json:"referenced_patch_artifact_digests"`
 	ExpectedResultTreeHash         trustpolicy.Digest    `json:"expected_result_tree_hash"`
-	MetadataSummary                gitRequestMetadata    `json:"metadata_summary"`
 }
 
-type gitRequestMetadata struct {
-	Commit       *gitCommitMetadata      `json:"commit,omitempty"`
-	PullRequest  *gitPullRequestMetadata `json:"pull_request,omitempty"`
-	CommitPolicy *gitCommitPolicy        `json:"commit_policy,omitempty"`
+type gitCommitIntent struct {
+	Message   gitCommitMessage   `json:"message"`
+	Trailers  []gitCommitTrailer `json:"trailers"`
+	Author    gitIdentity        `json:"author"`
+	Committer gitIdentity        `json:"committer"`
+	Signoff   gitIdentity        `json:"signoff"`
 }
 
-type gitCommitMetadata struct {
-	Subject   string      `json:"subject"`
-	Author    gitIdentity `json:"author"`
-	Committer gitIdentity `json:"committer"`
-	Signoff   gitIdentity `json:"signoff"`
+type gitCommitMessage struct {
+	Subject string `json:"subject"`
+	Body    string `json:"body,omitempty"`
 }
 
-type gitPullRequestMetadata struct {
-	Title   string `json:"title"`
-	BaseRef string `json:"base_ref"`
-	HeadRef string `json:"head_ref"`
-}
-
-type gitCommitPolicy struct {
-	RepositoryPolicyDigest trustpolicy.Digest   `json:"repository_policy_digest"`
-	RequiredTrailerRules   []gitRequiredTrailer `json:"required_trailer_rules"`
-}
-
-type gitRequiredTrailer struct {
-	TrailerKey   string `json:"trailer_key"`
-	IdentityRole string `json:"identity_role"`
+type gitCommitTrailer struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 type gitIdentity struct {

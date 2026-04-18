@@ -151,43 +151,9 @@ func validActionPayloadGatewayEgressGitRemoteMutationOperation() map[string]any 
 	payload["egress_data_class"] = "diffs"
 	payload["operation"] = "git_ref_update"
 	delete(payload, "quota_context")
-	payload["git_request_summary"] = validGitRemoteMutationSummaryFixture()
+	payload["git_request"] = validGitRefUpdateRequest()
 	payload["git_runtime_proof"] = validGitRemoteMutationProofFixture()
 	return payload
-}
-
-func validGitRemoteMutationSummaryFixture() map[string]any {
-	return map[string]any{
-		"schema_id":      "runecode.protocol.v0.GitRemoteMutationSummary",
-		"schema_version": "0.1.0",
-		"request_kind":   "git_ref_update",
-		"repository_identity": map[string]any{
-			"schema_id":                "runecode.protocol.v0.DestinationDescriptor",
-			"schema_version":           "0.1.0",
-			"descriptor_kind":          "git_remote",
-			"canonical_host":           "git.example.com",
-			"git_repository_identity":  "git.example.com/org/repo",
-			"provider_or_namespace":    "org/repo",
-			"tls_required":             true,
-			"private_range_blocking":   "enforced",
-			"dns_rebinding_protection": "enforced",
-		},
-		"target_refs":                       []any{"refs/heads/main"},
-		"referenced_patch_artifact_digests": []any{testDigestValue("5")},
-		"expected_result_tree_hash":         testDigestValue("6"),
-		"metadata_summary": map[string]any{
-			"commit": map[string]any{
-				"subject":   "Apply approved patch",
-				"author":    map[string]any{"display_name": "Author Example", "email": "author@example.com"},
-				"committer": map[string]any{"display_name": "Committer Example", "email": "committer@example.com"},
-				"signoff":   map[string]any{"display_name": "Signoff Example", "email": "signoff@example.com"},
-			},
-			"commit_policy": map[string]any{
-				"repository_policy_digest": testDigestValue("7"),
-				"required_trailer_rules":   []any{map[string]any{"trailer_key": "Signed-off-by", "identity_role": "signoff"}},
-			},
-		},
-	}
 }
 
 func validGitRemoteMutationProofFixture() map[string]any {
@@ -254,7 +220,7 @@ func invalidActionPayloadGatewayEgressScopeWithPayloadHash() map[string]any {
 
 func invalidActionPayloadGatewayEgressGitRemoteMutationMissingSummary() map[string]any {
 	payload := validActionPayloadGatewayEgressGitRemoteMutationOperation()
-	delete(payload, "git_request_summary")
+	delete(payload, "git_request")
 	return payload
 }
 

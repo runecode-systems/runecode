@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/GitRemoteMutationIssueExecuteLeaseResponse.schema.json",
+  "title": "GitRemoteMutationIssueExecuteLeaseResponse",
+  "description": "Response returning the broker-issued execute lease bound to a prepared git remote mutation.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 6,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "request_id",
+    "prepared_mutation_id",
+    "lease",
+    "provider_auth_lease_id"
+  ],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.GitRemoteMutationIssueExecuteLeaseResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Stable request correlation identifier echoed from request.",
+      "x-data-class": "public"
+    },
+    "prepared_mutation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Prepared mutation identifier the lease is bound to.",
+      "x-data-class": "public"
+    },
+    "lease": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 10,
+      "description": "Issued broker-local execute lease payload returned to the client.",
+      "x-data-class": "public",
+      "required": [
+        "lease_id",
+        "secret_ref",
+        "consumer_id",
+        "role_kind",
+        "scope",
+        "delivery_kind",
+        "git_binding",
+        "issued_at",
+        "expires_at",
+        "status"
+      ],
+      "properties": {
+        "lease_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "description": "Canonical issued lease identity.",
+          "x-data-class": "public"
+        },
+        "secret_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^(secrets|tokens)/[A-Za-z0-9._/-]+$",
+          "description": "Broker-local secret reference bound into the lease.",
+          "x-data-class": "sensitive"
+        },
+        "consumer_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Bound consumer identity for lease retrieval and use.",
+          "x-data-class": "public"
+        },
+        "role_kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Bound consumer role kind for this lease.",
+          "x-data-class": "public"
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Bound local execution scope for this lease.",
+          "x-data-class": "public"
+        },
+        "delivery_kind": {
+          "type": "string",
+          "enum": ["git_gateway", "environment_variable", "cli_argument"],
+          "description": "Local delivery pathway authorized for this lease.",
+          "x-data-class": "public"
+        },
+        "git_binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "maxProperties": 4,
+          "description": "Git-specific binding constraints enforced when the lease is used.",
+          "x-data-class": "public",
+          "required": [
+            "repository_identity",
+            "allowed_operations",
+            "action_request_hash",
+            "policy_context_hash"
+          ],
+          "properties": {
+            "repository_identity": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "description": "Canonical repository identity bound to the execute lease.",
+              "x-data-class": "public"
+            },
+            "allowed_operations": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z_][a-z0-9_]*$"
+              },
+              "description": "Git operations permitted by this lease.",
+              "x-data-class": "public"
+            },
+            "action_request_hash": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$",
+              "maxLength": 71,
+              "description": "Action request identity bound into the lease.",
+              "x-data-class": "public"
+            },
+            "policy_context_hash": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$",
+              "maxLength": 71,
+              "description": "Policy decision identity bound into the lease.",
+              "x-data-class": "public"
+            }
+          }
+        },
+        "issued_at": {
+          "type": "string",
+          "maxLength": 64,
+          "format": "date-time",
+          "description": "Lease issue timestamp.",
+          "x-data-class": "public"
+        },
+        "expires_at": {
+          "type": "string",
+          "maxLength": 64,
+          "format": "date-time",
+          "description": "Lease expiry timestamp.",
+          "x-data-class": "public"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "revoked"],
+          "description": "Current lease lifecycle state.",
+          "x-data-class": "public"
+        },
+        "revoked_at": {
+          "type": "string",
+          "maxLength": 64,
+          "format": "date-time",
+          "description": "Revocation timestamp when the lease has been revoked.",
+          "x-data-class": "public"
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "Optional broker-local revocation reason.",
+          "x-data-class": "sensitive"
+        }
+      }
+    },
+    "provider_auth_lease_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Lease identifier to pass to the execute request as provider_auth_lease_id.",
+      "x-data-class": "public"
+    }
+  }
+}

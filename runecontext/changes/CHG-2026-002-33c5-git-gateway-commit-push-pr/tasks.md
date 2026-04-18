@@ -29,6 +29,8 @@ Parallelization: can be designed in parallel with protocol schema and policy-eng
 - [ ] Define shared `GitCommitIntent` carrying structured commit message, trailers, author identity, committer identity, and signoff identity.
 - [ ] Keep standalone commit as a typed substep inside git remote-mutation requests rather than a separate first-class action in this change.
 - [ ] Bind git remote-mutation `payload_hash` to canonical typed git request identity rather than to local workspace state.
+- [ ] Make full typed git request objects authoritative for policy, approval, audit, and execution; treat `GitRemoteMutationSummary` and similar summaries as derived-only UX/read-model data.
+- [ ] Remove or migrate any git-lane authority paths that currently depend on `GitRemoteMutationSummary` so they bind directly to typed request objects.
 - [ ] Ensure tag creation or update, if supported in `v1`, uses the same typed ref-update contract.
 
 Parallelization: can be implemented in parallel with artifact-store work once patch artifact shape and git request hashes are frozen.
@@ -55,22 +57,27 @@ Parallelization: can be implemented in parallel with approval-profile work once 
 
 Parallelization: can be implemented in parallel with `secretsd` lease work once repository identity and operation taxonomy are frozen.
 
-## Runtime Outbound Verification + Pull-Request Provider Adapters
+## Runtime Outbound Verification + Trusted Go Orchestration + Provider Adapters
 
+- [ ] Implement trusted orchestration in Go for the git gateway runtime.
+- [ ] Use native git for repo-local mutation and ref push operations.
 - [ ] Consume the signed typed patch artifact in the git gateway runtime.
 - [ ] Apply patches in a sparse or partial checkout by default.
 - [ ] Verify expected old state before mutating the repository.
 - [ ] Verify observed outbound result tree hash matches the approved typed request and signed patch artifact before completing remote mutation.
 - [ ] Fail closed on remote drift rather than silently rebasing, merging, or force-pushing.
-- [ ] Create pull requests through provider APIs beneath the provider-neutral typed pull-request contract.
+- [ ] Create pull requests through provider APIs beneath the provider-neutral typed pull-request contract via Go provider adapters.
+- [ ] Deliver GitHub as the first provider adapter without changing provider-neutral typed request contracts.
 - [ ] Attach run artifacts, gate results, and related evidence as structured metadata where the provider contract allows it.
 - [ ] Audit remote git operations with standard gateway fields plus git proof fields such as matched allowlist entry identity, artifact digests, result tree hash, bytes, timing, and outcome.
 
-Parallelization: provider-specific adapters can proceed in parallel once runtime verification, git request contracts, and audit evidence requirements are stable.
+Parallelization: provider-specific adapters can proceed in parallel once trusted Go orchestration boundaries, runtime verification, git request contracts, and audit evidence requirements are stable.
 
 ## Broker Setup And Configuration Surfaces For TUI And CLI
 
 - [ ] Add broker-owned typed setup and configuration APIs for git provider account state, commit identity profiles, auth posture, and non-policy git control-plane state.
+- [ ] Implement broker request-lifecycle contract for git remote mutation over a typed request union with `prepare`, `get`, and `execute` operations.
+- [ ] Keep request summaries friendly and derived for CLI/TUI display while preserving typed request objects as the only authority inputs.
 - [ ] Keep authoritative repository policy on artifact-managed surfaces only; TUI and CLI may inspect and prepare reviewed policy changes but must not directly mutate policy truth through ad hoc settings.
 - [ ] Implement guided interactive git setup in the TUI using Bubble Tea and Lip Gloss under the existing root shell plus child-model architecture and broker API rules.
 - [ ] Implement straightforward CLI thin adapters over the same broker-owned setup and configuration flows for headless, automation, recovery, and constrained environments.
@@ -84,9 +91,14 @@ Parallelization: TUI and CLI clients can be built in parallel once broker setup 
 
 - [ ] Git operations are impossible from workspace roles.
 - [ ] Git remote mutation remains on the shared typed gateway path rather than a git-only policy or approval path.
+- [ ] Full typed git request objects are authoritative for policy, approval, audit, and execution, and any `GitRemoteMutationSummary` is derived-only UX data.
+- [ ] No implemented git-lane path depends on `GitRemoteMutationSummary` as an authority surface.
 - [ ] Repository identity is logical and exact-match, not a raw transport URL or path-prefix heuristic.
 - [ ] Repo and ref policy, destructive-op posture, and repo-specific commit rules are authoritative only when expressed through signed artifacts or manifests.
 - [ ] Push, tag, and pull-request remote mutation require exact final approval through `git_remote_ops`, and stage sign-off alone cannot authorize them.
 - [ ] Outbound verification blocks pushes and pull requests whose observed repository result does not match the approved typed request, signed patch artifact, and expected result tree hash.
 - [ ] Long-lived provider auth material remains isolated to `secretsd`, and git credentials are short-lived, repo-scoped, operation-scoped, and action-bound.
+- [ ] Broker contract for git mutation uses typed request-union `prepare/get/execute`, with CLI/TUI acting as friendly thin layers above the same contract.
+- [ ] Trusted orchestration runs in Go, uses native git for repo-local mutation and ref push, and uses Go provider adapters for provider-specific APIs.
+- [ ] GitHub is the first provider adapter while typed request contracts remain provider-neutral.
 - [ ] TUI guided setup and CLI setup remain thin clients of broker-owned typed flows, with no client-local policy authority.

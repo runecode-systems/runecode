@@ -1,6 +1,7 @@
 package policyengine
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -9,11 +10,11 @@ import (
 )
 
 func moderateGitRemoteApprovalPayload(base map[string]any, action ActionRequest) (map[string]any, bool) {
-	summary := decodeGitRequestSummary(action)
-	if summary == nil {
+	request := decodeGitTypedRequest(action)
+	if request == nil {
 		return nil, false
 	}
-	boundMutation, repoIdentity, err := moderateGitRemoteBoundMutation(*summary)
+	boundMutation, repoIdentity, requestKind, err := moderateGitRemoteBoundMutation(request)
 	if err != nil {
 		return nil, false
 	}
@@ -26,42 +27,21 @@ func moderateGitRemoteApprovalPayload(base map[string]any, action ActionRequest)
 	payload["security_posture_impact"] = "high"
 	payload["required_final_exact_approval"] = true
 	payload["stage_sign_off_is_prerequisite_only"] = true
-	payload["scope"] = approvalScopeForGitRemoteAction(action, summary.RequestKind, repoIdentity)
+	payload["scope"] = approvalScopeForGitRemoteAction(action, requestKind, repoIdentity)
 	payload["bound_remote_mutation"] = boundMutation
 	return payload, true
 }
 
-func moderateGitRemoteBoundMutation(summary gitRequestSummary) (map[string]any, map[string]any, error) {
-	repoIdentity := destinationDescriptorIdentity(summary.RepositoryIdentity)
-	expectedTree, repoPolicyDigest, err := moderateGitRemoteDigests(summary)
-	if err != nil {
-		return nil, nil, err
+func moderateGitRemoteBoundMutation(request map[string]any) (map[string]any, map[string]any, string, error) {
+	requestKind, _ := request["request_kind"].(string)
+	switch requestKind {
+	case "git_ref_update":
+		return moderateGitRefUpdateBoundMutation(request)
+	case "git_pull_request_create":
+		return moderateGitPullRequestBoundMutation(request)
+	default:
+		return nil, nil, "", fmt.Errorf("unsupported request_kind %q", requestKind)
 	}
-	return map[string]any{
-		"request_kind":                      summary.RequestKind,
-		"repository_identity":               repoIdentity,
-		"target_refs":                       sortedStrings(summary.TargetRefs),
-		"referenced_patch_artifact_digests": sortedStrings(digestIdentitySlice(summary.ReferencedPatchArtifactDigests)),
-		"expected_result_tree_hash":         expectedTree,
-		"metadata_summary":                  gitMetadataSummaryForApproval(summary.MetadataSummary),
-		"repository_policy_digest":          repoPolicyDigest,
-		"deterministic_required_trailers":   deterministicRequiredTrailers(summary.MetadataSummary),
-	}, repoIdentity, nil
-}
-
-func moderateGitRemoteDigests(summary gitRequestSummary) (string, string, error) {
-	expectedTree, err := summary.ExpectedResultTreeHash.Identity()
-	if err != nil {
-		return "", "", err
-	}
-	if summary.MetadataSummary.CommitPolicy == nil {
-		return expectedTree, "", nil
-	}
-	repoPolicyDigest, err := summary.MetadataSummary.CommitPolicy.RepositoryPolicyDigest.Identity()
-	if err != nil {
-		return "", "", err
-	}
-	return expectedTree, repoPolicyDigest, nil
 }
 
 func approvalScopeForGitRemoteAction(action ActionRequest, requestKind string, repoIdentity map[string]any) map[string]any {
@@ -72,8 +52,8 @@ func approvalScopeForGitRemoteAction(action ActionRequest, requestKind string, r
 	return scope
 }
 
-func decodeGitRequestSummary(action ActionRequest) *gitRequestSummary {
-	raw, ok := action.ActionPayload["git_request_summary"]
+func decodeGitTypedRequest(action ActionRequest) map[string]any {
+	raw, ok := action.ActionPayload["git_request"]
 	if !ok {
 		return nil
 	}
@@ -81,11 +61,74 @@ func decodeGitRequestSummary(action ActionRequest) *gitRequestSummary {
 	if !ok {
 		return nil
 	}
-	summary := gitRequestSummary{}
-	if err := decodeActionPayload(rawMap, &summary); err != nil {
+	b, err := json.Marshal(rawMap)
+	if err != nil {
 		return nil
 	}
-	return &summary
+	out := map[string]any{}
+	if err := json.Unmarshal(b, &out); err != nil {
+		return nil
+	}
+	return out
+}
+
+func moderateGitRefUpdateBoundMutation(request map[string]any) (map[string]any, map[string]any, string, error) {
+	decoded := gitRefUpdateRequest{}
+	if err := decodeActionPayload(request, &decoded); err != nil {
+		return nil, nil, "", err
+	}
+	repoIdentity := destinationDescriptorIdentity(decoded.RepositoryIdentity)
+	expectedTree, err := decoded.ExpectedResultTreeHash.Identity()
+	if err != nil {
+		return nil, nil, "", err
+	}
+	commitSummary := map[string]any{
+		"subject":   decoded.CommitIntent.Message.Subject,
+		"author":    gitIdentitySummary(decoded.CommitIntent.Author),
+		"committer": gitIdentitySummary(decoded.CommitIntent.Committer),
+		"signoff":   gitIdentitySummary(decoded.CommitIntent.Signoff),
+	}
+	trailers := deterministicTrailerLines(decoded.CommitIntent.Trailers)
+	return map[string]any{
+		"request_kind":                      decoded.RequestKind,
+		"repository_identity":               repoIdentity,
+		"target_refs":                       []string{decoded.TargetRef},
+		"referenced_patch_artifact_digests": sortedStrings(digestIdentitySlice(decoded.ReferencedPatchArtifactDigests)),
+		"expected_result_tree_hash":         expectedTree,
+		"metadata_summary": map[string]any{
+			"commit": commitSummary,
+		},
+		"deterministic_required_trailers": trailers,
+	}, repoIdentity, decoded.RequestKind, nil
+}
+
+func moderateGitPullRequestBoundMutation(request map[string]any) (map[string]any, map[string]any, string, error) {
+	decoded := gitPullRequestCreateRequest{}
+	if err := decodeActionPayload(request, &decoded); err != nil {
+		return nil, nil, "", err
+	}
+	baseRepoIdentity := destinationDescriptorIdentity(decoded.BaseRepositoryIdentity)
+	headRepoIdentity := destinationDescriptorIdentity(decoded.HeadRepositoryIdentity)
+	expectedTree, err := decoded.ExpectedResultTreeHash.Identity()
+	if err != nil {
+		return nil, nil, "", err
+	}
+	return map[string]any{
+		"request_kind":                      decoded.RequestKind,
+		"repository_identity":               baseRepoIdentity,
+		"head_repository_identity":          headRepoIdentity,
+		"target_refs":                       []string{decoded.BaseRef, decoded.HeadRef},
+		"referenced_patch_artifact_digests": sortedStrings(digestIdentitySlice(decoded.ReferencedPatchArtifactDigests)),
+		"expected_result_tree_hash":         expectedTree,
+		"metadata_summary": map[string]any{
+			"pull_request": map[string]any{
+				"title":    decoded.Title,
+				"base_ref": decoded.BaseRef,
+				"head_ref": decoded.HeadRef,
+			},
+		},
+		"deterministic_required_trailers": []string{},
+	}, baseRepoIdentity, decoded.RequestKind, nil
 }
 
 func destinationDescriptorIdentity(repo DestinationDescriptor) map[string]any {
@@ -120,32 +163,6 @@ func digestIdentitySlice(digests []trustpolicy.Digest) []string {
 	return out
 }
 
-func gitMetadataSummaryForApproval(metadata gitRequestMetadata) map[string]any {
-	out := map[string]any{}
-	if commit := gitCommitSummaryForApproval(metadata.Commit); commit != nil {
-		out["commit"] = commit
-	}
-	if pullRequest := gitPullRequestSummaryForApproval(metadata.PullRequest); pullRequest != nil {
-		out["pull_request"] = pullRequest
-	}
-	if commitPolicy := gitCommitPolicySummaryForApproval(metadata.CommitPolicy); commitPolicy != nil {
-		out["commit_policy"] = commitPolicy
-	}
-	return out
-}
-
-func gitCommitSummaryForApproval(commit *gitCommitMetadata) map[string]any {
-	if commit == nil {
-		return nil
-	}
-	return map[string]any{
-		"subject":   commit.Subject,
-		"author":    gitIdentitySummary(commit.Author),
-		"committer": gitIdentitySummary(commit.Committer),
-		"signoff":   gitIdentitySummary(commit.Signoff),
-	}
-}
-
 func gitIdentitySummary(identity gitIdentity) map[string]any {
 	return map[string]any{
 		"display_name": identity.DisplayName,
@@ -153,81 +170,15 @@ func gitIdentitySummary(identity gitIdentity) map[string]any {
 	}
 }
 
-func gitPullRequestSummaryForApproval(pullRequest *gitPullRequestMetadata) map[string]any {
-	if pullRequest == nil {
-		return nil
-	}
-	return map[string]any{
-		"title":    pullRequest.Title,
-		"base_ref": pullRequest.BaseRef,
-		"head_ref": pullRequest.HeadRef,
-	}
-}
-
-func gitCommitPolicySummaryForApproval(commitPolicy *gitCommitPolicy) map[string]any {
-	if commitPolicy == nil {
-		return nil
-	}
-	return map[string]any{
-		"required_trailer_rules": gitRequiredTrailerRuleSummaries(commitPolicy.RequiredTrailerRules),
-	}
-}
-
-func gitRequiredTrailerRuleSummaries(rules []gitRequiredTrailer) []map[string]any {
-	out := make([]map[string]any, 0, len(rules))
-	for i := range rules {
-		out = append(out, map[string]any{
-			"trailer_key":   rules[i].TrailerKey,
-			"identity_role": rules[i].IdentityRole,
-		})
-	}
-	sort.Slice(out, func(i, j int) bool {
-		ik, _ := out[i]["trailer_key"].(string)
-		jk, _ := out[j]["trailer_key"].(string)
-		if ik != jk {
-			return ik < jk
-		}
-		ii, _ := out[i]["identity_role"].(string)
-		ji, _ := out[j]["identity_role"].(string)
-		return ii < ji
-	})
-	return out
-}
-
-func deterministicRequiredTrailers(metadata gitRequestMetadata) []string {
-	if metadata.Commit == nil || metadata.CommitPolicy == nil {
+func deterministicTrailerLines(trailers []gitCommitTrailer) []string {
+	if len(trailers) == 0 {
 		return []string{}
 	}
-	trailers := make([]string, 0, len(metadata.CommitPolicy.RequiredTrailerRules))
-	for i := range metadata.CommitPolicy.RequiredTrailerRules {
-		trailer, ok := deterministicRequiredTrailer(*metadata.Commit, metadata.CommitPolicy.RequiredTrailerRules[i])
-		if !ok {
-			continue
-		}
-		trailers = append(trailers, trailer)
+	lines := make([]string, 0, len(trailers))
+	for i := range trailers {
+		lines = append(lines, fmt.Sprintf("%s: %s", trailers[i].Key, trailers[i].Value))
 	}
-	return sortedStrings(trailers)
-}
-
-func deterministicRequiredTrailer(commit gitCommitMetadata, rule gitRequiredTrailer) (string, bool) {
-	identity, ok := gitIdentityForRole(commit, rule.IdentityRole)
-	if !ok {
-		return "", false
-	}
-	return fmt.Sprintf("%s: %s <%s>", rule.TrailerKey, identity.DisplayName, identity.Email), true
-}
-
-func gitIdentityForRole(commit gitCommitMetadata, role string) (gitIdentity, bool) {
-	switch role {
-	case "author":
-		return commit.Author, true
-	case "committer":
-		return commit.Committer, true
-	case "signoff":
-		return commit.Signoff, true
-	default:
-		return gitIdentity{}, false
-	}
+	return sortedStrings(lines)
 }
 
 func sortedStrings(values []string) []string {

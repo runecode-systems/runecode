@@ -21,55 +21,60 @@ func runtimeGitOutboundVerificationReason(payload gatewayActionPayloadRuntime) (
 	if !isGatewayRemoteMutationOperation(payload.Operation) {
 		return "", nil, false
 	}
-	summary, proof, reason, details, denied := runtimeGitBoundMutationPayload(payload)
+	request, proof, reason, details, denied := runtimeGitBoundMutationPayload(payload)
 	if denied {
 		return reason, details, true
 	}
-	if reason, details, denied = runtimeGitResultTreeReason(*summary, *proof); denied {
+	if reason, details, denied = runtimeGitResultTreeReason(*request, *proof); denied {
 		return reason, details, true
 	}
 	if reason, details, denied = runtimeGitRemoteStateReason(*proof); denied {
 		return reason, details, true
 	}
-	if reason, details := runtimeGitPatchDigestBindingReason(*summary, *proof); reason != "" {
+	if reason, details := runtimeGitPatchDigestBindingReason(*request, *proof); reason != "" {
 		return reason, details, true
 	}
 	return runtimeGitPullRequestOutcomeReason(payload.Operation, *proof)
 }
 
-func runtimeGitBoundMutationPayload(payload gatewayActionPayloadRuntime) (*gitRequestSummaryPayload, *gitRuntimeProofPayload, string, map[string]any, bool) {
+func runtimeGitBoundMutationPayload(payload gatewayActionPayloadRuntime) (*gitTypedRequestPayload, *gitRuntimeProofPayload, string, map[string]any, bool) {
 	if payload.PayloadHash == nil {
 		return nil, nil, "runtime_git_payload_hash_missing", nil, true
 	}
 	if payload.GitRequest == nil {
-		return nil, nil, "runtime_git_request_summary_missing", nil, true
+		return nil, nil, "runtime_git_request_missing", nil, true
 	}
 	if payload.GitRuntimeProof == nil {
 		return nil, nil, "runtime_git_runtime_proof_missing", nil, true
 	}
-	requestHash, err := canonicalGitRequestSummaryHash(*payload.GitRequest)
+	requestHash, err := canonicalGitTypedRequestHash(payload.GitRequest)
 	if err != nil {
-		return nil, nil, "runtime_git_request_summary_hash_invalid", map[string]any{"error": err.Error()}, true
+		return nil, nil, "runtime_git_request_hash_invalid", map[string]any{"error": err.Error()}, true
 	}
 	payloadHash, err := payload.PayloadHash.Identity()
 	if err != nil {
 		return nil, nil, "runtime_git_payload_hash_invalid", nil, true
 	}
 	if payloadHash != requestHash {
-		return nil, nil, "runtime_git_payload_hash_not_bound_to_request_summary", map[string]any{"payload_hash": payloadHash, "request_summary_hash": requestHash}, true
+		return nil, nil, "runtime_git_payload_hash_not_bound_to_request", map[string]any{"payload_hash": payloadHash, "request_hash": requestHash}, true
 	}
 	proofRequestHash, err := payload.GitRuntimeProof.TypedRequestHash.Identity()
 	if err != nil {
 		return nil, nil, "runtime_git_typed_request_hash_invalid", nil, true
 	}
 	if proofRequestHash != requestHash {
-		return nil, nil, "runtime_git_typed_request_hash_not_bound", map[string]any{"typed_request_hash": proofRequestHash, "request_summary_hash": requestHash}, true
+		return nil, nil, "runtime_git_typed_request_hash_not_bound", map[string]any{"typed_request_hash": proofRequestHash, "request_hash": requestHash}, true
 	}
-	return payload.GitRequest, payload.GitRuntimeProof, "", nil, false
+	requestKind, _ := payload.GitRequest["request_kind"].(string)
+	return &gitTypedRequestPayload{RequestKind: requestKind, Request: payload.GitRequest}, payload.GitRuntimeProof, "", nil, false
 }
 
-func runtimeGitResultTreeReason(summary gitRequestSummaryPayload, proof gitRuntimeProofPayload) (string, map[string]any, bool) {
-	expectedTree, err := summary.ExpectedResultTreeHash.Identity()
+func runtimeGitResultTreeReason(request gitTypedRequestPayload, proof gitRuntimeProofPayload) (string, map[string]any, bool) {
+	expectedTreeDigest, err := request.expectedResultTreeHash()
+	if err != nil {
+		return "runtime_git_expected_result_tree_hash_invalid", nil, true
+	}
+	expectedTree, err := expectedTreeDigest.Identity()
 	if err != nil {
 		return "runtime_git_expected_result_tree_hash_invalid", nil, true
 	}
@@ -122,16 +127,20 @@ func runtimeGitPullRequestOutcomeReason(operation string, proof gitRuntimeProofP
 	return "", nil, false
 }
 
-func canonicalGitRequestSummaryHash(summary gitRequestSummaryPayload) (string, error) {
-	b, err := json.Marshal(summary)
+func canonicalGitTypedRequestHash(request map[string]any) (string, error) {
+	b, err := json.Marshal(request)
 	if err != nil {
 		return "", err
 	}
 	return policyengine.CanonicalHashBytes(b)
 }
 
-func runtimeGitPatchDigestBindingReason(summary gitRequestSummaryPayload, proof gitRuntimeProofPayload) (string, map[string]any) {
-	summaryDigests := digestIdentitySlice(summary.ReferencedPatchArtifactDigests)
+func runtimeGitPatchDigestBindingReason(request gitTypedRequestPayload, proof gitRuntimeProofPayload) (string, map[string]any) {
+	requestPatchDigests, err := request.referencedPatchArtifactDigests()
+	if err != nil {
+		return "runtime_git_patch_artifact_digests_invalid", nil
+	}
+	summaryDigests := digestIdentitySlice(requestPatchDigests)
 	proofDigests := digestIdentitySlice(proof.PatchArtifactDigests)
 	if len(summaryDigests) == 0 {
 		return "runtime_git_patch_artifact_digests_missing", nil

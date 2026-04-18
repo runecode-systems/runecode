@@ -15,7 +15,12 @@ Expanded to include trust-boundary interfaces, audit-evidence binding, and local
 
 The resulting git-gateway foundation must preserve all of the following:
 - one shared gateway and approval model rather than a git-only exception path
+- typed git request objects as sole authority, with summary projections as derived-only UX data
+- migration away from `GitRemoteMutationSummary` as any authority surface for git-lane behavior
 - logical repository identity and exact approval binding rather than raw URL policy
 - artifact-managed repository policy, including optional repository-specific commit rules such as DCO
+- broker `prepare/get/execute` request-union contract with CLI and TUI as friendly thin adapters
+- trusted Go orchestration with native git for local mutation/ref push and Go provider adapters for provider APIs
+- GitHub-first provider delivery under provider-neutral contracts
 - broker-owned setup and configuration semantics with TUI and CLI as thin clients
 - auditable, lease-bound, fail-closed remote mutation with no second secrets store or second policy authority

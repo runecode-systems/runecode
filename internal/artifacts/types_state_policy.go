@@ -14,6 +14,8 @@ type StoreState struct {
 	RunPolicyDecisionRefs    map[string][]string                                `json:"run_policy_decision_refs,omitempty"`
 	Approvals                map[string]ApprovalRecord                          `json:"approvals,omitempty"`
 	RunApprovalRefs          map[string][]string                                `json:"run_approval_refs,omitempty"`
+	GitRemotePrepared        map[string]GitRemotePreparedMutationRecord         `json:"git_remote_prepared,omitempty"`
+	RunGitRemotePreparedRefs map[string][]string                                `json:"run_git_remote_prepared_refs,omitempty"`
 	RuntimeFactsByRun        map[string]launcherbackend.RuntimeFactsSnapshot    `json:"runtime_facts_by_run,omitempty"`
 	RuntimeEvidenceByRun     map[string]launcherbackend.RuntimeEvidenceSnapshot `json:"runtime_evidence_by_run,omitempty"`
 	RuntimeLifecycleByRun    map[string]launcherbackend.RuntimeLifecycleState   `json:"runtime_lifecycle_by_run,omitempty"`
@@ -129,6 +131,36 @@ type PolicyDecisionRecord struct {
 	RecordedAt               time.Time      `json:"recorded_at"`
 	AuditEventType           string         `json:"audit_event_type"`
 	AuditEventSeq            int64          `json:"audit_event_seq"`
+}
+
+type GitRemotePreparedMutationRecord struct {
+	PreparedMutationID       string         `json:"prepared_mutation_id"`
+	RunID                    string         `json:"run_id"`
+	Provider                 string         `json:"provider"`
+	DestinationRef           string         `json:"destination_ref"`
+	RequestKind              string         `json:"request_kind"`
+	TypedRequestSchemaID     string         `json:"typed_request_schema_id"`
+	TypedRequestSchemaVer    string         `json:"typed_request_schema_version"`
+	TypedRequest             map[string]any `json:"typed_request"`
+	TypedRequestHash         string         `json:"typed_request_hash"`
+	ActionRequestHash        string         `json:"action_request_hash"`
+	PolicyDecisionHash       string         `json:"policy_decision_hash"`
+	RequiredApprovalID       string         `json:"required_approval_id,omitempty"`
+	RequiredApprovalReqHash  string         `json:"required_approval_request_hash,omitempty"`
+	RequiredApprovalDecHash  string         `json:"required_approval_decision_hash,omitempty"`
+	LifecycleState           string         `json:"lifecycle_state"`
+	LifecycleReasonCode      string         `json:"lifecycle_reason_code,omitempty"`
+	ExecutionState           string         `json:"execution_state,omitempty"`
+	ExecutionReasonCode      string         `json:"execution_reason_code,omitempty"`
+	DerivedSummary           map[string]any `json:"derived_summary"`
+	CreatedAt                time.Time      `json:"created_at"`
+	UpdatedAt                time.Time      `json:"updated_at"`
+	LastPrepareRequestID     string         `json:"last_prepare_request_id,omitempty"`
+	LastGetRequestID         string         `json:"last_get_request_id,omitempty"`
+	LastExecuteRequestID     string         `json:"last_execute_request_id,omitempty"`
+	LastExecuteApprovalID    string         `json:"last_execute_approval_id,omitempty"`
+	LastExecuteApprovalReqID string         `json:"last_execute_approval_request_hash,omitempty"`
+	LastExecuteApprovalDecID string         `json:"last_execute_approval_decision_hash,omitempty"`
 }
 
 type PromotionRequest struct {

@@ -58,6 +58,10 @@ type localBrokerClient interface {
 	GitSetupGet(ctx context.Context, provider string) (brokerapi.GitSetupGetResponse, error)
 	GitSetupAuthBootstrap(ctx context.Context, req brokerapi.GitSetupAuthBootstrapRequest) (brokerapi.GitSetupAuthBootstrapResponse, error)
 	GitSetupIdentityUpsert(ctx context.Context, req brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, error)
+	GitRemoteMutationPrepare(ctx context.Context, req brokerapi.GitRemoteMutationPrepareRequest) (brokerapi.GitRemoteMutationPrepareResponse, error)
+	GitRemoteMutationGet(ctx context.Context, req brokerapi.GitRemoteMutationGetRequest) (brokerapi.GitRemoteMutationGetResponse, error)
+	GitRemoteMutationIssueExecuteLease(ctx context.Context, req brokerapi.GitRemoteMutationIssueExecuteLeaseRequest) (brokerapi.GitRemoteMutationIssueExecuteLeaseResponse, error)
+	GitRemoteMutationExecute(ctx context.Context, req brokerapi.GitRemoteMutationExecuteRequest) (brokerapi.GitRemoteMutationExecuteResponse, error)
 	ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error)
 	VersionInfoGet(ctx context.Context) (brokerapi.VersionInfoGetResponse, error)
 }
@@ -267,6 +271,38 @@ func (c *rpcBrokerClient) GitSetupIdentityUpsert(ctx context.Context, req broker
 	req.RequestID = newRequestID("git-setup-identity-upsert")
 	resp := brokerapi.GitSetupIdentityUpsertResponse{}
 	return resp, c.invoke(ctx, "git_setup_identity_upsert", req, &resp)
+}
+
+func (c *rpcBrokerClient) GitRemoteMutationPrepare(ctx context.Context, req brokerapi.GitRemoteMutationPrepareRequest) (brokerapi.GitRemoteMutationPrepareResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.GitRemoteMutationPrepareRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("git-remote-mutation-prepare")
+	resp := brokerapi.GitRemoteMutationPrepareResponse{}
+	return resp, c.invoke(ctx, "git_remote_mutation_prepare", req, &resp)
+}
+
+func (c *rpcBrokerClient) GitRemoteMutationGet(ctx context.Context, req brokerapi.GitRemoteMutationGetRequest) (brokerapi.GitRemoteMutationGetResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.GitRemoteMutationGetRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("git-remote-mutation-get")
+	resp := brokerapi.GitRemoteMutationGetResponse{}
+	return resp, c.invoke(ctx, "git_remote_mutation_get", req, &resp)
+}
+
+func (c *rpcBrokerClient) GitRemoteMutationIssueExecuteLease(ctx context.Context, req brokerapi.GitRemoteMutationIssueExecuteLeaseRequest) (brokerapi.GitRemoteMutationIssueExecuteLeaseResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.GitRemoteMutationIssueExecuteLeaseRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("git-remote-mutation-issue-execute-lease")
+	resp := brokerapi.GitRemoteMutationIssueExecuteLeaseResponse{}
+	return resp, c.invoke(ctx, "git_remote_mutation_issue_execute_lease", req, &resp)
+}
+
+func (c *rpcBrokerClient) GitRemoteMutationExecute(ctx context.Context, req brokerapi.GitRemoteMutationExecuteRequest) (brokerapi.GitRemoteMutationExecuteResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.GitRemoteMutationExecuteRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("git-remote-mutation-execute")
+	resp := brokerapi.GitRemoteMutationExecuteResponse{}
+	return resp, c.invoke(ctx, "git_remote_mutation_execute", req, &resp)
 }
 
 func (c *rpcBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error) {

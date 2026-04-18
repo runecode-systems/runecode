@@ -74,47 +74,57 @@ type GatewayEgressActionInput struct {
 	TimeoutSeconds  *int
 	PayloadHash     *trustpolicy.Digest
 	AuditContext    *GatewayAuditContextInput
-	GitRequest      *GitRequestSummaryInput
+	GitRequest      *GitTypedRequestInput
 	GitRuntimeProof *GitRuntimeProofInput
 	QuotaContext    *GatewayQuotaContextInput
 }
 
-type GitRequestSummaryInput struct {
-	RequestKind                    string
+type GitTypedRequestInput struct {
+	RefUpdate         *GitRefUpdateRequestInput
+	PullRequestCreate *GitPullRequestCreateRequestInput
+}
+
+type GitRefUpdateRequestInput struct {
 	RepositoryIdentity             DestinationDescriptor
-	TargetRefs                     []string
+	TargetRef                      string
+	ExpectedOldRefHash             trustpolicy.Digest
+	ReferencedPatchArtifactDigests []trustpolicy.Digest
+	CommitIntent                   GitCommitIntentInput
+	ExpectedResultTreeHash         trustpolicy.Digest
+	AllowForcePush                 bool
+	AllowRefDeletion               bool
+	RefPurpose                     string
+	BaseRef                        string
+}
+
+type GitPullRequestCreateRequestInput struct {
+	BaseRepositoryIdentity         DestinationDescriptor
+	BaseRef                        string
+	HeadRepositoryIdentity         DestinationDescriptor
+	HeadRef                        string
+	Title                          string
+	Body                           string
+	HeadCommitOrTreeHash           trustpolicy.Digest
 	ReferencedPatchArtifactDigests []trustpolicy.Digest
 	ExpectedResultTreeHash         trustpolicy.Digest
-	MetadataSummary                GitRequestMetadataInput
 }
 
-type GitRequestMetadataInput struct {
-	Commit       *GitCommitMetadataInput
-	PullRequest  *GitPullRequestMetadataInput
-	CommitPolicy *GitCommitPolicyInput
-}
-
-type GitCommitMetadataInput struct {
-	Subject   string
+type GitCommitIntentInput struct {
+	Message   GitCommitMessageInput
+	Trailers  []GitCommitTrailerInput
 	Author    GitIdentityInput
 	Committer GitIdentityInput
 	Signoff   GitIdentityInput
 }
 
-type GitPullRequestMetadataInput struct {
-	Title   string
-	BaseRef string
-	HeadRef string
+type GitCommitMessageInput struct {
+	Subject string
+	Body    string
 }
 
-type GitCommitPolicyInput struct {
-	RepositoryPolicyDigest trustpolicy.Digest
-	RequiredTrailerRules   []GitRequiredTrailerInput
-}
-
-type GitRequiredTrailerInput struct {
-	TrailerKey   string
-	IdentityRole string
+type GitCommitTrailerInput struct {
+	Key   string
+	Value string
 }
 
 type GitIdentityInput struct {
