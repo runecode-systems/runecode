@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/GitSetupGetResponse.schema.json",
+  "title": "GitSetupGetResponse",
+  "description": "Typed response carrying broker-owned git setup and configuration state.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 8,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "request_id",
+    "provider_account",
+    "identity_profiles",
+    "auth_posture",
+    "control_plane_state",
+    "policy_surface"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.GitSetupGetResponse",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Stable request correlation identifier echoed from the request.",
+      "x-data-class": "public"
+    },
+    "provider_account": {
+      "$ref": "GitProviderAccountState.schema.json",
+      "description": "Broker-projected provider account linkage state.",
+      "x-data-class": "public"
+    },
+    "identity_profiles": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "Broker-managed commit identity profiles available for git setup flows.",
+      "items": { "$ref": "GitCommitIdentityProfile.schema.json" },
+      "x-data-class": "public"
+    },
+    "auth_posture": {
+      "$ref": "GitAuthPostureState.schema.json",
+      "description": "Broker-projected auth posture for the selected provider.",
+      "x-data-class": "public"
+    },
+    "control_plane_state": {
+      "$ref": "GitControlPlaneState.schema.json",
+      "description": "Broker-managed non-policy git setup state for the selected provider.",
+      "x-data-class": "public"
+    },
+    "policy_surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 4,
+      "description": "Explicit boundary contract showing that repo policy remains artifact-managed only.",
+      "required": [
+        "artifact_managed_only",
+        "inspection_supported",
+        "prepare_changes_supported",
+        "direct_mutation_supported"
+      ],
+      "properties": {
+        "artifact_managed_only": { "type": "boolean", "const": true, "description": "Repo policy is authoritative only through reviewed artifacts or manifests.", "x-data-class": "public" },
+        "inspection_supported": { "type": "boolean", "description": "Whether clients may inspect authoritative repo policy via broker-owned reads.", "x-data-class": "public" },
+        "prepare_changes_supported": { "type": "boolean", "description": "Whether clients may prepare reviewed policy changes without mutating truth directly.", "x-data-class": "public" },
+        "direct_mutation_supported": { "type": "boolean", "const": false, "description": "Direct client-local policy mutation is not supported.", "x-data-class": "public" }
+      },
+      "x-data-class": "public"
+    }
+  }
+}

@@ -33,6 +33,7 @@ type Service struct {
 	apiConfig                 APIConfig
 	apiInflight               *inFlightGate
 	versionInfo               BrokerVersionInfo
+	gitSetup                  *gitSetupState
 	now                       func() time.Time
 }
 
@@ -65,6 +66,7 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 		gatewayQuota:              quotaBackend,
 		gatewayRuntime:            runtime,
 		instancePostureController: newLocalInstanceBackendPostureController(),
+		gitSetup:                  newGitSetupState(),
 		apiConfig:                 resolved,
 		apiInflight:               newInFlightGate(resolved.Limits),
 		now:                       time.Now,

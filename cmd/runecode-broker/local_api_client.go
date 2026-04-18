@@ -38,6 +38,9 @@ type brokerLocalAPI interface {
 	AuditAnchorPreflightGet(context.Context, brokerapi.AuditAnchorPreflightGetRequest) (brokerapi.AuditAnchorPreflightGetResponse, *brokerapi.ErrorResponse)
 	AuditAnchorPresenceGet(context.Context, brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, *brokerapi.ErrorResponse)
 	AuditAnchorSegment(context.Context, brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, *brokerapi.ErrorResponse)
+	GitSetupGet(context.Context, brokerapi.GitSetupGetRequest) (brokerapi.GitSetupGetResponse, *brokerapi.ErrorResponse)
+	GitSetupAuthBootstrap(context.Context, brokerapi.GitSetupAuthBootstrapRequest) (brokerapi.GitSetupAuthBootstrapResponse, *brokerapi.ErrorResponse)
+	GitSetupIdentityUpsert(context.Context, brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, *brokerapi.ErrorResponse)
 }
 
 type localRPCInvokeFunc func(ctx context.Context, operation string, request any, out any) *brokerapi.ErrorResponse
@@ -232,4 +235,19 @@ func (c *localAPIClient) AuditAnchorPresenceGet(ctx context.Context, req brokera
 func (c *localAPIClient) AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.AuditAnchorSegmentResponse{}
 	return resp, c.invoke(ctx, "audit_anchor_segment", req, &resp)
+}
+
+func (c *localAPIClient) GitSetupGet(ctx context.Context, req brokerapi.GitSetupGetRequest) (brokerapi.GitSetupGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.GitSetupGetResponse{}
+	return resp, c.invoke(ctx, "git_setup_get", req, &resp)
+}
+
+func (c *localAPIClient) GitSetupAuthBootstrap(ctx context.Context, req brokerapi.GitSetupAuthBootstrapRequest) (brokerapi.GitSetupAuthBootstrapResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.GitSetupAuthBootstrapResponse{}
+	return resp, c.invoke(ctx, "git_setup_auth_bootstrap", req, &resp)
+}
+
+func (c *localAPIClient) GitSetupIdentityUpsert(ctx context.Context, req brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.GitSetupIdentityUpsertResponse{}
+	return resp, c.invoke(ctx, "git_setup_identity_upsert", req, &resp)
 }

@@ -78,21 +78,36 @@ func requiredApprovalForModerateProfile(compiled *CompiledContext, action Action
 	case ActionKindBackendPosture:
 		return requiredApprovalModerateBackendSchemaID, moderateBackendApprovalPayload(base, action)
 	case ActionKindGatewayEgress, ActionKindDependencyFetch:
-		if !isModerateGatewayCheckpointAction(action) {
-			return "", nil
-		}
-		return requiredApprovalModerateGatewaySchemaID, moderateGatewayApprovalPayload(base, action.ActionKind)
+		return requiredApprovalForModerateGateway(base, action)
 	case ActionKindWorkspaceWrite:
-		if targetPath, ok := action.ActionPayload["target_path"].(string); ok {
-			if !isWorkspaceRelativePath(targetPath) {
-				return requiredApprovalModerateWorkspaceSchemaID, moderateWorkspaceWriteApprovalPayload(base)
-			}
-		}
+		return requiredApprovalForModerateWorkspace(base, action)
 	case ActionKindSecretAccess:
 		return requiredApprovalModerateSecretSchemaID, moderateSecretApprovalPayload(base)
 	}
 
 	return "", nil
+}
+
+func requiredApprovalForModerateGateway(base map[string]any, action ActionRequest) (string, map[string]any) {
+	if !isModerateGatewayCheckpointAction(action) {
+		return "", nil
+	}
+	payload := gatewayModerateApprovalPayload(base, action)
+	if payload == nil {
+		return "", nil
+	}
+	if trigger, _ := payload["approval_trigger_code"].(string); trigger == "git_remote_ops" {
+		return requiredApprovalModerateGitRemoteSchemaID, payload
+	}
+	return requiredApprovalModerateGatewaySchemaID, payload
+}
+
+func requiredApprovalForModerateWorkspace(base map[string]any, action ActionRequest) (string, map[string]any) {
+	targetPath, _ := action.ActionPayload["target_path"].(string)
+	if isWorkspaceRelativePath(targetPath) {
+		return "", nil
+	}
+	return requiredApprovalModerateWorkspaceSchemaID, moderateWorkspaceWriteApprovalPayload(base)
 }
 
 func baseModerateApprovalPayload(compiled *CompiledContext, action ActionRequest, actionHash string) map[string]any {
@@ -161,10 +176,28 @@ func moderateBackendApprovalPayload(base map[string]any, action ActionRequest) m
 	return payload
 }
 
-func moderateGatewayApprovalPayload(base map[string]any, kind string) map[string]any {
+func gatewayModerateApprovalPayload(base map[string]any, action ActionRequest) map[string]any {
 	payload := cloneMap(base)
+	if action.ActionKind == ActionKindDependencyFetch {
+		payload["approval_trigger_code"] = "dependency_network_fetch"
+		payload["checkpoint_scope"] = "gateway_or_dependency_scope_change"
+		payload["why_required"] = "Moderate profile requires checkpoint approval only when enabling or expanding gateway/dependency scope."
+		payload["changes_if_approved"] = "Gateway egress action can proceed for the bound request and manifest context."
+		payload["security_posture_impact"] = "high"
+		return payload
+	}
+
+	operation, _ := action.ActionPayload["operation"].(string)
+	if isGatewayRemoteMutationOperation(operation) {
+		gitPayload, ok := moderateGitRemoteApprovalPayload(payload, action)
+		if !ok {
+			return nil
+		}
+		return gitPayload
+	}
+
 	payload["approval_trigger_code"] = "gateway_egress_scope_change"
-	if kind == ActionKindDependencyFetch {
+	if action.ActionKind == ActionKindDependencyFetch {
 		payload["approval_trigger_code"] = "dependency_network_fetch"
 	}
 	payload["checkpoint_scope"] = "gateway_or_dependency_scope_change"
@@ -203,12 +236,8 @@ func cloneMap(in map[string]any) map[string]any {
 
 func isModerateGatewayCheckpointAction(action ActionRequest) bool {
 	operation, _ := action.ActionPayload["operation"].(string)
-	scopeCheckpointOps := map[string]struct{}{
-		"enable_gateway":          {},
-		"expand_scope":            {},
-		"change_allowlist":        {},
-		"enable_dependency_fetch": {},
+	if isGatewayRemoteMutationOperation(operation) {
+		return true
 	}
-	_, ok := scopeCheckpointOps[operation]
-	return ok
+	return isGatewayScopeChangeOperation(operation)
 }

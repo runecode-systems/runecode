@@ -113,6 +113,40 @@ func TestEvaluateDependencyFetchUsesDependencyTriggerCode(t *testing.T) {
 	}
 }
 
+func TestEvaluateGitRemoteMutationRequiresDedicatedTriggerAndReauthenticatedAssurance(t *testing.T) {
+	allowlist := validAllowlistPayloadForGateway("allowlist-git", "git-gateway", "git_remote", "git_ref_update", "diffs")
+	compiled := mustCompile(t, compileGatewayInputWithOneCapability("git-gateway", "cap_git", allowlist))
+	action := validGitRemoteMutationActionRequest("cap_git", "git_ref_update")
+	action.ActionPayload["destination_ref"] = "allowlist-git.example.com/org/repo"
+
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionRequireHumanApproval {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionRequireHumanApproval)
+	}
+	if decision.RequiredApprovalSchemaID != requiredApprovalModerateGitRemoteSchemaID {
+		t.Fatalf("required_approval_schema_id = %q, want %q", decision.RequiredApprovalSchemaID, requiredApprovalModerateGitRemoteSchemaID)
+	}
+	if got, _ := decision.RequiredApproval["approval_trigger_code"].(string); got != "git_remote_ops" {
+		t.Fatalf("required_approval.approval_trigger_code = %q, want git_remote_ops", got)
+	}
+	if got, _ := decision.RequiredApproval["approval_assurance_level"].(string); got != string(ApprovalAssuranceReauthenticated) {
+		t.Fatalf("required_approval.approval_assurance_level = %q, want %q", got, ApprovalAssuranceReauthenticated)
+	}
+	if got, _ := decision.RequiredApproval["stage_sign_off_is_prerequisite_only"].(bool); !got {
+		t.Fatalf("required_approval.stage_sign_off_is_prerequisite_only = %v, want true", decision.RequiredApproval["stage_sign_off_is_prerequisite_only"])
+	}
+	bound, ok := decision.RequiredApproval["bound_remote_mutation"].(map[string]any)
+	if !ok {
+		t.Fatalf("required_approval.bound_remote_mutation = %T, want map", decision.RequiredApproval["bound_remote_mutation"])
+	}
+	if bound["expected_result_tree_hash"] == "" {
+		t.Fatal("required_approval.bound_remote_mutation.expected_result_tree_hash empty")
+	}
+}
+
 func TestEvaluateSecretAccessRequiresModerateApproval(t *testing.T) {
 	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
 	action := validSecretAccessActionRequest("cap_stage")

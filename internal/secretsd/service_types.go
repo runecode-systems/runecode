@@ -8,13 +8,16 @@ import (
 )
 
 const (
-	stateFileName      = "state.json"
-	secretsDirName     = "secrets"
-	stateVersion       = 1
-	defaultTTLSeconds  = 900
-	hardCapTTLSeconds  = 3600
-	leaseStatusActive  = "active"
-	leaseStatusRevoked = "revoked"
+	stateFileName                   = "state.json"
+	secretsDirName                  = "secrets"
+	stateVersion                    = 1
+	defaultTTLSeconds               = 900
+	hardCapTTLSeconds               = 3600
+	leaseStatusActive               = "active"
+	leaseStatusRevoked              = "revoked"
+	deliveryKindGitGateway          = "git_gateway"
+	deliveryKindEnvironmentVariable = "environment_variable"
+	deliveryKindCLIArgument         = "cli_argument"
 )
 
 var (
@@ -40,16 +43,32 @@ type SecretMetadata struct {
 }
 
 type Lease struct {
-	LeaseID    string     `json:"lease_id"`
-	SecretRef  string     `json:"secret_ref"`
-	ConsumerID string     `json:"consumer_id"`
-	RoleKind   string     `json:"role_kind"`
-	Scope      string     `json:"scope"`
-	IssuedAt   time.Time  `json:"issued_at"`
-	ExpiresAt  time.Time  `json:"expires_at"`
-	Status     string     `json:"status"`
-	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
-	Reason     string     `json:"reason,omitempty"`
+	LeaseID      string           `json:"lease_id"`
+	SecretRef    string           `json:"secret_ref"`
+	ConsumerID   string           `json:"consumer_id"`
+	RoleKind     string           `json:"role_kind"`
+	Scope        string           `json:"scope"`
+	DeliveryKind string           `json:"delivery_kind,omitempty"`
+	GitBinding   *GitLeaseBinding `json:"git_binding,omitempty"`
+	IssuedAt     time.Time        `json:"issued_at"`
+	ExpiresAt    time.Time        `json:"expires_at"`
+	Status       string           `json:"status"`
+	RevokedAt    *time.Time       `json:"revoked_at,omitempty"`
+	Reason       string           `json:"reason,omitempty"`
+}
+
+type GitLeaseBinding struct {
+	RepositoryIdentity string   `json:"repository_identity"`
+	AllowedOperations  []string `json:"allowed_operations"`
+	ActionRequestHash  string   `json:"action_request_hash"`
+	PolicyContextHash  string   `json:"policy_context_hash"`
+}
+
+type GitLeaseUseContext struct {
+	RepositoryIdentity string `json:"repository_identity"`
+	Operation          string `json:"operation"`
+	ActionRequestHash  string `json:"action_request_hash"`
+	PolicyContextHash  string `json:"policy_context_hash"`
 }
 
 type RuntimeSnapshot struct {
@@ -66,11 +85,13 @@ type RuntimeSnapshot struct {
 }
 
 type IssueLeaseRequest struct {
-	SecretRef  string
-	ConsumerID string
-	RoleKind   string
-	Scope      string
-	TTLSeconds int
+	SecretRef    string
+	ConsumerID   string
+	RoleKind     string
+	Scope        string
+	DeliveryKind string
+	GitBinding   *GitLeaseBinding
+	TTLSeconds   int
 }
 
 type RenewLeaseRequest struct {
@@ -90,10 +111,19 @@ type RevokeLeaseRequest struct {
 }
 
 type RetrieveRequest struct {
-	LeaseID    string
-	ConsumerID string
-	RoleKind   string
-	Scope      string
+	LeaseID       string
+	ConsumerID    string
+	RoleKind      string
+	Scope         string
+	DeliveryKind  string
+	GitUseContext *GitLeaseUseContext
+}
+
+type RevokeGitLeasesRequest struct {
+	RepositoryIdentity string
+	ActionRequestHash  string
+	PolicyContextHash  string
+	Reason             string
 }
 
 type state struct {
@@ -112,16 +142,18 @@ type secretRecord struct {
 }
 
 type leaseRecord struct {
-	LeaseID    string     `json:"lease_id"`
-	SecretRef  string     `json:"secret_ref"`
-	ConsumerID string     `json:"consumer_id"`
-	RoleKind   string     `json:"role_kind"`
-	Scope      string     `json:"scope"`
-	IssuedAt   time.Time  `json:"issued_at"`
-	ExpiresAt  time.Time  `json:"expires_at"`
-	Status     string     `json:"status"`
-	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
-	Reason     string     `json:"reason,omitempty"`
+	LeaseID      string           `json:"lease_id"`
+	SecretRef    string           `json:"secret_ref"`
+	ConsumerID   string           `json:"consumer_id"`
+	RoleKind     string           `json:"role_kind"`
+	Scope        string           `json:"scope"`
+	DeliveryKind string           `json:"delivery_kind,omitempty"`
+	GitBinding   *GitLeaseBinding `json:"git_binding,omitempty"`
+	IssuedAt     time.Time        `json:"issued_at"`
+	ExpiresAt    time.Time        `json:"expires_at"`
+	Status       string           `json:"status"`
+	RevokedAt    *time.Time       `json:"revoked_at,omitempty"`
+	Reason       string           `json:"reason,omitempty"`
 }
 
 type metrics struct {
@@ -137,15 +169,17 @@ func (r leaseRecord) bindingMatches(consumerID, roleKind, scope string) bool {
 
 func (r leaseRecord) public() Lease {
 	return Lease{
-		LeaseID:    r.LeaseID,
-		SecretRef:  r.SecretRef,
-		ConsumerID: r.ConsumerID,
-		RoleKind:   r.RoleKind,
-		Scope:      r.Scope,
-		IssuedAt:   r.IssuedAt,
-		ExpiresAt:  r.ExpiresAt,
-		Status:     r.Status,
-		RevokedAt:  r.RevokedAt,
-		Reason:     r.Reason,
+		LeaseID:      r.LeaseID,
+		SecretRef:    r.SecretRef,
+		ConsumerID:   r.ConsumerID,
+		RoleKind:     r.RoleKind,
+		Scope:        r.Scope,
+		DeliveryKind: r.DeliveryKind,
+		GitBinding:   cloneGitLeaseBinding(r.GitBinding),
+		IssuedAt:     r.IssuedAt,
+		ExpiresAt:    r.ExpiresAt,
+		Status:       r.Status,
+		RevokedAt:    r.RevokedAt,
+		Reason:       r.Reason,
 	}
 }

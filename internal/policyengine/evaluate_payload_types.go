@@ -26,6 +26,71 @@ type gatewayEgressPayload struct {
 	PayloadHash     *trustpolicy.Digest  `json:"payload_hash,omitempty"`
 	AuditContext    *gatewayAuditContext `json:"audit_context,omitempty"`
 	QuotaContext    *gatewayQuotaContext `json:"quota_context,omitempty"`
+	GitRequest      *gitRequestSummary   `json:"git_request_summary,omitempty"`
+	GitRuntimeProof *gitRuntimeProof     `json:"git_runtime_proof,omitempty"`
+}
+
+type gitRequestSummary struct {
+	SchemaID                       string                `json:"schema_id"`
+	SchemaVersion                  string                `json:"schema_version"`
+	RequestKind                    string                `json:"request_kind"`
+	RepositoryIdentity             DestinationDescriptor `json:"repository_identity"`
+	TargetRefs                     []string              `json:"target_refs"`
+	ReferencedPatchArtifactDigests []trustpolicy.Digest  `json:"referenced_patch_artifact_digests"`
+	ExpectedResultTreeHash         trustpolicy.Digest    `json:"expected_result_tree_hash"`
+	MetadataSummary                gitRequestMetadata    `json:"metadata_summary"`
+}
+
+type gitRequestMetadata struct {
+	Commit       *gitCommitMetadata      `json:"commit,omitempty"`
+	PullRequest  *gitPullRequestMetadata `json:"pull_request,omitempty"`
+	CommitPolicy *gitCommitPolicy        `json:"commit_policy,omitempty"`
+}
+
+type gitCommitMetadata struct {
+	Subject   string      `json:"subject"`
+	Author    gitIdentity `json:"author"`
+	Committer gitIdentity `json:"committer"`
+	Signoff   gitIdentity `json:"signoff"`
+}
+
+type gitPullRequestMetadata struct {
+	Title   string `json:"title"`
+	BaseRef string `json:"base_ref"`
+	HeadRef string `json:"head_ref"`
+}
+
+type gitCommitPolicy struct {
+	RepositoryPolicyDigest trustpolicy.Digest   `json:"repository_policy_digest"`
+	RequiredTrailerRules   []gitRequiredTrailer `json:"required_trailer_rules"`
+}
+
+type gitRequiredTrailer struct {
+	TrailerKey   string `json:"trailer_key"`
+	IdentityRole string `json:"identity_role"`
+}
+
+type gitIdentity struct {
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+}
+
+type gitRuntimeProof struct {
+	SchemaID               string               `json:"schema_id"`
+	SchemaVersion          string               `json:"schema_version"`
+	TypedRequestHash       trustpolicy.Digest   `json:"typed_request_hash"`
+	PatchArtifactDigests   []trustpolicy.Digest `json:"patch_artifact_digests,omitempty"`
+	ExpectedOldObjectID    string               `json:"expected_old_object_id"`
+	ObservedOldObjectID    string               `json:"observed_old_object_id"`
+	ExpectedResultTreeHash trustpolicy.Digest   `json:"expected_result_tree_hash"`
+	ObservedResultTreeHash trustpolicy.Digest   `json:"observed_result_tree_hash"`
+	SparseCheckoutApplied  bool                 `json:"sparse_checkout_applied"`
+	DriftDetected          bool                 `json:"drift_detected"`
+	DestructiveRefMutation bool                 `json:"destructive_ref_mutation"`
+	ProviderKind           string               `json:"provider_kind,omitempty"`
+	PullRequestNumber      *int64               `json:"pull_request_number,omitempty"`
+	PullRequestURL         string               `json:"pull_request_url,omitempty"`
+	EvidenceRefs           []string             `json:"evidence_refs,omitempty"`
 }
 
 type gatewayAuditContext struct {

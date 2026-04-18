@@ -13,6 +13,7 @@ const (
 	routeArtifacts routeID = "artifacts"
 	routeAudit     routeID = "audit"
 	routeStatus    routeID = "status"
+	routeGitSetup  routeID = "git-setup"
 )
 
 type routeDefinition struct {
@@ -32,6 +33,7 @@ func shellRoutes() []routeDefinition {
 		{ID: routeArtifacts, Label: "Artifacts", Description: "Artifact browsing and drill-down", Index: 6},
 		{ID: routeAudit, Label: "Audit", Description: "Audit timeline and verification posture", Index: 7},
 		{ID: routeStatus, Label: "Status", Description: "Broker readiness and subsystem posture", Index: 8},
+		{ID: routeGitSetup, Label: "Git Setup", Description: "Broker-owned git setup and auth posture", Index: 9},
 	}
 }
 

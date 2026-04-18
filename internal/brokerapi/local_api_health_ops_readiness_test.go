@@ -441,6 +441,7 @@ func trustedDependencyFetchAllowlistEntry() map[string]any {
 		"schema_id":                   "runecode.protocol.v0.GatewayScopeRule",
 		"schema_version":              "0.1.0",
 		"scope_kind":                  "gateway_destination",
+		"entry_id":                    "dependency_default",
 		"gateway_role_kind":           "dependency-fetch",
 		"destination":                 trustedModelGatewayDestination(),
 		"permitted_operations":        []any{"fetch_dependency"},

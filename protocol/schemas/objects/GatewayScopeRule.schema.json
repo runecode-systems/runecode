@@ -5,7 +5,7 @@
   "description": "Typed gateway allowlist entry that binds destination identity to permitted operations, egress data classes, and redirect posture.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 11,
+  "maxProperties": 16,
   "required": [
     "schema_id",
     "schema_version",
@@ -44,6 +44,14 @@
         "dependency-fetch"
       ],
       "description": "Optional concrete gateway role this scope rule is bound to.",
+      "x-data-class": "public"
+    },
+    "entry_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "description": "Optional stable allowlist entry identity for deterministic audit attribution.",
       "x-data-class": "public"
     },
     "destination": {
@@ -100,6 +108,199 @@
       "maximum": 2147483647,
       "description": "Optional response-size bound for this rule.",
       "x-data-class": "public"
+    },
+    "git_ref_update_policy": {
+      "$ref": "#/$defs/gitRefPolicySet",
+      "description": "Optional signed policy set for git ref updates in canonical ref namespace.",
+      "x-data-class": "public"
+    },
+    "git_tag_update_policy": {
+      "$ref": "#/$defs/gitRefPolicySet",
+      "description": "Optional signed policy set for git tag updates in canonical ref namespace.",
+      "x-data-class": "public"
+    },
+    "git_pull_request_base_ref_policy": {
+      "$ref": "#/$defs/gitRefPolicySet",
+      "description": "Optional signed policy set for pull-request base refs in canonical ref namespace.",
+      "x-data-class": "public"
+    },
+    "git_pull_request_head_namespace_policy": {
+      "$ref": "#/$defs/gitRefNamespacePolicySet",
+      "description": "Optional signed constrained namespace policy set for pull-request head refs.",
+      "x-data-class": "public"
     }
-  }
+  },
+  "$defs": {
+    "gitCanonicalRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^refs/[A-Za-z0-9._/-]+$",
+      "description": "Canonical git ref in fully qualified refs/... form.",
+      "x-data-class": "public"
+    },
+    "gitRefExactRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 2,
+      "description": "Exact-match git ref allowlist rule.",
+      "x-data-class": "public",
+      "required": [
+        "rule_kind",
+        "ref"
+      ],
+      "properties": {
+        "rule_kind": {
+          "const": "exact",
+          "description": "Rule kind for an exact ref match.",
+          "x-data-class": "public"
+        },
+        "ref": {
+          "$ref": "#/$defs/gitCanonicalRef",
+          "description": "Exact canonical ref allowed by this rule.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "gitRefPrefixGlobRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 2,
+      "description": "Constrained prefix-glob git namespace allowlist rule.",
+      "x-data-class": "public",
+      "required": [
+        "rule_kind",
+        "prefix"
+      ],
+      "properties": {
+        "rule_kind": {
+          "const": "prefix_glob",
+          "description": "Rule kind for a constrained namespace prefix match.",
+          "x-data-class": "public"
+        },
+        "prefix": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^refs/[A-Za-z0-9._/-]+/$",
+          "description": "Canonical git ref namespace prefix ending in '/' that allows descendants in this namespace.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "gitRefPolicyRule": {
+      "description": "One git ref-policy rule, either exact-match or constrained prefix-glob.",
+      "x-data-class": "public",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/gitRefExactRule"
+        },
+        {
+          "$ref": "#/$defs/gitRefPrefixGlobRule"
+        }
+      ]
+    },
+    "gitRefPolicySet": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 3,
+      "description": "Signed policy set for canonical git ref updates with destructive actions denied by default.",
+      "x-data-class": "public",
+      "required": [
+        "rules"
+      ],
+      "properties": {
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "description": "Allowed exact refs or constrained ref namespaces for this policy set.",
+          "x-data-class": "public",
+          "items": {
+            "$ref": "#/$defs/gitRefPolicyRule"
+          }
+        },
+        "allow_force_push": {
+          "const": false,
+          "description": "Destructive/non-fast-forward ref updates remain denied by default in v1.",
+          "x-data-class": "public"
+        },
+        "allow_ref_deletion": {
+          "const": false,
+          "description": "Ref deletion remains denied by default in v1.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "gitRefNamespacePolicySet": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 1,
+      "description": "Signed policy set for canonical git head-ref namespaces using constrained prefix-glob rules.",
+      "x-data-class": "public",
+      "required": [
+        "rules"
+      ],
+      "properties": {
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "description": "Allowed canonical head-ref namespace prefixes for pull-request sources.",
+          "x-data-class": "public",
+          "items": {
+            "$ref": "#/$defs/gitRefPrefixGlobRule"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "destination": {
+            "type": "object",
+            "properties": {
+              "descriptor_kind": {
+                "const": "git_remote"
+              }
+            },
+            "required": [
+              "descriptor_kind"
+            ]
+          }
+        },
+        "required": [
+          "destination"
+        ]
+      },
+      "then": {
+        "description": "Git-remote allowlist entries must carry explicit ref and pull-request policy sets.",
+        "required": [
+          "git_ref_update_policy",
+          "git_tag_update_policy",
+          "git_pull_request_base_ref_policy",
+          "git_pull_request_head_namespace_policy"
+        ]
+      },
+      "else": {
+        "description": "Non-git destinations must not carry git-specific policy fields.",
+        "properties": {
+          "git_ref_update_policy": {
+            "not": {}
+          },
+          "git_tag_update_policy": {
+            "not": {}
+          },
+          "git_pull_request_base_ref_policy": {
+            "not": {}
+          },
+          "git_pull_request_head_namespace_policy": {
+            "not": {}
+          }
+        }
+      }
+    }
+  ]
 }

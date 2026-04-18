@@ -128,7 +128,7 @@ func (s *Service) emitModelGatewayAudit(runID string, decision policyengine.Poli
 			LeaseID:            binding.LeaseID,
 			PolicyDecisionHash: policyDecisionHash,
 		},
-	})
+	}, gatewayAllowlistMatch{})
 }
 
 func (s *Service) trustedLLMDestinationRefForRun(runID string) (string, error) {

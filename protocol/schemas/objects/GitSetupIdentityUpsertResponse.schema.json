@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/GitSetupIdentityUpsertResponse.schema.json",
+  "title": "GitSetupIdentityUpsertResponse",
+  "description": "Typed response after broker-managed git commit identity profile upsert.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 6,
+  "required": ["schema_id", "schema_version", "request_id", "provider", "profile", "control_plane_state"],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.GitSetupIdentityUpsertResponse",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Stable request correlation identifier echoed from the request.",
+      "x-data-class": "public"
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Git provider whose broker-managed identity profile set was updated.",
+      "x-data-class": "public"
+    },
+    "profile": {
+      "$ref": "GitCommitIdentityProfile.schema.json",
+      "description": "Broker-managed commit identity profile after upsert.",
+      "x-data-class": "public"
+    },
+    "control_plane_state": {
+      "$ref": "GitControlPlaneState.schema.json",
+      "description": "Updated broker-managed non-policy git setup state.",
+      "x-data-class": "public"
+    }
+  }
+}

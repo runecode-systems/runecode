@@ -157,33 +157,6 @@ type PolicyAllowlist struct {
 	Entries       []GatewayScopeRule `json:"entries"`
 }
 
-type DestinationDescriptor struct {
-	SchemaID               string `json:"schema_id"`
-	SchemaVersion          string `json:"schema_version"`
-	DescriptorKind         string `json:"descriptor_kind"`
-	CanonicalHost          string `json:"canonical_host"`
-	CanonicalPort          *int   `json:"canonical_port,omitempty"`
-	CanonicalPathPrefix    string `json:"canonical_path_prefix,omitempty"`
-	ProviderOrNamespace    string `json:"provider_or_namespace,omitempty"`
-	TLSRequired            bool   `json:"tls_required"`
-	PrivateRangeBlocking   string `json:"private_range_blocking"`
-	DNSRebindingProtection string `json:"dns_rebinding_protection"`
-}
-
-type GatewayScopeRule struct {
-	SchemaID                 string                `json:"schema_id"`
-	SchemaVersion            string                `json:"schema_version"`
-	ScopeKind                string                `json:"scope_kind"`
-	GatewayRoleKind          string                `json:"gateway_role_kind,omitempty"`
-	Destination              DestinationDescriptor `json:"destination"`
-	PermittedOperations      []string              `json:"permitted_operations"`
-	AllowedEgressDataClasses []string              `json:"allowed_egress_data_classes"`
-	RedirectPosture          string                `json:"redirect_posture"`
-	MaxTimeoutSeconds        *int                  `json:"max_timeout_seconds,omitempty"`
-	AllowCredentials         *bool                 `json:"allow_credentials,omitempty"`
-	MaxResponseBytes         *int                  `json:"max_response_bytes,omitempty"`
-}
-
 type PolicyRule struct {
 	RuleID          string `json:"rule_id"`
 	Effect          string `json:"effect"`

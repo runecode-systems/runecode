@@ -36,6 +36,7 @@ func evaluateGatewayBoundaryInvariants(compiled *CompiledContext, action ActionR
 		denyIfModelGatewayUsesAuthProviderFlow,
 		denyIfModelGatewayUsesAuthOperations,
 		denyIfModelInvokePayloadHashUnbound,
+		denyIfGitRemoteMutationPayloadHashUnbound,
 		denyIfDisallowedGatewayEgressDataClass,
 		denyIfGatewayAuditBindingsInvalid,
 		denyIfGatewayQuotaContextInvalid,

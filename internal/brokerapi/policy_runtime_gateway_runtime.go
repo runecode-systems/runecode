@@ -134,8 +134,11 @@ func (g *modelGatewayRuntime) runtimeEnforcementDenyReason(runID string, entry p
 	return "", nil, false
 }
 
-func (g *modelGatewayRuntime) emitGatewayAuditEvent(runID string, decision policyengine.PolicyDecision, payload gatewayActionPayloadRuntime) error {
+func (g *modelGatewayRuntime) emitGatewayAuditEvent(runID string, decision policyengine.PolicyDecision, payload gatewayActionPayloadRuntime, match gatewayAllowlistMatch) error {
 	if payload.AuditContext == nil {
+		if isGatewayRemoteMutationOperation(payload.Operation) {
+			return fmt.Errorf("git remote mutation audit context required")
+		}
 		return nil
 	}
 	if g.auditFn == nil {
@@ -144,12 +147,14 @@ func (g *modelGatewayRuntime) emitGatewayAuditEvent(runID string, decision polic
 	eventType := "model_egress"
 	if payload.GatewayRoleKind == "auth-gateway" {
 		eventType = "auth_egress"
+	} else if payload.GatewayRoleKind == "git-gateway" {
+		eventType = "git_egress"
 	}
-	details := gatewayAuditDetails(runID, decision, payload)
+	details := gatewayAuditDetails(runID, decision, payload, match)
 	return g.auditFn(eventType, "brokerapi", toInterfaceMap(details))
 }
 
-func gatewayAuditDetails(runID string, decision policyengine.PolicyDecision, payload gatewayActionPayloadRuntime) map[string]any {
+func gatewayAuditDetails(runID string, decision policyengine.PolicyDecision, payload gatewayActionPayloadRuntime, match gatewayAllowlistMatch) map[string]any {
 	details := map[string]any{
 		"run_id":              runID,
 		"gateway_role_kind":   payload.GatewayRoleKind,
@@ -157,6 +162,9 @@ func gatewayAuditDetails(runID string, decision policyengine.PolicyDecision, pay
 		"destination_ref":     payload.DestinationRef,
 		"operation":           payload.Operation,
 		"audit_outcome":       payload.AuditContext.Outcome,
+		"outbound_bytes":      payload.AuditContext.OutboundBytes,
+		"started_at":          payload.AuditContext.StartedAt,
+		"completed_at":        payload.AuditContext.CompletedAt,
 		"action_request_hash": decision.ActionRequestHash,
 	}
 	addGatewayQuotaAuditDetails(details, payload.QuotaContext)
@@ -175,7 +183,22 @@ func gatewayAuditDetails(runID string, decision policyengine.PolicyDecision, pay
 			details["policy_ref"] = decisionHash
 		}
 	}
+	if strings.TrimSpace(match.AllowlistRef) != "" {
+		details["matched_allowlist_ref"] = match.AllowlistRef
+	}
+	if strings.TrimSpace(match.EntryID) != "" {
+		details["matched_allowlist_entry_id"] = match.EntryID
+	}
+	addGitRuntimeProofAuditDetails(details, payload)
 	return details
+}
+
+func addGatewayDigestIdentityValue(details map[string]any, key string, digest trustpolicy.Digest) {
+	identity, err := digest.Identity()
+	if err != nil {
+		return
+	}
+	details[key] = identity
 }
 
 func addGatewayQuotaAuditDetails(details map[string]any, quota *gatewayQuotaContextPayload) {

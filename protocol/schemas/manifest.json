@@ -609,6 +609,104 @@
       "status": "mvp"
     },
     {
+      "path": "objects/GitProviderAccountState.schema.json",
+      "schema_id": "runecode.protocol.v0.GitProviderAccountState",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitCommitIdentityProfile.schema.json",
+      "schema_id": "runecode.protocol.v0.GitCommitIdentityProfile",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitCommitIntent.schema.json",
+      "schema_id": "runecode.protocol.v0.GitCommitIntent",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitSignedPatchArtifact.schema.json",
+      "schema_id": "runecode.protocol.v0.GitSignedPatchArtifact",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitRefUpdateRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.GitRefUpdateRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitPullRequestCreateRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.GitPullRequestCreateRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitAuthPostureState.schema.json",
+      "schema_id": "runecode.protocol.v0.GitAuthPostureState",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitControlPlaneState.schema.json",
+      "schema_id": "runecode.protocol.v0.GitControlPlaneState",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitSetupGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.GitSetupGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitSetupGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.GitSetupGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitSetupAuthBootstrapRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.GitSetupAuthBootstrapRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitSetupAuthBootstrapResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.GitSetupAuthBootstrapResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitSetupIdentityUpsertRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.GitSetupIdentityUpsertRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/GitSetupIdentityUpsertResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.GitSetupIdentityUpsertResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/ArtifactSummary.schema.json",
       "schema_id": "runecode.protocol.v0.ArtifactSummary",
       "schema_version": "0.1.0",

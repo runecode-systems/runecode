@@ -253,6 +253,12 @@
       "expect_valid": true
     },
     {
+      "id": "gateway-scope-rule.valid-git-remote",
+      "schema_path": "objects/GatewayScopeRule.schema.json",
+      "fixture_path": "schema/gateway-scope-rule.valid-git-remote.json",
+      "expect_valid": true
+    },
+    {
       "id": "gateway-scope-rule.invalid-raw-url-entry",
       "schema_path": "objects/GatewayScopeRule.schema.json",
       "fixture_path": "schema/gateway-scope-rule.invalid-raw-url-entry.json",

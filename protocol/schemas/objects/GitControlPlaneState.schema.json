@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/GitControlPlaneState.schema.json",
+  "title": "GitControlPlaneState",
+  "description": "Broker-managed non-policy git setup state for clients.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 6,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "provider",
+    "default_identity_profile_id",
+    "last_setup_view",
+    "recent_repositories"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.GitControlPlaneState",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Git provider identity for this broker-managed convenience state.",
+      "x-data-class": "public"
+    },
+    "default_identity_profile_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Default commit-identity profile selected by the broker for setup flows.",
+      "x-data-class": "public"
+    },
+    "last_setup_view": {
+      "type": "string",
+      "enum": ["overview", "auth", "identity", "repos"],
+      "description": "Last broker-suggested setup view visited by the client; non-authoritative convenience state.",
+      "x-data-class": "public"
+    },
+    "recent_repositories": {
+      "type": "array",
+      "maxItems": 20,
+      "description": "Recent repository identities or descriptors cached as non-authoritative client convenience state.",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "x-data-class": "public"
+    }
+  }
+}

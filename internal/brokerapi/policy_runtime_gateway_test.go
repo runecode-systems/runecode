@@ -307,6 +307,12 @@ func assertCanonicalModelEgressBindings(t *testing.T, found map[string]interface
 	if got, _ := found["policy_decision_hash"].(string); got == "" || !strings.HasPrefix(got, "sha256:") {
 		t.Fatalf("policy_decision_hash = %v, want sha256 digest", found["policy_decision_hash"])
 	}
+	if got, _ := found["matched_allowlist_entry_id"].(string); got != "model_default" {
+		t.Fatalf("matched_allowlist_entry_id = %q, want model_default", got)
+	}
+	if got, _ := found["matched_allowlist_ref"].(string); got == "" || !strings.HasPrefix(got, "sha256:") {
+		t.Fatalf("matched_allowlist_ref = %v, want sha256 digest", found["matched_allowlist_ref"])
+	}
 }
 
 func putTrustedModelGatewayContextForRun(t *testing.T, s *Service, runID string, allowlistEntries []any) {

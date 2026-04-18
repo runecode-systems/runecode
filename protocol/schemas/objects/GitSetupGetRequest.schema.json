@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/GitSetupGetRequest.schema.json",
+  "title": "GitSetupGetRequest",
+  "description": "Typed request to read broker-owned git setup state.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 4,
+  "required": ["schema_id", "schema_version", "request_id", "provider"],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.GitSetupGetRequest",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Stable request correlation identifier.",
+      "x-data-class": "public"
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Git provider whose broker-owned setup state is being queried.",
+      "x-data-class": "public"
+    }
+  }
+}

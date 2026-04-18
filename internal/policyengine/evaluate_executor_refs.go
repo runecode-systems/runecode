@@ -10,6 +10,9 @@ func destinationRefMatches(descriptor DestinationDescriptor, destinationRef stri
 	if strings.TrimSpace(destinationRef) == "" {
 		return false
 	}
+	if descriptor.DescriptorKind == "git_remote" {
+		return gitRepositoryIdentityMatches(descriptor, destinationRef)
+	}
 
 	host, port, refPath := parseDestinationRef(destinationRef)
 	if host == "" || strings.ToLower(host) != strings.ToLower(descriptor.CanonicalHost) {
@@ -87,6 +90,36 @@ func parseDestinationRef(ref string) (string, *int, string) {
 	}
 
 	return host, port, path
+}
+
+func gitRepositoryIdentityMatches(descriptor DestinationDescriptor, destinationRef string) bool {
+	identityHost, identityPath := parseGitRepositoryIdentity(descriptor.GitRepositoryIdentity)
+	if identityHost == "" || identityPath == "" {
+		return false
+	}
+	host, _, refPath := parseDestinationRef(destinationRef)
+	if host == "" {
+		return false
+	}
+	if !strings.EqualFold(host, identityHost) {
+		return false
+	}
+	return normalizeDestinationPath(refPath) == identityPath
+}
+
+func parseGitRepositoryIdentity(value string) (string, string) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "", ""
+	}
+	host, _, path := parseDestinationRef(trimmed)
+	if host == "" {
+		return "", ""
+	}
+	if path == "/" {
+		return "", ""
+	}
+	return strings.ToLower(host), normalizeDestinationPath(path)
 }
 
 func containsString(values []string, want string) bool {

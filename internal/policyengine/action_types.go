@@ -74,7 +74,68 @@ type GatewayEgressActionInput struct {
 	TimeoutSeconds  *int
 	PayloadHash     *trustpolicy.Digest
 	AuditContext    *GatewayAuditContextInput
+	GitRequest      *GitRequestSummaryInput
+	GitRuntimeProof *GitRuntimeProofInput
 	QuotaContext    *GatewayQuotaContextInput
+}
+
+type GitRequestSummaryInput struct {
+	RequestKind                    string
+	RepositoryIdentity             DestinationDescriptor
+	TargetRefs                     []string
+	ReferencedPatchArtifactDigests []trustpolicy.Digest
+	ExpectedResultTreeHash         trustpolicy.Digest
+	MetadataSummary                GitRequestMetadataInput
+}
+
+type GitRequestMetadataInput struct {
+	Commit       *GitCommitMetadataInput
+	PullRequest  *GitPullRequestMetadataInput
+	CommitPolicy *GitCommitPolicyInput
+}
+
+type GitCommitMetadataInput struct {
+	Subject   string
+	Author    GitIdentityInput
+	Committer GitIdentityInput
+	Signoff   GitIdentityInput
+}
+
+type GitPullRequestMetadataInput struct {
+	Title   string
+	BaseRef string
+	HeadRef string
+}
+
+type GitCommitPolicyInput struct {
+	RepositoryPolicyDigest trustpolicy.Digest
+	RequiredTrailerRules   []GitRequiredTrailerInput
+}
+
+type GitRequiredTrailerInput struct {
+	TrailerKey   string
+	IdentityRole string
+}
+
+type GitIdentityInput struct {
+	DisplayName string
+	Email       string
+}
+
+type GitRuntimeProofInput struct {
+	TypedRequestHash       trustpolicy.Digest
+	PatchArtifactDigests   []trustpolicy.Digest
+	ExpectedOldObjectID    string
+	ObservedOldObjectID    string
+	ExpectedResultTreeHash trustpolicy.Digest
+	ObservedResultTreeHash trustpolicy.Digest
+	SparseCheckoutApplied  bool
+	DriftDetected          bool
+	DestructiveRefMutation bool
+	ProviderKind           string
+	PullRequestNumber      *int64
+	PullRequestURL         string
+	EvidenceRefs           []string
 }
 
 type GatewayAuditContextInput struct {

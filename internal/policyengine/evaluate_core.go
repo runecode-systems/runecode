@@ -13,6 +13,7 @@ const (
 	requiredApprovalHardFloorSchemaID         = "runecode.protocol.details.policy.required_approval.hard_floor.v0"
 	requiredApprovalModerateStageSchemaID     = "runecode.protocol.details.policy.required_approval.stage_sign_off.v0"
 	requiredApprovalModerateGatewaySchemaID   = "runecode.protocol.details.policy.required_approval.gateway_egress_scope.v0"
+	requiredApprovalModerateGitRemoteSchemaID = "runecode.protocol.details.policy.required_approval.git_remote_ops.v0"
 	requiredApprovalModerateBackendSchemaID   = "runecode.protocol.details.policy.required_approval.reduced_assurance_backend.v0"
 	requiredApprovalModerateGateSchemaID      = "runecode.protocol.details.policy.required_approval.gate_override.v0"
 	requiredApprovalModerateWorkspaceSchemaID = "runecode.protocol.details.policy.required_approval.out_of_workspace_write.v0"

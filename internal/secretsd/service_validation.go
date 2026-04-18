@@ -51,16 +51,35 @@ func validateLeaseRecords(leases map[string]leaseRecord, secrets map[string]secr
 }
 
 func validLeaseRecord(lease leaseRecord) bool {
-	if strings.TrimSpace(lease.LeaseID) == "" || strings.TrimSpace(lease.SecretRef) == "" {
+	return leaseRecordHasIDs(lease) &&
+		leaseRecordHasValidDeliveryKind(lease) &&
+		leaseRecordHasValidGitBinding(lease) &&
+		leaseRecordHasValidStatus(lease)
+}
+
+func leaseRecordHasIDs(lease leaseRecord) bool {
+	return strings.TrimSpace(lease.LeaseID) != "" && strings.TrimSpace(lease.SecretRef) != ""
+}
+
+func leaseRecordHasValidDeliveryKind(lease leaseRecord) bool {
+	return !deniedDeliveryKind(lease.DeliveryKind)
+}
+
+func leaseRecordHasValidGitBinding(lease leaseRecord) bool {
+	if lease.GitBinding == nil {
+		return lease.DeliveryKind != deliveryKindGitGateway
+	}
+	if lease.DeliveryKind != deliveryKindGitGateway {
 		return false
 	}
-	if lease.Status != leaseStatusActive && lease.Status != leaseStatusRevoked {
-		return false
+	return validateGitLeaseBinding(lease.GitBinding) == nil
+}
+
+func leaseRecordHasValidStatus(lease leaseRecord) bool {
+	if lease.Status == leaseStatusActive {
+		return true
 	}
-	if lease.Status == leaseStatusRevoked && lease.RevokedAt == nil {
-		return false
-	}
-	return true
+	return lease.Status == leaseStatusRevoked && lease.RevokedAt != nil
 }
 
 func (s *Service) secretMaterialPath(rec secretRecord) (string, error) {

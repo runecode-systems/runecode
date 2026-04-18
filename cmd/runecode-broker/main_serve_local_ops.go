@@ -10,6 +10,7 @@ import (
 func localRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
 	operations := map[string]rpcOperation{}
 	mergeRPCOperations(operations, runApprovalRPCOperations(service, ctx, meta))
+	mergeRPCOperations(operations, gitSetupRPCOperations(service, ctx, meta))
 	mergeRPCOperations(operations, artifactRPCOperations(service, ctx, meta))
 	mergeRPCOperations(operations, auditHealthRPCOperations(service, ctx, meta))
 	return operations
@@ -27,6 +28,26 @@ func runApprovalRPCOperations(service *brokerapi.Service, ctx context.Context, m
 	mergeRPCOperations(operations, sessionRPCOperations(service, ctx, meta))
 	mergeRPCOperations(operations, approvalRunnerRPCOperations(service, ctx, meta))
 	return operations
+}
+
+func gitSetupRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
+	return map[string]rpcOperation{
+		"git_setup_get": {requestSchemaPath: "objects/GitSetupGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.GitSetupGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleGitSetupGet(ctx, req, meta)
+			})
+		}},
+		"git_setup_auth_bootstrap": {requestSchemaPath: "objects/GitSetupAuthBootstrapRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.GitSetupAuthBootstrapRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleGitSetupAuthBootstrap(ctx, req, meta)
+			})
+		}},
+		"git_setup_identity_upsert": {requestSchemaPath: "objects/GitSetupIdentityUpsertRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.GitSetupIdentityUpsertRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleGitSetupIdentityUpsert(ctx, req, meta)
+			})
+		}},
+	}
 }
 
 func artifactRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {

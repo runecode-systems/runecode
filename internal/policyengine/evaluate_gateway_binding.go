@@ -1,5 +1,7 @@
 package policyengine
 
+import "encoding/json"
+
 func denyIfModelInvokePayloadHashUnbound(compiled *CompiledContext, action ActionRequest, actionHash string, payload gatewayEgressPayload) (PolicyDecision, bool) {
 	if !isGatewayRequestExecutionOperation(payload.Operation) {
 		return PolicyDecision{}, false
@@ -46,6 +48,66 @@ func denyModelRequestBinding(compiled *CompiledContext, action ActionRequest, ac
 	details := map[string]any{
 		"precedence":        "invariants_first",
 		"invariant":         "typed_model_request_binding",
+		"non_approvable":    true,
+		"gateway_role_kind": payload.GatewayRoleKind,
+		"destination_kind":  payload.DestinationKind,
+		"operation":         payload.Operation,
+		"reason":            reason,
+	}
+	for key, value := range extra {
+		details[key] = value
+	}
+	return denyInvariantDecision(compiled, action, actionHash, details), true
+}
+
+func denyIfGitRemoteMutationPayloadHashUnbound(compiled *CompiledContext, action ActionRequest, actionHash string, payload gatewayEgressPayload) (PolicyDecision, bool) {
+	if !isGatewayRemoteMutationOperation(payload.Operation) {
+		return PolicyDecision{}, false
+	}
+	bindingReason, details := gitRemoteMutationBindingDetails(payload)
+	if bindingReason == "" {
+		return PolicyDecision{}, false
+	}
+	return denyGitRemoteMutationBinding(compiled, action, actionHash, payload, bindingReason, details)
+}
+
+func gitRemoteMutationBindingDetails(payload gatewayEgressPayload) (string, map[string]any) {
+	if payload.PayloadHash == nil {
+		return "missing_payload_hash_for_canonical_git_request_binding", nil
+	}
+	if payload.GitRequest == nil {
+		return "missing_canonical_git_request_binding", nil
+	}
+	payloadHashIdentity, err := payload.PayloadHash.Identity()
+	if err != nil {
+		return "invalid_payload_hash_identity", nil
+	}
+	requestHashIdentity, err := canonicalGitRequestSummaryHash(*payload.GitRequest)
+	if err != nil {
+		return "invalid_canonical_git_request_hash", nil
+	}
+	if payloadHashIdentity == requestHashIdentity {
+		return "", nil
+	}
+	return "payload_hash_not_bound_to_canonical_git_request_hash", map[string]any{
+		"payload_hash":               payloadHashIdentity,
+		"canonical_git_request_hash": requestHashIdentity,
+		"git_request_kind":           payload.GitRequest.RequestKind,
+	}
+}
+
+func canonicalGitRequestSummaryHash(summary gitRequestSummary) (string, error) {
+	b, err := json.Marshal(summary)
+	if err != nil {
+		return "", err
+	}
+	return CanonicalHashBytes(b)
+}
+
+func denyGitRemoteMutationBinding(compiled *CompiledContext, action ActionRequest, actionHash string, payload gatewayEgressPayload, reason string, extra map[string]any) (PolicyDecision, bool) {
+	details := map[string]any{
+		"precedence":        "invariants_first",
+		"invariant":         "typed_git_request_binding",
 		"non_approvable":    true,
 		"gateway_role_kind": payload.GatewayRoleKind,
 		"destination_kind":  payload.DestinationKind,

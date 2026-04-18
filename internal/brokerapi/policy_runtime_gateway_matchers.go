@@ -7,6 +7,9 @@ import (
 )
 
 func runtimeDestinationRefMatches(descriptor policyengine.DestinationDescriptor, destinationRef string) bool {
+	if descriptor.DescriptorKind == "git_remote" {
+		return runtimeGitRepositoryIdentityMatches(descriptor, destinationRef)
+	}
 	host, port, refPath := runtimeParseDestinationRef(destinationRef)
 	if host == "" || !strings.EqualFold(host, descriptor.CanonicalHost) {
 		return false
@@ -18,6 +21,30 @@ func runtimeDestinationRefMatches(descriptor policyengine.DestinationDescriptor,
 		return false
 	}
 	return true
+}
+
+func runtimeGitRepositoryIdentityMatches(descriptor policyengine.DestinationDescriptor, destinationRef string) bool {
+	identityHost, identityPath := runtimeParseGitRepositoryIdentity(descriptor.GitRepositoryIdentity)
+	if identityHost == "" || identityPath == "" {
+		return false
+	}
+	host, _, refPath := runtimeParseDestinationRef(destinationRef)
+	if host == "" || !strings.EqualFold(host, identityHost) {
+		return false
+	}
+	return runtimeNormalizePath(refPath) == identityPath
+}
+
+func runtimeParseGitRepositoryIdentity(identity string) (string, string) {
+	host, _, refPath := runtimeParseDestinationRef(identity)
+	if host == "" {
+		return "", ""
+	}
+	normalized := runtimeNormalizePath(refPath)
+	if normalized == "/" {
+		return "", ""
+	}
+	return host, normalized
 }
 
 func containsStringValue(values []string, want string) bool {

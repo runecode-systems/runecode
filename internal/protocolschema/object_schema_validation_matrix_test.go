@@ -133,6 +133,10 @@ func TestPolicyRuleSetAndAllowlistSchemasValidateDeclarativePolicyInputs(t *test
 	runObjectSchemaCases(t, bundle, "objects/GatewayScopeRule.schema.json", "gateway-scope-rule", gatewayScopeRuleCases())
 	runObjectSchemaCases(t, bundle, "objects/DestinationDescriptor.schema.json", "destination-descriptor", destinationDescriptorCases())
 	runObjectSchemaCases(t, bundle, "objects/ActionPayloadGatewayEgress.schema.json", "gateway-egress-payload", gatewayEgressPayloadCases())
+	runObjectSchemaCases(t, bundle, "objects/GitCommitIntent.schema.json", "git-commit-intent", gitCommitIntentCases())
+	runObjectSchemaCases(t, bundle, "objects/GitSignedPatchArtifact.schema.json", "git-signed-patch-artifact", gitSignedPatchArtifactCases())
+	runObjectSchemaCases(t, bundle, "objects/GitRefUpdateRequest.schema.json", "git-ref-update-request", gitRefUpdateRequestCases())
+	runObjectSchemaCases(t, bundle, "objects/GitPullRequestCreateRequest.schema.json", "git-pull-request-create-request", gitPullRequestCreateRequestCases())
 	runObjectSchemaCases(t, bundle, "objects/ActionPayloadSecretAccess.schema.json", "secret-access-payload", secretAccessPayloadCases())
 	runObjectSchemaCases(t, bundle, "objects/SecretLease.schema.json", "secret-lease", secretLeaseCases())
 	runObjectSchemaCases(t, bundle, "objects/SecretStoragePosture.schema.json", "secret-storage-posture", secretStoragePostureCases())
@@ -275,7 +279,9 @@ func policyAllowlistCases() []validationCase {
 func gatewayScopeRuleCases() []validationCase {
 	return []validationCase{
 		{name: "valid gateway scope rule", value: validGatewayScopeRule("provider-a")},
+		{name: "valid git gateway scope rule", value: validGatewayScopeRule("git")},
 		{name: "unknown scope kind fails closed", value: invalidGatewayScopeRuleKind(), wantErr: true},
+		{name: "git gateway scope rule missing ref policy fails closed", value: invalidGatewayScopeRuleGitMissingRefPolicies(), wantErr: true},
 		{name: "timeout bound over hard limit fails closed", value: invalidGatewayScopeRuleTimeoutOutOfBounds(), wantErr: true},
 	}
 }
@@ -283,7 +289,9 @@ func gatewayScopeRuleCases() []validationCase {
 func destinationDescriptorCases() []validationCase {
 	return []validationCase{
 		{name: "valid destination descriptor", value: validDestinationDescriptor("provider-a")},
+		{name: "valid git destination descriptor", value: validGatewayScopeRule("git")["destination"].(map[string]any)},
 		{name: "unknown descriptor kind fails closed", value: invalidDestinationDescriptorKind(), wantErr: true},
+		{name: "git descriptor missing repository identity fails closed", value: invalidDestinationDescriptorGitMissingRepositoryIdentity(), wantErr: true},
 	}
 }
 
@@ -294,10 +302,12 @@ func gatewayEgressPayloadCases() []validationCase {
 		{name: "stream quota phase accepts explicit stream limit", value: validActionPayloadGatewayEgressStreamQuotaOperation()},
 		{name: "request operation accepts canonical destination host port path", value: validActionPayloadGatewayEgressRequestOperationWithPortAndPath()},
 		{name: "scope operation forbids payload hash", value: validActionPayloadGatewayEgressScopeOperation()},
+		{name: "git remote mutation requires payload hash audit context and summary", value: validActionPayloadGatewayEgressGitRemoteMutationOperation()},
 		{name: "unknown operation fails closed", value: invalidActionPayloadGatewayEgressUnknownOperation(), wantErr: true},
 		{name: "request operation missing payload hash fails closed", value: invalidActionPayloadGatewayEgressRequestMissingPayloadHash(), wantErr: true},
 		{name: "dependency request operation missing payload hash fails closed", value: invalidActionPayloadGatewayEgressDependencyRequestMissingPayloadHash(), wantErr: true},
 		{name: "scope operation with payload hash fails closed", value: invalidActionPayloadGatewayEgressScopeWithPayloadHash(), wantErr: true},
+		{name: "git remote mutation missing summary fails closed", value: invalidActionPayloadGatewayEgressGitRemoteMutationMissingSummary(), wantErr: true},
 		{name: "raw url destination ref fails closed", value: invalidActionPayloadGatewayEgressRawURLDestinationRef(), wantErr: true},
 		{name: "timeout bound over hard limit fails closed", value: invalidActionPayloadGatewayEgressTimeoutOutOfBounds(), wantErr: true},
 		{name: "request operation missing audit context fails closed", value: invalidActionPayloadGatewayEgressMissingAuditContext(), wantErr: true},
@@ -307,6 +317,34 @@ func gatewayEgressPayloadCases() []validationCase {
 		{name: "hybrid quota requires entitlement meter", value: invalidActionPayloadGatewayEgressHybridQuotaMissingEntitlementMeter(), wantErr: true},
 		{name: "hybrid quota requires token meter", value: invalidActionPayloadGatewayEgressHybridQuotaMissingTokenMeter(), wantErr: true},
 		{name: "stream phase without stream limit fails closed", value: invalidActionPayloadGatewayEgressStreamPhaseWithoutLimit(), wantErr: true},
+	}
+}
+
+func gitCommitIntentCases() []validationCase {
+	return []validationCase{
+		{name: "valid git commit intent", value: validGitCommitIntent()},
+		{name: "git commit intent requires signoff", value: invalidGitCommitIntentWithoutSignoff(), wantErr: true},
+	}
+}
+
+func gitSignedPatchArtifactCases() []validationCase {
+	return []validationCase{
+		{name: "valid git signed patch artifact", value: validGitSignedPatchArtifact()},
+		{name: "git signed patch artifact must stay in diffs data class", value: invalidGitSignedPatchArtifactWithoutDiffsDataClass(), wantErr: true},
+	}
+}
+
+func gitRefUpdateRequestCases() []validationCase {
+	return []validationCase{
+		{name: "valid git ref update request", value: validGitRefUpdateRequest()},
+		{name: "git ref update request denies force push in v1", value: invalidGitRefUpdateRequestWithForcePushEnabled(), wantErr: true},
+	}
+}
+
+func gitPullRequestCreateRequestCases() []validationCase {
+	return []validationCase{
+		{name: "valid git pull request create request", value: validGitPullRequestCreateRequest()},
+		{name: "git pull request create request requires canonical head ref", value: invalidGitPullRequestCreateRequestWithNonCanonicalHeadRef(), wantErr: true},
 	}
 }
 
