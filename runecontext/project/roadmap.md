@@ -7,17 +7,64 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ### v0.1.0-alpha.6
 
+- Direct Credential Model Providers v0
+  - RuneCode can use operator-entered OpenAI-compatible and Anthropic-compatible endpoints plus API credentials for remote model access without creating a second provider architecture.
+  - Planned change: `runecontext/changes/CHG-2026-045-7f4c-direct-credential-model-providers-v0/`
+- RuneContext Verified Project Substrate + Compatibility Lifecycle v0
+  - RuneCode can adopt existing or initialize new canonical `runecontext/` project state, enforce verified-mode compatibility, and support safe auditable upgrades while remaining compatible with direct RuneContext use.
+  - Planned change: `runecontext/changes/CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0/`
+
+### v0.1.0-alpha.7
+
+- Local Control-Plane Bootstrap + Persistent Session Lifecycle v0
+  - RuneCode behaves like one attachable local product lifecycle, so sessions and runs can continue without the TUI staying open and users can reconnect safely.
+  - Planned change: `runecontext/changes/CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0/`
+- Session Execution Orchestration v0
+  - Live chat and autonomous operation drive the same isolate-backed execution path, with canonical links among sessions, runs, approvals, artifacts, audit records, and project context.
+  - Planned change: `runecontext/changes/CHG-2026-048-6b7a-session-execution-orchestration-v0/`
+
+### v0.1.0-alpha.8
+
+- Deps Fetch + Offline Cache
+  - Dependencies can be fetched without giving workspace roles internet access, so isolated implementation workflows can remain on the intended no-workspace-egress posture.
+  - Planned change: `runecontext/changes/CHG-2026-024-acde-deps-fetch-offline-cache/`
+- Workflow Definition Contract + Binding v0
+  - RuneCode freezes the reusable workflow-definition and binding substrate needed for first-party productive workflows and later generic extensibility without adding new privileged operations.
+  - Planned change: `runecontext/changes/CHG-2026-050-e3f8-workflow-definition-contract-binding-v0/`
+- First-Party RuneContext Workflow Pack v0
+  - RuneCode can draft change/spec documents from prompts and implement approved changes through the same isolate-backed workflow engine, whether triggered from live chat or autonomous mode.
+  - Planned change: `runecontext/changes/CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0/`
+
+### v0.1.0-alpha.9
+
+- Image/Toolchain Signing Pipeline
+  - Isolate images and toolchains are signed and enforced at boot so the first usable release has stable signed runtime identity rather than provisional image trust.
+  - Planned change: `runecontext/changes/CHG-2026-026-98be-image-toolchain-signing-pipeline/`
+- Isolate Attestation v0
+  - RuneCode upgrades the default isolate posture from TOFU-only binding to measured attested provisioning without changing the core audit contract.
+  - Planned change: `runecontext/changes/CHG-2026-030-98b8-isolate-attestation-v0/`
+
+### v0.1.0-alpha.10
+
+- External Audit Anchoring v0
+  - Audit roots can be anchored to external targets with explicit egress, typed receipts, and the same verification discipline used for other high-risk outbound lanes.
+  - Planned change: `runecontext/changes/CHG-2026-025-5679-external-audit-anchoring-v0/`
 - ZK Proof v0 (One Narrow Proof + Verify)
-  - RuneCode can generate and verify at least one narrow zero-knowledge integrity proof.
+  - RuneCode can evaluate at least one narrow zero-knowledge integrity proof on top of the stabilized pre-beta assurance surfaces without blocking the usable product cut.
   - Planned change: `runecontext/changes/CHG-2026-016-8cdb-zk-proof-v0-one-narrow-proof-verify/`
+
+### v0.1.0-beta.1
+
+- Usable End-to-End Linux-First Cut
+  - RuneCode reaches the first usable end-to-end release on Linux: verified RuneContext project lifecycle, remote model access via direct credentials, isolate-backed interactive and autonomous workflows, full TUI usage on the local machine, and the planned pre-beta assurance trio of signing, attestation, and external audit anchoring.
 
 ### v0.2 (Post-MVP)
 
 - Approval Profiles (Strict/Permissive)
   - Add selectable human-in-the-loop profiles beyond MVP moderate.
   - Planned change: `runecontext/changes/CHG-2026-014-0c5d-approval-profiles-strict-permissive/`
-- Workflow Extensibility v0
-  - Add schema-validated custom workflows and rebuildable shared-memory accelerators without changing the safety model.
+- Workflow Authoring + Shared-Memory Accelerators v0
+  - Add generic custom-workflow authoring and review surfaces plus rebuildable shared-memory accelerators on top of the contract-first workflow substrate.
   - Planned change: `runecontext/changes/CHG-2026-017-3d58-workflow-extensibility-v0/`
 - Optional LangGraph Runner Runtime Evaluation
   - Optionally evaluate LangGraph as an internal runner runtime for checkpoint/wait/resume mechanics after the native runner foundation is hardened, implementing it only if it is still needed at that time.
@@ -40,15 +87,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 - Web Research Role
   - Controlled web research runs with strict egress allowlists and citation artifacts.
   - Planned change: `runecontext/changes/CHG-2026-023-59ac-web-research-role/`
-- Deps Fetch + Offline Cache
-  - Dependencies can be fetched without giving workspace roles internet access.
-  - Planned change: `runecontext/changes/CHG-2026-024-acde-deps-fetch-offline-cache/`
-- External Audit Anchoring v0
-  - Optionally anchor audit roots to external targets with explicit egress and typed receipts.
-  - Planned change: `runecontext/changes/CHG-2026-025-5679-external-audit-anchoring-v0/`
-- Image/Toolchain Signing Pipeline
-  - Isolate images and toolchains are signed and enforced at boot to reduce supply-chain risk.
-  - Planned change: `runecontext/changes/CHG-2026-026-98be-image-toolchain-signing-pipeline/`
 - Windows MicroVM Runtime Support
   - MicroVM-backed roles run on Windows with consistent policy and audit semantics.
   - Planned change: `runecontext/changes/CHG-2026-028-647e-windows-microvm-runtime-support/`
@@ -61,9 +99,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 - Workflow Concurrency v0
   - Add explicit, auditable shared-workspace concurrency instead of relying on one-run-per-workspace indefinitely.
   - Planned change: `runecontext/changes/CHG-2026-027-71ed-workflow-concurrency-v0/`
-- Isolate Attestation v0
-  - Upgrade MVP TOFU isolate binding to measured, attestable provisioning without changing the core audit contract.
-  - Planned change: `runecontext/changes/CHG-2026-030-98b8-isolate-attestation-v0/`
 
 ## Unscheduled (Needs Specs)
 
@@ -139,4 +174,3 @@ No unscheduled items are currently tracked outside the planned work listed above
 - Git Gateway (Commit/Push/PR)
   - Git operations are isolated behind a gateway with outbound patch verification.
   - Planned change: `runecontext/changes/CHG-2026-002-33c5-git-gateway-commit-push-pr/`
-

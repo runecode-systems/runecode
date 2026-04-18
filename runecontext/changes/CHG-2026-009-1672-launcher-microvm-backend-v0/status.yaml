@@ -14,6 +14,7 @@ related_decisions:
   - decisions/DEC-2026-003-bundled-runecontext-default-and-verified-requirement.md
   - decisions/DEC-2026-004-runecode-ux-ownership-and-runecontext-generic-boundary.md
 related_changes:
+  - CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0
   - CHG-2026-004-acdb-artifact-store-data-classes-v0
   - CHG-2026-005-cfd0-crypto-key-management-v0
   - CHG-2026-007-2315-policy-engine-v0

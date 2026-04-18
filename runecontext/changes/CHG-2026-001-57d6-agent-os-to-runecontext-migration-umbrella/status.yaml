@@ -17,7 +17,8 @@ related_decisions:
   - decisions/DEC-2026-003-bundled-runecontext-default-and-verified-requirement.md
   - decisions/DEC-2026-004-runecode-ux-ownership-and-runecontext-generic-boundary.md
   - decisions/DEC-2026-005-initial-spec-suite-mvp-rationale.md
-related_changes: []
+related_changes:
+  - CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0
 depends_on: []
 informed_by: []
 supersedes: []

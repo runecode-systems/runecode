@@ -10,7 +10,9 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Policy + Audit Integration.
 
 ## Why Now
-This work remains scheduled for v0.2, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
+This work now lands in `v0.1.0-alpha.8`, because first-party implementation workflows need dependency material without granting workspace roles internet access.
+
+Landing dependency fetch and offline cache before the first productive workflow pack keeps isolated implementation flows on the intended no-workspace-egress architecture instead of relying on later retrofits.
 
 ## Assumptions
 - `runecontext/changes/*` is the canonical planning surface for this repository.

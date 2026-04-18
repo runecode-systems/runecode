@@ -10,6 +10,7 @@ context_bundles:
 related_specs: []
 related_decisions: []
 related_changes:
+  - CHG-2026-002-33c5-git-gateway-commit-push-pr
   - CHG-2026-037-91be-tui-multi-session-power-workspace-v0
   - CHG-2026-038-5a1d-runecode-tui-experience-v0
   - CHG-2026-013-d2c9-minimal-tui-v0

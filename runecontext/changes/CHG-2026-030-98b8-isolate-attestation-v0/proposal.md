@@ -11,7 +11,9 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Fixtures + Cross-Platform Considerations.
 
 ## Why Now
-This work remains scheduled for vNext, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
+This work now lands in `v0.1.0-alpha.9`, because the first usable release should move from TOFU-only provisioning posture to measured attested provisioning without changing the core audit contract.
+
+Landing attestation after signed runtime-image identity but before the beta cut keeps the assurance model cumulative and avoids treating TOFU as the long-term normal posture for the first usable release.
 
 ## Assumptions
 - `runecontext/changes/*` is the canonical planning surface for this repository.

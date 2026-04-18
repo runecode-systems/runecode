@@ -11,7 +11,9 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Audit + Verification Integration.
 
 ## Why Now
-This work remains scheduled for v0.2, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
+This work now lands in `v0.1.0-alpha.9`, because isolate attestation and the first usable release both need signed runtime image and toolchain identity before measured provisioning can be treated as durable assurance.
+
+Landing signed image and toolchain identity before the beta cut gives later attestation and verification work one stable runtime-image truth instead of a provisional foundation that would need to be rewritten.
 
 ## Assumptions
 - `runecontext/changes/*` is the canonical planning surface for this repository.

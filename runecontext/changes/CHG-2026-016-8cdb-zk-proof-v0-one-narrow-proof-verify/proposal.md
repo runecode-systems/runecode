@@ -11,7 +11,9 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - CLI Integration.
 
 ## Why Now
-This work now lands in `v0.1.0-alpha.6`, after the MVP foundation and the larger `v0.1.0-alpha.5` hardening and workbench changes settle, so RuneCode can evaluate one narrow proof path pre-MVP without displacing the core product cut. Keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
+This work now lands in `v0.1.0-alpha.10` as a narrow parallel assurance lane, after signing, attestation, and external audit anchoring have stabilized enough to give the first proof statement durable typed claims to bind to.
+
+Keeping it pre-beta but non-blocking lets RuneCode explore one real proof path without displacing the core usable product cut or forcing proof design onto provisional assurance objects that are still changing.
 
 ## Assumptions
 - `runecontext/changes/*` is the canonical planning surface for this repository.
