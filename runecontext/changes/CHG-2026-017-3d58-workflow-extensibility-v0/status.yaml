@@ -1,6 +1,6 @@
 schema_version: 1
 id: CHG-2026-017-3d58-workflow-extensibility-v0
-title: Workflow Extensibility v0
+title: Workflow Authoring + Shared-Memory Accelerators v0
 status: planned
 type: feature
 size: large
@@ -14,12 +14,14 @@ related_decisions:
   - decisions/DEC-2026-003-bundled-runecontext-default-and-verified-requirement.md
   - decisions/DEC-2026-004-runecode-ux-ownership-and-runecontext-generic-boundary.md
 related_changes:
+  - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
   - CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0
   - CHG-2026-007-2315-policy-engine-v0
   - CHG-2026-014-0c5d-approval-profiles-strict-permissive
   - CHG-2026-027-71ed-workflow-concurrency-v0
   - CHG-2026-044-9f2a-optional-langgraph-runner-runtime-evaluation
-depends_on: []
+depends_on:
+  - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
 informed_by: []
 supersedes: []
 superseded_by: []

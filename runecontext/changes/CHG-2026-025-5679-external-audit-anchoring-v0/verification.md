@@ -9,7 +9,7 @@
 - Confirm the migrated change preserves the legacy task breakdown and acceptance criteria in `tasks.md`.
 - Confirm canonical references remain on RuneContext project, spec, and change paths, with no active workflow depending on legacy planning paths.
 - Confirm the migrated text assumes RuneContext is canonical, RuneCode owns the user-facing UX, and verified-mode project state remains the expected operating posture.
-- Confirm the change still matches its v0.2 roadmap bucket and title after migration.
+- Confirm the change still matches its `v0.1.0-alpha.10` roadmap bucket and title after migration.
 - Confirm authenticated external anchor submissions align with the shared remote-state-mutation gateway class rather than an external-only outbound category.
 - Confirm target identity uses typed exact-match semantics rather than raw URL-only policy.
 - Confirm the change explicitly decides whether external anchor submission is an approved automated posture or an exact-action approval boundary per submission.

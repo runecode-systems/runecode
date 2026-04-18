@@ -10,6 +10,8 @@ context_bundles:
 related_specs: []
 related_decisions: []
 related_changes:
+  - CHG-2026-002-33c5-git-gateway-commit-push-pr
+  - CHG-2026-045-7f4c-direct-credential-model-providers-v0
   - CHG-2026-011-7240-secretsd-model-gateway-v0
   - CHG-2026-032-4d1f-model-gateway-v0
   - CHG-2026-036-a4f9-secure-model-provider-access-v0

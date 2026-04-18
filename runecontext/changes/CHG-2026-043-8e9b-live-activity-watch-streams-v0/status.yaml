@@ -10,6 +10,8 @@ context_bundles:
 related_specs: []
 related_decisions: []
 related_changes:
+  - CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0
+  - CHG-2026-048-6b7a-session-execution-orchestration-v0
   - CHG-2026-037-91be-tui-multi-session-power-workspace-v0
   - CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0
   - CHG-2026-013-d2c9-minimal-tui-v0

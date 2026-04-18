@@ -12,7 +12,9 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Explicit alignment with shared remote-state-mutation gateway semantics where external anchoring mutates remote target state.
 
 ## Why Now
-This work remains scheduled for v0.2, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification. The git-gateway foundation now clarifies how other high-risk outbound lanes should talk about target identity, exact-action approval, lease scope, and shared audit proof, and external anchoring should inherit those decisions instead of drifting into an ad hoc egress model.
+This work now lands in `v0.1.0-alpha.10`, because the first usable release should include the full planned assurance trio: signed runtime identity, isolate attestation, and externally verifiable audit anchoring.
+
+The git-gateway foundation now clarifies how other high-risk outbound lanes should talk about target identity, exact-action approval, lease scope, and shared audit proof, and external anchoring should inherit those decisions before the beta cut instead of drifting into an ad hoc egress model.
 
 ## Assumptions
 - `runecontext/changes/*` is the canonical planning surface for this repository.

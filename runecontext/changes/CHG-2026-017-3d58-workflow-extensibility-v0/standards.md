@@ -10,6 +10,6 @@
 - `standards/global/deterministic-check-write-tools.md`
 
 ## Resolution Notes
-Migrated from the legacy spec standards list and refreshed to canonical RuneContext standard paths, then expanded to cover shared process-contract, policy/approval binding, and runner replay semantics required for extensible workflow composition.
+Migrated from the legacy spec standards list and refreshed to canonical RuneContext standard paths, then refocused to cover deterministic authoring, non-authoritative accelerator posture, and safe extension of the contract-first workflow substrate.
 
-This now also includes the rule that extensible workflows must reuse shared typed git request, signed patch artifact, and exact-action approval contracts rather than inventing process-local remote-mutation semantics.
+This now also includes the rule that later generic workflow authoring must build on `CHG-2026-050-e3f8-workflow-definition-contract-binding-v0` and must not reopen the shared typed git request, signed patch artifact, or exact-action approval contracts.

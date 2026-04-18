@@ -14,6 +14,9 @@ related_decisions:
   - decisions/DEC-2026-003-bundled-runecontext-default-and-verified-requirement.md
   - decisions/DEC-2026-004-runecode-ux-ownership-and-runecontext-generic-boundary.md
 related_changes:
+  - CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0
+  - CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0
+  - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
   - CHG-2026-002-33c5-git-gateway-commit-push-pr
   - CHG-2026-003-b567-audit-log-v0-verify
   - CHG-2026-004-acdb-artifact-store-data-classes-v0
@@ -32,6 +35,7 @@ related_changes:
   - CHG-2026-023-59ac-web-research-role
   - CHG-2026-024-acde-deps-fetch-offline-cache
   - CHG-2026-033-6e7b-workflow-runner-durable-state-v0
+  - CHG-2026-048-6b7a-session-execution-orchestration-v0
 depends_on: []
 informed_by: []
 supersedes: []
