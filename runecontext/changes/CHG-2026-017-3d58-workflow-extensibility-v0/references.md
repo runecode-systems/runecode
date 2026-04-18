@@ -13,6 +13,8 @@
 - `runecontext/changes/CHG-2026-007-2315-policy-engine-v0/`
 - `runecontext/specs/protocol-schema-bundle-v0.md`
 - `runecontext/changes/CHG-2026-014-0c5d-approval-profiles-strict-permissive/`
+- `runecontext/changes/CHG-2026-004-acdb-artifact-store-data-classes-v0/`
+- `runecontext/changes/CHG-2026-002-33c5-git-gateway-commit-push-pr/`
 
 ## Similar Implementations
 

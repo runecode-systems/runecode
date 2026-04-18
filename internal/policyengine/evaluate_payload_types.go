@@ -26,6 +26,80 @@ type gatewayEgressPayload struct {
 	PayloadHash     *trustpolicy.Digest  `json:"payload_hash,omitempty"`
 	AuditContext    *gatewayAuditContext `json:"audit_context,omitempty"`
 	QuotaContext    *gatewayQuotaContext `json:"quota_context,omitempty"`
+	GitRequest      map[string]any       `json:"git_request,omitempty"`
+	GitRuntimeProof *gitRuntimeProof     `json:"git_runtime_proof,omitempty"`
+}
+
+type gitRefUpdateRequest struct {
+	SchemaID                       string                `json:"schema_id"`
+	SchemaVersion                  string                `json:"schema_version"`
+	RequestKind                    string                `json:"request_kind"`
+	RepositoryIdentity             DestinationDescriptor `json:"repository_identity"`
+	TargetRef                      string                `json:"target_ref"`
+	ExpectedOldRefHash             trustpolicy.Digest    `json:"expected_old_ref_hash"`
+	ReferencedPatchArtifactDigests []trustpolicy.Digest  `json:"referenced_patch_artifact_digests"`
+	CommitIntent                   gitCommitIntent       `json:"commit_intent"`
+	ExpectedResultTreeHash         trustpolicy.Digest    `json:"expected_result_tree_hash"`
+	AllowForcePush                 bool                  `json:"allow_force_push"`
+	AllowRefDeletion               bool                  `json:"allow_ref_deletion"`
+	RefPurpose                     string                `json:"ref_purpose,omitempty"`
+	BaseRef                        string                `json:"base_ref,omitempty"`
+}
+
+type gitPullRequestCreateRequest struct {
+	SchemaID                       string                `json:"schema_id"`
+	SchemaVersion                  string                `json:"schema_version"`
+	RequestKind                    string                `json:"request_kind"`
+	BaseRepositoryIdentity         DestinationDescriptor `json:"base_repository_identity"`
+	BaseRef                        string                `json:"base_ref"`
+	HeadRepositoryIdentity         DestinationDescriptor `json:"head_repository_identity"`
+	HeadRef                        string                `json:"head_ref"`
+	Title                          string                `json:"title"`
+	Body                           string                `json:"body"`
+	HeadCommitOrTreeHash           trustpolicy.Digest    `json:"head_commit_or_tree_hash"`
+	ReferencedPatchArtifactDigests []trustpolicy.Digest  `json:"referenced_patch_artifact_digests"`
+	ExpectedResultTreeHash         trustpolicy.Digest    `json:"expected_result_tree_hash"`
+}
+
+type gitCommitIntent struct {
+	Message   gitCommitMessage   `json:"message"`
+	Trailers  []gitCommitTrailer `json:"trailers"`
+	Author    gitIdentity        `json:"author"`
+	Committer gitIdentity        `json:"committer"`
+	Signoff   gitIdentity        `json:"signoff"`
+}
+
+type gitCommitMessage struct {
+	Subject string `json:"subject"`
+	Body    string `json:"body,omitempty"`
+}
+
+type gitCommitTrailer struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type gitIdentity struct {
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+}
+
+type gitRuntimeProof struct {
+	SchemaID               string               `json:"schema_id"`
+	SchemaVersion          string               `json:"schema_version"`
+	TypedRequestHash       trustpolicy.Digest   `json:"typed_request_hash"`
+	PatchArtifactDigests   []trustpolicy.Digest `json:"patch_artifact_digests,omitempty"`
+	ExpectedOldObjectID    string               `json:"expected_old_object_id"`
+	ObservedOldObjectID    string               `json:"observed_old_object_id"`
+	ExpectedResultTreeHash trustpolicy.Digest   `json:"expected_result_tree_hash"`
+	ObservedResultTreeHash trustpolicy.Digest   `json:"observed_result_tree_hash"`
+	SparseCheckoutApplied  bool                 `json:"sparse_checkout_applied"`
+	DriftDetected          bool                 `json:"drift_detected"`
+	DestructiveRefMutation bool                 `json:"destructive_ref_mutation"`
+	ProviderKind           string               `json:"provider_kind,omitempty"`
+	PullRequestNumber      *int64               `json:"pull_request_number,omitempty"`
+	PullRequestURL         string               `json:"pull_request_url,omitempty"`
+	EvidenceRefs           []string             `json:"evidence_refs,omitempty"`
 }
 
 type gatewayAuditContext struct {

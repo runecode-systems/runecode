@@ -30,39 +30,6 @@ func validGatewayEgressActionRequest(capabilityID string, roleFamily string, rol
 	return action
 }
 
-func gatewayPayloadHash() map[string]any {
-	return mustDigestObject("sha256:" + strings.Repeat("f", 64))
-}
-
-func validGatewayAuditContext(requestHash map[string]any) map[string]any {
-	return map[string]any{
-		"schema_id":            "runecode.protocol.v0.GatewayAuditContext",
-		"schema_version":       "0.1.0",
-		"outbound_bytes":       float64(1024),
-		"started_at":           "2026-03-13T12:00:00Z",
-		"completed_at":         "2026-03-13T12:00:01Z",
-		"outcome":              "succeeded",
-		"request_hash":         requestHash,
-		"response_hash":        mustDigestObject("sha256:" + strings.Repeat("a", 64)),
-		"lease_id":             "lease-model-1",
-		"policy_decision_hash": mustDigestObject("sha256:" + strings.Repeat("b", 64)),
-	}
-}
-
-func validGatewayQuotaContextTokenMetered() map[string]any {
-	return map[string]any{
-		"schema_id":             "runecode.protocol.v0.GatewayQuotaContext",
-		"schema_version":        "0.1.0",
-		"quota_profile_kind":    "token_metered_api",
-		"phase":                 "admission",
-		"enforce_during_stream": false,
-		"meters": map[string]any{
-			"input_tokens":  float64(512),
-			"output_tokens": float64(128),
-		},
-	}
-}
-
 func validDependencyFetchActionRequest(capabilityID string, roleKind string, refName string) ActionRequest {
 	payloadHash := mustDigestObject("sha256:" + strings.Repeat("e", 64))
 	auditContext := validGatewayDependencyAuditContext(payloadHash)
@@ -98,16 +65,74 @@ func validDependencyFetchActionRequest(capabilityID string, roleKind string, ref
 	return action
 }
 
-func validGatewayDependencyAuditContext(requestHash map[string]any) map[string]any {
+func validGitRemoteMutationActionRequest(capabilityID string, operation string) ActionRequest {
+	gitRequest := validGitTypedRefUpdateRequest()
+	if operation == "git_pull_request_create" {
+		gitRequest = validGitTypedPullRequestCreateRequest()
+	}
+	requestHashIdentity, err := canonicalHashValue(gitRequest)
+	if err != nil {
+		panic(err)
+	}
+	payloadHash := mustDigestObject(requestHashIdentity)
+	auditContext := validGitRemoteMutationAuditContext(payloadHash)
+	runtimeProof := validGitRemoteMutationRuntimeProof(payloadHash)
+	action := newActionRequest(
+		ActionKindGatewayEgress,
+		capabilityID,
+		actionPayloadGatewaySchemaID,
+		newSchemaPayload(actionPayloadGatewaySchemaID, map[string]any{
+			"gateway_role_kind": "git-gateway",
+			"destination_kind":  "git_remote",
+			"destination_ref":   "git.example.com/org/repo",
+			"egress_data_class": "diffs",
+			"operation":         operation,
+			"payload_hash":      payloadHash,
+			"audit_context":     auditContext,
+			"git_request":       gitRequest,
+			"git_runtime_proof": runtimeProof,
+		}),
+		"gateway",
+		"git-gateway",
+	)
+	action.RelevantArtifactHashes = []trustpolicy.Digest{{HashAlg: "sha256", Hash: strings.Repeat("9", 64)}}
+	return action
+}
+
+func validGitTypedPullRequestCreateRequest() map[string]any {
 	return map[string]any{
-		"schema_id":      "runecode.protocol.v0.GatewayAuditContext",
+		"schema_id":      "runecode.protocol.v0.GitPullRequestCreateRequest",
 		"schema_version": "0.1.0",
-		"outbound_bytes": float64(4096),
-		"started_at":     "2026-03-13T12:00:00Z",
-		"completed_at":   "2026-03-13T12:00:01Z",
-		"outcome":        "succeeded",
-		"request_hash":   requestHash,
-		"response_hash":  mustDigestObject("sha256:" + strings.Repeat("d", 64)),
+		"request_kind":   "git_pull_request_create",
+		"base_repository_identity": map[string]any{
+			"schema_id":                destinationDescriptorSchemaID,
+			"schema_version":           destinationDescriptorVersion,
+			"descriptor_kind":          "git_remote",
+			"canonical_host":           "git.example.com",
+			"git_repository_identity":  "git.example.com/org/repo",
+			"provider_or_namespace":    "org/repo",
+			"tls_required":             true,
+			"private_range_blocking":   "enforced",
+			"dns_rebinding_protection": "enforced",
+		},
+		"base_ref": "refs/heads/main",
+		"head_repository_identity": map[string]any{
+			"schema_id":                destinationDescriptorSchemaID,
+			"schema_version":           destinationDescriptorVersion,
+			"descriptor_kind":          "git_remote",
+			"canonical_host":           "git.example.com",
+			"git_repository_identity":  "git.example.com/org/repo",
+			"provider_or_namespace":    "org/repo",
+			"tls_required":             true,
+			"private_range_blocking":   "enforced",
+			"dns_rebinding_protection": "enforced",
+		},
+		"head_ref":                          "refs/heads/runecode/feature-1",
+		"title":                             "Apply approved patch flow",
+		"body":                              "Created from typed pull-request contract.",
+		"head_commit_or_tree_hash":          mustDigestObject("sha256:" + strings.Repeat("9", 64)),
+		"referenced_patch_artifact_digests": []any{mustDigestObject("sha256:" + strings.Repeat("7", 64))},
+		"expected_result_tree_hash":         mustDigestObject("sha256:" + strings.Repeat("6", 64)),
 	}
 }
 
@@ -137,28 +162,35 @@ func compileGatewayInputWithOneCapability(roleKind string, capability string, al
 }
 
 func validAllowlistPayloadForGateway(entry string, gatewayRole string, descriptorKind string, operation string, dataClass string) map[string]any {
+	entryPayload := map[string]any{
+		"schema_id":                   gatewayScopeRuleSchemaID,
+		"schema_version":              gatewayScopeRuleVersion,
+		"scope_kind":                  "gateway_destination",
+		"gateway_role_kind":           gatewayRole,
+		"destination":                 validDestinationDescriptorForKind(entry, descriptorKind),
+		"permitted_operations":        []any{operation},
+		"allowed_egress_data_classes": []any{dataClass},
+		"redirect_posture":            "allowlist_only",
+		"max_timeout_seconds":         float64(120),
+		"max_response_bytes":          float64(16777216),
+	}
+	if descriptorKind == "git_remote" {
+		entryPayload["git_ref_update_policy"] = map[string]any{"rules": []any{map[string]any{"rule_kind": "exact", "ref": "refs/heads/main"}}}
+		entryPayload["git_tag_update_policy"] = map[string]any{"rules": []any{map[string]any{"rule_kind": "prefix_glob", "prefix": "refs/tags/releases/"}}}
+		entryPayload["git_pull_request_base_ref_policy"] = map[string]any{"rules": []any{map[string]any{"rule_kind": "exact", "ref": "refs/heads/main"}}}
+		entryPayload["git_pull_request_head_namespace_policy"] = map[string]any{"rules": []any{map[string]any{"rule_kind": "prefix_glob", "prefix": "refs/heads/runecode/"}}}
+	}
 	return map[string]any{
 		"schema_id":       policyAllowlistSchemaID,
 		"schema_version":  policyAllowlistSchemaVersion,
 		"allowlist_kind":  "gateway_scope_rule",
 		"entry_schema_id": gatewayScopeRuleSchemaID,
-		"entries": []any{map[string]any{
-			"schema_id":                   gatewayScopeRuleSchemaID,
-			"schema_version":              gatewayScopeRuleVersion,
-			"scope_kind":                  "gateway_destination",
-			"gateway_role_kind":           gatewayRole,
-			"destination":                 validDestinationDescriptorForKind(entry, descriptorKind),
-			"permitted_operations":        []any{operation},
-			"allowed_egress_data_classes": []any{dataClass},
-			"redirect_posture":            "allowlist_only",
-			"max_timeout_seconds":         float64(120),
-			"max_response_bytes":          float64(16777216),
-		}},
+		"entries":         []any{entryPayload},
 	}
 }
 
 func validDestinationDescriptorForKind(name, kind string) map[string]any {
-	return map[string]any{
+	destination := map[string]any{
 		"schema_id":                destinationDescriptorSchemaID,
 		"schema_version":           destinationDescriptorVersion,
 		"descriptor_kind":          kind,
@@ -168,4 +200,8 @@ func validDestinationDescriptorForKind(name, kind string) map[string]any {
 		"private_range_blocking":   "enforced",
 		"dns_rebinding_protection": "enforced",
 	}
+	if kind == "git_remote" {
+		destination["git_repository_identity"] = name + ".example.com/org/repo"
+	}
+	return destination
 }

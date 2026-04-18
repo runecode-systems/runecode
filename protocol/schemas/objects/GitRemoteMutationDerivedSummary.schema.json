@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/GitRemoteMutationDerivedSummary.schema.json",
+  "title": "GitRemoteMutationDerivedSummary",
+  "description": "Derived-only, non-authoritative summary projection for prepared git remote mutation requests.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 9,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "repository_identity",
+    "target_refs",
+    "referenced_patch_artifact_digests",
+    "expected_result_tree_hash"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.GitRemoteMutationDerivedSummary",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "repository_identity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "description": "Derived repository identity projection.",
+      "x-data-class": "public"
+    },
+    "target_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "description": "Derived target refs projection.",
+      "items": {
+        "type": "string",
+        "minLength": 6,
+        "maxLength": 256,
+        "pattern": "^refs/[A-Za-z0-9._/-]+$"
+      },
+      "x-data-class": "public"
+    },
+    "referenced_patch_artifact_digests": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "description": "Derived referenced patch artifact digests projection.",
+      "items": {
+        "$ref": "Digest.schema.json#/$defs/digestValue"
+      },
+      "x-data-class": "public"
+    },
+    "expected_result_tree_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Derived expected result tree hash projection.",
+      "x-data-class": "public"
+    },
+    "commit_subject": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Derived commit subject for display.",
+      "x-data-class": "public"
+    },
+    "pull_request_title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "description": "Derived pull request title for display.",
+      "x-data-class": "public"
+    },
+    "pull_request_base_ref": {
+      "type": "string",
+      "minLength": 6,
+      "maxLength": 256,
+      "pattern": "^refs/[A-Za-z0-9._/-]+$",
+      "description": "Derived pull request base ref for display.",
+      "x-data-class": "public"
+    },
+    "pull_request_head_ref": {
+      "type": "string",
+      "minLength": 6,
+      "maxLength": 256,
+      "pattern": "^refs/[A-Za-z0-9._/-]+$",
+      "description": "Derived pull request head ref for display.",
+      "x-data-class": "public"
+    }
+  }
+}

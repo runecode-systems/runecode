@@ -1,9 +1,7 @@
 package brokerapi
 
 import (
-	"encoding/json"
 	"fmt"
-	"path"
 	"strings"
 	"time"
 
@@ -72,7 +70,7 @@ func llmGatewayAuditContext(binding llmExecutionBinding, outcome string) *policy
 		CompletedAt:   completedAt,
 		Outcome:       outcome,
 		RequestHash:   &binding.RequestHash,
-		ResponseHash:  &binding.ResponseHash,
+		ResponseHash:  optionalDigestPointer(binding.ResponseHash),
 		LeaseID:       binding.LeaseID,
 	}
 }
@@ -106,7 +104,7 @@ func (s *Service) emitModelGatewayAudit(runID string, decision policyengine.Poli
 	if err := validateLLMExecutionBindingForAudit(binding); err != nil {
 		return fmt.Errorf("llm execution metadata unavailable: %w", err)
 	}
-	destinationRef, err := s.trustedLLMDestinationRefForRun(runID)
+	destinationRef, allowlistMatch, err := s.trustedLLMDestinationForRun(runID)
 	if err != nil {
 		return fmt.Errorf("llm execution metadata unavailable: %w", err)
 	}
@@ -122,102 +120,23 @@ func (s *Service) emitModelGatewayAudit(runID string, decision policyengine.Poli
 		Operation:       "invoke_model",
 		PayloadHash:     &binding.RequestHash,
 		AuditContext: &gatewayAuditContextPayload{
+			OutboundBytes:      binding.OutboundBytes,
+			StartedAt:          binding.StartedAt.UTC().Format(time.RFC3339),
+			CompletedAt:        binding.CompletedAt.UTC().Format(time.RFC3339),
 			Outcome:            outcome,
 			RequestHash:        &binding.RequestHash,
-			ResponseHash:       &binding.ResponseHash,
+			ResponseHash:       optionalDigestPointer(binding.ResponseHash),
 			LeaseID:            binding.LeaseID,
 			PolicyDecisionHash: policyDecisionHash,
 		},
-	})
+	}, allowlistMatch)
 }
 
-func (s *Service) trustedLLMDestinationRefForRun(runID string) (string, error) {
-	runtime := policyRuntime{service: s}
-	compileInput, err := runtime.loadCompileInput(strings.TrimSpace(runID))
-	if err != nil {
-		return "", err
+func optionalDigestPointer(d trustpolicy.Digest) *trustpolicy.Digest {
+	if _, err := d.Identity(); err != nil {
+		return nil
 	}
-	return resolveLLMDestinationRefFromAllowlists(compileInput.Allowlists)
-}
-
-func resolveLLMDestinationRefFromAllowlists(allowlists []policyengine.ManifestInput) (string, error) {
-	for _, allowlistInput := range allowlists {
-		allowlist := policyengine.PolicyAllowlist{}
-		if err := json.Unmarshal(allowlistInput.Payload, &allowlist); err != nil {
-			return "", fmt.Errorf("decode trusted allowlist payload: %w", err)
-		}
-		for _, entry := range allowlist.Entries {
-			if !entrySupportsLLMInvoke(entry) {
-				continue
-			}
-			return destinationRefFromDescriptor(entry.Destination), nil
-		}
-	}
-	return "", fmt.Errorf("trusted model gateway destination unavailable")
-}
-
-func entrySupportsLLMInvoke(entry policyengine.GatewayScopeRule) bool {
-	if entry.ScopeKind != "gateway_destination" {
-		return false
-	}
-	if !isHardenedModelDestination(entry.Destination) {
-		return false
-	}
-	roleKind := strings.TrimSpace(entry.GatewayRoleKind)
-	if roleKind != "" && roleKind != "model-gateway" {
-		return false
-	}
-	for _, operation := range entry.PermittedOperations {
-		if operation == "invoke_model" {
-			return true
-		}
-	}
-	return false
-}
-
-func isHardenedModelDestination(destination policyengine.DestinationDescriptor) bool {
-	if destination.DescriptorKind != "model_endpoint" {
-		return false
-	}
-	if strings.TrimSpace(destination.CanonicalHost) == "" {
-		return false
-	}
-	if strings.Contains(destination.CanonicalPathPrefix, "..") {
-		return false
-	}
-	if !destination.TLSRequired {
-		return false
-	}
-	if destination.PrivateRangeBlocking != "enforced" {
-		return false
-	}
-	if destination.DNSRebindingProtection != "enforced" {
-		return false
-	}
-	return true
-}
-
-func destinationRefFromDescriptor(descriptor policyengine.DestinationDescriptor) string {
-	ref := strings.TrimSpace(descriptor.CanonicalHost)
-	if descriptor.CanonicalPort != nil && *descriptor.CanonicalPort != 443 {
-		ref = fmt.Sprintf("%s:%d", ref, *descriptor.CanonicalPort)
-	}
-	return ref + normalizeDestinationPathPrefix(descriptor.CanonicalPathPrefix)
-}
-
-func normalizeDestinationPathPrefix(rawPath string) string {
-	trimmed := strings.TrimSpace(rawPath)
-	if trimmed == "" {
-		return "/"
-	}
-	if !strings.HasPrefix(trimmed, "/") {
-		trimmed = "/" + trimmed
-	}
-	normalized := path.Clean(trimmed)
-	if normalized == "." {
-		return "/"
-	}
-	return normalized
+	return &d
 }
 
 func validateLLMExecutionBindingForPolicy(binding llmExecutionBinding) error {

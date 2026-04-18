@@ -113,16 +113,26 @@ func localBrokerReadApiRunAndSessionSchemaVersionPairs() map[string]string {
 
 func localBrokerReadApiApprovalAndArtifactSchemaVersionPairs() map[string]string {
 	return map[string]string{
-		"runecode.protocol.v0.ApprovalListRequest":  "0.1.0",
-		"runecode.protocol.v0.ApprovalListResponse": "0.1.0",
-		"runecode.protocol.v0.ApprovalGetRequest":   "0.1.0",
-		"runecode.protocol.v0.ApprovalGetResponse":  "0.1.0",
-		"runecode.protocol.v0.ArtifactListRequest":  "0.1.0",
-		"runecode.protocol.v0.ArtifactListResponse": "0.1.0",
-		"runecode.protocol.v0.ArtifactHeadRequest":  "0.1.0",
-		"runecode.protocol.v0.ArtifactHeadResponse": "0.1.0",
-		"runecode.protocol.v0.LogStreamRequest":     "0.1.0",
-		"runecode.protocol.v0.LogStreamEvent":       "0.1.0",
+		"runecode.protocol.v0.ApprovalListRequest":                        "0.1.0",
+		"runecode.protocol.v0.ApprovalListResponse":                       "0.1.0",
+		"runecode.protocol.v0.ApprovalGetRequest":                         "0.1.0",
+		"runecode.protocol.v0.ApprovalGetResponse":                        "0.1.0",
+		"runecode.protocol.v0.GitRemoteMutationDerivedSummary":            "0.1.0",
+		"runecode.protocol.v0.GitRemoteMutationPreparedState":             "0.1.0",
+		"runecode.protocol.v0.GitRemoteMutationPrepareRequest":            "0.1.0",
+		"runecode.protocol.v0.GitRemoteMutationPrepareResponse":           "0.1.0",
+		"runecode.protocol.v0.GitRemoteMutationGetRequest":                "0.1.0",
+		"runecode.protocol.v0.GitRemoteMutationGetResponse":               "0.1.0",
+		"runecode.protocol.v0.GitRemoteMutationIssueExecuteLeaseRequest":  "0.1.0",
+		"runecode.protocol.v0.GitRemoteMutationIssueExecuteLeaseResponse": "0.1.0",
+		"runecode.protocol.v0.GitRemoteMutationExecuteRequest":            "0.1.0",
+		"runecode.protocol.v0.GitRemoteMutationExecuteResponse":           "0.1.0",
+		"runecode.protocol.v0.ArtifactListRequest":                        "0.1.0",
+		"runecode.protocol.v0.ArtifactListResponse":                       "0.1.0",
+		"runecode.protocol.v0.ArtifactHeadRequest":                        "0.1.0",
+		"runecode.protocol.v0.ArtifactHeadResponse":                       "0.1.0",
+		"runecode.protocol.v0.LogStreamRequest":                           "0.1.0",
+		"runecode.protocol.v0.LogStreamEvent":                             "0.1.0",
 	}
 }
 

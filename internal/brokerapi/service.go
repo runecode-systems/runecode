@@ -25,6 +25,7 @@ type Service struct {
 	store                     *artifacts.Store
 	auditLedger               *auditd.Ledger
 	secretsSvc                *secretsd.Service
+	gitMutationExecutor       gitRemoteMutationExecutor
 	auditor                   *brokerAuditEmitter
 	auditRoot                 string
 	gatewayQuota              *gatewayQuotaBackend
@@ -33,6 +34,7 @@ type Service struct {
 	apiConfig                 APIConfig
 	apiInflight               *inFlightGate
 	versionInfo               BrokerVersionInfo
+	gitSetup                  *gitSetupState
 	now                       func() time.Time
 }
 
@@ -65,6 +67,7 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 		gatewayQuota:              quotaBackend,
 		gatewayRuntime:            runtime,
 		instancePostureController: newLocalInstanceBackendPostureController(),
+		gitSetup:                  newGitSetupState(),
 		apiConfig:                 resolved,
 		apiInflight:               newInFlightGate(resolved.Limits),
 		now:                       time.Now,

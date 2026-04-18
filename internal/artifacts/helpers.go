@@ -83,6 +83,12 @@ func normalizePrimaryStateMaps(state StoreState) StoreState {
 	if state.RunApprovalRefs == nil {
 		state.RunApprovalRefs = map[string][]string{}
 	}
+	if state.GitRemotePrepared == nil {
+		state.GitRemotePrepared = map[string]GitRemotePreparedMutationRecord{}
+	}
+	if state.RunGitRemotePreparedRefs == nil {
+		state.RunGitRemotePreparedRefs = map[string][]string{}
+	}
 	if state.PromotionEventsByActor == nil {
 		state.PromotionEventsByActor = map[string][]time.Time{}
 	}

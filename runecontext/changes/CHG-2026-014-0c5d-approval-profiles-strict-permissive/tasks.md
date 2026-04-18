@@ -21,6 +21,9 @@
 - [ ] Keep the fixed hard-floor categories from `runecontext/changes/CHG-2026-007-2315-policy-engine-v0/` outside profile control.
 - [ ] Keep profile behavior aligned with the policy split between exact-action approvals and stage sign-off.
 - [ ] Keep gate overrides explicit approvals across all profiles and do not batch them into ambient milestone sign-off.
+- [ ] Keep `git_remote_ops` explicit exact-action approvals across all profiles and do not batch them into stage sign-off, milestone approval, or ambient acknowledgment.
+- [ ] Keep `git_remote_ops` approval payload binding aligned with canonical repository identity, target refs, referenced patch artifact digests, expected result tree hash, and canonical action request hash.
+- [ ] Keep the minimum assurance floor for `git_remote_ops` at least `reauthenticated` across all profiles.
 - [ ] Keep profile mappings aligned with the shared executor-class model so stricter or more permissive timing does not blur `workspace_ordinary` versus `system_modifying` actions.
 
 Cross-cutting approval lifecycle rules (applies to all profiles):
@@ -50,6 +53,7 @@ Parallelization: can be designed in parallel with TUI work; it depends on struct
   - posture-changing actions (e.g., container backend, new egress scopes) remain explicit approvals
   - gate overrides remain explicit approvals
   - when git-gateway exists: require an explicit final approval for git remote state changes (push/tag/PR creation)
+- [ ] Ensure `permissive` mode does not introduce batch, milestone, or durable pre-approval semantics for `git_remote_ops`; each approved remote mutation remains exact-action and hash-bound.
 - [ ] Ensure `permissive` does not silently convert `workspace-test` or similar ordinary workspace roles into `system_modifying` execution without explicit exact-action approval.
 
 Parallelization: can be designed in parallel with workflow runner work; it depends on the policy engine being the only pause/resume authority.
@@ -77,6 +81,7 @@ Parallelization: can be implemented in parallel across policy/runner/TUI as long
 - [ ] Profiles must never convert `deny -> allow`.
 - [ ] Attempting to use an unknown profile value fails closed.
 - [ ] Profiles do not weaken the fixed minimum assurance floor for hard-floor operations.
+- [ ] Profiles do not weaken exact-action binding or assurance for `git_remote_ops`, including canonical repo identity, target refs, patch artifact digests, and expected result tree hash.
 
 Profile hardening follow-up (pre-MVP foundation):
 - [ ] Ensure backend posture approval gating fails closed when profile-specific approval payload derivation is unavailable.

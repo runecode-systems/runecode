@@ -8,6 +8,7 @@ Define the GitHub Copilot subscription provider path using the shared bridge run
 - Auth egress and model egress remain separated.
 - Runtime compatibility is probe-driven and fail-closed.
 - Bridge runtimes stay in explicit LLM-only mode with no workspace or patch capabilities.
+- Provider setup, account-linking, and auth posture remain broker-owned typed flows rather than runtime-local authority.
 
 ## Main Workstreams
 - Official Runtime Bridge Integration

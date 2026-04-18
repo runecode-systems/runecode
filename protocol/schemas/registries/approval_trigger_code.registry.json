@@ -22,6 +22,10 @@
       "summary": "Gateway egress enablement, allowlist changes, or allowed egress data-class expansion requires approval."
     },
     {
+      "code": "git_remote_ops",
+      "summary": "Git remote mutation operations such as push, tag update, and pull-request creation require exact final approval."
+    },
+    {
       "code": "out_of_workspace_write",
       "summary": "A write would occur outside the declared workspace path allowlist."
     },

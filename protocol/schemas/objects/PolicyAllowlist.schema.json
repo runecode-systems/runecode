@@ -47,7 +47,8 @@
       "x-data-class": "sensitive",
       "items": {
         "$ref": "GatewayScopeRule.schema.json",
-        "description": "One typed gateway scope rule entry."
+        "description": "One typed gateway scope rule entry.",
+        "x-data-class": "sensitive"
       },
       "uniqueItems": true
     }

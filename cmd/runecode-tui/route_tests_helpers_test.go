@@ -180,6 +180,21 @@ func (r *recordingBrokerClient) AuditAnchorSegment(ctx context.Context, req brok
 	return r.base.AuditAnchorSegment(ctx, req)
 }
 
+func (r *recordingBrokerClient) GitSetupGet(ctx context.Context, provider string) (brokerapi.GitSetupGetResponse, error) {
+	r.record("GitSetupGet")
+	return r.base.GitSetupGet(ctx, provider)
+}
+
+func (r *recordingBrokerClient) GitSetupAuthBootstrap(ctx context.Context, req brokerapi.GitSetupAuthBootstrapRequest) (brokerapi.GitSetupAuthBootstrapResponse, error) {
+	r.record("GitSetupAuthBootstrap")
+	return r.base.GitSetupAuthBootstrap(ctx, req)
+}
+
+func (r *recordingBrokerClient) GitSetupIdentityUpsert(ctx context.Context, req brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, error) {
+	r.record("GitSetupIdentityUpsert")
+	return r.base.GitSetupIdentityUpsert(ctx, req)
+}
+
 func (r *recordingBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error) {
 	r.record("ReadinessGet")
 	return r.base.ReadinessGet(ctx)
@@ -471,6 +486,18 @@ func (f *reloadAwareBrokerClient) AuditAnchorSegment(ctx context.Context, req br
 	return (&fakeBrokerClient{}).AuditAnchorSegment(ctx, req)
 }
 
+func (f *reloadAwareBrokerClient) GitSetupGet(ctx context.Context, provider string) (brokerapi.GitSetupGetResponse, error) {
+	return (&fakeBrokerClient{}).GitSetupGet(ctx, provider)
+}
+
+func (f *reloadAwareBrokerClient) GitSetupAuthBootstrap(ctx context.Context, req brokerapi.GitSetupAuthBootstrapRequest) (brokerapi.GitSetupAuthBootstrapResponse, error) {
+	return (&fakeBrokerClient{}).GitSetupAuthBootstrap(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) GitSetupIdentityUpsert(ctx context.Context, req brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, error) {
+	return (&fakeBrokerClient{}).GitSetupIdentityUpsert(ctx, req)
+}
+
 func (f *reloadAwareBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error) {
 	return (&fakeBrokerClient{}).ReadinessGet(ctx)
 }
@@ -676,6 +703,51 @@ func (f *fakeBrokerClient) AuditAnchorSegment(ctx context.Context, req brokerapi
 		VerificationReportDigest: &report,
 		AnchoringStatus:          "ok",
 	}, nil
+}
+
+func (f *fakeBrokerClient) GitSetupGet(ctx context.Context, provider string) (brokerapi.GitSetupGetResponse, error) {
+	_ = ctx
+	resolved := strings.TrimSpace(provider)
+	if resolved == "" {
+		resolved = "github"
+	}
+	profile := brokerapi.GitCommitIdentityProfile{SchemaID: "runecode.protocol.v0.GitCommitIdentityProfile", SchemaVersion: "0.1.0", ProfileID: "default", DisplayName: "Default identity", AuthorName: "RuneCode Operator", AuthorEmail: "operator@example.invalid", CommitterName: "RuneCode Operator", CommitterEmail: "operator@example.invalid", SignoffName: "RuneCode Operator", SignoffEmail: "operator@example.invalid", DefaultProfile: true}
+	return brokerapi.GitSetupGetResponse{SchemaID: "runecode.protocol.v0.GitSetupGetResponse", SchemaVersion: "0.1.0", RequestID: "req-git-setup-get", ProviderAccount: brokerapi.GitProviderAccountState{SchemaID: "runecode.protocol.v0.GitProviderAccountState", SchemaVersion: "0.1.0", Provider: resolved, AccountID: "not_linked", AccountUsername: "not_linked", Linked: false, Source: "restored_state"}, IdentityProfiles: []brokerapi.GitCommitIdentityProfile{profile}, AuthPosture: brokerapi.GitAuthPostureState{SchemaID: "runecode.protocol.v0.GitAuthPostureState", SchemaVersion: "0.1.0", Provider: resolved, AuthStatus: "not_linked", BootstrapMode: "browser", HeadlessBootstrapSupported: true, InteractiveTokenFallbackSupport: true}, ControlPlaneState: brokerapi.GitControlPlaneState{SchemaID: "runecode.protocol.v0.GitControlPlaneState", SchemaVersion: "0.1.0", Provider: resolved, DefaultIdentityProfileID: "default", LastSetupView: "overview", RecentRepositories: []string{}}, PolicySurface: brokerapi.GitPolicySurfaceState{ArtifactManagedOnly: true, InspectionSupported: true, PrepareChangesSupport: true, DirectMutationSupport: false}}, nil
+}
+
+func (f *fakeBrokerClient) GitSetupAuthBootstrap(ctx context.Context, req brokerapi.GitSetupAuthBootstrapRequest) (brokerapi.GitSetupAuthBootstrapResponse, error) {
+	_ = ctx
+	provider := strings.TrimSpace(req.Provider)
+	if provider == "" {
+		provider = "github"
+	}
+	status := "pending"
+	account := brokerapi.GitProviderAccountState{SchemaID: "runecode.protocol.v0.GitProviderAccountState", SchemaVersion: "0.1.0", Provider: provider, AccountID: "pending", AccountUsername: "pending", Linked: false, Source: "auth_bootstrap"}
+	auth := brokerapi.GitAuthPostureState{SchemaID: "runecode.protocol.v0.GitAuthPostureState", SchemaVersion: "0.1.0", Provider: provider, AuthStatus: "not_linked", BootstrapMode: req.Mode, HeadlessBootstrapSupported: true, InteractiveTokenFallbackSupport: true}
+	deviceURI := ""
+	deviceCode := ""
+	nextPoll := 0
+	if req.Mode == "device_code" {
+		deviceURI = "https://github.com/login/device"
+		deviceCode = "RUNE-CODE"
+		nextPoll = 5
+	}
+	return brokerapi.GitSetupAuthBootstrapResponse{SchemaID: "runecode.protocol.v0.GitSetupAuthBootstrapResponse", SchemaVersion: "0.1.0", RequestID: "req-git-auth-bootstrap", Provider: provider, Mode: req.Mode, Status: status, DeviceVerificationURI: deviceURI, DeviceUserCode: deviceCode, NextPollAfterSeconds: nextPoll, AccountState: account, AuthPosture: auth}, nil
+}
+
+func (f *fakeBrokerClient) GitSetupIdentityUpsert(ctx context.Context, req brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, error) {
+	_ = ctx
+	provider := strings.TrimSpace(req.Provider)
+	if provider == "" {
+		provider = "github"
+	}
+	profile := req.Profile
+	profile.SchemaID = "runecode.protocol.v0.GitCommitIdentityProfile"
+	profile.SchemaVersion = "0.1.0"
+	if strings.TrimSpace(profile.ProfileID) == "" {
+		return brokerapi.GitSetupIdentityUpsertResponse{}, fmt.Errorf("profile id required")
+	}
+	return brokerapi.GitSetupIdentityUpsertResponse{SchemaID: "runecode.protocol.v0.GitSetupIdentityUpsertResponse", SchemaVersion: "0.1.0", RequestID: "req-git-identity-upsert", Provider: provider, Profile: profile, ControlPlaneState: brokerapi.GitControlPlaneState{SchemaID: "runecode.protocol.v0.GitControlPlaneState", SchemaVersion: "0.1.0", Provider: provider, DefaultIdentityProfileID: profile.ProfileID, LastSetupView: "identity", RecentRepositories: []string{}}}, nil
 }
 
 func (f *fakeBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error) {

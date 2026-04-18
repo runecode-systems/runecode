@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/GitCommitIntent.schema.json",
+  "title": "GitCommitIntent",
+  "description": "Provider-neutral typed git commit intent used as a substep inside remote mutation requests.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 7,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "message",
+    "trailers",
+    "author",
+    "committer",
+    "signoff"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.GitCommitIntent",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "message": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 2,
+      "required": [
+        "subject"
+      ],
+      "properties": {
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Commit subject line.",
+          "x-data-class": "public"
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Optional commit message body.",
+          "x-data-class": "public"
+        }
+      },
+      "description": "Structured commit message.",
+      "x-data-class": "public"
+    },
+    "trailers": {
+      "type": "array",
+      "maxItems": 64,
+      "description": "Deterministic structured commit trailers.",
+      "x-data-class": "public",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "maxProperties": 2,
+        "required": [
+          "key",
+          "value"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z][A-Za-z0-9-]*$",
+            "description": "Commit trailer key.",
+            "x-data-class": "public"
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Commit trailer value.",
+            "x-data-class": "public"
+          }
+        }
+      },
+      "uniqueItems": true
+    },
+    "author": {
+      "$ref": "#/$defs/gitIdentity",
+      "description": "Structured author identity.",
+      "x-data-class": "public"
+    },
+    "committer": {
+      "$ref": "#/$defs/gitIdentity",
+      "description": "Structured committer identity.",
+      "x-data-class": "public"
+    },
+    "signoff": {
+      "$ref": "#/$defs/gitIdentity",
+      "description": "Structured signoff identity used for deterministic Signed-off-by rendering.",
+      "x-data-class": "public"
+    }
+  },
+  "$defs": {
+    "gitIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 2,
+      "required": [
+        "display_name",
+        "email"
+      ],
+      "properties": {
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Structured identity display name.",
+          "x-data-class": "public"
+        },
+        "email": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 254,
+          "format": "email",
+          "description": "Structured identity email.",
+          "x-data-class": "public"
+        }
+      },
+      "description": "Structured git identity.",
+      "x-data-class": "public"
+    }
+  }
+}

@@ -10,6 +10,9 @@ func destinationRefMatches(descriptor DestinationDescriptor, destinationRef stri
 	if strings.TrimSpace(destinationRef) == "" {
 		return false
 	}
+	if descriptor.DescriptorKind == "git_remote" {
+		return gitRepositoryIdentityMatches(descriptor, destinationRef)
+	}
 
 	host, port, refPath := parseDestinationRef(destinationRef)
 	if host == "" || strings.ToLower(host) != strings.ToLower(descriptor.CanonicalHost) {
@@ -38,7 +41,13 @@ func destinationPathPrefixMatches(prefix, observedPath string) bool {
 	}
 	normalizedPath := normalizeDestinationPath(observedPath)
 	normalizedPrefix := normalizeDestinationPath(prefix)
-	return strings.HasPrefix(normalizedPath, normalizedPrefix)
+	if normalizedPrefix == "/" {
+		return true
+	}
+	if normalizedPath == normalizedPrefix {
+		return true
+	}
+	return strings.HasPrefix(normalizedPath, normalizedPrefix+"/")
 }
 
 func normalizeDestinationPath(raw string) string {
@@ -87,6 +96,39 @@ func parseDestinationRef(ref string) (string, *int, string) {
 	}
 
 	return host, port, path
+}
+
+func gitRepositoryIdentityMatches(descriptor DestinationDescriptor, destinationRef string) bool {
+	identityHost, identityPort, identityPath := parseGitRepositoryIdentity(descriptor.GitRepositoryIdentity)
+	if identityHost == "" || identityPath == "" {
+		return false
+	}
+	host, refPort, refPath := parseDestinationRef(destinationRef)
+	if host == "" {
+		return false
+	}
+	if !strings.EqualFold(host, identityHost) {
+		return false
+	}
+	if !destinationPortMatches(identityPort, refPort) {
+		return false
+	}
+	return normalizeDestinationPath(refPath) == identityPath
+}
+
+func parseGitRepositoryIdentity(value string) (string, *int, string) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "", nil, ""
+	}
+	host, port, path := parseDestinationRef(trimmed)
+	if host == "" {
+		return "", nil, ""
+	}
+	if path == "/" {
+		return "", nil, ""
+	}
+	return strings.ToLower(host), port, normalizeDestinationPath(path)
 }
 
 func containsString(values []string, want string) bool {

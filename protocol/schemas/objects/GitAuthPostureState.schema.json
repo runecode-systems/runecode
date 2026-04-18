@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/GitAuthPostureState.schema.json",
+  "title": "GitAuthPostureState",
+  "description": "Broker-managed auth posture for git provider setup flows.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 7,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "provider",
+    "auth_status",
+    "bootstrap_mode",
+    "headless_bootstrap_supported",
+    "interactive_token_fallback_supported"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.GitAuthPostureState",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Git provider identity for this auth posture projection.",
+      "x-data-class": "public"
+    },
+    "auth_status": {
+      "type": "string",
+      "enum": ["not_linked", "linked", "degraded"],
+      "description": "Current broker-projected linkage posture for the provider.",
+      "x-data-class": "public"
+    },
+    "bootstrap_mode": {
+      "type": "string",
+      "enum": ["browser", "device_code", "interactive_token_prompt"],
+      "description": "Preferred broker-owned bootstrap mode for this provider.",
+      "x-data-class": "public"
+    },
+    "headless_bootstrap_supported": {
+      "type": "boolean",
+      "description": "Whether a headless bootstrap path such as device code is supported.",
+      "x-data-class": "public"
+    },
+    "interactive_token_fallback_supported": {
+      "type": "boolean",
+      "description": "Whether trusted interactive token-entry fallback is supported.",
+      "x-data-class": "public"
+    }
+  }
+}

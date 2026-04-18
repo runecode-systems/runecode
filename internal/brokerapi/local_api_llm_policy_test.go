@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
@@ -34,6 +35,32 @@ func TestEmitModelGatewayAuditFailsClosedWhenMetadataMissing(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "llm execution metadata unavailable") {
 		t.Fatalf("error = %q, want metadata unavailable message", err.Error())
+	}
+}
+
+func TestEmitModelGatewayAuditPropagatesAllowlistMatch(t *testing.T) {
+	service := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-llm-audit-match"
+	putTrustedModelGatewayContextForRun(t, service, runID, []any{trustedModelGatewayAllowlistEntry()})
+	now := time.Date(2026, 4, 12, 10, 0, 0, 0, time.UTC)
+	binding := llmExecutionBinding{
+		RequestHash:   trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
+		ResponseHash:  trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)},
+		LeaseID:       "lease-1",
+		StartedAt:     now,
+		CompletedAt:   now.Add(time.Second),
+		OutboundBytes: 120,
+	}
+	err := service.emitModelGatewayAudit(runID, policyengine.PolicyDecision{}, llmOutcomeSucceeded, binding)
+	if err != nil {
+		t.Fatalf("emitModelGatewayAudit returned error: %v", err)
+	}
+	found := requireLatestModelEgressAuditDetails(t, service)
+	if got, _ := found["matched_allowlist_entry_id"].(string); got != "model_default" {
+		t.Fatalf("matched_allowlist_entry_id = %q, want model_default", got)
+	}
+	if got, _ := found["matched_allowlist_ref"].(string); got == "" || !strings.HasPrefix(got, "sha256:") {
+		t.Fatalf("matched_allowlist_ref = %v, want sha256 digest", found["matched_allowlist_ref"])
 	}
 }
 
@@ -171,7 +198,7 @@ func TestLLMGatewayPolicyHelpersOmitZeroTimestamps(t *testing.T) {
 
 func TestResolveLLMDestinationRefFromAllowlistsPrefersModelGatewayInvokeEntry(t *testing.T) {
 	allowlistPayload := trustedPolicyAllowlistPayloadWithEntries(t, []any{trustedModelGatewayAllowlistEntry()})
-	ref, err := resolveLLMDestinationRefFromAllowlists([]policyengine.ManifestInput{{Payload: allowlistPayload}})
+	ref, err := resolveLLMDestinationRefFromAllowlists([]policyengine.ManifestInput{{Payload: allowlistPayload, ExpectedHash: artifacts.DigestBytes(allowlistPayload)}})
 	if err != nil {
 		t.Fatalf("resolveLLMDestinationRefFromAllowlists returned error: %v", err)
 	}
@@ -180,12 +207,41 @@ func TestResolveLLMDestinationRefFromAllowlistsPrefersModelGatewayInvokeEntry(t 
 	}
 }
 
+func TestResolveLLMDestinationFromAllowlistsReturnsAllowlistMatch(t *testing.T) {
+	allowlistPayload := trustedPolicyAllowlistPayloadWithEntries(t, []any{trustedModelGatewayAllowlistEntry()})
+	expectedHash := artifacts.DigestBytes(allowlistPayload)
+	ref, match, err := resolveLLMDestinationFromAllowlists([]policyengine.ManifestInput{{Payload: allowlistPayload, ExpectedHash: expectedHash}})
+	if err != nil {
+		t.Fatalf("resolveLLMDestinationFromAllowlists returned error: %v", err)
+	}
+	if ref != "model.example.com/" {
+		t.Fatalf("destination_ref = %q, want model.example.com/", ref)
+	}
+	if match.AllowlistRef != expectedHash {
+		t.Fatalf("allowlist_ref = %q, want %q", match.AllowlistRef, expectedHash)
+	}
+	if match.EntryID != "model_default" {
+		t.Fatalf("entry_id = %q, want model_default", match.EntryID)
+	}
+}
+
+func TestResolveLLMDestinationFromAllowlistsFailsClosedOnExpectedHashMismatch(t *testing.T) {
+	allowlistPayload := trustedPolicyAllowlistPayloadWithEntries(t, []any{trustedModelGatewayAllowlistEntry()})
+	_, _, err := resolveLLMDestinationFromAllowlists([]policyengine.ManifestInput{{Payload: allowlistPayload, ExpectedHash: "sha256:" + strings.Repeat("f", 64)}})
+	if err == nil {
+		t.Fatal("expected hash mismatch error")
+	}
+	if !strings.Contains(err.Error(), "trusted allowlist payload hash mismatch") {
+		t.Fatalf("error = %q, want trusted allowlist payload hash mismatch", err.Error())
+	}
+}
+
 func TestResolveLLMDestinationRefFromAllowlistsRejectsUnhardenedEntry(t *testing.T) {
 	entry := trustedModelGatewayAllowlistEntry()
 	destination, _ := entry["destination"].(map[string]any)
 	destination["tls_required"] = false
 	allowlistPayload := trustedPolicyAllowlistPayloadWithEntries(t, []any{entry})
-	_, err := resolveLLMDestinationRefFromAllowlists([]policyengine.ManifestInput{{Payload: allowlistPayload}})
+	_, err := resolveLLMDestinationRefFromAllowlists([]policyengine.ManifestInput{{Payload: allowlistPayload, ExpectedHash: artifacts.DigestBytes(allowlistPayload)}})
 	if err == nil {
 		t.Fatal("expected destination resolution error for unhardened entry")
 	}
@@ -199,9 +255,23 @@ func TestResolveLLMDestinationRefFromAllowlistsRejectsPathTraversalPrefix(t *tes
 	destination, _ := entry["destination"].(map[string]any)
 	destination["canonical_path_prefix"] = "/v1/../../admin"
 	allowlistPayload := trustedPolicyAllowlistPayloadWithEntries(t, []any{entry})
-	_, err := resolveLLMDestinationRefFromAllowlists([]policyengine.ManifestInput{{Payload: allowlistPayload}})
+	_, err := resolveLLMDestinationRefFromAllowlists([]policyengine.ManifestInput{{Payload: allowlistPayload, ExpectedHash: artifacts.DigestBytes(allowlistPayload)}})
 	if err == nil {
 		t.Fatal("expected destination resolution error for traversal path prefix")
+	}
+	if !strings.Contains(err.Error(), "trusted model gateway destination unavailable") {
+		t.Fatalf("error = %q, want trusted model gateway destination unavailable", err.Error())
+	}
+}
+
+func TestResolveLLMDestinationRefFromAllowlistsRejectsEncodedPathTraversalPrefix(t *testing.T) {
+	entry := trustedModelGatewayAllowlistEntry()
+	destination, _ := entry["destination"].(map[string]any)
+	destination["canonical_path_prefix"] = "/v1/%2e%2e/admin"
+	allowlistPayload := trustedPolicyAllowlistPayloadWithEntries(t, []any{entry})
+	_, err := resolveLLMDestinationRefFromAllowlists([]policyengine.ManifestInput{{Payload: allowlistPayload, ExpectedHash: artifacts.DigestBytes(allowlistPayload)}})
+	if err == nil {
+		t.Fatal("expected destination resolution error for encoded traversal path prefix")
 	}
 	if !strings.Contains(err.Error(), "trusted model gateway destination unavailable") {
 		t.Fatalf("error = %q, want trusted model gateway destination unavailable", err.Error())
@@ -213,7 +283,7 @@ func TestResolveLLMDestinationRefFromAllowlistsUsesCanonicalPathPrefix(t *testin
 	destination, _ := entry["destination"].(map[string]any)
 	destination["canonical_path_prefix"] = "/v1"
 	allowlistPayload := trustedPolicyAllowlistPayloadWithEntries(t, []any{entry})
-	ref, err := resolveLLMDestinationRefFromAllowlists([]policyengine.ManifestInput{{Payload: allowlistPayload}})
+	ref, err := resolveLLMDestinationRefFromAllowlists([]policyengine.ManifestInput{{Payload: allowlistPayload, ExpectedHash: artifacts.DigestBytes(allowlistPayload)}})
 	if err != nil {
 		t.Fatalf("resolveLLMDestinationRefFromAllowlists returned error: %v", err)
 	}
@@ -224,12 +294,23 @@ func TestResolveLLMDestinationRefFromAllowlistsUsesCanonicalPathPrefix(t *testin
 
 func TestResolveLLMDestinationRefFromAllowlistsErrorsWhenMissingEntry(t *testing.T) {
 	allowlistPayload := trustedPolicyAllowlistPayloadWithEntries(t, []any{trustedDependencyFetchAllowlistEntry()})
-	_, err := resolveLLMDestinationRefFromAllowlists([]policyengine.ManifestInput{{Payload: allowlistPayload}})
+	_, err := resolveLLMDestinationRefFromAllowlists([]policyengine.ManifestInput{{Payload: allowlistPayload, ExpectedHash: artifacts.DigestBytes(allowlistPayload)}})
 	if err == nil {
 		t.Fatal("expected destination resolution error for missing model invoke entry")
 	}
 	if !strings.Contains(err.Error(), "trusted model gateway destination unavailable") {
 		t.Fatalf("error = %q, want trusted model gateway destination unavailable", err.Error())
+	}
+}
+
+func TestResolveLLMDestinationRefFromAllowlistsFailsClosedOnMissingExpectedHash(t *testing.T) {
+	allowlistPayload := trustedPolicyAllowlistPayloadWithEntries(t, []any{trustedModelGatewayAllowlistEntry()})
+	_, err := resolveLLMDestinationRefFromAllowlists([]policyengine.ManifestInput{{Payload: allowlistPayload}})
+	if err == nil {
+		t.Fatal("expected missing expected hash error")
+	}
+	if !strings.Contains(err.Error(), "trusted allowlist expected hash missing") {
+		t.Fatalf("error = %q, want trusted allowlist expected hash missing", err.Error())
 	}
 }
 

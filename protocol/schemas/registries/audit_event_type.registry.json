@@ -18,6 +18,10 @@
       "summary": "Records auth-gateway outbound activity with attributable destination and allowlist context."
     },
     {
+      "code": "git_egress",
+      "summary": "Records git-gateway remote-mutation outbound activity with attributable destination and allowlist context."
+    },
+    {
       "code": "artifact_put",
       "summary": "Records successful artifact ingestion after canonicalization and immutable metadata assignment."
     },

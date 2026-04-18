@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/GitProviderAccountState.schema.json",
+  "title": "GitProviderAccountState",
+  "description": "Broker-managed git provider account linkage state.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 7,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "provider",
+    "account_id",
+    "account_username",
+    "linked",
+    "source"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.GitProviderAccountState",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Git provider identity for the linked account.",
+      "x-data-class": "public"
+    },
+    "account_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Provider-scoped account identifier projected by the broker.",
+      "x-data-class": "public"
+    },
+    "account_username": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Provider username or handle for operator-facing setup flows.",
+      "x-data-class": "public"
+    },
+    "linked": {
+      "type": "boolean",
+      "description": "Whether the provider account is currently linked in broker-owned state.",
+      "x-data-class": "public"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["auth_bootstrap", "restored_state"],
+      "description": "How the current linked-account state was established.",
+      "x-data-class": "public"
+    }
+  }
+}

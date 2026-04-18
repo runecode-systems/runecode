@@ -26,18 +26,33 @@ func invalidPolicyAllowlistEntrySchemaID() map[string]any {
 }
 
 func validGatewayScopeRule(provider string) map[string]any {
-	return map[string]any{
+	destination := validDestinationDescriptor(provider)
+	rule := map[string]any{
 		"schema_id":                   "runecode.protocol.v0.GatewayScopeRule",
 		"schema_version":              "0.1.0",
 		"scope_kind":                  "gateway_destination",
+		"entry_id":                    "model_default",
 		"gateway_role_kind":           "model-gateway",
-		"destination":                 validDestinationDescriptor(provider),
+		"destination":                 destination,
 		"permitted_operations":        []any{"invoke_model"},
 		"allowed_egress_data_classes": []any{"spec_text"},
 		"redirect_posture":            "allowlist_only",
 		"max_timeout_seconds":         120,
 		"max_response_bytes":          16777216,
 	}
+	if provider == "git" {
+		destination["descriptor_kind"] = "git_remote"
+		destination["canonical_host"] = "git.example.test"
+		destination["git_repository_identity"] = "git.example.test/org/repo.git"
+		rule["gateway_role_kind"] = "git-gateway"
+		rule["permitted_operations"] = []any{"change_allowlist"}
+		rule["allowed_egress_data_classes"] = []any{"diffs"}
+		rule["git_ref_update_policy"] = map[string]any{"rules": []any{map[string]any{"rule_kind": "exact", "ref": "refs/heads/main"}}}
+		rule["git_tag_update_policy"] = map[string]any{"rules": []any{map[string]any{"rule_kind": "prefix_glob", "prefix": "refs/tags/releases/"}}}
+		rule["git_pull_request_base_ref_policy"] = map[string]any{"rules": []any{map[string]any{"rule_kind": "exact", "ref": "refs/heads/main"}}}
+		rule["git_pull_request_head_namespace_policy"] = map[string]any{"rules": []any{map[string]any{"rule_kind": "prefix_glob", "prefix": "refs/heads/runecode/"}}}
+	}
+	return rule
 }
 
 func invalidGatewayScopeRuleKind() map[string]any {
@@ -47,7 +62,7 @@ func invalidGatewayScopeRuleKind() map[string]any {
 }
 
 func validDestinationDescriptor(provider string) map[string]any {
-	return map[string]any{
+	descriptor := map[string]any{
 		"schema_id":                "runecode.protocol.v0.DestinationDescriptor",
 		"schema_version":           "0.1.0",
 		"descriptor_kind":          "model_endpoint",
@@ -57,11 +72,25 @@ func validDestinationDescriptor(provider string) map[string]any {
 		"private_range_blocking":   "enforced",
 		"dns_rebinding_protection": "enforced",
 	}
+	if provider == "git" {
+		descriptor["descriptor_kind"] = "git_remote"
+		descriptor["canonical_host"] = "git.example.com"
+		descriptor["provider_or_namespace"] = "org/repo"
+		descriptor["git_repository_identity"] = "git.example.com/org/repo"
+	}
+	return descriptor
 }
 
 func invalidDestinationDescriptorKind() map[string]any {
 	descriptor := validDestinationDescriptor("provider-a")
 	descriptor["descriptor_kind"] = "raw_url"
+	return descriptor
+}
+
+func invalidDestinationDescriptorGitMissingRepositoryIdentity() map[string]any {
+	descriptor := validDestinationDescriptor("provider-a")
+	descriptor["descriptor_kind"] = "git_remote"
+	delete(descriptor, "git_repository_identity")
 	return descriptor
 }
 
@@ -114,6 +143,37 @@ func validActionPayloadGatewayEgressScopeOperation() map[string]any {
 	return payload
 }
 
+func validActionPayloadGatewayEgressGitRemoteMutationOperation() map[string]any {
+	payload := validActionPayloadGatewayEgressRequestOperation()
+	payload["gateway_role_kind"] = "git-gateway"
+	payload["destination_kind"] = "git_remote"
+	payload["destination_ref"] = "git.example.com/org/repo"
+	payload["egress_data_class"] = "diffs"
+	payload["operation"] = "git_ref_update"
+	delete(payload, "quota_context")
+	payload["git_request"] = validGitRefUpdateRequest()
+	payload["git_runtime_proof"] = validGitRemoteMutationProofFixture()
+	return payload
+}
+
+func validGitRemoteMutationProofFixture() map[string]any {
+	return map[string]any{
+		"schema_id":                 "runecode.protocol.v0.GitRuntimeProof",
+		"schema_version":            "0.1.0",
+		"typed_request_hash":        testDigestValue("8"),
+		"expected_old_object_id":    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"observed_old_object_id":    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"patch_artifact_digests":    []any{testDigestValue("5")},
+		"expected_result_tree_hash": testDigestValue("6"),
+		"observed_result_tree_hash": testDigestValue("6"),
+		"sparse_checkout_applied":   true,
+		"drift_detected":            false,
+		"destructive_ref_mutation":  false,
+		"provider_kind":             "github",
+		"evidence_refs":             []any{"artifact:gate-result"},
+	}
+}
+
 func validActionPayloadGatewayEgressRequestOperationWithTimeout() map[string]any {
 	payload := validActionPayloadGatewayEgressRequestOperation()
 	payload["timeout_seconds"] = 60
@@ -155,6 +215,12 @@ func invalidActionPayloadGatewayEgressDependencyRequestMissingPayloadHash() map[
 func invalidActionPayloadGatewayEgressScopeWithPayloadHash() map[string]any {
 	payload := validActionPayloadGatewayEgressScopeOperation()
 	payload["payload_hash"] = testDigestValue("9")
+	return payload
+}
+
+func invalidActionPayloadGatewayEgressGitRemoteMutationMissingSummary() map[string]any {
+	payload := validActionPayloadGatewayEgressGitRemoteMutationOperation()
+	delete(payload, "git_request")
 	return payload
 }
 
@@ -235,4 +301,108 @@ func invalidGatewayScopeRuleTimeoutOutOfBounds() map[string]any {
 	rule := validGatewayScopeRule("provider-a")
 	rule["max_timeout_seconds"] = 301
 	return rule
+}
+
+func invalidGatewayScopeRuleGitMissingRefPolicies() map[string]any {
+	rule := validGatewayScopeRule("git")
+	delete(rule, "git_ref_update_policy")
+	return rule
+}
+
+func validGitCommitIntent() map[string]any {
+	return map[string]any{
+		"schema_id":      "runecode.protocol.v0.GitCommitIntent",
+		"schema_version": "0.1.0",
+		"message": map[string]any{
+			"subject": "Apply approved patch",
+			"body":    "Includes deterministic trailer rendering from structured identities.",
+		},
+		"trailers": []any{
+			map[string]any{"key": "Signed-off-by", "value": "Signoff Example <signoff@example.com>"},
+		},
+		"author": map[string]any{
+			"display_name": "Author Example",
+			"email":        "author@example.com",
+		},
+		"committer": map[string]any{
+			"display_name": "Committer Example",
+			"email":        "committer@example.com",
+		},
+		"signoff": map[string]any{
+			"display_name": "Signoff Example",
+			"email":        "signoff@example.com",
+		},
+	}
+}
+
+func invalidGitCommitIntentWithoutSignoff() map[string]any {
+	intent := validGitCommitIntent()
+	delete(intent, "signoff")
+	return intent
+}
+
+func validGitSignedPatchArtifact() map[string]any {
+	return map[string]any{
+		"schema_id":                    "runecode.protocol.v0.GitSignedPatchArtifact",
+		"schema_version":               "0.1.0",
+		"data_class":                   "diffs",
+		"base_commit_hash":             testDigestValue("1"),
+		"base_tree_hash":               testDigestValue("2"),
+		"canonical_patch_payload_hash": testDigestValue("3"),
+		"touched_paths":                []any{"README.md", "internal/policyengine/evaluate_gateway_binding.go"},
+		"expected_result_tree_hash":    testDigestValue("4"),
+		"patch_format":                 "unified_diff",
+	}
+}
+
+func invalidGitSignedPatchArtifactWithoutDiffsDataClass() map[string]any {
+	artifact := validGitSignedPatchArtifact()
+	artifact["data_class"] = "approved_file_excerpts"
+	return artifact
+}
+
+func validGitRefUpdateRequest() map[string]any {
+	return map[string]any{
+		"schema_id":                         "runecode.protocol.v0.GitRefUpdateRequest",
+		"schema_version":                    "0.1.0",
+		"request_kind":                      "git_ref_update",
+		"repository_identity":               validDestinationDescriptor("git"),
+		"target_ref":                        "refs/heads/main",
+		"expected_old_ref_hash":             testDigestValue("5"),
+		"referenced_patch_artifact_digests": []any{testDigestValue("6")},
+		"commit_intent":                     validGitCommitIntent(),
+		"expected_result_tree_hash":         testDigestValue("7"),
+		"allow_force_push":                  false,
+		"allow_ref_deletion":                false,
+		"ref_purpose":                       "branch",
+	}
+}
+
+func invalidGitRefUpdateRequestWithForcePushEnabled() map[string]any {
+	request := validGitRefUpdateRequest()
+	request["allow_force_push"] = true
+	return request
+}
+
+func validGitPullRequestCreateRequest() map[string]any {
+	return map[string]any{
+		"schema_id":                         "runecode.protocol.v0.GitPullRequestCreateRequest",
+		"schema_version":                    "0.1.0",
+		"request_kind":                      "git_pull_request_create",
+		"base_repository_identity":          validDestinationDescriptor("git"),
+		"base_ref":                          "refs/heads/main",
+		"head_repository_identity":          validDestinationDescriptor("git"),
+		"head_ref":                          "refs/heads/runecode/feature-1",
+		"title":                             "Apply approved patch flow",
+		"body":                              "Created from typed pull-request contract.",
+		"head_commit_or_tree_hash":          testDigestValue("8"),
+		"referenced_patch_artifact_digests": []any{testDigestValue("9")},
+		"expected_result_tree_hash":         testDigestValue("a"),
+	}
+}
+
+func invalidGitPullRequestCreateRequestWithNonCanonicalHeadRef() map[string]any {
+	request := validGitPullRequestCreateRequest()
+	request["head_ref"] = "main"
+	return request
 }

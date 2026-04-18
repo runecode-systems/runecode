@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/GitCommitIdentityProfile.schema.json",
+  "title": "GitCommitIdentityProfile",
+  "description": "Broker-managed commit identity profile used for git commit intent rendering.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 11,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "profile_id",
+    "display_name",
+    "author_name",
+    "author_email",
+    "committer_name",
+    "committer_email",
+    "signoff_name",
+    "signoff_email",
+    "default_profile"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.GitCommitIdentityProfile",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "profile_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Stable broker-managed identity-profile identifier.",
+      "x-data-class": "public"
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Operator-facing display name for the identity profile.",
+      "x-data-class": "public"
+    },
+    "author_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Structured author display name.",
+      "x-data-class": "public"
+    },
+    "author_email": {
+      "type": "string",
+      "format": "email",
+      "maxLength": 320,
+      "description": "Structured author email address.",
+      "x-data-class": "public"
+    },
+    "committer_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Structured committer display name.",
+      "x-data-class": "public"
+    },
+    "committer_email": {
+      "type": "string",
+      "format": "email",
+      "maxLength": 320,
+      "description": "Structured committer email address.",
+      "x-data-class": "public"
+    },
+    "signoff_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Structured signoff display name used for deterministic trailer rendering.",
+      "x-data-class": "public"
+    },
+    "signoff_email": {
+      "type": "string",
+      "format": "email",
+      "maxLength": 320,
+      "description": "Structured signoff email address used for deterministic trailer rendering.",
+      "x-data-class": "public"
+    },
+    "default_profile": {
+      "type": "boolean",
+      "description": "Whether this profile is the broker-selected default for git setup flows.",
+      "x-data-class": "public"
+    }
+  }
+}

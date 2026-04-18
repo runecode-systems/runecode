@@ -26,33 +26,9 @@ type gatewayActionPayloadRuntime struct {
 	TimeoutSeconds  *int                        `json:"timeout_seconds,omitempty"`
 	PayloadHash     *trustpolicy.Digest         `json:"payload_hash,omitempty"`
 	AuditContext    *gatewayAuditContextPayload `json:"audit_context,omitempty"`
+	GitRequest      map[string]any              `json:"git_request,omitempty"`
+	GitRuntimeProof *gitRuntimeProofPayload     `json:"git_runtime_proof,omitempty"`
 	QuotaContext    *gatewayQuotaContextPayload `json:"quota_context,omitempty"`
-}
-
-type gatewayAuditContextPayload struct {
-	Outcome            string              `json:"outcome"`
-	RequestHash        *trustpolicy.Digest `json:"request_hash,omitempty"`
-	ResponseHash       *trustpolicy.Digest `json:"response_hash,omitempty"`
-	LeaseID            string              `json:"lease_id,omitempty"`
-	PolicyDecisionHash *trustpolicy.Digest `json:"policy_decision_hash,omitempty"`
-}
-
-type gatewayQuotaContextPayload struct {
-	QuotaProfileKind    string                    `json:"quota_profile_kind"`
-	Phase               string                    `json:"phase"`
-	EnforceDuringStream bool                      `json:"enforce_during_stream"`
-	StreamLimitBytes    *int64                    `json:"stream_limit_bytes,omitempty"`
-	Meters              gatewayQuotaMetersPayload `json:"meters"`
-}
-
-type gatewayQuotaMetersPayload struct {
-	RequestUnits     *int64 `json:"request_units,omitempty"`
-	InputTokens      *int64 `json:"input_tokens,omitempty"`
-	OutputTokens     *int64 `json:"output_tokens,omitempty"`
-	StreamedBytes    *int64 `json:"streamed_bytes,omitempty"`
-	ConcurrencyUnits *int64 `json:"concurrency_units,omitempty"`
-	SpendMicros      *int64 `json:"spend_micros,omitempty"`
-	EntitlementUnits *int64 `json:"entitlement_units,omitempty"`
 }
 
 func (r policyRuntime) enforceGatewayRuntime(runID string, compiled *policyengine.CompiledContext, action policyengine.ActionRequest, decision policyengine.PolicyDecision) policyengine.PolicyDecision {
@@ -65,7 +41,7 @@ func (r policyRuntime) enforceGatewayRuntime(runID string, compiled *policyengin
 		return runtimeGatewayDenyDecision(compiled, decision, payload, "runtime_gateway_payload_decode_failed", map[string]any{"error": err.Error()})
 	}
 
-	entry, found, reason := findMatchingGatewayAllowlistEntry(compiled, payload)
+	entry, match, found, reason := findMatchingGatewayAllowlistEntry(compiled, payload)
 	if !found {
 		if reason == "" {
 			reason = "runtime_gateway_destination_not_allowlisted"
@@ -76,8 +52,12 @@ func (r policyRuntime) enforceGatewayRuntime(runID string, compiled *policyengin
 	if reason, details, denied := r.service.gatewayRuntime.runtimeEnforcementDenyReason(runID, entry, payload); denied {
 		return runtimeGatewayDenyDecision(compiled, decision, payload, reason, details)
 	}
+	if reason, details, denied := runtimeGitOutboundVerificationReason(payload); denied {
+		r.service.gatewayRuntime.releaseQuotaUsage(runID, payload)
+		return runtimeGatewayDenyDecision(compiled, decision, payload, reason, details)
+	}
 
-	if err := r.service.gatewayRuntime.emitGatewayAuditEvent(runID, decision, payload); err != nil {
+	if err := r.service.gatewayRuntime.emitGatewayAuditEvent(runID, decision, payload, match); err != nil {
 		r.service.gatewayRuntime.releaseQuotaUsage(runID, payload)
 		return runtimeGatewayDenyDecision(compiled, decision, payload, "runtime_gateway_audit_emit_failed", map[string]any{"error": err.Error()})
 	}
@@ -107,7 +87,7 @@ func decodeGatewayRuntimePayload(raw map[string]any) (gatewayActionPayloadRuntim
 	return payload, nil
 }
 
-func findMatchingGatewayAllowlistEntry(compiled *policyengine.CompiledContext, payload gatewayActionPayloadRuntime) (policyengine.GatewayScopeRule, bool, string) {
+func findMatchingGatewayAllowlistEntry(compiled *policyengine.CompiledContext, payload gatewayActionPayloadRuntime) (policyengine.GatewayScopeRule, gatewayAllowlistMatch, bool, string) {
 	for _, ref := range compiled.Context.ActiveAllowlistRefs {
 		allowlist, ok := compiled.AllowlistsByHash[ref]
 		if !ok {
@@ -115,11 +95,11 @@ func findMatchingGatewayAllowlistEntry(compiled *policyengine.CompiledContext, p
 		}
 		for _, entry := range allowlist.Entries {
 			if gatewayAllowlistEntryMatchesRuntimePayload(entry, payload) {
-				return entry, true, ""
+				return entry, gatewayAllowlistMatch{AllowlistRef: ref, EntryID: entry.EntryID}, true, ""
 			}
 		}
 	}
-	return policyengine.GatewayScopeRule{}, false, "runtime_gateway_destination_not_allowlisted"
+	return policyengine.GatewayScopeRule{}, gatewayAllowlistMatch{}, false, "runtime_gateway_destination_not_allowlisted"
 }
 
 func gatewayAllowlistEntryMatchesRuntimePayload(entry policyengine.GatewayScopeRule, payload gatewayActionPayloadRuntime) bool {

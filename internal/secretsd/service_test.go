@@ -14,6 +14,10 @@ import (
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
+func testDigestIdentity(ch string) string {
+	return "sha256:" + strings.Repeat(ch, 64)
+}
+
 func TestLeaseLifecycleAndBinding(t *testing.T) {
 	svc, err := Open(t.TempDir())
 	if err != nil {
@@ -80,6 +84,142 @@ func TestImportSecretUsesDistinctSecretIDPrefix(t *testing.T) {
 	}
 	if !strings.HasPrefix(lease.LeaseID, "lease_") {
 		t.Fatalf("lease_id = %q, want lease_ prefix", lease.LeaseID)
+	}
+}
+
+func TestGitLeaseBindingEnforcedFailClosed(t *testing.T) {
+	svc, binding, lease := issueBoundGitLeaseForTest(t)
+	if lease.DeliveryKind != "git_gateway" {
+		t.Fatalf("lease delivery_kind = %q, want git_gateway", lease.DeliveryKind)
+	}
+	if lease.GitBinding == nil {
+		t.Fatal("lease git_binding missing")
+	}
+	if got := lease.GitBinding.RepositoryIdentity; got != binding.RepositoryIdentity {
+		t.Fatalf("lease git_binding.repository_identity = %q, want %q", got, binding.RepositoryIdentity)
+	}
+	assertGitLeaseRetrieveAllowed(t, svc, lease, gitLeaseUseContext(binding, "push_ref", binding.ActionRequestHash, binding.PolicyContextHash))
+	assertGitLeaseRetrieveDenied(t, svc, lease, gitLeaseUseContext(binding, "push_ref", binding.ActionRequestHash, binding.PolicyContextHash, withGitRepositoryIdentity("git_remote:github.com/runecode-ai/other")))
+	assertGitLeaseRetrieveDenied(t, svc, lease, gitLeaseUseContext(binding, "delete_ref", binding.ActionRequestHash, binding.PolicyContextHash))
+	assertGitLeaseRetrieveDenied(t, svc, lease, gitLeaseUseContext(binding, "push_ref", testDigestIdentity("c"), binding.PolicyContextHash))
+	assertGitLeaseRetrieveDenied(t, svc, lease, gitLeaseUseContext(binding, "push_ref", binding.ActionRequestHash, testDigestIdentity("d")))
+}
+
+func TestGitLeaseRevocationByRepositoryBinding(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	importGitProviderSecret(t, svc)
+	repo := "git_remote:github.com/runecode-ai/runecode"
+	actionHash := testDigestIdentity("a")
+	policyHash := testDigestIdentity("b")
+	first := mustIssueGitLease(t, svc, gitLeaseIssueRequest(repo, "run:git-1", "push_ref", actionHash, policyHash))
+	second := mustIssueGitLease(t, svc, gitLeaseIssueRequest(repo, "run:git-1", "create_pull_request", actionHash, policyHash))
+	third := mustIssueGitLease(t, svc, gitLeaseIssueRequest(repo, "run:git-2", "push_ref", testDigestIdentity("e"), policyHash))
+
+	revoked, err := svc.RevokeGitLeases(RevokeGitLeasesRequest{RepositoryIdentity: repo, ActionRequestHash: actionHash, PolicyContextHash: policyHash, Reason: "git operation completed"})
+	if err != nil {
+		t.Fatalf("RevokeGitLeases returned error: %v", err)
+	}
+	if len(revoked) != 2 {
+		t.Fatalf("revoked lease count = %d, want 2", len(revoked))
+	}
+	assertGitLeaseRetrieveDenied(t, svc, first, gitLeaseUseContext(first.GitBinding, "push_ref", actionHash, policyHash))
+	assertGitLeaseRetrieveDenied(t, svc, second, gitLeaseUseContext(second.GitBinding, "create_pull_request", actionHash, policyHash))
+	assertGitLeaseRetrieveAllowed(t, svc, third, gitLeaseUseContext(third.GitBinding, "push_ref", testDigestIdentity("e"), policyHash))
+}
+
+func issueBoundGitLeaseForTest(t *testing.T) (*Service, *GitLeaseBinding, Lease) {
+	t.Helper()
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	importGitProviderSecret(t, svc)
+	binding := &GitLeaseBinding{
+		RepositoryIdentity: "git_remote:github.com/runecode-ai/runecode",
+		AllowedOperations:  []string{"push_ref", "create_pull_request"},
+		ActionRequestHash:  testDigestIdentity("a"),
+		PolicyContextHash:  testDigestIdentity("b"),
+	}
+	lease := mustIssueGitLease(t, svc, IssueLeaseRequest{SecretRef: "secrets/prod/git/provider-token", ConsumerID: "principal:gateway:git:1", RoleKind: "git-gateway", Scope: "run:git-1", DeliveryKind: "git_gateway", GitBinding: binding, TTLSeconds: 120})
+	return svc, binding, lease
+}
+
+func importGitProviderSecret(t *testing.T, svc *Service) {
+	t.Helper()
+	if _, err := svc.ImportSecret("secrets/prod/git/provider-token", strings.NewReader("git-provider-token")); err != nil {
+		t.Fatalf("ImportSecret returned error: %v", err)
+	}
+}
+
+func gitLeaseIssueRequest(repo, scope, operation, actionHash, policyHash string) IssueLeaseRequest {
+	return IssueLeaseRequest{SecretRef: "secrets/prod/git/provider-token", ConsumerID: "principal:gateway:git:1", RoleKind: "git-gateway", Scope: scope, DeliveryKind: "git_gateway", GitBinding: &GitLeaseBinding{RepositoryIdentity: repo, AllowedOperations: []string{operation}, ActionRequestHash: actionHash, PolicyContextHash: policyHash}, TTLSeconds: 120}
+}
+
+func mustIssueGitLease(t *testing.T, svc *Service, req IssueLeaseRequest) Lease {
+	t.Helper()
+	lease, err := svc.IssueLease(req)
+	if err != nil {
+		t.Fatalf("IssueLease returned error: %v", err)
+	}
+	return lease
+}
+
+type gitLeaseUseContextOption func(*GitLeaseUseContext)
+
+func withGitRepositoryIdentity(repositoryIdentity string) gitLeaseUseContextOption {
+	return func(ctx *GitLeaseUseContext) {
+		ctx.RepositoryIdentity = repositoryIdentity
+	}
+}
+
+func gitLeaseUseContext(binding *GitLeaseBinding, operation, actionHash, policyHash string, opts ...gitLeaseUseContextOption) *GitLeaseUseContext {
+	ctx := &GitLeaseUseContext{RepositoryIdentity: binding.RepositoryIdentity, Operation: operation, ActionRequestHash: actionHash, PolicyContextHash: policyHash}
+	for _, opt := range opts {
+		opt(ctx)
+	}
+	return ctx
+}
+
+func assertGitLeaseRetrieveAllowed(t *testing.T, svc *Service, lease Lease, ctx *GitLeaseUseContext) {
+	t.Helper()
+	if _, _, err := svc.Retrieve(RetrieveRequest{LeaseID: lease.LeaseID, ConsumerID: "principal:gateway:git:1", RoleKind: "git-gateway", Scope: lease.Scope, DeliveryKind: "git_gateway", GitUseContext: ctx}); err != nil {
+		t.Fatalf("Retrieve returned error for valid git context: %v", err)
+	}
+}
+
+func assertGitLeaseRetrieveDenied(t *testing.T, svc *Service, lease Lease, ctx *GitLeaseUseContext) {
+	t.Helper()
+	if _, _, err := svc.Retrieve(RetrieveRequest{LeaseID: lease.LeaseID, ConsumerID: "principal:gateway:git:1", RoleKind: "git-gateway", Scope: lease.Scope, DeliveryKind: "git_gateway", GitUseContext: ctx}); err == nil {
+		t.Fatal("Retrieve expected deny for git lease mismatch")
+	}
+}
+
+func TestForbiddenSecretDeliveryInjectionChannels(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	if _, err := svc.ImportSecret("secrets/prod/api", strings.NewReader("api-secret")); err != nil {
+		t.Fatalf("ImportSecret returned error: %v", err)
+	}
+	if _, err := svc.IssueLease(IssueLeaseRequest{SecretRef: "secrets/prod/api", ConsumerID: "principal:runner:1", RoleKind: "runner", Scope: "stage:alpha", DeliveryKind: "environment_variable", TTLSeconds: 120}); err == nil {
+		t.Fatal("IssueLease expected reject for environment_variable delivery")
+	}
+	if _, err := svc.IssueLease(IssueLeaseRequest{SecretRef: "secrets/prod/api", ConsumerID: "principal:runner:1", RoleKind: "runner", Scope: "stage:alpha", DeliveryKind: "cli_argument", TTLSeconds: 120}); err == nil {
+		t.Fatal("IssueLease expected reject for cli_argument delivery")
+	}
+	lease, err := svc.IssueLease(IssueLeaseRequest{SecretRef: "secrets/prod/api", ConsumerID: "principal:runner:1", RoleKind: "runner", Scope: "stage:alpha", TTLSeconds: 120})
+	if err != nil {
+		t.Fatalf("IssueLease returned error: %v", err)
+	}
+	if _, _, err := svc.Retrieve(RetrieveRequest{LeaseID: lease.LeaseID, ConsumerID: "principal:runner:1", RoleKind: "runner", Scope: "stage:alpha", DeliveryKind: "environment_variable"}); err == nil {
+		t.Fatal("Retrieve expected reject for environment_variable delivery")
+	}
+	if _, _, err := svc.Retrieve(RetrieveRequest{LeaseID: lease.LeaseID, ConsumerID: "principal:runner:1", RoleKind: "runner", Scope: "stage:alpha", DeliveryKind: "cli_argument"}); err == nil {
+		t.Fatal("Retrieve expected reject for cli_argument delivery")
 	}
 }
 

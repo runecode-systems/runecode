@@ -10,6 +10,7 @@ import (
 func localRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
 	operations := map[string]rpcOperation{}
 	mergeRPCOperations(operations, runApprovalRPCOperations(service, ctx, meta))
+	mergeRPCOperations(operations, gitSetupRPCOperations(service, ctx, meta))
 	mergeRPCOperations(operations, artifactRPCOperations(service, ctx, meta))
 	mergeRPCOperations(operations, auditHealthRPCOperations(service, ctx, meta))
 	return operations
@@ -27,6 +28,46 @@ func runApprovalRPCOperations(service *brokerapi.Service, ctx context.Context, m
 	mergeRPCOperations(operations, sessionRPCOperations(service, ctx, meta))
 	mergeRPCOperations(operations, approvalRunnerRPCOperations(service, ctx, meta))
 	return operations
+}
+
+func gitSetupRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
+	return map[string]rpcOperation{
+		"git_setup_get": {requestSchemaPath: "objects/GitSetupGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.GitSetupGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleGitSetupGet(ctx, req, meta)
+			})
+		}},
+		"git_setup_auth_bootstrap": {requestSchemaPath: "objects/GitSetupAuthBootstrapRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.GitSetupAuthBootstrapRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleGitSetupAuthBootstrap(ctx, req, meta)
+			})
+		}},
+		"git_setup_identity_upsert": {requestSchemaPath: "objects/GitSetupIdentityUpsertRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.GitSetupIdentityUpsertRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleGitSetupIdentityUpsert(ctx, req, meta)
+			})
+		}},
+		"git_remote_mutation_prepare": {requestSchemaPath: "objects/GitRemoteMutationPrepareRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.GitRemoteMutationPrepareRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleGitRemoteMutationPrepare(ctx, req, meta)
+			})
+		}},
+		"git_remote_mutation_get": {requestSchemaPath: "objects/GitRemoteMutationGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.GitRemoteMutationGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleGitRemoteMutationGet(ctx, req, meta)
+			})
+		}},
+		"git_remote_mutation_issue_execute_lease": {requestSchemaPath: "objects/GitRemoteMutationIssueExecuteLeaseRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.GitRemoteMutationIssueExecuteLeaseRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleGitRemoteMutationIssueExecuteLease(ctx, req, meta)
+			})
+		}},
+		"git_remote_mutation_execute": {requestSchemaPath: "objects/GitRemoteMutationExecuteRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.GitRemoteMutationExecuteRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleGitRemoteMutationExecute(ctx, req, meta)
+			})
+		}},
+	}
 }
 
 func artifactRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {

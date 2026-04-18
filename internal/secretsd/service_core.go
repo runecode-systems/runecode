@@ -67,7 +67,8 @@ func (s *Service) ImportSecret(secretRef string, r io.Reader) (SecretMetadata, e
 func (s *Service) IssueLease(req IssueLeaseRequest) (Lease, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := validateBinding(req.SecretRef, req.ConsumerID, req.RoleKind, req.Scope); err != nil {
+	deliveryKind, err := validateIssueLeaseRequest(req)
+	if err != nil {
 		return Lease{}, err
 	}
 	if _, ok := s.state.Secrets[req.SecretRef]; !ok {
@@ -75,23 +76,11 @@ func (s *Service) IssueLease(req IssueLeaseRequest) (Lease, error) {
 		_ = s.persistState()
 		return Lease{}, ErrAccessDenied
 	}
-	now := s.now().UTC()
-	leaseID, err := randomLeaseID(s.rand)
+	rec, err := s.newLeaseRecord(req, deliveryKind)
 	if err != nil {
 		return Lease{}, err
 	}
-	expires := now.Add(time.Duration(effectiveTTL(req.TTLSeconds)) * time.Second)
-	rec := leaseRecord{
-		LeaseID:    leaseID,
-		SecretRef:  req.SecretRef,
-		ConsumerID: req.ConsumerID,
-		RoleKind:   req.RoleKind,
-		Scope:      req.Scope,
-		IssuedAt:   now,
-		ExpiresAt:  expires,
-		Status:     leaseStatusActive,
-	}
-	s.state.Leases[leaseID] = rec
+	s.state.Leases[rec.LeaseID] = rec
 	s.state.Metrics.LeaseIssueCount++
 	if err := s.persistState(); err != nil {
 		return Lease{}, err
@@ -163,11 +152,9 @@ func (s *Service) Retrieve(req RetrieveRequest) ([]byte, Lease, error) {
 	if err := validateBinding("placeholder", req.ConsumerID, req.RoleKind, req.Scope); err != nil {
 		return nil, Lease{}, err
 	}
-	lease, ok := s.state.Leases[req.LeaseID]
-	if !ok || !lease.bindingMatches(req.ConsumerID, req.RoleKind, req.Scope) || lease.Status != leaseStatusActive || !lease.ExpiresAt.After(s.now().UTC()) {
-		s.state.Metrics.LeaseDenyCount++
-		_ = s.persistState()
-		return nil, Lease{}, ErrAccessDenied
+	lease, err := s.retrievableLease(req)
+	if err != nil {
+		return nil, Lease{}, err
 	}
 	secretRec, ok := s.state.Secrets[lease.SecretRef]
 	if !ok {
@@ -185,4 +172,84 @@ func (s *Service) Retrieve(req RetrieveRequest) ([]byte, Lease, error) {
 		return nil, Lease{}, fmt.Errorf("%w", ErrStateRecoveryFailed)
 	}
 	return material, lease.public(), nil
+}
+
+func (s *Service) RevokeGitLeases(req RevokeGitLeasesRequest) ([]Lease, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	repositoryIdentity, actionRequestHash, policyContextHash, err := validateGitLeaseRevocationRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now().UTC()
+	updated := make([]Lease, 0)
+	for leaseID, lease := range s.state.Leases {
+		if !gitLeaseRecordMatchesRevocation(lease, repositoryIdentity, actionRequestHash, policyContextHash) {
+			continue
+		}
+		lease.Status = leaseStatusRevoked
+		lease.RevokedAt = &now
+		lease.Reason = strings.TrimSpace(req.Reason)
+		s.state.Leases[leaseID] = lease
+		s.state.Metrics.LeaseRevokeCount++
+		updated = append(updated, lease.public())
+	}
+	if len(updated) == 0 {
+		return []Lease{}, nil
+	}
+	if err := s.persistState(); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+func (s *Service) retrievableLease(req RetrieveRequest) (leaseRecord, error) {
+	requestedDeliveryKind := normalizeDeliveryKind(req.DeliveryKind)
+	if deniedDeliveryKind(requestedDeliveryKind) {
+		return leaseRecord{}, s.accessDenied()
+	}
+	lease, ok := s.state.Leases[req.LeaseID]
+	if !ok || !lease.bindingMatches(req.ConsumerID, req.RoleKind, req.Scope) || lease.Status != leaseStatusActive || !lease.ExpiresAt.After(s.now().UTC()) {
+		return leaseRecord{}, s.accessDenied()
+	}
+	if deniedDeliveryKind(lease.DeliveryKind) {
+		return leaseRecord{}, s.accessDenied()
+	}
+	if requestedDeliveryKind != "" && requestedDeliveryKind != lease.DeliveryKind {
+		return leaseRecord{}, s.accessDenied()
+	}
+	if lease.DeliveryKind == deliveryKindGitGateway && !gitLeaseBindingMatches(lease.GitBinding, req.GitUseContext) {
+		return leaseRecord{}, s.accessDenied()
+	}
+	return lease, nil
+}
+
+func (s *Service) accessDenied() error {
+	s.state.Metrics.LeaseDenyCount++
+	_ = s.persistState()
+	return ErrAccessDenied
+}
+
+func deniedDeliveryKind(kind string) bool {
+	return kind == deliveryKindEnvironmentVariable || kind == deliveryKindCLIArgument
+}
+
+func (s *Service) newLeaseRecord(req IssueLeaseRequest, deliveryKind string) (leaseRecord, error) {
+	now := s.now().UTC()
+	leaseID, err := randomLeaseID(s.rand)
+	if err != nil {
+		return leaseRecord{}, err
+	}
+	return leaseRecord{
+		LeaseID:      leaseID,
+		SecretRef:    req.SecretRef,
+		ConsumerID:   req.ConsumerID,
+		RoleKind:     req.RoleKind,
+		Scope:        req.Scope,
+		DeliveryKind: deliveryKind,
+		GitBinding:   cloneGitLeaseBinding(req.GitBinding),
+		IssuedAt:     now,
+		ExpiresAt:    now.Add(time.Duration(effectiveTTL(req.TTLSeconds)) * time.Second),
+		Status:       leaseStatusActive,
+	}, nil
 }

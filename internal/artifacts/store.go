@@ -84,6 +84,9 @@ func (s *Store) reconcileLoadedState(changed bool) (bool, error) {
 	}
 	changed = changed || approvalLinkChanged
 
+	preparedRefsChanged := reconcileRunGitRemotePreparedRefsLocked(&s.state)
+	changed = changed || preparedRefsChanged
+
 	runnerChanged, err := s.reconcileRunnerAdvisoryDurableStateLocked()
 	if err != nil {
 		return false, err
@@ -140,7 +143,7 @@ func (s *Store) AppendTrustedAuditEvent(eventType, actor string, details map[str
 		return fmt.Errorf("event type is required")
 	}
 	if actor == "" {
-		actor = "trusted_component"
+		return fmt.Errorf("actor is required")
 	}
 	return s.appendAuditLocked(eventType, actor, details)
 }

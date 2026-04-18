@@ -20,3 +20,21 @@ func isGatewayRequestExecutionOperation(operation string) bool {
 		return false
 	}
 }
+
+func isGatewayScopeChangeOperation(operation string) bool {
+	switch operation {
+	case "enable_gateway", "expand_scope", "change_allowlist", "enable_dependency_fetch":
+		return true
+	default:
+		return false
+	}
+}
+
+func isGatewayRemoteMutationOperation(operation string) bool {
+	switch operation {
+	case "git_ref_update", "git_pull_request_create":
+		return true
+	default:
+		return false
+	}
+}

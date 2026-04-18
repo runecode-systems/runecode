@@ -5,6 +5,7 @@
 - [ ] Define the dedicated web-research gateway role.
 - [ ] Keep web research isolated from workspace roles and workspace-derived data classes.
 - [ ] Model web destinations through the shared typed `DestinationDescriptor` / allowlist-entry pattern.
+- [ ] Keep web-research operations aligned with the shared gateway operation taxonomy rather than feature-local outbound verbs where the shared model is sufficient.
 
 ## Egress Controls + Fetch Hardening
 
@@ -21,6 +22,7 @@
 
 - [ ] Keep web research as an explicit approved egress posture.
 - [ ] Record fetch targets, bytes, timing, and outcomes without expanding the trust boundary.
+- [ ] Keep web-research audit fields aligned with the shared gateway audit evidence model.
 
 ## Acceptance Criteria
 

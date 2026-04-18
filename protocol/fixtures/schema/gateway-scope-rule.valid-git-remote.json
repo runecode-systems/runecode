@@ -1,0 +1,56 @@
+{
+  "schema_id": "runecode.protocol.v0.GatewayScopeRule",
+  "schema_version": "0.1.0",
+  "scope_kind": "gateway_destination",
+  "gateway_role_kind": "git-gateway",
+  "destination": {
+    "schema_id": "runecode.protocol.v0.DestinationDescriptor",
+    "schema_version": "0.1.0",
+    "descriptor_kind": "git_remote",
+    "canonical_host": "git.example.test",
+    "git_repository_identity": "git.example.test/org/repo.git",
+    "provider_or_namespace": "org/repo",
+    "tls_required": true,
+    "private_range_blocking": "enforced",
+    "dns_rebinding_protection": "enforced"
+  },
+  "permitted_operations": [
+    "git_ref_update"
+  ],
+  "allowed_egress_data_classes": [
+    "diffs"
+  ],
+  "redirect_posture": "deny",
+  "git_ref_update_policy": {
+    "rules": [
+      {
+        "rule_kind": "exact",
+        "ref": "refs/heads/main"
+      }
+    ]
+  },
+  "git_tag_update_policy": {
+    "rules": [
+      {
+        "rule_kind": "prefix_glob",
+        "prefix": "refs/tags/releases/"
+      }
+    ]
+  },
+  "git_pull_request_base_ref_policy": {
+    "rules": [
+      {
+        "rule_kind": "exact",
+        "ref": "refs/heads/main"
+      }
+    ]
+  },
+  "git_pull_request_head_namespace_policy": {
+    "rules": [
+      {
+        "rule_kind": "prefix_glob",
+        "prefix": "refs/heads/runecode/"
+      }
+    ]
+  }
+}

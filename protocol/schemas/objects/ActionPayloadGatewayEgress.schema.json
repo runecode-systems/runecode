@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/ActionPayloadGatewayEgress.schema.json",
   "title": "ActionPayloadGatewayEgress",
-  "description": "Typed action payload for gateway egress operations with a closed shared gateway operation vocabulary.",
+  "description": "Typed action payload for gateway egress operations with a closed shared gateway operation vocabulary spanning request execution, scope change, and remote-state mutation semantics.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 11,
+  "maxProperties": 13,
   "required": [
     "schema_id",
     "schema_version",
@@ -89,6 +89,16 @@
       "$ref": "#/$defs/gatewayQuotaContext",
       "description": "Optional trusted quota context used for admission-time and streaming enforcement decisions.",
       "x-data-class": "public"
+    },
+    "git_request": {
+      "$ref": "#/$defs/gitTypedRequestUnion",
+      "description": "Authoritative provider-neutral typed git request object used for exact approval and runtime binding.",
+      "x-data-class": "public"
+    },
+    "git_runtime_proof": {
+      "$ref": "#/$defs/gitRuntimeProof",
+      "description": "Runtime outbound verification proof for git remote mutation, including drift checks and observed result bindings.",
+      "x-data-class": "public"
     }
   },
   "$defs": {
@@ -111,12 +121,14 @@
     },
     "gatewayOperation": {
       "type": "string",
-      "description": "Closed shared gateway operation vocabulary.",
+      "description": "Closed shared gateway operation vocabulary spanning request execution, scope change, and remote-state mutation semantics.",
       "enum": [
         "invoke_model",
         "fetch_dependency",
         "exchange_auth_code",
         "refresh_auth_token",
+        "git_ref_update",
+        "git_pull_request_create",
         "enable_gateway",
         "expand_scope",
         "change_allowlist",
@@ -362,6 +374,405 @@
         }
       },
       "description": "Trusted quota context for admission-time and streaming-phase quota enforcement."
+    },
+    "gitIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 2,
+      "description": "Structured git identity used for deterministic metadata and trailer rendering.",
+      "x-data-class": "public",
+      "required": [
+        "display_name",
+        "email"
+      ],
+      "properties": {
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Structured identity display name used for deterministic trailer rendering.",
+          "x-data-class": "public"
+        },
+        "email": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 254,
+          "format": "email",
+          "description": "Structured identity email used for deterministic trailer rendering.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "gitRequiredTrailerRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 2,
+      "description": "Repository-required trailer rule rendered deterministically from structured identity.",
+      "x-data-class": "public",
+      "required": [
+        "trailer_key",
+        "identity_role"
+      ],
+      "properties": {
+        "trailer_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z][A-Za-z0-9-]*$",
+          "description": "Required commit trailer key enforced by repository policy.",
+          "x-data-class": "public"
+        },
+        "identity_role": {
+          "type": "string",
+          "enum": [
+            "author",
+            "committer",
+            "signoff"
+          ],
+          "description": "Structured identity source used to deterministically render the required trailer value.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "gitRemoteMutationSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 10,
+      "description": "Shared git remote-mutation summary bound into approval and runtime verification.",
+      "x-data-class": "public",
+      "required": [
+        "schema_id",
+        "schema_version",
+        "request_kind",
+        "repository_identity",
+        "target_refs",
+        "referenced_patch_artifact_digests",
+        "expected_result_tree_hash",
+        "metadata_summary"
+      ],
+      "properties": {
+        "schema_id": {
+          "const": "runecode.protocol.v0.GitRemoteMutationSummary",
+          "description": "Protocol schema identifier.",
+          "x-data-class": "public"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "description": "Protocol schema version.",
+          "x-data-class": "public"
+        },
+        "request_kind": {
+          "type": "string",
+          "enum": [
+            "git_ref_update",
+            "git_pull_request_create"
+          ],
+          "description": "Provider-neutral git request family.",
+          "x-data-class": "public"
+        },
+        "repository_identity": {
+          "$ref": "DestinationDescriptor.schema.json",
+          "description": "Logical repository identity used for policy and approval binding.",
+          "x-data-class": "public"
+        },
+        "target_refs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "description": "Canonical target refs bound to this remote mutation request.",
+          "x-data-class": "public",
+          "items": {
+            "type": "string",
+            "minLength": 6,
+            "maxLength": 256,
+            "pattern": "^refs/[A-Za-z0-9._/-]+$",
+            "description": "Canonical target ref bound to the remote mutation request.",
+            "x-data-class": "public"
+          }
+        },
+        "referenced_patch_artifact_digests": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "description": "Signed patch artifact digests referenced by this request.",
+          "x-data-class": "public",
+          "items": {
+            "$ref": "Digest.schema.json#/$defs/digestValue"
+          }
+        },
+        "expected_result_tree_hash": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Expected post-mutation repository tree hash.",
+          "x-data-class": "public"
+        },
+        "metadata_summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "maxProperties": 3,
+          "properties": {
+            "commit": {
+              "type": "object",
+              "additionalProperties": false,
+              "maxProperties": 4,
+              "description": "Commit metadata summary bound into approval for ref-update requests.",
+              "required": [
+                "subject",
+                "author",
+                "committer",
+                "signoff"
+              ],
+              "properties": {
+                "subject": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "description": "Commit subject summary.",
+                  "x-data-class": "public"
+                },
+                "author": {
+                  "$ref": "#/$defs/gitIdentity",
+                  "description": "Structured author identity summary.",
+                  "x-data-class": "public"
+                },
+                "committer": {
+                  "$ref": "#/$defs/gitIdentity",
+                  "description": "Structured committer identity summary.",
+                  "x-data-class": "public"
+                },
+                "signoff": {
+                  "$ref": "#/$defs/gitIdentity",
+                  "description": "Structured signoff identity summary.",
+                  "x-data-class": "public"
+                }
+              },
+              "x-data-class": "public"
+            },
+            "pull_request": {
+              "type": "object",
+              "additionalProperties": false,
+              "maxProperties": 3,
+              "description": "Pull-request metadata summary bound into approval for PR-create requests.",
+              "required": [
+                "title",
+                "base_ref",
+                "head_ref"
+              ],
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300,
+                  "description": "Pull-request title summary.",
+                  "x-data-class": "public"
+                },
+                "base_ref": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256,
+                  "pattern": "^refs/[A-Za-z0-9._/-]+$",
+                  "description": "Canonical base ref summary for pull-request creation.",
+                  "x-data-class": "public"
+                },
+                "head_ref": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256,
+                  "pattern": "^refs/[A-Za-z0-9._/-]+$",
+                  "description": "Canonical head ref summary for pull-request creation.",
+                  "x-data-class": "public"
+                }
+              },
+              "x-data-class": "public"
+            },
+            "commit_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "maxProperties": 2,
+              "description": "Artifact-managed repository commit-policy summary for deterministic trailer enforcement.",
+              "required": [
+                "repository_policy_digest",
+                "required_trailer_rules"
+              ],
+              "properties": {
+                "repository_policy_digest": {
+                  "$ref": "Digest.schema.json#/$defs/digestValue",
+                  "description": "Artifact-managed repository policy digest that required these trailer rules.",
+                  "x-data-class": "public"
+                },
+                "required_trailer_rules": {
+                  "type": "array",
+                  "maxItems": 16,
+                  "description": "Repository-specific required trailer rules (for example DCO Signed-off-by).",
+                  "x-data-class": "public",
+                  "items": {
+                    "$ref": "#/$defs/gitRequiredTrailerRule"
+                  },
+                  "uniqueItems": true
+                }
+              },
+              "x-data-class": "public"
+            }
+          },
+          "anyOf": [
+            {
+              "required": [
+                "commit"
+              ]
+            },
+            {
+              "required": [
+                "pull_request"
+              ]
+            }
+          ],
+          "description": "Commit and/or pull-request metadata summary bound into required approval payloads.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "gitTypedRequestUnion": {
+      "oneOf": [
+        {
+          "$ref": "GitRefUpdateRequest.schema.json"
+        },
+        {
+          "$ref": "GitPullRequestCreateRequest.schema.json"
+        }
+      ],
+      "description": "Authoritative provider-neutral typed git request union for remote-state mutation operations.",
+      "x-data-class": "public"
+    },
+    "gitRuntimeProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 15,
+      "description": "Runtime proof of git remote mutation verification on the shared gateway path.",
+      "x-data-class": "public",
+      "required": [
+        "schema_id",
+        "schema_version",
+        "typed_request_hash",
+        "expected_old_object_id",
+        "observed_old_object_id",
+        "patch_artifact_digests",
+        "expected_result_tree_hash",
+        "observed_result_tree_hash",
+        "sparse_checkout_applied",
+        "drift_detected",
+        "destructive_ref_mutation"
+      ],
+      "properties": {
+        "schema_id": {
+          "const": "runecode.protocol.v0.GitRuntimeProof",
+          "description": "Protocol schema identifier.",
+          "x-data-class": "public"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "description": "Protocol schema version.",
+          "x-data-class": "public"
+        },
+        "typed_request_hash": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Canonical typed git request hash bound to payload_hash.",
+          "x-data-class": "public"
+        },
+        "expected_old_object_id": {
+          "type": "string",
+          "minLength": 40,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{40,64}$",
+          "description": "Expected old ref object ID before mutation.",
+          "x-data-class": "public"
+        },
+        "observed_old_object_id": {
+          "type": "string",
+          "minLength": 40,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{40,64}$",
+          "description": "Observed old ref object ID at runtime before mutation.",
+          "x-data-class": "public"
+        },
+        "patch_artifact_digests": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "Digest.schema.json#/$defs/digestValue"
+          },
+          "description": "Signed patch artifact digests consumed by runtime mutation.",
+          "x-data-class": "public"
+        },
+        "expected_result_tree_hash": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Expected post-mutation repository tree hash bound by approval.",
+          "x-data-class": "public"
+        },
+        "observed_result_tree_hash": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Observed post-mutation repository tree hash at runtime.",
+          "x-data-class": "public"
+        },
+        "sparse_checkout_applied": {
+          "type": "boolean",
+          "description": "Whether sparse or partial checkout mode was applied.",
+          "x-data-class": "public"
+        },
+        "drift_detected": {
+          "type": "boolean",
+          "description": "Whether remote drift was observed against expected old state.",
+          "x-data-class": "public"
+        },
+        "destructive_ref_mutation": {
+          "type": "boolean",
+          "description": "Whether the attempted ref mutation was destructive (force/delete/non-fast-forward).",
+          "x-data-class": "public"
+        },
+        "provider_kind": {
+          "type": "string",
+          "enum": [
+            "github",
+            "gitlab",
+            "azure_devops",
+            "gitea",
+            "other"
+          ],
+          "description": "Provider adapter used for pull-request creation when applicable.",
+          "x-data-class": "public"
+        },
+        "pull_request_number": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647,
+          "description": "Provider-reported pull-request number when creation succeeded.",
+          "x-data-class": "public"
+        },
+        "pull_request_url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "format": "uri",
+          "description": "Provider-reported pull-request URL when creation succeeded.",
+          "x-data-class": "public"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Structured evidence reference identifier.",
+            "x-data-class": "public"
+          },
+          "description": "Structured references to run artifacts, gate results, and related evidence.",
+          "x-data-class": "public"
+        }
+      }
     }
   },
   "allOf": [
@@ -382,8 +793,33 @@
         ]
       },
       "then": {
+        "description": "Request-execution operations must bind a canonical payload hash.",
         "required": [
           "payload_hash"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "git_ref_update",
+              "git_pull_request_create"
+            ]
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "description": "Remote-state-mutation operations require payload, audit, and git binding proof on the shared gateway path.",
+        "required": [
+          "payload_hash",
+          "audit_context",
+          "git_request",
+          "git_runtime_proof"
         ]
       }
     },
@@ -404,6 +840,7 @@
         ]
       },
       "then": {
+        "description": "Scope-change operations must not bind a request payload hash.",
         "properties": {
           "payload_hash": {
             "not": {}
@@ -428,10 +865,43 @@
         ]
       },
       "then": {
+        "description": "Request-execution operations require both audit and quota context.",
         "required": [
           "audit_context",
           "quota_context"
         ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "invoke_model",
+              "fetch_dependency",
+              "exchange_auth_code",
+              "refresh_auth_token",
+              "enable_gateway",
+              "expand_scope",
+              "change_allowlist",
+              "enable_dependency_fetch"
+            ]
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "description": "Non-git operations must not carry git-specific request or runtime proof payloads.",
+        "properties": {
+          "git_request": {
+            "not": {}
+          },
+          "git_runtime_proof": {
+            "not": {}
+          }
+        }
       }
     },
     {
@@ -453,6 +923,7 @@
         ]
       },
       "then": {
+        "description": "Hybrid quota profiles must include both token and entitlement-style meters.",
         "properties": {
           "quota_context": {
             "properties": {
@@ -515,6 +986,7 @@
         ]
       },
       "then": {
+        "description": "Stream-phase quota enforcement requires explicit streaming enforcement and byte limits.",
         "properties": {
           "quota_context": {
             "properties": {

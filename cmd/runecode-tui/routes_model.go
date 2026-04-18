@@ -103,6 +103,10 @@ func newRouteModels(defs []routeDefinition) map[routeID]routeModel {
 			models[def.ID] = newAuditRouteModel(def, client)
 		case routeStatus:
 			models[def.ID] = newStatusRouteModel(def, client)
+		case routeGitSetup:
+			models[def.ID] = newGitSetupRouteModel(def, client)
+		case routeGitRemote:
+			models[def.ID] = newGitRemoteMutationRouteModel(def, client)
 		default:
 			models[def.ID] = routeErrorModel{def: def}
 		}

@@ -3,7 +3,7 @@
   "schema_version": "0.1.0",
   "descriptor_kind": "git_remote",
   "canonical_host": "git.example.test",
-  "canonical_path_prefix": "/org/repo.git",
+  "git_repository_identity": "git.example.test/org/repo.git",
   "provider_or_namespace": "org/repo",
   "tls_required": true,
   "private_range_blocking": "enforced",

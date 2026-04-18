@@ -5,17 +5,20 @@
 - [ ] Reassess the runner after `CHG-2026-033-6e7b-workflow-runner-durable-state-v0` native hardening is complete.
 - [ ] Decide whether LangGraph is still needed for runner-local checkpoint/wait/resume complexity.
 - [ ] Record the outcome explicitly: adopt behind the runtime seam or do not adopt.
+- [ ] Require the adoption decision to account for exact-action wait support for hard-floor approvals such as `git_remote_ops`.
 
 ## Runtime Seam Fit
 
 - [ ] Confirm the runner runtime seam is narrow enough to keep LangGraph fully internal.
 - [ ] Ensure LangGraph can be substituted without changing broker local API contracts, protocol schemas, or broker-owned lifecycle/approval semantics.
+- [ ] Ensure LangGraph does not require relaxing exact-action approval or remote-drift semantics for `git_remote_ops` or similar hard-floor remote-state-mutation lanes.
 
 ## Replay + Recovery Evaluation
 
 - [ ] Evaluate LangGraph checkpoint and interrupt behavior against RuneCode replay and idempotency requirements.
 - [ ] Confirm plan-bound fail-closed recovery still rejects stale or superseded plan bindings.
 - [ ] Confirm restart-safe resume still requires broker validation of approval state, bound scope/hash, and active plan identity.
+- [ ] Confirm restart-safe resume preserves `git_remote_ops` hash-bound waits, including relevant artifact hashes and expected result tree identity, and fails closed when those bindings drift.
 
 ## Optional Prototype
 
@@ -28,3 +31,4 @@
 - [ ] LangGraph is implemented only if it remains optional, internal-only, and clearly beneficial.
 - [ ] Adoption, if chosen, does not change trust-boundary ownership, broker authority, or public contracts.
 - [ ] Replay, wait/resume, and restart semantics remain fail-closed and plan-bound.
+- [ ] Adoption, if chosen, does not weaken exact-action approval or fail-closed remote-drift handling for `git_remote_ops` or similar hard-floor remote-state-mutation lanes.

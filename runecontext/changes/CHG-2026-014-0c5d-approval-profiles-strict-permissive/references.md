@@ -13,6 +13,7 @@
 - `runecontext/changes/CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0/`
 - `runecontext/changes/CHG-2026-013-d2c9-minimal-tui-v0/`
 - `runecontext/changes/CHG-2026-002-33c5-git-gateway-commit-push-pr/` (final approval for push/PR)
+- `runecontext/changes/CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0/`
 
 ## Similar Implementations
 

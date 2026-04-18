@@ -42,6 +42,12 @@ func TestHelpAndUnknownCommand(t *testing.T) {
 	if !strings.Contains(stdout.String(), "backend-posture-get") {
 		t.Fatalf("help output missing backend-posture-get command: %q", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "git-setup-get") {
+		t.Fatalf("help output missing git-setup-get command: %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "git-remote-mutation-prepare") {
+		t.Fatalf("help output missing git-remote-mutation-prepare command: %q", stdout.String())
+	}
 	if !strings.Contains(stdout.String(), "approval-resolve") {
 		t.Fatalf("help output missing approval-resolve command: %q", stdout.String())
 	}
