@@ -11,12 +11,16 @@
 - [ ] Bind session turns to isolate-backed workflow execution rather than client-local assistant actions.
 - [ ] Support links from sessions to active runs, pending approvals, artifacts, and audit records.
 - [ ] Preserve project-context binding when session-driven work depends on verified RuneContext state.
+- [ ] Bind project-context-sensitive session work to the validated project-substrate snapshot digest rather than ambient repo state.
+- [ ] Fail closed for normal session-driven execution when repository project-substrate posture is missing, invalid, non-verified, or unsupported.
 
 ## Wait, Resume, and Reconnect
 
 - [ ] Reuse shared broker and runner durability semantics for partial turns, waits, and resume behavior.
 - [ ] Ensure reconnect after TUI close or local restart restores the same canonical session truth.
 - [ ] Keep autonomous background work and later interactive follow-up on the same session lifecycle model.
+- [ ] Detect and surface project-substrate drift between initial execution binding and later resume or follow-up execution.
+- [ ] Route incompatible project-substrate drift to broker-owned blocked-state and remediation posture rather than continuing on stale project assumptions.
 
 ## Client Integration
 
@@ -28,5 +32,5 @@
 
 - [ ] Live chat and autonomous operation share one session execution model.
 - [ ] Session-driven work executes through isolates and the existing secure workflow path.
-- [ ] Sessions link canonically to runs, approvals, artifacts, audit records, and relevant project context.
+- [ ] Sessions link canonically to runs, approvals, artifacts, audit records, and relevant project context, including validated project-substrate snapshot identity where relevant.
 - [ ] Wait, resume, and reconnect semantics remain broker-owned and durable.

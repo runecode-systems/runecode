@@ -20,6 +20,8 @@
 
 - [ ] Ensure generic workflow authoring continues to reuse the shared identity, executor, gate, approval, audit, and git-composition contracts from `CHG-2026-050-e3f8-workflow-definition-contract-binding-v0`.
 - [ ] Ensure custom workflow authoring cannot mutate repository policy truth, ref allowlists, or repository-specific commit policy through local settings or untyped side channels.
+- [ ] Ensure custom workflow authoring reuses the shared validated project-substrate snapshot-binding model where project context is relevant.
+- [ ] Ensure custom workflow authoring cannot invent alternate project discovery, init, adopt, or upgrade semantics through local settings or untyped side channels.
 
 ## Acceptance Criteria
 

@@ -33,6 +33,7 @@
   - invalid anchors
 - [ ] Verification remains fail closed on invalid receipts, never rewrites existing audit history, and stays aligned to the shared `AuditVerificationReport` dimension model.
 - [ ] Record canonical target identity, anchoring subject identity, outbound payload or subject hash, bytes, timing, outcome, and any relevant lease or policy bindings in audit evidence.
+- [ ] Reuse validated project-substrate snapshot identity in anchored evidence when the anchored audit subject depends on project context.
 
 ## Fixtures + Adapter Conformance
 

@@ -9,6 +9,7 @@ Add generic authoring and review surfaces plus rebuildable shared-memory acceler
 - Future authoring adapters must normalize to the same RFC 8785 JCS canonical JSON bytes before validation and hashing that the contract-first substrate expects.
 - Shared memory is a rebuildable accelerator for derived artifacts only; authoritative state remains in the run DB, artifact store, and audit trail.
 - Generic authoring and accelerator work must preserve the shared workflow identity, executor, gate, approval, runner-binding, and git-composition contracts defined by the contract-first substrate.
+- Generic authoring and review surfaces must also preserve the shared validated project-substrate snapshot-binding model for project-context-sensitive workflows.
 
 ## Authoring and Accelerator Posture
 
@@ -16,6 +17,7 @@ Add generic authoring and review surfaces plus rebuildable shared-memory acceler
 - Shared-memory accelerators remain rebuildable caches for derived artifacts only and must not become authoritative workflow state.
 - Authoring UX may prepare workflow-definition changes, but authoritative workflow truth still depends on canonical validated workflow definitions rather than client-local drafts.
 - Generic authoring must preserve the same shared git-composition restrictions as the contract-first substrate; no process-local remote-mutation semantics are allowed.
+- Custom workflow authoring must not invent alternate project discovery, init, adopt, upgrade, or project-context binding semantics.
 
 ## Main Workstreams
 - Authoring + Review Surfaces

@@ -21,6 +21,9 @@
 - [ ] Bind selected workflow definitions into policy evaluation, approval requests, and audit evidence.
 - [ ] Route workflow execution progress through the shared runner-to-broker checkpoint/result model rather than a workflow-local status channel.
 - [ ] Ensure workflow-composed git remote mutation still routes through shared typed git request families, signed patch artifacts, exact repository identity, and `git_remote_ops` exact-action approval.
+- [ ] Reuse the shared project-substrate contract and validated snapshot-binding model for project-context-sensitive workflow selection or execution.
+- [ ] Fail closed for project-context-sensitive workflow execution when repository project-substrate posture is missing, invalid, non-verified, or unsupported.
+- [ ] Forbid workflow definitions from embedding alternate project discovery, init, adopt, or upgrade semantics.
 
 ## Split Discipline
 
@@ -34,3 +37,4 @@
 - [ ] Workflow definitions do not add new privileged operations or weaken trust boundaries.
 - [ ] Built-in and later custom workflows can share one definition and binding substrate.
 - [ ] Later authoring and accelerator work can extend this substrate without redefining its authority model.
+- [ ] Project-context-sensitive workflows share one validated project-substrate binding model instead of inventing workflow-local project-context semantics.

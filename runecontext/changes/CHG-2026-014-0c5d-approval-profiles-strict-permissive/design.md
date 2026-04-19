@@ -23,6 +23,7 @@ Define post-MVP approval profiles that adjust approval timing without weakening 
 - Profile expansion must respect the shared role-kind versus executor-class model and must not silently let `workspace-test` or other ordinary workspace roles inherit `system_modifying` behavior.
 - Reduced-assurance backend selection, including explicit `container mode` opt-in, remains an exact-action approval across all profiles and must not become a stage-sign-off, batched ambient acknowledgment, or durable backend preference.
 - Approval profiles may tune ordinary approval timing and assurance where policy allows, but they must not weaken the minimum assurance or exact binding required for reduced-assurance backend posture changes.
+- Approval profiles must not weaken or override blocked project-substrate posture; diagnostics/remediation-only behavior for missing, invalid, non-verified, or unsupported repository substrate is not profile-controlled.
 
 ## Main Workstreams
 - Approval Profile Model (Post-MVP)

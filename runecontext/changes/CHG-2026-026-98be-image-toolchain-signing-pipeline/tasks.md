@@ -21,6 +21,7 @@
 ## Audit + Verification Integration
 
 - [ ] Record descriptor digest, concrete component digests, signing posture, and enforcement outcomes in audit and verification surfaces.
+- [ ] Keep runtime image identity distinct from validated project-substrate identity when later evidence binds both runtime and project context.
 
 ## Acceptance Criteria
 

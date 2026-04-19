@@ -9,6 +9,9 @@ Deliver first-party productive workflows on top of the same typed workflow subst
 - Approved-change implementation workflows must bind to the same approval, audit, git, and verification semantics as the rest of the control plane.
 - The same workflow pack must be triggerable from interactive session turns and autonomous background execution.
 - Direct human edits to canonical RuneContext files remain valid inputs; RuneCode must not assume it is the only author.
+- First-party workflows should operate only against supported validated project substrate and must not implicitly initialize or upgrade repository substrate during ordinary workflow execution.
+- Where project context matters, drafting and implementation workflows should bind to the validated project-substrate snapshot digest rather than to ambient repo state.
+- If repository project-substrate posture is missing, invalid, non-verified, or unsupported, first-party workflow entry should route to diagnostics/remediation posture rather than normal drafting or implementation execution.
 
 ## First-Party Workflow Families
 
@@ -18,10 +21,17 @@ Deliver first-party productive workflows on top of the same typed workflow subst
 
 Each family should preserve explicit artifact, approval, audit, and project-context linkage so the resulting work remains reviewable and verifiable.
 
+## Project-Substrate Gate
+
+- First-party workflow families should inherit the project-substrate contract and blocked-state rules from `CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0`.
+- Direct human edits remain valid repository inputs, but RuneCode-managed workflows must evaluate the resulting repository substrate posture before normal execution.
+- Workflow execution must not silently initialize, normalize, or upgrade repository substrate just to make ordinary productive flows succeed.
+
 ## Main Workstreams
 - Drafting Workflow Definitions.
 - Approved-Change Implementation Workflow.
 - Session and Autonomous Trigger Integration.
+- Project-Substrate Snapshot Binding and Blocked-State Gating.
 - Approval, Audit, Git, and Verification Binding.
 
 ## RuneContext Migration Notes

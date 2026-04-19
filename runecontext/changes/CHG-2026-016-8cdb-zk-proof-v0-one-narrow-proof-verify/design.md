@@ -7,6 +7,7 @@ Select and deliver one narrow zero-knowledge proof workflow with deterministic v
 - ZK is used for integrity attestations of deterministic computations/records, not for proving arbitrary reasoning.
 - Proof generation is an explicit workflow step; verification is always deterministic.
 - The first ZK proof ships only if a concrete proving system can be selected with acceptable performance; otherwise release is deferred rather than weakening the contract.
+- If a proof statement depends on project context, it should bind the validated project-substrate snapshot identity rather than ambient repository assumptions.
 
 ## Main Workstreams
 - Pick the First Proof Statement

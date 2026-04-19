@@ -24,6 +24,7 @@
 - [ ] Make provisioning posture explicit in audit metadata and TUI surfaces.
 - [ ] Replace degraded TOFU-only posture with an attested posture only when verification succeeds.
 - [ ] Record why an attested posture was unavailable or rejected without leaking sensitive local details.
+- [ ] Keep attested runtime identity distinct from validated project-substrate identity when later audit or verification evidence references both.
 
 ## Fixtures + Cross-Platform Considerations
 

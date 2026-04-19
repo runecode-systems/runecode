@@ -11,6 +11,7 @@ Define isolate attestation evidence and verification that upgrades MVP TOFU prov
 - Invalid or replayed attestation evidence fails closed when an attested posture is required.
 - Attestation evidence should bind to the same `session_nonce`, `handshake_transcript_hash`, runtime image descriptor identity, and concrete boot component digests established by the microVM launch flow.
 - The attestation upgrade path must preserve compatibility with the `isolate_session_started` and `isolate_session_bound` audit event families.
+- Attested runtime identity remains distinct from validated project-substrate snapshot identity; later evidence may bind both when relevant, but attestation must not redefine project-context identity.
 
 ## Main Workstreams
 - Attestation Evidence Model

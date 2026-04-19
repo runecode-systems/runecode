@@ -12,6 +12,7 @@ Evaluate whether LangGraph provides enough implementation leverage for runner-lo
 - LangGraph thread state, checkpoints, and interrupts must not replace runner journal/snapshot records, typed broker reports, or broker-wins reconciliation.
 - Adoption should proceed only if it reduces runner-local implementation risk without weakening trust boundaries, auditability, or fail-closed recovery semantics.
 - Adoption must preserve exact-action wait semantics for hard-floor approvals such as `git_remote_ops`, including canonical action hashes, relevant artifact hashes, expected result tree identity, and fail-closed remote-drift handling.
+- Adoption must preserve validated project-substrate snapshot binding and fail-closed repository substrate drift handling where waits or resumes depend on project context.
 
 ## Adoption Criteria
 
@@ -47,6 +48,7 @@ LangGraph adoption must not:
 - Can LangGraph replay remain consistent with RuneCode's explicit idempotency-key model?
 - Can executor side effects, checkpoint reports, result reports, and gate evidence publication remain replay-safe under LangGraph's resume semantics?
 - Can replay and resume remain fail closed when git remote mutation bindings drift, including changed patch artifacts, changed expected result tree identity, or changed remote state?
+- Can replay and resume remain fail closed when validated project-substrate bindings drift for project-context-sensitive execution?
 
 ### Trust-Boundary Fit
 - Does adoption preserve the rule that the runner remains untrusted and advisory only?

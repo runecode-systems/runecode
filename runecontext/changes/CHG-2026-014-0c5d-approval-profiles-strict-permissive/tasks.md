@@ -71,6 +71,7 @@ Parallelization: can be designed in parallel with workflow runner work; it depen
 - [ ] Keep profile-driven approval semantics aligned with canonical `policy_reason_code`, `approval_trigger_code`, and hard-floor classes rather than inventing profile-local status vocabularies.
 - [ ] Keep broker-visible run and approval summaries that surface active profile or required assurance aligned with the same schema/versioning rules.
 - [ ] Keep profile behavior aligned with shared gate-override semantics and typed gate-evidence-linked review flows.
+- [ ] Keep blocked project-substrate posture outside profile control; profiles must not convert diagnostics/remediation-only project posture into normal operation.
 
 Parallelization: can be implemented in parallel across policy/runner/TUI as long as the approval schema contract is fixed first.
 
@@ -82,6 +83,7 @@ Parallelization: can be implemented in parallel across policy/runner/TUI as long
 - [ ] Attempting to use an unknown profile value fails closed.
 - [ ] Profiles do not weaken the fixed minimum assurance floor for hard-floor operations.
 - [ ] Profiles do not weaken exact-action binding or assurance for `git_remote_ops`, including canonical repo identity, target refs, patch artifact digests, and expected result tree hash.
+- [ ] Profiles do not weaken blocked project-substrate posture or convert diagnostics/remediation-only repository substrate states into ordinary execution.
 
 Profile hardening follow-up (pre-MVP foundation):
 - [ ] Ensure backend posture approval gating fails closed when profile-specific approval payload derivation is unavailable.

@@ -14,6 +14,7 @@
 - Confirm the change preserves exact-action wait semantics for `git_remote_ops` and similar hard-floor remote-state-mutation approvals.
 - Confirm wait, replay, and resume preserve canonical action hashes, relevant artifact hashes, and expected result tree identity where those bindings exist.
 - Confirm remote-drift handling remains fail closed under any LangGraph-backed resume path.
+- Confirm validated project-substrate snapshot binding and repository substrate drift handling remain fail closed for project-context-sensitive execution under any LangGraph-backed resume path.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

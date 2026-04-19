@@ -13,6 +13,8 @@
 - Confirm concurrency scope keys reuse shared logical workflow identities rather than retry/attempt-local IDs.
 - Confirm partial blocking and lock waits are represented through coordination/detail surfaces instead of a new public lifecycle enum.
 - Confirm approvals, gate attempts, gate evidence, and overrides remain run-bound under concurrency.
+- Confirm validated project-substrate snapshot identity is not silently merged or ignored under concurrency.
+- Confirm project-substrate drift or conflicting project-context bindings fail closed or surface explicit coordination/remediation posture.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.
