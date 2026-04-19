@@ -8,7 +8,7 @@ import (
 )
 
 func TestProviderSetupSessionSurvivesRestartButIngressTokenIsInvalidated(t *testing.T) {
-	root := t.TempDir()
+	root := canonicalTempDir(t)
 	ledgerRoot := root + "/audit-ledger"
 	secretsRoot := filepath.Join(root, "secretsd")
 	t.Setenv("RUNE_SECRETS_STATE_ROOT", secretsRoot)
@@ -65,7 +65,7 @@ func TestProviderProfileIncludedInBackupRestoreAndReconciledAgainstLocalSecrets(
 
 func providerDurableRoots(t *testing.T) (string, string, string) {
 	t.Helper()
-	root := t.TempDir()
+	root := canonicalTempDir(t)
 	ledgerRoot := root + "/audit-ledger"
 	secretsRoot := filepath.Join(root, "secretsd")
 	t.Setenv("RUNE_SECRETS_STATE_ROOT", secretsRoot)
