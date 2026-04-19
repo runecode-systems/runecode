@@ -38,10 +38,12 @@ func normalizeProviderIngressRequest(ingressChannel, credentialField string) (st
 	if field == "" {
 		field = "api_key"
 	}
-	if channel == "environment_variable" || channel == "cli_argument" {
-		return "", "", fmt.Errorf("ingress_channel %q is forbidden", channel)
+	switch channel {
+	case "cli_stdin", "tui_masked_input":
+		return channel, field, nil
+	default:
+		return "", "", fmt.Errorf("ingress_channel %q is unsupported", channel)
 	}
-	return channel, field, nil
 }
 
 func (s *providerSetupState) newIngressRecord(sessionID, channel, field string, ttl time.Duration) (providerSetupIngressRecord, error) {
@@ -149,7 +151,10 @@ func (s *providerSetupState) lookupActiveIngress(token string, now time.Time) (p
 	if !ok {
 		return providerSetupIngressRecord{}, ProviderSetupSession{}, fmt.Errorf("secret ingress token not found")
 	}
-	if rec.Used || !rec.ExpiresAt.After(now) {
+	if rec.Used {
+		return providerSetupIngressRecord{}, ProviderSetupSession{}, fmt.Errorf("secret ingress token already used")
+	}
+	if !rec.ExpiresAt.After(now) {
 		return providerSetupIngressRecord{}, ProviderSetupSession{}, fmt.Errorf("secret ingress token expired")
 	}
 	entry, ok := s.session[rec.SetupSessionID]

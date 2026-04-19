@@ -3,6 +3,7 @@ package brokerapi
 import (
 	"context"
 	"strings"
+	"time"
 )
 
 func (s *Service) HandleProviderSetupSessionBegin(ctx context.Context, req ProviderSetupSessionBeginRequest, meta RequestContext) (ProviderSetupSessionBeginResponse, *ErrorResponse) {
@@ -61,7 +62,7 @@ func (s *Service) HandleProviderSetupSecretIngressPrepare(ctx context.Context, r
 		RequestID:          requestID,
 		SetupSession:       session,
 		SecretIngressToken: ingress.Token,
-		ExpiresAt:          ingress.ExpiresAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		ExpiresAt:          ingress.ExpiresAt.UTC().Format(time.RFC3339),
 	}
 	if err := s.validateResponse(resp, providerSetupSecretIngressPrepareResponseSchemaPath); err != nil {
 		errOut := s.errorFromValidation(requestID, err)

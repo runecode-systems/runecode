@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/secretsd"
 )
@@ -55,6 +56,27 @@ func assertProviderIngressRetryRejected(t *testing.T, service *Service, token st
 		t.Fatal("expected spent secret ingress token rejection on retry")
 	} else if got := errResp.Error.Code; got != "broker_validation_schema_invalid" {
 		t.Fatalf("retry failure code = %q, want broker_validation_schema_invalid", got)
+	}
+}
+
+func TestProviderSetupSecretIngressSubmitRejectsExpiredTokenWithDistinctMessage(t *testing.T) {
+	now := time.Date(2026, time.January, 1, 12, 0, 0, 0, time.UTC)
+	service := newBrokerAPIServiceForTests(t, APIConfig{})
+	service.providerSetup.setNowFunc(func() time.Time { return now })
+	beginResp := mustBeginProviderSetup(t, service, "req-provider-setup-begin-expired-ingress")
+	prepareResp := mustPrepareProviderIngress(t, service, beginResp.SetupSession.SetupSessionID, "req-provider-setup-prepare-expired-ingress")
+	service.providerSetup.setNowFunc(func() time.Time { return now.Add(6 * time.Minute) })
+	if _, errResp := service.HandleProviderSetupSecretIngressSubmit(context.Background(), ProviderSetupSecretIngressSubmitRequest{
+		SchemaID:           "runecode.protocol.v0.ProviderSetupSecretIngressSubmitRequest",
+		SchemaVersion:      "0.1.0",
+		RequestID:          "req-provider-setup-submit-expired-ingress",
+		SecretIngressToken: prepareResp.SecretIngressToken,
+	}, []byte("secret-after-expiry"), RequestContext{}); errResp == nil {
+		t.Fatal("expected expired secret ingress token rejection")
+	} else if got := errResp.Error.Code; got != "broker_validation_schema_invalid" {
+		t.Fatalf("expired token rejection code = %q, want broker_validation_schema_invalid", got)
+	} else if got := errResp.Error.Message; got != "secret ingress token expired" {
+		t.Fatalf("expired token rejection message = %q, want secret ingress token expired", got)
 	}
 }
 
