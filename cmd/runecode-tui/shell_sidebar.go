@@ -139,7 +139,7 @@ func (m shellModel) appendSidebarRouteLines(lines []string, cursor int, width in
 		} else if active {
 			marker = "*"
 		}
-		lines = append(lines, renderSelectableRow(fmt.Sprintf("%s %d %s", marker, r.Index, r.Label), width, selected, active && !selected))
+		lines = append(lines, renderSelectableRow(fmt.Sprintf("%s %s %s", marker, routeQuickJumpKey(r), r.Label), width, selected, active && !selected))
 	}
 	return lines
 }

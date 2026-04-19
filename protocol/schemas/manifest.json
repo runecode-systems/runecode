@@ -287,6 +287,153 @@
       "status": "mvp"
     },
     {
+      "path": "objects/ProviderAuthMaterial.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderAuthMaterial",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderModelCatalogPosture.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderModelCatalogPosture",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderReadinessPosture.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderReadinessPosture",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderProfile.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderProfile",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderProfileListRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderProfileListRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderProfileListResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderProfileListResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderProfileGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderProfileGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderProfileGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderProfileGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderSetupSession.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderSetupSession",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderSetupSessionBeginRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderSetupSessionBeginRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderSetupSessionBeginResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderSetupSessionBeginResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderSetupSecretIngressPrepareRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderSetupSecretIngressPrepareRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderSetupSecretIngressPrepareResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderSetupSecretIngressPrepareResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderSetupSecretIngressSubmitRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderSetupSecretIngressSubmitRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderSetupSecretIngressSubmitResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderSetupSecretIngressSubmitResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderValidationBeginRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderValidationBeginRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderValidationBeginResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderValidationBeginResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderValidationCommitRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderValidationCommitRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderValidationCommitResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderValidationCommitResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderCredentialLeaseIssueRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderCredentialLeaseIssueRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderCredentialLeaseIssueResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderCredentialLeaseIssueResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/LLMResponse.schema.json",
       "schema_id": "runecode.protocol.v0.LLMResponse",
       "schema_version": "0.3.0",

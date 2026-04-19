@@ -61,12 +61,13 @@ func (m primaryNavModel) Render(wide bool) (string, []navHitbox) {
 	boxes := make([]navHitbox, 0, len(m.routes))
 	currentX := 0
 	for i, route := range m.routes {
-		label := fmt.Sprintf("[%d %s]", route.Index, route.Label)
+		jump := routeQuickJumpKey(route)
+		label := fmt.Sprintf("[%s %s]", jump, route.Label)
 		if i == m.selectedIndex {
 			label = ">" + label + "<"
 		}
 		if !wide {
-			label = fmt.Sprintf("[%d] %s", route.Index, route.Label)
+			label = fmt.Sprintf("[%s] %s", jump, route.Label)
 			if i == m.selectedIndex {
 				label = ">" + label + "<"
 			}

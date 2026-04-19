@@ -86,6 +86,12 @@ func TestBrokerRejectionFailsClosedWhenAuditPersistFails(t *testing.T) {
 	}
 }
 
+func TestShouldAuditErrorCodeIncludesPolicyRejected(t *testing.T) {
+	if !shouldAuditErrorCode("broker_limit_policy_rejected") {
+		t.Fatal("broker_limit_policy_rejected must be auditable")
+	}
+}
+
 func TestRecordRuntimeFactsEmitsBrokerOwnedLauncherRuntimeAuditEvents(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	_ = putRunScopedArtifactForLocalOpsTest(t, s, "run-runtime-audit", "step-1")

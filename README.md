@@ -1,7 +1,7 @@
 # RuneCode — Security-first AI coding: isolated execution, signed, auditable
 
 [![CI](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml/badge.svg)](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml)
-[![Status: alpha.5 release](https://img.shields.io/badge/status-alpha.5%20release-orange)](runecontext/project/roadmap.md)
+[![Status: alpha.6 release](https://img.shields.io/badge/status-alpha.6%20release-orange)](runecontext/project/roadmap.md)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 RuneCode is a security-first agentic automation platform for software engineering.
@@ -9,7 +9,7 @@ It treats isolation and cryptographic provenance as co-equal pillars: work runs 
 
 ## Status
 
-The latest published release is `v0.1.0-alpha.5`, and the repository mainline already includes additional alpha.5 work in progress.
+The latest published release is `v0.1.0-alpha.6`, and the repository mainline already includes additional alpha.6 work in progress.
 RuneCode remains pre-production: the signed, tag-driven release pipeline exists, but the shipped Go binaries are still scaffold-heavy and not feature-complete.
 
 ## Why RuneCode
@@ -141,7 +141,7 @@ This quick path verifies signed checksums and the signed archive before install.
 
 ## Implemented in this repo today:
 - A protocol/schema bundle in `protocol/schemas/` with an authoritative manifest at `protocol/schemas/manifest.json`
-- Shared JSON Schema object families for manifests, identities, approvals, artifacts/provenance, audit events/receipts, audit segment files/seals, audit verification reports, policy decisions, model request/response/streaming, broker local API request/response/read-model/stream families, detached signature envelopes, and shared errors
+- Shared JSON Schema object families for manifests, identities, approvals, artifacts/provenance, audit events/receipts, audit segment files/seals, audit verification reports, policy decisions, model request/response/streaming, provider profile/auth-material/setup/validation/credential-lease families, broker local API request/response/read-model/stream families, detached signature envelopes, and shared errors
 - Shared machine-consumed code registries for `error.code`, `policy_reason_code`, `approval_trigger_code`, `audit_event_type`, `audit_receipt_kind`, and `audit_verification_reason_code`
 - Shared fixtures in `protocol/fixtures/` validated in both Go and Node, including schema, stream-sequence, runtime-invariant, and canonicalization/hash cases
 - CI guardrails for runner trust-boundary access and protocol parity
@@ -157,6 +157,9 @@ This quick path verifies signed checksums and the signed archive before install.
 - A broker local API with fail-closed local auth, schema-validated typed operations for runs, approvals, artifacts, audit timeline and record inspection, audit anchor presence and action flows, readiness, version info, and backend posture, plus uniform log and artifact read streaming semantics
 - A trusted full-screen TUI workbench that launches in alt-screen mode, keeps sidebar/main/inspector composition in the shell, supports multi-session workspace navigation and quick switching, exposes an object-aware palette plus Action Center, derives live activity and sync health from typed watch families, preserves ordinary terminal selection alongside explicit copy actions, and persists layout/theme/session convenience state locally without promoting it to control-plane authority
 - A trusted local secrets daemon with durable secret import plus short-lived lease issue/renew/revoke/retrieve flows, fail-closed recovery, and secret-safe onboarding that avoids CLI-arg or environment-variable transport
+- A shared provider substrate with durable broker-owned provider profiles, explicit auth-material separation, stable provider-profile identity across credential rotation and validation retries, and broker-projected readiness plus compatibility posture
+- Broker-owned direct-credential provider setup flows with typed setup sessions, one-time secret-ingress handles, validation lifecycle surfaces, and provider credential lease issuance without carrying raw secret values in ordinary typed broker request or response bodies
+- Direct-credential model access for OpenAI-compatible Chat Completions and Anthropic-compatible Messages beneath the canonical typed `LLMRequest`, `LLMResponse`, and `LLMStreamEvent` boundary, with manual allowlisted model IDs remaining canonical
 - Broker run read models that keep authoritative trusted state distinct from runner-advisory projection, including durable approval-wait, lifecycle, checkpoint, result, and attempt hints
 - Broker-projected subsystem readiness for secrets and model-gateway posture, plus model-gateway runtime enforcement for allowlisted destinations, canonical request binding, quota context, and audit-bound egress decisions
 - Broker-projected backend posture state and approval-mediated instance posture changes, including the active launcher `instance_id`, selected `backend_kind`, reduced-assurance cues, per-backend availability, and policy/approval linkage for posture changes
@@ -166,7 +169,7 @@ This quick path verifies signed checksums and the signed archive before install.
 - Checked-in bounded TLA+ security-kernel artifacts plus deterministic TLC model-checking wired into `just model-check` and `just ci`
 
 Still incremental / not implemented end-to-end yet:
-- Secrets lifecycle foundations and broker-projected secrets/model-gateway posture now exist, but secure-storage posture projection and downstream provider/auth integrations remain incremental
+- Secure-storage posture projection and broader provider auth modes remain incremental, but direct-credential provider setup and execution now exist for OpenAI-compatible and Anthropic-compatible endpoints on the shared provider substrate
 - The primary secure path remains Linux-first microVM/QEMU/KVM MVP. Container backend support now exists as a Linux-only explicit-opt-in reduced-assurance MVP for offline `workspace` launches; broader role coverage, non-Linux runtime paths, and further hardening/verification remain future work
 - The broker and artifact store now implement local runtime behavior, but the overall system is still early alpha and not production-ready
 
@@ -189,6 +192,7 @@ Current MVP object families cover:
 - manifests: `RoleManifest`, `CapabilityManifest`
 - identity and content addressing: `PrincipalIdentity`, `Digest`, `ArtifactReference`, `ArtifactPolicy`, `ProvenanceReceipt`
 - secrets custody and posture: `SecretLease`, `SecretStoragePosture`
+- provider substrate and setup lifecycle: `ProviderProfile`, `ProviderAuthMaterial`, `ProviderModelCatalogPosture`, `ProviderReadinessPosture`, `ProviderSetupSession`, `ProviderSetupSessionBeginRequest`, `ProviderSetupSessionBeginResponse`, `ProviderSetupSecretIngressPrepareRequest`, `ProviderSetupSecretIngressPrepareResponse`, `ProviderSetupSecretIngressSubmitRequest`, `ProviderSetupSecretIngressSubmitResponse`, `ProviderValidationBeginRequest`, `ProviderValidationBeginResponse`, `ProviderValidationCommitRequest`, `ProviderValidationCommitResponse`, `ProviderCredentialLeaseIssueRequest`, `ProviderCredentialLeaseIssueResponse`
 - audit, approvals, and policy: `AuditEvent`, `AuditReceipt`, `AuditSegmentFile`, `AuditSegmentSeal`, `AuditVerificationReport`, `ApprovalRequest`, `ApprovalDecision`, `ApprovalBackendPostureSelection`, `PolicyDecision`, `PolicyRuleSet`, `PolicyAllowlist`
 - workflow planning and deterministic gates: `WorkflowDefinition`, `ProcessDefinition`, `RunPlan`, `GateDefinition`, `GateContract`, `RunnerCheckpointReport`, `RunnerResultReport`, `GateCheckpointReport`, `GateResultReport`, `GateEvidence`
 - stage summaries and sign-off payloads: `StageSummary`, `RunStageSummary`, `ActionPayloadStageSummarySignOff`
@@ -264,10 +268,10 @@ Alongside that still-incremental surface, the repository already includes workin
 - cross-language fixture validation
 - canonicalization/hash golden tests
 - runner trust-boundary static checks
-- a trusted full-screen `runecode-tui` workbench with dashboard/chat/runs/approvals/Action Center/artifacts/audit/status routes, shell-owned pane composition, session quick switching, typed watch-backed live activity, selection-mode copy ergonomics, and local-only layout/theme persistence
+- a trusted full-screen `runecode-tui` workbench with dashboard/chat/runs/approvals/Action Center/artifacts/audit/status/model-providers/git-setup/git-remote routes, shell-owned pane composition, session quick switching, typed watch-backed live activity, selection-mode copy ergonomics, broker-owned direct-credential provider setup with masked secret entry, and local-only layout/theme persistence
 - a trusted local artifact store and broker CLI for artifact put/get/head/list, flow checks, excerpt promotion and revocation, run-status updates, GC, and backup/restore
 - a trusted local audit ledger plus broker/auditd CLI surfaces for audit readiness, audit verification inspection, audit record inspection, and explicit audit anchoring over signed segment seals
-- a broker local IPC API and CLI read/action surfaces for run list/detail, approval list/detail/resolve, policy-backed artifact reads, audit timeline/record inspection, audit anchoring presence/action, audit verification/readiness, version inspection, structured log streaming, and broker-projected backend posture get/change operations
+- a broker local IPC API and CLI read/action surfaces for run list/detail, approval list/detail/resolve, policy-backed artifact reads, audit timeline/record inspection, audit anchoring presence/action, audit verification/readiness, version inspection, structured log streaming, broker-projected backend posture get/change operations, provider profile list/get, provider setup session and secret-ingress flows, provider validation lifecycle operations, and provider credential lease issuance
 - a trusted local secrets daemon CLI for secret import and short-lived lease issue/renew/revoke/retrieve flows without passing secret values through CLI args or environment variables
 - broker-projected secrets and model-gateway readiness surfaces plus model-gateway runtime enforcement for allowlisted destinations, canonical request binding, quota admission/stream checks, and audit-backed egress decisions
 - a trusted launcher service with `serve`, `--once`, Linux-first `--hello-world` operator paths, and a Linux-only explicit-opt-in container backend posture for offline `workspace` launches
@@ -300,6 +304,9 @@ go run ./cmd/runecode-broker audit-verification --help
 go run ./cmd/runecode-broker audit-record-get --help
 go run ./cmd/runecode-broker audit-anchor-segment --help
 go run ./cmd/runecode-broker audit-readiness --help
+go run ./cmd/runecode-broker provider-setup-direct --help
+go run ./cmd/runecode-broker provider-profile-list --help
+go run ./cmd/runecode-broker provider-profile-get --help
 go run ./cmd/runecode-broker version-info --help
 go run ./cmd/runecode-broker stream-logs --help
 ```

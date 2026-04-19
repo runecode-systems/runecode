@@ -10,6 +10,10 @@ const (
 	brokerAuditEventTypeRejection          = "broker_api_rejection"
 	brokerAuditEventTypeApprovalResolution = "broker_approval_resolution"
 	brokerAuditEventTypeLauncherRuntime    = "broker_launcher_runtime_event"
+	brokerAuditEventTypeProviderProfile    = "broker_provider_profile_event"
+	brokerAuditEventTypeProviderCredential = "broker_provider_credential_event"
+	brokerAuditEventTypeProviderValidation = "broker_provider_validation_event"
+	brokerAuditEventTypeProviderReadiness  = "broker_provider_readiness_event"
 )
 
 type brokerAuditEmitter struct {
@@ -65,11 +69,40 @@ func (e *brokerAuditEmitter) emitLauncherRuntimeEvent(store *artifacts.Store, ru
 	return store.AppendTrustedAuditEvent(brokerAuditEventTypeLauncherRuntime, "brokerapi", details)
 }
 
+func (e *brokerAuditEmitter) emitProviderProfileEvent(store *artifacts.Store, details map[string]interface{}) error {
+	if store == nil {
+		return fmt.Errorf("broker audit store unavailable")
+	}
+	return store.AppendTrustedAuditEvent(brokerAuditEventTypeProviderProfile, "brokerapi", details)
+}
+
+func (e *brokerAuditEmitter) emitProviderCredentialEvent(store *artifacts.Store, details map[string]interface{}) error {
+	if store == nil {
+		return fmt.Errorf("broker audit store unavailable")
+	}
+	return store.AppendTrustedAuditEvent(brokerAuditEventTypeProviderCredential, "brokerapi", details)
+}
+
+func (e *brokerAuditEmitter) emitProviderValidationEvent(store *artifacts.Store, details map[string]interface{}) error {
+	if store == nil {
+		return fmt.Errorf("broker audit store unavailable")
+	}
+	return store.AppendTrustedAuditEvent(brokerAuditEventTypeProviderValidation, "brokerapi", details)
+}
+
+func (e *brokerAuditEmitter) emitProviderReadinessEvent(store *artifacts.Store, details map[string]interface{}) error {
+	if store == nil {
+		return fmt.Errorf("broker audit store unavailable")
+	}
+	return store.AppendTrustedAuditEvent(brokerAuditEventTypeProviderReadiness, "brokerapi", details)
+}
+
 func shouldAuditErrorCode(code string) bool {
 	switch code {
 	case "broker_api_auth_admission_denied",
 		"broker_validation_schema_invalid",
 		"broker_validation_operation_invalid",
+		"broker_limit_policy_rejected",
 		"broker_limit_message_size_exceeded",
 		"broker_limit_structural_complexity_exceeded",
 		"broker_limit_in_flight_exceeded",

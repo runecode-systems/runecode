@@ -18,6 +18,7 @@ type BrokerReadiness struct {
 	ModelGatewayReady         bool                           `json:"model_gateway_ready"`
 	ModelGatewayHealthState   string                         `json:"model_gateway_health_state,omitempty"`
 	ModelGatewayPosture       *ModelGatewayPostureProjection `json:"model_gateway_posture_projection,omitempty"`
+	ProviderProfiles          []ProviderProfile              `json:"provider_profiles,omitempty"`
 }
 
 type SecretsOperationalMetrics struct {

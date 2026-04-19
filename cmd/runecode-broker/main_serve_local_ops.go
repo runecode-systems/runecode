@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"strings"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
@@ -11,9 +14,71 @@ func localRPCOperations(service *brokerapi.Service, ctx context.Context, meta br
 	operations := map[string]rpcOperation{}
 	mergeRPCOperations(operations, runApprovalRPCOperations(service, ctx, meta))
 	mergeRPCOperations(operations, gitSetupRPCOperations(service, ctx, meta))
+	mergeRPCOperations(operations, providerSetupRPCOperations(service, ctx, meta))
 	mergeRPCOperations(operations, artifactRPCOperations(service, ctx, meta))
 	mergeRPCOperations(operations, auditHealthRPCOperations(service, ctx, meta))
 	return operations
+}
+
+func providerSetupRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
+	return map[string]rpcOperation{
+		"provider_setup_session_begin": {requestSchemaPath: "objects/ProviderSetupSessionBeginRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProviderSetupSessionBeginRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProviderSetupSessionBegin(ctx, req, meta)
+			})
+		}},
+		"provider_setup_secret_ingress_prepare": {requestSchemaPath: "objects/ProviderSetupSecretIngressPrepareRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProviderSetupSecretIngressPrepareRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProviderSetupSecretIngressPrepare(ctx, req, meta)
+			})
+		}},
+		"provider_setup_secret_ingress_submit": {requestSchemaPath: "objects/ProviderSetupSecretIngressSubmitRequest.schema.json", handleWire: func(wire localRPCRequest) localRPCResponse {
+			return decodeAndHandleProviderSecretIngressSubmit(service, ctx, wire, meta)
+		}},
+		"provider_validation_begin": {requestSchemaPath: "objects/ProviderValidationBeginRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProviderValidationBeginRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProviderValidationBegin(ctx, req, meta)
+			})
+		}},
+		"provider_validation_commit": {requestSchemaPath: "objects/ProviderValidationCommitRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProviderValidationCommitRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProviderValidationCommit(ctx, req, meta)
+			})
+		}},
+		"provider_credential_lease_issue": {requestSchemaPath: "objects/ProviderCredentialLeaseIssueRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProviderCredentialLeaseIssueRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProviderCredentialLeaseIssue(ctx, req, meta)
+			})
+		}},
+		"provider_profile_list": {requestSchemaPath: "objects/ProviderProfileListRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProviderProfileListRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProviderProfileList(ctx, req, meta)
+			})
+		}},
+		"provider_profile_get": {requestSchemaPath: "objects/ProviderProfileGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProviderProfileGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProviderProfileGet(ctx, req, meta)
+			})
+		}},
+	}
+}
+
+func decodeAndHandleProviderSecretIngressSubmit(service *brokerapi.Service, ctx context.Context, wire localRPCRequest, meta brokerapi.RequestContext) localRPCResponse {
+	req := brokerapi.ProviderSetupSecretIngressSubmitRequest{}
+	decoder := json.NewDecoder(bytes.NewReader(wire.Request))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
+	}
+	payload, err := base64.StdEncoding.DecodeString(strings.TrimSpace(wire.SecretIngressPayloadBase64))
+	if err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError(req.RequestID, err)}
+	}
+	resp, errResp := service.HandleProviderSetupSecretIngressSubmit(ctx, req, payload, meta)
+	if errResp != nil {
+		return localRPCResponse{OK: false, Error: errResp}
+	}
+	return localRPCOKResponse(resp)
 }
 
 func mergeRPCOperations(dst, src map[string]rpcOperation) {

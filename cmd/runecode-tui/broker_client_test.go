@@ -31,6 +31,11 @@ func (f *fakeRPCInvoker) Invoke(ctx context.Context, operation string, request a
 
 func (f *fakeRPCInvoker) Close() error { return nil }
 
+func (f *fakeRPCInvoker) InvokeSecretIngress(ctx context.Context, operation string, request any, secret []byte, out any) *brokerapi.ErrorResponse {
+	_ = secret
+	return f.Invoke(ctx, operation, request, out)
+}
+
 func TestRPCBrokerClientUsesLocalIPCDialAndTypedRequestContract(t *testing.T) {
 	origConfigProvider := localIPCConfigProvider
 	origDialer := localRPCDialer

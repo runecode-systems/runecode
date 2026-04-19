@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ProviderSetupSessionBeginRequest.schema.json",
+  "title": "ProviderSetupSessionBeginRequest",
+  "description": "Typed metadata request to start provider direct-credential setup.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 9,
+  "required": ["schema_id", "schema_version", "request_id", "provider_family", "adapter_kind", "canonical_host", "canonical_path_prefix"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ProviderSetupSessionBeginRequest", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable request correlation identifier.", "x-data-class": "public" },
+    "display_label": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Operator-facing profile display label.", "x-data-class": "public" },
+    "provider_family": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Provider family identifier.", "x-data-class": "public" },
+    "adapter_kind": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Adapter kind for this profile.", "x-data-class": "public" },
+    "canonical_host": { "type": "string", "minLength": 1, "maxLength": 255, "description": "Canonical endpoint host.", "x-data-class": "public" },
+    "canonical_path_prefix": { "type": "string", "minLength": 1, "maxLength": 255, "description": "Canonical endpoint path prefix.", "x-data-class": "public" },
+    "allowlisted_model_ids": { "type": "array", "maxItems": 128, "description": "Manual allowlisted model IDs.", "items": { "type": "string", "minLength": 1, "maxLength": 128 }, "x-data-class": "public" }
+  }
+}

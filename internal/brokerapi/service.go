@@ -30,6 +30,8 @@ type Service struct {
 	auditRoot                 string
 	gatewayQuota              *gatewayQuotaBackend
 	gatewayRuntime            *modelGatewayRuntime
+	providerSubstrate         *providerSubstrateState
+	providerSetup             *providerSetupState
 	instancePostureController instanceBackendPostureController
 	apiConfig                 APIConfig
 	apiInflight               *inFlightGate
@@ -43,21 +45,42 @@ func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
 }
 
 func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*Service, error) {
-	store, err := artifacts.NewStore(storeRoot)
+	resolved := cfg.withDefaults()
+	store, ledger, auditor, err := newServiceDependencies(storeRoot, ledgerRoot)
 	if err != nil {
 		return nil, err
+	}
+	svc := newConfiguredService(store, ledger, ledgerRoot, auditor, resolved)
+	if secretsSvc, secretsErr := openLocalSecretsService(); secretsErr == nil {
+		svc.secretsSvc = secretsSvc
+	}
+	svc.providerSetup = newProviderSetupState(time.Now)
+	svc.configureProviderDurability()
+	if err := svc.reloadProviderDurableState(); err != nil {
+		return nil, err
+	}
+	return svc, nil
+}
+
+func newServiceDependencies(storeRoot, ledgerRoot string) (*artifacts.Store, *auditd.Ledger, *brokerAuditEmitter, error) {
+	store, err := artifacts.NewStore(storeRoot)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	ledger, err := auditd.Open(ledgerRoot)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-	resolved := cfg.withDefaults()
 	auditor, err := newBrokerAuditEmitter()
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
+	return store, ledger, auditor, nil
+}
+
+func newConfiguredService(store *artifacts.Store, ledger *auditd.Ledger, ledgerRoot string, auditor *brokerAuditEmitter, cfg APIConfig) *Service {
 	quotaBackend := newGatewayQuotaBackend()
-	quotaBackend.setLimits(resolved.GatewayQuota)
+	quotaBackend.setLimits(cfg.GatewayQuota)
 	runtime := newModelGatewayRuntime(quotaBackend)
 	svc := &Service{
 		store:                     store,
@@ -66,18 +89,16 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 		auditRoot:                 ledgerRoot,
 		gatewayQuota:              quotaBackend,
 		gatewayRuntime:            runtime,
+		providerSubstrate:         newProviderSubstrateState(time.Now),
 		instancePostureController: newLocalInstanceBackendPostureController(),
 		gitSetup:                  newGitSetupState(),
-		apiConfig:                 resolved,
-		apiInflight:               newInFlightGate(resolved.Limits),
+		apiConfig:                 cfg,
+		apiInflight:               newInFlightGate(cfg.Limits),
 		now:                       time.Now,
 		versionInfo:               defaultBrokerVersionInfo(),
 	}
 	runtime.auditFn = svc.AppendTrustedAuditEvent
-	if secretsSvc, secretsErr := openLocalSecretsService(); secretsErr == nil {
-		svc.secretsSvc = secretsSvc
-	}
-	return svc, nil
+	return svc
 }
 
 func openLocalSecretsService() (*secretsd.Service, error) {
@@ -130,6 +151,12 @@ func (s *Service) SetNowFuncForTests(nowFn func() time.Time) {
 	}
 	s.now = nowFn
 	s.store.SetNowFuncForTests(nowFn)
+	if s.providerSubstrate != nil {
+		s.providerSubstrate.setNowFunc(nowFn)
+	}
+	if s.providerSetup != nil {
+		s.providerSetup.setNowFunc(nowFn)
+	}
 }
 
 func (s *Service) AuditReadiness() (trustpolicy.AuditdReadiness, error) {

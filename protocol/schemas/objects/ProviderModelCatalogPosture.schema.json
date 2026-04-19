@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ProviderModelCatalogPosture.schema.json",
+  "title": "ProviderModelCatalogPosture",
+  "description": "Broker-projected provider model-catalog posture where manual allowlist remains canonical and discovery/probes remain advisory.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 9,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "selection_authority",
+    "discovery_posture",
+    "compatibility_probe_posture"
+  ],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ProviderModelCatalogPosture", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "selection_authority": {
+      "type": "string",
+      "const": "manual_allowlist_canonical",
+      "description": "Model selection authority stays with manually managed allowlisted_model_ids.",
+      "x-data-class": "public"
+    },
+    "discovery_posture": {
+      "type": "string",
+      "const": "advisory",
+      "description": "Provider discovery output is advisory only and cannot authorize models.",
+      "x-data-class": "public"
+    },
+    "compatibility_probe_posture": {
+      "type": "string",
+      "const": "advisory",
+      "description": "Compatibility probe output is advisory only and cannot mutate authorization state.",
+      "x-data-class": "public"
+    },
+    "discovered_model_ids": {
+      "type": "array",
+      "maxItems": 1024,
+      "uniqueItems": true,
+      "description": "Advisory provider-discovered model IDs for operator visibility; not authoritative for authorization.",
+      "x-data-class": "public",
+      "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+    },
+    "probe_compatible_model_ids": {
+      "type": "array",
+      "maxItems": 1024,
+      "uniqueItems": true,
+      "description": "Advisory model IDs observed as probe-compatible; manual allowlist remains canonical.",
+      "x-data-class": "public",
+      "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+    },
+    "last_discovery_at": { "type": "string", "maxLength": 64, "format": "date-time", "description": "Latest provider discovery completion timestamp.", "x-data-class": "public" },
+    "last_probe_at": { "type": "string", "maxLength": 64, "format": "date-time", "description": "Latest compatibility probe completion timestamp.", "x-data-class": "public" }
+  }
+}

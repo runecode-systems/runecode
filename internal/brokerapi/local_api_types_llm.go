@@ -51,12 +51,16 @@ type LLMStreamEnvelope struct {
 type LLMStreamAny map[string]any
 
 type llmExecutionBinding struct {
-	RequestDigest trustpolicy.Digest
-	RequestHash   trustpolicy.Digest
-	ResponseHash  trustpolicy.Digest
-	LeaseID       string
-	PolicyRef     string
-	StartedAt     time.Time
-	CompletedAt   time.Time
-	OutboundBytes int64
+	RequestDigest  trustpolicy.Digest
+	RequestHash    trustpolicy.Digest
+	ResponseHash   trustpolicy.Digest
+	LeaseID        string
+	DestinationRef string
+	ProviderID     string
+	ProviderFamily string
+	AdapterKind    string
+	PolicyRef      string
+	StartedAt      time.Time
+	CompletedAt    time.Time
+	OutboundBytes  int64
 }

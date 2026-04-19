@@ -62,6 +62,13 @@ func normalizeState(state StoreState) StoreState {
 }
 
 func normalizePrimaryStateMaps(state StoreState) StoreState {
+	state = normalizeCoreStateMaps(state)
+	state = normalizeApprovalStateMaps(state)
+	state = normalizeProviderStateMaps(state)
+	return normalizePromotionStateMaps(state)
+}
+
+func normalizeCoreStateMaps(state StoreState) StoreState {
 	if state.Artifacts == nil {
 		state.Artifacts = map[string]ArtifactRecord{}
 	}
@@ -77,6 +84,10 @@ func normalizePrimaryStateMaps(state StoreState) StoreState {
 	if state.RunPolicyDecisionRefs == nil {
 		state.RunPolicyDecisionRefs = map[string][]string{}
 	}
+	return state
+}
+
+func normalizeApprovalStateMaps(state StoreState) StoreState {
 	if state.Approvals == nil {
 		state.Approvals = map[string]ApprovalRecord{}
 	}
@@ -89,6 +100,20 @@ func normalizePrimaryStateMaps(state StoreState) StoreState {
 	if state.RunGitRemotePreparedRefs == nil {
 		state.RunGitRemotePreparedRefs = map[string][]string{}
 	}
+	return state
+}
+
+func normalizeProviderStateMaps(state StoreState) StoreState {
+	if state.ProviderProfiles == nil {
+		state.ProviderProfiles = map[string]ProviderProfileDurableState{}
+	}
+	if state.ProviderSetupSessions == nil {
+		state.ProviderSetupSessions = map[string]ProviderSetupSessionDurableState{}
+	}
+	return state
+}
+
+func normalizePromotionStateMaps(state StoreState) StoreState {
 	if state.PromotionEventsByActor == nil {
 		state.PromotionEventsByActor = map[string][]time.Time{}
 	}

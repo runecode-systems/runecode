@@ -99,6 +99,9 @@ func commandHandlers() map[string]commandHandler {
 		"git-setup-get":                           handleGitSetupGet,
 		"git-setup-auth-bootstrap":                handleGitSetupAuthBootstrap,
 		"git-setup-identity-upsert":               handleGitSetupIdentityUpsert,
+		"provider-setup-direct":                   handleProviderSetupDirect,
+		"provider-profile-list":                   handleProviderProfileList,
+		"provider-profile-get":                    handleProviderProfileGet,
 		"git-remote-mutation-prepare":             handleGitRemoteMutationPrepare,
 		"git-remote-mutation-get":                 handleGitRemoteMutationGet,
 		"git-remote-mutation-issue-execute-lease": handleGitRemoteMutationIssueExecuteLease,
@@ -196,6 +199,9 @@ Commands:
 	  git-setup-get [--provider github]
 	  git-setup-auth-bootstrap [--provider github] --mode browser|device_code
 	  git-setup-identity-upsert [--provider github] --profile-id id --display-name name --author-name name --author-email mail --committer-name name --committer-email mail --signoff-name name --signoff-email mail [--default-profile]
+	  provider-setup-direct --provider-family family --canonical-host host [--canonical-path-prefix /v1] [--display-label label] [--adapter-kind kind] [--allowlisted-model-ids id1,id2]
+	  provider-profile-list
+	  provider-profile-get --provider-profile-id id
 	  git-remote-mutation-prepare --request-file path
 	  git-remote-mutation-get --request-file path
 	  git-remote-mutation-issue-execute-lease --request-file path

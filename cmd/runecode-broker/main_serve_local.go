@@ -85,9 +85,12 @@ type localRPCResponse = brokerapi.LocalRPCResponse
 
 type rpcOperationHandler func(json.RawMessage) localRPCResponse
 
+type rpcOperationWireHandler func(localRPCRequest) localRPCResponse
+
 type rpcOperation struct {
 	requestSchemaPath string
 	handle            rpcOperationHandler
+	handleWire        rpcOperationWireHandler
 }
 
 func serveLocalConn(conn net.Conn, service *brokerapi.Service, creds brokerapi.PeerCredentials) error {
@@ -199,6 +202,9 @@ func dispatchLocalRPC(service *brokerapi.Service, ctx context.Context, wire loca
 	}
 	if err := validateRawRPCPayload(wire.Request, operation.requestSchemaPath, service.APILimits()); err != nil {
 		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
+	}
+	if operation.handleWire != nil {
+		return operation.handleWire(wire)
 	}
 	return operation.handle(wire.Request)
 }

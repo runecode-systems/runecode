@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-ai/runecode/internal/secretsd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
@@ -193,6 +194,36 @@ func (r *recordingBrokerClient) GitSetupAuthBootstrap(ctx context.Context, req b
 func (r *recordingBrokerClient) GitSetupIdentityUpsert(ctx context.Context, req brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, error) {
 	r.record("GitSetupIdentityUpsert")
 	return r.base.GitSetupIdentityUpsert(ctx, req)
+}
+
+func (r *recordingBrokerClient) ProviderSetupSessionBegin(ctx context.Context, req brokerapi.ProviderSetupSessionBeginRequest) (brokerapi.ProviderSetupSessionBeginResponse, error) {
+	r.record("ProviderSetupSessionBegin")
+	return r.base.ProviderSetupSessionBegin(ctx, req)
+}
+
+func (r *recordingBrokerClient) ProviderSetupSecretIngressPrepare(ctx context.Context, req brokerapi.ProviderSetupSecretIngressPrepareRequest) (brokerapi.ProviderSetupSecretIngressPrepareResponse, error) {
+	r.record("ProviderSetupSecretIngressPrepare")
+	return r.base.ProviderSetupSecretIngressPrepare(ctx, req)
+}
+
+func (r *recordingBrokerClient) ProviderSetupSecretIngressSubmit(ctx context.Context, req brokerapi.ProviderSetupSecretIngressSubmitRequest, secret []byte) (brokerapi.ProviderSetupSecretIngressSubmitResponse, error) {
+	r.record("ProviderSetupSecretIngressSubmit")
+	return r.base.ProviderSetupSecretIngressSubmit(ctx, req, secret)
+}
+
+func (r *recordingBrokerClient) ProviderCredentialLeaseIssue(ctx context.Context, req brokerapi.ProviderCredentialLeaseIssueRequest) (brokerapi.ProviderCredentialLeaseIssueResponse, error) {
+	r.record("ProviderCredentialLeaseIssue")
+	return r.base.ProviderCredentialLeaseIssue(ctx, req)
+}
+
+func (r *recordingBrokerClient) ProviderProfileList(ctx context.Context) (brokerapi.ProviderProfileListResponse, error) {
+	r.record("ProviderProfileList")
+	return r.base.ProviderProfileList(ctx)
+}
+
+func (r *recordingBrokerClient) ProviderProfileGet(ctx context.Context, providerProfileID string) (brokerapi.ProviderProfileGetResponse, error) {
+	r.record("ProviderProfileGet")
+	return r.base.ProviderProfileGet(ctx, providerProfileID)
 }
 
 func (r *recordingBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error) {
@@ -490,6 +521,30 @@ func (f *reloadAwareBrokerClient) GitSetupGet(ctx context.Context, provider stri
 	return (&fakeBrokerClient{}).GitSetupGet(ctx, provider)
 }
 
+func (f *reloadAwareBrokerClient) ProviderSetupSessionBegin(ctx context.Context, req brokerapi.ProviderSetupSessionBeginRequest) (brokerapi.ProviderSetupSessionBeginResponse, error) {
+	return (&fakeBrokerClient{}).ProviderSetupSessionBegin(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) ProviderSetupSecretIngressPrepare(ctx context.Context, req brokerapi.ProviderSetupSecretIngressPrepareRequest) (brokerapi.ProviderSetupSecretIngressPrepareResponse, error) {
+	return (&fakeBrokerClient{}).ProviderSetupSecretIngressPrepare(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) ProviderSetupSecretIngressSubmit(ctx context.Context, req brokerapi.ProviderSetupSecretIngressSubmitRequest, secret []byte) (brokerapi.ProviderSetupSecretIngressSubmitResponse, error) {
+	return (&fakeBrokerClient{}).ProviderSetupSecretIngressSubmit(ctx, req, secret)
+}
+
+func (f *reloadAwareBrokerClient) ProviderCredentialLeaseIssue(ctx context.Context, req brokerapi.ProviderCredentialLeaseIssueRequest) (brokerapi.ProviderCredentialLeaseIssueResponse, error) {
+	return (&fakeBrokerClient{}).ProviderCredentialLeaseIssue(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) ProviderProfileList(ctx context.Context) (brokerapi.ProviderProfileListResponse, error) {
+	return (&fakeBrokerClient{}).ProviderProfileList(ctx)
+}
+
+func (f *reloadAwareBrokerClient) ProviderProfileGet(ctx context.Context, providerProfileID string) (brokerapi.ProviderProfileGetResponse, error) {
+	return (&fakeBrokerClient{}).ProviderProfileGet(ctx, providerProfileID)
+}
+
 func (f *reloadAwareBrokerClient) GitSetupAuthBootstrap(ctx context.Context, req brokerapi.GitSetupAuthBootstrapRequest) (brokerapi.GitSetupAuthBootstrapResponse, error) {
 	return (&fakeBrokerClient{}).GitSetupAuthBootstrap(ctx, req)
 }
@@ -713,6 +768,68 @@ func (f *fakeBrokerClient) GitSetupGet(ctx context.Context, provider string) (br
 	}
 	profile := brokerapi.GitCommitIdentityProfile{SchemaID: "runecode.protocol.v0.GitCommitIdentityProfile", SchemaVersion: "0.1.0", ProfileID: "default", DisplayName: "Default identity", AuthorName: "RuneCode Operator", AuthorEmail: "operator@example.invalid", CommitterName: "RuneCode Operator", CommitterEmail: "operator@example.invalid", SignoffName: "RuneCode Operator", SignoffEmail: "operator@example.invalid", DefaultProfile: true}
 	return brokerapi.GitSetupGetResponse{SchemaID: "runecode.protocol.v0.GitSetupGetResponse", SchemaVersion: "0.1.0", RequestID: "req-git-setup-get", ProviderAccount: brokerapi.GitProviderAccountState{SchemaID: "runecode.protocol.v0.GitProviderAccountState", SchemaVersion: "0.1.0", Provider: resolved, AccountID: "not_linked", AccountUsername: "not_linked", Linked: false, Source: "restored_state"}, IdentityProfiles: []brokerapi.GitCommitIdentityProfile{profile}, AuthPosture: brokerapi.GitAuthPostureState{SchemaID: "runecode.protocol.v0.GitAuthPostureState", SchemaVersion: "0.1.0", Provider: resolved, AuthStatus: "not_linked", BootstrapMode: "browser", HeadlessBootstrapSupported: true, InteractiveTokenFallbackSupport: true}, ControlPlaneState: brokerapi.GitControlPlaneState{SchemaID: "runecode.protocol.v0.GitControlPlaneState", SchemaVersion: "0.1.0", Provider: resolved, DefaultIdentityProfileID: "default", LastSetupView: "overview", RecentRepositories: []string{}}, PolicySurface: brokerapi.GitPolicySurfaceState{ArtifactManagedOnly: true, InspectionSupported: true, PrepareChangesSupport: true, DirectMutationSupport: false}}, nil
+}
+
+func (f *fakeBrokerClient) ProviderSetupSessionBegin(ctx context.Context, req brokerapi.ProviderSetupSessionBeginRequest) (brokerapi.ProviderSetupSessionBeginResponse, error) {
+	_ = ctx
+	if strings.TrimSpace(req.ProviderFamily) == "" {
+		return brokerapi.ProviderSetupSessionBeginResponse{}, fmt.Errorf("provider family required")
+	}
+	profile := brokerapi.ProviderProfile{SchemaID: "runecode.protocol.v0.ProviderProfile", SchemaVersion: "0.1.0", ProviderProfileID: "provider-profile-test", DisplayLabel: "Test", ProviderFamily: req.ProviderFamily, AdapterKind: req.AdapterKind, CurrentAuthMode: "direct_credential", SupportedAuthModes: []string{"direct_credential"}, AuthMaterial: brokerapi.ProviderAuthMaterial{SchemaID: "runecode.protocol.v0.ProviderAuthMaterial", SchemaVersion: "0.1.0", MaterialKind: "direct_credential", MaterialState: "missing"}, ReadinessPosture: brokerapi.ProviderReadinessPosture{SchemaID: "runecode.protocol.v0.ProviderReadinessPosture", SchemaVersion: "0.1.0", ConfigurationState: "configured", CredentialState: "missing", ConnectivityState: "unknown", CompatibilityState: "unknown", EffectiveReadiness: "not_ready"}}
+	session := brokerapi.ProviderSetupSession{SchemaID: "runecode.protocol.v0.ProviderSetupSession", SchemaVersion: "0.1.0", SetupSessionID: "provider-setup-session-test", ProviderProfileID: profile.ProviderProfileID, ProviderFamily: req.ProviderFamily, CurrentPhase: "metadata_configured", CurrentAuthMode: "direct_credential", SecretIngressReady: false, CreatedAt: "2026-01-01T00:00:00Z", UpdatedAt: "2026-01-01T00:00:00Z"}
+	return brokerapi.ProviderSetupSessionBeginResponse{SchemaID: "runecode.protocol.v0.ProviderSetupSessionBeginResponse", SchemaVersion: "0.1.0", RequestID: "req-provider-setup-begin", SetupSession: session, Profile: profile}, nil
+}
+
+func (f *fakeBrokerClient) ProviderSetupSecretIngressPrepare(ctx context.Context, req brokerapi.ProviderSetupSecretIngressPrepareRequest) (brokerapi.ProviderSetupSecretIngressPrepareResponse, error) {
+	_ = ctx
+	if strings.TrimSpace(req.SetupSessionID) == "" {
+		return brokerapi.ProviderSetupSecretIngressPrepareResponse{}, fmt.Errorf("setup session id required")
+	}
+	session := brokerapi.ProviderSetupSession{SchemaID: "runecode.protocol.v0.ProviderSetupSession", SchemaVersion: "0.1.0", SetupSessionID: req.SetupSessionID, ProviderProfileID: "provider-profile-test", ProviderFamily: "openai_compatible", CurrentPhase: "secret_ingress_ready", CurrentAuthMode: "direct_credential", SecretIngressReady: true, CreatedAt: "2026-01-01T00:00:00Z", UpdatedAt: "2026-01-01T00:00:00Z"}
+	return brokerapi.ProviderSetupSecretIngressPrepareResponse{SchemaID: "runecode.protocol.v0.ProviderSetupSecretIngressPrepareResponse", SchemaVersion: "0.1.0", RequestID: "req-provider-setup-prepare", SetupSession: session, SecretIngressToken: "provider-secret-ingress-test", ExpiresAt: "2026-01-01T00:05:00Z"}, nil
+}
+
+func (f *fakeBrokerClient) ProviderSetupSecretIngressSubmit(ctx context.Context, req brokerapi.ProviderSetupSecretIngressSubmitRequest, secret []byte) (brokerapi.ProviderSetupSecretIngressSubmitResponse, error) {
+	_ = ctx
+	if strings.TrimSpace(req.SecretIngressToken) == "" {
+		return brokerapi.ProviderSetupSecretIngressSubmitResponse{}, fmt.Errorf("secret ingress token required")
+	}
+	if len(secret) == 0 {
+		return brokerapi.ProviderSetupSecretIngressSubmitResponse{}, fmt.Errorf("secret required")
+	}
+	profile := brokerapi.ProviderProfile{SchemaID: "runecode.protocol.v0.ProviderProfile", SchemaVersion: "0.1.0", ProviderProfileID: "provider-profile-test", DisplayLabel: "Test", ProviderFamily: "openai_compatible", AdapterKind: "chat_completions_v0", CurrentAuthMode: "direct_credential", SupportedAuthModes: []string{"direct_credential"}, AuthMaterial: brokerapi.ProviderAuthMaterial{SchemaID: "runecode.protocol.v0.ProviderAuthMaterial", SchemaVersion: "0.1.0", MaterialKind: "direct_credential", MaterialState: "present", SecretRef: "secrets/model-providers/provider-profile-test/direct-credential", LeasePolicyRef: "secretsd://lease-policy/model-provider-default"}, ReadinessPosture: brokerapi.ProviderReadinessPosture{SchemaID: "runecode.protocol.v0.ProviderReadinessPosture", SchemaVersion: "0.1.0", ConfigurationState: "configured", CredentialState: "present", ConnectivityState: "unknown", CompatibilityState: "unknown", EffectiveReadiness: "not_ready"}}
+	session := brokerapi.ProviderSetupSession{SchemaID: "runecode.protocol.v0.ProviderSetupSession", SchemaVersion: "0.1.0", SetupSessionID: "provider-setup-session-test", ProviderProfileID: profile.ProviderProfileID, ProviderFamily: profile.ProviderFamily, CurrentPhase: "configured", CurrentAuthMode: "direct_credential", SecretIngressReady: false, CreatedAt: "2026-01-01T00:00:00Z", UpdatedAt: "2026-01-01T00:01:00Z"}
+	return brokerapi.ProviderSetupSecretIngressSubmitResponse{SchemaID: "runecode.protocol.v0.ProviderSetupSecretIngressSubmitResponse", SchemaVersion: "0.1.0", RequestID: "req-provider-setup-submit", SetupSession: session, Profile: profile}, nil
+}
+
+func (f *fakeBrokerClient) ProviderCredentialLeaseIssue(ctx context.Context, req brokerapi.ProviderCredentialLeaseIssueRequest) (brokerapi.ProviderCredentialLeaseIssueResponse, error) {
+	_ = ctx
+	if strings.TrimSpace(req.ProviderProfileID) == "" || strings.TrimSpace(req.RunID) == "" {
+		return brokerapi.ProviderCredentialLeaseIssueResponse{}, fmt.Errorf("provider profile id and run id required")
+	}
+	lease := fakeProviderCredentialLease(req.RunID)
+	return brokerapi.ProviderCredentialLeaseIssueResponse{SchemaID: "runecode.protocol.v0.ProviderCredentialLeaseIssueResponse", SchemaVersion: "0.1.0", RequestID: "req-provider-lease", ProviderProfileID: req.ProviderProfileID, ProviderAuthLeaseID: lease.LeaseID, Lease: lease}, nil
+}
+
+func (f *fakeBrokerClient) ProviderProfileList(ctx context.Context) (brokerapi.ProviderProfileListResponse, error) {
+	_ = ctx
+	profile := brokerapi.ProviderProfile{SchemaID: "runecode.protocol.v0.ProviderProfile", SchemaVersion: "0.1.0", ProviderProfileID: "provider-profile-test", DisplayLabel: "Test", ProviderFamily: "openai_compatible", AdapterKind: "chat_completions_v0", DestinationRef: "model_endpoint://api.openai.com/v1", SupportedAuthModes: []string{"direct_credential"}, CurrentAuthMode: "direct_credential", AllowlistedModelIDs: []string{"gpt-4o-mini"}, ModelCatalogPosture: brokerapi.ProviderModelCatalogPosture{SchemaID: "runecode.protocol.v0.ProviderModelCatalogPosture", SchemaVersion: "0.1.0", SelectionAuthority: "manual_allowlist_canonical", DiscoveryPosture: "advisory", CompatibilityProbePosture: "advisory"}, CompatibilityPosture: "unverified", QuotaProfileKind: "hybrid", RequestBindingKind: "canonical_llm_request_digest", SurfaceChannel: "broker_local_api", AuthMaterial: brokerapi.ProviderAuthMaterial{SchemaID: "runecode.protocol.v0.ProviderAuthMaterial", SchemaVersion: "0.1.0", MaterialKind: "direct_credential", MaterialState: "present", SecretRef: "secrets/model-providers/provider-profile-test/direct-credential", LeasePolicyRef: "secretsd://lease-policy/model-provider-default"}, ReadinessPosture: brokerapi.ProviderReadinessPosture{SchemaID: "runecode.protocol.v0.ProviderReadinessPosture", SchemaVersion: "0.1.0", ConfigurationState: "configured", CredentialState: "present", ConnectivityState: "unknown", CompatibilityState: "unknown", EffectiveReadiness: "not_ready"}, Lifecycle: brokerapi.ProviderLifecycleMetadata{CreatedAt: "2026-01-01T00:00:00Z", UpdatedAt: "2026-01-01T00:00:00Z"}}
+	return brokerapi.ProviderProfileListResponse{SchemaID: "runecode.protocol.v0.ProviderProfileListResponse", SchemaVersion: "0.1.0", RequestID: "req-provider-profile-list", Profiles: []brokerapi.ProviderProfile{profile}}, nil
+}
+
+func (f *fakeBrokerClient) ProviderProfileGet(ctx context.Context, providerProfileID string) (brokerapi.ProviderProfileGetResponse, error) {
+	_ = ctx
+	if strings.TrimSpace(providerProfileID) == "" {
+		return brokerapi.ProviderProfileGetResponse{}, fmt.Errorf("provider profile id required")
+	}
+	list, _ := f.ProviderProfileList(ctx)
+	profile := list.Profiles[0]
+	profile.ProviderProfileID = strings.TrimSpace(providerProfileID)
+	return brokerapi.ProviderProfileGetResponse{SchemaID: "runecode.protocol.v0.ProviderProfileGetResponse", SchemaVersion: "0.1.0", RequestID: "req-provider-profile-get", Profile: profile}, nil
+}
+
+func fakeProviderCredentialLease(runID string) secretsd.Lease {
+	return secretsd.Lease{LeaseID: "lease-provider-credential", SecretRef: "secrets/model-providers/provider-profile-test/direct-credential", ConsumerID: "principal:gateway:model:" + runID, RoleKind: "model-gateway", Scope: "run:" + runID, DeliveryKind: "model_gateway", Status: "active"}
 }
 
 func (f *fakeBrokerClient) GitSetupAuthBootstrap(ctx context.Context, req brokerapi.GitSetupAuthBootstrapRequest) (brokerapi.GitSetupAuthBootstrapResponse, error) {

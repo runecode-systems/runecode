@@ -10,6 +10,7 @@ Recent notable standards for this branch:
 - `runecontext/standards/global/protocol-registry-discipline.md`
 - `runecontext/standards/security/policy-evaluation-foundations.md`
 - `runecontext/standards/security/secret-lease-lifecycle-and-binding.md`
+- `runecontext/standards/security/model-provider-substrate-and-secret-ingress.md`
 - `runecontext/standards/security/approval-binding-and-verifier-identity.md`
 - `runecontext/standards/security/audit-anchoring-receipt-and-verification.md`
 - `runecontext/standards/security/audit-verification-scope-and-evidence-binding.md`
