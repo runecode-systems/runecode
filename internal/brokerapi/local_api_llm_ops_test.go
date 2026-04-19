@@ -82,7 +82,7 @@ func TestHandleLLMInvokeRejectsProviderNotReady(t *testing.T) {
 		t.Fatalf("provider %q not found", providerID)
 	}
 	profile.ReadinessPosture.EffectiveReadiness = "not_ready"
-	if _, err := s.providerSubstrate.upsertProfile(profile); err != nil {
+	if _, _, err := s.providerSubstrate.upsertProfile(profile); err != nil {
 		t.Fatalf("upsertProfile returned error: %v", err)
 	}
 
@@ -145,7 +145,7 @@ func TestHandleLLMInvokeAdmissionUsesResolvedDestinationRef(t *testing.T) {
 		t.Fatalf("provider %q not found", providerID)
 	}
 	profile.DestinationIdentity.CanonicalHost = "forbidden.example.com"
-	if _, err := s.providerSubstrate.upsertProfile(profile); err != nil {
+	if _, _, err := s.providerSubstrate.upsertProfile(profile); err != nil {
 		t.Fatalf("upsert profile returned error: %v", err)
 	}
 
@@ -223,7 +223,7 @@ func configureProviderEndpointForServer(t *testing.T, s *Service, requestObject 
 	profile.DestinationIdentity.PrivateRangeBlocking = "enforced"
 	profile.DestinationIdentity.DNSRebindingProtection = "enforced"
 	profile.ReadinessPosture.EffectiveReadiness = "ready"
-	if _, err := s.providerSubstrate.upsertProfile(profile); err != nil {
+	if _, _, err := s.providerSubstrate.upsertProfile(profile); err != nil {
 		t.Fatalf("upsert profile returned error: %v", err)
 	}
 	s.gatewayRuntime.resolver = fakeResolver{hosts: map[string][]string{"model.example.com": {"93.184.216.34"}}}
@@ -279,7 +279,7 @@ func mustCreateProviderProfileWithDirectCredential(t *testing.T, s *Service, fam
 	t.Helper()
 	profileInput := providerProfileFixture("Adapter", family, "model.example.com", "/v1")
 	profileInput.AdapterKind = adapterKind
-	profile, err := s.providerSubstrate.upsertProfile(profileInput)
+	profile, _, err := s.providerSubstrate.upsertProfile(profileInput)
 	if err != nil {
 		t.Fatalf("upsertProfile returned error: %v", err)
 	}
@@ -287,7 +287,7 @@ func mustCreateProviderProfileWithDirectCredential(t *testing.T, s *Service, fam
 	profile.ReadinessPosture.EffectiveReadiness = "ready"
 	profile.ReadinessPosture.ConnectivityState = "reachable"
 	profile.ReadinessPosture.CompatibilityState = "compatible"
-	profile, err = s.providerSubstrate.upsertProfile(profile)
+	profile, _, err = s.providerSubstrate.upsertProfile(profile)
 	if err != nil {
 		t.Fatalf("upsertProfile(adapter) returned error: %v", err)
 	}

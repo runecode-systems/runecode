@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 )
@@ -23,6 +24,25 @@ func TestProviderSetupSecretIngressFlowStoresOnlySecretRefAndIssuesModelGatewayL
 	assertStoredAndProjectedCredentialState(t, service, beginResp.Profile.ProviderProfileID, submitResp)
 	assertProviderCredentialLeaseIssue(t, service, beginResp.Profile.ProviderProfileID)
 	assertProviderProfileInspectionProjection(t, service, beginResp.Profile.ProviderProfileID)
+}
+
+func TestProviderSetupSecretIngressUsesCommitTimeForLastRotatedAt(t *testing.T) {
+	service := newBrokerAPIServiceForTests(t, APIConfig{})
+	prepareTime := time.Date(2026, 4, 19, 12, 0, 0, 0, time.UTC)
+	commitTime := prepareTime.Add(3 * time.Minute)
+	service.SetNowFuncForTests(func() time.Time { return prepareTime })
+	beginResp := mustBeginProviderSetup(t, service, "req-provider-setup-begin-rotated-at")
+	prepareResp := mustPrepareProviderIngress(t, service, beginResp.SetupSession.SetupSessionID, "req-provider-setup-prepare-rotated-at")
+	service.SetNowFuncForTests(func() time.Time { return commitTime })
+	mustSubmitProviderIngress(t, service, prepareResp.SecretIngressToken, "delayed-secret", "req-provider-setup-submit-rotated-at")
+
+	stored, ok := service.providerProfileByID(beginResp.Profile.ProviderProfileID)
+	if !ok {
+		t.Fatal("provider profile missing after delayed secret ingress submit")
+	}
+	if got := stored.AuthMaterial.LastRotatedAt; got != commitTime.UTC().Format(time.RFC3339) {
+		t.Fatalf("auth_material.last_rotated_at = %q, want %q", got, commitTime.UTC().Format(time.RFC3339))
+	}
 }
 
 func TestProviderValidationLifecycleTransitionsAndReadinessCommit(t *testing.T) {
@@ -459,7 +479,7 @@ func TestProviderSetupPrepareInvalidatesOlderIngressTokens(t *testing.T) {
 
 func TestProviderProfileInspectionRemainsAvailableWithoutSecretsService(t *testing.T) {
 	service := newBrokerAPIServiceForTests(t, APIConfig{})
-	_, err := service.providerSubstrate.upsertProfile(providerProfileFixture("OpenAI Prod", "openai_compatible", "api.openai.com", "/v1"))
+	_, _, err := service.providerSubstrate.upsertProfile(providerProfileFixture("OpenAI Prod", "openai_compatible", "api.openai.com", "/v1"))
 	if err != nil {
 		t.Fatalf("upsertProfile returned error: %v", err)
 	}

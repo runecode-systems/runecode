@@ -20,3 +20,8 @@ func (c *LocalRPCClient) Invoke(_ context.Context, _ string, _ any, _ any) *Erro
 	err := toErrorResponse(defaultRequestIDFallback, "gateway_failure", "internal", false, "local rpc client is linux-only for MVP")
 	return &err
 }
+
+func (c *LocalRPCClient) InvokeSecretIngress(_ context.Context, _ string, _ any, _ []byte, _ any) *ErrorResponse {
+	err := toErrorResponse(defaultRequestIDFallback, "gateway_failure", "internal", false, "local rpc client is linux-only for MVP")
+	return &err
+}

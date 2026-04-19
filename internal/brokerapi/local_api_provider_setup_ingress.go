@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 )
 
 func (s *Service) HandleProviderSetupSecretIngressSubmit(ctx context.Context, req ProviderSetupSecretIngressSubmitRequest, secret []byte, meta RequestContext) (ProviderSetupSecretIngressSubmitResponse, *ErrorResponse) {
@@ -83,6 +84,7 @@ func (s *Service) auditProviderSecretIngressSubmit(requestID string, updated Pro
 
 func (s *Service) persistDirectCredential(session ProviderSetupSession, secret []byte) (ProviderProfile, string, bool, string, error) {
 	secretRef := fmt.Sprintf("secrets/model-providers/%s/direct-credential", session.ProviderProfileID)
+	rotatedAt := s.now().UTC().Format(time.RFC3339)
 	if _, err := s.secretsSvc.ImportSecret(secretRef, bytes.NewReader(secret)); err != nil {
 		return ProviderProfile{}, "", false, "", err
 	}
@@ -94,7 +96,7 @@ func (s *Service) persistDirectCredential(session ProviderSetupSession, secret [
 	if strings.TrimSpace(before.AuthMaterial.MaterialState) == "present" {
 		changeKind = "rotated"
 	}
-	updated, err := s.providerSubstrate.setAuthMaterial(session.ProviderProfileID, ProviderAuthMaterial{MaterialKind: "direct_credential", MaterialState: "present", SecretRef: secretRef, LeasePolicyRef: "secretsd://lease-policy/model-provider-default", LastRotatedAt: session.UpdatedAt})
+	updated, err := s.providerSubstrate.setAuthMaterial(session.ProviderProfileID, ProviderAuthMaterial{MaterialKind: "direct_credential", MaterialState: "present", SecretRef: secretRef, LeasePolicyRef: "secretsd://lease-policy/model-provider-default", LastRotatedAt: rotatedAt})
 	if err != nil {
 		return ProviderProfile{}, "", false, "", err
 	}
@@ -102,7 +104,7 @@ func (s *Service) persistDirectCredential(session ProviderSetupSession, secret [
 	updated.ReadinessPosture.CredentialState = "present"
 	updated.ReadinessPosture.EffectiveReadiness = providerEffectiveReadiness(updated.ReadinessPosture)
 	updated.ReadinessPosture.ReasonCodes = providerReadinessReasonCodes(updated.ReadinessPosture)
-	updated, err = s.providerSubstrate.upsertProfile(updated)
+	updated, _, err = s.providerSubstrate.upsertProfile(updated)
 	if err != nil {
 		return ProviderProfile{}, "", false, "", err
 	}

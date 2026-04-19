@@ -10,11 +10,11 @@ import (
 
 func TestProviderSubstrateSupportsMultipleProfiles(t *testing.T) {
 	state := newProviderSubstrateState(func() time.Time { return time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC) })
-	p1, err := state.upsertProfile(providerProfileFixture("OpenAI Prod", "openai_compatible", "api.openai.com", "/v1"))
+	p1, _, err := state.upsertProfile(providerProfileFixture("OpenAI Prod", "openai_compatible", "api.openai.com", "/v1"))
 	if err != nil {
 		t.Fatalf("upsertProfile(p1) error: %v", err)
 	}
-	p2, err := state.upsertProfile(providerProfileFixture("OpenAI Staging", "openai_compatible", "staging.openai.example", "/v1"))
+	p2, _, err := state.upsertProfile(providerProfileFixture("OpenAI Staging", "openai_compatible", "staging.openai.example", "/v1"))
 	if err != nil {
 		t.Fatalf("upsertProfile(p2) error: %v", err)
 	}
@@ -28,14 +28,14 @@ func TestProviderSubstrateSupportsMultipleProfiles(t *testing.T) {
 
 func TestProviderSubstrateProfileIDStableAcrossAuthModeChanges(t *testing.T) {
 	state := newProviderSubstrateState(func() time.Time { return time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC) })
-	first, err := state.upsertProfile(providerProfileFixture("Anthropic", "anthropic_compatible", "api.anthropic.com", "/v1"))
+	first, _, err := state.upsertProfile(providerProfileFixture("Anthropic", "anthropic_compatible", "api.anthropic.com", "/v1"))
 	if err != nil {
 		t.Fatalf("upsertProfile(first) error: %v", err)
 	}
 	updated := providerProfileFixture("Anthropic", "anthropic_compatible", "api.anthropic.com", "/v1")
 	updated.CurrentAuthMode = "oauth_derived"
 	updated.SupportedAuthModes = []string{"direct_credential", "oauth_derived"}
-	second, err := state.upsertProfile(updated)
+	second, _, err := state.upsertProfile(updated)
 	if err != nil {
 		t.Fatalf("upsertProfile(second) error: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestProviderSubstrateProfileIDStableAcrossAuthModeChanges(t *testing.T) {
 func TestProviderSubstrateCredentialRotationAndValidationRetriesKeepProfileIdentity(t *testing.T) {
 	now := time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC)
 	state := newProviderSubstrateState(func() time.Time { return now })
-	profile, err := state.upsertProfile(providerProfileFixture("OpenAI", "openai_compatible", "api.openai.com", "/v1"))
+	profile, _, err := state.upsertProfile(providerProfileFixture("OpenAI", "openai_compatible", "api.openai.com", "/v1"))
 	if err != nil {
 		t.Fatalf("upsertProfile error: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestProviderSubstrateCredentialRotationAndValidationRetriesKeepProfileIdent
 func TestProviderSubstrateUpsertPreservesNewValidationMetadata(t *testing.T) {
 	now := time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC)
 	state := newProviderSubstrateState(func() time.Time { return now })
-	profile, err := state.upsertProfile(providerProfileFixture("OpenAI", "openai_compatible", "api.openai.com", "/v1"))
+	profile, _, err := state.upsertProfile(providerProfileFixture("OpenAI", "openai_compatible", "api.openai.com", "/v1"))
 	if err != nil {
 		t.Fatalf("upsertProfile error: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestProviderSubstrateUpsertPreservesNewValidationMetadata(t *testing.T) {
 	profile.ReadinessPosture.ValidationAttemptID = "provider-validation-attempt-1"
 	profile.ReadinessPosture.ReasonCodes = []string{"connectivity_validation_pending", "validation_in_progress"}
 	now = now.Add(1 * time.Minute)
-	updated, err := state.upsertProfile(profile)
+	updated, _, err := state.upsertProfile(profile)
 	if err != nil {
 		t.Fatalf("upsertProfile(update) error: %v", err)
 	}

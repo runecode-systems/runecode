@@ -98,6 +98,8 @@ func (s *providerSetupState) consumeIngress(token string) (ProviderSetupSession,
 	if err != nil {
 		return ProviderSetupSession{}, providerSetupIngressRecord{}, err
 	}
+	rec.Used = true
+	s.ingress[trimmed] = rec
 	return entry, rec, nil
 }
 
@@ -112,9 +114,16 @@ func (s *providerSetupState) completeIngress(token string) (ProviderSetupSession
 	now := s.nowFn().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rec, entry, err := s.lookupActiveIngress(trimmed, now)
-	if err != nil {
-		return ProviderSetupSession{}, err
+	rec, ok := s.ingress[trimmed]
+	if !ok {
+		return ProviderSetupSession{}, fmt.Errorf("secret ingress token not found")
+	}
+	if !rec.Used {
+		return ProviderSetupSession{}, fmt.Errorf("secret ingress token not consumed")
+	}
+	entry, ok := s.session[rec.SetupSessionID]
+	if !ok {
+		return ProviderSetupSession{}, fmt.Errorf("setup session not found")
 	}
 	s.invalidateIngressForSessionLocked(rec.SetupSessionID)
 	entry = providerSessionCredentialCommitted(entry, now.Format(time.RFC3339))

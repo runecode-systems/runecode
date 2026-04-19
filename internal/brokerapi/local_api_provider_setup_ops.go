@@ -11,8 +11,8 @@ func (s *Service) HandleProviderSetupSessionBegin(ctx context.Context, req Provi
 		return ProviderSetupSessionBeginResponse{}, errResp
 	}
 	defer cleanup()
-	_, existed := s.providerProfileByID(stableProviderProfileID(strings.TrimSpace(strings.ToLower(req.ProviderFamily)), destinationRefFromHostAndPath(req.CanonicalHost, req.CanonicalPathPrefix)))
-	profile, err := s.providerSubstrate.upsertProfile(providerProfileFromSetupBegin(req))
+	candidate := providerProfileFromSetupBegin(req)
+	profile, created, err := s.providerSubstrate.upsertProfile(candidate)
 	if err != nil {
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
 		return ProviderSetupSessionBeginResponse{}, &errOut
@@ -33,9 +33,9 @@ func (s *Service) HandleProviderSetupSessionBegin(ctx context.Context, req Provi
 		errOut := s.errorFromValidation(requestID, err)
 		return ProviderSetupSessionBeginResponse{}, &errOut
 	}
-	changeKind := "created"
-	if existed {
-		changeKind = "updated"
+	changeKind := "updated"
+	if created {
+		changeKind = "created"
 	}
 	if err := s.auditProviderProfileChange(requestID, profile, changeKind); err != nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())

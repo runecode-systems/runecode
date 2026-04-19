@@ -7,7 +7,7 @@ import (
 
 func TestHandleReadinessGetIncludesConfiguredProviderProfiles(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	_, err := s.providerSubstrate.upsertProfile(providerProfileFixture("OpenAI Prod", "openai_compatible", "api.openai.com", "/v1"))
+	_, _, err := s.providerSubstrate.upsertProfile(providerProfileFixture("OpenAI Prod", "openai_compatible", "api.openai.com", "/v1"))
 	if err != nil {
 		t.Fatalf("upsertProfile returned error: %v", err)
 	}

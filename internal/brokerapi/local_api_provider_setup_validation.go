@@ -52,7 +52,7 @@ func (s *Service) beginProviderValidationAttempt(requestID string, profile Provi
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
 		return ProviderSetupSession{}, ProviderProfile{}, &errOut
 	}
-	updated, err := s.providerSubstrate.upsertProfile(withValidationInProgress(profile, session.ValidationAttemptID))
+	updated, _, err := s.providerSubstrate.upsertProfile(withValidationInProgress(profile, session.ValidationAttemptID))
 	if err != nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
 		return ProviderSetupSession{}, ProviderProfile{}, &errOut
@@ -135,7 +135,7 @@ func (s *Service) commitProviderValidation(requestID, profileID, attemptID, outc
 		return ProviderSetupSession{}, ProviderProfile{}, &errOut
 	}
 	updated.CompatibilityPosture = compatibilityPostureFromReadiness(updated.ReadinessPosture.CompatibilityState)
-	updated, err = s.providerSubstrate.upsertProfile(updated)
+	updated, _, err = s.providerSubstrate.upsertProfile(updated)
 	if err != nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
 		return ProviderSetupSession{}, ProviderProfile{}, &errOut

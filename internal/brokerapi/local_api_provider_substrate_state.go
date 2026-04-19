@@ -58,25 +58,26 @@ func (s *providerSubstrateState) restoreProfiles(profiles []ProviderProfile) err
 	return nil
 }
 
-func (s *providerSubstrateState) upsertProfile(profile ProviderProfile) (ProviderProfile, error) {
+func (s *providerSubstrateState) upsertProfile(profile ProviderProfile) (ProviderProfile, bool, error) {
 	if s == nil {
-		return ProviderProfile{}, fmt.Errorf("provider substrate state unavailable")
+		return ProviderProfile{}, false, fmt.Errorf("provider substrate state unavailable")
 	}
 	normalized, err := normalizeProviderProfile(profile)
 	if err != nil {
-		return ProviderProfile{}, err
+		return ProviderProfile{}, false, err
 	}
 	now := s.nowFn().UTC().Format(time.RFC3339)
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	_, existed := s.profiles[normalized.ProviderProfileID]
 	normalized = mergedProviderProfileForUpsert(normalized, s.profiles[normalized.ProviderProfileID], now)
 	if s.persistProfile != nil {
 		if err := s.persistProfile(normalized); err != nil {
-			return ProviderProfile{}, err
+			return ProviderProfile{}, false, err
 		}
 	}
 	s.profiles[normalized.ProviderProfileID] = normalized
-	return normalized, nil
+	return normalized, !existed, nil
 }
 
 func mergedProviderProfileForUpsert(normalized, existing ProviderProfile, now string) ProviderProfile {

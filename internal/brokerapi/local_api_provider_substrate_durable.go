@@ -62,7 +62,7 @@ func (s *Service) reconcileProviderSecretReferences() error {
 	for _, profile := range profiles {
 		reconciled, changed := s.reconcileProviderSecretReference(profile)
 		if changed {
-			if _, err := s.providerSubstrate.upsertProfile(reconciled); err != nil {
+			if _, _, err := s.providerSubstrate.upsertProfile(reconciled); err != nil {
 				return err
 			}
 		}
