@@ -4,7 +4,8 @@ id: DEC-2026-005-initial-spec-suite-mvp-rationale
 title: Initial Spec Suite MVP Rationale
 originating_changes:
   - CHG-2026-001-57d6-agent-os-to-runecontext-migration-umbrella
-related_changes: []
+related_changes:
+  - CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0
 ---
 
 # DEC-2026-005: Initial Spec Suite MVP Rationale
