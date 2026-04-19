@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ProviderAuthMaterial.schema.json",
+  "title": "ProviderAuthMaterial",
+  "description": "Non-secret provider auth-material metadata bound to a shared provider profile.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 8,
+  "required": ["schema_id", "schema_version", "material_kind", "material_state"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ProviderAuthMaterial", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "material_kind": {
+      "type": "string",
+      "enum": ["direct_credential", "oauth_derived", "bridge_session"],
+      "description": "Shared auth-material lane kind; does not redefine provider profile identity.",
+      "x-data-class": "public"
+    },
+    "material_state": {
+      "type": "string",
+      "enum": ["missing", "present", "expired", "invalid"],
+      "description": "Broker-projected non-secret auth-material state.",
+      "x-data-class": "public"
+    },
+    "secret_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._:/-]+$",
+      "description": "Internal secret identity reference. Broker-projected public surfaces may redact this field.",
+      "x-data-class": "sensitive"
+    },
+    "lease_policy_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._:/-]+$",
+      "description": "Internal lease-policy identity used for scoped session material issuance. Broker-projected public surfaces may redact this field.",
+      "x-data-class": "sensitive"
+    },
+    "session_binding_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Optional runtime/session material binding identifier. Broker-projected public surfaces may redact this field.",
+      "x-data-class": "sensitive"
+    },
+    "last_rotated_at": {
+      "type": "string",
+      "maxLength": 64,
+      "format": "date-time",
+      "description": "Last broker-observed material rotation timestamp.",
+      "x-data-class": "public"
+    }
+  }
+}

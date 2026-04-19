@@ -13,7 +13,7 @@ func TestNewRouteModelsHybridMVPRoutesLoad(t *testing.T) {
 	})
 
 	models := newRouteModels(shellRoutes())
-	ids := []routeID{routeDashboard, routeChat, routeRuns, routeApprovals, routeAction, routeArtifacts, routeAudit, routeStatus, routeGitSetup, routeGitRemote}
+	ids := []routeID{routeDashboard, routeChat, routeRuns, routeApprovals, routeAction, routeArtifacts, routeAudit, routeStatus, routeProviders, routeGitSetup, routeGitRemote}
 	for _, id := range ids {
 		model, ok := models[id]
 		if !ok {

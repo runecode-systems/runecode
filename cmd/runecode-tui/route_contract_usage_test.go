@@ -80,6 +80,14 @@ var routeActivationCaseData = []routeActivationCase{
 		expected: []string{"ReadinessGet", "VersionInfoGet", "BackendPostureGet"},
 	},
 	{
+		name:    "model providers uses typed setup and inspection contracts",
+		routeID: routeProviders,
+		newModel: func(client localBrokerClient) routeModel {
+			return newProviderSetupRouteModel(routeDefinition{ID: routeProviders, Label: "Model Providers"}, client)
+		},
+		expected: []string{"ProviderProfileList"},
+	},
+	{
 		name:    "git setup uses typed broker-owned setup contracts",
 		routeID: routeGitSetup,
 		newModel: func(client localBrokerClient) routeModel {

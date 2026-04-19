@@ -11,9 +11,35 @@ func localRPCOperations(service *brokerapi.Service, ctx context.Context, meta br
 	operations := map[string]rpcOperation{}
 	mergeRPCOperations(operations, runApprovalRPCOperations(service, ctx, meta))
 	mergeRPCOperations(operations, gitSetupRPCOperations(service, ctx, meta))
+	mergeRPCOperations(operations, providerSetupRPCOperations(service, ctx, meta))
 	mergeRPCOperations(operations, artifactRPCOperations(service, ctx, meta))
 	mergeRPCOperations(operations, auditHealthRPCOperations(service, ctx, meta))
 	return operations
+}
+
+func providerSetupRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
+	return map[string]rpcOperation{
+		"provider_setup_session_begin": {requestSchemaPath: "objects/ProviderSetupSessionBeginRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProviderSetupSessionBeginRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProviderSetupSessionBegin(ctx, req, meta)
+			})
+		}},
+		"provider_setup_secret_ingress_prepare": {requestSchemaPath: "objects/ProviderSetupSecretIngressPrepareRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProviderSetupSecretIngressPrepareRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProviderSetupSecretIngressPrepare(ctx, req, meta)
+			})
+		}},
+		"provider_profile_list": {requestSchemaPath: "objects/ProviderProfileListRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProviderProfileListRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProviderProfileList(ctx, req, meta)
+			})
+		}},
+		"provider_profile_get": {requestSchemaPath: "objects/ProviderProfileGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProviderProfileGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProviderProfileGet(ctx, req, meta)
+			})
+		}},
+	}
 }
 
 func mergeRPCOperations(dst, src map[string]rpcOperation) {

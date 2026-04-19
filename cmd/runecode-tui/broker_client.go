@@ -58,6 +58,12 @@ type localBrokerClient interface {
 	GitSetupGet(ctx context.Context, provider string) (brokerapi.GitSetupGetResponse, error)
 	GitSetupAuthBootstrap(ctx context.Context, req brokerapi.GitSetupAuthBootstrapRequest) (brokerapi.GitSetupAuthBootstrapResponse, error)
 	GitSetupIdentityUpsert(ctx context.Context, req brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, error)
+	ProviderSetupSessionBegin(ctx context.Context, req brokerapi.ProviderSetupSessionBeginRequest) (brokerapi.ProviderSetupSessionBeginResponse, error)
+	ProviderSetupSecretIngressPrepare(ctx context.Context, req brokerapi.ProviderSetupSecretIngressPrepareRequest) (brokerapi.ProviderSetupSecretIngressPrepareResponse, error)
+	ProviderSetupSecretIngressSubmit(ctx context.Context, req brokerapi.ProviderSetupSecretIngressSubmitRequest, secret []byte) (brokerapi.ProviderSetupSecretIngressSubmitResponse, error)
+	ProviderCredentialLeaseIssue(ctx context.Context, req brokerapi.ProviderCredentialLeaseIssueRequest) (brokerapi.ProviderCredentialLeaseIssueResponse, error)
+	ProviderProfileList(ctx context.Context) (brokerapi.ProviderProfileListResponse, error)
+	ProviderProfileGet(ctx context.Context, providerProfileID string) (brokerapi.ProviderProfileGetResponse, error)
 	GitRemoteMutationPrepare(ctx context.Context, req brokerapi.GitRemoteMutationPrepareRequest) (brokerapi.GitRemoteMutationPrepareResponse, error)
 	GitRemoteMutationGet(ctx context.Context, req brokerapi.GitRemoteMutationGetRequest) (brokerapi.GitRemoteMutationGetResponse, error)
 	GitRemoteMutationIssueExecuteLease(ctx context.Context, req brokerapi.GitRemoteMutationIssueExecuteLeaseRequest) (brokerapi.GitRemoteMutationIssueExecuteLeaseResponse, error)
@@ -68,6 +74,7 @@ type localBrokerClient interface {
 
 type localRPCInvoker interface {
 	Invoke(ctx context.Context, operation string, request any, out any) *brokerapi.ErrorResponse
+	InvokeSecretIngress(ctx context.Context, operation string, request any, secret []byte, out any) *brokerapi.ErrorResponse
 	Close() error
 }
 
@@ -251,28 +258,6 @@ func (c *rpcBrokerClient) AuditAnchorSegment(ctx context.Context, req brokerapi.
 	return resp, c.invoke(ctx, "audit_anchor_segment", req, &resp)
 }
 
-func (c *rpcBrokerClient) GitSetupGet(ctx context.Context, provider string) (brokerapi.GitSetupGetResponse, error) {
-	req := brokerapi.GitSetupGetRequest{SchemaID: "runecode.protocol.v0.GitSetupGetRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("git-setup-get"), Provider: provider}
-	resp := brokerapi.GitSetupGetResponse{}
-	return resp, c.invoke(ctx, "git_setup_get", req, &resp)
-}
-
-func (c *rpcBrokerClient) GitSetupAuthBootstrap(ctx context.Context, req brokerapi.GitSetupAuthBootstrapRequest) (brokerapi.GitSetupAuthBootstrapResponse, error) {
-	req.SchemaID = "runecode.protocol.v0.GitSetupAuthBootstrapRequest"
-	req.SchemaVersion = localAPISchemaVersion
-	req.RequestID = newRequestID("git-setup-auth-bootstrap")
-	resp := brokerapi.GitSetupAuthBootstrapResponse{}
-	return resp, c.invoke(ctx, "git_setup_auth_bootstrap", req, &resp)
-}
-
-func (c *rpcBrokerClient) GitSetupIdentityUpsert(ctx context.Context, req brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, error) {
-	req.SchemaID = "runecode.protocol.v0.GitSetupIdentityUpsertRequest"
-	req.SchemaVersion = localAPISchemaVersion
-	req.RequestID = newRequestID("git-setup-identity-upsert")
-	resp := brokerapi.GitSetupIdentityUpsertResponse{}
-	return resp, c.invoke(ctx, "git_setup_identity_upsert", req, &resp)
-}
-
 func (c *rpcBrokerClient) GitRemoteMutationPrepare(ctx context.Context, req brokerapi.GitRemoteMutationPrepareRequest) (brokerapi.GitRemoteMutationPrepareResponse, error) {
 	req.SchemaID = "runecode.protocol.v0.GitRemoteMutationPrepareRequest"
 	req.SchemaVersion = localAPISchemaVersion
@@ -337,6 +322,36 @@ func (c *rpcBrokerClient) invoke(ctx context.Context, operation string, req any,
 		}
 		message := sanitizeUIText(errResp.Error.Message)
 		if message == "" {
+			return fmt.Errorf("%s", code)
+		}
+		return fmt.Errorf("%s: %s", code, message)
+	}
+	return nil
+}
+
+func (c *rpcBrokerClient) invokeWithSecret(ctx context.Context, operation string, req any, secret []byte, out any) error {
+	cfg, err := localIPCConfigProvider()
+	if err != nil {
+		return localIPCSetupError("local_ipc_config_error", err)
+	}
+	client, err := localRPCDialer(ctx, cfg)
+	if err != nil {
+		return localIPCSetupError("local_ipc_dial_error", err)
+	}
+	if client == nil {
+		return fmt.Errorf("local_ipc_dial_error")
+	}
+	defer client.Close()
+	if errResp := client.InvokeSecretIngress(ctx, operation, req, secret, out); errResp != nil {
+		code := strings.TrimSpace(errResp.Error.Code)
+		if code == "" {
+			code = "broker_rpc_error"
+		}
+		message := sanitizeUIText(errResp.Error.Message)
+		if message == "" {
+			return fmt.Errorf("%s", code)
+		}
+		if message == code {
 			return fmt.Errorf("%s", code)
 		}
 		return fmt.Errorf("%s: %s", code, message)

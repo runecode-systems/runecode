@@ -19,6 +19,13 @@ func (s *Service) HandleLLMInvoke(ctx context.Context, req LLMInvokeRequest, met
 	}
 	defer release()
 	defer cancel()
+	binding, inputRef, errResp := s.bindLLMRequestToArtifacts(requestID, req.RunID, req.RequestDigest, req.LLMRequest)
+	if errResp != nil {
+		return LLMInvokeResponse{}, errResp
+	}
+	if _, errResp := s.translateCanonicalLLMRequestForProfile(requestID, binding, req.LLMRequest, inputRef); errResp != nil {
+		return LLMInvokeResponse{}, errResp
+	}
 	return LLMInvokeResponse{}, s.llmExecutionUnavailable(requestID)
 }
 
@@ -32,6 +39,13 @@ func (s *Service) HandleLLMStreamRequest(ctx context.Context, req LLMStreamReque
 	}
 	defer release()
 	defer cancel()
+	binding, inputRef, errResp := s.bindLLMRequestToArtifacts(requestID, req.RunID, req.RequestDigest, req.LLMRequest)
+	if errResp != nil {
+		return LLMStreamRequest{}, llmExecutionBinding{}, artifacts.ArtifactReference{}, errResp
+	}
+	if _, errResp := s.translateCanonicalLLMRequestForProfile(requestID, binding, req.LLMRequest, inputRef); errResp != nil {
+		return LLMStreamRequest{}, llmExecutionBinding{}, artifacts.ArtifactReference{}, errResp
+	}
 	return LLMStreamRequest{}, llmExecutionBinding{}, artifacts.ArtifactReference{}, s.llmExecutionUnavailable(requestID)
 }
 
@@ -65,6 +79,14 @@ func (s *Service) bindLLMRequestToArtifacts(requestID, runID string, expectedDig
 		RequestHash:   reqDigest,
 		LeaseID:       llmLeaseIDUnavailableSentinel,
 	}
+	profile, err := s.providerProfileForLLMRequest(llmReq)
+	if err != nil {
+		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
+		return llmExecutionBinding{}, artifacts.ArtifactReference{}, &errOut
+	}
+	binding.ProviderID = profile.ProviderProfileID
+	binding.ProviderFamily = profile.ProviderFamily
+	binding.AdapterKind = profile.AdapterKind
 	return binding, primaryInputRecord.Reference, nil
 }
 

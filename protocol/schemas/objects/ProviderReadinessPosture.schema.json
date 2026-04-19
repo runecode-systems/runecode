@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ProviderReadinessPosture.schema.json",
+  "title": "ProviderReadinessPosture",
+  "description": "Broker-projected provider readiness posture with explicit shared dimensions.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 10,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "configuration_state",
+    "credential_state",
+    "connectivity_state",
+    "compatibility_state",
+    "effective_readiness"
+  ],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ProviderReadinessPosture", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "configuration_state": { "type": "string", "enum": ["not_configured", "configured"], "description": "Configuration posture for this provider profile.", "x-data-class": "public" },
+    "credential_state": { "type": "string", "enum": ["missing", "present", "expired", "invalid"], "description": "Credential-material posture projected by the broker.", "x-data-class": "public" },
+    "connectivity_state": { "type": "string", "enum": ["unknown", "reachable", "degraded", "unreachable"], "description": "Connectivity posture for endpoint compatibility probes.", "x-data-class": "public" },
+    "compatibility_state": { "type": "string", "enum": ["unknown", "compatible", "incompatible"], "description": "Compatibility posture against provider adapter requirements.", "x-data-class": "public" },
+    "effective_readiness": { "type": "string", "enum": ["ready", "not_ready"], "description": "Aggregated profile readiness used by setup and inspection clients.", "x-data-class": "public" },
+    "reason_codes": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "description": "Stable broker reason codes for non-ready or degraded profile posture.",
+      "x-data-class": "public",
+      "items": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z0-9_:-]+$" }
+    },
+    "last_validation_at": { "type": "string", "maxLength": 64, "format": "date-time", "description": "Timestamp of latest validation/probe attempt.", "x-data-class": "public" },
+    "validation_attempt_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable operator-visible validation-attempt identity.", "x-data-class": "public" }
+  }
+}

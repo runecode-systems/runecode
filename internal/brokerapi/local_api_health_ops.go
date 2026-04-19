@@ -89,12 +89,21 @@ func (s *Service) HandleReadinessGet(ctx context.Context, req ReadinessGetReques
 	if !model.ModelGatewayReady || model.ModelGatewayHealthState == "failed" || model.ModelGatewayHealthState == "degraded" {
 		model.Ready = false
 	}
+	model.ProviderProfiles = s.projectProviderProfilesForReadiness()
 	resp := ReadinessGetResponse{SchemaID: "runecode.protocol.v0.ReadinessGetResponse", SchemaVersion: "0.1.0", RequestID: requestID, Readiness: model}
 	if err := s.validateResponse(resp, readinessGetResponseSchemaPath); err != nil {
 		errOut := s.errorFromValidation(requestID, err)
 		return ReadinessGetResponse{}, &errOut
 	}
 	return resp, nil
+}
+
+func (s *Service) projectProviderProfilesForReadiness() []ProviderProfile {
+	profiles := s.providerSubstrate.snapshotProfiles()
+	for i := range profiles {
+		profiles[i] = profiles[i].projected()
+	}
+	return profiles
 }
 
 func (s *Service) HandleVersionInfoGet(ctx context.Context, req VersionInfoGetRequest, meta RequestContext) (VersionInfoGetResponse, *ErrorResponse) {

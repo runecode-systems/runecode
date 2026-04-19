@@ -30,6 +30,8 @@ type Service struct {
 	auditRoot                 string
 	gatewayQuota              *gatewayQuotaBackend
 	gatewayRuntime            *modelGatewayRuntime
+	providerSubstrate         *providerSubstrateState
+	providerSetup             *providerSetupState
 	instancePostureController instanceBackendPostureController
 	apiConfig                 APIConfig
 	apiInflight               *inFlightGate
@@ -66,6 +68,7 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 		auditRoot:                 ledgerRoot,
 		gatewayQuota:              quotaBackend,
 		gatewayRuntime:            runtime,
+		providerSubstrate:         newProviderSubstrateState(time.Now),
 		instancePostureController: newLocalInstanceBackendPostureController(),
 		gitSetup:                  newGitSetupState(),
 		apiConfig:                 resolved,
@@ -77,6 +80,7 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 	if secretsSvc, secretsErr := openLocalSecretsService(); secretsErr == nil {
 		svc.secretsSvc = secretsSvc
 	}
+	svc.providerSetup = newProviderSetupState(time.Now)
 	return svc, nil
 }
 
@@ -130,6 +134,12 @@ func (s *Service) SetNowFuncForTests(nowFn func() time.Time) {
 	}
 	s.now = nowFn
 	s.store.SetNowFuncForTests(nowFn)
+	if s.providerSubstrate != nil {
+		s.providerSubstrate.setNowFunc(nowFn)
+	}
+	if s.providerSetup != nil {
+		s.providerSetup.setNowFunc(nowFn)
+	}
 }
 
 func (s *Service) AuditReadiness() (trustpolicy.AuditdReadiness, error) {

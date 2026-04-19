@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -193,6 +194,9 @@ func decodeLocalRPCRequest(line []byte) (localRPCRequest, error) {
 }
 
 func dispatchLocalRPC(service *brokerapi.Service, ctx context.Context, wire localRPCRequest, meta brokerapi.RequestContext) localRPCResponse {
+	if wire.Operation == "provider_setup_secret_ingress_submit" {
+		return decodeAndHandleProviderSecretIngressSubmit(service, ctx, wire, meta)
+	}
 	operation, ok := localRPCOperations(service, ctx, meta)[wire.Operation]
 	if !ok {
 		return localRPCResponse{OK: false, Error: decodeWireError("", fmt.Errorf("unsupported operation %q", wire.Operation))}
@@ -201,6 +205,27 @@ func dispatchLocalRPC(service *brokerapi.Service, ctx context.Context, wire loca
 		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
 	}
 	return operation.handle(wire.Request)
+}
+
+func decodeAndHandleProviderSecretIngressSubmit(service *brokerapi.Service, ctx context.Context, wire localRPCRequest, meta brokerapi.RequestContext) localRPCResponse {
+	if err := validateRawRPCPayload(wire.Request, "objects/ProviderSetupSecretIngressSubmitRequest.schema.json", service.APILimits()); err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
+	}
+	req := brokerapi.ProviderSetupSecretIngressSubmitRequest{}
+	decoder := json.NewDecoder(bytes.NewReader(wire.Request))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
+	}
+	payload, err := base64.StdEncoding.DecodeString(strings.TrimSpace(wire.SecretIngressPayloadBase64))
+	if err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError(req.RequestID, err)}
+	}
+	resp, errResp := service.HandleProviderSetupSecretIngressSubmit(ctx, req, payload, meta)
+	if errResp != nil {
+		return localRPCResponse{OK: false, Error: errResp}
+	}
+	return localRPCOKResponse(resp)
 }
 
 func validateRawRPCPayload(raw json.RawMessage, schemaPath string, limits brokerapi.Limits) error {

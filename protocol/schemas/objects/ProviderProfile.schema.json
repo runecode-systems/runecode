@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ProviderProfile.schema.json",
+  "title": "ProviderProfile",
+  "description": "Shared provider-profile substrate record reusable across direct-credential, OAuth, and bridge-runtime lanes.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 19,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "provider_profile_id",
+    "display_label",
+    "provider_family",
+    "adapter_kind",
+    "destination_identity",
+    "destination_ref",
+    "supported_auth_modes",
+    "current_auth_mode",
+    "allowlisted_model_ids",
+    "model_catalog_posture",
+    "compatibility_posture",
+    "quota_profile_kind",
+    "request_binding_kind",
+    "surface_channel",
+    "auth_material",
+    "readiness_posture",
+    "lifecycle"
+  ],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ProviderProfile", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "provider_profile_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable provider-profile identity that remains fixed across auth-mode changes and credential rotation.", "x-data-class": "public" },
+    "display_label": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Operator-facing provider profile label.", "x-data-class": "public" },
+    "provider_family": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Provider family identity used by shared adapter routing.", "x-data-class": "public" },
+    "adapter_kind": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Adapter family/kind below canonical typed model boundary.", "x-data-class": "public" },
+    "destination_identity": {
+      "$ref": "DestinationDescriptor.schema.json",
+      "description": "Canonical typed destination identity reused from shared gateway semantics.",
+      "x-data-class": "public"
+    },
+    "destination_ref": { "type": "string", "minLength": 1, "maxLength": 320, "description": "Canonical destination_ref derived from destination identity.", "x-data-class": "public" },
+    "supported_auth_modes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "description": "Auth modes supported by the provider profile setup lane.",
+      "x-data-class": "public",
+      "items": { "type": "string", "enum": ["direct_credential", "oauth_derived", "bridge_session"] }
+    },
+    "current_auth_mode": { "type": "string", "enum": ["direct_credential", "oauth_derived", "bridge_session"], "description": "Current auth mode bound to auth material without changing provider-profile identity.", "x-data-class": "public" },
+    "allowlisted_model_ids": {
+      "type": "array",
+      "maxItems": 512,
+      "uniqueItems": true,
+      "description": "Canonical manually managed model IDs allowed for this profile.",
+      "x-data-class": "public",
+      "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+    },
+    "model_catalog_posture": {
+      "$ref": "ProviderModelCatalogPosture.schema.json",
+      "description": "Broker-projected model-catalog authority posture where discovery/probes remain advisory.",
+      "x-data-class": "public"
+    },
+    "compatibility_posture": { "type": "string", "enum": ["unverified", "compatible", "incompatible"], "description": "Compatibility posture independent from auth-material storage shape.", "x-data-class": "public" },
+    "quota_profile_kind": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Shared quota profile identity; provider-local quota variants are not allowed.", "x-data-class": "public" },
+    "request_binding_kind": { "type": "string", "const": "canonical_llm_request_digest", "description": "Shared canonical request-binding contract for model execution audit semantics.", "x-data-class": "public" },
+    "surface_channel": { "type": "string", "const": "broker_local_api", "description": "Broker-projected setup/inspection channel.", "x-data-class": "public" },
+    "auth_material": {
+      "$ref": "ProviderAuthMaterial.schema.json",
+      "description": "Non-secret auth-material metadata attached to this profile.",
+      "x-data-class": "public"
+    },
+    "readiness_posture": {
+      "$ref": "ProviderReadinessPosture.schema.json",
+      "description": "Broker-projected readiness posture dimensions for the provider profile.",
+      "x-data-class": "public"
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 5,
+      "required": ["created_at", "updated_at", "validation_attempt_count", "last_validation_succeeded"],
+      "description": "Broker-projected lifecycle metadata for setup/inspection flows.",
+      "x-data-class": "public",
+      "properties": {
+        "created_at": { "type": "string", "maxLength": 64, "format": "date-time", "description": "Provider profile creation time.", "x-data-class": "public" },
+        "updated_at": { "type": "string", "maxLength": 64, "format": "date-time", "description": "Provider profile metadata update time.", "x-data-class": "public" },
+        "last_validation_at": { "type": "string", "maxLength": 64, "format": "date-time", "description": "Most recent validation/probe completion timestamp.", "x-data-class": "public" },
+        "validation_attempt_count": { "type": "integer", "minimum": 0, "description": "Count of validation/probe attempts recorded for this profile.", "x-data-class": "public" },
+        "last_validation_succeeded": { "type": "boolean", "description": "Whether the latest validation attempt concluded with effective ready posture.", "x-data-class": "public" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "properties": {
+        "destination_identity": {
+          "type": "object",
+          "required": ["descriptor_kind"],
+          "properties": {
+            "descriptor_kind": {
+              "const": "model_endpoint"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

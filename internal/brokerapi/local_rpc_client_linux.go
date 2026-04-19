@@ -5,6 +5,7 @@ package brokerapi
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -63,6 +64,29 @@ func (c *LocalRPCClient) Invoke(ctx context.Context, operation string, request a
 	return decodeRPCInvokeResponse(response, out)
 }
 
+func (c *LocalRPCClient) InvokeSecretIngress(ctx context.Context, operation string, request any, secret []byte, out any) *ErrorResponse {
+	if errResp := validateRPCInvoke(c, operation); errResp != nil {
+		return errResp
+	}
+	if len(secret) == 0 {
+		err := toErrorResponse(defaultRequestIDFallback, "broker_validation_schema_invalid", "validation", false, "secret ingress payload is required")
+		return &err
+	}
+	wire, errResp := c.buildWireRequest(operation, request)
+	if errResp != nil {
+		return errResp
+	}
+	wire.SecretIngressPayloadBase64 = base64.StdEncoding.EncodeToString(secret)
+	if errResp := c.validateWirePayload(wire); errResp != nil {
+		return errResp
+	}
+	response, errResp := c.sendAndReceive(ctx, wire)
+	if errResp != nil {
+		return errResp
+	}
+	return decodeRPCInvokeResponse(response, out)
+}
+
 func validateRPCInvoke(c *LocalRPCClient, operation string) *ErrorResponse {
 	if c == nil || c.conn == nil {
 		err := toErrorResponse(defaultRequestIDFallback, "gateway_failure", "internal", false, "local rpc client is not connected")
@@ -103,6 +127,19 @@ func (c *LocalRPCClient) sendAndReceive(ctx context.Context, wire LocalRPCReques
 		return LocalRPCResponse{}, &errResp
 	}
 	return response, nil
+}
+
+func (c *LocalRPCClient) validateWirePayload(wire LocalRPCRequest) *ErrorResponse {
+	wireBytes, err := json.Marshal(wire)
+	if err != nil {
+		errResp := toErrorResponse(defaultRequestIDFallback, "broker_validation_schema_invalid", "validation", false, "request validation failed")
+		return &errResp
+	}
+	if err := ValidateRawMessageLimits(wireBytes, c.limits); err != nil {
+		errResp := toErrorResponse(defaultRequestIDFallback, "broker_validation_schema_invalid", "validation", false, err.Error())
+		return &errResp
+	}
+	return nil
 }
 
 func decodeRPCInvokeResponse(response LocalRPCResponse, out any) *ErrorResponse {

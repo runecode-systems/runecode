@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -41,6 +42,12 @@ type brokerLocalAPI interface {
 	GitSetupGet(context.Context, brokerapi.GitSetupGetRequest) (brokerapi.GitSetupGetResponse, *brokerapi.ErrorResponse)
 	GitSetupAuthBootstrap(context.Context, brokerapi.GitSetupAuthBootstrapRequest) (brokerapi.GitSetupAuthBootstrapResponse, *brokerapi.ErrorResponse)
 	GitSetupIdentityUpsert(context.Context, brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, *brokerapi.ErrorResponse)
+	ProviderSetupSessionBegin(context.Context, brokerapi.ProviderSetupSessionBeginRequest) (brokerapi.ProviderSetupSessionBeginResponse, *brokerapi.ErrorResponse)
+	ProviderSetupSecretIngressPrepare(context.Context, brokerapi.ProviderSetupSecretIngressPrepareRequest) (brokerapi.ProviderSetupSecretIngressPrepareResponse, *brokerapi.ErrorResponse)
+	ProviderSetupSecretIngressSubmit(context.Context, brokerapi.ProviderSetupSecretIngressSubmitRequest, []byte) (brokerapi.ProviderSetupSecretIngressSubmitResponse, *brokerapi.ErrorResponse)
+	ProviderCredentialLeaseIssue(context.Context, brokerapi.ProviderCredentialLeaseIssueRequest) (brokerapi.ProviderCredentialLeaseIssueResponse, *brokerapi.ErrorResponse)
+	ProviderProfileList(context.Context, brokerapi.ProviderProfileListRequest) (brokerapi.ProviderProfileListResponse, *brokerapi.ErrorResponse)
+	ProviderProfileGet(context.Context, brokerapi.ProviderProfileGetRequest) (brokerapi.ProviderProfileGetResponse, *brokerapi.ErrorResponse)
 	GitRemoteMutationPrepare(context.Context, brokerapi.GitRemoteMutationPrepareRequest) (brokerapi.GitRemoteMutationPrepareResponse, *brokerapi.ErrorResponse)
 	GitRemoteMutationGet(context.Context, brokerapi.GitRemoteMutationGetRequest) (brokerapi.GitRemoteMutationGetResponse, *brokerapi.ErrorResponse)
 	GitRemoteMutationIssueExecuteLease(context.Context, brokerapi.GitRemoteMutationIssueExecuteLeaseRequest) (brokerapi.GitRemoteMutationIssueExecuteLeaseResponse, *brokerapi.ErrorResponse)
@@ -48,8 +55,12 @@ type brokerLocalAPI interface {
 }
 
 type localRPCInvokeFunc func(ctx context.Context, operation string, request any, out any) *brokerapi.ErrorResponse
+type localRPCInvokeSecretFunc func(ctx context.Context, operation string, request any, secret []byte, out any) *brokerapi.ErrorResponse
 
-type localAPIClient struct{ invoke localRPCInvokeFunc }
+type localAPIClient struct {
+	invoke       localRPCInvokeFunc
+	invokeSecret localRPCInvokeSecretFunc
+}
 
 var localAPIClientFactory = newInProcessLocalAPIClient
 
@@ -59,34 +70,66 @@ func localAPIForService(service *brokerapi.Service) brokerLocalAPI {
 
 func newInProcessLocalAPIClient(service *brokerapi.Service) brokerLocalAPI {
 	meta := brokerapi.RequestContext{ClientID: "cli", LaneID: "cli_local_rpc"}
-	return &localAPIClient{invoke: func(ctx context.Context, operation string, request any, out any) *brokerapi.ErrorResponse {
-		requestCtx := ctx
-		if requestCtx == nil {
-			requestCtx = context.Background()
+	return &localAPIClient{invoke: newLocalRPCInvoke(service, meta), invokeSecret: newLocalRPCInvokeSecret(service, meta)}
+}
+
+func newLocalRPCInvoke(service *brokerapi.Service, meta brokerapi.RequestContext) localRPCInvokeFunc {
+	return func(ctx context.Context, operation string, request any, out any) *brokerapi.ErrorResponse {
+		wire, errResp := newLocalRPCWire(operation, request, nil)
+		if errResp != nil {
+			return errResp
 		}
-		requestBytes, err := json.Marshal(request)
-		if err != nil {
-			errResp := brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: "cli-invalid-request", Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "broker_validation_schema_invalid", Category: "validation", Retryable: false, Message: err.Error()}}
-			return &errResp
+		return dispatchLocalRPCRequest(service, meta, ctx, wire, out)
+	}
+}
+
+func newLocalRPCInvokeSecret(service *brokerapi.Service, meta brokerapi.RequestContext) localRPCInvokeSecretFunc {
+	return func(ctx context.Context, operation string, request any, secret []byte, out any) *brokerapi.ErrorResponse {
+		wire, errResp := newLocalRPCWire(operation, request, secret)
+		if errResp != nil {
+			return errResp
 		}
-		wire := localRPCRequest{Operation: operation, Request: json.RawMessage(requestBytes)}
-		resp := localRPCDispatch(service, requestCtx, wire, meta)
-		if resp.Error != nil {
-			return resp.Error
-		}
-		if !resp.OK {
-			errResp := brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: "cli-local-rpc-failed", Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "gateway_failure", Category: "internal", Retryable: false, Message: "local rpc invocation failed without typed error"}}
-			return &errResp
-		}
-		if out == nil || len(resp.Response) == 0 {
-			return nil
-		}
-		if err := json.Unmarshal(resp.Response, out); err != nil {
-			errResp := brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: "cli-local-rpc-unmarshal", Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "gateway_failure", Category: "internal", Retryable: false, Message: err.Error()}}
-			return &errResp
-		}
+		return dispatchLocalRPCRequest(service, meta, ctx, wire, out)
+	}
+}
+
+func newLocalRPCWire(operation string, request any, secret []byte) (localRPCRequest, *brokerapi.ErrorResponse) {
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		errResp := brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: "cli-invalid-request", Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "broker_validation_schema_invalid", Category: "validation", Retryable: false, Message: err.Error()}}
+		return localRPCRequest{}, &errResp
+	}
+	wire := localRPCRequest{Operation: operation, Request: json.RawMessage(requestBytes)}
+	if len(secret) > 0 {
+		wire.SecretIngressPayloadBase64 = base64.StdEncoding.EncodeToString(secret)
+	}
+	return wire, nil
+}
+
+func dispatchLocalRPCRequest(service *brokerapi.Service, meta brokerapi.RequestContext, ctx context.Context, wire localRPCRequest, out any) *brokerapi.ErrorResponse {
+	resp := localRPCDispatch(service, normalizedLocalRPCContext(ctx), wire, meta)
+	if resp.Error != nil {
+		return resp.Error
+	}
+	if !resp.OK {
+		errResp := brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: "cli-local-rpc-failed", Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "gateway_failure", Category: "internal", Retryable: false, Message: "local rpc invocation failed without typed error"}}
+		return &errResp
+	}
+	if out == nil || len(resp.Response) == 0 {
 		return nil
-	}}
+	}
+	if err := json.Unmarshal(resp.Response, out); err != nil {
+		errResp := brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: "cli-local-rpc-unmarshal", Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "gateway_failure", Category: "internal", Retryable: false, Message: err.Error()}}
+		return &errResp
+	}
+	return nil
+}
+
+func normalizedLocalRPCContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
 }
 
 func localAPIError(errResp *brokerapi.ErrorResponse) error {
@@ -254,6 +297,40 @@ func (c *localAPIClient) GitSetupAuthBootstrap(ctx context.Context, req brokerap
 func (c *localAPIClient) GitSetupIdentityUpsert(ctx context.Context, req brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.GitSetupIdentityUpsertResponse{}
 	return resp, c.invoke(ctx, "git_setup_identity_upsert", req, &resp)
+}
+
+func (c *localAPIClient) ProviderSetupSessionBegin(ctx context.Context, req brokerapi.ProviderSetupSessionBeginRequest) (brokerapi.ProviderSetupSessionBeginResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProviderSetupSessionBeginResponse{}
+	return resp, c.invoke(ctx, "provider_setup_session_begin", req, &resp)
+}
+
+func (c *localAPIClient) ProviderSetupSecretIngressPrepare(ctx context.Context, req brokerapi.ProviderSetupSecretIngressPrepareRequest) (brokerapi.ProviderSetupSecretIngressPrepareResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProviderSetupSecretIngressPrepareResponse{}
+	return resp, c.invoke(ctx, "provider_setup_secret_ingress_prepare", req, &resp)
+}
+
+func (c *localAPIClient) ProviderSetupSecretIngressSubmit(ctx context.Context, req brokerapi.ProviderSetupSecretIngressSubmitRequest, secret []byte) (brokerapi.ProviderSetupSecretIngressSubmitResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProviderSetupSecretIngressSubmitResponse{}
+	if c.invokeSecret == nil {
+		errResp := brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: "cli-local-rpc-secret", Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "gateway_failure", Category: "internal", Retryable: false, Message: "secret ingress transport unavailable"}}
+		return resp, &errResp
+	}
+	return resp, c.invokeSecret(ctx, "provider_setup_secret_ingress_submit", req, secret, &resp)
+}
+
+func (c *localAPIClient) ProviderCredentialLeaseIssue(ctx context.Context, req brokerapi.ProviderCredentialLeaseIssueRequest) (brokerapi.ProviderCredentialLeaseIssueResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProviderCredentialLeaseIssueResponse{}
+	return resp, c.invoke(ctx, "provider_credential_lease_issue", req, &resp)
+}
+
+func (c *localAPIClient) ProviderProfileList(ctx context.Context, req brokerapi.ProviderProfileListRequest) (brokerapi.ProviderProfileListResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProviderProfileListResponse{}
+	return resp, c.invoke(ctx, "provider_profile_list", req, &resp)
+}
+
+func (c *localAPIClient) ProviderProfileGet(ctx context.Context, req brokerapi.ProviderProfileGetRequest) (brokerapi.ProviderProfileGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProviderProfileGetResponse{}
+	return resp, c.invoke(ctx, "provider_profile_get", req, &resp)
 }
 
 func (c *localAPIClient) GitRemoteMutationPrepare(ctx context.Context, req brokerapi.GitRemoteMutationPrepareRequest) (brokerapi.GitRemoteMutationPrepareResponse, *brokerapi.ErrorResponse) {
