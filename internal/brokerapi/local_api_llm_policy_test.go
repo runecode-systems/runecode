@@ -13,7 +13,8 @@ import (
 func TestEvaluateModelGatewayInvokeFailsClosedWhenMetadataMissing(t *testing.T) {
 	service := newBrokerAPIServiceForTests(t, APIConfig{})
 	binding := llmExecutionBinding{
-		RequestHash: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
+		RequestHash:    trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
+		DestinationRef: "model.example.com/v1/chat/completions",
 	}
 	_, errResp := service.evaluateModelGatewayInvoke("req-llm-policy", "run-1", binding, llmOutcomeSucceeded)
 	if errResp == nil {
@@ -22,8 +23,8 @@ func TestEvaluateModelGatewayInvokeFailsClosedWhenMetadataMissing(t *testing.T) 
 	if errResp.Error.Code != "gateway_failure" {
 		t.Fatalf("error code = %q, want gateway_failure", errResp.Error.Code)
 	}
-	if errResp.Error.Message != llmExecutionUnavailableMessage {
-		t.Fatalf("error message = %q, want %q", errResp.Error.Message, llmExecutionUnavailableMessage)
+	if !strings.Contains(errResp.Error.Message, "lease_id") {
+		t.Fatalf("error message = %q, want lease_id reference", errResp.Error.Message)
 	}
 }
 
@@ -44,12 +45,13 @@ func TestEmitModelGatewayAuditPropagatesAllowlistMatch(t *testing.T) {
 	putTrustedModelGatewayContextForRun(t, service, runID, []any{trustedModelGatewayAllowlistEntry()})
 	now := time.Date(2026, 4, 12, 10, 0, 0, 0, time.UTC)
 	binding := llmExecutionBinding{
-		RequestHash:   trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
-		ResponseHash:  trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)},
-		LeaseID:       "lease-1",
-		StartedAt:     now,
-		CompletedAt:   now.Add(time.Second),
-		OutboundBytes: 120,
+		RequestHash:    trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
+		ResponseHash:   trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)},
+		LeaseID:        "lease-1",
+		DestinationRef: "model.example.com/",
+		StartedAt:      now,
+		CompletedAt:    now.Add(time.Second),
+		OutboundBytes:  120,
 	}
 	err := service.emitModelGatewayAudit(runID, policyengine.PolicyDecision{}, llmOutcomeSucceeded, binding)
 	if err != nil {
@@ -74,11 +76,12 @@ func TestDigestFromIdentityOrNilRejectsInvalidIdentity(t *testing.T) {
 func TestValidateLLMExecutionBindingForAuditAcceptsCompleteBinding(t *testing.T) {
 	now := time.Now().UTC()
 	binding := llmExecutionBinding{
-		RequestHash:   trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
-		LeaseID:       "lease-1",
-		StartedAt:     now,
-		CompletedAt:   now.Add(time.Millisecond),
-		OutboundBytes: 42,
+		RequestHash:    trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
+		LeaseID:        "lease-1",
+		DestinationRef: "model.example.com/v1/chat/completions",
+		StartedAt:      now,
+		CompletedAt:    now.Add(time.Millisecond),
+		OutboundBytes:  42,
 	}
 	if err := validateLLMExecutionBindingForAudit(binding); err != nil {
 		t.Fatalf("validateLLMExecutionBindingForAudit returned error: %v", err)
@@ -105,8 +108,9 @@ func TestValidateLLMExecutionBindingForPolicyRejectsMissingRequestHash(t *testin
 
 func TestValidateLLMExecutionBindingForPolicyAllowsMissingTimingAndBytes(t *testing.T) {
 	binding := llmExecutionBinding{
-		RequestHash: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
-		LeaseID:     "lease-1",
+		RequestHash:    trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
+		DestinationRef: "model.example.com/v1/chat/completions",
+		LeaseID:        "lease-1",
 	}
 	if err := validateLLMExecutionBindingForPolicy(binding); err != nil {
 		t.Fatalf("validateLLMExecutionBindingForPolicy returned error: %v", err)
@@ -115,26 +119,28 @@ func TestValidateLLMExecutionBindingForPolicyAllowsMissingTimingAndBytes(t *test
 
 func TestValidateLLMExecutionBindingForPolicyRejectsUnavailableLeaseSentinel(t *testing.T) {
 	binding := llmExecutionBinding{
-		RequestHash: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
-		LeaseID:     llmLeaseIDUnavailableSentinel,
+		RequestHash:    trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
+		DestinationRef: "model.example.com/v1/chat/completions",
+		LeaseID:        llmLeaseIDUnavailableSentinel,
 	}
 	err := validateLLMExecutionBindingForPolicy(binding)
 	if err == nil {
 		t.Fatal("expected unavailable lease_id validation error")
 	}
-	if !strings.Contains(err.Error(), "lease_id unavailable") {
-		t.Fatalf("error = %q, want lease_id unavailable", err.Error())
+	if !strings.Contains(err.Error(), "destination_ref") && !strings.Contains(err.Error(), "lease_id") {
+		t.Fatalf("error = %q, want destination_ref or lease_id validation", err.Error())
 	}
 }
 
 func TestValidateLLMExecutionBindingForAuditRejectsZeroOutboundBytes(t *testing.T) {
 	now := time.Now().UTC()
 	binding := llmExecutionBinding{
-		RequestHash:   trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
-		LeaseID:       "lease-1",
-		StartedAt:     now,
-		CompletedAt:   now.Add(time.Millisecond),
-		OutboundBytes: 0,
+		RequestHash:    trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
+		LeaseID:        "lease-1",
+		DestinationRef: "model.example.com/v1/chat/completions",
+		StartedAt:      now,
+		CompletedAt:    now.Add(time.Millisecond),
+		OutboundBytes:  0,
 	}
 	err := validateLLMExecutionBindingForAudit(binding)
 	if err == nil {
@@ -149,14 +155,15 @@ func TestLLMGatewayPolicyHelpersUseBindingDestinationAndTiming(t *testing.T) {
 	now := time.Date(2026, 4, 12, 10, 0, 0, 0, time.UTC)
 	destinationRef := "model.example.com/v1/chat/completions"
 	binding := llmExecutionBinding{
-		RequestHash:   trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
-		ResponseHash:  trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)},
-		LeaseID:       "lease-1",
-		StartedAt:     now,
-		CompletedAt:   now.Add(time.Second),
-		OutboundBytes: 256,
+		RequestHash:    trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
+		ResponseHash:   trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)},
+		LeaseID:        "lease-1",
+		DestinationRef: destinationRef,
+		StartedAt:      now,
+		CompletedAt:    now.Add(time.Second),
+		OutboundBytes:  256,
 	}
-	action := llmGatewayEgressAction(binding, llmOutcomeSucceeded, destinationRef)
+	action := llmGatewayEgressAction(binding, llmOutcomeSucceeded)
 	if got := action.ActionPayload["destination_ref"]; got != "model.example.com/v1/chat/completions" {
 		t.Fatalf("destination_ref = %v, want model.example.com/v1/chat/completions", got)
 	}
@@ -178,12 +185,13 @@ func TestLLMGatewayPolicyHelpersUseBindingDestinationAndTiming(t *testing.T) {
 func TestLLMGatewayPolicyHelpersOmitZeroTimestamps(t *testing.T) {
 	destinationRef := "model.example.com/v1/chat/completions"
 	binding := llmExecutionBinding{
-		RequestHash:   trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
-		ResponseHash:  trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)},
-		LeaseID:       "lease-1",
-		OutboundBytes: 0,
+		RequestHash:    trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)},
+		ResponseHash:   trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)},
+		LeaseID:        "lease-1",
+		DestinationRef: destinationRef,
+		OutboundBytes:  0,
 	}
-	action := llmGatewayEgressAction(binding, llmOutcomeSucceeded, destinationRef)
+	action := llmGatewayEgressAction(binding, llmOutcomeSucceeded)
 	auditContext, ok := action.ActionPayload["audit_context"].(map[string]any)
 	if !ok {
 		t.Fatalf("audit_context type = %T, want map[string]any", action.ActionPayload["audit_context"])

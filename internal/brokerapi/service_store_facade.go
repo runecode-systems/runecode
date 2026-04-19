@@ -86,7 +86,10 @@ func (s *Service) ExportBackup(path string) error {
 }
 
 func (s *Service) RestoreBackup(path string) error {
-	return s.store.RestoreBackup(path)
+	if err := s.store.RestoreBackup(path); err != nil {
+		return err
+	}
+	return s.reloadProviderDurableState()
 }
 
 func (s *Service) ReadAuditEvents() ([]artifacts.AuditEvent, error) {

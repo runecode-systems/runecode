@@ -1,6 +1,7 @@
 package brokerapi
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -136,4 +137,63 @@ func anthropicToolsFromAllowlist(entries []canonicalLLMToolAllowed) []any {
 		out = append(out, tool)
 	}
 	return out
+}
+
+func (openAIChatCompletionsAdapter) endpointPath() string {
+	return "/chat/completions"
+}
+
+func (openAIChatCompletionsAdapter) applyAuthHeaders(headers map[string]string, credential string) {
+	headers["authorization"] = "Bearer " + strings.TrimSpace(credential)
+}
+
+func (openAIChatCompletionsAdapter) parseFinalResponse(body []byte) (string, error) {
+	decoded := struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}{}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		return "", fmt.Errorf("decode openai response failed: %w", err)
+	}
+	if len(decoded.Choices) == 0 {
+		return "", fmt.Errorf("openai response choices are empty")
+	}
+	text := strings.TrimSpace(decoded.Choices[0].Message.Content)
+	if text == "" {
+		return "", fmt.Errorf("openai response content is empty")
+	}
+	return text, nil
+}
+
+func (anthropicMessagesAdapter) endpointPath() string {
+	return "/messages"
+}
+
+func (anthropicMessagesAdapter) applyAuthHeaders(headers map[string]string, credential string) {
+	headers["x-api-key"] = strings.TrimSpace(credential)
+	headers["anthropic-version"] = "2023-06-01"
+}
+
+func (anthropicMessagesAdapter) parseFinalResponse(body []byte) (string, error) {
+	decoded := struct {
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+	}{}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		return "", fmt.Errorf("decode anthropic response failed: %w", err)
+	}
+	for _, part := range decoded.Content {
+		if strings.TrimSpace(part.Type) == "text" {
+			text := strings.TrimSpace(part.Text)
+			if text != "" {
+				return text, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("anthropic response content is empty")
 }

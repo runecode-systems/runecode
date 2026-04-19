@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"strings"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
@@ -29,6 +32,24 @@ func providerSetupRPCOperations(service *brokerapi.Service, ctx context.Context,
 				return service.HandleProviderSetupSecretIngressPrepare(ctx, req, meta)
 			})
 		}},
+		"provider_setup_secret_ingress_submit": {requestSchemaPath: "objects/ProviderSetupSecretIngressSubmitRequest.schema.json", handleWire: func(wire localRPCRequest) localRPCResponse {
+			return decodeAndHandleProviderSecretIngressSubmit(service, ctx, wire, meta)
+		}},
+		"provider_validation_begin": {requestSchemaPath: "objects/ProviderValidationBeginRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProviderValidationBeginRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProviderValidationBegin(ctx, req, meta)
+			})
+		}},
+		"provider_validation_commit": {requestSchemaPath: "objects/ProviderValidationCommitRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProviderValidationCommitRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProviderValidationCommit(ctx, req, meta)
+			})
+		}},
+		"provider_credential_lease_issue": {requestSchemaPath: "objects/ProviderCredentialLeaseIssueRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProviderCredentialLeaseIssueRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProviderCredentialLeaseIssue(ctx, req, meta)
+			})
+		}},
 		"provider_profile_list": {requestSchemaPath: "objects/ProviderProfileListRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.ProviderProfileListRequest) (any, *brokerapi.ErrorResponse) {
 				return service.HandleProviderProfileList(ctx, req, meta)
@@ -40,6 +61,24 @@ func providerSetupRPCOperations(service *brokerapi.Service, ctx context.Context,
 			})
 		}},
 	}
+}
+
+func decodeAndHandleProviderSecretIngressSubmit(service *brokerapi.Service, ctx context.Context, wire localRPCRequest, meta brokerapi.RequestContext) localRPCResponse {
+	req := brokerapi.ProviderSetupSecretIngressSubmitRequest{}
+	decoder := json.NewDecoder(bytes.NewReader(wire.Request))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
+	}
+	payload, err := base64.StdEncoding.DecodeString(strings.TrimSpace(wire.SecretIngressPayloadBase64))
+	if err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError(req.RequestID, err)}
+	}
+	resp, errResp := service.HandleProviderSetupSecretIngressSubmit(ctx, req, payload, meta)
+	if errResp != nil {
+		return localRPCResponse{OK: false, Error: errResp}
+	}
+	return localRPCOKResponse(resp)
 }
 
 func mergeRPCOperations(dst, src map[string]rpcOperation) {

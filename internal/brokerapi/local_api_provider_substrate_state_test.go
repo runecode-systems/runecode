@@ -77,6 +77,29 @@ func TestProviderSubstrateCredentialRotationAndValidationRetriesKeepProfileIdent
 	}
 }
 
+func TestProviderSubstrateUpsertPreservesNewValidationMetadata(t *testing.T) {
+	now := time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC)
+	state := newProviderSubstrateState(func() time.Time { return now })
+	profile, err := state.upsertProfile(providerProfileFixture("OpenAI", "openai_compatible", "api.openai.com", "/v1"))
+	if err != nil {
+		t.Fatalf("upsertProfile error: %v", err)
+	}
+
+	profile.ReadinessPosture.ValidationAttemptID = "provider-validation-attempt-1"
+	profile.ReadinessPosture.ReasonCodes = []string{"connectivity_validation_pending", "validation_in_progress"}
+	now = now.Add(1 * time.Minute)
+	updated, err := state.upsertProfile(profile)
+	if err != nil {
+		t.Fatalf("upsertProfile(update) error: %v", err)
+	}
+	if got := updated.ReadinessPosture.ValidationAttemptID; got != "provider-validation-attempt-1" {
+		t.Fatalf("validation_attempt_id = %q, want provider-validation-attempt-1", got)
+	}
+	if !stringSliceContains(updated.ReadinessPosture.ReasonCodes, "validation_in_progress") {
+		t.Fatalf("reason_codes = %#v, want validation_in_progress", updated.ReadinessPosture.ReasonCodes)
+	}
+}
+
 func mustSetProviderAuthMaterial(t *testing.T, state *providerSubstrateState, profileID, secretRef string) ProviderProfile {
 	t.Helper()
 	profile, err := state.setAuthMaterial(profileID, ProviderAuthMaterial{MaterialKind: "direct_credential", MaterialState: "present", SecretRef: secretRef})

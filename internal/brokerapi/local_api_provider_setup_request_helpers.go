@@ -49,7 +49,7 @@ func (s *Service) providerCredentialLeaseRequestProfile(requestID string, req Pr
 		return ProviderProfile{}, "", &errOut
 	}
 	profile, ok := s.providerProfileByID(profileID)
-	if !ok || strings.TrimSpace(profile.AuthMaterial.SecretRef) == "" {
+	if !ok || strings.TrimSpace(profile.AuthMaterial.SecretRef) == "" || strings.TrimSpace(profile.AuthMaterial.MaterialState) != "present" {
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "provider_profile_id does not have direct credential material")
 		return ProviderProfile{}, "", &errOut
 	}

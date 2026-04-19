@@ -392,6 +392,34 @@
       "status": "mvp"
     },
     {
+      "path": "objects/ProviderValidationBeginRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderValidationBeginRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderValidationBeginResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderValidationBeginResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderValidationCommitRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderValidationCommitRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProviderValidationCommitResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProviderValidationCommitResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/ProviderCredentialLeaseIssueRequest.schema.json",
       "schema_id": "runecode.protocol.v0.ProviderCredentialLeaseIssueRequest",
       "schema_version": "0.1.0",

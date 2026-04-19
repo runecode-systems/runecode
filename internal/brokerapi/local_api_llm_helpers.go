@@ -55,6 +55,32 @@ func (s *Service) buildLLMResponseObject(requestID string, binding llmExecutionB
 	return binding, responseObj, nil
 }
 
+func llmResponseObject(requestHash trustpolicy.Digest, outputRef artifacts.ArtifactReference) (map[string]any, error) {
+	outputDigest, err := digestFromIdentity(strings.TrimSpace(outputRef.Digest))
+	if err != nil {
+		return nil, fmt.Errorf("llm response output_artifact digest invalid: %w", err)
+	}
+	provenanceDigest, err := digestFromIdentity(strings.TrimSpace(outputRef.ProvenanceReceiptHash))
+	if err != nil {
+		return nil, fmt.Errorf("llm response output_artifact provenance_receipt_hash invalid: %w", err)
+	}
+	return map[string]any{
+		"schema_id":            "runecode.protocol.v0.LLMResponse",
+		"schema_version":       "0.3.0",
+		"request_hash":         digestObjectMap(requestHash),
+		"output_trust_posture": "untrusted_proposal",
+		"output_artifacts": []any{map[string]any{
+			"schema_id":               "runecode.protocol.v0.ArtifactReference",
+			"schema_version":          "0.3.0",
+			"digest":                  digestObjectMap(outputDigest),
+			"size_bytes":              outputRef.SizeBytes,
+			"content_type":            strings.TrimSpace(outputRef.ContentType),
+			"data_class":              string(outputRef.DataClass),
+			"provenance_receipt_hash": digestObjectMap(provenanceDigest),
+		}},
+	}, nil
+}
+
 func (s *Service) resolveLLMRequestArtifact(requestID, runID string, expectedDigest *trustpolicy.Digest, llmReq any) (string, trustpolicy.Digest, *ErrorResponse) {
 	trimmedRunID, errResp := s.validateAndNormalizeLLMRunID(requestID, runID)
 	if errResp != nil {
@@ -217,47 +243,4 @@ func canonicalDigestForValue(value any) (trustpolicy.Digest, error) {
 
 func digestObjectMap(d trustpolicy.Digest) map[string]any {
 	return map[string]any{"hash_alg": d.HashAlg, "hash": d.Hash}
-}
-
-func digestIdentityStrict(d trustpolicy.Digest) (string, error) {
-	id, err := d.Identity()
-	if err != nil {
-		return "", fmt.Errorf("digest identity invalid: %w", err)
-	}
-	return id, nil
-}
-
-func digestFromIdentityOrNil(identity string) (*trustpolicy.Digest, error) {
-	if strings.TrimSpace(identity) == "" {
-		return nil, nil
-	}
-	d, err := digestFromIdentity(identity)
-	if err != nil {
-		return nil, err
-	}
-	return &d, nil
-}
-
-func (s *Service) llmExecutionUnavailable(requestID string) *ErrorResponse {
-	errOut := s.makeError(requestID, "gateway_failure", "internal", false, llmExecutionUnavailableMessage)
-	return &errOut
-}
-
-func stringField(value map[string]any, key string) string {
-	raw, _ := value[key].(string)
-	return raw
-}
-
-func intField(value map[string]any, key string) int64 {
-	raw := value[key]
-	switch typed := raw.(type) {
-	case int64:
-		return typed
-	case int:
-		return int64(typed)
-	case float64:
-		return int64(typed)
-	default:
-		return 0
-	}
 }

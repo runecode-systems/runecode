@@ -11,9 +11,10 @@ import (
 )
 
 type providerSubstrateState struct {
-	mu       sync.RWMutex
-	profiles map[string]ProviderProfile
-	nowFn    func() time.Time
+	mu             sync.RWMutex
+	profiles       map[string]ProviderProfile
+	nowFn          func() time.Time
+	persistProfile func(ProviderProfile) error
 }
 
 func newProviderSubstrateState(nowFn func() time.Time) *providerSubstrateState {
@@ -33,6 +34,30 @@ func (s *providerSubstrateState) setNowFunc(nowFn func() time.Time) {
 	s.nowFn = nowFn
 }
 
+func (s *providerSubstrateState) setPersistFunc(persistFn func(ProviderProfile) error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.persistProfile = persistFn
+}
+
+func (s *providerSubstrateState) restoreProfiles(profiles []ProviderProfile) error {
+	if s == nil {
+		return fmt.Errorf("provider substrate state unavailable")
+	}
+	next := make(map[string]ProviderProfile, len(profiles))
+	for _, profile := range profiles {
+		normalized, err := normalizeProviderProfile(profile)
+		if err != nil {
+			return err
+		}
+		next[normalized.ProviderProfileID] = normalized
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.profiles = next
+	return nil
+}
+
 func (s *providerSubstrateState) upsertProfile(profile ProviderProfile) (ProviderProfile, error) {
 	if s == nil {
 		return ProviderProfile{}, fmt.Errorf("provider substrate state unavailable")
@@ -44,21 +69,37 @@ func (s *providerSubstrateState) upsertProfile(profile ProviderProfile) (Provide
 	now := s.nowFn().UTC().Format(time.RFC3339)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	existing, ok := s.profiles[normalized.ProviderProfileID]
-	if ok {
-		normalized.Lifecycle.CreatedAt = existing.Lifecycle.CreatedAt
-		normalized.Lifecycle.ValidationAttemptCount = existing.Lifecycle.ValidationAttemptCount
-		normalized.Lifecycle.LastValidationAt = existing.Lifecycle.LastValidationAt
-		normalized.Lifecycle.LastValidationSucceeded = existing.Lifecycle.LastValidationSucceeded
-		normalized.ReadinessPosture.LastValidationAt = existing.ReadinessPosture.LastValidationAt
-		normalized.ReadinessPosture.ValidationAttemptID = existing.ReadinessPosture.ValidationAttemptID
-		normalized.Lifecycle.UpdatedAt = now
-	} else {
-		normalized.Lifecycle.CreatedAt = now
-		normalized.Lifecycle.UpdatedAt = now
+	normalized = mergedProviderProfileForUpsert(normalized, s.profiles[normalized.ProviderProfileID], now)
+	if s.persistProfile != nil {
+		if err := s.persistProfile(normalized); err != nil {
+			return ProviderProfile{}, err
+		}
 	}
 	s.profiles[normalized.ProviderProfileID] = normalized
 	return normalized, nil
+}
+
+func mergedProviderProfileForUpsert(normalized, existing ProviderProfile, now string) ProviderProfile {
+	if strings.TrimSpace(existing.ProviderProfileID) == "" {
+		normalized.Lifecycle.CreatedAt = now
+		normalized.Lifecycle.UpdatedAt = now
+		return normalized
+	}
+	normalized.Lifecycle.CreatedAt = existing.Lifecycle.CreatedAt
+	normalized.Lifecycle.ValidationAttemptCount = existing.Lifecycle.ValidationAttemptCount
+	normalized.Lifecycle.LastValidationAt = preservedProviderValue(normalized.Lifecycle.LastValidationAt, existing.Lifecycle.LastValidationAt)
+	normalized.Lifecycle.LastValidationSucceeded = existing.Lifecycle.LastValidationSucceeded
+	normalized.ReadinessPosture.LastValidationAt = preservedProviderValue(normalized.ReadinessPosture.LastValidationAt, existing.ReadinessPosture.LastValidationAt)
+	normalized.ReadinessPosture.ValidationAttemptID = preservedProviderValue(normalized.ReadinessPosture.ValidationAttemptID, existing.ReadinessPosture.ValidationAttemptID)
+	normalized.Lifecycle.UpdatedAt = now
+	return normalized
+}
+
+func preservedProviderValue(current, existing string) string {
+	if strings.TrimSpace(current) != "" {
+		return current
+	}
+	return existing
 }
 
 func (s *providerSubstrateState) setAuthMaterial(profileID string, material ProviderAuthMaterial) (ProviderProfile, error) {
@@ -79,6 +120,11 @@ func (s *providerSubstrateState) setAuthMaterial(profileID string, material Prov
 	}
 	profile.AuthMaterial = normalizedMaterial
 	profile.Lifecycle.UpdatedAt = now
+	if s.persistProfile != nil {
+		if err := s.persistProfile(profile); err != nil {
+			return ProviderProfile{}, err
+		}
+	}
 	s.profiles[id] = profile
 	return profile, nil
 }
@@ -105,6 +151,11 @@ func (s *providerSubstrateState) recordValidation(profileID string, posture Prov
 	profile.Lifecycle.LastValidationAt = now
 	profile.Lifecycle.LastValidationSucceeded = normalized.EffectiveReadiness == "ready"
 	profile.Lifecycle.UpdatedAt = now
+	if s.persistProfile != nil {
+		if err := s.persistProfile(profile); err != nil {
+			return ProviderProfile{}, err
+		}
+	}
 	s.profiles[id] = profile
 	return profile, nil
 }

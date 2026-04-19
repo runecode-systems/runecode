@@ -27,6 +27,12 @@ func stateFromBackup(manifest BackupManifest, lastAuditSequence int64, ioStore *
 	if err := loadRestoredPolicyDecisions(&next, manifest.PolicyDecisions); err != nil {
 		return StoreState{}, err
 	}
+	if err := loadRestoredProviderProfiles(&next, manifest.ProviderProfiles); err != nil {
+		return StoreState{}, err
+	}
+	if err := loadRestoredProviderSetupSessions(&next, manifest.ProviderSetupSessions); err != nil {
+		return StoreState{}, err
+	}
 	if err := validateRestoredApprovalPolicyDecisionLinks(next.Approvals, next.PolicyDecisions); err != nil {
 		return StoreState{}, err
 	}
@@ -45,12 +51,36 @@ func newStateFromBackup(manifest BackupManifest, lastAuditSequence int64) StoreS
 		RunApprovalRefs:          map[string][]string{},
 		PolicyDecisions:          map[string]PolicyDecisionRecord{},
 		RunPolicyDecisionRefs:    map[string][]string{},
+		ProviderProfiles:         map[string]ProviderProfileDurableState{},
+		ProviderSetupSessions:    map[string]ProviderSetupSessionDurableState{},
 		Policy:                   manifest.Policy,
 		Runs:                     runs,
 		PromotionEventsByActor:   map[string][]time.Time{},
 		LastAuditSequence:        lastAuditSequence,
 		StorageProtectionPosture: manifest.StorageProtection,
 	}
+}
+
+func loadRestoredProviderProfiles(next *StoreState, records []ProviderProfileDurableState) error {
+	for i, rec := range records {
+		normalized := cloneProviderProfileDurableState(rec)
+		if strings.TrimSpace(normalized.ProviderProfileID) == "" {
+			return fmt.Errorf("provider profile id is required at restore index %d", i)
+		}
+		next.ProviderProfiles[normalized.ProviderProfileID] = normalized
+	}
+	return nil
+}
+
+func loadRestoredProviderSetupSessions(next *StoreState, records []ProviderSetupSessionDurableState) error {
+	for i, rec := range records {
+		normalized := cloneProviderSetupSessionDurableState(rec)
+		if strings.TrimSpace(normalized.SetupSessionID) == "" {
+			return fmt.Errorf("provider setup session id is required at restore index %d", i)
+		}
+		next.ProviderSetupSessions[normalized.SetupSessionID] = normalized
+	}
+	return nil
 }
 
 func loadRestoredSessions(next *StoreState, records []SessionDurableState) error {

@@ -55,6 +55,7 @@ type llmExecutionBinding struct {
 	RequestHash    trustpolicy.Digest
 	ResponseHash   trustpolicy.Digest
 	LeaseID        string
+	DestinationRef string
 	ProviderID     string
 	ProviderFamily string
 	AdapterKind    string

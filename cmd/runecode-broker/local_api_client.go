@@ -45,6 +45,8 @@ type brokerLocalAPI interface {
 	ProviderSetupSessionBegin(context.Context, brokerapi.ProviderSetupSessionBeginRequest) (brokerapi.ProviderSetupSessionBeginResponse, *brokerapi.ErrorResponse)
 	ProviderSetupSecretIngressPrepare(context.Context, brokerapi.ProviderSetupSecretIngressPrepareRequest) (brokerapi.ProviderSetupSecretIngressPrepareResponse, *brokerapi.ErrorResponse)
 	ProviderSetupSecretIngressSubmit(context.Context, brokerapi.ProviderSetupSecretIngressSubmitRequest, []byte) (brokerapi.ProviderSetupSecretIngressSubmitResponse, *brokerapi.ErrorResponse)
+	ProviderValidationBegin(context.Context, brokerapi.ProviderValidationBeginRequest) (brokerapi.ProviderValidationBeginResponse, *brokerapi.ErrorResponse)
+	ProviderValidationCommit(context.Context, brokerapi.ProviderValidationCommitRequest) (brokerapi.ProviderValidationCommitResponse, *brokerapi.ErrorResponse)
 	ProviderCredentialLeaseIssue(context.Context, brokerapi.ProviderCredentialLeaseIssueRequest) (brokerapi.ProviderCredentialLeaseIssueResponse, *brokerapi.ErrorResponse)
 	ProviderProfileList(context.Context, brokerapi.ProviderProfileListRequest) (brokerapi.ProviderProfileListResponse, *brokerapi.ErrorResponse)
 	ProviderProfileGet(context.Context, brokerapi.ProviderProfileGetRequest) (brokerapi.ProviderProfileGetResponse, *brokerapi.ErrorResponse)
@@ -316,6 +318,16 @@ func (c *localAPIClient) ProviderSetupSecretIngressSubmit(ctx context.Context, r
 		return resp, &errResp
 	}
 	return resp, c.invokeSecret(ctx, "provider_setup_secret_ingress_submit", req, secret, &resp)
+}
+
+func (c *localAPIClient) ProviderValidationBegin(ctx context.Context, req brokerapi.ProviderValidationBeginRequest) (brokerapi.ProviderValidationBeginResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProviderValidationBeginResponse{}
+	return resp, c.invoke(ctx, "provider_validation_begin", req, &resp)
+}
+
+func (c *localAPIClient) ProviderValidationCommit(ctx context.Context, req brokerapi.ProviderValidationCommitRequest) (brokerapi.ProviderValidationCommitResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProviderValidationCommitResponse{}
+	return resp, c.invoke(ctx, "provider_validation_commit", req, &resp)
 }
 
 func (c *localAPIClient) ProviderCredentialLeaseIssue(ctx context.Context, req brokerapi.ProviderCredentialLeaseIssueRequest) (brokerapi.ProviderCredentialLeaseIssueResponse, *brokerapi.ErrorResponse) {

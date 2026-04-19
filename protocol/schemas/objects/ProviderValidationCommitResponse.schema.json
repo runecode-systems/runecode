@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ProviderValidationCommitResponse.schema.json",
+  "title": "ProviderValidationCommitResponse",
+  "description": "Typed response after broker commits validation outcome and readiness posture.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 8,
+  "required": ["schema_id", "schema_version", "request_id", "provider_profile_id", "validation_attempt_id", "validation_outcome", "setup_session", "profile"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ProviderValidationCommitResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable request correlation identifier.", "x-data-class": "public" },
+    "provider_profile_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Provider profile identifier being validated.", "x-data-class": "public" },
+    "validation_attempt_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Validation attempt identity committed by broker authority.", "x-data-class": "public" },
+    "validation_outcome": { "type": "string", "enum": ["succeeded", "failed"], "description": "Broker-owned validation outcome for this attempt.", "x-data-class": "public" },
+    "setup_session": { "$ref": "ProviderSetupSession.schema.json", "description": "Updated setup session with readiness commitment lifecycle state.", "x-data-class": "public" },
+    "profile": { "$ref": "ProviderProfile.schema.json", "description": "Projected provider profile after readiness commitment.", "x-data-class": "public" }
+  }
+}

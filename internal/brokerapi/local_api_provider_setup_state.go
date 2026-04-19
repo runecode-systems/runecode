@@ -3,6 +3,7 @@ package brokerapi
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -10,18 +11,28 @@ import (
 	"time"
 )
 
+var errProviderValidationCommitPrecondition = errors.New("provider validation commit precondition failed")
+
 const (
-	providerSetupPhaseMetadataConfigured = "metadata_configured"
-	providerSetupPhaseSecretIngressReady = "secret_ingress_ready"
-	providerSetupPhaseConfigured         = "configured"
+	providerSetupPhaseMetadataConfigured   = "metadata_configured"
+	providerSetupPhaseSecretIngressReady   = "secret_ingress_ready"
+	providerSetupPhaseCredentialCommitted  = "credential_committed"
+	providerSetupPhaseValidationInProgress = "validation_in_progress"
+	providerSetupPhaseReadinessCommitted   = "readiness_committed"
+
+	providerSetupValidationStatusNotStarted = "not_started"
+	providerSetupValidationStatusInProgress = "in_progress"
+	providerSetupValidationStatusSucceeded  = "succeeded"
+	providerSetupValidationStatusFailed     = "failed"
 )
 
 type providerSetupState struct {
-	mu      sync.Mutex
-	nowFn   func() time.Time
-	rand    io.Reader
-	session map[string]ProviderSetupSession
-	ingress map[string]providerSetupIngressRecord
+	mu             sync.Mutex
+	nowFn          func() time.Time
+	rand           io.Reader
+	session        map[string]ProviderSetupSession
+	ingress        map[string]providerSetupIngressRecord
+	persistSession func(ProviderSetupSession) error
 }
 
 type providerSetupIngressRecord struct {
@@ -55,6 +66,59 @@ func (s *providerSetupState) setNowFunc(nowFn func() time.Time) {
 	s.nowFn = nowFn
 }
 
+func (s *providerSetupState) setPersistFunc(persistFn func(ProviderSetupSession) error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.persistSession = persistFn
+}
+
+func (s *providerSetupState) restoreSessions(sessions []ProviderSetupSession) {
+	if s == nil {
+		return
+	}
+	next := make(map[string]ProviderSetupSession, len(sessions))
+	for _, session := range sessions {
+		normalized := normalizeSetupSessionForRestore(session)
+		next[normalized.SetupSessionID] = normalized
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.session = next
+	s.ingress = map[string]providerSetupIngressRecord{}
+}
+
+func normalizeSetupSessionForRestore(session ProviderSetupSession) ProviderSetupSession {
+	session.SchemaID = "runecode.protocol.v0.ProviderSetupSession"
+	session.SchemaVersion = "0.1.0"
+	session.SetupSessionID = strings.TrimSpace(session.SetupSessionID)
+	session.ProviderProfileID = strings.TrimSpace(session.ProviderProfileID)
+	session.ProviderFamily = strings.TrimSpace(session.ProviderFamily)
+	session.SupportedAuthModes = normalizedStringSet(session.SupportedAuthModes)
+	session.CurrentPhase = strings.TrimSpace(session.CurrentPhase)
+	session.CurrentAuthMode = strings.TrimSpace(session.CurrentAuthMode)
+	session.ValidationStatus = strings.TrimSpace(session.ValidationStatus)
+	session.ValidationAttemptID = strings.TrimSpace(session.ValidationAttemptID)
+	session.CreatedAt = strings.TrimSpace(session.CreatedAt)
+	session.UpdatedAt = strings.TrimSpace(session.UpdatedAt)
+	if session.SecretIngressReady || session.CurrentPhase == providerSetupPhaseSecretIngressReady {
+		session.SecretIngressReady = false
+		session.CurrentPhase = providerSetupPhaseMetadataConfigured
+	}
+	if session.CurrentPhase == "" {
+		session.CurrentPhase = providerSetupPhaseMetadataConfigured
+	}
+	if session.CurrentPhase == "configured" {
+		session.CurrentPhase = providerSetupPhaseCredentialCommitted
+	}
+	if session.ValidationStatus == "" {
+		session.ValidationStatus = providerSetupValidationStatusNotStarted
+	}
+	if session.CurrentPhase == providerSetupPhaseReadinessCommitted {
+		session.ReadinessCommitted = true
+	}
+	return session
+}
+
 func (s *providerSetupState) begin(profile ProviderProfile) (ProviderSetupSession, error) {
 	if s == nil {
 		return ProviderSetupSession{}, fmt.Errorf("provider setup state unavailable")
@@ -78,118 +142,44 @@ func (s *providerSetupState) begin(profile ProviderProfile) (ProviderSetupSessio
 		SupportedAuthModes: append([]string{}, profile.SupportedAuthModes...),
 		CurrentPhase:       providerSetupPhaseMetadataConfigured,
 		CurrentAuthMode:    profile.CurrentAuthMode,
+		ValidationStatus:   providerSetupValidationStatusNotStarted,
+		ReadinessCommitted: false,
 		SecretIngressReady: false,
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
+	if s.persistSession != nil {
+		if err := s.persistSession(entry); err != nil {
+			return ProviderSetupSession{}, err
+		}
+	}
 	s.session[entry.SetupSessionID] = entry
 	return entry, nil
 }
 
-func (s *providerSetupState) prepareIngress(setupSessionID, ingressChannel, credentialField string, ttl time.Duration) (ProviderSetupSession, providerSetupIngressRecord, error) {
-	if s == nil {
-		return ProviderSetupSession{}, providerSetupIngressRecord{}, fmt.Errorf("provider setup state unavailable")
+func (s *providerSetupState) latestSessionByProfileIDLocked(profileID string) (string, ProviderSetupSession, bool) {
+	bestKey := ""
+	best := ProviderSetupSession{}
+	for key, entry := range s.session {
+		if entry.ProviderProfileID != profileID {
+			continue
+		}
+		if bestKey == "" || entry.UpdatedAt > best.UpdatedAt || (entry.UpdatedAt == best.UpdatedAt && key > bestKey) {
+			bestKey = key
+			best = entry
+		}
 	}
-	id := strings.TrimSpace(setupSessionID)
-	if id == "" {
-		return ProviderSetupSession{}, providerSetupIngressRecord{}, fmt.Errorf("setup_session_id is required")
+	if bestKey == "" {
+		return "", ProviderSetupSession{}, false
 	}
-	channel, field, err := normalizeProviderIngressRequest(ingressChannel, credentialField)
-	if err != nil {
-		return ProviderSetupSession{}, providerSetupIngressRecord{}, err
-	}
-	token, err := randomProviderSetupToken(s.rand, "provider-secret-ingress-")
-	if err != nil {
-		return ProviderSetupSession{}, providerSetupIngressRecord{}, err
-	}
-	if ttl <= 0 {
-		ttl = 5 * time.Minute
-	}
-	now := s.nowFn().UTC()
-	rec := providerSetupIngressRecord{Token: token, SetupSessionID: id, CredentialField: field, IngressChannel: channel, ExpiresAt: now.Add(ttl)}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	entry, ok := s.session[id]
-	if !ok {
-		return ProviderSetupSession{}, providerSetupIngressRecord{}, fmt.Errorf("setup session not found")
-	}
-	s.invalidateIngressForSessionLocked(id)
-	entry.CurrentPhase = providerSetupPhaseSecretIngressReady
-	entry.SecretIngressReady = true
-	entry.UpdatedAt = now.Format(time.RFC3339)
-	s.session[id] = entry
-	s.ingress[token] = rec
-	return entry, rec, nil
+	return bestKey, best, true
 }
 
-func normalizeProviderIngressRequest(ingressChannel, credentialField string) (string, string, error) {
-	channel := strings.TrimSpace(ingressChannel)
-	field := strings.TrimSpace(credentialField)
-	if channel == "" {
-		channel = "cli_stdin"
+func (s *providerSetupState) persistProviderSetupSession(entry ProviderSetupSession) error {
+	if s.persistSession == nil {
+		return nil
 	}
-	if field == "" {
-		field = "api_key"
-	}
-	if channel == "environment_variable" || channel == "cli_argument" {
-		return "", "", fmt.Errorf("ingress_channel %q is forbidden", channel)
-	}
-	return channel, field, nil
-}
-
-func (s *providerSetupState) consumeIngress(token string) (ProviderSetupSession, providerSetupIngressRecord, error) {
-	if s == nil {
-		return ProviderSetupSession{}, providerSetupIngressRecord{}, fmt.Errorf("provider setup state unavailable")
-	}
-	trimmed := strings.TrimSpace(token)
-	if trimmed == "" {
-		return ProviderSetupSession{}, providerSetupIngressRecord{}, fmt.Errorf("secret_ingress_token is required")
-	}
-	now := s.nowFn().UTC()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	rec, ok := s.ingress[trimmed]
-	if !ok {
-		return ProviderSetupSession{}, providerSetupIngressRecord{}, fmt.Errorf("secret ingress token not found")
-	}
-	if rec.Used || !rec.ExpiresAt.After(now) {
-		return ProviderSetupSession{}, providerSetupIngressRecord{}, fmt.Errorf("secret ingress token expired")
-	}
-	entry, ok := s.session[rec.SetupSessionID]
-	if !ok {
-		return ProviderSetupSession{}, providerSetupIngressRecord{}, fmt.Errorf("setup session not found")
-	}
-	return entry, rec, nil
-}
-
-func (s *providerSetupState) completeIngress(token string) (ProviderSetupSession, error) {
-	if s == nil {
-		return ProviderSetupSession{}, fmt.Errorf("provider setup state unavailable")
-	}
-	trimmed := strings.TrimSpace(token)
-	if trimmed == "" {
-		return ProviderSetupSession{}, fmt.Errorf("secret_ingress_token is required")
-	}
-	now := s.nowFn().UTC()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	rec, ok := s.ingress[trimmed]
-	if !ok {
-		return ProviderSetupSession{}, fmt.Errorf("secret ingress token not found")
-	}
-	if rec.Used || !rec.ExpiresAt.After(now) {
-		return ProviderSetupSession{}, fmt.Errorf("secret ingress token expired")
-	}
-	entry, ok := s.session[rec.SetupSessionID]
-	if !ok {
-		return ProviderSetupSession{}, fmt.Errorf("setup session not found")
-	}
-	s.invalidateIngressForSessionLocked(rec.SetupSessionID)
-	entry.CurrentPhase = providerSetupPhaseConfigured
-	entry.SecretIngressReady = false
-	entry.UpdatedAt = now.Format(time.RFC3339)
-	s.session[entry.SetupSessionID] = entry
-	return entry, nil
+	return s.persistSession(entry)
 }
 
 func (s *providerSetupState) invalidateIngressForSessionLocked(setupSessionID string) {

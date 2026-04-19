@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ProviderValidationCommitRequest.schema.json",
+  "title": "ProviderValidationCommitRequest",
+  "description": "Broker-owned request that commits explicit provider validation/revalidation outcomes.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 10,
+  "required": ["schema_id", "schema_version", "request_id", "provider_profile_id", "validation_attempt_id", "connectivity_state", "compatibility_state"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ProviderValidationCommitRequest", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable request correlation identifier.", "x-data-class": "public" },
+    "provider_profile_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Provider profile identifier being validated.", "x-data-class": "public" },
+    "validation_attempt_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Validation attempt identity from validation begin.", "x-data-class": "public" },
+    "configuration_state": { "type": "string", "enum": ["not_configured", "configured"], "description": "Optional explicit configuration state override at commit time.", "x-data-class": "public" },
+    "credential_state": { "type": "string", "enum": ["missing", "present", "expired", "invalid"], "description": "Optional explicit credential state override at commit time.", "x-data-class": "public" },
+    "connectivity_state": { "type": "string", "enum": ["unknown", "reachable", "degraded", "unreachable"], "description": "Explicit connectivity probe result for this attempt.", "x-data-class": "public" },
+    "compatibility_state": { "type": "string", "enum": ["unknown", "compatible", "incompatible"], "description": "Explicit adapter compatibility probe result for this attempt.", "x-data-class": "public" },
+    "reason_codes": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "description": "Optional stable validation reason codes to persist with readiness posture.",
+      "x-data-class": "public",
+      "items": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z0-9_:-]+$" }
+    }
+  }
+}

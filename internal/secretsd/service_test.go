@@ -87,6 +87,27 @@ func TestImportSecretUsesDistinctSecretIDPrefix(t *testing.T) {
 	}
 }
 
+func TestLookupSecretMetadataReturnsMetadataWithoutMaterial(t *testing.T) {
+	svc, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	imported, err := svc.ImportSecret("secrets/prod/api", strings.NewReader("api-secret"))
+	if err != nil {
+		t.Fatalf("ImportSecret returned error: %v", err)
+	}
+	meta, ok := svc.LookupSecretMetadata("secrets/prod/api")
+	if !ok {
+		t.Fatal("LookupSecretMetadata returned ok=false, want true")
+	}
+	if meta.SecretRef != imported.SecretRef || meta.SecretID != imported.SecretID || meta.MaterialDigest != imported.MaterialDigest {
+		t.Fatalf("LookupSecretMetadata returned %+v, want imported metadata", meta)
+	}
+	if _, ok := svc.LookupSecretMetadata("secrets/prod/missing"); ok {
+		t.Fatal("LookupSecretMetadata(missing) returned ok=true, want false")
+	}
+}
+
 func TestGitLeaseBindingEnforcedFailClosed(t *testing.T) {
 	svc, binding, lease := issueBoundGitLeaseForTest(t)
 	if lease.DeliveryKind != "git_gateway" {

@@ -36,6 +36,9 @@ type canonicalLLMToolAllowed struct {
 
 type llmProviderAdapter interface {
 	translate(canonicalLLMRequestView, string) (map[string]any, error)
+	endpointPath() string
+	applyAuthHeaders(map[string]string, string)
+	parseFinalResponse([]byte) (string, error)
 }
 
 type openAIChatCompletionsAdapter struct{}

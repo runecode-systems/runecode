@@ -135,15 +135,17 @@ func buildBackupManifest(state StoreState, exportedAt time.Time) BackupManifest 
 
 func newBackupManifest(state StoreState, exportedAt time.Time) BackupManifest {
 	return BackupManifest{
-		Schema:            "runecode.backup.artifacts.v1",
-		ExportedAt:        exportedAt,
-		StorageProtection: state.StorageProtectionPosture,
-		Policy:            state.Policy,
-		Runs:              map[string]string{},
-		Artifacts:         make([]ArtifactRecord, 0, len(state.Artifacts)),
-		Sessions:          make([]SessionDurableState, 0, len(state.Sessions)),
-		PolicyDecisions:   make([]PolicyDecisionRecord, 0, len(state.PolicyDecisions)),
-		Approvals:         make([]ApprovalRecord, 0, len(state.Approvals)),
+		Schema:                "runecode.backup.artifacts.v1",
+		ExportedAt:            exportedAt,
+		StorageProtection:     state.StorageProtectionPosture,
+		Policy:                state.Policy,
+		Runs:                  map[string]string{},
+		Artifacts:             make([]ArtifactRecord, 0, len(state.Artifacts)),
+		Sessions:              make([]SessionDurableState, 0, len(state.Sessions)),
+		PolicyDecisions:       make([]PolicyDecisionRecord, 0, len(state.PolicyDecisions)),
+		Approvals:             make([]ApprovalRecord, 0, len(state.Approvals)),
+		ProviderProfiles:      make([]ProviderProfileDurableState, 0, len(state.ProviderProfiles)),
+		ProviderSetupSessions: make([]ProviderSetupSessionDurableState, 0, len(state.ProviderSetupSessions)),
 	}
 }
 
@@ -163,6 +165,8 @@ func populateBackupManifestCollections(manifest *BackupManifest, state StoreStat
 	for _, rec := range state.Approvals {
 		manifest.Approvals = append(manifest.Approvals, rec)
 	}
+	manifest.ProviderProfiles = append(manifest.ProviderProfiles, sortedProviderProfiles(state.ProviderProfiles)...)
+	manifest.ProviderSetupSessions = append(manifest.ProviderSetupSessions, sortedProviderSetupSessions(state.ProviderSetupSessions)...)
 }
 
 func sortBackupManifestCollections(manifest *BackupManifest) {
@@ -177,6 +181,12 @@ func sortBackupManifestCollections(manifest *BackupManifest) {
 	})
 	sort.Slice(manifest.Approvals, func(i, j int) bool {
 		return manifest.Approvals[i].ApprovalID < manifest.Approvals[j].ApprovalID
+	})
+	sort.Slice(manifest.ProviderProfiles, func(i, j int) bool {
+		return manifest.ProviderProfiles[i].ProviderProfileID < manifest.ProviderProfiles[j].ProviderProfileID
+	})
+	sort.Slice(manifest.ProviderSetupSessions, func(i, j int) bool {
+		return manifest.ProviderSetupSessions[i].SetupSessionID < manifest.ProviderSetupSessions[j].SetupSessionID
 	})
 }
 
