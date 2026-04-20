@@ -43,6 +43,7 @@ type InitPreview struct {
 type InitApplyInput struct {
 	Preview              InitPreview
 	ExpectedPreviewToken string
+	AuditAppender        AuditEventAppender
 }
 
 type InitApplyResult struct {

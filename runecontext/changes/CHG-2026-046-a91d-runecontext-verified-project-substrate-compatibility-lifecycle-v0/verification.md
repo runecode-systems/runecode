@@ -1,10 +1,14 @@
 # Verification
 
-## Planned Checks
+## Checks
 - `runectx validate --json`
 - `runectx status --json`
 - `just lint`
 - `just test`
+
+## Completed Checks
+- `go test ./internal/projectsubstrate ./internal/brokerapi`
+- `go test ./cmd/runecode-tui -run 'TestStatusRoute|TestStatusRouteExplainsDegradedSubsystemPosture|TestRouteActivationUsesTypedBrokerContractsOnly'`
 
 ## Verification Notes
 - Confirm the change preserves canonical repo-root `runecontext.yaml` plus canonical `runecontext/` substrate and does not introduce a RuneCode-only mirror or daemon-private project store.
@@ -23,3 +27,8 @@
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.
+
+## Implementation Notes
+- Upgrade previews now remain `noop` only for `supported_current`; `supported_with_upgrade_available` returns an actionable reviewed preview targeting the release-recommended RuneContext version.
+- Adoption now means compatible canonical substrate, so unsupported-but-canonical repos remain blocked with compatibility reason codes instead of being reported as adopted.
+- TUI status route now remains a thin broker client while surfacing adopt/init/upgrade actions through broker-provided preview tokens, preview digests, status, and remediation guidance.

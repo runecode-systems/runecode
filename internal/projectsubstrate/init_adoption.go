@@ -11,16 +11,12 @@ func AdoptExisting(input AdoptionInput) (AdoptionResult, error) {
 		RepositoryRoot: result.RepositoryRoot,
 		Snapshot:       result.Snapshot,
 	}
-	if result.Snapshot.ValidationState == validationStateValid {
+	if AllowsNormalOperation(result.Compatibility.Posture) {
 		out.Status = adoptionStatusAdopted
 		return out, nil
 	}
-	reasons := []string{reasonAdoptionNotCanonical}
-	if containsString(result.Snapshot.ReasonCodes, reasonNonVerifiedPosture) {
-		reasons = append(reasons, reasonAdoptionNotVerified)
-	}
 	out.Status = adoptionStatusBlocked
-	out.ReasonCodes = normalizeReasonCodes(reasons)
+	out.ReasonCodes = normalizeReasonCodes(result.Compatibility.BlockedReasonCodes)
 	return out, nil
 }
 
@@ -56,6 +52,9 @@ func ApplyInitialize(input InitApplyInput) (InitApplyResult, error) {
 	result, err := applyInitializePreview(preview, current, authority)
 	if err != nil {
 		return InitApplyResult{}, err
+	}
+	if err := appendInitAuditEvent(input.AuditAppender, current.RepositoryRoot, current.Snapshot, result); err != nil {
+		result.ReasonCodes = normalizeReasonCodes(append(result.ReasonCodes, reasonAuditAppendFailed))
 	}
 	return result, nil
 }
@@ -94,7 +93,7 @@ func blockedInitializePreview(snapshot ValidationSnapshot, preview InitPreview) 
 }
 
 func readyInitializePreview(discovered DiscoveryResult, layout repositoryLayout, preview InitPreview) InitPreview {
-	nextConfig := canonicalV0RunecontextYAML("0.1.0-alpha.14", "embedded")
+	nextConfig := canonicalV0RunecontextYAML(releaseRecommendedRuneContextVersion, "embedded")
 	nextLayout := layout
 	nextLayout.hasConfigAnchor = true
 	nextLayout.hasSourceAnchor = true

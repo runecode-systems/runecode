@@ -8,13 +8,15 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
 
 func blockedInitPreviewTokenResult(preview InitPreview, expectedPreviewToken string) *InitApplyResult {
-	if strings.TrimSpace(expectedPreviewToken) == "" || strings.TrimSpace(expectedPreviewToken) == preview.PreviewToken {
+	expected := strings.TrimSpace(expectedPreviewToken)
+	if expected != "" && expected == preview.PreviewToken {
 		return nil
 	}
 	result := blockedInitApplyResult(preview.RepositoryRoot, preview.CurrentSnapshot, preview.PreviewToken, []string{reasonInitPreviewTokenMismatch})
@@ -29,7 +31,7 @@ func initPreviewAuthority(preview InitPreview) RepoRootAuthority {
 }
 
 func blockedInitSnapshotResult(repoRoot string, snapshot ValidationSnapshot, previewToken string) InitApplyResult {
-	return blockedInitApplyResult(repoRoot, snapshot, previewToken, []string{reasonInitPreviewTokenMismatch})
+	return blockedInitApplyResult(repoRoot, snapshot, previewToken, []string{reasonInitSnapshotChanged})
 }
 
 func noopInitApplyResult(repoRoot string, snapshot ValidationSnapshot, previewToken string) InitApplyResult {
@@ -65,28 +67,26 @@ func applyCanonicalInitialization(root string) error {
 	configPath := filepath.Join(root, CanonicalConfigPath)
 	sourcePath := filepath.Join(root, CanonicalSourcePath)
 	assurancePath := filepath.Join(root, CanonicalAssurancePath)
-	nextConfig := canonicalV0RunecontextYAML("0.1.0-alpha.14", "embedded")
+	nextConfig := canonicalV0RunecontextYAML(releaseRecommendedRuneContextVersion, "embedded")
+	createdSource := !pathExists(sourcePath)
+	createdAssurance := !pathExists(assurancePath)
 	if err := os.MkdirAll(sourcePath, 0o755); err != nil {
 		return fmt.Errorf("create canonical source directory: %w", err)
 	}
 	if err := os.MkdirAll(assurancePath, 0o755); err != nil {
+		if createdSource {
+			_ = os.Remove(sourcePath)
+		}
 		return fmt.Errorf("create canonical assurance directory: %w", err)
 	}
-	return writeCanonicalConfig(configPath, nextConfig)
-}
-
-func writeCanonicalConfig(configPath, nextConfig string) error {
-	configFile, err := os.OpenFile(configPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-	if err != nil {
-		return fmt.Errorf("open canonical config: %w", err)
-	}
-	_, writeErr := configFile.WriteString(nextConfig)
-	closeErr := configFile.Close()
-	if writeErr != nil {
-		return fmt.Errorf("write canonical config: %w", writeErr)
-	}
-	if closeErr != nil {
-		return fmt.Errorf("close canonical config: %w", closeErr)
+	if err := writeCanonicalConfig(configPath, nextConfig); err != nil {
+		if createdAssurance {
+			_ = os.Remove(assurancePath)
+		}
+		if createdSource {
+			_ = os.Remove(sourcePath)
+		}
+		return err
 	}
 	return nil
 }
@@ -219,12 +219,32 @@ func digestInitPreview(preview InitPreview) string {
 	}
 	b, err := json.Marshal(payload)
 	if err != nil {
-		return ""
+		return "digest:error"
 	}
 	canonical, err := jsoncanonicalizer.Transform(b)
 	if err != nil {
-		return ""
+		return "digest:error"
 	}
 	sum := sha256.Sum256(canonical)
 	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func appendInitAuditEvent(appender AuditEventAppender, repoRoot string, current ValidationSnapshot, applyResult InitApplyResult) error {
+	if appender == nil {
+		return nil
+	}
+	details := map[string]interface{}{
+		"repository_root":           repoRoot,
+		"preview_token":             applyResult.PreviewToken,
+		"status":                    applyResult.Status,
+		"reason_codes":              append([]string{}, applyResult.ReasonCodes...),
+		"before_snapshot_digest":    current.SnapshotDigest,
+		"result_snapshot_digest":    applyResult.ResultingSnapshot.SnapshotDigest,
+		"validated_snapshot_digest": applyResult.ResultingSnapshot.ValidatedSnapshotDigest,
+	}
+	return appender.AppendTrustedAuditEvent("project_substrate_init_event", "projectsubstrate", details)
+}
+
+func yamlScalar(value string) string {
+	return strconv.Quote(strings.TrimSpace(value))
 }

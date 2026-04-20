@@ -51,13 +51,11 @@ func (s *Service) HandleProjectSubstrateInitApply(ctx context.Context, req Proje
 	if errResp != nil {
 		return ProjectSubstrateInitApplyResponse{}, errResp
 	}
-	applyResult, err := projectsubstrate.ApplyInitialize(projectsubstrate.InitApplyInput{Preview: preview, ExpectedPreviewToken: req.ExpectedPreviewToken})
+	applyResult, err := projectsubstrate.ApplyInitialize(projectsubstrate.InitApplyInput{Preview: preview, ExpectedPreviewToken: req.ExpectedPreviewToken, AuditAppender: s})
 	if err != nil {
 		return ProjectSubstrateInitApplyResponse{}, projectSubstrateGatewayError(s, requestID, err)
 	}
-	if _, refreshErr := s.refreshProjectSubstrateDiscovery(requestID); refreshErr != nil {
-		return ProjectSubstrateInitApplyResponse{}, refreshErr
-	}
+	_, _ = s.refreshProjectSubstrateDiscovery(requestID)
 	resp := ProjectSubstrateInitApplyResponse{SchemaID: "runecode.protocol.v0.ProjectSubstrateInitApplyResponse", SchemaVersion: "0.1.0", RequestID: requestID, ApplyResult: applyResult}
 	return validateProjectSubstrateInitApplyResponse(s, requestID, resp)
 }
@@ -90,9 +88,7 @@ func (s *Service) HandleProjectSubstrateUpgradeApply(ctx context.Context, req Pr
 	if err != nil {
 		return ProjectSubstrateUpgradeApplyResponse{}, projectSubstrateGatewayError(s, requestID, err)
 	}
-	if _, refreshErr := s.refreshProjectSubstrateDiscovery(requestID); refreshErr != nil {
-		return ProjectSubstrateUpgradeApplyResponse{}, refreshErr
-	}
+	_, _ = s.refreshProjectSubstrateDiscovery(requestID)
 	resp := ProjectSubstrateUpgradeApplyResponse{SchemaID: "runecode.protocol.v0.ProjectSubstrateUpgradeApplyResponse", SchemaVersion: "0.1.0", RequestID: requestID, ApplyResult: applyResult}
 	return validateProjectSubstrateUpgradeApplyResponse(s, requestID, resp)
 }

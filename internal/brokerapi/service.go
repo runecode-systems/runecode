@@ -24,23 +24,24 @@ const (
 )
 
 type Service struct {
-	store                     *artifacts.Store
-	auditLedger               *auditd.Ledger
-	secretsSvc                *secretsd.Service
-	gitMutationExecutor       gitRemoteMutationExecutor
-	auditor                   *brokerAuditEmitter
-	auditRoot                 string
-	gatewayQuota              *gatewayQuotaBackend
-	gatewayRuntime            *modelGatewayRuntime
-	providerSubstrate         *providerSubstrateState
-	providerSetup             *providerSetupState
-	instancePostureController instanceBackendPostureController
-	apiConfig                 APIConfig
-	apiInflight               *inFlightGate
-	versionInfo               BrokerVersionInfo
-	gitSetup                  *gitSetupState
-	projectSubstrate          projectsubstrate.DiscoveryResult
-	now                       func() time.Time
+	store                      *artifacts.Store
+	auditLedger                *auditd.Ledger
+	secretsSvc                 *secretsd.Service
+	gitMutationExecutor        gitRemoteMutationExecutor
+	auditor                    *brokerAuditEmitter
+	auditRoot                  string
+	gatewayQuota               *gatewayQuotaBackend
+	gatewayRuntime             *modelGatewayRuntime
+	providerSubstrate          *providerSubstrateState
+	providerSetup              *providerSetupState
+	instancePostureController  instanceBackendPostureController
+	apiConfig                  APIConfig
+	apiInflight                *inFlightGate
+	versionInfo                BrokerVersionInfo
+	gitSetup                   *gitSetupState
+	projectSubstrate           projectsubstrate.DiscoveryResult
+	discoverProjectSubstrateFn func() (projectsubstrate.DiscoveryResult, error)
+	now                        func() time.Time
 }
 
 func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
@@ -211,6 +212,14 @@ func (s *Service) APILimits() Limits { return s.apiConfig.Limits }
 func (s *Service) discoverProjectSubstrate() (projectsubstrate.DiscoveryResult, error) {
 	if s == nil {
 		return projectsubstrate.DiscoveryResult{}, nil
+	}
+	if s.discoverProjectSubstrateFn != nil {
+		result, err := s.discoverProjectSubstrateFn()
+		if err != nil {
+			return projectsubstrate.DiscoveryResult{}, err
+		}
+		s.projectSubstrate = result
+		return result, nil
 	}
 	repoRoot := strings.TrimSpace(s.projectSubstrate.RepositoryRoot)
 	if repoRoot == "" {

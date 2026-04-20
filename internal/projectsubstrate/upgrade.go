@@ -12,6 +12,8 @@ import (
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
 
+var revalidateAfterUpgrade = DiscoverAndValidate
+
 func PreviewUpgrade(input UpgradePreviewInput) (UpgradePreview, error) {
 	discovered, err := DiscoverAndValidate(DiscoveryInput{RepositoryRoot: input.RepositoryRoot, Authority: input.Authority})
 	if err != nil {
@@ -31,7 +33,18 @@ func PreviewUpgrade(input UpgradePreviewInput) (UpgradePreview, error) {
 	}
 
 	if discovered.Snapshot.ValidationState == validationStateValid {
-		return noopUpgradePreview(preview, discovered.Snapshot), nil
+		switch discovered.Compatibility.Posture {
+		case CompatibilityPostureSupportedCurrent:
+			return noopUpgradePreview(preview, discovered.Snapshot), nil
+		case CompatibilityPostureSupportedWithUpgrade:
+			nextConfig := canonicalV0RunecontextYAML(discovered.Compatibility.Policy.RecommendedRuneContextVersion, discovered.Snapshot.DeclaredSourceType)
+			nextLayout := layout
+			nextLayout.runecontextYAML = []byte(nextConfig)
+			expected := validateLayout(discovered.Contract, nextLayout)
+			return readyUpgradePreview(preview, expected, layout.runecontextYAML, []byte(nextConfig)), nil
+		default:
+			return blockedUpgradePreview(preview, discovered.Snapshot, discovered.Compatibility.ReasonCodes), nil
+		}
 	}
 
 	nextConfig := canonicalV0RunecontextYAML(cfg.RuneContextVersion, cfg.Source.Type)
@@ -60,7 +73,9 @@ func ApplyUpgrade(input UpgradeApplyInput) (UpgradeApplyResult, error) {
 	if err != nil {
 		return UpgradeApplyResult{}, err
 	}
-	appendUpgradeAuditEvent(input.AuditAppender, current.RepositoryRoot, current.Snapshot, applyResult)
+	if err := appendUpgradeAuditEvent(input.AuditAppender, current.RepositoryRoot, current.Snapshot, applyResult); err != nil {
+		applyResult.ReasonCodes = normalizeReasonCodes(append(applyResult.ReasonCodes, reasonAuditAppendFailed))
+	}
 	return applyResult, nil
 }
 
@@ -86,13 +101,21 @@ func applyUpgradePreview(preview UpgradePreview, current DiscoveryResult, author
 	if err != nil {
 		return blockedUpgradeApplyResult(current.RepositoryRoot, current.Snapshot, preview.PreviewDigest, []string{reasonRemediationConfigInvalid}), nil
 	}
-	nextConfig := canonicalV0RunecontextYAML(cfg.RuneContextVersion, cfg.Source.Type)
+	originalConfig := append([]byte{}, layout.runecontextYAML...)
+	targetVersion := strings.TrimSpace(preview.ExpectedSnapshot.RuneContextVersion)
+	if targetVersion == "" {
+		targetVersion = cfg.RuneContextVersion
+	}
+	nextConfig := canonicalV0RunecontextYAML(targetVersion, cfg.Source.Type)
 	if err := writeUpgradedConfig(current.RepositoryRoot, nextConfig); err != nil {
 		return UpgradeApplyResult{}, err
 	}
-	result, err := DiscoverAndValidate(DiscoveryInput{RepositoryRoot: current.RepositoryRoot, Authority: authority})
+	result, err := revalidateAfterUpgrade(DiscoveryInput{RepositoryRoot: current.RepositoryRoot, Authority: authority})
 	if err != nil {
-		return UpgradeApplyResult{}, err
+		if restoreErr := writeUpgradedConfig(current.RepositoryRoot, string(originalConfig)); restoreErr != nil {
+			return UpgradeApplyResult{}, fmt.Errorf("revalidate upgraded project substrate: %w (restore config: %v)", err, restoreErr)
+		}
+		return UpgradeApplyResult{}, fmt.Errorf("revalidate upgraded project substrate: %w", err)
 	}
 	applyResult := appliedUpgradeResult(current.RepositoryRoot, current.Snapshot, result.Snapshot, preview)
 	if applyResult.ResultingSnapshot.ValidationState != validationStateValid {
@@ -104,7 +127,21 @@ func applyUpgradePreview(preview UpgradePreview, current DiscoveryResult, author
 
 func writeUpgradedConfig(repoRoot, nextConfig string) error {
 	configPath := filepath.Join(repoRoot, CanonicalConfigPath)
-	if err := os.WriteFile(configPath, []byte(nextConfig), 0o644); err != nil {
+	configFile, tempPath, err := openAtomicConfigTemp(configPath)
+	if err != nil {
+		return fmt.Errorf("write upgrade config: %w", err)
+	}
+	if _, err := configFile.WriteString(nextConfig); err != nil {
+		_ = configFile.Close()
+		_ = os.Remove(tempPath)
+		return fmt.Errorf("write upgrade config: %w", err)
+	}
+	if err := configFile.Close(); err != nil {
+		_ = os.Remove(tempPath)
+		return fmt.Errorf("write upgrade config: %w", err)
+	}
+	if err := replaceConfigFile(tempPath, configPath); err != nil {
+		_ = os.Remove(tempPath)
 		return fmt.Errorf("write upgrade config: %w", err)
 	}
 	return nil
@@ -147,7 +184,7 @@ func canonicalV0RunecontextYAML(version, sourceType string) string {
 	if t == "" {
 		t = "embedded"
 	}
-	return fmt.Sprintf("schema_version: 1\nrunecontext_version: \"%s\"\nassurance_tier: verified\nsource:\n  type: %s\n  path: %s\n", v, t, CanonicalSourcePath)
+	return fmt.Sprintf("schema_version: 1\nrunecontext_version: %s\nassurance_tier: verified\nsource:\n  type: %s\n  path: %s\n", yamlScalar(v), yamlScalar(t), yamlScalar(CanonicalSourcePath))
 }
 
 func sha256Hex(data []byte) string {
@@ -173,11 +210,11 @@ func digestUpgradePreview(preview UpgradePreview) string {
 	}
 	b, err := json.Marshal(payload)
 	if err != nil {
-		return ""
+		return "digest:error"
 	}
 	canonical, err := jsoncanonicalizer.Transform(b)
 	if err != nil {
-		return ""
+		return "digest:error"
 	}
 	sum := sha256.Sum256(canonical)
 	return "sha256:" + hex.EncodeToString(sum[:])

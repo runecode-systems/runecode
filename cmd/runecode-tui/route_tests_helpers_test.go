@@ -734,13 +734,14 @@ func (f *fakeBrokerClient) ProjectSubstratePostureGet(ctx context.Context) (brok
 			SchemaID:       "runecode.protocol.v0.ProjectSubstrateInitPreview",
 			SchemaVersion:  "0.1.0",
 			RepositoryRoot: "/repo",
-			Status:         "noop",
+			Status:         "ready_for_apply",
+			PreviewToken:   "sha256:" + strings.Repeat("1", 64),
 		},
 		UpgradePreview: projectsubstrate.UpgradePreview{
 			SchemaID:       "runecode.protocol.v0.ProjectSubstrateUpgradePreview",
 			SchemaVersion:  "0.1.0",
 			RepositoryRoot: "/repo",
-			Status:         "noop",
+			Status:         "ready_for_apply",
 			PreviewDigest:  "sha256:" + strings.Repeat("0", 64),
 		},
 		RemediationGuidance: []string{

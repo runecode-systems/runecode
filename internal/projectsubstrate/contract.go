@@ -47,6 +47,7 @@ const (
 	reasonInitConflictPrivateMirror   = "init_conflict_private_mirror_detected"
 	reasonInitConflictCandidateState  = "init_conflict_candidate_state_detected"
 	reasonInitPreviewTokenMismatch    = "init_preview_token_mismatch"
+	reasonInitSnapshotChanged         = "init_snapshot_changed_since_preview"
 	reasonInitPostValidationFailed    = "init_post_validation_failed"
 
 	reasonRemediationFlowRequired            = "remediation_flow_required"
@@ -57,6 +58,7 @@ const (
 	reasonUpgradeApplyExplicitRequired       = "upgrade_apply_explicit_required"
 	reasonUpgradePreviewDigestMismatch       = "upgrade_preview_digest_mismatch"
 	reasonUpgradePostValidationFailed        = "upgrade_post_validation_failed"
+	reasonAuditAppendFailed                  = "audit_append_failed"
 
 	upgradePreviewStatusNoop                 = "noop"
 	upgradePreviewStatusReady                = "ready_for_apply"

@@ -1,10 +1,10 @@
 schema_version: 1
 id: CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0
 title: RuneContext Verified Project Substrate + Compatibility Lifecycle v0
-status: planned
+status: implemented
 type: feature
 size: large
-verification_status: pending
+verification_status: passed
 context_bundles:
   - product-planning
 related_specs: []

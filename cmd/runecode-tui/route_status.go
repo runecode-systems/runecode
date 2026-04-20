@@ -22,15 +22,26 @@ type postureChangedMsg struct {
 	err  error
 }
 
+type projectSubstrateActionResultMsg struct {
+	status string
+	err    error
+}
+
+const statusRouteKeyHintText = "Route keys: r reload, c request backend posture change, a adopt substrate, i init preview, I init apply, u upgrade preview, U upgrade apply"
+
+const projectSubstrateHandleAcquiredText = "<acquired>"
+
 type statusRouteModel struct {
-	def      routeDefinition
-	client   localBrokerClient
-	loading  bool
-	changing bool
-	errText  string
-	status   string
-	data     statusLoadedMsg
-	loadSeq  uint64
+	def       routeDefinition
+	client    localBrokerClient
+	loading   bool
+	changing  bool
+	actioning bool
+	actionMsg string
+	errText   string
+	status    string
+	data      statusLoadedMsg
+	loadSeq   uint64
 }
 
 func newStatusRouteModel(def routeDefinition, client localBrokerClient) routeModel {
@@ -51,6 +62,8 @@ func (m statusRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		return m.handleStatusLoaded(typed)
 	case postureChangedMsg:
 		return m.handlePostureChanged(typed)
+	case projectSubstrateActionResultMsg:
+		return m.handleProjectSubstrateActionResult(typed)
 	default:
 		return m, nil
 	}
@@ -65,21 +78,25 @@ func (m statusRouteModel) handleRouteActivated(msg routeActivatedMsg) (routeMode
 }
 
 func (m statusRouteModel) handleKeyMsg(msg tea.KeyMsg) (routeModel, tea.Cmd) {
-	switch msg.String() {
-	case "r":
+	key := msg.String()
+	if key == "r" {
 		m = m.beginLoad()
 		return m, m.loadCmd(m.loadSeq)
-	case "c":
-		if m.changing || m.loading {
-			return m, nil
-		}
-		m.changing = true
-		m.errText = ""
-		m.status = ""
-		return m, m.changeCmd()
-	default:
+	}
+	if key == "c" {
+		return m.beginBackendPostureChange()
+	}
+	return m.beginProjectSubstrateAction(key)
+}
+
+func (m statusRouteModel) beginBackendPostureChange() (routeModel, tea.Cmd) {
+	if m.changing || m.loading || m.actioning {
 		return m, nil
 	}
+	m.changing = true
+	m.errText = ""
+	m.status = ""
+	return m, m.changeCmd()
 }
 
 func (m statusRouteModel) handleStatusLoaded(msg statusLoadedMsg) (routeModel, tea.Cmd) {
@@ -118,6 +135,20 @@ func (m statusRouteModel) handlePostureChanged(msg postureChangedMsg) (routeMode
 	return m, m.loadCmd(m.loadSeq)
 }
 
+func (m statusRouteModel) handleProjectSubstrateActionResult(msg projectSubstrateActionResultMsg) (routeModel, tea.Cmd) {
+	m.actioning = false
+	m.actionMsg = ""
+	if msg.err != nil {
+		m.errText = safeUIErrorText(msg.err)
+		m.status = ""
+		return m, nil
+	}
+	m.errText = ""
+	m.status = msg.status
+	m = m.beginLoad()
+	return m, m.loadCmd(m.loadSeq)
+}
+
 func (m statusRouteModel) beginLoad() statusRouteModel {
 	m.loading = true
 	m.errText = ""
@@ -133,6 +164,9 @@ func (m statusRouteModel) View(width, height int, focus focusArea) string {
 	}
 	if m.changing {
 		return renderStateCard(routeLoadStateLoading, "Status", "Submitting backend posture change through broker local API...")
+	}
+	if m.actioning {
+		return renderStateCard(routeLoadStateLoading, "Status", valueOrNA(strings.TrimSpace(m.actionMsg)))
 	}
 	if m.errText != "" {
 		return renderStateCard(routeLoadStateError, "Status", "Load failed: "+m.errText+" (press r to retry)")
@@ -153,7 +187,7 @@ func (m statusRouteModel) View(width, height int, focus focusArea) string {
 		renderProjectSubstrateGuidance(m.data.project),
 		renderBackendPostureLine(m.data.posture),
 		m.status,
-		keyHint("Route keys: r reload, c request backend posture change"),
+		keyHint(statusRouteKeyHintText),
 	)
 }
 
@@ -167,7 +201,7 @@ func (m statusRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 	return routeSurface{
 		Regions: routeSurfaceRegions{
 			Main:   routeSurfaceRegion{Title: "System status", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
-			Bottom: routeSurfaceRegion{Body: keyHint("Route keys: r reload, c request backend posture change")},
+			Bottom: routeSurfaceRegion{Body: keyHint(statusRouteKeyHintText)},
 			Status: routeSurfaceRegion{Body: status},
 		},
 		Capabilities: routeSurfaceCapabilities{},

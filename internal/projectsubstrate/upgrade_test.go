@@ -3,6 +3,7 @@ package projectsubstrate
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -83,11 +84,57 @@ func TestApplyUpgradeMutatesOnlyCanonicalConfigAndRevalidates(t *testing.T) {
 	if string(afterConfig) == string(beforeConfig) {
 		t.Fatal("runecontext.yaml unchanged, want explicit reviewed upgrade mutation")
 	}
-	if string(afterConfig) != "schema_version: 1\nrunecontext_version: \"0.1.0-alpha.14\"\nassurance_tier: verified\nsource:\n  type: embedded\n  path: runecontext\n" {
+	if string(afterConfig) != "schema_version: 1\nrunecontext_version: \"0.1.0-alpha.14\"\nassurance_tier: verified\nsource:\n  type: \"embedded\"\n  path: \"runecontext\"\n" {
 		t.Fatalf("runecontext.yaml after upgrade = %q, want canonical runectx-compatible layout", string(afterConfig))
 	}
 	if _, err := os.Stat(beforeAssuranceMarker); err != nil {
 		t.Fatalf("assurance marker stat returned error: %v", err)
+	}
+}
+
+func TestPreviewUpgradeSupportedWithUpgradeAvailableTargetsRecommendedVersion(t *testing.T) {
+	root := t.TempDir()
+	writeCanonicalV0AnchorsWithVersion(t, root, "0.1.0-alpha.13")
+
+	preview, err := PreviewUpgrade(UpgradePreviewInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
+	if err != nil {
+		t.Fatalf("PreviewUpgrade returned error: %v", err)
+	}
+	if preview.Status != upgradePreviewStatusReady {
+		t.Fatalf("status = %q, want %q", preview.Status, upgradePreviewStatusReady)
+	}
+	if got := preview.ExpectedSnapshot.RuneContextVersion; got != releaseRecommendedRuneContextVersion {
+		t.Fatalf("expected_snapshot.runecontext_version = %q, want %q", got, releaseRecommendedRuneContextVersion)
+	}
+	if len(preview.FileChanges) != 1 {
+		t.Fatalf("file_changes count = %d, want 1", len(preview.FileChanges))
+	}
+}
+
+func TestApplyUpgradeForSupportedWithUpgradeAvailableAppliesRecommendedVersion(t *testing.T) {
+	root := t.TempDir()
+	writeCanonicalV0AnchorsWithVersion(t, root, "0.1.0-alpha.13")
+
+	preview, err := PreviewUpgrade(UpgradePreviewInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
+	if err != nil {
+		t.Fatalf("PreviewUpgrade returned error: %v", err)
+	}
+	if preview.Status != upgradePreviewStatusReady {
+		t.Fatalf("status = %q, want %q", preview.Status, upgradePreviewStatusReady)
+	}
+
+	result, err := ApplyUpgrade(UpgradeApplyInput{Preview: preview, ExpectedPreviewHash: preview.PreviewDigest})
+	if err != nil {
+		t.Fatalf("ApplyUpgrade returned error: %v", err)
+	}
+	if result.Status != upgradeApplyStatusApplied {
+		t.Fatalf("status = %q, want %q", result.Status, upgradeApplyStatusApplied)
+	}
+	if got := result.ResultingSnapshot.RuneContextVersion; got != releaseRecommendedRuneContextVersion {
+		t.Fatalf("resulting_snapshot.runecontext_version = %q, want %q", got, releaseRecommendedRuneContextVersion)
+	}
+	if result.ResultingSnapshot.ValidationState != validationStateValid {
+		t.Fatalf("resulting_snapshot.validation_state = %q, want %q", result.ResultingSnapshot.ValidationState, validationStateValid)
 	}
 }
 
@@ -158,6 +205,57 @@ func TestApplyUpgradeEmitsAuditEvidenceWhenAppenderProvided(t *testing.T) {
 	}
 	if got := auditor.events[0]["preview_digest"]; got != preview.PreviewDigest {
 		t.Fatalf("audit preview_digest = %v, want %q", got, preview.PreviewDigest)
+	}
+}
+
+func TestApplyInitializeEmitsAuditEvidenceWhenAppenderProvided(t *testing.T) {
+	root := t.TempDir()
+	preview, err := PreviewInitialize(InitPreviewInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
+	if err != nil {
+		t.Fatalf("PreviewInitialize returned error: %v", err)
+	}
+	auditor := &recordingAuditAppender{}
+	_, err = ApplyInitialize(InitApplyInput{Preview: preview, ExpectedPreviewToken: preview.PreviewToken, AuditAppender: auditor})
+	if err != nil {
+		t.Fatalf("ApplyInitialize returned error: %v", err)
+	}
+	if len(auditor.events) != 1 {
+		t.Fatalf("audit events = %d, want 1", len(auditor.events))
+	}
+	if got := auditor.events[0]["preview_token"]; got != preview.PreviewToken {
+		t.Fatalf("audit preview_token = %v, want %q", got, preview.PreviewToken)
+	}
+}
+
+func TestApplyUpgradeRestoresConfigWhenPostWriteValidationErrors(t *testing.T) {
+	root := t.TempDir()
+	writeUpgradeableNonVerifiedV0Anchors(t, root)
+	preview, err := PreviewUpgrade(UpgradePreviewInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
+	if err != nil {
+		t.Fatalf("PreviewUpgrade returned error: %v", err)
+	}
+	beforeConfig, err := os.ReadFile(filepath.Join(root, CanonicalConfigPath))
+	if err != nil {
+		t.Fatalf("ReadFile(before config) returned error: %v", err)
+	}
+	originalRevalidate := revalidateAfterUpgrade
+	revalidateAfterUpgrade = func(input DiscoveryInput) (DiscoveryResult, error) {
+		return DiscoveryResult{}, os.ErrInvalid
+	}
+	t.Cleanup(func() { revalidateAfterUpgrade = originalRevalidate })
+	_, err = ApplyUpgrade(UpgradeApplyInput{Preview: preview, ExpectedPreviewHash: preview.PreviewDigest})
+	if err == nil {
+		t.Fatal("ApplyUpgrade error = nil, want post-write revalidation failure")
+	}
+	if !strings.Contains(err.Error(), "revalidate upgraded project substrate") {
+		t.Fatalf("ApplyUpgrade error = %q, want revalidation context", err.Error())
+	}
+	afterConfig, err := os.ReadFile(filepath.Join(root, CanonicalConfigPath))
+	if err != nil {
+		t.Fatalf("ReadFile(after config) returned error: %v", err)
+	}
+	if string(afterConfig) != string(beforeConfig) {
+		t.Fatalf("runecontext.yaml mutated after failed post-write validation:\nbefore:\n%s\nafter:\n%s", string(beforeConfig), string(afterConfig))
 	}
 }
 

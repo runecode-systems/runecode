@@ -55,7 +55,8 @@ func readyUpgradePreview(preview UpgradePreview, expected ValidationSnapshot, be
 }
 
 func blockedUpgradePreviewDigestResult(preview UpgradePreview, expectedPreviewHash string) *UpgradeApplyResult {
-	if strings.TrimSpace(expectedPreviewHash) == "" || strings.TrimSpace(expectedPreviewHash) == preview.PreviewDigest {
+	expected := strings.TrimSpace(expectedPreviewHash)
+	if expected != "" && expected == preview.PreviewDigest {
 		return nil
 	}
 	result := blockedUpgradeApplyResult(preview.RepositoryRoot, preview.CurrentSnapshot, preview.PreviewDigest, []string{reasonUpgradePreviewDigestMismatch})
@@ -111,9 +112,9 @@ func appliedUpgradeResult(repoRoot string, current, resulting ValidationSnapshot
 	}
 }
 
-func appendUpgradeAuditEvent(appender AuditEventAppender, repoRoot string, current ValidationSnapshot, applyResult UpgradeApplyResult) {
+func appendUpgradeAuditEvent(appender AuditEventAppender, repoRoot string, current ValidationSnapshot, applyResult UpgradeApplyResult) error {
 	if appender == nil {
-		return
+		return nil
 	}
 	details := map[string]interface{}{
 		"repository_root":           repoRoot,
@@ -124,5 +125,5 @@ func appendUpgradeAuditEvent(appender AuditEventAppender, repoRoot string, curre
 		"result_snapshot_digest":    applyResult.ResultingSnapshot.SnapshotDigest,
 		"validated_snapshot_digest": applyResult.ResultingSnapshot.ValidatedSnapshotDigest,
 	}
-	_ = appender.AppendTrustedAuditEvent("project_substrate_upgrade_event", "projectsubstrate", details)
+	return appender.AppendTrustedAuditEvent("project_substrate_upgrade_event", "projectsubstrate", details)
 }
