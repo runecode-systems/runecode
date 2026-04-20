@@ -18,6 +18,11 @@ func TestProviderSetupRPCOperationsIncludeSecretSubmitAndLeaseIssue(t *testing.T
 	if _, ok := ops["provider_credential_lease_issue"]; !ok {
 		t.Fatal("provider_credential_lease_issue operation missing")
 	}
+	for _, op := range []string{"project_substrate_posture_get", "project_substrate_upgrade_preview", "project_substrate_upgrade_apply"} {
+		if _, ok := ops[op]; !ok {
+			t.Fatalf("%s operation missing", op)
+		}
+	}
 }
 
 func TestDispatchLocalRPCProviderSetupSecretIngressSubmitPreservesPayloadAndRoutesLeaseIssue(t *testing.T) {

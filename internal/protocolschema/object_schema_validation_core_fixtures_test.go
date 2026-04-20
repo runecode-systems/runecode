@@ -101,6 +101,12 @@ func invalidApprovalPolicyDecisionWithUnknownTriggerCode() map[string]any {
 	return decision
 }
 
+func validProjectLifecycleApplyApprovalPolicyDecision() map[string]any {
+	decision := validApprovalPolicyDecision()
+	decision["required_approval"] = map[string]any{"approval_trigger_code": "project_lifecycle_apply"}
+	return decision
+}
+
 func validArtifactReference() map[string]any {
 	return map[string]any{
 		"schema_id":               "runecode.protocol.v0.ArtifactReference",

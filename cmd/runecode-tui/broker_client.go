@@ -2,16 +2,9 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
-	"errors"
-	"fmt"
-	"strconv"
 	"strings"
-	"sync/atomic"
-	"time"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 const localAPISchemaVersion = "0.1.0"
@@ -68,6 +61,12 @@ type localBrokerClient interface {
 	GitRemoteMutationGet(ctx context.Context, req brokerapi.GitRemoteMutationGetRequest) (brokerapi.GitRemoteMutationGetResponse, error)
 	GitRemoteMutationIssueExecuteLease(ctx context.Context, req brokerapi.GitRemoteMutationIssueExecuteLeaseRequest) (brokerapi.GitRemoteMutationIssueExecuteLeaseResponse, error)
 	GitRemoteMutationExecute(ctx context.Context, req brokerapi.GitRemoteMutationExecuteRequest) (brokerapi.GitRemoteMutationExecuteResponse, error)
+	ProjectSubstratePostureGet(ctx context.Context) (brokerapi.ProjectSubstratePostureGetResponse, error)
+	ProjectSubstrateAdopt(ctx context.Context) (brokerapi.ProjectSubstrateAdoptResponse, error)
+	ProjectSubstrateInitPreview(ctx context.Context) (brokerapi.ProjectSubstrateInitPreviewResponse, error)
+	ProjectSubstrateInitApply(ctx context.Context, expectedPreviewToken string) (brokerapi.ProjectSubstrateInitApplyResponse, error)
+	ProjectSubstrateUpgradePreview(ctx context.Context) (brokerapi.ProjectSubstrateUpgradePreviewResponse, error)
+	ProjectSubstrateUpgradeApply(ctx context.Context, expectedPreviewDigest string) (brokerapi.ProjectSubstrateUpgradeApplyResponse, error)
 	ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error)
 	VersionInfoGet(ctx context.Context) (brokerapi.VersionInfoGetResponse, error)
 }
@@ -290,6 +289,42 @@ func (c *rpcBrokerClient) GitRemoteMutationExecute(ctx context.Context, req brok
 	return resp, c.invoke(ctx, "git_remote_mutation_execute", req, &resp)
 }
 
+func (c *rpcBrokerClient) ProjectSubstratePostureGet(ctx context.Context) (brokerapi.ProjectSubstratePostureGetResponse, error) {
+	req := brokerapi.ProjectSubstratePostureGetRequest{SchemaID: "runecode.protocol.v0.ProjectSubstratePostureGetRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("project-substrate-posture")}
+	resp := brokerapi.ProjectSubstratePostureGetResponse{}
+	return resp, c.invoke(ctx, "project_substrate_posture_get", req, &resp)
+}
+
+func (c *rpcBrokerClient) ProjectSubstrateAdopt(ctx context.Context) (brokerapi.ProjectSubstrateAdoptResponse, error) {
+	req := brokerapi.ProjectSubstrateAdoptRequest{SchemaID: "runecode.protocol.v0.ProjectSubstrateAdoptRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("project-substrate-adopt")}
+	resp := brokerapi.ProjectSubstrateAdoptResponse{}
+	return resp, c.invoke(ctx, "project_substrate_adopt", req, &resp)
+}
+
+func (c *rpcBrokerClient) ProjectSubstrateInitPreview(ctx context.Context) (brokerapi.ProjectSubstrateInitPreviewResponse, error) {
+	req := brokerapi.ProjectSubstrateInitPreviewRequest{SchemaID: "runecode.protocol.v0.ProjectSubstrateInitPreviewRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("project-substrate-init-preview")}
+	resp := brokerapi.ProjectSubstrateInitPreviewResponse{}
+	return resp, c.invoke(ctx, "project_substrate_init_preview", req, &resp)
+}
+
+func (c *rpcBrokerClient) ProjectSubstrateInitApply(ctx context.Context, expectedPreviewToken string) (brokerapi.ProjectSubstrateInitApplyResponse, error) {
+	req := brokerapi.ProjectSubstrateInitApplyRequest{SchemaID: "runecode.protocol.v0.ProjectSubstrateInitApplyRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("project-substrate-init-apply"), ExpectedPreviewToken: strings.TrimSpace(expectedPreviewToken)}
+	resp := brokerapi.ProjectSubstrateInitApplyResponse{}
+	return resp, c.invoke(ctx, "project_substrate_init_apply", req, &resp)
+}
+
+func (c *rpcBrokerClient) ProjectSubstrateUpgradePreview(ctx context.Context) (brokerapi.ProjectSubstrateUpgradePreviewResponse, error) {
+	req := brokerapi.ProjectSubstrateUpgradePreviewRequest{SchemaID: "runecode.protocol.v0.ProjectSubstrateUpgradePreviewRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("project-substrate-upgrade-preview")}
+	resp := brokerapi.ProjectSubstrateUpgradePreviewResponse{}
+	return resp, c.invoke(ctx, "project_substrate_upgrade_preview", req, &resp)
+}
+
+func (c *rpcBrokerClient) ProjectSubstrateUpgradeApply(ctx context.Context, expectedPreviewDigest string) (brokerapi.ProjectSubstrateUpgradeApplyResponse, error) {
+	req := brokerapi.ProjectSubstrateUpgradeApplyRequest{SchemaID: "runecode.protocol.v0.ProjectSubstrateUpgradeApplyRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("project-substrate-upgrade-apply"), ExpectedPreviewDigest: strings.TrimSpace(expectedPreviewDigest)}
+	resp := brokerapi.ProjectSubstrateUpgradeApplyResponse{}
+	return resp, c.invoke(ctx, "project_substrate_upgrade_apply", req, &resp)
+}
+
 func (c *rpcBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error) {
 	req := brokerapi.ReadinessGetRequest{SchemaID: "runecode.protocol.v0.ReadinessGetRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("readiness")}
 	resp := brokerapi.ReadinessGetResponse{}
@@ -300,150 +335,4 @@ func (c *rpcBrokerClient) VersionInfoGet(ctx context.Context) (brokerapi.Version
 	req := brokerapi.VersionInfoGetRequest{SchemaID: "runecode.protocol.v0.VersionInfoGetRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("version")}
 	resp := brokerapi.VersionInfoGetResponse{}
 	return resp, c.invoke(ctx, "version_info_get", req, &resp)
-}
-
-func (c *rpcBrokerClient) invoke(ctx context.Context, operation string, req any, out any) error {
-	cfg, err := localIPCConfigProvider()
-	if err != nil {
-		return localIPCSetupError("local_ipc_config_error", err)
-	}
-	client, err := localRPCDialer(ctx, cfg)
-	if err != nil {
-		return localIPCSetupError("local_ipc_dial_error", err)
-	}
-	if client == nil {
-		return fmt.Errorf("local_ipc_dial_error")
-	}
-	defer client.Close()
-	if errResp := client.Invoke(ctx, operation, req, out); errResp != nil {
-		code := strings.TrimSpace(errResp.Error.Code)
-		if code == "" {
-			code = "broker_rpc_error"
-		}
-		message := sanitizeUIText(errResp.Error.Message)
-		if message == "" {
-			return fmt.Errorf("%s", code)
-		}
-		return fmt.Errorf("%s: %s", code, message)
-	}
-	return nil
-}
-
-func (c *rpcBrokerClient) invokeWithSecret(ctx context.Context, operation string, req any, secret []byte, out any) error {
-	cfg, err := localIPCConfigProvider()
-	if err != nil {
-		return localIPCSetupError("local_ipc_config_error", err)
-	}
-	client, err := localRPCDialer(ctx, cfg)
-	if err != nil {
-		return localIPCSetupError("local_ipc_dial_error", err)
-	}
-	if client == nil {
-		return fmt.Errorf("local_ipc_dial_error")
-	}
-	defer client.Close()
-	if errResp := client.InvokeSecretIngress(ctx, operation, req, secret, out); errResp != nil {
-		code := strings.TrimSpace(errResp.Error.Code)
-		if code == "" {
-			code = "broker_rpc_error"
-		}
-		message := sanitizeUIText(errResp.Error.Message)
-		if message == "" {
-			return fmt.Errorf("%s", code)
-		}
-		if message == code {
-			return fmt.Errorf("%s", code)
-		}
-		return fmt.Errorf("%s: %s", code, message)
-	}
-	return nil
-}
-
-func localIPCSetupError(fallback string, err error) error {
-	message := strings.TrimSpace(err.Error())
-	if message == "" {
-		return fmt.Errorf("%s", fallback)
-	}
-	if errors.Is(err, brokerapi.ErrPeerCredentialsUnavailable) {
-		return fmt.Errorf("%s", message)
-	}
-	lower := strings.ToLower(message)
-	if strings.Contains(lower, "linux-only") || strings.Contains(lower, "runtime directory is required") || strings.Contains(lower, "socket name is required") || strings.Contains(lower, "peer credentials unavailable") {
-		return fmt.Errorf("%s", message)
-	}
-	return fmt.Errorf("%s", fallback)
-}
-
-func localBrokerBoundaryPosture() string {
-	return "Local broker API only via broker local IPC; OS peer auth is broker-enforced where supported"
-}
-
-func newRequestID(prefix string) string {
-	seq := atomic.AddUint64(&requestSeq, 1)
-	return prefix + "-" + strconv.FormatUint(seq, 10)
-}
-
-func withLoadTimeout() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), 2*time.Second)
-}
-
-func parseDigestIdentity(identity string) trustpolicy.Digest {
-	parts := strings.SplitN(strings.TrimSpace(identity), ":", 2)
-	if len(parts) != 2 {
-		return trustpolicy.Digest{}
-	}
-	return trustpolicy.Digest{HashAlg: parts[0], Hash: parts[1]}
-}
-
-func decodeArtifactStream(events []brokerapi.ArtifactStreamEvent) (string, error) {
-	var b strings.Builder
-	hasTerminal := false
-	for _, event := range events {
-		if event.EventType == "artifact_stream_terminal" {
-			hasTerminal = true
-		}
-		if err := applyArtifactEvent(&b, event); err != nil {
-			return "", err
-		}
-	}
-	if !hasTerminal {
-		return "", fmt.Errorf("artifact_stream_incomplete")
-	}
-	return b.String(), nil
-}
-
-func applyArtifactEvent(out *strings.Builder, event brokerapi.ArtifactStreamEvent) error {
-	switch event.EventType {
-	case "artifact_stream_chunk":
-		return appendArtifactChunk(out, event.ChunkBase64)
-	case "artifact_stream_terminal":
-		return validateArtifactTerminal(event)
-	default:
-		return nil
-	}
-}
-
-func appendArtifactChunk(out *strings.Builder, chunkBase64 string) error {
-	chunk, err := base64.StdEncoding.DecodeString(chunkBase64)
-	if err != nil {
-		return err
-	}
-	if _, err := out.Write(chunk); err != nil {
-		return err
-	}
-	return nil
-}
-
-func validateArtifactTerminal(event brokerapi.ArtifactStreamEvent) error {
-	if event.Error != nil {
-		code := strings.TrimSpace(event.Error.Code)
-		if code == "" {
-			code = "artifact_stream_error"
-		}
-		return fmt.Errorf("%s", code)
-	}
-	if event.TerminalStatus != "completed" {
-		return fmt.Errorf("artifact stream terminal status %q", event.TerminalStatus)
-	}
-	return nil
 }

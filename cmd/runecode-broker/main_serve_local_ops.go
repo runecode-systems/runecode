@@ -21,6 +21,12 @@ func localRPCOperations(service *brokerapi.Service, ctx context.Context, meta br
 }
 
 func providerSetupRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
+	operations := providerLifecycleRPCOperations(service, ctx, meta)
+	mergeRPCOperations(operations, projectSubstrateRPCOperations(service, ctx, meta))
+	return operations
+}
+
+func providerLifecycleRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
 	return map[string]rpcOperation{
 		"provider_setup_session_begin": {requestSchemaPath: "objects/ProviderSetupSessionBeginRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.ProviderSetupSessionBeginRequest) (any, *brokerapi.ErrorResponse) {
@@ -58,6 +64,46 @@ func providerSetupRPCOperations(service *brokerapi.Service, ctx context.Context,
 		"provider_profile_get": {requestSchemaPath: "objects/ProviderProfileGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.ProviderProfileGetRequest) (any, *brokerapi.ErrorResponse) {
 				return service.HandleProviderProfileGet(ctx, req, meta)
+			})
+		}},
+	}
+}
+
+func projectSubstrateRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
+	return map[string]rpcOperation{
+		"project_substrate_get": {requestSchemaPath: "objects/ProjectSubstrateGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProjectSubstrateGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProjectSubstrateGet(ctx, req, meta)
+			})
+		}},
+		"project_substrate_posture_get": {requestSchemaPath: "objects/ProjectSubstratePostureGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProjectSubstratePostureGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProjectSubstratePostureGet(ctx, req, meta)
+			})
+		}},
+		"project_substrate_adopt": {requestSchemaPath: "objects/ProjectSubstrateAdoptRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProjectSubstrateAdoptRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProjectSubstrateAdopt(ctx, req, meta)
+			})
+		}},
+		"project_substrate_init_preview": {requestSchemaPath: "objects/ProjectSubstrateInitPreviewRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProjectSubstrateInitPreviewRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProjectSubstrateInitPreview(ctx, req, meta)
+			})
+		}},
+		"project_substrate_init_apply": {requestSchemaPath: "objects/ProjectSubstrateInitApplyRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProjectSubstrateInitApplyRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProjectSubstrateInitApply(ctx, req, meta)
+			})
+		}},
+		"project_substrate_upgrade_preview": {requestSchemaPath: "objects/ProjectSubstrateUpgradePreviewRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProjectSubstrateUpgradePreviewRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProjectSubstrateUpgradePreview(ctx, req, meta)
+			})
+		}},
+		"project_substrate_upgrade_apply": {requestSchemaPath: "objects/ProjectSubstrateUpgradeApplyRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProjectSubstrateUpgradeApplyRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProjectSubstrateUpgradeApply(ctx, req, meta)
 			})
 		}},
 	}

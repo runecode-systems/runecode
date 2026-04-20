@@ -100,6 +100,9 @@ func assertTUILocalRPCReadSurfaces(t *testing.T, client *rpcBrokerClient) {
 	if _, err := client.VersionInfoGet(context.Background()); err != nil {
 		t.Fatalf("VersionInfoGet returned error: %v", err)
 	}
+	if _, err := client.ProjectSubstratePostureGet(context.Background()); err != nil {
+		t.Fatalf("ProjectSubstratePostureGet returned error: %v", err)
+	}
 	if _, err := client.ApprovalList(context.Background(), 5); err != nil {
 		t.Fatalf("ApprovalList returned error: %v", err)
 	}
@@ -253,6 +256,7 @@ func assertTUIBrokerBackedRoutes(t *testing.T) {
 		"Runtime/audit readiness strip",
 		"Broker ready=true local_only=true",
 		"Protocol posture:",
+		"Project substrate posture:",
 	)
 
 	if !containsCall(recording.Calls(), "ArtifactRead") || !containsCall(recording.Calls(), "AuditVerificationGet") || !containsCall(recording.Calls(), "AuditRecordGet") {

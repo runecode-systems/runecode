@@ -10,9 +10,14 @@ import (
 
 func (s *Service) projectAuditTimelineEntries(views []trustpolicy.AuditOperationalView, postures map[string]AuditRecordVerificationPosture) []AuditTimelineViewEntry {
 	out := make([]AuditTimelineViewEntry, 0, len(views))
+	projectContextID := ""
+	if s != nil {
+		projectContextID = strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest)
+	}
 	for _, view := range views {
 		entry, ok := projectAuditTimelineEntry(view, postures)
 		if ok {
+			entry.ProjectContextID = projectContextID
 			out = append(out, entry)
 		}
 	}

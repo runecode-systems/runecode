@@ -91,9 +91,9 @@ func newAuditAnchorTestService(t *testing.T) (*Service, string) {
 	}
 	secretsRoot := filepath.Join(t.TempDir(), "secrets")
 	t.Setenv("RUNE_SECRETS_STATE_ROOT", secretsRoot)
-	service, err := NewService(storeRoot, ledgerRoot)
+	service, err := NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
-		t.Fatalf("NewService returned error: %v", err)
+		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
 	service.secretsSvc = mustOpenSecretsService(t, secretsRoot)
 	return service, ledgerRoot

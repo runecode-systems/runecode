@@ -1,24 +1,48 @@
 package brokerapi
 
 type BrokerReadiness struct {
-	SchemaID                  string                         `json:"schema_id"`
-	SchemaVersion             string                         `json:"schema_version"`
-	Ready                     bool                           `json:"ready"`
-	LocalOnly                 bool                           `json:"local_only"`
-	ConsumptionChannel        string                         `json:"consumption_channel"`
-	RecoveryComplete          bool                           `json:"recovery_complete"`
-	AppendPositionStable      bool                           `json:"append_position_stable"`
-	CurrentSegmentWritable    bool                           `json:"current_segment_writable"`
-	VerifierMaterialAvailable bool                           `json:"verifier_material_available"`
-	DerivedIndexCaughtUp      bool                           `json:"derived_index_caught_up"`
-	SecretsReady              bool                           `json:"secrets_ready"`
-	SecretsHealthState        string                         `json:"secrets_health_state,omitempty"`
-	SecretsOperationalMetrics *SecretsOperationalMetrics     `json:"secrets_operational_metrics,omitempty"`
-	SecretsStoragePosture     *SecretStoragePosture          `json:"secrets_storage_posture,omitempty"`
-	ModelGatewayReady         bool                           `json:"model_gateway_ready"`
-	ModelGatewayHealthState   string                         `json:"model_gateway_health_state,omitempty"`
-	ModelGatewayPosture       *ModelGatewayPostureProjection `json:"model_gateway_posture_projection,omitempty"`
-	ProviderProfiles          []ProviderProfile              `json:"provider_profiles,omitempty"`
+	SchemaID                  string                          `json:"schema_id"`
+	SchemaVersion             string                          `json:"schema_version"`
+	Ready                     bool                            `json:"ready"`
+	LocalOnly                 bool                            `json:"local_only"`
+	ConsumptionChannel        string                          `json:"consumption_channel"`
+	RecoveryComplete          bool                            `json:"recovery_complete"`
+	AppendPositionStable      bool                            `json:"append_position_stable"`
+	CurrentSegmentWritable    bool                            `json:"current_segment_writable"`
+	VerifierMaterialAvailable bool                            `json:"verifier_material_available"`
+	DerivedIndexCaughtUp      bool                            `json:"derived_index_caught_up"`
+	SecretsReady              bool                            `json:"secrets_ready"`
+	SecretsHealthState        string                          `json:"secrets_health_state,omitempty"`
+	SecretsOperationalMetrics *SecretsOperationalMetrics      `json:"secrets_operational_metrics,omitempty"`
+	SecretsStoragePosture     *SecretStoragePosture           `json:"secrets_storage_posture,omitempty"`
+	ModelGatewayReady         bool                            `json:"model_gateway_ready"`
+	ModelGatewayHealthState   string                          `json:"model_gateway_health_state,omitempty"`
+	ModelGatewayPosture       *ModelGatewayPostureProjection  `json:"model_gateway_posture_projection,omitempty"`
+	ProviderProfiles          []ProviderProfile               `json:"provider_profiles,omitempty"`
+	ProjectSubstrateSummary   *ProjectSubstratePostureSummary `json:"project_substrate_posture_summary,omitempty"`
+}
+
+type ProjectSubstratePostureSummary struct {
+	SchemaID                     string   `json:"schema_id"`
+	SchemaVersion                string   `json:"schema_version"`
+	ActiveContractID             string   `json:"active_contract_id"`
+	ActiveContractVersion        string   `json:"active_contract_version"`
+	ActiveRuneContextVersion     string   `json:"active_runecontext_version,omitempty"`
+	ContractID                   string   `json:"contract_id"`
+	ContractVersion              string   `json:"contract_version"`
+	ValidationState              string   `json:"validation_state"`
+	CompatibilityPosture         string   `json:"compatibility_posture"`
+	NormalOperationAllowed       bool     `json:"normal_operation_allowed"`
+	SupportedContractVersionMin  string   `json:"supported_contract_version_min"`
+	SupportedContractVersionMax  string   `json:"supported_contract_version_max"`
+	RecommendedContractVersion   string   `json:"recommended_contract_version"`
+	SupportedRuneContextMin      string   `json:"supported_runecontext_version_min"`
+	SupportedRuneContextMax      string   `json:"supported_runecontext_version_max"`
+	RecommendedRuneContextTarget string   `json:"recommended_runecontext_version"`
+	ReasonCodes                  []string `json:"reason_codes,omitempty"`
+	BlockedReasonCodes           []string `json:"blocked_reason_codes,omitempty"`
+	ValidatedSnapshotDigest      string   `json:"validated_snapshot_digest,omitempty"`
+	ProjectContextIdentityDigest string   `json:"project_context_identity_digest,omitempty"`
 }
 
 type SecretsOperationalMetrics struct {

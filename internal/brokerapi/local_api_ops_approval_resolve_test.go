@@ -113,7 +113,7 @@ func newApprovalResolveAtomicFailureService(t *testing.T) (*Service, string) {
 	if err := seedLedgerForBrokerSurfaceTest(ledgerRoot); err != nil {
 		t.Fatalf("seedLedgerForBrokerSurfaceTest returned error: %v", err)
 	}
-	s, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	s, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}

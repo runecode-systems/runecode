@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-ai/runecode/internal/projectsubstrate"
 	"github.com/runecode-ai/runecode/internal/secretsd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
@@ -36,205 +37,6 @@ type fakeBrokerClient struct{}
 type reloadAwareBrokerClient struct{}
 
 type backendResolveReadyBrokerClient struct{ *fakeBrokerClient }
-
-type recordingBrokerClient struct {
-	base  localBrokerClient
-	calls []string
-}
-
-func newRecordingBrokerClient(base localBrokerClient) *recordingBrokerClient {
-	return &recordingBrokerClient{base: base}
-}
-
-func (r *recordingBrokerClient) record(call string) {
-	r.calls = append(r.calls, call)
-}
-
-func (r *recordingBrokerClient) Calls() []string {
-	out := make([]string, len(r.calls))
-	copy(out, r.calls)
-	return out
-}
-
-func (r *recordingBrokerClient) RunList(ctx context.Context, limit int) (brokerapi.RunListResponse, error) {
-	r.record("RunList")
-	return r.base.RunList(ctx, limit)
-}
-
-func (r *recordingBrokerClient) RunGet(ctx context.Context, runID string) (brokerapi.RunGetResponse, error) {
-	r.record("RunGet")
-	return r.base.RunGet(ctx, runID)
-}
-
-func (r *recordingBrokerClient) RunWatch(ctx context.Context, req brokerapi.RunWatchRequest) ([]brokerapi.RunWatchEvent, error) {
-	r.record("RunWatch")
-	return r.base.RunWatch(ctx, req)
-}
-
-func (r *recordingBrokerClient) SessionList(ctx context.Context, limit int) (brokerapi.SessionListResponse, error) {
-	r.record("SessionList")
-	return r.base.SessionList(ctx, limit)
-}
-
-func (r *recordingBrokerClient) SessionGet(ctx context.Context, sessionID string) (brokerapi.SessionGetResponse, error) {
-	r.record("SessionGet")
-	return r.base.SessionGet(ctx, sessionID)
-}
-
-func (r *recordingBrokerClient) SessionSendMessage(ctx context.Context, req brokerapi.SessionSendMessageRequest) (brokerapi.SessionSendMessageResponse, error) {
-	r.record("SessionSendMessage")
-	return r.base.SessionSendMessage(ctx, req)
-}
-
-func (r *recordingBrokerClient) SessionWatch(ctx context.Context, req brokerapi.SessionWatchRequest) ([]brokerapi.SessionWatchEvent, error) {
-	r.record("SessionWatch")
-	return r.base.SessionWatch(ctx, req)
-}
-
-func (r *recordingBrokerClient) ApprovalList(ctx context.Context, limit int) (brokerapi.ApprovalListResponse, error) {
-	r.record("ApprovalList")
-	return r.base.ApprovalList(ctx, limit)
-}
-
-func (r *recordingBrokerClient) ApprovalGet(ctx context.Context, approvalID string) (brokerapi.ApprovalGetResponse, error) {
-	r.record("ApprovalGet")
-	return r.base.ApprovalGet(ctx, approvalID)
-}
-
-func (r *recordingBrokerClient) ApprovalResolve(ctx context.Context, req brokerapi.ApprovalResolveRequest) (brokerapi.ApprovalResolveResponse, error) {
-	r.record("ApprovalResolve")
-	return r.base.ApprovalResolve(ctx, req)
-}
-
-func (r *recordingBrokerClient) ApprovalWatch(ctx context.Context, req brokerapi.ApprovalWatchRequest) ([]brokerapi.ApprovalWatchEvent, error) {
-	r.record("ApprovalWatch")
-	return r.base.ApprovalWatch(ctx, req)
-}
-
-func (r *recordingBrokerClient) BackendPostureGet(ctx context.Context) (brokerapi.BackendPostureGetResponse, error) {
-	r.record("BackendPostureGet")
-	return r.base.BackendPostureGet(ctx)
-}
-
-func (r *recordingBrokerClient) BackendPostureChange(ctx context.Context, req brokerapi.BackendPostureChangeRequest) (brokerapi.BackendPostureChangeResponse, error) {
-	r.record("BackendPostureChange")
-	return r.base.BackendPostureChange(ctx, req)
-}
-
-func (r *recordingBrokerClient) ArtifactList(ctx context.Context, limit int, dataClass string) (brokerapi.LocalArtifactListResponse, error) {
-	r.record("ArtifactList")
-	return r.base.ArtifactList(ctx, limit, dataClass)
-}
-
-func (r *recordingBrokerClient) ArtifactHead(ctx context.Context, digest string) (brokerapi.LocalArtifactHeadResponse, error) {
-	r.record("ArtifactHead")
-	return r.base.ArtifactHead(ctx, digest)
-}
-
-func (r *recordingBrokerClient) ArtifactRead(ctx context.Context, req brokerapi.ArtifactReadRequest) ([]brokerapi.ArtifactStreamEvent, error) {
-	r.record("ArtifactRead")
-	return r.base.ArtifactRead(ctx, req)
-}
-
-func (r *recordingBrokerClient) LLMInvoke(ctx context.Context, req brokerapi.LLMInvokeRequest) (brokerapi.LLMInvokeResponse, error) {
-	r.record("LLMInvoke")
-	return r.base.LLMInvoke(ctx, req)
-}
-
-func (r *recordingBrokerClient) LLMStream(ctx context.Context, req brokerapi.LLMStreamRequest) (brokerapi.LLMStreamEnvelope, error) {
-	r.record("LLMStream")
-	return r.base.LLMStream(ctx, req)
-}
-
-func (r *recordingBrokerClient) AuditTimeline(ctx context.Context, limit int, cursor string) (brokerapi.AuditTimelineResponse, error) {
-	r.record("AuditTimeline")
-	return r.base.AuditTimeline(ctx, limit, cursor)
-}
-
-func (r *recordingBrokerClient) AuditVerificationGet(ctx context.Context, viewLimit int) (brokerapi.AuditVerificationGetResponse, error) {
-	r.record("AuditVerificationGet")
-	return r.base.AuditVerificationGet(ctx, viewLimit)
-}
-
-func (r *recordingBrokerClient) AuditFinalizeVerify(ctx context.Context) (brokerapi.AuditFinalizeVerifyResponse, error) {
-	r.record("AuditFinalizeVerify")
-	return r.base.AuditFinalizeVerify(ctx)
-}
-
-func (r *recordingBrokerClient) AuditRecordGet(ctx context.Context, digest string) (brokerapi.AuditRecordGetResponse, error) {
-	r.record("AuditRecordGet")
-	return r.base.AuditRecordGet(ctx, digest)
-}
-
-func (r *recordingBrokerClient) AuditAnchorPreflightGet(ctx context.Context, req brokerapi.AuditAnchorPreflightGetRequest) (brokerapi.AuditAnchorPreflightGetResponse, error) {
-	r.record("AuditAnchorPreflightGet")
-	return r.base.AuditAnchorPreflightGet(ctx, req)
-}
-
-func (r *recordingBrokerClient) AuditAnchorPresenceGet(ctx context.Context, req brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, error) {
-	r.record("AuditAnchorPresenceGet")
-	return r.base.AuditAnchorPresenceGet(ctx, req)
-}
-
-func (r *recordingBrokerClient) AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error) {
-	r.record("AuditAnchorSegment")
-	return r.base.AuditAnchorSegment(ctx, req)
-}
-
-func (r *recordingBrokerClient) GitSetupGet(ctx context.Context, provider string) (brokerapi.GitSetupGetResponse, error) {
-	r.record("GitSetupGet")
-	return r.base.GitSetupGet(ctx, provider)
-}
-
-func (r *recordingBrokerClient) GitSetupAuthBootstrap(ctx context.Context, req brokerapi.GitSetupAuthBootstrapRequest) (brokerapi.GitSetupAuthBootstrapResponse, error) {
-	r.record("GitSetupAuthBootstrap")
-	return r.base.GitSetupAuthBootstrap(ctx, req)
-}
-
-func (r *recordingBrokerClient) GitSetupIdentityUpsert(ctx context.Context, req brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, error) {
-	r.record("GitSetupIdentityUpsert")
-	return r.base.GitSetupIdentityUpsert(ctx, req)
-}
-
-func (r *recordingBrokerClient) ProviderSetupSessionBegin(ctx context.Context, req brokerapi.ProviderSetupSessionBeginRequest) (brokerapi.ProviderSetupSessionBeginResponse, error) {
-	r.record("ProviderSetupSessionBegin")
-	return r.base.ProviderSetupSessionBegin(ctx, req)
-}
-
-func (r *recordingBrokerClient) ProviderSetupSecretIngressPrepare(ctx context.Context, req brokerapi.ProviderSetupSecretIngressPrepareRequest) (brokerapi.ProviderSetupSecretIngressPrepareResponse, error) {
-	r.record("ProviderSetupSecretIngressPrepare")
-	return r.base.ProviderSetupSecretIngressPrepare(ctx, req)
-}
-
-func (r *recordingBrokerClient) ProviderSetupSecretIngressSubmit(ctx context.Context, req brokerapi.ProviderSetupSecretIngressSubmitRequest, secret []byte) (brokerapi.ProviderSetupSecretIngressSubmitResponse, error) {
-	r.record("ProviderSetupSecretIngressSubmit")
-	return r.base.ProviderSetupSecretIngressSubmit(ctx, req, secret)
-}
-
-func (r *recordingBrokerClient) ProviderCredentialLeaseIssue(ctx context.Context, req brokerapi.ProviderCredentialLeaseIssueRequest) (brokerapi.ProviderCredentialLeaseIssueResponse, error) {
-	r.record("ProviderCredentialLeaseIssue")
-	return r.base.ProviderCredentialLeaseIssue(ctx, req)
-}
-
-func (r *recordingBrokerClient) ProviderProfileList(ctx context.Context) (brokerapi.ProviderProfileListResponse, error) {
-	r.record("ProviderProfileList")
-	return r.base.ProviderProfileList(ctx)
-}
-
-func (r *recordingBrokerClient) ProviderProfileGet(ctx context.Context, providerProfileID string) (brokerapi.ProviderProfileGetResponse, error) {
-	r.record("ProviderProfileGet")
-	return r.base.ProviderProfileGet(ctx, providerProfileID)
-}
-
-func (r *recordingBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error) {
-	r.record("ReadinessGet")
-	return r.base.ReadinessGet(ctx)
-}
-
-func (r *recordingBrokerClient) VersionInfoGet(ctx context.Context) (brokerapi.VersionInfoGetResponse, error) {
-	r.record("VersionInfoGet")
-	return r.base.VersionInfoGet(ctx)
-}
 
 func (f *fakeBrokerClient) RunList(ctx context.Context, limit int) (brokerapi.RunListResponse, error) {
 	_ = ctx
@@ -561,6 +363,30 @@ func (f *reloadAwareBrokerClient) VersionInfoGet(ctx context.Context) (brokerapi
 	return (&fakeBrokerClient{}).VersionInfoGet(ctx)
 }
 
+func (f *reloadAwareBrokerClient) ProjectSubstratePostureGet(ctx context.Context) (brokerapi.ProjectSubstratePostureGetResponse, error) {
+	return (&fakeBrokerClient{}).ProjectSubstratePostureGet(ctx)
+}
+
+func (f *reloadAwareBrokerClient) ProjectSubstrateAdopt(ctx context.Context) (brokerapi.ProjectSubstrateAdoptResponse, error) {
+	return (&fakeBrokerClient{}).ProjectSubstrateAdopt(ctx)
+}
+
+func (f *reloadAwareBrokerClient) ProjectSubstrateInitPreview(ctx context.Context) (brokerapi.ProjectSubstrateInitPreviewResponse, error) {
+	return (&fakeBrokerClient{}).ProjectSubstrateInitPreview(ctx)
+}
+
+func (f *reloadAwareBrokerClient) ProjectSubstrateInitApply(ctx context.Context, expectedPreviewToken string) (brokerapi.ProjectSubstrateInitApplyResponse, error) {
+	return (&fakeBrokerClient{}).ProjectSubstrateInitApply(ctx, expectedPreviewToken)
+}
+
+func (f *reloadAwareBrokerClient) ProjectSubstrateUpgradePreview(ctx context.Context) (brokerapi.ProjectSubstrateUpgradePreviewResponse, error) {
+	return (&fakeBrokerClient{}).ProjectSubstrateUpgradePreview(ctx)
+}
+
+func (f *reloadAwareBrokerClient) ProjectSubstrateUpgradeApply(ctx context.Context, expectedPreviewDigest string) (brokerapi.ProjectSubstrateUpgradeApplyResponse, error) {
+	return (&fakeBrokerClient{}).ProjectSubstrateUpgradeApply(ctx, expectedPreviewDigest)
+}
+
 func (f *fakeBrokerClient) ApprovalWatch(ctx context.Context, req brokerapi.ApprovalWatchRequest) ([]brokerapi.ApprovalWatchEvent, error) {
 	_ = ctx
 	if req.StreamID == "" {
@@ -875,4 +701,84 @@ func (f *fakeBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.Readines
 func (f *fakeBrokerClient) VersionInfoGet(ctx context.Context) (brokerapi.VersionInfoGetResponse, error) {
 	_ = ctx
 	return brokerapi.VersionInfoGetResponse{VersionInfo: brokerapi.BrokerVersionInfo{ProductVersion: "0.1.0", BuildRevision: "abc123", BuildTime: "2026-01-01T00:00:00Z", ProtocolBundleVersion: "0.9.0", ProtocolBundleManifestHash: "sha256:xyz", APIFamily: "broker_local_api", APIVersion: "v0"}}, nil
+}
+
+func (f *fakeBrokerClient) ProjectSubstratePostureGet(ctx context.Context) (brokerapi.ProjectSubstratePostureGetResponse, error) {
+	_ = ctx
+	return brokerapi.ProjectSubstratePostureGetResponse{
+		SchemaID:       "runecode.protocol.v0.ProjectSubstratePostureGetResponse",
+		SchemaVersion:  "0.1.0",
+		RequestID:      "req-project-substrate-posture",
+		RepositoryRoot: "/repo",
+		PostureSummary: brokerapi.ProjectSubstratePostureSummary{
+			SchemaID:                     "runecode.protocol.v0.ProjectSubstratePostureSummary",
+			SchemaVersion:                "0.1.0",
+			ActiveContractID:             "runecode.runecontext.project_substrate.v0",
+			ActiveContractVersion:        "v0",
+			ActiveRuneContextVersion:     "0.1.0-alpha.13",
+			ContractID:                   "runecode.runecontext.project_substrate.v0",
+			ContractVersion:              "v0",
+			ValidationState:              "valid",
+			CompatibilityPosture:         "supported_with_upgrade_available",
+			NormalOperationAllowed:       true,
+			SupportedContractVersionMin:  "v0",
+			SupportedContractVersionMax:  "v0",
+			RecommendedContractVersion:   "v0",
+			SupportedRuneContextMin:      "0.1.0-alpha.13",
+			SupportedRuneContextMax:      "0.1.0-alpha.16",
+			RecommendedRuneContextTarget: "0.1.0-alpha.14",
+			ReasonCodes:                  []string{"project_substrate_upgrade_available"},
+		},
+		Adoption: brokerapi.ProjectSubstrateAdoptResponse{}.Adoption,
+		InitPreview: projectsubstrate.InitPreview{
+			SchemaID:       "runecode.protocol.v0.ProjectSubstrateInitPreview",
+			SchemaVersion:  "0.1.0",
+			RepositoryRoot: "/repo",
+			Status:         "noop",
+		},
+		UpgradePreview: projectsubstrate.UpgradePreview{
+			SchemaID:       "runecode.protocol.v0.ProjectSubstrateUpgradePreview",
+			SchemaVersion:  "0.1.0",
+			RepositoryRoot: "/repo",
+			Status:         "noop",
+			PreviewDigest:  "sha256:" + strings.Repeat("0", 64),
+		},
+		RemediationGuidance: []string{
+			"upgrade_preview_available",
+			"review_preview",
+			"apply_reviewed_upgrade",
+			"revalidate_project_substrate",
+		},
+	}, nil
+}
+
+func (f *fakeBrokerClient) ProjectSubstrateAdopt(ctx context.Context) (brokerapi.ProjectSubstrateAdoptResponse, error) {
+	_ = ctx
+	return brokerapi.ProjectSubstrateAdoptResponse{Adoption: brokerapi.ProjectSubstrateAdoptResponse{}.Adoption}, nil
+}
+
+func (f *fakeBrokerClient) ProjectSubstrateInitPreview(ctx context.Context) (brokerapi.ProjectSubstrateInitPreviewResponse, error) {
+	_ = ctx
+	return brokerapi.ProjectSubstrateInitPreviewResponse{Preview: brokerapi.ProjectSubstrateInitPreviewResponse{}.Preview}, nil
+}
+
+func (f *fakeBrokerClient) ProjectSubstrateInitApply(ctx context.Context, expectedPreviewToken string) (brokerapi.ProjectSubstrateInitApplyResponse, error) {
+	_ = ctx
+	if strings.TrimSpace(expectedPreviewToken) == "" {
+		return brokerapi.ProjectSubstrateInitApplyResponse{ApplyResult: brokerapi.ProjectSubstrateInitApplyResponse{}.ApplyResult}, nil
+	}
+	return brokerapi.ProjectSubstrateInitApplyResponse{ApplyResult: brokerapi.ProjectSubstrateInitApplyResponse{}.ApplyResult}, nil
+}
+
+func (f *fakeBrokerClient) ProjectSubstrateUpgradePreview(ctx context.Context) (brokerapi.ProjectSubstrateUpgradePreviewResponse, error) {
+	_ = ctx
+	return brokerapi.ProjectSubstrateUpgradePreviewResponse{Preview: brokerapi.ProjectSubstrateUpgradePreviewResponse{}.Preview}, nil
+}
+
+func (f *fakeBrokerClient) ProjectSubstrateUpgradeApply(ctx context.Context, expectedPreviewDigest string) (brokerapi.ProjectSubstrateUpgradeApplyResponse, error) {
+	_ = ctx
+	if strings.TrimSpace(expectedPreviewDigest) == "" {
+		return brokerapi.ProjectSubstrateUpgradeApplyResponse{ApplyResult: brokerapi.ProjectSubstrateUpgradeApplyResponse{}.ApplyResult}, nil
+	}
+	return brokerapi.ProjectSubstrateUpgradeApplyResponse{ApplyResult: brokerapi.ProjectSubstrateUpgradeApplyResponse{}.ApplyResult}, nil
 }

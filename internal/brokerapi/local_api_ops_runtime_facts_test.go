@@ -13,7 +13,7 @@ func TestRunDetailRuntimeFactsProjectionSurvivesServiceRestart(t *testing.T) {
 	root := t.TempDir()
 	storeRoot := filepath.Join(root, "store")
 	ledgerRoot := filepath.Join(root, "ledger")
-	svc, err := NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{})
+	svc, err := NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
@@ -24,7 +24,7 @@ func TestRunDetailRuntimeFactsProjectionSurvivesServiceRestart(t *testing.T) {
 		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
 	}
 
-	reloaded, err := NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{})
+	reloaded, err := NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig(reload) returned error: %v", err)
 	}

@@ -145,17 +145,18 @@ func approvalEvidenceStatusRank(status string) int {
 
 func buildBaseAuthoritativeRunState(summary RunSummary, artifactCount int, pendingCount int, receipt launcherbackend.BackendLaunchReceipt) map[string]any {
 	return map[string]any{
-		"source":                    "broker_store",
-		"provenance":                "trusted_derived",
-		"status":                    summary.LifecycleState,
-		"artifact_count":            artifactCount,
-		"pending_approval_count":    pendingCount,
-		"workspace_id":              summary.WorkspaceID,
-		"backend_kind":              receipt.BackendKind,
-		"isolation_assurance_level": receipt.IsolationAssuranceLevel,
-		"runtime_posture_degraded":  runtimePostureDegraded(receipt.BackendKind, receipt.IsolationAssuranceLevel),
-		"provisioning_posture":      receipt.ProvisioningPosture,
-		"runtime_facts_source":      "launcher_backend_receipt",
+		"source":                          "broker_store",
+		"provenance":                      "trusted_derived",
+		"status":                          summary.LifecycleState,
+		"artifact_count":                  artifactCount,
+		"pending_approval_count":          pendingCount,
+		"workspace_id":                    summary.WorkspaceID,
+		"project_context_identity_digest": strings.TrimSpace(summary.ProjectContextIdentity),
+		"backend_kind":                    receipt.BackendKind,
+		"isolation_assurance_level":       receipt.IsolationAssuranceLevel,
+		"runtime_posture_degraded":        runtimePostureDegraded(receipt.BackendKind, receipt.IsolationAssuranceLevel),
+		"provisioning_posture":            receipt.ProvisioningPosture,
+		"runtime_facts_source":            "launcher_backend_receipt",
 	}
 }
 

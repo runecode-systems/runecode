@@ -18,6 +18,7 @@ type dashboardLoadedMsg struct {
 type dashboardData struct {
 	readiness brokerapi.BrokerReadiness
 	version   brokerapi.BrokerVersionInfo
+	project   brokerapi.ProjectSubstratePostureGetResponse
 	runs      []brokerapi.RunSummary
 	approvals []brokerapi.ApprovalSummary
 	audit     brokerapi.AuditVerificationGetResponse
@@ -141,6 +142,8 @@ func (m dashboardRouteModel) controlPlaneSection(width int) string {
 		parts = append(parts, wrapDashboardLine(notice, width))
 	}
 	parts = append(parts,
+		wrapDashboardLine(renderDashboardProjectSubstrateLine(m.data.project), width),
+		wrapDashboardLine(renderDashboardProjectSubstrateGuidance(m.data.project), width),
 		wrapDashboardLine(fmt.Sprintf("Workflow posture: runs=%d pending_approvals=%d", len(m.data.runs), pendingApprovalCount(m.data.runs, m.data.approvals)), width),
 		wrapDashboardLine(fmt.Sprintf("Version: %s (%s) protocol bundle=%s", m.data.version.ProductVersion, m.data.version.BuildRevision, m.data.version.ProtocolBundleVersion), width),
 	)
@@ -176,7 +179,11 @@ func wrapDashboardLine(line string, width int) string {
 		return line
 	}
 	if strings.Contains(line, " | ") {
-		return wrapPartsByWidth(strings.Split(line, " | "), " | ", width)
+		wrapped := wrapPartsByWidth(strings.Split(line, " | "), " | ", width)
+		if !hasOverwideDashboardLine(wrapped, width) {
+			return wrapped
+		}
+		line = strings.ReplaceAll(line, " | ", " ")
 	}
 	parts := strings.Fields(line)
 	if len(parts) == 0 {
@@ -192,6 +199,15 @@ func wrapDashboardLine(line string, width int) string {
 		lines = append(lines, part)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func hasOverwideDashboardLine(content string, width int) bool {
+	for _, line := range strings.Split(content, "\n") {
+		if lipgloss.Width(line) > width {
+			return true
+		}
+	}
+	return false
 }
 
 func (m dashboardRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
@@ -218,6 +234,10 @@ func (m dashboardRouteModel) loadCmd(seq uint64) tea.Cmd {
 		if err != nil {
 			return dashboardLoadedMsg{err: err, seq: seq}
 		}
+		projectResp, err := m.client.ProjectSubstratePostureGet(ctx)
+		if err != nil {
+			return dashboardLoadedMsg{err: err, seq: seq}
+		}
 		runResp, err := m.client.RunList(ctx, 5)
 		if err != nil {
 			return dashboardLoadedMsg{err: err, seq: seq}
@@ -233,6 +253,6 @@ func (m dashboardRouteModel) loadCmd(seq uint64) tea.Cmd {
 		} else {
 			auditErr = safeUIErrorText(err)
 		}
-		return dashboardLoadedMsg{data: dashboardData{readiness: readinessResp.Readiness, version: versionResp.VersionInfo, runs: runResp.Runs, approvals: approvalResp.Approvals, audit: auditResp, auditErr: auditErr}, seq: seq}
+		return dashboardLoadedMsg{data: dashboardData{readiness: readinessResp.Readiness, version: versionResp.VersionInfo, project: projectResp, runs: runResp.Runs, approvals: approvalResp.Approvals, audit: auditResp, auditErr: auditErr}, seq: seq}
 	}
 }

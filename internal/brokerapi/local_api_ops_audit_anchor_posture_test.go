@@ -19,6 +19,9 @@ func containsReasonCodeForAnchorTest(codes []string, code string) bool {
 func assertAnchorFailureAuthoritativePosture(t *testing.T, service *Service, sealDigest trustpolicy.Digest) {
 	t.Helper()
 	verification := mustAuditVerificationGetForAnchorFailure(t, service, "req-anchor-failure-posture-verification")
+	if verification.ProjectContextID == "" {
+		t.Fatal("verification.project_context_identity_digest empty, want validated digest")
+	}
 	if verification.Report.AnchoringStatus != trustpolicy.AuditVerificationStatusFailed {
 		t.Fatalf("verification report anchoring_status = %q, want %q (hard_failures=%v findings=%d)", verification.Report.AnchoringStatus, trustpolicy.AuditVerificationStatusFailed, verification.Report.HardFailures, len(verification.Report.Findings))
 	}
@@ -31,6 +34,11 @@ func assertAnchorFailureAuthoritativePosture(t *testing.T, service *Service, sea
 	}
 
 	timeline := mustAuditTimelineForAnchorFailure(t, service, "req-anchor-failure-posture-timeline")
+	for _, view := range timeline.Views {
+		if view.ProjectContextID == "" {
+			t.Fatal("timeline view missing project_context_identity_digest")
+		}
+	}
 	if !timelineHasFailedAnchorReason(timeline.Views) {
 		t.Fatalf("timeline views missing failed verification posture with reason %q", trustpolicy.AuditVerificationReasonAnchorReceiptInvalid)
 	}

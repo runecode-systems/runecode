@@ -12,6 +12,7 @@ type statusLoadedMsg struct {
 	readiness brokerapi.BrokerReadiness
 	version   brokerapi.BrokerVersionInfo
 	posture   brokerapi.BackendPostureState
+	project   brokerapi.ProjectSubstratePostureGetResponse
 	err       error
 	seq       uint64
 }
@@ -148,6 +149,8 @@ func (m statusRouteModel) View(width, height int, focus focusArea) string {
 		diagnostics,
 		fmt.Sprintf("Version posture: product=%s revision=%s build=%s", v.ProductVersion, v.BuildRevision, v.BuildTime),
 		fmt.Sprintf("Protocol posture: bundle=%s manifest=%s api=%s/%s", v.ProtocolBundleVersion, v.ProtocolBundleManifestHash, v.APIFamily, v.APIVersion),
+		renderProjectSubstrateStatusLine(m.data.project),
+		renderProjectSubstrateGuidance(m.data.project),
 		renderBackendPostureLine(m.data.posture),
 		m.status,
 		keyHint("Route keys: r reload, c request backend posture change"),
@@ -220,6 +223,39 @@ func renderReadinessDiagnostics(r brokerapi.BrokerReadiness) string {
 	return fmt.Sprintf("Diagnostics: degraded subsystems=%s", joinCSV(issues))
 }
 
+func renderProjectSubstrateStatusLine(posture brokerapi.ProjectSubstratePostureGetResponse) string {
+	summary := posture.PostureSummary
+	if strings.TrimSpace(summary.SchemaID) == "" {
+		return "Project substrate posture: unavailable"
+	}
+	return fmt.Sprintf(
+		"Project substrate posture: state=%s compatibility=%s normal_operation_allowed=%t",
+		valueOrNA(summary.ValidationState),
+		valueOrNA(summary.CompatibilityPosture),
+		summary.NormalOperationAllowed,
+	)
+}
+
+func renderProjectSubstrateGuidance(posture brokerapi.ProjectSubstratePostureGetResponse) string {
+	parts := []string{}
+	if strings.TrimSpace(posture.BlockedExplanation) != "" {
+		parts = append(parts, "Project substrate block: "+sanitizeUIText(posture.BlockedExplanation))
+	}
+	if len(posture.RemediationGuidance) > 0 {
+		parts = append(parts, "Project substrate remediation: "+joinCSV(posture.RemediationGuidance))
+	}
+	if strings.TrimSpace(posture.InitPreview.Status) != "" {
+		parts = append(parts, fmt.Sprintf("Project substrate init: status=%s", posture.InitPreview.Status))
+	}
+	if strings.TrimSpace(posture.UpgradePreview.Status) != "" {
+		parts = append(parts, fmt.Sprintf("Project substrate upgrade: status=%s", posture.UpgradePreview.Status))
+	}
+	if len(parts) == 0 {
+		return "Project substrate guidance: none"
+	}
+	return compactLines(parts...)
+}
+
 func (m statusRouteModel) loadCmd(seq uint64) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := withLoadTimeout()
@@ -232,11 +268,15 @@ func (m statusRouteModel) loadCmd(seq uint64) tea.Cmd {
 		if err != nil {
 			return statusLoadedMsg{err: err, seq: seq}
 		}
+		projectResp, err := m.client.ProjectSubstratePostureGet(ctx)
+		if err != nil {
+			return statusLoadedMsg{err: err, seq: seq}
+		}
 		postureResp, err := m.client.BackendPostureGet(ctx)
 		if err != nil {
 			return statusLoadedMsg{err: err, seq: seq}
 		}
-		return statusLoadedMsg{readiness: readinessResp.Readiness, version: versionResp.VersionInfo, posture: postureResp.Posture, seq: seq}
+		return statusLoadedMsg{readiness: readinessResp.Readiness, version: versionResp.VersionInfo, posture: postureResp.Posture, project: projectResp, seq: seq}
 	}
 }
 

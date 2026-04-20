@@ -56,23 +56,24 @@ func (s *Service) handleAuditAnchorSegmentValidated(requestCtx context.Context, 
 		return AuditAnchorSegmentResponse{}, &errOut
 	}
 	if s.secretsSvc == nil {
-		return s.validatedAuditAnchorSegmentResponse(anchorSegmentFailedResponse(requestID, req.SealDigest, auditAnchorFailureCodeSignerUnavailable, "audit anchor signer unavailable"))
+		return s.validatedAuditAnchorSegmentResponse(anchorSegmentFailedResponse(requestID, req.SealDigest, strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest), auditAnchorFailureCodeSignerUnavailable, "audit anchor signer unavailable"))
 	}
 	anchorReq, err := s.buildAnchorSegmentRequest(req)
 	if err != nil {
-		return s.validatedAuditAnchorSegmentResponse(anchorSegmentFailedResponse(requestID, req.SealDigest, auditAnchorFailureCodeRequestInvalid, auditAnchorFailureMessageRequestInvalid))
+		return s.validatedAuditAnchorSegmentResponse(anchorSegmentFailedResponse(requestID, req.SealDigest, strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest), auditAnchorFailureCodeRequestInvalid, auditAnchorFailureMessageRequestInvalid))
 	}
 	result, err := s.auditLedger.AnchorCurrentSegment(anchorReq)
 	if err != nil {
 		if errors.Is(err, auditd.ErrAnchorReceiptInvalid) {
 			s.recordAnchorReceiptFailureAuthoritativePosture(req.SealDigest)
-			return s.validatedAuditAnchorSegmentResponse(anchorSegmentFailedResponse(requestID, req.SealDigest, auditAnchorFailureCodeReceiptInvalid, auditAnchorFailureMessageReceiptInvalid))
+			return s.validatedAuditAnchorSegmentResponse(anchorSegmentFailedResponse(requestID, req.SealDigest, strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest), auditAnchorFailureCodeReceiptInvalid, auditAnchorFailureMessageReceiptInvalid))
 		}
 		errOut := s.makeError(requestID, auditAnchorErrorCodeAnchorActionUnavailable, "internal", false, auditAnchorGatewayFailureMessage)
 		return AuditAnchorSegmentResponse{}, &errOut
 	}
 
-	resp, errResp := buildAnchorSegmentResponse(requestID, result)
+	projectContextID := strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest)
+	resp, errResp := buildAnchorSegmentResponse(requestID, result, projectContextID)
 	if errResp != nil {
 		return AuditAnchorSegmentResponse{}, errResp
 	}
@@ -83,7 +84,7 @@ func (s *Service) handleAuditAnchorSegmentValidated(requestCtx context.Context, 
 	return s.validatedAuditAnchorSegmentResponse(resp)
 }
 
-func buildAnchorSegmentResponse(requestID string, result auditd.AnchorSegmentResult) (AuditAnchorSegmentResponse, *ErrorResponse) {
+func buildAnchorSegmentResponse(requestID string, result auditd.AnchorSegmentResult, projectContextID string) (AuditAnchorSegmentResponse, *ErrorResponse) {
 	anchorStatus := strings.TrimSpace(result.AnchorStatus)
 	if anchorStatus == "" {
 		errOut := toErrorResponse(requestID, auditAnchorErrorCodeResultInvalid, "internal", false, auditAnchorGatewayFailureMessage)
@@ -93,6 +94,7 @@ func buildAnchorSegmentResponse(requestID string, result auditd.AnchorSegmentRes
 		SchemaID:                 "runecode.protocol.v0.AuditAnchorSegmentResponse",
 		SchemaVersion:            "0.1.0",
 		RequestID:                requestID,
+		ProjectContextID:         strings.TrimSpace(projectContextID),
 		SealDigest:               result.SealDigest,
 		ReceiptDigest:            digestPtr(result.ReceiptDigest),
 		VerificationReportDigest: digestPtr(result.VerificationDigest),
@@ -101,15 +103,16 @@ func buildAnchorSegmentResponse(requestID string, result auditd.AnchorSegmentRes
 	return resp, nil
 }
 
-func anchorSegmentFailedResponse(requestID string, sealDigest trustpolicy.Digest, failureCode, failureMessage string) AuditAnchorSegmentResponse {
+func anchorSegmentFailedResponse(requestID string, sealDigest trustpolicy.Digest, projectContextID, failureCode, failureMessage string) AuditAnchorSegmentResponse {
 	return AuditAnchorSegmentResponse{
-		SchemaID:        "runecode.protocol.v0.AuditAnchorSegmentResponse",
-		SchemaVersion:   "0.1.0",
-		RequestID:       requestID,
-		SealDigest:      sealDigest,
-		AnchoringStatus: "failed",
-		FailureCode:     strings.TrimSpace(failureCode),
-		FailureMessage:  strings.TrimSpace(failureMessage),
+		SchemaID:         "runecode.protocol.v0.AuditAnchorSegmentResponse",
+		SchemaVersion:    "0.1.0",
+		RequestID:        requestID,
+		ProjectContextID: strings.TrimSpace(projectContextID),
+		SealDigest:       sealDigest,
+		AnchoringStatus:  "failed",
+		FailureCode:      strings.TrimSpace(failureCode),
+		FailureMessage:   strings.TrimSpace(failureMessage),
 	}
 }
 

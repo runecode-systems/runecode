@@ -21,24 +21,30 @@ func validateGateCheckpointFields(report RunnerCheckpointReport) error {
 	return validateNormalizedInputDigests(report.NormalizedInputDigests)
 }
 
-func validateGateCheckpointPlanBinding(report RunnerCheckpointReport, planned compiledRunGatePlan) error {
+func validateGateCheckpointPlanBinding(report RunnerCheckpointReport, planned compiledRunGatePlan) (runPlannedGateEntry, error) {
 	if !hasGateBinding(report.GateID, report.GateKind, report.GateVersion, report.GateAttemptID, report.GateLifecycleState, report.NormalizedInputDigests) {
-		return validateNoPlanBindingWithoutGate(report.PlanCheckpointCode, report.PlanOrderIndex)
+		if err := validateNoPlanBindingWithoutGate(report.PlanCheckpointCode, report.PlanOrderIndex); err != nil {
+			return runPlannedGateEntry{}, err
+		}
+		return runPlannedGateEntry{}, nil
 	}
 	if !planned.hasEntries() {
 		if report.PlanCheckpointCode != "" || report.PlanOrderIndex != 0 {
-			return fmt.Errorf("gate-scoped checkpoint requires trusted run plan gate entries")
+			return runPlannedGateEntry{}, fmt.Errorf("gate-scoped checkpoint requires trusted run plan gate entries")
 		}
-		return nil
+		return runPlannedGateEntry{}, nil
 	}
 	if report.PlanCheckpointCode == "" {
-		return fmt.Errorf("gate-scoped checkpoint requires plan_checkpoint_code")
+		return runPlannedGateEntry{}, fmt.Errorf("gate-scoped checkpoint requires plan_checkpoint_code")
 	}
 	entry, ok := planned.entryFor(report.GateID, report.GateKind, report.GateVersion, report.PlanCheckpointCode, report.PlanOrderIndex)
 	if !ok {
-		return fmt.Errorf("gate-scoped checkpoint does not match trusted run plan placement")
+		return runPlannedGateEntry{}, fmt.Errorf("gate-scoped checkpoint does not match trusted run plan placement")
 	}
-	return validatePlannedInputDigestHooks(entry.ExpectedInputDigests, report.NormalizedInputDigests)
+	if err := validatePlannedInputDigestHooks(entry.ExpectedInputDigests, report.NormalizedInputDigests); err != nil {
+		return runPlannedGateEntry{}, err
+	}
+	return entry, nil
 }
 
 func validateRequiredGateCheckpointIdentity(report RunnerCheckpointReport) error {

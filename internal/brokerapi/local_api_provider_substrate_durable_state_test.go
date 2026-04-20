@@ -13,14 +13,14 @@ func TestProviderSetupSessionSurvivesRestartButIngressTokenIsInvalidated(t *test
 	secretsRoot := filepath.Join(root, "secretsd")
 	t.Setenv("RUNE_SECRETS_STATE_ROOT", secretsRoot)
 
-	first, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	first, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig(first) returned error: %v", err)
 	}
 	begin := mustBeginProviderSetup(t, first, "req-provider-durable-begin")
 	prepare := mustPrepareProviderIngress(t, first, begin.SetupSession.SetupSessionID, "req-provider-durable-prepare")
 
-	restarted, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	restarted, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig(restart) returned error: %v", err)
 	}
@@ -74,7 +74,7 @@ func providerDurableRoots(t *testing.T) (string, string, string) {
 
 func mustNewProviderDurableService(t *testing.T, root, ledgerRoot string) *Service {
 	t.Helper()
-	service, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	service, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}

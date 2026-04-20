@@ -14,12 +14,13 @@ import (
 func (s *Service) runSummaries(order string) ([]RunSummary, error) {
 	runStatus := s.RunStatuses()
 	verification := s.runAuditVerificationOrFallback()
+	projectContextIdentity := strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest)
 	byRun := buildRunRecordIndex(s.List(), runStatus)
 	pendingByRun := pendingApprovalCountByRun(s.listApprovals())
 	summaries := make([]RunSummary, 0, len(byRun))
 	for runID, records := range byRun {
 		runnerAdvisory, _ := s.RunnerAdvisory(runID)
-		summaries = append(summaries, buildRunSummary(runID, records, runStatus[runID], pendingByRun[runID], verification, s.RuntimeFacts(runID), runnerAdvisory))
+		summaries = append(summaries, buildRunSummary(runID, projectContextIdentity, records, runStatus[runID], pendingByRun[runID], verification, s.RuntimeFacts(runID), runnerAdvisory))
 	}
 	sortRunSummaries(summaries, order)
 	return summaries, nil
@@ -58,7 +59,7 @@ func buildRunRecordIndex(all []artifacts.ArtifactRecord, runStatus map[string]st
 	return byRun
 }
 
-func buildRunSummary(runID string, records []artifacts.ArtifactRecord, status string, pending int, verification AuditVerificationSurface, runtimeFacts launcherbackend.RuntimeFactsSnapshot, runnerAdvisory artifacts.RunnerAdvisoryState) RunSummary {
+func buildRunSummary(runID string, projectContextIdentityDigest string, records []artifacts.ArtifactRecord, status string, pending int, verification AuditVerificationSurface, runtimeFacts launcherbackend.RuntimeFactsSnapshot, runnerAdvisory artifacts.RunnerAdvisoryState) RunSummary {
 	created, updated := runRecordTiming(records)
 	state := runLifecycleFromStore(status, pending, len(records) > 0, runnerAdvisory)
 	workflowKind, workflowDefinitionHash := inferWorkflowIdentity(records)
@@ -67,7 +68,8 @@ func buildRunSummary(runID string, records []artifacts.ArtifactRecord, status st
 		SchemaID:                "runecode.protocol.v0.RunSummary",
 		SchemaVersion:           "0.2.0",
 		RunID:                   runID,
-		WorkspaceID:             "workspace-local",
+		WorkspaceID:             workspaceIDForProjectContext(projectContextIdentityDigest),
+		ProjectContextIdentity:  strings.TrimSpace(projectContextIdentityDigest),
 		WorkflowKind:            workflowKind,
 		WorkflowDefinitionHash:  workflowDefinitionHash,
 		CreatedAt:               created.UTC().Format(time.RFC3339),
@@ -161,6 +163,14 @@ func workspaceIDForRun(runID string) string {
 		return "workspace-local"
 	}
 	return "workspace-" + trimmed
+}
+
+func workspaceIDForProjectContext(projectContextIdentityDigest string) string {
+	identity := strings.TrimSpace(projectContextIdentityDigest)
+	if identity == "" {
+		return "workspace-local"
+	}
+	return "workspace-" + strings.TrimPrefix(identity, "sha256:")
 }
 
 func stageIDForRun(runID string) string {

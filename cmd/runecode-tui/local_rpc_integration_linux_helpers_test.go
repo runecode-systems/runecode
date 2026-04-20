@@ -113,6 +113,8 @@ func dispatchTUILocalRPCJSONBackendOps(service *brokerapi.Service, wire brokerap
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleReadinessGet), true
 	case "version_info_get":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleVersionInfoGet), true
+	case "project_substrate_posture_get":
+		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleProjectSubstratePostureGet), true
 	case "backend_posture_get":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleBackendPostureGet), true
 	case "backend_posture_change":
@@ -237,7 +239,7 @@ func newTUILocalRPCService(t *testing.T) (*brokerapi.Service, string) {
 		t.Fatalf("seedSecretsForTUILocalRPCTest returned error: %v", err)
 	}
 	t.Setenv("RUNE_SECRETS_STATE_ROOT", secretsRoot)
-	service, err := brokerapi.NewService(storeRoot, ledgerRoot)
+	service, err := brokerapi.NewServiceWithConfig(storeRoot, ledgerRoot, brokerapi.APIConfig{RepositoryRoot: mustTUICanonicalRepoRoot(t)})
 	if err != nil {
 		t.Fatalf("NewService returned error: %v", err)
 	}
@@ -256,6 +258,15 @@ func newTUILocalRPCService(t *testing.T) (*brokerapi.Service, string) {
 	seedTUIApproval(t, service)
 	seedTUIAudit(t, service)
 	return service, ledgerRoot
+}
+
+func mustTUICanonicalRepoRoot(t *testing.T) string {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd returned error: %v", err)
+	}
+	return filepath.Clean(filepath.Join(wd, "..", ".."))
 }
 
 func seedLedgerForTUILocalRPCTest(root string, seedPrivateKey ed25519.PrivateKey, seedKeyID string, seedPublicKey ed25519.PublicKey, anchorPublicKey ed25519.PublicKey) error {

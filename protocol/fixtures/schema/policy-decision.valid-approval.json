@@ -29,6 +29,6 @@
   },
   "required_approval_schema_id": "runecode.protocol.details.policy.required-approval.v0",
   "required_approval": {
-    "approval_trigger_code": "gateway_egress_scope_change"
+    "approval_trigger_code": "project_lifecycle_apply"
   }
 }

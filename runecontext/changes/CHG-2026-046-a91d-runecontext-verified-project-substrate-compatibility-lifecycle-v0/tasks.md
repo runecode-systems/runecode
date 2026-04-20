@@ -54,9 +54,9 @@
 
 ## Future Dashboard / Operator Decision Path
 
-- [ ] Reserve a future broker-owned typed operator-decision path for setup and lifecycle prompts surfaced in the dashboard or equivalent RuneCode UX.
-- [ ] Keep future dashboard prompts as a presentation layer over broker-owned typed posture and mutation contracts rather than a second authority surface.
-- [ ] Reuse the shared approval and hard-floor model for high-risk or policy-gated project-lifecycle apply steps instead of inventing a setup-only approval lane.
+- [x] Reserve a future broker-owned typed operator-decision path for setup and lifecycle prompts surfaced in the dashboard or equivalent RuneCode UX.
+- [x] Keep future dashboard prompts as a presentation layer over broker-owned typed posture and mutation contracts rather than a second authority surface.
+- [x] Reuse the shared approval and hard-floor model for high-risk or policy-gated project-lifecycle apply steps instead of inventing a setup-only approval lane.
 
 ## Acceptance Criteria
 

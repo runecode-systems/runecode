@@ -50,6 +50,13 @@ type brokerLocalAPI interface {
 	ProviderCredentialLeaseIssue(context.Context, brokerapi.ProviderCredentialLeaseIssueRequest) (brokerapi.ProviderCredentialLeaseIssueResponse, *brokerapi.ErrorResponse)
 	ProviderProfileList(context.Context, brokerapi.ProviderProfileListRequest) (brokerapi.ProviderProfileListResponse, *brokerapi.ErrorResponse)
 	ProviderProfileGet(context.Context, brokerapi.ProviderProfileGetRequest) (brokerapi.ProviderProfileGetResponse, *brokerapi.ErrorResponse)
+	ProjectSubstrateGet(context.Context, brokerapi.ProjectSubstrateGetRequest) (brokerapi.ProjectSubstrateGetResponse, *brokerapi.ErrorResponse)
+	ProjectSubstratePostureGet(context.Context, brokerapi.ProjectSubstratePostureGetRequest) (brokerapi.ProjectSubstratePostureGetResponse, *brokerapi.ErrorResponse)
+	ProjectSubstrateAdopt(context.Context, brokerapi.ProjectSubstrateAdoptRequest) (brokerapi.ProjectSubstrateAdoptResponse, *brokerapi.ErrorResponse)
+	ProjectSubstrateInitPreview(context.Context, brokerapi.ProjectSubstrateInitPreviewRequest) (brokerapi.ProjectSubstrateInitPreviewResponse, *brokerapi.ErrorResponse)
+	ProjectSubstrateInitApply(context.Context, brokerapi.ProjectSubstrateInitApplyRequest) (brokerapi.ProjectSubstrateInitApplyResponse, *brokerapi.ErrorResponse)
+	ProjectSubstrateUpgradePreview(context.Context, brokerapi.ProjectSubstrateUpgradePreviewRequest) (brokerapi.ProjectSubstrateUpgradePreviewResponse, *brokerapi.ErrorResponse)
+	ProjectSubstrateUpgradeApply(context.Context, brokerapi.ProjectSubstrateUpgradeApplyRequest) (brokerapi.ProjectSubstrateUpgradeApplyResponse, *brokerapi.ErrorResponse)
 	GitRemoteMutationPrepare(context.Context, brokerapi.GitRemoteMutationPrepareRequest) (brokerapi.GitRemoteMutationPrepareResponse, *brokerapi.ErrorResponse)
 	GitRemoteMutationGet(context.Context, brokerapi.GitRemoteMutationGetRequest) (brokerapi.GitRemoteMutationGetResponse, *brokerapi.ErrorResponse)
 	GitRemoteMutationIssueExecuteLease(context.Context, brokerapi.GitRemoteMutationIssueExecuteLeaseRequest) (brokerapi.GitRemoteMutationIssueExecuteLeaseResponse, *brokerapi.ErrorResponse)
@@ -343,6 +350,41 @@ func (c *localAPIClient) ProviderProfileList(ctx context.Context, req brokerapi.
 func (c *localAPIClient) ProviderProfileGet(ctx context.Context, req brokerapi.ProviderProfileGetRequest) (brokerapi.ProviderProfileGetResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.ProviderProfileGetResponse{}
 	return resp, c.invoke(ctx, "provider_profile_get", req, &resp)
+}
+
+func (c *localAPIClient) ProjectSubstrateGet(ctx context.Context, req brokerapi.ProjectSubstrateGetRequest) (brokerapi.ProjectSubstrateGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProjectSubstrateGetResponse{}
+	return resp, c.invoke(ctx, "project_substrate_get", req, &resp)
+}
+
+func (c *localAPIClient) ProjectSubstratePostureGet(ctx context.Context, req brokerapi.ProjectSubstratePostureGetRequest) (brokerapi.ProjectSubstratePostureGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProjectSubstratePostureGetResponse{}
+	return resp, c.invoke(ctx, "project_substrate_posture_get", req, &resp)
+}
+
+func (c *localAPIClient) ProjectSubstrateAdopt(ctx context.Context, req brokerapi.ProjectSubstrateAdoptRequest) (brokerapi.ProjectSubstrateAdoptResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProjectSubstrateAdoptResponse{}
+	return resp, c.invoke(ctx, "project_substrate_adopt", req, &resp)
+}
+
+func (c *localAPIClient) ProjectSubstrateInitPreview(ctx context.Context, req brokerapi.ProjectSubstrateInitPreviewRequest) (brokerapi.ProjectSubstrateInitPreviewResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProjectSubstrateInitPreviewResponse{}
+	return resp, c.invoke(ctx, "project_substrate_init_preview", req, &resp)
+}
+
+func (c *localAPIClient) ProjectSubstrateInitApply(ctx context.Context, req brokerapi.ProjectSubstrateInitApplyRequest) (brokerapi.ProjectSubstrateInitApplyResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProjectSubstrateInitApplyResponse{}
+	return resp, c.invoke(ctx, "project_substrate_init_apply", req, &resp)
+}
+
+func (c *localAPIClient) ProjectSubstrateUpgradePreview(ctx context.Context, req brokerapi.ProjectSubstrateUpgradePreviewRequest) (brokerapi.ProjectSubstrateUpgradePreviewResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProjectSubstrateUpgradePreviewResponse{}
+	return resp, c.invoke(ctx, "project_substrate_upgrade_preview", req, &resp)
+}
+
+func (c *localAPIClient) ProjectSubstrateUpgradeApply(ctx context.Context, req brokerapi.ProjectSubstrateUpgradeApplyRequest) (brokerapi.ProjectSubstrateUpgradeApplyResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProjectSubstrateUpgradeApplyResponse{}
+	return resp, c.invoke(ctx, "project_substrate_upgrade_apply", req, &resp)
 }
 
 func (c *localAPIClient) GitRemoteMutationPrepare(ctx context.Context, req brokerapi.GitRemoteMutationPrepareRequest) (brokerapi.GitRemoteMutationPrepareResponse, *brokerapi.ErrorResponse) {

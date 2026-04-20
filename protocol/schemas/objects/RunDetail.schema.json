@@ -34,6 +34,7 @@
         "provisioning_posture": { "type": "string", "enum": ["tofu", "attested", "not_applicable", "unknown"], "description": "Projected key provisioning/binding posture; supports not_applicable where backend mechanics differ.", "x-data-class": "public" },
         "runtime_facts_source": { "type": "string", "const": "launcher_backend_receipt", "description": "Identifier for launcher runtime fact projection source.", "x-data-class": "public" },
         "runtime_posture_degraded": { "type": "boolean", "description": "True when runtime isolation posture is reduced/degraded compared with the primary microVM path.", "x-data-class": "public" },
+        "project_context_identity_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Validated project-context identity digest bound to canonical project-substrate snapshot identity.", "x-data-class": "public" },
         "backend_posture_selection_evidence": {
           "type": "object",
           "maxProperties": 8,

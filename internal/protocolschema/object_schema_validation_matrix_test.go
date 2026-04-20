@@ -189,6 +189,7 @@ func policyDecisionCases() []validationCase {
 		{name: "allow decision", value: validAllowPolicyDecision()},
 		{name: "deny decision", value: validDenyPolicyDecision()},
 		{name: "approval decision", value: validApprovalPolicyDecision()},
+		{name: "project lifecycle apply reuses shared approval trigger", value: validProjectLifecycleApplyApprovalPolicyDecision()},
 		{name: "policy reason code enforces identifier format", value: invalidPolicyDecisionWithBadReasonCode(), wantErr: true},
 		{name: "policy reason code must be from registry", value: invalidPolicyDecisionWithUnknownReasonCode(), wantErr: true},
 		{name: "approval trigger code must be from registry", value: invalidApprovalPolicyDecisionWithUnknownTriggerCode(), wantErr: true},

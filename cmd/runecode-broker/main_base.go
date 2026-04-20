@@ -102,6 +102,13 @@ func commandHandlers() map[string]commandHandler {
 		"provider-setup-direct":                   handleProviderSetupDirect,
 		"provider-profile-list":                   handleProviderProfileList,
 		"provider-profile-get":                    handleProviderProfileGet,
+		"project-substrate-get":                   handleProjectSubstrateGet,
+		"project-substrate-posture-get":           handleProjectSubstratePostureGet,
+		"project-substrate-adopt":                 handleProjectSubstrateAdopt,
+		"project-substrate-init-preview":          handleProjectSubstrateInitPreview,
+		"project-substrate-init-apply":            handleProjectSubstrateInitApply,
+		"project-substrate-upgrade-preview":       handleProjectSubstrateUpgradePreview,
+		"project-substrate-upgrade-apply":         handleProjectSubstrateUpgradeApply,
 		"git-remote-mutation-prepare":             handleGitRemoteMutationPrepare,
 		"git-remote-mutation-get":                 handleGitRemoteMutationGet,
 		"git-remote-mutation-issue-execute-lease": handleGitRemoteMutationIssueExecuteLease,
@@ -154,7 +161,11 @@ func parseServeLocalArgs(args []string) (brokerapi.LocalIPCConfig, bool, error) 
 }
 
 func writeHelp(w io.Writer) error {
-	_, err := fmt.Fprintln(w, `Usage: runecode-broker [--state-root path] [--audit-ledger-root path] <command> [flags]
+	_, err := fmt.Fprintln(w, brokerHelpText)
+	return err
+}
+
+const brokerHelpText = `Usage: runecode-broker [--state-root path] [--audit-ledger-root path] <command> [flags]
 
 Global options:
   --state-root path         broker state root (artifact store and broker-owned local state)
@@ -202,6 +213,13 @@ Commands:
 	  provider-setup-direct --provider-family family --canonical-host host [--canonical-path-prefix /v1] [--display-label label] [--adapter-kind kind] [--allowlisted-model-ids id1,id2]
 	  provider-profile-list
 	  provider-profile-get --provider-profile-id id
+	  project-substrate-get
+	  project-substrate-posture-get
+	  project-substrate-adopt
+	  project-substrate-init-preview
+	  project-substrate-init-apply [--expected-preview-token sha256:...]
+	  project-substrate-upgrade-preview
+	  project-substrate-upgrade-apply [--expected-preview-digest sha256:...]
 	  git-remote-mutation-prepare --request-file path
 	  git-remote-mutation-get --request-file path
 	  git-remote-mutation-issue-execute-lease --request-file path
@@ -209,9 +227,7 @@ Commands:
   version-info
   stream-logs [--stream-id id] [--run-id id] [--role-instance-id id] [--start-cursor cursor] [--follow] [--include-backlog]
   llm-invoke --run-id id --request-file path [--request-digest sha256:...]
-  llm-stream --run-id id --request-file path [--request-digest sha256:...] [--stream-id id] [--follow]`)
-	return err
-}
+  llm-stream --run-id id --request-file path [--request-digest sha256:...] [--stream-id id] [--follow]`
 
 func defaultBrokerServiceRoots() brokerServiceRoots {
 	return brokerServiceRoots{stateRoot: defaultBrokerStoreRoot(), auditLedgerRoot: auditd.DefaultLedgerRoot()}
@@ -225,5 +241,9 @@ func newBrokerService(roots brokerServiceRoots) (*brokerapi.Service, error) {
 	if resolved.auditLedgerRoot == "" {
 		resolved.auditLedgerRoot = auditd.DefaultLedgerRoot()
 	}
-	return brokerapi.NewService(resolved.stateRoot, resolved.auditLedgerRoot)
+	repoRoot, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	return brokerapi.NewServiceWithConfig(resolved.stateRoot, resolved.auditLedgerRoot, brokerapi.APIConfig{RepositoryRoot: repoRoot})
 }

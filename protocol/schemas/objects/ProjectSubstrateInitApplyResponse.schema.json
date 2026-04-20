@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ProjectSubstrateInitApplyResponse.schema.json",
+  "title": "ProjectSubstrateInitApplyResponse",
+  "description": "Typed response for explicit project-substrate initialization apply.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 4,
+  "required": ["schema_id", "schema_version", "request_id", "apply_result"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ProjectSubstrateInitApplyResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable echoed request identifier.", "x-data-class": "public" },
+    "apply_result": { "$ref": "ProjectSubstrateInitApplyResult.schema.json", "description": "Initialization apply result.", "x-data-class": "public" }
+  }
+}

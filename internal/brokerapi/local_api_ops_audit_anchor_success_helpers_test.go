@@ -11,6 +11,9 @@ import (
 
 func assertAnchorSuccessArtifacts(t *testing.T, service *Service, ledgerRoot string, sealDigest trustpolicy.Digest, resp AuditAnchorSegmentResponse) {
 	t.Helper()
+	if strings.TrimSpace(resp.ProjectContextID) == "" {
+		t.Fatal("project_context_identity_digest missing")
+	}
 	if resp.ReceiptDigest == nil {
 		t.Fatal("receipt_digest missing")
 	}

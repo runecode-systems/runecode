@@ -98,6 +98,9 @@ func (s *Service) prepareLocalRequest(reqID, fallbackReqID string, admissionErr 
 		err := s.makeError(defaultRequestIDFallback, "broker_validation_request_id_missing", "validation", false, "request_id is required")
 		return "", &err
 	}
+	if errResp := s.enforceProjectSubstrateGate(requestID, schemaPath); errResp != nil {
+		return "", errResp
+	}
 	if err := s.validateRequest(req, schemaPath); err != nil {
 		errOut := s.errorFromValidation(requestID, err)
 		return "", &errOut
