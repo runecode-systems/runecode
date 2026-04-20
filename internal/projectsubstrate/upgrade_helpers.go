@@ -56,7 +56,7 @@ func readyUpgradePreview(preview UpgradePreview, expected ValidationSnapshot, be
 
 func blockedUpgradePreviewDigestResult(preview UpgradePreview, expectedPreviewHash string) *UpgradeApplyResult {
 	expected := strings.TrimSpace(expectedPreviewHash)
-	if expected != "" && expected == preview.PreviewDigest {
+	if expected == "" || expected == preview.PreviewDigest {
 		return nil
 	}
 	result := blockedUpgradeApplyResult(preview.RepositoryRoot, preview.CurrentSnapshot, preview.PreviewDigest, []string{reasonUpgradePreviewDigestMismatch})

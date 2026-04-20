@@ -52,26 +52,28 @@ func openAtomicConfigTemp(configPath string) (*os.File, string, error) {
 
 var replaceConfigLocksMu sync.Mutex
 var replaceConfigLocks = map[string]*sync.Mutex{}
+var renameConfigFile = os.Rename
+var removeConfigBackup = os.Remove
 
 func replaceConfigFile(src, dst string) error {
 	release := lockReplaceConfigTarget(dst)
 	defer release()
-	if err := os.Rename(src, dst); err == nil {
+	if err := renameConfigFile(src, dst); err == nil {
 		return nil
 	}
 	backup, err := createConfigBackup(dst)
 	if err != nil {
 		return err
 	}
-	if err := os.Rename(src, dst); err != nil {
+	if err := renameConfigFile(src, dst); err != nil {
 		if restoreErr := restoreConfigBackup(backup, dst); restoreErr != nil {
 			return fmt.Errorf("replace %s: rename failed: %w (restore backup: %v)", dst, err, restoreErr)
 		}
 		return err
 	}
 	if backup != "" {
-		if err := os.Remove(backup); err != nil && !os.IsNotExist(err) {
-			return nil
+		if err := removeConfigBackup(backup); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("replace %s: replacement applied but remove backup %s failed: %w", dst, backup, err)
 		}
 	}
 	return nil

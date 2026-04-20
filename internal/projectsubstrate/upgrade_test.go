@@ -188,6 +188,29 @@ func TestApplyUpgradePreviewDigestMismatchBlocked(t *testing.T) {
 	}
 }
 
+func TestApplyUpgradeAllowsEmptyExpectedPreviewDigest(t *testing.T) {
+	root := t.TempDir()
+	writeUpgradeableNonVerifiedV0Anchors(t, root)
+
+	preview, err := PreviewUpgrade(UpgradePreviewInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
+	if err != nil {
+		t.Fatalf("PreviewUpgrade returned error: %v", err)
+	}
+
+	result, err := ApplyUpgrade(UpgradeApplyInput{Preview: preview})
+	if err != nil {
+		t.Fatalf("ApplyUpgrade returned error: %v", err)
+	}
+	if result.Status != upgradeApplyStatusApplied {
+		t.Fatalf("status = %q, want %q", result.Status, upgradeApplyStatusApplied)
+	}
+	for _, reason := range result.ReasonCodes {
+		if reason == reasonUpgradePreviewDigestMismatch {
+			t.Fatalf("reason_codes unexpectedly contains %q: %v", reasonUpgradePreviewDigestMismatch, result.ReasonCodes)
+		}
+	}
+}
+
 func TestApplyUpgradeEmitsAuditEvidenceWhenAppenderProvided(t *testing.T) {
 	root := t.TempDir()
 	writeUpgradeableNonVerifiedV0Anchors(t, root)
