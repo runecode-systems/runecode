@@ -14,6 +14,7 @@ suggested_context_bundles:
 - Test Node "min + max" versions within `runner/package.json` `engines` (pin exact versions)
 - Pin Windows job tooling versions for reproducibility (Go, Node, just, gopls, baseline CLIs)
 - If `just ci` includes formal model checking, provision the TLC runtime explicitly on Windows; the current lane uses Java 17 plus a cached `tla2tools.jar` exported from the flake-pinned Nix package, verifies its SHA-256, and exports `TLA2TOOLS_JAR`
+- Keep failure-path tests portable: do not rely on POSIX-only chmod or permission semantics when a deterministic injected failure seam can exercise the same rollback or cleanup path on Windows
 
 ```yaml
 strategy:

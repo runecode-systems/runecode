@@ -12,7 +12,10 @@ status: active
 - Keep release version, tag, binaries, and targets in Nix metadata
 - Release docs and maintainer steps should point to the same Nix builder
 - Maintainers verify the builder locally before tagging
+- If the `buildGoModule` fixed-output `vendorHash` becomes stale, refresh it explicitly in the repo rather than teaching CI to self-heal it
+- The canonical repo-local refresh path for the release-artifacts package is `just refresh-release-vendor-hash` backed by `go run ./tools/releasebuilder refresh-vendor-hash`
 
 ```sh
 nix build --no-link .#release-artifacts
+just refresh-release-vendor-hash
 ```

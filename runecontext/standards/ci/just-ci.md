@@ -14,6 +14,7 @@ suggested_context_bundles:
   - No formatters in write mode
   - No lockfile updates (`flake.lock`, `go.sum`, `package-lock.json`)
 - Put auto-fix behavior in separate recipes (example: `just fmt`)
+- Put explicit repair workflows that change tracked files in separate recipes or tools rather than inside `just ci` (example: `just refresh-release-vendor-hash`)
 - Put formal model checking behind an explicit check-only recipe (currently `just model-check`) and include it in `just ci` when it is part of required parity
 - Keep recipes cross-platform (Windows-friendly): avoid bash/unix-only tools and shell pipelines
 - Redundant explicit steps in `just ci` are allowed when they make failures clearer (example: runner lint even if tests also run lint)
