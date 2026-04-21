@@ -6,7 +6,7 @@
   "type": "object",
   "additionalProperties": false,
   "maxProperties": 4,
-  "required": ["schema_id", "schema_version", "request_id"],
+  "required": ["schema_id", "schema_version", "request_id", "expected_preview_digest"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.ProjectSubstrateUpgradeApplyRequest", "description": "Protocol schema identifier.", "x-data-class": "public" },
     "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },

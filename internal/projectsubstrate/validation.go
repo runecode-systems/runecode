@@ -29,10 +29,11 @@ func validateLayout(contract ContractState, layout repositoryLayout) ValidationS
 		Contract:        contract,
 		ValidationState: validationStateValid,
 		Anchors: AnchorStatus{
-			HasConfigAnchor:     layout.hasConfigAnchor,
-			HasSourceAnchor:     layout.hasSourceAnchor,
-			HasAssuranceAnchor:  layout.hasAssuranceAnchor,
-			HasPrivateTruthCopy: layout.hasPrivateTruthCopy,
+			HasConfigAnchor:      layout.hasConfigAnchor,
+			HasSourceAnchor:      layout.hasSourceAnchor,
+			HasAssuranceAnchor:   layout.hasAssuranceAnchor,
+			HasAssuranceBaseline: layout.hasAssuranceBaseline,
+			HasPrivateTruthCopy:  layout.hasPrivateTruthCopy,
 		},
 	}
 	snapshot.CanonicalCandidatePaths = canonicalCandidatePaths(layout)
@@ -82,6 +83,9 @@ func layoutReasonCodes(layout repositoryLayout) []string {
 	}
 	if !layout.hasAssuranceAnchor {
 		reasons = append(reasons, reasonMissingAssuranceAnchor)
+	}
+	if !layout.hasAssuranceBaseline {
+		reasons = append(reasons, reasonMissingAssuranceBaseline)
 	}
 	if layout.hasPrivateTruthCopy {
 		reasons = append(reasons, reasonPrivateMirrorDetected)

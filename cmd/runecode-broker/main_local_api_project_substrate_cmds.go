@@ -111,7 +111,10 @@ func handleProjectSubstrateUpgradeApply(args []string, service *brokerapi.Servic
 	fs.SetOutput(io.Discard)
 	expectedDigest := fs.String("expected-preview-digest", "", "expected preview digest from upgrade preview")
 	if err := fs.Parse(args); err != nil {
-		return &usageError{message: "project-substrate-upgrade-apply usage: runecode-broker project-substrate-upgrade-apply [--expected-preview-digest sha256:...]"}
+		return &usageError{message: "project-substrate-upgrade-apply usage: runecode-broker project-substrate-upgrade-apply --expected-preview-digest sha256:..."}
+	}
+	if strings.TrimSpace(*expectedDigest) == "" {
+		return &usageError{message: "project-substrate-upgrade-apply usage: runecode-broker project-substrate-upgrade-apply --expected-preview-digest sha256:..."}
 	}
 	api := localAPIForService(service)
 	ctx, cancel := commandRequestContext(context.Background())

@@ -24,10 +24,12 @@ type repositoryLayout struct {
 	configPath            string
 	sourcePath            string
 	assurancePath         string
+	baselinePath          string
 	runecontextCandidates []string
 	hasConfigAnchor       bool
 	hasSourceAnchor       bool
 	hasAssuranceAnchor    bool
+	hasAssuranceBaseline  bool
 	hasPrivateTruthCopy   bool
 	runecontextYAML       []byte
 }
@@ -51,6 +53,9 @@ func DiscoverAndValidate(input DiscoveryInput) (DiscoveryResult, error) {
 func authoritativeRepoRoot(input DiscoveryInput) (string, error) {
 	root := strings.TrimSpace(input.RepositoryRoot)
 	if root == "" {
+		if input.Authority == RepoRootAuthorityExplicitConfig {
+			return "", fmt.Errorf("%s", reasonDiscoveryRootInvalid)
+		}
 		cwd, err := os.Getwd()
 		if err != nil {
 			return "", fmt.Errorf("determine repository root: %w", err)
@@ -77,11 +82,13 @@ func inspectLayout(repoRoot string) repositoryLayout {
 		configPath:    filepath.Join(repoRoot, CanonicalConfigPath),
 		sourcePath:    filepath.Join(repoRoot, CanonicalSourcePath),
 		assurancePath: filepath.Join(repoRoot, CanonicalAssurancePath),
+		baselinePath:  filepath.Join(repoRoot, canonicalAssuranceBaselinePath),
 	}
 	layout.runecontextCandidates = discoverRunecontextCandidates(repoRoot)
 	readConfigAnchor(&layout)
 	statDirectoryAnchor(layout.sourcePath, &layout.hasSourceAnchor)
 	statDirectoryAnchor(layout.assurancePath, &layout.hasAssuranceAnchor)
+	statFileAnchor(layout.baselinePath, &layout.hasAssuranceBaseline)
 	statDirectoryAnchor(filepath.Join(repoRoot, ".runecontext"), &layout.hasPrivateTruthCopy)
 	return layout
 }
@@ -131,4 +138,12 @@ func statDirectoryAnchor(path string, target *bool) {
 	}
 	info, err := os.Stat(path)
 	*target = err == nil && info.IsDir()
+}
+
+func statFileAnchor(path string, target *bool) {
+	if target == nil {
+		return
+	}
+	info, err := os.Stat(path)
+	*target = err == nil && !info.IsDir()
 }

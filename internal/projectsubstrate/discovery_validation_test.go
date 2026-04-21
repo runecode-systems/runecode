@@ -26,10 +26,21 @@ func TestDiscoverAndValidateDeterministicRootNoUpwardSearch(t *testing.T) {
 	assertHasReason(t, result.Snapshot.ReasonCodes, reasonMissingConfigAnchor)
 	assertHasReason(t, result.Snapshot.ReasonCodes, reasonMissingSourceAnchor)
 	assertHasReason(t, result.Snapshot.ReasonCodes, reasonMissingAssuranceAnchor)
+	assertHasReason(t, result.Snapshot.ReasonCodes, reasonMissingAssuranceBaseline)
 }
 
 func TestDiscoverAndValidateRejectsNonAbsoluteRepositoryRoot(t *testing.T) {
 	_, err := DiscoverAndValidate(DiscoveryInput{RepositoryRoot: "relative/root", Authority: RepoRootAuthorityExplicitConfig})
+	if err == nil {
+		t.Fatal("DiscoverAndValidate error = nil, want root-invalid error")
+	}
+	if got := err.Error(); got != reasonDiscoveryRootInvalid {
+		t.Fatalf("error = %q, want %q", got, reasonDiscoveryRootInvalid)
+	}
+}
+
+func TestDiscoverAndValidateRejectsEmptyExplicitRepositoryRoot(t *testing.T) {
+	_, err := DiscoverAndValidate(DiscoveryInput{Authority: RepoRootAuthorityExplicitConfig})
 	if err == nil {
 		t.Fatal("DiscoverAndValidate error = nil, want root-invalid error")
 	}
@@ -137,6 +148,9 @@ func writeCanonicalV0Anchors(t *testing.T, root string) {
 	content := "schema_version: 1\nrunecontext_version: \"0.1.0-alpha.14\"\nassurance_tier: verified\nsource:\n  type: embedded\n  path: runecontext\n"
 	if err := os.WriteFile(filepath.Join(root, CanonicalConfigPath), []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile runecontext.yaml returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, canonicalAssuranceBaselinePath), []byte("canonicalization: runecontext-canonical-json-v1\ncreated_at: 0\nkind: baseline\nschema_version: 1\nsubject_id: project-root\nvalue:\n  source_posture: embedded\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile assurance baseline returned error: %v", err)
 	}
 }
 

@@ -67,28 +67,42 @@ func applyCanonicalInitialization(root string) error {
 	configPath := filepath.Join(root, CanonicalConfigPath)
 	sourcePath := filepath.Join(root, CanonicalSourcePath)
 	assurancePath := filepath.Join(root, CanonicalAssurancePath)
-	nextConfig := canonicalV0RunecontextYAML(releaseRecommendedRuneContextVersion, "embedded")
+	baselinePath := filepath.Join(root, canonicalAssuranceBaselinePath)
+	mutation, err := canonicalInitialization(recommendedRuneContextVersionTarget(), "embedded")
+	if err != nil {
+		return err
+	}
 	createdSource := !pathExists(sourcePath)
 	createdAssurance := !pathExists(assurancePath)
+	createdBaseline := !pathExists(baselinePath)
 	if err := os.MkdirAll(sourcePath, 0o755); err != nil {
 		return fmt.Errorf("create canonical source directory: %w", err)
 	}
 	if err := os.MkdirAll(assurancePath, 0o755); err != nil {
-		if createdSource {
-			_ = os.Remove(sourcePath)
-		}
+		rollbackCanonicalInitialization(createdSource, false, false, sourcePath, assurancePath, baselinePath)
 		return fmt.Errorf("create canonical assurance directory: %w", err)
 	}
-	if err := writeCanonicalConfigFile(configPath, nextConfig); err != nil {
-		if createdAssurance {
-			_ = os.Remove(assurancePath)
-		}
-		if createdSource {
-			_ = os.Remove(sourcePath)
-		}
+	if err := writeCanonicalConfigFile(baselinePath, mutation.AssuranceBaselineYML); err != nil {
+		rollbackCanonicalInitialization(createdSource, createdAssurance, false, sourcePath, assurancePath, baselinePath)
+		return fmt.Errorf("write canonical assurance baseline: %w", err)
+	}
+	if err := writeCanonicalConfigFile(configPath, mutation.ConfigYAML); err != nil {
+		rollbackCanonicalInitialization(createdSource, createdAssurance, createdBaseline, sourcePath, assurancePath, baselinePath)
 		return err
 	}
 	return nil
+}
+
+func rollbackCanonicalInitialization(createdSource, createdAssurance, createdBaseline bool, sourcePath, assurancePath, baselinePath string) {
+	if createdBaseline {
+		_ = os.Remove(baselinePath)
+	}
+	if createdAssurance {
+		_ = os.Remove(assurancePath)
+	}
+	if createdSource {
+		_ = os.Remove(sourcePath)
+	}
 }
 
 func initApplyConflicts(root string) ([]string, []string, error) {
@@ -101,6 +115,9 @@ func initApplyConflicts(root string) ([]string, []string, error) {
 		return nil, nil, err
 	}
 	if err := appendInitApplyConflict(root, CanonicalAssurancePath, true, &reasons, &paths); err != nil {
+		return nil, nil, err
+	}
+	if err := appendInitApplyConflict(root, canonicalAssuranceBaselinePath, false, &reasons, &paths); err != nil {
 		return nil, nil, err
 	}
 	return normalizeReasonCodes(reasons), normalizeReasonCodes(paths), nil
@@ -136,13 +153,14 @@ func initConflicts(snapshot ValidationSnapshot) ([]string, []string) {
 }
 
 func appendCanonicalInitConflicts(snapshot ValidationSnapshot, reasons *[]string, paths *[]string) {
-	if !snapshot.Anchors.HasConfigAnchor && !snapshot.Anchors.HasSourceAnchor && !snapshot.Anchors.HasAssuranceAnchor {
+	if !snapshot.Anchors.HasConfigAnchor && !snapshot.Anchors.HasSourceAnchor && !snapshot.Anchors.HasAssuranceAnchor && !snapshot.Anchors.HasAssuranceBaseline {
 		return
 	}
 	appendUniqueString(reasons, reasonInitConflictCanonicalExists)
 	appendAnchorConflictPath(snapshot.Anchors.HasConfigAnchor, CanonicalConfigPath, paths)
 	appendAnchorConflictPath(snapshot.Anchors.HasSourceAnchor, CanonicalSourcePath, paths)
 	appendAnchorConflictPath(snapshot.Anchors.HasAssuranceAnchor, CanonicalAssurancePath, paths)
+	appendAnchorConflictPath(snapshot.Anchors.HasAssuranceBaseline, canonicalAssuranceBaselinePath, paths)
 }
 
 func appendAnchorConflictPath(present bool, path string, paths *[]string) {

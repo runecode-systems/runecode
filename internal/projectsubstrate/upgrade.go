@@ -31,23 +31,32 @@ func PreviewUpgrade(input UpgradePreviewInput) (UpgradePreview, error) {
 	if !configValid || len(reasons) > 0 {
 		return blockedUpgradePreview(preview, discovered.Snapshot, reasons), nil
 	}
-
 	if discovered.Snapshot.ValidationState == validationStateValid {
-		switch discovered.Compatibility.Posture {
-		case CompatibilityPostureSupportedCurrent:
-			return noopUpgradePreview(preview, discovered.Snapshot), nil
-		case CompatibilityPostureSupportedWithUpgrade:
-			nextConfig := canonicalV0RunecontextYAML(discovered.Compatibility.Policy.RecommendedRuneContextVersion, discovered.Snapshot.DeclaredSourceType)
-			nextLayout := layout
-			nextLayout.runecontextYAML = []byte(nextConfig)
-			expected := validateLayout(discovered.Contract, nextLayout)
-			return readyUpgradePreview(preview, expected, layout.runecontextYAML, []byte(nextConfig)), nil
-		default:
-			return blockedUpgradePreview(preview, discovered.Snapshot, discovered.Compatibility.ReasonCodes), nil
-		}
+		return previewValidatedUpgrade(discovered, layout, preview)
 	}
+	return previewRemediationUpgrade(discovered, layout, preview, cfg)
+}
 
-	nextConfig := canonicalV0RunecontextYAML(cfg.RuneContextVersion, cfg.Source.Type)
+func previewValidatedUpgrade(discovered DiscoveryResult, layout repositoryLayout, preview UpgradePreview) (UpgradePreview, error) {
+	switch discovered.Compatibility.Posture {
+	case CompatibilityPostureSupportedCurrent:
+		return noopUpgradePreview(preview, discovered.Snapshot), nil
+	case CompatibilityPostureSupportedWithUpgrade:
+		return readyUpgradePreviewForConfig(discovered, layout, preview, discovered.Compatibility.Policy.RecommendedRuneContextVersion, discovered.Snapshot.DeclaredSourceType)
+	default:
+		return blockedUpgradePreview(preview, discovered.Snapshot, discovered.Compatibility.ReasonCodes), nil
+	}
+}
+
+func previewRemediationUpgrade(discovered DiscoveryResult, layout repositoryLayout, preview UpgradePreview, cfg runecontextConfig) (UpgradePreview, error) {
+	return readyUpgradePreviewForConfig(discovered, layout, preview, cfg.RuneContextVersion, cfg.Source.Type)
+}
+
+func readyUpgradePreviewForConfig(discovered DiscoveryResult, layout repositoryLayout, preview UpgradePreview, version, sourceType string) (UpgradePreview, error) {
+	nextConfig, err := canonicalUpgradeConfig(version, sourceType)
+	if err != nil {
+		return UpgradePreview{}, err
+	}
 	nextLayout := layout
 	nextLayout.runecontextYAML = []byte(nextConfig)
 	expected := validateLayout(discovered.Contract, nextLayout)
@@ -106,7 +115,10 @@ func applyUpgradePreview(preview UpgradePreview, current DiscoveryResult, author
 	if targetVersion == "" {
 		targetVersion = cfg.RuneContextVersion
 	}
-	nextConfig := canonicalV0RunecontextYAML(targetVersion, cfg.Source.Type)
+	nextConfig, err := canonicalUpgradeConfig(targetVersion, cfg.Source.Type)
+	if err != nil {
+		return UpgradeApplyResult{}, err
+	}
 	if err := writeUpgradedConfig(current.RepositoryRoot, nextConfig); err != nil {
 		return UpgradeApplyResult{}, err
 	}
@@ -173,18 +185,6 @@ func remediationFollowUpForReasons(reasons []string) []string {
 		add("inspect_project_substrate_diagnostics")
 	}
 	return followUp
-}
-
-func canonicalV0RunecontextYAML(version, sourceType string) string {
-	v := strings.TrimSpace(version)
-	if v == "" {
-		v = "0.1.0-alpha.14"
-	}
-	t := strings.TrimSpace(sourceType)
-	if t == "" {
-		t = "embedded"
-	}
-	return fmt.Sprintf("schema_version: 1\nrunecontext_version: %s\nassurance_tier: verified\nsource:\n  type: %s\n  path: %s\n", yamlScalar(v), yamlScalar(t), yamlScalar(CanonicalSourcePath))
 }
 
 func sha256Hex(data []byte) string {

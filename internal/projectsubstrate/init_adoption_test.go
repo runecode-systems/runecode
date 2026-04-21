@@ -39,7 +39,7 @@ func TestAdoptExistingBlockedForNonCanonicalState(t *testing.T) {
 
 func TestAdoptExistingBlockedForUnsupportedTooOldCompatibility(t *testing.T) {
 	root := t.TempDir()
-	writeCanonicalV0AnchorsWithVersion(t, root, "0.1.0-alpha.12")
+	writeCanonicalV0AnchorsWithVersion(t, root, "0.1.0-alpha.11")
 
 	adopted, err := AdoptExisting(AdoptionInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
 	if err != nil {
@@ -78,8 +78,8 @@ func TestPreviewInitializeReadyForMissingCanonicalState(t *testing.T) {
 	if preview.PreviewToken == "" {
 		t.Fatal("preview_token empty, want deterministic token")
 	}
-	if len(preview.FileChanges) != 3 {
-		t.Fatalf("file_changes count = %d, want 3", len(preview.FileChanges))
+	if len(preview.FileChanges) != 4 {
+		t.Fatalf("file_changes count = %d, want 4", len(preview.FileChanges))
 	}
 	if preview.ExpectedSnapshot.RuneContextVersion != releaseRecommendedRuneContextVersion {
 		t.Fatalf("expected_snapshot.runecontext_version = %q, want %q", preview.ExpectedSnapshot.RuneContextVersion, releaseRecommendedRuneContextVersion)
@@ -105,6 +105,9 @@ func TestApplyInitializeAppliesCanonicalFilesAndIsIdempotent(t *testing.T) {
 	}
 	if first.ResultingSnapshot.RuneContextVersion != releaseRecommendedRuneContextVersion {
 		t.Fatalf("resulting_snapshot.runecontext_version = %q, want %q", first.ResultingSnapshot.RuneContextVersion, releaseRecommendedRuneContextVersion)
+	}
+	if _, err := os.Stat(filepath.Join(root, canonicalAssuranceBaselinePath)); err != nil {
+		t.Fatalf("assurance baseline stat returned error: %v", err)
 	}
 
 	secondPreview, err := PreviewInitialize(InitPreviewInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
@@ -224,5 +227,8 @@ func writeCanonicalV0AnchorsWithVersion(t *testing.T, root, version string) {
 	content := "schema_version: 1\nrunecontext_version: \"" + version + "\"\nassurance_tier: verified\nsource:\n  type: embedded\n  path: runecontext\n"
 	if err := os.WriteFile(filepath.Join(root, CanonicalConfigPath), []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile runecontext.yaml returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, canonicalAssuranceBaselinePath), []byte("canonicalization: runecontext-canonical-json-v1\ncreated_at: 0\nkind: baseline\nschema_version: 1\nsubject_id: project-root\nvalue:\n  source_posture: embedded\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile assurance baseline returned error: %v", err)
 	}
 }
