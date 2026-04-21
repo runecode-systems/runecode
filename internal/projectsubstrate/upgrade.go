@@ -64,7 +64,7 @@ func ApplyUpgrade(input UpgradeApplyInput) (UpgradeApplyResult, error) {
 		return UpgradeApplyResult{}, err
 	}
 	if current.Snapshot.SnapshotDigest != preview.CurrentSnapshot.SnapshotDigest {
-		return blockedUpgradeApplyResult(current.RepositoryRoot, current.Snapshot, preview.PreviewDigest, []string{reasonUpgradePreviewDigestMismatch}), nil
+		return blockedUpgradeApplyResult(current.RepositoryRoot, current.Snapshot, preview.PreviewDigest, []string{reasonUpgradeSnapshotChanged}), nil
 	}
 	if result, ok := earlyUpgradeApplyResult(preview, current); ok {
 		return result, nil

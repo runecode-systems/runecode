@@ -56,6 +56,7 @@ const (
 	reasonRemediationConfigInvalid           = "remediation_config_invalid"
 	reasonRemediationDeclaredSourceConflicts = "remediation_declared_source_conflicts"
 	reasonUpgradeApplyExplicitRequired       = "upgrade_apply_explicit_required"
+	reasonUpgradeSnapshotChanged             = "upgrade_snapshot_changed_since_preview"
 	reasonUpgradePreviewDigestMismatch       = "upgrade_preview_digest_mismatch"
 	reasonUpgradePostValidationFailed        = "upgrade_post_validation_failed"
 	reasonAuditAppendFailed                  = "audit_append_failed"

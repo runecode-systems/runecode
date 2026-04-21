@@ -179,12 +179,46 @@ func TestApplyUpgradePreviewDigestMismatchBlocked(t *testing.T) {
 		t.Fatalf("status = %q, want %q", result.Status, upgradeApplyStatusBlocked)
 	}
 	assertHasReason(t, result.ReasonCodes, reasonUpgradePreviewDigestMismatch)
+	for _, reason := range result.ReasonCodes {
+		if reason == reasonUpgradeSnapshotChanged {
+			t.Fatalf("reason_codes unexpectedly contains %q: %v", reasonUpgradeSnapshotChanged, result.ReasonCodes)
+		}
+	}
 	config, err := os.ReadFile(filepath.Join(root, CanonicalConfigPath))
 	if err != nil {
 		t.Fatalf("ReadFile config returned error: %v", err)
 	}
 	if string(config) != "schema_version: 1\nrunecontext_version: \"0.1.0-alpha.14\"\nassurance_tier: plain\nsource:\n  type: embedded\n  path: runecontext\n" {
 		t.Fatalf("config changed on blocked apply: %q", string(config))
+	}
+}
+
+func TestApplyUpgradeSnapshotDriftBlockedWithDistinctReason(t *testing.T) {
+	root := t.TempDir()
+	writeUpgradeableNonVerifiedV0Anchors(t, root)
+
+	preview, err := PreviewUpgrade(UpgradePreviewInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
+	if err != nil {
+		t.Fatalf("PreviewUpgrade returned error: %v", err)
+	}
+
+	mutatedConfig := "schema_version: 1\nrunecontext_version: \"0.1.0-alpha.13\"\nassurance_tier: plain\nsource:\n  type: embedded\n  path: runecontext\n"
+	if err := os.WriteFile(filepath.Join(root, CanonicalConfigPath), []byte(mutatedConfig), 0o644); err != nil {
+		t.Fatalf("WriteFile(mutated config) returned error: %v", err)
+	}
+
+	result, err := ApplyUpgrade(UpgradeApplyInput{Preview: preview, ExpectedPreviewHash: preview.PreviewDigest})
+	if err != nil {
+		t.Fatalf("ApplyUpgrade returned error: %v", err)
+	}
+	if result.Status != upgradeApplyStatusBlocked {
+		t.Fatalf("status = %q, want %q", result.Status, upgradeApplyStatusBlocked)
+	}
+	assertHasReason(t, result.ReasonCodes, reasonUpgradeSnapshotChanged)
+	for _, reason := range result.ReasonCodes {
+		if reason == reasonUpgradePreviewDigestMismatch {
+			t.Fatalf("reason_codes unexpectedly contains %q: %v", reasonUpgradePreviewDigestMismatch, result.ReasonCodes)
+		}
 	}
 }
 

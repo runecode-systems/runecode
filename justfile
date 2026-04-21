@@ -34,5 +34,8 @@ ci:
   cd runner && npm test
   cd runner && npm run boundary-check
 
+refresh-release-vendor-hash:
+  go run ./tools/releasebuilder refresh-vendor-hash
+
 dev:
   @just --list

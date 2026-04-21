@@ -79,7 +79,7 @@ func applyCanonicalInitialization(root string) error {
 		}
 		return fmt.Errorf("create canonical assurance directory: %w", err)
 	}
-	if err := writeCanonicalConfig(configPath, nextConfig); err != nil {
+	if err := writeCanonicalConfigFile(configPath, nextConfig); err != nil {
 		if createdAssurance {
 			_ = os.Remove(assurancePath)
 		}

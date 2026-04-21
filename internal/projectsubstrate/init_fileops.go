@@ -54,6 +54,7 @@ var replaceConfigLocksMu sync.Mutex
 var replaceConfigLocks = map[string]*sync.Mutex{}
 var renameConfigFile = os.Rename
 var removeConfigBackup = os.Remove
+var writeCanonicalConfigFile = writeCanonicalConfig
 
 func replaceConfigFile(src, dst string) error {
 	release := lockReplaceConfigTarget(dst)

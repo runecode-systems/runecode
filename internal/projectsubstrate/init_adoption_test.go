@@ -1,6 +1,7 @@
 package projectsubstrate
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -195,10 +196,11 @@ func TestApplyInitializeRollsBackDirectoriesWhenConfigWriteFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PreviewInitialize returned error: %v", err)
 	}
-	if err := os.Chmod(root, 0o555); err != nil {
-		t.Fatalf("Chmod root read-only returned error: %v", err)
+	originalWriteCanonicalConfigFile := writeCanonicalConfigFile
+	writeCanonicalConfigFile = func(_ string, _ string) error {
+		return errors.New("simulated config write failure")
 	}
-	t.Cleanup(func() { _ = os.Chmod(root, 0o755) })
+	t.Cleanup(func() { writeCanonicalConfigFile = originalWriteCanonicalConfigFile })
 	_, err = ApplyInitialize(InitApplyInput{Preview: preview, ExpectedPreviewToken: preview.PreviewToken})
 	if err == nil {
 		t.Fatal("ApplyInitialize error = nil, want config write failure")
