@@ -24,24 +24,30 @@ func validateGateResultFields(report RunnerResultReport) error {
 	return validateGateResultOverrideFields(report)
 }
 
-func validateGateResultPlanBinding(report RunnerResultReport, planned compiledRunGatePlan) error {
+func validateGateResultPlanBinding(report RunnerResultReport, planned compiledRunGatePlan) (runPlannedGateEntry, error) {
 	if !shouldValidateGateScopedResult(report) {
-		return validateNoPlanBindingWithoutGate(report.PlanCheckpointCode, report.PlanOrderIndex)
+		if err := validateNoPlanBindingWithoutGate(report.PlanCheckpointCode, report.PlanOrderIndex); err != nil {
+			return runPlannedGateEntry{}, err
+		}
+		return runPlannedGateEntry{}, nil
 	}
 	if !planned.hasEntries() {
 		if report.PlanCheckpointCode != "" || report.PlanOrderIndex != 0 {
-			return fmt.Errorf("gate-scoped result requires trusted run plan gate entries")
+			return runPlannedGateEntry{}, fmt.Errorf("gate-scoped result requires trusted run plan gate entries")
 		}
-		return nil
+		return runPlannedGateEntry{}, nil
 	}
 	if report.PlanCheckpointCode == "" {
-		return fmt.Errorf("gate-scoped result requires plan_checkpoint_code")
+		return runPlannedGateEntry{}, fmt.Errorf("gate-scoped result requires plan_checkpoint_code")
 	}
 	entry, ok := planned.entryFor(report.GateID, report.GateKind, report.GateVersion, report.PlanCheckpointCode, report.PlanOrderIndex)
 	if !ok {
-		return fmt.Errorf("gate-scoped result does not match trusted run plan placement")
+		return runPlannedGateEntry{}, fmt.Errorf("gate-scoped result does not match trusted run plan placement")
 	}
-	return validatePlannedInputDigestHooks(entry.ExpectedInputDigests, report.NormalizedInputDigests)
+	if err := validatePlannedInputDigestHooks(entry.ExpectedInputDigests, report.NormalizedInputDigests); err != nil {
+		return runPlannedGateEntry{}, err
+	}
+	return entry, nil
 }
 
 func validateGateScopedResultCode(code string) error {

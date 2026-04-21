@@ -5,15 +5,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ## Upcoming Features
 
-### v0.1.0-alpha.6
-
-- Direct Credential Model Providers v0
-  - RuneCode can use operator-entered OpenAI-compatible and Anthropic-compatible endpoints plus API credentials for remote model access without creating a second provider architecture.
-  - Planned change: `runecontext/changes/CHG-2026-045-7f4c-direct-credential-model-providers-v0/`
-- RuneContext Verified Project Substrate + Compatibility Lifecycle v0
-  - RuneCode can adopt existing or initialize new canonical `runecontext/` project state, enforce verified-mode compatibility, and support safe auditable upgrades while remaining compatible with direct RuneContext use.
-  - Planned change: `runecontext/changes/CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0/`
-
 ### v0.1.0-alpha.7
 
 - Local Control-Plane Bootstrap + Persistent Session Lifecycle v0
@@ -174,3 +165,11 @@ No unscheduled items are currently tracked outside the planned work listed above
 - Git Gateway (Commit/Push/PR)
   - Git operations are isolated behind a gateway with outbound patch verification.
   - Planned change: `runecontext/changes/CHG-2026-002-33c5-git-gateway-commit-push-pr/`
+
+- Direct Credential Model Providers v0
+  - RuneCode can use operator-entered OpenAI-compatible and Anthropic-compatible endpoints plus API credentials for remote model access without creating a second provider architecture.
+  - Planned change: `runecontext/changes/CHG-2026-045-7f4c-direct-credential-model-providers-v0/`
+- RuneContext Verified Project Substrate + Compatibility Lifecycle v0
+  - RuneCode can adopt existing or initialize new canonical `runecontext/` project state, enforce verified-mode compatibility, and support safe auditable upgrades while remaining compatible with direct RuneContext use.
+  - Planned change: `runecontext/changes/CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0/`
+

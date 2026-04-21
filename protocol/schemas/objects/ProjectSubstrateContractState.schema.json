@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ProjectSubstrateContractState.schema.json",
+  "title": "ProjectSubstrateContractState",
+  "description": "Versioned contract authority for canonical RuneContext project substrate anchors in a repository.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 10,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "contract_id",
+    "contract_version",
+    "required_config_path",
+    "required_source_path",
+    "required_assurance_path",
+    "required_assurance_tier",
+    "repo_root_authority",
+    "forbid_private_truth_copy"
+  ],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ProjectSubstrateContractState", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "contract_id": { "type": "string", "const": "runecode.runecontext.project_substrate.v0", "description": "Stable identifier for the canonical substrate contract family.", "x-data-class": "public" },
+    "contract_version": { "type": "string", "const": "v0", "description": "Selected contract version.", "x-data-class": "public" },
+    "required_config_path": { "type": "string", "const": "runecontext.yaml", "description": "Required repository-root config anchor path.", "x-data-class": "public" },
+    "required_source_path": { "type": "string", "const": "runecontext", "description": "Required canonical RuneContext source root path.", "x-data-class": "public" },
+    "required_assurance_path": { "type": "string", "const": "runecontext/assurance", "description": "Required canonical assurance path.", "x-data-class": "public" },
+    "required_assurance_tier": { "type": "string", "const": "verified", "description": "Required canonical assurance tier for normal compatibility posture.", "x-data-class": "public" },
+    "repo_root_authority": { "type": "string", "enum": ["process_working_directory", "explicit_config"], "description": "Authoritative repository-root selection rule used for deterministic discovery.", "x-data-class": "public" },
+    "forbid_private_truth_copy": { "type": "boolean", "const": true, "description": "Declares that RuneCode must not maintain a second private project-truth mirror surface.", "x-data-class": "public" }
+  }
+}

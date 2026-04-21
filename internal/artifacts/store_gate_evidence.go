@@ -15,6 +15,7 @@ type GateEvidenceArtifact struct {
 	GateID                 string         `json:"gate_id"`
 	GateKind               string         `json:"gate_kind"`
 	GateVersion            string         `json:"gate_version"`
+	ProjectContextID       string         `json:"project_context_identity_digest,omitempty"`
 	PlanCheckpointCode     string         `json:"plan_checkpoint_code,omitempty"`
 	PlanOrderIndex         int            `json:"plan_order_index,omitempty"`
 	RunID                  string         `json:"run_id"`

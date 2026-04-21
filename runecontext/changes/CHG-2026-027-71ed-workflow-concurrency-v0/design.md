@@ -14,6 +14,8 @@ Define explicit shared-workspace concurrency modes, deterministic locking, and a
 - Approval, gate, and evidence bindings remain run-specific and must not become workspace-global under concurrency.
 - Runtime-instance backend posture is distinct from `run_id` and other workflow identities; future concurrency or scaling work must not treat instance-level backend selection as run-local truth.
 - Shared-workspace concurrency must not let one run consume, satisfy, or inherit another run's reduced-assurance backend-selection approval.
+- Concurrency must not silently merge, reinterpret, or ignore validated project-substrate snapshot identity when concurrent runs depend on project context.
+- Project-substrate drift under shared-workspace concurrency must fail closed or surface explicit coordination/remediation posture rather than continuing on stale mixed assumptions.
 
 ## Shared Contract Alignment
 
@@ -31,10 +33,15 @@ Define explicit shared-workspace concurrency modes, deterministic locking, and a
 - Shared-workspace concurrency must not allow one run to consume or satisfy another run's approval or gate result.
 - Reduced-assurance backend posture approvals remain exact-action and instance-posture-bound; concurrency must not reinterpret them as workspace-global capability grants.
 
+### Project-Context Binding Under Concurrency
+- If concurrent runs bind different validated project-substrate snapshots, the broker and runner must surface that difference explicitly rather than assuming one ambient project-context truth.
+- Shared-workspace concurrency must not let one run satisfy another run's project-context preconditions or blocked-state remediation.
+
 ## Main Workstreams
 - Workspace Concurrency Model
 - Conflict Detection + Isolation Rules
 - Runner, Broker, and TUI Integration
+- Project-Substrate Drift and Snapshot Coordination
 - Fixtures + Recovery Cases
 
 ## RuneContext Migration Notes

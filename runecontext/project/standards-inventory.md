@@ -6,6 +6,7 @@ Standards are organized by canonical paths plus repo-local bundles under `runeco
 Recent notable standards for this branch:
 
 - `runecontext/standards/global/control-plane-api-contract-shape.md`
+- `runecontext/standards/global/project-substrate-contract-and-lifecycle.md`
 - `runecontext/standards/global/protocol-canonicalization-profile.md`
 - `runecontext/standards/global/protocol-registry-discipline.md`
 - `runecontext/standards/security/policy-evaluation-foundations.md`
@@ -18,6 +19,8 @@ Recent notable standards for this branch:
 - `runecontext/standards/security/trusted-local-artifact-persistence.md`
 - `runecontext/standards/security/runner-durable-state-and-replay.md`
 - `runecontext/standards/security/trusted-runtime-evidence-and-broker-projection.md`
+
+Recent additions should be reflected here when they become durable cross-cutting guidance rather than change-local design notes.
 
 ## Standard Families
 

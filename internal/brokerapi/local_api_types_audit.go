@@ -22,6 +22,7 @@ type AuditTimelineResponse struct {
 
 type AuditTimelineViewEntry struct {
 	RecordDigest        trustpolicy.Digest              `json:"record_digest"`
+	ProjectContextID    string                          `json:"project_context_identity_digest,omitempty"`
 	EventType           string                          `json:"event_type,omitempty"`
 	Summary             string                          `json:"summary,omitempty"`
 	LinkedReferences    []AuditRecordLinkedReference    `json:"linked_references,omitempty"`
@@ -36,12 +37,13 @@ type AuditVerificationGetRequest struct {
 }
 
 type AuditVerificationGetResponse struct {
-	SchemaID      string                                         `json:"schema_id"`
-	SchemaVersion string                                         `json:"schema_version"`
-	RequestID     string                                         `json:"request_id"`
-	Summary       trustpolicy.DerivedRunAuditVerificationSummary `json:"summary"`
-	Report        trustpolicy.AuditVerificationReportPayload     `json:"report"`
-	Views         []trustpolicy.AuditOperationalView             `json:"views"`
+	SchemaID         string                                         `json:"schema_id"`
+	SchemaVersion    string                                         `json:"schema_version"`
+	RequestID        string                                         `json:"request_id"`
+	ProjectContextID string                                         `json:"project_context_identity_digest,omitempty"`
+	Summary          trustpolicy.DerivedRunAuditVerificationSummary `json:"summary"`
+	Report           trustpolicy.AuditVerificationReportPayload     `json:"report"`
+	Views            []trustpolicy.AuditOperationalView             `json:"views"`
 }
 
 type AuditFinalizeVerifyRequest struct {
@@ -90,6 +92,7 @@ type AuditRecordDetail struct {
 	SchemaID            string                          `json:"schema_id"`
 	SchemaVersion       string                          `json:"schema_version"`
 	RecordDigest        trustpolicy.Digest              `json:"record_digest"`
+	ProjectContextID    string                          `json:"project_context_identity_digest,omitempty"`
 	RecordFamily        string                          `json:"record_family"`
 	OccurredAt          string                          `json:"occurred_at"`
 	EventType           string                          `json:"event_type,omitempty"`
@@ -204,6 +207,7 @@ type AuditAnchorSegmentResponse struct {
 	SchemaID                 string              `json:"schema_id"`
 	SchemaVersion            string              `json:"schema_version"`
 	RequestID                string              `json:"request_id"`
+	ProjectContextID         string              `json:"project_context_identity_digest,omitempty"`
 	SealDigest               trustpolicy.Digest  `json:"seal_digest"`
 	ReceiptDigest            *trustpolicy.Digest `json:"receipt_digest,omitempty"`
 	VerificationReportDigest *trustpolicy.Digest `json:"verification_report_digest,omitempty"`

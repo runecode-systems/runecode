@@ -202,3 +202,48 @@ func renderDashboardSafetyAlerts(data dashboardData) string {
 	}
 	return "Safety alerts: " + strings.Join(alerts, " ")
 }
+
+func renderDashboardProjectSubstrateLine(posture brokerapi.ProjectSubstratePostureGetResponse) string {
+	summary := posture.PostureSummary
+	if strings.TrimSpace(summary.SchemaID) == "" {
+		return "Project substrate: unavailable"
+	}
+	return fmt.Sprintf(
+		"Project substrate: validation=%s compatibility=%s normal_operation_allowed=%t",
+		sanitizeUIText(summary.ValidationState),
+		sanitizeUIText(summary.CompatibilityPosture),
+		summary.NormalOperationAllowed,
+	)
+}
+
+func renderDashboardProjectSubstrateGuidance(posture brokerapi.ProjectSubstratePostureGetResponse) string {
+	parts := []string{}
+	if strings.TrimSpace(posture.BlockedExplanation) != "" {
+		parts = append(parts, "Project substrate block: "+sanitizeUIText(posture.BlockedExplanation))
+	}
+	if len(posture.RemediationGuidance) > 0 {
+		parts = append(parts, "Project substrate remediation: "+joinCSVWithWrapHint(posture.RemediationGuidance))
+	}
+	if strings.TrimSpace(posture.InitPreview.Status) != "" {
+		parts = append(parts, fmt.Sprintf("Project substrate init=%s", posture.InitPreview.Status))
+	}
+	if strings.TrimSpace(posture.UpgradePreview.Status) != "" {
+		parts = append(parts, fmt.Sprintf("Project substrate upgrade=%s", posture.UpgradePreview.Status))
+	}
+	if len(parts) == 0 {
+		return "Project substrate guidance: none"
+	}
+	return strings.Join(parts, " | ")
+}
+
+func joinCSVWithWrapHint(values []string) string {
+	clean := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		clean = append(clean, trimmed)
+	}
+	return strings.Join(clean, ", ")
+}

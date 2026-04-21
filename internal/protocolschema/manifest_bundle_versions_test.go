@@ -112,11 +112,45 @@ func localBrokerReadApiRunAndSessionSchemaVersionPairs() map[string]string {
 }
 
 func localBrokerReadApiApprovalAndArtifactSchemaVersionPairs() map[string]string {
+	return mergeSchemaVersionPairs(
+		localBrokerProjectSubstrateSchemaVersionPairs(),
+		localBrokerGitAndArtifactSchemaVersionPairs(),
+	)
+}
+
+func localBrokerProjectSubstrateSchemaVersionPairs() map[string]string {
 	return map[string]string{
-		"runecode.protocol.v0.ApprovalListRequest":                        "0.1.0",
-		"runecode.protocol.v0.ApprovalListResponse":                       "0.1.0",
-		"runecode.protocol.v0.ApprovalGetRequest":                         "0.1.0",
-		"runecode.protocol.v0.ApprovalGetResponse":                        "0.1.0",
+		"runecode.protocol.v0.ApprovalListRequest":                    "0.1.0",
+		"runecode.protocol.v0.ApprovalListResponse":                   "0.1.0",
+		"runecode.protocol.v0.ApprovalGetRequest":                     "0.1.0",
+		"runecode.protocol.v0.ApprovalGetResponse":                    "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateContractState":          "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateGetRequest":             "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateGetResponse":            "0.1.0",
+		"runecode.protocol.v0.ProjectSubstratePostureGetRequest":      "0.1.0",
+		"runecode.protocol.v0.ProjectSubstratePostureGetResponse":     "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateAdoptRequest":           "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateAdoptResponse":          "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateAdoptionResult":         "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateInitPreview":            "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateInitPreviewRequest":     "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateInitPreviewResponse":    "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateInitApplyRequest":       "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateInitApplyResponse":      "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateInitApplyResult":        "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateUpgradePreview":         "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateUpgradePreviewRequest":  "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateUpgradePreviewResponse": "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateUpgradeApplyRequest":    "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateUpgradeApplyResponse":   "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateUpgradeApplyResult":     "0.1.0",
+		"runecode.protocol.v0.ProjectSubstratePostureSummary":         "0.1.0",
+		"runecode.protocol.v0.ProjectSubstrateValidationSnapshot":     "0.1.0",
+	}
+}
+
+func localBrokerGitAndArtifactSchemaVersionPairs() map[string]string {
+	return map[string]string{
 		"runecode.protocol.v0.GitRemoteMutationDerivedSummary":            "0.1.0",
 		"runecode.protocol.v0.GitRemoteMutationPreparedState":             "0.1.0",
 		"runecode.protocol.v0.GitRemoteMutationPrepareRequest":            "0.1.0",

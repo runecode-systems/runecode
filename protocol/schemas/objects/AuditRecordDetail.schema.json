@@ -5,7 +5,7 @@
   "description": "Typed broker-owned derived audit record drill-down view for interactive operator inspection.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 11,
+  "maxProperties": 12,
   "$defs": {
     "linkedReference": {
       "description": "One typed linked reference surfaced from broker-owned derived audit views.",
@@ -161,6 +161,13 @@
     "record_digest": {
       "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
       "description": "Stable audit-record identity used for timeline-to-detail drill-down.",
+      "x-data-class": "public"
+    },
+    "project_context_identity_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "maxLength": 71,
+      "description": "Validated project-context identity digest bound to canonical project-substrate snapshot identity used for this audit-record projection.",
       "x-data-class": "public"
     },
     "record_family": {

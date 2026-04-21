@@ -8,6 +8,7 @@
 - [ ] Add an explicit feasibility gate:
   - the statement must have bounded inputs and fully deterministic verification
   - if proof generation or verification performance is not acceptable, defer release rather than weakening the proof contract
+- [ ] When the chosen statement depends on project context, bind it to validated project-substrate snapshot identity rather than ambient repo state.
 
 Parallelization: can be done in parallel with audit/artifact specs; keep the chosen statement aligned with the canonical audit root/verification artifacts.
 

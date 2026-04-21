@@ -156,6 +156,13 @@
           "description": "Stable audit-record identity used for timeline-to-detail drill-down.",
           "x-data-class": "public"
         },
+        "project_context_identity_digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "maxLength": 71,
+          "description": "Validated project-context identity digest bound to canonical project-substrate snapshot identity used for this timeline projection.",
+          "x-data-class": "public"
+        },
         "event_type": {
           "type": "string",
           "minLength": 1,

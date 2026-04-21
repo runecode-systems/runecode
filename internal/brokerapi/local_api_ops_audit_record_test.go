@@ -32,9 +32,9 @@ func seededAuditRecordTestServiceAndDigest(t *testing.T) (*Service, trustpolicy.
 	if err := seedLedgerForBrokerSurfaceTest(ledgerRoot); err != nil {
 		t.Fatalf("seedLedgerForBrokerSurfaceTest returned error: %v", err)
 	}
-	service, err := NewService(storeRoot, ledgerRoot)
+	service, err := NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
-		t.Fatalf("NewService returned error: %v", err)
+		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
 	surface, err := service.LatestAuditVerificationSurface(1)
 	if err != nil {
@@ -59,6 +59,9 @@ func assertProjectedAuditRecordDetail(t *testing.T, resp AuditRecordGetResponse)
 	}
 	if len(resp.Record.LinkedReferences) == 0 {
 		t.Fatal("linked_references empty, want projected audit links")
+	}
+	if resp.Record.ProjectContextID == "" {
+		t.Fatal("record.project_context_identity_digest empty, want validated digest")
 	}
 	if resp.Record.Scope == nil || resp.Record.Scope.RunID == "" {
 		t.Fatalf("scope = %+v, want derived run scope", resp.Record.Scope)

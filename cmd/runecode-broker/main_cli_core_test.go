@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -66,7 +67,12 @@ func TestGlobalStateAndLedgerRootsAreAppliedBeforeCommand(t *testing.T) {
 	originalFactory := brokerServiceFactory
 	brokerServiceFactory = func(roots brokerServiceRoots) (*brokerapi.Service, error) {
 		captured = roots
-		return newBrokerService(roots)
+		wd, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		repoRoot := filepath.Clean(filepath.Join(wd, "..", ".."))
+		return brokerapi.NewServiceWithConfig(roots.stateRoot, roots.auditLedgerRoot, brokerapi.APIConfig{RepositoryRoot: repoRoot})
 	}
 	t.Cleanup(func() {
 		brokerServiceFactory = originalFactory

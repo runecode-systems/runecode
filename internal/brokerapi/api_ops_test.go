@@ -171,6 +171,9 @@ func TestHandleArtifactListRejectsAdmissionFailureWithTypedError(t *testing.T) {
 func newBrokerAPIServiceForTests(t *testing.T, cfg APIConfig) *Service {
 	t.Helper()
 	root := t.TempDir()
+	if cfg.RepositoryRoot == "" {
+		cfg.RepositoryRoot = repositoryRootForProjectSubstrateTests(t)
+	}
 	service, err := NewServiceWithConfig(root, root+"/audit-ledger", cfg)
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)

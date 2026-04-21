@@ -184,6 +184,7 @@ func assertApprovalRegistryCodes(t *testing.T) {
 		"dependency_network_fetch",
 		"system_command_execution",
 		"excerpt_promotion",
+		"project_lifecycle_apply",
 	)
 	hardFloorRegistry := loadRegistry(t, schemaPath(t, "registries/hard_floor_operation_class.registry.json"))
 	assertRegistryContainsCodes(t, hardFloorRegistry,

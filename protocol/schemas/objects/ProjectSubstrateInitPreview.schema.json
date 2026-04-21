@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ProjectSubstrateInitPreview.schema.json",
+  "title": "ProjectSubstrateInitPreview",
+  "description": "Explicit preview contract for initializing canonical project substrate.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 11,
+  "required": ["schema_id", "schema_version", "repository_root", "status", "current_snapshot", "expected_snapshot", "preview_token"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ProjectSubstrateInitPreview", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "repository_root": { "type": "string", "minLength": 1, "maxLength": 4096, "description": "Authoritative repository root for init preview.", "x-data-class": "public" },
+    "status": { "type": "string", "enum": ["noop", "ready_for_apply", "blocked_conflict", "blocked_remediation_only"], "description": "Initialization preview status.", "x-data-class": "public" },
+    "reason_codes": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "Stable reason codes explaining blocked state.",
+      "x-data-class": "public",
+      "items": { "type": "string", "minLength": 1, "maxLength": 96, "pattern": "^[a-z0-9_]+$", "description": "Deterministic init reason code.", "x-data-class": "public" }
+    },
+    "current_snapshot": { "$ref": "ProjectSubstrateValidationSnapshot.schema.json", "description": "Current discovered project substrate snapshot.", "x-data-class": "public" },
+    "expected_snapshot": { "$ref": "ProjectSubstrateValidationSnapshot.schema.json", "description": "Expected snapshot after successful initialization apply.", "x-data-class": "public" },
+    "file_changes": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "Previewed canonical file/directory changes for initialization.",
+      "x-data-class": "public",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "maxProperties": 4,
+        "required": ["path", "action"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Repository-relative path.", "x-data-class": "public" },
+          "action": { "type": "string", "enum": ["create_file", "create_directory", "update"], "description": "Planned initialization change action.", "x-data-class": "public" },
+          "before_content_sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Optional pre-init content digest.", "x-data-class": "public" },
+          "after_content_sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Optional post-init content digest.", "x-data-class": "public" }
+        }
+      }
+    },
+    "conflicting_paths": {
+      "type": "array",
+      "maxItems": 64,
+      "description": "Repository-relative conflicting paths that block initialization.",
+      "x-data-class": "public",
+      "items": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Conflicting path.", "x-data-class": "public" }
+    },
+    "required_follow_up": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "Stable remediation guidance when initialization is blocked.",
+      "x-data-class": "public",
+      "items": { "type": "string", "minLength": 1, "maxLength": 96, "pattern": "^[a-z0-9_]+$", "description": "Required follow-up guidance code.", "x-data-class": "public" }
+    },
+    "preview_token": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Deterministic preview token that must match apply intent.", "x-data-class": "public" }
+  }
+}

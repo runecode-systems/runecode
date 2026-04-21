@@ -2,6 +2,8 @@ package brokerapi
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -25,10 +27,32 @@ func TestRunnerResultReportPersistsGateEvidenceArtifactAndLinksRunAdvisory(t *te
 	if !ok || !strings.HasPrefix(gateEvidenceRef, "sha256:") {
 		t.Fatalf("gate_evidence_ref = %v, want digest identity", lastResult["gate_evidence_ref"])
 	}
+	evidence := mustLoadGateEvidenceArtifact(t, s, gateEvidenceRef)
+	if got, _ := evidence["project_context_identity_digest"].(string); got == "" {
+		t.Fatal("gate evidence project_context_identity_digest missing")
+	}
+}
+
+func mustLoadGateEvidenceArtifact(t *testing.T, s *Service, gateEvidenceRef string) map[string]any {
+	t.Helper()
 	rec, err := s.Head(gateEvidenceRef)
 	if err != nil || rec.Reference.DataClass != artifacts.DataClassGateEvidence {
 		t.Fatalf("unexpected gate evidence head: rec=%+v err=%v", rec, err)
 	}
+	r, err := s.Get(gateEvidenceRef)
+	if err != nil {
+		t.Fatalf("Get(gate_evidence_ref) returned error: %v", err)
+	}
+	defer r.Close()
+	body, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("ReadAll(gate evidence) returned error: %v", err)
+	}
+	var evidence map[string]any
+	if err := json.Unmarshal(body, &evidence); err != nil {
+		t.Fatalf("Unmarshal(gate evidence) returned error: %v", err)
+	}
+	return evidence
 }
 
 func TestRunnerResultReportRejectsMalformedGateEvidenceFailClosed(t *testing.T) {

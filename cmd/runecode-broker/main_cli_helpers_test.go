@@ -401,7 +401,12 @@ func setBrokerServiceForTest(t *testing.T) string {
 	seedBrokerSecretsReadinessState(t, secretsRoot)
 	t.Setenv("RUNE_SECRETS_STATE_ROOT", secretsRoot)
 	brokerServiceFactory = func(_ brokerServiceRoots) (*brokerapi.Service, error) {
-		return brokerapi.NewService(root, filepath.Join(root, "audit-ledger"))
+		wd, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		repoRoot := filepath.Clean(filepath.Join(wd, "..", ".."))
+		return brokerapi.NewServiceWithConfig(root, filepath.Join(root, "audit-ledger"), brokerapi.APIConfig{RepositoryRoot: repoRoot})
 	}
 	t.Cleanup(func() {
 		brokerServiceFactory = newBrokerService

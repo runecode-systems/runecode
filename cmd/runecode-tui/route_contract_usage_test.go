@@ -21,7 +21,7 @@ var routeActivationCaseData = []routeActivationCase{
 		newModel: func(client localBrokerClient) routeModel {
 			return newDashboardRouteModel(routeDefinition{ID: routeDashboard, Label: "Dashboard"}, client)
 		},
-		expected: []string{"ReadinessGet", "VersionInfoGet", "RunList", "ApprovalList", "AuditVerificationGet"},
+		expected: []string{"ReadinessGet", "VersionInfoGet", "ProjectSubstratePostureGet", "RunList", "ApprovalList", "AuditVerificationGet"},
 	},
 	{
 		name:    "chat uses typed session contracts",
@@ -77,7 +77,7 @@ var routeActivationCaseData = []routeActivationCase{
 		newModel: func(client localBrokerClient) routeModel {
 			return newStatusRouteModel(routeDefinition{ID: routeStatus, Label: "Status"}, client)
 		},
-		expected: []string{"ReadinessGet", "VersionInfoGet", "BackendPostureGet"},
+		expected: []string{"ReadinessGet", "VersionInfoGet", "ProjectSubstratePostureGet", "BackendPostureGet"},
 	},
 	{
 		name:    "model providers uses typed setup and inspection contracts",

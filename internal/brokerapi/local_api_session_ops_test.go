@@ -81,7 +81,7 @@ func TestSessionSendMessageReturnsTypedAckAndSupportsIdempotency(t *testing.T) {
 
 func TestSessionSendMessageDurableAcrossBrokerRestart(t *testing.T) {
 	root := t.TempDir()
-	svc, err := NewServiceWithConfig(root, root+"/audit-ledger", APIConfig{})
+	svc, err := NewServiceWithConfig(root, root+"/audit-ledger", APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestSessionSendMessageDurableAcrossBrokerRestart(t *testing.T) {
 		t.Fatalf("seq = %d, want 1", ack.Seq)
 	}
 
-	restarted, err := NewServiceWithConfig(root, root+"/audit-ledger", APIConfig{})
+	restarted, err := NewServiceWithConfig(root, root+"/audit-ledger", APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig(restart) returned error: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestSessionSendMessageIdempotencyRejectsPayloadMismatch(t *testing.T) {
 func TestSessionSendMessageVisibleViaSessionGetAndPersistsAcrossRestart(t *testing.T) {
 	root := t.TempDir()
 	ledgerRoot := root + "/audit-ledger"
-	first, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	first, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestSessionSendMessageVisibleViaSessionGetAndPersistsAcrossRestart(t *testi
 	get1 := mustSessionGet(t, first, "req-session-restart-get-1", "sess-restart")
 	assertSessionGetLastMessageContent(t, get1, "persist me", 1)
 
-	restarted, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	restarted, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig(restart) returned error: %v", err)
 	}

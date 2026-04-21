@@ -938,6 +938,168 @@
       "status": "mvp"
     },
     {
+      "path": "objects/ProjectSubstrateContractState.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateContractState",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstratePostureGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstratePostureGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstratePostureGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstratePostureGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateAdoptRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateAdoptRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateAdoptResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateAdoptResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateAdoptionResult.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateAdoptionResult",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateInitPreview.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateInitPreview",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateInitPreviewRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateInitPreviewRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateInitPreviewResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateInitPreviewResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateInitApplyRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateInitApplyRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateInitApplyResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateInitApplyResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateInitApplyResult.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateInitApplyResult",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateUpgradePreview.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateUpgradePreview",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateUpgradePreviewRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateUpgradePreviewRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateUpgradePreviewResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateUpgradePreviewResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateUpgradeApplyRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateUpgradeApplyRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateUpgradeApplyResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateUpgradeApplyResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstrateUpgradeApplyResult.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateUpgradeApplyResult",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectSubstratePostureSummary.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstratePostureSummary",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProjectLifecycleOperatorDecisionPath.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectLifecycleOperatorDecisionPath",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "reserved",
+      "note": "Reserved broker-owned typed operator-decision path projection for future dashboard/equivalent RuneCode prompt UX; this surface is explicitly non-authoritative and remains subordinate to shared posture, mutation, approval, and hard-floor contracts."
+    },
+    {
+      "path": "objects/ProjectSubstrateValidationSnapshot.schema.json",
+      "schema_id": "runecode.protocol.v0.ProjectSubstrateValidationSnapshot",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/BrokerVersionInfo.schema.json",
       "schema_id": "runecode.protocol.v0.BrokerVersionInfo",
       "schema_version": "0.1.0",

@@ -155,6 +155,7 @@ This quick path verifies signed checksums and the signed archive before install.
 - Store-layer atomic persistence for canonical approval records plus runner-advisory approval mirrors, with rollback that restores durable runner journal/snapshot state consistently on failure
 - A trusted local audit ledger with append/seal persistence, segment recovery, digest-addressed sidecar evidence, explicit audit anchoring over signed segment seals, readiness evaluation, audit verification reports, and broker/TUI-facing audit verification, record inspection, anchoring, and readiness surfaces
 - A broker local API with fail-closed local auth, schema-validated typed operations for runs, approvals, artifacts, audit timeline and record inspection, audit anchor presence and action flows, readiness, version info, and backend posture, plus uniform log and artifact read streaming semantics
+- A broker-owned project-substrate lifecycle for canonical RuneContext repositories, including discovery and validation of repo-root `runecontext.yaml` plus `runecontext/` anchors, compatibility posture evaluation, read-only adoption of existing compatible substrate, explicit init and upgrade preview/apply flows, auditable apply results, and validated snapshot digests for later planning, audit, and verification binding
 - A trusted full-screen TUI workbench that launches in alt-screen mode, keeps sidebar/main/inspector composition in the shell, supports multi-session workspace navigation and quick switching, exposes an object-aware palette plus Action Center, derives live activity and sync health from typed watch families, preserves ordinary terminal selection alongside explicit copy actions, and persists layout/theme/session convenience state locally without promoting it to control-plane authority
 - A trusted local secrets daemon with durable secret import plus short-lived lease issue/renew/revoke/retrieve flows, fail-closed recovery, and secret-safe onboarding that avoids CLI-arg or environment-variable transport
 - A shared provider substrate with durable broker-owned provider profiles, explicit auth-material separation, stable provider-profile identity across credential rotation and validation retries, and broker-projected readiness plus compatibility posture
@@ -193,13 +194,14 @@ Current MVP object families cover:
 - identity and content addressing: `PrincipalIdentity`, `Digest`, `ArtifactReference`, `ArtifactPolicy`, `ProvenanceReceipt`
 - secrets custody and posture: `SecretLease`, `SecretStoragePosture`
 - provider substrate and setup lifecycle: `ProviderProfile`, `ProviderAuthMaterial`, `ProviderModelCatalogPosture`, `ProviderReadinessPosture`, `ProviderSetupSession`, `ProviderSetupSessionBeginRequest`, `ProviderSetupSessionBeginResponse`, `ProviderSetupSecretIngressPrepareRequest`, `ProviderSetupSecretIngressPrepareResponse`, `ProviderSetupSecretIngressSubmitRequest`, `ProviderSetupSecretIngressSubmitResponse`, `ProviderValidationBeginRequest`, `ProviderValidationBeginResponse`, `ProviderValidationCommitRequest`, `ProviderValidationCommitResponse`, `ProviderCredentialLeaseIssueRequest`, `ProviderCredentialLeaseIssueResponse`
+- project substrate contract and lifecycle: `ProjectSubstrateContractState`, `ProjectSubstrateValidationSnapshot`, `ProjectSubstratePostureSummary`, `ProjectLifecycleOperatorDecisionPath`, `ProjectSubstrateAdoptionResult`, `ProjectSubstrateInitPreview`, `ProjectSubstrateInitApplyResult`, `ProjectSubstrateUpgradePreview`, `ProjectSubstrateUpgradeApplyResult`
 - audit, approvals, and policy: `AuditEvent`, `AuditReceipt`, `AuditSegmentFile`, `AuditSegmentSeal`, `AuditVerificationReport`, `ApprovalRequest`, `ApprovalDecision`, `ApprovalBackendPostureSelection`, `PolicyDecision`, `PolicyRuleSet`, `PolicyAllowlist`
 - workflow planning and deterministic gates: `WorkflowDefinition`, `ProcessDefinition`, `RunPlan`, `GateDefinition`, `GateContract`, `RunnerCheckpointReport`, `RunnerResultReport`, `GateCheckpointReport`, `GateResultReport`, `GateEvidence`
 - stage summaries and sign-off payloads: `StageSummary`, `RunStageSummary`, `ActionPayloadStageSummarySignOff`
 - runtime evidence and session lifecycle payloads: `RuntimeImageDescriptor`, `IsolateSessionStartedPayload`, `IsolateSessionBoundPayload`
 - policy actions and destinations: `ActionRequest`, `ActionPayloadArtifactRead`, `ActionPayloadPromotion`, `ActionPayloadGatewayEgress`, `ActionPayloadSecretAccess`, `ActionPayloadWorkspaceWrite`, `ActionPayloadExecutorRun`, `ActionPayloadBackendPostureChange`, `ActionPayloadGateOverride`, `ActionPayloadStageSummarySignOff`, `DestinationDescriptor`, `GatewayScopeRule`
 - model traffic: `LLMRequest`, `LLMResponse`, `LLMStreamEvent`, `LLMInvokeRequest`, `LLMInvokeResponse`, `LLMStreamRequest`, `LLMStreamEnvelope`
-- broker local API requests/responses: `RunListRequest`, `RunGetRequest`, `ApprovalListRequest`, `ApprovalGetRequest`, `ApprovalResolveRequest`, `BackendPostureGetRequest`, `BackendPostureChangeRequest`, `ArtifactListRequest`, `ArtifactHeadRequest`, `ArtifactReadRequest`, `AuditTimelineRequest`, `AuditRecordGetRequest`, `AuditVerificationGetRequest`, `AuditAnchorPresenceGetRequest`, `AuditAnchorPreflightGetRequest`, `AuditAnchorPreflightGetResponse`, `AuditAnchorSegmentRequest`, `AuditFinalizeVerifyRequest`, `AuditFinalizeVerifyResponse`, `ReadinessGetRequest`, `VersionInfoGetRequest`
+- broker local API requests/responses: `RunListRequest`, `RunGetRequest`, `ApprovalListRequest`, `ApprovalGetRequest`, `ApprovalResolveRequest`, `BackendPostureGetRequest`, `BackendPostureChangeRequest`, `ArtifactListRequest`, `ArtifactHeadRequest`, `ArtifactReadRequest`, `AuditTimelineRequest`, `AuditRecordGetRequest`, `AuditVerificationGetRequest`, `AuditAnchorPresenceGetRequest`, `AuditAnchorPreflightGetRequest`, `AuditAnchorPreflightGetResponse`, `AuditAnchorSegmentRequest`, `AuditFinalizeVerifyRequest`, `AuditFinalizeVerifyResponse`, `ProjectSubstrateGetRequest`, `ProjectSubstrateGetResponse`, `ProjectSubstratePostureGetRequest`, `ProjectSubstratePostureGetResponse`, `ProjectSubstrateAdoptRequest`, `ProjectSubstrateAdoptResponse`, `ProjectSubstrateInitPreviewRequest`, `ProjectSubstrateInitPreviewResponse`, `ProjectSubstrateInitApplyRequest`, `ProjectSubstrateInitApplyResponse`, `ProjectSubstrateUpgradePreviewRequest`, `ProjectSubstrateUpgradePreviewResponse`, `ProjectSubstrateUpgradeApplyRequest`, `ProjectSubstrateUpgradeApplyResponse`, `ReadinessGetRequest`, `VersionInfoGetRequest`
 - broker local API read models: `RunSummary`, `RunDetail`, `RunStageSummary`, `RunRoleSummary`, `RunCoordinationSummary`, `ApprovalSummary`, `ApprovalBoundScope`, `BackendPostureState`, `BackendPostureAvailability`, `ArtifactSummary`, `BrokerReadiness`, `BrokerVersionInfo`
 - broker local API streams and error envelopes: `LogStreamEvent`, `ArtifactStreamEvent`, `BrokerErrorResponse`
 - wrappers and shared errors: `SignedObjectEnvelope`, `Error`
@@ -217,6 +219,13 @@ Canonical release-builder commands:
 ```sh
 nix build --no-link .#release-artifacts
 nix eval --raw .#lib.release.tag
+```
+
+If `nix build .#release-artifacts` reports a replacement `vendorHash`, refresh it explicitly:
+
+```sh
+just refresh-release-vendor-hash
+go run ./tools/releasebuilder refresh-vendor-hash
 ```
 
 Common commands:
@@ -269,9 +278,10 @@ Alongside that still-incremental surface, the repository already includes workin
 - canonicalization/hash golden tests
 - runner trust-boundary static checks
 - a trusted full-screen `runecode-tui` workbench with dashboard/chat/runs/approvals/Action Center/artifacts/audit/status/model-providers/git-setup/git-remote routes, shell-owned pane composition, session quick switching, typed watch-backed live activity, selection-mode copy ergonomics, broker-owned direct-credential provider setup with masked secret entry, and local-only layout/theme persistence
+- the TUI status route now surfaces broker-owned project-substrate posture plus adopt, init, and upgrade actions without making the TUI itself authoritative
 - a trusted local artifact store and broker CLI for artifact put/get/head/list, flow checks, excerpt promotion and revocation, run-status updates, GC, and backup/restore
 - a trusted local audit ledger plus broker/auditd CLI surfaces for audit readiness, audit verification inspection, audit record inspection, and explicit audit anchoring over signed segment seals
-- a broker local IPC API and CLI read/action surfaces for run list/detail, approval list/detail/resolve, policy-backed artifact reads, audit timeline/record inspection, audit anchoring presence/action, audit verification/readiness, version inspection, structured log streaming, broker-projected backend posture get/change operations, provider profile list/get, provider setup session and secret-ingress flows, provider validation lifecycle operations, and provider credential lease issuance
+- a broker local IPC API and CLI read/action surfaces for run list/detail, approval list/detail/resolve, policy-backed artifact reads, audit timeline/record inspection, audit anchoring presence/action, audit verification/readiness, version inspection, structured log streaming, broker-projected backend posture get/change operations, project-substrate posture/get/adopt/init/upgrade operations, provider profile list/get, provider setup session and secret-ingress flows, provider validation lifecycle operations, and provider credential lease issuance
 - a trusted local secrets daemon CLI for secret import and short-lived lease issue/renew/revoke/retrieve flows without passing secret values through CLI args or environment variables
 - broker-projected secrets and model-gateway readiness surfaces plus model-gateway runtime enforcement for allowlisted destinations, canonical request binding, quota admission/stream checks, and audit-backed egress decisions
 - a trusted launcher service with `serve`, `--once`, Linux-first `--hello-world` operator paths, and a Linux-only explicit-opt-in container backend posture for offline `workspace` launches
@@ -307,6 +317,13 @@ go run ./cmd/runecode-broker audit-readiness --help
 go run ./cmd/runecode-broker provider-setup-direct --help
 go run ./cmd/runecode-broker provider-profile-list --help
 go run ./cmd/runecode-broker provider-profile-get --help
+go run ./cmd/runecode-broker project-substrate-get --help
+go run ./cmd/runecode-broker project-substrate-posture-get --help
+go run ./cmd/runecode-broker project-substrate-adopt --help
+go run ./cmd/runecode-broker project-substrate-init-preview --help
+go run ./cmd/runecode-broker project-substrate-init-apply --help
+go run ./cmd/runecode-broker project-substrate-upgrade-preview --help
+go run ./cmd/runecode-broker project-substrate-upgrade-apply --help
 go run ./cmd/runecode-broker version-info --help
 go run ./cmd/runecode-broker stream-logs --help
 ```

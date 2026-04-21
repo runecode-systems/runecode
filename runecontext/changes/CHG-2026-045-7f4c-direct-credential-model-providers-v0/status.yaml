@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-045-7f4c-direct-credential-model-providers-v0
 title: Direct Credential Model Providers v0
-status: planned
+status: implemented
 type: feature
 size: large
 verification_status: pending

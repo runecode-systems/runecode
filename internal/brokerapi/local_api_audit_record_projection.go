@@ -1,6 +1,10 @@
 package brokerapi
 
-import "github.com/runecode-ai/runecode/internal/trustpolicy"
+import (
+	"strings"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
+)
 
 func (s *Service) projectAuditRecordDetail(recordIdentity string, envelope trustpolicy.SignedObjectEnvelope) (AuditRecordDetail, error) {
 	view, viewDigest, detail, err := baseProjectedAuditRecordDetail(recordIdentity, envelope)
@@ -15,6 +19,7 @@ func (s *Service) projectAuditRecordDetail(recordIdentity string, envelope trust
 		detail.VerificationPosture = posture
 		detail.LinkedReferences = append(detail.LinkedReferences, verificationReasonRefs(reasons)...)
 	}
+	detail.ProjectContextID = strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest)
 	detail.LinkedReferences = dedupeAuditRecordReferences(detail.LinkedReferences)
 	return detail, nil
 }

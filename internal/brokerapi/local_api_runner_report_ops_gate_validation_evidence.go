@@ -49,6 +49,9 @@ func validateGateEvidenceCoreFields(evidence *GateEvidence) error {
 	if !isGateKind(evidence.GateKind) {
 		return fmt.Errorf("gate_evidence has unsupported gate_kind %q", evidence.GateKind)
 	}
+	if evidence.ProjectContextID != "" && !isValidDigestIdentity(evidence.ProjectContextID) {
+		return fmt.Errorf("gate_evidence.project_context_identity_digest must be digest identity")
+	}
 	if err := validateGateEvidenceTimes(evidence); err != nil {
 		return err
 	}

@@ -23,6 +23,7 @@ func assertReservedStatuses(t *testing.T, manifest manifestFile) {
 	t.Helper()
 	assertSchemaStatus(t, manifest, "runecode.protocol.v0.WorkflowDefinition", "mvp")
 	assertSchemaStatus(t, manifest, "runecode.protocol.v0.ProcessDefinition", "mvp")
+	assertReservedStatus(t, manifest, "runecode.protocol.v0.ProjectLifecycleOperatorDecisionPath")
 }
 
 func TestWorkflowAndProcessDefinitionsRequireExplicitGateDefinitions(t *testing.T) {

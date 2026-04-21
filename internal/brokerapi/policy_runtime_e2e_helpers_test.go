@@ -18,7 +18,7 @@ func newPersistentBrokerServiceForE2ETest(t *testing.T) (string, string, *Servic
 	if err := seedLedgerForBrokerSurfaceTest(ledgerRoot); err != nil {
 		t.Fatalf("seedLedgerForBrokerSurfaceTest returned error: %v", err)
 	}
-	s, err := NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{})
+	s, err := NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
@@ -27,7 +27,7 @@ func newPersistentBrokerServiceForE2ETest(t *testing.T) (string, string, *Servic
 
 func reopenPersistentBrokerServiceForE2ETest(t *testing.T, storeRoot, ledgerRoot string) *Service {
 	t.Helper()
-	s, err := NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{})
+	s, err := NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}

@@ -5,6 +5,7 @@ title: RuneContext as Canonical Planning and Standards System
 originating_changes:
   - CHG-2026-001-57d6-agent-os-to-runecontext-migration-umbrella
 related_changes:
+  - CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0
   - CHG-2026-002-33c5-git-gateway-commit-push-pr
   - CHG-2026-003-b567-audit-log-v0-verify
   - CHG-2026-004-acdb-artifact-store-data-classes-v0

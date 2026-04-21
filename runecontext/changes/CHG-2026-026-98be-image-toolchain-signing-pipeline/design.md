@@ -9,6 +9,7 @@ Define the signing and verification pipeline for isolate images and toolchains w
 - Signing and launch enforcement should operate on a digest-addressed `RuntimeImageDescriptor` rather than mutable tags, loose file paths, or ad hoc per-platform boot references.
 - Verification and audit should record both the descriptor digest and the concrete boot component digests actually used.
 - The image descriptor model should preserve hooks for later attestation/measurement evidence rather than requiring another image-identity rewrite.
+- Runtime image identity remains distinct from validated project-substrate identity; later verification or audit flows may bind both, but this change must not collapse runtime identity into project-context identity.
 
 ## Main Workstreams
 - Signing Key Hierarchy

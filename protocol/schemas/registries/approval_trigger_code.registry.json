@@ -44,6 +44,10 @@
     {
       "code": "excerpt_promotion",
       "summary": "Promoting unapproved excerpts into approved excerpts requires explicit human approval artifacts."
+    },
+    {
+      "code": "project_lifecycle_apply",
+      "summary": "High-risk or policy-gated project lifecycle apply operations (for example substrate initialization, upgrade, or remediation apply) must reuse the shared approval model instead of a setup-only lane."
     }
   ]
 }

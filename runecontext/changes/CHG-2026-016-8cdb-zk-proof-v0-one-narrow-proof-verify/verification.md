@@ -10,6 +10,7 @@
 - Confirm canonical references remain on RuneContext project, spec, and change paths, with no active workflow depending on legacy planning paths.
 - Confirm the migrated text assumes RuneContext is canonical, RuneCode owns the user-facing UX, and verified-mode project state remains the expected operating posture.
 - Confirm the change still matches its `v0.1.0-alpha.10` roadmap bucket and title after migration.
+- Confirm any project-context-sensitive proof statement binds validated project-substrate snapshot identity rather than ambient repository assumptions.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

@@ -12,6 +12,7 @@ type statusLoadedMsg struct {
 	readiness brokerapi.BrokerReadiness
 	version   brokerapi.BrokerVersionInfo
 	posture   brokerapi.BackendPostureState
+	project   brokerapi.ProjectSubstratePostureGetResponse
 	err       error
 	seq       uint64
 }
@@ -21,15 +22,26 @@ type postureChangedMsg struct {
 	err  error
 }
 
+type projectSubstrateActionResultMsg struct {
+	status string
+	err    error
+}
+
+const statusRouteKeyHintText = "Route keys: r reload, c request backend posture change, a adopt substrate, i init preview, I init apply, u upgrade preview, U upgrade apply"
+
+const projectSubstrateHandleAcquiredText = "<acquired>"
+
 type statusRouteModel struct {
-	def      routeDefinition
-	client   localBrokerClient
-	loading  bool
-	changing bool
-	errText  string
-	status   string
-	data     statusLoadedMsg
-	loadSeq  uint64
+	def       routeDefinition
+	client    localBrokerClient
+	loading   bool
+	changing  bool
+	actioning bool
+	actionMsg string
+	errText   string
+	status    string
+	data      statusLoadedMsg
+	loadSeq   uint64
 }
 
 func newStatusRouteModel(def routeDefinition, client localBrokerClient) routeModel {
@@ -50,6 +62,8 @@ func (m statusRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		return m.handleStatusLoaded(typed)
 	case postureChangedMsg:
 		return m.handlePostureChanged(typed)
+	case projectSubstrateActionResultMsg:
+		return m.handleProjectSubstrateActionResult(typed)
 	default:
 		return m, nil
 	}
@@ -64,21 +78,25 @@ func (m statusRouteModel) handleRouteActivated(msg routeActivatedMsg) (routeMode
 }
 
 func (m statusRouteModel) handleKeyMsg(msg tea.KeyMsg) (routeModel, tea.Cmd) {
-	switch msg.String() {
-	case "r":
+	key := msg.String()
+	if key == "r" {
 		m = m.beginLoad()
 		return m, m.loadCmd(m.loadSeq)
-	case "c":
-		if m.changing || m.loading {
-			return m, nil
-		}
-		m.changing = true
-		m.errText = ""
-		m.status = ""
-		return m, m.changeCmd()
-	default:
+	}
+	if key == "c" {
+		return m.beginBackendPostureChange()
+	}
+	return m.beginProjectSubstrateAction(key)
+}
+
+func (m statusRouteModel) beginBackendPostureChange() (routeModel, tea.Cmd) {
+	if m.changing || m.loading || m.actioning {
 		return m, nil
 	}
+	m.changing = true
+	m.errText = ""
+	m.status = ""
+	return m, m.changeCmd()
 }
 
 func (m statusRouteModel) handleStatusLoaded(msg statusLoadedMsg) (routeModel, tea.Cmd) {
@@ -117,6 +135,20 @@ func (m statusRouteModel) handlePostureChanged(msg postureChangedMsg) (routeMode
 	return m, m.loadCmd(m.loadSeq)
 }
 
+func (m statusRouteModel) handleProjectSubstrateActionResult(msg projectSubstrateActionResultMsg) (routeModel, tea.Cmd) {
+	m.actioning = false
+	m.actionMsg = ""
+	if msg.err != nil {
+		m.errText = safeUIErrorText(msg.err)
+		m.status = ""
+		return m, nil
+	}
+	m.errText = ""
+	m.status = msg.status
+	m = m.beginLoad()
+	return m, m.loadCmd(m.loadSeq)
+}
+
 func (m statusRouteModel) beginLoad() statusRouteModel {
 	m.loading = true
 	m.errText = ""
@@ -133,6 +165,9 @@ func (m statusRouteModel) View(width, height int, focus focusArea) string {
 	if m.changing {
 		return renderStateCard(routeLoadStateLoading, "Status", "Submitting backend posture change through broker local API...")
 	}
+	if m.actioning {
+		return renderStateCard(routeLoadStateLoading, "Status", valueOrNA(strings.TrimSpace(m.actionMsg)))
+	}
 	if m.errText != "" {
 		return renderStateCard(routeLoadStateError, "Status", "Load failed: "+m.errText+" (press r to retry)")
 	}
@@ -148,9 +183,11 @@ func (m statusRouteModel) View(width, height int, focus focusArea) string {
 		diagnostics,
 		fmt.Sprintf("Version posture: product=%s revision=%s build=%s", v.ProductVersion, v.BuildRevision, v.BuildTime),
 		fmt.Sprintf("Protocol posture: bundle=%s manifest=%s api=%s/%s", v.ProtocolBundleVersion, v.ProtocolBundleManifestHash, v.APIFamily, v.APIVersion),
+		renderProjectSubstrateStatusLine(m.data.project),
+		renderProjectSubstrateGuidance(m.data.project),
 		renderBackendPostureLine(m.data.posture),
 		m.status,
-		keyHint("Route keys: r reload, c request backend posture change"),
+		keyHint(statusRouteKeyHintText),
 	)
 }
 
@@ -164,7 +201,7 @@ func (m statusRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 	return routeSurface{
 		Regions: routeSurfaceRegions{
 			Main:   routeSurfaceRegion{Title: "System status", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
-			Bottom: routeSurfaceRegion{Body: keyHint("Route keys: r reload, c request backend posture change")},
+			Bottom: routeSurfaceRegion{Body: keyHint(statusRouteKeyHintText)},
 			Status: routeSurfaceRegion{Body: status},
 		},
 		Capabilities: routeSurfaceCapabilities{},
@@ -220,6 +257,39 @@ func renderReadinessDiagnostics(r brokerapi.BrokerReadiness) string {
 	return fmt.Sprintf("Diagnostics: degraded subsystems=%s", joinCSV(issues))
 }
 
+func renderProjectSubstrateStatusLine(posture brokerapi.ProjectSubstratePostureGetResponse) string {
+	summary := posture.PostureSummary
+	if strings.TrimSpace(summary.SchemaID) == "" {
+		return "Project substrate posture: unavailable"
+	}
+	return fmt.Sprintf(
+		"Project substrate posture: state=%s compatibility=%s normal_operation_allowed=%t",
+		valueOrNA(summary.ValidationState),
+		valueOrNA(summary.CompatibilityPosture),
+		summary.NormalOperationAllowed,
+	)
+}
+
+func renderProjectSubstrateGuidance(posture brokerapi.ProjectSubstratePostureGetResponse) string {
+	parts := []string{}
+	if strings.TrimSpace(posture.BlockedExplanation) != "" {
+		parts = append(parts, "Project substrate block: "+sanitizeUIText(posture.BlockedExplanation))
+	}
+	if len(posture.RemediationGuidance) > 0 {
+		parts = append(parts, "Project substrate remediation: "+joinCSV(posture.RemediationGuidance))
+	}
+	if strings.TrimSpace(posture.InitPreview.Status) != "" {
+		parts = append(parts, fmt.Sprintf("Project substrate init: status=%s", posture.InitPreview.Status))
+	}
+	if strings.TrimSpace(posture.UpgradePreview.Status) != "" {
+		parts = append(parts, fmt.Sprintf("Project substrate upgrade: status=%s", posture.UpgradePreview.Status))
+	}
+	if len(parts) == 0 {
+		return "Project substrate guidance: none"
+	}
+	return compactLines(parts...)
+}
+
 func (m statusRouteModel) loadCmd(seq uint64) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := withLoadTimeout()
@@ -232,11 +302,15 @@ func (m statusRouteModel) loadCmd(seq uint64) tea.Cmd {
 		if err != nil {
 			return statusLoadedMsg{err: err, seq: seq}
 		}
+		projectResp, err := m.client.ProjectSubstratePostureGet(ctx)
+		if err != nil {
+			return statusLoadedMsg{err: err, seq: seq}
+		}
 		postureResp, err := m.client.BackendPostureGet(ctx)
 		if err != nil {
 			return statusLoadedMsg{err: err, seq: seq}
 		}
-		return statusLoadedMsg{readiness: readinessResp.Readiness, version: versionResp.VersionInfo, posture: postureResp.Posture, seq: seq}
+		return statusLoadedMsg{readiness: readinessResp.Readiness, version: versionResp.VersionInfo, posture: postureResp.Posture, project: projectResp, seq: seq}
 	}
 }
 

@@ -15,6 +15,7 @@
 - Confirm the change explicitly decides whether external anchor submission is an approved automated posture or an exact-action approval boundary per submission.
 - Confirm authenticated target access, if any, remains lease-bound through the shared secrets model.
 - Confirm audit evidence includes canonical target identity, anchoring subject identity, outbound payload or subject hash, bytes, timing, outcome, and relevant lease or policy bindings.
+- Confirm project-context-sensitive anchored evidence reuses validated project-substrate snapshot identity rather than inventing a second project-context reference.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

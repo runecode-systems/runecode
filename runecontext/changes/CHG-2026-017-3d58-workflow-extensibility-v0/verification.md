@@ -13,6 +13,8 @@
 - Confirm the change now builds on `CHG-2026-050-e3f8-workflow-definition-contract-binding-v0` rather than redefining contract-first workflow semantics.
 - Confirm generic authoring and review remain deterministic and do not become a second source of authoritative workflow truth.
 - Confirm shared-memory accelerators remain derived-only and non-authoritative.
+- Confirm generic authoring reuses the shared validated project-substrate snapshot-binding model where project context is relevant.
+- Confirm custom authoring does not invent alternate project discovery, init, adopt, or upgrade semantics.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

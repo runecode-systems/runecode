@@ -22,7 +22,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return usageError{err: fmt.Errorf("expected subcommand: zip or manifest")}
+		return usageError{err: fmt.Errorf("expected subcommand: zip, manifest, or refresh-vendor-hash")}
 	}
 
 	switch args[0] {
@@ -30,6 +30,8 @@ func run(args []string) error {
 		return runZip(args[1:])
 	case "manifest":
 		return runManifest(args[1:])
+	case "refresh-vendor-hash":
+		return runRefreshVendorHash(args[1:])
 	default:
 		return usageError{err: fmt.Errorf("unknown subcommand %q", args[0])}
 	}

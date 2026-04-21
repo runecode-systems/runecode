@@ -3,6 +3,7 @@ package brokerapi
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 )
@@ -56,12 +57,26 @@ func validateGateEvidenceReportBinding(runID string, report RunnerResultReport, 
 }
 
 func buildGateEvidenceRecord(report RunnerResultReport, evidence *GateEvidence, runtimeSummary map[string]any, outcomeSummary map[string]any, planned runPlannedGateEntry) artifacts.GateEvidenceArtifact {
-	evidenceRecord := artifacts.GateEvidenceArtifact{
+	evidenceRecord := gateEvidenceRecordBase(evidence, runtimeSummary, outcomeSummary)
+	if report.PlanCheckpointCode != "" {
+		evidenceRecord.PlanCheckpointCode = report.PlanCheckpointCode
+		evidenceRecord.PlanOrderIndex = report.PlanOrderIndex
+	}
+	if planned.MaxAttempts > 0 {
+		evidenceRecord.Runtime["planned_retry_max_attempts"] = planned.MaxAttempts
+	}
+	applyGateEvidenceProjectContext(&evidenceRecord, runtimeSummary, planned)
+	return evidenceRecord
+}
+
+func gateEvidenceRecordBase(evidence *GateEvidence, runtimeSummary map[string]any, outcomeSummary map[string]any) artifacts.GateEvidenceArtifact {
+	return artifacts.GateEvidenceArtifact{
 		SchemaID:               evidence.SchemaID,
 		SchemaVersion:          evidence.SchemaVersion,
 		GateID:                 evidence.GateID,
 		GateKind:               evidence.GateKind,
 		GateVersion:            evidence.GateVersion,
+		ProjectContextID:       evidence.ProjectContextID,
 		PlanCheckpointCode:     evidence.PlanCheckpointCode,
 		PlanOrderIndex:         evidence.PlanOrderIndex,
 		RunID:                  evidence.RunID,
@@ -81,14 +96,20 @@ func buildGateEvidenceRecord(report RunnerResultReport, evidence *GateEvidence, 
 		OverriddenFailedRef:    evidence.OverriddenFailedResultRef,
 		FailureReasonCode:      evidence.FailureReasonCode,
 	}
-	if report.PlanCheckpointCode != "" {
-		evidenceRecord.PlanCheckpointCode = report.PlanCheckpointCode
-		evidenceRecord.PlanOrderIndex = report.PlanOrderIndex
+}
+
+func applyGateEvidenceProjectContext(evidenceRecord *artifacts.GateEvidenceArtifact, runtimeSummary map[string]any, planned runPlannedGateEntry) {
+	if strings.TrimSpace(evidenceRecord.ProjectContextID) == "" {
+		evidenceRecord.ProjectContextID = strings.TrimSpace(planned.ProjectContextID)
 	}
-	if planned.MaxAttempts > 0 {
-		evidenceRecord.Runtime["planned_retry_max_attempts"] = planned.MaxAttempts
+	if strings.TrimSpace(evidenceRecord.ProjectContextID) == "" {
+		if value, ok := runtimeSummary["project_context_identity_digest"].(string); ok {
+			evidenceRecord.ProjectContextID = strings.TrimSpace(value)
+		}
 	}
-	return evidenceRecord
+	if strings.TrimSpace(evidenceRecord.ProjectContextID) != "" {
+		evidenceRecord.Runtime["project_context_identity_digest"] = strings.TrimSpace(evidenceRecord.ProjectContextID)
+	}
 }
 
 func canonicalGateEvidenceDigest(evidence artifacts.GateEvidenceArtifact) (string, error) {

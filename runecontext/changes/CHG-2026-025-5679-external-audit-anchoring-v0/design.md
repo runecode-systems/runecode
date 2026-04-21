@@ -21,6 +21,7 @@ Define typed external anchoring targets, receipt verification, and explicit egre
   - or an exact-action approval boundary for each outbound anchor submission
 - Whatever posture is chosen, it must be expressed through the shared policy and approval vocabulary rather than a target-local approval model.
 - Audit evidence should include canonical target identity, anchoring subject identity, outbound payload or subject hash, bytes, timing, outcome, and any lease or policy bindings needed to verify the outbound action.
+- When the anchored subject depends on project context, external anchoring should reuse the validated project-substrate snapshot identity already bound into the underlying audit evidence rather than inventing a second project-context reference.
 
 ## Main Workstreams
 - Later Anchor Target Model

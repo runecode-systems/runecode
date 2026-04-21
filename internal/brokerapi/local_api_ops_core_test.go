@@ -37,32 +37,54 @@ func assertRunListAndDetailForLocalOps(t *testing.T, s *Service) {
 
 func assertRunListSummaryForLocalOps(t *testing.T, runs []RunSummary) {
 	t.Helper()
+	assertRunListIdentityForLocalOps(t, runs)
+	assertRunListWorkflowBindingForLocalOps(t, runs[0])
+	assertRunListRuntimeDefaultsForLocalOps(t, runs[0])
+}
+
+func assertRunListIdentityForLocalOps(t *testing.T, runs []RunSummary) {
+	t.Helper()
 	if len(runs) != 1 || runs[0].RunID != "run-123" {
 		t.Fatalf("run list = %+v, want run-123", runs)
 	}
-	if runs[0].WorkspaceID != "workspace-local" {
-		t.Fatalf("workspace_id = %q, want workspace-local", runs[0].WorkspaceID)
+	if runs[0].WorkspaceID == "workspace-local" {
+		t.Fatalf("workspace_id = %q, want project-context-bound workspace id", runs[0].WorkspaceID)
 	}
-	if runs[0].WorkflowKind != "" {
-		t.Fatalf("workflow_kind = %q, want empty when broker has no trusted workflow kind", runs[0].WorkflowKind)
+	if runs[0].ProjectContextIdentity == "" {
+		t.Fatal("project_context_identity_digest empty, want validated digest")
 	}
-	if runs[0].WorkflowDefinitionHash == "" {
+	wantWorkspace := "workspace-" + strings.TrimPrefix(runs[0].ProjectContextIdentity, "sha256:")
+	if runs[0].WorkspaceID != wantWorkspace {
+		t.Fatalf("workspace_id = %q, want %q bound from project context digest", runs[0].WorkspaceID, wantWorkspace)
+	}
+}
+
+func assertRunListWorkflowBindingForLocalOps(t *testing.T, summary RunSummary) {
+	t.Helper()
+	if summary.WorkflowKind != "" {
+		t.Fatalf("workflow_kind = %q, want empty when broker has no trusted workflow kind", summary.WorkflowKind)
+	}
+	if summary.WorkflowDefinitionHash == "" {
 		t.Fatal("workflow_definition_hash should use trusted manifest digest when unambiguous")
 	}
-	if runs[0].BackendKind != launcherbackend.BackendKindUnknown {
-		t.Fatalf("backend_kind = %q, want %q", runs[0].BackendKind, launcherbackend.BackendKindUnknown)
+}
+
+func assertRunListRuntimeDefaultsForLocalOps(t *testing.T, summary RunSummary) {
+	t.Helper()
+	if summary.BackendKind != launcherbackend.BackendKindUnknown {
+		t.Fatalf("backend_kind = %q, want %q", summary.BackendKind, launcherbackend.BackendKindUnknown)
 	}
-	if runs[0].IsolationAssuranceLevel != launcherbackend.IsolationAssuranceUnknown {
-		t.Fatalf("isolation_assurance_level = %q, want %q", runs[0].IsolationAssuranceLevel, launcherbackend.IsolationAssuranceUnknown)
+	if summary.IsolationAssuranceLevel != launcherbackend.IsolationAssuranceUnknown {
+		t.Fatalf("isolation_assurance_level = %q, want %q", summary.IsolationAssuranceLevel, launcherbackend.IsolationAssuranceUnknown)
 	}
-	if runs[0].ProvisioningPosture != launcherbackend.ProvisioningPostureUnknown {
-		t.Fatalf("provisioning_posture = %q, want %q", runs[0].ProvisioningPosture, launcherbackend.ProvisioningPostureUnknown)
+	if summary.ProvisioningPosture != launcherbackend.ProvisioningPostureUnknown {
+		t.Fatalf("provisioning_posture = %q, want %q", summary.ProvisioningPosture, launcherbackend.ProvisioningPostureUnknown)
 	}
-	if runs[0].AssuranceLevel != runs[0].IsolationAssuranceLevel {
-		t.Fatalf("assurance_level alias = %q, want %q", runs[0].AssuranceLevel, runs[0].IsolationAssuranceLevel)
+	if summary.AssuranceLevel != summary.IsolationAssuranceLevel {
+		t.Fatalf("assurance_level alias = %q, want %q", summary.AssuranceLevel, summary.IsolationAssuranceLevel)
 	}
-	if runs[0].RuntimePostureDegraded {
-		t.Fatalf("runtime_posture_degraded = %v, want false", runs[0].RuntimePostureDegraded)
+	if summary.RuntimePostureDegraded {
+		t.Fatalf("runtime_posture_degraded = %v, want false", summary.RuntimePostureDegraded)
 	}
 }
 

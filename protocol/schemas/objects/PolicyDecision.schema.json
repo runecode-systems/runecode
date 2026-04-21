@@ -68,7 +68,8 @@
                   "secret_access_lease",
                   "dependency_network_fetch",
                   "system_command_execution",
-                  "excerpt_promotion"
+                  "excerpt_promotion",
+                  "project_lifecycle_apply"
                 ]
               }
             }

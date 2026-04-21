@@ -16,13 +16,15 @@ type runPlannedGateEntry struct {
 	GateVersion          string
 	PlanCheckpointCode   string
 	PlanOrderIndex       int
+	ProjectContextID     string
 	MaxAttempts          int
 	ExpectedInputDigests []string
 }
 
 type compiledRunGatePlan struct {
-	entries []runPlannedGateEntry
-	byGate  map[string]runPlannedGateEntry
+	entries          []runPlannedGateEntry
+	byGate           map[string]runPlannedGateEntry
+	projectContextID string
 }
 
 func (s *Service) compileRunGatePlan(runID string) (compiledRunGatePlan, error) {
@@ -30,6 +32,7 @@ func (s *Service) compileRunGatePlan(runID string) (compiledRunGatePlan, error) 
 	if runID == "" {
 		return compiledRunGatePlan{}, nil
 	}
+	projectContextID := strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest)
 	records, foundRun := runScopedPlanRecords(s.List(), runID)
 	if err := ensureRunExistsForGatePlan(s.RunStatuses(), runID, foundRun); err != nil {
 		return compiledRunGatePlan{}, err
@@ -39,14 +42,21 @@ func (s *Service) compileRunGatePlan(runID string) (compiledRunGatePlan, error) 
 		return compiledRunGatePlan{}, err
 	}
 	if len(entries) == 0 {
-		return compiledRunGatePlan{}, nil
+		return compiledRunGatePlan{projectContextID: projectContextID}, nil
 	}
 	sortRunPlanEntries(entries)
 	byGate, err := buildRunPlanEntryIndex(entries)
 	if err != nil {
 		return compiledRunGatePlan{}, err
 	}
-	return compiledRunGatePlan{entries: entries, byGate: byGate}, nil
+	for i := range entries {
+		entries[i].ProjectContextID = projectContextID
+		key := runPlanGateKey(entries[i].GateID, entries[i].GateKind, entries[i].GateVersion, entries[i].PlanCheckpointCode, entries[i].PlanOrderIndex)
+		entry := byGate[key]
+		entry.ProjectContextID = projectContextID
+		byGate[key] = entry
+	}
+	return compiledRunGatePlan{entries: entries, byGate: byGate, projectContextID: projectContextID}, nil
 }
 
 func runScopedPlanRecords(records []artifacts.ArtifactRecord, runID string) ([]artifacts.ArtifactRecord, bool) {

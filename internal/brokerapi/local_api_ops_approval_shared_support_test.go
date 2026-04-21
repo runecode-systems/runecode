@@ -24,7 +24,7 @@ func setupServiceWithApprovalFixtureAndOutcome(t *testing.T, outcome string) (*S
 	if err := seedLedgerForBrokerSurfaceTest(ledgerRoot); err != nil {
 		t.Fatalf("seedLedgerForBrokerSurfaceTest returned error: %v", err)
 	}
-	s, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	s, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
@@ -172,7 +172,7 @@ func setupServiceWithStageSignOffApprovalFixture(t *testing.T) (*Service, *trust
 	if err := seedLedgerForBrokerSurfaceTest(ledgerRoot); err != nil {
 		t.Fatalf("seedLedgerForBrokerSurfaceTest returned error: %v", err)
 	}
-	s, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	s, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
@@ -200,7 +200,7 @@ func setupServiceWithPlanScopedSupersededStageSignOffApprovals(t *testing.T) (*S
 	if err := seedLedgerForBrokerSurfaceTest(ledgerRoot); err != nil {
 		t.Fatalf("seedLedgerForBrokerSurfaceTest returned error: %v", err)
 	}
-	s, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	s, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
@@ -224,7 +224,7 @@ func setupServiceWithBackendPostureApprovalFixture(t *testing.T) (*Service, *tru
 	if err := seedLedgerForBrokerSurfaceTest(ledgerRoot); err != nil {
 		t.Fatalf("seedLedgerForBrokerSurfaceTest returned error: %v", err)
 	}
-	s, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{})
+	s, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}

@@ -2,10 +2,12 @@ package brokerapi
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/auditd"
+	"github.com/runecode-ai/runecode/internal/projectsubstrate"
 	"github.com/runecode-ai/runecode/internal/secretsd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
@@ -22,22 +24,24 @@ const (
 )
 
 type Service struct {
-	store                     *artifacts.Store
-	auditLedger               *auditd.Ledger
-	secretsSvc                *secretsd.Service
-	gitMutationExecutor       gitRemoteMutationExecutor
-	auditor                   *brokerAuditEmitter
-	auditRoot                 string
-	gatewayQuota              *gatewayQuotaBackend
-	gatewayRuntime            *modelGatewayRuntime
-	providerSubstrate         *providerSubstrateState
-	providerSetup             *providerSetupState
-	instancePostureController instanceBackendPostureController
-	apiConfig                 APIConfig
-	apiInflight               *inFlightGate
-	versionInfo               BrokerVersionInfo
-	gitSetup                  *gitSetupState
-	now                       func() time.Time
+	store                      *artifacts.Store
+	auditLedger                *auditd.Ledger
+	secretsSvc                 *secretsd.Service
+	gitMutationExecutor        gitRemoteMutationExecutor
+	auditor                    *brokerAuditEmitter
+	auditRoot                  string
+	gatewayQuota               *gatewayQuotaBackend
+	gatewayRuntime             *modelGatewayRuntime
+	providerSubstrate          *providerSubstrateState
+	providerSetup              *providerSetupState
+	instancePostureController  instanceBackendPostureController
+	apiConfig                  APIConfig
+	apiInflight                *inFlightGate
+	versionInfo                BrokerVersionInfo
+	gitSetup                   *gitSetupState
+	projectSubstrate           projectsubstrate.DiscoveryResult
+	discoverProjectSubstrateFn func() (projectsubstrate.DiscoveryResult, error)
+	now                        func() time.Time
 }
 
 func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
@@ -55,6 +59,18 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 		svc.secretsSvc = secretsSvc
 	}
 	svc.providerSetup = newProviderSetupState(time.Now)
+	authority := projectsubstrate.RepoRootAuthorityProcessWorkingDirectory
+	if resolved.RepositoryRoot != "" {
+		authority = projectsubstrate.RepoRootAuthorityExplicitConfig
+	}
+	projectSubstrateResult, err := projectsubstrate.DiscoverAndValidate(projectsubstrate.DiscoveryInput{
+		RepositoryRoot: resolved.RepositoryRoot,
+		Authority:      authority,
+	})
+	if err != nil {
+		return nil, err
+	}
+	svc.projectSubstrate = projectSubstrateResult
 	svc.configureProviderDurability()
 	if err := svc.reloadProviderDurableState(); err != nil {
 		return nil, err
@@ -111,16 +127,27 @@ func openLocalSecretsService() (*secretsd.Service, error) {
 
 func defaultBrokerVersionInfo() BrokerVersionInfo {
 	return BrokerVersionInfo{
-		SchemaID:                    "runecode.protocol.v0.BrokerVersionInfo",
-		SchemaVersion:               "0.1.0",
-		ProductVersion:              BrokerProductVersion,
-		BuildRevision:               BrokerBuildRevision,
-		BuildTime:                   BrokerBuildTime,
-		ProtocolBundleVersion:       brokerProtocolBundleVersion,
-		ProtocolBundleManifestHash:  brokerProtocolBundleManifestHash,
-		APIFamily:                   "broker_local_api",
-		APIVersion:                  "v0",
-		SupportedTransportEncodings: []string{"json"},
+		SchemaID:                        "runecode.protocol.v0.BrokerVersionInfo",
+		SchemaVersion:                   "0.1.0",
+		ProductVersion:                  BrokerProductVersion,
+		BuildRevision:                   BrokerBuildRevision,
+		BuildTime:                       BrokerBuildTime,
+		ProtocolBundleVersion:           brokerProtocolBundleVersion,
+		ProtocolBundleManifestHash:      brokerProtocolBundleManifestHash,
+		APIFamily:                       "broker_local_api",
+		APIVersion:                      "v0",
+		SupportedTransportEncodings:     []string{"json"},
+		ProjectSubstrateContractID:      "",
+		ProjectSubstrateContractVersion: "",
+		ProjectSubstrateVersion:         "",
+		ProjectSubstrateValidationState: "",
+		ProjectSubstratePosture:         "",
+		ProjectSubstrateBlockedReasons:  []string{},
+		ProjectSubstrateSupportedMin:    "",
+		ProjectSubstrateSupportedMax:    "",
+		ProjectSubstrateRecommended:     "",
+		ProjectContextIdentityDigest:    "",
+		ProjectSubstratePostureSummary:  nil,
 	}
 }
 
@@ -181,3 +208,30 @@ func (s *Service) LatestAuditVerificationSurface(limit int) (AuditVerificationSu
 }
 
 func (s *Service) APILimits() Limits { return s.apiConfig.Limits }
+
+func (s *Service) discoverProjectSubstrate() (projectsubstrate.DiscoveryResult, error) {
+	if s == nil {
+		return projectsubstrate.DiscoveryResult{}, nil
+	}
+	if s.discoverProjectSubstrateFn != nil {
+		result, err := s.discoverProjectSubstrateFn()
+		if err != nil {
+			return projectsubstrate.DiscoveryResult{}, err
+		}
+		s.projectSubstrate = result
+		return result, nil
+	}
+	repoRoot := strings.TrimSpace(s.projectSubstrate.RepositoryRoot)
+	if repoRoot == "" {
+		repoRoot = strings.TrimSpace(s.apiConfig.RepositoryRoot)
+	}
+	result, err := projectsubstrate.DiscoverAndValidate(projectsubstrate.DiscoveryInput{
+		RepositoryRoot: repoRoot,
+		Authority:      s.projectSubstrateAuthority(),
+	})
+	if err != nil {
+		return projectsubstrate.DiscoveryResult{}, err
+	}
+	s.projectSubstrate = result
+	return result, nil
+}

@@ -19,6 +19,8 @@
 - [ ] Require explicit policy and audit recording when a run uses any non-default concurrency posture.
 - [ ] Ensure approvals remain run-bound and cannot be consumed across runs under shared-workspace modes.
 - [ ] Ensure gate attempts, gate evidence, and gate overrides remain bound to the originating run/stage/step scope under concurrency.
+- [ ] Account for validated project-substrate snapshot identity and project-substrate drift under concurrency.
+- [ ] Ensure one run cannot silently satisfy or inherit another run's project-context preconditions or remediation posture.
 
 ## Runner, Broker, and TUI Integration
 
@@ -27,6 +29,7 @@
 - [ ] Record lock acquisition, release, contention, overrides, and conflict-triggered failures as audit events.
 - [ ] Reuse or extend the shared broker run-detail and coordination-summary contracts rather than inventing a separate concurrency-specific UI status model.
 - [ ] Keep public run lifecycle on the shared broker lifecycle vocabulary; represent lock waits and partial blocking through coordination/detail surfaces rather than a new lifecycle enum.
+- [ ] Surface differing validated project-substrate snapshot bindings explicitly when concurrent runs depend on project context.
 
 ## Fixtures + Recovery Cases
 
@@ -43,4 +46,4 @@
 - [ ] Concurrent use of one workspace requires an explicit design and fail-closed posture.
 - [ ] Locking, contention, and recovery are auditable and deterministic.
 - [ ] Approval, artifact, and gate semantics stay bound to the correct run under concurrency.
-- [ ] Concurrency integrates with the shared identity, lifecycle, approval, and gate-evidence model without introducing parallel workflow semantics.
+- [ ] Concurrency integrates with the shared identity, lifecycle, approval, gate-evidence, and validated project-substrate binding model without introducing parallel workflow semantics.

@@ -26,10 +26,11 @@ var (
 		"secret":    {},
 	}
 	placeholderSchemaIDs = map[string]struct{}{
-		"runecode.protocol.v0.ApprovalRequest":  {},
-		"runecode.protocol.v0.ApprovalDecision": {},
-		"runecode.protocol.v0.PolicyDecision":   {},
-		"runecode.protocol.v0.Error":            {},
+		"runecode.protocol.v0.ApprovalRequest":                      {},
+		"runecode.protocol.v0.ApprovalDecision":                     {},
+		"runecode.protocol.v0.PolicyDecision":                       {},
+		"runecode.protocol.v0.Error":                                {},
+		"runecode.protocol.v0.ProjectLifecycleOperatorDecisionPath": {},
 	}
 )
 

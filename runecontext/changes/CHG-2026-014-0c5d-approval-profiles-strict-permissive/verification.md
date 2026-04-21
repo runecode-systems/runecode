@@ -13,6 +13,7 @@
 - Confirm `git_remote_ops` remains an exact-action hard-floor approval across all profiles and is not batchable into stage sign-off, milestone approval, or ambient acknowledgment.
 - Confirm the minimum assurance floor for `git_remote_ops` remains at least `reauthenticated` across profiles.
 - Confirm git remote-mutation approval bindings still require canonical repository identity, target refs, referenced patch artifact digests, expected result tree hash, and canonical action request hash.
+- Confirm approval profiles do not weaken blocked project-substrate posture or override diagnostics/remediation-only repository substrate states.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.
