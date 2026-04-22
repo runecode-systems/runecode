@@ -15,6 +15,10 @@ type routeModel interface {
 	ShellSurface(ctx routeShellContext) routeSurface
 }
 
+type routeTextEntryModel interface {
+	IsTextEntryActive() bool
+}
+
 type routeActivatedMsg struct {
 	RouteID          routeID
 	ActiveSessionID  string

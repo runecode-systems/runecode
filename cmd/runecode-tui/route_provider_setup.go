@@ -104,6 +104,10 @@ func (m providerSetupRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd)
 	return m.handleIdleKey(key)
 }
 
+func (m providerSetupRouteModel) IsTextEntryActive() bool {
+	return m.entryActive
+}
+
 func (m providerSetupRouteModel) handleSecretEntryKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 	switch key.Type {
 	case tea.KeyEsc:

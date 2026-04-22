@@ -167,6 +167,10 @@ func (m chatRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 	return m, nil
 }
 
+func (m chatRouteModel) IsTextEntryActive() bool {
+	return m.composeOn
+}
+
 func (m chatRouteModel) handleReloadKey(key tea.KeyMsg) (routeModel, tea.Cmd, bool) {
 	if key.String() != "r" {
 		return m, nil, false
