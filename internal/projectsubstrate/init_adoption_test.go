@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -108,6 +109,13 @@ func TestApplyInitializeAppliesCanonicalFilesAndIsIdempotent(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, canonicalAssuranceBaselinePath)); err != nil {
 		t.Fatalf("assurance baseline stat returned error: %v", err)
+	}
+	baseline, err := os.ReadFile(filepath.Join(root, canonicalAssuranceBaselinePath))
+	if err != nil {
+		t.Fatalf("ReadFile assurance baseline returned error: %v", err)
+	}
+	if !strings.Contains(string(baseline), "adoption_commit: \"0000000000000000000000000000000000000000\"") {
+		t.Fatalf("assurance baseline missing adoption_commit:\n%s", string(baseline))
 	}
 
 	secondPreview, err := PreviewInitialize(InitPreviewInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
@@ -228,7 +236,7 @@ func writeCanonicalV0AnchorsWithVersion(t *testing.T, root, version string) {
 	if err := os.WriteFile(filepath.Join(root, CanonicalConfigPath), []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile runecontext.yaml returned error: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, canonicalAssuranceBaselinePath), []byte("canonicalization: runecontext-canonical-json-v1\ncreated_at: 0\nkind: baseline\nschema_version: 1\nsubject_id: project-root\nvalue:\n  source_posture: embedded\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, canonicalAssuranceBaselinePath), []byte("canonicalization: runecontext-canonical-json-v1\ncreated_at: 0\nkind: baseline\nschema_version: 1\nsubject_id: project-root\nvalue:\n  adoption_commit: 0000000000000000000000000000000000000000\n  source_posture: embedded\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile assurance baseline returned error: %v", err)
 	}
 }

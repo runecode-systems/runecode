@@ -36,6 +36,7 @@ const (
 	reasonMissingAssuranceAnchor   = "anchor_missing_runecontext_assurance"
 	reasonMissingAssuranceBaseline = "anchor_missing_runecontext_assurance_baseline"
 	reasonConfigParseInvalid       = "config_parse_invalid"
+	reasonAssuranceBaselineInvalid = "assurance_baseline_invalid"
 	reasonNonVerifiedPosture       = "posture_non_verified"
 	reasonNonCanonicalSourcePath   = "source_path_non_canonical"
 	reasonPrivateMirrorDetected    = "runecode_private_mirror_detected"

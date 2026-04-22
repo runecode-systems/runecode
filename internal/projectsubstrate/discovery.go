@@ -32,6 +32,7 @@ type repositoryLayout struct {
 	hasAssuranceBaseline  bool
 	hasPrivateTruthCopy   bool
 	runecontextYAML       []byte
+	assuranceBaselineYAML []byte
 }
 
 func DiscoverAndValidate(input DiscoveryInput) (DiscoveryResult, error) {
@@ -86,9 +87,9 @@ func inspectLayout(repoRoot string) repositoryLayout {
 	}
 	layout.runecontextCandidates = discoverRunecontextCandidates(repoRoot)
 	readConfigAnchor(&layout)
+	readAssuranceBaselineAnchor(&layout)
 	statDirectoryAnchor(layout.sourcePath, &layout.hasSourceAnchor)
 	statDirectoryAnchor(layout.assurancePath, &layout.hasAssuranceAnchor)
-	statFileAnchor(layout.baselinePath, &layout.hasAssuranceBaseline)
 	statDirectoryAnchor(filepath.Join(repoRoot, ".runecontext"), &layout.hasPrivateTruthCopy)
 	return layout
 }
@@ -132,18 +133,22 @@ func readConfigAnchor(layout *repositoryLayout) {
 	layout.runecontextYAML = b
 }
 
+func readAssuranceBaselineAnchor(layout *repositoryLayout) {
+	if layout == nil {
+		return
+	}
+	b, err := os.ReadFile(layout.baselinePath)
+	if err != nil {
+		return
+	}
+	layout.hasAssuranceBaseline = true
+	layout.assuranceBaselineYAML = b
+}
+
 func statDirectoryAnchor(path string, target *bool) {
 	if target == nil {
 		return
 	}
 	info, err := os.Stat(path)
 	*target = err == nil && info.IsDir()
-}
-
-func statFileAnchor(path string, target *bool) {
-	if target == nil {
-		return
-	}
-	info, err := os.Stat(path)
-	*target = err == nil && !info.IsDir()
 }

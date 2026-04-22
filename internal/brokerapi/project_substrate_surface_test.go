@@ -213,7 +213,7 @@ func writeProjectSubstrateDirs(t *testing.T, root string) {
 	if err := os.MkdirAll(filepath.Join(root, "runecontext"), 0o755); err != nil {
 		t.Fatalf("MkdirAll runecontext returned error: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "runecontext", "assurance", "baseline.yaml"), []byte("schema_version: 1\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "runecontext", "assurance", "baseline.yaml"), []byte("canonicalization: runecontext-canonical-json-v1\ncreated_at: 0\nkind: baseline\nschema_version: 1\nsubject_id: project-root\nvalue:\n  adoption_commit: 0000000000000000000000000000000000000000\n  source_posture: embedded\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile baseline.yaml returned error: %v", err)
 	}
 }

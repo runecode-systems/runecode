@@ -10,8 +10,10 @@ import (
 
 type runeContextMutationProvider interface {
 	RenderConfig(version, sourceType, sourcePath string) (string, error)
-	RenderAssuranceBaseline(sourceType string) (string, error)
+	RenderAssuranceBaseline(sourceType, adoptionCommit string) (string, error)
 }
+
+const zeroAdoptionCommit = "0000000000000000000000000000000000000000"
 
 type canonicalInitializationMutation struct {
 	ConfigYAML           string
@@ -28,7 +30,7 @@ func canonicalInitialization(version, sourceType string) (canonicalInitializatio
 	if err != nil {
 		return canonicalInitializationMutation{}, err
 	}
-	baseline, err := canonicalProvider.RenderAssuranceBaseline(sourceType)
+	baseline, err := canonicalProvider.RenderAssuranceBaseline(sourceType, zeroAdoptionCommit)
 	if err != nil {
 		return canonicalInitializationMutation{}, err
 	}
@@ -74,13 +76,24 @@ func (p bundledRuneContextMutationProvider) RenderConfig(version, sourceType, so
 	return out, nil
 }
 
-func (p bundledRuneContextMutationProvider) RenderAssuranceBaseline(sourceType string) (string, error) {
-	payload := map[string]string{"SourceType": defaultSourceType(sourceType)}
+func (p bundledRuneContextMutationProvider) RenderAssuranceBaseline(sourceType, adoptionCommit string) (string, error) {
+	payload := map[string]string{
+		"SourceType":     defaultSourceType(sourceType),
+		"AdoptionCommit": yamlScalar(defaultAdoptionCommit(adoptionCommit)),
+	}
 	out, err := p.executeTemplate("baseline.yaml.tmpl", payload)
 	if err != nil {
 		return "", fmt.Errorf("render canonical assurance baseline: %w", err)
 	}
 	return out, nil
+}
+
+func defaultAdoptionCommit(adoptionCommit string) string {
+	value := strings.TrimSpace(adoptionCommit)
+	if value == "" {
+		return zeroAdoptionCommit
+	}
+	return value
 }
 
 func (p bundledRuneContextMutationProvider) executeTemplate(path string, payload map[string]string) (string, error) {
