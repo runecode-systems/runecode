@@ -12,7 +12,7 @@ func upgradePreconditions(layout repositoryLayout) (runecontextConfig, []Upgrade
 		}
 	}
 	addPrecondition(reasonRemediationConfigAnchorRequired, layout.hasConfigAnchor)
-	addPrecondition(reasonRemediationInitRequired, layout.hasSourceAnchor && layout.hasAssuranceAnchor)
+	addPrecondition(reasonRemediationInitRequired, layout.hasSourceAnchor && layout.hasAssuranceAnchor && layout.hasAssuranceBaseline)
 	addPrecondition(reasonPrivateMirrorDetected, !layout.hasPrivateTruthCopy)
 	cfg, cfgErr := parseRunecontextConfig(layout.runecontextYAML)
 	configValid := cfgErr == nil
@@ -56,8 +56,12 @@ func readyUpgradePreview(preview UpgradePreview, expected ValidationSnapshot, be
 
 func blockedUpgradePreviewDigestResult(preview UpgradePreview, expectedPreviewHash string) *UpgradeApplyResult {
 	expected := strings.TrimSpace(expectedPreviewHash)
-	if expected == "" || expected == preview.PreviewDigest {
+	if expected == preview.PreviewDigest {
 		return nil
+	}
+	if expected == "" {
+		result := blockedUpgradeApplyResult(preview.RepositoryRoot, preview.CurrentSnapshot, preview.PreviewDigest, []string{reasonUpgradePreviewDigestRequired})
+		return &result
 	}
 	result := blockedUpgradeApplyResult(preview.RepositoryRoot, preview.CurrentSnapshot, preview.PreviewDigest, []string{reasonUpgradePreviewDigestMismatch})
 	return &result

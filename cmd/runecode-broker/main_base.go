@@ -219,7 +219,7 @@ Commands:
 	  project-substrate-init-preview
 	  project-substrate-init-apply [--expected-preview-token sha256:...]
 	  project-substrate-upgrade-preview
-	  project-substrate-upgrade-apply [--expected-preview-digest sha256:...]
+	  project-substrate-upgrade-apply --expected-preview-digest sha256:...
 	  git-remote-mutation-prepare --request-file path
 	  git-remote-mutation-get --request-file path
 	  git-remote-mutation-issue-execute-lease --request-file path

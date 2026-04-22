@@ -18,9 +18,6 @@ const (
 	compatibilityReasonUnsupportedTooNew     = "project_substrate_unsupported_too_new"
 	compatibilityReasonUpgradeAvailable      = "project_substrate_upgrade_available"
 	compatibilityReasonVersionUnparseable    = "project_substrate_version_unparseable"
-	releaseSupportedRuneContextVersionMin    = "0.1.0-alpha.13"
-	releaseSupportedRuneContextVersionMax    = "0.1.0-alpha.16"
-	releaseRecommendedRuneContextVersion     = "0.1.0-alpha.14"
 )
 
 type CompatibilityPolicy struct {
@@ -44,15 +41,21 @@ type CompatibilityAssessment struct {
 }
 
 func ReleaseCompatibilityPolicy() CompatibilityPolicy {
+	runtimePolicy := runtimeCompatibilityPolicy()
 	return CompatibilityPolicy{
 		SupportedContractID:            ContractIDV0,
 		SupportedContractVersionMin:    ContractVersionV0,
 		SupportedContractVersionMax:    ContractVersionV0,
 		RecommendedContractVersion:     ContractVersionV0,
-		SupportedRuneContextVersionMin: releaseSupportedRuneContextVersionMin,
-		SupportedRuneContextVersionMax: releaseSupportedRuneContextVersionMax,
-		RecommendedRuneContextVersion:  releaseRecommendedRuneContextVersion,
+		SupportedRuneContextVersionMin: runtimePolicy.SupportedRuneContextVersionMin,
+		SupportedRuneContextVersionMax: runtimePolicy.SupportedRuneContextVersionMax,
+		RecommendedRuneContextVersion:  runtimePolicy.RecommendedRuneContextVersion,
+		DiagnosticsLocalRunectxVersion: runtimePolicy.LocalRunectxVersion,
 	}
+}
+
+func recommendedRuneContextVersionTarget() string {
+	return ReleaseCompatibilityPolicy().RecommendedRuneContextVersion
 }
 
 func EvaluateCompatibility(snapshot ValidationSnapshot) CompatibilityAssessment {

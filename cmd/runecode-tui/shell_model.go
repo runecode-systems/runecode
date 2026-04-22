@@ -309,11 +309,11 @@ func (m shellModel) shouldShowInspector(surface routeSurface) bool {
 
 func (m shellModel) isTextEntryActive() bool {
 	active := m.routeModels[m.currentRouteID()]
-	chat, ok := active.(chatRouteModel)
+	entryModel, ok := active.(routeTextEntryModel)
 	if !ok {
 		return false
 	}
-	return chat.composeOn
+	return entryModel.IsTextEntryActive()
 }
 
 func (m shellModel) currentRouteID() routeID {

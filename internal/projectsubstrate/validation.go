@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -22,6 +23,20 @@ type runecontextConfig struct {
 	} `json:"source" yaml:"source"`
 }
 
+type assuranceBaseline struct {
+	SchemaVersion    *int   `yaml:"schema_version"`
+	Kind             string `yaml:"kind"`
+	SubjectID        string `yaml:"subject_id"`
+	CreatedAt        *int64 `yaml:"created_at"`
+	Canonicalization string `yaml:"canonicalization"`
+	Value            struct {
+		AdoptionCommit string `yaml:"adoption_commit"`
+		SourcePosture  string `yaml:"source_posture"`
+	} `yaml:"value"`
+}
+
+var adoptionCommitPattern = regexp.MustCompile("^[a-f0-9]{40}$")
+
 func validateLayout(contract ContractState, layout repositoryLayout) ValidationSnapshot {
 	snapshot := ValidationSnapshot{
 		SchemaID:        SnapshotSchemaID,
@@ -29,20 +44,22 @@ func validateLayout(contract ContractState, layout repositoryLayout) ValidationS
 		Contract:        contract,
 		ValidationState: validationStateValid,
 		Anchors: AnchorStatus{
-			HasConfigAnchor:     layout.hasConfigAnchor,
-			HasSourceAnchor:     layout.hasSourceAnchor,
-			HasAssuranceAnchor:  layout.hasAssuranceAnchor,
-			HasPrivateTruthCopy: layout.hasPrivateTruthCopy,
+			HasConfigAnchor:      layout.hasConfigAnchor,
+			HasSourceAnchor:      layout.hasSourceAnchor,
+			HasAssuranceAnchor:   layout.hasAssuranceAnchor,
+			HasAssuranceBaseline: layout.hasAssuranceBaseline,
+			HasPrivateTruthCopy:  layout.hasPrivateTruthCopy,
 		},
 	}
 	snapshot.CanonicalCandidatePaths = canonicalCandidatePaths(layout)
 	reasons := layoutReasonCodes(layout)
 	applyParsedConfig(contract, layout, &snapshot, &reasons)
+	applyParsedAssuranceBaseline(layout, &reasons)
 	snapshot.ReasonCodes = normalizeReasonCodes(reasons)
 	if len(snapshot.ReasonCodes) > 0 {
 		snapshot.ValidationState = validationStateInvalid
 	}
-	if !layout.hasConfigAnchor && !layout.hasSourceAnchor && !layout.hasAssuranceAnchor {
+	if !layout.hasConfigAnchor && !layout.hasSourceAnchor && !layout.hasAssuranceAnchor && !layout.hasAssuranceBaseline && missingOnlyReasonCodes(snapshot.ReasonCodes) {
 		snapshot.ValidationState = validationStateMissing
 	}
 	digest := digestSnapshot(snapshot)
@@ -52,6 +69,27 @@ func validateLayout(contract ContractState, layout repositoryLayout) ValidationS
 		snapshot.ValidatedSnapshotDigest = digest
 	}
 	return snapshot
+}
+
+func missingOnlyReasonCodes(reasons []string) bool {
+	for _, reason := range reasons {
+		switch reason {
+		case reasonMissingConfigAnchor, reasonMissingSourceAnchor, reasonMissingAssuranceAnchor, reasonMissingAssuranceBaseline:
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func applyParsedAssuranceBaseline(layout repositoryLayout, reasons *[]string) {
+	if reasons == nil || !layout.hasAssuranceBaseline {
+		return
+	}
+	if _, err := parseAssuranceBaseline(layout.assuranceBaselineYAML); err != nil {
+		*reasons = append(*reasons, reasonAssuranceBaselineInvalid)
+	}
 }
 
 func canonicalCandidatePaths(layout repositoryLayout) []string {
@@ -82,6 +120,9 @@ func layoutReasonCodes(layout repositoryLayout) []string {
 	}
 	if !layout.hasAssuranceAnchor {
 		reasons = append(reasons, reasonMissingAssuranceAnchor)
+	}
+	if !layout.hasAssuranceBaseline {
+		reasons = append(reasons, reasonMissingAssuranceBaseline)
 	}
 	if layout.hasPrivateTruthCopy {
 		reasons = append(reasons, reasonPrivateMirrorDetected)
@@ -130,6 +171,65 @@ func parseRunecontextConfig(data []byte) (runecontextConfig, error) {
 		return runecontextConfig{}, fmt.Errorf("missing required fields")
 	}
 	return cfg, nil
+}
+
+func parseAssuranceBaseline(data []byte) (assuranceBaseline, error) {
+	var baseline assuranceBaseline
+	if len(data) == 0 {
+		return baseline, fmt.Errorf("empty")
+	}
+	if err := yaml.Unmarshal(data, &baseline); err != nil {
+		return assuranceBaseline{}, fmt.Errorf("invalid yaml: %w", err)
+	}
+	if err := validateAssuranceBaselineMetadata(baseline); err != nil {
+		return assuranceBaseline{}, err
+	}
+	if err := validateAssuranceBaselineValue(baseline.Value.AdoptionCommit, baseline.Value.SourcePosture); err != nil {
+		return assuranceBaseline{}, err
+	}
+	return baseline, nil
+}
+
+func validateAssuranceBaselineMetadata(baseline assuranceBaseline) error {
+	if baseline.SchemaVersion == nil || *baseline.SchemaVersion != 1 {
+		return fmt.Errorf("invalid schema_version")
+	}
+	if baseline.CreatedAt == nil {
+		return fmt.Errorf("missing created_at")
+	}
+	if strings.TrimSpace(baseline.Kind) != "baseline" {
+		return fmt.Errorf("invalid kind")
+	}
+	if strings.TrimSpace(baseline.SubjectID) == "" {
+		return fmt.Errorf("missing subject_id")
+	}
+	if strings.TrimSpace(baseline.Canonicalization) != "runecontext-canonical-json-v1" {
+		return fmt.Errorf("invalid canonicalization")
+	}
+	return nil
+}
+
+func validateAssuranceBaselineValue(adoptionCommit, sourcePosture string) error {
+	trimmedCommit := strings.TrimSpace(adoptionCommit)
+	if trimmedCommit == "" {
+		return fmt.Errorf("missing adoption_commit")
+	}
+	if !adoptionCommitPattern.MatchString(trimmedCommit) {
+		return fmt.Errorf("invalid adoption_commit")
+	}
+	if !supportedSourcePosture(sourcePosture) {
+		return fmt.Errorf("invalid source_posture")
+	}
+	return nil
+}
+
+func supportedSourcePosture(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "embedded", "git", "path":
+		return true
+	default:
+		return false
+	}
 }
 
 func digestSnapshot(snapshot ValidationSnapshot) string {

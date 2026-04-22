@@ -3,9 +3,18 @@ package projectsubstrate
 import "testing"
 
 func TestEvaluateCompatibilityPostures(t *testing.T) {
+	policy := CompatibilityPolicy{
+		SupportedContractID:            ContractIDV0,
+		SupportedContractVersionMin:    ContractVersionV0,
+		SupportedContractVersionMax:    ContractVersionV0,
+		RecommendedContractVersion:     ContractVersionV0,
+		SupportedRuneContextVersionMin: "0.1.0-alpha.13",
+		SupportedRuneContextVersionMax: "0.1.0-alpha.16",
+		RecommendedRuneContextVersion:  "0.1.0-alpha.14",
+	}
 	for _, tt := range compatibilityPostureTests() {
 		t.Run(tt.name, func(t *testing.T) {
-			assertCompatibilityAssessment(t, EvaluateCompatibility(tt.snapshot), tt)
+			assertCompatibilityAssessment(t, EvaluateCompatibilityWithPolicy(tt.snapshot, policy), tt)
 		})
 	}
 }
@@ -66,10 +75,18 @@ func compatibilityVersionPostureTests() []compatibilityPostureTestCase {
 }
 
 func TestEvaluateCompatibilityTreatsUnparseableVersionInvalid(t *testing.T) {
-	assessment := EvaluateCompatibility(ValidationSnapshot{
+	assessment := EvaluateCompatibilityWithPolicy(ValidationSnapshot{
 		ValidationState:    validationStateValid,
 		RuneContextVersion: "not-semver",
 		Contract:           defaultContract(RepoRootAuthorityExplicitConfig),
+	}, CompatibilityPolicy{
+		SupportedContractID:            ContractIDV0,
+		SupportedContractVersionMin:    ContractVersionV0,
+		SupportedContractVersionMax:    ContractVersionV0,
+		RecommendedContractVersion:     ContractVersionV0,
+		SupportedRuneContextVersionMin: "0.1.0-alpha.13",
+		SupportedRuneContextVersionMax: "0.1.0-alpha.16",
+		RecommendedRuneContextVersion:  "0.1.0-alpha.14",
 	})
 	if assessment.Posture != CompatibilityPostureInvalid {
 		t.Fatalf("posture = %q, want %q", assessment.Posture, CompatibilityPostureInvalid)

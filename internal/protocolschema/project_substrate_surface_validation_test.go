@@ -185,6 +185,7 @@ func validProjectSubstrateValidationSnapshot() map[string]any {
 			"has_config_anchor":      true,
 			"has_source_anchor":      true,
 			"has_assurance_anchor":   true,
+			"has_assurance_baseline": true,
 			"has_verified_posture":   true,
 			"has_canonical_source":   true,
 			"has_private_truth_copy": false,

@@ -12,6 +12,9 @@ func TestProjectSubstrateCompatibilityBlocksNormalOpsButAllowsDiagnostics(t *tes
 	if err := os.MkdirAll(filepath.Join(repoRoot, "runecontext", "assurance"), 0o755); err != nil {
 		t.Fatalf("MkdirAll assurance returned error: %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(repoRoot, "runecontext", "assurance", "baseline.yaml"), []byte("canonicalization: runecontext-canonical-json-v1\ncreated_at: 0\nkind: baseline\nschema_version: 1\nsubject_id: project-root\nvalue:\n  adoption_commit: 0000000000000000000000000000000000000000\n  source_posture: embedded\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile baseline.yaml returned error: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(repoRoot, "runecontext.yaml"), []byte("schema_version: 1\nrunecontext_version: \"0.1.0-alpha.14\"\nassurance_tier: plain\nsource:\n  type: embedded\n  path: runecontext\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile runecontext.yaml returned error: %v", err)
 	}
@@ -48,6 +51,9 @@ func TestProjectSubstrateGateRefreshesStateBeforeBlocking(t *testing.T) {
 	repoRoot := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(repoRoot, "runecontext", "assurance"), 0o755); err != nil {
 		t.Fatalf("MkdirAll assurance returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, "runecontext", "assurance", "baseline.yaml"), []byte("canonicalization: runecontext-canonical-json-v1\ncreated_at: 0\nkind: baseline\nschema_version: 1\nsubject_id: project-root\nvalue:\n  adoption_commit: 0000000000000000000000000000000000000000\n  source_posture: embedded\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile baseline.yaml returned error: %v", err)
 	}
 	configPath := filepath.Join(repoRoot, "runecontext.yaml")
 	if err := os.WriteFile(configPath, []byte("schema_version: 1\nrunecontext_version: \"0.1.0-alpha.14\"\nassurance_tier: plain\nsource:\n  type: embedded\n  path: runecontext\n"), 0o644); err != nil {

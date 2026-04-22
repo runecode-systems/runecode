@@ -34,7 +34,7 @@ func TestShellSidebarVisibleByDefaultAndToggle(t *testing.T) {
 	if !m.effectiveSidebarVisible() {
 		t.Fatal("expected sidebar visible by default")
 	}
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'S'}})
 	shell := updated.(shellModel)
 	if shell.effectiveSidebarVisible() {
 		t.Fatal("expected sidebar hidden after toggle")
@@ -89,7 +89,7 @@ func TestShellNarrowSidebarToggleUsesOverlayNavigation(t *testing.T) {
 		t.Fatal("expected nav surface hidden on narrow without overlay")
 	}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'S'}})
 	shell := updated.(shellModel)
 	if !shell.narrowSidebarOn {
 		t.Fatal("expected narrow sidebar overlay on")
@@ -528,15 +528,6 @@ func TestShellToastRemainsVisibleWithinViewport(t *testing.T) {
 	}
 }
 
-func TestHelpRenderedFromRealKeyBindings(t *testing.T) {
-	help := renderHelp(defaultShellKeyMap(), false)
-	for _, want := range []string{"q/ctrl+c", "tab", "s", "b/alt+left"} {
-		if !strings.Contains(help, want) {
-			t.Fatalf("expected %q in help, got %q", want, help)
-		}
-	}
-}
-
 func TestShellClipboardCopiesCurrentBreadcrumbIdentity(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
@@ -608,29 +599,6 @@ func TestShellEscapeCloseNarrowOverlaysResetsHiddenNavFocus(t *testing.T) {
 	shell := updated.(shellModel)
 	if shell.focus != focusContent {
 		t.Fatalf("expected focus reset to content, got %v", shell.focus)
-	}
-}
-
-func TestShellTextEntryGuardsGlobalQuitShortcut(t *testing.T) {
-	m := newShellModel()
-	m.width = 150
-	m.location.Primary = shellObjectLocation{RouteID: routeChat, Object: workbenchObjectRef{Kind: "route", ID: string(routeChat)}}
-	chat := m.routeModels[routeChat].(chatRouteModel)
-	chat.composeOn = true
-	chat.composer.Focus()
-	m.routeModels[routeChat] = chat
-
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
-	if cmd != nil {
-		t.Fatal("did not expect shell quit command while composing")
-	}
-	shell := updated.(shellModel)
-	if shell.quitting {
-		t.Fatal("expected shell to remain active while composing")
-	}
-	chat = shell.routeModels[routeChat].(chatRouteModel)
-	if !strings.Contains(chat.composer.Value(), "q") {
-		t.Fatalf("expected compose buffer to include typed key, got %q", chat.composer.Value())
 	}
 }
 

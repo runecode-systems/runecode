@@ -26,10 +26,21 @@ func TestDiscoverAndValidateDeterministicRootNoUpwardSearch(t *testing.T) {
 	assertHasReason(t, result.Snapshot.ReasonCodes, reasonMissingConfigAnchor)
 	assertHasReason(t, result.Snapshot.ReasonCodes, reasonMissingSourceAnchor)
 	assertHasReason(t, result.Snapshot.ReasonCodes, reasonMissingAssuranceAnchor)
+	assertHasReason(t, result.Snapshot.ReasonCodes, reasonMissingAssuranceBaseline)
 }
 
 func TestDiscoverAndValidateRejectsNonAbsoluteRepositoryRoot(t *testing.T) {
 	_, err := DiscoverAndValidate(DiscoveryInput{RepositoryRoot: "relative/root", Authority: RepoRootAuthorityExplicitConfig})
+	if err == nil {
+		t.Fatal("DiscoverAndValidate error = nil, want root-invalid error")
+	}
+	if got := err.Error(); got != reasonDiscoveryRootInvalid {
+		t.Fatalf("error = %q, want %q", got, reasonDiscoveryRootInvalid)
+	}
+}
+
+func TestDiscoverAndValidateRejectsEmptyExplicitRepositoryRoot(t *testing.T) {
+	_, err := DiscoverAndValidate(DiscoveryInput{Authority: RepoRootAuthorityExplicitConfig})
 	if err == nil {
 		t.Fatal("DiscoverAndValidate error = nil, want root-invalid error")
 	}
@@ -138,6 +149,59 @@ func writeCanonicalV0Anchors(t *testing.T, root string) {
 	if err := os.WriteFile(filepath.Join(root, CanonicalConfigPath), []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile runecontext.yaml returned error: %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(root, canonicalAssuranceBaselinePath), []byte("canonicalization: runecontext-canonical-json-v1\ncreated_at: 0\nkind: baseline\nschema_version: 1\nsubject_id: project-root\nvalue:\n  adoption_commit: 0000000000000000000000000000000000000000\n  source_posture: embedded\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile assurance baseline returned error: %v", err)
+	}
+}
+
+func TestDiscoverAndValidateInvalidAssuranceBaselineContent(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, CanonicalSourcePath), 0o755); err != nil {
+		t.Fatalf("MkdirAll source path returned error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, CanonicalAssurancePath), 0o755); err != nil {
+		t.Fatalf("MkdirAll assurance path returned error: %v", err)
+	}
+	content := "schema_version: 1\nrunecontext_version: \"0.1.0-alpha.14\"\nassurance_tier: verified\nsource:\n  type: embedded\n  path: runecontext\n"
+	if err := os.WriteFile(filepath.Join(root, CanonicalConfigPath), []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile runecontext.yaml returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, canonicalAssuranceBaselinePath), []byte("canonicalization: runecontext-canonical-json-v1\ncreated_at: 0\nkind: baseline\nschema_version: 1\nsubject_id: project-root\nvalue:\n  source_posture: embedded\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile assurance baseline returned error: %v", err)
+	}
+
+	result, err := DiscoverAndValidate(DiscoveryInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
+	if err != nil {
+		t.Fatalf("DiscoverAndValidate returned error: %v", err)
+	}
+	if got := result.Snapshot.ValidationState; got != validationStateInvalid {
+		t.Fatalf("validation_state = %q, want %q", got, validationStateInvalid)
+	}
+	assertHasReason(t, result.Snapshot.ReasonCodes, reasonAssuranceBaselineInvalid)
+}
+
+func TestValidateLayoutBaselineOnlyIsInvalidNotMissing(t *testing.T) {
+	snapshot := validateLayout(defaultContract(RepoRootAuthorityExplicitConfig), repositoryLayout{
+		hasAssuranceBaseline: true,
+	})
+
+	if got := snapshot.ValidationState; got != validationStateInvalid {
+		t.Fatalf("validation_state = %q, want %q", got, validationStateInvalid)
+	}
+	assertHasReason(t, snapshot.ReasonCodes, reasonMissingConfigAnchor)
+	assertHasReason(t, snapshot.ReasonCodes, reasonMissingSourceAnchor)
+	assertHasReason(t, snapshot.ReasonCodes, reasonMissingAssuranceAnchor)
+}
+
+func TestValidateLayoutPrivateMirrorOnlyIsInvalidNotMissing(t *testing.T) {
+	snapshot := validateLayout(defaultContract(RepoRootAuthorityExplicitConfig), repositoryLayout{
+		hasPrivateTruthCopy: true,
+	})
+
+	if got := snapshot.ValidationState; got != validationStateInvalid {
+		t.Fatalf("validation_state = %q, want %q", got, validationStateInvalid)
+	}
+	assertHasReason(t, snapshot.ReasonCodes, reasonPrivateMirrorDetected)
 }
 
 func assertHasReason(t *testing.T, reasons []string, want string) {

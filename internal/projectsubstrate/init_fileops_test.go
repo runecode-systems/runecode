@@ -10,8 +10,43 @@ import (
 
 func TestReplaceConfigFileReturnsErrorWhenBackupCleanupFails(t *testing.T) {
 	src, dst := writeReplaceConfigFixtures(t)
+	if err := os.WriteFile(dst+".bak", []byte("stale backup"), 0o644); err != nil {
+		t.Fatalf("WriteFile(stale backup) returned error: %v", err)
+	}
 	backupRemoveErr := errors.New("simulated backup remove failure")
-	installReplaceConfigSeams(t, backupRemoveErr)
+	installReplaceConfigSeams(t, backupRemoveErr, 1)
+
+	err := replaceConfigFile(src, dst)
+	if err == nil {
+		t.Fatal("replaceConfigFile error = nil, want backup remove failure")
+	}
+	if !errors.Is(err, backupRemoveErr) {
+		t.Fatalf("replaceConfigFile error = %v, want wrapped backup remove failure", err)
+	}
+	if !strings.Contains(err.Error(), "cleanup stale backup failed") {
+		t.Fatalf("replaceConfigFile error = %q, want stale backup cleanup context", err.Error())
+	}
+	if !strings.Contains(err.Error(), "cleanup stale backup") {
+		t.Fatalf("replaceConfigFile error = %q, want backup cleanup context", err.Error())
+	}
+	assertOriginalConfig(t, dst)
+}
+
+func TestReplaceConfigFileIgnoresNotExistFromBackupCleanup(t *testing.T) {
+	src, dst := writeReplaceConfigFixtures(t)
+	installReplaceConfigSeams(t, os.ErrNotExist, 0)
+
+	err := replaceConfigFile(src, dst)
+	if err != nil {
+		t.Fatalf("replaceConfigFile returned error: %v", err)
+	}
+	assertReplacedConfig(t, dst)
+}
+
+func TestReplaceConfigFileReturnsErrorWhenPostApplyBackupCleanupFails(t *testing.T) {
+	src, dst := writeReplaceConfigFixtures(t)
+	backupRemoveErr := errors.New("simulated backup remove failure")
+	installReplaceConfigSeams(t, backupRemoveErr, 2)
 
 	err := replaceConfigFile(src, dst)
 	if err == nil {
@@ -25,17 +60,6 @@ func TestReplaceConfigFileReturnsErrorWhenBackupCleanupFails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "remove backup") {
 		t.Fatalf("replaceConfigFile error = %q, want backup cleanup context", err.Error())
-	}
-	assertReplacedConfig(t, dst)
-}
-
-func TestReplaceConfigFileIgnoresNotExistFromBackupCleanup(t *testing.T) {
-	src, dst := writeReplaceConfigFixtures(t)
-	installReplaceConfigSeams(t, os.ErrNotExist)
-
-	err := replaceConfigFile(src, dst)
-	if err != nil {
-		t.Fatalf("replaceConfigFile returned error: %v", err)
 	}
 	assertReplacedConfig(t, dst)
 }
@@ -54,7 +78,7 @@ func writeReplaceConfigFixtures(t *testing.T) (string, string) {
 	return src, dst
 }
 
-func installReplaceConfigSeams(t *testing.T, backupCleanupErr error) {
+func installReplaceConfigSeams(t *testing.T, backupCleanupErr error, failOnRemoveCall int) {
 	t.Helper()
 	originalRename := renameConfigFile
 	originalRemoveBackup := removeConfigBackup
@@ -70,8 +94,13 @@ func installReplaceConfigSeams(t *testing.T, backupCleanupErr error) {
 		}
 		return os.Rename(oldpath, newpath)
 	}
+	removeCalls := 0
 	removeConfigBackup = func(_ string) error {
-		return backupCleanupErr
+		removeCalls++
+		if failOnRemoveCall == 0 || removeCalls == failOnRemoveCall {
+			return backupCleanupErr
+		}
+		return nil
 	}
 }
 
@@ -83,5 +112,16 @@ func assertReplacedConfig(t *testing.T, dst string) {
 	}
 	if string(gotConfig) != "next config" {
 		t.Fatalf("dst content = %q, want replacement content", string(gotConfig))
+	}
+}
+
+func assertOriginalConfig(t *testing.T, dst string) {
+	t.Helper()
+	gotConfig, readErr := os.ReadFile(dst)
+	if readErr != nil {
+		t.Fatalf("ReadFile(dst) returned error: %v", readErr)
+	}
+	if string(gotConfig) != "prior config" {
+		t.Fatalf("dst content = %q, want original content", string(gotConfig))
 	}
 }

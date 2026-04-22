@@ -5,7 +5,7 @@
   "description": "Broker-owned typed posture and lifecycle diagnostics surface for project substrate.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 11,
+  "maxProperties": 12,
   "required": ["schema_id", "schema_version", "request_id", "repository_root", "contract", "snapshot", "posture_summary", "adoption", "init_preview", "upgrade_preview"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.ProjectSubstratePostureGetResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },

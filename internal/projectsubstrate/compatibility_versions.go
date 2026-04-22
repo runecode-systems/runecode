@@ -78,12 +78,21 @@ func parseCoreVersion(coreValue, raw string) (parsedVersion, error) {
 	if err != nil {
 		return parsedVersion{}, fmt.Errorf("invalid major version %q", raw)
 	}
+	if !isCanonicalNumericIdentifier(core[0]) {
+		return parsedVersion{}, fmt.Errorf("invalid major version %q", raw)
+	}
 	minor, err := strconv.Atoi(core[1])
 	if err != nil {
 		return parsedVersion{}, fmt.Errorf("invalid minor version %q", raw)
 	}
+	if !isCanonicalNumericIdentifier(core[1]) {
+		return parsedVersion{}, fmt.Errorf("invalid minor version %q", raw)
+	}
 	patch, err := strconv.Atoi(core[2])
 	if err != nil {
+		return parsedVersion{}, fmt.Errorf("invalid patch version %q", raw)
+	}
+	if !isCanonicalNumericIdentifier(core[2]) {
 		return parsedVersion{}, fmt.Errorf("invalid patch version %q", raw)
 	}
 	return parsedVersion{major: major, minor: minor, patch: patch}, nil
@@ -93,7 +102,58 @@ func parsePreRelease(value, raw string) ([]string, error) {
 	if strings.TrimSpace(value) == "" {
 		return nil, fmt.Errorf("invalid pre-release %q", raw)
 	}
-	return strings.Split(value, "."), nil
+	parts := strings.Split(value, ".")
+	for _, part := range parts {
+		if !isValidPreReleaseIdentifier(part) {
+			return nil, fmt.Errorf("invalid pre-release %q", raw)
+		}
+	}
+	return parts, nil
+}
+
+func isCanonicalNumericIdentifier(value string) bool {
+	if value == "" {
+		return false
+	}
+	if strings.HasPrefix(value, "-") || strings.HasPrefix(value, "+") {
+		return false
+	}
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	if len(value) > 1 && value[0] == '0' {
+		return false
+	}
+	return true
+}
+
+func isValidPreReleaseIdentifier(value string) bool {
+	if strings.TrimSpace(value) == "" {
+		return false
+	}
+	for _, r := range value {
+		if (r < '0' || r > '9') && (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && r != '-' {
+			return false
+		}
+	}
+	if isAllDigits(value) {
+		return isCanonicalNumericIdentifier(value)
+	}
+	return true
+}
+
+func isAllDigits(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func comparePreRelease(a, b []string) int {

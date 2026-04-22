@@ -93,15 +93,29 @@ func blockedInitializePreview(snapshot ValidationSnapshot, preview InitPreview) 
 }
 
 func readyInitializePreview(discovered DiscoveryResult, layout repositoryLayout, preview InitPreview) InitPreview {
-	nextConfig := canonicalV0RunecontextYAML(releaseRecommendedRuneContextVersion, "embedded")
+	mutation, err := canonicalInitialization(recommendedRuneContextVersionTarget(), "embedded")
+	if err != nil {
+		preview.Status = initPreviewStatusBlocked
+		preview.ReasonCodes = []string{reasonRemediationFlowRequired}
+		preview.ExpectedSnapshot = discovered.Snapshot
+		preview.RequiredFollowUp = []string{"inspect_project_substrate_diagnostics"}
+		preview.PreviewToken = digestInitPreview(preview)
+		return preview
+	}
 	nextLayout := layout
 	nextLayout.hasConfigAnchor = true
 	nextLayout.hasSourceAnchor = true
 	nextLayout.hasAssuranceAnchor = true
-	nextLayout.runecontextYAML = []byte(nextConfig)
+	nextLayout.hasAssuranceBaseline = true
+	nextLayout.runecontextYAML = []byte(mutation.ConfigYAML)
 	preview.Status = initPreviewStatusReady
 	preview.ExpectedSnapshot = validateLayout(discovered.Contract, nextLayout)
-	preview.FileChanges = []InitFileChange{{Path: CanonicalSourcePath, Action: "create_directory"}, {Path: CanonicalAssurancePath, Action: "create_directory"}, {Path: CanonicalConfigPath, Action: "create_file", AfterContentSHA: sha256Hex([]byte(nextConfig))}}
+	preview.FileChanges = []InitFileChange{
+		{Path: mutation.SourcePath, Action: "create_directory"},
+		{Path: mutation.AssurancePath, Action: "create_directory"},
+		{Path: mutation.BaselinePath, Action: "create_file", AfterContentSHA: sha256Hex([]byte(mutation.AssuranceBaselineYML))},
+		{Path: CanonicalConfigPath, Action: "create_file", AfterContentSHA: sha256Hex([]byte(mutation.ConfigYAML))},
+	}
 	preview.RequiredFollowUp = []string{"review_init_preview", "apply_init_preview", "revalidate_project_substrate"}
 	preview.PreviewToken = digestInitPreview(preview)
 	return preview

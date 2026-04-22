@@ -6,41 +6,44 @@ import (
 )
 
 const (
-	ContractSchemaID       = "runecode.protocol.v0.ProjectSubstrateContractState"
-	ContractSchemaVersion  = "0.1.0"
-	SnapshotSchemaID       = "runecode.protocol.v0.ProjectSubstrateValidationSnapshot"
-	SnapshotSchemaVersion  = "0.1.0"
-	AdoptionSchemaID       = "runecode.protocol.v0.ProjectSubstrateAdoptionResult"
-	AdoptionSchemaVersion  = "0.1.0"
-	InitPreviewSchemaID    = "runecode.protocol.v0.ProjectSubstrateInitPreview"
-	InitPreviewVersion     = "0.1.0"
-	InitApplySchemaID      = "runecode.protocol.v0.ProjectSubstrateInitApplyResult"
-	InitApplyVersion       = "0.1.0"
-	UpgradePreviewSchemaID = "runecode.protocol.v0.ProjectSubstrateUpgradePreview"
-	UpgradePreviewVersion  = "0.1.0"
-	UpgradeApplySchemaID   = "runecode.protocol.v0.ProjectSubstrateUpgradeApplyResult"
-	UpgradeApplyVersion    = "0.1.0"
-	ContractIDV0           = "runecode.runecontext.project_substrate.v0"
-	ContractVersionV0      = "v0"
-	CanonicalConfigPath    = "runecontext.yaml"
-	CanonicalSourcePath    = "runecontext"
-	CanonicalAssurancePath = "runecontext/assurance"
+	ContractSchemaID               = "runecode.protocol.v0.ProjectSubstrateContractState"
+	ContractSchemaVersion          = "0.1.0"
+	SnapshotSchemaID               = "runecode.protocol.v0.ProjectSubstrateValidationSnapshot"
+	SnapshotSchemaVersion          = "0.1.0"
+	AdoptionSchemaID               = "runecode.protocol.v0.ProjectSubstrateAdoptionResult"
+	AdoptionSchemaVersion          = "0.1.0"
+	InitPreviewSchemaID            = "runecode.protocol.v0.ProjectSubstrateInitPreview"
+	InitPreviewVersion             = "0.1.0"
+	InitApplySchemaID              = "runecode.protocol.v0.ProjectSubstrateInitApplyResult"
+	InitApplyVersion               = "0.1.0"
+	UpgradePreviewSchemaID         = "runecode.protocol.v0.ProjectSubstrateUpgradePreview"
+	UpgradePreviewVersion          = "0.1.0"
+	UpgradeApplySchemaID           = "runecode.protocol.v0.ProjectSubstrateUpgradeApplyResult"
+	UpgradeApplyVersion            = "0.1.0"
+	ContractIDV0                   = "runecode.runecontext.project_substrate.v0"
+	ContractVersionV0              = "v0"
+	CanonicalConfigPath            = "runecontext.yaml"
+	CanonicalSourcePath            = "runecontext"
+	CanonicalAssurancePath         = "runecontext/assurance"
+	canonicalAssuranceBaselinePath = "runecontext/assurance/baseline.yaml"
 
 	validationStateValid   = "valid"
 	validationStateInvalid = "invalid"
 	validationStateMissing = "missing"
 
-	reasonMissingConfigAnchor     = "anchor_missing_runecontext_yaml"
-	reasonMissingSourceAnchor     = "anchor_missing_runecontext_source"
-	reasonMissingAssuranceAnchor  = "anchor_missing_runecontext_assurance"
-	reasonConfigParseInvalid      = "config_parse_invalid"
-	reasonNonVerifiedPosture      = "posture_non_verified"
-	reasonNonCanonicalSourcePath  = "source_path_non_canonical"
-	reasonPrivateMirrorDetected   = "runecode_private_mirror_detected"
-	reasonDiscoveryRootInvalid    = "repository_root_invalid"
-	reasonConfigMissingSourcePath = "source_path_missing"
-	reasonAdoptionNotCanonical    = "adoption_not_canonical"
-	reasonAdoptionNotVerified     = "adoption_not_verified"
+	reasonMissingConfigAnchor      = "anchor_missing_runecontext_yaml"
+	reasonMissingSourceAnchor      = "anchor_missing_runecontext_source"
+	reasonMissingAssuranceAnchor   = "anchor_missing_runecontext_assurance"
+	reasonMissingAssuranceBaseline = "anchor_missing_runecontext_assurance_baseline"
+	reasonConfigParseInvalid       = "config_parse_invalid"
+	reasonAssuranceBaselineInvalid = "assurance_baseline_invalid"
+	reasonNonVerifiedPosture       = "posture_non_verified"
+	reasonNonCanonicalSourcePath   = "source_path_non_canonical"
+	reasonPrivateMirrorDetected    = "runecode_private_mirror_detected"
+	reasonDiscoveryRootInvalid     = "repository_root_invalid"
+	reasonConfigMissingSourcePath  = "source_path_missing"
+	reasonAdoptionNotCanonical     = "adoption_not_canonical"
+	reasonAdoptionNotVerified      = "adoption_not_verified"
 
 	reasonInitConflictDetected        = "init_conflict_detected"
 	reasonInitConflictCanonicalExists = "init_conflict_canonical_exists"
@@ -56,6 +59,7 @@ const (
 	reasonRemediationConfigInvalid           = "remediation_config_invalid"
 	reasonRemediationDeclaredSourceConflicts = "remediation_declared_source_conflicts"
 	reasonUpgradeApplyExplicitRequired       = "upgrade_apply_explicit_required"
+	reasonUpgradePreviewDigestRequired       = "upgrade_preview_digest_required"
 	reasonUpgradeSnapshotChanged             = "upgrade_snapshot_changed_since_preview"
 	reasonUpgradePreviewDigestMismatch       = "upgrade_preview_digest_mismatch"
 	reasonUpgradePostValidationFailed        = "upgrade_post_validation_failed"
@@ -119,12 +123,13 @@ type ValidationSnapshot struct {
 }
 
 type AnchorStatus struct {
-	HasConfigAnchor     bool `json:"has_config_anchor"`
-	HasSourceAnchor     bool `json:"has_source_anchor"`
-	HasAssuranceAnchor  bool `json:"has_assurance_anchor"`
-	HasVerifiedPosture  bool `json:"has_verified_posture"`
-	HasCanonicalSource  bool `json:"has_canonical_source"`
-	HasPrivateTruthCopy bool `json:"has_private_truth_copy"`
+	HasConfigAnchor      bool `json:"has_config_anchor"`
+	HasSourceAnchor      bool `json:"has_source_anchor"`
+	HasAssuranceAnchor   bool `json:"has_assurance_anchor"`
+	HasAssuranceBaseline bool `json:"has_assurance_baseline"`
+	HasVerifiedPosture   bool `json:"has_verified_posture"`
+	HasCanonicalSource   bool `json:"has_canonical_source"`
+	HasPrivateTruthCopy  bool `json:"has_private_truth_copy"`
 }
 
 func defaultContract(authority RepoRootAuthority) ContractState {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -39,7 +40,7 @@ func TestAdoptExistingBlockedForNonCanonicalState(t *testing.T) {
 
 func TestAdoptExistingBlockedForUnsupportedTooOldCompatibility(t *testing.T) {
 	root := t.TempDir()
-	writeCanonicalV0AnchorsWithVersion(t, root, "0.1.0-alpha.12")
+	writeCanonicalV0AnchorsWithVersion(t, root, "0.1.0-alpha.11")
 
 	adopted, err := AdoptExisting(AdoptionInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
 	if err != nil {
@@ -78,34 +79,23 @@ func TestPreviewInitializeReadyForMissingCanonicalState(t *testing.T) {
 	if preview.PreviewToken == "" {
 		t.Fatal("preview_token empty, want deterministic token")
 	}
-	if len(preview.FileChanges) != 3 {
-		t.Fatalf("file_changes count = %d, want 3", len(preview.FileChanges))
+	if len(preview.FileChanges) != 4 {
+		t.Fatalf("file_changes count = %d, want 4", len(preview.FileChanges))
 	}
 	if preview.ExpectedSnapshot.RuneContextVersion != releaseRecommendedRuneContextVersion {
 		t.Fatalf("expected_snapshot.runecontext_version = %q, want %q", preview.ExpectedSnapshot.RuneContextVersion, releaseRecommendedRuneContextVersion)
 	}
 }
 
-func TestApplyInitializeAppliesCanonicalFilesAndIsIdempotent(t *testing.T) {
+func TestApplyInitializeAppliesCanonicalFiles(t *testing.T) {
 	root := t.TempDir()
+	result := previewAndApplyInitialize(t, root)
+	assertInitializedCanonicalFiles(t, root, result)
+}
 
-	preview, err := PreviewInitialize(InitPreviewInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
-	if err != nil {
-		t.Fatalf("PreviewInitialize returned error: %v", err)
-	}
-	first, err := ApplyInitialize(InitApplyInput{Preview: preview, ExpectedPreviewToken: preview.PreviewToken})
-	if err != nil {
-		t.Fatalf("ApplyInitialize(first) returned error: %v", err)
-	}
-	if first.Status != initApplyStatusApplied {
-		t.Fatalf("status = %q, want %q", first.Status, initApplyStatusApplied)
-	}
-	if first.ResultingSnapshot.ValidationState != validationStateValid {
-		t.Fatalf("resulting_snapshot.validation_state = %q, want %q", first.ResultingSnapshot.ValidationState, validationStateValid)
-	}
-	if first.ResultingSnapshot.RuneContextVersion != releaseRecommendedRuneContextVersion {
-		t.Fatalf("resulting_snapshot.runecontext_version = %q, want %q", first.ResultingSnapshot.RuneContextVersion, releaseRecommendedRuneContextVersion)
-	}
+func TestApplyInitializeIsIdempotent(t *testing.T) {
+	root := t.TempDir()
+	_ = previewAndApplyInitialize(t, root)
 
 	secondPreview, err := PreviewInitialize(InitPreviewInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
 	if err != nil {
@@ -120,6 +110,48 @@ func TestApplyInitializeAppliesCanonicalFilesAndIsIdempotent(t *testing.T) {
 	}
 	if second.Status != initApplyStatusNoop {
 		t.Fatalf("second apply status = %q, want %q", second.Status, initApplyStatusNoop)
+	}
+}
+
+func previewAndApplyInitialize(t *testing.T, root string) InitApplyResult {
+	t.Helper()
+	preview, err := PreviewInitialize(InitPreviewInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
+	if err != nil {
+		t.Fatalf("PreviewInitialize returned error: %v", err)
+	}
+	result, err := ApplyInitialize(InitApplyInput{Preview: preview, ExpectedPreviewToken: preview.PreviewToken})
+	if err != nil {
+		t.Fatalf("ApplyInitialize returned error: %v", err)
+	}
+	return result
+}
+
+func assertInitializedCanonicalFiles(t *testing.T, root string, result InitApplyResult) {
+	t.Helper()
+	if result.Status != initApplyStatusApplied {
+		t.Fatalf("status = %q, want %q", result.Status, initApplyStatusApplied)
+	}
+	if result.ResultingSnapshot.ValidationState != validationStateValid {
+		t.Fatalf("resulting_snapshot.validation_state = %q, want %q", result.ResultingSnapshot.ValidationState, validationStateValid)
+	}
+	if result.ResultingSnapshot.RuneContextVersion != releaseRecommendedRuneContextVersion {
+		t.Fatalf("resulting_snapshot.runecontext_version = %q, want %q", result.ResultingSnapshot.RuneContextVersion, releaseRecommendedRuneContextVersion)
+	}
+	assertCanonicalAssuranceBaseline(t, root)
+}
+
+func assertCanonicalAssuranceBaseline(t *testing.T, root string) {
+	t.Helper()
+	baselinePath := filepath.Join(root, canonicalAssuranceBaselinePath)
+	if _, err := os.Stat(baselinePath); err != nil {
+		t.Fatalf("assurance baseline stat returned error: %v", err)
+	}
+	baseline, err := os.ReadFile(baselinePath)
+	if err != nil {
+		t.Fatalf("ReadFile assurance baseline returned error: %v", err)
+	}
+	if !strings.Contains(string(baseline), "adoption_commit: \"0000000000000000000000000000000000000000\"") {
+		t.Fatalf("assurance baseline missing adoption_commit:\n%s", string(baseline))
 	}
 }
 
@@ -224,5 +256,8 @@ func writeCanonicalV0AnchorsWithVersion(t *testing.T, root, version string) {
 	content := "schema_version: 1\nrunecontext_version: \"" + version + "\"\nassurance_tier: verified\nsource:\n  type: embedded\n  path: runecontext\n"
 	if err := os.WriteFile(filepath.Join(root, CanonicalConfigPath), []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile runecontext.yaml returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, canonicalAssuranceBaselinePath), []byte("canonicalization: runecontext-canonical-json-v1\ncreated_at: 0\nkind: baseline\nschema_version: 1\nsubject_id: project-root\nvalue:\n  adoption_commit: 0000000000000000000000000000000000000000\n  source_posture: embedded\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile assurance baseline returned error: %v", err)
 	}
 }

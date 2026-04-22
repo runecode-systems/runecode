@@ -24,12 +24,15 @@ type repositoryLayout struct {
 	configPath            string
 	sourcePath            string
 	assurancePath         string
+	baselinePath          string
 	runecontextCandidates []string
 	hasConfigAnchor       bool
 	hasSourceAnchor       bool
 	hasAssuranceAnchor    bool
+	hasAssuranceBaseline  bool
 	hasPrivateTruthCopy   bool
 	runecontextYAML       []byte
+	assuranceBaselineYAML []byte
 }
 
 func DiscoverAndValidate(input DiscoveryInput) (DiscoveryResult, error) {
@@ -51,6 +54,9 @@ func DiscoverAndValidate(input DiscoveryInput) (DiscoveryResult, error) {
 func authoritativeRepoRoot(input DiscoveryInput) (string, error) {
 	root := strings.TrimSpace(input.RepositoryRoot)
 	if root == "" {
+		if input.Authority == RepoRootAuthorityExplicitConfig {
+			return "", fmt.Errorf("%s", reasonDiscoveryRootInvalid)
+		}
 		cwd, err := os.Getwd()
 		if err != nil {
 			return "", fmt.Errorf("determine repository root: %w", err)
@@ -77,9 +83,11 @@ func inspectLayout(repoRoot string) repositoryLayout {
 		configPath:    filepath.Join(repoRoot, CanonicalConfigPath),
 		sourcePath:    filepath.Join(repoRoot, CanonicalSourcePath),
 		assurancePath: filepath.Join(repoRoot, CanonicalAssurancePath),
+		baselinePath:  filepath.Join(repoRoot, canonicalAssuranceBaselinePath),
 	}
 	layout.runecontextCandidates = discoverRunecontextCandidates(repoRoot)
 	readConfigAnchor(&layout)
+	readAssuranceBaselineAnchor(&layout)
 	statDirectoryAnchor(layout.sourcePath, &layout.hasSourceAnchor)
 	statDirectoryAnchor(layout.assurancePath, &layout.hasAssuranceAnchor)
 	statDirectoryAnchor(filepath.Join(repoRoot, ".runecontext"), &layout.hasPrivateTruthCopy)
@@ -123,6 +131,18 @@ func readConfigAnchor(layout *repositoryLayout) {
 	}
 	layout.hasConfigAnchor = true
 	layout.runecontextYAML = b
+}
+
+func readAssuranceBaselineAnchor(layout *repositoryLayout) {
+	if layout == nil {
+		return
+	}
+	b, err := os.ReadFile(layout.baselinePath)
+	if err != nil {
+		return
+	}
+	layout.hasAssuranceBaseline = true
+	layout.assuranceBaselineYAML = b
 }
 
 func statDirectoryAnchor(path string, target *bool) {

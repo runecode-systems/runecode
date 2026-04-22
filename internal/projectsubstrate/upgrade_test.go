@@ -222,7 +222,7 @@ func TestApplyUpgradeSnapshotDriftBlockedWithDistinctReason(t *testing.T) {
 	}
 }
 
-func TestApplyUpgradeAllowsEmptyExpectedPreviewDigest(t *testing.T) {
+func TestApplyUpgradeRequiresExpectedPreviewDigest(t *testing.T) {
 	root := t.TempDir()
 	writeUpgradeableNonVerifiedV0Anchors(t, root)
 
@@ -235,14 +235,10 @@ func TestApplyUpgradeAllowsEmptyExpectedPreviewDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyUpgrade returned error: %v", err)
 	}
-	if result.Status != upgradeApplyStatusApplied {
-		t.Fatalf("status = %q, want %q", result.Status, upgradeApplyStatusApplied)
+	if result.Status != upgradeApplyStatusBlocked {
+		t.Fatalf("status = %q, want %q", result.Status, upgradeApplyStatusBlocked)
 	}
-	for _, reason := range result.ReasonCodes {
-		if reason == reasonUpgradePreviewDigestMismatch {
-			t.Fatalf("reason_codes unexpectedly contains %q: %v", reasonUpgradePreviewDigestMismatch, result.ReasonCodes)
-		}
-	}
+	assertHasReason(t, result.ReasonCodes, reasonUpgradePreviewDigestRequired)
 }
 
 func TestApplyUpgradeEmitsAuditEvidenceWhenAppenderProvided(t *testing.T) {
@@ -356,5 +352,8 @@ func writeUpgradeableNonVerifiedV0Anchors(t *testing.T, root string) {
 	content := "schema_version: 1\nrunecontext_version: \"0.1.0-alpha.14\"\nassurance_tier: plain\nsource:\n  type: embedded\n  path: runecontext\n"
 	if err := os.WriteFile(filepath.Join(root, CanonicalConfigPath), []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile runecontext.yaml returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, canonicalAssuranceBaselinePath), []byte("canonicalization: runecontext-canonical-json-v1\ncreated_at: 0\nkind: baseline\nschema_version: 1\nsubject_id: project-root\nvalue:\n  adoption_commit: 0000000000000000000000000000000000000000\n  source_posture: embedded\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile assurance baseline returned error: %v", err)
 	}
 }

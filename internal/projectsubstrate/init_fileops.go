@@ -56,9 +56,20 @@ var renameConfigFile = os.Rename
 var removeConfigBackup = os.Remove
 var writeCanonicalConfigFile = writeCanonicalConfig
 
+func cleanupConfigBackup(dst string) error {
+	backup := dst + ".bak"
+	if err := removeConfigBackup(backup); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 func replaceConfigFile(src, dst string) error {
 	release := lockReplaceConfigTarget(dst)
 	defer release()
+	if err := cleanupConfigBackup(dst); err != nil {
+		return fmt.Errorf("replace %s: cleanup stale backup failed: %w", dst, err)
+	}
 	if err := renameConfigFile(src, dst); err == nil {
 		return nil
 	}
