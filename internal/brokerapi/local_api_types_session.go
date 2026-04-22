@@ -17,6 +17,8 @@ type SessionSummary struct {
 	Identity              SessionIdentity `json:"identity"`
 	UpdatedAt             string          `json:"updated_at"`
 	Status                string          `json:"status"`
+	WorkPosture           string          `json:"work_posture"`
+	WorkPostureReasonCode string          `json:"work_posture_reason_code,omitempty"`
 	LastActivityAt        string          `json:"last_activity_at,omitempty"`
 	LastActivityKind      string          `json:"last_activity_kind"`
 	LastActivityPreview   string          `json:"last_activity_preview,omitempty"`

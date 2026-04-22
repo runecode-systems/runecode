@@ -113,6 +113,8 @@ func dispatchTUILocalRPCJSONBackendOps(service *brokerapi.Service, wire brokerap
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleReadinessGet), true
 	case "version_info_get":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleVersionInfoGet), true
+	case "product_lifecycle_posture_get":
+		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleProductLifecyclePostureGet), true
 	case "project_substrate_posture_get":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleProjectSubstratePostureGet), true
 	case "backend_posture_get":

@@ -7,12 +7,14 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 )
 
 func TestListenLocalIPCPermissionPosture(t *testing.T) {
 	base := shortBaseDir(t)
+	t.Setenv("XDG_RUNTIME_DIR", base)
 	runtimeDir := filepath.Join(base, "runtime")
 	oldUmask := syscall.Umask(0)
 	defer syscall.Umask(oldUmask)
@@ -42,6 +44,7 @@ func TestListenLocalIPCPermissionPosture(t *testing.T) {
 
 func TestListenLocalIPCRejectsRuntimeDirWithLoosePermissions(t *testing.T) {
 	base := shortBaseDir(t)
+	t.Setenv("XDG_RUNTIME_DIR", base)
 	runtimeDir := filepath.Join(base, "runtime")
 	if err := os.MkdirAll(runtimeDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll returned error: %v", err)
@@ -60,6 +63,7 @@ func TestListenLocalIPCRejectsRuntimeDirWithLoosePermissions(t *testing.T) {
 
 func TestEnsureLocalSocketPermissionsRejectsLoosePermissions(t *testing.T) {
 	base := shortBaseDir(t)
+	t.Setenv("XDG_RUNTIME_DIR", base)
 	runtimeDir := filepath.Join(base, "runtime")
 	listener, err := ListenLocalIPC(LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
 	if err != nil {
@@ -80,6 +84,7 @@ func TestEnsureLocalSocketPermissionsRejectsLoosePermissions(t *testing.T) {
 
 func TestAuthenticateLocalPeerRejectsWrongUID(t *testing.T) {
 	base := shortBaseDir(t)
+	t.Setenv("XDG_RUNTIME_DIR", base)
 	runtimeDir := filepath.Join(base, "runtime")
 	listener, err := ListenLocalIPC(LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
 	if err != nil {
@@ -112,6 +117,7 @@ func TestAuthenticateLocalPeerRejectsWrongUID(t *testing.T) {
 
 func TestAuthenticateLocalPeerHonorsExplicitZeroAllowedUID(t *testing.T) {
 	base := shortBaseDir(t)
+	t.Setenv("XDG_RUNTIME_DIR", base)
 	runtimeDir := filepath.Join(base, "runtime")
 	listener, err := ListenLocalIPC(LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
 	if err != nil {
@@ -150,6 +156,7 @@ func TestAuthenticateLocalPeerHonorsExplicitZeroAllowedUID(t *testing.T) {
 }
 
 func TestAuthenticateLocalPeerFailsClosedWhenCredentialsUnavailable(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", shortBaseDir(t))
 	left, right := net.Pipe()
 	defer left.Close()
 	defer right.Close()
@@ -159,6 +166,41 @@ func TestAuthenticateLocalPeerFailsClosedWhenCredentialsUnavailable(t *testing.T
 	}
 	if !errors.Is(err, ErrPeerCredentialsUnavailable) {
 		t.Fatalf("error = %v, want ErrPeerCredentialsUnavailable", err)
+	}
+}
+
+func TestDefaultLocalIPCConfigIsRepoScoped(t *testing.T) {
+	repoRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".git"), 0o755); err != nil {
+		t.Fatalf("MkdirAll .git returned error: %v", err)
+	}
+	nested := filepath.Join(repoRoot, "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("MkdirAll nested returned error: %v", err)
+	}
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd returned error: %v", err)
+	}
+	if err := os.Chdir(nested); err != nil {
+		t.Fatalf("Chdir returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldWD) })
+	runtimeBase := shortBaseDir(t)
+	t.Setenv("XDG_RUNTIME_DIR", runtimeBase)
+
+	cfg, err := DefaultLocalIPCConfig()
+	if err != nil {
+		t.Fatalf("DefaultLocalIPCConfig returned error: %v", err)
+	}
+	if cfg.RepositoryRoot != repoRoot {
+		t.Fatalf("repository root = %q, want %q", cfg.RepositoryRoot, repoRoot)
+	}
+	if !strings.HasPrefix(cfg.RuntimeDir, runtimeBase) {
+		t.Fatalf("runtime dir = %q, want prefix %q", cfg.RuntimeDir, runtimeBase)
+	}
+	if !strings.Contains(filepath.ToSlash(cfg.RuntimeDir), "/runecode/repos/") {
+		t.Fatalf("runtime dir = %q, want repo-scoped path segment", cfg.RuntimeDir)
 	}
 }
 

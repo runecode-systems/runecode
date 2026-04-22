@@ -30,8 +30,9 @@ func DefaultAdmissionPolicy() AdmissionPolicy {
 }
 
 type LocalIPCConfig struct {
-	RuntimeDir string
-	SocketName string
+	RuntimeDir     string
+	SocketName     string
+	RepositoryRoot string
 }
 
 type LocalIPCListener struct {

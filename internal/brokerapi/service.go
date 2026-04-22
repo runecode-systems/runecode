@@ -1,7 +1,10 @@
 package brokerapi
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -42,6 +45,8 @@ type Service struct {
 	projectSubstrate           projectsubstrate.DiscoveryResult
 	discoverProjectSubstrateFn func() (projectsubstrate.DiscoveryResult, error)
 	now                        func() time.Time
+	productInstanceID          string
+	lifecycleGeneration        string
 }
 
 func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
@@ -71,6 +76,8 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 		return nil, err
 	}
 	svc.projectSubstrate = projectSubstrateResult
+	svc.productInstanceID = deriveProductInstanceID(projectSubstrateResult.RepositoryRoot)
+	svc.lifecycleGeneration = deriveLifecycleGeneration(svc.now(), svc.productInstanceID)
 	svc.configureProviderDurability()
 	if err := svc.reloadProviderDurableState(); err != nil {
 		return nil, err
@@ -208,6 +215,25 @@ func (s *Service) LatestAuditVerificationSurface(limit int) (AuditVerificationSu
 }
 
 func (s *Service) APILimits() Limits { return s.apiConfig.Limits }
+
+func deriveProductInstanceID(repositoryRoot string) string {
+	root := filepath.ToSlash(strings.TrimSpace(repositoryRoot))
+	if root == "" {
+		return "repo-unknown"
+	}
+	sum := sha256.Sum256([]byte("runecode.local-product.v1:" + root))
+	encoded := hex.EncodeToString(sum[:])
+	if len(encoded) > 24 {
+		encoded = encoded[:24]
+	}
+	return "repo-" + encoded
+}
+
+func deriveLifecycleGeneration(now time.Time, productInstanceID string) string {
+	stamp := now.UTC().Format(time.RFC3339Nano)
+	sum := sha256.Sum256([]byte(strings.TrimSpace(productInstanceID) + ":" + stamp))
+	return "gen-" + hex.EncodeToString(sum[:8])
+}
 
 func (s *Service) discoverProjectSubstrate() (projectsubstrate.DiscoveryResult, error) {
 	if s == nil {

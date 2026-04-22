@@ -99,10 +99,10 @@ func writeHelp(w io.Writer) error {
 	if _, err := fmt.Fprintln(w, "Interactive terminal UI for the local RuneCode broker API."); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(w, "Requires a local broker API listener started in another terminal:"); err != nil {
+	if _, err := fmt.Fprintln(w, "Normal user path: launch from the canonical product command (runecode attach)."); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(w, "  runecode-broker serve-local"); err != nil {
+	if _, err := fmt.Fprintln(w, "Low-level/dev path: attach to an already running broker listener when needed."); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintln(w); err != nil {
@@ -122,6 +122,9 @@ func writeNonInteractiveMessage(w io.Writer) error {
 	if _, err := fmt.Fprintln(w, "Interactive terminal required to launch UI."); err != nil {
 		return err
 	}
-	_, err := fmt.Fprintln(w, "Start local broker first in another terminal: runecode-broker serve-local [--runtime-dir dir] [--socket-name broker.sock]")
+	if _, err := fmt.Fprintln(w, "Canonical entry: runecode attach"); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintln(w, "Advanced/manual path: runecode-tui --runtime-dir dir --socket-name broker.sock")
 	return err
 }

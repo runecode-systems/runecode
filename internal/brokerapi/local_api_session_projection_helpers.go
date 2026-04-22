@@ -143,6 +143,8 @@ func buildSessionSummary(state artifacts.SessionDurableState, linkedRunCount, li
 		},
 		UpdatedAt:             updatedAt,
 		Status:                state.Status,
+		WorkPosture:           state.WorkPosture,
+		WorkPostureReasonCode: state.WorkPostureReason,
 		LastActivityAt:        state.LastActivityAt.UTC().Format(time.RFC3339),
 		LastActivityKind:      state.LastActivityKind,
 		LastActivityPreview:   state.LastActivityPreview,

@@ -9,6 +9,7 @@ import (
 
 	"github.com/runecode-ai/runecode/internal/auditd"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-ai/runecode/internal/localbootstrap"
 )
 
 type usageError struct{ message string }
@@ -230,20 +231,24 @@ Commands:
   llm-stream --run-id id --request-file path [--request-digest sha256:...] [--stream-id id] [--follow]`
 
 func defaultBrokerServiceRoots() brokerServiceRoots {
+	scope, err := localbootstrap.ResolveRepoScope(localbootstrap.ResolveInput{})
+	if err == nil {
+		return brokerServiceRoots{stateRoot: scope.StateRoot, auditLedgerRoot: scope.AuditLedgerRoot}
+	}
 	return brokerServiceRoots{stateRoot: defaultBrokerStoreRoot(), auditLedgerRoot: auditd.DefaultLedgerRoot()}
 }
 
 func newBrokerService(roots brokerServiceRoots) (*brokerapi.Service, error) {
-	resolved := roots
-	if resolved.stateRoot == "" {
-		resolved.stateRoot = defaultBrokerStoreRoot()
-	}
-	if resolved.auditLedgerRoot == "" {
-		resolved.auditLedgerRoot = auditd.DefaultLedgerRoot()
-	}
-	repoRoot, err := os.Getwd()
+	scope, err := localbootstrap.ResolveRepoScope(localbootstrap.ResolveInput{})
 	if err != nil {
 		return nil, err
 	}
-	return brokerapi.NewServiceWithConfig(resolved.stateRoot, resolved.auditLedgerRoot, brokerapi.APIConfig{RepositoryRoot: repoRoot})
+	resolved := roots
+	if resolved.stateRoot == "" {
+		resolved.stateRoot = scope.StateRoot
+	}
+	if resolved.auditLedgerRoot == "" {
+		resolved.auditLedgerRoot = scope.AuditLedgerRoot
+	}
+	return brokerapi.NewServiceWithConfig(resolved.stateRoot, resolved.auditLedgerRoot, brokerapi.APIConfig{RepositoryRoot: scope.RepositoryRoot})
 }

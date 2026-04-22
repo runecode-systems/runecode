@@ -34,6 +34,7 @@ func normalizeSessionRuntimeBinding(session SessionDurableState, sessionID, runI
 			CreatedByRunID:    runID,
 			UpdatedAt:         now,
 			Status:            "active",
+			WorkPosture:       "running",
 			LastActivityAt:    now,
 			LastActivityKind:  "session_created",
 			HasIncompleteTurn: false,
@@ -42,6 +43,8 @@ func normalizeSessionRuntimeBinding(session SessionDurableState, sessionID, runI
 		session.UpdatedAt = now
 		session.LastActivityAt = now
 		session.LastActivityKind = "run_progress"
+		session.WorkPosture = "running"
+		session.WorkPostureReason = ""
 		if strings.TrimSpace(session.CreatedByRunID) == "" {
 			session.CreatedByRunID = runID
 		}
@@ -67,6 +70,8 @@ func sessionDurableStateComparable(state SessionDurableState) sessionDurableStat
 		CreatedByRunID:       state.CreatedByRunID,
 		UpdatedAtUnixNano:    state.UpdatedAt.UnixNano(),
 		Status:               state.Status,
+		WorkPosture:          state.WorkPosture,
+		WorkPostureReason:    state.WorkPostureReason,
 		LastActivityUnixNano: state.LastActivityAt.UnixNano(),
 		LastActivityKind:     state.LastActivityKind,
 		LastActivityPreview:  state.LastActivityPreview,
@@ -142,6 +147,8 @@ type sessionDurableStateCompare struct {
 	CreatedByRunID       string
 	UpdatedAtUnixNano    int64
 	Status               string
+	WorkPosture          string
+	WorkPostureReason    string
 	LastActivityUnixNano int64
 	LastActivityKind     string
 	LastActivityPreview  string

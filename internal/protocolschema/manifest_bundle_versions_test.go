@@ -72,6 +72,7 @@ func localBrokerApprovalAndArtifactSchemaVersionPairs() map[string]string {
 		"runecode.protocol.v0.ApprovalBoundScope":            "0.1.0",
 		"runecode.protocol.v0.ArtifactSummary":               "0.1.0",
 		"runecode.protocol.v0.BrokerReadiness":               "0.1.0",
+		"runecode.protocol.v0.BrokerProductLifecyclePosture": "0.1.0",
 		"runecode.protocol.v0.SecretLease":                   "0.1.0",
 		"runecode.protocol.v0.SecretStoragePosture":          "0.1.0",
 		"runecode.protocol.v0.BrokerVersionInfo":             "0.1.0",
@@ -172,19 +173,21 @@ func localBrokerGitAndArtifactSchemaVersionPairs() map[string]string {
 
 func localBrokerReadApiAuditAndStatusSchemaVersionPairs() map[string]string {
 	return map[string]string{
-		"runecode.protocol.v0.AuditRecordDetail":            "0.1.0",
-		"runecode.protocol.v0.AuditRecordGetRequest":        "0.1.0",
-		"runecode.protocol.v0.AuditRecordGetResponse":       "0.1.0",
-		"runecode.protocol.v0.AuditAnchorSegmentRequest":    "0.1.0",
-		"runecode.protocol.v0.AuditAnchorSegmentResponse":   "0.1.0",
-		"runecode.protocol.v0.AuditTimelineRequest":         "0.1.0",
-		"runecode.protocol.v0.AuditTimelineResponse":        "0.1.0",
-		"runecode.protocol.v0.AuditVerificationGetRequest":  "0.1.0",
-		"runecode.protocol.v0.AuditVerificationGetResponse": "0.1.0",
-		"runecode.protocol.v0.ReadinessGetRequest":          "0.1.0",
-		"runecode.protocol.v0.ReadinessGetResponse":         "0.1.0",
-		"runecode.protocol.v0.VersionInfoGetRequest":        "0.1.0",
-		"runecode.protocol.v0.VersionInfoGetResponse":       "0.1.0",
+		"runecode.protocol.v0.AuditRecordDetail":                  "0.1.0",
+		"runecode.protocol.v0.AuditRecordGetRequest":              "0.1.0",
+		"runecode.protocol.v0.AuditRecordGetResponse":             "0.1.0",
+		"runecode.protocol.v0.AuditAnchorSegmentRequest":          "0.1.0",
+		"runecode.protocol.v0.AuditAnchorSegmentResponse":         "0.1.0",
+		"runecode.protocol.v0.AuditTimelineRequest":               "0.1.0",
+		"runecode.protocol.v0.AuditTimelineResponse":              "0.1.0",
+		"runecode.protocol.v0.AuditVerificationGetRequest":        "0.1.0",
+		"runecode.protocol.v0.AuditVerificationGetResponse":       "0.1.0",
+		"runecode.protocol.v0.ReadinessGetRequest":                "0.1.0",
+		"runecode.protocol.v0.ReadinessGetResponse":               "0.1.0",
+		"runecode.protocol.v0.VersionInfoGetRequest":              "0.1.0",
+		"runecode.protocol.v0.VersionInfoGetResponse":             "0.1.0",
+		"runecode.protocol.v0.ProductLifecyclePostureGetRequest":  "0.1.0",
+		"runecode.protocol.v0.ProductLifecyclePostureGetResponse": "0.1.0",
 	}
 }
 

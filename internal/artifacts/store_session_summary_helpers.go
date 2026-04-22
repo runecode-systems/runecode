@@ -26,18 +26,14 @@ func normalizeSessionDurableState(state SessionDurableState) SessionDurableState
 		state.WorkspaceID = "workspace-local"
 	}
 	state.CreatedByRunID = strings.TrimSpace(state.CreatedByRunID)
-	if state.CreatedAt.IsZero() {
-		state.CreatedAt = state.UpdatedAt
-	}
-	if state.UpdatedAt.IsZero() {
-		state.UpdatedAt = state.CreatedAt
-	}
-	if state.LastActivityAt.IsZero() {
-		state.LastActivityAt = state.UpdatedAt
-	}
+	normalizeSessionTimes(&state)
 	if state.Status == "" {
 		state.Status = "active"
 	}
+	if state.WorkPosture == "" {
+		state.WorkPosture = "idle"
+	}
+	resetSessionWorkPostureReason(&state)
 	if state.LastActivityKind == "" {
 		state.LastActivityKind = "unknown"
 	}
@@ -50,4 +46,28 @@ func normalizeSessionDurableState(state SessionDurableState) SessionDurableState
 	state.LinkedRunIDs = uniqueSortedStrings(state.LinkedRunIDs)
 	state.LastActivityPreview = strings.TrimSpace(state.LastActivityPreview)
 	return state
+}
+
+func normalizeSessionTimes(state *SessionDurableState) {
+	if state == nil {
+		return
+	}
+	if state.CreatedAt.IsZero() {
+		state.CreatedAt = state.UpdatedAt
+	}
+	if state.UpdatedAt.IsZero() {
+		state.UpdatedAt = state.CreatedAt
+	}
+	if state.LastActivityAt.IsZero() {
+		state.LastActivityAt = state.UpdatedAt
+	}
+}
+
+func resetSessionWorkPostureReason(state *SessionDurableState) {
+	if state == nil {
+		return
+	}
+	if state.WorkPosture != "blocked" && state.WorkPosture != "degraded" {
+		state.WorkPostureReason = ""
+	}
 }

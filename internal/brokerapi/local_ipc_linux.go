@@ -8,11 +8,11 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 
+	"github.com/runecode-ai/runecode/internal/localbootstrap"
 	"golang.org/x/sys/unix"
 )
 
@@ -48,8 +48,9 @@ func DefaultAdmissionPolicy() AdmissionPolicy {
 }
 
 type LocalIPCConfig struct {
-	RuntimeDir string
-	SocketName string
+	RuntimeDir     string
+	SocketName     string
+	RepositoryRoot string
 }
 
 type LocalIPCListener struct {
@@ -76,16 +77,14 @@ func (l *LocalIPCListener) Close() error {
 }
 
 func DefaultLocalIPCConfig() (LocalIPCConfig, error) {
-	runtimeBase := strings.TrimSpace(os.Getenv("XDG_RUNTIME_DIR"))
-	if runtimeBase == "" {
-		runtimeBase = filepath.Join("/run/user", strconv.Itoa(os.Getuid()))
-	}
-	if strings.TrimSpace(runtimeBase) == "" {
-		return LocalIPCConfig{}, fmt.Errorf("resolve user runtime directory: empty path")
+	scope, err := localbootstrap.ResolveRepoScope(localbootstrap.ResolveInput{})
+	if err != nil {
+		return LocalIPCConfig{}, err
 	}
 	return LocalIPCConfig{
-		RuntimeDir: filepath.Join(runtimeBase, "runecode", "brokerapi"),
-		SocketName: defaultSocketName,
+		RuntimeDir:     scope.LocalRuntimeDir,
+		SocketName:     scope.LocalSocketName,
+		RepositoryRoot: scope.RepositoryRoot,
 	}, nil
 }
 

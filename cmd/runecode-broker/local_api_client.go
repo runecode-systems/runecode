@@ -33,6 +33,7 @@ type brokerLocalAPI interface {
 	LLMStream(context.Context, brokerapi.LLMStreamRequest) (brokerapi.LLMStreamEnvelope, *brokerapi.ErrorResponse)
 	ReadinessGet(context.Context, brokerapi.ReadinessGetRequest) (brokerapi.ReadinessGetResponse, *brokerapi.ErrorResponse)
 	VersionInfoGet(context.Context, brokerapi.VersionInfoGetRequest) (brokerapi.VersionInfoGetResponse, *brokerapi.ErrorResponse)
+	ProductLifecyclePostureGet(context.Context, brokerapi.ProductLifecyclePostureGetRequest) (brokerapi.ProductLifecyclePostureGetResponse, *brokerapi.ErrorResponse)
 	AuditVerificationGet(context.Context, brokerapi.AuditVerificationGetRequest) (brokerapi.AuditVerificationGetResponse, *brokerapi.ErrorResponse)
 	AuditFinalizeVerify(context.Context, brokerapi.AuditFinalizeVerifyRequest) (brokerapi.AuditFinalizeVerifyResponse, *brokerapi.ErrorResponse)
 	AuditRecordGet(context.Context, brokerapi.AuditRecordGetRequest) (brokerapi.AuditRecordGetResponse, *brokerapi.ErrorResponse)
@@ -261,6 +262,11 @@ func (c *localAPIClient) ReadinessGet(ctx context.Context, req brokerapi.Readine
 func (c *localAPIClient) VersionInfoGet(ctx context.Context, req brokerapi.VersionInfoGetRequest) (brokerapi.VersionInfoGetResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.VersionInfoGetResponse{}
 	return resp, c.invoke(ctx, "version_info_get", req, &resp)
+}
+
+func (c *localAPIClient) ProductLifecyclePostureGet(ctx context.Context, req brokerapi.ProductLifecyclePostureGetRequest) (brokerapi.ProductLifecyclePostureGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ProductLifecyclePostureGetResponse{}
+	return resp, c.invoke(ctx, "product_lifecycle_posture_get", req, &resp)
 }
 
 func (c *localAPIClient) AuditVerificationGet(ctx context.Context, req brokerapi.AuditVerificationGetRequest) (brokerapi.AuditVerificationGetResponse, *brokerapi.ErrorResponse) {

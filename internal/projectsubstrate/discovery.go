@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/runecode-ai/runecode/internal/localbootstrap"
 )
 
 type DiscoveryInput struct {
@@ -57,24 +59,12 @@ func authoritativeRepoRoot(input DiscoveryInput) (string, error) {
 		if input.Authority == RepoRootAuthorityExplicitConfig {
 			return "", fmt.Errorf("%s", reasonDiscoveryRootInvalid)
 		}
-		cwd, err := os.Getwd()
-		if err != nil {
-			return "", fmt.Errorf("determine repository root: %w", err)
-		}
-		root = cwd
 	}
-	if !filepath.IsAbs(root) {
-		return "", fmt.Errorf("%s", reasonDiscoveryRootInvalid)
-	}
-	clean := filepath.Clean(root)
-	info, err := os.Stat(clean)
+	resolved, err := localbootstrap.ResolveAuthoritativeRepoRoot(root)
 	if err != nil {
 		return "", fmt.Errorf("%s", reasonDiscoveryRootInvalid)
 	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("%s", reasonDiscoveryRootInvalid)
-	}
-	return clean, nil
+	return filepath.Clean(resolved), nil
 }
 
 func inspectLayout(repoRoot string) repositoryLayout {

@@ -363,6 +363,10 @@ func (f *reloadAwareBrokerClient) VersionInfoGet(ctx context.Context) (brokerapi
 	return (&fakeBrokerClient{}).VersionInfoGet(ctx)
 }
 
+func (f *reloadAwareBrokerClient) ProductLifecyclePostureGet(ctx context.Context) (brokerapi.ProductLifecyclePostureGetResponse, error) {
+	return (&fakeBrokerClient{}).ProductLifecyclePostureGet(ctx)
+}
+
 func (f *reloadAwareBrokerClient) ProjectSubstratePostureGet(ctx context.Context) (brokerapi.ProjectSubstratePostureGetResponse, error) {
 	return (&fakeBrokerClient{}).ProjectSubstratePostureGet(ctx)
 }
@@ -701,6 +705,11 @@ func (f *fakeBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.Readines
 func (f *fakeBrokerClient) VersionInfoGet(ctx context.Context) (brokerapi.VersionInfoGetResponse, error) {
 	_ = ctx
 	return brokerapi.VersionInfoGetResponse{VersionInfo: brokerapi.BrokerVersionInfo{ProductVersion: "0.1.0", BuildRevision: "abc123", BuildTime: "2026-01-01T00:00:00Z", ProtocolBundleVersion: "0.9.0", ProtocolBundleManifestHash: "sha256:xyz", APIFamily: "broker_local_api", APIVersion: "v0"}}, nil
+}
+
+func (f *fakeBrokerClient) ProductLifecyclePostureGet(ctx context.Context) (brokerapi.ProductLifecyclePostureGetResponse, error) {
+	_ = ctx
+	return brokerapi.ProductLifecyclePostureGetResponse{ProductLifecycle: brokerapi.BrokerProductLifecyclePosture{SchemaID: "runecode.protocol.v0.BrokerProductLifecyclePosture", SchemaVersion: "0.1.0", ProductInstanceID: "repo-test", LifecycleGeneration: "gen-test", AttachMode: "full", LifecyclePosture: "ready", Attachable: true, NormalOperationAllowed: true, ActiveSessionCount: 2, ActiveRunCount: 1}}, nil
 }
 
 func (f *fakeBrokerClient) ProjectSubstratePostureGet(ctx context.Context) (brokerapi.ProjectSubstratePostureGetResponse, error) {

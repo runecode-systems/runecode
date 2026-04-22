@@ -205,6 +205,11 @@ func (r *recordingBrokerClient) VersionInfoGet(ctx context.Context) (brokerapi.V
 	return r.base.VersionInfoGet(ctx)
 }
 
+func (r *recordingBrokerClient) ProductLifecyclePostureGet(ctx context.Context) (brokerapi.ProductLifecyclePostureGetResponse, error) {
+	r.record("ProductLifecyclePostureGet")
+	return r.base.ProductLifecyclePostureGet(ctx)
+}
+
 func (r *recordingBrokerClient) ProjectSubstratePostureGet(ctx context.Context) (brokerapi.ProjectSubstratePostureGetResponse, error) {
 	r.record("ProjectSubstratePostureGet")
 	return r.base.ProjectSubstratePostureGet(ctx)

@@ -113,4 +113,6 @@ const (
 	projectSubstrateUpgradePreviewResponseSchemaPath     = "objects/ProjectSubstrateUpgradePreviewResponse.schema.json"
 	projectSubstrateUpgradeApplyRequestSchemaPath        = "objects/ProjectSubstrateUpgradeApplyRequest.schema.json"
 	projectSubstrateUpgradeApplyResponseSchemaPath       = "objects/ProjectSubstrateUpgradeApplyResponse.schema.json"
+	productLifecyclePostureGetRequestSchemaPath          = "objects/ProductLifecyclePostureGetRequest.schema.json"
+	productLifecyclePostureGetResponseSchemaPath         = "objects/ProductLifecyclePostureGetResponse.schema.json"
 )
