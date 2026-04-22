@@ -15,6 +15,7 @@
 - Confirm approvals, gate attempts, gate evidence, and overrides remain run-bound under concurrency.
 - Confirm validated project-substrate snapshot identity is not silently merged or ignored under concurrency.
 - Confirm project-substrate drift or conflicting project-context bindings fail closed or surface explicit coordination/remediation posture.
+- Confirm concurrency ownership and coordination remain broker-owned within the canonical repo-scoped product lifecycle rather than depending on client-local attach state, transport bindings, or workbench-local ownership heuristics.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

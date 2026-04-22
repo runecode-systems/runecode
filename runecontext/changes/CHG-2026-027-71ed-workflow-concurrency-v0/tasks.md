@@ -11,6 +11,7 @@
 - [ ] Define the lock/lease model for workspace ownership, including acquisition, renewal, expiry, and crash recovery semantics.
 - [ ] Key concurrency locks, leases, and conflict scopes off the shared stable logical workflow identities rather than retry/attempt-local IDs.
 - [ ] Preserve separate attempt identities for retries and reruns so concurrency logic does not overload logical scope identity.
+- [ ] Keep concurrency ownership and coordination broker-owned within the canonical repo-scoped product lifecycle rather than client-local, transport-local, or workbench-local state.
 
 ## Conflict Detection + Isolation Rules
 
@@ -47,3 +48,4 @@
 - [ ] Locking, contention, and recovery are auditable and deterministic.
 - [ ] Approval, artifact, and gate semantics stay bound to the correct run under concurrency.
 - [ ] Concurrency integrates with the shared identity, lifecycle, approval, gate-evidence, and validated project-substrate binding model without introducing parallel workflow semantics.
+- [ ] Concurrency ownership and coordination semantics remain broker-owned inside the canonical repo-scoped RuneCode product lifecycle rather than becoming client- or transport-local truth.

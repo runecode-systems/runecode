@@ -14,6 +14,9 @@ Define Windows microVM runtime support with WHPX/Hyper-V acceleration, strict lo
   - audit posture
 - WHPX/Hyper-V, QEMU process layout, and named-pipe details remain implementation evidence rather than public run identity.
 - Windows support should reuse the same backend-neutral launch/session/attachment and audit payload semantics rather than defining Windows-specific runtime objects.
+- Windows service management and IPC realization must preserve one local RuneCode product instance per authoritative repository root rather than redefining lifecycle around host-global services or pipe names.
+- Windows OS service state, named-pipe reachability, and platform bootstrap artifacts remain private realization mechanics; broker-owned product lifecycle posture remains the operator-facing truth.
+- The canonical `runecode` lifecycle surface established by `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0` remains unchanged on Windows even if the local trusted realization uses different service-manager patterns from Linux.
 
 ## Main Workstreams
 - Windows MicroVM Backend Implementation

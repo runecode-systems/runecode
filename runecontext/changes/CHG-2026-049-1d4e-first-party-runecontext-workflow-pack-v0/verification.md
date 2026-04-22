@@ -14,6 +14,8 @@
 - Confirm ordinary workflow execution does not silently initialize or upgrade repository project substrate.
 - Confirm live chat and autonomous entry surfaces trigger the same workflow pack.
 - Confirm the roadmap and change text both place this feature in `v0.1.0-alpha.8`.
+- Confirm first-party workflows reuse the canonical repo-scoped product lifecycle and do not introduce a built-in-only bootstrap, attach, or remediation path.
+- Confirm diagnostics/remediation-only attach does not become workflow execution authorization when repository substrate blocks normal operation.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

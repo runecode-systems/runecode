@@ -8,4 +8,4 @@
 - `standards/global/local-first-future-optionality.md`
 
 ## Resolution Notes
-Migrated from the legacy spec standards list and refreshed to canonical RuneContext standard paths, then expanded to keep macOS backend polish aligned with shared runtime posture, trust-boundary, audit, and typed control-plane contract semantics.
+Migrated from the legacy spec standards list and refreshed to canonical RuneContext standard paths, then expanded to keep macOS backend polish aligned with shared runtime posture, trust-boundary, audit, typed control-plane contract semantics, and the repo-scoped product-lifecycle model frozen by `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0`.
