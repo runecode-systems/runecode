@@ -169,31 +169,46 @@ func parseAssuranceBaseline(data []byte) (assuranceBaseline, error) {
 	if err := yaml.Unmarshal(data, &baseline); err != nil {
 		return assuranceBaseline{}, fmt.Errorf("invalid yaml: %w", err)
 	}
-	if baseline.SchemaVersion == nil || *baseline.SchemaVersion != 1 {
-		return assuranceBaseline{}, fmt.Errorf("invalid schema_version")
+	if err := validateAssuranceBaselineMetadata(baseline); err != nil {
+		return assuranceBaseline{}, err
 	}
-	if baseline.CreatedAt == nil {
-		return assuranceBaseline{}, fmt.Errorf("missing created_at")
-	}
-	if strings.TrimSpace(baseline.Kind) != "baseline" {
-		return assuranceBaseline{}, fmt.Errorf("invalid kind")
-	}
-	if strings.TrimSpace(baseline.SubjectID) == "" {
-		return assuranceBaseline{}, fmt.Errorf("missing subject_id")
-	}
-	if strings.TrimSpace(baseline.Canonicalization) != "runecontext-canonical-json-v1" {
-		return assuranceBaseline{}, fmt.Errorf("invalid canonicalization")
-	}
-	if strings.TrimSpace(baseline.Value.AdoptionCommit) == "" {
-		return assuranceBaseline{}, fmt.Errorf("missing adoption_commit")
-	}
-	if !adoptionCommitPattern.MatchString(strings.TrimSpace(baseline.Value.AdoptionCommit)) {
-		return assuranceBaseline{}, fmt.Errorf("invalid adoption_commit")
-	}
-	if !supportedSourcePosture(baseline.Value.SourcePosture) {
-		return assuranceBaseline{}, fmt.Errorf("invalid source_posture")
+	if err := validateAssuranceBaselineValue(baseline.Value.AdoptionCommit, baseline.Value.SourcePosture); err != nil {
+		return assuranceBaseline{}, err
 	}
 	return baseline, nil
+}
+
+func validateAssuranceBaselineMetadata(baseline assuranceBaseline) error {
+	if baseline.SchemaVersion == nil || *baseline.SchemaVersion != 1 {
+		return fmt.Errorf("invalid schema_version")
+	}
+	if baseline.CreatedAt == nil {
+		return fmt.Errorf("missing created_at")
+	}
+	if strings.TrimSpace(baseline.Kind) != "baseline" {
+		return fmt.Errorf("invalid kind")
+	}
+	if strings.TrimSpace(baseline.SubjectID) == "" {
+		return fmt.Errorf("missing subject_id")
+	}
+	if strings.TrimSpace(baseline.Canonicalization) != "runecontext-canonical-json-v1" {
+		return fmt.Errorf("invalid canonicalization")
+	}
+	return nil
+}
+
+func validateAssuranceBaselineValue(adoptionCommit, sourcePosture string) error {
+	trimmedCommit := strings.TrimSpace(adoptionCommit)
+	if trimmedCommit == "" {
+		return fmt.Errorf("missing adoption_commit")
+	}
+	if !adoptionCommitPattern.MatchString(trimmedCommit) {
+		return fmt.Errorf("invalid adoption_commit")
+	}
+	if !supportedSourcePosture(sourcePosture) {
+		return fmt.Errorf("invalid source_posture")
+	}
+	return nil
 }
 
 func supportedSourcePosture(value string) bool {

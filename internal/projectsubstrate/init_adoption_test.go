@@ -87,36 +87,15 @@ func TestPreviewInitializeReadyForMissingCanonicalState(t *testing.T) {
 	}
 }
 
-func TestApplyInitializeAppliesCanonicalFilesAndIsIdempotent(t *testing.T) {
+func TestApplyInitializeAppliesCanonicalFiles(t *testing.T) {
 	root := t.TempDir()
+	result := previewAndApplyInitialize(t, root)
+	assertInitializedCanonicalFiles(t, root, result)
+}
 
-	preview, err := PreviewInitialize(InitPreviewInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
-	if err != nil {
-		t.Fatalf("PreviewInitialize returned error: %v", err)
-	}
-	first, err := ApplyInitialize(InitApplyInput{Preview: preview, ExpectedPreviewToken: preview.PreviewToken})
-	if err != nil {
-		t.Fatalf("ApplyInitialize(first) returned error: %v", err)
-	}
-	if first.Status != initApplyStatusApplied {
-		t.Fatalf("status = %q, want %q", first.Status, initApplyStatusApplied)
-	}
-	if first.ResultingSnapshot.ValidationState != validationStateValid {
-		t.Fatalf("resulting_snapshot.validation_state = %q, want %q", first.ResultingSnapshot.ValidationState, validationStateValid)
-	}
-	if first.ResultingSnapshot.RuneContextVersion != releaseRecommendedRuneContextVersion {
-		t.Fatalf("resulting_snapshot.runecontext_version = %q, want %q", first.ResultingSnapshot.RuneContextVersion, releaseRecommendedRuneContextVersion)
-	}
-	if _, err := os.Stat(filepath.Join(root, canonicalAssuranceBaselinePath)); err != nil {
-		t.Fatalf("assurance baseline stat returned error: %v", err)
-	}
-	baseline, err := os.ReadFile(filepath.Join(root, canonicalAssuranceBaselinePath))
-	if err != nil {
-		t.Fatalf("ReadFile assurance baseline returned error: %v", err)
-	}
-	if !strings.Contains(string(baseline), "adoption_commit: \"0000000000000000000000000000000000000000\"") {
-		t.Fatalf("assurance baseline missing adoption_commit:\n%s", string(baseline))
-	}
+func TestApplyInitializeIsIdempotent(t *testing.T) {
+	root := t.TempDir()
+	_ = previewAndApplyInitialize(t, root)
 
 	secondPreview, err := PreviewInitialize(InitPreviewInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
 	if err != nil {
@@ -131,6 +110,48 @@ func TestApplyInitializeAppliesCanonicalFilesAndIsIdempotent(t *testing.T) {
 	}
 	if second.Status != initApplyStatusNoop {
 		t.Fatalf("second apply status = %q, want %q", second.Status, initApplyStatusNoop)
+	}
+}
+
+func previewAndApplyInitialize(t *testing.T, root string) InitApplyResult {
+	t.Helper()
+	preview, err := PreviewInitialize(InitPreviewInput{RepositoryRoot: root, Authority: RepoRootAuthorityExplicitConfig})
+	if err != nil {
+		t.Fatalf("PreviewInitialize returned error: %v", err)
+	}
+	result, err := ApplyInitialize(InitApplyInput{Preview: preview, ExpectedPreviewToken: preview.PreviewToken})
+	if err != nil {
+		t.Fatalf("ApplyInitialize returned error: %v", err)
+	}
+	return result
+}
+
+func assertInitializedCanonicalFiles(t *testing.T, root string, result InitApplyResult) {
+	t.Helper()
+	if result.Status != initApplyStatusApplied {
+		t.Fatalf("status = %q, want %q", result.Status, initApplyStatusApplied)
+	}
+	if result.ResultingSnapshot.ValidationState != validationStateValid {
+		t.Fatalf("resulting_snapshot.validation_state = %q, want %q", result.ResultingSnapshot.ValidationState, validationStateValid)
+	}
+	if result.ResultingSnapshot.RuneContextVersion != releaseRecommendedRuneContextVersion {
+		t.Fatalf("resulting_snapshot.runecontext_version = %q, want %q", result.ResultingSnapshot.RuneContextVersion, releaseRecommendedRuneContextVersion)
+	}
+	assertCanonicalAssuranceBaseline(t, root)
+}
+
+func assertCanonicalAssuranceBaseline(t *testing.T, root string) {
+	t.Helper()
+	baselinePath := filepath.Join(root, canonicalAssuranceBaselinePath)
+	if _, err := os.Stat(baselinePath); err != nil {
+		t.Fatalf("assurance baseline stat returned error: %v", err)
+	}
+	baseline, err := os.ReadFile(baselinePath)
+	if err != nil {
+		t.Fatalf("ReadFile assurance baseline returned error: %v", err)
+	}
+	if !strings.Contains(string(baseline), "adoption_commit: \"0000000000000000000000000000000000000000\"") {
+		t.Fatalf("assurance baseline missing adoption_commit:\n%s", string(baseline))
 	}
 }
 
