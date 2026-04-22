@@ -24,7 +24,8 @@ func (e *usageError) Error() string { return e.message }
 const localAPISchemaVersion = "0.1.0"
 
 var (
-	errNoLiveBroker = errors.New("no live broker reachable")
+	errNoLiveBroker             = errors.New("no live broker reachable")
+	errBrokerProcessUnreachable = errors.New("repo-scoped broker process is alive but unreachable")
 
 	resolveRepoScope = func() (localbootstrap.RepoScope, error) {
 		return localbootstrap.ResolveRepoScope(localbootstrap.ResolveInput{})
@@ -36,6 +37,8 @@ var (
 		posture, _, err := resolveRepoBrokerProcess(ctx, cfg)
 		return posture, err
 	}
+
+	queryProjectSubstratePosture = queryRepoProjectSubstratePosture
 
 	startRepoBroker = startRepoBrokerProcess
 	launchTUI       = launchTUIProcess
@@ -134,7 +137,7 @@ func runAttach(stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(stdout, "attach mode=%s posture=%s instance=%s\n", posture.AttachMode, posture.LifecyclePosture, posture.ProductInstanceID); err != nil {
+	if _, err := fmt.Fprintf(stdout, "attach mode=%s posture=%s instance=%s\n", sanitizeCLIField(posture.AttachMode), sanitizeCLIField(posture.LifecyclePosture), sanitizeCLIField(posture.ProductInstanceID)); err != nil {
 		return err
 	}
 	return launchTUI(scope)
@@ -145,7 +148,7 @@ func runStart(stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(stdout, "runecode started mode=%s posture=%s instance=%s\n", posture.AttachMode, posture.LifecyclePosture, posture.ProductInstanceID); err != nil {
+	if _, err := fmt.Fprintf(stdout, "runecode started mode=%s posture=%s instance=%s\n", sanitizeCLIField(posture.AttachMode), sanitizeCLIField(posture.LifecyclePosture), sanitizeCLIField(posture.ProductInstanceID)); err != nil {
 		return err
 	}
 	return nil
@@ -168,15 +171,31 @@ func runStatus(stdout io.Writer) error {
 	if err := validatePostureIdentity(scope, posture); err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(stdout, "runecode status: instance=%s generation=%s mode=%s posture=%s attachable=%t normal_operation_allowed=%t blocked_reasons=%s degraded_reasons=%s\n",
-		posture.ProductInstanceID,
-		posture.LifecycleGeneration,
-		posture.AttachMode,
-		posture.LifecyclePosture,
+	projectSubstrate, err := queryProjectSubstratePosture(context.Background(), cfg)
+	if err != nil {
+		if errors.Is(err, errNoLiveBroker) {
+			_, writeErr := fmt.Fprintln(stdout, "runecode status: no live product instance reachable")
+			return writeErr
+		}
+		return err
+	}
+	if err := validateProjectSubstrateIdentity(scope, projectSubstrate); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "runecode status: instance=%s generation=%s mode=%s posture=%s attachable=%t normal_operation_allowed=%t blocked_reasons=%s degraded_reasons=%s project_substrate_posture=%s project_substrate_validation_state=%s project_substrate_normal_operation_allowed=%t project_substrate_blocked_reasons=%s project_substrate_remediation_guidance=%s\n",
+		sanitizeCLIField(posture.ProductInstanceID),
+		sanitizeCLIField(posture.LifecycleGeneration),
+		sanitizeCLIField(posture.AttachMode),
+		sanitizeCLIField(posture.LifecyclePosture),
 		posture.Attachable,
 		posture.NormalOperationAllowed,
 		joinCSV(posture.BlockedReasonCodes),
 		joinCSV(posture.DegradedReasonCodes),
+		sanitizeCLIField(projectSubstrate.PostureSummary.CompatibilityPosture),
+		sanitizeCLIField(projectSubstrate.PostureSummary.ValidationState),
+		projectSubstrate.PostureSummary.NormalOperationAllowed,
+		joinCSV(projectSubstrate.PostureSummary.BlockedReasonCodes),
+		joinCSV(projectSubstrate.RemediationGuidance),
 	)
 	return err
 }
@@ -205,7 +224,7 @@ func runRestart(stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(stdout, "runecode restarted mode=%s posture=%s instance=%s\n", posture.AttachMode, posture.LifecyclePosture, posture.ProductInstanceID)
+	_, err = fmt.Fprintf(stdout, "runecode restarted mode=%s posture=%s instance=%s\n", sanitizeCLIField(posture.AttachMode), sanitizeCLIField(posture.LifecyclePosture), sanitizeCLIField(posture.ProductInstanceID))
 	return err
 }
 
@@ -221,6 +240,13 @@ func ensureRepoLifecycle() (localbootstrap.RepoScope, brokerapi.BrokerProductLif
 	}
 	if !errors.Is(err, errNoLiveBroker) {
 		return localbootstrap.RepoScope{}, brokerapi.BrokerProductLifecyclePosture{}, err
+	}
+	posture, reachable, err := recoverStaleRepoRuntimeArtifacts(scope, cfg)
+	if err != nil {
+		return localbootstrap.RepoScope{}, brokerapi.BrokerProductLifecyclePosture{}, err
+	}
+	if reachable {
+		return scope, posture, nil
 	}
 	if err := startRepoBroker(scope); err != nil {
 		return localbootstrap.RepoScope{}, brokerapi.BrokerProductLifecyclePosture{}, err
@@ -260,7 +286,7 @@ func waitForAttachableRepoLifecycle(scope localbootstrap.RepoScope, cfg brokerap
 }
 
 func validatePostureIdentity(scope localbootstrap.RepoScope, posture brokerapi.BrokerProductLifecyclePosture) error {
-	if strings.TrimSpace(posture.RepositoryRoot) != strings.TrimSpace(scope.RepositoryRoot) {
+	if comparableRepoRoot(posture.RepositoryRoot) != comparableRepoRoot(scope.RepositoryRoot) {
 		return fmt.Errorf("reachable broker repository root does not match authoritative repository root")
 	}
 	if strings.TrimSpace(posture.ProductInstanceID) != strings.TrimSpace(scope.ProductInstance) {
@@ -377,7 +403,7 @@ func isHelpArg(arg string) bool {
 func joinCSV(values []string) string {
 	trimmed := make([]string, 0, len(values))
 	for _, value := range values {
-		value = strings.TrimSpace(value)
+		value = sanitizeCLIField(value)
 		if value == "" {
 			continue
 		}
