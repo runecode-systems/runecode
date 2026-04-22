@@ -1,6 +1,12 @@
 package projectsubstrate
 
-import "testing"
+import (
+	"bytes"
+	"fmt"
+	"log"
+	"strings"
+	"testing"
+)
 
 type stubRuntimePolicyProvider struct {
 	policy runtimePolicySnapshot
@@ -72,6 +78,50 @@ func TestReleaseCompatibilityPolicyFallsBackWhenRuntimeMetadataUnavailable(t *te
 	}
 }
 
+func TestRuntimeCompatibilityPolicyFallbackLogUnavailableOmitsRawErrorDetail(t *testing.T) {
+	originalProvider := runtimeRuneContextPolicyProvider
+	runtimeRuneContextPolicyProvider = stubRuntimePolicyProvider{err: errSensitiveRuntimeFailure{}}
+	t.Cleanup(func() { runtimeRuneContextPolicyProvider = originalProvider })
+
+	logs := captureProjectSubstrateLogs(t, func() {
+		_ = runtimeCompatibilityPolicy()
+	})
+
+	if !strings.Contains(logs, "runtime policy unavailable") {
+		t.Fatalf("log output %q missing unavailable category", logs)
+	}
+	if strings.Contains(logs, "error=") {
+		t.Fatalf("log output %q unexpectedly includes raw error field", logs)
+	}
+	if strings.Contains(logs, "secret/local/path") {
+		t.Fatalf("log output %q leaked sensitive error detail", logs)
+	}
+}
+
+func TestRuntimeCompatibilityPolicyFallbackLogInvalidOmitsRawErrorDetail(t *testing.T) {
+	originalProvider := runtimeRuneContextPolicyProvider
+	runtimeRuneContextPolicyProvider = stubRuntimePolicyProvider{policy: runtimePolicySnapshot{
+		SupportedRuneContextVersionMin: "not-a-version",
+		SupportedRuneContextVersionMax: "0.1.0-alpha.16",
+		RecommendedRuneContextVersion:  "0.1.0-alpha.14",
+	}}
+	t.Cleanup(func() { runtimeRuneContextPolicyProvider = originalProvider })
+
+	logs := captureProjectSubstrateLogs(t, func() {
+		_ = runtimeCompatibilityPolicy()
+	})
+
+	if !strings.Contains(logs, "runtime policy invalid") {
+		t.Fatalf("log output %q missing invalid category", logs)
+	}
+	if strings.Contains(logs, "error=") {
+		t.Fatalf("log output %q unexpectedly includes raw error field", logs)
+	}
+	if strings.Contains(logs, "not-a-version") {
+		t.Fatalf("log output %q leaked validation detail", logs)
+	}
+}
+
 func TestDeriveRuntimePolicyFromMetadata(t *testing.T) {
 	metadata := runeContextMetadataEnvelope{}
 	metadata.Release.Version = "0.1.0-alpha.14"
@@ -114,3 +164,26 @@ func TestDeriveRuntimePolicyWithoutUpgradeableVersionsUsesRecommendedAsMinimum(t
 type errTestRuntimeUnavailable struct{}
 
 func (errTestRuntimeUnavailable) Error() string { return "runtime unavailable" }
+
+type errSensitiveRuntimeFailure struct{}
+
+func (errSensitiveRuntimeFailure) Error() string {
+	return "exec: /secret/local/path/runectx: no such file or directory"
+}
+
+func captureProjectSubstrateLogs(t *testing.T, run func()) string {
+	t.Helper()
+
+	var buf bytes.Buffer
+	originalWriter := log.Writer()
+	originalFlags := log.Flags()
+	log.SetOutput(&buf)
+	log.SetFlags(0)
+	t.Cleanup(func() {
+		log.SetOutput(originalWriter)
+		log.SetFlags(originalFlags)
+	})
+
+	run()
+	return strings.TrimSpace(fmt.Sprintf("%s", buf.String()))
+}

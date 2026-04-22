@@ -42,11 +42,11 @@ var runtimeRuneContextPolicyProvider runtimePolicyProvider = newCachedRuntimePol
 func runtimeCompatibilityPolicy() runtimePolicySnapshot {
 	policy, err := runtimeRuneContextPolicyProvider.RuntimePolicy()
 	if err != nil {
-		log.Printf("projectsubstrate: runectx runtime policy unavailable, using release fallback error=%v", err)
+		log.Printf("projectsubstrate: runectx runtime policy unavailable, using release fallback")
 		return releaseFallbackRuntimePolicy()
 	}
 	if err := validateRuntimePolicy(policy); err != nil {
-		log.Printf("projectsubstrate: runectx runtime policy invalid, using release fallback error=%v", err)
+		log.Printf("projectsubstrate: runectx runtime policy invalid, using release fallback")
 		return releaseFallbackRuntimePolicy()
 	}
 	return policy

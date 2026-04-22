@@ -180,6 +180,30 @@ func TestDiscoverAndValidateInvalidAssuranceBaselineContent(t *testing.T) {
 	assertHasReason(t, result.Snapshot.ReasonCodes, reasonAssuranceBaselineInvalid)
 }
 
+func TestValidateLayoutBaselineOnlyIsInvalidNotMissing(t *testing.T) {
+	snapshot := validateLayout(defaultContract(RepoRootAuthorityExplicitConfig), repositoryLayout{
+		hasAssuranceBaseline: true,
+	})
+
+	if got := snapshot.ValidationState; got != validationStateInvalid {
+		t.Fatalf("validation_state = %q, want %q", got, validationStateInvalid)
+	}
+	assertHasReason(t, snapshot.ReasonCodes, reasonMissingConfigAnchor)
+	assertHasReason(t, snapshot.ReasonCodes, reasonMissingSourceAnchor)
+	assertHasReason(t, snapshot.ReasonCodes, reasonMissingAssuranceAnchor)
+}
+
+func TestValidateLayoutPrivateMirrorOnlyIsInvalidNotMissing(t *testing.T) {
+	snapshot := validateLayout(defaultContract(RepoRootAuthorityExplicitConfig), repositoryLayout{
+		hasPrivateTruthCopy: true,
+	})
+
+	if got := snapshot.ValidationState; got != validationStateInvalid {
+		t.Fatalf("validation_state = %q, want %q", got, validationStateInvalid)
+	}
+	assertHasReason(t, snapshot.ReasonCodes, reasonPrivateMirrorDetected)
+}
+
 func assertHasReason(t *testing.T, reasons []string, want string) {
 	t.Helper()
 	for _, reason := range reasons {

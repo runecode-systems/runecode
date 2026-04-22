@@ -78,7 +78,7 @@ func (p bundledRuneContextMutationProvider) RenderConfig(version, sourceType, so
 
 func (p bundledRuneContextMutationProvider) RenderAssuranceBaseline(sourceType, adoptionCommit string) (string, error) {
 	payload := map[string]string{
-		"SourceType":     defaultSourceType(sourceType),
+		"SourceType":     yamlScalar(defaultSourceType(sourceType)),
 		"AdoptionCommit": yamlScalar(defaultAdoptionCommit(adoptionCommit)),
 	}
 	out, err := p.executeTemplate("baseline.yaml.tmpl", payload)

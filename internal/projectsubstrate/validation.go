@@ -59,7 +59,7 @@ func validateLayout(contract ContractState, layout repositoryLayout) ValidationS
 	if len(snapshot.ReasonCodes) > 0 {
 		snapshot.ValidationState = validationStateInvalid
 	}
-	if !layout.hasConfigAnchor && !layout.hasSourceAnchor && !layout.hasAssuranceAnchor {
+	if !layout.hasConfigAnchor && !layout.hasSourceAnchor && !layout.hasAssuranceAnchor && !layout.hasAssuranceBaseline && missingOnlyReasonCodes(snapshot.ReasonCodes) {
 		snapshot.ValidationState = validationStateMissing
 	}
 	digest := digestSnapshot(snapshot)
@@ -69,6 +69,18 @@ func validateLayout(contract ContractState, layout repositoryLayout) ValidationS
 		snapshot.ValidatedSnapshotDigest = digest
 	}
 	return snapshot
+}
+
+func missingOnlyReasonCodes(reasons []string) bool {
+	for _, reason := range reasons {
+		switch reason {
+		case reasonMissingConfigAnchor, reasonMissingSourceAnchor, reasonMissingAssuranceAnchor, reasonMissingAssuranceBaseline:
+			continue
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func applyParsedAssuranceBaseline(layout repositoryLayout, reasons *[]string) {
