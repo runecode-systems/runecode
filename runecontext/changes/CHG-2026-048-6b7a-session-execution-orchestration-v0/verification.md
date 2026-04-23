@@ -15,6 +15,9 @@
 - Confirm resume and reconnect handle project-substrate drift fail closed when the original bound validated snapshot digest is no longer valid.
 - Confirm wait, resume, and reconnect behavior reuses existing durability semantics rather than inventing chat-local truth.
 - Confirm `waiting_operator_input` and `waiting_approval` remain distinct broker-owned states.
+- Confirm pending operator input or approval blocks only the exact dependent scope and direct downstream scopes that cannot proceed safely.
+- Confirm unrelated eligible work may continue only when active plan, dependency tracking, broker policy, coordination state, and project-substrate posture all allow it.
+- Confirm multiple pending waits may coexist without being collapsed into one global blocked state.
 - Confirm the roadmap and change text both place this feature in `v0.1.0-alpha.7`.
 - Confirm this change reuses the repo-scoped product lifecycle and canonical `runecode` attach/start model established by `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0` rather than inventing an execution-specific bootstrap path.
 - Confirm successful diagnostics/remediation-only attach does not by itself authorize execution continuation or new execution.

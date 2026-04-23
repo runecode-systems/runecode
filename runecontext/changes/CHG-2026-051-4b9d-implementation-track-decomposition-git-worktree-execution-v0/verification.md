@@ -1,0 +1,24 @@
+# Verification
+
+## Planned Checks
+- `runectx validate --json`
+- `runectx status --json`
+- `just test`
+
+## Verification Notes
+- Confirm the change defines a broker-owned implementation-track model with stable track identity and dependency edges.
+- Confirm explicit track declarations override inferred grouping.
+- Confirm inferred decomposition becomes a broker-owned proposed execution-plan artifact rather than a hidden runtime heuristic.
+- Confirm git worktrees are treated as the preferred isolation substrate for eligible low-coupling tracks rather than shared-workspace opportunism.
+- Confirm worktree paths and local branch names remain implementation-private and do not become public object identity.
+- Confirm pending operator input or approval blocks only the directly affected track and direct downstream dependent tracks.
+- Confirm unrelated eligible tracks may continue only when active plan, dependency graph, broker policy, coordination state, and project-substrate posture all allow it.
+- Confirm multiple pending waits may coexist and resolve independently.
+- Confirm track execution reuses the canonical approval-profile and autonomy-posture split rather than minting a second approval authority.
+- Confirm no autonomous path mints or substitutes for signed human approval decisions.
+- Confirm project-context-sensitive tracks bind to validated project-substrate snapshot digest and fail closed on incompatible drift.
+- Confirm canonical linkage among tracks, sessions, runs, approvals, artifacts, audit records, and project context remains broker-owned and explicit.
+- Confirm the roadmap and change text both place this feature in `vNext (Planned)`.
+
+## Close Gate
+Use the repository's standard verification flow before closing this change.

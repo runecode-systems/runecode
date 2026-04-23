@@ -31,6 +31,9 @@
 - [ ] Preserve diagnostics/remediation-only attach for inspection when repository substrate is blocked, while keeping execution continuation and new execution fail-closed until compatible posture returns.
 - [ ] Keep session object lifecycle, projected session work posture, and client attachment state distinct in reconnect and wait/resume behavior.
 - [ ] Keep wait kinds for operator input, formal approval, external dependency, and blocked project posture distinct in broker-owned execution state.
+- [ ] Block only the exact dependent scope and direct downstream scopes when operator input or formal approval is pending rather than halting unrelated eligible work.
+- [ ] Allow unrelated eligible work to continue only when active plan, dependency tracking, broker policy, coordination state, and project-substrate posture all permit it.
+- [ ] Support multiple simultaneous pending waits without collapsing them into one global blocked state.
 
 ## Client Integration
 
@@ -58,3 +61,4 @@
 - [ ] Wait, resume, and reconnect semantics remain broker-owned and durable.
 - [ ] Reconnect and continuation semantics remain aligned with the repo-scoped product lifecycle and diagnostics-only attach model frozen by `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0`.
 - [ ] Formal approval frequency and operator-question frequency remain separate broker-owned controls, while hard-floor approvals remain human-only.
+- [ ] Pending operator input or approval blocks only dependent scopes and direct downstream work, while unrelated eligible work may continue when allowed.

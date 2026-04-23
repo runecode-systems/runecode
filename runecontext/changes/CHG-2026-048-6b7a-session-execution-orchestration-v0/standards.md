@@ -22,5 +22,6 @@ This change now also explicitly freezes the following clarifications for that fo
 - transcript checkpoint durability remains distinct from in-flight execution watch state
 - inspect-only access in diagnostics/remediation-only attach remains distinct from productive execution authorization
 - formal approval profile and operator-question frequency remain separate controls, while hard-floor approvals stay outside both controls
+- pending user input or approval remains dependency-aware partial blocking rather than a whole-system stop signal
 
 This change also inherits the repo-scoped product instance, canonical `runecode` lifecycle surface, and diagnostics/remediation-only attach posture frozen by `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0`; execution orchestration must extend that foundation rather than redefining it.

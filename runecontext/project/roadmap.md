@@ -87,6 +87,9 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 - Workflow Concurrency v0
   - Add explicit, auditable shared-workspace concurrency instead of relying on one-run-per-workspace indefinitely.
   - Planned change: `runecontext/changes/CHG-2026-027-71ed-workflow-concurrency-v0/`
+- Implementation Track Decomposition + Git Worktree Execution v0
+  - RuneCode can decompose implementation work into low-coupling tracks, run eligible tracks in isolated git worktrees, pause only the dependent tracks for user input, and keep unrelated eligible work moving when it is safe to do so.
+  - Planned change: `runecontext/changes/CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0/`
 
 ## Unscheduled (Needs Specs)
 
@@ -173,4 +176,3 @@ No unscheduled items are currently tracked outside the planned work listed above
 - Local Control-Plane Bootstrap + Persistent Session Lifecycle v0
   - RuneCode behaves like one attachable local product lifecycle, so sessions and runs can continue without the TUI staying open and users can reconnect safely.
   - Planned change: `runecontext/changes/CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0/`
-

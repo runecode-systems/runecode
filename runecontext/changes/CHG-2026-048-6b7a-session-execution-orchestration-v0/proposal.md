@@ -11,6 +11,7 @@ The product already has session and transcript foundations plus a first-class ch
 - Partial-turn, reconnect, and wait/resume behavior aligned with existing broker and runner truth, while keeping transcript durability distinct from in-flight execution-state streaming.
 - Execution continuation and follow-up behavior that explicitly inherits the repo-scoped product lifecycle, broker-owned attach semantics, and diagnostics/remediation-only reconnect posture established by `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0`.
 - Distinct broker-owned handling for formal human approvals, operator-input pauses, and autonomous continuation so higher-autonomy operation can remain policy-compliant without minting a second approval authority.
+- Dependency-aware partial blocking so pending operator input or approval halts only the exact dependent scope and direct downstream scopes that cannot safely proceed, while unrelated eligible work may continue when plan, policy, coordination, and project-substrate posture allow it.
 
 ## Why Now
 This work now lands in `v0.1.0-alpha.7`, because once RuneCode has direct model access, verified project substrate, and persistent local lifecycle, the next user-facing step is making chat and autonomous modes drive the same real execution path.
@@ -41,3 +42,4 @@ This also freezes the separation that later workflow-pack and approval-profile w
 - validated project-substrate snapshot digest becomes the canonical execution binding for project-context-sensitive work
 - broker-owned turn execution state remains distinct from session object lifecycle and transcript lifecycle
 - formal approval frequency and operator-question frequency remain separate controls, while hard-floor approvals stay outside both controls
+- dependency-aware partial waits remain scope blocking rather than whole-system stop signals, giving later multi-track implementation work one canonical pause/resume rule to reuse

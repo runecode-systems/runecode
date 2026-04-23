@@ -23,6 +23,9 @@ Bind canonical session turns to real isolate-backed work orchestration.
 - Formal human approval, operator-input pauses, and autonomous continuation are distinct broker-owned concepts; this change must not collapse them into one generic waiting state.
 - User-facing autonomy controls should split into formal approval profile and operator-question frequency controls rather than implying system-authored approval decisions.
 - Hard-floor approvals remain outside profile and autonomy controls; this change must not soften exact-action human approval for those lanes.
+- Pending operator input or formal approval must block only the exact dependent scope and direct downstream scopes that cannot safely proceed, not the whole RuneCode product instance.
+- Unrelated eligible work may continue only when the active plan, dependency tracking, broker policy, coordination state, and project-substrate posture all allow it.
+- Multiple pending waits may coexist at once; resolving one wait must resume only the affected blocked scope(s) rather than implicitly unblocking unrelated waits.
 
 ## Session Trigger Model
 
@@ -116,6 +119,23 @@ This keeps attachability and execution permission as distinct concepts across se
 - Advisory live output fragments may exist later, but they must remain additive execution-watch state rather than replacing canonical transcript checkpointing.
 
 This preserves replay safety, transcript durability, and broker-owned recovery semantics.
+
+## Partial Blocking Across Work Items
+
+- Operator-input waits and formal approval waits should behave as dependency-aware partial-blocking semantics rather than global-stop semantics.
+- The broker-owned execution model should block:
+  - the exact turn or narrower bound scope that is waiting
+  - any direct downstream scope that cannot safely proceed without the pending input
+- The broker-owned execution model may continue unrelated eligible work only when:
+  - the active plan explicitly permits that work
+  - dependency tracking shows it is unblocked
+  - broker policy does not require the pending user input for that scope
+  - coordination state does not block it
+  - project-substrate posture allows it
+- Multiple pending waits may coexist simultaneously.
+- Resolution of one wait must resume only the affected blocked scope(s); it must not implicitly authorize or unblock unrelated waiting scopes.
+
+This freezes the execution semantics that later multi-track implementation and isolated-worktree execution should reuse rather than redefining a second wait/scheduler model.
 
 ## Diagnostics-Only Attach And Operation Classes
 
