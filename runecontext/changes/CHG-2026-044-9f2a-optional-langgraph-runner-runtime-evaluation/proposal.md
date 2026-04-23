@@ -11,6 +11,7 @@ RuneCode needs durable stop, wait, persist, and resume behavior for approvals an
 - Keep LangGraph checkpoints, threads, and interrupt state non-canonical and outside the trust root unless exported through existing typed protocol objects.
 - Define explicit adoption criteria and non-goals before any implementation begins.
 - Require the evaluation to preserve exact-action wait semantics for hard-floor approvals such as `git_remote_ops`, including bound hashes and fail-closed remote-drift behavior.
+- Require the evaluation to preserve distinct `waiting_operator_input` and `waiting_approval`, multiple simultaneous scoped waits, and dependency-aware partial blocking for unrelated eligible work.
 
 ## Why Now
 This work belongs on the roadmap as an explicit optional post-MVP follow-on so the deferral is intentional rather than ambiguous. Capturing it now preserves traceability while making clear that RuneCode should first finish the native runner foundation and only implement LangGraph later if it is still justified.

@@ -17,6 +17,8 @@ Define explicit shared-workspace concurrency modes, deterministic locking, and a
 - Concurrency must not silently merge, reinterpret, or ignore validated project-substrate snapshot identity when concurrent runs depend on project context.
 - Project-substrate drift under shared-workspace concurrency must fail closed or surface explicit coordination/remediation posture rather than continuing on stale mixed assumptions.
 - Shared-workspace coordination remains broker-owned truth inside one repo-scoped product instance for the authoritative repository root; client tabs, workbench state, transport bindings, or local attach mechanics must not become concurrency ownership truth.
+- Shared-workspace concurrency must compose with the dependency-aware partial-blocking semantics from `CHG-2026-048-6b7a-session-execution-orchestration-v0`; a scoped wait inside one run is not automatically a workspace-global stop unless coordination or locking rules require it.
+- Shared-workspace concurrency is distinct from isolated implementation-track execution in `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0`; this change covers shared-workspace coordination, not worktree-isolated parallelism.
 
 ## Shared Contract Alignment
 

@@ -9,10 +9,13 @@
 - Confirm first-party workflows use the shared workflow substrate rather than a hard-coded product-only execution path.
 - Confirm drafting workflows operate on canonical RuneContext project state and keep outputs reviewable.
 - Confirm approved-change implementation stays on the shared isolate-backed workflow path and reuses approval, audit, verification, and git semantics.
+- Confirm first-party workflow execution enters through the shared execution-trigger and turn-execution contracts rather than plain transcript append or a workflow-local live-status channel.
 - Confirm first-party workflows bind to validated project-substrate snapshot identity where project context is relevant.
 - Confirm missing, invalid, non-verified, and unsupported repository substrate posture routes workflow entry to diagnostics/remediation rather than ordinary execution.
 - Confirm ordinary workflow execution does not silently initialize or upgrade repository project substrate.
 - Confirm live chat and autonomous entry surfaces trigger the same workflow pack.
+- Confirm first-party workflows preserve `waiting_operator_input` versus `waiting_approval` and keep `approval_profile` separate from `autonomy_posture`.
+- Confirm pending operator input or formal approval blocks only dependent scope and direct downstream work, while unrelated eligible work can continue when allowed.
 - Confirm the roadmap and change text both place this feature in `v0.1.0-alpha.8`.
 - Confirm first-party workflows reuse the canonical repo-scoped product lifecycle and do not introduce a built-in-only bootstrap, attach, or remediation path.
 - Confirm diagnostics/remediation-only attach does not become workflow execution authorization when repository substrate blocks normal operation.

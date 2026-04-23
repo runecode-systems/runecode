@@ -14,6 +14,7 @@ related_decisions:
   - decisions/DEC-2026-003-bundled-runecontext-default-and-verified-requirement.md
   - decisions/DEC-2026-004-runecode-ux-ownership-and-runecontext-generic-boundary.md
 related_changes:
+  - CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0
   - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
   - CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0
   - CHG-2026-007-2315-policy-engine-v0

@@ -10,9 +10,10 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Permissive Profile Semantics.
 - Policy + Runner + TUI Integration.
 - Explicit hard-floor treatment for `git_remote_ops` and other exact-action remote mutation approvals.
+- Explicit preservation of the shared split between formal approval timing (`approval_profile`) and operator-guidance cadence (`autonomy_posture`).
 
 ## Why Now
-This work remains scheduled for v0.2, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification. The git-gateway foundation now freezes one especially important post-MVP rule that this change must inherit: approval profiles can tune ordinary approval timing, but they cannot batch away or soften exact final approval for remote mutation.
+This work remains scheduled for v0.2, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification. The git-gateway foundation now freezes one especially important post-MVP rule that this change must inherit: approval profiles can tune ordinary approval timing, but they cannot batch away or soften exact final approval for remote mutation. `CHG-2026-048-6b7a-session-execution-orchestration-v0` also freezes that approval timing and operator-guidance cadence are separate controls, so this change must not turn profile selection into a proxy for autonomy posture.
 
 ## Assumptions
 - `runecontext/changes/*` is the canonical planning surface for this repository.

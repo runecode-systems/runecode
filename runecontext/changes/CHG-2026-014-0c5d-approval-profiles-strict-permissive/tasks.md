@@ -8,6 +8,7 @@
 - [ ] Define how profiles are selected:
   - profile is an explicit field in the run/stage capability manifest (signed input)
   - the system fails closed on unknown profile values
+- [ ] Keep profile selection separate from `autonomy_posture`; profiles must not define operator-question cadence or autonomous continuation posture.
 - [ ] Adding a new profile value is a protocol-visible schema change.
   - Version-bump every object family that constrains or surfaces the profile enum, starting with the run/stage capability manifest and any typed summaries that expose the active profile.
 - [ ] Profiles must never convert `deny -> allow`; they only affect whether an otherwise-allowed action requires explicit human approval.
@@ -20,6 +21,7 @@
   - TTL/expiry defaults
 - [ ] Keep the fixed hard-floor categories from `runecontext/changes/CHG-2026-007-2315-policy-engine-v0/` outside profile control.
 - [ ] Keep profile behavior aligned with the policy split between exact-action approvals and stage sign-off.
+- [ ] Preserve distinct `waiting_approval` and `waiting_operator_input` semantics across all profiles.
 - [ ] Keep gate overrides explicit approvals across all profiles and do not batch them into ambient milestone sign-off.
 - [ ] Keep `git_remote_ops` explicit exact-action approvals across all profiles and do not batch them into stage sign-off, milestone approval, or ambient acknowledgment.
 - [ ] Keep `git_remote_ops` approval payload binding aligned with canonical repository identity, target refs, referenced patch artifact digests, expected result tree hash, and canonical action request hash.
@@ -84,6 +86,7 @@ Parallelization: can be implemented in parallel across policy/runner/TUI as long
 - [ ] Profiles do not weaken the fixed minimum assurance floor for hard-floor operations.
 - [ ] Profiles do not weaken exact-action binding or assurance for `git_remote_ops`, including canonical repo identity, target refs, patch artifact digests, and expected result tree hash.
 - [ ] Profiles do not weaken blocked project-substrate posture or convert diagnostics/remediation-only repository substrate states into ordinary execution.
+- [ ] Profiles do not become a proxy for operator-guidance cadence or collapse `waiting_operator_input` into formal approval behavior.
 
 Profile hardening follow-up (pre-MVP foundation):
 - [ ] Ensure backend posture approval gating fails closed when profile-specific approval payload derivation is unavailable.

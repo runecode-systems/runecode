@@ -19,6 +19,7 @@ related_changes:
   - CHG-2026-043-8e9b-live-activity-watch-streams-v0
   - CHG-2026-048-6b7a-session-execution-orchestration-v0
   - CHG-2026-045-7f4c-direct-credential-model-providers-v0
+  - CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0
 depends_on:
   - CHG-2026-008-62e1-broker-local-api-v0
   - CHG-2026-013-d2c9-minimal-tui-v0

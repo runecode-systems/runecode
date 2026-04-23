@@ -10,6 +10,7 @@ context_bundles:
 related_specs: []
 related_decisions: []
 related_changes:
+  - CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0
   - CHG-2026-005-cfd0-crypto-key-management-v0
   - CHG-2026-007-2315-policy-engine-v0
   - CHG-2026-008-62e1-broker-local-api-v0
