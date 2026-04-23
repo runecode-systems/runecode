@@ -1,12 +1,15 @@
 package brokerapi
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/auditd"
+	"github.com/runecode-ai/runecode/internal/localbootstrap"
 	"github.com/runecode-ai/runecode/internal/projectsubstrate"
 	"github.com/runecode-ai/runecode/internal/secretsd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
@@ -42,6 +45,8 @@ type Service struct {
 	projectSubstrate           projectsubstrate.DiscoveryResult
 	discoverProjectSubstrateFn func() (projectsubstrate.DiscoveryResult, error)
 	now                        func() time.Time
+	productInstanceID          string
+	lifecycleGeneration        string
 }
 
 func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
@@ -71,6 +76,8 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 		return nil, err
 	}
 	svc.projectSubstrate = projectSubstrateResult
+	svc.productInstanceID = localbootstrap.DeriveProductInstanceID(projectSubstrateResult.RepositoryRoot)
+	svc.lifecycleGeneration = deriveLifecycleGeneration(svc.now(), svc.productInstanceID)
 	svc.configureProviderDurability()
 	if err := svc.reloadProviderDurableState(); err != nil {
 		return nil, err
@@ -208,6 +215,12 @@ func (s *Service) LatestAuditVerificationSurface(limit int) (AuditVerificationSu
 }
 
 func (s *Service) APILimits() Limits { return s.apiConfig.Limits }
+
+func deriveLifecycleGeneration(now time.Time, productInstanceID string) string {
+	stamp := now.UTC().Format(time.RFC3339Nano)
+	sum := sha256.Sum256([]byte(strings.TrimSpace(productInstanceID) + ":" + stamp))
+	return "gen-" + hex.EncodeToString(sum[:8])
+}
 
 func (s *Service) discoverProjectSubstrate() (projectsubstrate.DiscoveryResult, error) {
 	if s == nil {

@@ -69,6 +69,7 @@ type localBrokerClient interface {
 	ProjectSubstrateUpgradeApply(ctx context.Context, expectedPreviewDigest string) (brokerapi.ProjectSubstrateUpgradeApplyResponse, error)
 	ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error)
 	VersionInfoGet(ctx context.Context) (brokerapi.VersionInfoGetResponse, error)
+	ProductLifecyclePostureGet(ctx context.Context) (brokerapi.ProductLifecyclePostureGetResponse, error)
 }
 
 type localRPCInvoker interface {
@@ -335,4 +336,10 @@ func (c *rpcBrokerClient) VersionInfoGet(ctx context.Context) (brokerapi.Version
 	req := brokerapi.VersionInfoGetRequest{SchemaID: "runecode.protocol.v0.VersionInfoGetRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("version")}
 	resp := brokerapi.VersionInfoGetResponse{}
 	return resp, c.invoke(ctx, "version_info_get", req, &resp)
+}
+
+func (c *rpcBrokerClient) ProductLifecyclePostureGet(ctx context.Context) (brokerapi.ProductLifecyclePostureGetResponse, error) {
+	req := brokerapi.ProductLifecyclePostureGetRequest{SchemaID: "runecode.protocol.v0.ProductLifecyclePostureGetRequest", SchemaVersion: localAPISchemaVersion, RequestID: newRequestID("product-lifecycle-posture")}
+	resp := brokerapi.ProductLifecyclePostureGetResponse{}
+	return resp, c.invoke(ctx, "product_lifecycle_posture_get", req, &resp)
 }

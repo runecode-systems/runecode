@@ -12,3 +12,5 @@
 This change exists to make RuneCode productively useful without creating a second built-in workflow system that later custom workflows would have to imitate or bypass.
 
 That includes keeping first-party change/spec drafting and approved-change implementation on the same typed workflow, approval, audit, verification, and git foundations as the rest of the product.
+
+It also includes inheriting the canonical repo-scoped RuneCode product lifecycle from `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0` rather than inventing a built-in-only bootstrap, attach, or remediation path.

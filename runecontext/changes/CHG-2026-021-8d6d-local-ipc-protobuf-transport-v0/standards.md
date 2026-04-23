@@ -7,4 +7,4 @@
 - `standards/global/deterministic-check-write-tools.md`
 
 ## Resolution Notes
-Migrated from the legacy spec standards list and refreshed to canonical RuneContext standard paths, then expanded to preserve typed logical API semantics and local-first trust-boundary posture across protobuf transport migration.
+Migrated from the legacy spec standards list and refreshed to canonical RuneContext standard paths, then expanded to preserve typed logical API semantics, local-first trust-boundary posture, and the repo-scoped broker-owned product lifecycle contract across protobuf transport migration.

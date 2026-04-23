@@ -38,6 +38,8 @@ type SessionDurableState struct {
 	CreatedByRunID      string                              `json:"created_by_run_id,omitempty"`
 	UpdatedAt           time.Time                           `json:"updated_at"`
 	Status              string                              `json:"status"`
+	WorkPosture         string                              `json:"work_posture"`
+	WorkPostureReason   string                              `json:"work_posture_reason_code,omitempty"`
 	LastActivityAt      time.Time                           `json:"last_activity_at"`
 	LastActivityKind    string                              `json:"last_activity_kind"`
 	LastActivityPreview string                              `json:"last_activity_preview,omitempty"`

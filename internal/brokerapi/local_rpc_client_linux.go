@@ -19,6 +19,13 @@ type LocalRPCClient struct {
 	limits  Limits
 }
 
+func (c *LocalRPCClient) PeerCredentials() (PeerCredentials, error) {
+	if c == nil || c.conn == nil {
+		return PeerCredentials{}, ErrPeerCredentialsUnavailable
+	}
+	return PeerCredentialsFromConn(c.conn)
+}
+
 func DialLocalRPC(ctx context.Context, cfg LocalIPCConfig) (*LocalRPCClient, error) {
 	return DialLocalRPCWithLimits(ctx, cfg, Limits{})
 }

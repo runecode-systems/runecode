@@ -12,10 +12,31 @@ import (
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/auditd"
+	"github.com/runecode-ai/runecode/internal/localbootstrap"
 	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
+
+func TestNewServiceDerivesProductInstanceIDViaSharedHelper(t *testing.T) {
+	repoRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".git"), 0o755); err != nil {
+		t.Fatalf("MkdirAll(.git) returned error: %v", err)
+	}
+	storeRoot := filepath.Join(t.TempDir(), "store")
+	ledgerRoot := filepath.Join(t.TempDir(), "ledger")
+	configuredRoot := "  " + repoRoot + "  "
+
+	service, err := NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{RepositoryRoot: configuredRoot})
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig returned error: %v", err)
+	}
+
+	want := localbootstrap.DeriveProductInstanceID(repoRoot)
+	if service.productInstanceID != want {
+		t.Fatalf("productInstanceID = %q, want %q", service.productInstanceID, want)
+	}
+}
 
 func TestAuditReadinessAndVerificationSurface(t *testing.T) {
 	storeRoot := filepath.Join(t.TempDir(), "store")

@@ -12,6 +12,7 @@ Deliver first-party productive workflows on top of the same typed workflow subst
 - First-party workflows should operate only against supported validated project substrate and must not implicitly initialize or upgrade repository substrate during ordinary workflow execution.
 - Where project context matters, drafting and implementation workflows should bind to the validated project-substrate snapshot digest rather than to ambient repo state.
 - If repository project-substrate posture is missing, invalid, non-verified, or unsupported, first-party workflow entry should route to diagnostics/remediation posture rather than normal drafting or implementation execution.
+- First-party workflows must inherit the repo-scoped product lifecycle and canonical `runecode` attach/start flows established by `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0`; they must not invent a built-in-only bootstrap or remediation path.
 
 ## First-Party Workflow Families
 
@@ -26,6 +27,11 @@ Each family should preserve explicit artifact, approval, audit, and project-cont
 - First-party workflow families should inherit the project-substrate contract and blocked-state rules from `CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0`.
 - Direct human edits remain valid repository inputs, but RuneCode-managed workflows must evaluate the resulting repository substrate posture before normal execution.
 - Workflow execution must not silently initialize, normalize, or upgrade repository substrate just to make ordinary productive flows succeed.
+
+Where `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0` projects diagnostics/remediation-only attach because repository substrate blocks normal operation:
+- users may still attach and inspect state through the canonical RuneCode product lifecycle
+- first-party productive workflow entry must remain blocked until compatible project-substrate posture is restored
+- built-in workflows must not attempt workflow-local bootstrap repair, substrate initialization, or upgrade as an implicit precondition for execution
 
 ## Main Workstreams
 - Drafting Workflow Definitions.

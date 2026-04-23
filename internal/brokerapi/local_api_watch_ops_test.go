@@ -104,6 +104,9 @@ func TestSessionWatchStreamIncludesSnapshotAndTerminal(t *testing.T) {
 	if events[0].EventType != "session_watch_snapshot" || events[0].Session == nil || events[0].Session.Identity.SessionID != "sess-watch" {
 		t.Fatalf("session watch snapshot = %+v, want sess-watch", events[0])
 	}
+	if events[0].Session.WorkPosture != "running" {
+		t.Fatalf("session watch snapshot work_posture = %q, want running", events[0].Session.WorkPosture)
+	}
 	if events[1].EventType != "session_watch_terminal" || events[1].TerminalStatus != "completed" {
 		t.Fatalf("session watch terminal = %+v, want completed terminal", events[1])
 	}

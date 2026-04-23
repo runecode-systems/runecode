@@ -72,12 +72,12 @@ var routeActivationCaseData = []routeActivationCase{
 		expected: []string{"AuditTimeline", "AuditVerificationGet"},
 	},
 	{
-		name:    "status uses typed readiness/version contracts",
+		name:    "status uses typed readiness/version/lifecycle contracts",
 		routeID: routeStatus,
 		newModel: func(client localBrokerClient) routeModel {
 			return newStatusRouteModel(routeDefinition{ID: routeStatus, Label: "Status"}, client)
 		},
-		expected: []string{"ReadinessGet", "VersionInfoGet", "ProjectSubstratePostureGet", "BackendPostureGet"},
+		expected: []string{"ReadinessGet", "VersionInfoGet", "ProjectSubstratePostureGet", "ProductLifecyclePostureGet", "BackendPostureGet"},
 	},
 	{
 		name:    "model providers uses typed setup and inspection contracts",

@@ -82,7 +82,7 @@ func TestGlobalStateAndLedgerRootsAreAppliedBeforeCommand(t *testing.T) {
 	ledgerRoot := filepath.Join(t.TempDir(), "audit-ledger-root")
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
-	if err := run([]string{"--state-root", stateRoot, "--audit-ledger-root", ledgerRoot, "run-list", "--limit", "1"}, stdout, stderr); err != nil {
+	if err := run([]string{"--state-root", stateRoot, "--audit-ledger-root", ledgerRoot, "show-policy"}, stdout, stderr); err != nil {
 		t.Fatalf("run with global roots returned error: %v", err)
 	}
 	if captured.stateRoot != stateRoot {

@@ -146,9 +146,9 @@ func safeUIErrorText(err error) string {
 func remediateBrokerErrorText(text string) string {
 	switch strings.TrimSpace(text) {
 	case "local_ipc_dial_error":
-		return "local broker IPC unavailable; start `runecode-broker serve-local` in another terminal, then press r to retry"
+		return "local broker IPC unavailable; use `runecode attach` (or `runecode start`) for canonical recovery, then press r to retry"
 	case "local_ipc_config_error":
-		return "local broker IPC is not configured on this machine; use Linux with a local runtime dir/socket and start broker with matching --runtime-dir/--socket-name, or run with an available local broker listener"
+		return "local broker IPC is not configured on this machine; use the canonical `runecode` product command for normal workflows, or use explicit --runtime-dir/--socket-name for advanced manual/dev attach"
 	default:
 		return text
 	}

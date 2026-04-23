@@ -16,6 +16,7 @@ Define explicit shared-workspace concurrency modes, deterministic locking, and a
 - Shared-workspace concurrency must not let one run consume, satisfy, or inherit another run's reduced-assurance backend-selection approval.
 - Concurrency must not silently merge, reinterpret, or ignore validated project-substrate snapshot identity when concurrent runs depend on project context.
 - Project-substrate drift under shared-workspace concurrency must fail closed or surface explicit coordination/remediation posture rather than continuing on stale mixed assumptions.
+- Shared-workspace coordination remains broker-owned truth inside one repo-scoped product instance for the authoritative repository root; client tabs, workbench state, transport bindings, or local attach mechanics must not become concurrency ownership truth.
 
 ## Shared Contract Alignment
 
@@ -27,6 +28,7 @@ Define explicit shared-workspace concurrency modes, deterministic locking, and a
 ### Lifecycle + Coordination
 - Public run lifecycle should remain on the shared broker lifecycle vocabulary.
 - Lock waits, conflict waits, and partially blocked progress should be represented through `RunCoordinationSummary`, stage summaries, and role summaries instead of a new concurrency-specific lifecycle state.
+- Concurrency ownership and coordination should build on the canonical repo-scoped product lifecycle established by `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0` rather than introducing transport-local or client-local product ownership semantics.
 
 ### Approval + Gate Binding
 - Exact-action approvals, stage sign-off, gate attempts, gate evidence, and gate overrides must stay bound to the correct run even when workspaces are shared.

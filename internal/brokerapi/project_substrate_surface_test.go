@@ -232,16 +232,6 @@ func assertNonVerifiedReadiness(t *testing.T, service *Service) {
 	}
 }
 
-func TestHandleProjectSubstrateGetAdoptAndInitLifecycle(t *testing.T) {
-	repoRoot := t.TempDir()
-	service := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: repoRoot})
-	assertProjectSubstrateGetMissing(t, service)
-	assertProjectSubstrateAdoptBlocked(t, service)
-	previewResp := assertProjectSubstrateInitPreviewReady(t, service)
-	assertProjectSubstrateInitApplyApplied(t, service, previewResp.Preview.PreviewToken)
-	assertProjectSubstrateGetValid(t, service)
-}
-
 func assertProjectSubstrateGetMissing(t *testing.T, service *Service) {
 	t.Helper()
 
@@ -323,161 +313,110 @@ func assertProjectSubstrateGetValid(t *testing.T, service *Service) {
 	}
 }
 
-func TestHandleProjectSubstratePostureGetProjectsBrokerOwnedLifecycleSurface(t *testing.T) {
+func TestHandleProductLifecyclePostureGetSupportedWithUpgradeProjectsDegradedAttachableSurface(t *testing.T) {
 	root := t.TempDir()
 	writeProjectSubstrateAnchors(t, root, "0.1.0-alpha.13", "verified", "runecontext")
 	service := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: root})
 
-	resp, errResp := service.HandleProjectSubstratePostureGet(context.Background(), ProjectSubstratePostureGetRequest{
-		SchemaID:      "runecode.protocol.v0.ProjectSubstratePostureGetRequest",
+	resp, errResp := service.HandleProductLifecyclePostureGet(context.Background(), ProductLifecyclePostureGetRequest{
+		SchemaID:      "runecode.protocol.v0.ProductLifecyclePostureGetRequest",
 		SchemaVersion: "0.1.0",
-		RequestID:     "req-project-substrate-posture-get",
+		RequestID:     "req-product-lifecycle-posture-upgrade-available",
 	}, RequestContext{})
 	if errResp != nil {
-		t.Fatalf("HandleProjectSubstratePostureGet returned error: %+v", errResp)
+		t.Fatalf("HandleProductLifecyclePostureGet returned error: %+v", errResp)
 	}
-	if got := resp.PostureSummary.CompatibilityPosture; got != "supported_with_upgrade_available" {
-		t.Fatalf("posture_summary.compatibility_posture = %q, want supported_with_upgrade_available", got)
+	if got := resp.ProductLifecycle.AttachMode; got != "full" {
+		t.Fatalf("attach_mode = %q, want full", got)
 	}
-	if got := resp.Adoption.Status; got != "adopted" {
-		t.Fatalf("adoption.status = %q, want adopted", got)
+	if got := resp.ProductLifecycle.LifecyclePosture; got != "degraded" {
+		t.Fatalf("lifecycle_posture = %q, want degraded", got)
 	}
-	if got := resp.InitPreview.Status; got != "noop" {
-		t.Fatalf("init_preview.status = %q, want noop for canonical repo", got)
+	if !resp.ProductLifecycle.Attachable {
+		t.Fatal("attachable = false, want true")
 	}
-	if got := resp.UpgradePreview.Status; got != "ready_for_apply" {
-		t.Fatalf("upgrade_preview.status = %q, want ready_for_apply for supported_with_upgrade_available", got)
+	if !resp.ProductLifecycle.NormalOperationAllowed {
+		t.Fatal("normal_operation_allowed = false, want true")
 	}
-	if got := resp.UpgradePreview.ExpectedSnapshot.RuneContextVersion; got != "0.1.0-alpha.14" {
-		t.Fatalf("upgrade_preview.expected_snapshot.runecontext_version = %q, want 0.1.0-alpha.14", got)
+	if len(resp.ProductLifecycle.BlockedReasonCodes) != 0 {
+		t.Fatalf("blocked_reason_codes = %v, want empty", resp.ProductLifecycle.BlockedReasonCodes)
 	}
-	if len(resp.RemediationGuidance) == 0 {
-		t.Fatal("remediation_guidance empty, want broker-projected advisory guidance")
+	if len(resp.ProductLifecycle.DegradedReasonCodes) != 1 || resp.ProductLifecycle.DegradedReasonCodes[0] != "project_substrate_upgrade_available" {
+		t.Fatalf("degraded_reason_codes = %v, want [project_substrate_upgrade_available]", resp.ProductLifecycle.DegradedReasonCodes)
+	}
+	if strings.TrimSpace(resp.ProductLifecycle.ProductInstanceID) == "" {
+		t.Fatal("product_instance_id empty, want stable repo-scoped identity")
+	}
+	if strings.TrimSpace(resp.ProductLifecycle.LifecycleGeneration) == "" {
+		t.Fatal("lifecycle_generation empty, want broker generation identity")
 	}
 }
 
-func TestHandleProjectSubstrateAdoptBlocksUnsupportedCompatibility(t *testing.T) {
+func TestHandleProductLifecyclePostureGetUnsupportedProjectsDiagnosticsOnlyAttachMode(t *testing.T) {
 	root := t.TempDir()
 	writeProjectSubstrateAnchors(t, root, "0.1.0-alpha.99", "verified", "runecontext")
 	service := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: root})
 
-	resp, errResp := service.HandleProjectSubstrateAdopt(context.Background(), ProjectSubstrateAdoptRequest{
-		SchemaID:      "runecode.protocol.v0.ProjectSubstrateAdoptRequest",
+	resp, errResp := service.HandleProductLifecyclePostureGet(context.Background(), ProductLifecyclePostureGetRequest{
+		SchemaID:      "runecode.protocol.v0.ProductLifecyclePostureGetRequest",
 		SchemaVersion: "0.1.0",
-		RequestID:     "req-project-substrate-adopt-unsupported",
+		RequestID:     "req-product-lifecycle-posture-unsupported",
 	}, RequestContext{})
 	if errResp != nil {
-		t.Fatalf("HandleProjectSubstrateAdopt returned error: %+v", errResp)
+		t.Fatalf("HandleProductLifecyclePostureGet returned error: %+v", errResp)
 	}
-	if got := resp.Adoption.Status; got != "blocked" {
-		t.Fatalf("adoption.status = %q, want blocked", got)
+	if got := resp.ProductLifecycle.AttachMode; got != "diagnostics_only" {
+		t.Fatalf("attach_mode = %q, want diagnostics_only", got)
 	}
-	if len(resp.Adoption.ReasonCodes) == 0 {
-		t.Fatal("adoption.reason_codes empty, want compatibility blocked reason")
+	if got := resp.ProductLifecycle.LifecyclePosture; got != "blocked" {
+		t.Fatalf("lifecycle_posture = %q, want blocked", got)
 	}
-	found := false
-	for _, reason := range resp.Adoption.ReasonCodes {
+	if !resp.ProductLifecycle.Attachable {
+		t.Fatal("attachable = false, want true in diagnostics mode")
+	}
+	if resp.ProductLifecycle.NormalOperationAllowed {
+		t.Fatal("normal_operation_allowed = true, want false")
+	}
+	if len(resp.ProductLifecycle.BlockedReasonCodes) == 0 {
+		t.Fatal("blocked_reason_codes empty, want stable blocked reason codes")
+	}
+	foundUnsupportedTooNew := false
+	for _, reason := range resp.ProductLifecycle.BlockedReasonCodes {
 		if reason == "project_substrate_unsupported_too_new" {
-			found = true
+			foundUnsupportedTooNew = true
 			break
 		}
 	}
-	if !found {
-		t.Fatalf("adoption.reason_codes = %v, want project_substrate_unsupported_too_new", resp.Adoption.ReasonCodes)
+	if !foundUnsupportedTooNew {
+		t.Fatalf("blocked_reason_codes = %v, want project_substrate_unsupported_too_new", resp.ProductLifecycle.BlockedReasonCodes)
 	}
 }
 
-func TestHandleProjectSubstrateUpgradePreviewAndApply(t *testing.T) {
-	root := t.TempDir()
-	writeProjectSubstrateAnchors(t, root, "0.1.0-alpha.14", "plain", "runecontext")
-	service := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: root})
-
-	previewResp, errResp := service.HandleProjectSubstrateUpgradePreview(context.Background(), ProjectSubstrateUpgradePreviewRequest{
-		SchemaID:      "runecode.protocol.v0.ProjectSubstrateUpgradePreviewRequest",
-		SchemaVersion: "0.1.0",
-		RequestID:     "req-project-substrate-upgrade-preview",
-	}, RequestContext{})
-	if errResp != nil {
-		t.Fatalf("HandleProjectSubstrateUpgradePreview returned error: %+v", errResp)
-	}
-	if got := previewResp.Preview.Status; got != "ready_for_apply" {
-		t.Fatalf("upgrade preview status = %q, want ready_for_apply", got)
-	}
-	if strings.TrimSpace(previewResp.Preview.PreviewDigest) == "" {
-		t.Fatal("upgrade preview digest empty, want deterministic digest")
-	}
-
-	applyResp, errResp := service.HandleProjectSubstrateUpgradeApply(context.Background(), ProjectSubstrateUpgradeApplyRequest{
-		SchemaID:              "runecode.protocol.v0.ProjectSubstrateUpgradeApplyRequest",
-		SchemaVersion:         "0.1.0",
-		RequestID:             "req-project-substrate-upgrade-apply",
-		ExpectedPreviewDigest: previewResp.Preview.PreviewDigest,
-	}, RequestContext{})
-	if errResp != nil {
-		t.Fatalf("HandleProjectSubstrateUpgradeApply returned error: %+v", errResp)
-	}
-	if got := applyResp.ApplyResult.Status; got != "applied" {
-		t.Fatalf("upgrade apply status = %q, want applied", got)
-	}
-	if got := applyResp.ApplyResult.ResultingSnapshot.ValidationState; got != "valid" {
-		t.Fatalf("resulting snapshot validation_state = %q, want valid", got)
-	}
-}
-
-func TestHandleProjectSubstrateApplyReturnsSuccessWhenRefreshFails(t *testing.T) {
-	repoRoot := t.TempDir()
-	service := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: repoRoot})
-	previewResp := assertProjectSubstrateInitPreviewReady(t, service)
+func TestHandleProductLifecyclePostureGetDiscoveryFailureStillProjectsDiagnosticsAttach(t *testing.T) {
+	service := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: t.TempDir()})
 	service.discoverProjectSubstrateFn = func() (projectsubstrate.DiscoveryResult, error) {
-		return projectsubstrate.DiscoveryResult{}, fmt.Errorf("refresh failed after apply")
+		return projectsubstrate.DiscoveryResult{}, fmt.Errorf("broken substrate state")
 	}
 
-	applyResp, errResp := service.HandleProjectSubstrateInitApply(context.Background(), ProjectSubstrateInitApplyRequest{
-		SchemaID:             "runecode.protocol.v0.ProjectSubstrateInitApplyRequest",
-		SchemaVersion:        "0.1.0",
-		RequestID:            "req-project-substrate-init-apply-refresh-failure",
-		ExpectedPreviewToken: previewResp.Preview.PreviewToken,
-	}, RequestContext{})
-	if errResp != nil {
-		t.Fatalf("HandleProjectSubstrateInitApply returned error: %+v", errResp)
-	}
-	if got := applyResp.ApplyResult.Status; got != "applied" {
-		t.Fatalf("apply_result.status = %q, want applied", got)
-	}
-	content, err := os.ReadFile(filepath.Join(repoRoot, "runecontext.yaml"))
-	if err != nil {
-		t.Fatalf("ReadFile runecontext.yaml returned error: %v", err)
-	}
-	if !strings.Contains(string(content), "runecontext_version: \"0.1.0-alpha.14\"") {
-		t.Fatalf("runecontext.yaml missing canonical version after apply:\n%s", string(content))
-	}
-	service.discoverProjectSubstrateFn = nil
-	assertProjectSubstrateGetValid(t, service)
-}
-
-func TestHandleProjectSubstrateInitPreviewRefusesConflicts(t *testing.T) {
-	repoRoot := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(repoRoot, ".runecontext"), 0o755); err != nil {
-		t.Fatalf("MkdirAll .runecontext returned error: %v", err)
-	}
-	if err := os.MkdirAll(filepath.Join(repoRoot, "runecontext-legacy"), 0o755); err != nil {
-		t.Fatalf("MkdirAll runecontext-legacy returned error: %v", err)
-	}
-
-	service := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: repoRoot})
-	previewResp, errResp := service.HandleProjectSubstrateInitPreview(context.Background(), ProjectSubstrateInitPreviewRequest{
-		SchemaID:      "runecode.protocol.v0.ProjectSubstrateInitPreviewRequest",
+	resp, errResp := service.HandleProductLifecyclePostureGet(context.Background(), ProductLifecyclePostureGetRequest{
+		SchemaID:      "runecode.protocol.v0.ProductLifecyclePostureGetRequest",
 		SchemaVersion: "0.1.0",
-		RequestID:     "req-project-substrate-init-preview-conflict",
+		RequestID:     "req-product-lifecycle-posture-discovery-failure",
 	}, RequestContext{})
 	if errResp != nil {
-		t.Fatalf("HandleProjectSubstrateInitPreview returned error: %+v", errResp)
+		t.Fatalf("HandleProductLifecyclePostureGet returned error: %+v", errResp)
 	}
-	if previewResp.Preview.Status != "blocked_conflict" {
-		t.Fatalf("preview.status = %q, want blocked_conflict", previewResp.Preview.Status)
+	if got := resp.ProductLifecycle.AttachMode; got != "diagnostics_only" {
+		t.Fatalf("attach_mode = %q, want diagnostics_only", got)
 	}
-	if len(previewResp.Preview.ConflictingPaths) == 0 {
-		t.Fatal("conflicting_paths empty, want surfaced conflicts")
+	if got := resp.ProductLifecycle.LifecyclePosture; got != "blocked" {
+		t.Fatalf("lifecycle_posture = %q, want blocked", got)
+	}
+	if !resp.ProductLifecycle.Attachable {
+		t.Fatal("attachable = false, want true")
+	}
+	if len(resp.ProductLifecycle.BlockedReasonCodes) != 1 || resp.ProductLifecycle.BlockedReasonCodes[0] != "project_substrate_discovery_failed" {
+		t.Fatalf("blocked_reason_codes = %v, want [project_substrate_discovery_failed]", resp.ProductLifecycle.BlockedReasonCodes)
 	}
 }
 

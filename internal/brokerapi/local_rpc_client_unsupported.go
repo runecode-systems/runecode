@@ -16,6 +16,10 @@ type LocalRPCClient struct{}
 
 func (c *LocalRPCClient) Close() error { return ErrPeerCredentialsUnavailable }
 
+func (c *LocalRPCClient) PeerCredentials() (PeerCredentials, error) {
+	return PeerCredentials{}, ErrPeerCredentialsUnavailable
+}
+
 func (c *LocalRPCClient) Invoke(_ context.Context, _ string, _ any, _ any) *ErrorResponse {
 	err := toErrorResponse(defaultRequestIDFallback, "gateway_failure", "internal", false, "local rpc client is linux-only for MVP")
 	return &err

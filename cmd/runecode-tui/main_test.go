@@ -15,7 +15,7 @@ func TestWriteHelpDescribesInteractiveBrokerBackedUI(t *testing.T) {
 	for _, want := range []string{
 		"Usage: runecode-tui [--runtime-dir dir] [--socket-name broker.sock] [--help]",
 		"Interactive terminal UI for the local RuneCode broker API.",
-		"runecode-broker serve-local",
+		"runecode attach",
 		"isolated manual/dev workflows",
 	} {
 		if !strings.Contains(written, want) {
@@ -56,7 +56,7 @@ func TestWriteNonInteractiveMessageIncludesBrokerRemediation(t *testing.T) {
 	for _, want := range []string{
 		"interactive terminal UI",
 		"Interactive terminal required to launch UI.",
-		"runecode-broker serve-local [--runtime-dir dir] [--socket-name broker.sock]",
+		"Canonical entry: runecode attach",
 	} {
 		if !strings.Contains(written, want) {
 			t.Fatalf("non-interactive output missing %q in %q", want, written)

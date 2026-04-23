@@ -11,6 +11,7 @@ import (
 type statusLoadedMsg struct {
 	readiness brokerapi.BrokerReadiness
 	version   brokerapi.BrokerVersionInfo
+	lifecycle brokerapi.BrokerProductLifecyclePosture
 	posture   brokerapi.BackendPostureState
 	project   brokerapi.ProjectSubstratePostureGetResponse
 	err       error
@@ -160,7 +161,7 @@ func (m statusRouteModel) View(width, height int, focus focusArea) string {
 	_ = width
 	_ = height
 	if m.loading {
-		return renderStateCard(routeLoadStateLoading, "Status", "Loading status route from readiness/version contracts...")
+		return renderStateCard(routeLoadStateLoading, "Status", "Loading status route from readiness/version/lifecycle contracts...")
 	}
 	if m.changing {
 		return renderStateCard(routeLoadStateLoading, "Status", "Submitting backend posture change through broker local API...")
@@ -183,12 +184,67 @@ func (m statusRouteModel) View(width, height int, focus focusArea) string {
 		diagnostics,
 		fmt.Sprintf("Version posture: product=%s revision=%s build=%s", v.ProductVersion, v.BuildRevision, v.BuildTime),
 		fmt.Sprintf("Protocol posture: bundle=%s manifest=%s api=%s/%s", v.ProtocolBundleVersion, v.ProtocolBundleManifestHash, v.APIFamily, v.APIVersion),
+		renderLifecycleStatusLine(m.data.lifecycle),
+		renderLifecycleBlockedReasonLine(m.data.lifecycle),
+		renderLifecycleDegradedReasonLine(m.data.lifecycle),
+		renderLifecycleAttachGuidance(m.data.lifecycle),
 		renderProjectSubstrateStatusLine(m.data.project),
 		renderProjectSubstrateGuidance(m.data.project),
 		renderBackendPostureLine(m.data.posture),
 		m.status,
 		keyHint(statusRouteKeyHintText),
 	)
+}
+
+func renderLifecycleStatusLine(posture brokerapi.BrokerProductLifecyclePosture) string {
+	if strings.TrimSpace(posture.SchemaID) == "" {
+		return "Broker lifecycle posture: unavailable"
+	}
+	return fmt.Sprintf(
+		"Broker lifecycle posture: instance=%s generation=%s attach_mode=%s lifecycle_posture=%s attachable=%t normal_operation_allowed=%t",
+		valueOrNA(posture.ProductInstanceID),
+		valueOrNA(posture.LifecycleGeneration),
+		valueOrNA(posture.AttachMode),
+		valueOrNA(posture.LifecyclePosture),
+		posture.Attachable,
+		posture.NormalOperationAllowed,
+	)
+}
+
+func renderLifecycleBlockedReasonLine(posture brokerapi.BrokerProductLifecyclePosture) string {
+	if strings.TrimSpace(posture.SchemaID) == "" {
+		return "Broker lifecycle blocked reasons: unavailable"
+	}
+	if len(posture.BlockedReasonCodes) == 0 {
+		return "Broker lifecycle blocked reasons: none"
+	}
+	return "Broker lifecycle blocked reasons: " + joinCSV(posture.BlockedReasonCodes)
+}
+
+func renderLifecycleDegradedReasonLine(posture brokerapi.BrokerProductLifecyclePosture) string {
+	if strings.TrimSpace(posture.SchemaID) == "" {
+		return "Broker lifecycle degraded reasons: unavailable"
+	}
+	if len(posture.DegradedReasonCodes) == 0 {
+		return "Broker lifecycle degraded reasons: none"
+	}
+	return "Broker lifecycle degraded reasons: " + joinCSV(posture.DegradedReasonCodes)
+}
+
+func renderLifecycleAttachGuidance(posture brokerapi.BrokerProductLifecyclePosture) string {
+	if strings.TrimSpace(posture.SchemaID) == "" {
+		return "Attach guidance: unavailable"
+	}
+	if !posture.Attachable {
+		return "Attach guidance: broker lifecycle is not currently attachable/inspectable."
+	}
+	if !posture.NormalOperationAllowed {
+		if strings.EqualFold(strings.TrimSpace(posture.AttachMode), "diagnostics_only") {
+			return "Attach guidance: diagnostics/remediation-only attach is available; normal operation is blocked by current project-substrate posture."
+		}
+		return "Attach guidance: attach is available, but normal operation is blocked by current project-substrate posture."
+	}
+	return "Attach guidance: full attach and normal operation are allowed."
 }
 
 func (m statusRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
@@ -306,11 +362,15 @@ func (m statusRouteModel) loadCmd(seq uint64) tea.Cmd {
 		if err != nil {
 			return statusLoadedMsg{err: err, seq: seq}
 		}
+		lifecycleResp, err := m.client.ProductLifecyclePostureGet(ctx)
+		if err != nil {
+			return statusLoadedMsg{err: err, seq: seq}
+		}
 		postureResp, err := m.client.BackendPostureGet(ctx)
 		if err != nil {
 			return statusLoadedMsg{err: err, seq: seq}
 		}
-		return statusLoadedMsg{readiness: readinessResp.Readiness, version: versionResp.VersionInfo, posture: postureResp.Posture, project: projectResp, seq: seq}
+		return statusLoadedMsg{readiness: readinessResp.Readiness, version: versionResp.VersionInfo, lifecycle: lifecycleResp.ProductLifecycle, posture: postureResp.Posture, project: projectResp, seq: seq}
 	}
 }
 

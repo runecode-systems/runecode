@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
 func TestStatusRouteRendersProjectSubstratePostureAndGuidance(t *testing.T) {
@@ -16,6 +18,13 @@ func TestStatusRouteRendersProjectSubstratePostureAndGuidance(t *testing.T) {
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
 	mustContainAll(t, view,
+		"Broker lifecycle posture:",
+		"attach_mode=full",
+		"attachable=true",
+		"normal_operation_allowed=true",
+		"Broker lifecycle blocked reasons: none",
+		"Broker lifecycle degraded reasons: none",
+		"Attach guidance: full attach and normal operation are allowed.",
 		"Project substrate posture:",
 		"compatibility=supported_with_upgrade_available",
 		"Project substrate remediation:",
@@ -80,6 +89,9 @@ func assertStatusRouteActionUsesTypedContracts(t *testing.T, model routeModel, r
 	if !containsCall(afterCalls, "ProjectSubstratePostureGet") {
 		t.Fatalf("expected post-action posture reload after key %q; got %v", string(tc.key), afterCalls)
 	}
+	if !containsCall(afterCalls, "ProductLifecyclePostureGet") {
+		t.Fatalf("expected post-action lifecycle posture reload after key %q; got %v", string(tc.key), afterCalls)
+	}
 }
 
 func assertStatusRouteViewRedactsPreviewHandles(t *testing.T, view string, key rune) {
@@ -98,7 +110,7 @@ func assertStatusRouteCallsInclude(t *testing.T, calls []string, want []string, 
 	}
 }
 
-func TestStatusRouteActivationUsesProjectSubstratePostureAndBackendPostureContracts(t *testing.T) {
+func TestStatusRouteActivationUsesLifecyclePostureAndStatusContracts(t *testing.T) {
 	recording := newRecordingBrokerClient(&fakeBrokerClient{})
 	model := newStatusRouteModel(routeDefinition{ID: routeStatus, Label: "Status"}, recording)
 	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeStatus})
@@ -106,7 +118,7 @@ func TestStatusRouteActivationUsesProjectSubstratePostureAndBackendPostureContra
 		t.Fatal("expected activation load command")
 	}
 	updated, _ = updated.Update(cmd())
-	assertStringSliceEqual(t, recording.Calls(), []string{"ReadinessGet", "VersionInfoGet", "ProjectSubstratePostureGet", "BackendPostureGet"})
+	assertStringSliceEqual(t, recording.Calls(), []string{"ReadinessGet", "VersionInfoGet", "ProjectSubstratePostureGet", "ProductLifecyclePostureGet", "BackendPostureGet"})
 
 	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	if cmd == nil {
@@ -121,4 +133,43 @@ func TestStatusRouteActivationUsesProjectSubstratePostureAndBackendPostureContra
 	if !containsCall(calls, "ProjectSubstrateAdopt") {
 		t.Fatalf("expected ProjectSubstrateAdopt call, got %v", calls)
 	}
+}
+
+type diagnosticsOnlyLifecycleClient struct {
+	*fakeBrokerClient
+}
+
+func (f *diagnosticsOnlyLifecycleClient) ProductLifecyclePostureGet(ctx context.Context) (brokerapi.ProductLifecyclePostureGetResponse, error) {
+	_, _ = f.fakeBrokerClient.ProductLifecyclePostureGet(ctx)
+	return brokerapi.ProductLifecyclePostureGetResponse{ProductLifecycle: brokerapi.BrokerProductLifecyclePosture{
+		SchemaID:               "runecode.protocol.v0.BrokerProductLifecyclePosture",
+		SchemaVersion:          "0.1.0",
+		ProductInstanceID:      "repo-test",
+		LifecycleGeneration:    "gen-blocked",
+		AttachMode:             "diagnostics_only",
+		LifecyclePosture:       "blocked",
+		Attachable:             true,
+		NormalOperationAllowed: false,
+		BlockedReasonCodes:     []string{"project_substrate_unsupported_too_new"},
+		DegradedReasonCodes:    []string{"project_substrate_upgrade_available"},
+	}}, nil
+}
+
+func TestStatusRouteRendersDiagnosticsOnlyAttachGuidanceWhenNormalOperationBlocked(t *testing.T) {
+	model := newStatusRouteModel(routeDefinition{ID: routeStatus, Label: "Status"}, &diagnosticsOnlyLifecycleClient{fakeBrokerClient: &fakeBrokerClient{}})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeStatus})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+	view := updated.View(120, 40, focusContent)
+	mustContainAll(t, view,
+		"attach_mode=diagnostics_only",
+		"lifecycle_posture=blocked",
+		"attachable=true",
+		"normal_operation_allowed=false",
+		"Broker lifecycle blocked reasons: project_substrate_unsupported_too_new",
+		"Broker lifecycle degraded reasons: project_substrate_upgrade_available",
+		"Attach guidance: diagnostics/remediation-only attach is available; normal operation is blocked by current project-substrate posture.",
+	)
 }

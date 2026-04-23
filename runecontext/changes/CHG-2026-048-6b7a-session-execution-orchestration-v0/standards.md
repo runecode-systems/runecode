@@ -12,3 +12,5 @@
 This change exists to stop live chat and autonomous operation from drifting into separate execution systems.
 
 That includes preserving one session-to-execution trigger model, one isolate-backed workflow path, one approval model, and one broker-owned lifecycle truth across all user-visible interaction modes.
+
+This change also inherits the repo-scoped product instance, canonical `runecode` lifecycle surface, and diagnostics/remediation-only attach posture frozen by `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0`; execution orchestration must extend that foundation rather than redefining it.

@@ -10,6 +10,7 @@ The first usable product cut needs real, productive workflows before generic wor
 - First-party approved-change implementation workflow.
 - Trigger surfaces for live chat and autonomous operation.
 - Explicit reuse of canonical RuneContext state, workflow contracts, approvals, audit, and git flow bindings.
+- Explicit reuse of the repo-scoped product lifecycle and canonical `runecode` user surface so built-in workflows do not invent a second bootstrap, attach, or remediation path.
 
 ## Why Now
 This work now lands in `v0.1.0-alpha.8`, after verified project substrate, session execution, and contract-first workflow binding are in place, because this is the point where RuneCode becomes meaningfully useful to a normal user.
@@ -21,6 +22,7 @@ Landing these as first-party workflows on the shared workflow foundation avoids 
 - RuneCode keeps the end-user command surface while using bundled RuneContext capabilities under the hood where project context or assurance is involved.
 - Context-aware delivery for this feature is planned directly against verified-mode RuneContext rather than a later retrofit from legacy Agent OS semantics.
 - Approved-change implementation should remain compatible with the shared git-gateway, audit, and verification model rather than inventing a workflow-local repository mutation path.
+- `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0` defines the canonical repo-scoped product lifecycle and diagnostics/remediation-only attach posture this workflow pack must inherit rather than bypass.
 
 ## Out of Scope
 - Generic custom-workflow authoring for arbitrary third-party workflow definitions.
@@ -28,4 +30,4 @@ Landing these as first-party workflows on the shared workflow foundation avoids 
 - Bypassing the shared workflow substrate for built-in product flows.
 
 ## Impact
-Creates the first productive built-in workflows for RuneCode while reinforcing the shared workflow substrate that future extensibility will build on.
+Creates the first productive built-in workflows for RuneCode while reinforcing both the shared workflow substrate and the canonical repo-scoped RuneCode product lifecycle that future extensibility will build on.

@@ -172,6 +172,7 @@ func newSessionStateFromAppendRequest(req SessionMessageAppendRequest) SessionDu
 		CreatedByRunID:    req.CreatedByRunID,
 		UpdatedAt:         req.OccurredAt,
 		Status:            "active",
+		WorkPosture:       "running",
 		LastActivityAt:    req.OccurredAt,
 		LastActivityKind:  "chat_message",
 		HasIncompleteTurn: false,
@@ -210,6 +211,8 @@ func appendSessionTranscriptMessage(session *SessionDurableState, req SessionMes
 	session.LastActivityPreview = req.ContentText
 	session.HasIncompleteTurn = false
 	session.Status = "active"
+	session.WorkPosture = "running"
+	session.WorkPostureReason = ""
 	session.LinkedRunIDs = mergeSessionLinkedRunIDs(session.LinkedRunIDs, req.RelatedLinks.RunIDs)
 	seq := int64(session.TurnCount)
 	return turn, message, seq

@@ -249,5 +249,10 @@ func auditHealthRPCOperations(service *brokerapi.Service, ctx context.Context, m
 				return service.HandleVersionInfoGet(ctx, req, meta)
 			})
 		}},
+		"product_lifecycle_posture_get": {requestSchemaPath: "objects/ProductLifecyclePostureGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ProductLifecyclePostureGetRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleProductLifecyclePostureGet(ctx, req, meta)
+			})
+		}},
 	}
 }

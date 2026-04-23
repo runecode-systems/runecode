@@ -6,6 +6,7 @@ Standards are organized by canonical paths plus repo-local bundles under `runeco
 Recent notable standards for this branch:
 
 - `runecontext/standards/global/control-plane-api-contract-shape.md`
+- `runecontext/standards/global/local-product-lifecycle-and-attach-contract.md`
 - `runecontext/standards/global/project-substrate-contract-and-lifecycle.md`
 - `runecontext/standards/global/protocol-canonicalization-profile.md`
 - `runecontext/standards/global/protocol-registry-discipline.md`

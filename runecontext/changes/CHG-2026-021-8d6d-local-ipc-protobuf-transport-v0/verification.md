@@ -10,6 +10,8 @@
 - Confirm canonical references remain on RuneContext project, spec, and change paths, with no active workflow depending on legacy planning paths.
 - Confirm the migrated text assumes RuneContext is canonical, RuneCode owns the user-facing UX, and verified-mode project state remains the expected operating posture.
 - Confirm the change still matches its v0.2 roadmap bucket and title after migration.
+- Confirm transport migration preserves repo-scoped product instance semantics, broker-owned product lifecycle posture, and canonical `runecode` attach/start/status/stop/restart meaning rather than encoding transport-local identity into the logical contract.
+- Confirm socket paths, runtime directories, named-pipe identities, or service-manager details remain transport/bootstrap bindings rather than boundary-visible product identity.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

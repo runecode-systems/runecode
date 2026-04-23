@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ProductLifecyclePostureGetResponse.schema.json",
+  "title": "ProductLifecyclePostureGetResponse",
+  "description": "Typed broker-owned product lifecycle posture response for attach and status consumers.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 4,
+  "required": ["schema_id", "schema_version", "request_id", "product_lifecycle"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ProductLifecyclePostureGetResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable echoed request identifier.", "x-data-class": "public" },
+    "product_lifecycle": {
+      "$ref": "BrokerProductLifecyclePosture.schema.json",
+      "description": "Broker-owned typed product lifecycle posture.",
+      "x-data-class": "public"
+    }
+  }
+}

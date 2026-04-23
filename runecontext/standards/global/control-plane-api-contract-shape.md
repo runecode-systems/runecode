@@ -16,6 +16,8 @@ Boundary-visible control-plane APIs must keep their logical contract explicit, t
 - Keep public read models topology-neutral; do not require socket names, local usernames, daemon-private storage layouts, or host-local filesystem paths as part of boundary-visible object identity.
 - Use shared typed error envelopes and stable reason-code registries for machine handling; do not rely on transport close, exit status, or scraped prose as the API error contract.
 - Keep authoritative and advisory surfaces distinct in run-oriented read models: authoritative control-plane state, compiled plan identity, and approval truth must not be inferred from runner-advisory summaries.
+- When local product lifecycle is operator-visible, expose it as a dedicated broker-owned typed posture surface rather than inferring attachability, restart identity, or normal-operation permission from readiness summaries, version/build metadata, transport reachability, socket presence, or bootstrap-local heuristics.
+- Keep object lifecycle, projected work posture, and client presence as distinct concepts in operator-facing read models; client attachment state and local convenience memory must not become canonical session or run lifecycle truth.
 - When APIs expose workflow execution planning, surface the immutable compiled contract explicitly rather than requiring clients to reconstruct it from workflow/process inputs or free-form status summaries.
 - When surfacing policy-gated work, keep canonical decision identity and machine semantics explicit:
   - expose policy decision hashes or equivalent canonical identifiers where operator UX needs stable identity

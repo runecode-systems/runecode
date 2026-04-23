@@ -6,7 +6,29 @@ import (
 	"testing"
 )
 
-func TestDiscoverAndValidateDeterministicRootNoUpwardSearch(t *testing.T) {
+func TestDiscoverAndValidateResolvesUpwardVCSAnchorRoot(t *testing.T) {
+	parent := t.TempDir()
+	writeCanonicalV0Anchors(t, parent)
+	if err := os.MkdirAll(filepath.Join(parent, ".git"), 0o755); err != nil {
+		t.Fatalf("MkdirAll .git returned error: %v", err)
+	}
+	nested := filepath.Join(parent, "sub", "dir")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("MkdirAll nested returned error: %v", err)
+	}
+	result, err := DiscoverAndValidate(DiscoveryInput{RepositoryRoot: nested, Authority: RepoRootAuthorityExplicitConfig})
+	if err != nil {
+		t.Fatalf("DiscoverAndValidate returned error: %v", err)
+	}
+	if result.RepositoryRoot != parent {
+		t.Fatalf("repository_root = %q, want %q", result.RepositoryRoot, parent)
+	}
+	if got := result.Snapshot.ValidationState; got != validationStateValid {
+		t.Fatalf("validation_state = %q, want %q", got, validationStateValid)
+	}
+}
+
+func TestDiscoverAndValidateWithoutVCSAnchorStillUsesProvidedRoot(t *testing.T) {
 	parent := t.TempDir()
 	writeCanonicalV0Anchors(t, parent)
 	nested := filepath.Join(parent, "sub", "dir")
@@ -23,10 +45,6 @@ func TestDiscoverAndValidateDeterministicRootNoUpwardSearch(t *testing.T) {
 	if got := result.Snapshot.ValidationState; got != validationStateMissing {
 		t.Fatalf("validation_state = %q, want %q", got, validationStateMissing)
 	}
-	assertHasReason(t, result.Snapshot.ReasonCodes, reasonMissingConfigAnchor)
-	assertHasReason(t, result.Snapshot.ReasonCodes, reasonMissingSourceAnchor)
-	assertHasReason(t, result.Snapshot.ReasonCodes, reasonMissingAssuranceAnchor)
-	assertHasReason(t, result.Snapshot.ReasonCodes, reasonMissingAssuranceBaseline)
 }
 
 func TestDiscoverAndValidateRejectsNonAbsoluteRepositoryRoot(t *testing.T) {

@@ -109,7 +109,7 @@ func (m chatRouteModel) View(width, height int, focus focusArea) string {
 	if m.statusText != "" {
 		body = append(body, "Status: "+m.statusText)
 	}
-	body = append(body, keyHint("Route keys: j/k move, enter load detail, i toggle inspector, c compose, ctrl+enter send, enter newline, v cycle rendered/raw/structured, r reload"))
+	body = append(body, keyHint("Route keys: j/k move, enter load detail, i toggle inspector, c compose, alt+enter send, enter newline, v cycle rendered/raw/structured, r reload"))
 	return compactLines(body...)
 }
 
@@ -132,7 +132,7 @@ func (m chatRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 		Regions: routeSurfaceRegions{
 			Main:      routeSurfaceRegion{Title: "Chat workspace", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
 			Inspector: routeSurfaceRegion{Title: "Session inspector", Body: inspector},
-			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, i toggle inspector, c compose, ctrl+enter send, enter newline, v cycle rendered/raw/structured, r reload")},
+			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, i toggle inspector, c compose, alt+enter send, enter newline, v cycle rendered/raw/structured, r reload")},
 			Status:    routeSurfaceRegion{Body: status},
 		},
 		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
@@ -256,7 +256,7 @@ func (m chatRouteModel) handleComposeKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 		m.statusText = "Compose canceled."
 		return m, nil
 	}
-	if key.Type == tea.KeyEnter && (key.Alt || key.String() == "ctrl+enter") {
+	if key.Type == tea.KeyEnter && key.Alt {
 		content := strings.TrimSpace(m.composer.Value())
 		if content == "" {
 			m.statusText = "Draft is empty; type a message or press esc."

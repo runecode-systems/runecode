@@ -938,6 +938,13 @@
       "status": "mvp"
     },
     {
+      "path": "objects/BrokerProductLifecyclePosture.schema.json",
+      "schema_id": "runecode.protocol.v0.BrokerProductLifecyclePosture",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/ProjectSubstrateContractState.schema.json",
       "schema_id": "runecode.protocol.v0.ProjectSubstrateContractState",
       "schema_version": "0.1.0",
@@ -1487,6 +1494,20 @@
     {
       "path": "objects/VersionInfoGetResponse.schema.json",
       "schema_id": "runecode.protocol.v0.VersionInfoGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProductLifecyclePostureGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ProductLifecyclePostureGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ProductLifecyclePostureGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ProductLifecyclePostureGetResponse",
       "schema_version": "0.1.0",
       "owner": "protocol",
       "status": "mvp"

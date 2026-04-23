@@ -16,6 +16,7 @@
       },
       "updated_at": "2026-04-11T10:06:00Z",
       "status": "active",
+      "work_posture": "running",
       "last_activity_at": "2026-04-11T10:05:30Z",
       "last_activity_kind": "chat_message",
       "turn_count": 3,

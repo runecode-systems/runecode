@@ -103,6 +103,9 @@ func TestSessionSendMessageDurableAcrossBrokerRestart(t *testing.T) {
 		t.Fatalf("NewServiceWithConfig(restart) returned error: %v", err)
 	}
 	getResp := mustSessionGet(t, restarted, "req-session-restart-get", "sess-restart")
+	if getResp.Session.Summary.WorkPosture != "running" {
+		t.Fatalf("session.summary.work_posture after restart = %q, want running", getResp.Session.Summary.WorkPosture)
+	}
 	assertSessionGetLastMessageContent(t, getResp, "persist me", 1)
 }
 
@@ -132,6 +135,23 @@ func TestSessionSendMessageIdempotencyRejectsPayloadMismatch(t *testing.T) {
 }
 
 func TestSessionSendMessageVisibleViaSessionGetAndPersistsAcrossRestart(t *testing.T) {
+	first, restart := newRestartableSessionService(t)
+	ack1 := sendRestartSessionMessage(t, first, "req-session-restart-send-1", "persist me")
+	assertRestartSessionSequence(t, ack1, 1, "first send")
+	assertSessionGetLastMessageContent(t, mustSessionGet(t, first, "req-session-restart-get-1", "sess-restart"), "persist me", 1)
+
+	restarted := restart()
+	get2 := mustSessionGet(t, restarted, "req-session-restart-get-2", "sess-restart")
+	if get2.Session.Summary.WorkPosture != "running" {
+		t.Fatalf("session.summary.work_posture after service restart = %q, want running", get2.Session.Summary.WorkPosture)
+	}
+	assertSessionGetLastMessageContent(t, get2, "persist me", 1)
+	ack2 := sendRestartSessionMessage(t, restarted, "req-session-restart-send-2", "second")
+	assertRestartSessionSequence(t, ack2, 2, "second send after restart")
+}
+
+func newRestartableSessionService(t *testing.T) (*Service, func() *Service) {
+	t.Helper()
 	root := t.TempDir()
 	ledgerRoot := root + "/audit-ledger"
 	first, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
@@ -139,36 +159,31 @@ func TestSessionSendMessageVisibleViaSessionGetAndPersistsAcrossRestart(t *testi
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
 	seedSessionRuntimeFactsForOpsTest(t, first, "run-session-restart", "sess-restart")
-	ack1 := mustSessionSendMessage(t, first, SessionSendMessageRequest{
-		SchemaID:      "runecode.protocol.v0.SessionSendMessageRequest",
-		SchemaVersion: "0.1.0",
-		RequestID:     "req-session-restart-send-1",
-		SessionID:     "sess-restart",
-		Role:          "user",
-		ContentText:   "persist me",
-	})
-	if ack1.Seq != 1 {
-		t.Fatalf("first send seq = %d, want 1", ack1.Seq)
+	return first, func() *Service {
+		restarted, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
+		if err != nil {
+			t.Fatalf("NewServiceWithConfig(restart) returned error: %v", err)
+		}
+		return restarted
 	}
-	get1 := mustSessionGet(t, first, "req-session-restart-get-1", "sess-restart")
-	assertSessionGetLastMessageContent(t, get1, "persist me", 1)
+}
 
-	restarted, err := NewServiceWithConfig(root, ledgerRoot, APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)})
-	if err != nil {
-		t.Fatalf("NewServiceWithConfig(restart) returned error: %v", err)
-	}
-	get2 := mustSessionGet(t, restarted, "req-session-restart-get-2", "sess-restart")
-	assertSessionGetLastMessageContent(t, get2, "persist me", 1)
-	ack2 := mustSessionSendMessage(t, restarted, SessionSendMessageRequest{
+func sendRestartSessionMessage(t *testing.T, service *Service, requestID, content string) SessionSendMessageResponse {
+	t.Helper()
+	return mustSessionSendMessage(t, service, SessionSendMessageRequest{
 		SchemaID:      "runecode.protocol.v0.SessionSendMessageRequest",
 		SchemaVersion: "0.1.0",
-		RequestID:     "req-session-restart-send-2",
+		RequestID:     requestID,
 		SessionID:     "sess-restart",
 		Role:          "user",
-		ContentText:   "second",
+		ContentText:   content,
 	})
-	if ack2.Seq != 2 {
-		t.Fatalf("second send seq after restart = %d, want 2", ack2.Seq)
+}
+
+func assertRestartSessionSequence(t *testing.T, ack SessionSendMessageResponse, wantSeq int64, label string) {
+	t.Helper()
+	if ack.Seq != wantSeq {
+		t.Fatalf("%s seq = %d, want %d", label, ack.Seq, wantSeq)
 	}
 }
 
@@ -230,6 +245,9 @@ func assertSessionSummaryProjection(t *testing.T, summary SessionSummary) {
 	}
 	if summary.LinkedRunCount != 1 {
 		t.Fatalf("linked_run_count = %d, want 1", summary.LinkedRunCount)
+	}
+	if summary.WorkPosture != "running" {
+		t.Fatalf("work_posture = %q, want running", summary.WorkPosture)
 	}
 	if summary.TurnCount != 0 {
 		t.Fatalf("turn_count = %d, want 0 before transcript messages", summary.TurnCount)

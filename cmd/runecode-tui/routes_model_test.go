@@ -37,7 +37,7 @@ func TestNewRouteModelsHybridMVPRoutesLoad(t *testing.T) {
 
 func TestSafeUIErrorTextAddsRemediationForLocalIPCDialFallbackCode(t *testing.T) {
 	got := safeUIErrorText(assertError("local_ipc_dial_error"))
-	if !strings.Contains(got, "runecode-broker serve-local") {
+	if !strings.Contains(got, "runecode attach") {
 		t.Fatalf("expected broker remediation in %q", got)
 	}
 	if !strings.Contains(got, "press r to retry") {
@@ -47,8 +47,8 @@ func TestSafeUIErrorTextAddsRemediationForLocalIPCDialFallbackCode(t *testing.T)
 
 func TestSafeUIErrorTextAddsRemediationForLocalIPCConfigFallbackCode(t *testing.T) {
 	got := safeUIErrorText(assertError("local_ipc_config_error"))
-	if !strings.Contains(got, "Linux") {
-		t.Fatalf("expected platform hint in %q", got)
+	if !strings.Contains(got, "canonical `runecode` product command") {
+		t.Fatalf("expected canonical command hint in %q", got)
 	}
 	if !strings.Contains(got, "--runtime-dir/--socket-name") {
 		t.Fatalf("expected ipc override hint in %q", got)
