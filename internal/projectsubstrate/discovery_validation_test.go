@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestDiscoverAndValidateDeterministicRootNoUpwardSearch(t *testing.T) {
+func TestDiscoverAndValidateResolvesUpwardVCSAnchorRoot(t *testing.T) {
 	parent := t.TempDir()
 	writeCanonicalV0Anchors(t, parent)
 	if err := os.MkdirAll(filepath.Join(parent, ".git"), 0o755); err != nil {

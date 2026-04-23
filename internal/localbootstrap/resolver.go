@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+var (
+	userCacheDirFunc  = os.UserCacheDir
+	userConfigDirFunc = os.UserConfigDir
+	tempDirFunc       = os.TempDir
+)
+
 const (
 	defaultSocketName = "broker.sock"
 	repoIDPrefix      = "repo-"
@@ -108,32 +114,42 @@ func DeriveProductInstanceID(repositoryRoot string) string {
 }
 
 func userCacheBaseDir() string {
-	cacheDir, err := os.UserCacheDir()
+	cacheDir, err := userCacheDirFunc()
 	if err == nil && strings.TrimSpace(cacheDir) != "" {
 		return cacheDir
 	}
-	configDir, configErr := os.UserConfigDir()
+	configDir, configErr := userConfigDirFunc()
 	if configErr == nil && strings.TrimSpace(configDir) != "" {
 		return configDir
 	}
-	return os.TempDir()
+	return filepath.Join(tempDirFunc(), runtimeUserNamespace())
 }
 
 func userRuntimeBaseDir() (string, error) {
 	runtimeBase := strings.TrimSpace(os.Getenv("XDG_RUNTIME_DIR"))
-	if strings.TrimSpace(runtimeBase) == "" {
-		if cacheDir, err := os.UserCacheDir(); err == nil && strings.TrimSpace(cacheDir) != "" {
-			runtimeBase = filepath.Join(cacheDir, "runecode-runtime")
-		} else if configDir, err := os.UserConfigDir(); err == nil && strings.TrimSpace(configDir) != "" {
-			runtimeBase = filepath.Join(configDir, "runecode-runtime")
-		} else {
-			runtimeBase = filepath.Join(os.TempDir(), runtimeUserNamespace())
-		}
+	if runtimeBase != "" && !filepath.IsAbs(runtimeBase) {
+		runtimeBase = ""
+	}
+	if runtimeBase == "" {
+		runtimeBase = defaultUserRuntimeBaseDir()
 	}
 	if strings.TrimSpace(runtimeBase) == "" {
 		return "", fmt.Errorf("resolve user runtime directory: empty path")
 	}
+	if !filepath.IsAbs(runtimeBase) {
+		return "", fmt.Errorf("resolve user runtime directory: absolute path required")
+	}
 	return runtimeBase, nil
+}
+
+func defaultUserRuntimeBaseDir() string {
+	if cacheDir, err := userCacheDirFunc(); err == nil && strings.TrimSpace(cacheDir) != "" {
+		return filepath.Join(cacheDir, "runecode-runtime")
+	}
+	if configDir, err := userConfigDirFunc(); err == nil && strings.TrimSpace(configDir) != "" {
+		return filepath.Join(configDir, "runecode-runtime")
+	}
+	return filepath.Join(tempDirFunc(), runtimeUserNamespace())
 }
 
 func runtimeUserNamespace() string {

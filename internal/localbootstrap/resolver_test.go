@@ -1,6 +1,7 @@
 package localbootstrap
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -134,5 +135,40 @@ func TestUserRuntimeBaseDirFallsBackToUserCacheDir(t *testing.T) {
 	}
 	if strings.Contains(filepath.ToSlash(base), "/tmp/runecode") {
 		t.Fatalf("runtime base = %q, want non-shared user-scoped fallback", base)
+	}
+}
+
+func TestUserCacheBaseDirFallsBackToNamespacedTempDir(t *testing.T) {
+	oldCache := userCacheDirFunc
+	oldConfig := userConfigDirFunc
+	oldTemp := tempDirFunc
+	userCacheDirFunc = func() (string, error) { return "", fmt.Errorf("cache unavailable") }
+	userConfigDirFunc = func() (string, error) { return "", fmt.Errorf("config unavailable") }
+	tempDirFunc = func() string { return filepath.Join(string(filepath.Separator), "tmp", "runecode-test") }
+	t.Cleanup(func() {
+		userCacheDirFunc = oldCache
+		userConfigDirFunc = oldConfig
+		tempDirFunc = oldTemp
+	})
+
+	got := userCacheBaseDir()
+	want := filepath.Join(tempDirFunc(), runtimeUserNamespace())
+	if got != want {
+		t.Fatalf("userCacheBaseDir() = %q, want %q", got, want)
+	}
+}
+
+func TestUserRuntimeBaseDirRejectsRelativeXDGPath(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", filepath.Join("relative", "runtime"))
+
+	base, err := userRuntimeBaseDir()
+	if err != nil {
+		t.Fatalf("userRuntimeBaseDir returned error: %v", err)
+	}
+	if !filepath.IsAbs(base) {
+		t.Fatalf("runtime base = %q, want absolute fallback path", base)
+	}
+	if strings.Contains(filepath.ToSlash(base), "relative/runtime") {
+		t.Fatalf("runtime base = %q, want relative XDG runtime dir to be ignored", base)
 	}
 }
