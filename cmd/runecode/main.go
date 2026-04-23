@@ -40,10 +40,11 @@ var (
 
 	queryProjectSubstratePosture = queryRepoProjectSubstratePosture
 
-	startRepoBroker = startRepoBrokerProcess
-	launchTUI       = launchTUIProcess
-	stopRepoBroker  = stopRepoBrokerProcess
-	writeBrokerPID  = writePIDFile
+	startRepoBroker    = startRepoBrokerProcess
+	launchTUI          = launchTUIProcess
+	stopRepoBroker     = stopRepoBrokerProcess
+	writeBrokerPID     = writePIDFile
+	brokerProcessAlive = processIsAlive
 
 	interruptBrokerProcess = func(pid int) error {
 		proc, err := os.FindProcess(pid)
@@ -70,6 +71,12 @@ var (
 		}
 		_ = cmd.Wait()
 		return nil
+	}
+
+	windowsTasklistOutput = func(pid int) (string, error) {
+		cmd := exec.Command("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/FO", "CSV", "/NH")
+		out, err := cmd.Output()
+		return string(out), err
 	}
 )
 

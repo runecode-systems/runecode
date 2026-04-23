@@ -635,10 +635,12 @@ func TestEnsureRepoLifecycleFailsClosedWhenBrokerPIDIsAliveButUnreachable(t *tes
 	oldResolve := resolveRepoScope
 	oldQuery := queryProductLifecyclePosture
 	oldStart := startRepoBroker
+	oldAlive := brokerProcessAlive
 	resolveRepoScope = func() (localbootstrap.RepoScope, error) { return scope, nil }
 	queryProductLifecyclePosture = func(context.Context, brokerapi.LocalIPCConfig) (brokerapi.BrokerProductLifecyclePosture, error) {
 		return brokerapi.BrokerProductLifecyclePosture{}, errNoLiveBroker
 	}
+	brokerProcessAlive = func(pid int) bool { return pid == os.Getpid() }
 	startCalled := false
 	startRepoBroker = func(localbootstrap.RepoScope) error {
 		startCalled = true
@@ -648,6 +650,7 @@ func TestEnsureRepoLifecycleFailsClosedWhenBrokerPIDIsAliveButUnreachable(t *tes
 		resolveRepoScope = oldResolve
 		queryProductLifecyclePosture = oldQuery
 		startRepoBroker = oldStart
+		brokerProcessAlive = oldAlive
 	})
 
 	_, _, err := ensureRepoLifecycle()
@@ -659,6 +662,36 @@ func TestEnsureRepoLifecycleFailsClosedWhenBrokerPIDIsAliveButUnreachable(t *tes
 	}
 	if startCalled {
 		t.Fatal("startRepoBroker called while unreachable broker pid remained alive")
+	}
+}
+
+func TestWindowsProcessIsAliveParsesTasklistOutput(t *testing.T) {
+	oldTasklist := windowsTasklistOutput
+	t.Cleanup(func() { windowsTasklistOutput = oldTasklist })
+
+	const pid = 4321
+	windowsTasklistOutput = func(inputPID int) (string, error) {
+		if inputPID != pid {
+			t.Fatalf("tasklist pid = %d, want %d", inputPID, pid)
+		}
+		return "\"runecode-broker.exe\",\"4321\",\"Console\",\"1\",\"12,000 K\"\n", nil
+	}
+
+	if !windowsProcessIsAlive(pid) {
+		t.Fatal("windowsProcessIsAlive = false, want true")
+	}
+}
+
+func TestWindowsProcessIsAliveReturnsFalseWhenTasklistNoTasks(t *testing.T) {
+	oldTasklist := windowsTasklistOutput
+	t.Cleanup(func() { windowsTasklistOutput = oldTasklist })
+
+	windowsTasklistOutput = func(int) (string, error) {
+		return "INFO: No tasks are running which match the specified criteria.\n", nil
+	}
+
+	if windowsProcessIsAlive(9999) {
+		t.Fatal("windowsProcessIsAlive = true, want false")
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -80,7 +81,7 @@ func cleanupStaleBrokerPIDFile(scope localbootstrap.RepoScope) (bool, error) {
 		}
 		return false, nil
 	}
-	if processIsAlive(pid) {
+	if brokerProcessAlive(pid) {
 		return true, nil
 	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -111,6 +112,9 @@ func processIsAlive(pid int) bool {
 	if pid <= 0 {
 		return false
 	}
+	if runtime.GOOS == "windows" {
+		return windowsProcessIsAlive(pid)
+	}
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		return false
@@ -121,6 +125,26 @@ func processIsAlive(pid int) bool {
 		return true
 	}
 	return false
+}
+
+func windowsProcessIsAlive(pid int) bool {
+	out, err := windowsTasklistOutput(pid)
+	if err != nil {
+		return false
+	}
+	text := strings.TrimSpace(out)
+	if text == "" {
+		return false
+	}
+	if strings.Contains(strings.ToLower(text), "no tasks are running") {
+		return false
+	}
+	quotedPID := fmt.Sprintf(",\"%d\",", pid)
+	if strings.Contains(text, quotedPID) {
+		return true
+	}
+	plainPID := fmt.Sprintf(",%d,", pid)
+	return strings.Contains(text, plainPID)
 }
 
 func validateProjectSubstrateIdentity(scope localbootstrap.RepoScope, posture brokerapi.ProjectSubstratePostureGetResponse) error {
