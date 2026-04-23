@@ -7,9 +7,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ### v0.1.0-alpha.7
 
-- Local Control-Plane Bootstrap + Persistent Session Lifecycle v0
-  - RuneCode behaves like one attachable local product lifecycle, so sessions and runs can continue without the TUI staying open and users can reconnect safely.
-  - Planned change: `runecontext/changes/CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0/`
 - Session Execution Orchestration v0
   - Live chat and autonomous operation drive the same isolate-backed execution path, with canonical links among sessions, runs, approvals, artifacts, audit records, and project context.
   - Planned change: `runecontext/changes/CHG-2026-048-6b7a-session-execution-orchestration-v0/`
@@ -172,4 +169,8 @@ No unscheduled items are currently tracked outside the planned work listed above
 - RuneContext Verified Project Substrate + Compatibility Lifecycle v0
   - RuneCode can adopt existing or initialize new canonical `runecontext/` project state, enforce verified-mode compatibility, and support safe auditable upgrades while remaining compatible with direct RuneContext use.
   - Planned change: `runecontext/changes/CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0/`
+
+- Local Control-Plane Bootstrap + Persistent Session Lifecycle v0
+  - RuneCode behaves like one attachable local product lifecycle, so sessions and runs can continue without the TUI staying open and users can reconnect safely.
+  - Planned change: `runecontext/changes/CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0/`
 
