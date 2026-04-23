@@ -231,12 +231,19 @@ func newLiveSessionAuthorityClientForTest() brokerLocalAPI {
 
 func testLiveSessionSummary() brokerapi.SessionSummary {
 	return brokerapi.SessionSummary{
-		SchemaID:         "runecode.protocol.v0.SessionSummary",
-		SchemaVersion:    "0.1.0",
-		Identity:         brokerapi.SessionIdentity{SchemaID: "runecode.protocol.v0.SessionIdentity", SchemaVersion: "0.1.0", SessionID: "sess-live-001", WorkspaceID: "workspace-live", CreatedAt: "2026-01-01T00:00:00Z"},
-		UpdatedAt:        "2026-01-01T00:00:00Z",
-		Status:           "active",
-		LastActivityKind: "run_progress",
+		SchemaID:              "runecode.protocol.v0.SessionSummary",
+		SchemaVersion:         "0.1.0",
+		Identity:              brokerapi.SessionIdentity{SchemaID: "runecode.protocol.v0.SessionIdentity", SchemaVersion: "0.1.0", SessionID: "sess-live-001", WorkspaceID: "workspace-live", CreatedAt: "2026-01-01T00:00:00Z"},
+		UpdatedAt:             "2026-01-01T00:00:00Z",
+		Status:                "active",
+		WorkPosture:           "running",
+		LastActivityKind:      "run_progress",
+		TurnCount:             1,
+		LinkedRunCount:        1,
+		LinkedApprovalCount:   0,
+		LinkedArtifactCount:   0,
+		LinkedAuditEventCount: 0,
+		HasIncompleteTurn:     false,
 	}
 }
 
@@ -244,13 +251,7 @@ func testLiveSessionDetail() brokerapi.SessionDetail {
 	return brokerapi.SessionDetail{
 		SchemaID:      "runecode.protocol.v0.SessionDetail",
 		SchemaVersion: "0.1.0",
-		Summary: brokerapi.SessionSummary{
-			SchemaID:      "runecode.protocol.v0.SessionSummary",
-			SchemaVersion: "0.1.0",
-			Identity:      brokerapi.SessionIdentity{SchemaID: "runecode.protocol.v0.SessionIdentity", SchemaVersion: "0.1.0", SessionID: "sess-live-001", WorkspaceID: "workspace-live", CreatedAt: "2026-01-01T00:00:00Z"},
-			UpdatedAt:     "2026-01-01T00:00:00Z",
-			Status:        "active",
-		},
+		Summary:       testLiveSessionSummary(),
 	}
 }
 

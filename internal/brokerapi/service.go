@@ -4,12 +4,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/auditd"
+	"github.com/runecode-ai/runecode/internal/localbootstrap"
 	"github.com/runecode-ai/runecode/internal/projectsubstrate"
 	"github.com/runecode-ai/runecode/internal/secretsd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
@@ -76,7 +76,7 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 		return nil, err
 	}
 	svc.projectSubstrate = projectSubstrateResult
-	svc.productInstanceID = deriveProductInstanceID(projectSubstrateResult.RepositoryRoot)
+	svc.productInstanceID = localbootstrap.DeriveProductInstanceID(projectSubstrateResult.RepositoryRoot)
 	svc.lifecycleGeneration = deriveLifecycleGeneration(svc.now(), svc.productInstanceID)
 	svc.configureProviderDurability()
 	if err := svc.reloadProviderDurableState(); err != nil {
@@ -215,19 +215,6 @@ func (s *Service) LatestAuditVerificationSurface(limit int) (AuditVerificationSu
 }
 
 func (s *Service) APILimits() Limits { return s.apiConfig.Limits }
-
-func deriveProductInstanceID(repositoryRoot string) string {
-	root := filepath.ToSlash(strings.TrimSpace(repositoryRoot))
-	if root == "" {
-		return "repo-unknown"
-	}
-	sum := sha256.Sum256([]byte("runecode.local-product.v1:" + root))
-	encoded := hex.EncodeToString(sum[:])
-	if len(encoded) > 24 {
-		encoded = encoded[:24]
-	}
-	return "repo-" + encoded
-}
 
 func deriveLifecycleGeneration(now time.Time, productInstanceID string) string {
 	stamp := now.UTC().Format(time.RFC3339Nano)

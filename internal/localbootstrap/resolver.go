@@ -13,6 +13,7 @@ import (
 const (
 	defaultSocketName = "broker.sock"
 	repoIDPrefix      = "repo-"
+	unknownRepoID     = "repo-unknown"
 )
 
 type ResolveInput struct {
@@ -33,7 +34,7 @@ func ResolveRepoScope(input ResolveInput) (RepoScope, error) {
 	if err != nil {
 		return RepoScope{}, err
 	}
-	instanceID := deriveProductInstanceID(repoRoot)
+	instanceID := DeriveProductInstanceID(repoRoot)
 	cacheBase := userCacheBaseDir()
 	runtimeBase, err := userRuntimeBaseDir()
 	if err != nil {
@@ -93,8 +94,12 @@ func discoverVCSRoot(start string) (string, bool) {
 	}
 }
 
-func deriveProductInstanceID(repoRoot string) string {
-	sum := sha256.Sum256([]byte("runecode.local-product.v1:" + filepath.ToSlash(repoRoot)))
+func DeriveProductInstanceID(repositoryRoot string) string {
+	root := filepath.ToSlash(strings.TrimSpace(repositoryRoot))
+	if root == "" {
+		return unknownRepoID
+	}
+	sum := sha256.Sum256([]byte("runecode.local-product.v1:" + root))
 	encoded := hex.EncodeToString(sum[:])
 	if len(encoded) > 24 {
 		encoded = encoded[:24]

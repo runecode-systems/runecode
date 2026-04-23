@@ -7,6 +7,35 @@ import (
 	"testing"
 )
 
+func TestDeriveProductInstanceIDNormalization(t *testing.T) {
+	t.Parallel()
+
+	baseSlash := "/tmp/repo/project"
+	baseOS := filepath.FromSlash(baseSlash)
+	withWhitespace := "  " + baseOS + "  "
+
+	canonical := DeriveProductInstanceID(baseOS)
+	if canonical == unknownRepoID {
+		t.Fatalf("DeriveProductInstanceID(%q) = %q, want hashed repo identity", baseOS, canonical)
+	}
+	if got := DeriveProductInstanceID(withWhitespace); got != canonical {
+		t.Fatalf("DeriveProductInstanceID(%q) = %q, want %q", withWhitespace, got, canonical)
+	}
+	if got := DeriveProductInstanceID(baseSlash); got != canonical {
+		t.Fatalf("DeriveProductInstanceID(%q) = %q, want %q", baseSlash, got, canonical)
+	}
+}
+
+func TestDeriveProductInstanceIDEmptyReturnsUnknown(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []string{"", "   ", "\t\n"} {
+		if got := DeriveProductInstanceID(input); got != unknownRepoID {
+			t.Fatalf("DeriveProductInstanceID(%q) = %q, want %q", input, got, unknownRepoID)
+		}
+	}
+}
+
 func TestResolveAuthoritativeRepoRootUsesVCSAnchor(t *testing.T) {
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
