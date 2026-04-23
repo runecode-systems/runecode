@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
@@ -72,10 +73,67 @@ type localAPIClient struct {
 	invokeSecret localRPCInvokeSecretFunc
 }
 
-var localAPIClientFactory = newInProcessLocalAPIClient
+type brokerLocalAPIClientFactory func(*brokerapi.Service) brokerLocalAPI
+
+type brokerLocalAPIClientModeResolver func() (brokerLocalAPIClientFactory, error)
+
+var (
+	localAPIClientModeMu       sync.RWMutex
+	localAPIClientMode         = brokerCommandAPIModeInProcess
+	localAPIClientModeResolver = defaultLocalAPIClientModeResolver
+)
+
+func setLocalAPIClientMode(mode brokerCommandAPIMode) func() {
+	localAPIClientModeMu.Lock()
+	prev := localAPIClientMode
+	localAPIClientMode = mode
+	localAPIClientModeMu.Unlock()
+	return func() {
+		localAPIClientModeMu.Lock()
+		localAPIClientMode = prev
+		localAPIClientModeMu.Unlock()
+	}
+}
+
+func currentLocalAPIClientMode() brokerCommandAPIMode {
+	localAPIClientModeMu.RLock()
+	defer localAPIClientModeMu.RUnlock()
+	return localAPIClientMode
+}
+
+func defaultLocalAPIClientModeResolver() (brokerLocalAPIClientFactory, error) {
+	mode := currentLocalAPIClientMode()
+	switch mode {
+	case brokerCommandAPIModeLiveIPC:
+		client, err := newLiveIPCLocalAPIClient(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		return func(_ *brokerapi.Service) brokerLocalAPI { return client }, nil
+	case brokerCommandAPIModeInProcess, "":
+		return newInProcessLocalAPIClient, nil
+	default:
+		return nil, fmt.Errorf("unsupported broker local api client mode %q", mode)
+	}
+}
 
 func localAPIForService(service *brokerapi.Service) brokerLocalAPI {
-	return localAPIClientFactory(service)
+	factory, err := localAPIClientModeResolver()
+	if err != nil {
+		return newUnavailableLocalAPIClient(err)
+	}
+	return factory(service)
+}
+
+func newUnavailableLocalAPIClient(err error) brokerLocalAPI {
+	message := "local api client is unavailable"
+	if err != nil {
+		message = err.Error()
+	}
+	errResp := brokerapi.ErrorResponse{SchemaID: "runecode.protocol.v0.BrokerErrorResponse", SchemaVersion: "0.1.0", RequestID: "cli-local-api-unavailable", Error: brokerapi.ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "gateway_failure", Category: "internal", Retryable: false, Message: message}}
+	invoke := func(context.Context, string, any, any) *brokerapi.ErrorResponse { return &errResp }
+	invokeSecret := func(context.Context, string, any, []byte, any) *brokerapi.ErrorResponse { return &errResp }
+	return &localAPIClient{invoke: invoke, invokeSecret: invokeSecret}
 }
 
 func newInProcessLocalAPIClient(service *brokerapi.Service) brokerLocalAPI {

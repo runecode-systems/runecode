@@ -400,6 +400,19 @@ func setBrokerServiceForTest(t *testing.T) string {
 	secretsRoot := filepath.Join(root, "secrets-state")
 	seedBrokerSecretsReadinessState(t, secretsRoot)
 	t.Setenv("RUNE_SECRETS_STATE_ROOT", secretsRoot)
+	originalResolver := localAPIClientModeResolver
+	localAPIClientModeResolver = func() (brokerLocalAPIClientFactory, error) {
+		return func(service *brokerapi.Service) brokerLocalAPI {
+			if service == nil {
+				resolvedService, err := brokerServiceFactory(defaultBrokerServiceRoots())
+				if err != nil {
+					return newUnavailableLocalAPIClient(err)
+				}
+				service = resolvedService
+			}
+			return newInProcessLocalAPIClient(service)
+		}, nil
+	}
 	brokerServiceFactory = func(_ brokerServiceRoots) (*brokerapi.Service, error) {
 		wd, err := os.Getwd()
 		if err != nil {
@@ -410,6 +423,7 @@ func setBrokerServiceForTest(t *testing.T) string {
 	}
 	t.Cleanup(func() {
 		brokerServiceFactory = newBrokerService
+		localAPIClientModeResolver = originalResolver
 	})
 	return root
 }
