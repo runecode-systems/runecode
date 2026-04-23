@@ -1,7 +1,7 @@
 # RuneCode — Security-first AI coding: isolated execution, signed, auditable
 
 [![CI](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml/badge.svg)](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml)
-[![Status: alpha.6 release](https://img.shields.io/badge/status-alpha.6%20release-orange)](runecontext/project/roadmap.md)
+[![Status: alpha.7 release](https://img.shields.io/badge/status-alpha.7%20release-orange)](runecontext/project/roadmap.md)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 RuneCode is a security-first agentic automation platform for software engineering.
@@ -9,7 +9,7 @@ It treats isolation and cryptographic provenance as co-equal pillars: work runs 
 
 ## Status
 
-The latest published release is `v0.1.0-alpha.6`, and the repository mainline already includes additional alpha.6 work in progress.
+The latest published release is `v0.1.0-alpha.7`, and the repository mainline already includes additional alpha.7 work in progress.
 RuneCode remains pre-production: the signed, tag-driven release pipeline exists, but the shipped Go binaries are still scaffold-heavy and not feature-complete.
 
 ## Why RuneCode
@@ -134,7 +134,7 @@ mkdir unpack
 tar -xzf "$ARCHIVE" -C unpack
 
 install -d "$HOME/.local/bin"
-install -m 0755 "unpack/runecode_${VERSION}_${OS}_${ARCH}"/bin/runecode-* "$HOME/.local/bin/"
+install -m 0755 "unpack/runecode_${VERSION}_${OS}_${ARCH}"/bin/runecode* "$HOME/.local/bin/"
 ```
 
 This quick path verifies signed checksums and the signed archive before install. For Windows steps and full provenance verification with `gh attestation verify`, see `docs/install-verify.md`.
@@ -156,7 +156,11 @@ This quick path verifies signed checksums and the signed archive before install.
 - A trusted local audit ledger with append/seal persistence, segment recovery, digest-addressed sidecar evidence, explicit audit anchoring over signed segment seals, readiness evaluation, audit verification reports, and broker/TUI-facing audit verification, record inspection, anchoring, and readiness surfaces
 - A broker local API with fail-closed local auth, schema-validated typed operations for runs, approvals, artifacts, audit timeline and record inspection, audit anchor presence and action flows, readiness, version info, and backend posture, plus uniform log and artifact read streaming semantics
 - A broker-owned project-substrate lifecycle for canonical RuneContext repositories, including discovery and validation of repo-root `runecontext.yaml`, canonical `runecontext/` anchors, and `runecontext/assurance/baseline.yaml`, runtime-derived compatibility posture evaluation from local `runectx metadata` when available (with release fallback), read-only adoption of existing compatible substrate, explicit init and upgrade preview/apply flows, preview-digest-bound upgrade apply, auditable apply results, and validated snapshot digests for later planning, audit, and verification binding
+- A canonical top-level `runecode` product command that resolves authoritative repo scope, ensures the repo-scoped local broker lifecycle exists, and exposes attach/start/status/stop/restart flows without making local bootstrap artifacts authoritative
+- A trusted repo-scoped local bootstrap/resolver layer that derives one product instance per authoritative repository root, recovers stale pid/socket artifacts safely, and validates that a reachable broker matches the expected repo-scoped product instance before attach
+- A broker-owned typed product lifecycle posture surface that keeps attachability, lifecycle generation, repo-scoped product identity, degraded/blocked reason codes, and normal-operation permission explicit instead of inferring lifecycle truth from readiness, version, or socket reachability
 - A trusted full-screen TUI workbench that launches in alt-screen mode, keeps sidebar/main/inspector composition in the shell, supports multi-session workspace navigation and quick switching, exposes an object-aware palette plus Action Center, derives live activity and sync health from typed watch families, preserves ordinary terminal selection alongside explicit copy actions, and persists layout/theme/session convenience state locally without promoting it to control-plane authority
+- Durable broker-owned session summaries that keep session object lifecycle distinct from projected `work_posture` and from client attachment state so sessions and linked runs remain inspectable across TUI close and later reconnect
 - A trusted local secrets daemon with durable secret import plus short-lived lease issue/renew/revoke/retrieve flows, fail-closed recovery, and secret-safe onboarding that avoids CLI-arg or environment-variable transport
 - A shared provider substrate with durable broker-owned provider profiles, explicit auth-material separation, stable provider-profile identity across credential rotation and validation retries, and broker-projected readiness plus compatibility posture
 - Broker-owned direct-credential provider setup flows with typed setup sessions, one-time secret-ingress handles, validation lifecycle surfaces, and provider credential lease issuance without carrying raw secret values in ordinary typed broker request or response bodies
@@ -201,8 +205,8 @@ Current MVP object families cover:
 - runtime evidence and session lifecycle payloads: `RuntimeImageDescriptor`, `IsolateSessionStartedPayload`, `IsolateSessionBoundPayload`
 - policy actions and destinations: `ActionRequest`, `ActionPayloadArtifactRead`, `ActionPayloadPromotion`, `ActionPayloadGatewayEgress`, `ActionPayloadSecretAccess`, `ActionPayloadWorkspaceWrite`, `ActionPayloadExecutorRun`, `ActionPayloadBackendPostureChange`, `ActionPayloadGateOverride`, `ActionPayloadStageSummarySignOff`, `DestinationDescriptor`, `GatewayScopeRule`
 - model traffic: `LLMRequest`, `LLMResponse`, `LLMStreamEvent`, `LLMInvokeRequest`, `LLMInvokeResponse`, `LLMStreamRequest`, `LLMStreamEnvelope`
-- broker local API requests/responses: `RunListRequest`, `RunGetRequest`, `ApprovalListRequest`, `ApprovalGetRequest`, `ApprovalResolveRequest`, `BackendPostureGetRequest`, `BackendPostureChangeRequest`, `ArtifactListRequest`, `ArtifactHeadRequest`, `ArtifactReadRequest`, `AuditTimelineRequest`, `AuditRecordGetRequest`, `AuditVerificationGetRequest`, `AuditAnchorPresenceGetRequest`, `AuditAnchorPreflightGetRequest`, `AuditAnchorPreflightGetResponse`, `AuditAnchorSegmentRequest`, `AuditFinalizeVerifyRequest`, `AuditFinalizeVerifyResponse`, `ProjectSubstrateGetRequest`, `ProjectSubstrateGetResponse`, `ProjectSubstratePostureGetRequest`, `ProjectSubstratePostureGetResponse`, `ProjectSubstrateAdoptRequest`, `ProjectSubstrateAdoptResponse`, `ProjectSubstrateInitPreviewRequest`, `ProjectSubstrateInitPreviewResponse`, `ProjectSubstrateInitApplyRequest`, `ProjectSubstrateInitApplyResponse`, `ProjectSubstrateUpgradePreviewRequest`, `ProjectSubstrateUpgradePreviewResponse`, `ProjectSubstrateUpgradeApplyRequest`, `ProjectSubstrateUpgradeApplyResponse`, `ReadinessGetRequest`, `VersionInfoGetRequest`
-- broker local API read models: `RunSummary`, `RunDetail`, `RunStageSummary`, `RunRoleSummary`, `RunCoordinationSummary`, `ApprovalSummary`, `ApprovalBoundScope`, `BackendPostureState`, `BackendPostureAvailability`, `ArtifactSummary`, `BrokerReadiness`, `BrokerVersionInfo`
+- broker local API requests/responses: `RunListRequest`, `RunGetRequest`, `ApprovalListRequest`, `ApprovalGetRequest`, `ApprovalResolveRequest`, `BackendPostureGetRequest`, `BackendPostureChangeRequest`, `ArtifactListRequest`, `ArtifactHeadRequest`, `ArtifactReadRequest`, `AuditTimelineRequest`, `AuditRecordGetRequest`, `AuditVerificationGetRequest`, `AuditAnchorPresenceGetRequest`, `AuditAnchorPreflightGetRequest`, `AuditAnchorPreflightGetResponse`, `AuditAnchorSegmentRequest`, `AuditFinalizeVerifyRequest`, `AuditFinalizeVerifyResponse`, `ProjectSubstrateGetRequest`, `ProjectSubstrateGetResponse`, `ProjectSubstratePostureGetRequest`, `ProjectSubstratePostureGetResponse`, `ProjectSubstrateAdoptRequest`, `ProjectSubstrateAdoptResponse`, `ProjectSubstrateInitPreviewRequest`, `ProjectSubstrateInitPreviewResponse`, `ProjectSubstrateInitApplyRequest`, `ProjectSubstrateInitApplyResponse`, `ProjectSubstrateUpgradePreviewRequest`, `ProjectSubstrateUpgradePreviewResponse`, `ProjectSubstrateUpgradeApplyRequest`, `ProjectSubstrateUpgradeApplyResponse`, `ProductLifecyclePostureGetRequest`, `ProductLifecyclePostureGetResponse`, `ReadinessGetRequest`, `VersionInfoGetRequest`
+- broker local API read models: `RunSummary`, `RunDetail`, `RunStageSummary`, `RunRoleSummary`, `RunCoordinationSummary`, `ApprovalSummary`, `ApprovalBoundScope`, `BackendPostureState`, `BackendPostureAvailability`, `ArtifactSummary`, `BrokerReadiness`, `BrokerVersionInfo`, `BrokerProductLifecyclePosture`, `SessionSummary`
 - broker local API streams and error envelopes: `LogStreamEvent`, `ArtifactStreamEvent`, `BrokerErrorResponse`
 - wrappers and shared errors: `SignedObjectEnvelope`, `Error`
 
@@ -291,6 +295,7 @@ Alongside that still-incremental surface, the repository already includes workin
 You can inspect their help output:
 
 ```sh
+go run ./cmd/runecode --help
 go run ./cmd/runecode-tui --help
 go run ./cmd/runecode-launcher --help
 go run ./cmd/runecode-broker --help
@@ -298,9 +303,19 @@ go run ./cmd/runecode-secretsd --help
 go run ./cmd/runecode-auditd --help
 ```
 
-`runecode-tui` expects a local broker API listener in another terminal, typically `runecode-broker serve-local`, and also supports `--runtime-dir` / `--socket-name` for isolated local-dev IPC overrides.
+Normal user lifecycle flow now goes through `runecode`:
 
-The broker help surface currently includes local API and operator commands such as:
+```sh
+go run ./cmd/runecode
+go run ./cmd/runecode status
+go run ./cmd/runecode stop
+```
+
+Bare `runecode` is the canonical `attach` path: it resolves the authoritative repository root, ensures the repo-scoped local broker lifecycle exists, and opens the TUI against that broker-owned product instance. `runecode status` is intentionally non-starting and reports either broker-owned lifecycle plus project-substrate posture or only the bootstrap-local fact that no live product instance is reachable.
+
+`runecode-tui` remains a low-level/dev entrypoint for attaching to an already running broker listener and still supports `--runtime-dir` / `--socket-name` for isolated local-dev IPC overrides.
+
+Low-level broker help still covers plumbing/admin surfaces such as:
 
 ```sh
 go run ./cmd/runecode-broker serve-local --help
@@ -350,6 +365,7 @@ Linux and macOS:
 
 ```sh
 rm -f \
+  "$HOME/.local/bin/runecode" \
   "$HOME/.local/bin/runecode-auditd" \
   "$HOME/.local/bin/runecode-broker" \
   "$HOME/.local/bin/runecode-launcher" \
@@ -362,6 +378,7 @@ Windows PowerShell:
 ```powershell
 $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\RuneCode\bin"
 Remove-Item `
+  "$InstallDir\runecode.exe", `
   "$InstallDir\runecode-auditd.exe", `
   "$InstallDir\runecode-broker.exe", `
   "$InstallDir\runecode-launcher.exe", `

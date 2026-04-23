@@ -21,6 +21,7 @@ Canonical RuneContext project truth for a managed repository is the repo-root `r
 - Initialization must fail closed on conflicting candidate state or private mirrors rather than overwriting them heuristically.
 - Compatibility decisions target the repository's declared and validated substrate contract, not each operator's installed RuneCode or `runectx` version.
 - Normal managed operation must fail closed for missing, invalid, non-verified, or unsupported substrate states; diagnostics and remediation may remain available.
+- When trusted local services are otherwise healthy, blocked project-substrate posture may still allow diagnostics/remediation-only attach so operators can inspect canonical broker-owned state without silently re-enabling normal managed execution.
 - Compatible-but-upgradeable substrate remains usable, but upgrade stays advisory until the operator explicitly previews and applies it.
 - Broker-owned typed contracts are the authority surface for project posture, reason codes, preview/apply results, and remediation guidance; TUI and CLI remain thin adapters over those contracts.
 - Bind later planning, audit, attestation, or verification features to a validated project-substrate snapshot digest rather than to raw paths, ambient local assumptions, or version strings alone.
