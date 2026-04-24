@@ -32,6 +32,8 @@ var testSignedApprovalDecision = &trustpolicy.SignedObjectEnvelope{
 	Signature:            trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: strings.Repeat("b", 64), Signature: "c2ln"},
 }
 
+const fakeSessionExecutionTriggerID = "trigger-1"
+
 type fakeBrokerClient struct{}
 
 type reloadAwareBrokerClient struct{}
@@ -107,7 +109,7 @@ func (f *fakeBrokerClient) SessionExecutionTrigger(ctx context.Context, req brok
 	if req.RequestedOperation == "" {
 		return brokerapi.SessionExecutionTriggerResponse{}, fmt.Errorf("requested operation required")
 	}
-	return brokerapi.SessionExecutionTriggerResponse{SessionID: req.SessionID, TriggerID: "trigger-ack-1", TriggerSource: req.TriggerSource, RequestedOperation: req.RequestedOperation, UserMessageContentText: req.UserMessageContentText, EventType: "session_execution_trigger_ack", StreamID: "session", Seq: 1}, nil
+	return brokerapi.SessionExecutionTriggerResponse{SessionID: req.SessionID, TriggerID: fakeSessionExecutionTriggerID, TriggerSource: req.TriggerSource, RequestedOperation: req.RequestedOperation, UserMessageContentText: req.UserMessageContentText, EventType: "session_execution_trigger_ack", StreamID: "session", Seq: 1}, nil
 }
 
 func (f *fakeBrokerClient) SessionWatch(ctx context.Context, req brokerapi.SessionWatchRequest) ([]brokerapi.SessionWatchEvent, error) {
@@ -133,7 +135,7 @@ func (f *fakeBrokerClient) SessionTurnExecutionWatch(ctx context.Context, req br
 		TurnID:             "turn-exec-1",
 		SessionID:          "session-1",
 		ExecutionIndex:     1,
-		TriggerID:          "trigger-1",
+		TriggerID:          fakeSessionExecutionTriggerID,
 		TriggerSource:      "interactive_user",
 		RequestedOperation: "start",
 		ExecutionState:     "running",
@@ -483,7 +485,7 @@ func (f *fakeBrokerClient) ArtifactRead(ctx context.Context, req brokerapi.Artif
 	if req.Digest == "" {
 		return nil, fmt.Errorf("digest required")
 	}
-	content := "diff --git a/file b/file\n+new line\n-result: success\ntoken=super-secret-token\n"
+	content := "diff --git a/file b/file\n+new line\n-result: success\ntoken=fixture-redaction-value-not-a-secret\n"
 	chunk := base64.StdEncoding.EncodeToString([]byte(content))
 	return []brokerapi.ArtifactStreamEvent{
 		{EventType: "artifact_stream_chunk", ChunkBase64: chunk},

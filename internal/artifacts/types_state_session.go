@@ -65,6 +65,7 @@ type SessionTurnExecutionDurableState struct {
 type SessionExecutionTriggerIdempotencyRecord struct {
 	RequestHash string `json:"request_hash"`
 	TriggerID   string `json:"trigger_id"`
+	TurnID      string `json:"turn_id,omitempty"`
 	Seq         int64  `json:"seq"`
 }
 

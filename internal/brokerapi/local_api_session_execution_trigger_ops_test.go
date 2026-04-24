@@ -361,19 +361,55 @@ func TestSessionExecutionTriggerContinueSupportsIdempotentRetry(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-continue-idem", "sess-trigger-continue-idem")
 	start := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-continue-idem-start", SessionID: "sess-trigger-continue-idem", TriggerSource: "autonomous_background", RequestedOperation: "start", AutonomyPosture: "operator_guided", UserMessageContentText: "wait first"})
-	firstResp, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-continue-idem-1", SessionID: "sess-trigger-continue-idem", TurnID: start.TurnID, TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue", IdempotencyKey: "idem-continue-1"}, RequestContext{})
+	firstResp := mustSessionExecutionContinue(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-continue-idem-1", SessionID: "sess-trigger-continue-idem", TurnID: start.TurnID, TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue", IdempotencyKey: "idem-continue-1"})
+	assertStoredSessionExecutionTriggerIdempotencyRecord(t, s, "sess-trigger-continue-idem", "idem-continue-1", firstResp)
+	secondResp := mustSessionExecutionContinue(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-continue-idem-2", SessionID: "sess-trigger-continue-idem", TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue", IdempotencyKey: "idem-continue-1"})
+	assertSessionExecutionTriggerReplayResponse(t, secondResp, firstResp)
+}
+
+func mustSessionExecutionContinue(t *testing.T, s *Service, req SessionExecutionTriggerRequest) SessionExecutionTriggerResponse {
+	t.Helper()
+	resp, errResp := s.HandleSessionExecutionTrigger(context.Background(), req, RequestContext{})
 	if errResp != nil {
 		t.Fatalf("HandleSessionExecutionTrigger returned error: %+v", errResp)
 	}
-	secondResp, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-continue-idem-2", SessionID: "sess-trigger-continue-idem", TurnID: start.TurnID, TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue", IdempotencyKey: "idem-continue-1"}, RequestContext{})
-	if errResp != nil {
-		t.Fatalf("HandleSessionExecutionTrigger replay returned error: %+v", errResp)
+	return resp
+}
+
+func assertStoredSessionExecutionTriggerIdempotencyRecord(t *testing.T, s *Service, sessionID, key string, resp SessionExecutionTriggerResponse) {
+	t.Helper()
+	if resp.TriggerID == "" {
+		t.Fatal("trigger_id is empty")
 	}
-	if secondResp.Seq != firstResp.Seq {
-		t.Fatalf("replay seq = %d, want %d", secondResp.Seq, firstResp.Seq)
+	state, ok := s.SessionState(sessionID)
+	if !ok {
+		t.Fatal("SessionState missing")
 	}
-	if secondResp.TurnID != firstResp.TurnID {
-		t.Fatalf("replay turn_id = %q, want %q", secondResp.TurnID, firstResp.TurnID)
+	record, ok := state.ExecutionTriggerIdempotencyByKey[key]
+	if !ok {
+		t.Fatal("continue idempotency record missing")
+	}
+	if record.TriggerID != resp.TriggerID {
+		t.Fatalf("stored trigger_id = %q, want %q", record.TriggerID, resp.TriggerID)
+	}
+	if record.TurnID != resp.TurnID {
+		t.Fatalf("stored turn_id = %q, want %q", record.TurnID, resp.TurnID)
+	}
+	if record.Seq != resp.Seq {
+		t.Fatalf("stored seq = %d, want %d", record.Seq, resp.Seq)
+	}
+}
+
+func assertSessionExecutionTriggerReplayResponse(t *testing.T, got, want SessionExecutionTriggerResponse) {
+	t.Helper()
+	if got.Seq != want.Seq {
+		t.Fatalf("replay seq = %d, want %d", got.Seq, want.Seq)
+	}
+	if got.TurnID != want.TurnID {
+		t.Fatalf("replay turn_id = %q, want %q", got.TurnID, want.TurnID)
+	}
+	if got.TriggerID != want.TriggerID {
+		t.Fatalf("replay trigger_id = %q, want %q", got.TriggerID, want.TriggerID)
 	}
 }
 

@@ -79,7 +79,7 @@ func sessionExecutionTriggerIdempotencyComparables(records map[string]SessionExe
 	out := make(map[string]sessionExecutionTriggerIdempotencyRecordCompare, len(records))
 	for key := range maps.Keys(records) {
 		record := records[key]
-		out[key] = sessionExecutionTriggerIdempotencyRecordCompare{RequestHash: record.RequestHash, TriggerID: record.TriggerID, Seq: record.Seq}
+		out[key] = sessionExecutionTriggerIdempotencyRecordCompare{RequestHash: record.RequestHash, TriggerID: record.TriggerID, TurnID: record.TurnID, Seq: record.Seq}
 	}
 	return out
 }

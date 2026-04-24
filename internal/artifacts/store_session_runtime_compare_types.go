@@ -98,5 +98,6 @@ type sessionIdempotencyRecordCompare struct {
 type sessionExecutionTriggerIdempotencyRecordCompare struct {
 	RequestHash string
 	TriggerID   string
+	TurnID      string
 	Seq         int64
 }

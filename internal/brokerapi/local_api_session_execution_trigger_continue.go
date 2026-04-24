@@ -20,7 +20,7 @@ func (s *Service) continueSessionTurnExecution(requestID string, req SessionExec
 		return SessionExecutionTriggerResponse{}, false, errResp
 	}
 	resp := newContinuedSessionExecutionTriggerResponse(requestID, req, updated, seq)
-	if errResp := s.validateContinuedSessionExecutionResponse(requestID, req, resp, updated.TurnID, seq); errResp != nil {
+	if errResp := s.validateContinuedSessionExecutionResponse(requestID, req, resp, target.TurnID, seq); errResp != nil {
 		return SessionExecutionTriggerResponse{}, false, errResp
 	}
 	return resp, false, nil
@@ -69,7 +69,7 @@ func (s *Service) validateContinuedSessionExecutionResponse(requestID string, re
 		errOut := s.errorFromValidation(requestID, err)
 		return &errOut
 	}
-	if errResp := s.storeContinuedSessionExecutionReplay(requestID, req, turnID, seq); errResp != nil {
+	if errResp := s.storeContinuedSessionExecutionReplay(requestID, req, resp.TriggerID, turnID, seq); errResp != nil {
 		return errResp
 	}
 	return nil
@@ -93,22 +93,58 @@ func (s *Service) replayContinuedSessionExecution(requestID string, req SessionE
 		errOut := s.makeError(requestID, "broker_idempotency_key_payload_mismatch", "validation", false, artifacts.ErrSessionExecutionTriggerIdempotencyKeyConflict.Error())
 		return SessionExecutionTriggerResponse{}, false, &errOut
 	}
-	for _, execution := range session.TurnExecutions {
-		if strings.TrimSpace(execution.TurnID) != strings.TrimSpace(req.TurnID) {
-			continue
-		}
-		resp := newContinuedSessionExecutionTriggerResponse(requestID, req, execution, record.Seq)
-		if err := s.validateResponse(resp, sessionExecutionTriggerResponseSchemaPath); err != nil {
-			errOut := s.errorFromValidation(requestID, err)
-			return SessionExecutionTriggerResponse{}, false, &errOut
-		}
-		return resp, true, nil
+	replayExecution, ok := continuedSessionReplayExecution(session.TurnExecutions, record)
+	if !ok {
+		errOut := s.makeError(requestID, "broker_session_execution_continue_missing_execution", "policy", false, artifacts.ErrSessionTurnExecutionNotResumable.Error())
+		return SessionExecutionTriggerResponse{}, false, &errOut
 	}
-	errOut := s.makeError(requestID, "broker_session_execution_continue_missing_execution", "policy", false, artifacts.ErrSessionTurnExecutionNotResumable.Error())
-	return SessionExecutionTriggerResponse{}, false, &errOut
+	resp := newContinuedSessionExecutionTriggerResponse(requestID, req, replayExecution, record.Seq)
+	if err := s.validateResponse(resp, sessionExecutionTriggerResponseSchemaPath); err != nil {
+		errOut := s.errorFromValidation(requestID, err)
+		return SessionExecutionTriggerResponse{}, false, &errOut
+	}
+	return resp, true, nil
 }
 
-func (s *Service) storeContinuedSessionExecutionReplay(requestID string, req SessionExecutionTriggerRequest, turnID string, seq int64) *ErrorResponse {
+func continuedSessionReplayExecution(executions []artifacts.SessionTurnExecutionDurableState, record artifacts.SessionExecutionTriggerIdempotencyRecord) (artifacts.SessionTurnExecutionDurableState, bool) {
+	if execution, ok := continuedSessionReplayExecutionByTriggerID(executions, record.TriggerID); ok {
+		return execution, true
+	}
+	storedTurnID := strings.TrimSpace(record.TurnID)
+	if storedTurnID == "" {
+		// Backward compatibility for older continue replay records that only stored trigger_id.
+		storedTurnID = strings.TrimSpace(record.TriggerID)
+	}
+	return continuedSessionReplayExecutionByTurnID(executions, storedTurnID)
+}
+
+func continuedSessionReplayExecutionByTriggerID(executions []artifacts.SessionTurnExecutionDurableState, triggerID string) (artifacts.SessionTurnExecutionDurableState, bool) {
+	targetTriggerID := strings.TrimSpace(triggerID)
+	if targetTriggerID == "" {
+		return artifacts.SessionTurnExecutionDurableState{}, false
+	}
+	for _, execution := range executions {
+		if strings.TrimSpace(execution.TriggerID) == targetTriggerID {
+			return execution, true
+		}
+	}
+	return artifacts.SessionTurnExecutionDurableState{}, false
+}
+
+func continuedSessionReplayExecutionByTurnID(executions []artifacts.SessionTurnExecutionDurableState, turnID string) (artifacts.SessionTurnExecutionDurableState, bool) {
+	targetTurnID := strings.TrimSpace(turnID)
+	if targetTurnID == "" {
+		return artifacts.SessionTurnExecutionDurableState{}, false
+	}
+	for _, execution := range executions {
+		if strings.TrimSpace(execution.TurnID) == targetTurnID {
+			return execution, true
+		}
+	}
+	return artifacts.SessionTurnExecutionDurableState{}, false
+}
+
+func (s *Service) storeContinuedSessionExecutionReplay(requestID string, req SessionExecutionTriggerRequest, triggerID string, turnID string, seq int64) *ErrorResponse {
 	key := strings.TrimSpace(req.IdempotencyKey)
 	if key == "" {
 		return nil
@@ -124,7 +160,8 @@ func (s *Service) storeContinuedSessionExecutionReplay(requestID string, req Ses
 		}
 		state.ExecutionTriggerIdempotencyByKey[key] = artifacts.SessionExecutionTriggerIdempotencyRecord{
 			RequestHash: hash,
-			TriggerID:   turnID,
+			TriggerID:   strings.TrimSpace(triggerID),
+			TurnID:      strings.TrimSpace(turnID),
 			Seq:         seq,
 		}
 		return state
