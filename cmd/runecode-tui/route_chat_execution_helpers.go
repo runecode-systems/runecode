@@ -8,7 +8,11 @@ import (
 
 func chatExecutionTerminal(exec brokerapi.SessionTurnExecution) bool {
 	state := strings.ToLower(strings.TrimSpace(exec.ExecutionState))
-	return state == "completed" || state == "failed" || state == "cancelled"
+	if state == "completed" || state == "failed" {
+		return true
+	}
+	outcome := strings.ToLower(strings.TrimSpace(exec.TerminalOutcome))
+	return outcome == "completed" || outcome == "failed" || outcome == "cancelled"
 }
 
 func chatExecutionStatusAndAction(exec brokerapi.SessionTurnExecution) (string, string) {
