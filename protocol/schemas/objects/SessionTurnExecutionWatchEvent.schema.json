@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/SessionTurnExecutionWatchEvent.schema.json",
+  "title": "SessionTurnExecutionWatchEvent",
+  "description": "Typed session turn execution watch stream event envelope with additive broker stream semantics.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 10,
+  "required": ["schema_id", "schema_version", "stream_id", "request_id", "seq", "event_type"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.SessionTurnExecutionWatchEvent", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "stream_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable stream identifier.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Correlated watch request identifier.", "x-data-class": "public" },
+    "seq": { "type": "integer", "minimum": 1, "description": "Monotonic stream event sequence number.", "x-data-class": "public" },
+    "event_type": {
+      "type": "string",
+      "enum": ["session_turn_execution_watch_snapshot", "session_turn_execution_watch_upsert", "session_turn_execution_watch_terminal"],
+      "description": "Session turn execution watch stream event type.",
+      "x-data-class": "public"
+    },
+    "turn_execution": { "$ref": "SessionTurnExecution.schema.json", "description": "Current turn execution projection for snapshot or update events.", "x-data-class": "public" },
+    "terminal": { "type": "boolean", "description": "True only for terminal event.", "x-data-class": "public" },
+    "terminal_status": {
+      "type": "string",
+      "enum": ["completed", "failed", "cancelled"],
+      "description": "In-band terminal status for the stream lifecycle.",
+      "x-data-class": "public"
+    },
+    "error": { "$ref": "Error.schema.json", "description": "Typed terminal error payload for failed terminal event.", "x-data-class": "public" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "event_type": { "const": "session_turn_execution_watch_snapshot" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["turn_execution"],
+        "not": {
+          "anyOf": [
+            { "required": ["terminal"] },
+            { "required": ["terminal_status"] },
+            { "required": ["error"] }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "session_turn_execution_watch_upsert" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["turn_execution"],
+        "not": {
+          "anyOf": [
+            { "required": ["terminal"] },
+            { "required": ["terminal_status"] },
+            { "required": ["error"] }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "session_turn_execution_watch_terminal" } },
+        "required": ["event_type"]
+      },
+      "then": {
+        "required": ["terminal", "terminal_status"],
+        "properties": {
+          "terminal": { "const": true }
+        },
+        "not": {
+          "required": ["turn_execution"]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": { "const": "session_turn_execution_watch_terminal" },
+          "terminal_status": { "const": "failed" }
+        },
+        "required": ["event_type", "terminal_status"]
+      },
+      "then": {
+        "required": ["error"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": { "const": "session_turn_execution_watch_terminal" },
+          "terminal_status": { "enum": ["completed", "cancelled"] }
+        },
+        "required": ["event_type", "terminal_status"]
+      },
+      "then": {
+        "not": {
+          "required": ["error"]
+        }
+      }
+    }
+  ]
+}

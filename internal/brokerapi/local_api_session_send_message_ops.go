@@ -64,7 +64,7 @@ func (s *Service) validateSessionSendMessageRequest(requestID string, req Sessio
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "content_text is required")
 		return &errOut
 	}
-	if req.Role != "user" && req.Role != "assistant" && req.Role != "system" && req.Role != "tool" {
+	if err := validateSessionSendMessageRoleForTranscriptOnly(req.Role); err != nil {
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "role is invalid")
 		return &errOut
 	}

@@ -94,6 +94,16 @@ func TestSessionWatchSemanticsRejectCancelledTerminalWithError(t *testing.T) {
 	}
 }
 
+func TestSessionTurnExecutionWatchSemanticsRejectCancelledTerminalWithError(t *testing.T) {
+	err := validateSessionTurnExecutionWatchSemantics([]SessionTurnExecutionWatchEvent{
+		{SchemaID: "runecode.protocol.v0.SessionTurnExecutionWatchEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 1, EventType: "session_turn_execution_watch_snapshot", TurnExecution: &SessionTurnExecution{SchemaID: "runecode.protocol.v0.SessionTurnExecution", SchemaVersion: "0.1.0", TurnID: "turn-1", SessionID: "sess-1", ExecutionIndex: 1, TriggerID: "trigger-1", TriggerSource: "interactive_user", RequestedOperation: "start", ExecutionState: "running", ApprovalProfile: "moderate", AutonomyPosture: "balanced", CreatedAt: "2026-01-01T00:00:00Z", UpdatedAt: "2026-01-01T00:00:00Z"}},
+		{SchemaID: "runecode.protocol.v0.SessionTurnExecutionWatchEvent", SchemaVersion: "0.1.0", StreamID: "s-1", RequestID: "r-1", Seq: 2, EventType: "session_turn_execution_watch_terminal", Terminal: true, TerminalStatus: "cancelled", Error: &ProtocolError{SchemaID: "runecode.protocol.v0.Error", SchemaVersion: "0.3.0", Code: "request_cancelled", Category: "transport", Retryable: true, Message: "cancelled"}},
+	})
+	if err == nil {
+		t.Fatal("validateSessionTurnExecutionWatchSemantics expected cancelled-with-error rejection")
+	}
+}
+
 func TestLogStreamHoldsInFlightSlotUntilStreamCompletes(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{Limits: Limits{MaxInFlightPerClient: 1, MaxInFlightPerLane: 1}})
 	meta := RequestContext{ClientID: "client-stream", LaneID: "lane-stream"}

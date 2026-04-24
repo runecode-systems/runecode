@@ -35,10 +35,39 @@ type SessionDetail struct {
 	SchemaVersion            string                  `json:"schema_version"`
 	Summary                  SessionSummary          `json:"summary"`
 	TranscriptTurns          []SessionTranscriptTurn `json:"transcript_turns"`
+	CurrentTurnExecution     *SessionTurnExecution   `json:"current_turn_execution,omitempty"`
+	LatestTurnExecution      *SessionTurnExecution   `json:"latest_turn_execution,omitempty"`
 	LinkedRunIDs             []string                `json:"linked_run_ids"`
 	LinkedApprovalIDs        []string                `json:"linked_approval_ids"`
 	LinkedArtifactDigests    []string                `json:"linked_artifact_digests"`
 	LinkedAuditRecordDigests []string                `json:"linked_audit_record_digests"`
+}
+
+type SessionTurnExecution struct {
+	SchemaID                             string   `json:"schema_id"`
+	SchemaVersion                        string   `json:"schema_version"`
+	TurnID                               string   `json:"turn_id"`
+	SessionID                            string   `json:"session_id"`
+	ExecutionIndex                       int      `json:"execution_index"`
+	TriggerID                            string   `json:"trigger_id"`
+	TriggerSource                        string   `json:"trigger_source"`
+	RequestedOperation                   string   `json:"requested_operation"`
+	ExecutionState                       string   `json:"execution_state"`
+	WaitKind                             string   `json:"wait_kind,omitempty"`
+	WaitState                            string   `json:"wait_state,omitempty"`
+	ApprovalProfile                      string   `json:"approval_profile"`
+	AutonomyPosture                      string   `json:"autonomy_posture"`
+	PrimaryRunID                         string   `json:"primary_run_id,omitempty"`
+	PendingApprovalID                    string   `json:"pending_approval_id,omitempty"`
+	LinkedRunIDs                         []string `json:"linked_run_ids,omitempty"`
+	LinkedApprovalIDs                    []string `json:"linked_approval_ids,omitempty"`
+	LinkedArtifactDigests                []string `json:"linked_artifact_digests,omitempty"`
+	LinkedAuditRecordDigests             []string `json:"linked_audit_record_digests,omitempty"`
+	BoundValidatedProjectSubstrateDigest string   `json:"bound_validated_project_substrate_digest,omitempty"`
+	BlockedReasonCode                    string   `json:"blocked_reason_code,omitempty"`
+	TerminalOutcome                      string   `json:"terminal_outcome,omitempty"`
+	CreatedAt                            string   `json:"created_at"`
+	UpdatedAt                            string   `json:"updated_at"`
 }
 
 type SessionTranscriptLinks struct {
@@ -130,6 +159,37 @@ type SessionSendMessageResponse struct {
 	Seq           int64                    `json:"seq"`
 }
 
+type SessionExecutionTriggerRequest struct {
+	SchemaID               string `json:"schema_id"`
+	SchemaVersion          string `json:"schema_version"`
+	RequestID              string `json:"request_id"`
+	SessionID              string `json:"session_id"`
+	TriggerSource          string `json:"trigger_source"`
+	RequestedOperation     string `json:"requested_operation"`
+	ApprovalProfile        string `json:"approval_profile,omitempty"`
+	AutonomyPosture        string `json:"autonomy_posture,omitempty"`
+	UserMessageContentText string `json:"user_message_content_text,omitempty"`
+	IdempotencyKey         string `json:"idempotency_key,omitempty"`
+}
+
+type SessionExecutionTriggerResponse struct {
+	SchemaID               string `json:"schema_id"`
+	SchemaVersion          string `json:"schema_version"`
+	RequestID              string `json:"request_id"`
+	SessionID              string `json:"session_id"`
+	TriggerID              string `json:"trigger_id"`
+	TurnID                 string `json:"turn_id"`
+	TriggerSource          string `json:"trigger_source"`
+	RequestedOperation     string `json:"requested_operation"`
+	ApprovalProfile        string `json:"approval_profile"`
+	AutonomyPosture        string `json:"autonomy_posture"`
+	ExecutionState         string `json:"execution_state"`
+	UserMessageContentText string `json:"user_message_content_text,omitempty"`
+	EventType              string `json:"event_type"`
+	StreamID               string `json:"stream_id"`
+	Seq                    int64  `json:"seq"`
+}
+
 type SessionWatchRequest struct {
 	SchemaID         string             `json:"schema_id"`
 	SchemaVersion    string             `json:"schema_version"`
@@ -157,4 +217,34 @@ type SessionWatchEvent struct {
 	Terminal       bool            `json:"terminal,omitempty"`
 	TerminalStatus string          `json:"terminal_status,omitempty"`
 	Error          *ProtocolError  `json:"error,omitempty"`
+}
+
+type SessionTurnExecutionWatchRequest struct {
+	SchemaID        string             `json:"schema_id"`
+	SchemaVersion   string             `json:"schema_version"`
+	RequestID       string             `json:"request_id"`
+	StreamID        string             `json:"stream_id"`
+	SessionID       string             `json:"session_id,omitempty"`
+	WorkspaceID     string             `json:"workspace_id,omitempty"`
+	TurnID          string             `json:"turn_id,omitempty"`
+	ExecutionState  string             `json:"execution_state,omitempty"`
+	WaitKind        string             `json:"wait_kind,omitempty"`
+	Follow          bool               `json:"follow"`
+	IncludeSnapshot bool               `json:"include_snapshot"`
+	RequestCtx      context.Context    `json:"-"`
+	Cancel          context.CancelFunc `json:"-"`
+	Release         func()             `json:"-"`
+}
+
+type SessionTurnExecutionWatchEvent struct {
+	SchemaID       string                `json:"schema_id"`
+	SchemaVersion  string                `json:"schema_version"`
+	StreamID       string                `json:"stream_id"`
+	RequestID      string                `json:"request_id"`
+	Seq            int64                 `json:"seq"`
+	EventType      string                `json:"event_type"`
+	TurnExecution  *SessionTurnExecution `json:"turn_execution,omitempty"`
+	Terminal       bool                  `json:"terminal,omitempty"`
+	TerminalStatus string                `json:"terminal_status,omitempty"`
+	Error          *ProtocolError        `json:"error,omitempty"`
 }

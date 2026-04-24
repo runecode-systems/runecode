@@ -27,3 +27,23 @@ func SessionSendMessageIdempotencyHash(sessionID, role, contentText string, link
 	}
 	return digestBytes(canonical), nil
 }
+
+func SessionExecutionTriggerIdempotencyHash(sessionID, triggerSource, requestedOperation, approvalProfile, autonomyPosture, userMessageContentText string) (string, error) {
+	payload := map[string]any{
+		"session_id":                strings.TrimSpace(sessionID),
+		"trigger_source":            strings.TrimSpace(triggerSource),
+		"requested_operation":       strings.TrimSpace(requestedOperation),
+		"approval_profile":          strings.TrimSpace(approvalProfile),
+		"autonomy_posture":          strings.TrimSpace(autonomyPosture),
+		"user_message_content_text": strings.TrimSpace(userMessageContentText),
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	canonical, err := canonicalizeJSONBytes(b)
+	if err != nil {
+		return "", err
+	}
+	return digestBytes(canonical), nil
+}

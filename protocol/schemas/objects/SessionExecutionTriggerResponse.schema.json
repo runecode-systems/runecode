@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/SessionExecutionTriggerResponse.schema.json",
+  "title": "SessionExecutionTriggerResponse",
+  "description": "Typed broker-owned execution trigger acknowledgement with stream sequencing metadata.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 15,
+  "required": ["schema_id", "schema_version", "request_id", "session_id", "trigger_id", "turn_id", "trigger_source", "requested_operation", "approval_profile", "autonomy_posture", "execution_state", "event_type", "stream_id", "seq"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.SessionExecutionTriggerResponse", "description": "Protocol schema identifier for SessionExecutionTriggerResponse.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version for SessionExecutionTriggerResponse.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Echoed caller request identity.", "x-data-class": "public" },
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Canonical session identity where execution trigger was recorded.", "x-data-class": "public" },
+    "trigger_id": { "type": "string", "minLength": 1, "maxLength": 160, "description": "Canonical broker-owned trigger identity.", "x-data-class": "public" },
+    "turn_id": { "type": "string", "minLength": 1, "maxLength": 160, "description": "Canonical broker-owned turn execution identity.", "x-data-class": "public" },
+    "trigger_source": { "type": "string", "enum": ["interactive_user", "autonomous_background", "resume_follow_up"], "description": "Echoed explanatory trigger source classification.", "x-data-class": "public" },
+    "requested_operation": { "type": "string", "enum": ["start", "continue"], "description": "Echoed requested execution intent.", "x-data-class": "public" },
+    "approval_profile": { "type": "string", "enum": ["moderate"], "description": "Echoed approval profile control for formal approval frequency.", "x-data-class": "public" },
+    "autonomy_posture": { "type": "string", "enum": ["operator_guided", "balanced", "autonomous_preferred"], "description": "Echoed autonomy posture control for operator-question cadence and continuation posture.", "x-data-class": "public" },
+    "execution_state": { "type": "string", "enum": ["queued", "planning", "running", "waiting", "blocked", "failed", "completed"], "description": "Current broker-owned turn execution state at trigger acknowledgement time.", "x-data-class": "public" },
+    "user_message_content_text": { "type": "string", "minLength": 1, "maxLength": 32768, "description": "Echoed optional user-facing content payload when present.", "x-data-class": "public" },
+    "event_type": { "type": "string", "enum": ["session_execution_trigger_ack"], "description": "Typed ack event family for execution trigger submission.", "x-data-class": "public" },
+    "stream_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "Stable session interaction stream identity for later watch-stream APIs.", "x-data-class": "public" },
+    "seq": { "type": "integer", "minimum": 1, "description": "Monotonic sequence number scoped to stream_id for replay/watch compatibility.", "x-data-class": "public" }
+  }
+}

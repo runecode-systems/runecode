@@ -90,36 +90,37 @@ type commandHandler func([]string, *brokerapi.Service, io.Writer) error
 
 func commandHandlers() map[string]brokerCommandSpec {
 	handlers := map[string]brokerCommandSpec{
-		"serve-local":              {handler: handleServeLocal, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"run-list":                 {handler: handleRunList, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"run-get":                  {handler: handleRunGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"run-watch":                {handler: handleRunWatch, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"backend-posture-get":      {handler: handleBackendPostureGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"backend-posture-change":   {handler: handleBackendPostureChange, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"session-list":             {handler: handleSessionList, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"session-get":              {handler: handleSessionGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"session-send-message":     {handler: handleSessionSendMessage, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"session-watch":            {handler: handleSessionWatch, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"approval-list":            {handler: handleApprovalList, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"approval-get":             {handler: handleApprovalGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"approval-resolve":         {handler: handleApprovalResolve, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"approval-watch":           {handler: handleApprovalWatch, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"list-artifacts":           {handler: handleListArtifacts, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"head-artifact":            {handler: handleHeadArtifact, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"get-artifact":             {handler: handleGetArtifact, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"put-artifact":             {handler: handlePutArtifact, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"check-flow":               {handler: handleCheckFlow, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"promote-excerpt":          {handler: handlePromoteExcerpt, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"revoke-approved-excerpt":  {handler: handleRevokeApprovedExcerpt, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"set-run-status":           {handler: handleSetRunStatus, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"gc":                       {handler: handleGC, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"export-backup":            {handler: handleExportBackup, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"restore-backup":           {handler: handleRestoreBackup, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"show-audit":               {handler: handleShowAudit, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"show-policy":              {handler: handleShowPolicy, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"set-reserved-classes":     {handler: handleSetReservedClasses, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"import-trusted-contract":  {handler: handleImportTrustedContract, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"seed-dev-manual-scenario": {handler: handleSeedDevManualScenario, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
+		"serve-local":               {handler: handleServeLocal, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
+		"run-list":                  {handler: handleRunList, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"run-get":                   {handler: handleRunGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"run-watch":                 {handler: handleRunWatch, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"backend-posture-get":       {handler: handleBackendPostureGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"backend-posture-change":    {handler: handleBackendPostureChange, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"session-list":              {handler: handleSessionList, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"session-get":               {handler: handleSessionGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"session-send-message":      {handler: handleSessionSendMessage, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"session-execution-trigger": {handler: handleSessionExecutionTrigger, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"session-watch":             {handler: handleSessionWatch, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"approval-list":             {handler: handleApprovalList, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"approval-get":              {handler: handleApprovalGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"approval-resolve":          {handler: handleApprovalResolve, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"approval-watch":            {handler: handleApprovalWatch, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"list-artifacts":            {handler: handleListArtifacts, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"head-artifact":             {handler: handleHeadArtifact, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"get-artifact":              {handler: handleGetArtifact, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"put-artifact":              {handler: handlePutArtifact, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
+		"check-flow":                {handler: handleCheckFlow, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
+		"promote-excerpt":           {handler: handlePromoteExcerpt, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"revoke-approved-excerpt":   {handler: handleRevokeApprovedExcerpt, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
+		"set-run-status":            {handler: handleSetRunStatus, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
+		"gc":                        {handler: handleGC, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
+		"export-backup":             {handler: handleExportBackup, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
+		"restore-backup":            {handler: handleRestoreBackup, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
+		"show-audit":                {handler: handleShowAudit, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
+		"show-policy":               {handler: handleShowPolicy, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
+		"set-reserved-classes":      {handler: handleSetReservedClasses, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
+		"import-trusted-contract":   {handler: handleImportTrustedContract, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
+		"seed-dev-manual-scenario":  {handler: handleSeedDevManualScenario, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
 	}
 	addLiveIPCCommandHandlers(handlers)
 	return handlers
@@ -234,6 +235,7 @@ Commands:
   session-list [--limit N]
   session-get --session-id id
   session-send-message --session-id id --content text [--role user|assistant|system|tool] [--idempotency-key key]
+  session-execution-trigger --session-id id [--trigger-source interactive_user|autonomous_background|resume_follow_up] [--requested-operation start|continue] [--user-message text] [--idempotency-key key]
   session-watch [--stream-id id] [--session-id id] [--workspace-id id] [--status active|completed|archived] [--last-activity-kind kind] [--follow] [--include-snapshot]
   approval-list [--run-id id] [--status pending|approved|denied|expired|cancelled|superseded|consumed] [--limit N]
   approval-get --approval-id sha256:...

@@ -209,14 +209,5 @@ func buildSessionDetailFromState(summary SessionSummary, transcriptTurns []artif
 	if len(projectedTurns) == 0 {
 		projectedTurns = buildSessionTranscriptTurns(summary.Identity.SessionID, summary, runs, approvals, artifactsByDigest, auditRecordDigests)
 	}
-	return SessionDetail{
-		SchemaID:                 "runecode.protocol.v0.SessionDetail",
-		SchemaVersion:            "0.1.0",
-		Summary:                  summary,
-		TranscriptTurns:          projectedTurns,
-		LinkedRunIDs:             boundedSortedKeys(runs, 256),
-		LinkedApprovalIDs:        boundedSortedKeys(approvals, 512),
-		LinkedArtifactDigests:    boundedSortedKeys(artifactsByDigest, 1024),
-		LinkedAuditRecordDigests: boundedSortedKeys(auditRecordDigests, 1024),
-	}
+	return newSessionDetail(summary, projectedTurns, runs, approvals, artifactsByDigest, auditRecordDigests)
 }

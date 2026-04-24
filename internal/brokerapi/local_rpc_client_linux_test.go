@@ -103,6 +103,40 @@ func TestLocalRPCClientInvokeSessionSendMessage(t *testing.T) {
 	}
 }
 
+func TestLocalRPCClientInvokeSessionExecutionTrigger(t *testing.T) {
+	service := newBrokerAPIServiceForTests(t, APIConfig{})
+	putRunScopedArtifactForLocalOpsTest(t, service, "run-session-client-trigger", "step-1")
+	if err := service.RecordRuntimeFacts("run-session-client-trigger", launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: "run-session-client-trigger", SessionID: "sess-client-trigger"}}); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
+	runtimeDir, client, done := setupLocalRPCSessionExecutionTriggerRoundTrip(t, service)
+	defer client.Close()
+	assertLocalRPCSocketPath(t, runtimeDir)
+
+	resp := SessionExecutionTriggerResponse{}
+	errResp := client.Invoke(context.Background(), "session_execution_trigger", SessionExecutionTriggerRequest{
+		SchemaID:               "runecode.protocol.v0.SessionExecutionTriggerRequest",
+		SchemaVersion:          "0.1.0",
+		RequestID:              "req-local-session-trigger",
+		SessionID:              "sess-client-trigger",
+		TriggerSource:          "interactive_user",
+		RequestedOperation:     "start",
+		UserMessageContentText: "hello",
+	}, &resp)
+	if errResp != nil {
+		t.Fatalf("Invoke returned typed error: %+v", errResp)
+	}
+	if resp.EventType != "session_execution_trigger_ack" {
+		t.Fatalf("event_type = %q, want session_execution_trigger_ack", resp.EventType)
+	}
+	if resp.TriggerID == "" {
+		t.Fatal("trigger_id is empty")
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("local rpc server returned error: %v", err)
+	}
+}
+
 func assertLocalRPCSocketPath(t *testing.T, runtimeDir string) {
 	t.Helper()
 	socketPath := filepath.Join(runtimeDir, "broker.sock")
@@ -175,6 +209,30 @@ func setupLocalRPCSessionSendMessageRoundTrip(t *testing.T, service *Service) (s
 			return
 		}
 		done <- serveSingleLocalRPCSessionSendMessageConnForTest(conn, service)
+	}()
+	client, err := DialLocalRPC(context.Background(), LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
+	if err != nil {
+		t.Fatalf("DialLocalRPC returned error: %v", err)
+	}
+	return runtimeDir, client, done
+}
+
+func setupLocalRPCSessionExecutionTriggerRoundTrip(t *testing.T, service *Service) (string, *LocalRPCClient, chan error) {
+	t.Helper()
+	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	listener, err := ListenLocalIPC(LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
+	if err != nil {
+		t.Fatalf("ListenLocalIPC returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	done := make(chan error, 1)
+	go func() {
+		conn, err := listener.Listener.Accept()
+		if err != nil {
+			done <- err
+			return
+		}
+		done <- serveSingleLocalRPCSessionExecutionTriggerConnForTest(conn, service)
 	}()
 	client, err := DialLocalRPC(context.Background(), LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
 	if err != nil {
@@ -309,6 +367,36 @@ func serveSingleLocalRPCSessionSendMessageConnForTest(conn net.Conn, service *Se
 		return encoder.Encode(LocalRPCResponse{OK: false, Error: decodeLocalRPCTestError(err)})
 	}
 	resp, errResp := service.HandleSessionSendMessage(context.Background(), req, meta)
+	if errResp != nil {
+		return encoder.Encode(LocalRPCResponse{OK: false, Error: errResp})
+	}
+	raw, err := json.Marshal(resp)
+	if err != nil {
+		return encoder.Encode(LocalRPCResponse{OK: false, Error: decodeLocalRPCTestError(err)})
+	}
+	return encoder.Encode(LocalRPCResponse{OK: true, Response: json.RawMessage(raw)})
+}
+
+func serveSingleLocalRPCSessionExecutionTriggerConnForTest(conn net.Conn, service *Service) error {
+	defer conn.Close()
+	meta := RequestContext{ClientID: "test-client", LaneID: "local_ipc"}
+	decoder := json.NewDecoder(conn)
+	encoder := json.NewEncoder(conn)
+	wire := LocalRPCRequest{}
+	if err := decoder.Decode(&wire); err != nil {
+		return err
+	}
+	if err := ValidateRawMessageLimits(wire.Request, service.APILimits()); err != nil {
+		return encoder.Encode(LocalRPCResponse{OK: false, Error: decodeLocalRPCTestError(err)})
+	}
+	if wire.Operation != "session_execution_trigger" {
+		return encoder.Encode(LocalRPCResponse{OK: false, Error: decodeLocalRPCTestError(fmt.Errorf("unsupported operation %q", wire.Operation))})
+	}
+	req := SessionExecutionTriggerRequest{}
+	if err := json.Unmarshal(wire.Request, &req); err != nil {
+		return encoder.Encode(LocalRPCResponse{OK: false, Error: decodeLocalRPCTestError(err)})
+	}
+	resp, errResp := service.HandleSessionExecutionTrigger(context.Background(), req, meta)
 	if errResp != nil {
 		return encoder.Encode(LocalRPCResponse{OK: false, Error: errResp})
 	}

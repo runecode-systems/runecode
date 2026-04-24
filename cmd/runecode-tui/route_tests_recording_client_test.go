@@ -55,9 +55,19 @@ func (r *recordingBrokerClient) SessionSendMessage(ctx context.Context, req brok
 	return r.base.SessionSendMessage(ctx, req)
 }
 
+func (r *recordingBrokerClient) SessionExecutionTrigger(ctx context.Context, req brokerapi.SessionExecutionTriggerRequest) (brokerapi.SessionExecutionTriggerResponse, error) {
+	r.record("SessionExecutionTrigger")
+	return r.base.SessionExecutionTrigger(ctx, req)
+}
+
 func (r *recordingBrokerClient) SessionWatch(ctx context.Context, req brokerapi.SessionWatchRequest) ([]brokerapi.SessionWatchEvent, error) {
 	r.record("SessionWatch")
 	return r.base.SessionWatch(ctx, req)
+}
+
+func (r *recordingBrokerClient) SessionTurnExecutionWatch(ctx context.Context, req brokerapi.SessionTurnExecutionWatchRequest) ([]brokerapi.SessionTurnExecutionWatchEvent, error) {
+	r.record("SessionTurnExecutionWatch")
+	return r.base.SessionTurnExecutionWatch(ctx, req)
 }
 
 func (r *recordingBrokerClient) ApprovalList(ctx context.Context, limit int) (brokerapi.ApprovalListResponse, error) {

@@ -52,8 +52,16 @@ func sessionRPCOperations(service *brokerapi.Service, ctx context.Context, meta 
 				return service.HandleSessionSendMessage(ctx, req, meta)
 			})
 		}},
+		"session_execution_trigger": {requestSchemaPath: "objects/SessionExecutionTriggerRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.SessionExecutionTriggerRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleSessionExecutionTrigger(ctx, req, meta)
+			})
+		}},
 		"session_watch": {requestSchemaPath: "objects/SessionWatchRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandleSessionWatch(service, ctx, raw, meta)
+		}},
+		"session_turn_execution_watch": {requestSchemaPath: "objects/SessionTurnExecutionWatchRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandleSessionTurnExecutionWatch(service, ctx, raw, meta)
 		}},
 	}
 }

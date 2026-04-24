@@ -114,7 +114,7 @@ func TestServeLocalUsesLocalIPCListener(t *testing.T) {
 		t.Skip("serve-local IPC peer-credential path is linux-only")
 	}
 	setBrokerServiceForTest(t)
-	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	runtimeDir := newServeLocalRuntimeDir(t)
 	clientErr, clientDone := startServeLocalClientProbe(t, runtimeDir)
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
@@ -132,7 +132,11 @@ func TestServeLocalArtifactReadRejectsRangeWithTypedCode(t *testing.T) {
 		t.Skip("serve-local IPC peer-credential path is linux-only")
 	}
 	setBrokerServiceForTest(t)
-	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	runtimeDir, err := os.MkdirTemp("", "rc-runtime-")
+	if err != nil {
+		t.Fatalf("MkdirTemp returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(runtimeDir) })
 	clientErr := make(chan error, 1)
 	go func() {
 		for i := 0; i < 200; i++ {
@@ -161,7 +165,7 @@ func TestServeLocalRejectsOversizedRequest(t *testing.T) {
 		t.Skip("serve-local IPC peer-credential path is linux-only")
 	}
 	setBrokerServiceForTest(t)
-	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	runtimeDir := newServeLocalRuntimeDir(t)
 	clientErr := make(chan error, 1)
 	go func() {
 		for i := 0; i < 200; i++ {
@@ -391,7 +395,7 @@ func TestServeLocalSessionSendMessageReturnsTypedAck(t *testing.T) {
 	if err := seedService.RecordRuntimeFacts("run-session-send", launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: "run-session-send", SessionID: "sess-send-cli"}}); err != nil {
 		t.Fatalf("seed RecordRuntimeFacts returned error: %v", err)
 	}
-	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	runtimeDir := newServeLocalRuntimeDir(t)
 	clientErr := make(chan error, 1)
 	go func() {
 		for i := 0; i < 200; i++ {
@@ -413,6 +417,105 @@ func TestServeLocalSessionSendMessageReturnsTypedAck(t *testing.T) {
 	if err := <-clientErr; err != nil {
 		t.Fatalf("serve-local session-send-message probe failed: %v", err)
 	}
+}
+
+func requestSessionExecutionTriggerViaLocalRPC(t *testing.T, conn net.Conn) error {
+	t.Helper()
+	defer conn.Close()
+	encoder := json.NewEncoder(conn)
+	decoder := json.NewDecoder(conn)
+	sessionID, err := sessionIDForLocalRPCMessageTest(t, encoder, decoder)
+	if err != nil {
+		return err
+	}
+	ack, err := sendSessionExecutionTriggerViaLocalRPC(t, encoder, decoder, sessionID)
+	if err != nil {
+		return err
+	}
+	if ack.EventType != "session_execution_trigger_ack" {
+		return fmt.Errorf("event_type = %q, want session_execution_trigger_ack", ack.EventType)
+	}
+	if ack.TriggerID == "" {
+		return fmt.Errorf("trigger_id is empty")
+	}
+	return nil
+}
+
+func sendSessionExecutionTriggerViaLocalRPC(t *testing.T, encoder *json.Encoder, decoder *json.Decoder, sessionID string) (brokerapi.SessionExecutionTriggerResponse, error) {
+	t.Helper()
+	wire := localRPCRequest{Operation: "session_execution_trigger", Request: mustJSONRawMessage(t, brokerapi.SessionExecutionTriggerRequest{
+		SchemaID:               "runecode.protocol.v0.SessionExecutionTriggerRequest",
+		SchemaVersion:          "0.1.0",
+		RequestID:              "req-session-trigger",
+		SessionID:              sessionID,
+		TriggerSource:          "interactive_user",
+		RequestedOperation:     "start",
+		UserMessageContentText: "hello",
+	})}
+	if err := encoder.Encode(wire); err != nil {
+		return brokerapi.SessionExecutionTriggerResponse{}, err
+	}
+	resp := localRPCResponse{}
+	if err := decoder.Decode(&resp); err != nil {
+		return brokerapi.SessionExecutionTriggerResponse{}, err
+	}
+	if !resp.OK {
+		return brokerapi.SessionExecutionTriggerResponse{}, fmt.Errorf("session_execution_trigger failed: %+v", resp.Error)
+	}
+	ack := brokerapi.SessionExecutionTriggerResponse{}
+	if err := json.Unmarshal(resp.Response, &ack); err != nil {
+		return brokerapi.SessionExecutionTriggerResponse{}, err
+	}
+	return ack, nil
+}
+
+func TestServeLocalSessionExecutionTriggerReturnsTypedAck(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("serve-local IPC peer-credential path is linux-only")
+	}
+	setBrokerServiceForTest(t)
+	seedService, err := brokerServiceFactory(defaultBrokerServiceRoots())
+	if err != nil {
+		t.Fatalf("brokerServiceFactory seed returned error: %v", err)
+	}
+	if _, err := seedService.Put(artifacts.PutRequest{Payload: []byte("seed"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("a", 64), CreatedByRole: "workspace", RunID: "run-session-trigger", StepID: "step-1"}); err != nil {
+		t.Fatalf("seed Put returned error: %v", err)
+	}
+	if err := seedService.RecordRuntimeFacts("run-session-trigger", launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: "run-session-trigger", SessionID: "sess-trigger-cli"}}); err != nil {
+		t.Fatalf("seed RecordRuntimeFacts returned error: %v", err)
+	}
+	runtimeDir := newServeLocalRuntimeDir(t)
+	clientErr := make(chan error, 1)
+	go func() {
+		for i := 0; i < 200; i++ {
+			socketPath := filepath.Join(runtimeDir, "broker.sock")
+			conn, err := net.Dial("unix", socketPath)
+			if err == nil {
+				clientErr <- requestSessionExecutionTriggerViaLocalRPC(t, conn)
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		clientErr <- fmt.Errorf("failed to connect to serve-local socket")
+	}()
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	if err := run([]string{"serve-local", "--once", "--runtime-dir", runtimeDir}, stdout, stderr); err != nil {
+		t.Fatalf("serve-local --once returned error: %v", err)
+	}
+	if err := <-clientErr; err != nil {
+		t.Fatalf("serve-local session-execution-trigger probe failed: %v", err)
+	}
+}
+
+func newServeLocalRuntimeDir(t *testing.T) string {
+	t.Helper()
+	runtimeDir, err := os.MkdirTemp("", "rc-runtime-")
+	if err != nil {
+		t.Fatalf("MkdirTemp returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(runtimeDir) })
+	return runtimeDir
 }
 
 func requestOversizedPayloadViaLocalRPC(t *testing.T, conn net.Conn) error {

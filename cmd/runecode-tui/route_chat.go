@@ -17,10 +17,11 @@ type chatLoadedMsg struct {
 }
 
 type chatMessageSentMsg struct {
-	sessions []brokerapi.SessionSummary
-	detail   *brokerapi.SessionDetail
-	ack      *brokerapi.SessionSendMessageResponse
-	err      error
+	sessions      []brokerapi.SessionSummary
+	detail        *brokerapi.SessionDetail
+	ack           *brokerapi.SessionExecutionTriggerResponse
+	turnExecution *brokerapi.SessionTurnExecution
+	err           error
 }
 
 type chatSelectSessionMsg struct {
@@ -85,7 +86,7 @@ func (m chatRouteModel) View(width, height int, focus focusArea) string {
 		return renderStateCard(routeLoadStateLoading, "Chat", "Loading chat route from broker session contracts...")
 	}
 	if m.sending {
-		return renderStateCard(routeLoadStateLoading, "Chat", "Sending message via broker SessionSendMessage...")
+		return renderStateCard(routeLoadStateLoading, "Chat", "Submitting execution trigger via broker SessionExecutionTrigger...")
 	}
 	if m.errText != "" {
 		return renderStateCard(routeLoadStateError, "Chat", "Load failed: "+m.errText+" (press r to retry)")

@@ -46,6 +46,8 @@ func isProjectSubstrateDiagnosticsSchema(schemaPath string) bool {
 	switch strings.TrimSpace(schemaPath) {
 	case readinessGetRequestSchemaPath,
 		versionInfoGetRequestSchemaPath,
+		sessionListRequestSchemaPath,
+		sessionGetRequestSchemaPath,
 		productLifecyclePostureGetRequestSchemaPath,
 		projectSubstrateGetRequestSchemaPath,
 		projectSubstratePostureGetRequestSchemaPath,

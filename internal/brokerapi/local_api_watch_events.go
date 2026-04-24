@@ -44,6 +44,19 @@ func completedSessionWatchTerminal(req SessionWatchRequest, seq int64) SessionWa
 	}
 }
 
+func completedSessionTurnExecutionWatchTerminal(req SessionTurnExecutionWatchRequest, seq int64) SessionTurnExecutionWatchEvent {
+	return SessionTurnExecutionWatchEvent{
+		SchemaID:       "runecode.protocol.v0.SessionTurnExecutionWatchEvent",
+		SchemaVersion:  "0.1.0",
+		StreamID:       req.StreamID,
+		RequestID:      req.RequestID,
+		Seq:            seq,
+		EventType:      "session_turn_execution_watch_terminal",
+		Terminal:       true,
+		TerminalStatus: "completed",
+	}
+}
+
 func runWatchTerminalFromContextErr(streamID string, requestID string, seq int64, ctxErr error) RunWatchEvent {
 	terminal := RunWatchEvent{
 		SchemaID:      "runecode.protocol.v0.RunWatchEvent",
@@ -134,6 +147,36 @@ func sessionWatchTerminalFromContextErr(streamID string, requestID string, seq i
 	return terminal
 }
 
+func sessionTurnExecutionWatchTerminalFromContextErr(streamID string, requestID string, seq int64, ctxErr error) SessionTurnExecutionWatchEvent {
+	terminal := SessionTurnExecutionWatchEvent{
+		SchemaID:      "runecode.protocol.v0.SessionTurnExecutionWatchEvent",
+		SchemaVersion: "0.1.0",
+		StreamID:      streamID,
+		RequestID:     requestID,
+		Seq:           seq,
+		EventType:     "session_turn_execution_watch_terminal",
+		Terminal:      true,
+		Error: &ProtocolError{
+			SchemaID:      "runecode.protocol.v0.Error",
+			SchemaVersion: errorEnvelopeSchemaVersion,
+			Code:          "request_cancelled",
+			Category:      "transport",
+			Retryable:     true,
+			Message:       "session turn execution watch stream cancelled",
+		},
+	}
+	if errors.Is(ctxErr, context.DeadlineExceeded) {
+		terminal.TerminalStatus = "failed"
+		terminal.Error.Code = "broker_timeout_request_deadline_exceeded"
+		terminal.Error.Category = "timeout"
+		terminal.Error.Message = "session turn execution watch stream deadline exceeded"
+		return terminal
+	}
+	terminal.TerminalStatus = "cancelled"
+	terminal.Error = nil
+	return terminal
+}
+
 func finalizeRunWatchRequest(req RunWatchRequest) {
 	if req.Cancel != nil {
 		req.Cancel()
@@ -161,6 +204,15 @@ func finalizeSessionWatchRequest(req SessionWatchRequest) {
 	}
 }
 
+func finalizeSessionTurnExecutionWatchRequest(req SessionTurnExecutionWatchRequest) {
+	if req.Cancel != nil {
+		req.Cancel()
+	}
+	if req.Release != nil {
+		req.Release()
+	}
+}
+
 func ptrRunSummary(value RunSummary) *RunSummary {
 	v := value
 	return &v
@@ -172,6 +224,11 @@ func ptrApprovalSummary(value ApprovalSummary) *ApprovalSummary {
 }
 
 func ptrSessionSummary(value SessionSummary) *SessionSummary {
+	v := value
+	return &v
+}
+
+func ptrSessionTurnExecution(value SessionTurnExecution) *SessionTurnExecution {
 	v := value
 	return &v
 }

@@ -1184,6 +1184,13 @@
       "status": "mvp"
     },
     {
+      "path": "objects/SessionTurnExecution.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionTurnExecution",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/SessionListRequest.schema.json",
       "schema_id": "runecode.protocol.v0.SessionListRequest",
       "schema_version": "0.1.0",
@@ -1221,6 +1228,20 @@
     {
       "path": "objects/SessionSendMessageResponse.schema.json",
       "schema_id": "runecode.protocol.v0.SessionSendMessageResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionExecutionTriggerRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionExecutionTriggerRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionExecutionTriggerResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionExecutionTriggerResponse",
       "schema_version": "0.1.0",
       "owner": "protocol",
       "status": "mvp"
@@ -1347,6 +1368,20 @@
     {
       "path": "objects/SessionWatchEvent.schema.json",
       "schema_id": "runecode.protocol.v0.SessionWatchEvent",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionTurnExecutionWatchRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionTurnExecutionWatchRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/SessionTurnExecutionWatchEvent.schema.json",
+      "schema_id": "runecode.protocol.v0.SessionTurnExecutionWatchEvent",
       "schema_version": "0.1.0",
       "owner": "protocol",
       "status": "mvp"

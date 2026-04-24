@@ -11,17 +11,35 @@ import (
 
 type chatBrokerClientSpy struct {
 	fakeBrokerClient
-	sentReq *brokerapi.SessionSendMessageRequest
+	sentReq   *brokerapi.SessionExecutionTriggerRequest
+	watchReq  *brokerapi.SessionTurnExecutionWatchRequest
+	watchResp []brokerapi.SessionTurnExecutionWatchEvent
 }
 
-func (s *chatBrokerClientSpy) SessionSendMessage(ctx context.Context, req brokerapi.SessionSendMessageRequest) (brokerapi.SessionSendMessageResponse, error) {
+func (s *chatBrokerClientSpy) SessionExecutionTrigger(ctx context.Context, req brokerapi.SessionExecutionTriggerRequest) (brokerapi.SessionExecutionTriggerResponse, error) {
 	_ = ctx
 	reqCopy := req
 	s.sentReq = &reqCopy
-	return brokerapi.SessionSendMessageResponse{
-		SessionID: req.SessionID,
-		Turn:      brokerapi.SessionTranscriptTurn{TurnID: "turn-send", SessionID: req.SessionID, TurnIndex: 100, Status: "in_progress"},
-		Message:   brokerapi.SessionTranscriptMessage{MessageID: "msg-send", TurnID: "turn-send", SessionID: req.SessionID, MessageIndex: 1, Role: req.Role, ContentText: req.ContentText},
+	return brokerapi.SessionExecutionTriggerResponse{
+		SessionID:              req.SessionID,
+		TriggerID:              "trigger-send",
+		TriggerSource:          req.TriggerSource,
+		RequestedOperation:     req.RequestedOperation,
+		UserMessageContentText: req.UserMessageContentText,
+	}, nil
+}
+
+func (s *chatBrokerClientSpy) SessionTurnExecutionWatch(ctx context.Context, req brokerapi.SessionTurnExecutionWatchRequest) ([]brokerapi.SessionTurnExecutionWatchEvent, error) {
+	_ = ctx
+	reqCopy := req
+	s.watchReq = &reqCopy
+	if s.watchResp != nil {
+		return s.watchResp, nil
+	}
+	exec := brokerapi.SessionTurnExecution{TurnID: "turn-1", SessionID: req.SessionID, ExecutionIndex: 1, TriggerID: "trigger-send", TriggerSource: "interactive_user", RequestedOperation: "start", ExecutionState: "running", ApprovalProfile: "moderate", AutonomyPosture: "balanced", CreatedAt: "2026-01-01T00:00:00Z", UpdatedAt: "2026-01-01T00:00:00Z"}
+	return []brokerapi.SessionTurnExecutionWatchEvent{
+		{EventType: "session_turn_execution_watch_snapshot", Seq: 1, TurnExecution: &exec},
+		{EventType: "session_turn_execution_watch_terminal", Seq: 2, Terminal: true, TerminalStatus: "completed"},
 	}, nil
 }
 
@@ -130,21 +148,33 @@ func TestChatRouteComposeSendsTypedSessionMessageRequest(t *testing.T) {
 	updated, _ = updated.Update(cmd())
 
 	if spy.sentReq == nil {
-		t.Fatal("expected SessionSendMessage request to be captured")
+		t.Fatal("expected SessionExecutionTrigger request to be captured")
 	}
 	if spy.sentReq.SessionID != "session-1" {
 		t.Fatalf("expected session-1 send target, got %q", spy.sentReq.SessionID)
 	}
-	if spy.sentReq.Role != "user" {
-		t.Fatalf("expected user role, got %q", spy.sentReq.Role)
+	if spy.sentReq.TriggerSource != "interactive_user" {
+		t.Fatalf("expected interactive_user trigger source, got %q", spy.sentReq.TriggerSource)
 	}
-	if spy.sentReq.ContentText != "hi" {
-		t.Fatalf("expected content hi, got %q", spy.sentReq.ContentText)
+	if spy.sentReq.RequestedOperation != "start" {
+		t.Fatalf("expected requested operation start, got %q", spy.sentReq.RequestedOperation)
+	}
+	if spy.sentReq.UserMessageContentText != "hi" {
+		t.Fatalf("expected content hi, got %q", spy.sentReq.UserMessageContentText)
+	}
+	if spy.watchReq == nil {
+		t.Fatal("expected SessionTurnExecutionWatch request to be captured")
+	}
+	if spy.watchReq.SessionID != "session-1" {
+		t.Fatalf("expected session-1 watch target, got %q", spy.watchReq.SessionID)
+	}
+	if !spy.watchReq.IncludeSnapshot || !spy.watchReq.Follow {
+		t.Fatalf("expected watch include_snapshot+follow true, got %+v", *spy.watchReq)
 	}
 
 	view := updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "Status: Message appended to canonical transcript.") {
-		t.Fatalf("expected send ack status in view, got %q", view)
+	if !strings.Contains(view, "Status: Execution progress: running") {
+		t.Fatalf("expected broker-owned execution progress status in view, got %q", view)
 	}
 }
 
@@ -172,5 +202,49 @@ func TestChatRouteComposeSupportsMultilineBracketedPaste(t *testing.T) {
 	chat = updated.(chatRouteModel)
 	if !strings.Contains(chat.composer.Value(), "\n") {
 		t.Fatalf("expected newline retained in composer, got %q", chat.composer.Value())
+	}
+}
+
+func TestChatRouteComposeUsesTurnExecutionWatchStateOverTriggerAck(t *testing.T) {
+	spy := &chatBrokerClientSpy{}
+	blocked := brokerapi.SessionTurnExecution{
+		TurnID:             "turn-1",
+		SessionID:          "session-1",
+		ExecutionIndex:     1,
+		TriggerID:          "trigger-send",
+		TriggerSource:      "interactive_user",
+		RequestedOperation: "start",
+		ExecutionState:     "blocked",
+		WaitKind:           "project_blocked",
+		WaitState:          "waiting_project_blocked",
+		ApprovalProfile:    "moderate",
+		AutonomyPosture:    "balanced",
+		CreatedAt:          "2026-01-01T00:00:00Z",
+		UpdatedAt:          "2026-01-01T00:00:00Z",
+	}
+	spy.watchResp = []brokerapi.SessionTurnExecutionWatchEvent{
+		{EventType: "session_turn_execution_watch_snapshot", Seq: 1, TurnExecution: &blocked},
+		{EventType: "session_turn_execution_watch_terminal", Seq: 2, Terminal: true, TerminalStatus: "completed"},
+	}
+	model := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, spy)
+
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeChat})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
+	if cmd == nil {
+		t.Fatal("expected send command from compose alt+enter")
+	}
+	updated, _ = updated.Update(cmd())
+
+	view := updated.View(120, 40, focusContent)
+	if !strings.Contains(view, "Status: Execution progress: blocked (waiting_project_blocked)") {
+		t.Fatalf("expected status from turn execution watch blocked state, got %q", view)
 	}
 }

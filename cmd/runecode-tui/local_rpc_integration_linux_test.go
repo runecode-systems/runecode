@@ -124,6 +124,9 @@ func assertTUILocalRPCReadSurfaces(t *testing.T, client *rpcBrokerClient) {
 	if _, err := client.SessionWatch(context.Background(), brokerapi.SessionWatchRequest{StreamID: "probe-session-watch", IncludeSnapshot: true}); err != nil {
 		t.Fatalf("SessionWatch returned error: %v", err)
 	}
+	if _, err := client.SessionTurnExecutionWatch(context.Background(), brokerapi.SessionTurnExecutionWatchRequest{StreamID: "probe-session-turn-watch", IncludeSnapshot: true}); err != nil {
+		t.Fatalf("SessionTurnExecutionWatch returned error: %v", err)
+	}
 }
 
 func assertTUILocalRPCAnchorFlow(t *testing.T, client *rpcBrokerClient, service *brokerapi.Service, ledgerRoot string) {

@@ -29,7 +29,9 @@ type localBrokerClient interface {
 	SessionList(ctx context.Context, limit int) (brokerapi.SessionListResponse, error)
 	SessionGet(ctx context.Context, sessionID string) (brokerapi.SessionGetResponse, error)
 	SessionSendMessage(ctx context.Context, req brokerapi.SessionSendMessageRequest) (brokerapi.SessionSendMessageResponse, error)
+	SessionExecutionTrigger(ctx context.Context, req brokerapi.SessionExecutionTriggerRequest) (brokerapi.SessionExecutionTriggerResponse, error)
 	SessionWatch(ctx context.Context, req brokerapi.SessionWatchRequest) ([]brokerapi.SessionWatchEvent, error)
+	SessionTurnExecutionWatch(ctx context.Context, req brokerapi.SessionTurnExecutionWatchRequest) ([]brokerapi.SessionTurnExecutionWatchEvent, error)
 	ApprovalList(ctx context.Context, limit int) (brokerapi.ApprovalListResponse, error)
 	ApprovalGet(ctx context.Context, approvalID string) (brokerapi.ApprovalGetResponse, error)
 	ApprovalResolve(ctx context.Context, req brokerapi.ApprovalResolveRequest) (brokerapi.ApprovalResolveResponse, error)
@@ -124,12 +126,28 @@ func (c *rpcBrokerClient) SessionSendMessage(ctx context.Context, req brokerapi.
 	return resp, c.invoke(ctx, "session_send_message", req, &resp)
 }
 
+func (c *rpcBrokerClient) SessionExecutionTrigger(ctx context.Context, req brokerapi.SessionExecutionTriggerRequest) (brokerapi.SessionExecutionTriggerResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.SessionExecutionTriggerRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("session-trigger")
+	resp := brokerapi.SessionExecutionTriggerResponse{}
+	return resp, c.invoke(ctx, "session_execution_trigger", req, &resp)
+}
+
 func (c *rpcBrokerClient) SessionWatch(ctx context.Context, req brokerapi.SessionWatchRequest) ([]brokerapi.SessionWatchEvent, error) {
 	req.SchemaID = "runecode.protocol.v0.SessionWatchRequest"
 	req.SchemaVersion = localAPISchemaVersion
 	req.RequestID = newRequestID("session-watch")
 	events := []brokerapi.SessionWatchEvent{}
 	return events, c.invoke(ctx, "session_watch", req, &events)
+}
+
+func (c *rpcBrokerClient) SessionTurnExecutionWatch(ctx context.Context, req brokerapi.SessionTurnExecutionWatchRequest) ([]brokerapi.SessionTurnExecutionWatchEvent, error) {
+	req.SchemaID = "runecode.protocol.v0.SessionTurnExecutionWatchRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("session-turn-execution-watch")
+	events := []brokerapi.SessionTurnExecutionWatchEvent{}
+	return events, c.invoke(ctx, "session_turn_execution_watch", req, &events)
 }
 
 func (c *rpcBrokerClient) ApprovalList(ctx context.Context, limit int) (brokerapi.ApprovalListResponse, error) {

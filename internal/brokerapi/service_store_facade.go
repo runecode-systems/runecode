@@ -147,6 +147,14 @@ func (s *Service) AppendSessionMessage(req artifacts.SessionMessageAppendRequest
 	return s.store.AppendSessionMessage(req)
 }
 
+func (s *Service) AppendSessionExecutionTrigger(req artifacts.SessionExecutionTriggerAppendRequest) (artifacts.SessionExecutionTriggerAppendResult, error) {
+	return s.store.AppendSessionExecutionTrigger(req)
+}
+
+func (s *Service) UpdateSessionTurnExecution(req artifacts.SessionTurnExecutionUpdateRequest) (artifacts.SessionTurnExecutionDurableState, error) {
+	return s.store.UpdateSessionTurnExecution(req)
+}
+
 func (s *Service) RecordApproval(record artifacts.ApprovalRecord) error {
 	return s.store.RecordApproval(record)
 }

@@ -91,3 +91,33 @@ func (s *Service) HandleSessionWatchRequest(ctx context.Context, req SessionWatc
 	ack.Release = release
 	return ack, nil
 }
+
+func (s *Service) HandleSessionTurnExecutionWatchRequest(ctx context.Context, req SessionTurnExecutionWatchRequest, meta RequestContext) (SessionTurnExecutionWatchRequest, *ErrorResponse) {
+	if req.StreamID == "" {
+		req.StreamID = "session-turn-execution-watch-" + resolveRequestID(req.RequestID, meta.RequestID)
+	}
+	requestID, errResp := s.prepareLocalRequest(req.RequestID, meta.RequestID, meta.AdmissionErr, req, sessionTurnExecutionWatchRequestSchemaPath)
+	if errResp != nil {
+		return SessionTurnExecutionWatchRequest{}, errResp
+	}
+	release, err := s.acquireInFlight(meta)
+	if err != nil {
+		errOut := s.errorFromLimit(requestID, err)
+		return SessionTurnExecutionWatchRequest{}, &errOut
+	}
+	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
+	if errResp := s.requestContextError(requestID, requestCtx); errResp != nil {
+		release()
+		cancel()
+		return SessionTurnExecutionWatchRequest{}, errResp
+	}
+	ack := req
+	ack.RequestID = requestID
+	if ack.StreamID == "" {
+		ack.StreamID = "session-turn-execution-watch-" + requestID
+	}
+	ack.RequestCtx = requestCtx
+	ack.Cancel = cancel
+	ack.Release = release
+	return ack, nil
+}

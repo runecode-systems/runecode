@@ -81,3 +81,27 @@ func decodeAndHandleSessionWatch(service *brokerapi.Service, ctx context.Context
 	}
 	return localRPCOKResponse(events)
 }
+
+func decodeAndHandleSessionTurnExecutionWatch(service *brokerapi.Service, ctx context.Context, raw json.RawMessage, meta brokerapi.RequestContext) localRPCResponse {
+	req := brokerapi.SessionTurnExecutionWatchRequest{}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			err = errors.New("request must contain exactly one JSON object")
+		}
+		return localRPCResponse{OK: false, Error: decodeWireError("", err)}
+	}
+	ack, errResp := service.HandleSessionTurnExecutionWatchRequest(ctx, req, meta)
+	if errResp != nil {
+		return localRPCResponse{OK: false, Error: errResp}
+	}
+	events, err := service.StreamSessionTurnExecutionWatchEvents(ack)
+	if err != nil {
+		return localRPCResponse{OK: false, Error: decodeWireError(ack.RequestID, err)}
+	}
+	return localRPCOKResponse(events)
+}

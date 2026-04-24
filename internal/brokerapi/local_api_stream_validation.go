@@ -50,6 +50,15 @@ func validateSessionWatchSemantics(events []SessionWatchEvent) error {
 	)
 }
 
+func validateSessionTurnExecutionWatchSemantics(events []SessionTurnExecutionWatchEvent) error {
+	return validateStreamSemantics(
+		events,
+		"session_turn_execution_watch",
+		"session turn execution watch stream",
+		"session_turn_execution_watch_terminal",
+	)
+}
+
 func validateStreamSemantics[T streamEvent](events []T, kind, label, terminalType string) error {
 	streamID, requestID, err := validateStreamHeader(events, kind, label)
 	if err != nil {
@@ -156,6 +165,14 @@ func (e SessionWatchEvent) GetEventType() string      { return e.EventType }
 func (e SessionWatchEvent) IsTerminal() bool          { return e.Terminal }
 func (e SessionWatchEvent) GetTerminalStatus() string { return e.TerminalStatus }
 func (e SessionWatchEvent) GetError() *ProtocolError  { return e.Error }
+
+func (e SessionTurnExecutionWatchEvent) GetSeq() int64             { return e.Seq }
+func (e SessionTurnExecutionWatchEvent) GetStreamID() string       { return e.StreamID }
+func (e SessionTurnExecutionWatchEvent) GetRequestID() string      { return e.RequestID }
+func (e SessionTurnExecutionWatchEvent) GetEventType() string      { return e.EventType }
+func (e SessionTurnExecutionWatchEvent) IsTerminal() bool          { return e.Terminal }
+func (e SessionTurnExecutionWatchEvent) GetTerminalStatus() string { return e.TerminalStatus }
+func (e SessionTurnExecutionWatchEvent) GetError() *ProtocolError  { return e.Error }
 
 func validateStableStreamEventIDs(kind, streamID, expectedStreamID, requestID, expectedRequestID string) error {
 	if streamID != expectedStreamID {

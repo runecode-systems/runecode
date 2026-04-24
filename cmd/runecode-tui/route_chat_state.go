@@ -83,7 +83,7 @@ func (m chatRouteModel) applySent(typed chatMessageSentMsg) (routeModel, tea.Cmd
 		return m, nil
 	}
 	m.errText = ""
-	m.statusText = "Message appended to canonical transcript."
+	m.statusText = "Execution trigger accepted; waiting on broker-owned turn execution state."
 	m.draft = ""
 	m.composer.SetValue("")
 	m.composer.Blur()
@@ -93,6 +93,18 @@ func (m chatRouteModel) applySent(typed chatMessageSentMsg) (routeModel, tea.Cmd
 	}
 	if typed.detail != nil {
 		m.active = typed.detail
+	}
+	if m.active != nil && typed.turnExecution != nil {
+		exec := *typed.turnExecution
+		m.active.CurrentTurnExecution = &exec
+		m.active.LatestTurnExecution = &exec
+		state := strings.TrimSpace(exec.ExecutionState)
+		if state != "" {
+			m.statusText = "Execution progress: " + state
+			if wait := strings.TrimSpace(exec.WaitState); wait != "" {
+				m.statusText += " (" + wait + ")"
+			}
+		}
 	}
 	if typed.sessions != nil {
 		m.sessions = typed.sessions
@@ -161,14 +173,20 @@ func (m chatRouteModel) sendCmd(sessionID, content string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := withLoadTimeout()
 		defer cancel()
-		sendResp, err := m.client.SessionSendMessage(ctx, brokerapi.SessionSendMessageRequest{
-			SessionID:   sessionID,
-			Role:        "user",
-			ContentText: content,
+		sendResp, err := m.client.SessionExecutionTrigger(ctx, brokerapi.SessionExecutionTriggerRequest{
+			SessionID:              sessionID,
+			TriggerSource:          "interactive_user",
+			RequestedOperation:     "start",
+			UserMessageContentText: content,
 		})
 		if err != nil {
 			return chatMessageSentMsg{err: err}
 		}
+		watchEvents, err := m.client.SessionTurnExecutionWatch(ctx, brokerapi.SessionTurnExecutionWatchRequest{SessionID: sessionID, Follow: true, IncludeSnapshot: true})
+		if err != nil {
+			return chatMessageSentMsg{err: err}
+		}
+		turnExecution := matchingTurnExecutionFromWatch(watchEvents, sendResp.TriggerID)
 		getResp, err := m.client.SessionGet(ctx, sessionID)
 		if err != nil {
 			return chatMessageSentMsg{err: err}
@@ -177,6 +195,20 @@ func (m chatRouteModel) sendCmd(sessionID, content string) tea.Cmd {
 		if err != nil {
 			return chatMessageSentMsg{err: err}
 		}
-		return chatMessageSentMsg{sessions: listResp.Sessions, detail: &getResp.Session, ack: &sendResp}
+		return chatMessageSentMsg{sessions: listResp.Sessions, detail: &getResp.Session, ack: &sendResp, turnExecution: turnExecution}
 	}
+}
+
+func matchingTurnExecutionFromWatch(events []brokerapi.SessionTurnExecutionWatchEvent, triggerID string) *brokerapi.SessionTurnExecution {
+	for i := range events {
+		if events[i].TurnExecution == nil {
+			continue
+		}
+		if strings.TrimSpace(events[i].TurnExecution.TriggerID) != strings.TrimSpace(triggerID) {
+			continue
+		}
+		v := *events[i].TurnExecution
+		return &v
+	}
+	return nil
 }

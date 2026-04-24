@@ -96,6 +96,20 @@ func (f *fakeBrokerClient) SessionSendMessage(ctx context.Context, req brokerapi
 	return brokerapi.SessionSendMessageResponse{SessionID: req.SessionID, Turn: turn, Message: msg, EventType: "session.message.appended", StreamID: "session", Seq: 1}, nil
 }
 
+func (f *fakeBrokerClient) SessionExecutionTrigger(ctx context.Context, req brokerapi.SessionExecutionTriggerRequest) (brokerapi.SessionExecutionTriggerResponse, error) {
+	_ = ctx
+	if req.SessionID == "" {
+		return brokerapi.SessionExecutionTriggerResponse{}, fmt.Errorf("session id required")
+	}
+	if req.TriggerSource == "" {
+		return brokerapi.SessionExecutionTriggerResponse{}, fmt.Errorf("trigger source required")
+	}
+	if req.RequestedOperation == "" {
+		return brokerapi.SessionExecutionTriggerResponse{}, fmt.Errorf("requested operation required")
+	}
+	return brokerapi.SessionExecutionTriggerResponse{SessionID: req.SessionID, TriggerID: "trigger-ack-1", TriggerSource: req.TriggerSource, RequestedOperation: req.RequestedOperation, UserMessageContentText: req.UserMessageContentText, EventType: "session_execution_trigger_ack", StreamID: "session", Seq: 1}, nil
+}
+
 func (f *fakeBrokerClient) SessionWatch(ctx context.Context, req brokerapi.SessionWatchRequest) ([]brokerapi.SessionWatchEvent, error) {
 	_ = ctx
 	if req.StreamID == "" {
@@ -105,6 +119,32 @@ func (f *fakeBrokerClient) SessionWatch(ctx context.Context, req brokerapi.Sessi
 	return []brokerapi.SessionWatchEvent{
 		{EventType: "session_watch_snapshot", Seq: 1, Session: &session},
 		{EventType: "session_watch_terminal", Seq: 2, Terminal: true, TerminalStatus: "completed"},
+	}, nil
+}
+
+func (f *fakeBrokerClient) SessionTurnExecutionWatch(ctx context.Context, req brokerapi.SessionTurnExecutionWatchRequest) ([]brokerapi.SessionTurnExecutionWatchEvent, error) {
+	_ = ctx
+	if req.StreamID == "" {
+		return nil, fmt.Errorf("stream id required")
+	}
+	exec := brokerapi.SessionTurnExecution{
+		SchemaID:           "runecode.protocol.v0.SessionTurnExecution",
+		SchemaVersion:      "0.1.0",
+		TurnID:             "turn-exec-1",
+		SessionID:          "session-1",
+		ExecutionIndex:     1,
+		TriggerID:          "trigger-1",
+		TriggerSource:      "interactive_user",
+		RequestedOperation: "start",
+		ExecutionState:     "running",
+		ApprovalProfile:    "moderate",
+		AutonomyPosture:    "balanced",
+		CreatedAt:          "2026-01-01T00:00:00Z",
+		UpdatedAt:          "2026-01-01T00:00:00Z",
+	}
+	return []brokerapi.SessionTurnExecutionWatchEvent{
+		{EventType: "session_turn_execution_watch_snapshot", Seq: 1, TurnExecution: &exec},
+		{EventType: "session_turn_execution_watch_terminal", Seq: 2, Terminal: true, TerminalStatus: "completed"},
 	}, nil
 }
 
@@ -196,8 +236,16 @@ func (f *reloadAwareBrokerClient) SessionSendMessage(ctx context.Context, req br
 	return (&fakeBrokerClient{}).SessionSendMessage(ctx, req)
 }
 
+func (f *reloadAwareBrokerClient) SessionExecutionTrigger(ctx context.Context, req brokerapi.SessionExecutionTriggerRequest) (brokerapi.SessionExecutionTriggerResponse, error) {
+	return (&fakeBrokerClient{}).SessionExecutionTrigger(ctx, req)
+}
+
 func (f *reloadAwareBrokerClient) SessionWatch(ctx context.Context, req brokerapi.SessionWatchRequest) ([]brokerapi.SessionWatchEvent, error) {
 	return (&fakeBrokerClient{}).SessionWatch(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) SessionTurnExecutionWatch(ctx context.Context, req brokerapi.SessionTurnExecutionWatchRequest) ([]brokerapi.SessionTurnExecutionWatchEvent, error) {
+	return (&fakeBrokerClient{}).SessionTurnExecutionWatch(ctx, req)
 }
 
 func (f *reloadAwareBrokerClient) ApprovalList(ctx context.Context, limit int) (brokerapi.ApprovalListResponse, error) {
