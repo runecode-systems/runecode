@@ -8,6 +8,7 @@ Recent notable standards for this branch:
 - `runecontext/standards/global/control-plane-api-contract-shape.md`
 - `runecontext/standards/global/local-product-lifecycle-and-attach-contract.md`
 - `runecontext/standards/global/project-substrate-contract-and-lifecycle.md`
+- `runecontext/standards/global/session-execution-contract-and-watch-families.md`
 - `runecontext/standards/global/protocol-canonicalization-profile.md`
 - `runecontext/standards/global/protocol-registry-discipline.md`
 - `runecontext/standards/security/policy-evaluation-foundations.md`
