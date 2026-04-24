@@ -83,6 +83,24 @@ func applySessionTurnExecutionUpdate(exec SessionTurnExecutionDurableState, req 
 	exec.ExecutionState = req.ExecutionState
 	exec.WaitKind = req.WaitKind
 	exec.WaitState = req.WaitState
+	if req.PrimaryRunID != "" {
+		exec.PrimaryRunID = req.PrimaryRunID
+	}
+	if req.PendingApprovalID != "" {
+		exec.PendingApprovalID = req.PendingApprovalID
+	}
+	if len(req.LinkedRunIDs) > 0 {
+		exec.LinkedRunIDs = append([]string{}, req.LinkedRunIDs...)
+	}
+	if len(req.LinkedApprovalIDs) > 0 {
+		exec.LinkedApprovalIDs = append([]string{}, req.LinkedApprovalIDs...)
+	}
+	if len(req.LinkedArtifactDigests) > 0 {
+		exec.LinkedArtifactDigests = append([]string{}, req.LinkedArtifactDigests...)
+	}
+	if len(req.LinkedAuditRecordDigests) > 0 {
+		exec.LinkedAuditRecordDigests = append([]string{}, req.LinkedAuditRecordDigests...)
+	}
 	exec.BlockedReasonCode = req.BlockedReasonCode
 	exec.TerminalOutcome = req.TerminalOutcome
 	if req.BoundValidatedProjectSubstrateDigest != "" {

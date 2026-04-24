@@ -786,7 +786,8 @@ func (f *fakeBrokerClient) ProjectSubstratePostureGet(ctx context.Context) (brok
 			RecommendedRuneContextTarget: "0.1.0-alpha.14",
 			ReasonCodes:                  []string{"project_substrate_upgrade_available"},
 		},
-		Adoption: brokerapi.ProjectSubstrateAdoptResponse{}.Adoption,
+		BlockedExplanation: "project substrate posture blocks execution while validation is incompatible",
+		Adoption:           brokerapi.ProjectSubstrateAdoptResponse{}.Adoption,
 		InitPreview: projectsubstrate.InitPreview{
 			SchemaID:       "runecode.protocol.v0.ProjectSubstrateInitPreview",
 			SchemaVersion:  "0.1.0",

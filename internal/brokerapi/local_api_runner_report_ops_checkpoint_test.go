@@ -93,6 +93,33 @@ func TestRunnerCheckpointReportRejectsUnknownCheckpointCode(t *testing.T) {
 	}
 }
 
+func TestRunnerCheckpointReportProjectsApprovalWaitIntoSessionExecution(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, 4, 1, 18, 0, 0, 0, time.UTC)
+	s.SetNowFuncForTests(func() time.Time { return now })
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-checkpoint-session", "sess-checkpoint-session")
+	mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-checkpoint-session-trigger", SessionID: "sess-checkpoint-session", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "run"})
+
+	req := RunnerCheckpointReportRequest{SchemaID: "runecode.protocol.v0.RunnerCheckpointReportRequest", SchemaVersion: "0.1.0", RequestID: "req-checkpoint-session", RunID: "run-checkpoint-session", Report: RunnerCheckpointReport{SchemaID: "runecode.protocol.v0.RunnerCheckpointReport", SchemaVersion: "0.1.0", LifecycleState: "blocked", CheckpointCode: "approval_wait_entered", OccurredAt: now.Add(time.Minute).Format(time.RFC3339), IdempotencyKey: "idem-checkpoint-session", StageID: "stage-1", StepID: "step-1", StepAttemptID: "attempt-1"}}
+	if _, errResp := s.HandleRunnerCheckpointReport(context.Background(), req, RequestContext{}); errResp != nil {
+		t.Fatalf("HandleRunnerCheckpointReport error response: %+v", errResp)
+	}
+
+	get := mustSessionGet(t, s, "req-checkpoint-session-get", "sess-checkpoint-session")
+	if get.Session.CurrentTurnExecution == nil {
+		t.Fatal("current_turn_execution missing")
+	}
+	if get.Session.CurrentTurnExecution.ExecutionState != "waiting" {
+		t.Fatalf("execution_state = %q, want waiting", get.Session.CurrentTurnExecution.ExecutionState)
+	}
+	if get.Session.CurrentTurnExecution.WaitKind != "approval" {
+		t.Fatalf("wait_kind = %q, want approval", get.Session.CurrentTurnExecution.WaitKind)
+	}
+	if get.Session.CurrentTurnExecution.WaitState != "waiting_approval" {
+		t.Fatalf("wait_state = %q, want waiting_approval", get.Session.CurrentTurnExecution.WaitState)
+	}
+}
+
 func putRunnerSeedArtifact(t *testing.T, s *Service, runID string) {
 	t.Helper()
 	if _, err := s.Put(artifacts.PutRequest{Payload: []byte("x"), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("1", 64), CreatedByRole: "workspace", RunID: runID, StepID: "step-1"}); err != nil {

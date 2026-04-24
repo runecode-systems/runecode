@@ -30,3 +30,22 @@ func (s *Store) SessionDurableStates() []SessionDurableState {
 	states := s.SessionStates()
 	return SessionSummaryStatesByUpdateDesc(states)
 }
+
+func (s *Store) UpdateSessionState(sessionID string, mutate func(SessionDurableState) SessionDurableState) (SessionDurableState, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id := strings.TrimSpace(sessionID)
+	if id == "" {
+		return SessionDurableState{}, ErrSessionTurnExecutionNotFound
+	}
+	state, ok := s.state.Sessions[id]
+	if !ok {
+		return SessionDurableState{}, ErrSessionTurnExecutionNotFound
+	}
+	state = mutate(copySessionDurableState(state))
+	s.state.Sessions[id] = state
+	if err := s.saveStateLocked(); err != nil {
+		return SessionDurableState{}, err
+	}
+	return copySessionDurableState(state), nil
+}

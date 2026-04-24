@@ -2,8 +2,10 @@ package brokerapi
 
 import (
 	"io"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/launcherbackend"
 	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
@@ -71,6 +73,10 @@ func (s *Service) RunnerAdvisory(runID string) (artifacts.RunnerAdvisoryState, b
 
 func (s *Service) RecordRunnerApprovalWait(approval artifacts.RunnerApproval) error {
 	return s.store.RecordRunnerApprovalWait(approval)
+}
+
+func (s *Service) SyncSessionExecutionFromRunRuntime(runID string, facts launcherbackend.RuntimeFactsSnapshot, advisory artifacts.RunnerAdvisoryState, occurredAt time.Time) error {
+	return s.store.SyncSessionExecutionFromRunRuntime(runID, facts, advisory, occurredAt)
 }
 
 func (s *Service) GarbageCollect() (artifacts.GCResult, error) {
@@ -141,6 +147,10 @@ func (s *Service) SessionState(sessionID string) (artifacts.SessionDurableState,
 
 func (s *Service) SessionStates() map[string]artifacts.SessionDurableState {
 	return s.store.SessionStates()
+}
+
+func (s *Service) UpdateSessionState(sessionID string, mutate func(artifacts.SessionDurableState) artifacts.SessionDurableState) (artifacts.SessionDurableState, error) {
+	return s.store.UpdateSessionState(sessionID, mutate)
 }
 
 func (s *Service) AppendSessionMessage(req artifacts.SessionMessageAppendRequest) (artifacts.SessionMessageAppendResult, error) {

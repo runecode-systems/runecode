@@ -205,28 +205,21 @@ func TestSessionWatchFollowWithoutSnapshotUsesLatestUpsert(t *testing.T) {
 
 func TestSessionTurnExecutionWatchFollowWithoutSnapshotUsesLatestUpsert(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	now := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
-	s.SetNowFuncForTests(func() time.Time { return now })
-	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-turn-watch-a", "sess-turn-watch-a")
-	now = now.Add(time.Second)
-	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-turn-watch-b", "sess-turn-watch-b")
-	triggerSessionExecutionWatch(t, s, "req-session-turn-watch-a", "sess-turn-watch-a", "first")
-	now = now.Add(time.Second)
-	triggerSessionExecutionWatch(t, s, "req-session-turn-watch-b", "sess-turn-watch-b", "second")
-
-	ack := mustHandleSessionTurnExecutionWatchRequest(t, s, SessionTurnExecutionWatchRequest{
+	now := seedFollowWithoutSnapshotWatchFixture(t, s)
+	ack := newSessionTurnExecutionWatchAck(t, s, SessionTurnExecutionWatchRequest{
 		SchemaID:        "runecode.protocol.v0.SessionTurnExecutionWatchRequest",
 		SchemaVersion:   "0.1.0",
 		RequestID:       "req-session-turn-watch-follow-no-snapshot",
 		Follow:          true,
 		IncludeSnapshot: false,
 	})
+	_ = now
 	events, err := s.StreamSessionTurnExecutionWatchEvents(ack)
 	if err != nil {
 		t.Fatalf("StreamSessionTurnExecutionWatchEvents returned error: %v", err)
 	}
-	if len(events) != 2 {
-		t.Fatalf("session turn execution watch events len = %d, want 2", len(events))
+	if len(events) != 3 {
+		t.Fatalf("session turn execution watch events len = %d, want 3", len(events))
 	}
 	if events[0].EventType != "session_turn_execution_watch_upsert" {
 		t.Fatalf("event_type = %q, want session_turn_execution_watch_upsert", events[0].EventType)
@@ -237,6 +230,100 @@ func TestSessionTurnExecutionWatchFollowWithoutSnapshotUsesLatestUpsert(t *testi
 	if events[0].TurnExecution.SessionID != "sess-turn-watch-b" {
 		t.Fatalf("upsert session_id = %q, want latest sess-turn-watch-b", events[0].TurnExecution.SessionID)
 	}
+	if events[1].EventType != "session_turn_execution_watch_upsert" {
+		t.Fatalf("second event_type = %q, want session_turn_execution_watch_upsert", events[1].EventType)
+	}
+	if events[1].TurnExecution == nil || events[1].TurnExecution.SessionID != "sess-turn-watch-a" {
+		t.Fatalf("second upsert session_id = %q, want sess-turn-watch-a", valueSessionID(events[1].TurnExecution))
+	}
+	if events[2].EventType != "session_turn_execution_watch_terminal" {
+		t.Fatalf("terminal event_type = %q, want session_turn_execution_watch_terminal", events[2].EventType)
+	}
+}
+
+func TestSessionTurnExecutionWatchFollowIncludesSnapshotThenProgressUpdates(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	seedFollowWithSnapshotWatchFixture(t, s)
+	ack := newSessionTurnExecutionWatchAck(t, s, SessionTurnExecutionWatchRequest{
+		SchemaID:        "runecode.protocol.v0.SessionTurnExecutionWatchRequest",
+		SchemaVersion:   "0.1.0",
+		RequestID:       "req-session-turn-watch-follow-snapshot",
+		SessionID:       "sess-turn-watch-main",
+		Follow:          true,
+		IncludeSnapshot: true,
+	})
+	events, err := s.StreamSessionTurnExecutionWatchEvents(ack)
+	if err != nil {
+		t.Fatalf("StreamSessionTurnExecutionWatchEvents returned error: %v", err)
+	}
+	if len(events) != 3 {
+		t.Fatalf("session turn execution watch events len = %d, want 3", len(events))
+	}
+	if events[0].EventType != "session_turn_execution_watch_snapshot" {
+		t.Fatalf("snapshot event_type = %q, want session_turn_execution_watch_snapshot", events[0].EventType)
+	}
+	if events[0].TurnExecution == nil || events[0].TurnExecution.ExecutionIndex != 2 {
+		t.Fatalf("snapshot execution_index = %d, want 2", valueExecutionIndex(events[0].TurnExecution))
+	}
+	if events[1].EventType != "session_turn_execution_watch_upsert" {
+		t.Fatalf("upsert event_type = %q, want session_turn_execution_watch_upsert", events[1].EventType)
+	}
+	if events[1].TurnExecution == nil || events[1].TurnExecution.ExecutionIndex != 1 {
+		t.Fatalf("upsert execution_index = %d, want 1", valueExecutionIndex(events[1].TurnExecution))
+	}
+	if events[2].EventType != "session_turn_execution_watch_terminal" {
+		t.Fatalf("terminal event_type = %q, want session_turn_execution_watch_terminal", events[2].EventType)
+	}
+}
+
+func seedFollowWithoutSnapshotWatchFixture(t *testing.T, s *Service) time.Time {
+	t.Helper()
+	now := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	s.SetNowFuncForTests(func() time.Time { return now })
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-turn-watch-a", "sess-turn-watch-a")
+	now = now.Add(time.Second)
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-turn-watch-b", "sess-turn-watch-b")
+	triggerSessionExecutionWatch(t, s, "req-session-turn-watch-a", "sess-turn-watch-a", "first")
+	now = now.Add(time.Second)
+	triggerSessionExecutionWatch(t, s, "req-session-turn-watch-b", "sess-turn-watch-b", "second")
+	return now
+}
+
+func seedFollowWithSnapshotWatchFixture(t *testing.T, s *Service) {
+	t.Helper()
+	now := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	s.SetNowFuncForTests(func() time.Time { return now })
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-turn-watch-main", "sess-turn-watch-main")
+	triggerSessionExecutionWatch(t, s, "req-session-turn-watch-main", "sess-turn-watch-main", "first")
+	completeSessionTurnExecutionForWatch(t, s, now)
+	now = now.Add(time.Second)
+	triggerSessionExecutionWatch(t, s, "req-session-turn-watch-main-2", "sess-turn-watch-main", "second")
+}
+
+func completeSessionTurnExecutionForWatch(t *testing.T, s *Service, now time.Time) {
+	t.Helper()
+	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-turn-watch-main", TurnID: "sess-turn-watch-main.exec.000001", ExecutionState: "completed", TerminalOutcome: "completed", OccurredAt: now.Add(500 * time.Millisecond)}); err != nil {
+		t.Fatalf("UpdateSessionTurnExecution returned error: %v", err)
+	}
+}
+
+func newSessionTurnExecutionWatchAck(t *testing.T, s *Service, req SessionTurnExecutionWatchRequest) SessionTurnExecutionWatchRequest {
+	t.Helper()
+	return mustHandleSessionTurnExecutionWatchRequest(t, s, req)
+}
+
+func valueSessionID(execution *SessionTurnExecution) string {
+	if execution == nil {
+		return ""
+	}
+	return execution.SessionID
+}
+
+func valueExecutionIndex(execution *SessionTurnExecution) int {
+	if execution == nil {
+		return 0
+	}
+	return execution.ExecutionIndex
 }
 
 func seedSessionTurnExecutionWatchFixture(t *testing.T, s *Service, runID, sessionID, requestID, content string) {

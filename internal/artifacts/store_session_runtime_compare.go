@@ -30,6 +30,7 @@ func newSessionDurableStateCompare(state SessionDurableState) sessionDurableStat
 		LastActivityUnixNano:             state.LastActivityAt.UnixNano(),
 		LastActivityKind:                 state.LastActivityKind,
 		LastActivityPreview:              state.LastActivityPreview,
+		LastInteractionSequence:          state.LastInteractionSequence,
 		TurnCount:                        state.TurnCount,
 		HasIncompleteTurn:                state.HasIncompleteTurn,
 		LinkedRunIDs:                     linkedRunIDs,
@@ -179,6 +180,7 @@ type sessionDurableStateCompare struct {
 	LastActivityUnixNano             int64
 	LastActivityKind                 string
 	LastActivityPreview              string
+	LastInteractionSequence          int64
 	TurnCount                        int
 	HasIncompleteTurn                bool
 	ExecutionTriggers                []sessionExecutionTriggerDurableStateCompare

@@ -113,7 +113,8 @@ func appendSessionExecutionTrigger(session *SessionDurableState, req SessionExec
 	mergeSessionExecutionLinkedRunIDs(session, req)
 	applySessionExecutionSummaryUpdate(session, turnExecution, req.OccurredAt)
 	session.LastActivityPreview = previewSessionExecutionTrigger(req)
-	seq := int64(len(session.ExecutionTriggers))
+	session.LastInteractionSequence++
+	seq := session.LastInteractionSequence
 	return trigger, turnExecution, seq
 }
 

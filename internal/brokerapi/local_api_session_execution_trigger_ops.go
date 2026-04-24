@@ -43,8 +43,11 @@ func (s *Service) HandleSessionExecutionTrigger(ctx context.Context, req Session
 	if errResp != nil {
 		return SessionExecutionTriggerResponse{}, errResp
 	}
-	if created {
-		s.auditSessionExecutionTrigger(requestID, req, resp)
+	if created || req.RequestedOperation == "start" {
+		if err := s.reconcileSessionExecutionTriggerSideEffects(requestID, session, req, resp); err != nil {
+			errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, err.Error())
+			return SessionExecutionTriggerResponse{}, &errOut
+		}
 	}
 	return resp, nil
 }
@@ -95,34 +98,33 @@ func (s *Service) buildSessionExecutionAppendRequest(requestID string, req Sessi
 	if errResp != nil {
 		return artifacts.SessionExecutionTriggerAppendRequest{}, errResp
 	}
-	approvalProfile := normalizeSessionTriggerApprovalProfile(req.ApprovalProfile)
-	autonomyPosture := normalizeSessionTriggerAutonomyPosture(req.AutonomyPosture)
+	controls := sessionExecutionTriggerControls(req)
 	occurredAt := s.currentTimestamp()
-	idempotencyHash, err := artifacts.SessionExecutionTriggerIdempotencyHash(req.SessionID, req.TriggerSource, req.RequestedOperation, approvalProfile, autonomyPosture, req.UserMessageContentText)
+	idempotencyHash, err := artifacts.SessionExecutionTriggerIdempotencyHash(req.SessionID, req.TriggerSource, req.RequestedOperation, controls.approvalProfile, controls.autonomyPosture, req.UserMessageContentText)
 	if err != nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
 		return artifacts.SessionExecutionTriggerAppendRequest{}, &errOut
 	}
 	links := sessionExecutionLinksFromSessionState(session)
-	boundDigest := strings.TrimSpace(project.Snapshot.ValidatedSnapshotDigest)
-	if boundDigest == "" {
-		boundDigest = strings.TrimSpace(project.Snapshot.ProjectContextIdentityDigest)
-	}
+	boundDigest := sessionExecutionBoundDigest(project)
+	executionState, waitKind, waitState := sessionExecutionInitialState(req.TriggerSource, controls.autonomyPosture)
 	return artifacts.SessionExecutionTriggerAppendRequest{
 		SessionID:                            req.SessionID,
 		WorkspaceID:                          session.WorkspaceID,
 		CreatedByRunID:                       session.CreatedByRunID,
 		TriggerSource:                        req.TriggerSource,
 		RequestedOperation:                   req.RequestedOperation,
-		ApprovalProfile:                      approvalProfile,
-		AutonomyPosture:                      autonomyPosture,
+		ApprovalProfile:                      controls.approvalProfile,
+		AutonomyPosture:                      controls.autonomyPosture,
 		PrimaryRunID:                         strings.TrimSpace(session.CreatedByRunID),
 		LinkedRunIDs:                         links.runIDs,
 		LinkedApprovalIDs:                    links.approvalIDs,
 		LinkedArtifactDigests:                links.artifactDigests,
 		LinkedAuditRecordDigests:             links.auditRecordDigests,
 		BoundValidatedProjectSubstrateDigest: boundDigest,
-		ExecutionState:                       "running",
+		ExecutionState:                       executionState,
+		WaitKind:                             waitKind,
+		WaitState:                            waitState,
 		UserMessageContentText:               strings.TrimSpace(req.UserMessageContentText),
 		IdempotencyKey:                       strings.TrimSpace(req.IdempotencyKey),
 		IdempotencyHash:                      idempotencyHash,
@@ -153,6 +155,13 @@ func (s *Service) continueSessionTurnExecution(requestID string, req SessionExec
 		errOut := s.makeError(requestID, "broker_session_execution_continue_missing_execution", "policy", false, artifacts.ErrSessionTurnExecutionNotResumable.Error())
 		return SessionExecutionTriggerResponse{}, false, &errOut
 	}
+	if errResp := s.validateSessionExecutionContinueTarget(requestID, target); errResp != nil {
+		return SessionExecutionTriggerResponse{}, false, errResp
+	}
+	seq, errResp := s.nextSessionInteractionSequence(requestID, session.SessionID)
+	if errResp != nil {
+		return SessionExecutionTriggerResponse{}, false, errResp
+	}
 	currentDigest, errResp := s.requireCurrentSessionExecutionDigest(requestID, session, target)
 	if errResp != nil {
 		return SessionExecutionTriggerResponse{}, false, errResp
@@ -171,7 +180,7 @@ func (s *Service) continueSessionTurnExecution(requestID string, req SessionExec
 		errOut := s.errorFromStore(requestID, err)
 		return SessionExecutionTriggerResponse{}, false, &errOut
 	}
-	resp := newContinuedSessionExecutionTriggerResponse(requestID, req, updated)
+	resp := newContinuedSessionExecutionTriggerResponse(requestID, req, updated, seq)
 	if err := s.validateResponse(resp, sessionExecutionTriggerResponseSchemaPath); err != nil {
 		errOut := s.errorFromValidation(requestID, err)
 		return SessionExecutionTriggerResponse{}, false, &errOut
@@ -179,20 +188,33 @@ func (s *Service) continueSessionTurnExecution(requestID string, req SessionExec
 	return resp, false, nil
 }
 
+func (s *Service) validateSessionExecutionContinueTarget(requestID string, execution artifacts.SessionTurnExecutionDurableState) *ErrorResponse {
+	if strings.TrimSpace(execution.ExecutionState) != "waiting" {
+		return nil
+	}
+	if strings.TrimSpace(execution.WaitKind) != "approval" {
+		return nil
+	}
+	errOut := s.makeError(requestID, "broker_session_execution_continue_waiting_approval", "policy", false, "session turn execution is waiting for approval resolution")
+	return &errOut
+}
+
 func currentOrResumableTurnExecution(executions []artifacts.SessionTurnExecutionDurableState) (artifacts.SessionTurnExecutionDurableState, bool) {
 	for idx := len(executions) - 1; idx >= 0; idx-- {
 		exec := executions[idx]
-		if isResumableSessionTurnExecutionState(exec.ExecutionState) {
+		if isResumableSessionTurnExecutionState(exec) {
 			return exec, true
 		}
 	}
 	return artifacts.SessionTurnExecutionDurableState{}, false
 }
 
-func isResumableSessionTurnExecutionState(state string) bool {
-	switch strings.TrimSpace(state) {
+func isResumableSessionTurnExecutionState(execution artifacts.SessionTurnExecutionDurableState) bool {
+	switch strings.TrimSpace(execution.ExecutionState) {
 	case "queued", "planning", "running", "waiting":
 		return true
+	case "blocked":
+		return strings.TrimSpace(execution.WaitKind) == "project_blocked"
 	default:
 		return false
 	}

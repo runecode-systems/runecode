@@ -54,23 +54,12 @@ func (s *Service) HandleRunnerCheckpointReport(ctx context.Context, req RunnerCh
 		return RunnerCheckpointReportResponse{}, &errOut
 	}
 	if !accepted {
-		canonical, _, lookupErr := s.currentCanonicalLifecycleForRun(prep.runID)
-		if lookupErr != nil {
-			errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, lookupErr.Error())
-			return RunnerCheckpointReportResponse{}, &errOut
-		}
-		return s.buildRunnerCheckpointReportResponse(prep.requestID, prep.runID, canonical, req.Report.IdempotencyKey, false)
+		return s.buildRunnerCheckpointResponseFromCanonical(prep.requestID, prep.runID, req.Report.IdempotencyKey, false)
 	}
-	if err := s.SetRunStatus(prep.runID, mapLifecycleToStoreStatus(req.Report.LifecycleState)); err != nil {
-		errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, err.Error())
-		return RunnerCheckpointReportResponse{}, &errOut
+	if errResp := s.persistRunnerCheckpointSideEffects(prep, req.Report); errResp != nil {
+		return RunnerCheckpointReportResponse{}, errResp
 	}
-	canonical, _, err := s.currentCanonicalLifecycleForRun(prep.runID)
-	if err != nil {
-		errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, err.Error())
-		return RunnerCheckpointReportResponse{}, &errOut
-	}
-	return s.buildRunnerCheckpointReportResponse(prep.requestID, prep.runID, canonical, req.Report.IdempotencyKey, true)
+	return s.buildRunnerCheckpointResponseFromCanonical(prep.requestID, prep.runID, req.Report.IdempotencyKey, true)
 }
 
 func (s *Service) HandleRunnerResultReport(ctx context.Context, req RunnerResultReportRequest, meta RequestContext) (RunnerResultReportResponse, *ErrorResponse) {
@@ -89,23 +78,44 @@ func (s *Service) HandleRunnerResultReport(ctx context.Context, req RunnerResult
 		return RunnerResultReportResponse{}, &errOut
 	}
 	if !accepted {
-		canonical, _, lookupErr := s.currentCanonicalLifecycleForRun(prep.runID)
-		if lookupErr != nil {
-			errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, lookupErr.Error())
-			return RunnerResultReportResponse{}, &errOut
-		}
-		return s.buildRunnerResultReportResponse(prep.requestID, prep.runID, canonical, req.Report.IdempotencyKey, false)
+		return s.buildRunnerResultResponseFromCanonical(prep.requestID, prep.runID, req.Report.IdempotencyKey, false)
 	}
-	if err := s.SetRunStatus(prep.runID, mapLifecycleToStoreStatus(req.Report.LifecycleState)); err != nil {
+	if errResp := s.persistRunnerResultSideEffects(prep, req.Report); errResp != nil {
+		return RunnerResultReportResponse{}, errResp
+	}
+	return s.buildRunnerResultResponseFromCanonical(prep.requestID, prep.runID, req.Report.IdempotencyKey, true)
+}
+
+func (s *Service) persistRunnerCheckpointSideEffects(prep runnerReportPreparation, report RunnerCheckpointReport) *ErrorResponse {
+	if err := s.SetRunStatus(prep.runID, mapLifecycleToStoreStatus(report.LifecycleState)); err != nil {
 		errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, err.Error())
-		return RunnerResultReportResponse{}, &errOut
+		return &errOut
 	}
-	canonical, _, err := s.currentCanonicalLifecycleForRun(prep.runID)
-	if err != nil {
+	if err := s.syncSessionExecutionForRun(prep.runID, prep.occurred); err != nil {
 		errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, err.Error())
-		return RunnerResultReportResponse{}, &errOut
+		return &errOut
 	}
-	return s.buildRunnerResultReportResponse(prep.requestID, prep.runID, canonical, req.Report.IdempotencyKey, true)
+	if err := s.appendRunnerCheckpointExecutionCheckpoint(prep.runID, report.CheckpointCode); err != nil {
+		errOut := s.makeError(prep.requestID, "broker_storage_write_failed", "storage", false, err.Error())
+		return &errOut
+	}
+	return nil
+}
+
+func (s *Service) persistRunnerResultSideEffects(prep runnerReportPreparation, report RunnerResultReport) *ErrorResponse {
+	if err := s.SetRunStatus(prep.runID, mapLifecycleToStoreStatus(report.LifecycleState)); err != nil {
+		errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, err.Error())
+		return &errOut
+	}
+	if err := s.syncSessionExecutionForRun(prep.runID, prep.occurred); err != nil {
+		errOut := s.makeError(prep.requestID, "gateway_failure", "internal", false, err.Error())
+		return &errOut
+	}
+	if err := s.appendRunnerResultExecutionCheckpoint(prep.runID, report.ResultCode, report.LifecycleState); err != nil {
+		errOut := s.makeError(prep.requestID, "broker_storage_write_failed", "storage", false, err.Error())
+		return &errOut
+	}
+	return nil
 }
 
 func (s *Service) prepareRunnerCheckpointReport(ctx context.Context, req RunnerCheckpointReportRequest, meta RequestContext) (runnerReportPreparation, func(), *ErrorResponse) {
@@ -209,6 +219,12 @@ func (s *Service) buildRunnerResultReportResponse(requestID, runID, canonical, i
 }
 
 func noOpRelease() {}
+
+func (s *Service) syncSessionExecutionForRun(runID string, occurredAt time.Time) error {
+	facts := s.RuntimeFacts(runID)
+	runnerAdvisory, _ := s.RunnerAdvisory(runID)
+	return s.SyncSessionExecutionFromRunRuntime(runID, facts, runnerAdvisory, occurredAt)
+}
 
 func (s *Service) currentCanonicalLifecycleForRun(runID string) (string, bool, error) {
 	trimmedRunID := strings.TrimSpace(runID)

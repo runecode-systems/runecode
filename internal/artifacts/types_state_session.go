@@ -14,6 +14,7 @@ type SessionDurableState struct {
 	LastActivityAt                   time.Time                                           `json:"last_activity_at"`
 	LastActivityKind                 string                                              `json:"last_activity_kind"`
 	LastActivityPreview              string                                              `json:"last_activity_preview,omitempty"`
+	LastInteractionSequence          int64                                               `json:"last_interaction_sequence"`
 	TurnCount                        int                                                 `json:"turn_count"`
 	HasIncompleteTurn                bool                                                `json:"has_incomplete_turn"`
 	TranscriptTurns                  []SessionTranscriptTurnDurableState                 `json:"transcript_turns,omitempty"`

@@ -146,6 +146,7 @@ func newSessionStateFromAppendRequest(req SessionMessageAppendRequest) SessionDu
 		WorkPosture:                      "running",
 		LastActivityAt:                   req.OccurredAt,
 		LastActivityKind:                 "chat_message",
+		LastInteractionSequence:          0,
 		HasIncompleteTurn:                false,
 		IdempotencyByKey:                 map[string]SessionIdempotencyRecord{},
 		ExecutionTriggerIdempotencyByKey: map[string]SessionExecutionTriggerIdempotencyRecord{},
@@ -182,12 +183,13 @@ func appendSessionTranscriptMessage(session *SessionDurableState, req SessionMes
 	session.LastActivityAt = req.OccurredAt
 	session.LastActivityKind = "chat_message"
 	session.LastActivityPreview = req.ContentText
+	session.LastInteractionSequence++
 	session.HasIncompleteTurn = false
 	session.Status = "active"
 	session.WorkPosture = "running"
 	session.WorkPostureReason = ""
 	session.LinkedRunIDs = mergeSessionLinkedRunIDs(session.LinkedRunIDs, req.RelatedLinks.RunIDs)
-	seq := int64(session.TurnCount)
+	seq := session.LastInteractionSequence
 	return turn, message, seq
 }
 

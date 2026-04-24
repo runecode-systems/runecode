@@ -2,10 +2,12 @@ package brokerapi
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/projectsubstrate"
 )
 
@@ -167,8 +169,81 @@ func TestSessionExecutionTriggerContinueRejectsBlockedTurnResume(t *testing.T) {
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-blocked-resume", "sess-blocked-resume")
 	start := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-blocked-resume-start", SessionID: "sess-blocked-resume", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "start"})
 	markSessionExecutionBlocked(t, s, start.TurnID, "sess-blocked-resume")
-	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-blocked-resume-continue", SessionID: "sess-blocked-resume", TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue"}, RequestContext{})
-	assertSessionExecutionContinueBlocked(t, errResp, "broker_session_execution_continue_missing_execution")
+	resp, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-blocked-resume-continue", SessionID: "sess-blocked-resume", TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue"}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleSessionExecutionTrigger returned error: %+v", errResp)
+	}
+	if resp.ExecutionState != "running" {
+		t.Fatalf("execution_state = %q, want running", resp.ExecutionState)
+	}
+}
+
+func TestSessionExecutionTriggerAutonomousOperatorGuidedStartsWaitingForOperatorInput(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-autonomous", "sess-trigger-autonomous")
+	ack := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-autonomous", SessionID: "sess-trigger-autonomous", TriggerSource: "autonomous_background", RequestedOperation: "start", AutonomyPosture: "operator_guided", UserMessageContentText: "background step"})
+	if ack.ExecutionState != "waiting" {
+		t.Fatalf("execution_state = %q, want waiting", ack.ExecutionState)
+	}
+	getResp := mustSessionGet(t, s, "req-session-trigger-autonomous-get", "sess-trigger-autonomous")
+	if getResp.Session.CurrentTurnExecution == nil {
+		t.Fatal("current_turn_execution missing")
+	}
+	if getResp.Session.CurrentTurnExecution.WaitKind != "operator_input" {
+		t.Fatalf("wait_kind = %q, want operator_input", getResp.Session.CurrentTurnExecution.WaitKind)
+	}
+	if getResp.Session.CurrentTurnExecution.WaitState != "waiting_operator_input" {
+		t.Fatalf("wait_state = %q, want waiting_operator_input", getResp.Session.CurrentTurnExecution.WaitState)
+	}
+}
+
+func TestSessionExecutionTriggerContinueRejectsWaitingApprovalUntilApprovalResolves(t *testing.T) {
+	s, unapproved, requestEnv, decisionEnv := setupServiceWithApprovalFixture(t)
+	approvalID := approvalIDForBrokerTest(t, requestEnv)
+	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, approvalID)
+	storedApproval := mustApprovalGet(t, s, approvalID)
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-approval", "sess-trigger-waiting-approval")
+	ack := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-waiting-approval-start", SessionID: "sess-trigger-waiting-approval", TriggerSource: "autonomous_background", RequestedOperation: "start", AutonomyPosture: "balanced", UserMessageContentText: "background step"})
+	if ack.ExecutionState != "waiting" {
+		t.Fatalf("execution_state = %q, want waiting", ack.ExecutionState)
+	}
+	if err := s.RecordRunnerApprovalWait(artifacts.RunnerApproval{ApprovalID: approvalID, RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", RoleInstanceID: "role-1", Status: "pending", ApprovalType: "exact_action", BoundActionHash: storedApproval.ActionRequestHash, OccurredAt: s.currentTimestamp()}); err != nil {
+		t.Fatalf("RecordRunnerApprovalWait returned error: %v", err)
+	}
+	if err := s.syncSessionExecutionForRun("run-approval", s.currentTimestamp()); err != nil {
+		t.Fatalf("syncSessionExecutionForRun returned error: %v", err)
+	}
+	getResp := mustSessionGet(t, s, "req-session-trigger-waiting-approval-get", "sess-trigger-waiting-approval")
+	exec := requireCurrentSessionExecution(t, getResp.Session)
+	if exec.PendingApprovalID != approvalID {
+		t.Fatalf("pending_approval_id = %q, want %q", exec.PendingApprovalID, approvalID)
+	}
+	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-waiting-approval-continue-blocked", SessionID: "sess-trigger-waiting-approval", TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue"}, RequestContext{})
+	assertSessionExecutionContinueBlocked(t, errResp, "broker_session_execution_continue_waiting_approval")
+	resolveReq := ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-waiting-approval-resolve", ApprovalID: approvalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-approval"), RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", ActionKind: policyengine.ActionKindPromotion, PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: unapproved.Digest, Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *requestEnv, SignedApprovalDecision: *decisionEnv}
+	if _, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{}); errResp != nil {
+		t.Fatalf("HandleApprovalResolve error response: %+v", errResp)
+	}
+	resolved := mustSessionGet(t, s, "req-session-trigger-waiting-approval-get-resolved", "sess-trigger-waiting-approval")
+	resolvedExec := requireCurrentSessionExecution(t, resolved.Session)
+	if resolvedExec.WaitKind != "" {
+		t.Fatalf("wait_kind after resolve = %q, want empty", resolvedExec.WaitKind)
+	}
+	resp, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-waiting-approval-continue-resolved", SessionID: "sess-trigger-waiting-approval", TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue"}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleSessionExecutionTrigger returned error: %+v", errResp)
+	}
+	if resp.ExecutionState != "running" {
+		t.Fatalf("execution_state = %q, want running", resp.ExecutionState)
+	}
+}
+
+func TestSessionExecutionTriggerRejectsUserMessageContentTextAboveSchemaLimit(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-message-limit", "sess-trigger-message-limit")
+	tooLong := strings.Repeat("x", 32769)
+	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-message-limit", SessionID: "sess-trigger-message-limit", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: tooLong}, RequestContext{})
+	assertSessionExecutionContinueBlocked(t, errResp, "broker_validation_schema_invalid")
 }
 
 func TestSessionExecutionTriggerContinueFailsClosedWithoutResumableExecution(t *testing.T) {

@@ -1,6 +1,10 @@
 package brokerapi
 
-import "sort"
+import (
+	"sort"
+	"strings"
+	"time"
+)
 
 func (s *Service) StreamRunWatchEvents(req RunWatchRequest) ([]RunWatchEvent, error) {
 	defer finalizeRunWatchRequest(req)
@@ -168,7 +172,7 @@ func sessionWatchEventsFromSummaries(req SessionWatchRequest, sessions []Session
 }
 
 func sessionTurnExecutionWatchEventsFromStates(req SessionTurnExecutionWatchRequest, executions []SessionTurnExecution) []SessionTurnExecutionWatchEvent {
-	events := make([]SessionTurnExecutionWatchEvent, 0, 3)
+	events := make([]SessionTurnExecutionWatchEvent, 0, 3+len(executions))
 	seq := int64(1)
 	if req.IncludeSnapshot && len(executions) > 0 {
 		events = append(events, sessionTurnExecutionWatchSnapshotEvent(req, seq, executions[0]))
@@ -178,10 +182,86 @@ func sessionTurnExecutionWatchEventsFromStates(req SessionTurnExecutionWatchRequ
 		events = append(events, sessionTurnExecutionWatchTerminalFromContextErr(req.StreamID, req.RequestID, seq, err))
 		return events
 	}
-	if req.Follow && len(executions) > 0 {
-		events = append(events, sessionTurnExecutionWatchUpsertEvent(req, seq, executions))
-		seq++
+	if req.Follow {
+		for _, execution := range sessionTurnExecutionFollowCandidates(executions, req.IncludeSnapshot) {
+			events = append(events, sessionTurnExecutionWatchUpsertEventForExecution(req, seq, execution))
+			seq++
+		}
 	}
 	events = append(events, completedSessionTurnExecutionWatchTerminal(req, seq))
 	return events
+}
+
+func sessionTurnExecutionFollowCandidates(executions []SessionTurnExecution, includeSnapshot bool) []SessionTurnExecution {
+	if len(executions) == 0 {
+		return nil
+	}
+	if !includeSnapshot {
+		return executions
+	}
+	if len(executions) == 1 {
+		return nil
+	}
+	snapshot := executions[0]
+	out := make([]SessionTurnExecution, 0, len(executions)-1)
+	for idx := 1; idx < len(executions); idx++ {
+		candidate := executions[idx]
+		if sessionTurnExecutionEquivalentForFollow(candidate, snapshot) {
+			continue
+		}
+		out = append(out, candidate)
+	}
+	return out
+}
+
+func sessionTurnExecutionEquivalentForFollow(candidate, snapshot SessionTurnExecution) bool {
+	if !sameSessionTurnIdentity(candidate, snapshot) {
+		return false
+	}
+	if candidate.ExecutionIndex != snapshot.ExecutionIndex {
+		return false
+	}
+	if !sameInstant(candidate.UpdatedAt, snapshot.UpdatedAt) {
+		return false
+	}
+	if !sameInstant(candidate.CreatedAt, snapshot.CreatedAt) {
+		return false
+	}
+	if strings.TrimSpace(candidate.ExecutionState) != strings.TrimSpace(snapshot.ExecutionState) {
+		return false
+	}
+	if strings.TrimSpace(candidate.WaitKind) != strings.TrimSpace(snapshot.WaitKind) {
+		return false
+	}
+	if strings.TrimSpace(candidate.WaitState) != strings.TrimSpace(snapshot.WaitState) {
+		return false
+	}
+	if strings.TrimSpace(candidate.BlockedReasonCode) != strings.TrimSpace(snapshot.BlockedReasonCode) {
+		return false
+	}
+	return true
+}
+
+func sameSessionTurnIdentity(candidate, snapshot SessionTurnExecution) bool {
+	if strings.TrimSpace(candidate.SessionID) != strings.TrimSpace(snapshot.SessionID) {
+		return false
+	}
+	candidateTurnID := strings.TrimSpace(candidate.TurnID)
+	snapshotTurnID := strings.TrimSpace(snapshot.TurnID)
+	if candidateTurnID == "" || snapshotTurnID == "" {
+		return false
+	}
+	return candidateTurnID == snapshotTurnID
+}
+
+func sameInstant(a, b string) bool {
+	if strings.TrimSpace(a) == "" || strings.TrimSpace(b) == "" {
+		return strings.TrimSpace(a) == strings.TrimSpace(b)
+	}
+	parsedA, errA := time.Parse(time.RFC3339, strings.TrimSpace(a))
+	parsedB, errB := time.Parse(time.RFC3339, strings.TrimSpace(b))
+	if errA != nil || errB != nil {
+		return strings.TrimSpace(a) == strings.TrimSpace(b)
+	}
+	return parsedA.Equal(parsedB)
 }

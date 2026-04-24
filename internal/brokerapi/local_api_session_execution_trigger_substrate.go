@@ -10,7 +10,7 @@ import (
 func (s *Service) requireCurrentSessionExecutionDigest(requestID string, session artifacts.SessionDurableState, target artifacts.SessionTurnExecutionDurableState) (string, *ErrorResponse) {
 	project, errResp := s.requireSupportedProjectSubstrateForSessionExecution(requestID)
 	if errResp != nil {
-		reason := firstReasonCodeFromMessage(errResp.Error.Message, sessionExecutionBlockedReasonProjectSubstratePosture)
+		reason := sessionExecutionBlockedReasonProjectSubstratePosture
 		_ = s.markTurnExecutionProjectBlocked(session.SessionID, target, reason, s.currentTimestamp())
 		return "", errResp
 	}
@@ -48,23 +48,6 @@ func projectBlockedReason(project projectsubstrate.DiscoveryResult) string {
 	}
 	return "project_substrate_" + strings.ReplaceAll(posture, " ", "_")
 }
-
-func firstReasonCodeFromMessage(message string, fallback string) string {
-	trimmed := strings.TrimSpace(message)
-	if trimmed == "" {
-		return fallback
-	}
-	idx := strings.LastIndex(trimmed, ":")
-	if idx < 0 || idx == len(trimmed)-1 {
-		return fallback
-	}
-	reason := strings.TrimSpace(trimmed[idx+1:])
-	if reason == "" {
-		return fallback
-	}
-	return strings.ReplaceAll(reason, ",", "_")
-}
-
 func (s *Service) requireSupportedProjectSubstrateForSessionExecution(requestID string) (projectsubstrate.DiscoveryResult, *ErrorResponse) {
 	project, err := s.discoverProjectSubstrate()
 	if err != nil {

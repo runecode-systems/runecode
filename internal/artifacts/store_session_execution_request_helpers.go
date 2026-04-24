@@ -46,6 +46,12 @@ type SessionTurnExecutionUpdateRequest struct {
 	ExecutionState                       string
 	WaitKind                             string
 	WaitState                            string
+	PrimaryRunID                         string
+	PendingApprovalID                    string
+	LinkedRunIDs                         []string
+	LinkedApprovalIDs                    []string
+	LinkedArtifactDigests                []string
+	LinkedAuditRecordDigests             []string
 	BlockedReasonCode                    string
 	TerminalOutcome                      string
 	BoundValidatedProjectSubstrateDigest string
@@ -75,6 +81,12 @@ func normalizeSessionExecutionTriggerAppendRequest(req SessionExecutionTriggerAp
 	normalized.BoundValidatedProjectSubstrateDigest = strings.TrimSpace(req.BoundValidatedProjectSubstrateDigest)
 	normalized.WaitKind = strings.TrimSpace(req.WaitKind)
 	normalized.WaitState = strings.TrimSpace(req.WaitState)
+	normalized.PrimaryRunID = strings.TrimSpace(req.PrimaryRunID)
+	normalized.PendingApprovalID = strings.TrimSpace(req.PendingApprovalID)
+	normalized.LinkedRunIDs = uniqueSortedStrings(req.LinkedRunIDs)
+	normalized.LinkedApprovalIDs = uniqueSortedStrings(req.LinkedApprovalIDs)
+	normalized.LinkedArtifactDigests = uniqueSortedStrings(req.LinkedArtifactDigests)
+	normalized.LinkedAuditRecordDigests = uniqueSortedStrings(req.LinkedAuditRecordDigests)
 	normalized.BlockedReasonCode = strings.TrimSpace(req.BlockedReasonCode)
 	normalized.TerminalOutcome = strings.TrimSpace(req.TerminalOutcome)
 	normalized.ExecutionState = defaultSessionExecutionState(req.ExecutionState)
@@ -176,6 +188,7 @@ func newSessionStateFromExecutionTriggerAppendRequest(req SessionExecutionTrigge
 		WorkPosture:                      "running",
 		LastActivityAt:                   req.OccurredAt,
 		LastActivityKind:                 "execution_trigger_submitted",
+		LastInteractionSequence:          0,
 		HasIncompleteTurn:                false,
 		IdempotencyByKey:                 map[string]SessionIdempotencyRecord{},
 		ExecutionTriggerIdempotencyByKey: map[string]SessionExecutionTriggerIdempotencyRecord{},

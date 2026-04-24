@@ -20,6 +20,10 @@ func (s *Service) RecordRuntimeFacts(runID string, facts launcherbackend.Runtime
 	if err := s.store.RecordRuntimeEvidenceState(normalizedRunID, facts, evidence, lifecycle); err != nil {
 		return err
 	}
+	runnerAdvisory, _ := s.RunnerAdvisory(normalizedRunID)
+	if err := s.SyncSessionExecutionFromRunRuntime(normalizedRunID, facts, runnerAdvisory, s.now().UTC()); err != nil {
+		return err
+	}
 	if err := s.emitRuntimeEvidenceAuditEvents(normalizedRunID, facts, evidence); err != nil {
 		return err
 	}

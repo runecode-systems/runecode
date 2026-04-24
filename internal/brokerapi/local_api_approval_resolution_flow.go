@@ -77,17 +77,36 @@ func (s *Service) enforcePendingApprovalFreshness(requestID string, current appr
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "stored pending approval has invalid expires_at")
 		return &errOut
 	}
-	if !s.now().UTC().Before(expiresAt) {
-		expiredRecord, err := s.buildExpiredApprovalRecord(current)
-		if err != nil {
-			errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
-			return &errOut
-		}
-		if persistErr := s.persistApprovalRecord(expiredRecord); persistErr != nil {
-			errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, persistErr.Error())
-			return &errOut
-		}
-		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, fmt.Sprintf("approval %q is expired", current.Summary.ApprovalID))
+	if s.now().UTC().Before(expiresAt) {
+		return nil
+	}
+	return s.expirePendingApproval(requestID, current)
+}
+
+func (s *Service) expirePendingApproval(requestID string, current approvalRecord) *ErrorResponse {
+	expiredRecord, err := s.buildExpiredApprovalRecord(current)
+	if err != nil {
+		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
+		return &errOut
+	}
+	if persistErr := s.persistApprovalRecord(expiredRecord); persistErr != nil {
+		errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, persistErr.Error())
+		return &errOut
+	}
+	if errResp := s.syncExpiredApprovalRun(requestID, current); errResp != nil {
+		return errResp
+	}
+	errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, fmt.Sprintf("approval %q is expired", current.Summary.ApprovalID))
+	return &errOut
+}
+
+func (s *Service) syncExpiredApprovalRun(requestID string, current approvalRecord) *ErrorResponse {
+	runID := strings.TrimSpace(current.Summary.BoundScope.RunID)
+	if runID == "" {
+		return nil
+	}
+	if err := s.syncSessionExecutionForRun(runID, s.now().UTC()); err != nil {
+		errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, err.Error())
 		return &errOut
 	}
 	return nil
@@ -139,6 +158,12 @@ func (s *Service) resumeBackendPostureApproval(requestID string, req ApprovalRes
 	if err := s.applyResolvedBackendPosture(current, req); err != nil {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, err.Error())
 		return approvalResumeResult{}, &errOut
+	}
+	if strings.TrimSpace(current.Summary.BoundScope.RunID) != "" {
+		if err := s.syncSessionExecutionForRun(current.Summary.BoundScope.RunID, s.now().UTC()); err != nil {
+			errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, err.Error())
+			return approvalResumeResult{}, &errOut
+		}
 	}
 	return approvalResumeResult{statusOverride: "consumed", resolutionReason: "approval_consumed"}, nil
 }

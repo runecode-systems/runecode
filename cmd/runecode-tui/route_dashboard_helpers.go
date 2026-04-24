@@ -222,7 +222,8 @@ func renderDashboardProjectSubstrateGuidance(posture brokerapi.ProjectSubstrateP
 		parts = append(parts, "Project substrate block: "+sanitizeUIText(posture.BlockedExplanation))
 	}
 	if len(posture.RemediationGuidance) > 0 {
-		parts = append(parts, "Project substrate remediation: "+joinCSVWithWrapHint(posture.RemediationGuidance))
+		parts = append(parts, "Project substrate remediation:")
+		parts = append(parts, joinCSVWithWrapHint(posture.RemediationGuidance))
 	}
 	if strings.TrimSpace(posture.InitPreview.Status) != "" {
 		parts = append(parts, fmt.Sprintf("Project substrate init=%s", posture.InitPreview.Status))

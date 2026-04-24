@@ -100,6 +100,18 @@ func sessionTurnExecutionWatchUpsertEvent(req SessionTurnExecutionWatchRequest, 
 	}
 }
 
+func sessionTurnExecutionWatchUpsertEventForExecution(req SessionTurnExecutionWatchRequest, seq int64, execution SessionTurnExecution) SessionTurnExecutionWatchEvent {
+	return SessionTurnExecutionWatchEvent{
+		SchemaID:      "runecode.protocol.v0.SessionTurnExecutionWatchEvent",
+		SchemaVersion: "0.1.0",
+		StreamID:      req.StreamID,
+		RequestID:     req.RequestID,
+		Seq:           seq,
+		EventType:     "session_turn_execution_watch_upsert",
+		TurnExecution: ptrSessionTurnExecution(execution),
+	}
+}
+
 func watchUpsertIndex(includeSnapshot bool, total int) int {
 	if includeSnapshot && total > 1 {
 		return 1

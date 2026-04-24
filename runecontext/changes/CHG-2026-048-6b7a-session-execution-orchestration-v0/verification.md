@@ -1,9 +1,14 @@
 # Verification
 
-## Planned Checks
+## Checks
 - `runectx validate --json`
 - `runectx status --json`
 - `just test`
+
+## Completed Checks
+- `go test ./internal/artifacts ./internal/brokerapi ./cmd/runecode-tui`
+- `go test ./internal/brokerapi`
+- `just ci`
 
 ## Verification Notes
 - Confirm live chat and autonomous mode both route through the same session execution model.
@@ -31,3 +36,8 @@
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.
+
+## Implementation Notes
+- Session execution triggers now bridge into the canonical run/runtime pipeline instead of acting as chat-local state.
+- Turn execution state now distinguishes transcript checkpoints from advisory execution watch updates and preserves canonical links to runs, approvals, artifacts, and audit records.
+- `continue` now fails closed for `waiting_approval` turns until approval resolution clears the wait through broker-owned approval sync.

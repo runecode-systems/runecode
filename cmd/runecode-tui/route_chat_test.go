@@ -178,6 +178,39 @@ func TestChatRouteComposeSendsTypedSessionMessageRequest(t *testing.T) {
 	}
 }
 
+func TestChatRouteComposeStartsContinuousExecutionWatchPolling(t *testing.T) {
+	spy := &chatBrokerClientSpy{}
+	model := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, spy)
+
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeChat})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
+	if cmd == nil {
+		t.Fatal("expected send command from compose alt+enter")
+	}
+	updated, cmd = updated.Update(cmd())
+	if cmd == nil {
+		t.Fatal("expected watch polling command after send")
+	}
+	chat := updated.(chatRouteModel)
+	if !chat.watching {
+		t.Fatal("expected continuous watch polling enabled")
+	}
+	if chat.watchTrigger != "trigger-send" {
+		t.Fatalf("watch trigger = %q, want trigger-send", chat.watchTrigger)
+	}
+	if chat.watchSession != "session-1" {
+		t.Fatalf("watch session = %q, want session-1", chat.watchSession)
+	}
+}
+
 func TestChatRouteComposeSupportsMultilineBracketedPaste(t *testing.T) {
 	model := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, &fakeBrokerClient{})
 
@@ -246,5 +279,11 @@ func TestChatRouteComposeUsesTurnExecutionWatchStateOverTriggerAck(t *testing.T)
 	view := updated.View(120, 40, focusContent)
 	if !strings.Contains(view, "Status: Execution progress: blocked (waiting_project_blocked)") {
 		t.Fatalf("expected status from turn execution watch blocked state, got %q", view)
+	}
+	if !strings.Contains(view, "Follow-up: Remediation:") {
+		t.Fatalf("expected remediation posture follow-up in view, got %q", view)
+	}
+	if !strings.Contains(view, "execution watch is advisory live state") {
+		t.Fatalf("expected transcript/execution separation hint in view, got %q", view)
 	}
 }

@@ -26,7 +26,7 @@ func buildSessionExecutionTriggerAckResponse(requestID, sessionID string, trigge
 	}
 }
 
-func newContinuedSessionExecutionTriggerResponse(requestID string, req SessionExecutionTriggerRequest, updated artifacts.SessionTurnExecutionDurableState) SessionExecutionTriggerResponse {
+func newContinuedSessionExecutionTriggerResponse(requestID string, req SessionExecutionTriggerRequest, updated artifacts.SessionTurnExecutionDurableState, seq int64) SessionExecutionTriggerResponse {
 	return SessionExecutionTriggerResponse{
 		SchemaID:               "runecode.protocol.v0.SessionExecutionTriggerResponse",
 		SchemaVersion:          "0.1.0",
@@ -42,6 +42,6 @@ func newContinuedSessionExecutionTriggerResponse(requestID string, req SessionEx
 		UserMessageContentText: strings.TrimSpace(req.UserMessageContentText),
 		EventType:              "session_execution_trigger_ack",
 		StreamID:               sessionInteractionStreamID(req.SessionID),
-		Seq:                    int64(updated.ExecutionIndex),
+		Seq:                    seq,
 	}
 }
