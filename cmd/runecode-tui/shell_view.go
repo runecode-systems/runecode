@@ -58,7 +58,7 @@ func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, la
 
 func (m shellModel) writeShellFooter(b *strings.Builder) {
 	viewportWidth, _ := normalizedShellViewport(m.width, m.height)
-	b.WriteString(constrainShellBlock(renderHelp(m.keys, m.palette.IsOpen() || m.sessions.IsOpen()), viewportWidth, 1))
+	b.WriteString(constrainShellBlock(renderHelp(m.keys, m.commandOverlayOpen(), m.actions), viewportWidth, 1))
 	b.WriteString("\n")
 	b.WriteString(constrainShellBlock(muted(localBrokerBoundaryPosture()), viewportWidth, 1))
 	b.WriteString("\n")
@@ -119,6 +119,10 @@ func (m shellModel) activeOverlayBody(surface routeSurface, layout shellLayoutPl
 		return compactLines(m.renderOverlayStack(), centeredOverlayBlockBounded(overlayIDQuickJump, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderPalette()), overlayWidth, remainingHeight))
 	case m.sessions.IsOpen():
 		return compactLines(m.renderOverlayStack(), centeredOverlayBlockBounded(overlayIDSessions, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderSessionQuickSwitcher()), overlayWidth, remainingHeight))
+	case m.leader.Active():
+		return compactLines(m.renderOverlayStack(), centeredOverlayBlockBounded(overlayIDLeader, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderLeaderWhichKey()), overlayWidth, remainingHeight))
+	case m.quitConfirm.active:
+		return compactLines(m.renderOverlayStack(), centeredOverlayBlockBounded(overlayIDQuitConfirm, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderQuitConfirmDialog()), overlayWidth, remainingHeight))
 	case m.narrowSidebarOn && m.breakpoint() == shellBreakpointNarrow:
 		return compactLines(m.renderOverlayStack(), centeredOverlayBlockBounded(overlayIDSidebar, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderSidebar()), overlayWidth, remainingHeight))
 	case m.narrowInspectOn && m.breakpoint() == shellBreakpointNarrow:
@@ -358,71 +362,9 @@ func (m shellModel) renderSidebar() string {
 	lines = append(lines, tableHeader("Navigation"))
 	lines = m.appendSidebarRouteLines(lines, cursor, width)
 	lines = m.appendSidebarSessionLines(lines, entries, cursor, width)
+	if m.sidebarActionEntryCount() > 0 {
+		lines = append(lines, "", tableHeader("Actions"))
+		lines = m.appendSidebarActionLines(lines, entries, cursor, width)
+	}
 	return strings.Join(lines, "\n")
-}
-
-func (m shellModel) renderBottomStrip(surface routeSurface) string {
-	bottom := strings.TrimSpace(surface.Regions.Bottom.Body)
-	if bottom == "" {
-		bottom = muted("No route composer or status actions for this screen.")
-	}
-	selectionHint := "Selection mode off; mouse capture remains enabled."
-	if m.selectionMode {
-		selectionHint = "Selection mode on; drag-to-select is enabled until you exit it."
-	}
-	return compactLines(
-		tableHeader("Bottom strip"),
-		bottom,
-		m.renderRouteActionHints(surface),
-		m.renderRouteCopyActions(),
-		selectionHint,
-	)
-}
-
-func (m shellModel) renderRouteActionHints(surface routeSurface) string {
-	parts := []string{}
-	if len(surface.Actions.ReferenceActions) > 0 {
-		parts = append(parts, fmt.Sprintf("Linked refs actionable=%d", len(surface.Actions.ReferenceActions)))
-	}
-	if len(surface.Actions.LocalActions) > 0 {
-		parts = append(parts, fmt.Sprintf("Local actions executable=%d", len(surface.Actions.LocalActions)))
-	}
-	if len(parts) == 0 {
-		return muted("Actionable refs/actions: none for the current view")
-	}
-	return "Actionable refs/actions: " + strings.Join(parts, " | ")
-}
-
-func (m shellModel) renderStatusSurface(surface routeSurface) string {
-	status := strings.TrimSpace(surface.Regions.Status.Body)
-	if status == "" {
-		status = fmt.Sprintf("route=%s", m.routeLabel(m.currentRouteID()))
-	}
-	selection := "selection=off"
-	if m.selectionMode {
-		selection = "selection=on"
-	}
-	return "Status: " + status + " | " + selection + " | clipboard=" + sanitizeUIText(m.clipboard.IntegrationHint())
-}
-
-func (m shellModel) renderRouteCopyActions() string {
-	actions := m.activeShellSurface().Actions.CopyActions
-	if len(actions) == 0 {
-		return muted("Copy actions: none (use terminal selection for long-form text).")
-	}
-	items := make([]string, 0, len(actions))
-	for i, action := range actions {
-		label := strings.TrimSpace(action.Label)
-		if label == "" {
-			label = strings.TrimSpace(action.ID)
-		}
-		if label == "" {
-			label = fmt.Sprintf("copy-%d", i+1)
-		}
-		if i == m.copyActionIndex {
-			label = "[next:" + label + "]"
-		}
-		items = append(items, label)
-	}
-	return "Copy actions (Y cycles/copies): " + strings.Join(items, " | ")
 }

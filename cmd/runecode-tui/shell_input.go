@@ -8,28 +8,16 @@ import (
 
 func (m shellModel) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	for _, handler := range []func(tea.KeyMsg) (tea.Model, tea.Cmd, bool){
+		m.handleCommandModeActiveKey,
+		m.handleLeaderActiveKey,
+		m.handleOpenCommandModeKey,
+		m.handleOpenLeaderKey,
 		m.handleOpenPaletteKey,
 		m.handleOpenSessionQuickSwitchKey,
-		m.handleQuickJumpRouteKey,
-		m.handleToggleSidebarKey,
-		m.handleCopyIdentityKey,
-		m.handleCopyRouteActionKey,
-		m.handleToggleSelectionModeKey,
-		m.handleRunCommandKey,
-		m.handleCycleThemeKey,
-		m.handleLayoutSidebarWiderKey,
-		m.handleLayoutSidebarNarrowerKey,
-		m.handleLayoutInspectorWiderKey,
-		m.handleLayoutInspectorNarrowerKey,
-		m.handleLayoutToggleSidebarCollapseKey,
-		m.handleLayoutToggleInspectorCollapseKey,
 		m.handleEscapeCloseNarrowOverlaysKey,
-		m.handleNarrowInspectorHotkey,
-		m.handleBackRouteKey,
 		m.handleCycleFocusNextKey,
 		m.handleCycleFocusPrevKey,
 		m.handleNavFocusKeys,
-		m.handleScrollKeys,
 	} {
 		if updated, cmd, handled := handler(key); handled {
 			return updated, cmd
@@ -43,8 +31,68 @@ func (m shellModel) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return shell, cmd
 }
 
+func (m shellModel) handleOpenLeaderKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	if m.leader.Active() || !m.keys.LeaderStart.matches(key) {
+		return m, nil, false
+	}
+	if !m.shellPowerKeysAllowed() {
+		return m, nil, false
+	}
+	if strings.TrimSpace(m.leaderKeyInvalid) != "" {
+		m.toasts.Push(toastWarn, "Leader key is invalid: "+m.leaderKeyInvalid)
+		return m, nil, true
+	}
+	m.leader.Rebind(m.actions.leaderBindings(m))
+	m.beginOverlaySession()
+	m.leader.Start()
+	m.setFocus(focusPalette)
+	m.syncOverlayStack()
+	return m, nil, true
+}
+
+func (m shellModel) handleLeaderActiveKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	if !m.leader.Active() {
+		return m, nil, false
+	}
+	if key.Type == tea.KeyEsc {
+		m.leader.Abort()
+		m.syncOverlayStack()
+		m.restoreFocusAfterOverlayClose()
+		m.toasts.Push(toastInfo, "Leader mode aborted.")
+		return m, nil, true
+	}
+	token, ok := leaderTokenFromKey(key)
+	if !ok {
+		prior := append([]string(nil), m.leader.prefix...)
+		m.leader.Abort()
+		m.syncOverlayStack()
+		m.restoreFocusAfterOverlayClose()
+		m.toasts.Push(toastWarn, formatLeaderInvalidKeyMessage(prior, key.String()))
+		return m, nil, true
+	}
+	prior := append([]string(nil), m.leader.prefix...)
+	action, complete := m.leader.Step(token)
+	if !complete {
+		if !m.leader.Active() {
+			m.syncOverlayStack()
+			m.restoreFocusAfterOverlayClose()
+			m.toasts.Push(toastWarn, formatLeaderInvalidKeyMessage(prior, token))
+			return m, nil, true
+		}
+		m.syncOverlayStack()
+		return m, nil, true
+	}
+	m.syncOverlayStack()
+	m.restoreFocusAfterOverlayClose()
+	updated, cmd := m.applyPaletteAction(action)
+	return updated, cmd, true
+}
+
 func (m shellModel) handleOpenPaletteKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	if !m.keys.OpenPalette.matches(key) {
+		return m, nil, false
+	}
+	if !m.shellPowerKeysAllowed() {
 		return m, nil, false
 	}
 	m.narrowSidebarOn = false
@@ -59,6 +107,9 @@ func (m shellModel) handleOpenPaletteKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bo
 
 func (m shellModel) handleOpenSessionQuickSwitchKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	if !m.keys.OpenSessionQuickSwitch.matches(key) {
+		return m, nil, false
+	}
+	if !m.shellPowerKeysAllowed() {
 		return m, nil, false
 	}
 	m.narrowSidebarOn = false
@@ -250,6 +301,9 @@ func (m shellModel) handleCycleFocusNextKey(key tea.KeyMsg) (tea.Model, tea.Cmd,
 	if !m.keys.CycleFocusNext.matches(key) {
 		return m, nil, false
 	}
+	if !m.shellFocusTraversalAllowed() {
+		return m, nil, false
+	}
 	m.focusManager.Next(m.planShellLayout(m.activeShellSurface()), m.commandOverlayOpen())
 	m.focus = m.focusManager.Current()
 	return m, nil, true
@@ -257,6 +311,9 @@ func (m shellModel) handleCycleFocusNextKey(key tea.KeyMsg) (tea.Model, tea.Cmd,
 
 func (m shellModel) handleCycleFocusPrevKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	if !m.keys.CycleFocusPrev.matches(key) {
+		return m, nil, false
+	}
+	if !m.shellFocusTraversalAllowed() {
 		return m, nil, false
 	}
 	m.focusManager.Prev(m.planShellLayout(m.activeShellSurface()), m.commandOverlayOpen())
@@ -292,6 +349,9 @@ func (m shellModel) handleNavFocusKeys(key tea.KeyMsg) (tea.Model, tea.Cmd, bool
 			return updated, cmd, true
 		case sidebarEntrySession:
 			updated, cmd := m.activateSessionFromSidebarByID(entry.Session.Identity.SessionID)
+			return updated, cmd, true
+		case sidebarEntryAction:
+			updated, cmd := m.activateSidebarAction(entry.ActionID)
 			return updated, cmd, true
 		}
 		return m, nil, true

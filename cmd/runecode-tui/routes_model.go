@@ -15,8 +15,16 @@ type routeModel interface {
 	ShellSurface(ctx routeShellContext) routeSurface
 }
 
-type routeTextEntryModel interface {
-	IsTextEntryActive() bool
+type routeKeyboardOwnership string
+
+const (
+	routeKeyboardOwnershipNormal                routeKeyboardOwnership = "normal"
+	routeKeyboardOwnershipTextEntry             routeKeyboardOwnership = "text_entry"
+	routeKeyboardOwnershipExclusiveLocalCapture routeKeyboardOwnership = "exclusive_local_capture"
+)
+
+type routeKeyboardOwnershipModel interface {
+	KeyboardOwnership() routeKeyboardOwnership
 }
 
 type routeActivatedMsg struct {

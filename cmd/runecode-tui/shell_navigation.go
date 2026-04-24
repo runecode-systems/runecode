@@ -10,6 +10,8 @@ func (m shellModel) applyPaletteAction(action paletteActionMsg) (tea.Model, tea.
 	switch action.Verb {
 	case verbBack:
 		return m.navigateBack()
+	case verbQuit:
+		return m.requestQuitAction()
 	case verbOpen:
 		return m.applyPaletteOpen(action.Target)
 	case verbInspect:
@@ -19,6 +21,19 @@ func (m shellModel) applyPaletteAction(action paletteActionMsg) (tea.Model, tea.
 	default:
 		return m, nil
 	}
+}
+
+func (m shellModel) requestQuitAction() (tea.Model, tea.Cmd) {
+	if reason, active := m.activeLocalEntryStateReason(); active {
+		m.beginOverlaySession()
+		m.quitConfirm = shellQuitConfirmState{active: true, reason: reason}
+		m.setFocus(focusPalette)
+		m.syncOverlayStack()
+		return m, nil
+	}
+	m.quitConfirm = shellQuitConfirmState{}
+	m.quitting = true
+	return m, tea.Quit
 }
 
 func (m shellModel) applyPaletteOpen(target paletteTarget) (tea.Model, tea.Cmd) {
@@ -79,7 +94,7 @@ func (m shellModel) applyPaletteTargetByKind(target paletteTarget, verb navigati
 		return m.applyPaletteInspect(target)
 	}
 	if target.Kind == "command" {
-		cmd := m.commands.Execute(target.CommandID, &m)
+		cmd := m.commands.ExecuteWithArgs(target.CommandID, target.CommandArgs, &m)
 		m.publishShellPreferencesToCurrentRoute()
 		m.persistWorkbenchState()
 		m.syncOverlayStack()
@@ -194,6 +209,28 @@ func (m shellModel) locationForAuditTarget(target paletteTarget) shellWorkbenchL
 	m.trackRecentObject(obj)
 	return shellWorkbenchLocation{Primary: shellObjectLocation{RouteID: routeAudit, Object: obj}}
 }
+
+func (m *shellModel) toggleSidebar() {
+	if m.breakpoint() == shellBreakpointNarrow {
+		m.beginOverlaySession()
+		m.narrowSidebarOn = !m.narrowSidebarOn
+		if m.narrowSidebarOn {
+			m.narrowInspectOn = false
+			m.setFocus(focusNav)
+		} else if m.focus == focusNav {
+			m.restoreFocusAfterOverlayClose()
+		}
+		m.syncOverlayStack()
+		m.toasts.Push(toastInfo, "Sidebar overlay toggled for narrow layout.")
+		return
+	}
+	m.sidebarVisible = !m.sidebarVisible
+	m.sidebarFolded = false
+	m.normalizeFocusForLayout()
+	m.persistWorkbenchState()
+	m.toasts.Push(toastInfo, "Sidebar visibility changed.")
+}
+
 func (m *shellModel) toggleActiveInspector() {
 	m.inspectorOn = !m.inspectorOn
 	if m.breakpoint() == shellBreakpointNarrow {

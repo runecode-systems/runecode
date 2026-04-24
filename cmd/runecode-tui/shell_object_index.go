@@ -32,7 +32,6 @@ type shellObjectIndexLoadedMsg struct {
 
 type shellDiscoverabilityIndex struct {
 	routes        []routeDefinition
-	commands      []shellCommand
 	sessions      map[string]brokerapi.SessionSummary
 	runs          map[string]brokerapi.RunSummary
 	approvals     map[string]brokerapi.ApprovalSummary
@@ -44,10 +43,9 @@ type shellDiscoverabilityIndex struct {
 	sessionWS     map[string]string
 }
 
-func newShellDiscoverabilityIndex(routes []routeDefinition, commands []shellCommand) shellDiscoverabilityIndex {
+func newShellDiscoverabilityIndex(routes []routeDefinition) shellDiscoverabilityIndex {
 	idx := shellDiscoverabilityIndex{
 		routes:       append([]routeDefinition(nil), routes...),
-		commands:     append([]shellCommand(nil), commands...),
 		sessions:     map[string]brokerapi.SessionSummary{},
 		runs:         map[string]brokerapi.RunSummary{},
 		approvals:    map[string]brokerapi.ApprovalSummary{},
@@ -215,7 +213,6 @@ func (idx shellDiscoverabilityIndex) appendPaletteEntries(add func(string, strin
 	idx.appendApprovalEntries(add)
 	idx.appendArtifactEntries(add)
 	idx.appendAuditEntries(add)
-	idx.appendCommandEntries(add)
 }
 
 func (idx shellDiscoverabilityIndex) appendRouteEntries(add func(string, string, string, paletteActionMsg)) {
@@ -290,17 +287,6 @@ func (idx shellDiscoverabilityIndex) appendAuditEntries(add func(string, string,
 			fmt.Sprintf("event=%s summary=%s", defaultPlaceholder(record.EventType, "n/a"), defaultPlaceholder(record.Summary, "n/a")),
 			fmt.Sprintf("audit %s %s", digest, record.EventType),
 			paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "audit", RouteID: routeAudit, Digest: digest}},
-		)
-	}
-}
-
-func (idx shellDiscoverabilityIndex) appendCommandEntries(add func(string, string, string, paletteActionMsg)) {
-	for _, cmd := range idx.commands {
-		add(
-			"open command "+cmd.Title,
-			cmd.Description,
-			"command "+cmd.ID+" "+cmd.Title+" "+cmd.Description,
-			paletteActionMsg{Verb: verbOpen, Target: paletteTarget{Kind: "command", CommandID: cmd.ID}},
 		)
 	}
 }

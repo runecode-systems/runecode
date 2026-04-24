@@ -11,6 +11,7 @@ func (m *shellModel) persistWorkbenchState() {
 		InspectorVisible:   m.inspectorOn,
 		InspectorMode:      normalizePresentationMode(m.preferredMode),
 		ThemePreset:        normalizeThemePreset(m.themePreset),
+		LeaderKey:          strings.TrimSpace(m.leaderKeyConfig),
 		LastRouteID:        m.currentRouteID(),
 		LastSessionID:      m.activeSessionID,
 		LastSessionByWS:    cloneSessionMap(m.lastSessionByWS),
@@ -72,6 +73,10 @@ func (m *shellModel) restoreWorkbenchRouteAndTheme(state workbenchLocalState) {
 		m.themePreset = themePresetDark
 	}
 	appTheme = newTheme(m.themePreset)
+	if err := m.setLeaderKey(strings.TrimSpace(state.LeaderKey)); err != nil && strings.TrimSpace(state.LeaderKey) != "" {
+		m.leaderKeyInvalid = strings.TrimSpace(state.LeaderKey)
+		m.toasts.Push(toastWarn, "Persisted leader key invalid; using default space leader.")
+	}
 }
 
 func (m *shellModel) validatedRouteID(rid routeID) routeID {
@@ -171,5 +176,5 @@ func clampPaneRatio(v float64) float64 {
 }
 
 func isZeroWorkbenchState(state workbenchLocalState) bool {
-	return state.LastRouteID == "" && state.LastSessionID == "" && len(state.PinnedSessions) == 0 && len(state.RecentSessions) == 0 && len(state.ViewedActivity) == 0 && len(state.RecentObjects) == 0 && state.ThemePreset == "" && state.SidebarPaneRatio == 0 && state.InspectorPaneRatio == 0
+	return state.LastRouteID == "" && state.LastSessionID == "" && len(state.PinnedSessions) == 0 && len(state.RecentSessions) == 0 && len(state.ViewedActivity) == 0 && len(state.RecentObjects) == 0 && state.ThemePreset == "" && strings.TrimSpace(state.LeaderKey) == "" && state.SidebarPaneRatio == 0 && state.InspectorPaneRatio == 0
 }

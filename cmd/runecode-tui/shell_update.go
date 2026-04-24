@@ -2,6 +2,7 @@ package main
 
 import (
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -12,10 +13,45 @@ func (m shellModel) handleQuitMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		return m, nil, false
 	}
 	if key.String() == "ctrl+c" {
-		m.quitting = true
-		return m, tea.Quit, true
+		if m.emergencyQuit.pending {
+			m.quitConfirm = shellQuitConfirmState{}
+			m.emergencyQuit.pending = false
+			m.quitting = true
+			return m, tea.Quit, true
+		}
+		m.emergencyQuit.pending = true
+		m.emergencyQuit.token++
+		token := m.emergencyQuit.token
+		cmd := tea.Tick(emergencyQuitArmWindow, func(time.Time) tea.Msg {
+			return shellEmergencyQuitTimeoutMsg{token: token}
+		})
+		m.commandMode = m.commandMode.Abort()
+		m.leader.Abort()
+		m.quitConfirm = shellQuitConfirmState{}
+		m.syncOverlayStack()
+		m.restoreFocusAfterOverlayClose()
+		m.toasts.Push(toastWarn, "Emergency quit armed. Press ctrl+c again to quit.")
+		return m, cmd, true
+	}
+	if m.emergencyQuit.pending {
+		m.emergencyQuit.pending = false
 	}
 	return m, nil, false
+}
+
+func (m shellModel) handleEmergencyQuitTimeoutMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
+	timed, ok := msg.(shellEmergencyQuitTimeoutMsg)
+	if !ok {
+		return m, nil, false
+	}
+	if !m.emergencyQuit.pending {
+		return m, nil, true
+	}
+	if timed.token != m.emergencyQuit.token {
+		return m, nil, true
+	}
+	m.emergencyQuit.pending = false
+	return m, nil, true
 }
 
 func (m shellModel) handleQuitShortcutMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
@@ -27,29 +63,79 @@ func (m shellModel) handleQuitShortcutMessage(msg tea.Msg) (tea.Model, tea.Cmd, 
 	return m, tea.Quit, true
 }
 
-func (m shellModel) handleTextEntryMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
+func (m shellModel) handleKeyboardOwnershipMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	key, ok := msg.(tea.KeyMsg)
-	if !ok || !m.isTextEntryActive() {
+	if !ok {
 		return m, nil, false
 	}
-	updated, cmd := m.updateActiveRoute(key)
-	return updated, cmd, true
+	switch m.keyboardOwnership() {
+	case routeKeyboardOwnershipExclusiveLocalCapture:
+		updated, cmd := m.updateActiveRoute(key)
+		return updated, cmd, true
+	case routeKeyboardOwnershipTextEntry:
+		if !routeOwnsTextEntryKey(key) {
+			return m, nil, false
+		}
+		updated, cmd := m.updateActiveRoute(key)
+		return updated, cmd, true
+	default:
+		return m, nil, false
+	}
+}
+
+func routeOwnsTextEntryKey(key tea.KeyMsg) bool {
+	if isTypingKey(key) {
+		return true
+	}
+	switch key.Type {
+	case tea.KeyBackspace, tea.KeyDelete, tea.KeyEnter, tea.KeyEsc, tea.KeyLeft, tea.KeyRight, tea.KeyUp, tea.KeyDown, tea.KeyHome, tea.KeyEnd:
+		return true
+	default:
+		return false
+	}
 }
 
 func (m shellModel) handleOverlayMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
-	if !m.palette.IsOpen() && !m.sessions.IsOpen() {
+	if !m.palette.IsOpen() && !m.sessions.IsOpen() && !m.quitConfirm.active {
 		return m, nil, false
 	}
 	switch msg.(type) {
 	case tea.MouseMsg, tea.KeyMsg:
+		if m.quitConfirm.active {
+			return m.handleQuitConfirmMessage(msg)
+		}
 		return m.handlePaletteMessage(msg)
 	default:
 		return m, nil, false
 	}
 }
 
+func (m shellModel) handleQuitConfirmMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
+	key, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return m, nil, false
+	}
+	switch {
+	case key.Type == tea.KeyEnter || key.String() == "y":
+		m.quitConfirm = shellQuitConfirmState{}
+		m.quitting = true
+		m.syncOverlayStack()
+		m.restoreFocusAfterOverlayClose()
+		return m, tea.Quit, true
+	case key.Type == tea.KeyEsc || key.String() == "n":
+		m.quitConfirm = shellQuitConfirmState{}
+		m.syncOverlayStack()
+		m.restoreFocusAfterOverlayClose()
+		return m, nil, true
+	default:
+		return m, nil, true
+	}
+}
+
 func (m shellModel) handleShellMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	switch typed := msg.(type) {
+	case shellEmergencyQuitTimeoutMsg:
+		return m.handleEmergencyQuitTimeoutMessage(typed)
 	case paletteActionMsg:
 		updated, cmd := m.applyPaletteAction(typed)
 		return updated, cmd, true
@@ -207,6 +293,12 @@ func (m *shellModel) syncOverlayStack() {
 	}
 	if m.sessions.IsOpen() {
 		ids = append(ids, overlayIDSessions)
+	}
+	if m.leader.Active() {
+		ids = append(ids, overlayIDLeader)
+	}
+	if m.quitConfirm.active {
+		ids = append(ids, overlayIDQuitConfirm)
 	}
 	if m.breakpoint() == shellBreakpointNarrow {
 		if m.narrowSidebarOn {

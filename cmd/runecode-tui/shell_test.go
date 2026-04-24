@@ -10,9 +10,9 @@ import (
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
-func TestShellQuickJumpSetsRouteAndFocusAndBackstack(t *testing.T) {
+func TestShellPaletteJumpSetsRouteAndFocusAndBackstack(t *testing.T) {
 	m := newShellModel()
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
+	updated, cmd := m.Update(paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeRuns}})
 	if cmd == nil {
 		t.Fatal("expected route activation command")
 	}
@@ -34,7 +34,7 @@ func TestShellSidebarVisibleByDefaultAndToggle(t *testing.T) {
 	if !m.effectiveSidebarVisible() {
 		t.Fatal("expected sidebar visible by default")
 	}
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'S'}})
+	updated, _ := m.Update(paletteActionMsg{Verb: verbOpen, Target: paletteTarget{Kind: "command", CommandID: "shell.toggle_sidebar"}})
 	shell := updated.(shellModel)
 	if shell.effectiveSidebarVisible() {
 		t.Fatal("expected sidebar hidden after toggle")
@@ -70,7 +70,7 @@ func TestShellBreakpointsStandardized(t *testing.T) {
 
 func TestShellOverlayStackTracksPalette(t *testing.T) {
 	m := newShellModel()
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
 	shell := updated.(shellModel)
 	if len(shell.overlays) != 1 || shell.overlays[0] != overlayIDQuickJump {
 		t.Fatalf("expected quick-jump overlay, got %v", shell.overlays)
@@ -89,7 +89,7 @@ func TestShellNarrowSidebarToggleUsesOverlayNavigation(t *testing.T) {
 		t.Fatal("expected nav surface hidden on narrow without overlay")
 	}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'S'}})
+	updated, _ := m.Update(paletteActionMsg{Verb: verbOpen, Target: paletteTarget{Kind: "command", CommandID: "shell.toggle_sidebar"}})
 	shell := updated.(shellModel)
 	if !shell.narrowSidebarOn {
 		t.Fatal("expected narrow sidebar overlay on")
@@ -127,7 +127,7 @@ func TestShellOverlayCloseRestoresPreviousFocusTarget(t *testing.T) {
 	m.width = 150
 	m.setFocus(focusNav)
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
 	shell := updated.(shellModel)
 	if shell.focus != focusPalette {
 		t.Fatalf("expected overlay focus while palette open, got %v", shell.focus)
@@ -207,16 +207,16 @@ func TestRenderShellPanesDoesNotDoubleConstrainRenderedRow(t *testing.T) {
 	}
 }
 
-func TestShellBackKeyPopsBackstack(t *testing.T) {
+func TestShellBackActionPopsBackstack(t *testing.T) {
 	m := newShellModel()
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	updated, _ := m.Update(paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeChat}})
 	shell := updated.(shellModel)
-	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
+	updated, _ = shell.Update(paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeRuns}})
 	shell = updated.(shellModel)
 	if shell.currentRouteID() != routeRuns {
 		t.Fatalf("expected runs route, got %q", shell.currentRouteID())
 	}
-	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	updated, _ = shell.Update(paletteActionMsg{Verb: verbBack})
 	shell = updated.(shellModel)
 	if shell.currentRouteID() != routeChat {
 		t.Fatalf("expected back to chat, got %q", shell.currentRouteID())
@@ -276,7 +276,7 @@ func TestShellSidebarCursorMovesVerticallyAndEnterOpensSession(t *testing.T) {
 	m.setFocus(focusNav)
 	start := m.sidebarCursor
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
 	shell := updated.(shellModel)
 	if shell.sidebarCursor != start+1 {
 		t.Fatalf("expected sidebar cursor to move down, got %d from %d", shell.sidebarCursor, start)
@@ -295,7 +295,7 @@ func TestShellSidebarCursorMovesVerticallyAndEnterOpensSession(t *testing.T) {
 	}
 
 	for i := 0; i < len(shell.routes)-1; i++ {
-		updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+		updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyDown})
 		shell = updated.(shellModel)
 	}
 	if entry, ok := shell.selectedSidebarEntry(); !ok || entry.Kind != sidebarEntrySession {
@@ -403,7 +403,7 @@ func TestShellOverlayRemainsVisibleWithinViewport(t *testing.T) {
 	m.width = 100
 	m.height = 28
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
 	shell := updated.(shellModel)
 	v := shell.View()
 	if got := lipgloss.Height(v); got != 28 {
@@ -424,7 +424,7 @@ func TestShellOverlayNarrowViewportKeepsFrameBounds(t *testing.T) {
 	m.width = 42
 	m.height = 16
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
 	shell := updated.(shellModel)
 	v := shell.View()
 
@@ -449,7 +449,7 @@ func TestShellOverlayBodyHeightClampsToViewportBudget(t *testing.T) {
 	m.width = 52
 	m.height = 12
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
 	shell := updated.(shellModel)
 	surface := shell.activeShellSurface()
 	layout := shell.planShellLayout(surface)
@@ -482,7 +482,7 @@ func TestNarrowInspectorOverlayShowsEmptyStateWhenNoDetailSelected(t *testing.T)
 		},
 	}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	updated, _ := m.Update(paletteActionMsg{Verb: verbInspect, Target: paletteTarget{Kind: "run", RunID: "run-1"}})
 	shell := updated.(shellModel)
 	if !shell.narrowInspectOn {
 		t.Fatal("expected narrow inspector overlay enabled")
@@ -531,8 +531,8 @@ func TestShellToastRemainsVisibleWithinViewport(t *testing.T) {
 func TestShellClipboardCopiesCurrentBreadcrumbIdentity(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-	shell := updated.(shellModel)
+	m.copyCurrentIdentity()
+	shell := m
 	clip, ok := shell.clipboard.(*memoryClipboardService)
 	if !ok {
 		t.Fatalf("expected memory clipboard service, got %T", shell.clipboard)
@@ -550,8 +550,8 @@ func TestShellCopyRouteActionCopiesInspectorAction(t *testing.T) {
 	m.routeModels[routeRuns] = runs
 	m.location.Primary = shellObjectLocation{RouteID: routeRuns, Object: workbenchObjectRef{Kind: "route", ID: string(routeRuns)}}
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'Y'}})
-	shell := updated.(shellModel)
+	m.copyNextRouteAction()
+	shell := m
 	clip, ok := shell.clipboard.(*memoryClipboardService)
 	if !ok {
 		t.Fatalf("expected memory clipboard service, got %T", shell.clipboard)
@@ -564,7 +564,7 @@ func TestShellCopyRouteActionCopiesInspectorAction(t *testing.T) {
 func TestShellSelectionModeToggleReflectsInView(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlT})
+	updated, _ := m.Update(paletteActionMsg{Verb: verbOpen, Target: paletteTarget{Kind: "command", CommandID: "shell.toggle_selection_mode"}})
 	shell := updated.(shellModel)
 	if !shell.selectionMode {
 		t.Fatal("expected selection mode enabled")
@@ -605,7 +605,7 @@ func TestShellEscapeCloseNarrowOverlaysResetsHiddenNavFocus(t *testing.T) {
 func TestShellOverlayDoesNotBlockWatchUpdates(t *testing.T) {
 	m := newShellModel()
 	m.location.Primary = shellObjectLocation{RouteID: routeDashboard, Object: workbenchObjectRef{Kind: "route", ID: string(routeDashboard)}}
-	opened, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	opened, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
 	shell := opened.(shellModel)
 	if !shell.palette.IsOpen() {
 		t.Fatal("expected palette open")
@@ -656,11 +656,11 @@ func TestShellScrollDispatchTargetsRouteViewportState(t *testing.T) {
 		t.Fatalf("expected baseline offset=2, got %q", before)
 	}
 
-	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	updated, _ = shell.Update(routeViewportScrollMsg{Region: routeRegionInspector, Delta: 1})
 	shell = updated.(shellModel)
 	after := shell.activeShellSurface().Regions.Inspector.Body
 	if !strings.Contains(after, "offset=3") {
-		t.Fatalf("expected pgdown to dispatch route inspector scroll, got %q", after)
+		t.Fatalf("expected shell scroll message to dispatch route inspector scroll, got %q", after)
 	}
 	if strings.Contains(after, "scroll=") {
 		t.Fatalf("expected shell-global scroll retired from status, got %q", after)
@@ -673,7 +673,7 @@ func TestShellCommandRegistryExecutesToggleSidebar(t *testing.T) {
 	if !m.sidebarVisible {
 		t.Fatal("expected sidebar visible initially")
 	}
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlK})
+	updated, _ := m.Update(paletteActionMsg{Verb: verbOpen, Target: paletteTarget{Kind: "command", CommandID: "shell.toggle_sidebar"}})
 	shell := updated.(shellModel)
 	if shell.sidebarVisible {
 		t.Fatal("expected sidebar hidden after command execution")
@@ -702,6 +702,46 @@ func TestShellPaletteEntriesAreObjectAware(t *testing.T) {
 	}
 }
 
+func TestShellPaletteCommandEntriesComeFromActionDefinitions(t *testing.T) {
+	m := newShellModel()
+	cmd := m.commands.commands["shell.cycle_theme"]
+	cmd.Title = "Rotate Theme Now"
+	cmd.PaletteText = "custom theme search token"
+	m.commands.Register(cmd)
+	m.actions = newShellActionGraph(m.routes, m.commands)
+
+	entries := m.buildPaletteEntries()
+	foundLabel := false
+	foundSearch := false
+	for _, entry := range entries {
+		if entry.Action.Target.Kind != "command" || entry.Action.Target.CommandID != "shell.cycle_theme" {
+			continue
+		}
+		if entry.Label == "rotate theme now" {
+			foundLabel = true
+		}
+		if strings.Contains(entry.Search, "custom theme search token") {
+			foundSearch = true
+		}
+	}
+	if !foundLabel || !foundSearch {
+		t.Fatalf("expected palette command entry metadata sourced from unified action graph; label=%t search=%t", foundLabel, foundSearch)
+	}
+}
+
+func TestHelpIncludesActionMetadataFromUnifiedDefinitions(t *testing.T) {
+	m := newShellModel()
+	cmd := m.commands.commands["shell.focus_main"]
+	cmd.HelpText = "focus main pane — custom help text"
+	m.commands.Register(cmd)
+	m.actions = newShellActionGraph(m.routes, m.commands)
+
+	help := renderHelp(m.keys, false, m.actions)
+	if !strings.Contains(help, "focus main pane — custom help text") {
+		t.Fatalf("expected help to include action-metadata help text, got %q", help)
+	}
+}
+
 func TestShellPaletteNavigationFromFreshLaunchUsesShellIndex(t *testing.T) {
 	m := newShellModel()
 	m.client = &fakeBrokerClient{}
@@ -717,7 +757,7 @@ func TestShellPaletteNavigationFromFreshLaunchUsesShellIndex(t *testing.T) {
 	updated, _ := m.Update(loadedMsg)
 	shell := updated.(shellModel)
 
-	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
 	shell = updated.(shellModel)
 	for _, r := range "run-1" {
 		updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})

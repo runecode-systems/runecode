@@ -37,6 +37,9 @@ func (m shellModel) handleMouseLeftClick(mouse tea.MouseMsg) (tea.Model, tea.Cmd
 				case sidebarEntrySession:
 					updated, cmd := m.activateSessionFromSidebarByID(entry.Session.Identity.SessionID)
 					return updated, cmd, true
+				case sidebarEntryAction:
+					updated, cmd := m.activateSidebarAction(entry.ActionID)
+					return updated, cmd, true
 				}
 			}
 			return m, nil, true

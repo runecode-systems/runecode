@@ -211,8 +211,11 @@ func (m chatRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 	return m, nil
 }
 
-func (m chatRouteModel) IsTextEntryActive() bool {
-	return m.composeOn
+func (m chatRouteModel) KeyboardOwnership() routeKeyboardOwnership {
+	if m.composeOn {
+		return routeKeyboardOwnershipTextEntry
+	}
+	return routeKeyboardOwnershipNormal
 }
 
 func (m chatRouteModel) handleReloadKey(key tea.KeyMsg) (routeModel, tea.Cmd, bool) {

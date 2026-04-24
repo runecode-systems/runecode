@@ -1,11 +1,11 @@
 package main
 
 func (m shellModel) overlayOpen() bool {
-	return m.palette.IsOpen() || m.sessions.IsOpen() || m.narrowSidebarOn || m.narrowInspectOn
+	return m.palette.IsOpen() || m.sessions.IsOpen() || m.leader.Active() || m.quitConfirm.active || m.narrowSidebarOn || m.narrowInspectOn
 }
 
 func (m shellModel) commandOverlayOpen() bool {
-	return m.palette.IsOpen() || m.sessions.IsOpen()
+	return m.palette.IsOpen() || m.sessions.IsOpen() || m.leader.Active() || m.quitConfirm.active
 }
 
 func (m *shellModel) beginOverlaySession() {

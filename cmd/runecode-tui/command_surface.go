@@ -12,16 +12,18 @@ const (
 	verbInspect navigationVerb = "inspect"
 	verbJump    navigationVerb = "jump"
 	verbBack    navigationVerb = "back"
+	verbQuit    navigationVerb = "quit"
 )
 
 type paletteTarget struct {
-	Kind       string
-	RouteID    routeID
-	SessionID  string
-	RunID      string
-	ApprovalID string
-	Digest     string
-	CommandID  string
+	Kind        string
+	RouteID     routeID
+	SessionID   string
+	RunID       string
+	ApprovalID  string
+	Digest      string
+	CommandID   string
+	CommandArgs []string
 }
 
 type paletteActionMsg struct {
@@ -45,7 +47,7 @@ func (m shellModel) buildPaletteEntries() []paletteEntry {
 		idx++
 	}
 
-	add("back", "Back to previous location", "back jump previous route", paletteActionMsg{Verb: verbBack})
+	m.actions.appendPaletteEntries(add, m)
 	m.objectIndex.appendPaletteEntries(add)
 	m.appendActionCenterPaletteEntries(add)
 	m.appendActiveSurfaceActionEntries(add)
