@@ -10,6 +10,9 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 - Session Execution Orchestration v0
   - Live chat and autonomous operation drive the same isolate-backed execution path, with canonical links among sessions, runs, approvals, artifacts, audit records, and project context.
   - Planned change: `runecontext/changes/CHG-2026-048-6b7a-session-execution-orchestration-v0/`
+- TUI Leader Sequences + Command Mode v0
+  - RuneCode replaces ambient plain-letter shell shortcuts with a configurable `space`-by-default leader system, which-key-style overlays, a bottom-left `:` command line, and a visible beginner-friendly quit action that does not interfere with local typing or secret entry.
+  - Planned change: `runecontext/changes/CHG-2026-052-a7f1-tui-leader-sequences-command-mode-v0/`
 
 ### v0.1.0-alpha.8
 
