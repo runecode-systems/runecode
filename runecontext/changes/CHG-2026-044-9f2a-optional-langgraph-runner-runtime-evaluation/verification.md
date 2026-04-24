@@ -15,6 +15,8 @@
 - Confirm wait, replay, and resume preserve canonical action hashes, relevant artifact hashes, and expected result tree identity where those bindings exist.
 - Confirm remote-drift handling remains fail closed under any LangGraph-backed resume path.
 - Confirm validated project-substrate snapshot binding and repository substrate drift handling remain fail closed for project-context-sensitive execution under any LangGraph-backed resume path.
+- Confirm the change preserves distinct `waiting_operator_input` and `waiting_approval` semantics under any LangGraph-backed runtime path.
+- Confirm the change requires support for multiple simultaneous scoped waits and dependency-aware partial blocking rather than a whole-run paused flag.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

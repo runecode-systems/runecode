@@ -150,6 +150,37 @@ func TestApprovalsResolveUsesTypedBrokerContract(t *testing.T) {
 	assertStringSliceEqual(t, recording.Calls(), []string{"ApprovalList", "ApprovalGet"})
 }
 
+func TestChatComposeUsesTypedExecutionWatchAndProjectPostureContracts(t *testing.T) {
+	recording := newRecordingBrokerClient(&fakeBrokerClient{})
+	model := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, recording)
+
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeChat})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
+	if cmd == nil {
+		t.Fatal("expected send command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	calls := recording.Calls()
+	if !containsCall(calls, "SessionExecutionTrigger") {
+		t.Fatalf("expected SessionExecutionTrigger call, got %v", calls)
+	}
+	if !containsCall(calls, "SessionTurnExecutionWatch") {
+		t.Fatalf("expected SessionTurnExecutionWatch call, got %v", calls)
+	}
+	if !containsCall(calls, "ProjectSubstratePostureGet") {
+		t.Fatalf("expected ProjectSubstratePostureGet call, got %v", calls)
+	}
+}
+
 func containsSubstring(text, want string) bool {
 	return strings.Contains(text, want)
 }

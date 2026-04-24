@@ -10,6 +10,7 @@ If the contract-first foundation is not split out, the first productive workflow
 - `ProcessDefinition` object family for workflow composition.
 - Validation and canonicalization for workflow definitions.
 - Shared identity, executor, gate, approval, and runner-binding reuse.
+- Typed control-flow and wait constructs that can represent branch-local `waiting_operator_input` versus `waiting_approval` and dependency-aware continuation without inventing workflow-local lifecycle semantics.
 - Policy, audit, and git-contract binding.
 - Explicit split from later authoring and shared-memory accelerator work.
 

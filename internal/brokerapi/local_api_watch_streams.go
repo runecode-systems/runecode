@@ -1,5 +1,11 @@
 package brokerapi
 
+import (
+	"sort"
+	"strings"
+	"time"
+)
+
 func (s *Service) StreamRunWatchEvents(req RunWatchRequest) ([]RunWatchEvent, error) {
 	defer finalizeRunWatchRequest(req)
 	runs, err := s.runWatchSummaries(req)
@@ -51,6 +57,21 @@ func (s *Service) StreamSessionWatchEvents(req SessionWatchRequest) ([]SessionWa
 	return events, nil
 }
 
+func (s *Service) StreamSessionTurnExecutionWatchEvents(req SessionTurnExecutionWatchRequest) ([]SessionTurnExecutionWatchEvent, error) {
+	defer finalizeSessionTurnExecutionWatchRequest(req)
+	executions := s.sessionTurnExecutionWatchStates(req)
+	events := sessionTurnExecutionWatchEventsFromStates(req, executions)
+	if err := validateSessionTurnExecutionWatchSemantics(events); err != nil {
+		return nil, err
+	}
+	for i := range events {
+		if err := s.validateResponse(events[i], sessionTurnExecutionWatchEventSchemaPath); err != nil {
+			return nil, err
+		}
+	}
+	return events, nil
+}
+
 func (s *Service) runWatchSummaries(req RunWatchRequest) ([]RunSummary, error) {
 	allRuns, err := s.runSummaries("updated_at_desc")
 	if err != nil {
@@ -72,6 +93,25 @@ func (s *Service) sessionWatchSummaries(req SessionWatchRequest) ([]SessionSumma
 		return nil, err
 	}
 	return filterSessionWatchSummaries(summaries, req), nil
+}
+
+func (s *Service) sessionTurnExecutionWatchStates(req SessionTurnExecutionWatchRequest) []SessionTurnExecution {
+	states := s.store.SessionDurableStates()
+	filtered := filterSessionTurnExecutionWatchStates(states, req)
+	sort.Slice(filtered, func(i, j int) bool {
+		if filtered[i].UpdatedAt.Equal(filtered[j].UpdatedAt) {
+			if filtered[i].SessionID == filtered[j].SessionID {
+				return filtered[i].ExecutionIndex > filtered[j].ExecutionIndex
+			}
+			return filtered[i].SessionID < filtered[j].SessionID
+		}
+		return filtered[i].UpdatedAt.After(filtered[j].UpdatedAt)
+	})
+	out := make([]SessionTurnExecution, 0, len(filtered))
+	for _, execution := range filtered {
+		out = append(out, buildSessionTurnExecutionFromDurable(execution))
+	}
+	return out
 }
 
 func runWatchEventsFromSummaries(req RunWatchRequest, runs []RunSummary) []RunWatchEvent {
@@ -131,86 +171,97 @@ func sessionWatchEventsFromSummaries(req SessionWatchRequest, sessions []Session
 	return events
 }
 
-func runWatchSnapshotEvent(req RunWatchRequest, seq int64, summary RunSummary) RunWatchEvent {
-	return RunWatchEvent{
-		SchemaID:      "runecode.protocol.v0.RunWatchEvent",
-		SchemaVersion: "0.1.0",
-		StreamID:      req.StreamID,
-		RequestID:     req.RequestID,
-		Seq:           seq,
-		EventType:     "run_watch_snapshot",
-		Run:           ptrRunSummary(summary),
+func sessionTurnExecutionWatchEventsFromStates(req SessionTurnExecutionWatchRequest, executions []SessionTurnExecution) []SessionTurnExecutionWatchEvent {
+	events := make([]SessionTurnExecutionWatchEvent, 0, 3+len(executions))
+	seq := int64(1)
+	if req.IncludeSnapshot && len(executions) > 0 {
+		events = append(events, sessionTurnExecutionWatchSnapshotEvent(req, seq, executions[0]))
+		seq++
 	}
+	if err := reqContextErr(req.RequestCtx); err != nil {
+		events = append(events, sessionTurnExecutionWatchTerminalFromContextErr(req.StreamID, req.RequestID, seq, err))
+		return events
+	}
+	if req.Follow {
+		for _, execution := range sessionTurnExecutionFollowCandidates(executions, req.IncludeSnapshot) {
+			events = append(events, sessionTurnExecutionWatchUpsertEventForExecution(req, seq, execution))
+			seq++
+		}
+	}
+	events = append(events, completedSessionTurnExecutionWatchTerminal(req, seq))
+	return events
 }
 
-func runWatchUpsertEvent(req RunWatchRequest, seq int64, runs []RunSummary) RunWatchEvent {
-	upsert := runs[0]
-	if len(runs) > 1 {
-		upsert = runs[1]
+func sessionTurnExecutionFollowCandidates(executions []SessionTurnExecution, includeSnapshot bool) []SessionTurnExecution {
+	if len(executions) == 0 {
+		return nil
 	}
-	return RunWatchEvent{
-		SchemaID:      "runecode.protocol.v0.RunWatchEvent",
-		SchemaVersion: "0.1.0",
-		StreamID:      req.StreamID,
-		RequestID:     req.RequestID,
-		Seq:           seq,
-		EventType:     "run_watch_upsert",
-		Run:           ptrRunSummary(upsert),
+	if !includeSnapshot {
+		return executions
 	}
+	if len(executions) == 1 {
+		return nil
+	}
+	snapshot := executions[0]
+	out := make([]SessionTurnExecution, 0, len(executions)-1)
+	for idx := 1; idx < len(executions); idx++ {
+		candidate := executions[idx]
+		if sessionTurnExecutionEquivalentForFollow(candidate, snapshot) {
+			continue
+		}
+		out = append(out, candidate)
+	}
+	return out
 }
 
-func approvalWatchSnapshotEvent(req ApprovalWatchRequest, seq int64, summary ApprovalSummary) ApprovalWatchEvent {
-	return ApprovalWatchEvent{
-		SchemaID:      "runecode.protocol.v0.ApprovalWatchEvent",
-		SchemaVersion: "0.1.0",
-		StreamID:      req.StreamID,
-		RequestID:     req.RequestID,
-		Seq:           seq,
-		EventType:     "approval_watch_snapshot",
-		Approval:      ptrApprovalSummary(summary),
+func sessionTurnExecutionEquivalentForFollow(candidate, snapshot SessionTurnExecution) bool {
+	if !sameSessionTurnIdentity(candidate, snapshot) {
+		return false
 	}
+	if candidate.ExecutionIndex != snapshot.ExecutionIndex {
+		return false
+	}
+	if !sameInstant(candidate.UpdatedAt, snapshot.UpdatedAt) {
+		return false
+	}
+	if !sameInstant(candidate.CreatedAt, snapshot.CreatedAt) {
+		return false
+	}
+	if strings.TrimSpace(candidate.ExecutionState) != strings.TrimSpace(snapshot.ExecutionState) {
+		return false
+	}
+	if strings.TrimSpace(candidate.WaitKind) != strings.TrimSpace(snapshot.WaitKind) {
+		return false
+	}
+	if strings.TrimSpace(candidate.WaitState) != strings.TrimSpace(snapshot.WaitState) {
+		return false
+	}
+	if strings.TrimSpace(candidate.BlockedReasonCode) != strings.TrimSpace(snapshot.BlockedReasonCode) {
+		return false
+	}
+	return true
 }
 
-func approvalWatchUpsertEvent(req ApprovalWatchRequest, seq int64, approvals []ApprovalSummary) ApprovalWatchEvent {
-	upsert := approvals[0]
-	if len(approvals) > 1 {
-		upsert = approvals[1]
+func sameSessionTurnIdentity(candidate, snapshot SessionTurnExecution) bool {
+	if strings.TrimSpace(candidate.SessionID) != strings.TrimSpace(snapshot.SessionID) {
+		return false
 	}
-	return ApprovalWatchEvent{
-		SchemaID:      "runecode.protocol.v0.ApprovalWatchEvent",
-		SchemaVersion: "0.1.0",
-		StreamID:      req.StreamID,
-		RequestID:     req.RequestID,
-		Seq:           seq,
-		EventType:     "approval_watch_upsert",
-		Approval:      ptrApprovalSummary(upsert),
+	candidateTurnID := strings.TrimSpace(candidate.TurnID)
+	snapshotTurnID := strings.TrimSpace(snapshot.TurnID)
+	if candidateTurnID == "" || snapshotTurnID == "" {
+		return false
 	}
+	return candidateTurnID == snapshotTurnID
 }
 
-func sessionWatchSnapshotEvent(req SessionWatchRequest, seq int64, summary SessionSummary) SessionWatchEvent {
-	return SessionWatchEvent{
-		SchemaID:      "runecode.protocol.v0.SessionWatchEvent",
-		SchemaVersion: "0.1.0",
-		StreamID:      req.StreamID,
-		RequestID:     req.RequestID,
-		Seq:           seq,
-		EventType:     "session_watch_snapshot",
-		Session:       ptrSessionSummary(summary),
+func sameInstant(a, b string) bool {
+	if strings.TrimSpace(a) == "" || strings.TrimSpace(b) == "" {
+		return strings.TrimSpace(a) == strings.TrimSpace(b)
 	}
-}
-
-func sessionWatchUpsertEvent(req SessionWatchRequest, seq int64, sessions []SessionSummary) SessionWatchEvent {
-	upsert := sessions[0]
-	if len(sessions) > 1 {
-		upsert = sessions[1]
+	parsedA, errA := time.Parse(time.RFC3339, strings.TrimSpace(a))
+	parsedB, errB := time.Parse(time.RFC3339, strings.TrimSpace(b))
+	if errA != nil || errB != nil {
+		return strings.TrimSpace(a) == strings.TrimSpace(b)
 	}
-	return SessionWatchEvent{
-		SchemaID:      "runecode.protocol.v0.SessionWatchEvent",
-		SchemaVersion: "0.1.0",
-		StreamID:      req.StreamID,
-		RequestID:     req.RequestID,
-		Seq:           seq,
-		EventType:     "session_watch_upsert",
-		Session:       ptrSessionSummary(upsert),
-	}
+	return parsedA.Equal(parsedB)
 }

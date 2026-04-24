@@ -9,6 +9,9 @@ The first usable product cut needs real, productive workflows before generic wor
 - First-party spec-drafting workflow.
 - First-party approved-change implementation workflow.
 - Trigger surfaces for live chat and autonomous operation.
+- Explicit reuse of the broker-owned session-execution contract from `CHG-2026-048-6b7a-session-execution-orchestration-v0`, including distinct execution-trigger submission, turn-execution watch surfaces, and validated project-substrate snapshot binding for project-context-sensitive work.
+- Explicit reuse of separate `approval_profile` and `autonomy_posture` controls so formal approval timing and operator-guidance frequency remain distinct.
+- Dependency-aware partial blocking so pending operator input or formal approval pauses only dependent workflow scope and direct downstream work, while unrelated eligible work may continue when plan, policy, coordination, and project-substrate posture allow it.
 - Explicit reuse of canonical RuneContext state, workflow contracts, approvals, audit, and git flow bindings.
 - Explicit reuse of the repo-scoped product lifecycle and canonical `runecode` user surface so built-in workflows do not invent a second bootstrap, attach, or remediation path.
 

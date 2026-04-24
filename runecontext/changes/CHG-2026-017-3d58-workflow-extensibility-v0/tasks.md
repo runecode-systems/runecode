@@ -5,6 +5,7 @@
 - [ ] Define generic authoring and review surfaces for workflow definitions on top of the contract-first substrate.
 - [ ] Keep authoring flows deterministic and explicit rather than plugin-like or freeform.
 - [ ] Ensure authoring and review surfaces do not become a second source of authoritative workflow truth.
+- [ ] Ensure authoring surfaces express execution semantics only through canonical fields compatible with `CHG-2026-048-6b7a-session-execution-orchestration-v0`, including shared wait vocabulary and separate `approval_profile` versus `autonomy_posture` inputs.
 
 ## Authoring Adapter Normalization
 
@@ -22,6 +23,7 @@
 - [ ] Ensure custom workflow authoring cannot mutate repository policy truth, ref allowlists, or repository-specific commit policy through local settings or untyped side channels.
 - [ ] Ensure custom workflow authoring reuses the shared validated project-substrate snapshot-binding model where project context is relevant.
 - [ ] Ensure custom workflow authoring cannot invent alternate project discovery, init, adopt, or upgrade semantics through local settings or untyped side channels.
+- [ ] Ensure any explicit implementation-track authoring targets canonical track declarations that `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0` can consume without making authoring UX the scheduler authority.
 
 ## Acceptance Criteria
 

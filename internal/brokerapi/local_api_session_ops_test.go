@@ -134,6 +134,31 @@ func TestSessionSendMessageIdempotencyRejectsPayloadMismatch(t *testing.T) {
 	}
 }
 
+func assertSessionExecutionBlockedProjection(t *testing.T, detail SessionDetail, wantReason string) {
+	t.Helper()
+	if detail.CurrentTurnExecution == nil {
+		t.Fatal("current_turn_execution missing after drift block")
+	}
+	if detail.LatestTurnExecution == nil {
+		t.Fatal("latest_turn_execution missing after drift block")
+	}
+	if detail.CurrentTurnExecution.ExecutionState != "blocked" {
+		t.Fatalf("current execution_state = %q, want blocked", detail.CurrentTurnExecution.ExecutionState)
+	}
+	if detail.CurrentTurnExecution.WaitKind != "project_blocked" {
+		t.Fatalf("current wait_kind = %q, want project_blocked", detail.CurrentTurnExecution.WaitKind)
+	}
+	if detail.CurrentTurnExecution.WaitState != "waiting_project_blocked" {
+		t.Fatalf("current wait_state = %q, want waiting_project_blocked", detail.CurrentTurnExecution.WaitState)
+	}
+	if detail.CurrentTurnExecution.BlockedReasonCode != wantReason {
+		t.Fatalf("current blocked_reason_code = %q, want %q", detail.CurrentTurnExecution.BlockedReasonCode, wantReason)
+	}
+	if detail.LatestTurnExecution.TurnID != detail.CurrentTurnExecution.TurnID {
+		t.Fatalf("latest turn_id = %q, want current turn_id %q", detail.LatestTurnExecution.TurnID, detail.CurrentTurnExecution.TurnID)
+	}
+}
+
 func TestSessionSendMessageVisibleViaSessionGetAndPersistsAcrossRestart(t *testing.T) {
 	first, restart := newRestartableSessionService(t)
 	ack1 := sendRestartSessionMessage(t, first, "req-session-restart-send-1", "persist me")
@@ -295,6 +320,15 @@ func mustSessionSendMessage(t *testing.T, s *Service, req SessionSendMessageRequ
 	resp, errResp := s.HandleSessionSendMessage(context.Background(), req, RequestContext{})
 	if errResp != nil {
 		t.Fatalf("HandleSessionSendMessage error response: %+v", errResp)
+	}
+	return resp
+}
+
+func mustSessionExecutionTrigger(t *testing.T, s *Service, req SessionExecutionTriggerRequest) SessionExecutionTriggerResponse {
+	t.Helper()
+	resp, errResp := s.HandleSessionExecutionTrigger(context.Background(), req, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleSessionExecutionTrigger error response: %+v", errResp)
 	}
 	return resp
 }

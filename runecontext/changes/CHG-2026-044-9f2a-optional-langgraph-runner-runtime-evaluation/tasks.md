@@ -13,6 +13,9 @@
 - [ ] Ensure LangGraph can be substituted without changing broker local API contracts, protocol schemas, or broker-owned lifecycle/approval semantics.
 - [ ] Ensure LangGraph does not require relaxing exact-action approval or remote-drift semantics for `git_remote_ops` or similar hard-floor remote-state-mutation lanes.
 - [ ] Ensure LangGraph does not require relaxing validated project-substrate snapshot binding or repository substrate drift handling for project-context-sensitive waits and resumes.
+- [ ] Ensure LangGraph can preserve distinct `waiting_operator_input` and `waiting_approval` semantics.
+- [ ] Ensure LangGraph can represent multiple simultaneous scoped waits without turning them into one whole-run paused flag.
+- [ ] Ensure LangGraph can preserve dependency-aware partial blocking so unrelated eligible work may continue when shared plan, policy, and coordination state allow it.
 
 ## Replay + Recovery Evaluation
 
@@ -35,3 +38,4 @@
 - [ ] Replay, wait/resume, and restart semantics remain fail-closed and plan-bound.
 - [ ] Adoption, if chosen, does not weaken exact-action approval or fail-closed remote-drift handling for `git_remote_ops` or similar hard-floor remote-state-mutation lanes.
 - [ ] Adoption, if chosen, does not weaken validated project-substrate snapshot binding or fail-closed repository substrate drift handling for project-context-sensitive execution.
+- [ ] Adoption, if chosen, preserves separate operator-input versus formal-approval waits and scoped blocking semantics.

@@ -9,6 +9,7 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Conflict Detection + Isolation Rules.
 - Runner, Broker, and TUI Integration.
 - Fixtures + Recovery Cases.
+- Explicit distinction between shared-workspace concurrency and isolated implementation-track execution in `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0`.
 - Explicit reuse of the canonical repo-scoped RuneCode product lifecycle so concurrency truth remains broker-owned within one product instance for an authoritative repository root rather than drifting into client- or transport-local ownership semantics.
 
 ## Why Now

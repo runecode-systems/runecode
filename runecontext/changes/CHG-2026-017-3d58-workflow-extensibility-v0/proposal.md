@@ -12,6 +12,7 @@ Keeping both scopes together would either delay the first usable product cut or 
 - Shared-Memory Accelerators.
 - Safe adoption UX for custom workflow definitions on top of the shared workflow-definition substrate.
 - Explicit reuse of the shared workflow-definition, git request, patch artifact, and exact-approval contracts defined elsewhere.
+- Authoring surfaces may prepare explicit implementation-track declarations for `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0` and definitions that target `CHG-2026-048-6b7a-session-execution-orchestration-v0`, but they do not become execution-planning or scheduler authority.
 
 ## Why Now
 This work remains scheduled for `v0.2`, because generic workflow authoring and rebuildable accelerators are additive once the contract-first substrate and first-party productive workflows are already in place.

@@ -10,12 +10,15 @@ Add generic authoring and review surfaces plus rebuildable shared-memory acceler
 - Shared memory is a rebuildable accelerator for derived artifacts only; authoritative state remains in the run DB, artifact store, and audit trail.
 - Generic authoring and accelerator work must preserve the shared workflow identity, executor, gate, approval, runner-binding, and git-composition contracts defined by the contract-first substrate.
 - Generic authoring and review surfaces must also preserve the shared validated project-substrate snapshot-binding model for project-context-sensitive workflows.
+- Generic authoring must target the shared execution contract from `CHG-2026-048-6b7a-session-execution-orchestration-v0`, including broker-owned wait vocabulary and separate `approval_profile` and `autonomy_posture` inputs, rather than inventing authoring-local execution modes.
+- Generic authoring may expose explicit implementation-track declarations that later feed `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0`, but execution planning and scheduling authority remain broker-owned rather than authoring-UI-owned.
 
 ## Authoring and Accelerator Posture
 
 - Generic authoring surfaces should stay reviewable and deterministic; they must not become a plugin escape hatch around the contract-first workflow substrate.
 - Shared-memory accelerators remain rebuildable caches for derived artifacts only and must not become authoritative workflow state.
 - Authoring UX may prepare workflow-definition changes, but authoritative workflow truth still depends on canonical validated workflow definitions rather than client-local drafts.
+- Authoring UX may prepare track declarations or wait-related fields only through canonical typed schema surfaces; it must not invent local metadata that changes execution semantics.
 - Generic authoring must preserve the same shared git-composition restrictions as the contract-first substrate; no process-local remote-mutation semantics are allowed.
 - Custom workflow authoring must not invent alternate project discovery, init, adopt, upgrade, or project-context binding semantics.
 

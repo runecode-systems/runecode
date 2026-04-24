@@ -40,10 +40,19 @@ func activeSessionSummaryLine(detail *brokerapi.SessionDetail) string {
 		return "none selected"
 	}
 	s := detail.Summary
+	executionCue := "execution=n/a"
+	if detail.CurrentTurnExecution != nil {
+		executionCue = fmt.Sprintf("execution=%s", detail.CurrentTurnExecution.ExecutionState)
+		if strings.TrimSpace(detail.CurrentTurnExecution.WaitState) != "" {
+			executionCue += fmt.Sprintf("(%s)", detail.CurrentTurnExecution.WaitState)
+		}
+	} else if detail.LatestTurnExecution != nil {
+		executionCue = fmt.Sprintf("latest_execution=%s", detail.LatestTurnExecution.ExecutionState)
+	}
 	return fmt.Sprintf("%s | ws=%s | cue=%s | activity=%s/%s | preview=%q | incomplete=%t | runs=%d approvals=%d",
 		s.Identity.SessionID,
 		s.Identity.WorkspaceID,
-		sessionHighLevelCue(s),
+		sessionHighLevelCue(s)+" "+executionCue,
 		defaultPlaceholder(s.LastActivityAt, "n/a"),
 		defaultPlaceholder(s.LastActivityKind, "n/a"),
 		truncateText(s.LastActivityPreview, 64),

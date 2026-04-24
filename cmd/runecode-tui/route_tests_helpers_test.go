@@ -32,6 +32,8 @@ var testSignedApprovalDecision = &trustpolicy.SignedObjectEnvelope{
 	Signature:            trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: strings.Repeat("b", 64), Signature: "c2ln"},
 }
 
+const fakeSessionExecutionTriggerID = "trigger-1"
+
 type fakeBrokerClient struct{}
 
 type reloadAwareBrokerClient struct{}
@@ -96,6 +98,20 @@ func (f *fakeBrokerClient) SessionSendMessage(ctx context.Context, req brokerapi
 	return brokerapi.SessionSendMessageResponse{SessionID: req.SessionID, Turn: turn, Message: msg, EventType: "session.message.appended", StreamID: "session", Seq: 1}, nil
 }
 
+func (f *fakeBrokerClient) SessionExecutionTrigger(ctx context.Context, req brokerapi.SessionExecutionTriggerRequest) (brokerapi.SessionExecutionTriggerResponse, error) {
+	_ = ctx
+	if req.SessionID == "" {
+		return brokerapi.SessionExecutionTriggerResponse{}, fmt.Errorf("session id required")
+	}
+	if req.TriggerSource == "" {
+		return brokerapi.SessionExecutionTriggerResponse{}, fmt.Errorf("trigger source required")
+	}
+	if req.RequestedOperation == "" {
+		return brokerapi.SessionExecutionTriggerResponse{}, fmt.Errorf("requested operation required")
+	}
+	return brokerapi.SessionExecutionTriggerResponse{SessionID: req.SessionID, TriggerID: fakeSessionExecutionTriggerID, TriggerSource: req.TriggerSource, RequestedOperation: req.RequestedOperation, UserMessageContentText: req.UserMessageContentText, EventType: "session_execution_trigger_ack", StreamID: "session", Seq: 1}, nil
+}
+
 func (f *fakeBrokerClient) SessionWatch(ctx context.Context, req brokerapi.SessionWatchRequest) ([]brokerapi.SessionWatchEvent, error) {
 	_ = ctx
 	if req.StreamID == "" {
@@ -105,6 +121,32 @@ func (f *fakeBrokerClient) SessionWatch(ctx context.Context, req brokerapi.Sessi
 	return []brokerapi.SessionWatchEvent{
 		{EventType: "session_watch_snapshot", Seq: 1, Session: &session},
 		{EventType: "session_watch_terminal", Seq: 2, Terminal: true, TerminalStatus: "completed"},
+	}, nil
+}
+
+func (f *fakeBrokerClient) SessionTurnExecutionWatch(ctx context.Context, req brokerapi.SessionTurnExecutionWatchRequest) ([]brokerapi.SessionTurnExecutionWatchEvent, error) {
+	_ = ctx
+	if req.StreamID == "" {
+		return nil, fmt.Errorf("stream id required")
+	}
+	exec := brokerapi.SessionTurnExecution{
+		SchemaID:           "runecode.protocol.v0.SessionTurnExecution",
+		SchemaVersion:      "0.1.0",
+		TurnID:             "turn-exec-1",
+		SessionID:          "session-1",
+		ExecutionIndex:     1,
+		TriggerID:          fakeSessionExecutionTriggerID,
+		TriggerSource:      "interactive_user",
+		RequestedOperation: "start",
+		ExecutionState:     "running",
+		ApprovalProfile:    "moderate",
+		AutonomyPosture:    "balanced",
+		CreatedAt:          "2026-01-01T00:00:00Z",
+		UpdatedAt:          "2026-01-01T00:00:00Z",
+	}
+	return []brokerapi.SessionTurnExecutionWatchEvent{
+		{EventType: "session_turn_execution_watch_snapshot", Seq: 1, TurnExecution: &exec},
+		{EventType: "session_turn_execution_watch_terminal", Seq: 2, Terminal: true, TerminalStatus: "completed"},
 	}, nil
 }
 
@@ -196,8 +238,16 @@ func (f *reloadAwareBrokerClient) SessionSendMessage(ctx context.Context, req br
 	return (&fakeBrokerClient{}).SessionSendMessage(ctx, req)
 }
 
+func (f *reloadAwareBrokerClient) SessionExecutionTrigger(ctx context.Context, req brokerapi.SessionExecutionTriggerRequest) (brokerapi.SessionExecutionTriggerResponse, error) {
+	return (&fakeBrokerClient{}).SessionExecutionTrigger(ctx, req)
+}
+
 func (f *reloadAwareBrokerClient) SessionWatch(ctx context.Context, req brokerapi.SessionWatchRequest) ([]brokerapi.SessionWatchEvent, error) {
 	return (&fakeBrokerClient{}).SessionWatch(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) SessionTurnExecutionWatch(ctx context.Context, req brokerapi.SessionTurnExecutionWatchRequest) ([]brokerapi.SessionTurnExecutionWatchEvent, error) {
+	return (&fakeBrokerClient{}).SessionTurnExecutionWatch(ctx, req)
 }
 
 func (f *reloadAwareBrokerClient) ApprovalList(ctx context.Context, limit int) (brokerapi.ApprovalListResponse, error) {
@@ -435,7 +485,7 @@ func (f *fakeBrokerClient) ArtifactRead(ctx context.Context, req brokerapi.Artif
 	if req.Digest == "" {
 		return nil, fmt.Errorf("digest required")
 	}
-	content := "diff --git a/file b/file\n+new line\n-result: success\ntoken=super-secret-token\n"
+	content := "diff --git a/file b/file\n+new line\n-result: success\ntoken=fixture-redaction-value-not-a-secret\n"
 	chunk := base64.StdEncoding.EncodeToString([]byte(content))
 	return []brokerapi.ArtifactStreamEvent{
 		{EventType: "artifact_stream_chunk", ChunkBase64: chunk},
@@ -738,7 +788,8 @@ func (f *fakeBrokerClient) ProjectSubstratePostureGet(ctx context.Context) (brok
 			RecommendedRuneContextTarget: "0.1.0-alpha.14",
 			ReasonCodes:                  []string{"project_substrate_upgrade_available"},
 		},
-		Adoption: brokerapi.ProjectSubstrateAdoptResponse{}.Adoption,
+		BlockedExplanation: "project substrate posture blocks execution while validation is incompatible",
+		Adoption:           brokerapi.ProjectSubstrateAdoptResponse{}.Adoption,
 		InitPreview: projectsubstrate.InitPreview{
 			SchemaID:       "runecode.protocol.v0.ProjectSubstrateInitPreview",
 			SchemaVersion:  "0.1.0",

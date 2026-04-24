@@ -43,9 +43,65 @@ func normalizeSessionDurableState(state SessionDurableState) SessionDurableState
 	if len(state.TranscriptTurns) > 0 {
 		state.TurnCount = len(state.TranscriptTurns)
 	}
+	for idx := range state.ExecutionTriggers {
+		state.ExecutionTriggers[idx] = copySessionExecutionTriggerDurableState(state.ExecutionTriggers[idx])
+	}
+	for idx := range state.TurnExecutions {
+		state.TurnExecutions[idx] = normalizeSessionTurnExecutionDurableState(state.TurnExecutions[idx])
+	}
 	state.LinkedRunIDs = uniqueSortedStrings(state.LinkedRunIDs)
-	state.LastActivityPreview = strings.TrimSpace(state.LastActivityPreview)
+	state.LastActivityPreview = truncateSessionActivityPreview(strings.TrimSpace(state.LastActivityPreview))
 	return state
+}
+
+func truncateSessionActivityPreview(value string) string {
+	const maxPreviewRunes = 256
+	runes := []rune(value)
+	if len(runes) <= maxPreviewRunes {
+		return value
+	}
+	return string(runes[:maxPreviewRunes])
+}
+
+func normalizeSessionTurnExecutionDurableState(in SessionTurnExecutionDurableState) SessionTurnExecutionDurableState {
+	out := copySessionTurnExecutionDurableState(in)
+	out.TurnID = strings.TrimSpace(out.TurnID)
+	out.SessionID = strings.TrimSpace(out.SessionID)
+	out.OrchestrationScopeID = strings.TrimSpace(out.OrchestrationScopeID)
+	out.DependsOnScopeIDs = uniqueSortedStrings(out.DependsOnScopeIDs)
+	out.TriggerID = strings.TrimSpace(out.TriggerID)
+	out.TriggerSource = strings.TrimSpace(out.TriggerSource)
+	out.RequestedOperation = strings.TrimSpace(out.RequestedOperation)
+	out.ExecutionState = strings.TrimSpace(out.ExecutionState)
+	out.WaitKind = strings.TrimSpace(out.WaitKind)
+	out.WaitState = strings.TrimSpace(out.WaitState)
+	out.ApprovalProfile = strings.TrimSpace(out.ApprovalProfile)
+	out.AutonomyPosture = strings.TrimSpace(out.AutonomyPosture)
+	out.PrimaryRunID = strings.TrimSpace(out.PrimaryRunID)
+	out.PendingApprovalID = strings.TrimSpace(out.PendingApprovalID)
+	out.BoundValidatedProjectSubstrateDigest = strings.TrimSpace(out.BoundValidatedProjectSubstrateDigest)
+	out.BlockedReasonCode = strings.TrimSpace(out.BlockedReasonCode)
+	out.TerminalOutcome = strings.TrimSpace(out.TerminalOutcome)
+	out.LinkedRunIDs = uniqueSortedStrings(out.LinkedRunIDs)
+	out.LinkedApprovalIDs = uniqueSortedStrings(out.LinkedApprovalIDs)
+	out.LinkedArtifactDigests = uniqueSortedStrings(out.LinkedArtifactDigests)
+	out.LinkedAuditRecordDigests = uniqueSortedStrings(out.LinkedAuditRecordDigests)
+	if out.ExecutionState == "" {
+		out.ExecutionState = "queued"
+	}
+	if out.ApprovalProfile == "" {
+		out.ApprovalProfile = "moderate"
+	}
+	if out.AutonomyPosture == "" {
+		out.AutonomyPosture = "operator_guided"
+	}
+	if out.CreatedAt.IsZero() {
+		out.CreatedAt = out.UpdatedAt
+	}
+	if out.UpdatedAt.IsZero() {
+		out.UpdatedAt = out.CreatedAt
+	}
+	return out
 }
 
 func normalizeSessionTimes(state *SessionDurableState) {

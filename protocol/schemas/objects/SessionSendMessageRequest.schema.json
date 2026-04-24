@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/SessionSendMessageRequest.schema.json",
   "title": "SessionSendMessageRequest",
-  "description": "Typed broker-mediated session interaction request for appending a transcript message.",
+  "description": "Typed broker-mediated transcript append request. This contract is transcript durability only and does not submit execution triggers.",
   "type": "object",
   "additionalProperties": false,
   "maxProperties": 8,

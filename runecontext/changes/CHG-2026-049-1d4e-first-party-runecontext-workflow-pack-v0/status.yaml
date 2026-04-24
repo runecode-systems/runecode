@@ -15,6 +15,7 @@ related_changes:
   - CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0
   - CHG-2026-048-6b7a-session-execution-orchestration-v0
   - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
+  - CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0
 depends_on:
   - CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0
   - CHG-2026-048-6b7a-session-execution-orchestration-v0

@@ -22,6 +22,9 @@
 - [ ] Route workflow execution progress through the shared runner-to-broker checkpoint/result model rather than a workflow-local status channel.
 - [ ] Ensure workflow-composed git remote mutation still routes through shared typed git request families, signed patch artifacts, exact repository identity, and `git_remote_ops` exact-action approval.
 - [ ] Reuse the shared project-substrate contract and validated snapshot-binding model for project-context-sensitive workflow selection or execution.
+- [ ] Reuse the shared human-involvement wait vocabulary, including distinct `waiting_operator_input` and `waiting_approval`, rather than defining workflow-local wait kinds.
+- [ ] Encode dependency-aware continuation so shared execution can distinguish blocked scope and direct downstream work from unrelated eligible work.
+- [ ] Keep `approval_profile` and `autonomy_posture` as separate shared inputs rather than collapsing them into one workflow-local mode.
 - [ ] Fail closed for project-context-sensitive workflow execution when repository project-substrate posture is missing, invalid, non-verified, or unsupported.
 - [ ] Forbid workflow definitions from embedding alternate project discovery, init, adopt, or upgrade semantics.
 
@@ -38,3 +41,4 @@
 - [ ] Built-in and later custom workflows can share one definition and binding substrate.
 - [ ] Later authoring and accelerator work can extend this substrate without redefining its authority model.
 - [ ] Project-context-sensitive workflows share one validated project-substrate binding model instead of inventing workflow-local project-context semantics.
+- [ ] Workflow-defined waits preserve shared scoped blocking semantics instead of forcing a whole-workflow stop model.

@@ -41,6 +41,8 @@ func dispatchTUILocalRPC(service *brokerapi.Service, wire brokerapi.LocalRPCRequ
 		return dispatchTUIApprovalWatch(service, wire.Request, meta)
 	case "session_watch":
 		return dispatchTUISessionWatch(service, wire.Request, meta)
+	case "session_turn_execution_watch":
+		return dispatchTUISessionTurnExecutionWatch(service, wire.Request, meta)
 	default:
 		return brokerapi.LocalRPCResponse{OK: false, Error: tuiRPCError(fmt.Errorf("unsupported operation %q", wire.Operation))}
 	}
@@ -71,6 +73,8 @@ func dispatchTUILocalRPCJSONCoreOps(service *brokerapi.Service, wire brokerapi.L
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleSessionGet), true
 	case "session_send_message":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleSessionSendMessage), true
+	case "session_execution_trigger":
+		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleSessionExecutionTrigger), true
 	case "approval_list":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleApprovalList), true
 	case "approval_get":
@@ -201,6 +205,22 @@ func dispatchTUISessionWatch(service *brokerapi.Service, raw json.RawMessage, me
 		return brokerapi.LocalRPCResponse{OK: false, Error: errResp}
 	}
 	events, err := service.StreamSessionWatchEvents(ack)
+	if err != nil {
+		return brokerapi.LocalRPCResponse{OK: false, Error: tuiRPCError(err)}
+	}
+	return encodeTUILocalRPCResponse(events)
+}
+
+func dispatchTUISessionTurnExecutionWatch(service *brokerapi.Service, raw json.RawMessage, meta brokerapi.RequestContext) brokerapi.LocalRPCResponse {
+	req := brokerapi.SessionTurnExecutionWatchRequest{}
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return brokerapi.LocalRPCResponse{OK: false, Error: tuiRPCError(err)}
+	}
+	ack, errResp := service.HandleSessionTurnExecutionWatchRequest(context.Background(), req, meta)
+	if errResp != nil {
+		return brokerapi.LocalRPCResponse{OK: false, Error: errResp}
+	}
+	events, err := service.StreamSessionTurnExecutionWatchEvents(ack)
 	if err != nil {
 		return brokerapi.LocalRPCResponse{OK: false, Error: tuiRPCError(err)}
 	}

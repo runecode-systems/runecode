@@ -14,6 +14,8 @@
 - Confirm the minimum assurance floor for `git_remote_ops` remains at least `reauthenticated` across profiles.
 - Confirm git remote-mutation approval bindings still require canonical repository identity, target refs, referenced patch artifact digests, expected result tree hash, and canonical action request hash.
 - Confirm approval profiles do not weaken blocked project-substrate posture or override diagnostics/remediation-only repository substrate states.
+- Confirm approval profiles govern formal approval timing only and do not replace shared `autonomy_posture` controls for operator-guidance cadence.
+- Confirm profile semantics preserve the distinction between `waiting_approval` and `waiting_operator_input`.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

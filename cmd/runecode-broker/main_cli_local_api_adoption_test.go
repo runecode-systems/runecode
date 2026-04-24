@@ -33,8 +33,15 @@ func TestCLIAdoptionRoutesRunApprovalVersionAndLogThroughLocalRPC(t *testing.T) 
 			t.Fatalf("run(%v) error: %v", args, err)
 		}
 	}
+	if err := run([]string{"session-execution-trigger", "--session-id", "sess-1", "--trigger-source", "interactive_user", "--requested-operation", "start", "--user-message", "hello"}, stdout, stderr); err != nil {
+		t.Fatalf("run(session-execution-trigger) error: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "session_execution_trigger_ack") {
+		t.Fatalf("session-execution-trigger output missing ack event type: %q", stdout.String())
+	}
+	stdout.Reset()
 
-	want := []string{"run_list", "run_get", "run_watch", "backend_posture_get", "backend_posture_get", "backend_posture_change", "session_list", "session_get", "session_send_message", "session_watch", "approval_list", "approval_get", "approval_watch", "git_setup_get", "git_setup_auth_bootstrap", "git_setup_identity_upsert", "provider_profile_list", "provider_profile_get", "provider_credential_lease_issue", "project_substrate_get", "project_substrate_posture_get", "project_substrate_adopt", "project_substrate_init_preview", "project_substrate_init_apply", "project_substrate_upgrade_preview", "project_substrate_upgrade_apply", "git_remote_mutation_prepare", "git_remote_mutation_get", "git_remote_mutation_issue_execute_lease", "git_remote_mutation_execute", "version_info_get", "log_stream", "log_stream", "llm_invoke", "llm_stream"}
+	want := []string{"run_list", "run_get", "run_watch", "backend_posture_get", "backend_posture_get", "backend_posture_change", "session_list", "session_get", "session_send_message", "session_watch", "approval_list", "approval_get", "approval_watch", "git_setup_get", "git_setup_auth_bootstrap", "git_setup_identity_upsert", "provider_profile_list", "provider_profile_get", "provider_credential_lease_issue", "project_substrate_get", "project_substrate_posture_get", "project_substrate_adopt", "project_substrate_init_preview", "project_substrate_init_apply", "project_substrate_upgrade_preview", "project_substrate_upgrade_apply", "git_remote_mutation_prepare", "git_remote_mutation_get", "git_remote_mutation_issue_execute_lease", "git_remote_mutation_execute", "version_info_get", "log_stream", "log_stream", "llm_invoke", "llm_stream", "session_execution_trigger"}
 	assertRequestedOps(t, requestedOps, want)
 }
 
@@ -61,6 +68,19 @@ func TestSessionSendMessageRejectsInvalidRole(t *testing.T) {
 	}
 	if _, ok := err.(*usageError); !ok {
 		t.Fatalf("session-send-message error type = %T, want *usageError", err)
+	}
+}
+
+func TestSessionExecutionTriggerRejectsInvalidTriggerSource(t *testing.T) {
+	setBrokerServiceForTest(t)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := run([]string{"session-execution-trigger", "--session-id", "sess-1", "--trigger-source", "invalid", "--requested-operation", "start", "--user-message", "hello"}, stdout, stderr)
+	if err == nil {
+		t.Fatal("session-execution-trigger expected usage error for invalid trigger source")
+	}
+	if _, ok := err.(*usageError); !ok {
+		t.Fatalf("session-execution-trigger error type = %T, want *usageError", err)
 	}
 }
 
@@ -125,6 +145,8 @@ func handleSessionRPCStub(t *testing.T, wire localRPCRequest) (localRPCResponse,
 		return mustOKLocalRPCResponse(t, brokerapi.SessionGetResponse{SchemaID: "runecode.protocol.v0.SessionGetResponse", SchemaVersion: "0.1.0", RequestID: "req-session-get", Session: brokerapi.SessionDetail{SchemaID: "runecode.protocol.v0.SessionDetail", SchemaVersion: "0.1.0", Summary: brokerapi.SessionSummary{SchemaID: "runecode.protocol.v0.SessionSummary", SchemaVersion: "0.1.0", Identity: brokerapi.SessionIdentity{SchemaID: "runecode.protocol.v0.SessionIdentity", SchemaVersion: "0.1.0", SessionID: "sess-1", WorkspaceID: "workspace-local", CreatedAt: "2026-01-01T00:00:00Z"}, UpdatedAt: "2026-01-01T00:00:00Z", Status: "active", LastActivityKind: "run_progress", TurnCount: 0, LinkedRunCount: 1, LinkedApprovalCount: 0, LinkedArtifactCount: 0, LinkedAuditEventCount: 0, HasIncompleteTurn: false}, LinkedRunIDs: []string{"run-1"}, LinkedApprovalIDs: []string{}, LinkedArtifactDigests: []string{}, LinkedAuditRecordDigests: []string{}}}), true
 	case "session_send_message":
 		return mustOKLocalRPCResponse(t, brokerapi.SessionSendMessageResponse{SchemaID: "runecode.protocol.v0.SessionSendMessageResponse", SchemaVersion: "0.1.0", RequestID: "req-session-send", SessionID: "sess-1", Turn: brokerapi.SessionTranscriptTurn{SchemaID: "runecode.protocol.v0.SessionTranscriptTurn", SchemaVersion: "0.1.0", TurnID: "sess-1.turn.000001", SessionID: "sess-1", TurnIndex: 1, StartedAt: "2026-01-01T00:00:00Z", CompletedAt: "2026-01-01T00:00:00Z", Status: "completed", Messages: []brokerapi.SessionTranscriptMessage{{SchemaID: "runecode.protocol.v0.SessionTranscriptMessage", SchemaVersion: "0.1.0", MessageID: "sess-1.turn.000001.msg.000001", TurnID: "sess-1.turn.000001", SessionID: "sess-1", MessageIndex: 1, Role: "user", CreatedAt: "2026-01-01T00:00:00Z", ContentText: "hello", RelatedLinks: brokerapi.SessionTranscriptLinks{SchemaID: "runecode.protocol.v0.SessionTranscriptLinks", SchemaVersion: "0.1.0", RunIDs: []string{}, ApprovalIDs: []string{}, ArtifactDigests: []string{}, AuditRecordDigests: []string{}}}}}, Message: brokerapi.SessionTranscriptMessage{SchemaID: "runecode.protocol.v0.SessionTranscriptMessage", SchemaVersion: "0.1.0", MessageID: "sess-1.turn.000001.msg.000001", TurnID: "sess-1.turn.000001", SessionID: "sess-1", MessageIndex: 1, Role: "user", CreatedAt: "2026-01-01T00:00:00Z", ContentText: "hello", RelatedLinks: brokerapi.SessionTranscriptLinks{SchemaID: "runecode.protocol.v0.SessionTranscriptLinks", SchemaVersion: "0.1.0", RunIDs: []string{}, ApprovalIDs: []string{}, ArtifactDigests: []string{}, AuditRecordDigests: []string{}}}, EventType: "session_message_ack", StreamID: "session-sess-1", Seq: 1}), true
+	case "session_execution_trigger":
+		return mustOKLocalRPCResponse(t, brokerapi.SessionExecutionTriggerResponse{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerResponse", SchemaVersion: "0.1.0", RequestID: "req-session-trigger", SessionID: "sess-1", TriggerID: "sess-1.trigger.000001", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "hello", EventType: "session_execution_trigger_ack", StreamID: "session-sess-1", Seq: 1}), true
 	case "session_watch":
 		return mustOKLocalRPCResponse(t, []brokerapi.SessionWatchEvent{{SchemaID: "runecode.protocol.v0.SessionWatchEvent", SchemaVersion: "0.1.0", StreamID: "sw-1", RequestID: "req-session-watch", Seq: 1, EventType: "session_watch_snapshot", Session: &brokerapi.SessionSummary{SchemaID: "runecode.protocol.v0.SessionSummary", SchemaVersion: "0.1.0", Identity: brokerapi.SessionIdentity{SchemaID: "runecode.protocol.v0.SessionIdentity", SchemaVersion: "0.1.0", SessionID: "sess-1", WorkspaceID: "workspace-local", CreatedAt: "2026-01-01T00:00:00Z"}, UpdatedAt: "2026-01-01T00:00:00Z", Status: "active", LastActivityKind: "chat_message", TurnCount: 1, LinkedRunCount: 1, LinkedApprovalCount: 0, LinkedArtifactCount: 0, LinkedAuditEventCount: 0, HasIncompleteTurn: false}}, {SchemaID: "runecode.protocol.v0.SessionWatchEvent", SchemaVersion: "0.1.0", StreamID: "sw-1", RequestID: "req-session-watch", Seq: 2, EventType: "session_watch_terminal", Terminal: true, TerminalStatus: "completed"}}), true
 	default:

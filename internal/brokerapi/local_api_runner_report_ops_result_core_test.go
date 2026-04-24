@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/launcherbackend"
 	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
@@ -271,6 +272,39 @@ func TestRunnerResultReportRejectsUnknownResultCode(t *testing.T) {
 	_, errResp := s.HandleRunnerResultReport(context.Background(), req, RequestContext{})
 	if errResp == nil || errResp.Error.Code != "broker_validation_runner_transition_invalid" {
 		t.Fatalf("unexpected error response: %+v", errResp)
+	}
+}
+
+func TestRunnerResultReportProjectsTerminalIntoSessionExecution(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
+	s.SetNowFuncForTests(func() time.Time { return now })
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-terminal-session", "sess-terminal-session")
+	mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-terminal-session-trigger", SessionID: "sess-terminal-session", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "run"})
+
+	if err := s.RecordRuntimeFacts("run-terminal-session", launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: "run-terminal-session", SessionID: "sess-terminal-session"}, TerminalReport: &launcherbackend.BackendTerminalReport{RunID: "run-terminal-session", TerminationKind: launcherbackend.BackendTerminationKindCompleted, TerminatedAt: now.Add(time.Minute).Format(time.RFC3339)}}); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
+	if err := s.SetRunStatus("run-terminal-session", "active"); err != nil {
+		t.Fatalf("SetRunStatus returned error: %v", err)
+	}
+	req := RunnerResultReportRequest{SchemaID: "runecode.protocol.v0.RunnerResultReportRequest", SchemaVersion: "0.1.0", RequestID: "req-terminal-session-result", RunID: "run-terminal-session", Report: RunnerResultReport{SchemaID: "runecode.protocol.v0.RunnerResultReport", SchemaVersion: "0.1.0", LifecycleState: "completed", ResultCode: "run_completed", OccurredAt: now.Add(2 * time.Minute).Format(time.RFC3339), IdempotencyKey: "idem-terminal-session"}}
+	if _, errResp := s.HandleRunnerResultReport(context.Background(), req, RequestContext{}); errResp != nil {
+		t.Fatalf("HandleRunnerResultReport error response: %+v", errResp)
+	}
+
+	get := mustSessionGet(t, s, "req-terminal-session-get", "sess-terminal-session")
+	if get.Session.CurrentTurnExecution != nil {
+		t.Fatalf("current_turn_execution = %+v, want nil after terminal completion", get.Session.CurrentTurnExecution)
+	}
+	if get.Session.LatestTurnExecution == nil {
+		t.Fatal("latest_turn_execution missing")
+	}
+	if get.Session.LatestTurnExecution.ExecutionState != "completed" {
+		t.Fatalf("latest.execution_state = %q, want completed", get.Session.LatestTurnExecution.ExecutionState)
+	}
+	if get.Session.LatestTurnExecution.TerminalOutcome != "completed" {
+		t.Fatalf("latest.terminal_outcome = %q, want completed", get.Session.LatestTurnExecution.TerminalOutcome)
 	}
 }
 

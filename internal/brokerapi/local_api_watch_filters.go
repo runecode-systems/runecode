@@ -1,5 +1,7 @@
 package brokerapi
 
+import "github.com/runecode-ai/runecode/internal/artifacts"
+
 func filterRunWatchSummaries(all []RunSummary, req RunWatchRequest) []RunSummary {
 	filtered := make([]RunSummary, 0, len(all))
 	for _, run := range all {
@@ -66,6 +68,48 @@ func matchesSessionWatchRequest(session SessionSummary, req SessionWatchRequest)
 		return false
 	}
 	if req.LastActivityKind != "" && session.LastActivityKind != req.LastActivityKind {
+		return false
+	}
+	return true
+}
+
+func filterSessionTurnExecutionWatchStates(all []artifacts.SessionDurableState, req SessionTurnExecutionWatchRequest) []artifacts.SessionTurnExecutionDurableState {
+	filtered := make([]artifacts.SessionTurnExecutionDurableState, 0, len(all))
+	for _, session := range all {
+		if !matchesSessionTurnExecutionWatchSession(session, req) {
+			continue
+		}
+		for _, execution := range session.TurnExecutions {
+			if !matchesSessionTurnExecutionWatchRequest(execution, req) {
+				continue
+			}
+			filtered = append(filtered, execution)
+		}
+	}
+	return filtered
+}
+
+func matchesSessionTurnExecutionWatchSession(session artifacts.SessionDurableState, req SessionTurnExecutionWatchRequest) bool {
+	if req.SessionID != "" && session.SessionID != req.SessionID {
+		return false
+	}
+	if req.WorkspaceID != "" && session.WorkspaceID != req.WorkspaceID {
+		return false
+	}
+	return true
+}
+
+func matchesSessionTurnExecutionWatchRequest(execution artifacts.SessionTurnExecutionDurableState, req SessionTurnExecutionWatchRequest) bool {
+	if req.SessionID != "" && execution.SessionID != req.SessionID {
+		return false
+	}
+	if req.TurnID != "" && execution.TurnID != req.TurnID {
+		return false
+	}
+	if req.ExecutionState != "" && execution.ExecutionState != req.ExecutionState {
+		return false
+	}
+	if req.WaitKind != "" && execution.WaitKind != req.WaitKind {
 		return false
 	}
 	return true

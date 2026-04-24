@@ -59,14 +59,33 @@ func (s *Service) resolveApprovalResponse(ctx context.Context, requestID string,
 		errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, err.Error())
 		return ApprovalResolveResponse{}, &errOut
 	}
-	if errResp := s.requestContextError(requestID, ctx); errResp != nil {
+	if errResp := s.persistApprovalFollowUps(ctx, requestID, resolved.record, resp.ResolutionReasonCode); errResp != nil {
 		return ApprovalResolveResponse{}, errResp
 	}
-	if err := s.auditApprovalResolution(requestID, resolved.record.Summary.ApprovalID, resolved.record.Summary.Status, resp.ResolutionReasonCode); err != nil {
-		errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, err.Error())
-		return ApprovalResolveResponse{}, &errOut
-	}
 	return resp, nil
+}
+
+func (s *Service) persistApprovalFollowUps(ctx context.Context, requestID string, record approvalRecord, resolutionReason string) *ErrorResponse {
+	if errResp := s.requestContextError(requestID, ctx); errResp != nil {
+		return errResp
+	}
+	if err := s.auditApprovalResolution(requestID, record.Summary.ApprovalID, record.Summary.Status, resolutionReason); err != nil {
+		errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, err.Error())
+		return &errOut
+	}
+	runID := strings.TrimSpace(record.Summary.BoundScope.RunID)
+	if runID == "" {
+		return nil
+	}
+	if err := s.syncSessionExecutionForRun(runID, s.now().UTC()); err != nil {
+		errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, err.Error())
+		return &errOut
+	}
+	if err := s.appendApprovalResolutionExecutionCheckpoint(runID, record.Summary.Status, record.Summary.ApprovalID); err != nil {
+		errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, err.Error())
+		return &errOut
+	}
+	return nil
 }
 
 func (s *Service) resolveCurrentPendingApproval(requestID string, req ApprovalResolveRequest, approvalID string) (approvalRecord, *ErrorResponse) {

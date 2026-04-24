@@ -89,7 +89,7 @@ func TestProjectSubstrateCompatibilityUnsupportedBlocksNormalOperationsButKeepsD
 	root := t.TempDir()
 	writeProjectSubstrateAnchors(t, root, "0.1.0-alpha.99", "verified", "runecontext")
 	service := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: root})
-	assertProjectSubstrateRunListBlocked(t, service, "req-project-substrate-runlist-blocked")
+	assertProjectSubstrateRunListAllowed(t, service, "req-project-substrate-runlist-allowed")
 	assertBlockedProjectSubstrateReadiness(t, service, "unsupported_too_new")
 	assertProjectSubstrateVersionDiagnostics(t, service, "req-project-substrate-version-diagnostics")
 }
@@ -105,7 +105,7 @@ func TestNoAutoUpgradeDuringOrdinaryBrokerOperations(t *testing.T) {
 
 	service := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: repoRoot})
 	assertNonVerifiedReadiness(t, service)
-	assertProjectSubstrateRunListBlocked(t, service, "req-no-auto-upgrade-runlist")
+	assertProjectSubstrateRunListAllowed(t, service, "req-no-auto-upgrade-runlist")
 	after, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("ReadFile(after) returned error: %v", err)
@@ -166,14 +166,10 @@ func assertProjectSubstrateSummaryIdentity(t *testing.T, summary *ProjectSubstra
 	}
 }
 
-func assertProjectSubstrateRunListBlocked(t *testing.T, service *Service, requestID string) {
+func assertProjectSubstrateRunListAllowed(t *testing.T, service *Service, requestID string) {
 	t.Helper()
-	_, runErr := service.HandleRunList(context.Background(), RunListRequest{SchemaID: "runecode.protocol.v0.RunListRequest", SchemaVersion: "0.1.0", RequestID: requestID, Limit: 10}, RequestContext{})
-	if runErr == nil {
-		t.Fatal("HandleRunList error = nil, want project substrate policy block")
-	}
-	if runErr.Error.Code != "project_substrate_operation_blocked" {
-		t.Fatalf("error code = %q, want project_substrate_operation_blocked", runErr.Error.Code)
+	if _, runErr := service.HandleRunList(context.Background(), RunListRequest{SchemaID: "runecode.protocol.v0.RunListRequest", SchemaVersion: "0.1.0", RequestID: requestID, Limit: 10}, RequestContext{}); runErr != nil {
+		t.Fatalf("HandleRunList returned error in diagnostics-only posture: %+v", runErr)
 	}
 }
 

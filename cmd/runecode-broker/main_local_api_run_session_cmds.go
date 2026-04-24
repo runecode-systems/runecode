@@ -176,6 +176,50 @@ func handleSessionSendMessage(args []string, service *brokerapi.Service, stdout 
 	return writeJSON(stdout, resp)
 }
 
+func handleSessionExecutionTrigger(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	fs := flag.NewFlagSet("session-execution-trigger", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	sessionID := fs.String("session-id", "", "session id")
+	turnID := fs.String("turn-id", "", "optional target turn id for continue")
+	triggerSource := fs.String("trigger-source", "interactive_user", "trigger source classification")
+	requestedOperation := fs.String("requested-operation", "start", "requested execution operation")
+	userMessage := fs.String("user-message", "", "optional user message content")
+	idempotencyKey := fs.String("idempotency-key", "", "optional idempotency key")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "session-execution-trigger usage: runecode-broker session-execution-trigger --session-id id [--turn-id id] [--trigger-source interactive_user|autonomous_background|resume_follow_up] [--requested-operation start|continue] [--user-message text] [--idempotency-key key]"}
+	}
+	if *sessionID == "" {
+		return &usageError{message: "session-execution-trigger requires --session-id"}
+	}
+	if !validSessionExecutionTriggerSource(*triggerSource) {
+		return &usageError{message: "session-execution-trigger --trigger-source must be one of: interactive_user|autonomous_background|resume_follow_up"}
+	}
+	if !validSessionExecutionRequestedOperation(*requestedOperation) {
+		return &usageError{message: "session-execution-trigger --requested-operation must be one of: start|continue"}
+	}
+	if *triggerSource == "interactive_user" && *userMessage == "" {
+		return &usageError{message: "session-execution-trigger --user-message is required for interactive_user trigger source"}
+	}
+	api := localAPIForService(service)
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.SessionExecutionTrigger(ctx, brokerapi.SessionExecutionTriggerRequest{
+		SchemaID:               "runecode.protocol.v0.SessionExecutionTriggerRequest",
+		SchemaVersion:          "0.1.0",
+		RequestID:              defaultRequestID(),
+		SessionID:              *sessionID,
+		TurnID:                 *turnID,
+		TriggerSource:          *triggerSource,
+		RequestedOperation:     *requestedOperation,
+		UserMessageContentText: *userMessage,
+		IdempotencyKey:         *idempotencyKey,
+	})
+	if errResp != nil {
+		return localAPIError(errResp)
+	}
+	return writeJSON(stdout, resp)
+}
+
 func handleSessionWatch(args []string, service *brokerapi.Service, stdout io.Writer) error {
 	fs := flag.NewFlagSet("session-watch", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -218,6 +262,24 @@ func handleSessionWatch(args []string, service *brokerapi.Service, stdout io.Wri
 func validSessionMessageRole(role string) bool {
 	switch role {
 	case "user", "assistant", "system", "tool":
+		return true
+	default:
+		return false
+	}
+}
+
+func validSessionExecutionTriggerSource(source string) bool {
+	switch source {
+	case "interactive_user", "autonomous_background", "resume_follow_up":
+		return true
+	default:
+		return false
+	}
+}
+
+func validSessionExecutionRequestedOperation(operation string) bool {
+	switch operation {
+	case "start", "continue":
 		return true
 	default:
 		return false

@@ -19,6 +19,7 @@ related_changes:
   - CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0
   - CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0
   - CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0
+  - CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0
 depends_on:
   - CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0
   - CHG-2026-040-2b7f-session-transcript-model-v0

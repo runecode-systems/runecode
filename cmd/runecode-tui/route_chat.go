@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
@@ -17,10 +18,28 @@ type chatLoadedMsg struct {
 }
 
 type chatMessageSentMsg struct {
-	sessions []brokerapi.SessionSummary
-	detail   *brokerapi.SessionDetail
-	ack      *brokerapi.SessionSendMessageResponse
-	err      error
+	sessions      []brokerapi.SessionSummary
+	detail        *brokerapi.SessionDetail
+	ack           *brokerapi.SessionExecutionTriggerResponse
+	turnExecution *brokerapi.SessionTurnExecution
+	posture       *brokerapi.ProjectSubstratePostureGetResponse
+	err           error
+}
+
+type chatExecutionWatchPollMsg struct {
+	seq uint64
+}
+
+type chatExecutionWatchLoadedMsg struct {
+	seq           uint64
+	sessionID     string
+	triggerID     string
+	turnExecution *brokerapi.SessionTurnExecution
+	detail        *brokerapi.SessionDetail
+	sessions      []brokerapi.SessionSummary
+	posture       *brokerapi.ProjectSubstratePostureGetResponse
+	continueWatch bool
+	err           error
 }
 
 type chatSelectSessionMsg struct {
@@ -43,7 +62,12 @@ type chatRouteModel struct {
 	presentation contentPresentationMode
 	draft        string
 	composer     composeTextarea
+	actionText   string
 	loadSeq      uint64
+	watchSeq     uint64
+	watching     bool
+	watchSession string
+	watchTrigger string
 	detailDoc    longFormDocumentState
 }
 
@@ -67,6 +91,10 @@ func (m chatRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		return m.applySent(typed)
 	case chatSelectSessionMsg:
 		return m.handleSessionSelect(typed)
+	case chatExecutionWatchPollMsg:
+		return m.handleExecutionWatchPoll(typed)
+	case chatExecutionWatchLoadedMsg:
+		return m.applyExecutionWatchLoaded(typed)
 	case routeViewportScrollMsg:
 		return m.handleViewportScroll(typed)
 	case routeViewportResizeMsg:
@@ -85,7 +113,7 @@ func (m chatRouteModel) View(width, height int, focus focusArea) string {
 		return renderStateCard(routeLoadStateLoading, "Chat", "Loading chat route from broker session contracts...")
 	}
 	if m.sending {
-		return renderStateCard(routeLoadStateLoading, "Chat", "Sending message via broker SessionSendMessage...")
+		return renderStateCard(routeLoadStateLoading, "Chat", "Submitting execution trigger via broker SessionExecutionTrigger...")
 	}
 	if m.errText != "" {
 		return renderStateCard(routeLoadStateError, "Chat", "Load failed: "+m.errText+" (press r to retry)")
@@ -109,6 +137,10 @@ func (m chatRouteModel) View(width, height int, focus focusArea) string {
 	if m.statusText != "" {
 		body = append(body, "Status: "+m.statusText)
 	}
+	if strings.TrimSpace(m.actionText) != "" {
+		body = append(body, "Follow-up: "+m.actionText)
+	}
+	body = append(body, muted("Transcript is durable checkpoints; execution watch is advisory live state."))
 	body = append(body, keyHint("Route keys: j/k move, enter load detail, i toggle inspector, c compose, alt+enter send, enter newline, v cycle rendered/raw/structured, r reload"))
 	return compactLines(body...)
 }
@@ -123,6 +155,9 @@ func (m chatRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 	status := strings.TrimSpace(m.statusText)
 	if status == "" && strings.TrimSpace(m.errText) != "" {
 		status = "Load failed: " + strings.TrimSpace(m.errText)
+	}
+	if status == "" && strings.TrimSpace(m.actionText) != "" {
+		status = strings.TrimSpace(m.actionText)
 	}
 	inspector := ""
 	if m.inspectorOn {
@@ -145,6 +180,15 @@ func (m chatRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 			LocalActions:     chatInspectorLocalActions(),
 		},
 	}
+}
+
+func (m chatRouteModel) watchPollCmd(seq uint64, after time.Duration) tea.Cmd {
+	if after <= 0 {
+		after = 900 * time.Millisecond
+	}
+	return tea.Tick(after, func(time.Time) tea.Msg {
+		return chatExecutionWatchPollMsg{seq: seq}
+	})
 }
 
 func (m chatRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
@@ -269,6 +313,10 @@ func (m chatRouteModel) handleComposeKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
 		m.sending = true
 		m.errText = ""
 		m.statusText = ""
+		m.actionText = ""
+		m.watching = false
+		m.watchSession = ""
+		m.watchTrigger = ""
 		m.draft = content
 		return m, m.sendCmd(m.activeID, content)
 	}

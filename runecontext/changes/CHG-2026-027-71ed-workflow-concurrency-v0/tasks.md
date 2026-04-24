@@ -12,6 +12,7 @@
 - [ ] Key concurrency locks, leases, and conflict scopes off the shared stable logical workflow identities rather than retry/attempt-local IDs.
 - [ ] Preserve separate attempt identities for retries and reruns so concurrency logic does not overload logical scope identity.
 - [ ] Keep concurrency ownership and coordination broker-owned within the canonical repo-scoped product lifecycle rather than client-local, transport-local, or workbench-local state.
+- [ ] Distinguish shared-workspace concurrency from isolated implementation-track execution in `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0`.
 
 ## Conflict Detection + Isolation Rules
 
@@ -22,6 +23,7 @@
 - [ ] Ensure gate attempts, gate evidence, and gate overrides remain bound to the originating run/stage/step scope under concurrency.
 - [ ] Account for validated project-substrate snapshot identity and project-substrate drift under concurrency.
 - [ ] Ensure one run cannot silently satisfy or inherit another run's project-context preconditions or remediation posture.
+- [ ] Compose run-local partial-blocking semantics from `CHG-2026-048-6b7a-session-execution-orchestration-v0` with shared-workspace coordination so a scoped wait does not become workspace-global unless locks or conflicts require it.
 
 ## Runner, Broker, and TUI Integration
 

@@ -27,6 +27,7 @@ related_changes:
   - CHG-2026-048-6b7a-session-execution-orchestration-v0
   - CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0
   - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
+  - CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0
 depends_on: []
 informed_by:
   - CHG-2026-001-57d6-agent-os-to-runecontext-migration-umbrella
