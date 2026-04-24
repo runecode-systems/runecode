@@ -38,6 +38,7 @@ func copySessionExecutionTriggerDurableState(in SessionExecutionTriggerDurableSt
 
 func copySessionTurnExecutionDurableState(in SessionTurnExecutionDurableState) SessionTurnExecutionDurableState {
 	out := in
+	out.DependsOnScopeIDs = append([]string{}, in.DependsOnScopeIDs...)
 	out.LinkedRunIDs = append([]string{}, in.LinkedRunIDs...)
 	out.LinkedApprovalIDs = append([]string{}, in.LinkedApprovalIDs...)
 	out.LinkedArtifactDigests = append([]string{}, in.LinkedArtifactDigests...)

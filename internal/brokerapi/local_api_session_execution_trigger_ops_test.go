@@ -9,6 +9,7 @@ import (
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/projectsubstrate"
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func TestSessionExecutionTriggerReturnsTypedAckAndSupportsIdempotency(t *testing.T) {
@@ -30,6 +31,19 @@ func TestSessionExecutionTriggerReturnsTypedAckAndSupportsIdempotency(t *testing
 	}
 	if ack2.TriggerID != ack1.TriggerID {
 		t.Fatalf("replay trigger_id = %q, want %q", ack2.TriggerID, ack1.TriggerID)
+	}
+	events, err := s.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents returned error: %v", err)
+	}
+	count := 0
+	for _, event := range events {
+		if event.Type == "session_execution_trigger_submitted" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("session_execution_trigger_submitted events = %d, want 1", count)
 	}
 }
 
@@ -82,16 +96,73 @@ func TestSessionExecutionTriggerAllowsDistinctWaitingVocabularyAndControlSeparat
 	}
 }
 
-func TestSessionExecutionTriggerEnforcesSingleActiveTurnExecution(t *testing.T) {
+func TestSessionExecutionTriggerStartCreatesSessionAndBrokerOwnedRunBinding(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	ack := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-create-start", SessionID: "sess-trigger-create", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "create and run"})
+	if ack.TurnID == "" {
+		t.Fatal("turn_id is empty")
+	}
+	getResp := mustSessionGet(t, s, "req-session-trigger-create-get", "sess-trigger-create")
+	if getResp.Session.Summary.Identity.CreatedByRunID == "" {
+		t.Fatal("created_by_run_id is empty")
+	}
+	exec := requireCurrentSessionExecution(t, getResp.Session)
+	if exec.PrimaryRunID == "" {
+		t.Fatal("primary_run_id is empty")
+	}
+	if exec.PrimaryRunID != getResp.Session.Summary.Identity.CreatedByRunID {
+		t.Fatalf("primary_run_id = %q, want created_by_run_id %q", exec.PrimaryRunID, getResp.Session.Summary.Identity.CreatedByRunID)
+	}
+}
+
+func TestSessionExecutionTriggerAllowsMultipleActiveTurnExecutions(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-active", "sess-trigger-active")
-	_ = mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-active-1", SessionID: "sess-trigger-active", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "first"})
-	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-active-2", SessionID: "sess-trigger-active", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "second"}, RequestContext{})
-	if errResp == nil {
-		t.Fatal("HandleSessionExecutionTrigger expected active turn conflict")
+	first := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-active-1", SessionID: "sess-trigger-active", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "first"})
+	second := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-active-2", SessionID: "sess-trigger-active", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "second"})
+	if first.TurnID == second.TurnID {
+		t.Fatalf("second turn_id = %q, want distinct from first", second.TurnID)
 	}
-	if errResp.Error.Code != "broker_session_execution_active_turn_exists" {
-		t.Fatalf("error code = %q, want broker_session_execution_active_turn_exists", errResp.Error.Code)
+	getResp := mustSessionGet(t, s, "req-session-trigger-active-get", "sess-trigger-active")
+	if len(getResp.Session.PendingTurnExecutions) != 2 {
+		t.Fatalf("pending_turn_executions len = %d, want 2", len(getResp.Session.PendingTurnExecutions))
+	}
+	runIDs := map[string]struct{}{}
+	for _, execution := range getResp.Session.PendingTurnExecutions {
+		if execution.PrimaryRunID == "" {
+			t.Fatal("primary_run_id is empty for pending execution")
+		}
+		runIDs[execution.PrimaryRunID] = struct{}{}
+	}
+	if len(runIDs) != 2 {
+		t.Fatalf("distinct primary_run_ids = %d, want 2 (%+v)", len(runIDs), runIDs)
+	}
+}
+
+func TestSessionExecutionTriggerProjectsMultiplePendingWaitsWithoutCollapsing(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-multiwait", "sess-trigger-multiwait")
+	first := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-multiwait-1", SessionID: "sess-trigger-multiwait", TriggerSource: "autonomous_background", RequestedOperation: "start", AutonomyPosture: "operator_guided", UserMessageContentText: "first"})
+	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-trigger-multiwait", TurnID: first.TurnID, ExecutionState: "waiting", WaitKind: "operator_input", WaitState: "waiting_operator_input", OccurredAt: s.currentTimestamp()}); err != nil {
+		t.Fatalf("UpdateSessionTurnExecution returned error: %v", err)
+	}
+	second := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-multiwait-2", SessionID: "sess-trigger-multiwait", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "second"})
+	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-trigger-multiwait", TurnID: second.TurnID, ExecutionState: "waiting", WaitKind: "external_dependency", WaitState: "waiting_external_dependency", OccurredAt: s.currentTimestamp()}); err != nil {
+		t.Fatalf("UpdateSessionTurnExecution returned error: %v", err)
+	}
+	getResp := mustSessionGet(t, s, "req-session-trigger-multiwait-get", "sess-trigger-multiwait")
+	if len(getResp.Session.PendingTurnExecutions) < 2 {
+		t.Fatalf("pending_turn_executions len = %d, want at least 2", len(getResp.Session.PendingTurnExecutions))
+	}
+	waitKinds := map[string]struct{}{}
+	for _, execution := range getResp.Session.PendingTurnExecutions {
+		waitKinds[execution.WaitKind] = struct{}{}
+	}
+	if _, ok := waitKinds["operator_input"]; !ok {
+		t.Fatalf("pending wait kinds missing operator_input: %+v", waitKinds)
+	}
+	if _, ok := waitKinds["external_dependency"]; !ok {
+		t.Fatalf("pending wait kinds missing external_dependency: %+v", waitKinds)
 	}
 }
 
@@ -199,15 +270,34 @@ func TestSessionExecutionTriggerAutonomousOperatorGuidedStartsWaitingForOperator
 
 func TestSessionExecutionTriggerContinueRejectsWaitingApprovalUntilApprovalResolves(t *testing.T) {
 	s, unapproved, requestEnv, decisionEnv := setupServiceWithApprovalFixture(t)
-	approvalID := approvalIDForBrokerTest(t, requestEnv)
-	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, approvalID)
-	storedApproval := mustApprovalGet(t, s, approvalID)
+	approvalID, policyDecisionHash, storedApproval := prepareSessionExecutionApprovalFixture(t, s, requestEnv)
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-approval", "sess-trigger-waiting-approval")
 	ack := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-waiting-approval-start", SessionID: "sess-trigger-waiting-approval", TriggerSource: "autonomous_background", RequestedOperation: "start", AutonomyPosture: "balanced", UserMessageContentText: "background step"})
-	if ack.ExecutionState != "waiting" {
-		t.Fatalf("execution_state = %q, want waiting", ack.ExecutionState)
+	if ack.ExecutionState != "running" {
+		t.Fatalf("execution_state = %q, want running", ack.ExecutionState)
 	}
-	if err := s.RecordRunnerApprovalWait(artifacts.RunnerApproval{ApprovalID: approvalID, RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", RoleInstanceID: "role-1", Status: "pending", ApprovalType: "exact_action", BoundActionHash: storedApproval.ActionRequestHash, OccurredAt: s.currentTimestamp()}); err != nil {
+	recordAndAssertApprovalWait(t, s, approvalID, storedApproval.ActionRequestHash)
+	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-waiting-approval-continue-blocked", SessionID: "sess-trigger-waiting-approval", TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue"}, RequestContext{})
+	assertSessionExecutionContinueBlocked(t, errResp, "broker_session_execution_continue_waiting_approval")
+	resolveSessionExecutionApprovalWait(t, s, approvalID, policyDecisionHash, unapproved.Digest, requestEnv, decisionEnv)
+	resp, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-waiting-approval-continue-resolved", SessionID: "sess-trigger-waiting-approval", TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue"}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleSessionExecutionTrigger returned error: %+v", errResp)
+	}
+	if resp.ExecutionState != "running" {
+		t.Fatalf("execution_state = %q, want running", resp.ExecutionState)
+	}
+}
+
+func prepareSessionExecutionApprovalFixture(t *testing.T, s *Service, requestEnv *trustpolicy.SignedObjectEnvelope) (string, string, artifacts.ApprovalRecord) {
+	t.Helper()
+	approvalID := approvalIDForBrokerTest(t, requestEnv)
+	return approvalID, policyDecisionHashForStoredApproval(t, s, approvalID), mustApprovalGet(t, s, approvalID)
+}
+
+func recordAndAssertApprovalWait(t *testing.T, s *Service, approvalID, actionHash string) {
+	t.Helper()
+	if err := s.RecordRunnerApprovalWait(artifacts.RunnerApproval{ApprovalID: approvalID, RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", RoleInstanceID: "role-1", Status: "pending", ApprovalType: "exact_action", BoundActionHash: actionHash, OccurredAt: s.currentTimestamp()}); err != nil {
 		t.Fatalf("RecordRunnerApprovalWait returned error: %v", err)
 	}
 	if err := s.syncSessionExecutionForRun("run-approval", s.currentTimestamp()); err != nil {
@@ -215,12 +305,20 @@ func TestSessionExecutionTriggerContinueRejectsWaitingApprovalUntilApprovalResol
 	}
 	getResp := mustSessionGet(t, s, "req-session-trigger-waiting-approval-get", "sess-trigger-waiting-approval")
 	exec := requireCurrentSessionExecution(t, getResp.Session)
+	if exec.WaitKind != "approval" {
+		t.Fatalf("wait_kind = %q, want approval", exec.WaitKind)
+	}
+	if exec.WaitState != "waiting_approval" {
+		t.Fatalf("wait_state = %q, want waiting_approval", exec.WaitState)
+	}
 	if exec.PendingApprovalID != approvalID {
 		t.Fatalf("pending_approval_id = %q, want %q", exec.PendingApprovalID, approvalID)
 	}
-	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-waiting-approval-continue-blocked", SessionID: "sess-trigger-waiting-approval", TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue"}, RequestContext{})
-	assertSessionExecutionContinueBlocked(t, errResp, "broker_session_execution_continue_waiting_approval")
-	resolveReq := ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-waiting-approval-resolve", ApprovalID: approvalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-approval"), RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", ActionKind: policyengine.ActionKindPromotion, PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: unapproved.Digest, Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *requestEnv, SignedApprovalDecision: *decisionEnv}
+}
+
+func resolveSessionExecutionApprovalWait(t *testing.T, s *Service, approvalID, policyDecisionHash, unapprovedDigest string, requestEnv, decisionEnv *trustpolicy.SignedObjectEnvelope) {
+	t.Helper()
+	resolveReq := ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-waiting-approval-resolve", ApprovalID: approvalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-approval"), RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", ActionKind: policyengine.ActionKindPromotion, PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: unapprovedDigest, Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *requestEnv, SignedApprovalDecision: *decisionEnv}
 	if _, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{}); errResp != nil {
 		t.Fatalf("HandleApprovalResolve error response: %+v", errResp)
 	}
@@ -229,12 +327,53 @@ func TestSessionExecutionTriggerContinueRejectsWaitingApprovalUntilApprovalResol
 	if resolvedExec.WaitKind != "" {
 		t.Fatalf("wait_kind after resolve = %q, want empty", resolvedExec.WaitKind)
 	}
-	resp, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-waiting-approval-continue-resolved", SessionID: "sess-trigger-waiting-approval", TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue"}, RequestContext{})
+}
+
+func TestSessionExecutionTriggerContinueTargetsExplicitTurnWhenMultipleWaitsExist(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-targeted", "sess-trigger-targeted")
+	first := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-targeted-1", SessionID: "sess-trigger-targeted", TriggerSource: "autonomous_background", RequestedOperation: "start", AutonomyPosture: "operator_guided", UserMessageContentText: "first"})
+	second := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-targeted-2", SessionID: "sess-trigger-targeted", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "second"})
+	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-trigger-targeted", TurnID: second.TurnID, ExecutionState: "waiting", WaitKind: "external_dependency", WaitState: "waiting_external_dependency", OccurredAt: s.currentTimestamp()}); err != nil {
+		t.Fatalf("UpdateSessionTurnExecution returned error: %v", err)
+	}
+	resp, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-targeted-continue", SessionID: "sess-trigger-targeted", TurnID: first.TurnID, TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue first"}, RequestContext{})
 	if errResp != nil {
 		t.Fatalf("HandleSessionExecutionTrigger returned error: %+v", errResp)
 	}
-	if resp.ExecutionState != "running" {
-		t.Fatalf("execution_state = %q, want running", resp.ExecutionState)
+	if resp.TurnID != first.TurnID {
+		t.Fatalf("continued turn_id = %q, want %q", resp.TurnID, first.TurnID)
+	}
+	getResp := mustSessionGet(t, s, "req-session-trigger-targeted-get", "sess-trigger-targeted")
+	statesByTurn := map[string]string{}
+	for _, execution := range getResp.Session.PendingTurnExecutions {
+		statesByTurn[execution.TurnID] = execution.ExecutionState
+	}
+	if statesByTurn[first.TurnID] != "running" {
+		t.Fatalf("first execution_state = %q, want running", statesByTurn[first.TurnID])
+	}
+	if statesByTurn[second.TurnID] != "waiting" {
+		t.Fatalf("second execution_state = %q, want waiting", statesByTurn[second.TurnID])
+	}
+}
+
+func TestSessionExecutionTriggerContinueSupportsIdempotentRetry(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-continue-idem", "sess-trigger-continue-idem")
+	start := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-continue-idem-start", SessionID: "sess-trigger-continue-idem", TriggerSource: "autonomous_background", RequestedOperation: "start", AutonomyPosture: "operator_guided", UserMessageContentText: "wait first"})
+	firstResp, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-continue-idem-1", SessionID: "sess-trigger-continue-idem", TurnID: start.TurnID, TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue", IdempotencyKey: "idem-continue-1"}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleSessionExecutionTrigger returned error: %+v", errResp)
+	}
+	secondResp, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-continue-idem-2", SessionID: "sess-trigger-continue-idem", TurnID: start.TurnID, TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue", IdempotencyKey: "idem-continue-1"}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleSessionExecutionTrigger replay returned error: %+v", errResp)
+	}
+	if secondResp.Seq != firstResp.Seq {
+		t.Fatalf("replay seq = %d, want %d", secondResp.Seq, firstResp.Seq)
+	}
+	if secondResp.TurnID != firstResp.TurnID {
+		t.Fatalf("replay turn_id = %q, want %q", secondResp.TurnID, firstResp.TurnID)
 	}
 }
 

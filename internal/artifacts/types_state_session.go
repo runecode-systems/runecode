@@ -39,6 +39,8 @@ type SessionTurnExecutionDurableState struct {
 	TurnID                               string    `json:"turn_id"`
 	SessionID                            string    `json:"session_id"`
 	ExecutionIndex                       int       `json:"execution_index"`
+	OrchestrationScopeID                 string    `json:"orchestration_scope_id,omitempty"`
+	DependsOnScopeIDs                    []string  `json:"depends_on_scope_ids,omitempty"`
 	TriggerID                            string    `json:"trigger_id"`
 	TriggerSource                        string    `json:"trigger_source"`
 	RequestedOperation                   string    `json:"requested_operation"`

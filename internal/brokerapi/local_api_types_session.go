@@ -37,6 +37,7 @@ type SessionDetail struct {
 	TranscriptTurns          []SessionTranscriptTurn `json:"transcript_turns"`
 	CurrentTurnExecution     *SessionTurnExecution   `json:"current_turn_execution,omitempty"`
 	LatestTurnExecution      *SessionTurnExecution   `json:"latest_turn_execution,omitempty"`
+	PendingTurnExecutions    []SessionTurnExecution  `json:"pending_turn_executions,omitempty"`
 	LinkedRunIDs             []string                `json:"linked_run_ids"`
 	LinkedApprovalIDs        []string                `json:"linked_approval_ids"`
 	LinkedArtifactDigests    []string                `json:"linked_artifact_digests"`
@@ -49,6 +50,8 @@ type SessionTurnExecution struct {
 	TurnID                               string   `json:"turn_id"`
 	SessionID                            string   `json:"session_id"`
 	ExecutionIndex                       int      `json:"execution_index"`
+	OrchestrationScopeID                 string   `json:"orchestration_scope_id,omitempty"`
+	DependsOnScopeIDs                    []string `json:"depends_on_scope_ids,omitempty"`
 	TriggerID                            string   `json:"trigger_id"`
 	TriggerSource                        string   `json:"trigger_source"`
 	RequestedOperation                   string   `json:"requested_operation"`
@@ -164,6 +167,7 @@ type SessionExecutionTriggerRequest struct {
 	SchemaVersion          string `json:"schema_version"`
 	RequestID              string `json:"request_id"`
 	SessionID              string `json:"session_id"`
+	TurnID                 string `json:"turn_id,omitempty"`
 	TriggerSource          string `json:"trigger_source"`
 	RequestedOperation     string `json:"requested_operation"`
 	ApprovalProfile        string `json:"approval_profile,omitempty"`

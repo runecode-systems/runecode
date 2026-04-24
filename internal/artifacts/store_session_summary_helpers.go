@@ -67,6 +67,8 @@ func normalizeSessionTurnExecutionDurableState(in SessionTurnExecutionDurableSta
 	out := copySessionTurnExecutionDurableState(in)
 	out.TurnID = strings.TrimSpace(out.TurnID)
 	out.SessionID = strings.TrimSpace(out.SessionID)
+	out.OrchestrationScopeID = strings.TrimSpace(out.OrchestrationScopeID)
+	out.DependsOnScopeIDs = uniqueSortedStrings(out.DependsOnScopeIDs)
 	out.TriggerID = strings.TrimSpace(out.TriggerID)
 	out.TriggerSource = strings.TrimSpace(out.TriggerSource)
 	out.RequestedOperation = strings.TrimSpace(out.RequestedOperation)

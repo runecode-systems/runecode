@@ -43,19 +43,25 @@ func isProjectSubstrateDiscoveryFailureAllowed(schemaPath string) bool {
 }
 
 func isProjectSubstrateDiagnosticsSchema(schemaPath string) bool {
-	switch strings.TrimSpace(schemaPath) {
+	path := strings.TrimSpace(schemaPath)
+	return isProjectSubstrateInspectSchema(path) || isProjectSubstrateManagementSchema(path)
+}
+
+func isProjectSubstrateInspectSchema(schemaPath string) bool {
+	switch schemaPath {
 	case readinessGetRequestSchemaPath,
 		versionInfoGetRequestSchemaPath,
+		runListRequestSchemaPath,
+		runGetRequestSchemaPath,
+		approvalListRequestSchemaPath,
+		approvalGetRequestSchemaPath,
+		artifactListRequestSchemaPath,
+		artifactHeadRequestSchemaPath,
 		sessionListRequestSchemaPath,
 		sessionGetRequestSchemaPath,
 		productLifecyclePostureGetRequestSchemaPath,
 		projectSubstrateGetRequestSchemaPath,
 		projectSubstratePostureGetRequestSchemaPath,
-		projectSubstrateAdoptRequestSchemaPath,
-		projectSubstrateInitPreviewRequestSchemaPath,
-		projectSubstrateInitApplyRequestSchemaPath,
-		projectSubstrateUpgradePreviewRequestSchemaPath,
-		projectSubstrateUpgradeApplyRequestSchemaPath,
 		auditTimelineRequestSchemaPath,
 		auditVerificationGetRequestSchemaPath,
 		auditRecordGetRequestSchemaPath,
@@ -66,13 +72,26 @@ func isProjectSubstrateDiagnosticsSchema(schemaPath string) bool {
 		backendPostureGetRequestSchemaPath,
 		providerProfileListRequestSchemaPath,
 		providerProfileGetRequestSchemaPath,
+		gitSetupGetRequestSchemaPath:
+		return true
+	default:
+		return false
+	}
+}
+
+func isProjectSubstrateManagementSchema(schemaPath string) bool {
+	switch schemaPath {
+	case projectSubstrateAdoptRequestSchemaPath,
+		projectSubstrateInitPreviewRequestSchemaPath,
+		projectSubstrateInitApplyRequestSchemaPath,
+		projectSubstrateUpgradePreviewRequestSchemaPath,
+		projectSubstrateUpgradeApplyRequestSchemaPath,
 		providerSetupSessionBeginRequestSchemaPath,
 		providerSetupSecretIngressPrepareRequestSchemaPath,
 		providerSetupSecretIngressSubmitRequestSchemaPath,
 		providerValidationBeginRequestSchemaPath,
 		providerValidationCommitRequestSchemaPath,
 		providerCredentialLeaseIssueRequestSchemaPath,
-		gitSetupGetRequestSchemaPath,
 		gitSetupAuthBootstrapRequestSchemaPath,
 		gitSetupIdentityUpsertRequestSchemaPath:
 		return true

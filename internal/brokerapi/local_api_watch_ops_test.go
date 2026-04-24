@@ -276,6 +276,52 @@ func TestSessionTurnExecutionWatchFollowIncludesSnapshotThenProgressUpdates(t *t
 	}
 }
 
+func TestSessionTurnExecutionWatchIncludesMultiplePendingWaitScopes(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-turn-watch-multi", "sess-turn-watch-multi")
+	first := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-turn-watch-multi-1", SessionID: "sess-turn-watch-multi", TriggerSource: "autonomous_background", RequestedOperation: "start", AutonomyPosture: "operator_guided", UserMessageContentText: "first"})
+	updateWatchExecutionWait(t, s, first.TurnID, "operator_input", "waiting_operator_input")
+	second := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-turn-watch-multi-2", SessionID: "sess-turn-watch-multi", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "second"})
+	updateWatchExecutionWait(t, s, second.TurnID, "external_dependency", "waiting_external_dependency")
+	ack := mustHandleSessionTurnExecutionWatchRequest(t, s, SessionTurnExecutionWatchRequest{SchemaID: "runecode.protocol.v0.SessionTurnExecutionWatchRequest", SchemaVersion: "0.1.0", RequestID: "req-session-turn-watch-multi-watch", SessionID: "sess-turn-watch-multi", Follow: true, IncludeSnapshot: false})
+	events, err := s.StreamSessionTurnExecutionWatchEvents(ack)
+	if err != nil {
+		t.Fatalf("StreamSessionTurnExecutionWatchEvents returned error: %v", err)
+	}
+	assertWatchIncludesPendingWaitScopes(t, events, "operator_input", "external_dependency")
+}
+
+func updateWatchExecutionWait(t *testing.T, s *Service, turnID, waitKind, waitState string) {
+	t.Helper()
+	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-turn-watch-multi", TurnID: turnID, ExecutionState: "waiting", WaitKind: waitKind, WaitState: waitState, OccurredAt: s.currentTimestamp()}); err != nil {
+		t.Fatalf("UpdateSessionTurnExecution returned error: %v", err)
+	}
+}
+
+func assertWatchIncludesPendingWaitScopes(t *testing.T, events []SessionTurnExecutionWatchEvent, expectedWaitKinds ...string) {
+	t.Helper()
+	if len(events) < 3 {
+		t.Fatalf("watch events len = %d, want at least 3", len(events))
+	}
+	waitKinds := map[string]struct{}{}
+	upserts := 0
+	for _, event := range events {
+		if event.EventType != "session_turn_execution_watch_upsert" || event.TurnExecution == nil {
+			continue
+		}
+		upserts++
+		waitKinds[event.TurnExecution.WaitKind] = struct{}{}
+	}
+	if upserts < 2 {
+		t.Fatalf("upsert count = %d, want at least 2", upserts)
+	}
+	for _, waitKind := range expectedWaitKinds {
+		if _, ok := waitKinds[waitKind]; !ok {
+			t.Fatalf("watch upserts missing %s wait: %+v", waitKind, waitKinds)
+		}
+	}
+}
+
 func seedFollowWithoutSnapshotWatchFixture(t *testing.T, s *Service) time.Time {
 	t.Helper()
 	now := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)

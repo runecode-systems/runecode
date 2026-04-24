@@ -5,7 +5,7 @@
   "description": "Broker-owned durable per-turn execution state projection, distinct from transcript turn lifecycle.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 25,
+  "maxProperties": 27,
   "required": ["schema_id", "schema_version", "turn_id", "session_id", "execution_index", "trigger_id", "trigger_source", "requested_operation", "execution_state", "approval_profile", "autonomy_posture", "created_at", "updated_at"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.SessionTurnExecution", "description": "Protocol schema identifier.", "x-data-class": "public" },
@@ -13,6 +13,8 @@
     "turn_id": { "type": "string", "minLength": 1, "maxLength": 160, "description": "Canonical turn-execution identity.", "x-data-class": "public" },
     "session_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Canonical session identity.", "x-data-class": "public" },
     "execution_index": { "type": "integer", "minimum": 1, "description": "Monotonic per-session execution index.", "x-data-class": "public" },
+    "orchestration_scope_id": { "type": "string", "minLength": 1, "maxLength": 160, "description": "Broker-owned orchestration scope identity for dependency-aware partial blocking.", "x-data-class": "public" },
+    "depends_on_scope_ids": { "type": "array", "maxItems": 256, "description": "Orchestration scope dependencies that must resolve before this scope can proceed.", "items": { "type": "string", "minLength": 1, "maxLength": 160, "description": "Dependent orchestration scope identity.", "x-data-class": "public" }, "x-data-class": "public" },
     "trigger_id": { "type": "string", "minLength": 1, "maxLength": 160, "description": "Canonical execution trigger identity.", "x-data-class": "public" },
     "trigger_source": { "type": "string", "enum": ["interactive_user", "autonomous_background", "resume_follow_up"], "description": "Explanatory trigger source classification.", "x-data-class": "public" },
     "requested_operation": { "type": "string", "enum": ["start", "continue"], "description": "Requested execution operation.", "x-data-class": "public" },

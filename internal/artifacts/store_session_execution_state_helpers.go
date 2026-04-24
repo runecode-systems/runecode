@@ -30,6 +30,8 @@ func newSessionTurnExecutionState(sessionID, turnID, triggerID string, triggerIn
 		TurnID:                               turnID,
 		SessionID:                            sessionID,
 		ExecutionIndex:                       triggerIndex,
+		OrchestrationScopeID:                 req.OrchestrationScopeID,
+		DependsOnScopeIDs:                    append([]string{}, req.DependsOnScopeIDs...),
 		TriggerID:                            triggerID,
 		TriggerSource:                        req.TriggerSource,
 		RequestedOperation:                   req.RequestedOperation,
@@ -83,6 +85,12 @@ func applySessionTurnExecutionUpdate(exec SessionTurnExecutionDurableState, req 
 	exec.ExecutionState = req.ExecutionState
 	exec.WaitKind = req.WaitKind
 	exec.WaitState = req.WaitState
+	if req.OrchestrationScopeID != "" {
+		exec.OrchestrationScopeID = req.OrchestrationScopeID
+	}
+	if req.DependsOnScopeIDs != nil {
+		exec.DependsOnScopeIDs = append([]string{}, req.DependsOnScopeIDs...)
+	}
 	if req.PrimaryRunID != "" {
 		exec.PrimaryRunID = req.PrimaryRunID
 	}
@@ -108,15 +116,6 @@ func applySessionTurnExecutionUpdate(exec SessionTurnExecutionDurableState, req 
 	}
 	exec.UpdatedAt = req.OccurredAt
 	return exec
-}
-
-func hasActiveSessionTurnExecution(session SessionDurableState) bool {
-	for _, exec := range session.TurnExecutions {
-		if isSessionTurnExecutionActive(exec.ExecutionState) {
-			return true
-		}
-	}
-	return false
 }
 
 func isSessionTurnExecutionActive(state string) bool {

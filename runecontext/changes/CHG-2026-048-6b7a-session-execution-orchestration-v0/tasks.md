@@ -17,7 +17,7 @@
 - [x] Preserve project-context binding when session-driven work depends on verified RuneContext state.
 - [x] Bind project-context-sensitive session work to the validated project-substrate snapshot digest rather than ambient repo state or read-model summary identity.
 - [x] Fail closed for normal session-driven execution when repository project-substrate posture is missing, invalid, non-verified, or unsupported.
-- [x] Keep at most one active execution-bearing turn per session in `v0` so wait/resume identity remains canonical and replay-safe.
+- [x] Allow multiple active/pending execution-bearing turns per session in `v0` with durable scope/dependency identifiers so wait/resume identity remains canonical per-turn and replay-safe.
 
 ## Wait, Resume, and Reconnect
 

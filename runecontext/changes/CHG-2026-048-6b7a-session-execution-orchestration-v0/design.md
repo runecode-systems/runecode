@@ -19,7 +19,7 @@ Bind canonical session turns to real isolate-backed work orchestration.
 - Plain transcript append semantics must remain distinct from execution-trigger submission; chat message recording must not become the long-term public contract for broker-owned turn execution.
 - Per-turn execution state must be a first-class broker-owned durable surface distinct from session summary fields and transcript-turn status fields.
 - Transcript durability and in-flight execution streaming must remain distinct; live execution updates are advisory execution-state projections, while canonical transcript messages are durable checkpoints.
-- `v0` should allow at most one active execution-bearing turn per session at a time so wait/resume semantics remain canonical and replay-safe.
+- `v0` should allow multiple active/pending execution-bearing turns per session when dependency tracking and policy permit, while preserving canonical per-turn execution state and replay-safe sequencing.
 - Formal human approval, operator-input pauses, and autonomous continuation are distinct broker-owned concepts; this change must not collapse them into one generic waiting state.
 - User-facing autonomy controls should split into formal approval profile and operator-question frequency controls rather than implying system-authored approval decisions.
 - Hard-floor approvals remain outside profile and autonomy controls; this change must not soften exact-action human approval for those lanes.

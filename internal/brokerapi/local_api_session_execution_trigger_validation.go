@@ -6,6 +6,9 @@ func (s *Service) validateSessionExecutionTriggerRequest(requestID string, req S
 	if strings.TrimSpace(req.SessionID) == "" {
 		return sessionExecutionTriggerValidationError(s, requestID, "session_id is required")
 	}
+	if strings.TrimSpace(req.RequestedOperation) != "continue" && strings.TrimSpace(req.TurnID) != "" {
+		return sessionExecutionTriggerValidationError(s, requestID, "turn_id is only allowed for continue requests")
+	}
 	if !validSessionTriggerSource(req.TriggerSource) {
 		return sessionExecutionTriggerValidationError(s, requestID, "trigger_source is invalid")
 	}

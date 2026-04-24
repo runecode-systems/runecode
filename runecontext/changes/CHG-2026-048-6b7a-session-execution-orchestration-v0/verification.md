@@ -41,3 +41,4 @@ Use the repository's standard verification flow before closing this change.
 - Session execution triggers now bridge into the canonical run/runtime pipeline instead of acting as chat-local state.
 - Turn execution state now distinguishes transcript checkpoints from advisory execution watch updates and preserves canonical links to runs, approvals, artifacts, and audit records.
 - `continue` now fails closed for `waiting_approval` turns until approval resolution clears the wait through broker-owned approval sync.
+- Session detail/read models now project `pending_turn_executions` and per-turn orchestration scope/dependency IDs as durable substrate for dependency-aware partial blocking and multi-wait evolution.

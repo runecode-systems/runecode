@@ -8,9 +8,8 @@ import (
 )
 
 func (s *Service) reconcileSessionExecutionTriggerSideEffects(requestID string, session artifacts.SessionDurableState, req SessionExecutionTriggerRequest, resp SessionExecutionTriggerResponse) error {
-	s.auditSessionExecutionTrigger(requestID, req, resp)
-	if err := s.appendSessionExecutionStartCheckpoint(req.SessionID, resp.TriggerID, session.CreatedByRunID, req.UserMessageContentText); err != nil {
-		return err
+	if req.RequestedOperation == "start" {
+		s.auditSessionExecutionTrigger(requestID, req, resp)
 	}
 	triggerSession, ok := s.SessionState(req.SessionID)
 	if !ok {
@@ -20,7 +19,16 @@ func (s *Service) reconcileSessionExecutionTriggerSideEffects(requestID string, 
 	if !ok {
 		return fmt.Errorf("session execution trigger %q not found", resp.TriggerID)
 	}
-	if err := s.bridgeSessionExecutionTriggerToRun(triggerSession.CreatedByRunID, result); err != nil {
+	runID := strings.TrimSpace(result.TurnExecution.PrimaryRunID)
+	if runID == "" {
+		runID = strings.TrimSpace(triggerSession.CreatedByRunID)
+	}
+	if req.RequestedOperation == "start" {
+		if err := s.appendSessionExecutionStartCheckpoint(req.SessionID, resp.TriggerID, runID, req.UserMessageContentText); err != nil {
+			return err
+		}
+	}
+	if err := s.bridgeSessionExecutionTriggerToRun(runID, result); err != nil {
 		return err
 	}
 	return nil

@@ -16,9 +16,6 @@ func (s *Store) AppendSessionExecutionTrigger(req SessionExecutionTriggerAppendR
 	if replay, handled, err := replaySessionExecutionTriggerAppend(session, normalized); handled {
 		return replay, err
 	}
-	if hasActiveSessionTurnExecution(session) {
-		return SessionExecutionTriggerAppendResult{}, ErrSessionActiveTurnExecutionExists
-	}
 	appendResult := createSessionExecutionTriggerAppendResult(&session, normalized)
 	s.state.Sessions[normalized.SessionID] = session
 	if err := s.saveStateLocked(); err != nil {

@@ -1,8 +1,10 @@
 package brokerapi
 
 import (
+	"fmt"
 	"strings"
 
+	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/projectsubstrate"
 )
 
@@ -33,5 +35,28 @@ func sessionExecutionInitialState(triggerSource, autonomyPosture string) (string
 	if autonomyPosture == "operator_guided" {
 		return "waiting", "operator_input", "waiting_operator_input"
 	}
-	return "waiting", "approval", "waiting_approval"
+	return "running", "", ""
+}
+
+func sessionExecutionScopeForTrigger(session artifacts.SessionDurableState, req SessionExecutionTriggerRequest) (string, []string) {
+	if strings.TrimSpace(req.RequestedOperation) == "continue" {
+		if target, ok := currentOrResumableTurnExecution(session.TurnExecutions, strings.TrimSpace(req.TurnID)); ok {
+			scopeID := strings.TrimSpace(target.OrchestrationScopeID)
+			if scopeID == "" {
+				scopeID = sessionExecutionScopeIDFromTurn(target.TurnID, target.ExecutionIndex)
+			}
+			return scopeID, append([]string{}, target.DependsOnScopeIDs...)
+		}
+	}
+	nextIndex := len(session.ExecutionTriggers) + 1
+	scopeID := fmt.Sprintf("%s.scope.%06d", strings.TrimSpace(session.SessionID), nextIndex)
+	return scopeID, []string{}
+}
+
+func sessionExecutionScopeIDFromTurn(turnID string, executionIndex int) string {
+	trimmedTurnID := strings.TrimSpace(turnID)
+	if trimmedTurnID != "" {
+		return strings.Replace(trimmedTurnID, ".exec.", ".scope.", 1)
+	}
+	return fmt.Sprintf("scope.%06d", executionIndex)
 }

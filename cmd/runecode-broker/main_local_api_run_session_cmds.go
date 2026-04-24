@@ -180,12 +180,13 @@ func handleSessionExecutionTrigger(args []string, service *brokerapi.Service, st
 	fs := flag.NewFlagSet("session-execution-trigger", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	sessionID := fs.String("session-id", "", "session id")
+	turnID := fs.String("turn-id", "", "optional target turn id for continue")
 	triggerSource := fs.String("trigger-source", "interactive_user", "trigger source classification")
 	requestedOperation := fs.String("requested-operation", "start", "requested execution operation")
 	userMessage := fs.String("user-message", "", "optional user message content")
 	idempotencyKey := fs.String("idempotency-key", "", "optional idempotency key")
 	if err := fs.Parse(args); err != nil {
-		return &usageError{message: "session-execution-trigger usage: runecode-broker session-execution-trigger --session-id id [--trigger-source interactive_user|autonomous_background|resume_follow_up] [--requested-operation start|continue] [--user-message text] [--idempotency-key key]"}
+		return &usageError{message: "session-execution-trigger usage: runecode-broker session-execution-trigger --session-id id [--turn-id id] [--trigger-source interactive_user|autonomous_background|resume_follow_up] [--requested-operation start|continue] [--user-message text] [--idempotency-key key]"}
 	}
 	if *sessionID == "" {
 		return &usageError{message: "session-execution-trigger requires --session-id"}
@@ -207,6 +208,7 @@ func handleSessionExecutionTrigger(args []string, service *brokerapi.Service, st
 		SchemaVersion:          "0.1.0",
 		RequestID:              defaultRequestID(),
 		SessionID:              *sessionID,
+		TurnID:                 *turnID,
 		TriggerSource:          *triggerSource,
 		RequestedOperation:     *requestedOperation,
 		UserMessageContentText: *userMessage,

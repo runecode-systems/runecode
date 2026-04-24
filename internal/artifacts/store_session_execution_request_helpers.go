@@ -12,6 +12,8 @@ type SessionExecutionTriggerAppendRequest struct {
 	CreatedByRunID                       string
 	TriggerSource                        string
 	RequestedOperation                   string
+	OrchestrationScopeID                 string
+	DependsOnScopeIDs                    []string
 	ApprovalProfile                      string
 	AutonomyPosture                      string
 	PrimaryRunID                         string
@@ -46,6 +48,8 @@ type SessionTurnExecutionUpdateRequest struct {
 	ExecutionState                       string
 	WaitKind                             string
 	WaitState                            string
+	OrchestrationScopeID                 string
+	DependsOnScopeIDs                    []string
 	PrimaryRunID                         string
 	PendingApprovalID                    string
 	LinkedRunIDs                         []string
@@ -60,22 +64,12 @@ type SessionTurnExecutionUpdateRequest struct {
 
 func normalizeSessionExecutionTriggerAppendRequest(req SessionExecutionTriggerAppendRequest) (SessionExecutionTriggerAppendRequest, error) {
 	normalized := req
-	normalized.SessionID = strings.TrimSpace(req.SessionID)
-	if normalized.SessionID == "" {
-		return SessionExecutionTriggerAppendRequest{}, fmt.Errorf("session id is required")
+	if err := normalizeSessionExecutionTriggerIdentityFields(&normalized, req); err != nil {
+		return SessionExecutionTriggerAppendRequest{}, err
 	}
-	normalized.WorkspaceID = strings.TrimSpace(req.WorkspaceID)
-	if normalized.WorkspaceID == "" {
-		normalized.WorkspaceID = "workspace-local"
-	}
-	normalized.CreatedByRunID = strings.TrimSpace(req.CreatedByRunID)
-	normalized.TriggerSource = strings.TrimSpace(req.TriggerSource)
-	if normalized.TriggerSource == "" {
-		return SessionExecutionTriggerAppendRequest{}, fmt.Errorf("trigger source is required")
-	}
-	normalized.RequestedOperation = strings.TrimSpace(req.RequestedOperation)
-	if normalized.RequestedOperation == "" {
-		return SessionExecutionTriggerAppendRequest{}, fmt.Errorf("requested operation is required")
+	normalized.OrchestrationScopeID = strings.TrimSpace(req.OrchestrationScopeID)
+	if req.DependsOnScopeIDs != nil {
+		normalized.DependsOnScopeIDs = uniqueSortedStrings(req.DependsOnScopeIDs)
 	}
 	normalizeSessionExecutionTriggerControlFields(&normalized, req)
 	normalized.BoundValidatedProjectSubstrateDigest = strings.TrimSpace(req.BoundValidatedProjectSubstrateDigest)
@@ -97,6 +91,27 @@ func normalizeSessionExecutionTriggerAppendRequest(req SessionExecutionTriggerAp
 	}
 	normalized.OccurredAt = normalizedOccurredAt(req.OccurredAt)
 	return normalized, nil
+}
+
+func normalizeSessionExecutionTriggerIdentityFields(normalized *SessionExecutionTriggerAppendRequest, req SessionExecutionTriggerAppendRequest) error {
+	normalized.SessionID = strings.TrimSpace(req.SessionID)
+	if normalized.SessionID == "" {
+		return fmt.Errorf("session id is required")
+	}
+	normalized.WorkspaceID = strings.TrimSpace(req.WorkspaceID)
+	if normalized.WorkspaceID == "" {
+		normalized.WorkspaceID = "workspace-local"
+	}
+	normalized.CreatedByRunID = strings.TrimSpace(req.CreatedByRunID)
+	normalized.TriggerSource = strings.TrimSpace(req.TriggerSource)
+	if normalized.TriggerSource == "" {
+		return fmt.Errorf("trigger source is required")
+	}
+	normalized.RequestedOperation = strings.TrimSpace(req.RequestedOperation)
+	if normalized.RequestedOperation == "" {
+		return fmt.Errorf("requested operation is required")
+	}
+	return nil
 }
 
 func normalizeSessionExecutionTriggerControlFields(normalized *SessionExecutionTriggerAppendRequest, req SessionExecutionTriggerAppendRequest) {
@@ -155,6 +170,10 @@ func normalizeSessionTurnExecutionUpdateRequest(req SessionTurnExecutionUpdateRe
 	}
 	normalized.WaitKind = strings.TrimSpace(req.WaitKind)
 	normalized.WaitState = strings.TrimSpace(req.WaitState)
+	normalized.OrchestrationScopeID = strings.TrimSpace(req.OrchestrationScopeID)
+	if req.DependsOnScopeIDs != nil {
+		normalized.DependsOnScopeIDs = uniqueSortedStrings(req.DependsOnScopeIDs)
+	}
 	normalized.BlockedReasonCode = strings.TrimSpace(req.BlockedReasonCode)
 	normalized.TerminalOutcome = strings.TrimSpace(req.TerminalOutcome)
 	normalized.BoundValidatedProjectSubstrateDigest = strings.TrimSpace(req.BoundValidatedProjectSubstrateDigest)

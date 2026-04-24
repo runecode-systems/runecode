@@ -14,6 +14,7 @@ func newSessionDetail(summary SessionSummary, projectedTurns []SessionTranscript
 		TranscriptTurns:          projectedTurns,
 		CurrentTurnExecution:     nil,
 		LatestTurnExecution:      nil,
+		PendingTurnExecutions:    []SessionTurnExecution{},
 		LinkedRunIDs:             boundedSortedKeys(runs, 256),
 		LinkedApprovalIDs:        boundedSortedKeys(approvals, 512),
 		LinkedArtifactDigests:    boundedSortedKeys(artifactsByDigest, 1024),
@@ -28,6 +29,8 @@ func buildSessionTurnExecutionFromDurable(in artifacts.SessionTurnExecutionDurab
 		TurnID:                               in.TurnID,
 		SessionID:                            in.SessionID,
 		ExecutionIndex:                       in.ExecutionIndex,
+		OrchestrationScopeID:                 in.OrchestrationScopeID,
+		DependsOnScopeIDs:                    boundedStrings(append([]string{}, in.DependsOnScopeIDs...), 256),
 		TriggerID:                            in.TriggerID,
 		TriggerSource:                        in.TriggerSource,
 		RequestedOperation:                   in.RequestedOperation,
@@ -50,24 +53,34 @@ func buildSessionTurnExecutionFromDurable(in artifacts.SessionTurnExecutionDurab
 	}
 }
 
-func currentAndLatestSessionTurnExecution(executions []artifacts.SessionTurnExecutionDurableState) (*SessionTurnExecution, *SessionTurnExecution) {
+func currentAndLatestSessionTurnExecution(executions []artifacts.SessionTurnExecutionDurableState) (*SessionTurnExecution, *SessionTurnExecution, []SessionTurnExecution) {
 	if len(executions) == 0 {
-		return nil, nil
+		return nil, nil, []SessionTurnExecution{}
 	}
 	latest := buildSessionTurnExecutionFromDurable(executions[len(executions)-1])
-	current := currentSessionTurnExecution(executions)
-	return current, &latest
+	pending := pendingSessionTurnExecutions(executions)
+	current := currentSessionTurnExecutionFromPending(pending)
+	return current, &latest, pending
 }
 
-func currentSessionTurnExecution(executions []artifacts.SessionTurnExecutionDurableState) *SessionTurnExecution {
+func pendingSessionTurnExecutions(executions []artifacts.SessionTurnExecutionDurableState) []SessionTurnExecution {
+	out := make([]SessionTurnExecution, 0, len(executions))
 	for idx := len(executions) - 1; idx >= 0; idx-- {
-		if !isSessionTurnExecutionActiveState(executions[idx].ExecutionState) {
+		execution := executions[idx]
+		if !isSessionTurnExecutionActiveState(execution.ExecutionState) {
 			continue
 		}
-		active := buildSessionTurnExecutionFromDurable(executions[idx])
-		return &active
+		out = append(out, buildSessionTurnExecutionFromDurable(execution))
 	}
-	return nil
+	return out
+}
+
+func currentSessionTurnExecutionFromPending(pending []SessionTurnExecution) *SessionTurnExecution {
+	if len(pending) == 0 {
+		return nil
+	}
+	current := pending[0]
+	return &current
 }
 
 func isSessionTurnExecutionActiveState(state string) bool {
