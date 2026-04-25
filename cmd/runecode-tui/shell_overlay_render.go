@@ -52,7 +52,7 @@ func centeredOverlayBlockBounded(title shellOverlayID, body string, viewportWidt
 
 	rendered := compactLines(
 		tableHeader("Overlay")+" "+neutralBadge(strings.ToUpper(string(title))),
-		lipgloss.NewStyle().Width(viewportWidth).Align(lipgloss.Center).Render(frame),
+		lipgloss.NewStyle().Width(viewportWidth).Align(lipgloss.Left).Render(frame),
 	)
 	if maxHeight <= 0 {
 		return rendered
@@ -79,10 +79,7 @@ func centeredOverlayContentBounds(viewportWidth int) (int, int) {
 		viewportWidth = 120
 	}
 	outerWidth := overlayBlockWidth(viewportWidth)
-	startX := (viewportWidth - outerWidth) / 2
-	if startX < 0 {
-		startX = 0
-	}
+	startX := 0
 	contentStartX := startX + 2 // border + left padding
 	contentEndX := startX + outerWidth - 3
 	if contentEndX < contentStartX {

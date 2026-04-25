@@ -24,6 +24,17 @@ func (m shellModel) applyPaletteAction(action paletteActionMsg) (tea.Model, tea.
 }
 
 func (m shellModel) requestQuitAction() (tea.Model, tea.Cmd) {
+	return m.requestQuitActionWithReason("")
+}
+
+func (m shellModel) requestQuitActionWithReason(forcedReason string) (tea.Model, tea.Cmd) {
+	if reason := strings.TrimSpace(forcedReason); reason != "" {
+		m.beginOverlaySession()
+		m.quitConfirm = shellQuitConfirmState{active: true, reason: reason}
+		m.setFocus(focusPalette)
+		m.syncOverlayStack()
+		return m, nil
+	}
 	if reason, active := m.activeLocalEntryStateReason(); active {
 		m.beginOverlaySession()
 		m.quitConfirm = shellQuitConfirmState{active: true, reason: reason}

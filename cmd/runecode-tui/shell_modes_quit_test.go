@@ -278,7 +278,7 @@ func TestShellEmergencyCtrlCStillExitsWhenQuitConfirmationShown(t *testing.T) {
 
 	updated, firstCmd := shell.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if firstCmd == nil {
-		t.Fatal("expected first ctrl+c to arm emergency path even with quit confirmation shown")
+		t.Fatal("expected first ctrl+c to arm emergency path while confirmation is shown")
 	}
 	shell = updated.(shellModel)
 	if shell.quitting {
@@ -287,8 +287,8 @@ func TestShellEmergencyCtrlCStillExitsWhenQuitConfirmationShown(t *testing.T) {
 	if !shell.emergencyQuit.pending {
 		t.Fatal("expected first ctrl+c to arm emergency pending state")
 	}
-	if shell.quitConfirm.active {
-		t.Fatal("expected emergency ctrl+c to dismiss rich quit confirmation overlay")
+	if !shell.quitConfirm.active {
+		t.Fatal("expected first ctrl+c to keep normal quit confirmation visible")
 	}
 
 	updated, secondCmd := shell.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
@@ -427,31 +427,71 @@ func TestShellLeaderQuitExecutesThroughUnifiedActionGraph(t *testing.T) {
 	}
 }
 
-func TestShellEmergencyCtrlCFirstPressArmsAndRendersWarning(t *testing.T) {
+func TestShellCtrlCFirstPressPromptsWhenNoEntryState(t *testing.T) {
 	m := newShellModel()
 
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if cmd == nil {
-		t.Fatal("expected first ctrl+c to return emergency arm timeout command")
+		t.Fatal("expected first ctrl+c to return emergency arm timeout command when opening quit confirmation")
 	}
 	shell := updated.(shellModel)
 	if shell.quitting {
-		t.Fatal("expected first ctrl+c not to quit")
+		t.Fatal("expected first ctrl+c not to quit immediately")
 	}
 	if !shell.emergencyQuit.pending {
-		t.Fatal("expected first ctrl+c to arm pending emergency quit state")
+		t.Fatal("expected emergency quit pending after first ctrl+c")
 	}
-	bottom := shell.renderBottomStrip(shell.activeShellSurface())
-	if !strings.Contains(bottom, "press ctrl+c once more to quit") {
-		t.Fatalf("expected emergency quit warning in command-entry area, got %q", bottom)
+	if !shell.quitConfirm.active {
+		t.Fatal("expected quit confirmation after first ctrl+c even when no entry state exists")
+	}
+	if !strings.Contains(shell.renderQuitConfirmDialog(), "quit confirmation") {
+		t.Fatalf("expected generic quit confirmation reason, got %q", shell.renderQuitConfirmDialog())
 	}
 }
 
+func TestShellCtrlCFirstPressPromptsAndArmsEmergencyWhenEntryStateActive(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	m.height = 40
+	m.location.Primary = shellObjectLocation{RouteID: routeChat, Object: workbenchObjectRef{Kind: "route", ID: string(routeChat)}}
+	chat := m.routeModels[routeChat].(chatRouteModel)
+	chat.composeOn = true
+	chat.composer.Focus()
+	m.routeModels[routeChat] = chat
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if cmd == nil {
+		t.Fatal("expected first ctrl+c to return emergency arm timeout command while entry state is active")
+	}
+	shell := updated.(shellModel)
+	if shell.quitting {
+		t.Fatal("expected first ctrl+c not to quit while entry state is active")
+	}
+	if !shell.quitConfirm.active {
+		t.Fatal("expected first ctrl+c to open normal quit confirmation while entry state is active")
+	}
+	if !shell.emergencyQuit.pending {
+		t.Fatal("expected first ctrl+c to arm pending emergency quit state while confirmation is active")
+	}
+	bottom := shell.renderBottomStrip(shell.activeShellSurface())
+	if !strings.Contains(bottom, "press ctrl+c once more to quit") {
+		t.Fatalf("expected emergency follow-up warning in command-entry area, got %q", bottom)
+	}
+}
+
+
 func TestShellEmergencyCtrlCSecondPressQuitsWhilePending(t *testing.T) {
 	m := newShellModel()
+	m.width = 150
+	m.height = 40
+	m.location.Primary = shellObjectLocation{RouteID: routeChat, Object: workbenchObjectRef{Kind: "route", ID: string(routeChat)}}
+	chat := m.routeModels[routeChat].(chatRouteModel)
+	chat.composeOn = true
+	chat.composer.Focus()
+	m.routeModels[routeChat] = chat
+
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	shell := updated.(shellModel)
-
 	updated, cmd := shell.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	shell = updated.(shellModel)
 	if cmd == nil {
@@ -465,8 +505,11 @@ func TestShellEmergencyCtrlCSecondPressQuitsWhilePending(t *testing.T) {
 func TestShellEmergencyCtrlCPendingClearsOnNormalInteraction(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
-	m.location.Primary = shellObjectLocation{RouteID: routeDashboard, Object: workbenchObjectRef{Kind: "route", ID: string(routeDashboard)}}
-	m.routeModels[routeDashboard] = keyboardCaptureRouteModel{id: routeDashboard, ownership: routeKeyboardOwnershipNormal}
+	m.location.Primary = shellObjectLocation{RouteID: routeChat, Object: workbenchObjectRef{Kind: "route", ID: string(routeChat)}}
+	chat := m.routeModels[routeChat].(chatRouteModel)
+	chat.composeOn = true
+	chat.composer.Focus()
+	m.routeModels[routeChat] = chat
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	shell := updated.(shellModel)
@@ -479,6 +522,9 @@ func TestShellEmergencyCtrlCPendingClearsOnNormalInteraction(t *testing.T) {
 		t.Fatal("did not expect quit command on normal follow-up interaction")
 	}
 	shell = updated.(shellModel)
+	if !shell.quitConfirm.active {
+		t.Fatal("expected normal quit confirmation to remain active after non-ctrl+c interaction")
+	}
 	if shell.emergencyQuit.pending {
 		t.Fatal("expected normal interaction to clear emergency quit pending state")
 	}
@@ -489,6 +535,14 @@ func TestShellEmergencyCtrlCPendingClearsOnNormalInteraction(t *testing.T) {
 
 func TestShellEmergencyCtrlCPendingClearsOnTimeout(t *testing.T) {
 	m := newShellModel()
+	m.width = 150
+	m.height = 40
+	m.location.Primary = shellObjectLocation{RouteID: routeChat, Object: workbenchObjectRef{Kind: "route", ID: string(routeChat)}}
+	chat := m.routeModels[routeChat].(chatRouteModel)
+	chat.composeOn = true
+	chat.composer.Focus()
+	m.routeModels[routeChat] = chat
+
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	shell := updated.(shellModel)
 	if !shell.emergencyQuit.pending {
@@ -504,6 +558,9 @@ func TestShellEmergencyCtrlCPendingClearsOnTimeout(t *testing.T) {
 	if shell.emergencyQuit.pending {
 		t.Fatal("expected timeout to clear emergency quit pending state")
 	}
+	if !shell.quitConfirm.active {
+		t.Fatal("expected normal quit confirmation to remain active after emergency timeout")
+	}
 	if shell.quitting {
 		t.Fatal("did not expect timeout to quit")
 	}
@@ -517,11 +574,14 @@ func TestShellEmergencyCtrlCBypassesExclusiveLocalCapture(t *testing.T) {
 
 	updated, firstCmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if firstCmd == nil {
-		t.Fatal("expected first ctrl+c to arm emergency quit even during exclusive local capture")
+		t.Fatal("expected first ctrl+c to open normal quit confirmation even during exclusive local capture")
 	}
 	shell := updated.(shellModel)
 	if shell.quitting {
 		t.Fatal("expected first ctrl+c not to quit")
+	}
+	if !shell.quitConfirm.active {
+		t.Fatal("expected first ctrl+c to open quit confirmation during exclusive local capture")
 	}
 	if !shell.emergencyQuit.pending {
 		t.Fatal("expected first ctrl+c to arm emergency pending state")

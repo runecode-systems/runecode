@@ -72,7 +72,7 @@ func TestPaletteMouseIgnoresClicksOutsideOverlayBounds(t *testing.T) {
 
 func TestPaletteMouseIgnoresClicksInsideFrameOutsideContentBounds(t *testing.T) {
 	m := newPaletteModel([]paletteEntry{{Index: 1, Label: "back", Description: "go back", Action: paletteActionMsg{Verb: verbBack}}}).Open()
-	updated, _, changed := m.UpdateMouse(tea.MouseMsg{X: 4, Y: 9, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease}, 3, 80)
+	updated, _, changed := m.UpdateMouse(tea.MouseMsg{X: 1, Y: 9, Button: tea.MouseButtonLeft, Action: tea.MouseActionRelease}, 3, 80)
 	if changed {
 		t.Fatal("expected click on overlay frame edge to be ignored")
 	}

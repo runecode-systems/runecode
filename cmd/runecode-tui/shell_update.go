@@ -19,19 +19,22 @@ func (m shellModel) handleQuitMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			m.quitting = true
 			return m, tea.Quit, true
 		}
-		m.emergencyQuit.pending = true
-		m.emergencyQuit.token++
-		token := m.emergencyQuit.token
-		cmd := tea.Tick(emergencyQuitArmWindow, func(time.Time) tea.Msg {
-			return shellEmergencyQuitTimeoutMsg{token: token}
-		})
-		m.commandMode = m.commandMode.Abort()
-		m.leader.Abort()
-		m.quitConfirm = shellQuitConfirmState{}
-		m.syncOverlayStack()
-		m.restoreFocusAfterOverlayClose()
-		m.toasts.Push(toastWarn, "Emergency quit armed. Press ctrl+c again to quit.")
-		return m, cmd, true
+		updated, cmd := m.requestQuitActionWithReason("quit confirmation")
+		shell := updated.(shellModel)
+		if shell.quitConfirm.active {
+			shell.emergencyQuit.pending = true
+			shell.emergencyQuit.token++
+			token := shell.emergencyQuit.token
+			tick := tea.Tick(emergencyQuitArmWindow, func(time.Time) tea.Msg {
+				return shellEmergencyQuitTimeoutMsg{token: token}
+			})
+			shell.toasts.Push(toastWarn, "Quit requested. Press ctrl+c again to quit immediately.")
+			if cmd != nil {
+				return shell, tea.Batch(cmd, tick), true
+			}
+			return shell, tick, true
+		}
+		return shell, cmd, true
 	}
 	if m.emergencyQuit.pending {
 		m.emergencyQuit.pending = false

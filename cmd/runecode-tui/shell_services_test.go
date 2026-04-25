@@ -179,7 +179,7 @@ func TestCenteredOverlayBlockBoundedClipsToHeight(t *testing.T) {
 
 func TestCenteredOverlayContentBoundsUseInnerContentArea(t *testing.T) {
 	start, end := centeredOverlayContentBounds(80)
-	if start != 6 || end != 73 {
-		t.Fatalf("expected content bounds [6,73], got [%d,%d]", start, end)
+	if start != 2 || end != 69 {
+		t.Fatalf("expected content bounds [2,69], got [%d,%d]", start, end)
 	}
 }
