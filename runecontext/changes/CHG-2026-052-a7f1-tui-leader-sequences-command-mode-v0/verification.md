@@ -1,7 +1,8 @@
 # Verification
 
 ## Executed Automated Checks
-- Not run yet; planning change only.
+- `go test ./cmd/runecode-tui`
+- `just ci`
 
 ## Planned Automated Checks
 - `go test ./cmd/runecode-tui`
@@ -34,6 +35,16 @@
 - Confirm emergency quit through `ctrl+c` now requires two presses.
 - Confirm quit confirmation appears only when local-entry state would be discarded.
 - Confirm help text and discoverability surfaces are generated from real action definitions.
+
+## Results
+- Verified the shell uses the richer keyboard-ownership contract to gate leader mode, command mode, focus traversal, and route-local typing.
+- Verified leader mode opens immediately from the configured leader key, renders a which-key overlay, narrows valid next keys, aborts on `esc`, and aborts invalid sequences without executing unrelated actions.
+- Verified `:` opens a shell-owned bottom-left command mode that supports typing, backspace, enter execution, `esc` abort, and inline parse/execution errors.
+- Verified fuzzy discovery remains available through `ctrl+p` and is sourced from the same unified action graph used by leader mode and command aliases.
+- Verified visible beginner quit discoverability remains available even when sidebar navigation is hidden, via the bottom strip quick-action hint tied to the real `shell.quit` action.
+- Verified visible route discoverability no longer implies retired single-stroke route jumps; sidebar route hints now reflect the real leader-backed route-open bindings.
+- Verified `ctrl+c` requires two presses to quit, the first press arms emergency quit and surfaces an explicit bottom-strip warning, and pending emergency state clears on timeout or normal interaction.
+- Verified non-emergency quit confirmation appears only when active local entry state would be discarded.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

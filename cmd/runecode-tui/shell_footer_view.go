@@ -22,6 +22,7 @@ func (m shellModel) renderBottomStrip(surface routeSurface) string {
 	if m.selectionMode {
 		selectionHint = "Selection mode on; drag-to-select is enabled until you exit it."
 	}
+	selectionHint = m.renderQuitDiscoverabilityHint() + " | " + selectionHint
 	return compactLines(
 		tableHeader("Bottom strip"),
 		bottom,
@@ -29,6 +30,18 @@ func (m shellModel) renderBottomStrip(surface routeSurface) string {
 		m.renderRouteCopyActions(),
 		selectionHint,
 	)
+}
+
+func (m shellModel) renderQuitDiscoverabilityHint() string {
+	action, ok := m.actions.definitionByID("shell.quit")
+	if !ok {
+		return ""
+	}
+	label := "Quit RuneCode"
+	if title := strings.TrimSpace(action.Title); title != "" {
+		label = title
+	}
+	return "Quick action: " + label + " (:quit)"
 }
 
 func (m shellModel) renderRouteActionHints(surface routeSurface) string {

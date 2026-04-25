@@ -341,6 +341,45 @@ func TestShellSidebarShowsVisibleQuitActionOutsideLeaderAndCommandMode(t *testin
 	}
 }
 
+func TestShellBottomStripShowsQuitDiscoverabilityWhenSidebarHiddenNarrow(t *testing.T) {
+	m := newShellModel()
+	m.width = shellMediumMinWidth - 1
+	m.height = 40
+	if m.effectiveSidebarVisible() {
+		t.Fatal("expected narrow layout to hide sidebar surface")
+	}
+
+	bottom := m.renderBottomStrip(m.activeShellSurface())
+	if !strings.Contains(bottom, "Quick action: Quit RuneCode") || !strings.Contains(bottom, "(:quit)") {
+		t.Fatalf("expected bottom strip to expose beginner quit affordance when sidebar hidden, got %q", bottom)
+	}
+}
+
+func TestShellBottomStripShowsQuitDiscoverabilityWhenSidebarToggledOff(t *testing.T) {
+	m := newShellModel()
+	m.width = shellMediumMinWidth
+	m.height = 40
+	m.sidebarVisible = false
+	if m.effectiveSidebarVisible() {
+		t.Fatal("expected toggled-off sidebar to be hidden")
+	}
+
+	bottom := m.renderBottomStrip(m.activeShellSurface())
+	if !strings.Contains(bottom, "Quick action: Quit RuneCode") || !strings.Contains(bottom, "(:quit)") {
+		t.Fatalf("expected bottom strip to expose beginner quit affordance when sidebar is off, got %q", bottom)
+	}
+}
+
+func TestShellBottomStripHidesQuitDiscoverabilityWhenQuitActionMissing(t *testing.T) {
+	m := newShellModel()
+	delete(m.actions.byID, "shell.quit")
+
+	bottom := m.renderBottomStrip(m.activeShellSurface())
+	if strings.Contains(bottom, "Quick action:") || strings.Contains(bottom, "(:quit)") {
+		t.Fatalf("expected bottom strip not to advertise quit when quit action is missing, got %q", bottom)
+	}
+}
+
 func TestShellSidebarQuitActionExecutesViaUnifiedActionGraph(t *testing.T) {
 	m := newShellModel()
 	m.width = 150

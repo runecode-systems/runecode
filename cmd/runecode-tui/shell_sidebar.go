@@ -59,13 +59,12 @@ func (m *shellModel) moveSidebarCursor(delta int) {
 		m.sidebarCursor = 0
 		return
 	}
-	if delta >= 0 {
-		m.sidebarCursor = (m.sidebarCursor + 1) % len(entries)
+	if delta == 0 {
 		return
 	}
-	m.sidebarCursor--
+	m.sidebarCursor = (m.sidebarCursor + delta) % len(entries)
 	if m.sidebarCursor < 0 {
-		m.sidebarCursor = len(entries) - 1
+		m.sidebarCursor += len(entries)
 	}
 }
 
@@ -144,9 +143,25 @@ func (m shellModel) appendSidebarRouteLines(lines []string, cursor int, width in
 		} else if active {
 			marker = "*"
 		}
-		lines = append(lines, renderSelectableRow(fmt.Sprintf("%s %s %s", marker, routeQuickJumpKey(r), r.Label), width, selected, active && !selected))
+		label := strings.TrimSpace(r.Label)
+		if hint := m.routeOpenLeaderHint(r.ID); hint != "" {
+			label = strings.TrimSpace(hint + " " + label)
+		}
+		lines = append(lines, renderSelectableRow(fmt.Sprintf("%s %s", marker, label), width, selected, active && !selected))
 	}
 	return lines
+}
+
+func (m shellModel) routeOpenLeaderHint(routeID routeID) string {
+	action, ok := m.actions.definitionByID("route.jump." + strings.TrimSpace(string(routeID)))
+	if !ok {
+		return ""
+	}
+	path := normalizeActionPath(action.LeaderPath)
+	if len(path) == 0 {
+		return ""
+	}
+	return strings.Join(path, " ")
 }
 
 func (m shellModel) appendSidebarSessionLines(lines []string, entries []sidebarEntry, cursor int, width int) []string {

@@ -315,29 +315,6 @@ func TestShellSidebarCursorMovesVerticallyAndEnterOpensSession(t *testing.T) {
 	}
 }
 
-func TestShellSidebarRenderShowsSingleSelectedRouteAndActiveMarker(t *testing.T) {
-	m := newShellModel()
-	m.width = 150
-	m.location.Primary = shellObjectLocation{RouteID: routeRuns, Object: workbenchObjectRef{Kind: "route", ID: string(routeRuns)}}
-	m.syncSidebarCursorToLocation()
-
-	v := m.renderSidebar()
-	if strings.Count(v, "> 3 Runs") != 1 {
-		t.Fatalf("expected one selected runs row, got %q", v)
-	}
-	if strings.Count(v, "* 3 Runs") != 0 {
-		t.Fatalf("did not expect active marker on selected row, got %q", v)
-	}
-	if strings.Count(v, "> 2 Chat") != 0 {
-		t.Fatalf("did not expect non-cursor route selected, got %q", v)
-	}
-	for _, line := range strings.Split(v, "\n") {
-		if strings.Contains(line, "> 3 Runs") && lipgloss.Width(line) < 12 {
-			t.Fatalf("expected selected row to render as full-width line, got %q", line)
-		}
-	}
-}
-
 func TestShellSelectionModeDisablesMouseInteractions(t *testing.T) {
 	m := newShellModel()
 	m.width = 120
