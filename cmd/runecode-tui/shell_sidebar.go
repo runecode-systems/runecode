@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
@@ -12,24 +13,28 @@ type sidebarEntryKind string
 const (
 	sidebarEntryRoute   sidebarEntryKind = "route"
 	sidebarEntrySession sidebarEntryKind = "session"
+	sidebarEntryAction  sidebarEntryKind = "action"
 )
 
 type sidebarEntry struct {
-	Kind    sidebarEntryKind
-	Route   routeDefinition
-	Session brokerapi.SessionSummary
+	Kind     sidebarEntryKind
+	Route    routeDefinition
+	Session  brokerapi.SessionSummary
+	ActionID string
 }
 
 func (m shellModel) sidebarEntries() []sidebarEntry {
-	entries := make([]sidebarEntry, 0, len(m.routes)+len(m.sessionItems))
+	entries := make([]sidebarEntry, 0, len(m.routes)+len(m.sessionItems)+1)
 	for _, route := range m.routes {
 		entries = append(entries, sidebarEntry{Kind: sidebarEntryRoute, Route: route})
 	}
-	if m.sessionLoading || strings.TrimSpace(m.sessionLoadError) != "" {
-		return entries
+	if !m.sessionLoading && strings.TrimSpace(m.sessionLoadError) == "" {
+		for _, session := range sortedSessionDirectorySummaries(m.sessionItems, m.recentSessions) {
+			entries = append(entries, sidebarEntry{Kind: sidebarEntrySession, Session: session})
+		}
 	}
-	for _, session := range sortedSessionDirectorySummaries(m.sessionItems, m.recentSessions) {
-		entries = append(entries, sidebarEntry{Kind: sidebarEntrySession, Session: session})
+	if _, ok := m.actions.definitionByID("shell.quit"); ok {
+		entries = append(entries, sidebarEntry{Kind: sidebarEntryAction, ActionID: "shell.quit"})
 	}
 	return entries
 }
@@ -54,13 +59,12 @@ func (m *shellModel) moveSidebarCursor(delta int) {
 		m.sidebarCursor = 0
 		return
 	}
-	if delta >= 0 {
-		m.sidebarCursor = (m.sidebarCursor + 1) % len(entries)
+	if delta == 0 {
 		return
 	}
-	m.sidebarCursor--
+	m.sidebarCursor = (m.sidebarCursor + delta) % len(entries)
 	if m.sidebarCursor < 0 {
-		m.sidebarCursor = len(entries) - 1
+		m.sidebarCursor += len(entries)
 	}
 }
 
@@ -129,6 +133,33 @@ func (m shellModel) normalizedSidebarCursor(entries []sidebarEntry) int {
 	return cursor
 }
 
+func (m shellModel) sidebarMouseRows() []int {
+	entries := m.sidebarEntries()
+	rows := make([]int, 0, len(entries)+6)
+	for i := range m.routes {
+		rows = append(rows, i)
+	}
+	rows = append(rows, -1, -1)
+	if m.sessionLoading || strings.TrimSpace(m.sessionLoadError) != "" {
+		return append(rows, -1)
+	}
+	for i, entry := range entries {
+		if entry.Kind == sidebarEntrySession {
+			rows = append(rows, i)
+		}
+	}
+	if m.sidebarActionEntryCount() == 0 {
+		return rows
+	}
+	rows = append(rows, -1, -1)
+	for i, entry := range entries {
+		if entry.Kind == sidebarEntryAction {
+			rows = append(rows, i)
+		}
+	}
+	return rows
+}
+
 func (m shellModel) appendSidebarRouteLines(lines []string, cursor int, width int) []string {
 	for i, r := range m.routes {
 		selected := i == cursor
@@ -139,9 +170,25 @@ func (m shellModel) appendSidebarRouteLines(lines []string, cursor int, width in
 		} else if active {
 			marker = "*"
 		}
-		lines = append(lines, renderSelectableRow(fmt.Sprintf("%s %s %s", marker, routeQuickJumpKey(r), r.Label), width, selected, active && !selected))
+		label := strings.TrimSpace(r.Label)
+		if hint := m.routeOpenLeaderHint(r.ID); hint != "" {
+			label = strings.TrimSpace(hint + " " + label)
+		}
+		lines = append(lines, renderSelectableRow(fmt.Sprintf("%s %s", marker, label), width, selected, active && !selected))
 	}
 	return lines
+}
+
+func (m shellModel) routeOpenLeaderHint(routeID routeID) string {
+	action, ok := m.actions.definitionByID("route.jump." + strings.TrimSpace(string(routeID)))
+	if !ok {
+		return ""
+	}
+	path := normalizeActionPath(action.LeaderPath)
+	if len(path) == 0 {
+		return ""
+	}
+	return strings.Join(path, " ")
 }
 
 func (m shellModel) appendSidebarSessionLines(lines []string, entries []sidebarEntry, cursor int, width int) []string {
@@ -167,4 +214,46 @@ func (m shellModel) appendSidebarSessionLines(lines []string, entries []sidebarE
 		lines = append(lines, renderSelectableRow(fmt.Sprintf("%s %s", marker, item), width, selected, active && !selected))
 	}
 	return lines
+}
+
+func (m shellModel) appendSidebarActionLines(lines []string, entries []sidebarEntry, cursor int, width int) []string {
+	for i, entry := range entries {
+		if entry.Kind != sidebarEntryAction {
+			continue
+		}
+		action, ok := m.actions.definitionByID(entry.ActionID)
+		if !ok {
+			continue
+		}
+		selected := i == cursor
+		marker := " "
+		if selected {
+			marker = ">"
+		}
+		label := strings.TrimSpace(action.Title)
+		if label == "" {
+			label = strings.TrimSpace(entry.ActionID)
+		}
+		lines = append(lines, renderSelectableRow(fmt.Sprintf("%s %s", marker, label), width, selected, false))
+	}
+	return lines
+}
+
+func (m shellModel) sidebarActionEntryCount() int {
+	count := 0
+	for _, entry := range m.sidebarEntries() {
+		if entry.Kind == sidebarEntryAction {
+			count++
+		}
+	}
+	return count
+}
+
+func (m shellModel) activateSidebarAction(actionID string) (tea.Model, tea.Cmd) {
+	resolved, ok := m.actions.resolveByID(actionID, m)
+	if !ok {
+		m.toasts.Push(toastWarn, "Sidebar action unavailable: "+strings.TrimSpace(actionID))
+		return m, nil
+	}
+	return m.applyPaletteAction(resolved)
 }

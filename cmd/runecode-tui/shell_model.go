@@ -3,23 +3,27 @@ package main
 import (
 	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
 const (
-	shellMediumMinWidth = 90
-	shellWideMinWidth   = 130
+	shellMediumMinWidth    = 90
+	shellWideMinWidth      = 130
+	emergencyQuitArmWindow = 1500 * time.Millisecond
 )
 
 type shellOverlayID string
 
 const (
-	overlayIDQuickJump shellOverlayID = "quick-jump"
-	overlayIDSessions  shellOverlayID = "session-switcher"
-	overlayIDSidebar   shellOverlayID = "sidebar-drawer"
-	overlayIDInspector shellOverlayID = "inspector-sheet"
+	overlayIDQuickJump   shellOverlayID = "quick-jump"
+	overlayIDSessions    shellOverlayID = "session-switcher"
+	overlayIDSidebar     shellOverlayID = "sidebar-drawer"
+	overlayIDInspector   shellOverlayID = "inspector-sheet"
+	overlayIDLeader      shellOverlayID = "leader-which-key"
+	overlayIDQuitConfirm shellOverlayID = "quit-confirm"
 )
 
 type focusArea int
@@ -51,6 +55,10 @@ type sessionWorkspaceLoadedMsg struct {
 	err      error
 }
 
+type shellEmergencyQuitTimeoutMsg struct {
+	token uint64
+}
+
 type shellModel struct {
 	quitting bool
 	width    int
@@ -71,6 +79,7 @@ type shellModel struct {
 	focusManager   shellFocusManager
 	overlayManager shellOverlayManager
 	commands       shellCommandRegistry
+	actions        shellActionGraph
 	clipboard      shellClipboardService
 	workbench      shellWorkbenchStateStore
 	workbenchScope string
@@ -106,6 +115,23 @@ type shellModel struct {
 	activityFrame    int
 	selectionMode    bool
 	copyActionIndex  int
+
+	leader           shellLeaderState
+	leaderKeyConfig  string
+	leaderKeyInvalid string
+	commandMode      shellCommandModeState
+	emergencyQuit    shellEmergencyQuitState
+	quitConfirm      shellQuitConfirmState
+}
+
+type shellEmergencyQuitState struct {
+	pending bool
+	token   uint64
+}
+
+type shellQuitConfirmState struct {
+	active bool
+	reason string
 }
 
 func newShellModel() shellModel {
@@ -113,6 +139,7 @@ func newShellModel() shellModel {
 	models := newRouteModels(routes)
 	defaultRoute := routeChat
 	commands := defaultShellCommandRegistry()
+	actions := newShellActionGraph(routes, commands)
 	workbench := newDefaultWorkbenchStateStore()
 	binaryPath := strings.ToLower(strings.TrimSpace(os.Args[0]))
 	if strings.HasSuffix(binaryPath, ".test") || strings.HasSuffix(binaryPath, ".test.exe") {
@@ -135,6 +162,7 @@ func newShellModel() shellModel {
 		focusManager:   newShellFocusManager(focusNav),
 		overlayManager: shellOverlayManager{},
 		commands:       commands,
+		actions:        actions,
 		clipboard:      newShellClipboardService(),
 		workbench:      workbench,
 		workbenchScope: scope,
@@ -156,9 +184,12 @@ func newShellModel() shellModel {
 		sessionWorkspace: map[string]string{},
 		viewedActivity:   map[string]string{},
 		watch:            newShellWatchManager(),
-		objectIndex:      newShellDiscoverabilityIndex(routes, commands.List()),
+		objectIndex:      newShellDiscoverabilityIndex(routes),
 		overlayReturn:    focusContent,
+		leader:           newShellLeaderState(actions.leaderBindings(shellModel{})),
+		leaderKeyConfig:  "space",
 	}
+	_ = m.setLeaderKey(m.leaderKeyConfig)
 	m.restoreWorkbenchState()
 	m.syncSidebarCursorToLocation()
 	return m
@@ -169,22 +200,35 @@ func (m shellModel) Init() tea.Cmd {
 }
 
 func (m shellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if updated, cmd, handled := m.handleQuitMessage(msg); handled {
+	m = m.disarmEmergencyQuitOnNormalInteraction(msg)
+	updated, cmd, handled := m.handleQuitMessage(msg)
+	m = updated.(shellModel)
+	if handled {
 		return updated, cmd
 	}
-	if updated, cmd, handled := m.handleTextEntryMessage(msg); handled {
+	updated, cmd, handled = m.handleKeyboardOwnershipMessage(msg)
+	m = updated.(shellModel)
+	if handled {
 		return updated, cmd
 	}
-	if updated, cmd, handled := m.handleQuitShortcutMessage(msg); handled {
+	updated, cmd, handled = m.handleQuitShortcutMessage(msg)
+	m = updated.(shellModel)
+	if handled {
 		return updated, cmd
 	}
-	if updated, cmd, handled := m.handleWindowSize(msg); handled {
+	updated, cmd, handled = m.handleWindowSize(msg)
+	m = updated.(shellModel)
+	if handled {
 		return updated, cmd
 	}
-	if updated, cmd, handled := m.handleOverlayMessage(msg); handled {
+	updated, cmd, handled = m.handleOverlayMessage(msg)
+	m = updated.(shellModel)
+	if handled {
 		return updated, cmd
 	}
-	if updated, cmd, handled := m.handleShellMessage(msg); handled {
+	updated, cmd, handled = m.handleShellMessage(msg)
+	m = updated.(shellModel)
+	if handled {
 		return updated, cmd
 	}
 	return m.updateActiveRoute(msg)
@@ -257,7 +301,7 @@ func (m shellModel) availableShellHeight() int {
 }
 
 func (m shellModel) focusedRouteRegion() routeRegionFocus {
-	if m.palette.IsOpen() || m.sessions.IsOpen() {
+	if m.palette.IsOpen() || m.sessions.IsOpen() || m.leader.Active() || m.quitConfirm.active {
 		return routeRegionOverlay
 	}
 	if m.narrowInspectOn {
@@ -305,55 +349,6 @@ func (m shellModel) navigationSurfaceVisible() bool {
 
 func (m shellModel) shouldShowInspector(surface routeSurface) bool {
 	return m.planShellLayout(surface).InspectorVisible
-}
-
-func (m shellModel) isTextEntryActive() bool {
-	active := m.routeModels[m.currentRouteID()]
-	entryModel, ok := active.(routeTextEntryModel)
-	if !ok {
-		return false
-	}
-	return entryModel.IsTextEntryActive()
-}
-
-func (m shellModel) currentRouteID() routeID {
-	rid := m.location.Primary.RouteID
-	if rid == "" {
-		return routeChat
-	}
-	return rid
-}
-
-func (m shellModel) currentLocation() shellWorkbenchLocation {
-	loc := m.location
-	if loc.Primary.RouteID == "" {
-		loc.Primary.RouteID = routeChat
-		if loc.Primary.Object.Kind == "" || loc.Primary.Object.ID == "" {
-			loc.Primary.Object = workbenchObjectRef{Kind: "route", ID: string(routeChat)}
-		}
-	}
-	if loc.Primary.Object.Kind == "" || loc.Primary.Object.ID == "" {
-		loc.Primary.Object = workbenchObjectRef{Kind: "route", ID: string(loc.Primary.RouteID)}
-	}
-	return loc
-}
-
-func (m shellModel) withLocationChrome(surface routeSurface) routeSurface {
-	breadcrumbs := []string{"Home", m.routeLabel(m.currentRouteID())}
-	loc := m.currentLocation()
-	if ref := strings.TrimSpace(loc.Primary.Object.ID); ref != "" && strings.TrimSpace(strings.ToLower(loc.Primary.Object.Kind)) != "route" {
-		breadcrumbs = append(breadcrumbs, ref)
-	}
-	if loc.Inspector != nil {
-		if ref := strings.TrimSpace(loc.Inspector.Object.ID); ref != "" {
-			breadcrumbs = append(breadcrumbs, "Inspect", ref)
-		}
-	}
-	if len(surface.Chrome.Breadcrumbs) > len(breadcrumbs) {
-		breadcrumbs = surface.Chrome.Breadcrumbs
-	}
-	surface.Chrome.Breadcrumbs = breadcrumbs
-	return surface
 }
 
 func (m shellModel) mouseCaptureCmd() tea.Cmd {

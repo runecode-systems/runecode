@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
@@ -210,5 +211,149 @@ func TestShellCaptureInspectorVisibilityIgnoresRoutesWithoutInspectorSupport(t *
 	m.captureInspectorVisibilityFromActiveRoute()
 	if !m.inspectorOn {
 		t.Fatal("expected global inspector preference unchanged for route without inspector support")
+	}
+}
+
+func TestLeaderPreferencePersistsAcrossRestore(t *testing.T) {
+	store := &memoryWorkbenchStateStore{}
+	scope := "broker_local_api:leader-persist"
+
+	m := newShellModel()
+	m.workbench = store
+	m.workbenchScope = scope
+	if err := m.configureLeaderKey("comma"); err != nil {
+		t.Fatalf("configureLeaderKey(comma) error = %v", err)
+	}
+
+	restored := newShellModel()
+	restored.workbench = store
+	restored.workbenchScope = scope
+	restored.restoreWorkbenchState()
+
+	if got := restored.leaderKeyConfig; got != "comma" {
+		t.Fatalf("expected restored leader config comma, got %q", got)
+	}
+	if got := restored.keys.LeaderStart.label(); got != "," {
+		t.Fatalf("expected restored leader binding ',' got %q", got)
+	}
+}
+
+func TestLeaderPreferenceInvalidValueRejectedAndPersistedValueUnchanged(t *testing.T) {
+	store := &memoryWorkbenchStateStore{}
+	scope := "broker_local_api:leader-invalid"
+	m := newShellModel()
+	m.workbench = store
+	m.workbenchScope = scope
+
+	if err := m.configureLeaderKey("comma"); err != nil {
+		t.Fatalf("configureLeaderKey(comma) error = %v", err)
+	}
+	before := store.Read(scope)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})
+	shell := updated.(shellModel)
+	for _, r := range "set leader enter" {
+		updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		shell = updated.(shellModel)
+	}
+	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	shell = updated.(shellModel)
+
+	if got := shell.leaderKeyConfig; got != "comma" {
+		t.Fatalf("expected invalid value to keep leader config comma, got %q", got)
+	}
+	if got := shell.keys.LeaderStart.label(); got != "," {
+		t.Fatalf("expected invalid value to keep leader binding ',' got %q", got)
+	}
+	after := store.Read(scope)
+	if got := strings.TrimSpace(after.LeaderKey); got != "comma" {
+		t.Fatalf("expected persisted leader key to remain comma, got %q", got)
+	}
+	if before.LeaderKey != after.LeaderKey {
+		t.Fatalf("expected persisted leader key unchanged; before=%q after=%q", before.LeaderKey, after.LeaderKey)
+	}
+}
+
+func TestLeaderPreferenceDefaultResetsToSpace(t *testing.T) {
+	store := &memoryWorkbenchStateStore{}
+	scope := "broker_local_api:leader-default"
+	m := newShellModel()
+	m.workbench = store
+	m.workbenchScope = scope
+
+	if err := m.configureLeaderKey("backslash"); err != nil {
+		t.Fatalf("configureLeaderKey(backslash) error = %v", err)
+	}
+	if err := m.configureLeaderKey("default"); err != nil {
+		t.Fatalf("configureLeaderKey(default) error = %v", err)
+	}
+
+	if got := m.leaderKeyConfig; got != "space" {
+		t.Fatalf("expected default reset to space, got %q", got)
+	}
+	if got := m.keys.LeaderStart.label(); got != "space" {
+		t.Fatalf("expected default binding to be space, got %q", got)
+	}
+	if got := strings.TrimSpace(store.Read(scope).LeaderKey); got != "space" {
+		t.Fatalf("expected persisted default leader key space, got %q", got)
+	}
+}
+
+func TestLeaderPreferenceScopedByLogicalTarget(t *testing.T) {
+	store := &memoryWorkbenchStateStore{}
+	scopeA := "broker_local_api:leader-scope-a"
+	scopeB := "broker_local_api:leader-scope-b"
+
+	a := newShellModel()
+	a.workbench = store
+	a.workbenchScope = scopeA
+	if err := a.configureLeaderKey("comma"); err != nil {
+		t.Fatalf("configureLeaderKey(comma) error = %v", err)
+	}
+
+	b := newShellModel()
+	b.workbench = store
+	b.workbenchScope = scopeB
+	b.restoreWorkbenchState()
+	if got := b.leaderKeyConfig; got != "space" {
+		t.Fatalf("expected separate scope default leader space, got %q", got)
+	}
+
+	a2 := newShellModel()
+	a2.workbench = store
+	a2.workbenchScope = scopeA
+	a2.restoreWorkbenchState()
+	if got := a2.leaderKeyConfig; got != "comma" {
+		t.Fatalf("expected scope A leader comma after restore, got %q", got)
+	}
+}
+
+func TestLeaderPreferenceInvalidPersistedValueFallsBackToDefaultWithWarning(t *testing.T) {
+	store := &memoryWorkbenchStateStore{}
+	scope := "broker_local_api:leader-invalid-persisted"
+	store.Write(scope, workbenchLocalState{LeaderKey: "enter"})
+
+	m := newShellModel()
+	m.workbench = store
+	m.workbenchScope = scope
+	m.restoreWorkbenchState()
+
+	if got := m.leaderKeyConfig; got != "space" {
+		t.Fatalf("expected invalid persisted leader to fall back to space, got %q", got)
+	}
+	if got := m.leaderKeyInvalid; got != "enter" {
+		t.Fatalf("expected invalid persisted leader marker enter, got %q", got)
+	}
+	if got := m.toasts.Latest(); !strings.Contains(got, "Persisted leader key invalid") {
+		t.Fatalf("expected warning toast for invalid persisted leader, got %q", got)
+	}
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+	if cmd != nil {
+		t.Fatal("expected space leader start to execute synchronously")
+	}
+	restored := updated.(shellModel)
+	if !restored.leader.Active() {
+		t.Fatal("expected default space leader to remain usable after invalid persisted value")
 	}
 }

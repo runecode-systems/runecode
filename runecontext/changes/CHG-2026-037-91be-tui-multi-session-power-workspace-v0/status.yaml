@@ -10,6 +10,7 @@ context_bundles:
 related_specs: []
 related_decisions: []
 related_changes:
+  - CHG-2026-052-a7f1-tui-leader-sequences-command-mode-v0
   - CHG-2026-002-33c5-git-gateway-commit-push-pr
   - CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0
   - CHG-2026-039-7c2e-interactive-control-plane-ux-contracts-v0

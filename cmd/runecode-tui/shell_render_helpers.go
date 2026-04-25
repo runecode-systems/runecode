@@ -18,7 +18,7 @@ func (m shellModel) renderOverlayStack() string {
 
 func (m shellModel) renderPalette() string {
 	b := strings.Builder{}
-	b.WriteString(tableHeader("Workbench Command Surface") + " " + neutralBadge("toggle=: / ctrl+p") + "\n")
+	b.WriteString(tableHeader("Workbench Command Surface") + " " + neutralBadge("toggle=ctrl+p") + "\n")
 	b.WriteString("Verbs: " + strings.Join([]string{infoBadge("open"), infoBadge("inspect"), infoBadge("jump"), infoBadge("back")}, " ") + "\n")
 	b.WriteString(fmt.Sprintf("Query: %q\n", m.palette.query))
 	if len(m.palette.matches) == 0 {
@@ -95,6 +95,45 @@ func (m shellModel) renderSessionQuickSwitcher() string {
 	return b.String()
 }
 
+func (m shellModel) renderLeaderWhichKey() string {
+	b := strings.Builder{}
+	b.WriteString(tableHeader("Leader Mode") + " " + neutralBadge("start="+m.keys.LeaderStart.label()) + "\n")
+	b.WriteString("Sequence: " + m.leader.SequenceLabel() + "\n")
+	b.WriteString("Press esc to abort.\n")
+	choices := m.leader.Choices()
+	if len(choices) == 0 {
+		b.WriteString(muted("No valid next keys."))
+		b.WriteString("\n")
+		return b.String()
+	}
+	b.WriteString(tableHeader("Valid next keys"))
+	b.WriteString("\n")
+	for _, choice := range choices {
+		suffix := ""
+		if choice.Completes {
+			suffix = " " + infoBadge("exec")
+		}
+		line := " • " + choice.Key + " — " + defaultPlaceholder(choice.Label, "(group)") + " — " + defaultPlaceholder(choice.Description, "") + suffix
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func (m shellModel) renderQuitConfirmDialog() string {
+	reason := strings.TrimSpace(m.quitConfirm.reason)
+	if reason == "" {
+		reason = "active local entry"
+	}
+	b := strings.Builder{}
+	b.WriteString(tableHeader("Quit Confirmation") + " " + warnBadge("entry active") + "\n")
+	b.WriteString("Quitting now will discard " + reason + ".\n")
+	b.WriteString("Press enter or y to quit anyway.\n")
+	b.WriteString("Press esc or n to continue editing.\n")
+	b.WriteString(muted("Emergency escape hatch remains available: press ctrl+c twice."))
+	return b.String()
+}
+
 func boundedOverlayListWidth(viewportWidth int) int {
 	if viewportWidth <= 0 {
 		return 0
@@ -117,15 +156,7 @@ func (m shellModel) sidebarYRange() (startY int, endY int) {
 }
 
 func (m shellModel) sidebarMouseRowCount() int {
-	rows := len(m.routes)
-	if m.sessionLoading || strings.TrimSpace(m.sessionLoadError) != "" {
-		return rows
-	}
-	sessionCount := len(sortedSessionDirectorySummaries(m.sessionItems, m.recentSessions))
-	if sessionCount == 0 {
-		return rows
-	}
-	return rows + 2 + sessionCount
+	return len(m.sidebarMouseRows())
 }
 
 func (m shellModel) sidebarIndexAtMouse(mouseX int, mouseY int) (int, bool) {
@@ -140,12 +171,16 @@ func (m shellModel) sidebarIndexAtMouse(mouseX int, mouseY int) (int, bool) {
 	if mouseY < startY || mouseY > endY {
 		return 0, false
 	}
+	rows := m.sidebarMouseRows()
 	idx := mouseY - startY
-	entries := m.sidebarEntries()
-	if idx < 0 || idx >= len(entries) {
+	if idx < 0 || idx >= len(rows) {
 		return 0, false
 	}
-	return idx, true
+	entryIdx := rows[idx]
+	if entryIdx < 0 {
+		return 0, false
+	}
+	return entryIdx, true
 }
 
 func (m shellModel) routeLabel(id routeID) string {

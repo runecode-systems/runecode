@@ -161,6 +161,15 @@ type shellCommand struct {
 	ID          string
 	Title       string
 	Description string
+	Aliases     []string
+	LeaderPath  []string
+	LeaderGroup string
+	PaletteShow bool
+	PaletteText string
+	HelpText    string
+	Scope       shellActionScope
+	Available   func(shellModel) bool
+	ResolveArgs func(*shellModel, []string) bool
 	Run         func(*shellModel)
 	PostRun     func(*shellModel) tea.Cmd
 }
@@ -177,6 +186,12 @@ func newShellCommandRegistry() shellCommandRegistry {
 func (r *shellCommandRegistry) Register(cmd shellCommand) {
 	if strings.TrimSpace(cmd.ID) == "" || cmd.Run == nil {
 		return
+	}
+	if strings.TrimSpace(cmd.HelpText) == "" {
+		cmd.HelpText = cmd.Description
+	}
+	if cmd.Scope == "" {
+		cmd.Scope = shellActionScopeGlobal
 	}
 	if _, exists := r.commands[cmd.ID]; !exists {
 		r.order = append(r.order, cmd.ID)
@@ -202,8 +217,18 @@ func (r *shellCommandRegistry) List() []shellCommand {
 }
 
 func (r *shellCommandRegistry) Execute(id string, model *shellModel) tea.Cmd {
+	return r.ExecuteWithArgs(id, nil, model)
+}
+
+func (r *shellCommandRegistry) ExecuteWithArgs(id string, args []string, model *shellModel) tea.Cmd {
 	cmd, ok := r.commands[id]
 	if !ok || cmd.Run == nil || model == nil {
+		return nil
+	}
+	if cmd.Available != nil && !cmd.Available(*model) {
+		return nil
+	}
+	if cmd.ResolveArgs != nil && !cmd.ResolveArgs(model, args) {
 		return nil
 	}
 	cmd.Run(model)
@@ -211,6 +236,11 @@ func (r *shellCommandRegistry) Execute(id string, model *shellModel) tea.Cmd {
 		return nil
 	}
 	return cmd.PostRun(model)
+}
+
+func (r *shellCommandRegistry) Exists(id string) bool {
+	_, ok := r.commands[strings.TrimSpace(id)]
+	return ok
 }
 
 type shellClipboardService interface {
@@ -269,6 +299,7 @@ type workbenchLocalState struct {
 	InspectorVisible   bool
 	InspectorMode      contentPresentationMode
 	ThemePreset        themePreset
+	LeaderKey          string
 	LastRouteID        routeID
 	LastSessionID      string
 	LastSessionByWS    map[string]string

@@ -104,8 +104,11 @@ func (m providerSetupRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd)
 	return m.handleIdleKey(key)
 }
 
-func (m providerSetupRouteModel) IsTextEntryActive() bool {
-	return m.entryActive
+func (m providerSetupRouteModel) KeyboardOwnership() routeKeyboardOwnership {
+	if m.entryActive {
+		return routeKeyboardOwnershipExclusiveLocalCapture
+	}
+	return routeKeyboardOwnershipNormal
 }
 
 func (m providerSetupRouteModel) handleSecretEntryKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
