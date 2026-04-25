@@ -24,7 +24,8 @@ func BenchmarkShellViewWaitingSession(b *testing.B) {
 	m.watch.reduction.sessions = map[string]brokerapi.SessionSummary{
 		"session-wait": {
 			Identity:          brokerapi.SessionIdentity{SessionID: "session-wait", WorkspaceID: "ws-1"},
-			Status:            "waiting_external_dependency",
+			Status:            "active",
+			WorkPosture:       "waiting",
 			HasIncompleteTurn: true,
 		},
 	}
@@ -42,12 +43,10 @@ func BenchmarkShellWatchApply(b *testing.B) {
 		Approval: shellWatchApprovalTransportResult{Events: []brokerapi.ApprovalWatchEvent{{EventType: "approval_watch_snapshot", Seq: 1, Approval: &brokerapi.ApprovalSummary{ApprovalID: "ap-1", Status: "pending"}}}},
 		Session:  shellWatchSessionTransportResult{Events: []brokerapi.SessionWatchEvent{{EventType: "session_watch_snapshot", Seq: 1, Session: &brokerapi.SessionSummary{Identity: brokerapi.SessionIdentity{SessionID: "session-1", WorkspaceID: "ws-1"}, Status: "active"}}}},
 	}
+	m := newShellModel()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		b.StopTimer()
-		m := newShellModel()
-		b.StartTimer()
 		m.applyWatchTransport(msg)
 	}
 }
