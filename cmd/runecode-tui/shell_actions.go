@@ -151,6 +151,9 @@ func (g *shellActionGraph) add(action shellActionDefinition) {
 		return
 	}
 	action.ID = id
+	if existing, ok := g.byID[id]; ok {
+		action = mergeShellActionDefinition(existing, action)
+	}
 	if strings.TrimSpace(action.HelpText) == "" {
 		action.HelpText = action.Description
 	}
@@ -176,6 +179,45 @@ func (g *shellActionGraph) add(action shellActionDefinition) {
 		}
 		g.aliases[normalized] = id
 	}
+}
+
+func mergeShellActionDefinition(existing shellActionDefinition, override shellActionDefinition) shellActionDefinition {
+	merged := existing
+	merged.ID = override.ID
+	if title := strings.TrimSpace(override.Title); title != "" {
+		merged.Title = title
+	}
+	if description := strings.TrimSpace(override.Description); description != "" {
+		merged.Description = description
+	}
+	if len(override.CommandAliases) > 0 {
+		merged.CommandAliases = append([]string(nil), override.CommandAliases...)
+	}
+	if len(override.LeaderPath) > 0 {
+		merged.LeaderPath = append([]string(nil), override.LeaderPath...)
+	}
+	if group := strings.TrimSpace(override.LeaderGroup); group != "" {
+		merged.LeaderGroup = group
+	}
+	if override.PaletteShow {
+		merged.PaletteShow = true
+	}
+	if search := strings.TrimSpace(override.PaletteSearch); search != "" {
+		merged.PaletteSearch = search
+	}
+	if help := strings.TrimSpace(override.HelpText); help != "" {
+		merged.HelpText = help
+	}
+	if override.Scope != "" {
+		merged.Scope = override.Scope
+	}
+	if override.Resolve != nil {
+		merged.Resolve = override.Resolve
+	}
+	if override.Available != nil {
+		merged.Available = override.Available
+	}
+	return merged
 }
 
 func (g shellActionGraph) resolveByID(id string, model shellModel) (paletteActionMsg, bool) {

@@ -58,7 +58,7 @@ func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, la
 
 func (m shellModel) writeShellFooter(b *strings.Builder) {
 	viewportWidth, _ := normalizedShellViewport(m.width, m.height)
-	b.WriteString(constrainShellBlock(renderHelp(m.keys, m.commandOverlayOpen(), m.actions), viewportWidth, 1))
+	b.WriteString(constrainShellBlock(renderHelp(m.keys, m.palette.IsOpen() || m.sessions.IsOpen(), m.actions), viewportWidth, 1))
 	b.WriteString("\n")
 	b.WriteString(constrainShellBlock(muted(localBrokerBoundaryPosture()), viewportWidth, 1))
 	b.WriteString("\n")

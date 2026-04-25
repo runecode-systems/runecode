@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
 func TestShellCommandModeOpenChatResolvesThroughActionGraph(t *testing.T) {
@@ -377,6 +378,23 @@ func TestShellBottomStripHidesQuitDiscoverabilityWhenQuitActionMissing(t *testin
 	bottom := m.renderBottomStrip(m.activeShellSurface())
 	if strings.Contains(bottom, "Quick action:") || strings.Contains(bottom, "(:quit)") {
 		t.Fatalf("expected bottom strip not to advertise quit when quit action is missing, got %q", bottom)
+	}
+}
+
+func TestShellBottomStripCopyHintUsesActionEntryWording(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	runs := m.routeModels[routeRuns].(runsRouteModel)
+	runs.active = &brokerapi.RunDetail{Summary: brokerapi.RunSummary{RunID: "run-1", WorkspaceID: "ws-1", LifecycleState: "active", BackendKind: "workspace"}}
+	m.routeModels[routeRuns] = runs
+	m.location.Primary = shellObjectLocation{RouteID: routeRuns, Object: workbenchObjectRef{Kind: "route", ID: string(routeRuns)}}
+
+	bottom := m.renderBottomStrip(m.activeShellSurface())
+	if !strings.Contains(bottom, "Copy actions (use action entry):") {
+		t.Fatalf("expected updated copy hint wording, got %q", bottom)
+	}
+	if strings.Contains(bottom, "Y cycles/copies") {
+		t.Fatalf("expected retired Y wording removed from bottom strip, got %q", bottom)
 	}
 }
 

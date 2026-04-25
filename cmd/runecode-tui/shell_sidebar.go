@@ -133,6 +133,33 @@ func (m shellModel) normalizedSidebarCursor(entries []sidebarEntry) int {
 	return cursor
 }
 
+func (m shellModel) sidebarMouseRows() []int {
+	entries := m.sidebarEntries()
+	rows := make([]int, 0, len(entries)+6)
+	for i := range m.routes {
+		rows = append(rows, i)
+	}
+	rows = append(rows, -1, -1)
+	if m.sessionLoading || strings.TrimSpace(m.sessionLoadError) != "" {
+		return append(rows, -1)
+	}
+	for i, entry := range entries {
+		if entry.Kind == sidebarEntrySession {
+			rows = append(rows, i)
+		}
+	}
+	if m.sidebarActionEntryCount() == 0 {
+		return rows
+	}
+	rows = append(rows, -1, -1)
+	for i, entry := range entries {
+		if entry.Kind == sidebarEntryAction {
+			rows = append(rows, i)
+		}
+	}
+	return rows
+}
+
 func (m shellModel) appendSidebarRouteLines(lines []string, cursor int, width int) []string {
 	for i, r := range m.routes {
 		selected := i == cursor

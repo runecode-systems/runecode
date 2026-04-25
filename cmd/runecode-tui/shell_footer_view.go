@@ -89,5 +89,5 @@ func (m shellModel) renderRouteCopyActions() string {
 		}
 		items = append(items, label)
 	}
-	return "Copy actions (Y cycles/copies): " + strings.Join(items, " | ")
+	return "Copy actions (use action entry): " + strings.Join(items, " | ")
 }

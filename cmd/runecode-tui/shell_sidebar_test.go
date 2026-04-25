@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
 func TestShellSidebarRenderShowsSingleSelectedRouteAndActiveMarker(t *testing.T) {
@@ -74,5 +75,33 @@ func TestShellMoveSidebarCursorHonorsDeltaMagnitude(t *testing.T) {
 	want := len(entries) - 1
 	if m.sidebarCursor != want {
 		t.Fatalf("expected cursor to wrap backward to %d, got %d", want, m.sidebarCursor)
+	}
+}
+
+func TestShellSidebarMouseRowsReserveRenderedSectionHeadersAndSpacers(t *testing.T) {
+	m := newShellModel()
+	m.applySessionWorkspaceLoaded(sessionWorkspaceLoadedMsg{sessions: []brokerapi.SessionSummary{{Identity: brokerapi.SessionIdentity{SessionID: "session-1", WorkspaceID: "ws-1"}}}})
+
+	rows := m.sidebarMouseRows()
+	if len(rows) < len(m.routes)+4 {
+		t.Fatalf("expected sidebar mouse rows to include rendered section gaps, got %v", rows)
+	}
+	if rows[len(m.routes)] != -1 || rows[len(m.routes)+1] != -1 {
+		t.Fatalf("expected rendered Sessions spacer/header rows to be non-selectable gaps, got %v", rows)
+	}
+	sessionRow := rows[len(m.routes)+2]
+	entries := m.sidebarEntries()
+	if sessionRow < 0 || sessionRow >= len(entries) || entries[sessionRow].Kind != sidebarEntrySession {
+		t.Fatalf("expected first session row after reserved gaps, got row=%d entries=%+v", sessionRow, entries)
+	}
+	last := rows[len(rows)-1]
+	if last < 0 || last >= len(entries) || entries[last].Kind != sidebarEntryAction {
+		t.Fatalf("expected final sidebar mouse row to target visible action entry, got row=%d entries=%+v", last, entries)
+	}
+	if rows[len(rows)-2] != -1 || rows[len(rows)-3] != -1 {
+		t.Fatalf("expected rendered Actions spacer/header rows to be non-selectable gaps, got %v", rows)
+	}
+	if got := m.sidebarMouseRowCount(); got != len(rows) {
+		t.Fatalf("expected sidebar mouse row count to match row map length, got %d want %d", got, len(rows))
 	}
 }

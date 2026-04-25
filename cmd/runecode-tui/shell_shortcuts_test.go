@@ -366,6 +366,19 @@ func TestShellCommandModeLongestAliasMatchHandlesMultiWordAliases(t *testing.T) 
 	}
 }
 
+func TestShellCommandModeSharedActionPreservesRegisteredAvailability(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	if _, ok := m.actions.resolveByID("shell.copy_route_action", m); !ok {
+		t.Fatal("expected shared action to be available before exclusive capture starts")
+	}
+	m.location.Primary = shellObjectLocation{RouteID: routeProviders, Object: workbenchObjectRef{Kind: "route", ID: string(routeProviders)}}
+	m.routeModels[routeProviders] = providerSetupRouteModel{def: routeDefinition{ID: routeProviders, Label: "Model Providers"}, entryActive: true}
+	if _, ok := m.actions.resolveByID("shell.copy_route_action", m); ok {
+		t.Fatal("expected shared action id to preserve registered availability gating during exclusive capture")
+	}
+}
+
 func TestShellCommandModeParseAndExecutionErrorsRenderInBottomStrip(t *testing.T) {
 	m := newShellModel()
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{':'}})

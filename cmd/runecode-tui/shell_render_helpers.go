@@ -156,15 +156,7 @@ func (m shellModel) sidebarYRange() (startY int, endY int) {
 }
 
 func (m shellModel) sidebarMouseRowCount() int {
-	rows := len(m.routes)
-	if m.sessionLoading || strings.TrimSpace(m.sessionLoadError) != "" {
-		return rows + m.sidebarActionEntryCount() + 2
-	}
-	sessionCount := len(sortedSessionDirectorySummaries(m.sessionItems, m.recentSessions))
-	if sessionCount == 0 {
-		return rows + m.sidebarActionEntryCount() + 2
-	}
-	return rows + 2 + sessionCount + 2 + m.sidebarActionEntryCount()
+	return len(m.sidebarMouseRows())
 }
 
 func (m shellModel) sidebarIndexAtMouse(mouseX int, mouseY int) (int, bool) {
@@ -179,12 +171,16 @@ func (m shellModel) sidebarIndexAtMouse(mouseX int, mouseY int) (int, bool) {
 	if mouseY < startY || mouseY > endY {
 		return 0, false
 	}
+	rows := m.sidebarMouseRows()
 	idx := mouseY - startY
-	entries := m.sidebarEntries()
-	if idx < 0 || idx >= len(entries) {
+	if idx < 0 || idx >= len(rows) {
 		return 0, false
 	}
-	return idx, true
+	entryIdx := rows[idx]
+	if entryIdx < 0 {
+		return 0, false
+	}
+	return entryIdx, true
 }
 
 func (m shellModel) routeLabel(id routeID) string {
