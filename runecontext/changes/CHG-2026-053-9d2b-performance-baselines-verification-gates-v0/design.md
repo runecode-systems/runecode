@@ -233,6 +233,14 @@ The investigation suggests the likely user-facing performance pain is not the em
 
 Alpha.7 now partially addresses this specific risk by splitting waiting from running in shell activity semantics, preserving visible waiting cues without keeping the `120ms` running animation armed, and adding focused `cmd/runecode-tui` benchmarks for shell view, watch apply, and palette entry construction. The broader architectural work below remains deferred.
 
+The post-implementation live rerun materially improved the targeted regime. Using a deterministic isolated multiwait fixture over local IPC, the real `runecode-tui` child measured:
+
+- empty state: `0.20%` fresh, `0.80%` mid, `0.80%` aged
+- waiting state after the alpha.7 fix: `0.00%` fresh, `1.00%` mid, `1.00%` aged
+- prior waiting-state sample before the fix: `0.67%` fresh, `22.81%` mid, `61.92%` aged
+
+That result is the strongest current evidence that the alpha.7 waiting-state split fixed the user-facing repaint regression it targeted. The waiting sample still rendered an explicit `WAITING session=sess-manual-multiwait` marker in the captured transcript, so the CPU drop did not come from hiding the state entirely.
+
 ### Conclusion 3: Performance Verification Must Be Cross-Cutting
 The TUI findings are the most concrete current example, but the same failure mode can exist elsewhere: regressions remain invisible until a human notices because no deterministic subsystem budgets exist in CI.
 

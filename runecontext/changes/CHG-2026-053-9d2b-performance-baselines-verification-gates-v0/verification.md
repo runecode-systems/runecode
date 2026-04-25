@@ -5,6 +5,7 @@
 - Ran focused `go test ./cmd/runecode-tui` profiling passes covering shell view and watch-heavy paths.
 - Launched PTY-backed TUI sessions against broker local IPC using real `runecode-tui` child PID sampling.
 - Re-ran the live measurement after correcting the store-isolation mistake so empty-state and active-state results were not conflated.
+- Re-ran the live PTY-backed CPU sampling after the alpha.7 waiting-state fix using fresh isolated empty and deterministic waiting-session stores.
 
 ## Executed Investigation Results
 - Confirmed the real `runecode-tui` child can be sampled directly rather than attributing CPU to the `script` PTY wrapper.
@@ -12,6 +13,10 @@
 - Confirmed the corrected empty-state isolated measurement stayed near `0.5-1.0%` CPU even after the TUI remained open for roughly a minute.
 - Confirmed the earlier non-empty-state live sample climbed through `22.81%` and `61.92%` CPU while the shell reported active session state, making it an active or waiting-state sample rather than an empty-idle sample.
 - Confirmed focused profiles point more strongly to render, wrap, ANSI, regex, and palette or surface allocation cost than to a single broker request hot spot.
+- Confirmed the post-fix isolated empty-state rerun measured `0.20%` fresh CPU, `0.80%` mid CPU, and `0.80%` aged CPU for the real `runecode-tui` child.
+- Confirmed the post-fix isolated waiting-state rerun measured `0.00%` fresh CPU, `1.00%` mid CPU, and `1.00%` aged CPU for the real `runecode-tui` child.
+- Confirmed the strongest before/after improvement is the waiting-state path: the prior waiting-state sample reached `22.81%` mid and `61.92%` aged CPU, while the post-fix deterministic waiting sample stayed at `1.00%` mid and aged CPU.
+- Confirmed the post-fix waiting transcript still rendered a `WAITING session=sess-manual-multiwait` marker, so the CPU improvement did not come from suppressing the operator-visible waiting cue.
 
 ## Planned Automated Checks
 - `go test ./cmd/runecode-tui -bench 'BenchmarkShell(View|Watch|BuildPaletteEntries)' -benchmem`

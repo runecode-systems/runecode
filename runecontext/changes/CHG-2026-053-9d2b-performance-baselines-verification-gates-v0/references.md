@@ -60,3 +60,6 @@
 - The first live TUI CPU sample was corrected after the investigation confirmed that `--runtime-dir` and `--socket-name` isolate only the local IPC listener, not the broker store or audit ledger.
 - The corrected empty-state measurement stayed around `0.5-1.0%` CPU for the real `runecode-tui` child, while the earlier non-empty-state sample reflected active or waiting repo-scoped broker state.
 - The durable performance concern after correction is long-lived active or waiting-state cost rather than empty-idle cost alone.
+- After the alpha.7 waiting-state split landed, a fresh isolated rerun measured empty-state CPU at `0.20-0.80%` and waiting-state CPU at `0.00-1.00%` for the real `runecode-tui` child.
+- The strongest before/after comparison is the waiting-state path: the earlier sample climbed through `22.81%` and `61.92%` CPU, while the post-fix isolated waiting sample stayed at `1.00%` mid and aged CPU.
+- The post-fix waiting transcript still rendered `WAITING session=sess-manual-multiwait`, confirming the improvement came from removing the fast repaint loop for waiting states rather than from hiding the state cue.
