@@ -547,6 +547,67 @@ func TestShellEmergencyCtrlCPendingClearsOnNormalInteraction(t *testing.T) {
 	}
 }
 
+func TestShellEmergencyCtrlCPendingClearsOnMouseClick(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	m.location.Primary = shellObjectLocation{RouteID: routeChat, Object: workbenchObjectRef{Kind: "route", ID: string(routeChat)}}
+	chat := m.routeModels[routeChat].(chatRouteModel)
+	chat.composeOn = true
+	chat.composer.Focus()
+	m.routeModels[routeChat] = chat
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	shell := updated.(shellModel)
+	if !shell.emergencyQuit.pending {
+		t.Fatal("expected emergency quit pending after first ctrl+c")
+	}
+
+	updated, _ = shell.Update(tea.MouseMsg{X: m.width - 2, Y: 2, Action: tea.MouseActionRelease, Button: tea.MouseButtonLeft})
+	shell = updated.(shellModel)
+	if shell.emergencyQuit.pending {
+		t.Fatal("expected mouse click to clear emergency quit pending state")
+	}
+	if shell.quitConfirm.active {
+		t.Fatal("did not expect mouse click to open quit confirmation")
+	}
+	if shell.quitting {
+		t.Fatal("did not expect mouse click interaction to quit")
+	}
+	if shell.focus != focusContent {
+		t.Fatalf("expected content click to move focus to content, got %v", shell.focus)
+	}
+}
+
+func TestShellEmergencyCtrlCPendingClearsOnMouseWheel(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	m.location.Primary = shellObjectLocation{RouteID: routeChat, Object: workbenchObjectRef{Kind: "route", ID: string(routeChat)}}
+	chat := m.routeModels[routeChat].(chatRouteModel)
+	chat.composeOn = true
+	chat.composer.Focus()
+	m.routeModels[routeChat] = chat
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	shell := updated.(shellModel)
+	if !shell.emergencyQuit.pending {
+		t.Fatal("expected emergency quit pending after first ctrl+c")
+	}
+
+	updated, cmd := shell.Update(tea.MouseMsg{Button: tea.MouseButtonWheelDown})
+	if cmd != nil {
+		t.Fatal("did not expect quit command on mouse wheel follow-up interaction")
+	}
+	shell = updated.(shellModel)
+	if shell.emergencyQuit.pending {
+		t.Fatal("expected mouse wheel to clear emergency quit pending state")
+	}
+	if shell.quitConfirm.active {
+		t.Fatal("did not expect mouse wheel to open quit confirmation")
+	}
+	if shell.quitting {
+		t.Fatal("did not expect mouse wheel interaction to quit")
+	}
+}
+
 func TestShellEmergencyCtrlCPendingClearsOnTimeout(t *testing.T) {
 	m := newShellModel()
 	m.width = 150

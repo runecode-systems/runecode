@@ -200,6 +200,7 @@ func (m shellModel) Init() tea.Cmd {
 }
 
 func (m shellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m = m.disarmEmergencyQuitOnNormalInteraction(msg)
 	updated, cmd, handled := m.handleQuitMessage(msg)
 	m = updated.(shellModel)
 	if handled {

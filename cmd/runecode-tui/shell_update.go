@@ -7,6 +7,24 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+func (m shellModel) disarmEmergencyQuitOnNormalInteraction(msg tea.Msg) shellModel {
+	if !m.emergencyQuit.pending {
+		return m
+	}
+	if _, ok := msg.(shellEmergencyQuitTimeoutMsg); ok {
+		return m
+	}
+	key, ok := msg.(tea.KeyMsg)
+	if ok && key.String() == "ctrl+c" {
+		return m
+	}
+	switch msg.(type) {
+	case tea.KeyMsg, tea.MouseMsg:
+		m.emergencyQuit.pending = false
+	}
+	return m
+}
+
 func (m shellModel) handleQuitMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	key, ok := msg.(tea.KeyMsg)
 	if !ok {
