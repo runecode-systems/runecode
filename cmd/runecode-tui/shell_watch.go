@@ -88,6 +88,7 @@ type shellActivityState string
 const (
 	shellActivityStateIdle         shellActivityState = "idle"
 	shellActivityStateLoading      shellActivityState = "loading"
+	shellActivityStateWaiting      shellActivityState = "waiting"
 	shellActivityStateRunning      shellActivityState = "running"
 	shellActivityStateDegradedSync shellActivityState = "degraded sync"
 )

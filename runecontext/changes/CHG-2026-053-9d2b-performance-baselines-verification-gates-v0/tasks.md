@@ -14,7 +14,11 @@
 - [ ] Add an empty-state idle CPU gate using fully isolated broker store, audit ledger, runtime directory, socket, and TUI target alias.
 - [ ] Add a waiting-state CPU gate using a deterministic waiting-session fixture.
 - [ ] Add attach/startup and key-response latency checks for quiet and waiting-state fixtures.
-- [ ] Add `go test -bench` coverage for render and update hot paths, including shell view, watch apply, and palette-entry building.
+- [x] Add `go test -bench` coverage for render and update hot paths, including shell view, watch apply, and palette-entry building.
+
+Alpha.7 bootstrap already landed:
+
+- [x] Distinguish waiting activity from actively running work in shell projection and shell chrome so waiting sessions and runs stay visible without reusing the fast running animation loop.
 
 ## Phase 3: Broker Local API And Watch Checks
 

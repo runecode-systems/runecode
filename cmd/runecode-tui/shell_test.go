@@ -490,6 +490,18 @@ func TestShellChromeSanitizesBreadcrumbsHistoryAndActivityLabels(t *testing.T) {
 	}
 }
 
+func TestShellWaitingActivityDoesNotRenderAnimatedIndicator(t *testing.T) {
+	m := newShellModel()
+	m.watch.projection.Activity = shellActivitySemantics{State: shellActivityStateWaiting, Active: shellActivityFocus{Kind: "session", ID: "session-1"}}
+
+	if got := m.renderRunningIndicator(); got != "" {
+		t.Fatalf("expected no animated indicator for waiting activity, got %q", got)
+	}
+	if got := m.renderPaneActivityMarker(); !strings.Contains(got, "WAITING") {
+		t.Fatalf("expected waiting pane marker, got %q", got)
+	}
+}
+
 func TestShellToastRemainsVisibleWithinViewport(t *testing.T) {
 	m := newShellModel()
 	m.width = 100

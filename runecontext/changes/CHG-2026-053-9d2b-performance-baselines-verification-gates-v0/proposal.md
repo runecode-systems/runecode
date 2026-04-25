@@ -24,6 +24,7 @@ The investigation showed that RuneCode does not currently distinguish performanc
 Without deterministic fixtures, explicit thresholds, and CI enforcement, the project can regress in any of those areas without a visible review signal.
 
 ## Proposed Change
+- Record the alpha.7 TUI bootstrap already implemented from this investigation: waiting-state activity now stays visibly marked without reusing the fast `running` repaint loop, and `cmd/runecode-tui` now has focused render/update benchmarks for shell view, watch apply, and palette entry construction.
 - Capture the corrected performance investigation results as product planning guidance rather than leaving them as temporary terminal-session notes.
 - Define RuneCode performance regimes explicitly, especially the difference between:
   - empty or quiescent local state
@@ -54,7 +55,7 @@ Capturing that distinction now prevents future work from overfitting to the wron
 - Performance verification is a product-quality concern and should remain part of the normal release and roadmap conversation, not a one-off local debugging artifact.
 
 ## Out of Scope
-- Implementing the code changes that optimize the measured hot paths.
+- Broad follow-on optimization work beyond the small alpha.7 waiting-state fix and focused benchmark coverage already landed.
 - Publishing external provider SLA promises based on networked measurements.
 - Replacing Bubble Tea, Lip Gloss, the broker architecture, or the runner architecture solely to satisfy this planning change.
 - Treating one local developer machine profile as authoritative for every threshold.
@@ -72,3 +73,5 @@ This change gives RuneCode one canonical planning surface for:
 It also freezes one durable product-level rule for future work:
 
 - RuneCode performance should be evaluated per subsystem and per runtime regime, not as one vague "fast enough" claim for the whole product
+
+The broader project-wide performance gates, real-child CPU harnesses, and subsystem-specific CI thresholds remain deferred to this later change and are not part of the alpha.7 implementation slice.

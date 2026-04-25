@@ -231,6 +231,8 @@ The investigation suggests the likely user-facing performance pain is not the em
 - a `120ms` animation tick remains armed
 - whole-shell render work remains expensive
 
+Alpha.7 now partially addresses this specific risk by splitting waiting from running in shell activity semantics, preserving visible waiting cues without keeping the `120ms` running animation armed, and adding focused `cmd/runecode-tui` benchmarks for shell view, watch apply, and palette entry construction. The broader architectural work below remains deferred.
+
 ### Conclusion 3: Performance Verification Must Be Cross-Cutting
 The TUI findings are the most concrete current example, but the same failure mode can exist elsewhere: regressions remain invisible until a human notices because no deterministic subsystem budgets exist in CI.
 
@@ -361,7 +363,7 @@ Linux remains the first authoritative numeric gate until platform-specific noise
 - Threshold changes should require an intentional doc-and-code review path, just like other product contract changes.
 
 ## Recommended Optimization Priorities Informed By The Findings
-This change does not implement optimization work, but it records the best follow-on priorities implied by the evidence:
+This change mostly records follow-on work rather than implementing it, except for the narrow alpha.7 waiting-state repaint reduction and focused benchmark coverage already landed. The remaining priorities implied by the evidence are:
 
 1. Treat long-lived waiting states differently from visibly progressing states so they do not pay the same `120ms` animation cost.
 2. Reduce repeated `ShellSurface()` and layout recomputation in the TUI render path.

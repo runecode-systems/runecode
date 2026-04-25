@@ -59,9 +59,9 @@ Parallelization: depends on typed watch/event contract work.
 
 ## Phase 6: Running Indicator And Activity Semantics
 
-- [x] Add shell-level activity semantics for `loading`, `running`, and `degraded sync`.
+- [x] Add shell-level activity semantics for `loading`, `running`, `waiting`, and `degraded sync`.
 - [x] Show a small animated running indicator in the status bar whenever canonical work is actively progressing.
-- [x] Add row-level or pane-level activity markers for the focused or actively running object.
+- [x] Add row-level or pane-level activity markers for the focused or actively running object, including a non-animated waiting cue for blocked or pending work.
 - [x] Keep running semantics driven by typed broker-visible activity rather than local timers alone.
 
 Parallelization: can begin once Phase 5 exists.

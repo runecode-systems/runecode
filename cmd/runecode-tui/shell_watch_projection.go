@@ -121,6 +121,8 @@ func renderShellActivityState(state shellActivityState) string {
 	switch state {
 	case shellActivityStateLoading:
 		return neutralBadge("activity=loading")
+	case shellActivityStateWaiting:
+		return warnBadge("activity=waiting")
 	case shellActivityStateRunning:
 		return infoBadge("activity=running")
 	case shellActivityStateDegradedSync:
@@ -137,20 +139,20 @@ func deriveShellActivitySemantics(health shellSyncHealth, cache shellWatchReduct
 	if health.State == shellSyncStateDegraded || health.State == shellSyncStateDisconnected || health.State == shellSyncStateReconnecting {
 		return shellActivitySemantics{State: shellActivityStateDegradedSync}
 	}
-	if active := cache.activeFocus(); strings.TrimSpace(active.Kind) != "" {
-		return shellActivitySemantics{State: shellActivityStateRunning, Active: active}
+	if active, state := cache.activeFocus(); strings.TrimSpace(active.Kind) != "" {
+		return shellActivitySemantics{State: state, Active: active}
 	}
 	return shellActivitySemantics{State: shellActivityStateIdle}
 }
 
-func (c shellWatchReductionState) activeFocus() shellActivityFocus {
+func (c shellWatchReductionState) activeFocus() (shellActivityFocus, shellActivityState) {
 	if focus, ok := c.activeFocusFromFeed(); ok {
-		return focus
+		return focus, activityStateForFocus(c, focus)
 	}
 	if focus, ok := c.activeFocusFromSnapshots(); ok {
-		return focus
+		return focus, activityStateForFocus(c, focus)
 	}
-	return shellActivityFocus{}
+	return shellActivityFocus{}, shellActivityStateIdle
 }
 
 func (c shellWatchReductionState) activeFocusFromFeed() (shellActivityFocus, bool) {
@@ -194,53 +196,166 @@ func (c shellWatchReductionState) activeFocusFromSnapshots() (shellActivityFocus
 	return shellActivityFocus{}, false
 }
 
-func activeRunFocus(runs map[string]brokerapi.RunSummary) (shellActivityFocus, bool) {
-	for id, run := range runs {
-		if runActivelyProgressing(run) {
-			return shellActivityFocus{Kind: "run", ID: id}, true
+func activityStateForFocus(c shellWatchReductionState, focus shellActivityFocus) shellActivityState {
+	switch strings.TrimSpace(focus.Kind) {
+	case "run":
+		if run, ok := c.runs[strings.TrimSpace(focus.ID)]; ok {
+			return runActivityState(run)
+		}
+	case "approval":
+		if approval, ok := c.approvals[strings.TrimSpace(focus.ID)]; ok {
+			return approvalActivityState(approval)
+		}
+	case "session":
+		if session, ok := c.sessions[strings.TrimSpace(focus.ID)]; ok {
+			return sessionActivityState(session)
 		}
 	}
-	return shellActivityFocus{}, false
+	return shellActivityStateIdle
+}
+
+func activeRunFocus(runs map[string]brokerapi.RunSummary) (shellActivityFocus, bool) {
+	bestID := ""
+	for id, run := range runs {
+		if runActivelyProgressing(run) {
+			if bestID == "" || id < bestID {
+				bestID = id
+			}
+		}
+	}
+	if bestID == "" {
+		return shellActivityFocus{}, false
+	}
+	return shellActivityFocus{Kind: "run", ID: bestID}, true
 }
 
 func activeApprovalFocus(approvals map[string]brokerapi.ApprovalSummary) (shellActivityFocus, bool) {
+	bestID := ""
 	for id, approval := range approvals {
 		if approvalActivelyProgressing(approval) {
-			return shellActivityFocus{Kind: "approval", ID: id}, true
+			if bestID == "" || id < bestID {
+				bestID = id
+			}
 		}
 	}
-	return shellActivityFocus{}, false
+	if bestID == "" {
+		return shellActivityFocus{}, false
+	}
+	return shellActivityFocus{Kind: "approval", ID: bestID}, true
 }
 
 func activeSessionFocus(sessions map[string]brokerapi.SessionSummary) (shellActivityFocus, bool) {
+	bestID := ""
 	for id, session := range sessions {
 		if sessionActivelyProgressing(session) {
-			return shellActivityFocus{Kind: "session", ID: id}, true
+			if bestID == "" || id < bestID {
+				bestID = id
+			}
 		}
 	}
-	return shellActivityFocus{}, false
+	if bestID == "" {
+		return shellActivityFocus{}, false
+	}
+	return shellActivityFocus{Kind: "session", ID: bestID}, true
 }
 
 func runActivelyProgressing(summary brokerapi.RunSummary) bool {
-	state := strings.ToLower(strings.TrimSpace(summary.LifecycleState))
+	return runActivityState(summary) != shellActivityStateIdle
+}
+
+func runActivityState(summary brokerapi.RunSummary) shellActivityState {
+	state := normalizeActivityValue(summary.LifecycleState)
 	if state == "" {
-		return false
+		return shellActivityStateIdle
 	}
-	return strings.Contains(state, "active") || strings.Contains(state, "run") || strings.Contains(state, "progress") || strings.Contains(state, "queue") || strings.Contains(state, "wait") || strings.Contains(state, "pending")
+	if isWaitingActivityValue(state) {
+		return shellActivityStateWaiting
+	}
+	if isRunningActivityValue(state) {
+		return shellActivityStateRunning
+	}
+	return shellActivityStateIdle
 }
 
 func approvalActivelyProgressing(summary brokerapi.ApprovalSummary) bool {
-	status := strings.ToLower(strings.TrimSpace(summary.Status))
+	return approvalActivityState(summary) != shellActivityStateIdle
+}
+
+func approvalActivityState(summary brokerapi.ApprovalSummary) shellActivityState {
+	status := normalizeActivityValue(summary.Status)
 	if status == "" {
-		return false
+		return shellActivityStateIdle
 	}
-	return strings.Contains(status, "pending") || strings.Contains(status, "requested") || strings.Contains(status, "wait")
+	if isApprovalWaitingValue(status) {
+		return shellActivityStateWaiting
+	}
+	return shellActivityStateIdle
 }
 
 func sessionActivelyProgressing(summary brokerapi.SessionSummary) bool {
-	status := strings.ToLower(strings.TrimSpace(summary.Status))
+	return sessionActivityState(summary) != shellActivityStateIdle
+}
+
+func sessionActivityState(summary brokerapi.SessionSummary) shellActivityState {
+	if posture := normalizeActivityValue(summary.WorkPosture); posture != "" {
+		if isIdleActivityValue(posture) {
+			return shellActivityStateIdle
+		}
+		if isWaitingActivityValue(posture) {
+			return shellActivityStateWaiting
+		}
+		if isRunningActivityValue(posture) {
+			return shellActivityStateRunning
+		}
+	}
+	status := normalizeActivityValue(summary.Status)
+	if isWaitingActivityValue(status) {
+		return shellActivityStateWaiting
+	}
+	if isRunningActivityValue(status) {
+		return shellActivityStateRunning
+	}
 	if summary.HasIncompleteTurn {
+		return shellActivityStateWaiting
+	}
+	return shellActivityStateIdle
+}
+
+func normalizeActivityValue(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	value = strings.ReplaceAll(value, "-", "_")
+	value = strings.ReplaceAll(value, " ", "_")
+	return value
+}
+
+func isWaitingActivityValue(value string) bool {
+	switch value {
+	case "waiting", "queued", "pending", "blocked", "requested":
 		return true
 	}
-	return strings.Contains(status, "active") || strings.Contains(status, "run") || strings.Contains(status, "progress") || strings.Contains(status, "wait") || strings.Contains(status, "queued")
+	return strings.HasPrefix(value, "waiting_") || strings.HasPrefix(value, "queued_") || strings.HasPrefix(value, "pending_") || strings.HasPrefix(value, "blocked_")
+}
+
+func isRunningActivityValue(value string) bool {
+	switch value {
+	case "active", "running", "planning", "in_progress", "progressing", "starting", "resuming":
+		return true
+	}
+	return strings.HasPrefix(value, "running_") || strings.HasPrefix(value, "active_")
+}
+
+func isIdleActivityValue(value string) bool {
+	switch value {
+	case "idle", "completed", "failed", "cancelled", "canceled", "degraded", "inactive", "not_running", "stopped", "finished", "approved", "consumed", "denied", "expired", "superseded":
+		return true
+	}
+	return strings.HasPrefix(value, "completed_") || strings.HasPrefix(value, "failed_") || strings.HasPrefix(value, "idle_")
+}
+
+func isApprovalWaitingValue(value string) bool {
+	switch value {
+	case "pending", "requested", "waiting":
+		return true
+	}
+	return strings.HasPrefix(value, "waiting_")
 }

@@ -43,3 +43,5 @@ This also freezes the separation that later workflow-pack and approval-profile w
 - broker-owned turn execution state remains distinct from session object lifecycle and transcript lifecycle
 - formal approval frequency and operator-question frequency remain separate controls, while hard-floor approvals stay outside both controls
 - dependency-aware partial waits remain scope blocking rather than whole-system stop signals, giving later multi-track implementation work one canonical pause/resume rule to reuse
+
+The alpha.7 TUI shell now reflects that separation more accurately by rendering broker-owned waiting session and run states as visible waiting activity rather than as animated running progress.

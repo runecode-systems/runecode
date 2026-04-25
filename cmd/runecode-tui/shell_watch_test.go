@@ -103,3 +103,86 @@ func TestShellWatchManagerProjectsActivityFromTypedFamilyReduction(t *testing.T)
 		t.Fatal("expected run cache populated from typed reduction")
 	}
 }
+
+func TestShellWatchManagerProjectsWaitingSessionsAsWaitingNotRunning(t *testing.T) {
+	manager := newShellWatchManager()
+	now := time.Date(2026, 4, 16, 15, 0, 0, 0, time.UTC)
+
+	manager.applyTransport(shellWatchTransportLoadedMsg{
+		ObservedAt: now,
+		Run:        shellWatchRunTransportResult{Events: []brokerapi.RunWatchEvent{{EventType: "run_watch_terminal", Seq: 1, Terminal: true, TerminalStatus: "completed"}}},
+		Approval:   shellWatchApprovalTransportResult{Events: []brokerapi.ApprovalWatchEvent{{EventType: "approval_watch_terminal", Seq: 1, Terminal: true, TerminalStatus: "completed"}}},
+		Session: shellWatchSessionTransportResult{Events: []brokerapi.SessionWatchEvent{
+			{EventType: "session_watch_snapshot", Seq: 1, Session: &brokerapi.SessionSummary{Identity: brokerapi.SessionIdentity{SessionID: "session-wait"}, Status: "active", WorkPosture: "waiting", HasIncompleteTurn: true}},
+		}},
+	})
+
+	if manager.projection.Activity.State != shellActivityStateWaiting {
+		t.Fatalf("expected waiting activity state, got %s", manager.projection.Activity.State)
+	}
+	if manager.projection.Activity.Active.Kind != "session" || manager.projection.Activity.Active.ID != "session-wait" {
+		t.Fatalf("expected waiting session focus, got %+v", manager.projection.Activity.Active)
+	}
+}
+
+func TestShellWatchManagerProjectsWaitingRunsAsWaitingNotRunning(t *testing.T) {
+	manager := newShellWatchManager()
+	now := time.Date(2026, 4, 16, 16, 0, 0, 0, time.UTC)
+
+	manager.applyTransport(shellWatchTransportLoadedMsg{
+		ObservedAt: now,
+		Run:        shellWatchRunTransportResult{Events: []brokerapi.RunWatchEvent{{EventType: "run_watch_snapshot", Seq: 1, Run: &brokerapi.RunSummary{RunID: "run-wait", LifecycleState: "waiting_approval"}}}},
+		Approval:   shellWatchApprovalTransportResult{Events: []brokerapi.ApprovalWatchEvent{{EventType: "approval_watch_terminal", Seq: 1, Terminal: true, TerminalStatus: "completed"}}},
+		Session:    shellWatchSessionTransportResult{Events: []brokerapi.SessionWatchEvent{{EventType: "session_watch_terminal", Seq: 1, Terminal: true, TerminalStatus: "completed"}}},
+	})
+
+	if manager.projection.Activity.State != shellActivityStateWaiting {
+		t.Fatalf("expected waiting activity state, got %s", manager.projection.Activity.State)
+	}
+	if manager.projection.Activity.Active.Kind != "run" || manager.projection.Activity.Active.ID != "run-wait" {
+		t.Fatalf("expected waiting run focus, got %+v", manager.projection.Activity.Active)
+	}
+}
+
+func TestShellWatchManagerDoesNotProjectInactiveOrNotRunningAsActive(t *testing.T) {
+	manager := newShellWatchManager()
+	now := time.Date(2026, 4, 16, 17, 0, 0, 0, time.UTC)
+
+	manager.applyTransport(shellWatchTransportLoadedMsg{
+		ObservedAt: now,
+		Run: shellWatchRunTransportResult{Events: []brokerapi.RunWatchEvent{
+			{EventType: "run_watch_snapshot", Seq: 1, Run: &brokerapi.RunSummary{RunID: "run-inactive", LifecycleState: "inactive"}},
+			{EventType: "run_watch_snapshot", Seq: 2, Run: &brokerapi.RunSummary{RunID: "run-not-running", LifecycleState: "not_running"}},
+		}},
+		Approval: shellWatchApprovalTransportResult{Events: []brokerapi.ApprovalWatchEvent{{EventType: "approval_watch_terminal", Seq: 1, Terminal: true, TerminalStatus: "completed"}}},
+		Session:  shellWatchSessionTransportResult{Events: []brokerapi.SessionWatchEvent{{EventType: "session_watch_snapshot", Seq: 1, Session: &brokerapi.SessionSummary{Identity: brokerapi.SessionIdentity{SessionID: "session-idle"}, Status: "active", WorkPosture: "idle"}}}},
+	})
+
+	if manager.projection.Activity.State != shellActivityStateIdle {
+		t.Fatalf("expected idle activity state, got %s", manager.projection.Activity.State)
+	}
+	if manager.projection.Activity.Active != (shellActivityFocus{}) {
+		t.Fatalf("expected no active focus, got %+v", manager.projection.Activity.Active)
+	}
+}
+
+func TestShellWatchManagerProjectsBlockedSessionAsWaiting(t *testing.T) {
+	manager := newShellWatchManager()
+	now := time.Date(2026, 4, 16, 18, 0, 0, 0, time.UTC)
+
+	manager.applyTransport(shellWatchTransportLoadedMsg{
+		ObservedAt: now,
+		Run:        shellWatchRunTransportResult{Events: []brokerapi.RunWatchEvent{{EventType: "run_watch_terminal", Seq: 1, Terminal: true, TerminalStatus: "completed"}}},
+		Approval:   shellWatchApprovalTransportResult{Events: []brokerapi.ApprovalWatchEvent{{EventType: "approval_watch_terminal", Seq: 1, Terminal: true, TerminalStatus: "completed"}}},
+		Session: shellWatchSessionTransportResult{Events: []brokerapi.SessionWatchEvent{
+			{EventType: "session_watch_snapshot", Seq: 1, Session: &brokerapi.SessionSummary{Identity: brokerapi.SessionIdentity{SessionID: "session-blocked"}, Status: "active", WorkPosture: "blocked"}},
+		}},
+	})
+
+	if manager.projection.Activity.State != shellActivityStateWaiting {
+		t.Fatalf("expected waiting activity state, got %s", manager.projection.Activity.State)
+	}
+	if manager.projection.Activity.Active.Kind != "session" || manager.projection.Activity.Active.ID != "session-blocked" {
+		t.Fatalf("expected blocked session focus, got %+v", manager.projection.Activity.Active)
+	}
+}
