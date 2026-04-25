@@ -427,12 +427,12 @@ func TestShellLeaderQuitExecutesThroughUnifiedActionGraph(t *testing.T) {
 	}
 }
 
-func TestShellCtrlCFirstPressPromptsWhenNoEntryState(t *testing.T) {
+func TestShellCtrlCFirstPressArmsEmergencyWhenNoEntryState(t *testing.T) {
 	m := newShellModel()
 
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if cmd == nil {
-		t.Fatal("expected first ctrl+c to return emergency arm timeout command when opening quit confirmation")
+		t.Fatal("expected first ctrl+c to return emergency arm timeout command")
 	}
 	shell := updated.(shellModel)
 	if shell.quitting {
@@ -441,15 +441,12 @@ func TestShellCtrlCFirstPressPromptsWhenNoEntryState(t *testing.T) {
 	if !shell.emergencyQuit.pending {
 		t.Fatal("expected emergency quit pending after first ctrl+c")
 	}
-	if !shell.quitConfirm.active {
-		t.Fatal("expected quit confirmation after first ctrl+c even when no entry state exists")
-	}
-	if !strings.Contains(shell.renderQuitConfirmDialog(), "quit confirmation") {
-		t.Fatalf("expected generic quit confirmation reason, got %q", shell.renderQuitConfirmDialog())
+	if shell.quitConfirm.active {
+		t.Fatal("did not expect quit confirmation after first ctrl+c without explicit quit action")
 	}
 }
 
-func TestShellCtrlCFirstPressPromptsAndArmsEmergencyWhenEntryStateActive(t *testing.T) {
+func TestShellCtrlCFirstPressArmsEmergencyWhenEntryStateActive(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
 	m.height = 40
@@ -461,24 +458,23 @@ func TestShellCtrlCFirstPressPromptsAndArmsEmergencyWhenEntryStateActive(t *test
 
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if cmd == nil {
-		t.Fatal("expected first ctrl+c to return emergency arm timeout command while entry state is active")
+		t.Fatal("expected first ctrl+c to return emergency arm timeout command while entry state active")
 	}
 	shell := updated.(shellModel)
 	if shell.quitting {
 		t.Fatal("expected first ctrl+c not to quit while entry state is active")
 	}
-	if !shell.quitConfirm.active {
-		t.Fatal("expected first ctrl+c to open normal quit confirmation while entry state is active")
+	if shell.quitConfirm.active {
+		t.Fatal("did not expect first ctrl+c to open quit confirmation while entry state is active")
 	}
 	if !shell.emergencyQuit.pending {
-		t.Fatal("expected first ctrl+c to arm pending emergency quit state while confirmation is active")
+		t.Fatal("expected first ctrl+c to arm pending emergency quit state")
 	}
 	bottom := shell.renderBottomStrip(shell.activeShellSurface())
 	if !strings.Contains(bottom, "press ctrl+c once more to quit") {
 		t.Fatalf("expected emergency follow-up warning in command-entry area, got %q", bottom)
 	}
 }
-
 
 func TestShellEmergencyCtrlCSecondPressQuitsWhilePending(t *testing.T) {
 	m := newShellModel()
@@ -522,8 +518,8 @@ func TestShellEmergencyCtrlCPendingClearsOnNormalInteraction(t *testing.T) {
 		t.Fatal("did not expect quit command on normal follow-up interaction")
 	}
 	shell = updated.(shellModel)
-	if !shell.quitConfirm.active {
-		t.Fatal("expected normal quit confirmation to remain active after non-ctrl+c interaction")
+	if shell.quitConfirm.active {
+		t.Fatal("did not expect normal interaction to open quit confirmation")
 	}
 	if shell.emergencyQuit.pending {
 		t.Fatal("expected normal interaction to clear emergency quit pending state")
@@ -558,8 +554,8 @@ func TestShellEmergencyCtrlCPendingClearsOnTimeout(t *testing.T) {
 	if shell.emergencyQuit.pending {
 		t.Fatal("expected timeout to clear emergency quit pending state")
 	}
-	if !shell.quitConfirm.active {
-		t.Fatal("expected normal quit confirmation to remain active after emergency timeout")
+	if shell.quitConfirm.active {
+		t.Fatal("did not expect emergency timeout to leave quit confirmation active")
 	}
 	if shell.quitting {
 		t.Fatal("did not expect timeout to quit")
@@ -574,14 +570,14 @@ func TestShellEmergencyCtrlCBypassesExclusiveLocalCapture(t *testing.T) {
 
 	updated, firstCmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if firstCmd == nil {
-		t.Fatal("expected first ctrl+c to open normal quit confirmation even during exclusive local capture")
+		t.Fatal("expected first ctrl+c to arm emergency quit even during exclusive local capture")
 	}
 	shell := updated.(shellModel)
 	if shell.quitting {
 		t.Fatal("expected first ctrl+c not to quit")
 	}
-	if !shell.quitConfirm.active {
-		t.Fatal("expected first ctrl+c to open quit confirmation during exclusive local capture")
+	if shell.quitConfirm.active {
+		t.Fatal("did not expect first ctrl+c to open quit confirmation during exclusive local capture")
 	}
 	if !shell.emergencyQuit.pending {
 		t.Fatal("expected first ctrl+c to arm emergency pending state")

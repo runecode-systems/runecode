@@ -19,22 +19,14 @@ func (m shellModel) handleQuitMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			m.quitting = true
 			return m, tea.Quit, true
 		}
-		updated, cmd := m.requestQuitActionWithReason("quit confirmation")
-		shell := updated.(shellModel)
-		if shell.quitConfirm.active {
-			shell.emergencyQuit.pending = true
-			shell.emergencyQuit.token++
-			token := shell.emergencyQuit.token
-			tick := tea.Tick(emergencyQuitArmWindow, func(time.Time) tea.Msg {
-				return shellEmergencyQuitTimeoutMsg{token: token}
-			})
-			shell.toasts.Push(toastWarn, "Quit requested. Press ctrl+c again to quit immediately.")
-			if cmd != nil {
-				return shell, tea.Batch(cmd, tick), true
-			}
-			return shell, tick, true
-		}
-		return shell, cmd, true
+		m.emergencyQuit.pending = true
+		m.emergencyQuit.token++
+		token := m.emergencyQuit.token
+		tick := tea.Tick(emergencyQuitArmWindow, func(time.Time) tea.Msg {
+			return shellEmergencyQuitTimeoutMsg{token: token}
+		})
+		m.toasts.Push(toastWarn, "Quit requested. Press ctrl+c again to quit immediately.")
+		return m, tick, true
 	}
 	if m.emergencyQuit.pending {
 		m.emergencyQuit.pending = false
@@ -62,8 +54,11 @@ func (m shellModel) handleQuitShortcutMessage(msg tea.Msg) (tea.Model, tea.Cmd, 
 	if !ok || !m.keys.Quit.matches(key) {
 		return m, nil, false
 	}
-	m.quitting = true
-	return m, tea.Quit, true
+	if key.String() == "ctrl+c" {
+		return m, nil, false
+	}
+	updated, cmd := m.requestQuitAction()
+	return updated, cmd, true
 }
 
 func (m shellModel) handleKeyboardOwnershipMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
@@ -99,11 +94,18 @@ func routeOwnsTextEntryKey(key tea.KeyMsg) bool {
 }
 
 func (m shellModel) handleOverlayMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
-	if !m.palette.IsOpen() && !m.sessions.IsOpen() && !m.quitConfirm.active {
+	if !m.palette.IsOpen() && !m.sessions.IsOpen() && !m.quitConfirm.active && !m.leader.Active() {
 		return m, nil, false
 	}
 	switch msg.(type) {
 	case tea.MouseMsg, tea.KeyMsg:
+		if m.leader.Active() {
+			if _, ok := msg.(tea.MouseMsg); ok {
+				return m, nil, true
+			}
+			updated, cmd := m.handleKey(msg.(tea.KeyMsg))
+			return updated, cmd, true
+		}
 		if m.quitConfirm.active {
 			return m.handleQuitConfirmMessage(msg)
 		}

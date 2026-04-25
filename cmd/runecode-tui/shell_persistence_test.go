@@ -347,4 +347,13 @@ func TestLeaderPreferenceInvalidPersistedValueFallsBackToDefaultWithWarning(t *t
 	if got := m.toasts.Latest(); !strings.Contains(got, "Persisted leader key invalid") {
 		t.Fatalf("expected warning toast for invalid persisted leader, got %q", got)
 	}
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+	if cmd != nil {
+		t.Fatal("expected space leader start to execute synchronously")
+	}
+	restored := updated.(shellModel)
+	if !restored.leader.Active() {
+		t.Fatal("expected default space leader to remain usable after invalid persisted value")
+	}
 }

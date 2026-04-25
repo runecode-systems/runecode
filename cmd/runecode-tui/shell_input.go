@@ -38,10 +38,6 @@ func (m shellModel) handleOpenLeaderKey(key tea.KeyMsg) (tea.Model, tea.Cmd, boo
 	if !m.shellPowerKeysAllowed() {
 		return m, nil, false
 	}
-	if strings.TrimSpace(m.leaderKeyInvalid) != "" {
-		m.toasts.Push(toastWarn, "Leader key is invalid: "+m.leaderKeyInvalid)
-		return m, nil, true
-	}
 	m.leader.Rebind(m.actions.leaderBindings(m))
 	m.beginOverlaySession()
 	m.leader.Start()
