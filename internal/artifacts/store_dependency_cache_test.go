@@ -104,6 +104,70 @@ func TestDependencyCacheResolvedUnitByRequest(t *testing.T) {
 	}
 }
 
+func TestRecordDependencyCacheResolvedUnitPersistsRequestLevelReuse(t *testing.T) {
+	store := newTestStore(t)
+	unitManifest := putTrustedDependencyArtifact(t, store, DataClassDependencyResolvedUnit, `{"kind":"unit-manifest"}`)
+	payload := putTrustedDependencyArtifact(t, store, DataClassDependencyPayloadUnit, `{"kind":"unit-payload"}`)
+	unit := DependencyCacheResolvedUnitRecord{
+		ResolvedUnitDigest:   testDigest("a"),
+		RequestDigest:        testDigest("b"),
+		ManifestDigest:       unitManifest.Digest,
+		PayloadDigest:        []string{payload.Digest},
+		IntegrityState:       "verified",
+		MaterializationState: "derived_read_only",
+	}
+	if err := store.RecordDependencyCacheResolvedUnit(unit); err != nil {
+		t.Fatalf("RecordDependencyCacheResolvedUnit returned error: %v", err)
+	}
+
+	resolved, ok, err := store.DependencyCacheResolvedUnitByRequest(unit.RequestDigest)
+	if err != nil {
+		t.Fatalf("DependencyCacheResolvedUnitByRequest returned error: %v", err)
+	}
+	if !ok {
+		t.Fatal("DependencyCacheResolvedUnitByRequest ok=false, want true")
+	}
+	if resolved.ResolvedUnitDigest != unit.ResolvedUnitDigest {
+		t.Fatalf("resolved_unit_digest = %q, want %q", resolved.ResolvedUnitDigest, unit.ResolvedUnitDigest)
+	}
+
+	if err := store.RecordDependencyCacheResolvedUnit(unit); err != nil {
+		t.Fatalf("RecordDependencyCacheResolvedUnit idempotent write error: %v", err)
+	}
+}
+
+func TestRecordDependencyCacheResolvedUnitRejectsAmbiguousRequestReuse(t *testing.T) {
+	store := newTestStore(t)
+	unitManifestA := putTrustedDependencyArtifact(t, store, DataClassDependencyResolvedUnit, `{"kind":"unit-a"}`)
+	payloadA := putTrustedDependencyArtifact(t, store, DataClassDependencyPayloadUnit, `{"kind":"payload-a"}`)
+	unitManifestB := putTrustedDependencyArtifact(t, store, DataClassDependencyResolvedUnit, `{"kind":"unit-b"}`)
+	payloadB := putTrustedDependencyArtifact(t, store, DataClassDependencyPayloadUnit, `{"kind":"payload-b"}`)
+
+	requestDigest := testDigest("c")
+	unitA := DependencyCacheResolvedUnitRecord{
+		ResolvedUnitDigest:   testDigest("d"),
+		RequestDigest:        requestDigest,
+		ManifestDigest:       unitManifestA.Digest,
+		PayloadDigest:        []string{payloadA.Digest},
+		IntegrityState:       "verified",
+		MaterializationState: "derived_read_only",
+	}
+	unitB := DependencyCacheResolvedUnitRecord{
+		ResolvedUnitDigest:   testDigest("e"),
+		RequestDigest:        requestDigest,
+		ManifestDigest:       unitManifestB.Digest,
+		PayloadDigest:        []string{payloadB.Digest},
+		IntegrityState:       "verified",
+		MaterializationState: "derived_read_only",
+	}
+	if err := store.RecordDependencyCacheResolvedUnit(unitA); err != nil {
+		t.Fatalf("RecordDependencyCacheResolvedUnit(unitA) returned error: %v", err)
+	}
+	if err := store.RecordDependencyCacheResolvedUnit(unitB); err != ErrDependencyCacheAmbiguousReuse {
+		t.Fatalf("RecordDependencyCacheResolvedUnit(unitB) error = %v, want %v", err, ErrDependencyCacheAmbiguousReuse)
+	}
+}
+
 func TestDependencyCacheHandoffByRequestUsesInternalArtifactFlow(t *testing.T) {
 	store := newTestStore(t)
 	requestDigest := testDigest("a")

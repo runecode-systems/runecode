@@ -50,6 +50,24 @@ func (s *Store) DependencyCacheResolvedUnitByRequest(requestDigest string) (Depe
 	return s.dependencyCacheResolvedUnitByRequestLocked(requestDigest)
 }
 
+func (s *Store) RecordDependencyCacheResolvedUnit(unit DependencyCacheResolvedUnitRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	staging := newDependencyCacheBatchStaging(1)
+	if err := s.stageDependencyCacheUnitLocked(&staging, unit); err != nil {
+		return err
+	}
+	if err := s.validateSingleRequestResolvedUnitLocked(unit.RequestDigest, unit.ResolvedUnitDigest); err != nil {
+		return err
+	}
+	s.applyDependencyCacheResolvedUnitStagingLocked(staging)
+	if err := s.saveStateLocked(); err != nil {
+		s.rollbackDependencyCacheResolvedUnitStagingLocked(staging)
+		return err
+	}
+	return nil
+}
+
 func (s *Store) DependencyCacheHandoffByRequest(req DependencyCacheHandoffRequest) (DependencyCacheHandoff, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -107,4 +125,41 @@ func (s *Store) dependencyCacheResolvedUnitByRequestLocked(requestDigest string)
 		return DependencyCacheResolvedUnitRecord{}, false, err
 	}
 	return cloneDependencyResolvedUnitRecord(unit), true, nil
+}
+
+func (s *Store) validateSingleRequestResolvedUnitLocked(requestDigest, resolvedUnitDigest string) error {
+	linkedUnits := s.state.DependencyCacheByRequest[requestDigest]
+	if len(linkedUnits) == 0 {
+		return nil
+	}
+	if len(linkedUnits) == 1 && linkedUnits[0] == resolvedUnitDigest {
+		return nil
+	}
+	return ErrDependencyCacheAmbiguousReuse
+}
+
+func (s *Store) applyDependencyCacheResolvedUnitStagingLocked(staging dependencyCacheBatchStaging) {
+	for digest, unit := range staging.stagedUnits {
+		s.state.DependencyCacheUnits[digest] = unit
+	}
+	for requestDigest, resolvedDigests := range staging.stagedByRequest {
+		s.state.DependencyCacheByRequest[requestDigest] = append([]string{}, resolvedDigests...)
+	}
+}
+
+func (s *Store) rollbackDependencyCacheResolvedUnitStagingLocked(staging dependencyCacheBatchStaging) {
+	for digest := range staging.stagedUnits {
+		if staging.priorUnitPresence[digest] {
+			s.state.DependencyCacheUnits[digest] = staging.priorUnits[digest]
+			continue
+		}
+		delete(s.state.DependencyCacheUnits, digest)
+	}
+	for requestDigest := range staging.stagedByRequest {
+		if staging.priorByRequestPresence[requestDigest] {
+			s.state.DependencyCacheByRequest[requestDigest] = append([]string{}, staging.priorByRequest[requestDigest]...)
+			continue
+		}
+		delete(s.state.DependencyCacheByRequest, requestDigest)
+	}
 }

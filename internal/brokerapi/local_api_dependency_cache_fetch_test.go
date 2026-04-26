@@ -53,6 +53,73 @@ func TestDependencyFetchRegistryCoalescesMisses(t *testing.T) {
 	}
 }
 
+func TestDependencyFetchRegistryReusesRequestLevelCacheOnRepeat(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	putTrustedDependencyFetchContextForRun(t, s, "run-deps")
+	req := dependencyFetchRegistryRequestForTest("req-fetch-repeat-a", "run-deps", "repeat")
+
+	first, firstErr := s.HandleDependencyFetchRegistry(context.Background(), req, RequestContext{})
+	if firstErr != nil {
+		t.Fatalf("first HandleDependencyFetchRegistry error: %+v", firstErr)
+	}
+	if first.CacheOutcome != "miss_filled" {
+		t.Fatalf("first cache_outcome = %q, want miss_filled", first.CacheOutcome)
+	}
+	if first.RegistryRequestCount != 1 {
+		t.Fatalf("first registry_request_count = %d, want 1", first.RegistryRequestCount)
+	}
+
+	req.RequestID = "req-fetch-repeat-b"
+	second, secondErr := s.HandleDependencyFetchRegistry(context.Background(), req, RequestContext{})
+	if secondErr != nil {
+		t.Fatalf("second HandleDependencyFetchRegistry error: %+v", secondErr)
+	}
+	if second.CacheOutcome != "hit_exact" {
+		t.Fatalf("second cache_outcome = %q, want hit_exact", second.CacheOutcome)
+	}
+	if second.RegistryRequestCount != 0 {
+		t.Fatalf("second registry_request_count = %d, want 0", second.RegistryRequestCount)
+	}
+
+	events := auditEventsByType(t, s, "dependency_registry_fetch")
+	last := events[len(events)-1]
+	if got, _ := last["cache_outcome"].(string); got != "hit_exact" {
+		t.Fatalf("last audit cache_outcome = %q, want hit_exact", got)
+	}
+}
+
+func TestDependencyFetchRegistryThenBatchEnsureSharesCanonicalCache(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	putTrustedDependencyFetchContextForRun(t, s, "run-deps")
+
+	fetchReq := dependencyFetchRegistryRequestForTest("req-fetch-before-ensure", "run-deps", "cross-path")
+	fetchResp, fetchErr := s.HandleDependencyFetchRegistry(context.Background(), fetchReq, RequestContext{})
+	if fetchErr != nil {
+		t.Fatalf("HandleDependencyFetchRegistry error: %+v", fetchErr)
+	}
+	if fetchResp.CacheOutcome != "miss_filled" {
+		t.Fatalf("fetch cache_outcome = %q, want miss_filled", fetchResp.CacheOutcome)
+	}
+
+	ensureReq := dependencyCacheEnsureRequestForTest("req-ensure-after-fetch", "run-deps", "cross-path")
+	ensureResp, ensureErr := s.HandleDependencyCacheEnsure(context.Background(), ensureReq, RequestContext{})
+	if ensureErr != nil {
+		t.Fatalf("HandleDependencyCacheEnsure error: %+v", ensureErr)
+	}
+	if ensureResp.CacheOutcome != "hit_exact" {
+		t.Fatalf("ensure cache_outcome = %q, want hit_exact", ensureResp.CacheOutcome)
+	}
+	if ensureResp.RegistryRequestCount != 0 {
+		t.Fatalf("ensure registry_request_count = %d, want 0", ensureResp.RegistryRequestCount)
+	}
+	if len(ensureResp.ResolvedUnitDigests) != 1 {
+		t.Fatalf("ensure resolved_unit_digests len = %d, want 1", len(ensureResp.ResolvedUnitDigests))
+	}
+	if ensureResp.ResolvedUnitDigests[0] != fetchResp.ResolvedUnitDigest {
+		t.Fatal("ensure resolved unit digest mismatch with prior single fetch")
+	}
+}
+
 func runCoalescedRegistryFetches(t *testing.T, s *Service, fetcher *gatedCountingFetcher, request DependencyFetchRegistryRequest, callers int) ([]DependencyFetchRegistryResponse, []*ErrorResponse) {
 	t.Helper()
 	responses := make([]DependencyFetchRegistryResponse, callers)

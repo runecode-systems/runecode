@@ -89,6 +89,10 @@ func (s *dependencyFetchService) resolveDependencyRequestLeader(ctx context.Cont
 			resultErr = err
 			return dependencyUnitResolution{}, err
 		}
+		if err := s.owner.RecordDependencyCacheResolvedUnit(result.unit); err != nil {
+			resultErr = err
+			return dependencyUnitResolution{}, err
+		}
 	}
 	finalizeDependencyResolutionTimestamps(s.owner.now().UTC(), startedAt, &result)
 	s.applyDependencyAuthorization(&result, authz)

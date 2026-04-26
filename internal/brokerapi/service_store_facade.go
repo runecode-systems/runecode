@@ -209,6 +209,10 @@ func (s *Service) DependencyCacheResolvedUnitByRequest(requestDigest string) (ar
 	return s.store.DependencyCacheResolvedUnitByRequest(requestDigest)
 }
 
+func (s *Service) RecordDependencyCacheResolvedUnit(unit artifacts.DependencyCacheResolvedUnitRecord) error {
+	return s.store.RecordDependencyCacheResolvedUnit(unit)
+}
+
 func (s *Service) DependencyCacheHandoffByRequest(req artifacts.DependencyCacheHandoffRequest) (artifacts.DependencyCacheHandoff, bool, error) {
 	return s.store.DependencyCacheHandoffByRequest(req)
 }
