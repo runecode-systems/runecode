@@ -4,9 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 )
+
+type streamedArtifactBlob struct {
+	tmpPath string
+	digest  string
+	size    int64
+}
 
 func (s *Store) SetPolicy(policy Policy) error {
 	s.mu.Lock()
@@ -42,46 +47,54 @@ func (s *Store) putStreamLocked(req PutStreamRequest) (ArtifactReference, error)
 		return ArtifactReference{}, err
 	}
 	actorRole := createdByRole(putReq)
-	tmpPath, digest, size, err := s.storeIO.streamToTempBlob(req.Reader)
+	blob, err := s.streamPutBlobLocked(req.Reader, putReq, actorRole)
 	if err != nil {
 		return ArtifactReference{}, err
 	}
 	cleanupTmp := func() {
-		if tmpPath != "" {
-			_ = s.storeIO.removeBlob(tmpPath)
+		if blob.tmpPath != "" {
+			_ = s.storeIO.removeBlob(blob.tmpPath)
 		}
 	}
-	if err := s.checkQuotasLocked(actorRole, putReq.StepID, size); err != nil {
-		cleanupTmp()
-		if auditErr := s.appendAuditLocked("artifact_quota_violation", actorRole, map[string]interface{}{"role": actorRole, "step_id": putReq.StepID}); auditErr != nil {
-			return ArtifactReference{}, errors.Join(err, auditErr)
-		}
-		return ArtifactReference{}, err
-	}
-	if ref, ok, err := s.tryReturnExistingReference(putReq, digest); ok || err != nil {
+	if ref, ok, err := s.tryReturnExistingReference(putReq, blob.digest); ok || err != nil {
 		cleanupTmp()
 		return ref, err
 	}
-	createdBlob, err := s.storeIO.persistBlobFromTempFile(tmpPath, digest)
+	createdBlob, err := s.storeIO.persistBlobFromTempFile(blob.tmpPath, blob.digest)
 	if err != nil {
 		cleanupTmp()
 		return ArtifactReference{}, err
 	}
-	tmpPath = ""
-	ref := buildArtifactReference(digest, size, putReq)
-	blobPath := s.storeIO.blobPath(digest)
-	rollback := s.captureArtifactPutRollback(putReq.RunID, digest)
-	s.upsertArtifactRecord(ref, putReq, digest, actorRole)
+	blob.tmpPath = ""
+	ref := buildArtifactReference(blob.digest, blob.size, putReq)
+	blobPath := s.storeIO.blobPath(blob.digest)
+	rollback := s.captureArtifactPutRollback(putReq.RunID, blob.digest)
+	s.upsertArtifactRecord(ref, putReq, blob.digest, actorRole)
 	if putReq.RunID != "" {
 		s.state.Runs[putReq.RunID] = "active"
 	}
-	if err := s.appendAuditLocked("artifact_put", actorRole, map[string]interface{}{"digest": digest, "data_class": putReq.DataClass, "provenance_receipt_hash": putReq.ProvenanceReceiptHash}); err != nil {
+	if err := s.appendAuditLocked("artifact_put", actorRole, map[string]interface{}{"digest": blob.digest, "data_class": putReq.DataClass, "provenance_receipt_hash": putReq.ProvenanceReceiptHash}); err != nil {
 		return ArtifactReference{}, s.rollbackStagedArtifactPut(rollback, blobPath, createdBlob, err)
 	}
 	if err := s.saveStateLocked(); err != nil {
 		return ArtifactReference{}, s.rollbackStagedArtifactPut(rollback, blobPath, createdBlob, err)
 	}
 	return ref, nil
+}
+
+func (s *Store) streamPutBlobLocked(reader io.Reader, putReq PutRequest, actorRole string) (streamedArtifactBlob, error) {
+	tmpPath, digest, size, err := s.storeIO.streamToTempBlob(reader)
+	if err != nil {
+		return streamedArtifactBlob{}, err
+	}
+	if err := s.checkQuotasLocked(actorRole, putReq.StepID, size); err != nil {
+		_ = s.storeIO.removeBlob(tmpPath)
+		if auditErr := s.appendAuditLocked("artifact_quota_violation", actorRole, map[string]interface{}{"role": actorRole, "step_id": putReq.StepID}); auditErr != nil {
+			return streamedArtifactBlob{}, errors.Join(err, auditErr)
+		}
+		return streamedArtifactBlob{}, err
+	}
+	return streamedArtifactBlob{tmpPath: tmpPath, digest: digest, size: size}, nil
 }
 
 func prepareStreamPutRequest(req PutStreamRequest, policy Policy) (PutRequest, error) {
@@ -245,101 +258,4 @@ func createdByRole(req PutRequest) string {
 		return "untrusted_client"
 	}
 	return "untrusted_client"
-}
-
-func (s *Store) Get(digest string) (io.ReadCloser, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	record, err := s.lookupRecord(digest)
-	if err != nil {
-		return nil, err
-	}
-	return s.storeIO.openBlob(record.BlobPath)
-}
-
-func (s *Store) GetForFlow(req ArtifactReadRequest) (io.ReadCloser, ArtifactRecord, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	record, err := s.lookupRecord(req.Digest)
-	if err != nil {
-		return nil, ArtifactRecord{}, err
-	}
-	checkReq := flowCheckRequestFromRead(req, record.Reference.DataClass)
-	if err := validateFlowInputs(s.state.Policy, checkReq); err != nil {
-		return nil, ArtifactRecord{}, err
-	}
-	if err := s.enforceFlowRecordConsistencyLocked(record, checkReq); err != nil {
-		return nil, ArtifactRecord{}, err
-	}
-	if err := s.enforceFlowPolicyLocked(checkReq); err != nil {
-		return nil, ArtifactRecord{}, err
-	}
-	r, err := s.storeIO.openBlob(record.BlobPath)
-	if err != nil {
-		return nil, ArtifactRecord{}, err
-	}
-	return r, record, nil
-}
-
-func flowCheckRequestFromRead(req ArtifactReadRequest, fallbackClass DataClass) FlowCheckRequest {
-	class := req.DataClass
-	if class == "" {
-		class = fallbackClass
-	}
-	return FlowCheckRequest{
-		ProducerRole:  req.ProducerRole,
-		ConsumerRole:  req.ConsumerRole,
-		DataClass:     class,
-		Digest:        req.Digest,
-		IsEgress:      req.IsEgress,
-		ManifestOptIn: req.ManifestOptIn,
-	}
-}
-
-func (s *Store) Head(digest string) (ArtifactRecord, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.lookupRecord(digest)
-}
-
-func (s *Store) lookupRecord(digest string) (ArtifactRecord, error) {
-	if !isValidDigest(digest) {
-		return ArtifactRecord{}, ErrInvalidDigest
-	}
-	record, ok := s.state.Artifacts[digest]
-	if !ok {
-		return ArtifactRecord{}, ErrArtifactNotFound
-	}
-	return record, nil
-}
-
-func (s *Store) List() []ArtifactRecord {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]ArtifactRecord, 0, len(s.state.Artifacts))
-	for _, rec := range s.state.Artifacts {
-		out = append(out, rec)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
-	return out
-}
-
-func (s *Store) SetRunStatus(runID, status string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := validateRunStatusInput(runID, status); err != nil {
-		return err
-	}
-	s.state.Runs[runID] = status
-	return s.saveStateLocked()
-}
-
-func (s *Store) RunStatuses() map[string]string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make(map[string]string, len(s.state.Runs))
-	for runID, status := range s.state.Runs {
-		out[runID] = status
-	}
-	return out
 }

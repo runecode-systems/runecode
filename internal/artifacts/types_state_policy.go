@@ -148,18 +148,9 @@ type BackupManifest struct {
 
 func DefaultPolicy() Policy {
 	return Policy{
-		HandOffReferenceMode:   "hash_only",
-		ReservedClassesEnabled: false,
-		DependencyCachePolicy: DependencyCachePolicy{
-			ReadOnlyArtifactsRequired:            true,
-			BatchManifestImmutable:               true,
-			ResolvedUnitManifestImmutable:        true,
-			ResolvedPayloadImmutable:             true,
-			MaterializedTreesDerivedNonCanonical: true,
-			FailClosedOnAmbiguousPartialReuse:    true,
-			FailClosedOnIncompleteState:          true,
-			RetainCanonicalBeforeDerived:         true,
-		},
+		HandOffReferenceMode:                "hash_only",
+		ReservedClassesEnabled:              false,
+		DependencyCachePolicy:               defaultDependencyCachePolicy(),
 		EncryptedAtRestDefault:              true,
 		DevPlaintextOverride:                false,
 		ExplicitHumanApprovalRequired:       true,
@@ -186,5 +177,18 @@ func DefaultPolicy() Policy {
 		RequireFullContentVisibility:   true,
 		ApprovedExcerptEgressOptInOnly: true,
 		UnapprovedExcerptEgressDenied:  true,
+	}
+}
+
+func defaultDependencyCachePolicy() DependencyCachePolicy {
+	return DependencyCachePolicy{
+		ReadOnlyArtifactsRequired:            true,
+		BatchManifestImmutable:               true,
+		ResolvedUnitManifestImmutable:        true,
+		ResolvedPayloadImmutable:             true,
+		MaterializedTreesDerivedNonCanonical: true,
+		FailClosedOnAmbiguousPartialReuse:    true,
+		FailClosedOnIncompleteState:          true,
+		RetainCanonicalBeforeDerived:         true,
 	}
 }

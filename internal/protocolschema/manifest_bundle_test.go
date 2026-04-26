@@ -135,7 +135,16 @@ func assertSchemaVersions(t *testing.T, manifest manifestFile) {
 
 func assertSchemaVersionsCore(t *testing.T, manifest manifestFile) {
 	t.Helper()
-	versions := map[string]string{
+	for schemaID, version := range coreSchemaVersionsPart1() {
+		assertManifestSchemaVersion(t, manifest, schemaID, version)
+	}
+	for schemaID, version := range coreSchemaVersionsPart2() {
+		assertManifestSchemaVersion(t, manifest, schemaID, version)
+	}
+}
+
+func coreSchemaVersionsPart1() map[string]string {
+	return map[string]string{
 		"runecode.protocol.v0.ArtifactReference":               "0.4.0",
 		"runecode.protocol.v0.ArtifactPolicy":                  "0.1.0",
 		"runecode.protocol.v0.AuditRecordDigest":               "0.1.0",
@@ -162,21 +171,23 @@ func assertSchemaVersionsCore(t *testing.T, manifest manifestFile) {
 		"runecode.protocol.v0.DependencyFetchRegistryRequest":  "0.1.0",
 		"runecode.protocol.v0.DependencyFetchRegistryResponse": "0.1.0",
 		"runecode.protocol.v0.GatewayScopeRule":                "0.1.0",
-		"runecode.protocol.v0.PolicyRuleSet":                   "0.1.0",
-		"runecode.protocol.v0.VerifierRecord":                  "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactListRequest":       "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactListResponse":      "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactHeadRequest":       "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactHeadResponse":      "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactPutRequest":        "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactPutResponse":       "0.1.0",
-		"runecode.protocol.v0.BrokerErrorResponse":             "0.1.0",
-		"runecode.protocol.v0.RuntimeImageDescriptor":          "0.2.0",
-		"runecode.protocol.v0.IsolateSessionStartedPayload":    "0.1.0",
-		"runecode.protocol.v0.IsolateSessionBoundPayload":      "0.1.0",
 	}
-	for schemaID, version := range versions {
-		assertManifestSchemaVersion(t, manifest, schemaID, version)
+}
+
+func coreSchemaVersionsPart2() map[string]string {
+	return map[string]string{
+		"runecode.protocol.v0.PolicyRuleSet":                "0.1.0",
+		"runecode.protocol.v0.VerifierRecord":               "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactListRequest":    "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactListResponse":   "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactHeadRequest":    "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactHeadResponse":   "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactPutRequest":     "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactPutResponse":    "0.1.0",
+		"runecode.protocol.v0.BrokerErrorResponse":          "0.1.0",
+		"runecode.protocol.v0.RuntimeImageDescriptor":       "0.2.0",
+		"runecode.protocol.v0.IsolateSessionStartedPayload": "0.1.0",
+		"runecode.protocol.v0.IsolateSessionBoundPayload":   "0.1.0",
 	}
 }
 

@@ -19,35 +19,10 @@ func TestDependencyCacheDataClassesRequireTrustedSource(t *testing.T) {
 
 func TestDependencyCacheHitSemanticsExactAndFailClosed(t *testing.T) {
 	store := newTestStore(t)
-	batchManifest := putTrustedDependencyArtifact(t, store, DataClassDependencyBatchManifest, `{"kind":"batch-manifest"}`)
-	unitManifest := putTrustedDependencyArtifact(t, store, DataClassDependencyResolvedUnit, `{"kind":"unit-manifest"}`)
-	payload := putTrustedDependencyArtifact(t, store, DataClassDependencyPayloadUnit, `{"kind":"unit-payload"}`)
-
 	requestDigest := testDigest("a")
 	resolvedUnitDigest := testDigest("b")
-	if err := store.RecordDependencyCacheBatch(DependencyCacheBatchRecord{
-		BatchRequestDigest:  testDigest("c"),
-		BatchManifestDigest: batchManifest.Digest,
-		LockfileDigest:      testDigest("d"),
-		RequestSetDigest:    testDigest("e"),
-		ResolutionState:     "complete",
-		CacheOutcome:        "miss_filled",
-	}, []DependencyCacheResolvedUnitRecord{{
-		ResolvedUnitDigest:   resolvedUnitDigest,
-		RequestDigest:        requestDigest,
-		ManifestDigest:       unitManifest.Digest,
-		PayloadDigest:        []string{payload.Digest},
-		IntegrityState:       "verified",
-		MaterializationState: "derived_read_only",
-	}}); err != nil {
-		t.Fatalf("RecordDependencyCacheBatch returned error: %v", err)
-	}
-
-	hit, err := store.DependencyCacheHit(DependencyCacheHitRequest{
-		BatchRequestDigest: testDigest("c"),
-		ResolvedUnitDigest: resolvedUnitDigest,
-		RequestDigest:      requestDigest,
-	})
+	seedDependencyCacheRecord(t, store, testDigest("c"), requestDigest, resolvedUnitDigest)
+	hit, err := dependencyCacheHitForTest(store, testDigest("c"), resolvedUnitDigest, requestDigest)
 	if err != nil {
 		t.Fatalf("DependencyCacheHit returned error: %v", err)
 	}
@@ -57,11 +32,7 @@ func TestDependencyCacheHitSemanticsExactAndFailClosed(t *testing.T) {
 
 	_ = putTrustedDependencyArtifactWithPayload(t, store, DataClassDependencyResolvedUnit, []byte(`{"kind":"unit-manifest-two"}`))
 	store.state.DependencyCacheByRequest[requestDigest] = []string{resolvedUnitDigest, testDigest("f")}
-	hit, err = store.DependencyCacheHit(DependencyCacheHitRequest{
-		BatchRequestDigest: testDigest("c"),
-		ResolvedUnitDigest: resolvedUnitDigest,
-		RequestDigest:      requestDigest,
-	})
+	hit, err = dependencyCacheHitForTest(store, testDigest("c"), resolvedUnitDigest, requestDigest)
 	if err != ErrDependencyCacheAmbiguousReuse {
 		t.Fatalf("DependencyCacheHit ambiguous error = %v, want %v", err, ErrDependencyCacheAmbiguousReuse)
 	}
@@ -135,29 +106,9 @@ func TestDependencyCacheResolvedUnitByRequest(t *testing.T) {
 
 func TestDependencyCacheHandoffByRequestUsesInternalArtifactFlow(t *testing.T) {
 	store := newTestStore(t)
-	batchManifest := putTrustedDependencyArtifact(t, store, DataClassDependencyBatchManifest, `{"kind":"batch-manifest"}`)
-	unitManifest := putTrustedDependencyArtifact(t, store, DataClassDependencyResolvedUnit, `{"kind":"unit-manifest"}`)
-	payload := putTrustedDependencyArtifact(t, store, DataClassDependencyPayloadUnit, `{"kind":"unit-payload"}`)
-
 	requestDigest := testDigest("a")
 	resolvedUnitDigest := testDigest("b")
-	if err := store.RecordDependencyCacheBatch(DependencyCacheBatchRecord{
-		BatchRequestDigest:  testDigest("c"),
-		BatchManifestDigest: batchManifest.Digest,
-		LockfileDigest:      testDigest("d"),
-		RequestSetDigest:    testDigest("e"),
-		ResolutionState:     "complete",
-		CacheOutcome:        "miss_filled",
-	}, []DependencyCacheResolvedUnitRecord{{
-		ResolvedUnitDigest:   resolvedUnitDigest,
-		RequestDigest:        requestDigest,
-		ManifestDigest:       unitManifest.Digest,
-		PayloadDigest:        []string{payload.Digest},
-		IntegrityState:       "verified",
-		MaterializationState: "derived_read_only",
-	}}); err != nil {
-		t.Fatalf("RecordDependencyCacheBatch returned error: %v", err)
-	}
+	seedDependencyCacheRecord(t, store, testDigest("c"), requestDigest, resolvedUnitDigest)
 
 	handoff, ok, err := store.DependencyCacheHandoffByRequest(DependencyCacheHandoffRequest{RequestDigest: requestDigest, ConsumerRole: "workspace"})
 	if err != nil {
@@ -177,6 +128,38 @@ func TestDependencyCacheHandoffByRequestUsesInternalArtifactFlow(t *testing.T) {
 	if err != ErrFlowDenied {
 		t.Fatalf("DependencyCacheHandoffByRequest consumer error = %v, want %v", err, ErrFlowDenied)
 	}
+}
+
+func seedDependencyCacheRecord(t *testing.T, store *Store, batchDigest, requestDigest, resolvedUnitDigest string) {
+	t.Helper()
+	batchManifest := putTrustedDependencyArtifact(t, store, DataClassDependencyBatchManifest, `{"kind":"batch-manifest"}`)
+	unitManifest := putTrustedDependencyArtifact(t, store, DataClassDependencyResolvedUnit, `{"kind":"unit-manifest"}`)
+	payload := putTrustedDependencyArtifact(t, store, DataClassDependencyPayloadUnit, `{"kind":"unit-payload"}`)
+	if err := store.RecordDependencyCacheBatch(DependencyCacheBatchRecord{
+		BatchRequestDigest:  batchDigest,
+		BatchManifestDigest: batchManifest.Digest,
+		LockfileDigest:      testDigest("d"),
+		RequestSetDigest:    testDigest("e"),
+		ResolutionState:     "complete",
+		CacheOutcome:        "miss_filled",
+	}, []DependencyCacheResolvedUnitRecord{{
+		ResolvedUnitDigest:   resolvedUnitDigest,
+		RequestDigest:        requestDigest,
+		ManifestDigest:       unitManifest.Digest,
+		PayloadDigest:        []string{payload.Digest},
+		IntegrityState:       "verified",
+		MaterializationState: "derived_read_only",
+	}}); err != nil {
+		t.Fatalf("RecordDependencyCacheBatch returned error: %v", err)
+	}
+}
+
+func dependencyCacheHitForTest(store *Store, batchDigest, resolvedUnitDigest, requestDigest string) (bool, error) {
+	return store.DependencyCacheHit(DependencyCacheHitRequest{
+		BatchRequestDigest: batchDigest,
+		ResolvedUnitDigest: resolvedUnitDigest,
+		RequestDigest:      requestDigest,
+	})
 }
 
 func TestSetPolicyRejectsDependencyCacheFailOpenConfiguration(t *testing.T) {
