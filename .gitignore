@@ -2,6 +2,7 @@
 result
 result-*
 .opencode/tmp/
+runecode-tui.test
 
 # Node
 node_modules/

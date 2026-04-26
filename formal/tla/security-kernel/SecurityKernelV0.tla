@@ -17,6 +17,8 @@ CONSTANTS
   PolicyHashes,
   PolicyInputHashes,
   EvidenceRefs,
+  ProjectDigests,
+  ExecutionScopes,
   MaxRevision,
   MaxSteps
 
@@ -24,6 +26,15 @@ ApprovalLifecycle ==
   {"pending", "approved", "denied", "expired", "cancelled", "superseded", "consumed"}
 
 ApprovalTerminalStates == {"consumed", "denied", "expired", "cancelled", "superseded"}
+
+ExecutionLifecycle ==
+  {"queued", "planning", "running", "waiting", "blocked", "failed", "completed"}
+
+WaitKinds == {"none", "operator_input", "approval", "external_dependency", "project_blocked"}
+
+WaitStates ==
+  {"none", "waiting_operator_input", "waiting_approval", "waiting_external_dependency",
+   "waiting_project_blocked"}
 
 PublicRunLifecycle ==
   {"pending", "starting", "active", "blocked", "recovering", "completed", "failed", "cancelled"}
@@ -53,6 +64,8 @@ AuditTransitionKinds == {
 
 NoEvidence == "no_evidence"
 
+NoPendingApproval == "no_pending_approval"
+
 ASSUME
   /\ Runs # {}
   /\ Plans # {}
@@ -66,9 +79,12 @@ ASSUME
   /\ PolicyHashes # {}
   /\ PolicyInputHashes # {}
   /\ EvidenceRefs # {}
+  /\ ProjectDigests # {}
+  /\ ExecutionScopes # {}
   /\ MaxRevision \in Nat
   /\ MaxSteps \in Nat
   /\ NoEvidence \notin EvidenceRefs
+  /\ NoPendingApproval \notin Approvals
   /\ Cardinality(Runs) >= 2
   /\ Cardinality(Plans) >= 2
   /\ Cardinality(Stages) >= 1
@@ -80,6 +96,8 @@ ASSUME
   /\ Cardinality(PolicyHashes) >= 1
   /\ Cardinality(PolicyInputHashes) >= 1
   /\ Cardinality(EvidenceRefs) >= 2
+  /\ Cardinality(ProjectDigests) >= 2
+  /\ Cardinality(ExecutionScopes) >= 3
 
 PrimaryRun == CHOOSE r \in Runs : TRUE
 
@@ -121,9 +139,31 @@ PrimaryPolicyHash == CHOOSE h \in PolicyHashes : TRUE
 
 PrimaryPolicyInputHash == CHOOSE h \in PolicyInputHashes : TRUE
 
+PrimaryProjectDigest == CHOOSE d \in ProjectDigests : TRUE
+
+DriftedProjectDigest == CHOOSE d \in (ProjectDigests \ {PrimaryProjectDigest}) : TRUE
+
+PrimaryScope == CHOOSE s \in ExecutionScopes : TRUE
+
+DownstreamScope == CHOOSE s \in (ExecutionScopes \ {PrimaryScope}) : TRUE
+
+IndependentScope == CHOOSE s \in (ExecutionScopes \ {PrimaryScope, DownstreamScope}) : TRUE
+
 MirrorDriftApprovalState == "denied"
 
 MirrorDriftRunLifecycle == "blocked"
+
+WaitStateFor(kind) ==
+  CASE kind = "operator_input" -> "waiting_operator_input"
+    [] kind = "approval" -> "waiting_approval"
+    [] kind = "external_dependency" -> "waiting_external_dependency"
+    [] kind = "project_blocked" -> "waiting_project_blocked"
+    [] OTHER -> "none"
+
+ScopeApproval(scope) ==
+  CASE scope = PrimaryScope -> ExactApproval
+    [] scope = DownstreamScope -> StageApproval
+    [] OTHER -> OverrideApproval
 
 VARIABLES
   \* Broker-authoritative run / plan / coordination state.
@@ -193,8 +233,30 @@ VARIABLES
   \* Run plan supersession fact.
   planSuperseded,
 
+  \* Broker-owned execution scope state and wait vocabulary.
+  executionRun,
+  executionState,
+  executionWaitKind,
+  executionWaitState,
+  executionDependsOn,
+  executionProjectSensitive,
+  executionBoundProjectDigest,
+  executionCurrentProjectDigest,
+  executionPendingApproval,
+
   \* Bounded trace length for deterministic TLC runs.
   stepCount
+
+executionVars == <<
+  executionRun, executionState, executionWaitKind, executionWaitState, executionDependsOn,
+  executionProjectSensitive, executionBoundProjectDigest, executionCurrentProjectDigest,
+  executionPendingApproval
+>>
+
+RunHasScopedWait(r) ==
+  \E es \in ExecutionScopes :
+    /\ executionRun[es] = r
+    /\ executionState[es] \in {"waiting", "blocked"}
 
 vars == <<
   runPlan, runLifecycle, noEligibleWork, partialBlocked, stageSummaryHash, summaryRevision,
@@ -209,7 +271,10 @@ vars == <<
   effectiveApprovalState, effectiveRunLifecycle, effectiveRunPlan, effectiveGateEvidenceRef,
   approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
   stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
-  runTerminalAuditState, planSupersessionAuditState, planSuperseded, stepCount
+  runTerminalAuditState, planSupersessionAuditState, planSuperseded,
+  executionRun, executionState, executionWaitKind, executionWaitState, executionDependsOn,
+  executionProjectSensitive, executionBoundProjectDigest, executionCurrentProjectDigest,
+  executionPendingApproval, stepCount
 >>
 
 Init ==
@@ -292,6 +357,25 @@ Init ==
   /\ effectiveRunPlan = runPlan
   /\ effectiveGateEvidenceRef = brokerGateEvidenceRef
 
+  /\ executionRun = [es \in ExecutionScopes |-> PrimaryRun]
+  /\ executionState =
+       [es \in ExecutionScopes |->
+         CASE es = PrimaryScope -> "running"
+           [] es = DownstreamScope -> "queued"
+           [] OTHER -> "running"]
+  /\ executionWaitKind = [es \in ExecutionScopes |-> "none"]
+  /\ executionWaitState = [es \in ExecutionScopes |-> "none"]
+  /\ executionDependsOn =
+       [es \in ExecutionScopes |->
+         CASE es = PrimaryScope -> {}
+           [] es = DownstreamScope -> {PrimaryScope}
+           [] OTHER -> {}]
+  /\ executionProjectSensitive =
+       [es \in ExecutionScopes |-> es # IndependentScope]
+  /\ executionBoundProjectDigest = [es \in ExecutionScopes |-> PrimaryProjectDigest]
+  /\ executionCurrentProjectDigest = [es \in ExecutionScopes |-> PrimaryProjectDigest]
+  /\ executionPendingApproval = [es \in ExecutionScopes |-> NoPendingApproval]
+
   /\ approvalRequestAuditState = [a \in Approvals |-> "required_recorded"]
   /\ approvalDecisionAuditState = [a \in Approvals |-> "not_required"]
   /\ approvalConsumptionAuditState = [a \in Approvals |-> "not_required"]
@@ -326,7 +410,8 @@ AcceptApprovalDecision ==
          approvalRequestAuditState, approvalConsumptionAuditState,
          stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
          runTerminalAuditState, planSupersessionAuditState, planSuperseded
-        >>
+         >>
+    /\ UNCHANGED executionVars
 
 ExpireOrCancelApproval ==
   \E a \in {DeniedApproval}, terminal \in {"expired", "cancelled"} :
@@ -348,7 +433,8 @@ ExpireOrCancelApproval ==
          approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
          stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
          runTerminalAuditState, planSupersessionAuditState, planSuperseded
-        >>
+         >>
+    /\ UNCHANGED executionVars
 
 ConsumeApproval ==
   \E a \in {ExactApproval, StageApproval, OverrideApproval}, act \in {ExactAction, StageAction, OverrideAction} :
@@ -408,7 +494,8 @@ ConsumeApproval ==
          effectiveRunLifecycle, effectiveRunPlan, effectiveGateEvidenceRef,
          approvalRequestAuditState, approvalDecisionAuditState,
           gateResultAuditState, runTerminalAuditState, planSupersessionAuditState, planSuperseded
-        >>
+         >>
+    /\ UNCHANGED executionVars
 
 UpdateStageSummary ==
   \E newHash \in (HashTokens \ {stageSummaryHash[PrimaryRun][PrimaryPlan][PrimaryStage]}) :
@@ -449,7 +536,8 @@ UpdateStageSummary ==
          approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
          stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
          runTerminalAuditState, planSupersessionAuditState, planSuperseded
-        >>
+         >>
+    /\ UNCHANGED executionVars
 
 ReportGateAttemptResult ==
   \E outcome \in {"passed", "failed"}, ref \in EvidenceRefs :
@@ -483,7 +571,8 @@ ReportGateAttemptResult ==
          approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
          stageSignoffConsumptionAuditState, gateOverrideAuditState,
          runTerminalAuditState, planSupersessionAuditState, planSuperseded
-        >>
+         >>
+    /\ UNCHANGED executionVars
 
 SupersedePlan ==
   LET
@@ -523,7 +612,8 @@ SupersedePlan ==
          approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
          stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
          runTerminalAuditState
-        >>
+         >>
+    /\ UNCHANGED executionVars
 
 UpdateRunCoordination ==
   \E pblocked \in BOOLEAN, noWork \in BOOLEAN,
@@ -531,10 +621,11 @@ UpdateRunCoordination ==
     LET
       r == PrimaryRun
       nextLifecycle == [runLifecycle EXCEPT ![r] = nextState]
+      nextPartialBlocked == pblocked \/ RunHasScopedWait(r)
     IN
     /\ nextState = "blocked" => noWork
-    /\ pblocked => nextState \in {"starting", "active", "recovering", "blocked"}
-    /\ partialBlocked' = [partialBlocked EXCEPT ![r] = pblocked]
+    /\ nextPartialBlocked => nextState \in {"starting", "active", "recovering", "blocked"}
+    /\ partialBlocked' = [partialBlocked EXCEPT ![r] = nextPartialBlocked]
     /\ noEligibleWork' = [noEligibleWork EXCEPT ![r] = noWork]
     /\ runLifecycle' = nextLifecycle
     /\ effectiveRunLifecycle' = [effectiveRunLifecycle EXCEPT ![r] = nextState]
@@ -553,7 +644,8 @@ UpdateRunCoordination ==
          approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
          stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
          runTerminalAuditState, planSupersessionAuditState, planSuperseded
-        >>
+         >>
+    /\ UNCHANGED executionVars
 
 SetRunTerminal ==
   \E r \in {PrimaryRun}, terminal \in TerminalRunLifecycle :
@@ -576,7 +668,242 @@ SetRunTerminal ==
          effectiveApprovalState, effectiveRunPlan, effectiveGateEvidenceRef,
          approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
          stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
-          planSupersessionAuditState, planSuperseded
+           planSupersessionAuditState, planSuperseded
+         >>
+    /\ UNCHANGED executionVars
+
+EnterExecutionWait ==
+  \E es \in {PrimaryScope, IndependentScope}, kind \in {"operator_input", "approval", "external_dependency"} :
+    LET
+      pending == IF kind = "approval" THEN ScopeApproval(es) ELSE NoPendingApproval
+    IN
+    /\ runLifecycle[executionRun[es]] \in {"starting", "active", "recovering", "blocked"}
+    /\ executionState[es] \in {"queued", "planning", "running"}
+    /\ executionWaitKind[es] = "none"
+    /\ executionWaitState[es] = "none"
+    /\ IF kind = "approval"
+         THEN /\ pending # NoPendingApproval
+              /\ approvalState[pending] = "pending"
+              /\ approvalRun[pending] = executionRun[es]
+         ELSE pending = NoPendingApproval
+    /\ executionState' = [executionState EXCEPT ![es] = "waiting"]
+    /\ executionWaitKind' = [executionWaitKind EXCEPT ![es] = kind]
+    /\ executionWaitState' = [executionWaitState EXCEPT ![es] = WaitStateFor(kind)]
+    /\ executionPendingApproval' = [executionPendingApproval EXCEPT ![es] = pending]
+    /\ partialBlocked' = [partialBlocked EXCEPT ![executionRun[es]] = TRUE]
+    /\ stepCount' = stepCount + 1
+    /\ UNCHANGED <<
+         runPlan, runLifecycle, noEligibleWork, stageSummaryHash, summaryRevision,
+         actionReqRun, actionReqPlan, actionReqStage, actionKind, actionReqHash, actionManifestHash,
+         actionPolicyInputHash, actionArtifactDigest, actionOverrideAttempt, actionOverriddenFailedRef,
+         approvalRun, approvalPlan, approvalStage, approvalBindingKind, approvalBoundAction,
+         approvalBoundStageHash, approvalManifestHash, approvalPolicyInputHash, approvalState,
+         approvalConsumeCount, consumedByAction,
+         gateAttemptRun, gateAttemptPlan, gateAttemptGate, gateState, gateOutcome,
+         gateFailedResultRef, gateWasFailedBeforeOverride, brokerGateEvidenceRef,
+         runnerApprovalMirror, runnerRunLifecycleMirror, runnerPlanMirror,
+         effectiveApprovalState, effectiveRunLifecycle, effectiveRunPlan, effectiveGateEvidenceRef,
+         approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
+         stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
+         runTerminalAuditState, planSupersessionAuditState, planSuperseded,
+         executionRun, executionDependsOn, executionProjectSensitive,
+         executionBoundProjectDigest, executionCurrentProjectDigest
+        >>
+
+BlockDependentExecution ==
+  \E dep \in executionDependsOn[DownstreamScope] :
+    /\ runLifecycle[executionRun[DownstreamScope]] \in {"starting", "active", "recovering", "blocked"}
+    /\ executionState[DownstreamScope] \in {"queued", "planning", "running"}
+    /\ executionState[dep] = "waiting"
+    /\ executionState' = [executionState EXCEPT ![DownstreamScope] = "blocked"]
+    /\ executionWaitKind' = [executionWaitKind EXCEPT ![DownstreamScope] = executionWaitKind[dep]]
+    /\ executionWaitState' = [executionWaitState EXCEPT ![DownstreamScope] = executionWaitState[dep]]
+    /\ executionPendingApproval' =
+         [executionPendingApproval EXCEPT ![DownstreamScope] = executionPendingApproval[dep]]
+    /\ partialBlocked' = [partialBlocked EXCEPT ![executionRun[DownstreamScope]] = TRUE]
+    /\ stepCount' = stepCount + 1
+    /\ UNCHANGED <<
+         runPlan, runLifecycle, noEligibleWork, stageSummaryHash, summaryRevision,
+         actionReqRun, actionReqPlan, actionReqStage, actionKind, actionReqHash, actionManifestHash,
+         actionPolicyInputHash, actionArtifactDigest, actionOverrideAttempt, actionOverriddenFailedRef,
+         approvalRun, approvalPlan, approvalStage, approvalBindingKind, approvalBoundAction,
+         approvalBoundStageHash, approvalManifestHash, approvalPolicyInputHash, approvalState,
+         approvalConsumeCount, consumedByAction,
+         gateAttemptRun, gateAttemptPlan, gateAttemptGate, gateState, gateOutcome,
+         gateFailedResultRef, gateWasFailedBeforeOverride, brokerGateEvidenceRef,
+         runnerApprovalMirror, runnerRunLifecycleMirror, runnerPlanMirror,
+         effectiveApprovalState, effectiveRunLifecycle, effectiveRunPlan, effectiveGateEvidenceRef,
+         approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
+         stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
+         runTerminalAuditState, planSupersessionAuditState, planSuperseded,
+         executionRun, executionDependsOn, executionProjectSensitive,
+         executionBoundProjectDigest, executionCurrentProjectDigest
+        >>
+
+ResolveExecutionWait ==
+  \E es \in ExecutionScopes :
+    LET
+      resumeDownstream ==
+        /\ es # DownstreamScope
+        /\ executionState[DownstreamScope] = "blocked"
+        /\ executionWaitKind[DownstreamScope] # "project_blocked"
+        /\ es \in executionDependsOn[DownstreamScope]
+        /\ \A dep \in (executionDependsOn[DownstreamScope] \ {es}) :
+             executionState[dep] \notin {"waiting", "blocked"}
+      nextExecutionState ==
+        [executionState EXCEPT
+          ![es] = "running",
+          ![DownstreamScope] = IF resumeDownstream THEN "running" ELSE @]
+      nextExecutionWaitKind ==
+        [executionWaitKind EXCEPT
+          ![es] = "none",
+          ![DownstreamScope] = IF resumeDownstream THEN "none" ELSE @]
+      nextExecutionWaitState ==
+        [executionWaitState EXCEPT
+          ![es] = "none",
+          ![DownstreamScope] = IF resumeDownstream THEN "none" ELSE @]
+      nextExecutionPendingApproval ==
+        [executionPendingApproval EXCEPT
+          ![es] = NoPendingApproval,
+          ![DownstreamScope] = IF resumeDownstream THEN NoPendingApproval ELSE @]
+    IN
+    /\ executionState[es] = "waiting"
+    /\ IF executionWaitKind[es] = "approval"
+         THEN /\ executionPendingApproval[es] # NoPendingApproval
+              /\ effectiveApprovalState[executionPendingApproval[es]] = "consumed"
+         ELSE TRUE
+    /\ executionState' = nextExecutionState
+    /\ executionWaitKind' = nextExecutionWaitKind
+    /\ executionWaitState' = nextExecutionWaitState
+    /\ executionPendingApproval' = nextExecutionPendingApproval
+    /\ stepCount' = stepCount + 1
+    /\ UNCHANGED <<
+         runPlan, runLifecycle, noEligibleWork, partialBlocked, stageSummaryHash, summaryRevision,
+         actionReqRun, actionReqPlan, actionReqStage, actionKind, actionReqHash, actionManifestHash,
+         actionPolicyInputHash, actionArtifactDigest, actionOverrideAttempt, actionOverriddenFailedRef,
+         approvalRun, approvalPlan, approvalStage, approvalBindingKind, approvalBoundAction,
+         approvalBoundStageHash, approvalManifestHash, approvalPolicyInputHash, approvalState,
+         approvalConsumeCount, consumedByAction,
+         gateAttemptRun, gateAttemptPlan, gateAttemptGate, gateState, gateOutcome,
+         gateFailedResultRef, gateWasFailedBeforeOverride, brokerGateEvidenceRef,
+         runnerApprovalMirror, runnerRunLifecycleMirror, runnerPlanMirror,
+         effectiveApprovalState, effectiveRunLifecycle, effectiveRunPlan, effectiveGateEvidenceRef,
+         approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
+         stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
+         runTerminalAuditState, planSupersessionAuditState, planSuperseded,
+         executionRun, executionDependsOn, executionProjectSensitive,
+         executionBoundProjectDigest, executionCurrentProjectDigest
+        >>
+
+ResumeDependentExecution ==
+  /\ executionState[DownstreamScope] = "blocked"
+  /\ executionWaitKind[DownstreamScope] # "project_blocked"
+  /\ \A dep \in executionDependsOn[DownstreamScope] :
+       executionState[dep] \notin {"waiting", "blocked"}
+  /\ executionState' = [executionState EXCEPT ![DownstreamScope] = "running"]
+  /\ executionWaitKind' = [executionWaitKind EXCEPT ![DownstreamScope] = "none"]
+  /\ executionWaitState' = [executionWaitState EXCEPT ![DownstreamScope] = "none"]
+  /\ executionPendingApproval' = [executionPendingApproval EXCEPT ![DownstreamScope] = NoPendingApproval]
+  /\ stepCount' = stepCount + 1
+  /\ UNCHANGED <<
+       runPlan, runLifecycle, noEligibleWork, partialBlocked, stageSummaryHash, summaryRevision,
+       actionReqRun, actionReqPlan, actionReqStage, actionKind, actionReqHash, actionManifestHash,
+       actionPolicyInputHash, actionArtifactDigest, actionOverrideAttempt, actionOverriddenFailedRef,
+       approvalRun, approvalPlan, approvalStage, approvalBindingKind, approvalBoundAction,
+       approvalBoundStageHash, approvalManifestHash, approvalPolicyInputHash, approvalState,
+       approvalConsumeCount, consumedByAction,
+       gateAttemptRun, gateAttemptPlan, gateAttemptGate, gateState, gateOutcome,
+       gateFailedResultRef, gateWasFailedBeforeOverride, brokerGateEvidenceRef,
+       runnerApprovalMirror, runnerRunLifecycleMirror, runnerPlanMirror,
+       effectiveApprovalState, effectiveRunLifecycle, effectiveRunPlan, effectiveGateEvidenceRef,
+       approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
+       stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
+       runTerminalAuditState, planSupersessionAuditState, planSuperseded,
+       executionRun, executionDependsOn, executionProjectSensitive,
+       executionBoundProjectDigest, executionCurrentProjectDigest
+      >>
+
+DriftProjectBinding ==
+  \E es \in {PrimaryScope, DownstreamScope} :
+    \E digest \in (ProjectDigests \ {executionBoundProjectDigest[es]}) :
+    LET
+      propagateDownstream ==
+        /\ es # DownstreamScope
+        /\ es \in executionDependsOn[DownstreamScope]
+        /\ executionState[DownstreamScope] \in {"queued", "planning", "running", "waiting", "blocked"}
+      nextExecutionState ==
+        [executionState EXCEPT
+          ![es] = "blocked",
+          ![DownstreamScope] = IF propagateDownstream THEN "blocked" ELSE @]
+      nextExecutionWaitKind ==
+        [executionWaitKind EXCEPT
+          ![es] = "project_blocked",
+          ![DownstreamScope] = IF propagateDownstream THEN "project_blocked" ELSE @]
+      nextExecutionWaitState ==
+        [executionWaitState EXCEPT
+          ![es] = "waiting_project_blocked",
+          ![DownstreamScope] = IF propagateDownstream THEN "waiting_project_blocked" ELSE @]
+      nextExecutionPendingApproval ==
+        [executionPendingApproval EXCEPT
+          ![es] = NoPendingApproval,
+          ![DownstreamScope] = IF propagateDownstream THEN NoPendingApproval ELSE @]
+    IN
+    /\ runLifecycle[executionRun[es]] \in {"starting", "active", "recovering", "blocked"}
+    /\ executionProjectSensitive[es]
+    /\ executionCurrentProjectDigest[es] = executionBoundProjectDigest[es]
+    /\ executionState[es] \in {"queued", "planning", "running", "waiting"}
+    /\ executionCurrentProjectDigest' = [executionCurrentProjectDigest EXCEPT ![es] = digest]
+    /\ executionState' = nextExecutionState
+    /\ executionWaitKind' = nextExecutionWaitKind
+    /\ executionWaitState' = nextExecutionWaitState
+    /\ executionPendingApproval' = nextExecutionPendingApproval
+    /\ partialBlocked' = [partialBlocked EXCEPT ![executionRun[es]] = TRUE]
+    /\ stepCount' = stepCount + 1
+    /\ UNCHANGED <<
+         runPlan, runLifecycle, noEligibleWork, stageSummaryHash, summaryRevision,
+         actionReqRun, actionReqPlan, actionReqStage, actionKind, actionReqHash, actionManifestHash,
+         actionPolicyInputHash, actionArtifactDigest, actionOverrideAttempt, actionOverriddenFailedRef,
+         approvalRun, approvalPlan, approvalStage, approvalBindingKind, approvalBoundAction,
+         approvalBoundStageHash, approvalManifestHash, approvalPolicyInputHash, approvalState,
+         approvalConsumeCount, consumedByAction,
+         gateAttemptRun, gateAttemptPlan, gateAttemptGate, gateState, gateOutcome,
+         gateFailedResultRef, gateWasFailedBeforeOverride, brokerGateEvidenceRef,
+         runnerApprovalMirror, runnerRunLifecycleMirror, runnerPlanMirror,
+         effectiveApprovalState, effectiveRunLifecycle, effectiveRunPlan, effectiveGateEvidenceRef,
+         approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
+         stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
+         runTerminalAuditState, planSupersessionAuditState, planSuperseded,
+         executionRun, executionDependsOn, executionProjectSensitive, executionBoundProjectDigest
+        >>
+
+ReconcileProjectBinding ==
+  \E es \in ExecutionScopes :
+    /\ executionProjectSensitive[es]
+    /\ executionState[es] = "blocked"
+    /\ executionWaitKind[es] = "project_blocked"
+    /\ executionCurrentProjectDigest[es] # executionBoundProjectDigest[es]
+    /\ executionCurrentProjectDigest' =
+         [executionCurrentProjectDigest EXCEPT ![es] = executionBoundProjectDigest[es]]
+    /\ executionState' = [executionState EXCEPT ![es] = "running"]
+    /\ executionWaitKind' = [executionWaitKind EXCEPT ![es] = "none"]
+    /\ executionWaitState' = [executionWaitState EXCEPT ![es] = "none"]
+    /\ executionPendingApproval' = [executionPendingApproval EXCEPT ![es] = NoPendingApproval]
+    /\ stepCount' = stepCount + 1
+    /\ UNCHANGED <<
+         runPlan, runLifecycle, noEligibleWork, partialBlocked, stageSummaryHash, summaryRevision,
+         actionReqRun, actionReqPlan, actionReqStage, actionKind, actionReqHash, actionManifestHash,
+         actionPolicyInputHash, actionArtifactDigest, actionOverrideAttempt, actionOverriddenFailedRef,
+         approvalRun, approvalPlan, approvalStage, approvalBindingKind, approvalBoundAction,
+         approvalBoundStageHash, approvalManifestHash, approvalPolicyInputHash, approvalState,
+         approvalConsumeCount, consumedByAction,
+         gateAttemptRun, gateAttemptPlan, gateAttemptGate, gateState, gateOutcome,
+         gateFailedResultRef, gateWasFailedBeforeOverride, brokerGateEvidenceRef,
+         runnerApprovalMirror, runnerRunLifecycleMirror, runnerPlanMirror,
+         effectiveApprovalState, effectiveRunLifecycle, effectiveRunPlan, effectiveGateEvidenceRef,
+         approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
+         stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
+         runTerminalAuditState, planSupersessionAuditState, planSuperseded,
+         executionRun, executionDependsOn, executionProjectSensitive, executionBoundProjectDigest
         >>
 
 RunnerAdvisoryDrift ==
@@ -600,7 +927,8 @@ RunnerAdvisoryDrift ==
          approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
          stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
          runTerminalAuditState, planSupersessionAuditState, planSuperseded
-        >>
+         >>
+  /\ UNCHANGED executionVars
 
 ReconcileRunnerAdvisoryFromBroker ==
   /\ runnerRunLifecycleMirror[PrimaryRun] # runLifecycle[PrimaryRun]
@@ -621,9 +949,10 @@ ReconcileRunnerAdvisoryFromBroker ==
          gateFailedResultRef, gateWasFailedBeforeOverride, brokerGateEvidenceRef,
          effectiveApprovalState, effectiveRunLifecycle, effectiveRunPlan, effectiveGateEvidenceRef,
          approvalRequestAuditState, approvalDecisionAuditState, approvalConsumptionAuditState,
-          stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
-          runTerminalAuditState, planSupersessionAuditState, planSuperseded
-        >>
+           stageSignoffConsumptionAuditState, gateResultAuditState, gateOverrideAuditState,
+           runTerminalAuditState, planSupersessionAuditState, planSuperseded
+         >>
+  /\ UNCHANGED executionVars
 
 BoundedStutter ==
   /\ stepCount = MaxSteps
@@ -631,16 +960,22 @@ BoundedStutter ==
 
 Next ==
   \/ /\ stepCount < MaxSteps
-     /\ (\/ AcceptApprovalDecision
-         \/ ExpireOrCancelApproval
-         \/ ConsumeApproval
-         \/ UpdateStageSummary
-         \/ ReportGateAttemptResult
-         \/ SupersedePlan
-         \/ UpdateRunCoordination
-         \/ SetRunTerminal
-         \/ RunnerAdvisoryDrift
-         \/ ReconcileRunnerAdvisoryFromBroker)
+      /\ (\/ AcceptApprovalDecision
+          \/ ExpireOrCancelApproval
+          \/ ConsumeApproval
+          \/ UpdateStageSummary
+          \/ ReportGateAttemptResult
+          \/ SupersedePlan
+          \/ UpdateRunCoordination
+          \/ SetRunTerminal
+          \/ EnterExecutionWait
+          \/ BlockDependentExecution
+          \/ ResolveExecutionWait
+          \/ ResumeDependentExecution
+          \/ DriftProjectBinding
+          \/ ReconcileProjectBinding
+          \/ RunnerAdvisoryDrift
+          \/ ReconcileRunnerAdvisoryFromBroker)
   \/ BoundedStutter
 
 Spec == Init /\ [][Next]_vars
@@ -703,6 +1038,17 @@ TypeOK ==
   /\ runTerminalAuditState \in [Runs -> AuditObligationStates]
   /\ planSupersessionAuditState \in [Runs -> AuditObligationStates]
   /\ planSuperseded \in [Runs -> BOOLEAN]
+
+  /\ executionRun \in [ExecutionScopes -> Runs]
+  /\ executionState \in [ExecutionScopes -> ExecutionLifecycle]
+  /\ executionWaitKind \in [ExecutionScopes -> WaitKinds]
+  /\ executionWaitState \in [ExecutionScopes -> WaitStates]
+  /\ executionDependsOn \in [ExecutionScopes -> SUBSET ExecutionScopes]
+  /\ executionProjectSensitive \in [ExecutionScopes -> BOOLEAN]
+  /\ executionBoundProjectDigest \in [ExecutionScopes -> ProjectDigests]
+  /\ executionCurrentProjectDigest \in [ExecutionScopes -> ProjectDigests]
+  /\ executionPendingApproval \in [ExecutionScopes -> (Approvals \cup {NoPendingApproval})]
+
   /\ stepCount \in 0..MaxSteps
 
 ApprovalScopeIsolation ==
@@ -743,6 +1089,42 @@ PartialBlockingSeparateFromPublicLifecycle ==
   /\ \A r \in Runs : partialBlocked[r] => runLifecycle[r] \in
         {"starting", "active", "recovering", "blocked"}
 
+ExecutionWaitVocabularySeparation ==
+  /\ "waiting_approval" \notin PublicRunLifecycle
+  /\ "waiting_operator_input" \notin PublicRunLifecycle
+  /\ \A es \in ExecutionScopes :
+       executionWaitState[es] = WaitStateFor(executionWaitKind[es])
+  /\ \A es \in ExecutionScopes :
+       executionState[es] = "waiting"
+         => executionWaitKind[es] \in {"operator_input", "approval", "external_dependency"}
+  /\ \A es \in ExecutionScopes :
+       executionWaitKind[es] = "project_blocked"
+         => executionState[es] = "blocked"
+
+ExecutionApprovalWaitBinding ==
+  \A es \in ExecutionScopes :
+    executionWaitKind[es] = "approval"
+      => /\ executionPendingApproval[es] # NoPendingApproval
+         /\ approvalRun[executionPendingApproval[es]] = executionRun[es]
+         /\ executionWaitState[es] = "waiting_approval"
+
+DependencyAwarePartialBlocking ==
+  \A es \in ExecutionScopes :
+    executionState[es] = "blocked" /\ executionWaitKind[es] # "project_blocked"
+      => /\ executionDependsOn[es] # {}
+         /\ \E dep \in executionDependsOn[es] :
+              /\ executionState[dep] = "waiting"
+              /\ executionWaitKind[dep] = executionWaitKind[es]
+              /\ executionWaitState[dep] = executionWaitState[es]
+
+ProjectBindingDriftFailsClosed ==
+  \A es \in ExecutionScopes :
+    executionProjectSensitive[es] /\
+    executionCurrentProjectDigest[es] # executionBoundProjectDigest[es]
+      => /\ executionState[es] = "blocked"
+         /\ executionWaitKind[es] = "project_blocked"
+         /\ executionWaitState[es] = "waiting_project_blocked"
+
 AuditObligationsSatisfied ==
   /\ \A a \in Approvals : approvalRequestAuditState[a] = "required_recorded"
   /\ \A a \in Approvals :
@@ -775,4 +1157,6 @@ AuditObligationsSatisfied ==
 \* - Gate evidence authority + override linkage: CHG-2026-035, security/trusted-runtime-evidence-and-broker-projection
 \* - Manifest/policy input hash binding: CHG-2026-007, security/policy-evaluation-foundations
 \* - Public lifecycle + partial blocking split: CHG-2026-012, CHG-2026-033
+\* - Execution wait vocabulary + dependency-aware partial blocking: CHG-2026-048, CHG-2026-050, global/session-execution-contract-and-watch-families
+\* - Project-substrate digest binding + fail-closed drift: CHG-2026-046, CHG-2026-048, global/project-substrate-contract-and-lifecycle
 =============================================================================

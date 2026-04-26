@@ -39,6 +39,9 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 - Usable End-to-End Linux-First Cut
   - RuneCode reaches the first usable end-to-end release on Linux: verified RuneContext project lifecycle, remote model access via direct credentials, isolate-backed interactive and autonomous workflows, full TUI usage on the local machine, and the planned pre-beta assurance trio of signing, attestation, and external audit anchoring.
+- Project Performance Baselines + Verification Gates v0
+  - RuneCode establishes the deferred broader performance program after the alpha.7 TUI waiting-state repaint fix: deterministic CI gates for TUI idle and waiting behavior, broker APIs and watch families, runner and workflow execution, launcher startup, gateway overhead, audit and protocol verification, and end-to-end attach or resume flows.
+  - Planned change: `runecontext/changes/CHG-2026-053-9d2b-performance-baselines-verification-gates-v0/`
 
 ### v0.2 (Post-MVP)
 
@@ -176,4 +179,3 @@ No unscheduled items are currently tracked outside the planned work listed above
 - TUI Leader Sequences + Command Mode v0
   - RuneCode replaces ambient plain-letter shell shortcuts with a configurable `space`-by-default leader system, which-key-style overlays, a bottom-left `:` command line, and a visible beginner-friendly quit action that does not interfere with local typing or secret entry.
   - Planned change: `runecontext/changes/CHG-2026-052-a7f1-tui-leader-sequences-command-mode-v0/`
-

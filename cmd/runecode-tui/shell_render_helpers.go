@@ -196,11 +196,17 @@ func (m shellModel) routeLabel(id routeID) string {
 }
 
 func (m shellModel) renderPaneActivityMarker() string {
-	if m.watch.projection.Activity.State != shellActivityStateRunning {
+	if m.watch.projection.Activity.State != shellActivityStateRunning && m.watch.projection.Activity.State != shellActivityStateWaiting {
 		return ""
 	}
 	if strings.TrimSpace(m.watch.projection.Activity.Active.Kind) == "" || strings.TrimSpace(m.watch.projection.Activity.Active.ID) == "" {
+		if m.watch.projection.Activity.State == shellActivityStateWaiting {
+			return warnBadge("WAITING")
+		}
 		return infoBadge("ACTIVE")
+	}
+	if m.watch.projection.Activity.State == shellActivityStateWaiting {
+		return warnBadge(fmt.Sprintf("WAITING %s=%s", sanitizeUIText(m.watch.projection.Activity.Active.Kind), sanitizeUIText(m.watch.projection.Activity.Active.ID)))
 	}
 	return infoBadge(fmt.Sprintf("ACTIVE %s=%s", sanitizeUIText(m.watch.projection.Activity.Active.Kind), sanitizeUIText(m.watch.projection.Activity.Active.ID)))
 }

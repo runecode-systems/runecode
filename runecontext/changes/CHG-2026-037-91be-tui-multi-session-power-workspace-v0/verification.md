@@ -52,7 +52,7 @@ Interactive coverage note:
 - canonical multi-session workspace and shell-owned object index for palette discovery
 - shell-owned navigation semantics for `open`, `inspect`, `jump`, and `back`
 - shared inspector and persistent long-form document/viewport model across session/run/approval/artifact/audit surfaces
-- shell-owned watch manager with typed family reduction, health projection, and live activity semantics
+- shell-owned watch manager with typed family reduction, health projection, and live activity semantics, including explicit waiting-state rendering that avoids the fast running animation path
 - copy/selection/OSC52-aware clipboard support with defensive UI and clipboard redaction paths
 - local-only persisted workbench layout/theme/session convenience state keyed by logical broker target
 

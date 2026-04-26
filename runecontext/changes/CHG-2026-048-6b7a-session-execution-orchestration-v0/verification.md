@@ -42,3 +42,4 @@ Use the repository's standard verification flow before closing this change.
 - Turn execution state now distinguishes transcript checkpoints from advisory execution watch updates and preserves canonical links to runs, approvals, artifacts, and audit records.
 - `continue` now fails closed for `waiting_approval` turns until approval resolution clears the wait through broker-owned approval sync.
 - Session detail/read models now project `pending_turn_executions` and per-turn orchestration scope/dependency IDs as durable substrate for dependency-aware partial blocking and multi-wait evolution.
+- The alpha.7 TUI shell consumes those broker-owned waiting states as explicit waiting activity, so blocked or pending work stays visible without being animated as actively running progress.
