@@ -5,7 +5,7 @@
   "description": "Protocol-owned artifact policy family for flow matrix, approvals, CAS posture, quotas, and retention controls.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 11,
+  "maxProperties": 12,
   "$defs": {
     "dataClass": {
       "description": "MVP artifact data class taxonomy.",
@@ -20,6 +20,10 @@
         "audit_verification_report",
         "audit_receipt_export_copy",
         "gate_evidence",
+        "dependency_batch_manifest",
+        "dependency_resolved_unit_manifest",
+        "dependency_resolved_payload",
+        "dependency_materialized_tree",
         "web_query",
         "web_citations"
       ]
@@ -122,6 +126,7 @@
     "flow_matrix",
     "revoked_approved_excerpt_hashes",
     "quotas",
+    "dependency_cache",
     "retention",
     "gc"
   ],
@@ -366,6 +371,73 @@
         }
       },
       "description": "Quota limits for count, total bytes, and single artifact bytes.",
+      "x-data-class": "public"
+    },
+    "dependency_cache": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 8,
+      "required": [
+        "read_only_artifacts_required",
+        "batch_manifest_immutable",
+        "resolved_unit_manifest_immutable",
+        "resolved_payload_immutable",
+        "materialized_trees_derived_non_canonical",
+        "cache_hit_semantics",
+        "fail_closed_on_ambiguous_or_incomplete_state",
+        "retain_canonical_before_derived"
+      ],
+      "properties": {
+        "read_only_artifacts_required": {
+          "type": "boolean",
+          "const": true,
+          "description": "Fetched dependency artifacts must be immutable read-only artifacts.",
+          "x-data-class": "public"
+        },
+        "batch_manifest_immutable": {
+          "type": "boolean",
+          "const": true,
+          "description": "Dependency batch manifests are immutable canonical artifacts.",
+          "x-data-class": "public"
+        },
+        "resolved_unit_manifest_immutable": {
+          "type": "boolean",
+          "const": true,
+          "description": "Dependency resolved-unit manifests are immutable canonical artifacts.",
+          "x-data-class": "public"
+        },
+        "resolved_payload_immutable": {
+          "type": "boolean",
+          "const": true,
+          "description": "Dependency payload units are immutable canonical artifacts.",
+          "x-data-class": "public"
+        },
+        "materialized_trees_derived_non_canonical": {
+          "type": "boolean",
+          "const": true,
+          "description": "Materialized dependency trees/package-manager stores are derived and non-canonical.",
+          "x-data-class": "public"
+        },
+        "cache_hit_semantics": {
+          "type": "string",
+          "const": "exact_request_identity_and_resolved_unit_digest",
+          "description": "Cache hits require exact typed request identity and resolved-unit digest matches.",
+          "x-data-class": "public"
+        },
+        "fail_closed_on_ambiguous_or_incomplete_state": {
+          "type": "boolean",
+          "const": true,
+          "description": "Ambiguous partial reuse, stale metadata, unverifiable identity, or incomplete cache state must fail closed.",
+          "x-data-class": "public"
+        },
+        "retain_canonical_before_derived": {
+          "type": "boolean",
+          "const": true,
+          "description": "Retention/GC must preserve canonical dependency cache artifacts before any derived materializations.",
+          "x-data-class": "public"
+        }
+      },
+      "description": "Offline dependency cache correctness and fail-closed cache-hit posture.",
       "x-data-class": "public"
     },
     "retention": {

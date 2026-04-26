@@ -34,6 +34,9 @@ func EvaluateArtifactFlowRules(policy ArtifactFlowPolicy, req ArtifactFlowReques
 }
 
 func evaluateArtifactFlowRestrictions(policy ArtifactFlowPolicy, req ArtifactFlowRequest) (DecisionOutcome, string, map[string]any, bool) {
+	if req.IsEgress && isDependencyArtifactDataClass(req.DataClass) {
+		return DecisionDeny, "dependency_artifact_internal_handoff_only", map[string]any{"digest": req.Digest, "data_class": req.DataClass}, true
+	}
 	if req.IsEgress && req.DataClass == "unapproved_file_excerpts" && policy.UnapprovedExcerptEgressDenied {
 		return DecisionDeny, "unapproved_excerpt_egress_denied", map[string]any{"digest": req.Digest}, true
 	}
@@ -44,6 +47,15 @@ func evaluateArtifactFlowRestrictions(policy ArtifactFlowPolicy, req ArtifactFlo
 		return DecisionDeny, "approved_excerpt_revoked", map[string]any{"digest": req.Digest}, true
 	}
 	return "", "", nil, false
+}
+
+func isDependencyArtifactDataClass(dataClass string) bool {
+	switch dataClass {
+	case "dependency_batch_manifest", "dependency_resolved_unit_manifest", "dependency_resolved_payload", "dependency_materialized_tree":
+		return true
+	default:
+		return false
+	}
 }
 
 func evaluateArtifactFlowMatrix(policy ArtifactFlowPolicy, req ArtifactFlowRequest) (DecisionOutcome, string, map[string]any) {

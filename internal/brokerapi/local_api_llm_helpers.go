@@ -71,7 +71,7 @@ func llmResponseObject(requestHash trustpolicy.Digest, outputRef artifacts.Artif
 		"output_trust_posture": "untrusted_proposal",
 		"output_artifacts": []any{map[string]any{
 			"schema_id":               "runecode.protocol.v0.ArtifactReference",
-			"schema_version":          "0.3.0",
+			"schema_version":          "0.4.0",
 			"digest":                  digestObjectMap(outputDigest),
 			"size_bytes":              outputRef.SizeBytes,
 			"content_type":            strings.TrimSpace(outputRef.ContentType),

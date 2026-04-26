@@ -3,6 +3,7 @@ package artifacts
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -126,6 +127,53 @@ func (s *storeIO) writeBlobIfMissing(digest string, payload []byte) (bool, error
 		return false, err
 	}
 	return true, nil
+}
+
+func (s *storeIO) createBlobTempFile() (*os.File, error) {
+	return os.CreateTemp(s.blobDir, ".blob-tmp-*")
+}
+
+func (s *storeIO) persistBlobFromTempFile(tmpPath string, digest string) (bool, error) {
+	path := s.blobPath(digest)
+	if _, err := os.Stat(path); err == nil {
+		existing, readErr := s.readBlob(path)
+		if readErr != nil {
+			return false, readErr
+		}
+		if digestBytes(existing) != digest {
+			return false, ErrInvalidDigest
+		}
+		if removeErr := os.Remove(tmpPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			return false, removeErr
+		}
+		return false, nil
+	} else if !os.IsNotExist(err) {
+		return false, err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (s *storeIO) streamToTempBlob(r io.Reader) (tmpPath string, digest string, size int64, err error) {
+	tmpFile, err := s.createBlobTempFile()
+	if err != nil {
+		return "", "", 0, err
+	}
+	tmpPath = tmpFile.Name()
+	h := newDigestWriter()
+	written, copyErr := io.Copy(io.MultiWriter(tmpFile, h), r)
+	closeErr := tmpFile.Close()
+	if copyErr != nil {
+		_ = os.Remove(tmpPath)
+		return "", "", 0, copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(tmpPath)
+		return "", "", 0, closeErr
+	}
+	return tmpPath, h.identity(), written, nil
 }
 
 func (s *storeIO) openBlob(path string) (*os.File, error) {

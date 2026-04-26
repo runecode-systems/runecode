@@ -13,6 +13,10 @@ func (s *Service) Put(req artifacts.PutRequest) (artifacts.ArtifactReference, er
 	return s.store.Put(req)
 }
 
+func (s *Service) PutStream(req artifacts.PutStreamRequest) (artifacts.ArtifactReference, error) {
+	return s.store.PutStream(req)
+}
+
 func (s *Service) List() []artifacts.ArtifactRecord {
 	return s.store.List()
 }
@@ -191,4 +195,20 @@ func (s *Service) SetPolicy(policy artifacts.Policy) error {
 
 func (s *Service) Policy() artifacts.Policy {
 	return s.store.Policy()
+}
+
+func (s *Service) DependencyCacheLookup(req artifacts.DependencyCacheHitRequest) (artifacts.DependencyCacheBatchRecord, artifacts.DependencyCacheResolvedUnitRecord, bool, error) {
+	return s.store.DependencyCacheLookup(req)
+}
+
+func (s *Service) RecordDependencyCacheBatch(batch artifacts.DependencyCacheBatchRecord, units []artifacts.DependencyCacheResolvedUnitRecord) error {
+	return s.store.RecordDependencyCacheBatch(batch, units)
+}
+
+func (s *Service) DependencyCacheResolvedUnitByRequest(requestDigest string) (artifacts.DependencyCacheResolvedUnitRecord, bool, error) {
+	return s.store.DependencyCacheResolvedUnitByRequest(requestDigest)
+}
+
+func (s *Service) DependencyCacheHandoffByRequest(req artifacts.DependencyCacheHandoffRequest) (artifacts.DependencyCacheHandoff, bool, error) {
+	return s.store.DependencyCacheHandoffByRequest(req)
 }

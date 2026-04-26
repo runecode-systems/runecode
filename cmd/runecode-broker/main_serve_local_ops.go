@@ -196,6 +196,16 @@ func artifactRPCOperations(service *brokerapi.Service, ctx context.Context, meta
 		"artifact_read": {requestSchemaPath: "objects/ArtifactReadRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandleArtifactRead(service, ctx, raw, meta)
 		}},
+		"dependency_cache_ensure": {requestSchemaPath: "objects/DependencyCacheEnsureRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.DependencyCacheEnsureRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleDependencyCacheEnsure(ctx, req, meta)
+			})
+		}},
+		"dependency_fetch_registry": {requestSchemaPath: "objects/DependencyFetchRegistryRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.DependencyFetchRegistryRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleDependencyFetchRegistry(ctx, req, meta)
+			})
+		}},
 		"log_stream": {requestSchemaPath: "objects/LogStreamRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse { return decodeAndHandleLogStream(service, ctx, raw, meta) }},
 		"llm_invoke": {requestSchemaPath: "objects/LLMInvokeRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse { return decodeAndHandleLLMInvoke(service, ctx, raw, meta) }},
 		"llm_stream": {requestSchemaPath: "objects/LLMStreamRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse { return decodeAndHandleLLMStream(service, ctx, raw, meta) }},

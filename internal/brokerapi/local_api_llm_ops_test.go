@@ -258,7 +258,7 @@ func validLLMRequestPayload(inputDigest, providerID string) map[string]any {
 		"model":            "gpt-4.1-mini",
 		"input_artifacts": []any{map[string]any{
 			"schema_id":      "runecode.protocol.v0.ArtifactReference",
-			"schema_version": "0.3.0",
+			"schema_version": "0.4.0",
 			"digest":         digestPayload(inputDigest),
 			"size_bytes":     8,
 			"content_type":   "text/plain",

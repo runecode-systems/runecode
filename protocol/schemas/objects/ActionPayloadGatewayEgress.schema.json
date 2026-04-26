@@ -5,7 +5,7 @@
   "description": "Typed action payload for gateway egress operations with a closed shared gateway operation vocabulary spanning request execution, scope change, and remote-state mutation semantics.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 13,
+  "maxProperties": 14,
   "required": [
     "schema_id",
     "schema_version",
@@ -95,6 +95,11 @@
       "description": "Authoritative provider-neutral typed git request object used for exact approval and runtime binding.",
       "x-data-class": "public"
     },
+    "dependency_request": {
+      "$ref": "#/$defs/dependencyTypedRequest",
+      "description": "Authoritative topology-neutral typed dependency request object used for exact approval and runtime binding.",
+      "x-data-class": "public"
+    },
     "git_runtime_proof": {
       "$ref": "#/$defs/gitRuntimeProof",
       "description": "Runtime outbound verification proof for git remote mutation, including drift checks and observed result bindings.",
@@ -115,6 +120,10 @@
         "audit_verification_report",
         "audit_receipt_export_copy",
         "gate_evidence",
+        "dependency_batch_manifest",
+        "dependency_resolved_unit_manifest",
+        "dependency_resolved_payload",
+        "dependency_materialized_tree",
         "web_query",
         "web_citations"
       ]
@@ -644,6 +653,11 @@
       "description": "Authoritative provider-neutral typed git request union for remote-state mutation operations.",
       "x-data-class": "public"
     },
+    "dependencyTypedRequest": {
+      "$ref": "DependencyFetchRequest.schema.json",
+      "description": "Authoritative topology-neutral typed dependency request object for fetch_dependency operations.",
+      "x-data-class": "public"
+    },
     "gitRuntimeProof": {
       "type": "object",
       "additionalProperties": false,
@@ -803,6 +817,24 @@
       "if": {
         "properties": {
           "operation": {
+            "const": "fetch_dependency"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "description": "Dependency fetch operations require a canonical typed dependency request binding.",
+        "required": [
+          "dependency_request"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
             "enum": [
               "git_ref_update",
               "git_pull_request_create"
@@ -899,6 +931,36 @@
             "not": {}
           },
           "git_runtime_proof": {
+            "not": {}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "invoke_model",
+              "exchange_auth_code",
+              "refresh_auth_token",
+              "git_ref_update",
+              "git_pull_request_create",
+              "enable_gateway",
+              "expand_scope",
+              "change_allowlist",
+              "enable_dependency_fetch"
+            ]
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "description": "Only fetch_dependency operations may carry dependency-specific typed request payloads.",
+        "properties": {
+          "dependency_request": {
             "not": {}
           }
         }

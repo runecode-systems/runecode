@@ -83,7 +83,7 @@ func TestTranslateCanonicalLLMRequestForProfileRejectsNonTextInputArtifact(t *te
 	requestObject := validLLMRequestPayload(inputRef.Digest, profile.ProviderProfileID)
 	requestObject["input_artifacts"] = []any{map[string]any{
 		"schema_id":               "runecode.protocol.v0.ArtifactReference",
-		"schema_version":          "0.3.0",
+		"schema_version":          "0.4.0",
 		"digest":                  digestPayload(inputRef.Digest),
 		"size_bytes":              3,
 		"content_type":            "application/octet-stream",

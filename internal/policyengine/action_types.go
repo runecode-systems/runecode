@@ -66,17 +66,25 @@ type PromotionActionInput struct {
 
 type GatewayEgressActionInput struct {
 	ActionEnvelope
-	GatewayRoleKind string
-	DestinationKind string
-	DestinationRef  string
-	EgressDataClass string
-	Operation       string
-	TimeoutSeconds  *int
-	PayloadHash     *trustpolicy.Digest
-	AuditContext    *GatewayAuditContextInput
-	GitRequest      *GitTypedRequestInput
-	GitRuntimeProof *GitRuntimeProofInput
-	QuotaContext    *GatewayQuotaContextInput
+	GatewayRoleKind   string
+	DestinationKind   string
+	DestinationRef    string
+	EgressDataClass   string
+	Operation         string
+	TimeoutSeconds    *int
+	PayloadHash       *trustpolicy.Digest
+	AuditContext      *GatewayAuditContextInput
+	DependencyRequest *DependencyFetchRequestInput
+	GitRequest        *GitTypedRequestInput
+	GitRuntimeProof   *GitRuntimeProofInput
+	QuotaContext      *GatewayQuotaContextInput
+}
+
+type DependencyFetchRequestInput struct {
+	RegistryIdentity DestinationDescriptor
+	Ecosystem        string
+	PackageName      string
+	PackageVersion   string
 }
 
 type GitTypedRequestInput struct {

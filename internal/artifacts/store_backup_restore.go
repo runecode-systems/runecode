@@ -27,6 +27,9 @@ func stateFromBackup(manifest BackupManifest, lastAuditSequence int64, ioStore *
 	if err := loadRestoredPolicyDecisions(&next, manifest.PolicyDecisions); err != nil {
 		return StoreState{}, err
 	}
+	if err := loadRestoredDependencyCache(&next, manifest.DependencyCacheBatches, manifest.DependencyCacheUnits); err != nil {
+		return StoreState{}, err
+	}
 	if err := loadRestoredProviderProfiles(&next, manifest.ProviderProfiles); err != nil {
 		return StoreState{}, err
 	}
@@ -46,6 +49,9 @@ func newStateFromBackup(manifest BackupManifest, lastAuditSequence int64) StoreS
 	}
 	return StoreState{
 		Artifacts:                map[string]ArtifactRecord{},
+		DependencyCacheBatches:   map[string]DependencyCacheBatchRecord{},
+		DependencyCacheUnits:     map[string]DependencyCacheResolvedUnitRecord{},
+		DependencyCacheByRequest: map[string][]string{},
 		Sessions:                 map[string]SessionDurableState{},
 		Approvals:                map[string]ApprovalRecord{},
 		RunApprovalRefs:          map[string][]string{},
@@ -139,6 +145,23 @@ func loadRestoredPolicyDecisions(next *StoreState, records []PolicyDecisionRecor
 		if rec.RunID != "" {
 			next.RunPolicyDecisionRefs[rec.RunID] = uniqueSortedStrings(append(next.RunPolicyDecisionRefs[rec.RunID], rec.Digest))
 		}
+	}
+	return nil
+}
+
+func loadRestoredDependencyCache(next *StoreState, batches []DependencyCacheBatchRecord, units []DependencyCacheResolvedUnitRecord) error {
+	for _, unit := range units {
+		if err := validateDependencyCacheResolvedUnitRecord(unit); err != nil {
+			return err
+		}
+		next.DependencyCacheUnits[unit.ResolvedUnitDigest] = cloneDependencyResolvedUnitRecord(unit)
+		next.DependencyCacheByRequest[unit.RequestDigest] = uniqueSortedStrings(append(next.DependencyCacheByRequest[unit.RequestDigest], unit.ResolvedUnitDigest))
+	}
+	for _, batch := range batches {
+		if err := validateDependencyCacheBatchRecord(batch); err != nil {
+			return err
+		}
+		next.DependencyCacheBatches[batch.BatchRequestDigest] = cloneDependencyBatchRecord(batch)
 	}
 	return nil
 }

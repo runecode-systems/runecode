@@ -30,6 +30,9 @@ func validatePolicy(policy Policy) error {
 	if err := validatePolicyBasics(policy); err != nil {
 		return err
 	}
+	if err := validateDependencyCachePolicy(policy.DependencyCachePolicy); err != nil {
+		return err
+	}
 	return validateFlowMatrix(policy)
 }
 
@@ -76,6 +79,25 @@ func validateFlowRule(policy Policy, rule FlowRule) error {
 	return nil
 }
 
+func validateDependencyCachePolicy(policy DependencyCachePolicy) error {
+	if !policy.ReadOnlyArtifactsRequired {
+		return fmt.Errorf("dependency cache requires read-only artifacts")
+	}
+	if !policy.BatchManifestImmutable || !policy.ResolvedUnitManifestImmutable || !policy.ResolvedPayloadImmutable {
+		return fmt.Errorf("dependency cache canonical artifacts must be immutable")
+	}
+	if !policy.MaterializedTreesDerivedNonCanonical {
+		return fmt.Errorf("dependency materialized trees must stay derived and non-canonical")
+	}
+	if !policy.FailClosedOnAmbiguousPartialReuse || !policy.FailClosedOnIncompleteState {
+		return fmt.Errorf("dependency cache must fail closed on ambiguity and incomplete state")
+	}
+	if !policy.RetainCanonicalBeforeDerived {
+		return fmt.Errorf("dependency cache retention must preserve canonical artifacts before derived materializations")
+	}
+	return nil
+}
+
 func validateFlowInputs(policy Policy, req FlowCheckRequest) error {
 	if policy.HandOffReferenceMode != "hash_only" {
 		return ErrHashOnlyHandoffRequired
@@ -90,6 +112,9 @@ func validateFlowInputs(policy Policy, req FlowCheckRequest) error {
 }
 
 func enforceEgressRestrictions(policy Policy, req FlowCheckRequest, appendAudit func(string, string, map[string]interface{}) error) error {
+	if err := enforceDependencyArtifactEgressRestriction(req, appendAudit); err != nil {
+		return err
+	}
 	if err := enforceUnapprovedEgressRestriction(policy, req, appendAudit); err != nil {
 		return err
 	}
@@ -100,6 +125,16 @@ func enforceEgressRestrictions(policy Policy, req FlowCheckRequest, appendAudit 
 		return err
 	}
 	return nil
+}
+
+func enforceDependencyArtifactEgressRestriction(req FlowCheckRequest, appendAudit func(string, string, map[string]interface{}) error) error {
+	if !req.IsEgress || !isDependencyDataClass(req.DataClass) {
+		return nil
+	}
+	if err := appendAudit("artifact_flow_blocked", req.ProducerRole, map[string]interface{}{"reason": "dependency_artifact_internal_handoff_only", "digest": req.Digest}); err != nil {
+		return err
+	}
+	return ErrDependencyArtifactEgressDenied
 }
 
 func enforceUnapprovedEgressRestriction(policy Policy, req FlowCheckRequest, appendAudit func(string, string, map[string]interface{}) error) error {

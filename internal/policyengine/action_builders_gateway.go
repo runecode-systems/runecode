@@ -31,6 +31,9 @@ func buildGatewayPayload(input GatewayEgressActionInput) map[string]any {
 	if input.AuditContext != nil {
 		payload["audit_context"] = buildGatewayAuditPayload(*input.AuditContext)
 	}
+	if input.DependencyRequest != nil {
+		payload["dependency_request"] = buildDependencyFetchRequestPayload(*input.DependencyRequest)
+	}
 	if input.GitRequest != nil {
 		payload["git_request"] = buildGitTypedRequestPayload(*input.GitRequest)
 	}
@@ -41,6 +44,18 @@ func buildGatewayPayload(input GatewayEgressActionInput) map[string]any {
 		payload["quota_context"] = buildGatewayQuotaPayload(*input.QuotaContext)
 	}
 	return payload
+}
+
+func buildDependencyFetchRequestPayload(input DependencyFetchRequestInput) map[string]any {
+	return map[string]any{
+		"schema_id":         "runecode.protocol.v0.DependencyFetchRequest",
+		"schema_version":    "0.1.0",
+		"request_kind":      "package_version_fetch",
+		"registry_identity": buildDestinationDescriptorPayload(input.RegistryIdentity),
+		"ecosystem":         input.Ecosystem,
+		"package_name":      input.PackageName,
+		"package_version":   input.PackageVersion,
+	}
 }
 
 func buildGitTypedRequestPayload(input GitTypedRequestInput) map[string]any {

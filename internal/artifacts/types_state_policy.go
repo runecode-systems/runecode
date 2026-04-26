@@ -21,6 +21,9 @@ type StoreState struct {
 	RuntimeLifecycleByRun    map[string]launcherbackend.RuntimeLifecycleState   `json:"runtime_lifecycle_by_run,omitempty"`
 	RuntimeAuditStateByRun   map[string]RuntimeAuditEmissionState               `json:"runtime_audit_state_by_run,omitempty"`
 	RunnerAdvisoryByRun      map[string]RunnerAdvisoryState                     `json:"runner_advisory_by_run,omitempty"`
+	DependencyCacheBatches   map[string]DependencyCacheBatchRecord              `json:"dependency_cache_batches,omitempty"`
+	DependencyCacheUnits     map[string]DependencyCacheResolvedUnitRecord       `json:"dependency_cache_units,omitempty"`
+	DependencyCacheByRequest map[string][]string                                `json:"dependency_cache_by_request,omitempty"`
 	ProviderProfiles         map[string]ProviderProfileDurableState             `json:"provider_profiles,omitempty"`
 	ProviderSetupSessions    map[string]ProviderSetupSessionDurableState        `json:"provider_setup_sessions,omitempty"`
 	Policy                   Policy                                             `json:"policy"`
@@ -128,23 +131,35 @@ type PromotionRequest struct {
 }
 
 type BackupManifest struct {
-	Schema                string                             `json:"schema"`
-	ExportedAt            time.Time                          `json:"exported_at"`
-	StorageProtection     string                             `json:"storage_protection"`
-	Policy                Policy                             `json:"policy"`
-	Artifacts             []ArtifactRecord                   `json:"artifacts"`
-	Sessions              []SessionDurableState              `json:"sessions,omitempty"`
-	PolicyDecisions       []PolicyDecisionRecord             `json:"policy_decisions,omitempty"`
-	Approvals             []ApprovalRecord                   `json:"approvals,omitempty"`
-	ProviderProfiles      []ProviderProfileDurableState      `json:"provider_profiles,omitempty"`
-	ProviderSetupSessions []ProviderSetupSessionDurableState `json:"provider_setup_sessions,omitempty"`
-	Runs                  map[string]string                  `json:"runs"`
+	Schema                 string                              `json:"schema"`
+	ExportedAt             time.Time                           `json:"exported_at"`
+	StorageProtection      string                              `json:"storage_protection"`
+	Policy                 Policy                              `json:"policy"`
+	Artifacts              []ArtifactRecord                    `json:"artifacts"`
+	DependencyCacheBatches []DependencyCacheBatchRecord        `json:"dependency_cache_batches,omitempty"`
+	DependencyCacheUnits   []DependencyCacheResolvedUnitRecord `json:"dependency_cache_units,omitempty"`
+	Sessions               []SessionDurableState               `json:"sessions,omitempty"`
+	PolicyDecisions        []PolicyDecisionRecord              `json:"policy_decisions,omitempty"`
+	Approvals              []ApprovalRecord                    `json:"approvals,omitempty"`
+	ProviderProfiles       []ProviderProfileDurableState       `json:"provider_profiles,omitempty"`
+	ProviderSetupSessions  []ProviderSetupSessionDurableState  `json:"provider_setup_sessions,omitempty"`
+	Runs                   map[string]string                   `json:"runs"`
 }
 
 func DefaultPolicy() Policy {
 	return Policy{
-		HandOffReferenceMode:                "hash_only",
-		ReservedClassesEnabled:              false,
+		HandOffReferenceMode:   "hash_only",
+		ReservedClassesEnabled: false,
+		DependencyCachePolicy: DependencyCachePolicy{
+			ReadOnlyArtifactsRequired:            true,
+			BatchManifestImmutable:               true,
+			ResolvedUnitManifestImmutable:        true,
+			ResolvedPayloadImmutable:             true,
+			MaterializedTreesDerivedNonCanonical: true,
+			FailClosedOnAmbiguousPartialReuse:    true,
+			FailClosedOnIncompleteState:          true,
+			RetainCanonicalBeforeDerived:         true,
+		},
 		EncryptedAtRestDefault:              true,
 		DevPlaintextOverride:                false,
 		ExplicitHumanApprovalRequired:       true,
@@ -155,6 +170,9 @@ func DefaultPolicy() Policy {
 		FlowMatrix: []FlowRule{
 			{ProducerRole: "workspace", ConsumerRole: "model_gateway", AllowedDataClasses: []DataClass{DataClassSpecText, DataClassApprovedFileExcerpts}},
 			{ProducerRole: "workspace", ConsumerRole: "auditd", AllowedDataClasses: []DataClass{DataClassAuditEvents, DataClassAuditVerificationReport, DataClassGateEvidence, DataClassBuildLogs, DataClassDiffs, DataClassSpecText, DataClassUnapprovedFileExcerpts, DataClassApprovedFileExcerpts}},
+			{ProducerRole: "dependency-fetch", ConsumerRole: "workspace", AllowedDataClasses: []DataClass{DataClassDependencyBatchManifest, DataClassDependencyResolvedUnit, DataClassDependencyPayloadUnit, DataClassDependencyMaterialized}},
+			{ProducerRole: "dependency-fetch", ConsumerRole: "workspace-edit", AllowedDataClasses: []DataClass{DataClassDependencyBatchManifest, DataClassDependencyResolvedUnit, DataClassDependencyPayloadUnit, DataClassDependencyMaterialized}},
+			{ProducerRole: "dependency-fetch", ConsumerRole: "workspace-run", AllowedDataClasses: []DataClass{DataClassDependencyBatchManifest, DataClassDependencyResolvedUnit, DataClassDependencyPayloadUnit, DataClassDependencyMaterialized}},
 		},
 		RevokedApprovedExcerptHashes: map[string]bool{},
 		PerRoleQuota: map[string]Quota{

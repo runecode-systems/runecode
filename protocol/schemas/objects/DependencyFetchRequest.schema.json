@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/DependencyFetchRequest.schema.json",
+  "title": "DependencyFetchRequest",
+  "description": "Canonical topology-neutral dependency-fetch request identity bound to payload_hash for package-registry egress.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 7,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "request_kind",
+    "registry_identity",
+    "ecosystem",
+    "package_name",
+    "package_version"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.DependencyFetchRequest",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "request_kind": {
+      "type": "string",
+      "enum": [
+        "package_version_fetch"
+      ],
+      "description": "Typed dependency-fetch request family.",
+      "x-data-class": "public"
+    },
+    "registry_identity": {
+      "$ref": "DestinationDescriptor.schema.json",
+      "description": "Canonical package-registry destination identity for this fetch request.",
+      "x-data-class": "public"
+    },
+    "ecosystem": {
+      "type": "string",
+      "enum": [
+        "npm",
+        "pypi",
+        "maven",
+        "nuget",
+        "cargo",
+        "go_module",
+        "generic"
+      ],
+      "description": "Package ecosystem identity used for topology-neutral dependency matching.",
+      "x-data-class": "public"
+    },
+    "package_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._@/+:-]+$",
+      "description": "Canonical package name identity for the requested dependency.",
+      "x-data-class": "public"
+    },
+    "package_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._+~-]+$",
+      "description": "Canonical package version identity for the requested dependency.",
+      "x-data-class": "public"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "registry_identity": {
+            "type": "object",
+            "properties": {
+              "descriptor_kind": {
+                "const": "package_registry"
+              }
+            },
+            "required": [
+              "descriptor_kind"
+            ]
+          }
+        },
+        "required": [
+          "registry_identity"
+        ]
+      },
+      "then": true,
+      "else": {
+        "not": {}
+      }
+    }
+  ]
+}

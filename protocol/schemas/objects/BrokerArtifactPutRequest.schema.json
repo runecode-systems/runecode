@@ -62,6 +62,10 @@
         "audit_verification_report",
         "audit_receipt_export_copy",
         "gate_evidence",
+        "dependency_batch_manifest",
+        "dependency_resolved_unit_manifest",
+        "dependency_resolved_payload",
+        "dependency_materialized_tree",
         "web_query",
         "web_citations"
       ],

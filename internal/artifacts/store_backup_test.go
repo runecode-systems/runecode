@@ -295,6 +295,105 @@ func TestBackupRestorePreservesPolicyDecisionState(t *testing.T) {
 	}
 }
 
+func TestBackupRestorePreservesDependencyCacheState(t *testing.T) {
+	store := newTestStore(t)
+	batchManifest := putTrustedDependencyArtifact(t, store, DataClassDependencyBatchManifest, `{"kind":"batch-manifest"}`)
+	unitManifest := putTrustedDependencyArtifact(t, store, DataClassDependencyResolvedUnit, `{"kind":"unit-manifest"}`)
+	payload := putTrustedDependencyArtifact(t, store, DataClassDependencyPayloadUnit, `{"kind":"unit-payload"}`)
+	if err := store.RecordDependencyCacheBatch(DependencyCacheBatchRecord{
+		BatchRequestDigest:  testDigest("1"),
+		BatchManifestDigest: batchManifest.Digest,
+		LockfileDigest:      testDigest("3"),
+		RequestSetDigest:    testDigest("4"),
+		ResolutionState:     "complete",
+		CacheOutcome:        "hit_exact",
+	}, []DependencyCacheResolvedUnitRecord{{
+		ResolvedUnitDigest:   testDigest("2"),
+		RequestDigest:        testDigest("5"),
+		ManifestDigest:       unitManifest.Digest,
+		PayloadDigest:        []string{payload.Digest},
+		IntegrityState:       "verified",
+		MaterializationState: "derived_read_only",
+	}}); err != nil {
+		t.Fatalf("RecordDependencyCacheBatch returned error: %v", err)
+	}
+
+	backupPath := filepath.Join(t.TempDir(), "backup-dependency-cache.json")
+	if err := store.ExportBackup(backupPath); err != nil {
+		t.Fatalf("ExportBackup returned error: %v", err)
+	}
+
+	restoreStore := newTestStore(t)
+	copyBlobsToStore(t, restoreStore, store.List())
+	if err := restoreStore.RestoreBackup(backupPath); err != nil {
+		t.Fatalf("RestoreBackup returned error: %v", err)
+	}
+	if len(restoreStore.state.DependencyCacheBatches) != 1 {
+		t.Fatalf("restored dependency cache batches count = %d, want 1", len(restoreStore.state.DependencyCacheBatches))
+	}
+	if len(restoreStore.state.DependencyCacheUnits) != 1 {
+		t.Fatalf("restored dependency cache units count = %d, want 1", len(restoreStore.state.DependencyCacheUnits))
+	}
+	hit, err := restoreStore.DependencyCacheHit(DependencyCacheHitRequest{
+		BatchRequestDigest: testDigest("1"),
+		ResolvedUnitDigest: testDigest("2"),
+		RequestDigest:      testDigest("5"),
+	})
+	if err != nil {
+		t.Fatalf("DependencyCacheHit returned error after restore: %v", err)
+	}
+	if !hit {
+		t.Fatal("DependencyCacheHit after restore = false, want true")
+	}
+}
+
+func TestRestoreIgnoresBackupBlobPathTopologyHints(t *testing.T) {
+	store := newTestStore(t)
+	ref, err := store.Put(PutRequest{Payload: []byte("payload"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"})
+	if err != nil {
+		t.Fatalf("Put error: %v", err)
+	}
+	backupPath := filepath.Join(t.TempDir(), "backup-topology-hints.json")
+	if err := store.ExportBackup(backupPath); err != nil {
+		t.Fatalf("ExportBackup returned error: %v", err)
+	}
+	b, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatalf("read backup error: %v", err)
+	}
+	manifest := BackupManifest{}
+	if err := json.Unmarshal(b, &manifest); err != nil {
+		t.Fatalf("parse backup error: %v", err)
+	}
+	if len(manifest.Artifacts) != 1 {
+		t.Fatalf("backup artifacts len = %d, want 1", len(manifest.Artifacts))
+	}
+	manifest.Artifacts[0].BlobPath = "/host/local/cache/layout/not-canonical/blob.bin"
+	if err := store.storeIO.writeBackup(backupPath, manifest); err != nil {
+		t.Fatalf("write backup error: %v", err)
+	}
+	signature, err := computeBackupSignature(manifest, store.state.BackupHMACKey)
+	if err != nil {
+		t.Fatalf("compute signature error: %v", err)
+	}
+	if err := store.storeIO.writeBackupSignature(backupSignaturePath(backupPath), signature); err != nil {
+		t.Fatalf("write signature error: %v", err)
+	}
+
+	restoreStore := newTestStore(t)
+	copyBlobFile(t, store.storeIO.blobPath(ref.Digest), restoreStore.storeIO.blobPath(ref.Digest))
+	if err := restoreStore.RestoreBackup(backupPath); err != nil {
+		t.Fatalf("RestoreBackup returned error: %v", err)
+	}
+	rec, err := restoreStore.Head(ref.Digest)
+	if err != nil {
+		t.Fatalf("Head returned error: %v", err)
+	}
+	if rec.BlobPath != restoreStore.storeIO.blobPath(ref.Digest) {
+		t.Fatalf("restored blob_path = %q, want store-local canonical path", rec.BlobPath)
+	}
+}
+
 func TestRestoreRejectsPolicyDecisionDigestMismatch(t *testing.T) {
 	store := newTestStore(t)
 	backupPath := writeBackupWithPolicyDecisionDigestMismatch(t, store)

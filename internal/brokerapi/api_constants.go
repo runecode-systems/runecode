@@ -47,9 +47,14 @@ func DefaultLimits() Limits {
 }
 
 type APIConfig struct {
-	Limits         Limits
-	GatewayQuota   GatewayQuotaLimits
-	RepositoryRoot string
+	Limits          Limits
+	GatewayQuota    GatewayQuotaLimits
+	DependencyFetch DependencyFetchConfig
+	RepositoryRoot  string
+}
+
+type DependencyFetchConfig struct {
+	MaxParallelFetches int
 }
 
 func (c APIConfig) withDefaults() APIConfig {
@@ -65,6 +70,7 @@ func (c APIConfig) withDefaults() APIConfig {
 	c.Limits.MaxStreamChunkBytes = resolveIntLimit(c.Limits.MaxStreamChunkBytes, defaults.MaxStreamChunkBytes)
 	c.Limits.StreamIdleTimeout = resolveDurationLimit(c.Limits.StreamIdleTimeout, defaults.StreamIdleTimeout)
 	c.Limits.MaxResponseStreamBytes = resolveIntLimit(c.Limits.MaxResponseStreamBytes, defaults.MaxResponseStreamBytes)
+	c.DependencyFetch.MaxParallelFetches = resolveIntLimit(c.DependencyFetch.MaxParallelFetches, 4)
 	return c
 }
 

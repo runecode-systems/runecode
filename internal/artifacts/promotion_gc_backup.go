@@ -109,9 +109,13 @@ func ensureTTL(seconds int64) time.Duration {
 	return ttl
 }
 
-func gcCandidates(artifactsMap map[string]ArtifactRecord, runs map[string]string, now time.Time, ttl time.Duration) []gcCandidate {
+func gcCandidates(artifactsMap map[string]ArtifactRecord, runs map[string]string, dependencyBatches map[string]DependencyCacheBatchRecord, dependencyUnits map[string]DependencyCacheResolvedUnitRecord, now time.Time, ttl time.Duration) []gcCandidate {
 	result := []gcCandidate{}
+	canonicalDependencyDigests := dependencyCanonicalDigests(dependencyBatches, dependencyUnits)
 	for digest, rec := range artifactsMap {
+		if _, protected := canonicalDependencyDigests[digest]; protected {
+			continue
+		}
 		if rec.RunID != "" {
 			if status := runs[rec.RunID]; status == "active" || status == "retained" {
 				continue
@@ -126,6 +130,29 @@ func gcCandidates(artifactsMap map[string]ArtifactRecord, runs map[string]string
 	return result
 }
 
+func dependencyCanonicalDigests(dependencyBatches map[string]DependencyCacheBatchRecord, dependencyUnits map[string]DependencyCacheResolvedUnitRecord) map[string]struct{} {
+	protected := map[string]struct{}{}
+	for _, batch := range dependencyBatches {
+		if batch.ResolutionState != "complete" {
+			continue
+		}
+		protected[batch.BatchManifestDigest] = struct{}{}
+		for _, digest := range batch.ResolvedUnitDigests {
+			protected[digest] = struct{}{}
+		}
+	}
+	for _, unit := range dependencyUnits {
+		if unit.IntegrityState != "verified" {
+			continue
+		}
+		protected[unit.ManifestDigest] = struct{}{}
+		for _, digest := range unit.PayloadDigest {
+			protected[digest] = struct{}{}
+		}
+	}
+	return protected
+}
+
 func buildBackupManifest(state StoreState, exportedAt time.Time) BackupManifest {
 	manifest := newBackupManifest(state, exportedAt)
 	populateBackupManifestCollections(&manifest, state)
@@ -135,17 +162,19 @@ func buildBackupManifest(state StoreState, exportedAt time.Time) BackupManifest 
 
 func newBackupManifest(state StoreState, exportedAt time.Time) BackupManifest {
 	return BackupManifest{
-		Schema:                "runecode.backup.artifacts.v1",
-		ExportedAt:            exportedAt,
-		StorageProtection:     state.StorageProtectionPosture,
-		Policy:                state.Policy,
-		Runs:                  map[string]string{},
-		Artifacts:             make([]ArtifactRecord, 0, len(state.Artifacts)),
-		Sessions:              make([]SessionDurableState, 0, len(state.Sessions)),
-		PolicyDecisions:       make([]PolicyDecisionRecord, 0, len(state.PolicyDecisions)),
-		Approvals:             make([]ApprovalRecord, 0, len(state.Approvals)),
-		ProviderProfiles:      make([]ProviderProfileDurableState, 0, len(state.ProviderProfiles)),
-		ProviderSetupSessions: make([]ProviderSetupSessionDurableState, 0, len(state.ProviderSetupSessions)),
+		Schema:                 "runecode.backup.artifacts.v1",
+		ExportedAt:             exportedAt,
+		StorageProtection:      state.StorageProtectionPosture,
+		Policy:                 state.Policy,
+		Runs:                   map[string]string{},
+		Artifacts:              make([]ArtifactRecord, 0, len(state.Artifacts)),
+		DependencyCacheBatches: make([]DependencyCacheBatchRecord, 0, len(state.DependencyCacheBatches)),
+		DependencyCacheUnits:   make([]DependencyCacheResolvedUnitRecord, 0, len(state.DependencyCacheUnits)),
+		Sessions:               make([]SessionDurableState, 0, len(state.Sessions)),
+		PolicyDecisions:        make([]PolicyDecisionRecord, 0, len(state.PolicyDecisions)),
+		Approvals:              make([]ApprovalRecord, 0, len(state.Approvals)),
+		ProviderProfiles:       make([]ProviderProfileDurableState, 0, len(state.ProviderProfiles)),
+		ProviderSetupSessions:  make([]ProviderSetupSessionDurableState, 0, len(state.ProviderSetupSessions)),
 	}
 }
 
@@ -155,6 +184,12 @@ func populateBackupManifestCollections(manifest *BackupManifest, state StoreStat
 	}
 	for _, rec := range state.Artifacts {
 		manifest.Artifacts = append(manifest.Artifacts, rec)
+	}
+	for _, rec := range state.DependencyCacheBatches {
+		manifest.DependencyCacheBatches = append(manifest.DependencyCacheBatches, cloneDependencyBatchRecord(rec))
+	}
+	for _, rec := range state.DependencyCacheUnits {
+		manifest.DependencyCacheUnits = append(manifest.DependencyCacheUnits, cloneDependencyResolvedUnitRecord(rec))
 	}
 	for _, rec := range state.Sessions {
 		manifest.Sessions = append(manifest.Sessions, copySessionDurableState(rec))
@@ -175,6 +210,12 @@ func sortBackupManifestCollections(manifest *BackupManifest) {
 	})
 	sort.Slice(manifest.Sessions, func(i, j int) bool {
 		return manifest.Sessions[i].SessionID < manifest.Sessions[j].SessionID
+	})
+	sort.Slice(manifest.DependencyCacheBatches, func(i, j int) bool {
+		return manifest.DependencyCacheBatches[i].BatchRequestDigest < manifest.DependencyCacheBatches[j].BatchRequestDigest
+	})
+	sort.Slice(manifest.DependencyCacheUnits, func(i, j int) bool {
+		return manifest.DependencyCacheUnits[i].ResolvedUnitDigest < manifest.DependencyCacheUnits[j].ResolvedUnitDigest
 	})
 	sort.Slice(manifest.PolicyDecisions, func(i, j int) bool {
 		return manifest.PolicyDecisions[i].Digest < manifest.PolicyDecisions[j].Digest
