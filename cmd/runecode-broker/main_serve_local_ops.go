@@ -206,6 +206,11 @@ func artifactRPCOperations(service *brokerapi.Service, ctx context.Context, meta
 				return service.HandleDependencyFetchRegistry(ctx, req, meta)
 			})
 		}},
+		"dependency_cache_handoff": {requestSchemaPath: "objects/DependencyCacheHandoffRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.DependencyCacheHandoffRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleDependencyCacheHandoff(ctx, req, meta)
+			})
+		}},
 		"log_stream": {requestSchemaPath: "objects/LogStreamRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse { return decodeAndHandleLogStream(service, ctx, raw, meta) }},
 		"llm_invoke": {requestSchemaPath: "objects/LLMInvokeRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse { return decodeAndHandleLLMInvoke(service, ctx, raw, meta) }},
 		"llm_stream": {requestSchemaPath: "objects/LLMStreamRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse { return decodeAndHandleLLMStream(service, ctx, raw, meta) }},

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/DependencyCacheHandoffRequest.schema.json",
+  "title": "DependencyCacheHandoffRequest",
+  "description": "Broker-local request for dependency cache handoff metadata by canonical dependency request identity.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 5,
+  "required": ["schema_id", "schema_version", "request_id", "request_digest", "consumer_role"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.DependencyCacheHandoffRequest", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable request correlation identifier.", "x-data-class": "public" },
+    "request_digest": { "$ref": "Digest.schema.json#/$defs/digestValue", "description": "Canonical dependency request digest identity.", "x-data-class": "public" },
+    "consumer_role": { "type": "string", "enum": ["workspace", "workspace-read", "workspace-edit", "workspace-test"], "description": "Consumer role requesting broker-authoritative handoff metadata.", "x-data-class": "public" }
+  }
+}

@@ -35,11 +35,16 @@ func auditEventsByType(t *testing.T, s *Service, eventType string) []map[string]
 
 func putTrustedDependencyFetchContextForRun(t *testing.T, s *Service, runID string) string {
 	t.Helper()
+	return putTrustedDependencyFetchContextForRunWithAllowlistEntries(t, s, runID, []any{trustedDependencyFetchAllowlistEntryForTests()})
+}
+
+func putTrustedDependencyFetchContextForRunWithAllowlistEntries(t *testing.T, s *Service, runID string, entries []any) string {
+	t.Helper()
 	verifier, privateKey := newSignedContextVerifierFixture(t)
 	if err := putTrustedVerifierRecordForService(s, verifier); err != nil {
 		t.Fatalf("putTrustedVerifierRecordForService returned error: %v", err)
 	}
-	allowlistPayload := trustedPolicyAllowlistPayloadWithEntries(t, []any{trustedDependencyFetchAllowlistEntryForTests()})
+	allowlistPayload := trustedPolicyAllowlistPayloadWithEntries(t, entries)
 	allowlistDigest := putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindPolicyAllowlist, allowlistPayload)
 	rolePayload := signedPayloadForTrustedContext(t, map[string]any{
 		"schema_id":          "runecode.protocol.v0.RoleManifest",
@@ -64,6 +69,18 @@ func putTrustedDependencyFetchContextForRun(t *testing.T, s *Service, runID stri
 	putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindRoleManifest, rolePayload)
 	putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindRunCapability, runPayload)
 	return allowlistDigest
+}
+
+func trustedDependencyFetchAllowlistEntryForHostAndPort(host string, port *int) map[string]any {
+	entry := trustedDependencyFetchAllowlistEntryForTests()
+	destination, _ := entry["destination"].(map[string]any)
+	destination["canonical_host"] = host
+	if port != nil {
+		destination["canonical_port"] = *port
+	} else {
+		delete(destination, "canonical_port")
+	}
+	return entry
 }
 
 func trustedDependencyFetchAllowlistEntryForTests() map[string]any {
@@ -118,6 +135,21 @@ func dependencyFetchRegistryRequestForTest(requestID, runID, pkg string) Depende
 		panic(err)
 	}
 	return DependencyFetchRegistryRequest{SchemaID: "runecode.protocol.v0.DependencyFetchRegistryRequest", SchemaVersion: "0.1.0", RequestID: requestID, RunID: runID, DependencyRequest: dep, RequestHash: requestHash}
+}
+
+func dependencyCacheHandoffRequestForTest(requestID, pkg, consumerRole string) DependencyCacheHandoffRequest {
+	dep := dependencyFetchRequestForTest(pkg)
+	hash, err := canonicalDependencyRequestIdentity(dep)
+	if err != nil {
+		panic(err)
+	}
+	return DependencyCacheHandoffRequest{
+		SchemaID:      "runecode.protocol.v0.DependencyCacheHandoffRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     requestID,
+		RequestDigest: mustDigestObjectFromIdentity(hash),
+		ConsumerRole:  consumerRole,
+	}
 }
 
 func digestForDependencyTest(identity string) trustpolicy.Digest {
@@ -310,6 +342,30 @@ func (f *leaseRecordingFetcher) Fetch(_ context.Context, _ DependencyFetchReques
 	return io.NopCloser(strings.NewReader(payload)), dependencyRegistryFetchMetadata{ContentType: "application/octet-stream", ExpectedPayloadDigest: artifacts.DigestBytes([]byte(payload))}, nil
 }
 
+type countingDependencyFetcher struct {
+	payload string
+	n       atomic.Int64
+}
+
+func (f *countingDependencyFetcher) Fetch(_ context.Context, _ DependencyFetchRequestObject, lease dependencyRegistryAuthLease) (io.ReadCloser, dependencyRegistryFetchMetadata, error) {
+	if lease == nil {
+		return nil, dependencyRegistryFetchMetadata{}, errors.New("auth lease required")
+	}
+	f.n.Add(1)
+	payload := f.payload
+	if payload == "" {
+		payload = "counting-fetcher-payload"
+	}
+	return io.NopCloser(strings.NewReader(payload)), dependencyRegistryFetchMetadata{ContentType: "application/octet-stream", ExpectedPayloadDigest: artifacts.DigestBytes([]byte(payload))}, nil
+}
+
+func (f *countingDependencyFetcher) calls() int64 {
+	if f == nil {
+		return 0
+	}
+	return f.n.Load()
+}
+
 func requireNoAuthMaterialInResponse(t *testing.T, resp DependencyFetchRegistryResponse) {
 	t.Helper()
 	respJSON, err := json.Marshal(resp)
@@ -356,36 +412,17 @@ func requireNoForbiddenAuthFields(t *testing.T, types []reflect.Type) {
 	}
 }
 
-func buildDependencyFetchPolicyDecision(requestHash string) policyengine.PolicyDecision {
-	return policyengine.PolicyDecision{
-		SchemaID:               "runecode.protocol.v0.PolicyDecision",
-		SchemaVersion:          "0.3.0",
-		DecisionOutcome:        policyengine.DecisionAllow,
-		PolicyReasonCode:       "allow_manifest_opt_in",
-		ManifestHash:           "sha256:" + strings.Repeat("1", 64),
-		PolicyInputHashes:      []string{"sha256:" + strings.Repeat("2", 64)},
-		ActionRequestHash:      "sha256:" + strings.Repeat("3", 64),
-		RelevantArtifactHashes: []string{requestHash},
-		DetailsSchemaID:        "runecode.protocol.details.policy.evaluation.v0",
-		Details: map[string]any{
-			"operation":         "fetch_dependency",
-			"gateway_role_kind": "dependency-fetch",
-			"destination_kind":  "package_registry",
-		},
-	}
-}
-
-func requireDependencyFetchPolicyAudit(t *testing.T, events []map[string]interface{}, decision policyengine.PolicyDecision, decisionHash, allowlistDigest string) {
+func requireDependencyFetchPolicyAudit(t *testing.T, events []map[string]interface{}, allowlistDigest string) {
 	t.Helper()
 	if len(events) == 0 {
 		t.Fatal("dependency_registry_fetch audit event not found")
 	}
 	last := events[len(events)-1]
-	if got, _ := last["action_request_hash"].(string); got != decision.ActionRequestHash {
-		t.Fatalf("action_request_hash = %q, want %q", got, decision.ActionRequestHash)
+	if got, _ := last["action_request_hash"].(string); !strings.HasPrefix(got, "sha256:") {
+		t.Fatalf("action_request_hash = %q, want sha256:*", got)
 	}
-	if got, _ := last["policy_decision_hash"].(string); got != decisionHash {
-		t.Fatalf("policy_decision_hash = %q, want %q", got, decisionHash)
+	if got, _ := last["policy_decision_hash"].(string); !strings.HasPrefix(got, "sha256:") {
+		t.Fatalf("policy_decision_hash = %q, want sha256:*", got)
 	}
 	if got, _ := last["matched_allowlist_ref"].(string); got != allowlistDigest {
 		t.Fatalf("matched_allowlist_ref = %q, want %q", got, allowlistDigest)

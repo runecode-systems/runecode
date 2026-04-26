@@ -3,6 +3,7 @@ package brokerapi
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,50 +46,60 @@ func (s *dependencyFetchService) resolveDependencyRequest(ctx context.Context, r
 	if err != nil {
 		return dependencyUnitResolution{}, err
 	}
-	flight, leader := s.acquireFlight(requestHash)
+	flightKey := dependencyFetchFlightKey(runID, requestHash)
+	flight, leader := s.acquireFlight(flightKey)
 	if !leader {
-		return s.waitForDependencyFetchFlight(ctx, requestHash, flight)
+		return s.waitForDependencyFetchFlight(ctx, flightKey, flight)
 	}
-	return s.resolveDependencyRequestLeader(ctx, runID, req, startedAt, requestHash, flight)
+	return s.resolveDependencyRequestLeader(ctx, runID, req, startedAt, requestHash, flightKey, flight)
 }
 
-func (s *dependencyFetchService) waitForDependencyFetchFlight(ctx context.Context, requestHash string, flight *dependencyFetchFlight) (dependencyUnitResolution, error) {
+func dependencyFetchFlightKey(runID, requestHash string) string {
+	return strings.TrimSpace(runID) + "|" + strings.TrimSpace(requestHash)
+}
+
+func (s *dependencyFetchService) waitForDependencyFetchFlight(ctx context.Context, flightKey string, flight *dependencyFetchFlight) (dependencyUnitResolution, error) {
 	select {
 	case <-ctx.Done():
-		s.releaseFlightWaiter(requestHash)
+		s.releaseFlightWaiter(flightKey)
 		return dependencyUnitResolution{}, ctx.Err()
 	case <-flight.done:
-		defer s.releaseFlightWaiter(requestHash)
+		defer s.releaseFlightWaiter(flightKey)
 		return flight.result, flight.err
 	}
 }
 
-func (s *dependencyFetchService) resolveDependencyRequestLeader(ctx context.Context, runID string, req DependencyFetchRequestObject, startedAt time.Time, requestHash string, flight *dependencyFetchFlight) (dependencyUnitResolution, error) {
+func (s *dependencyFetchService) resolveDependencyRequestLeader(ctx context.Context, runID string, req DependencyFetchRequestObject, startedAt time.Time, requestHash string, flightKey string, flight *dependencyFetchFlight) (dependencyUnitResolution, error) {
 	var result dependencyUnitResolution
 	var resultErr error
-	defer s.finishDependencyFetchFlight(requestHash, flight, &result, &resultErr)
+	defer s.finishDependencyFetchFlight(flightKey, flight, &result, &resultErr)
+	authz, err := s.authorizeDependencyFetch(runID, req, requestHash)
+	if err != nil {
+		resultErr = err
+		return dependencyUnitResolution{}, err
+	}
 	result, hit, err := s.resolveDependencyRequestFromCache(req, requestHash, startedAt)
 	if err != nil {
 		resultErr = err
 		return dependencyUnitResolution{}, err
 	}
 	if !hit {
-		result, err = s.executeMissFetch(ctx, req, requestHash)
+		result, err = s.executeMissFetch(ctx, req, requestHash, authz.maxResponseBytes)
 		if err != nil {
 			resultErr = err
 			return dependencyUnitResolution{}, err
 		}
 	}
 	finalizeDependencyResolutionTimestamps(s.owner.now().UTC(), startedAt, &result)
-	s.enrichPolicyAndAllowlistLinkage(runID, req, &result)
+	s.applyDependencyAuthorization(&result, authz)
 	return result, nil
 }
 
-func (s *dependencyFetchService) finishDependencyFetchFlight(requestHash string, flight *dependencyFetchFlight, result *dependencyUnitResolution, resultErr *error) {
+func (s *dependencyFetchService) finishDependencyFetchFlight(flightKey string, flight *dependencyFetchFlight, result *dependencyUnitResolution, resultErr *error) {
 	flight.result = *result
 	flight.err = *resultErr
 	close(flight.done)
-	s.releaseFlightWaiter(requestHash)
+	s.releaseFlightWaiter(flightKey)
 }
 
 func (s *dependencyFetchService) resolveDependencyRequestFromCache(req DependencyFetchRequestObject, requestHash string, startedAt time.Time) (dependencyUnitResolution, bool, error) {
@@ -123,7 +134,7 @@ func finalizeDependencyResolutionTimestamps(now, startedAt time.Time, result *de
 	}
 }
 
-func (s *dependencyFetchService) executeMissFetch(ctx context.Context, req DependencyFetchRequestObject, requestHash string) (dependencyUnitResolution, error) {
+func (s *dependencyFetchService) executeMissFetch(ctx context.Context, req DependencyFetchRequestObject, requestHash string, maxResponseBytes int64) (dependencyUnitResolution, error) {
 	startedAt := s.owner.now().UTC()
 	if err := s.acquireFetchToken(ctx); err != nil {
 		return dependencyUnitResolution{}, err
@@ -133,7 +144,7 @@ func (s *dependencyFetchService) executeMissFetch(ctx context.Context, req Depen
 	if err != nil {
 		return dependencyUnitResolution{}, err
 	}
-	payloadRef, metadata, err := s.fetchDependencyPayload(ctx, req, requestHash, lease)
+	payloadRef, metadata, err := s.fetchDependencyPayload(ctx, req, requestHash, lease, maxResponseBytes)
 	if err != nil {
 		return dependencyUnitResolution{}, err
 	}
@@ -177,14 +188,18 @@ func (s *dependencyFetchService) acquireDependencyRegistryLease(ctx context.Cont
 	return s.authSource.AcquireLease(ctx, req)
 }
 
-func (s *dependencyFetchService) fetchDependencyPayload(ctx context.Context, req DependencyFetchRequestObject, requestHash string, lease dependencyRegistryAuthLease) (artifacts.ArtifactReference, dependencyRegistryFetchMetadata, error) {
+func (s *dependencyFetchService) fetchDependencyPayload(ctx context.Context, req DependencyFetchRequestObject, requestHash string, lease dependencyRegistryAuthLease, maxResponseBytes int64) (artifacts.ArtifactReference, dependencyRegistryFetchMetadata, error) {
 	reader, metadata, err := s.fetcher.Fetch(ctx, req, lease)
 	if err != nil {
 		return artifacts.ArtifactReference{}, dependencyRegistryFetchMetadata{}, err
 	}
 	defer reader.Close()
+	if maxResponseBytes <= 0 {
+		maxResponseBytes = int64(gatewayRuntimeMaxResponseBytes)
+	}
+	boundedReader := newStreamingSizeLimitReader(reader, maxResponseBytes)
 	payloadRef, err := s.owner.PutStream(artifacts.PutStreamRequest{
-		Reader:                reader,
+		Reader:                boundedReader,
 		ContentType:           coalesceString(metadata.ContentType, "application/octet-stream"),
 		DataClass:             artifacts.DataClassDependencyPayloadUnit,
 		ProvenanceReceiptHash: artifacts.DigestBytes([]byte("dependency-registry-fetch:" + requestHash)),
@@ -193,6 +208,9 @@ func (s *dependencyFetchService) fetchDependencyPayload(ctx context.Context, req
 		StepID:                "dependency_fetch",
 	})
 	if err != nil {
+		if isStreamingSizeLimitError(err) {
+			return artifacts.ArtifactReference{}, dependencyRegistryFetchMetadata{}, err
+		}
 		return artifacts.ArtifactReference{}, dependencyRegistryFetchMetadata{}, err
 	}
 	if metadata.ExpectedPayloadDigest != "" && metadata.ExpectedPayloadDigest != payloadRef.Digest {
@@ -200,6 +218,18 @@ func (s *dependencyFetchService) fetchDependencyPayload(ctx context.Context, req
 		return artifacts.ArtifactReference{}, dependencyRegistryFetchMetadata{}, artifacts.ErrDependencyCacheUnverifiableIdentity
 	}
 	return payloadRef, metadata, nil
+}
+
+func (s *dependencyFetchService) applyDependencyAuthorization(resolution *dependencyUnitResolution, authz dependencyFetchAuthorization) {
+	if resolution == nil {
+		return
+	}
+	resolution.destinationKind = strings.TrimSpace(authz.destinationKind)
+	resolution.destinationRef = strings.TrimSpace(authz.destinationRef)
+	resolution.actionRequestHash = strings.TrimSpace(authz.actionRequestHash)
+	resolution.policyDecisionHash = strings.TrimSpace(authz.policyDecisionHash)
+	resolution.matchedAllowlistRef = strings.TrimSpace(authz.matchedAllowlistRef)
+	resolution.matchedAllowlistID = strings.TrimSpace(authz.matchedAllowlistID)
 }
 
 func (s *dependencyFetchService) putResolvedUnitManifest(req DependencyFetchRequestObject, requestHash, resolvedDigest string, payloadRef artifacts.ArtifactReference, metadata dependencyRegistryFetchMetadata) (map[string]any, artifacts.ArtifactReference, error) {

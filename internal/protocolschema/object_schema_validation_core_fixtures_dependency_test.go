@@ -76,13 +76,12 @@ func invalidDependencyResolvedUnitManifestWithWrongPayloadDataClass() map[string
 
 func validDependencyFetchBatchResult() map[string]any {
 	return map[string]any{
-		"schema_id":             "runecode.protocol.v0.DependencyFetchBatchResult",
-		"schema_version":        "0.1.0",
-		"batch_request_hash":    testDigestValue("2"),
-		"batch_manifest_digest": testDigestValue("3"),
-		"resolution_state":      "complete",
-		"cache_outcome":         "hit_exact",
-		"resolved_units":        []any{validDependencyResolvedUnitManifest()},
+		"schema_id":          "runecode.protocol.v0.DependencyFetchBatchResult",
+		"schema_version":     "0.1.0",
+		"batch_request_hash": testDigestValue("2"),
+		"resolution_state":   "complete",
+		"cache_outcome":      "hit_exact",
+		"resolved_units":     []any{validDependencyResolvedUnitManifest()},
 		"materialization": map[string]any{
 			"derived_only": true,
 			"read_only":    true,
@@ -168,5 +167,65 @@ func validDependencyFetchRegistryResponse() map[string]any {
 func invalidDependencyFetchRegistryResponseWithoutPayloadDigests() map[string]any {
 	response := validDependencyFetchRegistryResponse()
 	delete(response, "payload_digests")
+	return response
+}
+
+func validDependencyCacheHandoffRequest() map[string]any {
+	return map[string]any{
+		"schema_id":      "runecode.protocol.v0.DependencyCacheHandoffRequest",
+		"schema_version": "0.1.0",
+		"request_id":     "req-dependency-cache-handoff",
+		"request_digest": testDigestValue("c"),
+		"consumer_role":  "workspace",
+	}
+}
+
+func invalidDependencyCacheHandoffRequestWithoutConsumerRole() map[string]any {
+	request := validDependencyCacheHandoffRequest()
+	delete(request, "consumer_role")
+	return request
+}
+
+func validDependencyCacheHandoffMetadata() map[string]any {
+	return map[string]any{
+		"schema_id":            "runecode.protocol.v0.DependencyCacheHandoffMetadata",
+		"schema_version":       "0.1.0",
+		"request_digest":       testDigestValue("d"),
+		"resolved_unit_digest": testDigestValue("e"),
+		"manifest_digest":      testDigestValue("f"),
+		"payload_digests":      []any{testDigestValue("1")},
+		"materialization_mode": "derived_read_only",
+		"handoff_mode":         "broker_internal_artifact_handoff",
+	}
+}
+
+func invalidDependencyCacheHandoffMetadataWithUnsupportedMode() map[string]any {
+	metadata := validDependencyCacheHandoffMetadata()
+	metadata["handoff_mode"] = "unsupported_mode"
+	return metadata
+}
+
+func validDependencyCacheHandoffResponseFound() map[string]any {
+	return map[string]any{
+		"schema_id":      "runecode.protocol.v0.DependencyCacheHandoffResponse",
+		"schema_version": "0.1.0",
+		"request_id":     "req-dependency-cache-handoff",
+		"found":          true,
+		"handoff":        validDependencyCacheHandoffMetadata(),
+	}
+}
+
+func validDependencyCacheHandoffResponseNotFound() map[string]any {
+	return map[string]any{
+		"schema_id":      "runecode.protocol.v0.DependencyCacheHandoffResponse",
+		"schema_version": "0.1.0",
+		"request_id":     "req-dependency-cache-handoff",
+		"found":          false,
+	}
+}
+
+func invalidDependencyCacheHandoffResponseFoundWithoutHandoff() map[string]any {
+	response := validDependencyCacheHandoffResponseFound()
+	delete(response, "handoff")
 	return response
 }

@@ -107,7 +107,14 @@ func gateDefinitionFixtureWithRequiredGateContract() map[string]any {
 		"order_index":         0,
 		"role_instance_id":    "workspace_editor_1",
 		"executor_binding_id": "binding_workspace_runner",
-		"gate":                gateContractFixtureWithRequiredFields(),
+		"dependency_cache_handoffs": []any{
+			map[string]any{
+				"request_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("d", 64)},
+				"consumer_role":  "workspace",
+				"required":       true,
+			},
+		},
+		"gate": gateContractFixtureWithRequiredFields(),
 	}
 }
 

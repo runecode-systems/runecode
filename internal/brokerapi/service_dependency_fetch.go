@@ -97,7 +97,7 @@ func newDependencyFetchService(owner *Service, maxParallel int) *dependencyFetch
 	}
 	return &dependencyFetchService{
 		owner:      owner,
-		fetcher:    publicRegistryDeterministicFetcher{},
+		fetcher:    newPublicRegistryHTTPFetcher(),
 		authSource: publicRegistryNoAuthSource{},
 		sem:        make(chan struct{}, maxParallel),
 		inflight:   map[string]*dependencyFetchFlight{},

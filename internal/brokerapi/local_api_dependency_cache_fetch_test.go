@@ -3,14 +3,21 @@ package brokerapi
 import (
 	"context"
 	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func TestDependencyFetchRegistryDigestMismatchRollsBackPayloadArtifact(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	putTrustedDependencyFetchContextForRun(t, s, "run-deps")
 	fetcher := &mismatchDigestFetcher{payload: "payload-with-bad-expected-digest"}
 	s.SetDependencyRegistryFetcherForTests(fetcher)
 
@@ -27,6 +34,7 @@ func TestDependencyFetchRegistryDigestMismatchRollsBackPayloadArtifact(t *testin
 
 func TestDependencyFetchRegistryCoalescesMisses(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{DependencyFetch: DependencyFetchConfig{MaxParallelFetches: 8}})
+	putTrustedDependencyFetchContextForRun(t, s, "run-deps")
 	fetcher := &gatedCountingFetcher{gate: make(chan struct{}), started: make(chan struct{})}
 	s.SetDependencyRegistryFetcherForTests(fetcher)
 
@@ -89,6 +97,7 @@ func waitForCoalescedFetchStart(t *testing.T, fetcher *gatedCountingFetcher, cal
 
 func TestDependencyFetchRegistryBoundedParallelism(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{DependencyFetch: DependencyFetchConfig{MaxParallelFetches: 2}})
+	putTrustedDependencyFetchContextForRun(t, s, "run-deps")
 	fetcher := &concurrencyCountingFetcher{gate: make(chan struct{})}
 	s.SetDependencyRegistryFetcherForTests(fetcher)
 
@@ -118,6 +127,7 @@ func TestDependencyFetchRegistryBoundedParallelism(t *testing.T) {
 
 func TestDependencyFetchRegistryStreamsToCAS(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	putTrustedDependencyFetchContextForRun(t, s, "run-deps")
 	payload := strings.Repeat("stream-me-", 8192)
 	s.SetDependencyRegistryFetcherForTests(streamingFetcher{payload: payload})
 
@@ -151,6 +161,7 @@ func TestDependencyFetchRegistryStreamsToCAS(t *testing.T) {
 
 func TestDependencyFetchRegistryStreamsWithBoundedReadChunks(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	putTrustedDependencyFetchContextForRun(t, s, "run-deps")
 	fetcher := &boundedChunkFetcher{payloadSize: 3 << 20, maxReadBuf: 128 << 10}
 	s.SetDependencyRegistryFetcherForTests(fetcher)
 
@@ -172,6 +183,8 @@ func TestDependencyFetchRegistryStreamsWithBoundedReadChunks(t *testing.T) {
 func TestDependencyFetchIdentityPortableAcrossStoreRoots(t *testing.T) {
 	left := newBrokerAPIServiceForTests(t, APIConfig{})
 	right := newBrokerAPIServiceForTests(t, APIConfig{})
+	putTrustedDependencyFetchContextForRun(t, left, "run-deps-portability-left")
+	putTrustedDependencyFetchContextForRun(t, right, "run-deps-portability-right")
 	leftReq := dependencyFetchRegistryRequestForTest("req-portable-left", "run-deps-portability-left", "portable")
 	rightReq := dependencyFetchRegistryRequestForTest("req-portable-right", "run-deps-portability-right", "portable")
 
@@ -188,5 +201,131 @@ func TestDependencyFetchIdentityPortableAcrossStoreRoots(t *testing.T) {
 	}
 	if leftResp.ResolvedUnitDigest != rightResp.ResolvedUnitDigest {
 		t.Fatalf("resolved_unit_digest mismatch across store roots")
+	}
+}
+
+func TestDependencyFetchRegistryPublicFetcherUsesLocalHTTPServer(t *testing.T) {
+	payload := "from-httptest-public-registry"
+	observedPath, server := newDependencyRegistryTLSServer(payload)
+	defer server.Close()
+
+	hostPort, port := httptestServerHostPort(t, server.URL)
+
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-deps-public-httptest"
+	host := "registry.npmjs.org"
+	putTrustedDependencyFetchContextForRunWithAllowlistEntries(t, s, runID, []any{trustedDependencyFetchAllowlistEntryForHostAndPort(host, &port)})
+	req := dependencyFetchRegistryRequestForTest("req-public-httptest", runID, "httpfetch")
+	req.DependencyRequest.RegistryIdentity.CanonicalHost = host
+	req.DependencyRequest.RegistryIdentity.CanonicalPort = &port
+	req.DependencyRequest.RegistryIdentity.CanonicalPathPrefix = "/"
+	req.RequestHash = mustDependencyRequestHash(t, req.DependencyRequest)
+
+	fetcher := newPublicRegistryHTTPFetcher()
+	fetcher.resolver = fakeResolver{hosts: map[string][]string{host: []string{"93.184.216.34"}}}
+	configureRegistryHTTPFetcherForTLSServer(t, &fetcher, server, hostPort)
+	s.SetDependencyRegistryFetcherForTests(fetcher)
+
+	resp, errResp := s.HandleDependencyFetchRegistry(context.Background(), req, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleDependencyFetchRegistry error: %+v", errResp)
+	}
+	if resp.CacheOutcome != "miss_filled" {
+		t.Fatalf("cache_outcome = %q, want miss_filled", resp.CacheOutcome)
+	}
+	if resp.FetchedBytes != int64(len(payload)) {
+		t.Fatalf("fetched_bytes = %d, want %d", resp.FetchedBytes, len(payload))
+	}
+	requireNonRootObservedPath(t, observedPath)
+}
+
+func newDependencyRegistryTLSServer(payload string) (*string, *httptest.Server) {
+	observedPath := ""
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		observedPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/octet-stream")
+		_, _ = w.Write([]byte(payload))
+	}))
+	return &observedPath, server
+}
+
+func requireNonRootObservedPath(t *testing.T, observedPath *string) {
+	t.Helper()
+	if observedPath == nil || *observedPath == "" || *observedPath == "/" {
+		t.Fatalf("request path = %q, want npm tarball path", valueOrEmpty(observedPath))
+	}
+}
+
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func httptestServerHostPort(t *testing.T, rawURL string) (string, int) {
+	t.Helper()
+	hostPort := strings.TrimPrefix(rawURL, "https://")
+	_, portStr, err := net.SplitHostPort(hostPort)
+	if err != nil {
+		t.Fatalf("SplitHostPort returned error: %v", err)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		t.Fatalf("Atoi port returned error: %v", err)
+	}
+	return hostPort, port
+}
+
+func mustDependencyRequestHash(t *testing.T, req DependencyFetchRequestObject) trustpolicy.Digest {
+	t.Helper()
+	requestHashIdentity, err := canonicalDependencyRequestIdentity(req)
+	if err != nil {
+		t.Fatalf("canonicalDependencyRequestIdentity returned error: %v", err)
+	}
+	reqHash, err := digestFromIdentity(requestHashIdentity)
+	if err != nil {
+		t.Fatalf("digestFromIdentity returned error: %v", err)
+	}
+	return reqHash
+}
+
+func configureRegistryHTTPFetcherForTLSServer(t *testing.T, fetcher *publicRegistryHTTPFetcher, server *httptest.Server, hostPort string) {
+	t.Helper()
+	client, ok := fetcher.client.(*http.Client)
+	if !ok {
+		t.Fatal("fetcher client is not *http.Client")
+	}
+	transport, _ := server.Client().Transport.(*http.Transport)
+	if transport == nil {
+		t.Fatal("server transport is not *http.Transport")
+	}
+	clone := transport.Clone()
+	clone.TLSClientConfig.InsecureSkipVerify = true
+	clone.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		dialer := &net.Dialer{}
+		return dialer.DialContext(ctx, network, hostPort)
+	}
+	client.Transport = clone
+	client.Timeout = 5 * time.Second
+}
+
+func TestDependencyFetchRegistryEnforcesStreamingResponseSizeLimit(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-deps-size-limit"
+	putTrustedDependencyFetchContextForRun(t, s, runID)
+	req := dependencyFetchRegistryRequestForTest("req-size-limit", runID, "oversize")
+
+	fetcher := &streamingFetcher{payload: strings.Repeat("x", (16<<20)+1)}
+	s.SetDependencyRegistryFetcherForTests(fetcher)
+	_, errResp := s.HandleDependencyFetchRegistry(context.Background(), req, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleDependencyFetchRegistry succeeded, want size-limit rejection")
+	}
+	if errResp.Error.Code != "gateway_failure" {
+		t.Fatalf("error code = %q, want gateway_failure", errResp.Error.Code)
+	}
+	if !strings.Contains(strings.ToLower(errResp.Error.Message), "max_response_bytes") {
+		t.Fatalf("error message = %q, want max_response_bytes detail", errResp.Error.Message)
 	}
 }

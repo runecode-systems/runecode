@@ -25,6 +25,13 @@ func TestProviderSetupRPCOperationsIncludeSecretSubmitAndLeaseIssue(t *testing.T
 	}
 }
 
+func TestArtifactRPCOperationsIncludeDependencyCacheHandoff(t *testing.T) {
+	ops := artifactRPCOperations(nil, context.Background(), brokerapi.RequestContext{})
+	if _, ok := ops["dependency_cache_handoff"]; !ok {
+		t.Fatal("dependency_cache_handoff operation missing")
+	}
+}
+
 func TestDispatchLocalRPCProviderSetupSecretIngressSubmitPreservesPayloadAndRoutesLeaseIssue(t *testing.T) {
 	service := newBrokerServiceWithSecretsState(t)
 	ctx := context.Background()

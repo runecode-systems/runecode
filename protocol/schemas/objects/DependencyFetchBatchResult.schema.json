@@ -5,12 +5,11 @@
   "description": "Lockfile-bound dependency fetch batch result binding canonical request identity to exact resolved-unit digests, cache outcomes, and read-only offline materialization posture.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 10,
+  "maxProperties": 9,
   "required": [
     "schema_id",
     "schema_version",
     "batch_request_hash",
-    "batch_manifest_digest",
     "resolution_state",
     "cache_outcome",
     "resolved_units"
@@ -29,11 +28,6 @@
     "batch_request_hash": {
       "$ref": "Digest.schema.json#/$defs/digestValue",
       "description": "Canonical digest of the typed DependencyFetchBatchRequest object.",
-      "x-data-class": "public"
-    },
-    "batch_manifest_digest": {
-      "$ref": "Digest.schema.json#/$defs/digestValue",
-      "description": "Digest identity of the immutable dependency batch manifest artifact.",
       "x-data-class": "public"
     },
     "resolution_state": {

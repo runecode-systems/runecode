@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/DependencyCacheHandoffResponse.schema.json",
+  "title": "DependencyCacheHandoffResponse",
+  "description": "Broker-local response for dependency cache handoff metadata lookup by canonical request digest.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 5,
+  "required": ["schema_id", "schema_version", "request_id", "found"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.DependencyCacheHandoffResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable echoed request correlation identifier.", "x-data-class": "public" },
+    "found": { "type": "boolean", "description": "Whether the broker found a unique policy-allowed handoff for request_digest.", "x-data-class": "public" },
+    "handoff": { "$ref": "DependencyCacheHandoffMetadata.schema.json", "description": "Broker-authoritative handoff metadata when found=true.", "x-data-class": "public" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "found": { "const": true } }, "required": ["found"] },
+      "then": { "required": ["handoff"] }
+    },
+    {
+      "if": { "properties": { "found": { "const": false } }, "required": ["found"] },
+      "then": { "not": { "required": ["handoff"] } }
+    }
+  ]
+}

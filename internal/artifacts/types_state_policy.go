@@ -163,7 +163,7 @@ func DefaultPolicy() Policy {
 			{ProducerRole: "workspace", ConsumerRole: "auditd", AllowedDataClasses: []DataClass{DataClassAuditEvents, DataClassAuditVerificationReport, DataClassGateEvidence, DataClassBuildLogs, DataClassDiffs, DataClassSpecText, DataClassUnapprovedFileExcerpts, DataClassApprovedFileExcerpts}},
 			{ProducerRole: "dependency-fetch", ConsumerRole: "workspace", AllowedDataClasses: []DataClass{DataClassDependencyBatchManifest, DataClassDependencyResolvedUnit, DataClassDependencyPayloadUnit, DataClassDependencyMaterialized}},
 			{ProducerRole: "dependency-fetch", ConsumerRole: "workspace-edit", AllowedDataClasses: []DataClass{DataClassDependencyBatchManifest, DataClassDependencyResolvedUnit, DataClassDependencyPayloadUnit, DataClassDependencyMaterialized}},
-			{ProducerRole: "dependency-fetch", ConsumerRole: "workspace-run", AllowedDataClasses: []DataClass{DataClassDependencyBatchManifest, DataClassDependencyResolvedUnit, DataClassDependencyPayloadUnit, DataClassDependencyMaterialized}},
+			{ProducerRole: "dependency-fetch", ConsumerRole: "workspace-test", AllowedDataClasses: []DataClass{DataClassDependencyBatchManifest, DataClassDependencyResolvedUnit, DataClassDependencyPayloadUnit, DataClassDependencyMaterialized}},
 		},
 		RevokedApprovedExcerptHashes: map[string]bool{},
 		PerRoleQuota: map[string]Quota{

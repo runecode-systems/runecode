@@ -73,37 +73,50 @@ func validExecutorBindingFixture() map[string]any {
 
 func validRunPlanGateDefinitionFixture() map[string]any {
 	return map[string]any{
-		"schema_id":           "runecode.protocol.v0.GateDefinition",
-		"schema_version":      "0.1.0",
-		"checkpoint_code":     "step_validation_started",
-		"order_index":         0,
-		"role_instance_id":    "workspace_editor_1",
-		"executor_binding_id": "binding_workspace_runner",
-		"gate": map[string]any{
-			"schema_id":      "runecode.protocol.v0.GateContract",
-			"schema_version": "0.1.0",
-			"gate_id":        "build_gate",
-			"gate_kind":      "build",
-			"gate_version":   "1.0.0",
-			"normalized_inputs": []any{
-				map[string]any{
-					"input_id":     "source_tree",
-					"input_digest": testDigestString("1"),
-				},
+		"schema_id":                 "runecode.protocol.v0.GateDefinition",
+		"schema_version":            "0.1.0",
+		"checkpoint_code":           "step_validation_started",
+		"order_index":               0,
+		"role_instance_id":          "workspace_editor_1",
+		"executor_binding_id":       "binding_workspace_runner",
+		"dependency_cache_handoffs": []any{validDependencyCacheHandoffFixture()},
+		"gate":                      validGateContractFixture(),
+	}
+}
+
+func validDependencyCacheHandoffFixture() map[string]any {
+	return map[string]any{
+		"request_digest": testDigestValue("d"),
+		"consumer_role":  "workspace",
+		"required":       true,
+	}
+}
+
+func validGateContractFixture() map[string]any {
+	return map[string]any{
+		"schema_id":      "runecode.protocol.v0.GateContract",
+		"schema_version": "0.1.0",
+		"gate_id":        "build_gate",
+		"gate_kind":      "build",
+		"gate_version":   "1.0.0",
+		"normalized_inputs": []any{
+			map[string]any{
+				"input_id":     "source_tree",
+				"input_digest": testDigestString("1"),
 			},
-			"plan_binding": map[string]any{
-				"checkpoint_code": "step_validation_started",
-				"order_index":     0,
-			},
-			"retry_semantics": map[string]any{
-				"retry_mode":   "new_attempt_required",
-				"max_attempts": 3,
-			},
-			"override_semantics": map[string]any{
-				"override_mode":         "policy_action_required",
-				"action_kind":           "action_gate_override",
-				"approval_trigger_code": "gate_override",
-			},
+		},
+		"plan_binding": map[string]any{
+			"checkpoint_code": "step_validation_started",
+			"order_index":     0,
+		},
+		"retry_semantics": map[string]any{
+			"retry_mode":   "new_attempt_required",
+			"max_attempts": 3,
+		},
+		"override_semantics": map[string]any{
+			"override_mode":         "policy_action_required",
+			"action_kind":           "action_gate_override",
+			"approval_trigger_code": "gate_override",
 		},
 	}
 }

@@ -49,6 +49,15 @@ func TestHelpAndUnknownCommand(t *testing.T) {
 	if !strings.Contains(stdout.String(), "git-remote-mutation-prepare") {
 		t.Fatalf("help output missing git-remote-mutation-prepare command: %q", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "dependency-cache-ensure") {
+		t.Fatalf("help output missing dependency-cache-ensure command: %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "dependency-fetch-registry") {
+		t.Fatalf("help output missing dependency-fetch-registry command: %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "dependency-cache-handoff") {
+		t.Fatalf("help output missing dependency-cache-handoff command: %q", stdout.String())
+	}
 	if !strings.Contains(stdout.String(), "approval-resolve") {
 		t.Fatalf("help output missing approval-resolve command: %q", stdout.String())
 	}

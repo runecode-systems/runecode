@@ -333,6 +333,18 @@ func (f *reloadAwareBrokerClient) ArtifactRead(ctx context.Context, req brokerap
 	return []brokerapi.ArtifactStreamEvent{{EventType: "artifact_stream_chunk", ChunkBase64: chunk}, {EventType: "artifact_stream_terminal", Terminal: true, TerminalStatus: "completed"}}, nil
 }
 
+func (f *reloadAwareBrokerClient) DependencyCacheEnsure(ctx context.Context, req brokerapi.DependencyCacheEnsureRequest) (brokerapi.DependencyCacheEnsureResponse, error) {
+	return (&fakeBrokerClient{}).DependencyCacheEnsure(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) DependencyFetchRegistry(ctx context.Context, req brokerapi.DependencyFetchRegistryRequest) (brokerapi.DependencyFetchRegistryResponse, error) {
+	return (&fakeBrokerClient{}).DependencyFetchRegistry(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) DependencyCacheHandoff(ctx context.Context, req brokerapi.DependencyCacheHandoffRequest) (brokerapi.DependencyCacheHandoffResponse, error) {
+	return (&fakeBrokerClient{}).DependencyCacheHandoff(ctx, req)
+}
+
 func (f *reloadAwareBrokerClient) LLMInvoke(ctx context.Context, req brokerapi.LLMInvokeRequest) (brokerapi.LLMInvokeResponse, error) {
 	return (&fakeBrokerClient{}).LLMInvoke(ctx, req)
 }
@@ -491,6 +503,33 @@ func (f *fakeBrokerClient) ArtifactRead(ctx context.Context, req brokerapi.Artif
 		{EventType: "artifact_stream_chunk", ChunkBase64: chunk},
 		{EventType: "artifact_stream_terminal", Terminal: true, TerminalStatus: "completed"},
 	}, nil
+}
+
+func (f *fakeBrokerClient) DependencyCacheEnsure(ctx context.Context, req brokerapi.DependencyCacheEnsureRequest) (brokerapi.DependencyCacheEnsureResponse, error) {
+	_ = ctx
+	if strings.TrimSpace(req.RunID) == "" {
+		return brokerapi.DependencyCacheEnsureResponse{}, fmt.Errorf("run id required")
+	}
+	return brokerapi.DependencyCacheEnsureResponse{}, nil
+}
+
+func (f *fakeBrokerClient) DependencyFetchRegistry(ctx context.Context, req brokerapi.DependencyFetchRegistryRequest) (brokerapi.DependencyFetchRegistryResponse, error) {
+	_ = ctx
+	if strings.TrimSpace(req.RunID) == "" {
+		return brokerapi.DependencyFetchRegistryResponse{}, fmt.Errorf("run id required")
+	}
+	return brokerapi.DependencyFetchRegistryResponse{}, nil
+}
+
+func (f *fakeBrokerClient) DependencyCacheHandoff(ctx context.Context, req brokerapi.DependencyCacheHandoffRequest) (brokerapi.DependencyCacheHandoffResponse, error) {
+	_ = ctx
+	if _, err := req.RequestDigest.Identity(); err != nil {
+		return brokerapi.DependencyCacheHandoffResponse{}, fmt.Errorf("request digest required")
+	}
+	if strings.TrimSpace(req.ConsumerRole) == "" {
+		return brokerapi.DependencyCacheHandoffResponse{}, fmt.Errorf("consumer role required")
+	}
+	return brokerapi.DependencyCacheHandoffResponse{}, nil
 }
 
 func (f *fakeBrokerClient) LLMInvoke(ctx context.Context, req brokerapi.LLMInvokeRequest) (brokerapi.LLMInvokeResponse, error) {

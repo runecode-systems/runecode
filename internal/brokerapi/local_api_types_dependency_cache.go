@@ -68,3 +68,30 @@ type DependencyFetchRegistryResponse struct {
 	FetchedBytes         int64                `json:"fetched_bytes"`
 	RegistryRequestCount int                  `json:"registry_request_count"`
 }
+
+type DependencyCacheHandoffRequest struct {
+	SchemaID      string             `json:"schema_id"`
+	SchemaVersion string             `json:"schema_version"`
+	RequestID     string             `json:"request_id"`
+	RequestDigest trustpolicy.Digest `json:"request_digest"`
+	ConsumerRole  string             `json:"consumer_role"`
+}
+
+type DependencyCacheHandoffMetadata struct {
+	SchemaID            string               `json:"schema_id"`
+	SchemaVersion       string               `json:"schema_version"`
+	RequestDigest       trustpolicy.Digest   `json:"request_digest"`
+	ResolvedUnitDigest  trustpolicy.Digest   `json:"resolved_unit_digest"`
+	ManifestDigest      trustpolicy.Digest   `json:"manifest_digest"`
+	PayloadDigests      []trustpolicy.Digest `json:"payload_digests"`
+	MaterializationMode string               `json:"materialization_mode"`
+	HandoffMode         string               `json:"handoff_mode"`
+}
+
+type DependencyCacheHandoffResponse struct {
+	SchemaID      string                          `json:"schema_id"`
+	SchemaVersion string                          `json:"schema_version"`
+	RequestID     string                          `json:"request_id"`
+	Found         bool                            `json:"found"`
+	Handoff       *DependencyCacheHandoffMetadata `json:"handoff,omitempty"`
+}

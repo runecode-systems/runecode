@@ -128,6 +128,9 @@ func commandHandlers() map[string]brokerCommandSpec {
 
 func addLiveIPCCommandHandlers(handlers map[string]brokerCommandSpec) {
 	for command, spec := range map[string]brokerCommandSpec{
+		"dependency-cache-ensure":                 {handler: handleDependencyCacheEnsure, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"dependency-fetch-registry":               {handler: handleDependencyFetchRegistry, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"dependency-cache-handoff":                {handler: handleDependencyCacheHandoff, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"audit-readiness":                         {handler: handleAuditReadiness, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"audit-verification":                      {handler: handleAuditVerification, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"audit-finalize-verify":                   {handler: handleAuditFinalizeVerify, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
@@ -269,6 +272,9 @@ Commands:
 	  provider-credential-lease-issue --provider-profile-id id --run-id run-1 [--ttl-seconds 900]
 	  provider-profile-list
 	  provider-profile-get --provider-profile-id id
+	  dependency-cache-ensure --request-file path
+	  dependency-fetch-registry --request-file path
+	  dependency-cache-handoff --request-file path
 	  project-substrate-get
 	  project-substrate-posture-get
 	  project-substrate-adopt

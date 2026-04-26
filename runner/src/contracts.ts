@@ -9,6 +9,9 @@ export const RUNNER_CHECKPOINT_REPORT_SCHEMA_ID = "runecode.protocol.v0.RunnerCh
 export const RUNNER_RESULT_REPORT_SCHEMA_ID = "runecode.protocol.v0.RunnerResultReport";
 export const RUNNER_CHECKPOINT_REPORT_REQUEST_SCHEMA_ID = "runecode.protocol.v0.RunnerCheckpointReportRequest";
 export const RUNNER_RESULT_REPORT_REQUEST_SCHEMA_ID = "runecode.protocol.v0.RunnerResultReportRequest";
+export const DEPENDENCY_CACHE_HANDOFF_REQUEST_SCHEMA_ID = "runecode.protocol.v0.DependencyCacheHandoffRequest";
+export const DEPENDENCY_CACHE_HANDOFF_RESPONSE_SCHEMA_ID = "runecode.protocol.v0.DependencyCacheHandoffResponse";
+export const DEPENDENCY_CACHE_HANDOFF_METADATA_SCHEMA_ID = "runecode.protocol.v0.DependencyCacheHandoffMetadata";
 export const RUNNER_CONTRACT_SCHEMA_VERSION = "0.1.0";
 
 /**
@@ -94,4 +97,31 @@ export type RunnerResultReportRequest = {
   request_id: string;
   run_id: string;
   report: RunnerResultReport;
+};
+
+export type DependencyCacheHandoffRequest = {
+	schema_id: typeof DEPENDENCY_CACHE_HANDOFF_REQUEST_SCHEMA_ID;
+	schema_version: typeof RUNNER_CONTRACT_SCHEMA_VERSION;
+	request_id: string;
+	request_digest: { hash_alg: "sha256"; hash: string };
+	consumer_role: string;
+};
+
+export type DependencyCacheHandoffMetadata = {
+	schema_id: typeof DEPENDENCY_CACHE_HANDOFF_METADATA_SCHEMA_ID;
+	schema_version: typeof RUNNER_CONTRACT_SCHEMA_VERSION;
+	request_digest: { hash_alg: "sha256"; hash: string };
+	resolved_unit_digest: { hash_alg: "sha256"; hash: string };
+	manifest_digest: { hash_alg: "sha256"; hash: string };
+	payload_digests: Array<{ hash_alg: "sha256"; hash: string }>;
+	materialization_mode: "derived_read_only";
+	handoff_mode: "broker_internal_artifact_handoff";
+};
+
+export type DependencyCacheHandoffResponse = {
+	schema_id: typeof DEPENDENCY_CACHE_HANDOFF_RESPONSE_SCHEMA_ID;
+	schema_version: typeof RUNNER_CONTRACT_SCHEMA_VERSION;
+	request_id: string;
+	found: boolean;
+	handoff?: DependencyCacheHandoffMetadata;
 };

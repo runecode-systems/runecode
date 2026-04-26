@@ -231,6 +231,27 @@
       "status": "mvp"
     },
     {
+      "path": "objects/DependencyCacheHandoffRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.DependencyCacheHandoffRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/DependencyCacheHandoffMetadata.schema.json",
+      "schema_id": "runecode.protocol.v0.DependencyCacheHandoffMetadata",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/DependencyCacheHandoffResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.DependencyCacheHandoffResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/GatewayScopeRule.schema.json",
       "schema_id": "runecode.protocol.v0.GatewayScopeRule",
       "schema_version": "0.1.0",

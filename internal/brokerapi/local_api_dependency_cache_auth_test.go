@@ -3,6 +3,7 @@ package brokerapi
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -13,15 +14,6 @@ func TestDependencyFetchAuditIncludesPolicyAndAllowlistLinkage(t *testing.T) {
 	allowlistDigest := putTrustedDependencyFetchContextForRun(t, s, runID)
 
 	req := dependencyFetchRegistryRequestForTest("req-policy-audit", runID, "alpha")
-	requestHash, err := req.RequestHash.Identity()
-	if err != nil {
-		t.Fatalf("request hash identity error: %v", err)
-	}
-	decision := buildDependencyFetchPolicyDecision(requestHash)
-	if err := s.RecordPolicyDecision(runID, "", decision); err != nil {
-		t.Fatalf("RecordPolicyDecision returned error: %v", err)
-	}
-	decisionHash := decisionDigestIdentity(decision)
 
 	_, errResp := s.HandleDependencyFetchRegistry(context.Background(), req, RequestContext{})
 	if errResp != nil {
@@ -29,11 +21,12 @@ func TestDependencyFetchAuditIncludesPolicyAndAllowlistLinkage(t *testing.T) {
 	}
 
 	events := auditEventsByType(t, s, "dependency_registry_fetch")
-	requireDependencyFetchPolicyAudit(t, events, decision, decisionHash, allowlistDigest)
+	requireDependencyFetchPolicyAudit(t, events, allowlistDigest)
 }
 
 func TestDependencyFetchRegistryAuthIsBrokerInternalAndRunnerSurfaceClean(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	putTrustedDependencyFetchContextForRun(t, s, "run-deps")
 	s.SetDependencyRegistryAuthSourceForTests(fakeDependencyRegistryAuthSource{leaseID: "lease-sensitive", expiresAt: time.Now().Add(5 * time.Minute).UTC()})
 	fetcher := &leaseRecordingFetcher{payload: "leased-payload"}
 	s.SetDependencyRegistryFetcherForTests(fetcher)
@@ -60,5 +53,52 @@ func TestDependencyFetchRunnerFacingTypesDoNotExposeAuthMaterial(t *testing.T) {
 		reflect.TypeOf(DependencyCacheEnsureResponse{}),
 		reflect.TypeOf(DependencyFetchRegistryRequest{}),
 		reflect.TypeOf(DependencyFetchRegistryResponse{}),
+		reflect.TypeOf(DependencyCacheHandoffRequest{}),
+		reflect.TypeOf(DependencyCacheHandoffMetadata{}),
+		reflect.TypeOf(DependencyCacheHandoffResponse{}),
 	})
+}
+
+func TestDependencyFetchDeniedBeforeFetchWhenPolicyRejects(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-deps-policy-deny"
+	denyEntry := trustedDependencyFetchAllowlistEntryForTests()
+	denyEntry["permitted_operations"] = []any{"enable_dependency_fetch"}
+	putTrustedDependencyFetchContextForRunWithAllowlistEntries(t, s, runID, []any{denyEntry})
+
+	fetcher := &countingDependencyFetcher{payload: "should-not-fetch"}
+	s.SetDependencyRegistryFetcherForTests(fetcher)
+
+	req := dependencyFetchRegistryRequestForTest("req-policy-deny", runID, "deny")
+
+	_, errResp := s.HandleDependencyFetchRegistry(context.Background(), req, RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleDependencyFetchRegistry succeeded, want policy denial")
+	}
+	if errResp.Error.Code != "broker_limit_policy_rejected" {
+		t.Fatalf("error code = %q, want broker_limit_policy_rejected", errResp.Error.Code)
+	}
+	if !strings.Contains(errResp.Error.Message, "decision outcome") {
+		t.Fatalf("error message = %q, want decision outcome detail", errResp.Error.Message)
+	}
+	if got := fetcher.calls(); got != 0 {
+		t.Fatalf("fetcher calls = %d, want 0 for pre-fetch denial", got)
+	}
+}
+
+func TestDependencyFetchDeniedWhenPolicyContextUnavailableBeforeFetch(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	fetcher := &countingDependencyFetcher{payload: "should-not-fetch"}
+	s.SetDependencyRegistryFetcherForTests(fetcher)
+
+	_, errResp := s.HandleDependencyFetchRegistry(context.Background(), dependencyFetchRegistryRequestForTest("req-no-context", "run-deps-no-context", "ctx-missing"), RequestContext{})
+	if errResp == nil {
+		t.Fatal("HandleDependencyFetchRegistry succeeded, want policy context denial")
+	}
+	if errResp.Error.Code != "broker_limit_policy_rejected" {
+		t.Fatalf("error code = %q, want broker_limit_policy_rejected", errResp.Error.Code)
+	}
+	if got := fetcher.calls(); got != 0 {
+		t.Fatalf("fetcher calls = %d, want 0 when policy context unavailable", got)
+	}
 }

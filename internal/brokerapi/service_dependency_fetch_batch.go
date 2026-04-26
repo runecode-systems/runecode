@@ -180,13 +180,12 @@ func (s *dependencyFetchService) buildBatchManifestPayload(batchHash string, res
 		registryRequests += resolution.registryRequests
 	}
 	payload := map[string]any{
-		"schema_id":             "runecode.protocol.v0.DependencyFetchBatchResult",
-		"schema_version":        "0.1.0",
-		"batch_request_hash":    digestObjectForIdentity(batchHash),
-		"batch_manifest_digest": digestObjectForIdentity("sha256:" + strings.Repeat("0", 64)),
-		"resolution_state":      "complete",
-		"cache_outcome":         cacheOutcome,
-		"resolved_units":        resolvedUnits,
+		"schema_id":          "runecode.protocol.v0.DependencyFetchBatchResult",
+		"schema_version":     "0.1.0",
+		"batch_request_hash": digestObjectForIdentity(batchHash),
+		"resolution_state":   "complete",
+		"cache_outcome":      cacheOutcome,
+		"resolved_units":     resolvedUnits,
 		"materialization": map[string]any{
 			"derived_only": true,
 			"read_only":    true,

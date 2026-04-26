@@ -323,7 +323,7 @@ func TestLiveIPCCommandFailsDeterministicallyWhenBrokerUnavailable(t *testing.T)
 
 func TestLiveIPCCommandClassificationIncludesSessionCommands(t *testing.T) {
 	handlers := commandHandlers()
-	for _, command := range []string{"session-list", "session-get", "session-execution-trigger", "provider-credential-lease-issue"} {
+	for _, command := range []string{"session-list", "session-get", "session-execution-trigger", "provider-credential-lease-issue", "dependency-cache-ensure", "dependency-fetch-registry", "dependency-cache-handoff"} {
 		spec, ok := handlers[command]
 		if !ok {
 			t.Fatalf("missing command handler for %q", command)
