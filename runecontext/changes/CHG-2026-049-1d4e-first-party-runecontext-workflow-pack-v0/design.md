@@ -17,6 +17,8 @@ Deliver first-party productive workflows on top of the same typed workflow subst
 - First-party workflows must preserve the shared distinction between `waiting_operator_input` and `waiting_approval` rather than collapsing ordinary operator guidance into formal approval state.
 - First-party workflows must preserve the shared split between `approval_profile` and `autonomy_posture`; approval frequency and operator-question frequency are separate controls.
 - Pending operator input or formal approval must block only the exact dependent scope and direct downstream work that cannot proceed safely, while unrelated eligible work may continue when the shared plan, policy, coordination state, and project-substrate posture allow it.
+- First-party implementation workflows that require dependency material must reuse the shared broker-owned dependency-fetch and offline-cache contracts from `CHG-2026-024-acde-deps-fetch-offline-cache`; they must not rely on ordinary workspace package-manager internet access or workflow-local cache authority.
+- First-party implementation workflows should treat dependency scope enablement or expansion as the approval-bearing event and should not turn ordinary dependency cache misses into workflow-local approval prompts.
 
 ## First-Party Workflow Families
 
@@ -25,6 +27,11 @@ Deliver first-party productive workflows on top of the same typed workflow subst
 - Approved changes -> implementation run.
 
 Each family should preserve explicit artifact, approval, audit, and project-context linkage so the resulting work remains reviewable and verifiable.
+
+For the approved-change implementation family specifically:
+- dependency availability should be requested through the shared broker-owned dependency-fetch path before ordinary workspace execution consumes that material
+- cached dependency material should be consumed through broker-mediated internal artifact handoff and derived read-only materialization
+- the first end-to-end built-in implementation slice should remain compatible with the public-registry-first dependency-fetch posture
 
 ## Project-Substrate Gate
 

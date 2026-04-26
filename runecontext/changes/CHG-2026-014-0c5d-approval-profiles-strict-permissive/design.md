@@ -19,10 +19,14 @@ Define post-MVP approval profiles that adjust approval timing without weakening 
 - Profiles must preserve the shared distinction between `waiting_approval` and `waiting_operator_input`; ordinary operator guidance must not be relabeled as formal approval, and profile tuning must not hide required formal approvals.
 - Gate overrides remain exact explicit approvals across all profiles.
 - `git_remote_ops` and any equivalent future remote-state-mutation hard-floor classes remain exact explicit approvals across all profiles.
+- Dependency-fetch checkpoint semantics remain shared across all profiles; profiles may tune timing or batching only within the reviewed scope-change model and may not invent a competing dependency-local approval taxonomy.
 - Profiles must not batch, defer, or replace final git remote-mutation approval with stage sign-off, milestone approval, or ambient session acknowledgment.
 - Git remote-mutation approval payloads must remain bound to canonical repository identity, target refs, referenced patch artifact digests, expected result tree hash, and canonical action request hash.
 - Profiles may not lower the minimum assurance floor for git remote mutation below the reviewed baseline, which remains at least `reauthenticated`.
 - Profile expansion must respect the shared role-kind versus executor-class model and must not silently let `workspace-test` or other ordinary workspace roles inherit `system_modifying` behavior.
+- Profile expansion must also respect the shared dependency-fetch split:
+  - dependency scope enablement or expansion remains the approval-bearing checkpoint surface
+  - ordinary `fetch_dependency` work inside already-approved scope must not be relabeled as a new per-cache-miss approval model by profile-specific UX or policy mappings
 - Reduced-assurance backend selection, including explicit `container mode` opt-in, remains an exact-action approval across all profiles and must not become a stage-sign-off, batched ambient acknowledgment, or durable backend preference.
 - Approval profiles may tune ordinary approval timing and assurance where policy allows, but they must not weaken the minimum assurance or exact binding required for reduced-assurance backend posture changes.
 - Approval profiles must not weaken or override blocked project-substrate posture; diagnostics/remediation-only behavior for missing, invalid, non-verified, or unsupported repository substrate is not profile-controlled.

@@ -14,6 +14,7 @@ At the same time, naive parallelization in one shared workspace risks collisions
 - Dependency-aware partial blocking so pending operator input or approval freezes only the directly affected tracks and downstream dependent tracks, while unrelated eligible tracks may continue.
 - Canonical linkage from tracks and worktree-backed execution to sessions, runs, approvals, artifacts, audit records, and validated project-context bindings.
 - Explicit integration and verification flow for combining track results rather than heuristic ambient merging.
+- Explicit reuse of the shared broker-owned dependency-fetch and offline-cache authority so parallel worktrees consume reviewed dependency artifacts without inventing per-worktree cache identity or approval semantics.
 
 ## Why Now
 This work belongs after session execution orchestration, workflow definition binding, and the first-party workflow pack foundations exist, because that is the point where RuneCode can productively implement real change work and needs a reviewed way to keep safe independent work moving.
@@ -39,3 +40,5 @@ Planning it now avoids a later split between:
 
 ## Impact
 Creates one reviewed future path for multi-track implementation work: explicit or inferred track grouping, dependency-aware partial blocking, isolated git-worktree execution where appropriate, and broker-owned coordination truth across sessions, runs, approvals, artifacts, audit, and project context.
+
+It also keeps dependency behavior aligned with `CHG-2026-024-acde-deps-fetch-offline-cache`: worktrees may receive derived offline materializations for execution, but canonical dependency identity, fetch authority, approvals, and cache ownership stay broker-owned rather than becoming worktree-local state.

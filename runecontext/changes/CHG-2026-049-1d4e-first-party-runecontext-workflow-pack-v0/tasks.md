@@ -13,6 +13,10 @@
 - [ ] Define a first-party workflow that implements one or more approved changes.
 - [ ] Keep implementation runs on the shared isolate-backed workflow path.
 - [ ] Reuse shared approval, audit, verification, and git-gateway semantics where repository mutation is involved.
+- [ ] Reuse the shared broker-owned dependency-fetch and offline-cache path when implementation runs need dependency material.
+- [ ] Keep ordinary implementation execution from assuming direct workspace network access for package-manager fetches.
+- [ ] Keep cached dependency consumption on the internal artifact-handoff path plus ordinary workspace execution rather than treating it as egress.
+- [ ] Keep dependency scope enablement or expansion separate from ordinary dependency cache misses in workflow approval behavior.
 - [ ] Forbid ordinary implementation execution from implicitly initializing, upgrading, or rewriting repository project substrate.
 - [ ] Bind project-context-sensitive implementation runs to validated project-substrate snapshot identity.
 - [ ] Preserve the shared distinction between `waiting_operator_input` and `waiting_approval` for drafting and implementation workflow pauses.
@@ -38,3 +42,5 @@
 - [ ] Built-in productive workflows inherit shared project-substrate gating and snapshot-binding semantics rather than inventing workflow-local project-context rules.
 - [ ] Built-in productive workflows inherit the canonical repo-scoped product lifecycle and do not invent a second bootstrap, attach, or remediation path beside `runecode` and broker-owned lifecycle posture.
 - [ ] Built-in productive workflows inherit the shared dependency-aware wait model so blocked work pauses only dependent scope and direct downstream work while unrelated eligible work may continue when allowed.
+- [ ] Built-in implementation workflows acquire dependency material through the shared dependency-fetch/offline-cache foundation rather than through workflow-local package-manager network access.
+- [ ] The first end-to-end built-in workflow slice remains compatible with the public-registry-first dependency-fetch posture.

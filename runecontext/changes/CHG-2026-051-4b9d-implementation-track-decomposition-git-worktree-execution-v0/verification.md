@@ -11,11 +11,14 @@
 - Confirm inferred decomposition becomes a broker-owned proposed execution-plan artifact rather than a hidden runtime heuristic.
 - Confirm git worktrees are treated as the preferred isolation substrate for eligible low-coupling tracks rather than shared-workspace opportunism.
 - Confirm worktree paths and local branch names remain implementation-private and do not become public object identity.
+- Confirm dependency-fetch and offline-cache authority remain broker-owned and repo-scoped under worktree execution rather than drifting into per-worktree cache ownership.
+- Confirm canonical dependency identity remains bound to reviewed dependency request and resolved-unit semantics rather than worktree paths, unpacked trees, or package-manager-local caches.
 - Confirm pending operator input or approval blocks only the directly affected track and direct downstream dependent tracks.
 - Confirm unrelated eligible tracks may continue only when active plan, dependency graph, broker policy, coordination state, and project-substrate posture all allow it.
 - Confirm multiple pending waits may coexist and resolve independently.
 - Confirm track execution reuses the canonical approval-profile and autonomy-posture split rather than minting a second approval authority.
 - Confirm no autonomous path mints or substitutes for signed human approval decisions.
+- Confirm dependency scope enablement or expansion remains on the shared approval-bearing checkpoint model rather than becoming a per-worktree approval surface.
 - Confirm project-context-sensitive tracks bind to validated project-substrate snapshot digest and fail closed on incompatible drift.
 - Confirm canonical linkage among tracks, sessions, runs, approvals, artifacts, audit records, and project context remains broker-owned and explicit.
 - Confirm the roadmap and change text both place this feature in `vNext (Planned)`.

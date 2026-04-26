@@ -21,6 +21,10 @@
 - [ ] Bind selected workflow definitions into policy evaluation, approval requests, and audit evidence.
 - [ ] Route workflow execution progress through the shared runner-to-broker checkpoint/result model rather than a workflow-local status channel.
 - [ ] Ensure workflow-composed git remote mutation still routes through shared typed git request families, signed patch artifacts, exact repository identity, and `git_remote_ops` exact-action approval.
+- [ ] Ensure workflow-composed dependency fetch routes through the shared typed dependency-fetch request/batch contracts, broker-owned cache authority, and shared gateway audit/approval semantics from `CHG-2026-024-acde-deps-fetch-offline-cache`.
+- [ ] Keep workflow definitions from embedding raw lockfile bytes, tool-private cache paths, unpacked dependency trees, or package-manager-specific materialization paths as authoritative dependency identity.
+- [ ] Keep offline cached dependency use modeled as broker-mediated internal artifact handoff plus ordinary workspace execution rather than as workflow-local egress behavior.
+- [ ] Keep the initial contract compatible with the public-registry-first first slice and avoid dependency semantics that require private-registry credential flows in the foundational workflow substrate.
 - [ ] Reuse the shared project-substrate contract and validated snapshot-binding model for project-context-sensitive workflow selection or execution.
 - [ ] Reuse the shared human-involvement wait vocabulary, including distinct `waiting_operator_input` and `waiting_approval`, rather than defining workflow-local wait kinds.
 - [ ] Encode dependency-aware continuation so shared execution can distinguish blocked scope and direct downstream work from unrelated eligible work.
@@ -42,3 +46,4 @@
 - [ ] Later authoring and accelerator work can extend this substrate without redefining its authority model.
 - [ ] Project-context-sensitive workflows share one validated project-substrate binding model instead of inventing workflow-local project-context semantics.
 - [ ] Workflow-defined waits preserve shared scoped blocking semantics instead of forcing a whole-workflow stop model.
+- [ ] Workflow-defined dependency needs reuse the shared dependency-fetch and offline-cache substrate rather than inventing workflow-local package-manager or cache authority semantics.

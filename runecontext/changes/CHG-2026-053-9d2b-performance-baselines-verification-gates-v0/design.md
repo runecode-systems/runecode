@@ -10,6 +10,7 @@ The design goal is not just to benchmark the TUI. It is to give RuneCode one det
 - runner and workflow execution paths
 - launcher backend startup and attach readiness
 - model-gateway and secrets overhead
+- dependency-fetch and offline-cache overhead
 - audit, protocol, and verification costs
 - git gateway and project-substrate flows
 - end-to-end attach, resume, and execution behavior
@@ -315,6 +316,16 @@ The TUI findings are the most concrete current example, but the same failure mod
 | Credential lease issuance | deterministic provider-profile fixture | local issuance overhead | p95 `<= 150ms` | extended Linux |
 | Model-gateway invoke overhead | stubbed provider backend returning deterministic responses | RuneCode-added overhead excluding external network | p95 `<= 100ms` added overhead | extended Linux |
 
+### Dependency Fetch And Offline Cache
+
+| Aspect | Fixture | Check | Initial Threshold | CI Lane |
+| --- | --- | --- | --- | --- |
+| Dependency cache miss | deterministic public-registry fixture with reviewed dependency request object and stubbed registry payload source | broker-owned fetch to CAS with no existing cached units | threshold derived from committed baseline; fail on `> 15%` regression in wall time, peak RSS, or bytes buffered beyond reviewed budget | extended Linux |
+| Dependency cache hit | same fixture with cached resolved units already present | broker-owned dependency availability request with no network fetch path taken | threshold derived from committed baseline; fail on `> 15%` regression | extended Linux |
+| Dependency miss coalescing | concurrent identical deterministic dependency requests | wall time, duplicate network work count, and CAS write count | require one effective upstream fill per canonical request identity; fail on duplicate-fill regression | extended Linux |
+| Dependency materialization | deterministic cached dependency manifest and units | broker-mediated offline staging/materialization for workspace use | threshold derived from committed baseline; fail on `> 15%` regression | extended Linux |
+| Dependency stream-to-CAS posture | large deterministic dependency payload fixture | memory and streaming behavior during cache fill | fail if implementation buffers full payloads in memory beyond reviewed budget or regresses beyond baseline | extended Linux |
+
 ### Audit, Protocol, And Verification Surfaces
 
 | Aspect | Fixture | Check | Initial Threshold | CI Lane |
@@ -354,6 +365,7 @@ An extended Linux lane, suitable for merge queue or scheduled execution, should 
 - representative workflow execution checks
 - launcher cold and warm backend checks
 - model-gateway and secrets overhead checks
+- dependency-fetch cold-cache, warm-cache, coalescing, and materialization checks
 - audit and project-substrate heavier checks
 
 ### macOS And Windows

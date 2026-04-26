@@ -14,6 +14,7 @@ Define a broker-owned model for decomposing implementation work into low-couplin
 - Track execution, worktree lifecycle, and final integration must preserve canonical links to sessions, runs, approvals, artifacts, audit records, and validated project-context bindings.
 - Worktree paths, branch names, and local filesystem mechanics remain implementation-private and must not become public object identity.
 - Shared-workspace concurrency remains a distinct concern from isolated-worktree execution; this change should not silently collapse the two models.
+- Dependency-fetch and offline-cache authority remain broker-owned and repo-scoped across all tracks; isolated worktrees may consume derived materializations but must not become authoritative dependency cache owners.
 
 ## Track Decomposition Model
 
@@ -55,6 +56,13 @@ Define a broker-owned model for decomposing implementation work into low-couplin
 - Track, session, and run identities remain canonical broker-owned objects.
 - Worktree paths, local branch names, and related local Git mechanics remain implementation-private and non-authoritative.
 - Broker-facing contracts may expose small operator-facing summaries for diagnostics, but must not require local path identity as the public contract.
+
+### Shared Dependency Artifacts Across Worktrees
+- Track execution should reuse the shared dependency-fetch and offline-cache contracts from `CHG-2026-024-acde-deps-fetch-offline-cache` rather than introducing worktree-local dependency authority.
+- Canonical dependency identity remains bound to reviewed dependency request and resolved-unit cache semantics, not to a worktree path, branch name, unpacked tree, or package-manager-local cache directory.
+- Worktrees may receive derived read-only materializations or equivalent broker-mediated dependency handoff for execution.
+- Dependency scope enablement or expansion remains a shared approval-bearing checkpoint; creating a new worktree or resuming a blocked track must not mint a second dependency approval model.
+- Ordinary in-scope dependency use inside an eligible worktree should reuse already-approved broker-owned artifacts rather than prompting again on each cache miss or track start.
 
 ### Integration And Cleanup
 - Final integration of track results must be explicit and auditable rather than an ambient heuristic merge.
@@ -102,6 +110,7 @@ This keeps "always try to keep useful work moving" aligned with the fail-closed 
 ## Shared Contract Alignment
 
 - Track execution should reuse shared workflow identity, policy, approval, audit, and project-context contracts rather than inventing track-local variants of those authority surfaces.
+- Track execution should also reuse shared dependency-fetch identity, approval, and cache-ownership contracts so parallel worktrees do not drift into package-manager-local or path-local dependency semantics.
 - Any future track-aware workflow/process definition additions should build on the workflow-definition substrate from `CHG-2026-050-e3f8-workflow-definition-contract-binding-v0` rather than creating a second planning format.
 - First-party approved-change implementation should be able to adopt this track model later without inventing workflow-pack-local decomposition semantics.
 

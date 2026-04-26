@@ -26,6 +26,7 @@
 - deterministic broker watch-family latency suite
 - runner boundary and protocol performance suite
 - launcher startup and attach-ready performance suite
+- dependency-fetch cache miss, cache hit, coalescing, and materialization performance suite
 - audit, protocol, gateway, and project-substrate performance suites
 
 ## Verification Notes
@@ -34,6 +35,8 @@
 - Confirm the design captures the profile-backed render and allocation hot spots, not just the top-line CPU numbers.
 - Confirm performance checks are proposed for all major RuneCode aspects rather than just the TUI.
 - Confirm each major subsystem has an explicit threshold policy or regression budget.
+- Confirm dependency-fetch and offline-cache have explicit cold-cache, warm-cache, miss-coalescing, and materialization checks.
+- Confirm dependency-fetch performance checks preserve the reviewed stream-to-CAS and bounded-memory posture rather than rewarding trust-boundary shortcuts.
 - Confirm Linux remains the first authoritative numeric gate while other platforms still execute the same flow families where feasible.
 - Confirm the roadmap places this work under `v0.1.0-beta.1`.
 - Confirm the change keeps performance verification check-only and CI-safe.
