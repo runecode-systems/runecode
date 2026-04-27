@@ -385,6 +385,7 @@ func TestDependencyFetchRegistryEnforcesStreamingResponseSizeLimit(t *testing.T)
 
 	fetcher := &streamingFetcher{payload: strings.Repeat("x", (16<<20)+1)}
 	s.SetDependencyRegistryFetcherForTests(fetcher)
+	before := s.List()
 	_, errResp := s.HandleDependencyFetchRegistry(context.Background(), req, RequestContext{})
 	if errResp == nil {
 		t.Fatal("HandleDependencyFetchRegistry succeeded, want size-limit rejection")
@@ -394,5 +395,9 @@ func TestDependencyFetchRegistryEnforcesStreamingResponseSizeLimit(t *testing.T)
 	}
 	if !strings.Contains(strings.ToLower(errResp.Error.Message), "max_response_bytes") {
 		t.Fatalf("error message = %q, want max_response_bytes detail", errResp.Error.Message)
+	}
+	after := s.List()
+	if len(after) != len(before) {
+		t.Fatalf("artifact count after oversize rejection = %d, want %d", len(after), len(before))
 	}
 }

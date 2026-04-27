@@ -32,13 +32,24 @@ func (r *streamingSizeLimitReader) Read(p []byte) (int, error) {
 	if r.over {
 		return 0, dependencyResponseSizeLimitError{limitBytes: r.maxBytes}
 	}
+	if r.seen >= r.maxBytes {
+		var probe [1]byte
+		n, err := r.reader.Read(probe[:])
+		if n > 0 {
+			r.over = true
+			return 0, dependencyResponseSizeLimitError{limitBytes: r.maxBytes}
+		}
+		return 0, err
+	}
+
+	remaining := r.maxBytes - r.seen
+	if int64(len(p)) > remaining {
+		p = p[:int(remaining)]
+	}
+
 	n, err := r.reader.Read(p)
 	if n > 0 {
 		r.seen += int64(n)
-		if r.seen > r.maxBytes {
-			r.over = true
-			return n, dependencyResponseSizeLimitError{limitBytes: r.maxBytes}
-		}
 	}
 	return n, err
 }
