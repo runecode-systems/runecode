@@ -8,10 +8,15 @@ The first usable product cut needs real, productive workflows before generic wor
 - First-party change-drafting workflow.
 - First-party spec-drafting workflow.
 - First-party approved-change implementation workflow.
+- First-party workflows expressed through the refined contract-first authority chain from `CHG-2026-050-e3f8-workflow-definition-contract-binding-v0`:
+  - `WorkflowDefinition` as workflow-facing selection/packaging
+  - `ProcessDefinition` as executable graph
+  - broker-compiled immutable `RunPlan` as runtime execution authority
 - Trigger surfaces for live chat and autonomous operation.
 - Explicit reuse of the broker-owned session-execution contract from `CHG-2026-048-6b7a-session-execution-orchestration-v0`, including distinct execution-trigger submission, turn-execution watch surfaces, and validated project-substrate snapshot binding for project-context-sensitive work.
 - Explicit reuse of separate `approval_profile` and `autonomy_posture` controls so formal approval timing and operator-guidance frequency remain distinct.
 - Dependency-aware partial blocking so pending operator input or formal approval pauses only dependent workflow scope and direct downstream work, while unrelated eligible work may continue when plan, policy, coordination, and project-substrate posture allow it.
+- `v0` built-in workflows preserve DAG-only workflow/process semantics and shared scoped-blocking rules without promising new parallel-execution behavior in the first built-in slice.
 - Explicit reuse of canonical RuneContext state, workflow contracts, approvals, audit, and git flow bindings.
 - Explicit reuse of the broker-owned dependency-fetch and offline-cache foundation so implementation workflows acquire dependency material without workspace internet access and without inventing workflow-local package-manager cache semantics.
 - Explicit reuse of the repo-scoped product lifecycle and canonical `runecode` user surface so built-in workflows do not invent a second bootstrap, attach, or remediation path.
@@ -41,3 +46,8 @@ This now also makes the first productive implementation workflows accurate with 
 - dependency fetch is a broker-owned gateway/cache concern
 - cached dependency use inside workspace execution is offline internal artifact handoff, not egress
 - ordinary cache misses do not become workflow-local approval events
+
+It also ensures the first built-in workflows do not drift away from the refined workflow foundation:
+- built-in workflow selection/packaging remains on `WorkflowDefinition`
+- executable structure remains on `ProcessDefinition`
+- runner-consumed runtime authority remains the broker-compiled immutable `RunPlan`

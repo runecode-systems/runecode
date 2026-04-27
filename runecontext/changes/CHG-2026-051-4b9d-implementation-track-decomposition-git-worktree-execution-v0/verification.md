@@ -9,6 +9,7 @@
 - Confirm the change defines a broker-owned implementation-track model with stable track identity and dependency edges.
 - Confirm explicit track declarations override inferred grouping.
 - Confirm inferred decomposition becomes a broker-owned proposed execution-plan artifact rather than a hidden runtime heuristic.
+- Confirm the proposed execution-plan artifact remains planning/review state and does not become a second runner-consumed runtime authority alongside CHG-050 immutable `RunPlan`.
 - Confirm git worktrees are treated as the preferred isolation substrate for eligible low-coupling tracks rather than shared-workspace opportunism.
 - Confirm worktree paths and local branch names remain implementation-private and do not become public object identity.
 - Confirm dependency-fetch and offline-cache authority remain broker-owned and repo-scoped under worktree execution rather than drifting into per-worktree cache ownership.
@@ -21,6 +22,7 @@
 - Confirm dependency scope enablement or expansion remains on the shared approval-bearing checkpoint model rather than becoming a per-worktree approval surface.
 - Confirm project-context-sensitive tracks bind to validated project-substrate snapshot digest and fail closed on incompatible drift.
 - Confirm canonical linkage among tracks, sessions, runs, approvals, artifacts, audit records, and project context remains broker-owned and explicit.
+- Confirm this change remains additive over CHG-050: executable graph structure and scoped blocking semantics come from the shared workflow substrate, while actual later parallel/worktree execution behavior is introduced here rather than promised earlier.
 - Confirm the roadmap and change text both place this feature in `vNext (Planned)`.
 
 ## Close Gate

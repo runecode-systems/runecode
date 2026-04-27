@@ -7,7 +7,7 @@ RuneCode needs durable stop, wait, persist, and resume behavior for approvals an
 ## Proposed Change
 - Reassess whether LangGraph is needed after the native runner durable-state and approval-wait foundation is complete.
 - If still useful, evaluate LangGraph only as an internal runtime implementation behind the runner runtime seam.
-- Keep broker-owned run truth, approval truth, lifecycle state, and `RunPlan` authority canonical.
+- Keep broker-owned run truth, approval truth, lifecycle state, and CHG-050 immutable `RunPlan` runtime authority canonical.
 - Keep LangGraph checkpoints, threads, and interrupt state non-canonical and outside the trust root unless exported through existing typed protocol objects.
 - Define explicit adoption criteria and non-goals before any implementation begins.
 - Require the evaluation to preserve exact-action wait semantics for hard-floor approvals such as `git_remote_ops`, including bound hashes and fail-closed remote-drift behavior.

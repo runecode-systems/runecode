@@ -37,6 +37,8 @@ Without deterministic fixtures, explicit thresholds, and CI enforcement, the pro
 - Keep performance verification check-only and CI-safe so it remains compatible with `just ci` discipline and does not introduce silent writes or mutable benchmark artifacts during normal verification.
 - Freeze a policy for baseline maintenance so future work can tighten thresholds intentionally instead of letting them drift implicitly.
 - Include dependency-fetch and offline-cache performance as a first-class product regime, including cache miss, cache hit, miss coalescing, bounded concurrency, stream-to-CAS persistence, and broker-mediated offline dependency staging/materialization costs.
+- Include explicit measurement of the refined CHG-050 workflow path, including definition validation/canonicalization, trusted compilation, compiled-plan persistence/load, and runner startup from immutable `RunPlan`.
+- Preserve one topology-neutral performance program across constrained local hardware and larger deployments; tuning may differ, but performance work must not imply separate architecture paths or trust models.
 
 ## Why Now
 RuneCode is approaching the first usable end-to-end Linux-first cut. That makes performance regressions more dangerous because users are no longer exercising isolated demos; they are exercising a connected product composed of the TUI, broker, runner, gateway, audit, and isolate layers.
@@ -76,5 +78,7 @@ This change gives RuneCode one canonical planning surface for:
 It also freezes one durable product-level rule for future work:
 
 - RuneCode performance should be evaluated per subsystem and per runtime regime, not as one vague "fast enough" claim for the whole product
+
+- The same broker-owned workflow architecture should be measured and optimized across environments rather than replaced with different contract or authority paths for small-device versus scaled deployment shapes
 
 The broader project-wide performance gates, real-child CPU harnesses, and subsystem-specific CI thresholds remain deferred to this later change and are not part of the alpha.7 implementation slice.

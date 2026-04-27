@@ -35,9 +35,11 @@
 - Confirm the design captures the profile-backed render and allocation hot spots, not just the top-line CPU numbers.
 - Confirm performance checks are proposed for all major RuneCode aspects rather than just the TUI.
 - Confirm each major subsystem has an explicit threshold policy or regression budget.
+- Confirm the refined CHG-050 workflow path is measured explicitly, including validation/canonicalization, trusted compilation, compiled-plan persistence/load, and runner startup from immutable `RunPlan`.
 - Confirm dependency-fetch and offline-cache have explicit cold-cache, warm-cache, miss-coalescing, and materialization checks.
 - Confirm dependency-fetch performance checks preserve the reviewed stream-to-CAS and bounded-memory posture rather than rewarding trust-boundary shortcuts.
 - Confirm Linux remains the first authoritative numeric gate while other platforms still execute the same flow families where feasible.
+- Confirm the change preserves one topology-neutral performance program across constrained local and larger deployments rather than implying separate architecture paths.
 - Confirm the roadmap places this work under `v0.1.0-beta.1`.
 - Confirm the change keeps performance verification check-only and CI-safe.
 

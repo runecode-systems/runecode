@@ -10,6 +10,7 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Runner, Broker, and TUI Integration.
 - Fixtures + Recovery Cases.
 - Explicit distinction between shared-workspace concurrency and isolated implementation-track execution in `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0`.
+- Explicit reuse of the refined CHG-050 workflow authority model so concurrent execution still compiles through broker-owned immutable `RunPlan` rather than a concurrency-local second planning authority.
 - Explicit reuse of the canonical repo-scoped RuneCode product lifecycle so concurrency truth remains broker-owned within one product instance for an authoritative repository root rather than drifting into client- or transport-local ownership semantics.
 - Explicit reuse of the shared broker-owned dependency-fetch and offline-cache authority so concurrent runs can share reviewed immutable dependency artifacts without promoting workspace-local caches into public coordination truth.
 

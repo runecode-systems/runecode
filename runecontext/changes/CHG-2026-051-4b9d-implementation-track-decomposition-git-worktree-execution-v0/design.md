@@ -35,6 +35,7 @@ Define a broker-owned model for decomposing implementation work into low-couplin
   - readiness / blocked posture
   - confidence or overlap-risk summary sufficient for operator review and orchestration policy
 - This keeps decomposition reviewable, resumable, and auditable.
+- This artifact must not become a second runner-consumed runtime authority alongside CHG-050 immutable `RunPlan`; actual execution should still flow through the canonical compiled-plan path.
 
 ### Decomposition Safety Posture
 - RuneCode should identify low-coupling tracks only when the resulting plan is safe enough to execute under reviewed policy and orchestration rules.
@@ -111,7 +112,7 @@ This keeps "always try to keep useful work moving" aligned with the fail-closed 
 
 - Track execution should reuse shared workflow identity, policy, approval, audit, and project-context contracts rather than inventing track-local variants of those authority surfaces.
 - Track execution should also reuse shared dependency-fetch identity, approval, and cache-ownership contracts so parallel worktrees do not drift into package-manager-local or path-local dependency semantics.
-- Any future track-aware workflow/process definition additions should build on the workflow-definition substrate from `CHG-2026-050-e3f8-workflow-definition-contract-binding-v0` rather than creating a second planning format.
+- Any future track-aware workflow/process definition additions should build on the refined CHG-050 split between `WorkflowDefinition`, `ProcessDefinition`, and immutable `RunPlan` rather than creating a second executable planning format.
 - First-party approved-change implementation should be able to adopt this track model later without inventing workflow-pack-local decomposition semantics.
 
 ## Main Workstreams

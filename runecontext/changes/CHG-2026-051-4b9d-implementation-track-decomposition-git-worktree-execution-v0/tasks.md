@@ -8,6 +8,7 @@
 - [ ] Make explicit track declarations authoritative over inferred grouping.
 - [ ] Persist inferred decomposition as a broker-owned proposed execution-plan artifact rather than a hidden heuristic.
 - [ ] Carry enough confidence or overlap-risk information for operator review and orchestration policy.
+- [ ] Keep the proposed execution-plan artifact as planning/review state rather than a second runner-consumed runtime authority beside CHG-050 immutable `RunPlan`.
 
 ## Git Worktree Execution Lifecycle
 
@@ -49,5 +50,6 @@
 - [ ] Multiple pending waits may coexist and resolve independently.
 - [ ] Explicit track declarations override inferred grouping.
 - [ ] Inferred decomposition remains reviewable and auditable through a broker-owned proposed execution-plan artifact.
+- [ ] Actual runner-consumed runtime authority still flows through broker-compiled immutable `RunPlan` rather than the proposed execution-plan artifact.
 - [ ] Track execution reuses shared policy, approval, audit, lifecycle, and validated project-context binding models instead of inventing parallel semantics.
 - [ ] Track execution reuses shared dependency-fetch and offline-cache contracts so worktrees consume derived dependency artifacts without becoming authoritative dependency cache owners.
