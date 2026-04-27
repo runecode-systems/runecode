@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-052-a7f1-tui-leader-sequences-command-mode-v0
 title: TUI Leader Sequences + Command Mode v0
-status: planned
+status: implemented
 type: feature
 size: medium
 verification_status: pending
