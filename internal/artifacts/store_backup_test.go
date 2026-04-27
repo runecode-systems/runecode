@@ -290,6 +290,76 @@ func TestBackupRestorePreservesDependencyCacheState(t *testing.T) {
 	}
 }
 
+func TestRestoreRejectsDependencyCacheBatchReferencingMissingUnit(t *testing.T) {
+	store := newTestStore(t)
+	seedDependencyCacheRecordForBackupTest(t, store)
+
+	backupPath := filepath.Join(t.TempDir(), "backup-dependency-cache-missing-unit.json")
+	manifest := loadExportedBackupManifest(t, store, backupPath)
+	if len(manifest.DependencyCacheBatches) != 1 {
+		t.Fatalf("dependency cache batches len = %d, want 1", len(manifest.DependencyCacheBatches))
+	}
+	manifest.DependencyCacheBatches[0].ResolvedUnitDigests = []string{testDigest("f")}
+	writeBackupManifestWithSignature(t, store, backupPath, manifest)
+
+	restoreStore := newTestStore(t)
+	copyBlobsToStore(t, restoreStore, store.List())
+	err := restoreStore.RestoreBackup(backupPath)
+	if err != ErrDependencyCacheIncompleteState {
+		t.Fatalf("RestoreBackup error = %v, want %v", err, ErrDependencyCacheIncompleteState)
+	}
+}
+
+func TestRestoreRejectsDependencyCacheUnitReferencingMissingArtifacts(t *testing.T) {
+	tests := []struct {
+		name      string
+		mutate    func(*BackupManifest)
+		wantError error
+	}{
+		{
+			name: "missing payload",
+			mutate: func(manifest *BackupManifest) {
+				manifest.DependencyCacheUnits[0].PayloadDigest = []string{testDigest("e")}
+			},
+			wantError: ErrDependencyCacheIncompleteState,
+		},
+		{
+			name: "missing manifest",
+			mutate: func(manifest *BackupManifest) {
+				manifest.DependencyCacheUnits[0].ManifestDigest = testDigest("d")
+			},
+			wantError: ErrDependencyCacheUnverifiableIdentity,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			runRestoreRejectsDependencyCacheUnitMissingArtifactsCase(t, tc.mutate, tc.wantError)
+		})
+	}
+}
+
+func runRestoreRejectsDependencyCacheUnitMissingArtifactsCase(t *testing.T, mutate func(*BackupManifest), wantError error) {
+	t.Helper()
+	store := newTestStore(t)
+	seedDependencyCacheRecordForBackupTest(t, store)
+
+	backupPath := filepath.Join(t.TempDir(), "backup-dependency-cache-missing-artifacts.json")
+	manifest := loadExportedBackupManifest(t, store, backupPath)
+	if len(manifest.DependencyCacheUnits) != 1 {
+		t.Fatalf("dependency cache units len = %d, want 1", len(manifest.DependencyCacheUnits))
+	}
+	mutate(&manifest)
+	writeBackupManifestWithSignature(t, store, backupPath, manifest)
+
+	restoreStore := newTestStore(t)
+	copyBlobsToStore(t, restoreStore, store.List())
+	err := restoreStore.RestoreBackup(backupPath)
+	if err != wantError {
+		t.Fatalf("RestoreBackup error = %v, want %v", err, wantError)
+	}
+}
+
 func TestRestoreIgnoresBackupBlobPathTopologyHints(t *testing.T) {
 	store := newTestStore(t)
 	ref, backupPath := writeBackupWithBlobPathTopologyHint(t, store)

@@ -11,35 +11,44 @@ func stateFromBackup(manifest BackupManifest, lastAuditSequence int64, ioStore *
 		return StoreState{}, err
 	}
 	next := newStateFromBackup(manifest, lastAuditSequence)
-	unapprovedByDigest, err := loadRestoredArtifacts(&next, manifest.Artifacts, ioStore)
-	if err != nil {
+	if err := loadRestoredStateRecords(&next, manifest, ioStore); err != nil {
 		return StoreState{}, err
 	}
-	if err := validateApprovedRestores(next.Artifacts, unapprovedByDigest); err != nil {
-		return StoreState{}, err
-	}
-	if err := loadRestoredApprovals(&next, manifest.Approvals); err != nil {
-		return StoreState{}, err
-	}
-	if err := loadRestoredSessions(&next, manifest.Sessions); err != nil {
-		return StoreState{}, err
-	}
-	if err := loadRestoredPolicyDecisions(&next, manifest.PolicyDecisions); err != nil {
-		return StoreState{}, err
-	}
-	if err := loadRestoredDependencyCache(&next, manifest.DependencyCacheBatches, manifest.DependencyCacheUnits); err != nil {
-		return StoreState{}, err
-	}
-	if err := loadRestoredProviderProfiles(&next, manifest.ProviderProfiles); err != nil {
-		return StoreState{}, err
-	}
-	if err := loadRestoredProviderSetupSessions(&next, manifest.ProviderSetupSessions); err != nil {
-		return StoreState{}, err
-	}
-	if err := validateRestoredApprovalPolicyDecisionLinks(next.Approvals, next.PolicyDecisions); err != nil {
+	if err := validateRestoredStateLinks(&next); err != nil {
 		return StoreState{}, err
 	}
 	return next, nil
+}
+
+func loadRestoredStateRecords(next *StoreState, manifest BackupManifest, ioStore *storeIO) error {
+	unapprovedByDigest, err := loadRestoredArtifacts(next, manifest.Artifacts, ioStore)
+	if err != nil {
+		return err
+	}
+	if err := validateApprovedRestores(next.Artifacts, unapprovedByDigest); err != nil {
+		return err
+	}
+	loaders := []func() error{
+		func() error { return loadRestoredApprovals(next, manifest.Approvals) },
+		func() error { return loadRestoredSessions(next, manifest.Sessions) },
+		func() error { return loadRestoredPolicyDecisions(next, manifest.PolicyDecisions) },
+		func() error {
+			return loadRestoredDependencyCache(next, manifest.DependencyCacheBatches, manifest.DependencyCacheUnits)
+		},
+		func() error { return validateRestoredDependencyCache(next) },
+		func() error { return loadRestoredProviderProfiles(next, manifest.ProviderProfiles) },
+		func() error { return loadRestoredProviderSetupSessions(next, manifest.ProviderSetupSessions) },
+	}
+	for _, loader := range loaders {
+		if err := loader(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateRestoredStateLinks(next *StoreState) error {
+	return validateRestoredApprovalPolicyDecisionLinks(next.Approvals, next.PolicyDecisions)
 }
 
 func newStateFromBackup(manifest BackupManifest, lastAuditSequence int64) StoreState {

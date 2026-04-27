@@ -156,7 +156,7 @@ func (s *dependencyFetchService) executeMissFetch(ctx context.Context, req Depen
 	if err != nil {
 		return dependencyUnitResolution{}, err
 	}
-	manifestPayload, manifestRef, err := s.putResolvedUnitManifest(req, requestHash, resolvedDigest, payloadRef, metadata)
+	manifestPayload, manifestRef, err := s.putResolvedUnitManifest(req, requestHash, resolvedDigest, []artifacts.ArtifactReference{payloadRef}, metadata)
 	if err != nil {
 		return dependencyUnitResolution{}, err
 	}
@@ -236,8 +236,8 @@ func (s *dependencyFetchService) applyDependencyAuthorization(resolution *depend
 	resolution.matchedAllowlistID = strings.TrimSpace(authz.matchedAllowlistID)
 }
 
-func (s *dependencyFetchService) putResolvedUnitManifest(req DependencyFetchRequestObject, requestHash, resolvedDigest string, payloadRef artifacts.ArtifactReference, metadata dependencyRegistryFetchMetadata) (map[string]any, artifacts.ArtifactReference, error) {
-	manifestPayload, err := s.buildResolvedUnitManifestPayload(req, requestHash, resolvedDigest, payloadRef, metadata)
+func (s *dependencyFetchService) putResolvedUnitManifest(req DependencyFetchRequestObject, requestHash, resolvedDigest string, payloadRefs []artifacts.ArtifactReference, metadata dependencyRegistryFetchMetadata) (map[string]any, artifacts.ArtifactReference, error) {
+	manifestPayload, err := s.buildResolvedUnitManifestPayload(req, requestHash, resolvedDigest, payloadRefs, metadata)
 	if err != nil {
 		return nil, artifacts.ArtifactReference{}, err
 	}

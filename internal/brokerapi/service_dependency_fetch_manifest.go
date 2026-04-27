@@ -13,21 +13,21 @@ func (s *dependencyFetchService) resolvedManifestObject(req DependencyFetchReque
 	if len(unit.PayloadDigest) == 0 {
 		return nil, artifacts.ErrDependencyCacheIncompleteState
 	}
-	payloadArtifact, err := s.owner.Head(unit.PayloadDigest[0])
-	if err != nil {
-		return nil, err
+	payloadArtifacts := make([]artifacts.ArtifactReference, 0, len(unit.PayloadDigest))
+	for _, payloadDigest := range unit.PayloadDigest {
+		payloadArtifact, err := s.owner.Head(payloadDigest)
+		if err != nil {
+			return nil, err
+		}
+		payloadArtifacts = append(payloadArtifacts, payloadArtifact.Reference)
 	}
-	return s.buildResolvedUnitManifestPayload(req, requestHash, unit.ResolvedUnitDigest, payloadArtifact.Reference, dependencyRegistryFetchMetadata{})
+	return s.buildResolvedUnitManifestPayload(req, requestHash, unit.ResolvedUnitDigest, payloadArtifacts, dependencyRegistryFetchMetadata{})
 }
 
-func (s *dependencyFetchService) buildResolvedUnitManifestPayload(req DependencyFetchRequestObject, requestHash, resolvedDigest string, payloadRef artifacts.ArtifactReference, metadata dependencyRegistryFetchMetadata) (map[string]any, error) {
-	payload := map[string]any{
-		"schema_id":            "runecode.protocol.v0.DependencyResolvedUnitManifest",
-		"schema_version":       "0.1.0",
-		"request_hash":         digestObjectForIdentity(requestHash),
-		"resolved_unit_digest": digestObjectForIdentity(resolvedDigest),
-		"dependency_request":   req,
-		"payload_artifacts": []any{map[string]any{
+func (s *dependencyFetchService) buildResolvedUnitManifestPayload(req DependencyFetchRequestObject, requestHash, resolvedDigest string, payloadRefs []artifacts.ArtifactReference, metadata dependencyRegistryFetchMetadata) (map[string]any, error) {
+	payloadArtifacts := make([]any, 0, len(payloadRefs))
+	for _, payloadRef := range payloadRefs {
+		payloadArtifacts = append(payloadArtifacts, map[string]any{
 			"schema_id":               "runecode.protocol.v0.ArtifactReference",
 			"schema_version":          "0.4.0",
 			"digest":                  digestObjectForIdentity(payloadRef.Digest),
@@ -35,7 +35,15 @@ func (s *dependencyFetchService) buildResolvedUnitManifestPayload(req Dependency
 			"content_type":            payloadRef.ContentType,
 			"data_class":              string(payloadRef.DataClass),
 			"provenance_receipt_hash": digestObjectForIdentity(payloadRef.ProvenanceReceiptHash),
-		}},
+		})
+	}
+	payload := map[string]any{
+		"schema_id":            "runecode.protocol.v0.DependencyResolvedUnitManifest",
+		"schema_version":       "0.1.0",
+		"request_hash":         digestObjectForIdentity(requestHash),
+		"resolved_unit_digest": digestObjectForIdentity(resolvedDigest),
+		"dependency_request":   req,
+		"payload_artifacts":    payloadArtifacts,
 		"integrity": map[string]any{
 			"verification_state": "verified",
 		},
