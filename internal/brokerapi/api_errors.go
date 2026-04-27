@@ -67,7 +67,9 @@ func (s *Service) errorFromStore(requestID string, err error) ErrorResponse {
 		errors.Is(err, artifacts.ErrApprovedExcerptRevoked),
 		errors.Is(err, artifacts.ErrQuotaExceeded),
 		errors.Is(err, artifacts.ErrPromotionRateLimited),
-		errors.Is(err, artifacts.ErrPromotionTooLarge):
+		errors.Is(err, artifacts.ErrPromotionTooLarge),
+		errors.Is(err, errDependencyFetchPolicyDenied),
+		errors.Is(err, errPolicyContextUnavailable):
 		return s.makeError(requestID, "broker_limit_policy_rejected", "policy", false, err.Error())
 	case errors.Is(err, artifacts.ErrApprovalRequestArtifactRequired),
 		errors.Is(err, artifacts.ErrApprovalArtifactRequired),

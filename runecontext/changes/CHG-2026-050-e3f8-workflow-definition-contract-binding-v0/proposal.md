@@ -12,6 +12,7 @@ If the contract-first foundation is not split out, the first productive workflow
 - Shared identity, executor, gate, approval, and runner-binding reuse.
 - Typed control-flow and wait constructs that can represent branch-local `waiting_operator_input` versus `waiting_approval` and dependency-aware continuation without inventing workflow-local lifecycle semantics.
 - Policy, audit, and git-contract binding.
+- Explicit dependency-fetch and offline-cache binding reuse so workflows that require dependency material compose through the shared broker-owned dependency-fetch path rather than through workflow-local package-manager network behavior.
 - Explicit split from later authoring and shared-memory accelerator work.
 
 ## Why Now
@@ -32,3 +33,8 @@ Splitting the contract-first substrate from later authoring and accelerator work
 
 ## Impact
 Creates the durable workflow-definition and binding substrate needed for both the first productive built-in workflows and later generic workflow extensibility without making either path a special case.
+
+This now also freezes that workflow definitions must treat dependency material through the same shared contracts as other high-sensitivity surfaces:
+- typed dependency-fetch request identity rather than raw lockfile bytes or tool-private cache state
+- broker-owned dependency fetch and cache authority rather than runner-local network access
+- broker-mediated internal artifact handoff for offline cached dependency use rather than treating cached dependency material as egress

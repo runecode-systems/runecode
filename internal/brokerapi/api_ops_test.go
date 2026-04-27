@@ -178,5 +178,6 @@ func newBrokerAPIServiceForTests(t *testing.T, cfg APIConfig) *Service {
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
+	service.SetDependencyRegistryFetcherForTests(streamingFetcher{payload: "test-default-dependency-payload"})
 	return service
 }

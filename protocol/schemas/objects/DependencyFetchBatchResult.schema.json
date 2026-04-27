@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/DependencyFetchBatchResult.schema.json",
+  "title": "DependencyFetchBatchResult",
+  "description": "Lockfile-bound dependency fetch batch result binding canonical request identity to exact resolved-unit digests, cache outcomes, and read-only offline materialization posture.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 9,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "batch_request_hash",
+    "resolution_state",
+    "cache_outcome",
+    "resolved_units"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.DependencyFetchBatchResult",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "batch_request_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Canonical digest of the typed DependencyFetchBatchRequest object.",
+      "x-data-class": "public"
+    },
+    "resolution_state": {
+      "type": "string",
+      "enum": [
+        "complete"
+      ],
+      "description": "Fail-closed resolution state; only complete results are valid cache material.",
+      "x-data-class": "public"
+    },
+    "cache_outcome": {
+      "type": "string",
+      "enum": [
+        "hit_exact",
+        "miss_filled"
+      ],
+      "description": "Exact cache result classification; partial/ambiguous/stale outcomes are invalid and must fail closed.",
+      "x-data-class": "public"
+    },
+    "resolved_units": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "$ref": "DependencyResolvedUnitManifest.schema.json"
+      },
+      "uniqueItems": true,
+      "description": "Canonical resolved-unit manifests included in this complete batch result.",
+      "x-data-class": "public"
+    },
+    "materialization": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 3,
+      "required": [
+        "derived_only",
+        "read_only"
+      ],
+      "properties": {
+        "derived_only": {
+          "type": "boolean",
+          "const": true,
+          "description": "Materialized package-manager stores or unpacked trees remain derived and non-canonical.",
+          "x-data-class": "public"
+        },
+        "read_only": {
+          "type": "boolean",
+          "const": true,
+          "description": "Derived materialization presented to workspace consumers must remain read-only.",
+          "x-data-class": "public"
+        },
+        "materialized_artifact_digests": {
+          "type": "array",
+          "maxItems": 128,
+          "description": "Derived materialization artifact digests for diagnostics only.",
+          "items": {
+            "$ref": "Digest.schema.json#/$defs/digestValue"
+          },
+          "uniqueItems": true,
+          "x-data-class": "public"
+        }
+      },
+      "description": "Derived read-only materialization metadata.",
+      "x-data-class": "public"
+    },
+    "fetched_bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1099511627776,
+      "description": "Observed fetched byte volume for this batch execution or reuse.",
+      "x-data-class": "public"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64,
+      "description": "RFC 3339 completion timestamp.",
+      "x-data-class": "public"
+    }
+  },
+  "allOf": [
+    {
+      "description": "Resolved units in complete batch results must be integrity-verified.",
+      "x-data-class": "public",
+      "properties": {
+        "resolved_units": {
+          "description": "Resolved units integrity policy constraint.",
+          "x-data-class": "public",
+          "items": {
+            "description": "Resolved unit integrity verification constraint.",
+            "x-data-class": "public",
+            "properties": {
+              "integrity": {
+                "description": "Integrity object constraint.",
+                "x-data-class": "public",
+                "type": "object",
+                "properties": {
+                  "verification_state": {
+                    "const": "verified",
+                    "description": "Resolved unit verification state must be verified.",
+                    "x-data-class": "public"
+                  }
+                },
+                "required": [
+                  "verification_state"
+                ]
+              }
+            },
+            "required": [
+              "integrity"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -45,7 +45,7 @@
           "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Artifact digest.", "x-data-class": "public" },
           "size_bytes": { "type": "integer", "minimum": 0, "maximum": 1099511627776, "description": "Artifact size in bytes.", "x-data-class": "public" },
           "content_type": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Artifact content type.", "x-data-class": "public" },
-          "data_class": { "type": "string", "enum": ["spec_text", "unapproved_file_excerpts", "approved_file_excerpts", "diffs", "build_logs", "audit_events", "audit_verification_report", "audit_receipt_export_copy", "gate_evidence", "web_query", "web_citations"], "description": "Artifact data class.", "x-data-class": "public" },
+          "data_class": { "type": "string", "enum": ["spec_text", "unapproved_file_excerpts", "approved_file_excerpts", "diffs", "build_logs", "audit_events", "audit_verification_report", "audit_receipt_export_copy", "gate_evidence", "dependency_batch_manifest", "dependency_resolved_unit_manifest", "dependency_resolved_payload", "dependency_materialized_tree", "web_query", "web_citations"], "description": "Artifact data class.", "x-data-class": "public" },
           "provenance_receipt_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Artifact provenance receipt hash.", "x-data-class": "public" }
         },
         "description": "Artifact record entry returned by the broker.",

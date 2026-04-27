@@ -19,6 +19,7 @@ Define explicit shared-workspace concurrency modes, deterministic locking, and a
 - Shared-workspace coordination remains broker-owned truth inside one repo-scoped product instance for the authoritative repository root; client tabs, workbench state, transport bindings, or local attach mechanics must not become concurrency ownership truth.
 - Shared-workspace concurrency must compose with the dependency-aware partial-blocking semantics from `CHG-2026-048-6b7a-session-execution-orchestration-v0`; a scoped wait inside one run is not automatically a workspace-global stop unless coordination or locking rules require it.
 - Shared-workspace concurrency is distinct from isolated implementation-track execution in `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0`; this change covers shared-workspace coordination, not worktree-isolated parallelism.
+- Shared-workspace concurrency must reuse the broker-owned dependency-fetch and offline-cache model from `CHG-2026-024-acde-deps-fetch-offline-cache`; concurrent runs may share immutable reviewed dependency artifacts, but workspace-local package-manager caches and unpacked trees are not authoritative coordination state.
 
 ## Shared Contract Alignment
 
@@ -36,10 +37,17 @@ Define explicit shared-workspace concurrency modes, deterministic locking, and a
 - Exact-action approvals, stage sign-off, gate attempts, gate evidence, and gate overrides must stay bound to the correct run even when workspaces are shared.
 - Shared-workspace concurrency must not allow one run to consume or satisfy another run's approval or gate result.
 - Reduced-assurance backend posture approvals remain exact-action and instance-posture-bound; concurrency must not reinterpret them as workspace-global capability grants.
+- Dependency-fetch approvals are likewise run- and scope-bound; concurrency must not reinterpret one run's scope expansion approval as a workspace-global dependency capability grant.
 
 ### Project-Context Binding Under Concurrency
 - If concurrent runs bind different validated project-substrate snapshots, the broker and runner must surface that difference explicitly rather than assuming one ambient project-context truth.
 - Shared-workspace concurrency must not let one run satisfy another run's project-context preconditions or blocked-state remediation.
+
+### Dependency Artifacts Under Concurrency
+- Concurrent runs may reuse broker-owned immutable dependency artifacts and cache hits when their reviewed dependency requests resolve to the same canonical dependency identity.
+- Dependency scope enablement or expansion remains a shared approval-bearing checkpoint; one run must not silently grant another run broader dependency-fetch authority than policy and approved scope allow.
+- Shared-workspace concurrency must not promote workspace-local cache directories, unpacked dependency trees, or package-manager-private metadata into public dependency identity or lock ownership truth.
+- When concurrent runs need dependency materialization, the broker should coordinate artifact reuse and placement without turning local filesystem paths into cross-run authority surfaces.
 
 ## Main Workstreams
 - Workspace Concurrency Model

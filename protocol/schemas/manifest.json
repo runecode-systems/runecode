@@ -83,7 +83,7 @@
     {
       "path": "objects/ArtifactReference.schema.json",
       "schema_id": "runecode.protocol.v0.ArtifactReference",
-      "schema_version": "0.3.0",
+      "schema_version": "0.4.0",
       "owner": "protocol",
       "status": "mvp"
     },
@@ -170,6 +170,83 @@
     {
       "path": "objects/DestinationDescriptor.schema.json",
       "schema_id": "runecode.protocol.v0.DestinationDescriptor",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/DependencyFetchRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.DependencyFetchRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/DependencyFetchBatchRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.DependencyFetchBatchRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/DependencyResolvedUnitManifest.schema.json",
+      "schema_id": "runecode.protocol.v0.DependencyResolvedUnitManifest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/DependencyFetchBatchResult.schema.json",
+      "schema_id": "runecode.protocol.v0.DependencyFetchBatchResult",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/DependencyCacheEnsureRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.DependencyCacheEnsureRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/DependencyCacheEnsureResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.DependencyCacheEnsureResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/DependencyFetchRegistryRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.DependencyFetchRegistryRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/DependencyFetchRegistryResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.DependencyFetchRegistryResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/DependencyCacheHandoffRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.DependencyCacheHandoffRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/DependencyCacheHandoffMetadata.schema.json",
+      "schema_id": "runecode.protocol.v0.DependencyCacheHandoffMetadata",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/DependencyCacheHandoffResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.DependencyCacheHandoffResponse",
       "schema_version": "0.1.0",
       "owner": "protocol",
       "status": "mvp"

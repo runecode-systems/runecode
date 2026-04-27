@@ -117,6 +117,80 @@ func TestRPCBrokerClientGitRemoteMutationMethodsUseTypedContracts(t *testing.T) 
 	}
 }
 
+func TestRPCBrokerClientDependencyMethodsUseTypedContracts(t *testing.T) {
+	origConfigProvider := localIPCConfigProvider
+	origDialer := localRPCDialer
+	t.Cleanup(func() {
+		localIPCConfigProvider = origConfigProvider
+		localRPCDialer = origDialer
+	})
+
+	localIPCConfigProvider = func() (brokerapi.LocalIPCConfig, error) {
+		return brokerapi.LocalIPCConfig{RuntimeDir: "/tmp/test-runtime", SocketName: "broker.sock"}, nil
+	}
+	operations := make([]string, 0, 3)
+	localRPCDialer = func(ctx context.Context, cfg brokerapi.LocalIPCConfig) (localRPCInvoker, error) {
+		_ = ctx
+		_ = cfg
+		return &fakeRPCInvoker{invokeFn: func(_ context.Context, operation string, request any, out any) *brokerapi.ErrorResponse {
+			operations = append(operations, operation)
+			assertDependencyRequestContract(t, operation, request)
+			return nil
+		}}, nil
+	}
+
+	client := &rpcBrokerClient{}
+	cacheReq := brokerapi.DependencyCacheEnsureRequest{RunID: "run-1"}
+	if _, err := client.DependencyCacheEnsure(context.Background(), cacheReq); err != nil {
+		t.Fatalf("DependencyCacheEnsure returned error: %v", err)
+	}
+	fetchReq := brokerapi.DependencyFetchRegistryRequest{RunID: "run-1"}
+	if _, err := client.DependencyFetchRegistry(context.Background(), fetchReq); err != nil {
+		t.Fatalf("DependencyFetchRegistry returned error: %v", err)
+	}
+	handoffReq := brokerapi.DependencyCacheHandoffRequest{RequestDigest: parseDigestIdentity("sha256:" + strings.Repeat("a", 64)), ConsumerRole: "workspace"}
+	if _, err := client.DependencyCacheHandoff(context.Background(), handoffReq); err != nil {
+		t.Fatalf("DependencyCacheHandoff returned error: %v", err)
+	}
+
+	if got := strings.Join(operations, ","); got != "dependency_cache_ensure,dependency_fetch_registry,dependency_cache_handoff" {
+		t.Fatalf("operations=%q", got)
+	}
+}
+
+func assertDependencyRequestContract(t *testing.T, operation string, request any) {
+	t.Helper()
+	switch operation {
+	case "dependency_cache_ensure":
+		req, ok := request.(brokerapi.DependencyCacheEnsureRequest)
+		if !ok {
+			t.Fatalf("dependency_cache_ensure request type=%T", request)
+		}
+		assertDependencyRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.DependencyCacheEnsureRequest", "dependency-cache-ensure-")
+	case "dependency_fetch_registry":
+		req, ok := request.(brokerapi.DependencyFetchRegistryRequest)
+		if !ok {
+			t.Fatalf("dependency_fetch_registry request type=%T", request)
+		}
+		assertDependencyRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.DependencyFetchRegistryRequest", "dependency-fetch-registry-")
+	case "dependency_cache_handoff":
+		req, ok := request.(brokerapi.DependencyCacheHandoffRequest)
+		if !ok {
+			t.Fatalf("dependency_cache_handoff request type=%T", request)
+		}
+		assertDependencyRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.DependencyCacheHandoffRequest", "dependency-cache-handoff-")
+	default:
+		t.Fatalf("unexpected operation %q", operation)
+	}
+}
+
+func assertDependencyRequestMetadata(t *testing.T, schemaID, schemaVersion, requestID, wantSchemaID, wantPrefix string) {
+	t.Helper()
+	if schemaID != wantSchemaID || schemaVersion != localAPISchemaVersion || !strings.HasPrefix(requestID, wantPrefix) {
+		t.Fatalf("dependency request metadata invalid: schema_id=%q schema_version=%q request_id=%q", schemaID, schemaVersion, requestID)
+	}
+}
+
 func assertGitRemoteMutationRequestContract(t *testing.T, operation string, request any) {
 	t.Helper()
 	switch operation {

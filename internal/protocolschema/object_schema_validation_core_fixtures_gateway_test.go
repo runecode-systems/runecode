@@ -136,6 +136,16 @@ func validActionPayloadGatewayEgressRequestOperationWithPortAndPath() map[string
 	return payload
 }
 
+func validActionPayloadGatewayEgressDependencyRequestOperation() map[string]any {
+	payload := validActionPayloadGatewayEgressRequestOperation()
+	payload["gateway_role_kind"] = "dependency-fetch"
+	payload["destination_kind"] = "package_registry"
+	payload["destination_ref"] = "registry.example.com/npm"
+	payload["operation"] = "fetch_dependency"
+	payload["dependency_request"] = validDependencyFetchRequest()
+	return payload
+}
+
 func validActionPayloadGatewayEgressScopeOperation() map[string]any {
 	payload := validActionPayloadGatewayEgressRequestOperation()
 	payload["operation"] = "expand_scope"
@@ -204,11 +214,14 @@ func invalidActionPayloadGatewayEgressRequestMissingPayloadHash() map[string]any
 }
 
 func invalidActionPayloadGatewayEgressDependencyRequestMissingPayloadHash() map[string]any {
-	payload := validActionPayloadGatewayEgressRequestOperation()
-	payload["gateway_role_kind"] = "dependency-fetch"
-	payload["destination_kind"] = "package_registry"
-	payload["operation"] = "fetch_dependency"
+	payload := validActionPayloadGatewayEgressDependencyRequestOperation()
 	delete(payload, "payload_hash")
+	return payload
+}
+
+func invalidActionPayloadGatewayEgressDependencyRequestMissingTypedRequest() map[string]any {
+	payload := validActionPayloadGatewayEgressDependencyRequestOperation()
+	delete(payload, "dependency_request")
 	return payload
 }
 

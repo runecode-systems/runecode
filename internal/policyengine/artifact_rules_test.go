@@ -64,3 +64,26 @@ func TestEvaluateArtifactFlowRulesRevokedDigestDoesNotDenyOtherDataClasses(t *te
 		t.Fatalf("reason = %q, want allow_manifest_opt_in", reason)
 	}
 }
+
+func TestEvaluateArtifactFlowRulesDependencyArtifactsDenyEgress(t *testing.T) {
+	policy := ArtifactFlowPolicy{
+		FlowMatrix: []ArtifactFlowRule{{
+			ProducerRole:       "dependency-fetch",
+			ConsumerRole:       "workspace",
+			AllowedDataClasses: []string{"dependency_resolved_unit_manifest"},
+		}},
+	}
+	outcome, reason, _ := EvaluateArtifactFlowRules(policy, ArtifactFlowRequest{
+		ProducerRole: "dependency-fetch",
+		ConsumerRole: "workspace",
+		DataClass:    "dependency_resolved_unit_manifest",
+		Digest:       "sha256:deadbeef",
+		IsEgress:     true,
+	})
+	if outcome != DecisionDeny {
+		t.Fatalf("outcome = %q, want %q", outcome, DecisionDeny)
+	}
+	if reason != "dependency_artifact_internal_handoff_only" {
+		t.Fatalf("reason = %q, want dependency_artifact_internal_handoff_only", reason)
+	}
+}

@@ -149,3 +149,18 @@ func (c *localAPIClient) GitRemoteMutationExecute(ctx context.Context, req broke
 	resp := brokerapi.GitRemoteMutationExecuteResponse{}
 	return resp, c.invoke(ctx, "git_remote_mutation_execute", req, &resp)
 }
+
+func (c *localAPIClient) DependencyCacheEnsure(ctx context.Context, req brokerapi.DependencyCacheEnsureRequest) (brokerapi.DependencyCacheEnsureResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.DependencyCacheEnsureResponse{}
+	return resp, c.invoke(ctx, "dependency_cache_ensure", req, &resp)
+}
+
+func (c *localAPIClient) DependencyFetchRegistry(ctx context.Context, req brokerapi.DependencyFetchRegistryRequest) (brokerapi.DependencyFetchRegistryResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.DependencyFetchRegistryResponse{}
+	return resp, c.invoke(ctx, "dependency_fetch_registry", req, &resp)
+}
+
+func (c *localAPIClient) DependencyCacheHandoff(ctx context.Context, req brokerapi.DependencyCacheHandoffRequest) (brokerapi.DependencyCacheHandoffResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.DependencyCacheHandoffResponse{}
+	return resp, c.invoke(ctx, "dependency_cache_handoff", req, &resp)
+}

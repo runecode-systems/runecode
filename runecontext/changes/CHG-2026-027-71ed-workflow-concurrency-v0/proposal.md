@@ -11,6 +11,7 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Fixtures + Recovery Cases.
 - Explicit distinction between shared-workspace concurrency and isolated implementation-track execution in `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0`.
 - Explicit reuse of the canonical repo-scoped RuneCode product lifecycle so concurrency truth remains broker-owned within one product instance for an authoritative repository root rather than drifting into client- or transport-local ownership semantics.
+- Explicit reuse of the shared broker-owned dependency-fetch and offline-cache authority so concurrent runs can share reviewed immutable dependency artifacts without promoting workspace-local caches into public coordination truth.
 
 ## Why Now
 This work remains scheduled for vNext, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
@@ -27,3 +28,5 @@ This work remains scheduled for vNext, and keeping it on this canonical RuneCont
 
 ## Impact
 Keeps Workflow Concurrency v0 reviewable as a RuneContext-native change and removes the need for a second semantics rewrite later, while preserving broker-owned coordination truth inside the canonical repo-scoped RuneCode product lifecycle.
+
+It also keeps concurrency aligned with `CHG-2026-024-acde-deps-fetch-offline-cache`: concurrent runs may reuse broker-owned dependency artifacts, but dependency approvals, canonical cache identity, and fetch authority do not become workspace-local or run-inherited shortcuts.

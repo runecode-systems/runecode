@@ -110,7 +110,7 @@ func validProjectLifecycleApplyApprovalPolicyDecision() map[string]any {
 func validArtifactReference() map[string]any {
 	return map[string]any{
 		"schema_id":               "runecode.protocol.v0.ArtifactReference",
-		"schema_version":          "0.3.0",
+		"schema_version":          "0.4.0",
 		"digest":                  testDigestValue("7"),
 		"size_bytes":              128,
 		"content_type":            "application/json",
@@ -154,8 +154,22 @@ func validArtifactPolicy() map[string]any {
 		"flow_matrix":                     validArtifactPolicyFlowMatrix(),
 		"revoked_approved_excerpt_hashes": []any{testDigestValue("a")},
 		"quotas":                          validArtifactPolicyQuotas(),
+		"dependency_cache":                validArtifactPolicyDependencyCache(),
 		"retention":                       validArtifactPolicyRetention(),
 		"gc":                              validArtifactPolicyGC(),
+	}
+}
+
+func validArtifactPolicyDependencyCache() map[string]any {
+	return map[string]any{
+		"read_only_artifacts_required":                 true,
+		"batch_manifest_immutable":                     true,
+		"resolved_unit_manifest_immutable":             true,
+		"resolved_payload_immutable":                   true,
+		"materialized_trees_derived_non_canonical":     true,
+		"cache_hit_semantics":                          "exact_request_identity_and_resolved_unit_digest",
+		"fail_closed_on_ambiguous_or_incomplete_state": true,
+		"retain_canonical_before_derived":              true,
 	}
 }
 

@@ -7,9 +7,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ### v0.1.0-alpha.8
 
-- Deps Fetch + Offline Cache
-  - Dependencies can be fetched without giving workspace roles internet access, so isolated implementation workflows can remain on the intended no-workspace-egress posture.
-  - Planned change: `runecontext/changes/CHG-2026-024-acde-deps-fetch-offline-cache/`
 - Workflow Definition Contract + Binding v0
   - RuneCode freezes the reusable workflow-definition and binding substrate needed for first-party productive workflows and later generic extensibility without adding new privileged operations.
   - Planned change: `runecontext/changes/CHG-2026-050-e3f8-workflow-definition-contract-binding-v0/`
@@ -179,3 +176,8 @@ No unscheduled items are currently tracked outside the planned work listed above
 - TUI Leader Sequences + Command Mode v0
   - RuneCode replaces ambient plain-letter shell shortcuts with a configurable `space`-by-default leader system, which-key-style overlays, a bottom-left `:` command line, and a visible beginner-friendly quit action that does not interfere with local typing or secret entry.
   - Planned change: `runecontext/changes/CHG-2026-052-a7f1-tui-leader-sequences-command-mode-v0/`
+
+- Deps Fetch + Offline Cache
+  - Dependencies can be fetched without giving workspace roles internet access, so isolated implementation workflows can remain on the intended no-workspace-egress posture.
+  - Planned change: `runecontext/changes/CHG-2026-024-acde-deps-fetch-offline-cache/`
+

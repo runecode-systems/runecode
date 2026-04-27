@@ -10,6 +10,7 @@ Split the contract-first workflow-definition and binding substrate from later au
 - JSON is the canonical on-disk and runtime format for workflow definitions, and JSON Schema is the single validation source of truth.
 - Workflow definitions must reuse the shared workflow identity model, typed gate contract, executor model, approval split, and runner-to-broker checkpoint/result model rather than defining process-local variants.
 - Workflows that compose git remote mutation must reuse shared typed git request families, signed patch artifacts, exact repository identity, and `git_remote_ops` approval semantics.
+- Workflows that require dependency material must reuse the shared typed dependency-fetch and offline-cache contracts from `CHG-2026-024-acde-deps-fetch-offline-cache` rather than embedding workflow-local package-manager fetch semantics.
 - Later authoring surfaces and shared-memory accelerators remain additive work on top of this contract substrate rather than being part of the contract definition itself.
 - Workflow definitions that are sensitive to project context must reuse the shared project-substrate contract and validated snapshot-binding model rather than inventing workflow-local project-context references.
 - Project-context-sensitive workflow selection or execution must fail closed when repository project-substrate posture is blocked.
@@ -35,6 +36,20 @@ Split the contract-first workflow-definition and binding substrate from later au
 - Workflow-defined execution must report progress through the shared runner-to-broker checkpoint/result contract.
 - Stage sign-off and exact-action approval semantics remain shared and hash-bound.
 - Workflow-composed git remote mutation must route through the same typed git request, patch artifact, repository identity, and exact-approval contracts as built-in git flows.
+- Workflow-composed dependency fetch must route through the same typed dependency-fetch request identity, shared gateway approval semantics, broker-owned cache authority, and shared gateway audit model as built-in dependency flows.
+
+### Dependency-Fetch And Offline Cache Binding
+- Workflow definitions may express that a stage or step requires dependency material, but they must not redefine how dependencies are fetched, cached, or materialized.
+- Workflow definitions should therefore bind only to shared dependency contracts such as:
+  - a lockfile-bound batch dependency request or equivalent reviewed typed dependency input
+  - canonical dependency-fetch action semantics on the dedicated gateway role
+  - broker-owned cache hit/miss, artifact persistence, and offline handoff behavior
+- Workflow definitions must not treat raw lockfile bytes, tool-private cache directories, unpacked install trees, or package-manager-specific store paths as authoritative dependency identity.
+- Workflow definitions must preserve the split between:
+  - gateway-backed dependency fetch and cache fill
+  - ordinary workspace execution consuming broker-mediated offline cached dependencies
+- Offline cached dependency use inside workflow-defined workspace execution remains ordinary workspace execution, not egress.
+- The first end-to-end workflow slices should assume public-registry-first dependency fetch; workflow definitions must not require private-registry credential behavior as part of the foundational contract.
 
 ### Project-Context Binding
 - Workflow definitions may reference project-context-sensitive steps or gates only through the shared project-substrate binding model established by `CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0`.

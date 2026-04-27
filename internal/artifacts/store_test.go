@@ -207,6 +207,43 @@ func TestCheckFlowAndGetForFlowDenyRevokedApprovedExcerpt(t *testing.T) {
 	}
 }
 
+func TestDependencyArtifactFlowInternalHandoffOnly(t *testing.T) {
+	store := newTestStore(t)
+	ref := putTrustedDependencyArtifact(t, store, DataClassDependencyResolvedUnit, `{"kind":"unit-manifest"}`)
+
+	if err := store.CheckFlow(FlowCheckRequest{
+		ProducerRole: "dependency-fetch",
+		ConsumerRole: "workspace",
+		DataClass:    DataClassDependencyResolvedUnit,
+		Digest:       ref.Digest,
+		IsEgress:     false,
+	}); err != nil {
+		t.Fatalf("CheckFlow internal dependency handoff error: %v", err)
+	}
+
+	err := store.CheckFlow(FlowCheckRequest{
+		ProducerRole: "dependency-fetch",
+		ConsumerRole: "workspace",
+		DataClass:    DataClassDependencyResolvedUnit,
+		Digest:       ref.Digest,
+		IsEgress:     true,
+	})
+	if err != ErrDependencyArtifactEgressDenied {
+		t.Fatalf("CheckFlow dependency egress error = %v, want %v", err, ErrDependencyArtifactEgressDenied)
+	}
+
+	err = store.CheckFlow(FlowCheckRequest{
+		ProducerRole: "dependency-fetch",
+		ConsumerRole: "model_gateway",
+		DataClass:    DataClassDependencyResolvedUnit,
+		Digest:       ref.Digest,
+		IsEgress:     false,
+	})
+	if err != ErrFlowDenied {
+		t.Fatalf("CheckFlow dependency handoff consumer error = %v, want %v", err, ErrFlowDenied)
+	}
+}
+
 func assertGetForFlowRejectsUnapprovedEgress(t *testing.T, store *Store, digest string) {
 	t.Helper()
 	_, _, err := store.GetForFlow(ArtifactReadRequest{Digest: digest, ProducerRole: "workspace", ConsumerRole: "model_gateway", DataClass: DataClassUnapprovedFileExcerpts, IsEgress: true})

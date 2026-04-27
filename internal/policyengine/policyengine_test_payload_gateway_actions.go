@@ -31,21 +31,27 @@ func validGatewayEgressActionRequest(capabilityID string, roleFamily string, rol
 }
 
 func validDependencyFetchActionRequest(capabilityID string, roleKind string, refName string) ActionRequest {
-	payloadHash := mustDigestObject("sha256:" + strings.Repeat("e", 64))
+	dependencyRequest := validDependencyFetchRequest(refName)
+	requestHashIdentity, err := canonicalHashValue(dependencyRequest)
+	if err != nil {
+		panic(err)
+	}
+	payloadHash := mustDigestObject(requestHashIdentity)
 	auditContext := validGatewayDependencyAuditContext(payloadHash)
 	action := newActionRequest(
 		ActionKindDependencyFetch,
 		capabilityID,
 		actionPayloadGatewaySchemaID,
 		newSchemaPayload(actionPayloadGatewaySchemaID, map[string]any{
-			"gateway_role_kind": "dependency-fetch",
-			"destination_kind":  "package_registry",
-			"destination_ref":   refName + ".example.com",
-			"egress_data_class": "spec_text",
-			"operation":         "fetch_dependency",
-			"timeout_seconds":   float64(60),
-			"payload_hash":      payloadHash,
-			"audit_context":     auditContext,
+			"gateway_role_kind":  "dependency-fetch",
+			"destination_kind":   "package_registry",
+			"destination_ref":    refName + ".example.com",
+			"egress_data_class":  "spec_text",
+			"operation":          "fetch_dependency",
+			"timeout_seconds":    float64(60),
+			"payload_hash":       payloadHash,
+			"audit_context":      auditContext,
+			"dependency_request": dependencyRequest,
 			"quota_context": map[string]any{
 				"schema_id":             "runecode.protocol.v0.GatewayQuotaContext",
 				"schema_version":        "0.1.0",
@@ -63,6 +69,27 @@ func validDependencyFetchActionRequest(capabilityID string, roleKind string, ref
 	)
 	action.RelevantArtifactHashes = []trustpolicy.Digest{{HashAlg: "sha256", Hash: strings.Repeat("e", 64)}}
 	return action
+}
+
+func validDependencyFetchRequest(refName string) map[string]any {
+	return map[string]any{
+		"schema_id":      "runecode.protocol.v0.DependencyFetchRequest",
+		"schema_version": "0.1.0",
+		"request_kind":   "package_version_fetch",
+		"registry_identity": map[string]any{
+			"schema_id":                destinationDescriptorSchemaID,
+			"schema_version":           destinationDescriptorVersion,
+			"descriptor_kind":          "package_registry",
+			"canonical_host":           refName + ".example.com",
+			"provider_or_namespace":    "npm",
+			"tls_required":             true,
+			"private_range_blocking":   "enforced",
+			"dns_rebinding_protection": "enforced",
+		},
+		"ecosystem":       "npm",
+		"package_name":    "left-pad",
+		"package_version": "1.3.0",
+	}
 }
 
 func validGitRemoteMutationActionRequest(capabilityID string, operation string) ActionRequest {

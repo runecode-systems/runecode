@@ -58,6 +58,74 @@ func TestGitRemoteMutationPrepareRequiresRequestFile(t *testing.T) {
 	}
 }
 
+func TestDependencyCacheEnsureRequiresRequestFile(t *testing.T) {
+	setBrokerServiceForTest(t)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := run([]string{"dependency-cache-ensure"}, stdout, stderr)
+	if err == nil {
+		t.Fatal("dependency-cache-ensure expected usage error when request file is missing")
+	}
+	if _, ok := err.(*usageError); !ok {
+		t.Fatalf("dependency-cache-ensure error type = %T, want *usageError", err)
+	}
+}
+
+func TestDependencyFetchRegistryRequiresRequestFile(t *testing.T) {
+	setBrokerServiceForTest(t)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := run([]string{"dependency-fetch-registry"}, stdout, stderr)
+	if err == nil {
+		t.Fatal("dependency-fetch-registry expected usage error when request file is missing")
+	}
+	if _, ok := err.(*usageError); !ok {
+		t.Fatalf("dependency-fetch-registry error type = %T, want *usageError", err)
+	}
+}
+
+func TestDependencyCacheHandoffRequiresRequestFile(t *testing.T) {
+	setBrokerServiceForTest(t)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	err := run([]string{"dependency-cache-handoff"}, stdout, stderr)
+	if err == nil {
+		t.Fatal("dependency-cache-handoff expected usage error when request file is missing")
+	}
+	if _, ok := err.(*usageError); !ok {
+		t.Fatalf("dependency-cache-handoff error type = %T, want *usageError", err)
+	}
+}
+
+func TestDependencyLocalAPICommandsRouteThroughLocalRPC(t *testing.T) {
+	setBrokerServiceForTest(t)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	requestedOps := make([]string, 0, 3)
+	cacheEnsurePath, fetchRegistryPath, handoffPath := writeDependencyRequestFiles(t)
+
+	originalDispatch := localRPCDispatch
+	localRPCDispatch = func(_ *brokerapi.Service, _ context.Context, wire localRPCRequest, _ brokerapi.RequestContext) localRPCResponse {
+		requestedOps = append(requestedOps, wire.Operation)
+		resp, _ := handleGitRemoteAndLLMRPCStub(t, wire, len(requestedOps))
+		return resp
+	}
+	t.Cleanup(func() { localRPCDispatch = originalDispatch })
+
+	if err := run([]string{"dependency-cache-ensure", "--request-file", cacheEnsurePath}, stdout, stderr); err != nil {
+		t.Fatalf("dependency-cache-ensure returned error: %v", err)
+	}
+	if err := run([]string{"dependency-fetch-registry", "--request-file", fetchRegistryPath}, stdout, stderr); err != nil {
+		t.Fatalf("dependency-fetch-registry returned error: %v", err)
+	}
+	if err := run([]string{"dependency-cache-handoff", "--request-file", handoffPath}, stdout, stderr); err != nil {
+		t.Fatalf("dependency-cache-handoff returned error: %v", err)
+	}
+
+	want := []string{"dependency_cache_ensure", "dependency_fetch_registry", "dependency_cache_handoff"}
+	assertRequestedOps(t, requestedOps, want)
+}
+
 func TestSessionSendMessageRejectsInvalidRole(t *testing.T) {
 	setBrokerServiceForTest(t)
 	stdout := &bytes.Buffer{}
@@ -221,6 +289,12 @@ func handleGitRemoteAndLLMRPCStub(t *testing.T, wire localRPCRequest, opCount in
 		return mustOKLocalRPCResponse(t, brokerapi.GitRemoteMutationIssueExecuteLeaseResponse{ProviderAuthLeaseID: "lease-1", Lease: secretsd.Lease{LeaseID: "lease-1", SecretRef: "secrets/prod/git/provider-token", ConsumerID: "principal:gateway:git:1", RoleKind: "git-gateway", Scope: "run:run-1", DeliveryKind: "git_gateway", Status: "active"}}), true
 	case "git_remote_mutation_execute":
 		return mustOKLocalRPCResponse(t, brokerapi.GitRemoteMutationExecuteResponse{}), true
+	case "dependency_cache_ensure":
+		return mustOKLocalRPCResponse(t, brokerapi.DependencyCacheEnsureResponse{}), true
+	case "dependency_fetch_registry":
+		return mustOKLocalRPCResponse(t, brokerapi.DependencyFetchRegistryResponse{}), true
+	case "dependency_cache_handoff":
+		return mustOKLocalRPCResponse(t, brokerapi.DependencyCacheHandoffResponse{}), true
 	case "version_info_get":
 		return mustOKLocalRPCResponse(t, brokerapi.VersionInfoGetResponse{SchemaID: "runecode.protocol.v0.VersionInfoGetResponse", SchemaVersion: "0.1.0", RequestID: "req-version", VersionInfo: brokerapi.BrokerVersionInfo{SchemaID: "runecode.protocol.v0.BrokerVersionInfo", SchemaVersion: "0.1.0"}}), true
 	case "log_stream":
@@ -331,6 +405,66 @@ func writeGitRemoteMutationRequestFiles(t *testing.T) (string, string, string, s
 	writeJSONFixtureFile(t, leasePath, leasePayload)
 	writeJSONFixtureFile(t, executePath, executePayload)
 	return preparePath, getPath, leasePath, executePath
+}
+
+func writeDependencyRequestFiles(t *testing.T) (string, string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	cacheEnsurePath := filepath.Join(dir, "dependency-cache-ensure.json")
+	fetchRegistryPath := filepath.Join(dir, "dependency-fetch-registry.json")
+	handoffPath := filepath.Join(dir, "dependency-cache-handoff.json")
+	cacheEnsurePayload := map[string]any{
+		"schema_id":      "runecode.protocol.v0.DependencyCacheEnsureRequest",
+		"schema_version": "0.1.0",
+		"request_id":     "req-dependency-cache-ensure",
+		"run_id":         "run-1",
+		"batch_request": map[string]any{
+			"schema_id":        "runecode.protocol.v0.DependencyFetchBatchRequest",
+			"schema_version":   "0.1.0",
+			"lockfile_kind":    "npm_package_lock",
+			"lockfile_digest":  map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("1", 64)},
+			"request_set_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("2", 64)},
+			"batch_request_id": "batch-1",
+			"dependency_requests": []any{
+				map[string]any{
+					"schema_id":         "runecode.protocol.v0.DependencyFetchRequest",
+					"schema_version":    "0.1.0",
+					"request_kind":      "registry_fetch",
+					"registry_identity": map[string]any{"schema_id": "runecode.protocol.v0.DestinationDescriptor", "schema_version": "0.3.0", "descriptor_kind": "package_registry", "canonical_host": "registry.npmjs.org", "tls_required": true, "private_range_blocking": "enforced", "dns_rebinding_protection": "enforced"},
+					"ecosystem":         "npm",
+					"package_name":      "left-pad",
+					"package_version":   "1.3.0",
+				},
+			},
+		},
+	}
+	fetchRegistryPayload := map[string]any{
+		"schema_id":      "runecode.protocol.v0.DependencyFetchRegistryRequest",
+		"schema_version": "0.1.0",
+		"request_id":     "req-dependency-fetch-registry",
+		"run_id":         "run-1",
+		"dependency_request": map[string]any{
+			"schema_id":         "runecode.protocol.v0.DependencyFetchRequest",
+			"schema_version":    "0.1.0",
+			"request_kind":      "registry_fetch",
+			"registry_identity": map[string]any{"schema_id": "runecode.protocol.v0.DestinationDescriptor", "schema_version": "0.3.0", "descriptor_kind": "package_registry", "canonical_host": "registry.npmjs.org", "tls_required": true, "private_range_blocking": "enforced", "dns_rebinding_protection": "enforced"},
+			"ecosystem":         "npm",
+			"package_name":      "left-pad",
+			"package_version":   "1.3.0",
+		},
+		"request_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("3", 64)},
+	}
+	handoffPayload := map[string]any{
+		"schema_id":      "runecode.protocol.v0.DependencyCacheHandoffRequest",
+		"schema_version": "0.1.0",
+		"request_id":     "req-dependency-cache-handoff",
+		"request_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("4", 64)},
+		"consumer_role":  "workspace",
+	}
+	writeJSONFixtureFile(t, cacheEnsurePath, cacheEnsurePayload)
+	writeJSONFixtureFile(t, fetchRegistryPath, fetchRegistryPayload)
+	writeJSONFixtureFile(t, handoffPath, handoffPayload)
+	return cacheEnsurePath, fetchRegistryPath, handoffPath
 }
 
 func writeJSONFixtureFile(t *testing.T, path string, payload map[string]any) {

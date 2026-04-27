@@ -9,7 +9,7 @@
   "output_artifacts": [
     {
       "schema_id": "runecode.protocol.v0.ArtifactReference",
-      "schema_version": "0.3.0",
+      "schema_version": "0.4.0",
       "digest": {
         "hash_alg": "sha256",
         "hash": "4141414141414141414141414141414141414141414141414141414141414141"
@@ -24,7 +24,7 @@
     },
     {
       "schema_id": "runecode.protocol.v0.ArtifactReference",
-      "schema_version": "0.3.0",
+      "schema_version": "0.4.0",
       "digest": {
         "hash_alg": "sha256",
         "hash": "4343434343434343434343434343434343434343434343434343434343434343"

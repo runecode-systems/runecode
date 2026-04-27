@@ -107,7 +107,14 @@ func gateDefinitionFixtureWithRequiredGateContract() map[string]any {
 		"order_index":         0,
 		"role_instance_id":    "workspace_editor_1",
 		"executor_binding_id": "binding_workspace_runner",
-		"gate":                gateContractFixtureWithRequiredFields(),
+		"dependency_cache_handoffs": []any{
+			map[string]any{
+				"request_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("d", 64)},
+				"consumer_role":  "workspace",
+				"required":       true,
+			},
+		},
+		"gate": gateContractFixtureWithRequiredFields(),
 	}
 }
 
@@ -135,25 +142,47 @@ func assertSchemaVersions(t *testing.T, manifest manifestFile) {
 
 func assertSchemaVersionsCore(t *testing.T, manifest manifestFile) {
 	t.Helper()
-	versions := map[string]string{
-		"runecode.protocol.v0.ArtifactReference":            "0.3.0",
-		"runecode.protocol.v0.ArtifactPolicy":               "0.1.0",
-		"runecode.protocol.v0.AuditRecordDigest":            "0.1.0",
-		"runecode.protocol.v0.AuditEvent":                   "0.5.0",
-		"runecode.protocol.v0.AuditEventContractCatalog":    "0.1.0",
-		"runecode.protocol.v0.AuditReceipt":                 "0.5.0",
-		"runecode.protocol.v0.AuditSegmentSeal":             "0.2.0",
-		"runecode.protocol.v0.AuditSegmentFile":             "0.1.0",
-		"runecode.protocol.v0.AuditVerificationReport":      "0.1.0",
-		"runecode.protocol.v0.SignedObjectEnvelope":         "0.2.0",
-		"runecode.protocol.v0.ApprovalRequest":              "0.3.0",
-		"runecode.protocol.v0.ApprovalDecision":             "0.3.0",
-		"runecode.protocol.v0.PolicyAllowlist":              "0.1.0",
-		"runecode.protocol.v0.ActionPayloadSecretAccess":    "0.1.0",
-		"runecode.protocol.v0.SecretLease":                  "0.1.0",
-		"runecode.protocol.v0.SecretStoragePosture":         "0.1.0",
-		"runecode.protocol.v0.DestinationDescriptor":        "0.1.0",
-		"runecode.protocol.v0.GatewayScopeRule":             "0.1.0",
+	for schemaID, version := range coreSchemaVersionsPart1() {
+		assertManifestSchemaVersion(t, manifest, schemaID, version)
+	}
+	for schemaID, version := range coreSchemaVersionsPart2() {
+		assertManifestSchemaVersion(t, manifest, schemaID, version)
+	}
+}
+
+func coreSchemaVersionsPart1() map[string]string {
+	return map[string]string{
+		"runecode.protocol.v0.ArtifactReference":               "0.4.0",
+		"runecode.protocol.v0.ArtifactPolicy":                  "0.1.0",
+		"runecode.protocol.v0.AuditRecordDigest":               "0.1.0",
+		"runecode.protocol.v0.AuditEvent":                      "0.5.0",
+		"runecode.protocol.v0.AuditEventContractCatalog":       "0.1.0",
+		"runecode.protocol.v0.AuditReceipt":                    "0.5.0",
+		"runecode.protocol.v0.AuditSegmentSeal":                "0.2.0",
+		"runecode.protocol.v0.AuditSegmentFile":                "0.1.0",
+		"runecode.protocol.v0.AuditVerificationReport":         "0.1.0",
+		"runecode.protocol.v0.SignedObjectEnvelope":            "0.2.0",
+		"runecode.protocol.v0.ApprovalRequest":                 "0.3.0",
+		"runecode.protocol.v0.ApprovalDecision":                "0.3.0",
+		"runecode.protocol.v0.PolicyAllowlist":                 "0.1.0",
+		"runecode.protocol.v0.ActionPayloadSecretAccess":       "0.1.0",
+		"runecode.protocol.v0.SecretLease":                     "0.1.0",
+		"runecode.protocol.v0.SecretStoragePosture":            "0.1.0",
+		"runecode.protocol.v0.DestinationDescriptor":           "0.1.0",
+		"runecode.protocol.v0.DependencyFetchRequest":          "0.1.0",
+		"runecode.protocol.v0.DependencyFetchBatchRequest":     "0.1.0",
+		"runecode.protocol.v0.DependencyResolvedUnitManifest":  "0.1.0",
+		"runecode.protocol.v0.DependencyFetchBatchResult":      "0.1.0",
+		"runecode.protocol.v0.DependencyCacheEnsureRequest":    "0.1.0",
+		"runecode.protocol.v0.DependencyCacheEnsureResponse":   "0.1.0",
+		"runecode.protocol.v0.DependencyFetchRegistryRequest":  "0.1.0",
+		"runecode.protocol.v0.DependencyFetchRegistryResponse": "0.1.0",
+		"runecode.protocol.v0.GatewayScopeRule":                "0.1.0",
+	}
+}
+
+func coreSchemaVersionsPart2() map[string]string {
+	return map[string]string{
 		"runecode.protocol.v0.PolicyRuleSet":                "0.1.0",
 		"runecode.protocol.v0.VerifierRecord":               "0.1.0",
 		"runecode.protocol.v0.BrokerArtifactListRequest":    "0.1.0",
@@ -166,9 +195,6 @@ func assertSchemaVersionsCore(t *testing.T, manifest manifestFile) {
 		"runecode.protocol.v0.RuntimeImageDescriptor":       "0.2.0",
 		"runecode.protocol.v0.IsolateSessionStartedPayload": "0.1.0",
 		"runecode.protocol.v0.IsolateSessionBoundPayload":   "0.1.0",
-	}
-	for schemaID, version := range versions {
-		assertManifestSchemaVersion(t, manifest, schemaID, version)
 	}
 }
 

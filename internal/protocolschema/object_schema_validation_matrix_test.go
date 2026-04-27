@@ -132,6 +132,17 @@ func TestPolicyRuleSetAndAllowlistSchemasValidateDeclarativePolicyInputs(t *test
 	runObjectSchemaCases(t, bundle, "objects/PolicyAllowlist.schema.json", "allowlist", policyAllowlistCases())
 	runObjectSchemaCases(t, bundle, "objects/GatewayScopeRule.schema.json", "gateway-scope-rule", gatewayScopeRuleCases())
 	runObjectSchemaCases(t, bundle, "objects/DestinationDescriptor.schema.json", "destination-descriptor", destinationDescriptorCases())
+	runObjectSchemaCases(t, bundle, "objects/DependencyFetchRequest.schema.json", "dependency-fetch-request", dependencyFetchRequestCases())
+	runObjectSchemaCases(t, bundle, "objects/DependencyFetchBatchRequest.schema.json", "dependency-fetch-batch-request", dependencyFetchBatchRequestCases())
+	runObjectSchemaCases(t, bundle, "objects/DependencyResolvedUnitManifest.schema.json", "dependency-resolved-unit-manifest", dependencyResolvedUnitManifestCases())
+	runObjectSchemaCases(t, bundle, "objects/DependencyFetchBatchResult.schema.json", "dependency-fetch-batch-result", dependencyFetchBatchResultCases())
+	runObjectSchemaCases(t, bundle, "objects/DependencyCacheEnsureRequest.schema.json", "dependency-cache-ensure-request", dependencyCacheEnsureRequestCases())
+	runObjectSchemaCases(t, bundle, "objects/DependencyCacheEnsureResponse.schema.json", "dependency-cache-ensure-response", dependencyCacheEnsureResponseCases())
+	runObjectSchemaCases(t, bundle, "objects/DependencyFetchRegistryRequest.schema.json", "dependency-fetch-registry-request", dependencyFetchRegistryRequestCases())
+	runObjectSchemaCases(t, bundle, "objects/DependencyFetchRegistryResponse.schema.json", "dependency-fetch-registry-response", dependencyFetchRegistryResponseCases())
+	runObjectSchemaCases(t, bundle, "objects/DependencyCacheHandoffRequest.schema.json", "dependency-cache-handoff-request", dependencyCacheHandoffRequestCases())
+	runObjectSchemaCases(t, bundle, "objects/DependencyCacheHandoffMetadata.schema.json", "dependency-cache-handoff-metadata", dependencyCacheHandoffMetadataCases())
+	runObjectSchemaCases(t, bundle, "objects/DependencyCacheHandoffResponse.schema.json", "dependency-cache-handoff-response", dependencyCacheHandoffResponseCases())
 	runObjectSchemaCases(t, bundle, "objects/ActionPayloadGatewayEgress.schema.json", "gateway-egress-payload", gatewayEgressPayloadCases())
 	runObjectSchemaCases(t, bundle, "objects/GitCommitIntent.schema.json", "git-commit-intent", gitCommitIntentCases())
 	runObjectSchemaCases(t, bundle, "objects/GitSignedPatchArtifact.schema.json", "git-signed-patch-artifact", gitSignedPatchArtifactCases())
@@ -217,6 +228,10 @@ func artifactDataClassCases() []validationCase {
 		{name: "audit events class", value: artifactReferenceWithDataClass("audit_events")},
 		{name: "audit verification report class", value: artifactReferenceWithDataClass("audit_verification_report")},
 		{name: "audit receipt export copy class", value: artifactReferenceWithDataClass("audit_receipt_export_copy")},
+		{name: "dependency batch manifest class", value: artifactReferenceWithDataClass("dependency_batch_manifest")},
+		{name: "dependency resolved unit manifest class", value: artifactReferenceWithDataClass("dependency_resolved_unit_manifest")},
+		{name: "dependency resolved payload class", value: artifactReferenceWithDataClass("dependency_resolved_payload")},
+		{name: "dependency materialized tree class", value: artifactReferenceWithDataClass("dependency_materialized_tree")},
 		{name: "reserved web query class", value: artifactReferenceWithDataClass("web_query")},
 		{name: "reserved web citations class", value: artifactReferenceWithDataClass("web_citations")},
 	}
@@ -299,6 +314,7 @@ func destinationDescriptorCases() []validationCase {
 func gatewayEgressPayloadCases() []validationCase {
 	return []validationCase{
 		{name: "request operation requires payload hash", value: validActionPayloadGatewayEgressRequestOperation()},
+		{name: "dependency request operation requires typed dependency request", value: validActionPayloadGatewayEgressDependencyRequestOperation()},
 		{name: "request operation accepts timeout bound", value: validActionPayloadGatewayEgressRequestOperationWithTimeout()},
 		{name: "stream quota phase accepts explicit stream limit", value: validActionPayloadGatewayEgressStreamQuotaOperation()},
 		{name: "request operation accepts canonical destination host port path", value: validActionPayloadGatewayEgressRequestOperationWithPortAndPath()},
@@ -307,6 +323,7 @@ func gatewayEgressPayloadCases() []validationCase {
 		{name: "unknown operation fails closed", value: invalidActionPayloadGatewayEgressUnknownOperation(), wantErr: true},
 		{name: "request operation missing payload hash fails closed", value: invalidActionPayloadGatewayEgressRequestMissingPayloadHash(), wantErr: true},
 		{name: "dependency request operation missing payload hash fails closed", value: invalidActionPayloadGatewayEgressDependencyRequestMissingPayloadHash(), wantErr: true},
+		{name: "dependency request operation missing typed request fails closed", value: invalidActionPayloadGatewayEgressDependencyRequestMissingTypedRequest(), wantErr: true},
 		{name: "scope operation with payload hash fails closed", value: invalidActionPayloadGatewayEgressScopeWithPayloadHash(), wantErr: true},
 		{name: "git remote mutation missing typed request fails closed", value: invalidActionPayloadGatewayEgressGitRemoteMutationMissingSummary(), wantErr: true},
 		{name: "raw url destination ref fails closed", value: invalidActionPayloadGatewayEgressRawURLDestinationRef(), wantErr: true},
@@ -318,6 +335,62 @@ func gatewayEgressPayloadCases() []validationCase {
 		{name: "hybrid quota requires entitlement meter", value: invalidActionPayloadGatewayEgressHybridQuotaMissingEntitlementMeter(), wantErr: true},
 		{name: "hybrid quota requires token meter", value: invalidActionPayloadGatewayEgressHybridQuotaMissingTokenMeter(), wantErr: true},
 		{name: "stream phase without stream limit fails closed", value: invalidActionPayloadGatewayEgressStreamPhaseWithoutLimit(), wantErr: true},
+	}
+}
+
+func dependencyFetchRequestCases() []validationCase {
+	return []validationCase{
+		{name: "valid dependency fetch request", value: validDependencyFetchRequest()},
+		{name: "dependency fetch request requires package registry identity", value: invalidDependencyFetchRequestWithNonRegistryDescriptorKind(), wantErr: true},
+	}
+}
+
+func dependencyFetchBatchRequestCases() []validationCase {
+	return []validationCase{
+		{name: "valid dependency fetch batch request", value: validDependencyFetchBatchRequest()},
+		{name: "dependency fetch batch request requires request set", value: invalidDependencyFetchBatchRequestWithoutRequests(), wantErr: true},
+	}
+}
+
+func dependencyResolvedUnitManifestCases() []validationCase {
+	return []validationCase{
+		{name: "valid dependency resolved unit manifest", value: validDependencyResolvedUnitManifest()},
+		{name: "dependency resolved unit manifest enforces payload class", value: invalidDependencyResolvedUnitManifestWithWrongPayloadDataClass(), wantErr: true},
+	}
+}
+
+func dependencyFetchBatchResultCases() []validationCase {
+	return []validationCase{
+		{name: "valid dependency fetch batch result", value: validDependencyFetchBatchResult()},
+		{name: "dependency fetch batch result requires complete resolution", value: invalidDependencyFetchBatchResultWithIncompleteResolution(), wantErr: true},
+	}
+}
+
+func dependencyCacheEnsureRequestCases() []validationCase {
+	return []validationCase{
+		{name: "valid dependency cache ensure request", value: validDependencyCacheEnsureRequest()},
+		{name: "dependency cache ensure request requires run id", value: invalidDependencyCacheEnsureRequestWithoutRunID(), wantErr: true},
+	}
+}
+
+func dependencyCacheEnsureResponseCases() []validationCase {
+	return []validationCase{
+		{name: "valid dependency cache ensure response", value: validDependencyCacheEnsureResponse()},
+		{name: "dependency cache ensure response requires cache outcome", value: invalidDependencyCacheEnsureResponseWithoutCacheOutcome(), wantErr: true},
+	}
+}
+
+func dependencyFetchRegistryRequestCases() []validationCase {
+	return []validationCase{
+		{name: "valid dependency fetch registry request", value: validDependencyFetchRegistryRequest()},
+		{name: "dependency fetch registry request requires request hash", value: invalidDependencyFetchRegistryRequestWithoutRequestHash(), wantErr: true},
+	}
+}
+
+func dependencyFetchRegistryResponseCases() []validationCase {
+	return []validationCase{
+		{name: "valid dependency fetch registry response", value: validDependencyFetchRegistryResponse()},
+		{name: "dependency fetch registry response requires payload digests", value: invalidDependencyFetchRegistryResponseWithoutPayloadDigests(), wantErr: true},
 	}
 }
 

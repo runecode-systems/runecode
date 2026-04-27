@@ -30,11 +30,18 @@
       "schema_version": "0.1.0",
       "checkpoint_code": "step_validation_started",
       "order_index": 0,
-      "role_instance_id": "workspace_editor_1",
-      "executor_binding_id": "binding_workspace_runner",
-      "gate": {
-        "schema_id": "runecode.protocol.v0.GateContract",
-        "schema_version": "0.1.0",
+        "role_instance_id": "workspace_editor_1",
+        "executor_binding_id": "binding_workspace_runner",
+        "dependency_cache_handoffs": [
+          {
+            "request_digest": { "hash_alg": "sha256", "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" },
+            "consumer_role": "workspace",
+            "required": true
+          }
+        ],
+        "gate": {
+          "schema_id": "runecode.protocol.v0.GateContract",
+          "schema_version": "0.1.0",
         "gate_id": "build_gate",
         "gate_kind": "build",
         "gate_version": "1.0.0",

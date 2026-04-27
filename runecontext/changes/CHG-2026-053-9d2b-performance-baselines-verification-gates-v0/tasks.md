@@ -39,6 +39,11 @@ Alpha.7 bootstrap already landed:
 - [ ] Add cold and warm microVM startup checks.
 - [ ] Add cold and warm container startup checks for the explicit opt-in backend.
 - [ ] Add deterministic model-gateway invoke-overhead and secret-ingress checks using stubbed provider backends.
+- [ ] Add deterministic dependency-fetch cache-miss checks using reviewed typed dependency-request fixtures and stubbed public-registry payload sources.
+- [ ] Add deterministic dependency-fetch cache-hit checks for already-cached resolved dependency units.
+- [ ] Add miss-coalescing checks so identical concurrent dependency requests do not multiply upstream fetch work.
+- [ ] Add broker-mediated offline dependency staging or materialization checks for workspace consumption.
+- [ ] Add streaming and memory-budget checks to ensure dependency cache fill stays stream-to-CAS rather than full-payload buffering.
 - [ ] Add audit verification and finalize-verify runtime checks for standard and larger fixture ledgers.
 - [ ] Add protocol schema and fixture-parity performance checks.
 - [ ] Add git gateway prepare and local execute checks plus project-substrate posture and preview or apply checks.
@@ -62,6 +67,7 @@ Alpha.7 bootstrap already landed:
 - [ ] The TUI has separate gates for empty-idle and waiting-state behavior.
 - [ ] Broker local API requests and watch families have deterministic latency checks at multiple fixture sizes.
 - [ ] Runner, workflow, launcher, model-gateway, audit, protocol, and git gateway paths each have at least one deterministic CI-compatible performance check.
+- [ ] Dependency-fetch and offline-cache cold-cache, warm-cache, coalescing, and materialization paths each have at least one deterministic CI-compatible performance check.
 - [ ] Linux PR CI enforces numeric thresholds for the highest-value checks.
 - [ ] macOS and Windows execute the same performance flow families where feasible, at least as smoke or trend gates.
 - [ ] Threshold changes and baseline refreshes require explicit review rather than silent CI mutation.

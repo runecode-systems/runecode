@@ -12,14 +12,17 @@ import {
   type FileDurableStateStore,
 } from "./durable-state.ts";
 import { PlanScheduler, type ScheduledWorkItem } from "./scheduler.ts";
-import type { RunnerPlan, RunPlanLoader } from "./run-plan.ts";
+import type { DependencyCacheHandoffRequirement, RunnerPlan, RunnerPlanEntry, RunPlanLoader } from "./run-plan.ts";
 import { DurableRuntimeSeam, type RunnerRuntimeSeam } from "./runtime-seam.ts";
+import { NoopRunnerBrokerClient, type RunnerBrokerClient } from "./broker-client.ts";
 import type {
+  DependencyCacheHandoffMetadata,
   PlanBoundExecutionIdentity,
   RunnerCheckpointReport,
   RunnerResultReport,
 } from "./contracts.ts";
 import {
+  DEPENDENCY_CACHE_HANDOFF_REQUEST_SCHEMA_ID,
   RUNNER_CHECKPOINT_REPORT_SCHEMA_ID,
   RUNNER_CONTRACT_SCHEMA_VERSION,
   RUNNER_RESULT_REPORT_SCHEMA_ID,
@@ -31,6 +34,7 @@ export type RunnerKernelOptions = {
   scheduler?: PlanScheduler;
   runtimeSeam?: RunnerRuntimeSeam;
   approvalWaitResolver?: ApprovalWaitResolver;
+  brokerClient?: RunnerBrokerClient;
 };
 
 export type ApprovalWaitResolution = {
@@ -55,6 +59,7 @@ export type ApprovalWaitResolver = {
 export type KernelExecutionContext = {
   identity: PlanBoundExecutionIdentity;
   runtime: RunnerRuntimeSeam;
+  dependency_cache_handoffs: DependencyCacheHandoffMetadata[];
 };
 
 export type KernelExecutionModule = {
@@ -71,11 +76,14 @@ export class RunnerKernel {
 
   private readonly approvalWaitResolver: ApprovalWaitResolver | undefined;
 
+  private readonly brokerClient: RunnerBrokerClient;
+
   constructor(options: RunnerKernelOptions) {
     this.options = options;
     this.scheduler = options.scheduler ?? new PlanScheduler();
     this.runtimeSeam = options.runtimeSeam ?? new DurableRuntimeSeam(options.durableStateStore);
     this.approvalWaitResolver = options.approvalWaitResolver;
+    this.brokerClient = options.brokerClient ?? new NoopRunnerBrokerClient();
   }
 
   async initializeFromPlanFile(planFilePath: string): Promise<{ plan: RunnerPlan; work: ScheduledWorkItem[] }> {
@@ -128,13 +136,61 @@ export class RunnerKernel {
     };
   }
 
-  async composeModules(identity: PlanBoundExecutionIdentity, modules: KernelExecutionModule[]): Promise<void> {
+  async composeModules(
+    identity: PlanBoundExecutionIdentity,
+    modules: KernelExecutionModule[],
+    dependencyCacheHandoffs?: DependencyCacheHandoffRequirement[],
+  ): Promise<void> {
+    const resolvedHandoffs = await this.resolveDependencyCacheHandoffs(identity, dependencyCacheHandoffs ?? []);
     for (const module of modules) {
       await module.run({
         identity,
         runtime: this.runtimeSeam,
+        dependency_cache_handoffs: resolvedHandoffs,
       });
     }
+  }
+
+  async composeEntryModules(
+    identity: PlanBoundExecutionIdentity,
+    entry: RunnerPlanEntry,
+    modules: KernelExecutionModule[],
+  ): Promise<void> {
+    return this.composeModules(identity, modules, entry.dependency_cache_handoffs);
+  }
+
+  private async resolveDependencyCacheHandoffs(
+    identity: PlanBoundExecutionIdentity,
+    requirements: DependencyCacheHandoffRequirement[],
+  ): Promise<DependencyCacheHandoffMetadata[]> {
+    const resolved: DependencyCacheHandoffMetadata[] = [];
+    for (const requirement of requirements) {
+      const response = await this.brokerClient.requestDependencyCacheHandoff({
+        schema_id: DEPENDENCY_CACHE_HANDOFF_REQUEST_SCHEMA_ID,
+        schema_version: RUNNER_CONTRACT_SCHEMA_VERSION,
+        request_id: this.dependencyCacheHandoffRequestID(identity, requirement),
+        request_digest: this.digestObject(requirement.request_digest),
+        consumer_role: requirement.consumer_role,
+      });
+      if (!response.found || !response.handoff) {
+        throw new Error(`required dependency cache handoff not found for ${requirement.request_digest}`);
+      }
+      resolved.push(response.handoff);
+    }
+    return resolved;
+  }
+
+  private dependencyCacheHandoffRequestID(identity: PlanBoundExecutionIdentity, requirement: DependencyCacheHandoffRequirement): string {
+    const digestSuffix = requirement.request_digest.slice(-12);
+    return `dependency-handoff:${identity.run_id.slice(0, 24)}:${digestSuffix}`;
+  }
+
+  private digestObject(digestIdentity: string): { hash_alg: "sha256"; hash: string } {
+    const [hashAlg, hash] = digestIdentity.split(":", 2);
+    if (hashAlg !== "sha256" || !hash || !/^[a-f0-9]{64}$/.test(hash)) {
+      throw new Error(`dependency handoff digest identity must be sha256:<hex>, got ${digestIdentity}`);
+    }
+    return { hash_alg: "sha256", hash };
   }
 
   checkpointReport(input: {

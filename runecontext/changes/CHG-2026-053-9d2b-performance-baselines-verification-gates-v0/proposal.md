@@ -20,6 +20,7 @@ The investigation showed that RuneCode does not currently distinguish performanc
 - runner and workflow startup overhead
 - backend startup and attach readiness
 - provider, audit, protocol, and gateway overhead
+- dependency-fetch cache miss, cache hit, and offline materialization overhead
 
 Without deterministic fixtures, explicit thresholds, and CI enforcement, the project can regress in any of those areas without a visible review signal.
 
@@ -35,6 +36,7 @@ Without deterministic fixtures, explicit thresholds, and CI enforcement, the pro
 - Assign per-aspect thresholds that are suitable for CI, with Linux-first numeric gates and deterministic local fixtures or stubs instead of live external dependencies.
 - Keep performance verification check-only and CI-safe so it remains compatible with `just ci` discipline and does not introduce silent writes or mutable benchmark artifacts during normal verification.
 - Freeze a policy for baseline maintenance so future work can tighten thresholds intentionally instead of letting them drift implicitly.
+- Include dependency-fetch and offline-cache performance as a first-class product regime, including cache miss, cache hit, miss coalescing, bounded concurrency, stream-to-CAS persistence, and broker-mediated offline dependency staging/materialization costs.
 
 ## Why Now
 RuneCode is approaching the first usable end-to-end Linux-first cut. That makes performance regressions more dangerous because users are no longer exercising isolated demos; they are exercising a connected product composed of the TUI, broker, runner, gateway, audit, and isolate layers.
@@ -69,6 +71,7 @@ This change gives RuneCode one canonical planning surface for:
 - the profile-backed hot paths that deserve follow-on optimization work
 - the deterministic benchmark and latency checks needed across the entire product
 - the per-aspect thresholds and CI structure required to make performance a maintained contract rather than an anecdotal concern
+- the explicit expectation that dependency-fetch performance must be measured on both cold-cache and warm-cache paths without weakening trust boundaries or buffering full dependency payloads in memory
 
 It also freezes one durable product-level rule for future work:
 

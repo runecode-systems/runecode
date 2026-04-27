@@ -13,6 +13,7 @@
 - [ ] Preserve separate attempt identities for retries and reruns so concurrency logic does not overload logical scope identity.
 - [ ] Keep concurrency ownership and coordination broker-owned within the canonical repo-scoped product lifecycle rather than client-local, transport-local, or workbench-local state.
 - [ ] Distinguish shared-workspace concurrency from isolated implementation-track execution in `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0`.
+- [ ] Reuse broker-owned dependency-fetch and offline-cache authority so concurrent runs share reviewed immutable dependency artifacts without promoting workspace-local caches into coordination truth.
 
 ## Conflict Detection + Isolation Rules
 
@@ -21,8 +22,10 @@
 - [ ] Require explicit policy and audit recording when a run uses any non-default concurrency posture.
 - [ ] Ensure approvals remain run-bound and cannot be consumed across runs under shared-workspace modes.
 - [ ] Ensure gate attempts, gate evidence, and gate overrides remain bound to the originating run/stage/step scope under concurrency.
+- [ ] Ensure dependency scope enablement or expansion approvals remain run- and scope-bound under concurrency and are not inherited as workspace-global capability.
 - [ ] Account for validated project-substrate snapshot identity and project-substrate drift under concurrency.
 - [ ] Ensure one run cannot silently satisfy or inherit another run's project-context preconditions or remediation posture.
+- [ ] Ensure concurrent dependency materialization reuses broker-mediated artifacts without making local cache directories or unpacked trees authoritative identity.
 - [ ] Compose run-local partial-blocking semantics from `CHG-2026-048-6b7a-session-execution-orchestration-v0` with shared-workspace coordination so a scoped wait does not become workspace-global unless locks or conflicts require it.
 
 ## Runner, Broker, and TUI Integration
@@ -49,5 +52,6 @@
 - [ ] Concurrent use of one workspace requires an explicit design and fail-closed posture.
 - [ ] Locking, contention, and recovery are auditable and deterministic.
 - [ ] Approval, artifact, and gate semantics stay bound to the correct run under concurrency.
+- [ ] Dependency-fetch and offline-cache semantics stay broker-owned and canonical under concurrency rather than becoming workspace-local authority surfaces.
 - [ ] Concurrency integrates with the shared identity, lifecycle, approval, gate-evidence, and validated project-substrate binding model without introducing parallel workflow semantics.
 - [ ] Concurrency ownership and coordination semantics remain broker-owned inside the canonical repo-scoped RuneCode product lifecycle rather than becoming client- or transport-local truth.

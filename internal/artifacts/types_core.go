@@ -1,6 +1,9 @@
 package artifacts
 
-import "time"
+import (
+	"io"
+	"time"
+)
 
 type DataClass string
 
@@ -14,6 +17,10 @@ const (
 	DataClassAuditVerificationReport DataClass = "audit_verification_report"
 	DataClassAuditReceiptExportCopy  DataClass = "audit_receipt_export_copy"
 	DataClassGateEvidence            DataClass = "gate_evidence"
+	DataClassDependencyBatchManifest DataClass = "dependency_batch_manifest"
+	DataClassDependencyResolvedUnit  DataClass = "dependency_resolved_unit_manifest"
+	DataClassDependencyPayloadUnit   DataClass = "dependency_resolved_payload"
+	DataClassDependencyMaterialized  DataClass = "dependency_materialized_tree"
 	DataClassWebQuery                DataClass = "web_query"
 	DataClassWebCitations            DataClass = "web_citations"
 )
@@ -28,6 +35,10 @@ var allDataClasses = map[DataClass]struct{}{
 	DataClassAuditVerificationReport: {},
 	DataClassAuditReceiptExportCopy:  {},
 	DataClassGateEvidence:            {},
+	DataClassDependencyBatchManifest: {},
+	DataClassDependencyResolvedUnit:  {},
+	DataClassDependencyPayloadUnit:   {},
+	DataClassDependencyMaterialized:  {},
 	DataClassWebQuery:                {},
 	DataClassWebCitations:            {},
 }
@@ -69,29 +80,52 @@ type FlowRule struct {
 }
 
 type Policy struct {
-	HandOffReferenceMode                string           `json:"handoff_reference_mode"`
-	ReservedClassesEnabled              bool             `json:"reserved_classes_enabled"`
-	EncryptedAtRestDefault              bool             `json:"encrypted_at_rest_default"`
-	DevPlaintextOverride                bool             `json:"dev_plaintext_override"`
-	ExplicitHumanApprovalRequired       bool             `json:"explicit_human_approval_required"`
-	PromotionMintsNewArtifactReference  bool             `json:"promotion_mints_new_artifact_reference"`
-	MaxPromotionRequestBytes            int64            `json:"max_promotion_request_bytes"`
-	MaxPromotionRequestsPerMinute       int              `json:"max_promotion_requests_per_minute"`
-	BulkPromotionRequiresSeparateReview bool             `json:"bulk_promotion_requires_separate_approval"`
-	FlowMatrix                          []FlowRule       `json:"flow_matrix"`
-	RevokedApprovedExcerptHashes        map[string]bool  `json:"revoked_approved_excerpt_hashes"`
-	PerRoleQuota                        map[string]Quota `json:"per_role_quota"`
-	PerStepQuota                        map[string]Quota `json:"per_step_quota"`
-	UnreferencedTTLSeconds              int64            `json:"unreferenced_ttl_seconds"`
-	DeleteOnQuotaPressure               bool             `json:"delete_unreferenced_on_quota_pressure"`
-	RequireOriginMetadata               []string         `json:"require_origin_metadata"`
-	RequireFullContentVisibility        bool             `json:"require_full_content_visibility"`
-	ApprovedExcerptEgressOptInOnly      bool             `json:"approved_excerpt_egress_opt_in_only"`
-	UnapprovedExcerptEgressDenied       bool             `json:"unapproved_excerpt_egress_denied"`
+	HandOffReferenceMode                string                `json:"handoff_reference_mode"`
+	ReservedClassesEnabled              bool                  `json:"reserved_classes_enabled"`
+	DependencyCachePolicy               DependencyCachePolicy `json:"dependency_cache_policy"`
+	EncryptedAtRestDefault              bool                  `json:"encrypted_at_rest_default"`
+	DevPlaintextOverride                bool                  `json:"dev_plaintext_override"`
+	ExplicitHumanApprovalRequired       bool                  `json:"explicit_human_approval_required"`
+	PromotionMintsNewArtifactReference  bool                  `json:"promotion_mints_new_artifact_reference"`
+	MaxPromotionRequestBytes            int64                 `json:"max_promotion_request_bytes"`
+	MaxPromotionRequestsPerMinute       int                   `json:"max_promotion_requests_per_minute"`
+	BulkPromotionRequiresSeparateReview bool                  `json:"bulk_promotion_requires_separate_approval"`
+	FlowMatrix                          []FlowRule            `json:"flow_matrix"`
+	RevokedApprovedExcerptHashes        map[string]bool       `json:"revoked_approved_excerpt_hashes"`
+	PerRoleQuota                        map[string]Quota      `json:"per_role_quota"`
+	PerStepQuota                        map[string]Quota      `json:"per_step_quota"`
+	UnreferencedTTLSeconds              int64                 `json:"unreferenced_ttl_seconds"`
+	DeleteOnQuotaPressure               bool                  `json:"delete_unreferenced_on_quota_pressure"`
+	RequireOriginMetadata               []string              `json:"require_origin_metadata"`
+	RequireFullContentVisibility        bool                  `json:"require_full_content_visibility"`
+	ApprovedExcerptEgressOptInOnly      bool                  `json:"approved_excerpt_egress_opt_in_only"`
+	UnapprovedExcerptEgressDenied       bool                  `json:"unapproved_excerpt_egress_denied"`
+}
+
+type DependencyCachePolicy struct {
+	ReadOnlyArtifactsRequired            bool `json:"read_only_artifacts_required"`
+	BatchManifestImmutable               bool `json:"batch_manifest_immutable"`
+	ResolvedUnitManifestImmutable        bool `json:"resolved_unit_manifest_immutable"`
+	ResolvedPayloadImmutable             bool `json:"resolved_payload_immutable"`
+	MaterializedTreesDerivedNonCanonical bool `json:"materialized_trees_derived_non_canonical"`
+	FailClosedOnAmbiguousPartialReuse    bool `json:"fail_closed_on_ambiguous_partial_reuse"`
+	FailClosedOnIncompleteState          bool `json:"fail_closed_on_incomplete_state"`
+	RetainCanonicalBeforeDerived         bool `json:"retain_canonical_before_derived"`
 }
 
 type PutRequest struct {
 	Payload               []byte
+	ContentType           string
+	DataClass             DataClass
+	ProvenanceReceiptHash string
+	CreatedByRole         string
+	TrustedSource         bool
+	RunID                 string
+	StepID                string
+}
+
+type PutStreamRequest struct {
+	Reader                io.Reader
 	ContentType           string
 	DataClass             DataClass
 	ProvenanceReceiptHash string

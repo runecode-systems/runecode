@@ -83,6 +83,8 @@ func mapFlowReasonToError(reason string) error {
 		return ErrApprovedEgressRequiresManifest
 	case "approved_excerpt_revoked":
 		return ErrApprovedExcerptRevoked
+	case "dependency_artifact_internal_handoff_only":
+		return ErrDependencyArtifactEgressDenied
 	default:
 		return ErrFlowDenied
 	}

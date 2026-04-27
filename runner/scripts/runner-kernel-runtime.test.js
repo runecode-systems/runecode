@@ -24,6 +24,8 @@ test("loads RunPlan via schema bundle and schedules work", async (t) => {
   assert.equal(plan.plan_id, "plan_alpha");
   assert.equal(work.length, 1);
   assert.equal(work[0].entry.entry_kind, "gate_definition");
+  assert.equal(work[0].entry.dependency_cache_handoffs.length, 1);
+  assert.equal(work[0].entry.dependency_cache_handoffs[0].consumer_role, "workspace");
 
   t.diagnostic(`scheduled ${work.length} plan entries`);
 });
@@ -469,6 +471,28 @@ test("noop broker client returns unaccepted acknowledgements", async () => {
   assert.deepEqual(result, { accepted: false, reason: "broker client not configured" });
 });
 
+test("noop broker client exposes dependency cache handoff seam", async () => {
+  const {
+    NoopRunnerBrokerClient,
+  } = await loadRunnerModules();
+
+  const client = new NoopRunnerBrokerClient();
+  const response = await client.requestDependencyCacheHandoff({
+    schema_id: "runecode.protocol.v0.DependencyCacheHandoffRequest",
+    schema_version: "0.1.0",
+    request_id: "noop-handoff",
+    request_digest: { hash_alg: "sha256", hash: "a".repeat(64) },
+    consumer_role: "workspace",
+  });
+
+  assert.deepEqual(response, {
+    schema_id: "runecode.protocol.v0.DependencyCacheHandoffResponse",
+    schema_version: "0.1.0",
+    request_id: "noop-handoff",
+    found: false,
+  });
+});
+
 test("runtime seam idempotency ignores payload detail key order and writes private file mode", async (t) => {
   if (process.platform === "win32") {
     t.skip("permission bit checks are platform-specific");
@@ -582,10 +606,18 @@ test("kernel runtime seam restores parked waits for active plan identity", async
 
 test("kernel composes modules with plan-bound identity", async () => {
   const {
+    ProtocolSchemaBundle,
+    RunPlanLoader,
     RunnerKernel,
   } = await loadRunnerModules();
 
+  const schemaBundle = await ProtocolSchemaBundle.fromProtocolSchemasRoot(path.join(repoRoot, "protocol", "schemas"));
+  const loader = new RunPlanLoader(schemaBundle);
+  const plan = loader.loadFromUnknown(validRunPlanFixture());
+  const entry = plan.entries[0];
+
   const calls = [];
+  const handoffRequests = [];
   const runtime = {
     async checkpoint(input) {
       calls.push({ kind: "checkpoint", input });
@@ -622,14 +654,43 @@ test("kernel composes modules with plan-bound identity", async () => {
       listPendingApprovalWaits: async () => [],
     },
     runtimeSeam: runtime,
+    brokerClient: {
+      async requestDependencyCacheHandoff(request) {
+        handoffRequests.push(request);
+        return {
+          schema_id: "runecode.protocol.v0.DependencyCacheHandoffResponse",
+          schema_version: "0.1.0",
+          request_id: request.request_id,
+          found: true,
+          handoff: {
+            schema_id: "runecode.protocol.v0.DependencyCacheHandoffMetadata",
+            schema_version: "0.1.0",
+            request_digest: { hash_alg: "sha256", hash: "d".repeat(64) },
+            resolved_unit_digest: { hash_alg: "sha256", hash: "e".repeat(64) },
+            manifest_digest: { hash_alg: "sha256", hash: "f".repeat(64) },
+            payload_digests: [{ hash_alg: "sha256", hash: "1".repeat(64) }],
+            materialization_mode: "derived_read_only",
+            handoff_mode: "broker_internal_artifact_handoff",
+          },
+        };
+      },
+      async sendRunnerCheckpointReport() {
+        return { accepted: false, reason: "unused" };
+      },
+      async sendRunnerResultReport() {
+        return { accepted: false, reason: "unused" };
+      },
+    },
   });
 
   const identity = { run_id: "run_alpha", plan_id: "plan_alpha", step_id: "step_alpha" };
-  await kernel.composeModules(identity, [
+  await kernel.composeEntryModules(identity, entry, [
     {
       name: "first",
       async run(context) {
         assert.equal(context.identity.plan_id, "plan_alpha");
+        assert.equal(context.dependency_cache_handoffs.length, 1);
+        assert.equal(context.dependency_cache_handoffs[0].handoff_mode, "broker_internal_artifact_handoff");
         await context.runtime.parkWait({
           identity: context.identity,
           wait_kind: "approval",
@@ -641,7 +702,67 @@ test("kernel composes modules with plan-bound identity", async () => {
     },
   ]);
 
+  assert.equal(handoffRequests.length, 1);
+  assert.match(handoffRequests[0].request_id, /^dependency-handoff:run_alpha:[a-f0-9]{12}$/);
+  assert.equal(handoffRequests[0].consumer_role, "workspace");
   assert.equal(calls.length, 1);
   assert.equal(calls[0].kind, "park");
   assert.equal(calls[0].input.identity.run_id, "run_alpha");
+});
+
+test("kernel fails closed when a required dependency cache handoff is missing", async () => {
+  const {
+    RunnerKernel,
+  } = await loadRunnerModules();
+
+  const kernel = new RunnerKernel({
+    planLoader: { loadFromFile: async () => { throw new Error("unused"); }, identityOf: () => ({ run_id: "r", plan_id: "p" }) },
+    durableStateStore: {
+      bindPlanIdentity: async () => {},
+      appendRecord: async () => ({ sequence: 1 }),
+      readState: async () => ({
+        snapshot: {
+          schema_version: "2",
+          run_id: "run_alpha",
+          plan_id: "plan_alpha",
+          last_sequence: 0,
+          pending_approval_waits: [],
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+        journal: [],
+      }),
+      runtimeStateRoot: () => process.cwd(),
+      listPendingApprovalWaits: async () => [],
+    },
+    brokerClient: {
+      async requestDependencyCacheHandoff(request) {
+        return {
+          schema_id: "runecode.protocol.v0.DependencyCacheHandoffResponse",
+          schema_version: "0.1.0",
+          request_id: request.request_id,
+          found: false,
+        };
+      },
+      async sendRunnerCheckpointReport() {
+        return { accepted: false, reason: "unused" };
+      },
+      async sendRunnerResultReport() {
+        return { accepted: false, reason: "unused" };
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => kernel.composeEntryModules({ run_id: "run_alpha", plan_id: "plan_alpha" }, {
+      entry_id: "entry-1",
+      entry_kind: "gate_definition",
+      dependency_cache_handoffs: [{
+        request_digest: "sha256:" + "d".repeat(64),
+        consumer_role: "workspace",
+        required: true,
+      }],
+    }, [{ name: "noop", async run() {} }]),
+    /required dependency cache handoff not found/,
+  );
 });

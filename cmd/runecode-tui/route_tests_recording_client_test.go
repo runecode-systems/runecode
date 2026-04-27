@@ -115,6 +115,21 @@ func (r *recordingBrokerClient) ArtifactRead(ctx context.Context, req brokerapi.
 	return r.base.ArtifactRead(ctx, req)
 }
 
+func (r *recordingBrokerClient) DependencyCacheEnsure(ctx context.Context, req brokerapi.DependencyCacheEnsureRequest) (brokerapi.DependencyCacheEnsureResponse, error) {
+	r.record("DependencyCacheEnsure")
+	return r.base.DependencyCacheEnsure(ctx, req)
+}
+
+func (r *recordingBrokerClient) DependencyFetchRegistry(ctx context.Context, req brokerapi.DependencyFetchRegistryRequest) (brokerapi.DependencyFetchRegistryResponse, error) {
+	r.record("DependencyFetchRegistry")
+	return r.base.DependencyFetchRegistry(ctx, req)
+}
+
+func (r *recordingBrokerClient) DependencyCacheHandoff(ctx context.Context, req brokerapi.DependencyCacheHandoffRequest) (brokerapi.DependencyCacheHandoffResponse, error) {
+	r.record("DependencyCacheHandoff")
+	return r.base.DependencyCacheHandoff(ctx, req)
+}
+
 func (r *recordingBrokerClient) LLMInvoke(ctx context.Context, req brokerapi.LLMInvokeRequest) (brokerapi.LLMInvokeResponse, error) {
 	r.record("LLMInvoke")
 	return r.base.LLMInvoke(ctx, req)

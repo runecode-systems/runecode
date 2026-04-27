@@ -169,6 +169,10 @@ func localBrokerGitAndArtifactSchemaVersionPairs() map[string]string {
 		"runecode.protocol.v0.ArtifactListResponse":                       "0.1.0",
 		"runecode.protocol.v0.ArtifactHeadRequest":                        "0.1.0",
 		"runecode.protocol.v0.ArtifactHeadResponse":                       "0.1.0",
+		"runecode.protocol.v0.DependencyCacheEnsureRequest":               "0.1.0",
+		"runecode.protocol.v0.DependencyCacheEnsureResponse":              "0.1.0",
+		"runecode.protocol.v0.DependencyFetchRegistryRequest":             "0.1.0",
+		"runecode.protocol.v0.DependencyFetchRegistryResponse":            "0.1.0",
 		"runecode.protocol.v0.LogStreamRequest":                           "0.1.0",
 		"runecode.protocol.v0.LogStreamEvent":                             "0.1.0",
 	}

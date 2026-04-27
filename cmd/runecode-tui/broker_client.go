@@ -41,6 +41,9 @@ type localBrokerClient interface {
 	ArtifactList(ctx context.Context, limit int, dataClass string) (brokerapi.LocalArtifactListResponse, error)
 	ArtifactHead(ctx context.Context, digest string) (brokerapi.LocalArtifactHeadResponse, error)
 	ArtifactRead(ctx context.Context, req brokerapi.ArtifactReadRequest) ([]brokerapi.ArtifactStreamEvent, error)
+	DependencyCacheEnsure(ctx context.Context, req brokerapi.DependencyCacheEnsureRequest) (brokerapi.DependencyCacheEnsureResponse, error)
+	DependencyFetchRegistry(ctx context.Context, req brokerapi.DependencyFetchRegistryRequest) (brokerapi.DependencyFetchRegistryResponse, error)
+	DependencyCacheHandoff(ctx context.Context, req brokerapi.DependencyCacheHandoffRequest) (brokerapi.DependencyCacheHandoffResponse, error)
 	LLMInvoke(ctx context.Context, req brokerapi.LLMInvokeRequest) (brokerapi.LLMInvokeResponse, error)
 	LLMStream(ctx context.Context, req brokerapi.LLMStreamRequest) (brokerapi.LLMStreamEnvelope, error)
 	AuditTimeline(ctx context.Context, limit int, cursor string) (brokerapi.AuditTimelineResponse, error)
@@ -210,6 +213,30 @@ func (c *rpcBrokerClient) ArtifactRead(ctx context.Context, req brokerapi.Artifa
 	req.RequestID = newRequestID("artifact-read")
 	events := []brokerapi.ArtifactStreamEvent{}
 	return events, c.invoke(ctx, "artifact_read", req, &events)
+}
+
+func (c *rpcBrokerClient) DependencyCacheEnsure(ctx context.Context, req brokerapi.DependencyCacheEnsureRequest) (brokerapi.DependencyCacheEnsureResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.DependencyCacheEnsureRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("dependency-cache-ensure")
+	resp := brokerapi.DependencyCacheEnsureResponse{}
+	return resp, c.invoke(ctx, "dependency_cache_ensure", req, &resp)
+}
+
+func (c *rpcBrokerClient) DependencyFetchRegistry(ctx context.Context, req brokerapi.DependencyFetchRegistryRequest) (brokerapi.DependencyFetchRegistryResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.DependencyFetchRegistryRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("dependency-fetch-registry")
+	resp := brokerapi.DependencyFetchRegistryResponse{}
+	return resp, c.invoke(ctx, "dependency_fetch_registry", req, &resp)
+}
+
+func (c *rpcBrokerClient) DependencyCacheHandoff(ctx context.Context, req brokerapi.DependencyCacheHandoffRequest) (brokerapi.DependencyCacheHandoffResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.DependencyCacheHandoffRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("dependency-cache-handoff")
+	resp := brokerapi.DependencyCacheHandoffResponse{}
+	return resp, c.invoke(ctx, "dependency_cache_handoff", req, &resp)
 }
 
 func (c *rpcBrokerClient) LLMInvoke(ctx context.Context, req brokerapi.LLMInvokeRequest) (brokerapi.LLMInvokeResponse, error) {

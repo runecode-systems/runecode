@@ -85,6 +85,12 @@ func dispatchTUILocalRPCJSONCoreOps(service *brokerapi.Service, wire brokerapi.L
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleArtifactListV0), true
 	case "artifact_head":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleArtifactHeadV0), true
+	case "dependency_cache_ensure":
+		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleDependencyCacheEnsure), true
+	case "dependency_fetch_registry":
+		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleDependencyFetchRegistry), true
+	case "dependency_cache_handoff":
+		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleDependencyCacheHandoff), true
 	default:
 		return brokerapi.LocalRPCResponse{}, false
 	}

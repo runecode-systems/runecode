@@ -10,7 +10,7 @@ func (s *Store) GarbageCollect() (GCResult, error) {
 	defer s.mu.Unlock()
 	now := s.nowFn().UTC()
 	ttl := ensureTTL(s.state.Policy.UnreferencedTTLSeconds)
-	candidates := gcCandidates(s.state.Artifacts, s.state.Runs, now, ttl)
+	candidates := gcCandidates(s.state.Artifacts, s.state.Runs, s.state.DependencyCacheBatches, s.state.DependencyCacheUnits, now, ttl)
 	result, err := s.deleteCandidatesLocked(candidates)
 	if err != nil {
 		return GCResult{}, err

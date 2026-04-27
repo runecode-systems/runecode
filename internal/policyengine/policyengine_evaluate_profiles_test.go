@@ -107,6 +107,7 @@ func TestEvaluateDependencyFetchUsesDependencyTriggerCode(t *testing.T) {
 	action := validDependencyFetchActionRequest("cap_dep", "dependency-fetch", "allowlist-dep")
 	action.ActionPayload["operation"] = "enable_dependency_fetch"
 	delete(action.ActionPayload, "payload_hash")
+	delete(action.ActionPayload, "dependency_request")
 	decision, err := Evaluate(compiled, action)
 	if err != nil || decision.DecisionOutcome != DecisionRequireHumanApproval {
 		t.Fatalf("dependency fetch should require approval, err=%v outcome=%q", err, decision.DecisionOutcome)

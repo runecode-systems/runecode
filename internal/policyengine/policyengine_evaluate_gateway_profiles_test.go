@@ -156,6 +156,43 @@ func TestEvaluateGatewayDeniesAuthRefreshWhenCanonicalRequestHashBindingMissing(
 	}
 }
 
+func TestEvaluateDependencyFetchDeniesWhenTypedDependencyRequestBindingMissing(t *testing.T) {
+	allowlist := validAllowlistPayloadForGateway("allowlist-dep", "dependency-fetch", "package_registry", "fetch_dependency", "spec_text")
+	compiled := mustCompile(t, compileGatewayInputWithOneCapability("dependency-fetch", "cap_dep", allowlist))
+	action := validDependencyFetchActionRequest("cap_dep", "dependency-fetch", "allowlist-dep")
+	action.ActionPayload["destination_ref"] = "allowlist-dep.example.com"
+	delete(action.ActionPayload, "dependency_request")
+	_, err := Evaluate(compiled, action)
+	if err == nil {
+		t.Fatal("Evaluate error = nil, want fail-closed schema validation error")
+	}
+	var evalErr *EvaluationError
+	if !errors.As(err, &evalErr) {
+		t.Fatalf("error type = %T, want *EvaluationError", err)
+	}
+	if evalErr.Code != ErrCodeBrokerValidationSchema {
+		t.Fatalf("error code = %q, want %q", evalErr.Code, ErrCodeBrokerValidationSchema)
+	}
+}
+
+func TestEvaluateDependencyFetchDeniesWhenPayloadHashNotBoundToCanonicalTypedDependencyRequest(t *testing.T) {
+	allowlist := validAllowlistPayloadForGateway("allowlist-dep", "dependency-fetch", "package_registry", "fetch_dependency", "spec_text")
+	compiled := mustCompile(t, compileGatewayInputWithOneCapability("dependency-fetch", "cap_dep", allowlist))
+	action := validDependencyFetchActionRequest("cap_dep", "dependency-fetch", "allowlist-dep")
+	action.ActionPayload["destination_ref"] = "allowlist-dep.example.com"
+	action.ActionPayload["payload_hash"] = mustDigestObject("sha256:" + strings.Repeat("c", 64))
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionDeny {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	}
+	if got, _ := decision.Details["reason"].(string); got != "payload_hash_not_bound_to_canonical_dependency_request_hash" {
+		t.Fatalf("reason = %v, want payload_hash_not_bound_to_canonical_dependency_request_hash", decision.Details["reason"])
+	}
+}
+
 func TestEvaluateGatewayDeniesWhenRequestTimeoutMissing(t *testing.T) {
 	compiled := mustCompile(t, compileGatewayInputWithOneCapability("model-gateway", "cap_gateway", validAllowlistPayloadForGateway("allowlist-model", "model-gateway", "model_endpoint", "invoke_model", "spec_text")))
 	action := validGatewayEgressActionRequest("cap_gateway", "gateway", "model-gateway", "model-gateway", "model_endpoint", ActionKindGatewayEgress)

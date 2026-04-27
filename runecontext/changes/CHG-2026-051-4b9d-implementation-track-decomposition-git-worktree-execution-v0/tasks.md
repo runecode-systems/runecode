@@ -14,6 +14,9 @@
 - [ ] Define when low-coupling implementation tracks are eligible for isolated git-worktree execution.
 - [ ] Keep worktree paths, local branch names, and related filesystem mechanics implementation-private and non-authoritative.
 - [ ] Define broker-owned worktree create, health, cleanup, reuse, and crash-recovery behavior.
+- [ ] Reuse shared broker-owned dependency-fetch and offline-cache authority across tracks instead of creating per-worktree dependency cache ownership.
+- [ ] Keep canonical dependency identity bound to reviewed dependency requests and resolved units rather than worktree paths, unpacked trees, or package-manager-local cache directories.
+- [ ] Define how eligible worktrees receive broker-mediated offline dependency materialization or equivalent artifact handoff for execution.
 - [ ] Keep canonical linkage from track execution to sessions, runs, approvals, artifacts, audit records, and project-context bindings.
 - [ ] Define explicit integration and verification flow for combining track outputs.
 
@@ -30,6 +33,7 @@
 - [ ] Reuse a separate broker-owned autonomy-posture model for operator-question frequency and autonomous continuation posture.
 - [ ] Ensure track decomposition/scheduling can pause for operator input when inference confidence is low or overlap risk is high.
 - [ ] Ensure no track-execution path mints or substitutes for signed human approval decisions.
+- [ ] Ensure dependency scope enablement or expansion remains on the shared approval-bearing checkpoint model rather than becoming a per-worktree or per-track approval surface.
 
 ## Project-Context Binding And Drift
 
@@ -46,3 +50,4 @@
 - [ ] Explicit track declarations override inferred grouping.
 - [ ] Inferred decomposition remains reviewable and auditable through a broker-owned proposed execution-plan artifact.
 - [ ] Track execution reuses shared policy, approval, audit, lifecycle, and validated project-context binding models instead of inventing parallel semantics.
+- [ ] Track execution reuses shared dependency-fetch and offline-cache contracts so worktrees consume derived dependency artifacts without becoming authoritative dependency cache owners.

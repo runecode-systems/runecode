@@ -11,32 +11,44 @@ func stateFromBackup(manifest BackupManifest, lastAuditSequence int64, ioStore *
 		return StoreState{}, err
 	}
 	next := newStateFromBackup(manifest, lastAuditSequence)
-	unapprovedByDigest, err := loadRestoredArtifacts(&next, manifest.Artifacts, ioStore)
-	if err != nil {
+	if err := loadRestoredStateRecords(&next, manifest, ioStore); err != nil {
 		return StoreState{}, err
 	}
-	if err := validateApprovedRestores(next.Artifacts, unapprovedByDigest); err != nil {
-		return StoreState{}, err
-	}
-	if err := loadRestoredApprovals(&next, manifest.Approvals); err != nil {
-		return StoreState{}, err
-	}
-	if err := loadRestoredSessions(&next, manifest.Sessions); err != nil {
-		return StoreState{}, err
-	}
-	if err := loadRestoredPolicyDecisions(&next, manifest.PolicyDecisions); err != nil {
-		return StoreState{}, err
-	}
-	if err := loadRestoredProviderProfiles(&next, manifest.ProviderProfiles); err != nil {
-		return StoreState{}, err
-	}
-	if err := loadRestoredProviderSetupSessions(&next, manifest.ProviderSetupSessions); err != nil {
-		return StoreState{}, err
-	}
-	if err := validateRestoredApprovalPolicyDecisionLinks(next.Approvals, next.PolicyDecisions); err != nil {
+	if err := validateRestoredStateLinks(&next); err != nil {
 		return StoreState{}, err
 	}
 	return next, nil
+}
+
+func loadRestoredStateRecords(next *StoreState, manifest BackupManifest, ioStore *storeIO) error {
+	unapprovedByDigest, err := loadRestoredArtifacts(next, manifest.Artifacts, ioStore)
+	if err != nil {
+		return err
+	}
+	if err := validateApprovedRestores(next.Artifacts, unapprovedByDigest); err != nil {
+		return err
+	}
+	loaders := []func() error{
+		func() error { return loadRestoredApprovals(next, manifest.Approvals) },
+		func() error { return loadRestoredSessions(next, manifest.Sessions) },
+		func() error { return loadRestoredPolicyDecisions(next, manifest.PolicyDecisions) },
+		func() error {
+			return loadRestoredDependencyCache(next, manifest.DependencyCacheBatches, manifest.DependencyCacheUnits)
+		},
+		func() error { return validateRestoredDependencyCache(next) },
+		func() error { return loadRestoredProviderProfiles(next, manifest.ProviderProfiles) },
+		func() error { return loadRestoredProviderSetupSessions(next, manifest.ProviderSetupSessions) },
+	}
+	for _, loader := range loaders {
+		if err := loader(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateRestoredStateLinks(next *StoreState) error {
+	return validateRestoredApprovalPolicyDecisionLinks(next.Approvals, next.PolicyDecisions)
 }
 
 func newStateFromBackup(manifest BackupManifest, lastAuditSequence int64) StoreState {
@@ -46,6 +58,9 @@ func newStateFromBackup(manifest BackupManifest, lastAuditSequence int64) StoreS
 	}
 	return StoreState{
 		Artifacts:                map[string]ArtifactRecord{},
+		DependencyCacheBatches:   map[string]DependencyCacheBatchRecord{},
+		DependencyCacheUnits:     map[string]DependencyCacheResolvedUnitRecord{},
+		DependencyCacheByRequest: map[string][]string{},
 		Sessions:                 map[string]SessionDurableState{},
 		Approvals:                map[string]ApprovalRecord{},
 		RunApprovalRefs:          map[string][]string{},
@@ -139,6 +154,23 @@ func loadRestoredPolicyDecisions(next *StoreState, records []PolicyDecisionRecor
 		if rec.RunID != "" {
 			next.RunPolicyDecisionRefs[rec.RunID] = uniqueSortedStrings(append(next.RunPolicyDecisionRefs[rec.RunID], rec.Digest))
 		}
+	}
+	return nil
+}
+
+func loadRestoredDependencyCache(next *StoreState, batches []DependencyCacheBatchRecord, units []DependencyCacheResolvedUnitRecord) error {
+	for _, unit := range units {
+		if err := validateDependencyCacheResolvedUnitRecord(unit); err != nil {
+			return err
+		}
+		next.DependencyCacheUnits[unit.ResolvedUnitDigest] = cloneDependencyResolvedUnitRecord(unit)
+		next.DependencyCacheByRequest[unit.RequestDigest] = uniqueSortedStrings(append(next.DependencyCacheByRequest[unit.RequestDigest], unit.ResolvedUnitDigest))
+	}
+	for _, batch := range batches {
+		if err := validateDependencyCacheBatchRecord(batch); err != nil {
+			return err
+		}
+		next.DependencyCacheBatches[batch.BatchRequestDigest] = cloneDependencyBatchRecord(batch)
 	}
 	return nil
 }

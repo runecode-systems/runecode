@@ -13,6 +13,7 @@ export {
 export {
   RunPlanLoader,
   RUN_PLAN_SCHEMA_ID,
+  type DependencyCacheHandoffRequirement,
   type RunnerPlanIdentity,
   type RunnerPlan,
   type RunnerPlanEntry,
@@ -57,12 +58,18 @@ export {
   RUNNER_RESULT_REPORT_SCHEMA_ID,
   RUNNER_CHECKPOINT_REPORT_REQUEST_SCHEMA_ID,
   RUNNER_RESULT_REPORT_REQUEST_SCHEMA_ID,
+  DEPENDENCY_CACHE_HANDOFF_REQUEST_SCHEMA_ID,
+  DEPENDENCY_CACHE_HANDOFF_RESPONSE_SCHEMA_ID,
+  DEPENDENCY_CACHE_HANDOFF_METADATA_SCHEMA_ID,
   RUNNER_CONTRACT_SCHEMA_VERSION,
   type PlanBoundExecutionIdentity,
   type RunnerCheckpointReport,
   type RunnerResultReport,
   type RunnerCheckpointReportRequest,
   type RunnerResultReportRequest,
+  type DependencyCacheHandoffRequest,
+  type DependencyCacheHandoffMetadata,
+  type DependencyCacheHandoffResponse,
 } from "./contracts.ts";
 export {
   ReportEmitter,

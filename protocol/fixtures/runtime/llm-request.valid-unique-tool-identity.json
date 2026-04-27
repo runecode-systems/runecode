@@ -7,7 +7,7 @@
   "input_artifacts": [
     {
       "schema_id": "runecode.protocol.v0.ArtifactReference",
-      "schema_version": "0.3.0",
+      "schema_version": "0.4.0",
       "digest": {
         "hash_alg": "sha256",
         "hash": "3838383838383838383838383838383838383838383838383838383838383838"

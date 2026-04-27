@@ -26,7 +26,14 @@ export type RunnerPlanEntry = {
   stage_id?: string;
   step_id?: string;
   role_instance_id?: string;
+  dependency_cache_handoffs?: DependencyCacheHandoffRequirement[];
   [key: string]: unknown;
+};
+
+export type DependencyCacheHandoffRequirement = {
+  request_digest: string;
+  consumer_role: string;
+  required: true;
 };
 
 export type RunnerPlan = {
@@ -131,6 +138,33 @@ export class RunPlanLoader {
       role_instance_id: roleInstanceId,
       stage_id: this.optionalString(record, "stage_id", `gate_definitions[${index}]`),
       step_id: this.optionalString(record, "step_id", `gate_definitions[${index}]`),
+      dependency_cache_handoffs: this.optionalDependencyCacheHandoffs(record, `gate_definitions[${index}]`),
+    };
+  }
+
+  private optionalDependencyCacheHandoffs(record: Record<string, unknown>, location: string): DependencyCacheHandoffRequirement[] | undefined {
+    const raw = record.dependency_cache_handoffs;
+    if (raw === undefined) {
+      return undefined;
+    }
+    if (!Array.isArray(raw) || raw.length === 0) {
+      throw new Error(`${location}.dependency_cache_handoffs must be a non-empty array when provided`);
+    }
+    return raw.map((entry, index) => this.parseDependencyCacheHandoffRequirement(entry, `${location}.dependency_cache_handoffs[${index}]`));
+  }
+
+  private parseDependencyCacheHandoffRequirement(value: unknown, location: string): DependencyCacheHandoffRequirement {
+    const record = this.assertRecord(value, location);
+    const requestDigest = this.requireDigestObject(record.request_digest, `${location}.request_digest`);
+    const consumerRole = this.requireString(record, "consumer_role", location);
+    const required = record.required;
+    if (required !== true) {
+      throw new Error(`${location}.required must be true`);
+    }
+    return {
+      request_digest: requestDigest,
+      consumer_role: consumerRole,
+      required: true,
     };
   }
 
@@ -158,5 +192,15 @@ export class RunPlanLoader {
       throw new Error(`${location}.${field} must be a non-empty string when provided`);
     }
     return value;
+  }
+
+  private requireDigestObject(value: unknown, location: string): string {
+    const record = this.assertRecord(value, location);
+    const hashAlg = this.requireString(record, "hash_alg", location);
+    const hash = this.requireString(record, "hash", location);
+    if (hashAlg !== "sha256" || !/^[a-f0-9]{64}$/.test(hash)) {
+      throw new Error(`${location} must be a sha256 digest object`);
+    }
+    return `sha256:${hash}`;
   }
 }

@@ -11,6 +11,7 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Policy + Runner + TUI Integration.
 - Explicit hard-floor treatment for `git_remote_ops` and other exact-action remote mutation approvals.
 - Explicit preservation of the shared split between formal approval timing (`approval_profile`) and operator-guidance cadence (`autonomy_posture`).
+- Explicit preservation of the shared dependency-fetch checkpoint model so later profile expansion does not accidentally reintroduce per-cache-miss approval semantics.
 
 ## Why Now
 This work remains scheduled for v0.2, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification. The git-gateway foundation now freezes one especially important post-MVP rule that this change must inherit: approval profiles can tune ordinary approval timing, but they cannot batch away or soften exact final approval for remote mutation. `CHG-2026-048-6b7a-session-execution-orchestration-v0` also freezes that approval timing and operator-guidance cadence are separate controls, so this change must not turn profile selection into a proxy for autonomy posture.
@@ -26,3 +27,5 @@ This work remains scheduled for v0.2, and keeping it on this canonical RuneConte
 
 ## Impact
 Keeps Approval Profiles (Strict/Permissive) reviewable as a RuneContext-native change, aligned with the reviewed exact-action approval foundation for git and other hard-floor operations, and removes the need for a second semantics rewrite later.
+
+This now also keeps later profile expansion aligned with the clarified dependency-fetch foundation: profiles may tune ordinary approval timing, but they must do so using canonical dependency-fetch scope and action semantics rather than ambiguous "dependency install" or per-fetch approval language.
