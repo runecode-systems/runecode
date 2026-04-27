@@ -1,6 +1,9 @@
 package brokerapi
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func shouldValidateGateScopedResult(report RunnerResultReport) bool {
 	return hasGateBinding(report.GateID, report.GateKind, report.GateVersion, report.GateAttemptID, report.GateLifecycleState, report.NormalizedInputDigests) || report.OverriddenFailedResultRef != ""
@@ -32,6 +35,22 @@ func validateOptionalGateEvidenceRef(gateEvidenceRef string, hasBinding bool) er
 	}
 	if !hasBinding {
 		return fmt.Errorf("gate_evidence_ref requires gate identity binding")
+	}
+	return nil
+}
+
+func validateOptionalReportedScopeAgainstPlanned(stageID, stepID, roleInstanceID string, planned runPlannedGateEntry) error {
+	plannedStageID := strings.TrimSpace(planned.StageID)
+	plannedStepID := strings.TrimSpace(planned.StepID)
+	plannedRoleInstanceID := strings.TrimSpace(planned.RoleInstanceID)
+	if trimmed := strings.TrimSpace(stageID); trimmed != "" && plannedStageID != "" && trimmed != plannedStageID {
+		return fmt.Errorf("gate-scoped report stage_id %q does not match trusted run plan stage_id %q", trimmed, strings.TrimSpace(planned.StageID))
+	}
+	if trimmed := strings.TrimSpace(stepID); trimmed != "" && plannedStepID != "" && trimmed != plannedStepID {
+		return fmt.Errorf("gate-scoped report step_id %q does not match trusted run plan step_id %q", trimmed, strings.TrimSpace(planned.StepID))
+	}
+	if trimmed := strings.TrimSpace(roleInstanceID); trimmed != "" && plannedRoleInstanceID != "" && trimmed != plannedRoleInstanceID {
+		return fmt.Errorf("gate-scoped report role_instance_id %q does not match trusted run plan role_instance_id %q", trimmed, strings.TrimSpace(planned.RoleInstanceID))
 	}
 	return nil
 }

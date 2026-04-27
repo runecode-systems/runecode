@@ -22,7 +22,7 @@ func (s *Service) resolveGateEvidenceRef(runID string, report RunnerResultReport
 	if err != nil {
 		return "", fmt.Errorf("gate_evidence.outcome: %w", err)
 	}
-	if err := validateGateEvidenceReportBinding(runID, report, evidence); err != nil {
+	if err := validateGateEvidenceReportBinding(runID, report, evidence, planned); err != nil {
 		return "", err
 	}
 	evidenceRecord := buildGateEvidenceRecord(report, evidence, runtimeSummary, outcomeSummary, planned)
@@ -40,12 +40,15 @@ func (s *Service) resolveGateEvidenceRef(runID string, report RunnerResultReport
 	return ref.Digest, nil
 }
 
-func validateGateEvidenceReportBinding(runID string, report RunnerResultReport, evidence *GateEvidence) error {
+func validateGateEvidenceReportBinding(runID string, report RunnerResultReport, evidence *GateEvidence, planned runPlannedGateEntry) error {
 	if evidence.RunID != runID {
 		return fmt.Errorf("gate_evidence.run_id must match run_id")
 	}
 	if evidence.GateID != report.GateID || evidence.GateKind != report.GateKind || evidence.GateVersion != report.GateVersion || evidence.GateAttemptID != report.GateAttemptID {
 		return fmt.Errorf("gate_evidence identity must match gate report binding")
+	}
+	if err := validateOptionalReportedScopeAgainstPlanned(evidence.StageID, evidence.StepID, evidence.RoleInstanceID, planned); err != nil {
+		return fmt.Errorf("gate_evidence scope: %w", err)
 	}
 	if evidence.PlanCheckpointCode != "" && evidence.PlanCheckpointCode != report.PlanCheckpointCode {
 		return fmt.Errorf("gate_evidence.plan_checkpoint_code must match gate report binding")
@@ -58,15 +61,57 @@ func validateGateEvidenceReportBinding(runID string, report RunnerResultReport, 
 
 func buildGateEvidenceRecord(report RunnerResultReport, evidence *GateEvidence, runtimeSummary map[string]any, outcomeSummary map[string]any, planned runPlannedGateEntry) artifacts.GateEvidenceArtifact {
 	evidenceRecord := gateEvidenceRecordBase(evidence, runtimeSummary, outcomeSummary)
-	if report.PlanCheckpointCode != "" {
-		evidenceRecord.PlanCheckpointCode = report.PlanCheckpointCode
-		evidenceRecord.PlanOrderIndex = report.PlanOrderIndex
-	}
-	if planned.MaxAttempts > 0 {
-		evidenceRecord.Runtime["planned_retry_max_attempts"] = planned.MaxAttempts
-	}
+	evidenceRecord = applyCheckpointBinding(evidenceRecord, report)
+	evidenceRecord = applyPlannedStageContext(evidenceRecord, planned)
+	evidenceRecord = applyPlannedRuntimeDetails(evidenceRecord, planned)
 	applyGateEvidenceProjectContext(&evidenceRecord, runtimeSummary, planned)
 	return evidenceRecord
+}
+
+func applyCheckpointBinding(record artifacts.GateEvidenceArtifact, report RunnerResultReport) artifacts.GateEvidenceArtifact {
+	if report.PlanCheckpointCode != "" {
+		record.PlanCheckpointCode = report.PlanCheckpointCode
+		record.PlanOrderIndex = report.PlanOrderIndex
+	}
+	return record
+}
+
+func applyPlannedStageContext(record artifacts.GateEvidenceArtifact, planned runPlannedGateEntry) artifacts.GateEvidenceArtifact {
+	if strings.TrimSpace(record.StageID) == "" {
+		record.StageID = strings.TrimSpace(planned.StageID)
+	}
+	if strings.TrimSpace(record.StepID) == "" {
+		record.StepID = strings.TrimSpace(planned.StepID)
+	}
+	if strings.TrimSpace(record.RoleInstanceID) == "" {
+		record.RoleInstanceID = strings.TrimSpace(planned.RoleInstanceID)
+	}
+	return record
+}
+
+func applyPlannedRuntimeDetails(record artifacts.GateEvidenceArtifact, planned runPlannedGateEntry) artifacts.GateEvidenceArtifact {
+	if planned.MaxAttempts > 0 {
+		record.Runtime["planned_retry_max_attempts"] = planned.MaxAttempts
+	}
+	if len(planned.DependencyCacheHandoffs) > 0 {
+		record.Runtime["dependency_cache_handoffs"] = dependencyCacheHandoffDetails(planned.DependencyCacheHandoffs)
+	}
+	if strings.TrimSpace(planned.PlanID) != "" {
+		record.Runtime["run_plan_id"] = strings.TrimSpace(planned.PlanID)
+	}
+	if strings.TrimSpace(planned.RunPlanRef) != "" {
+		record.Runtime["run_plan_ref"] = strings.TrimSpace(planned.RunPlanRef)
+	}
+	if strings.TrimSpace(planned.WorkflowDefinitionHash) != "" {
+		record.Runtime["workflow_definition_hash"] = strings.TrimSpace(planned.WorkflowDefinitionHash)
+	}
+	if strings.TrimSpace(planned.ProcessDefinitionHash) != "" {
+		record.Runtime["process_definition_hash"] = strings.TrimSpace(planned.ProcessDefinitionHash)
+	}
+	if strings.TrimSpace(planned.PolicyContextHash) != "" {
+		record.Runtime["policy_context_hash"] = strings.TrimSpace(planned.PolicyContextHash)
+	}
+	return record
 }
 
 func gateEvidenceRecordBase(evidence *GateEvidence, runtimeSummary map[string]any, outcomeSummary map[string]any) artifacts.GateEvidenceArtifact {

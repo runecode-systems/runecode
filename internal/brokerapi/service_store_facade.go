@@ -10,11 +10,25 @@ import (
 )
 
 func (s *Service) Put(req artifacts.PutRequest) (artifacts.ArtifactReference, error) {
-	return s.store.Put(req)
+	ref, err := s.store.Put(req)
+	if err != nil {
+		return artifacts.ArtifactReference{}, err
+	}
+	if isTrustedRunPlanPutCandidate(req.TrustedSource, req.CreatedByRole, req.ContentType, req.RunID, req.StepID) {
+		s.runGatePlanCache.invalidateRun(req.RunID)
+	}
+	return ref, nil
 }
 
 func (s *Service) PutStream(req artifacts.PutStreamRequest) (artifacts.ArtifactReference, error) {
-	return s.store.PutStream(req)
+	ref, err := s.store.PutStream(req)
+	if err != nil {
+		return artifacts.ArtifactReference{}, err
+	}
+	if isTrustedRunPlanPutCandidate(req.TrustedSource, req.CreatedByRole, req.ContentType, req.RunID, req.StepID) {
+		s.runGatePlanCache.invalidateRun(req.RunID)
+	}
+	return ref, nil
 }
 
 func (s *Service) List() []artifacts.ArtifactRecord {
@@ -84,11 +98,20 @@ func (s *Service) SyncSessionExecutionFromRunRuntime(runID string, facts launche
 }
 
 func (s *Service) GarbageCollect() (artifacts.GCResult, error) {
-	return s.store.GarbageCollect()
+	result, err := s.store.GarbageCollect()
+	if err != nil {
+		return artifacts.GCResult{}, err
+	}
+	s.runGatePlanCache.invalidateAll()
+	return result, nil
 }
 
 func (s *Service) DeleteDigest(digest string) error {
-	return s.store.DeleteDigest(digest)
+	if err := s.store.DeleteDigest(digest); err != nil {
+		return err
+	}
+	s.runGatePlanCache.invalidateAll()
+	return nil
 }
 
 func (s *Service) ExportBackup(path string) error {
@@ -99,6 +122,7 @@ func (s *Service) RestoreBackup(path string) error {
 	if err := s.store.RestoreBackup(path); err != nil {
 		return err
 	}
+	s.runGatePlanCache.invalidateAll()
 	return s.reloadProviderDurableState()
 }
 

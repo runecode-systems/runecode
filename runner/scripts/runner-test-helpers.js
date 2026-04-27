@@ -9,11 +9,14 @@ async function loadRunnerModules() {
 function validRunPlanFixture(overrides = {}) {
   return {
     schema_id: "runecode.protocol.v0.RunPlan",
-    schema_version: "0.1.0",
+    schema_version: "0.3.0",
     plan_id: "plan_alpha",
     run_id: "run_alpha",
     workflow_id: "workflow_alpha",
+    workflow_version: "1.0.0",
     process_id: "process_alpha",
+    approval_profile: "moderate",
+    autonomy_posture: "balanced",
     workflow_definition_hash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     process_definition_hash: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     policy_context_hash: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
@@ -30,7 +33,7 @@ function validRunPlanFixture(overrides = {}) {
     gate_definitions: [
       {
         schema_id: "runecode.protocol.v0.GateDefinition",
-        schema_version: "0.1.0",
+        schema_version: "0.2.0",
         gate: {
           schema_id: "runecode.protocol.v0.GateContract",
           schema_version: "0.1.0",
@@ -54,6 +57,8 @@ function validRunPlanFixture(overrides = {}) {
         },
         checkpoint_code: "quality",
         order_index: 0,
+        stage_id: "quality_stage",
+        step_id: "quality_lint",
         role_instance_id: "role_alpha",
         executor_binding_id: "binding_alpha",
         dependency_cache_handoffs: [
@@ -65,6 +70,7 @@ function validRunPlanFixture(overrides = {}) {
         ],
       },
     ],
+    dependency_edges: [],
     ...overrides,
   };
 }

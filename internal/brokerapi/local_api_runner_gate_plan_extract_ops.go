@@ -39,14 +39,28 @@ func extractRunPlannedGateEntry(def map[string]any, index int) (runPlannedGateEn
 	if err != nil {
 		return runPlannedGateEntry{}, fmt.Errorf("gate_definitions[%d].gate.normalized_inputs: %w", index, err)
 	}
+	stageID, _ := def["stage_id"].(string)
+	stepID, _ := def["step_id"].(string)
+	roleInstanceID, _ := def["role_instance_id"].(string)
+	if strings.TrimSpace(stageID) == "" || strings.TrimSpace(stepID) == "" || strings.TrimSpace(roleInstanceID) == "" {
+		return runPlannedGateEntry{}, fmt.Errorf("gate_definitions[%d] requires stage_id, step_id, role_instance_id", index)
+	}
+	handoffs, err := extractDependencyCacheHandoffs(def["dependency_cache_handoffs"])
+	if err != nil {
+		return runPlannedGateEntry{}, fmt.Errorf("gate_definitions[%d].dependency_cache_handoffs: %w", index, err)
+	}
 	return runPlannedGateEntry{
-		GateID:               strings.TrimSpace(gateID),
-		GateKind:             strings.TrimSpace(gateKind),
-		GateVersion:          strings.TrimSpace(gateVersion),
-		PlanCheckpointCode:   strings.TrimSpace(checkpoint),
-		PlanOrderIndex:       orderIndex,
-		MaxAttempts:          maxAttempts,
-		ExpectedInputDigests: inputDigests,
+		GateID:                  strings.TrimSpace(gateID),
+		GateKind:                strings.TrimSpace(gateKind),
+		GateVersion:             strings.TrimSpace(gateVersion),
+		StageID:                 strings.TrimSpace(stageID),
+		StepID:                  strings.TrimSpace(stepID),
+		RoleInstanceID:          strings.TrimSpace(roleInstanceID),
+		PlanCheckpointCode:      strings.TrimSpace(checkpoint),
+		PlanOrderIndex:          orderIndex,
+		MaxAttempts:             maxAttempts,
+		ExpectedInputDigests:    inputDigests,
+		DependencyCacheHandoffs: handoffs,
 	}, nil
 }
 
@@ -112,4 +126,79 @@ func extractExpectedInputDigests(raw any) ([]string, error) {
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+func extractDependencyCacheHandoffs(raw any) ([]runPlannedDependencyCacheHandoff, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	entries, ok := raw.([]any)
+	if !ok {
+		return nil, fmt.Errorf("must be array")
+	}
+	if len(entries) == 0 {
+		return nil, nil
+	}
+	out, err := parseDependencyCacheHandoffEntries(entries)
+	if err != nil {
+		return nil, err
+	}
+	sortHandoffEntries(out)
+	return out, nil
+}
+
+func parseDependencyCacheHandoffEntries(entries []any) ([]runPlannedDependencyCacheHandoff, error) {
+	seen := map[string]struct{}{}
+	out := make([]runPlannedDependencyCacheHandoff, 0, len(entries))
+	for i, rawEntry := range entries {
+		entry, ok := rawEntry.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("entry %d must be object", i)
+		}
+		handoff, err := parseDependencyCacheHandoffEntry(i, entry)
+		if err != nil {
+			return nil, err
+		}
+		key := handoff.RequestDigest + "|" + handoff.ConsumerRole
+		if _, dup := seen[key]; dup {
+			return nil, fmt.Errorf("entry %d duplicates %q", i, key)
+		}
+		seen[key] = struct{}{}
+		out = append(out, handoff)
+	}
+	return out, nil
+}
+
+func parseDependencyCacheHandoffEntry(i int, entry map[string]any) (runPlannedDependencyCacheHandoff, error) {
+	requestDigest, err := digestIdentityFromPayloadObject(entry, "request_digest")
+	if err != nil {
+		return runPlannedDependencyCacheHandoff{}, err
+	}
+	consumerRole, _ := entry["consumer_role"].(string)
+	consumerRole = strings.TrimSpace(consumerRole)
+	if !isSupportedDependencyHandoffConsumerRole(consumerRole) {
+		return runPlannedDependencyCacheHandoff{}, fmt.Errorf("entry %d has unsupported consumer_role %q", i, consumerRole)
+	}
+	required, ok := entry["required"].(bool)
+	if !ok || !required {
+		return runPlannedDependencyCacheHandoff{}, fmt.Errorf("entry %d requires required=true", i)
+	}
+	return runPlannedDependencyCacheHandoff{RequestDigest: requestDigest, ConsumerRole: consumerRole, Required: true}, nil
+}
+
+func sortHandoffEntries(out []runPlannedDependencyCacheHandoff) {
+	sort.Slice(out, func(i, j int) bool {
+		left := out[i].RequestDigest + "|" + out[i].ConsumerRole
+		right := out[j].RequestDigest + "|" + out[j].ConsumerRole
+		return left < right
+	})
+}
+
+func isSupportedDependencyHandoffConsumerRole(role string) bool {
+	switch strings.TrimSpace(role) {
+	case "workspace", "workspace-read", "workspace-edit", "workspace-test":
+		return true
+	default:
+		return false
+	}
 }

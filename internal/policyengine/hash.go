@@ -11,16 +11,36 @@ import (
 )
 
 func canonicalHashBytes(payload []byte) (string, error) {
-	canonical, err := jsoncanonicalizer.Transform(payload)
+	canonical, err := canonicalizeJSONBytes(payload)
 	if err != nil {
-		return "", fmt.Errorf("canonicalize payload: %w", err)
+		return "", err
 	}
-	sum := sha256.Sum256(canonical)
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
+	return hashCanonicalJSONBytes(canonical), nil
 }
 
 func CanonicalHashBytes(payload []byte) (string, error) {
 	return canonicalHashBytes(payload)
+}
+
+func canonicalizeJSONBytes(payload []byte) ([]byte, error) {
+	canonical, err := jsoncanonicalizer.Transform(payload)
+	if err != nil {
+		return nil, fmt.Errorf("canonicalize payload: %w", err)
+	}
+	return canonical, nil
+}
+
+func CanonicalizeJSONBytes(payload []byte) ([]byte, error) {
+	return canonicalizeJSONBytes(payload)
+}
+
+func hashCanonicalJSONBytes(canonical []byte) string {
+	sum := sha256.Sum256(canonical)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func HashCanonicalJSONBytes(canonical []byte) string {
+	return hashCanonicalJSONBytes(canonical)
 }
 
 func canonicalHashValue(value any) (string, error) {

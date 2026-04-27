@@ -28,7 +28,7 @@ export type SchemaValidationResult =
 
 const RUN_PLAN_SCHEMA_PATH = "objects/RunPlan.schema.json";
 const RUN_PLAN_SCHEMA_ID = "runecode.protocol.v0.RunPlan";
-const RUN_PLAN_SCHEMA_VERSION = "0.1.0";
+const RUN_PLAN_SCHEMA_VERSION = "0.3.0";
 
 function schemaKey(schemaId: string, schemaVersion: string): string {
   return `${schemaId}@${schemaVersion}`;

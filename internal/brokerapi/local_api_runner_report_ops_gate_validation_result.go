@@ -26,16 +26,10 @@ func validateGateResultFields(report RunnerResultReport) error {
 
 func validateGateResultPlanBinding(report RunnerResultReport, planned compiledRunGatePlan) (runPlannedGateEntry, error) {
 	if !shouldValidateGateScopedResult(report) {
-		if err := validateNoPlanBindingWithoutGate(report.PlanCheckpointCode, report.PlanOrderIndex); err != nil {
-			return runPlannedGateEntry{}, err
-		}
-		return runPlannedGateEntry{}, nil
+		return validateNoPlanBindingForResult(report)
 	}
 	if !planned.hasEntries() {
-		if report.PlanCheckpointCode != "" || report.PlanOrderIndex != 0 {
-			return runPlannedGateEntry{}, fmt.Errorf("gate-scoped result requires trusted run plan gate entries")
-		}
-		return runPlannedGateEntry{}, nil
+		return validateEmptyPlanBindingForResult(report)
 	}
 	if report.PlanCheckpointCode == "" {
 		return runPlannedGateEntry{}, fmt.Errorf("gate-scoped result requires plan_checkpoint_code")
@@ -44,10 +38,27 @@ func validateGateResultPlanBinding(report RunnerResultReport, planned compiledRu
 	if !ok {
 		return runPlannedGateEntry{}, fmt.Errorf("gate-scoped result does not match trusted run plan placement")
 	}
+	if err := validateOptionalReportedScopeAgainstPlanned(report.StageID, report.StepID, report.RoleInstanceID, entry); err != nil {
+		return runPlannedGateEntry{}, err
+	}
 	if err := validatePlannedInputDigestHooks(entry.ExpectedInputDigests, report.NormalizedInputDigests); err != nil {
 		return runPlannedGateEntry{}, err
 	}
 	return entry, nil
+}
+
+func validateNoPlanBindingForResult(report RunnerResultReport) (runPlannedGateEntry, error) {
+	if err := validateNoPlanBindingWithoutGate(report.PlanCheckpointCode, report.PlanOrderIndex); err != nil {
+		return runPlannedGateEntry{}, err
+	}
+	return runPlannedGateEntry{}, nil
+}
+
+func validateEmptyPlanBindingForResult(report RunnerResultReport) (runPlannedGateEntry, error) {
+	if report.PlanCheckpointCode != "" || report.PlanOrderIndex != 0 {
+		return runPlannedGateEntry{}, fmt.Errorf("gate-scoped result requires trusted run plan gate entries")
+	}
+	return runPlannedGateEntry{}, nil
 }
 
 func validateGateScopedResultCode(code string) error {

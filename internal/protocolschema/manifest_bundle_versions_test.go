@@ -37,7 +37,7 @@ func mergeSchemaVersionPairs(pairSets ...map[string]string) map[string]string {
 func localBrokerGateAndRunSchemaVersionPairs() map[string]string {
 	return map[string]string{
 		"runecode.protocol.v0.GateContract":           "0.1.0",
-		"runecode.protocol.v0.GateDefinition":         "0.1.0",
+		"runecode.protocol.v0.GateDefinition":         "0.2.0",
 		"runecode.protocol.v0.GateCheckpointReport":   "0.1.0",
 		"runecode.protocol.v0.GateResultReport":       "0.1.0",
 		"runecode.protocol.v0.GateEvidence":           "0.1.0",
@@ -200,8 +200,8 @@ func localBrokerReadApiAuditAndStatusSchemaVersionPairs() map[string]string {
 
 func localBrokerDefinitionSchemaVersionPairs() map[string]string {
 	return map[string]string{
-		"runecode.protocol.v0.WorkflowDefinition": "0.2.0",
-		"runecode.protocol.v0.ProcessDefinition":  "0.2.0",
-		"runecode.protocol.v0.RunPlan":            "0.1.0",
+		"runecode.protocol.v0.WorkflowDefinition": "0.4.0",
+		"runecode.protocol.v0.ProcessDefinition":  "0.4.0",
+		"runecode.protocol.v0.RunPlan":            "0.3.0",
 	}
 }

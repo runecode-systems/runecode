@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
 import { ProtocolSchemaBundle } from "./protocol-schema-bundle.ts";
 
 export const RUN_PLAN_SCHEMA_ID = "runecode.protocol.v0.RunPlan";
-const RUN_PLAN_SCHEMA_VERSION = "0.1.0";
+const RUN_PLAN_SCHEMA_VERSION = "0.3.0";
 
 export type RunnerPlanIdentity = {
   run_id: string;
@@ -36,6 +36,12 @@ export type DependencyCacheHandoffRequirement = {
   required: true;
 };
 
+export type RunnerDependencyEdge = {
+  upstream_step_id: string;
+  downstream_step_id: string;
+  dependency_kind: "step_completed";
+};
+
 export type RunnerPlan = {
   schema_id: typeof RUN_PLAN_SCHEMA_ID;
   schema_version: string;
@@ -43,6 +49,7 @@ export type RunnerPlan = {
   plan_id: string;
   supersedes_plan_id?: string;
   gate_definitions: Array<Record<string, unknown>>;
+  dependency_edges: RunnerDependencyEdge[];
   entries: RunnerPlanEntry[];
   [key: string]: unknown;
 };
@@ -97,6 +104,7 @@ export class RunPlanLoader {
     }
 
     const gateDefinitions = gateDefinitionsRaw.map((entry, index) => this.assertRecord(entry, `gate_definitions[${index}]`));
+    const dependencyEdges = this.parseDependencyEdges(candidate);
     const entries = gateDefinitions.map((entry, index) => this.normalizeGateDefinitionAsEntry(entry, index));
     return {
       ...candidate,
@@ -106,8 +114,28 @@ export class RunPlanLoader {
       plan_id: planId,
       supersedes_plan_id: supersedesPlanId,
       gate_definitions: gateDefinitions,
+      dependency_edges: dependencyEdges,
       entries,
     };
+  }
+
+  private parseDependencyEdges(record: Record<string, unknown>): RunnerDependencyEdge[] {
+    const raw = record.dependency_edges;
+    if (!Array.isArray(raw)) {
+      throw new Error("RunPlan.dependency_edges must be an array");
+    }
+    return raw.map((value, index) => {
+      const edge = this.assertRecord(value, `dependency_edges[${index}]`);
+      const dependencyKind = this.requireString(edge, "dependency_kind", `dependency_edges[${index}]`);
+      if (dependencyKind !== "step_completed") {
+        throw new Error(`dependency_edges[${index}].dependency_kind must be step_completed`);
+      }
+      return {
+        upstream_step_id: this.requireString(edge, "upstream_step_id", `dependency_edges[${index}]`),
+        downstream_step_id: this.requireString(edge, "downstream_step_id", `dependency_edges[${index}]`),
+        dependency_kind: "step_completed",
+      };
+    });
   }
 
   identityOf(plan: RunnerPlan): RunnerPlanIdentity {
@@ -121,6 +149,8 @@ export class RunPlanLoader {
   private normalizeGateDefinitionAsEntry(record: Record<string, unknown>, index: number): RunnerPlanEntry {
     const gate = this.assertRecord(record.gate, `gate_definitions[${index}].gate`);
     const gateId = this.requireString(gate, "gate_id", `gate_definitions[${index}].gate`);
+    const stageId = this.requireString(record, "stage_id", `gate_definitions[${index}]`);
+    const stepId = this.requireString(record, "step_id", `gate_definitions[${index}]`);
     const roleInstanceId = this.requireString(record, "role_instance_id", `gate_definitions[${index}]`);
     const executorBindingId = this.requireString(record, "executor_binding_id", `gate_definitions[${index}]`);
     const orderIndex = record.order_index;
@@ -130,14 +160,14 @@ export class RunPlanLoader {
 
     return {
       ...record,
-      entry_id: `${gateId}:${orderIndex}`,
+      entry_id: `${stageId}:${stepId}`,
       entry_kind: "gate_definition",
       order_index: orderIndex,
       executor_ref: executorBindingId,
       gate_id: gateId,
       role_instance_id: roleInstanceId,
-      stage_id: this.optionalString(record, "stage_id", `gate_definitions[${index}]`),
-      step_id: this.optionalString(record, "step_id", `gate_definitions[${index}]`),
+      stage_id: stageId,
+      step_id: stepId,
       dependency_cache_handoffs: this.optionalDependencyCacheHandoffs(record, `gate_definitions[${index}]`),
     };
   }

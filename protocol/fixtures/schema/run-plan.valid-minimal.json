@@ -1,11 +1,15 @@
 {
   "schema_id": "runecode.protocol.v0.RunPlan",
-  "schema_version": "0.1.0",
+  "schema_version": "0.3.0",
   "plan_id": "plan_run_123_0001",
   "supersedes_plan_id": "plan_run_123_0000",
   "run_id": "run_123",
   "workflow_id": "workflow_main",
+  "workflow_version": "1.0.0",
   "process_id": "process_default",
+  "approval_profile": "moderate",
+  "autonomy_posture": "balanced",
+  "policy_binding_id": "policy_binding_default",
   "workflow_definition_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "process_definition_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   "policy_context_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
@@ -27,21 +31,23 @@
   "gate_definitions": [
     {
       "schema_id": "runecode.protocol.v0.GateDefinition",
-      "schema_version": "0.1.0",
+      "schema_version": "0.2.0",
       "checkpoint_code": "step_validation_started",
       "order_index": 0,
-        "role_instance_id": "workspace_editor_1",
-        "executor_binding_id": "binding_workspace_runner",
-        "dependency_cache_handoffs": [
-          {
-            "request_digest": { "hash_alg": "sha256", "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" },
-            "consumer_role": "workspace",
-            "required": true
-          }
-        ],
-        "gate": {
-          "schema_id": "runecode.protocol.v0.GateContract",
-          "schema_version": "0.1.0",
+      "stage_id": "validation",
+      "step_id": "validation_build",
+      "role_instance_id": "workspace_editor_1",
+      "executor_binding_id": "binding_workspace_runner",
+      "dependency_cache_handoffs": [
+        {
+          "request_digest": { "hash_alg": "sha256", "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" },
+          "consumer_role": "workspace",
+          "required": true
+        }
+      ],
+      "gate": {
+        "schema_id": "runecode.protocol.v0.GateContract",
+        "schema_version": "0.1.0",
         "gate_id": "build_gate",
         "gate_kind": "build",
         "gate_version": "1.0.0",
@@ -66,5 +72,6 @@
         }
       }
     }
-  ]
+  ],
+  "dependency_edges": []
 }

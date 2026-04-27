@@ -26,7 +26,7 @@ func assertReservedStatuses(t *testing.T, manifest manifestFile) {
 	assertReservedStatus(t, manifest, "runecode.protocol.v0.ProjectLifecycleOperatorDecisionPath")
 }
 
-func TestWorkflowAndProcessDefinitionsRequireExplicitGateDefinitions(t *testing.T) {
+func TestWorkflowSelectionAndProcessExecutableDefinitionsValidate(t *testing.T) {
 	bundle := newCompiledBundle(t, loadManifest(t))
 	workflowSchema := mustCompileObjectSchema(t, bundle, "objects/WorkflowDefinition.schema.json")
 	processSchema := mustCompileObjectSchema(t, bundle, "objects/ProcessDefinition.schema.json")
@@ -36,7 +36,7 @@ func TestWorkflowAndProcessDefinitionsRequireExplicitGateDefinitions(t *testing.
 		t.Fatalf("workflow schema validation failed: %v", err)
 	}
 
-	process := processDefinitionFixtureWithRequiredGates(workflow)
+	process := processDefinitionFixtureWithRequiredGates()
 	if err := processSchema.Validate(process); err != nil {
 		t.Fatalf("process schema validation failed: %v", err)
 	}
@@ -54,32 +54,41 @@ func TestRunPlanSchemaValidatesCompiledPlanShape(t *testing.T) {
 
 func workflowDefinitionFixtureWithRequiredGates() map[string]any {
 	return map[string]any{
-		"schema_id":         "runecode.protocol.v0.WorkflowDefinition",
-		"schema_version":    "0.2.0",
-		"workflow_id":       "workflow_main",
-		"executor_bindings": []any{executorBindingFixtureWithRequiredGates()},
-		"gate_definitions":  []any{gateDefinitionFixtureWithRequiredGateContract()},
+		"schema_id":            "runecode.protocol.v0.WorkflowDefinition",
+		"schema_version":       "0.4.0",
+		"workflow_id":          "workflow_main",
+		"workflow_version":     "1.0.0",
+		"selected_process_id":  "process_default",
+		"reviewed_process_ids": []any{"process_default"},
+		"policy_binding_id":    "policy_binding_default",
+		"approval_profile":     "moderate",
+		"autonomy_posture":     "balanced",
 	}
 }
 
-func processDefinitionFixtureWithRequiredGates(workflow map[string]any) map[string]any {
+func processDefinitionFixtureWithRequiredGates() map[string]any {
 	return map[string]any{
 		"schema_id":         "runecode.protocol.v0.ProcessDefinition",
-		"schema_version":    "0.2.0",
+		"schema_version":    "0.4.0",
 		"process_id":        "process_default",
-		"executor_bindings": workflow["executor_bindings"],
-		"gate_definitions":  workflow["gate_definitions"],
+		"executor_bindings": []any{executorBindingFixtureWithRequiredGates()},
+		"gate_definitions":  []any{gateDefinitionFixtureWithRequiredGateContract()},
+		"dependency_edges":  []any{},
 	}
 }
 
 func runPlanFixtureWithRequiredGates() map[string]any {
 	return map[string]any{
 		"schema_id":                "runecode.protocol.v0.RunPlan",
-		"schema_version":           "0.1.0",
+		"schema_version":           "0.3.0",
 		"plan_id":                  "plan_run_123_0001",
 		"run_id":                   "run_123",
 		"workflow_id":              "workflow_main",
+		"workflow_version":         "1.0.0",
 		"process_id":               "process_default",
+		"approval_profile":         "moderate",
+		"autonomy_posture":         "balanced",
+		"policy_binding_id":        "policy_binding_default",
 		"workflow_definition_hash": "sha256:" + strings.Repeat("a", 64),
 		"process_definition_hash":  "sha256:" + strings.Repeat("b", 64),
 		"policy_context_hash":      "sha256:" + strings.Repeat("c", 64),
@@ -87,6 +96,7 @@ func runPlanFixtureWithRequiredGates() map[string]any {
 		"role_instance_ids":        []any{"workspace_editor_1"},
 		"executor_bindings":        []any{executorBindingFixtureWithRequiredGates()},
 		"gate_definitions":         []any{gateDefinitionFixtureWithRequiredGateContract()},
+		"dependency_edges":         []any{},
 	}
 }
 
@@ -102,9 +112,11 @@ func executorBindingFixtureWithRequiredGates() map[string]any {
 func gateDefinitionFixtureWithRequiredGateContract() map[string]any {
 	return map[string]any{
 		"schema_id":           "runecode.protocol.v0.GateDefinition",
-		"schema_version":      "0.1.0",
+		"schema_version":      "0.2.0",
 		"checkpoint_code":     "step_validation_started",
 		"order_index":         0,
+		"stage_id":            "validation",
+		"step_id":             "validation_build",
 		"role_instance_id":    "workspace_editor_1",
 		"executor_binding_id": "binding_workspace_runner",
 		"dependency_cache_handoffs": []any{
