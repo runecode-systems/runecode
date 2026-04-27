@@ -11,15 +11,21 @@ type ExecutorBinding struct {
 }
 
 type WorkflowDefinition struct {
-	SchemaID           string   `json:"schema_id"`
-	SchemaVersion      string   `json:"schema_version"`
-	WorkflowID         string   `json:"workflow_id"`
-	WorkflowVersion    string   `json:"workflow_version"`
-	SelectedProcessID  string   `json:"selected_process_id"`
-	ReviewedProcessIDs []string `json:"reviewed_process_ids"`
-	PolicyBindingID    string   `json:"policy_binding_id,omitempty"`
-	ApprovalProfile    string   `json:"approval_profile"`
-	AutonomyPosture    string   `json:"autonomy_posture"`
+	SchemaID                      string                    `json:"schema_id"`
+	SchemaVersion                 string                    `json:"schema_version"`
+	WorkflowID                    string                    `json:"workflow_id"`
+	WorkflowVersion               string                    `json:"workflow_version"`
+	SelectedProcessID             string                    `json:"selected_process_id"`
+	SelectedProcessDefinitionHash string                    `json:"selected_process_definition_hash"`
+	ReviewedProcessArtifacts      []ReviewedProcessArtifact `json:"reviewed_process_artifacts"`
+	PolicyBindingID               string                    `json:"policy_binding_id,omitempty"`
+	ApprovalProfile               string                    `json:"approval_profile"`
+	AutonomyPosture               string                    `json:"autonomy_posture"`
+}
+
+type ReviewedProcessArtifact struct {
+	ProcessID             string `json:"process_id"`
+	ProcessDefinitionHash string `json:"process_definition_hash"`
 }
 
 type ProcessDefinition struct {
@@ -89,4 +95,21 @@ type RunPlan struct {
 	ExecutorBindings             []ExecutorBinding `json:"executor_bindings"`
 	GateDefinitions              []GateDefinition  `json:"gate_definitions"`
 	DependencyEdges              []DependencyEdge  `json:"dependency_edges"`
+	Entries                      []Entry           `json:"entries"`
+}
+
+type Entry struct {
+	EntryID                 string                   `json:"entry_id"`
+	EntryKind               string                   `json:"entry_kind"`
+	OrderIndex              int                      `json:"order_index"`
+	StageID                 string                   `json:"stage_id"`
+	StepID                  string                   `json:"step_id"`
+	RoleInstanceID          string                   `json:"role_instance_id"`
+	ExecutorBindingID       string                   `json:"executor_binding_id"`
+	CheckpointCode          string                   `json:"checkpoint_code"`
+	Gate                    GateContract             `json:"gate"`
+	DependencyCacheHandoffs []DependencyCacheHandoff `json:"dependency_cache_handoffs,omitempty"`
+	DependsOnEntryIDs       []string                 `json:"depends_on_entry_ids"`
+	BlocksEntryIDs          []string                 `json:"blocks_entry_ids"`
+	SupportedWaitKinds      []string                 `json:"supported_wait_kinds"`
 }

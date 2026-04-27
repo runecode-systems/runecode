@@ -26,6 +26,9 @@ type StoreState struct {
 	DependencyCacheByRequest map[string][]string                                `json:"dependency_cache_by_request,omitempty"`
 	ProviderProfiles         map[string]ProviderProfileDurableState             `json:"provider_profiles,omitempty"`
 	ProviderSetupSessions    map[string]ProviderSetupSessionDurableState        `json:"provider_setup_sessions,omitempty"`
+	RunPlanAuthorities       map[string]RunPlanAuthorityRecord                  `json:"run_plan_authorities,omitempty"`
+	RunPlanRefsByRun         map[string][]string                                `json:"run_plan_refs_by_run,omitempty"`
+	RunPlanCompilations      map[string]RunPlanCompilationRecord                `json:"run_plan_compilations,omitempty"`
 	Policy                   Policy                                             `json:"policy"`
 	Runs                     map[string]string                                  `json:"runs"`
 	PromotionEventsByActor   map[string][]time.Time                             `json:"promotion_events_by_actor"`
@@ -131,19 +134,27 @@ type PromotionRequest struct {
 }
 
 type BackupManifest struct {
-	Schema                 string                              `json:"schema"`
-	ExportedAt             time.Time                           `json:"exported_at"`
-	StorageProtection      string                              `json:"storage_protection"`
-	Policy                 Policy                              `json:"policy"`
-	Artifacts              []ArtifactRecord                    `json:"artifacts"`
-	DependencyCacheBatches []DependencyCacheBatchRecord        `json:"dependency_cache_batches,omitempty"`
-	DependencyCacheUnits   []DependencyCacheResolvedUnitRecord `json:"dependency_cache_units,omitempty"`
-	Sessions               []SessionDurableState               `json:"sessions,omitempty"`
-	PolicyDecisions        []PolicyDecisionRecord              `json:"policy_decisions,omitempty"`
-	Approvals              []ApprovalRecord                    `json:"approvals,omitempty"`
-	ProviderProfiles       []ProviderProfileDurableState       `json:"provider_profiles,omitempty"`
-	ProviderSetupSessions  []ProviderSetupSessionDurableState  `json:"provider_setup_sessions,omitempty"`
-	Runs                   map[string]string                   `json:"runs"`
+	Schema                 string                                             `json:"schema"`
+	ExportedAt             time.Time                                          `json:"exported_at"`
+	StorageProtection      string                                             `json:"storage_protection"`
+	Policy                 Policy                                             `json:"policy"`
+	Artifacts              []ArtifactRecord                                   `json:"artifacts"`
+	DependencyCacheBatches []DependencyCacheBatchRecord                       `json:"dependency_cache_batches,omitempty"`
+	DependencyCacheUnits   []DependencyCacheResolvedUnitRecord                `json:"dependency_cache_units,omitempty"`
+	Sessions               []SessionDurableState                              `json:"sessions,omitempty"`
+	PolicyDecisions        []PolicyDecisionRecord                             `json:"policy_decisions,omitempty"`
+	Approvals              []ApprovalRecord                                   `json:"approvals,omitempty"`
+	GitRemotePrepared      []GitRemotePreparedMutationRecord                  `json:"git_remote_prepared,omitempty"`
+	RuntimeFactsByRun      map[string]launcherbackend.RuntimeFactsSnapshot    `json:"runtime_facts_by_run,omitempty"`
+	RuntimeEvidenceByRun   map[string]launcherbackend.RuntimeEvidenceSnapshot `json:"runtime_evidence_by_run,omitempty"`
+	RuntimeLifecycleByRun  map[string]launcherbackend.RuntimeLifecycleState   `json:"runtime_lifecycle_by_run,omitempty"`
+	RuntimeAuditStateByRun map[string]RuntimeAuditEmissionState               `json:"runtime_audit_state_by_run,omitempty"`
+	RunnerAdvisoryByRun    map[string]RunnerAdvisoryState                     `json:"runner_advisory_by_run,omitempty"`
+	ProviderProfiles       []ProviderProfileDurableState                      `json:"provider_profiles,omitempty"`
+	ProviderSetupSessions  []ProviderSetupSessionDurableState                 `json:"provider_setup_sessions,omitempty"`
+	RunPlanAuthorities     []RunPlanAuthorityRecord                           `json:"run_plan_authorities,omitempty"`
+	RunPlanCompilations    []RunPlanCompilationRecord                         `json:"run_plan_compilations,omitempty"`
+	Runs                   map[string]string                                  `json:"runs"`
 }
 
 func DefaultPolicy() Policy {

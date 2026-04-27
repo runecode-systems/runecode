@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
 func stateFromBackup(manifest BackupManifest, lastAuditSequence int64, ioStore *storeIO) (StoreState, error) {
@@ -17,7 +19,7 @@ func stateFromBackup(manifest BackupManifest, lastAuditSequence int64, ioStore *
 	if err := validateRestoredStateLinks(&next); err != nil {
 		return StoreState{}, err
 	}
-	return next, nil
+	return normalizeState(next), nil
 }
 
 func loadRestoredStateRecords(next *StoreState, manifest BackupManifest, ioStore *storeIO) error {
@@ -32,12 +34,19 @@ func loadRestoredStateRecords(next *StoreState, manifest BackupManifest, ioStore
 		func() error { return loadRestoredApprovals(next, manifest.Approvals) },
 		func() error { return loadRestoredSessions(next, manifest.Sessions) },
 		func() error { return loadRestoredPolicyDecisions(next, manifest.PolicyDecisions) },
+		func() error { return loadRestoredGitRemotePrepared(next, manifest.GitRemotePrepared) },
+		func() error {
+			return loadRestoredRuntimeState(next, manifest.RuntimeFactsByRun, manifest.RuntimeEvidenceByRun, manifest.RuntimeLifecycleByRun, manifest.RuntimeAuditStateByRun, manifest.RunnerAdvisoryByRun)
+		},
 		func() error {
 			return loadRestoredDependencyCache(next, manifest.DependencyCacheBatches, manifest.DependencyCacheUnits)
 		},
 		func() error { return validateRestoredDependencyCache(next) },
 		func() error { return loadRestoredProviderProfiles(next, manifest.ProviderProfiles) },
 		func() error { return loadRestoredProviderSetupSessions(next, manifest.ProviderSetupSessions) },
+		func() error {
+			return loadRestoredRunPlans(next, manifest.RunPlanAuthorities, manifest.RunPlanCompilations, ioStore)
+		},
 	}
 	for _, loader := range loaders {
 		if err := loader(); err != nil {
@@ -66,8 +75,18 @@ func newStateFromBackup(manifest BackupManifest, lastAuditSequence int64) StoreS
 		RunApprovalRefs:          map[string][]string{},
 		PolicyDecisions:          map[string]PolicyDecisionRecord{},
 		RunPolicyDecisionRefs:    map[string][]string{},
+		GitRemotePrepared:        map[string]GitRemotePreparedMutationRecord{},
+		RunGitRemotePreparedRefs: map[string][]string{},
+		RuntimeFactsByRun:        map[string]launcherbackend.RuntimeFactsSnapshot{},
+		RuntimeEvidenceByRun:     map[string]launcherbackend.RuntimeEvidenceSnapshot{},
+		RuntimeLifecycleByRun:    map[string]launcherbackend.RuntimeLifecycleState{},
+		RuntimeAuditStateByRun:   map[string]RuntimeAuditEmissionState{},
+		RunnerAdvisoryByRun:      map[string]RunnerAdvisoryState{},
 		ProviderProfiles:         map[string]ProviderProfileDurableState{},
 		ProviderSetupSessions:    map[string]ProviderSetupSessionDurableState{},
+		RunPlanAuthorities:       map[string]RunPlanAuthorityRecord{},
+		RunPlanRefsByRun:         map[string][]string{},
+		RunPlanCompilations:      map[string]RunPlanCompilationRecord{},
 		Policy:                   manifest.Policy,
 		Runs:                     runs,
 		PromotionEventsByActor:   map[string][]time.Time{},
@@ -76,118 +95,93 @@ func newStateFromBackup(manifest BackupManifest, lastAuditSequence int64) StoreS
 	}
 }
 
-func loadRestoredProviderProfiles(next *StoreState, records []ProviderProfileDurableState) error {
+func loadRestoredGitRemotePrepared(next *StoreState, records []GitRemotePreparedMutationRecord) error {
 	for i, rec := range records {
-		normalized := cloneProviderProfileDurableState(rec)
-		if strings.TrimSpace(normalized.ProviderProfileID) == "" {
-			return fmt.Errorf("provider profile id is required at restore index %d", i)
+		normalized := cloneGitRemotePreparedRecord(rec)
+		if err := validateGitRemotePreparedRecord(normalized); err != nil {
+			return fmt.Errorf("git remote prepared restore index %d: %w", i, err)
 		}
-		next.ProviderProfiles[normalized.ProviderProfileID] = normalized
+		next.GitRemotePrepared[normalized.PreparedMutationID] = normalized
 	}
+	rebuildRunGitRemotePreparedRefsLocked(next)
 	return nil
 }
 
-func loadRestoredProviderSetupSessions(next *StoreState, records []ProviderSetupSessionDurableState) error {
-	for i, rec := range records {
-		normalized := cloneProviderSetupSessionDurableState(rec)
-		if strings.TrimSpace(normalized.SetupSessionID) == "" {
-			return fmt.Errorf("provider setup session id is required at restore index %d", i)
-		}
-		next.ProviderSetupSessions[normalized.SetupSessionID] = normalized
+func loadRestoredRuntimeState(next *StoreState, factsByRun map[string]launcherbackend.RuntimeFactsSnapshot, evidenceByRun map[string]launcherbackend.RuntimeEvidenceSnapshot, lifecycleByRun map[string]launcherbackend.RuntimeLifecycleState, auditStateByRun map[string]RuntimeAuditEmissionState, advisoryByRun map[string]RunnerAdvisoryState) error {
+	if err := loadRestoredRuntimeFacts(next, factsByRun); err != nil {
+		return err
 	}
-	return nil
+	if err := loadRestoredRuntimeEvidence(next, evidenceByRun); err != nil {
+		return err
+	}
+	if err := loadRestoredRuntimeLifecycle(next, lifecycleByRun); err != nil {
+		return err
+	}
+	if err := loadRestoredRuntimeAuditState(next, auditStateByRun); err != nil {
+		return err
+	}
+	return loadRestoredRunnerAdvisory(next, advisoryByRun)
 }
 
-func loadRestoredSessions(next *StoreState, records []SessionDurableState) error {
-	for i, rec := range records {
-		normalized := normalizeSessionDurableState(rec)
-		if normalized.SessionID == "" {
-			return fmt.Errorf("session id is required at restore index %d (workspace=%q)", i, normalized.WorkspaceID)
-		}
-		next.Sessions[normalized.SessionID] = normalized
-	}
-	return nil
-}
-
-func loadRestoredArtifacts(next *StoreState, records []ArtifactRecord, ioStore *storeIO) (map[string]ArtifactRecord, error) {
-	unapprovedByDigest := map[string]ArtifactRecord{}
-	for _, rec := range records {
-		validated, err := validateRestoredRecord(rec, ioStore)
+func loadRestoredRuntimeFacts(next *StoreState, factsByRun map[string]launcherbackend.RuntimeFactsSnapshot) error {
+	for runID, facts := range factsByRun {
+		trimmedRunID, err := validateRestoredRuntimeRunID(runID, "runtime facts")
 		if err != nil {
-			return nil, err
-		}
-		next.Artifacts[validated.Reference.Digest] = validated
-		if validated.Reference.DataClass == DataClassUnapprovedFileExcerpts {
-			unapprovedByDigest[validated.Reference.Digest] = validated
-		}
-	}
-	return unapprovedByDigest, nil
-}
-
-func loadRestoredApprovals(next *StoreState, records []ApprovalRecord) error {
-	for _, rec := range records {
-		if err := validateApprovalRecord(rec); err != nil {
 			return err
 		}
-		if err := requirePolicyDecisionHashForBoundApproval(rec); err != nil {
-			return err
-		}
-		next.Approvals[rec.ApprovalID] = rec
-		if rec.RunID != "" {
-			next.RunApprovalRefs[rec.RunID] = uniqueSortedStrings(append(next.RunApprovalRefs[rec.RunID], rec.ApprovalID))
-		}
+		next.RuntimeFactsByRun[trimmedRunID] = cloneRuntimeFactsSnapshot(facts)
 	}
 	return nil
 }
 
-func loadRestoredPolicyDecisions(next *StoreState, records []PolicyDecisionRecord) error {
-	for _, rec := range records {
-		if err := validatePolicyDecisionRecord(rec); err != nil {
+func loadRestoredRuntimeEvidence(next *StoreState, evidenceByRun map[string]launcherbackend.RuntimeEvidenceSnapshot) error {
+	for runID, evidence := range evidenceByRun {
+		trimmedRunID, err := validateRestoredRuntimeRunID(runID, "runtime evidence")
+		if err != nil {
 			return err
 		}
-		if _, canonicalPayload, err := canonicalizePolicyDecisionRecord(rec); err != nil {
-			return err
-		} else if err := applyComputedPolicyDecisionDigest(&rec, canonicalPayload); err != nil {
-			return err
-		}
-		next.PolicyDecisions[rec.Digest] = rec
-		if rec.RunID != "" {
-			next.RunPolicyDecisionRefs[rec.RunID] = uniqueSortedStrings(append(next.RunPolicyDecisionRefs[rec.RunID], rec.Digest))
-		}
+		next.RuntimeEvidenceByRun[trimmedRunID] = evidence
 	}
 	return nil
 }
 
-func loadRestoredDependencyCache(next *StoreState, batches []DependencyCacheBatchRecord, units []DependencyCacheResolvedUnitRecord) error {
-	for _, unit := range units {
-		if err := validateDependencyCacheResolvedUnitRecord(unit); err != nil {
+func loadRestoredRuntimeLifecycle(next *StoreState, lifecycleByRun map[string]launcherbackend.RuntimeLifecycleState) error {
+	for runID, lifecycle := range lifecycleByRun {
+		trimmedRunID, err := validateRestoredRuntimeRunID(runID, "runtime lifecycle")
+		if err != nil {
 			return err
 		}
-		next.DependencyCacheUnits[unit.ResolvedUnitDigest] = cloneDependencyResolvedUnitRecord(unit)
-		next.DependencyCacheByRequest[unit.RequestDigest] = uniqueSortedStrings(append(next.DependencyCacheByRequest[unit.RequestDigest], unit.ResolvedUnitDigest))
-	}
-	for _, batch := range batches {
-		if err := validateDependencyCacheBatchRecord(batch); err != nil {
-			return err
-		}
-		next.DependencyCacheBatches[batch.BatchRequestDigest] = cloneDependencyBatchRecord(batch)
+		next.RuntimeLifecycleByRun[trimmedRunID] = lifecycle
 	}
 	return nil
 }
 
-func validateRestoredApprovalPolicyDecisionLinks(approvals map[string]ApprovalRecord, decisions map[string]PolicyDecisionRecord) error {
-	for approvalID, rec := range approvals {
-		if !approvalHasBindingKeys(&rec) {
-			continue
+func loadRestoredRuntimeAuditState(next *StoreState, auditStateByRun map[string]RuntimeAuditEmissionState) error {
+	for runID, auditState := range auditStateByRun {
+		trimmedRunID, err := validateRestoredRuntimeRunID(runID, "runtime audit state")
+		if err != nil {
+			return err
 		}
-		hash := strings.TrimSpace(rec.PolicyDecisionHash)
-		decision, ok := decisions[hash]
-		if !ok {
-			return fmt.Errorf("%w: approval %q policy decision %q not found", ErrApprovalPolicyDecisionRequired, approvalID, hash)
-		}
-		if decision.ManifestHash != rec.ManifestHash || decision.ActionRequestHash != rec.ActionRequestHash {
-			return fmt.Errorf("%w: approval %q policy decision %q binding mismatch", ErrApprovalPolicyDecisionRequired, approvalID, hash)
-		}
+		next.RuntimeAuditStateByRun[trimmedRunID] = auditState
 	}
 	return nil
+}
+
+func loadRestoredRunnerAdvisory(next *StoreState, advisoryByRun map[string]RunnerAdvisoryState) error {
+	for runID, advisory := range advisoryByRun {
+		trimmedRunID, err := validateRestoredRuntimeRunID(runID, "runner advisory")
+		if err != nil {
+			return err
+		}
+		next.RunnerAdvisoryByRun[trimmedRunID] = copyRunnerAdvisoryState(advisory)
+	}
+	return nil
+}
+
+func validateRestoredRuntimeRunID(runID, context string) (string, error) {
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return "", fmt.Errorf("%s restore run id is required", context)
+	}
+	return trimmedRunID, nil
 }

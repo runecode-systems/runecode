@@ -1,9 +1,7 @@
 package brokerapi
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
@@ -62,6 +60,10 @@ type runPlanAuthorityRecord struct {
 
 const runPlanAuthorityStepPrefix = "compiled_run_plan/"
 
+func runPlanAuthorityStepID(planID string) string {
+	return runPlanAuthorityStepPrefix + strings.TrimSpace(planID)
+}
+
 func (s *Service) compileRunGatePlan(runID string) (compiledRunGatePlan, error) {
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
@@ -84,6 +86,9 @@ func (s *Service) compileRunGatePlan(runID string) (compiledRunGatePlan, error) 
 
 func (s *Service) resolveCachedRunGatePlan(plan compiledRunGatePlan) (compiledRunGatePlan, error) {
 	if !plan.projectContextPinned {
+		if strings.TrimSpace(plan.planID) != "" {
+			return compiledRunGatePlan{}, fmt.Errorf("trusted run plan %q missing validated project context identity digest", plan.planID)
+		}
 		currentProjectContextID := strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest)
 		return plan.withProjectContextID(currentProjectContextID), nil
 	}
@@ -99,29 +104,22 @@ func (s *Service) resolveCachedRunGatePlan(plan compiledRunGatePlan) (compiledRu
 
 func (s *Service) compileRunGatePlanUncached(runID string) (compiledRunGatePlan, error) {
 	projectContextID := strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest)
-	records, foundRun := runScopedPlanRecords(s.List(), runID)
-	if err := ensureRunExistsForGatePlan(s.RunStatuses(), runID, foundRun); err != nil {
+	if err := ensureRunExistsForGatePlan(s.RunStatuses(), runID, false); err != nil {
 		return compiledRunGatePlan{}, err
 	}
-	authorities, err := s.collectRunPlanAuthorities(runID, records)
-	if err != nil {
-		return compiledRunGatePlan{}, err
-	}
-	selected, ok, err := selectActiveRunPlanAuthority(authorities)
+	storedAuthority, ok, err := s.ActiveRunPlanAuthority(runID)
 	if err != nil {
 		return compiledRunGatePlan{}, err
 	}
 	if !ok {
 		return compiledRunGatePlan{projectContextID: projectContextID, projectContextPinned: false}, nil
 	}
+	selected := runPlanAuthorityRecordFromStored(storedAuthority)
 	projectContextID, projectContextPinned, err := validateProjectContextBinding(projectContextID, selected, projectContextID)
 	if err != nil {
 		return compiledRunGatePlan{}, err
 	}
-	entries, err := extractGateDefinitionsForRunPlan(selected.definition)
-	if err != nil {
-		return compiledRunGatePlan{}, err
-	}
+	entries := runPlannedEntriesFromStored(storedAuthority.Entries)
 	if len(entries) == 0 {
 		return compiledRunGatePlan{projectContextID: projectContextID, projectContextPinned: projectContextPinned, planID: selected.planID, runPlanRef: selected.runPlanRef, workflowDefinitionHash: selected.workflowDefinitionRef, processDefinitionHash: selected.processDefinitionRef, policyContextHash: selected.policyContextHash}, nil
 	}
@@ -130,16 +128,16 @@ func (s *Service) compileRunGatePlanUncached(runID string) (compiledRunGatePlan,
 
 func validateProjectContextBinding(projectContextID string, selected runPlanAuthorityRecord, originalContextID string) (string, bool, error) {
 	projectContextPinned := strings.TrimSpace(selected.projectContextID) != ""
-	if strings.TrimSpace(selected.projectContextID) != "" {
-		if projectContextID == "" {
-			return "", false, fmt.Errorf("trusted run plan %q requires validated project context identity digest", selected.planID)
-		}
-		if projectContextID != strings.TrimSpace(selected.projectContextID) {
-			return "", false, fmt.Errorf("trusted run plan %q project context digest drift: planned %q current %q", selected.planID, strings.TrimSpace(selected.projectContextID), projectContextID)
-		}
-		return strings.TrimSpace(selected.projectContextID), projectContextPinned, nil
+	if !projectContextPinned {
+		return "", false, fmt.Errorf("trusted run plan %q missing validated project context identity digest", selected.planID)
 	}
-	return originalContextID, projectContextPinned, nil
+	if projectContextID == "" {
+		return "", false, fmt.Errorf("trusted run plan %q requires validated project context identity digest", selected.planID)
+	}
+	if projectContextID != strings.TrimSpace(selected.projectContextID) {
+		return "", false, fmt.Errorf("trusted run plan %q project context digest drift: planned %q current %q", selected.planID, strings.TrimSpace(selected.projectContextID), projectContextID)
+	}
+	return strings.TrimSpace(selected.projectContextID), projectContextPinned, nil
 }
 
 func buildCompiledGatePlan(entries []runPlannedGateEntry, selected runPlanAuthorityRecord, projectContextID string, projectContextPinned bool) (compiledRunGatePlan, error) {
@@ -168,6 +166,53 @@ func buildCompiledGatePlan(entries []runPlannedGateEntry, selected runPlanAuthor
 	return compiledRunGatePlan{entries: entries, byGate: byGate, projectContextID: projectContextID, projectContextPinned: projectContextPinned, planID: selected.planID, runPlanRef: selected.runPlanRef, workflowDefinitionHash: selected.workflowDefinitionRef, processDefinitionHash: selected.processDefinitionRef, policyContextHash: selected.policyContextHash}, nil
 }
 
+func runPlanAuthorityRecordFromStored(rec artifacts.RunPlanAuthorityRecord) runPlanAuthorityRecord {
+	return runPlanAuthorityRecord{
+		planID:                strings.TrimSpace(rec.PlanID),
+		supersedesPlanID:      strings.TrimSpace(rec.SupersedesPlanID),
+		runID:                 strings.TrimSpace(rec.RunID),
+		workflowDefinitionRef: strings.TrimSpace(rec.WorkflowDefinitionHash),
+		processDefinitionRef:  strings.TrimSpace(rec.ProcessDefinitionHash),
+		policyContextHash:     strings.TrimSpace(rec.PolicyContextHash),
+		projectContextID:      strings.TrimSpace(rec.ProjectContextIdentityDigest),
+		runPlanRef:            strings.TrimSpace(rec.RunPlanDigest),
+		createdAtUnixNano:     rec.RecordedAt.UTC().UnixNano(),
+	}
+}
+
+func runPlannedEntriesFromStored(records []artifacts.RunPlanGateEntryRecord) []runPlannedGateEntry {
+	if len(records) == 0 {
+		return nil
+	}
+	out := make([]runPlannedGateEntry, 0, len(records))
+	for _, record := range records {
+		entry := runPlannedGateEntry{
+			GateID:               strings.TrimSpace(record.GateID),
+			GateKind:             strings.TrimSpace(record.GateKind),
+			GateVersion:          strings.TrimSpace(record.GateVersion),
+			StageID:              strings.TrimSpace(record.StageID),
+			StepID:               strings.TrimSpace(record.StepID),
+			RoleInstanceID:       strings.TrimSpace(record.RoleInstanceID),
+			PlanCheckpointCode:   strings.TrimSpace(record.PlanCheckpointCode),
+			PlanOrderIndex:       record.PlanOrderIndex,
+			MaxAttempts:          record.MaxAttempts,
+			ExpectedInputDigests: append([]string{}, record.ExpectedInputDigests...),
+		}
+		if len(record.DependencyCacheHandoffs) > 0 {
+			entry.DependencyCacheHandoffs = make([]runPlannedDependencyCacheHandoff, 0, len(record.DependencyCacheHandoffs))
+			for _, handoff := range record.DependencyCacheHandoffs {
+				entry.DependencyCacheHandoffs = append(entry.DependencyCacheHandoffs, runPlannedDependencyCacheHandoff{
+					RequestDigest: strings.TrimSpace(handoff.RequestDigest),
+					ConsumerRole:  strings.TrimSpace(handoff.ConsumerRole),
+					Required:      handoff.Required,
+				})
+			}
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
 func (p compiledRunGatePlan) withProjectContextID(projectContextID string) compiledRunGatePlan {
 	if p.projectContextPinned {
 		return p
@@ -192,55 +237,4 @@ func (p compiledRunGatePlan) withProjectContextID(projectContextID string) compi
 		}
 	}
 	return out
-}
-
-func (s *Service) collectRunPlanAuthorities(runID string, records []artifacts.ArtifactRecord) ([]runPlanAuthorityRecord, error) {
-	authorities := make([]runPlanAuthorityRecord, 0, len(records))
-	for _, record := range records {
-		authority, ok, err := s.runPlanAuthorityFromRecord(runID, record)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			continue
-		}
-		authorities = append(authorities, authority)
-	}
-	return authorities, nil
-}
-
-func (s *Service) runPlanAuthorityFromRecord(runID string, record artifacts.ArtifactRecord) (runPlanAuthorityRecord, bool, error) {
-	obj, ok, err := s.readExecutableRunPlan(record.Reference.Digest)
-	if err != nil {
-		return runPlanAuthorityRecord{}, false, err
-	}
-	if !ok {
-		return runPlanAuthorityRecord{}, false, nil
-	}
-	authority, err := runPlanAuthorityFromDefinition(runID, record, obj)
-	if err != nil {
-		return runPlanAuthorityRecord{}, false, err
-	}
-	return authority, true, nil
-}
-
-func (s *Service) readExecutableRunPlan(digest string) (map[string]any, bool, error) {
-	r, err := s.Get(digest)
-	if err != nil {
-		return nil, false, fmt.Errorf("read trusted run plan artifact %q: %w", digest, err)
-	}
-	defer r.Close()
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return nil, false, fmt.Errorf("read trusted run plan artifact body %q: %w", digest, err)
-	}
-	obj := map[string]any{}
-	if err := json.Unmarshal(b, &obj); err != nil {
-		return nil, false, nil
-	}
-	schemaID, _ := obj["schema_id"].(string)
-	if strings.TrimSpace(schemaID) == "runecode.protocol.v0.RunPlan" {
-		return obj, true, nil
-	}
-	return nil, false, nil
 }

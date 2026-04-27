@@ -28,6 +28,7 @@ func (s *Store) deleteCandidatesLocked(candidates []gcCandidate) (GCResult, erro
 			return result, err
 		}
 		delete(s.state.Artifacts, c.digest)
+		purgeRunPlanAuthoritiesByDigestLocked(&s.state, c.digest)
 		result.DeletedDigests = append(result.DeletedDigests, c.digest)
 		result.FreedBytes += c.rec.Reference.SizeBytes
 	}
@@ -41,13 +42,15 @@ func (s *Store) DeleteDigest(digest string) error {
 	if !ok {
 		return nil
 	}
+	priorRunPlanAuthorities, priorRunPlanCompilations := runPlanRecordsForDigest(s.state, digest)
 	delete(s.state.Artifacts, digest)
+	purgeRunPlanAuthoritiesByDigestLocked(&s.state, digest)
 	if err := s.saveStateLocked(); err != nil {
-		s.state.Artifacts[digest] = record
+		restoreDeletedDigestState(&s.state, digest, record, priorRunPlanAuthorities, priorRunPlanCompilations)
 		return err
 	}
 	if err := s.storeIO.removeBlob(record.BlobPath); err != nil {
-		s.state.Artifacts[digest] = record
+		restoreDeletedDigestState(&s.state, digest, record, priorRunPlanAuthorities, priorRunPlanCompilations)
 		rollbackErr := s.saveStateLocked()
 		if rollbackErr != nil {
 			return errors.Join(err, rollbackErr)
@@ -55,6 +58,35 @@ func (s *Store) DeleteDigest(digest string) error {
 		return err
 	}
 	return nil
+}
+
+func runPlanRecordsForDigest(state StoreState, digest string) (map[string]RunPlanAuthorityRecord, map[string]RunPlanCompilationRecord) {
+	priorRunPlanAuthorities := map[string]RunPlanAuthorityRecord{}
+	priorRunPlanCompilations := map[string]RunPlanCompilationRecord{}
+	for key, rec := range state.RunPlanAuthorities {
+		if rec.RunPlanDigest != digest {
+			continue
+		}
+		priorRunPlanAuthorities[key] = rec
+	}
+	for key, rec := range state.RunPlanCompilations {
+		if _, ok := priorRunPlanAuthorities[key]; !ok {
+			continue
+		}
+		priorRunPlanCompilations[key] = rec
+	}
+	return priorRunPlanAuthorities, priorRunPlanCompilations
+}
+
+func restoreDeletedDigestState(state *StoreState, digest string, record ArtifactRecord, priorRunPlanAuthorities map[string]RunPlanAuthorityRecord, priorRunPlanCompilations map[string]RunPlanCompilationRecord) {
+	state.Artifacts[digest] = record
+	for key, rec := range priorRunPlanAuthorities {
+		state.RunPlanAuthorities[key] = rec
+	}
+	for key, rec := range priorRunPlanCompilations {
+		state.RunPlanCompilations[key] = rec
+	}
+	rebuildRunPlanRefsByRunLocked(state)
 }
 
 func (s *Store) auditGCResultLocked(result GCResult) error {
@@ -108,6 +140,7 @@ func (s *Store) RestoreBackup(path string) error {
 		return err
 	}
 	next.BackupHMACKey = s.state.BackupHMACKey
+	next = normalizeState(next)
 	s.state = next
 	if err := s.appendAuditLocked("artifact_retention_action", "system", map[string]interface{}{"action": "restore_backup", "path": filepath.Base(path)}); err != nil {
 		return err

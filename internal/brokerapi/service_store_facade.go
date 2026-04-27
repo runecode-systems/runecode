@@ -240,3 +240,19 @@ func (s *Service) RecordDependencyCacheResolvedUnit(unit artifacts.DependencyCac
 func (s *Service) DependencyCacheHandoffByRequest(req artifacts.DependencyCacheHandoffRequest) (artifacts.DependencyCacheHandoff, bool, error) {
 	return s.store.DependencyCacheHandoffByRequest(req)
 }
+
+func (s *Service) RecordRunPlanAuthority(authority artifacts.RunPlanAuthorityRecord, compilation artifacts.RunPlanCompilationRecord) error {
+	if err := s.store.RecordRunPlanAuthority(authority, compilation); err != nil {
+		return err
+	}
+	s.runGatePlanCache.invalidateRun(authority.RunID)
+	return nil
+}
+
+func (s *Service) ActiveRunPlanAuthority(runID string) (artifacts.RunPlanAuthorityRecord, bool, error) {
+	return s.store.ActiveRunPlanAuthority(runID)
+}
+
+func (s *Service) RunPlanCompilationRecord(runID, planID string) (artifacts.RunPlanCompilationRecord, bool) {
+	return s.store.RunPlanCompilationRecord(runID, planID)
+}

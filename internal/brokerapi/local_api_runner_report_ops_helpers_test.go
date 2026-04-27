@@ -141,12 +141,72 @@ type trustedRunPlanOptions struct {
 	SupersedesPlanID             string
 }
 
+const trustedRunPlanProjectContextDigest = "sha256:7777777777777777777777777777777777777777777777777777777777777777"
+
 func putTrustedRunPlanForGatePlanWithOptions(t *testing.T, s *Service, runID string, planID string, maxAttempts int, opts trustedRunPlanOptions) {
 	t.Helper()
-	payload := buildTrustedRunPlanPayload(t, runID, planID, maxAttempts, opts)
-	if _, err := s.Put(artifacts.PutRequest{Payload: payload, ContentType: "application/json", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("2", 64), CreatedByRole: "brokerapi", TrustedSource: true, RunID: runID, StepID: runPlanAuthorityStepID(planID)}); err != nil {
-		t.Fatalf("Put trusted run plan returned error: %v", err)
+	projectContextDigest := strings.TrimSpace(opts.ProjectContextIdentityDigest)
+	if projectContextDigest == "" {
+		projectContextDigest = strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest)
 	}
+	if projectContextDigest == "" {
+		projectContextDigest = trustedRunPlanProjectContextDigest
+	}
+	s.projectSubstrate.Snapshot.ProjectContextIdentityDigest = projectContextDigest
+	s.projectSubstrate.Snapshot.ValidatedSnapshotDigest = projectContextDigest
+	workflowPayload, processPayload := buildTrustedPlanCompileInputs(t, maxAttempts, opts)
+	workflowRef, err := s.Put(artifacts.PutRequest{Payload: workflowPayload, ContentType: "application/json", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("2", 64), CreatedByRole: "brokerapi", TrustedSource: true, RunID: runID, StepID: "workflow_definition"})
+	if err != nil {
+		t.Fatalf("Put trusted workflow definition returned error: %v", err)
+	}
+	processRef, err := s.Put(artifacts.PutRequest{Payload: processPayload, ContentType: "application/json", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: "sha256:" + strings.Repeat("2", 64), CreatedByRole: "brokerapi", TrustedSource: true, RunID: runID, StepID: "process_definition"})
+	if err != nil {
+		t.Fatalf("Put trusted process definition returned error: %v", err)
+	}
+	_, err = s.CompileAndPersistRunPlan(CompileAndPersistRunPlanRequest{
+		RunID:                        runID,
+		PlanID:                       planID,
+		SupersedesPlanID:             strings.TrimSpace(opts.SupersedesPlanID),
+		WorkflowDefinitionRef:        workflowRef.Digest,
+		ProcessDefinitionRef:         processRef.Digest,
+		PolicyContextHash:            "sha256:" + strings.Repeat("5", 64),
+		ProjectContextIdentityDigest: projectContextDigest,
+	})
+	if err != nil {
+		t.Fatalf("CompileAndPersistRunPlan returned error: %v", err)
+	}
+}
+
+func buildTrustedPlanCompileInputs(t *testing.T, maxAttempts int, opts trustedRunPlanOptions) ([]byte, []byte) {
+	t.Helper()
+	processObj := map[string]any{"schema_id": "runecode.protocol.v0.ProcessDefinition", "schema_version": "0.4.0", "process_id": "process_default", "executor_bindings": []any{map[string]any{"binding_id": "binding_workspace_runner", "executor_id": "workspace-runner", "executor_class": "workspace_ordinary", "allowed_role_kinds": []any{"workspace-edit", "workspace-test"}}}, "gate_definitions": []any{trustedGateDefinitionPayload(maxAttempts, opts.DependencyCacheHandoffs)}, "dependency_edges": []any{}}
+	processPayload, err := json.Marshal(processObj)
+	if err != nil {
+		t.Fatalf("Marshal process definition payload returned error: %v", err)
+	}
+	canonicalProcess, err := artifacts.CanonicalizeJSONBytes(processPayload)
+	if err != nil {
+		t.Fatalf("Canonicalize process definition payload returned error: %v", err)
+	}
+	processDigest := artifacts.DigestBytes(canonicalProcess)
+	workflowObj := map[string]any{"schema_id": "runecode.protocol.v0.WorkflowDefinition", "schema_version": "0.5.0", "workflow_id": "workflow_main", "workflow_version": "1.0.0", "selected_process_id": "process_default", "selected_process_definition_hash": processDigest, "reviewed_process_artifacts": []any{map[string]any{"process_id": "process_default", "process_definition_hash": processDigest}}, "approval_profile": "moderate", "autonomy_posture": "balanced"}
+	workflowPayload, err := json.Marshal(workflowObj)
+	if err != nil {
+		t.Fatalf("Marshal workflow definition payload returned error: %v", err)
+	}
+	return workflowPayload, processPayload
+}
+
+func trustedGateDefinitionPayload(maxAttempts int, dependencyCacheHandoffs []map[string]any) map[string]any {
+	gateDef := map[string]any{"schema_id": "runecode.protocol.v0.GateDefinition", "schema_version": "0.2.0", "checkpoint_code": "step_validation_started", "order_index": 0, "stage_id": "validation", "step_id": "validation_policy", "role_instance_id": "workspace_editor_1", "executor_binding_id": "binding_workspace_runner", "gate": map[string]any{"schema_id": "runecode.protocol.v0.GateContract", "schema_version": "0.1.0", "gate_id": "policy_gate", "gate_kind": "policy", "gate_version": "1.0.0", "normalized_inputs": []any{map[string]any{"input_id": "policy_context", "input_digest": "sha256:" + strings.Repeat("a", 64)}}, "plan_binding": map[string]any{"checkpoint_code": "step_validation_started", "order_index": 0}, "retry_semantics": map[string]any{"retry_mode": "new_attempt_required", "max_attempts": maxAttempts}, "override_semantics": map[string]any{"override_mode": "policy_action_required", "action_kind": "action_gate_override", "approval_trigger_code": "gate_override"}}}
+	if len(dependencyCacheHandoffs) > 0 {
+		handoffs := make([]any, 0, len(dependencyCacheHandoffs))
+		for _, handoff := range dependencyCacheHandoffs {
+			handoffs = append(handoffs, handoff)
+		}
+		gateDef["dependency_cache_handoffs"] = handoffs
+	}
+	return gateDef
 }
 
 func buildTrustedRunPlanPayload(t *testing.T, runID string, planID string, maxAttempts int, opts trustedRunPlanOptions) []byte {
@@ -161,7 +221,7 @@ func buildTrustedRunPlanPayload(t *testing.T, runID string, planID string, maxAt
 	}
 	payloadObj := map[string]any{
 		"schema_id":                "runecode.protocol.v0.RunPlan",
-		"schema_version":           "0.3.0",
+		"schema_version":           "0.4.0",
 		"plan_id":                  planID,
 		"supersedes_plan_id":       strings.TrimSpace(opts.SupersedesPlanID),
 		"run_id":                   runID,

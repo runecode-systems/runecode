@@ -39,15 +39,6 @@ func buildRunPlanEntryIndex(entries []runPlannedGateEntry) (map[string]runPlanne
 	return byGate, nil
 }
 
-func isTrustedGatePlanSourceRole(role string) bool {
-	switch strings.TrimSpace(role) {
-	case "broker", "brokerapi":
-		return true
-	default:
-		return false
-	}
-}
-
 func isTrustedRunPlanPutCandidate(trustedSource bool, createdByRole, contentType, runID, stepID string) bool {
 	if !trustedSource {
 		return false
@@ -55,7 +46,9 @@ func isTrustedRunPlanPutCandidate(trustedSource bool, createdByRole, contentType
 	if strings.TrimSpace(runID) == "" {
 		return false
 	}
-	if !isTrustedGatePlanSourceRole(createdByRole) {
+	switch strings.TrimSpace(createdByRole) {
+	case "broker", "brokerapi":
+	default:
 		return false
 	}
 	if !strings.EqualFold(strings.TrimSpace(contentType), "application/json") {

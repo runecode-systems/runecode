@@ -1,11 +1,15 @@
 {
   "schema_id": "runecode.protocol.v0.WorkflowDefinition",
-  "schema_version": "0.4.0",
+  "schema_version": "0.5.0",
   "workflow_id": "workflow_main",
   "workflow_version": "1.0.0",
   "selected_process_id": "process_default",
-  "reviewed_process_ids": [
-    "process_default"
+  "selected_process_definition_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "reviewed_process_artifacts": [
+    {
+      "process_id": "process_default",
+      "process_definition_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
   ],
   "policy_binding_id": "policy_binding_default",
   "approval_profile": "moderate",

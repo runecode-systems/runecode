@@ -34,3 +34,11 @@
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.
+
+## Executed Checks (2026-04-27)
+- `go test ./internal/artifacts ./internal/brokerapi ./internal/protocolschema` ✅
+
+## Evidence Summary
+- Added schema-contract negative tests for evolved `WorkflowDefinition`, `ProcessDefinition`, and `RunPlan` requirements (including entry wait-kind and dependency-handoff invariants).
+- Added broker/store authority-path tests that fail closed on missing artifacts, authority/compilation mismatches, and ambiguous active authority resolution.
+- Removed obsolete broker raw-run-plan extraction/authority-discovery helpers so active runtime plan authority stays on typed persisted authority records.

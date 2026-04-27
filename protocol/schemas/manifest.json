@@ -1635,7 +1635,7 @@
     {
       "path": "objects/WorkflowDefinition.schema.json",
       "schema_id": "runecode.protocol.v0.WorkflowDefinition",
-      "schema_version": "0.4.0",
+      "schema_version": "0.5.0",
       "owner": "protocol",
       "status": "mvp"
     },
@@ -1649,7 +1649,7 @@
     {
       "path": "objects/RunPlan.schema.json",
       "schema_id": "runecode.protocol.v0.RunPlan",
-      "schema_version": "0.3.0",
+      "schema_version": "0.4.0",
       "owner": "protocol",
       "status": "mvp"
     }

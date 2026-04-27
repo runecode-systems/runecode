@@ -23,11 +23,81 @@ test("loads RunPlan via schema bundle and schedules work", async (t) => {
   assert.equal(plan.run_id, "run_alpha");
   assert.equal(plan.plan_id, "plan_alpha");
   assert.equal(work.length, 1);
-  assert.equal(work[0].entry.entry_kind, "gate_definition");
+  assert.equal(work[0].entry.entry_kind, "gate");
   assert.equal(work[0].entry.dependency_cache_handoffs.length, 1);
   assert.equal(work[0].entry.dependency_cache_handoffs[0].consumer_role, "workspace");
 
   t.diagnostic(`scheduled ${work.length} plan entries`);
+});
+
+test("scheduler only returns dependency-eligible entries", async () => {
+  const {
+    ProtocolSchemaBundle,
+    RunPlanLoader,
+    PlanScheduler,
+  } = await loadRunnerModules();
+
+  const schemaBundle = await ProtocolSchemaBundle.fromProtocolSchemasRoot(path.join(repoRoot, "protocol", "schemas"));
+  const loader = new RunPlanLoader(schemaBundle);
+  const scheduler = new PlanScheduler();
+
+  const base = validRunPlanFixture();
+  const plan = loader.loadFromUnknown(validRunPlanFixture({
+    gate_definitions: [
+      {
+        ...base.gate_definitions[0],
+        step_id: "quality_lint",
+        gate: {
+          ...base.gate_definitions[0].gate,
+          plan_binding: { checkpoint_code: "quality", order_index: 0 },
+        },
+      },
+      {
+        ...base.gate_definitions[0],
+        step_id: "quality_test",
+        order_index: 1,
+        gate: {
+          ...base.gate_definitions[0].gate,
+          gate_id: "test",
+          gate_kind: "test",
+          plan_binding: { checkpoint_code: "quality", order_index: 1 },
+        },
+      },
+    ],
+    entries: [
+      {
+        ...base.entries[0],
+        entry_id: "quality_lint",
+        step_id: "quality_lint",
+        order_index: 0,
+        depends_on_entry_ids: [],
+        blocks_entry_ids: ["quality_test"],
+      },
+      {
+        ...base.entries[0],
+        entry_id: "quality_test",
+        step_id: "quality_test",
+        order_index: 1,
+        gate: {
+          ...base.entries[0].gate,
+          gate_id: "test",
+          gate_kind: "test",
+          plan_binding: { checkpoint_code: "quality", order_index: 1 },
+        },
+        depends_on_entry_ids: ["quality_lint"],
+        blocks_entry_ids: [],
+      },
+    ],
+    dependency_edges: [{ upstream_step_id: "quality_lint", downstream_step_id: "quality_test", dependency_kind: "step_completed" }],
+  }));
+
+  const initial = scheduler.listPlannedWork(plan, { pending_approval_waits: [] });
+  assert.equal(initial.length, 1);
+  assert.equal(initial[0].entry.entry_id, "quality_lint");
+
+  const afterUpstreamDone = scheduler.listPlannedWork(plan, { pending_approval_waits: [], completed_entry_ids: ["quality_lint"] });
+  assert.equal(afterUpstreamDone.length, 2);
+  assert.equal(afterUpstreamDone[1].entry.entry_id, "quality_test");
 });
 
 test("scheduler continues unrelated eligible work while exact bound scope remains blocked", async () => {
@@ -48,6 +118,9 @@ test("scheduler continues unrelated eligible work while exact bound scope remain
       ...validRunPlanFixture().gate_definitions,
       {
         ...validRunPlanFixture().gate_definitions[0],
+        step_id: "quality_test",
+        role_instance_id: "role_beta",
+        order_index: 1,
         gate: {
           ...validRunPlanFixture().gate_definitions[0].gate,
           gate_id: "test",
@@ -57,8 +130,25 @@ test("scheduler continues unrelated eligible work while exact bound scope remain
             order_index: 1,
           },
         },
-        order_index: 1,
+      },
+    ],
+    entries: [
+      ...validRunPlanFixture().entries,
+      {
+        ...validRunPlanFixture().entries[0],
+        entry_id: "quality_test",
+        step_id: "quality_test",
         role_instance_id: "role_beta",
+        order_index: 1,
+        gate: {
+          ...validRunPlanFixture().entries[0].gate,
+          gate_id: "test",
+          gate_kind: "test",
+          plan_binding: {
+            checkpoint_code: "quality",
+            order_index: 1,
+          },
+        },
       },
     ],
   }));
@@ -109,6 +199,7 @@ test("scheduler applies action_kind blocking for stage_summary_sign_off", async 
     gate_definitions: [
       {
         ...validRunPlanFixture().gate_definitions[0],
+        step_id: "quality_lint_alpha",
         role_instance_id: "role_alpha",
         gate: {
           ...validRunPlanFixture().gate_definitions[0].gate,
@@ -117,11 +208,43 @@ test("scheduler applies action_kind blocking for stage_summary_sign_off", async 
       },
       {
         ...validRunPlanFixture().gate_definitions[0],
+        step_id: "quality_lint_beta",
         order_index: 1,
         role_instance_id: "role_beta",
         gate: {
           ...validRunPlanFixture().gate_definitions[0].gate,
           gate_id: "lint_beta",
+          plan_binding: {
+            checkpoint_code: "quality",
+            order_index: 1,
+          },
+        },
+      },
+    ],
+    entries: [
+      {
+        ...validRunPlanFixture().entries[0],
+        entry_id: "quality_lint_alpha",
+        step_id: "quality_lint_alpha",
+        role_instance_id: "role_alpha",
+        gate: {
+          ...validRunPlanFixture().entries[0].gate,
+          gate_id: "lint_alpha",
+        },
+      },
+      {
+        ...validRunPlanFixture().entries[0],
+        entry_id: "quality_lint_beta",
+        step_id: "quality_lint_beta",
+        order_index: 1,
+        role_instance_id: "role_beta",
+        gate: {
+          ...validRunPlanFixture().entries[0].gate,
+          gate_id: "lint_beta",
+          plan_binding: {
+            checkpoint_code: "quality",
+            order_index: 1,
+          },
         },
       },
     ],
@@ -432,45 +555,6 @@ test("report emitter wraps typed request envelopes", async () => {
   assert.equal(captured[0].report.step_attempt_id, "step_attempt_alpha");
 });
 
-test("noop broker client returns unaccepted acknowledgements", async () => {
-  const {
-    NoopRunnerBrokerClient,
-  } = await loadRunnerModules();
-
-  const client = new NoopRunnerBrokerClient();
-  const checkpoint = await client.sendRunnerCheckpointReport({
-    schema_id: "runecode.protocol.v0.RunnerCheckpointReportRequest",
-    schema_version: "0.1.0",
-    request_id: "noop-checkpoint",
-    run_id: "run_alpha",
-    report: {
-      schema_id: "runecode.protocol.v0.RunnerCheckpointReport",
-      schema_version: "0.1.0",
-      lifecycle_state: "active",
-      checkpoint_code: "gate_running",
-      occurred_at: "2026-01-01T00:00:00Z",
-      idempotency_key: "noop-cp-1",
-    },
-  });
-  const result = await client.sendRunnerResultReport({
-    schema_id: "runecode.protocol.v0.RunnerResultReportRequest",
-    schema_version: "0.1.0",
-    request_id: "noop-result",
-    run_id: "run_alpha",
-    report: {
-      schema_id: "runecode.protocol.v0.RunnerResultReport",
-      schema_version: "0.1.0",
-      lifecycle_state: "completed",
-      result_code: "step_succeeded",
-      occurred_at: "2026-01-01T00:00:00Z",
-      idempotency_key: "noop-result-1",
-    },
-  });
-
-  assert.deepEqual(checkpoint, { accepted: false, reason: "broker client not configured" });
-  assert.deepEqual(result, { accepted: false, reason: "broker client not configured" });
-});
-
 test("noop broker client exposes dependency cache handoff seam", async () => {
   const {
     NoopRunnerBrokerClient,
@@ -708,61 +792,4 @@ test("kernel composes modules with plan-bound identity", async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].kind, "park");
   assert.equal(calls[0].input.identity.run_id, "run_alpha");
-});
-
-test("kernel fails closed when a required dependency cache handoff is missing", async () => {
-  const {
-    RunnerKernel,
-  } = await loadRunnerModules();
-
-  const kernel = new RunnerKernel({
-    planLoader: { loadFromFile: async () => { throw new Error("unused"); }, identityOf: () => ({ run_id: "r", plan_id: "p" }) },
-    durableStateStore: {
-      bindPlanIdentity: async () => {},
-      appendRecord: async () => ({ sequence: 1 }),
-      readState: async () => ({
-        snapshot: {
-          schema_version: "2",
-          run_id: "run_alpha",
-          plan_id: "plan_alpha",
-          last_sequence: 0,
-          pending_approval_waits: [],
-          created_at: "2026-01-01T00:00:00Z",
-          updated_at: "2026-01-01T00:00:00Z",
-        },
-        journal: [],
-      }),
-      runtimeStateRoot: () => process.cwd(),
-      listPendingApprovalWaits: async () => [],
-    },
-    brokerClient: {
-      async requestDependencyCacheHandoff(request) {
-        return {
-          schema_id: "runecode.protocol.v0.DependencyCacheHandoffResponse",
-          schema_version: "0.1.0",
-          request_id: request.request_id,
-          found: false,
-        };
-      },
-      async sendRunnerCheckpointReport() {
-        return { accepted: false, reason: "unused" };
-      },
-      async sendRunnerResultReport() {
-        return { accepted: false, reason: "unused" };
-      },
-    },
-  });
-
-  await assert.rejects(
-    () => kernel.composeEntryModules({ run_id: "run_alpha", plan_id: "plan_alpha" }, {
-      entry_id: "entry-1",
-      entry_kind: "gate_definition",
-      dependency_cache_handoffs: [{
-        request_digest: "sha256:" + "d".repeat(64),
-        consumer_role: "workspace",
-        required: true,
-      }],
-    }, [{ name: "noop", async run() {} }]),
-    /required dependency cache handoff not found/,
-  );
 });

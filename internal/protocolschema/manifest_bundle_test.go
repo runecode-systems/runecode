@@ -52,162 +52,78 @@ func TestRunPlanSchemaValidatesCompiledPlanShape(t *testing.T) {
 	}
 }
 
-func workflowDefinitionFixtureWithRequiredGates() map[string]any {
-	return map[string]any{
-		"schema_id":            "runecode.protocol.v0.WorkflowDefinition",
-		"schema_version":       "0.4.0",
-		"workflow_id":          "workflow_main",
-		"workflow_version":     "1.0.0",
-		"selected_process_id":  "process_default",
-		"reviewed_process_ids": []any{"process_default"},
-		"policy_binding_id":    "policy_binding_default",
-		"approval_profile":     "moderate",
-		"autonomy_posture":     "balanced",
+func TestWorkflowDefinitionSchemaRejectsLegacyAndIncompleteSelectionBindings(t *testing.T) {
+	bundle := newCompiledBundle(t, loadManifest(t))
+	workflowSchema := mustCompileObjectSchema(t, bundle, "objects/WorkflowDefinition.schema.json")
+
+	t.Run("missing selected process hash", func(t *testing.T) {
+		fixture := cloneFixtureMap(t, workflowDefinitionFixtureWithRequiredGates())
+		delete(fixture, "selected_process_definition_hash")
+		if err := workflowSchema.Validate(fixture); err == nil {
+			t.Fatal("workflow schema validation unexpectedly passed without selected_process_definition_hash")
+		}
+	})
+
+	t.Run("legacy process_definitions array", func(t *testing.T) {
+		fixture := cloneFixtureMap(t, workflowDefinitionFixtureWithRequiredGates())
+		fixture["process_definitions"] = []any{map[string]any{"process_id": "process_default"}}
+		if err := workflowSchema.Validate(fixture); err == nil {
+			t.Fatal("workflow schema validation unexpectedly passed with legacy process_definitions field")
+		}
+	})
+}
+
+func TestProcessDefinitionSchemaRejectsMissingDependencyEdges(t *testing.T) {
+	bundle := newCompiledBundle(t, loadManifest(t))
+	processSchema := mustCompileObjectSchema(t, bundle, "objects/ProcessDefinition.schema.json")
+	fixture := cloneFixtureMap(t, processDefinitionFixtureWithRequiredGates())
+	delete(fixture, "dependency_edges")
+
+	if err := processSchema.Validate(fixture); err == nil {
+		t.Fatal("process schema validation unexpectedly passed without dependency_edges")
 	}
 }
 
-func processDefinitionFixtureWithRequiredGates() map[string]any {
-	return map[string]any{
-		"schema_id":         "runecode.protocol.v0.ProcessDefinition",
-		"schema_version":    "0.4.0",
-		"process_id":        "process_default",
-		"executor_bindings": []any{executorBindingFixtureWithRequiredGates()},
-		"gate_definitions":  []any{gateDefinitionFixtureWithRequiredGateContract()},
-		"dependency_edges":  []any{},
+func TestRunPlanSchemaRejectsLegacyGateOnlyShape(t *testing.T) {
+	bundle := newCompiledBundle(t, loadManifest(t))
+	runPlanSchema := mustCompileObjectSchema(t, bundle, "objects/RunPlan.schema.json")
+	fixture := cloneFixtureMap(t, runPlanFixtureWithRequiredGates())
+	delete(fixture, "entries")
+
+	if err := runPlanSchema.Validate(fixture); err == nil {
+		t.Fatal("run plan schema validation unexpectedly passed without entries")
 	}
 }
 
-func runPlanFixtureWithRequiredGates() map[string]any {
-	return map[string]any{
-		"schema_id":                "runecode.protocol.v0.RunPlan",
-		"schema_version":           "0.3.0",
-		"plan_id":                  "plan_run_123_0001",
-		"run_id":                   "run_123",
-		"workflow_id":              "workflow_main",
-		"workflow_version":         "1.0.0",
-		"process_id":               "process_default",
-		"approval_profile":         "moderate",
-		"autonomy_posture":         "balanced",
-		"policy_binding_id":        "policy_binding_default",
-		"workflow_definition_hash": "sha256:" + strings.Repeat("a", 64),
-		"process_definition_hash":  "sha256:" + strings.Repeat("b", 64),
-		"policy_context_hash":      "sha256:" + strings.Repeat("c", 64),
-		"compiled_at":              "2026-04-10T12:00:00Z",
-		"role_instance_ids":        []any{"workspace_editor_1"},
-		"executor_bindings":        []any{executorBindingFixtureWithRequiredGates()},
-		"gate_definitions":         []any{gateDefinitionFixtureWithRequiredGateContract()},
-		"dependency_edges":         []any{},
-	}
-}
+func TestRunPlanSchemaRejectsInvalidEntryWaitKindsAndDependencyHandoffRequirements(t *testing.T) {
+	bundle := newCompiledBundle(t, loadManifest(t))
+	runPlanSchema := mustCompileObjectSchema(t, bundle, "objects/RunPlan.schema.json")
 
-func executorBindingFixtureWithRequiredGates() map[string]any {
-	return map[string]any{
-		"binding_id":         "binding_workspace_runner",
-		"executor_id":        "workspace-runner",
-		"executor_class":     "workspace_ordinary",
-		"allowed_role_kinds": []any{"workspace-edit", "workspace-test"},
-	}
-}
+	t.Run("missing waiting_approval", func(t *testing.T) {
+		fixture := cloneFixtureMap(t, runPlanFixtureWithRequiredGates())
+		entries := fixture["entries"].([]any)
+		entry := entries[0].(map[string]any)
+		entry["supported_wait_kinds"] = []any{"waiting_operator_input", "waiting_operator_input"}
+		if err := runPlanSchema.Validate(fixture); err == nil {
+			t.Fatal("run plan schema validation unexpectedly passed with invalid supported_wait_kinds")
+		}
+	})
 
-func gateDefinitionFixtureWithRequiredGateContract() map[string]any {
-	return map[string]any{
-		"schema_id":           "runecode.protocol.v0.GateDefinition",
-		"schema_version":      "0.2.0",
-		"checkpoint_code":     "step_validation_started",
-		"order_index":         0,
-		"stage_id":            "validation",
-		"step_id":             "validation_build",
-		"role_instance_id":    "workspace_editor_1",
-		"executor_binding_id": "binding_workspace_runner",
-		"dependency_cache_handoffs": []any{
+	t.Run("dependency handoff required false", func(t *testing.T) {
+		fixture := cloneFixtureMap(t, runPlanFixtureWithRequiredGates())
+		entries := fixture["entries"].([]any)
+		entry := entries[0].(map[string]any)
+		entry["dependency_cache_handoffs"] = []any{
 			map[string]any{
-				"request_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("d", 64)},
-				"consumer_role":  "workspace",
-				"required":       true,
+				"request_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("e", 64)},
+				"consumer_role":  "workspace-edit",
+				"required":       false,
 			},
-		},
-		"gate": gateContractFixtureWithRequiredFields(),
-	}
-}
-
-func gateContractFixtureWithRequiredFields() map[string]any {
-	return map[string]any{
-		"schema_id":      "runecode.protocol.v0.GateContract",
-		"schema_version": "0.1.0",
-		"gate_id":        "build_gate",
-		"gate_kind":      "build",
-		"gate_version":   "1.0.0",
-		"normalized_inputs": []any{
-			map[string]any{"input_id": "source_tree", "input_digest": "sha256:" + strings.Repeat("1", 64)},
-		},
-		"plan_binding":       map[string]any{"checkpoint_code": "step_validation_started", "order_index": 0},
-		"retry_semantics":    map[string]any{"retry_mode": "new_attempt_required", "max_attempts": 3},
-		"override_semantics": map[string]any{"override_mode": "policy_action_required", "action_kind": "action_gate_override", "approval_trigger_code": "gate_override"},
-	}
-}
-
-func assertSchemaVersions(t *testing.T, manifest manifestFile) {
-	t.Helper()
-	assertSchemaVersionsCore(t, manifest)
-	assertSchemaVersionsLocalBroker(t, manifest)
-}
-
-func assertSchemaVersionsCore(t *testing.T, manifest manifestFile) {
-	t.Helper()
-	for schemaID, version := range coreSchemaVersionsPart1() {
-		assertManifestSchemaVersion(t, manifest, schemaID, version)
-	}
-	for schemaID, version := range coreSchemaVersionsPart2() {
-		assertManifestSchemaVersion(t, manifest, schemaID, version)
-	}
-}
-
-func coreSchemaVersionsPart1() map[string]string {
-	return map[string]string{
-		"runecode.protocol.v0.ArtifactReference":               "0.4.0",
-		"runecode.protocol.v0.ArtifactPolicy":                  "0.1.0",
-		"runecode.protocol.v0.AuditRecordDigest":               "0.1.0",
-		"runecode.protocol.v0.AuditEvent":                      "0.5.0",
-		"runecode.protocol.v0.AuditEventContractCatalog":       "0.1.0",
-		"runecode.protocol.v0.AuditReceipt":                    "0.5.0",
-		"runecode.protocol.v0.AuditSegmentSeal":                "0.2.0",
-		"runecode.protocol.v0.AuditSegmentFile":                "0.1.0",
-		"runecode.protocol.v0.AuditVerificationReport":         "0.1.0",
-		"runecode.protocol.v0.SignedObjectEnvelope":            "0.2.0",
-		"runecode.protocol.v0.ApprovalRequest":                 "0.3.0",
-		"runecode.protocol.v0.ApprovalDecision":                "0.3.0",
-		"runecode.protocol.v0.PolicyAllowlist":                 "0.1.0",
-		"runecode.protocol.v0.ActionPayloadSecretAccess":       "0.1.0",
-		"runecode.protocol.v0.SecretLease":                     "0.1.0",
-		"runecode.protocol.v0.SecretStoragePosture":            "0.1.0",
-		"runecode.protocol.v0.DestinationDescriptor":           "0.1.0",
-		"runecode.protocol.v0.DependencyFetchRequest":          "0.1.0",
-		"runecode.protocol.v0.DependencyFetchBatchRequest":     "0.1.0",
-		"runecode.protocol.v0.DependencyResolvedUnitManifest":  "0.1.0",
-		"runecode.protocol.v0.DependencyFetchBatchResult":      "0.1.0",
-		"runecode.protocol.v0.DependencyCacheEnsureRequest":    "0.1.0",
-		"runecode.protocol.v0.DependencyCacheEnsureResponse":   "0.1.0",
-		"runecode.protocol.v0.DependencyFetchRegistryRequest":  "0.1.0",
-		"runecode.protocol.v0.DependencyFetchRegistryResponse": "0.1.0",
-		"runecode.protocol.v0.GatewayScopeRule":                "0.1.0",
-	}
-}
-
-func coreSchemaVersionsPart2() map[string]string {
-	return map[string]string{
-		"runecode.protocol.v0.PolicyRuleSet":                "0.1.0",
-		"runecode.protocol.v0.VerifierRecord":               "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactListRequest":    "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactListResponse":   "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactHeadRequest":    "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactHeadResponse":   "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactPutRequest":     "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactPutResponse":    "0.1.0",
-		"runecode.protocol.v0.BrokerErrorResponse":          "0.1.0",
-		"runecode.protocol.v0.RuntimeImageDescriptor":       "0.2.0",
-		"runecode.protocol.v0.IsolateSessionStartedPayload": "0.1.0",
-		"runecode.protocol.v0.IsolateSessionBoundPayload":   "0.1.0",
-	}
+		}
+		if err := runPlanSchema.Validate(fixture); err == nil {
+			t.Fatal("run plan schema validation unexpectedly passed with dependency handoff required=false")
+		}
+	})
 }
 
 func TestManifestAndRegistryDocumentsValidateAgainstMetaSchemas(t *testing.T) {

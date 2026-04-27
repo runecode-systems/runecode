@@ -1,7 +1,6 @@
 package runplan
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -11,13 +10,13 @@ import (
 
 const (
 	workflowDefinitionSchemaID   = "runecode.protocol.v0.WorkflowDefinition"
-	workflowDefinitionVersion    = "0.4.0"
+	workflowDefinitionVersion    = "0.5.0"
 	workflowDefinitionSchemaPath = "objects/WorkflowDefinition.schema.json"
 	processDefinitionSchemaID    = "runecode.protocol.v0.ProcessDefinition"
 	processDefinitionVersion     = "0.4.0"
 	processDefinitionSchemaPath  = "objects/ProcessDefinition.schema.json"
 	runPlanSchemaID              = "runecode.protocol.v0.RunPlan"
-	runPlanVersion               = "0.3.0"
+	runPlanVersion               = "0.4.0"
 	runPlanSchemaPath            = "objects/RunPlan.schema.json"
 	gateDefinitionSchemaID       = "runecode.protocol.v0.GateDefinition"
 	gateDefinitionVersion        = "0.2.0"
@@ -40,17 +39,17 @@ func Compile(input CompileInput) (RunPlan, error) {
 	if err != nil {
 		return RunPlan{}, err
 	}
-	if err := validateCompileInput(input, workflow, process); err != nil {
+	if err := validateCompileInput(input, workflow, process, processHash); err != nil {
 		return RunPlan{}, err
 	}
 	if err := validateBindingsAgainstTrustedRegistry(process.ExecutorBindings, input.ExecutorRegistry); err != nil {
 		return RunPlan{}, err
 	}
-	compiledBindings, gates, roleIDs, dependencyEdges, err := compileProcessPlanShape(process)
+	compiledBindings, gates, roleIDs, dependencyEdges, entries, err := compileProcessPlanShape(process)
 	if err != nil {
 		return RunPlan{}, err
 	}
-	plan := newRunPlan(input, workflow, process, workflowHash, processHash, roleIDs, compiledBindings, gates, dependencyEdges)
+	plan := newRunPlan(input, workflow, process, workflowHash, processHash, roleIDs, compiledBindings, gates, dependencyEdges, entries)
 	if err := ValidateRunPlan(plan); err != nil {
 		return RunPlan{}, err
 	}
@@ -69,23 +68,27 @@ func decodeCompileDefinitions(input CompileInput) (WorkflowDefinition, ProcessDe
 	return workflow, process, workflowHash, processHash, nil
 }
 
-func compileProcessPlanShape(process ProcessDefinition) ([]ExecutorBinding, []GateDefinition, []string, []DependencyEdge, error) {
+func compileProcessPlanShape(process ProcessDefinition) ([]ExecutorBinding, []GateDefinition, []string, []DependencyEdge, []Entry, error) {
 	compiledBindings, err := compileExecutorBindings(process.ExecutorBindings)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 	gates, roleIDs, err := compileGateDefinitions(process.GateDefinitions, compiledBindings)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 	dependencyEdges, err := compileProcessDependencyEdges(gates, process.DependencyEdges)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
-	return compiledBindings, gates, roleIDs, dependencyEdges, nil
+	entries, err := compileRunPlanEntries(gates, dependencyEdges)
+	if err != nil {
+		return nil, nil, nil, nil, nil, err
+	}
+	return compiledBindings, gates, roleIDs, dependencyEdges, entries, nil
 }
 
-func newRunPlan(input CompileInput, workflow WorkflowDefinition, process ProcessDefinition, workflowHash string, processHash string, roleIDs []string, compiledBindings []ExecutorBinding, gates []GateDefinition, dependencyEdges []DependencyEdge) RunPlan {
+func newRunPlan(input CompileInput, workflow WorkflowDefinition, process ProcessDefinition, workflowHash string, processHash string, roleIDs []string, compiledBindings []ExecutorBinding, gates []GateDefinition, dependencyEdges []DependencyEdge, entries []Entry) RunPlan {
 	compiledAt := compiledAtRFC3339(input.CompiledAt)
 	return RunPlan{
 		SchemaID:                     runPlanSchemaID,
@@ -108,88 +111,15 @@ func newRunPlan(input CompileInput, workflow WorkflowDefinition, process Process
 		ExecutorBindings:             compiledBindings,
 		GateDefinitions:              gates,
 		DependencyEdges:              dependencyEdges,
+		Entries:                      entries,
 	}
 }
 
-func compiledAtRFC3339(compiledAt time.Time) string {
-	resolved := compiledAt
-	if resolved.IsZero() {
-		resolved = time.Now().UTC()
-	}
-	return resolved.UTC().Format(time.RFC3339)
-}
-
-func decodeWorkflowDefinition(payload []byte) (WorkflowDefinition, string, error) {
-	canonicalPayload, err := canonicalizeCompileDefinitionPayload(payload, "workflow definition")
-	if err != nil {
-		return WorkflowDefinition{}, "", err
-	}
-	if err := policyengine.ValidateObjectPayloadAgainstSchema(canonicalPayload, workflowDefinitionSchemaPath); err != nil {
-		return WorkflowDefinition{}, "", fmt.Errorf("workflow definition schema validation failed: %w", err)
-	}
-	value := WorkflowDefinition{}
-	if err := json.Unmarshal(canonicalPayload, &value); err != nil {
-		return WorkflowDefinition{}, "", fmt.Errorf("decode workflow definition: %w", err)
-	}
-	hash := policyengine.HashCanonicalJSONBytes(canonicalPayload)
-	if value.SchemaID != workflowDefinitionSchemaID {
-		return WorkflowDefinition{}, "", fmt.Errorf("workflow definition schema_id %q does not match %q", value.SchemaID, workflowDefinitionSchemaID)
-	}
-	if value.SchemaVersion != workflowDefinitionVersion {
-		return WorkflowDefinition{}, "", fmt.Errorf("workflow definition schema_version %q does not match %q", value.SchemaVersion, workflowDefinitionVersion)
-	}
-	return value, hash, nil
-}
-
-func decodeProcessDefinition(payload []byte) (ProcessDefinition, string, error) {
-	canonicalPayload, err := canonicalizeCompileDefinitionPayload(payload, "process definition")
-	if err != nil {
-		return ProcessDefinition{}, "", err
-	}
-	if err := policyengine.ValidateObjectPayloadAgainstSchema(canonicalPayload, processDefinitionSchemaPath); err != nil {
-		return ProcessDefinition{}, "", fmt.Errorf("process definition schema validation failed: %w", err)
-	}
-	value := ProcessDefinition{}
-	if err := json.Unmarshal(canonicalPayload, &value); err != nil {
-		return ProcessDefinition{}, "", fmt.Errorf("decode process definition: %w", err)
-	}
-	hash := policyengine.HashCanonicalJSONBytes(canonicalPayload)
-	if value.SchemaID != processDefinitionSchemaID {
-		return ProcessDefinition{}, "", fmt.Errorf("process definition schema_id %q does not match %q", value.SchemaID, processDefinitionSchemaID)
-	}
-	if value.SchemaVersion != processDefinitionVersion {
-		return ProcessDefinition{}, "", fmt.Errorf("process definition schema_version %q does not match %q", value.SchemaVersion, processDefinitionVersion)
-	}
-	return value, hash, nil
-}
-
-func canonicalizeCompileDefinitionPayload(payload []byte, definitionKind string) ([]byte, error) {
-	canonicalPayload, err := policyengine.CanonicalizeJSONBytes(payload)
-	if err != nil {
-		return nil, fmt.Errorf("canonicalize %s payload before validation/hash: %w", definitionKind, err)
-	}
-	return canonicalPayload, nil
-}
-
-func ValidateRunPlan(plan RunPlan) error {
-	payload, err := json.Marshal(plan)
-	if err != nil {
-		return fmt.Errorf("marshal run plan: %w", err)
-	}
-	if err := policyengine.ValidateObjectPayloadAgainstSchema(payload, runPlanSchemaPath); err != nil {
-		return fmt.Errorf("run plan schema validation failed: %w", err)
-	}
-	if strings.TrimSpace(plan.SupersedesPlanID) != "" && strings.TrimSpace(plan.SupersedesPlanID) == strings.TrimSpace(plan.PlanID) {
-		return fmt.Errorf("supersedes_plan_id must differ from plan_id")
-	}
-	return nil
-}
-
-func validateCompileInput(input CompileInput, workflow WorkflowDefinition, process ProcessDefinition) error {
+func validateCompileInput(input CompileInput, workflow WorkflowDefinition, process ProcessDefinition, processHash string) error {
 	if err := validateCompileInputRequiredIDs(input, workflow, process); err != nil {
 		return err
 	}
-	if err := validateWorkflowProcessSelection(workflow, process); err != nil {
+	if err := validateWorkflowProcessSelection(workflow, process, processHash); err != nil {
 		return err
 	}
 	if err := validateCompileInputPolicyContextHash(input.PolicyContextHash); err != nil {
@@ -223,6 +153,9 @@ func validateCompileInputRequiredIDs(input CompileInput, workflow WorkflowDefini
 	if strings.TrimSpace(workflow.SelectedProcessID) == "" {
 		return fmt.Errorf("selected_process_id is required")
 	}
+	if strings.TrimSpace(workflow.SelectedProcessDefinitionHash) == "" {
+		return fmt.Errorf("selected_process_definition_hash is required")
+	}
 	if strings.TrimSpace(workflow.ApprovalProfile) == "" {
 		return fmt.Errorf("approval_profile is required")
 	}
@@ -235,23 +168,77 @@ func validateCompileInputRequiredIDs(input CompileInput, workflow WorkflowDefini
 	return nil
 }
 
-func validateWorkflowProcessSelection(workflow WorkflowDefinition, process ProcessDefinition) error {
+func validateWorkflowProcessSelection(workflow WorkflowDefinition, process ProcessDefinition, processHash string) error {
 	selected := strings.TrimSpace(workflow.SelectedProcessID)
 	processID := strings.TrimSpace(process.ProcessID)
-	if selected != processID {
-		return fmt.Errorf("workflow selected_process_id %q does not match process_id %q", selected, processID)
+	selectedHash := strings.TrimSpace(workflow.SelectedProcessDefinitionHash)
+	if err := validateSelectedProcessBinding(selected, processID, selectedHash, processHash); err != nil {
+		return err
 	}
-	for _, reviewed := range workflow.ReviewedProcessIDs {
-		if strings.TrimSpace(reviewed) == processID {
-			return nil
+	reviewedArtifacts, err := collectReviewedProcessArtifacts(workflow.ReviewedProcessArtifacts)
+	if err != nil {
+		return err
+	}
+	if reviewedHash, ok := reviewedArtifacts[processID]; ok && reviewedHash == selectedHash {
+		return nil
+	}
+	return fmt.Errorf("workflow reviewed_process_artifacts must include selected process artifact for process_id %q", processID)
+}
+
+func validateSelectedProcessBinding(selectedProcessID string, processID string, selectedHash string, processHash string) error {
+	if _, err := policyengine.NormalizeHashIdentity(selectedHash); err != nil {
+		return fmt.Errorf("selected_process_definition_hash invalid: %w", err)
+	}
+	if selectedProcessID != processID {
+		return fmt.Errorf("workflow selected_process_id %q does not match process_id %q", selectedProcessID, processID)
+	}
+	if selectedHash != strings.TrimSpace(processHash) {
+		return fmt.Errorf("workflow selected_process_definition_hash %q does not match compiled process_definition_hash %q", selectedHash, processHash)
+	}
+	return nil
+}
+
+func collectReviewedProcessArtifacts(reviewedArtifacts []ReviewedProcessArtifact) (map[string]string, error) {
+	seenReviewedArtifacts := map[string]string{}
+	for _, reviewed := range reviewedArtifacts {
+		reviewedProcessID, reviewedHash, err := normalizeReviewedProcessArtifact(reviewed)
+		if err != nil {
+			return nil, err
+		}
+		if err := includeReviewedProcessArtifact(seenReviewedArtifacts, reviewedProcessID, reviewedHash); err != nil {
+			return nil, err
 		}
 	}
-	return fmt.Errorf("workflow reviewed_process_ids must include selected process_id %q", processID)
+	return seenReviewedArtifacts, nil
+}
+
+func normalizeReviewedProcessArtifact(reviewed ReviewedProcessArtifact) (string, string, error) {
+	reviewedProcessID := strings.TrimSpace(reviewed.ProcessID)
+	reviewedHash := strings.TrimSpace(reviewed.ProcessDefinitionHash)
+	if reviewedHash == "" {
+		return reviewedProcessID, reviewedHash, nil
+	}
+	if _, err := policyengine.NormalizeHashIdentity(reviewedHash); err != nil {
+		return "", "", fmt.Errorf("reviewed_process_artifacts.process_definition_hash invalid: %w", err)
+	}
+	return reviewedProcessID, reviewedHash, nil
+}
+
+func includeReviewedProcessArtifact(seenReviewedArtifacts map[string]string, reviewedProcessID, reviewedHash string) error {
+	priorHash, ok := seenReviewedArtifacts[reviewedProcessID]
+	if !ok {
+		seenReviewedArtifacts[reviewedProcessID] = reviewedHash
+		return nil
+	}
+	if priorHash != reviewedHash {
+		return fmt.Errorf("workflow reviewed_process_artifacts contains conflicting process_definition_hash values for process_id %q", reviewedProcessID)
+	}
+	return fmt.Errorf("workflow reviewed_process_artifacts contains duplicate process_id %q", reviewedProcessID)
 }
 
 func validateCompileInputNonEmptyCollections(workflow WorkflowDefinition, process ProcessDefinition) error {
-	if len(workflow.ReviewedProcessIDs) == 0 || len(process.GateDefinitions) == 0 || len(process.ExecutorBindings) == 0 {
-		return fmt.Errorf("workflow reviewed_process_ids, process gate_definitions, and process executor_bindings must be non-empty")
+	if len(workflow.ReviewedProcessArtifacts) == 0 || len(process.GateDefinitions) == 0 || len(process.ExecutorBindings) == 0 {
+		return fmt.Errorf("workflow reviewed_process_artifacts, process gate_definitions, and process executor_bindings must be non-empty")
 	}
 	return nil
 }

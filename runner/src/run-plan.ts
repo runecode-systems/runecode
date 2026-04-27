@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
 import { ProtocolSchemaBundle } from "./protocol-schema-bundle.ts";
 
 export const RUN_PLAN_SCHEMA_ID = "runecode.protocol.v0.RunPlan";
-const RUN_PLAN_SCHEMA_VERSION = "0.3.0";
+const RUN_PLAN_SCHEMA_VERSION = "0.4.0";
 
 export type RunnerPlanIdentity = {
   run_id: string;
@@ -17,23 +17,27 @@ export type RunnerPlanIdentity = {
   supersedes_plan_id?: string;
 };
 
-export type RunnerPlanEntry = {
-  entry_id: string;
-  entry_kind: string;
-  order_index?: number;
-  executor_ref?: string;
-  gate_id?: string;
-  stage_id?: string;
-  step_id?: string;
-  role_instance_id?: string;
-  dependency_cache_handoffs?: DependencyCacheHandoffRequirement[];
-  [key: string]: unknown;
-};
-
 export type DependencyCacheHandoffRequirement = {
   request_digest: string;
   consumer_role: string;
   required: true;
+};
+
+export type RunnerPlanEntry = {
+  entry_id: string;
+  entry_kind: "gate";
+  order_index: number;
+  stage_id: string;
+  step_id: string;
+  role_instance_id: string;
+  executor_binding_id: string;
+  checkpoint_code: string;
+  gate: Record<string, unknown>;
+  dependency_cache_handoffs?: DependencyCacheHandoffRequirement[];
+  depends_on_entry_ids: string[];
+  blocks_entry_ids: string[];
+  supported_wait_kinds: Array<"waiting_operator_input" | "waiting_approval">;
+  [key: string]: unknown;
 };
 
 export type RunnerDependencyEdge = {
@@ -102,10 +106,13 @@ export class RunPlanLoader {
     if (!Array.isArray(gateDefinitionsRaw)) {
       throw new Error("RunPlan.gate_definitions must be an array");
     }
-
     const gateDefinitions = gateDefinitionsRaw.map((entry, index) => this.assertRecord(entry, `gate_definitions[${index}]`));
     const dependencyEdges = this.parseDependencyEdges(candidate);
-    const entries = gateDefinitions.map((entry, index) => this.normalizeGateDefinitionAsEntry(entry, index));
+    const entries = this.parseEntries(candidate);
+    const executorBindingIDs = this.parseExecutorBindingIDs(candidate);
+    this.assertEntryIDUniqueness(entries);
+    this.validateCompiledEntryConsistency(entries, gateDefinitions, dependencyEdges, executorBindingIDs);
+
     return {
       ...candidate,
       schema_id: RUN_PLAN_SCHEMA_ID,
@@ -116,6 +123,14 @@ export class RunPlanLoader {
       gate_definitions: gateDefinitions,
       dependency_edges: dependencyEdges,
       entries,
+    };
+  }
+
+  identityOf(plan: RunnerPlan): RunnerPlanIdentity {
+    return {
+      run_id: plan.run_id,
+      plan_id: plan.plan_id,
+      supersedes_plan_id: plan.supersedes_plan_id,
     };
   }
 
@@ -138,38 +153,179 @@ export class RunPlanLoader {
     });
   }
 
-  identityOf(plan: RunnerPlan): RunnerPlanIdentity {
+  private parseEntries(record: Record<string, unknown>): RunnerPlanEntry[] {
+    const raw = record.entries;
+    if (!Array.isArray(raw)) {
+      throw new Error("RunPlan.entries must be an array");
+    }
+    return raw.map((value, index) => this.parseEntry(value, index));
+  }
+
+  private parseEntry(value: unknown, index: number): RunnerPlanEntry {
+    const record = this.assertRecord(value, `entries[${index}]`);
+    const entryKind = this.requireString(record, "entry_kind", `entries[${index}]`);
+    if (entryKind !== "gate") {
+      throw new Error(`entries[${index}].entry_kind must be gate`);
+    }
+    const orderIndex = record.order_index;
+    if (typeof orderIndex !== "number" || !Number.isInteger(orderIndex) || orderIndex < 0) {
+      throw new Error(`entries[${index}].order_index must be a non-negative integer`);
+    }
+    const gate = this.assertRecord(record.gate, `entries[${index}].gate`);
+    const waitKinds = this.parseSupportedWaitKinds(record, index);
     return {
-      run_id: plan.run_id,
-      plan_id: plan.plan_id,
-      supersedes_plan_id: plan.supersedes_plan_id,
+      ...record,
+      entry_id: this.requireString(record, "entry_id", `entries[${index}]`),
+      entry_kind: "gate",
+      order_index: orderIndex,
+      stage_id: this.requireString(record, "stage_id", `entries[${index}]`),
+      step_id: this.requireString(record, "step_id", `entries[${index}]`),
+      role_instance_id: this.requireString(record, "role_instance_id", `entries[${index}]`),
+      executor_binding_id: this.requireString(record, "executor_binding_id", `entries[${index}]`),
+      checkpoint_code: this.requireString(record, "checkpoint_code", `entries[${index}]`),
+      gate,
+      dependency_cache_handoffs: this.optionalDependencyCacheHandoffs(record, `entries[${index}]`),
+      depends_on_entry_ids: this.parseEntryIDList(record.depends_on_entry_ids, `entries[${index}].depends_on_entry_ids`),
+      blocks_entry_ids: this.parseEntryIDList(record.blocks_entry_ids, `entries[${index}].blocks_entry_ids`),
+      supported_wait_kinds: waitKinds,
     };
   }
 
-  private normalizeGateDefinitionAsEntry(record: Record<string, unknown>, index: number): RunnerPlanEntry {
-    const gate = this.assertRecord(record.gate, `gate_definitions[${index}].gate`);
-    const gateId = this.requireString(gate, "gate_id", `gate_definitions[${index}].gate`);
-    const stageId = this.requireString(record, "stage_id", `gate_definitions[${index}]`);
-    const stepId = this.requireString(record, "step_id", `gate_definitions[${index}]`);
-    const roleInstanceId = this.requireString(record, "role_instance_id", `gate_definitions[${index}]`);
-    const executorBindingId = this.requireString(record, "executor_binding_id", `gate_definitions[${index}]`);
-    const orderIndex = record.order_index;
-    if (typeof orderIndex !== "number" || !Number.isInteger(orderIndex) || orderIndex < 0) {
-      throw new Error(`gate_definitions[${index}].order_index must be a non-negative integer`);
+  private parseSupportedWaitKinds(record: Record<string, unknown>, index: number): Array<"waiting_operator_input" | "waiting_approval"> {
+    const values = this.parseEntryIDList(record.supported_wait_kinds, `entries[${index}].supported_wait_kinds`);
+    const unique = new Set(values);
+    if (!unique.has("waiting_operator_input") || !unique.has("waiting_approval")) {
+      throw new Error(`entries[${index}].supported_wait_kinds must include waiting_operator_input and waiting_approval`);
+    }
+    if (unique.size !== values.length) {
+      throw new Error(`entries[${index}].supported_wait_kinds must not contain duplicates`);
+    }
+    return values.map((value) => {
+      if (value !== "waiting_operator_input" && value !== "waiting_approval") {
+        throw new Error(`entries[${index}].supported_wait_kinds contains unsupported value ${value}`);
+      }
+      return value;
+    }) as Array<"waiting_operator_input" | "waiting_approval">;
+  }
+
+  private parseEntryIDList(value: unknown, location: string): string[] {
+    if (!Array.isArray(value)) {
+      throw new Error(`${location} must be an array`);
+    }
+    return value.map((entry, index) => {
+      if (typeof entry !== "string" || entry.length === 0) {
+        throw new Error(`${location}[${index}] must be a non-empty string`);
+      }
+      return entry;
+    });
+  }
+
+  private assertEntryIDUniqueness(entries: RunnerPlanEntry[]): void {
+    const seen = new Set<string>();
+    for (const entry of entries) {
+      if (seen.has(entry.entry_id)) {
+        throw new Error(`RunPlan.entries contains duplicate entry_id ${entry.entry_id}`);
+      }
+      seen.add(entry.entry_id);
+    }
+  }
+
+  private parseExecutorBindingIDs(record: Record<string, unknown>): Set<string> {
+    const raw = record.executor_bindings;
+    if (!Array.isArray(raw)) {
+      throw new Error("RunPlan.executor_bindings must be an array");
+    }
+    const bindingIDs = new Set<string>();
+    raw.forEach((value, index) => {
+      const binding = this.assertRecord(value, `executor_bindings[${index}]`);
+      bindingIDs.add(this.requireString(binding, "binding_id", `executor_bindings[${index}]`));
+    });
+    return bindingIDs;
+  }
+
+  private validateCompiledEntryConsistency(entries: RunnerPlanEntry[], gateDefinitions: Array<Record<string, unknown>>, dependencyEdges: RunnerDependencyEdge[], executorBindingIDs: Set<string>): void {
+    const entriesByID = new Map(entries.map((entry) => [entry.entry_id, entry]));
+    const expectedDeps = new Map<string, string[]>();
+    const expectedBlocks = new Map<string, string[]>();
+    dependencyEdges.forEach((edge) => {
+      expectedDeps.set(edge.downstream_step_id, [...(expectedDeps.get(edge.downstream_step_id) ?? []), edge.upstream_step_id]);
+      expectedBlocks.set(edge.upstream_step_id, [...(expectedBlocks.get(edge.upstream_step_id) ?? []), edge.downstream_step_id]);
+    });
+    for (const [entryID, dependsOn] of expectedDeps) {
+      expectedDeps.set(entryID, this.sortedStrings(dependsOn));
+    }
+    for (const [entryID, blocks] of expectedBlocks) {
+      expectedBlocks.set(entryID, this.sortedStrings(blocks));
     }
 
-    return {
-      ...record,
-      entry_id: `${stageId}:${stepId}`,
-      entry_kind: "gate_definition",
-      order_index: orderIndex,
-      executor_ref: executorBindingId,
-      gate_id: gateId,
-      role_instance_id: roleInstanceId,
-      stage_id: stageId,
-      step_id: stepId,
-      dependency_cache_handoffs: this.optionalDependencyCacheHandoffs(record, `gate_definitions[${index}]`),
-    };
+    gateDefinitions.forEach((definition, index) => {
+      const location = `gate_definitions[${index}]`;
+      const stepID = this.requireString(definition, "step_id", location);
+      const entry = entriesByID.get(stepID);
+      if (!entry) {
+        throw new Error(`${location}.step_id ${stepID} does not have a matching RunPlan entry`);
+      }
+      if (entry.entry_id !== stepID) {
+        throw new Error(`entries for step ${stepID} must use entry_id equal to step_id`);
+      }
+      if (!executorBindingIDs.has(entry.executor_binding_id)) {
+        throw new Error(`entries for step ${stepID} reference unknown executor_binding_id ${entry.executor_binding_id}`);
+      }
+      if (entry.stage_id !== this.requireString(definition, "stage_id", location) || entry.role_instance_id !== this.requireString(definition, "role_instance_id", location) || entry.executor_binding_id !== this.requireString(definition, "executor_binding_id", location) || entry.checkpoint_code !== this.requireString(definition, "checkpoint_code", location)) {
+        throw new Error(`entries for step ${stepID} must match gate definition scope and binding fields`);
+      }
+      const orderIndex = definition.order_index;
+      if (typeof orderIndex !== "number" || !Number.isInteger(orderIndex) || orderIndex !== entry.order_index) {
+        throw new Error(`entries for step ${stepID} must match gate definition order_index`);
+      }
+      const gate = this.assertRecord(definition.gate, `${location}.gate`);
+      if (this.stableSerialize(gate) !== this.stableSerialize(entry.gate)) {
+        throw new Error(`entries for step ${stepID} must match gate definition gate payload`);
+      }
+      const expectedHandoffs = this.optionalDependencyCacheHandoffs(definition, location) ?? [];
+      const actualHandoffs = entry.dependency_cache_handoffs ?? [];
+      if (this.stableSerialize(expectedHandoffs) !== this.stableSerialize(actualHandoffs)) {
+        throw new Error(`entries for step ${stepID} must match gate definition dependency_cache_handoffs`);
+      }
+      if (!this.sameStringArrays(this.sortedStrings(entry.depends_on_entry_ids), expectedDeps.get(stepID) ?? [])) {
+        throw new Error(`entries for step ${stepID} must match dependency_edges upstream bindings`);
+      }
+      if (!this.sameStringArrays(this.sortedStrings(entry.blocks_entry_ids), expectedBlocks.get(stepID) ?? [])) {
+        throw new Error(`entries for step ${stepID} must match dependency_edges downstream bindings`);
+      }
+    });
+    if (entries.length !== gateDefinitions.length) {
+      throw new Error("RunPlan.entries must have a one-to-one correspondence with gate_definitions");
+    }
+  }
+
+  private sortedStrings(values: string[]): string[] {
+    return [...values].sort();
+  }
+
+  private sameStringArrays(left: string[], right: string[]): boolean {
+    if (left.length !== right.length) {
+      return false;
+    }
+    return left.every((value, index) => value === right[index]);
+  }
+
+  private stableSerialize(value: unknown): string {
+    return JSON.stringify(this.sortValue(value));
+  }
+
+  private sortValue(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.map((entry) => this.sortValue(entry));
+    }
+    if (!value || typeof value !== "object") {
+      return value;
+    }
+    const record = value as Record<string, unknown>;
+    return Object.keys(record).sort().reduce<Record<string, unknown>>((acc, key) => {
+      acc[key] = this.sortValue(record[key]);
+      return acc;
+    }, {});
   }
 
   private optionalDependencyCacheHandoffs(record: Record<string, unknown>, location: string): DependencyCacheHandoffRequirement[] | undefined {

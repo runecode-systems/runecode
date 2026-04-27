@@ -1,7 +1,6 @@
 package runplan
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -10,8 +9,8 @@ import (
 )
 
 func TestCompileBuildsDeterministicRunPlan(t *testing.T) {
-	workflowPayload := workflowPayloadForTest(t, "process_default", []string{"process_default"})
 	processPayload := processPayloadForTest(t, []any{gateDef("build_gate", "step_validation_started", 0), gateDef("lint_gate", "step_validation_finished", 1)}, []string{"workspace-edit", "workspace-test"})
+	workflowPayload := workflowPayloadForTest(t, processPayload, "process_default", []string{"process_default"})
 
 	plan, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
 	if err != nil {
@@ -41,6 +40,7 @@ func assertDeterministicRunPlanShape(t *testing.T, plan RunPlan) {
 	assertRunPlanMetadata(t, plan)
 	assertRunPlanExecutorBindings(t, plan)
 	assertRunPlanGateDefinitions(t, plan)
+	assertRunPlanEntries(t, plan)
 }
 
 func assertRunPlanMetadata(t *testing.T, plan RunPlan) {
@@ -91,9 +91,24 @@ func assertRunPlanGateDefinitions(t *testing.T, plan RunPlan) {
 	}
 }
 
+func assertRunPlanEntries(t *testing.T, plan RunPlan) {
+	if len(plan.Entries) != 2 {
+		t.Fatalf("entries len = %d, want 2", len(plan.Entries))
+	}
+	if got := plan.Entries[0].EntryID; got != "build_gate_build_step" {
+		t.Fatalf("entries[0].entry_id = %q, want build_gate_build_step", got)
+	}
+	if got := plan.Entries[0].EntryKind; got != "gate" {
+		t.Fatalf("entries[0].entry_kind = %q, want gate", got)
+	}
+	if len(plan.Entries[0].SupportedWaitKinds) != 2 {
+		t.Fatalf("entries[0].supported_wait_kinds len = %d, want 2", len(plan.Entries[0].SupportedWaitKinds))
+	}
+}
+
 func TestCompileFailsClosedOnUnknownExecutorBinding(t *testing.T) {
-	workflowPayload := workflowPayloadForTest(t, "process_default", []string{"process_default"})
 	processPayload := processPayloadWithSingleBinding(t, "binding_unknown", "unknown-executor", []string{"workspace-edit"})
+	workflowPayload := workflowPayloadForTest(t, processPayload, "process_default", []string{"process_default"})
 
 	_, err := Compile(CompileInput{
 		RunID:                   "run_123",
@@ -109,17 +124,19 @@ func TestCompileFailsClosedOnUnknownExecutorBinding(t *testing.T) {
 }
 
 func TestCompileCarriesDistinctApprovalProfileAndAutonomyPostureBinding(t *testing.T) {
-	workflowPayload := mustJSON(t, map[string]any{
-		"schema_id":            workflowDefinitionSchemaID,
-		"schema_version":       workflowDefinitionVersion,
-		"workflow_id":          "workflow_main",
-		"workflow_version":     "1.0.0",
-		"selected_process_id":  "process_default",
-		"reviewed_process_ids": []any{"process_default"},
-		"approval_profile":     "moderate",
-		"autonomy_posture":     "operator_guided",
-	})
 	processPayload := processPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
+	processHash := mustCanonicalHash(t, processPayload)
+	workflowPayload := mustJSON(t, map[string]any{
+		"schema_id":                        workflowDefinitionSchemaID,
+		"schema_version":                   workflowDefinitionVersion,
+		"workflow_id":                      "workflow_main",
+		"workflow_version":                 "1.0.0",
+		"selected_process_id":              "process_default",
+		"selected_process_definition_hash": processHash,
+		"reviewed_process_artifacts":       []any{map[string]any{"process_id": "process_default", "process_definition_hash": processHash}},
+		"approval_profile":                 "moderate",
+		"autonomy_posture":                 "operator_guided",
+	})
 
 	plan, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
 	if err != nil {
@@ -135,26 +152,29 @@ func TestCompileCarriesDistinctApprovalProfileAndAutonomyPostureBinding(t *testi
 
 func TestCompileHashBindsWorkflowSelectionControls(t *testing.T) {
 	processPayload := processPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
+	processHash := mustCanonicalHash(t, processPayload)
 
 	balancedWorkflow := mustJSON(t, map[string]any{
-		"schema_id":            workflowDefinitionSchemaID,
-		"schema_version":       workflowDefinitionVersion,
-		"workflow_id":          "workflow_main",
-		"workflow_version":     "1.0.0",
-		"selected_process_id":  "process_default",
-		"reviewed_process_ids": []any{"process_default"},
-		"approval_profile":     "moderate",
-		"autonomy_posture":     "balanced",
+		"schema_id":                        workflowDefinitionSchemaID,
+		"schema_version":                   workflowDefinitionVersion,
+		"workflow_id":                      "workflow_main",
+		"workflow_version":                 "1.0.0",
+		"selected_process_id":              "process_default",
+		"selected_process_definition_hash": processHash,
+		"reviewed_process_artifacts":       []any{map[string]any{"process_id": "process_default", "process_definition_hash": processHash}},
+		"approval_profile":                 "moderate",
+		"autonomy_posture":                 "balanced",
 	})
 	operatorGuidedWorkflow := mustJSON(t, map[string]any{
-		"schema_id":            workflowDefinitionSchemaID,
-		"schema_version":       workflowDefinitionVersion,
-		"workflow_id":          "workflow_main",
-		"workflow_version":     "1.0.0",
-		"selected_process_id":  "process_default",
-		"reviewed_process_ids": []any{"process_default"},
-		"approval_profile":     "moderate",
-		"autonomy_posture":     "operator_guided",
+		"schema_id":                        workflowDefinitionSchemaID,
+		"schema_version":                   workflowDefinitionVersion,
+		"workflow_id":                      "workflow_main",
+		"workflow_version":                 "1.0.0",
+		"selected_process_id":              "process_default",
+		"selected_process_definition_hash": processHash,
+		"reviewed_process_artifacts":       []any{map[string]any{"process_id": "process_default", "process_definition_hash": processHash}},
+		"approval_profile":                 "moderate",
+		"autonomy_posture":                 "operator_guided",
 	})
 
 	balancedPlan, err := Compile(deterministicCompileInput(balancedWorkflow, processPayload))
@@ -172,19 +192,21 @@ func TestCompileHashBindsWorkflowSelectionControls(t *testing.T) {
 }
 
 func TestCompileHashesEquivalentDefinitionJSONToSameCanonicalDigest(t *testing.T) {
-	workflowCanonical := mustJSON(t, map[string]any{
-		"schema_id":            workflowDefinitionSchemaID,
-		"schema_version":       workflowDefinitionVersion,
-		"workflow_id":          "workflow_main",
-		"workflow_version":     "1.0.0",
-		"selected_process_id":  "process_default",
-		"reviewed_process_ids": []any{"process_default"},
-		"approval_profile":     "moderate",
-		"autonomy_posture":     "balanced",
-	})
-	workflowAdapterOrder := []byte(`{"workflow_version":"1.0.0","reviewed_process_ids":["process_default"],"autonomy_posture":"balanced","approval_profile":"moderate","selected_process_id":"process_default","schema_version":"0.4.0","workflow_id":"workflow_main","schema_id":"runecode.protocol.v0.WorkflowDefinition"}`)
-
 	processCanonical := processPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
+	processHash := mustCanonicalHash(t, processCanonical)
+	workflowCanonical := mustJSON(t, map[string]any{
+		"schema_id":                        workflowDefinitionSchemaID,
+		"schema_version":                   workflowDefinitionVersion,
+		"workflow_id":                      "workflow_main",
+		"workflow_version":                 "1.0.0",
+		"selected_process_id":              "process_default",
+		"selected_process_definition_hash": processHash,
+		"reviewed_process_artifacts":       []any{map[string]any{"process_id": "process_default", "process_definition_hash": processHash}},
+		"approval_profile":                 "moderate",
+		"autonomy_posture":                 "balanced",
+	})
+	workflowAdapterOrder := []byte(`{"workflow_version":"1.0.0","reviewed_process_artifacts":[{"process_definition_hash":"` + processHash + `","process_id":"process_default"}],"autonomy_posture":"balanced","approval_profile":"moderate","selected_process_definition_hash":"` + processHash + `","selected_process_id":"process_default","schema_version":"0.5.0","workflow_id":"workflow_main","schema_id":"runecode.protocol.v0.WorkflowDefinition"}`)
+
 	processAdapterOrder := []byte(`{"dependency_edges":[],"gate_definitions":[{"executor_binding_id":"binding_workspace_runner","gate":{"schema_id":"runecode.protocol.v0.GateContract","schema_version":"0.1.0","gate_id":"build_gate","gate_kind":"build","gate_version":"1.0.0","normalized_inputs":[{"input_id":"source_tree","input_digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111"}],"plan_binding":{"checkpoint_code":"step_validation_started","order_index":0},"retry_semantics":{"retry_mode":"new_attempt_required","max_attempts":3},"override_semantics":{"override_mode":"policy_action_required","action_kind":"action_gate_override","approval_trigger_code":"gate_override"}},"schema_id":"runecode.protocol.v0.GateDefinition","schema_version":"0.2.0","checkpoint_code":"step_validation_started","order_index":0,"stage_id":"validation","step_id":"build_gate_build_step","role_instance_id":"workspace_editor_1"}],"schema_id":"runecode.protocol.v0.ProcessDefinition","schema_version":"0.4.0","process_id":"process_default","executor_bindings":[{"executor_class":"workspace_ordinary","allowed_role_kinds":["workspace-edit"],"executor_id":"workspace-runner","binding_id":"binding_workspace_runner"}]}`)
 
 	canonicalPlan, err := Compile(deterministicCompileInput(workflowCanonical, processCanonical))
@@ -204,8 +226,9 @@ func TestCompileHashesEquivalentDefinitionJSONToSameCanonicalDigest(t *testing.T
 }
 
 func TestCompileRejectsDuplicateWorkflowObjectKeysDuringCanonicalization(t *testing.T) {
-	workflowWithDuplicateKey := []byte(`{"schema_id":"runecode.protocol.v0.WorkflowDefinition","schema_version":"0.4.0","workflow_id":"workflow_main","workflow_version":"1.0.0","selected_process_id":"process_default","reviewed_process_ids":[],"reviewed_process_ids":["process_default"],"approval_profile":"moderate","autonomy_posture":"balanced"}`)
 	processPayload := processPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
+	processHash := mustCanonicalHash(t, processPayload)
+	workflowWithDuplicateKey := []byte(`{"schema_id":"runecode.protocol.v0.WorkflowDefinition","schema_version":"0.5.0","workflow_id":"workflow_main","workflow_version":"1.0.0","selected_process_id":"process_default","selected_process_definition_hash":"` + processHash + `","reviewed_process_artifacts":[],"reviewed_process_artifacts":[{"process_id":"process_default","process_definition_hash":"` + processHash + `"}],"approval_profile":"moderate","autonomy_posture":"balanced"}`)
 
 	_, err := Compile(deterministicCompileInput(workflowWithDuplicateKey, processPayload))
 	if err == nil {
@@ -216,23 +239,38 @@ func TestCompileRejectsDuplicateWorkflowObjectKeysDuringCanonicalization(t *test
 	}
 }
 
-func workflowPayloadForTest(t *testing.T, selectedProcessID string, reviewedProcessIDs []string) []byte {
+func workflowPayloadForTest(t *testing.T, processPayload []byte, selectedProcessID string, reviewedProcessIDs []string) []byte {
 	t.Helper()
+	selectedHash := mustCanonicalHash(t, processPayload)
 	reviewed := make([]any, 0, len(reviewedProcessIDs))
 	for _, id := range reviewedProcessIDs {
-		reviewed = append(reviewed, id)
+		hash := "sha256:" + strings.Repeat("f", 64)
+		if id == selectedProcessID {
+			hash = selectedHash
+		}
+		reviewed = append(reviewed, map[string]any{"process_id": id, "process_definition_hash": hash})
 	}
 	return mustJSON(t, map[string]any{
-		"schema_id":            workflowDefinitionSchemaID,
-		"schema_version":       workflowDefinitionVersion,
-		"workflow_id":          "workflow_main",
-		"workflow_version":     "1.0.0",
-		"selected_process_id":  selectedProcessID,
-		"reviewed_process_ids": reviewed,
-		"policy_binding_id":    "policy_binding_default",
-		"approval_profile":     "moderate",
-		"autonomy_posture":     "balanced",
+		"schema_id":                        workflowDefinitionSchemaID,
+		"schema_version":                   workflowDefinitionVersion,
+		"workflow_id":                      "workflow_main",
+		"workflow_version":                 "1.0.0",
+		"selected_process_id":              selectedProcessID,
+		"selected_process_definition_hash": selectedHash,
+		"reviewed_process_artifacts":       reviewed,
+		"policy_binding_id":                "policy_binding_default",
+		"approval_profile":                 "moderate",
+		"autonomy_posture":                 "balanced",
 	})
+}
+
+func mustCanonicalHash(t *testing.T, payload []byte) string {
+	t.Helper()
+	canonicalPayload, err := policyengine.CanonicalizeJSONBytes(payload)
+	if err != nil {
+		t.Fatalf("CanonicalizeJSONBytes returned error: %v", err)
+	}
+	return policyengine.HashCanonicalJSONBytes(canonicalPayload)
 }
 
 func processPayloadForTest(t *testing.T, gates []any, roles []string) []byte {
@@ -261,8 +299,8 @@ func executorBindingFixture(bindingID, executorID string, roles []string) map[st
 }
 
 func TestCompileRejectsSupersedesSameAsPlanID(t *testing.T) {
-	workflowPayload := workflowPayloadForTest(t, "process_default", []string{"process_default"})
 	processPayload := processPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
+	workflowPayload := workflowPayloadForTest(t, processPayload, "process_default", []string{"process_default"})
 
 	_, err := Compile(CompileInput{
 		RunID:                   "run_123",
@@ -279,8 +317,8 @@ func TestCompileRejectsSupersedesSameAsPlanID(t *testing.T) {
 }
 
 func TestCompileUsesCurrentTimeWhenCompiledAtZero(t *testing.T) {
-	workflowPayload := workflowPayloadForTest(t, "process_default", []string{"process_default"})
 	processPayload := processPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
+	workflowPayload := workflowPayloadForTest(t, processPayload, "process_default", []string{"process_default"})
 	plan, err := Compile(CompileInput{
 		RunID:                   "run_123",
 		PlanID:                  "plan_run_123_0001",
@@ -301,8 +339,8 @@ func TestCompileUsesCurrentTimeWhenCompiledAtZero(t *testing.T) {
 }
 
 func TestCompileBindsProjectContextIdentityDigestWhenProvided(t *testing.T) {
-	workflowPayload := workflowPayloadForTest(t, "process_default", []string{"process_default"})
 	processPayload := processPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
+	workflowPayload := workflowPayloadForTest(t, processPayload, "process_default", []string{"process_default"})
 	input := deterministicCompileInput(workflowPayload, processPayload)
 	input.ProjectContextIdentityDigest = "sha256:" + strings.Repeat("9", 64)
 
@@ -316,11 +354,11 @@ func TestCompileBindsProjectContextIdentityDigestWhenProvided(t *testing.T) {
 }
 
 func TestCompileKeepsDistinctGateKindVersionVariantsWithinProcessDefinition(t *testing.T) {
-	workflowPayload := workflowPayloadForTest(t, "process_default", []string{"process_default"})
 	processPayload := processPayloadForTest(t, []any{
 		gateDefWithKindVersion("same_gate", "step_validation_started", 0, "build", "1.0.0"),
 		gateDefWithKindVersion("same_gate", "step_validation_started", 0, "test", "2.0.0"),
 	}, []string{"workspace-edit"})
+	workflowPayload := workflowPayloadForTest(t, processPayload, "process_default", []string{"process_default"})
 
 	plan, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
 	if err != nil {
@@ -339,7 +377,6 @@ func TestCompileKeepsDistinctGateKindVersionVariantsWithinProcessDefinition(t *t
 }
 
 func TestCompileRejectsConflictingGateDefinitionForSameDedupeKeyWithinProcessDefinition(t *testing.T) {
-	workflowPayload := workflowPayloadForTest(t, "process_default", []string{"process_default"})
 	processGateA := gateDef("build_gate", "step_validation_started", 0)
 	processGateB := gateDef("build_gate", "step_validation_started", 0)
 	processGateB["executor_binding_id"] = "binding_workspace_runner_alt"
@@ -354,6 +391,7 @@ func TestCompileRejectsConflictingGateDefinitionForSameDedupeKeyWithinProcessDef
 		"gate_definitions": []any{processGateA, processGateB},
 		"dependency_edges": []any{},
 	})
+	workflowPayload := workflowPayloadForTest(t, processPayload, "process_default", []string{"process_default"})
 
 	_, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
 	if err == nil {
@@ -365,8 +403,8 @@ func TestCompileRejectsConflictingGateDefinitionForSameDedupeKeyWithinProcessDef
 }
 
 func TestCompileRejectsWorkflowSelectionMismatch(t *testing.T) {
-	workflowPayload := workflowPayloadForTest(t, "process_other", []string{"process_default", "process_other"})
 	processPayload := processPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
+	workflowPayload := workflowPayloadForTest(t, processPayload, "process_other", []string{"process_default", "process_other"})
 
 	_, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
 	if err == nil {
@@ -378,15 +416,42 @@ func TestCompileRejectsWorkflowSelectionMismatch(t *testing.T) {
 }
 
 func TestCompileRejectsWorkflowWithoutReviewedProcessForSelection(t *testing.T) {
-	workflowPayload := workflowPayloadForTest(t, "process_default", []string{"process_other"})
 	processPayload := processPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
+	workflowPayload := workflowPayloadForTest(t, processPayload, "process_default", []string{"process_other"})
 
 	_, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
 	if err == nil {
 		t.Fatal("Compile error = nil, want reviewed process selection rejection")
 	}
-	if !strings.Contains(err.Error(), "reviewed_process_ids") {
-		t.Fatalf("Compile error = %v, want reviewed_process_ids error", err)
+	if !strings.Contains(err.Error(), "reviewed_process_artifacts") {
+		t.Fatalf("Compile error = %v, want reviewed_process_artifacts error", err)
+	}
+}
+
+func TestCompileRejectsDuplicateReviewedProcessArtifacts(t *testing.T) {
+	processPayload := processPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
+	selectedHash := mustCanonicalHash(t, processPayload)
+	workflowPayload := mustJSON(t, map[string]any{
+		"schema_id":                        workflowDefinitionSchemaID,
+		"schema_version":                   workflowDefinitionVersion,
+		"workflow_id":                      "workflow_main",
+		"workflow_version":                 "1.0.0",
+		"selected_process_id":              "process_default",
+		"selected_process_definition_hash": selectedHash,
+		"reviewed_process_artifacts": []any{
+			map[string]any{"process_id": "process_default", "process_definition_hash": selectedHash},
+			map[string]any{"process_id": "process_default", "process_definition_hash": selectedHash},
+		},
+		"approval_profile": "moderate",
+		"autonomy_posture": "balanced",
+	})
+
+	_, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
+	if err == nil {
+		t.Fatal("Compile error = nil, want duplicate reviewed process rejection")
+	}
+	if !strings.Contains(err.Error(), "duplicate process_id") {
+		t.Fatalf("Compile error = %v, want duplicate process_id error", err)
 	}
 }
 
@@ -430,116 +495,4 @@ func processPayloadWithSingleBinding(t *testing.T, bindingID, executorID string,
 		"gate_definitions":  []any{gateDef("build_gate", "step_validation_started", 0)},
 		"dependency_edges":  []any{},
 	})
-}
-
-func TestCompileRejectsDependencyEdgeWithUnknownStepIdentity(t *testing.T) {
-	workflowPayload := workflowPayloadForTest(t, "process_default", []string{"process_default"})
-	processPayload := mustJSON(t, map[string]any{
-		"schema_id":         processDefinitionSchemaID,
-		"schema_version":    processDefinitionVersion,
-		"process_id":        "process_default",
-		"executor_bindings": []any{executorBindingFixture("binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})},
-		"gate_definitions": []any{
-			gateDef("build_gate", "step_validation_started", 0),
-		},
-		"dependency_edges": []any{
-			map[string]any{"upstream_step_id": "unknown_step", "downstream_step_id": "build_gate_build_step", "dependency_kind": "step_completed"},
-		},
-	})
-
-	_, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
-	if err == nil {
-		t.Fatal("Compile error = nil, want dependency edge rejection")
-	}
-	if !strings.Contains(err.Error(), "unknown upstream_step_id") {
-		t.Fatalf("Compile error = %v, want unknown upstream_step_id error", err)
-	}
-}
-
-func TestCompilePropagatesDependencyEdgesIntoRunPlan(t *testing.T) {
-	workflowPayload := workflowPayloadForTest(t, "process_default", []string{"process_default"})
-	processPayload := mustJSON(t, map[string]any{
-		"schema_id":         processDefinitionSchemaID,
-		"schema_version":    processDefinitionVersion,
-		"process_id":        "process_default",
-		"executor_bindings": []any{executorBindingFixture("binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})},
-		"gate_definitions": []any{
-			gateDef("build_gate", "step_validation_started", 0),
-			gateDef("lint_gate", "step_validation_finished", 1),
-		},
-		"dependency_edges": []any{
-			map[string]any{"upstream_step_id": "build_gate_build_step", "downstream_step_id": "lint_gate_build_step", "dependency_kind": "step_completed"},
-		},
-	})
-
-	plan, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
-	if err != nil {
-		t.Fatalf("Compile returned error: %v", err)
-	}
-	if len(plan.DependencyEdges) != 1 {
-		t.Fatalf("dependency_edges len = %d, want 1", len(plan.DependencyEdges))
-	}
-	if got := plan.DependencyEdges[0].UpstreamStepID; got != "build_gate_build_step" {
-		t.Fatalf("dependency_edges[0].upstream_step_id = %q, want build_gate_build_step", got)
-	}
-}
-
-func TestCompileRejectsGatePlanBindingMismatch(t *testing.T) {
-	workflowPayload := workflowPayloadForTest(t, "process_default", []string{"process_default"})
-	gate := gateDef("build_gate", "step_validation_started", 0)
-	gate["gate"].(map[string]any)["plan_binding"] = map[string]any{"checkpoint_code": "step_validation_finished", "order_index": 1}
-	processPayload := processPayloadForTest(t, []any{gate}, []string{"workspace-edit"})
-
-	_, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
-	if err == nil {
-		t.Fatal("Compile error=nil, want plan_binding mismatch rejection")
-	}
-	if !strings.Contains(err.Error(), "plan_binding") {
-		t.Fatalf("Compile error = %v, want plan_binding rejection", err)
-	}
-}
-
-func TestCompilePropagatesDependencyCacheHandoffsIntoRunPlan(t *testing.T) {
-	workflowPayload := workflowPayloadForTest(t, "process_default", []string{"process_default"})
-	gate := gateDef("build_gate", "step_validation_started", 0)
-	gate["dependency_cache_handoffs"] = []any{map[string]any{"request_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("d", 64)}, "consumer_role": "workspace-edit", "required": true}}
-	processPayload := processPayloadForTest(t, []any{gate}, []string{"workspace-edit", "workspace-test"})
-
-	plan, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
-	if err != nil {
-		t.Fatalf("Compile returned error: %v", err)
-	}
-	if len(plan.GateDefinitions) != 1 {
-		t.Fatalf("gate_definitions len = %d, want 1", len(plan.GateDefinitions))
-	}
-	if len(plan.GateDefinitions[0].DependencyCacheHandoffs) != 1 {
-		t.Fatalf("dependency_cache_handoffs len = %d, want 1", len(plan.GateDefinitions[0].DependencyCacheHandoffs))
-	}
-	if got := plan.GateDefinitions[0].DependencyCacheHandoffs[0].ConsumerRole; got != "workspace-edit" {
-		t.Fatalf("consumer_role = %q, want workspace-edit", got)
-	}
-}
-
-func TestCompileRejectsDependencyCacheHandoffOutsideBindingRoles(t *testing.T) {
-	workflowPayload := workflowPayloadForTest(t, "process_default", []string{"process_default"})
-	gate := gateDef("build_gate", "step_validation_started", 0)
-	gate["dependency_cache_handoffs"] = []any{map[string]any{"request_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("d", 64)}, "consumer_role": "workspace-test", "required": true}}
-	processPayload := processPayloadForTest(t, []any{gate}, []string{"workspace-edit"})
-
-	_, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
-	if err == nil {
-		t.Fatal("Compile error=nil, want dependency_cache_handoffs role rejection")
-	}
-	if !strings.Contains(err.Error(), "dependency_cache_handoffs") {
-		t.Fatalf("Compile error = %v, want dependency_cache_handoffs rejection", err)
-	}
-}
-
-func mustJSON(t *testing.T, value any) []byte {
-	t.Helper()
-	b, err := json.Marshal(value)
-	if err != nil {
-		t.Fatalf("Marshal returned error: %v", err)
-	}
-	return b
 }
