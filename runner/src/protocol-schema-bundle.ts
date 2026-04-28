@@ -26,10 +26,6 @@ export type SchemaValidationResult =
   | { ok: true }
   | { ok: false; reason: string };
 
-const RUN_PLAN_SCHEMA_PATH = "objects/RunPlan.schema.json";
-const RUN_PLAN_SCHEMA_ID = "runecode.protocol.v0.RunPlan";
-const RUN_PLAN_SCHEMA_VERSION = "0.1.0";
-
 function schemaKey(schemaId: string, schemaVersion: string): string {
   return `${schemaId}@${schemaVersion}`;
 }
@@ -57,18 +53,6 @@ export class ProtocolSchemaBundle {
       const schema = await readJsonFile<JsonObject>(schemaPath);
       ajv.addSchema(schema);
       schemaPathByRuntimeKey.set(schemaKey(entry.schema_id, entry.schema_version), entry.path);
-    }
-
-    // RunPlan is a runner-critical contract. Load it explicitly only when the
-    // checked-in manifest does not advertise it yet.
-    if (!schemaPathByRuntimeKey.has(schemaKey(RUN_PLAN_SCHEMA_ID, RUN_PLAN_SCHEMA_VERSION))) {
-      const runPlanSchemaPath = path.join(protocolSchemasRoot, RUN_PLAN_SCHEMA_PATH);
-      const runPlanSchema = await readJsonFile<JsonObject>(runPlanSchemaPath);
-      ajv.addSchema(runPlanSchema);
-      schemaPathByRuntimeKey.set(
-        schemaKey(RUN_PLAN_SCHEMA_ID, RUN_PLAN_SCHEMA_VERSION),
-        RUN_PLAN_SCHEMA_PATH,
-      );
     }
 
     return new ProtocolSchemaBundle(ajv, schemaPathByRuntimeKey);

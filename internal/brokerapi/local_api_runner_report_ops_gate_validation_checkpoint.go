@@ -23,16 +23,10 @@ func validateGateCheckpointFields(report RunnerCheckpointReport) error {
 
 func validateGateCheckpointPlanBinding(report RunnerCheckpointReport, planned compiledRunGatePlan) (runPlannedGateEntry, error) {
 	if !hasGateBinding(report.GateID, report.GateKind, report.GateVersion, report.GateAttemptID, report.GateLifecycleState, report.NormalizedInputDigests) {
-		if err := validateNoPlanBindingWithoutGate(report.PlanCheckpointCode, report.PlanOrderIndex); err != nil {
-			return runPlannedGateEntry{}, err
-		}
-		return runPlannedGateEntry{}, nil
+		return validateNoPlanBinding(report)
 	}
 	if !planned.hasEntries() {
-		if report.PlanCheckpointCode != "" || report.PlanOrderIndex != 0 {
-			return runPlannedGateEntry{}, fmt.Errorf("gate-scoped checkpoint requires trusted run plan gate entries")
-		}
-		return runPlannedGateEntry{}, nil
+		return validateEmptyPlanBinding(report)
 	}
 	if report.PlanCheckpointCode == "" {
 		return runPlannedGateEntry{}, fmt.Errorf("gate-scoped checkpoint requires plan_checkpoint_code")
@@ -41,14 +35,31 @@ func validateGateCheckpointPlanBinding(report RunnerCheckpointReport, planned co
 	if !ok {
 		return runPlannedGateEntry{}, fmt.Errorf("gate-scoped checkpoint does not match trusted run plan placement")
 	}
+	if err := validateOptionalReportedScopeAgainstPlanned(report.StageID, report.StepID, report.RoleInstanceID, entry); err != nil {
+		return runPlannedGateEntry{}, err
+	}
 	if err := validatePlannedInputDigestHooks(entry.ExpectedInputDigests, report.NormalizedInputDigests); err != nil {
 		return runPlannedGateEntry{}, err
 	}
 	return entry, nil
 }
 
+func validateNoPlanBinding(report RunnerCheckpointReport) (runPlannedGateEntry, error) {
+	if err := validateNoPlanBindingWithoutGate(report.PlanCheckpointCode, report.PlanOrderIndex); err != nil {
+		return runPlannedGateEntry{}, err
+	}
+	return runPlannedGateEntry{}, nil
+}
+
+func validateEmptyPlanBinding(report RunnerCheckpointReport) (runPlannedGateEntry, error) {
+	if report.PlanCheckpointCode != "" || report.PlanOrderIndex != 0 {
+		return runPlannedGateEntry{}, fmt.Errorf("gate-scoped checkpoint requires trusted run plan gate entries")
+	}
+	return runPlannedGateEntry{}, nil
+}
+
 func validateRequiredGateCheckpointIdentity(report RunnerCheckpointReport) error {
-	if report.GateID == "" || report.GateKind == "" || report.GateVersion == "" || report.GateAttemptID == "" || report.GateLifecycleState == "" {
+	if missing := report.GateID == "" || report.GateKind == "" || report.GateVersion == "" || report.GateAttemptID == "" || report.GateLifecycleState == ""; missing {
 		return fmt.Errorf("gate-scoped checkpoint requires gate_id, gate_kind, gate_version, gate_attempt_id, and gate_lifecycle_state")
 	}
 	if !isGateKind(report.GateKind) {

@@ -1,6 +1,10 @@
 package brokerapi
 
-import "github.com/runecode-ai/runecode/internal/artifacts"
+import (
+	"fmt"
+
+	"github.com/runecode-ai/runecode/internal/artifacts"
+)
 
 func (s *Service) validateRunnerCheckpointReport(current string, found bool, runID string, report RunnerCheckpointReport) (map[string]any, error) {
 	planned, entry, err := s.resolveCheckpointPlanBinding(runID, report)
@@ -45,7 +49,7 @@ func validateRunnerCheckpointReportCore(current string, found bool, report Runne
 	return validateRunnerCheckpointPhaseTransition(advisory, report)
 }
 
-func runnerCheckpointDetailsWithProjectContext(rawDetails map[string]any, entry runPlannedGateEntry, planned compiledRunGatePlan) (map[string]any, error) {
+func runPlanDetailsMergeContext(rawDetails map[string]any, entry runPlannedGateEntry, planned compiledRunGatePlan) (map[string]any, error) {
 	details, err := sanitizeRunnerDetails(rawDetails)
 	if err != nil {
 		return nil, runnerValidationError{code: "broker_validation_schema_invalid", msg: err.Error()}
@@ -58,28 +62,108 @@ func runnerCheckpointDetailsWithProjectContext(rawDetails map[string]any, entry 
 	}
 	if entry.ProjectContextID != "" {
 		details["project_context_identity_digest"] = entry.ProjectContextID
+	}
+	if planned.planID != "" {
+		details["run_plan_id"] = planned.planID
+	}
+	if planned.runPlanRef != "" {
+		details["run_plan_ref"] = planned.runPlanRef
+	}
+	details, err = runPlanDetailsMergeHashes(details, planned)
+	if err != nil {
+		return nil, err
+	}
+	if len(entry.DependencyCacheHandoffs) > 0 {
+		details["dependency_cache_handoffs"] = dependencyCacheHandoffDetails(entry.DependencyCacheHandoffs)
+	}
+	return details, nil
+}
+
+func runPlanDetailsMergeHashes(details map[string]any, planned compiledRunGatePlan) (map[string]any, error) {
+	var err error
+	details, err = mergeWorkflowDefinitionHash(details, planned)
+	if err != nil {
+		return nil, err
+	}
+	details, err = mergeProcessDefinitionHash(details, planned)
+	if err != nil {
+		return nil, err
+	}
+	details, err = mergePolicyContextHash(details, planned)
+	if err != nil {
+		return nil, err
+	}
+	return details, nil
+}
+
+func mergeWorkflowDefinitionHash(details map[string]any, planned compiledRunGatePlan) (map[string]any, error) {
+	if planned.workflowDefinitionHash != "" {
+		if existing, _ := details["workflow_definition_hash"].(string); existing != "" && existing != planned.workflowDefinitionHash {
+			return nil, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: "details.workflow_definition_hash must match trusted run plan binding"}
+		}
+		details["workflow_definition_hash"] = planned.workflowDefinitionHash
+	}
+	return details, nil
+}
+
+func mergeProcessDefinitionHash(details map[string]any, planned compiledRunGatePlan) (map[string]any, error) {
+	if planned.processDefinitionHash != "" {
+		if existing, _ := details["process_definition_hash"].(string); existing != "" && existing != planned.processDefinitionHash {
+			return nil, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: "details.process_definition_hash must match trusted run plan binding"}
+		}
+		details["process_definition_hash"] = planned.processDefinitionHash
+	}
+	return details, nil
+}
+
+func mergePolicyContextHash(details map[string]any, planned compiledRunGatePlan) (map[string]any, error) {
+	if planned.policyContextHash != "" {
+		if existing, _ := details["policy_context_hash"].(string); existing != "" && existing != planned.policyContextHash {
+			return nil, runnerValidationError{code: "broker_validation_runner_transition_invalid", msg: "details.policy_context_hash must match trusted run plan binding"}
+		}
+		details["policy_context_hash"] = planned.policyContextHash
+	}
+	return details, nil
+}
+
+func runnerCheckpointDetailsWithProjectContext(rawDetails map[string]any, entry runPlannedGateEntry, planned compiledRunGatePlan) (map[string]any, error) {
+	details, err := runPlanDetailsMergeContext(rawDetails, entry, planned)
+	if err != nil {
+		return nil, err
+	}
+	if details == nil {
+		details = map[string]any{}
 	}
 	return details, nil
 }
 
 func runnerResultDetailsWithProjectContext(rawDetails map[string]any, entry runPlannedGateEntry, planned compiledRunGatePlan, gateEvidence *GateEvidence) (map[string]any, error) {
-	details, err := sanitizeRunnerDetails(rawDetails)
+	details, err := runPlanDetailsMergeContext(rawDetails, entry, planned)
 	if err != nil {
-		return nil, runnerValidationError{code: "broker_validation_schema_invalid", msg: err.Error()}
+		return nil, err
 	}
 	if details == nil {
 		details = map[string]any{}
 	}
-	if entry.ProjectContextID == "" {
-		entry.ProjectContextID = planned.projectContextID
-	}
-	if entry.ProjectContextID != "" {
-		details["project_context_identity_digest"] = entry.ProjectContextID
-		if gateEvidence != nil && gateEvidence.ProjectContextID == "" {
-			gateEvidence.ProjectContextID = entry.ProjectContextID
-		}
+	if gateEvidence != nil && entry.ProjectContextID != "" && gateEvidence.ProjectContextID == "" {
+		gateEvidence.ProjectContextID = entry.ProjectContextID
 	}
 	return details, nil
+}
+
+func dependencyCacheHandoffDetails(handoffs []runPlannedDependencyCacheHandoff) []map[string]any {
+	if len(handoffs) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(handoffs))
+	for _, handoff := range handoffs {
+		out = append(out, map[string]any{
+			"request_digest": digestObjectForIdentity(handoff.RequestDigest),
+			"consumer_role":  handoff.ConsumerRole,
+			"required":       handoff.Required,
+		})
+	}
+	return out
 }
 
 func (s *Service) prepareRunnerResultBindings(current string, found bool, runID string, report RunnerResultReport) (runnerResultBindings, error) {
@@ -142,6 +226,12 @@ func validateRunnerResultReportCore(current string, found bool, report RunnerRes
 }
 
 func (s *Service) resolveRunnerResultRefs(runID string, report RunnerResultReport, details map[string]any, planned compiledRunGatePlan) (string, string, string, string, error) {
+	if report.GateLifecycleState == "overridden" && planned.policyContextHash != "" {
+		boundPolicyContext, _ := details["policy_context_hash"].(string)
+		if boundPolicyContext != planned.policyContextHash {
+			return "", "", "", "", fmt.Errorf("gate override details.policy_context_hash must match trusted run plan policy_context_hash")
+		}
+	}
 	overrideActionHash, overridePolicyRef, err := s.resolveOverrideApprovalBindings(runID, report, details)
 	if err != nil {
 		return "", "", "", "", err

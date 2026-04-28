@@ -47,9 +47,9 @@ func validateBindingRolesAllowed(binding ExecutorBinding, allowedRoles []string)
 	return nil
 }
 
-func mergeExecutorBindings(workflow []ExecutorBinding, process []ExecutorBinding) ([]ExecutorBinding, error) {
+func compileExecutorBindings(bindings []ExecutorBinding) ([]ExecutorBinding, error) {
 	merged := map[string]ExecutorBinding{}
-	for _, binding := range append(append([]ExecutorBinding{}, workflow...), process...) {
+	for _, binding := range bindings {
 		if err := mergeExecutorBindingRecord(merged, binding); err != nil {
 			return nil, err
 		}
@@ -67,7 +67,7 @@ func mergeExecutorBindingRecord(merged map[string]ExecutorBinding, binding Execu
 		return nil
 	}
 	if existing.ExecutorID != binding.ExecutorID || existing.ExecutorClass != binding.ExecutorClass {
-		return fmt.Errorf("executor binding %q conflicts across workflow/process inputs", binding.BindingID)
+		return fmt.Errorf("executor binding %q conflicts within process definition", binding.BindingID)
 	}
 	merged[binding.BindingID] = mergedExecutorBinding(existing, binding)
 	return nil

@@ -1,7 +1,7 @@
 # RuneCode — Security-first AI coding: isolated execution, signed, auditable
 
 [![CI](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml/badge.svg)](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml)
-[![Status: alpha.7 release](https://img.shields.io/badge/status-alpha.7%20release-orange)](runecontext/project/roadmap.md)
+[![Status: alpha.8 in progress](https://img.shields.io/badge/status-alpha.8%20in%20progress-orange)](runecontext/project/roadmap.md)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 RuneCode is a security-first agentic automation platform for software engineering.
@@ -9,7 +9,7 @@ It treats isolation and cryptographic provenance as co-equal pillars: work runs 
 
 ## Status
 
-The latest published release is `v0.1.0-alpha.7`, and the repository mainline already includes additional alpha.7 work in progress.
+The latest published release is `v0.1.0-alpha.7`, and the repository mainline already includes `v0.1.0-alpha.8` work in progress.
 RuneCode remains pre-production: the signed, tag-driven release pipeline exists, but the shipped Go binaries are still scaffold-heavy and not feature-complete.
 
 ## Why RuneCode
@@ -145,8 +145,8 @@ This quick path verifies signed checksums and the signed archive before install.
 - Shared machine-consumed code registries for `error.code`, `policy_reason_code`, `approval_trigger_code`, `audit_event_type`, `audit_receipt_kind`, and `audit_verification_reason_code`
 - Shared fixtures in `protocol/fixtures/` validated in both Go and Node, including schema, stream-sequence, runtime-invariant, and canonicalization/hash cases
 - CI guardrails for runner trust-boundary access and protocol parity
-- Workflow/process planning schemas and fixtures, plus a trusted Go `RunPlan` compiler that merges executor bindings and deterministic gate definitions into one immutable execution contract
-- Deterministic gate contracts and reporting families for gate planning, runner checkpoint/result reporting, gate checkpoint/result reporting, and gate evidence persistence
+- Workflow/process planning schemas and fixtures, plus trusted Go compilation, persistence, and selection of immutable `RunPlan` authority that binds reviewed workflow selection, authoritative process DAG shape, executor bindings, deterministic gate definitions, dependency edges, and compiled runtime entries into one broker-owned execution contract
+- Deterministic gate contracts and reporting families for gate planning, runner checkpoint/result reporting, gate checkpoint/result reporting, and gate evidence persistence, with stored evidence bound back to the active plan, workflow/process definition hashes, policy context hash, and validated project context digest
 - A thin untrusted runner kernel foundation that loads broker-compiled `RunPlan` data from the shared schema bundle, persists plan-bound journal/snapshot durable state, replays approval waits and recovery state fail closed, schedules plan entries, and emits typed reports back to the broker
 - A narrow internal runner runtime seam for local checkpoint, wait, and resume mechanics without making runner-local state, third-party runtimes, or framework checkpoints authoritative
 - MVP artifact data classes and an `ArtifactPolicy` schema family anchoring flow-matrix, approval-promotion, quota, and retention/GC controls
@@ -266,7 +266,7 @@ Optional: enable automatic dev-shell entry with `direnv` + `nix-direnv`:
 direnv allow
 ```
 
-Non-Nix fallback (e.g., Windows): install Go 1.25.x, Node `>=22.22.1 <25` with npm, `just`, and either a `tlc` binary or Java 17+ plus `tla2tools.jar` (or set `TLA2TOOLS_JAR`). In CI, that jar is provisioned from the flake-pinned Nix package cache and verified against the Nix build output. Then run:
+Non-Nix fallback (e.g., Windows): install Go 1.25.x, Node `>=22.22.1 <25` with npm, and `just`. For full formal-model parity outside Nix, also install either a `tlc` binary or Java 17+ plus `tla2tools.jar` (or set `TLA2TOOLS_JAR`). Then run:
 
 ```sh
 just ci

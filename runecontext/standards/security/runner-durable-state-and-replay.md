@@ -14,6 +14,7 @@ When the untrusted runner persists resumable orchestration state for plan execut
 
 - Treat runner durable state as advisory orchestration state only; broker-owned run truth, approval truth, gate outcomes, and operator-facing lifecycle remain canonical in trusted services
 - Bind every durable journal, snapshot, wait record, and replay decision to the active `{run_id, plan_id}` pair; fail closed if persisted state does not match the broker-compiled immutable plan identity
+- Treat the active `{run_id, plan_id}` pair as the persisted trusted selection result, not just a runner-local label; fail closed when the bound plan has been superseded or when trusted plan selection becomes ambiguous
 - Use append-first journal families plus snapshots rather than one mutable status blob; snapshots are a recovery cache, not a second source of truth
 - Put explicit schema versions on journal and snapshot families and fail closed on unknown future versions instead of guessing compatibility
 - Keep stable logical scope identity separate from retry and replay identity:
@@ -21,6 +22,7 @@ When the untrusted runner persists resumable orchestration state for plan execut
   - attempt/replay identity: `stage_attempt_id`, `step_attempt_id`, `gate_attempt_id`, stable idempotency keys
 - Require replay-safe idempotency for every externally visible side effect, including runner checkpoint/result reports, approval-wait transitions, gate evidence linkage, and executor-dispatch side effects that can survive process failure
 - On restart or resume, reconcile persisted runner state against trusted broker state explicitly; broker-canonical run, plan, and approval bindings win over runner-local hints
+- On restart or resume, also reconcile the current validated project-context digest against the active trusted run plan when execution is project-context-sensitive; drift fails closed rather than silently resuming under ambient repository state
 - Approval waits must persist enough trusted correlation data to resume safely:
   - canonical `approval_id`
   - `run_id` and `plan_id`

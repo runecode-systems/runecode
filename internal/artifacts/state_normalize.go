@@ -106,6 +106,15 @@ func normalizeProviderStateMaps(state StoreState) StoreState {
 	if state.ProviderSetupSessions == nil {
 		state.ProviderSetupSessions = map[string]ProviderSetupSessionDurableState{}
 	}
+	if state.RunPlanAuthorities == nil {
+		state.RunPlanAuthorities = map[string]RunPlanAuthorityRecord{}
+	}
+	if state.RunPlanRefsByRun == nil {
+		state.RunPlanRefsByRun = map[string][]string{}
+	}
+	if state.RunPlanCompilations == nil {
+		state.RunPlanCompilations = map[string]RunPlanCompilationRecord{}
+	}
 	return state
 }
 

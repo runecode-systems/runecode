@@ -8,9 +8,13 @@ Keeping both scopes together would either delay the first usable product cut or 
 
 ## Proposed Change
 - Generic workflow-authoring and review surfaces.
-- Deterministic authoring adapters that normalize to the canonical workflow-definition contract.
+- Deterministic authoring adapters that normalize to the canonical workflow-definition and process-definition contracts.
 - Shared-Memory Accelerators.
 - Safe adoption UX for custom workflow definitions on top of the shared workflow-definition substrate.
+- Explicit reuse of the refined CHG-050 workflow substrate, including:
+  - `WorkflowDefinition` as workflow-facing selection/packaging
+  - `ProcessDefinition` as executable graph structure
+  - broker-owned signed compilation/selection binding plus immutable `RunPlan` runtime authority
 - Explicit reuse of the shared workflow-definition, git request, patch artifact, and exact-approval contracts defined elsewhere.
 - Authoring surfaces may prepare explicit implementation-track declarations for `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0` and definitions that target `CHG-2026-048-6b7a-session-execution-orchestration-v0`, but they do not become execution-planning or scheduler authority.
 
@@ -30,3 +34,8 @@ Keeping this change post-MVP after the split avoids coupling the first usable pr
 
 ## Impact
 Keeps later workflow extensibility reviewable as a RuneContext-native change focused on generic authoring and accelerators, while the contract-first substrate now lands separately and earlier.
+
+It also freezes that generic authoring extends the refined workflow substrate rather than reopening it:
+- authoring may prepare `WorkflowDefinition` and `ProcessDefinition` content
+- authoring may not replace broker-owned compilation/binding authority
+- authoring may not reintroduce loops, plugin semantics, or a second runtime authority in place of CHG-050

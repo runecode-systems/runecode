@@ -10,78 +10,19 @@ permissions:
   contents: read
 
 jobs:
-  prepare-tla2tools:
-    name: Prepare cached TLC jar
-    runs-on: ubuntu-latest
-    outputs:
-      cache-key: ${{ steps.meta.outputs.cache-key }}
-      jar-sha256: ${{ steps.meta.outputs.jar-sha256 }}
-    env:
-      TLA2TOOLS_CACHE_DIR: .ci-cache/tlaplus
-      TLA2TOOLS_CACHE_FILE: .ci-cache/tlaplus/tla2tools.jar
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@c5a866b6ab867e88becbed4467b93592bce69f8a # v21
-
-      - name: Cache Nix store
-        uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
-        with:
-          use-flakehub: false
-
-      - name: Compute TLC cache key
-        id: meta
-        run: |
-          set -euo pipefail
-
-          out_path="$(nix build .#tla2tools-jar --no-link --print-out-paths)"
-          jar_sha256="$(cat "${out_path}/tla2tools.jar.sha256")"
-          case "${jar_sha256}" in
-            [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
-            *)
-              echo "unexpected tla2tools.jar SHA256 format: ${jar_sha256}" >&2
-              exit 1
-              ;;
-          esac
-          echo "cache-key=tla2tools-jar-${out_path##*/}" >> "$GITHUB_OUTPUT"
-          echo "jar-sha256=${jar_sha256}" >> "$GITHUB_OUTPUT"
-
-      - name: Restore cached TLC jar
-        id: cache-restore
-        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
-        with:
-          path: ${{ env.TLA2TOOLS_CACHE_FILE }}
-          key: ${{ steps.meta.outputs.cache-key }}
-          enableCrossOsArchive: true
-
-      - name: Populate TLC jar cache on miss
-        if: steps.cache-restore.outputs.cache-hit != 'true'
-        run: |
-          set -euo pipefail
-
-          mkdir -p "${TLA2TOOLS_CACHE_DIR}"
-          out_path="$(nix build .#tla2tools-jar --no-link --print-out-paths)"
-          cp "${out_path}/tla2tools.jar" "${TLA2TOOLS_CACHE_FILE}"
-
-      - name: Save TLC jar cache
-        if: steps.cache-restore.outputs.cache-hit != 'true'
-        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
-        with:
-          path: ${{ env.TLA2TOOLS_CACHE_FILE }}
-          key: ${{ steps.meta.outputs.cache-key }}
-          enableCrossOsArchive: true
-
   nix:
-    name: Nix (${{ matrix.os }})
+    name: Nix (${{ matrix.label }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
+        include:
+          - os: ubuntu-latest
+            label: ubuntu canonical
+            ci-target: ci
+          - os: macos-latest
+            label: macos portability
+            ci-target: ci-portability
     env:
       NIX_CONFIG: |
         substituters = https://cache.nixos.org
@@ -111,7 +52,7 @@ jobs:
         run: nix flake check --no-write-lock-file
 
       - name: Run CI command in dev shell
-        run: nix develop --no-write-lock-file -c just ci
+        run: nix develop --no-write-lock-file -c just ${{ matrix.ci-target }}
 
       - name: Verify flake.lock unchanged
         run: git diff --exit-code -- flake.lock
@@ -129,10 +70,6 @@ jobs:
   windows:
     name: Windows portability (Node ${{ matrix.node-version }})
     runs-on: windows-latest
-    needs: prepare-tla2tools
-    env:
-      TLA2TOOLS_CACHE_DIR: .ci-cache/tlaplus
-      TLA2TOOLS_CACHE_FILE: .ci-cache/tlaplus/tla2tools.jar
     strategy:
       fail-fast: false
       matrix:
@@ -171,46 +108,8 @@ jobs:
           choco install -y fd --version=10.3.0 --allow-downgrade
           choco install -y jq --version=1.8.1 --allow-downgrade
 
-      - name: Setup Java for TLC
-        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Restore cached TLC jar
-        id: cache-tla2tools
-        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
-        with:
-          path: ${{ env.TLA2TOOLS_CACHE_FILE }}
-          key: ${{ needs.prepare-tla2tools.outputs.cache-key }}
-          enableCrossOsArchive: true
-
-      - name: Configure cached TLC jar
-        shell: pwsh
-        run: |
-          if ("${{ steps.cache-tla2tools.outputs.cache-hit }}" -ne "true") {
-            Write-Error "cached TLC jar missing for key ${{ needs.prepare-tla2tools.outputs.cache-key }}"
-            exit 1
-          }
-          $cachedJarPath = Join-Path $env:GITHUB_WORKSPACE $env:TLA2TOOLS_CACHE_FILE
-          if (-not (Test-Path -LiteralPath $cachedJarPath)) {
-            Write-Error "expected cached TLC jar at $cachedJarPath"
-            exit 1
-          }
-          $sha256 = (Get-FileHash -Algorithm SHA256 $cachedJarPath).Hash.ToLowerInvariant()
-          if ($sha256 -ne "${{ needs.prepare-tla2tools.outputs.jar-sha256 }}") {
-            Write-Error "cached TLC jar SHA256 mismatch: $sha256"
-            exit 1
-          }
-          $runtimeDir = Join-Path $env:RUNNER_TEMP "tlaplus"
-          New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
-          $runtimeJarPath = Join-Path $runtimeDir "tla2tools.jar"
-          Copy-Item -LiteralPath $cachedJarPath -Destination $runtimeJarPath -Force
-          Remove-Item -LiteralPath $cachedJarPath -Force
-          "TLA2TOOLS_JAR=$runtimeJarPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
       - name: Run portability checks
-        run: just ci
+        run: just ci-portability
 
       - name: Verify repository unchanged after portability checks
         shell: pwsh

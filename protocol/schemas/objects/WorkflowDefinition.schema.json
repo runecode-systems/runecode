@@ -2,16 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://runecode.dev/protocol/schemas/objects/WorkflowDefinition.schema.json",
   "title": "WorkflowDefinition",
-  "description": "Protocol-owned workflow definition family with explicit deterministic gate planning.",
+  "description": "Protocol-owned reviewed workflow surface for process selection, packaging identity, and policy binding over reviewed process graphs.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 5,
+  "maxProperties": 10,
   "required": [
     "schema_id",
     "schema_version",
     "workflow_id",
-    "executor_bindings",
-    "gate_definitions"
+    "workflow_version",
+    "selected_process_id",
+    "selected_process_definition_hash",
+    "reviewed_process_artifacts",
+    "approval_profile",
+    "autonomy_posture"
   ],
   "properties": {
     "schema_id": {
@@ -20,7 +24,7 @@
       "x-data-class": "public"
     },
     "schema_version": {
-      "const": "0.2.0",
+      "const": "0.5.0",
       "description": "Exact protocol schema version used to validate this workflow definition.",
       "x-data-class": "public"
     },
@@ -28,81 +32,80 @@
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]*$",
       "maxLength": 128,
-      "description": "Stable logical workflow identity referenced by compiled run plans.",
+      "description": "Stable reviewed workflow identity referenced by compiled run plans.",
       "x-data-class": "public"
     },
-    "executor_bindings": {
+    "workflow_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "maxLength": 32,
+      "description": "Reviewed workflow-facing packaging version; separate from executable process graph versions.",
+      "x-data-class": "public"
+    },
+    "selected_process_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "maxLength": 128,
+      "description": "Reviewed process identity selected by this workflow definition for compilation.",
+      "x-data-class": "public"
+    },
+    "selected_process_definition_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "maxLength": 71,
+      "description": "Canonical hash of the selected reviewed process definition artifact expected by this workflow binding.",
+      "x-data-class": "public"
+    },
+    "reviewed_process_artifacts": {
       "type": "array",
       "minItems": 1,
       "maxItems": 64,
-      "description": "Reviewed executor bindings available to planner-selected gates.",
+      "description": "Reviewed process artifacts this workflow definition is authorized to select from.",
       "x-data-class": "public",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "maxProperties": 5,
+        "maxProperties": 2,
         "required": [
-          "binding_id",
-          "executor_id",
-          "executor_class",
-          "allowed_role_kinds"
+          "process_id",
+          "process_definition_hash"
         ],
         "properties": {
-          "binding_id": {
+          "process_id": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9_-]*$",
             "maxLength": 128,
-            "description": "Stable binding identity referenced by planned gate entries.",
+            "description": "One reviewed process identity.",
             "x-data-class": "public"
           },
-          "executor_id": {
+          "process_definition_hash": {
             "type": "string",
-            "pattern": "^[a-z][a-z0-9_-]*$",
-            "maxLength": 128,
-            "description": "Trusted executor registry identity bound for dispatch and policy validation.",
-            "x-data-class": "public"
-          },
-          "executor_class": {
-            "type": "string",
-            "enum": ["workspace_ordinary", "system_modifying"],
-            "description": "Execution risk class expected by policy for this binding.",
-            "x-data-class": "public"
-          },
-          "allowed_role_kinds": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 16,
-            "description": "Role kinds allowed to dispatch this executor binding.",
-            "items": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9_-]*$",
-              "maxLength": 128,
-              "description": "One allowed role kind for this binding.",
-              "x-data-class": "public"
-            },
-            "x-data-class": "public"
-          },
-          "description": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 256,
-            "description": "Optional human-facing summary for operator diagnostics.",
+            "pattern": "^sha256:[a-f0-9]{64}$",
+            "maxLength": 71,
+            "description": "Canonical hash for the reviewed process artifact bound to process_id.",
             "x-data-class": "public"
           }
         }
       }
     },
-    "gate_definitions": {
-      "type": "array",
-      "minItems": 1,
-      "maxItems": 32,
-      "description": "Explicit gate ordering and checkpoint placement declared by workflow planning.",
-      "x-data-class": "public",
-      "items": {
-        "$ref": "GateDefinition.schema.json",
-        "description": "One deterministic gate definition entry.",
-        "x-data-class": "public"
-      }
+    "policy_binding_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "maxLength": 128,
+      "description": "Optional reviewed policy binding identity associated with this workflow definition.",
+      "x-data-class": "public"
+    },
+    "approval_profile": {
+      "type": "string",
+      "enum": ["moderate"],
+      "description": "Shared formal approval-frequency input bound to workflow selection; remains distinct from autonomy posture.",
+      "x-data-class": "public"
+    },
+    "autonomy_posture": {
+      "type": "string",
+      "enum": ["operator_guided", "balanced", "autonomous_preferred"],
+      "description": "Shared operator-guidance/continuation posture input bound to workflow selection; remains distinct from approval profile.",
+      "x-data-class": "public"
     }
   }
 }

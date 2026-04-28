@@ -1,30 +1,67 @@
 package brokerapi
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"sort"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 )
 
 type runPlannedGateEntry struct {
-	GateID               string
-	GateKind             string
-	GateVersion          string
-	PlanCheckpointCode   string
-	PlanOrderIndex       int
-	ProjectContextID     string
-	MaxAttempts          int
-	ExpectedInputDigests []string
+	GateID                  string
+	GateKind                string
+	GateVersion             string
+	StageID                 string
+	StepID                  string
+	RoleInstanceID          string
+	PlanID                  string
+	RunPlanRef              string
+	PlanCheckpointCode      string
+	PlanOrderIndex          int
+	ProjectContextID        string
+	WorkflowDefinitionHash  string
+	ProcessDefinitionHash   string
+	PolicyContextHash       string
+	MaxAttempts             int
+	ExpectedInputDigests    []string
+	DependencyCacheHandoffs []runPlannedDependencyCacheHandoff
+}
+
+type runPlannedDependencyCacheHandoff struct {
+	RequestDigest string
+	ConsumerRole  string
+	Required      bool
 }
 
 type compiledRunGatePlan struct {
-	entries          []runPlannedGateEntry
-	byGate           map[string]runPlannedGateEntry
-	projectContextID string
+	entries                []runPlannedGateEntry
+	byGate                 map[string]runPlannedGateEntry
+	projectContextID       string
+	projectContextPinned   bool
+	planID                 string
+	runPlanRef             string
+	workflowDefinitionHash string
+	processDefinitionHash  string
+	policyContextHash      string
+}
+
+type runPlanAuthorityRecord struct {
+	planID                string
+	supersedesPlanID      string
+	runID                 string
+	workflowDefinitionRef string
+	processDefinitionRef  string
+	policyContextHash     string
+	projectContextID      string
+	runPlanRef            string
+	createdAtUnixNano     int64
+	definition            map[string]any
+}
+
+const runPlanAuthorityStepPrefix = "compiled_run_plan/"
+
+func runPlanAuthorityStepID(planID string) string {
+	return runPlanAuthorityStepPrefix + strings.TrimSpace(planID)
 }
 
 func (s *Service) compileRunGatePlan(runID string) (compiledRunGatePlan, error) {
@@ -32,195 +69,172 @@ func (s *Service) compileRunGatePlan(runID string) (compiledRunGatePlan, error) 
 	if runID == "" {
 		return compiledRunGatePlan{}, nil
 	}
-	projectContextID := strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest)
-	records, foundRun := runScopedPlanRecords(s.List(), runID)
-	if err := ensureRunExistsForGatePlan(s.RunStatuses(), runID, foundRun); err != nil {
-		return compiledRunGatePlan{}, err
+	if cached, ok := s.runGatePlanCache.get(runID); ok {
+		resolved, err := s.resolveCachedRunGatePlan(cached)
+		if err != nil {
+			return compiledRunGatePlan{}, err
+		}
+		return resolved, nil
 	}
-	entries, err := s.collectRunPlanEntries(records)
+	compiled, err := s.compileRunGatePlanUncached(runID)
 	if err != nil {
 		return compiledRunGatePlan{}, err
 	}
-	if len(entries) == 0 {
-		return compiledRunGatePlan{projectContextID: projectContextID}, nil
+	s.runGatePlanCache.setPlan(runID, compiled)
+	return compiled, nil
+}
+
+func (s *Service) resolveCachedRunGatePlan(plan compiledRunGatePlan) (compiledRunGatePlan, error) {
+	if !plan.projectContextPinned {
+		if strings.TrimSpace(plan.planID) != "" {
+			return compiledRunGatePlan{}, fmt.Errorf("trusted run plan %q missing validated project context identity digest", plan.planID)
+		}
+		currentProjectContextID := strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest)
+		return plan.withProjectContextID(currentProjectContextID), nil
 	}
+	currentProjectContextID := strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest)
+	if currentProjectContextID == "" {
+		return compiledRunGatePlan{}, fmt.Errorf("trusted run plan %q requires validated project context identity digest", plan.planID)
+	}
+	if currentProjectContextID != strings.TrimSpace(plan.projectContextID) {
+		return compiledRunGatePlan{}, fmt.Errorf("trusted run plan %q project context digest drift: planned %q current %q", plan.planID, strings.TrimSpace(plan.projectContextID), currentProjectContextID)
+	}
+	return plan, nil
+}
+
+func (s *Service) compileRunGatePlanUncached(runID string) (compiledRunGatePlan, error) {
+	projectContextID := strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest)
+	if err := ensureRunExistsForGatePlan(s.RunStatuses(), runID, false); err != nil {
+		return compiledRunGatePlan{}, err
+	}
+	storedAuthority, ok, err := s.ActiveRunPlanAuthority(runID)
+	if err != nil {
+		return compiledRunGatePlan{}, err
+	}
+	if !ok {
+		return compiledRunGatePlan{projectContextID: projectContextID, projectContextPinned: false}, nil
+	}
+	selected := runPlanAuthorityRecordFromStored(storedAuthority)
+	projectContextID, projectContextPinned, err := validateProjectContextBinding(projectContextID, selected, projectContextID)
+	if err != nil {
+		return compiledRunGatePlan{}, err
+	}
+	entries := runPlannedEntriesFromStored(storedAuthority.Entries)
+	if len(entries) == 0 {
+		return compiledRunGatePlan{projectContextID: projectContextID, projectContextPinned: projectContextPinned, planID: selected.planID, runPlanRef: selected.runPlanRef, workflowDefinitionHash: selected.workflowDefinitionRef, processDefinitionHash: selected.processDefinitionRef, policyContextHash: selected.policyContextHash}, nil
+	}
+	return buildCompiledGatePlan(entries, selected, projectContextID, projectContextPinned)
+}
+
+func validateProjectContextBinding(projectContextID string, selected runPlanAuthorityRecord, originalContextID string) (string, bool, error) {
+	projectContextPinned := strings.TrimSpace(selected.projectContextID) != ""
+	if !projectContextPinned {
+		return "", false, fmt.Errorf("trusted run plan %q missing validated project context identity digest", selected.planID)
+	}
+	if projectContextID == "" {
+		return "", false, fmt.Errorf("trusted run plan %q requires validated project context identity digest", selected.planID)
+	}
+	if projectContextID != strings.TrimSpace(selected.projectContextID) {
+		return "", false, fmt.Errorf("trusted run plan %q project context digest drift: planned %q current %q", selected.planID, strings.TrimSpace(selected.projectContextID), projectContextID)
+	}
+	return strings.TrimSpace(selected.projectContextID), projectContextPinned, nil
+}
+
+func buildCompiledGatePlan(entries []runPlannedGateEntry, selected runPlanAuthorityRecord, projectContextID string, projectContextPinned bool) (compiledRunGatePlan, error) {
 	sortRunPlanEntries(entries)
 	byGate, err := buildRunPlanEntryIndex(entries)
 	if err != nil {
 		return compiledRunGatePlan{}, err
 	}
 	for i := range entries {
+		entries[i].PlanID = selected.planID
+		entries[i].RunPlanRef = selected.runPlanRef
 		entries[i].ProjectContextID = projectContextID
+		entries[i].WorkflowDefinitionHash = selected.workflowDefinitionRef
+		entries[i].ProcessDefinitionHash = selected.processDefinitionRef
+		entries[i].PolicyContextHash = selected.policyContextHash
 		key := runPlanGateKey(entries[i].GateID, entries[i].GateKind, entries[i].GateVersion, entries[i].PlanCheckpointCode, entries[i].PlanOrderIndex)
 		entry := byGate[key]
+		entry.PlanID = selected.planID
+		entry.RunPlanRef = selected.runPlanRef
 		entry.ProjectContextID = projectContextID
+		entry.WorkflowDefinitionHash = selected.workflowDefinitionRef
+		entry.ProcessDefinitionHash = selected.processDefinitionRef
+		entry.PolicyContextHash = selected.policyContextHash
 		byGate[key] = entry
 	}
-	return compiledRunGatePlan{entries: entries, byGate: byGate, projectContextID: projectContextID}, nil
+	return compiledRunGatePlan{entries: entries, byGate: byGate, projectContextID: projectContextID, projectContextPinned: projectContextPinned, planID: selected.planID, runPlanRef: selected.runPlanRef, workflowDefinitionHash: selected.workflowDefinitionRef, processDefinitionHash: selected.processDefinitionRef, policyContextHash: selected.policyContextHash}, nil
 }
 
-func runScopedPlanRecords(records []artifacts.ArtifactRecord, runID string) ([]artifacts.ArtifactRecord, bool) {
-	out := make([]artifacts.ArtifactRecord, 0, len(records))
-	foundRun := false
-	for _, record := range records {
-		if strings.TrimSpace(record.RunID) != runID {
-			continue
-		}
-		foundRun = true
-		if !isTrustedGatePlanSourceRecord(record) {
-			continue
-		}
-		out = append(out, record)
+func runPlanAuthorityRecordFromStored(rec artifacts.RunPlanAuthorityRecord) runPlanAuthorityRecord {
+	return runPlanAuthorityRecord{
+		planID:                strings.TrimSpace(rec.PlanID),
+		supersedesPlanID:      strings.TrimSpace(rec.SupersedesPlanID),
+		runID:                 strings.TrimSpace(rec.RunID),
+		workflowDefinitionRef: strings.TrimSpace(rec.WorkflowDefinitionHash),
+		processDefinitionRef:  strings.TrimSpace(rec.ProcessDefinitionHash),
+		policyContextHash:     strings.TrimSpace(rec.PolicyContextHash),
+		projectContextID:      strings.TrimSpace(rec.ProjectContextIdentityDigest),
+		runPlanRef:            strings.TrimSpace(rec.RunPlanDigest),
+		createdAtUnixNano:     rec.RecordedAt.UTC().UnixNano(),
 	}
-	return out, foundRun
 }
 
-func isTrustedGatePlanSourceRecord(record artifacts.ArtifactRecord) bool {
-	if !isTrustedGatePlanSourceRole(record.CreatedByRole) {
-		return false
-	}
-	return strings.EqualFold(strings.TrimSpace(record.Reference.ContentType), "application/json")
-}
-
-func ensureRunExistsForGatePlan(statuses map[string]string, runID string, foundRun bool) error {
-	if foundRun {
+func runPlannedEntriesFromStored(records []artifacts.RunPlanGateEntryRecord) []runPlannedGateEntry {
+	if len(records) == 0 {
 		return nil
 	}
-	status, ok := statuses[runID]
-	if !ok || strings.TrimSpace(status) == "" {
-		return fmt.Errorf("run %q not found", runID)
-	}
-	return nil
-}
-
-func (s *Service) collectRunPlanEntries(records []artifacts.ArtifactRecord) ([]runPlannedGateEntry, error) {
-	entries := make([]runPlannedGateEntry, 0, len(records))
+	out := make([]runPlannedGateEntry, 0, len(records))
 	for _, record := range records {
-		definitions, err := s.runPlanEntriesFromRecord(record)
-		if err != nil {
-			return nil, err
+		entry := runPlannedGateEntry{
+			GateID:               strings.TrimSpace(record.GateID),
+			GateKind:             strings.TrimSpace(record.GateKind),
+			GateVersion:          strings.TrimSpace(record.GateVersion),
+			StageID:              strings.TrimSpace(record.StageID),
+			StepID:               strings.TrimSpace(record.StepID),
+			RoleInstanceID:       strings.TrimSpace(record.RoleInstanceID),
+			PlanCheckpointCode:   strings.TrimSpace(record.PlanCheckpointCode),
+			PlanOrderIndex:       record.PlanOrderIndex,
+			MaxAttempts:          record.MaxAttempts,
+			ExpectedInputDigests: append([]string{}, record.ExpectedInputDigests...),
 		}
-		entries = append(entries, definitions...)
-	}
-	return entries, nil
-}
-
-func (s *Service) runPlanEntriesFromRecord(record artifacts.ArtifactRecord) ([]runPlannedGateEntry, error) {
-	obj, ok, err := s.readWorkflowOrProcessDefinition(record.Reference.Digest)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, nil
-	}
-	return extractGateDefinitionsForRunPlan(obj)
-}
-
-func sortRunPlanEntries(entries []runPlannedGateEntry) {
-	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].PlanOrderIndex != entries[j].PlanOrderIndex {
-			return entries[i].PlanOrderIndex < entries[j].PlanOrderIndex
-		}
-		if entries[i].PlanCheckpointCode != entries[j].PlanCheckpointCode {
-			return entries[i].PlanCheckpointCode < entries[j].PlanCheckpointCode
-		}
-		if entries[i].GateID != entries[j].GateID {
-			return entries[i].GateID < entries[j].GateID
-		}
-		if entries[i].GateKind != entries[j].GateKind {
-			return entries[i].GateKind < entries[j].GateKind
-		}
-		return entries[i].GateVersion < entries[j].GateVersion
-	})
-}
-
-func buildRunPlanEntryIndex(entries []runPlannedGateEntry) (map[string]runPlannedGateEntry, error) {
-	byGate := make(map[string]runPlannedGateEntry, len(entries))
-	for _, entry := range entries {
-		key := runPlanGateKey(entry.GateID, entry.GateKind, entry.GateVersion, entry.PlanCheckpointCode, entry.PlanOrderIndex)
-		if existing, ok := byGate[key]; ok {
-			if !sameRunPlannedGateEntry(existing, entry) {
-				return nil, fmt.Errorf("ambiguous gate plan entry for gate %q at %s[%d]", entry.GateID, entry.PlanCheckpointCode, entry.PlanOrderIndex)
+		if len(record.DependencyCacheHandoffs) > 0 {
+			entry.DependencyCacheHandoffs = make([]runPlannedDependencyCacheHandoff, 0, len(record.DependencyCacheHandoffs))
+			for _, handoff := range record.DependencyCacheHandoffs {
+				entry.DependencyCacheHandoffs = append(entry.DependencyCacheHandoffs, runPlannedDependencyCacheHandoff{
+					RequestDigest: strings.TrimSpace(handoff.RequestDigest),
+					ConsumerRole:  strings.TrimSpace(handoff.ConsumerRole),
+					Required:      handoff.Required,
+				})
 			}
-			continue
 		}
-		byGate[key] = entry
+		out = append(out, entry)
 	}
-	return byGate, nil
+	return out
 }
 
-func isTrustedGatePlanSourceRole(role string) bool {
-	switch strings.TrimSpace(role) {
-	case "broker", "brokerapi":
-		return true
-	default:
-		return false
+func (p compiledRunGatePlan) withProjectContextID(projectContextID string) compiledRunGatePlan {
+	if p.projectContextPinned {
+		return p
 	}
-}
-
-func (s *Service) readWorkflowOrProcessDefinition(digest string) (map[string]any, bool, error) {
-	r, err := s.Get(digest)
-	if err != nil {
-		return nil, false, fmt.Errorf("read trusted plan artifact %q: %w", digest, err)
+	trimmed := strings.TrimSpace(projectContextID)
+	if strings.TrimSpace(p.projectContextID) == trimmed {
+		return p
 	}
-	defer r.Close()
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return nil, false, fmt.Errorf("read trusted plan artifact body %q: %w", digest, err)
-	}
-	obj := map[string]any{}
-	if err := json.Unmarshal(b, &obj); err != nil {
-		return nil, false, nil
-	}
-	schemaID, _ := obj["schema_id"].(string)
-	switch strings.TrimSpace(schemaID) {
-	case "runecode.protocol.v0.WorkflowDefinition", "runecode.protocol.v0.ProcessDefinition":
-		return obj, true, nil
-	default:
-		return nil, false, nil
-	}
-}
-
-func (p compiledRunGatePlan) hasEntries() bool {
-	return len(p.byGate) > 0
-}
-
-func (p compiledRunGatePlan) entryFor(gateID, gateKind, gateVersion, checkpointCode string, orderIndex int) (runPlannedGateEntry, bool) {
-	entry, ok := p.byGate[runPlanGateKey(gateID, gateKind, gateVersion, checkpointCode, orderIndex)]
-	return entry, ok
-}
-
-func runPlanGateKey(gateID, gateKind, gateVersion, checkpointCode string, orderIndex int) string {
-	return strings.TrimSpace(gateID) + "|" + strings.TrimSpace(gateKind) + "|" + strings.TrimSpace(gateVersion) + "|" + strings.TrimSpace(checkpointCode) + "|" + fmt.Sprintf("%d", orderIndex)
-}
-
-func sameRunPlannedGateEntry(a, b runPlannedGateEntry) bool {
-	if a.GateID != b.GateID || a.GateKind != b.GateKind || a.GateVersion != b.GateVersion || a.PlanCheckpointCode != b.PlanCheckpointCode || a.PlanOrderIndex != b.PlanOrderIndex || a.MaxAttempts != b.MaxAttempts {
-		return false
-	}
-	if len(a.ExpectedInputDigests) != len(b.ExpectedInputDigests) {
-		return false
-	}
-	for i := range a.ExpectedInputDigests {
-		if a.ExpectedInputDigests[i] != b.ExpectedInputDigests[i] {
-			return false
+	out := p
+	out.projectContextID = trimmed
+	if len(p.entries) > 0 {
+		out.entries = append([]runPlannedGateEntry(nil), p.entries...)
+		for i := range out.entries {
+			out.entries[i].ProjectContextID = trimmed
 		}
 	}
-	return true
-}
-
-func validatePlannedInputDigestHooks(expected []string, reported []string) error {
-	if len(expected) == 0 {
-		return nil
-	}
-	reportedSet := map[string]struct{}{}
-	for _, digest := range reported {
-		reportedSet[strings.TrimSpace(digest)] = struct{}{}
-	}
-	for _, digest := range expected {
-		if _, ok := reportedSet[digest]; !ok {
-			return fmt.Errorf("normalized_input_digests missing planned digest %q", digest)
+	if len(p.byGate) > 0 {
+		out.byGate = make(map[string]runPlannedGateEntry, len(p.byGate))
+		for key, entry := range p.byGate {
+			entry.ProjectContextID = trimmed
+			out.byGate[key] = entry
 		}
 	}
-	return nil
+	return out
 }

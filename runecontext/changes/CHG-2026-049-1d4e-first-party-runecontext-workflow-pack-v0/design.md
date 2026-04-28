@@ -5,6 +5,10 @@ Deliver first-party productive workflows on top of the same typed workflow subst
 
 ## Key Decisions
 - First-party workflows must use the shared workflow definition and binding substrate rather than a hard-coded side path.
+- First-party workflows must adopt the refined CHG-050 authority split rather than a built-in-only shortcut:
+  - `WorkflowDefinition` for workflow-facing selection and packaging
+  - `ProcessDefinition` for executable graph structure
+  - broker-compiled immutable `RunPlan` for runtime execution authority
 - Drafting workflows operate on canonical `runecontext/` project state and should emit reviewable outputs rather than ambient local edits with no provenance.
 - Approved-change implementation workflows must bind to the same approval, audit, git, and verification semantics as the rest of the control plane.
 - The same workflow pack must be triggerable from interactive session turns and autonomous background execution.
@@ -17,8 +21,16 @@ Deliver first-party productive workflows on top of the same typed workflow subst
 - First-party workflows must preserve the shared distinction between `waiting_operator_input` and `waiting_approval` rather than collapsing ordinary operator guidance into formal approval state.
 - First-party workflows must preserve the shared split between `approval_profile` and `autonomy_posture`; approval frequency and operator-question frequency are separate controls.
 - Pending operator input or formal approval must block only the exact dependent scope and direct downstream work that cannot proceed safely, while unrelated eligible work may continue when the shared plan, policy, coordination state, and project-substrate posture allow it.
+- Built-in workflow definitions/process graphs should encode dependency-aware continuation and scoped blocking, but the first built-in slice does not by itself promise parallel execution of unrelated eligible scopes.
 - First-party implementation workflows that require dependency material must reuse the shared broker-owned dependency-fetch and offline-cache contracts from `CHG-2026-024-acde-deps-fetch-offline-cache`; they must not rely on ordinary workspace package-manager internet access or workflow-local cache authority.
 - First-party implementation workflows should treat dependency scope enablement or expansion as the approval-bearing event and should not turn ordinary dependency cache misses into workflow-local approval prompts.
+
+## Shared Workflow Substrate Alignment
+
+- First-party workflows should be authored as reviewed workflow-facing definitions that bind to reviewed executable process graphs; they must not define a built-in-only execution format.
+- First-party executable structure should remain compatible with the `v0` DAG-only posture of `CHG-2026-050-e3f8-workflow-definition-contract-binding-v0`.
+- Project-context-sensitive built-in workflow execution should bind the validated project-substrate digest in the compiled `RunPlan`, not only in high-level trigger or summary surfaces.
+- Built-in workflow execution should rely on broker-owned compilation and signed selection/compilation evidence rather than ambient repository discovery or built-in-only runtime shortcuts.
 
 ## First-Party Workflow Families
 
@@ -45,7 +57,7 @@ Where `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecy
 - built-in workflows must not attempt workflow-local bootstrap repair, substrate initialization, or upgrade as an implicit precondition for execution
 
 ## Main Workstreams
-- Drafting Workflow Definitions.
+- Drafting Workflow Definitions + Process Graphs.
 - Approved-Change Implementation Workflow.
 - Session and Autonomous Trigger Integration.
 - Project-Substrate Snapshot Binding and Blocked-State Gating.

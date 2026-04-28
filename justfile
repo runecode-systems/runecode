@@ -34,6 +34,18 @@ ci:
   cd runner && npm test
   cd runner && npm run boundary-check
 
+ci-portability:
+  go run ./tools/gofmtcheck
+  go run {{golangci_lint}} run
+  go vet ./...
+  go run ./tools/checksourcequality
+  go test ./...
+  go build ./cmd/...
+  cd runner && npm ci
+  cd runner && npm run lint
+  cd runner && npm test
+  cd runner && npm run boundary-check
+
 refresh-release-vendor-hash:
   go run ./tools/releasebuilder refresh-vendor-hash
 

@@ -10,6 +10,7 @@ At the same time, naive parallelization in one shared workspace risks collisions
 - One broker-owned implementation-track model with stable track identity, dependency edges, and explicit blocked/unblocked readiness.
 - Track decomposition that can use explicit track declarations from change/spec/implementation docs when they exist and can infer candidate tracks when they do not.
 - A broker-owned proposed execution-plan artifact so inferred decomposition remains auditable, reviewable, and operator-visible rather than a hidden runtime heuristic.
+- Explicit alignment with CHG-050 so the proposed execution-plan artifact remains planning/review state, while actual runner-consumed runtime authority still flows through broker-compiled immutable `RunPlan`.
 - Isolated git-worktree execution for low-coupling eligible tracks when confidence, dependency state, policy, and coordination posture allow it.
 - Dependency-aware partial blocking so pending operator input or approval freezes only the directly affected tracks and downstream dependent tracks, while unrelated eligible tracks may continue.
 - Canonical linkage from tracks and worktree-backed execution to sessions, runs, approvals, artifacts, audit records, and validated project-context bindings.
@@ -42,3 +43,7 @@ Planning it now avoids a later split between:
 Creates one reviewed future path for multi-track implementation work: explicit or inferred track grouping, dependency-aware partial blocking, isolated git-worktree execution where appropriate, and broker-owned coordination truth across sessions, runs, approvals, artifacts, audit, and project context.
 
 It also keeps dependency behavior aligned with `CHG-2026-024-acde-deps-fetch-offline-cache`: worktrees may receive derived offline materializations for execution, but canonical dependency identity, fetch authority, approvals, and cache ownership stay broker-owned rather than becoming worktree-local state.
+
+This change remains explicitly additive over CHG-050:
+- CHG-050 encodes executable graph structure, scoped blocking, and eligibility without promising parallel execution behavior in `v0`
+- this change is where actual later track decomposition and eligible parallel/worktree execution behavior become explicit and auditable

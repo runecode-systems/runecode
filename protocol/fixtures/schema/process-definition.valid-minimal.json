@@ -1,6 +1,6 @@
 {
   "schema_id": "runecode.protocol.v0.ProcessDefinition",
-  "schema_version": "0.2.0",
+  "schema_version": "0.4.0",
   "process_id": "process_default",
   "executor_bindings": [
     {
@@ -16,9 +16,11 @@
   "gate_definitions": [
     {
       "schema_id": "runecode.protocol.v0.GateDefinition",
-      "schema_version": "0.1.0",
+      "schema_version": "0.2.0",
       "checkpoint_code": "step_validation_started",
       "order_index": 0,
+      "stage_id": "validation",
+      "step_id": "validation_build",
       "role_instance_id": "workspace_editor_1",
       "executor_binding_id": "binding_workspace_runner",
       "gate": {
@@ -48,5 +50,6 @@
         }
       }
     }
-  ]
+  ],
+  "dependency_edges": []
 }

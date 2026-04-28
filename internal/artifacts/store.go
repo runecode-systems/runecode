@@ -92,6 +92,9 @@ func (s *Store) reconcileLoadedState(changed bool) (bool, error) {
 		return false, err
 	}
 	changed = changed || runnerChanged
+
+	runPlanChanged := reconcileRunPlanIndexesLocked(&s.state)
+	changed = changed || runPlanChanged
 	return changed, nil
 }
 

@@ -1,10 +1,10 @@
 schema_version: 1
 id: CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
 title: Workflow Definition Contract + Binding v0
-status: planned
+status: implemented
 type: feature
 size: large
-verification_status: pending
+verification_status: passed
 context_bundles:
   - product-planning
 related_specs: []
@@ -30,5 +30,5 @@ superseded_by: []
 created_at: "2026-04-18"
 closed_at: null
 promotion_assessment:
-  status: pending
+  status: completed
   suggested_targets: []

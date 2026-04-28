@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0
 title: Local Control-Plane Bootstrap + Persistent Session Lifecycle v0
-status: planned
+status: implemented
 type: feature
 size: large
 verification_status: pending

@@ -15,15 +15,22 @@ export type ScheduledWorkItem = {
 
 export type SchedulerState = {
   pending_approval_waits: DurableApprovalWait[];
+  completed_entry_ids?: string[];
 };
 
 export class PlanScheduler {
   listPlannedWork(plan: RunnerPlan, state?: SchedulerState): ScheduledWorkItem[] {
     const blockedScopes = (state?.pending_approval_waits ?? []).map((wait) => wait.blocked_scope);
+    const completedEntryIDs = new Set(state?.completed_entry_ids ?? []);
     return [...plan.entries]
       .sort((left, right) => (left.order_index ?? Number.MAX_SAFE_INTEGER) - (right.order_index ?? Number.MAX_SAFE_INTEGER))
+      .filter((entry) => this.isDependencyEligible(entry, completedEntryIDs))
       .map((entry, index) => ({ index, entry }))
       .filter((item) => !this.matchesAnyBlockedScope(item.entry, plan.run_id, blockedScopes));
+  }
+
+  private isDependencyEligible(entry: RunnerPlanEntry, completedEntryIDs: Set<string>): boolean {
+    return entry.depends_on_entry_ids.every((entryID) => completedEntryIDs.has(entryID));
   }
 
   private matchesAnyBlockedScope(entry: RunnerPlanEntry, runId: string, blockedScopes: DurableApprovalWait["blocked_scope"][]): boolean {
@@ -58,7 +65,7 @@ export class PlanScheduler {
     switch (actionKind) {
       case "action_gate_override":
       case "stage_summary_sign_off":
-        return entry.entry_kind === "gate_definition";
+        return entry.entry_kind === "gate";
       default:
         throw new Error(`unsupported blocked action kind ${actionKind}; expected one of ${DURABLE_BLOCKED_ACTION_KINDS.join(", ")}`);
     }

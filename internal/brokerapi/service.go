@@ -48,6 +48,7 @@ type Service struct {
 	productInstanceID          string
 	lifecycleGeneration        string
 	dependencyFetchService     *dependencyFetchService
+	runGatePlanCache           *runGatePlanCache
 }
 
 func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
@@ -120,6 +121,7 @@ func newConfiguredService(store *artifacts.Store, ledger *auditd.Ledger, ledgerR
 		apiInflight:               newInFlightGate(cfg.Limits),
 		now:                       time.Now,
 		versionInfo:               defaultBrokerVersionInfo(),
+		runGatePlanCache:          newRunGatePlanCache(),
 	}
 	runtime.auditFn = svc.AppendTrustedAuditEvent
 	svc.dependencyFetchService = newDependencyFetchService(svc, cfg.DependencyFetch.MaxParallelFetches)

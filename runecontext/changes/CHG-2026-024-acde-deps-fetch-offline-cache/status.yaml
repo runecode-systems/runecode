@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-024-acde-deps-fetch-offline-cache
 title: Deps Fetch + Offline Cache
-status: planned
+status: implemented
 type: feature
 size: medium
 verification_status: pending
