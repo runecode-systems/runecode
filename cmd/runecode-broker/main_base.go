@@ -74,7 +74,11 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 	restoreMode := setLocalAPIClientMode(resolvedMode)
 	defer restoreMode()
 	var service *brokerapi.Service
-	if handler.requiresStore || resolvedMode == brokerCommandAPIModeInProcess {
+	needService := handler.requiresStore || resolvedMode == brokerCommandAPIModeInProcess
+	if commandArgs[0] == "put-artifact" {
+		needService = globalOpts.stateRootOverridden || globalOpts.auditLedgerOverridden
+	}
+	if needService {
 		service, err = brokerServiceFactory(globalOpts.roots)
 		if err != nil {
 			return fmt.Errorf("runecode-broker failed to initialize store: %w", err)
@@ -108,7 +112,7 @@ func commandHandlers() map[string]brokerCommandSpec {
 		"list-artifacts":            {handler: handleListArtifacts, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"head-artifact":             {handler: handleHeadArtifact, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"get-artifact":              {handler: handleGetArtifact, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"put-artifact":              {handler: handlePutArtifact, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
+		"put-artifact":              {handler: handlePutArtifact, requiresStore: false, apiMode: brokerCommandAPIModeInProcess},
 		"check-flow":                {handler: handleCheckFlow, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
 		"promote-excerpt":           {handler: handlePromoteExcerpt, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"revoke-approved-excerpt":   {handler: handleRevokeApprovedExcerpt, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
@@ -238,7 +242,7 @@ Commands:
   session-list [--limit N]
   session-get --session-id id
   session-send-message --session-id id --content text [--role user|assistant|system|tool] [--idempotency-key key]
-  session-execution-trigger --session-id id [--trigger-source interactive_user|autonomous_background|resume_follow_up] [--requested-operation start|continue] [--user-message text] [--idempotency-key key]
+  session-execution-trigger --session-id id [--turn-id id] [--trigger-source interactive_user|autonomous_background|resume_follow_up] [--requested-operation start|continue] [--workflow-family runecontext] [--workflow-operation change_draft|spec_draft|draft_promote_apply|approved_change_implementation] [--user-message text] [--idempotency-key key]
   session-watch [--stream-id id] [--session-id id] [--workspace-id id] [--status active|completed|archived] [--last-activity-kind kind] [--follow] [--include-snapshot]
   approval-list [--run-id id] [--status pending|approved|denied|expired|cancelled|superseded|consumed] [--limit N]
   approval-get --approval-id sha256:...
@@ -247,7 +251,7 @@ Commands:
   list-artifacts
   head-artifact --digest sha256:...
   get-artifact --digest sha256:... --producer role --consumer role [--manifest-opt-in] [--data-class class] --out path
-  put-artifact --file path --content-type type --data-class class --provenance-hash sha256:...
+  put-artifact --file path --content-type type --data-class class --provenance-hash sha256:... [--runtime-dir dir] [--socket-name broker.sock]
   check-flow --producer role --consumer role --data-class class --digest sha256:... [--egress] [--manifest-opt-in]
   promote-excerpt --unapproved-digest sha256:... --approver user --approval-request approval-request.json --approval-envelope approval.json --repo-path path --commit hash --extractor-version v1 --full-content-visible
   revoke-approved-excerpt --digest sha256:... --actor user

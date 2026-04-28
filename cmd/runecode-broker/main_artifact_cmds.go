@@ -183,8 +183,10 @@ func handlePutArtifact(args []string, service *brokerapi.Service, stdout io.Writ
 	role := fs.String("role", "workspace", "producer role")
 	runID := fs.String("run-id", "", "run id")
 	stepID := fs.String("step-id", "", "step id")
+	runtimeDir := fs.String("runtime-dir", "", "optional local broker runtime directory override")
+	socketName := fs.String("socket-name", "", "optional local broker socket filename override")
 	if err := fs.Parse(args); err != nil {
-		return &usageError{message: "put-artifact usage: runecode-broker put-artifact --file path --content-type text/plain --data-class spec_text --provenance-hash sha256:..."}
+		return &usageError{message: "put-artifact usage: runecode-broker put-artifact --file path --content-type text/plain --data-class spec_text --provenance-hash sha256:... [--runtime-dir dir] [--socket-name broker.sock]"}
 	}
 	if *filePath == "" || *provenance == "" {
 		return &usageError{message: "put-artifact requires --file and --provenance-hash"}
@@ -193,12 +195,61 @@ func handlePutArtifact(args []string, service *brokerapi.Service, stdout io.Writ
 	if err != nil {
 		return err
 	}
+	api, err := preferredArtifactPutAPI(service, *runtimeDir, *socketName)
+	if err != nil {
+		return err
+	}
 	request := brokerapi.DefaultArtifactPutRequest(defaultRequestID(), payload, *contentType, *dataClass, *provenance, *role, *runID, *stepID)
-	resp, errResp := service.HandleArtifactPut(context.Background(), request, brokerapi.RequestContext{})
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.ArtifactPut(ctx, request)
 	if errResp != nil {
-		return fmt.Errorf("%s: %s", errResp.Error.Code, errResp.Error.Message)
+		return localAPIError(errResp)
 	}
 	return writeJSON(stdout, resp.Artifact)
+}
+
+func preferredArtifactPutAPI(service *brokerapi.Service, runtimeDir, socketName string) (brokerLocalAPI, error) {
+	if service != nil {
+		if runtimeDir != "" || socketName != "" {
+			return nil, fmt.Errorf("put-artifact cannot combine explicit live IPC targeting with --state-root or --audit-ledger-root")
+		}
+		return newInProcessLocalAPIClient(service), nil
+	}
+	if runtimeDir != "" || socketName != "" {
+		cfg, err := explicitArtifactPutIPCConfig(runtimeDir, socketName)
+		if err != nil {
+			return nil, err
+		}
+		return newExplicitLiveIPCLocalAPIClient(context.Background(), cfg)
+	}
+	if api, err := newLiveIPCLocalAPIClient(context.Background()); err == nil {
+		return api, nil
+	}
+	initialized, err := brokerServiceFactory(defaultBrokerServiceRoots())
+	if err != nil {
+		return nil, fmt.Errorf("runecode-broker failed to initialize store: %w", err)
+	}
+	return newInProcessLocalAPIClient(initialized), nil
+}
+
+func explicitArtifactPutIPCConfig(runtimeDir, socketName string) (brokerapi.LocalIPCConfig, error) {
+	defaults, err := brokerapi.DefaultLocalIPCConfig()
+	if err != nil {
+		return brokerapi.LocalIPCConfig{}, err
+	}
+	cfg := brokerapi.LocalIPCConfig{
+		RuntimeDir:     runtimeDir,
+		SocketName:     socketName,
+		RepositoryRoot: defaults.RepositoryRoot,
+	}
+	if cfg.RuntimeDir == "" {
+		cfg.RuntimeDir = defaults.RuntimeDir
+	}
+	if cfg.SocketName == "" {
+		cfg.SocketName = defaults.SocketName
+	}
+	return cfg, nil
 }
 
 func handleCheckFlow(args []string, service *brokerapi.Service, stdout io.Writer) error {

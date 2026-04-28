@@ -24,6 +24,28 @@ func newLiveIPCLocalAPIClient(ctx context.Context) (brokerLocalAPI, error) {
 	return newLiveIPCLocalAPIClientWithDeps(ctx, defaultLiveIPCClientDeps())
 }
 
+func newExplicitLiveIPCLocalAPIClient(ctx context.Context, cfg brokerapi.LocalIPCConfig) (brokerLocalAPI, error) {
+	resolved := cfg
+	if resolved.RuntimeDir == "" {
+		return nil, fmt.Errorf("runtime directory is required")
+	}
+	if resolved.SocketName == "" {
+		resolved.SocketName = "broker.sock"
+	}
+	client, err := brokerapi.DialLocalRPC(normalizedLocalRPCContext(ctx), resolved)
+	if err != nil {
+		return nil, fmt.Errorf("explicit local broker target is not reachable")
+	}
+	return &localAPIClient{
+		invoke: func(invokeCtx context.Context, operation string, request any, out any) *brokerapi.ErrorResponse {
+			return client.Invoke(normalizedLocalRPCContext(invokeCtx), operation, request, out)
+		},
+		invokeSecret: func(invokeCtx context.Context, operation string, request any, secret []byte, out any) *brokerapi.ErrorResponse {
+			return client.InvokeSecretIngress(normalizedLocalRPCContext(invokeCtx), operation, request, secret, out)
+		},
+	}, nil
+}
+
 func newLiveIPCLocalAPIClientWithDeps(ctx context.Context, deps liveIPCClientDeps) (brokerLocalAPI, error) {
 	resolveScope := deps.resolveScope
 	if resolveScope == nil {

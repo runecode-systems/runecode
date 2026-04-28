@@ -323,29 +323,37 @@ func TestLiveIPCCommandFailsDeterministicallyWhenBrokerUnavailable(t *testing.T)
 
 func TestLiveIPCCommandClassificationIncludesSessionCommands(t *testing.T) {
 	handlers := commandHandlers()
-	for _, command := range []string{"session-list", "session-get", "session-execution-trigger", "provider-credential-lease-issue", "dependency-cache-ensure", "dependency-fetch-registry", "dependency-cache-handoff"} {
-		spec, ok := handlers[command]
-		if !ok {
-			t.Fatalf("missing command handler for %q", command)
-		}
-		if spec.apiMode != brokerCommandAPIModeLiveIPC {
-			t.Fatalf("%s apiMode = %q, want %q", command, spec.apiMode, brokerCommandAPIModeLiveIPC)
-		}
-		if spec.requiresStore {
-			t.Fatalf("%s requiresStore = true, want false for live IPC", command)
-		}
-	}
+	assertCommandClassifications(t, handlers, []commandClassificationExpectation{
+		{command: "session-list", mode: brokerCommandAPIModeLiveIPC, requiresStore: false},
+		{command: "session-get", mode: brokerCommandAPIModeLiveIPC, requiresStore: false},
+		{command: "session-execution-trigger", mode: brokerCommandAPIModeLiveIPC, requiresStore: false},
+		{command: "provider-credential-lease-issue", mode: brokerCommandAPIModeLiveIPC, requiresStore: false},
+		{command: "dependency-cache-ensure", mode: brokerCommandAPIModeLiveIPC, requiresStore: false},
+		{command: "dependency-fetch-registry", mode: brokerCommandAPIModeLiveIPC, requiresStore: false},
+		{command: "dependency-cache-handoff", mode: brokerCommandAPIModeLiveIPC, requiresStore: false},
+		{command: "put-artifact", mode: brokerCommandAPIModeInProcess, requiresStore: false},
+		{command: "seed-dev-manual-scenario", mode: brokerCommandAPIModeInProcess, requiresStore: true},
+	})
+}
 
-	for _, command := range []string{"put-artifact", "seed-dev-manual-scenario"} {
-		spec, ok := handlers[command]
+type commandClassificationExpectation struct {
+	command       string
+	mode          brokerCommandAPIMode
+	requiresStore bool
+}
+
+func assertCommandClassifications(t *testing.T, handlers map[string]brokerCommandSpec, expectations []commandClassificationExpectation) {
+	t.Helper()
+	for _, expected := range expectations {
+		spec, ok := handlers[expected.command]
 		if !ok {
-			t.Fatalf("missing command handler for %q", command)
+			t.Fatalf("missing command handler for %q", expected.command)
 		}
-		if spec.apiMode != brokerCommandAPIModeInProcess {
-			t.Fatalf("%s apiMode = %q, want %q", command, spec.apiMode, brokerCommandAPIModeInProcess)
+		if spec.apiMode != expected.mode {
+			t.Fatalf("%s apiMode = %q, want %q", expected.command, spec.apiMode, expected.mode)
 		}
-		if !spec.requiresStore {
-			t.Fatalf("%s requiresStore = false, want true for local/admin command", command)
+		if spec.requiresStore != expected.requiresStore {
+			t.Fatalf("%s requiresStore = %t, want %t", expected.command, spec.requiresStore, expected.requiresStore)
 		}
 	}
 }
