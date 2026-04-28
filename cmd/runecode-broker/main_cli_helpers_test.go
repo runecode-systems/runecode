@@ -43,8 +43,9 @@ func writeTempFile(t *testing.T, name, contents string) string {
 
 func putArtifactViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, path, dataClass, provenance string) artifacts.ArtifactReference {
 	t.Helper()
+	root := setBrokerServiceForTest(t)
 	stdout.Reset()
-	err := run([]string{"put-artifact", "--file", path, "--content-type", "text/plain", "--data-class", dataClass, "--provenance-hash", provenance}, stdout, stderr)
+	err := run([]string{"--state-root", root, "put-artifact", "--file", path, "--content-type", "text/plain", "--data-class", dataClass, "--provenance-hash", provenance}, stdout, stderr)
 	if err != nil {
 		t.Fatalf("put-artifact returned error: %v", err)
 	}
@@ -55,10 +56,14 @@ func putArtifactViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, path, dataCla
 	return ref
 }
 
-func listArtifactsViaCLI(t *testing.T, stdout, stderr *bytes.Buffer) []artifacts.ArtifactReference {
+func listArtifactsViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, stateRoots ...string) []artifacts.ArtifactReference {
 	t.Helper()
 	stdout.Reset()
-	err := run([]string{"list-artifacts"}, stdout, stderr)
+	args := []string{"list-artifacts"}
+	if len(stateRoots) > 0 && stateRoots[0] != "" {
+		args = []string{"--state-root", stateRoots[0], "list-artifacts"}
+	}
+	err := run(args, stdout, stderr)
 	if err != nil {
 		t.Fatalf("list-artifacts returned error: %v", err)
 	}
@@ -69,10 +74,14 @@ func listArtifactsViaCLI(t *testing.T, stdout, stderr *bytes.Buffer) []artifacts
 	return list
 }
 
-func headArtifactViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, digest string) artifacts.ArtifactReference {
+func headArtifactViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, digest string, stateRoots ...string) artifacts.ArtifactReference {
 	t.Helper()
 	stdout.Reset()
-	err := run([]string{"head-artifact", "--digest", digest}, stdout, stderr)
+	args := []string{"head-artifact", "--digest", digest}
+	if len(stateRoots) > 0 && stateRoots[0] != "" {
+		args = []string{"--state-root", stateRoots[0], "head-artifact", "--digest", digest}
+	}
+	err := run(args, stdout, stderr)
 	if err != nil {
 		t.Fatalf("head-artifact returned error: %v", err)
 	}
@@ -83,10 +92,13 @@ func headArtifactViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, digest strin
 	return ref
 }
 
-func getArtifactViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, digest, producer, consumer, dataClass string, manifestOptIn bool, out string) {
+func getArtifactViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, digest, producer, consumer, dataClass string, manifestOptIn bool, out string, stateRoots ...string) {
 	t.Helper()
 	stdout.Reset()
 	args := []string{"get-artifact", "--digest", digest, "--producer", producer, "--consumer", consumer, "--out", out}
+	if len(stateRoots) > 0 && stateRoots[0] != "" {
+		args = []string{"--state-root", stateRoots[0], "get-artifact", "--digest", digest, "--producer", producer, "--consumer", consumer, "--out", out}
+	}
 	if dataClass != "" {
 		args = append(args, "--data-class", dataClass)
 	}

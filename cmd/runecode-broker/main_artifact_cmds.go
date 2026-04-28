@@ -223,14 +223,7 @@ func preferredArtifactPutAPI(service *brokerapi.Service, runtimeDir, socketName 
 		}
 		return newExplicitLiveIPCLocalAPIClient(context.Background(), cfg)
 	}
-	if api, err := newLiveIPCLocalAPIClient(context.Background()); err == nil {
-		return api, nil
-	}
-	initialized, err := brokerServiceFactory(defaultBrokerServiceRoots())
-	if err != nil {
-		return nil, fmt.Errorf("runecode-broker failed to initialize store: %w", err)
-	}
-	return newInProcessLocalAPIClient(initialized), nil
+	return nil, fmt.Errorf("put-artifact requires explicit --runtime-dir or --socket-name when broker is not running in-process")
 }
 
 func explicitArtifactPutIPCConfig(runtimeDir, socketName string) (brokerapi.LocalIPCConfig, error) {

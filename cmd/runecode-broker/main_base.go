@@ -67,18 +67,28 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 		_ = writeHelp(stderr)
 		return &usageError{message: fmt.Sprintf("unknown command %q", commandArgs[0])}
 	}
+	return executeCommand(handler, globalOpts, commandArgs, stdout, stderr)
+}
+
+func executeCommand(handler brokerCommandSpec, globalOpts brokerGlobalOptions, commandArgs []string, stdout io.Writer, stderr io.Writer) error {
 	resolvedMode := resolveBrokerCommandAPIMode(commandArgs[0], handler.apiMode)
-	if resolvedMode == brokerCommandAPIModeLiveIPC && (globalOpts.stateRootOverridden || globalOpts.auditLedgerOverridden) {
-		return &usageError{message: fmt.Sprintf("%s uses repo-scoped live broker IPC; --state-root and --audit-ledger-root are only supported for local in-process commands", commandArgs[0])}
-	}
-	restoreMode := setLocalAPIClientMode(resolvedMode)
-	defer restoreMode()
 	var service *brokerapi.Service
 	needService := handler.requiresStore || resolvedMode == brokerCommandAPIModeInProcess
 	if commandArgs[0] == "put-artifact" {
 		needService = globalOpts.stateRootOverridden || globalOpts.auditLedgerOverridden
 	}
+	if resolvedMode == brokerCommandAPIModeLiveIPC && (globalOpts.stateRootOverridden || globalOpts.auditLedgerOverridden) && !needService {
+		artifactReadCmd := commandArgs[0] == "list-artifacts" || commandArgs[0] == "head-artifact" || commandArgs[0] == "get-artifact"
+		if !artifactReadCmd {
+			return &usageError{message: fmt.Sprintf("%s uses repo-scoped live broker IPC; --state-root and --audit-ledger-root are only supported for local in-process commands", commandArgs[0])}
+		}
+		resolvedMode = brokerCommandAPIModeInProcess
+		needService = true
+	}
+	restoreMode := setLocalAPIClientMode(resolvedMode)
+	defer restoreMode()
 	if needService {
+		var err error
 		service, err = brokerServiceFactory(globalOpts.roots)
 		if err != nil {
 			return fmt.Errorf("runecode-broker failed to initialize store: %w", err)
