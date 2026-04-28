@@ -315,7 +315,7 @@ func TestLiveIPCCommandFailsDeterministicallyWhenBrokerUnavailable(t *testing.T)
 	if err == nil {
 		t.Fatal("session-list expected deterministic live IPC unavailability error")
 	}
-	const want = "gateway_failure: repo-scoped local broker is not reachable"
+	const want = "gateway_failure: repo-scoped local broker is not reachable: no live broker reachable"
 	if err.Error() != want {
 		t.Fatalf("session-list error = %q, want %q", err.Error(), want)
 	}

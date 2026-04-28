@@ -34,7 +34,7 @@ func newExplicitLiveIPCLocalAPIClient(ctx context.Context, cfg brokerapi.LocalIP
 	}
 	client, err := brokerapi.DialLocalRPC(normalizedLocalRPCContext(ctx), resolved)
 	if err != nil {
-		return nil, fmt.Errorf("explicit local broker target is not reachable")
+		return nil, fmt.Errorf("explicit local broker target is not reachable: %w", err)
 	}
 	return &localAPIClient{
 		invoke: func(invokeCtx context.Context, operation string, request any, out any) *brokerapi.ErrorResponse {
@@ -57,7 +57,7 @@ func newLiveIPCLocalAPIClientWithDeps(ctx context.Context, deps liveIPCClientDep
 	}
 	scope, err := resolveScope(localbootstrap.ResolveInput{})
 	if err != nil {
-		return nil, fmt.Errorf("resolve repo-scoped local broker target")
+		return nil, fmt.Errorf("resolve repo-scoped local broker target: %w", err)
 	}
 	client, err := dialClient(normalizedLocalRPCContext(ctx), brokerapi.LocalIPCConfig{
 		RuntimeDir:     scope.LocalRuntimeDir,
@@ -65,7 +65,7 @@ func newLiveIPCLocalAPIClientWithDeps(ctx context.Context, deps liveIPCClientDep
 		RepositoryRoot: scope.RepositoryRoot,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("repo-scoped local broker is not reachable")
+		return nil, fmt.Errorf("repo-scoped local broker is not reachable: %w", err)
 	}
 	return &localAPIClient{
 		invoke: func(invokeCtx context.Context, operation string, request any, out any) *brokerapi.ErrorResponse {
