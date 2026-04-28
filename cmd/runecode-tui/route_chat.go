@@ -47,28 +47,29 @@ type chatSelectSessionMsg struct {
 }
 
 type chatRouteModel struct {
-	def          routeDefinition
-	client       localBrokerClient
-	loading      bool
-	sending      bool
-	errText      string
-	statusText   string
-	sessions     []brokerapi.SessionSummary
-	selected     int
-	active       *brokerapi.SessionDetail
-	activeID     string
-	inspectorOn  bool
-	composeOn    bool
-	presentation contentPresentationMode
-	draft        string
-	composer     composeTextarea
-	actionText   string
-	loadSeq      uint64
-	watchSeq     uint64
-	watching     bool
-	watchSession string
-	watchTrigger string
-	detailDoc    longFormDocumentState
+	def           routeDefinition
+	client        localBrokerClient
+	loading       bool
+	sending       bool
+	errText       string
+	statusText    string
+	sessions      []brokerapi.SessionSummary
+	selected      int
+	active        *brokerapi.SessionDetail
+	activeID      string
+	inspectorOn   bool
+	composeOn     bool
+	presentation  contentPresentationMode
+	draft         string
+	composer      composeTextarea
+	actionText    string
+	loadSeq       uint64
+	watchSeq      uint64
+	watchStreamID string
+	watching      bool
+	watchSession  string
+	watchTrigger  string
+	detailDoc     longFormDocumentState
 }
 
 func newChatRouteModel(def routeDefinition, client localBrokerClient) routeModel {
