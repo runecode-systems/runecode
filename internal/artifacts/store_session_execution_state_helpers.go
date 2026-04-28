@@ -15,13 +15,14 @@ func nextSessionExecutionIDs(session *SessionDurableState) (int, string, string)
 
 func newSessionExecutionTriggerState(sessionID, triggerID string, triggerIndex int, req SessionExecutionTriggerAppendRequest) SessionExecutionTriggerDurableState {
 	return SessionExecutionTriggerDurableState{
-		TriggerID:              triggerID,
-		SessionID:              sessionID,
-		TriggerIndex:           triggerIndex,
-		TriggerSource:          req.TriggerSource,
-		RequestedOperation:     req.RequestedOperation,
-		UserMessageContentText: req.UserMessageContentText,
-		CreatedAt:              req.OccurredAt,
+		TriggerID:                   triggerID,
+		SessionID:                   sessionID,
+		TriggerIndex:                triggerIndex,
+		AuthoritativeRepositoryRoot: req.AuthoritativeRepositoryRoot,
+		TriggerSource:               req.TriggerSource,
+		RequestedOperation:          req.RequestedOperation,
+		UserMessageContentText:      req.UserMessageContentText,
+		CreatedAt:                   req.OccurredAt,
 	}
 }
 

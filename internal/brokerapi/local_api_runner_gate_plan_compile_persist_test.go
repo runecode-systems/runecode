@@ -78,6 +78,9 @@ func assertCompilationRecordMatchesRefs(t *testing.T, s *Service, runID, planID,
 	if strings.TrimSpace(compilation.BindingDigest) == "" || strings.TrimSpace(compilation.RecordDigest) == "" {
 		t.Fatalf("compilation digests missing: %+v", compilation)
 	}
+	if strings.TrimSpace(compilation.CompileCacheKey) == "" {
+		t.Fatalf("compilation compile_cache_key missing: %+v", compilation)
+	}
 }
 
 func TestCompileRunGatePlanUsesIndexedAuthorityWithoutArtifactRescan(t *testing.T) {

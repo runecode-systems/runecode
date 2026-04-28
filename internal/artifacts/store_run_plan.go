@@ -157,6 +157,7 @@ func normalizeRunPlanCompilationRecord(rec RunPlanCompilationRecord) RunPlanComp
 	rec.PlanID = strings.TrimSpace(rec.PlanID)
 	rec.RunPlanDigest = strings.TrimSpace(rec.RunPlanDigest)
 	rec.SupersedesPlanID = strings.TrimSpace(rec.SupersedesPlanID)
+	rec.CompileCacheKey = strings.TrimSpace(rec.CompileCacheKey)
 	rec.WorkflowDefinitionRef = strings.TrimSpace(rec.WorkflowDefinitionRef)
 	rec.ProcessDefinitionRef = strings.TrimSpace(rec.ProcessDefinitionRef)
 	rec.WorkflowDefinitionHash = strings.TrimSpace(rec.WorkflowDefinitionHash)

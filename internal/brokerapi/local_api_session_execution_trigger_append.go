@@ -26,6 +26,7 @@ func (s *Service) newSessionExecutionAppendRequest(requestID string, req Session
 	executionState, waitKind, waitState := sessionExecutionInitialState(req.TriggerSource, controls.autonomyPosture)
 	return artifacts.SessionExecutionTriggerAppendRequest{
 		SessionID:                            req.SessionID,
+		AuthoritativeRepositoryRoot:          project.RepositoryRoot,
 		WorkspaceID:                          session.WorkspaceID,
 		CreatedByRunID:                       session.CreatedByRunID,
 		TriggerSource:                        req.TriggerSource,

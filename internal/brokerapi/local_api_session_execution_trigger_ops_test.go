@@ -115,55 +115,30 @@ func TestSessionExecutionTriggerStartCreatesSessionAndBrokerOwnedRunBinding(t *t
 	}
 }
 
-func TestSessionExecutionTriggerAllowsMultipleActiveTurnExecutions(t *testing.T) {
+func TestSessionExecutionTriggerFailsClosedOnOverlappingMutationBearingStarts(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-active", "sess-trigger-active")
 	first := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-active-1", SessionID: "sess-trigger-active", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "first"})
-	second := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-active-2", SessionID: "sess-trigger-active", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "second"})
-	if first.TurnID == second.TurnID {
-		t.Fatalf("second turn_id = %q, want distinct from first", second.TurnID)
-	}
+	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-active-2", SessionID: "sess-trigger-active", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "second"}, RequestContext{})
+	assertSessionExecutionContinueBlocked(t, errResp, "broker_session_execution_overlap_blocked")
 	getResp := mustSessionGet(t, s, "req-session-trigger-active-get", "sess-trigger-active")
-	if len(getResp.Session.PendingTurnExecutions) != 2 {
-		t.Fatalf("pending_turn_executions len = %d, want 2", len(getResp.Session.PendingTurnExecutions))
+	if len(getResp.Session.PendingTurnExecutions) != 1 {
+		t.Fatalf("pending_turn_executions len = %d, want 1", len(getResp.Session.PendingTurnExecutions))
 	}
-	runIDs := map[string]struct{}{}
-	for _, execution := range getResp.Session.PendingTurnExecutions {
-		if execution.PrimaryRunID == "" {
-			t.Fatal("primary_run_id is empty for pending execution")
-		}
-		runIDs[execution.PrimaryRunID] = struct{}{}
-	}
-	if len(runIDs) != 2 {
-		t.Fatalf("distinct primary_run_ids = %d, want 2 (%+v)", len(runIDs), runIDs)
+	if got := getResp.Session.PendingTurnExecutions[0].TurnID; got != first.TurnID {
+		t.Fatalf("remaining pending turn_id = %q, want %q", got, first.TurnID)
 	}
 }
 
-func TestSessionExecutionTriggerProjectsMultiplePendingWaitsWithoutCollapsing(t *testing.T) {
+func TestSessionExecutionTriggerSharesStartSurfaceAcrossAutonomousAndInteractivePaths(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-multiwait", "sess-trigger-multiwait")
 	first := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-multiwait-1", SessionID: "sess-trigger-multiwait", TriggerSource: "autonomous_background", RequestedOperation: "start", AutonomyPosture: "operator_guided", UserMessageContentText: "first"})
-	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-trigger-multiwait", TurnID: first.TurnID, ExecutionState: "waiting", WaitKind: "operator_input", WaitState: "waiting_operator_input", OccurredAt: s.currentTimestamp()}); err != nil {
-		t.Fatalf("UpdateSessionTurnExecution returned error: %v", err)
+	if first.ExecutionState != "waiting" {
+		t.Fatalf("autonomous execution_state = %q, want waiting", first.ExecutionState)
 	}
-	second := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-multiwait-2", SessionID: "sess-trigger-multiwait", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "second"})
-	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-trigger-multiwait", TurnID: second.TurnID, ExecutionState: "waiting", WaitKind: "external_dependency", WaitState: "waiting_external_dependency", OccurredAt: s.currentTimestamp()}); err != nil {
-		t.Fatalf("UpdateSessionTurnExecution returned error: %v", err)
-	}
-	getResp := mustSessionGet(t, s, "req-session-trigger-multiwait-get", "sess-trigger-multiwait")
-	if len(getResp.Session.PendingTurnExecutions) < 2 {
-		t.Fatalf("pending_turn_executions len = %d, want at least 2", len(getResp.Session.PendingTurnExecutions))
-	}
-	waitKinds := map[string]struct{}{}
-	for _, execution := range getResp.Session.PendingTurnExecutions {
-		waitKinds[execution.WaitKind] = struct{}{}
-	}
-	if _, ok := waitKinds["operator_input"]; !ok {
-		t.Fatalf("pending wait kinds missing operator_input: %+v", waitKinds)
-	}
-	if _, ok := waitKinds["external_dependency"]; !ok {
-		t.Fatalf("pending wait kinds missing external_dependency: %+v", waitKinds)
-	}
+	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-multiwait-2", SessionID: "sess-trigger-multiwait", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "second"}, RequestContext{})
+	assertSessionExecutionContinueBlocked(t, errResp, "broker_session_execution_overlap_blocked")
 }
 
 func TestSessionExecutionTriggerProjectsSessionRunAndSnapshotBindings(t *testing.T) {
@@ -329,12 +304,11 @@ func resolveSessionExecutionApprovalWait(t *testing.T, s *Service, approvalID, p
 	}
 }
 
-func TestSessionExecutionTriggerContinueTargetsExplicitTurnWhenMultipleWaitsExist(t *testing.T) {
+func TestSessionExecutionTriggerContinueTargetsExplicitTurn(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-targeted", "sess-trigger-targeted")
 	first := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-targeted-1", SessionID: "sess-trigger-targeted", TriggerSource: "autonomous_background", RequestedOperation: "start", AutonomyPosture: "operator_guided", UserMessageContentText: "first"})
-	second := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-targeted-2", SessionID: "sess-trigger-targeted", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "second"})
-	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-trigger-targeted", TurnID: second.TurnID, ExecutionState: "waiting", WaitKind: "external_dependency", WaitState: "waiting_external_dependency", OccurredAt: s.currentTimestamp()}); err != nil {
+	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-trigger-targeted", TurnID: first.TurnID, ExecutionState: "waiting", WaitKind: "external_dependency", WaitState: "waiting_external_dependency", OccurredAt: s.currentTimestamp()}); err != nil {
 		t.Fatalf("UpdateSessionTurnExecution returned error: %v", err)
 	}
 	resp, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-targeted-continue", SessionID: "sess-trigger-targeted", TurnID: first.TurnID, TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue first"}, RequestContext{})
@@ -345,15 +319,11 @@ func TestSessionExecutionTriggerContinueTargetsExplicitTurnWhenMultipleWaitsExis
 		t.Fatalf("continued turn_id = %q, want %q", resp.TurnID, first.TurnID)
 	}
 	getResp := mustSessionGet(t, s, "req-session-trigger-targeted-get", "sess-trigger-targeted")
-	statesByTurn := map[string]string{}
-	for _, execution := range getResp.Session.PendingTurnExecutions {
-		statesByTurn[execution.TurnID] = execution.ExecutionState
+	if len(getResp.Session.PendingTurnExecutions) != 1 {
+		t.Fatalf("pending_turn_executions len = %d, want 1", len(getResp.Session.PendingTurnExecutions))
 	}
-	if statesByTurn[first.TurnID] != "running" {
-		t.Fatalf("first execution_state = %q, want running", statesByTurn[first.TurnID])
-	}
-	if statesByTurn[second.TurnID] != "waiting" {
-		t.Fatalf("second execution_state = %q, want waiting", statesByTurn[second.TurnID])
+	if state := getResp.Session.PendingTurnExecutions[0].ExecutionState; state != "running" {
+		t.Fatalf("execution_state = %q, want running", state)
 	}
 }
 

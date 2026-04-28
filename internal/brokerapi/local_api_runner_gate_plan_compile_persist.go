@@ -156,6 +156,7 @@ func runPlanRecordsFromCompiled(plan runplan.RunPlan, runPlanDigest string, work
 		PlanID:                       authority.PlanID,
 		RunPlanDigest:                authority.RunPlanDigest,
 		SupersedesPlanID:             authority.SupersedesPlanID,
+		CompileCacheKey:              compileCacheKeyForPlan(plan, workflowRef, processRef),
 		WorkflowDefinitionRef:        workflowRef,
 		ProcessDefinitionRef:         processRef,
 		WorkflowDefinitionHash:       authority.WorkflowDefinitionHash,

@@ -26,13 +26,14 @@ type SessionDurableState struct {
 }
 
 type SessionExecutionTriggerDurableState struct {
-	TriggerID              string    `json:"trigger_id"`
-	SessionID              string    `json:"session_id"`
-	TriggerIndex           int       `json:"trigger_index"`
-	TriggerSource          string    `json:"trigger_source"`
-	RequestedOperation     string    `json:"requested_operation"`
-	UserMessageContentText string    `json:"user_message_content_text,omitempty"`
-	CreatedAt              time.Time `json:"created_at"`
+	TriggerID                   string    `json:"trigger_id"`
+	SessionID                   string    `json:"session_id"`
+	TriggerIndex                int       `json:"trigger_index"`
+	AuthoritativeRepositoryRoot string    `json:"authoritative_repository_root,omitempty"`
+	TriggerSource               string    `json:"trigger_source"`
+	RequestedOperation          string    `json:"requested_operation"`
+	UserMessageContentText      string    `json:"user_message_content_text,omitempty"`
+	CreatedAt                   time.Time `json:"created_at"`
 }
 
 type SessionTurnExecutionDurableState struct {

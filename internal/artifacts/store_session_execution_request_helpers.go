@@ -8,6 +8,7 @@ import (
 
 type SessionExecutionTriggerAppendRequest struct {
 	SessionID                            string
+	AuthoritativeRepositoryRoot          string
 	WorkspaceID                          string
 	CreatedByRunID                       string
 	TriggerSource                        string
@@ -67,6 +68,7 @@ func normalizeSessionExecutionTriggerAppendRequest(req SessionExecutionTriggerAp
 	if err := normalizeSessionExecutionTriggerIdentityFields(&normalized, req); err != nil {
 		return SessionExecutionTriggerAppendRequest{}, err
 	}
+	normalized.AuthoritativeRepositoryRoot = strings.TrimSpace(req.AuthoritativeRepositoryRoot)
 	normalized.OrchestrationScopeID = strings.TrimSpace(req.OrchestrationScopeID)
 	if req.DependsOnScopeIDs != nil {
 		normalized.DependsOnScopeIDs = uniqueSortedStrings(req.DependsOnScopeIDs)
@@ -174,6 +176,12 @@ func normalizeSessionTurnExecutionUpdateRequest(req SessionTurnExecutionUpdateRe
 	if req.DependsOnScopeIDs != nil {
 		normalized.DependsOnScopeIDs = uniqueSortedStrings(req.DependsOnScopeIDs)
 	}
+	normalized.PrimaryRunID = strings.TrimSpace(req.PrimaryRunID)
+	normalized.PendingApprovalID = strings.TrimSpace(req.PendingApprovalID)
+	normalized.LinkedRunIDs = uniqueSortedStrings(req.LinkedRunIDs)
+	normalized.LinkedApprovalIDs = uniqueSortedStrings(req.LinkedApprovalIDs)
+	normalized.LinkedArtifactDigests = uniqueSortedStrings(req.LinkedArtifactDigests)
+	normalized.LinkedAuditRecordDigests = uniqueSortedStrings(req.LinkedAuditRecordDigests)
 	normalized.BlockedReasonCode = strings.TrimSpace(req.BlockedReasonCode)
 	normalized.TerminalOutcome = strings.TrimSpace(req.TerminalOutcome)
 	normalized.BoundValidatedProjectSubstrateDigest = strings.TrimSpace(req.BoundValidatedProjectSubstrateDigest)
