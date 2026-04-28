@@ -21,6 +21,9 @@ func (s *Store) AppendSessionExecutionTrigger(req SessionExecutionTriggerAppendR
 		return SessionExecutionTriggerAppendResult{}, err
 	}
 	prior, hadPrior := s.state.Sessions[normalized.SessionID]
+	if hadPrior {
+		prior = copySessionDurableState(prior)
+	}
 	appendResult := createSessionExecutionTriggerAppendResult(&session, normalized)
 	s.state.Sessions[normalized.SessionID] = session
 	if err := s.saveStateLocked(); err != nil {
@@ -54,16 +57,20 @@ func sessionExecutionTriggerRequiresRepoRootOverlapAdmission(req SessionExecutio
 	if strings.TrimSpace(req.RequestedOperation) != "start" {
 		return false
 	}
-	return sessionExecutionTriggerIsMutationBearingSharedWorkspace(req)
+	return sessionWorkflowRoutingIsMutationBearingSharedWorkspace(req.WorkflowRouting)
 }
 
 func sessionExecutionTriggerIsMutationBearingSharedWorkspace(req SessionExecutionTriggerAppendRequest) bool {
-	if strings.TrimSpace(req.WorkflowRouting.WorkflowFamily) != "runecontext" {
+	return sessionWorkflowRoutingIsMutationBearingSharedWorkspace(req.WorkflowRouting)
+}
+
+func sessionWorkflowRoutingIsMutationBearingSharedWorkspace(routing SessionWorkflowPackRoutingDurableState) bool {
+	if strings.TrimSpace(routing.WorkflowFamily) != "runecontext" {
 		return true
 	}
-	switch strings.TrimSpace(req.WorkflowRouting.WorkflowOperation) {
+	switch strings.TrimSpace(routing.WorkflowOperation) {
 	case "change_draft", "spec_draft":
-		return len(req.WorkflowRouting.BoundInputArtifacts) != 0
+		return len(routing.BoundInputArtifacts) != 0
 	case "draft_promote_apply", "approved_change_implementation":
 		return true
 	default:
@@ -80,13 +87,23 @@ func activeExecutionForRepoRoot(session SessionDurableState, repoRoot string) (S
 		if sessionTurnExecutionIsTerminal(execution) {
 			continue
 		}
+		if !sessionTurnExecutionIsMutationBearingSharedWorkspace(execution) {
+			continue
+		}
 		execRoot := rootByTriggerID[strings.TrimSpace(execution.TriggerID)]
-		if execRoot == "" || execRoot != repoRoot {
+		if execRoot == "" {
+			return execution, true
+		}
+		if execRoot != repoRoot {
 			continue
 		}
 		return execution, true
 	}
 	return SessionTurnExecutionDurableState{}, false
+}
+
+func sessionTurnExecutionIsMutationBearingSharedWorkspace(exec SessionTurnExecutionDurableState) bool {
+	return sessionWorkflowRoutingIsMutationBearingSharedWorkspace(exec.WorkflowRouting)
 }
 
 func sessionTurnExecutionIsTerminal(exec SessionTurnExecutionDurableState) bool {
