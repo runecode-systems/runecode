@@ -11,6 +11,8 @@ Keeping both scopes together would either delay the first usable product cut or 
 - Deterministic authoring adapters that normalize to the canonical workflow-definition and process-definition contracts.
 - Shared-Memory Accelerators.
 - Safe adoption UX for custom workflow definitions on top of the shared workflow-definition substrate.
+- Explicit separate registration/catalog path for later custom workflows rather than repository-local override or shadowing of product-shipped built-in workflow identities.
+- Where authoring targets draft-like workflows, preserve the artifact-first plus explicit promote/apply model from `CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0` rather than collapsing draft generation and canonical mutation into one ambient local-edit side effect.
 - Explicit reuse of the refined CHG-050 workflow substrate, including:
   - `WorkflowDefinition` as workflow-facing selection/packaging
   - `ProcessDefinition` as executable graph structure
@@ -39,3 +41,4 @@ It also freezes that generic authoring extends the refined workflow substrate ra
 - authoring may prepare `WorkflowDefinition` and `ProcessDefinition` content
 - authoring may not replace broker-owned compilation/binding authority
 - authoring may not reintroduce loops, plugin semantics, or a second runtime authority in place of CHG-050
+- authoring may not override or shadow product-shipped built-in workflow identities from CHG-049

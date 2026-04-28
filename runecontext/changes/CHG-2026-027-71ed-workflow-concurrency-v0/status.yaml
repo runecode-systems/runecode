@@ -19,7 +19,11 @@ related_changes:
   - CHG-2026-007-2315-policy-engine-v0
   - CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0
   - CHG-2026-017-3d58-workflow-extensibility-v0
-depends_on: []
+depends_on:
+  - CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0
+  - CHG-2026-048-6b7a-session-execution-orchestration-v0
+  - CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0
+  - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
 informed_by: []
 supersedes: []
 superseded_by: []

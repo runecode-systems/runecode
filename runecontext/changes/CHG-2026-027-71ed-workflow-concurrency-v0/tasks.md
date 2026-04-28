@@ -3,15 +3,17 @@
 ## Workspace Concurrency Model
 
 - [ ] Define the supported concurrency modes explicitly:
-  - default single-run-per-workspace mode
+  - default `CHG-049` posture of at most one mutation-bearing shared-workspace run per authoritative repository root
   - any later shared-workspace modes
 - [ ] Keep fail-closed defaults:
-  - one active run per workspace remains the default
+  - the `CHG-049` mutation-bearing shared-workspace baseline remains the default
   - any non-default concurrency posture requires explicit design and approval
+- [ ] Define whether and how any later non-mutating shared-workspace posture may be admitted separately from the default mutation-bearing baseline.
 - [ ] Define the lock/lease model for workspace ownership, including acquisition, renewal, expiry, and crash recovery semantics.
 - [ ] Key concurrency locks, leases, and conflict scopes off the shared stable logical workflow identities rather than retry/attempt-local IDs.
 - [ ] Preserve separate attempt identities for retries and reruns so concurrency logic does not overload logical scope identity.
 - [ ] Keep concurrency ownership and coordination broker-owned within the canonical repo-scoped product lifecycle rather than client-local, transport-local, or workbench-local state.
+- [ ] Keep broker-owned admission control and idempotency as the reviewed entrypoint for any non-default concurrency posture.
 - [ ] Distinguish shared-workspace concurrency from isolated implementation-track execution in `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0`.
 - [ ] Reuse broker-owned dependency-fetch and offline-cache authority so concurrent runs share reviewed immutable dependency artifacts without promoting workspace-local caches into coordination truth.
 
@@ -48,10 +50,11 @@
 
 ## Acceptance Criteria
 
-- [ ] Default behavior remains one active run per workspace.
+- [ ] Default behavior remains the `CHG-049` baseline of at most one mutation-bearing shared-workspace run per authoritative repository root.
 - [ ] Concurrent use of one workspace requires an explicit design and fail-closed posture.
 - [ ] Locking, contention, and recovery are auditable and deterministic.
 - [ ] Approval, artifact, and gate semantics stay bound to the correct run under concurrency.
 - [ ] Dependency-fetch and offline-cache semantics stay broker-owned and canonical under concurrency rather than becoming workspace-local authority surfaces.
 - [ ] Concurrency integrates with the shared identity, lifecycle, approval, gate-evidence, and validated project-substrate binding model without introducing parallel workflow semantics.
 - [ ] Concurrency ownership and coordination semantics remain broker-owned inside the canonical repo-scoped RuneCode product lifecycle rather than becoming client- or transport-local truth.
+- [ ] Any reviewed relaxation of the default mutation-bearing shared-workspace posture remains an explicit extension of the CHG-049 baseline rather than an accidental scheduler or client behavior change.

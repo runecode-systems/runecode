@@ -19,6 +19,7 @@ related_changes:
   - CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0
   - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
 depends_on:
+  - CHG-2026-024-acde-deps-fetch-offline-cache
   - CHG-2026-048-6b7a-session-execution-orchestration-v0
   - CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0
   - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
