@@ -89,6 +89,98 @@ func TestRunnerResultReportRejectsMismatchedProvidedGateEvidenceRef(t *testing.T
 	}
 }
 
+func TestResolveGateEvidenceRefPlannedEnrichmentHandlesNilOrEmptyRuntime(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		runtime map[string]any
+	}{
+		{name: "nil-runtime", runtime: nil},
+		{name: "empty-runtime", runtime: map[string]any{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) { runGateEvidenceRuntimeEnrichmentCase(t, tc.name, tc.runtime) })
+	}
+}
+
+func runGateEvidenceRuntimeEnrichmentCase(t *testing.T, caseName string, runtime map[string]any) {
+	t.Helper()
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	now := time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC)
+	runID := "run-plan-evidence-runtime-" + caseName
+	putRunnerSeedArtifact(t, s, runID)
+
+	report := plannedFailedGateResult(now, "idem-plan-evidence-"+caseName, "gate-attempt-1")
+	evidence := buildGateEvidencePayload(now, runID, report.GateAttemptID)
+	evidence.StageID, evidence.StepID, evidence.RoleInstanceID = "", "", ""
+	evidence.Runtime = runtime
+	report.GateEvidence = evidence
+	planned := gateEvidenceEnrichmentPlan(report)
+
+	gateEvidenceRef, err := s.resolveGateEvidenceRef(runID, report, planned)
+	if err != nil {
+		t.Fatalf("resolveGateEvidenceRef returned error: %v", err)
+	}
+	if !strings.HasPrefix(gateEvidenceRef, "sha256:") {
+		t.Fatalf("gateEvidenceRef = %q, want sha256:*", gateEvidenceRef)
+	}
+	storedEvidence := mustLoadGateEvidenceArtifact(t, s, gateEvidenceRef)
+	assertGateEvidenceRuntimeEnrichment(t, storedEvidence, planned)
+	assertGateEvidenceCanonicalDigest(t, gateEvidenceRef, report, evidence, planned)
+}
+
+func gateEvidenceEnrichmentPlan(report RunnerResultReport) runPlannedGateEntry {
+	return runPlannedGateEntry{
+		GateID:                 report.GateID,
+		GateKind:               report.GateKind,
+		GateVersion:            report.GateVersion,
+		StageID:                "validation",
+		StepID:                 "validation_policy",
+		RoleInstanceID:         "workspace_editor_1",
+		PlanID:                 "plan_run_plan_evidence_runtime_0001",
+		RunPlanRef:             "sha256:" + strings.Repeat("a", 64),
+		WorkflowDefinitionHash: "sha256:" + strings.Repeat("b", 64),
+		ProcessDefinitionHash:  "sha256:" + strings.Repeat("c", 64),
+		PolicyContextHash:      "sha256:" + strings.Repeat("d", 64),
+		ProjectContextID:       "sha256:" + strings.Repeat("e", 64),
+		MaxAttempts:            2,
+	}
+}
+
+func assertGateEvidenceCanonicalDigest(t *testing.T, gateEvidenceRef string, report RunnerResultReport, evidence *GateEvidence, planned runPlannedGateEntry) {
+	t.Helper()
+	expectedRecord := buildGateEvidenceRecord(report, evidence, nil, map[string]any{"deterministic_outcome": "failed"}, planned)
+	expectedDigest, err := canonicalGateEvidenceDigest(expectedRecord)
+	if err != nil {
+		t.Fatalf("canonicalGateEvidenceDigest returned error: %v", err)
+	}
+	if gateEvidenceRef != expectedDigest {
+		t.Fatalf("gate evidence ref = %q, want canonical digest %q", gateEvidenceRef, expectedDigest)
+	}
+}
+
+func assertGateEvidenceRuntimeEnrichment(t *testing.T, storedEvidence map[string]any, planned runPlannedGateEntry) {
+	t.Helper()
+	runtimeDetails, ok := storedEvidence["runtime"].(map[string]any)
+	if !ok {
+		t.Fatalf("gate evidence runtime = %T, want map[string]any", storedEvidence["runtime"])
+	}
+	assertRuntimeStringField(t, runtimeDetails, "run_plan_id", planned.PlanID)
+	assertRuntimeStringField(t, runtimeDetails, "run_plan_ref", planned.RunPlanRef)
+	assertRuntimeStringField(t, runtimeDetails, "workflow_definition_hash", planned.WorkflowDefinitionHash)
+	assertRuntimeStringField(t, runtimeDetails, "process_definition_hash", planned.ProcessDefinitionHash)
+	assertRuntimeStringField(t, runtimeDetails, "policy_context_hash", planned.PolicyContextHash)
+	assertRuntimeStringField(t, runtimeDetails, "project_context_identity_digest", planned.ProjectContextID)
+	if got := runtimeDetails["planned_retry_max_attempts"]; got != float64(2) {
+		t.Fatalf("gate evidence runtime.planned_retry_max_attempts = %v, want 2", got)
+	}
+}
+
+func assertRuntimeStringField(t *testing.T, runtimeDetails map[string]any, field, want string) {
+	t.Helper()
+	if got, _ := runtimeDetails[field].(string); got != want {
+		t.Fatalf("gate evidence runtime.%s = %q, want %q", field, got, want)
+	}
+}
+
 func TestRunnerGateReportsFailClosedWhenPlanPlacementMissing(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	now := time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)
@@ -236,8 +328,12 @@ func TestRunnerGateReportsRejectLegacyProcessDefinitionAuthority(t *testing.T) {
 func TestRunnerResultReportRejectsMismatchedGateEvidenceRefWithoutPersistingArtifact(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	now := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
+	if err := s.SetRunStatus("run-evidence-mismatch", "active"); err != nil {
+		t.Fatalf("SetRunStatus returned error: %v", err)
+	}
 	req := buildGateEvidenceResultRequest(now)
 	req.RunID, req.RequestID = "run-evidence-mismatch", "req-evidence-mismatch"
+	req.Report.GateEvidence = buildGateEvidencePayload(now, req.RunID, req.Report.GateAttemptID)
 	req.Report.GateEvidenceRef = "sha256:" + strings.Repeat("f", 64)
 	_, errResp := s.HandleRunnerResultReport(context.Background(), req, RequestContext{})
 	if errResp == nil || errResp.Error.Code != "broker_validation_runner_transition_invalid" {

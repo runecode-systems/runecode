@@ -266,7 +266,7 @@ Optional: enable automatic dev-shell entry with `direnv` + `nix-direnv`:
 direnv allow
 ```
 
-Non-Nix fallback (e.g., Windows): install Go 1.25.x, Node `>=22.22.1 <25` with npm, `just`, and either a `tlc` binary or Java 17+ plus `tla2tools.jar` (or set `TLA2TOOLS_JAR`). In CI, that jar is provisioned from the flake-pinned Nix package cache and verified against the Nix build output. Then run:
+Non-Nix fallback (e.g., Windows): install Go 1.25.x, Node `>=22.22.1 <25` with npm, and `just`. For full formal-model parity outside Nix, also install either a `tlc` binary or Java 17+ plus `tla2tools.jar` (or set `TLA2TOOLS_JAR`). Then run:
 
 ```sh
 just ci

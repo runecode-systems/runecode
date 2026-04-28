@@ -61,6 +61,9 @@ func validateGateEvidenceReportBinding(runID string, report RunnerResultReport, 
 
 func buildGateEvidenceRecord(report RunnerResultReport, evidence *GateEvidence, runtimeSummary map[string]any, outcomeSummary map[string]any, planned runPlannedGateEntry) artifacts.GateEvidenceArtifact {
 	evidenceRecord := gateEvidenceRecordBase(evidence, runtimeSummary, outcomeSummary)
+	if evidenceRecord.Runtime == nil {
+		evidenceRecord.Runtime = make(map[string]any)
+	}
 	evidenceRecord = applyCheckpointBinding(evidenceRecord, report)
 	evidenceRecord = applyPlannedStageContext(evidenceRecord, planned)
 	evidenceRecord = applyPlannedRuntimeDetails(evidenceRecord, planned)
