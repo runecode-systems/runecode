@@ -21,6 +21,7 @@ func newSessionExecutionTriggerState(sessionID, triggerID string, triggerIndex i
 		AuthoritativeRepositoryRoot: req.AuthoritativeRepositoryRoot,
 		TriggerSource:               req.TriggerSource,
 		RequestedOperation:          req.RequestedOperation,
+		WorkflowRouting:             req.WorkflowRouting,
 		UserMessageContentText:      req.UserMessageContentText,
 		CreatedAt:                   req.OccurredAt,
 	}
@@ -41,6 +42,7 @@ func newSessionTurnExecutionState(sessionID, turnID, triggerID string, triggerIn
 		WaitState:                            req.WaitState,
 		ApprovalProfile:                      req.ApprovalProfile,
 		AutonomyPosture:                      req.AutonomyPosture,
+		WorkflowRouting:                      req.WorkflowRouting,
 		PrimaryRunID:                         req.PrimaryRunID,
 		PendingApprovalID:                    req.PendingApprovalID,
 		LinkedRunIDs:                         append([]string{}, req.LinkedRunIDs...),

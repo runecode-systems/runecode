@@ -1,9 +1,13 @@
 package runplan
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/fs"
 	"sort"
 	"strings"
+
+	"github.com/runecode-ai/runecode/internal/workflowpackassets"
 )
 
 const builtInWorkflowCatalogVersion = "v0"
@@ -33,6 +37,39 @@ type BuiltInWorkflowCatalogEntry struct {
 	RequiresValidatedProjectSubstrate   bool
 	FailClosedOnProjectSubstratePosture bool
 	MutationPathModel                   string
+}
+
+type builtInWorkflowManifest struct {
+	CatalogVersion string                         `json:"catalog_version"`
+	Entries        []builtInWorkflowManifestEntry `json:"entries"`
+}
+
+type builtInWorkflowManifestEntry struct {
+	WorkflowID                          string   `json:"workflow_id"`
+	WorkflowFamily                      string   `json:"workflow_family"`
+	WorkflowVersion                     string   `json:"workflow_version"`
+	Provenance                          string   `json:"provenance"`
+	WorkflowAssetPath                   string   `json:"workflow_asset_path"`
+	ProcessAssetPath                    string   `json:"process_asset_path"`
+	WorkflowDefinitionHash              string   `json:"workflow_definition_hash"`
+	ProcessDefinitionHash               string   `json:"process_definition_hash"`
+	ImplementationInputSetSchemaID      string   `json:"implementation_input_set_schema_id"`
+	ImplementationInputBindingFields    []string `json:"implementation_input_binding_fields"`
+	ExecutionAuthorityModel             string   `json:"execution_authority_model"`
+	DependencyResolutionModel           string   `json:"dependency_resolution_model"`
+	DependencyScopeApprovalModel        string   `json:"dependency_scope_approval_model"`
+	SubstrateLifecyclePolicy            string   `json:"substrate_lifecycle_policy"`
+	ExecutionDriftBindingFields         []string `json:"execution_drift_binding_fields"`
+	WaitSemanticsModel                  string   `json:"wait_semantics_model"`
+	ContinuationCompatibility           string   `json:"continuation_compatibility"`
+	SeparatesApprovalAndAutonomy        bool     `json:"separates_approval_and_autonomy"`
+	DraftArtifactSchemaID               string   `json:"draft_artifact_schema_id"`
+	DraftEvidenceLinkKinds              []string `json:"draft_evidence_link_kinds"`
+	PromoteApplyWorkflowID              string   `json:"promote_apply_workflow_id"`
+	WritableRuneContextPath             []string `json:"writable_runecontext_path"`
+	RequiresValidatedProjectSubstrate   bool     `json:"requires_validated_project_substrate"`
+	FailClosedOnProjectSubstratePosture bool     `json:"fail_closed_on_project_substrate_posture"`
+	MutationPathModel                   string   `json:"mutation_path_model"`
 }
 
 var builtInWorkflowCatalogByID = mustBuildBuiltInWorkflowCatalog()
@@ -65,173 +102,116 @@ func validateBuiltInWorkflowReservation(workflow WorkflowDefinition, process Pro
 }
 
 func mustBuildBuiltInWorkflowCatalog() map[string]BuiltInWorkflowCatalogEntry {
-	entries := builtInWorkflowCatalogEntryDefinitions()
-	result := make(map[string]BuiltInWorkflowCatalogEntry, len(entries))
-	for _, raw := range entries {
-		result[raw.workflowID] = mustBuildCatalogEntry(raw)
+	manifest, err := loadBuiltInWorkflowManifest(workflowpackassets.BuiltInFS())
+	if err != nil {
+		panic(fmt.Sprintf("load built-in workflow catalog: %v", err))
+	}
+	result, err := buildBuiltInWorkflowCatalogFromManifest(manifest, workflowpackassets.BuiltInFS())
+	if err != nil {
+		panic(fmt.Sprintf("build built-in workflow catalog: %v", err))
 	}
 	return result
 }
 
-func mustBuildCatalogEntry(raw builtInWorkflowCatalogEntryDefinition) BuiltInWorkflowCatalogEntry {
-	_, processHash, err := decodeProcessDefinition([]byte(raw.processTemplate))
-	if err != nil {
-		panic(fmt.Sprintf("invalid built-in process definition for %s: %v", raw.workflowID, err))
+func buildBuiltInWorkflowCatalogFromManifest(manifest builtInWorkflowManifest, assetFS fs.FS) (map[string]BuiltInWorkflowCatalogEntry, error) {
+	result := make(map[string]BuiltInWorkflowCatalogEntry, len(manifest.Entries))
+	for _, raw := range manifest.Entries {
+		if _, exists := result[raw.WorkflowID]; exists {
+			return nil, fmt.Errorf("duplicate built-in workflow_id %q", raw.WorkflowID)
+		}
+		entry, err := buildCatalogEntryFromManifest(raw, assetFS)
+		if err != nil {
+			return nil, fmt.Errorf("invalid built-in catalog entry %q: %w", raw.WorkflowID, err)
+		}
+		result[entry.WorkflowID] = entry
 	}
-	workflowPayload := strings.ReplaceAll(raw.workflowTemplate, "{{PROCESS_HASH}}", processHash)
-	_, workflowHash, err := decodeWorkflowDefinition([]byte(workflowPayload))
-	if err != nil {
-		panic(fmt.Sprintf("invalid built-in workflow definition for %s: %v", raw.workflowID, err))
-	}
-	return builtInWorkflowCatalogEntry(raw, workflowHash, processHash)
+	return result, nil
 }
 
-func builtInWorkflowCatalogEntry(raw builtInWorkflowCatalogEntryDefinition, workflowHash, processHash string) BuiltInWorkflowCatalogEntry {
+func loadBuiltInWorkflowManifest(assetFS fs.FS) (builtInWorkflowManifest, error) {
+	payload, err := fs.ReadFile(assetFS, workflowpackassets.BuiltInManifestPath)
+	if err != nil {
+		return builtInWorkflowManifest{}, err
+	}
+	var manifest builtInWorkflowManifest
+	dec := json.NewDecoder(strings.NewReader(string(payload)))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&manifest); err != nil {
+		return builtInWorkflowManifest{}, err
+	}
+	if manifest.CatalogVersion != builtInWorkflowCatalogVersion {
+		return builtInWorkflowManifest{}, fmt.Errorf("catalog_version %q does not match %q", manifest.CatalogVersion, builtInWorkflowCatalogVersion)
+	}
+	return manifest, nil
+}
+
+func buildCatalogEntryFromManifest(raw builtInWorkflowManifestEntry, assetFS fs.FS) (BuiltInWorkflowCatalogEntry, error) {
+	process, workflowHash, processHash, err := loadAndValidateBuiltInWorkflowAssets(raw, assetFS)
+	if err != nil {
+		return BuiltInWorkflowCatalogEntry{}, err
+	}
+	return catalogEntryFromManifestMetadata(raw, process.ProcessID, workflowHash, processHash), nil
+}
+
+func loadAndValidateBuiltInWorkflowAssets(raw builtInWorkflowManifestEntry, assetFS fs.FS) (ProcessDefinition, string, string, error) {
+	processPayload, err := fs.ReadFile(assetFS, raw.ProcessAssetPath)
+	if err != nil {
+		return ProcessDefinition{}, "", "", err
+	}
+	process, processHash, err := decodeProcessDefinition(processPayload)
+	if err != nil {
+		return ProcessDefinition{}, "", "", err
+	}
+	if strings.TrimSpace(processHash) != strings.TrimSpace(raw.ProcessDefinitionHash) {
+		return ProcessDefinition{}, "", "", fmt.Errorf("process digest mismatch for %q", raw.WorkflowID)
+	}
+
+	workflowPayloadRaw, err := fs.ReadFile(assetFS, raw.WorkflowAssetPath)
+	if err != nil {
+		return ProcessDefinition{}, "", "", err
+	}
+	workflowPayload := strings.ReplaceAll(string(workflowPayloadRaw), "{{PROCESS_HASH}}", processHash)
+	workflow, workflowHash, err := decodeWorkflowDefinition([]byte(workflowPayload))
+	if err != nil {
+		return ProcessDefinition{}, "", "", err
+	}
+	if strings.TrimSpace(workflowHash) != strings.TrimSpace(raw.WorkflowDefinitionHash) {
+		return ProcessDefinition{}, "", "", fmt.Errorf("workflow digest mismatch for %q", raw.WorkflowID)
+	}
+	if strings.TrimSpace(workflow.WorkflowID) != strings.TrimSpace(raw.WorkflowID) {
+		return ProcessDefinition{}, "", "", fmt.Errorf("workflow_id mismatch for %q", raw.WorkflowID)
+	}
+	if strings.TrimSpace(workflow.SelectedProcessID) != strings.TrimSpace(process.ProcessID) {
+		return ProcessDefinition{}, "", "", fmt.Errorf("selected_process_id mismatch for %q", raw.WorkflowID)
+	}
+	return process, workflowHash, processHash, nil
+}
+
+func catalogEntryFromManifestMetadata(raw builtInWorkflowManifestEntry, processID, workflowHash, processHash string) BuiltInWorkflowCatalogEntry {
 	return BuiltInWorkflowCatalogEntry{
-		WorkflowID:                          raw.workflowID,
-		WorkflowFamily:                      raw.family,
-		WorkflowVersion:                     raw.version,
-		Provenance:                          raw.provenance,
-		SelectedProcessID:                   raw.selectedProcess,
+		WorkflowID:                          raw.WorkflowID,
+		WorkflowFamily:                      raw.WorkflowFamily,
+		WorkflowVersion:                     raw.WorkflowVersion,
+		Provenance:                          raw.Provenance,
+		SelectedProcessID:                   processID,
 		WorkflowDefinitionHash:              workflowHash,
 		ProcessDefinitionHash:               processHash,
-		ImplementationInputSetSchemaID:      raw.implementationInput,
-		ImplementationInputBindingFields:    append([]string(nil), raw.inputBindingFields...),
-		ExecutionAuthorityModel:             raw.execAuthority,
-		DependencyResolutionModel:           raw.dependencyModel,
-		DependencyScopeApprovalModel:        raw.dependencyApproval,
-		SubstrateLifecyclePolicy:            raw.substratePolicy,
-		ExecutionDriftBindingFields:         append([]string(nil), raw.driftBindings...),
-		WaitSemanticsModel:                  raw.waitModel,
-		ContinuationCompatibility:           raw.continuationModel,
-		SeparatesApprovalAndAutonomy:        raw.separateControls,
-		DraftArtifactSchemaID:               raw.draftSchemaID,
-		DraftEvidenceLinkKinds:              append([]string(nil), raw.draftEvidence...),
-		PromoteApplyWorkflowID:              raw.promoteWorkflow,
-		WritableRuneContextPath:             append([]string(nil), raw.writableScope...),
-		RequiresValidatedProjectSubstrate:   raw.requiresSubstrate,
-		FailClosedOnProjectSubstratePosture: raw.failClosedSubstrate,
-		MutationPathModel:                   raw.mutationPathModel,
+		ImplementationInputSetSchemaID:      raw.ImplementationInputSetSchemaID,
+		ImplementationInputBindingFields:    append([]string(nil), raw.ImplementationInputBindingFields...),
+		ExecutionAuthorityModel:             raw.ExecutionAuthorityModel,
+		DependencyResolutionModel:           raw.DependencyResolutionModel,
+		DependencyScopeApprovalModel:        raw.DependencyScopeApprovalModel,
+		SubstrateLifecyclePolicy:            raw.SubstrateLifecyclePolicy,
+		ExecutionDriftBindingFields:         append([]string(nil), raw.ExecutionDriftBindingFields...),
+		WaitSemanticsModel:                  raw.WaitSemanticsModel,
+		ContinuationCompatibility:           raw.ContinuationCompatibility,
+		SeparatesApprovalAndAutonomy:        raw.SeparatesApprovalAndAutonomy,
+		DraftArtifactSchemaID:               raw.DraftArtifactSchemaID,
+		DraftEvidenceLinkKinds:              append([]string(nil), raw.DraftEvidenceLinkKinds...),
+		PromoteApplyWorkflowID:              raw.PromoteApplyWorkflowID,
+		WritableRuneContextPath:             append([]string(nil), raw.WritableRuneContextPath...),
+		RequiresValidatedProjectSubstrate:   raw.RequiresValidatedProjectSubstrate,
+		FailClosedOnProjectSubstratePosture: raw.FailClosedOnProjectSubstratePosture,
+		MutationPathModel:                   raw.MutationPathModel,
 	}
-}
-
-type builtInWorkflowCatalogEntryDefinition struct {
-	workflowID          string
-	family              string
-	version             string
-	provenance          string
-	selectedProcess     string
-	workflowTemplate    string
-	processTemplate     string
-	draftSchemaID       string
-	draftEvidence       []string
-	promoteWorkflow     string
-	writableScope       []string
-	requiresSubstrate   bool
-	failClosedSubstrate bool
-	mutationPathModel   string
-	implementationInput string
-	inputBindingFields  []string
-	execAuthority       string
-	dependencyModel     string
-	dependencyApproval  string
-	substratePolicy     string
-	driftBindings       []string
-	waitModel           string
-	continuationModel   string
-	separateControls    bool
-}
-
-func builtInWorkflowCatalogEntryDefinitions() []builtInWorkflowCatalogEntryDefinition {
-	return []builtInWorkflowCatalogEntryDefinition{
-		builtInChangeDraftDefinition(),
-		builtInSpecDraftDefinition(),
-		builtInDraftPromoteDefinition(),
-		builtInApprovedImplementationDefinition(),
-	}
-}
-
-func builtInChangeDraftDefinition() builtInWorkflowCatalogEntryDefinition {
-	return builtInWorkflowCatalogEntryDefinition{
-		workflowID:          "builtin_rc_change_draft_v0",
-		family:              "runecontext.change_draft",
-		version:             "0.1.0",
-		provenance:          "product-shipped-reviewed:first-party",
-		selectedProcess:     "builtin_rc_change_draft_process_v0",
-		workflowTemplate:    `{"schema_id":"runecode.protocol.v0.WorkflowDefinition","schema_version":"0.5.0","workflow_id":"builtin_rc_change_draft_v0","workflow_version":"0.1.0","selected_process_id":"builtin_rc_change_draft_process_v0","selected_process_definition_hash":"{{PROCESS_HASH}}","reviewed_process_artifacts":[{"process_id":"builtin_rc_change_draft_process_v0","process_definition_hash":"{{PROCESS_HASH}}"}],"approval_profile":"moderate","autonomy_posture":"operator_guided"}`,
-		processTemplate:     `{"schema_id":"runecode.protocol.v0.ProcessDefinition","schema_version":"0.4.0","process_id":"builtin_rc_change_draft_process_v0","executor_bindings":[{"binding_id":"binding_workspace_runner","executor_id":"workspace-runner","executor_class":"workspace_ordinary","allowed_role_kinds":["workspace-edit"]}],"gate_definitions":[{"schema_id":"runecode.protocol.v0.GateDefinition","schema_version":"0.2.0","gate":{"schema_id":"runecode.protocol.v0.GateContract","schema_version":"0.1.0","gate_id":"build_gate","gate_kind":"build","gate_version":"1.0.0","normalized_inputs":[{"input_id":"source_tree","input_digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111"}],"plan_binding":{"checkpoint_code":"step_validation_started","order_index":0},"retry_semantics":{"retry_mode":"new_attempt_required","max_attempts":3},"override_semantics":{"override_mode":"policy_action_required","action_kind":"action_gate_override","approval_trigger_code":"gate_override"}},"checkpoint_code":"step_validation_started","order_index":0,"stage_id":"validation","step_id":"change_draft_step","role_instance_id":"workspace_editor_1","executor_binding_id":"binding_workspace_runner"}],"dependency_edges":[]}`,
-		draftSchemaID:       "runecode.protocol.v0.RuneContextChangeDraftArtifact",
-		draftEvidence:       []string{"gate_evidence", "source_prompt_identity", "validated_project_substrate_digest"},
-		promoteWorkflow:     "builtin_rc_draft_promote_v0",
-		requiresSubstrate:   true,
-		failClosedSubstrate: true,
-		mutationPathModel:   "artifact_only_generation",
-	}
-}
-
-func builtInSpecDraftDefinition() builtInWorkflowCatalogEntryDefinition {
-	return builtInWorkflowCatalogEntryDefinition{
-		workflowID:          "builtin_rc_spec_draft_v0",
-		family:              "runecontext.spec_draft",
-		version:             "0.1.0",
-		provenance:          "product-shipped-reviewed:first-party",
-		selectedProcess:     "builtin_rc_spec_draft_process_v0",
-		workflowTemplate:    `{"schema_id":"runecode.protocol.v0.WorkflowDefinition","schema_version":"0.5.0","workflow_id":"builtin_rc_spec_draft_v0","workflow_version":"0.1.0","selected_process_id":"builtin_rc_spec_draft_process_v0","selected_process_definition_hash":"{{PROCESS_HASH}}","reviewed_process_artifacts":[{"process_id":"builtin_rc_spec_draft_process_v0","process_definition_hash":"{{PROCESS_HASH}}"}],"approval_profile":"moderate","autonomy_posture":"operator_guided"}`,
-		processTemplate:     `{"schema_id":"runecode.protocol.v0.ProcessDefinition","schema_version":"0.4.0","process_id":"builtin_rc_spec_draft_process_v0","executor_bindings":[{"binding_id":"binding_workspace_runner","executor_id":"workspace-runner","executor_class":"workspace_ordinary","allowed_role_kinds":["workspace-edit"]}],"gate_definitions":[{"schema_id":"runecode.protocol.v0.GateDefinition","schema_version":"0.2.0","gate":{"schema_id":"runecode.protocol.v0.GateContract","schema_version":"0.1.0","gate_id":"build_gate","gate_kind":"build","gate_version":"1.0.0","normalized_inputs":[{"input_id":"source_tree","input_digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111"}],"plan_binding":{"checkpoint_code":"step_validation_started","order_index":0},"retry_semantics":{"retry_mode":"new_attempt_required","max_attempts":3},"override_semantics":{"override_mode":"policy_action_required","action_kind":"action_gate_override","approval_trigger_code":"gate_override"}},"checkpoint_code":"step_validation_started","order_index":0,"stage_id":"validation","step_id":"spec_draft_step","role_instance_id":"workspace_editor_1","executor_binding_id":"binding_workspace_runner"}],"dependency_edges":[]}`,
-		draftSchemaID:       "runecode.protocol.v0.RuneContextSpecDraftArtifact",
-		draftEvidence:       []string{"gate_evidence", "source_prompt_identity", "validated_project_substrate_digest"},
-		promoteWorkflow:     "builtin_rc_draft_promote_v0",
-		requiresSubstrate:   true,
-		failClosedSubstrate: true,
-		mutationPathModel:   "artifact_only_generation",
-	}
-}
-
-func builtInDraftPromoteDefinition() builtInWorkflowCatalogEntryDefinition {
-	return builtInWorkflowCatalogEntryDefinition{
-		workflowID:          "builtin_rc_draft_promote_v0",
-		family:              "runecontext.draft_promote_apply",
-		version:             "0.1.0",
-		provenance:          "product-shipped-reviewed:first-party",
-		selectedProcess:     "builtin_rc_draft_promote_process_v0",
-		workflowTemplate:    `{"schema_id":"runecode.protocol.v0.WorkflowDefinition","schema_version":"0.5.0","workflow_id":"builtin_rc_draft_promote_v0","workflow_version":"0.1.0","selected_process_id":"builtin_rc_draft_promote_process_v0","selected_process_definition_hash":"{{PROCESS_HASH}}","reviewed_process_artifacts":[{"process_id":"builtin_rc_draft_promote_process_v0","process_definition_hash":"{{PROCESS_HASH}}"}],"approval_profile":"moderate","autonomy_posture":"operator_guided"}`,
-		processTemplate:     `{"schema_id":"runecode.protocol.v0.ProcessDefinition","schema_version":"0.4.0","process_id":"builtin_rc_draft_promote_process_v0","executor_bindings":[{"binding_id":"binding_workspace_runner","executor_id":"workspace-runner","executor_class":"workspace_ordinary","allowed_role_kinds":["workspace-edit"]}],"gate_definitions":[{"schema_id":"runecode.protocol.v0.GateDefinition","schema_version":"0.2.0","gate":{"schema_id":"runecode.protocol.v0.GateContract","schema_version":"0.1.0","gate_id":"build_gate","gate_kind":"build","gate_version":"1.0.0","normalized_inputs":[{"input_id":"source_tree","input_digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111"}],"plan_binding":{"checkpoint_code":"step_validation_started","order_index":0},"retry_semantics":{"retry_mode":"new_attempt_required","max_attempts":3},"override_semantics":{"override_mode":"policy_action_required","action_kind":"action_gate_override","approval_trigger_code":"gate_override"}},"checkpoint_code":"step_validation_started","order_index":0,"stage_id":"validation","step_id":"draft_promote_step","role_instance_id":"workspace_editor_1","executor_binding_id":"binding_workspace_runner"}],"dependency_edges":[]}`,
-		writableScope:       []string{"runecontext/changes/", "runecontext/specs/"},
-		requiresSubstrate:   true,
-		failClosedSubstrate: true,
-		mutationPathModel:   "shared_broker_mutation_approval_audit_verification",
-	}
-}
-
-func builtInApprovedImplementationDefinition() builtInWorkflowCatalogEntryDefinition {
-	return builtInWorkflowCatalogEntryDefinition{
-		workflowID:          "builtin_rc_approved_implementation_v0",
-		family:              "runecontext.approved_implementation",
-		version:             "0.1.0",
-		provenance:          "product-shipped-reviewed:first-party",
-		selectedProcess:     "builtin_rc_approved_implementation_process_v0",
-		workflowTemplate:    `{"schema_id":"runecode.protocol.v0.WorkflowDefinition","schema_version":"0.5.0","workflow_id":"builtin_rc_approved_implementation_v0","workflow_version":"0.1.0","selected_process_id":"builtin_rc_approved_implementation_process_v0","selected_process_definition_hash":"{{PROCESS_HASH}}","reviewed_process_artifacts":[{"process_id":"builtin_rc_approved_implementation_process_v0","process_definition_hash":"{{PROCESS_HASH}}"}],"approval_profile":"moderate","autonomy_posture":"operator_guided"}`,
-		processTemplate:     `{"schema_id":"runecode.protocol.v0.ProcessDefinition","schema_version":"0.4.0","process_id":"builtin_rc_approved_implementation_process_v0","executor_bindings":[{"binding_id":"binding_workspace_runner","executor_id":"workspace-runner","executor_class":"workspace_ordinary","allowed_role_kinds":["workspace-edit"]}],"gate_definitions":[{"schema_id":"runecode.protocol.v0.GateDefinition","schema_version":"0.2.0","gate":{"schema_id":"runecode.protocol.v0.GateContract","schema_version":"0.1.0","gate_id":"build_gate","gate_kind":"build","gate_version":"1.0.0","normalized_inputs":[{"input_id":"source_tree","input_digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111"}],"plan_binding":{"checkpoint_code":"step_validation_started","order_index":0},"retry_semantics":{"retry_mode":"new_attempt_required","max_attempts":3},"override_semantics":{"override_mode":"policy_action_required","action_kind":"action_gate_override","approval_trigger_code":"gate_override"}},"checkpoint_code":"step_validation_started","order_index":0,"stage_id":"validation","step_id":"approved_implementation_step","role_instance_id":"workspace_editor_1","executor_binding_id":"binding_workspace_runner"}],"dependency_edges":[]}`,
-		implementationInput: "runecode.protocol.v0.RuneContextApprovedImplementationInputSet",
-		inputBindingFields:  builtInImplementationInputBindingFields(),
-		execAuthority:       "broker_compiled_immutable_run_plan",
-		dependencyModel:     "broker_owned_dependency_fetch_offline_cache_and_artifact_handoff_public_registry_first",
-		dependencyApproval:  "dependency_scope_enablement_or_expansion_requires_separate_approval_cache_miss_does_not",
-		substratePolicy:     "no_implicit_substrate_init_upgrade_or_rewrite",
-		driftBindings:       builtInImplementationDriftBindings(),
-		waitModel:           "shared_waiting_operator_input_and_waiting_approval",
-		continuationModel:   "dependency_aware_scoped_blocking_chg_050_compatible",
-		separateControls:    true,
-		requiresSubstrate:   true,
-		failClosedSubstrate: true,
-		mutationPathModel:   "shared_broker_mutation_approval_audit_verification",
-	}
-}
-
-func builtInImplementationInputBindingFields() []string {
-	return []string{"input_set_digest", "approved_input_digests", "workflow_definition_hash", "process_definition_hash", "approval_profile", "autonomy_posture", "validated_project_substrate_digest", "project_substrate_snapshot_digest", "control_input_digest", "repo_identity_digest", "repo_state_identity_digest"}
-}
-
-func builtInImplementationDriftBindings() []string {
-	return []string{"approved_input_digests", "workflow_definition_hash", "process_definition_hash", "control_input_digest", "repo_state_identity_digest", "validated_project_substrate_digest"}
 }

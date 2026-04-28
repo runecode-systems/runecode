@@ -1,0 +1,39 @@
+{
+  "schema_id": "runecode.protocol.v0.RuneContextApprovedImplementationInputSet",
+  "schema_version": "0.1.0",
+  "input_set_digest": {
+    "hash_alg": "sha256",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "approved_input_digests": [],
+  "workflow_definition_hash": {
+    "hash_alg": "sha256",
+    "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "process_definition_hash": {
+    "hash_alg": "sha256",
+    "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "approval_profile": "moderate",
+  "autonomy_posture": "operator_guided",
+  "validated_project_substrate_digest": {
+    "hash_alg": "sha256",
+    "hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "project_substrate_snapshot_digest": {
+    "hash_alg": "sha256",
+    "hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "control_input_digest": {
+    "hash_alg": "sha256",
+    "hash": "1212121212121212121212121212121212121212121212121212121212121212"
+  },
+  "repo_identity_digest": {
+    "hash_alg": "sha256",
+    "hash": "3434343434343434343434343434343434343434343434343434343434343434"
+  },
+  "repo_state_identity_digest": {
+    "hash_alg": "sha256",
+    "hash": "5656565656565656565656565656565656565656565656565656565656565656"
+  }
+}

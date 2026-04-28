@@ -459,6 +459,7 @@ func sendSessionExecutionTriggerViaLocalRPC(t *testing.T, encoder *json.Encoder,
 		SessionID:              sessionID,
 		TriggerSource:          "interactive_user",
 		RequestedOperation:     "start",
+		WorkflowRouting:        &brokerapi.SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "approved_change_implementation"},
 		UserMessageContentText: "hello",
 	})}
 	if err := encoder.Encode(wire); err != nil {

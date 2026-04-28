@@ -121,6 +121,7 @@ func TestLocalRPCClientInvokeSessionExecutionTrigger(t *testing.T) {
 		SessionID:              "sess-client-trigger",
 		TriggerSource:          "interactive_user",
 		RequestedOperation:     "start",
+		WorkflowRouting:        &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "approved_change_implementation"},
 		UserMessageContentText: "hello",
 	}, &resp)
 	if errResp != nil {

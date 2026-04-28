@@ -5,7 +5,7 @@
   "description": "Broker-owned durable per-turn execution state projection, distinct from transcript turn lifecycle.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 27,
+  "maxProperties": 28,
   "required": ["schema_id", "schema_version", "turn_id", "session_id", "execution_index", "trigger_id", "trigger_source", "requested_operation", "execution_state", "approval_profile", "autonomy_posture", "created_at", "updated_at"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.SessionTurnExecution", "description": "Protocol schema identifier.", "x-data-class": "public" },
@@ -23,6 +23,37 @@
     "wait_state": { "type": "string", "enum": ["waiting_operator_input", "waiting_approval", "waiting_external_dependency", "waiting_project_blocked"], "description": "Operator-facing waiting vocabulary, preserving approval vs operator input distinction.", "x-data-class": "public" },
     "approval_profile": { "type": "string", "enum": ["moderate"], "description": "Formal approval frequency control.", "x-data-class": "public" },
     "autonomy_posture": { "type": "string", "enum": ["operator_guided", "balanced", "autonomous_preferred"], "description": "Operator-question frequency and continuation posture control.", "x-data-class": "public" },
+    "workflow_routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 5,
+      "description": "Typed workflow-pack routing identity and bound inputs recorded for this execution.",
+      "required": ["schema_id", "schema_version", "workflow_family", "workflow_operation"],
+      "properties": {
+        "schema_id": { "const": "runecode.protocol.v0.SessionWorkflowPackRouting", "description": "Workflow routing object schema identifier.", "x-data-class": "public" },
+        "schema_version": { "const": "0.1.0", "description": "Workflow routing object schema version.", "x-data-class": "public" },
+        "workflow_family": { "type": "string", "enum": ["runecontext"], "description": "First-party workflow family identity.", "x-data-class": "public" },
+        "workflow_operation": { "type": "string", "enum": ["change_draft", "spec_draft", "draft_promote_apply", "approved_change_implementation"], "description": "Typed workflow operation identity within the family.", "x-data-class": "public" },
+        "bound_input_artifacts": {
+          "type": "array",
+          "maxItems": 256,
+          "description": "Explicit bound input artifacts referenced by routing.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "maxProperties": 2,
+            "description": "Typed workflow input artifact binding.",
+            "required": ["artifact_ref", "artifact_digest"],
+            "properties": {
+              "artifact_ref": { "type": "string", "minLength": 1, "maxLength": 160, "description": "Artifact reference label used by workflow routing.", "x-data-class": "public" },
+              "artifact_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Artifact digest bound to the reference.", "x-data-class": "public" }
+            }
+          },
+          "x-data-class": "public"
+        }
+      },
+      "x-data-class": "public"
+    },
     "primary_run_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Primary canonical run linked to this turn when present.", "x-data-class": "public" },
     "pending_approval_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Pending approval digest identity when present.", "x-data-class": "public" },
     "linked_run_ids": { "type": "array", "maxItems": 256, "description": "Canonical linked run identities.", "items": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Linked run identity.", "x-data-class": "public" }, "x-data-class": "public" },

@@ -50,11 +50,16 @@ type APIConfig struct {
 	Limits          Limits
 	GatewayQuota    GatewayQuotaLimits
 	DependencyFetch DependencyFetchConfig
+	Compile         CompileConfig
 	RepositoryRoot  string
 }
 
 type DependencyFetchConfig struct {
 	MaxParallelFetches int
+}
+
+type CompileConfig struct {
+	MaxParallelCompiles int
 }
 
 func (c APIConfig) withDefaults() APIConfig {
@@ -71,6 +76,7 @@ func (c APIConfig) withDefaults() APIConfig {
 	c.Limits.StreamIdleTimeout = resolveDurationLimit(c.Limits.StreamIdleTimeout, defaults.StreamIdleTimeout)
 	c.Limits.MaxResponseStreamBytes = resolveIntLimit(c.Limits.MaxResponseStreamBytes, defaults.MaxResponseStreamBytes)
 	c.DependencyFetch.MaxParallelFetches = resolveIntLimit(c.DependencyFetch.MaxParallelFetches, 4)
+	c.Compile.MaxParallelCompiles = resolveIntLimit(c.Compile.MaxParallelCompiles, 4)
 	return c
 }
 

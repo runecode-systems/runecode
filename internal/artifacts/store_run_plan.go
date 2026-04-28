@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -26,7 +27,7 @@ func (s *Store) RecordRunPlanAuthority(authority RunPlanAuthorityRecord, compila
 	applyRunPlanAuthorityTimestamps(s.nowFn().UTC(), &authority, &compilation)
 	s.state.RunPlanAuthorities[key] = authority
 	s.state.RunPlanCompilations[key] = compilation
-	rebuildRunPlanRefsByRunLocked(&s.state)
+	rebuildRunPlanIndexesLocked(&s.state)
 	return s.saveStateLocked()
 }
 
@@ -135,6 +136,20 @@ func (s *Store) RunPlanCompilationRecord(runID, planID string) (RunPlanCompilati
 	return rec, true
 }
 
+func (s *Store) RunPlanCompilationRecordByCacheKey(cacheKey string) (RunPlanCompilationRecord, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stateKey, ok := s.state.RunPlanCompilationByCacheKey[strings.TrimSpace(cacheKey)]
+	if !ok {
+		return RunPlanCompilationRecord{}, false
+	}
+	rec, ok := s.state.RunPlanCompilations[stateKey]
+	if !ok {
+		return RunPlanCompilationRecord{}, false
+	}
+	return rec, true
+}
+
 func runPlanStateKey(runID, planID string) string {
 	return strings.TrimSpace(runID) + "|" + strings.TrimSpace(planID)
 }
@@ -181,9 +196,33 @@ func rebuildRunPlanRefsByRunLocked(state *StoreState) {
 	}
 }
 
+func rebuildRunPlanCompilationCacheKeyIndexLocked(state *StoreState) {
+	state.RunPlanCompilationByCacheKey = map[string]string{}
+	keys := make([]string, 0, len(state.RunPlanCompilations))
+	for key := range state.RunPlanCompilations {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		rec := state.RunPlanCompilations[key]
+		cacheKey := strings.TrimSpace(rec.CompileCacheKey)
+		if cacheKey == "" {
+			continue
+		}
+		state.RunPlanCompilationByCacheKey[cacheKey] = key
+	}
+}
+
+func rebuildRunPlanIndexesLocked(state *StoreState) {
+	rebuildRunPlanRefsByRunLocked(state)
+	rebuildRunPlanCompilationCacheKeyIndexLocked(state)
+}
+
 func reconcileRunPlanIndexesLocked(state *StoreState) bool {
 	prior := copyRunPlanRefsByRun(state.RunPlanRefsByRun)
 	rebuildRunPlanRefsByRunLocked(state)
+	priorCacheIndex := len(state.RunPlanCompilationByCacheKey)
+	rebuildRunPlanCompilationCacheKeyIndexLocked(state)
 	changed := !sameRunPlanRefsByRun(prior, state.RunPlanRefsByRun)
 	for key := range state.RunPlanCompilations {
 		if _, ok := state.RunPlanAuthorities[key]; ok {
@@ -192,6 +231,10 @@ func reconcileRunPlanIndexesLocked(state *StoreState) bool {
 		delete(state.RunPlanCompilations, key)
 		changed = true
 	}
+	if priorCacheIndex != len(state.RunPlanCompilationByCacheKey) {
+		changed = true
+	}
+	rebuildRunPlanCompilationCacheKeyIndexLocked(state)
 	return changed
 }
 
@@ -224,7 +267,7 @@ func purgeRunPlanAuthoritiesByDigestLocked(state *StoreState, digest string) boo
 		changed = true
 	}
 	if changed {
-		rebuildRunPlanRefsByRunLocked(state)
+		rebuildRunPlanIndexesLocked(state)
 	}
 	return changed
 }

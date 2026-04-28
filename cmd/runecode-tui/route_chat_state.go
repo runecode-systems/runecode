@@ -290,6 +290,7 @@ func (m chatRouteModel) sendCmd(sessionID, content string) tea.Cmd {
 			SessionID:              sessionID,
 			TriggerSource:          "interactive_user",
 			RequestedOperation:     "start",
+			WorkflowRouting:        defaultSessionWorkflowRouting(),
 			UserMessageContentText: content,
 		})
 		if err != nil {
@@ -313,6 +314,15 @@ func (m chatRouteModel) sendCmd(sessionID, content string) tea.Cmd {
 			return chatMessageSentMsg{err: err}
 		}
 		return chatMessageSentMsg{sessions: listResp.Sessions, detail: &getResp.Session, ack: &sendResp, turnExecution: turnExecution, posture: &posture}
+	}
+}
+
+func defaultSessionWorkflowRouting() *brokerapi.SessionWorkflowPackRouting {
+	return &brokerapi.SessionWorkflowPackRouting{
+		SchemaID:          "runecode.protocol.v0.SessionWorkflowPackRouting",
+		SchemaVersion:     "0.1.0",
+		WorkflowFamily:    "runecontext",
+		WorkflowOperation: "approved_change_implementation",
 	}
 }
 

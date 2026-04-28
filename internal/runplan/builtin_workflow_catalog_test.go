@@ -1,8 +1,13 @@
 package runplan
 
 import (
+	"encoding/json"
+	"io/fs"
 	"strings"
 	"testing"
+	"testing/fstest"
+
+	"github.com/runecode-ai/runecode/internal/workflowpackassets"
 )
 
 func TestBuiltInDraftingCatalogEntriesRequireValidatedProjectSubstrate(t *testing.T) {
@@ -152,4 +157,98 @@ func requireBuiltInCatalogEntry(t *testing.T, workflowID string) BuiltInWorkflow
 	}
 	t.Fatalf("missing %s", workflowID)
 	return BuiltInWorkflowCatalogEntry{}
+}
+
+func TestBuiltInWorkflowBundleLoadsAndValidates(t *testing.T) {
+	manifest, err := loadBuiltInWorkflowManifest(workflowpackassets.BuiltInFS())
+	if err != nil {
+		t.Fatalf("load manifest: %v", err)
+	}
+	if len(manifest.Entries) != 4 {
+		t.Fatalf("entries len = %d, want 4", len(manifest.Entries))
+	}
+	for _, entry := range manifest.Entries {
+		if _, err := buildCatalogEntryFromManifest(entry, workflowpackassets.BuiltInFS()); err != nil {
+			t.Fatalf("build manifest entry %q: %v", entry.WorkflowID, err)
+		}
+	}
+}
+
+func TestBuiltInWorkflowBundleProcessesAreReviewedMultiStepDAGs(t *testing.T) {
+	manifest, err := loadBuiltInWorkflowManifest(workflowpackassets.BuiltInFS())
+	if err != nil {
+		t.Fatalf("load manifest: %v", err)
+	}
+	for _, entry := range manifest.Entries {
+		payload, err := fs.ReadFile(workflowpackassets.BuiltInFS(), entry.ProcessAssetPath)
+		if err != nil {
+			t.Fatalf("read process %q: %v", entry.ProcessAssetPath, err)
+		}
+		process, _, err := decodeProcessDefinition(payload)
+		if err != nil {
+			t.Fatalf("decode process %q: %v", entry.ProcessAssetPath, err)
+		}
+		if len(process.GateDefinitions) < 3 {
+			t.Fatalf("process %q gate_definitions len = %d, want >= 3", process.ProcessID, len(process.GateDefinitions))
+		}
+		if len(process.DependencyEdges) == 0 {
+			t.Fatalf("process %q dependency_edges empty, want DAG edges", process.ProcessID)
+		}
+	}
+}
+
+func TestBuiltInWorkflowBundleDigestMismatchFailsClosed(t *testing.T) {
+	manifest, err := loadBuiltInWorkflowManifest(workflowpackassets.BuiltInFS())
+	if err != nil {
+		t.Fatalf("load manifest: %v", err)
+	}
+	entry := manifest.Entries[0]
+	entry.ProcessDefinitionHash = "sha256:deadbeef"
+	if _, err := buildCatalogEntryFromManifest(entry, workflowpackassets.BuiltInFS()); err == nil || !strings.Contains(err.Error(), "digest mismatch") {
+		t.Fatalf("error = %v, want digest mismatch", err)
+	}
+}
+
+func TestBuiltInWorkflowBundleDuplicateWorkflowIDsFailClosed(t *testing.T) {
+	base := workflowpackassets.BuiltInFS()
+	manifestBytes, err := fs.ReadFile(base, workflowpackassets.BuiltInManifestPath)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	var manifest builtInWorkflowManifest
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		t.Fatalf("decode manifest: %v", err)
+	}
+	manifest.Entries = append(manifest.Entries, manifest.Entries[0])
+	dupeManifest, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatalf("marshal duplicate manifest: %v", err)
+	}
+	virtual := fstest.MapFS{
+		workflowpackassets.BuiltInManifestPath:              &fstest.MapFile{Data: dupeManifest},
+		"builtins/v0/change_draft.workflow.json":            mustReadAsset(t, base, "builtins/v0/change_draft.workflow.json"),
+		"builtins/v0/change_draft.process.json":             mustReadAsset(t, base, "builtins/v0/change_draft.process.json"),
+		"builtins/v0/spec_draft.workflow.json":              mustReadAsset(t, base, "builtins/v0/spec_draft.workflow.json"),
+		"builtins/v0/spec_draft.process.json":               mustReadAsset(t, base, "builtins/v0/spec_draft.process.json"),
+		"builtins/v0/draft_promote.workflow.json":           mustReadAsset(t, base, "builtins/v0/draft_promote.workflow.json"),
+		"builtins/v0/draft_promote.process.json":            mustReadAsset(t, base, "builtins/v0/draft_promote.process.json"),
+		"builtins/v0/approved_implementation.workflow.json": mustReadAsset(t, base, "builtins/v0/approved_implementation.workflow.json"),
+		"builtins/v0/approved_implementation.process.json":  mustReadAsset(t, base, "builtins/v0/approved_implementation.process.json"),
+	}
+	parsed, err := loadBuiltInWorkflowManifest(virtual)
+	if err != nil {
+		t.Fatalf("load virtual manifest: %v", err)
+	}
+	if _, err := buildBuiltInWorkflowCatalogFromManifest(parsed, virtual); err == nil || !strings.Contains(err.Error(), "duplicate built-in workflow_id") {
+		t.Fatalf("error = %v, want duplicate built-in workflow_id", err)
+	}
+}
+
+func mustReadAsset(t *testing.T, f fs.FS, path string) *fstest.MapFile {
+	t.Helper()
+	b, err := fs.ReadFile(f, path)
+	if err != nil {
+		t.Fatalf("read asset %s: %v", path, err)
+	}
+	return &fstest.MapFile{Data: b}
 }
