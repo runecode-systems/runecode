@@ -26,6 +26,7 @@ func (s *Service) newSessionExecutionAppendRequest(requestID string, req Session
 	executionState, waitKind, waitState := sessionExecutionInitialState(req.TriggerSource, controls.autonomyPosture)
 	return artifacts.SessionExecutionTriggerAppendRequest{
 		SessionID:                            req.SessionID,
+		AuthoritativeRepositoryRoot:          project.RepositoryRoot,
 		WorkspaceID:                          session.WorkspaceID,
 		CreatedByRunID:                       session.CreatedByRunID,
 		TriggerSource:                        req.TriggerSource,
@@ -34,6 +35,7 @@ func (s *Service) newSessionExecutionAppendRequest(requestID string, req Session
 		DependsOnScopeIDs:                    dependencyScopeIDs,
 		ApprovalProfile:                      controls.approvalProfile,
 		AutonomyPosture:                      controls.autonomyPosture,
+		WorkflowRouting:                      toDurableWorkflowRouting(req.WorkflowRouting),
 		PrimaryRunID:                         initialSessionExecutionPrimaryRunID(session),
 		LinkedRunIDs:                         links.runIDs,
 		LinkedApprovalIDs:                    links.approvalIDs,
@@ -51,12 +53,33 @@ func (s *Service) newSessionExecutionAppendRequest(requestID string, req Session
 }
 
 func (s *Service) sessionExecutionTriggerIdempotencyHash(requestID string, req SessionExecutionTriggerRequest, controls sessionExecutionTriggerControlValues) (string, *ErrorResponse) {
-	idempotencyHash, err := artifacts.SessionExecutionTriggerIdempotencyHash(req.SessionID, req.TriggerSource, req.RequestedOperation, controls.approvalProfile, controls.autonomyPosture, req.UserMessageContentText)
+	idempotencyHash, err := artifacts.SessionExecutionTriggerIdempotencyHash(req.SessionID, req.TriggerSource, req.RequestedOperation, controls.approvalProfile, controls.autonomyPosture, req.UserMessageContentText, toDurableWorkflowRouting(req.WorkflowRouting))
 	if err != nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
 		return "", &errOut
 	}
 	return idempotencyHash, nil
+}
+
+func toDurableWorkflowRouting(in *SessionWorkflowPackRouting) artifacts.SessionWorkflowPackRoutingDurableState {
+	if in == nil {
+		return artifacts.SessionWorkflowPackRoutingDurableState{}
+	}
+	out := artifacts.SessionWorkflowPackRoutingDurableState{
+		WorkflowFamily:    strings.TrimSpace(in.WorkflowFamily),
+		WorkflowOperation: strings.TrimSpace(in.WorkflowOperation),
+	}
+	if len(in.BoundInputArtifacts) == 0 {
+		return out
+	}
+	out.BoundInputArtifacts = make([]artifacts.SessionWorkflowPackBoundInputArtifactDurableState, 0, len(in.BoundInputArtifacts))
+	for _, artifact := range in.BoundInputArtifacts {
+		out.BoundInputArtifacts = append(out.BoundInputArtifacts, artifacts.SessionWorkflowPackBoundInputArtifactDurableState{
+			ArtifactRef:    strings.TrimSpace(artifact.ArtifactRef),
+			ArtifactDigest: strings.TrimSpace(artifact.ArtifactDigest),
+		})
+	}
+	return out
 }
 
 func initialSessionExecutionPrimaryRunID(session artifacts.SessionDurableState) string {

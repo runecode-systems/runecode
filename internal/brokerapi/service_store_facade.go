@@ -256,3 +256,7 @@ func (s *Service) ActiveRunPlanAuthority(runID string) (artifacts.RunPlanAuthori
 func (s *Service) RunPlanCompilationRecord(runID, planID string) (artifacts.RunPlanCompilationRecord, bool) {
 	return s.store.RunPlanCompilationRecord(runID, planID)
 }
+
+func (s *Service) RunPlanCompilationRecordByCacheKey(cacheKey string) (artifacts.RunPlanCompilationRecord, bool) {
+	return s.store.RunPlanCompilationRecordByCacheKey(cacheKey)
+}

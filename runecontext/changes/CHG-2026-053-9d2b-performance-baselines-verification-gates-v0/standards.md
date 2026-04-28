@@ -18,6 +18,7 @@ That includes freezing the following clarifications for future work:
 - performance checks must respect the same trust boundaries and broker-owned authority surfaces as correctness checks
 - TUI empty-idle and active or waiting-state costs are distinct product regimes and must not be collapsed into one metric
 - broker request latency, watch-family cost, runner startup, workflow execution, launcher startup, gateway overhead, audit verification, and attach or resume paths all need explicit budgets
+- first-party workflow-pack entry, draft artifact generation, explicit promote/apply, approved-input binding, admission control, and fail-closed re-evaluation paths also need explicit budgets once CHG-049 lands
 - Linux is the first authoritative numeric gate, while other platforms should execute the same flow families and gain tuned thresholds over time
 - threshold updates and baseline refreshes require explicit review rather than silent CI mutation
 

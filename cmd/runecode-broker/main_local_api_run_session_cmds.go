@@ -183,10 +183,12 @@ func handleSessionExecutionTrigger(args []string, service *brokerapi.Service, st
 	turnID := fs.String("turn-id", "", "optional target turn id for continue")
 	triggerSource := fs.String("trigger-source", "interactive_user", "trigger source classification")
 	requestedOperation := fs.String("requested-operation", "start", "requested execution operation")
+	workflowFamily := fs.String("workflow-family", "runecontext", "workflow pack family")
+	workflowOperation := fs.String("workflow-operation", "draft_promote_apply", "workflow pack operation")
 	userMessage := fs.String("user-message", "", "optional user message content")
 	idempotencyKey := fs.String("idempotency-key", "", "optional idempotency key")
 	if err := fs.Parse(args); err != nil {
-		return &usageError{message: "session-execution-trigger usage: runecode-broker session-execution-trigger --session-id id [--turn-id id] [--trigger-source interactive_user|autonomous_background|resume_follow_up] [--requested-operation start|continue] [--user-message text] [--idempotency-key key]"}
+		return &usageError{message: "session-execution-trigger usage: runecode-broker session-execution-trigger --session-id id [--turn-id id] [--trigger-source interactive_user|autonomous_background|resume_follow_up] [--requested-operation start|continue] [--workflow-family runecontext] [--workflow-operation change_draft|spec_draft|draft_promote_apply|approved_change_implementation] [--user-message text] [--idempotency-key key]"}
 	}
 	if *sessionID == "" {
 		return &usageError{message: "session-execution-trigger requires --session-id"}
@@ -211,6 +213,7 @@ func handleSessionExecutionTrigger(args []string, service *brokerapi.Service, st
 		TurnID:                 *turnID,
 		TriggerSource:          *triggerSource,
 		RequestedOperation:     *requestedOperation,
+		WorkflowRouting:        sessionWorkflowRoutingForCLI(*requestedOperation, *workflowFamily, *workflowOperation),
 		UserMessageContentText: *userMessage,
 		IdempotencyKey:         *idempotencyKey,
 	})
@@ -218,6 +221,13 @@ func handleSessionExecutionTrigger(args []string, service *brokerapi.Service, st
 		return localAPIError(errResp)
 	}
 	return writeJSON(stdout, resp)
+}
+
+func sessionWorkflowRoutingForCLI(requestedOperation, family, operation string) *brokerapi.SessionWorkflowPackRouting {
+	if requestedOperation == "continue" {
+		return nil
+	}
+	return &brokerapi.SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: family, WorkflowOperation: operation}
 }
 
 func handleSessionWatch(args []string, service *brokerapi.Service, stdout io.Writer) error {

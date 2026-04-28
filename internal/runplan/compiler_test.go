@@ -455,6 +455,30 @@ func TestCompileRejectsDuplicateReviewedProcessArtifacts(t *testing.T) {
 	}
 }
 
+func TestCompileRejectsRepositoryShadowingOfBuiltInWorkflowID(t *testing.T) {
+	processPayload := processPayloadWithSingleBinding(t, "binding_workspace_runner", "workspace-runner", []string{"workspace-edit"})
+	selectedHash := mustCanonicalHash(t, processPayload)
+	workflowPayload := mustJSON(t, map[string]any{
+		"schema_id":                        workflowDefinitionSchemaID,
+		"schema_version":                   workflowDefinitionVersion,
+		"workflow_id":                      "builtin_rc_change_draft_v0",
+		"workflow_version":                 "0.1.0",
+		"selected_process_id":              "process_default",
+		"selected_process_definition_hash": selectedHash,
+		"reviewed_process_artifacts":       []any{map[string]any{"process_id": "process_default", "process_definition_hash": selectedHash}},
+		"approval_profile":                 "moderate",
+		"autonomy_posture":                 "operator_guided",
+	})
+
+	_, err := Compile(deterministicCompileInput(workflowPayload, processPayload))
+	if err == nil {
+		t.Fatal("Compile error = nil, want reserved built-in workflow rejection")
+	}
+	if !strings.Contains(err.Error(), "reserved for built-in") {
+		t.Fatalf("Compile error = %v, want reserved built-in workflow rejection", err)
+	}
+}
+
 func gateDef(gateID, checkpoint string, order int) map[string]any {
 	return gateDefWithKindVersion(gateID, checkpoint, order, "build", "1.0.0")
 }

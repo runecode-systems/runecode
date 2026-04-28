@@ -10,6 +10,7 @@
 - Confirm canonical references remain on RuneContext project, spec, and change paths, with no active workflow depending on legacy planning paths.
 - Confirm the migrated text assumes RuneContext is canonical, RuneCode owns the user-facing UX, and verified-mode project state remains the expected operating posture.
 - Confirm the change still matches its vNext roadmap bucket and title after migration.
+- Confirm the change explicitly inherits the CHG-049 `v0` baseline of at most one mutation-bearing shared-workspace run per authoritative repository root.
 - Confirm concurrency scope keys reuse shared logical workflow identities rather than retry/attempt-local IDs.
 - Confirm partial blocking and lock waits are represented through coordination/detail surfaces instead of a new public lifecycle enum.
 - Confirm shared-workspace concurrency composes with `CHG-2026-048-6b7a-session-execution-orchestration-v0` scoped blocking semantics instead of treating any single run wait as a workspace-global stop by default.
@@ -20,6 +21,7 @@
 - Confirm project-substrate drift or conflicting project-context bindings fail closed or surface explicit coordination/remediation posture.
 - Confirm concurrency ownership and coordination remain broker-owned within the canonical repo-scoped product lifecycle rather than depending on client-local attach state, transport bindings, or workbench-local ownership heuristics.
 - Confirm this change stays distinct from isolated implementation-track execution in `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0`.
+- Confirm any reviewed non-default concurrency posture remains an explicit broker-owned extension of that baseline rather than a client-local dedupe or scheduling shortcut.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

@@ -1,5 +1,5 @@
 ## Summary
-RuneCode can decompose approved or operator-supplied implementation work into low-coupling tracks, execute eligible tracks in isolated git worktrees, and keep unrelated work moving while blocked tracks wait on user input or approval.
+RuneCode can decompose reviewed approved implementation-input sets into low-coupling tracks, execute eligible tracks in isolated git worktrees, and keep unrelated work moving while blocked tracks wait on user input or approval.
 
 ## Problem
 Even with session execution orchestration and durable wait/resume semantics, implementation work will stall unnecessarily if one pending user decision halts an entire implementation effort.
@@ -8,14 +8,16 @@ At the same time, naive parallelization in one shared workspace risks collisions
 
 ## Proposed Change
 - One broker-owned implementation-track model with stable track identity, dependency edges, and explicit blocked/unblocked readiness.
-- Track decomposition that can use explicit track declarations from change/spec/implementation docs when they exist and can infer candidate tracks when they do not.
+- Track decomposition that consumes the reviewed implementation-input-set foundation from `CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0`, can use explicit track declarations from approved canonical inputs when they exist, and can infer candidate tracks when they do not.
 - A broker-owned proposed execution-plan artifact so inferred decomposition remains auditable, reviewable, and operator-visible rather than a hidden runtime heuristic.
 - Explicit alignment with CHG-050 so the proposed execution-plan artifact remains planning/review state, while actual runner-consumed runtime authority still flows through broker-compiled immutable `RunPlan`.
 - Isolated git-worktree execution for low-coupling eligible tracks when confidence, dependency state, policy, and coordination posture allow it.
+- Explicitly additive posture over the `CHG-049` `v0` baseline of at most one mutation-bearing shared-workspace run per authoritative repository root; this change is where later reviewed multi-track implementation execution becomes explicit.
 - Dependency-aware partial blocking so pending operator input or approval freezes only the directly affected tracks and downstream dependent tracks, while unrelated eligible tracks may continue.
 - Canonical linkage from tracks and worktree-backed execution to sessions, runs, approvals, artifacts, audit records, and validated project-context bindings.
 - Explicit integration and verification flow for combining track results rather than heuristic ambient merging.
 - Explicit reuse of the shared broker-owned dependency-fetch and offline-cache authority so parallel worktrees consume reviewed dependency artifacts without inventing per-worktree cache identity or approval semantics.
+- Fail-closed invalidation when approved implementation inputs, validated project context, or mutation-sensitive repository state drift incompatibly from the bound execution assumptions.
 
 ## Why Now
 This work belongs after session execution orchestration, workflow definition binding, and the first-party workflow pack foundations exist, because that is the point where RuneCode can productively implement real change work and needs a reviewed way to keep safe independent work moving.
@@ -28,10 +30,11 @@ Planning it now avoids a later split between:
 ## Assumptions
 - `runecontext/changes/*` is the canonical planning surface for this repository.
 - RuneCode keeps the end-user command surface while using bundled RuneContext capabilities under the hood where project context or assurance is involved.
-- Explicit track declarations in approved change/spec/implementation inputs should take precedence over inferred track grouping.
+- Explicit track declarations in reviewed approved implementation inputs should take precedence over inferred track grouping.
 - When explicit track declarations are absent, inferred tracks should still become broker-owned proposed execution-plan state rather than remaining hidden agent-local reasoning.
 - Git worktrees are the preferred isolation substrate for low-coupling implementation tracks, but only when overlap risk and dependency ambiguity remain low enough for safe reviewed use.
 - Worktree paths, branch names, and local filesystem mechanics remain implementation-private and non-authoritative.
+- `CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0` freezes the reviewed implementation-input-set authority model and the initial `v0` single mutation-bearing shared-workspace baseline this change extends later rather than redefines locally.
 
 ## Out of Scope
 - Re-introducing legacy Agent OS planning paths as canonical references.
@@ -47,3 +50,7 @@ It also keeps dependency behavior aligned with `CHG-2026-024-acde-deps-fetch-off
 This change remains explicitly additive over CHG-050:
 - CHG-050 encodes executable graph structure, scoped blocking, and eligibility without promising parallel execution behavior in `v0`
 - this change is where actual later track decomposition and eligible parallel/worktree execution behavior become explicit and auditable
+
+It also remains explicitly additive over CHG-049:
+- approved implementation work already binds to reviewed implementation-input sets and exact digests before this change
+- this change adds reviewed decomposition, isolation, and coordination behavior on top of that foundation rather than reopening approved-input authority or ambient-repo heuristics

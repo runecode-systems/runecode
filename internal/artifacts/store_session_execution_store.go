@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"fmt"
+	"strings"
 )
 
 func (s *Store) AppendSessionExecutionTrigger(req SessionExecutionTriggerAppendRequest) (SessionExecutionTriggerAppendResult, error) {
@@ -16,12 +17,85 @@ func (s *Store) AppendSessionExecutionTrigger(req SessionExecutionTriggerAppendR
 	if replay, handled, err := replaySessionExecutionTriggerAppend(session, normalized); handled {
 		return replay, err
 	}
+	if err := enforceSessionExecutionTriggerAdmission(s.state.Sessions, normalized); err != nil {
+		return SessionExecutionTriggerAppendResult{}, err
+	}
+	prior, hadPrior := s.state.Sessions[normalized.SessionID]
 	appendResult := createSessionExecutionTriggerAppendResult(&session, normalized)
 	s.state.Sessions[normalized.SessionID] = session
 	if err := s.saveStateLocked(); err != nil {
+		if hadPrior {
+			s.state.Sessions[normalized.SessionID] = prior
+		} else {
+			delete(s.state.Sessions, normalized.SessionID)
+		}
 		return SessionExecutionTriggerAppendResult{}, err
 	}
 	return appendResult, nil
+}
+
+func enforceSessionExecutionTriggerAdmission(states map[string]SessionDurableState, req SessionExecutionTriggerAppendRequest) error {
+	if !sessionExecutionTriggerRequiresRepoRootOverlapAdmission(req) {
+		return nil
+	}
+	repoRoot := strings.TrimSpace(req.AuthoritativeRepositoryRoot)
+	if repoRoot == "" {
+		return fmt.Errorf("%w: authoritative repository root is required", ErrSessionExecutionTriggerOverlapDenied)
+	}
+	for _, session := range states {
+		if execution, ok := activeExecutionForRepoRoot(session, repoRoot); ok {
+			return fmt.Errorf("%w: active mutation-bearing shared-workspace run already exists for repository root %q (session=%q turn=%q state=%q)", ErrSessionExecutionTriggerOverlapDenied, repoRoot, execution.SessionID, execution.TurnID, execution.ExecutionState)
+		}
+	}
+	return nil
+}
+
+func sessionExecutionTriggerRequiresRepoRootOverlapAdmission(req SessionExecutionTriggerAppendRequest) bool {
+	if strings.TrimSpace(req.RequestedOperation) != "start" {
+		return false
+	}
+	return sessionExecutionTriggerIsMutationBearingSharedWorkspace(req)
+}
+
+func sessionExecutionTriggerIsMutationBearingSharedWorkspace(req SessionExecutionTriggerAppendRequest) bool {
+	if strings.TrimSpace(req.WorkflowRouting.WorkflowFamily) != "runecontext" {
+		return true
+	}
+	switch strings.TrimSpace(req.WorkflowRouting.WorkflowOperation) {
+	case "change_draft", "spec_draft":
+		return len(req.WorkflowRouting.BoundInputArtifacts) != 0
+	case "draft_promote_apply", "approved_change_implementation":
+		return true
+	default:
+		return true
+	}
+}
+
+func activeExecutionForRepoRoot(session SessionDurableState, repoRoot string) (SessionTurnExecutionDurableState, bool) {
+	rootByTriggerID := map[string]string{}
+	for _, trigger := range session.ExecutionTriggers {
+		rootByTriggerID[strings.TrimSpace(trigger.TriggerID)] = strings.TrimSpace(trigger.AuthoritativeRepositoryRoot)
+	}
+	for _, execution := range session.TurnExecutions {
+		if sessionTurnExecutionIsTerminal(execution) {
+			continue
+		}
+		execRoot := rootByTriggerID[strings.TrimSpace(execution.TriggerID)]
+		if execRoot == "" || execRoot != repoRoot {
+			continue
+		}
+		return execution, true
+	}
+	return SessionTurnExecutionDurableState{}, false
+}
+
+func sessionTurnExecutionIsTerminal(exec SessionTurnExecutionDurableState) bool {
+	switch strings.TrimSpace(exec.ExecutionState) {
+	case "completed", "failed":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Store) UpdateSessionTurnExecution(req SessionTurnExecutionUpdateRequest) (SessionTurnExecutionDurableState, error) {
@@ -36,6 +110,7 @@ func (s *Store) UpdateSessionTurnExecution(req SessionTurnExecutionUpdateRequest
 	if !ok || session.SessionID == "" {
 		return SessionTurnExecutionDurableState{}, ErrSessionTurnExecutionNotFound
 	}
+	prior := copySessionDurableState(session)
 	idx := sessionTurnExecutionIndex(session.TurnExecutions, normalized.TurnID)
 	if idx == -1 {
 		return SessionTurnExecutionDurableState{}, ErrSessionTurnExecutionNotFound
@@ -45,6 +120,7 @@ func (s *Store) UpdateSessionTurnExecution(req SessionTurnExecutionUpdateRequest
 	applySessionExecutionSummaryUpdate(&session, exec, normalized.OccurredAt)
 	s.state.Sessions[normalized.SessionID] = session
 	if err := s.saveStateLocked(); err != nil {
+		s.state.Sessions[normalized.SessionID] = prior
 		return SessionTurnExecutionDurableState{}, err
 	}
 	return copySessionTurnExecutionDurableState(exec), nil

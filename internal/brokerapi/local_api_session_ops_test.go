@@ -326,6 +326,9 @@ func mustSessionSendMessage(t *testing.T, s *Service, req SessionSendMessageRequ
 
 func mustSessionExecutionTrigger(t *testing.T, s *Service, req SessionExecutionTriggerRequest) SessionExecutionTriggerResponse {
 	t.Helper()
+	if req.RequestedOperation == "start" && req.WorkflowRouting == nil {
+		req.WorkflowRouting = &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "draft_promote_apply"}
+	}
 	resp, errResp := s.HandleSessionExecutionTrigger(context.Background(), req, RequestContext{})
 	if errResp != nil {
 		t.Fatalf("HandleSessionExecutionTrigger error response: %+v", errResp)

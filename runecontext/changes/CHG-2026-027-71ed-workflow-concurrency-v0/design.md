@@ -4,7 +4,7 @@
 Define explicit shared-workspace concurrency modes, deterministic locking, and auditable conflict handling beyond the one-run-per-workspace default.
 
 ## Key Decisions
-- One active run per workspace remains the default fail-closed posture.
+- The baseline inherited from `CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0` is at most one mutation-bearing shared-workspace run per authoritative repository root.
 - Shared-workspace concurrency requires an explicit model, not opportunistic scheduling.
 - Concurrency state must be visible to the runner, broker, policy layer, and TUI.
 - Approval and artifact bindings remain run-specific even when runs execute concurrently.
@@ -20,6 +20,7 @@ Define explicit shared-workspace concurrency modes, deterministic locking, and a
 - Shared-workspace concurrency must compose with the dependency-aware partial-blocking semantics from `CHG-2026-048-6b7a-session-execution-orchestration-v0`; a scoped wait inside one run is not automatically a workspace-global stop unless coordination or locking rules require it.
 - Shared-workspace concurrency is distinct from isolated implementation-track execution in `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0`; this change covers shared-workspace coordination, not worktree-isolated parallelism.
 - Shared-workspace concurrency must reuse the broker-owned dependency-fetch and offline-cache model from `CHG-2026-024-acde-deps-fetch-offline-cache`; concurrent runs may share immutable reviewed dependency artifacts, but workspace-local package-manager caches and unpacked trees are not authoritative coordination state.
+- Any later admission of more than one mutation-bearing shared-workspace run or any separately admitted non-mutating posture must remain an explicit reviewed extension of this baseline rather than an ambient scheduler shortcut.
 
 ## Shared Contract Alignment
 
@@ -32,6 +33,7 @@ Define explicit shared-workspace concurrency modes, deterministic locking, and a
 - Public run lifecycle should remain on the shared broker lifecycle vocabulary.
 - Lock waits, conflict waits, and partially blocked progress should be represented through `RunCoordinationSummary`, stage summaries, and role summaries instead of a new concurrency-specific lifecycle state.
 - Concurrency ownership and coordination should build on the canonical repo-scoped product lifecycle established by `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0` rather than introducing transport-local or client-local product ownership semantics.
+- Broker-owned admission control and idempotency should remain the gate for non-default concurrency posture rather than client-local trigger dedupe or transcript heuristics.
 
 ### Approval + Gate Binding
 - Exact-action approvals, stage sign-off, gate attempts, gate evidence, and gate overrides must stay bound to the correct run even when workspaces are shared.

@@ -34,6 +34,12 @@ Alpha.7 bootstrap already landed:
 - [ ] Add no-op and small deterministic workflow execution performance checks.
 - [ ] Add deterministic checks for CHG-050 workflow-definition/process-definition validation, canonicalization, and trusted compilation overhead.
 - [ ] Add deterministic checks for compiled `RunPlan` persistence/load and runner startup from immutable `RunPlan`.
+- [ ] Add deterministic draft artifact-generation checks for the CHG-049 first-party workflow pack.
+- [ ] Add deterministic draft promote/apply checks for canonical RuneContext mutation through the shared audited path.
+- [ ] Add deterministic reviewed implementation-input-set validation/binding checks for approved-change implementation entry.
+- [ ] Add deterministic direct CLI workflow-trigger latency checks for first-party workflow-pack entry.
+- [ ] Add deterministic repo-scoped admission-control and idempotency checks for first-party workflow trigger paths.
+- [ ] Add deterministic fail-closed re-evaluation/recompile checks for project-context or approved-input drift on first-party workflow-pack paths.
 - [ ] Add attach and resume performance checks for persistent local control-plane lifecycle behavior.
 
 ## Phase 5: Launcher, Gateway, Audit, And Protocol Checks
@@ -70,6 +76,7 @@ Alpha.7 bootstrap already landed:
 - [ ] Broker local API requests and watch families have deterministic latency checks at multiple fixture sizes.
 - [ ] Runner, workflow, launcher, model-gateway, audit, protocol, and git gateway paths each have at least one deterministic CI-compatible performance check.
 - [ ] The refined CHG-050 workflow path has explicit checks for validation/canonicalization, trusted compilation, compiled-plan persistence/load, and runner startup from immutable `RunPlan`.
+- [ ] The CHG-049 first-party workflow pack has explicit checks for draft artifact generation, explicit promote/apply, implementation-input-set validation/binding, direct CLI triggering, repo-scoped admission control/idempotency, and drift-triggered re-evaluation/recompile overhead.
 - [ ] Dependency-fetch and offline-cache cold-cache, warm-cache, coalescing, and materialization paths each have at least one deterministic CI-compatible performance check.
 - [ ] Linux PR CI enforces numeric thresholds for the highest-value checks.
 - [ ] macOS and Windows execute the same performance flow families where feasible, at least as smoke or trend gates.

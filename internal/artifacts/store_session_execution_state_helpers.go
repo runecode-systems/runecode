@@ -15,13 +15,15 @@ func nextSessionExecutionIDs(session *SessionDurableState) (int, string, string)
 
 func newSessionExecutionTriggerState(sessionID, triggerID string, triggerIndex int, req SessionExecutionTriggerAppendRequest) SessionExecutionTriggerDurableState {
 	return SessionExecutionTriggerDurableState{
-		TriggerID:              triggerID,
-		SessionID:              sessionID,
-		TriggerIndex:           triggerIndex,
-		TriggerSource:          req.TriggerSource,
-		RequestedOperation:     req.RequestedOperation,
-		UserMessageContentText: req.UserMessageContentText,
-		CreatedAt:              req.OccurredAt,
+		TriggerID:                   triggerID,
+		SessionID:                   sessionID,
+		TriggerIndex:                triggerIndex,
+		AuthoritativeRepositoryRoot: req.AuthoritativeRepositoryRoot,
+		TriggerSource:               req.TriggerSource,
+		RequestedOperation:          req.RequestedOperation,
+		WorkflowRouting:             req.WorkflowRouting,
+		UserMessageContentText:      req.UserMessageContentText,
+		CreatedAt:                   req.OccurredAt,
 	}
 }
 
@@ -40,6 +42,7 @@ func newSessionTurnExecutionState(sessionID, turnID, triggerID string, triggerIn
 		WaitState:                            req.WaitState,
 		ApprovalProfile:                      req.ApprovalProfile,
 		AutonomyPosture:                      req.AutonomyPosture,
+		WorkflowRouting:                      req.WorkflowRouting,
 		PrimaryRunID:                         req.PrimaryRunID,
 		PendingApprovalID:                    req.PendingApprovalID,
 		LinkedRunIDs:                         append([]string{}, req.LinkedRunIDs...),

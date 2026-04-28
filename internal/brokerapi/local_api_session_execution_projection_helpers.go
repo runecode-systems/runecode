@@ -39,6 +39,7 @@ func buildSessionTurnExecutionFromDurable(in artifacts.SessionTurnExecutionDurab
 		WaitState:                            in.WaitState,
 		ApprovalProfile:                      in.ApprovalProfile,
 		AutonomyPosture:                      in.AutonomyPosture,
+		WorkflowRouting:                      fromDurableWorkflowRouting(in.WorkflowRouting),
 		PrimaryRunID:                         in.PrimaryRunID,
 		PendingApprovalID:                    in.PendingApprovalID,
 		LinkedRunIDs:                         boundedStrings(append([]string{}, in.LinkedRunIDs...), 256),
@@ -51,6 +52,29 @@ func buildSessionTurnExecutionFromDurable(in artifacts.SessionTurnExecutionDurab
 		CreatedAt:                            in.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:                            in.UpdatedAt.UTC().Format(time.RFC3339),
 	}
+}
+
+func fromDurableWorkflowRouting(in artifacts.SessionWorkflowPackRoutingDurableState) SessionWorkflowPackRouting {
+	out := SessionWorkflowPackRouting{
+		SchemaID:          "runecode.protocol.v0.SessionWorkflowPackRouting",
+		SchemaVersion:     "0.1.0",
+		WorkflowFamily:    in.WorkflowFamily,
+		WorkflowOperation: in.WorkflowOperation,
+	}
+	if out.WorkflowFamily == "" {
+		out.WorkflowFamily = "runecontext"
+	}
+	if out.WorkflowOperation == "" {
+		out.WorkflowOperation = "approved_change_implementation"
+	}
+	if len(in.BoundInputArtifacts) == 0 {
+		return out
+	}
+	out.BoundInputArtifacts = make([]SessionWorkflowPackBoundInputArtifact, 0, len(in.BoundInputArtifacts))
+	for _, artifact := range in.BoundInputArtifacts {
+		out.BoundInputArtifacts = append(out.BoundInputArtifacts, SessionWorkflowPackBoundInputArtifact{ArtifactRef: artifact.ArtifactRef, ArtifactDigest: artifact.ArtifactDigest})
+	}
+	return out
 }
 
 func currentAndLatestSessionTurnExecution(executions []artifacts.SessionTurnExecutionDurableState) (*SessionTurnExecution, *SessionTurnExecution, []SessionTurnExecution) {

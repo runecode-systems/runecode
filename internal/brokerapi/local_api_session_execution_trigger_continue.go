@@ -35,6 +35,9 @@ func (s *Service) selectSessionExecutionContinueTarget(requestID string, req Ses
 	if errResp := s.validateSessionExecutionContinueTarget(requestID, target); errResp != nil {
 		return artifacts.SessionTurnExecutionDurableState{}, errResp
 	}
+	if errResp := validateSessionContinueWorkflowRouting(s, requestID, req.WorkflowRouting, target.WorkflowRouting); errResp != nil {
+		return artifacts.SessionTurnExecutionDurableState{}, errResp
+	}
 	return target, nil
 }
 
@@ -80,7 +83,7 @@ func (s *Service) replayContinuedSessionExecution(requestID string, req SessionE
 	if key == "" {
 		return SessionExecutionTriggerResponse{}, false, nil
 	}
-	hash, err := artifacts.SessionExecutionTriggerIdempotencyHash(req.SessionID, req.TriggerSource, req.RequestedOperation, normalizeSessionTriggerApprovalProfile(req.ApprovalProfile), normalizeSessionTriggerAutonomyPosture(req.AutonomyPosture), req.UserMessageContentText)
+	hash, err := artifacts.SessionExecutionTriggerIdempotencyHash(req.SessionID, req.TriggerSource, req.RequestedOperation, normalizeSessionTriggerApprovalProfile(req.ApprovalProfile), normalizeSessionTriggerAutonomyPosture(req.AutonomyPosture), req.UserMessageContentText, toDurableWorkflowRouting(req.WorkflowRouting))
 	if err != nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
 		return SessionExecutionTriggerResponse{}, false, &errOut
@@ -149,7 +152,7 @@ func (s *Service) storeContinuedSessionExecutionReplay(requestID string, req Ses
 	if key == "" {
 		return nil
 	}
-	hash, err := artifacts.SessionExecutionTriggerIdempotencyHash(req.SessionID, req.TriggerSource, req.RequestedOperation, normalizeSessionTriggerApprovalProfile(req.ApprovalProfile), normalizeSessionTriggerAutonomyPosture(req.AutonomyPosture), req.UserMessageContentText)
+	hash, err := artifacts.SessionExecutionTriggerIdempotencyHash(req.SessionID, req.TriggerSource, req.RequestedOperation, normalizeSessionTriggerApprovalProfile(req.ApprovalProfile), normalizeSessionTriggerAutonomyPosture(req.AutonomyPosture), req.UserMessageContentText, toDurableWorkflowRouting(req.WorkflowRouting))
 	if err != nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, err.Error())
 		return &errOut
@@ -207,6 +210,21 @@ func isResumableSessionTurnExecutionState(execution artifacts.SessionTurnExecuti
 	default:
 		return false
 	}
+}
+
+func validateSessionContinueWorkflowRouting(s *Service, requestID string, requested *SessionWorkflowPackRouting, target artifacts.SessionWorkflowPackRoutingDurableState) *ErrorResponse {
+	if requested == nil {
+		return nil
+	}
+	requestedFamily := strings.TrimSpace(requested.WorkflowFamily)
+	requestedOperation := strings.TrimSpace(requested.WorkflowOperation)
+	if requestedFamily == "" && requestedOperation == "" {
+		return nil
+	}
+	if requestedFamily != strings.TrimSpace(target.WorkflowFamily) || requestedOperation != strings.TrimSpace(target.WorkflowOperation) {
+		return sessionExecutionTriggerValidationError(s, requestID, "workflow_routing must match continued turn execution")
+	}
+	return nil
 }
 
 func (s *Service) markTurnExecutionProjectBlocked(sessionID string, execution artifacts.SessionTurnExecutionDurableState, reason string, occurredAt time.Time) error {

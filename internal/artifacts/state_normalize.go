@@ -115,6 +115,9 @@ func normalizeProviderStateMaps(state StoreState) StoreState {
 	if state.RunPlanCompilations == nil {
 		state.RunPlanCompilations = map[string]RunPlanCompilationRecord{}
 	}
+	if state.RunPlanCompilationByCacheKey == nil {
+		state.RunPlanCompilationByCacheKey = map[string]string{}
+	}
 	return state
 }
 

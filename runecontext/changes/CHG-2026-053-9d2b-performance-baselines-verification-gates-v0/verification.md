@@ -36,6 +36,7 @@
 - Confirm performance checks are proposed for all major RuneCode aspects rather than just the TUI.
 - Confirm each major subsystem has an explicit threshold policy or regression budget.
 - Confirm the refined CHG-050 workflow path is measured explicitly, including validation/canonicalization, trusted compilation, compiled-plan persistence/load, and runner startup from immutable `RunPlan`.
+- Confirm the CHG-049 first-party workflow-pack path is measured explicitly, including draft artifact generation, draft promote/apply, implementation-input-set validation/binding, direct CLI triggering, repo-scoped admission control/idempotency, and fail-closed drift-triggered re-evaluation/recompile costs.
 - Confirm dependency-fetch and offline-cache have explicit cold-cache, warm-cache, miss-coalescing, and materialization checks.
 - Confirm dependency-fetch performance checks preserve the reviewed stream-to-CAS and bounded-memory posture rather than rewarding trust-boundary shortcuts.
 - Confirm Linux remains the first authoritative numeric gate while other platforms still execute the same flow families where feasible.

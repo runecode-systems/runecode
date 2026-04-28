@@ -110,7 +110,7 @@ func TestPromoteExcerptRequiresSignedApprovalInputs(t *testing.T) {
 }
 
 func TestPromoteExcerptRejectsSelfProvidedVerifierRecord(t *testing.T) {
-	setBrokerServiceForTest(t)
+	root := setBrokerServiceForTest(t)
 	stderr := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}
 	unapprovedPath := writeTempFile(t, "excerpt.txt", "private excerpt")
@@ -124,7 +124,7 @@ func TestPromoteExcerptRejectsSelfProvidedVerifierRecord(t *testing.T) {
 		}
 		payloadPath := writeTempFile(t, "verifier-non-auditd.json", string(payload))
 		nibble := string('a' + rune(index%6))
-		err = run([]string{"put-artifact", "--file", payloadPath, "--content-type", "application/json", "--data-class", "audit_verification_report", "--provenance-hash", testDigest(nibble), "--role", "workspace"}, stdout, stderr)
+		err = run([]string{"--state-root", root, "put-artifact", "--file", payloadPath, "--content-type", "application/json", "--data-class", "audit_verification_report", "--provenance-hash", testDigest(nibble), "--role", "workspace"}, stdout, stderr)
 		if err != nil {
 			t.Fatalf("put-artifact verifier record returned error: %v", err)
 		}

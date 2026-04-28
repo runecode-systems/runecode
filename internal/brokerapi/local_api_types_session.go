@@ -45,32 +45,46 @@ type SessionDetail struct {
 }
 
 type SessionTurnExecution struct {
-	SchemaID                             string   `json:"schema_id"`
-	SchemaVersion                        string   `json:"schema_version"`
-	TurnID                               string   `json:"turn_id"`
-	SessionID                            string   `json:"session_id"`
-	ExecutionIndex                       int      `json:"execution_index"`
-	OrchestrationScopeID                 string   `json:"orchestration_scope_id,omitempty"`
-	DependsOnScopeIDs                    []string `json:"depends_on_scope_ids,omitempty"`
-	TriggerID                            string   `json:"trigger_id"`
-	TriggerSource                        string   `json:"trigger_source"`
-	RequestedOperation                   string   `json:"requested_operation"`
-	ExecutionState                       string   `json:"execution_state"`
-	WaitKind                             string   `json:"wait_kind,omitempty"`
-	WaitState                            string   `json:"wait_state,omitempty"`
-	ApprovalProfile                      string   `json:"approval_profile"`
-	AutonomyPosture                      string   `json:"autonomy_posture"`
-	PrimaryRunID                         string   `json:"primary_run_id,omitempty"`
-	PendingApprovalID                    string   `json:"pending_approval_id,omitempty"`
-	LinkedRunIDs                         []string `json:"linked_run_ids,omitempty"`
-	LinkedApprovalIDs                    []string `json:"linked_approval_ids,omitempty"`
-	LinkedArtifactDigests                []string `json:"linked_artifact_digests,omitempty"`
-	LinkedAuditRecordDigests             []string `json:"linked_audit_record_digests,omitempty"`
-	BoundValidatedProjectSubstrateDigest string   `json:"bound_validated_project_substrate_digest,omitempty"`
-	BlockedReasonCode                    string   `json:"blocked_reason_code,omitempty"`
-	TerminalOutcome                      string   `json:"terminal_outcome,omitempty"`
-	CreatedAt                            string   `json:"created_at"`
-	UpdatedAt                            string   `json:"updated_at"`
+	SchemaID                             string                     `json:"schema_id"`
+	SchemaVersion                        string                     `json:"schema_version"`
+	TurnID                               string                     `json:"turn_id"`
+	SessionID                            string                     `json:"session_id"`
+	ExecutionIndex                       int                        `json:"execution_index"`
+	OrchestrationScopeID                 string                     `json:"orchestration_scope_id,omitempty"`
+	DependsOnScopeIDs                    []string                   `json:"depends_on_scope_ids,omitempty"`
+	TriggerID                            string                     `json:"trigger_id"`
+	TriggerSource                        string                     `json:"trigger_source"`
+	RequestedOperation                   string                     `json:"requested_operation"`
+	ExecutionState                       string                     `json:"execution_state"`
+	WaitKind                             string                     `json:"wait_kind,omitempty"`
+	WaitState                            string                     `json:"wait_state,omitempty"`
+	ApprovalProfile                      string                     `json:"approval_profile"`
+	AutonomyPosture                      string                     `json:"autonomy_posture"`
+	WorkflowRouting                      SessionWorkflowPackRouting `json:"workflow_routing"`
+	PrimaryRunID                         string                     `json:"primary_run_id,omitempty"`
+	PendingApprovalID                    string                     `json:"pending_approval_id,omitempty"`
+	LinkedRunIDs                         []string                   `json:"linked_run_ids,omitempty"`
+	LinkedApprovalIDs                    []string                   `json:"linked_approval_ids,omitempty"`
+	LinkedArtifactDigests                []string                   `json:"linked_artifact_digests,omitempty"`
+	LinkedAuditRecordDigests             []string                   `json:"linked_audit_record_digests,omitempty"`
+	BoundValidatedProjectSubstrateDigest string                     `json:"bound_validated_project_substrate_digest,omitempty"`
+	BlockedReasonCode                    string                     `json:"blocked_reason_code,omitempty"`
+	TerminalOutcome                      string                     `json:"terminal_outcome,omitempty"`
+	CreatedAt                            string                     `json:"created_at"`
+	UpdatedAt                            string                     `json:"updated_at"`
+}
+
+type SessionWorkflowPackRouting struct {
+	SchemaID            string                                  `json:"schema_id"`
+	SchemaVersion       string                                  `json:"schema_version"`
+	WorkflowFamily      string                                  `json:"workflow_family"`
+	WorkflowOperation   string                                  `json:"workflow_operation"`
+	BoundInputArtifacts []SessionWorkflowPackBoundInputArtifact `json:"bound_input_artifacts,omitempty"`
+}
+
+type SessionWorkflowPackBoundInputArtifact struct {
+	ArtifactRef    string `json:"artifact_ref"`
+	ArtifactDigest string `json:"artifact_digest"`
 }
 
 type SessionTranscriptLinks struct {
@@ -163,35 +177,37 @@ type SessionSendMessageResponse struct {
 }
 
 type SessionExecutionTriggerRequest struct {
-	SchemaID               string `json:"schema_id"`
-	SchemaVersion          string `json:"schema_version"`
-	RequestID              string `json:"request_id"`
-	SessionID              string `json:"session_id"`
-	TurnID                 string `json:"turn_id,omitempty"`
-	TriggerSource          string `json:"trigger_source"`
-	RequestedOperation     string `json:"requested_operation"`
-	ApprovalProfile        string `json:"approval_profile,omitempty"`
-	AutonomyPosture        string `json:"autonomy_posture,omitempty"`
-	UserMessageContentText string `json:"user_message_content_text,omitempty"`
-	IdempotencyKey         string `json:"idempotency_key,omitempty"`
+	SchemaID               string                      `json:"schema_id"`
+	SchemaVersion          string                      `json:"schema_version"`
+	RequestID              string                      `json:"request_id"`
+	SessionID              string                      `json:"session_id"`
+	TurnID                 string                      `json:"turn_id,omitempty"`
+	TriggerSource          string                      `json:"trigger_source"`
+	RequestedOperation     string                      `json:"requested_operation"`
+	ApprovalProfile        string                      `json:"approval_profile,omitempty"`
+	AutonomyPosture        string                      `json:"autonomy_posture,omitempty"`
+	WorkflowRouting        *SessionWorkflowPackRouting `json:"workflow_routing,omitempty"`
+	UserMessageContentText string                      `json:"user_message_content_text,omitempty"`
+	IdempotencyKey         string                      `json:"idempotency_key,omitempty"`
 }
 
 type SessionExecutionTriggerResponse struct {
-	SchemaID               string `json:"schema_id"`
-	SchemaVersion          string `json:"schema_version"`
-	RequestID              string `json:"request_id"`
-	SessionID              string `json:"session_id"`
-	TriggerID              string `json:"trigger_id"`
-	TurnID                 string `json:"turn_id"`
-	TriggerSource          string `json:"trigger_source"`
-	RequestedOperation     string `json:"requested_operation"`
-	ApprovalProfile        string `json:"approval_profile"`
-	AutonomyPosture        string `json:"autonomy_posture"`
-	ExecutionState         string `json:"execution_state"`
-	UserMessageContentText string `json:"user_message_content_text,omitempty"`
-	EventType              string `json:"event_type"`
-	StreamID               string `json:"stream_id"`
-	Seq                    int64  `json:"seq"`
+	SchemaID               string                     `json:"schema_id"`
+	SchemaVersion          string                     `json:"schema_version"`
+	RequestID              string                     `json:"request_id"`
+	SessionID              string                     `json:"session_id"`
+	TriggerID              string                     `json:"trigger_id"`
+	TurnID                 string                     `json:"turn_id"`
+	TriggerSource          string                     `json:"trigger_source"`
+	RequestedOperation     string                     `json:"requested_operation"`
+	ApprovalProfile        string                     `json:"approval_profile"`
+	AutonomyPosture        string                     `json:"autonomy_posture"`
+	WorkflowRouting        SessionWorkflowPackRouting `json:"workflow_routing"`
+	ExecutionState         string                     `json:"execution_state"`
+	UserMessageContentText string                     `json:"user_message_content_text,omitempty"`
+	EventType              string                     `json:"event_type"`
+	StreamID               string                     `json:"stream_id"`
+	Seq                    int64                      `json:"seq"`
 }
 
 type SessionWatchRequest struct {

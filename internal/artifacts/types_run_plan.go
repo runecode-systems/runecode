@@ -43,6 +43,7 @@ type RunPlanCompilationRecord struct {
 	PlanID                       string    `json:"plan_id"`
 	RunPlanDigest                string    `json:"run_plan_digest"`
 	SupersedesPlanID             string    `json:"supersedes_plan_id,omitempty"`
+	CompileCacheKey              string    `json:"compile_cache_key,omitempty"`
 	WorkflowDefinitionRef        string    `json:"workflow_definition_ref"`
 	ProcessDefinitionRef         string    `json:"process_definition_ref"`
 	WorkflowDefinitionHash       string    `json:"workflow_definition_hash"`

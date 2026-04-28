@@ -39,7 +39,7 @@ func Compile(input CompileInput) (RunPlan, error) {
 	if err != nil {
 		return RunPlan{}, err
 	}
-	if err := validateCompileInput(input, workflow, process, processHash); err != nil {
+	if err := validateCompileInput(input, workflow, process, workflowHash, processHash); err != nil {
 		return RunPlan{}, err
 	}
 	if err := validateBindingsAgainstTrustedRegistry(process.ExecutorBindings, input.ExecutorRegistry); err != nil {
@@ -115,7 +115,7 @@ func newRunPlan(input CompileInput, workflow WorkflowDefinition, process Process
 	}
 }
 
-func validateCompileInput(input CompileInput, workflow WorkflowDefinition, process ProcessDefinition, processHash string) error {
+func validateCompileInput(input CompileInput, workflow WorkflowDefinition, process ProcessDefinition, workflowHash, processHash string) error {
 	if err := validateCompileInputRequiredIDs(input, workflow, process); err != nil {
 		return err
 	}
@@ -132,6 +132,9 @@ func validateCompileInput(input CompileInput, workflow WorkflowDefinition, proce
 		return err
 	}
 	if err := validateCompileInputNonEmptyCollections(workflow, process); err != nil {
+		return err
+	}
+	if err := validateBuiltInWorkflowReservation(workflow, process, workflowHash, processHash); err != nil {
 		return err
 	}
 	return nil

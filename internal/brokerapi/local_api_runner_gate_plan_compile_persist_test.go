@@ -2,6 +2,7 @@ package brokerapi
 
 import (
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
@@ -26,6 +27,96 @@ func TestCompileAndPersistRunPlanBuildsDurableAuthorityAndCompilationBinding(t *
 	}
 	assertActiveAuthorityMatchesResult(t, s, runID, result)
 	assertCompilationRecordMatchesRefs(t, s, runID, result.PlanID, workflowRef.Digest, processRef.Digest)
+}
+
+func TestCompileAndPersistRunPlanReusesCachedAuthorityOnIdentityHit(t *testing.T) {
+	s := newTrustedRunPlanBrokerService(t)
+	runID := "run-compile-cache-hit"
+	if err := s.SetRunStatus(runID, "active"); err != nil {
+		t.Fatalf("SetRunStatus returned error: %v", err)
+	}
+	workflowRef, processRef := putTrustedWorkflowAndProcessDefinitions(t, s, runID)
+	first, err := s.CompileAndPersistRunPlan(CompileAndPersistRunPlanRequest{RunID: runID, PlanID: "plan-cache-1", WorkflowDefinitionRef: workflowRef.Digest, ProcessDefinitionRef: processRef.Digest, PolicyContextHash: "sha256:" + strings.Repeat("5", 64)})
+	if err != nil {
+		t.Fatalf("first CompileAndPersistRunPlan returned error: %v", err)
+	}
+	second, err := s.CompileAndPersistRunPlan(CompileAndPersistRunPlanRequest{RunID: runID, PlanID: "plan-cache-1", WorkflowDefinitionRef: workflowRef.Digest, ProcessDefinitionRef: processRef.Digest, PolicyContextHash: "sha256:" + strings.Repeat("5", 64)})
+	if err != nil {
+		t.Fatalf("second CompileAndPersistRunPlan returned error: %v", err)
+	}
+	if first.PlanID != second.PlanID || first.RunPlanDigest != second.RunPlanDigest {
+		t.Fatalf("cache hit should reuse authority: first=%+v second=%+v", first, second)
+	}
+}
+
+func TestCompileAndPersistRunPlanIdentityDriftMissesCache(t *testing.T) {
+	s := newTrustedRunPlanBrokerService(t)
+	runID := "run-compile-cache-miss"
+	if err := s.SetRunStatus(runID, "active"); err != nil {
+		t.Fatalf("SetRunStatus returned error: %v", err)
+	}
+	workflowRef, processRef := putTrustedWorkflowAndProcessDefinitions(t, s, runID)
+	if _, err := s.CompileAndPersistRunPlan(CompileAndPersistRunPlanRequest{RunID: runID, PlanID: "plan-miss-1", WorkflowDefinitionRef: workflowRef.Digest, ProcessDefinitionRef: processRef.Digest, PolicyContextHash: "sha256:" + strings.Repeat("5", 64)}); err != nil {
+		t.Fatalf("first CompileAndPersistRunPlan returned error: %v", err)
+	}
+	second, err := s.CompileAndPersistRunPlan(CompileAndPersistRunPlanRequest{RunID: runID, PlanID: "plan-miss-2", WorkflowDefinitionRef: workflowRef.Digest, ProcessDefinitionRef: processRef.Digest, PolicyContextHash: "sha256:" + strings.Repeat("6", 64)})
+	if err != nil {
+		t.Fatalf("second CompileAndPersistRunPlan returned error: %v", err)
+	}
+	if second.PlanID != "plan-miss-2" {
+		t.Fatalf("identity drift should miss cache and compile new plan, got %q", second.PlanID)
+	}
+}
+
+func TestCompileAndPersistRunPlanDifferentPlanIDMissesCache(t *testing.T) {
+	s := newTrustedRunPlanBrokerService(t)
+	runID := "run-compile-plan-miss"
+	if err := s.SetRunStatus(runID, "active"); err != nil {
+		t.Fatalf("SetRunStatus returned error: %v", err)
+	}
+	workflowRef, processRef := putTrustedWorkflowAndProcessDefinitions(t, s, runID)
+	first, err := s.CompileAndPersistRunPlan(CompileAndPersistRunPlanRequest{RunID: runID, PlanID: "plan-id-1", WorkflowDefinitionRef: workflowRef.Digest, ProcessDefinitionRef: processRef.Digest, PolicyContextHash: "sha256:" + strings.Repeat("5", 64)})
+	if err != nil {
+		t.Fatalf("first CompileAndPersistRunPlan returned error: %v", err)
+	}
+	second, err := s.CompileAndPersistRunPlan(CompileAndPersistRunPlanRequest{RunID: runID, PlanID: "plan-id-2", WorkflowDefinitionRef: workflowRef.Digest, ProcessDefinitionRef: processRef.Digest, PolicyContextHash: "sha256:" + strings.Repeat("5", 64)})
+	if err != nil {
+		t.Fatalf("second CompileAndPersistRunPlan returned error: %v", err)
+	}
+	if first.PlanID == second.PlanID {
+		t.Fatalf("different plan_id should miss cache: first=%+v second=%+v", first, second)
+	}
+	if _, ok := s.RunPlanCompilationRecord(runID, "plan-id-2"); !ok {
+		t.Fatal("expected compilation record for second plan")
+	}
+}
+
+func TestCompileAndPersistRunPlanCoalescesInFlightIdenticalRequests(t *testing.T) {
+	s := newTrustedRunPlanBrokerService(t)
+	runID := "run-compile-coalesce"
+	if err := s.SetRunStatus(runID, "active"); err != nil {
+		t.Fatalf("SetRunStatus returned error: %v", err)
+	}
+	workflowRef, processRef := putTrustedWorkflowAndProcessDefinitions(t, s, runID)
+	release := s.compileCoordinator.acquire()
+	var wg sync.WaitGroup
+	wg.Add(2)
+	results := make([]CompileAndPersistRunPlanResult, 2)
+	errs := make([]error, 2)
+	for i := 0; i < 2; i++ {
+		go func(idx int) {
+			defer wg.Done()
+			results[idx], errs[idx] = s.CompileAndPersistRunPlan(CompileAndPersistRunPlanRequest{RunID: runID, PlanID: "plan-coalesce", WorkflowDefinitionRef: workflowRef.Digest, ProcessDefinitionRef: processRef.Digest, PolicyContextHash: "sha256:" + strings.Repeat("5", 64)})
+		}(i)
+	}
+	release()
+	wg.Wait()
+	if errs[0] != nil || errs[1] != nil {
+		t.Fatalf("coalesced compile errors: %v %v", errs[0], errs[1])
+	}
+	if results[0].RunPlanDigest != results[1].RunPlanDigest || results[0].PlanID != results[1].PlanID {
+		t.Fatalf("coalesced requests returned divergent results: %+v %+v", results[0], results[1])
+	}
 }
 
 func newTrustedRunPlanBrokerService(t *testing.T) *Service {
@@ -77,6 +168,9 @@ func assertCompilationRecordMatchesRefs(t *testing.T, s *Service, runID, planID,
 	}
 	if strings.TrimSpace(compilation.BindingDigest) == "" || strings.TrimSpace(compilation.RecordDigest) == "" {
 		t.Fatalf("compilation digests missing: %+v", compilation)
+	}
+	if strings.TrimSpace(compilation.CompileCacheKey) == "" {
+		t.Fatalf("compilation compile_cache_key missing: %+v", compilation)
 	}
 }
 

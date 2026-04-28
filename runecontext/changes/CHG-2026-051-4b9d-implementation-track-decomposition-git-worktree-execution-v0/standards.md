@@ -20,3 +20,7 @@ That includes freezing the following clarifications for this future foundation:
 - git worktree mechanics remain implementation-private while broker-owned track, session, run, approval, artifact, audit, and project-context identities remain canonical
 
 This change builds on session execution orchestration, workflow definition binding, and first-party workflow-pack foundations rather than redefining those authority surfaces locally.
+
+That now also includes the `CHG-049` clarifications that:
+- approved implementation work is already bound to reviewed implementation-input sets and exact digests before this change starts decomposing it
+- the initial `v0` baseline remains at most one mutation-bearing shared-workspace run per authoritative repository root unless and until later reviewed concurrency or worktree execution rules explicitly extend it

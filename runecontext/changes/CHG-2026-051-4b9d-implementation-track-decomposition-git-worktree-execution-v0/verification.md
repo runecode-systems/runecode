@@ -7,6 +7,7 @@
 
 ## Verification Notes
 - Confirm the change defines a broker-owned implementation-track model with stable track identity and dependency edges.
+- Confirm reviewed implementation-input sets from CHG-049 remain the authoritative upstream implementation inputs rather than ambient repository planning state.
 - Confirm explicit track declarations override inferred grouping.
 - Confirm inferred decomposition becomes a broker-owned proposed execution-plan artifact rather than a hidden runtime heuristic.
 - Confirm the proposed execution-plan artifact remains planning/review state and does not become a second runner-consumed runtime authority alongside CHG-050 immutable `RunPlan`.
@@ -21,8 +22,10 @@
 - Confirm no autonomous path mints or substitutes for signed human approval decisions.
 - Confirm dependency scope enablement or expansion remains on the shared approval-bearing checkpoint model rather than becoming a per-worktree approval surface.
 - Confirm project-context-sensitive tracks bind to validated project-substrate snapshot digest and fail closed on incompatible drift.
+- Confirm approved implementation-input drift or mutation-sensitive repository drift also fails closed or forces re-evaluation rather than heuristic continuation.
 - Confirm canonical linkage among tracks, sessions, runs, approvals, artifacts, audit records, and project context remains broker-owned and explicit.
 - Confirm this change remains additive over CHG-050: executable graph structure and scoped blocking semantics come from the shared workflow substrate, while actual later parallel/worktree execution behavior is introduced here rather than promised earlier.
+- Confirm this change remains additive over the CHG-049 `v0` baseline of at most one mutation-bearing shared-workspace run per authoritative repository root rather than silently replacing that baseline.
 - Confirm the roadmap and change text both place this feature in `vNext (Planned)`.
 
 ## Close Gate
