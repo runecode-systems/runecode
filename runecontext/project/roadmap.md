@@ -7,9 +7,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ### v0.1.0-alpha.9
 
-- Image/Toolchain Signing Pipeline
-  - Isolate images and toolchains are signed and enforced at boot so the first usable release has stable signed runtime identity rather than provisional image trust.
-  - Planned change: `runecontext/changes/CHG-2026-026-98be-image-toolchain-signing-pipeline/`
 - Isolate Attestation v0
   - RuneCode upgrades the default isolate posture from TOFU-only binding to measured attested provisioning without changing the core audit contract.
   - Planned change: `runecontext/changes/CHG-2026-030-98b8-isolate-attestation-v0/`
@@ -177,4 +174,8 @@ No unscheduled items are currently tracked outside the planned work listed above
 - First-Party RuneContext Workflow Pack v0
   - RuneCode can draft change/spec documents from prompts and implement approved changes through the same isolate-backed workflow engine, whether triggered from live chat or autonomous mode.
   - Planned change: `runecontext/changes/CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0/`
+
+- Image/Toolchain Signing Pipeline
+  - Isolate images and toolchains are signed and enforced at boot so the first usable release has stable signed runtime identity rather than provisional image trust.
+  - Planned change: `runecontext/changes/CHG-2026-026-98be-image-toolchain-signing-pipeline/`
 
