@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -94,7 +95,8 @@ func TestImportRuntimeVerifierAuthorityStateWithReceiptPersistsReceipt(t *testin
 func importedExtendRuntimeVerifierAuthorityStateForTests(t *testing.T) runtimeVerifierAuthorityState {
 	t.Helper()
 	builtin := builtInRuntimeVerifierAuthorityState()
-	newRecord := builtInRuntimeToolchainVerifierRecord()
+	newRecord := builtInRuntimeImageVerifierRecord()
+	newRecord.OwnerPrincipal.InstanceID = "imported-rotation"
 	return normalizeRuntimeVerifierAuthorityState(runtimeVerifierAuthorityState{
 		SchemaID:      runtimeVerifierAuthorityStateSchemaID,
 		SchemaVersion: runtimeVerifierAuthorityStateSchemaVersion,
@@ -116,6 +118,84 @@ func importedExtendRuntimeVerifierAuthorityStateForTests(t *testing.T) runtimeVe
 			}},
 		},
 	})
+}
+
+func TestImportRuntimeVerifierAuthorityStateRejectsImageKindWithToolchainPurposeRecord(t *testing.T) {
+	cacheRoot := t.TempDir()
+	builtin := builtInRuntimeVerifierAuthorityState()
+	wrongRecord := builtInRuntimeToolchainVerifierRecord()
+	state := runtimeVerifierAuthorityState{
+		SchemaID:      runtimeVerifierAuthorityStateSchemaID,
+		SchemaVersion: runtimeVerifierAuthorityStateSchemaVersion,
+		Generation: runtimeVerifierAuthorityGeneration{
+			Revision:         builtin.Generation.Revision + 1,
+			PreviousRevision: builtin.Generation.Revision,
+			ChangedAt:        time.Now().UTC().Format(time.RFC3339),
+			Reason:           "wrong logical purpose for image kind",
+		},
+		MergeMode: runtimeVerifierAuthorityMergeModeReplace,
+		AuthoritiesByKind: map[string][]runtimeVerifierAuthorityEntry{
+			runtimeVerifierKindImage: {{
+				VerifierSetRef: mustRuntimeVerifierSetDigest([]trustpolicy.VerifierRecord{wrongRecord}),
+				Records:        []trustpolicy.VerifierRecord{wrongRecord},
+				Status:         runtimeVerifierAuthorityStatusActive,
+				Source:         runtimeVerifierAuthoritySourceImported,
+				ChangedAt:      time.Now().UTC().Format(time.RFC3339),
+				Reason:         "invalid kind-purpose mapping",
+			}},
+		},
+	}
+	state = normalizeRuntimeVerifierAuthorityState(state)
+	raw, err := json.Marshal(state)
+	if err != nil {
+		t.Fatalf("Marshal returned error: %v", err)
+	}
+	input := filepath.Join(cacheRoot, "wrong-purpose-image-authority-state.json")
+	if err := os.WriteFile(input, raw, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	if err := ImportRuntimeVerifierAuthorityState(cacheRoot, input); err == nil {
+		t.Fatal("expected wrong-purpose verifier record rejection for image kind")
+	}
+}
+
+func TestImportRuntimeVerifierAuthorityStateRejectsUnsupportedKind(t *testing.T) {
+	cacheRoot := t.TempDir()
+	builtin := builtInRuntimeVerifierAuthorityState()
+	record := builtInRuntimeImageVerifierRecord()
+	state := runtimeVerifierAuthorityState{
+		SchemaID:      runtimeVerifierAuthorityStateSchemaID,
+		SchemaVersion: runtimeVerifierAuthorityStateSchemaVersion,
+		Generation: runtimeVerifierAuthorityGeneration{
+			Revision:         builtin.Generation.Revision + 1,
+			PreviousRevision: builtin.Generation.Revision,
+			ChangedAt:        time.Now().UTC().Format(time.RFC3339),
+			Reason:           "unsupported kind regression",
+		},
+		MergeMode: runtimeVerifierAuthorityMergeModeReplace,
+		AuthoritiesByKind: map[string][]runtimeVerifierAuthorityEntry{
+			"runtime_unknown": {{
+				VerifierSetRef: mustRuntimeVerifierSetDigest([]trustpolicy.VerifierRecord{record}),
+				Records:        []trustpolicy.VerifierRecord{record},
+				Status:         runtimeVerifierAuthorityStatusActive,
+				Source:         runtimeVerifierAuthoritySourceImported,
+				ChangedAt:      time.Now().UTC().Format(time.RFC3339),
+				Reason:         "unsupported kind",
+			}},
+		},
+	}
+	state = normalizeRuntimeVerifierAuthorityState(state)
+	raw, err := json.Marshal(state)
+	if err != nil {
+		t.Fatalf("Marshal returned error: %v", err)
+	}
+	input := filepath.Join(cacheRoot, "unsupported-kind-authority-state.json")
+	if err := os.WriteFile(input, raw, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	if err := ImportRuntimeVerifierAuthorityState(cacheRoot, input); err == nil {
+		t.Fatal("expected unsupported kind rejection")
+	}
 }
 
 func importedReplaceRuntimeVerifierAuthorityStateForTests(t *testing.T) runtimeVerifierAuthorityState {
@@ -246,6 +326,75 @@ func TestImportRuntimeVerifierAuthorityStateRejectsDigestMismatch(t *testing.T) 
 	}
 	if err := ImportRuntimeVerifierAuthorityState(cacheRoot, input); err == nil {
 		t.Fatal("expected digest mismatch rejection")
+	}
+}
+
+func TestImportRuntimeVerifierAuthorityStateAcceptsSemanticallyEquivalentDifferentOrdering(t *testing.T) {
+	cacheRoot := t.TempDir()
+	state := reorderedEquivalentRuntimeVerifierAuthorityStateForTests()
+	expectedNormalized := normalizeRuntimeVerifierAuthorityState(state)
+	state.StateDigest = expectedNormalized.StateDigest
+
+	raw, err := json.Marshal(state)
+	if err != nil {
+		t.Fatalf("Marshal returned error: %v", err)
+	}
+	input := filepath.Join(cacheRoot, "reordered-authority-state.json")
+	if err := os.WriteFile(input, raw, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	if err := ImportRuntimeVerifierAuthorityState(cacheRoot, input); err != nil {
+		t.Fatalf("ImportRuntimeVerifierAuthorityState returned error: %v", err)
+	}
+
+	imported, found, err := loadImportedRuntimeVerifierAuthorityState(cacheRoot)
+	if err != nil {
+		t.Fatalf("loadImportedRuntimeVerifierAuthorityState returned error: %v", err)
+	}
+	if !found {
+		t.Fatal("expected imported authority state")
+	}
+	if !reflect.DeepEqual(imported, expectedNormalized) {
+		t.Fatalf("imported state was not normalized as expected\nimported=%+v\nexpected=%+v", imported, expectedNormalized)
+	}
+}
+
+func reorderedEquivalentRuntimeVerifierAuthorityStateForTests() runtimeVerifierAuthorityState {
+	builtin := builtInRuntimeVerifierAuthorityState()
+	entryA := runtimeVerifierAuthorityEntryForOrderingTests(builtInRuntimeImageVerifierRecord(), "add image verifier")
+	recordB := builtInRuntimeImageVerifierRecord()
+	recordB.KeyIDValue = runtimeToolchainVerifierKeyIDValue
+	recordB.PublicKey.Value = runtimeToolchainVerifierPublicKeyBase64
+	recordB.OwnerPrincipal.InstanceID = "builtin-2"
+	entryB := runtimeVerifierAuthorityEntryForOrderingTests(recordB, "add toolchain verifier")
+	entries := []runtimeVerifierAuthorityEntry{entryA, entryB}
+	if entryA.VerifierSetRef < entryB.VerifierSetRef {
+		entries = []runtimeVerifierAuthorityEntry{entryB, entryA}
+	}
+	return runtimeVerifierAuthorityState{
+		SchemaID:      runtimeVerifierAuthorityStateSchemaID,
+		SchemaVersion: runtimeVerifierAuthorityStateSchemaVersion,
+		Generation: runtimeVerifierAuthorityGeneration{
+			Revision:         builtin.Generation.Revision + 1,
+			PreviousRevision: builtin.Generation.Revision,
+			ChangedAt:        "2026-04-29T00:00:00Z",
+			Reason:           "equivalent-but-reordered",
+		},
+		MergeMode: runtimeVerifierAuthorityMergeModeReplace,
+		AuthoritiesByKind: map[string][]runtimeVerifierAuthorityEntry{
+			runtimeVerifierKindImage: entries,
+		},
+	}
+}
+
+func runtimeVerifierAuthorityEntryForOrderingTests(record trustpolicy.VerifierRecord, reason string) runtimeVerifierAuthorityEntry {
+	return runtimeVerifierAuthorityEntry{
+		VerifierSetRef: mustRuntimeVerifierSetDigest([]trustpolicy.VerifierRecord{record}),
+		Records:        []trustpolicy.VerifierRecord{record},
+		Status:         runtimeVerifierAuthorityStatusActive,
+		Source:         runtimeVerifierAuthoritySourceImported,
+		ChangedAt:      "2026-04-29T00:00:00Z",
+		Reason:         reason,
 	}
 }
 

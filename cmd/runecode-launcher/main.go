@@ -142,7 +142,7 @@ func handleServe(args []string, stdout io.Writer) error {
 			_ = svc.Stop(context.Background())
 		}
 	}()
-	if err := maybeRunHelloWorldSlice(svc, brokerSvc, cfg, stdout); err != nil {
+	if err := maybeRunHelloWorldSlice(svc, brokerSvc, svcCfg, stdout); err != nil {
 		return err
 	}
 	if cfg.once {
@@ -190,7 +190,7 @@ func buildServeServiceConfig(cfg serveConfig) (launcherdaemon.Config, *brokerapi
 		cleanup()
 		return launcherdaemon.Config{}, nil, func() {}, err
 	}
-	return launcherdaemon.Config{Reporter: brokerSvc}, brokerSvc, cleanup, nil
+	return launcherdaemon.Config{Reporter: brokerSvc, WorkRoot: storeRoot}, brokerSvc, cleanup, nil
 }
 
 func resolveServeRoots(cfg serveConfig) (string, string, func(), error) {
@@ -215,15 +215,20 @@ func resolveServeRoots(cfg serveConfig) (string, string, func(), error) {
 	return storeRoot, ledgerRoot, cleanup, nil
 }
 
-func maybeRunHelloWorldSlice(svc *launcherdaemon.Service, brokerSvc *brokerapi.Service, cfg serveConfig, stdout io.Writer) error {
-	if !cfg.helloWorld {
+func maybeRunHelloWorldSlice(svc *launcherdaemon.Service, brokerSvc *brokerapi.Service, cfg launcherdaemon.Config, stdout io.Writer) error {
+	if cfg.Reporter == nil {
 		return nil
 	}
 	if brokerSvc == nil {
 		return fmt.Errorf("hello-world reporter unavailable")
 	}
 	runID := fmt.Sprintf("launcher-cli-hello-%d", time.Now().UnixNano())
-	ref, err := svc.Launch(context.Background(), helloWorldLaunchSpec(runID))
+	image, err := helloWorldRuntimeImage(cfg.WorkRoot)
+	if err != nil {
+		return err
+	}
+	spec := helloWorldLaunchSpec(runID, image)
+	ref, err := svc.Launch(context.Background(), spec)
 	if err != nil {
 		return err
 	}
@@ -270,8 +275,7 @@ func waitForTerminalReport(svc *brokerapi.Service, runID string, timeout time.Du
 	return fmt.Errorf("hello-world run timed out waiting for terminal report")
 }
 
-func helloWorldLaunchSpec(runID string) launcherbackend.BackendLaunchSpec {
-	image := helloWorldRuntimeImage()
+func helloWorldLaunchSpec(runID string, image launcherbackend.RuntimeImageDescriptor) launcherbackend.BackendLaunchSpec {
 	return launcherbackend.BackendLaunchSpec{
 		RunID:                     runID,
 		StageID:                   "stage-1",
@@ -304,43 +308,8 @@ func helloWorldLaunchSpec(runID string) launcherbackend.BackendLaunchSpec {
 	}
 }
 
-func helloWorldRuntimeImage() launcherbackend.RuntimeImageDescriptor {
-	image := launcherbackend.RuntimeImageDescriptor{
-		BackendKind:         launcherbackend.BackendKindMicroVM,
-		BootContractVersion: launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1,
-		PlatformCompatibility: launcherbackend.RuntimeImagePlatformCompat{
-			OS: "linux", Architecture: "amd64", AccelerationKind: launcherbackend.AccelerationKindKVM,
-		},
-		ComponentDigests: map[string]string{"kernel": "sha256:" + repeatHex('b'), "initrd": "sha256:" + repeatHex('c')},
-	}
-	digest, err := image.ExpectedDescriptorDigest()
-	if err != nil {
-		panic(err)
-	}
-	image.DescriptorDigest = digest
-	image.Signing = &launcherbackend.RuntimeImageSigningHooks{
-		PayloadSchemaID:      launcherbackend.RuntimeImageSignedPayloadSchemaID,
-		PayloadSchemaVersion: launcherbackend.RuntimeImageSignedPayloadSchemaVersion,
-		PayloadDigest:        digest,
-		SignerRef:            "launcher-cli",
-		SignatureDigest:      "sha256:" + repeatHex('d'),
-		VerifierSetRef:       "sha256:" + repeatHex('7'),
-		Publication: &launcherbackend.RuntimeAssetPublicationBundle{
-			DescriptorEnvelopeDigest:  "sha256:" + repeatHex('1'),
-			ComponentBundleDigest:     "sha256:" + repeatHex('2'),
-			PublicationManifestDigest: "sha256:" + repeatHex('3'),
-		},
-		Toolchain: &launcherbackend.RuntimeToolchainSigningHooks{
-			DescriptorSchemaID:      launcherbackend.RuntimeToolchainDescriptorSchemaID,
-			DescriptorSchemaVersion: launcherbackend.RuntimeToolchainDescriptorSchemaVersion,
-			DescriptorDigest:        "sha256:" + repeatHex('4'),
-			SignerRef:               "launcher-cli-toolchain",
-			SignatureDigest:         "sha256:" + repeatHex('5'),
-			VerifierSetRef:          "sha256:" + repeatHex('8'),
-			BundleDigest:            "sha256:" + repeatHex('6'),
-		},
-	}
-	return image
+func helloWorldRuntimeImage(workRoot string) (launcherbackend.RuntimeImageDescriptor, error) {
+	return launcherdaemon.PrepareHelloWorldRuntimeImageForLaunch(workRoot)
 }
 
 func repeatHex(ch byte) string {

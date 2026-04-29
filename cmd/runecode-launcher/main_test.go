@@ -83,7 +83,11 @@ func TestHelloWorldLaunchSpecValidates(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("microvm/kvm launch spec validation is linux-only in MVP")
 	}
-	spec := helloWorldLaunchSpec("run-test")
+	image, err := helloWorldRuntimeImage(t.TempDir())
+	if err != nil {
+		t.Fatalf("helloWorldRuntimeImage returned error: %v", err)
+	}
+	spec := helloWorldLaunchSpec("run-test", image)
 	if err := spec.Validate(); err != nil {
 		t.Fatalf("helloWorldLaunchSpec Validate returned error: %v", err)
 	}

@@ -24,36 +24,38 @@ func validateRuntimeVerifierAuthorityEntries(authoritiesByKind map[string][]runt
 		if strings.TrimSpace(kind) == "" {
 			return fmt.Errorf("runtime verifier authority state kind is empty")
 		}
-		if err := validateRuntimeVerifierAuthorityEntriesForKind(entries); err != nil {
+		if !isSupportedRuntimeVerifierKind(kind) {
+			return unsupportedRuntimeVerifierPolicyKindError(kind)
+		}
+		if err := validateRuntimeVerifierAuthorityEntriesForKind(kind, entries); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateRuntimeVerifierAuthorityEntriesForKind(entries []runtimeVerifierAuthorityEntry) error {
+func validateRuntimeVerifierAuthorityEntriesForKind(kind string, entries []runtimeVerifierAuthorityEntry) error {
 	seenVerifierSets := map[string]struct{}{}
 	for _, entry := range entries {
-		if err := validateRuntimeVerifierAuthorityEntry(entry, seenVerifierSets); err != nil {
+		if err := validateRuntimeVerifierAuthorityEntry(kind, entry, seenVerifierSets); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateRuntimeVerifierAuthorityEntry(entry runtimeVerifierAuthorityEntry, seenVerifierSets map[string]struct{}) error {
-	if !isDigestFormat(entry.VerifierSetRef) {
-		return fmt.Errorf("runtime verifier authority entry verifier_set_ref is invalid")
+func validateRuntimeVerifierAuthorityEntry(kind string, entry runtimeVerifierAuthorityEntry, seenVerifierSets map[string]struct{}) error {
+	if err := validateRuntimeVerifierAuthorityEntryRef(entry, seenVerifierSets); err != nil {
+		return err
 	}
-	if _, exists := seenVerifierSets[entry.VerifierSetRef]; exists {
-		return fmt.Errorf("runtime verifier authority entry verifier_set_ref must be unique per kind")
-	}
-	seenVerifierSets[entry.VerifierSetRef] = struct{}{}
 	if len(entry.Records) == 0 {
 		return fmt.Errorf("runtime verifier authority entry records are required")
 	}
 	if _, err := trustpolicy.NewVerifierRegistry(entry.Records); err != nil {
 		return fmt.Errorf("runtime verifier authority entry records are invalid: %w", err)
+	}
+	if err := validateRuntimeVerifierAuthorityLogicalPurposeForKind(kind, entry.Records); err != nil {
+		return err
 	}
 	if entry.VerifierSetRef != mustRuntimeVerifierSetDigest(entry.Records) {
 		return fmt.Errorf("runtime verifier authority entry digest does not match records")
@@ -68,6 +70,38 @@ func validateRuntimeVerifierAuthorityEntry(entry runtimeVerifierAuthorityEntry, 
 		return fmt.Errorf("runtime verifier authority entry changed_at is invalid")
 	}
 	return nil
+}
+
+func validateRuntimeVerifierAuthorityEntryRef(entry runtimeVerifierAuthorityEntry, seenVerifierSets map[string]struct{}) error {
+	if !isDigestFormat(entry.VerifierSetRef) {
+		return fmt.Errorf("runtime verifier authority entry verifier_set_ref is invalid")
+	}
+	if _, exists := seenVerifierSets[entry.VerifierSetRef]; exists {
+		return fmt.Errorf("runtime verifier authority entry verifier_set_ref must be unique per kind")
+	}
+	seenVerifierSets[entry.VerifierSetRef] = struct{}{}
+	return nil
+}
+
+func validateRuntimeVerifierAuthorityLogicalPurposeForKind(kind string, records []trustpolicy.VerifierRecord) error {
+	expectedPurpose := runtimeVerifierLogicalPurposeForKind(kind)
+	for _, record := range records {
+		if strings.TrimSpace(record.LogicalPurpose) != expectedPurpose {
+			return fmt.Errorf("runtime verifier authority entry record logical_purpose is invalid for kind %q", kind)
+		}
+	}
+	return nil
+}
+
+func runtimeVerifierLogicalPurposeForKind(kind string) string {
+	switch kind {
+	case runtimeVerifierKindImage:
+		return "runtime_image_signing"
+	case runtimeVerifierKindToolchain:
+		return "runtime_toolchain_signing"
+	default:
+		return ""
+	}
 }
 
 func validateRuntimeVerifierAuthorityStateProgression(next runtimeVerifierAuthorityState, previousEffective runtimeVerifierAuthorityState, previousImported runtimeVerifierAuthorityState, foundImported bool) error {

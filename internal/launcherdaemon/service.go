@@ -108,7 +108,7 @@ func (s *Service) Launch(ctx context.Context, spec launcherbackend.BackendLaunch
 	updates, err := controller.Launch(ctx, effectiveSpec)
 	if err != nil {
 		if reportErr := s.recordLaunchDeniedRuntimeFacts(effectiveSpec, err); reportErr != nil {
-			return InstanceRef{}, reportErr
+			return InstanceRef{}, launchDeniedErrorWithReportingContext(err, reportErr)
 		}
 		return InstanceRef{}, err
 	}

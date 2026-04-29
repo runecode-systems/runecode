@@ -1,6 +1,7 @@
 package launcherdaemon
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
@@ -8,6 +9,16 @@ import (
 
 func (s *Service) recordLaunchDeniedRuntimeFacts(spec launcherbackend.BackendLaunchSpec, launchErr error) error {
 	return s.reporter.RecordRuntimeFacts(spec.RunID, buildLaunchDeniedRuntimeFacts(spec, launchErr))
+}
+
+func launchDeniedErrorWithReportingContext(launchErr, reportErr error) error {
+	if launchErr == nil {
+		return reportErr
+	}
+	if reportErr == nil {
+		return launchErr
+	}
+	return fmt.Errorf("launch denied: %w (denied-launch runtime-facts reporting failed: %v)", launchErr, reportErr)
 }
 
 func buildLaunchDeniedRuntimeFacts(spec launcherbackend.BackendLaunchSpec, launchErr error) launcherbackend.RuntimeFactsSnapshot {
@@ -26,7 +37,7 @@ func buildLaunchDeniedRuntimeFacts(spec launcherbackend.BackendLaunchSpec, launc
 	receipt.Lifecycle = &launcherbackend.BackendLifecycleSnapshot{
 		CurrentState:          launcherbackend.BackendLifecycleStateTerminated,
 		PreviousState:         launcherbackend.BackendLifecycleStateLaunching,
-		TerminateBetweenSteps: true,
+		TerminateBetweenSteps: spec.LifecyclePolicy.TerminateBetweenSteps,
 		TransitionCount:       1,
 	}
 	applyDeniedLaunchSigningState(&receipt, spec.Image.Signing)

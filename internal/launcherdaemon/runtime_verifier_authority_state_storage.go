@@ -77,10 +77,13 @@ func decodeAndValidateRuntimeVerifierAuthorityState(data []byte) (runtimeVerifie
 	if err != nil {
 		return runtimeVerifierAuthorityState{}, err
 	}
-	if err := validateRuntimeVerifierAuthorityStateDigest(state); err != nil {
+	importedDigest := strings.TrimSpace(state.StateDigest)
+	state = normalizeRuntimeVerifierAuthorityState(state)
+	digestValidationState := state
+	digestValidationState.StateDigest = importedDigest
+	if err := validateRuntimeVerifierAuthorityStateDigest(digestValidationState); err != nil {
 		return runtimeVerifierAuthorityState{}, err
 	}
-	state = normalizeRuntimeVerifierAuthorityState(state)
 	if err := validateRuntimeVerifierAuthorityState(state); err != nil {
 		return runtimeVerifierAuthorityState{}, err
 	}
