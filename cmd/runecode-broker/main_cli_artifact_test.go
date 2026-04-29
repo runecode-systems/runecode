@@ -18,17 +18,17 @@ func TestPutListHeadGetArtifactCLI(t *testing.T) {
 	payloadPath := writeTempFile(t, "payload.txt", "hello artifact")
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
-	ref := putArtifactViaCLI(t, stdout, stderr, payloadPath, "spec_text", testDigest("1"))
-	list := listArtifactsViaCLI(t, stdout, stderr)
+	ref := putArtifactViaCLI(t, stdout, stderr, payloadPath, "spec_text", testDigest("1"), root)
+	list := listArtifactsViaCLI(t, stdout, stderr, root)
 	if len(list) != 1 {
 		t.Fatalf("list-artifacts count = %d, want 1", len(list))
 	}
-	record := headArtifactViaCLI(t, stdout, stderr, ref.Digest)
+	record := headArtifactViaCLI(t, stdout, stderr, ref.Digest, root)
 	if record.Digest != ref.Digest {
 		t.Fatalf("head digest = %q, want %q", record.Digest, ref.Digest)
 	}
 	outputPath := filepath.Join(t.TempDir(), "output.txt")
-	getArtifactViaCLI(t, stdout, stderr, ref.Digest, "workspace", "model_gateway", "", false, outputPath)
+	getArtifactViaCLI(t, stdout, stderr, ref.Digest, "workspace", "model_gateway", "", false, outputPath, root)
 	b, readErr := os.ReadFile(outputPath)
 	if readErr != nil {
 		t.Fatalf("read get-artifact output error: %v", readErr)
@@ -101,11 +101,11 @@ func TestArtifactCLIRecoversMissingIndexFromAuditAndBlob(t *testing.T) {
 }
 
 func TestPromotionFlowAndCheckFlowCLI(t *testing.T) {
-	setBrokerServiceForTest(t)
+	root := setBrokerServiceForTest(t)
 	stderr := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}
 	unapprovedPath := writeTempFile(t, "excerpt.txt", "private excerpt")
-	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"))
+	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"), root)
 	approvalRequestPath, approvalEnvelopePath, verifierRecords := writeApprovalFixtures(t, "human", unapproved.Digest, "repo/file.txt", "abc123", "tool-v1")
 	seedTrustedVerifierForBrokerCLITest(t, verifierRecords)
 	err := run([]string{"check-flow", "--producer", "workspace", "--consumer", "model_gateway", "--data-class", "unapproved_file_excerpts", "--digest", unapproved.Digest, "--egress"}, stdout, stderr)
@@ -124,11 +124,11 @@ func TestPromotionFlowAndCheckFlowCLI(t *testing.T) {
 }
 
 func TestRevokeApprovedExcerptBlocksCheckFlowAndGetArtifactCLI(t *testing.T) {
-	setBrokerServiceForTest(t)
+	root := setBrokerServiceForTest(t)
 	stderr := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}
 	unapprovedPath := writeTempFile(t, "excerpt.txt", "private excerpt")
-	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"))
+	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"), root)
 	approvalRequestPath, approvalEnvelopePath, verifierRecords := writeApprovalFixtures(t, "human", unapproved.Digest, "repo/file.txt", "abc123", "tool-v1")
 	seedTrustedVerifierForBrokerCLITest(t, verifierRecords)
 	approved := promoteViaCLI(t, stdout, stderr, unapproved.Digest, approvalRequestPath, approvalEnvelopePath)
@@ -167,11 +167,11 @@ func TestGetArtifactCLIRejectsMissingProducerConsumer(t *testing.T) {
 }
 
 func TestGetArtifactCLIApprovedExcerptRequiresManifestOptIn(t *testing.T) {
-	setBrokerServiceForTest(t)
+	root := setBrokerServiceForTest(t)
 	stderr := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}
 	unapprovedPath := writeTempFile(t, "excerpt.txt", "private excerpt")
-	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"))
+	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"), root)
 	approvalRequestPath, approvalEnvelopePath, verifierRecords := writeApprovalFixtures(t, "human", unapproved.Digest, "repo/file.txt", "abc123", "tool-v1")
 	seedTrustedVerifierForBrokerCLITest(t, verifierRecords)
 	approved := promoteViaCLI(t, stdout, stderr, unapproved.Digest, approvalRequestPath, approvalEnvelopePath)
@@ -272,11 +272,11 @@ func TestHeadArtifactReturnsTypedValidationCodeForInvalidDigest(t *testing.T) {
 }
 
 func TestGCAndBackupCommands(t *testing.T) {
-	setBrokerServiceForTest(t)
+	root := setBrokerServiceForTest(t)
 	stderr := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}
 	payloadPath := writeTempFile(t, "tmp.txt", "tmp payload")
-	err := run([]string{"put-artifact", "--file", payloadPath, "--content-type", "text/plain", "--data-class", "spec_text", "--provenance-hash", testDigest("3"), "--run-id", "run-1"}, stdout, stderr)
+	err := run([]string{"--state-root", root, "put-artifact", "--file", payloadPath, "--content-type", "text/plain", "--data-class", "spec_text", "--provenance-hash", testDigest("3"), "--run-id", "run-1"}, stdout, stderr)
 	if err != nil {
 		t.Fatalf("put-artifact returned error: %v", err)
 	}

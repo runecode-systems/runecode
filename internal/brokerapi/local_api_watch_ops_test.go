@@ -276,19 +276,17 @@ func TestSessionTurnExecutionWatchFollowIncludesSnapshotThenProgressUpdates(t *t
 	}
 }
 
-func TestSessionTurnExecutionWatchIncludesMultiplePendingWaitScopes(t *testing.T) {
+func TestSessionTurnExecutionWatchIncludesPendingWaitScope(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-turn-watch-multi", "sess-turn-watch-multi")
 	first := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-turn-watch-multi-1", SessionID: "sess-turn-watch-multi", TriggerSource: "autonomous_background", RequestedOperation: "start", AutonomyPosture: "operator_guided", UserMessageContentText: "first"})
 	updateWatchExecutionWait(t, s, first.TurnID, "operator_input", "waiting_operator_input")
-	second := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-turn-watch-multi-2", SessionID: "sess-turn-watch-multi", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "second"})
-	updateWatchExecutionWait(t, s, second.TurnID, "external_dependency", "waiting_external_dependency")
 	ack := mustHandleSessionTurnExecutionWatchRequest(t, s, SessionTurnExecutionWatchRequest{SchemaID: "runecode.protocol.v0.SessionTurnExecutionWatchRequest", SchemaVersion: "0.1.0", RequestID: "req-session-turn-watch-multi-watch", SessionID: "sess-turn-watch-multi", Follow: true, IncludeSnapshot: false})
 	events, err := s.StreamSessionTurnExecutionWatchEvents(ack)
 	if err != nil {
 		t.Fatalf("StreamSessionTurnExecutionWatchEvents returned error: %v", err)
 	}
-	assertWatchIncludesPendingWaitScopes(t, events, "operator_input", "external_dependency")
+	assertWatchIncludesPendingWaitScopes(t, events, "operator_input")
 }
 
 func updateWatchExecutionWait(t *testing.T, s *Service, turnID, waitKind, waitState string) {
@@ -300,8 +298,8 @@ func updateWatchExecutionWait(t *testing.T, s *Service, turnID, waitKind, waitSt
 
 func assertWatchIncludesPendingWaitScopes(t *testing.T, events []SessionTurnExecutionWatchEvent, expectedWaitKinds ...string) {
 	t.Helper()
-	if len(events) < 3 {
-		t.Fatalf("watch events len = %d, want at least 3", len(events))
+	if len(events) < 2 {
+		t.Fatalf("watch events len = %d, want at least 2", len(events))
 	}
 	waitKinds := map[string]struct{}{}
 	upserts := 0
@@ -312,8 +310,8 @@ func assertWatchIncludesPendingWaitScopes(t *testing.T, events []SessionTurnExec
 		upserts++
 		waitKinds[event.TurnExecution.WaitKind] = struct{}{}
 	}
-	if upserts < 2 {
-		t.Fatalf("upsert count = %d, want at least 2", upserts)
+	if upserts < 1 {
+		t.Fatalf("upsert count = %d, want at least 1", upserts)
 	}
 	for _, waitKind := range expectedWaitKinds {
 		if _, ok := waitKinds[waitKind]; !ok {
@@ -330,6 +328,7 @@ func seedFollowWithoutSnapshotWatchFixture(t *testing.T, s *Service) time.Time {
 	now = now.Add(time.Second)
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-turn-watch-b", "sess-turn-watch-b")
 	triggerSessionExecutionWatch(t, s, "req-session-turn-watch-a", "sess-turn-watch-a", "first")
+	completeSessionTurnExecutionByIDForWatch(t, s, "sess-turn-watch-a", "sess-turn-watch-a.exec.000001", now.Add(500*time.Millisecond))
 	now = now.Add(time.Second)
 	triggerSessionExecutionWatch(t, s, "req-session-turn-watch-b", "sess-turn-watch-b", "second")
 	return now
@@ -348,7 +347,12 @@ func seedFollowWithSnapshotWatchFixture(t *testing.T, s *Service) {
 
 func completeSessionTurnExecutionForWatch(t *testing.T, s *Service, now time.Time) {
 	t.Helper()
-	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-turn-watch-main", TurnID: "sess-turn-watch-main.exec.000001", ExecutionState: "completed", TerminalOutcome: "completed", OccurredAt: now.Add(500 * time.Millisecond)}); err != nil {
+	completeSessionTurnExecutionByIDForWatch(t, s, "sess-turn-watch-main", "sess-turn-watch-main.exec.000001", now.Add(500*time.Millisecond))
+}
+
+func completeSessionTurnExecutionByIDForWatch(t *testing.T, s *Service, sessionID, turnID string, occurredAt time.Time) {
+	t.Helper()
+	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: sessionID, TurnID: turnID, ExecutionState: "completed", TerminalOutcome: "completed", OccurredAt: occurredAt}); err != nil {
 		t.Fatalf("UpdateSessionTurnExecution returned error: %v", err)
 	}
 }
@@ -383,7 +387,7 @@ func seedSessionTurnExecutionWatchFixture(t *testing.T, s *Service, runID, sessi
 
 func triggerSessionExecutionWatch(t *testing.T, s *Service, requestID, sessionID, content string) {
 	t.Helper()
-	if _, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: requestID, SessionID: sessionID, TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: content}, RequestContext{}); errResp != nil {
+	if _, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: requestID, SessionID: sessionID, TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: defaultWorkflowRoutingForTriggerTests(), UserMessageContentText: content}, RequestContext{}); errResp != nil {
 		t.Fatalf("HandleSessionExecutionTrigger error response: %+v", errResp)
 	}
 }

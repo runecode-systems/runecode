@@ -22,6 +22,7 @@ related_changes:
   - CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0
   - CHG-2026-013-d2c9-minimal-tui-v0
   - CHG-2026-017-3d58-workflow-extensibility-v0
+  - CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0
   - CHG-2026-020-4425-openai-chatgpt-subscription-provider-oauth-codex-bridge
   - CHG-2026-022-8051-github-copilot-subscription-provider-official-runtime-bridge
   - CHG-2026-033-6e7b-workflow-runner-durable-state-v0

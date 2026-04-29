@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 	"time"
 
@@ -21,6 +20,7 @@ type CompileAndPersistRunPlanRequest struct {
 	ProcessDefinitionRef         string
 	PolicyContextHash            string
 	ProjectContextIdentityDigest string
+	ApprovedInputSetDigest       string
 }
 
 type CompileAndPersistRunPlanResult struct {
@@ -31,7 +31,36 @@ type CompileAndPersistRunPlanResult struct {
 }
 
 func (s *Service) CompileAndPersistRunPlan(req CompileAndPersistRunPlanRequest) (CompileAndPersistRunPlanResult, error) {
-	planned, workflowRef, processRef, err := s.compileRunPlanForPersistence(req)
+	input, workflowRef, processRef, err := s.compileRunPlanInputFromArtifacts(req)
+	if err != nil {
+		return CompileAndPersistRunPlanResult{}, err
+	}
+	if err := ensureRunExistsForGatePlan(s.RunStatuses(), input.RunID, false); err != nil {
+		return CompileAndPersistRunPlanResult{}, err
+	}
+	identity, cacheKey, err := compileIdentityFromInput(workflowRef, processRef, req.ApprovedInputSetDigest, input)
+	if err != nil {
+		return CompileAndPersistRunPlanResult{}, err
+	}
+	if cached, ok, err := s.lookupCompileCache(cacheKey, identity); err != nil {
+		return CompileAndPersistRunPlanResult{}, err
+	} else if ok {
+		return cached, nil
+	}
+	inFlight, owner := s.compileCoordinator.startOrJoin(cacheKey)
+	if !owner {
+		<-inFlight.ready
+		return inFlight.res, inFlight.err
+	}
+	release := s.compileCoordinator.acquire()
+	defer release()
+	res, compileErr := s.compileAndPersistRunPlanUncached(req, input, workflowRef, processRef, cacheKey)
+	s.compileCoordinator.complete(cacheKey, inFlight, res, compileErr)
+	return res, compileErr
+}
+
+func (s *Service) compileAndPersistRunPlanUncached(req CompileAndPersistRunPlanRequest, input runplan.CompileInput, workflowRef, processRef, cacheKey string) (CompileAndPersistRunPlanResult, error) {
+	planned, err := s.compileRunPlanForPersistence(input)
 	if err != nil {
 		return CompileAndPersistRunPlanResult{}, err
 	}
@@ -39,7 +68,7 @@ func (s *Service) CompileAndPersistRunPlan(req CompileAndPersistRunPlanRequest) 
 	if err != nil {
 		return CompileAndPersistRunPlanResult{}, err
 	}
-	authority, compilation, err := runPlanRecordsFromCompiled(planned, ref.Digest, workflowRef, processRef)
+	authority, compilation, err := runPlanRecordsFromCompiled(planned, ref.Digest, workflowRef, processRef, cacheKey)
 	if err != nil {
 		return CompileAndPersistRunPlanResult{}, err
 	}
@@ -54,19 +83,23 @@ func (s *Service) CompileAndPersistRunPlan(req CompileAndPersistRunPlanRequest) 
 	}, nil
 }
 
-func (s *Service) compileRunPlanForPersistence(req CompileAndPersistRunPlanRequest) (runplan.RunPlan, string, string, error) {
-	input, err := s.compileRunPlanInputFromArtifacts(req)
-	if err != nil {
-		return runplan.RunPlan{}, "", "", err
-	}
-	if err := ensureRunExistsForGatePlan(s.RunStatuses(), input.RunID, false); err != nil {
-		return runplan.RunPlan{}, "", "", err
-	}
+func (s *Service) compileRunPlanForPersistence(input runplan.CompileInput) (runplan.RunPlan, error) {
 	planned, err := runplan.Compile(input)
 	if err != nil {
-		return runplan.RunPlan{}, "", "", err
+		return runplan.RunPlan{}, err
 	}
-	return planned, strings.TrimSpace(req.WorkflowDefinitionRef), strings.TrimSpace(req.ProcessDefinitionRef), nil
+	return planned, nil
+}
+
+func (s *Service) lookupCompileCache(cacheKey string, _ compileIdentity) (CompileAndPersistRunPlanResult, bool, error) {
+	compilation, ok := s.RunPlanCompilationRecordByCacheKey(cacheKey)
+	if !ok {
+		return CompileAndPersistRunPlanResult{}, false, nil
+	}
+	if strings.TrimSpace(compilation.CompileCacheKey) != strings.TrimSpace(cacheKey) {
+		return CompileAndPersistRunPlanResult{}, false, fmt.Errorf("compile cache key drift for run_id=%q plan_id=%q", compilation.RunID, compilation.PlanID)
+	}
+	return CompileAndPersistRunPlanResult{RunID: compilation.RunID, PlanID: compilation.PlanID, RunPlanDigest: compilation.RunPlanDigest, CompilationDigest: compilation.RecordDigest}, true, nil
 }
 
 func (s *Service) persistCompiledRunPlanArtifact(planned runplan.RunPlan) (artifacts.ArtifactReference, error) {
@@ -86,31 +119,31 @@ func (s *Service) persistCompiledRunPlanArtifact(planned runplan.RunPlan) (artif
 	})
 }
 
-func (s *Service) compileRunPlanInputFromArtifacts(req CompileAndPersistRunPlanRequest) (runplan.CompileInput, error) {
+func (s *Service) compileRunPlanInputFromArtifacts(req CompileAndPersistRunPlanRequest) (runplan.CompileInput, string, string, error) {
 	runID := strings.TrimSpace(req.RunID)
 	planID := strings.TrimSpace(req.PlanID)
 	if runID == "" || planID == "" {
-		return runplan.CompileInput{}, fmt.Errorf("run_id and plan_id are required")
+		return runplan.CompileInput{}, "", "", fmt.Errorf("run_id and plan_id are required")
 	}
 	workflowRef := strings.TrimSpace(req.WorkflowDefinitionRef)
 	processRef := strings.TrimSpace(req.ProcessDefinitionRef)
 	if workflowRef == "" || processRef == "" {
-		return runplan.CompileInput{}, fmt.Errorf("workflow_definition_ref and process_definition_ref are required")
+		return runplan.CompileInput{}, "", "", fmt.Errorf("workflow_definition_ref and process_definition_ref are required")
 	}
 	workflowBytes, err := s.readArtifactPayload(workflowRef)
 	if err != nil {
-		return runplan.CompileInput{}, err
+		return runplan.CompileInput{}, "", "", err
 	}
 	processBytes, err := s.readArtifactPayload(processRef)
 	if err != nil {
-		return runplan.CompileInput{}, err
+		return runplan.CompileInput{}, "", "", err
 	}
 	projectContext := strings.TrimSpace(req.ProjectContextIdentityDigest)
 	if projectContext == "" {
 		projectContext = strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest)
 	}
 	if projectContext == "" {
-		return runplan.CompileInput{}, fmt.Errorf("project_context_identity_digest is required for trusted run plan compilation")
+		return runplan.CompileInput{}, "", "", fmt.Errorf("project_context_identity_digest is required for trusted run plan compilation")
 	}
 	return runplan.CompileInput{
 		RunID:                        runID,
@@ -121,7 +154,7 @@ func (s *Service) compileRunPlanInputFromArtifacts(req CompileAndPersistRunPlanR
 		ProjectContextIdentityDigest: projectContext,
 		PolicyContextHash:            strings.TrimSpace(req.PolicyContextHash),
 		ExecutorRegistry:             policyengine.BuildExecutorRegistryProjection(),
-	}, nil
+	}, workflowRef, processRef, nil
 }
 
 func (s *Service) readArtifactPayload(digest string) ([]byte, error) {
@@ -137,7 +170,7 @@ func (s *Service) readArtifactPayload(digest string) ([]byte, error) {
 	return payload, nil
 }
 
-func runPlanRecordsFromCompiled(plan runplan.RunPlan, runPlanDigest string, workflowRef string, processRef string) (artifacts.RunPlanAuthorityRecord, artifacts.RunPlanCompilationRecord, error) {
+func runPlanRecordsFromCompiled(plan runplan.RunPlan, runPlanDigest string, workflowRef string, processRef string, compileCacheKey string) (artifacts.RunPlanAuthorityRecord, artifacts.RunPlanCompilationRecord, error) {
 	authority := artifacts.RunPlanAuthorityRecord{
 		RunID:                        strings.TrimSpace(plan.RunID),
 		PlanID:                       strings.TrimSpace(plan.PlanID),
@@ -156,6 +189,7 @@ func runPlanRecordsFromCompiled(plan runplan.RunPlan, runPlanDigest string, work
 		PlanID:                       authority.PlanID,
 		RunPlanDigest:                authority.RunPlanDigest,
 		SupersedesPlanID:             authority.SupersedesPlanID,
+		CompileCacheKey:              strings.TrimSpace(compileCacheKey),
 		WorkflowDefinitionRef:        workflowRef,
 		ProcessDefinitionRef:         processRef,
 		WorkflowDefinitionHash:       authority.WorkflowDefinitionHash,
@@ -166,82 +200,6 @@ func runPlanRecordsFromCompiled(plan runplan.RunPlan, runPlanDigest string, work
 		RecordedAt:                   authority.RecordedAt,
 	}
 	return authority, compilation, nil
-}
-
-func runPlanEntryRecords(entries []runplan.Entry) []artifacts.RunPlanGateEntryRecord {
-	if len(entries) == 0 {
-		return nil
-	}
-	out := make([]artifacts.RunPlanGateEntryRecord, 0, len(entries))
-	for _, entry := range entries {
-		out = append(out, runPlanEntryRecord(entry))
-	}
-	return out
-}
-
-func runPlanEntryRecord(entry runplan.Entry) artifacts.RunPlanGateEntryRecord {
-	return artifacts.RunPlanGateEntryRecord{
-		EntryID:                 strings.TrimSpace(entry.EntryID),
-		EntryKind:               strings.TrimSpace(entry.EntryKind),
-		PlanCheckpointCode:      strings.TrimSpace(entry.CheckpointCode),
-		PlanOrderIndex:          entry.OrderIndex,
-		GateID:                  strings.TrimSpace(entry.Gate.GateID),
-		GateKind:                strings.TrimSpace(entry.Gate.GateKind),
-		GateVersion:             strings.TrimSpace(entry.Gate.GateVersion),
-		StageID:                 strings.TrimSpace(entry.StageID),
-		StepID:                  strings.TrimSpace(entry.StepID),
-		RoleInstanceID:          strings.TrimSpace(entry.RoleInstanceID),
-		MaxAttempts:             maxAttemptsFromEntry(entry),
-		ExpectedInputDigests:    normalizedInputDigestsFromEntry(entry),
-		DependencyCacheHandoffs: runPlanDependencyCacheHandoffs(entry.DependencyCacheHandoffs),
-	}
-}
-
-func runPlanDependencyCacheHandoffs(handoffs []runplan.DependencyCacheHandoff) []artifacts.RunPlanDependencyCacheHandoffRecord {
-	if len(handoffs) == 0 {
-		return nil
-	}
-	out := make([]artifacts.RunPlanDependencyCacheHandoffRecord, 0, len(handoffs))
-	for _, handoff := range handoffs {
-		requestDigest, err := handoff.RequestDigest.Identity()
-		if err != nil {
-			continue
-		}
-		out = append(out, artifacts.RunPlanDependencyCacheHandoffRecord{
-			RequestDigest: strings.TrimSpace(requestDigest),
-			ConsumerRole:  strings.TrimSpace(handoff.ConsumerRole),
-			Required:      handoff.Required,
-		})
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
-func normalizedInputDigestsFromEntry(entry runplan.Entry) []string {
-	if len(entry.Gate.NormalizedInputs) == 0 {
-		return nil
-	}
-	seen := map[string]struct{}{}
-	out := make([]string, 0, len(entry.Gate.NormalizedInputs))
-	for _, input := range entry.Gate.NormalizedInputs {
-		digest, _ := input["input_digest"].(string)
-		digest = strings.TrimSpace(digest)
-		if digest == "" {
-			continue
-		}
-		if _, exists := seen[digest]; exists {
-			continue
-		}
-		seen[digest] = struct{}{}
-		out = append(out, digest)
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	sort.Strings(out)
-	return out
 }
 
 func maxAttemptsFromEntry(entry runplan.Entry) int {

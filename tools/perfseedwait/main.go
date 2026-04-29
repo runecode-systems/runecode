@@ -58,6 +58,7 @@ func seedWaitSession(ctx context.Context, client *brokerapi.LocalRPCClient, cfg 
 			SessionID:              cfg.sessionID,
 			TriggerSource:          "autonomous_background",
 			RequestedOperation:     "start",
+			WorkflowRouting:        &brokerapi.SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "approved_change_implementation"},
 			AutonomyPosture:        "operator_guided",
 			UserMessageContentText: msg,
 		}, &resp)

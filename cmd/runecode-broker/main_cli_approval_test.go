@@ -95,11 +95,11 @@ func TestAuditRecordGetCommand(t *testing.T) {
 }
 
 func TestPromoteExcerptRequiresSignedApprovalInputs(t *testing.T) {
-	setBrokerServiceForTest(t)
+	root := setBrokerServiceForTest(t)
 	stderr := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}
 	unapprovedPath := writeTempFile(t, "excerpt.txt", "private excerpt")
-	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"))
+	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"), root)
 	err := run([]string{"promote-excerpt", "--unapproved-digest", unapproved.Digest, "--approver", "human", "--repo-path", "repo/file.txt", "--commit", "abc123", "--extractor-version", "tool-v1", "--full-content-visible"}, stdout, stderr)
 	if err == nil {
 		t.Fatal("promote-excerpt expected usage error when signed approval inputs are missing")
@@ -110,11 +110,11 @@ func TestPromoteExcerptRequiresSignedApprovalInputs(t *testing.T) {
 }
 
 func TestPromoteExcerptRejectsSelfProvidedVerifierRecord(t *testing.T) {
-	setBrokerServiceForTest(t)
+	root := setBrokerServiceForTest(t)
 	stderr := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}
 	unapprovedPath := writeTempFile(t, "excerpt.txt", "private excerpt")
-	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"))
+	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"), root)
 	approvalRequestPath, approvalEnvelopePath, _ := writeApprovalFixtures(t, "human", unapproved.Digest, "repo/file.txt", "abc123", "tool-v1")
 	_, _, verifierRecords := signedApprovalArtifactsForCLITests(t, "human", unapproved.Digest, "repo/file.txt", "abc123", "tool-v1")
 	for index := range verifierRecords {
@@ -124,7 +124,7 @@ func TestPromoteExcerptRejectsSelfProvidedVerifierRecord(t *testing.T) {
 		}
 		payloadPath := writeTempFile(t, "verifier-non-auditd.json", string(payload))
 		nibble := string('a' + rune(index%6))
-		err = run([]string{"put-artifact", "--file", payloadPath, "--content-type", "application/json", "--data-class", "audit_verification_report", "--provenance-hash", testDigest(nibble), "--role", "workspace"}, stdout, stderr)
+		err = run([]string{"--state-root", root, "put-artifact", "--file", payloadPath, "--content-type", "application/json", "--data-class", "audit_verification_report", "--provenance-hash", testDigest(nibble), "--role", "workspace"}, stdout, stderr)
 		if err != nil {
 			t.Fatalf("put-artifact verifier record returned error: %v", err)
 		}
@@ -136,11 +136,11 @@ func TestPromoteExcerptRejectsSelfProvidedVerifierRecord(t *testing.T) {
 }
 
 func TestImportTrustedContractAllowsPromotionWorkflow(t *testing.T) {
-	setBrokerServiceForTest(t)
+	root := setBrokerServiceForTest(t)
 	stderr := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}
 	unapprovedPath := writeTempFile(t, "excerpt.txt", "private excerpt")
-	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"))
+	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"), root)
 	approvalRequestPath, approvalEnvelopePath, verifierRecords := writeApprovalFixtures(t, "human", unapproved.Digest, "repo/file.txt", "abc123", "tool-v1")
 	for index := range verifierRecords {
 		payload, err := json.Marshal(verifierRecords[index])

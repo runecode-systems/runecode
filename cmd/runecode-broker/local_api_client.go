@@ -29,6 +29,7 @@ type brokerLocalAPI interface {
 	ApprovalWatch(context.Context, brokerapi.ApprovalWatchRequest) ([]brokerapi.ApprovalWatchEvent, *brokerapi.ErrorResponse)
 	ArtifactList(context.Context, brokerapi.LocalArtifactListRequest) (brokerapi.LocalArtifactListResponse, *brokerapi.ErrorResponse)
 	ArtifactHead(context.Context, brokerapi.LocalArtifactHeadRequest) (brokerapi.LocalArtifactHeadResponse, *brokerapi.ErrorResponse)
+	ArtifactPut(context.Context, brokerapi.ArtifactPutRequest) (brokerapi.ArtifactPutResponse, *brokerapi.ErrorResponse)
 	ArtifactRead(context.Context, brokerapi.ArtifactReadRequest) ([]brokerapi.ArtifactStreamEvent, *brokerapi.ErrorResponse)
 	DependencyCacheEnsure(context.Context, brokerapi.DependencyCacheEnsureRequest) (brokerapi.DependencyCacheEnsureResponse, *brokerapi.ErrorResponse)
 	DependencyFetchRegistry(context.Context, brokerapi.DependencyFetchRegistryRequest) (brokerapi.DependencyFetchRegistryResponse, *brokerapi.ErrorResponse)
@@ -299,6 +300,11 @@ func (c *localAPIClient) ArtifactList(ctx context.Context, req brokerapi.LocalAr
 func (c *localAPIClient) ArtifactHead(ctx context.Context, req brokerapi.LocalArtifactHeadRequest) (brokerapi.LocalArtifactHeadResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.LocalArtifactHeadResponse{}
 	return resp, c.invoke(ctx, "artifact_head", req, &resp)
+}
+
+func (c *localAPIClient) ArtifactPut(ctx context.Context, req brokerapi.ArtifactPutRequest) (brokerapi.ArtifactPutResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ArtifactPutResponse{}
+	return resp, c.invoke(ctx, "artifact_put", req, &resp)
 }
 
 func (c *localAPIClient) ArtifactRead(ctx context.Context, req brokerapi.ArtifactReadRequest) ([]brokerapi.ArtifactStreamEvent, *brokerapi.ErrorResponse) {

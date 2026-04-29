@@ -1,0 +1,14 @@
+{
+  "schema_id": "runecode.protocol.v0.RuneContextSpecDraftArtifact",
+  "schema_version": "0.1.0",
+  "data_class": "diffs",
+  "spec_id": "spec-typing-contract-v0",
+  "artifact_digest": {
+    "hash_alg": "sha256",
+    "hash": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "source_prompt_identity_digest": {
+    "hash_alg": "sha256",
+    "hash": "4444444444444444444444444444444444444444444444444444444444444444"
+  }
+}

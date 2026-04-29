@@ -38,6 +38,7 @@ Without deterministic fixtures, explicit thresholds, and CI enforcement, the pro
 - Freeze a policy for baseline maintenance so future work can tighten thresholds intentionally instead of letting them drift implicitly.
 - Include dependency-fetch and offline-cache performance as a first-class product regime, including cache miss, cache hit, miss coalescing, bounded concurrency, stream-to-CAS persistence, and broker-mediated offline dependency staging/materialization costs.
 - Include explicit measurement of the refined CHG-050 workflow path, including definition validation/canonicalization, trusted compilation, compiled-plan persistence/load, and runner startup from immutable `RunPlan`.
+- Include explicit measurement of the CHG-049 first-party workflow-pack surfaces, including draft artifact generation, explicit draft promote/apply, reviewed implementation-input-set validation/binding, direct CLI workflow triggering, repo-scoped admission control/idempotency, and fail-closed drift-triggered re-evaluation or recompilation costs.
 - Preserve one topology-neutral performance program across constrained local hardware and larger deployments; tuning may differ, but performance work must not imply separate architecture paths or trust models.
 
 ## Why Now
@@ -74,6 +75,7 @@ This change gives RuneCode one canonical planning surface for:
 - the deterministic benchmark and latency checks needed across the entire product
 - the per-aspect thresholds and CI structure required to make performance a maintained contract rather than an anecdotal concern
 - the explicit expectation that dependency-fetch performance must be measured on both cold-cache and warm-cache paths without weakening trust boundaries or buffering full dependency payloads in memory
+- the explicit expectation that first-party workflow-pack entry, draft, promote/apply, approved-input binding, and re-evaluation paths become measurable product surfaces rather than invisible orchestration overhead
 
 It also freezes one durable product-level rule for future work:
 

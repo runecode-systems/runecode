@@ -1,0 +1,13 @@
+{
+  "schema_id": "runecode.protocol.v0.RuneContextChangeDraftArtifact",
+  "schema_version": "0.1.0",
+  "data_class": "spec_text",
+  "artifact_digest": {
+    "hash_alg": "sha256",
+    "hash": "1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "source_prompt_identity_digest": {
+    "hash_alg": "sha256",
+    "hash": "2222222222222222222222222222222222222222222222222222222222222222"
+  }
+}

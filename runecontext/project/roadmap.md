@@ -5,12 +5,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ## Upcoming Features
 
-### v0.1.0-alpha.8
-
-- First-Party RuneContext Workflow Pack v0
-  - RuneCode can draft change/spec documents from prompts and implement approved changes through the same isolate-backed workflow engine, whether triggered from live chat or autonomous mode.
-  - Planned change: `runecontext/changes/CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0/`
-
 ### v0.1.0-alpha.9
 
 - Image/Toolchain Signing Pipeline
@@ -180,4 +174,7 @@ No unscheduled items are currently tracked outside the planned work listed above
 - Workflow Definition Contract + Binding v0
   - RuneCode freezes the reusable workflow-definition and binding substrate needed for first-party productive workflows and later generic extensibility without adding new privileged operations.
   - Planned change: `runecontext/changes/CHG-2026-050-e3f8-workflow-definition-contract-binding-v0/`
+- First-Party RuneContext Workflow Pack v0
+  - RuneCode can draft change/spec documents from prompts and implement approved changes through the same isolate-backed workflow engine, whether triggered from live chat or autonomous mode.
+  - Planned change: `runecontext/changes/CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0/`
 

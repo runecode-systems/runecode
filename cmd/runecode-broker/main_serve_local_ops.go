@@ -193,6 +193,11 @@ func artifactRPCOperations(service *brokerapi.Service, ctx context.Context, meta
 				return service.HandleArtifactHeadV0(ctx, req, meta)
 			})
 		}},
+		"artifact_put": {requestSchemaPath: "objects/BrokerArtifactPutRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ArtifactPutRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleArtifactPut(ctx, req, meta)
+			})
+		}},
 		"artifact_read": {requestSchemaPath: "objects/ArtifactReadRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandleArtifactRead(service, ctx, raw, meta)
 		}},

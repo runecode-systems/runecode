@@ -17,6 +17,7 @@ Define post-MVP approval profiles that adjust approval timing without weakening 
 - Any broker-exposed run or approval summaries that surface the active profile or required assurance are part of the shared logical API contract and must evolve consistently as new profile values are added.
 - Profiles must preserve the shared approval split between exact-action approvals and stage sign-off rather than collapsing them into one profile-local approval type.
 - Profiles must preserve the shared distinction between `waiting_approval` and `waiting_operator_input`; ordinary operator guidance must not be relabeled as formal approval, and profile tuning must not hide required formal approvals.
+- `CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0` is the first concrete productive workflow consumer of this shared split, so profile expansion must apply consistently across built-in draft promote/apply and approved-change implementation without inventing workflow-local approval vocabularies.
 - Gate overrides remain exact explicit approvals across all profiles.
 - `git_remote_ops` and any equivalent future remote-state-mutation hard-floor classes remain exact explicit approvals across all profiles.
 - Dependency-fetch checkpoint semantics remain shared across all profiles; profiles may tune timing or batching only within the reviewed scope-change model and may not invent a competing dependency-local approval taxonomy.

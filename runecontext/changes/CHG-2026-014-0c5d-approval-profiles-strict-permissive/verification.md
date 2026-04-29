@@ -18,6 +18,7 @@
 - Confirm approval profiles do not weaken blocked project-substrate posture or override diagnostics/remediation-only repository substrate states.
 - Confirm approval profiles govern formal approval timing only and do not replace shared `autonomy_posture` controls for operator-guidance cadence.
 - Confirm profile semantics preserve the distinction between `waiting_approval` and `waiting_operator_input`.
+- Confirm later profile expansion remains compatible with CHG-049 first-party workflow-pack behavior and does not invent workflow-local approval semantics for draft promote/apply or approved-change implementation.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

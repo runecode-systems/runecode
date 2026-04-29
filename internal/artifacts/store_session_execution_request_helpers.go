@@ -2,12 +2,14 @@ package artifacts
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
 
 type SessionExecutionTriggerAppendRequest struct {
 	SessionID                            string
+	AuthoritativeRepositoryRoot          string
 	WorkspaceID                          string
 	CreatedByRunID                       string
 	TriggerSource                        string
@@ -16,6 +18,7 @@ type SessionExecutionTriggerAppendRequest struct {
 	DependsOnScopeIDs                    []string
 	ApprovalProfile                      string
 	AutonomyPosture                      string
+	WorkflowRouting                      SessionWorkflowPackRoutingDurableState
 	PrimaryRunID                         string
 	PendingApprovalID                    string
 	LinkedRunIDs                         []string
@@ -67,11 +70,13 @@ func normalizeSessionExecutionTriggerAppendRequest(req SessionExecutionTriggerAp
 	if err := normalizeSessionExecutionTriggerIdentityFields(&normalized, req); err != nil {
 		return SessionExecutionTriggerAppendRequest{}, err
 	}
+	normalized.AuthoritativeRepositoryRoot = strings.TrimSpace(req.AuthoritativeRepositoryRoot)
 	normalized.OrchestrationScopeID = strings.TrimSpace(req.OrchestrationScopeID)
 	if req.DependsOnScopeIDs != nil {
 		normalized.DependsOnScopeIDs = uniqueSortedStrings(req.DependsOnScopeIDs)
 	}
 	normalizeSessionExecutionTriggerControlFields(&normalized, req)
+	normalized.WorkflowRouting = normalizeSessionWorkflowPackRouting(req.WorkflowRouting)
 	normalized.BoundValidatedProjectSubstrateDigest = strings.TrimSpace(req.BoundValidatedProjectSubstrateDigest)
 	normalized.WaitKind = strings.TrimSpace(req.WaitKind)
 	normalized.WaitState = strings.TrimSpace(req.WaitState)
@@ -120,6 +125,41 @@ func normalizeSessionExecutionTriggerControlFields(normalized *SessionExecutionT
 	normalized.PrimaryRunID = strings.TrimSpace(req.PrimaryRunID)
 	normalized.PendingApprovalID = strings.TrimSpace(req.PendingApprovalID)
 	normalized.LinkedRunIDs, normalized.LinkedApprovalIDs, normalized.LinkedArtifactDigests, normalized.LinkedAuditRecordDigests = normalizeSessionExecutionTriggerLinks(req)
+}
+
+func normalizeSessionWorkflowPackRouting(in SessionWorkflowPackRoutingDurableState) SessionWorkflowPackRoutingDurableState {
+	out := SessionWorkflowPackRoutingDurableState{
+		WorkflowFamily:    strings.TrimSpace(in.WorkflowFamily),
+		WorkflowOperation: strings.TrimSpace(in.WorkflowOperation),
+	}
+	if len(in.BoundInputArtifacts) == 0 {
+		return out
+	}
+	normalized := make([]SessionWorkflowPackBoundInputArtifactDurableState, 0, len(in.BoundInputArtifacts))
+	seen := map[string]struct{}{}
+	for _, artifact := range in.BoundInputArtifacts {
+		item := SessionWorkflowPackBoundInputArtifactDurableState{
+			ArtifactRef:    strings.TrimSpace(artifact.ArtifactRef),
+			ArtifactDigest: strings.TrimSpace(artifact.ArtifactDigest),
+		}
+		if item.ArtifactRef == "" || item.ArtifactDigest == "" {
+			continue
+		}
+		key := item.ArtifactRef + "|" + item.ArtifactDigest
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, item)
+	}
+	sort.Slice(normalized, func(i, j int) bool {
+		if normalized[i].ArtifactRef == normalized[j].ArtifactRef {
+			return normalized[i].ArtifactDigest < normalized[j].ArtifactDigest
+		}
+		return normalized[i].ArtifactRef < normalized[j].ArtifactRef
+	})
+	out.BoundInputArtifacts = normalized
+	return out
 }
 
 func defaultSessionApprovalProfile(value string) string {
@@ -174,6 +214,12 @@ func normalizeSessionTurnExecutionUpdateRequest(req SessionTurnExecutionUpdateRe
 	if req.DependsOnScopeIDs != nil {
 		normalized.DependsOnScopeIDs = uniqueSortedStrings(req.DependsOnScopeIDs)
 	}
+	normalized.PrimaryRunID = strings.TrimSpace(req.PrimaryRunID)
+	normalized.PendingApprovalID = strings.TrimSpace(req.PendingApprovalID)
+	normalized.LinkedRunIDs = uniqueSortedStrings(req.LinkedRunIDs)
+	normalized.LinkedApprovalIDs = uniqueSortedStrings(req.LinkedApprovalIDs)
+	normalized.LinkedArtifactDigests = uniqueSortedStrings(req.LinkedArtifactDigests)
+	normalized.LinkedAuditRecordDigests = uniqueSortedStrings(req.LinkedAuditRecordDigests)
 	normalized.BlockedReasonCode = strings.TrimSpace(req.BlockedReasonCode)
 	normalized.TerminalOutcome = strings.TrimSpace(req.TerminalOutcome)
 	normalized.BoundValidatedProjectSubstrateDigest = strings.TrimSpace(req.BoundValidatedProjectSubstrateDigest)

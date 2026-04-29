@@ -3,12 +3,14 @@
 ## Broker-Owned Track Decomposition Model
 
 - [ ] Define a broker-owned implementation-track model with stable track identity, dependency edges, and readiness/blocking posture.
-- [ ] Support explicit track declarations from approved change/spec/implementation inputs.
+- [ ] Consume the reviewed implementation-input-set authority model from `CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0` rather than ambient repository planning state.
+- [ ] Support explicit track declarations from approved canonical implementation inputs.
 - [ ] Support inferred candidate tracks when explicit track declarations are absent.
 - [ ] Make explicit track declarations authoritative over inferred grouping.
 - [ ] Persist inferred decomposition as a broker-owned proposed execution-plan artifact rather than a hidden heuristic.
 - [ ] Carry enough confidence or overlap-risk information for operator review and orchestration policy.
 - [ ] Keep the proposed execution-plan artifact as planning/review state rather than a second runner-consumed runtime authority beside CHG-050 immutable `RunPlan`.
+- [ ] Keep later multi-track execution explicitly additive over the CHG-049 `v0` baseline of at most one mutation-bearing shared-workspace run per authoritative repository root.
 
 ## Git Worktree Execution Lifecycle
 
@@ -41,10 +43,12 @@
 - [ ] Bind project-context-sensitive tracks to the validated project-substrate snapshot digest used for planning/execution.
 - [ ] Preserve per-track project-context linkage rather than assuming one ambient project state across parallel work.
 - [ ] Fail closed or surface blocked/remediation posture when a project-context-sensitive track's bound validated snapshot digest drifts incompatibly.
+- [ ] Fail closed or re-evaluate when approved implementation-input digests or mutation-sensitive repository identity drift incompatibly from bound track execution assumptions.
 
 ## Acceptance Criteria
 
 - [ ] RuneCode can represent implementation work as explicit or inferred broker-owned tracks with dependency edges.
+- [ ] Track decomposition consumes reviewed implementation-input sets and exact approved digests rather than ambient repository planning state.
 - [ ] Git worktrees are used as the preferred isolation substrate for eligible low-coupling tracks without becoming public object identity.
 - [ ] Pending operator input or approval blocks only dependent tracks and direct downstream work; unrelated eligible tracks may continue when allowed.
 - [ ] Multiple pending waits may coexist and resolve independently.
@@ -53,3 +57,4 @@
 - [ ] Actual runner-consumed runtime authority still flows through broker-compiled immutable `RunPlan` rather than the proposed execution-plan artifact.
 - [ ] Track execution reuses shared policy, approval, audit, lifecycle, and validated project-context binding models instead of inventing parallel semantics.
 - [ ] Track execution reuses shared dependency-fetch and offline-cache contracts so worktrees consume derived dependency artifacts without becoming authoritative dependency cache owners.
+- [ ] This change remains additive over the CHG-049 `v0` baseline instead of silently redefining approved-input authority or pretending the single mutation-bearing shared-workspace posture never existed.

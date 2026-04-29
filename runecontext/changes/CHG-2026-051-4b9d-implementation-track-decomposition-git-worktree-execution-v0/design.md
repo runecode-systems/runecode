@@ -5,7 +5,8 @@ Define a broker-owned model for decomposing implementation work into low-couplin
 
 ## Key Decisions
 - Track decomposition must remain broker-owned execution truth rather than client-local, transport-local, or agent-local hidden scheduling state.
-- Explicit track declarations from change/spec/implementation inputs take precedence over inferred decomposition.
+- Reviewed implementation-input sets from `CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0` remain the authoritative upstream implementation inputs for this change rather than ambient repository planning state.
+- Explicit track declarations from approved canonical implementation inputs take precedence over inferred decomposition.
 - Inferred track grouping must become a broker-owned proposed execution-plan artifact rather than a hidden heuristic.
 - Git worktrees are the preferred isolation substrate for low-coupling parallel implementation tracks, but they are not mandatory for every implementation plan.
 - Worktree execution should remain fail closed: if overlap risk, dependency ambiguity, or project-context drift makes safe parallelization unclear, RuneCode should pause for operator input or fall back to a more conservative execution mode.
@@ -14,15 +15,17 @@ Define a broker-owned model for decomposing implementation work into low-couplin
 - Track execution, worktree lifecycle, and final integration must preserve canonical links to sessions, runs, approvals, artifacts, audit records, and validated project-context bindings.
 - Worktree paths, branch names, and local filesystem mechanics remain implementation-private and must not become public object identity.
 - Shared-workspace concurrency remains a distinct concern from isolated-worktree execution; this change should not silently collapse the two models.
+- This change is explicitly additive over the `CHG-049` `v0` baseline of at most one mutation-bearing shared-workspace run per authoritative repository root; any later multi-track execution posture must extend that baseline deliberately rather than assume it never existed.
 - Dependency-fetch and offline-cache authority remain broker-owned and repo-scoped across all tracks; isolated worktrees may consume derived materializations but must not become authoritative dependency cache owners.
 
 ## Track Decomposition Model
 
 ### Explicit And Inferred Tracks
 - Track declarations may come explicitly from:
-  - approved change documents
-  - approved specs
-  - operator-supplied implementation docs or equivalent canonical inputs
+  - approved implementation-input-set artifacts
+  - approved change documents referenced by that implementation-input set
+  - approved specs referenced by that implementation-input set
+  - reviewed implementation planning artifacts when later introduced canonically
 - When explicit track declarations are absent, RuneCode may infer candidate tracks from approved implementation inputs.
 - Explicit declarations always override inferred grouping.
 
@@ -42,6 +45,7 @@ Define a broker-owned model for decomposing implementation work into low-couplin
 - If decomposition confidence is low or coupling/overlap risk is high, RuneCode should:
   - pause for operator input when autonomy posture requires it, or
   - execute more conservatively instead of forcing parallelization
+- If approved implementation inputs, validated project-context bindings, or mutation-sensitive repository identity drift incompatibly from the bound execution assumptions, decomposition and later track execution must fail closed by requiring re-evaluation rather than attempting heuristic continuation.
 
 ## Git Worktree Execution Model
 
@@ -113,7 +117,7 @@ This keeps "always try to keep useful work moving" aligned with the fail-closed 
 - Track execution should reuse shared workflow identity, policy, approval, audit, and project-context contracts rather than inventing track-local variants of those authority surfaces.
 - Track execution should also reuse shared dependency-fetch identity, approval, and cache-ownership contracts so parallel worktrees do not drift into package-manager-local or path-local dependency semantics.
 - Any future track-aware workflow/process definition additions should build on the refined CHG-050 split between `WorkflowDefinition`, `ProcessDefinition`, and immutable `RunPlan` rather than creating a second executable planning format.
-- First-party approved-change implementation should be able to adopt this track model later without inventing workflow-pack-local decomposition semantics.
+- First-party approved-change implementation should be able to adopt this track model later without inventing workflow-pack-local decomposition semantics or reopening the reviewed implementation-input-set authority model frozen by CHG-049.
 
 ## Main Workstreams
 - Broker-Owned Track Decomposition Model

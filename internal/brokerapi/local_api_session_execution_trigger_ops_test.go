@@ -65,7 +65,7 @@ func TestSessionExecutionTriggerFailsClosedWhenProjectSubstrateMissing(t *testin
 	s.discoverProjectSubstrateFn = func() (projectsubstrate.DiscoveryResult, error) {
 		return projectsubstrate.DiscoveryResult{Compatibility: projectsubstrate.CompatibilityAssessment{Posture: projectsubstrate.CompatibilityPostureMissing, NormalOperationAllowed: false, BlockedReasonCodes: []string{"project_substrate_missing"}}}, nil
 	}
-	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-missing", SessionID: "sess-trigger-missing", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "hello"}, RequestContext{})
+	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-missing", SessionID: "sess-trigger-missing", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: defaultWorkflowRoutingForTriggerTests(), UserMessageContentText: "hello"}, RequestContext{})
 	if errResp == nil {
 		t.Fatal("HandleSessionExecutionTrigger expected blocked posture error")
 	}
@@ -115,55 +115,86 @@ func TestSessionExecutionTriggerStartCreatesSessionAndBrokerOwnedRunBinding(t *t
 	}
 }
 
-func TestSessionExecutionTriggerAllowsMultipleActiveTurnExecutions(t *testing.T) {
+func TestSessionExecutionTriggerFailsClosedOnOverlappingMutationBearingStarts(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-active", "sess-trigger-active")
 	first := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-active-1", SessionID: "sess-trigger-active", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "first"})
-	second := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-active-2", SessionID: "sess-trigger-active", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "second"})
-	if first.TurnID == second.TurnID {
-		t.Fatalf("second turn_id = %q, want distinct from first", second.TurnID)
-	}
+	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-active-2", SessionID: "sess-trigger-active", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: defaultWorkflowRoutingForTriggerTests(), UserMessageContentText: "second"}, RequestContext{})
+	assertSessionExecutionContinueBlocked(t, errResp, "broker_session_execution_overlap_blocked")
 	getResp := mustSessionGet(t, s, "req-session-trigger-active-get", "sess-trigger-active")
-	if len(getResp.Session.PendingTurnExecutions) != 2 {
-		t.Fatalf("pending_turn_executions len = %d, want 2", len(getResp.Session.PendingTurnExecutions))
+	if len(getResp.Session.PendingTurnExecutions) != 1 {
+		t.Fatalf("pending_turn_executions len = %d, want 1", len(getResp.Session.PendingTurnExecutions))
 	}
-	runIDs := map[string]struct{}{}
-	for _, execution := range getResp.Session.PendingTurnExecutions {
-		if execution.PrimaryRunID == "" {
-			t.Fatal("primary_run_id is empty for pending execution")
-		}
-		runIDs[execution.PrimaryRunID] = struct{}{}
-	}
-	if len(runIDs) != 2 {
-		t.Fatalf("distinct primary_run_ids = %d, want 2 (%+v)", len(runIDs), runIDs)
+	if got := getResp.Session.PendingTurnExecutions[0].TurnID; got != first.TurnID {
+		t.Fatalf("remaining pending turn_id = %q, want %q", got, first.TurnID)
 	}
 }
 
-func TestSessionExecutionTriggerProjectsMultiplePendingWaitsWithoutCollapsing(t *testing.T) {
+func TestSessionExecutionTriggerSharesStartSurfaceAcrossAutonomousAndInteractivePaths(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-multiwait", "sess-trigger-multiwait")
 	first := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-multiwait-1", SessionID: "sess-trigger-multiwait", TriggerSource: "autonomous_background", RequestedOperation: "start", AutonomyPosture: "operator_guided", UserMessageContentText: "first"})
-	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-trigger-multiwait", TurnID: first.TurnID, ExecutionState: "waiting", WaitKind: "operator_input", WaitState: "waiting_operator_input", OccurredAt: s.currentTimestamp()}); err != nil {
+	if first.ExecutionState != "waiting" {
+		t.Fatalf("autonomous execution_state = %q, want waiting", first.ExecutionState)
+	}
+	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-multiwait-2", SessionID: "sess-trigger-multiwait", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: defaultWorkflowRoutingForTriggerTests(), UserMessageContentText: "second"}, RequestContext{})
+	assertSessionExecutionContinueBlocked(t, errResp, "broker_session_execution_overlap_blocked")
+}
+
+func TestSessionExecutionTriggerInteractiveAndAutonomousShareWorkflowRoutingContract(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-routing-chat", "sess-trigger-routing-chat")
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-routing-auto", "sess-trigger-routing-auto")
+	routing := &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "draft_promote_apply"}
+	interactive := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-routing-chat", SessionID: "sess-trigger-routing-chat", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: routing, UserMessageContentText: "chat"})
+	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-trigger-routing-chat", TurnID: interactive.TurnID, ExecutionState: "completed", OccurredAt: s.currentTimestamp()}); err != nil {
 		t.Fatalf("UpdateSessionTurnExecution returned error: %v", err)
 	}
-	second := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-multiwait-2", SessionID: "sess-trigger-multiwait", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "second"})
-	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-trigger-multiwait", TurnID: second.TurnID, ExecutionState: "waiting", WaitKind: "external_dependency", WaitState: "waiting_external_dependency", OccurredAt: s.currentTimestamp()}); err != nil {
-		t.Fatalf("UpdateSessionTurnExecution returned error: %v", err)
+	autonomous := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-routing-auto", SessionID: "sess-trigger-routing-auto", TriggerSource: "autonomous_background", RequestedOperation: "start", WorkflowRouting: routing, UserMessageContentText: "auto"})
+	if interactive.WorkflowRouting.WorkflowFamily != autonomous.WorkflowRouting.WorkflowFamily || interactive.WorkflowRouting.WorkflowOperation != autonomous.WorkflowRouting.WorkflowOperation {
+		t.Fatalf("workflow routing mismatch: interactive=%+v autonomous=%+v", interactive.WorkflowRouting, autonomous.WorkflowRouting)
 	}
-	getResp := mustSessionGet(t, s, "req-session-trigger-multiwait-get", "sess-trigger-multiwait")
-	if len(getResp.Session.PendingTurnExecutions) < 2 {
-		t.Fatalf("pending_turn_executions len = %d, want at least 2", len(getResp.Session.PendingTurnExecutions))
+}
+
+func TestSessionExecutionTriggerRejectsInvalidWorkflowRoutingValues(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-routing-invalid", "sess-trigger-routing-invalid")
+	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-routing-invalid", SessionID: "sess-trigger-routing-invalid", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "invalid", WorkflowOperation: "approved_change_implementation"}, UserMessageContentText: "hello"}, RequestContext{})
+	assertSessionExecutionContinueBlocked(t, errResp, "broker_validation_schema_invalid")
+}
+
+func TestSessionExecutionTriggerAllowsDraftRoutingOperations(t *testing.T) {
+	for _, op := range []string{"change_draft", "spec_draft"} {
+		s := newBrokerAPIServiceForTests(t, APIConfig{})
+		sessionID := "sess-trigger-draft-routing-" + op
+		seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-draft-routing-"+op, sessionID)
+		mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-draft-routing-" + op, SessionID: sessionID, TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: op}, UserMessageContentText: "hello"})
 	}
-	waitKinds := map[string]struct{}{}
-	for _, execution := range getResp.Session.PendingTurnExecutions {
-		waitKinds[execution.WaitKind] = struct{}{}
-	}
-	if _, ok := waitKinds["operator_input"]; !ok {
-		t.Fatalf("pending wait kinds missing operator_input: %+v", waitKinds)
-	}
-	if _, ok := waitKinds["external_dependency"]; !ok {
-		t.Fatalf("pending wait kinds missing external_dependency: %+v", waitKinds)
-	}
+}
+
+func TestSessionExecutionTriggerRejectsMutationBearingDraftRouting(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-draft-mutation", "sess-trigger-draft-mutation")
+	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-draft-mutation", SessionID: "sess-trigger-draft-mutation", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "change_draft", BoundInputArtifacts: []SessionWorkflowPackBoundInputArtifact{{ArtifactRef: "change_draft_artifact", ArtifactDigest: digestForBrokerTest("x")}}}, UserMessageContentText: "hello"}, RequestContext{})
+	assertSessionExecutionContinueBlocked(t, errResp, "broker_validation_schema_invalid")
+}
+
+func TestSessionExecutionTriggerApprovedImplementationRequiresBoundInputSet(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-approved-missing", "sess-trigger-approved-missing")
+	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-approved-missing", SessionID: "sess-trigger-approved-missing", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "approved_change_implementation"}, UserMessageContentText: "hello"}, RequestContext{})
+	assertSessionExecutionContinueBlocked(t, errResp, "broker_validation_schema_invalid")
+}
+
+func TestSessionExecutionTriggerIdempotencyIncludesWorkflowRoutingIdentity(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-routing-idem", "sess-trigger-routing-idem")
+	base := SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-routing-idem-1", SessionID: "sess-trigger-routing-idem", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "draft_promote_apply"}, UserMessageContentText: "hello", IdempotencyKey: "idem-routing"}
+	_ = mustSessionExecutionTrigger(t, s, base)
+	base.RequestID = "req-session-trigger-routing-idem-2"
+	base.WorkflowRouting = &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "change_draft"}
+	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), base, RequestContext{})
+	assertSessionExecutionContinueBlocked(t, errResp, "broker_idempotency_key_payload_mismatch")
 }
 
 func TestSessionExecutionTriggerProjectsSessionRunAndSnapshotBindings(t *testing.T) {
@@ -329,12 +360,11 @@ func resolveSessionExecutionApprovalWait(t *testing.T, s *Service, approvalID, p
 	}
 }
 
-func TestSessionExecutionTriggerContinueTargetsExplicitTurnWhenMultipleWaitsExist(t *testing.T) {
+func TestSessionExecutionTriggerContinueTargetsExplicitTurn(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-trigger-targeted", "sess-trigger-targeted")
 	first := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-targeted-1", SessionID: "sess-trigger-targeted", TriggerSource: "autonomous_background", RequestedOperation: "start", AutonomyPosture: "operator_guided", UserMessageContentText: "first"})
-	second := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-targeted-2", SessionID: "sess-trigger-targeted", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "second"})
-	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-trigger-targeted", TurnID: second.TurnID, ExecutionState: "waiting", WaitKind: "external_dependency", WaitState: "waiting_external_dependency", OccurredAt: s.currentTimestamp()}); err != nil {
+	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-trigger-targeted", TurnID: first.TurnID, ExecutionState: "waiting", WaitKind: "external_dependency", WaitState: "waiting_external_dependency", OccurredAt: s.currentTimestamp()}); err != nil {
 		t.Fatalf("UpdateSessionTurnExecution returned error: %v", err)
 	}
 	resp, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-targeted-continue", SessionID: "sess-trigger-targeted", TurnID: first.TurnID, TriggerSource: "resume_follow_up", RequestedOperation: "continue", UserMessageContentText: "continue first"}, RequestContext{})
@@ -345,15 +375,11 @@ func TestSessionExecutionTriggerContinueTargetsExplicitTurnWhenMultipleWaitsExis
 		t.Fatalf("continued turn_id = %q, want %q", resp.TurnID, first.TurnID)
 	}
 	getResp := mustSessionGet(t, s, "req-session-trigger-targeted-get", "sess-trigger-targeted")
-	statesByTurn := map[string]string{}
-	for _, execution := range getResp.Session.PendingTurnExecutions {
-		statesByTurn[execution.TurnID] = execution.ExecutionState
+	if len(getResp.Session.PendingTurnExecutions) != 1 {
+		t.Fatalf("pending_turn_executions len = %d, want 1", len(getResp.Session.PendingTurnExecutions))
 	}
-	if statesByTurn[first.TurnID] != "running" {
-		t.Fatalf("first execution_state = %q, want running", statesByTurn[first.TurnID])
-	}
-	if statesByTurn[second.TurnID] != "waiting" {
-		t.Fatalf("second execution_state = %q, want waiting", statesByTurn[second.TurnID])
+	if state := getResp.Session.PendingTurnExecutions[0].ExecutionState; state != "running" {
+		t.Fatalf("execution_state = %q, want running", state)
 	}
 }
 
@@ -447,78 +473,6 @@ func TestBlockedProjectPostureAllowsSessionInspectionButBlocksSessionExecutionTr
 	if getErr != nil {
 		t.Fatalf("HandleSessionGet returned error in blocked posture: %+v", getErr)
 	}
-	_, triggerErr := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-blocked-trigger", SessionID: "sess-trigger-blocked-posture", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "blocked"}, RequestContext{})
+	_, triggerErr := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-blocked-trigger", SessionID: "sess-trigger-blocked-posture", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: defaultWorkflowRoutingForTriggerTests(), UserMessageContentText: "blocked"}, RequestContext{})
 	assertSessionExecutionContinueBlocked(t, triggerErr, "project_substrate_operation_blocked")
-}
-
-func seedSessionExecutionTriggerProjectionLinks(t *testing.T, s *Service) {
-	t.Helper()
-	_ = mustSessionSendMessage(t, s, SessionSendMessageRequest{SchemaID: "runecode.protocol.v0.SessionSendMessageRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-links-msg", SessionID: "sess-trigger-links", Role: "user", ContentText: "link", RelatedLinks: &SessionTranscriptLinks{SchemaID: "runecode.protocol.v0.SessionTranscriptLinks", SchemaVersion: "0.1.0", RunIDs: []string{"run-session-trigger-links"}, ApprovalIDs: []string{digestForBrokerTest("a")}, ArtifactDigests: []string{digestForBrokerTest("b")}, AuditRecordDigests: []string{digestForBrokerTest("c")}}})
-}
-
-func requireCurrentSessionExecution(t *testing.T, detail SessionDetail) *SessionTurnExecution {
-	t.Helper()
-	if detail.CurrentTurnExecution == nil {
-		t.Fatal("current_turn_execution missing")
-	}
-	return detail.CurrentTurnExecution
-}
-
-func assertSessionExecutionBindings(t *testing.T, exec *SessionTurnExecution) {
-	t.Helper()
-	if exec.PrimaryRunID != "run-session-trigger-links" {
-		t.Fatalf("primary_run_id = %q, want run-session-trigger-links", exec.PrimaryRunID)
-	}
-	if exec.BoundValidatedProjectSubstrateDigest == "" {
-		t.Fatal("bound_validated_project_substrate_digest is empty")
-	}
-	if len(exec.LinkedRunIDs) == 0 || len(exec.LinkedApprovalIDs) == 0 || len(exec.LinkedArtifactDigests) == 0 || len(exec.LinkedAuditRecordDigests) == 0 {
-		t.Fatalf("execution links missing: %+v", exec)
-	}
-}
-
-func requireBoundExecutionDigest(t *testing.T, detail SessionDetail) string {
-	t.Helper()
-	exec := requireCurrentSessionExecution(t, detail)
-	if exec.BoundValidatedProjectSubstrateDigest == "" {
-		t.Fatal("bound_validated_project_substrate_digest missing after start")
-	}
-	return exec.BoundValidatedProjectSubstrateDigest
-}
-
-func blockSessionPosturePreserved(t *testing.T, blocked SessionDetail) {
-	t.Helper()
-	if blocked.Summary.WorkPosture != "blocked" {
-		t.Fatalf("summary.work_posture = %q, want blocked", blocked.Summary.WorkPosture)
-	}
-	if blocked.Summary.WorkPostureReasonCode != "project_substrate_digest_drift" {
-		t.Fatalf("summary.work_posture_reason_code = %q, want project_substrate_digest_drift", blocked.Summary.WorkPostureReasonCode)
-	}
-	if blocked.CurrentTurnExecution == nil || blocked.CurrentTurnExecution.ExecutionState != "blocked" {
-		t.Fatal("current blocked execution missing after runtime facts refresh")
-	}
-}
-
-func markSessionExecutionWaiting(t *testing.T, s *Service, turnID, sessionID string) {
-	t.Helper()
-	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: sessionID, TurnID: turnID, ExecutionState: "waiting", WaitKind: "operator_input", WaitState: "waiting_operator_input", OccurredAt: s.currentTimestamp()}); err != nil {
-		t.Fatalf("UpdateSessionTurnExecution returned error: %v", err)
-	}
-}
-
-func markSessionExecutionBlocked(t *testing.T, s *Service, turnID, sessionID string) {
-	t.Helper()
-	if _, err := s.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: sessionID, TurnID: turnID, ExecutionState: "blocked", WaitKind: "project_blocked", WaitState: "waiting_project_blocked", BlockedReasonCode: "project_substrate_digest_drift", OccurredAt: s.currentTimestamp()}); err != nil {
-		t.Fatalf("UpdateSessionTurnExecution returned error: %v", err)
-	}
-}
-
-func assertSessionExecutionContinueBlocked(t *testing.T, errResp *ErrorResponse, wantCode string) {
-	t.Helper()
-	if errResp == nil {
-		t.Fatal("expected session execution error")
-	}
-	if errResp.Error.Code != wantCode {
-		t.Fatalf("error code = %q, want %q", errResp.Error.Code, wantCode)
-	}
 }

@@ -11,3 +11,5 @@
 
 ## Resolution Notes
 Migrated from the legacy spec standards list and refreshed to canonical RuneContext standard paths, then expanded to keep shared-workspace concurrency aligned with broker-owned contracts, approval/run binding, replay-safe runner semantics, and the repo-scoped product-lifecycle model frozen by `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0`.
+
+This now also includes the rule that later shared-workspace concurrency must explicitly extend the `CHG-049` baseline of at most one mutation-bearing shared-workspace run per authoritative repository root rather than replacing it implicitly through client or scheduler behavior.

@@ -40,6 +40,7 @@ var (
 	ErrDependencyArtifactEgressDenied                = errors.New("dependency cache artifacts are internal handoff only")
 	ErrSessionIdempotencyKeyConflict                 = errors.New("session idempotency key payload mismatch")
 	ErrSessionExecutionTriggerIdempotencyKeyConflict = errors.New("session execution trigger idempotency key payload mismatch")
+	ErrSessionExecutionTriggerOverlapDenied          = errors.New("session execution trigger overlap denied")
 	ErrSessionActiveTurnExecutionExists              = errors.New("session already has an active turn execution")
 	ErrSessionTurnExecutionNotFound                  = errors.New("session turn execution not found")
 	ErrSessionTurnExecutionNotResumable              = errors.New("session has no current or resumable turn execution")

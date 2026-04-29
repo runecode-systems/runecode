@@ -165,6 +165,7 @@ func (m *chatRouteModel) startSentExecutionWatch(typed chatMessageSentMsg) tea.C
 	m.watching = true
 	m.watchSession = sessionID
 	m.watchTrigger = triggerID
+	m.watchStreamID = newRequestID("chat-session-turn-watch")
 	return m.watchPollCmd(m.watchSeq, 700*time.Millisecond)
 }
 
@@ -283,6 +284,7 @@ func (m chatRouteModel) loadCmd(preferredSessionID string, seq uint64) tea.Cmd {
 }
 
 func (m chatRouteModel) sendCmd(sessionID, content string) tea.Cmd {
+	m.watchStreamID = newRequestID("chat-session-turn-watch")
 	return func() tea.Msg {
 		ctx, cancel := withLoadTimeout()
 		defer cancel()
@@ -290,12 +292,13 @@ func (m chatRouteModel) sendCmd(sessionID, content string) tea.Cmd {
 			SessionID:              sessionID,
 			TriggerSource:          "interactive_user",
 			RequestedOperation:     "start",
+			WorkflowRouting:        defaultSessionWorkflowRouting(),
 			UserMessageContentText: content,
 		})
 		if err != nil {
 			return chatMessageSentMsg{err: err}
 		}
-		watchEvents, err := m.client.SessionTurnExecutionWatch(ctx, brokerapi.SessionTurnExecutionWatchRequest{StreamID: newRequestID("chat-session-turn-watch"), SessionID: sessionID, Follow: true, IncludeSnapshot: true})
+		watchEvents, err := m.client.SessionTurnExecutionWatch(ctx, brokerapi.SessionTurnExecutionWatchRequest{StreamID: m.watchStreamID, SessionID: sessionID, Follow: true, IncludeSnapshot: true})
 		if err != nil {
 			return chatMessageSentMsg{err: err}
 		}
@@ -316,11 +319,20 @@ func (m chatRouteModel) sendCmd(sessionID, content string) tea.Cmd {
 	}
 }
 
+func defaultSessionWorkflowRouting() *brokerapi.SessionWorkflowPackRouting {
+	return &brokerapi.SessionWorkflowPackRouting{
+		SchemaID:          "runecode.protocol.v0.SessionWorkflowPackRouting",
+		SchemaVersion:     "0.1.0",
+		WorkflowFamily:    "runecontext",
+		WorkflowOperation: "draft_promote_apply",
+	}
+}
+
 func (m chatRouteModel) watchLoadCmd(sessionID, triggerID string, seq uint64) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := withLoadTimeout()
 		defer cancel()
-		watchEvents, err := m.client.SessionTurnExecutionWatch(ctx, brokerapi.SessionTurnExecutionWatchRequest{StreamID: newRequestID("chat-session-turn-watch"), SessionID: sessionID, Follow: true, IncludeSnapshot: true})
+		watchEvents, err := m.client.SessionTurnExecutionWatch(ctx, brokerapi.SessionTurnExecutionWatchRequest{StreamID: m.watchStreamID, SessionID: sessionID, Follow: true, IncludeSnapshot: true})
 		if err != nil {
 			return chatExecutionWatchLoadedMsg{seq: seq, err: err}
 		}
@@ -340,6 +352,8 @@ func (m chatRouteModel) watchLoadCmd(sessionID, triggerID string, seq uint64) te
 		continueWatch := false
 		if turnExecution != nil {
 			continueWatch = !chatExecutionTerminal(*turnExecution)
+		} else {
+			continueWatch = true
 		}
 		return chatExecutionWatchLoadedMsg{
 			seq:           seq,

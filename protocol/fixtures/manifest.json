@@ -403,6 +403,42 @@
       "expect_valid": true
     },
     {
+      "id": "runecontext-change-draft-artifact.valid-minimal",
+      "schema_path": "objects/RuneContextChangeDraftArtifact.schema.json",
+      "fixture_path": "schema/runecontext-change-draft-artifact.valid-minimal.json",
+      "expect_valid": true
+    },
+    {
+      "id": "runecontext-change-draft-artifact.invalid-missing-change-id",
+      "schema_path": "objects/RuneContextChangeDraftArtifact.schema.json",
+      "fixture_path": "schema/runecontext-change-draft-artifact.invalid-missing-change-id.json",
+      "expect_valid": false
+    },
+    {
+      "id": "runecontext-spec-draft-artifact.valid-minimal",
+      "schema_path": "objects/RuneContextSpecDraftArtifact.schema.json",
+      "fixture_path": "schema/runecontext-spec-draft-artifact.valid-minimal.json",
+      "expect_valid": true
+    },
+    {
+      "id": "runecontext-spec-draft-artifact.invalid-data-class",
+      "schema_path": "objects/RuneContextSpecDraftArtifact.schema.json",
+      "fixture_path": "schema/runecontext-spec-draft-artifact.invalid-data-class.json",
+      "expect_valid": false
+    },
+    {
+      "id": "runecontext-approved-implementation-input-set.valid-minimal",
+      "schema_path": "objects/RuneContextApprovedImplementationInputSet.schema.json",
+      "fixture_path": "schema/runecontext-approved-implementation-input-set.valid-minimal.json",
+      "expect_valid": true
+    },
+    {
+      "id": "runecontext-approved-implementation-input-set.invalid-empty-approved-input-digests",
+      "schema_path": "objects/RuneContextApprovedImplementationInputSet.schema.json",
+      "fixture_path": "schema/runecontext-approved-implementation-input-set.invalid-empty-approved-input-digests.json",
+      "expect_valid": false
+    },
+    {
       "id": "session-send-message-request.valid-basic",
       "schema_path": "objects/SessionSendMessageRequest.schema.json",
       "fixture_path": "schema/session-send-message-request.valid-basic.json",

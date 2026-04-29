@@ -117,6 +117,10 @@ func (s *Service) appendSessionExecutionTriggerResult(requestID string, appendRe
 			errOut := s.makeError(requestID, "broker_idempotency_key_payload_mismatch", "validation", false, err.Error())
 			return artifacts.SessionExecutionTriggerAppendResult{}, &errOut
 		}
+		if errors.Is(err, artifacts.ErrSessionExecutionTriggerOverlapDenied) {
+			errOut := s.makeError(requestID, "broker_session_execution_overlap_blocked", "policy", false, err.Error())
+			return artifacts.SessionExecutionTriggerAppendResult{}, &errOut
+		}
 		errOut := s.errorFromStore(requestID, err)
 		return artifacts.SessionExecutionTriggerAppendResult{}, &errOut
 	}

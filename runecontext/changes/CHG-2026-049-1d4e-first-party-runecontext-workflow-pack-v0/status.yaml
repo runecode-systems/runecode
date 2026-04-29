@@ -11,13 +11,18 @@ related_specs: []
 related_decisions: []
 related_changes:
   - CHG-2026-002-33c5-git-gateway-commit-push-pr
+  - CHG-2026-014-0c5d-approval-profiles-strict-permissive
   - CHG-2026-024-acde-deps-fetch-offline-cache
+  - CHG-2026-017-3d58-workflow-extensibility-v0
   - CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0
+  - CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0
   - CHG-2026-048-6b7a-session-execution-orchestration-v0
   - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
   - CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0
 depends_on:
+  - CHG-2026-024-acde-deps-fetch-offline-cache
   - CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0
+  - CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0
   - CHG-2026-048-6b7a-session-execution-orchestration-v0
   - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
 informed_by:

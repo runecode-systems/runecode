@@ -5,8 +5,8 @@
   "description": "Typed broker-owned execution trigger acknowledgement with stream sequencing metadata.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 15,
-  "required": ["schema_id", "schema_version", "request_id", "session_id", "trigger_id", "turn_id", "trigger_source", "requested_operation", "approval_profile", "autonomy_posture", "execution_state", "event_type", "stream_id", "seq"],
+  "maxProperties": 16,
+  "required": ["schema_id", "schema_version", "request_id", "session_id", "trigger_id", "turn_id", "trigger_source", "requested_operation", "approval_profile", "autonomy_posture", "workflow_routing", "execution_state", "event_type", "stream_id", "seq"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.SessionExecutionTriggerResponse", "description": "Protocol schema identifier for SessionExecutionTriggerResponse.", "x-data-class": "public" },
     "schema_version": { "const": "0.1.0", "description": "Protocol schema version for SessionExecutionTriggerResponse.", "x-data-class": "public" },
@@ -18,6 +18,37 @@
     "requested_operation": { "type": "string", "enum": ["start", "continue"], "description": "Echoed requested execution intent.", "x-data-class": "public" },
     "approval_profile": { "type": "string", "enum": ["moderate"], "description": "Echoed approval profile control for formal approval frequency.", "x-data-class": "public" },
     "autonomy_posture": { "type": "string", "enum": ["operator_guided", "balanced", "autonomous_preferred"], "description": "Echoed autonomy posture control for operator-question cadence and continuation posture.", "x-data-class": "public" },
+    "workflow_routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 5,
+      "description": "Echoed typed workflow-pack routing identity and bound inputs.",
+      "required": ["schema_id", "schema_version", "workflow_family", "workflow_operation"],
+      "properties": {
+        "schema_id": { "const": "runecode.protocol.v0.SessionWorkflowPackRouting", "description": "Workflow routing object schema identifier.", "x-data-class": "public" },
+        "schema_version": { "const": "0.1.0", "description": "Workflow routing object schema version.", "x-data-class": "public" },
+        "workflow_family": { "type": "string", "enum": ["runecontext"], "description": "First-party workflow family identity.", "x-data-class": "public" },
+        "workflow_operation": { "type": "string", "enum": ["change_draft", "spec_draft", "draft_promote_apply", "approved_change_implementation"], "description": "Typed workflow operation identity within the family.", "x-data-class": "public" },
+        "bound_input_artifacts": {
+          "type": "array",
+          "maxItems": 256,
+          "description": "Explicit bound input artifacts referenced by routing.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "maxProperties": 2,
+            "description": "Typed workflow input artifact binding.",
+            "required": ["artifact_ref", "artifact_digest"],
+            "properties": {
+              "artifact_ref": { "type": "string", "minLength": 1, "maxLength": 160, "description": "Artifact reference label used by workflow routing.", "x-data-class": "public" },
+              "artifact_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Artifact digest bound to the reference.", "x-data-class": "public" }
+            }
+          },
+          "x-data-class": "public"
+        }
+      },
+      "x-data-class": "public"
+    },
     "execution_state": { "type": "string", "enum": ["queued", "planning", "running", "waiting", "blocked", "failed", "completed"], "description": "Current broker-owned turn execution state at trigger acknowledgement time.", "x-data-class": "public" },
     "user_message_content_text": { "type": "string", "minLength": 1, "maxLength": 32768, "description": "Echoed optional user-facing content payload when present.", "x-data-class": "public" },
     "event_type": { "type": "string", "enum": ["session_execution_trigger_ack"], "description": "Typed ack event family for execution trigger submission.", "x-data-class": "public" },

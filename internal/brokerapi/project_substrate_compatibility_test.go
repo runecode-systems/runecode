@@ -73,7 +73,7 @@ func assertDiagnosticsModeArtifactInspectSurfaces(t *testing.T, service *Service
 
 func assertDiagnosticsModeExecutionStillBlocked(t *testing.T, service *Service) {
 	t.Helper()
-	if _, errResp := service.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-blocked", SessionID: "sess-blocked", TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: "run"}, RequestContext{}); errResp == nil {
+	if _, errResp := service.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-trigger-blocked", SessionID: "sess-blocked", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: defaultWorkflowRoutingForTriggerTests(), UserMessageContentText: "run"}, RequestContext{}); errResp == nil {
 		t.Fatal("HandleSessionExecutionTrigger error = nil, want blocked execution-sensitive operation")
 	} else if errResp.Error.Code != "project_substrate_operation_blocked" {
 		t.Fatalf("error.code = %q, want project_substrate_operation_blocked", errResp.Error.Code)

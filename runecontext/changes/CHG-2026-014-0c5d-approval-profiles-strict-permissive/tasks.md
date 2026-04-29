@@ -22,6 +22,7 @@
 - [ ] Keep the fixed hard-floor categories from `runecontext/changes/CHG-2026-007-2315-policy-engine-v0/` outside profile control.
 - [ ] Keep profile behavior aligned with the policy split between exact-action approvals and stage sign-off.
 - [ ] Preserve distinct `waiting_approval` and `waiting_operator_input` semantics across all profiles.
+- [ ] Keep later profile expansion compatible with the CHG-049 first-party workflow-pack behavior so draft promote/apply and approved-change implementation do not grow workflow-local approval semantics.
 - [ ] Keep gate overrides explicit approvals across all profiles and do not batch them into ambient milestone sign-off.
 - [ ] Keep `git_remote_ops` explicit exact-action approvals across all profiles and do not batch them into stage sign-off, milestone approval, or ambient acknowledgment.
 - [ ] Keep `git_remote_ops` approval payload binding aligned with canonical repository identity, target refs, referenced patch artifact digests, expected result tree hash, and canonical action request hash.
@@ -77,6 +78,7 @@ Parallelization: can be designed in parallel with workflow runner work; it depen
 - [ ] Keep broker-visible run and approval summaries that surface active profile or required assurance aligned with the same schema/versioning rules.
 - [ ] Keep profile behavior aligned with shared gate-override semantics and typed gate-evidence-linked review flows.
 - [ ] Keep blocked project-substrate posture outside profile control; profiles must not convert diagnostics/remediation-only project posture into normal operation.
+- [ ] Keep profile-driven approval timing compatible with first-party workflow-pack draft promote/apply and approved-change implementation flows rather than inventing special built-in workflow approval modes.
 
 Parallelization: can be implemented in parallel across policy/runner/TUI as long as the approval schema contract is fixed first.
 
@@ -91,6 +93,7 @@ Parallelization: can be implemented in parallel across policy/runner/TUI as long
 - [ ] Profiles preserve the shared dependency-fetch checkpoint model and do not invent per-cache-miss approval semantics for ordinary in-scope `fetch_dependency` work.
 - [ ] Profiles do not weaken blocked project-substrate posture or convert diagnostics/remediation-only repository substrate states into ordinary execution.
 - [ ] Profiles do not become a proxy for operator-guidance cadence or collapse `waiting_operator_input` into formal approval behavior.
+- [ ] Profiles remain compatible with CHG-049 first-party workflow-pack approval behavior and do not introduce workflow-local approval semantics for built-in productive workflows.
 
 Profile hardening follow-up (pre-MVP foundation):
 - [ ] Ensure backend posture approval gating fails closed when profile-specific approval payload derivation is unavailable.

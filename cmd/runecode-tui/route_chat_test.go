@@ -162,6 +162,9 @@ func TestChatRouteComposeSendsTypedSessionMessageRequest(t *testing.T) {
 	if spy.sentReq.UserMessageContentText != "hi" {
 		t.Fatalf("expected content hi, got %q", spy.sentReq.UserMessageContentText)
 	}
+	if spy.sentReq.WorkflowRouting == nil || spy.sentReq.WorkflowRouting.WorkflowFamily != "runecontext" || spy.sentReq.WorkflowRouting.WorkflowOperation != "draft_promote_apply" {
+		t.Fatalf("unexpected workflow routing: %+v", spy.sentReq.WorkflowRouting)
+	}
 	if spy.watchReq == nil {
 		t.Fatal("expected SessionTurnExecutionWatch request to be captured")
 	}
