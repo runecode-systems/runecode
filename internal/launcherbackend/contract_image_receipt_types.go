@@ -92,6 +92,8 @@ type BackendLaunchReceipt struct {
 	RuntimeToolchainSignerRef        string                      `json:"runtime_toolchain_signer_ref,omitempty"`
 	RuntimeToolchainVerifierRef      string                      `json:"runtime_toolchain_verifier_ref,omitempty"`
 	RuntimeToolchainSignatureDigest  string                      `json:"runtime_toolchain_signature_digest,omitempty"`
+	AuthorityStateDigest             string                      `json:"authority_state_digest,omitempty"`
+	AuthorityStateRevision           uint64                      `json:"authority_state_revision,omitempty"`
 	RuntimeImageDigest               string                      `json:"runtime_image_digest,omitempty"`
 	BootComponentDigestByName        map[string]string           `json:"boot_component_digest_by_name,omitempty"`
 	BootComponentDigests             []string                    `json:"boot_component_digests,omitempty"`

@@ -8,11 +8,13 @@ import (
 // RuntimeAdmissionRecord is launcher-private trusted admission state.
 // It captures verified runtime identity only (no host-local paths).
 type RuntimeAdmissionRecord struct {
-	DescriptorDigest      string                     `json:"descriptor_digest"`
-	BackendKind           string                     `json:"backend_kind"`
-	PlatformCompatibility RuntimeImagePlatformCompat `json:"platform_compatibility"`
-	BootContractVersion   string                     `json:"boot_contract_version"`
-	ComponentDigests      map[string]string          `json:"component_digests"`
+	DescriptorDigest       string                     `json:"descriptor_digest"`
+	BackendKind            string                     `json:"backend_kind"`
+	PlatformCompatibility  RuntimeImagePlatformCompat `json:"platform_compatibility"`
+	BootContractVersion    string                     `json:"boot_contract_version"`
+	ComponentDigests       map[string]string          `json:"component_digests"`
+	AuthorityStateDigest   string                     `json:"authority_state_digest"`
+	AuthorityStateRevision uint64                     `json:"authority_state_revision"`
 
 	RuntimeImageSignerRef       string `json:"runtime_image_signer_ref"`
 	RuntimeImageVerifierSetRef  string `json:"runtime_image_verifier_set_ref"`
@@ -81,6 +83,14 @@ func validateAdmissionRecordDescriptor(record RuntimeAdmissionRecord) error {
 	}
 	if err := validateRuntimeImageDescriptorComponents(descriptor.BackendKind, descriptor.BootContractVersion, descriptor.ComponentDigests); err != nil {
 		return fmt.Errorf("admission record %w", err)
+	}
+	hasAuthorityDigest := strings.TrimSpace(record.AuthorityStateDigest) != ""
+	hasAuthorityRevision := record.AuthorityStateRevision > 0
+	if hasAuthorityDigest != hasAuthorityRevision {
+		return fmt.Errorf("authority_state_digest and authority_state_revision must be both set or both empty")
+	}
+	if hasAuthorityDigest && !looksLikeDigest(strings.TrimSpace(record.AuthorityStateDigest)) {
+		return fmt.Errorf("authority_state_digest must be sha256:<64 lowercase hex>")
 	}
 	return nil
 }

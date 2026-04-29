@@ -33,6 +33,10 @@ func projectOptionalToolchainState(state map[string]any, receipt launcherbackend
 	projectOptionalStringState(state, "runtime_toolchain_signer_ref", receipt.RuntimeToolchainSignerRef)
 	projectOptionalStringState(state, "runtime_toolchain_verifier_ref", receipt.RuntimeToolchainVerifierRef)
 	projectOptionalStringState(state, "runtime_toolchain_signature_digest", receipt.RuntimeToolchainSignatureDigest)
+	projectOptionalStringState(state, "authority_state_digest", receipt.AuthorityStateDigest)
+	if receipt.AuthorityStateRevision > 0 {
+		state["authority_state_revision"] = receipt.AuthorityStateRevision
+	}
 }
 
 func projectOptionalBootComponentState(state map[string]any, receipt launcherbackend.BackendLaunchReceipt) {

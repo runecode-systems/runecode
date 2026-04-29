@@ -61,7 +61,62 @@ func commandHandlers() map[string]commandHandler {
 	return map[string]commandHandler{
 		"serve":                    handleServe,
 		"validate-isolate-binding": handleValidateIsolateBinding,
+		"import-runtime-verifier-authority-state":    handleImportRuntimeVerifierAuthorityState,
+		"show-runtime-verifier-authority-state":      handleShowRuntimeVerifierAuthorityState,
+		"export-runtime-verifier-authority-baseline": handleExportRuntimeVerifierAuthorityBaseline,
 	}
+}
+
+func handleImportRuntimeVerifierAuthorityState(args []string, stdout io.Writer) error {
+	fs := flag.NewFlagSet("import-runtime-verifier-authority-state", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	filePath := fs.String("file", "", "path to reviewed authority-state JSON")
+	workRoot := fs.String("work-root", "", "launcher work root (optional)")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "import-runtime-verifier-authority-state usage: runecode-launcher import-runtime-verifier-authority-state --file authority-state.json [--work-root path]"}
+	}
+	if *filePath == "" {
+		return &usageError{message: "import-runtime-verifier-authority-state requires --file"}
+	}
+	receipt, err := launcherdaemon.ImportRuntimeVerifierAuthorityStateForWorkRootWithReceipt(*workRoot, *filePath)
+	if err != nil {
+		return err
+	}
+	b, err := json.Marshal(receipt)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "runtime verifier authority state imported\n%s\n", string(b))
+	return err
+}
+
+func handleShowRuntimeVerifierAuthorityState(args []string, stdout io.Writer) error {
+	fs := flag.NewFlagSet("show-runtime-verifier-authority-state", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	workRoot := fs.String("work-root", "", "launcher work root (optional)")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "show-runtime-verifier-authority-state usage: runecode-launcher show-runtime-verifier-authority-state [--work-root path]"}
+	}
+	b, err := launcherdaemon.ExportEffectiveRuntimeVerifierAuthorityStateForWorkRoot(*workRoot)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "%s\n", string(b))
+	return err
+}
+
+func handleExportRuntimeVerifierAuthorityBaseline(args []string, stdout io.Writer) error {
+	fs := flag.NewFlagSet("export-runtime-verifier-authority-baseline", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "export-runtime-verifier-authority-baseline usage: runecode-launcher export-runtime-verifier-authority-baseline"}
+	}
+	b, err := launcherdaemon.ExportBuiltInRuntimeVerifierAuthorityState()
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "%s\n", string(b))
+	return err
 }
 
 func handleServe(args []string, stdout io.Writer) error {
@@ -167,7 +222,7 @@ func maybeRunHelloWorldSlice(svc *launcherdaemon.Service, brokerSvc *brokerapi.S
 	if brokerSvc == nil {
 		return fmt.Errorf("hello-world reporter unavailable")
 	}
-	runID := fmt.Sprintf("launcher-cli-hello-%d", time.Now().Unix())
+	runID := fmt.Sprintf("launcher-cli-hello-%d", time.Now().UnixNano())
 	ref, err := svc.Launch(context.Background(), helloWorldLaunchSpec(runID))
 	if err != nil {
 		return err
@@ -313,7 +368,10 @@ func writeHelp(w io.Writer) error {
 
 Commands:
   serve [--once] [--hello-world] [--store-root path] [--ledger-root path]
-  validate-isolate-binding --file binding.json`)
+  validate-isolate-binding --file binding.json
+  import-runtime-verifier-authority-state --file authority-state.json [--work-root path]
+  show-runtime-verifier-authority-state [--work-root path]
+  export-runtime-verifier-authority-baseline`)
 	return err
 }
 

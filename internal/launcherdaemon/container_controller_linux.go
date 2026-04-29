@@ -146,6 +146,8 @@ func containerLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission la
 		RuntimeToolchainSignerRef:        admission.RuntimeToolchainSignerRef,
 		RuntimeToolchainVerifierRef:      admission.RuntimeToolchainVerifierSetRef,
 		RuntimeToolchainSignatureDigest:  admission.RuntimeToolchainSignatureDigest,
+		AuthorityStateDigest:             admission.AuthorityStateDigest,
+		AuthorityStateRevision:           admission.AuthorityStateRevision,
 		BootComponentDigestByName:        cloneMap(admission.ComponentDigests),
 		AttachmentPlanSummary:            summarizeAttachments(spec.Attachments),
 		WorkspaceEncryptionPosture: &launcherbackend.WorkspaceEncryptionPosture{

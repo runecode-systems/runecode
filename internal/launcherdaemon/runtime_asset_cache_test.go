@@ -34,8 +34,69 @@ func TestAdmitRuntimeImageVerifiesToolchainAndShapesAdmissionRecord(t *testing.T
 	if admitted.admissionRecord.RuntimeToolchainDescriptorDigest == "" {
 		t.Fatal("expected toolchain identity in admitted runtime record")
 	}
+	if admitted.admissionRecord.AuthorityStateDigest == "" || admitted.admissionRecord.AuthorityStateRevision == 0 {
+		t.Fatal("expected authority state identity in admitted runtime record")
+	}
 	if len(admitted.componentPaths) != 2 {
 		t.Fatalf("expected resolved component paths, got %d", len(admitted.componentPaths))
+	}
+}
+
+func TestAdmitRuntimeImageFailsClosedAfterImportedAuthorityRevokesVerifierSet(t *testing.T) {
+	workRoot, image := seededRuntimeImageForAdmissionTest(t)
+	if _, err := admitRuntimeImage(workRoot, image); err != nil {
+		t.Fatalf("initial admitRuntimeImage returned error: %v", err)
+	}
+	cacheRoot := verifiedRuntimeCacheRoot(workRoot)
+	revoked := revokedRuntimeVerifierAuthorityStateForTests(image)
+	revoked = normalizeRuntimeVerifierAuthorityState(revoked)
+	if err := persistImportedRuntimeVerifierAuthorityState(cacheRoot, revoked); err != nil {
+		t.Fatalf("persistImportedRuntimeVerifierAuthorityState returned error: %v", err)
+	}
+	_, err := admitRuntimeImage(workRoot, image)
+	if err == nil || !strings.Contains(err.Error(), "runtime verifier set is revoked") {
+		t.Fatalf("expected revoked verifier set rejection on future launch, got %v", err)
+	}
+}
+
+func seededRuntimeImageForAdmissionTest(t *testing.T) (string, launcherbackend.RuntimeImageDescriptor) {
+	t.Helper()
+	workRoot := t.TempDir()
+	image := validRuntimeImageForTests()
+	materializeComponentDigests(t, workRoot, &image)
+	seedRuntimeImageSignatureAssets(t, workRoot, &image)
+	seedRuntimeToolchainSignatureAssets(t, workRoot, &image, false)
+	return workRoot, image
+}
+
+func revokedRuntimeVerifierAuthorityStateForTests(image launcherbackend.RuntimeImageDescriptor) runtimeVerifierAuthorityState {
+	return runtimeVerifierAuthorityState{
+		SchemaID:      runtimeVerifierAuthorityStateSchemaID,
+		SchemaVersion: runtimeVerifierAuthorityStateSchemaVersion,
+		Generation: runtimeVerifierAuthorityGeneration{
+			Revision:  2,
+			ChangedAt: "2026-05-01T00:00:00Z",
+			Reason:    "revoke compromised runtime image verifier set",
+		},
+		MergeMode: runtimeVerifierAuthorityMergeModeReplace,
+		AuthoritiesByKind: map[string][]runtimeVerifierAuthorityEntry{
+			runtimeVerifierKindImage: {{
+				VerifierSetRef: image.Signing.VerifierSetRef,
+				Records:        []trustpolicy.VerifierRecord{runtimeImageVerifierRecordForTests()},
+				Status:         runtimeVerifierAuthorityStatusRevoked,
+				Source:         runtimeVerifierAuthoritySourceImported,
+				ChangedAt:      "2026-05-01T00:00:00Z",
+				Reason:         "rotated out",
+			}},
+			runtimeVerifierKindToolchain: {{
+				VerifierSetRef: image.Signing.Toolchain.VerifierSetRef,
+				Records:        []trustpolicy.VerifierRecord{runtimeToolchainVerifierRecordForTests()},
+				Status:         runtimeVerifierAuthorityStatusActive,
+				Source:         runtimeVerifierAuthoritySourceImported,
+				ChangedAt:      "2026-05-01T00:00:00Z",
+				Reason:         "unchanged",
+			}},
+		},
 	}
 }
 

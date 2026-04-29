@@ -50,3 +50,23 @@ func TestRuntimeAdmissionRecordRejectsPartialToolchainIdentity(t *testing.T) {
 		t.Fatal("Validate expected partial toolchain identity rejection")
 	}
 }
+
+func TestRuntimeAdmissionRecordRejectsPartialAuthorityStateIdentity(t *testing.T) {
+	descriptor := validRuntimeImageDescriptorForContractTests()
+	record, err := NewRuntimeAdmissionRecord(descriptor)
+	if err != nil {
+		t.Fatalf("NewRuntimeAdmissionRecord returned error: %v", err)
+	}
+	record.AuthorityStateDigest = "sha256:" + testDigestHex('a')
+	if err := record.Validate(); err == nil {
+		t.Fatal("Validate expected partial authority identity rejection")
+	}
+}
+
+func testDigestHex(ch byte) string {
+	b := make([]byte, 64)
+	for i := range b {
+		b[i] = ch
+	}
+	return string(b)
+}

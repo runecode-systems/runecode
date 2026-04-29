@@ -47,6 +47,8 @@ func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launch
 		RuntimeToolchainSignerRef:        admission.RuntimeToolchainSignerRef,
 		RuntimeToolchainVerifierRef:      admission.RuntimeToolchainVerifierSetRef,
 		RuntimeToolchainSignatureDigest:  admission.RuntimeToolchainSignatureDigest,
+		AuthorityStateDigest:             admission.AuthorityStateDigest,
+		AuthorityStateRevision:           admission.AuthorityStateRevision,
 		BootComponentDigestByName:        cloneMap(admission.ComponentDigests),
 		ResourceLimits:                   &spec.ResourceLimits,
 		WatchdogPolicy:                   &spec.WatchdogPolicy,

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
@@ -60,6 +61,12 @@ func buildRuntimeAdmissionRecord(cacheRoot string, image launcherbackend.Runtime
 	if err != nil {
 		return launcherbackend.RuntimeAdmissionRecord{}, nil, err
 	}
+	effectiveState, err := loadEffectiveRuntimeVerifierAuthorityState(cacheRoot)
+	if err != nil {
+		return launcherbackend.RuntimeAdmissionRecord{}, nil, err
+	}
+	admissionRecord.AuthorityStateDigest = effectiveState.StateDigest
+	admissionRecord.AuthorityStateRevision = effectiveState.Generation.Revision
 	toolchainDescriptor, err := verifyRuntimeToolchainSignature(cacheRoot, image)
 	if err != nil {
 		return launcherbackend.RuntimeAdmissionRecord{}, nil, err
@@ -71,21 +78,38 @@ func buildRuntimeAdmissionRecord(cacheRoot string, image launcherbackend.Runtime
 }
 
 func ensureRuntimeAdmissionRecord(cacheRoot string, image launcherbackend.RuntimeImageDescriptor, admissionRecord launcherbackend.RuntimeAdmissionRecord) (string, error) {
+	if err := verifyRuntimeImageSignature(cacheRoot, image); err != nil {
+		return "", err
+	}
 	persistedRecord, found, err := loadRuntimeAdmissionRecord(cacheRoot, image.DescriptorDigest)
 	if err != nil {
 		return "", err
 	}
-	if found {
-		if !reflect.DeepEqual(persistedRecord, admissionRecord) {
-			return "", fmt.Errorf("persisted runtime admission record does not match image identity")
-		}
-	} else if err := persistVerifiedRuntimeAdmission(cacheRoot, image, admissionRecord); err != nil {
-		return "", err
-	}
-	if err := verifyRuntimeImageSignature(cacheRoot, image); err != nil {
+	if err := persistRuntimeAdmissionRecordForState(cacheRoot, image, admissionRecord, persistedRecord, found); err != nil {
 		return "", err
 	}
 	return cacheResultForAdmission(found), nil
+}
+
+func persistRuntimeAdmissionRecordForState(cacheRoot string, image launcherbackend.RuntimeImageDescriptor, admissionRecord launcherbackend.RuntimeAdmissionRecord, persistedRecord launcherbackend.RuntimeAdmissionRecord, found bool) error {
+	if !found {
+		return persistVerifiedRuntimeAdmission(cacheRoot, image, admissionRecord)
+	}
+	if !runtimeAdmissionRecordMatchesImageIdentity(persistedRecord, admissionRecord) {
+		return fmt.Errorf("persisted runtime admission record does not match image identity")
+	}
+	if reflect.DeepEqual(persistedRecord, admissionRecord) {
+		return nil
+	}
+	return persistRuntimeAdmissionRecord(cacheRoot, admissionRecord)
+}
+
+func runtimeAdmissionRecordMatchesImageIdentity(left launcherbackend.RuntimeAdmissionRecord, right launcherbackend.RuntimeAdmissionRecord) bool {
+	left.AuthorityStateDigest = ""
+	left.AuthorityStateRevision = 0
+	right.AuthorityStateDigest = ""
+	right.AuthorityStateRevision = 0
+	return reflect.DeepEqual(left, right)
 }
 
 func persistVerifiedRuntimeAdmission(cacheRoot string, image launcherbackend.RuntimeImageDescriptor, admissionRecord launcherbackend.RuntimeAdmissionRecord) error {
@@ -98,7 +122,13 @@ func persistVerifiedRuntimeAdmission(cacheRoot string, image launcherbackend.Run
 func resolveRuntimeImageComponents(cacheRoot string, digests map[string]string) (map[string]string, []string, error) {
 	componentPaths := make(map[string]string, len(digests))
 	resolvedDigests := make([]string, 0, len(digests))
-	for name, digest := range digests {
+	names := make([]string, 0, len(digests))
+	for name := range digests {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		digest := digests[name]
 		assetPath, err := resolveVerifiedRuntimeAsset(cacheRoot, digest)
 		if err != nil {
 			return nil, nil, fmt.Errorf("verified runtime asset %s unavailable", name)
@@ -177,6 +207,9 @@ func verifiedRuntimeCacheRoot(workRoot string) string {
 }
 
 func resolveVerifiedRuntimeAsset(cacheRoot string, digest string) (string, error) {
+	if !isDigestFormat(digest) {
+		return "", fmt.Errorf("invalid digest")
+	}
 	parts := strings.SplitN(strings.TrimSpace(digest), ":", 2)
 	if len(parts) != 2 || parts[0] != "sha256" || parts[1] == "" {
 		return "", fmt.Errorf("invalid digest")

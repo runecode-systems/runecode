@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
@@ -22,13 +21,6 @@ const (
 	runtimeToolchainVerifierKeyIDValue      = "1325b850c2871916eae203f0efc3c8987f64e5e3cdb27679e6d1fa97808357e6"
 )
 
-var trustedRuntimeVerifierPolicies = runtimeVerifierPoliciesByKind()
-
-type trustedRuntimeVerifierPolicy struct {
-	allowedDigest string
-	records       []trustpolicy.VerifierRecord
-}
-
 func loadAuthorizedRuntimeVerifierRegistry(cacheRoot string, digest string, kind string) (*trustpolicy.VerifierRegistry, error) {
 	verifierSetPath, err := resolveVerifiedRuntimeAsset(cacheRoot, digest)
 	if err != nil {
@@ -42,7 +34,7 @@ func loadAuthorizedRuntimeVerifierRegistry(cacheRoot string, digest string, kind
 	if err := json.Unmarshal(data, &records); err != nil {
 		return nil, fmt.Errorf("decode verifier set: %w", err)
 	}
-	if err := authorizeRuntimeVerifierSet(kind, strings.TrimSpace(digest), records); err != nil {
+	if err := authorizeRuntimeVerifierSet(cacheRoot, kind, strings.TrimSpace(digest), records); err != nil {
 		return nil, err
 	}
 	registry, err := trustpolicy.NewVerifierRegistry(records)
@@ -52,32 +44,58 @@ func loadAuthorizedRuntimeVerifierRegistry(cacheRoot string, digest string, kind
 	return registry, nil
 }
 
-func authorizeRuntimeVerifierSet(kind string, digest string, records []trustpolicy.VerifierRecord) error {
-	policy, ok := trustedRuntimeVerifierPolicies[kind]
-	if !ok {
-		return fmt.Errorf("runtime verifier policy kind %q is unsupported", kind)
+func authorizeRuntimeVerifierSet(cacheRoot string, kind string, digest string, records []trustpolicy.VerifierRecord) error {
+	state, err := loadEffectiveRuntimeVerifierAuthorityState(cacheRoot)
+	if err != nil {
+		return err
 	}
-	if digest != policy.allowedDigest {
+	entries, ok := state.AuthoritiesByKind[kind]
+	if !ok || len(entries) == 0 {
+		return unsupportedRuntimeVerifierPolicyKindError(kind)
+	}
+	matchedEntry, found := findRuntimeVerifierAuthorityEntry(entries, digest)
+	if found {
+		return authorizeMatchedRuntimeVerifierEntry(matchedEntry, records)
+	}
+	if isSupportedRuntimeVerifierKind(kind) {
 		return fmt.Errorf("runtime verifier set is not authorized")
 	}
-	if !slices.EqualFunc(records, policy.records, runtimeVerifierRecordEqual) {
-		return fmt.Errorf("runtime verifier set contents are not authorized")
-	}
-	return nil
+	return unsupportedRuntimeVerifierPolicyKindError(kind)
 }
 
-func runtimeVerifierPoliciesByKind() map[string]trustedRuntimeVerifierPolicy {
+func findRuntimeVerifierAuthorityEntry(entries []runtimeVerifierAuthorityEntry, digest string) (runtimeVerifierAuthorityEntry, bool) {
+	for _, entry := range entries {
+		if entry.VerifierSetRef == digest {
+			return entry, true
+		}
+	}
+	return runtimeVerifierAuthorityEntry{}, false
+}
+
+func authorizeMatchedRuntimeVerifierEntry(entry runtimeVerifierAuthorityEntry, records []trustpolicy.VerifierRecord) error {
+	if entry.Status != runtimeVerifierAuthorityStatusActive {
+		return fmt.Errorf("runtime verifier set is revoked")
+	}
+	if runtimeVerifierRecordsEqual(records, entry.Records) {
+		return nil
+	}
+	return fmt.Errorf("runtime verifier set contents are not authorized")
+}
+
+func isSupportedRuntimeVerifierKind(kind string) bool {
+	return kind == runtimeVerifierKindImage || kind == runtimeVerifierKindToolchain
+}
+
+func unsupportedRuntimeVerifierPolicyKindError(kind string) error {
+	return fmt.Errorf("runtime verifier policy kind %q is unsupported", kind)
+}
+
+func builtInRuntimeVerifierPoliciesByKind() map[string][]trustpolicy.VerifierRecord {
 	imageRecords := []trustpolicy.VerifierRecord{builtInRuntimeImageVerifierRecord()}
 	toolchainRecords := []trustpolicy.VerifierRecord{builtInRuntimeToolchainVerifierRecord()}
-	return map[string]trustedRuntimeVerifierPolicy{
-		runtimeVerifierKindImage: {
-			allowedDigest: mustRuntimeVerifierSetDigest(imageRecords),
-			records:       imageRecords,
-		},
-		runtimeVerifierKindToolchain: {
-			allowedDigest: mustRuntimeVerifierSetDigest(toolchainRecords),
-			records:       toolchainRecords,
-		},
+	return map[string][]trustpolicy.VerifierRecord{
+		runtimeVerifierKindImage:     imageRecords,
+		runtimeVerifierKindToolchain: toolchainRecords,
 	}
 }
 
@@ -141,4 +159,16 @@ func runtimeVerifierRecordEqual(left trustpolicy.VerifierRecord, right trustpoli
 		return false
 	}
 	return string(leftJSON) == string(rightJSON)
+}
+
+func runtimeVerifierRecordsEqual(left []trustpolicy.VerifierRecord, right []trustpolicy.VerifierRecord) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for idx := range left {
+		if !runtimeVerifierRecordEqual(left[idx], right[idx]) {
+			return false
+		}
+	}
+	return true
 }

@@ -31,6 +31,17 @@ func TestContainerControllerLaunchUsesAdmittedRuntimeIdentityInReceipt(t *testin
 	if os.Geteuid() == 0 {
 		t.Skip("container controller requires rootless launcher execution")
 	}
+	workRoot, spec := admittedContainerSpecForReceiptTest(t)
+	controller := NewContainerController(ContainerControllerConfig{WorkRoot: workRoot})
+	updates, err := controller.Launch(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Launch returned error: %v", err)
+	}
+	assertContainerLaunchReceiptUsesAdmittedRuntimeIdentity(t, updates, spec)
+}
+
+func admittedContainerSpecForReceiptTest(t *testing.T) (string, launcherbackend.BackendLaunchSpec) {
+	t.Helper()
 	workRoot := t.TempDir()
 	spec := validContainerSpecForTests()
 	materializeComponentDigests(t, workRoot, &spec.Image)
@@ -45,13 +56,11 @@ func TestContainerControllerLaunchUsesAdmittedRuntimeIdentityInReceipt(t *testin
 		BundleDigest:            "sha256:" + repeatHex('6'),
 	}
 	seedRuntimeToolchainSignatureAssets(t, workRoot, &spec.Image, false)
+	return workRoot, spec
+}
 
-	controller := NewContainerController(ContainerControllerConfig{WorkRoot: workRoot})
-	updates, err := controller.Launch(context.Background(), spec)
-	if err != nil {
-		t.Fatalf("Launch returned error: %v", err)
-	}
-
+func assertContainerLaunchReceiptUsesAdmittedRuntimeIdentity(t *testing.T, updates <-chan RuntimeUpdate, spec launcherbackend.BackendLaunchSpec) {
+	t.Helper()
 	first, ok := <-updates
 	if !ok || first.Facts == nil {
 		t.Fatal("first runtime update must include facts")
@@ -62,6 +71,9 @@ func TestContainerControllerLaunchUsesAdmittedRuntimeIdentityInReceipt(t *testin
 	}
 	if receipt.RuntimeToolchainDescriptorDigest == "" || receipt.RuntimeToolchainSignatureDigest == "" {
 		t.Fatal("receipt should include admitted runtime toolchain identity")
+	}
+	if receipt.AuthorityStateDigest == "" || receipt.AuthorityStateRevision == 0 {
+		t.Fatal("receipt should include authority state identity used for admission")
 	}
 	if got, want := receipt.BootComponentDigestByName["image"], spec.Image.ComponentDigests["image"]; got != want {
 		t.Fatalf("receipt boot component image digest = %q, want %q", got, want)
