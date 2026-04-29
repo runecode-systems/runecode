@@ -41,9 +41,15 @@ func writeTempFile(t *testing.T, name, contents string) string {
 	return path
 }
 
-func putArtifactViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, path, dataClass, provenance string) artifacts.ArtifactReference {
+func putArtifactViaCLI(t *testing.T, stdout, stderr *bytes.Buffer, path, dataClass, provenance string, stateRoots ...string) artifacts.ArtifactReference {
 	t.Helper()
-	root := setBrokerServiceForTest(t)
+	root := ""
+	if len(stateRoots) > 0 {
+		root = stateRoots[0]
+	}
+	if root == "" {
+		root = setBrokerServiceForTest(t)
+	}
 	stdout.Reset()
 	err := run([]string{"--state-root", root, "put-artifact", "--file", path, "--content-type", "text/plain", "--data-class", dataClass, "--provenance-hash", provenance}, stdout, stderr)
 	if err != nil {

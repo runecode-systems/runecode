@@ -18,7 +18,7 @@ func TestPutListHeadGetArtifactCLI(t *testing.T) {
 	payloadPath := writeTempFile(t, "payload.txt", "hello artifact")
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
-	ref := putArtifactViaCLI(t, stdout, stderr, payloadPath, "spec_text", testDigest("1"))
+	ref := putArtifactViaCLI(t, stdout, stderr, payloadPath, "spec_text", testDigest("1"), root)
 	list := listArtifactsViaCLI(t, stdout, stderr, root)
 	if len(list) != 1 {
 		t.Fatalf("list-artifacts count = %d, want 1", len(list))
@@ -101,11 +101,11 @@ func TestArtifactCLIRecoversMissingIndexFromAuditAndBlob(t *testing.T) {
 }
 
 func TestPromotionFlowAndCheckFlowCLI(t *testing.T) {
-	setBrokerServiceForTest(t)
+	root := setBrokerServiceForTest(t)
 	stderr := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}
 	unapprovedPath := writeTempFile(t, "excerpt.txt", "private excerpt")
-	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"))
+	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"), root)
 	approvalRequestPath, approvalEnvelopePath, verifierRecords := writeApprovalFixtures(t, "human", unapproved.Digest, "repo/file.txt", "abc123", "tool-v1")
 	seedTrustedVerifierForBrokerCLITest(t, verifierRecords)
 	err := run([]string{"check-flow", "--producer", "workspace", "--consumer", "model_gateway", "--data-class", "unapproved_file_excerpts", "--digest", unapproved.Digest, "--egress"}, stdout, stderr)
@@ -124,11 +124,11 @@ func TestPromotionFlowAndCheckFlowCLI(t *testing.T) {
 }
 
 func TestRevokeApprovedExcerptBlocksCheckFlowAndGetArtifactCLI(t *testing.T) {
-	setBrokerServiceForTest(t)
+	root := setBrokerServiceForTest(t)
 	stderr := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}
 	unapprovedPath := writeTempFile(t, "excerpt.txt", "private excerpt")
-	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"))
+	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"), root)
 	approvalRequestPath, approvalEnvelopePath, verifierRecords := writeApprovalFixtures(t, "human", unapproved.Digest, "repo/file.txt", "abc123", "tool-v1")
 	seedTrustedVerifierForBrokerCLITest(t, verifierRecords)
 	approved := promoteViaCLI(t, stdout, stderr, unapproved.Digest, approvalRequestPath, approvalEnvelopePath)
@@ -167,11 +167,11 @@ func TestGetArtifactCLIRejectsMissingProducerConsumer(t *testing.T) {
 }
 
 func TestGetArtifactCLIApprovedExcerptRequiresManifestOptIn(t *testing.T) {
-	setBrokerServiceForTest(t)
+	root := setBrokerServiceForTest(t)
 	stderr := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}
 	unapprovedPath := writeTempFile(t, "excerpt.txt", "private excerpt")
-	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"))
+	unapproved := putArtifactViaCLI(t, stdout, stderr, unapprovedPath, "unapproved_file_excerpts", testDigest("2"), root)
 	approvalRequestPath, approvalEnvelopePath, verifierRecords := writeApprovalFixtures(t, "human", unapproved.Digest, "repo/file.txt", "abc123", "tool-v1")
 	seedTrustedVerifierForBrokerCLITest(t, verifierRecords)
 	approved := promoteViaCLI(t, stdout, stderr, unapproved.Digest, approvalRequestPath, approvalEnvelopePath)
