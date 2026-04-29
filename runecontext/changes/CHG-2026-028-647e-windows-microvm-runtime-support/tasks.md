@@ -3,7 +3,7 @@
 ## Windows MicroVM Backend Implementation
 
 - [ ] Implement QEMU acceleration via WHPX/Hyper-V.
-- [ ] Ensure parity with Linux microVM backend contracts, including launch/session/attachment semantics, hardening posture recording, terminal reporting, and isolate-session audit payload expectations.
+- [ ] Ensure parity with Linux microVM backend contracts, including runtime-image identity, boot-profile handling, trusted-admission rules, verified-cache semantics, launch/session/attachment semantics, hardening posture recording, terminal reporting, and isolate-session audit payload expectations.
 
 ## Windows Service + Local IPC
 
@@ -17,6 +17,7 @@
 
 - [ ] Define required host capabilities (virtualization enabled, Hyper-V availability).
 - [ ] Provide clear diagnostics when prerequisites are missing.
+- [ ] Ensure Windows packaging and bootstrap flows preserve the same published signed runtime-asset and verified local cache trust model used on other platforms.
 
 ## CI/Testing Strategy
 
@@ -26,5 +27,6 @@
 ## Acceptance Criteria
 
 - [ ] MicroVM roles can be launched on Windows and produce the same audit/artifact outputs and the same operator-visible runtime posture semantics.
+- [ ] Windows microVM launch consumes the same signed immutable runtime assets and preserves the same launch-admission and launch-evidence semantics used on other platforms.
 - [ ] Reduced-assurance container mode remains explicit opt-in.
 - [ ] Windows preserves the same repo-scoped product-lifecycle semantics and canonical `runecode` user-surface behavior as other platforms.

@@ -10,6 +10,8 @@
 - Confirm canonical references remain on RuneContext project, spec, and change paths, with no active workflow depending on legacy planning paths.
 - Confirm the migrated text assumes RuneContext is canonical, RuneCode owns the user-facing UX, and verified-mode project state remains the expected operating posture.
 - Confirm the change still matches its `v0.1.0-alpha.9` roadmap bucket and title after migration.
+- Confirm attestation now inherits runtime identity from the signed runtime-asset pipeline rather than from ambient platform-specific launch assumptions.
+- Confirm attestation evidence binds to signed runtime-image descriptor identity, boot-profile identity, and concrete launched boot-component digests.
 - Confirm attested runtime identity remains distinct from validated project-substrate snapshot identity even where later evidence may bind both.
 
 ## Close Gate

@@ -39,6 +39,8 @@
 - Confirm the CHG-049 first-party workflow-pack path is measured explicitly, including draft artifact generation, draft promote/apply, implementation-input-set validation/binding, direct CLI triggering, repo-scoped admission control/idempotency, and fail-closed drift-triggered re-evaluation/recompile costs.
 - Confirm dependency-fetch and offline-cache have explicit cold-cache, warm-cache, miss-coalescing, and materialization checks.
 - Confirm dependency-fetch performance checks preserve the reviewed stream-to-CAS and bounded-memory posture rather than rewarding trust-boundary shortcuts.
+- Confirm launcher cold and warm startup checks are defined in terms of the signed runtime-asset path, with cold covering verified-cache miss or trusted admission and warm covering verified local cache hits.
+- Confirm launcher performance checks do not reward bypassing runtime-asset admission, signer verification, component-digest checks, or launch-deny evidence generation.
 - Confirm Linux remains the first authoritative numeric gate while other platforms still execute the same flow families where feasible.
 - Confirm the change preserves one topology-neutral performance program across constrained local and larger deployments rather than implying separate architecture paths.
 - Confirm the roadmap places this work under `v0.1.0-beta.1`.
