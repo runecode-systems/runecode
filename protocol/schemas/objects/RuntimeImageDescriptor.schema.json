@@ -9,7 +9,7 @@
   "required": ["schema_id", "schema_version", "descriptor_digest", "backend_kind", "platform_compatibility", "boot_contract_version", "component_digests"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.RuntimeImageDescriptor", "description": "Protocol schema identifier for runtime image descriptors.", "x-data-class": "public" },
-    "schema_version": { "const": "0.2.0", "description": "Protocol schema version for runtime image descriptors.", "x-data-class": "public" },
+    "schema_version": { "const": "0.3.0", "description": "Protocol schema version for runtime image descriptors.", "x-data-class": "public" },
     "descriptor_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest identity for the descriptor payload.", "x-data-class": "public" },
     "backend_kind": { "type": "string", "enum": ["microvm", "container"], "description": "Backend topology kind for compatibility checking.", "x-data-class": "public" },
     "platform_compatibility": {
@@ -25,7 +25,7 @@
         "acceleration_kind": { "type": "string", "enum": ["kvm", "hvf", "whpx", "none"], "description": "Optional acceleration compatibility hint.", "x-data-class": "public" }
       }
     },
-    "boot_contract_version": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Versioned boot contract profile identifier.", "x-data-class": "public" },
+    "boot_contract_version": { "type": "string", "enum": ["microvm-linux-kernel-initrd-v1", "container-oci-image-v1"], "description": "Closed boot profile identifier.", "x-data-class": "public" },
     "component_digests": {
       "type": "object",
       "minProperties": 1,
@@ -38,13 +38,48 @@
       "type": "object",
       "additionalProperties": false,
       "minProperties": 1,
-      "maxProperties": 3,
-      "description": "Optional image-signing metadata hooks for staged signature enforcement.",
+      "maxProperties": 9,
+      "description": "Explicit image-signing metadata for detached signature verification, publication-bundle lookup, and offline-capable admission.",
       "x-data-class": "public",
       "properties": {
+        "payload_schema_id": { "const": "runecode.protocol.v0.RuntimeImageSignedPayload", "description": "Schema identifier for the canonical signed runtime-image payload bytes.", "x-data-class": "public" },
+        "payload_schema_version": { "const": "0.1.0", "description": "Schema version for the canonical signed runtime-image payload bytes.", "x-data-class": "public" },
+        "payload_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest of the canonical signed runtime-image payload bytes.", "x-data-class": "public" },
         "signer_ref": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Signer identity reference.", "x-data-class": "public" },
         "signature_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest identity of detached signature material.", "x-data-class": "public" },
-        "signature_bundle_ref": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Opaque reference to signature bundle metadata.", "x-data-class": "public" }
+        "signature_bundle_ref": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Opaque reference to signature bundle metadata.", "x-data-class": "public" },
+        "verifier_set_ref": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest identity of the trusted verifier-set material used for runtime-image signature admission.", "x-data-class": "public" },
+        "publication": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "maxProperties": 3,
+          "description": "Typed publication-bundle metadata that ties signed runtime identity to immutable component and publication artifacts.",
+          "x-data-class": "public",
+          "properties": {
+            "descriptor_envelope_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest of the detached-signature envelope that signs the canonical runtime-image payload.", "x-data-class": "public" },
+            "component_bundle_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest of the immutable component bundle referenced by the signed runtime-image payload.", "x-data-class": "public" },
+            "publication_manifest_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest of the publication manifest that binds the signed runtime-image payload to immutable published artifacts.", "x-data-class": "public" }
+          }
+        },
+        "toolchain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["descriptor_digest", "signer_ref", "signature_digest"],
+          "maxProperties": 8,
+          "description": "Reviewed runtime-toolchain signing metadata when toolchain provenance materially determines launchable bytes.",
+          "x-data-class": "public",
+          "properties": {
+            "descriptor_schema_id": { "const": "runecode.protocol.v0.RuntimeToolchainDescriptor", "description": "Schema identifier for the reviewed runtime-toolchain descriptor.", "x-data-class": "public" },
+            "descriptor_schema_version": { "const": "0.1.0", "description": "Schema version for the reviewed runtime-toolchain descriptor.", "x-data-class": "public" },
+            "descriptor_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest of the reviewed runtime-toolchain descriptor used for launch admission.", "x-data-class": "public" },
+            "signer_ref": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Signer identity reference for the runtime-toolchain descriptor authority.", "x-data-class": "public" },
+            "signature_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest identity of detached runtime-toolchain signature material.", "x-data-class": "public" },
+            "signature_bundle_ref": { "type": "string", "minLength": 1, "maxLength": 256, "description": "Opaque reference to runtime-toolchain signature bundle metadata.", "x-data-class": "public" },
+            "verifier_set_ref": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest identity of trusted verifier-set material for runtime-toolchain admission.", "x-data-class": "public" },
+            "bundle_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Digest of the immutable runtime-toolchain bundle referenced during trusted admission.", "x-data-class": "public" }
+          }
+        }
       }
     },
     "attestation": {
@@ -76,7 +111,7 @@
       "then": {
         "properties": {
           "component_digests": {
-            "required": ["kernel", "rootfs"]
+            "required": ["kernel", "initrd"]
           }
         }
       }

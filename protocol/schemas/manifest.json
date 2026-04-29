@@ -709,7 +709,7 @@
     {
       "path": "objects/RuntimeImageDescriptor.schema.json",
       "schema_id": "runecode.protocol.v0.RuntimeImageDescriptor",
-      "schema_version": "0.2.0",
+      "schema_version": "0.3.0",
       "owner": "protocol",
       "status": "mvp"
     },

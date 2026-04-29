@@ -83,27 +83,36 @@ func launcherRuntimeFactsReceiptFixture() launcherbackend.BackendLaunchReceipt {
 		HandshakeTranscriptHash:      "sha256:" + strings.Repeat("e", 64),
 		IsolateSessionKeyIDValue:     strings.Repeat("f", 64),
 		HostingNodeID:                "node-1",
-		SessionSecurity:              &launcherbackend.SessionSecurityPosture{MutuallyAuthenticated: true, Encrypted: true, ProofOfPossessionVerified: true, ReplayProtected: true, FrameFormat: launcherbackend.SessionFramingLengthPrefixedV1, MaxFrameBytes: 4096, MaxHandshakeMessageBytes: 2048},
+		SessionSecurity:              runtimeFactsSessionSecurityFixture(),
 		HypervisorImplementation:     launcherbackend.HypervisorImplementationQEMU,
 		AccelerationKind:             launcherbackend.AccelerationKindKVM,
 		TransportKind:                launcherbackend.TransportKindVSock,
 		QEMUProvenance:               &launcherbackend.QEMUProvenance{Version: "9.1.0", BuildIdentity: "qemu-system-x86_64 (runecode)"},
 		RuntimeImageDescriptorDigest: "sha256:" + strings.Repeat("a", 64),
+		RuntimeImageBootProfile:      launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1,
 		RuntimeImageSignerRef:        "signer:trusted-ci",
 		RuntimeImageSignatureDigest:  "sha256:" + strings.Repeat("9", 64),
-		BootComponentDigestByName: map[string]string{
-			"kernel": "sha256:" + strings.Repeat("b", 64),
-			"rootfs": "sha256:" + strings.Repeat("c", 64),
-		},
-		BootComponentDigests:       []string{"sha256:" + strings.Repeat("b", 64), "sha256:" + strings.Repeat("c", 64)},
-		ResourceLimits:             &launcherbackend.BackendResourceLimits{VCPUCount: 2, MemoryMiB: 512, DiskMiB: 4096, LaunchTimeoutSeconds: 60, BindTimeoutSeconds: 30, ActiveTimeoutSeconds: 600, TerminationGraceSeconds: 15},
-		WatchdogPolicy:             &launcherbackend.BackendWatchdogPolicy{Enabled: true, TerminateOnMisbehavior: true, HeartbeatTimeoutSeconds: 30, NoProgressTimeoutSeconds: 120},
-		Lifecycle:                  &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateActive, PreviousState: launcherbackend.BackendLifecycleStateBinding, TerminateBetweenSteps: true, TransitionCount: 4},
-		CachePosture:               &launcherbackend.BackendCachePosture{WarmPoolEnabled: true, BootCacheEnabled: true, ResetOrDestroyBeforeReuse: true, ReusePriorSessionIdentityKeys: false, DigestPinned: true, SignaturePinned: true},
-		CacheEvidence:              &launcherbackend.BackendCacheEvidence{ImageCacheResult: launcherbackend.CacheResultHit, BootArtifactCacheResult: launcherbackend.CacheResultMiss, ResolvedImageDescriptorDigest: "sha256:" + strings.Repeat("a", 64), ResolvedBootComponentDigests: []string{"sha256:" + strings.Repeat("b", 64), "sha256:" + strings.Repeat("c", 64)}},
-		AttachmentPlanSummary:      runtimeFactsAttachmentPlanSummaryFixture(),
-		WorkspaceEncryptionPosture: runtimeFactsWorkspaceEncryptionPostureFixture(),
-		LaunchFailureReasonCode:    launcherbackend.BackendErrorCodeAccelerationUnavailable,
+		BootComponentDigestByName:    runtimeFactsBootComponentDigestsByNameFixture(),
+		BootComponentDigests:         []string{"sha256:" + strings.Repeat("b", 64), "sha256:" + strings.Repeat("c", 64)},
+		ResourceLimits:               &launcherbackend.BackendResourceLimits{VCPUCount: 2, MemoryMiB: 512, DiskMiB: 4096, LaunchTimeoutSeconds: 60, BindTimeoutSeconds: 30, ActiveTimeoutSeconds: 600, TerminationGraceSeconds: 15},
+		WatchdogPolicy:               &launcherbackend.BackendWatchdogPolicy{Enabled: true, TerminateOnMisbehavior: true, HeartbeatTimeoutSeconds: 30, NoProgressTimeoutSeconds: 120},
+		Lifecycle:                    &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateActive, PreviousState: launcherbackend.BackendLifecycleStateBinding, TerminateBetweenSteps: true, TransitionCount: 4},
+		CachePosture:                 &launcherbackend.BackendCachePosture{WarmPoolEnabled: true, BootCacheEnabled: true, ResetOrDestroyBeforeReuse: true, ReusePriorSessionIdentityKeys: false, DigestPinned: true, SignaturePinned: true},
+		CacheEvidence:                &launcherbackend.BackendCacheEvidence{ImageCacheResult: launcherbackend.CacheResultHit, BootArtifactCacheResult: launcherbackend.CacheResultMiss, ResolvedImageDescriptorDigest: "sha256:" + strings.Repeat("a", 64), ResolvedBootComponentDigests: []string{"sha256:" + strings.Repeat("b", 64), "sha256:" + strings.Repeat("c", 64)}},
+		AttachmentPlanSummary:        runtimeFactsAttachmentPlanSummaryFixture(),
+		WorkspaceEncryptionPosture:   runtimeFactsWorkspaceEncryptionPostureFixture(),
+		LaunchFailureReasonCode:      launcherbackend.BackendErrorCodeAccelerationUnavailable,
+	}
+}
+
+func runtimeFactsSessionSecurityFixture() *launcherbackend.SessionSecurityPosture {
+	return &launcherbackend.SessionSecurityPosture{MutuallyAuthenticated: true, Encrypted: true, ProofOfPossessionVerified: true, ReplayProtected: true, FrameFormat: launcherbackend.SessionFramingLengthPrefixedV1, MaxFrameBytes: 4096, MaxHandshakeMessageBytes: 2048}
+}
+
+func runtimeFactsBootComponentDigestsByNameFixture() map[string]string {
+	return map[string]string{
+		"kernel": "sha256:" + strings.Repeat("b", 64),
+		"initrd": "sha256:" + strings.Repeat("c", 64),
 	}
 }
 
@@ -217,12 +226,15 @@ func assertRuntimeFactsImageProjection(t *testing.T, state map[string]any) {
 	if state["runtime_image_signature_digest"] != "sha256:"+strings.Repeat("9", 64) {
 		t.Fatalf("authoritative_state.runtime_image_signature_digest = %v, want signature digest", state["runtime_image_signature_digest"])
 	}
+	if state["runtime_image_boot_profile"] != launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1 {
+		t.Fatalf("authoritative_state.runtime_image_boot_profile = %v, want boot profile", state["runtime_image_boot_profile"])
+	}
 	byName, ok := state["boot_component_digest_by_name"].(map[string]string)
 	if !ok {
 		t.Fatalf("authoritative_state.boot_component_digest_by_name = %T, want map[string]string", state["boot_component_digest_by_name"])
 	}
-	if byName["kernel"] == "" || byName["rootfs"] == "" {
-		t.Fatalf("authoritative_state.boot_component_digest_by_name missing kernel/rootfs digests: %#v", byName)
+	if byName["kernel"] == "" || byName["initrd"] == "" {
+		t.Fatalf("authoritative_state.boot_component_digest_by_name missing kernel/initrd digests: %#v", byName)
 	}
 }
 

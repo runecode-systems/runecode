@@ -19,13 +19,40 @@ func TestRuntimeImageDescriptorRejectsUnknownBackendKind(t *testing.T) {
 		DescriptorDigest:      testDigest("1"),
 		BackendKind:           "qemu",
 		PlatformCompatibility: RuntimeImagePlatformCompat{OS: "linux", Architecture: "amd64"},
-		BootContractVersion:   "v1",
+		BootContractVersion:   BootProfileMicroVMLinuxKernelInitrdV1,
 		ComponentDigests: map[string]string{
 			"kernel": testDigest("2"),
-			"rootfs": testDigest("3"),
+			"initrd": testDigest("3"),
 		},
 	}
 	if err := descriptor.Validate(); err == nil {
 		t.Fatal("Validate expected unknown backend kind error")
+	}
+}
+
+func TestRuntimeImageDescriptorBindsDescriptorDigestToCanonicalSignedPayload(t *testing.T) {
+	descriptor := validRuntimeImageDescriptorForContractTests()
+	if err := descriptor.Validate(); err != nil {
+		t.Fatalf("Validate returned error: %v", err)
+	}
+	descriptor.ComponentDigests["initrd"] = testDigest("f")
+	if err := descriptor.Validate(); err == nil {
+		t.Fatal("Validate expected descriptor digest mismatch after signed payload change")
+	}
+}
+
+func TestRuntimeImageDescriptorRejectsLegacyMicroVMBootShape(t *testing.T) {
+	descriptor := validRuntimeImageDescriptorForContractTests()
+	descriptor.BootContractVersion = "v1"
+	if err := descriptor.Validate(); err == nil {
+		t.Fatal("Validate expected legacy boot contract rejection")
+	}
+}
+
+func TestRuntimeImageDescriptorRequiresVerifierSetDigest(t *testing.T) {
+	descriptor := validRuntimeImageDescriptorForContractTests()
+	descriptor.Signing.VerifierSetRef = "verifier-set:runtime-image"
+	if err := descriptor.Validate(); err == nil {
+		t.Fatal("Validate expected verifier_set_ref digest rejection")
 	}
 }

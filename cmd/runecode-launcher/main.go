@@ -216,6 +216,7 @@ func waitForTerminalReport(svc *brokerapi.Service, runID string, timeout time.Du
 }
 
 func helloWorldLaunchSpec(runID string) launcherbackend.BackendLaunchSpec {
+	image := helloWorldRuntimeImage()
 	return launcherbackend.BackendLaunchSpec{
 		RunID:                     runID,
 		StageID:                   "stage-1",
@@ -225,16 +226,7 @@ func helloWorldLaunchSpec(runID string) launcherbackend.BackendLaunchSpec {
 		RequestedBackend:          launcherbackend.BackendKindMicroVM,
 		RequestedAccelerationKind: launcherbackend.AccelerationKindKVM,
 		ControlTransportKind:      launcherbackend.TransportKindVirtioSerial,
-		Image: launcherbackend.RuntimeImageDescriptor{
-			DescriptorDigest:    "sha256:" + repeatHex('a'),
-			BackendKind:         launcherbackend.BackendKindMicroVM,
-			BootContractVersion: "v1",
-			PlatformCompatibility: launcherbackend.RuntimeImagePlatformCompat{
-				OS: "linux", Architecture: "amd64", AccelerationKind: launcherbackend.AccelerationKindKVM,
-			},
-			ComponentDigests: map[string]string{"kernel": "sha256:" + repeatHex('b'), "rootfs": "sha256:" + repeatHex('c')},
-			Signing:          &launcherbackend.RuntimeImageSigningHooks{SignerRef: "launcher-cli", SignatureDigest: "sha256:" + repeatHex('d')},
-		},
+		Image:                     image,
 		Attachments: launcherbackend.AttachmentPlan{
 			ByRole: map[string]launcherbackend.AttachmentBinding{
 				launcherbackend.AttachmentRoleLaunchContext:  {ReadOnly: true, ChannelKind: launcherbackend.AttachmentChannelReadOnlyVolume, RequiredDigests: []string{"sha256:" + repeatHex('e')}},
@@ -255,6 +247,45 @@ func helloWorldLaunchSpec(runID string) launcherbackend.BackendLaunchSpec {
 		LifecyclePolicy: launcherbackend.BackendLifecyclePolicy{TerminateBetweenSteps: true},
 		CachePosture:    launcherbackend.BackendCachePosture{ResetOrDestroyBeforeReuse: true, DigestPinned: true, SignaturePinned: true},
 	}
+}
+
+func helloWorldRuntimeImage() launcherbackend.RuntimeImageDescriptor {
+	image := launcherbackend.RuntimeImageDescriptor{
+		BackendKind:         launcherbackend.BackendKindMicroVM,
+		BootContractVersion: launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1,
+		PlatformCompatibility: launcherbackend.RuntimeImagePlatformCompat{
+			OS: "linux", Architecture: "amd64", AccelerationKind: launcherbackend.AccelerationKindKVM,
+		},
+		ComponentDigests: map[string]string{"kernel": "sha256:" + repeatHex('b'), "initrd": "sha256:" + repeatHex('c')},
+	}
+	digest, err := image.ExpectedDescriptorDigest()
+	if err != nil {
+		panic(err)
+	}
+	image.DescriptorDigest = digest
+	image.Signing = &launcherbackend.RuntimeImageSigningHooks{
+		PayloadSchemaID:      launcherbackend.RuntimeImageSignedPayloadSchemaID,
+		PayloadSchemaVersion: launcherbackend.RuntimeImageSignedPayloadSchemaVersion,
+		PayloadDigest:        digest,
+		SignerRef:            "launcher-cli",
+		SignatureDigest:      "sha256:" + repeatHex('d'),
+		VerifierSetRef:       "sha256:" + repeatHex('7'),
+		Publication: &launcherbackend.RuntimeAssetPublicationBundle{
+			DescriptorEnvelopeDigest:  "sha256:" + repeatHex('1'),
+			ComponentBundleDigest:     "sha256:" + repeatHex('2'),
+			PublicationManifestDigest: "sha256:" + repeatHex('3'),
+		},
+		Toolchain: &launcherbackend.RuntimeToolchainSigningHooks{
+			DescriptorSchemaID:      launcherbackend.RuntimeToolchainDescriptorSchemaID,
+			DescriptorSchemaVersion: launcherbackend.RuntimeToolchainDescriptorSchemaVersion,
+			DescriptorDigest:        "sha256:" + repeatHex('4'),
+			SignerRef:               "launcher-cli-toolchain",
+			SignatureDigest:         "sha256:" + repeatHex('5'),
+			VerifierSetRef:          "sha256:" + repeatHex('8'),
+			BundleDigest:            "sha256:" + repeatHex('6'),
+		},
+	}
+	return image
 }
 
 func repeatHex(ch byte) string {

@@ -67,7 +67,7 @@ func coreSchemaVersionsPart2() map[string]string {
 		"runecode.protocol.v0.BrokerArtifactPutRequest":     "0.1.0",
 		"runecode.protocol.v0.BrokerArtifactPutResponse":    "0.1.0",
 		"runecode.protocol.v0.BrokerErrorResponse":          "0.1.0",
-		"runecode.protocol.v0.RuntimeImageDescriptor":       "0.2.0",
+		"runecode.protocol.v0.RuntimeImageDescriptor":       "0.3.0",
 		"runecode.protocol.v0.IsolateSessionStartedPayload": "0.1.0",
 		"runecode.protocol.v0.IsolateSessionBoundPayload":   "0.1.0",
 	}

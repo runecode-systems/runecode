@@ -60,14 +60,7 @@ func validSpecForTests() launcherbackend.BackendLaunchSpec {
 		RequestedBackend:          launcherbackend.BackendKindMicroVM,
 		RequestedAccelerationKind: launcherbackend.AccelerationKindKVM,
 		ControlTransportKind:      launcherbackend.TransportKindVSock,
-		Image: launcherbackend.RuntimeImageDescriptor{
-			DescriptorDigest:      "sha256:" + repeatHex('a'),
-			BackendKind:           launcherbackend.BackendKindMicroVM,
-			BootContractVersion:   "v1",
-			PlatformCompatibility: launcherbackend.RuntimeImagePlatformCompat{OS: "linux", Architecture: "amd64", AccelerationKind: launcherbackend.AccelerationKindKVM},
-			ComponentDigests:      map[string]string{"kernel": "sha256:" + repeatHex('b'), "rootfs": "sha256:" + repeatHex('c')},
-			Signing:               &launcherbackend.RuntimeImageSigningHooks{SignerRef: "test", SignatureDigest: "sha256:" + repeatHex('d')},
-		},
+		Image:                     validRuntimeImageForTests(),
 		Attachments: launcherbackend.AttachmentPlan{
 			ByRole: map[string]launcherbackend.AttachmentBinding{
 				launcherbackend.AttachmentRoleLaunchContext:  {ReadOnly: true, ChannelKind: launcherbackend.AttachmentChannelReadOnlyVolume, RequiredDigests: []string{"sha256:" + repeatHex('e')}},
@@ -85,6 +78,43 @@ func validSpecForTests() launcherbackend.BackendLaunchSpec {
 	}
 }
 
+func validRuntimeImageForTests() launcherbackend.RuntimeImageDescriptor {
+	image := launcherbackend.RuntimeImageDescriptor{
+		BackendKind:           launcherbackend.BackendKindMicroVM,
+		BootContractVersion:   launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1,
+		PlatformCompatibility: launcherbackend.RuntimeImagePlatformCompat{OS: "linux", Architecture: "amd64", AccelerationKind: launcherbackend.AccelerationKindKVM},
+		ComponentDigests:      map[string]string{"kernel": "sha256:" + repeatHex('b'), "initrd": "sha256:" + repeatHex('c')},
+	}
+	digest, err := image.ExpectedDescriptorDigest()
+	if err != nil {
+		panic(err)
+	}
+	image.DescriptorDigest = digest
+	image.Signing = &launcherbackend.RuntimeImageSigningHooks{
+		PayloadSchemaID:      launcherbackend.RuntimeImageSignedPayloadSchemaID,
+		PayloadSchemaVersion: launcherbackend.RuntimeImageSignedPayloadSchemaVersion,
+		PayloadDigest:        digest,
+		SignerRef:            "signer:runtime-image",
+		SignatureDigest:      "sha256:" + repeatHex('d'),
+		VerifierSetRef:       "sha256:" + repeatHex('7'),
+		Publication: &launcherbackend.RuntimeAssetPublicationBundle{
+			DescriptorEnvelopeDigest:  "sha256:" + repeatHex('1'),
+			ComponentBundleDigest:     "sha256:" + repeatHex('2'),
+			PublicationManifestDigest: "sha256:" + repeatHex('3'),
+		},
+		Toolchain: &launcherbackend.RuntimeToolchainSigningHooks{
+			DescriptorSchemaID:      launcherbackend.RuntimeToolchainDescriptorSchemaID,
+			DescriptorSchemaVersion: launcherbackend.RuntimeToolchainDescriptorSchemaVersion,
+			DescriptorDigest:        "sha256:" + repeatHex('4'),
+			SignerRef:               "signer:runtime-toolchain",
+			SignatureDigest:         "sha256:" + repeatHex('5'),
+			VerifierSetRef:          "sha256:" + repeatHex('8'),
+			BundleDigest:            "sha256:" + repeatHex('6'),
+		},
+	}
+	return image
+}
+
 func validContainerSpecForTests() launcherbackend.BackendLaunchSpec {
 	spec := validSpecForTests()
 	spec.RoleFamily = "workspace"
@@ -92,7 +122,15 @@ func validContainerSpecForTests() launcherbackend.BackendLaunchSpec {
 	spec.RequestedAccelerationKind = ""
 	spec.ControlTransportKind = ""
 	spec.Image.BackendKind = launcherbackend.BackendKindContainer
+	spec.Image.BootContractVersion = launcherbackend.BootProfileContainerOCIImageV1
 	spec.Image.PlatformCompatibility.AccelerationKind = ""
 	spec.Image.ComponentDigests = map[string]string{"image": "sha256:" + repeatHex('b')}
+	digest, err := spec.Image.ExpectedDescriptorDigest()
+	if err != nil {
+		panic(err)
+	}
+	spec.Image.DescriptorDigest = digest
+	spec.Image.Signing.PayloadDigest = digest
+	spec.Image.Signing.Toolchain = nil
 	return spec
 }

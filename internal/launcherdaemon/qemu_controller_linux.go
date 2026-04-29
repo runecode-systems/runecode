@@ -55,7 +55,7 @@ func NewQEMUController(cfg QEMUControllerConfig) Controller {
 }
 
 func (c *qemuController) Launch(ctx context.Context, spec launcherbackend.BackendLaunchSpec) (<-chan RuntimeUpdate, error) {
-	launchState, err := c.prepareLaunchState(ctx, spec)
+	launchState, err := c.prepareLaunchState(spec)
 	if err != nil {
 		return nil, err
 	}
@@ -105,12 +105,12 @@ type preparedLaunchState struct {
 	cancel    context.CancelFunc
 }
 
-func (c *qemuController) prepareLaunchState(ctx context.Context, spec launcherbackend.BackendLaunchSpec) (preparedLaunchState, error) {
+func (c *qemuController) prepareLaunchState(spec launcherbackend.BackendLaunchSpec) (preparedLaunchState, error) {
 	if err := c.validateLaunchPrereqs(spec); err != nil {
 		return preparedLaunchState{}, err
 	}
 	qemuPath := strings.TrimSpace(c.cfg.QEMUBinary)
-	kernelPath, err := c.resolveKernelPath()
+	admittedImage, err := admitRuntimeImage(c.cfg.WorkRoot, spec.Image)
 	if err != nil {
 		return preparedLaunchState{}, err
 	}
@@ -118,14 +118,8 @@ func (c *qemuController) prepareLaunchState(ctx context.Context, spec launcherba
 	if err != nil {
 		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeAttachmentPlanInvalid, "failed to materialize attachments")
 	}
-	initrdPath, err := buildHelloInitramfs(ctx, launchDir)
-	if err != nil {
-		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "failed to build initramfs asset")
-	}
-	bootComponentDigests, err := resolveBootComponentDigests(kernelPath, initrdPath)
-	if err != nil {
-		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "failed to digest boot assets")
-	}
+	kernelPath := admittedImage.componentPaths["kernel"]
+	initrdPath := admittedImage.componentPaths["initrd"]
 	isoID, sessionID, nonce, err := makeRuntimeIdentity(spec.RunID)
 	if err != nil {
 		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "failed to generate runtime identity")
@@ -138,7 +132,7 @@ func (c *qemuController) prepareLaunchState(ctx context.Context, spec launcherba
 	return preparedLaunchState{
 		stdout:    stdout,
 		launchDir: launchDir,
-		receipt:   buildLaunchReceipt(spec, isoID, sessionID, nonce, qemuVersion, qemuBuild, bootComponentDigests),
+		receipt:   buildLaunchReceipt(spec, isoID, sessionID, nonce, qemuVersion, qemuBuild, admittedImage.cacheEvidence),
 		hardening: buildHardeningPosture(),
 		cmd:       cmd,
 		cancel:    cancel,
