@@ -387,7 +387,7 @@ func seedSessionTurnExecutionWatchFixture(t *testing.T, s *Service, runID, sessi
 
 func triggerSessionExecutionWatch(t *testing.T, s *Service, requestID, sessionID, content string) {
 	t.Helper()
-	if _, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: requestID, SessionID: sessionID, TriggerSource: "interactive_user", RequestedOperation: "start", UserMessageContentText: content}, RequestContext{}); errResp != nil {
+	if _, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: requestID, SessionID: sessionID, TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: defaultWorkflowRoutingForTriggerTests(), UserMessageContentText: content}, RequestContext{}); errResp != nil {
 		t.Fatalf("HandleSessionExecutionTrigger error response: %+v", errResp)
 	}
 }
