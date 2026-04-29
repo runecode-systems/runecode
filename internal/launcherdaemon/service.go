@@ -31,11 +31,11 @@ func resolveControllers(cfg Config) (Controller, Controller) {
 	}
 	microVMController := cfg.MicroVMController
 	if microVMController == nil {
-		microVMController = NewQEMUController(QEMUControllerConfig{})
+		microVMController = NewQEMUController(QEMUControllerConfig{WorkRoot: cfg.WorkRoot})
 	}
 	containerController := cfg.ContainerController
 	if containerController == nil {
-		containerController = NewContainerController(ContainerControllerConfig{})
+		containerController = NewContainerController(ContainerControllerConfig{WorkRoot: cfg.WorkRoot})
 	}
 	return microVMController, containerController
 }
@@ -107,6 +107,9 @@ func (s *Service) Launch(ctx context.Context, spec launcherbackend.BackendLaunch
 	}
 	updates, err := controller.Launch(ctx, effectiveSpec)
 	if err != nil {
+		if reportErr := s.recordLaunchDeniedRuntimeFacts(effectiveSpec, err); reportErr != nil {
+			return InstanceRef{}, reportErr
+		}
 		return InstanceRef{}, err
 	}
 	ref := InstanceRef{RunID: effectiveSpec.RunID, StageID: effectiveSpec.StageID, RoleInstanceID: effectiveSpec.RoleInstanceID}

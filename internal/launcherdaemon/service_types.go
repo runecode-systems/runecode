@@ -73,6 +73,7 @@ type Config struct {
 	MicroVMController   Controller
 	ContainerController Controller
 	Reporter            RuntimeReporter
+	WorkRoot            string
 }
 
 type Service struct {

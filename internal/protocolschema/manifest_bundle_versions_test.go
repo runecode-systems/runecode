@@ -58,18 +58,22 @@ func coreSchemaVersionsPart1() map[string]string {
 
 func coreSchemaVersionsPart2() map[string]string {
 	return map[string]string{
-		"runecode.protocol.v0.PolicyRuleSet":                "0.1.0",
-		"runecode.protocol.v0.VerifierRecord":               "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactListRequest":    "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactListResponse":   "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactHeadRequest":    "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactHeadResponse":   "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactPutRequest":     "0.1.0",
-		"runecode.protocol.v0.BrokerArtifactPutResponse":    "0.1.0",
-		"runecode.protocol.v0.BrokerErrorResponse":          "0.1.0",
-		"runecode.protocol.v0.RuntimeImageDescriptor":       "0.3.0",
-		"runecode.protocol.v0.IsolateSessionStartedPayload": "0.1.0",
-		"runecode.protocol.v0.IsolateSessionBoundPayload":   "0.1.0",
+		"runecode.protocol.v0.PolicyRuleSet":                 "0.1.0",
+		"runecode.protocol.v0.VerifierRecord":                "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactListRequest":     "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactListResponse":    "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactHeadRequest":     "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactHeadResponse":    "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactPutRequest":      "0.1.0",
+		"runecode.protocol.v0.BrokerArtifactPutResponse":     "0.1.0",
+		"runecode.protocol.v0.BrokerErrorResponse":           "0.1.0",
+		"runecode.protocol.v0.RuntimeImageDescriptor":        "0.3.0",
+		"runecode.protocol.v0.RuntimeImageSignedPayload":     "0.1.0",
+		"runecode.protocol.v0.RuntimeLaunchAdmissionPayload": "0.1.0",
+		"runecode.protocol.v0.RuntimeLaunchDeniedPayload":    "0.1.0",
+		"runecode.protocol.v0.RuntimeToolchainDescriptor":    "0.1.0",
+		"runecode.protocol.v0.IsolateSessionStartedPayload":  "0.1.0",
+		"runecode.protocol.v0.IsolateSessionBoundPayload":    "0.1.0",
 	}
 }
 

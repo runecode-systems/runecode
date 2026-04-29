@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
@@ -15,9 +16,13 @@ import (
 
 const verifiedRuntimeCacheDir = "verified-runtime-cache"
 
+const verifiedRuntimeAdmissionDir = "admissions"
+
 type admittedRuntimeImage struct {
-	componentPaths map[string]string
-	cacheEvidence  *launcherbackend.BackendCacheEvidence
+	componentPaths  map[string]string
+	cacheEvidence   *launcherbackend.BackendCacheEvidence
+	admissionRecord launcherbackend.RuntimeAdmissionRecord
+	toolchain       *verifiedRuntimeToolchainDescriptor
 }
 
 func admitRuntimeImage(workRoot string, image launcherbackend.RuntimeImageDescriptor) (admittedRuntimeImage, error) {
@@ -25,23 +30,24 @@ func admitRuntimeImage(workRoot string, image launcherbackend.RuntimeImageDescri
 		return admittedRuntimeImage{}, backendError(launcherbackend.BackendErrorCodeImageDescriptorSignatureMismatch, err.Error())
 	}
 	cacheRoot := verifiedRuntimeCacheRoot(workRoot)
-	if err := verifyRuntimeImageSignature(cacheRoot, image); err != nil {
+	admissionRecord, toolchainDescriptor, err := buildRuntimeAdmissionRecord(cacheRoot, image)
+	if err != nil {
 		return admittedRuntimeImage{}, backendError(launcherbackend.BackendErrorCodeImageDescriptorSignatureMismatch, err.Error())
 	}
-	componentPaths := make(map[string]string, len(image.ComponentDigests))
-	resolvedDigests := make([]string, 0, len(image.ComponentDigests))
-	for name, digest := range image.ComponentDigests {
-		assetPath, err := resolveVerifiedRuntimeAsset(cacheRoot, digest)
-		if err != nil {
-			return admittedRuntimeImage{}, backendError(launcherbackend.BackendErrorCodeImageDescriptorSignatureMismatch, fmt.Sprintf("verified runtime asset %s unavailable", name))
-		}
-		componentPaths[name] = assetPath
-		resolvedDigests = append(resolvedDigests, digest)
+	cacheResult, err := ensureRuntimeAdmissionRecord(cacheRoot, image, admissionRecord)
+	if err != nil {
+		return admittedRuntimeImage{}, backendError(launcherbackend.BackendErrorCodeImageDescriptorSignatureMismatch, err.Error())
+	}
+	componentPaths, resolvedDigests, err := resolveRuntimeImageComponents(cacheRoot, image.ComponentDigests)
+	if err != nil {
+		return admittedRuntimeImage{}, backendError(launcherbackend.BackendErrorCodeImageDescriptorSignatureMismatch, err.Error())
 	}
 	return admittedRuntimeImage{
-		componentPaths: componentPaths,
+		componentPaths:  componentPaths,
+		admissionRecord: admissionRecord,
+		toolchain:       toolchainDescriptor,
 		cacheEvidence: &launcherbackend.BackendCacheEvidence{
-			ImageCacheResult:              launcherbackend.CacheResultHit,
+			ImageCacheResult:              cacheResult,
 			BootArtifactCacheResult:       launcherbackend.CacheResultHit,
 			ResolvedImageDescriptorDigest: image.DescriptorDigest,
 			ResolvedBootComponentDigests:  resolvedDigests,
@@ -49,20 +55,70 @@ func admitRuntimeImage(workRoot string, image launcherbackend.RuntimeImageDescri
 	}, nil
 }
 
+func buildRuntimeAdmissionRecord(cacheRoot string, image launcherbackend.RuntimeImageDescriptor) (launcherbackend.RuntimeAdmissionRecord, *verifiedRuntimeToolchainDescriptor, error) {
+	admissionRecord, err := launcherbackend.NewRuntimeAdmissionRecord(image)
+	if err != nil {
+		return launcherbackend.RuntimeAdmissionRecord{}, nil, err
+	}
+	toolchainDescriptor, err := verifyRuntimeToolchainSignature(cacheRoot, image)
+	if err != nil {
+		return launcherbackend.RuntimeAdmissionRecord{}, nil, err
+	}
+	if toolchainDescriptor != nil {
+		admissionRecord.RuntimeToolchainBundleDigest = toolchainDescriptor.PublicationBundleDigest
+	}
+	return admissionRecord, toolchainDescriptor, nil
+}
+
+func ensureRuntimeAdmissionRecord(cacheRoot string, image launcherbackend.RuntimeImageDescriptor, admissionRecord launcherbackend.RuntimeAdmissionRecord) (string, error) {
+	persistedRecord, found, err := loadRuntimeAdmissionRecord(cacheRoot, image.DescriptorDigest)
+	if err != nil {
+		return "", err
+	}
+	if found {
+		if !reflect.DeepEqual(persistedRecord, admissionRecord) {
+			return "", fmt.Errorf("persisted runtime admission record does not match image identity")
+		}
+	} else if err := persistVerifiedRuntimeAdmission(cacheRoot, image, admissionRecord); err != nil {
+		return "", err
+	}
+	if err := verifyRuntimeImageSignature(cacheRoot, image); err != nil {
+		return "", err
+	}
+	return cacheResultForAdmission(found), nil
+}
+
+func persistVerifiedRuntimeAdmission(cacheRoot string, image launcherbackend.RuntimeImageDescriptor, admissionRecord launcherbackend.RuntimeAdmissionRecord) error {
+	if err := verifyRuntimeImageSignature(cacheRoot, image); err != nil {
+		return err
+	}
+	return persistRuntimeAdmissionRecord(cacheRoot, admissionRecord)
+}
+
+func resolveRuntimeImageComponents(cacheRoot string, digests map[string]string) (map[string]string, []string, error) {
+	componentPaths := make(map[string]string, len(digests))
+	resolvedDigests := make([]string, 0, len(digests))
+	for name, digest := range digests {
+		assetPath, err := resolveVerifiedRuntimeAsset(cacheRoot, digest)
+		if err != nil {
+			return nil, nil, fmt.Errorf("verified runtime asset %s unavailable", name)
+		}
+		componentPaths[name] = assetPath
+		resolvedDigests = append(resolvedDigests, digest)
+	}
+	return componentPaths, resolvedDigests, nil
+}
+
 func verifyRuntimeImageSignature(cacheRoot string, image launcherbackend.RuntimeImageDescriptor) error {
 	signaturePath, err := resolveVerifiedRuntimeAsset(cacheRoot, image.Signing.SignatureDigest)
 	if err != nil {
 		return fmt.Errorf("signature material unavailable")
 	}
-	verifierSetPath, err := resolveVerifiedRuntimeAsset(cacheRoot, image.Signing.VerifierSetRef)
-	if err != nil {
-		return fmt.Errorf("verifier set unavailable")
-	}
 	envelope, err := readSignedEnvelope(signaturePath)
 	if err != nil {
 		return err
 	}
-	registry, err := readVerifierRegistry(verifierSetPath)
+	registry, err := loadAuthorizedRuntimeVerifierRegistry(cacheRoot, image.Signing.VerifierSetRef, runtimeVerifierKindImage)
 	if err != nil {
 		return err
 	}
@@ -87,6 +143,19 @@ func verifyRuntimeImageSignature(cacheRoot string, image launcherbackend.Runtime
 	return nil
 }
 
+func isDigestFormat(value string) bool {
+	parts := strings.SplitN(strings.TrimSpace(value), ":", 2)
+	if len(parts) != 2 || parts[0] != "sha256" || len(parts[1]) != 64 {
+		return false
+	}
+	for _, ch := range parts[1] {
+		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 func readSignedEnvelope(path string) (trustpolicy.SignedObjectEnvelope, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -97,22 +166,6 @@ func readSignedEnvelope(path string) (trustpolicy.SignedObjectEnvelope, error) {
 		return trustpolicy.SignedObjectEnvelope{}, fmt.Errorf("decode signed envelope: %w", err)
 	}
 	return envelope, nil
-}
-
-func readVerifierRegistry(path string) (*trustpolicy.VerifierRegistry, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var records []trustpolicy.VerifierRecord
-	if err := json.Unmarshal(data, &records); err != nil {
-		return nil, fmt.Errorf("decode verifier set: %w", err)
-	}
-	registry, err := trustpolicy.NewVerifierRegistry(records)
-	if err != nil {
-		return nil, fmt.Errorf("load verifier set: %w", err)
-	}
-	return registry, nil
 }
 
 func verifiedRuntimeCacheRoot(workRoot string) string {

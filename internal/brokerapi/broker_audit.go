@@ -69,6 +69,14 @@ func (e *brokerAuditEmitter) emitLauncherRuntimeEvent(store *artifacts.Store, ru
 	return store.AppendTrustedAuditEvent(brokerAuditEventTypeLauncherRuntime, "brokerapi", details)
 }
 
+func (e *brokerAuditEmitter) emitRuntimeLaunchAdmissionEvent(store *artifacts.Store, details map[string]interface{}) error {
+	return e.emitLauncherRuntimeEvent(store, "runtime_launch_admission", details)
+}
+
+func (e *brokerAuditEmitter) emitRuntimeLaunchDeniedEvent(store *artifacts.Store, details map[string]interface{}) error {
+	return e.emitLauncherRuntimeEvent(store, "runtime_launch_denied", details)
+}
+
 func (e *brokerAuditEmitter) emitProviderProfileEvent(store *artifacts.Store, details map[string]interface{}) error {
 	if store == nil {
 		return fmt.Errorf("broker audit store unavailable")

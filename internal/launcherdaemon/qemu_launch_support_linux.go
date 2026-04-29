@@ -21,7 +21,7 @@ import (
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
-func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, isoID, sessionID, nonce, qemuVersion, qemuBuild string, cacheEvidence *launcherbackend.BackendCacheEvidence) launcherbackend.BackendLaunchReceipt {
+func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild string, cacheEvidence *launcherbackend.BackendCacheEvidence) launcherbackend.BackendLaunchReceipt {
 	return launcherbackend.BackendLaunchReceipt{
 		RunID:                            spec.RunID,
 		StageID:                          spec.StageID,
@@ -38,16 +38,16 @@ func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, isoID, sessionID
 		AccelerationKind:                 launcherbackend.AccelerationKindKVM,
 		TransportKind:                    launcherbackend.TransportKindVirtioSerial,
 		QEMUProvenance:                   &launcherbackend.QEMUProvenance{Version: qemuVersion, BuildIdentity: qemuBuild},
-		RuntimeImageDescriptorDigest:     spec.Image.DescriptorDigest,
-		RuntimeImageBootProfile:          spec.Image.BootContractVersion,
-		RuntimeImageSignerRef:            spec.Image.Signing.SignerRef,
-		RuntimeImageVerifierRef:          spec.Image.Signing.VerifierSetRef,
-		RuntimeImageSignatureDigest:      spec.Image.Signing.SignatureDigest,
-		RuntimeToolchainDescriptorDigest: runtimeToolchainDescriptorDigest(spec.Image.Signing.Toolchain),
-		RuntimeToolchainSignerRef:        runtimeToolchainSignerRef(spec.Image.Signing.Toolchain),
-		RuntimeToolchainVerifierRef:      runtimeToolchainVerifierRef(spec.Image.Signing.Toolchain),
-		RuntimeToolchainSignatureDigest:  runtimeToolchainSignatureDigest(spec.Image.Signing.Toolchain),
-		BootComponentDigestByName:        cloneMap(spec.Image.ComponentDigests),
+		RuntimeImageDescriptorDigest:     admission.DescriptorDigest,
+		RuntimeImageBootProfile:          admission.BootContractVersion,
+		RuntimeImageSignerRef:            admission.RuntimeImageSignerRef,
+		RuntimeImageVerifierRef:          admission.RuntimeImageVerifierSetRef,
+		RuntimeImageSignatureDigest:      admission.RuntimeImageSignatureDigest,
+		RuntimeToolchainDescriptorDigest: admission.RuntimeToolchainDescriptorDigest,
+		RuntimeToolchainSignerRef:        admission.RuntimeToolchainSignerRef,
+		RuntimeToolchainVerifierRef:      admission.RuntimeToolchainVerifierSetRef,
+		RuntimeToolchainSignatureDigest:  admission.RuntimeToolchainSignatureDigest,
+		BootComponentDigestByName:        cloneMap(admission.ComponentDigests),
 		ResourceLimits:                   &spec.ResourceLimits,
 		WatchdogPolicy:                   &spec.WatchdogPolicy,
 		CachePosture:                     &spec.CachePosture,
@@ -212,34 +212,6 @@ func cloneMap(in map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
-}
-
-func runtimeToolchainDescriptorDigest(toolchain *launcherbackend.RuntimeToolchainSigningHooks) string {
-	if toolchain == nil {
-		return ""
-	}
-	return toolchain.DescriptorDigest
-}
-
-func runtimeToolchainSignerRef(toolchain *launcherbackend.RuntimeToolchainSigningHooks) string {
-	if toolchain == nil {
-		return ""
-	}
-	return toolchain.SignerRef
-}
-
-func runtimeToolchainVerifierRef(toolchain *launcherbackend.RuntimeToolchainSigningHooks) string {
-	if toolchain == nil {
-		return ""
-	}
-	return toolchain.VerifierSetRef
-}
-
-func runtimeToolchainSignatureDigest(toolchain *launcherbackend.RuntimeToolchainSigningHooks) string {
-	if toolchain == nil {
-		return ""
-	}
-	return toolchain.SignatureDigest
 }
 
 func safeToken(in string) string {

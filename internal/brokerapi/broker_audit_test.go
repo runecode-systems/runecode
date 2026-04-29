@@ -95,7 +95,9 @@ func TestShouldAuditErrorCodeIncludesPolicyRejected(t *testing.T) {
 func TestRecordRuntimeFactsEmitsBrokerOwnedLauncherRuntimeAuditEvents(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	_ = putRunScopedArtifactForLocalOpsTest(t, s, "run-runtime-audit", "step-1")
-	if err := s.RecordRuntimeFacts("run-runtime-audit", launcherRuntimeFactsFixture()); err != nil {
+	facts := launcherRuntimeFactsFixture()
+	facts.LaunchReceipt.LaunchFailureReasonCode = ""
+	if err := s.RecordRuntimeFacts("run-runtime-audit", facts); err != nil {
 		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
 	}
 	_, evidence, _, _, ok := s.store.RuntimeEvidenceState("run-runtime-audit")
@@ -106,8 +108,34 @@ func TestRecordRuntimeFactsEmitsBrokerOwnedLauncherRuntimeAuditEvents(t *testing
 	if err != nil {
 		t.Fatalf("ReadAuditEvents returned error: %v", err)
 	}
+	assertLauncherRuntimeAuditEvent(t, events, "runtime_launch_admission", evidence.Launch.EvidenceDigest, evidence.Hardening.EvidenceDigest, evidence.Session.EvidenceDigest)
 	assertLauncherRuntimeAuditEvent(t, events, "isolate_session_started", evidence.Launch.EvidenceDigest, evidence.Hardening.EvidenceDigest, evidence.Session.EvidenceDigest)
 	assertLauncherRuntimeAuditEvent(t, events, "isolate_session_bound", evidence.Launch.EvidenceDigest, evidence.Hardening.EvidenceDigest, evidence.Session.EvidenceDigest)
+}
+
+func TestRecordRuntimeFactsEmitsLaunchDeniedAuditWithoutSessionBinding(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	facts := launcherRuntimeFactsFixture()
+	facts.LaunchReceipt.RunID = "run-runtime-denied-pre-session"
+	facts.LaunchReceipt.StageID = "stage-runtime-denied"
+	facts.LaunchReceipt.SessionID = ""
+	facts.LaunchReceipt.SessionNonce = ""
+	facts.LaunchReceipt.HandshakeTranscriptHash = ""
+	facts.LaunchReceipt.IsolateSessionKeyIDValue = ""
+	facts.LaunchReceipt.LaunchContextDigest = ""
+	facts.LaunchReceipt.IsolateID = ""
+	if err := s.RecordRuntimeFacts("run-runtime-denied-pre-session", facts); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
+	_, evidence, _, _, ok := s.store.RuntimeEvidenceState("run-runtime-denied-pre-session")
+	if !ok {
+		t.Fatal("RuntimeEvidenceState = not found, want persisted runtime evidence")
+	}
+	events, err := s.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents returned error: %v", err)
+	}
+	assertLauncherRuntimeAuditEvent(t, events, "runtime_launch_denied", evidence.Launch.EvidenceDigest, evidence.Hardening.EvidenceDigest, "")
 }
 
 func TestRuntimeFactsAuditEventsAreNotReemittedForSameEvidenceDigest(t *testing.T) {

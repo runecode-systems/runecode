@@ -140,6 +140,36 @@ func TestServiceLaunchFailureReturnsError(t *testing.T) {
 	}
 }
 
+func TestServiceLaunchFailureRecordsDeniedRuntimeFacts(t *testing.T) {
+	reporter := &fakeReporter{}
+	svc, err := New(Config{Controller: &fakeController{startErr: errors.New("backend_error_code=image_descriptor_signature_mismatch: denied")}, Reporter: reporter})
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	if err := svc.Start(context.Background()); err != nil {
+		t.Fatalf("Start returned error: %v", err)
+	}
+	if err := svc.SetInstanceBackendKind(launcherbackend.BackendKindContainer); err != nil {
+		t.Fatalf("SetInstanceBackendKind(container) returned error: %v", err)
+	}
+	if _, err := svc.Launch(context.Background(), validContainerSpecForTests()); err == nil {
+		t.Fatal("Launch expected error")
+	}
+	if len(reporter.facts) != 1 {
+		t.Fatalf("runtime facts count = %d, want 1 denied-launch record", len(reporter.facts))
+	}
+	got := reporter.facts[0].LaunchReceipt
+	if got.LaunchFailureReasonCode != launcherbackend.BackendErrorCodeImageDescriptorSignatureMismatch {
+		t.Fatalf("launch failure reason = %q, want %q", got.LaunchFailureReasonCode, launcherbackend.BackendErrorCodeImageDescriptorSignatureMismatch)
+	}
+	if got.SessionID != "" {
+		t.Fatalf("session_id = %q, want empty for pre-session denial", got.SessionID)
+	}
+	if got.RuntimeImageDescriptorDigest != validContainerSpecForTests().Image.DescriptorDigest {
+		t.Fatalf("runtime image descriptor digest = %q, want requested descriptor digest", got.RuntimeImageDescriptorDigest)
+	}
+}
+
 func TestServiceMicroVMLaunchFailureDoesNotAutoSwitchToContainerMode(t *testing.T) {
 	controller := &failOnceController{}
 	svc, err := New(Config{Controller: controller})

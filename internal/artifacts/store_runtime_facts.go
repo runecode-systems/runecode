@@ -60,6 +60,10 @@ func (s *Store) MarkRuntimeAuditEventEmitted(runID, eventType, evidenceDigest st
 		state.LastIsolateSessionStartedDigest = evidenceDigest
 	case "isolate_session_bound":
 		state.LastIsolateSessionBoundDigest = evidenceDigest
+	case "runtime_launch_admission":
+		state.LastRuntimeLaunchAdmissionDigest = evidenceDigest
+	case "runtime_launch_denied":
+		state.LastRuntimeLaunchDeniedDigest = evidenceDigest
 	default:
 		return fmt.Errorf("unsupported runtime audit event type %q", eventType)
 	}

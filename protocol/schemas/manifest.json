@@ -714,6 +714,34 @@
       "status": "mvp"
     },
     {
+      "path": "objects/RuntimeImageSignedPayload.schema.json",
+      "schema_id": "runecode.protocol.v0.RuntimeImageSignedPayload",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RuntimeToolchainDescriptor.schema.json",
+      "schema_id": "runecode.protocol.v0.RuntimeToolchainDescriptor",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RuntimeLaunchAdmissionPayload.schema.json",
+      "schema_id": "runecode.protocol.v0.RuntimeLaunchAdmissionPayload",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/RuntimeLaunchDeniedPayload.schema.json",
+      "schema_id": "runecode.protocol.v0.RuntimeLaunchDeniedPayload",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/IsolateSessionStartedPayload.schema.json",
       "schema_id": "runecode.protocol.v0.IsolateSessionStartedPayload",
       "schema_version": "0.1.0",
