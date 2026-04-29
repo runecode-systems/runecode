@@ -24,6 +24,9 @@ func TestServiceLaunchFailureRecordsDeniedRuntimeFacts(t *testing.T) {
 	if _, err := svc.Launch(context.Background(), validContainerSpecForTests()); err == nil {
 		t.Fatal("Launch expected error")
 	}
+	if len(reporter.facts) != 1 {
+		t.Fatalf("runtime facts count = %d, want 1 denied-launch record", len(reporter.facts))
+	}
 	assertDeniedLaunchReceipt(t, reporter.facts[0].LaunchReceipt, validContainerSpecForTests())
 }
 
@@ -38,7 +41,10 @@ func TestServiceLaunchFailurePreservesBackendErrorWhenDeniedFactsReportingFails(
 	if err := svc.Start(context.Background()); err != nil {
 		t.Fatalf("Start returned error: %v", err)
 	}
-	_, err = svc.Launch(context.Background(), validSpecForTests())
+	if err := svc.SetInstanceBackendKind(launcherbackend.BackendKindContainer); err != nil {
+		t.Fatalf("SetInstanceBackendKind(container) returned error: %v", err)
+	}
+	_, err = svc.Launch(context.Background(), validContainerSpecForTests())
 	if err == nil {
 		t.Fatal("Launch expected error")
 	}
