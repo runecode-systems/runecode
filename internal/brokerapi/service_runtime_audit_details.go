@@ -31,11 +31,7 @@ func runtimeAuditDetailsForPayload(eventType, payloadSchemaID string, payload an
 }
 
 func buildRuntimeEventOperationID(eventType string, evidence launcherbackend.RuntimeEvidenceSnapshot) string {
-	sessionDigest := runtimeSessionEvidenceDigest(evidence)
-	base := evidence.Launch.RunID + ":" + evidence.Launch.SessionID + ":" + sessionDigest
-	if strings.TrimSpace(base) == "::" {
-		base = evidence.Launch.EvidenceDigest
-	}
+	base := runtimeAuditOperationBase(eventType, evidence)
 	if eventType == "isolate_session_started" {
 		return "runtime-start:" + base
 	}
@@ -46,6 +42,22 @@ func buildRuntimeEventOperationID(eventType string, evidence launcherbackend.Run
 		return "runtime-launch-denied:" + base
 	}
 	return "runtime-bind:" + base
+}
+
+func runtimeAuditOperationBase(eventType string, evidence launcherbackend.RuntimeEvidenceSnapshot) string {
+	if eventType == "runtime_launch_admission" || eventType == "runtime_launch_denied" {
+		return evidence.Launch.EvidenceDigest
+	}
+	return runtimeSessionAuditIdentityKey(evidence)
+}
+
+func runtimeSessionAuditIdentityKey(evidence launcherbackend.RuntimeEvidenceSnapshot) string {
+	parts := []string{
+		evidence.Launch.EvidenceDigest,
+		evidence.Hardening.EvidenceDigest,
+		runtimeSessionEvidenceDigest(evidence),
+	}
+	return strings.Join(parts, ":")
 }
 
 func runtimeEvidenceDigestRefs(evidence launcherbackend.RuntimeEvidenceSnapshot) []map[string]string {

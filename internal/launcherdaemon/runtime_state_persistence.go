@@ -1,7 +1,9 @@
 package launcherdaemon
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -19,7 +21,7 @@ func writeRuntimeStateFile(path string, tempPattern string, data []byte) error {
 		_ = tmp.Close()
 		return err
 	}
-	if _, err := tmp.Write(data); err != nil {
+	if err := writeRuntimeStateData(tmp, data); err != nil {
 		_ = tmp.Close()
 		return err
 	}
@@ -35,6 +37,17 @@ func writeRuntimeStateFile(path string, tempPattern string, data []byte) error {
 			return fmt.Errorf("destination exists as directory")
 		}
 		return err
+	}
+	return nil
+}
+
+func writeRuntimeStateData(w io.Writer, data []byte) error {
+	written, err := io.Copy(w, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	if written != int64(len(data)) {
+		return io.ErrShortWrite
 	}
 	return nil
 }

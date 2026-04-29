@@ -36,13 +36,15 @@ func (s *Service) emitRuntimeLaunchAdmissionAuditEvent(runID string, evidence la
 		return nil
 	}
 	payload := map[string]string{
-		"schema_id":                           "runecode.protocol.v0.RuntimeLaunchAdmissionPayload",
-		"schema_version":                      "0.1.0",
-		"run_id":                              evidence.Launch.RunID,
-		"backend_kind":                        evidence.Launch.BackendKind,
-		"runtime_launch_digest":               evidence.Launch.EvidenceDigest,
-		"runtime_image_descriptor_digest":     evidence.Launch.RuntimeImageDescriptorDigest,
-		"runtime_toolchain_descriptor_digest": evidence.Launch.RuntimeToolchainDescriptorDigest,
+		"schema_id":                       "runecode.protocol.v0.RuntimeLaunchAdmissionPayload",
+		"schema_version":                  "0.1.0",
+		"run_id":                          evidence.Launch.RunID,
+		"backend_kind":                    evidence.Launch.BackendKind,
+		"runtime_launch_digest":           evidence.Launch.EvidenceDigest,
+		"runtime_image_descriptor_digest": evidence.Launch.RuntimeImageDescriptorDigest,
+	}
+	if toolchainDigest := strings.TrimSpace(evidence.Launch.RuntimeToolchainDescriptorDigest); toolchainDigest != "" {
+		payload["runtime_toolchain_descriptor_digest"] = toolchainDigest
 	}
 	if details, err := runtimeAuditDetailsForPayload("runtime_launch_admission", "runecode.protocol.v0.RuntimeLaunchAdmissionPayload", payload, evidence, facts); err != nil {
 		return err
@@ -82,7 +84,8 @@ func (s *Service) emitRuntimeSessionStartedAuditEvent(runID string, evidence lau
 		return nil
 	}
 	_, _, _, auditState, _ := s.store.RuntimeEvidenceState(runID)
-	if auditState.LastIsolateSessionStartedDigest == evidence.Session.EvidenceDigest {
+	marker := runtimeSessionAuditIdentityKey(evidence)
+	if auditState.LastIsolateSessionStartedDigest == marker {
 		return nil
 	}
 	payload := trustpolicy.IsolateSessionStartedPayload{
@@ -105,7 +108,7 @@ func (s *Service) emitRuntimeSessionStartedAuditEvent(runID string, evidence lau
 	} else if err := s.auditor.emitLauncherRuntimeEvent(s.store, "isolate_session_started", details); err != nil {
 		return err
 	}
-	return s.store.MarkRuntimeAuditEventEmitted(runID, "isolate_session_started", evidence.Session.EvidenceDigest)
+	return s.store.MarkRuntimeAuditEventEmitted(runID, "isolate_session_started", marker)
 }
 
 func (s *Service) emitRuntimeSessionBoundAuditEvent(runID string, evidence launcherbackend.RuntimeEvidenceSnapshot, facts launcherbackend.RuntimeFactsSnapshot) error {
@@ -113,7 +116,8 @@ func (s *Service) emitRuntimeSessionBoundAuditEvent(runID string, evidence launc
 		return nil
 	}
 	_, _, _, auditState, _ := s.store.RuntimeEvidenceState(runID)
-	if auditState.LastIsolateSessionBoundDigest == evidence.Session.EvidenceDigest {
+	marker := runtimeSessionAuditIdentityKey(evidence)
+	if auditState.LastIsolateSessionBoundDigest == marker {
 		return nil
 	}
 	payload := trustpolicy.IsolateSessionBoundPayload{
@@ -136,5 +140,5 @@ func (s *Service) emitRuntimeSessionBoundAuditEvent(runID string, evidence launc
 	} else if err := s.auditor.emitLauncherRuntimeEvent(s.store, "isolate_session_bound", details); err != nil {
 		return err
 	}
-	return s.store.MarkRuntimeAuditEventEmitted(runID, "isolate_session_bound", evidence.Session.EvidenceDigest)
+	return s.store.MarkRuntimeAuditEventEmitted(runID, "isolate_session_bound", marker)
 }

@@ -1,7 +1,10 @@
 package launcherdaemon
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -122,4 +125,32 @@ func runtimeVerifierAuthorityImportReceiptFixture() RuntimeVerifierAuthorityStat
 			Revision: 2,
 		},
 	}
+}
+
+func TestWriteRuntimeStateDataShortWriteFailsClosed(t *testing.T) {
+	data := []byte("runtime-state")
+	err := writeRuntimeStateData(shortWriteWriter{}, data)
+	if !errors.Is(err, io.ErrShortWrite) {
+		t.Fatalf("writeRuntimeStateData error = %v, want %v", err, io.ErrShortWrite)
+	}
+}
+
+func TestWriteRuntimeStateDataFullWriteSucceeds(t *testing.T) {
+	data := []byte("runtime-state")
+	buf := &bytes.Buffer{}
+	if err := writeRuntimeStateData(buf, data); err != nil {
+		t.Fatalf("writeRuntimeStateData returned error: %v", err)
+	}
+	if got := buf.Bytes(); !bytes.Equal(got, data) {
+		t.Fatalf("buffer bytes = %q, want %q", string(got), string(data))
+	}
+}
+
+type shortWriteWriter struct{}
+
+func (shortWriteWriter) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	return len(p) - 1, nil
 }
