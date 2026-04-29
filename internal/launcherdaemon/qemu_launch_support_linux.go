@@ -6,11 +6,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -163,18 +161,6 @@ func summarizeAttachments(plan launcherbackend.AttachmentPlan) *launcherbackend.
 	}
 	return &launcherbackend.AttachmentPlanSummary{Roles: roles, Constraints: plan.Constraints}
 }
-func digestFileSHA256(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	hasher := sha256.New()
-	if _, err := io.Copy(hasher, file); err != nil {
-		return "", err
-	}
-	return "sha256:" + hex.EncodeToString(hasher.Sum(nil)), nil
-}
 
 func detectQEMUProvenance(binary string) (string, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -221,18 +207,24 @@ func safeToken(in string) string {
 	if v == "" {
 		return "x"
 	}
-	v = strings.ReplaceAll(v, "/", "-")
-	v = strings.ReplaceAll(v, "\\", "-")
-	v = strings.ReplaceAll(v, " ", "-")
-	return v
-}
-
-func backendError(code, msg string) error {
-	if strings.TrimSpace(code) == "" {
-		code = launcherbackend.BackendErrorCodeHypervisorLaunchFailed
+	var b strings.Builder
+	b.Grow(len(v))
+	lastDash := false
+	for i := 0; i < len(v); i++ {
+		ch := v[i]
+		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_' {
+			b.WriteByte(ch)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
 	}
-	if strings.TrimSpace(msg) == "" {
-		msg = "backend launch failed"
+	token := strings.Trim(b.String(), "-.")
+	if token == "" {
+		return "x"
 	}
-	return fmt.Errorf("backend_error_code=%s: %s", code, msg)
+	return token
 }
