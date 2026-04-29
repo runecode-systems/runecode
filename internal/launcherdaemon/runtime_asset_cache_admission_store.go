@@ -54,13 +54,8 @@ func persistRuntimeAdmissionRecord(cacheRoot string, record launcherbackend.Runt
 	if err != nil {
 		return fmt.Errorf("encode persisted runtime admission record: %w", err)
 	}
-	tempPath := path + ".tmp"
-	if err := os.WriteFile(tempPath, data, 0o600); err != nil {
+	if err := writeRuntimeStateFile(path, filepath.Base(path)+".*.tmp", data); err != nil {
 		return fmt.Errorf("write persisted runtime admission record: %w", err)
-	}
-	if err := os.Rename(tempPath, path); err != nil {
-		_ = os.Remove(tempPath)
-		return fmt.Errorf("finalize persisted runtime admission record: %w", err)
 	}
 	return nil
 }

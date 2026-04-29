@@ -159,24 +159,7 @@ func persistImportedRuntimeVerifierAuthorityState(cacheRoot string, state runtim
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	return writeRuntimeVerifierAuthorityTempFile(path, runtimeVerifierAuthorityStateFileName+".*.tmp", canonical)
-}
-
-func writeRuntimeVerifierAuthorityTempFile(path string, pattern string, data []byte) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), pattern)
-	if err != nil {
-		return err
-	}
-	tmpPath := tmp.Name()
-	defer func() { _ = os.Remove(tmpPath) }()
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmpPath, path)
+	return writeRuntimeStateFile(path, runtimeVerifierAuthorityStateFileName+".*.tmp", canonical)
 }
 
 func persistRuntimeVerifierAuthorityImportReceipt(cacheRoot string, receipt RuntimeVerifierAuthorityStateImportReceipt) error {
@@ -192,7 +175,7 @@ func persistRuntimeVerifierAuthorityImportReceipt(cacheRoot string, receipt Runt
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	return writeRuntimeVerifierAuthorityTempFile(path, runtimeVerifierAuthorityReceiptFileName+".*.tmp", canonical)
+	return writeRuntimeStateFile(path, runtimeVerifierAuthorityReceiptFileName+".*.tmp", canonical)
 }
 
 func marshalRuntimeVerifierAuthorityState(state runtimeVerifierAuthorityState) ([]byte, error) {

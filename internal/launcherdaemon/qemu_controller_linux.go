@@ -121,9 +121,6 @@ func (c *qemuController) prepareLaunchState(ctx context.Context, spec launcherba
 	if err != nil {
 		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "failed to generate runtime identity")
 	}
-	if err := verifyRuntimeToolchainArtifact(qemuPath, admittedImage.toolchain); err != nil {
-		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeImageDescriptorSignatureMismatch, err.Error())
-	}
 	qemuVersion, qemuBuild := detectQEMUProvenance(qemuPath)
 	cmd, stdout, cancel, err := c.startQEMUProcess(ctx, qemuPath, kernelPath, initrdPath, spec.ResourceLimits)
 	if err != nil {
@@ -148,12 +145,19 @@ func (c *qemuController) prepareLaunchAssets(ctx context.Context, qemuPath strin
 	if err != nil {
 		return admittedRuntimeImage{}, "", "", "", backendError(launcherbackend.BackendErrorCodeAttachmentPlanInvalid, "failed to materialize attachments")
 	}
+	keepLaunchDir := false
+	defer func() {
+		if !keepLaunchDir {
+			_ = os.RemoveAll(launchDir)
+		}
+	}()
 	if err := ctx.Err(); err != nil {
 		return admittedRuntimeImage{}, "", "", "", err
 	}
 	if err := verifyRuntimeToolchainArtifact(qemuPath, admittedImage.toolchain); err != nil {
 		return admittedRuntimeImage{}, "", "", "", backendError(launcherbackend.BackendErrorCodeImageDescriptorSignatureMismatch, err.Error())
 	}
+	keepLaunchDir = true
 	return admittedImage, launchDir, admittedImage.componentPaths["kernel"], admittedImage.componentPaths["initrd"], nil
 }
 
@@ -181,12 +185,15 @@ func (c *qemuController) startQEMUProcess(ctx context.Context, qemuPath, kernelP
 		return nil, nil, nil, err
 	}
 	argv := buildQEMUArgv(qemuPath, kernelPath, initrdPath, limits)
-	launchCtx, launchCancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(launchCtx, argv[0], argv[1:]...)
+	cmd := exec.Command(argv[0], argv[1:]...)
+	launchCancel := func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		launchCancel()
 		return nil, nil, nil, backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "failed to prepare qemu output stream")
 	}
 	cmd.Stderr = cmd.Stdout
@@ -240,13 +247,13 @@ func (c *qemuController) registerLaunchState(spec launcherbackend.BackendLaunchS
 }
 
 func (c *qemuController) terminateInstance(inst *qemuInstance) {
-	inst.cancel()
 	if inst.cmd == nil || inst.cmd.Process == nil {
+		inst.cancel()
 		return
 	}
 	_ = inst.cmd.Process.Signal(syscall.SIGTERM)
 	time.Sleep(2 * time.Second)
-	_ = inst.cmd.Process.Kill()
+	inst.cancel()
 }
 
 func (c *qemuController) instanceByRef(ref InstanceRef) *qemuInstance {

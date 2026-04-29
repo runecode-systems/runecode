@@ -7,6 +7,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -124,6 +126,26 @@ func TestAdmitRuntimeImageRejectsUnauthorizedImageVerifierSet(t *testing.T) {
 	_, err := admitRuntimeImage(workRoot, image)
 	if err == nil || !strings.Contains(err.Error(), "runtime verifier set is not authorized") {
 		t.Fatalf("expected unauthorized image verifier rejection, got %v", err)
+	}
+}
+
+func TestLoadAuthorizedRuntimeVerifierRegistryPreservesKindDigestContextWithoutPathLeak(t *testing.T) {
+	workRoot := t.TempDir()
+	cacheRoot := verifiedRuntimeCacheRoot(workRoot)
+	digest := "sha256:" + repeatHex('a')
+
+	_, err := loadAuthorizedRuntimeVerifierRegistry(cacheRoot, digest, runtimeVerifierKindImage)
+	if err == nil {
+		t.Fatal("expected verifier registry load failure")
+	}
+	if !strings.Contains(err.Error(), runtimeVerifierKindImage) || !strings.Contains(err.Error(), digest) {
+		t.Fatalf("expected kind and digest context, got %v", err)
+	}
+	if strings.Contains(err.Error(), cacheRoot) {
+		t.Fatalf("expected no filesystem path leak, got %v", err)
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("expected wrapped fs.ErrNotExist cause, got %v", err)
 	}
 }
 

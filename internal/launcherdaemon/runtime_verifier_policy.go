@@ -4,7 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -22,26 +24,39 @@ const (
 )
 
 func loadAuthorizedRuntimeVerifierRegistry(cacheRoot string, digest string, kind string) (*trustpolicy.VerifierRegistry, error) {
+	digest = strings.TrimSpace(digest)
 	verifierSetPath, err := resolveVerifiedRuntimeAsset(cacheRoot, digest)
 	if err != nil {
-		return nil, fmt.Errorf("verifier set unavailable")
+		return nil, runtimeVerifierRegistryLoadError(kind, digest, "resolve verifier set", sanitizeRuntimeVerifierRegistryCause(err))
 	}
 	data, err := os.ReadFile(verifierSetPath)
 	if err != nil {
-		return nil, err
+		return nil, runtimeVerifierRegistryLoadError(kind, digest, "read verifier set", sanitizeRuntimeVerifierRegistryCause(err))
 	}
 	var records []trustpolicy.VerifierRecord
 	if err := json.Unmarshal(data, &records); err != nil {
-		return nil, fmt.Errorf("decode verifier set: %w", err)
+		return nil, runtimeVerifierRegistryLoadError(kind, digest, "decode verifier set", err)
 	}
-	if err := authorizeRuntimeVerifierSet(cacheRoot, kind, strings.TrimSpace(digest), records); err != nil {
-		return nil, err
+	if err := authorizeRuntimeVerifierSet(cacheRoot, kind, digest, records); err != nil {
+		return nil, runtimeVerifierRegistryLoadError(kind, digest, "authorize verifier set", err)
 	}
 	registry, err := trustpolicy.NewVerifierRegistry(records)
 	if err != nil {
-		return nil, fmt.Errorf("load verifier set: %w", err)
+		return nil, runtimeVerifierRegistryLoadError(kind, digest, "load verifier set", err)
 	}
 	return registry, nil
+}
+
+func runtimeVerifierRegistryLoadError(kind string, digest string, action string, cause error) error {
+	return fmt.Errorf("runtime verifier registry kind=%q digest=%q: %s: %w", kind, digest, action, cause)
+}
+
+func sanitizeRuntimeVerifierRegistryCause(err error) error {
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return fmt.Errorf("%s: %w", pathErr.Op, pathErr.Err)
+	}
+	return err
 }
 
 func authorizeRuntimeVerifierSet(cacheRoot string, kind string, digest string, records []trustpolicy.VerifierRecord) error {
