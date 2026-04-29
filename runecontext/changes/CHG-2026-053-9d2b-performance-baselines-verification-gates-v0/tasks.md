@@ -44,8 +44,8 @@ Alpha.7 bootstrap already landed:
 
 ## Phase 5: Launcher, Gateway, Audit, And Protocol Checks
 
-- [ ] Add cold and warm microVM startup checks.
-- [ ] Add cold and warm container startup checks for the explicit opt-in backend.
+- [ ] Add cold and warm microVM startup checks, with cold covering verified-cache miss or trusted-admission cost and warm covering verified local runtime-asset cache-hit cost on the same signed runtime identity.
+- [ ] Add cold and warm container startup checks for the explicit opt-in backend, with the same verified-cache miss or hit semantics used for microVM startup checks.
 - [ ] Add deterministic model-gateway invoke-overhead and secret-ingress checks using stubbed provider backends.
 - [ ] Add deterministic dependency-fetch cache-miss checks using reviewed typed dependency-request fixtures and stubbed public-registry payload sources.
 - [ ] Add deterministic dependency-fetch cache-hit checks for already-cached resolved dependency units.
@@ -81,4 +81,5 @@ Alpha.7 bootstrap already landed:
 - [ ] Linux PR CI enforces numeric thresholds for the highest-value checks.
 - [ ] macOS and Windows execute the same performance flow families where feasible, at least as smoke or trend gates.
 - [ ] Performance baselines assume one topology-neutral workflow/control-plane architecture across constrained and scaled environments rather than separate architecture paths.
+- [ ] Launcher startup thresholds measure the reviewed signed runtime-asset path and do not reward bypassing runtime-asset admission, verification, or launch-deny evidence generation.
 - [ ] Threshold changes and baseline refreshes require explicit review rather than silent CI mutation.

@@ -303,10 +303,16 @@ The TUI findings are the most concrete current example, but the same failure mod
 
 | Aspect | Fixture | Check | Initial Threshold | CI Lane |
 | --- | --- | --- | --- | --- |
-| MicroVM cold start | deterministic lightweight role image | trigger to broker-observed ready state | `<= 8s` cold | extended Linux |
-| MicroVM warm start | same fixture with warmed image/toolchain | trigger to ready | `<= 3s` warm | extended Linux |
-| Container cold start | opt-in deterministic container backend fixture | trigger to ready | `<= 4s` cold | extended Linux |
-| Container warm start | warmed deterministic container fixture | trigger to ready | `<= 2s` warm | extended Linux |
+| MicroVM cold start | deterministic lightweight signed role image with verified-cache miss or required trusted-admission path | trigger to broker-observed ready state | `<= 8s` cold | extended Linux |
+| MicroVM warm start | same signed runtime-image fixture with verified local runtime-asset cache hit | trigger to ready | `<= 3s` warm | extended Linux |
+| Container cold start | opt-in deterministic signed container-runtime fixture with verified-cache miss or required trusted-admission path | trigger to ready | `<= 4s` cold | extended Linux |
+| Container warm start | same signed container-runtime fixture with verified local runtime-asset cache hit | trigger to ready | `<= 2s` warm | extended Linux |
+
+Cold and warm launcher checks should continue to use the same reviewed signed runtime-asset architecture:
+
+- cold launcher checks measure trusted admission or verified-cache miss cost when launchable assets are not already locally admitted
+- warm launcher checks measure verified-cache hit behavior on the same signed runtime identity
+- neither path may reward bypassing signer verification, component-digest checks, or launch-deny evidence generation
 
 ### Model Gateway, Secrets, And Provider Overhead
 

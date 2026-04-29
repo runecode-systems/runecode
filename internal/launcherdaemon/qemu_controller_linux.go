@@ -106,43 +106,59 @@ type preparedLaunchState struct {
 }
 
 func (c *qemuController) prepareLaunchState(ctx context.Context, spec launcherbackend.BackendLaunchSpec) (preparedLaunchState, error) {
+	if err := ctx.Err(); err != nil {
+		return preparedLaunchState{}, err
+	}
 	if err := c.validateLaunchPrereqs(spec); err != nil {
 		return preparedLaunchState{}, err
 	}
 	qemuPath := strings.TrimSpace(c.cfg.QEMUBinary)
-	kernelPath, err := c.resolveKernelPath()
+	admittedImage, launchDir, kernelPath, initrdPath, err := c.prepareLaunchAssets(ctx, qemuPath, spec)
 	if err != nil {
 		return preparedLaunchState{}, err
-	}
-	launchDir, err := c.prepareLaunchDir(spec)
-	if err != nil {
-		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeAttachmentPlanInvalid, "failed to materialize attachments")
-	}
-	initrdPath, err := buildHelloInitramfs(ctx, launchDir)
-	if err != nil {
-		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "failed to build initramfs asset")
-	}
-	bootComponentDigests, err := resolveBootComponentDigests(kernelPath, initrdPath)
-	if err != nil {
-		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "failed to digest boot assets")
 	}
 	isoID, sessionID, nonce, err := makeRuntimeIdentity(spec.RunID)
 	if err != nil {
 		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "failed to generate runtime identity")
 	}
 	qemuVersion, qemuBuild := detectQEMUProvenance(qemuPath)
-	cmd, stdout, cancel, err := c.startQEMUProcess(qemuPath, kernelPath, initrdPath, spec.ResourceLimits)
+	cmd, stdout, cancel, err := c.startQEMUProcess(ctx, qemuPath, kernelPath, initrdPath, spec.ResourceLimits)
 	if err != nil {
 		return preparedLaunchState{}, err
 	}
 	return preparedLaunchState{
 		stdout:    stdout,
 		launchDir: launchDir,
-		receipt:   buildLaunchReceipt(spec, isoID, sessionID, nonce, qemuVersion, qemuBuild, bootComponentDigests),
+		receipt:   buildLaunchReceipt(spec, admittedImage.admissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild, admittedImage.cacheEvidence),
 		hardening: buildHardeningPosture(),
 		cmd:       cmd,
 		cancel:    cancel,
 	}, nil
+}
+
+func (c *qemuController) prepareLaunchAssets(ctx context.Context, qemuPath string, spec launcherbackend.BackendLaunchSpec) (admittedRuntimeImage, string, string, string, error) {
+	admittedImage, err := admitRuntimeImage(c.cfg.WorkRoot, spec.Image)
+	if err != nil {
+		return admittedRuntimeImage{}, "", "", "", err
+	}
+	launchDir, err := c.prepareLaunchDir(spec)
+	if err != nil {
+		return admittedRuntimeImage{}, "", "", "", backendError(launcherbackend.BackendErrorCodeAttachmentPlanInvalid, "failed to materialize attachments")
+	}
+	keepLaunchDir := false
+	defer func() {
+		if !keepLaunchDir {
+			_ = os.RemoveAll(launchDir)
+		}
+	}()
+	if err := ctx.Err(); err != nil {
+		return admittedRuntimeImage{}, "", "", "", err
+	}
+	if err := verifyRuntimeToolchainArtifact(qemuPath, admittedImage.toolchain); err != nil {
+		return admittedRuntimeImage{}, "", "", "", backendError(launcherbackend.BackendErrorCodeImageDescriptorSignatureMismatch, err.Error())
+	}
+	keepLaunchDir = true
+	return admittedImage, launchDir, admittedImage.componentPaths["kernel"], admittedImage.componentPaths["initrd"], nil
 }
 
 func (c *qemuController) validateLaunchPrereqs(spec launcherbackend.BackendLaunchSpec) error {
@@ -164,14 +180,20 @@ func (c *qemuController) validateLaunchPrereqs(spec launcherbackend.BackendLaunc
 	return nil
 }
 
-func (c *qemuController) startQEMUProcess(qemuPath, kernelPath, initrdPath string, limits launcherbackend.BackendResourceLimits) (*exec.Cmd, io.Reader, context.CancelFunc, error) {
+func (c *qemuController) startQEMUProcess(ctx context.Context, qemuPath, kernelPath, initrdPath string, limits launcherbackend.BackendResourceLimits) (*exec.Cmd, io.Reader, context.CancelFunc, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, nil, err
+	}
 	argv := buildQEMUArgv(qemuPath, kernelPath, initrdPath, limits)
-	launchCtx, launchCancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(launchCtx, argv[0], argv[1:]...)
+	cmd := exec.Command(argv[0], argv[1:]...)
+	launchCancel := func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		launchCancel()
 		return nil, nil, nil, backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "failed to prepare qemu output stream")
 	}
 	cmd.Stderr = cmd.Stdout
@@ -181,6 +203,11 @@ func (c *qemuController) startQEMUProcess(qemuPath, kernelPath, initrdPath strin
 			return nil, nil, nil, backendError(launcherbackend.BackendErrorCodeAccelerationUnavailable, "kvm initialization failed")
 		}
 		return nil, nil, nil, backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "qemu launch failed")
+	}
+	if err := ctx.Err(); err != nil {
+		launchCancel()
+		_ = cmd.Process.Kill()
+		return nil, nil, nil, err
 	}
 	return cmd, stdout, launchCancel, nil
 }
@@ -220,13 +247,13 @@ func (c *qemuController) registerLaunchState(spec launcherbackend.BackendLaunchS
 }
 
 func (c *qemuController) terminateInstance(inst *qemuInstance) {
-	inst.cancel()
 	if inst.cmd == nil || inst.cmd.Process == nil {
+		inst.cancel()
 		return
 	}
 	_ = inst.cmd.Process.Signal(syscall.SIGTERM)
 	time.Sleep(2 * time.Second)
-	_ = inst.cmd.Process.Kill()
+	inst.cancel()
 }
 
 func (c *qemuController) instanceByRef(ref InstanceRef) *qemuInstance {

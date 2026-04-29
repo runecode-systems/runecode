@@ -157,6 +157,8 @@ type RunnerDurableJournalRecord struct {
 }
 
 type RuntimeAuditEmissionState struct {
-	LastIsolateSessionStartedDigest string `json:"last_isolate_session_started_digest,omitempty"`
-	LastIsolateSessionBoundDigest   string `json:"last_isolate_session_bound_digest,omitempty"`
+	LastIsolateSessionStartedDigest  string `json:"last_isolate_session_started_digest,omitempty"`
+	LastIsolateSessionBoundDigest    string `json:"last_isolate_session_bound_digest,omitempty"`
+	LastRuntimeLaunchAdmissionDigest string `json:"last_runtime_launch_admission_digest,omitempty"`
+	LastRuntimeLaunchDeniedDigest    string `json:"last_runtime_launch_denied_digest,omitempty"`
 }

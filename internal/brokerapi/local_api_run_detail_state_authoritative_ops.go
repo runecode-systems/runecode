@@ -190,28 +190,6 @@ func projectReceiptIdentityState(state map[string]any, receipt launcherbackend.B
 	}
 }
 
-func projectReceiptImageState(state map[string]any, receipt launcherbackend.BackendLaunchReceipt) {
-	if receipt.RuntimeImageDescriptorDigest != "" {
-		state["runtime_image_descriptor_digest"] = receipt.RuntimeImageDescriptorDigest
-		state["runtime_image_digest"] = receipt.RuntimeImageDescriptorDigest
-	}
-	if receipt.RuntimeImageSignerRef != "" {
-		state["runtime_image_signer_ref"] = receipt.RuntimeImageSignerRef
-	}
-	if receipt.RuntimeImageSignatureDigest != "" {
-		state["runtime_image_signature_digest"] = receipt.RuntimeImageSignatureDigest
-	}
-	if len(receipt.BootComponentDigestByName) > 0 {
-		state["boot_component_digest_by_name"] = receipt.BootComponentDigestByName
-	}
-	if len(receipt.BootComponentDigests) > 0 {
-		state["boot_component_digests"] = receipt.BootComponentDigests
-	}
-	if receipt.LaunchFailureReasonCode != "" {
-		state["launch_failure_reason_code"] = receipt.LaunchFailureReasonCode
-	}
-}
-
 func projectReceiptBackendEvidenceState(state map[string]any, receipt launcherbackend.BackendLaunchReceipt) {
 	if receipt.HypervisorImplementation != launcherbackend.HypervisorImplementationUnknown {
 		state["hypervisor_implementation"] = receipt.HypervisorImplementation

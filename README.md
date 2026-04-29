@@ -1,7 +1,7 @@
 # RuneCode — Security-first AI coding: isolated execution, signed, auditable
 
 [![CI](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml/badge.svg)](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml)
-[![Status: alpha.8 in progress](https://img.shields.io/badge/status-alpha.8%20in%20progress-orange)](runecontext/project/roadmap.md)
+[![Status: alpha.9 in progress](https://img.shields.io/badge/status-alpha.9%20in%20progress-orange)](runecontext/project/roadmap.md)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 RuneCode is a security-first agentic automation platform for software engineering.
@@ -9,7 +9,7 @@ It treats isolation and cryptographic provenance as co-equal pillars: work runs 
 
 ## Status
 
-The latest published release is `v0.1.0-alpha.7`, and the repository mainline already includes `v0.1.0-alpha.8` work in progress.
+The latest published release is `v0.1.0-alpha.7`, and the repository mainline already includes `v0.1.0-alpha.9` work in progress.
 RuneCode remains pre-production: the signed, tag-driven release pipeline exists, but the shipped Go binaries are still scaffold-heavy and not feature-complete.
 
 ## Why RuneCode
@@ -170,13 +170,14 @@ This quick path verifies signed checksums and the signed archive before install.
 - Broker-projected subsystem readiness for secrets and model-gateway posture, plus model-gateway runtime enforcement for allowlisted destinations, canonical request binding, quota context, and audit-bound egress decisions
 - Broker-projected backend posture state and approval-mediated instance posture changes, including the active launcher `instance_id`, selected `backend_kind`, reduced-assurance cues, per-backend availability, and policy/approval linkage for posture changes
 - A trusted launcher daemon/service plus a Linux-first microVM/QEMU/KVM MVP vertical slice and a Linux-only explicit-opt-in container backend slice for offline `workspace` launches, including a deterministic `runecode-launcher serve --hello-world` path for end-to-end launcher->broker runtime reporting
+- Signed runtime-image and runtime-toolchain identity contracts, typed verifier-authority state, trusted admission into a launcher-private verified runtime cache, and fail-closed launch from verified local assets rather than mutable host paths or ad hoc launch-time synthesis
 - Durable launcher runtime evidence persistence and broker-derived authoritative runtime projection for `backend_kind`, `isolation_assurance_level`, `provisioning_posture`, lifecycle, and terminal state
-- Broker-owned runtime audit emission for `isolate_session_started` and `isolate_session_bound`, with reference-heavy payloads bound to persisted launcher evidence digests
+- Broker-owned runtime audit emission for `runtime_launch_admission`, `runtime_launch_denied`, `isolate_session_started`, and `isolate_session_bound`, with reference-heavy payloads bound to persisted launcher evidence digests
 - Checked-in bounded TLA+ security-kernel artifacts plus deterministic TLC model-checking wired into `just model-check` and `just ci`
 
 Still incremental / not implemented end-to-end yet:
 - Secure-storage posture projection and broader provider auth modes remain incremental, but direct-credential provider setup and execution now exist for OpenAI-compatible and Anthropic-compatible endpoints on the shared provider substrate
-- The primary secure path remains Linux-first microVM/QEMU/KVM MVP. Container backend support now exists as a Linux-only explicit-opt-in reduced-assurance MVP for offline `workspace` launches; broader role coverage, non-Linux runtime paths, and further hardening/verification remain future work
+- The primary secure path now includes signed runtime-image and toolchain admission into a verified local cache for Linux-first launcher operation. Container backend support still exists as a Linux-only explicit-opt-in reduced-assurance MVP for offline `workspace` launches; broader role coverage, non-Linux runtime paths, and further hardening/verification remain future work
 - The broker and artifact store now implement local runtime behavior, but the overall system is still early alpha and not production-ready
 
 - Roadmap: `runecontext/project/roadmap.md`
@@ -203,7 +204,7 @@ Current MVP object families cover:
 - audit, approvals, and policy: `AuditEvent`, `AuditReceipt`, `AuditSegmentFile`, `AuditSegmentSeal`, `AuditVerificationReport`, `ApprovalRequest`, `ApprovalDecision`, `ApprovalBackendPostureSelection`, `PolicyDecision`, `PolicyRuleSet`, `PolicyAllowlist`
 - workflow planning and deterministic gates: `WorkflowDefinition`, `ProcessDefinition`, `RunPlan`, `GateDefinition`, `GateContract`, `RunnerCheckpointReport`, `RunnerResultReport`, `GateCheckpointReport`, `GateResultReport`, `GateEvidence`
 - stage summaries and sign-off payloads: `StageSummary`, `RunStageSummary`, `ActionPayloadStageSummarySignOff`
-- runtime evidence and session lifecycle payloads: `RuntimeImageDescriptor`, `IsolateSessionStartedPayload`, `IsolateSessionBoundPayload`
+- runtime evidence and session lifecycle payloads: `RuntimeImageDescriptor`, `RuntimeImageSignedPayload`, `RuntimeToolchainDescriptor`, `RuntimeLaunchAdmissionPayload`, `RuntimeLaunchDeniedPayload`, `IsolateSessionStartedPayload`, `IsolateSessionBoundPayload`
 - policy actions and destinations: `ActionRequest`, `ActionPayloadArtifactRead`, `ActionPayloadPromotion`, `ActionPayloadGatewayEgress`, `ActionPayloadSecretAccess`, `ActionPayloadWorkspaceWrite`, `ActionPayloadExecutorRun`, `ActionPayloadBackendPostureChange`, `ActionPayloadGateOverride`, `ActionPayloadStageSummarySignOff`, `DestinationDescriptor`, `GatewayScopeRule`
 - model traffic: `LLMRequest`, `LLMResponse`, `LLMStreamEvent`, `LLMInvokeRequest`, `LLMInvokeResponse`, `LLMStreamRequest`, `LLMStreamEnvelope`
 - broker local API requests/responses: `RunListRequest`, `RunGetRequest`, `SessionListRequest`, `SessionListResponse`, `SessionGetRequest`, `SessionGetResponse`, `SessionSendMessageRequest`, `SessionSendMessageResponse`, `SessionExecutionTriggerRequest`, `SessionExecutionTriggerResponse`, `SessionWatchRequest`, `SessionTurnExecutionWatchRequest`, `ApprovalListRequest`, `ApprovalGetRequest`, `ApprovalResolveRequest`, `BackendPostureGetRequest`, `BackendPostureChangeRequest`, `ArtifactListRequest`, `ArtifactHeadRequest`, `ArtifactReadRequest`, `AuditTimelineRequest`, `AuditRecordGetRequest`, `AuditVerificationGetRequest`, `AuditAnchorPresenceGetRequest`, `AuditAnchorPreflightGetRequest`, `AuditAnchorPreflightGetResponse`, `AuditAnchorSegmentRequest`, `AuditFinalizeVerifyRequest`, `AuditFinalizeVerifyResponse`, `ProjectSubstrateGetRequest`, `ProjectSubstrateGetResponse`, `ProjectSubstratePostureGetRequest`, `ProjectSubstratePostureGetResponse`, `ProjectSubstrateAdoptRequest`, `ProjectSubstrateAdoptResponse`, `ProjectSubstrateInitPreviewRequest`, `ProjectSubstrateInitPreviewResponse`, `ProjectSubstrateInitApplyRequest`, `ProjectSubstrateInitApplyResponse`, `ProjectSubstrateUpgradePreviewRequest`, `ProjectSubstrateUpgradePreviewResponse`, `ProjectSubstrateUpgradeApplyRequest`, `ProjectSubstrateUpgradeApplyResponse`, `ProductLifecyclePostureGetRequest`, `ProductLifecyclePostureGetResponse`, `ReadinessGetRequest`, `VersionInfoGetRequest`
@@ -290,8 +291,9 @@ Alongside that still-incremental surface, the repository already includes workin
 - a trusted local secrets daemon CLI for secret import and short-lived lease issue/renew/revoke/retrieve flows without passing secret values through CLI args or environment variables
 - broker-projected secrets and model-gateway readiness surfaces plus model-gateway runtime enforcement for allowlisted destinations, canonical request binding, quota admission/stream checks, and audit-backed egress decisions
 - a trusted launcher service with `serve`, `--once`, Linux-first `--hello-world` operator paths, and a Linux-only explicit-opt-in container backend posture for offline `workspace` launches
+- signed runtime-image and runtime-toolchain admission into a launcher-private verified cache, plus typed verifier-authority import and fail-closed launch from admitted local assets
 - launcher-produced runtime evidence persisted durably and projected into broker `RunSummary` / `RunDetail` authoritative state
-- broker-emitted runtime lifecycle audit events referencing persisted launcher evidence rather than transient launcher-local state
+- broker-emitted runtime launch/session audit events referencing persisted launcher evidence rather than transient launcher-local state
 
 You can inspect their help output:
 

@@ -20,6 +20,7 @@ When trusted Go services persist artifact-store state, audit logs, backup materi
 - Do not weaken Unix permission expectations for these files or directories without an explicit reviewed exception
 - Keep Windows portability explicit: permission-bit assertions may differ there, but the implementation should still avoid broader-than-necessary defaults
 - Replace sensitive state files atomically with a same-directory temp file plus rename path, using backup-and-restore when portability needs it, so partial failures do not silently become the new authoritative state
+- Verify that full buffers are written before syncing or promoting authoritative state files into place; short writes must fail closed and must not become the new durable truth
 - Persist audit-sequence state so restarted processes do not reuse audit sequence numbers after partial failures
 - If persisted audit data can get ahead of persisted state, startup must reconcile to the highest durable audit sequence before new events are emitted
 - Treat durable approval records, policy decisions, revocation state, and their linkage metadata as trusted local state with the same fail-closed expectations as artifact and audit persistence

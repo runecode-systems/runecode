@@ -31,17 +31,43 @@ func validMicroVMSpecForContractTests() BackendLaunchSpec {
 }
 
 func validRuntimeImageDescriptorForContractTests() RuntimeImageDescriptor {
-	return RuntimeImageDescriptor{
-		DescriptorDigest:      testDigest("1"),
+	descriptor := RuntimeImageDescriptor{
 		BackendKind:           BackendKindMicroVM,
 		PlatformCompatibility: RuntimeImagePlatformCompat{OS: "linux", Architecture: "amd64", AccelerationKind: AccelerationKindKVM},
-		BootContractVersion:   "v1",
+		BootContractVersion:   BootProfileMicroVMLinuxKernelInitrdV1,
 		ComponentDigests: map[string]string{
 			"kernel": testDigest("2"),
-			"rootfs": testDigest("4"),
+			"initrd": testDigest("4"),
 		},
-		Signing: &RuntimeImageSigningHooks{SignerRef: "signer:trusted-ci", SignatureDigest: testDigest("5")},
 	}
+	digest, err := descriptor.ExpectedDescriptorDigest()
+	if err != nil {
+		panic(err)
+	}
+	descriptor.DescriptorDigest = digest
+	descriptor.Signing = &RuntimeImageSigningHooks{
+		PayloadSchemaID:      RuntimeImageSignedPayloadSchemaID,
+		PayloadSchemaVersion: RuntimeImageSignedPayloadSchemaVersion,
+		PayloadDigest:        digest,
+		SignerRef:            "signer:runtime-image",
+		SignatureDigest:      testDigest("5"),
+		VerifierSetRef:       testDigest("c"),
+		Publication: &RuntimeAssetPublicationBundle{
+			DescriptorEnvelopeDigest:  testDigest("6"),
+			ComponentBundleDigest:     testDigest("7"),
+			PublicationManifestDigest: testDigest("8"),
+		},
+		Toolchain: &RuntimeToolchainSigningHooks{
+			DescriptorSchemaID:      RuntimeToolchainDescriptorSchemaID,
+			DescriptorSchemaVersion: RuntimeToolchainDescriptorSchemaVersion,
+			DescriptorDigest:        testDigest("9"),
+			SignerRef:               "signer:runtime-toolchain",
+			SignatureDigest:         testDigest("a"),
+			VerifierSetRef:          testDigest("d"),
+			BundleDigest:            testDigest("b"),
+		},
+	}
+	return descriptor
 }
 
 func validResourceLimitsForContractTests() BackendResourceLimits {

@@ -5,11 +5,17 @@ package launcherdaemon
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
-type QEMUControllerConfig struct{}
+type QEMUControllerConfig struct {
+	QEMUBinary string
+	KernelPath string
+	WorkRoot   string
+	Now        func() time.Time
+}
 
 type unsupportedController struct{}
 

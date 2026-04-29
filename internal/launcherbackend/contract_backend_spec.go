@@ -23,8 +23,11 @@ func (s BackendLaunchSpec) Validate() error {
 }
 
 func validateBackendLaunchSpecIdentity(spec BackendLaunchSpec) error {
-	if strings.TrimSpace(spec.RunID) == "" || strings.TrimSpace(spec.StageID) == "" {
-		return fmt.Errorf("run_id and stage_id are required")
+	if err := validateLaunchIdentityToken("run_id", spec.RunID); err != nil {
+		return err
+	}
+	if err := validateLaunchIdentityToken("stage_id", spec.StageID); err != nil {
+		return err
 	}
 	if err := validateSingleRoleToken("role_instance_id", spec.RoleInstanceID); err != nil {
 		return err
@@ -57,6 +60,9 @@ func validateBackendLaunchSpecImageAndSigning(spec BackendLaunchSpec) error {
 	}
 	if strings.TrimSpace(spec.Image.Signing.SignerRef) == "" || strings.TrimSpace(spec.Image.Signing.SignatureDigest) == "" {
 		return fmt.Errorf("runtime_image.signing.signer_ref and runtime_image.signing.signature_digest are required")
+	}
+	if normalizeBootProfile(spec.Image.BootContractVersion) == BootProfileMicroVMLinuxKernelInitrdV1 && spec.Image.Signing.Toolchain == nil {
+		return fmt.Errorf("runtime_image.signing.toolchain is required for boot_contract_version %q", BootProfileMicroVMLinuxKernelInitrdV1)
 	}
 	return nil
 }

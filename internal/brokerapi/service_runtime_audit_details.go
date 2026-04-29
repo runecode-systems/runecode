@@ -17,10 +17,12 @@ func runtimeAuditDetailsForPayload(eventType, payloadSchemaID string, payload an
 		"event_payload_schema_id":     payloadSchemaID,
 		"event_payload":               json.RawMessage(payloadRaw),
 		"operation_id":                buildRuntimeEventOperationID(eventType, evidence),
-		"session_id":                  evidence.Launch.SessionID,
 		"run_id":                      evidence.Launch.RunID,
 		"evidence_digest_refs":        runtimeEvidenceDigestRefs(evidence),
 		"stored_runtime_fact_digests": runtimeStoredDigestMap(evidence),
+	}
+	if sessionID := strings.TrimSpace(evidence.Launch.SessionID); sessionID != "" {
+		details["session_id"] = sessionID
 	}
 	if stageID := strings.TrimSpace(facts.LaunchReceipt.StageID); stageID != "" {
 		details["stage_id"] = stageID
@@ -29,18 +31,42 @@ func runtimeAuditDetailsForPayload(eventType, payloadSchemaID string, payload an
 }
 
 func buildRuntimeEventOperationID(eventType string, evidence launcherbackend.RuntimeEvidenceSnapshot) string {
-	base := evidence.Launch.RunID + ":" + evidence.Launch.SessionID + ":" + evidence.Session.EvidenceDigest
+	base := runtimeAuditOperationBase(eventType, evidence)
 	if eventType == "isolate_session_started" {
 		return "runtime-start:" + base
 	}
+	if eventType == "runtime_launch_admission" {
+		return "runtime-launch-admission:" + base
+	}
+	if eventType == "runtime_launch_denied" {
+		return "runtime-launch-denied:" + base
+	}
 	return "runtime-bind:" + base
+}
+
+func runtimeAuditOperationBase(eventType string, evidence launcherbackend.RuntimeEvidenceSnapshot) string {
+	if eventType == "runtime_launch_admission" || eventType == "runtime_launch_denied" {
+		return evidence.Launch.EvidenceDigest
+	}
+	return runtimeSessionAuditIdentityKey(evidence)
+}
+
+func runtimeSessionAuditIdentityKey(evidence launcherbackend.RuntimeEvidenceSnapshot) string {
+	parts := []string{
+		evidence.Launch.EvidenceDigest,
+		evidence.Hardening.EvidenceDigest,
+		runtimeSessionEvidenceDigest(evidence),
+	}
+	return strings.Join(parts, ":")
 }
 
 func runtimeEvidenceDigestRefs(evidence launcherbackend.RuntimeEvidenceSnapshot) []map[string]string {
 	refs := []map[string]string{
 		{"kind": "launch_receipt", "digest": evidence.Launch.EvidenceDigest},
 		{"kind": "applied_hardening_posture", "digest": evidence.Hardening.EvidenceDigest},
-		{"kind": "session_binding", "digest": evidence.Session.EvidenceDigest},
+	}
+	if session := runtimeSessionEvidenceDigest(evidence); session != "" {
+		refs = append(refs, map[string]string{"kind": "session_binding", "digest": session})
 	}
 	if terminal := runtimeTerminalEvidenceDigest(evidence); terminal != "" {
 		refs = append(refs, map[string]string{"kind": "terminal_report", "digest": terminal})
@@ -52,9 +78,16 @@ func runtimeStoredDigestMap(evidence launcherbackend.RuntimeEvidenceSnapshot) ma
 	return map[string]string{
 		"launch_receipt":    evidence.Launch.EvidenceDigest,
 		"hardening_posture": evidence.Hardening.EvidenceDigest,
-		"session_binding":   evidence.Session.EvidenceDigest,
+		"session_binding":   runtimeSessionEvidenceDigest(evidence),
 		"terminal_report":   runtimeTerminalEvidenceDigest(evidence),
 	}
+}
+
+func runtimeSessionEvidenceDigest(evidence launcherbackend.RuntimeEvidenceSnapshot) string {
+	if evidence.Session == nil {
+		return ""
+	}
+	return evidence.Session.EvidenceDigest
 }
 
 func runtimeTerminalEvidenceDigest(evidence launcherbackend.RuntimeEvidenceSnapshot) string {

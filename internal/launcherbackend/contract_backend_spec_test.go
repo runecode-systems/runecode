@@ -43,6 +43,19 @@ func TestBackendLaunchSpecRejectsRoleMultiplicityTokens(t *testing.T) {
 	}
 }
 
+func TestBackendLaunchSpecRejectsPathTraversalInRunIdentity(t *testing.T) {
+	spec := validMicroVMSpecForContractTests()
+	spec.RunID = ".."
+	if err := spec.Validate(); err == nil {
+		t.Fatal("Validate expected run_id path traversal rejection")
+	}
+	spec = validMicroVMSpecForContractTests()
+	spec.StageID = "../stage"
+	if err := spec.Validate(); err == nil {
+		t.Fatal("Validate expected stage_id path traversal rejection")
+	}
+}
+
 func TestBackendLaunchSpecRejectsUnsupportedAccelerationForPlatform(t *testing.T) {
 	spec := validMicroVMSpecForContractTests()
 	spec.RequestedAccelerationKind = unsupportedAccelerationForPlatform(runtime.GOOS)
@@ -69,12 +82,23 @@ func TestContainerLaunchSpecRejectsMicroVMSpecificAccelerationAndTransportFields
 	spec.RequestedAccelerationKind = AccelerationKindKVM
 	spec.ControlTransportKind = TransportKindVSock
 	spec.Image = RuntimeImageDescriptor{
-		DescriptorDigest:      testDigest("7"),
 		BackendKind:           BackendKindContainer,
 		PlatformCompatibility: RuntimeImagePlatformCompat{OS: "linux", Architecture: "amd64"},
-		BootContractVersion:   "v1",
+		BootContractVersion:   BootProfileContainerOCIImageV1,
 		ComponentDigests:      map[string]string{"image": testDigest("8")},
-		Signing:               &RuntimeImageSigningHooks{SignerRef: "signer:trusted-ci", SignatureDigest: testDigest("9")},
+	}
+	digest, err := spec.Image.ExpectedDescriptorDigest()
+	if err != nil {
+		t.Fatalf("ExpectedDescriptorDigest returned error: %v", err)
+	}
+	spec.Image.DescriptorDigest = digest
+	spec.Image.Signing = &RuntimeImageSigningHooks{
+		PayloadSchemaID:      RuntimeImageSignedPayloadSchemaID,
+		PayloadSchemaVersion: RuntimeImageSignedPayloadSchemaVersion,
+		PayloadDigest:        digest,
+		SignerRef:            "signer:runtime-image",
+		SignatureDigest:      testDigest("9"),
+		VerifierSetRef:       testDigest("a"),
 	}
 	if err := spec.Validate(); err == nil {
 		t.Fatal("Validate expected container rejection for non-empty acceleration/transport")
@@ -88,5 +112,13 @@ func TestContainerLaunchSpecRejectsMicroVMSpecificAccelerationAndTransportFields
 	spec.ControlTransportKind = ""
 	if err := spec.Validate(); err != nil {
 		t.Fatalf("Validate returned error after clearing microvm-only fields: %v", err)
+	}
+}
+
+func TestMicroVMLaunchSpecRequiresSignedToolchainProvenance(t *testing.T) {
+	spec := validMicroVMSpecForContractTests()
+	spec.Image.Signing.Toolchain = nil
+	if err := spec.Validate(); err == nil {
+		t.Fatal("Validate expected signed toolchain requirement for microvm boot profile")
 	}
 }

@@ -61,7 +61,62 @@ func commandHandlers() map[string]commandHandler {
 	return map[string]commandHandler{
 		"serve":                    handleServe,
 		"validate-isolate-binding": handleValidateIsolateBinding,
+		"import-runtime-verifier-authority-state":    handleImportRuntimeVerifierAuthorityState,
+		"show-runtime-verifier-authority-state":      handleShowRuntimeVerifierAuthorityState,
+		"export-runtime-verifier-authority-baseline": handleExportRuntimeVerifierAuthorityBaseline,
 	}
+}
+
+func handleImportRuntimeVerifierAuthorityState(args []string, stdout io.Writer) error {
+	fs := flag.NewFlagSet("import-runtime-verifier-authority-state", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	filePath := fs.String("file", "", "path to reviewed authority-state JSON")
+	workRoot := fs.String("work-root", "", "launcher work root (optional)")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "import-runtime-verifier-authority-state usage: runecode-launcher import-runtime-verifier-authority-state --file authority-state.json [--work-root path]"}
+	}
+	if *filePath == "" {
+		return &usageError{message: "import-runtime-verifier-authority-state requires --file"}
+	}
+	receipt, err := launcherdaemon.ImportRuntimeVerifierAuthorityStateForWorkRootWithReceipt(*workRoot, *filePath)
+	if err != nil {
+		return err
+	}
+	b, err := json.Marshal(receipt)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "runtime verifier authority state imported\n%s\n", string(b))
+	return err
+}
+
+func handleShowRuntimeVerifierAuthorityState(args []string, stdout io.Writer) error {
+	fs := flag.NewFlagSet("show-runtime-verifier-authority-state", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	workRoot := fs.String("work-root", "", "launcher work root (optional)")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "show-runtime-verifier-authority-state usage: runecode-launcher show-runtime-verifier-authority-state [--work-root path]"}
+	}
+	b, err := launcherdaemon.ExportEffectiveRuntimeVerifierAuthorityStateForWorkRoot(*workRoot)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "%s\n", string(b))
+	return err
+}
+
+func handleExportRuntimeVerifierAuthorityBaseline(args []string, stdout io.Writer) error {
+	fs := flag.NewFlagSet("export-runtime-verifier-authority-baseline", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "export-runtime-verifier-authority-baseline usage: runecode-launcher export-runtime-verifier-authority-baseline"}
+	}
+	b, err := launcherdaemon.ExportBuiltInRuntimeVerifierAuthorityState()
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "%s\n", string(b))
+	return err
 }
 
 func handleServe(args []string, stdout io.Writer) error {
@@ -87,7 +142,7 @@ func handleServe(args []string, stdout io.Writer) error {
 			_ = svc.Stop(context.Background())
 		}
 	}()
-	if err := maybeRunHelloWorldSlice(svc, brokerSvc, cfg, stdout); err != nil {
+	if err := maybeRunHelloWorldSlice(svc, brokerSvc, svcCfg, stdout); err != nil {
 		return err
 	}
 	if cfg.once {
@@ -135,7 +190,7 @@ func buildServeServiceConfig(cfg serveConfig) (launcherdaemon.Config, *brokerapi
 		cleanup()
 		return launcherdaemon.Config{}, nil, func() {}, err
 	}
-	return launcherdaemon.Config{Reporter: brokerSvc}, brokerSvc, cleanup, nil
+	return launcherdaemon.Config{Reporter: brokerSvc, WorkRoot: storeRoot}, brokerSvc, cleanup, nil
 }
 
 func resolveServeRoots(cfg serveConfig) (string, string, func(), error) {
@@ -160,15 +215,20 @@ func resolveServeRoots(cfg serveConfig) (string, string, func(), error) {
 	return storeRoot, ledgerRoot, cleanup, nil
 }
 
-func maybeRunHelloWorldSlice(svc *launcherdaemon.Service, brokerSvc *brokerapi.Service, cfg serveConfig, stdout io.Writer) error {
-	if !cfg.helloWorld {
+func maybeRunHelloWorldSlice(svc *launcherdaemon.Service, brokerSvc *brokerapi.Service, cfg launcherdaemon.Config, stdout io.Writer) error {
+	if cfg.Reporter == nil {
 		return nil
 	}
 	if brokerSvc == nil {
 		return fmt.Errorf("hello-world reporter unavailable")
 	}
-	runID := fmt.Sprintf("launcher-cli-hello-%d", time.Now().Unix())
-	ref, err := svc.Launch(context.Background(), helloWorldLaunchSpec(runID))
+	runID := fmt.Sprintf("launcher-cli-hello-%d", time.Now().UnixNano())
+	image, err := helloWorldRuntimeImage(cfg.WorkRoot)
+	if err != nil {
+		return err
+	}
+	spec := helloWorldLaunchSpec(runID, image)
+	ref, err := svc.Launch(context.Background(), spec)
 	if err != nil {
 		return err
 	}
@@ -215,7 +275,7 @@ func waitForTerminalReport(svc *brokerapi.Service, runID string, timeout time.Du
 	return fmt.Errorf("hello-world run timed out waiting for terminal report")
 }
 
-func helloWorldLaunchSpec(runID string) launcherbackend.BackendLaunchSpec {
+func helloWorldLaunchSpec(runID string, image launcherbackend.RuntimeImageDescriptor) launcherbackend.BackendLaunchSpec {
 	return launcherbackend.BackendLaunchSpec{
 		RunID:                     runID,
 		StageID:                   "stage-1",
@@ -225,16 +285,7 @@ func helloWorldLaunchSpec(runID string) launcherbackend.BackendLaunchSpec {
 		RequestedBackend:          launcherbackend.BackendKindMicroVM,
 		RequestedAccelerationKind: launcherbackend.AccelerationKindKVM,
 		ControlTransportKind:      launcherbackend.TransportKindVirtioSerial,
-		Image: launcherbackend.RuntimeImageDescriptor{
-			DescriptorDigest:    "sha256:" + repeatHex('a'),
-			BackendKind:         launcherbackend.BackendKindMicroVM,
-			BootContractVersion: "v1",
-			PlatformCompatibility: launcherbackend.RuntimeImagePlatformCompat{
-				OS: "linux", Architecture: "amd64", AccelerationKind: launcherbackend.AccelerationKindKVM,
-			},
-			ComponentDigests: map[string]string{"kernel": "sha256:" + repeatHex('b'), "rootfs": "sha256:" + repeatHex('c')},
-			Signing:          &launcherbackend.RuntimeImageSigningHooks{SignerRef: "launcher-cli", SignatureDigest: "sha256:" + repeatHex('d')},
-		},
+		Image:                     image,
 		Attachments: launcherbackend.AttachmentPlan{
 			ByRole: map[string]launcherbackend.AttachmentBinding{
 				launcherbackend.AttachmentRoleLaunchContext:  {ReadOnly: true, ChannelKind: launcherbackend.AttachmentChannelReadOnlyVolume, RequiredDigests: []string{"sha256:" + repeatHex('e')}},
@@ -255,6 +306,10 @@ func helloWorldLaunchSpec(runID string) launcherbackend.BackendLaunchSpec {
 		LifecyclePolicy: launcherbackend.BackendLifecyclePolicy{TerminateBetweenSteps: true},
 		CachePosture:    launcherbackend.BackendCachePosture{ResetOrDestroyBeforeReuse: true, DigestPinned: true, SignaturePinned: true},
 	}
+}
+
+func helloWorldRuntimeImage(workRoot string) (launcherbackend.RuntimeImageDescriptor, error) {
+	return launcherdaemon.PrepareHelloWorldRuntimeImageForLaunch(workRoot)
 }
 
 func repeatHex(ch byte) string {
@@ -282,7 +337,10 @@ func writeHelp(w io.Writer) error {
 
 Commands:
   serve [--once] [--hello-world] [--store-root path] [--ledger-root path]
-  validate-isolate-binding --file binding.json`)
+  validate-isolate-binding --file binding.json
+  import-runtime-verifier-authority-state --file authority-state.json [--work-root path]
+  show-runtime-verifier-authority-state [--work-root path]
+  export-runtime-verifier-authority-baseline`)
 	return err
 }
 

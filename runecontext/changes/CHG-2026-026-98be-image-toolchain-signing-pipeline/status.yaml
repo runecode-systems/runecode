@@ -3,7 +3,7 @@ id: CHG-2026-026-98be-image-toolchain-signing-pipeline
 title: Image/Toolchain Signing Pipeline
 status: planned
 type: feature
-size: medium
+size: large
 verification_status: pending
 context_bundles:
   - product-planning

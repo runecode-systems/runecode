@@ -18,7 +18,10 @@ func (d RuntimeImageDescriptor) Validate() error {
 	if err := validateRuntimeImageSigningHooks(d.Signing); err != nil {
 		return err
 	}
-	return validateRuntimeImageAttestationHooks(d.Attestation)
+	if err := validateRuntimeImageAttestationHooks(d.Attestation); err != nil {
+		return err
+	}
+	return validateRuntimeImageSignedPayloadBinding(d)
 }
 
 func validateRuntimeImageDescriptorIdentityAndBackend(descriptor RuntimeImageDescriptor) error {
@@ -48,13 +51,17 @@ func validateRuntimeImageDescriptorPlatform(platform RuntimeImagePlatformCompat)
 }
 
 func validateRuntimeImageDescriptorComponents(backendKind string, bootContractVersion string, componentDigests map[string]string) error {
-	if strings.TrimSpace(bootContractVersion) == "" {
-		return fmt.Errorf("boot_contract_version is required")
+	bootProfile := normalizeBootProfile(bootContractVersion)
+	if bootProfile == "" {
+		return fmt.Errorf("boot_contract_version must be one of %q or %q", BootProfileMicroVMLinuxKernelInitrdV1, BootProfileContainerOCIImageV1)
 	}
 	if len(componentDigests) == 0 {
 		return fmt.Errorf("component_digests is required")
 	}
-	if err := validateBackendSpecificComponentRequirements(backendKind, componentDigests); err != nil {
+	if err := validateBootProfileBackendCompatibility(backendKind, bootProfile); err != nil {
+		return err
+	}
+	if err := validateBootProfileComponentRequirements(bootProfile, componentDigests); err != nil {
 		return err
 	}
 	return validateComponentDigestEntries(componentDigests)
@@ -75,35 +82,30 @@ func validateComponentDigestEntries(componentDigests map[string]string) error {
 	return nil
 }
 
-func validateBackendSpecificComponentRequirements(backendKind string, componentDigests map[string]string) error {
-	normalizedBackend := normalizeBackendKind(backendKind)
-	if normalizedBackend == BackendKindMicroVM {
-		if strings.TrimSpace(componentDigests["kernel"]) == "" || strings.TrimSpace(componentDigests["rootfs"]) == "" {
-			return fmt.Errorf("component_digests must include kernel and rootfs for backend_kind microvm")
+func validateBootProfileBackendCompatibility(backendKind string, bootProfile string) error {
+	switch normalizeBackendKind(backendKind) {
+	case BackendKindMicroVM:
+		if bootProfile != BootProfileMicroVMLinuxKernelInitrdV1 {
+			return fmt.Errorf("backend_kind microvm requires boot_contract_version %q", BootProfileMicroVMLinuxKernelInitrdV1)
 		}
-		return nil
-	}
-	if normalizedBackend == BackendKindContainer && strings.TrimSpace(componentDigests["image"]) == "" {
-		return fmt.Errorf("component_digests must include image for backend_kind container")
+	case BackendKindContainer:
+		if bootProfile != BootProfileContainerOCIImageV1 {
+			return fmt.Errorf("backend_kind container requires boot_contract_version %q", BootProfileContainerOCIImageV1)
+		}
 	}
 	return nil
 }
 
-func validateRuntimeImageSigningHooks(signing *RuntimeImageSigningHooks) error {
-	if signing == nil {
-		return nil
-	}
-	if strings.TrimSpace(signing.SignerRef) == "" && strings.TrimSpace(signing.SignatureDigest) == "" && strings.TrimSpace(signing.SignatureBundleRef) == "" {
-		return fmt.Errorf("signing must include at least one field")
-	}
-	if strings.TrimSpace(signing.SignerRef) != "" && looksLikeHostPath(signing.SignerRef) {
-		return fmt.Errorf("signing.signer_ref must not include host-local path material")
-	}
-	if strings.TrimSpace(signing.SignatureDigest) != "" && !looksLikeDigest(signing.SignatureDigest) {
-		return fmt.Errorf("signing.signature_digest must be sha256:<64 lowercase hex>")
-	}
-	if strings.TrimSpace(signing.SignatureBundleRef) != "" && looksLikeHostPath(signing.SignatureBundleRef) {
-		return fmt.Errorf("signing.signature_bundle_ref must not include host-local path material")
+func validateBootProfileComponentRequirements(bootProfile string, componentDigests map[string]string) error {
+	switch bootProfile {
+	case BootProfileMicroVMLinuxKernelInitrdV1:
+		if strings.TrimSpace(componentDigests["kernel"]) == "" || strings.TrimSpace(componentDigests["initrd"]) == "" {
+			return fmt.Errorf("component_digests must include kernel and initrd for boot_contract_version %q", BootProfileMicroVMLinuxKernelInitrdV1)
+		}
+	case BootProfileContainerOCIImageV1:
+		if strings.TrimSpace(componentDigests["image"]) == "" {
+			return fmt.Errorf("component_digests must include image for boot_contract_version %q", BootProfileContainerOCIImageV1)
+		}
 	}
 	return nil
 }
@@ -119,6 +121,29 @@ func validateRuntimeImageAttestationHooks(attestation *RuntimeImageAttestationHo
 		if !looksLikeDigest(digest) {
 			return fmt.Errorf("attestation.expected_measurement_digests values must be sha256:<64 lowercase hex>")
 		}
+	}
+	return nil
+}
+
+func validateRuntimeImageSignedPayloadBinding(descriptor RuntimeImageDescriptor) error {
+	expectedDigest, err := descriptor.ExpectedDescriptorDigest()
+	if err != nil {
+		return err
+	}
+	if descriptor.DescriptorDigest != expectedDigest {
+		return fmt.Errorf("descriptor_digest must match canonical signed payload digest")
+	}
+	if descriptor.Signing == nil {
+		return nil
+	}
+	if descriptor.Signing.PayloadSchemaID != RuntimeImageSignedPayloadSchemaID {
+		return fmt.Errorf("signing.payload_schema_id must be %q", RuntimeImageSignedPayloadSchemaID)
+	}
+	if descriptor.Signing.PayloadSchemaVersion != RuntimeImageSignedPayloadSchemaVersion {
+		return fmt.Errorf("signing.payload_schema_version must be %q", RuntimeImageSignedPayloadSchemaVersion)
+	}
+	if descriptor.Signing.PayloadDigest != expectedDigest {
+		return fmt.Errorf("signing.payload_digest must match canonical signed payload digest")
 	}
 	return nil
 }

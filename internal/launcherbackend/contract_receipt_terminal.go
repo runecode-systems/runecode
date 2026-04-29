@@ -38,15 +38,33 @@ func normalizeReceiptImageFields(receipt *BackendLaunchReceipt) {
 	if strings.TrimSpace(receipt.RuntimeImageDigest) == "" {
 		receipt.RuntimeImageDigest = receipt.RuntimeImageDescriptorDigest
 	}
+	receipt.RuntimeImageBootProfile = normalizeBootProfile(receipt.RuntimeImageBootProfile)
 	receipt.RuntimeImageSignerRef = strings.TrimSpace(receipt.RuntimeImageSignerRef)
+	receipt.RuntimeImageVerifierRef = strings.TrimSpace(receipt.RuntimeImageVerifierRef)
 	receipt.RuntimeImageSignatureDigest = strings.TrimSpace(receipt.RuntimeImageSignatureDigest)
+	receipt.RuntimeToolchainDescriptorDigest = strings.TrimSpace(receipt.RuntimeToolchainDescriptorDigest)
+	receipt.RuntimeToolchainSignerRef = strings.TrimSpace(receipt.RuntimeToolchainSignerRef)
+	receipt.RuntimeToolchainVerifierRef = strings.TrimSpace(receipt.RuntimeToolchainVerifierRef)
+	receipt.RuntimeToolchainSignatureDigest = strings.TrimSpace(receipt.RuntimeToolchainSignatureDigest)
 	if receipt.RuntimeImageSignatureDigest != "" && !looksLikeDigest(receipt.RuntimeImageSignatureDigest) {
 		receipt.RuntimeImageSignatureDigest = ""
 	}
+	if receipt.RuntimeToolchainDescriptorDigest != "" && !looksLikeDigest(receipt.RuntimeToolchainDescriptorDigest) {
+		receipt.RuntimeToolchainDescriptorDigest = ""
+	}
+	if receipt.RuntimeToolchainSignatureDigest != "" && !looksLikeDigest(receipt.RuntimeToolchainSignatureDigest) {
+		receipt.RuntimeToolchainSignatureDigest = ""
+	}
 	normalizeBootComponentDigestFields(receipt)
 	if strings.TrimSpace(receipt.RuntimeImageDescriptorDigest) == "" {
+		receipt.RuntimeImageBootProfile = ""
 		receipt.RuntimeImageSignerRef = ""
+		receipt.RuntimeImageVerifierRef = ""
 		receipt.RuntimeImageSignatureDigest = ""
+		receipt.RuntimeToolchainDescriptorDigest = ""
+		receipt.RuntimeToolchainSignerRef = ""
+		receipt.RuntimeToolchainVerifierRef = ""
+		receipt.RuntimeToolchainSignatureDigest = ""
 	}
 }
 

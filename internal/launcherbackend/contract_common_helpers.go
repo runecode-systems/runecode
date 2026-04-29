@@ -45,6 +45,17 @@ func validateSingleRoleToken(field string, value string) error {
 	return nil
 }
 
+func validateLaunchIdentityToken(field string, value string) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("%s is required", field)
+	}
+	if trimmed == "." || trimmed == ".." || !roleTokenPattern.MatchString(trimmed) {
+		return fmt.Errorf("%s must match token pattern and must not contain path traversal material", field)
+	}
+	return nil
+}
+
 func looksLikeHostPath(value string) bool {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {

@@ -12,15 +12,18 @@ import (
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
-type ContainerControllerConfig struct{}
+type ContainerControllerConfig struct {
+	WorkRoot string
+}
 
 type containerController struct {
+	workRoot  string
 	mu        sync.RWMutex
 	instances map[string]InstanceState
 }
 
-func NewContainerController(ContainerControllerConfig) Controller {
-	return &containerController{instances: map[string]InstanceState{}}
+func NewContainerController(cfg ContainerControllerConfig) Controller {
+	return &containerController{workRoot: strings.TrimSpace(cfg.WorkRoot), instances: map[string]InstanceState{}}
 }
 
 func (c *containerController) Launch(_ context.Context, spec launcherbackend.BackendLaunchSpec) (<-chan RuntimeUpdate, error) {
@@ -28,9 +31,13 @@ func (c *containerController) Launch(_ context.Context, spec launcherbackend.Bac
 	if err != nil {
 		return nil, err
 	}
+	admittedImage, err := admitRuntimeImage(c.workRoot, spec.Image)
+	if err != nil {
+		return nil, err
+	}
 	ref := InstanceRef{RunID: spec.RunID, StageID: spec.StageID, RoleInstanceID: spec.RoleInstanceID}
 	c.storeLaunchedContainerInstance(ref)
-	return buildContainerRuntimeUpdates(spec, hardening), nil
+	return buildContainerRuntimeUpdates(spec, hardening, admittedImage.admissionRecord), nil
 }
 
 func (c *containerController) Terminate(_ context.Context, ref InstanceRef) error {
@@ -104,9 +111,9 @@ func (c *containerController) storeLaunchedContainerInstance(ref InstanceRef) {
 	c.mu.Unlock()
 }
 
-func buildContainerRuntimeUpdates(spec launcherbackend.BackendLaunchSpec, hardening launcherbackend.AppliedHardeningPosture) <-chan RuntimeUpdate {
+func buildContainerRuntimeUpdates(spec launcherbackend.BackendLaunchSpec, hardening launcherbackend.AppliedHardeningPosture, admission launcherbackend.RuntimeAdmissionRecord) <-chan RuntimeUpdate {
 	updates := make(chan RuntimeUpdate, 3)
-	receipt := containerLaunchReceipt(spec)
+	receipt := containerLaunchReceipt(spec, admission)
 	facts := launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: receipt, HardeningPosture: hardening}
 	updates <- RuntimeUpdate{RunID: spec.RunID, Facts: &facts}
 	started := lifecycleUpdate(launcherbackend.BackendLifecycleStateStarted, launcherbackend.BackendLifecycleStateLaunching, 2, "")
@@ -117,20 +124,32 @@ func buildContainerRuntimeUpdates(spec launcherbackend.BackendLaunchSpec, harden
 	return updates
 }
 
-func containerLaunchReceipt(spec launcherbackend.BackendLaunchSpec) launcherbackend.BackendLaunchReceipt {
+func containerLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord) launcherbackend.BackendLaunchReceipt {
 	return launcherbackend.BackendLaunchReceipt{
-		RunID:                    spec.RunID,
-		StageID:                  spec.StageID,
-		RoleInstanceID:           spec.RoleInstanceID,
-		RoleFamily:               spec.RoleFamily,
-		RoleKind:                 spec.RoleKind,
-		BackendKind:              launcherbackend.BackendKindContainer,
-		IsolationAssuranceLevel:  launcherbackend.IsolationAssuranceDegraded,
-		ProvisioningPosture:      launcherbackend.ProvisioningPostureNotApplicable,
-		HypervisorImplementation: launcherbackend.HypervisorImplementationNotApplicable,
-		AccelerationKind:         launcherbackend.AccelerationKindNotApplicable,
-		TransportKind:            launcherbackend.TransportKindNotApplicable,
-		AttachmentPlanSummary:    summarizeAttachments(spec.Attachments),
+		RunID:                            spec.RunID,
+		StageID:                          spec.StageID,
+		RoleInstanceID:                   spec.RoleInstanceID,
+		RoleFamily:                       spec.RoleFamily,
+		RoleKind:                         spec.RoleKind,
+		BackendKind:                      launcherbackend.BackendKindContainer,
+		IsolationAssuranceLevel:          launcherbackend.IsolationAssuranceDegraded,
+		ProvisioningPosture:              launcherbackend.ProvisioningPostureNotApplicable,
+		HypervisorImplementation:         launcherbackend.HypervisorImplementationNotApplicable,
+		AccelerationKind:                 launcherbackend.AccelerationKindNotApplicable,
+		TransportKind:                    launcherbackend.TransportKindNotApplicable,
+		RuntimeImageDescriptorDigest:     admission.DescriptorDigest,
+		RuntimeImageBootProfile:          admission.BootContractVersion,
+		RuntimeImageSignerRef:            admission.RuntimeImageSignerRef,
+		RuntimeImageVerifierRef:          admission.RuntimeImageVerifierSetRef,
+		RuntimeImageSignatureDigest:      admission.RuntimeImageSignatureDigest,
+		RuntimeToolchainDescriptorDigest: admission.RuntimeToolchainDescriptorDigest,
+		RuntimeToolchainSignerRef:        admission.RuntimeToolchainSignerRef,
+		RuntimeToolchainVerifierRef:      admission.RuntimeToolchainVerifierSetRef,
+		RuntimeToolchainSignatureDigest:  admission.RuntimeToolchainSignatureDigest,
+		AuthorityStateDigest:             admission.AuthorityStateDigest,
+		AuthorityStateRevision:           admission.AuthorityStateRevision,
+		BootComponentDigestByName:        cloneMap(admission.ComponentDigests),
+		AttachmentPlanSummary:            summarizeAttachments(spec.Attachments),
 		WorkspaceEncryptionPosture: &launcherbackend.WorkspaceEncryptionPosture{
 			Required:             true,
 			AtRestProtection:     launcherbackend.WorkspaceAtRestProtectionHostManagedEncryption,

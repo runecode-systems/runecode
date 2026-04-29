@@ -7,15 +7,17 @@
   - session identity
   - `session_nonce`
   - `handshake_transcript_hash`
-  - runtime image descriptor identity
-  - concrete boot component digests
+  - signed runtime image descriptor identity
+  - boot-profile identity
+  - concrete launched boot component digests
+  - launch-admission or equivalent trusted runtime-identity evidence where needed
   - prior provisioning evidence
 - [ ] Preserve compatibility with the MVP audit/event envelope so previously recorded TOFU fields do not need a format break.
 - [ ] Preserve compatibility with the `IsolateSessionBinding` model and the `isolate_session_started` / `isolate_session_bound` audit event families so attestation upgrades the same session-key model rather than replacing it.
 
 ## Launch, Verification, and Policy Integration
 
-- [ ] Define how the launcher obtains and verifies attestation evidence before trusting the upgraded isolate binding.
+- [ ] Define how the launcher obtains and verifies attestation evidence before trusting the upgraded isolate binding, using the admitted signed runtime-asset identity as the baseline runtime truth.
 - [ ] Distinguish TOFU-only, attested-valid, unavailable, and invalid attestation postures across policy and verification flows.
 - [ ] Fail closed when an attested posture is required and evidence is invalid or replayed.
 
@@ -29,7 +31,7 @@
 ## Fixtures + Cross-Platform Considerations
 
 - [ ] Add checked-in fixtures for valid, invalid, replayed, and unavailable attestation evidence.
-- [ ] Account for platform-specific attestation sources without making the shared verifier contract platform-specific.
+- [ ] Account for platform-specific attestation sources without making the shared verifier contract or operator-visible runtime identity semantics platform-specific.
 
 ## Acceptance Criteria
 

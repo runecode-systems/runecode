@@ -6,11 +6,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,33 +19,42 @@ import (
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
-func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, isoID, sessionID, nonce, qemuVersion, qemuBuild string, bootComponentDigests map[string]string) launcherbackend.BackendLaunchReceipt {
+func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild string, cacheEvidence *launcherbackend.BackendCacheEvidence) launcherbackend.BackendLaunchReceipt {
 	return launcherbackend.BackendLaunchReceipt{
-		RunID:                        spec.RunID,
-		StageID:                      spec.StageID,
-		RoleInstanceID:               spec.RoleInstanceID,
-		RoleFamily:                   spec.RoleFamily,
-		RoleKind:                     spec.RoleKind,
-		BackendKind:                  launcherbackend.BackendKindMicroVM,
-		IsolationAssuranceLevel:      launcherbackend.IsolationAssuranceIsolated,
-		ProvisioningPosture:          launcherbackend.ProvisioningPostureTOFU,
-		IsolateID:                    isoID,
-		SessionID:                    sessionID,
-		SessionNonce:                 nonce,
-		HypervisorImplementation:     launcherbackend.HypervisorImplementationQEMU,
-		AccelerationKind:             launcherbackend.AccelerationKindKVM,
-		TransportKind:                launcherbackend.TransportKindVirtioSerial,
-		QEMUProvenance:               &launcherbackend.QEMUProvenance{Version: qemuVersion, BuildIdentity: qemuBuild},
-		RuntimeImageDescriptorDigest: spec.Image.DescriptorDigest,
-		RuntimeImageSignerRef:        spec.Image.Signing.SignerRef,
-		RuntimeImageSignatureDigest:  spec.Image.Signing.SignatureDigest,
-		BootComponentDigestByName:    cloneMap(bootComponentDigests),
-		ResourceLimits:               &spec.ResourceLimits,
-		WatchdogPolicy:               &spec.WatchdogPolicy,
-		CachePosture:                 &spec.CachePosture,
-		AttachmentPlanSummary:        summarizeAttachments(spec.Attachments),
-		WorkspaceEncryptionPosture:   spec.Attachments.WorkspaceEncryption,
-		Lifecycle:                    &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateLaunching, TerminateBetweenSteps: true, TransitionCount: 1},
+		RunID:                            spec.RunID,
+		StageID:                          spec.StageID,
+		RoleInstanceID:                   spec.RoleInstanceID,
+		RoleFamily:                       spec.RoleFamily,
+		RoleKind:                         spec.RoleKind,
+		BackendKind:                      launcherbackend.BackendKindMicroVM,
+		IsolationAssuranceLevel:          launcherbackend.IsolationAssuranceIsolated,
+		ProvisioningPosture:              launcherbackend.ProvisioningPostureTOFU,
+		IsolateID:                        isoID,
+		SessionID:                        sessionID,
+		SessionNonce:                     nonce,
+		HypervisorImplementation:         launcherbackend.HypervisorImplementationQEMU,
+		AccelerationKind:                 launcherbackend.AccelerationKindKVM,
+		TransportKind:                    launcherbackend.TransportKindVirtioSerial,
+		QEMUProvenance:                   &launcherbackend.QEMUProvenance{Version: qemuVersion, BuildIdentity: qemuBuild},
+		RuntimeImageDescriptorDigest:     admission.DescriptorDigest,
+		RuntimeImageBootProfile:          admission.BootContractVersion,
+		RuntimeImageSignerRef:            admission.RuntimeImageSignerRef,
+		RuntimeImageVerifierRef:          admission.RuntimeImageVerifierSetRef,
+		RuntimeImageSignatureDigest:      admission.RuntimeImageSignatureDigest,
+		RuntimeToolchainDescriptorDigest: admission.RuntimeToolchainDescriptorDigest,
+		RuntimeToolchainSignerRef:        admission.RuntimeToolchainSignerRef,
+		RuntimeToolchainVerifierRef:      admission.RuntimeToolchainVerifierSetRef,
+		RuntimeToolchainSignatureDigest:  admission.RuntimeToolchainSignatureDigest,
+		AuthorityStateDigest:             admission.AuthorityStateDigest,
+		AuthorityStateRevision:           admission.AuthorityStateRevision,
+		BootComponentDigestByName:        cloneMap(admission.ComponentDigests),
+		ResourceLimits:                   &spec.ResourceLimits,
+		WatchdogPolicy:                   &spec.WatchdogPolicy,
+		CachePosture:                     &spec.CachePosture,
+		CacheEvidence:                    cacheEvidence,
+		AttachmentPlanSummary:            summarizeAttachments(spec.Attachments),
+		WorkspaceEncryptionPosture:       spec.Attachments.WorkspaceEncryption,
+		Lifecycle:                        &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateLaunching, TerminateBetweenSteps: true, TransitionCount: 1},
 	}
 }
 
@@ -72,7 +79,11 @@ func (c *qemuController) prepareLaunchDir(spec launcherbackend.BackendLaunchSpec
 	if root == "" {
 		root = filepath.Join(os.TempDir(), "runecode-launcher")
 	}
-	dir := filepath.Join(root, safeToken(spec.RunID), safeToken(spec.StageID), safeToken(spec.RoleInstanceID), fmt.Sprintf("launch-%d", c.cfg.Now().UnixNano()))
+	cleanRoot := filepath.Clean(root)
+	dir := filepath.Join(cleanRoot, safeToken(spec.RunID), safeToken(spec.StageID), safeToken(spec.RoleInstanceID), fmt.Sprintf("launch-%d", c.cfg.Now().UnixNano()))
+	if rel, err := filepath.Rel(cleanRoot, dir); err != nil || strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("launch path escaped work root")
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
@@ -137,21 +148,6 @@ func buildQEMUArgv(binary, kernel, initrd string, limits launcherbackend.Backend
 	}
 }
 
-func (c *qemuController) resolveKernelPath() (string, error) {
-	if strings.TrimSpace(c.cfg.KernelPath) != "" {
-		if _, err := os.Stat(c.cfg.KernelPath); err != nil {
-			return "", backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "kernel asset unavailable")
-		}
-		return c.cfg.KernelPath, nil
-	}
-	candidates, err := filepath.Glob("/boot/vmlinuz-*")
-	if err != nil || len(candidates) == 0 {
-		return "", backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "kernel asset unavailable")
-	}
-	sort.Strings(candidates)
-	return candidates[len(candidates)-1], nil
-}
-
 func summarizeAttachments(plan launcherbackend.AttachmentPlan) *launcherbackend.AttachmentPlanSummary {
 	roles := make([]launcherbackend.AttachmentRoleSummary, 0, len(plan.ByRole))
 	names := make([]string, 0, len(plan.ByRole))
@@ -164,31 +160,6 @@ func summarizeAttachments(plan launcherbackend.AttachmentPlan) *launcherbackend.
 		roles = append(roles, launcherbackend.AttachmentRoleSummary{Role: role, ReadOnly: binding.ReadOnly, ChannelKind: binding.ChannelKind, DigestCount: len(binding.RequiredDigests)})
 	}
 	return &launcherbackend.AttachmentPlanSummary{Roles: roles, Constraints: plan.Constraints}
-}
-
-func resolveBootComponentDigests(kernelPath, initrdPath string) (map[string]string, error) {
-	bootComponentDigests := map[string]string{}
-	for name, path := range map[string]string{"kernel": kernelPath, "initrd": initrdPath} {
-		digest, err := digestFileSHA256(path)
-		if err != nil {
-			return nil, err
-		}
-		bootComponentDigests[name] = digest
-	}
-	return bootComponentDigests, nil
-}
-
-func digestFileSHA256(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	hasher := sha256.New()
-	if _, err := io.Copy(hasher, file); err != nil {
-		return "", err
-	}
-	return "sha256:" + hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
 func detectQEMUProvenance(binary string) (string, string) {
@@ -236,18 +207,24 @@ func safeToken(in string) string {
 	if v == "" {
 		return "x"
 	}
-	v = strings.ReplaceAll(v, "/", "-")
-	v = strings.ReplaceAll(v, "\\", "-")
-	v = strings.ReplaceAll(v, " ", "-")
-	return v
-}
-
-func backendError(code, msg string) error {
-	if strings.TrimSpace(code) == "" {
-		code = launcherbackend.BackendErrorCodeHypervisorLaunchFailed
+	var b strings.Builder
+	b.Grow(len(v))
+	lastDash := false
+	for i := 0; i < len(v); i++ {
+		ch := v[i]
+		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_' {
+			b.WriteByte(ch)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
 	}
-	if strings.TrimSpace(msg) == "" {
-		msg = "backend launch failed"
+	token := strings.Trim(b.String(), "-.")
+	if token == "" {
+		return "x"
 	}
-	return fmt.Errorf("backend_error_code=%s: %s", code, msg)
+	return token
 }

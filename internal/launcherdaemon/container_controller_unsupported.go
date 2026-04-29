@@ -9,7 +9,9 @@ import (
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
-type ContainerControllerConfig struct{}
+type ContainerControllerConfig struct {
+	WorkRoot string
+}
 
 type unsupportedContainerController struct{}
 
