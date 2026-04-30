@@ -31,14 +31,26 @@ func (s *Service) runAuditVerificationOrFallback() AuditVerificationSurface {
 	if err == nil {
 		return verification
 	}
+	if s.store != nil && s.store.HasAuditEvents() {
+		return AuditVerificationSurface{Summary: trustpolicy.DerivedRunAuditVerificationSummary{
+			CryptographicallyValid: false,
+			HistoricallyAdmissible: false,
+			CurrentlyDegraded:      true,
+			IntegrityStatus:        trustpolicy.AuditVerificationStatusDegraded,
+			AnchoringStatus:        trustpolicy.AuditVerificationStatusDegraded,
+			StoragePostureStatus:   trustpolicy.AuditVerificationStatusOK,
+			SegmentLifecycleStatus: trustpolicy.AuditVerificationStatusOK,
+			DegradedReasons:        []string{"audit_verification_unavailable"},
+		}}
+	}
 	return AuditVerificationSurface{Summary: trustpolicy.DerivedRunAuditVerificationSummary{
 		CryptographicallyValid: false,
 		HistoricallyAdmissible: false,
 		CurrentlyDegraded:      true,
-		IntegrityStatus:        "failed",
-		AnchoringStatus:        "failed",
-		StoragePostureStatus:   "failed",
-		SegmentLifecycleStatus: "failed",
+		IntegrityStatus:        trustpolicy.AuditVerificationStatusFailed,
+		AnchoringStatus:        trustpolicy.AuditVerificationStatusFailed,
+		StoragePostureStatus:   trustpolicy.AuditVerificationStatusFailed,
+		SegmentLifecycleStatus: trustpolicy.AuditVerificationStatusFailed,
 		HardFailures:           []string{"audit_surface_unavailable"},
 	}}
 }
@@ -61,7 +73,7 @@ func buildRunRecordIndex(all []artifacts.ArtifactRecord, runStatus map[string]st
 
 func buildRunSummary(runID string, projectContextIdentityDigest string, records []artifacts.ArtifactRecord, status string, pending int, verification AuditVerificationSurface, runtimeFacts launcherbackend.RuntimeFactsSnapshot, runnerAdvisory artifacts.RunnerAdvisoryState) RunSummary {
 	created, updated := runRecordTiming(records)
-	state := runLifecycleFromStore(status, pending, len(records) > 0, runnerAdvisory)
+	state := runLifecycleFromStore(status, pending, len(records) > 0, runnerAdvisory, runtimeFacts)
 	workflowKind, workflowDefinitionHash := inferWorkflowIdentity(records)
 	backendKind, isolationAssuranceLevel, provisioningPosture := normalizedRunSummaryPosture(runtimeFacts)
 	summary := RunSummary{

@@ -107,6 +107,9 @@ func (s *Store) ExportBackup(path string) error {
 	if err := s.storeIO.writeBackup(path, manifest); err != nil {
 		return err
 	}
+	if err := s.storeIO.writeBackupBlobs(path, manifest.Artifacts); err != nil {
+		return err
+	}
 	signature, err := computeBackupSignature(manifest, s.state.BackupHMACKey)
 	if err != nil {
 		return err
@@ -135,15 +138,23 @@ func (s *Store) RestoreBackup(path string) error {
 	if err := verifyBackupSignature(manifest, signature, s.state.BackupHMACKey); err != nil {
 		return err
 	}
+	restoredDigests, err := s.storeIO.restoreBackupBlobsStaged(path, manifest.Artifacts)
+	if err != nil {
+		return err
+	}
 	next, err := stateFromBackup(manifest, s.state.LastAuditSequence, s.storeIO)
 	if err != nil {
+		rollbackRestoredBlobDigests(s.storeIO, restoredDigests)
 		return err
 	}
 	next.BackupHMACKey = s.state.BackupHMACKey
 	next = normalizeState(next)
+	priorState := s.state
 	s.state = next
 	if err := s.appendAuditLocked("artifact_retention_action", "system", map[string]interface{}{"action": "restore_backup", "path": filepath.Base(path)}); err != nil {
+		s.state = priorState
+		rollbackRestoredBlobDigests(s.storeIO, restoredDigests)
 		return err
 	}
-	return s.saveStateLocked()
+	return nil
 }

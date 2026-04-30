@@ -118,7 +118,10 @@ func (s *Service) seedDevManualPolicy() error {
 		AllowedDataClasses: []artifacts.DataClass{artifacts.DataClassDiffs, artifacts.DataClassBuildLogs, artifacts.DataClassGateEvidence, artifacts.DataClassAuditVerificationReport},
 	}
 	policy.FlowMatrix = upsertDevManualFlowRule(policy.FlowMatrix, flowRule)
-	return s.SetPolicy(policy)
+	if err := s.SetPolicy(policy); err != nil {
+		return err
+	}
+	return s.seedDevManualInstanceControlContext()
 }
 
 func (s *Service) seedDevManualArtifacts() ([]string, error) {

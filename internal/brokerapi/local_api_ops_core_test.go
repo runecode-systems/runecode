@@ -368,7 +368,7 @@ func TestRunGetNotFoundUsesRunSpecificCode(t *testing.T) {
 	}
 }
 
-func TestRunGetFallsBackWhenAuditVerificationUnavailable(t *testing.T) {
+func TestRunGetFallsBackToDegradedAuditSummaryWhenRawAuditExists(t *testing.T) {
 	service := newBrokerAPIServiceForTests(t, APIConfig{})
 	putRunScopedArtifactForLocalOpsTest(t, service, "run-fallback", "step-1")
 	service.auditLedger = nil
@@ -385,8 +385,11 @@ func TestRunGetFallsBackWhenAuditVerificationUnavailable(t *testing.T) {
 	if !resp.Run.AuditSummary.CurrentlyDegraded {
 		t.Fatal("audit summary should be degraded when verification surface is unavailable")
 	}
-	if resp.Run.AuditSummary.IntegrityStatus != "failed" {
-		t.Fatalf("integrity_status = %q, want failed", resp.Run.AuditSummary.IntegrityStatus)
+	if resp.Run.AuditSummary.IntegrityStatus != "degraded" {
+		t.Fatalf("integrity_status = %q, want degraded", resp.Run.AuditSummary.IntegrityStatus)
+	}
+	if resp.Run.AuditSummary.StoragePostureStatus != "ok" {
+		t.Fatalf("storage_posture_status = %q, want ok", resp.Run.AuditSummary.StoragePostureStatus)
 	}
 }
 

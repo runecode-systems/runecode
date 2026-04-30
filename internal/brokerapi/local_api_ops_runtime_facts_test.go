@@ -32,6 +32,9 @@ func TestRunDetailRuntimeFactsProjectionSurvivesServiceRestart(t *testing.T) {
 	if runGet.Run.Summary.BackendKind != launcherbackend.BackendKindMicroVM {
 		t.Fatalf("backend_kind = %q, want %q after restart", runGet.Run.Summary.BackendKind, launcherbackend.BackendKindMicroVM)
 	}
+	if runGet.Run.Summary.LifecycleState != "failed" {
+		t.Fatalf("summary.lifecycle_state = %q, want failed after restart", runGet.Run.Summary.LifecycleState)
+	}
 	if runGet.Run.AuthoritativeState["session_id"] != "session-1" {
 		t.Fatalf("authoritative_state.session_id = %v, want session-1 after restart", runGet.Run.AuthoritativeState["session_id"])
 	}
@@ -211,6 +214,9 @@ func assertRuntimeFactsRunListProjection(t *testing.T, runs []RunSummary) {
 	t.Helper()
 	if len(runs) != 1 {
 		t.Fatalf("run count = %d, want 1", len(runs))
+	}
+	if runs[0].LifecycleState != "failed" {
+		t.Fatalf("lifecycle_state = %q, want failed", runs[0].LifecycleState)
 	}
 	if runs[0].BackendKind != launcherbackend.BackendKindMicroVM {
 		t.Fatalf("backend_kind = %q, want %q", runs[0].BackendKind, launcherbackend.BackendKindMicroVM)

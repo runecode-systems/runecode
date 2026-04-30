@@ -184,58 +184,32 @@ func (s *storeIO) readBlob(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
+func (s *storeIO) verifyBlobDigestAndSize(path string, expectedDigest string, expectedSize int64) error {
+	in, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	h := newDigestWriter()
+	written, err := io.Copy(h, in)
+	if err != nil {
+		return err
+	}
+	if h.identity() != expectedDigest {
+		return fmt.Errorf("backup digest mismatch for %s", expectedDigest)
+	}
+	if written != expectedSize {
+		return fmt.Errorf("backup size mismatch for %s", expectedDigest)
+	}
+	return nil
+}
+
 func (s *storeIO) removeBlob(path string) error {
 	err := os.Remove(path)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
-}
-
-func (s *storeIO) writeBackup(path string, manifest BackupManifest) error {
-	b, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, b, 0o600)
-}
-
-func (s *storeIO) writeBackupSignature(path string, signature BackupSignature) error {
-	b, err := json.MarshalIndent(signature, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, b, 0o600)
-}
-
-func (s *storeIO) readBackup(path string) (BackupManifest, error) {
-	manifest := BackupManifest{}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return manifest, err
-	}
-	if err := json.Unmarshal(b, &manifest); err != nil {
-		return manifest, err
-	}
-	if manifest.Schema != "runecode.backup.artifacts.v1" {
-		return manifest, fmt.Errorf("unsupported backup schema")
-	}
-	return manifest, nil
-}
-
-func (s *storeIO) readBackupSignature(path string) (BackupSignature, error) {
-	signature := BackupSignature{}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return signature, ErrBackupSignatureMissing
-		}
-		return signature, err
-	}
-	if err := json.Unmarshal(b, &signature); err != nil {
-		return signature, err
-	}
-	return signature, nil
 }
 
 func newAuditEvent(seq int64, eventType, actor string, details map[string]interface{}, nowFn func() time.Time) AuditEvent {

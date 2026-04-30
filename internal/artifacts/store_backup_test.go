@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,11 +15,41 @@ func TestRetentionGCAndBackupRestore(t *testing.T) {
 	assertRetentionAndRestore(t, store, keep, backupPath)
 }
 
+func TestRestoreBackupAcrossFreshStoresUsesPersistentKey(t *testing.T) {
+	t.Setenv(backupHMACKeyEnv, "")
+	t.Setenv(backupHMACKeyFileEnv, "")
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	source, err := NewStore(filepath.Join(t.TempDir(), "source-store"))
+	if err != nil {
+		t.Fatalf("NewStore(source) returned error: %v", err)
+	}
+	ref, err := source.Put(PutRequest{Payload: []byte("portable"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("a"), CreatedByRole: "workspace"})
+	if err != nil {
+		t.Fatalf("Put returned error: %v", err)
+	}
+	backupPath := filepath.Join(t.TempDir(), "portable-backup")
+	if err := source.ExportBackup(backupPath); err != nil {
+		t.Fatalf("ExportBackup returned error: %v", err)
+	}
+
+	restoreStore, err := NewStore(filepath.Join(t.TempDir(), "restore-store"))
+	if err != nil {
+		t.Fatalf("NewStore(restore) returned error: %v", err)
+	}
+	if err := restoreStore.RestoreBackup(backupPath); err != nil {
+		t.Fatalf("RestoreBackup returned error: %v", err)
+	}
+	if _, err := restoreStore.Head(ref.Digest); err != nil {
+		t.Fatalf("Head returned error after restore: %v", err)
+	}
+}
+
 func setupRetentionAndBackupFixture(t *testing.T) (*Store, ArtifactReference, string) {
 	store, now := setupRetentionStore(t)
 	keep := seedRetentionArtifacts(t, store)
 	runAndAssertGC(t, store, now, keep)
-	backupPath := filepath.Join(t.TempDir(), "backup.json")
+	backupPath := filepath.Join(t.TempDir(), "backup")
 	if err := store.ExportBackup(backupPath); err != nil {
 		t.Fatalf("ExportBackup error: %v", err)
 	}
@@ -69,7 +100,7 @@ func runAndAssertGC(t *testing.T, store *Store, now time.Time, keep ArtifactRefe
 }
 
 func assertRetentionAndRestore(t *testing.T, sourceStore *Store, keep ArtifactReference, backupPath string) {
-	b, err := os.ReadFile(backupPath)
+	b, err := os.ReadFile(filepath.Join(backupPath, backupBundleManifestFile))
 	if err != nil {
 		t.Fatalf("read backup error: %v", err)
 	}
@@ -82,7 +113,6 @@ func assertRetentionAndRestore(t *testing.T, sourceStore *Store, keep ArtifactRe
 	}
 
 	restoreStore := newTestStore(t)
-	copyBlobsToStore(t, restoreStore, manifest.Artifacts)
 	if err := restoreStore.RestoreBackup(backupPath); err != nil {
 		t.Fatalf("RestoreBackup error: %v", err)
 	}
@@ -94,15 +124,15 @@ func assertRetentionAndRestore(t *testing.T, sourceStore *Store, keep ArtifactRe
 
 func TestRestoreRejectsForgedBackupRecord(t *testing.T) {
 	store := newTestStore(t)
-	ref, err := store.Put(PutRequest{Payload: []byte("payload"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("c"), CreatedByRole: "workspace"})
+	_, err := store.Put(PutRequest{Payload: []byte("payload"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("c"), CreatedByRole: "workspace"})
 	if err != nil {
 		t.Fatalf("Put error: %v", err)
 	}
-	backupPath := filepath.Join(t.TempDir(), "backup.json")
+	backupPath := filepath.Join(t.TempDir(), "backup")
 	if err := store.ExportBackup(backupPath); err != nil {
 		t.Fatalf("ExportBackup error: %v", err)
 	}
-	b, err := os.ReadFile(backupPath)
+	b, err := os.ReadFile(filepath.Join(backupPath, backupBundleManifestFile))
 	if err != nil {
 		t.Fatalf("read backup error: %v", err)
 	}
@@ -115,11 +145,10 @@ func TestRestoreRejectsForgedBackupRecord(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal forged backup error: %v", err)
 	}
-	if err := os.WriteFile(backupPath, b, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(backupPath, backupBundleManifestFile), b, 0o600); err != nil {
 		t.Fatalf("write forged backup error: %v", err)
 	}
 	restoreStore := newTestStore(t)
-	copyBlobFile(t, store.storeIO.blobPath(ref.Digest), restoreStore.storeIO.blobPath(ref.Digest))
 	err = restoreStore.RestoreBackup(backupPath)
 	if err == nil {
 		t.Fatal("RestoreBackup expected error for forged digest")
@@ -147,7 +176,7 @@ func TestRestoreRejectsInvalidDigestBeforeBlobLookup(t *testing.T) {
 			StorageProtection: "encrypted_at_rest_default",
 		}},
 	}
-	backupPath := filepath.Join(t.TempDir(), "backup.json")
+	backupPath := filepath.Join(t.TempDir(), "backup")
 	if err := store.storeIO.writeBackup(backupPath, manifest); err != nil {
 		t.Fatalf("write backup error: %v", err)
 	}
@@ -170,7 +199,7 @@ func TestRestoreRejectsMissingBackupSignature(t *testing.T) {
 	if _, err := store.Put(PutRequest{Payload: []byte("payload"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"}); err != nil {
 		t.Fatalf("Put error: %v", err)
 	}
-	backupPath := filepath.Join(t.TempDir(), "backup.json")
+	backupPath := filepath.Join(t.TempDir(), "backup")
 	if err := store.ExportBackup(backupPath); err != nil {
 		t.Fatalf("ExportBackup error: %v", err)
 	}
@@ -221,7 +250,7 @@ func TestRestoreRejectsTamperedBackupSignature(t *testing.T) {
 	if _, err := store.Put(PutRequest{Payload: []byte("payload"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"}); err != nil {
 		t.Fatalf("Put error: %v", err)
 	}
-	backupPath := filepath.Join(t.TempDir(), "backup.json")
+	backupPath := filepath.Join(t.TempDir(), "backup")
 	if err := store.ExportBackup(backupPath); err != nil {
 		t.Fatalf("ExportBackup error: %v", err)
 	}
@@ -253,25 +282,65 @@ func TestBackupFilesArePrivateByDefault(t *testing.T) {
 	if _, err := store.Put(PutRequest{Payload: []byte("payload"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"}); err != nil {
 		t.Fatalf("Put error: %v", err)
 	}
-	backupPath := filepath.Join(t.TempDir(), "backup.json")
+	backupPath := filepath.Join(t.TempDir(), "backup")
 	if err := store.ExportBackup(backupPath); err != nil {
 		t.Fatalf("ExportBackup error: %v", err)
 	}
-	assertMode(t, backupPath, 0o600)
+	assertMode(t, filepath.Join(backupPath, backupBundleManifestFile), 0o600)
 	assertMode(t, backupSignaturePath(backupPath), 0o600)
+}
+
+func TestRestoreRollsBackHydratedBlobsWhenRestoreFailsMidStream(t *testing.T) {
+	store := newTestStore(t)
+	first, err := store.Put(PutRequest{Payload: []byte("payload-1"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"})
+	if err != nil {
+		t.Fatalf("Put(first) error: %v", err)
+	}
+	second, err := store.Put(PutRequest{Payload: []byte("payload-2"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("2"), CreatedByRole: "workspace"})
+	if err != nil {
+		t.Fatalf("Put(second) error: %v", err)
+	}
+	backupPath := filepath.Join(t.TempDir(), "backup-partial-restore")
+	manifest := loadExportedBackupManifest(t, store, backupPath)
+	if len(manifest.Artifacts) != 2 {
+		t.Fatalf("backup artifacts len = %d, want 2", len(manifest.Artifacts))
+	}
+	if manifest.Artifacts[0].Reference.Digest != first.Digest || manifest.Artifacts[1].Reference.Digest != second.Digest {
+		t.Fatalf("backup artifact order changed unexpectedly")
+	}
+
+	secondHex, ok := trimSHA256Digest(second.Digest)
+	if !ok {
+		t.Fatalf("digest %q failed validation", second.Digest)
+	}
+	if err := os.Remove(filepath.Join(backupPath, backupBundleBlobsDir, backupBundleSHA256Dir, secondHex)); err != nil {
+		t.Fatalf("remove second bundled blob error: %v", err)
+	}
+
+	restoreStore := newTestStore(t)
+	err = restoreStore.RestoreBackup(backupPath)
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("RestoreBackup error = %v, want not-exist", err)
+	}
+	entries, readErr := os.ReadDir(restoreStore.storeIO.blobDir)
+	if readErr != nil {
+		t.Fatalf("ReadDir(blobDir) error: %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("restored blob dir entries = %d, want 0", len(entries))
+	}
 }
 
 func TestBackupRestorePreservesDependencyCacheState(t *testing.T) {
 	store := newTestStore(t)
 	seedDependencyCacheRecordForBackupTest(t, store)
 
-	backupPath := filepath.Join(t.TempDir(), "backup-dependency-cache.json")
+	backupPath := filepath.Join(t.TempDir(), "backup-dependency-cache")
 	if err := store.ExportBackup(backupPath); err != nil {
 		t.Fatalf("ExportBackup returned error: %v", err)
 	}
 
 	restoreStore := newTestStore(t)
-	copyBlobsToStore(t, restoreStore, store.List())
 	if err := restoreStore.RestoreBackup(backupPath); err != nil {
 		t.Fatalf("RestoreBackup returned error: %v", err)
 	}
@@ -294,7 +363,7 @@ func TestRestoreRejectsDependencyCacheBatchReferencingMissingUnit(t *testing.T) 
 	store := newTestStore(t)
 	seedDependencyCacheRecordForBackupTest(t, store)
 
-	backupPath := filepath.Join(t.TempDir(), "backup-dependency-cache-missing-unit.json")
+	backupPath := filepath.Join(t.TempDir(), "backup-dependency-cache-missing-unit")
 	manifest := loadExportedBackupManifest(t, store, backupPath)
 	if len(manifest.DependencyCacheBatches) != 1 {
 		t.Fatalf("dependency cache batches len = %d, want 1", len(manifest.DependencyCacheBatches))
@@ -303,7 +372,6 @@ func TestRestoreRejectsDependencyCacheBatchReferencingMissingUnit(t *testing.T) 
 	writeBackupManifestWithSignature(t, store, backupPath, manifest)
 
 	restoreStore := newTestStore(t)
-	copyBlobsToStore(t, restoreStore, store.List())
 	err := restoreStore.RestoreBackup(backupPath)
 	if err != ErrDependencyCacheIncompleteState {
 		t.Fatalf("RestoreBackup error = %v, want %v", err, ErrDependencyCacheIncompleteState)
@@ -344,7 +412,7 @@ func runRestoreRejectsDependencyCacheUnitMissingArtifactsCase(t *testing.T, muta
 	store := newTestStore(t)
 	seedDependencyCacheRecordForBackupTest(t, store)
 
-	backupPath := filepath.Join(t.TempDir(), "backup-dependency-cache-missing-artifacts.json")
+	backupPath := filepath.Join(t.TempDir(), "backup-dependency-cache-missing-artifacts")
 	manifest := loadExportedBackupManifest(t, store, backupPath)
 	if len(manifest.DependencyCacheUnits) != 1 {
 		t.Fatalf("dependency cache units len = %d, want 1", len(manifest.DependencyCacheUnits))
@@ -353,7 +421,6 @@ func runRestoreRejectsDependencyCacheUnitMissingArtifactsCase(t *testing.T, muta
 	writeBackupManifestWithSignature(t, store, backupPath, manifest)
 
 	restoreStore := newTestStore(t)
-	copyBlobsToStore(t, restoreStore, store.List())
 	err := restoreStore.RestoreBackup(backupPath)
 	if err != wantError {
 		t.Fatalf("RestoreBackup error = %v, want %v", err, wantError)
@@ -364,7 +431,6 @@ func TestRestoreIgnoresBackupBlobPathTopologyHints(t *testing.T) {
 	store := newTestStore(t)
 	ref, backupPath := writeBackupWithBlobPathTopologyHint(t, store)
 	restoreStore := newTestStore(t)
-	copyBlobFile(t, store.storeIO.blobPath(ref.Digest), restoreStore.storeIO.blobPath(ref.Digest))
 	if err := restoreStore.RestoreBackup(backupPath); err != nil {
 		t.Fatalf("RestoreBackup returned error: %v", err)
 	}
@@ -407,7 +473,7 @@ func writeBackupWithBlobPathTopologyHint(t *testing.T, store *Store) (ArtifactRe
 	if err != nil {
 		t.Fatalf("Put error: %v", err)
 	}
-	backupPath := filepath.Join(t.TempDir(), "backup-topology-hints.json")
+	backupPath := filepath.Join(t.TempDir(), "backup-topology-hints")
 	manifest := loadExportedBackupManifest(t, store, backupPath)
 	if len(manifest.Artifacts) != 1 {
 		t.Fatalf("backup artifacts len = %d, want 1", len(manifest.Artifacts))
@@ -422,7 +488,7 @@ func loadExportedBackupManifest(t *testing.T, store *Store, backupPath string) B
 	if err := store.ExportBackup(backupPath); err != nil {
 		t.Fatalf("ExportBackup returned error: %v", err)
 	}
-	b, err := os.ReadFile(backupPath)
+	b, err := os.ReadFile(filepath.Join(backupPath, backupBundleManifestFile))
 	if err != nil {
 		t.Fatalf("read backup error: %v", err)
 	}

@@ -192,7 +192,7 @@ func TestRunSummaryKeepsAuditPostureDistinctFromBackendAndRuntimePosture(t *test
 	if run.BackendKind != launcherbackend.BackendKindContainer || run.IsolationAssuranceLevel != launcherbackend.IsolationAssuranceDegraded || !run.RuntimePostureDegraded {
 		t.Fatalf("runtime posture projection changed unexpectedly: %+v", run)
 	}
-	if !run.AuditCurrentlyDegraded || run.AuditIntegrityStatus != "failed" || run.AuditAnchoringStatus != "failed" {
+	if !run.AuditCurrentlyDegraded || run.AuditIntegrityStatus != "degraded" || run.AuditAnchoringStatus != "degraded" {
 		t.Fatalf("audit posture should degrade independently when verification unavailable: %+v", run)
 	}
 }

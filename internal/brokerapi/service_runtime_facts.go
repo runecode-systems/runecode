@@ -23,6 +23,9 @@ func (s *Service) RecordRuntimeFacts(runID string, facts launcherbackend.Runtime
 	if err := s.store.RecordRuntimeEvidenceState(normalizedRunID, facts, evidence, lifecycle); err != nil {
 		return err
 	}
+	if err := s.syncRunStatusFromRuntimeFacts(normalizedRunID, facts); err != nil {
+		return err
+	}
 	runtimeSupportState := runtimeAuditSupportState(evidence, s.currentInstanceBackendPosture().InstanceID, normalizedRunID, s.PolicyDecisionRefsForRun(normalizedRunID), s.listApprovals())
 	runnerAdvisory, _ := s.RunnerAdvisory(normalizedRunID)
 	if err := s.SyncSessionExecutionFromRunRuntime(normalizedRunID, facts, runnerAdvisory, s.now().UTC()); err != nil {
@@ -132,5 +135,84 @@ func (s *Service) RecordRuntimeLifecycleState(runID string, lifecycle launcherba
 		lifecycle.BackendLifecycle = &normalized
 	}
 	lifecycle.ProvisioningDegradedReasons = uniqueSortedStrings(lifecycle.ProvisioningDegradedReasons)
-	return s.store.UpdateRuntimeLifecycleState(normalizedRunID, lifecycle)
+	if err := s.store.UpdateRuntimeLifecycleState(normalizedRunID, lifecycle); err != nil {
+		return err
+	}
+	if err := s.syncRunStatusFromRuntimeLifecycle(normalizedRunID, lifecycle); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) syncRunStatusFromRuntimeFacts(runID string, facts launcherbackend.RuntimeFactsSnapshot) error {
+	status, ok := runStatusFromRuntimeFacts(facts)
+	if !ok {
+		return nil
+	}
+	return s.SetRunStatus(runID, status)
+}
+
+func (s *Service) syncRunStatusFromRuntimeLifecycle(runID string, lifecycle launcherbackend.RuntimeLifecycleState) error {
+	status, ok := runStatusFromRuntimeLifecycle(lifecycle)
+	if !ok {
+		return nil
+	}
+	return s.SetRunStatus(runID, status)
+}
+
+func runStatusFromRuntimeFacts(facts launcherbackend.RuntimeFactsSnapshot) (string, bool) {
+	if facts.TerminalReport != nil {
+		switch facts.TerminalReport.TerminationKind {
+		case launcherbackend.BackendTerminationKindCompleted:
+			return "completed", true
+		case launcherbackend.BackendTerminationKindFailed:
+			return "failed", true
+		}
+	}
+	receipt := facts.LaunchReceipt.Normalized()
+	if strings.TrimSpace(receipt.LaunchFailureReasonCode) != "" {
+		return "failed", true
+	}
+	if !hasAuthoritativeRuntimeLifecycle(receipt) {
+		return "", false
+	}
+	return runStatusFromBackendLifecycleState(receipt.Lifecycle.CurrentState, "")
+}
+
+func runStatusFromRuntimeLifecycle(lifecycle launcherbackend.RuntimeLifecycleState) (string, bool) {
+	if strings.TrimSpace(lifecycle.LaunchFailureReasonCode) != "" {
+		return "failed", true
+	}
+	if lifecycle.BackendLifecycle == nil {
+		return "", false
+	}
+	return runStatusFromBackendLifecycleState(lifecycle.BackendLifecycle.CurrentState, "")
+}
+
+func runStatusFromBackendLifecycleState(currentState string, failureReason string) (string, bool) {
+	if strings.TrimSpace(failureReason) != "" {
+		return "failed", true
+	}
+	switch currentState {
+	case launcherbackend.BackendLifecycleStatePlanned:
+		return "pending", true
+	case launcherbackend.BackendLifecycleStateLaunching, launcherbackend.BackendLifecycleStateStarted, launcherbackend.BackendLifecycleStateBinding:
+		return "starting", true
+	case launcherbackend.BackendLifecycleStateActive, launcherbackend.BackendLifecycleStateTerminating:
+		return "active", true
+	case launcherbackend.BackendLifecycleStateTerminated:
+		return "completed", true
+	default:
+		return "", false
+	}
+}
+
+func hasAuthoritativeRuntimeLifecycle(receipt launcherbackend.BackendLaunchReceipt) bool {
+	if receipt.Lifecycle == nil {
+		return false
+	}
+	if strings.TrimSpace(receipt.LaunchFailureReasonCode) != "" {
+		return true
+	}
+	return receipt.BackendKind != launcherbackend.BackendKindUnknown
 }
