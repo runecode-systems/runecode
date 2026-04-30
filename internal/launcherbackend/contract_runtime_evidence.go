@@ -32,25 +32,67 @@ func buildRuntimeEvidenceSnapshot(receipt BackendLaunchReceipt, hardening Applie
 		return RuntimeEvidenceSnapshot{}, err
 	}
 	bundle := RuntimeEvidenceSnapshot{Launch: launch, Hardening: hardeningEvidence}
+	if err := attachSessionRuntimeEvidence(&bundle, receipt); err != nil {
+		return RuntimeEvidenceSnapshot{}, err
+	}
+	if err := attachAttestationRuntimeEvidence(&bundle, receipt, launch); err != nil {
+		return RuntimeEvidenceSnapshot{}, err
+	}
+	applyAttestationFailClosedPolicy(receipt, &bundle)
+	if err := finalizeAttestationVerificationRecord(&bundle); err != nil {
+		return RuntimeEvidenceSnapshot{}, err
+	}
+	if err := attachTerminalRuntimeEvidence(&bundle, terminal); err != nil {
+		return RuntimeEvidenceSnapshot{}, err
+	}
+	return bundle, nil
+}
+
+func attachSessionRuntimeEvidence(bundle *RuntimeEvidenceSnapshot, receipt BackendLaunchReceipt) error {
+	if bundle == nil {
+		return nil
+	}
 	session, err := buildSessionRuntimeEvidence(receipt)
 	if err != nil {
-		return RuntimeEvidenceSnapshot{}, err
+		return err
 	}
 	if session != nil {
 		bundle.Session = session
 	}
-	if terminal != nil {
-		normalized := terminal.Normalized()
-		if err := normalized.Validate(); err != nil {
-			return RuntimeEvidenceSnapshot{}, fmt.Errorf("terminal_report: %w", err)
-		}
-		digest, err := canonicalSHA256Digest(normalized, "terminal runtime evidence")
-		if err != nil {
-			return RuntimeEvidenceSnapshot{}, err
-		}
-		bundle.Terminal = &TerminalRuntimeEvidence{Report: normalized, EvidenceDigest: digest}
+	return nil
+}
+
+func attachAttestationRuntimeEvidence(bundle *RuntimeEvidenceSnapshot, receipt BackendLaunchReceipt, launch LaunchRuntimeEvidence) error {
+	if bundle == nil {
+		return nil
 	}
-	return bundle, nil
+	attestation, verification, err := buildIsolateAttestationEvidence(receipt, launch)
+	if err != nil {
+		return err
+	}
+	if attestation != nil {
+		bundle.Attestation = attestation
+	}
+	if verification != nil {
+		bundle.AttestationVerification = verification
+	}
+	return nil
+}
+
+func attachTerminalRuntimeEvidence(bundle *RuntimeEvidenceSnapshot, terminal *BackendTerminalReport) error {
+	if bundle == nil || terminal == nil {
+		return nil
+	}
+	normalized := terminal.Normalized()
+	if err := normalized.Validate(); err != nil {
+		return fmt.Errorf("terminal_report: %w", err)
+	}
+	digest, err := canonicalSHA256Digest(normalized, "terminal runtime evidence")
+	if err != nil {
+		return err
+	}
+	bundle.Terminal = &TerminalRuntimeEvidence{Report: normalized, EvidenceDigest: digest}
+	return nil
 }
 
 func buildLaunchRuntimeEvidence(receipt BackendLaunchReceipt) (LaunchRuntimeEvidence, error) {

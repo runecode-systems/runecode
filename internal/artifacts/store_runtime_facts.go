@@ -17,6 +17,8 @@ func (s *Store) RecordRuntimeEvidenceState(runID string, facts launcherbackend.R
 	facts.LaunchReceipt = facts.LaunchReceipt.Normalized()
 	facts.HardeningPosture = facts.HardeningPosture.Normalized()
 	facts.TerminalReport = normalizeRuntimeTerminalReport(facts.TerminalReport)
+	evidence = s.applyCachedAttestationVerificationLocked(evidence)
+	s.upsertAttestationVerificationCacheLocked(evidence)
 	s.state.RuntimeFactsByRun[trimmedRunID] = facts
 	s.state.RuntimeEvidenceByRun[trimmedRunID] = evidence
 	s.state.RuntimeLifecycleByRun[trimmedRunID] = lifecycle
@@ -42,6 +44,7 @@ func (s *Store) RuntimeEvidenceState(runID string) (launcherbackend.RuntimeFacts
 		return launcherbackend.RuntimeFactsSnapshot{}, launcherbackend.RuntimeEvidenceSnapshot{}, launcherbackend.RuntimeLifecycleState{}, RuntimeAuditEmissionState{}, false
 	}
 	evidence := s.state.RuntimeEvidenceByRun[trimmedRunID]
+	evidence = s.applyCachedAttestationVerificationLocked(evidence)
 	lifecycle := s.state.RuntimeLifecycleByRun[trimmedRunID]
 	auditState := s.state.RuntimeAuditStateByRun[trimmedRunID]
 	return facts, evidence, lifecycle, auditState, true
@@ -98,6 +101,8 @@ func (s *Store) UpdateRuntimeLifecycleState(runID string, lifecycle launcherback
 	if err != nil {
 		return err
 	}
+	evidence = s.applyCachedAttestationVerificationLocked(evidence)
+	s.upsertAttestationVerificationCacheLocked(evidence)
 	s.state.RuntimeFactsByRun[trimmedRunID] = facts
 	s.state.RuntimeEvidenceByRun[trimmedRunID] = evidence
 	s.state.RuntimeLifecycleByRun[trimmedRunID] = projectedLifecycle

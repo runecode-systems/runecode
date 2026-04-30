@@ -97,11 +97,13 @@ func runInspectorContent(summary brokerapi.RunSummary, detail *brokerapi.RunDeta
 			fmt.Sprintf("raw maps authoritative_keys=%d advisory_keys=%d", len(detail.AuthoritativeState), len(detail.AdvisoryState)),
 		)
 	}
+	attestationPosture, attestationReasons := attestationPostureFromState(detail.AuthoritativeState)
 	return compactLines(
 		fmt.Sprintf("backend_kind=%s", summary.BackendKind),
 		"Runtime isolation assurance (authoritative): "+renderRuntimeIsolationCue(summary.BackendKind, summary.IsolationAssuranceLevel),
 		fmt.Sprintf("Runtime posture degraded (authoritative): %t %s", summary.RuntimePostureDegraded, renderRuntimePostureDegradedBadge(summary.RuntimePostureDegraded)),
 		"Provisioning/binding posture (authoritative): "+renderProvisioningPostureCue(summary.ProvisioningPosture),
+		"Attestation posture (authoritative): "+renderAttestationPostureCue(attestationPosture, attestationReasons),
 		"Audit posture (authoritative): "+renderAuditPostureCue(summary.AuditIntegrityStatus, summary.AuditAnchoringStatus, summary.AuditCurrentlyDegraded),
 		fmt.Sprintf("Approval profile (authoritative): %s", renderApprovalProfileCue(summary.ApprovalProfile)),
 		fmt.Sprintf("Authoritative broker state (control-plane truth): %d keys", len(detail.AuthoritativeState)),
@@ -113,6 +115,22 @@ func runInspectorContent(summary brokerapi.RunSummary, detail *brokerapi.RunDeta
 		fmt.Sprintf("Role summaries: %d total, %d reporting coordination waits", len(detail.RoleSummaries), waitingRoles),
 		fmt.Sprintf("Pending approvals=%d active manifests=%d policy refs=%d", len(detail.PendingApprovalIDs), len(detail.ActiveManifestHashes), len(detail.LatestPolicyDecisionRefs)),
 	)
+}
+
+func attestationPostureFromState(state map[string]any) (string, []string) {
+	posture, _ := state["attestation_posture"].(string)
+	reasonsAny, ok := state["attestation_reason_codes"].([]any)
+	if !ok {
+		reasons, _ := state["attestation_reason_codes"].([]string)
+		return posture, reasons
+	}
+	reasons := make([]string, 0, len(reasonsAny))
+	for _, value := range reasonsAny {
+		if s, ok := value.(string); ok && strings.TrimSpace(s) != "" {
+			reasons = append(reasons, s)
+		}
+	}
+	return posture, reasons
 }
 
 func runInspectorContentKind(presentation contentPresentationMode) inspectorContentKind {

@@ -67,6 +67,91 @@ func TestUpdateRuntimeLifecycleStateProjectsIntoPersistedFacts(t *testing.T) {
 	}
 }
 
+func TestRecordRuntimeEvidenceStateUsesCachedAttestationVerificationOnReplay(t *testing.T) {
+	store := newTestStore(t)
+	runID := "run-runtime-attestation-cache-hit"
+
+	facts := runtimeFactsWithValidAttestationVerification(runID, "authority-cache-hit", "policy")
+	evidence, lifecycle := splitRuntimeEvidenceStateForStoreTest(t, facts)
+	if evidence.AttestationVerification == nil {
+		t.Fatal("expected initial attestation verification record")
+	}
+	if err := store.RecordRuntimeEvidenceState(runID, facts, evidence, lifecycle); err != nil {
+		t.Fatalf("RecordRuntimeEvidenceState(initial) returned error: %v", err)
+	}
+
+	replayedFacts := replayedRuntimeFactsWithoutVerifierIdentity(facts)
+	replayedEvidence, replayedLifecycle := splitRuntimeEvidenceStateForStoreTest(t, replayedFacts)
+	if replayedEvidence.AttestationVerification == nil {
+		t.Fatal("expected fail-closed placeholder verification before cache application")
+	}
+	if replayedEvidence.AttestationVerification.VerifierPolicyDigest != "" {
+		t.Fatal("expected replayed placeholder verification to have empty policy digest")
+	}
+	if err := store.RecordRuntimeEvidenceState(runID, replayedFacts, replayedEvidence, replayedLifecycle); err != nil {
+		t.Fatalf("RecordRuntimeEvidenceState(replayed) returned error: %v", err)
+	}
+	assertPersistedInvalidAttestationVerification(t, store, runID)
+}
+
+func TestRecordRuntimeEvidenceStateInvalidatesAttestationVerificationCacheOnAuthorityChange(t *testing.T) {
+	store := newTestStore(t)
+	runID := "run-runtime-attestation-cache-invalidate"
+
+	facts := runtimeFactsWithValidAttestationVerification(runID, "authority-1", "policy")
+	evidence, lifecycle := splitRuntimeEvidenceStateForStoreTest(t, facts)
+	if err := store.RecordRuntimeEvidenceState(runID, facts, evidence, lifecycle); err != nil {
+		t.Fatalf("RecordRuntimeEvidenceState(initial) returned error: %v", err)
+	}
+
+	changedFacts := facts
+	changedFacts.LaunchReceipt.AuthorityStateDigest = testDigest("authority-2")
+	changedFacts = replayedRuntimeFactsWithoutVerifierIdentity(changedFacts)
+	changedEvidence, changedLifecycle := splitRuntimeEvidenceStateForStoreTest(t, changedFacts)
+	if err := store.RecordRuntimeEvidenceState(runID, changedFacts, changedEvidence, changedLifecycle); err != nil {
+		t.Fatalf("RecordRuntimeEvidenceState(changed) returned error: %v", err)
+	}
+
+	_, persistedEvidence, _, _, ok := store.RuntimeEvidenceState(runID)
+	if !ok {
+		t.Fatal("RuntimeEvidenceState = not found, want persisted runtime state")
+	}
+	if persistedEvidence.AttestationVerification == nil {
+		t.Fatal("expected fail-closed attestation verification when cache key changes")
+	}
+	if persistedEvidence.AttestationVerification.VerifierPolicyDigest != "" {
+		t.Fatal("expected cache miss when authority digest changes")
+	}
+}
+
+func TestRecordRuntimeEvidenceStateAttestationVerificationCacheSurvivesReload(t *testing.T) {
+	store := newTestStore(t)
+	runID := "run-runtime-attestation-cache-reload"
+
+	facts := runtimeFactsWithValidAttestationVerification(runID, "authority-reload", "policy-reload")
+	evidence, lifecycle := splitRuntimeEvidenceStateForStoreTest(t, facts)
+	if err := store.RecordRuntimeEvidenceState(runID, facts, evidence, lifecycle); err != nil {
+		t.Fatalf("RecordRuntimeEvidenceState(initial) returned error: %v", err)
+	}
+
+	reloaded, err := NewStore(store.rootDir)
+	if err != nil {
+		t.Fatalf("NewStore(reload) returned error: %v", err)
+	}
+	replayedFacts := replayedRuntimeFactsWithoutVerifierIdentity(facts)
+	replayedEvidence, replayedLifecycle := splitRuntimeEvidenceStateForStoreTest(t, replayedFacts)
+	if err := reloaded.RecordRuntimeEvidenceState(runID, replayedFacts, replayedEvidence, replayedLifecycle); err != nil {
+		t.Fatalf("RecordRuntimeEvidenceState(replayed) returned error: %v", err)
+	}
+	_, persistedEvidence, _, _, ok := reloaded.RuntimeEvidenceState(runID)
+	if !ok {
+		t.Fatal("RuntimeEvidenceState = not found, want persisted runtime state")
+	}
+	if persistedEvidence.AttestationVerification == nil {
+		t.Fatal("expected attestation verification from persisted cache after reload")
+	}
+}
+
 func recordRuntimeEvidenceFixture(t *testing.T, store *Store, runID string) (launcherbackend.RuntimeFactsSnapshot, launcherbackend.RuntimeEvidenceSnapshot, launcherbackend.RuntimeLifecycleState) {
 	t.Helper()
 	facts := runtimeFactsFixtureForStoreRuntimeTests(runID)
@@ -80,6 +165,54 @@ func recordRuntimeEvidenceFixture(t *testing.T, store *Store, runID string) (lau
 	return facts, evidence, lifecycle
 }
 
+func splitRuntimeEvidenceStateForStoreTest(t *testing.T, facts launcherbackend.RuntimeFactsSnapshot) (launcherbackend.RuntimeEvidenceSnapshot, launcherbackend.RuntimeLifecycleState) {
+	t.Helper()
+	evidence, lifecycle, err := launcherbackend.SplitRuntimeFactsEvidenceAndLifecycle(facts)
+	if err != nil {
+		t.Fatalf("SplitRuntimeFactsEvidenceAndLifecycle returned error: %v", err)
+	}
+	return evidence, lifecycle
+}
+
+func runtimeFactsWithValidAttestationVerification(runID string, authoritySeed string, policySeed string) launcherbackend.RuntimeFactsSnapshot {
+	facts := runtimeFactsFixtureForStoreRuntimeTests(runID)
+	facts.LaunchReceipt.AuthorityStateDigest = testDigest(authoritySeed)
+	facts.LaunchReceipt.AttestationVerifierPolicyID = "runtime_asset_admission_identity"
+	facts.LaunchReceipt.AttestationVerifierPolicyDigest = testDigest(policySeed)
+	facts.LaunchReceipt.AttestationVerificationResult = launcherbackend.AttestationVerificationResultValid
+	facts.LaunchReceipt.AttestationReplayVerdict = launcherbackend.AttestationReplayVerdictOriginal
+	return facts
+}
+
+func replayedRuntimeFactsWithoutVerifierIdentity(facts launcherbackend.RuntimeFactsSnapshot) launcherbackend.RuntimeFactsSnapshot {
+	replayedFacts := facts
+	replayedFacts.LaunchReceipt.AttestationVerifierPolicyID = ""
+	replayedFacts.LaunchReceipt.AttestationVerifierPolicyDigest = ""
+	replayedFacts.LaunchReceipt.AttestationVerificationRulesVersion = ""
+	replayedFacts.LaunchReceipt.AttestationVerificationTimestamp = ""
+	replayedFacts.LaunchReceipt.AttestationVerificationResult = ""
+	replayedFacts.LaunchReceipt.AttestationVerificationReasonCodes = nil
+	replayedFacts.LaunchReceipt.AttestationReplayVerdict = ""
+	return replayedFacts
+}
+
+func assertPersistedInvalidAttestationVerification(t *testing.T, store *Store, runID string) {
+	t.Helper()
+	_, persistedEvidence, _, _, ok := store.RuntimeEvidenceState(runID)
+	if !ok {
+		t.Fatal("RuntimeEvidenceState = not found, want persisted runtime state")
+	}
+	if persistedEvidence.AttestationVerification == nil {
+		t.Fatal("expected fail-closed attestation verification to remain persisted")
+	}
+	if persistedEvidence.AttestationVerification.VerificationResult != launcherbackend.AttestationVerificationResultInvalid {
+		t.Fatalf("verification result = %q, want %q", persistedEvidence.AttestationVerification.VerificationResult, launcherbackend.AttestationVerificationResultInvalid)
+	}
+	if persistedEvidence.AttestationVerification.VerifierPolicyDigest != "" {
+		t.Fatalf("expected cache not to overwrite explicit fail-closed verification, got verifier policy digest %q", persistedEvidence.AttestationVerification.VerifierPolicyDigest)
+	}
+}
+
 func assertPersistedRuntimeEvidence(t *testing.T, persistedFacts, facts launcherbackend.RuntimeFactsSnapshot, persistedEvidence, evidence launcherbackend.RuntimeEvidenceSnapshot, persistedLifecycle, lifecycle launcherbackend.RuntimeLifecycleState) {
 	t.Helper()
 	if persistedEvidence.Launch.EvidenceDigest != evidence.Launch.EvidenceDigest {
@@ -90,6 +223,9 @@ func assertPersistedRuntimeEvidence(t *testing.T, persistedFacts, facts launcher
 	}
 	if persistedEvidence.Session == nil || persistedEvidence.Session.EvidenceDigest != evidence.Session.EvidenceDigest {
 		t.Fatalf("session evidence digest = %#v, want %q", persistedEvidence.Session, evidence.Session.EvidenceDigest)
+	}
+	if persistedEvidence.Attestation == nil || persistedEvidence.Attestation.EvidenceDigest != evidence.Attestation.EvidenceDigest {
+		t.Fatalf("attestation evidence digest = %#v, want %q", persistedEvidence.Attestation, evidence.Attestation.EvidenceDigest)
 	}
 	if persistedFacts.LaunchReceipt.BackendKind != facts.LaunchReceipt.BackendKind {
 		t.Fatalf("persisted backend_kind = %q, want %q", persistedFacts.LaunchReceipt.BackendKind, facts.LaunchReceipt.BackendKind)
@@ -120,6 +256,14 @@ func runtimeFactsFixtureForStoreRuntimeTests(runID string) launcherbackend.Runti
 	facts.LaunchReceipt.LaunchContextDigest = testDigest("4")
 	facts.LaunchReceipt.HandshakeTranscriptHash = testDigest("5")
 	facts.LaunchReceipt.IsolateSessionKeyIDValue = strings.Repeat("f", 64)
+	facts.LaunchReceipt.RuntimeImageDescriptorDigest = testDigest("6")
+	facts.LaunchReceipt.RuntimeImageBootProfile = launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1
+	facts.LaunchReceipt.BootComponentDigests = []string{testDigest("7")}
+	facts.LaunchReceipt.AttestationEvidenceSourceKind = launcherbackend.AttestationSourceKindTPMQuote
+	facts.LaunchReceipt.AttestationMeasurementProfile = "microvm-boot-v1"
+	facts.LaunchReceipt.AttestationFreshnessMaterial = []string{"quote_nonce"}
+	facts.LaunchReceipt.AttestationFreshnessBindingClaims = []string{"session_nonce", "handshake_transcript_hash"}
+	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = testDigest("8")
 	return facts
 }
 

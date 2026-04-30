@@ -29,6 +29,7 @@ func normalizeReceiptCoreFields(receipt *BackendLaunchReceipt) {
 	receipt.HandshakeTranscriptHash = strings.TrimSpace(receipt.HandshakeTranscriptHash)
 	receipt.IsolateSessionKeyIDValue = strings.TrimSpace(receipt.IsolateSessionKeyIDValue)
 	receipt.HostingNodeID = strings.TrimSpace(receipt.HostingNodeID)
+	normalizeReceiptAttestationFields(receipt)
 }
 
 func normalizeReceiptImageFields(receipt *BackendLaunchReceipt) {

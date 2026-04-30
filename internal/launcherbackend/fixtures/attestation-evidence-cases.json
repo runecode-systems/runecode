@@ -1,0 +1,168 @@
+{
+  "cases": [
+    {
+      "name": "valid_tpm_quote",
+      "facts": {
+        "launch_receipt": {
+          "run_id": "run-att-fixture-valid",
+          "stage_id": "stage-1",
+          "role_instance_id": "workspace-1",
+          "backend_kind": "microvm",
+          "isolation_assurance_level": "isolated",
+          "provisioning_posture": "attested",
+          "isolate_id": "isolate-1",
+          "session_id": "session-1",
+          "session_nonce": "nonce-0123456789abcdef",
+          "handshake_transcript_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "isolate_session_key_id_value": "2222222222222222222222222222222222222222222222222222222222222222",
+          "runtime_image_descriptor_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+          "runtime_image_boot_profile": "microvm-linux-kernel-initrd-v1",
+          "boot_component_digests": [
+            "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+            "sha256:5555555555555555555555555555555555555555555555555555555555555555"
+          ],
+          "attestation_evidence_source_kind": "tpm_quote",
+          "attestation_measurement_profile": "microvm-boot-v1",
+          "attestation_freshness_material": ["quote_nonce"],
+          "attestation_freshness_binding_claims": ["session_nonce", "handshake_transcript_hash"],
+          "attestation_evidence_claims_digest": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+          "attestation_verifier_policy_id": "runtime_asset_admission_identity",
+          "attestation_verifier_policy_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+          "attestation_verification_rules_version": "v1",
+          "attestation_verification_timestamp": "2026-04-29T12:00:00Z",
+          "attestation_verification_result": "valid",
+          "attestation_replay_verdict": "original"
+        },
+        "hardening_posture": {
+          "requested": "hardened",
+          "effective": "hardened"
+        }
+      },
+      "expect_attestation": true,
+      "expect_verification_result": "valid",
+      "expect_reason_codes": []
+    },
+    {
+      "name": "invalid_attestation_verification",
+      "facts": {
+        "launch_receipt": {
+          "run_id": "run-att-fixture-invalid",
+          "stage_id": "stage-1",
+          "role_instance_id": "workspace-1",
+          "backend_kind": "microvm",
+          "isolation_assurance_level": "isolated",
+          "provisioning_posture": "attested",
+          "isolate_id": "isolate-1",
+          "session_id": "session-1",
+          "session_nonce": "nonce-0123456789abcdef",
+          "handshake_transcript_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "isolate_session_key_id_value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "runtime_image_descriptor_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "runtime_image_boot_profile": "microvm-linux-kernel-initrd-v1",
+          "boot_component_digests": ["sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"],
+          "attestation_evidence_source_kind": "tpm_quote",
+          "attestation_measurement_profile": "microvm-boot-v1",
+          "attestation_freshness_material": ["quote_nonce"],
+          "attestation_freshness_binding_claims": ["session_nonce"],
+          "attestation_verifier_policy_id": "runtime_asset_admission_identity",
+          "attestation_verifier_policy_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "attestation_verification_result": "invalid",
+          "attestation_verification_reason_codes": ["signature_mismatch"],
+          "attestation_replay_verdict": "original"
+        }
+      },
+      "expect_attestation": true,
+      "expect_verification_result": "invalid",
+      "expect_reason_codes": ["attestation_verification_not_valid", "signature_mismatch"]
+    },
+    {
+      "name": "replayed_attestation",
+      "facts": {
+        "launch_receipt": {
+          "run_id": "run-att-fixture-replay",
+          "stage_id": "stage-1",
+          "role_instance_id": "workspace-1",
+          "backend_kind": "microvm",
+          "isolation_assurance_level": "isolated",
+          "provisioning_posture": "attested",
+          "isolate_id": "isolate-1",
+          "session_id": "session-1",
+          "session_nonce": "nonce-0123456789abcdef",
+          "handshake_transcript_hash": "sha256:1212121212121212121212121212121212121212121212121212121212121212",
+          "isolate_session_key_id_value": "3434343434343434343434343434343434343434343434343434343434343434",
+          "runtime_image_descriptor_digest": "sha256:5656565656565656565656565656565656565656565656565656565656565656",
+          "runtime_image_boot_profile": "microvm-linux-kernel-initrd-v1",
+          "boot_component_digests": ["sha256:7878787878787878787878787878787878787878787878787878787878787878"],
+          "attestation_evidence_source_kind": "tdx_quote",
+          "attestation_measurement_profile": "microvm-boot-v1",
+          "attestation_freshness_material": ["nonce"],
+          "attestation_freshness_binding_claims": ["session_nonce", "handshake_transcript_hash"],
+          "attestation_verifier_policy_id": "runtime_asset_admission_identity",
+          "attestation_verifier_policy_digest": "sha256:9090909090909090909090909090909090909090909090909090909090909090",
+          "attestation_verification_result": "valid",
+          "attestation_replay_verdict": "replay"
+        }
+      },
+      "expect_attestation": true,
+      "expect_verification_result": "invalid",
+      "expect_reason_codes": ["attestation_replay_detected"]
+    },
+    {
+      "name": "unavailable_attestation",
+      "facts": {
+        "launch_receipt": {
+          "run_id": "run-att-fixture-unavailable",
+          "stage_id": "stage-1",
+          "role_instance_id": "workspace-1",
+          "backend_kind": "microvm",
+          "isolation_assurance_level": "isolated",
+          "provisioning_posture": "attested",
+          "isolate_id": "isolate-1",
+          "session_id": "session-1",
+          "session_nonce": "nonce-0123456789abcdef",
+          "handshake_transcript_hash": "sha256:abababababababababababababababababababababababababababababababab",
+          "isolate_session_key_id_value": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+          "runtime_image_descriptor_digest": "sha256:efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+          "runtime_image_boot_profile": "microvm-linux-kernel-initrd-v1"
+        }
+      },
+      "expect_attestation": false,
+      "expect_verification_result": "invalid",
+      "expect_reason_codes": ["attestation_evidence_required"]
+    },
+    {
+      "name": "freshness_missing_or_stale",
+      "facts": {
+        "launch_receipt": {
+          "run_id": "run-att-fixture-freshness",
+          "stage_id": "stage-1",
+          "role_instance_id": "workspace-1",
+          "backend_kind": "microvm",
+          "isolation_assurance_level": "isolated",
+          "provisioning_posture": "attested",
+          "isolate_id": "isolate-1",
+          "session_id": "session-1",
+          "session_nonce": "nonce-0123456789abcdef",
+          "handshake_transcript_hash": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+          "isolate_session_key_id_value": "edededededededededededededededededededededededededededededededed",
+          "runtime_image_descriptor_digest": "sha256:0101010101010101010101010101010101010101010101010101010101010101",
+          "runtime_image_boot_profile": "microvm-linux-kernel-initrd-v1",
+          "attestation_evidence_source_kind": "sev_snp_report",
+          "attestation_measurement_profile": "microvm-boot-v1",
+          "attestation_verifier_policy_id": "runtime_asset_admission_identity",
+          "attestation_verifier_policy_digest": "sha256:0202020202020202020202020202020202020202020202020202020202020202",
+          "attestation_verification_result": "valid",
+          "attestation_verification_reason_codes": ["attestation_freshness_stale"],
+          "attestation_replay_verdict": "original"
+        }
+      },
+      "expect_attestation": true,
+      "expect_verification_result": "invalid",
+      "expect_reason_codes": [
+        "attestation_freshness_binding_missing",
+        "attestation_freshness_material_missing",
+        "attestation_freshness_stale"
+      ]
+    }
+  ]
+}

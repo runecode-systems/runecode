@@ -10,8 +10,12 @@ import (
 
 func buildAuthoritativeRunState(summary RunSummary, artifactsForRun []artifacts.ArtifactRecord, pendingIDs []string, manifestHashes []string, policyRefs []string, approvals []ApprovalSummary, runtimeFacts launcherbackend.RuntimeFactsSnapshot, currentInstanceID string) map[string]any {
 	receipt := runtimeFacts.LaunchReceipt.Normalized()
+	evidence, _, err := launcherbackend.SplitRuntimeFactsEvidenceAndLifecycle(runtimeFacts)
+	if err != nil {
+		evidence = launcherbackend.RuntimeEvidenceSnapshot{}
+	}
 	state := buildBaseAuthoritativeRunState(summary, len(artifactsForRun), len(pendingIDs), receipt)
-	projectReceiptIdentityState(state, receipt)
+	projectReceiptIdentityState(state, receipt, evidence)
 	projectReceiptImageState(state, receipt)
 	projectReceiptBackendEvidenceState(state, receipt)
 	projectReceiptSessionAndAttachmentState(state, receipt)
@@ -156,32 +160,44 @@ func buildBaseAuthoritativeRunState(summary RunSummary, artifactCount int, pendi
 		"isolation_assurance_level":       receipt.IsolationAssuranceLevel,
 		"runtime_posture_degraded":        runtimePostureDegraded(receipt.BackendKind, receipt.IsolationAssuranceLevel),
 		"provisioning_posture":            receipt.ProvisioningPosture,
+		"attestation_posture":             launcherbackend.AttestationPostureUnknown,
 		"runtime_facts_source":            "launcher_backend_receipt",
 	}
 }
 
-func projectReceiptIdentityState(state map[string]any, receipt launcherbackend.BackendLaunchReceipt) {
+func projectReceiptIdentityState(state map[string]any, receipt launcherbackend.BackendLaunchReceipt, evidence launcherbackend.RuntimeEvidenceSnapshot) {
+	projectAttestationIdentityState(state, evidence)
+	if projectIdentity, ok := state["project_context_identity_digest"].(string); ok && strings.TrimSpace(projectIdentity) != "" {
+		state["validated_project_substrate_identity_digest"] = strings.TrimSpace(projectIdentity)
+	}
+	projectRuntimeBindingIdentityState(state, receipt)
+	projectProvisioningDegradedState(state, receipt)
+}
+
+func projectAttestationIdentityState(state map[string]any, evidence launcherbackend.RuntimeEvidenceSnapshot) {
+	attestationPosture, attestationReasons := launcherbackend.DeriveAttestationPostureFromEvidence(evidence)
+	state["attestation_posture"] = attestationPosture
+	state["session_binding_present"] = evidence.Session != nil && strings.TrimSpace(evidence.Session.EvidenceDigest) != ""
+	state["attestation_evidence_present"] = evidence.Attestation != nil && strings.TrimSpace(evidence.Attestation.EvidenceDigest) != ""
+	state["attestation_verification_succeeded"] = evidence.AttestationVerification != nil && evidence.AttestationVerification.VerificationResult == launcherbackend.AttestationVerificationResultValid && evidence.AttestationVerification.ReplayVerdict == launcherbackend.AttestationReplayVerdictOriginal
+	if len(attestationReasons) > 0 {
+		state["attestation_reason_codes"] = attestationReasons
+	}
+}
+
+func projectRuntimeBindingIdentityState(state map[string]any, receipt launcherbackend.BackendLaunchReceipt) {
 	if receipt.IsolateID != "" {
 		state["isolate_id"] = receipt.IsolateID
 	}
 	if receipt.SessionID != "" {
 		state["session_id"] = receipt.SessionID
 	}
-	if receipt.SessionNonce != "" {
-		state["session_nonce"] = receipt.SessionNonce
-	}
 	if receipt.LaunchContextDigest != "" {
 		state["launch_context_digest"] = receipt.LaunchContextDigest
 	}
-	if receipt.HandshakeTranscriptHash != "" {
-		state["handshake_transcript_hash"] = receipt.HandshakeTranscriptHash
-	}
-	if receipt.IsolateSessionKeyIDValue != "" {
-		state["isolate_session_key_id_value"] = receipt.IsolateSessionKeyIDValue
-	}
-	if receipt.HostingNodeID != "" {
-		state["hosting_node_id"] = receipt.HostingNodeID
-	}
+}
+
+func projectProvisioningDegradedState(state map[string]any, receipt launcherbackend.BackendLaunchReceipt) {
 	if receipt.ProvisioningPostureDegraded {
 		state["provisioning_posture_degraded"] = true
 	}

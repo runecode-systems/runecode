@@ -189,20 +189,20 @@ func assertRuntimeFactsIdentityProjection(t *testing.T, state map[string]any) {
 	if state["isolate_id"] != "isolate-1" {
 		t.Fatalf("authoritative_state.isolate_id = %v, want isolate-1", state["isolate_id"])
 	}
-	if state["session_nonce"] != "nonce-0123456789abcdef" {
-		t.Fatalf("authoritative_state.session_nonce = %v, want nonce", state["session_nonce"])
-	}
 	if state["launch_context_digest"] != "sha256:"+strings.Repeat("d", 64) {
 		t.Fatalf("authoritative_state.launch_context_digest = %v, want launch context digest", state["launch_context_digest"])
 	}
-	if state["handshake_transcript_hash"] != "sha256:"+strings.Repeat("e", 64) {
-		t.Fatalf("authoritative_state.handshake_transcript_hash = %v, want handshake transcript hash", state["handshake_transcript_hash"])
+	if _, ok := state["session_nonce"]; ok {
+		t.Fatalf("authoritative_state.session_nonce should be omitted from standard run detail state: %v", state["session_nonce"])
 	}
-	if state["isolate_session_key_id_value"] != strings.Repeat("f", 64) {
-		t.Fatalf("authoritative_state.isolate_session_key_id_value = %v, want pinned isolate key id", state["isolate_session_key_id_value"])
+	if _, ok := state["handshake_transcript_hash"]; ok {
+		t.Fatalf("authoritative_state.handshake_transcript_hash should be omitted from standard run detail state: %v", state["handshake_transcript_hash"])
 	}
-	if state["hosting_node_id"] != "node-1" {
-		t.Fatalf("authoritative_state.hosting_node_id = %v, want node-1", state["hosting_node_id"])
+	if _, ok := state["isolate_session_key_id_value"]; ok {
+		t.Fatalf("authoritative_state.isolate_session_key_id_value should be omitted from standard run detail state: %v", state["isolate_session_key_id_value"])
+	}
+	if _, ok := state["hosting_node_id"]; ok {
+		t.Fatalf("authoritative_state.hosting_node_id should be omitted from standard run detail state: %v", state["hosting_node_id"])
 	}
 	if state["provisioning_posture_degraded"] != true {
 		t.Fatalf("authoritative_state.provisioning_posture_degraded = %v, want true for tofu", state["provisioning_posture_degraded"])

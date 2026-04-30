@@ -113,6 +113,21 @@ func assertRunDetailCoreForLocalOps(t *testing.T, detail RunDetail) {
 
 func assertRunDetailAuthoritativeStateForLocalOps(t *testing.T, state map[string]any) {
 	t.Helper()
+	assertRunDetailAuthoritativeBaseState(t, state)
+	hardening, ok := state["applied_hardening_posture"].(map[string]any)
+	if !ok {
+		t.Fatalf("authoritative_state.applied_hardening_posture = %T, want map", state["applied_hardening_posture"])
+	}
+	if hardening["degraded"] != true {
+		t.Fatalf("applied_hardening_posture.degraded = %v, want true", hardening["degraded"])
+	}
+	if hardening["degraded_reasons"] == nil {
+		t.Fatal("applied_hardening_posture.degraded_reasons should be present for default unknown posture")
+	}
+}
+
+func assertRunDetailAuthoritativeBaseState(t *testing.T, state map[string]any) {
+	t.Helper()
 	if state["source"] != "broker_store" {
 		t.Fatalf("authoritative_state.source = %v, want broker_store", state["source"])
 	}
@@ -134,15 +149,8 @@ func assertRunDetailAuthoritativeStateForLocalOps(t *testing.T, state map[string
 	if state["provisioning_posture"] != launcherbackend.ProvisioningPostureUnknown {
 		t.Fatalf("authoritative_state.provisioning_posture = %v, want %q", state["provisioning_posture"], launcherbackend.ProvisioningPostureUnknown)
 	}
-	hardening, ok := state["applied_hardening_posture"].(map[string]any)
-	if !ok {
-		t.Fatalf("authoritative_state.applied_hardening_posture = %T, want map", state["applied_hardening_posture"])
-	}
-	if hardening["degraded"] != true {
-		t.Fatalf("applied_hardening_posture.degraded = %v, want true", hardening["degraded"])
-	}
-	if hardening["degraded_reasons"] == nil {
-		t.Fatal("applied_hardening_posture.degraded_reasons should be present for default unknown posture")
+	if state["attestation_posture"] != launcherbackend.AttestationPostureUnknown {
+		t.Fatalf("authoritative_state.attestation_posture = %v, want %q", state["attestation_posture"], launcherbackend.AttestationPostureUnknown)
 	}
 }
 

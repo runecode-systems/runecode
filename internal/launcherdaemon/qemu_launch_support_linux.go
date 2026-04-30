@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -20,42 +21,73 @@ import (
 )
 
 func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild string, cacheEvidence *launcherbackend.BackendCacheEvidence) launcherbackend.BackendLaunchReceipt {
-	return launcherbackend.BackendLaunchReceipt{
-		RunID:                            spec.RunID,
-		StageID:                          spec.StageID,
-		RoleInstanceID:                   spec.RoleInstanceID,
-		RoleFamily:                       spec.RoleFamily,
-		RoleKind:                         spec.RoleKind,
-		BackendKind:                      launcherbackend.BackendKindMicroVM,
-		IsolationAssuranceLevel:          launcherbackend.IsolationAssuranceIsolated,
-		ProvisioningPosture:              launcherbackend.ProvisioningPostureTOFU,
-		IsolateID:                        isoID,
-		SessionID:                        sessionID,
-		SessionNonce:                     nonce,
-		HypervisorImplementation:         launcherbackend.HypervisorImplementationQEMU,
-		AccelerationKind:                 launcherbackend.AccelerationKindKVM,
-		TransportKind:                    launcherbackend.TransportKindVirtioSerial,
-		QEMUProvenance:                   &launcherbackend.QEMUProvenance{Version: qemuVersion, BuildIdentity: qemuBuild},
-		RuntimeImageDescriptorDigest:     admission.DescriptorDigest,
-		RuntimeImageBootProfile:          admission.BootContractVersion,
-		RuntimeImageSignerRef:            admission.RuntimeImageSignerRef,
-		RuntimeImageVerifierRef:          admission.RuntimeImageVerifierSetRef,
-		RuntimeImageSignatureDigest:      admission.RuntimeImageSignatureDigest,
-		RuntimeToolchainDescriptorDigest: admission.RuntimeToolchainDescriptorDigest,
-		RuntimeToolchainSignerRef:        admission.RuntimeToolchainSignerRef,
-		RuntimeToolchainVerifierRef:      admission.RuntimeToolchainVerifierSetRef,
-		RuntimeToolchainSignatureDigest:  admission.RuntimeToolchainSignatureDigest,
-		AuthorityStateDigest:             admission.AuthorityStateDigest,
-		AuthorityStateRevision:           admission.AuthorityStateRevision,
-		BootComponentDigestByName:        cloneMap(admission.ComponentDigests),
-		ResourceLimits:                   &spec.ResourceLimits,
-		WatchdogPolicy:                   &spec.WatchdogPolicy,
-		CachePosture:                     &spec.CachePosture,
-		CacheEvidence:                    cacheEvidence,
-		AttachmentPlanSummary:            summarizeAttachments(spec.Attachments),
-		WorkspaceEncryptionPosture:       spec.Attachments.WorkspaceEncryption,
-		Lifecycle:                        &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateLaunching, TerminateBetweenSteps: true, TransitionCount: 1},
+	receipt := launcherbackend.BackendLaunchReceipt{
+		RunID:                    spec.RunID,
+		StageID:                  spec.StageID,
+		RoleInstanceID:           spec.RoleInstanceID,
+		RoleFamily:               spec.RoleFamily,
+		RoleKind:                 spec.RoleKind,
+		BackendKind:              launcherbackend.BackendKindMicroVM,
+		IsolationAssuranceLevel:  launcherbackend.IsolationAssuranceIsolated,
+		ProvisioningPosture:      launcherbackend.ProvisioningPostureTOFU,
+		IsolateID:                isoID,
+		SessionID:                sessionID,
+		SessionNonce:             nonce,
+		LaunchContextDigest:      syntheticLaunchContextDigest(spec, nonce),
+		HandshakeTranscriptHash:  syntheticHandshakeTranscriptHash(spec, nonce, admission.DescriptorDigest),
+		IsolateSessionKeyIDValue: syntheticSessionKeyIDValue(spec, nonce, admission.DescriptorDigest),
 	}
+	applyRuntimeAssetIdentity(&receipt, admission, qemuVersion, qemuBuild)
+	applyLaunchExecutionDetails(&receipt, spec, cacheEvidence, qemuVersion, qemuBuild)
+	return receipt
+}
+
+func applyRuntimeAssetIdentity(receipt *launcherbackend.BackendLaunchReceipt, admission launcherbackend.RuntimeAdmissionRecord, qemuVersion, qemuBuild string) {
+	receipt.HypervisorImplementation = launcherbackend.HypervisorImplementationQEMU
+	receipt.AccelerationKind = launcherbackend.AccelerationKindKVM
+	receipt.TransportKind = launcherbackend.TransportKindVirtioSerial
+	receipt.QEMUProvenance = &launcherbackend.QEMUProvenance{Version: qemuVersion, BuildIdentity: qemuBuild}
+	receipt.RuntimeImageDescriptorDigest = admission.DescriptorDigest
+	receipt.RuntimeImageBootProfile = admission.BootContractVersion
+	receipt.RuntimeImageSignerRef = admission.RuntimeImageSignerRef
+	receipt.RuntimeImageVerifierRef = admission.RuntimeImageVerifierSetRef
+	receipt.RuntimeImageSignatureDigest = admission.RuntimeImageSignatureDigest
+	receipt.RuntimeToolchainDescriptorDigest = admission.RuntimeToolchainDescriptorDigest
+	receipt.RuntimeToolchainSignerRef = admission.RuntimeToolchainSignerRef
+	receipt.RuntimeToolchainVerifierRef = admission.RuntimeToolchainVerifierSetRef
+	receipt.RuntimeToolchainSignatureDigest = admission.RuntimeToolchainSignatureDigest
+	receipt.AuthorityStateDigest = admission.AuthorityStateDigest
+	receipt.AuthorityStateRevision = admission.AuthorityStateRevision
+	receipt.BootComponentDigestByName = cloneMap(admission.ComponentDigests)
+}
+
+func applyLaunchExecutionDetails(receipt *launcherbackend.BackendLaunchReceipt, spec launcherbackend.BackendLaunchSpec, cacheEvidence *launcherbackend.BackendCacheEvidence, qemuVersion, qemuBuild string) {
+	receipt.QEMUProvenance = &launcherbackend.QEMUProvenance{Version: qemuVersion, BuildIdentity: qemuBuild}
+	receipt.ResourceLimits = &spec.ResourceLimits
+	receipt.WatchdogPolicy = &spec.WatchdogPolicy
+	receipt.CachePosture = &spec.CachePosture
+	receipt.CacheEvidence = cacheEvidence
+	receipt.AttachmentPlanSummary = summarizeAttachments(spec.Attachments)
+	receipt.WorkspaceEncryptionPosture = spec.Attachments.WorkspaceEncryption
+	receipt.Lifecycle = &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateLaunching, TerminateBetweenSteps: true, TransitionCount: 1}
+}
+
+func syntheticLaunchContextDigest(spec launcherbackend.BackendLaunchSpec, nonce string) string {
+	return syntheticDigest("launch-context", spec.RunID, spec.StageID, spec.RoleInstanceID, nonce)
+}
+
+func syntheticHandshakeTranscriptHash(spec launcherbackend.BackendLaunchSpec, nonce, descriptorDigest string) string {
+	return syntheticDigest("handshake", spec.RunID, spec.StageID, spec.RoleInstanceID, nonce, descriptorDigest)
+}
+
+func syntheticSessionKeyIDValue(spec launcherbackend.BackendLaunchSpec, nonce, descriptorDigest string) string {
+	sum := sha256.Sum256([]byte(strings.Join([]string{"session-key", spec.RunID, spec.StageID, spec.RoleInstanceID, nonce, descriptorDigest}, "|")))
+	return hex.EncodeToString(sum[:])
+}
+
+func syntheticDigest(parts ...string) string {
+	sum := sha256.Sum256([]byte(strings.Join(parts, "|")))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func buildHardeningPosture() launcherbackend.AppliedHardeningPosture {

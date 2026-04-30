@@ -219,17 +219,77 @@ func TestBuildRuntimeEventOperationIDForLaunchAdmissionStaysLaunchDigestScoped(t
 
 func TestRuntimeSessionAuditIdentityKeyIncludesLaunchAndHardeningDigests(t *testing.T) {
 	evidence := launcherbackend.RuntimeEvidenceSnapshot{
-		Launch:    launcherbackend.LaunchRuntimeEvidence{EvidenceDigest: "sha256:" + strings.Repeat("1", 64)},
-		Hardening: launcherbackend.HardeningRuntimeEvidence{EvidenceDigest: "sha256:" + strings.Repeat("2", 64)},
-		Session:   &launcherbackend.SessionRuntimeEvidence{EvidenceDigest: "sha256:" + strings.Repeat("3", 64)},
+		Launch:                  launcherbackend.LaunchRuntimeEvidence{EvidenceDigest: "sha256:" + strings.Repeat("1", 64)},
+		Hardening:               launcherbackend.HardeningRuntimeEvidence{EvidenceDigest: "sha256:" + strings.Repeat("2", 64)},
+		Session:                 &launcherbackend.SessionRuntimeEvidence{EvidenceDigest: "sha256:" + strings.Repeat("3", 64)},
+		Attestation:             &launcherbackend.IsolateAttestationEvidence{EvidenceDigest: "sha256:" + strings.Repeat("4", 64)},
+		AttestationVerification: &launcherbackend.IsolateAttestationVerificationRecord{VerificationDigest: "sha256:" + strings.Repeat("5", 64), VerificationResult: launcherbackend.AttestationVerificationResultValid},
 	}
 	key := runtimeSessionAuditIdentityKey(evidence)
 	parts := strings.Split(key, ":")
-	if len(parts) != 6 {
-		t.Fatalf("session audit identity parts = %d, want 6 for three sha256 digests", len(parts))
+	if len(parts) != 11 {
+		t.Fatalf("session audit identity parts = %d, want 11 for five sha256 digests plus posture marker", len(parts))
 	}
-	if !strings.Contains(key, evidence.Launch.EvidenceDigest) || !strings.Contains(key, evidence.Hardening.EvidenceDigest) || !strings.Contains(key, evidence.Session.EvidenceDigest) {
-		t.Fatalf("session audit identity = %q, want launch, hardening, and session digests included", key)
+	if !strings.Contains(key, evidence.Launch.EvidenceDigest) || !strings.Contains(key, evidence.Hardening.EvidenceDigest) || !strings.Contains(key, evidence.Session.EvidenceDigest) || !strings.Contains(key, evidence.Attestation.EvidenceDigest) || !strings.Contains(key, evidence.AttestationVerification.VerificationDigest) || !strings.Contains(key, launcherbackend.AttestationPostureUnknown) {
+		t.Fatalf("session audit identity = %q, want launch/hardening/session/attestation digests and posture included", key)
+	}
+}
+
+func TestRuntimeSessionAuditPayloadIncludesAttestationEvidenceDigestAdditively(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	_ = putRunScopedArtifactForLocalOpsTest(t, s, "run-runtime-attestation-audit", "step-1")
+	facts := attestationAuditRuntimeFacts()
+
+	if err := s.RecordRuntimeFacts("run-runtime-attestation-audit", facts); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
+	evidence := requirePersistedAttestationEvidence(t, s, "run-runtime-attestation-audit")
+
+	events, err := s.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents returned error: %v", err)
+	}
+	startedEvent := findLauncherRuntimeAuditEvent(t, events, "isolate_session_started")
+	assertRuntimeAttestationAuditPayload(t, startedEvent, evidence.Attestation.EvidenceDigest)
+	boundEvent := findLauncherRuntimeAuditEvent(t, events, "isolate_session_bound")
+	assertRuntimeAttestationAuditPayload(t, boundEvent, evidence.Attestation.EvidenceDigest)
+	assertLauncherRuntimeAuditDigestValue(t, launcherRuntimeAuditDigests(t, startedEvent), "attestation_evidence", evidence.Attestation.EvidenceDigest)
+}
+
+func attestationAuditRuntimeFacts() launcherbackend.RuntimeFactsSnapshot {
+	facts := launcherRuntimeFactsFixture()
+	facts.LaunchReceipt.RunID = "run-runtime-attestation-audit"
+	facts.LaunchReceipt.AttestationEvidenceSourceKind = launcherbackend.AttestationSourceKindTPMQuote
+	facts.LaunchReceipt.AttestationMeasurementProfile = "microvm-boot-v1"
+	facts.LaunchReceipt.AttestationFreshnessMaterial = []string{"quote_nonce"}
+	facts.LaunchReceipt.AttestationFreshnessBindingClaims = []string{"session_nonce", "handshake_transcript_hash"}
+	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = "sha256:" + strings.Repeat("7", 64)
+	return facts
+}
+
+func requirePersistedAttestationEvidence(t *testing.T, s *Service, runID string) launcherbackend.RuntimeEvidenceSnapshot {
+	t.Helper()
+	_, evidence, _, _, ok := s.store.RuntimeEvidenceState(runID)
+	if !ok {
+		t.Fatal("RuntimeEvidenceState = not found, want persisted runtime evidence")
+	}
+	if evidence.Attestation == nil || evidence.Attestation.EvidenceDigest == "" {
+		t.Fatalf("attestation evidence missing from persisted runtime evidence: %#v", evidence.Attestation)
+	}
+	return evidence
+}
+
+func assertRuntimeAttestationAuditPayload(t *testing.T, event artifacts.AuditEvent, expectedDigest string) {
+	t.Helper()
+	payload := launcherRuntimeAuditEventPayload(t, event)
+	if payload["attestation_evidence_digest"] != expectedDigest {
+		t.Fatalf("attestation_evidence_digest = %v, want %q", payload["attestation_evidence_digest"], expectedDigest)
+	}
+	if event.Details["provisioning_posture"] != launcherbackend.ProvisioningPostureTOFU {
+		t.Fatalf("details provisioning_posture = %v, want %q", event.Details["provisioning_posture"], launcherbackend.ProvisioningPostureTOFU)
+	}
+	if event.Details["attestation_posture"] != launcherbackend.AttestationPostureTOFUOnly {
+		t.Fatalf("details attestation_posture = %v, want %q", event.Details["attestation_posture"], launcherbackend.AttestationPostureTOFUOnly)
 	}
 }
 

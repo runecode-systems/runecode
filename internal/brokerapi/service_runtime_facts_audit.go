@@ -102,6 +102,7 @@ func (s *Service) emitRuntimeSessionStartedAuditEvent(runID string, evidence lau
 		LaunchReceiptDigest:           evidence.Launch.EvidenceDigest,
 		RuntimeImageDescriptorDigest:  evidence.Launch.RuntimeImageDescriptorDigest,
 		AppliedHardeningPostureDigest: evidence.Hardening.EvidenceDigest,
+		AttestationEvidenceDigest:     runtimeAttestationEvidenceDigest(evidence),
 	}
 	if details, err := runtimeAuditDetailsForPayload("isolate_session_started", trustpolicy.IsolateSessionStartedPayloadSchemaID, payload, evidence, facts); err != nil {
 		return err
@@ -134,6 +135,7 @@ func (s *Service) emitRuntimeSessionBoundAuditEvent(runID string, evidence launc
 		SessionBindingDigest:          evidence.Session.EvidenceDigest,
 		RuntimeImageDescriptorDigest:  evidence.Launch.RuntimeImageDescriptorDigest,
 		AppliedHardeningPostureDigest: evidence.Hardening.EvidenceDigest,
+		AttestationEvidenceDigest:     runtimeAttestationEvidenceDigest(evidence),
 	}
 	if details, err := runtimeAuditDetailsForPayload("isolate_session_bound", trustpolicy.IsolateSessionBoundPayloadSchemaID, payload, evidence, facts); err != nil {
 		return err

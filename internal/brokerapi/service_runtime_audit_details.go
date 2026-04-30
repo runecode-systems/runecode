@@ -20,6 +20,9 @@ func runtimeAuditDetailsForPayload(eventType, payloadSchemaID string, payload an
 		"run_id":                      evidence.Launch.RunID,
 		"evidence_digest_refs":        runtimeEvidenceDigestRefs(evidence),
 		"stored_runtime_fact_digests": runtimeStoredDigestMap(evidence),
+		"provisioning_posture":        evidence.Launch.ProvisioningPosture,
+		"attestation_posture":         runtimeAttestationPosture(evidence),
+		"attestation_reason_codes":    runtimeAttestationReasonCodes(evidence),
 	}
 	if sessionID := strings.TrimSpace(evidence.Launch.SessionID); sessionID != "" {
 		details["session_id"] = sessionID
@@ -56,8 +59,23 @@ func runtimeSessionAuditIdentityKey(evidence launcherbackend.RuntimeEvidenceSnap
 		evidence.Launch.EvidenceDigest,
 		evidence.Hardening.EvidenceDigest,
 		runtimeSessionEvidenceDigest(evidence),
+		runtimeAttestationEvidenceDigest(evidence),
+		runtimeAttestationVerificationDigest(evidence),
+		runtimeAttestationPosture(evidence),
 	}
 	return strings.Join(parts, ":")
+}
+
+func runtimeAttestationPosture(evidence launcherbackend.RuntimeEvidenceSnapshot) string {
+	posture, _ := launcherbackend.DeriveAttestationPostureFromEvidence(evidence)
+	return posture
+}
+
+func runtimeAttestationReasonCodes(evidence launcherbackend.RuntimeEvidenceSnapshot) []string {
+	if evidence.AttestationVerification == nil {
+		return nil
+	}
+	return append([]string{}, evidence.AttestationVerification.ReasonCodes...)
 }
 
 func runtimeEvidenceDigestRefs(evidence launcherbackend.RuntimeEvidenceSnapshot) []map[string]string {
@@ -71,15 +89,23 @@ func runtimeEvidenceDigestRefs(evidence launcherbackend.RuntimeEvidenceSnapshot)
 	if terminal := runtimeTerminalEvidenceDigest(evidence); terminal != "" {
 		refs = append(refs, map[string]string{"kind": "terminal_report", "digest": terminal})
 	}
+	if attestation := runtimeAttestationEvidenceDigest(evidence); attestation != "" {
+		refs = append(refs, map[string]string{"kind": "attestation_evidence", "digest": attestation})
+	}
+	if verification := runtimeAttestationVerificationDigest(evidence); verification != "" {
+		refs = append(refs, map[string]string{"kind": "attestation_verification", "digest": verification})
+	}
 	return refs
 }
 
 func runtimeStoredDigestMap(evidence launcherbackend.RuntimeEvidenceSnapshot) map[string]string {
 	return map[string]string{
-		"launch_receipt":    evidence.Launch.EvidenceDigest,
-		"hardening_posture": evidence.Hardening.EvidenceDigest,
-		"session_binding":   runtimeSessionEvidenceDigest(evidence),
-		"terminal_report":   runtimeTerminalEvidenceDigest(evidence),
+		"launch_receipt":           evidence.Launch.EvidenceDigest,
+		"hardening_posture":        evidence.Hardening.EvidenceDigest,
+		"session_binding":          runtimeSessionEvidenceDigest(evidence),
+		"terminal_report":          runtimeTerminalEvidenceDigest(evidence),
+		"attestation_evidence":     runtimeAttestationEvidenceDigest(evidence),
+		"attestation_verification": runtimeAttestationVerificationDigest(evidence),
 	}
 }
 
@@ -95,4 +121,18 @@ func runtimeTerminalEvidenceDigest(evidence launcherbackend.RuntimeEvidenceSnaps
 		return ""
 	}
 	return evidence.Terminal.EvidenceDigest
+}
+
+func runtimeAttestationEvidenceDigest(evidence launcherbackend.RuntimeEvidenceSnapshot) string {
+	if evidence.Attestation == nil {
+		return ""
+	}
+	return evidence.Attestation.EvidenceDigest
+}
+
+func runtimeAttestationVerificationDigest(evidence launcherbackend.RuntimeEvidenceSnapshot) string {
+	if evidence.AttestationVerification == nil {
+		return ""
+	}
+	return evidence.AttestationVerification.VerificationDigest
 }

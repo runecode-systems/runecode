@@ -9,7 +9,7 @@ import (
 )
 
 func renderRunSafetyStrip(summary brokerapi.RunSummary, width int) string {
-	runtimeDegraded := summary.RuntimePostureDegraded || strings.EqualFold(strings.TrimSpace(summary.IsolationAssuranceLevel), "degraded") || strings.EqualFold(strings.TrimSpace(summary.BackendKind), "container")
+	runtimeDegraded := summary.RuntimePostureDegraded
 	parts := []string{
 		tableHeader("Safety strip"),
 		fmt.Sprintf("backend_kind=%s", valueOrNA(summary.BackendKind)),
@@ -86,6 +86,32 @@ func provisioningPostureCueParts(posture string) []string {
 
 func renderProvisioningPostureCue(posture string) string {
 	return strings.Join(provisioningPostureCueParts(posture), " ")
+}
+
+func attestationPostureCueParts(posture string, reasonCodes []string) []string {
+	n := strings.ToLower(strings.TrimSpace(posture))
+	reason := ""
+	if len(reasonCodes) > 0 {
+		reason = " reasons=" + strings.Join(reasonCodes, ",")
+	}
+	switch n {
+	case "valid":
+		return []string{fmt.Sprintf("attestation posture=%s (evidence present, verification succeeded)", valueOrNA(posture)), successBadge("ATTESTATION_VALID")}
+	case "tofu_only":
+		return []string{fmt.Sprintf("attestation posture=%s (session binding only; no verified attestation)", valueOrNA(posture)), provisioningDegradedBadge("ATTESTATION_TOFU_ONLY")}
+	case "unavailable":
+		return []string{fmt.Sprintf("attestation posture=%s (evidence/verification unavailable%s)", valueOrNA(posture), reason), warnBadge("ATTESTATION_UNAVAILABLE")}
+	case "invalid":
+		return []string{fmt.Sprintf("attestation posture=%s (evidence rejected%s)", valueOrNA(posture), reason), dangerBadge("ATTESTATION_INVALID")}
+	case "not_applicable":
+		return []string{fmt.Sprintf("attestation posture=%s", valueOrNA(posture)), infoBadge("ATTESTATION_NA")}
+	default:
+		return []string{fmt.Sprintf("attestation posture=%s%s", valueOrNA(posture), reason), infoBadge("ATTESTATION_REPORTED")}
+	}
+}
+
+func renderAttestationPostureCue(posture string, reasonCodes []string) string {
+	return strings.Join(attestationPostureCueParts(posture, reasonCodes), " ")
 }
 
 func auditPostureCueParts(integrity, anchoring string, degraded bool) []string {
