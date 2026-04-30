@@ -26,7 +26,13 @@ When trusted Go services persist artifact-store state, audit logs, backup materi
 - Treat durable approval records, policy decisions, revocation state, and their linkage metadata as trusted local state with the same fail-closed expectations as artifact and audit persistence
 - Treat persisted runtime facts, immutable runtime evidence snapshots, runtime lifecycle state, and runtime audit-emission dedupe markers as trusted local state with the same fail-closed expectations as artifact and audit persistence
 - Reconstruct authoritative runtime read models from durable persisted runtime evidence/lifecycle state after restart; do not rely on transient in-memory launcher or broker caches as the source of truth
-- Backup and restore must preserve integrity/authenticity checks and must not bypass artifact digest validation, approval binding checks, policy-decision identity, or revocation durability
+- Backup and restore must preserve integrity/authenticity checks and must not bypass artifact digest validation, approval binding checks, policy-decision identity, revocation durability, or runtime-evidence integrity checks
+- When backups are intended to be portable or operator-moved, export them as self-contained bundles that carry the manifest, authenticity material, and referenced blobs together rather than relying on ambient local blob paths
+- Backup export must fail closed on corrupted source blobs and must not leave partial or invalid bundled blob payloads behind after a failed export attempt
+- If bundle export writes multiple blobs and a later blob fails verification or copy, clean up earlier successfully written bundled blobs so one failed export does not leave a misleading partial blob set behind
 - Backup and restore must preserve runtime evidence digests, lifecycle projections, and audit dedupe state so restarted services do not silently re-emit or orphan launcher runtime events
+- Backup and restore must preserve durable runtime attestation support, verification, and projection inputs strongly enough that restored broker read models do not silently degrade to launcher-local or client-local inference
+- Restore of bundled blobs must verify digest and size against the manifest before making restored blob content authoritative, and must roll back newly restored bundled blobs on failure
+- If backup authenticity is keyed to a machine- or user-local persistent secret, treat that verification key as sensitive trusted local state and keep cross-store verification semantics explicit rather than ambient
 - After restart or restore, fail closed unless persisted revocation and policy-decision state is reconstructed consistently enough to preserve prior deny outcomes and approval linkage
-- Tests should cover both nominal persistence and fail-closed recovery paths for audit/state divergence, runtime evidence/lifecycle replay, and restart-time authoritative-state reconstruction
+- Tests should cover both nominal persistence and fail-closed recovery paths for audit/state divergence, runtime evidence/lifecycle replay, restart-time authoritative-state reconstruction, and backup bundle corruption or partial-write cleanup
