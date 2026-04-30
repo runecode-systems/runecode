@@ -105,6 +105,66 @@ func TestExportBackupRejectsCorruptedStoredBlobWithMatchingSize(t *testing.T) {
 	}
 }
 
+func TestExportBackupRemovesBundledBlobWhenBlobCopyFails(t *testing.T) {
+	store := newTestStore(t)
+	ref, err := store.Put(PutRequest{Payload: []byte("payload"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"})
+	if err != nil {
+		t.Fatalf("Put error: %v", err)
+	}
+	rec, err := store.Head(ref.Digest)
+	if err != nil {
+		t.Fatalf("Head error: %v", err)
+	}
+	if err := os.WriteFile(rec.BlobPath, []byte("tamperd"), 0o600); err != nil {
+		t.Fatalf("WriteFile tampered blob error: %v", err)
+	}
+
+	backupPath := filepath.Join(t.TempDir(), "backup-bundle-copy-failure-cleanup")
+	err = store.ExportBackup(backupPath)
+	if err == nil || !strings.Contains(err.Error(), "backup digest mismatch") {
+		t.Fatalf("ExportBackup error = %v, want backup digest mismatch", err)
+	}
+
+	bundleBlob := bundledBlobPathForDigest(t, backupPath, ref.Digest)
+	if _, statErr := os.Stat(bundleBlob); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("bundled blob stat error = %v, want not-exist", statErr)
+	}
+}
+
+func TestExportBackupRemovesEarlierBundledBlobsWhenLaterBlobFails(t *testing.T) {
+	store := newTestStore(t)
+	first, err := store.Put(PutRequest{Payload: []byte("payload-1"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"})
+	if err != nil {
+		t.Fatalf("Put(first) error: %v", err)
+	}
+	second, err := store.Put(PutRequest{Payload: []byte("payload-2"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("2"), CreatedByRole: "workspace"})
+	if err != nil {
+		t.Fatalf("Put(second) error: %v", err)
+	}
+	secondRec, err := store.Head(second.Digest)
+	if err != nil {
+		t.Fatalf("Head(second) error: %v", err)
+	}
+	if err := os.WriteFile(secondRec.BlobPath, []byte("tamperd-2"), 0o600); err != nil {
+		t.Fatalf("WriteFile tampered second blob error: %v", err)
+	}
+
+	backupPath := filepath.Join(t.TempDir(), "backup-bundle-multi-copy-failure-cleanup")
+	err = store.ExportBackup(backupPath)
+	if err == nil || !strings.Contains(err.Error(), "backup digest mismatch") {
+		t.Fatalf("ExportBackup error = %v, want backup digest mismatch", err)
+	}
+
+	firstBundleBlob := bundledBlobPathForDigest(t, backupPath, first.Digest)
+	if _, statErr := os.Stat(firstBundleBlob); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("first bundled blob stat error = %v, want not-exist", statErr)
+	}
+	secondBundleBlob := bundledBlobPathForDigest(t, backupPath, second.Digest)
+	if _, statErr := os.Stat(secondBundleBlob); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("second bundled blob stat error = %v, want not-exist", statErr)
+	}
+}
+
 func TestRestoreRejectsMissingBundledBlobAndKeepsStoreUnchanged(t *testing.T) {
 	store := newTestStore(t)
 	ref, err := store.Put(PutRequest{Payload: []byte("payload"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"})

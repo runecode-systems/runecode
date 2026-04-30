@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -71,24 +72,32 @@ func (s *storeIO) writeBackupBlobs(path string, records []ArtifactRecord) error 
 	if err := os.MkdirAll(bundleBlobDir, 0o700); err != nil {
 		return err
 	}
+	writtenBlobs := make([]string, 0, len(records))
 	for _, rec := range records {
-		if err := s.writeBackupBlob(bundleBlobDir, rec); err != nil {
+		blobPath, err := s.writeBackupBlob(bundleBlobDir, rec)
+		if err != nil {
+			cleanupBackupBlobPaths(writtenBlobs)
 			return err
 		}
+		writtenBlobs = append(writtenBlobs, blobPath)
 	}
 	return nil
 }
 
-func (s *storeIO) writeBackupBlob(bundleBlobDir string, rec ArtifactRecord) error {
+func (s *storeIO) writeBackupBlob(bundleBlobDir string, rec ArtifactRecord) (string, error) {
 	hexDigest, ok := trimSHA256Digest(rec.Reference.Digest)
 	if !ok {
-		return ErrInvalidDigest
+		return "", ErrInvalidDigest
 	}
 	src, err := s.validatedBlobPath(rec.Reference.Digest)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return copyBackupBlob(src, filepath.Join(bundleBlobDir, hexDigest), rec.Reference.Digest, rec.Reference.SizeBytes)
+	dst := filepath.Join(bundleBlobDir, hexDigest)
+	if err := copyBackupBlob(src, dst, rec.Reference.Digest, rec.Reference.SizeBytes); err != nil {
+		return "", err
+	}
+	return dst, nil
 }
 
 func copyBackupBlob(src, dst, expectedDigest string, expectedSize int64) error {
@@ -101,10 +110,19 @@ func copyBackupBlob(src, dst, expectedDigest string, expectedSize int64) error {
 	if err != nil {
 		return err
 	}
+	cleanupDst := true
+	defer func() {
+		if cleanupDst {
+			_ = os.Remove(dst)
+		}
+	}()
 	h := newDigestWriter()
 	written, copyErr := io.Copy(io.MultiWriter(out, h), in)
 	closeErr := out.Close()
 	if copyErr != nil {
+		if closeErr != nil {
+			return errors.Join(copyErr, closeErr)
+		}
 		return copyErr
 	}
 	if closeErr != nil {
@@ -116,7 +134,14 @@ func copyBackupBlob(src, dst, expectedDigest string, expectedSize int64) error {
 	if h.identity() != expectedDigest {
 		return fmt.Errorf("backup digest mismatch for %s", expectedDigest)
 	}
+	cleanupDst = false
 	return nil
+}
+
+func cleanupBackupBlobPaths(paths []string) {
+	for _, path := range paths {
+		_ = os.Remove(path)
+	}
 }
 
 func (s *storeIO) restoreBackupBlobs(path string, records []ArtifactRecord) error {
