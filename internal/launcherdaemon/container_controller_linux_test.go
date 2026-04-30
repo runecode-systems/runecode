@@ -61,6 +61,96 @@ func TestContainerControllerLaunchUsesInjectedClockForAttestationTimestamp(t *te
 	}
 }
 
+func TestLaunchReceiptBuildersUseDerivedRuntimeSessionBinding(t *testing.T) {
+	attestedAt := time.Date(2026, time.March, 4, 5, 6, 7, 0, time.UTC)
+	for _, tc := range launchReceiptBuilderTests(attestedAt) {
+		t.Run(tc.name, func(t *testing.T) {
+			assertLaunchReceiptUsesDerivedRuntimeSessionBinding(t, tc.spec, tc.build)
+		})
+	}
+}
+
+func TestMakeRuntimeIdentityUsesDistinctFullSessionIdentifier(t *testing.T) {
+	isolateID, sessionID, nonce, err := makeRuntimeIdentity("run-1")
+	if err != nil {
+		t.Fatalf("makeRuntimeIdentity returned error: %v", err)
+	}
+	if !strings.HasPrefix(isolateID, "isolate-run-1-") {
+		t.Fatalf("isolate id = %q, want isolate-run-1-*", isolateID)
+	}
+	if !strings.HasPrefix(sessionID, "session-") {
+		t.Fatalf("session id = %q, want session-*", sessionID)
+	}
+	if len(nonce) != 32 {
+		t.Fatalf("nonce length = %d, want 32 hex chars", len(nonce))
+	}
+	if got, want := len(strings.TrimPrefix(sessionID, "session-")), 16; got != want {
+		t.Fatalf("session id suffix length = %d, want %d hex chars", got, want)
+	}
+	if strings.TrimPrefix(sessionID, "session-") == nonce[8:16] {
+		t.Fatal("session id should no longer reuse only a 32-bit nonce slice")
+	}
+}
+
+func assertLaunchReceiptUsesDerivedRuntimeSessionBinding(t *testing.T, spec launcherbackend.BackendLaunchSpec, build func(launcherbackend.BackendLaunchSpec, launcherbackend.RuntimeAdmissionRecord) (launcherbackend.BackendLaunchReceipt, error)) {
+	t.Helper()
+	admission, err := launcherbackend.NewRuntimeAdmissionRecord(spec.Image)
+	if err != nil {
+		t.Fatalf("NewRuntimeAdmissionRecord returned error: %v", err)
+	}
+	receipt, err := build(spec, admission)
+	if err != nil {
+		t.Fatalf("build receipt returned error: %v", err)
+	}
+	binding := mustDeriveRuntimeSessionBinding(t, spec, admission.DescriptorDigest, "isolate-shared", "session-shared", strings.Repeat("a", 32))
+	if receipt.ProvisioningPosture != launcherbackend.ProvisioningPostureAttested {
+		t.Fatalf("provisioning posture = %q, want %q", receipt.ProvisioningPosture, launcherbackend.ProvisioningPostureAttested)
+	}
+	assertReceiptSessionBindingMatches(t, receipt, binding)
+}
+
+func assertReceiptSessionBindingMatches(t *testing.T, receipt launcherbackend.BackendLaunchReceipt, binding runtimeSessionBinding) {
+	t.Helper()
+	actual := runtimeSessionBinding{
+		IsolateID:                receipt.IsolateID,
+		SessionID:                receipt.SessionID,
+		SessionNonce:             receipt.SessionNonce,
+		LaunchContextDigest:      receipt.LaunchContextDigest,
+		HandshakeTranscriptHash:  receipt.HandshakeTranscriptHash,
+		IsolateSessionKeyIDValue: receipt.IsolateSessionKeyIDValue,
+	}
+	if actual != binding {
+		t.Fatalf("receipt session binding fields = %+v, want %+v", actual, binding)
+	}
+}
+
+func launchReceiptBuilderTests(attestedAt time.Time) []struct {
+	name  string
+	spec  launcherbackend.BackendLaunchSpec
+	build func(launcherbackend.BackendLaunchSpec, launcherbackend.RuntimeAdmissionRecord) (launcherbackend.BackendLaunchReceipt, error)
+} {
+	return []struct {
+		name  string
+		spec  launcherbackend.BackendLaunchSpec
+		build func(launcherbackend.BackendLaunchSpec, launcherbackend.RuntimeAdmissionRecord) (launcherbackend.BackendLaunchReceipt, error)
+	}{
+		{
+			name: "microvm",
+			spec: validSpecForTests(),
+			build: func(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord) (launcherbackend.BackendLaunchReceipt, error) {
+				return buildLaunchReceipt(spec, admission, "isolate-shared", "session-shared", strings.Repeat("a", 32), "9.0.0", "qemu-system-x86_64 9.0.0", nil, attestedAt)
+			},
+		},
+		{
+			name: "container",
+			spec: validContainerSpecForTests(),
+			build: func(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord) (launcherbackend.BackendLaunchReceipt, error) {
+				return containerLaunchReceipt(spec, admission, "isolate-shared", "session-shared", strings.Repeat("a", 32), attestedAt)
+			},
+		},
+	}
+}
+
 func admittedContainerSpecForReceiptTest(t *testing.T) (string, launcherbackend.BackendLaunchSpec) {
 	t.Helper()
 	workRoot := t.TempDir()

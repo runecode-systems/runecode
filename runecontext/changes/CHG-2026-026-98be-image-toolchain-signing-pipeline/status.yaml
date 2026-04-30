@@ -18,6 +18,7 @@ related_changes:
   - CHG-2026-009-1672-launcher-microvm-backend-v0
   - CHG-2026-005-cfd0-crypto-key-management-v0
   - CHG-2026-030-98b8-isolate-attestation-v0
+  - CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0
 depends_on: []
 informed_by: []
 supersedes: []

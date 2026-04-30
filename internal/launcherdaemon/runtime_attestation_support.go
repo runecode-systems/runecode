@@ -11,17 +11,17 @@ import (
 
 const trustedRuntimeAttestationVerifierPolicyID = "runtime_asset_admission_identity"
 
-func populateRuntimeSessionBinding(receipt *launcherbackend.BackendLaunchReceipt, spec launcherbackend.BackendLaunchSpec, runtimeImageDescriptorDigest string, isolateID string, sessionID string, nonce string) {
+func populateRuntimeSessionBinding(receipt *launcherbackend.BackendLaunchReceipt, binding runtimeSessionBinding) {
 	if receipt == nil {
 		return
 	}
 	receipt.ProvisioningPosture = launcherbackend.ProvisioningPostureAttested
-	receipt.IsolateID = isolateID
-	receipt.SessionID = sessionID
-	receipt.SessionNonce = nonce
-	receipt.LaunchContextDigest = syntheticLaunchContextDigest(spec, nonce)
-	receipt.HandshakeTranscriptHash = syntheticHandshakeTranscriptHash(spec, nonce, runtimeImageDescriptorDigest)
-	receipt.IsolateSessionKeyIDValue = syntheticSessionKeyIDValue(spec, nonce, runtimeImageDescriptorDigest)
+	receipt.IsolateID = binding.IsolateID
+	receipt.SessionID = binding.SessionID
+	receipt.SessionNonce = binding.SessionNonce
+	receipt.LaunchContextDigest = binding.LaunchContextDigest
+	receipt.HandshakeTranscriptHash = binding.HandshakeTranscriptHash
+	receipt.IsolateSessionKeyIDValue = binding.IsolateSessionKeyIDValue
 }
 
 func applyTrustedRuntimeAttestation(receipt *launcherbackend.BackendLaunchReceipt, admission launcherbackend.RuntimeAdmissionRecord, now time.Time) error {
@@ -56,7 +56,7 @@ func canonicalTrustedRuntimeMeasurementDigests(receipt *launcherbackend.BackendL
 	if receipt.RuntimeImageDescriptorDigest == "" || receipt.RuntimeImageBootProfile == "" {
 		return nil, fmt.Errorf("runtime identity is required before attestation")
 	}
-	if receipt.IsolateID == "" || receipt.SessionID == "" || receipt.SessionNonce == "" || receipt.HandshakeTranscriptHash == "" || receipt.IsolateSessionKeyIDValue == "" {
+	if receipt.IsolateID == "" || receipt.SessionID == "" || receipt.SessionNonce == "" || receipt.LaunchContextDigest == "" || receipt.HandshakeTranscriptHash == "" || receipt.IsolateSessionKeyIDValue == "" {
 		return nil, fmt.Errorf("session binding is required before attestation")
 	}
 	if admission.AttestationMeasurementProfile == "" || len(admission.AttestationExpectedMeasurementDigests) == 0 {

@@ -140,6 +140,10 @@ func (c *containerController) buildContainerRuntimeUpdates(ref InstanceRef, spec
 }
 
 func containerLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isolateID string, sessionID string, nonce string, now time.Time) (launcherbackend.BackendLaunchReceipt, error) {
+	sessionBinding, err := deriveRuntimeSessionBinding(spec, admission.DescriptorDigest, isolateID, sessionID, nonce)
+	if err != nil {
+		return launcherbackend.BackendLaunchReceipt{}, err
+	}
 	receipt := launcherbackend.BackendLaunchReceipt{
 		RunID:                            spec.RunID,
 		StageID:                          spec.StageID,
@@ -148,7 +152,6 @@ func containerLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission la
 		RoleKind:                         spec.RoleKind,
 		BackendKind:                      launcherbackend.BackendKindContainer,
 		IsolationAssuranceLevel:          launcherbackend.IsolationAssuranceDegraded,
-		ProvisioningPosture:              launcherbackend.ProvisioningPostureAttested,
 		HypervisorImplementation:         launcherbackend.HypervisorImplementationNotApplicable,
 		AccelerationKind:                 launcherbackend.AccelerationKindNotApplicable,
 		TransportKind:                    launcherbackend.TransportKindNotApplicable,
@@ -169,7 +172,7 @@ func containerLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission la
 		WorkspaceEncryptionPosture:       containerWorkspaceEncryptionPosture(),
 		Lifecycle:                        &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateLaunching, TerminateBetweenSteps: true, TransitionCount: 1},
 	}
-	populateRuntimeSessionBinding(&receipt, spec, admission.DescriptorDigest, isolateID, sessionID, nonce)
+	populateRuntimeSessionBinding(&receipt, sessionBinding)
 	if err := applyTrustedRuntimeAttestation(&receipt, admission, now); err != nil {
 		return launcherbackend.BackendLaunchReceipt{}, err
 	}

@@ -77,6 +77,29 @@ func TestQEMULaunchReceiptCarriesTrustedRuntimeAttestation(t *testing.T) {
 	}
 }
 
+func TestApplyTrustedRuntimeAttestationFailsClosedWithoutLaunchContextDigest(t *testing.T) {
+	_, _, spec := qemuToolchainVerificationLaunchSpecForTests(t)
+	admission, err := launcherbackend.NewRuntimeAdmissionRecord(spec.Image)
+	if err != nil {
+		t.Fatalf("NewRuntimeAdmissionRecord returned error: %v", err)
+	}
+	attestedAt := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
+
+	receipt, err := buildLaunchReceipt(spec, admission, "isolate-1", "session-1", strings.Repeat("a", 32), "9.0.0", "qemu-system-x86_64 9.0.0", nil, attestedAt)
+	if err != nil {
+		t.Fatalf("buildLaunchReceipt returned error: %v", err)
+	}
+	receipt.LaunchContextDigest = ""
+
+	err = applyTrustedRuntimeAttestation(&receipt, admission, attestedAt)
+	if err == nil {
+		t.Fatal("applyTrustedRuntimeAttestation expected missing launch context digest error")
+	}
+	if !strings.Contains(err.Error(), "session binding is required before attestation") {
+		t.Fatalf("applyTrustedRuntimeAttestation error = %q, want session binding failure", err.Error())
+	}
+}
+
 func TestQEMUPrepareLaunchDirUsesUniquePathWithFixedClock(t *testing.T) {
 	workRoot := t.TempDir()
 	controller := &qemuController{cfg: QEMUControllerConfig{WorkRoot: workRoot, Now: func() time.Time { return time.Unix(123, 0).UTC() }}, instances: map[string]*qemuInstance{}}

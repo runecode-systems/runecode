@@ -19,6 +19,7 @@ related_changes:
   - CHG-2026-009-1672-launcher-microvm-backend-v0
   - CHG-2026-003-b567-audit-log-v0-verify
   - CHG-2026-026-98be-image-toolchain-signing-pipeline
+  - CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0
 depends_on: []
 informed_by: []
 supersedes: []

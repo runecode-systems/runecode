@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -21,22 +20,20 @@ import (
 )
 
 func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild string, cacheEvidence *launcherbackend.BackendCacheEvidence, now time.Time) (launcherbackend.BackendLaunchReceipt, error) {
-	receipt := launcherbackend.BackendLaunchReceipt{
-		RunID:                    spec.RunID,
-		StageID:                  spec.StageID,
-		RoleInstanceID:           spec.RoleInstanceID,
-		RoleFamily:               spec.RoleFamily,
-		RoleKind:                 spec.RoleKind,
-		BackendKind:              launcherbackend.BackendKindMicroVM,
-		IsolationAssuranceLevel:  launcherbackend.IsolationAssuranceIsolated,
-		ProvisioningPosture:      launcherbackend.ProvisioningPostureAttested,
-		IsolateID:                isoID,
-		SessionID:                sessionID,
-		SessionNonce:             nonce,
-		LaunchContextDigest:      syntheticLaunchContextDigest(spec, nonce),
-		HandshakeTranscriptHash:  syntheticHandshakeTranscriptHash(spec, nonce, admission.DescriptorDigest),
-		IsolateSessionKeyIDValue: syntheticSessionKeyIDValue(spec, nonce, admission.DescriptorDigest),
+	sessionBinding, err := deriveRuntimeSessionBinding(spec, admission.DescriptorDigest, isoID, sessionID, nonce)
+	if err != nil {
+		return launcherbackend.BackendLaunchReceipt{}, err
 	}
+	receipt := launcherbackend.BackendLaunchReceipt{
+		RunID:                   spec.RunID,
+		StageID:                 spec.StageID,
+		RoleInstanceID:          spec.RoleInstanceID,
+		RoleFamily:              spec.RoleFamily,
+		RoleKind:                spec.RoleKind,
+		BackendKind:             launcherbackend.BackendKindMicroVM,
+		IsolationAssuranceLevel: launcherbackend.IsolationAssuranceIsolated,
+	}
+	populateRuntimeSessionBinding(&receipt, sessionBinding)
 	applyRuntimeAssetIdentity(&receipt, admission, qemuVersion, qemuBuild)
 	applyLaunchExecutionDetails(&receipt, spec, cacheEvidence, qemuVersion, qemuBuild)
 	if err := applyTrustedRuntimeAttestation(&receipt, admission, now); err != nil {
@@ -74,24 +71,6 @@ func applyLaunchExecutionDetails(receipt *launcherbackend.BackendLaunchReceipt, 
 	receipt.AttachmentPlanSummary = summarizeAttachments(spec.Attachments)
 	receipt.WorkspaceEncryptionPosture = spec.Attachments.WorkspaceEncryption
 	receipt.Lifecycle = &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateLaunching, TerminateBetweenSteps: true, TransitionCount: 1}
-}
-
-func syntheticLaunchContextDigest(spec launcherbackend.BackendLaunchSpec, nonce string) string {
-	return syntheticDigest("launch-context", spec.RunID, spec.StageID, spec.RoleInstanceID, nonce)
-}
-
-func syntheticHandshakeTranscriptHash(spec launcherbackend.BackendLaunchSpec, nonce, descriptorDigest string) string {
-	return syntheticDigest("handshake", spec.RunID, spec.StageID, spec.RoleInstanceID, nonce, descriptorDigest)
-}
-
-func syntheticSessionKeyIDValue(spec launcherbackend.BackendLaunchSpec, nonce, descriptorDigest string) string {
-	sum := sha256.Sum256([]byte(strings.Join([]string{"session-key", spec.RunID, spec.StageID, spec.RoleInstanceID, nonce, descriptorDigest}, "|")))
-	return hex.EncodeToString(sum[:])
-}
-
-func syntheticDigest(parts ...string) string {
-	sum := sha256.Sum256([]byte(strings.Join(parts, "|")))
-	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func buildHardeningPosture() launcherbackend.AppliedHardeningPosture {
@@ -221,13 +200,13 @@ func detectQEMUProvenance(binary string) (string, string) {
 }
 
 func makeRuntimeIdentity(runID string) (string, string, string, error) {
-	b := make([]byte, 16)
+	b := make([]byte, 24)
 	if _, err := rand.Read(b); err != nil {
 		return "", "", "", err
 	}
-	nonce := hex.EncodeToString(b)
+	nonce := hex.EncodeToString(b[:16])
 	iso := "isolate-" + safeToken(runID) + "-" + nonce[:8]
-	session := "session-" + nonce[8:16]
+	session := "session-" + hex.EncodeToString(b[16:])
 	return iso, session, nonce, nil
 }
 
