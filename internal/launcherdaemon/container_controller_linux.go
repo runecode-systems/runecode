@@ -15,16 +15,21 @@ import (
 
 type ContainerControllerConfig struct {
 	WorkRoot string
+	Now      func() time.Time
 }
 
 type containerController struct {
 	workRoot  string
+	now       func() time.Time
 	mu        sync.RWMutex
 	instances map[string]InstanceState
 }
 
 func NewContainerController(cfg ContainerControllerConfig) Controller {
-	return &containerController{workRoot: strings.TrimSpace(cfg.WorkRoot), instances: map[string]InstanceState{}}
+	if cfg.Now == nil {
+		cfg.Now = time.Now
+	}
+	return &containerController{workRoot: strings.TrimSpace(cfg.WorkRoot), now: cfg.Now, instances: map[string]InstanceState{}}
 }
 
 func (c *containerController) Launch(_ context.Context, spec launcherbackend.BackendLaunchSpec) (<-chan RuntimeUpdate, error) {
@@ -117,7 +122,7 @@ func (c *containerController) storeLaunchedContainerInstance(ref InstanceRef) {
 
 func (c *containerController) buildContainerRuntimeUpdates(ref InstanceRef, spec launcherbackend.BackendLaunchSpec, hardening launcherbackend.AppliedHardeningPosture, admission launcherbackend.RuntimeAdmissionRecord, isolateID string, sessionID string, nonce string) <-chan RuntimeUpdate {
 	updates := make(chan RuntimeUpdate, 3)
-	receipt, err := containerLaunchReceipt(spec, admission, isolateID, sessionID, nonce)
+	receipt, err := containerLaunchReceipt(spec, admission, isolateID, sessionID, nonce, c.now())
 	if err != nil {
 		updates <- RuntimeUpdate{RunID: spec.RunID, Facts: &launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: spec.RunID, StageID: spec.StageID, RoleInstanceID: spec.RoleInstanceID, BackendKind: launcherbackend.BackendKindContainer, IsolationAssuranceLevel: launcherbackend.IsolationAssuranceDegraded, LaunchFailureReasonCode: launcherbackend.BackendErrorCodeHandshakeFailed}, HardeningPosture: hardening}}
 		close(updates)
@@ -134,7 +139,7 @@ func (c *containerController) buildContainerRuntimeUpdates(ref InstanceRef, spec
 	return updates
 }
 
-func containerLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isolateID string, sessionID string, nonce string) (launcherbackend.BackendLaunchReceipt, error) {
+func containerLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isolateID string, sessionID string, nonce string, now time.Time) (launcherbackend.BackendLaunchReceipt, error) {
 	receipt := launcherbackend.BackendLaunchReceipt{
 		RunID:                            spec.RunID,
 		StageID:                          spec.StageID,
@@ -165,7 +170,7 @@ func containerLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission la
 		Lifecycle:                        &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateLaunching, TerminateBetweenSteps: true, TransitionCount: 1},
 	}
 	populateRuntimeSessionBinding(&receipt, spec, admission.DescriptorDigest, isolateID, sessionID, nonce)
-	if err := applyTrustedRuntimeAttestation(&receipt, admission, time.Now()); err != nil {
+	if err := applyTrustedRuntimeAttestation(&receipt, admission, now); err != nil {
 		return launcherbackend.BackendLaunchReceipt{}, err
 	}
 	return receipt, nil

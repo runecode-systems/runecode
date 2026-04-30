@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
@@ -38,6 +39,26 @@ func TestContainerControllerLaunchUsesAdmittedRuntimeIdentityInReceipt(t *testin
 		t.Fatalf("Launch returned error: %v", err)
 	}
 	assertContainerLaunchReceiptUsesAdmittedRuntimeIdentity(t, updates, spec)
+}
+
+func TestContainerControllerLaunchUsesInjectedClockForAttestationTimestamp(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("container controller requires rootless launcher execution")
+	}
+	workRoot, spec := admittedContainerSpecForReceiptTest(t)
+	attestedAt := time.Date(2026, time.February, 3, 4, 5, 6, 0, time.UTC)
+	controller := NewContainerController(ContainerControllerConfig{WorkRoot: workRoot, Now: func() time.Time { return attestedAt }})
+	updates, err := controller.Launch(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Launch returned error: %v", err)
+	}
+	first, ok := <-updates
+	if !ok || first.Facts == nil {
+		t.Fatal("first runtime update must include facts")
+	}
+	if got, want := first.Facts.LaunchReceipt.AttestationVerificationTimestamp, attestedAt.Format(time.RFC3339); got != want {
+		t.Fatalf("attestation verification timestamp = %q, want %q", got, want)
+	}
 }
 
 func admittedContainerSpecForReceiptTest(t *testing.T) (string, launcherbackend.BackendLaunchSpec) {

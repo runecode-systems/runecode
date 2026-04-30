@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -45,8 +46,9 @@ func TestQEMULaunchReceiptCarriesTrustedRuntimeAttestation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRuntimeAdmissionRecord returned error: %v", err)
 	}
+	attestedAt := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
 
-	receipt, err := buildLaunchReceipt(spec, admission, "isolate-1", "session-1", strings.Repeat("a", 32), "9.0.0", "qemu-system-x86_64 9.0.0", nil)
+	receipt, err := buildLaunchReceipt(spec, admission, "isolate-1", "session-1", strings.Repeat("a", 32), "9.0.0", "qemu-system-x86_64 9.0.0", nil, attestedAt)
 	if err != nil {
 		t.Fatalf("buildLaunchReceipt returned error: %v", err)
 	}
@@ -69,6 +71,44 @@ func TestQEMULaunchReceiptCarriesTrustedRuntimeAttestation(t *testing.T) {
 	}
 	if evidence.AttestationVerification.ReplayVerdict != launcherbackend.AttestationReplayVerdictOriginal {
 		t.Fatalf("replay verdict = %q, want %q", evidence.AttestationVerification.ReplayVerdict, launcherbackend.AttestationReplayVerdictOriginal)
+	}
+	if got, want := receipt.AttestationVerificationTimestamp, attestedAt.Format(time.RFC3339); got != want {
+		t.Fatalf("attestation verification timestamp = %q, want %q", got, want)
+	}
+}
+
+func TestQEMUPrepareLaunchDirUsesUniquePathWithFixedClock(t *testing.T) {
+	workRoot := t.TempDir()
+	controller := &qemuController{cfg: QEMUControllerConfig{WorkRoot: workRoot, Now: func() time.Time { return time.Unix(123, 0).UTC() }}, instances: map[string]*qemuInstance{}}
+	spec := validSpecForTests()
+
+	first, err := controller.prepareLaunchDir(spec)
+	if err != nil {
+		t.Fatalf("prepareLaunchDir(first) returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(first) })
+	second, err := controller.prepareLaunchDir(spec)
+	if err != nil {
+		t.Fatalf("prepareLaunchDir(second) returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(second) })
+
+	if first == second {
+		t.Fatalf("prepareLaunchDir returned identical paths %q with fixed clock", first)
+	}
+	for _, dir := range []string{first, second} {
+		manifest := filepath.Join(dir, "attachments")
+		if _, err := os.Stat(manifest); err != nil {
+			t.Fatalf("os.Stat(%q) returned error: %v", manifest, err)
+		}
+	}
+	firstParts := strings.Split(filepath.Clean(first), string(os.PathSeparator))
+	secondParts := strings.Split(filepath.Clean(second), string(os.PathSeparator))
+	if len(firstParts) != len(secondParts) {
+		t.Fatalf("launch dir depth mismatch: %q vs %q", first, second)
+	}
+	if !reflect.DeepEqual(firstParts[:len(firstParts)-1], secondParts[:len(secondParts)-1]) {
+		t.Fatalf("launch dir parents differ: %q vs %q", first, second)
 	}
 }
 

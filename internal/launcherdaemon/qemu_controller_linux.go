@@ -126,7 +126,7 @@ func (c *qemuController) prepareLaunchState(ctx context.Context, spec launcherba
 	if err != nil {
 		return preparedLaunchState{}, err
 	}
-	receipt, err := buildLaunchReceipt(spec, admittedImage.admissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild, admittedImage.cacheEvidence)
+	receipt, err := buildLaunchReceipt(spec, admittedImage.admissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild, admittedImage.cacheEvidence, c.cfg.Now())
 	if err != nil {
 		cancel()
 		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeHandshakeFailed, err.Error())

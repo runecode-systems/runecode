@@ -7,6 +7,10 @@ import (
 )
 
 func projectSupportedRuntimeRequirementsState(state map[string]any) {
+	delete(state, "supported_runtime_requirement_reason_codes")
+	delete(state, "reduced_assurance_approval_backed")
+	delete(state, "reduced_assurance_approval_status")
+
 	reasons := supportedRuntimeRequirementReasonCodes(state)
 	state["supported_runtime_requirements_satisfied"] = len(reasons) == 0
 	if len(reasons) > 0 {
@@ -32,11 +36,9 @@ func supportedRuntimeRequirementReasonCodes(state map[string]any) []string {
 		reasons = append(reasons, "attestation_verifier_class_unacceptable")
 	}
 	if runtimePostureDegraded, _ := state["runtime_posture_degraded"].(bool); runtimePostureDegraded {
-		if approvalBacked, _ := state["reduced_assurance_approval_backed"].(bool); !approvalBacked {
-			approvalBacked, _ = reducedAssuranceApprovalStatus(state)
-			if !approvalBacked {
-				reasons = append(reasons, "reduced_assurance_selection_evidence_missing")
-			}
+		approvalBacked, _ := reducedAssuranceApprovalStatus(state)
+		if !approvalBacked {
+			reasons = append(reasons, "reduced_assurance_selection_evidence_missing")
 		}
 	}
 	return reasons
@@ -53,5 +55,5 @@ func reducedAssuranceApprovalStatus(state map[string]any) (bool, string) {
 	}
 	status, _ := approval["status"].(string)
 	trimmedStatus := strings.TrimSpace(status)
-	return trimmedStatus != "", trimmedStatus
+	return approvalEvidenceSatisfiesReducedAssurance(trimmedStatus), trimmedStatus
 }

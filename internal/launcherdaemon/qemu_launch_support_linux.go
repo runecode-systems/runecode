@@ -20,7 +20,7 @@ import (
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
-func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild string, cacheEvidence *launcherbackend.BackendCacheEvidence) (launcherbackend.BackendLaunchReceipt, error) {
+func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild string, cacheEvidence *launcherbackend.BackendCacheEvidence, now time.Time) (launcherbackend.BackendLaunchReceipt, error) {
 	receipt := launcherbackend.BackendLaunchReceipt{
 		RunID:                    spec.RunID,
 		StageID:                  spec.StageID,
@@ -39,7 +39,7 @@ func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launch
 	}
 	applyRuntimeAssetIdentity(&receipt, admission, qemuVersion, qemuBuild)
 	applyLaunchExecutionDetails(&receipt, spec, cacheEvidence, qemuVersion, qemuBuild)
-	if err := applyTrustedRuntimeAttestation(&receipt, admission, time.Now()); err != nil {
+	if err := applyTrustedRuntimeAttestation(&receipt, admission, now); err != nil {
 		return launcherbackend.BackendLaunchReceipt{}, err
 	}
 	return receipt, nil
@@ -116,11 +116,15 @@ func (c *qemuController) prepareLaunchDir(spec launcherbackend.BackendLaunchSpec
 		root = filepath.Join(os.TempDir(), "runecode-launcher")
 	}
 	cleanRoot := filepath.Clean(root)
-	dir := filepath.Join(cleanRoot, safeToken(spec.RunID), safeToken(spec.StageID), safeToken(spec.RoleInstanceID), fmt.Sprintf("launch-%d", c.cfg.Now().UnixNano()))
-	if rel, err := filepath.Rel(cleanRoot, dir); err != nil || strings.HasPrefix(rel, "..") {
+	parentDir := filepath.Join(cleanRoot, safeToken(spec.RunID), safeToken(spec.StageID), safeToken(spec.RoleInstanceID))
+	if rel, err := filepath.Rel(cleanRoot, parentDir); err != nil || strings.HasPrefix(rel, "..") {
 		return "", fmt.Errorf("launch path escaped work root")
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.MkdirAll(parentDir, 0o700); err != nil {
+		return "", err
+	}
+	dir, err := os.MkdirTemp(parentDir, "launch-")
+	if err != nil {
 		return "", err
 	}
 	return dir, writeAttachmentManifests(dir, spec.Attachments)

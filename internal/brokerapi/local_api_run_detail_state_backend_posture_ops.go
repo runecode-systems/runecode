@@ -29,8 +29,8 @@ func projectBackendPostureSelectionEvidenceState(state map[string]any, instanceI
 
 func backendPostureApprovalEvidence(instanceID, runID string, approvals []ApprovalSummary) map[string]any {
 	best, ok := bestBackendPostureApproval(instanceID, runID, approvals)
-	if !ok && strings.TrimSpace(instanceID) != "" {
-		best, ok = bestBackendPostureApproval("", runID, approvals)
+	if !ok {
+		best, ok = bestLegacyRunScopedBackendPostureApproval(runID, approvals)
 	}
 	if !ok {
 		return nil
@@ -67,6 +67,21 @@ func bestBackendPostureApproval(instanceID, runID string, approvals []ApprovalSu
 	return best, found
 }
 
+func bestLegacyRunScopedBackendPostureApproval(runID string, approvals []ApprovalSummary) (ApprovalSummary, bool) {
+	var best ApprovalSummary
+	found := false
+	for _, approval := range approvals {
+		if !isLegacyRunScopedBackendPostureApproval(runID, approval) {
+			continue
+		}
+		if !found || approvalEvidencePrecedes(approval, best) {
+			best = approval
+			found = true
+		}
+	}
+	return best, found
+}
+
 func isBackendPostureApproval(instanceID, runID string, approval ApprovalSummary) bool {
 	if approval.BoundScope.ActionKind != policyengine.ActionKindBackendPosture {
 		return false
@@ -90,10 +105,20 @@ func isBackendPostureApproval(instanceID, runID string, approval ApprovalSummary
 		}
 		return boundRunID == expectedSelectorRunID
 	}
-	if runID == "" {
+	return false
+}
+
+func isLegacyRunScopedBackendPostureApproval(runID string, approval ApprovalSummary) bool {
+	if strings.TrimSpace(runID) == "" {
 		return false
 	}
-	return boundRunID == runID
+	if approval.BoundScope.ActionKind != policyengine.ActionKindBackendPosture {
+		return false
+	}
+	if strings.TrimSpace(approval.BoundScope.InstanceID) != "" {
+		return false
+	}
+	return approval.BoundScope.RunID == runID
 }
 
 func backendPostureSelectionPolicyRefs(instanceID, runID string, policyRefs []string, approvals []ApprovalSummary, approvalEvidence map[string]any) []string {
@@ -176,4 +201,9 @@ func approvalEvidenceStatusRank(status string) int {
 	default:
 		return 7
 	}
+}
+
+func approvalEvidenceSatisfiesReducedAssurance(status string) bool {
+	trimmedStatus := strings.TrimSpace(status)
+	return trimmedStatus == "consumed" || trimmedStatus == "approved"
 }
