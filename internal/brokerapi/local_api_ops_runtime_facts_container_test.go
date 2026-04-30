@@ -2,6 +2,7 @@ package brokerapi
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
@@ -45,14 +46,7 @@ func TestRunDetailRuntimeFactsContainerProjectionFailsClosedForNonWorkspaceRoleA
 
 func containerRuntimeFactsFixtureForPostureVocab(runID string) launcherbackend.RuntimeFactsSnapshot {
 	return launcherbackend.RuntimeFactsSnapshot{
-		LaunchReceipt: launcherbackend.BackendLaunchReceipt{
-			RunID:                   runID,
-			StageID:                 "artifact_flow",
-			RoleInstanceID:          "workspace-1",
-			RoleFamily:              "workspace",
-			BackendKind:             launcherbackend.BackendKindContainer,
-			IsolationAssuranceLevel: launcherbackend.IsolationAssuranceDegraded,
-		},
+		LaunchReceipt: containerAttestedLaunchReceipt(runID, "workspace-1", "workspace"),
 		HardeningPosture: launcherbackend.AppliedHardeningPosture{
 			Requested:                 launcherbackend.HardeningRequestedHardened,
 			Effective:                 launcherbackend.HardeningEffectiveHardened,
@@ -74,6 +68,50 @@ func containerRuntimeFactsFixtureForPostureVocab(runID string) launcherbackend.R
 	}
 }
 
+func containerAttestedLaunchReceipt(runID, roleInstanceID, roleFamily string) launcherbackend.BackendLaunchReceipt {
+	componentDigests := map[string]string{"image": "sha256:" + strings.Repeat("e", 64)}
+	return launcherbackend.BackendLaunchReceipt{
+		RunID:                               runID,
+		StageID:                             "artifact_flow",
+		RoleInstanceID:                      roleInstanceID,
+		RoleFamily:                          roleFamily,
+		BackendKind:                         launcherbackend.BackendKindContainer,
+		IsolationAssuranceLevel:             launcherbackend.IsolationAssuranceDegraded,
+		ProvisioningPosture:                 launcherbackend.ProvisioningPostureAttested,
+		IsolateID:                           "isolate-container-1",
+		SessionID:                           "session-container-1",
+		SessionNonce:                        "nonce-container-0123456789abcdef",
+		LaunchContextDigest:                 "sha256:" + strings.Repeat("a", 64),
+		HandshakeTranscriptHash:             "sha256:" + strings.Repeat("b", 64),
+		IsolateSessionKeyIDValue:            strings.Repeat("c", 64),
+		RuntimeImageDescriptorDigest:        "sha256:" + strings.Repeat("d", 64),
+		RuntimeImageBootProfile:             launcherbackend.BootProfileContainerOCIImageV1,
+		BootComponentDigestByName:           componentDigests,
+		BootComponentDigests:                []string{"sha256:" + strings.Repeat("e", 64)},
+		AuthorityStateDigest:                "sha256:" + strings.Repeat("f", 64),
+		AuthorityStateRevision:              1,
+		AttestationEvidenceSourceKind:       launcherbackend.AttestationSourceKindTrustedRuntime,
+		AttestationMeasurementProfile:       launcherbackend.MeasurementProfileContainerImageV1,
+		AttestationFreshnessMaterial:        []string{"session_nonce"},
+		AttestationFreshnessBindingClaims:   []string{"session_nonce", "handshake_transcript_hash", "launch_context_digest"},
+		AttestationEvidenceClaimsDigest:     containerRuntimeFactsMeasurementDigest(componentDigests),
+		AttestationVerifierPolicyID:         "runtime_asset_admission_identity",
+		AttestationVerifierPolicyDigest:     "sha256:" + strings.Repeat("f", 64),
+		AttestationVerificationRulesVersion: "trusted-runtime-v1",
+		AttestationVerificationTimestamp:    "2026-04-09T09:59:00Z",
+		AttestationVerificationResult:       launcherbackend.AttestationVerificationResultValid,
+		AttestationReplayVerdict:            launcherbackend.AttestationReplayVerdictOriginal,
+	}
+}
+
+func containerRuntimeFactsMeasurementDigest(componentDigests map[string]string) string {
+	digests, err := launcherbackend.DeriveExpectedMeasurementDigests(launcherbackend.MeasurementProfileContainerImageV1, launcherbackend.BootProfileContainerOCIImageV1, componentDigests)
+	if err != nil {
+		panic(err)
+	}
+	return digests[0]
+}
+
 func containerRuntimeFactsFixtureForRoleScope(runID string) launcherbackend.RuntimeFactsSnapshot {
 	return launcherbackend.RuntimeFactsSnapshot{
 		LaunchReceipt: launcherbackend.BackendLaunchReceipt{
@@ -83,6 +121,7 @@ func containerRuntimeFactsFixtureForRoleScope(runID string) launcherbackend.Runt
 			RoleFamily:              "gateway",
 			BackendKind:             launcherbackend.BackendKindContainer,
 			IsolationAssuranceLevel: launcherbackend.IsolationAssuranceDegraded,
+			ProvisioningPosture:     launcherbackend.ProvisioningPostureAttested,
 		},
 		HardeningPosture: launcherbackend.AppliedHardeningPosture{
 			Requested:                 launcherbackend.HardeningRequestedHardened,
@@ -109,8 +148,8 @@ func assertContainerSummaryPostureVocabulary(t *testing.T, summary RunSummary) {
 	if summary.BackendKind != launcherbackend.BackendKindContainer {
 		t.Fatalf("summary.backend_kind = %q, want %q", summary.BackendKind, launcherbackend.BackendKindContainer)
 	}
-	if summary.ProvisioningPosture != launcherbackend.ProvisioningPostureNotApplicable {
-		t.Fatalf("summary.provisioning_posture = %q, want %q", summary.ProvisioningPosture, launcherbackend.ProvisioningPostureNotApplicable)
+	if summary.ProvisioningPosture != launcherbackend.ProvisioningPostureAttested {
+		t.Fatalf("summary.provisioning_posture = %q, want %q", summary.ProvisioningPosture, launcherbackend.ProvisioningPostureAttested)
 	}
 	if !summary.RuntimePostureDegraded {
 		t.Fatal("summary.runtime_posture_degraded = false, want true for container reduced assurance")
@@ -122,8 +161,8 @@ func assertContainerAuthoritativePostureVocabulary(t *testing.T, state map[strin
 	if state["runtime_posture_degraded"] != true {
 		t.Fatalf("authoritative_state.runtime_posture_degraded = %v, want true", state["runtime_posture_degraded"])
 	}
-	if state["provisioning_posture"] != launcherbackend.ProvisioningPostureNotApplicable {
-		t.Fatalf("authoritative_state.provisioning_posture = %v, want %q", state["provisioning_posture"], launcherbackend.ProvisioningPostureNotApplicable)
+	if state["provisioning_posture"] != launcherbackend.ProvisioningPostureAttested {
+		t.Fatalf("authoritative_state.provisioning_posture = %v, want %q", state["provisioning_posture"], launcherbackend.ProvisioningPostureAttested)
 	}
 	if state["transport_kind"] != launcherbackend.TransportKindNotApplicable {
 		t.Fatalf("authoritative_state.transport_kind = %v, want %q", state["transport_kind"], launcherbackend.TransportKindNotApplicable)

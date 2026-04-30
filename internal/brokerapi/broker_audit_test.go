@@ -97,7 +97,7 @@ func TestShouldAuditErrorCodeIncludesPolicyRejected(t *testing.T) {
 func TestRecordRuntimeFactsEmitsBrokerOwnedLauncherRuntimeAuditEvents(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	_ = putRunScopedArtifactForLocalOpsTest(t, s, "run-runtime-audit", "step-1")
-	facts := launcherRuntimeFactsFixture()
+	facts := launcherRuntimeFactsFixtureForRun("run-runtime-audit")
 	facts.LaunchReceipt.LaunchFailureReasonCode = ""
 	if err := s.RecordRuntimeFacts("run-runtime-audit", facts); err != nil {
 		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
@@ -164,7 +164,7 @@ func TestRecordRuntimeFactsEmitsLaunchDeniedAuditWithoutSessionBinding(t *testin
 func TestRuntimeFactsAuditEventsAreNotReemittedForSameEvidenceDigest(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	_ = putRunScopedArtifactForLocalOpsTest(t, s, "run-runtime-dedupe", "step-1")
-	facts := launcherRuntimeFactsFixture()
+	facts := launcherRuntimeFactsFixtureForRun("run-runtime-dedupe")
 	if err := s.RecordRuntimeFacts("run-runtime-dedupe", facts); err != nil {
 		t.Fatalf("first RecordRuntimeFacts returned error: %v", err)
 	}
@@ -292,7 +292,7 @@ func attestationAuditRuntimeFacts() launcherbackend.RuntimeFactsSnapshot {
 	facts.LaunchReceipt.AttestationMeasurementProfile = "microvm-boot-v1"
 	facts.LaunchReceipt.AttestationFreshnessMaterial = []string{"quote_nonce"}
 	facts.LaunchReceipt.AttestationFreshnessBindingClaims = []string{"session_nonce", "handshake_transcript_hash"}
-	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = "sha256:" + strings.Repeat("7", 64)
+	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = runtimeFactsMeasurementDigests(facts.LaunchReceipt)[0]
 	return facts
 }
 
@@ -314,11 +314,17 @@ func assertRuntimeAttestationAuditPayload(t *testing.T, event artifacts.AuditEve
 	if payload["attestation_evidence_digest"] != expectedDigest {
 		t.Fatalf("attestation_evidence_digest = %v, want %q", payload["attestation_evidence_digest"], expectedDigest)
 	}
-	if event.Details["provisioning_posture"] != launcherbackend.ProvisioningPostureTOFU {
-		t.Fatalf("details provisioning_posture = %v, want %q", event.Details["provisioning_posture"], launcherbackend.ProvisioningPostureTOFU)
+	if event.Details["provisioning_posture"] != launcherbackend.ProvisioningPostureAttested {
+		t.Fatalf("details provisioning_posture = %v, want %q", event.Details["provisioning_posture"], launcherbackend.ProvisioningPostureAttested)
 	}
-	if event.Details["attestation_posture"] != launcherbackend.AttestationPostureTOFUOnly {
-		t.Fatalf("details attestation_posture = %v, want %q", event.Details["attestation_posture"], launcherbackend.AttestationPostureTOFUOnly)
+	if event.Details["attestation_posture"] != launcherbackend.AttestationPostureValid {
+		t.Fatalf("details attestation_posture = %v, want %q", event.Details["attestation_posture"], launcherbackend.AttestationPostureValid)
+	}
+	if event.Details["attestation_verifier_class"] != launcherbackend.AttestationVerifierClassHardwareRooted {
+		t.Fatalf("details attestation_verifier_class = %v, want %q", event.Details["attestation_verifier_class"], launcherbackend.AttestationVerifierClassHardwareRooted)
+	}
+	if event.Details["supported_runtime_requirements_satisfied"] != true {
+		t.Fatalf("details supported_runtime_requirements_satisfied = %v, want true", event.Details["supported_runtime_requirements_satisfied"])
 	}
 }
 

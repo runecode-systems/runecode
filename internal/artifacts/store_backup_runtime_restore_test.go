@@ -11,7 +11,7 @@ import (
 func TestRestoreRejectsTamperedAttestationVerificationCacheRecord(t *testing.T) {
 	store := newTestStore(t)
 	runID := "run-restore-tampered-attestation-cache"
-	facts := runtimeFactsWithValidAttestationVerification(runID, "authority-restore", "policy-restore")
+	facts := runtimeFactsWithValidAttestationVerification(t, runID, "authority-restore", "policy-restore")
 	evidence, lifecycle := splitRuntimeEvidenceStateForStoreTest(t, facts)
 	if err := store.RecordRuntimeEvidenceState(runID, facts, evidence, lifecycle); err != nil {
 		t.Fatalf("RecordRuntimeEvidenceState returned error: %v", err)
@@ -46,7 +46,7 @@ func TestRestoreRejectsTamperedAttestationVerificationCacheRecord(t *testing.T) 
 func TestRestoreRuntimeEvidencePrefersDerivedRuntimeFacts(t *testing.T) {
 	store := newTestStore(t)
 	runID := "run-restore-derived-runtime-evidence"
-	facts := runtimeFactsWithValidAttestationVerification(runID, "authority-derived", "policy-derived")
+	facts := runtimeFactsWithValidAttestationVerification(t, runID, "authority-derived", "policy-derived")
 	evidence, lifecycle := splitRuntimeEvidenceStateForStoreTest(t, facts)
 	if err := store.RecordRuntimeEvidenceState(runID, facts, evidence, lifecycle); err != nil {
 		t.Fatalf("RecordRuntimeEvidenceState returned error: %v", err)
@@ -104,7 +104,7 @@ func assertDerivedRuntimeEvidenceRestored(t *testing.T, restoredFacts launcherba
 func TestRestoreRejectsInvalidAttestationVerificationCacheKey(t *testing.T) {
 	store := newTestStore(t)
 	runID := "run-restore-invalid-attestation-cache-key"
-	facts := runtimeFactsWithValidAttestationVerification(runID, "authority-invalid-key", "policy-invalid-key")
+	facts := runtimeFactsWithValidAttestationVerification(t, runID, "authority-invalid-key", "policy-invalid-key")
 	evidence, lifecycle := splitRuntimeEvidenceStateForStoreTest(t, facts)
 	if err := store.RecordRuntimeEvidenceState(runID, facts, evidence, lifecycle); err != nil {
 		t.Fatalf("RecordRuntimeEvidenceState returned error: %v", err)
@@ -130,7 +130,7 @@ func TestRestoreRejectsInvalidAttestationVerificationCacheKey(t *testing.T) {
 func TestRestoreRejectsCollidingAttestationVerificationCacheKeys(t *testing.T) {
 	store := newTestStore(t)
 	runID := "run-restore-colliding-attestation-cache-keys"
-	facts := runtimeFactsWithValidAttestationVerification(runID, "authority-collision", "policy-collision")
+	facts := runtimeFactsWithValidAttestationVerification(t, runID, "authority-collision", "policy-collision")
 	evidence, lifecycle := splitRuntimeEvidenceStateForStoreTest(t, facts)
 	if err := store.RecordRuntimeEvidenceState(runID, facts, evidence, lifecycle); err != nil {
 		t.Fatalf("RecordRuntimeEvidenceState returned error: %v", err)
@@ -169,7 +169,7 @@ func TestRestoreRejectsCollidingAttestationVerificationCacheKeys(t *testing.T) {
 func TestRestoreRejectsRuntimeEvidenceWithoutRuntimeFacts(t *testing.T) {
 	store := newTestStore(t)
 	runID := "run-restore-orphan-runtime-evidence"
-	facts := runtimeFactsWithValidAttestationVerification(runID, "authority-orphan", "policy-orphan")
+	facts := runtimeFactsWithValidAttestationVerification(t, runID, "authority-orphan", "policy-orphan")
 	evidence, lifecycle := splitRuntimeEvidenceStateForStoreTest(t, facts)
 	if err := store.RecordRuntimeEvidenceState(runID, facts, evidence, lifecycle); err != nil {
 		t.Fatalf("RecordRuntimeEvidenceState returned error: %v", err)

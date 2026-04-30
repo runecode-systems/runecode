@@ -8,13 +8,15 @@ import (
 // RuntimeAdmissionRecord is launcher-private trusted admission state.
 // It captures verified runtime identity only (no host-local paths).
 type RuntimeAdmissionRecord struct {
-	DescriptorDigest       string                     `json:"descriptor_digest"`
-	BackendKind            string                     `json:"backend_kind"`
-	PlatformCompatibility  RuntimeImagePlatformCompat `json:"platform_compatibility"`
-	BootContractVersion    string                     `json:"boot_contract_version"`
-	ComponentDigests       map[string]string          `json:"component_digests"`
-	AuthorityStateDigest   string                     `json:"authority_state_digest"`
-	AuthorityStateRevision uint64                     `json:"authority_state_revision"`
+	DescriptorDigest                      string                     `json:"descriptor_digest"`
+	BackendKind                           string                     `json:"backend_kind"`
+	PlatformCompatibility                 RuntimeImagePlatformCompat `json:"platform_compatibility"`
+	BootContractVersion                   string                     `json:"boot_contract_version"`
+	ComponentDigests                      map[string]string          `json:"component_digests"`
+	AttestationMeasurementProfile         string                     `json:"attestation_measurement_profile,omitempty"`
+	AttestationExpectedMeasurementDigests []string                   `json:"attestation_expected_measurement_digests,omitempty"`
+	AuthorityStateDigest                  string                     `json:"authority_state_digest"`
+	AuthorityStateRevision                uint64                     `json:"authority_state_revision"`
 
 	RuntimeImageSignerRef       string `json:"runtime_image_signer_ref"`
 	RuntimeImageVerifierSetRef  string `json:"runtime_image_verifier_set_ref"`
@@ -34,19 +36,25 @@ func NewRuntimeAdmissionRecord(image RuntimeImageDescriptor) (RuntimeAdmissionRe
 	if image.Signing == nil {
 		return RuntimeAdmissionRecord{}, fmt.Errorf("signing metadata is required for admitted runtime identity")
 	}
+	expectedMeasurementDigests, err := admittedMeasurementDigestsForRuntimeImage(image)
+	if err != nil {
+		return RuntimeAdmissionRecord{}, err
+	}
 	record := RuntimeAdmissionRecord{
-		DescriptorDigest:                image.DescriptorDigest,
-		BackendKind:                     normalizeBackendKind(image.BackendKind),
-		PlatformCompatibility:           image.PlatformCompatibility,
-		BootContractVersion:             normalizeBootProfile(image.BootContractVersion),
-		ComponentDigests:                cloneStringMap(image.ComponentDigests),
-		RuntimeImageSignerRef:           strings.TrimSpace(image.Signing.SignerRef),
-		RuntimeImageVerifierSetRef:      strings.TrimSpace(image.Signing.VerifierSetRef),
-		RuntimeImageSignatureDigest:     strings.TrimSpace(image.Signing.SignatureDigest),
-		RuntimeToolchainSignerRef:       trimToolchainSignerRef(image.Signing.Toolchain),
-		RuntimeToolchainVerifierSetRef:  trimToolchainVerifierRef(image.Signing.Toolchain),
-		RuntimeToolchainSignatureDigest: trimToolchainSignatureDigest(image.Signing.Toolchain),
-		RuntimeToolchainBundleDigest:    trimToolchainBundleDigest(image.Signing.Toolchain),
+		DescriptorDigest:                      image.DescriptorDigest,
+		BackendKind:                           normalizeBackendKind(image.BackendKind),
+		PlatformCompatibility:                 image.PlatformCompatibility,
+		BootContractVersion:                   normalizeBootProfile(image.BootContractVersion),
+		ComponentDigests:                      cloneStringMap(image.ComponentDigests),
+		AttestationMeasurementProfile:         trimAttestationMeasurementProfile(image.Attestation),
+		AttestationExpectedMeasurementDigests: expectedMeasurementDigests,
+		RuntimeImageSignerRef:                 strings.TrimSpace(image.Signing.SignerRef),
+		RuntimeImageVerifierSetRef:            strings.TrimSpace(image.Signing.VerifierSetRef),
+		RuntimeImageSignatureDigest:           strings.TrimSpace(image.Signing.SignatureDigest),
+		RuntimeToolchainSignerRef:             trimToolchainSignerRef(image.Signing.Toolchain),
+		RuntimeToolchainVerifierSetRef:        trimToolchainVerifierRef(image.Signing.Toolchain),
+		RuntimeToolchainSignatureDigest:       trimToolchainSignatureDigest(image.Signing.Toolchain),
+		RuntimeToolchainBundleDigest:          trimToolchainBundleDigest(image.Signing.Toolchain),
 	}
 	if image.Signing.Toolchain != nil {
 		record.RuntimeToolchainDescriptorDigest = strings.TrimSpace(image.Signing.Toolchain.DescriptorDigest)
@@ -62,6 +70,9 @@ func (r RuntimeAdmissionRecord) Validate() error {
 		return err
 	}
 	if err := validateAdmissionRecordRuntimeImageSigning(r); err != nil {
+		return err
+	}
+	if err := validateAdmissionRecordAttestationExpectations(r); err != nil {
 		return err
 	}
 	return validateAdmissionRecordToolchainSigning(r)
@@ -107,6 +118,23 @@ func validateAdmissionRecordRuntimeImageSigning(record RuntimeAdmissionRecord) e
 	}
 	if strings.TrimSpace(record.RuntimeImageSignatureDigest) == "" || !looksLikeDigest(record.RuntimeImageSignatureDigest) {
 		return fmt.Errorf("runtime_image_signature_digest must be sha256:<64 lowercase hex>")
+	}
+	return nil
+}
+
+func validateAdmissionRecordAttestationExpectations(record RuntimeAdmissionRecord) error {
+	profile := strings.TrimSpace(record.AttestationMeasurementProfile)
+	digests := normalizeExpectedMeasurementDigests(profile, record.AttestationExpectedMeasurementDigests)
+	hasProfile := profile != ""
+	hasDigests := len(digests) > 0
+	if hasProfile != hasDigests {
+		return fmt.Errorf("attestation_measurement_profile and attestation_expected_measurement_digests must be both set or both empty")
+	}
+	if !hasProfile {
+		return nil
+	}
+	if err := validateMeasurementProfileExpectedDigests(profile, digests); err != nil {
+		return err
 	}
 	return nil
 }
@@ -181,4 +209,38 @@ func trimToolchainBundleDigest(toolchain *RuntimeToolchainSigningHooks) string {
 		return ""
 	}
 	return strings.TrimSpace(toolchain.BundleDigest)
+}
+
+func trimAttestationMeasurementProfile(attestation *RuntimeImageAttestationHook) string {
+	if attestation == nil {
+		return ""
+	}
+	return normalizeMeasurementProfile(attestation.MeasurementProfile)
+}
+
+func trimAttestationExpectedMeasurementDigests(attestation *RuntimeImageAttestationHook) []string {
+	if attestation == nil {
+		return nil
+	}
+	return normalizeExpectedMeasurementDigests(attestation.MeasurementProfile, attestation.ExpectedMeasurementDigests)
+}
+
+func admittedMeasurementDigestsForRuntimeImage(image RuntimeImageDescriptor) ([]string, error) {
+	if image.Attestation == nil {
+		return nil, nil
+	}
+	declaredDigests := trimAttestationExpectedMeasurementDigests(image.Attestation)
+	computedDigests, err := DeriveExpectedMeasurementDigests(image.Attestation.MeasurementProfile, image.BootContractVersion, image.ComponentDigests)
+	if err != nil {
+		return nil, err
+	}
+	if len(declaredDigests) != len(computedDigests) {
+		return nil, fmt.Errorf("attestation expected_measurement_digests do not match canonical runtime identity")
+	}
+	for i := range declaredDigests {
+		if declaredDigests[i] != computedDigests[i] {
+			return nil, fmt.Errorf("attestation expected_measurement_digests do not match canonical runtime identity")
+		}
+	}
+	return computedDigests, nil
 }

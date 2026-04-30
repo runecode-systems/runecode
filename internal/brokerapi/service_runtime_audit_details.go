@@ -7,11 +7,12 @@ import (
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
-func runtimeAuditDetailsForPayload(eventType, payloadSchemaID string, payload any, evidence launcherbackend.RuntimeEvidenceSnapshot, facts launcherbackend.RuntimeFactsSnapshot) (map[string]interface{}, error) {
+func runtimeAuditDetailsForPayload(eventType, payloadSchemaID string, payload any, evidence launcherbackend.RuntimeEvidenceSnapshot, facts launcherbackend.RuntimeFactsSnapshot, runtimeSupportState map[string]any) (map[string]interface{}, error) {
 	payloadRaw, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
+	attestationReasonCodes := runtimeAttestationReasonCodes(evidence)
 	details := map[string]interface{}{
 		"audit_event_type":            eventType,
 		"event_payload_schema_id":     payloadSchemaID,
@@ -22,8 +23,10 @@ func runtimeAuditDetailsForPayload(eventType, payloadSchemaID string, payload an
 		"stored_runtime_fact_digests": runtimeStoredDigestMap(evidence),
 		"provisioning_posture":        evidence.Launch.ProvisioningPosture,
 		"attestation_posture":         runtimeAttestationPosture(evidence),
-		"attestation_reason_codes":    runtimeAttestationReasonCodes(evidence),
+		"attestation_verifier_class":  runtimeAttestationVerifierClass(evidence),
+		"attestation_reason_codes":    attestationReasonCodes,
 	}
+	mergeRuntimeSupportAuditDetails(details, runtimeSupportState)
 	if sessionID := strings.TrimSpace(evidence.Launch.SessionID); sessionID != "" {
 		details["session_id"] = sessionID
 	}
@@ -72,10 +75,36 @@ func runtimeAttestationPosture(evidence launcherbackend.RuntimeEvidenceSnapshot)
 }
 
 func runtimeAttestationReasonCodes(evidence launcherbackend.RuntimeEvidenceSnapshot) []string {
-	if evidence.AttestationVerification == nil {
-		return nil
+	_, reasons := launcherbackend.DeriveAttestationPostureFromEvidence(evidence)
+	return append([]string{}, reasons...)
+}
+
+func runtimeAttestationVerifierClass(evidence launcherbackend.RuntimeEvidenceSnapshot) string {
+	return launcherbackend.DeriveAttestationVerifierClassFromEvidence(evidence)
+}
+
+func runtimeAuditSupportState(evidence launcherbackend.RuntimeEvidenceSnapshot, instanceID, runID string, policyRefs []string, approvals []ApprovalSummary) map[string]any {
+	state := map[string]any{
+		"backend_kind":               evidence.Launch.BackendKind,
+		"runtime_posture_degraded":   runtimePostureDegraded(evidence.Launch.BackendKind, evidence.Launch.IsolationAssuranceLevel),
+		"attestation_posture":        runtimeAttestationPosture(evidence),
+		"attestation_verifier_class": runtimeAttestationVerifierClass(evidence),
 	}
-	return append([]string{}, evidence.AttestationVerification.ReasonCodes...)
+	projectBackendPostureSelectionEvidenceState(state, instanceID, runID, policyRefs, approvals)
+	projectSupportedRuntimeRequirementsState(state)
+	return state
+}
+
+func mergeRuntimeSupportAuditDetails(details map[string]interface{}, runtimeSupportState map[string]any) {
+	if len(runtimeSupportState) == 0 {
+		return
+	}
+	if supported, ok := runtimeSupportState["supported_runtime_requirements_satisfied"].(bool); ok {
+		details["supported_runtime_requirements_satisfied"] = supported
+	}
+	if reasons, ok := runtimeSupportState["supported_runtime_requirement_reason_codes"].([]string); ok && len(reasons) > 0 {
+		details["supported_runtime_requirement_reason_codes"] = append([]string{}, reasons...)
+	}
 }
 
 func runtimeEvidenceDigestRefs(evidence launcherbackend.RuntimeEvidenceSnapshot) []map[string]string {

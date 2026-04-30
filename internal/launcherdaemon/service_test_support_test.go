@@ -79,18 +79,36 @@ func validSpecForTests() launcherbackend.BackendLaunchSpec {
 }
 
 func validRuntimeImageForTests() launcherbackend.RuntimeImageDescriptor {
+	expectedMeasurementDigests := validRuntimeImageMeasurementDigestsForTests()
 	image := launcherbackend.RuntimeImageDescriptor{
 		BackendKind:           launcherbackend.BackendKindMicroVM,
 		BootContractVersion:   launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1,
 		PlatformCompatibility: launcherbackend.RuntimeImagePlatformCompat{OS: "linux", Architecture: "amd64", AccelerationKind: launcherbackend.AccelerationKindKVM},
 		ComponentDigests:      map[string]string{"kernel": "sha256:" + repeatHex('b'), "initrd": "sha256:" + repeatHex('c')},
+		Attestation: &launcherbackend.RuntimeImageAttestationHook{
+			MeasurementProfile:         launcherbackend.MeasurementProfileMicroVMBootV1,
+			ExpectedMeasurementDigests: expectedMeasurementDigests,
+		},
 	}
 	digest, err := image.ExpectedDescriptorDigest()
 	if err != nil {
 		panic(err)
 	}
 	image.DescriptorDigest = digest
-	image.Signing = &launcherbackend.RuntimeImageSigningHooks{
+	image.Signing = validRuntimeImageSigningForTests(digest)
+	return image
+}
+
+func validRuntimeImageMeasurementDigestsForTests() []string {
+	expectedMeasurementDigests, err := launcherbackend.DeriveExpectedMeasurementDigests(launcherbackend.MeasurementProfileMicroVMBootV1, launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1, map[string]string{"kernel": "sha256:" + repeatHex('b'), "initrd": "sha256:" + repeatHex('c')})
+	if err != nil {
+		panic(err)
+	}
+	return expectedMeasurementDigests
+}
+
+func validRuntimeImageSigningForTests(digest string) *launcherbackend.RuntimeImageSigningHooks {
+	return &launcherbackend.RuntimeImageSigningHooks{
 		PayloadSchemaID:      launcherbackend.RuntimeImageSignedPayloadSchemaID,
 		PayloadSchemaVersion: launcherbackend.RuntimeImageSignedPayloadSchemaVersion,
 		PayloadDigest:        digest,
@@ -112,7 +130,6 @@ func validRuntimeImageForTests() launcherbackend.RuntimeImageDescriptor {
 			BundleDigest:            "sha256:" + repeatHex('6'),
 		},
 	}
-	return image
 }
 
 func validContainerSpecForTests() launcherbackend.BackendLaunchSpec {
@@ -125,6 +142,14 @@ func validContainerSpecForTests() launcherbackend.BackendLaunchSpec {
 	spec.Image.BootContractVersion = launcherbackend.BootProfileContainerOCIImageV1
 	spec.Image.PlatformCompatibility.AccelerationKind = ""
 	spec.Image.ComponentDigests = map[string]string{"image": "sha256:" + repeatHex('b')}
+	expectedMeasurementDigests, err := launcherbackend.DeriveExpectedMeasurementDigests(launcherbackend.MeasurementProfileContainerImageV1, launcherbackend.BootProfileContainerOCIImageV1, spec.Image.ComponentDigests)
+	if err != nil {
+		panic(err)
+	}
+	spec.Image.Attestation = &launcherbackend.RuntimeImageAttestationHook{
+		MeasurementProfile:         launcherbackend.MeasurementProfileContainerImageV1,
+		ExpectedMeasurementDigests: expectedMeasurementDigests,
+	}
 	digest, err := spec.Image.ExpectedDescriptorDigest()
 	if err != nil {
 		panic(err)

@@ -39,14 +39,17 @@ func TestQEMUPrepareLaunchAssetsSurfacesToolchainVerificationFailure(t *testing.
 	}
 }
 
-func TestQEMULaunchReceiptRequiresAttestationEvidenceWhenUnavailable(t *testing.T) {
+func TestQEMULaunchReceiptCarriesTrustedRuntimeAttestation(t *testing.T) {
 	_, _, spec := qemuToolchainVerificationLaunchSpecForTests(t)
 	admission, err := launcherbackend.NewRuntimeAdmissionRecord(spec.Image)
 	if err != nil {
 		t.Fatalf("NewRuntimeAdmissionRecord returned error: %v", err)
 	}
 
-	receipt := buildLaunchReceipt(spec, admission, "isolate-1", "session-1", strings.Repeat("a", 32), "9.0.0", "qemu-system-x86_64 9.0.0", nil)
+	receipt, err := buildLaunchReceipt(spec, admission, "isolate-1", "session-1", strings.Repeat("a", 32), "9.0.0", "qemu-system-x86_64 9.0.0", nil)
+	if err != nil {
+		t.Fatalf("buildLaunchReceipt returned error: %v", err)
+	}
 	facts := launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: receipt, HardeningPosture: buildHardeningPosture()}
 	evidence, _, err := launcherbackend.SplitRuntimeFactsEvidenceAndLifecycle(facts)
 	if err != nil {
@@ -55,17 +58,17 @@ func TestQEMULaunchReceiptRequiresAttestationEvidenceWhenUnavailable(t *testing.
 	if receipt.ProvisioningPosture != launcherbackend.ProvisioningPostureAttested {
 		t.Fatalf("provisioning posture = %q, want %q", receipt.ProvisioningPosture, launcherbackend.ProvisioningPostureAttested)
 	}
-	if evidence.Attestation != nil {
-		t.Fatalf("attestation evidence = %#v, want nil when no real attestation source is present", evidence.Attestation)
+	if evidence.Attestation == nil {
+		t.Fatal("attestation evidence missing")
 	}
 	if evidence.AttestationVerification == nil {
-		t.Fatal("attestation verification missing for fail-closed attestation requirement")
+		t.Fatal("attestation verification missing")
 	}
-	if evidence.AttestationVerification.VerificationResult != launcherbackend.AttestationVerificationResultInvalid {
-		t.Fatalf("verification result = %q, want %q", evidence.AttestationVerification.VerificationResult, launcherbackend.AttestationVerificationResultInvalid)
+	if evidence.AttestationVerification.VerificationResult != launcherbackend.AttestationVerificationResultValid {
+		t.Fatalf("verification result = %q, want %q", evidence.AttestationVerification.VerificationResult, launcherbackend.AttestationVerificationResultValid)
 	}
-	if !strings.Contains(strings.Join(evidence.AttestationVerification.ReasonCodes, ","), "attestation_evidence_required") {
-		t.Fatalf("reason codes = %#v, expected attestation_evidence_required", evidence.AttestationVerification.ReasonCodes)
+	if evidence.AttestationVerification.ReplayVerdict != launcherbackend.AttestationReplayVerdictOriginal {
+		t.Fatalf("replay verdict = %q, want %q", evidence.AttestationVerification.ReplayVerdict, launcherbackend.AttestationReplayVerdictOriginal)
 	}
 }
 

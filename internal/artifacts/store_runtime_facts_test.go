@@ -97,7 +97,7 @@ func TestRecordRuntimeEvidenceStateUsesCachedAttestationVerificationOnReplay(t *
 	store := newTestStore(t)
 	runID := "run-runtime-attestation-cache-hit"
 
-	facts := runtimeFactsWithValidAttestationVerification(runID, "authority-cache-hit", "policy")
+	facts := runtimeFactsWithValidAttestationVerification(t, runID, "authority-cache-hit", "policy")
 	evidence, lifecycle := splitRuntimeEvidenceStateForStoreTest(t, facts)
 	if evidence.AttestationVerification == nil {
 		t.Fatal("expected initial attestation verification record")
@@ -124,7 +124,7 @@ func TestRecordRuntimeEvidenceStateInvalidatesAttestationVerificationCacheOnAuth
 	store := newTestStore(t)
 	runID := "run-runtime-attestation-cache-invalidate"
 
-	facts := runtimeFactsWithValidAttestationVerification(runID, "authority-1", "policy")
+	facts := runtimeFactsWithValidAttestationVerification(t, runID, "authority-1", "policy")
 	evidence, lifecycle := splitRuntimeEvidenceStateForStoreTest(t, facts)
 	if err := store.RecordRuntimeEvidenceState(runID, facts, evidence, lifecycle); err != nil {
 		t.Fatalf("RecordRuntimeEvidenceState(initial) returned error: %v", err)
@@ -154,7 +154,7 @@ func TestRecordRuntimeEvidenceStateAttestationVerificationCacheSurvivesReload(t 
 	store := newTestStore(t)
 	runID := "run-runtime-attestation-cache-reload"
 
-	facts := runtimeFactsWithValidAttestationVerification(runID, "authority-reload", "policy-reload")
+	facts := runtimeFactsWithValidAttestationVerification(t, runID, "authority-reload", "policy-reload")
 	evidence, lifecycle := splitRuntimeEvidenceStateForStoreTest(t, facts)
 	if err := store.RecordRuntimeEvidenceState(runID, facts, evidence, lifecycle); err != nil {
 		t.Fatalf("RecordRuntimeEvidenceState(initial) returned error: %v", err)
@@ -181,7 +181,7 @@ func TestRecordRuntimeEvidenceStateAttestationVerificationCacheSurvivesReload(t 
 func TestRecordRuntimeEvidenceStateAttestationVerificationCacheDoesNotApplyWithoutMeasurementProfile(t *testing.T) {
 	store := newTestStore(t)
 	runID := "run-runtime-attestation-cache-missing-measurement-profile"
-	facts := runtimeFactsWithValidAttestationVerification(runID, "authority-profile", "policy-profile")
+	facts := runtimeFactsWithValidAttestationVerification(t, runID, "authority-profile", "policy-profile")
 	evidence, lifecycle := splitRuntimeEvidenceStateForStoreTest(t, facts)
 	if err := store.RecordRuntimeEvidenceState(runID, facts, evidence, lifecycle); err != nil {
 		t.Fatalf("RecordRuntimeEvidenceState(initial) returned error: %v", err)
@@ -207,7 +207,7 @@ func TestRecordRuntimeEvidenceStateAttestationVerificationCacheDoesNotApplyWitho
 func TestRecordRuntimeEvidenceStateDoesNotApplyCacheToPartialVerificationRecord(t *testing.T) {
 	store := newTestStore(t)
 	runID := "run-runtime-attestation-cache-partial-verification"
-	facts := runtimeFactsWithValidAttestationVerification(runID, "authority-partial", "policy-partial")
+	facts := runtimeFactsWithValidAttestationVerification(t, runID, "authority-partial", "policy-partial")
 	evidence, lifecycle := splitRuntimeEvidenceStateForStoreTest(t, facts)
 	if err := store.RecordRuntimeEvidenceState(runID, facts, evidence, lifecycle); err != nil {
 		t.Fatalf("RecordRuntimeEvidenceState(initial) returned error: %v", err)
@@ -252,7 +252,7 @@ func TestAttestationVerificationCacheKeyFromFieldsAvoidsDelimiterCollisions(t *t
 
 func recordRuntimeEvidenceFixture(t *testing.T, store *Store, runID string) (launcherbackend.RuntimeFactsSnapshot, launcherbackend.RuntimeEvidenceSnapshot, launcherbackend.RuntimeLifecycleState) {
 	t.Helper()
-	facts := runtimeFactsFixtureForStoreRuntimeTests(runID)
+	facts := runtimeFactsFixtureForStoreRuntimeTests(t, runID)
 	evidence, lifecycle, err := launcherbackend.SplitRuntimeFactsEvidenceAndLifecycle(facts)
 	if err != nil {
 		t.Fatalf("SplitRuntimeFactsEvidenceAndLifecycle returned error: %v", err)
@@ -272,8 +272,9 @@ func splitRuntimeEvidenceStateForStoreTest(t *testing.T, facts launcherbackend.R
 	return evidence, lifecycle
 }
 
-func runtimeFactsWithValidAttestationVerification(runID string, authoritySeed string, policySeed string) launcherbackend.RuntimeFactsSnapshot {
-	facts := runtimeFactsFixtureForStoreRuntimeTests(runID)
+func runtimeFactsWithValidAttestationVerification(t *testing.T, runID string, authoritySeed string, policySeed string) launcherbackend.RuntimeFactsSnapshot {
+	t.Helper()
+	facts := runtimeFactsFixtureForStoreRuntimeTests(t, runID)
 	facts.LaunchReceipt.AuthorityStateDigest = DigestBytes([]byte(authoritySeed))
 	facts.LaunchReceipt.AttestationVerifierPolicyID = "runtime_asset_admission_identity"
 	facts.LaunchReceipt.AttestationVerifierPolicyDigest = DigestBytes([]byte(policySeed))
@@ -343,7 +344,8 @@ func assertPersistedRuntimeAuditMarkers(t *testing.T, persistedAudit RuntimeAudi
 	}
 }
 
-func runtimeFactsFixtureForStoreRuntimeTests(runID string) launcherbackend.RuntimeFactsSnapshot {
+func runtimeFactsFixtureForStoreRuntimeTests(t *testing.T, runID string) launcherbackend.RuntimeFactsSnapshot {
+	t.Helper()
 	facts := launcherbackend.DefaultRuntimeFacts(runID)
 	facts.LaunchReceipt.BackendKind = launcherbackend.BackendKindMicroVM
 	facts.LaunchReceipt.IsolationAssuranceLevel = launcherbackend.IsolationAssuranceIsolated
@@ -356,12 +358,17 @@ func runtimeFactsFixtureForStoreRuntimeTests(runID string) launcherbackend.Runti
 	facts.LaunchReceipt.IsolateSessionKeyIDValue = strings.Repeat("f", 64)
 	facts.LaunchReceipt.RuntimeImageDescriptorDigest = testDigest("6")
 	facts.LaunchReceipt.RuntimeImageBootProfile = launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1
-	facts.LaunchReceipt.BootComponentDigests = []string{testDigest("7")}
+	facts.LaunchReceipt.BootComponentDigestByName = map[string]string{"kernel": testDigest("7"), "initrd": testDigest("8")}
+	facts.LaunchReceipt.BootComponentDigests = []string{testDigest("7"), testDigest("8")}
 	facts.LaunchReceipt.AttestationEvidenceSourceKind = launcherbackend.AttestationSourceKindTPMQuote
 	facts.LaunchReceipt.AttestationMeasurementProfile = "microvm-boot-v1"
 	facts.LaunchReceipt.AttestationFreshnessMaterial = []string{"quote_nonce"}
 	facts.LaunchReceipt.AttestationFreshnessBindingClaims = []string{"session_nonce", "handshake_transcript_hash"}
-	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = testDigest("8")
+	digests, err := launcherbackend.DeriveExpectedMeasurementDigests(facts.LaunchReceipt.AttestationMeasurementProfile, facts.LaunchReceipt.RuntimeImageBootProfile, facts.LaunchReceipt.BootComponentDigestByName)
+	if err != nil {
+		t.Fatalf("DeriveExpectedMeasurementDigests returned error: %v", err)
+	}
+	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = digests[0]
 	return facts
 }
 

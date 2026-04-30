@@ -71,7 +71,7 @@ func attestationRuntimeFactsFixture() RuntimeFactsSnapshot {
 		AttestationMeasurementProfile:       "microvm-boot-v1",
 		AttestationFreshnessMaterial:        []string{"quote_nonce"},
 		AttestationFreshnessBindingClaims:   []string{"session_nonce", "transcript_hash"},
-		AttestationEvidenceClaimsDigest:     testDigest("17"),
+		AttestationEvidenceClaimsDigest:     runtimeEvidenceMeasurementDigestForTests(BootProfileMicroVMLinuxKernelInitrdV1, map[string]string{"kernel": testDigest("15"), "initrd": testDigest("16")}),
 		AttestationVerifierPolicyID:         "policy-default",
 		AttestationVerifierPolicyDigest:     testDigest("18"),
 		AttestationVerificationRulesVersion: "v1",
@@ -81,6 +81,14 @@ func attestationRuntimeFactsFixture() RuntimeFactsSnapshot {
 		AttestationVerificationTimestamp:    "2026-04-29T12:00:00Z",
 	}
 	return facts
+}
+
+func runtimeEvidenceMeasurementDigestForTests(bootProfile string, componentDigests map[string]string) string {
+	digests, err := DeriveExpectedMeasurementDigests(MeasurementProfileMicroVMBootV1, bootProfile, componentDigests)
+	if err != nil {
+		panic(err)
+	}
+	return digests[0]
 }
 
 func assertAttestationEvidenceLinkedToRuntime(t *testing.T, evidence RuntimeEvidenceSnapshot) {

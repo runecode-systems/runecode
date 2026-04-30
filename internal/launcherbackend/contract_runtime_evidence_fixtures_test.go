@@ -37,7 +37,7 @@ func TestAttestationFixturesCoverFailClosedAndPlatformNeutralBindings(t *testing
 }
 
 func TestAttestationFixturesSupportPlatformSpecificSourceKindsWithoutSemanticFork(t *testing.T) {
-	sources := []string{AttestationSourceKindTPMQuote, AttestationSourceKindSEVSNPReport, AttestationSourceKindTDXQuote, AttestationSourceKindContainerSig}
+	sources := []string{AttestationSourceKindTPMQuote, AttestationSourceKindSEVSNPReport, AttestationSourceKindTDXQuote, AttestationSourceKindContainerImage}
 	for _, source := range sources {
 		source := source
 		t.Run(source, func(t *testing.T) {
@@ -50,11 +50,44 @@ func TestAttestationFixturesSupportPlatformSpecificSourceKindsWithoutSemanticFor
 
 func splitRuntimeEvidenceForFixture(t *testing.T, facts RuntimeFactsSnapshot) RuntimeEvidenceSnapshot {
 	t.Helper()
+	canonicalizeFixtureMeasurementDigest(&facts.LaunchReceipt)
 	evidence, _, err := SplitRuntimeFactsEvidenceAndLifecycle(facts)
 	if err != nil {
 		t.Fatalf("SplitRuntimeFactsEvidenceAndLifecycle returned error: %v", err)
 	}
 	return evidence
+}
+
+func canonicalizeFixtureMeasurementDigest(receipt *BackendLaunchReceipt) {
+	if receipt == nil || receipt.AttestationMeasurementProfile == "" {
+		return
+	}
+	componentDigests := bootComponentDigestsForFixture(receipt.RuntimeImageBootProfile, receipt.BootComponentDigests)
+	if len(componentDigests) == 0 {
+		return
+	}
+	digests, err := DeriveExpectedMeasurementDigests(receipt.AttestationMeasurementProfile, receipt.RuntimeImageBootProfile, componentDigests)
+	if err != nil || len(digests) == 0 {
+		return
+	}
+	receipt.AttestationEvidenceClaimsDigest = digests[0]
+}
+
+func bootComponentDigestsForFixture(bootProfile string, digests []string) map[string]string {
+	switch normalizeBootProfile(bootProfile) {
+	case BootProfileMicroVMLinuxKernelInitrdV1:
+		if len(digests) != 2 {
+			return nil
+		}
+		return map[string]string{"kernel": digests[0], "initrd": digests[1]}
+	case BootProfileContainerOCIImageV1:
+		if len(digests) != 1 {
+			return nil
+		}
+		return map[string]string{"image": digests[0]}
+	default:
+		return nil
+	}
 }
 
 func assertFixtureVerificationResult(t *testing.T, tc attestationFixtureCase, evidence RuntimeEvidenceSnapshot) {
@@ -95,6 +128,7 @@ func assertFixtureRuntimeIdentityBinding(t *testing.T, tc attestationFixtureCase
 }
 
 func attestationSourceFacts(source string) RuntimeFactsSnapshot {
+	measurementProfile, bootProfile, bootComponentDigestByName, bootComponentDigests := attestationSourceFixtureIdentity(source)
 	facts := DefaultRuntimeFacts("run-att-source-" + source)
 	facts.LaunchReceipt = BackendLaunchReceipt{
 		RunID:                               "run-att-source-" + source,
@@ -109,13 +143,14 @@ func attestationSourceFacts(source string) RuntimeFactsSnapshot {
 		HandshakeTranscriptHash:             testDigest("a"),
 		IsolateSessionKeyIDValue:            testDigest("b")[7:],
 		RuntimeImageDescriptorDigest:        testDigest("c"),
-		RuntimeImageBootProfile:             BootProfileMicroVMLinuxKernelInitrdV1,
-		BootComponentDigests:                []string{testDigest("d"), testDigest("e")},
+		RuntimeImageBootProfile:             bootProfile,
+		BootComponentDigestByName:           bootComponentDigestByName,
+		BootComponentDigests:                bootComponentDigests,
 		AttestationEvidenceSourceKind:       source,
-		AttestationMeasurementProfile:       "microvm-boot-v1",
+		AttestationMeasurementProfile:       measurementProfile,
 		AttestationFreshnessMaterial:        []string{"nonce"},
 		AttestationFreshnessBindingClaims:   []string{"session_nonce"},
-		AttestationEvidenceClaimsDigest:     testDigest("f"),
+		AttestationEvidenceClaimsDigest:     attestationSourceFixtureClaimsDigest(measurementProfile, bootProfile, bootComponentDigestByName),
 		AttestationVerifierPolicyID:         "runtime_asset_admission_identity",
 		AttestationVerifierPolicyDigest:     testDigest("1"),
 		AttestationVerificationRulesVersion: "v1",
@@ -124,6 +159,21 @@ func attestationSourceFacts(source string) RuntimeFactsSnapshot {
 		AttestationReplayVerdict:            AttestationReplayVerdictOriginal,
 	}
 	return facts
+}
+
+func attestationSourceFixtureClaimsDigest(measurementProfile, bootProfile string, bootComponentDigestByName map[string]string) string {
+	digests, err := DeriveExpectedMeasurementDigests(measurementProfile, bootProfile, bootComponentDigestByName)
+	if err != nil {
+		panic(err)
+	}
+	return digests[0]
+}
+
+func attestationSourceFixtureIdentity(source string) (string, string, map[string]string, []string) {
+	if source == AttestationSourceKindContainerImage {
+		return MeasurementProfileContainerImageV1, BootProfileContainerOCIImageV1, map[string]string{"image": testDigest("d")}, []string{testDigest("d")}
+	}
+	return MeasurementProfileMicroVMBootV1, BootProfileMicroVMLinuxKernelInitrdV1, map[string]string{"kernel": testDigest("d"), "initrd": testDigest("e")}, []string{testDigest("d"), testDigest("e")}
 }
 
 func assertAttestationSourceSemantics(t *testing.T, source string, facts RuntimeFactsSnapshot, evidence RuntimeEvidenceSnapshot) {

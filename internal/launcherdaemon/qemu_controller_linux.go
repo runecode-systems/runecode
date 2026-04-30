@@ -126,10 +126,15 @@ func (c *qemuController) prepareLaunchState(ctx context.Context, spec launcherba
 	if err != nil {
 		return preparedLaunchState{}, err
 	}
+	receipt, err := buildLaunchReceipt(spec, admittedImage.admissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild, admittedImage.cacheEvidence)
+	if err != nil {
+		cancel()
+		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeHandshakeFailed, err.Error())
+	}
 	return preparedLaunchState{
 		stdout:    stdout,
 		launchDir: launchDir,
-		receipt:   buildLaunchReceipt(spec, admittedImage.admissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild, admittedImage.cacheEvidence),
+		receipt:   receipt,
 		hardening: buildHardeningPosture(),
 		cmd:       cmd,
 		cancel:    cancel,

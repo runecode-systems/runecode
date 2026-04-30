@@ -112,16 +112,24 @@ func validateBootProfileComponentRequirements(bootProfile string, componentDiges
 
 func validateRuntimeImageAttestationHooks(attestation *RuntimeImageAttestationHook) error {
 	if attestation == nil {
-		return nil
+		return fmt.Errorf("attestation is required")
 	}
-	if strings.TrimSpace(attestation.MeasurementProfile) == "" && len(attestation.ExpectedMeasurementDigests) == 0 {
+	profile := strings.TrimSpace(attestation.MeasurementProfile)
+	if profile == "" && len(attestation.ExpectedMeasurementDigests) == 0 {
 		return fmt.Errorf("attestation must include at least one field")
 	}
-	for _, digest := range attestation.ExpectedMeasurementDigests {
-		if !looksLikeDigest(digest) {
-			return fmt.Errorf("attestation.expected_measurement_digests values must be sha256:<64 lowercase hex>")
-		}
+	if profile == "" {
+		return fmt.Errorf("attestation.measurement_profile is required when expected_measurement_digests are declared")
 	}
+	if !measurementProfileKnown(profile) {
+		return fmt.Errorf("attestation.measurement_profile %q is invalid", attestation.MeasurementProfile)
+	}
+	normalizedDigests := normalizeExpectedMeasurementDigests(profile, attestation.ExpectedMeasurementDigests)
+	if err := validateMeasurementProfileExpectedDigests(profile, normalizedDigests); err != nil {
+		return fmt.Errorf("attestation.%w", err)
+	}
+	attestation.MeasurementProfile = normalizeMeasurementProfile(profile)
+	attestation.ExpectedMeasurementDigests = normalizedDigests
 	return nil
 }
 

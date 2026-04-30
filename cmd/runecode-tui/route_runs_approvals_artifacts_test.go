@@ -28,10 +28,14 @@ func TestRunsRouteExplainsBrokerPostureAndStateTaxonomy(t *testing.T) {
 		"Provisioning/binding posture (authoritative): provisioning posture=attested",
 		"PROVISIONING_OK",
 		"Attestation posture (authoritative): attestation posture=valid",
+		"Verifier class (authoritative): verifier class=trusted_domain_local",
+		"Supported runtime requirements (authoritative): supported_runtime_requirements_satisfied=true",
+		"Reduced-assurance posture (authoritative): reduced_assurance=false",
+		"approval_backed=n/a",
 		"Audit posture (authoritative): audit posture=ok/degraded (unanchored/degraded)",
 		"Approval profile (authoritative): approval_profile=n/a",
 		"Authoritative broker state (control-plane truth):",
-		"Advisory state (non-authoritative runner hints):",
+		"Advisory state",
 		"Coordination summary: blocked=true wait_reason=approval_wait",
 		"Blocking cue:",
 		"APPROVAL_REQUIRED",
@@ -359,6 +363,16 @@ func TestRouteInspectorViewportScrollAndResizePersistence(t *testing.T) {
 	}
 	if !strings.Contains(surface.Regions.Inspector.Body, "viewport") {
 		t.Fatalf("expected viewport metadata after resize, got %q", surface.Regions.Inspector.Body)
+	}
+}
+
+func TestAttestationPostureCueClarifiesRuntimeIsolationAssurance(t *testing.T) {
+	cue := renderAttestationPostureCue("valid", nil)
+	if !strings.Contains(cue, "attestation posture=valid (evidence present, verification succeeded; isolation assurance varies by runtime posture)") {
+		t.Fatalf("expected valid attestation cue to clarify runtime isolation assurance, got %q", cue)
+	}
+	if !strings.Contains(cue, "ATTESTATION_VALID") {
+		t.Fatalf("expected ATTESTATION_VALID badge in cue, got %q", cue)
 	}
 }
 

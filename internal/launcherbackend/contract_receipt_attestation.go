@@ -3,11 +3,13 @@ package launcherbackend
 import "strings"
 
 const (
-	AttestationSourceKindUnknown      = "unknown"
-	AttestationSourceKindTPMQuote     = "tpm_quote"
-	AttestationSourceKindSEVSNPReport = "sev_snp_report"
-	AttestationSourceKindTDXQuote     = "tdx_quote"
-	AttestationSourceKindContainerSig = "container_signature"
+	AttestationSourceKindUnknown            = "unknown"
+	AttestationSourceKindTrustedRuntime     = "trusted_runtime"
+	AttestationSourceKindTPMQuote           = "tpm_quote"
+	AttestationSourceKindSEVSNPReport       = "sev_snp_report"
+	AttestationSourceKindTDXQuote           = "tdx_quote"
+	AttestationSourceKindContainerImage     = "container_image"
+	legacyAttestationSourceKindContainerSig = "container_signature"
 
 	AttestationVerificationResultUnknown = "unknown"
 	AttestationVerificationResultValid   = "valid"
@@ -37,14 +39,16 @@ func normalizeReceiptAttestationFields(receipt *BackendLaunchReceipt) {
 
 func normalizeAttestationSourceKind(sourceKind string) string {
 	switch strings.ToLower(strings.TrimSpace(sourceKind)) {
+	case AttestationSourceKindTrustedRuntime:
+		return AttestationSourceKindTrustedRuntime
 	case AttestationSourceKindTPMQuote:
 		return AttestationSourceKindTPMQuote
 	case AttestationSourceKindSEVSNPReport:
 		return AttestationSourceKindSEVSNPReport
 	case AttestationSourceKindTDXQuote:
 		return AttestationSourceKindTDXQuote
-	case AttestationSourceKindContainerSig:
-		return AttestationSourceKindContainerSig
+	case AttestationSourceKindContainerImage, legacyAttestationSourceKindContainerSig:
+		return AttestationSourceKindContainerImage
 	default:
 		return AttestationSourceKindUnknown
 	}

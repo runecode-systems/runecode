@@ -74,6 +74,10 @@ func prepareHelloWorldImageForSigning(workRoot string, cacheRoot string) (launch
 }
 
 func buildHelloWorldRuntimeImage(kernelDigest string, initrdDigest string, imageSigner helloWorldSignerMaterial, toolchainSigner helloWorldSignerMaterial) (launcherbackend.RuntimeImageDescriptor, error) {
+	expectedMeasurementDigests, err := launcherbackend.DeriveExpectedMeasurementDigests(launcherbackend.MeasurementProfileMicroVMBootV1, launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1, map[string]string{"kernel": kernelDigest, "initrd": initrdDigest})
+	if err != nil {
+		return launcherbackend.RuntimeImageDescriptor{}, err
+	}
 	image := launcherbackend.RuntimeImageDescriptor{
 		BackendKind:         launcherbackend.BackendKindMicroVM,
 		BootContractVersion: launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1,
@@ -81,6 +85,10 @@ func buildHelloWorldRuntimeImage(kernelDigest string, initrdDigest string, image
 			OS: "linux", Architecture: "amd64", AccelerationKind: launcherbackend.AccelerationKindKVM,
 		},
 		ComponentDigests: map[string]string{"kernel": kernelDigest, "initrd": initrdDigest},
+		Attestation: &launcherbackend.RuntimeImageAttestationHook{
+			MeasurementProfile:         launcherbackend.MeasurementProfileMicroVMBootV1,
+			ExpectedMeasurementDigests: expectedMeasurementDigests,
+		},
 	}
 	descriptorDigest, err := image.ExpectedDescriptorDigest()
 	if err != nil {

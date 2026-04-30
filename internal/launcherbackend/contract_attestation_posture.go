@@ -66,6 +66,8 @@ func sanitizedAttestationReasonCodes(reasonCodes []string) []string {
 	}
 	allowed := map[string]struct{}{
 		"attestation_replay_detected":            {},
+		"attestation_source_kind_invalid":        {},
+		"attestation_measurement_digest_invalid": {},
 		"attestation_freshness_material_missing": {},
 		"attestation_freshness_binding_missing":  {},
 		"attestation_freshness_stale":            {},

@@ -12,6 +12,9 @@ func (s *Service) RecordRuntimeFacts(runID string, facts launcherbackend.Runtime
 	if normalizedRunID == "" {
 		return fmt.Errorf("run id is required")
 	}
+	if embeddedRunID := strings.TrimSpace(facts.LaunchReceipt.RunID); embeddedRunID != "" && embeddedRunID != normalizedRunID {
+		return fmt.Errorf("runtime facts launch_receipt.run_id %q does not match requested run id %q", embeddedRunID, normalizedRunID)
+	}
 	facts = normalizeRuntimeFactsSnapshot(normalizedRunID, facts)
 	evidence, lifecycle, err := launcherbackend.SplitRuntimeFactsEvidenceAndLifecycle(facts)
 	if err != nil {
@@ -20,11 +23,12 @@ func (s *Service) RecordRuntimeFacts(runID string, facts launcherbackend.Runtime
 	if err := s.store.RecordRuntimeEvidenceState(normalizedRunID, facts, evidence, lifecycle); err != nil {
 		return err
 	}
+	runtimeSupportState := runtimeAuditSupportState(evidence, s.currentInstanceBackendPosture().InstanceID, normalizedRunID, s.PolicyDecisionRefsForRun(normalizedRunID), s.listApprovals())
 	runnerAdvisory, _ := s.RunnerAdvisory(normalizedRunID)
 	if err := s.SyncSessionExecutionFromRunRuntime(normalizedRunID, facts, runnerAdvisory, s.now().UTC()); err != nil {
 		return err
 	}
-	if err := s.emitRuntimeEvidenceAuditEvents(normalizedRunID, facts, evidence); err != nil {
+	if err := s.emitRuntimeEvidenceAuditEvents(normalizedRunID, facts, evidence, runtimeSupportState); err != nil {
 		return err
 	}
 	return nil
@@ -38,6 +42,14 @@ func (s *Service) RuntimeFacts(runID string) launcherbackend.RuntimeFactsSnapsho
 	facts = normalizeRuntimeFactsSnapshot(runID, facts)
 	applyPersistedLifecycle(&facts, lifecycle)
 	return facts
+}
+
+func (s *Service) RuntimeEvidence(runID string) launcherbackend.RuntimeEvidenceSnapshot {
+	_, evidence, _, _, ok := s.store.RuntimeEvidenceState(runID)
+	if !ok {
+		return launcherbackend.RuntimeEvidenceSnapshot{}
+	}
+	return evidence
 }
 
 func normalizeRuntimeFactsSnapshot(runID string, input launcherbackend.RuntimeFactsSnapshot) launcherbackend.RuntimeFactsSnapshot {

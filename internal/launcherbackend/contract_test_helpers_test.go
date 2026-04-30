@@ -30,7 +30,17 @@ func validMicroVMSpecForContractTests() BackendLaunchSpec {
 	}
 }
 
+func validContainerSpecForContractTests() BackendLaunchSpec {
+	spec := validMicroVMSpecForContractTests()
+	spec.RequestedBackend = BackendKindContainer
+	spec.RequestedAccelerationKind = ""
+	spec.ControlTransportKind = ""
+	spec.Image = validContainerRuntimeImageDescriptorForContractTests()
+	return spec
+}
+
 func validRuntimeImageDescriptorForContractTests() RuntimeImageDescriptor {
+	expectedMeasurementDigests := validRuntimeImageMeasurementDigestsForContractTests()
 	descriptor := RuntimeImageDescriptor{
 		BackendKind:           BackendKindMicroVM,
 		PlatformCompatibility: RuntimeImagePlatformCompat{OS: "linux", Architecture: "amd64", AccelerationKind: AccelerationKindKVM},
@@ -39,13 +49,66 @@ func validRuntimeImageDescriptorForContractTests() RuntimeImageDescriptor {
 			"kernel": testDigest("2"),
 			"initrd": testDigest("4"),
 		},
+		Attestation: &RuntimeImageAttestationHook{
+			MeasurementProfile:         MeasurementProfileMicroVMBootV1,
+			ExpectedMeasurementDigests: expectedMeasurementDigests,
+		},
 	}
 	digest, err := descriptor.ExpectedDescriptorDigest()
 	if err != nil {
 		panic(err)
 	}
 	descriptor.DescriptorDigest = digest
-	descriptor.Signing = &RuntimeImageSigningHooks{
+	descriptor.Signing = validRuntimeImageSigningHooksForContractTests(digest)
+	return descriptor
+}
+
+func validRuntimeImageMeasurementDigestsForContractTests() []string {
+	expectedMeasurementDigests, err := DeriveExpectedMeasurementDigests(MeasurementProfileMicroVMBootV1, BootProfileMicroVMLinuxKernelInitrdV1, map[string]string{
+		"kernel": testDigest("2"),
+		"initrd": testDigest("4"),
+	})
+	if err != nil {
+		panic(err)
+	}
+	return expectedMeasurementDigests
+}
+
+func validContainerRuntimeImageDescriptorForContractTests() RuntimeImageDescriptor {
+	expectedMeasurementDigests := validContainerRuntimeImageMeasurementDigestsForContractTests()
+	descriptor := RuntimeImageDescriptor{
+		BackendKind:           BackendKindContainer,
+		PlatformCompatibility: RuntimeImagePlatformCompat{OS: "linux", Architecture: "amd64"},
+		BootContractVersion:   BootProfileContainerOCIImageV1,
+		ComponentDigests: map[string]string{
+			"image": testDigest("8"),
+		},
+		Attestation: &RuntimeImageAttestationHook{
+			MeasurementProfile:         MeasurementProfileContainerImageV1,
+			ExpectedMeasurementDigests: expectedMeasurementDigests,
+		},
+	}
+	digest, err := descriptor.ExpectedDescriptorDigest()
+	if err != nil {
+		panic(err)
+	}
+	descriptor.DescriptorDigest = digest
+	descriptor.Signing = validRuntimeImageSigningHooksForContractTests(digest)
+	return descriptor
+}
+
+func validContainerRuntimeImageMeasurementDigestsForContractTests() []string {
+	expectedMeasurementDigests, err := DeriveExpectedMeasurementDigests(MeasurementProfileContainerImageV1, BootProfileContainerOCIImageV1, map[string]string{
+		"image": testDigest("8"),
+	})
+	if err != nil {
+		panic(err)
+	}
+	return expectedMeasurementDigests
+}
+
+func validRuntimeImageSigningHooksForContractTests(digest string) *RuntimeImageSigningHooks {
+	return &RuntimeImageSigningHooks{
 		PayloadSchemaID:      RuntimeImageSignedPayloadSchemaID,
 		PayloadSchemaVersion: RuntimeImageSignedPayloadSchemaVersion,
 		PayloadDigest:        digest,
@@ -67,7 +130,6 @@ func validRuntimeImageDescriptorForContractTests() RuntimeImageDescriptor {
 			BundleDigest:            testDigest("b"),
 		},
 	}
-	return descriptor
 }
 
 func validResourceLimitsForContractTests() BackendResourceLimits {

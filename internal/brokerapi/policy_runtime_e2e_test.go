@@ -58,7 +58,7 @@ func runAlpha4GatewaySetup(t *testing.T, s *Service) string {
 	gatewayRunID := "run-alpha4-gateway"
 	putTrustedModelGatewayContextForRun(t, s, gatewayRunID, []any{trustedModelGatewayAllowlistEntry()})
 	putRunScopedArtifactForLocalOpsTest(t, s, gatewayRunID, "step-1")
-	if err := s.RecordRuntimeFacts(gatewayRunID, launcherRuntimeFactsFixture()); err != nil {
+	if err := s.RecordRuntimeFacts(gatewayRunID, launcherRuntimeFactsFixtureForRun(gatewayRunID)); err != nil {
 		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
 	}
 	assertAlpha4IsolatedBackend(t, s, gatewayRunID)

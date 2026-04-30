@@ -20,7 +20,7 @@ import (
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
-func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild string, cacheEvidence *launcherbackend.BackendCacheEvidence) launcherbackend.BackendLaunchReceipt {
+func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild string, cacheEvidence *launcherbackend.BackendCacheEvidence) (launcherbackend.BackendLaunchReceipt, error) {
 	receipt := launcherbackend.BackendLaunchReceipt{
 		RunID:                    spec.RunID,
 		StageID:                  spec.StageID,
@@ -39,7 +39,10 @@ func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launch
 	}
 	applyRuntimeAssetIdentity(&receipt, admission, qemuVersion, qemuBuild)
 	applyLaunchExecutionDetails(&receipt, spec, cacheEvidence, qemuVersion, qemuBuild)
-	return receipt
+	if err := applyTrustedRuntimeAttestation(&receipt, admission, time.Now()); err != nil {
+		return launcherbackend.BackendLaunchReceipt{}, err
+	}
+	return receipt, nil
 }
 
 func applyRuntimeAssetIdentity(receipt *launcherbackend.BackendLaunchReceipt, admission launcherbackend.RuntimeAdmissionRecord, qemuVersion, qemuBuild string) {
@@ -59,6 +62,7 @@ func applyRuntimeAssetIdentity(receipt *launcherbackend.BackendLaunchReceipt, ad
 	receipt.AuthorityStateDigest = admission.AuthorityStateDigest
 	receipt.AuthorityStateRevision = admission.AuthorityStateRevision
 	receipt.BootComponentDigestByName = cloneMap(admission.ComponentDigests)
+	receipt.BootComponentDigests = componentDigestValues(admission.ComponentDigests)
 }
 
 func applyLaunchExecutionDetails(receipt *launcherbackend.BackendLaunchReceipt, spec launcherbackend.BackendLaunchSpec, cacheEvidence *launcherbackend.BackendCacheEvidence, qemuVersion, qemuBuild string) {

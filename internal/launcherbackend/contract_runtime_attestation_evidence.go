@@ -1,7 +1,11 @@
 package launcherbackend
 
+import "strings"
+
 const (
 	attestationReasonCodeReplayDetected           = "attestation_replay_detected"
+	attestationReasonCodeSourceKindInvalid        = "attestation_source_kind_invalid"
+	attestationReasonCodeMeasurementDigestInvalid = "attestation_measurement_digest_invalid"
 	attestationReasonCodeFreshnessMaterialMissing = "attestation_freshness_material_missing"
 	attestationReasonCodeFreshnessBindingMissing  = "attestation_freshness_binding_missing"
 	attestationReasonCodeFreshnessStale           = "attestation_freshness_stale"
@@ -77,7 +81,7 @@ func isolateAttestationEvidenceDigestInput(evidence IsolateAttestationEvidence) 
 }
 
 func isolateAttestationVerificationFromReceipt(receipt BackendLaunchReceipt, launchEvidenceDigest, attestationEvidenceDigest string) (*IsolateAttestationVerificationRecord, error) {
-	if receipt.AttestationVerifierPolicyID == "" && receipt.AttestationVerifierPolicyDigest == "" && receipt.AttestationVerificationResult == "" {
+	if strings.TrimSpace(receipt.AttestationVerifierPolicyID) == "" && strings.TrimSpace(receipt.AttestationVerifierPolicyDigest) == "" && strings.TrimSpace(receipt.AttestationVerificationResult) == "" {
 		return nil, nil
 	}
 	replayIdentityDigest, err := canonicalSHA256Digest(isolateAttestationReplayIdentityInput(receipt, launchEvidenceDigest, attestationEvidenceDigest), "isolate attestation replay identity")
@@ -165,6 +169,12 @@ func attestationReasonCodesForEvidence(evidence *RuntimeEvidenceSnapshot) []stri
 	if evidence.AttestationVerification.ReplayVerdict == AttestationReplayVerdictReplay {
 		reasonCodes = append(reasonCodes, attestationReasonCodeReplayDetected)
 	}
+	if !measurementProfileAcceptsSourceKind(evidence.Attestation.MeasurementProfile, evidence.Attestation.AttestationSourceKind) {
+		reasonCodes = append(reasonCodes, attestationReasonCodeSourceKindInvalid)
+	}
+	if !attestationMeasurementIdentityMatchesEvidence(evidence.Attestation) {
+		reasonCodes = append(reasonCodes, attestationReasonCodeMeasurementDigestInvalid)
+	}
 	if len(evidence.Attestation.FreshnessMaterial) == 0 {
 		reasonCodes = append(reasonCodes, attestationReasonCodeFreshnessMaterialMissing)
 	}
@@ -184,20 +194,6 @@ func invalidAttestationVerificationForRequiredEvidence(attestationEvidenceDigest
 		ReasonCodes:               uniqueSortedStrings(reasonCodes),
 		ReplayVerdict:             replayVerdict,
 	}
-}
-
-func containsAnyReasonCode(values []string, expected ...string) bool {
-	if len(values) == 0 {
-		return false
-	}
-	for _, value := range values {
-		for _, match := range expected {
-			if value == match {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func finalizeAttestationVerificationRecord(evidence *RuntimeEvidenceSnapshot) error {

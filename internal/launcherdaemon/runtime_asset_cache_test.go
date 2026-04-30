@@ -229,6 +229,13 @@ func materializeComponentDigests(t *testing.T, workRoot string, image *launcherb
 		componentDigests[name] = digest
 	}
 	image.ComponentDigests = componentDigests
+	if image.Attestation != nil {
+		expectedMeasurementDigests, err := launcherbackend.DeriveExpectedMeasurementDigests(image.Attestation.MeasurementProfile, image.BootContractVersion, image.ComponentDigests)
+		if err != nil {
+			t.Fatalf("DeriveExpectedMeasurementDigests returned error: %v", err)
+		}
+		image.Attestation.ExpectedMeasurementDigests = expectedMeasurementDigests
+	}
 	descriptorDigest, err := image.ExpectedDescriptorDigest()
 	if err != nil {
 		t.Fatalf("ExpectedDescriptorDigest returned error: %v", err)
