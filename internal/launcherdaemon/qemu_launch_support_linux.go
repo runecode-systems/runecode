@@ -29,7 +29,7 @@ func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launch
 		RoleKind:                 spec.RoleKind,
 		BackendKind:              launcherbackend.BackendKindMicroVM,
 		IsolationAssuranceLevel:  launcherbackend.IsolationAssuranceIsolated,
-		ProvisioningPosture:      launcherbackend.ProvisioningPostureTOFU,
+		ProvisioningPosture:      launcherbackend.ProvisioningPostureAttested,
 		IsolateID:                isoID,
 		SessionID:                sessionID,
 		SessionNonce:             nonce,

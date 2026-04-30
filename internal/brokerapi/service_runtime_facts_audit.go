@@ -59,8 +59,9 @@ func (s *Service) emitRuntimeLaunchDeniedAuditEvent(runID string, evidence launc
 	if reason == "" || strings.TrimSpace(evidence.Launch.EvidenceDigest) == "" {
 		return nil
 	}
+	deniedMarker := evidence.Launch.EvidenceDigest + ":" + reason
 	_, _, _, auditState, _ := s.store.RuntimeEvidenceState(runID)
-	if auditState.LastRuntimeLaunchDeniedDigest == evidence.Launch.EvidenceDigest {
+	if auditState.LastRuntimeLaunchDeniedDigest == deniedMarker {
 		return nil
 	}
 	payload := map[string]string{
@@ -76,7 +77,7 @@ func (s *Service) emitRuntimeLaunchDeniedAuditEvent(runID string, evidence launc
 	} else if err := s.auditor.emitRuntimeLaunchDeniedEvent(s.store, details); err != nil {
 		return err
 	}
-	return s.store.MarkRuntimeAuditEventEmitted(runID, "runtime_launch_denied", evidence.Launch.EvidenceDigest)
+	return s.store.MarkRuntimeAuditEventEmitted(runID, "runtime_launch_denied", deniedMarker)
 }
 
 func (s *Service) emitRuntimeSessionStartedAuditEvent(runID string, evidence launcherbackend.RuntimeEvidenceSnapshot, facts launcherbackend.RuntimeFactsSnapshot) error {

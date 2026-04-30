@@ -73,7 +73,7 @@ func renderRuntimeIsolationCue(backendKind, isolation string) string {
 func provisioningPostureCueParts(posture string) []string {
 	n := strings.ToLower(strings.TrimSpace(posture))
 	switch n {
-	case "ok", "trusted", "bound":
+	case "ok", "trusted", "bound", "attested":
 		return []string{fmt.Sprintf("provisioning posture=%s", valueOrNA(posture)), successBadge("PROVISIONING_OK")}
 	case "tofu":
 		return []string{fmt.Sprintf("provisioning posture=%s (TOFU isolate key provisioning)", valueOrNA(posture)), provisioningDegradedBadge("PROVISIONING_TOFU")}

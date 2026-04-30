@@ -205,7 +205,6 @@ func finalizeAttestationVerificationRecord(evidence *RuntimeEvidenceSnapshot) er
 		return nil
 	}
 	verification := evidence.AttestationVerification
-	verification.ReasonCodes = uniqueSortedStrings(verification.ReasonCodes)
 	if verification.AttestationEvidenceDigest == "" && evidence.Attestation != nil {
 		verification.AttestationEvidenceDigest = evidence.Attestation.EvidenceDigest
 	}
@@ -226,10 +225,23 @@ func finalizeAttestationVerificationRecord(evidence *RuntimeEvidenceSnapshot) er
 		}
 		verification.ReplayIdentityDigest = replayIdentityDigest
 	}
-	digest, err := canonicalSHA256Digest(isolateAttestationVerificationDigestInput(*verification), "isolate attestation verification")
+	return FinalizeIsolateAttestationVerificationRecord(verification)
+}
+
+func FinalizeIsolateAttestationVerificationRecord(record *IsolateAttestationVerificationRecord) error {
+	if record == nil {
+		return nil
+	}
+	record.ReasonCodes = uniqueSortedStrings(record.ReasonCodes)
+	record.DerivedMeasurementDigests = uniqueSortedStrings(record.DerivedMeasurementDigests)
+	return assignAttestationVerificationDigest(record)
+}
+
+func assignAttestationVerificationDigest(record *IsolateAttestationVerificationRecord) error {
+	digest, err := canonicalSHA256Digest(isolateAttestationVerificationDigestInput(*record), "isolate attestation verification")
 	if err != nil {
 		return err
 	}
-	verification.VerificationDigest = digest
+	record.VerificationDigest = digest
 	return nil
 }

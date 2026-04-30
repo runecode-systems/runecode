@@ -26,6 +26,7 @@ func TestRunsRouteExplainsBrokerPostureAndStateTaxonomy(t *testing.T) {
 		"backend_kind=workspace",
 		"Runtime isolation assurance (authoritative): runtime isolation=sandboxed",
 		"Provisioning/binding posture (authoritative): provisioning posture=attested",
+		"PROVISIONING_OK",
 		"Attestation posture (authoritative): attestation posture=valid",
 		"Audit posture (authoritative): audit posture=ok/degraded (unanchored/degraded)",
 		"Approval profile (authoritative): approval_profile=n/a",

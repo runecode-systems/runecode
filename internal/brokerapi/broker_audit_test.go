@@ -184,6 +184,35 @@ func TestRuntimeFactsAuditEventsAreNotReemittedForSameEvidenceDigest(t *testing.
 	}
 }
 
+func TestRuntimeLaunchDeniedAuditDedupeIncludesReasonCode(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	putRunScopedArtifactForLocalOpsTest(t, s, "run-runtime-denied-dedupe-reason", "step-1")
+
+	facts := launcherRuntimeFactsFixture()
+	facts.LaunchReceipt.RunID = "run-runtime-denied-dedupe-reason"
+	facts.LaunchReceipt.LaunchFailureReasonCode = launcherbackend.BackendErrorCodeAccelerationUnavailable
+	if err := s.RecordRuntimeFacts("run-runtime-denied-dedupe-reason", facts); err != nil {
+		t.Fatalf("first RecordRuntimeFacts returned error: %v", err)
+	}
+
+	facts.LaunchReceipt.LaunchFailureReasonCode = launcherbackend.BackendErrorCodeHypervisorLaunchFailed
+	if err := s.RecordRuntimeFacts("run-runtime-denied-dedupe-reason", facts); err != nil {
+		t.Fatalf("second RecordRuntimeFacts returned error: %v", err)
+	}
+
+	events, err := s.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents returned error: %v", err)
+	}
+
+	if countRuntimeLaunchDeniedEventsByReasonCode(t, events, launcherbackend.BackendErrorCodeAccelerationUnavailable) != 1 {
+		t.Fatalf("expected exactly one runtime_launch_denied event with reason %q", launcherbackend.BackendErrorCodeAccelerationUnavailable)
+	}
+	if countRuntimeLaunchDeniedEventsByReasonCode(t, events, launcherbackend.BackendErrorCodeHypervisorLaunchFailed) != 1 {
+		t.Fatalf("expected exactly one runtime_launch_denied event with reason %q", launcherbackend.BackendErrorCodeHypervisorLaunchFailed)
+	}
+}
+
 func TestBuildRuntimeEventOperationIDForDeniedPreSessionUsesLaunchEvidenceDigest(t *testing.T) {
 	evidenceA := launcherbackend.RuntimeEvidenceSnapshot{Launch: launcherbackend.LaunchRuntimeEvidence{RunID: "run-denied-pre-session", EvidenceDigest: "sha256:" + strings.Repeat("a", 64)}}
 	evidenceB := launcherbackend.RuntimeEvidenceSnapshot{Launch: launcherbackend.LaunchRuntimeEvidence{RunID: "run-denied-pre-session", EvidenceDigest: "sha256:" + strings.Repeat("b", 64)}}
@@ -375,6 +404,24 @@ func countLauncherRuntimeAuditEvents(events []artifacts.AuditEvent) int {
 	count := 0
 	for _, event := range events {
 		if event.Type == brokerAuditEventTypeLauncherRuntime {
+			count++
+		}
+	}
+	return count
+}
+
+func countRuntimeLaunchDeniedEventsByReasonCode(t *testing.T, events []artifacts.AuditEvent, reasonCode string) int {
+	t.Helper()
+	count := 0
+	for _, event := range events {
+		if event.Type != brokerAuditEventTypeLauncherRuntime {
+			continue
+		}
+		if event.Details["runtime_event_type"] != "runtime_launch_denied" {
+			continue
+		}
+		payload := launcherRuntimeAuditEventPayload(t, event)
+		if payload["launch_failure_reason_code"] == reasonCode {
 			count++
 		}
 	}

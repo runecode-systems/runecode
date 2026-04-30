@@ -39,6 +39,36 @@ func TestQEMUPrepareLaunchAssetsSurfacesToolchainVerificationFailure(t *testing.
 	}
 }
 
+func TestQEMULaunchReceiptRequiresAttestationEvidenceWhenUnavailable(t *testing.T) {
+	_, _, spec := qemuToolchainVerificationLaunchSpecForTests(t)
+	admission, err := launcherbackend.NewRuntimeAdmissionRecord(spec.Image)
+	if err != nil {
+		t.Fatalf("NewRuntimeAdmissionRecord returned error: %v", err)
+	}
+
+	receipt := buildLaunchReceipt(spec, admission, "isolate-1", "session-1", strings.Repeat("a", 32), "9.0.0", "qemu-system-x86_64 9.0.0", nil)
+	facts := launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: receipt, HardeningPosture: buildHardeningPosture()}
+	evidence, _, err := launcherbackend.SplitRuntimeFactsEvidenceAndLifecycle(facts)
+	if err != nil {
+		t.Fatalf("SplitRuntimeFactsEvidenceAndLifecycle returned error: %v", err)
+	}
+	if receipt.ProvisioningPosture != launcherbackend.ProvisioningPostureAttested {
+		t.Fatalf("provisioning posture = %q, want %q", receipt.ProvisioningPosture, launcherbackend.ProvisioningPostureAttested)
+	}
+	if evidence.Attestation != nil {
+		t.Fatalf("attestation evidence = %#v, want nil when no real attestation source is present", evidence.Attestation)
+	}
+	if evidence.AttestationVerification == nil {
+		t.Fatal("attestation verification missing for fail-closed attestation requirement")
+	}
+	if evidence.AttestationVerification.VerificationResult != launcherbackend.AttestationVerificationResultInvalid {
+		t.Fatalf("verification result = %q, want %q", evidence.AttestationVerification.VerificationResult, launcherbackend.AttestationVerificationResultInvalid)
+	}
+	if !strings.Contains(strings.Join(evidence.AttestationVerification.ReasonCodes, ","), "attestation_evidence_required") {
+		t.Fatalf("reason codes = %#v, expected attestation_evidence_required", evidence.AttestationVerification.ReasonCodes)
+	}
+}
+
 func qemuToolchainVerificationLaunchSpecForTests(t *testing.T) (string, string, launcherbackend.BackendLaunchSpec) {
 	t.Helper()
 	workRoot := t.TempDir()

@@ -113,7 +113,11 @@ func loadRestoredRuntimeState(next *StoreState, factsByRun map[string]launcherba
 	if err := loadRestoredRuntimeFacts(next, factsByRun); err != nil {
 		return err
 	}
-	if err := loadRestoredRuntimeEvidence(next, evidenceByRun); err != nil {
+	restorableEvidence, err := deriveRestorableRuntimeEvidence(next.RuntimeFactsByRun)
+	if err != nil {
+		return err
+	}
+	if err := loadRestoredRuntimeEvidence(next, evidenceByRun, restorableEvidence); err != nil {
 		return err
 	}
 	if err := loadRestoredAttestationVerificationCache(next, verificationCache); err != nil {
@@ -128,43 +132,6 @@ func loadRestoredRuntimeState(next *StoreState, factsByRun map[string]launcherba
 	return loadRestoredRunnerAdvisory(next, advisoryByRun)
 }
 
-func loadRestoredAttestationVerificationCache(next *StoreState, verificationCache map[string]launcherbackend.IsolateAttestationVerificationRecord) error {
-	for key, record := range verificationCache {
-		trimmedKey := strings.TrimSpace(key)
-		if trimmedKey == "" {
-			return fmt.Errorf("attestation verification cache key is required")
-		}
-		normalized := record
-		normalized.ReasonCodes = uniqueSortedStrings(normalized.ReasonCodes)
-		normalized.DerivedMeasurementDigests = uniqueSortedStrings(normalized.DerivedMeasurementDigests)
-		if err := validateRestoredAttestationVerificationRecord(normalized); err != nil {
-			return fmt.Errorf("attestation verification cache key %q: %w", trimmedKey, err)
-		}
-		next.AttestationVerificationCache[trimmedKey] = normalized
-	}
-	return nil
-}
-
-func validateRestoredAttestationVerificationRecord(record launcherbackend.IsolateAttestationVerificationRecord) error {
-	if strings.TrimSpace(record.AttestationEvidenceDigest) == "" {
-		return fmt.Errorf("attestation evidence digest is required")
-	}
-	if !strings.HasPrefix(record.AttestationEvidenceDigest, "sha256:") {
-		return fmt.Errorf("attestation evidence digest must be a sha256 digest")
-	}
-	switch strings.TrimSpace(record.VerificationResult) {
-	case launcherbackend.AttestationVerificationResultValid, launcherbackend.AttestationVerificationResultInvalid, launcherbackend.AttestationVerificationResultUnknown:
-	default:
-		return fmt.Errorf("verification result %q is invalid", record.VerificationResult)
-	}
-	switch strings.TrimSpace(record.ReplayVerdict) {
-	case "", launcherbackend.AttestationReplayVerdictUnknown, launcherbackend.AttestationReplayVerdictOriginal, launcherbackend.AttestationReplayVerdictReplay:
-	default:
-		return fmt.Errorf("replay verdict %q is invalid", record.ReplayVerdict)
-	}
-	return nil
-}
-
 func loadRestoredRuntimeFacts(next *StoreState, factsByRun map[string]launcherbackend.RuntimeFactsSnapshot) error {
 	for runID, facts := range factsByRun {
 		trimmedRunID, err := validateRestoredRuntimeRunID(runID, "runtime facts")
@@ -172,17 +139,6 @@ func loadRestoredRuntimeFacts(next *StoreState, factsByRun map[string]launcherba
 			return err
 		}
 		next.RuntimeFactsByRun[trimmedRunID] = cloneRuntimeFactsSnapshot(facts)
-	}
-	return nil
-}
-
-func loadRestoredRuntimeEvidence(next *StoreState, evidenceByRun map[string]launcherbackend.RuntimeEvidenceSnapshot) error {
-	for runID, evidence := range evidenceByRun {
-		trimmedRunID, err := validateRestoredRuntimeRunID(runID, "runtime evidence")
-		if err != nil {
-			return err
-		}
-		next.RuntimeEvidenceByRun[trimmedRunID] = evidence
 	}
 	return nil
 }

@@ -94,9 +94,7 @@ func (s *Store) UpdateRuntimeLifecycleState(runID string, lifecycle launcherback
 	}
 	facts.LaunchReceipt.ProvisioningPostureDegraded = lifecycle.ProvisioningPostureDegraded
 	facts.LaunchReceipt.ProvisioningDegradedReasons = append([]string{}, lifecycle.ProvisioningDegradedReasons...)
-	if strings.TrimSpace(lifecycle.LaunchFailureReasonCode) != "" {
-		facts.LaunchReceipt.LaunchFailureReasonCode = lifecycle.LaunchFailureReasonCode
-	}
+	facts.LaunchReceipt.LaunchFailureReasonCode = strings.TrimSpace(lifecycle.LaunchFailureReasonCode)
 	evidence, projectedLifecycle, err := launcherbackend.SplitRuntimeFactsEvidenceAndLifecycle(facts)
 	if err != nil {
 		return err
