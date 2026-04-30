@@ -13,12 +13,18 @@ Define Windows microVM runtime support with WHPX/Hyper-V acceleration, strict lo
   - provisioning/binding posture
   - audit posture
 - Windows runtime support must consume the same published immutable signed runtime assets, boot-profile contracts, trusted-admission rules, and verified local cache semantics as other platforms rather than introducing a Windows-specific runtime signing or asset-admission path.
+- Windows runtime support must preserve the same supported runtime trust posture as Linux:
+  - valid attestation required for supported production and user-facing runtime operation
+  - fail closed on unavailable, invalid, replayed, or freshness-deficient attestation
+  - no Windows-specific TOFU fallback, manual override, or platform exception
 - WHPX/Hyper-V, QEMU process layout, and named-pipe details remain implementation evidence rather than public run identity.
 - Windows support should reuse the same backend-neutral runtime-image identity, launch/session/attachment semantics, launch-evidence semantics, and audit payload semantics rather than defining Windows-specific runtime objects.
+- Windows support should also reuse the same additive attestation evidence and verification model rather than defining a Windows-specific attestation trust path.
 - Windows service management and IPC realization must preserve one local RuneCode product instance per authoritative repository root rather than redefining lifecycle around host-global services or pipe names.
 - Windows OS service state, named-pipe reachability, and platform bootstrap artifacts remain private realization mechanics; broker-owned product lifecycle posture remains the operator-facing truth.
 - The canonical `runecode` lifecycle surface established by `CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0` remains unchanged on Windows even if the local trusted realization uses different service-manager patterns from Linux.
 - WHPX/Hyper-V capability checks and Windows-specific package or bootstrap mechanics remain private realization evidence; they must not become part of published runtime identity or a second signing trust root.
+- Constrained-device or platform bootstrap limitations on Windows must surface as fail-closed prerequisite or attestation-unavailable posture, not as a supported TOFU downgrade path.
 
 ## Main Workstreams
 - Windows MicroVM Backend Implementation

@@ -82,4 +82,6 @@ Alpha.7 bootstrap already landed:
 - [ ] macOS and Windows execute the same performance flow families where feasible, at least as smoke or trend gates.
 - [ ] Performance baselines assume one topology-neutral workflow/control-plane architecture across constrained and scaled environments rather than separate architecture paths.
 - [ ] Launcher startup thresholds measure the reviewed signed runtime-asset path and do not reward bypassing runtime-asset admission, verification, or launch-deny evidence generation.
+- [ ] Launcher startup and attach-ready thresholds also measure the required attestation path and do not reward bypassing attestation verification, replay checks, freshness checks, or attestation evidence persistence.
+- [ ] Attestation verification has explicit cold-path and warm verification-cache performance checks under immutable-identity cache semantics.
 - [ ] Threshold changes and baseline refreshes require explicit review rather than silent CI mutation.

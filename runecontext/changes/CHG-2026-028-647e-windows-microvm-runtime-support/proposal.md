@@ -1,5 +1,5 @@
 ## Summary
-MicroVM-backed roles can run on Windows and produce the same audit and artifact outputs with reduced-assurance container mode remaining explicit opt-in.
+MicroVM-backed roles can run on Windows and produce the same audit, artifact, and required-attestation runtime posture as other supported platforms, with reduced-assurance container mode remaining explicit opt-in.
 
 ## Problem
 This feature now has a canonical RuneContext change record, preserving the migrated planning content without relying on legacy Agent OS folders or path aliases.
@@ -10,6 +10,7 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Packaging + Prereqs.
 - CI/Testing Strategy.
 - Explicit preservation of the repo-scoped product instance model, broker-owned product lifecycle posture, and canonical `runecode` lifecycle surface across Windows-specific service and IPC realizations.
+- Explicit preservation of the shared production runtime trust posture: valid attestation required for supported user-facing runtime operation, with no Windows-specific TOFU fallback or override path.
 
 ## Why Now
 This work remains scheduled for v0.2, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
@@ -25,4 +26,4 @@ This work remains scheduled for v0.2, and keeping it on this canonical RuneConte
 - Re-introducing legacy Agent OS planning paths as canonical references.
 
 ## Impact
-Keeps Windows MicroVM Runtime Support reviewable as a RuneContext-native change and removes the need for a second semantics rewrite later, while ensuring Windows service and IPC realization stay additive beneath the same logical RuneCode product contract.
+Keeps Windows MicroVM Runtime Support reviewable as a RuneContext-native change and removes the need for a second semantics rewrite later, while ensuring Windows service and IPC realization stay additive beneath the same logical RuneCode product contract and the same attestation-required supported runtime posture.

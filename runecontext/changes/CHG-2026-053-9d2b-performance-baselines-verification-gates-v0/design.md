@@ -9,6 +9,7 @@ The design goal is not just to benchmark the TUI. It is to give RuneCode one det
 - broker local API request and watch paths
 - runner and workflow execution paths
 - launcher backend startup and attach readiness
+- required runtime attestation verification and attestation verification-cache behavior
 - model-gateway and secrets overhead
 - dependency-fetch and offline-cache overhead
 - audit, protocol, and verification costs
