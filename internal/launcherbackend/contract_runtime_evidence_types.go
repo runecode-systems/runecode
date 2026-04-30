@@ -73,22 +73,23 @@ type RuntimeEvidenceSnapshot struct {
 }
 
 type IsolateAttestationEvidence struct {
-	RunID                        string   `json:"run_id"`
-	IsolateID                    string   `json:"isolate_id"`
-	SessionID                    string   `json:"session_id"`
-	SessionNonce                 string   `json:"session_nonce"`
-	HandshakeTranscriptHash      string   `json:"handshake_transcript_hash"`
-	IsolateSessionKeyIDValue     string   `json:"isolate_session_key_id_value"`
-	LaunchRuntimeEvidenceDigest  string   `json:"launch_runtime_evidence_digest"`
-	RuntimeImageDescriptorDigest string   `json:"runtime_image_descriptor_digest"`
-	RuntimeImageBootProfile      string   `json:"runtime_image_boot_profile"`
-	BootComponentDigests         []string `json:"boot_component_digests,omitempty"`
-	AttestationSourceKind        string   `json:"attestation_source_kind"`
-	MeasurementProfile           string   `json:"measurement_profile"`
-	FreshnessMaterial            []string `json:"freshness_material,omitempty"`
-	FreshnessBindingClaims       []string `json:"freshness_binding_claims,omitempty"`
-	EvidenceClaimsDigest         string   `json:"evidence_claims_digest,omitempty"`
-	EvidenceDigest               string   `json:"evidence_digest"`
+	RunID                        string            `json:"run_id"`
+	IsolateID                    string            `json:"isolate_id"`
+	SessionID                    string            `json:"session_id"`
+	SessionNonce                 string            `json:"session_nonce"`
+	HandshakeTranscriptHash      string            `json:"handshake_transcript_hash"`
+	IsolateSessionKeyIDValue     string            `json:"isolate_session_key_id_value"`
+	LaunchRuntimeEvidenceDigest  string            `json:"launch_runtime_evidence_digest"`
+	RuntimeImageDescriptorDigest string            `json:"runtime_image_descriptor_digest"`
+	RuntimeImageBootProfile      string            `json:"runtime_image_boot_profile"`
+	BootComponentDigestByName    map[string]string `json:"boot_component_digest_by_name,omitempty"`
+	BootComponentDigests         []string          `json:"boot_component_digests,omitempty"`
+	AttestationSourceKind        string            `json:"attestation_source_kind"`
+	MeasurementProfile           string            `json:"measurement_profile"`
+	FreshnessMaterial            []string          `json:"freshness_material,omitempty"`
+	FreshnessBindingClaims       []string          `json:"freshness_binding_claims,omitempty"`
+	EvidenceClaimsDigest         string            `json:"evidence_claims_digest,omitempty"`
+	EvidenceDigest               string            `json:"evidence_digest"`
 }
 
 type IsolateAttestationVerificationRecord struct {
@@ -165,21 +166,22 @@ type sessionRuntimeEvidenceDigestFields struct {
 }
 
 type isolateAttestationEvidenceDigestFields struct {
-	RunID                        string   `json:"run_id"`
-	IsolateID                    string   `json:"isolate_id"`
-	SessionID                    string   `json:"session_id"`
-	SessionNonce                 string   `json:"session_nonce"`
-	HandshakeTranscriptHash      string   `json:"handshake_transcript_hash"`
-	IsolateSessionKeyIDValue     string   `json:"isolate_session_key_id_value"`
-	LaunchRuntimeEvidenceDigest  string   `json:"launch_runtime_evidence_digest"`
-	RuntimeImageDescriptorDigest string   `json:"runtime_image_descriptor_digest"`
-	RuntimeImageBootProfile      string   `json:"runtime_image_boot_profile"`
-	BootComponentDigests         []string `json:"boot_component_digests,omitempty"`
-	AttestationSourceKind        string   `json:"attestation_source_kind"`
-	MeasurementProfile           string   `json:"measurement_profile"`
-	FreshnessMaterial            []string `json:"freshness_material,omitempty"`
-	FreshnessBindingClaims       []string `json:"freshness_binding_claims,omitempty"`
-	EvidenceClaimsDigest         string   `json:"evidence_claims_digest,omitempty"`
+	RunID                        string            `json:"run_id"`
+	IsolateID                    string            `json:"isolate_id"`
+	SessionID                    string            `json:"session_id"`
+	SessionNonce                 string            `json:"session_nonce"`
+	HandshakeTranscriptHash      string            `json:"handshake_transcript_hash"`
+	IsolateSessionKeyIDValue     string            `json:"isolate_session_key_id_value"`
+	LaunchRuntimeEvidenceDigest  string            `json:"launch_runtime_evidence_digest"`
+	RuntimeImageDescriptorDigest string            `json:"runtime_image_descriptor_digest"`
+	RuntimeImageBootProfile      string            `json:"runtime_image_boot_profile"`
+	BootComponentDigestByName    map[string]string `json:"boot_component_digest_by_name,omitempty"`
+	BootComponentDigests         []string          `json:"boot_component_digests,omitempty"`
+	AttestationSourceKind        string            `json:"attestation_source_kind"`
+	MeasurementProfile           string            `json:"measurement_profile"`
+	FreshnessMaterial            []string          `json:"freshness_material,omitempty"`
+	FreshnessBindingClaims       []string          `json:"freshness_binding_claims,omitempty"`
+	EvidenceClaimsDigest         string            `json:"evidence_claims_digest,omitempty"`
 }
 
 type isolateAttestationVerificationRecordDigestFields struct {

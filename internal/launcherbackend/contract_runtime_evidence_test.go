@@ -1,6 +1,9 @@
 package launcherbackend
 
-import "testing"
+import (
+	"maps"
+	"testing"
+)
 
 func TestSplitRuntimeFactsEvidenceAndLifecycleSeparatesImmutableEvidence(t *testing.T) {
 	facts := DefaultRuntimeFacts("run-1")
@@ -49,6 +52,113 @@ func TestSplitRuntimeFactsEvidenceAndLifecycleBuildsIsolateAttestationEvidence(t
 	assertAttestationEvidenceLinkedToRuntime(t, evidence)
 }
 
+func TestSplitRuntimeFactsEvidenceAndLifecyclePreservesBootComponentIdentityAgainstPositionalSwap(t *testing.T) {
+	facts := attestationRuntimeFactsFixture()
+	facts.LaunchReceipt.BootComponentDigests = []string{testDigest("a"), testDigest("b")}
+	facts.LaunchReceipt.BootComponentDigestByName = map[string]string{
+		"kernel": testDigest("b"),
+		"initrd": testDigest("a"),
+	}
+	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = runtimeEvidenceMeasurementDigestForTests(
+		BootProfileMicroVMLinuxKernelInitrdV1,
+		facts.LaunchReceipt.BootComponentDigestByName,
+	)
+
+	evidence, _, err := SplitRuntimeFactsEvidenceAndLifecycle(facts)
+	if err != nil {
+		t.Fatalf("SplitRuntimeFactsEvidenceAndLifecycle returned error: %v", err)
+	}
+	if evidence.Attestation == nil {
+		t.Fatal("attestation evidence missing")
+	}
+	actualByName := evidence.Attestation.BootComponentDigestByName
+	wantByName := map[string]string{"kernel": testDigest("b"), "initrd": testDigest("a")}
+	if !maps.Equal(actualByName, wantByName) {
+		t.Fatalf("boot_component_digest_by_name = %#v, want %#v", actualByName, wantByName)
+	}
+	positionalByName := map[string]string{"kernel": testDigest("a"), "initrd": testDigest("b")}
+	if maps.Equal(actualByName, positionalByName) {
+		t.Fatalf("boot_component_digest_by_name should not collapse to positional mapping: %#v", actualByName)
+	}
+}
+
+func TestSplitRuntimeFactsEvidenceAndLifecycleFailsClosedForIncompleteNamedBootComponents(t *testing.T) {
+	facts := attestationRuntimeFactsFixture()
+	facts.LaunchReceipt.BootComponentDigests = []string{testDigest("a"), testDigest("b")}
+	facts.LaunchReceipt.BootComponentDigestByName = map[string]string{
+		"kernel": testDigest("a"),
+	}
+	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = runtimeEvidenceMeasurementDigestForTests(
+		BootProfileMicroVMLinuxKernelInitrdV1,
+		map[string]string{"kernel": testDigest("a"), "initrd": testDigest("b")},
+	)
+
+	evidence, _, err := SplitRuntimeFactsEvidenceAndLifecycle(facts)
+	if err != nil {
+		t.Fatalf("SplitRuntimeFactsEvidenceAndLifecycle returned error: %v", err)
+	}
+	if evidence.AttestationVerification == nil {
+		t.Fatal("attestation verification missing")
+	}
+	if evidence.AttestationVerification.VerificationResult != AttestationVerificationResultInvalid {
+		t.Fatalf("verification_result = %q, want %q", evidence.AttestationVerification.VerificationResult, AttestationVerificationResultInvalid)
+	}
+	if !containsAnyReasonCode(evidence.AttestationVerification.ReasonCodes, attestationReasonCodeMeasurementDigestInvalid) {
+		t.Fatalf("reason_codes = %#v, expected measurement digest invalid", evidence.AttestationVerification.ReasonCodes)
+	}
+}
+
+func TestSplitRuntimeFactsEvidenceAndLifecycleFailsClosedWithoutNamedBootComponents(t *testing.T) {
+	facts := attestationRuntimeFactsFixture()
+	facts.LaunchReceipt.BootComponentDigests = []string{testDigest("a"), testDigest("b")}
+	facts.LaunchReceipt.BootComponentDigestByName = nil
+	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = runtimeEvidenceMeasurementDigestForTests(
+		BootProfileMicroVMLinuxKernelInitrdV1,
+		map[string]string{"kernel": testDigest("a"), "initrd": testDigest("b")},
+	)
+
+	evidence, _, err := SplitRuntimeFactsEvidenceAndLifecycle(facts)
+	if err != nil {
+		t.Fatalf("SplitRuntimeFactsEvidenceAndLifecycle returned error: %v", err)
+	}
+	if evidence.AttestationVerification == nil {
+		t.Fatal("attestation verification missing")
+	}
+	if evidence.AttestationVerification.VerificationResult != AttestationVerificationResultInvalid {
+		t.Fatalf("verification_result = %q, want %q", evidence.AttestationVerification.VerificationResult, AttestationVerificationResultInvalid)
+	}
+	if !containsAnyReasonCode(evidence.AttestationVerification.ReasonCodes, attestationReasonCodeMeasurementDigestInvalid) {
+		t.Fatalf("reason_codes = %#v, expected measurement digest invalid", evidence.AttestationVerification.ReasonCodes)
+	}
+}
+
+func TestSplitRuntimeFactsEvidenceAndLifecycleFailsClosedForMalformedNamedBootComponentDigest(t *testing.T) {
+	facts := attestationRuntimeFactsFixture()
+	facts.LaunchReceipt.BootComponentDigests = []string{testDigest("a"), testDigest("b")}
+	facts.LaunchReceipt.BootComponentDigestByName = map[string]string{
+		"kernel": "not-a-digest",
+		"initrd": testDigest("b"),
+	}
+	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = runtimeEvidenceMeasurementDigestForTests(
+		BootProfileMicroVMLinuxKernelInitrdV1,
+		map[string]string{"kernel": testDigest("a"), "initrd": testDigest("b")},
+	)
+
+	evidence, _, err := SplitRuntimeFactsEvidenceAndLifecycle(facts)
+	if err != nil {
+		t.Fatalf("SplitRuntimeFactsEvidenceAndLifecycle returned error: %v", err)
+	}
+	if evidence.AttestationVerification == nil {
+		t.Fatal("attestation verification missing")
+	}
+	if evidence.AttestationVerification.VerificationResult != AttestationVerificationResultInvalid {
+		t.Fatalf("verification_result = %q, want %q", evidence.AttestationVerification.VerificationResult, AttestationVerificationResultInvalid)
+	}
+	if !containsAnyReasonCode(evidence.AttestationVerification.ReasonCodes, attestationReasonCodeMeasurementDigestInvalid) {
+		t.Fatalf("reason_codes = %#v, expected measurement digest invalid", evidence.AttestationVerification.ReasonCodes)
+	}
+}
+
 func attestationRuntimeFactsFixture() RuntimeFactsSnapshot {
 	facts := DefaultRuntimeFacts("run-att-1")
 	facts.LaunchReceipt = BackendLaunchReceipt{
@@ -66,6 +176,7 @@ func attestationRuntimeFactsFixture() RuntimeFactsSnapshot {
 		IsolateSessionKeyIDValue:            testDigest("13")[7:],
 		RuntimeImageDescriptorDigest:        testDigest("14"),
 		RuntimeImageBootProfile:             BootProfileMicroVMLinuxKernelInitrdV1,
+		BootComponentDigestByName:           map[string]string{"kernel": testDigest("15"), "initrd": testDigest("16")},
 		BootComponentDigests:                []string{testDigest("15"), testDigest("16")},
 		AttestationEvidenceSourceKind:       AttestationSourceKindTPMQuote,
 		AttestationMeasurementProfile:       "microvm-boot-v1",

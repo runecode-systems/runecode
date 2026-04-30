@@ -21,12 +21,16 @@ func bootComponentDigestByNameForEvidence(attestation *IsolateAttestationEvidenc
 		return nil
 	}
 	componentNames := requiredBootProfileComponentNames(attestation.RuntimeImageBootProfile)
-	if len(componentNames) == 0 || len(componentNames) != len(attestation.BootComponentDigests) {
+	if len(componentNames) == 0 || len(attestation.BootComponentDigestByName) == 0 {
 		return nil
 	}
-	components := map[string]string{}
-	for i, name := range componentNames {
-		components[name] = attestation.BootComponentDigests[i]
+	components := make(map[string]string, len(componentNames))
+	for _, name := range componentNames {
+		digest, ok := attestation.BootComponentDigestByName[name]
+		if !ok || !looksLikeDigest(digest) {
+			return nil
+		}
+		components[name] = digest
 	}
 	return components
 }

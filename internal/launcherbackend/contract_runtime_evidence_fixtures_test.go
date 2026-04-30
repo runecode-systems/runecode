@@ -2,6 +2,7 @@ package launcherbackend
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -19,6 +20,7 @@ type attestationFixtureCase struct {
 	ExpectAttestation        bool                 `json:"expect_attestation"`
 	ExpectVerificationResult string               `json:"expect_verification_result"`
 	ExpectReasonCodes        []string             `json:"expect_reason_codes"`
+	ExpectBootByName         map[string]string    `json:"expect_boot_component_digest_by_name"`
 }
 
 func TestAttestationFixturesCoverFailClosedAndPlatformNeutralBindings(t *testing.T) {
@@ -59,10 +61,10 @@ func splitRuntimeEvidenceForFixture(t *testing.T, facts RuntimeFactsSnapshot) Ru
 }
 
 func canonicalizeFixtureMeasurementDigest(receipt *BackendLaunchReceipt) {
-	if receipt == nil || receipt.AttestationMeasurementProfile == "" {
+	if receipt == nil || receipt.AttestationMeasurementProfile == "" || receipt.AttestationEvidenceClaimsDigest != "" {
 		return
 	}
-	componentDigests := bootComponentDigestsForFixture(receipt.RuntimeImageBootProfile, receipt.BootComponentDigests)
+	componentDigests := bootComponentDigestByNameForFixture(receipt)
 	if len(componentDigests) == 0 {
 		return
 	}
@@ -73,21 +75,11 @@ func canonicalizeFixtureMeasurementDigest(receipt *BackendLaunchReceipt) {
 	receipt.AttestationEvidenceClaimsDigest = digests[0]
 }
 
-func bootComponentDigestsForFixture(bootProfile string, digests []string) map[string]string {
-	switch normalizeBootProfile(bootProfile) {
-	case BootProfileMicroVMLinuxKernelInitrdV1:
-		if len(digests) != 2 {
-			return nil
-		}
-		return map[string]string{"kernel": digests[0], "initrd": digests[1]}
-	case BootProfileContainerOCIImageV1:
-		if len(digests) != 1 {
-			return nil
-		}
-		return map[string]string{"image": digests[0]}
-	default:
+func bootComponentDigestByNameForFixture(receipt *BackendLaunchReceipt) map[string]string {
+	if receipt == nil {
 		return nil
 	}
+	return cloneStringMap(receipt.BootComponentDigestByName)
 }
 
 func assertFixtureVerificationResult(t *testing.T, tc attestationFixtureCase, evidence RuntimeEvidenceSnapshot) {
@@ -122,9 +114,25 @@ func assertFixtureRuntimeIdentityBinding(t *testing.T, tc attestationFixtureCase
 	if evidence.Attestation.RuntimeImageBootProfile != tc.Facts.LaunchReceipt.RuntimeImageBootProfile {
 		t.Fatalf("runtime_image_boot_profile = %q, want %q", evidence.Attestation.RuntimeImageBootProfile, tc.Facts.LaunchReceipt.RuntimeImageBootProfile)
 	}
+	if expectedByName := expectedFixtureBootComponentDigestByName(tc); len(expectedByName) > 0 {
+		actualByName := evidence.Attestation.BootComponentDigestByName
+		if !maps.Equal(actualByName, expectedByName) {
+			t.Fatalf("boot_component_digest_by_name = %#v, want %#v", actualByName, expectedByName)
+		}
+	}
 	if !slices.Equal(evidence.Attestation.BootComponentDigests, uniqueSortedStrings(tc.Facts.LaunchReceipt.BootComponentDigests)) {
 		t.Fatalf("boot_component_digests = %#v, want %#v", evidence.Attestation.BootComponentDigests, uniqueSortedStrings(tc.Facts.LaunchReceipt.BootComponentDigests))
 	}
+}
+
+func expectedFixtureBootComponentDigestByName(tc attestationFixtureCase) map[string]string {
+	if len(tc.ExpectBootByName) > 0 {
+		return tc.ExpectBootByName
+	}
+	if len(tc.Facts.LaunchReceipt.BootComponentDigestByName) > 0 {
+		return tc.Facts.LaunchReceipt.BootComponentDigestByName
+	}
+	return nil
 }
 
 func attestationSourceFacts(source string) RuntimeFactsSnapshot {
