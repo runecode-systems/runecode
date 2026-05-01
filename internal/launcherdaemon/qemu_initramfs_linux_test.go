@@ -3,9 +3,11 @@
 package launcherdaemon
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -60,6 +62,30 @@ func TestResolveHelloWorldGoBinaryFailsClosedWhenUnavailable(t *testing.T) {
 	}
 	if got := err.Error(); got != "host go compiler not found in approved paths" {
 		t.Fatalf("resolveHelloWorldGoBinary error = %q", got)
+	}
+}
+
+func TestBuildHelloInitBinaryUsesStagingDir(t *testing.T) {
+	workDir := t.TempDir()
+	logPath := filepath.Join(workDir, "pwd.log")
+	goBin := filepath.Join(workDir, "go")
+	script := "#!/bin/sh\npwd > \"" + logPath + "\"\n"
+	if err := os.WriteFile(goBin, []byte(script), 0o700); err != nil {
+		t.Fatalf("WriteFile(fake go binary) returned error: %v", err)
+	}
+	src := filepath.Join(workDir, "init.go")
+	if err := os.WriteFile(src, []byte("package main\nfunc main() {}\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(init.go) returned error: %v", err)
+	}
+	if err := buildHelloInitBinary(context.Background(), goBin, filepath.Join(workDir, "init"), src); err != nil {
+		t.Fatalf("buildHelloInitBinary returned error: %v", err)
+	}
+	loggedDir, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("ReadFile(pwd.log) returned error: %v", err)
+	}
+	if got := strings.TrimSpace(string(loggedDir)); got != workDir {
+		t.Fatalf("buildHelloInitBinary ran in %q, want %q", got, workDir)
 	}
 }
 

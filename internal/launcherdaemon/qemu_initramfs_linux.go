@@ -63,6 +63,7 @@ func buildHelloInitBinary(ctx context.Context, goBin, binPath, src string) error
 		return err
 	}
 	build := execabs.CommandContext(ctx, goBin, "build", "-trimpath", "-ldflags", "-buildid=", "-o", binPath, src)
+	build.Dir = workDir
 	build.Env = helloWorldGoBuildEnv(workDir)
 	if out, err := build.CombinedOutput(); err != nil {
 		return fmt.Errorf("go build init failed: %w: %s", err, string(out))
