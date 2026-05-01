@@ -14,3 +14,5 @@
 Migrated from the legacy spec standards list and refreshed to canonical RuneContext standard paths, then expanded to anchor external-target work to shared audit receipt, verification posture, and typed control-plane contract discipline.
 
 This now also includes shared trust-boundary, approval-binding, and lease-binding rules so authenticated external anchoring inherits the same reviewed remote-mutation discipline used by other high-risk outbound lanes.
+
+The captured decisions also rely on the existing control-plane requirement that prepared, get, and execute style request lifecycles remain typed and topology-neutral, and on the shared policy rule that exact-action approvals continue to bind canonical request hashes rather than ambient operator posture.

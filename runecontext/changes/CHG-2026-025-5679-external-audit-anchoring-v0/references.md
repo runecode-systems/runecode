@@ -14,6 +14,8 @@
 - `runecontext/changes/CHG-2026-007-2315-policy-engine-v0/`
 - `runecontext/changes/CHG-2026-011-7240-secretsd-model-gateway-v0/`
 - `runecontext/changes/CHG-2026-002-33c5-git-gateway-commit-push-pr/`
+- `runecontext/changes/CHG-2026-014-0c5d-approval-profiles-strict-permissive/`
+- `runecontext/changes/CHG-2026-053-9d2b-performance-baselines-verification-gates-v0/`
 
 ## Similar Implementations
 
