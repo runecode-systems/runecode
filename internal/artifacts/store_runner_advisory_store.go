@@ -30,7 +30,10 @@ func (s *Store) reconcileRunnerAdvisoryDurableStateLocked() (bool, error) {
 		for runID := range runs {
 			ensureRunnerStatusExists(&s.state, runID)
 		}
-		return true || consumedChanged, nil
+		if err := ensureRunnerDurableFiles(s.rootDir, runs, idem, seq); err != nil {
+			return false, err
+		}
+		return true, nil
 	}
 	return consumedChanged, ensureRunnerDurableFiles(s.rootDir, runs, idem, seq)
 }
@@ -181,7 +184,8 @@ func saveStoreStateLocked(state *StoreState, rootDir string) error {
 	if err != nil {
 		return err
 	}
-	return sio.saveStateFile(*state)
+	_, err = sio.saveStateFile(*state)
+	return err
 }
 
 func (s *Store) RecordRunnerApprovalWait(approval RunnerApproval) error {

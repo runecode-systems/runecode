@@ -44,39 +44,81 @@ func TestRunnerDurableStateIdempotencyScopedByRunID(t *testing.T) {
 
 func TestRunnerDurableStateMigratesLegacyRunnerAdvisoryMap(t *testing.T) {
 	store := newTestStore(t)
-	store.mu.Lock()
-	store.state.RunnerAdvisoryByRun["run-legacy"] = RunnerAdvisoryState{
-		LastCheckpoint: &RunnerCheckpointAdvisory{
-			LifecycleState: "blocked",
-			CheckpointCode: "approval_wait_entered",
-			OccurredAt:     time.Date(2026, 4, 10, 9, 0, 0, 0, time.UTC),
-			IdempotencyKey: "legacy-idem",
-			StageID:        "stage-legacy",
-		},
-	}
-	if err := store.saveStateLocked(); err != nil {
-		store.mu.Unlock()
-		t.Fatalf("saveStateLocked returned error: %v", err)
-	}
-	store.mu.Unlock()
-
-	if err := os.Remove(filepath.Join(store.rootDir, runnerSnapshotFileName)); err != nil && !os.IsNotExist(err) {
-		t.Fatalf("remove snapshot returned error: %v", err)
-	}
-	if err := os.Remove(filepath.Join(store.rootDir, runnerJournalFileName)); err != nil && !os.IsNotExist(err) {
-		t.Fatalf("remove journal returned error: %v", err)
-	}
+	now := time.Date(2026, 4, 10, 10, 0, 0, 0, time.UTC)
+	seedLegacyRunnerAdvisoryState(t, store, now)
+	removeRunnerDurableFiles(t, store.rootDir)
 
 	reloaded, err := NewStore(store.rootDir)
 	if err != nil {
 		t.Fatalf("NewStore reload returned error: %v", err)
 	}
-	state, ok := reloaded.RunnerAdvisory("run-legacy")
+	assertLegacyRunnerAdvisoryPresent(t, reloaded, "after migration")
+	assertRunnerDurableFilesPresent(t, store.rootDir, "after migration")
+	accepted, err := reloaded.RecordRunnerCheckpoint("run-fresh", RunnerCheckpointAdvisory{
+		LifecycleState: "active",
+		CheckpointCode: "run_started",
+		OccurredAt:     now,
+		IdempotencyKey: "post-migration-idem",
+	})
+	if err != nil {
+		t.Fatalf("RecordRunnerCheckpoint after migration returned error: %v", err)
+	}
+	if !accepted {
+		t.Fatal("RecordRunnerCheckpoint after migration accepted=false, want true")
+	}
+	reloadedAgain, err := NewStore(store.rootDir)
+	if err != nil {
+		t.Fatalf("NewStore second reload returned error: %v", err)
+	}
+	assertLegacyRunnerAdvisoryPresent(t, reloadedAgain, "after post-migration write")
+}
+
+func seedLegacyRunnerAdvisoryState(t *testing.T, store *Store, now time.Time) {
+	t.Helper()
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	store.state.RunnerAdvisoryByRun["run-legacy"] = RunnerAdvisoryState{
+		LastCheckpoint: &RunnerCheckpointAdvisory{
+			LifecycleState: "blocked",
+			CheckpointCode: "approval_wait_entered",
+			OccurredAt:     now.Add(-time.Hour),
+			IdempotencyKey: "legacy-idem",
+			StageID:        "stage-legacy",
+		},
+	}
+	if err := store.saveStateLocked(); err != nil {
+		t.Fatalf("saveStateLocked returned error: %v", err)
+	}
+}
+
+func removeRunnerDurableFiles(t *testing.T, rootDir string) {
+	t.Helper()
+	if err := os.Remove(filepath.Join(rootDir, runnerSnapshotFileName)); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("remove snapshot returned error: %v", err)
+	}
+	if err := os.Remove(filepath.Join(rootDir, runnerJournalFileName)); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("remove journal returned error: %v", err)
+	}
+}
+
+func assertLegacyRunnerAdvisoryPresent(t *testing.T, store *Store, label string) {
+	t.Helper()
+	state, ok := store.RunnerAdvisory("run-legacy")
 	if !ok || state.LastCheckpoint == nil {
-		t.Fatalf("legacy runner advisory missing after migration: ok=%v state=%+v", ok, state)
+		t.Fatalf("legacy runner advisory missing %s: ok=%v state=%+v", label, ok, state)
 	}
 	if state.LastCheckpoint.CheckpointCode != "approval_wait_entered" {
-		t.Fatalf("checkpoint_code = %q, want approval_wait_entered", state.LastCheckpoint.CheckpointCode)
+		t.Fatalf("checkpoint_code %s = %q, want approval_wait_entered", label, state.LastCheckpoint.CheckpointCode)
+	}
+}
+
+func assertRunnerDurableFilesPresent(t *testing.T, rootDir string, label string) {
+	t.Helper()
+	if _, err := os.Stat(filepath.Join(rootDir, runnerSnapshotFileName)); err != nil {
+		t.Fatalf("runner snapshot missing %s: %v", label, err)
+	}
+	if _, err := os.Stat(filepath.Join(rootDir, runnerJournalFileName)); err != nil {
+		t.Fatalf("runner journal missing %s: %v", label, err)
 	}
 }
 

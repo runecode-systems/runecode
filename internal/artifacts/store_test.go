@@ -3,6 +3,7 @@ package artifacts
 import (
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -395,6 +396,44 @@ func TestCanonicalJSONRejectsTopLevelScalarRoots(t *testing.T) {
 		if !strings.Contains(err.Error(), "top-level JSON value must be an object or array") {
 			t.Fatalf("Put(%q) error = %v, want object-or-array root error", payload, err)
 		}
+	}
+}
+
+func TestSyncExternalStateDetectsEqualMTimeWithDifferentStateContent(t *testing.T) {
+	t.Setenv(backupHMACKeyEnv, "test-backup-key")
+	root := t.TempDir()
+	writer, err := NewStore(root)
+	if err != nil {
+		t.Fatalf("NewStore(writer) returned error: %v", err)
+	}
+	if err := writer.SetRunStatus("run-sync", "pending"); err != nil {
+		t.Fatalf("SetRunStatus(pending) returned error: %v", err)
+	}
+	statePath := filepath.Join(root, "state.json")
+	fixedMTime := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+	if err := os.Chtimes(statePath, fixedMTime, fixedMTime); err != nil {
+		t.Skipf("Chtimes unsupported on this platform/filesystem: %v", err)
+	}
+
+	reader, err := NewStore(root)
+	if err != nil {
+		t.Fatalf("NewStore(reader) returned error: %v", err)
+	}
+	if got := reader.RunStatuses()["run-sync"]; got != "pending" {
+		t.Fatalf("reader initial run status = %q, want pending", got)
+	}
+
+	if err := writer.SetRunStatus("run-sync", "failed"); err != nil {
+		t.Fatalf("SetRunStatus(failed) returned error: %v", err)
+	}
+	if err := os.Chtimes(statePath, fixedMTime, fixedMTime); err != nil {
+		t.Skipf("Chtimes unsupported on this platform/filesystem: %v", err)
+	}
+	if err := reader.SyncExternalState(); err != nil {
+		t.Fatalf("SyncExternalState returned error: %v", err)
+	}
+	if got := reader.RunStatuses()["run-sync"]; got != "failed" {
+		t.Fatalf("reader synced run status = %q, want failed", got)
 	}
 }
 

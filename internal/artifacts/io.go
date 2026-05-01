@@ -45,14 +45,6 @@ func (s *storeIO) loadStateFile() (StoreState, error) {
 	return state, nil
 }
 
-func (s *storeIO) saveStateFile(state StoreState) error {
-	b, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(s.statePath, b, 0o600)
-}
-
 func (s *storeIO) appendAuditEvent(event AuditEvent) error {
 	b, err := json.Marshal(event)
 	if err != nil {

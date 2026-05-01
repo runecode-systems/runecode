@@ -2,6 +2,7 @@ package brokerapi
 
 import (
 	"context"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -68,6 +69,56 @@ func TestBackendPostureChangeRequiresApprovalAndThenAppliesViaSharedApprovalReso
 	if postureResp.Posture.BackendKind != "container" {
 		t.Fatalf("post-resolve backend_kind=%q, want container", postureResp.Posture.BackendKind)
 	}
+}
+
+func TestBackendPostureChangeObservesDevSeedPolicyContextWrittenBySeparateService(t *testing.T) {
+	if !DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
+	live, seedWriter := newSeparatedDevSeedServices(t)
+	t.Setenv(devManualSeedEnvVar, "1")
+	if _, err := seedWriter.SeedDevManualScenario(); err != nil {
+		t.Fatalf("SeedDevManualScenario returned error: %v", err)
+	}
+	resp, errResp := live.HandleBackendPostureChange(context.Background(), BackendPostureChangeRequest{
+		SchemaID:                     "runecode.protocol.v0.BackendPostureChangeRequest",
+		SchemaVersion:                "0.1.0",
+		RequestID:                    "req-dev-seed-live-backend-posture",
+		TargetInstanceID:             devManualSeedInstanceID,
+		TargetBackendKind:            "container",
+		SelectionMode:                "explicit_selection",
+		ChangeKind:                   "select_backend",
+		AssuranceChangeKind:          "reduce_assurance",
+		OptInKind:                    "exact_action_approval",
+		ReducedAssuranceAcknowledged: true,
+		Reason:                       "operator_requested_reduced_assurance_backend_opt_in",
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleBackendPostureChange error response: %+v", errResp)
+	}
+	if resp.Outcome.Outcome != "approval_required" {
+		t.Fatalf("outcome=%q, want approval_required", resp.Outcome.Outcome)
+	}
+	if resp.Outcome.ApprovalID == "" {
+		t.Fatal("approval_id empty")
+	}
+}
+
+func newSeparatedDevSeedServices(t *testing.T) (*Service, *Service) {
+	t.Helper()
+	root := t.TempDir()
+	storeRoot := filepath.Join(root, "store")
+	ledgerRoot := filepath.Join(root, "ledger")
+	cfg := APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t)}
+	live, err := NewServiceWithConfig(storeRoot, ledgerRoot, cfg)
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig(live) returned error: %v", err)
+	}
+	seedWriter, err := NewServiceWithConfig(storeRoot, ledgerRoot, cfg)
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig(seed writer) returned error: %v", err)
+	}
+	return live, seedWriter
 }
 
 func requireBackendPostureApprovalRequired(t *testing.T, s *Service, instanceID string) BackendPostureChangeResponse {
