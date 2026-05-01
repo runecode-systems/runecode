@@ -10,6 +10,7 @@
   - if proof generation or verification performance is not acceptable, defer release rather than weakening the proof contract
 - [ ] When the chosen statement depends on project context, bind it to validated project-substrate snapshot identity rather than ambient repo state.
 - [ ] When the chosen statement depends on runtime execution identity, bind it to the attested runtime identity seam from `CHG-2026-030-98b8-isolate-attestation-v0`, using signed runtime-image descriptor identity, persisted reviewed launch evidence, and attestation evidence or verification where relevant rather than ambient platform-specific runtime state.
+- [ ] When the chosen statement depends on external audit anchoring, bind it to canonical `AuditSegmentSeal` identity, authoritative anchor receipt identity, canonical target descriptor identity where relevant, and typed sidecar proof references rather than flattened summaries, raw transport details, or exported-copy artifacts.
 
 Parallelization: can be done in parallel with audit/artifact specs; keep the chosen statement aligned with the canonical audit root/verification artifacts.
 

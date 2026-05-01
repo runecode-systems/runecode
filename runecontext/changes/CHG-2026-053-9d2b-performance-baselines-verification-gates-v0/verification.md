@@ -27,6 +27,7 @@
 - runner boundary and protocol performance suite
 - launcher startup and attach-ready performance suite
 - dependency-fetch cache miss, cache hit, coalescing, and materialization performance suite
+- external audit anchoring prepare, execute, deferred completion, and receipt-admission performance suite
 - audit, protocol, gateway, and project-substrate performance suites
 
 ## Verification Notes
@@ -39,6 +40,8 @@
 - Confirm the CHG-049 first-party workflow-pack path is measured explicitly, including draft artifact generation, draft promote/apply, implementation-input-set validation/binding, direct CLI triggering, repo-scoped admission control/idempotency, and fail-closed drift-triggered re-evaluation/recompile costs.
 - Confirm dependency-fetch and offline-cache have explicit cold-cache, warm-cache, miss-coalescing, and materialization checks.
 - Confirm dependency-fetch performance checks preserve the reviewed stream-to-CAS and bounded-memory posture rather than rewarding trust-boundary shortcuts.
+- Confirm external audit anchoring has explicit checks for prepare latency, execute-completed latency, execute-deferred handoff latency, deferred completion visibility, and receipt admission over an unchanged verified seal.
+- Confirm external audit anchoring performance checks do not reward forbidden shortcuts such as network I/O under audit-ledger lock, bypassing authoritative verifier admission, or forcing full verifier replay as the only normal receipt-admission path.
 - Confirm launcher cold and warm startup checks are defined in terms of the signed runtime-asset path, with cold covering verified-cache miss or trusted admission and warm covering verified local cache hits.
 - Confirm launcher performance checks do not reward bypassing runtime-asset admission, signer verification, component-digest checks, or launch-deny evidence generation.
 - Confirm attestation cold and warm checks are defined in terms of the required attestation trust path, with cold covering full verification and warm covering immutable verification-cache hits.

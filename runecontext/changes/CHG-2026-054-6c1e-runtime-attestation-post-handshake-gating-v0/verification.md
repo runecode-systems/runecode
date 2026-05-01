@@ -14,6 +14,7 @@
 - Confirm the change does not move attestation authority into the runner or any untrusted component.
 - Confirm the change preserves one backend-neutral and topology-neutral trust path across constrained and scaled deployments.
 - Confirm the tasks require persistence, restart reconstruction, broker projection, and audit timing updates rather than only launcher-local checks.
+- Confirm the change preserves attestation evidence and verification references in a way that downstream external audit anchoring can bind directly rather than flattening them into target-local or launch-only summaries.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

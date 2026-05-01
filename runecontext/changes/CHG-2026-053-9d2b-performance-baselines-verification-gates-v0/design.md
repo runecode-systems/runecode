@@ -13,6 +13,7 @@ The design goal is not just to benchmark the TUI. It is to give RuneCode one det
 - model-gateway and secrets overhead
 - dependency-fetch and offline-cache overhead
 - audit, protocol, and verification costs
+- external audit anchoring prepare, execute, deferred completion, and receipt-admission costs
 - git gateway and project-substrate flows
 - end-to-end attach, resume, and execution behavior
 
@@ -332,6 +333,24 @@ Cold and warm launcher checks should continue to use the same reviewed signed ru
 | Dependency miss coalescing | concurrent identical deterministic dependency requests | wall time, duplicate network work count, and CAS write count | require one effective upstream fill per canonical request identity; fail on duplicate-fill regression | extended Linux |
 | Dependency materialization | deterministic cached dependency manifest and units | broker-mediated offline staging/materialization for workspace use | threshold derived from committed baseline; fail on `> 15%` regression | extended Linux |
 | Dependency stream-to-CAS posture | large deterministic dependency payload fixture | memory and streaming behavior during cache fill | fail if implementation buffers full payloads in memory beyond reviewed budget or regresses beyond baseline | extended Linux |
+
+### External Audit Anchoring
+
+| Aspect | Fixture | Check | Initial Threshold | CI Lane |
+| --- | --- | --- | --- | --- |
+| External anchor prepare | deterministic sealed audit segment plus stubbed transparency-log target descriptor | prepare request to durable prepared state | p95 `<= 500ms` local control-plane overhead | extended Linux |
+| External anchor execute-completed | deterministic sealed audit segment plus fast stubbed target | execute request to completed authoritative persistence | threshold derived from committed baseline; fail on `> 15%` regression in wall time | extended Linux |
+| External anchor execute-deferred handoff | deterministic sealed audit segment plus intentionally delayed stubbed target | execute request to deferred durable state | p95 `<= 500ms` local control-plane overhead | extended Linux |
+| Deferred completion visibility | same delayed stubbed target | deferred completion to durable completed state plus get or watch visibility | threshold derived from committed baseline; fail on `> 15%` regression | extended Linux |
+| Receipt admission on unchanged seal | already-verified sealed segment plus valid stubbed target proof | authoritative receipt and sidecar admission without full seal replay | threshold derived from committed baseline; fail on `> 15%` regression in wall time or peak RSS | extended Linux |
+| Invalid or unavailable target handling | stubbed invalid-proof and unavailable-target fixtures | execute plus verifier posture update | threshold derived from committed baseline; fail on `> 15%` regression | extended Linux |
+
+External audit anchoring checks must preserve the reviewed architecture rather than rewarding unsafe shortcuts:
+
+- network I/O must stay outside the audit-ledger lock
+- deferred execution must remain a first-class lifecycle outcome rather than a hidden test bypass
+- unchanged verified seals should use the reviewed incremental receipt-admission path rather than forcing full verifier replay as the only normal path
+- checks must not bypass authoritative proof verification, policy binding, or audit evidence persistence to produce a lower number
 
 ### Audit, Protocol, And Verification Surfaces
 
