@@ -213,11 +213,20 @@ func readExternalAnchorEvidencePayload(t *testing.T, s *Service, rec artifacts.E
 
 func assertExternalAnchorEvidenceSidecarsPresent(t *testing.T, s *Service, rec artifacts.ExternalAnchorPreparedMutationRecord) {
 	t.Helper()
-	for _, digestID := range []string{rec.LastAnchorEvidenceDigest, rec.LastAnchorProofDigest, rec.LastAnchorProviderReceipt, rec.LastAnchorTranscriptDigest} {
-		if strings.TrimSpace(digestID) == "" {
-			t.Fatalf("required sidecar digest missing in prepared record: %#v", rec)
+	for _, item := range []struct {
+		digest string
+		dir    string
+		name   string
+	}{
+		{digest: rec.LastAnchorEvidenceDigest, dir: "external-anchor-evidence", name: "last_anchor_evidence_digest"},
+		{digest: rec.LastAnchorProofDigest, dir: "external-anchor-sidecars", name: "last_anchor_proof_digest"},
+		{digest: rec.LastAnchorProviderReceipt, dir: "external-anchor-sidecars", name: "last_anchor_provider_receipt_digest"},
+		{digest: rec.LastAnchorTranscriptDigest, dir: "external-anchor-sidecars", name: "last_anchor_transcript_digest"},
+	} {
+		if strings.TrimSpace(item.digest) == "" {
+			t.Fatalf("%s missing in prepared record: %#v", item.name, rec)
 		}
-		path := filepath.Join(s.auditRoot, "sidecar", "external-anchor-evidence", strings.TrimPrefix(digestID, "sha256:")+".json")
+		path := filepath.Join(s.auditRoot, "sidecar", item.dir, strings.TrimPrefix(item.digest, "sha256:")+".json")
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected sidecar at %q: %v", path, err)
 		}
