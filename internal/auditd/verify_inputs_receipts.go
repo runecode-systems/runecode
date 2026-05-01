@@ -47,11 +47,11 @@ func (l *Ledger) collectExternalAnchorEvidenceEntries(entries []os.DirEntry) ([]
 		if err != nil {
 			return nil, nil, err
 		}
-		if digest != nil {
-			allSidecarDigests = append(allSidecarDigests, *digest)
-		}
 		if ok {
 			evidence = append(evidence, rec)
+			if digest != nil {
+				allSidecarDigests = append(allSidecarDigests, *digest)
+			}
 		}
 	}
 	return evidence, allSidecarDigests, nil

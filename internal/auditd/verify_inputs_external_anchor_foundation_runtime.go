@@ -246,16 +246,3 @@ func (l *Ledger) loadExternalAnchorSidecarDigestsByIdentitiesLocked(identities [
 	}
 	return sidecars, nil
 }
-
-func (l *Ledger) loadExternalAnchorSidecarDigestByIdentityLocked(identity string) (trustpolicy.Digest, error) {
-	digest, err := digestFromIdentity(identity)
-	if err != nil {
-		return trustpolicy.Digest{}, fmt.Errorf("external anchor sidecar digest identity invalid: %w", err)
-	}
-	identity, _ = digest.Identity()
-	path := filepath.Join(l.rootDir, sidecarDirName, externalAnchorEvidenceDir, strings.TrimPrefix(identity, "sha256:")+".json")
-	if _, statErr := os.Stat(path); statErr != nil {
-		return trustpolicy.Digest{}, fmt.Errorf("external anchor sidecar missing for %s: %w", identity, statErr)
-	}
-	return digest, nil
-}

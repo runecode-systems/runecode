@@ -86,6 +86,79 @@ func TestVerifyCurrentSegmentIncrementalWithPreverifiedSealUsesSealScopedFoundat
 	assertDigestSidecarExists(t, root+"/sidecar/verification-reports", mustDigestIdentity(reportDigest))
 }
 
+func TestVerifyCurrentSegmentIncrementalWithPreverifiedSealFailsClosedOnTamperedSidecarContent(t *testing.T) {
+	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	sealResult := mustSealFixtureSegment(t, ledger, fixture)
+	if _, err := ledger.VerifyCurrentSegmentAndPersist(); err != nil {
+		t.Fatalf("VerifyCurrentSegmentAndPersist baseline returned error: %v", err)
+	}
+	anchorSigner := newAuditFixtureKey(t)
+	receiptEnvelope := fixtureAnchorReceiptEnvelopeForSubject(t, anchorSigner, sealResult.SealEnvelopeDigest)
+	if _, err := ledger.PersistReceiptEnvelope(receiptEnvelope); err != nil {
+		t.Fatalf("PersistReceiptEnvelope returned error: %v", err)
+	}
+	tamperExternalAnchorSidecarContentForSeal(t, root, ledger, sealResult.SealEnvelopeDigest)
+
+	if _, err := ledger.VerifyCurrentSegmentIncrementalWithPreverifiedSeal(sealResult.SealEnvelopeDigest, fixtureAuditAnchorVerifierRecordForKey(anchorSigner, anchorSigner.keyIDValue)); err == nil || !strings.Contains(err.Error(), "external anchor sidecar digest mismatch") {
+		t.Fatalf("VerifyCurrentSegmentIncrementalWithPreverifiedSeal error=%v, want sidecar digest mismatch", err)
+	}
+}
+
+func tamperExternalAnchorSidecarContentForSeal(t *testing.T, root string, ledger *Ledger, sealDigest trustpolicy.Digest) {
+	t.Helper()
+	proofDigest := persistExternalAnchorEvidenceForTamperTest(t, ledger, sealDigest)
+	proofIdentity := mustDigestIdentity(proofDigest)
+	tamperedPath := filepath.Join(root, sidecarDirName, externalAnchorEvidenceDir, strings.TrimPrefix(proofIdentity, "sha256:")+".json")
+	tampered := ExternalAnchorSidecarPayload{
+		SchemaID:      externalAnchorSidecarSchemaID,
+		SchemaVersion: externalAnchorSidecarSchemaVersion,
+		EvidenceKind:  trustpolicy.ExternalAnchorSidecarKindProofBytes,
+		Payload: map[string]any{
+			"schema_id":      "runecode.protocol.audit.anchor_proof.transparency_log_receipt.v0",
+			"schema_version": "0.1.0",
+			"proof":          "tampered",
+		},
+	}
+	if err := writeCanonicalJSONFile(tamperedPath, tampered); err != nil {
+		t.Fatalf("writeCanonicalJSONFile(tampered sidecar) returned error: %v", err)
+	}
+}
+
+func persistExternalAnchorEvidenceForTamperTest(t *testing.T, ledger *Ledger, sealDigest trustpolicy.Digest) trustpolicy.Digest {
+	t.Helper()
+	proofDigest, err := ledger.PersistExternalAnchorSidecar(trustpolicy.ExternalAnchorSidecarKindProofBytes, map[string]any{"schema_id": "runecode.protocol.audit.anchor_proof.transparency_log_receipt.v0", "schema_version": "0.1.0", "proof": "fixture"})
+	if err != nil {
+		t.Fatalf("PersistExternalAnchorSidecar returned error: %v", err)
+	}
+	targetDigest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("8", 64)}
+	targetIdentity, err := targetDigest.Identity()
+	if err != nil {
+		t.Fatalf("targetDigest.Identity returned error: %v", err)
+	}
+	outbound := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("c", 64)}
+	if _, _, err := ledger.PersistExternalAnchorEvidence(ExternalAnchorEvidenceRequest{
+		RunID:                   "run-1",
+		PreparedMutationID:      "sha256:" + strings.Repeat("4", 64),
+		ExecutionAttemptID:      "sha256:" + strings.Repeat("5", 64),
+		CanonicalTargetKind:     "transparency_log",
+		CanonicalTargetDigest:   targetDigest,
+		CanonicalTargetIdentity: targetIdentity,
+		TargetRequirement:       trustpolicy.ExternalAnchorTargetRequirementOptional,
+		AnchoringSubjectFamily:  trustpolicy.AuditSegmentAnchoringSubjectSeal,
+		AnchoringSubjectDigest:  sealDigest,
+		OutboundPayloadDigest:   &outbound,
+		OutboundBytes:           128,
+		Outcome:                 trustpolicy.ExternalAnchorOutcomeDeferred,
+		OutcomeReasonCode:       "external_anchor_execution_deferred",
+		ProofDigest:             proofDigest,
+		ProofSchemaID:           "runecode.protocol.audit.anchor_proof.transparency_log_receipt.v0",
+		ProofKind:               "transparency_log_receipt_v0",
+	}); err != nil {
+		t.Fatalf("PersistExternalAnchorEvidence returned error: %v", err)
+	}
+	return proofDigest
+}
+
 func TestCurrentVerificationContextUsesPersistedExternalAnchorTargetSet(t *testing.T) {
 	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
 	sealResult := mustSealFixtureSegment(t, ledger, fixture)
@@ -117,6 +190,102 @@ func TestCurrentVerificationContextUsesPersistedExternalAnchorTargetSet(t *testi
 	}
 	if input.ExternalAnchorTargetSet[0].TargetRequirement != trustpolicy.ExternalAnchorTargetRequirementRequired {
 		t.Fatalf("ExternalAnchorTargetSet[0].target_requirement=%q, want required", input.ExternalAnchorTargetSet[0].TargetRequirement)
+	}
+}
+
+func TestCurrentVerificationContextIgnoresNonEvidenceJSONInExternalAnchorEvidenceDir(t *testing.T) {
+	nonEvidenceDigest := strings.Repeat("f", 64)
+	root, ledger := setupVerificationContextWithExternalAnchorEvidenceForTest(t)
+	writeNonEvidenceExternalAnchorJSONForTest(t, root, nonEvidenceDigest)
+	input := currentVerificationContextForTest(t, ledger)
+	assertExternalAnchorVerificationInputCounts(t, input, 1, 1)
+	nonEvidenceIdentity := "sha256:" + nonEvidenceDigest
+	for i := range input.ExternalAnchorSidecars {
+		if mustDigestIdentity(input.ExternalAnchorSidecars[i]) == nonEvidenceIdentity {
+			t.Fatalf("ExternalAnchorSidecars unexpectedly contains non-evidence digest %q", nonEvidenceIdentity)
+		}
+	}
+}
+
+func setupVerificationContextWithExternalAnchorEvidenceForTest(t *testing.T) (string, *Ledger) {
+	t.Helper()
+	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	sealResult := mustSealFixtureSegment(t, ledger, fixture)
+	if _, err := ledger.VerifyCurrentSegmentAndPersist(); err != nil {
+		t.Fatalf("VerifyCurrentSegmentAndPersist baseline returned error: %v", err)
+	}
+	anchorSigner := newAuditFixtureKey(t)
+	receiptEnvelope := fixtureAnchorReceiptEnvelopeForSubject(t, anchorSigner, sealResult.SealEnvelopeDigest)
+	if _, err := ledger.PersistReceiptEnvelope(receiptEnvelope); err != nil {
+		t.Fatalf("PersistReceiptEnvelope returned error: %v", err)
+	}
+	targetDigest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("8", 64)}
+	if err := persistExternalAnchorEvidenceForSeal(t, ledger, sealResult.SealEnvelopeDigest, targetDigest, trustpolicy.ExternalAnchorTargetRequirementOptional, trustpolicy.ExternalAnchorOutcomeDeferred); err != nil {
+		t.Fatalf("persistExternalAnchorEvidenceForSeal returned error: %v", err)
+	}
+	return root, ledger
+}
+
+func writeNonEvidenceExternalAnchorJSONForTest(t *testing.T, root, digestHex string) {
+	t.Helper()
+	nonEvidencePath := filepath.Join(root, sidecarDirName, externalAnchorEvidenceDir, digestHex+".json")
+	nonEvidencePayload, err := json.Marshal(map[string]any{
+		"schema_id":      trustpolicy.AuditReceiptSchemaID,
+		"schema_version": trustpolicy.AuditReceiptSchemaVersion,
+	})
+	if err != nil {
+		t.Fatalf("Marshal non-evidence payload returned error: %v", err)
+	}
+	if err := os.WriteFile(nonEvidencePath, nonEvidencePayload, 0o600); err != nil {
+		t.Fatalf("WriteFile non-evidence external-anchor file returned error: %v", err)
+	}
+}
+
+func currentVerificationContextForTest(t *testing.T, ledger *Ledger) trustpolicy.AuditVerificationInput {
+	t.Helper()
+	ledger.mu.Lock()
+	_, input, err := ledger.currentVerificationContextLocked()
+	ledger.mu.Unlock()
+	if err != nil {
+		t.Fatalf("currentVerificationContextLocked returned error: %v", err)
+	}
+	return input
+}
+
+func assertExternalAnchorVerificationInputCounts(t *testing.T, input trustpolicy.AuditVerificationInput, wantEvidence, wantSidecars int) {
+	t.Helper()
+	if len(input.ExternalAnchorEvidence) != wantEvidence {
+		t.Fatalf("ExternalAnchorEvidence length=%d, want %d", len(input.ExternalAnchorEvidence), wantEvidence)
+	}
+	if len(input.ExternalAnchorSidecars) != wantSidecars {
+		t.Fatalf("ExternalAnchorSidecars length=%d, want %d", len(input.ExternalAnchorSidecars), wantSidecars)
+	}
+}
+
+func TestCurrentVerificationContextFailsClosedOnMalformedExternalAnchorEvidence(t *testing.T) {
+	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	_ = mustSealFixtureSegment(t, ledger, fixture)
+	if _, err := ledger.VerifyCurrentSegmentAndPersist(); err != nil {
+		t.Fatalf("VerifyCurrentSegmentAndPersist baseline returned error: %v", err)
+	}
+
+	malformedPath := filepath.Join(root, sidecarDirName, externalAnchorEvidenceDir, strings.Repeat("e", 64)+".json")
+	malformedPayload, err := json.Marshal(map[string]any{
+		"schema_id":      trustpolicy.ExternalAnchorEvidenceSchemaID,
+		"schema_version": trustpolicy.ExternalAnchorEvidenceSchemaVersion,
+	})
+	if err != nil {
+		t.Fatalf("Marshal malformed payload returned error: %v", err)
+	}
+	if err := os.WriteFile(malformedPath, malformedPayload, 0o600); err != nil {
+		t.Fatalf("WriteFile malformed external-anchor file returned error: %v", err)
+	}
+
+	ledger.mu.Lock()
+	_, _, err = ledger.currentVerificationContextLocked()
+	ledger.mu.Unlock()
+	if err == nil {
+		t.Fatal("currentVerificationContextLocked expected malformed external anchor evidence error")
 	}
 }
 

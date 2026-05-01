@@ -292,7 +292,7 @@ func parseBrokerGlobalArgs(args []string) (brokerGlobalOptions, []string, error)
 }
 
 func resolveExplicitLiveIPCTargetConfig(target brokerLiveIPCTargetOptions) (brokerapi.LocalIPCConfig, error) {
-	defaults, err := brokerapi.DefaultLocalIPCConfig()
+	defaults, err := loadDefaultLocalIPCConfig()
 	if err != nil {
 		return brokerapi.LocalIPCConfig{}, err
 	}

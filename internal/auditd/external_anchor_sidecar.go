@@ -1,6 +1,7 @@
 package auditd
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -41,4 +42,33 @@ func (l *Ledger) PersistExternalAnchorSidecar(evidenceKind string, payload any) 
 		return trustpolicy.Digest{}, err
 	}
 	return digest, nil
+}
+
+func (l *Ledger) loadExternalAnchorSidecarDigestByIdentityLocked(identity string) (trustpolicy.Digest, error) {
+	digest, err := digestFromIdentity(identity)
+	if err != nil {
+		return trustpolicy.Digest{}, fmt.Errorf("external anchor sidecar digest identity invalid: %w", err)
+	}
+	identity, _ = digest.Identity()
+	wrapped, err := l.loadExternalAnchorSidecarPayloadByIdentityLocked(identity)
+	if err != nil {
+		return trustpolicy.Digest{}, err
+	}
+	computed, err := canonicalDigest(wrapped)
+	if err != nil {
+		return trustpolicy.Digest{}, fmt.Errorf("compute external anchor sidecar digest %s: %w", identity, err)
+	}
+	if mustDigestIdentity(computed) != identity {
+		return trustpolicy.Digest{}, fmt.Errorf("external anchor sidecar digest mismatch for %s", identity)
+	}
+	return digest, nil
+}
+
+func (l *Ledger) loadExternalAnchorSidecarPayloadByIdentityLocked(identity string) (ExternalAnchorSidecarPayload, error) {
+	path := filepath.Join(l.rootDir, sidecarDirName, externalAnchorEvidenceDir, strings.TrimPrefix(identity, "sha256:")+".json")
+	wrapped := ExternalAnchorSidecarPayload{}
+	if err := readJSONFile(path, &wrapped); err != nil {
+		return ExternalAnchorSidecarPayload{}, fmt.Errorf("external anchor sidecar missing or unreadable for %s", identity)
+	}
+	return wrapped, nil
 }

@@ -415,6 +415,13 @@ func configureExplicitLiveIPCCommandTest(t *testing.T, wantOperation string) *bo
 		newRepoScopedLiveIPCLocalAPIClient = originalRepoScoped
 		newExplicitLiveIPCLocalAPIClientForConfig = originalExplicit
 	})
+	setDefaultLocalIPCConfigForTest(t, func() (brokerapi.LocalIPCConfig, error) {
+		return brokerapi.LocalIPCConfig{
+			RuntimeDir:     "/runtime/default",
+			SocketName:     "broker.sock",
+			RepositoryRoot: "/repo/default",
+		}, nil
+	})
 
 	brokerServiceFactory = func(brokerServiceRoots) (*brokerapi.Service, error) {
 		t.Fatal("brokerServiceFactory should not be called for live IPC command")
