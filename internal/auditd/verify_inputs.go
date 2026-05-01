@@ -65,7 +65,11 @@ func (l *Ledger) loadVerificationDurableInputsLocked(inputs *verificationInputs)
 		return err
 	}
 	inputs.receipts = receipts
-	externalEvidence, externalSidecars, err := l.loadExternalAnchorEvidenceLocked()
+	externalEvidence, err := l.loadExternalAnchorEvidenceLocked()
+	if err != nil {
+		return err
+	}
+	externalSidecars, err := l.loadExternalAnchorSidecarsLocked()
 	if err != nil {
 		return err
 	}

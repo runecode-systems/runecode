@@ -28,33 +28,29 @@ func (l *Ledger) loadAllReceiptsLocked() ([]trustpolicy.SignedObjectEnvelope, er
 	return receipts, nil
 }
 
-func (l *Ledger) loadExternalAnchorEvidenceLocked() ([]trustpolicy.ExternalAnchorEvidencePayload, []trustpolicy.Digest, error) {
+func (l *Ledger) loadExternalAnchorEvidenceLocked() ([]trustpolicy.ExternalAnchorEvidencePayload, error) {
 	entries, err := os.ReadDir(filepath.Join(l.rootDir, sidecarDirName, externalAnchorEvidenceDir))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil, nil
+			return nil, nil
 		}
-		return nil, nil, err
+		return nil, err
 	}
 	return l.collectExternalAnchorEvidenceEntries(entries)
 }
 
-func (l *Ledger) collectExternalAnchorEvidenceEntries(entries []os.DirEntry) ([]trustpolicy.ExternalAnchorEvidencePayload, []trustpolicy.Digest, error) {
-	allSidecarDigests := make([]trustpolicy.Digest, 0, len(entries))
+func (l *Ledger) collectExternalAnchorEvidenceEntries(entries []os.DirEntry) ([]trustpolicy.ExternalAnchorEvidencePayload, error) {
 	evidence := []trustpolicy.ExternalAnchorEvidencePayload{}
 	for _, entry := range entries {
-		rec, digest, ok, err := l.readExternalAnchorEvidenceDirEntry(entry)
+		rec, _, ok, err := l.readExternalAnchorEvidenceDirEntry(entry)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		if ok {
 			evidence = append(evidence, rec)
-			if digest != nil {
-				allSidecarDigests = append(allSidecarDigests, *digest)
-			}
 		}
 	}
-	return evidence, allSidecarDigests, nil
+	return evidence, nil
 }
 
 func (l *Ledger) readExternalAnchorEvidenceDirEntry(entry os.DirEntry) (trustpolicy.ExternalAnchorEvidencePayload, *trustpolicy.Digest, bool, error) {
