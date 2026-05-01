@@ -32,6 +32,12 @@ func externalAnchorPreparedStateFromRecord(record artifacts.ExternalAnchorPrepar
 		return ExternalAnchorMutationPreparedState{}, err
 	}
 	state := externalAnchorPreparedStateCore(record)
+	primaryTarget, targetSet, err := externalAnchorPreparedTargetStateFromRecord(record)
+	if err != nil {
+		return ExternalAnchorMutationPreparedState{}, err
+	}
+	state.PrimaryTarget = primaryTarget
+	state.TargetSet = targetSet
 	applyExternalAnchorPreparedStateRequiredDigests(&state, required)
 	applyExternalAnchorPreparedStateOptionalDigests(&state, optional)
 	return state, nil
@@ -64,7 +70,40 @@ func externalAnchorPreparedStateCore(record artifacts.ExternalAnchorPreparedMuta
 		LastExecuteAttemptID:         record.LastExecuteAttemptID,
 		LastExecuteSnapshotSegmentID: record.LastExecuteSnapshotSegmentID,
 		LastExecuteDeferredPolls:     record.LastExecuteDeferredPolls,
+		LastExecuteDeferredClaimID:   record.LastExecuteDeferredClaimID,
 	}
+}
+
+func externalAnchorPreparedTargetStateFromRecord(record artifacts.ExternalAnchorPreparedMutationRecord) (ExternalAnchorMutationPreparedTarget, []ExternalAnchorMutationPreparedTarget, error) {
+	primary, err := externalAnchorPreparedSingleTargetStateFromBinding(record.PrimaryTarget, "primary_target")
+	if err != nil {
+		return ExternalAnchorMutationPreparedTarget{}, nil, err
+	}
+	targets := make([]ExternalAnchorMutationPreparedTarget, 0, len(record.TargetSet))
+	for i := range record.TargetSet {
+		target, err := externalAnchorPreparedSingleTargetStateFromBinding(record.TargetSet[i], fmt.Sprintf("target_set[%d]", i))
+		if err != nil {
+			return ExternalAnchorMutationPreparedTarget{}, nil, err
+		}
+		targets = append(targets, target)
+	}
+	if len(targets) == 0 {
+		targets = []ExternalAnchorMutationPreparedTarget{primary}
+	}
+	return primary, targets, nil
+}
+
+func externalAnchorPreparedSingleTargetStateFromBinding(target artifacts.ExternalAnchorPreparedTargetBinding, field string) (ExternalAnchorMutationPreparedTarget, error) {
+	digest, err := digestFromIdentity(strings.TrimSpace(target.TargetDescriptorDigest))
+	if err != nil {
+		return ExternalAnchorMutationPreparedTarget{}, fmt.Errorf("%s.target_descriptor_digest invalid: %w", field, err)
+	}
+	return ExternalAnchorMutationPreparedTarget{
+		TargetKind:             strings.TrimSpace(target.TargetKind),
+		TargetRequirement:      target.TargetRequirement,
+		TargetDescriptor:       cloneStringAnyMap(target.TargetDescriptor),
+		TargetDescriptorDigest: digest,
+	}, nil
 }
 
 func applyExternalAnchorPreparedStateRequiredDigests(state *ExternalAnchorMutationPreparedState, required externalAnchorPreparedStateRequiredDigests) {

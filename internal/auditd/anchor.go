@@ -58,7 +58,7 @@ func (l *Ledger) persistAnchorVerificationArtifactsLocked(anchorVerifier trustpo
 	if err := l.ensureVerifierRecordDurableLocked(anchorVerifier); err != nil {
 		return trustpolicy.Digest{}, trustpolicy.Digest{}, err
 	}
-	receiptDigest, err := l.persistEnvelopeSidecar(receiptsDirName, receiptEnvelope)
+	receiptDigest, err := l.persistReceiptEnvelopeLocked(receiptEnvelope)
 	if err != nil {
 		return trustpolicy.Digest{}, trustpolicy.Digest{}, err
 	}

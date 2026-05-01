@@ -3,7 +3,10 @@ package artifacts
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func (s *Store) ExternalAnchorPreparedUpsert(record ExternalAnchorPreparedMutationRecord) error {
@@ -68,6 +71,21 @@ func (s *Store) ExternalAnchorPreparedRefsForRun(runID string) []string {
 	return refs
 }
 
+func (s *Store) ExternalAnchorPreparedIDs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ids := make([]string, 0, len(s.state.ExternalAnchorPrepared))
+	for id := range s.state.ExternalAnchorPrepared {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" {
+			continue
+		}
+		ids = append(ids, trimmed)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
 func rebuildRunExternalAnchorPreparedRefsLocked(state *StoreState) {
 	state.RunExternalAnchorPreparedRefs = map[string][]string{}
 	for _, rec := range state.ExternalAnchorPrepared {
@@ -92,6 +110,13 @@ func validateExternalAnchorPreparedRecord(record ExternalAnchorPreparedMutationR
 }
 
 func validateExternalAnchorPreparedRecordRequiredFields(record ExternalAnchorPreparedMutationRecord) error {
+	if err := validateExternalAnchorPreparedRecordCoreFields(record); err != nil {
+		return err
+	}
+	return validateExternalAnchorPreparedRecordTargetFields(record)
+}
+
+func validateExternalAnchorPreparedRecordCoreFields(record ExternalAnchorPreparedMutationRecord) error {
 	if strings.TrimSpace(record.PreparedMutationID) == "" {
 		return fmt.Errorf("prepared mutation id is required")
 	}
@@ -110,6 +135,24 @@ func validateExternalAnchorPreparedRecordRequiredFields(record ExternalAnchorPre
 	return nil
 }
 
+func validateExternalAnchorPreparedRecordTargetFields(record ExternalAnchorPreparedMutationRecord) error {
+	if err := validateExternalAnchorPreparedTargetBinding(record.PrimaryTarget, "primary_target"); err != nil {
+		return err
+	}
+	if len(record.TargetSet) == 0 {
+		return fmt.Errorf("target_set is required")
+	}
+	for i := range record.TargetSet {
+		if err := validateExternalAnchorPreparedTargetBinding(record.TargetSet[i], fmt.Sprintf("target_set[%d]", i)); err != nil {
+			return err
+		}
+	}
+	if !externalAnchorTargetSetContainsPrimary(record.PrimaryTarget, record.TargetSet) {
+		return fmt.Errorf("target_set must include primary_target")
+	}
+	return nil
+}
+
 func validateExternalAnchorPreparedRecordPrimaryDigests(record ExternalAnchorPreparedMutationRecord) error {
 	for _, digestField := range []struct {
 		value string
@@ -120,6 +163,37 @@ func validateExternalAnchorPreparedRecordPrimaryDigests(record ExternalAnchorPre
 		}
 	}
 	return nil
+}
+
+func validateExternalAnchorPreparedTargetBinding(target ExternalAnchorPreparedTargetBinding, field string) error {
+	if strings.TrimSpace(target.TargetKind) == "" {
+		return fmt.Errorf("%s.target_kind is required", field)
+	}
+	if strings.TrimSpace(target.TargetDescriptorDigest) == "" {
+		return fmt.Errorf("%s.target_descriptor_digest is required", field)
+	}
+	if err := validateGitRemotePreparedDigest(target.TargetDescriptorDigest, field+".target_descriptor_digest"); err != nil {
+		return err
+	}
+	requirement := trustpolicy.NormalizeExternalAnchorTargetRequirement(target.TargetRequirement)
+	if err := trustpolicy.ValidateExternalAnchorTargetRequirement(requirement); err != nil {
+		return fmt.Errorf("%s.target_requirement: %w", field, err)
+	}
+	if target.TargetDescriptor == nil || len(target.TargetDescriptor) == 0 {
+		return fmt.Errorf("%s.target_descriptor is required", field)
+	}
+	return nil
+}
+
+func externalAnchorTargetSetContainsPrimary(primary ExternalAnchorPreparedTargetBinding, targetSet []ExternalAnchorPreparedTargetBinding) bool {
+	primaryKind := strings.TrimSpace(primary.TargetKind)
+	primaryDigest := strings.TrimSpace(primary.TargetDescriptorDigest)
+	for i := range targetSet {
+		if strings.TrimSpace(targetSet[i].TargetKind) == primaryKind && strings.TrimSpace(targetSet[i].TargetDescriptorDigest) == primaryDigest {
+			return true
+		}
+	}
+	return false
 }
 
 func validateExternalAnchorPreparedRecordOptionalDigests(record ExternalAnchorPreparedMutationRecord) error {
@@ -140,6 +214,9 @@ func validateExternalAnchorPreparedRecordOptionalDigests(record ExternalAnchorPr
 func validateExternalAnchorPreparedRecordExecutionState(record ExternalAnchorPreparedMutationRecord) error {
 	if record.LastExecuteDeferredPolls < 0 {
 		return fmt.Errorf("last execute deferred polls remaining must be >= 0")
+	}
+	if strings.TrimSpace(record.LastExecuteDeferredClaimID) != "" && record.LastExecuteDeferredClaimedAt == nil {
+		return fmt.Errorf("last execute deferred claimed_at is required when claim id is set")
 	}
 	return nil
 }

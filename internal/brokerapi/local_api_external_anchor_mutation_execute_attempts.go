@@ -84,11 +84,12 @@ func (s *Service) externalAnchorExecuteAttemptBinding(requestID string, record a
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "stored typed request seal digest is invalid")
 		return externalAnchorAttemptBinding{}, &errOut
 	}
-	_, targetDigestIdentity, err := externalAnchorCanonicalTargetDigest(record.TypedRequest)
+	primaryTarget, err := externalAnchorResolvedPrimaryTargetFromPreparedRecord(record)
 	if err != nil {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "stored typed request target descriptor digest is invalid")
 		return externalAnchorAttemptBinding{}, &errOut
 	}
+	targetDigestIdentity := primaryTarget.TargetDescriptorIdentity
 	typedRequestHash, err := canonicalExternalAnchorTypedRequestHash(record.TypedRequest)
 	if err != nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, fmt.Sprintf("stored typed request hash invalid: %v", err))
@@ -182,6 +183,8 @@ func prepareExternalAnchorMutationForExecution(record artifacts.ExternalAnchorPr
 	record.LastExecuteSnapshotSegmentID = strings.TrimSpace(snapshot.SegmentID)
 	record.LastExecuteSnapshotSealID = strings.TrimSpace(snapshot.SealIdentity)
 	record.LastExecuteDeferredPolls = attemptBinding.DeferredPolls
+	record.LastExecuteDeferredClaimID = ""
+	record.LastExecuteDeferredClaimedAt = nil
 	record.LastAnchorReceiptDigest = ""
 	record.LastAnchorEvidenceDigest = ""
 	record.LastAnchorVerificationDigest = ""

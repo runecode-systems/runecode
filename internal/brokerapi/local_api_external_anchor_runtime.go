@@ -137,6 +137,8 @@ func setExternalAnchorExecutionOutcome(record *artifacts.ExternalAnchorPreparedM
 	record.LifecycleReasonCode = strings.TrimSpace(outcome.LifecycleReasonCode)
 	if strings.TrimSpace(record.ExecutionState) != gitRemoteMutationExecutionDeferred {
 		record.LastExecuteDeferredPolls = 0
+		record.LastExecuteDeferredClaimID = ""
+		record.LastExecuteDeferredClaimedAt = nil
 	}
 }
 

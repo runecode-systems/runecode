@@ -70,8 +70,7 @@ func (s *Service) respondToExternalAnchorExecution(requestID string, record arti
 		return ExternalAnchorMutationExecuteResponse{}, errResp
 	}
 	if strings.TrimSpace(input.Mode) == "deferred_poll" {
-		s.startExternalAnchorBackgroundWorkers()
-		s.externalAnchorQueue.enqueue(externalAnchorPreparedExecutionAttempt{PreparedMutationID: record.PreparedMutationID, AttemptID: input.AttemptID})
+		s.enqueueDeferredExternalAnchorExecution(record.PreparedMutationID)
 	}
 	return resp, nil
 }

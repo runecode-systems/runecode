@@ -5,14 +5,14 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/runecode-ai/runecode/internal/artifacts"
 )
 
 type externalAnchorPreparedExecutionAttempt struct {
 	PreparedMutationID string
 	AttemptID          string
 }
+
+const externalAnchorDeferredClaimStaleAfter = 30 * time.Second
 
 type externalAnchorBackgroundQueue struct {
 	mu         sync.Mutex
@@ -108,6 +108,47 @@ func (s *Service) startExternalAnchorBackgroundWorkers() {
 	}
 }
 
+func (s *Service) resumeDeferredExternalAnchorExecutionsFromDurableState() {
+	if s == nil {
+		return
+	}
+	resumable := make([]externalAnchorPreparedExecutionAttempt, 0)
+	for _, preparedMutationID := range s.ExternalAnchorPreparedIDs() {
+		record, ok := s.ExternalAnchorPreparedGet(preparedMutationID)
+		if !ok {
+			continue
+		}
+		attempt, ok := deferredExternalAnchorResumableAttempt(record)
+		if !ok {
+			continue
+		}
+		resumable = append(resumable, attempt)
+	}
+	if len(resumable) == 0 {
+		return
+	}
+	s.startExternalAnchorBackgroundWorkers()
+	for _, attempt := range resumable {
+		s.externalAnchorQueue.enqueue(attempt)
+	}
+}
+
+func (s *Service) enqueueDeferredExternalAnchorExecution(preparedMutationID string) {
+	if s == nil || s.externalAnchorQueue == nil {
+		return
+	}
+	record, ok := s.ExternalAnchorPreparedGet(preparedMutationID)
+	if !ok {
+		return
+	}
+	attempt, ok := deferredExternalAnchorResumableAttempt(record)
+	if !ok {
+		return
+	}
+	s.startExternalAnchorBackgroundWorkers()
+	s.externalAnchorQueue.enqueue(attempt)
+}
+
 func (s *Service) externalAnchorBackgroundWorker() {
 	for {
 		select {
@@ -127,23 +168,35 @@ func (s *Service) externalAnchorBackgroundWorker() {
 }
 
 func (s *Service) processDeferredExternalAnchorAttempt(attempt externalAnchorPreparedExecutionAttempt) {
+	if !s.claimDeferredExternalAnchorAttempt(attempt) {
+		return
+	}
 	const maxTransitions = 6
 	for i := 0; i < maxTransitions; i++ {
 		input, ok := s.deferredExternalAnchorExecutionInput(attempt)
 		if !ok {
+			s.releaseDeferredExternalAnchorAttemptClaim(attempt)
 			return
 		}
 		outcome := normalizeExternalAnchorExecutionOutcome(s.externalAnchorRuntime.Execute(context.Background(), input))
-		if !s.persistDeferredExternalAnchorExecution(attempt, input, outcome) || input.PollRemaining <= 0 {
+		stillDeferred := s.persistDeferredExternalAnchorExecution(attempt, input, outcome)
+		if !stillDeferred {
+			return
+		}
+		if input.PollRemaining <= 0 {
+			s.releaseDeferredExternalAnchorAttemptClaim(attempt)
+			s.externalAnchorQueue.enqueue(attempt)
 			return
 		}
 		time.Sleep(externalAnchorDeferredBackoff(input.PollRemaining + 1))
 	}
+	s.releaseDeferredExternalAnchorAttemptClaim(attempt)
+	s.externalAnchorQueue.enqueue(attempt)
 }
 
 func (s *Service) deferredExternalAnchorExecutionInput(attempt externalAnchorPreparedExecutionAttempt) (externalAnchorExecutionInput, bool) {
 	record, ok := s.ExternalAnchorPreparedGet(attempt.PreparedMutationID)
-	if !ok || !externalAnchorDeferredAttemptMatches(record, attempt) {
+	if !ok || !externalAnchorDeferredAttemptClaimedByService(record, attempt, s.deferredExternalAnchorClaimID()) {
 		return externalAnchorExecutionInput{}, false
 	}
 	input, err := externalAnchorExecutionInputFromRecord(record)
@@ -154,27 +207,4 @@ func (s *Service) deferredExternalAnchorExecutionInput(attempt externalAnchorPre
 		input.PollRemaining--
 	}
 	return input, true
-}
-
-func externalAnchorDeferredAttemptMatches(record artifacts.ExternalAnchorPreparedMutationRecord, attempt externalAnchorPreparedExecutionAttempt) bool {
-	return strings.TrimSpace(record.LastExecuteAttemptID) == strings.TrimSpace(attempt.AttemptID) &&
-		strings.TrimSpace(record.ExecutionState) == gitRemoteMutationExecutionDeferred &&
-		strings.TrimSpace(record.LifecycleState) == gitRemoteMutationLifecyclePrepared
-}
-
-func (s *Service) persistDeferredExternalAnchorExecution(attempt externalAnchorPreparedExecutionAttempt, input externalAnchorExecutionInput, outcome externalAnchorExecutionOutcome) bool {
-	updated, err := s.ExternalAnchorPreparedTransitionLifecycle(attempt.PreparedMutationID, gitRemoteMutationLifecyclePrepared, func(current artifacts.ExternalAnchorPreparedMutationRecord) artifacts.ExternalAnchorPreparedMutationRecord {
-		if !externalAnchorDeferredAttemptMatches(current, attempt) {
-			return current
-		}
-		setExternalAnchorExecutionOutcome(&current, outcome)
-		if strings.TrimSpace(current.ExecutionState) == gitRemoteMutationExecutionDeferred {
-			setExternalAnchorDeferredPollRemaining(&current, input.PollRemaining)
-		}
-		return current
-	})
-	if err != nil {
-		return false
-	}
-	return strings.TrimSpace(updated.ExecutionState) == gitRemoteMutationExecutionDeferred
 }

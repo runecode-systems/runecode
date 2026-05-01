@@ -61,6 +61,9 @@ func (l *Ledger) PersistExternalAnchorEvidence(req ExternalAnchorEvidenceRequest
 	if err := writeCanonicalJSONFile(path, payload); err != nil {
 		return trustpolicy.Digest{}, trustpolicy.ExternalAnchorEvidencePayload{}, err
 	}
+	if err := l.notePersistedExternalAnchorEvidenceInIncrementalFoundationLocked(payload, digest); err != nil {
+		return trustpolicy.Digest{}, trustpolicy.ExternalAnchorEvidencePayload{}, err
+	}
 	return digest, payload, nil
 }
 

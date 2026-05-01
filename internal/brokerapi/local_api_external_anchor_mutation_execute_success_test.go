@@ -76,6 +76,42 @@ func TestExternalAnchorMutationExecuteDeferredPollCompletesInBackground(t *testi
 	}
 }
 
+func TestExternalAnchorMutationExecuteDeferredPollResumesAfterServiceRestart(t *testing.T) {
+	root := t.TempDir()
+	storeRoot := filepath.Join(root, "store")
+	ledgerRoot := filepath.Join(root, "ledger")
+	cfg := APIConfig{RepositoryRoot: repositoryRootForProjectSubstrateTests(t), ExternalAnchor: ExternalAnchorConfig{MaxParallelExecutions: 1}}
+	s, err := NewServiceWithConfig(storeRoot, ledgerRoot, cfg)
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig(initial) returned error: %v", err)
+	}
+	runID := "run-anchor-execute-deferred-restart"
+	targetDigest := "sha256:" + strings.Repeat("7", 64)
+	putTrustedExternalAnchorGatewayContextForRun(t, s, runID, targetDigest)
+	prepareResp := mustPrepareExternalAnchorMutation(t, s, runID, "req-anchor-prepare-deferred-restart", targetDigest, 2)
+	preparedID := strings.TrimSpace(prepareResp.PreparedMutationID)
+	approvalID := strings.TrimSpace(prepareResp.Prepared.RequiredApprovalID)
+	requestDigest, decisionDigest := approveExternalAnchorForExecuteTests(t, s, preparedID, approvalID)
+	leaseID := mustIssueExternalAnchorGatewayLease(t, s, preparedID)
+	// Simulate a shutdown before background deferred workers can drain.
+	s.externalAnchorQueue.close()
+	resp := mustExecuteExternalAnchorMutation(t, s, preparedID, approvalID, requestDigest, decisionDigest, leaseID, "req-anchor-execute-deferred-restart", false)
+	if resp.ExecutionState != gitRemoteMutationExecutionDeferred {
+		t.Fatalf("execution_state=%q, want deferred", resp.ExecutionState)
+	}
+	restarted, err := NewServiceWithConfig(storeRoot, ledgerRoot, cfg)
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig(restart) returned error: %v", err)
+	}
+	final := waitForExternalAnchorCompletion(t, restarted, preparedID)
+	if final.LifecycleState != gitRemoteMutationLifecycleExecuted {
+		t.Fatalf("final lifecycle_state=%q, want executed", final.LifecycleState)
+	}
+	if final.ExecutionState != gitRemoteMutationExecutionCompleted {
+		t.Fatalf("final execution_state=%q, want completed", final.ExecutionState)
+	}
+}
+
 func TestExternalAnchorMutationExecuteIdempotentReplayReturnsStoredOutcome(t *testing.T) {
 	s, preparedID, approvalID, requestDigest, decisionDigest, leaseID := prepareExternalAnchorExecuteFixture(t, "run-anchor-execute-replay", "sha256:"+strings.Repeat("2", 64))
 	setExternalAnchorInlineCompletionRuntime(s)

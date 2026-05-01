@@ -13,87 +13,81 @@ import (
 )
 
 type externalAnchorPrepareResolvedInput struct {
-	runID                       string
-	requestKind                 string
-	targetKind                  string
-	sealDigest                  trustpolicy.Digest
-	sealDigestIdentity          string
-	typedRequestHash            trustpolicy.Digest
-	typedRequestHashIdentity    string
-	targetDescriptorDigest      trustpolicy.Digest
-	targetDescriptorDigestIdent string
-	outboundPayloadDigest       trustpolicy.Digest
-	outboundPayloadDigestIdent  string
-	destinationRef              string
+	runID                      string
+	requestKind                string
+	primaryTarget              externalAnchorResolvedTarget
+	targetSet                  []externalAnchorResolvedTarget
+	sealDigest                 trustpolicy.Digest
+	sealDigestIdentity         string
+	typedRequestHash           trustpolicy.Digest
+	typedRequestHashIdentity   string
+	outboundPayloadDigest      trustpolicy.Digest
+	outboundPayloadDigestIdent string
+	destinationRef             string
 }
 
 func (s *Service) resolveExternalAnchorPrepareInput(req ExternalAnchorMutationPrepareRequest, requestID string) (externalAnchorPrepareResolvedInput, *ErrorResponse) {
-	runID, requestKind, targetKind, errResp := s.resolveExternalAnchorPrepareIdentity(requestID, req)
+	runID, requestKind, primaryTarget, targetSet, errResp := s.resolveExternalAnchorPrepareIdentity(requestID, req)
 	if errResp != nil {
 		return externalAnchorPrepareResolvedInput{}, errResp
 	}
-	sealDigest, sealDigestIdentity, typedRequestHash, typedRequestHashIdentity, targetDescriptorDigest, targetDescriptorDigestIdentity, outboundPayloadDigest, outboundPayloadDigestIdentity, errResp := s.resolveExternalAnchorPrepareDigests(requestID, req.TypedRequest)
+	sealDigest, sealDigestIdentity, typedRequestHash, typedRequestHashIdentity, outboundPayloadDigest, outboundPayloadDigestIdentity, errResp := s.resolveExternalAnchorPrepareDigests(requestID, req.TypedRequest)
 	if errResp != nil {
 		return externalAnchorPrepareResolvedInput{}, errResp
 	}
-	destinationRef := externalAnchorDestinationRefFromTargetDescriptorDigest(targetDescriptorDigestIdentity)
+	destinationRef := externalAnchorDestinationRefFromTargetDescriptorDigest(primaryTarget.TargetDescriptorIdentity)
 	if destinationRef == "" {
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "typed_request.target_descriptor_digest is required")
 		return externalAnchorPrepareResolvedInput{}, &errOut
 	}
 	return externalAnchorPrepareResolvedInput{
-		runID:                       runID,
-		requestKind:                 requestKind,
-		targetKind:                  targetKind,
-		sealDigest:                  sealDigest,
-		sealDigestIdentity:          sealDigestIdentity,
-		typedRequestHash:            typedRequestHash,
-		typedRequestHashIdentity:    typedRequestHashIdentity,
-		targetDescriptorDigest:      targetDescriptorDigest,
-		targetDescriptorDigestIdent: targetDescriptorDigestIdentity,
-		outboundPayloadDigest:       outboundPayloadDigest,
-		outboundPayloadDigestIdent:  outboundPayloadDigestIdentity,
-		destinationRef:              destinationRef,
+		runID:                      runID,
+		requestKind:                requestKind,
+		primaryTarget:              primaryTarget,
+		targetSet:                  append([]externalAnchorResolvedTarget{}, targetSet...),
+		sealDigest:                 sealDigest,
+		sealDigestIdentity:         sealDigestIdentity,
+		typedRequestHash:           typedRequestHash,
+		typedRequestHashIdentity:   typedRequestHashIdentity,
+		outboundPayloadDigest:      outboundPayloadDigest,
+		outboundPayloadDigestIdent: outboundPayloadDigestIdentity,
+		destinationRef:             destinationRef,
 	}, nil
 }
 
-func (s *Service) resolveExternalAnchorPrepareIdentity(requestID string, req ExternalAnchorMutationPrepareRequest) (string, string, string, *ErrorResponse) {
+func (s *Service) resolveExternalAnchorPrepareIdentity(requestID string, req ExternalAnchorMutationPrepareRequest) (string, string, externalAnchorResolvedTarget, []externalAnchorResolvedTarget, *ErrorResponse) {
 	runID := strings.TrimSpace(req.RunID)
 	if runID == "" {
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "run_id is required")
-		return "", "", "", &errOut
+		return "", "", externalAnchorResolvedTarget{}, nil, &errOut
 	}
 	requestKind := resolveExternalAnchorRequestKind(req.TypedRequest)
 	if err := validateExternalAnchorRequestKind(requestKind); err != nil {
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
-		return "", "", "", &errOut
+		return "", "", externalAnchorResolvedTarget{}, nil, &errOut
 	}
-	targetKind := externalAnchorTargetKind(req.TypedRequest)
-	if targetKind == "" {
-		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "typed_request.target_kind is required")
-		return "", "", "", &errOut
+	primaryTarget, targetSet, err := externalAnchorCanonicalTargetsFromTypedRequest(req.TypedRequest)
+	if err != nil {
+		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
+		return "", "", externalAnchorResolvedTarget{}, nil, &errOut
 	}
-	return runID, requestKind, targetKind, nil
+	return runID, requestKind, primaryTarget, targetSet, nil
 }
 
-func (s *Service) resolveExternalAnchorPrepareDigests(requestID string, typedRequest map[string]any) (trustpolicy.Digest, string, trustpolicy.Digest, string, trustpolicy.Digest, string, trustpolicy.Digest, string, *ErrorResponse) {
+func (s *Service) resolveExternalAnchorPrepareDigests(requestID string, typedRequest map[string]any) (trustpolicy.Digest, string, trustpolicy.Digest, string, trustpolicy.Digest, string, *ErrorResponse) {
 	sealDigest, sealDigestIdentity, err := externalAnchorSealDigest(typedRequest)
 	if err != nil {
-		return trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", s.externalAnchorPrepareValidationError(requestID, err)
+		return trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", s.externalAnchorPrepareValidationError(requestID, err)
 	}
 	typedRequestHash, typedRequestHashIdentity, err := canonicalizeExternalAnchorTypedRequest(typedRequest)
 	if err != nil {
-		return trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", s.externalAnchorPrepareValidationError(requestID, err)
-	}
-	targetDescriptorDigest, targetDescriptorDigestIdentity, err := externalAnchorCanonicalTargetDigest(typedRequest)
-	if err != nil {
-		return trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", s.externalAnchorPrepareValidationError(requestID, err)
+		return trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", s.externalAnchorPrepareValidationError(requestID, err)
 	}
 	outboundPayloadDigest, outboundPayloadDigestIdentity, err := externalAnchorPayloadDigest(typedRequest)
 	if err != nil {
-		return trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", s.externalAnchorPrepareValidationError(requestID, err)
+		return trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", trustpolicy.Digest{}, "", s.externalAnchorPrepareValidationError(requestID, err)
 	}
-	return sealDigest, sealDigestIdentity, typedRequestHash, typedRequestHashIdentity, targetDescriptorDigest, targetDescriptorDigestIdentity, outboundPayloadDigest, outboundPayloadDigestIdentity, nil
+	return sealDigest, sealDigestIdentity, typedRequestHash, typedRequestHashIdentity, outboundPayloadDigest, outboundPayloadDigestIdentity, nil
 }
 
 func (s *Service) externalAnchorPrepareValidationError(requestID string, err error) *ErrorResponse {
@@ -145,6 +139,8 @@ func (s *Service) buildPreparedExternalAnchorMutationRecord(req ExternalAnchorMu
 		PreparedMutationID:      preparedMutationID,
 		RunID:                   resolved.runID,
 		DestinationRef:          resolved.destinationRef,
+		PrimaryTarget:           externalAnchorPreparedTargetBindingFromResolved(resolved.primaryTarget),
+		TargetSet:               externalAnchorPreparedTargetSetFromResolved(resolved.targetSet),
 		RequestKind:             resolved.requestKind,
 		TypedRequestSchemaID:    strings.TrimSpace(stringField(req.TypedRequest, "schema_id")),
 		TypedRequestSchemaVer:   strings.TrimSpace(stringField(req.TypedRequest, "schema_version")),
@@ -183,7 +179,7 @@ func externalAnchorGatewayPrepareAction(resolved externalAnchorPrepareResolvedIn
 		"audit_context":           auditContext,
 		"external_anchor_request": cloneStringAnyMap(typedRequest),
 	}
-	relevantHashes := uniqueDigestIdentities([]trustpolicy.Digest{resolved.typedRequestHash, resolved.targetDescriptorDigest, resolved.sealDigest, resolved.outboundPayloadDigest})
+	relevantHashes := uniqueDigestIdentities([]trustpolicy.Digest{resolved.typedRequestHash, resolved.primaryTarget.TargetDescriptorDigest, resolved.sealDigest, resolved.outboundPayloadDigest})
 	return policyengine.ActionRequest{
 		SchemaID:               "runecode.protocol.v0.ActionRequest",
 		SchemaVersion:          "0.1.0",
@@ -219,6 +215,26 @@ func uniqueDigestIdentities(values []trustpolicy.Digest) []trustpolicy.Digest {
 	out := make([]trustpolicy.Digest, 0, len(identities))
 	for _, identity := range identities {
 		out = append(out, set[identity])
+	}
+	return out
+}
+
+func externalAnchorPreparedTargetBindingFromResolved(target externalAnchorResolvedTarget) artifacts.ExternalAnchorPreparedTargetBinding {
+	return artifacts.ExternalAnchorPreparedTargetBinding{
+		TargetKind:             strings.TrimSpace(target.TargetKind),
+		TargetRequirement:      trustpolicy.NormalizeExternalAnchorTargetRequirement(target.TargetRequirement),
+		TargetDescriptor:       cloneStringAnyMap(target.TargetDescriptor),
+		TargetDescriptorDigest: target.TargetDescriptorIdentity,
+	}
+}
+
+func externalAnchorPreparedTargetSetFromResolved(targets []externalAnchorResolvedTarget) []artifacts.ExternalAnchorPreparedTargetBinding {
+	if len(targets) == 0 {
+		return []artifacts.ExternalAnchorPreparedTargetBinding{}
+	}
+	out := make([]artifacts.ExternalAnchorPreparedTargetBinding, 0, len(targets))
+	for i := range targets {
+		out = append(out, externalAnchorPreparedTargetBindingFromResolved(targets[i]))
 	}
 	return out
 }

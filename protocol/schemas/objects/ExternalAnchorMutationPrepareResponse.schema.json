@@ -34,6 +34,10 @@
       "x-data-class": "public"
     },
     "typed_request_hash": { "$ref": "Digest.schema.json#/$defs/digestValue", "description": "Canonical hash identity of authoritative typed request.", "x-data-class": "public" },
-    "prepared": { "$ref": "ExternalAnchorMutationPreparedState.schema.json", "description": "Durable prepared mutation state record.", "x-data-class": "public" }
+    "prepared": {
+      "$ref": "ExternalAnchorMutationPreparedState.schema.json",
+      "description": "Durable prepared mutation state record.",
+      "x-data-class": "public"
+    }
   }
 }

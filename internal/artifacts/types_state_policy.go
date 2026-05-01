@@ -124,45 +124,56 @@ type GitRemotePreparedMutationRecord struct {
 }
 
 type ExternalAnchorPreparedMutationRecord struct {
-	PreparedMutationID           string         `json:"prepared_mutation_id"`
-	RunID                        string         `json:"run_id"`
-	DestinationRef               string         `json:"destination_ref"`
-	RequestKind                  string         `json:"request_kind"`
-	TypedRequestSchemaID         string         `json:"typed_request_schema_id"`
-	TypedRequestSchemaVer        string         `json:"typed_request_schema_version"`
-	TypedRequest                 map[string]any `json:"typed_request"`
-	TypedRequestHash             string         `json:"typed_request_hash"`
-	ActionRequestHash            string         `json:"action_request_hash"`
-	PolicyDecisionHash           string         `json:"policy_decision_hash"`
-	RequiredApprovalID           string         `json:"required_approval_id,omitempty"`
-	RequiredApprovalReqHash      string         `json:"required_approval_request_hash,omitempty"`
-	RequiredApprovalDecHash      string         `json:"required_approval_decision_hash,omitempty"`
-	LifecycleState               string         `json:"lifecycle_state"`
-	LifecycleReasonCode          string         `json:"lifecycle_reason_code,omitempty"`
-	ExecutionState               string         `json:"execution_state,omitempty"`
-	ExecutionReasonCode          string         `json:"execution_reason_code,omitempty"`
-	CreatedAt                    time.Time      `json:"created_at"`
-	UpdatedAt                    time.Time      `json:"updated_at"`
-	LastPrepareRequestID         string         `json:"last_prepare_request_id,omitempty"`
-	LastGetRequestID             string         `json:"last_get_request_id,omitempty"`
-	LastExecuteRequestID         string         `json:"last_execute_request_id,omitempty"`
-	LastExecuteTargetAuthLeaseID string         `json:"last_execute_target_auth_lease_id,omitempty"`
-	LastExecuteAttemptID         string         `json:"last_execute_attempt_id,omitempty"`
-	LastExecuteAttemptSealDigest string         `json:"last_execute_attempt_seal_digest,omitempty"`
-	LastExecuteAttemptTargetID   string         `json:"last_execute_attempt_target_descriptor_digest,omitempty"`
-	LastExecuteAttemptRequestID  string         `json:"last_execute_attempt_typed_request_hash,omitempty"`
-	LastExecuteSnapshotSegmentID string         `json:"last_execute_snapshot_segment_id,omitempty"`
-	LastExecuteSnapshotSealID    string         `json:"last_execute_snapshot_seal_digest,omitempty"`
-	LastExecuteDeferredPolls     int            `json:"last_execute_deferred_polls_remaining,omitempty"`
-	LastExecuteApprovalID        string         `json:"last_execute_approval_id,omitempty"`
-	LastExecuteApprovalReqID     string         `json:"last_execute_approval_request_hash,omitempty"`
-	LastExecuteApprovalDecID     string         `json:"last_execute_approval_decision_hash,omitempty"`
-	LastAnchorReceiptDigest      string         `json:"last_anchor_receipt_digest,omitempty"`
-	LastAnchorEvidenceDigest     string         `json:"last_anchor_evidence_digest,omitempty"`
-	LastAnchorVerificationDigest string         `json:"last_anchor_verification_digest,omitempty"`
-	LastAnchorProofDigest        string         `json:"last_anchor_proof_digest,omitempty"`
-	LastAnchorProviderReceipt    string         `json:"last_anchor_provider_receipt_digest,omitempty"`
-	LastAnchorTranscriptDigest   string         `json:"last_anchor_transcript_digest,omitempty"`
+	PreparedMutationID           string                                `json:"prepared_mutation_id"`
+	RunID                        string                                `json:"run_id"`
+	DestinationRef               string                                `json:"destination_ref"`
+	PrimaryTarget                ExternalAnchorPreparedTargetBinding   `json:"primary_target"`
+	TargetSet                    []ExternalAnchorPreparedTargetBinding `json:"target_set,omitempty"`
+	RequestKind                  string                                `json:"request_kind"`
+	TypedRequestSchemaID         string                                `json:"typed_request_schema_id"`
+	TypedRequestSchemaVer        string                                `json:"typed_request_schema_version"`
+	TypedRequest                 map[string]any                        `json:"typed_request"`
+	TypedRequestHash             string                                `json:"typed_request_hash"`
+	ActionRequestHash            string                                `json:"action_request_hash"`
+	PolicyDecisionHash           string                                `json:"policy_decision_hash"`
+	RequiredApprovalID           string                                `json:"required_approval_id,omitempty"`
+	RequiredApprovalReqHash      string                                `json:"required_approval_request_hash,omitempty"`
+	RequiredApprovalDecHash      string                                `json:"required_approval_decision_hash,omitempty"`
+	LifecycleState               string                                `json:"lifecycle_state"`
+	LifecycleReasonCode          string                                `json:"lifecycle_reason_code,omitempty"`
+	ExecutionState               string                                `json:"execution_state,omitempty"`
+	ExecutionReasonCode          string                                `json:"execution_reason_code,omitempty"`
+	CreatedAt                    time.Time                             `json:"created_at"`
+	UpdatedAt                    time.Time                             `json:"updated_at"`
+	LastPrepareRequestID         string                                `json:"last_prepare_request_id,omitempty"`
+	LastGetRequestID             string                                `json:"last_get_request_id,omitempty"`
+	LastExecuteRequestID         string                                `json:"last_execute_request_id,omitempty"`
+	LastExecuteTargetAuthLeaseID string                                `json:"last_execute_target_auth_lease_id,omitempty"`
+	LastExecuteAttemptID         string                                `json:"last_execute_attempt_id,omitempty"`
+	LastExecuteAttemptSealDigest string                                `json:"last_execute_attempt_seal_digest,omitempty"`
+	LastExecuteAttemptTargetID   string                                `json:"last_execute_attempt_target_descriptor_digest,omitempty"`
+	LastExecuteAttemptRequestID  string                                `json:"last_execute_attempt_typed_request_hash,omitempty"`
+	LastExecuteSnapshotSegmentID string                                `json:"last_execute_snapshot_segment_id,omitempty"`
+	LastExecuteSnapshotSealID    string                                `json:"last_execute_snapshot_seal_digest,omitempty"`
+	LastExecuteDeferredPolls     int                                   `json:"last_execute_deferred_polls_remaining,omitempty"`
+	LastExecuteDeferredClaimID   string                                `json:"last_execute_deferred_claim_id,omitempty"`
+	LastExecuteDeferredClaimedAt *time.Time                            `json:"last_execute_deferred_claimed_at,omitempty"`
+	LastExecuteApprovalID        string                                `json:"last_execute_approval_id,omitempty"`
+	LastExecuteApprovalReqID     string                                `json:"last_execute_approval_request_hash,omitempty"`
+	LastExecuteApprovalDecID     string                                `json:"last_execute_approval_decision_hash,omitempty"`
+	LastAnchorReceiptDigest      string                                `json:"last_anchor_receipt_digest,omitempty"`
+	LastAnchorEvidenceDigest     string                                `json:"last_anchor_evidence_digest,omitempty"`
+	LastAnchorVerificationDigest string                                `json:"last_anchor_verification_digest,omitempty"`
+	LastAnchorProofDigest        string                                `json:"last_anchor_proof_digest,omitempty"`
+	LastAnchorProviderReceipt    string                                `json:"last_anchor_provider_receipt_digest,omitempty"`
+	LastAnchorTranscriptDigest   string                                `json:"last_anchor_transcript_digest,omitempty"`
+}
+
+type ExternalAnchorPreparedTargetBinding struct {
+	TargetKind             string         `json:"target_kind"`
+	TargetRequirement      string         `json:"target_requirement,omitempty"`
+	TargetDescriptor       map[string]any `json:"target_descriptor"`
+	TargetDescriptorDigest string         `json:"target_descriptor_digest"`
 }
 
 type PromotionRequest struct {
@@ -203,51 +214,4 @@ type BackupManifest struct {
 	RunPlanAuthorities           []RunPlanAuthorityRecord                                        `json:"run_plan_authorities,omitempty"`
 	RunPlanCompilations          []RunPlanCompilationRecord                                      `json:"run_plan_compilations,omitempty"`
 	Runs                         map[string]string                                               `json:"runs"`
-}
-
-func DefaultPolicy() Policy {
-	return Policy{
-		HandOffReferenceMode:                "hash_only",
-		ReservedClassesEnabled:              false,
-		DependencyCachePolicy:               defaultDependencyCachePolicy(),
-		EncryptedAtRestDefault:              true,
-		DevPlaintextOverride:                false,
-		ExplicitHumanApprovalRequired:       true,
-		PromotionMintsNewArtifactReference:  true,
-		MaxPromotionRequestBytes:            1024 * 1024,
-		MaxPromotionRequestsPerMinute:       30,
-		BulkPromotionRequiresSeparateReview: true,
-		FlowMatrix: []FlowRule{
-			{ProducerRole: "workspace", ConsumerRole: "model_gateway", AllowedDataClasses: []DataClass{DataClassSpecText, DataClassApprovedFileExcerpts}},
-			{ProducerRole: "workspace", ConsumerRole: "auditd", AllowedDataClasses: []DataClass{DataClassAuditEvents, DataClassAuditVerificationReport, DataClassGateEvidence, DataClassBuildLogs, DataClassDiffs, DataClassSpecText, DataClassUnapprovedFileExcerpts, DataClassApprovedFileExcerpts}},
-			{ProducerRole: "dependency-fetch", ConsumerRole: "workspace", AllowedDataClasses: []DataClass{DataClassDependencyBatchManifest, DataClassDependencyResolvedUnit, DataClassDependencyPayloadUnit, DataClassDependencyMaterialized}},
-			{ProducerRole: "dependency-fetch", ConsumerRole: "workspace-edit", AllowedDataClasses: []DataClass{DataClassDependencyBatchManifest, DataClassDependencyResolvedUnit, DataClassDependencyPayloadUnit, DataClassDependencyMaterialized}},
-			{ProducerRole: "dependency-fetch", ConsumerRole: "workspace-test", AllowedDataClasses: []DataClass{DataClassDependencyBatchManifest, DataClassDependencyResolvedUnit, DataClassDependencyPayloadUnit, DataClassDependencyMaterialized}},
-		},
-		RevokedApprovedExcerptHashes: map[string]bool{},
-		PerRoleQuota: map[string]Quota{
-			"workspace":     {MaxArtifactCount: 4096, MaxTotalBytes: 512 * 1024 * 1024, MaxSingleArtifactSize: 64 * 1024 * 1024},
-			"model_gateway": {MaxArtifactCount: 4096, MaxTotalBytes: 512 * 1024 * 1024, MaxSingleArtifactSize: 64 * 1024 * 1024},
-		},
-		PerStepQuota:                   map[string]Quota{},
-		UnreferencedTTLSeconds:         7 * 24 * 3600,
-		DeleteOnQuotaPressure:          true,
-		RequireOriginMetadata:          []string{"repo_path", "commit", "extractor_tool_version"},
-		RequireFullContentVisibility:   true,
-		ApprovedExcerptEgressOptInOnly: true,
-		UnapprovedExcerptEgressDenied:  true,
-	}
-}
-
-func defaultDependencyCachePolicy() DependencyCachePolicy {
-	return DependencyCachePolicy{
-		ReadOnlyArtifactsRequired:            true,
-		BatchManifestImmutable:               true,
-		ResolvedUnitManifestImmutable:        true,
-		ResolvedPayloadImmutable:             true,
-		MaterializedTreesDerivedNonCanonical: true,
-		FailClosedOnAmbiguousPartialReuse:    true,
-		FailClosedOnIncompleteState:          true,
-		RetainCanonicalBeforeDerived:         true,
-	}
 }

@@ -667,12 +667,13 @@
     "externalAnchorTypedRequest": {
       "type": "object",
       "additionalProperties": false,
-      "maxProperties": 10,
+      "maxProperties": 11,
       "required": [
         "schema_id",
         "schema_version",
         "request_kind",
         "target_kind",
+        "target_descriptor",
         "target_descriptor_digest",
         "seal_digest",
         "outbound_payload_digest"
@@ -707,6 +708,13 @@
           "description": "Requirement posture for the primary target binding; defaults to required when omitted.",
           "x-data-class": "public"
         },
+        "target_descriptor": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 16,
+          "description": "Authoritative typed target descriptor object. Canonical descriptor digest is the target identity bound for approval, lease, and evidence.",
+          "x-data-class": "public"
+        },
         "target_descriptor_digest": {
           "$ref": "Digest.schema.json#/$defs/digestValue",
           "description": "Canonical target descriptor digest identity used by policy, approval, lease, and audit binding.",
@@ -721,7 +729,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "maxProperties": 3,
+            "maxProperties": 4,
             "required": ["target_kind", "target_descriptor_digest"],
             "properties": {
               "target_kind": {
@@ -735,6 +743,13 @@
               "target_descriptor_digest": {
                 "$ref": "Digest.schema.json#/$defs/digestValue",
                 "description": "Canonical target descriptor digest identity for this target-set entry.",
+                "x-data-class": "public"
+              },
+              "target_descriptor": {
+                "type": "object",
+                "minProperties": 1,
+                "maxProperties": 16,
+                "description": "Authoritative typed target descriptor for this target-set entry.",
                 "x-data-class": "public"
               },
               "target_requirement": {

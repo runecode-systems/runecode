@@ -42,40 +42,31 @@ func externalAnchorReceiptVerificationInputs(record artifacts.ExternalAnchorPrep
 	if err != nil {
 		return externalAnchorReceiptInputs{}, err
 	}
-	targetDigest, _, err := externalAnchorCanonicalTargetDigest(record.TypedRequest)
+	primaryTarget, err := externalAnchorResolvedPrimaryTargetFromPreparedRecord(record)
 	if err != nil {
 		return externalAnchorReceiptInputs{}, err
 	}
 	return externalAnchorReceiptInputs{
 		sealDigest:     sealDigest,
-		receiptPayload: externalAnchorReceiptPayload(record, targetDigest, proofDigest),
+		receiptPayload: externalAnchorReceiptPayload(primaryTarget, proofDigest),
 	}, nil
 }
 
-func externalAnchorReceiptPayload(record artifacts.ExternalAnchorPreparedMutationRecord, targetDigest, proofDigest trustpolicy.Digest) map[string]any {
-	targetKind := strings.TrimSpace(stringField(record.TypedRequest, "target_kind"))
+func externalAnchorReceiptPayload(primaryTarget externalAnchorResolvedTarget, proofDigest trustpolicy.Digest) map[string]any {
 	return map[string]any{
-		"anchor_kind": externalAnchorReceiptKind(targetKind),
+		"anchor_kind": primaryTarget.ReceiptKind,
 		"external_anchor": map[string]any{
-			"target_kind":              targetKind,
-			"runtime_adapter":          "transparency_log_v0",
-			"target_descriptor":        externalAnchorReceiptTargetDescriptor(record),
-			"target_descriptor_digest": targetDigest,
+			"target_kind":              primaryTarget.TargetKind,
+			"runtime_adapter":          primaryTarget.RuntimeAdapter,
+			"target_descriptor":        cloneStringAnyMap(primaryTarget.TargetDescriptor),
+			"target_descriptor_digest": primaryTarget.TargetDescriptorDigest,
 			"proof": map[string]any{
-				"proof_kind":      externalAnchorProofKindForTargetKind(targetKind),
-				"proof_schema_id": externalAnchorProofSchemaForTargetKind(targetKind),
+				"proof_kind":      primaryTarget.ProofKind,
+				"proof_schema_id": primaryTarget.ProofSchemaID,
 				"proof_digest":    proofDigest,
 			},
 		},
 	}
-}
-
-func externalAnchorReceiptTargetDescriptor(record artifacts.ExternalAnchorPreparedMutationRecord) map[string]any {
-	targetDescriptor := map[string]any{"descriptor_schema_id": "runecode.protocol.audit.anchor_target.transparency_log.v0", "log_id": "external-log", "log_public_key_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("a", 64)}, "entry_encoding_profile": "jcs_v1"}
-	if raw, ok := record.TypedRequest["target_descriptor"].(map[string]any); ok && len(raw) > 0 {
-		return cloneStringAnyMap(raw)
-	}
-	return targetDescriptor
 }
 
 func (s *Service) verifyPersistedExternalAnchorReceipt(receiptDigest trustpolicy.Digest, record artifacts.ExternalAnchorPreparedMutationRecord, verifier trustpolicy.VerifierRecord) (trustpolicy.Digest, trustpolicy.Digest, error) {
@@ -182,37 +173,4 @@ func shouldSkipExternalAnchorVerification(err error) bool {
 	return strings.Contains(msg, "no sealed segment available for verification") ||
 		strings.Contains(msg, "missing event contract catalog") ||
 		strings.Contains(msg, "missing verifier records")
-}
-
-func externalAnchorReceiptKind(targetKind string) string {
-	switch strings.TrimSpace(targetKind) {
-	case "timestamp_authority":
-		return "external_timestamp_authority_v0"
-	case "public_chain":
-		return "external_public_chain_v0"
-	default:
-		return "external_transparency_log_v0"
-	}
-}
-
-func externalAnchorProofKindForTargetKind(targetKind string) string {
-	switch strings.TrimSpace(targetKind) {
-	case "timestamp_authority":
-		return "timestamp_token_v0"
-	case "public_chain":
-		return "public_chain_tx_receipt_v0"
-	default:
-		return "transparency_log_receipt_v0"
-	}
-}
-
-func externalAnchorProofSchemaForTargetKind(targetKind string) string {
-	switch strings.TrimSpace(targetKind) {
-	case "timestamp_authority":
-		return "runecode.protocol.audit.anchor_proof.timestamp_token.v0"
-	case "public_chain":
-		return "runecode.protocol.audit.anchor_proof.public_chain_tx_receipt.v0"
-	default:
-		return "runecode.protocol.audit.anchor_proof.transparency_log_receipt.v0"
-	}
 }

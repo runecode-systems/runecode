@@ -6,6 +6,42 @@
   "execution_pathway": "non_workspace_gateway",
   "anchor_posture": "external_execute_completed",
   "destination_ref": "sha256/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "primary_target": {
+    "target_kind": "transparency_log",
+    "target_requirement": "required",
+    "target_descriptor": {
+      "descriptor_schema_id": "runecode.protocol.audit.anchor_target.transparency_log.v0",
+      "log_id": "fixture-transparency-log",
+      "log_public_key_digest": {
+        "hash_alg": "sha256",
+        "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "entry_encoding_profile": "jcs_v1"
+    },
+    "target_descriptor_digest": {
+      "hash_alg": "sha256",
+      "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "target_set": [
+    {
+      "target_kind": "transparency_log",
+      "target_requirement": "required",
+      "target_descriptor": {
+        "descriptor_schema_id": "runecode.protocol.audit.anchor_target.transparency_log.v0",
+        "log_id": "fixture-transparency-log",
+        "log_public_key_digest": {
+          "hash_alg": "sha256",
+          "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        },
+        "entry_encoding_profile": "jcs_v1"
+      },
+      "target_descriptor_digest": {
+        "hash_alg": "sha256",
+        "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ],
   "request_kind": "external_anchor_submit_v0",
   "typed_request_schema_id": "runecode.protocol.v0.ExternalAnchorSubmitRequest",
   "typed_request_schema_version": "0.1.0",
@@ -14,10 +50,38 @@
     "schema_version": "0.1.0",
     "request_kind": "external_anchor_submit_v0",
     "target_kind": "transparency_log",
+    "target_descriptor": {
+      "descriptor_schema_id": "runecode.protocol.audit.anchor_target.transparency_log.v0",
+      "log_id": "fixture-transparency-log",
+      "log_public_key_digest": {
+        "hash_alg": "sha256",
+        "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "entry_encoding_profile": "jcs_v1"
+    },
     "target_descriptor_digest": {
       "hash_alg": "sha256",
       "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     },
+    "target_set": [
+      {
+        "target_kind": "transparency_log",
+        "target_requirement": "required",
+        "target_descriptor": {
+          "descriptor_schema_id": "runecode.protocol.audit.anchor_target.transparency_log.v0",
+          "log_id": "fixture-transparency-log",
+          "log_public_key_digest": {
+            "hash_alg": "sha256",
+            "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+          },
+          "entry_encoding_profile": "jcs_v1"
+        },
+        "target_descriptor_digest": {
+          "hash_alg": "sha256",
+          "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    ],
     "seal_digest": {
       "hash_alg": "sha256",
       "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"

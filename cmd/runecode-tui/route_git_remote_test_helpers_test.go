@@ -277,18 +277,37 @@ func fakePreparedExternalAnchorMutationState(preparedID string) brokerapi.Extern
 	decisionHash := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("3", 64)}
 	approvalRequest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("4", 64)}
 	approvalDecision := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("5", 64)}
+	targetDigest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("2", 64)}
+	targetDescriptor := map[string]any{
+		"descriptor_schema_id":   "runecode.protocol.audit.anchor_target.transparency_log.v0",
+		"log_id":                 "ui-test-log",
+		"log_public_key_digest":  map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("d", 64)},
+		"entry_encoding_profile": "jcs_v1",
+	}
 	return brokerapi.ExternalAnchorMutationPreparedState{
-		SchemaID:                     "runecode.protocol.v0.ExternalAnchorMutationPreparedState",
-		SchemaVersion:                "0.1.0",
-		PreparedMutationID:           preparedID,
-		RunID:                        "run-1",
-		ExecutionPathway:             "non_workspace_gateway",
-		AnchorPosture:                "external_configured_not_run",
-		DestinationRef:               "sha256/" + strings.Repeat("2", 64),
-		RequestKind:                  "external_anchor_submit_v0",
-		TypedRequestSchemaID:         "runecode.protocol.v0.ExternalAnchorSubmitRequest",
-		TypedRequestSchemaVersion:    "0.1.0",
-		TypedRequest:                 map[string]any{"schema_id": "runecode.protocol.v0.ExternalAnchorSubmitRequest", "schema_version": "0.1.0", "request_kind": "external_anchor_submit_v0", "target_kind": "transparency_log"},
+		SchemaID:                  "runecode.protocol.v0.ExternalAnchorMutationPreparedState",
+		SchemaVersion:             "0.1.0",
+		PreparedMutationID:        preparedID,
+		RunID:                     "run-1",
+		ExecutionPathway:          "non_workspace_gateway",
+		AnchorPosture:             "external_configured_not_run",
+		DestinationRef:            "sha256/" + strings.Repeat("2", 64),
+		PrimaryTarget:             brokerapi.ExternalAnchorMutationPreparedTarget{TargetKind: "transparency_log", TargetRequirement: "required", TargetDescriptor: targetDescriptor, TargetDescriptorDigest: targetDigest},
+		TargetSet:                 []brokerapi.ExternalAnchorMutationPreparedTarget{{TargetKind: "transparency_log", TargetRequirement: "required", TargetDescriptor: targetDescriptor, TargetDescriptorDigest: targetDigest}},
+		RequestKind:               "external_anchor_submit_v0",
+		TypedRequestSchemaID:      "runecode.protocol.v0.ExternalAnchorSubmitRequest",
+		TypedRequestSchemaVersion: "0.1.0",
+		TypedRequest: map[string]any{
+			"schema_id":                "runecode.protocol.v0.ExternalAnchorSubmitRequest",
+			"schema_version":           "0.1.0",
+			"request_kind":             "external_anchor_submit_v0",
+			"target_kind":              "transparency_log",
+			"target_descriptor":        targetDescriptor,
+			"target_descriptor_digest": targetDigest,
+			"target_set":               []any{map[string]any{"target_kind": "transparency_log", "target_requirement": "required", "target_descriptor": targetDescriptor, "target_descriptor_digest": targetDigest}},
+			"seal_digest":              trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("6", 64)},
+			"outbound_payload_digest":  trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("7", 64)},
+		},
 		TypedRequestHash:             requestHash,
 		ActionRequestHash:            actionHash,
 		PolicyDecisionHash:           decisionHash,

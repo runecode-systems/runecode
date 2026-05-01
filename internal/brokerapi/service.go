@@ -87,6 +87,7 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 	if err := svc.reloadProviderDurableState(); err != nil {
 		return nil, err
 	}
+	svc.resumeDeferredExternalAnchorExecutionsFromDurableState()
 	return svc, nil
 }
 

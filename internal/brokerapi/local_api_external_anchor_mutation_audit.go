@@ -98,7 +98,7 @@ func (s *Service) buildExternalAnchorEvidenceRequest(record artifacts.ExternalAn
 		RunID:                    strings.TrimSpace(record.RunID),
 		PreparedMutationID:       strings.TrimSpace(record.PreparedMutationID),
 		ExecutionAttemptID:       strings.TrimSpace(record.LastExecuteAttemptID),
-		CanonicalTargetKind:      core.TargetKind,
+		CanonicalTargetKind:      core.PrimaryTarget.TargetKind,
 		CanonicalTargetDigest:    core.TargetDigest,
 		CanonicalTargetIdentity:  core.TargetIdentity,
 		TargetRequirement:        core.TargetRequirement,
@@ -120,15 +120,16 @@ func (s *Service) buildExternalAnchorEvidenceRequest(record artifacts.ExternalAn
 		AttestationEvidenceRef:   attestationDigest,
 		ProjectContextIdentity:   projectContextDigest,
 		ProofDigest:              proofDigest,
-		ProofKind:                externalAnchorProofKindForTargetKind(core.TargetKind),
-		ProofSchemaID:            externalAnchorProofSchemaForTargetKind(core.TargetKind),
+		ProofKind:                core.PrimaryTarget.ProofKind,
+		ProofSchemaID:            core.PrimaryTarget.ProofSchemaID,
 		ProviderReceiptDigest:    providerReceiptDigest,
 		VerificationTranscriptID: transcriptDigest,
 	}, nil
 }
 
 type externalAnchorEvidenceRequestCoreFields struct {
-	TargetKind        string
+	PrimaryTarget     externalAnchorResolvedTarget
+	TargetSet         []externalAnchorResolvedTarget
 	TargetIdentity    string
 	TargetRequirement string
 	TargetDigest      trustpolicy.Digest
@@ -138,10 +139,12 @@ type externalAnchorEvidenceRequestCoreFields struct {
 }
 
 func externalAnchorEvidenceRequestCore(record artifacts.ExternalAnchorPreparedMutationRecord) (externalAnchorEvidenceRequestCoreFields, error) {
-	targetDigest, targetIdentity, err := externalAnchorCanonicalTargetDigest(record.TypedRequest)
+	primaryTarget, targetSet, err := externalAnchorResolvedTargetsFromPreparedRecord(record)
 	if err != nil {
 		return externalAnchorEvidenceRequestCoreFields{}, err
 	}
+	targetDigest := primaryTarget.TargetDescriptorDigest
+	targetIdentity := primaryTarget.TargetDescriptorIdentity
 	sealDigest, _, err := externalAnchorSealDigest(record.TypedRequest)
 	if err != nil {
 		return externalAnchorEvidenceRequestCoreFields{}, err
@@ -150,7 +153,16 @@ func externalAnchorEvidenceRequestCore(record artifacts.ExternalAnchorPreparedMu
 	if err != nil {
 		return externalAnchorEvidenceRequestCoreFields{}, err
 	}
-	return externalAnchorEvidenceRequestCoreFields{TargetKind: strings.TrimSpace(stringField(record.TypedRequest, "target_kind")), TargetIdentity: targetIdentity, TargetRequirement: strings.TrimSpace(stringField(record.TypedRequest, "target_requirement")), TargetDigest: targetDigest, SealDigest: sealDigest, OutboundDigest: outbound, OutboundBytes: int64(intField(record.TypedRequest, "outbound_bytes"))}, nil
+	return externalAnchorEvidenceRequestCoreFields{
+		PrimaryTarget:     primaryTarget,
+		TargetSet:         targetSet,
+		TargetIdentity:    targetIdentity,
+		TargetRequirement: primaryTarget.TargetRequirement,
+		TargetDigest:      targetDigest,
+		SealDigest:        sealDigest,
+		OutboundDigest:    outbound,
+		OutboundBytes:     int64(intField(record.TypedRequest, "outbound_bytes")),
+	}, nil
 }
 
 func (s *Service) externalAnchorEvidenceOptionalRefs(runID string) (*trustpolicy.Digest, *trustpolicy.Digest) {
@@ -196,38 +208,37 @@ func mustDigestPtr(identity string) *trustpolicy.Digest {
 }
 
 func (s *Service) persistExternalAnchorProofSidecars(record artifacts.ExternalAnchorPreparedMutationRecord) (trustpolicy.Digest, *trustpolicy.Digest, *trustpolicy.Digest, error) {
-	proofPayload := map[string]any{
-		"schema_id":                "runecode.protocol.audit.anchor_proof.transparency_log_receipt.v0",
-		"schema_version":           "0.1.0",
-		"prepared_mutation_id":     strings.TrimSpace(record.PreparedMutationID),
-		"execution_attempt_id":     strings.TrimSpace(record.LastExecuteAttemptID),
-		"target_descriptor_digest": record.TypedRequest["target_descriptor_digest"],
-		"seal_digest":              record.TypedRequest["seal_digest"],
-		"outbound_payload_digest":  record.TypedRequest["outbound_payload_digest"],
+	primaryTarget, targetSet, err := externalAnchorResolvedTargetsFromPreparedRecord(record)
+	if err != nil {
+		return trustpolicy.Digest{}, nil, nil, err
 	}
+	proofPayload := externalAnchorProofSidecarPayload(record, primaryTarget, targetSet)
 	proofDigest, err := s.auditLedger.PersistExternalAnchorSidecar(trustpolicy.ExternalAnchorSidecarKindProofBytes, proofPayload)
 	if err != nil {
 		return trustpolicy.Digest{}, nil, nil, err
 	}
-	providerPayload := map[string]any{
-		"schema_id":             "runecode.protocol.audit.anchor_provider_receipt.v0",
-		"schema_version":        "0.1.0",
-		"execution_state":       strings.TrimSpace(record.ExecutionState),
-		"execution_reason_code": strings.TrimSpace(record.ExecutionReasonCode),
-	}
+	providerPayload := externalAnchorProviderReceiptSidecarPayload(record, primaryTarget)
 	providerDigest, err := s.auditLedger.PersistExternalAnchorSidecar(trustpolicy.ExternalAnchorSidecarKindProviderReceipt, providerPayload)
 	if err != nil {
 		return trustpolicy.Digest{}, nil, nil, err
 	}
-	transcriptPayload := map[string]any{
-		"schema_id":           "runecode.protocol.audit.anchor_verification_transcript.v0",
-		"schema_version":      "0.1.0",
-		"checked_bindings":    []string{"seal_digest", "target_descriptor_digest", "typed_request_hash", "approval", "lease"},
-		"verification_result": strings.TrimSpace(record.ExecutionState),
-	}
+	transcriptPayload := externalAnchorVerificationTranscriptSidecarPayload(record, primaryTarget)
 	transcriptDigest, err := s.auditLedger.PersistExternalAnchorSidecar(trustpolicy.ExternalAnchorSidecarKindVerifyTranscript, transcriptPayload)
 	if err != nil {
 		return trustpolicy.Digest{}, nil, nil, err
 	}
 	return proofDigest, &providerDigest, &transcriptDigest, nil
+}
+
+func externalAnchorProofSidecarTargetSet(targets []externalAnchorResolvedTarget) []map[string]any {
+	out := make([]map[string]any, 0, len(targets))
+	for i := range targets {
+		out = append(out, map[string]any{
+			"target_kind":              targets[i].TargetKind,
+			"target_requirement":       targets[i].TargetRequirement,
+			"target_descriptor":        cloneStringAnyMap(targets[i].TargetDescriptor),
+			"target_descriptor_digest": targets[i].TargetDescriptorDigest,
+		})
+	}
+	return out
 }

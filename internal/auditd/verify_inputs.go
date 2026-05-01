@@ -18,6 +18,13 @@ type verificationInputs struct {
 	externalAnchorSidecars []trustpolicy.Digest
 }
 
+type sealScopedVerificationInputs struct {
+	receipts                []trustpolicy.SignedObjectEnvelope
+	externalAnchorEvidence  []trustpolicy.ExternalAnchorEvidencePayload
+	externalAnchorSidecars  []trustpolicy.Digest
+	externalAnchorTargetSet []trustpolicy.ExternalAnchorVerificationTarget
+}
+
 func (l *Ledger) loadVerificationInputsLocked() (verificationInputs, error) {
 	contractsDir := filepath.Join(l.rootDir, "contracts")
 	if err := requireVerificationContractFiles(contractsDir); err != nil {
@@ -65,6 +72,19 @@ func (l *Ledger) loadVerificationDurableInputsLocked(inputs *verificationInputs)
 	inputs.externalAnchorEvidence = externalEvidence
 	inputs.externalAnchorSidecars = externalSidecars
 	return nil
+}
+
+func (l *Ledger) loadSealScopedVerificationDurableInputsLocked(segmentID string, sealDigest trustpolicy.Digest) (sealScopedVerificationInputs, error) {
+	receipts, externalEvidence, externalSidecars, targetSet, err := l.loadSealScopedDurableVerificationInputsLocked(segmentID, sealDigest)
+	if err != nil {
+		return sealScopedVerificationInputs{}, err
+	}
+	return sealScopedVerificationInputs{
+		receipts:                receipts,
+		externalAnchorEvidence:  externalEvidence,
+		externalAnchorSidecars:  externalSidecars,
+		externalAnchorTargetSet: targetSet,
+	}, nil
 }
 
 func requireVerificationContractFiles(contractsDir string) error {

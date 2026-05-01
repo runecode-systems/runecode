@@ -160,11 +160,18 @@ func validExternalAnchorSubmitActionRequest(capabilityID string, destinationRef 
 }
 
 func validExternalAnchorSubmitRequest(targetDescriptorDigest string) map[string]any {
+	targetDescriptor := map[string]any{
+		"descriptor_schema_id":   "runecode.protocol.audit.anchor_target.transparency_log.v0",
+		"log_id":                 "policyengine-test-log",
+		"log_public_key_digest":  mustDigestObject("sha256:" + strings.Repeat("d", 64)),
+		"entry_encoding_profile": "jcs_v1",
+	}
 	return map[string]any{
 		"schema_id":                "runecode.protocol.v0.ExternalAnchorSubmitRequest",
 		"schema_version":           "0.1.0",
 		"request_kind":             "external_anchor_submit_v0",
 		"target_kind":              "transparency_log",
+		"target_descriptor":        targetDescriptor,
 		"target_descriptor_digest": mustDigestObject(targetDescriptorDigest),
 		"seal_digest":              mustDigestObject("sha256:" + strings.Repeat("1", 64)),
 		"outbound_payload_digest":  mustDigestObject("sha256:" + strings.Repeat("2", 64)),

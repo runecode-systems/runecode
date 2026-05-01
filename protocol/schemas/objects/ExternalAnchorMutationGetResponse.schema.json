@@ -23,6 +23,10 @@
       "description": "Stable request correlation identifier echoed from request.",
       "x-data-class": "public"
     },
-    "prepared": { "$ref": "ExternalAnchorMutationPreparedState.schema.json", "description": "Durable prepared mutation state record.", "x-data-class": "public" }
+    "prepared": {
+      "$ref": "ExternalAnchorMutationPreparedState.schema.json",
+      "description": "Durable prepared mutation state record.",
+      "x-data-class": "public"
+    }
   }
 }

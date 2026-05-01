@@ -39,6 +39,10 @@
       "description": "Execution posture result after execute handling.",
       "x-data-class": "public"
     },
-    "prepared": { "$ref": "ExternalAnchorMutationPreparedState.schema.json", "description": "Updated durable prepared mutation state record.", "x-data-class": "public" }
+    "prepared": {
+      "$ref": "ExternalAnchorMutationPreparedState.schema.json",
+      "description": "Updated durable prepared mutation state record.",
+      "x-data-class": "public"
+    }
   }
 }

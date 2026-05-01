@@ -183,16 +183,12 @@ func (s *Service) verifyExternalAnchorStoredTypedRequestHash(requestID string, r
 }
 
 func (s *Service) verifyExternalAnchorExecuteTargetIdentityBinding(requestID string, record artifacts.ExternalAnchorPreparedMutationRecord) *ErrorResponse {
-	targetDigest, targetDigestIdentity, err := externalAnchorCanonicalTargetDigest(record.TypedRequest)
+	primaryTarget, err := externalAnchorResolvedPrimaryTargetFromPreparedRecord(record)
 	if err != nil {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "stored typed request target descriptor digest is invalid")
 		return &errOut
 	}
-	if _, err := targetDigest.Identity(); err != nil {
-		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "stored typed request target descriptor digest is invalid")
-		return &errOut
-	}
-	wantDestinationRef := externalAnchorDestinationRefFromTargetDescriptorDigest(targetDigestIdentity)
+	wantDestinationRef := externalAnchorDestinationRefFromTargetDescriptorDigest(primaryTarget.TargetDescriptorIdentity)
 	if strings.TrimSpace(wantDestinationRef) == "" || strings.TrimSpace(wantDestinationRef) != strings.TrimSpace(record.DestinationRef) {
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "stored typed request target descriptor identity no longer matches prepared destination binding")
 		return &errOut

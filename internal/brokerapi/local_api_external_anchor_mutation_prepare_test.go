@@ -47,11 +47,12 @@ func TestExternalAnchorMutationPrepareFailsClosedWhenTargetDescriptorDigestNotAl
 func TestExternalAnchorMutationPrepareUsesCanonicalTargetDescriptorDigestIdentity(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	runID := "run-anchor-canonical-target"
-	targetDigest := "sha256:" + strings.Repeat("d", 64)
-	putTrustedExternalAnchorGatewayContextForRun(t, s, runID, targetDigest)
+	targetSeed := "sha256:" + strings.Repeat("d", 64)
+	putTrustedExternalAnchorGatewayContextForRun(t, s, runID, targetSeed)
 
-	resp := mustPrepareExternalAnchorMutation(t, s, runID, "req-anchor-prepare-canonical-target", targetDigest, 0)
-	wantDestinationRef := "sha256/" + strings.TrimPrefix(targetDigest, "sha256:")
+	resp := mustPrepareExternalAnchorMutation(t, s, runID, "req-anchor-prepare-canonical-target", targetSeed, 0)
+	primaryDigestIdentity, _ := resp.Prepared.PrimaryTarget.TargetDescriptorDigest.Identity()
+	wantDestinationRef := "sha256/" + strings.TrimPrefix(primaryDigestIdentity, "sha256:")
 	if resp.Prepared.DestinationRef != wantDestinationRef {
 		t.Fatalf("prepared.destination_ref=%q, want %q", resp.Prepared.DestinationRef, wantDestinationRef)
 	}
@@ -75,12 +76,27 @@ func putTrustedExternalAnchorGatewayContextForRun(t *testing.T, s *Service, runI
 	if err := putTrustedVerifierRecordForService(s, verifier); err != nil {
 		t.Fatalf("putTrustedVerifierRecordForService returned error: %v", err)
 	}
-	allowlistEntry := trustedExternalAnchorGatewayAllowlistEntry(targetDescriptorDigest)
+	canonicalTargetDigest := trustedExternalAnchorTargetDescriptorDigest(targetDescriptorDigest)
+	allowlistEntry := trustedExternalAnchorGatewayAllowlistEntry(canonicalTargetDigest)
 	allowlistDigest := putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindPolicyAllowlist, trustedPolicyAllowlistPayloadWithEntries(t, []any{allowlistEntry}))
 	rolePayload := signedPayloadForTrustedContext(t, map[string]any{"schema_id": "runecode.protocol.v0.RoleManifest", "schema_version": "0.2.0", "principal": signedContextPrincipal("gateway", "git-gateway", runID, ""), "role_family": "gateway", "role_kind": "git-gateway", "approval_profile": "moderate", "capability_opt_ins": []any{"cap_external_anchor"}, "allowlist_refs": []any{digestObject(allowlistDigest)}}, verifier, privateKey)
 	runPayload := signedPayloadForTrustedContext(t, map[string]any{"schema_id": "runecode.protocol.v0.CapabilityManifest", "schema_version": "0.2.0", "principal": signedContextPrincipal("gateway", "git-gateway", runID, ""), "manifest_scope": "run", "run_id": runID, "approval_profile": "moderate", "capability_opt_ins": []any{"cap_external_anchor"}, "allowlist_refs": []any{digestObject(allowlistDigest)}}, verifier, privateKey)
 	putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindRoleManifest, rolePayload)
 	putTrustedPolicyArtifact(t, s, runID, artifacts.TrustedContractImportKindRunCapability, runPayload)
+}
+
+func trustedExternalAnchorTargetDescriptorDigest(seed string) string {
+	descriptor := map[string]any{
+		"descriptor_schema_id":   "runecode.protocol.audit.anchor_target.transparency_log.v0",
+		"log_id":                 "transparency-log-" + strings.TrimSpace(seed),
+		"log_public_key_digest":  digestObject("sha256:" + strings.Repeat("d", 64)),
+		"entry_encoding_profile": "jcs_v1",
+	}
+	identity, err := externalAnchorCanonicalDescriptorDigestIdentity(descriptor)
+	if err != nil {
+		panic(err)
+	}
+	return identity
 }
 
 func trustedExternalAnchorGatewayAllowlistEntry(targetDescriptorDigest string) map[string]any {
@@ -142,14 +158,31 @@ func trustedPrefixRefPolicy(prefix string) map[string]any {
 }
 
 func trustedExternalAnchorTypedRequest(targetDescriptorDigest string) map[string]any {
+	descriptor := map[string]any{
+		"descriptor_schema_id":   "runecode.protocol.audit.anchor_target.transparency_log.v0",
+		"log_id":                 "transparency-log-" + strings.TrimSpace(targetDescriptorDigest),
+		"log_public_key_digest":  digestObject("sha256:" + strings.Repeat("d", 64)),
+		"entry_encoding_profile": "jcs_v1",
+	}
+	canonicalDigest, err := externalAnchorCanonicalDescriptorDigestIdentity(descriptor)
+	if err != nil {
+		panic(err)
+	}
 	return map[string]any{
 		"schema_id":                "runecode.protocol.v0.ExternalAnchorSubmitRequest",
 		"schema_version":           "0.1.0",
 		"request_kind":             "external_anchor_submit_v0",
 		"target_kind":              "transparency_log",
-		"target_descriptor_digest": digestObject(targetDescriptorDigest),
-		"seal_digest":              digestObject("sha256:" + strings.Repeat("1", 64)),
-		"outbound_payload_digest":  digestObject("sha256:" + strings.Repeat("2", 64)),
+		"target_descriptor":        descriptor,
+		"target_descriptor_digest": digestObject(canonicalDigest),
+		"target_set": []any{map[string]any{
+			"target_kind":              "transparency_log",
+			"target_requirement":       "required",
+			"target_descriptor":        descriptor,
+			"target_descriptor_digest": digestObject(canonicalDigest),
+		}},
+		"seal_digest":             digestObject("sha256:" + strings.Repeat("1", 64)),
+		"outbound_payload_digest": digestObject("sha256:" + strings.Repeat("2", 64)),
 	}
 }
 

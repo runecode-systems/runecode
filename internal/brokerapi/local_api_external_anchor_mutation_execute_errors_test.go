@@ -32,11 +32,13 @@ func TestExternalAnchorMutationExecuteFailsClosedWhenStoredTypedRequestHashDrift
 func TestExternalAnchorMutationExecuteFailsClosedOnTargetIdentityBindingDrift(t *testing.T) {
 	s, preparedID, approvalID, requestDigest, decisionDigest, leaseID := prepareExternalAnchorExecuteFixture(t, "run-anchor-execute-target-drift", "sha256:"+strings.Repeat("9", 64))
 	tamperExternalAnchorPreparedRecord(t, s, preparedID, func(rec *artifacts.ExternalAnchorPreparedMutationRecord) {
-		rec.TypedRequest["target_descriptor_digest"] = digestObject("sha256:" + strings.Repeat("f", 64))
-		rec.TypedRequestHash = mustCanonicalExternalAnchorTypedRequestHash(t, rec.TypedRequest)
+		rec.PrimaryTarget.TargetDescriptorDigest = "sha256:" + strings.Repeat("f", 64)
+		if len(rec.TargetSet) > 0 {
+			rec.TargetSet[0].TargetDescriptorDigest = "sha256:" + strings.Repeat("f", 64)
+		}
 	})
 	errResp := executeExternalAnchorMutationError(t, s, preparedID, approvalID, requestDigest, decisionDigest, leaseID, "req-anchor-execute-target-drift")
-	assertExternalAnchorExecuteError(t, errResp, "broker_approval_state_invalid", "target descriptor identity")
+	assertExternalAnchorExecuteError(t, errResp, "broker_approval_state_invalid", "target descriptor digest is invalid")
 }
 
 func TestExternalAnchorMutationExecuteRequiresValidTargetAuthLeasePosture(t *testing.T) {
