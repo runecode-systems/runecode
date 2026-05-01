@@ -77,29 +77,9 @@ func TestBackendLaunchSpecAcceptsPlatformMVPAccelerationAndTransport(t *testing.
 }
 
 func TestContainerLaunchSpecRejectsMicroVMSpecificAccelerationAndTransportFields(t *testing.T) {
-	spec := validMicroVMSpecForContractTests()
-	spec.RequestedBackend = BackendKindContainer
+	spec := validContainerSpecForContractTests()
 	spec.RequestedAccelerationKind = AccelerationKindKVM
 	spec.ControlTransportKind = TransportKindVSock
-	spec.Image = RuntimeImageDescriptor{
-		BackendKind:           BackendKindContainer,
-		PlatformCompatibility: RuntimeImagePlatformCompat{OS: "linux", Architecture: "amd64"},
-		BootContractVersion:   BootProfileContainerOCIImageV1,
-		ComponentDigests:      map[string]string{"image": testDigest("8")},
-	}
-	digest, err := spec.Image.ExpectedDescriptorDigest()
-	if err != nil {
-		t.Fatalf("ExpectedDescriptorDigest returned error: %v", err)
-	}
-	spec.Image.DescriptorDigest = digest
-	spec.Image.Signing = &RuntimeImageSigningHooks{
-		PayloadSchemaID:      RuntimeImageSignedPayloadSchemaID,
-		PayloadSchemaVersion: RuntimeImageSignedPayloadSchemaVersion,
-		PayloadDigest:        digest,
-		SignerRef:            "signer:runtime-image",
-		SignatureDigest:      testDigest("9"),
-		VerifierSetRef:       testDigest("a"),
-	}
 	if err := spec.Validate(); err == nil {
 		t.Fatal("Validate expected container rejection for non-empty acceleration/transport")
 	}

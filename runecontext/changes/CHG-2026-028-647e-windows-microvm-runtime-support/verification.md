@@ -11,6 +11,8 @@
 - Confirm the migrated text assumes RuneContext is canonical, RuneCode owns the user-facing UX, and verified-mode project state remains the expected operating posture.
 - Confirm the change still matches its v0.2 roadmap bucket and title after migration.
 - Confirm Windows runtime support now explicitly inherits the shared signed runtime-asset, boot-profile, trusted-admission, and verified-cache model rather than implying a Windows-specific signing or asset-admission path.
+- Confirm Windows runtime support explicitly inherits the same required-attestation supported posture as Linux rather than implying a Windows-specific TOFU allowance or downgrade path.
+- Confirm Windows-specific prerequisite or capability failures fail closed rather than enabling a supported TOFU fallback.
 - Confirm Windows service and named-pipe realization preserve one repo-scoped product instance per authoritative repository root rather than turning service state or pipe identity into product identity.
 - Confirm broker-owned product lifecycle posture remains the operator-facing truth on Windows rather than OS service state or pipe reachability.
 - Confirm canonical `runecode` attach/start/status/stop/restart semantics remain unchanged above Windows-specific service and IPC realization details.

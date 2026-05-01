@@ -98,6 +98,10 @@ func (s *Service) prepareLocalRequest(reqID, fallbackReqID string, admissionErr 
 		err := s.makeError(defaultRequestIDFallback, "broker_validation_request_id_missing", "validation", false, "request_id is required")
 		return "", &err
 	}
+	if err := s.SyncExternalStoreState(); err != nil {
+		errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, sanitizeStoreSyncErrorMessage(err))
+		return "", &errOut
+	}
 	if errResp := s.enforceProjectSubstrateGate(requestID, schemaPath); errResp != nil {
 		return "", errResp
 	}
@@ -106,4 +110,11 @@ func (s *Service) prepareLocalRequest(reqID, fallbackReqID string, admissionErr 
 		return "", &errOut
 	}
 	return requestID, nil
+}
+
+func sanitizeStoreSyncErrorMessage(err error) string {
+	if err == nil {
+		return "store synchronization failed"
+	}
+	return "store synchronization failed"
 }

@@ -9,7 +9,7 @@ import (
 )
 
 func renderRunSafetyStrip(summary brokerapi.RunSummary, width int) string {
-	runtimeDegraded := summary.RuntimePostureDegraded || strings.EqualFold(strings.TrimSpace(summary.IsolationAssuranceLevel), "degraded") || strings.EqualFold(strings.TrimSpace(summary.BackendKind), "container")
+	runtimeDegraded := summary.RuntimePostureDegraded
 	parts := []string{
 		tableHeader("Safety strip"),
 		fmt.Sprintf("backend_kind=%s", valueOrNA(summary.BackendKind)),
@@ -20,6 +20,101 @@ func renderRunSafetyStrip(summary brokerapi.RunSummary, width int) string {
 	parts = append(parts, auditPostureCueParts(summary.AuditIntegrityStatus, summary.AuditAnchoringStatus, summary.AuditCurrentlyDegraded)...)
 	parts = append(parts, approvalProfileCueParts(summary.ApprovalProfile)...)
 	return wrapPartsByWidth(parts, " | ", width)
+}
+
+func authoritativeVerifierClassCueParts(state map[string]any) []string {
+	class, key := firstAuthoritativeString(state, "attestation_verifier_class")
+	if class == "" {
+		return []string{"verifier class=n/a", infoBadge("VERIFIER_CLASS_UNREPORTED")}
+	}
+	return []string{fmt.Sprintf("verifier class=%s (source=%s)", class, key), infoBadge("VERIFIER_CLASS_REPORTED")}
+}
+
+func renderAuthoritativeVerifierClassCue(state map[string]any) string {
+	return strings.Join(authoritativeVerifierClassCueParts(state), " ")
+}
+
+func reducedAssurancePostureCueParts(state map[string]any) []string {
+	runtimeDegraded, hasRuntimeDegraded := state["runtime_posture_degraded"].(bool)
+	if !hasRuntimeDegraded {
+		return []string{"reduced_assurance=n/a", infoBadge("REDUCED_ASSURANCE_UNREPORTED")}
+	}
+	parts := []string{fmt.Sprintf("reduced_assurance=%t", runtimeDegraded)}
+	approvalBacked, _ := state["reduced_assurance_approval_backed"].(bool)
+	approvalStatus, _ := state["reduced_assurance_approval_status"].(string)
+	if approvalBacked {
+		parts = append(parts, fmt.Sprintf("approval_backed=true status=%s", valueOrNA(approvalStatus)))
+		parts = append(parts, infoBadge("REDUCED_ASSURANCE_APPROVAL_BACKED"))
+		return parts
+	}
+	if runtimeDegraded {
+		parts = append(parts, "approval_backed=false")
+	} else {
+		parts = append(parts, "approval_backed=n/a")
+	}
+	if runtimeDegraded {
+		parts = append(parts, reducedAssuranceBadge("REDUCED_ASSURANCE_ACTIVE"))
+	} else {
+		parts = append(parts, successBadge("REDUCED_ASSURANCE_INACTIVE"))
+	}
+	return parts
+}
+
+func renderReducedAssurancePostureCue(state map[string]any) string {
+	return strings.Join(reducedAssurancePostureCueParts(state), " ")
+}
+
+func supportedRuntimeRequirementsCueParts(state map[string]any) []string {
+	satisfied, ok := state["supported_runtime_requirements_satisfied"].(bool)
+	if !ok {
+		return []string{"supported_runtime_requirements=n/a", infoBadge("SUPPORTED_RUNTIME_UNREPORTED")}
+	}
+	reasons := authoritativeStringSlice(state, "supported_runtime_requirement_reason_codes")
+	if satisfied {
+		return []string{"supported_runtime_requirements_satisfied=true", successBadge("SUPPORTED_RUNTIME_REQUIREMENTS_SATISFIED")}
+	}
+	reasonSuffix := ""
+	if len(reasons) > 0 {
+		reasonSuffix = " reasons=" + strings.Join(reasons, ",")
+	}
+	return []string{fmt.Sprintf("supported_runtime_requirements_satisfied=false%s", reasonSuffix), warnBadge("SUPPORTED_RUNTIME_REQUIREMENTS_UNSATISFIED")}
+}
+
+func renderSupportedRuntimeRequirementsCue(state map[string]any) string {
+	return strings.Join(supportedRuntimeRequirementsCueParts(state), " ")
+}
+
+func firstAuthoritativeString(state map[string]any, keys ...string) (string, string) {
+	for _, key := range keys {
+		value, _ := state[key].(string)
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed, key
+		}
+	}
+	return "", ""
+}
+
+func authoritativeStringSlice(state map[string]any, key string) []string {
+	if values, ok := state[key].([]string); ok {
+		return append([]string{}, values...)
+	}
+	valuesAny, ok := state[key].([]any)
+	if !ok {
+		return nil
+	}
+	values := make([]string, 0, len(valuesAny))
+	for _, value := range valuesAny {
+		stringValue, ok := value.(string)
+		if !ok {
+			continue
+		}
+		trimmed := strings.TrimSpace(stringValue)
+		if trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
+	return values
 }
 
 func wrapPartsByWidth(parts []string, separator string, width int) string {
@@ -73,10 +168,10 @@ func renderRuntimeIsolationCue(backendKind, isolation string) string {
 func provisioningPostureCueParts(posture string) []string {
 	n := strings.ToLower(strings.TrimSpace(posture))
 	switch n {
-	case "ok", "trusted", "bound":
+	case "ok", "trusted", "bound", "attested":
 		return []string{fmt.Sprintf("provisioning posture=%s", valueOrNA(posture)), successBadge("PROVISIONING_OK")}
 	case "tofu":
-		return []string{fmt.Sprintf("provisioning posture=%s (TOFU isolate key provisioning)", valueOrNA(posture)), provisioningDegradedBadge("PROVISIONING_TOFU")}
+		return []string{fmt.Sprintf("provisioning posture=%s (unsupported legacy TOFU posture)", valueOrNA(posture)), dangerBadge("PROVISIONING_TOFU_UNSUPPORTED")}
 	case "degraded", "unavailable", "unknown":
 		return []string{fmt.Sprintf("provisioning posture=%s (degraded)", valueOrNA(posture)), provisioningDegradedBadge("PROVISIONING_DEGRADED")}
 	default:
@@ -86,6 +181,32 @@ func provisioningPostureCueParts(posture string) []string {
 
 func renderProvisioningPostureCue(posture string) string {
 	return strings.Join(provisioningPostureCueParts(posture), " ")
+}
+
+func attestationPostureCueParts(posture string, reasonCodes []string) []string {
+	n := strings.ToLower(strings.TrimSpace(posture))
+	reason := ""
+	if len(reasonCodes) > 0 {
+		reason = " reasons=" + strings.Join(reasonCodes, ",")
+	}
+	switch n {
+	case "valid":
+		return []string{fmt.Sprintf("attestation posture=%s (evidence present, verification succeeded; isolation assurance varies by runtime posture)", valueOrNA(posture)), successBadge("ATTESTATION_VALID")}
+	case "tofu_only":
+		return []string{fmt.Sprintf("attestation posture=%s (unsupported legacy session-binding-only posture)", valueOrNA(posture)), dangerBadge("ATTESTATION_TOFU_ONLY_UNSUPPORTED")}
+	case "unavailable":
+		return []string{fmt.Sprintf("attestation posture=%s (evidence/verification unavailable%s)", valueOrNA(posture), reason), warnBadge("ATTESTATION_UNAVAILABLE")}
+	case "invalid":
+		return []string{fmt.Sprintf("attestation posture=%s (evidence rejected%s)", valueOrNA(posture), reason), dangerBadge("ATTESTATION_INVALID")}
+	case "not_applicable":
+		return []string{fmt.Sprintf("attestation posture=%s", valueOrNA(posture)), infoBadge("ATTESTATION_NA")}
+	default:
+		return []string{fmt.Sprintf("attestation posture=%s%s", valueOrNA(posture), reason), infoBadge("ATTESTATION_REPORTED")}
+	}
+}
+
+func renderAttestationPostureCue(posture string, reasonCodes []string) string {
+	return strings.Join(attestationPostureCueParts(posture, reasonCodes), " ")
 }
 
 func auditPostureCueParts(integrity, anchoring string, degraded bool) []string {

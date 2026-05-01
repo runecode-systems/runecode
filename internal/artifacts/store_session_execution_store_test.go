@@ -2,8 +2,6 @@ package artifacts
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -223,10 +221,7 @@ func TestAppendSessionExecutionTriggerDeniesArtifactOnlyLabelWithBoundArtifactsO
 
 func TestAppendSessionExecutionTriggerSaveFailureRollsBackInMemoryState(t *testing.T) {
 	store := newTestStore(t)
-	store.storeIO.statePath = filepath.Join(t.TempDir(), "state-dir")
-	if err := os.MkdirAll(store.storeIO.statePath, 0o755); err != nil {
-		t.Fatalf("mkdir failing state path: %v", err)
-	}
+	store.storeIO.statePath = brokenStateSavePath(store.rootDir)
 	req := SessionExecutionTriggerAppendRequest{
 		SessionID:                   "sess-save-fail",
 		AuthoritativeRepositoryRoot: "/repo/root",
@@ -255,10 +250,7 @@ func TestAppendSessionExecutionTriggerSaveFailureRestoresExistingSessionState(t 
 	store := newTestStore(t)
 	base, before := seedExistingSessionForSaveFailureTest(t, store)
 	var err error
-	store.storeIO.statePath = filepath.Join(t.TempDir(), "state-dir")
-	if err := os.MkdirAll(store.storeIO.statePath, 0o755); err != nil {
-		t.Fatalf("mkdir failing state path: %v", err)
-	}
+	store.storeIO.statePath = brokenStateSavePath(store.rootDir)
 	_, err = store.AppendSessionExecutionTrigger(SessionExecutionTriggerAppendRequest{
 		SessionID:                   "sess-existing-save-fail",
 		AuthoritativeRepositoryRoot: "/repo/root",

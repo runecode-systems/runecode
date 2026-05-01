@@ -135,6 +135,9 @@ func normalizeRuntimeStateMaps(state StoreState) StoreState {
 	if state.RuntimeEvidenceByRun == nil {
 		state.RuntimeEvidenceByRun = map[string]launcherbackend.RuntimeEvidenceSnapshot{}
 	}
+	if state.AttestationVerificationCache == nil {
+		state.AttestationVerificationCache = map[string]launcherbackend.IsolateAttestationVerificationRecord{}
+	}
 	if state.RuntimeLifecycleByRun == nil {
 		state.RuntimeLifecycleByRun = map[string]launcherbackend.RuntimeLifecycleState{}
 	}

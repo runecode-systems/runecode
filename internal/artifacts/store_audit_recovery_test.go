@@ -68,10 +68,7 @@ func TestLoadStateRecoversAuditSequenceWhenStateSaveLagged(t *testing.T) {
 	if _, err := store.Put(PutRequest{Payload: []byte("seed"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"}); err != nil {
 		t.Fatalf("seed Put error: %v", err)
 	}
-	store.storeIO.statePath = filepath.Join(t.TempDir(), "state-dir")
-	if err := os.MkdirAll(store.storeIO.statePath, 0o755); err != nil {
-		t.Fatalf("mkdir state dir error: %v", err)
-	}
+	store.storeIO.statePath = brokenStateSavePath(store.rootDir)
 	if _, err := store.Put(PutRequest{Payload: []byte("second"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("2"), CreatedByRole: "workspace"}); err == nil {
 		t.Fatal("Put expected state save failure after audit append")
 	} else {
@@ -243,7 +240,11 @@ func assertPathErrorTarget(t *testing.T, err error, path string) {
 	if !errors.As(err, &pathErr) {
 		t.Fatalf("error = %v, want wrapped os.PathError", err)
 	}
-	if pathErr.Path != path {
-		t.Fatalf("PathError path = %q, want %q", pathErr.Path, path)
+	if pathErr.Path != path && !strings.HasPrefix(pathErr.Path, path+".tmp-") {
+		t.Fatalf("PathError path = %q, want %q or temp-file prefix", pathErr.Path, path)
 	}
+}
+
+func brokenStateSavePath(rootDir string) string {
+	return filepath.Join(rootDir, "state.json", "state-save-failure.json")
 }

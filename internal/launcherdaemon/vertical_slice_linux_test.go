@@ -67,6 +67,13 @@ func seedVerticalSliceRuntimeCache(t *testing.T, workRoot string, qemuBinary str
 	kernelDigest := writeRuntimeCacheBlob(t, workRoot, []byte("fixture-runtime-kernel-linux-amd64-v1"))
 	initrdDigest := writeRuntimeCacheBlob(t, workRoot, []byte("fixture-runtime-initrd-linux-amd64-v1"))
 	spec.Image.ComponentDigests = map[string]string{"kernel": kernelDigest, "initrd": initrdDigest}
+	if spec.Image.Attestation != nil {
+		expectedMeasurementDigests, err := launcherbackend.DeriveExpectedMeasurementDigests(spec.Image.Attestation.MeasurementProfile, spec.Image.BootContractVersion, spec.Image.ComponentDigests)
+		if err != nil {
+			t.Fatalf("DeriveExpectedMeasurementDigests returned error: %v", err)
+		}
+		spec.Image.Attestation.ExpectedMeasurementDigests = expectedMeasurementDigests
+	}
 	digest, err := spec.Image.ExpectedDescriptorDigest()
 	if err != nil {
 		t.Fatalf("ExpectedDescriptorDigest returned error: %v", err)

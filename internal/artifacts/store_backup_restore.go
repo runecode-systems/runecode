@@ -36,7 +36,7 @@ func loadRestoredStateRecords(next *StoreState, manifest BackupManifest, ioStore
 		func() error { return loadRestoredPolicyDecisions(next, manifest.PolicyDecisions) },
 		func() error { return loadRestoredGitRemotePrepared(next, manifest.GitRemotePrepared) },
 		func() error {
-			return loadRestoredRuntimeState(next, manifest.RuntimeFactsByRun, manifest.RuntimeEvidenceByRun, manifest.RuntimeLifecycleByRun, manifest.RuntimeAuditStateByRun, manifest.RunnerAdvisoryByRun)
+			return loadRestoredRuntimeState(next, manifest.RuntimeFactsByRun, manifest.RuntimeEvidenceByRun, manifest.AttestationVerificationCache, manifest.RuntimeLifecycleByRun, manifest.RuntimeAuditStateByRun, manifest.RunnerAdvisoryByRun)
 		},
 		func() error {
 			return loadRestoredDependencyCache(next, manifest.DependencyCacheBatches, manifest.DependencyCacheUnits)
@@ -79,6 +79,7 @@ func newStateFromBackup(manifest BackupManifest, lastAuditSequence int64) StoreS
 		RunGitRemotePreparedRefs:     map[string][]string{},
 		RuntimeFactsByRun:            map[string]launcherbackend.RuntimeFactsSnapshot{},
 		RuntimeEvidenceByRun:         map[string]launcherbackend.RuntimeEvidenceSnapshot{},
+		AttestationVerificationCache: map[string]launcherbackend.IsolateAttestationVerificationRecord{},
 		RuntimeLifecycleByRun:        map[string]launcherbackend.RuntimeLifecycleState{},
 		RuntimeAuditStateByRun:       map[string]RuntimeAuditEmissionState{},
 		RunnerAdvisoryByRun:          map[string]RunnerAdvisoryState{},
@@ -108,11 +109,18 @@ func loadRestoredGitRemotePrepared(next *StoreState, records []GitRemotePrepared
 	return nil
 }
 
-func loadRestoredRuntimeState(next *StoreState, factsByRun map[string]launcherbackend.RuntimeFactsSnapshot, evidenceByRun map[string]launcherbackend.RuntimeEvidenceSnapshot, lifecycleByRun map[string]launcherbackend.RuntimeLifecycleState, auditStateByRun map[string]RuntimeAuditEmissionState, advisoryByRun map[string]RunnerAdvisoryState) error {
+func loadRestoredRuntimeState(next *StoreState, factsByRun map[string]launcherbackend.RuntimeFactsSnapshot, evidenceByRun map[string]launcherbackend.RuntimeEvidenceSnapshot, verificationCache map[string]launcherbackend.IsolateAttestationVerificationRecord, lifecycleByRun map[string]launcherbackend.RuntimeLifecycleState, auditStateByRun map[string]RuntimeAuditEmissionState, advisoryByRun map[string]RunnerAdvisoryState) error {
 	if err := loadRestoredRuntimeFacts(next, factsByRun); err != nil {
 		return err
 	}
-	if err := loadRestoredRuntimeEvidence(next, evidenceByRun); err != nil {
+	restorableEvidence, err := deriveRestorableRuntimeEvidence(next.RuntimeFactsByRun)
+	if err != nil {
+		return err
+	}
+	if err := loadRestoredRuntimeEvidence(next, evidenceByRun, restorableEvidence); err != nil {
+		return err
+	}
+	if err := loadRestoredAttestationVerificationCache(next, verificationCache); err != nil {
 		return err
 	}
 	if err := loadRestoredRuntimeLifecycle(next, lifecycleByRun); err != nil {
@@ -131,17 +139,6 @@ func loadRestoredRuntimeFacts(next *StoreState, factsByRun map[string]launcherba
 			return err
 		}
 		next.RuntimeFactsByRun[trimmedRunID] = cloneRuntimeFactsSnapshot(facts)
-	}
-	return nil
-}
-
-func loadRestoredRuntimeEvidence(next *StoreState, evidenceByRun map[string]launcherbackend.RuntimeEvidenceSnapshot) error {
-	for runID, evidence := range evidenceByRun {
-		trimmedRunID, err := validateRestoredRuntimeRunID(runID, "runtime evidence")
-		if err != nil {
-			return err
-		}
-		next.RuntimeEvidenceByRun[trimmedRunID] = evidence
 	}
 	return nil
 }

@@ -16,27 +16,28 @@ func buildBackupManifest(state StoreState, exportedAt time.Time) BackupManifest 
 
 func newBackupManifest(state StoreState, exportedAt time.Time) BackupManifest {
 	return BackupManifest{
-		Schema:                 "runecode.backup.artifacts.v1",
-		ExportedAt:             exportedAt,
-		StorageProtection:      state.StorageProtectionPosture,
-		Policy:                 state.Policy,
-		Runs:                   map[string]string{},
-		Artifacts:              make([]ArtifactRecord, 0, len(state.Artifacts)),
-		DependencyCacheBatches: make([]DependencyCacheBatchRecord, 0, len(state.DependencyCacheBatches)),
-		DependencyCacheUnits:   make([]DependencyCacheResolvedUnitRecord, 0, len(state.DependencyCacheUnits)),
-		Sessions:               make([]SessionDurableState, 0, len(state.Sessions)),
-		PolicyDecisions:        make([]PolicyDecisionRecord, 0, len(state.PolicyDecisions)),
-		Approvals:              make([]ApprovalRecord, 0, len(state.Approvals)),
-		GitRemotePrepared:      make([]GitRemotePreparedMutationRecord, 0, len(state.GitRemotePrepared)),
-		RuntimeFactsByRun:      map[string]launcherbackend.RuntimeFactsSnapshot{},
-		RuntimeEvidenceByRun:   map[string]launcherbackend.RuntimeEvidenceSnapshot{},
-		RuntimeLifecycleByRun:  map[string]launcherbackend.RuntimeLifecycleState{},
-		RuntimeAuditStateByRun: map[string]RuntimeAuditEmissionState{},
-		RunnerAdvisoryByRun:    map[string]RunnerAdvisoryState{},
-		ProviderProfiles:       make([]ProviderProfileDurableState, 0, len(state.ProviderProfiles)),
-		ProviderSetupSessions:  make([]ProviderSetupSessionDurableState, 0, len(state.ProviderSetupSessions)),
-		RunPlanAuthorities:     make([]RunPlanAuthorityRecord, 0, len(state.RunPlanAuthorities)),
-		RunPlanCompilations:    make([]RunPlanCompilationRecord, 0, len(state.RunPlanCompilations)),
+		Schema:                       "runecode.backup.artifacts.v1",
+		ExportedAt:                   exportedAt,
+		StorageProtection:            state.StorageProtectionPosture,
+		Policy:                       state.Policy,
+		Runs:                         map[string]string{},
+		Artifacts:                    make([]ArtifactRecord, 0, len(state.Artifacts)),
+		DependencyCacheBatches:       make([]DependencyCacheBatchRecord, 0, len(state.DependencyCacheBatches)),
+		DependencyCacheUnits:         make([]DependencyCacheResolvedUnitRecord, 0, len(state.DependencyCacheUnits)),
+		Sessions:                     make([]SessionDurableState, 0, len(state.Sessions)),
+		PolicyDecisions:              make([]PolicyDecisionRecord, 0, len(state.PolicyDecisions)),
+		Approvals:                    make([]ApprovalRecord, 0, len(state.Approvals)),
+		GitRemotePrepared:            make([]GitRemotePreparedMutationRecord, 0, len(state.GitRemotePrepared)),
+		RuntimeFactsByRun:            map[string]launcherbackend.RuntimeFactsSnapshot{},
+		RuntimeEvidenceByRun:         map[string]launcherbackend.RuntimeEvidenceSnapshot{},
+		AttestationVerificationCache: map[string]launcherbackend.IsolateAttestationVerificationRecord{},
+		RuntimeLifecycleByRun:        map[string]launcherbackend.RuntimeLifecycleState{},
+		RuntimeAuditStateByRun:       map[string]RuntimeAuditEmissionState{},
+		RunnerAdvisoryByRun:          map[string]RunnerAdvisoryState{},
+		ProviderProfiles:             make([]ProviderProfileDurableState, 0, len(state.ProviderProfiles)),
+		ProviderSetupSessions:        make([]ProviderSetupSessionDurableState, 0, len(state.ProviderSetupSessions)),
+		RunPlanAuthorities:           make([]RunPlanAuthorityRecord, 0, len(state.RunPlanAuthorities)),
+		RunPlanCompilations:          make([]RunPlanCompilationRecord, 0, len(state.RunPlanCompilations)),
 	}
 }
 
@@ -80,6 +81,9 @@ func populateBackupManifestRuntimeCollections(manifest *BackupManifest, state St
 	}
 	for runID, evidence := range state.RuntimeEvidenceByRun {
 		manifest.RuntimeEvidenceByRun[runID] = evidence
+	}
+	for key, record := range state.AttestationVerificationCache {
+		manifest.AttestationVerificationCache[key] = cloneAttestationVerificationRecord(record)
 	}
 	for runID, lifecycle := range state.RuntimeLifecycleByRun {
 		manifest.RuntimeLifecycleByRun[runID] = lifecycle

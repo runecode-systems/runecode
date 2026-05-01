@@ -32,6 +32,9 @@ func TestRunDetailRuntimeFactsProjectionSurvivesServiceRestart(t *testing.T) {
 	if runGet.Run.Summary.BackendKind != launcherbackend.BackendKindMicroVM {
 		t.Fatalf("backend_kind = %q, want %q after restart", runGet.Run.Summary.BackendKind, launcherbackend.BackendKindMicroVM)
 	}
+	if runGet.Run.Summary.LifecycleState != "failed" {
+		t.Fatalf("summary.lifecycle_state = %q, want failed after restart", runGet.Run.Summary.LifecycleState)
+	}
 	if runGet.Run.AuthoritativeState["session_id"] != "session-1" {
 		t.Fatalf("authoritative_state.session_id = %v, want session-1 after restart", runGet.Run.AuthoritativeState["session_id"])
 	}
@@ -58,6 +61,15 @@ func TestRunSummaryAndDetailProjectRecordedLauncherRuntimeFacts(t *testing.T) {
 	assertRuntimeFactsTerminalProjection(t, state)
 }
 
+func TestRecordRuntimeFactsRejectsMismatchedEmbeddedRunID(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	facts := launcherRuntimeFactsFixture()
+	facts.LaunchReceipt.RunID = "run-other"
+	if err := s.RecordRuntimeFacts("run-launcher-facts", facts); err == nil {
+		t.Fatal("RecordRuntimeFacts expected run id mismatch rejection")
+	}
+}
+
 func launcherRuntimeFactsFixture() launcherbackend.RuntimeFactsSnapshot {
 	return launcherbackend.RuntimeFactsSnapshot{
 		LaunchReceipt:    launcherRuntimeFactsReceiptFixture(),
@@ -66,7 +78,27 @@ func launcherRuntimeFactsFixture() launcherbackend.RuntimeFactsSnapshot {
 	}
 }
 
+func launcherRuntimeFactsFixtureForRun(runID string) launcherbackend.RuntimeFactsSnapshot {
+	facts := launcherRuntimeFactsFixture()
+	facts.LaunchReceipt.RunID = runID
+	return facts
+}
+
 func launcherRuntimeFactsReceiptFixture() launcherbackend.BackendLaunchReceipt {
+	receipt := runtimeFactsMicroVMReceiptIdentity()
+	receipt.ResourceLimits = &launcherbackend.BackendResourceLimits{VCPUCount: 2, MemoryMiB: 512, DiskMiB: 4096, LaunchTimeoutSeconds: 60, BindTimeoutSeconds: 30, ActiveTimeoutSeconds: 600, TerminationGraceSeconds: 15}
+	receipt.WatchdogPolicy = &launcherbackend.BackendWatchdogPolicy{Enabled: true, TerminateOnMisbehavior: true, HeartbeatTimeoutSeconds: 30, NoProgressTimeoutSeconds: 120}
+	receipt.Lifecycle = &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateActive, PreviousState: launcherbackend.BackendLifecycleStateBinding, TerminateBetweenSteps: true, TransitionCount: 4}
+	receipt.CachePosture = &launcherbackend.BackendCachePosture{WarmPoolEnabled: true, BootCacheEnabled: true, ResetOrDestroyBeforeReuse: true, ReusePriorSessionIdentityKeys: false, DigestPinned: true, SignaturePinned: true}
+	receipt.CacheEvidence = &launcherbackend.BackendCacheEvidence{ImageCacheResult: launcherbackend.CacheResultHit, BootArtifactCacheResult: launcherbackend.CacheResultMiss, ResolvedImageDescriptorDigest: "sha256:" + strings.Repeat("a", 64), ResolvedBootComponentDigests: []string{"sha256:" + strings.Repeat("b", 64), "sha256:" + strings.Repeat("c", 64)}}
+	receipt.AttachmentPlanSummary = runtimeFactsAttachmentPlanSummaryFixture()
+	receipt.WorkspaceEncryptionPosture = runtimeFactsWorkspaceEncryptionPostureFixture()
+	receipt.LaunchFailureReasonCode = launcherbackend.BackendErrorCodeAccelerationUnavailable
+	applyRuntimeFactsAttestation(&receipt)
+	return receipt
+}
+
+func runtimeFactsMicroVMReceiptIdentity() launcherbackend.BackendLaunchReceipt {
 	return launcherbackend.BackendLaunchReceipt{
 		RunID:                        "run-launcher-facts",
 		StageID:                      "artifact_flow",
@@ -75,7 +107,7 @@ func launcherRuntimeFactsReceiptFixture() launcherbackend.BackendLaunchReceipt {
 		RoleKind:                     "workspace-edit",
 		BackendKind:                  launcherbackend.BackendKindMicroVM,
 		IsolationAssuranceLevel:      launcherbackend.IsolationAssuranceIsolated,
-		ProvisioningPosture:          launcherbackend.ProvisioningPostureTOFU,
+		ProvisioningPosture:          launcherbackend.ProvisioningPostureAttested,
 		IsolateID:                    "isolate-1",
 		SessionID:                    "session-1",
 		SessionNonce:                 "nonce-0123456789abcdef",
@@ -92,17 +124,36 @@ func launcherRuntimeFactsReceiptFixture() launcherbackend.BackendLaunchReceipt {
 		RuntimeImageBootProfile:      launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1,
 		RuntimeImageSignerRef:        "signer:trusted-ci",
 		RuntimeImageSignatureDigest:  "sha256:" + strings.Repeat("9", 64),
+		AuthorityStateDigest:         "sha256:" + strings.Repeat("8", 64),
+		AuthorityStateRevision:       1,
 		BootComponentDigestByName:    runtimeFactsBootComponentDigestsByNameFixture(),
 		BootComponentDigests:         []string{"sha256:" + strings.Repeat("b", 64), "sha256:" + strings.Repeat("c", 64)},
-		ResourceLimits:               &launcherbackend.BackendResourceLimits{VCPUCount: 2, MemoryMiB: 512, DiskMiB: 4096, LaunchTimeoutSeconds: 60, BindTimeoutSeconds: 30, ActiveTimeoutSeconds: 600, TerminationGraceSeconds: 15},
-		WatchdogPolicy:               &launcherbackend.BackendWatchdogPolicy{Enabled: true, TerminateOnMisbehavior: true, HeartbeatTimeoutSeconds: 30, NoProgressTimeoutSeconds: 120},
-		Lifecycle:                    &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateActive, PreviousState: launcherbackend.BackendLifecycleStateBinding, TerminateBetweenSteps: true, TransitionCount: 4},
-		CachePosture:                 &launcherbackend.BackendCachePosture{WarmPoolEnabled: true, BootCacheEnabled: true, ResetOrDestroyBeforeReuse: true, ReusePriorSessionIdentityKeys: false, DigestPinned: true, SignaturePinned: true},
-		CacheEvidence:                &launcherbackend.BackendCacheEvidence{ImageCacheResult: launcherbackend.CacheResultHit, BootArtifactCacheResult: launcherbackend.CacheResultMiss, ResolvedImageDescriptorDigest: "sha256:" + strings.Repeat("a", 64), ResolvedBootComponentDigests: []string{"sha256:" + strings.Repeat("b", 64), "sha256:" + strings.Repeat("c", 64)}},
-		AttachmentPlanSummary:        runtimeFactsAttachmentPlanSummaryFixture(),
-		WorkspaceEncryptionPosture:   runtimeFactsWorkspaceEncryptionPostureFixture(),
-		LaunchFailureReasonCode:      launcherbackend.BackendErrorCodeAccelerationUnavailable,
 	}
+}
+
+func applyRuntimeFactsAttestation(receipt *launcherbackend.BackendLaunchReceipt) {
+	if receipt == nil {
+		return
+	}
+	receipt.AttestationEvidenceSourceKind = launcherbackend.AttestationSourceKindTrustedRuntime
+	receipt.AttestationMeasurementProfile = launcherbackend.MeasurementProfileMicroVMBootV1
+	receipt.AttestationFreshnessMaterial = []string{"session_nonce"}
+	receipt.AttestationFreshnessBindingClaims = []string{"session_nonce", "handshake_transcript_hash", "launch_context_digest"}
+	receipt.AttestationEvidenceClaimsDigest = runtimeFactsMeasurementDigests(*receipt)[0]
+	receipt.AttestationVerifierPolicyID = "runtime_asset_admission_identity"
+	receipt.AttestationVerifierPolicyDigest = "sha256:" + strings.Repeat("8", 64)
+	receipt.AttestationVerificationRulesVersion = "trusted-runtime-v1"
+	receipt.AttestationVerificationTimestamp = "2026-04-09T09:59:00Z"
+	receipt.AttestationVerificationResult = launcherbackend.AttestationVerificationResultValid
+	receipt.AttestationReplayVerdict = launcherbackend.AttestationReplayVerdictOriginal
+}
+
+func runtimeFactsMeasurementDigests(receipt launcherbackend.BackendLaunchReceipt) []string {
+	digests, err := launcherbackend.DeriveExpectedMeasurementDigests(receipt.AttestationMeasurementProfile, receipt.RuntimeImageBootProfile, receipt.BootComponentDigestByName)
+	if err != nil {
+		panic(err)
+	}
+	return digests
 }
 
 func runtimeFactsSessionSecurityFixture() *launcherbackend.SessionSecurityPosture {
@@ -164,14 +215,17 @@ func assertRuntimeFactsRunListProjection(t *testing.T, runs []RunSummary) {
 	if len(runs) != 1 {
 		t.Fatalf("run count = %d, want 1", len(runs))
 	}
+	if runs[0].LifecycleState != "failed" {
+		t.Fatalf("lifecycle_state = %q, want failed", runs[0].LifecycleState)
+	}
 	if runs[0].BackendKind != launcherbackend.BackendKindMicroVM {
 		t.Fatalf("backend_kind = %q, want %q", runs[0].BackendKind, launcherbackend.BackendKindMicroVM)
 	}
 	if runs[0].IsolationAssuranceLevel != launcherbackend.IsolationAssuranceIsolated {
 		t.Fatalf("isolation_assurance_level = %q, want %q", runs[0].IsolationAssuranceLevel, launcherbackend.IsolationAssuranceIsolated)
 	}
-	if runs[0].ProvisioningPosture != launcherbackend.ProvisioningPostureTOFU {
-		t.Fatalf("provisioning_posture = %q, want %q", runs[0].ProvisioningPosture, launcherbackend.ProvisioningPostureTOFU)
+	if runs[0].ProvisioningPosture != launcherbackend.ProvisioningPostureAttested {
+		t.Fatalf("provisioning_posture = %q, want %q", runs[0].ProvisioningPosture, launcherbackend.ProvisioningPostureAttested)
 	}
 	if runs[0].AssuranceLevel != runs[0].IsolationAssuranceLevel {
 		t.Fatalf("assurance_level alias = %q, want %q", runs[0].AssuranceLevel, runs[0].IsolationAssuranceLevel)
@@ -189,26 +243,26 @@ func assertRuntimeFactsIdentityProjection(t *testing.T, state map[string]any) {
 	if state["isolate_id"] != "isolate-1" {
 		t.Fatalf("authoritative_state.isolate_id = %v, want isolate-1", state["isolate_id"])
 	}
-	if state["session_nonce"] != "nonce-0123456789abcdef" {
-		t.Fatalf("authoritative_state.session_nonce = %v, want nonce", state["session_nonce"])
-	}
 	if state["launch_context_digest"] != "sha256:"+strings.Repeat("d", 64) {
 		t.Fatalf("authoritative_state.launch_context_digest = %v, want launch context digest", state["launch_context_digest"])
 	}
-	if state["handshake_transcript_hash"] != "sha256:"+strings.Repeat("e", 64) {
-		t.Fatalf("authoritative_state.handshake_transcript_hash = %v, want handshake transcript hash", state["handshake_transcript_hash"])
+	if _, ok := state["session_nonce"]; ok {
+		t.Fatalf("authoritative_state.session_nonce should be omitted from standard run detail state: %v", state["session_nonce"])
 	}
-	if state["isolate_session_key_id_value"] != strings.Repeat("f", 64) {
-		t.Fatalf("authoritative_state.isolate_session_key_id_value = %v, want pinned isolate key id", state["isolate_session_key_id_value"])
+	if _, ok := state["handshake_transcript_hash"]; ok {
+		t.Fatalf("authoritative_state.handshake_transcript_hash should be omitted from standard run detail state: %v", state["handshake_transcript_hash"])
 	}
-	if state["hosting_node_id"] != "node-1" {
-		t.Fatalf("authoritative_state.hosting_node_id = %v, want node-1", state["hosting_node_id"])
+	if _, ok := state["isolate_session_key_id_value"]; ok {
+		t.Fatalf("authoritative_state.isolate_session_key_id_value should be omitted from standard run detail state: %v", state["isolate_session_key_id_value"])
 	}
-	if state["provisioning_posture_degraded"] != true {
-		t.Fatalf("authoritative_state.provisioning_posture_degraded = %v, want true for tofu", state["provisioning_posture_degraded"])
+	if _, ok := state["hosting_node_id"]; ok {
+		t.Fatalf("authoritative_state.hosting_node_id should be omitted from standard run detail state: %v", state["hosting_node_id"])
 	}
-	if state["provisioning_degraded_reasons"] == nil {
-		t.Fatal("authoritative_state.provisioning_degraded_reasons should be present for tofu")
+	if _, ok := state["provisioning_posture_degraded"]; ok {
+		t.Fatalf("authoritative_state.provisioning_posture_degraded should be omitted for attested posture: %v", state["provisioning_posture_degraded"])
+	}
+	if _, ok := state["provisioning_degraded_reasons"]; ok {
+		t.Fatalf("authoritative_state.provisioning_degraded_reasons should be omitted for attested posture: %v", state["provisioning_degraded_reasons"])
 	}
 }
 

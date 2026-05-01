@@ -10,6 +10,7 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Receipt, Audit, and Verification Integration.
 - Fixtures + Adapter Conformance.
 - Explicit alignment with shared remote-state-mutation gateway semantics where external anchoring mutates remote target state.
+- Explicit preservation of attestation evidence and verification references when anchored audit chains include attested runtime evidence.
 
 ## Why Now
 This work now lands in `v0.1.0-alpha.10`, because the first usable release should include the full planned assurance trio: signed runtime identity, isolate attestation, and externally verifiable audit anchoring.

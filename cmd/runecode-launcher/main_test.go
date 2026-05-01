@@ -85,6 +85,9 @@ func TestHelloWorldLaunchSpecValidates(t *testing.T) {
 	}
 	image, err := helloWorldRuntimeImage(t.TempDir())
 	if err != nil {
+		if err.Error() == "prepare hello-world boot assets: no readable host kernel image found" {
+			t.Skip("hello-world runtime image requires readable host kernel image")
+		}
 		t.Fatalf("helloWorldRuntimeImage returned error: %v", err)
 	}
 	spec := helloWorldLaunchSpec("run-test", image)

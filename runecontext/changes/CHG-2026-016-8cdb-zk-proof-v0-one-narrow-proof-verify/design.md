@@ -8,7 +8,7 @@ Select and deliver one narrow zero-knowledge proof workflow with deterministic v
 - Proof generation is an explicit workflow step; verification is always deterministic.
 - The first ZK proof ships only if a concrete proving system can be selected with acceptable performance; otherwise release is deferred rather than weakening the contract.
 - If a proof statement depends on project context, it should bind the validated project-substrate snapshot identity rather than ambient repository assumptions.
-- If a proof statement depends on runtime execution identity, it should bind the signed runtime-image descriptor identity and reviewed launch evidence rather than ambient platform-specific runtime assumptions.
+- If a proof statement depends on runtime execution identity, it should bind the attested runtime identity seam established by `CHG-2026-030-98b8-isolate-attestation-v0`, using signed runtime-image descriptor identity, persisted reviewed launch evidence, and attestation evidence or verification where relevant rather than ambient platform-specific runtime assumptions.
 
 ## Main Workstreams
 - Pick the First Proof Statement

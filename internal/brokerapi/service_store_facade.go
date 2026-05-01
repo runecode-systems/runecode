@@ -221,6 +221,13 @@ func (s *Service) Policy() artifacts.Policy {
 	return s.store.Policy()
 }
 
+func (s *Service) SyncExternalStoreState() error {
+	if s == nil || s.store == nil {
+		return nil
+	}
+	return s.store.SyncExternalState()
+}
+
 func (s *Service) DependencyCacheLookup(req artifacts.DependencyCacheHitRequest) (artifacts.DependencyCacheBatchRecord, artifacts.DependencyCacheResolvedUnitRecord, bool, error) {
 	return s.store.DependencyCacheLookup(req)
 }

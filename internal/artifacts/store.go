@@ -7,12 +7,13 @@ import (
 )
 
 type Store struct {
-	mu      sync.Mutex
-	rootDir string
-	blobDir string
-	storeIO *storeIO
-	state   StoreState
-	nowFn   func() time.Time
+	mu         sync.Mutex
+	rootDir    string
+	blobDir    string
+	storeIO    *storeIO
+	state      StoreState
+	stateStamp stateFileStamp
+	nowFn      func() time.Time
 }
 
 func NewStore(rootDir string) (*Store, error) {
@@ -38,11 +39,16 @@ func (s *Store) loadState() error {
 	if err != nil {
 		return err
 	}
+	stamp, err := s.storeIO.stateFileStamp()
+	if err != nil {
+		return err
+	}
 	initialized, changed, err := s.initializeLoadedState(state)
 	if err != nil {
 		return err
 	}
 	s.state = initialized
+	s.stateStamp = stamp
 
 	changed, err = s.reconcileLoadedState(changed)
 	if err != nil {
@@ -117,7 +123,40 @@ func (s *Store) reconcileAuditSequenceLocked() (bool, error) {
 }
 
 func (s *Store) saveStateLocked() error {
-	return s.storeIO.saveStateFile(s.state)
+	stamp, err := s.storeIO.saveStateFile(s.state)
+	if err != nil {
+		return err
+	}
+	s.stateStamp = stamp
+	return nil
+}
+
+func (s *Store) SyncExternalState() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.syncExternalStateLocked()
+}
+
+func (s *Store) syncExternalStateLocked() error {
+	stamp, err := s.storeIO.stateFileStamp()
+	if err != nil {
+		return err
+	}
+	if !stamp.differsFrom(s.stateStamp) {
+		return nil
+	}
+	state, err := s.storeIO.loadStateFile()
+	if err != nil {
+		return err
+	}
+	initialized, _, err := s.initializeLoadedState(state)
+	if err != nil {
+		return err
+	}
+	s.state = initialized
+	s.stateStamp = stamp
+	_, err = s.reconcileLoadedState(false)
+	return err
 }
 
 func (s *Store) appendAuditLocked(eventType, actor string, details map[string]interface{}) error {

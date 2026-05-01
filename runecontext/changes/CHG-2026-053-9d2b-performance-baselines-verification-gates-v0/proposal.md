@@ -40,6 +40,7 @@ Without deterministic fixtures, explicit thresholds, and CI enforcement, the pro
 - Include explicit measurement of the refined CHG-050 workflow path, including definition validation/canonicalization, trusted compilation, compiled-plan persistence/load, and runner startup from immutable `RunPlan`.
 - Include explicit measurement of the CHG-049 first-party workflow-pack surfaces, including draft artifact generation, explicit draft promote/apply, reviewed implementation-input-set validation/binding, direct CLI workflow triggering, repo-scoped admission control/idempotency, and fail-closed drift-triggered re-evaluation or recompilation costs.
 - Preserve one topology-neutral performance program across constrained local hardware and larger deployments; tuning may differ, but performance work must not imply separate architecture paths or trust models.
+- Include explicit measurement of the required attestation path for supported runtime startup and attach flows, including cold verification, warm verification-cache hits, replay and freshness checks, and persisted attestation-evidence handling.
 
 ## Why Now
 RuneCode is approaching the first usable end-to-end Linux-first cut. That makes performance regressions more dangerous because users are no longer exercising isolated demos; they are exercising a connected product composed of the TUI, broker, runner, gateway, audit, and isolate layers.
@@ -76,6 +77,7 @@ This change gives RuneCode one canonical planning surface for:
 - the per-aspect thresholds and CI structure required to make performance a maintained contract rather than an anecdotal concern
 - the explicit expectation that dependency-fetch performance must be measured on both cold-cache and warm-cache paths without weakening trust boundaries or buffering full dependency payloads in memory
 - the explicit expectation that first-party workflow-pack entry, draft, promote/apply, approved-input binding, and re-evaluation paths become measurable product surfaces rather than invisible orchestration overhead
+- the explicit expectation that launcher and attach-ready performance checks measure the reviewed signed-runtime plus required-attestation trust path rather than rewarding bypasses around attestation verification, replay or freshness enforcement, or attestation evidence persistence
 
 It also freezes one durable product-level rule for future work:
 

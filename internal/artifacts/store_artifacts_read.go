@@ -101,3 +101,9 @@ func (s *Store) RunStatuses() map[string]string {
 	}
 	return out
 }
+
+func (s *Store) HasAuditEvents() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.state.LastAuditSequence > 0
+}

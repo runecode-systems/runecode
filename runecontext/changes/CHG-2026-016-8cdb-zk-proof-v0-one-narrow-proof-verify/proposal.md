@@ -9,6 +9,7 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Choose Proving System + Libraries.
 - Proof Artifact Format + Storage.
 - CLI Integration.
+- Bind any runtime-sensitive proof statement to the attested runtime identity seam rather than only to pre-attestation launch assumptions.
 
 ## Why Now
 This work now lands in `v0.1.0-alpha.10` as a narrow parallel assurance lane, after signing, attestation, and external audit anchoring have stabilized enough to give the first proof statement durable typed claims to bind to.

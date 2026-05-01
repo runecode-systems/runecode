@@ -1,5 +1,5 @@
 ## Summary
-macOS microVM reliability and UX are improved without changing the security model.
+macOS microVM reliability and UX are improved without changing the security model or the required-attestation supported runtime posture.
 
 ## Problem
 This feature now has a canonical RuneContext change record, preserving the migrated planning content without relying on legacy Agent OS folders or path aliases.
@@ -9,6 +9,7 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Optional Virtualization.framework Backend.
 - Packaging + Permissions.
 - Explicit preservation of the repo-scoped product instance model, broker-owned product lifecycle posture, and canonical `runecode` lifecycle surface across macOS-specific runtime and packaging realization.
+- Explicit preservation of the shared production runtime trust posture: valid attestation required for supported user-facing runtime operation, with no macOS-specific TOFU fallback or override path.
 
 ## Why Now
 This work remains scheduled for v0.2, and keeping it on this canonical RuneContext change preserves direct roadmap-to-change traceability for later delivery and verification.
@@ -24,4 +25,4 @@ This work remains scheduled for v0.2, and keeping it on this canonical RuneConte
 - Re-introducing legacy Agent OS planning paths as canonical references.
 
 ## Impact
-Keeps macOS Virtualization Polish reviewable as a RuneContext-native change and removes the need for a second semantics rewrite later, while ensuring macOS-specific runtime and packaging improvements stay additive beneath the same logical RuneCode product contract.
+Keeps macOS Virtualization Polish reviewable as a RuneContext-native change and removes the need for a second semantics rewrite later, while ensuring macOS-specific runtime and packaging improvements stay additive beneath the same logical RuneCode product contract and the same attestation-required supported runtime posture.

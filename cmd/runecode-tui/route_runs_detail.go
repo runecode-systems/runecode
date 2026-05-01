@@ -97,22 +97,40 @@ func runInspectorContent(summary brokerapi.RunSummary, detail *brokerapi.RunDeta
 			fmt.Sprintf("raw maps authoritative_keys=%d advisory_keys=%d", len(detail.AuthoritativeState), len(detail.AdvisoryState)),
 		)
 	}
+	attestationPosture, attestationReasons := attestationPostureFromState(detail.AuthoritativeState)
 	return compactLines(
 		fmt.Sprintf("backend_kind=%s", summary.BackendKind),
 		"Runtime isolation assurance (authoritative): "+renderRuntimeIsolationCue(summary.BackendKind, summary.IsolationAssuranceLevel),
-		fmt.Sprintf("Runtime posture degraded (authoritative): %t %s", summary.RuntimePostureDegraded, renderRuntimePostureDegradedBadge(summary.RuntimePostureDegraded)),
 		"Provisioning/binding posture (authoritative): "+renderProvisioningPostureCue(summary.ProvisioningPosture),
+		"Attestation posture (authoritative): "+renderAttestationPostureCue(attestationPosture, attestationReasons),
+		"Verifier class (authoritative): "+renderAuthoritativeVerifierClassCue(detail.AuthoritativeState),
+		"Supported runtime requirements (authoritative): "+renderSupportedRuntimeRequirementsCue(detail.AuthoritativeState),
+		"Reduced-assurance posture (authoritative): "+renderReducedAssurancePostureCue(detail.AuthoritativeState),
 		"Audit posture (authoritative): "+renderAuditPostureCue(summary.AuditIntegrityStatus, summary.AuditAnchoringStatus, summary.AuditCurrentlyDegraded),
 		fmt.Sprintf("Approval profile (authoritative): %s", renderApprovalProfileCue(summary.ApprovalProfile)),
-		fmt.Sprintf("Authoritative broker state (control-plane truth): %d keys", len(detail.AuthoritativeState)),
-		fmt.Sprintf("Advisory state (non-authoritative runner hints): %d keys %s", len(detail.AdvisoryState), renderAdvisoryStateCue(detail.AdvisoryState)),
+		fmt.Sprintf("Authoritative broker state (control-plane truth): %d keys | Advisory state (non-authoritative runner hints): %d keys %s", len(detail.AuthoritativeState), len(detail.AdvisoryState), renderAdvisoryStateCue(detail.AdvisoryState)),
 		fmt.Sprintf("Coordination summary: blocked=%t wait_reason=%s mode=%s locks=%d conflicts=%d", detail.Coordination.Blocked, detail.Coordination.WaitReasonCode, detail.Coordination.CoordinationMode, detail.Coordination.LockCount, detail.Coordination.ConflictCount),
 		fmt.Sprintf("Blocking cue: %s (reason=%s)", renderBlockingStateCue(detail.Coordination.Blocked, detail.Coordination.WaitReasonCode), valueOrNA(detail.Coordination.WaitReasonCode)),
-		fmt.Sprintf("Lifecycle blocking reason code: %s -> %s", valueOrNA(summary.BlockingReasonCode), renderBlockingStateCue(summary.BlockingReasonCode != "", summary.BlockingReasonCode)),
 		fmt.Sprintf("Stage summaries: %d total, %d with pending approvals", len(detail.StageSummaries), waitingStages),
 		fmt.Sprintf("Role summaries: %d total, %d reporting coordination waits", len(detail.RoleSummaries), waitingRoles),
 		fmt.Sprintf("Pending approvals=%d active manifests=%d policy refs=%d", len(detail.PendingApprovalIDs), len(detail.ActiveManifestHashes), len(detail.LatestPolicyDecisionRefs)),
 	)
+}
+
+func attestationPostureFromState(state map[string]any) (string, []string) {
+	posture, _ := state["attestation_posture"].(string)
+	reasonsAny, ok := state["attestation_reason_codes"].([]any)
+	if !ok {
+		reasons, _ := state["attestation_reason_codes"].([]string)
+		return posture, reasons
+	}
+	reasons := make([]string, 0, len(reasonsAny))
+	for _, value := range reasonsAny {
+		if s, ok := value.(string); ok && strings.TrimSpace(s) != "" {
+			reasons = append(reasons, s)
+		}
+	}
+	return posture, reasons
 }
 
 func runInspectorContentKind(presentation contentPresentationMode) inspectorContentKind {

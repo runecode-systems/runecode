@@ -3,7 +3,9 @@
 ## Windows MicroVM Backend Implementation
 
 - [ ] Implement QEMU acceleration via WHPX/Hyper-V.
-- [ ] Ensure parity with Linux microVM backend contracts, including runtime-image identity, boot-profile handling, trusted-admission rules, verified-cache semantics, launch/session/attachment semantics, hardening posture recording, terminal reporting, and isolate-session audit payload expectations.
+- [ ] Ensure parity with Linux microVM backend contracts, including runtime-image identity, boot-profile handling, trusted-admission rules, verified-cache semantics, launch/session/attachment semantics, attestation evidence and verification semantics, hardening posture recording, terminal reporting, and isolate-session audit payload expectations.
+- [ ] Require valid attestation for all supported production and user-facing Windows runtime paths.
+- [ ] Disallow Windows-specific automatic fallback, manual override, default configuration, documented operator flow, CLI flag, TUI action, or platform exception that would permit TOFU trust decisions.
 
 ## Windows Service + Local IPC
 
@@ -18,6 +20,7 @@
 - [ ] Define required host capabilities (virtualization enabled, Hyper-V availability).
 - [ ] Provide clear diagnostics when prerequisites are missing.
 - [ ] Ensure Windows packaging and bootstrap flows preserve the same published signed runtime-asset and verified local cache trust model used on other platforms.
+- [ ] Ensure missing Windows prerequisites or missing attestation capability fail closed rather than downgrading to a supported TOFU posture.
 
 ## CI/Testing Strategy
 
@@ -27,6 +30,7 @@
 ## Acceptance Criteria
 
 - [ ] MicroVM roles can be launched on Windows and produce the same audit/artifact outputs and the same operator-visible runtime posture semantics.
-- [ ] Windows microVM launch consumes the same signed immutable runtime assets and preserves the same launch-admission and launch-evidence semantics used on other platforms.
+- [ ] Windows microVM launch consumes the same signed immutable runtime assets, preserves the same launch-admission and launch-evidence semantics used on other platforms, and requires the same valid attestation posture for supported production and user-facing runtime use.
 - [ ] Reduced-assurance container mode remains explicit opt-in.
 - [ ] Windows preserves the same repo-scoped product-lifecycle semantics and canonical `runecode` user-surface behavior as other platforms.
+- [ ] No Windows-specific supported path permits TOFU trust decisions.

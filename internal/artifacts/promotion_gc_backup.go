@@ -166,16 +166,8 @@ func validateRestoredRecord(record ArtifactRecord, ioStore *storeIO) (ArtifactRe
 	if err != nil {
 		return ArtifactRecord{}, err
 	}
-	blob, err := ioStore.readBlob(blobPath)
-	if err != nil {
+	if err := ioStore.verifyBlobDigestAndSize(blobPath, record.Reference.Digest, record.Reference.SizeBytes); err != nil {
 		return ArtifactRecord{}, err
-	}
-	actualDigest := digestBytes(blob)
-	if actualDigest != record.Reference.Digest {
-		return ArtifactRecord{}, fmt.Errorf("backup digest mismatch for %s", record.Reference.Digest)
-	}
-	if int64(len(blob)) != record.Reference.SizeBytes {
-		return ArtifactRecord{}, fmt.Errorf("backup size mismatch for %s", record.Reference.Digest)
 	}
 	record.BlobPath = blobPath
 	return record, nil

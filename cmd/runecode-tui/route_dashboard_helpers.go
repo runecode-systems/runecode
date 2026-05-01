@@ -159,7 +159,13 @@ func pendingApprovalCount(runs []brokerapi.RunSummary, approvals []brokerapi.App
 	if total > 0 {
 		return total
 	}
-	return len(approvals)
+	pending := 0
+	for _, approval := range approvals {
+		if strings.EqualFold(strings.TrimSpace(approval.Status), "pending") {
+			pending++
+		}
+	}
+	return pending
 }
 
 func renderRunHighlights(runs []brokerapi.RunSummary) string {
@@ -189,10 +195,13 @@ func renderDashboardSafetyAlerts(data dashboardData) string {
 	alerts := []string{}
 	run := primaryDashboardRun(data.runs)
 	if strings.ToLower(strings.TrimSpace(run.ProvisioningPosture)) == "tofu" {
-		alerts = append(alerts, provisioningDegradedBadge("ALERT_TOFU_PROVISIONING")+" TOFU isolate key provisioning in effect")
+		alerts = append(alerts, dangerBadge("ALERT_TOFU_PROVISIONING")+" unsupported legacy TOFU provisioning posture detected")
 	}
 	if strings.ToLower(strings.TrimSpace(run.IsolationAssuranceLevel)) == "unknown" || strings.ToLower(strings.TrimSpace(run.IsolationAssuranceLevel)) == "unavailable" {
 		alerts = append(alerts, dangerBadge("ALERT_RUNTIME_POSTURE_UNAVAILABLE")+" authoritative runtime isolation posture degraded/unavailable")
+	}
+	if run.RuntimePostureDegraded {
+		alerts = append(alerts, reducedAssuranceBadge("ALERT_REDUCED_ASSURANCE_RUNTIME")+" reduced-assurance runtime posture is active")
 	}
 	if strings.ToLower(strings.TrimSpace(data.audit.Summary.AnchoringStatus)) == "degraded" || data.audit.Summary.CurrentlyDegraded {
 		alerts = append(alerts, auditDegradedBadge("ALERT_AUDIT_UNANCHORED")+" audit posture unanchored/degraded")

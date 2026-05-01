@@ -251,5 +251,5 @@ func (s *Service) currentCanonicalLifecycleForRun(runID string) (string, bool, e
 		return "", false, nil
 	}
 	runnerAdvisory, _ := s.RunnerAdvisory(trimmedRunID)
-	return runLifecycleFromStore(status, pending, hasArtifacts, runnerAdvisory), true, nil
+	return runLifecycleFromStore(status, pending, hasArtifacts, runnerAdvisory, s.RuntimeFacts(trimmedRunID)), true, nil
 }

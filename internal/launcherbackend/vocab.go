@@ -17,6 +17,13 @@ const (
 	ProvisioningPostureUnknown       = "unknown"
 	ProvisioningPostureNotApplicable = "not_applicable"
 
+	AttestationPostureTOFUOnly      = "tofu_only"
+	AttestationPostureValid         = "valid"
+	AttestationPostureUnavailable   = "unavailable"
+	AttestationPostureInvalid       = "invalid"
+	AttestationPostureNotApplicable = "not_applicable"
+	AttestationPostureUnknown       = "unknown"
+
 	AttachmentRoleLaunchContext  = "launch_context"
 	AttachmentRoleWorkspace      = "workspace"
 	AttachmentRoleInputArtifacts = "input_artifacts"

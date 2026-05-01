@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 )
 
@@ -11,28 +12,48 @@ func (s *Store) GarbageCollect() (GCResult, error) {
 	now := s.nowFn().UTC()
 	ttl := ensureTTL(s.state.Policy.UnreferencedTTLSeconds)
 	candidates := gcCandidates(s.state.Artifacts, s.state.Runs, s.state.DependencyCacheBatches, s.state.DependencyCacheUnits, now, ttl)
-	result, err := s.deleteCandidatesLocked(candidates)
+	result, removedBlobs, err := s.deleteCandidatesLocked(candidates)
 	if err != nil {
 		return GCResult{}, err
 	}
 	if err := s.auditGCResultLocked(result); err != nil {
+		rollbackRemovedBlobRecords(&s.state, removedBlobs)
+		rebuildRunPlanRefsByRunLocked(&s.state)
 		return GCResult{}, err
 	}
 	return result, nil
 }
 
-func (s *Store) deleteCandidatesLocked(candidates []gcCandidate) (GCResult, error) {
+func (s *Store) deleteCandidatesLocked(candidates []gcCandidate) (GCResult, []gcCandidate, error) {
 	result := GCResult{}
+	removed := make([]gcCandidate, 0, len(candidates))
 	for _, c := range candidates {
-		if err := s.storeIO.removeBlob(c.rec.BlobPath); err != nil {
-			return result, err
-		}
 		delete(s.state.Artifacts, c.digest)
 		purgeRunPlanAuthoritiesByDigestLocked(&s.state, c.digest)
+		if err := s.saveStateLocked(); err != nil {
+			rollbackRemovedBlobRecords(&s.state, append(removed, c))
+			rebuildRunPlanRefsByRunLocked(&s.state)
+			return GCResult{}, nil, err
+		}
+		if err := s.storeIO.removeBlob(c.rec.BlobPath); err != nil {
+			rollbackRemovedBlobRecords(&s.state, append(removed, c))
+			rebuildRunPlanRefsByRunLocked(&s.state)
+			if rollbackErr := s.saveStateLocked(); rollbackErr != nil {
+				return GCResult{}, nil, errors.Join(err, rollbackErr)
+			}
+			return GCResult{}, nil, err
+		}
+		removed = append(removed, c)
 		result.DeletedDigests = append(result.DeletedDigests, c.digest)
 		result.FreedBytes += c.rec.Reference.SizeBytes
 	}
-	return result, nil
+	return result, removed, nil
+}
+
+func rollbackRemovedBlobRecords(state *StoreState, removed []gcCandidate) {
+	for _, c := range removed {
+		state.Artifacts[c.digest] = c.rec
+	}
 }
 
 func (s *Store) DeleteDigest(digest string) error {
@@ -99,25 +120,39 @@ func (s *Store) auditGCResultLocked(result GCResult) error {
 	return s.saveStateLocked()
 }
 
-func (s *Store) ExportBackup(path string) error {
+func (s *Store) ExportBackup(path string) (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	path = sanitizeBackupPath(path)
+	bundlePath := normalizeBackupBundlePath(path)
+	cleanupBundle := true
+	defer func() {
+		if err == nil || !cleanupBundle {
+			return
+		}
+		_ = os.RemoveAll(bundlePath)
+	}()
 	manifest := buildBackupManifest(s.state, s.nowFn().UTC())
-	if err := s.storeIO.writeBackup(path, manifest); err != nil {
+	if err := s.storeIO.writeBackup(bundlePath, manifest); err != nil {
+		return err
+	}
+	if err := s.storeIO.writeBackupBlobs(bundlePath, manifest.Artifacts); err != nil {
 		return err
 	}
 	signature, err := computeBackupSignature(manifest, s.state.BackupHMACKey)
 	if err != nil {
 		return err
 	}
-	if err := s.storeIO.writeBackupSignature(backupSignaturePath(path), signature); err != nil {
+	if err := s.storeIO.writeBackupSignature(filepath.Join(bundlePath, backupBundleSignatureFile), signature); err != nil {
 		return err
 	}
-	if err := s.appendAuditLocked("artifact_retention_action", "system", map[string]interface{}{"action": "export_backup", "path": filepath.Base(path)}); err != nil {
+	if err := s.appendAuditLocked("artifact_retention_action", "system", map[string]interface{}{"action": "export_backup", "path": filepath.Base(bundlePath)}); err != nil {
 		return err
 	}
-	return s.saveStateLocked()
+	if err := s.saveStateLocked(); err != nil {
+		return err
+	}
+	cleanupBundle = false
+	return nil
 }
 
 func (s *Store) RestoreBackup(path string) error {
@@ -135,15 +170,28 @@ func (s *Store) RestoreBackup(path string) error {
 	if err := verifyBackupSignature(manifest, signature, s.state.BackupHMACKey); err != nil {
 		return err
 	}
+	restoredDigests, err := s.storeIO.restoreBackupBlobsStaged(path, manifest.Artifacts)
+	if err != nil {
+		return err
+	}
 	next, err := stateFromBackup(manifest, s.state.LastAuditSequence, s.storeIO)
 	if err != nil {
+		rollbackRestoredBlobDigests(s.storeIO, restoredDigests)
 		return err
 	}
 	next.BackupHMACKey = s.state.BackupHMACKey
 	next = normalizeState(next)
+	priorState := s.state
 	s.state = next
 	if err := s.appendAuditLocked("artifact_retention_action", "system", map[string]interface{}{"action": "restore_backup", "path": filepath.Base(path)}); err != nil {
+		s.state = priorState
+		rollbackRestoredBlobDigests(s.storeIO, restoredDigests)
 		return err
 	}
-	return s.saveStateLocked()
+	if err := s.saveStateLocked(); err != nil {
+		s.state = priorState
+		rollbackRestoredBlobDigests(s.storeIO, restoredDigests)
+		return err
+	}
+	return nil
 }

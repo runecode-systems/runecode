@@ -5,15 +5,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ## Upcoming Features
 
-### v0.1.0-alpha.9
-
-- Image/Toolchain Signing Pipeline
-  - Isolate images and toolchains are signed and enforced at boot so the first usable release has stable signed runtime identity rather than provisional image trust.
-  - Planned change: `runecontext/changes/CHG-2026-026-98be-image-toolchain-signing-pipeline/`
-- Isolate Attestation v0
-  - RuneCode upgrades the default isolate posture from TOFU-only binding to measured attested provisioning without changing the core audit contract.
-  - Planned change: `runecontext/changes/CHG-2026-030-98b8-isolate-attestation-v0/`
-
 ### v0.1.0-alpha.10
 
 - External Audit Anchoring v0
@@ -27,6 +18,9 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 - Usable End-to-End Linux-First Cut
   - RuneCode reaches the first usable end-to-end release on Linux: verified RuneContext project lifecycle, remote model access via direct credentials, isolate-backed interactive and autonomous workflows, full TUI usage on the local machine, and the planned pre-beta assurance trio of signing, attestation, and external audit anchoring.
+- Runtime Attestation Post-Handshake Gating v0
+  - RuneCode only awards supported `attested` posture after a live runtime completes secure-session validation and post-handshake trusted runtime-proof verification, closing the remaining gap between the reviewed attestation design and launch-time implementation order.
+  - Planned change: `runecontext/changes/CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0/`
 - Project Performance Baselines + Verification Gates v0
   - RuneCode establishes the deferred broader performance program after the alpha.7 TUI waiting-state repaint fix: deterministic CI gates for TUI idle and waiting behavior, broker APIs and watch families, runner and workflow execution, launcher startup, gateway overhead, audit and protocol verification, and end-to-end attach or resume flows.
   - Planned change: `runecontext/changes/CHG-2026-053-9d2b-performance-baselines-verification-gates-v0/`
@@ -177,4 +171,12 @@ No unscheduled items are currently tracked outside the planned work listed above
 - First-Party RuneContext Workflow Pack v0
   - RuneCode can draft change/spec documents from prompts and implement approved changes through the same isolate-backed workflow engine, whether triggered from live chat or autonomous mode.
   - Planned change: `runecontext/changes/CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0/`
+
+- Image/Toolchain Signing Pipeline
+  - Isolate images and toolchains are signed and enforced at boot so the first usable release has stable signed runtime identity rather than provisional image trust.
+  - Planned change: `runecontext/changes/CHG-2026-026-98be-image-toolchain-signing-pipeline/`
+- Isolate Attestation v0
+  - RuneCode upgrades the default isolate posture from TOFU-only binding to measured attested provisioning without changing the core audit contract.
+  - Planned change: `runecontext/changes/CHG-2026-030-98b8-isolate-attestation-v0/`
+
 

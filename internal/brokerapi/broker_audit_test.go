@@ -97,7 +97,7 @@ func TestShouldAuditErrorCodeIncludesPolicyRejected(t *testing.T) {
 func TestRecordRuntimeFactsEmitsBrokerOwnedLauncherRuntimeAuditEvents(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	_ = putRunScopedArtifactForLocalOpsTest(t, s, "run-runtime-audit", "step-1")
-	facts := launcherRuntimeFactsFixture()
+	facts := launcherRuntimeFactsFixtureForRun("run-runtime-audit")
 	facts.LaunchReceipt.LaunchFailureReasonCode = ""
 	if err := s.RecordRuntimeFacts("run-runtime-audit", facts); err != nil {
 		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
@@ -164,7 +164,7 @@ func TestRecordRuntimeFactsEmitsLaunchDeniedAuditWithoutSessionBinding(t *testin
 func TestRuntimeFactsAuditEventsAreNotReemittedForSameEvidenceDigest(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	_ = putRunScopedArtifactForLocalOpsTest(t, s, "run-runtime-dedupe", "step-1")
-	facts := launcherRuntimeFactsFixture()
+	facts := launcherRuntimeFactsFixtureForRun("run-runtime-dedupe")
 	if err := s.RecordRuntimeFacts("run-runtime-dedupe", facts); err != nil {
 		t.Fatalf("first RecordRuntimeFacts returned error: %v", err)
 	}
@@ -181,6 +181,35 @@ func TestRuntimeFactsAuditEventsAreNotReemittedForSameEvidenceDigest(t *testing.
 	}
 	if countLauncherRuntimeAuditEvents(after) != countLauncherRuntimeAuditEvents(before) {
 		t.Fatalf("launcher runtime event count changed after duplicate facts: before=%d after=%d", countLauncherRuntimeAuditEvents(before), countLauncherRuntimeAuditEvents(after))
+	}
+}
+
+func TestRuntimeLaunchDeniedAuditDedupeIncludesReasonCode(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	putRunScopedArtifactForLocalOpsTest(t, s, "run-runtime-denied-dedupe-reason", "step-1")
+
+	facts := launcherRuntimeFactsFixture()
+	facts.LaunchReceipt.RunID = "run-runtime-denied-dedupe-reason"
+	facts.LaunchReceipt.LaunchFailureReasonCode = launcherbackend.BackendErrorCodeAccelerationUnavailable
+	if err := s.RecordRuntimeFacts("run-runtime-denied-dedupe-reason", facts); err != nil {
+		t.Fatalf("first RecordRuntimeFacts returned error: %v", err)
+	}
+
+	facts.LaunchReceipt.LaunchFailureReasonCode = launcherbackend.BackendErrorCodeHypervisorLaunchFailed
+	if err := s.RecordRuntimeFacts("run-runtime-denied-dedupe-reason", facts); err != nil {
+		t.Fatalf("second RecordRuntimeFacts returned error: %v", err)
+	}
+
+	events, err := s.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents returned error: %v", err)
+	}
+
+	if countRuntimeLaunchDeniedEventsByReasonCode(t, events, launcherbackend.BackendErrorCodeAccelerationUnavailable) != 1 {
+		t.Fatalf("expected exactly one runtime_launch_denied event with reason %q", launcherbackend.BackendErrorCodeAccelerationUnavailable)
+	}
+	if countRuntimeLaunchDeniedEventsByReasonCode(t, events, launcherbackend.BackendErrorCodeHypervisorLaunchFailed) != 1 {
+		t.Fatalf("expected exactly one runtime_launch_denied event with reason %q", launcherbackend.BackendErrorCodeHypervisorLaunchFailed)
 	}
 }
 
@@ -219,17 +248,83 @@ func TestBuildRuntimeEventOperationIDForLaunchAdmissionStaysLaunchDigestScoped(t
 
 func TestRuntimeSessionAuditIdentityKeyIncludesLaunchAndHardeningDigests(t *testing.T) {
 	evidence := launcherbackend.RuntimeEvidenceSnapshot{
-		Launch:    launcherbackend.LaunchRuntimeEvidence{EvidenceDigest: "sha256:" + strings.Repeat("1", 64)},
-		Hardening: launcherbackend.HardeningRuntimeEvidence{EvidenceDigest: "sha256:" + strings.Repeat("2", 64)},
-		Session:   &launcherbackend.SessionRuntimeEvidence{EvidenceDigest: "sha256:" + strings.Repeat("3", 64)},
+		Launch:                  launcherbackend.LaunchRuntimeEvidence{EvidenceDigest: "sha256:" + strings.Repeat("1", 64)},
+		Hardening:               launcherbackend.HardeningRuntimeEvidence{EvidenceDigest: "sha256:" + strings.Repeat("2", 64)},
+		Session:                 &launcherbackend.SessionRuntimeEvidence{EvidenceDigest: "sha256:" + strings.Repeat("3", 64)},
+		Attestation:             &launcherbackend.IsolateAttestationEvidence{EvidenceDigest: "sha256:" + strings.Repeat("4", 64)},
+		AttestationVerification: &launcherbackend.IsolateAttestationVerificationRecord{VerificationDigest: "sha256:" + strings.Repeat("5", 64), VerificationResult: launcherbackend.AttestationVerificationResultValid},
 	}
 	key := runtimeSessionAuditIdentityKey(evidence)
 	parts := strings.Split(key, ":")
-	if len(parts) != 6 {
-		t.Fatalf("session audit identity parts = %d, want 6 for three sha256 digests", len(parts))
+	if len(parts) != 11 {
+		t.Fatalf("session audit identity parts = %d, want 11 for five sha256 digests plus posture marker", len(parts))
 	}
-	if !strings.Contains(key, evidence.Launch.EvidenceDigest) || !strings.Contains(key, evidence.Hardening.EvidenceDigest) || !strings.Contains(key, evidence.Session.EvidenceDigest) {
-		t.Fatalf("session audit identity = %q, want launch, hardening, and session digests included", key)
+	if !strings.Contains(key, evidence.Launch.EvidenceDigest) || !strings.Contains(key, evidence.Hardening.EvidenceDigest) || !strings.Contains(key, evidence.Session.EvidenceDigest) || !strings.Contains(key, evidence.Attestation.EvidenceDigest) || !strings.Contains(key, evidence.AttestationVerification.VerificationDigest) || !strings.Contains(key, launcherbackend.AttestationPostureUnknown) {
+		t.Fatalf("session audit identity = %q, want launch/hardening/session/attestation digests and posture included", key)
+	}
+}
+
+func TestRuntimeSessionAuditPayloadIncludesAttestationEvidenceDigestAdditively(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	_ = putRunScopedArtifactForLocalOpsTest(t, s, "run-runtime-attestation-audit", "step-1")
+	facts := attestationAuditRuntimeFacts()
+
+	if err := s.RecordRuntimeFacts("run-runtime-attestation-audit", facts); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
+	evidence := requirePersistedAttestationEvidence(t, s, "run-runtime-attestation-audit")
+
+	events, err := s.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents returned error: %v", err)
+	}
+	startedEvent := findLauncherRuntimeAuditEvent(t, events, "isolate_session_started")
+	assertRuntimeAttestationAuditPayload(t, startedEvent, evidence.Attestation.EvidenceDigest)
+	boundEvent := findLauncherRuntimeAuditEvent(t, events, "isolate_session_bound")
+	assertRuntimeAttestationAuditPayload(t, boundEvent, evidence.Attestation.EvidenceDigest)
+	assertLauncherRuntimeAuditDigestValue(t, launcherRuntimeAuditDigests(t, startedEvent), "attestation_evidence", evidence.Attestation.EvidenceDigest)
+}
+
+func attestationAuditRuntimeFacts() launcherbackend.RuntimeFactsSnapshot {
+	facts := launcherRuntimeFactsFixture()
+	facts.LaunchReceipt.RunID = "run-runtime-attestation-audit"
+	facts.LaunchReceipt.AttestationEvidenceSourceKind = launcherbackend.AttestationSourceKindTPMQuote
+	facts.LaunchReceipt.AttestationMeasurementProfile = "microvm-boot-v1"
+	facts.LaunchReceipt.AttestationFreshnessMaterial = []string{"quote_nonce"}
+	facts.LaunchReceipt.AttestationFreshnessBindingClaims = []string{"session_nonce", "handshake_transcript_hash"}
+	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = runtimeFactsMeasurementDigests(facts.LaunchReceipt)[0]
+	return facts
+}
+
+func requirePersistedAttestationEvidence(t *testing.T, s *Service, runID string) launcherbackend.RuntimeEvidenceSnapshot {
+	t.Helper()
+	_, evidence, _, _, ok := s.store.RuntimeEvidenceState(runID)
+	if !ok {
+		t.Fatal("RuntimeEvidenceState = not found, want persisted runtime evidence")
+	}
+	if evidence.Attestation == nil || evidence.Attestation.EvidenceDigest == "" {
+		t.Fatalf("attestation evidence missing from persisted runtime evidence: %#v", evidence.Attestation)
+	}
+	return evidence
+}
+
+func assertRuntimeAttestationAuditPayload(t *testing.T, event artifacts.AuditEvent, expectedDigest string) {
+	t.Helper()
+	payload := launcherRuntimeAuditEventPayload(t, event)
+	if payload["attestation_evidence_digest"] != expectedDigest {
+		t.Fatalf("attestation_evidence_digest = %v, want %q", payload["attestation_evidence_digest"], expectedDigest)
+	}
+	if event.Details["provisioning_posture"] != launcherbackend.ProvisioningPostureAttested {
+		t.Fatalf("details provisioning_posture = %v, want %q", event.Details["provisioning_posture"], launcherbackend.ProvisioningPostureAttested)
+	}
+	if event.Details["attestation_posture"] != launcherbackend.AttestationPostureValid {
+		t.Fatalf("details attestation_posture = %v, want %q", event.Details["attestation_posture"], launcherbackend.AttestationPostureValid)
+	}
+	if event.Details["attestation_verifier_class"] != launcherbackend.AttestationVerifierClassHardwareRooted {
+		t.Fatalf("details attestation_verifier_class = %v, want %q", event.Details["attestation_verifier_class"], launcherbackend.AttestationVerifierClassHardwareRooted)
+	}
+	if event.Details["supported_runtime_requirements_satisfied"] != true {
+		t.Fatalf("details supported_runtime_requirements_satisfied = %v, want true", event.Details["supported_runtime_requirements_satisfied"])
 	}
 }
 
@@ -315,6 +410,24 @@ func countLauncherRuntimeAuditEvents(events []artifacts.AuditEvent) int {
 	count := 0
 	for _, event := range events {
 		if event.Type == brokerAuditEventTypeLauncherRuntime {
+			count++
+		}
+	}
+	return count
+}
+
+func countRuntimeLaunchDeniedEventsByReasonCode(t *testing.T, events []artifacts.AuditEvent, reasonCode string) int {
+	t.Helper()
+	count := 0
+	for _, event := range events {
+		if event.Type != brokerAuditEventTypeLauncherRuntime {
+			continue
+		}
+		if event.Details["runtime_event_type"] != "runtime_launch_denied" {
+			continue
+		}
+		payload := launcherRuntimeAuditEventPayload(t, event)
+		if payload["launch_failure_reason_code"] == reasonCode {
 			count++
 		}
 	}

@@ -11,17 +11,15 @@ import (
 )
 
 const (
-	helloWorldKernelFixture       = "runecode-hello-world-kernel-linux-amd64-v1"
-	helloWorldInitrdFixture       = "runecode-hello-world-initrd-linux-amd64-v1"
 	helloWorldDefaultQEMUBinary   = "/usr/bin/qemu-system-x86_64"
 	helloWorldQEMUFallbackFixture = "runecode-hello-world-qemu-system-x86_64-fallback-v1"
 	helloWorldAuthorityChangedAt  = "2026-04-29T00:00:00Z"
 	helloWorldAuthorityReason     = "launcher hello-world local authority"
 )
 
-// PrepareHelloWorldRuntimeImageForLaunch seeds deterministic runtime assets in
-// the verified runtime cache and returns an image descriptor that can pass
-// admitRuntimeImage without bypassing signed admission checks.
+// PrepareHelloWorldRuntimeImageForLaunch seeds host-local hello-world boot
+// assets in the verified runtime cache and returns an image descriptor that can
+// pass admitRuntimeImage without bypassing signed admission checks.
 func PrepareHelloWorldRuntimeImageForLaunch(workRoot string) (launcherbackend.RuntimeImageDescriptor, error) {
 	if strings.TrimSpace(workRoot) == "" {
 		return launcherbackend.RuntimeImageDescriptor{}, fmt.Errorf("hello-world launch requires a non-empty work root")
@@ -54,15 +52,11 @@ func PrepareHelloWorldRuntimeImageForLaunch(workRoot string) (launcherbackend.Ru
 }
 
 func prepareHelloWorldImageForSigning(workRoot string, cacheRoot string) (launcherbackend.RuntimeImageDescriptor, helloWorldSignerMaterial, helloWorldSignerMaterial, error) {
+	kernelDigest, initrdDigest, err := prepareHelloWorldBootAssets(workRoot, cacheRoot)
+	if err != nil {
+		return launcherbackend.RuntimeImageDescriptor{}, helloWorldSignerMaterial{}, helloWorldSignerMaterial{}, err
+	}
 	imageSigner, toolchainSigner, err := ensureHelloWorldAuthorityState(workRoot)
-	if err != nil {
-		return launcherbackend.RuntimeImageDescriptor{}, helloWorldSignerMaterial{}, helloWorldSignerMaterial{}, err
-	}
-	kernelDigest, err := seedHelloWorldRuntimeAsset(cacheRoot, []byte(helloWorldKernelFixture))
-	if err != nil {
-		return launcherbackend.RuntimeImageDescriptor{}, helloWorldSignerMaterial{}, helloWorldSignerMaterial{}, err
-	}
-	initrdDigest, err := seedHelloWorldRuntimeAsset(cacheRoot, []byte(helloWorldInitrdFixture))
 	if err != nil {
 		return launcherbackend.RuntimeImageDescriptor{}, helloWorldSignerMaterial{}, helloWorldSignerMaterial{}, err
 	}
@@ -74,6 +68,10 @@ func prepareHelloWorldImageForSigning(workRoot string, cacheRoot string) (launch
 }
 
 func buildHelloWorldRuntimeImage(kernelDigest string, initrdDigest string, imageSigner helloWorldSignerMaterial, toolchainSigner helloWorldSignerMaterial) (launcherbackend.RuntimeImageDescriptor, error) {
+	expectedMeasurementDigests, err := launcherbackend.DeriveExpectedMeasurementDigests(launcherbackend.MeasurementProfileMicroVMBootV1, launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1, map[string]string{"kernel": kernelDigest, "initrd": initrdDigest})
+	if err != nil {
+		return launcherbackend.RuntimeImageDescriptor{}, err
+	}
 	image := launcherbackend.RuntimeImageDescriptor{
 		BackendKind:         launcherbackend.BackendKindMicroVM,
 		BootContractVersion: launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1,
@@ -81,6 +79,10 @@ func buildHelloWorldRuntimeImage(kernelDigest string, initrdDigest string, image
 			OS: "linux", Architecture: "amd64", AccelerationKind: launcherbackend.AccelerationKindKVM,
 		},
 		ComponentDigests: map[string]string{"kernel": kernelDigest, "initrd": initrdDigest},
+		Attestation: &launcherbackend.RuntimeImageAttestationHook{
+			MeasurementProfile:         launcherbackend.MeasurementProfileMicroVMBootV1,
+			ExpectedMeasurementDigests: expectedMeasurementDigests,
+		},
 	}
 	descriptorDigest, err := image.ExpectedDescriptorDigest()
 	if err != nil {

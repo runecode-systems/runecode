@@ -1,7 +1,10 @@
+//go:build linux
+
 package launcherdaemon
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +14,7 @@ import (
 
 func TestPrepareHelloWorldRuntimeImageForLaunchSeedsAdmittableImage(t *testing.T) {
 	workRoot := t.TempDir()
+	seedHelloWorldKernelResolver(t)
 	image, err := PrepareHelloWorldRuntimeImageForLaunch(workRoot)
 	if err != nil {
 		t.Fatalf("PrepareHelloWorldRuntimeImageForLaunch returned error: %v", err)
@@ -72,6 +76,7 @@ func TestPrepareHelloWorldRuntimeImageForLaunchUsesQEMUDigestWhenPresent(t *test
 
 func TestPrepareHelloWorldRuntimeImageForLaunchDeterministicWarmCache(t *testing.T) {
 	workRoot := t.TempDir()
+	seedHelloWorldKernelResolver(t)
 	first, err := PrepareHelloWorldRuntimeImageForLaunch(workRoot)
 	if err != nil {
 		t.Fatalf("first PrepareHelloWorldRuntimeImageForLaunch returned error: %v", err)
@@ -99,6 +104,7 @@ func TestPrepareHelloWorldRuntimeImageForLaunchDeterministicWarmCache(t *testing
 
 func TestPrepareHelloWorldRuntimeImageForLaunchPreservesExistingImportedAuthorities(t *testing.T) {
 	workRoot := t.TempDir()
+	seedHelloWorldKernelResolver(t)
 	cacheRoot := verifiedRuntimeCacheRoot(workRoot)
 	input := writeHelloWorldExistingAuthorityFixture(t, workRoot, importedExtendRuntimeVerifierAuthorityStateForTests(t))
 	if _, err := ImportRuntimeVerifierAuthorityStateForWorkRootWithReceipt(workRoot, input); err != nil {
@@ -123,6 +129,40 @@ func TestPrepareHelloWorldRuntimeImageForLaunchPreservesExistingImportedAuthorit
 	}
 	assertHelloWorldImportedAuthorityExtended(t, workRoot, before, after)
 	assertHelloWorldSignerPrincipal(t, workRoot, runtimeVerifierKindImage, "runecode-launcher-hello-world-image")
+}
+
+func TestPrepareHelloWorldRuntimeImageForLaunchFailsClosedWhenKernelUnavailable(t *testing.T) {
+	setHelloWorldKernelPathResolverForTests(t, func() (string, error) {
+		return "", fmt.Errorf("no readable host kernel image found")
+	})
+	_, err := PrepareHelloWorldRuntimeImageForLaunch(t.TempDir())
+	if err == nil {
+		t.Fatal("PrepareHelloWorldRuntimeImageForLaunch expected kernel preflight failure")
+	}
+	if got := err.Error(); got != "prepare hello-world boot assets: no readable host kernel image found" {
+		t.Fatalf("PrepareHelloWorldRuntimeImageForLaunch error = %q", got)
+	}
+}
+
+func seedHelloWorldKernelResolver(t *testing.T) string {
+	t.Helper()
+	kernelPath := filepath.Join(t.TempDir(), "vmlinuz-test")
+	if err := os.WriteFile(kernelPath, []byte("deterministic-kernel-fixture"), 0o600); err != nil {
+		t.Fatalf("WriteFile(test kernel fixture) returned error: %v", err)
+	}
+	setHelloWorldKernelPathResolverForTests(t, func() (string, error) {
+		return kernelPath, nil
+	})
+	return kernelPath
+}
+
+func setHelloWorldKernelPathResolverForTests(t *testing.T, resolver func() (string, error)) {
+	t.Helper()
+	previous := helloWorldKernelPathResolver
+	helloWorldKernelPathResolver = resolver
+	t.Cleanup(func() {
+		helloWorldKernelPathResolver = previous
+	})
 }
 
 func writeHelloWorldExistingAuthorityFixture(t *testing.T, workRoot string, state runtimeVerifierAuthorityState) string {

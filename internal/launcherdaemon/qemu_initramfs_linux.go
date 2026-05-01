@@ -8,16 +8,19 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"golang.org/x/sys/execabs"
 )
 
+var helloWorldGoBinaryCandidates = []string{"/usr/bin/go", "/usr/local/go/bin/go"}
+
 func buildHelloInitramfs(ctx context.Context, launchDir string) (string, error) {
-	goBin, err := exec.LookPath("go")
+	goBin, err := resolveHelloWorldGoBinary()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("resolve hello-world go toolchain: %w", err)
 	}
 	src := filepath.Join(launchDir, "init.go")
 	if err := os.WriteFile(src, []byte(helloInitProgram()), 0o600); err != nil {
@@ -55,12 +58,50 @@ func main() {
 }
 
 func buildHelloInitBinary(ctx context.Context, goBin, binPath, src string) error {
-	build := exec.CommandContext(ctx, goBin, "build", "-o", binPath, src)
-	build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64")
+	workDir := filepath.Dir(src)
+	if err := os.MkdirAll(filepath.Join(workDir, "gocache"), 0o700); err != nil {
+		return err
+	}
+	build := execabs.CommandContext(ctx, goBin, "build", "-trimpath", "-ldflags", "-buildid=", "-o", binPath, src)
+	build.Dir = workDir
+	build.Env = helloWorldGoBuildEnv(workDir)
 	if out, err := build.CombinedOutput(); err != nil {
 		return fmt.Errorf("go build init failed: %w: %s", err, string(out))
 	}
 	return nil
+}
+
+func resolveHelloWorldGoBinary() (string, error) {
+	for _, candidate := range helloWorldGoBinaryCandidates {
+		if err := validateHelloWorldGoBinary(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("host go compiler not found in approved paths")
+}
+
+func validateHelloWorldGoBinary(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return fmt.Errorf("go compiler path is a directory")
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		return fmt.Errorf("go compiler path is not executable")
+	}
+	return nil
+}
+
+func helloWorldGoBuildEnv(workDir string) []string {
+	return []string{
+		"CGO_ENABLED=0",
+		"GOOS=linux",
+		"GOARCH=amd64",
+		"GOTOOLCHAIN=local",
+		"GOCACHE=" + filepath.Join(workDir, "gocache"),
+	}
 }
 
 type cpioEntry struct {

@@ -1,0 +1,28 @@
+schema_version: 1
+id: CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0
+title: Runtime Attestation Post-Handshake Gating v0
+status: planned
+type: feature
+size: medium
+verification_status: pending
+context_bundles:
+  - product-planning
+related_specs: []
+related_decisions: []
+related_changes:
+  - CHG-2026-009-1672-launcher-microvm-backend-v0
+  - CHG-2026-026-98be-image-toolchain-signing-pipeline
+  - CHG-2026-030-98b8-isolate-attestation-v0
+  - CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0
+depends_on:
+  - CHG-2026-009-1672-launcher-microvm-backend-v0
+  - CHG-2026-026-98be-image-toolchain-signing-pipeline
+  - CHG-2026-030-98b8-isolate-attestation-v0
+informed_by: []
+supersedes: []
+superseded_by: []
+created_at: "2026-04-30"
+closed_at: null
+promotion_assessment:
+  status: pending
+  suggested_targets: []

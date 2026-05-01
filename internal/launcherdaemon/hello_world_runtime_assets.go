@@ -122,3 +122,11 @@ func seedHelloWorldRuntimeAsset(cacheRoot string, data []byte) (string, error) {
 	}
 	return digest, nil
 }
+
+func seedHelloWorldRuntimeAssetFile(cacheRoot string, sourcePath string) (string, error) {
+	data, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return "", err
+	}
+	return seedHelloWorldRuntimeAsset(cacheRoot, data)
+}

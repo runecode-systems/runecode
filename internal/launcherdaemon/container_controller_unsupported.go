@@ -5,12 +5,14 @@ package launcherdaemon
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
 type ContainerControllerConfig struct {
 	WorkRoot string
+	Now      func() time.Time
 }
 
 type unsupportedContainerController struct{}

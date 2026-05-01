@@ -8,22 +8,28 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
 type ContainerControllerConfig struct {
 	WorkRoot string
+	Now      func() time.Time
 }
 
 type containerController struct {
 	workRoot  string
+	now       func() time.Time
 	mu        sync.RWMutex
 	instances map[string]InstanceState
 }
 
 func NewContainerController(cfg ContainerControllerConfig) Controller {
-	return &containerController{workRoot: strings.TrimSpace(cfg.WorkRoot), instances: map[string]InstanceState{}}
+	if cfg.Now == nil {
+		cfg.Now = time.Now
+	}
+	return &containerController{workRoot: strings.TrimSpace(cfg.WorkRoot), now: cfg.Now, instances: map[string]InstanceState{}}
 }
 
 func (c *containerController) Launch(_ context.Context, spec launcherbackend.BackendLaunchSpec) (<-chan RuntimeUpdate, error) {
@@ -35,9 +41,12 @@ func (c *containerController) Launch(_ context.Context, spec launcherbackend.Bac
 	if err != nil {
 		return nil, err
 	}
+	isoID, sessionID, nonce, err := makeRuntimeIdentity(spec.RunID)
+	if err != nil {
+		return nil, backendError(launcherbackend.BackendErrorCodeHandshakeFailed, "failed to generate runtime identity")
+	}
 	ref := InstanceRef{RunID: spec.RunID, StageID: spec.StageID, RoleInstanceID: spec.RoleInstanceID}
-	c.storeLaunchedContainerInstance(ref)
-	return buildContainerRuntimeUpdates(spec, hardening, admittedImage.admissionRecord), nil
+	return c.buildContainerRuntimeUpdates(ref, spec, hardening, admittedImage.admissionRecord, isoID, sessionID, nonce), nil
 }
 
 func (c *containerController) Terminate(_ context.Context, ref InstanceRef) error {
@@ -111,9 +120,15 @@ func (c *containerController) storeLaunchedContainerInstance(ref InstanceRef) {
 	c.mu.Unlock()
 }
 
-func buildContainerRuntimeUpdates(spec launcherbackend.BackendLaunchSpec, hardening launcherbackend.AppliedHardeningPosture, admission launcherbackend.RuntimeAdmissionRecord) <-chan RuntimeUpdate {
+func (c *containerController) buildContainerRuntimeUpdates(ref InstanceRef, spec launcherbackend.BackendLaunchSpec, hardening launcherbackend.AppliedHardeningPosture, admission launcherbackend.RuntimeAdmissionRecord, isolateID string, sessionID string, nonce string) <-chan RuntimeUpdate {
 	updates := make(chan RuntimeUpdate, 3)
-	receipt := containerLaunchReceipt(spec, admission)
+	receipt, err := containerLaunchReceipt(spec, admission, isolateID, sessionID, nonce, c.now())
+	if err != nil {
+		updates <- RuntimeUpdate{RunID: spec.RunID, Facts: &launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: spec.RunID, StageID: spec.StageID, RoleInstanceID: spec.RoleInstanceID, BackendKind: launcherbackend.BackendKindContainer, IsolationAssuranceLevel: launcherbackend.IsolationAssuranceDegraded, LaunchFailureReasonCode: launcherbackend.BackendErrorCodeHandshakeFailed}, HardeningPosture: hardening}}
+		close(updates)
+		return updates
+	}
+	c.storeLaunchedContainerInstance(ref)
 	facts := launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: receipt, HardeningPosture: hardening}
 	updates <- RuntimeUpdate{RunID: spec.RunID, Facts: &facts}
 	started := lifecycleUpdate(launcherbackend.BackendLifecycleStateStarted, launcherbackend.BackendLifecycleStateLaunching, 2, "")
@@ -124,8 +139,12 @@ func buildContainerRuntimeUpdates(spec launcherbackend.BackendLaunchSpec, harden
 	return updates
 }
 
-func containerLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord) launcherbackend.BackendLaunchReceipt {
-	return launcherbackend.BackendLaunchReceipt{
+func containerLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isolateID string, sessionID string, nonce string, now time.Time) (launcherbackend.BackendLaunchReceipt, error) {
+	sessionBinding, err := deriveRuntimeSessionBinding(spec, admission.DescriptorDigest, isolateID, sessionID, nonce)
+	if err != nil {
+		return launcherbackend.BackendLaunchReceipt{}, err
+	}
+	receipt := launcherbackend.BackendLaunchReceipt{
 		RunID:                            spec.RunID,
 		StageID:                          spec.StageID,
 		RoleInstanceID:                   spec.RoleInstanceID,
@@ -133,7 +152,6 @@ func containerLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission la
 		RoleKind:                         spec.RoleKind,
 		BackendKind:                      launcherbackend.BackendKindContainer,
 		IsolationAssuranceLevel:          launcherbackend.IsolationAssuranceDegraded,
-		ProvisioningPosture:              launcherbackend.ProvisioningPostureNotApplicable,
 		HypervisorImplementation:         launcherbackend.HypervisorImplementationNotApplicable,
 		AccelerationKind:                 launcherbackend.AccelerationKindNotApplicable,
 		TransportKind:                    launcherbackend.TransportKindNotApplicable,
@@ -149,14 +167,24 @@ func containerLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission la
 		AuthorityStateDigest:             admission.AuthorityStateDigest,
 		AuthorityStateRevision:           admission.AuthorityStateRevision,
 		BootComponentDigestByName:        cloneMap(admission.ComponentDigests),
+		BootComponentDigests:             componentDigestValues(admission.ComponentDigests),
 		AttachmentPlanSummary:            summarizeAttachments(spec.Attachments),
-		WorkspaceEncryptionPosture: &launcherbackend.WorkspaceEncryptionPosture{
-			Required:             true,
-			AtRestProtection:     launcherbackend.WorkspaceAtRestProtectionHostManagedEncryption,
-			KeyProtectionPosture: launcherbackend.WorkspaceKeyProtectionOSKeystore,
-			Effective:            true,
-		},
-		Lifecycle: &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateLaunching, TerminateBetweenSteps: true, TransitionCount: 1},
+		WorkspaceEncryptionPosture:       containerWorkspaceEncryptionPosture(),
+		Lifecycle:                        &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateLaunching, TerminateBetweenSteps: true, TransitionCount: 1},
+	}
+	populateRuntimeSessionBinding(&receipt, sessionBinding)
+	if err := applyTrustedRuntimeAttestation(&receipt, admission, now); err != nil {
+		return launcherbackend.BackendLaunchReceipt{}, err
+	}
+	return receipt, nil
+}
+
+func containerWorkspaceEncryptionPosture() *launcherbackend.WorkspaceEncryptionPosture {
+	return &launcherbackend.WorkspaceEncryptionPosture{
+		Required:             true,
+		AtRestProtection:     launcherbackend.WorkspaceAtRestProtectionHostManagedEncryption,
+		KeyProtectionPosture: launcherbackend.WorkspaceKeyProtectionOSKeystore,
+		Effective:            true,
 	}
 }
 
