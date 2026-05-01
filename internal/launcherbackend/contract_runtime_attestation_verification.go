@@ -1,6 +1,9 @@
 package launcherbackend
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func ValidateIsolateAttestationVerificationRecord(record IsolateAttestationVerificationRecord) error {
 	if err := validateAttestationVerificationDigestFields(record); err != nil {
@@ -26,21 +29,81 @@ func ValidateIsolateAttestationVerificationRecord(record IsolateAttestationVerif
 }
 
 func validateAttestationVerificationDigestFields(record IsolateAttestationVerificationRecord) error {
+	if err := validateAttestationVerificationCoreDigests(record); err != nil {
+		return err
+	}
+	if err := validateAttestationVerificationPolicyBinding(record); err != nil {
+		return err
+	}
+	return validateAttestationDerivedMeasurementDigests(record.DerivedMeasurementDigests)
+}
+
+func validateAttestationVerificationCoreDigests(record IsolateAttestationVerificationRecord) error {
 	if !looksLikeDigest(record.AttestationEvidenceDigest) {
 		return fmt.Errorf("attestation_evidence_digest must be a sha256 digest")
 	}
 	if record.ReplayIdentityDigest != "" && !looksLikeDigest(record.ReplayIdentityDigest) {
 		return fmt.Errorf("replay_identity_digest must be a sha256 digest")
 	}
-	if record.VerifierPolicyDigest != "" && !looksLikeDigest(record.VerifierPolicyDigest) {
+	return nil
+}
+
+func validateAttestationVerificationPolicyBinding(record IsolateAttestationVerificationRecord) error {
+	policyID := strings.TrimSpace(record.VerifierPolicyID)
+	policyDigest := strings.TrimSpace(record.VerifierPolicyDigest)
+	if err := validateAttestationVerificationPolicyPairing(policyID, policyDigest); err != nil {
+		return err
+	}
+	if err := validateTrustedAttestationPolicyRequirement(record, policyID, policyDigest); err != nil {
+		return err
+	}
+	if policyDigest != "" && !looksLikeDigest(policyDigest) {
 		return fmt.Errorf("verifier_policy_digest must be a sha256 digest")
 	}
-	for i, digest := range record.DerivedMeasurementDigests {
+	return nil
+}
+
+func validateAttestationVerificationPolicyPairing(policyID, policyDigest string) error {
+	if policyID == "" && policyDigest != "" {
+		return fmt.Errorf("verifier_policy_id is required when verifier_policy_digest is set")
+	}
+	if policyID != "" && policyDigest == "" {
+		return fmt.Errorf("verifier_policy_digest is required when verifier_policy_id is set")
+	}
+	return nil
+}
+
+func validateTrustedAttestationPolicyRequirement(record IsolateAttestationVerificationRecord, policyID, policyDigest string) error {
+	if !requiresTrustedAttestationPolicyBinding(record) {
+		return nil
+	}
+	if policyID == "" {
+		return fmt.Errorf("verifier_policy_id is required for trusted attestation verification")
+	}
+	if policyDigest == "" {
+		return fmt.Errorf("verifier_policy_digest is required for trusted attestation verification")
+	}
+	return nil
+}
+
+func validateAttestationDerivedMeasurementDigests(digests []string) error {
+	for i, digest := range digests {
 		if !looksLikeDigest(digest) {
 			return fmt.Errorf("derived_measurement_digests[%d] must be a sha256 digest", i)
 		}
 	}
 	return nil
+}
+
+func requiresTrustedAttestationPolicyBinding(record IsolateAttestationVerificationRecord) bool {
+	verificationResult := strings.TrimSpace(record.VerificationResult)
+	if verificationResult == "" || verificationResult == AttestationVerificationResultUnknown {
+		return false
+	}
+	if verificationResult == AttestationVerificationResultInvalid && containsAnyReasonCode(record.ReasonCodes, attestationReasonCodeEvidenceRequired, attestationReasonCodeVerificationRequired) {
+		return false
+	}
+	return true
 }
 
 func validateAttestationVerificationEnums(record IsolateAttestationVerificationRecord) error {

@@ -43,6 +43,13 @@ func TestRestoreBackupAcrossFreshStoresUsesPersistentKey(t *testing.T) {
 	if _, err := restoreStore.Head(ref.Digest); err != nil {
 		t.Fatalf("Head returned error after restore: %v", err)
 	}
+	reloaded, err := NewStore(restoreStore.rootDir)
+	if err != nil {
+		t.Fatalf("NewStore(reloaded restore) returned error: %v", err)
+	}
+	if _, err := reloaded.Head(ref.Digest); err != nil {
+		t.Fatalf("Head returned error after restore reload: %v", err)
+	}
 }
 
 func setupRetentionAndBackupFixture(t *testing.T) (*Store, ArtifactReference, string) {

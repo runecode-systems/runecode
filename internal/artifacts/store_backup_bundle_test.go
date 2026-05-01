@@ -84,6 +84,36 @@ func TestExportBackupBundlesReferencedBlobs(t *testing.T) {
 	}
 }
 
+func TestExportBackupNormalizesManifestPathInputToBundleRoot(t *testing.T) {
+	store := newTestStore(t)
+	ref, err := store.Put(PutRequest{Payload: []byte("payload"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("3"), CreatedByRole: "workspace"})
+	if err != nil {
+		t.Fatalf("Put error: %v", err)
+	}
+	bundleRoot := filepath.Join(t.TempDir(), "backup-manifest-path-input")
+	manifestPath := filepath.Join(bundleRoot, backupBundleManifestFile)
+	if err := store.ExportBackup(manifestPath); err != nil {
+		t.Fatalf("ExportBackup(manifest path) error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(bundleRoot, backupBundleManifestFile)); err != nil {
+		t.Fatalf("manifest stat error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(bundleRoot, backupBundleSignatureFile)); err != nil {
+		t.Fatalf("signature stat error: %v", err)
+	}
+	bundleBlob := bundledBlobPathForDigest(t, bundleRoot, ref.Digest)
+	if _, err := os.Stat(bundleBlob); err != nil {
+		t.Fatalf("bundled blob stat error: %v", err)
+	}
+	info, err := os.Stat(manifestPath)
+	if err != nil {
+		t.Fatalf("manifest path stat error: %v", err)
+	}
+	if !info.Mode().IsRegular() {
+		t.Fatalf("manifest path mode = %v, want regular file", info.Mode())
+	}
+}
+
 func TestExportBackupRejectsCorruptedStoredBlobWithMatchingSize(t *testing.T) {
 	store := newTestStore(t)
 	ref, err := store.Put(PutRequest{Payload: []byte("payload"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"})
@@ -162,6 +192,30 @@ func TestExportBackupRemovesEarlierBundledBlobsWhenLaterBlobFails(t *testing.T) 
 	secondBundleBlob := bundledBlobPathForDigest(t, backupPath, second.Digest)
 	if _, statErr := os.Stat(secondBundleBlob); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("second bundled blob stat error = %v, want not-exist", statErr)
+	}
+}
+
+func TestExportBackupRemovesPartialBundleDirectoryOnFailure(t *testing.T) {
+	store := newTestStore(t)
+	ref, err := store.Put(PutRequest{Payload: []byte("payload"), ContentType: "text/plain", DataClass: DataClassSpecText, ProvenanceReceiptHash: testDigest("1"), CreatedByRole: "workspace"})
+	if err != nil {
+		t.Fatalf("Put error: %v", err)
+	}
+	rec, err := store.Head(ref.Digest)
+	if err != nil {
+		t.Fatalf("Head error: %v", err)
+	}
+	if err := os.WriteFile(rec.BlobPath, []byte("tamperd"), 0o600); err != nil {
+		t.Fatalf("WriteFile tampered blob error: %v", err)
+	}
+	bundleRoot := filepath.Join(t.TempDir(), "backup-partial-cleanup")
+	manifestPath := filepath.Join(bundleRoot, backupBundleManifestFile)
+	err = store.ExportBackup(manifestPath)
+	if err == nil || !strings.Contains(err.Error(), "backup digest mismatch") {
+		t.Fatalf("ExportBackup error = %v, want backup digest mismatch", err)
+	}
+	if _, statErr := os.Stat(bundleRoot); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("bundle root stat error = %v, want not-exist", statErr)
 	}
 }
 
