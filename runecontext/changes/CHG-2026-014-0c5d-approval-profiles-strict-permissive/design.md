@@ -20,10 +20,13 @@ Define post-MVP approval profiles that adjust approval timing without weakening 
 - `CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0` is the first concrete productive workflow consumer of this shared split, so profile expansion must apply consistently across built-in draft promote/apply and approved-change implementation without inventing workflow-local approval vocabularies.
 - Gate overrides remain exact explicit approvals across all profiles.
 - `git_remote_ops` and any equivalent future remote-state-mutation hard-floor classes remain exact explicit approvals across all profiles.
+- External audit anchor submission, when routed through the shared remote-state-mutation gateway class, is one such exact explicit hard-floor approval and must remain outside profile-local batching or durable pre-approval semantics.
 - Dependency-fetch checkpoint semantics remain shared across all profiles; profiles may tune timing or batching only within the reviewed scope-change model and may not invent a competing dependency-local approval taxonomy.
 - Profiles must not batch, defer, or replace final git remote-mutation approval with stage sign-off, milestone approval, or ambient session acknowledgment.
 - Git remote-mutation approval payloads must remain bound to canonical repository identity, target refs, referenced patch artifact digests, expected result tree hash, and canonical action request hash.
+- External audit anchor submission approval payloads must remain bound to canonical target descriptor identity, the typed external anchor request hash, the targeted `AuditSegmentSeal` digest, and any immutable target-specific request fields required by the shared request contract.
 - Profiles may not lower the minimum assurance floor for git remote mutation below the reviewed baseline, which remains at least `reauthenticated`.
+- Profiles may not lower the minimum assurance floor or exact-action binding required for external audit anchor submission once that hard-floor class is active.
 - Profile expansion must respect the shared role-kind versus executor-class model and must not silently let `workspace-test` or other ordinary workspace roles inherit `system_modifying` behavior.
 - Profile expansion must also respect the shared dependency-fetch split:
   - dependency scope enablement or expansion remains the approval-bearing checkpoint surface

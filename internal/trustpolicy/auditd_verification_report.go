@@ -97,6 +97,9 @@ func validateAuditVerificationReportCrossFieldConstraints(report AuditVerificati
 	if report.CryptographicallyValid && hasCryptographicHardFailure(report.HardFailures) {
 		return fmt.Errorf("cryptographically_valid=true cannot include cryptographic hard_failures")
 	}
+	if err := validateExternalAnchorFindingConsistency(report); err != nil {
+		return err
+	}
 	return nil
 }
 

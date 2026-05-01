@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ExternalAnchorMutationExecuteRequest.schema.json",
+  "title": "ExternalAnchorMutationExecuteRequest",
+  "description": "Execute request for prepared external anchor mutation by identity + exact approval/action bindings.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 9,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "request_id",
+    "prepared_mutation_id",
+    "approval_id",
+    "approval_request_hash",
+    "approval_decision_hash",
+    "target_auth_lease_id"
+  ],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ExternalAnchorMutationExecuteRequest", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Stable request correlation identifier.",
+      "x-data-class": "public"
+    },
+    "prepared_mutation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Prepared mutation identifier to execute.",
+      "x-data-class": "public"
+    },
+    "approval_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "maxLength": 71,
+      "description": "Approval identifier consumed for execute authorization.",
+      "x-data-class": "public"
+    },
+    "approval_request_hash": { "$ref": "Digest.schema.json#/$defs/digestValue", "description": "Approval request envelope digest binding.", "x-data-class": "public" },
+    "approval_decision_hash": { "$ref": "Digest.schema.json#/$defs/digestValue", "description": "Approval decision envelope digest binding.", "x-data-class": "public" },
+    "target_auth_lease_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Secretsd gateway lease identifier bound to this execute request for external-target authentication.",
+      "x-data-class": "public"
+    },
+    "export_receipt_copy": {
+      "type": "boolean",
+      "description": "When true, request a best-effort exported artifact copy of the authoritative external anchor receipt sidecar.",
+      "x-data-class": "public"
+    }
+  }
+}

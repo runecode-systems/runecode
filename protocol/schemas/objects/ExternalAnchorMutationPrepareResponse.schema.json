@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ExternalAnchorMutationPrepareResponse.schema.json",
+  "title": "ExternalAnchorMutationPrepareResponse",
+  "description": "Prepare response for broker-local external anchor remote-state mutation control-plane.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 6,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "request_id",
+    "prepared_mutation_id",
+    "typed_request_hash",
+    "prepared"
+  ],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ExternalAnchorMutationPrepareResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Stable request correlation identifier echoed from request.",
+      "x-data-class": "public"
+    },
+    "prepared_mutation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Stable prepared mutation identity.",
+      "x-data-class": "public"
+    },
+    "typed_request_hash": { "$ref": "Digest.schema.json#/$defs/digestValue", "description": "Canonical hash identity of authoritative typed request.", "x-data-class": "public" },
+    "prepared": {
+      "$ref": "ExternalAnchorMutationPreparedState.schema.json",
+      "description": "Durable prepared mutation state record.",
+      "x-data-class": "public"
+    }
+  }
+}

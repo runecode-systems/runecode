@@ -1,0 +1,97 @@
+package brokerapi
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
+)
+
+func TestExternalAnchorMutationExecuteFailsClosedOnApprovalBindingMismatch(t *testing.T) {
+	s, preparedID, approvalID, requestDigest, decisionDigest, leaseID := prepareExternalAnchorExecuteFixture(t, "run-anchor-execute-mismatch", "sha256:"+strings.Repeat("7", 64))
+	wrongRequest := trustpolicy.Digest{HashAlg: requestDigest.HashAlg, Hash: strings.Repeat("a", len(requestDigest.Hash))}
+	errResp := executeExternalAnchorMutationError(t, s, preparedID, approvalID, wrongRequest, decisionDigest, leaseID, "req-anchor-execute-mismatch")
+	assertExternalAnchorExecuteError(t, errResp, "broker_approval_state_invalid", "approval_request_hash")
+	assertExternalAnchorNotStartedState(t, s, preparedID)
+}
+
+func TestExternalAnchorMutationExecuteFailsClosedWhenStoredTypedRequestHashDrifts(t *testing.T) {
+	s, preparedID, approvalID, requestDigest, decisionDigest, leaseID := prepareExternalAnchorExecuteFixture(t, "run-anchor-execute-drift", "sha256:"+strings.Repeat("8", 64))
+	tamperExternalAnchorPreparedRecord(t, s, preparedID, func(rec *artifacts.ExternalAnchorPreparedMutationRecord) {
+		rec.TypedRequest["outbound_payload_digest"] = digestObject("sha256:" + strings.Repeat("e", 64))
+	})
+	errResp := executeExternalAnchorMutationError(t, s, preparedID, approvalID, requestDigest, decisionDigest, leaseID, "req-anchor-execute-drift")
+	assertExternalAnchorExecuteError(t, errResp, "broker_approval_state_invalid", "stored typed request hash")
+	assertExternalAnchorNotStartedState(t, s, preparedID)
+	if rec, ok := s.ExternalAnchorPreparedGet(preparedID); !ok || rec.LastExecuteRequestID != "" {
+		t.Fatalf("last_execute_request_id=%q, want empty on fail-closed pre-execution failure", rec.LastExecuteRequestID)
+	}
+}
+
+func TestExternalAnchorMutationExecuteFailsClosedOnTargetIdentityBindingDrift(t *testing.T) {
+	s, preparedID, approvalID, requestDigest, decisionDigest, leaseID := prepareExternalAnchorExecuteFixture(t, "run-anchor-execute-target-drift", "sha256:"+strings.Repeat("9", 64))
+	tamperExternalAnchorPreparedRecord(t, s, preparedID, func(rec *artifacts.ExternalAnchorPreparedMutationRecord) {
+		rec.PrimaryTarget.TargetDescriptorDigest = "sha256:" + strings.Repeat("f", 64)
+		if len(rec.TargetSet) > 0 {
+			rec.TargetSet[0].TargetDescriptorDigest = "sha256:" + strings.Repeat("f", 64)
+		}
+	})
+	errResp := executeExternalAnchorMutationError(t, s, preparedID, approvalID, requestDigest, decisionDigest, leaseID, "req-anchor-execute-target-drift")
+	assertExternalAnchorExecuteError(t, errResp, "broker_approval_state_invalid", "target descriptor digest is invalid")
+}
+
+func TestExternalAnchorMutationExecuteRequiresValidTargetAuthLeasePosture(t *testing.T) {
+	s, preparedID, approvalID, requestDigest, decisionDigest, _ := prepareExternalAnchorExecuteFixture(t, "run-anchor-execute-lease-posture", "sha256:"+strings.Repeat("6", 64))
+	errResp := executeExternalAnchorMutationError(t, s, preparedID, approvalID, requestDigest, decisionDigest, "", "req-anchor-execute-missing-lease")
+	assertExternalAnchorExecuteError(t, errResp, "broker_validation_schema_invalid", "target_auth_lease_id")
+	invalidLeaseID := mustIssueExternalAnchorNonGatewayLease(t, s, "run-anchor-execute-lease-posture")
+	errResp = executeExternalAnchorMutationError(t, s, preparedID, approvalID, requestDigest, decisionDigest, invalidLeaseID, "req-anchor-execute-invalid-lease")
+	assertExternalAnchorExecuteError(t, errResp, "broker_approval_state_invalid", "target auth lease retrieval failed")
+}
+
+func TestExternalAnchorMutationIssueExecuteLeaseRequiresPreparedLifecycleAndReturnsBoundLease(t *testing.T) {
+	s, preparedID, _, _, _, _ := prepareExternalAnchorExecuteFixture(t, "run-anchor-lease-issue", "sha256:"+strings.Repeat("a", 64))
+	resp := mustIssueExternalAnchorExecuteLease(t, s, preparedID, "req-anchor-issue-lease", 300)
+	if strings.TrimSpace(resp.TargetAuthLeaseID) == "" {
+		t.Fatal("target_auth_lease_id empty")
+	}
+	if resp.Lease.GitBinding == nil {
+		t.Fatal("lease.git_binding missing")
+	}
+	if got := strings.Join(resp.Lease.GitBinding.AllowedOperations, ","); got != "external_anchor_submit" {
+		t.Fatalf("allowed_operations=%q, want external_anchor_submit", got)
+	}
+	if strings.TrimSpace(resp.Lease.GitBinding.RepositoryIdentity) == "" {
+		t.Fatal("lease.git_binding.repository_identity empty")
+	}
+	tamperExternalAnchorPreparedRecord(t, s, preparedID, func(rec *artifacts.ExternalAnchorPreparedMutationRecord) {
+		rec.LifecycleState = gitRemoteMutationLifecycleExecuted
+	})
+	_, errResp := s.HandleExternalAnchorMutationIssueExecuteLease(context.Background(), ExternalAnchorMutationIssueExecuteLeaseRequest{
+		SchemaID:           "runecode.protocol.v0.ExternalAnchorMutationIssueExecuteLeaseRequest",
+		SchemaVersion:      "0.1.0",
+		RequestID:          "req-anchor-issue-lease-not-prepared",
+		PreparedMutationID: preparedID,
+	}, RequestContext{})
+	if errResp == nil {
+		t.Fatal("expected issue execute lease error for non-prepared lifecycle")
+	}
+	if errResp.Error.Code != "broker_approval_state_invalid" {
+		t.Fatalf("error.code=%q, want broker_approval_state_invalid", errResp.Error.Code)
+	}
+}
+
+func assertExternalAnchorExecuteError(t *testing.T, errResp *ErrorResponse, wantCode, wantMessage string) {
+	t.Helper()
+	if errResp == nil {
+		t.Fatal("expected execute error")
+	}
+	if errResp.Error.Code != wantCode {
+		t.Fatalf("error.code=%q, want %q", errResp.Error.Code, wantCode)
+	}
+	if !strings.Contains(errResp.Error.Message, wantMessage) {
+		t.Fatalf("error.message=%q, want substring %q", errResp.Error.Message, wantMessage)
+	}
+}

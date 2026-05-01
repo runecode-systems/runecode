@@ -1,5 +1,7 @@
 package policyengine
 
+import "github.com/runecode-ai/runecode/internal/trustpolicy"
+
 type DestinationDescriptor struct {
 	SchemaID               string `json:"schema_id"`
 	SchemaVersion          string `json:"schema_version"`
@@ -15,22 +17,23 @@ type DestinationDescriptor struct {
 }
 
 type GatewayScopeRule struct {
-	SchemaID                 string                `json:"schema_id"`
-	SchemaVersion            string                `json:"schema_version"`
-	ScopeKind                string                `json:"scope_kind"`
-	GatewayRoleKind          string                `json:"gateway_role_kind,omitempty"`
-	EntryID                  string                `json:"entry_id,omitempty"`
-	Destination              DestinationDescriptor `json:"destination"`
-	PermittedOperations      []string              `json:"permitted_operations"`
-	AllowedEgressDataClasses []string              `json:"allowed_egress_data_classes"`
-	RedirectPosture          string                `json:"redirect_posture"`
-	MaxTimeoutSeconds        *int                  `json:"max_timeout_seconds,omitempty"`
-	AllowCredentials         *bool                 `json:"allow_credentials,omitempty"`
-	MaxResponseBytes         *int                  `json:"max_response_bytes,omitempty"`
-	GitRefUpdatePolicy       *GitRefPolicySet      `json:"git_ref_update_policy,omitempty"`
-	GitTagUpdatePolicy       *GitRefPolicySet      `json:"git_tag_update_policy,omitempty"`
-	GitPRBaseRefPolicy       *GitRefPolicySet      `json:"git_pull_request_base_ref_policy,omitempty"`
-	GitPRHeadNamespacePolicy *GitRefPolicySet      `json:"git_pull_request_head_namespace_policy,omitempty"`
+	SchemaID                              string                `json:"schema_id"`
+	SchemaVersion                         string                `json:"schema_version"`
+	ScopeKind                             string                `json:"scope_kind"`
+	GatewayRoleKind                       string                `json:"gateway_role_kind,omitempty"`
+	EntryID                               string                `json:"entry_id,omitempty"`
+	Destination                           DestinationDescriptor `json:"destination"`
+	ExternalAnchorTargetDescriptorDigests []trustpolicy.Digest  `json:"external_anchor_target_descriptor_digests,omitempty"`
+	PermittedOperations                   []string              `json:"permitted_operations"`
+	AllowedEgressDataClasses              []string              `json:"allowed_egress_data_classes"`
+	RedirectPosture                       string                `json:"redirect_posture"`
+	MaxTimeoutSeconds                     *int                  `json:"max_timeout_seconds,omitempty"`
+	AllowCredentials                      *bool                 `json:"allow_credentials,omitempty"`
+	MaxResponseBytes                      *int                  `json:"max_response_bytes,omitempty"`
+	GitRefUpdatePolicy                    *GitRefPolicySet      `json:"git_ref_update_policy,omitempty"`
+	GitTagUpdatePolicy                    *GitRefPolicySet      `json:"git_tag_update_policy,omitempty"`
+	GitPRBaseRefPolicy                    *GitRefPolicySet      `json:"git_pull_request_base_ref_policy,omitempty"`
+	GitPRHeadNamespacePolicy              *GitRefPolicySet      `json:"git_pull_request_head_namespace_policy,omitempty"`
 }
 
 type GitRefPolicySet struct {

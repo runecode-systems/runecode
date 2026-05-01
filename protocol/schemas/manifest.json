@@ -1029,6 +1029,69 @@
       "status": "mvp"
     },
     {
+      "path": "objects/ExternalAnchorMutationPreparedState.schema.json",
+      "schema_id": "runecode.protocol.v0.ExternalAnchorMutationPreparedState",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ExternalAnchorMutationPrepareRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ExternalAnchorMutationPrepareRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ExternalAnchorMutationPrepareResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ExternalAnchorMutationPrepareResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ExternalAnchorMutationGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ExternalAnchorMutationGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ExternalAnchorMutationGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ExternalAnchorMutationGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ExternalAnchorMutationIssueExecuteLeaseRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ExternalAnchorMutationIssueExecuteLeaseRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ExternalAnchorMutationIssueExecuteLeaseResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ExternalAnchorMutationIssueExecuteLeaseResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ExternalAnchorMutationExecuteRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ExternalAnchorMutationExecuteRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ExternalAnchorMutationExecuteResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ExternalAnchorMutationExecuteResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/ArtifactSummary.schema.json",
       "schema_id": "runecode.protocol.v0.ArtifactSummary",
       "schema_version": "0.1.0",

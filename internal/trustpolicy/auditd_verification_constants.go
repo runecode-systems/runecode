@@ -47,6 +47,9 @@ const (
 	AuditVerificationReasonAnchorReceiptMissing                = "anchor_receipt_missing"
 	AuditVerificationReasonAnchorReceiptInvalid                = "anchor_receipt_invalid"
 	AuditVerificationReasonAnchorPassphrasePresenceDegraded    = "anchor_passphrase_presence_degraded"
+	AuditVerificationReasonExternalAnchorValid                 = "external_anchor_valid"
+	AuditVerificationReasonExternalAnchorDeferredOrUnavailable = "external_anchor_deferred_or_unavailable"
+	AuditVerificationReasonExternalAnchorInvalid               = "external_anchor_invalid"
 	AuditVerificationReasonSegmentLifecycleInconsistent        = "segment_lifecycle_inconsistent"
 	AuditVerificationReasonStoragePostureDegraded              = "storage_posture_degraded"
 	AuditVerificationReasonStoragePostureInvalid               = "storage_posture_invalid"
@@ -76,6 +79,9 @@ var (
 		AuditVerificationReasonAnchorReceiptMissing:                {},
 		AuditVerificationReasonAnchorReceiptInvalid:                {},
 		AuditVerificationReasonAnchorPassphrasePresenceDegraded:    {},
+		AuditVerificationReasonExternalAnchorValid:                 {},
+		AuditVerificationReasonExternalAnchorDeferredOrUnavailable: {},
+		AuditVerificationReasonExternalAnchorInvalid:               {},
 		AuditVerificationReasonSegmentLifecycleInconsistent:        {},
 		AuditVerificationReasonStoragePostureDegraded:              {},
 		AuditVerificationReasonStoragePostureInvalid:               {},
@@ -158,7 +164,18 @@ type AuditVerificationInput struct {
 	EventContractCatalog     AuditEventContractCatalog
 	SignerEvidence           []AuditSignerEvidenceReference
 	StoragePostureEvidence   *AuditStoragePostureEvidence
+	ExternalAnchorTargetSet  []ExternalAnchorVerificationTarget
+	ExternalAnchorEvidence   []ExternalAnchorEvidencePayload
+	ExternalAnchorSidecars   []Digest
+	PreverifiedSealDigest    *Digest
+	SkipFrameAndSealReplay   bool
 	Now                      time.Time
+}
+
+type ExternalAnchorVerificationTarget struct {
+	TargetKind             string `json:"target_kind"`
+	TargetDescriptorDigest Digest `json:"target_descriptor_digest"`
+	TargetRequirement      string `json:"target_requirement,omitempty"`
 }
 
 type streamState struct {

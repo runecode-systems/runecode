@@ -181,6 +181,26 @@ func TestEvaluateGitRemoteMutationDeniesWhenDestinationRefIncludesNonDefaultPort
 	}
 }
 
+func TestEvaluateExternalAnchorSubmitRequiresExplicitOptInTrigger(t *testing.T) {
+	targetDigest := "sha256:" + strings.Repeat("e", 64)
+	allowlist := validAllowlistPayloadForGateway("allowlist-git", "git-gateway", "git_remote", "external_anchor_submit", "audit_events")
+	entry := allowlist["entries"].([]any)[0].(map[string]any)
+	entry["external_anchor_target_descriptor_digests"] = []any{mustDigestObject(targetDigest)}
+	compiled := mustCompile(t, compileGatewayInputWithOneCapability("git-gateway", "cap_external_anchor", allowlist))
+	action := validExternalAnchorSubmitActionRequest("cap_external_anchor", "allowlist-git.example.com/org/repo", targetDigest)
+
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionRequireHumanApproval {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionRequireHumanApproval)
+	}
+	if got, _ := decision.RequiredApproval["approval_trigger_code"].(string); got != "external_anchor_opt_in" {
+		t.Fatalf("required_approval.approval_trigger_code = %q, want external_anchor_opt_in", got)
+	}
+}
+
 func TestEvaluateSecretAccessRequiresModerateApproval(t *testing.T) {
 	compiled := mustCompile(t, compileInputWithOneCapability("cap_stage"))
 	action := validSecretAccessActionRequest("cap_stage")

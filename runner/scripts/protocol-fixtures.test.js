@@ -259,9 +259,121 @@ function validateRuntimeInvariant(rule, fixture, bundle) {
       return requireImportRestoreReceiptByteIdentity(fixture)
     case 'session_send_message_ack_alignment':
       return requireSessionSendMessageAckAlignment(fixture)
+    case 'external_anchor_evidence_conformance':
+      return requireExternalAnchorEvidenceConformance(fixture)
     default:
       throw new Error(`unknown runtime invariant rule ${rule}`)
   }
+}
+
+function requireExternalAnchorEvidenceConformance(envelope) {
+  const payloadSchemaId = 'runecode.protocol.v0.ExternalAnchorEvidence'
+  const payloadSchemaVersion = '0.1.0'
+  if (envelope.payload_schema_id !== payloadSchemaId || envelope.payload_schema_version !== payloadSchemaVersion) {
+    return new Error(`payload must be ${payloadSchemaId}@${payloadSchemaVersion}`)
+  }
+
+  const payload = requireObjectField(envelope, 'payload')
+  if (payload instanceof Error) {
+    return payload
+  }
+
+  const canonicalTargetDigest = requireDigestObject(payload.canonical_target_digest, 'payload.canonical_target_digest')
+  if (canonicalTargetDigest instanceof Error) {
+    return canonicalTargetDigest
+  }
+  const canonicalTargetIdentity = requireNonEmptyString(payload, 'canonical_target_identity', 'payload')
+  if (canonicalTargetIdentity instanceof Error) {
+    return canonicalTargetIdentity
+  }
+  if (digestIdentity(canonicalTargetDigest) !== canonicalTargetIdentity) {
+    return new Error('target identity mismatch: canonical_target_identity does not match canonical_target_digest')
+  }
+
+  const outcome = requireNonEmptyString(payload, 'outcome', 'payload')
+  if (outcome instanceof Error) {
+    return outcome
+  }
+  if (!new Set(['completed', 'deferred', 'unavailable', 'invalid', 'failed']).has(outcome)) {
+    return new Error(`unsupported external anchor outcome ${JSON.stringify(outcome)}`)
+  }
+
+  if (!Array.isArray(payload.sidecar_refs)) {
+    return new Error('payload.sidecar_refs must be an array')
+  }
+  const byKind = new Map()
+  for (let index = 0; index < payload.sidecar_refs.length; index += 1) {
+    const ref = payload.sidecar_refs[index]
+    if (!ref || typeof ref !== 'object' || Array.isArray(ref)) {
+      return new Error(`payload.sidecar_refs[${index}] must be an object`)
+    }
+    const kind = requireNonEmptyString(ref, 'evidence_kind', `payload.sidecar_refs[${index}]`)
+    if (kind instanceof Error) {
+      return kind
+    }
+    const digest = requireDigestObject(ref.digest, `payload.sidecar_refs[${index}].digest`)
+    if (digest instanceof Error) {
+      return digest
+    }
+    if (byKind.has(kind)) {
+      return new Error(`payload.sidecar_refs includes duplicate evidence_kind ${JSON.stringify(kind)}`)
+    }
+    byKind.set(kind, digestIdentity(digest))
+  }
+  if (!byKind.has('proof_bytes')) {
+    return new Error('sidecar_refs must include proof_bytes')
+  }
+
+  const receiptTargetDescriptorDigest = optionalDigestIdentity(payload, 'receipt_target_descriptor_digest', 'payload')
+  if (receiptTargetDescriptorDigest instanceof Error) {
+    return receiptTargetDescriptorDigest
+  }
+  if (receiptTargetDescriptorDigest !== null && receiptTargetDescriptorDigest !== canonicalTargetIdentity) {
+    return new Error('target identity mismatch: receipt_target_descriptor_digest does not match canonical_target_digest')
+  }
+
+  const receiptProofDigest = optionalDigestIdentity(payload, 'receipt_proof_digest', 'payload')
+  if (receiptProofDigest instanceof Error) {
+    return receiptProofDigest
+  }
+  if (receiptProofDigest !== null && receiptProofDigest !== byKind.get('proof_bytes')) {
+    return new Error('invalid target proof: receipt_proof_digest does not match sidecar proof_bytes digest')
+  }
+
+  for (const [actualKey, expectedKey] of [
+    ['typed_request_hash', 'expected_typed_request_hash'],
+    ['action_request_hash', 'expected_action_request_hash'],
+    ['approval_request_hash', 'expected_approval_request_hash'],
+    ['approval_decision_hash', 'expected_approval_decision_hash'],
+  ]) {
+    const expected = optionalDigestIdentity(payload, expectedKey, 'payload')
+    if (expected instanceof Error) {
+      return expected
+    }
+    if (expected === null) {
+      continue
+    }
+    const actual = optionalDigestIdentity(payload, actualKey, 'payload')
+    if (actual instanceof Error) {
+      return actual
+    }
+    if (actual === null || actual !== expected) {
+      return new Error(`exact-action binding mismatch: ${actualKey} does not match ${expectedKey}`)
+    }
+  }
+
+  return null
+}
+
+function optionalDigestIdentity(value, key, prefix = '') {
+  if (!Object.prototype.hasOwnProperty.call(value, key)) {
+    return null
+  }
+  const digest = requireDigestObject(value[key], formatFieldPath(prefix, key))
+  if (digest instanceof Error) {
+    return digest
+  }
+  return digestIdentity(digest)
 }
 
 function requireSessionSendMessageAckAlignment(fixture) {

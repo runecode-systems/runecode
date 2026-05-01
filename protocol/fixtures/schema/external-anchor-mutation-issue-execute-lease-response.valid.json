@@ -1,0 +1,26 @@
+{
+  "schema_id": "runecode.protocol.v0.ExternalAnchorMutationIssueExecuteLeaseResponse",
+  "schema_version": "0.1.0",
+  "request_id": "req-anchor-issue-execute-lease-1",
+  "prepared_mutation_id": "prepared-anchor-1",
+  "lease": {
+    "lease_id": "lease-anchor-1",
+    "secret_ref": "secrets/prod/git/provider-token",
+    "consumer_id": "principal:gateway:git:1",
+    "role_kind": "git-gateway",
+    "scope": "run:run-anchor-1",
+    "delivery_kind": "git_gateway",
+    "git_binding": {
+      "repository_identity": "sha256/f126bddc42a9c110d4873b269a644182304ec94c01d018d7c03fcd9a4b54a437",
+      "allowed_operations": [
+        "external_anchor_submit"
+      ],
+      "action_request_hash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "policy_context_hash": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    "issued_at": "2026-04-10T00:00:00Z",
+    "expires_at": "2026-04-10T00:15:00Z",
+    "status": "active"
+  },
+  "target_auth_lease_id": "lease-anchor-1"
+}

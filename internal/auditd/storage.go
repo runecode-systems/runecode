@@ -15,6 +15,8 @@ const (
 	sidecarDirName             = "sidecar"
 	sealsDirName               = "segment-seals"
 	receiptsDirName            = "receipts"
+	externalAnchorEvidenceDir  = "external-anchor-evidence"
+	externalAnchorSidecarsDir  = "external-anchor-sidecars"
 	verificationReportsDirName = "verification-reports"
 	indexDirName               = "index"
 	stateFileName              = "state.json"
@@ -34,6 +36,8 @@ func (l *Ledger) ensureLayout() error {
 		filepath.Join(l.rootDir, sidecarDirName),
 		filepath.Join(l.rootDir, sidecarDirName, sealsDirName),
 		filepath.Join(l.rootDir, sidecarDirName, receiptsDirName),
+		filepath.Join(l.rootDir, sidecarDirName, externalAnchorEvidenceDir),
+		filepath.Join(l.rootDir, sidecarDirName, externalAnchorSidecarsDir),
 		filepath.Join(l.rootDir, sidecarDirName, verificationReportsDirName),
 		filepath.Join(l.rootDir, indexDirName),
 	}

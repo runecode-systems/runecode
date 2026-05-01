@@ -50,6 +50,8 @@ type Service struct {
 	dependencyFetchService     *dependencyFetchService
 	runGatePlanCache           *runGatePlanCache
 	compileCoordinator         *compileCoordinator
+	externalAnchorRuntime      externalAnchorExecutionRuntime
+	externalAnchorQueue        *externalAnchorBackgroundQueue
 }
 
 func NewService(storeRoot string, ledgerRoot string) (*Service, error) {
@@ -85,6 +87,7 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 	if err := svc.reloadProviderDurableState(); err != nil {
 		return nil, err
 	}
+	svc.resumeDeferredExternalAnchorExecutionsFromDurableState()
 	return svc, nil
 }
 
@@ -124,6 +127,8 @@ func newConfiguredService(store *artifacts.Store, ledger *auditd.Ledger, ledgerR
 		versionInfo:               defaultBrokerVersionInfo(),
 		runGatePlanCache:          newRunGatePlanCache(),
 		compileCoordinator:        newCompileCoordinator(cfg.Compile.MaxParallelCompiles),
+		externalAnchorRuntime:     externalAnchorExecutionRuntimeDeterministic{},
+		externalAnchorQueue:       newExternalAnchorBackgroundQueue(),
 	}
 	runtime.auditFn = svc.AppendTrustedAuditEvent
 	svc.dependencyFetchService = newDependencyFetchService(svc, cfg.DependencyFetch.MaxParallelFetches)

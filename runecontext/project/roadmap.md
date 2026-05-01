@@ -7,9 +7,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ### v0.1.0-alpha.10
 
-- External Audit Anchoring v0
-  - Audit roots can be anchored to external targets with explicit egress, typed receipts, and the same verification discipline used for other high-risk outbound lanes.
-  - Planned change: `runecontext/changes/CHG-2026-025-5679-external-audit-anchoring-v0/`
 - ZK Proof v0 (One Narrow Proof + Verify)
   - RuneCode can evaluate at least one narrow zero-knowledge integrity proof on top of the stabilized pre-beta assurance surfaces without blocking the usable product cut.
   - Planned change: `runecontext/changes/CHG-2026-016-8cdb-zk-proof-v0-one-narrow-proof-verify/`
@@ -179,4 +176,7 @@ No unscheduled items are currently tracked outside the planned work listed above
   - RuneCode upgrades the default isolate posture from TOFU-only binding to measured attested provisioning without changing the core audit contract.
   - Planned change: `runecontext/changes/CHG-2026-030-98b8-isolate-attestation-v0/`
 
+- External Audit Anchoring v0
+  - Audit roots can be anchored to external targets with explicit egress, typed receipts, and the same verification discipline used for other high-risk outbound lanes.
+  - Planned change: `runecontext/changes/CHG-2026-025-5679-external-audit-anchoring-v0/`
 

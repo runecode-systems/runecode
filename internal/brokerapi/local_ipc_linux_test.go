@@ -204,6 +204,20 @@ func TestDefaultLocalIPCConfigIsRepoScoped(t *testing.T) {
 	}
 }
 
+func TestLocalIPCConfigSocketPathRejectsOversizedUnixPath(t *testing.T) {
+	runtimeDir := "/tmp/" + strings.Repeat("r", 120)
+	_, err := (LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"}).socketPath()
+	if err == nil {
+		t.Fatal("socketPath error = nil, want unix socket path length failure")
+	}
+	if !errors.Is(err, ErrLocalSocketPathTooLong) {
+		t.Fatalf("error = %v, want ErrLocalSocketPathTooLong", err)
+	}
+	if !strings.Contains(err.Error(), "choose a shorter --runtime-dir or --socket-name") {
+		t.Fatalf("error = %q, want actionable guidance", err.Error())
+	}
+}
+
 func shortBaseDir(t *testing.T) string {
 	t.Helper()
 	base, err := os.MkdirTemp("", "rcipc-")

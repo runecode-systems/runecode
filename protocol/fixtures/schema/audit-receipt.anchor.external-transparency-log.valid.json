@@ -1,0 +1,55 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditReceipt",
+  "schema_version": "0.5.0",
+  "subject_digest": {
+    "hash_alg": "sha256",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "audit_receipt_kind": "anchor",
+  "subject_family": "audit_segment_seal",
+  "recorder": {
+    "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+    "schema_version": "0.2.0",
+    "actor_kind": "daemon",
+    "principal_id": "auditd",
+    "instance_id": "auditd-1"
+  },
+  "recorded_at": "2026-03-13T12:25:00Z",
+  "receipt_payload_schema_id": "runecode.protocol.audit.receipt.anchor.v0",
+  "receipt_payload": {
+    "anchor_kind": "external_transparency_log_v0",
+    "approval_assurance_level": "session_authenticated",
+    "approval_decision_digest": {
+      "hash_alg": "sha256",
+      "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "external_anchor": {
+      "target_kind": "transparency_log",
+      "runtime_adapter": "transparency_log_v0",
+      "target_descriptor": {
+        "descriptor_schema_id": "runecode.protocol.audit.anchor_target.transparency_log.v0",
+        "log_id": "rekor-public-good",
+        "log_public_key_digest": {
+          "hash_alg": "sha256",
+          "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        "entry_encoding_profile": "rekor_v1"
+      },
+      "target_descriptor_digest": {
+        "hash_alg": "sha256",
+        "hash": "6fb64a81bc347dad8e0ceb248d50e0c4c7d7c09480bb5ea8610f226c41c289fe"
+      },
+      "proof": {
+        "proof_kind": "transparency_log_receipt_v0",
+        "proof_schema_id": "runecode.protocol.audit.anchor_proof.transparency_log_receipt.v0",
+        "proof_digest": {
+          "hash_alg": "sha256",
+          "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      },
+      "derived_execution": {
+        "submit_endpoint_uri": "https://rekor.sigstore.dev/api/v1/log/entries"
+      }
+    }
+  }
+}

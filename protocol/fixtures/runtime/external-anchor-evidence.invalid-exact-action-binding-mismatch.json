@@ -1,0 +1,87 @@
+{
+  "schema_id": "runecode.protocol.v0.SignedObjectEnvelope",
+  "schema_version": "0.2.0",
+  "payload_schema_id": "runecode.protocol.v0.ExternalAnchorEvidence",
+  "payload_schema_version": "0.1.0",
+  "payload": {
+    "schema_id": "runecode.protocol.v0.ExternalAnchorEvidence",
+    "schema_version": "0.1.0",
+    "recorded_at": "2026-03-13T12:35:00Z",
+    "run_id": "run-external-anchor-6",
+    "canonical_target_kind": "public_chain",
+    "canonical_target_digest": {
+      "hash_alg": "sha256",
+      "hash": "1717171717171717171717171717171717171717171717171717171717171717"
+    },
+    "canonical_target_identity": "sha256:1717171717171717171717171717171717171717171717171717171717171717",
+    "target_requirement": "required",
+    "anchoring_subject_family": "audit_segment_seal",
+    "anchoring_subject_digest": {
+      "hash_alg": "sha256",
+      "hash": "2727272727272727272727272727272727272727272727272727272727272727"
+    },
+    "outbound_payload_digest": {
+      "hash_alg": "sha256",
+      "hash": "3838383838383838383838383838383838383838383838383838383838383838"
+    },
+    "outcome": "failed",
+    "proof_schema_id": "runecode.protocol.audit.anchor_proof.public_chain_tx_receipt.v0",
+    "proof_kind": "public_chain_tx_receipt_v0",
+    "typed_request_hash": {
+      "hash_alg": "sha256",
+      "hash": "7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a"
+    },
+    "expected_typed_request_hash": {
+      "hash_alg": "sha256",
+      "hash": "8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a"
+    },
+    "action_request_hash": {
+      "hash_alg": "sha256",
+      "hash": "7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b"
+    },
+    "expected_action_request_hash": {
+      "hash_alg": "sha256",
+      "hash": "8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b"
+    },
+    "approval_request_hash": {
+      "hash_alg": "sha256",
+      "hash": "7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c"
+    },
+    "expected_approval_request_hash": {
+      "hash_alg": "sha256",
+      "hash": "8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c"
+    },
+    "approval_decision_hash": {
+      "hash_alg": "sha256",
+      "hash": "7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d"
+    },
+    "expected_approval_decision_hash": {
+      "hash_alg": "sha256",
+      "hash": "8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d"
+    },
+    "receipt_target_descriptor_digest": {
+      "hash_alg": "sha256",
+      "hash": "1717171717171717171717171717171717171717171717171717171717171717"
+    },
+    "receipt_proof_digest": {
+      "hash_alg": "sha256",
+      "hash": "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a"
+    },
+    "sidecar_refs": [
+      {
+        "evidence_kind": "proof_bytes",
+        "digest": {
+          "hash_alg": "sha256",
+          "hash": "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a"
+        }
+      }
+    ]
+  },
+  "signature_input": "rfc8785_jcs_detached_payload",
+  "signature": {
+    "alg": "ed25519",
+    "key_id": "key_sha256",
+    "key_id_value": "f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0",
+    "signature": "c2ln"
+  }
+}

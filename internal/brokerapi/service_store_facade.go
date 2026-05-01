@@ -213,6 +213,30 @@ func (s *Service) GitRemotePreparedRefsForRun(runID string) []string {
 	return s.store.GitRemotePreparedRefsForRun(runID)
 }
 
+func (s *Service) ExternalAnchorPreparedUpsert(record artifacts.ExternalAnchorPreparedMutationRecord) error {
+	return s.store.ExternalAnchorPreparedUpsert(record)
+}
+
+func (s *Service) ExternalAnchorPreparedGet(preparedMutationID string) (artifacts.ExternalAnchorPreparedMutationRecord, bool) {
+	return s.store.ExternalAnchorPreparedGet(preparedMutationID)
+}
+
+func (s *Service) ExternalAnchorPreparedTransitionLifecycle(preparedMutationID, expectedLifecycle string, mutate func(artifacts.ExternalAnchorPreparedMutationRecord) artifacts.ExternalAnchorPreparedMutationRecord) (artifacts.ExternalAnchorPreparedMutationRecord, error) {
+	return s.store.ExternalAnchorPreparedTransitionLifecycle(preparedMutationID, expectedLifecycle, mutate)
+}
+
+func (s *Service) ExternalAnchorPreparedRefsForRun(runID string) []string {
+	return s.store.ExternalAnchorPreparedRefsForRun(runID)
+}
+
+func (s *Service) ExternalAnchorPreparedIDs() []string {
+	return s.store.ExternalAnchorPreparedIDs()
+}
+
+func (s *Service) ExternalAnchorPreparedClaimDeferredExecution(preparedMutationID, expectedAttemptID, claimID string, staleAfter time.Duration, claimedAt time.Time) (artifacts.ExternalAnchorPreparedMutationRecord, bool, error) {
+	return s.store.ExternalAnchorPreparedClaimDeferredExecution(preparedMutationID, expectedAttemptID, claimID, staleAfter, claimedAt)
+}
+
 func (s *Service) SetPolicy(policy artifacts.Policy) error {
 	return s.store.SetPolicy(policy)
 }

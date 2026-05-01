@@ -96,6 +96,12 @@ func normalizeApprovalStateMaps(state StoreState) StoreState {
 	if state.RunGitRemotePreparedRefs == nil {
 		state.RunGitRemotePreparedRefs = map[string][]string{}
 	}
+	if state.ExternalAnchorPrepared == nil {
+		state.ExternalAnchorPrepared = map[string]ExternalAnchorPreparedMutationRecord{}
+	}
+	if state.RunExternalAnchorPreparedRefs == nil {
+		state.RunExternalAnchorPreparedRefs = map[string][]string{}
+	}
 	return state
 }
 

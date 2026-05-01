@@ -149,6 +149,9 @@ func (g *modelGatewayRuntime) emitGatewayAuditEvent(runID string, decision polic
 		eventType = "auth_egress"
 	} else if payload.GatewayRoleKind == "git-gateway" {
 		eventType = "git_egress"
+		if payload.Operation == "external_anchor_submit" {
+			eventType = "external_anchor_egress"
+		}
 	}
 	details := gatewayAuditDetails(runID, decision, payload, match)
 	return g.auditFn(eventType, "brokerapi", toInterfaceMap(details))

@@ -93,6 +93,8 @@ func verifyReceipts(input AuditVerificationInput, registry *VerifierRegistry, se
 	if !validAnchorForSeal {
 		addDegraded(report, AuditVerificationReasonAnchorReceiptMissing, AuditVerificationDimensionAnchoring, "anchor receipts are present but none target this segment seal digest", input.Segment.Header.SegmentID, nil)
 	}
+
+	evaluateExternalAnchorEvidence(input, report, sealDigest)
 }
 
 func addReceiptFailureForMissingSeal(index int, input AuditVerificationInput, report *AuditVerificationReportPayload, receipt auditReceiptPayloadStrict) {

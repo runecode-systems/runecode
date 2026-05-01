@@ -23,6 +23,7 @@
 - [ ] Persist the post-handshake evidence and verification outputs needed for restart-safe reconstruction.
 - [ ] Ensure broker authoritative posture continues to reconstruct from persisted evidence rather than launcher transient memory.
 - [ ] Keep `attestation_evidence_digest` as the additive linkage seam for audit and projection.
+- [ ] Preserve attestation evidence and verification references in a form that downstream external audit anchoring can reuse directly rather than forcing target-local flattening or launch-only summaries.
 
 ## Audit And Operator Surfaces
 

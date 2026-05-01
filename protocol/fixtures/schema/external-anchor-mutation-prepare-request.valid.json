@@ -1,0 +1,53 @@
+{
+  "schema_id": "runecode.protocol.v0.ExternalAnchorMutationPrepareRequest",
+  "schema_version": "0.1.0",
+  "request_id": "req-anchor-prepare-1",
+  "run_id": "run-anchor-1",
+  "typed_request": {
+    "schema_id": "runecode.protocol.v0.ExternalAnchorSubmitRequest",
+    "schema_version": "0.1.0",
+    "request_kind": "external_anchor_submit_v0",
+    "target_kind": "transparency_log",
+    "target_descriptor": {
+      "descriptor_schema_id": "runecode.protocol.audit.anchor_target.transparency_log.v0",
+      "log_id": "fixture-transparency-log",
+      "log_public_key_digest": {
+        "hash_alg": "sha256",
+        "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "entry_encoding_profile": "jcs_v1"
+    },
+    "target_descriptor_digest": {
+      "hash_alg": "sha256",
+      "hash": "f126bddc42a9c110d4873b269a644182304ec94c01d018d7c03fcd9a4b54a437"
+    },
+    "target_set": [
+      {
+        "target_kind": "transparency_log",
+        "target_requirement": "required",
+        "target_descriptor": {
+          "descriptor_schema_id": "runecode.protocol.audit.anchor_target.transparency_log.v0",
+          "log_id": "fixture-transparency-log",
+          "log_public_key_digest": {
+            "hash_alg": "sha256",
+            "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+          },
+          "entry_encoding_profile": "jcs_v1"
+        },
+        "target_descriptor_digest": {
+          "hash_alg": "sha256",
+          "hash": "f126bddc42a9c110d4873b269a644182304ec94c01d018d7c03fcd9a4b54a437"
+        }
+      }
+    ],
+    "seal_digest": {
+      "hash_alg": "sha256",
+      "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "outbound_payload_digest": {
+      "hash_alg": "sha256",
+      "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "deferred_poll_count": 2
+  }
+}

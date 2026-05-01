@@ -41,6 +41,7 @@ Without deterministic fixtures, explicit thresholds, and CI enforcement, the pro
 - Include explicit measurement of the CHG-049 first-party workflow-pack surfaces, including draft artifact generation, explicit draft promote/apply, reviewed implementation-input-set validation/binding, direct CLI workflow triggering, repo-scoped admission control/idempotency, and fail-closed drift-triggered re-evaluation or recompilation costs.
 - Preserve one topology-neutral performance program across constrained local hardware and larger deployments; tuning may differ, but performance work must not imply separate architecture paths or trust models.
 - Include explicit measurement of the required attestation path for supported runtime startup and attach flows, including cold verification, warm verification-cache hits, replay and freshness checks, and persisted attestation-evidence handling.
+- Include explicit measurement of the external audit anchoring path, including prepare latency, execute handoff latency, deferred completion handling, target-proof admission cost, and verifier behavior on unchanged verified seals.
 
 ## Why Now
 RuneCode is approaching the first usable end-to-end Linux-first cut. That makes performance regressions more dangerous because users are no longer exercising isolated demos; they are exercising a connected product composed of the TUI, broker, runner, gateway, audit, and isolate layers.
@@ -58,6 +59,7 @@ Capturing that distinction now prevents future work from overfitting to the wron
 - Deterministic local fixtures, synthetic stores, local bare remotes, and stubbed provider backends are acceptable and preferred for CI gating.
 - Network round-trip time to external providers is out of scope for hard CI gates; only RuneCode-added overhead should be measured under deterministic stubs.
 - Performance checks must not weaken trust boundaries, bypass audit or policy, or replace canonical broker-owned state with client-local shortcuts.
+- Performance checks for external audit anchoring must not reward forbidden shortcuts such as performing network I/O under audit-ledger lock, bypassing authoritative verifier admission, or replacing incremental receipt admission with a hidden trust-reducing fast path.
 - Performance verification is a product-quality concern and should remain part of the normal release and roadmap conversation, not a one-off local debugging artifact.
 
 ## Out of Scope

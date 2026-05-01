@@ -29,7 +29,12 @@
     "kind": {
       "type": "string",
       "enum": [
-        "verifier-record"
+        "verifier-record",
+        "role-manifest",
+        "run-capability-manifest",
+        "stage-capability-manifest",
+        "policy-allowlist",
+        "policy-ruleset"
       ],
       "description": "Trusted contract kind admitted by this request.",
       "x-data-class": "public"

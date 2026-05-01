@@ -1,5 +1,7 @@
 package policyengine
 
+import "strings"
+
 func gatewayDestinationAllowedBySignedAllowlists(compiled *CompiledContext, payload gatewayEgressPayload) (bool, map[string]any) {
 	state := gatewayAllowlistMatchState{}
 	for _, ref := range compiled.Context.ActiveAllowlistRefs {
@@ -79,6 +81,9 @@ func gatewayScopeEntryCoreMatchesPayload(entry GatewayScopeRule, payload gateway
 	if entry.Destination.DescriptorKind != payload.DestinationKind {
 		return false
 	}
+	if payload.Operation == "external_anchor_submit" && !externalAnchorTargetDescriptorDigestAllowlisted(entry, payload) {
+		return false
+	}
 	if !destinationRefMatches(entry.Destination, payload.DestinationRef) {
 		return false
 	}
@@ -86,6 +91,38 @@ func gatewayScopeEntryCoreMatchesPayload(entry GatewayScopeRule, payload gateway
 		return false
 	}
 	return true
+}
+
+func externalAnchorTargetDescriptorDigestAllowlisted(entry GatewayScopeRule, payload gatewayEgressPayload) bool {
+	requiredIdentity, ok := externalAnchorTargetDescriptorDigestFromPayload(payload)
+	if !ok {
+		return false
+	}
+	for _, digest := range entry.ExternalAnchorTargetDescriptorDigests {
+		identity, err := digest.Identity()
+		if err != nil {
+			continue
+		}
+		if strings.TrimSpace(identity) == strings.TrimSpace(requiredIdentity) {
+			return true
+		}
+	}
+	return false
+}
+
+func externalAnchorTargetDescriptorDigestFromPayload(payload gatewayEgressPayload) (string, bool) {
+	if payload.ExternalAnchorRequest == nil {
+		return "", false
+	}
+	request := externalAnchorSubmitRequest{}
+	if err := decodeActionPayload(payload.ExternalAnchorRequest, &request); err != nil {
+		return "", false
+	}
+	identity, err := request.TargetDescriptorDigest.Identity()
+	if err != nil || strings.TrimSpace(identity) == "" {
+		return "", false
+	}
+	return identity, true
 }
 
 func gatewayDataClassViolationDetails(payload gatewayEgressPayload, allowedDataClasses []string) map[string]any {

@@ -68,6 +68,10 @@ type brokerLocalAPI interface {
 	GitRemoteMutationGet(context.Context, brokerapi.GitRemoteMutationGetRequest) (brokerapi.GitRemoteMutationGetResponse, *brokerapi.ErrorResponse)
 	GitRemoteMutationIssueExecuteLease(context.Context, brokerapi.GitRemoteMutationIssueExecuteLeaseRequest) (brokerapi.GitRemoteMutationIssueExecuteLeaseResponse, *brokerapi.ErrorResponse)
 	GitRemoteMutationExecute(context.Context, brokerapi.GitRemoteMutationExecuteRequest) (brokerapi.GitRemoteMutationExecuteResponse, *brokerapi.ErrorResponse)
+	ExternalAnchorMutationPrepare(context.Context, brokerapi.ExternalAnchorMutationPrepareRequest) (brokerapi.ExternalAnchorMutationPrepareResponse, *brokerapi.ErrorResponse)
+	ExternalAnchorMutationGet(context.Context, brokerapi.ExternalAnchorMutationGetRequest) (brokerapi.ExternalAnchorMutationGetResponse, *brokerapi.ErrorResponse)
+	ExternalAnchorMutationIssueExecuteLease(context.Context, brokerapi.ExternalAnchorMutationIssueExecuteLeaseRequest) (brokerapi.ExternalAnchorMutationIssueExecuteLeaseResponse, *brokerapi.ErrorResponse)
+	ExternalAnchorMutationExecute(context.Context, brokerapi.ExternalAnchorMutationExecuteRequest) (brokerapi.ExternalAnchorMutationExecuteResponse, *brokerapi.ErrorResponse)
 }
 
 type localRPCInvokeFunc func(ctx context.Context, operation string, request any, out any) *brokerapi.ErrorResponse
@@ -82,35 +86,65 @@ type brokerLocalAPIClientFactory func(*brokerapi.Service) brokerLocalAPI
 
 type brokerLocalAPIClientModeResolver func() (brokerLocalAPIClientFactory, error)
 
+type localAPIClientSelection struct {
+	mode            brokerCommandAPIMode
+	explicitLiveIPC *brokerapi.LocalIPCConfig
+}
+
 var (
 	localAPIClientModeMu       sync.RWMutex
-	localAPIClientMode         = brokerCommandAPIModeInProcess
+	localAPIClientState        = localAPIClientSelection{mode: brokerCommandAPIModeInProcess}
 	localAPIClientModeResolver = defaultLocalAPIClientModeResolver
+
+	newRepoScopedLiveIPCLocalAPIClient        = newLiveIPCLocalAPIClient
+	newExplicitLiveIPCLocalAPIClientForConfig = newExplicitLiveIPCLocalAPIClient
 )
 
 func setLocalAPIClientMode(mode brokerCommandAPIMode) func() {
+	return setLocalAPIClientSelection(mode, nil)
+}
+
+func setLocalAPIClientSelection(mode brokerCommandAPIMode, explicitLiveIPC *brokerapi.LocalIPCConfig) func() {
 	localAPIClientModeMu.Lock()
-	prev := localAPIClientMode
-	localAPIClientMode = mode
+	prev := localAPIClientState
+	next := localAPIClientSelection{mode: mode}
+	if explicitLiveIPC != nil {
+		copyCfg := *explicitLiveIPC
+		next.explicitLiveIPC = &copyCfg
+	}
+	localAPIClientState = next
 	localAPIClientModeMu.Unlock()
 	return func() {
 		localAPIClientModeMu.Lock()
-		localAPIClientMode = prev
+		localAPIClientState = prev
 		localAPIClientModeMu.Unlock()
 	}
 }
 
-func currentLocalAPIClientMode() brokerCommandAPIMode {
+func currentLocalAPIClientSelection() localAPIClientSelection {
 	localAPIClientModeMu.RLock()
 	defer localAPIClientModeMu.RUnlock()
-	return localAPIClientMode
+	selection := localAPIClientSelection{mode: localAPIClientState.mode}
+	if localAPIClientState.explicitLiveIPC != nil {
+		copyCfg := *localAPIClientState.explicitLiveIPC
+		selection.explicitLiveIPC = &copyCfg
+	}
+	return selection
 }
 
 func defaultLocalAPIClientModeResolver() (brokerLocalAPIClientFactory, error) {
-	mode := currentLocalAPIClientMode()
-	switch mode {
+	selection := currentLocalAPIClientSelection()
+	switch selection.mode {
 	case brokerCommandAPIModeLiveIPC:
-		client, err := newLiveIPCLocalAPIClient(context.Background())
+		var (
+			client brokerLocalAPI
+			err    error
+		)
+		if selection.explicitLiveIPC != nil {
+			client, err = newExplicitLiveIPCLocalAPIClientForConfig(context.Background(), *selection.explicitLiveIPC)
+		} else {
+			client, err = newRepoScopedLiveIPCLocalAPIClient(context.Background())
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -118,7 +152,7 @@ func defaultLocalAPIClientModeResolver() (brokerLocalAPIClientFactory, error) {
 	case brokerCommandAPIModeInProcess, "":
 		return newInProcessLocalAPIClient, nil
 	default:
-		return nil, fmt.Errorf("unsupported broker local api client mode %q", mode)
+		return nil, fmt.Errorf("unsupported broker local api client mode %q", selection.mode)
 	}
 }
 

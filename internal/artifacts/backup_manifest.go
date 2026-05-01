@@ -28,6 +28,7 @@ func newBackupManifest(state StoreState, exportedAt time.Time) BackupManifest {
 		PolicyDecisions:              make([]PolicyDecisionRecord, 0, len(state.PolicyDecisions)),
 		Approvals:                    make([]ApprovalRecord, 0, len(state.Approvals)),
 		GitRemotePrepared:            make([]GitRemotePreparedMutationRecord, 0, len(state.GitRemotePrepared)),
+		ExternalAnchorPrepared:       make([]ExternalAnchorPreparedMutationRecord, 0, len(state.ExternalAnchorPrepared)),
 		RuntimeFactsByRun:            map[string]launcherbackend.RuntimeFactsSnapshot{},
 		RuntimeEvidenceByRun:         map[string]launcherbackend.RuntimeEvidenceSnapshot{},
 		AttestationVerificationCache: map[string]launcherbackend.IsolateAttestationVerificationRecord{},
@@ -72,6 +73,9 @@ func populateBackupManifestPrimaryCollections(manifest *BackupManifest, state St
 	}
 	for _, rec := range state.GitRemotePrepared {
 		manifest.GitRemotePrepared = append(manifest.GitRemotePrepared, cloneGitRemotePreparedRecord(rec))
+	}
+	for _, rec := range state.ExternalAnchorPrepared {
+		manifest.ExternalAnchorPrepared = append(manifest.ExternalAnchorPrepared, cloneExternalAnchorPreparedRecord(rec))
 	}
 }
 
@@ -132,6 +136,9 @@ func sortBackupManifestCoreCollections(manifest *BackupManifest) {
 	sort.Slice(manifest.GitRemotePrepared, func(i, j int) bool {
 		return manifest.GitRemotePrepared[i].PreparedMutationID < manifest.GitRemotePrepared[j].PreparedMutationID
 	})
+	sort.Slice(manifest.ExternalAnchorPrepared, func(i, j int) bool {
+		return manifest.ExternalAnchorPrepared[i].PreparedMutationID < manifest.ExternalAnchorPrepared[j].PreparedMutationID
+	})
 }
 
 func sortBackupManifestProviderCollections(manifest *BackupManifest) {
@@ -166,6 +173,14 @@ func cloneGitRemotePreparedRecord(in GitRemotePreparedMutationRecord) GitRemoteP
 	}
 	if in.DerivedSummary != nil {
 		out.DerivedSummary = copyMap(in.DerivedSummary)
+	}
+	return out
+}
+
+func cloneExternalAnchorPreparedRecord(in ExternalAnchorPreparedMutationRecord) ExternalAnchorPreparedMutationRecord {
+	out := in
+	if in.TypedRequest != nil {
+		out.TypedRequest = copyMap(in.TypedRequest)
 	}
 	return out
 }

@@ -473,6 +473,50 @@
       ]
     },
     {
+      "audit_event_type": "external_anchor_egress",
+      "allowed_payload_schema_ids": [
+        "runecode.protocol.audit.payload.git-egress.v0"
+      ],
+      "allowed_signer_purposes": [
+        "gateway_emitter"
+      ],
+      "allowed_signer_scopes": [
+        "run",
+        "stage"
+      ],
+      "required_scope_fields": [
+        "workspace_id",
+        "run_id",
+        "stage_id"
+      ],
+      "required_correlation_fields": [
+        "session_id",
+        "operation_id"
+      ],
+      "require_subject_ref": true,
+      "allowed_subject_ref_roles": [
+        "target"
+      ],
+      "allowed_cause_ref_roles": [
+        "policy_cause",
+        "approval_cause"
+      ],
+      "allowed_related_ref_roles": [
+        "evidence",
+        "artifact",
+        "receipt"
+      ],
+      "require_gateway_context": true,
+      "allowed_gateway_egress_categories": [
+        "git"
+      ],
+      "require_signer_evidence_refs": false,
+      "allowed_signer_evidence_ref_roles": [
+        "admissibility",
+        "binding"
+      ]
+    },
+    {
       "audit_event_type": "secrets_lease_acquired",
       "allowed_payload_schema_ids": [
         "runecode.protocol.audit.payload.secrets-lease-acquired.v0"

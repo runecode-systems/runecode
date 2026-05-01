@@ -107,11 +107,56 @@ func denyIfGitRemoteMutationPayloadHashUnbound(compiled *CompiledContext, action
 	if !isGatewayRemoteMutationOperation(payload.Operation) {
 		return PolicyDecision{}, false
 	}
+	if payload.Operation == "external_anchor_submit" {
+		bindingReason, details := externalAnchorMutationBindingDetails(payload)
+		if bindingReason == "" {
+			return PolicyDecision{}, false
+		}
+		return denyExternalAnchorMutationBinding(compiled, action, actionHash, payload, bindingReason, details)
+	}
 	bindingReason, details := gitRemoteMutationBindingDetails(payload)
 	if bindingReason == "" {
 		return PolicyDecision{}, false
 	}
 	return denyGitRemoteMutationBinding(compiled, action, actionHash, payload, bindingReason, details)
+}
+
+func externalAnchorMutationBindingDetails(payload gatewayEgressPayload) (string, map[string]any) {
+	if payload.PayloadHash == nil {
+		return "missing_payload_hash_for_canonical_external_anchor_request_binding", nil
+	}
+	if payload.ExternalAnchorRequest == nil {
+		return "missing_canonical_external_anchor_request_binding", nil
+	}
+	payloadHashIdentity, err := payload.PayloadHash.Identity()
+	if err != nil {
+		return "invalid_payload_hash_identity", nil
+	}
+	requestHashIdentity, requestKind, err := canonicalExternalAnchorTypedRequestHash(payload.ExternalAnchorRequest)
+	if err != nil {
+		return "invalid_canonical_external_anchor_request_hash", nil
+	}
+	if payloadHashIdentity == requestHashIdentity {
+		return "", nil
+	}
+	return "payload_hash_not_bound_to_canonical_external_anchor_request_hash", map[string]any{
+		"payload_hash":                           payloadHashIdentity,
+		"canonical_external_anchor_request_hash": requestHashIdentity,
+		"external_anchor_request_kind":           requestKind,
+	}
+}
+
+func canonicalExternalAnchorTypedRequestHash(request map[string]any) (string, string, error) {
+	requestKind, _ := request["request_kind"].(string)
+	b, err := json.Marshal(request)
+	if err != nil {
+		return "", "", err
+	}
+	hash, err := CanonicalHashBytes(b)
+	if err != nil {
+		return "", "", err
+	}
+	return hash, requestKind, nil
 }
 
 func gitRemoteMutationBindingDetails(payload gatewayEgressPayload) (string, map[string]any) {
@@ -169,6 +214,22 @@ func denyGitRemoteMutationBinding(compiled *CompiledContext, action ActionReques
 	details := map[string]any{
 		"precedence":        "invariants_first",
 		"invariant":         "typed_git_request_binding",
+		"non_approvable":    true,
+		"gateway_role_kind": payload.GatewayRoleKind,
+		"destination_kind":  payload.DestinationKind,
+		"operation":         payload.Operation,
+		"reason":            reason,
+	}
+	for key, value := range extra {
+		details[key] = value
+	}
+	return denyInvariantDecision(compiled, action, actionHash, details), true
+}
+
+func denyExternalAnchorMutationBinding(compiled *CompiledContext, action ActionRequest, actionHash string, payload gatewayEgressPayload, reason string, extra map[string]any) (PolicyDecision, bool) {
+	details := map[string]any{
+		"precedence":        "invariants_first",
+		"invariant":         "typed_external_anchor_request_binding",
 		"non_approvable":    true,
 		"gateway_role_kind": payload.GatewayRoleKind,
 		"destination_kind":  payload.DestinationKind,

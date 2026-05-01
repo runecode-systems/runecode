@@ -87,7 +87,7 @@ func TestRPCBrokerClientGitRemoteMutationMethodsUseTypedContracts(t *testing.T) 
 	localIPCConfigProvider = func() (brokerapi.LocalIPCConfig, error) {
 		return brokerapi.LocalIPCConfig{RuntimeDir: "/tmp/test-runtime", SocketName: "broker.sock"}, nil
 	}
-	operations := make([]string, 0, 4)
+	operations := make([]string, 0, 7)
 	localRPCDialer = func(ctx context.Context, cfg brokerapi.LocalIPCConfig) (localRPCInvoker, error) {
 		_ = ctx
 		_ = cfg
@@ -111,8 +111,20 @@ func TestRPCBrokerClientGitRemoteMutationMethodsUseTypedContracts(t *testing.T) 
 	if _, err := client.GitRemoteMutationExecute(context.Background(), brokerapi.GitRemoteMutationExecuteRequest{PreparedMutationID: "sha256:" + strings.Repeat("1", 64), ApprovalID: "sha256:" + strings.Repeat("a", 64)}); err != nil {
 		t.Fatalf("GitRemoteMutationExecute returned error: %v", err)
 	}
+	if _, err := client.ExternalAnchorMutationPrepare(context.Background(), brokerapi.ExternalAnchorMutationPrepareRequest{RunID: "run-1", TypedRequest: map[string]any{"schema_id": "runecode.protocol.v0.ExternalAnchorSubmitRequest", "schema_version": "0.1.0", "request_kind": "external_anchor_submit_v0", "target_kind": "transparency_log", "target_descriptor": map[string]any{"descriptor_schema_id": "runecode.protocol.audit.anchor_target.transparency_log.v0", "log_id": "tui-client-test-log", "log_public_key_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("d", 64)}, "entry_encoding_profile": "jcs_v1"}, "target_descriptor_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("2", 64)}, "seal_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("3", 64)}, "outbound_payload_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("4", 64)}}}); err != nil {
+		t.Fatalf("ExternalAnchorMutationPrepare returned error: %v", err)
+	}
+	if _, err := client.ExternalAnchorMutationGet(context.Background(), brokerapi.ExternalAnchorMutationGetRequest{PreparedMutationID: "sha256:" + strings.Repeat("1", 64)}); err != nil {
+		t.Fatalf("ExternalAnchorMutationGet returned error: %v", err)
+	}
+	if _, err := client.ExternalAnchorMutationIssueExecuteLease(context.Background(), brokerapi.ExternalAnchorMutationIssueExecuteLeaseRequest{PreparedMutationID: "sha256:" + strings.Repeat("1", 64)}); err != nil {
+		t.Fatalf("ExternalAnchorMutationIssueExecuteLease returned error: %v", err)
+	}
+	if _, err := client.ExternalAnchorMutationExecute(context.Background(), brokerapi.ExternalAnchorMutationExecuteRequest{PreparedMutationID: "sha256:" + strings.Repeat("1", 64), ApprovalID: "sha256:" + strings.Repeat("a", 64)}); err != nil {
+		t.Fatalf("ExternalAnchorMutationExecute returned error: %v", err)
+	}
 
-	if got := strings.Join(operations, ","); got != "git_remote_mutation_prepare,git_remote_mutation_get,git_remote_mutation_issue_execute_lease,git_remote_mutation_execute" {
+	if got := strings.Join(operations, ","); got != "git_remote_mutation_prepare,git_remote_mutation_get,git_remote_mutation_issue_execute_lease,git_remote_mutation_execute,external_anchor_mutation_prepare,external_anchor_mutation_get,external_anchor_mutation_issue_execute_lease,external_anchor_mutation_execute" {
 		t.Fatalf("operations=%q", got)
 	}
 }
@@ -193,6 +205,17 @@ func assertDependencyRequestMetadata(t *testing.T, schemaID, schemaVersion, requ
 
 func assertGitRemoteMutationRequestContract(t *testing.T, operation string, request any) {
 	t.Helper()
+	if assertCoreGitRemoteMutationRequestContract(t, operation, request) {
+		return
+	}
+	if assertExternalAnchorMutationRequestContract(t, operation, request) {
+		return
+	}
+	t.Fatalf("unexpected operation %q", operation)
+}
+
+func assertCoreGitRemoteMutationRequestContract(t *testing.T, operation string, request any) bool {
+	t.Helper()
 	switch operation {
 	case "git_remote_mutation_prepare":
 		req, ok := request.(brokerapi.GitRemoteMutationPrepareRequest)
@@ -200,26 +223,66 @@ func assertGitRemoteMutationRequestContract(t *testing.T, operation string, requ
 			t.Fatalf("prepare request type=%T", request)
 		}
 		assertGitRemoteMutationRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.GitRemoteMutationPrepareRequest", "git-remote-mutation-prepare-")
+		return true
 	case "git_remote_mutation_get":
 		req, ok := request.(brokerapi.GitRemoteMutationGetRequest)
 		if !ok {
 			t.Fatalf("get request type=%T", request)
 		}
 		assertGitRemoteMutationRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.GitRemoteMutationGetRequest", "git-remote-mutation-get-")
+		return true
 	case "git_remote_mutation_issue_execute_lease":
 		req, ok := request.(brokerapi.GitRemoteMutationIssueExecuteLeaseRequest)
 		if !ok {
 			t.Fatalf("issue execute lease request type=%T", request)
 		}
 		assertGitRemoteMutationRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.GitRemoteMutationIssueExecuteLeaseRequest", "git-remote-mutation-issue-execute-lease-")
+		return true
 	case "git_remote_mutation_execute":
 		req, ok := request.(brokerapi.GitRemoteMutationExecuteRequest)
 		if !ok {
 			t.Fatalf("execute request type=%T", request)
 		}
 		assertGitRemoteMutationRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.GitRemoteMutationExecuteRequest", "git-remote-mutation-execute-")
+		return true
 	default:
-		t.Fatalf("unexpected operation %q", operation)
+		return false
+	}
+}
+
+func assertExternalAnchorMutationRequestContract(t *testing.T, operation string, request any) bool {
+	t.Helper()
+	switch operation {
+	case "external_anchor_mutation_prepare":
+		req, ok := request.(brokerapi.ExternalAnchorMutationPrepareRequest)
+		if !ok {
+			t.Fatalf("external prepare request type=%T", request)
+		}
+		assertGitRemoteMutationRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.ExternalAnchorMutationPrepareRequest", "external-anchor-mutation-prepare-")
+		return true
+	case "external_anchor_mutation_get":
+		req, ok := request.(brokerapi.ExternalAnchorMutationGetRequest)
+		if !ok {
+			t.Fatalf("external get request type=%T", request)
+		}
+		assertGitRemoteMutationRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.ExternalAnchorMutationGetRequest", "external-anchor-mutation-get-")
+		return true
+	case "external_anchor_mutation_issue_execute_lease":
+		req, ok := request.(brokerapi.ExternalAnchorMutationIssueExecuteLeaseRequest)
+		if !ok {
+			t.Fatalf("external issue execute lease request type=%T", request)
+		}
+		assertGitRemoteMutationRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.ExternalAnchorMutationIssueExecuteLeaseRequest", "external-anchor-mutation-issue-execute-lease-")
+		return true
+	case "external_anchor_mutation_execute":
+		req, ok := request.(brokerapi.ExternalAnchorMutationExecuteRequest)
+		if !ok {
+			t.Fatalf("external execute request type=%T", request)
+		}
+		assertGitRemoteMutationRequestMetadata(t, req.SchemaID, req.SchemaVersion, req.RequestID, "runecode.protocol.v0.ExternalAnchorMutationExecuteRequest", "external-anchor-mutation-execute-")
+		return true
+	default:
+		return false
 	}
 }
 

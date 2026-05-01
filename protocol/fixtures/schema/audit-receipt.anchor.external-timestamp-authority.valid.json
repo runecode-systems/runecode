@@ -1,0 +1,55 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditReceipt",
+  "schema_version": "0.5.0",
+  "subject_digest": {
+    "hash_alg": "sha256",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "audit_receipt_kind": "anchor",
+  "subject_family": "audit_segment_seal",
+  "recorder": {
+    "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+    "schema_version": "0.2.0",
+    "actor_kind": "daemon",
+    "principal_id": "auditd",
+    "instance_id": "auditd-1"
+  },
+  "recorded_at": "2026-03-13T12:25:00Z",
+  "receipt_payload_schema_id": "runecode.protocol.audit.receipt.anchor.v0",
+  "receipt_payload": {
+    "anchor_kind": "external_timestamp_authority_v0",
+    "approval_assurance_level": "session_authenticated",
+    "approval_decision_digest": {
+      "hash_alg": "sha256",
+      "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "external_anchor": {
+      "target_kind": "timestamp_authority",
+      "runtime_adapter": "transparency_log_v0",
+      "target_descriptor": {
+        "descriptor_schema_id": "runecode.protocol.audit.anchor_target.timestamp_authority.v0",
+        "authority_id": "tsa-eu-1",
+        "certificate_chain_digest": {
+          "hash_alg": "sha256",
+          "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        "timestamp_profile": "rfc3161_sha256"
+      },
+      "target_descriptor_digest": {
+        "hash_alg": "sha256",
+        "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "proof": {
+        "proof_kind": "timestamp_token_v0",
+        "proof_schema_id": "runecode.protocol.audit.anchor_proof.timestamp_token.v0",
+        "proof_digest": {
+          "hash_alg": "sha256",
+          "hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "derived_execution": {
+        "tsa_endpoint_uri": "https://tsa.example.com/timestamp"
+      }
+    }
+  }
+}

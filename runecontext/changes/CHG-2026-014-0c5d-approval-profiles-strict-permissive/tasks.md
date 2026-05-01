@@ -27,6 +27,9 @@
 - [ ] Keep `git_remote_ops` explicit exact-action approvals across all profiles and do not batch them into stage sign-off, milestone approval, or ambient acknowledgment.
 - [ ] Keep `git_remote_ops` approval payload binding aligned with canonical repository identity, target refs, referenced patch artifact digests, expected result tree hash, and canonical action request hash.
 - [ ] Keep the minimum assurance floor for `git_remote_ops` at least `reauthenticated` across all profiles.
+- [ ] Keep external audit anchor submission explicit exact-action approvals across all profiles once that hard-floor class is active; do not batch them into stage sign-off, milestone approval, deferred ambient approval, or durable pre-approval semantics.
+- [ ] Keep external audit anchor approval payload binding aligned with canonical target descriptor identity, typed external anchor request hash, targeted `AuditSegmentSeal` digest, and required immutable request fields.
+- [ ] Keep the minimum assurance floor for external audit anchor submission at the reviewed hard-floor baseline once that lane is active.
 - [ ] Keep profile mappings aligned with the shared executor-class model so stricter or more permissive timing does not blur `workspace_ordinary` versus `system_modifying` actions.
 - [ ] Keep profile mappings aligned with the shared dependency-fetch model so stricter or more permissive timing does not blur dependency scope checkpoints with ordinary in-scope `fetch_dependency` work.
 
@@ -60,6 +63,7 @@ Parallelization: can be designed in parallel with TUI work; it depends on struct
   - when git-gateway exists: require an explicit final approval for git remote state changes (push/tag/PR creation)
 - [ ] Keep dependency-fetch scope enablement or expansion as explicit approvals in `permissive`; do not silently convert ordinary cache misses into approval events or remove reviewed scope-change checkpoints.
 - [ ] Ensure `permissive` mode does not introduce batch, milestone, or durable pre-approval semantics for `git_remote_ops`; each approved remote mutation remains exact-action and hash-bound.
+- [ ] Ensure `permissive` mode does not introduce batch, milestone, or durable pre-approval semantics for external audit anchor submission; each approved submission remains exact-action and hash-bound.
 - [ ] Ensure `permissive` does not silently convert `workspace-test` or similar ordinary workspace roles into `system_modifying` execution without explicit exact-action approval.
 
 Parallelization: can be designed in parallel with workflow runner work; it depends on the policy engine being the only pause/resume authority.
@@ -90,6 +94,7 @@ Parallelization: can be implemented in parallel across policy/runner/TUI as long
 - [ ] Attempting to use an unknown profile value fails closed.
 - [ ] Profiles do not weaken the fixed minimum assurance floor for hard-floor operations.
 - [ ] Profiles do not weaken exact-action binding or assurance for `git_remote_ops`, including canonical repo identity, target refs, patch artifact digests, and expected result tree hash.
+- [ ] Profiles do not weaken exact-action binding or assurance for external audit anchor submission, including canonical target descriptor identity, typed request hash, targeted seal digest, and required immutable request fields.
 - [ ] Profiles preserve the shared dependency-fetch checkpoint model and do not invent per-cache-miss approval semantics for ordinary in-scope `fetch_dependency` work.
 - [ ] Profiles do not weaken blocked project-substrate posture or convert diagnostics/remediation-only repository substrate states into ordinary execution.
 - [ ] Profiles do not become a proxy for operator-guidance cadence or collapse `waiting_operator_input` into formal approval behavior.

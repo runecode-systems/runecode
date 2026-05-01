@@ -227,22 +227,7 @@ func preferredArtifactPutAPI(service *brokerapi.Service, runtimeDir, socketName 
 }
 
 func explicitArtifactPutIPCConfig(runtimeDir, socketName string) (brokerapi.LocalIPCConfig, error) {
-	defaults, err := brokerapi.DefaultLocalIPCConfig()
-	if err != nil {
-		return brokerapi.LocalIPCConfig{}, err
-	}
-	cfg := brokerapi.LocalIPCConfig{
-		RuntimeDir:     runtimeDir,
-		SocketName:     socketName,
-		RepositoryRoot: defaults.RepositoryRoot,
-	}
-	if cfg.RuntimeDir == "" {
-		cfg.RuntimeDir = defaults.RuntimeDir
-	}
-	if cfg.SocketName == "" {
-		cfg.SocketName = defaults.SocketName
-	}
-	return cfg, nil
+	return resolveExplicitLiveIPCTargetConfig(brokerLiveIPCTargetOptions{runtimeDir: runtimeDir, socketName: socketName})
 }
 
 func handleCheckFlow(args []string, service *brokerapi.Service, stdout io.Writer) error {

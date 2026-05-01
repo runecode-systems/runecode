@@ -43,7 +43,18 @@ func (l *Ledger) PersistReceiptEnvelope(envelope trustpolicy.SignedObjectEnvelop
 	if envelope.PayloadSchemaID != trustpolicy.AuditReceiptSchemaID {
 		return trustpolicy.Digest{}, fmt.Errorf("receipt envelope must use payload_schema_id %q", trustpolicy.AuditReceiptSchemaID)
 	}
-	return l.persistEnvelopeSidecar(receiptsDirName, envelope)
+	return l.persistReceiptEnvelopeLocked(envelope)
+}
+
+func (l *Ledger) persistReceiptEnvelopeLocked(envelope trustpolicy.SignedObjectEnvelope) (trustpolicy.Digest, error) {
+	receiptDigest, err := l.persistEnvelopeSidecar(receiptsDirName, envelope)
+	if err != nil {
+		return trustpolicy.Digest{}, err
+	}
+	if err := l.notePersistedReceiptInIncrementalFoundationLocked(receiptDigest, envelope); err != nil {
+		return trustpolicy.Digest{}, err
+	}
+	return receiptDigest, nil
 }
 
 func (l *Ledger) persistEnvelopeSidecar(dirName string, envelope trustpolicy.SignedObjectEnvelope) (trustpolicy.Digest, error) {

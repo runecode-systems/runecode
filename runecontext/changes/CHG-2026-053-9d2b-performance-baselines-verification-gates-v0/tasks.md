@@ -55,6 +55,12 @@ Alpha.7 bootstrap already landed:
 - [ ] Add audit verification and finalize-verify runtime checks for standard and larger fixture ledgers.
 - [ ] Add protocol schema and fixture-parity performance checks.
 - [ ] Add git gateway prepare and local execute checks plus project-substrate posture and preview or apply checks.
+- [ ] Add deterministic external audit anchor prepare checks against stubbed target descriptors and pre-sealed audit segments.
+- [ ] Add deterministic external audit anchor execute checks for both fast-completed and deferred-completion paths.
+- [ ] Add deferred-completion visibility checks for external audit anchoring through durable get or watch surfaces.
+- [ ] Add external anchor receipt-admission checks for unchanged verified seals so the incremental path is measured explicitly.
+- [ ] Add invalid-proof and unavailable-target external anchor checks so degraded and failed posture costs are measured explicitly.
+- [ ] Add checks ensuring external audit anchoring performance does not reward network I/O under audit-ledger lock or bypass authoritative verifier admission.
 
 ## Phase 6: CI Integration
 
@@ -75,12 +81,14 @@ Alpha.7 bootstrap already landed:
 - [ ] The TUI has separate gates for empty-idle and waiting-state behavior.
 - [ ] Broker local API requests and watch families have deterministic latency checks at multiple fixture sizes.
 - [ ] Runner, workflow, launcher, model-gateway, audit, protocol, and git gateway paths each have at least one deterministic CI-compatible performance check.
+- [ ] External audit anchoring prepare, execute, deferred completion, and receipt-admission paths each have at least one deterministic CI-compatible performance check.
 - [ ] The refined CHG-050 workflow path has explicit checks for validation/canonicalization, trusted compilation, compiled-plan persistence/load, and runner startup from immutable `RunPlan`.
 - [ ] The CHG-049 first-party workflow pack has explicit checks for draft artifact generation, explicit promote/apply, implementation-input-set validation/binding, direct CLI triggering, repo-scoped admission control/idempotency, and drift-triggered re-evaluation/recompile overhead.
 - [ ] Dependency-fetch and offline-cache cold-cache, warm-cache, coalescing, and materialization paths each have at least one deterministic CI-compatible performance check.
 - [ ] Linux PR CI enforces numeric thresholds for the highest-value checks.
 - [ ] macOS and Windows execute the same performance flow families where feasible, at least as smoke or trend gates.
 - [ ] Performance baselines assume one topology-neutral workflow/control-plane architecture across constrained and scaled environments rather than separate architecture paths.
+- [ ] External audit anchoring baselines assume the same topology-neutral architecture and do not reward lock-held network I/O, trust-path bypasses, or full verifier replay as the only hot-path receipt-admission mechanism.
 - [ ] Launcher startup thresholds measure the reviewed signed runtime-asset path and do not reward bypassing runtime-asset admission, verification, or launch-deny evidence generation.
 - [ ] Launcher startup and attach-ready thresholds also measure the required attestation path and do not reward bypassing attestation verification, replay checks, freshness checks, or attestation evidence persistence.
 - [ ] Attestation verification has explicit cold-path and warm verification-cache performance checks under immutable-identity cache semantics.

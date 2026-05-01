@@ -32,6 +32,13 @@ func TestArtifactRPCOperationsIncludeDependencyCacheHandoff(t *testing.T) {
 	}
 }
 
+func TestGitSetupRPCOperationsIncludeExternalAnchorIssueExecuteLease(t *testing.T) {
+	ops := gitSetupRPCOperations(nil, context.Background(), brokerapi.RequestContext{})
+	if _, ok := ops["external_anchor_mutation_issue_execute_lease"]; !ok {
+		t.Fatal("external_anchor_mutation_issue_execute_lease operation missing")
+	}
+}
+
 func TestDispatchLocalRPCProviderSetupSecretIngressSubmitPreservesPayloadAndRoutesLeaseIssue(t *testing.T) {
 	service := newBrokerServiceWithSecretsState(t)
 	ctx := context.Background()

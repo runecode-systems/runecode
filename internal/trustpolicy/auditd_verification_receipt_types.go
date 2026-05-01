@@ -40,15 +40,64 @@ type importRestoreSegmentLink struct {
 }
 
 type anchorReceiptPayload struct {
-	AnchorKind           string               `json:"anchor_kind"`
-	KeyProtectionPosture string               `json:"key_protection_posture"`
-	PresenceMode         string               `json:"presence_mode"`
-	ApprovalAssurance    string               `json:"approval_assurance_level,omitempty"`
-	ApprovalDecision     *Digest              `json:"approval_decision_digest,omitempty"`
-	AnchorWitness        anchorReceiptWitness `json:"anchor_witness"`
+	AnchorKind           string                 `json:"anchor_kind"`
+	KeyProtectionPosture string                 `json:"key_protection_posture,omitempty"`
+	PresenceMode         string                 `json:"presence_mode,omitempty"`
+	ApprovalAssurance    string                 `json:"approval_assurance_level,omitempty"`
+	ApprovalDecision     *Digest                `json:"approval_decision_digest,omitempty"`
+	AnchorWitness        *anchorReceiptWitness  `json:"anchor_witness,omitempty"`
+	ExternalAnchor       *anchorExternalPayload `json:"external_anchor,omitempty"`
 }
 
 type anchorReceiptWitness struct {
 	WitnessKind   string `json:"witness_kind"`
 	WitnessDigest Digest `json:"witness_digest"`
+}
+
+type anchorExternalPayload struct {
+	TargetKind             string                 `json:"target_kind"`
+	RuntimeAdapter         string                 `json:"runtime_adapter"`
+	TargetDescriptor       json.RawMessage        `json:"target_descriptor"`
+	TargetDescriptorDigest Digest                 `json:"target_descriptor_digest"`
+	Proof                  anchorExternalProofRef `json:"proof"`
+	DerivedExecution       json.RawMessage        `json:"derived_execution,omitempty"`
+}
+
+type anchorExternalProofRef struct {
+	ProofKind     string `json:"proof_kind"`
+	ProofSchemaID string `json:"proof_schema_id"`
+	ProofDigest   Digest `json:"proof_digest"`
+}
+
+type transparencyLogTargetDescriptor struct {
+	DescriptorSchemaID string `json:"descriptor_schema_id"`
+	LogID              string `json:"log_id"`
+	LogPublicKeyDigest Digest `json:"log_public_key_digest"`
+	EntryEncoding      string `json:"entry_encoding_profile"`
+}
+
+type timestampAuthorityTargetDescriptor struct {
+	DescriptorSchemaID     string `json:"descriptor_schema_id"`
+	AuthorityID            string `json:"authority_id"`
+	CertificateChainDigest Digest `json:"certificate_chain_digest"`
+	TimestampProfile       string `json:"timestamp_profile"`
+}
+
+type publicChainTargetDescriptor struct {
+	DescriptorSchemaID       string `json:"descriptor_schema_id"`
+	ChainNamespace           string `json:"chain_namespace"`
+	NetworkID                string `json:"network_id"`
+	SettlementContractDigest Digest `json:"settlement_contract_digest"`
+}
+
+type transparencyLogDerivedExecution struct {
+	SubmitEndpointURI string `json:"submit_endpoint_uri"`
+}
+
+type timestampAuthorityDerivedExecution struct {
+	TSAEndpointURI string `json:"tsa_endpoint_uri"`
+}
+
+type publicChainDerivedExecution struct {
+	RPCEndpointURI string `json:"rpc_endpoint_uri"`
 }

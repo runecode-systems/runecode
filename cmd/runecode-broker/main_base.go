@@ -25,6 +25,16 @@ type brokerGlobalOptions struct {
 	roots                 brokerServiceRoots
 	stateRootOverridden   bool
 	auditLedgerOverridden bool
+	liveIPCTarget         brokerLiveIPCTargetOptions
+}
+
+type brokerLiveIPCTargetOptions struct {
+	runtimeDir string
+	socketName string
+}
+
+func (o brokerLiveIPCTargetOptions) overridden() bool {
+	return o.runtimeDir != "" || o.socketName != ""
 }
 
 type brokerServiceFactoryFunc func(brokerServiceRoots) (*brokerapi.Service, error)
@@ -71,30 +81,92 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 }
 
 func executeCommand(handler brokerCommandSpec, globalOpts brokerGlobalOptions, commandArgs []string, stdout io.Writer, stderr io.Writer) error {
-	resolvedMode := resolveBrokerCommandAPIMode(commandArgs[0], handler.apiMode)
-	var service *brokerapi.Service
-	needService := handler.requiresStore || resolvedMode == brokerCommandAPIModeInProcess
-	if commandArgs[0] == "put-artifact" {
-		needService = globalOpts.stateRootOverridden || globalOpts.auditLedgerOverridden
+	commandName := commandArgs[0]
+	resolvedMode := resolveBrokerCommandAPIMode(commandName, handler.apiMode)
+	explicitLiveIPC, err := validateExplicitLiveIPCCommandTarget(commandName, resolvedMode, globalOpts)
+	if err != nil {
+		return err
 	}
-	if resolvedMode == brokerCommandAPIModeLiveIPC && (globalOpts.stateRootOverridden || globalOpts.auditLedgerOverridden) && !needService {
-		artifactReadCmd := commandArgs[0] == "list-artifacts" || commandArgs[0] == "head-artifact" || commandArgs[0] == "get-artifact"
-		if !artifactReadCmd {
-			return &usageError{message: fmt.Sprintf("%s uses repo-scoped live broker IPC; --state-root and --audit-ledger-root are only supported for local in-process commands", commandArgs[0])}
-		}
-		resolvedMode = brokerCommandAPIModeInProcess
-		needService = true
+	needService := commandNeedsBrokerService(commandName, handler, globalOpts, resolvedMode)
+	resolvedMode, needService, err = resolveBrokerCommandExecutionMode(commandName, resolvedMode, globalOpts, needService)
+	if err != nil {
+		return err
 	}
-	restoreMode := setLocalAPIClientMode(resolvedMode)
+	restoreMode, err := configureBrokerLocalAPIClientMode(resolvedMode, globalOpts.liveIPCTarget, explicitLiveIPC)
+	if err != nil {
+		return err
+	}
 	defer restoreMode()
-	if needService {
-		var err error
-		service, err = brokerServiceFactory(globalOpts.roots)
-		if err != nil {
-			return fmt.Errorf("runecode-broker failed to initialize store: %w", err)
-		}
+	service, err := buildBrokerServiceIfNeeded(needService, globalOpts.roots)
+	if err != nil {
+		return err
 	}
 	return handler.handler(commandArgs[1:], service, stdout)
+}
+
+func validateExplicitLiveIPCCommandTarget(commandName string, resolvedMode brokerCommandAPIMode, globalOpts brokerGlobalOptions) (bool, error) {
+	explicitLiveIPC := globalOpts.liveIPCTarget.overridden()
+	if !explicitLiveIPC {
+		return false, nil
+	}
+	if globalOpts.stateRootOverridden || globalOpts.auditLedgerOverridden {
+		return false, &usageError{message: "--runtime-dir/--socket-name cannot be combined with --state-root/--audit-ledger-root"}
+	}
+	if resolvedMode != brokerCommandAPIModeLiveIPC {
+		return false, &usageError{message: fmt.Sprintf("%s does not use live broker IPC; --runtime-dir/--socket-name are only supported for live IPC commands", commandName)}
+	}
+	return true, nil
+}
+
+func commandNeedsBrokerService(commandName string, handler brokerCommandSpec, globalOpts brokerGlobalOptions, resolvedMode brokerCommandAPIMode) bool {
+	if commandName == "put-artifact" {
+		return globalOpts.stateRootOverridden || globalOpts.auditLedgerOverridden
+	}
+	return handler.requiresStore || resolvedMode == brokerCommandAPIModeInProcess
+}
+
+func resolveBrokerCommandExecutionMode(commandName string, resolvedMode brokerCommandAPIMode, globalOpts brokerGlobalOptions, needService bool) (brokerCommandAPIMode, bool, error) {
+	if resolvedMode != brokerCommandAPIModeLiveIPC || needService {
+		return resolvedMode, needService, nil
+	}
+	if !globalOpts.stateRootOverridden && !globalOpts.auditLedgerOverridden {
+		return resolvedMode, needService, nil
+	}
+	if !isArtifactReadLiveIPCCommand(commandName) {
+		return resolvedMode, needService, &usageError{message: fmt.Sprintf("%s uses repo-scoped live broker IPC; --state-root and --audit-ledger-root are only supported for local in-process commands", commandName)}
+	}
+	return brokerCommandAPIModeInProcess, true, nil
+}
+
+func isArtifactReadLiveIPCCommand(commandName string) bool {
+	switch commandName {
+	case "list-artifacts", "head-artifact", "get-artifact":
+		return true
+	default:
+		return false
+	}
+}
+
+func configureBrokerLocalAPIClientMode(resolvedMode brokerCommandAPIMode, liveIPCTarget brokerLiveIPCTargetOptions, explicitLiveIPC bool) (func(), error) {
+	if !explicitLiveIPC {
+		return setLocalAPIClientSelection(resolvedMode, nil), nil
+	}
+	cfg, err := resolveExplicitLiveIPCTargetConfig(liveIPCTarget)
+	if err != nil {
+		return nil, err
+	}
+	return setLocalAPIClientSelection(resolvedMode, &cfg), nil
+}
+
+func buildBrokerServiceIfNeeded(needService bool, roots brokerServiceRoots) (*brokerapi.Service, error) {
+	if !needService {
+		return nil, nil
+	}
+	service, err := brokerServiceFactory(roots)
+	if err != nil {
+		return nil, fmt.Errorf("runecode-broker failed to initialize store: %w", err)
+	}
+	return service, nil
 }
 
 var brokerServiceFactory brokerServiceFactoryFunc = newBrokerService
@@ -142,36 +214,40 @@ func commandHandlers() map[string]brokerCommandSpec {
 
 func addLiveIPCCommandHandlers(handlers map[string]brokerCommandSpec) {
 	for command, spec := range map[string]brokerCommandSpec{
-		"dependency-cache-ensure":                 {handler: handleDependencyCacheEnsure, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"dependency-fetch-registry":               {handler: handleDependencyFetchRegistry, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"dependency-cache-handoff":                {handler: handleDependencyCacheHandoff, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"audit-readiness":                         {handler: handleAuditReadiness, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"audit-verification":                      {handler: handleAuditVerification, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"audit-finalize-verify":                   {handler: handleAuditFinalizeVerify, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"audit-record-get":                        {handler: handleAuditRecordGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"audit-anchor-segment":                    {handler: handleAuditAnchorSegment, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"git-setup-get":                           {handler: handleGitSetupGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"git-setup-auth-bootstrap":                {handler: handleGitSetupAuthBootstrap, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"git-setup-identity-upsert":               {handler: handleGitSetupIdentityUpsert, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"provider-setup-direct":                   {handler: handleProviderSetupDirect, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"provider-credential-lease-issue":         {handler: handleProviderCredentialLeaseIssue, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"provider-profile-list":                   {handler: handleProviderProfileList, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"provider-profile-get":                    {handler: handleProviderProfileGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"project-substrate-get":                   {handler: handleProjectSubstrateGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"project-substrate-posture-get":           {handler: handleProjectSubstratePostureGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"project-substrate-adopt":                 {handler: handleProjectSubstrateAdopt, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"project-substrate-init-preview":          {handler: handleProjectSubstrateInitPreview, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"project-substrate-init-apply":            {handler: handleProjectSubstrateInitApply, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"project-substrate-upgrade-preview":       {handler: handleProjectSubstrateUpgradePreview, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"project-substrate-upgrade-apply":         {handler: handleProjectSubstrateUpgradeApply, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"git-remote-mutation-prepare":             {handler: handleGitRemoteMutationPrepare, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"git-remote-mutation-get":                 {handler: handleGitRemoteMutationGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"git-remote-mutation-issue-execute-lease": {handler: handleGitRemoteMutationIssueExecuteLease, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"git-remote-mutation-execute":             {handler: handleGitRemoteMutationExecute, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"version-info":                            {handler: handleVersionInfo, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"stream-logs":                             {handler: handleStreamLogs, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"llm-invoke":                              {handler: handleLLMInvoke, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"llm-stream":                              {handler: handleLLMStream, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"dependency-cache-ensure":                      {handler: handleDependencyCacheEnsure, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"dependency-fetch-registry":                    {handler: handleDependencyFetchRegistry, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"dependency-cache-handoff":                     {handler: handleDependencyCacheHandoff, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"audit-readiness":                              {handler: handleAuditReadiness, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"audit-verification":                           {handler: handleAuditVerification, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"audit-finalize-verify":                        {handler: handleAuditFinalizeVerify, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"audit-record-get":                             {handler: handleAuditRecordGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"audit-anchor-segment":                         {handler: handleAuditAnchorSegment, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"git-setup-get":                                {handler: handleGitSetupGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"git-setup-auth-bootstrap":                     {handler: handleGitSetupAuthBootstrap, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"git-setup-identity-upsert":                    {handler: handleGitSetupIdentityUpsert, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"provider-setup-direct":                        {handler: handleProviderSetupDirect, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"provider-credential-lease-issue":              {handler: handleProviderCredentialLeaseIssue, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"provider-profile-list":                        {handler: handleProviderProfileList, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"provider-profile-get":                         {handler: handleProviderProfileGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"project-substrate-get":                        {handler: handleProjectSubstrateGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"project-substrate-posture-get":                {handler: handleProjectSubstratePostureGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"project-substrate-adopt":                      {handler: handleProjectSubstrateAdopt, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"project-substrate-init-preview":               {handler: handleProjectSubstrateInitPreview, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"project-substrate-init-apply":                 {handler: handleProjectSubstrateInitApply, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"project-substrate-upgrade-preview":            {handler: handleProjectSubstrateUpgradePreview, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"project-substrate-upgrade-apply":              {handler: handleProjectSubstrateUpgradeApply, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"git-remote-mutation-prepare":                  {handler: handleGitRemoteMutationPrepare, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"git-remote-mutation-get":                      {handler: handleGitRemoteMutationGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"git-remote-mutation-issue-execute-lease":      {handler: handleGitRemoteMutationIssueExecuteLease, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"git-remote-mutation-execute":                  {handler: handleGitRemoteMutationExecute, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"external-anchor-mutation-prepare":             {handler: handleExternalAnchorMutationPrepare, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"external-anchor-mutation-get":                 {handler: handleExternalAnchorMutationGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"external-anchor-mutation-issue-execute-lease": {handler: handleExternalAnchorMutationIssueExecuteLease, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"external-anchor-mutation-execute":             {handler: handleExternalAnchorMutationExecute, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"version-info":                                 {handler: handleVersionInfo, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"stream-logs":                                  {handler: handleStreamLogs, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"llm-invoke":                                   {handler: handleLLMInvoke, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"llm-stream":                                   {handler: handleLLMStream, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 	} {
 		handlers[command] = spec
 	}
@@ -195,11 +271,15 @@ func parseBrokerGlobalArgs(args []string) (brokerGlobalOptions, []string, error)
 	fs.SetOutput(io.Discard)
 	stateRoot := fs.String("state-root", defaults.stateRoot, "broker state root")
 	auditLedgerRoot := fs.String("audit-ledger-root", defaults.auditLedgerRoot, "audit ledger root")
+	runtimeDir := fs.String("runtime-dir", "", "explicit runtime directory for live IPC commands")
+	socketName := fs.String("socket-name", "", "explicit socket filename for live IPC commands")
 	if err := fs.Parse(args); err != nil {
-		return brokerGlobalOptions{}, nil, &usageError{message: "usage: runecode-broker [--state-root path] [--audit-ledger-root path] <command> [flags]"}
+		return brokerGlobalOptions{}, nil, &usageError{message: "usage: runecode-broker [--state-root path] [--audit-ledger-root path] [--runtime-dir dir] [--socket-name broker.sock] <command> [flags]"}
 	}
 	globalOpts.roots.stateRoot = *stateRoot
 	globalOpts.roots.auditLedgerRoot = *auditLedgerRoot
+	globalOpts.liveIPCTarget.runtimeDir = *runtimeDir
+	globalOpts.liveIPCTarget.socketName = *socketName
 	fs.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "state-root":
@@ -209,6 +289,25 @@ func parseBrokerGlobalArgs(args []string) (brokerGlobalOptions, []string, error)
 		}
 	})
 	return globalOpts, fs.Args(), nil
+}
+
+func resolveExplicitLiveIPCTargetConfig(target brokerLiveIPCTargetOptions) (brokerapi.LocalIPCConfig, error) {
+	defaults, err := loadDefaultLocalIPCConfig()
+	if err != nil {
+		return brokerapi.LocalIPCConfig{}, err
+	}
+	cfg := brokerapi.LocalIPCConfig{
+		RuntimeDir:     target.runtimeDir,
+		SocketName:     target.socketName,
+		RepositoryRoot: defaults.RepositoryRoot,
+	}
+	if cfg.RuntimeDir == "" {
+		cfg.RuntimeDir = defaults.RuntimeDir
+	}
+	if cfg.SocketName == "" {
+		cfg.SocketName = defaults.SocketName
+	}
+	return cfg, nil
 }
 
 func isHelpArg(arg string) bool {
@@ -236,11 +335,13 @@ func writeHelp(w io.Writer) error {
 	return err
 }
 
-const brokerHelpText = `Usage: runecode-broker [--state-root path] [--audit-ledger-root path] <command> [flags]
+const brokerHelpText = `Usage: runecode-broker [--state-root path] [--audit-ledger-root path] [--runtime-dir dir] [--socket-name broker.sock] <command> [flags]
 
 Global options:
   --state-root path         broker state root (artifact store and broker-owned local state)
   --audit-ledger-root path  audit ledger root
+  --runtime-dir dir         explicit runtime directory for live IPC commands
+  --socket-name name        explicit socket filename for live IPC commands
 
 Commands:
   serve-local [--runtime-dir dir] [--socket-name broker.sock] [--once]
@@ -267,13 +368,13 @@ Commands:
   revoke-approved-excerpt --digest sha256:... --actor user
   set-run-status --run-id id --status active|retained|closed
   gc
-  export-backup --path backup.json
-  restore-backup --path backup.json
+  export-backup --path backup.json (artifact/broker state backup; trusted-context audit import links are not made portable by this command)
+  restore-backup --path backup.json (restores artifact/broker state only; re-import trusted contracts/evidence in the target environment as needed)
   show-audit
   show-policy
   set-reserved-classes --enabled=true|false
-  import-trusted-contract --kind verifier-record --file verifier.json --evidence import-evidence.json
-  seed-dev-manual-scenario --dev-only [--profile tui-rich-v1] (requires dev-seed build tag)
+	  import-trusted-contract --kind <kind> --file payload.json --evidence import-evidence.json
+  seed-dev-manual-scenario --dev-only [--profile tui-rich-v1] (requires dev-seed build tag; seeds trusted context using the same import/audit semantics as other trusted policy artifacts)
 	  audit-readiness
 	  audit-verification [--limit N]
 	  audit-finalize-verify
@@ -300,6 +401,10 @@ Commands:
 	  git-remote-mutation-get --request-file path
 	  git-remote-mutation-issue-execute-lease --request-file path
 	  git-remote-mutation-execute --request-file path
+	  external-anchor-mutation-prepare --request-file path
+	  external-anchor-mutation-get --request-file path
+	  external-anchor-mutation-issue-execute-lease --request-file path
+	  external-anchor-mutation-execute --request-file path
   version-info
   stream-logs [--stream-id id] [--run-id id] [--role-instance-id id] [--start-cursor cursor] [--follow] [--include-backlog]
   llm-invoke --run-id id --request-file path [--request-digest sha256:...]

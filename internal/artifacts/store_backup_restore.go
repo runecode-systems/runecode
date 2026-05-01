@@ -35,6 +35,7 @@ func loadRestoredStateRecords(next *StoreState, manifest BackupManifest, ioStore
 		func() error { return loadRestoredSessions(next, manifest.Sessions) },
 		func() error { return loadRestoredPolicyDecisions(next, manifest.PolicyDecisions) },
 		func() error { return loadRestoredGitRemotePrepared(next, manifest.GitRemotePrepared) },
+		func() error { return loadRestoredExternalAnchorPrepared(next, manifest.ExternalAnchorPrepared) },
 		func() error {
 			return loadRestoredRuntimeState(next, manifest.RuntimeFactsByRun, manifest.RuntimeEvidenceByRun, manifest.AttestationVerificationCache, manifest.RuntimeLifecycleByRun, manifest.RuntimeAuditStateByRun, manifest.RunnerAdvisoryByRun)
 		},
@@ -66,34 +67,36 @@ func newStateFromBackup(manifest BackupManifest, lastAuditSequence int64) StoreS
 		runs[runID] = status
 	}
 	return StoreState{
-		Artifacts:                    map[string]ArtifactRecord{},
-		DependencyCacheBatches:       map[string]DependencyCacheBatchRecord{},
-		DependencyCacheUnits:         map[string]DependencyCacheResolvedUnitRecord{},
-		DependencyCacheByRequest:     map[string][]string{},
-		Sessions:                     map[string]SessionDurableState{},
-		Approvals:                    map[string]ApprovalRecord{},
-		RunApprovalRefs:              map[string][]string{},
-		PolicyDecisions:              map[string]PolicyDecisionRecord{},
-		RunPolicyDecisionRefs:        map[string][]string{},
-		GitRemotePrepared:            map[string]GitRemotePreparedMutationRecord{},
-		RunGitRemotePreparedRefs:     map[string][]string{},
-		RuntimeFactsByRun:            map[string]launcherbackend.RuntimeFactsSnapshot{},
-		RuntimeEvidenceByRun:         map[string]launcherbackend.RuntimeEvidenceSnapshot{},
-		AttestationVerificationCache: map[string]launcherbackend.IsolateAttestationVerificationRecord{},
-		RuntimeLifecycleByRun:        map[string]launcherbackend.RuntimeLifecycleState{},
-		RuntimeAuditStateByRun:       map[string]RuntimeAuditEmissionState{},
-		RunnerAdvisoryByRun:          map[string]RunnerAdvisoryState{},
-		ProviderProfiles:             map[string]ProviderProfileDurableState{},
-		ProviderSetupSessions:        map[string]ProviderSetupSessionDurableState{},
-		RunPlanAuthorities:           map[string]RunPlanAuthorityRecord{},
-		RunPlanRefsByRun:             map[string][]string{},
-		RunPlanCompilations:          map[string]RunPlanCompilationRecord{},
-		RunPlanCompilationByCacheKey: map[string]string{},
-		Policy:                       manifest.Policy,
-		Runs:                         runs,
-		PromotionEventsByActor:       map[string][]time.Time{},
-		LastAuditSequence:            lastAuditSequence,
-		StorageProtectionPosture:     manifest.StorageProtection,
+		Artifacts:                     map[string]ArtifactRecord{},
+		DependencyCacheBatches:        map[string]DependencyCacheBatchRecord{},
+		DependencyCacheUnits:          map[string]DependencyCacheResolvedUnitRecord{},
+		DependencyCacheByRequest:      map[string][]string{},
+		Sessions:                      map[string]SessionDurableState{},
+		Approvals:                     map[string]ApprovalRecord{},
+		RunApprovalRefs:               map[string][]string{},
+		PolicyDecisions:               map[string]PolicyDecisionRecord{},
+		RunPolicyDecisionRefs:         map[string][]string{},
+		GitRemotePrepared:             map[string]GitRemotePreparedMutationRecord{},
+		RunGitRemotePreparedRefs:      map[string][]string{},
+		ExternalAnchorPrepared:        map[string]ExternalAnchorPreparedMutationRecord{},
+		RunExternalAnchorPreparedRefs: map[string][]string{},
+		RuntimeFactsByRun:             map[string]launcherbackend.RuntimeFactsSnapshot{},
+		RuntimeEvidenceByRun:          map[string]launcherbackend.RuntimeEvidenceSnapshot{},
+		AttestationVerificationCache:  map[string]launcherbackend.IsolateAttestationVerificationRecord{},
+		RuntimeLifecycleByRun:         map[string]launcherbackend.RuntimeLifecycleState{},
+		RuntimeAuditStateByRun:        map[string]RuntimeAuditEmissionState{},
+		RunnerAdvisoryByRun:           map[string]RunnerAdvisoryState{},
+		ProviderProfiles:              map[string]ProviderProfileDurableState{},
+		ProviderSetupSessions:         map[string]ProviderSetupSessionDurableState{},
+		RunPlanAuthorities:            map[string]RunPlanAuthorityRecord{},
+		RunPlanRefsByRun:              map[string][]string{},
+		RunPlanCompilations:           map[string]RunPlanCompilationRecord{},
+		RunPlanCompilationByCacheKey:  map[string]string{},
+		Policy:                        manifest.Policy,
+		Runs:                          runs,
+		PromotionEventsByActor:        map[string][]time.Time{},
+		LastAuditSequence:             lastAuditSequence,
+		StorageProtectionPosture:      manifest.StorageProtection,
 	}
 }
 
@@ -106,6 +109,18 @@ func loadRestoredGitRemotePrepared(next *StoreState, records []GitRemotePrepared
 		next.GitRemotePrepared[normalized.PreparedMutationID] = normalized
 	}
 	rebuildRunGitRemotePreparedRefsLocked(next)
+	return nil
+}
+
+func loadRestoredExternalAnchorPrepared(next *StoreState, records []ExternalAnchorPreparedMutationRecord) error {
+	for i, rec := range records {
+		normalized := cloneExternalAnchorPreparedRecord(rec)
+		if err := validateExternalAnchorPreparedRecord(normalized); err != nil {
+			return fmt.Errorf("external anchor prepared restore index %d: %w", i, err)
+		}
+		next.ExternalAnchorPrepared[normalized.PreparedMutationID] = normalized
+	}
+	rebuildRunExternalAnchorPreparedRefsLocked(next)
 	return nil
 }
 

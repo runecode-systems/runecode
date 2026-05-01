@@ -1,0 +1,55 @@
+{
+  "schema_id": "runecode.protocol.v0.AuditReceipt",
+  "schema_version": "0.5.0",
+  "subject_digest": {
+    "hash_alg": "sha256",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "audit_receipt_kind": "anchor",
+  "subject_family": "audit_segment_seal",
+  "recorder": {
+    "schema_id": "runecode.protocol.v0.PrincipalIdentity",
+    "schema_version": "0.2.0",
+    "actor_kind": "daemon",
+    "principal_id": "auditd",
+    "instance_id": "auditd-1"
+  },
+  "recorded_at": "2026-03-13T12:25:00Z",
+  "receipt_payload_schema_id": "runecode.protocol.audit.receipt.anchor.v0",
+  "receipt_payload": {
+    "anchor_kind": "external_public_chain_v0",
+    "approval_assurance_level": "session_authenticated",
+    "approval_decision_digest": {
+      "hash_alg": "sha256",
+      "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "external_anchor": {
+      "target_kind": "public_chain",
+      "runtime_adapter": "transparency_log_v0",
+      "target_descriptor": {
+        "descriptor_schema_id": "runecode.protocol.audit.anchor_target.public_chain.v0",
+        "chain_namespace": "evm",
+        "network_id": "base-mainnet",
+        "settlement_contract_digest": {
+          "hash_alg": "sha256",
+          "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      },
+      "target_descriptor_digest": {
+        "hash_alg": "sha256",
+        "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "proof": {
+        "proof_kind": "public_chain_tx_receipt_v0",
+        "proof_schema_id": "runecode.protocol.audit.anchor_proof.public_chain_tx_receipt.v0",
+        "proof_digest": {
+          "hash_alg": "sha256",
+          "hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "derived_execution": {
+        "rpc_endpoint_uri": "https://mainnet.base.org"
+      }
+    }
+  }
+}

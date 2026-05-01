@@ -64,6 +64,7 @@
                   "gate_override",
                   "gateway_egress_scope_change",
                   "git_remote_ops",
+                  "external_anchor_opt_in",
                   "out_of_workspace_write",
                   "secret_access_lease",
                   "dependency_network_fetch",

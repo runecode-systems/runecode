@@ -6,6 +6,10 @@ import (
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
+func newGatewayRelevantArtifactHash(seed string) []trustpolicy.Digest {
+	return []trustpolicy.Digest{{HashAlg: "sha256", Hash: strings.Repeat(seed, 64)}}
+}
+
 func validGatewayEgressActionRequest(capabilityID string, roleFamily string, roleKind string, gatewayRoleKind string, destinationKind string, actionKind string) ActionRequest {
 	payloadHash := gatewayPayloadHash()
 	action := newActionRequest(
@@ -26,7 +30,7 @@ func validGatewayEgressActionRequest(capabilityID string, roleFamily string, rol
 		roleFamily,
 		roleKind,
 	)
-	action.RelevantArtifactHashes = []trustpolicy.Digest{{HashAlg: "sha256", Hash: strings.Repeat("f", 64)}}
+	action.RelevantArtifactHashes = newGatewayRelevantArtifactHash("f")
 	return action
 }
 
@@ -67,7 +71,7 @@ func validDependencyFetchActionRequest(capabilityID string, roleKind string, ref
 		"gateway",
 		roleKind,
 	)
-	action.RelevantArtifactHashes = []trustpolicy.Digest{{HashAlg: "sha256", Hash: strings.Repeat("e", 64)}}
+	action.RelevantArtifactHashes = newGatewayRelevantArtifactHash("e")
 	return action
 }
 
@@ -122,8 +126,56 @@ func validGitRemoteMutationActionRequest(capabilityID string, operation string) 
 		"gateway",
 		"git-gateway",
 	)
-	action.RelevantArtifactHashes = []trustpolicy.Digest{{HashAlg: "sha256", Hash: strings.Repeat("9", 64)}}
+	action.RelevantArtifactHashes = newGatewayRelevantArtifactHash("9")
 	return action
+}
+
+func validExternalAnchorSubmitActionRequest(capabilityID string, destinationRef string, targetDescriptorDigest string) ActionRequest {
+	externalRequest := validExternalAnchorSubmitRequest(targetDescriptorDigest)
+	requestHashIdentity, err := canonicalHashValue(externalRequest)
+	if err != nil {
+		panic(err)
+	}
+	payloadHash := mustDigestObject(requestHashIdentity)
+	auditContext := validGitRemoteMutationAuditContext(payloadHash)
+	action := newActionRequest(
+		ActionKindGatewayEgress,
+		capabilityID,
+		actionPayloadGatewaySchemaID,
+		newSchemaPayload(actionPayloadGatewaySchemaID, map[string]any{
+			"gateway_role_kind":       "git-gateway",
+			"destination_kind":        "git_remote",
+			"destination_ref":         destinationRef,
+			"egress_data_class":       "audit_events",
+			"operation":               "external_anchor_submit",
+			"payload_hash":            payloadHash,
+			"audit_context":           auditContext,
+			"external_anchor_request": externalRequest,
+		}),
+		"gateway",
+		"git-gateway",
+	)
+	action.RelevantArtifactHashes = newGatewayRelevantArtifactHash("8")
+	return action
+}
+
+func validExternalAnchorSubmitRequest(targetDescriptorDigest string) map[string]any {
+	targetDescriptor := map[string]any{
+		"descriptor_schema_id":   "runecode.protocol.audit.anchor_target.transparency_log.v0",
+		"log_id":                 "policyengine-test-log",
+		"log_public_key_digest":  mustDigestObject("sha256:" + strings.Repeat("d", 64)),
+		"entry_encoding_profile": "jcs_v1",
+	}
+	return map[string]any{
+		"schema_id":                "runecode.protocol.v0.ExternalAnchorSubmitRequest",
+		"schema_version":           "0.1.0",
+		"request_kind":             "external_anchor_submit_v0",
+		"target_kind":              "transparency_log",
+		"target_descriptor":        targetDescriptor,
+		"target_descriptor_digest": mustDigestObject(targetDescriptorDigest),
+		"seal_digest":              mustDigestObject("sha256:" + strings.Repeat("1", 64)),
+		"outbound_payload_digest":  mustDigestObject("sha256:" + strings.Repeat("2", 64)),
+	}
 }
 
 func validGitTypedPullRequestCreateRequest() map[string]any {
@@ -160,31 +212,6 @@ func validGitTypedPullRequestCreateRequest() map[string]any {
 		"head_commit_or_tree_hash":          mustDigestObject("sha256:" + strings.Repeat("9", 64)),
 		"referenced_patch_artifact_digests": []any{mustDigestObject("sha256:" + strings.Repeat("7", 64))},
 		"expected_result_tree_hash":         mustDigestObject("sha256:" + strings.Repeat("6", 64)),
-	}
-}
-
-func compileGatewayInputWithOneCapability(roleKind string, capability string, allowlist map[string]any) CompileInput {
-	role := validRoleManifestPayload()
-	role["role_family"] = "gateway"
-	role["role_kind"] = roleKind
-	role["capability_opt_ins"] = []any{capability}
-	rolePrincipal := role["principal"].(map[string]any)
-	rolePrincipal["role_family"] = "gateway"
-	rolePrincipal["role_kind"] = roleKind
-	role["allowlist_refs"] = []any{mustDigestObject(testAllowlistHash(nil, allowlist))}
-
-	run := validRunCapabilityManifestPayload()
-	run["capability_opt_ins"] = []any{capability}
-	runPrincipal := run["principal"].(map[string]any)
-	runPrincipal["role_family"] = "gateway"
-	runPrincipal["role_kind"] = roleKind
-	run["allowlist_refs"] = []any{mustDigestObject(testAllowlistHash(nil, allowlist))}
-
-	return CompileInput{
-		FixedInvariants: FixedInvariants{},
-		RoleManifest:    testManifestInput(nil, role, ""),
-		RunManifest:     testManifestInput(nil, run, ""),
-		Allowlists:      []ManifestInput{testManifestInput(nil, allowlist, "")},
 	}
 }
 

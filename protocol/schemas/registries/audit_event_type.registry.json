@@ -22,6 +22,10 @@
       "summary": "Records git-gateway remote-mutation outbound activity with attributable destination and allowlist context."
     },
     {
+      "code": "external_anchor_egress",
+      "summary": "Records external-anchor submission outbound activity with attributable target digest identity, allowlist context, and exact-action bindings."
+    },
+    {
       "code": "artifact_put",
       "summary": "Records successful artifact ingestion after canonicalization and immutable metadata assignment."
     },

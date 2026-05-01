@@ -13,6 +13,8 @@
 - Confirm `git_remote_ops` remains an exact-action hard-floor approval across all profiles and is not batchable into stage sign-off, milestone approval, or ambient acknowledgment.
 - Confirm the minimum assurance floor for `git_remote_ops` remains at least `reauthenticated` across profiles.
 - Confirm git remote-mutation approval bindings still require canonical repository identity, target refs, referenced patch artifact digests, expected result tree hash, and canonical action request hash.
+- Confirm external audit anchor submission, once active as a shared remote-state-mutation hard-floor class, remains exact-action and is not batchable into stage sign-off, milestone approval, deferred ambient approval, or durable pre-approval.
+- Confirm external audit anchor approval bindings require canonical target descriptor identity, typed external anchor request hash, targeted `AuditSegmentSeal` digest, and the required immutable request fields.
 - Confirm approval-profile expansion preserves the shared dependency-fetch checkpoint model rather than introducing per-cache-miss approval semantics for ordinary in-scope `fetch_dependency` work.
 - Confirm any stricter or more permissive dependency-related approval behavior is expressed through canonical dependency-fetch scope and action semantics rather than ambiguous dependency-install or package-manager-local language.
 - Confirm approval profiles do not weaken blocked project-substrate posture or override diagnostics/remediation-only repository substrate states.
