@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
@@ -79,6 +80,9 @@ func genericApprovalResolveRequest(approvalID string, boundScope brokerapi.Appro
 			TargetInstanceID:  selection.TargetInstanceID,
 			TargetBackendKind: selection.TargetBackendKind,
 		}
+	case policyengine.ActionKindGatewayEgress, policyengine.ActionKindDependencyFetch, policyengine.ActionKindWorkspaceWrite, policyengine.ActionKindExecutorRun, policyengine.ActionKindArtifactRead, policyengine.ActionKindGateOverride, policyengine.ActionKindSecretAccess:
+		// Exact-action approvals for these action kinds require no additional
+		// resolve detail payload beyond signed request/decision binding.
 	default:
 		return brokerapi.ApprovalResolveRequest{}, &usageError{message: "approval-resolve does not support this action kind"}
 	}
@@ -244,7 +248,7 @@ func handleGC(_ []string, service *brokerapi.Service, stdout io.Writer) error {
 func handleExportBackup(args []string, service *brokerapi.Service, _ io.Writer) error {
 	fs := flag.NewFlagSet("export-backup", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	path := fs.String("path", "", "output backup path")
+	path := fs.String("path", "", "output backup path (trusted-context audit import links are not exported as portable trust)")
 	if err := fs.Parse(args); err != nil {
 		return &usageError{message: "export-backup usage: runecode-broker export-backup --path backup.json"}
 	}
@@ -257,7 +261,7 @@ func handleExportBackup(args []string, service *brokerapi.Service, _ io.Writer) 
 func handleRestoreBackup(args []string, service *brokerapi.Service, _ io.Writer) error {
 	fs := flag.NewFlagSet("restore-backup", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	path := fs.String("path", "", "backup path")
+	path := fs.String("path", "", "backup path (restores broker/artifact state; trusted contracts should be re-imported with evidence)")
 	if err := fs.Parse(args); err != nil {
 		return &usageError{message: "restore-backup usage: runecode-broker restore-backup --path backup.json"}
 	}
@@ -360,25 +364,35 @@ func handleImportTrustedContract(args []string, service *brokerapi.Service, _ io
 	filePath := fs.String("file", "", "path to contract JSON")
 	evidencePath := fs.String("evidence", "", "path to trusted import evidence JSON")
 	if err := fs.Parse(args); err != nil {
-		return &usageError{message: "import-trusted-contract usage: runecode-broker import-trusted-contract --kind verifier-record --file verifier.json --evidence import-evidence.json"}
+		return &usageError{message: "import-trusted-contract usage: runecode-broker import-trusted-contract --kind <kind> --file payload.json --evidence import-evidence.json"}
 	}
 	if *kind == "" || *filePath == "" || *evidencePath == "" {
 		return &usageError{message: "import-trusted-contract requires --kind, --file, and --evidence"}
 	}
-	switch *kind {
-	case "verifier-record":
-		record, err := loadVerifierRecord(*filePath)
-		if err != nil {
+	if err := validateTrustedImportKind(*kind); err != nil {
+		return &usageError{message: err.Error()}
+	}
+	payload, err := loadTrustedContractPayload(*filePath)
+	if err != nil {
+		return fmt.Errorf("invalid trusted contract payload: %w", err)
+	}
+	evidence, err := loadTrustedImportRequest(*evidencePath)
+	if err != nil {
+		return fmt.Errorf("invalid import evidence: %w", err)
+	}
+	if strings.TrimSpace(evidence.Kind) != strings.TrimSpace(*kind) {
+		return &usageError{message: fmt.Sprintf("import evidence kind %q does not match --kind %q", evidence.Kind, *kind)}
+	}
+	if strings.TrimSpace(*kind) == artifacts.TrustedContractImportKindVerifierRecord {
+		// Keep existing verifier path semantics while sharing persistence path.
+		if err := validateTrustedContractPayload(*kind, payload); err != nil {
 			return fmt.Errorf("invalid verifier record: %w", err)
 		}
-		evidence, err := loadTrustedImportRequest(*evidencePath)
-		if err != nil {
-			return fmt.Errorf("invalid import evidence: %w", err)
-		}
-		return putTrustedVerifierRecord(service, record, evidence)
-	default:
-		return &usageError{message: fmt.Sprintf("unsupported --kind %q (supported: verifier-record)", *kind)}
 	}
+	if err := putTrustedContractArtifact(service, strings.TrimSpace(*kind), payload, evidence); err != nil {
+		return fmt.Errorf("trusted contract import failed: %w", err)
+	}
+	return nil
 }
 
 func handleSeedDevManualScenario(args []string, service *brokerapi.Service, stdout io.Writer) error {

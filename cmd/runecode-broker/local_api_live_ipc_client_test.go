@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
@@ -372,4 +374,135 @@ func TestLiveIPCCommandsRejectGlobalStoreOverrideFlags(t *testing.T) {
 	if got := usageErr.Error(); got != "session-list uses repo-scoped live broker IPC; --state-root and --audit-ledger-root are only supported for local in-process commands" {
 		t.Fatalf("error message = %q", got)
 	}
+}
+
+func TestLiveIPCCommandsSupportExplicitGlobalIPCTargeting(t *testing.T) {
+	testCases := []explicitLiveIPCTestCase{
+		{name: "run-list", command: "run-list", wantOperation: "run_list"},
+		{name: "approval-list", command: "approval-list", wantOperation: "approval_list"},
+		{name: "audit-readiness", command: "audit-readiness", wantOperation: "readiness_get"},
+		{name: "external-anchor-mutation-prepare", command: "external-anchor-mutation-prepare", args: []string{"--request-file", writeExternalAnchorRequestFile(t)}, wantOperation: "external_anchor_mutation_prepare"},
+		{name: "external-anchor-mutation-issue-execute-lease", command: "external-anchor-mutation-issue-execute-lease", args: []string{"--request-file", writeExternalAnchorLeaseRequestFile(t)}, wantOperation: "external_anchor_mutation_issue_execute_lease"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			explicitCalled := configureExplicitLiveIPCCommandTest(t, tc.wantOperation)
+			runExplicitLiveIPCCommandTest(t, tc)
+			if !*explicitCalled {
+				t.Fatalf("explicit live IPC target was not used for %s", tc.command)
+			}
+		})
+	}
+}
+
+type explicitLiveIPCTestCase struct {
+	name          string
+	command       string
+	args          []string
+	wantOperation string
+}
+
+func configureExplicitLiveIPCCommandTest(t *testing.T, wantOperation string) *bool {
+	t.Helper()
+	originalFactory := brokerServiceFactory
+	originalResolver := localAPIClientModeResolver
+	originalRepoScoped := newRepoScopedLiveIPCLocalAPIClient
+	originalExplicit := newExplicitLiveIPCLocalAPIClientForConfig
+	t.Cleanup(func() {
+		brokerServiceFactory = originalFactory
+		localAPIClientModeResolver = originalResolver
+		newRepoScopedLiveIPCLocalAPIClient = originalRepoScoped
+		newExplicitLiveIPCLocalAPIClientForConfig = originalExplicit
+	})
+
+	brokerServiceFactory = func(brokerServiceRoots) (*brokerapi.Service, error) {
+		t.Fatal("brokerServiceFactory should not be called for live IPC command")
+		return nil, nil
+	}
+	newRepoScopedLiveIPCLocalAPIClient = func(context.Context) (brokerLocalAPI, error) {
+		t.Fatal("repo-scoped live IPC client should not be used when explicit target is set")
+		return nil, nil
+	}
+	explicitCalled := false
+	newExplicitLiveIPCLocalAPIClientForConfig = func(_ context.Context, cfg brokerapi.LocalIPCConfig) (brokerLocalAPI, error) {
+		explicitCalled = true
+		assertExplicitLiveIPCCommandConfig(t, cfg)
+		return &localAPIClient{
+			invoke: func(_ context.Context, operation string, _ any, _ any) *brokerapi.ErrorResponse {
+				if operation != wantOperation {
+					t.Fatalf("operation = %q, want %q", operation, wantOperation)
+				}
+				return nil
+			},
+			invokeSecret: func(context.Context, string, any, []byte, any) *brokerapi.ErrorResponse { return nil },
+		}, nil
+	}
+	localAPIClientModeResolver = defaultLocalAPIClientModeResolver
+	return &explicitCalled
+}
+
+func assertExplicitLiveIPCCommandConfig(t *testing.T, cfg brokerapi.LocalIPCConfig) {
+	t.Helper()
+	if cfg.RuntimeDir != "/tmp/live-runtime" {
+		t.Fatalf("RuntimeDir = %q, want /tmp/live-runtime", cfg.RuntimeDir)
+	}
+	if cfg.SocketName != "manual-broker.sock" {
+		t.Fatalf("SocketName = %q, want manual-broker.sock", cfg.SocketName)
+	}
+}
+
+func runExplicitLiveIPCCommandTest(t *testing.T, tc explicitLiveIPCTestCase) {
+	t.Helper()
+	args := []string{"--runtime-dir", "/tmp/live-runtime", "--socket-name", "manual-broker.sock", tc.command}
+	args = append(args, tc.args...)
+	if err := run(args, &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("run(%s) returned error: %v", tc.command, err)
+	}
+}
+
+func TestExplicitLiveIPCTargetRejectedForInProcessCommand(t *testing.T) {
+	err := run([]string{"--runtime-dir", "/tmp/live-runtime", "show-policy"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("show-policy expected usage error when explicit live IPC target is set")
+	}
+	usageErr, ok := err.(*usageError)
+	if !ok {
+		t.Fatalf("error type = %T, want *usageError", err)
+	}
+	if got := usageErr.Error(); got != "show-policy does not use live broker IPC; --runtime-dir/--socket-name are only supported for live IPC commands" {
+		t.Fatalf("error message = %q", got)
+	}
+}
+
+func TestExplicitLiveIPCTargetCannotBeCombinedWithStoreOverrides(t *testing.T) {
+	err := run([]string{"--runtime-dir", "/tmp/live-runtime", "--state-root", "/tmp/state-root", "session-list"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("session-list expected usage error for incompatible global overrides")
+	}
+	usageErr, ok := err.(*usageError)
+	if !ok {
+		t.Fatalf("error type = %T, want *usageError", err)
+	}
+	if got := usageErr.Error(); got != "--runtime-dir/--socket-name cannot be combined with --state-root/--audit-ledger-root" {
+		t.Fatalf("error message = %q", got)
+	}
+}
+
+func writeExternalAnchorRequestFile(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "external-anchor-request.json")
+	if err := os.WriteFile(path, []byte("{}\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	return path
+}
+
+func writeExternalAnchorLeaseRequestFile(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "external-anchor-lease-request.json")
+	if err := os.WriteFile(path, []byte("{\"prepared_mutation_id\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\"}\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	return path
 }

@@ -21,23 +21,17 @@ func (s *Service) seedDevManualInstanceControlContext() error {
 	if err := s.recordTrustedVerifierRecord(verifier); err != nil {
 		return err
 	}
-	allowlistDigest, err := s.recordTrustedPolicyContextArtifact(runID, artifacts.TrustedContractImportKindPolicyAllowlist, devManualPolicyAllowlistPayload())
+	allowlistDigest, err := s.seedDevManualPolicyAllowlist(runID)
 	if err != nil {
 		return err
 	}
-	rolePayload, err := devManualSignedPayloadForTrustedContext(devManualRoleManifestPayload(runID, allowlistDigest), verifier, privateKey)
-	if err != nil {
+	if err := s.recordDevManualSignedTrustedContext(runID, artifacts.TrustedContractImportKindRoleManifest, devManualWorkspaceRoleManifestPayload(runID, allowlistDigest), verifier, privateKey); err != nil {
 		return err
 	}
-	if _, err := s.recordTrustedPolicyContextArtifact(runID, artifacts.TrustedContractImportKindRoleManifest, rolePayload); err != nil {
+	if err := s.recordDevManualSignedTrustedContext(runID, artifacts.TrustedContractImportKindRunCapability, devManualWorkspaceCapabilityManifestPayload(runID, allowlistDigest), verifier, privateKey); err != nil {
 		return err
 	}
-	runPayload, err := devManualSignedPayloadForTrustedContext(devManualCapabilityManifestPayload(runID, allowlistDigest), verifier, privateKey)
-	if err != nil {
-		return err
-	}
-	_, err = s.recordTrustedPolicyContextArtifact(runID, artifacts.TrustedContractImportKindRunCapability, runPayload)
-	return err
+	return s.seedDevManualExternalAnchorGatewayContext(runID, allowlistDigest, verifier, privateKey)
 }
 
 func devManualPolicyContextVerifier() (trustpolicy.VerifierRecord, ed25519.PrivateKey) {
@@ -98,37 +92,11 @@ func (s *Service) recordTrustedPolicyContextArtifact(runID, kind string, payload
 	return ref.Digest, nil
 }
 
-func devManualPolicyAllowlistPayload() []byte {
-	return mustJSONBytesForDevSeed(map[string]any{
-		"schema_id":       "runecode.protocol.v0.PolicyAllowlist",
-		"schema_version":  "0.1.0",
-		"allowlist_kind":  "gateway_scope_rule",
-		"entry_schema_id": "runecode.protocol.v0.GatewayScopeRule",
-		"entries":         []any{devManualModelGatewayAllowlistEntry()},
-	})
-}
-
-func devManualModelGatewayAllowlistEntry() map[string]any {
-	return map[string]any{
-		"schema_id":                   "runecode.protocol.v0.GatewayScopeRule",
-		"schema_version":              "0.1.0",
-		"scope_kind":                  "gateway_destination",
-		"entry_id":                    "model_default",
-		"gateway_role_kind":           "model-gateway",
-		"destination":                 map[string]any{"schema_id": "runecode.protocol.v0.DestinationDescriptor", "schema_version": "0.1.0", "descriptor_kind": "model_endpoint", "canonical_host": "model.example.com", "tls_required": true, "private_range_blocking": "enforced", "dns_rebinding_protection": "enforced"},
-		"permitted_operations":        []any{"invoke_model"},
-		"allowed_egress_data_classes": []any{"spec_text"},
-		"redirect_posture":            "allowlist_only",
-		"max_timeout_seconds":         120,
-		"max_response_bytes":          16777216,
-	}
-}
-
-func devManualRoleManifestPayload(runID, allowlistDigest string) map[string]any {
+func devManualWorkspaceRoleManifestPayload(runID, allowlistDigest string) map[string]any {
 	return map[string]any{
 		"schema_id":          "runecode.protocol.v0.RoleManifest",
 		"schema_version":     "0.2.0",
-		"principal":          devManualSignedContextPrincipal(runID),
+		"principal":          devManualSignedContextPrincipal(runID, "workspace", "workspace-edit"),
 		"role_family":        "workspace",
 		"role_kind":          "workspace-edit",
 		"approval_profile":   "moderate",
@@ -137,11 +105,11 @@ func devManualRoleManifestPayload(runID, allowlistDigest string) map[string]any 
 	}
 }
 
-func devManualCapabilityManifestPayload(runID, allowlistDigest string) map[string]any {
+func devManualWorkspaceCapabilityManifestPayload(runID, allowlistDigest string) map[string]any {
 	return map[string]any{
 		"schema_id":          "runecode.protocol.v0.CapabilityManifest",
 		"schema_version":     "0.2.0",
-		"principal":          devManualSignedContextPrincipal(runID),
+		"principal":          devManualSignedContextPrincipal(runID, "workspace", "workspace-edit"),
 		"manifest_scope":     "run",
 		"run_id":             runID,
 		"approval_profile":   "moderate",
@@ -150,17 +118,26 @@ func devManualCapabilityManifestPayload(runID, allowlistDigest string) map[strin
 	}
 }
 
-func devManualSignedContextPrincipal(runID string) map[string]any {
+func devManualSignedContextPrincipal(runID, roleFamily, roleKind string) map[string]any {
 	return map[string]any{
 		"schema_id":      "runecode.protocol.v0.PrincipalIdentity",
 		"schema_version": "0.2.0",
 		"actor_kind":     "role_instance",
 		"principal_id":   "brokerapi",
 		"instance_id":    "brokerapi-1",
-		"role_family":    "workspace",
-		"role_kind":      "workspace-edit",
+		"role_family":    roleFamily,
+		"role_kind":      roleKind,
 		"run_id":         runID,
 	}
+}
+
+func (s *Service) recordDevManualSignedTrustedContext(runID, kind string, payload map[string]any, verifier trustpolicy.VerifierRecord, privateKey ed25519.PrivateKey) error {
+	signedPayload, err := devManualSignedPayloadForTrustedContext(payload, verifier, privateKey)
+	if err != nil {
+		return err
+	}
+	_, err = s.recordTrustedPolicyContextArtifact(runID, kind, signedPayload)
+	return err
 }
 
 func devManualSignedPayloadForTrustedContext(payload map[string]any, verifier trustpolicy.VerifierRecord, privateKey ed25519.PrivateKey) ([]byte, error) {

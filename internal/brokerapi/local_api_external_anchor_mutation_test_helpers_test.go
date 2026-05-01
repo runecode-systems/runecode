@@ -54,6 +54,21 @@ func mustExecuteExternalAnchorMutation(t *testing.T, s *Service, preparedID, app
 	return resp
 }
 
+func mustIssueExternalAnchorExecuteLease(t *testing.T, s *Service, preparedID, requestID string, ttlSeconds int) ExternalAnchorMutationIssueExecuteLeaseResponse {
+	t.Helper()
+	resp, errResp := s.HandleExternalAnchorMutationIssueExecuteLease(context.Background(), ExternalAnchorMutationIssueExecuteLeaseRequest{
+		SchemaID:           "runecode.protocol.v0.ExternalAnchorMutationIssueExecuteLeaseRequest",
+		SchemaVersion:      "0.1.0",
+		RequestID:          requestID,
+		PreparedMutationID: preparedID,
+		TTLSeconds:         ttlSeconds,
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleExternalAnchorMutationIssueExecuteLease returned error: %+v", errResp)
+	}
+	return resp
+}
+
 func executeExternalAnchorMutationError(t *testing.T, s *Service, preparedID, approvalID string, requestDigest, decisionDigest trustpolicy.Digest, leaseID, requestID string) *ErrorResponse {
 	t.Helper()
 	_, errResp := s.HandleExternalAnchorMutationExecute(context.Background(), externalAnchorExecuteRequest(preparedID, approvalID, requestDigest, decisionDigest, leaseID, requestID, false), RequestContext{})

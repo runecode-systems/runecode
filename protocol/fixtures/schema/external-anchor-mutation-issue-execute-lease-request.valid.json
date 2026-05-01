@@ -1,0 +1,7 @@
+{
+  "schema_id": "runecode.protocol.v0.ExternalAnchorMutationIssueExecuteLeaseRequest",
+  "schema_version": "0.1.0",
+  "request_id": "req-anchor-issue-execute-lease-1",
+  "prepared_mutation_id": "prepared-anchor-1",
+  "ttl_seconds": 900
+}

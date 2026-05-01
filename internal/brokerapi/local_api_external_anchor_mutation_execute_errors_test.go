@@ -1,6 +1,7 @@
 package brokerapi
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -48,6 +49,38 @@ func TestExternalAnchorMutationExecuteRequiresValidTargetAuthLeasePosture(t *tes
 	invalidLeaseID := mustIssueExternalAnchorNonGatewayLease(t, s, "run-anchor-execute-lease-posture")
 	errResp = executeExternalAnchorMutationError(t, s, preparedID, approvalID, requestDigest, decisionDigest, invalidLeaseID, "req-anchor-execute-invalid-lease")
 	assertExternalAnchorExecuteError(t, errResp, "broker_approval_state_invalid", "target auth lease retrieval failed")
+}
+
+func TestExternalAnchorMutationIssueExecuteLeaseRequiresPreparedLifecycleAndReturnsBoundLease(t *testing.T) {
+	s, preparedID, _, _, _, _ := prepareExternalAnchorExecuteFixture(t, "run-anchor-lease-issue", "sha256:"+strings.Repeat("a", 64))
+	resp := mustIssueExternalAnchorExecuteLease(t, s, preparedID, "req-anchor-issue-lease", 300)
+	if strings.TrimSpace(resp.TargetAuthLeaseID) == "" {
+		t.Fatal("target_auth_lease_id empty")
+	}
+	if resp.Lease.GitBinding == nil {
+		t.Fatal("lease.git_binding missing")
+	}
+	if got := strings.Join(resp.Lease.GitBinding.AllowedOperations, ","); got != "external_anchor_submit" {
+		t.Fatalf("allowed_operations=%q, want external_anchor_submit", got)
+	}
+	if strings.TrimSpace(resp.Lease.GitBinding.RepositoryIdentity) == "" {
+		t.Fatal("lease.git_binding.repository_identity empty")
+	}
+	tamperExternalAnchorPreparedRecord(t, s, preparedID, func(rec *artifacts.ExternalAnchorPreparedMutationRecord) {
+		rec.LifecycleState = gitRemoteMutationLifecycleExecuted
+	})
+	_, errResp := s.HandleExternalAnchorMutationIssueExecuteLease(context.Background(), ExternalAnchorMutationIssueExecuteLeaseRequest{
+		SchemaID:           "runecode.protocol.v0.ExternalAnchorMutationIssueExecuteLeaseRequest",
+		SchemaVersion:      "0.1.0",
+		RequestID:          "req-anchor-issue-lease-not-prepared",
+		PreparedMutationID: preparedID,
+	}, RequestContext{})
+	if errResp == nil {
+		t.Fatal("expected issue execute lease error for non-prepared lifecycle")
+	}
+	if errResp.Error.Code != "broker_approval_state_invalid" {
+		t.Fatalf("error.code=%q, want broker_approval_state_invalid", errResp.Error.Code)
+	}
 }
 
 func assertExternalAnchorExecuteError(t *testing.T, errResp *ErrorResponse, wantCode, wantMessage string) {

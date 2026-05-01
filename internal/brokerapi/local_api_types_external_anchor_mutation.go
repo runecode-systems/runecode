@@ -1,6 +1,9 @@
 package brokerapi
 
-import "github.com/runecode-ai/runecode/internal/trustpolicy"
+import (
+	"github.com/runecode-ai/runecode/internal/secretsd"
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
+)
 
 type ExternalAnchorMutationPreparedTarget struct {
 	TargetKind             string             `json:"target_kind"`
@@ -84,6 +87,23 @@ type ExternalAnchorMutationGetResponse struct {
 	SchemaVersion string                              `json:"schema_version"`
 	RequestID     string                              `json:"request_id"`
 	Prepared      ExternalAnchorMutationPreparedState `json:"prepared"`
+}
+
+type ExternalAnchorMutationIssueExecuteLeaseRequest struct {
+	SchemaID           string `json:"schema_id"`
+	SchemaVersion      string `json:"schema_version"`
+	RequestID          string `json:"request_id"`
+	PreparedMutationID string `json:"prepared_mutation_id"`
+	TTLSeconds         int    `json:"ttl_seconds,omitempty"`
+}
+
+type ExternalAnchorMutationIssueExecuteLeaseResponse struct {
+	SchemaID           string         `json:"schema_id"`
+	SchemaVersion      string         `json:"schema_version"`
+	RequestID          string         `json:"request_id"`
+	PreparedMutationID string         `json:"prepared_mutation_id"`
+	Lease              secretsd.Lease `json:"lease"`
+	TargetAuthLeaseID  string         `json:"target_auth_lease_id"`
 }
 
 type ExternalAnchorMutationExecuteRequest struct {

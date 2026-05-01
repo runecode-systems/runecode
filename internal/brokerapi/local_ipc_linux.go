@@ -20,11 +20,13 @@ const (
 	localRuntimeDirPerm = os.FileMode(0o700)
 	localSocketPerm     = os.FileMode(0o600)
 	defaultSocketName   = "broker.sock"
+	maxUnixSocketPath   = 107
 )
 
 var (
 	ErrLocalRuntimeDirPermissions = errors.New("broker local runtime directory permissions must be 0700")
 	ErrLocalSocketPermissions     = errors.New("broker local socket permissions must be 0600")
+	ErrLocalSocketPathTooLong     = errors.New("broker local unix socket path exceeds platform limit")
 	ErrPeerCredentialsUnavailable = errors.New("peer credentials unavailable")
 	ErrPeerUIDMismatch            = errors.New("peer uid does not match broker uid")
 )
@@ -106,7 +108,19 @@ func (c LocalIPCConfig) socketPath() (string, error) {
 	if strings.ContainsRune(c.SocketName, filepath.Separator) {
 		return "", fmt.Errorf("socket name must not include path separators")
 	}
-	return filepath.Join(c.RuntimeDir, c.SocketName), nil
+	socketPath := filepath.Join(c.RuntimeDir, c.SocketName)
+	if err := validateLocalSocketPathLength(socketPath); err != nil {
+		return "", err
+	}
+	return socketPath, nil
+}
+
+func validateLocalSocketPathLength(socketPath string) error {
+	length := len([]byte(socketPath))
+	if length <= maxUnixSocketPath {
+		return nil
+	}
+	return fmt.Errorf("%w: got %d bytes (max %d) for %q; choose a shorter --runtime-dir or --socket-name", ErrLocalSocketPathTooLong, length, maxUnixSocketPath, socketPath)
 }
 
 func ensureLocalRuntimeDir(path string) error {

@@ -175,6 +175,37 @@ func TestImportTrustedContractRejectsUnsupportedKind(t *testing.T) {
 	}
 }
 
+func TestImportTrustedContractSupportsRoleManifestKind(t *testing.T) {
+	setBrokerServiceForTest(t)
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	roleManifestPath := writeTempFile(t, "role-manifest.json", `{
+		"schema_id":"runecode.protocol.v0.RoleManifest",
+		"schema_version":"0.2.0",
+		"principal":{
+			"schema_id":"runecode.protocol.v0.PrincipalIdentity",
+			"schema_version":"0.2.0",
+			"actor_kind":"role_instance",
+			"principal_id":"gateway-role",
+			"instance_id":"gateway-1",
+			"role_family":"gateway",
+			"role_kind":"model-gateway",
+			"active_role_manifest_hash":{"hash_alg":"sha256","hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+			"active_capability_manifest_hash":{"hash_alg":"sha256","hash":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+		},
+		"role_family":"gateway",
+		"role_kind":"model-gateway",
+		"approval_profile":"moderate",
+		"capability_opt_ins":["model_streaming"],
+		"allowlist_refs":[{"hash_alg":"sha256","hash":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}],
+		"signatures":[{"alg":"ed25519","key_id":"key_sha256","key_id_value":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","signature":"c2ln"}]
+	}`)
+	evidencePath := writeTrustedImportEvidenceFixture(t, "role-manifest")
+	if err := run([]string{"import-trusted-contract", "--kind", "role-manifest", "--file", roleManifestPath, "--evidence", evidencePath}, stdout, stderr); err != nil {
+		t.Fatalf("import-trusted-contract role-manifest returned error: %v", err)
+	}
+}
+
 func TestImportTrustedContractRequiresEvidence(t *testing.T) {
 	setBrokerServiceForTest(t)
 	stdout := &bytes.Buffer{}
@@ -218,6 +249,19 @@ func TestGenericApprovalResolveRequestRejectsUnsupportedActionKind(t *testing.T)
 	}
 	if got := usage.Error(); !strings.Contains(got, "approval-resolve does not support this action kind") {
 		t.Fatalf("usage error = %q", got)
+	}
+}
+
+func TestGenericApprovalResolveRequestSupportsExactActionKinds(t *testing.T) {
+	_, err := genericApprovalResolveRequest(
+		"sha256:"+strings.Repeat("a", 64),
+		brokerapi.ApprovalBoundScope{ActionKind: "gateway_egress"},
+		brokerapi.ApprovalGetResponse{},
+		trustpolicy.SignedObjectEnvelope{},
+		trustpolicy.SignedObjectEnvelope{},
+	)
+	if err != nil {
+		t.Fatalf("expected exact-action kind to be supported, got error: %v", err)
 	}
 }
 

@@ -2,11 +2,33 @@ package brokerapi
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 )
+
+func TestExternalAnchorPrepareRequestValidFixturePassesCanonicalDescriptorDigestBinding(t *testing.T) {
+	fixturePath := filepath.Join("..", "..", "protocol", "fixtures", "schema", "external-anchor-mutation-prepare-request.valid.json")
+	body, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) returned error: %v", fixturePath, err)
+	}
+	fixture := map[string]any{}
+	if err := json.Unmarshal(body, &fixture); err != nil {
+		t.Fatalf("Unmarshal(%q) returned error: %v", fixturePath, err)
+	}
+	typedRequest, ok := fixture["typed_request"].(map[string]any)
+	if !ok {
+		t.Fatalf("typed_request has type %T, want map[string]any", fixture["typed_request"])
+	}
+	if _, _, err := externalAnchorCanonicalTargetsFromTypedRequest(typedRequest); err != nil {
+		t.Fatalf("externalAnchorCanonicalTargetsFromTypedRequest returned error: %v", err)
+	}
+}
 
 func TestExternalAnchorMutationPrepareFailsClosedWithoutManifestOptIn(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})

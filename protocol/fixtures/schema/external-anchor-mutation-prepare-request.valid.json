@@ -19,7 +19,7 @@
     },
     "target_descriptor_digest": {
       "hash_alg": "sha256",
-      "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      "hash": "f126bddc42a9c110d4873b269a644182304ec94c01d018d7c03fcd9a4b54a437"
     },
     "target_set": [
       {
@@ -36,7 +36,7 @@
         },
         "target_descriptor_digest": {
           "hash_alg": "sha256",
-          "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          "hash": "f126bddc42a9c110d4873b269a644182304ec94c01d018d7c03fcd9a4b54a437"
         }
       }
     ],

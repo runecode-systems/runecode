@@ -68,6 +68,7 @@ type localBrokerClient interface {
 	GitRemoteMutationExecute(ctx context.Context, req brokerapi.GitRemoteMutationExecuteRequest) (brokerapi.GitRemoteMutationExecuteResponse, error)
 	ExternalAnchorMutationPrepare(ctx context.Context, req brokerapi.ExternalAnchorMutationPrepareRequest) (brokerapi.ExternalAnchorMutationPrepareResponse, error)
 	ExternalAnchorMutationGet(ctx context.Context, req brokerapi.ExternalAnchorMutationGetRequest) (brokerapi.ExternalAnchorMutationGetResponse, error)
+	ExternalAnchorMutationIssueExecuteLease(ctx context.Context, req brokerapi.ExternalAnchorMutationIssueExecuteLeaseRequest) (brokerapi.ExternalAnchorMutationIssueExecuteLeaseResponse, error)
 	ExternalAnchorMutationExecute(ctx context.Context, req brokerapi.ExternalAnchorMutationExecuteRequest) (brokerapi.ExternalAnchorMutationExecuteResponse, error)
 	ProjectSubstratePostureGet(ctx context.Context) (brokerapi.ProjectSubstratePostureGetResponse, error)
 	ProjectSubstrateAdopt(ctx context.Context) (brokerapi.ProjectSubstrateAdoptResponse, error)
@@ -352,6 +353,14 @@ func (c *rpcBrokerClient) ExternalAnchorMutationGet(ctx context.Context, req bro
 	req.RequestID = newRequestID("external-anchor-mutation-get")
 	resp := brokerapi.ExternalAnchorMutationGetResponse{}
 	return resp, c.invoke(ctx, "external_anchor_mutation_get", req, &resp)
+}
+
+func (c *rpcBrokerClient) ExternalAnchorMutationIssueExecuteLease(ctx context.Context, req brokerapi.ExternalAnchorMutationIssueExecuteLeaseRequest) (brokerapi.ExternalAnchorMutationIssueExecuteLeaseResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.ExternalAnchorMutationIssueExecuteLeaseRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("external-anchor-mutation-issue-execute-lease")
+	resp := brokerapi.ExternalAnchorMutationIssueExecuteLeaseResponse{}
+	return resp, c.invoke(ctx, "external_anchor_mutation_issue_execute_lease", req, &resp)
 }
 
 func (c *rpcBrokerClient) ExternalAnchorMutationExecute(ctx context.Context, req brokerapi.ExternalAnchorMutationExecuteRequest) (brokerapi.ExternalAnchorMutationExecuteResponse, error) {

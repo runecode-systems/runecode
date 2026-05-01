@@ -72,3 +72,25 @@ func handleExternalAnchorMutationExecute(args []string, service *brokerapi.Servi
 	}
 	return writeJSON(stdout, resp)
 }
+
+func handleExternalAnchorMutationIssueExecuteLease(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	requestFile, err := parseGitRemoteMutationRequestFile("external-anchor-mutation-issue-execute-lease", args)
+	if err != nil {
+		return err
+	}
+	request := brokerapi.ExternalAnchorMutationIssueExecuteLeaseRequest{}
+	if err := loadStrictJSONFileValue(requestFile, &request); err != nil {
+		return err
+	}
+	request.SchemaID = "runecode.protocol.v0.ExternalAnchorMutationIssueExecuteLeaseRequest"
+	request.SchemaVersion = "0.1.0"
+	request.RequestID = defaultRequestID()
+	api := localAPIForService(service)
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.ExternalAnchorMutationIssueExecuteLease(ctx, request)
+	if errResp != nil {
+		return localAPIError(errResp)
+	}
+	return writeJSON(stdout, resp)
+}

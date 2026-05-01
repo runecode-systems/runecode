@@ -9,11 +9,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
@@ -49,15 +51,11 @@ type trustedImportRequest struct {
 	Source        string                        `json:"source"`
 }
 
-func putTrustedVerifierRecord(service *brokerapi.Service, record trustpolicy.VerifierRecord, importRequest trustedImportRequest) error {
-	if _, err := trustpolicy.NewVerifierRegistry([]trustpolicy.VerifierRecord{record}); err != nil {
+func putTrustedContractArtifact(service *brokerapi.Service, kind string, payload []byte, importRequest trustedImportRequest) error {
+	if err := validateTrustedContractPayload(kind, payload); err != nil {
 		return err
 	}
-	b, err := json.Marshal(record)
-	if err != nil {
-		return err
-	}
-	predictedDigest, err := canonicalJSONDigestIdentity(b)
+	predictedDigest, err := canonicalJSONDigestIdentity(payload)
 	if err != nil {
 		return err
 	}
@@ -65,12 +63,12 @@ func putTrustedVerifierRecord(service *brokerapi.Service, record trustpolicy.Ver
 	if err != nil {
 		return err
 	}
-	provenanceHash, err := trustedVerifierImportProvenanceDigest(record, importRequest)
+	provenanceHash, err := trustedContractImportProvenanceDigest(kind, payload, importRequest)
 	if err != nil {
 		return err
 	}
 	ref, err := service.Put(artifacts.PutRequest{
-		Payload:               b,
+		Payload:               payload,
 		ContentType:           "application/json",
 		DataClass:             artifacts.DataClassAuditVerificationReport,
 		ProvenanceReceiptHash: provenanceHash,
@@ -84,7 +82,7 @@ func putTrustedVerifierRecord(service *brokerapi.Service, record trustpolicy.Ver
 		artifacts.TrustedContractImportAuditEventType,
 		"brokerapi",
 		map[string]interface{}{
-			artifacts.TrustedContractImportKindDetailKey:           artifacts.TrustedContractImportKindVerifierRecord,
+			artifacts.TrustedContractImportKindDetailKey:           kind,
 			artifacts.TrustedContractImportArtifactDigestDetailKey: ref.Digest,
 			artifacts.TrustedContractImportProvenanceDetailKey:     provenanceHash,
 			"importer": importRequest.Importer.PrincipalID,
@@ -99,15 +97,19 @@ func putTrustedVerifierRecord(service *brokerapi.Service, record trustpolicy.Ver
 	return nil
 }
 
-func loadVerifierRecord(filePath string) (trustpolicy.VerifierRecord, error) {
-	record := trustpolicy.VerifierRecord{}
+func loadTrustedContractPayload(filePath string) ([]byte, error) {
 	if strings.TrimSpace(filePath) == "" {
-		return record, fmt.Errorf("path is required")
+		return nil, fmt.Errorf("path is required")
 	}
-	if err := loadJSONFileValue(filePath, &record); err != nil {
-		return record, err
+	b, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
 	}
-	return record, nil
+	trimmed := strings.TrimSpace(string(b))
+	if trimmed == "" {
+		return nil, fmt.Errorf("payload is required")
+	}
+	return []byte(trimmed), nil
 }
 
 func loadTrustedImportRequest(filePath string) (trustedImportRequest, error) {
@@ -158,8 +160,8 @@ func validateTrustedImportRequest(request trustedImportRequest) error {
 	if request.SchemaVersion != "0.1.0" {
 		return fmt.Errorf("schema_version must be 0.1.0")
 	}
-	if request.Kind != artifacts.TrustedContractImportKindVerifierRecord {
-		return fmt.Errorf("kind must be %q", artifacts.TrustedContractImportKindVerifierRecord)
+	if err := validateTrustedImportKind(request.Kind); err != nil {
+		return err
 	}
 	if err := validatePrincipalIdentity(request.Importer); err != nil {
 		return fmt.Errorf("importer: %w", err)
@@ -189,6 +191,13 @@ func validateTrustedImportRequest(request trustedImportRequest) error {
 	return nil
 }
 
+func validateTrustedImportKind(kind string) error {
+	if _, ok := trustedContractSchemaPathByKind[strings.TrimSpace(kind)]; ok {
+		return nil
+	}
+	return fmt.Errorf("kind must be one of: %s", strings.Join(supportedTrustedImportKinds(), ", "))
+}
+
 func validatePrincipalIdentity(identity trustpolicy.PrincipalIdentity) error {
 	if identity.SchemaID != "runecode.protocol.v0.PrincipalIdentity" {
 		return fmt.Errorf("schema_id must be runecode.protocol.v0.PrincipalIdentity")
@@ -208,23 +217,22 @@ func validatePrincipalIdentity(identity trustpolicy.PrincipalIdentity) error {
 	return nil
 }
 
-func trustedVerifierImportProvenanceDigest(record trustpolicy.VerifierRecord, importRequest trustedImportRequest) (string, error) {
-	payload := map[string]any{
+func trustedContractImportProvenanceDigest(kind string, payload []byte, importRequest trustedImportRequest) (string, error) {
+	payloadDigest, err := canonicalJSONDigestIdentity(payload)
+	if err != nil {
+		return "", err
+	}
+	receiptPayload := map[string]any{
 		"schema_id":      "runecode.protocol.v0.TrustedContractImportReceipt",
 		"schema_version": "0.1.0",
-		"kind":           artifacts.TrustedContractImportKindVerifierRecord,
+		"kind":           kind,
 		"importer":       importRequest.Importer,
 		"reason":         importRequest.Reason,
 		"imported_at":    importRequest.ImportedAt,
 		"source":         importRequest.Source,
-		"verifier_record": map[string]string{
-			"key_id":          record.KeyID,
-			"key_id_value":    record.KeyIDValue,
-			"logical_scope":   record.LogicalScope,
-			"logical_purpose": record.LogicalPurpose,
-		},
+		"payload_digest": payloadDigest,
 	}
-	b, err := json.Marshal(payload)
+	b, err := json.Marshal(receiptPayload)
 	if err != nil {
 		return "", err
 	}
@@ -234,6 +242,58 @@ func trustedVerifierImportProvenanceDigest(record trustpolicy.VerifierRecord, im
 	}
 	sum := sha256.Sum256(canonical)
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+var trustedContractSchemaPathByKind = map[string]string{
+	artifacts.TrustedContractImportKindVerifierRecord:  "objects/VerifierRecord.schema.json",
+	artifacts.TrustedContractImportKindRoleManifest:    "objects/RoleManifest.schema.json",
+	artifacts.TrustedContractImportKindRunCapability:   "objects/CapabilityManifest.schema.json",
+	artifacts.TrustedContractImportKindStageCapability: "objects/CapabilityManifest.schema.json",
+	artifacts.TrustedContractImportKindPolicyAllowlist: "objects/PolicyAllowlist.schema.json",
+	artifacts.TrustedContractImportKindPolicyRuleSet:   "objects/PolicyRuleSet.schema.json",
+}
+
+func supportedTrustedImportKinds() []string {
+	kinds := make([]string, 0, len(trustedContractSchemaPathByKind))
+	for kind := range trustedContractSchemaPathByKind {
+		kinds = append(kinds, kind)
+	}
+	sort.Strings(kinds)
+	return kinds
+}
+
+func validateTrustedContractPayload(kind string, payload []byte) error {
+	trimmedKind := strings.TrimSpace(kind)
+	schemaPath, ok := trustedContractSchemaPathByKind[trimmedKind]
+	if !ok {
+		return validateTrustedImportKind(trimmedKind)
+	}
+	if err := policyengine.ValidateObjectPayloadAgainstSchema(payload, schemaPath); err != nil {
+		return err
+	}
+	if trimmedKind == artifacts.TrustedContractImportKindVerifierRecord {
+		record := trustpolicy.VerifierRecord{}
+		if err := json.Unmarshal(payload, &record); err != nil {
+			return err
+		}
+		if _, err := trustpolicy.NewVerifierRegistry([]trustpolicy.VerifierRecord{record}); err != nil {
+			return err
+		}
+	}
+	if trimmedKind == artifacts.TrustedContractImportKindRunCapability || trimmedKind == artifacts.TrustedContractImportKindStageCapability {
+		manifest := policyengine.CapabilityManifest{}
+		if err := json.Unmarshal(payload, &manifest); err != nil {
+			return err
+		}
+		wantScope := "run"
+		if trimmedKind == artifacts.TrustedContractImportKindStageCapability {
+			wantScope = "stage"
+		}
+		if strings.TrimSpace(manifest.ManifestScope) != wantScope {
+			return fmt.Errorf("manifest_scope must be %q for %s", wantScope, trimmedKind)
+		}
+	}
+	return nil
 }
 
 func canonicalJSONDigestIdentity(payload []byte) (string, error) {

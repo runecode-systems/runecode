@@ -211,6 +211,12 @@
       "expect_valid": true
     },
     {
+      "id": "trusted-contract-import-request.valid-role-manifest",
+      "schema_path": "objects/TrustedContractImportRequest.schema.json",
+      "fixture_path": "schema/trusted-contract-import-request.valid-role-manifest.json",
+      "expect_valid": true
+    },
+    {
       "id": "policy-decision.valid-approval",
       "schema_path": "objects/PolicyDecision.schema.json",
       "fixture_path": "schema/policy-decision.valid-approval.json",
@@ -421,6 +427,12 @@
       "expect_valid": true
     },
     {
+      "id": "external-anchor-mutation-issue-execute-lease-request.valid",
+      "schema_path": "objects/ExternalAnchorMutationIssueExecuteLeaseRequest.schema.json",
+      "fixture_path": "schema/external-anchor-mutation-issue-execute-lease-request.valid.json",
+      "expect_valid": true
+    },
+    {
       "id": "external-anchor-mutation-execute-request.valid",
       "schema_path": "objects/ExternalAnchorMutationExecuteRequest.schema.json",
       "fixture_path": "schema/external-anchor-mutation-execute-request.valid.json",
@@ -442,6 +454,12 @@
       "id": "external-anchor-mutation-get-response.valid",
       "schema_path": "objects/ExternalAnchorMutationGetResponse.schema.json",
       "fixture_path": "schema/external-anchor-mutation-get-response.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "external-anchor-mutation-issue-execute-lease-response.valid",
+      "schema_path": "objects/ExternalAnchorMutationIssueExecuteLeaseResponse.schema.json",
+      "fixture_path": "schema/external-anchor-mutation-issue-execute-lease-response.valid.json",
       "expect_valid": true
     },
     {

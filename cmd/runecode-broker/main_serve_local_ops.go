@@ -188,6 +188,11 @@ func gitSetupRPCOperations(service *brokerapi.Service, ctx context.Context, meta
 				return service.HandleExternalAnchorMutationGet(ctx, req, meta)
 			})
 		}},
+		"external_anchor_mutation_issue_execute_lease": {requestSchemaPath: "objects/ExternalAnchorMutationIssueExecuteLeaseRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ExternalAnchorMutationIssueExecuteLeaseRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleExternalAnchorMutationIssueExecuteLease(ctx, req, meta)
+			})
+		}},
 		"external_anchor_mutation_execute": {requestSchemaPath: "objects/ExternalAnchorMutationExecuteRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.ExternalAnchorMutationExecuteRequest) (any, *brokerapi.ErrorResponse) {
 				return service.HandleExternalAnchorMutationExecute(ctx, req, meta)

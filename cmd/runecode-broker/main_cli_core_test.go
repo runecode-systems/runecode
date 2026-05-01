@@ -29,6 +29,8 @@ func TestHelpAndUnknownCommand(t *testing.T) {
 		"Usage: runecode-broker",
 		"--state-root path",
 		"--audit-ledger-root path",
+		"--runtime-dir dir",
+		"--socket-name name",
 		"audit-anchor-segment",
 		"audit-finalize-verify",
 		"backend-posture-get",

@@ -160,6 +160,11 @@ func (c *localAPIClient) ExternalAnchorMutationGet(ctx context.Context, req brok
 	return resp, c.invoke(ctx, "external_anchor_mutation_get", req, &resp)
 }
 
+func (c *localAPIClient) ExternalAnchorMutationIssueExecuteLease(ctx context.Context, req brokerapi.ExternalAnchorMutationIssueExecuteLeaseRequest) (brokerapi.ExternalAnchorMutationIssueExecuteLeaseResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ExternalAnchorMutationIssueExecuteLeaseResponse{}
+	return resp, c.invoke(ctx, "external_anchor_mutation_issue_execute_lease", req, &resp)
+}
+
 func (c *localAPIClient) ExternalAnchorMutationExecute(ctx context.Context, req brokerapi.ExternalAnchorMutationExecuteRequest) (brokerapi.ExternalAnchorMutationExecuteResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.ExternalAnchorMutationExecuteResponse{}
 	return resp, c.invoke(ctx, "external_anchor_mutation_execute", req, &resp)

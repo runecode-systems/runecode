@@ -40,6 +40,11 @@ func (r *recordingBrokerClient) ExternalAnchorMutationGet(ctx context.Context, r
 	return r.base.ExternalAnchorMutationGet(ctx, req)
 }
 
+func (r *recordingBrokerClient) ExternalAnchorMutationIssueExecuteLease(ctx context.Context, req brokerapi.ExternalAnchorMutationIssueExecuteLeaseRequest) (brokerapi.ExternalAnchorMutationIssueExecuteLeaseResponse, error) {
+	r.record("ExternalAnchorMutationIssueExecuteLease")
+	return r.base.ExternalAnchorMutationIssueExecuteLease(ctx, req)
+}
+
 func (r *recordingBrokerClient) ExternalAnchorMutationExecute(ctx context.Context, req brokerapi.ExternalAnchorMutationExecuteRequest) (brokerapi.ExternalAnchorMutationExecuteResponse, error) {
 	r.record("ExternalAnchorMutationExecute")
 	return r.base.ExternalAnchorMutationExecute(ctx, req)
@@ -67,6 +72,10 @@ func (f *reloadAwareBrokerClient) ExternalAnchorMutationPrepare(ctx context.Cont
 
 func (f *reloadAwareBrokerClient) ExternalAnchorMutationGet(ctx context.Context, req brokerapi.ExternalAnchorMutationGetRequest) (brokerapi.ExternalAnchorMutationGetResponse, error) {
 	return (&fakeBrokerClient{}).ExternalAnchorMutationGet(ctx, req)
+}
+
+func (f *reloadAwareBrokerClient) ExternalAnchorMutationIssueExecuteLease(ctx context.Context, req brokerapi.ExternalAnchorMutationIssueExecuteLeaseRequest) (brokerapi.ExternalAnchorMutationIssueExecuteLeaseResponse, error) {
+	return (&fakeBrokerClient{}).ExternalAnchorMutationIssueExecuteLease(ctx, req)
 }
 
 func (f *reloadAwareBrokerClient) ExternalAnchorMutationExecute(ctx context.Context, req brokerapi.ExternalAnchorMutationExecuteRequest) (brokerapi.ExternalAnchorMutationExecuteResponse, error) {
@@ -194,6 +203,37 @@ func (f *fakeBrokerClient) ExternalAnchorMutationGet(ctx context.Context, req br
 		SchemaVersion: "0.1.0",
 		RequestID:     "req-external-anchor-get",
 		Prepared:      fakePreparedExternalAnchorMutationState(preparedID),
+	}, nil
+}
+
+func (f *fakeBrokerClient) ExternalAnchorMutationIssueExecuteLease(ctx context.Context, req brokerapi.ExternalAnchorMutationIssueExecuteLeaseRequest) (brokerapi.ExternalAnchorMutationIssueExecuteLeaseResponse, error) {
+	_ = ctx
+	preparedID := strings.TrimSpace(req.PreparedMutationID)
+	if preparedID == "" {
+		return brokerapi.ExternalAnchorMutationIssueExecuteLeaseResponse{}, fmt.Errorf("prepared mutation id required")
+	}
+	leaseID := "lease-anchor-target"
+	return brokerapi.ExternalAnchorMutationIssueExecuteLeaseResponse{
+		SchemaID:           "runecode.protocol.v0.ExternalAnchorMutationIssueExecuteLeaseResponse",
+		SchemaVersion:      "0.1.0",
+		RequestID:          "req-external-anchor-issue-execute-lease",
+		PreparedMutationID: preparedID,
+		Lease: secretsd.Lease{
+			LeaseID:      leaseID,
+			SecretRef:    "secrets/prod/git/provider-token",
+			ConsumerID:   "principal:gateway:git:1",
+			RoleKind:     "git-gateway",
+			Scope:        "run:run-1",
+			DeliveryKind: "git_gateway",
+			GitBinding: &secretsd.GitLeaseBinding{
+				RepositoryIdentity: "sha256/" + strings.Repeat("2", 64),
+				AllowedOperations:  []string{"external_anchor_submit"},
+				ActionRequestHash:  "sha256:" + strings.Repeat("2", 64),
+				PolicyContextHash:  "sha256:" + strings.Repeat("3", 64),
+			},
+			Status: "active",
+		},
+		TargetAuthLeaseID: leaseID,
 	}, nil
 }
 

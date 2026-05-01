@@ -1064,6 +1064,20 @@
       "status": "mvp"
     },
     {
+      "path": "objects/ExternalAnchorMutationIssueExecuteLeaseRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ExternalAnchorMutationIssueExecuteLeaseRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ExternalAnchorMutationIssueExecuteLeaseResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ExternalAnchorMutationIssueExecuteLeaseResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/ExternalAnchorMutationExecuteRequest.schema.json",
       "schema_id": "runecode.protocol.v0.ExternalAnchorMutationExecuteRequest",
       "schema_version": "0.1.0",

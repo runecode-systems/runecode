@@ -26,7 +26,7 @@ func TestCLIAdoptionRoutesRunApprovalVersionAndLogThroughLocalRPC(t *testing.T) 
 
 	llmRequestPath := writeLLMRequestFile(t)
 	prepareReqPath, getReqPath, leaseReqPath, executeReqPath := writeGitRemoteMutationRequestFiles(t)
-	externalPrepareReqPath, externalGetReqPath, externalExecuteReqPath := writeExternalAnchorMutationRequestFiles(t)
+	externalPrepareReqPath, externalGetReqPath, externalLeaseReqPath, externalExecuteReqPath := writeExternalAnchorMutationRequestFiles(t)
 	commands := [][]string{{"run-list"}, {"run-get", "--run-id", "run-1"}, {"run-watch"}, {"backend-posture-get"}, {"backend-posture-change", "--target-backend-kind", "container", "--reduced-assurance-acknowledged"}, {"session-list"}, {"session-get", "--session-id", "sess-1"}, {"session-send-message", "--session-id", "sess-1", "--content", "hello"}, {"session-watch"}, {"approval-list"}, {"approval-get", "--approval-id", testDigest("a")}, {"approval-watch"}, {"git-setup-get", "--provider", "github"}, {"git-setup-auth-bootstrap", "--provider", "github", "--mode", "browser"}, {"git-setup-identity-upsert", "--provider", "github", "--profile-id", "default", "--display-name", "Default identity", "--author-name", "RuneCode Operator", "--author-email", "operator@example.invalid", "--committer-name", "RuneCode Operator", "--committer-email", "operator@example.invalid", "--signoff-name", "RuneCode Operator", "--signoff-email", "operator@example.invalid", "--default-profile"}, {"provider-profile-list"}, {"provider-profile-get", "--provider-profile-id", "provider-profile-test"}, {"provider-credential-lease-issue", "--provider-profile-id", "provider-profile-test", "--run-id", "run-1", "--ttl-seconds", "900"}, {"project-substrate-get"}, {"project-substrate-posture-get"}, {"project-substrate-adopt"}, {"project-substrate-init-preview"}, {"project-substrate-init-apply"}, {"project-substrate-upgrade-preview"}, {"project-substrate-upgrade-apply", "--expected-preview-digest", testDigest("u")}, {"git-remote-mutation-prepare", "--request-file", prepareReqPath}, {"git-remote-mutation-get", "--request-file", getReqPath}, {"git-remote-mutation-issue-execute-lease", "--request-file", leaseReqPath}, {"git-remote-mutation-execute", "--request-file", executeReqPath}, {"version-info"}, {"stream-logs"}, {"stream-logs", "--stream-id", "custom-stream"}, {"llm-invoke", "--run-id", "run-1", "--request-file", llmRequestPath}, {"llm-stream", "--run-id", "run-1", "--request-file", llmRequestPath, "--stream-id", "llm-s-1"}}
 	for _, args := range commands {
 		stdout.Reset()
@@ -34,7 +34,7 @@ func TestCLIAdoptionRoutesRunApprovalVersionAndLogThroughLocalRPC(t *testing.T) 
 			t.Fatalf("run(%v) error: %v", args, err)
 		}
 	}
-	for _, args := range [][]string{{"external-anchor-mutation-prepare", "--request-file", externalPrepareReqPath}, {"external-anchor-mutation-get", "--request-file", externalGetReqPath}, {"external-anchor-mutation-execute", "--request-file", externalExecuteReqPath}} {
+	for _, args := range [][]string{{"external-anchor-mutation-prepare", "--request-file", externalPrepareReqPath}, {"external-anchor-mutation-get", "--request-file", externalGetReqPath}, {"external-anchor-mutation-issue-execute-lease", "--request-file", externalLeaseReqPath}, {"external-anchor-mutation-execute", "--request-file", externalExecuteReqPath}} {
 		stdout.Reset()
 		if err := run(args, stdout, stderr); err != nil {
 			t.Fatalf("run(%v) error: %v", args, err)
@@ -48,7 +48,7 @@ func TestCLIAdoptionRoutesRunApprovalVersionAndLogThroughLocalRPC(t *testing.T) 
 	}
 	stdout.Reset()
 
-	want := []string{"run_list", "run_get", "run_watch", "backend_posture_get", "backend_posture_get", "backend_posture_change", "session_list", "session_get", "session_send_message", "session_watch", "approval_list", "approval_get", "approval_watch", "git_setup_get", "git_setup_auth_bootstrap", "git_setup_identity_upsert", "provider_profile_list", "provider_profile_get", "provider_credential_lease_issue", "project_substrate_get", "project_substrate_posture_get", "project_substrate_adopt", "project_substrate_init_preview", "project_substrate_init_apply", "project_substrate_upgrade_preview", "project_substrate_upgrade_apply", "git_remote_mutation_prepare", "git_remote_mutation_get", "git_remote_mutation_issue_execute_lease", "git_remote_mutation_execute", "version_info_get", "log_stream", "log_stream", "llm_invoke", "llm_stream", "external_anchor_mutation_prepare", "external_anchor_mutation_get", "external_anchor_mutation_execute", "session_execution_trigger"}
+	want := []string{"run_list", "run_get", "run_watch", "backend_posture_get", "backend_posture_get", "backend_posture_change", "session_list", "session_get", "session_send_message", "session_watch", "approval_list", "approval_get", "approval_watch", "git_setup_get", "git_setup_auth_bootstrap", "git_setup_identity_upsert", "provider_profile_list", "provider_profile_get", "provider_credential_lease_issue", "project_substrate_get", "project_substrate_posture_get", "project_substrate_adopt", "project_substrate_init_preview", "project_substrate_init_apply", "project_substrate_upgrade_preview", "project_substrate_upgrade_apply", "git_remote_mutation_prepare", "git_remote_mutation_get", "git_remote_mutation_issue_execute_lease", "git_remote_mutation_execute", "version_info_get", "log_stream", "log_stream", "llm_invoke", "llm_stream", "external_anchor_mutation_prepare", "external_anchor_mutation_get", "external_anchor_mutation_issue_execute_lease", "external_anchor_mutation_execute", "session_execution_trigger"}
 	assertRequestedOps(t, requestedOps, want)
 }
 
@@ -313,6 +313,8 @@ func handleGitRemoteAndLLMRPCStub(t *testing.T, wire localRPCRequest, opCount in
 		return mustOKLocalRPCResponse(t, brokerapi.ExternalAnchorMutationPrepareResponse{}), true
 	case "external_anchor_mutation_get":
 		return mustOKLocalRPCResponse(t, brokerapi.ExternalAnchorMutationGetResponse{}), true
+	case "external_anchor_mutation_issue_execute_lease":
+		return mustOKLocalRPCResponse(t, brokerapi.ExternalAnchorMutationIssueExecuteLeaseResponse{TargetAuthLeaseID: "lease-anchor-1", Lease: secretsd.Lease{LeaseID: "lease-anchor-1", SecretRef: "secrets/prod/git/provider-token", ConsumerID: "principal:gateway:git:1", RoleKind: "git-gateway", Scope: "run:run-1", DeliveryKind: "git_gateway", Status: "active"}}), true
 	case "external_anchor_mutation_execute":
 		return mustOKLocalRPCResponse(t, brokerapi.ExternalAnchorMutationExecuteResponse{}), true
 	case "dependency_cache_ensure":
@@ -433,11 +435,12 @@ func writeGitRemoteMutationRequestFiles(t *testing.T) (string, string, string, s
 	return preparePath, getPath, leasePath, executePath
 }
 
-func writeExternalAnchorMutationRequestFiles(t *testing.T) (string, string, string) {
+func writeExternalAnchorMutationRequestFiles(t *testing.T) (string, string, string, string) {
 	t.Helper()
 	dir := t.TempDir()
 	preparePath := filepath.Join(dir, "external-anchor-prepare.json")
 	getPath := filepath.Join(dir, "external-anchor-get.json")
+	leasePath := filepath.Join(dir, "external-anchor-issue-execute-lease.json")
 	executePath := filepath.Join(dir, "external-anchor-execute.json")
 	preparePayload := map[string]any{
 		"schema_id":      "runecode.protocol.v0.ExternalAnchorMutationPrepareRequest",
@@ -466,6 +469,12 @@ func writeExternalAnchorMutationRequestFiles(t *testing.T) (string, string, stri
 		"request_id":           "req-external-anchor-get",
 		"prepared_mutation_id": testDigest("1"),
 	}
+	leasePayload := map[string]any{
+		"schema_id":            "runecode.protocol.v0.ExternalAnchorMutationIssueExecuteLeaseRequest",
+		"schema_version":       "0.1.0",
+		"request_id":           "req-external-anchor-issue-execute-lease",
+		"prepared_mutation_id": testDigest("1"),
+	}
 	executePayload := map[string]any{
 		"schema_id":              "runecode.protocol.v0.ExternalAnchorMutationExecuteRequest",
 		"schema_version":         "0.1.0",
@@ -478,8 +487,9 @@ func writeExternalAnchorMutationRequestFiles(t *testing.T) (string, string, stri
 	}
 	writeJSONFixtureFile(t, preparePath, preparePayload)
 	writeJSONFixtureFile(t, getPath, getPayload)
+	writeJSONFixtureFile(t, leasePath, leasePayload)
 	writeJSONFixtureFile(t, executePath, executePayload)
-	return preparePath, getPath, executePath
+	return preparePath, getPath, leasePath, executePath
 }
 
 func writeDependencyRequestFiles(t *testing.T) (string, string, string) {
