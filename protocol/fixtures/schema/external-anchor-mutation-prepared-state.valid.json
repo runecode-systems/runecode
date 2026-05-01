@@ -1,0 +1,102 @@
+{
+  "schema_id": "runecode.protocol.v0.ExternalAnchorMutationPreparedState",
+  "schema_version": "0.1.0",
+  "prepared_mutation_id": "prepared-anchor-1",
+  "run_id": "run-anchor-1",
+  "execution_pathway": "non_workspace_gateway",
+  "anchor_posture": "external_execute_completed",
+  "destination_ref": "sha256/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "request_kind": "external_anchor_submit_v0",
+  "typed_request_schema_id": "runecode.protocol.v0.ExternalAnchorSubmitRequest",
+  "typed_request_schema_version": "0.1.0",
+  "typed_request": {
+    "schema_id": "runecode.protocol.v0.ExternalAnchorSubmitRequest",
+    "schema_version": "0.1.0",
+    "request_kind": "external_anchor_submit_v0",
+    "target_kind": "transparency_log",
+    "target_descriptor_digest": {
+      "hash_alg": "sha256",
+      "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "seal_digest": {
+      "hash_alg": "sha256",
+      "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "outbound_payload_digest": {
+      "hash_alg": "sha256",
+      "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  },
+  "typed_request_hash": {
+    "hash_alg": "sha256",
+    "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "action_request_hash": {
+    "hash_alg": "sha256",
+    "hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "policy_decision_hash": {
+    "hash_alg": "sha256",
+    "hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "required_approval_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "required_approval_request_hash": {
+    "hash_alg": "sha256",
+    "hash": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "required_approval_decision_hash": {
+    "hash_alg": "sha256",
+    "hash": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "lifecycle_state": "executed",
+  "execution_state": "completed",
+  "created_at": "2026-04-10T00:00:00Z",
+  "updated_at": "2026-04-10T00:00:05Z",
+  "last_prepare_request_id": "req-anchor-prepare-1",
+  "last_get_request_id": "req-anchor-get-1",
+  "last_execute_request_id": "req-anchor-execute-1",
+  "last_execute_target_auth_lease_id": "lease-anchor-1",
+  "last_execute_attempt_id": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "last_execute_attempt_seal_digest": {
+    "hash_alg": "sha256",
+    "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "last_execute_attempt_target_descriptor_digest": {
+    "hash_alg": "sha256",
+    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "last_execute_attempt_typed_request_hash": {
+    "hash_alg": "sha256",
+    "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "last_execute_snapshot_segment_id": "segment-1",
+  "last_execute_snapshot_seal_digest": {
+    "hash_alg": "sha256",
+    "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "last_execute_deferred_polls_remaining": 0,
+  "last_anchor_receipt_digest": {
+    "hash_alg": "sha256",
+    "hash": "5555555555555555555555555555555555555555555555555555555555555555"
+  },
+  "last_anchor_evidence_digest": {
+    "hash_alg": "sha256",
+    "hash": "6666666666666666666666666666666666666666666666666666666666666666"
+  },
+  "last_anchor_verification_digest": {
+    "hash_alg": "sha256",
+    "hash": "7777777777777777777777777777777777777777777777777777777777777777"
+  },
+  "last_anchor_proof_digest": {
+    "hash_alg": "sha256",
+    "hash": "8888888888888888888888888888888888888888888888888888888888888888"
+  },
+  "last_anchor_provider_receipt_digest": {
+    "hash_alg": "sha256",
+    "hash": "9999999999999999999999999999999999999999999999999999999999999999"
+  },
+  "last_anchor_transcript_digest": {
+    "hash_alg": "sha256",
+    "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

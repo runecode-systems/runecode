@@ -150,6 +150,21 @@ func (c *localAPIClient) GitRemoteMutationExecute(ctx context.Context, req broke
 	return resp, c.invoke(ctx, "git_remote_mutation_execute", req, &resp)
 }
 
+func (c *localAPIClient) ExternalAnchorMutationPrepare(ctx context.Context, req brokerapi.ExternalAnchorMutationPrepareRequest) (brokerapi.ExternalAnchorMutationPrepareResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ExternalAnchorMutationPrepareResponse{}
+	return resp, c.invoke(ctx, "external_anchor_mutation_prepare", req, &resp)
+}
+
+func (c *localAPIClient) ExternalAnchorMutationGet(ctx context.Context, req brokerapi.ExternalAnchorMutationGetRequest) (brokerapi.ExternalAnchorMutationGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ExternalAnchorMutationGetResponse{}
+	return resp, c.invoke(ctx, "external_anchor_mutation_get", req, &resp)
+}
+
+func (c *localAPIClient) ExternalAnchorMutationExecute(ctx context.Context, req brokerapi.ExternalAnchorMutationExecuteRequest) (brokerapi.ExternalAnchorMutationExecuteResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ExternalAnchorMutationExecuteResponse{}
+	return resp, c.invoke(ctx, "external_anchor_mutation_execute", req, &resp)
+}
+
 func (c *localAPIClient) DependencyCacheEnsure(ctx context.Context, req brokerapi.DependencyCacheEnsureRequest) (brokerapi.DependencyCacheEnsureResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.DependencyCacheEnsureResponse{}
 	return resp, c.invoke(ctx, "dependency_cache_ensure", req, &resp)

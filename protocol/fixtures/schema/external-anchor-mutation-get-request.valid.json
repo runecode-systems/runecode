@@ -1,0 +1,6 @@
+{
+  "schema_id": "runecode.protocol.v0.ExternalAnchorMutationGetRequest",
+  "schema_version": "0.1.0",
+  "request_id": "req-anchor-get-1",
+  "prepared_mutation_id": "prepared-anchor-1"
+}

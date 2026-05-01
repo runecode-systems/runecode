@@ -114,9 +114,157 @@ func validateRuntimeInvariant(rule string, value map[string]any, manifest manife
 		return requireImportRestoreReceiptByteIdentity(value)
 	case "session_send_message_ack_alignment":
 		return requireSessionSendMessageAckAlignment(value)
+	case "external_anchor_evidence_conformance":
+		return requireExternalAnchorEvidenceConformance(value)
 	default:
 		return fmt.Errorf("unknown runtime invariant rule %q", rule)
 	}
+}
+
+func requireExternalAnchorEvidenceConformance(envelope map[string]any) error {
+	const externalAnchorEvidenceSchemaID = "runecode.protocol.v0.ExternalAnchorEvidence"
+	const externalAnchorEvidenceSchemaVersion = "0.1.0"
+
+	view, err := signedEnvelopeRuntimeView(envelope)
+	if err != nil {
+		return err
+	}
+	if view.payloadSchemaID != externalAnchorEvidenceSchemaID || view.payloadSchemaVersion != externalAnchorEvidenceSchemaVersion {
+		return fmt.Errorf("payload must be %s@%s", externalAnchorEvidenceSchemaID, externalAnchorEvidenceSchemaVersion)
+	}
+
+	payload := view.payload
+	canonicalTargetDigestIdentity, proofDigest, err := requireExternalAnchorEvidenceIdentityBindings(payload)
+	if err != nil {
+		return err
+	}
+	if err := requireExternalAnchorEvidenceReceiptBindings(payload, canonicalTargetDigestIdentity, proofDigest); err != nil {
+		return err
+	}
+	return requireExternalAnchorEvidenceExpectedBindings(payload)
+}
+
+func requireExternalAnchorEvidenceIdentityBindings(payload map[string]any) (string, string, error) {
+	canonicalTargetDigestIdentity, err := digestIdentityField(payload, "canonical_target_digest")
+	if err != nil {
+		return "", "", err
+	}
+	canonicalTargetIdentity, err := stringField(payload, "canonical_target_identity")
+	if err != nil {
+		return "", "", err
+	}
+	if canonicalTargetDigestIdentity != canonicalTargetIdentity {
+		return "", "", fmt.Errorf("target identity mismatch: canonical_target_identity does not match canonical_target_digest")
+	}
+	if err := requireExternalAnchorEvidenceOutcome(payload); err != nil {
+		return "", "", err
+	}
+	sidecarDigests, err := externalAnchorSidecarDigestByKind(payload)
+	if err != nil {
+		return "", "", err
+	}
+	proofDigest := sidecarDigests["proof_bytes"]
+	if proofDigest == "" {
+		return "", "", fmt.Errorf("sidecar_refs must include proof_bytes")
+	}
+	return canonicalTargetDigestIdentity, proofDigest, nil
+}
+
+func requireExternalAnchorEvidenceReceiptBindings(payload map[string]any, canonicalTargetDigestIdentity, proofDigest string) error {
+	if receiptTargetDigest, ok, err := optionalDigestIdentityField(payload, "receipt_target_descriptor_digest"); err != nil {
+		return err
+	} else if ok && receiptTargetDigest != canonicalTargetDigestIdentity {
+		return fmt.Errorf("target identity mismatch: receipt_target_descriptor_digest does not match canonical_target_digest")
+	}
+	if receiptProofDigest, ok, err := optionalDigestIdentityField(payload, "receipt_proof_digest"); err != nil {
+		return err
+	} else if ok && receiptProofDigest != proofDigest {
+		return fmt.Errorf("invalid target proof: receipt_proof_digest does not match sidecar proof_bytes digest")
+	}
+	return nil
+}
+
+func requireExternalAnchorEvidenceExpectedBindings(payload map[string]any) error {
+	for _, fieldPair := range [][2]string{{"typed_request_hash", "expected_typed_request_hash"}, {"action_request_hash", "expected_action_request_hash"}, {"approval_request_hash", "expected_approval_request_hash"}, {"approval_decision_hash", "expected_approval_decision_hash"}} {
+		if err := requireMatchingDigestBindings(payload, fieldPair[0], fieldPair[1]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func requireExternalAnchorEvidenceOutcome(payload map[string]any) error {
+	outcome, err := stringField(payload, "outcome")
+	if err != nil {
+		return err
+	}
+	switch outcome {
+	case "completed", "deferred", "unavailable", "invalid", "failed":
+		return nil
+	default:
+		return fmt.Errorf("unsupported external anchor outcome %q", outcome)
+	}
+}
+
+func externalAnchorSidecarDigestByKind(payload map[string]any) (map[string]string, error) {
+	items, err := requiredArrayValue(payload, "sidecar_refs")
+	if err != nil {
+		return nil, err
+	}
+	byKind := map[string]string{}
+	for index, item := range items {
+		entry, err := objectFromFixtureValue(item, fmt.Sprintf("sidecar_refs[%d]", index))
+		if err != nil {
+			return nil, err
+		}
+		kind, err := stringField(entry, "evidence_kind")
+		if err != nil {
+			return nil, err
+		}
+		digestIdentity, err := digestIdentityField(entry, "digest")
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := byKind[kind]; exists {
+			return nil, fmt.Errorf("sidecar_refs includes duplicate evidence_kind %q", kind)
+		}
+		byKind[kind] = digestIdentity
+	}
+	return byKind, nil
+}
+
+func requireMatchingDigestBindings(payload map[string]any, actualKey string, expectedKey string) error {
+	actual, actualOK, err := optionalDigestIdentityField(payload, actualKey)
+	if err != nil {
+		return err
+	}
+	expected, expectedOK, err := optionalDigestIdentityField(payload, expectedKey)
+	if err != nil {
+		return err
+	}
+	if !expectedOK {
+		return nil
+	}
+	if !actualOK || actual != expected {
+		return fmt.Errorf("exact-action binding mismatch: %s does not match %s", actualKey, expectedKey)
+	}
+	return nil
+}
+
+func optionalDigestIdentityField(object map[string]any, key string) (string, bool, error) {
+	value, ok := object[key]
+	if !ok {
+		return "", false, nil
+	}
+	digest, err := objectFromFixtureValue(value, key)
+	if err != nil {
+		return "", false, err
+	}
+	identity, err := digestIdentity(digest)
+	if err != nil {
+		return "", false, err
+	}
+	return identity, true, nil
 }
 
 func requireImportRestoreReceiptByteIdentity(value map[string]any) error {

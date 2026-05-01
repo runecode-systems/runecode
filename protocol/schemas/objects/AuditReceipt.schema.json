@@ -183,24 +183,228 @@
         }
       }
     },
-    "anchorReceiptPayload": {
-      "description": "Typed anchor payload binding minimal non-duplicative posture and witness references for anchor receipts. `anchor_kind` remains additive in this shared family while MVP verifier policy still admits local-only kinds.",
+    "anchorExternalProof": {
+      "description": "Typed proof reference for external anchor families. Proof bytes stay in authoritative sidecar evidence and are referenced by digest.",
       "type": "object",
       "additionalProperties": false,
-      "maxProperties": 6,
+      "maxProperties": 3,
       "required": [
-        "anchor_kind",
-        "key_protection_posture",
-        "presence_mode",
-        "anchor_witness"
+        "proof_kind",
+        "proof_schema_id",
+        "proof_digest"
       ],
       "properties": {
-        "anchor_kind": {
+        "proof_kind": {
           "type": "string",
           "minLength": 1,
           "maxLength": 128,
           "pattern": "^[a-z][a-z0-9_]*$",
-          "description": "Machine-consumed anchor target kind for this receipt payload. MVP baseline is `local_user_presence_signature`; later kinds are additive follow-on work.",
+          "description": "Typed proof discriminator for external anchor evidence sidecars.",
+          "x-data-class": "public"
+        },
+        "proof_schema_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Schema ID for the external proof sidecar payload.",
+          "x-data-class": "public"
+        },
+        "proof_digest": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Digest of the authoritative external proof sidecar evidence object.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "anchorExternalTransparencyLogTargetDescriptor": {
+      "description": "Typed transparency-log target descriptor used to define canonical target identity without binding policy to raw transport URLs.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 4,
+      "required": [
+        "descriptor_schema_id",
+        "log_id",
+        "log_public_key_digest",
+        "entry_encoding_profile"
+      ],
+      "properties": {
+        "descriptor_schema_id": {
+          "const": "runecode.protocol.audit.anchor_target.transparency_log.v0",
+          "description": "Typed schema discriminator for transparency-log target descriptors.",
+          "x-data-class": "public"
+        },
+        "log_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Stable transparency-log identity, independent from transport URL.",
+          "x-data-class": "public"
+        },
+        "log_public_key_digest": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Digest of the transparency-log public verification key.",
+          "x-data-class": "public"
+        },
+        "entry_encoding_profile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Entry encoding profile expected for transparency-log proof validation.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "anchorExternalTimestampAuthorityTargetDescriptor": {
+      "description": "Typed timestamp-authority target descriptor used to define canonical target identity without binding policy to raw transport URLs.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 4,
+      "required": [
+        "descriptor_schema_id",
+        "authority_id",
+        "certificate_chain_digest",
+        "timestamp_profile"
+      ],
+      "properties": {
+        "descriptor_schema_id": {
+          "const": "runecode.protocol.audit.anchor_target.timestamp_authority.v0",
+          "description": "Typed schema discriminator for timestamp-authority target descriptors.",
+          "x-data-class": "public"
+        },
+        "authority_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Stable timestamp-authority identity, independent from transport endpoint URL.",
+          "x-data-class": "public"
+        },
+        "certificate_chain_digest": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Digest of the trusted certificate-chain material for timestamp verification.",
+          "x-data-class": "public"
+        },
+        "timestamp_profile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Timestamp token profile used for validation.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "anchorExternalPublicChainTargetDescriptor": {
+      "description": "Typed public-chain target descriptor used to define canonical target identity without binding policy to raw transport URLs.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 4,
+      "required": [
+        "descriptor_schema_id",
+        "chain_namespace",
+        "network_id",
+        "settlement_contract_digest"
+      ],
+      "properties": {
+        "descriptor_schema_id": {
+          "const": "runecode.protocol.audit.anchor_target.public_chain.v0",
+          "description": "Typed schema discriminator for public-chain target descriptors.",
+          "x-data-class": "public"
+        },
+        "chain_namespace": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Public-chain namespace (for example EVM-family).",
+          "x-data-class": "public"
+        },
+        "network_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Stable public-chain network identity.",
+          "x-data-class": "public"
+        },
+        "settlement_contract_digest": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Digest of contract identity material defining anchoring settlement rules.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "anchorExternalPayload": {
+      "description": "Typed external anchor binding that keeps transport-specific endpoints as derived execution details and target identity as a canonical typed descriptor digest.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 6,
+      "required": [
+        "target_kind",
+        "runtime_adapter",
+        "target_descriptor",
+        "target_descriptor_digest",
+        "proof"
+      ],
+      "properties": {
+        "target_kind": {
+          "type": "string",
+          "enum": [
+            "transparency_log",
+            "timestamp_authority",
+            "public_chain"
+          ],
+          "description": "Typed external target family.",
+          "x-data-class": "public"
+        },
+        "runtime_adapter": {
+          "type": "string",
+          "enum": [
+            "transparency_log_v0"
+          ],
+          "description": "Concrete runtime adapter binding. `transparency_log_v0` is the frozen first adapter in this grouping.",
+          "x-data-class": "public"
+        },
+        "target_descriptor": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 6,
+          "description": "Typed target descriptor object. Canonical descriptor digest is the authoritative target identity.",
+          "x-data-class": "public"
+        },
+        "target_descriptor_digest": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Canonical RFC 8785 JCS digest of target_descriptor, used as authoritative target identity.",
+          "x-data-class": "public"
+        },
+        "proof": {
+          "$ref": "#/$defs/anchorExternalProof",
+          "description": "Typed proof reference to authoritative sidecar evidence.",
+          "x-data-class": "public"
+        },
+        "derived_execution": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 4,
+          "description": "Optional transport-specific execution details that are derived below typed target identity.",
+          "x-data-class": "sensitive"
+        }
+      }
+    },
+    "anchorReceiptPayload": {
+      "description": "Typed anchor payload binding either local presence witness fields or additive typed external anchor fields while preserving the shared AuditReceipt(kind=anchor) envelope.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 7,
+      "required": [
+        "anchor_kind"
+      ],
+      "properties": {
+        "anchor_kind": {
+          "type": "string",
+          "enum": [
+            "local_user_presence_signature",
+            "external_transparency_log_v0",
+            "external_timestamp_authority_v0",
+            "external_public_chain_v0"
+          ],
+          "description": "Machine-consumed anchor target kind for this receipt payload. Transparency-log style external anchoring is the first concrete adapter family; timestamp-authority and public-chain remain additive typed follow-on families.",
           "x-data-class": "public"
         },
         "key_protection_posture": {
@@ -211,7 +415,7 @@
             "passphrase_wrapped",
             "ephemeral_memory"
           ],
-          "description": "Signer key-protection posture recorded for the anchor act.",
+          "description": "Signer key-protection posture recorded for local anchor acts.",
           "x-data-class": "public"
         },
         "presence_mode": {
@@ -221,7 +425,7 @@
             "passphrase",
             "hardware_touch"
           ],
-          "description": "Presence mode used for the anchor act.",
+          "description": "Presence mode used for local anchor acts.",
           "x-data-class": "public"
         },
         "approval_assurance_level": {
@@ -242,7 +446,12 @@
         },
         "anchor_witness": {
           "$ref": "#/$defs/anchorWitness",
-          "description": "Typed witness payload proving the anchor act itself.",
+          "description": "Typed witness payload proving local anchor act itself.",
+          "x-data-class": "public"
+        },
+        "external_anchor": {
+          "$ref": "#/$defs/anchorExternalPayload",
+          "description": "Typed external anchor payload with canonical target descriptor digest and sidecar proof reference.",
           "x-data-class": "public"
         }
       },
@@ -259,11 +468,195 @@
             ]
           },
           "then": {
+            "required": [
+              "key_protection_posture",
+              "presence_mode",
+              "anchor_witness"
+            ],
+            "not": {
+              "required": [
+                "external_anchor"
+              ]
+            },
             "properties": {
               "anchor_witness": {
                 "properties": {
                   "witness_kind": {
                     "const": "local_user_presence_signature_v0"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "anchor_kind": {
+                "const": "external_transparency_log_v0"
+              }
+            },
+            "required": [
+              "anchor_kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "external_anchor"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "key_protection_posture"
+                  ]
+                },
+                {
+                  "required": [
+                    "presence_mode"
+                  ]
+                },
+                {
+                  "required": [
+                    "anchor_witness"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "external_anchor": {
+                "properties": {
+                  "target_kind": {
+                    "const": "transparency_log"
+                  },
+                  "proof": {
+                    "properties": {
+                      "proof_kind": {
+                        "const": "transparency_log_receipt_v0"
+                      },
+                      "proof_schema_id": {
+                        "const": "runecode.protocol.audit.anchor_proof.transparency_log_receipt.v0"
+                      }
+                    }
+                  },
+                  "target_descriptor": {
+                    "$ref": "#/$defs/anchorExternalTransparencyLogTargetDescriptor"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "anchor_kind": {
+                "const": "external_timestamp_authority_v0"
+              }
+            },
+            "required": [
+              "anchor_kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "external_anchor"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "key_protection_posture"
+                  ]
+                },
+                {
+                  "required": [
+                    "presence_mode"
+                  ]
+                },
+                {
+                  "required": [
+                    "anchor_witness"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "external_anchor": {
+                "properties": {
+                  "target_kind": {
+                    "const": "timestamp_authority"
+                  },
+                  "proof": {
+                    "properties": {
+                      "proof_kind": {
+                        "const": "timestamp_token_v0"
+                      },
+                      "proof_schema_id": {
+                        "const": "runecode.protocol.audit.anchor_proof.timestamp_token.v0"
+                      }
+                    }
+                  },
+                  "target_descriptor": {
+                    "$ref": "#/$defs/anchorExternalTimestampAuthorityTargetDescriptor"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "anchor_kind": {
+                "const": "external_public_chain_v0"
+              }
+            },
+            "required": [
+              "anchor_kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "external_anchor"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "key_protection_posture"
+                  ]
+                },
+                {
+                  "required": [
+                    "presence_mode"
+                  ]
+                },
+                {
+                  "required": [
+                    "anchor_witness"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "external_anchor": {
+                "properties": {
+                  "target_kind": {
+                    "const": "public_chain"
+                  },
+                  "proof": {
+                    "properties": {
+                      "proof_kind": {
+                        "const": "public_chain_tx_receipt_v0"
+                      },
+                      "proof_schema_id": {
+                        "const": "runecode.protocol.audit.anchor_proof.public_chain_tx_receipt.v0"
+                      }
+                    }
+                  },
+                  "target_descriptor": {
+                    "$ref": "#/$defs/anchorExternalPublicChainTargetDescriptor"
                   }
                 }
               }
@@ -317,6 +710,9 @@
               "approval_decision_digest"
             ],
             "properties": {
+              "anchor_kind": {
+                "const": "local_user_presence_signature"
+              },
               "presence_mode": {
                 "const": "hardware_touch"
               },

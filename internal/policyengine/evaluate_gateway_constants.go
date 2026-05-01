@@ -32,7 +32,7 @@ func isGatewayScopeChangeOperation(operation string) bool {
 
 func isGatewayRemoteMutationOperation(operation string) bool {
 	switch operation {
-	case "git_ref_update", "git_pull_request_create":
+	case "git_ref_update", "git_pull_request_create", "external_anchor_submit":
 		return true
 	default:
 		return false

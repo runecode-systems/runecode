@@ -179,15 +179,13 @@ func moderateBackendApprovalPayload(base map[string]any, action ActionRequest) m
 func gatewayModerateApprovalPayload(base map[string]any, action ActionRequest) map[string]any {
 	payload := cloneMap(base)
 	if action.ActionKind == ActionKindDependencyFetch {
-		payload["approval_trigger_code"] = "dependency_network_fetch"
-		payload["checkpoint_scope"] = "gateway_or_dependency_scope_change"
-		payload["why_required"] = "Moderate profile requires checkpoint approval only when enabling or expanding gateway/dependency scope."
-		payload["changes_if_approved"] = "Gateway egress action can proceed for the bound request and manifest context."
-		payload["security_posture_impact"] = "high"
-		return payload
+		return moderateGatewayScopeApprovalPayload(payload, "dependency_network_fetch")
 	}
 
 	operation, _ := action.ActionPayload["operation"].(string)
+	if operation == "external_anchor_submit" {
+		return moderateExternalAnchorApprovalPayload(payload)
+	}
 	if isGatewayRemoteMutationOperation(operation) {
 		gitPayload, ok := moderateGitRemoteApprovalPayload(payload, action)
 		if !ok {
@@ -196,14 +194,27 @@ func gatewayModerateApprovalPayload(base map[string]any, action ActionRequest) m
 		return gitPayload
 	}
 
-	payload["approval_trigger_code"] = "gateway_egress_scope_change"
-	if action.ActionKind == ActionKindDependencyFetch {
-		payload["approval_trigger_code"] = "dependency_network_fetch"
-	}
+	return moderateGatewayScopeApprovalPayload(payload, "gateway_egress_scope_change")
+}
+
+func moderateGatewayScopeApprovalPayload(payload map[string]any, trigger string) map[string]any {
+	payload["approval_trigger_code"] = trigger
 	payload["checkpoint_scope"] = "gateway_or_dependency_scope_change"
 	payload["why_required"] = "Moderate profile requires checkpoint approval only when enabling or expanding gateway/dependency scope."
 	payload["changes_if_approved"] = "Gateway egress action can proceed for the bound request and manifest context."
 	payload["security_posture_impact"] = "high"
+	return payload
+}
+
+func moderateExternalAnchorApprovalPayload(payload map[string]any) map[string]any {
+	payload["approval_trigger_code"] = "external_anchor_opt_in"
+	payload["approval_assurance_level"] = string(ApprovalAssuranceReauthenticated)
+	payload["checkpoint_scope"] = "gateway_remote_state_mutation"
+	payload["why_required"] = "External anchoring is disabled by default and requires explicit signed-manifest opt-in plus exact final approval."
+	payload["changes_if_approved"] = "One exact external anchor submission may proceed for the bound typed request hash and canonical target descriptor identity."
+	payload["security_posture_impact"] = "high"
+	payload["required_final_exact_approval"] = true
+	payload["stage_sign_off_is_prerequisite_only"] = true
 	return payload
 }
 

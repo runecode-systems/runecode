@@ -1,0 +1,17 @@
+{
+  "schema_id": "runecode.protocol.v0.ExternalAnchorMutationExecuteRequest",
+  "schema_version": "0.1.0",
+  "request_id": "req-anchor-execute-1",
+  "prepared_mutation_id": "prepared-anchor-1",
+  "approval_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "approval_request_hash": {
+    "hash_alg": "sha256",
+    "hash": "2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "approval_decision_hash": {
+    "hash_alg": "sha256",
+    "hash": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "target_auth_lease_id": "lease-anchor-1",
+  "export_receipt_copy": true
+}

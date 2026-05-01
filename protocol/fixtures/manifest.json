@@ -361,9 +361,93 @@
       "expect_valid": false
     },
     {
+      "id": "audit-receipt.anchor.external-transparency-log.valid",
+      "schema_path": "objects/AuditReceipt.schema.json",
+      "fixture_path": "schema/audit-receipt.anchor.external-transparency-log.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-receipt.anchor.external-transparency-log.invalid-missing-external-anchor",
+      "schema_path": "objects/AuditReceipt.schema.json",
+      "fixture_path": "schema/audit-receipt.anchor.external-transparency-log.invalid-missing-external-anchor.json",
+      "expect_valid": false
+    },
+    {
+      "id": "audit-receipt.anchor.external-transparency-log.invalid-proof-schema-id",
+      "schema_path": "objects/AuditReceipt.schema.json",
+      "fixture_path": "schema/audit-receipt.anchor.external-transparency-log.invalid-proof-schema-id.json",
+      "expect_valid": false
+    },
+    {
+      "id": "audit-receipt.anchor.external-timestamp-authority.valid",
+      "schema_path": "objects/AuditReceipt.schema.json",
+      "fixture_path": "schema/audit-receipt.anchor.external-timestamp-authority.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-receipt.anchor.external-timestamp-authority.invalid-proof-schema-id",
+      "schema_path": "objects/AuditReceipt.schema.json",
+      "fixture_path": "schema/audit-receipt.anchor.external-timestamp-authority.invalid-proof-schema-id.json",
+      "expect_valid": false
+    },
+    {
+      "id": "audit-receipt.anchor.external-public-chain.valid",
+      "schema_path": "objects/AuditReceipt.schema.json",
+      "fixture_path": "schema/audit-receipt.anchor.external-public-chain.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "audit-receipt.anchor.external-public-chain.invalid-proof-schema-id",
+      "schema_path": "objects/AuditReceipt.schema.json",
+      "fixture_path": "schema/audit-receipt.anchor.external-public-chain.invalid-proof-schema-id.json",
+      "expect_valid": false
+    },
+    {
       "id": "audit-receipt.import.valid",
       "schema_path": "objects/AuditReceipt.schema.json",
       "fixture_path": "schema/audit-receipt.import.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "external-anchor-mutation-prepare-request.valid",
+      "schema_path": "objects/ExternalAnchorMutationPrepareRequest.schema.json",
+      "fixture_path": "schema/external-anchor-mutation-prepare-request.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "external-anchor-mutation-get-request.valid",
+      "schema_path": "objects/ExternalAnchorMutationGetRequest.schema.json",
+      "fixture_path": "schema/external-anchor-mutation-get-request.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "external-anchor-mutation-execute-request.valid",
+      "schema_path": "objects/ExternalAnchorMutationExecuteRequest.schema.json",
+      "fixture_path": "schema/external-anchor-mutation-execute-request.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "external-anchor-mutation-prepared-state.valid",
+      "schema_path": "objects/ExternalAnchorMutationPreparedState.schema.json",
+      "fixture_path": "schema/external-anchor-mutation-prepared-state.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "external-anchor-mutation-prepare-response.valid",
+      "schema_path": "objects/ExternalAnchorMutationPrepareResponse.schema.json",
+      "fixture_path": "schema/external-anchor-mutation-prepare-response.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "external-anchor-mutation-get-response.valid",
+      "schema_path": "objects/ExternalAnchorMutationGetResponse.schema.json",
+      "fixture_path": "schema/external-anchor-mutation-get-response.valid.json",
+      "expect_valid": true
+    },
+    {
+      "id": "external-anchor-mutation-execute-response.valid",
+      "schema_path": "objects/ExternalAnchorMutationExecuteResponse.schema.json",
+      "fixture_path": "schema/external-anchor-mutation-execute-response.valid.json",
       "expect_valid": true
     },
     {
@@ -799,6 +883,48 @@
       "schema_path": "objects/AuditReceipt.schema.json",
       "fixture_path": "runtime/audit-receipt.import.invalid-byte-identity.json",
       "rule": "audit_receipt_import_restore_byte_identity",
+      "expect_valid": false
+    },
+    {
+      "id": "external-anchor-evidence.transparency-log.valid-completed-sidecars",
+      "schema_path": "objects/SignedObjectEnvelope.schema.json",
+      "fixture_path": "runtime/external-anchor-evidence.transparency-log.valid-completed-sidecars.json",
+      "rule": "external_anchor_evidence_conformance",
+      "expect_valid": true
+    },
+    {
+      "id": "external-anchor-evidence.timestamp-authority.valid-unavailable",
+      "schema_path": "objects/SignedObjectEnvelope.schema.json",
+      "fixture_path": "runtime/external-anchor-evidence.timestamp-authority.valid-unavailable.json",
+      "rule": "external_anchor_evidence_conformance",
+      "expect_valid": true
+    },
+    {
+      "id": "external-anchor-evidence.public-chain.valid-deferred",
+      "schema_path": "objects/SignedObjectEnvelope.schema.json",
+      "fixture_path": "runtime/external-anchor-evidence.public-chain.valid-deferred.json",
+      "rule": "external_anchor_evidence_conformance",
+      "expect_valid": true
+    },
+    {
+      "id": "external-anchor-evidence.invalid-target-identity-mismatch",
+      "schema_path": "objects/SignedObjectEnvelope.schema.json",
+      "fixture_path": "runtime/external-anchor-evidence.invalid-target-identity-mismatch.json",
+      "rule": "external_anchor_evidence_conformance",
+      "expect_valid": false
+    },
+    {
+      "id": "external-anchor-evidence.invalid-target-proof-mismatch",
+      "schema_path": "objects/SignedObjectEnvelope.schema.json",
+      "fixture_path": "runtime/external-anchor-evidence.invalid-target-proof-mismatch.json",
+      "rule": "external_anchor_evidence_conformance",
+      "expect_valid": false
+    },
+    {
+      "id": "external-anchor-evidence.invalid-exact-action-binding-mismatch",
+      "schema_path": "objects/SignedObjectEnvelope.schema.json",
+      "fixture_path": "runtime/external-anchor-evidence.invalid-exact-action-binding-mismatch.json",
+      "rule": "external_anchor_evidence_conformance",
       "expect_valid": false
     },
     {

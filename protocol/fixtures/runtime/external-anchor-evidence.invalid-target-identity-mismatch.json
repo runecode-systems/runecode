@@ -1,0 +1,55 @@
+{
+  "schema_id": "runecode.protocol.v0.SignedObjectEnvelope",
+  "schema_version": "0.2.0",
+  "payload_schema_id": "runecode.protocol.v0.ExternalAnchorEvidence",
+  "payload_schema_version": "0.1.0",
+  "payload": {
+    "schema_id": "runecode.protocol.v0.ExternalAnchorEvidence",
+    "schema_version": "0.1.0",
+    "recorded_at": "2026-03-13T12:33:00Z",
+    "run_id": "run-external-anchor-4",
+    "canonical_target_kind": "transparency_log",
+    "canonical_target_digest": {
+      "hash_alg": "sha256",
+      "hash": "1414141414141414141414141414141414141414141414141414141414141414"
+    },
+    "canonical_target_identity": "sha256:1515151515151515151515151515151515151515151515151515151515151515",
+    "target_requirement": "required",
+    "anchoring_subject_family": "audit_segment_seal",
+    "anchoring_subject_digest": {
+      "hash_alg": "sha256",
+      "hash": "2525252525252525252525252525252525252525252525252525252525252525"
+    },
+    "outbound_payload_digest": {
+      "hash_alg": "sha256",
+      "hash": "3636363636363636363636363636363636363636363636363636363636363636"
+    },
+    "outcome": "completed",
+    "proof_schema_id": "runecode.protocol.audit.anchor_proof.transparency_log_receipt.v0",
+    "proof_kind": "transparency_log_receipt_v0",
+    "receipt_target_descriptor_digest": {
+      "hash_alg": "sha256",
+      "hash": "1414141414141414141414141414141414141414141414141414141414141414"
+    },
+    "receipt_proof_digest": {
+      "hash_alg": "sha256",
+      "hash": "4747474747474747474747474747474747474747474747474747474747474747"
+    },
+    "sidecar_refs": [
+      {
+        "evidence_kind": "proof_bytes",
+        "digest": {
+          "hash_alg": "sha256",
+          "hash": "4747474747474747474747474747474747474747474747474747474747474747"
+        }
+      }
+    ]
+  },
+  "signature_input": "rfc8785_jcs_detached_payload",
+  "signature": {
+    "alg": "ed25519",
+    "key_id": "key_sha256",
+    "key_id_value": "dededededededededededededededededededededededededededededededede",
+    "signature": "c2ln"
+  }
+}

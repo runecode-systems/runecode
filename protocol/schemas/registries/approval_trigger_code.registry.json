@@ -26,6 +26,10 @@
       "summary": "Git remote mutation operations such as push, tag update, and pull-request creation require exact final approval."
     },
     {
+      "code": "external_anchor_opt_in",
+      "summary": "External anchor submission requires explicit signed-manifest opt-in and exact final approval on the shared gateway mutation path."
+    },
+    {
       "code": "out_of_workspace_write",
       "summary": "A write would occur outside the declared workspace path allowlist."
     },

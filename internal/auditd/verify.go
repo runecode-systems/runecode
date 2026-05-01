@@ -28,6 +28,44 @@ func (l *Ledger) VerifyCurrentSegmentAndPersist() (VerificationResult, error) {
 	return VerificationResult{SegmentID: segment.Header.SegmentID, ReportDigest: reportDigest, Report: report}, nil
 }
 
+func (l *Ledger) VerifyCurrentSegmentIncrementalWithPreverifiedSeal(preverifiedSealDigest trustpolicy.Digest, verifier trustpolicy.VerifierRecord) (trustpolicy.Digest, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if _, err := preverifiedSealDigest.Identity(); err != nil {
+		return trustpolicy.Digest{}, fmt.Errorf("preverified_seal_digest: %w", err)
+	}
+	if err := l.ensureVerifierRecordDurableLocked(verifier); err != nil {
+		return trustpolicy.Digest{}, err
+	}
+
+	segment, input, err := l.currentVerificationContextLocked()
+	if err != nil {
+		return trustpolicy.Digest{}, err
+	}
+	computedSealDigest, err := trustpolicy.ComputeSignedEnvelopeAuditRecordDigest(input.SegmentSealEnvelope)
+	if err != nil {
+		return trustpolicy.Digest{}, err
+	}
+	if mustDigestIdentity(computedSealDigest) != mustDigestIdentity(preverifiedSealDigest) {
+		return trustpolicy.Digest{}, fmt.Errorf("preverified seal digest does not match current segment seal")
+	}
+	verifiers, _, err := addVerifierRecordIfMissing(input.VerifierRecords, verifier)
+	if err != nil {
+		return trustpolicy.Digest{}, err
+	}
+	input.VerifierRecords = verifiers
+	input.Scope = trustpolicy.AuditVerificationScope{ScopeKind: trustpolicy.AuditVerificationScopeSegment, LastSegmentID: segment.Header.SegmentID}
+	input.PreverifiedSealDigest = &preverifiedSealDigest
+	input.SkipFrameAndSealReplay = true
+
+	report, err := trustpolicy.VerifyAuditEvidence(input)
+	if err != nil {
+		return trustpolicy.Digest{}, err
+	}
+	return l.persistVerificationReportLocked(report)
+}
+
 func (l *Ledger) currentVerificationContextLocked() (trustpolicy.AuditSegmentFilePayload, trustpolicy.AuditVerificationInput, error) {
 	segment, sealEnvelope, sealPayload, previousDigest, rawBytes, err := l.currentSegmentEvidenceLocked()
 	if err != nil {
@@ -49,6 +87,8 @@ func (l *Ledger) currentVerificationContextLocked() (trustpolicy.AuditSegmentFil
 		EventContractCatalog:     runtimeInputs.catalog,
 		SignerEvidence:           runtimeInputs.signerEvidence,
 		StoragePostureEvidence:   runtimeInputs.storagePosture,
+		ExternalAnchorEvidence:   runtimeInputs.externalAnchorEvidence,
+		ExternalAnchorSidecars:   runtimeInputs.externalAnchorSidecars,
 		Now:                      l.nowFn(),
 	}
 	_ = sealPayload
@@ -80,71 +120,6 @@ func (l *Ledger) currentSegmentEvidenceLocked() (trustpolicy.AuditSegmentFilePay
 		return trustpolicy.AuditSegmentFilePayload{}, trustpolicy.SignedObjectEnvelope{}, trustpolicy.AuditSegmentSealPayload{}, nil, nil, err
 	}
 	return segment, sealEnvelope, sealPayload, previousDigest, rawBytes, nil
-}
-
-type verificationInputs struct {
-	verifierRecords  []trustpolicy.VerifierRecord
-	catalog          trustpolicy.AuditEventContractCatalog
-	signerEvidence   []trustpolicy.AuditSignerEvidenceReference
-	storagePosture   *trustpolicy.AuditStoragePostureEvidence
-	knownSealDigests []trustpolicy.Digest
-	receipts         []trustpolicy.SignedObjectEnvelope
-}
-
-func (l *Ledger) loadVerificationInputsLocked() (verificationInputs, error) {
-	contractsDir := filepath.Join(l.rootDir, "contracts")
-	if err := requireVerificationContractFiles(contractsDir); err != nil {
-		return verificationInputs{}, err
-	}
-
-	inputs := verificationInputs{}
-	if err := readJSONFile(filepath.Join(contractsDir, "event-contract-catalog.json"), &inputs.catalog); err != nil {
-		return verificationInputs{}, err
-	}
-	if err := readJSONFile(filepath.Join(contractsDir, "verifier-records.json"), &inputs.verifierRecords); err != nil {
-		return verificationInputs{}, err
-	}
-	if err := loadOptionalContractFiles(contractsDir, &inputs); err != nil {
-		return verificationInputs{}, err
-	}
-	sealDigests, err := l.loadAllSealDigestsLocked()
-	if err != nil {
-		return verificationInputs{}, err
-	}
-	inputs.knownSealDigests = sealDigests
-	receipts, err := l.loadAllReceiptsLocked()
-	if err != nil {
-		return verificationInputs{}, err
-	}
-	inputs.receipts = receipts
-	return inputs, nil
-}
-
-func requireVerificationContractFiles(contractsDir string) error {
-	if !fileExists(filepath.Join(contractsDir, "event-contract-catalog.json")) {
-		return fmt.Errorf("missing event contract catalog")
-	}
-	if !fileExists(filepath.Join(contractsDir, "verifier-records.json")) {
-		return fmt.Errorf("missing verifier records")
-	}
-	return nil
-}
-
-func loadOptionalContractFiles(contractsDir string, inputs *verificationInputs) error {
-	if fileExists(filepath.Join(contractsDir, "signer-evidence.json")) {
-		if err := readJSONFile(filepath.Join(contractsDir, "signer-evidence.json"), &inputs.signerEvidence); err != nil {
-			return err
-		}
-	}
-	if !fileExists(filepath.Join(contractsDir, "storage-posture.json")) {
-		return nil
-	}
-	var posture trustpolicy.AuditStoragePostureEvidence
-	if err := readJSONFile(filepath.Join(contractsDir, "storage-posture.json"), &posture); err != nil {
-		return err
-	}
-	inputs.storagePosture = &posture
-	return nil
 }
 
 func (l *Ledger) loadSealEnvelopeForSegmentLocked(segmentID string) (trustpolicy.SignedObjectEnvelope, trustpolicy.Digest, trustpolicy.AuditSegmentSealPayload, error) {

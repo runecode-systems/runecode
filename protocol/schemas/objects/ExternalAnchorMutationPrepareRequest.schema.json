@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ExternalAnchorMutationPrepareRequest.schema.json",
+  "title": "ExternalAnchorMutationPrepareRequest",
+  "description": "Prepare request for broker-local external anchor remote-state mutation control-plane using authoritative typed request object.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 5,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "request_id",
+    "run_id",
+    "typed_request"
+  ],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ExternalAnchorMutationPrepareRequest", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Stable request correlation identifier.",
+      "x-data-class": "public"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Run identifier to evaluate prepare policy context.",
+      "x-data-class": "public"
+    },
+    "typed_request": {
+      "$ref": "ActionPayloadGatewayEgress.schema.json#/$defs/externalAnchorTypedRequest",
+      "description": "Authoritative provider-neutral typed request object.",
+      "x-data-class": "public"
+    }
+  }
+}

@@ -58,20 +58,26 @@ type AuditEventOperationalPayload struct {
 }
 
 type AuditReceiptOperationalView struct {
-	SchemaID             string          `json:"schema_id"`
-	SchemaVersion        string          `json:"schema_version"`
-	SubjectDigest        Digest          `json:"subject_digest"`
-	AuditReceiptKind     string          `json:"audit_receipt_kind"`
-	SubjectFamily        string          `json:"subject_family,omitempty"`
-	RecordedAt           string          `json:"recorded_at"`
-	ReceiptPayloadSchema string          `json:"receipt_payload_schema_id,omitempty"`
-	AnchorKind           string          `json:"anchor_kind,omitempty"`
-	KeyProtectionPosture string          `json:"key_protection_posture,omitempty"`
-	PresenceMode         string          `json:"presence_mode,omitempty"`
-	ApprovalAssurance    string          `json:"approval_assurance_level,omitempty"`
-	ApprovalDecision     *Digest         `json:"approval_decision_digest,omitempty"`
-	AnchorWitnessDigest  *Digest         `json:"anchor_witness_digest,omitempty"`
-	AuthorityContext     json.RawMessage `json:"authority_context,omitempty"`
+	SchemaID                       string          `json:"schema_id"`
+	SchemaVersion                  string          `json:"schema_version"`
+	SubjectDigest                  Digest          `json:"subject_digest"`
+	AuditReceiptKind               string          `json:"audit_receipt_kind"`
+	SubjectFamily                  string          `json:"subject_family,omitempty"`
+	RecordedAt                     string          `json:"recorded_at"`
+	ReceiptPayloadSchema           string          `json:"receipt_payload_schema_id,omitempty"`
+	AnchorKind                     string          `json:"anchor_kind,omitempty"`
+	KeyProtectionPosture           string          `json:"key_protection_posture,omitempty"`
+	PresenceMode                   string          `json:"presence_mode,omitempty"`
+	ApprovalAssurance              string          `json:"approval_assurance_level,omitempty"`
+	ApprovalDecision               *Digest         `json:"approval_decision_digest,omitempty"`
+	AnchorWitnessDigest            *Digest         `json:"anchor_witness_digest,omitempty"`
+	ExternalTargetKind             string          `json:"external_target_kind,omitempty"`
+	ExternalRuntimeAdapter         string          `json:"external_runtime_adapter,omitempty"`
+	ExternalTargetDescriptorDigest *Digest         `json:"external_target_descriptor_digest,omitempty"`
+	ExternalProofKind              string          `json:"external_proof_kind,omitempty"`
+	ExternalProofSchema            string          `json:"external_proof_schema_id,omitempty"`
+	ExternalProofDigest            *Digest         `json:"external_proof_digest,omitempty"`
+	AuthorityContext               json.RawMessage `json:"authority_context,omitempty"`
 }
 
 func ComputeSignedEnvelopeAuditRecordDigest(envelope SignedObjectEnvelope) (Digest, error) {

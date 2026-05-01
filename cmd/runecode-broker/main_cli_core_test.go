@@ -25,48 +25,37 @@ func TestHelpAndUnknownCommand(t *testing.T) {
 	if err := run([]string{"--help"}, stdout, stderr); err != nil {
 		t.Fatalf("help returned error: %v", err)
 	}
-	if !strings.Contains(stdout.String(), "Usage: runecode-broker") {
-		t.Fatalf("help output missing usage: %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "--state-root path") {
-		t.Fatalf("help output missing --state-root global option: %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "--audit-ledger-root path") {
-		t.Fatalf("help output missing --audit-ledger-root global option: %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "audit-anchor-segment") {
-		t.Fatalf("help output missing audit-anchor-segment command: %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "audit-finalize-verify") {
-		t.Fatalf("help output missing audit-finalize-verify command: %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "backend-posture-get") {
-		t.Fatalf("help output missing backend-posture-get command: %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "git-setup-get") {
-		t.Fatalf("help output missing git-setup-get command: %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "git-remote-mutation-prepare") {
-		t.Fatalf("help output missing git-remote-mutation-prepare command: %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "dependency-cache-ensure") {
-		t.Fatalf("help output missing dependency-cache-ensure command: %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "dependency-fetch-registry") {
-		t.Fatalf("help output missing dependency-fetch-registry command: %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "dependency-cache-handoff") {
-		t.Fatalf("help output missing dependency-cache-handoff command: %q", stdout.String())
-	}
-	if !strings.Contains(stdout.String(), "approval-resolve") {
-		t.Fatalf("help output missing approval-resolve command: %q", stdout.String())
-	}
+	requireHelpOutputContains(t, stdout.String(), []string{
+		"Usage: runecode-broker",
+		"--state-root path",
+		"--audit-ledger-root path",
+		"audit-anchor-segment",
+		"audit-finalize-verify",
+		"backend-posture-get",
+		"git-setup-get",
+		"git-remote-mutation-prepare",
+		"external-anchor-mutation-prepare",
+		"dependency-cache-ensure",
+		"dependency-fetch-registry",
+		"dependency-cache-handoff",
+		"approval-resolve",
+	})
 	err := run([]string{"not-a-command"}, stdout, stderr)
 	if err == nil {
 		t.Fatal("expected usage error for unknown command")
 	}
 	if _, ok := err.(*usageError); !ok {
 		t.Fatalf("unknown command error type = %T, want *usageError", err)
+	}
+}
+
+func requireHelpOutputContains(t *testing.T, output string, expected []string) {
+	t.Helper()
+	for _, want := range expected {
+		if strings.Contains(output, want) {
+			continue
+		}
+		t.Fatalf("help output missing %q: %q", want, output)
 	}
 }
 

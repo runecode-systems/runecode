@@ -5,7 +5,7 @@
   "description": "Typed action payload for gateway egress operations with a closed shared gateway operation vocabulary spanning request execution, scope change, and remote-state mutation semantics.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 14,
+      "maxProperties": 16,
   "required": [
     "schema_id",
     "schema_version",
@@ -100,12 +100,17 @@
       "description": "Authoritative topology-neutral typed dependency request object used for exact approval and runtime binding.",
       "x-data-class": "public"
     },
-    "git_runtime_proof": {
-      "$ref": "#/$defs/gitRuntimeProof",
-      "description": "Runtime outbound verification proof for git remote mutation, including drift checks and observed result bindings.",
-      "x-data-class": "public"
-    }
-  },
+        "git_runtime_proof": {
+          "$ref": "#/$defs/gitRuntimeProof",
+          "description": "Runtime outbound verification proof for git remote mutation, including drift checks and observed result bindings.",
+          "x-data-class": "public"
+        },
+        "external_anchor_request": {
+          "$ref": "#/$defs/externalAnchorTypedRequest",
+          "description": "Authoritative provider-neutral typed external anchor submission request used for exact approval and runtime binding.",
+          "x-data-class": "public"
+        }
+      },
   "$defs": {
     "egressDataClass": {
       "type": "string",
@@ -131,18 +136,19 @@
     "gatewayOperation": {
       "type": "string",
       "description": "Closed shared gateway operation vocabulary spanning request execution, scope change, and remote-state mutation semantics.",
-      "enum": [
-        "invoke_model",
-        "fetch_dependency",
-        "exchange_auth_code",
-        "refresh_auth_token",
-        "git_ref_update",
-        "git_pull_request_create",
-        "enable_gateway",
-        "expand_scope",
-        "change_allowlist",
-        "enable_dependency_fetch"
-      ]
+        "enum": [
+          "invoke_model",
+          "fetch_dependency",
+          "exchange_auth_code",
+          "refresh_auth_token",
+          "git_ref_update",
+          "git_pull_request_create",
+          "external_anchor_submit",
+          "enable_gateway",
+          "expand_scope",
+          "change_allowlist",
+          "enable_dependency_fetch"
+        ]
     },
     "gatewayAuditContext": {
       "type": "object",
@@ -231,7 +237,7 @@
     "gatewayQuotaMeters": {
       "type": "object",
       "additionalProperties": false,
-      "maxProperties": 7,
+      "maxProperties": 9,
       "properties": {
         "request_units": {
           "type": "integer",
@@ -325,7 +331,7 @@
     "gatewayQuotaContext": {
       "type": "object",
       "additionalProperties": false,
-      "maxProperties": 7,
+      "maxProperties": 9,
       "required": [
         "schema_id",
         "schema_version",
@@ -658,6 +664,109 @@
       "description": "Authoritative topology-neutral typed dependency request object for fetch_dependency operations.",
       "x-data-class": "public"
     },
+    "externalAnchorTypedRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 10,
+      "required": [
+        "schema_id",
+        "schema_version",
+        "request_kind",
+        "target_kind",
+        "target_descriptor_digest",
+        "seal_digest",
+        "outbound_payload_digest"
+      ],
+      "properties": {
+        "schema_id": {
+          "const": "runecode.protocol.v0.ExternalAnchorSubmitRequest",
+          "description": "Protocol schema identifier for external anchor typed request.",
+          "x-data-class": "public"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "description": "Protocol schema version for external anchor typed request.",
+          "x-data-class": "public"
+        },
+        "request_kind": {
+          "const": "external_anchor_submit_v0",
+          "description": "External anchor request operation family.",
+          "x-data-class": "public"
+        },
+        "target_kind": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Typed target family kind bound into exact-action approval.",
+          "x-data-class": "public"
+        },
+        "target_requirement": {
+          "type": "string",
+          "enum": ["required", "optional"],
+          "description": "Requirement posture for the primary target binding; defaults to required when omitted.",
+          "x-data-class": "public"
+        },
+        "target_descriptor_digest": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Canonical target descriptor digest identity used by policy, approval, lease, and audit binding.",
+          "x-data-class": "public"
+        },
+        "target_set": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "description": "Additive target-set foundation for required/optional policy semantics; first runtime adapter may execute only the primary target.",
+          "x-data-class": "public",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "maxProperties": 3,
+            "required": ["target_kind", "target_descriptor_digest"],
+            "properties": {
+              "target_kind": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "Typed target family kind for this target-set entry.",
+                "x-data-class": "public"
+              },
+              "target_descriptor_digest": {
+                "$ref": "Digest.schema.json#/$defs/digestValue",
+                "description": "Canonical target descriptor digest identity for this target-set entry.",
+                "x-data-class": "public"
+              },
+              "target_requirement": {
+                "type": "string",
+                "enum": ["required", "optional"],
+                "description": "Required-vs-optional target posture for this target-set entry.",
+                "x-data-class": "public"
+              }
+            }
+          }
+        },
+        "seal_digest": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Audit segment seal digest being externally anchored.",
+          "x-data-class": "public"
+        },
+        "outbound_payload_digest": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Canonical outbound payload digest submitted to the external anchor target.",
+          "x-data-class": "public"
+        },
+        "deferred_poll_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64,
+          "description": "Configured deferred poll budget for background completion in deterministic adapters.",
+          "x-data-class": "public"
+        }
+      },
+      "description": "Provider-neutral typed external anchor request on the shared gateway remote-state-mutation path.",
+      "x-data-class": "public"
+    },
     "gitRuntimeProof": {
       "type": "object",
       "additionalProperties": false,
@@ -837,7 +946,8 @@
           "operation": {
             "enum": [
               "git_ref_update",
-              "git_pull_request_create"
+              "git_pull_request_create",
+              "external_anchor_submit"
             ]
           }
         },
@@ -849,10 +959,61 @@
         "description": "Remote-state-mutation operations require payload, audit, and git binding proof on the shared gateway path.",
         "required": [
           "payload_hash",
-          "audit_context",
+          "audit_context"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "const": "external_anchor_submit"
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "description": "External anchor submissions require canonical typed request binding and must not carry git runtime proof payloads.",
+        "required": [
+          "external_anchor_request"
+        ],
+        "properties": {
+          "git_request": {
+            "not": {}
+          },
+          "git_runtime_proof": {
+            "not": {}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "git_ref_update",
+              "git_pull_request_create"
+            ]
+          }
+        },
+        "required": [
+          "operation"
+        ]
+      },
+      "then": {
+        "description": "Git remote-state-mutation operations require canonical typed request and runtime proof payloads on the shared gateway path.",
+        "required": [
           "git_request",
           "git_runtime_proof"
-        ]
+        ],
+        "properties": {
+          "external_anchor_request": {
+            "not": {}
+          }
+        }
       }
     },
     {
@@ -930,11 +1091,14 @@
           "git_request": {
             "not": {}
           },
-          "git_runtime_proof": {
-            "not": {}
+            "git_runtime_proof": {
+              "not": {}
+            },
+            "external_anchor_request": {
+              "not": {}
+            }
           }
         }
-      }
     },
     {
       "if": {
@@ -946,6 +1110,7 @@
               "refresh_auth_token",
               "git_ref_update",
               "git_pull_request_create",
+              "external_anchor_submit",
               "enable_gateway",
               "expand_scope",
               "change_allowlist",

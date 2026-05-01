@@ -7,15 +7,9 @@ import (
 
 func VerifyAuditEvidence(input AuditVerificationInput) (AuditVerificationReportPayload, error) {
 	report := initializeAuditVerificationReport(input)
-
-	registry, err := NewVerifierRegistry(input.VerifierRecords)
+	registry, err := initializeAuditVerificationRegistry(input, &report)
 	if err != nil {
-		addHardFailure(&report, AuditVerificationReasonDetachedSignatureInvalid, AuditVerificationDimensionIntegrity, err.Error(), input.Segment.Header.SegmentID, nil)
-		return finalizeAuditVerificationReport(report), fmt.Errorf("verifier registry: %w", err)
-	}
-	if err := validateAuditEventContractCatalog(input.EventContractCatalog); err != nil {
-		addHardFailure(&report, AuditVerificationReasonEventContractMismatch, AuditVerificationDimensionIntegrity, err.Error(), input.Segment.Header.SegmentID, nil)
-		return finalizeAuditVerificationReport(report), fmt.Errorf("event contract catalog: %w", err)
+		return finalizeAuditVerificationReport(report), err
 	}
 
 	if err := validateAuditSegmentLifecycle(input.Segment); err != nil {
@@ -26,11 +20,20 @@ func VerifyAuditEvidence(input AuditVerificationInput) (AuditVerificationReportP
 		addHardFailure(&report, AuditVerificationReasonSegmentFileHashMismatch, AuditVerificationDimensionIntegrity, "raw framed segment bytes are required", input.Segment.Header.SegmentID, nil)
 	}
 
-	frameDigests, frameEnvelopes, eventTimes := verifySegmentFramesAndEvents(input, registry, &report)
+	frameDigests, frameEnvelopes, eventTimes := []Digest{}, []SignedObjectEnvelope{}, []time.Time{}
+	sealDigest, sealPayload, sealErr := input.PreverifiedSealDigest, AuditSegmentSealPayload{}, error(nil)
+	if input.SkipFrameAndSealReplay && input.PreverifiedSealDigest != nil {
+		if _, err := input.PreverifiedSealDigest.Identity(); err != nil {
+			addHardFailure(&report, AuditVerificationReasonSegmentSealInvalid, AuditVerificationDimensionIntegrity, fmt.Sprintf("preverified seal digest invalid: %v", err), input.Segment.Header.SegmentID, nil)
+			sealDigest = nil
+		}
+	} else {
+		frameDigests, frameEnvelopes, eventTimes = verifySegmentFramesAndEvents(input, registry, &report)
 
-	sealDigest, sealPayload, sealErr := verifySegmentSeal(input, registry, frameDigests, &report)
-	if sealErr != nil {
-		_ = sealDigest
+		sealDigest, sealPayload, sealErr = verifySegmentSeal(input, registry, frameDigests, &report)
+		if sealErr != nil {
+			_ = sealDigest
+		}
 	}
 
 	verifyReceipts(input, registry, sealDigest, sealPayload, &report)
@@ -39,6 +42,19 @@ func VerifyAuditEvidence(input AuditVerificationInput) (AuditVerificationReportP
 	setDerivedVerificationPosture(&report, frameEnvelopes, eventTimes)
 
 	return finalizeAuditVerificationReport(report), nil
+}
+
+func initializeAuditVerificationRegistry(input AuditVerificationInput, report *AuditVerificationReportPayload) (*VerifierRegistry, error) {
+	registry, err := NewVerifierRegistry(input.VerifierRecords)
+	if err != nil {
+		addHardFailure(report, AuditVerificationReasonDetachedSignatureInvalid, AuditVerificationDimensionIntegrity, err.Error(), input.Segment.Header.SegmentID, nil)
+		return nil, fmt.Errorf("verifier registry: %w", err)
+	}
+	if err := validateAuditEventContractCatalog(input.EventContractCatalog); err != nil {
+		addHardFailure(report, AuditVerificationReasonEventContractMismatch, AuditVerificationDimensionIntegrity, err.Error(), input.Segment.Header.SegmentID, nil)
+		return nil, fmt.Errorf("event contract catalog: %w", err)
+	}
+	return registry, nil
 }
 
 func initializeAuditVerificationReport(input AuditVerificationInput) AuditVerificationReportPayload {

@@ -72,36 +72,39 @@ func (s *Store) initializeLoadedState(state StoreState) (StoreState, bool, error
 }
 
 func (s *Store) reconcileLoadedState(changed bool) (bool, error) {
-	sequenceChanged, err := s.reconcileAuditSequenceLocked()
+	var err error
+	changed, err = s.applyStoreReconcileStep(changed, s.reconcileAuditSequenceLocked)
 	if err != nil {
 		return false, err
 	}
-	changed = changed || sequenceChanged
-
-	artifactIndexChanged, err := s.reconcileArtifactIndexFromAuditLocked()
+	changed, err = s.applyStoreReconcileStep(changed, s.reconcileArtifactIndexFromAuditLocked)
 	if err != nil {
 		return false, err
 	}
-	changed = changed || artifactIndexChanged
-
-	approvalLinkChanged, err := s.reconcileApprovalPolicyDecisionLinksLocked()
+	changed, err = s.applyStoreReconcileStep(changed, s.reconcileApprovalPolicyDecisionLinksLocked)
 	if err != nil {
 		return false, err
 	}
-	changed = changed || approvalLinkChanged
-
-	preparedRefsChanged := reconcileRunGitRemotePreparedRefsLocked(&s.state)
-	changed = changed || preparedRefsChanged
-
-	runnerChanged, err := s.reconcileRunnerAdvisoryDurableStateLocked()
+	changed = s.applyStoreStateReconcile(changed, reconcileRunGitRemotePreparedRefsLocked)
+	changed = s.applyStoreStateReconcile(changed, reconcileRunExternalAnchorPreparedRefsLocked)
+	changed, err = s.applyStoreReconcileStep(changed, s.reconcileRunnerAdvisoryDurableStateLocked)
 	if err != nil {
 		return false, err
 	}
-	changed = changed || runnerChanged
-
-	runPlanChanged := reconcileRunPlanIndexesLocked(&s.state)
-	changed = changed || runPlanChanged
+	changed = s.applyStoreStateReconcile(changed, reconcileRunPlanIndexesLocked)
 	return changed, nil
+}
+
+func (s *Store) applyStoreReconcileStep(changed bool, step func() (bool, error)) (bool, error) {
+	stepChanged, err := step()
+	if err != nil {
+		return false, err
+	}
+	return changed || stepChanged, nil
+}
+
+func (s *Store) applyStoreStateReconcile(changed bool, step func(*StoreState) bool) bool {
+	return changed || step(&s.state)
 }
 
 func (s *Store) reconcileAuditSequenceLocked() (bool, error) {

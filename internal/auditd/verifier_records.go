@@ -33,6 +33,12 @@ func (l *Ledger) ensureVerifierRecordDurableLocked(record trustpolicy.VerifierRe
 	return nil
 }
 
+func (l *Ledger) EnsureVerifierRecord(record trustpolicy.VerifierRecord) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.ensureVerifierRecordDurableLocked(record)
+}
+
 func addVerifierRecordIfMissing(records []trustpolicy.VerifierRecord, record trustpolicy.VerifierRecord) ([]trustpolicy.VerifierRecord, bool, error) {
 	keyID := record.KeyIDValue
 	for index := range records {

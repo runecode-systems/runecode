@@ -49,7 +49,8 @@
 - Canonical audit-record identity is `sha256(JCS(SignedObjectEnvelope))`, modeled as `AuditRecordDigest` for reuse across event chaining, receipt targeting, segment first/last references, seal chaining, import/restore references, and verifier findings.
 - `SignedObjectEnvelope` remains a single-signature envelope contract for this foundation. Additional attestations are modeled as separate signed objects/receipts rather than multiple independent signatures on one envelope.
 - Open and sealed segment leaves are limited to signed `AuditEvent` envelopes; receipts, seals, and verification reports are sidecar evidence keyed by digest.
-- Anchor receipts keep the shared `AuditReceipt(kind=anchor)` envelope and `AuditSegmentSeal` subject model. MVP runtime verification currently admits `anchor_kind=local_user_presence_signature` (with local witness kind) while schema contracts stay additive for post-MVP anchor kinds in `CHG-2026-025`.
+- Anchor receipts keep the shared `AuditReceipt(kind=anchor)` envelope and `AuditSegmentSeal` subject model. Schema contracts now include typed external anchor families (`external_transparency_log_v0`, `external_timestamp_authority_v0`, `external_public_chain_v0`) with typed target descriptors and sidecar-proof digests while preserving local anchor fields for `local_user_presence_signature`.
+- External anchor contracts freeze `runtime_adapter=transparency_log_v0` as the first concrete adapter and keep timestamp-authority and public-chain target descriptor/proof contracts additive for follow-on runtime execution work.
 
 ## Append-Only Writer + Recovery Contract Foundation
 

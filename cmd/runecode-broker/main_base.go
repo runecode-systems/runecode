@@ -168,6 +168,9 @@ func addLiveIPCCommandHandlers(handlers map[string]brokerCommandSpec) {
 		"git-remote-mutation-get":                 {handler: handleGitRemoteMutationGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"git-remote-mutation-issue-execute-lease": {handler: handleGitRemoteMutationIssueExecuteLease, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"git-remote-mutation-execute":             {handler: handleGitRemoteMutationExecute, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"external-anchor-mutation-prepare":        {handler: handleExternalAnchorMutationPrepare, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"external-anchor-mutation-get":            {handler: handleExternalAnchorMutationGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"external-anchor-mutation-execute":        {handler: handleExternalAnchorMutationExecute, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"version-info":                            {handler: handleVersionInfo, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"stream-logs":                             {handler: handleStreamLogs, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"llm-invoke":                              {handler: handleLLMInvoke, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
@@ -300,6 +303,9 @@ Commands:
 	  git-remote-mutation-get --request-file path
 	  git-remote-mutation-issue-execute-lease --request-file path
 	  git-remote-mutation-execute --request-file path
+	  external-anchor-mutation-prepare --request-file path
+	  external-anchor-mutation-get --request-file path
+	  external-anchor-mutation-execute --request-file path
   version-info
   stream-logs [--stream-id id] [--run-id id] [--role-instance-id id] [--start-cursor cursor] [--follow] [--include-backlog]
   llm-invoke --run-id id --request-file path [--request-digest sha256:...]

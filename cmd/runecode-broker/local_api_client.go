@@ -68,6 +68,9 @@ type brokerLocalAPI interface {
 	GitRemoteMutationGet(context.Context, brokerapi.GitRemoteMutationGetRequest) (brokerapi.GitRemoteMutationGetResponse, *brokerapi.ErrorResponse)
 	GitRemoteMutationIssueExecuteLease(context.Context, brokerapi.GitRemoteMutationIssueExecuteLeaseRequest) (brokerapi.GitRemoteMutationIssueExecuteLeaseResponse, *brokerapi.ErrorResponse)
 	GitRemoteMutationExecute(context.Context, brokerapi.GitRemoteMutationExecuteRequest) (brokerapi.GitRemoteMutationExecuteResponse, *brokerapi.ErrorResponse)
+	ExternalAnchorMutationPrepare(context.Context, brokerapi.ExternalAnchorMutationPrepareRequest) (brokerapi.ExternalAnchorMutationPrepareResponse, *brokerapi.ErrorResponse)
+	ExternalAnchorMutationGet(context.Context, brokerapi.ExternalAnchorMutationGetRequest) (brokerapi.ExternalAnchorMutationGetResponse, *brokerapi.ErrorResponse)
+	ExternalAnchorMutationExecute(context.Context, brokerapi.ExternalAnchorMutationExecuteRequest) (brokerapi.ExternalAnchorMutationExecuteResponse, *brokerapi.ErrorResponse)
 }
 
 type localRPCInvokeFunc func(ctx context.Context, operation string, request any, out any) *brokerapi.ErrorResponse

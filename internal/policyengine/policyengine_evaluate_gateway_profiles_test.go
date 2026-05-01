@@ -193,6 +193,48 @@ func TestEvaluateDependencyFetchDeniesWhenPayloadHashNotBoundToCanonicalTypedDep
 	}
 }
 
+func TestEvaluateExternalAnchorSubmitDeniesWhenPayloadHashNotBoundToCanonicalTypedRequest(t *testing.T) {
+	targetDigest := "sha256:" + strings.Repeat("a", 64)
+	allowlist := validAllowlistPayloadForGateway("allowlist-git", "git-gateway", "git_remote", "external_anchor_submit", "audit_events")
+	entry := allowlist["entries"].([]any)[0].(map[string]any)
+	entry["external_anchor_target_descriptor_digests"] = []any{mustDigestObject(targetDigest)}
+	compiled := mustCompile(t, compileGatewayInputWithOneCapability("git-gateway", "cap_external_anchor", allowlist))
+	action := validExternalAnchorSubmitActionRequest("cap_external_anchor", "allowlist-git.example.com/org/repo", targetDigest)
+	action.ActionPayload["payload_hash"] = mustDigestObject("sha256:" + strings.Repeat("b", 64))
+
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionDeny {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	}
+	if got, _ := decision.Details["reason"].(string); got != "payload_hash_not_bound_to_canonical_external_anchor_request_hash" {
+		t.Fatalf("reason = %q, want payload_hash_not_bound_to_canonical_external_anchor_request_hash", got)
+	}
+}
+
+func TestEvaluateExternalAnchorSubmitDeniesWhenTargetDescriptorDigestNotAllowlisted(t *testing.T) {
+	allowlistedTargetDigest := "sha256:" + strings.Repeat("c", 64)
+	requestedTargetDigest := "sha256:" + strings.Repeat("d", 64)
+	allowlist := validAllowlistPayloadForGateway("allowlist-git", "git-gateway", "git_remote", "external_anchor_submit", "audit_events")
+	entry := allowlist["entries"].([]any)[0].(map[string]any)
+	entry["external_anchor_target_descriptor_digests"] = []any{mustDigestObject(allowlistedTargetDigest)}
+	compiled := mustCompile(t, compileGatewayInputWithOneCapability("git-gateway", "cap_external_anchor", allowlist))
+	action := validExternalAnchorSubmitActionRequest("cap_external_anchor", "allowlist-git.example.com/org/repo", requestedTargetDigest)
+
+	decision, err := Evaluate(compiled, action)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if decision.DecisionOutcome != DecisionDeny {
+		t.Fatalf("DecisionOutcome = %q, want %q", decision.DecisionOutcome, DecisionDeny)
+	}
+	if got, _ := decision.Details["reason"].(string); got != "destination_not_allowlisted" {
+		t.Fatalf("reason = %q, want destination_not_allowlisted", got)
+	}
+}
+
 func TestEvaluateGatewayDeniesWhenRequestTimeoutMissing(t *testing.T) {
 	compiled := mustCompile(t, compileGatewayInputWithOneCapability("model-gateway", "cap_gateway", validAllowlistPayloadForGateway("allowlist-model", "model-gateway", "model_endpoint", "invoke_model", "spec_text")))
 	action := validGatewayEgressActionRequest("cap_gateway", "gateway", "model-gateway", "model-gateway", "model_endpoint", ActionKindGatewayEgress)

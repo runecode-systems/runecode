@@ -117,6 +117,7 @@ func assertAuditRegistryCodes(t *testing.T) {
 		"model_egress",
 		"auth_egress",
 		"git_egress",
+		"external_anchor_egress",
 		"artifact_flow_blocked",
 		"artifact_promotion_action",
 		"artifact_quota_violation",

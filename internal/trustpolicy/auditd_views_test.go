@@ -252,6 +252,67 @@ func TestBuildDefaultOperationalAuditViewProjectsAnchorReceiptReferenceableField
 	}
 }
 
+func TestBuildDefaultOperationalAuditViewProjectsExternalAnchorFields(t *testing.T) {
+	envelope := externalAnchorReceiptEnvelopeFixture(t)
+	view, err := BuildDefaultOperationalAuditView(envelope)
+	if err != nil {
+		t.Fatalf("BuildDefaultOperationalAuditView returned error: %v", err)
+	}
+	if view.Receipt == nil {
+		t.Fatal("expected receipt operational payload in view")
+	}
+	if view.Receipt.ExternalTargetKind != "transparency_log" {
+		t.Fatalf("external_target_kind = %q, want transparency_log", view.Receipt.ExternalTargetKind)
+	}
+	if view.Receipt.ExternalRuntimeAdapter != "transparency_log_v0" {
+		t.Fatalf("external_runtime_adapter = %q, want transparency_log_v0", view.Receipt.ExternalRuntimeAdapter)
+	}
+	if view.Receipt.ExternalTargetDescriptorDigest == nil || view.Receipt.ExternalProofDigest == nil {
+		t.Fatalf("expected external target/proof digests in operational view: %+v", view.Receipt)
+	}
+}
+
+func externalAnchorReceiptEnvelopeFixture(t *testing.T) SignedObjectEnvelope {
+	t.Helper()
+	envelope := anchorReceiptEnvelopeFixture(t)
+	payload := decodeEnvelopePayloadMap(t, envelope)
+	receiptPayload := payload["receipt_payload"].(map[string]any)
+	delete(receiptPayload, "key_protection_posture")
+	delete(receiptPayload, "presence_mode")
+	delete(receiptPayload, "anchor_witness")
+	receiptPayload["anchor_kind"] = "external_transparency_log_v0"
+	receiptPayload["external_anchor"] = map[string]any{
+		"target_kind":              "transparency_log",
+		"runtime_adapter":          "transparency_log_v0",
+		"target_descriptor_digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("d", 64)},
+		"proof": map[string]any{
+			"proof_kind":      "transparency_log_receipt_v0",
+			"proof_schema_id": "runecode.protocol.audit.anchor_proof.transparency_log_receipt.v0",
+			"proof_digest":    map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("e", 64)},
+		},
+	}
+	envelope.Payload = mustMarshalTestPayload(t, payload)
+	return envelope
+}
+
+func decodeEnvelopePayloadMap(t *testing.T, envelope SignedObjectEnvelope) map[string]any {
+	t.Helper()
+	payload := map[string]any{}
+	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal anchor payload returned error: %v", err)
+	}
+	return payload
+}
+
+func mustMarshalTestPayload(t *testing.T, payload map[string]any) json.RawMessage {
+	t.Helper()
+	mutatedPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal mutated payload returned error: %v", err)
+	}
+	return mutatedPayload
+}
+
 func TestBuildDefaultOperationalAuditViewFailsClosedOnAnchorWitnessDigestShape(t *testing.T) {
 	envelope := anchorReceiptEnvelopeFixture(t)
 	var payload map[string]any

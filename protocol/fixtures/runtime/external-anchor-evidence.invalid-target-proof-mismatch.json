@@ -1,0 +1,62 @@
+{
+  "schema_id": "runecode.protocol.v0.SignedObjectEnvelope",
+  "schema_version": "0.2.0",
+  "payload_schema_id": "runecode.protocol.v0.ExternalAnchorEvidence",
+  "payload_schema_version": "0.1.0",
+  "payload": {
+    "schema_id": "runecode.protocol.v0.ExternalAnchorEvidence",
+    "schema_version": "0.1.0",
+    "recorded_at": "2026-03-13T12:34:00Z",
+    "run_id": "run-external-anchor-5",
+    "canonical_target_kind": "timestamp_authority",
+    "canonical_target_digest": {
+      "hash_alg": "sha256",
+      "hash": "1616161616161616161616161616161616161616161616161616161616161616"
+    },
+    "canonical_target_identity": "sha256:1616161616161616161616161616161616161616161616161616161616161616",
+    "target_requirement": "required",
+    "anchoring_subject_family": "audit_segment_seal",
+    "anchoring_subject_digest": {
+      "hash_alg": "sha256",
+      "hash": "2626262626262626262626262626262626262626262626262626262626262626"
+    },
+    "outbound_payload_digest": {
+      "hash_alg": "sha256",
+      "hash": "3737373737373737373737373737373737373737373737373737373737373737"
+    },
+    "outcome": "invalid",
+    "proof_schema_id": "runecode.protocol.audit.anchor_proof.timestamp_token.v0",
+    "proof_kind": "timestamp_token_v0",
+    "receipt_target_descriptor_digest": {
+      "hash_alg": "sha256",
+      "hash": "1616161616161616161616161616161616161616161616161616161616161616"
+    },
+    "receipt_proof_digest": {
+      "hash_alg": "sha256",
+      "hash": "4848484848484848484848484848484848484848484848484848484848484848"
+    },
+    "sidecar_refs": [
+      {
+        "evidence_kind": "proof_bytes",
+        "digest": {
+          "hash_alg": "sha256",
+          "hash": "4949494949494949494949494949494949494949494949494949494949494949"
+        }
+      },
+      {
+        "evidence_kind": "verification_transcript",
+        "digest": {
+          "hash_alg": "sha256",
+          "hash": "6969696969696969696969696969696969696969696969696969696969696969"
+        }
+      }
+    ]
+  },
+  "signature_input": "rfc8785_jcs_detached_payload",
+  "signature": {
+    "alg": "ed25519",
+    "key_id": "key_sha256",
+    "key_id_value": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+    "signature": "c2ln"
+  }
+}

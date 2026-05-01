@@ -15,20 +15,31 @@ type executorRunPayload struct {
 }
 
 type gatewayEgressPayload struct {
-	SchemaID          string               `json:"schema_id"`
-	SchemaVersion     string               `json:"schema_version"`
-	GatewayRoleKind   string               `json:"gateway_role_kind"`
-	DestinationKind   string               `json:"destination_kind"`
-	DestinationRef    string               `json:"destination_ref"`
-	EgressDataClass   string               `json:"egress_data_class"`
-	Operation         string               `json:"operation"`
-	TimeoutSeconds    *int                 `json:"timeout_seconds,omitempty"`
-	PayloadHash       *trustpolicy.Digest  `json:"payload_hash,omitempty"`
-	AuditContext      *gatewayAuditContext `json:"audit_context,omitempty"`
-	QuotaContext      *gatewayQuotaContext `json:"quota_context,omitempty"`
-	DependencyRequest map[string]any       `json:"dependency_request,omitempty"`
-	GitRequest        map[string]any       `json:"git_request,omitempty"`
-	GitRuntimeProof   *gitRuntimeProof     `json:"git_runtime_proof,omitempty"`
+	SchemaID              string               `json:"schema_id"`
+	SchemaVersion         string               `json:"schema_version"`
+	GatewayRoleKind       string               `json:"gateway_role_kind"`
+	DestinationKind       string               `json:"destination_kind"`
+	DestinationRef        string               `json:"destination_ref"`
+	EgressDataClass       string               `json:"egress_data_class"`
+	Operation             string               `json:"operation"`
+	TimeoutSeconds        *int                 `json:"timeout_seconds,omitempty"`
+	PayloadHash           *trustpolicy.Digest  `json:"payload_hash,omitempty"`
+	AuditContext          *gatewayAuditContext `json:"audit_context,omitempty"`
+	QuotaContext          *gatewayQuotaContext `json:"quota_context,omitempty"`
+	DependencyRequest     map[string]any       `json:"dependency_request,omitempty"`
+	GitRequest            map[string]any       `json:"git_request,omitempty"`
+	ExternalAnchorRequest map[string]any       `json:"external_anchor_request,omitempty"`
+	GitRuntimeProof       *gitRuntimeProof     `json:"git_runtime_proof,omitempty"`
+}
+
+type externalAnchorSubmitRequest struct {
+	SchemaID               string             `json:"schema_id"`
+	SchemaVersion          string             `json:"schema_version"`
+	RequestKind            string             `json:"request_kind"`
+	TargetKind             string             `json:"target_kind"`
+	TargetDescriptorDigest trustpolicy.Digest `json:"target_descriptor_digest"`
+	SealDigest             trustpolicy.Digest `json:"seal_digest"`
+	OutboundPayloadDigest  trustpolicy.Digest `json:"outbound_payload_digest"`
 }
 
 type gitRefUpdateRequest struct {

@@ -8,35 +8,37 @@ import (
 )
 
 type StoreState struct {
-	Artifacts                    map[string]ArtifactRecord                                       `json:"artifacts"`
-	Sessions                     map[string]SessionDurableState                                  `json:"sessions,omitempty"`
-	PolicyDecisions              map[string]PolicyDecisionRecord                                 `json:"policy_decisions,omitempty"`
-	RunPolicyDecisionRefs        map[string][]string                                             `json:"run_policy_decision_refs,omitempty"`
-	Approvals                    map[string]ApprovalRecord                                       `json:"approvals,omitempty"`
-	RunApprovalRefs              map[string][]string                                             `json:"run_approval_refs,omitempty"`
-	GitRemotePrepared            map[string]GitRemotePreparedMutationRecord                      `json:"git_remote_prepared,omitempty"`
-	RunGitRemotePreparedRefs     map[string][]string                                             `json:"run_git_remote_prepared_refs,omitempty"`
-	RuntimeFactsByRun            map[string]launcherbackend.RuntimeFactsSnapshot                 `json:"runtime_facts_by_run,omitempty"`
-	RuntimeEvidenceByRun         map[string]launcherbackend.RuntimeEvidenceSnapshot              `json:"runtime_evidence_by_run,omitempty"`
-	AttestationVerificationCache map[string]launcherbackend.IsolateAttestationVerificationRecord `json:"attestation_verification_cache,omitempty"`
-	RuntimeLifecycleByRun        map[string]launcherbackend.RuntimeLifecycleState                `json:"runtime_lifecycle_by_run,omitempty"`
-	RuntimeAuditStateByRun       map[string]RuntimeAuditEmissionState                            `json:"runtime_audit_state_by_run,omitempty"`
-	RunnerAdvisoryByRun          map[string]RunnerAdvisoryState                                  `json:"runner_advisory_by_run,omitempty"`
-	DependencyCacheBatches       map[string]DependencyCacheBatchRecord                           `json:"dependency_cache_batches,omitempty"`
-	DependencyCacheUnits         map[string]DependencyCacheResolvedUnitRecord                    `json:"dependency_cache_units,omitempty"`
-	DependencyCacheByRequest     map[string][]string                                             `json:"dependency_cache_by_request,omitempty"`
-	ProviderProfiles             map[string]ProviderProfileDurableState                          `json:"provider_profiles,omitempty"`
-	ProviderSetupSessions        map[string]ProviderSetupSessionDurableState                     `json:"provider_setup_sessions,omitempty"`
-	RunPlanAuthorities           map[string]RunPlanAuthorityRecord                               `json:"run_plan_authorities,omitempty"`
-	RunPlanRefsByRun             map[string][]string                                             `json:"run_plan_refs_by_run,omitempty"`
-	RunPlanCompilations          map[string]RunPlanCompilationRecord                             `json:"run_plan_compilations,omitempty"`
-	RunPlanCompilationByCacheKey map[string]string                                               `json:"run_plan_compilation_by_cache_key,omitempty"`
-	Policy                       Policy                                                          `json:"policy"`
-	Runs                         map[string]string                                               `json:"runs"`
-	PromotionEventsByActor       map[string][]time.Time                                          `json:"promotion_events_by_actor"`
-	LastAuditSequence            int64                                                           `json:"last_audit_sequence"`
-	StorageProtectionPosture     string                                                          `json:"storage_protection_posture"`
-	BackupHMACKey                string                                                          `json:"backup_hmac_key"`
+	Artifacts                     map[string]ArtifactRecord                                       `json:"artifacts"`
+	Sessions                      map[string]SessionDurableState                                  `json:"sessions,omitempty"`
+	PolicyDecisions               map[string]PolicyDecisionRecord                                 `json:"policy_decisions,omitempty"`
+	RunPolicyDecisionRefs         map[string][]string                                             `json:"run_policy_decision_refs,omitempty"`
+	Approvals                     map[string]ApprovalRecord                                       `json:"approvals,omitempty"`
+	RunApprovalRefs               map[string][]string                                             `json:"run_approval_refs,omitempty"`
+	GitRemotePrepared             map[string]GitRemotePreparedMutationRecord                      `json:"git_remote_prepared,omitempty"`
+	RunGitRemotePreparedRefs      map[string][]string                                             `json:"run_git_remote_prepared_refs,omitempty"`
+	ExternalAnchorPrepared        map[string]ExternalAnchorPreparedMutationRecord                 `json:"external_anchor_prepared,omitempty"`
+	RunExternalAnchorPreparedRefs map[string][]string                                             `json:"run_external_anchor_prepared_refs,omitempty"`
+	RuntimeFactsByRun             map[string]launcherbackend.RuntimeFactsSnapshot                 `json:"runtime_facts_by_run,omitempty"`
+	RuntimeEvidenceByRun          map[string]launcherbackend.RuntimeEvidenceSnapshot              `json:"runtime_evidence_by_run,omitempty"`
+	AttestationVerificationCache  map[string]launcherbackend.IsolateAttestationVerificationRecord `json:"attestation_verification_cache,omitempty"`
+	RuntimeLifecycleByRun         map[string]launcherbackend.RuntimeLifecycleState                `json:"runtime_lifecycle_by_run,omitempty"`
+	RuntimeAuditStateByRun        map[string]RuntimeAuditEmissionState                            `json:"runtime_audit_state_by_run,omitempty"`
+	RunnerAdvisoryByRun           map[string]RunnerAdvisoryState                                  `json:"runner_advisory_by_run,omitempty"`
+	DependencyCacheBatches        map[string]DependencyCacheBatchRecord                           `json:"dependency_cache_batches,omitempty"`
+	DependencyCacheUnits          map[string]DependencyCacheResolvedUnitRecord                    `json:"dependency_cache_units,omitempty"`
+	DependencyCacheByRequest      map[string][]string                                             `json:"dependency_cache_by_request,omitempty"`
+	ProviderProfiles              map[string]ProviderProfileDurableState                          `json:"provider_profiles,omitempty"`
+	ProviderSetupSessions         map[string]ProviderSetupSessionDurableState                     `json:"provider_setup_sessions,omitempty"`
+	RunPlanAuthorities            map[string]RunPlanAuthorityRecord                               `json:"run_plan_authorities,omitempty"`
+	RunPlanRefsByRun              map[string][]string                                             `json:"run_plan_refs_by_run,omitempty"`
+	RunPlanCompilations           map[string]RunPlanCompilationRecord                             `json:"run_plan_compilations,omitempty"`
+	RunPlanCompilationByCacheKey  map[string]string                                               `json:"run_plan_compilation_by_cache_key,omitempty"`
+	Policy                        Policy                                                          `json:"policy"`
+	Runs                          map[string]string                                               `json:"runs"`
+	PromotionEventsByActor        map[string][]time.Time                                          `json:"promotion_events_by_actor"`
+	LastAuditSequence             int64                                                           `json:"last_audit_sequence"`
+	StorageProtectionPosture      string                                                          `json:"storage_protection_posture"`
+	BackupHMACKey                 string                                                          `json:"backup_hmac_key"`
 }
 
 type ApprovalRecord struct {
@@ -121,6 +123,48 @@ type GitRemotePreparedMutationRecord struct {
 	LastExecuteApprovalDecID string         `json:"last_execute_approval_decision_hash,omitempty"`
 }
 
+type ExternalAnchorPreparedMutationRecord struct {
+	PreparedMutationID           string         `json:"prepared_mutation_id"`
+	RunID                        string         `json:"run_id"`
+	DestinationRef               string         `json:"destination_ref"`
+	RequestKind                  string         `json:"request_kind"`
+	TypedRequestSchemaID         string         `json:"typed_request_schema_id"`
+	TypedRequestSchemaVer        string         `json:"typed_request_schema_version"`
+	TypedRequest                 map[string]any `json:"typed_request"`
+	TypedRequestHash             string         `json:"typed_request_hash"`
+	ActionRequestHash            string         `json:"action_request_hash"`
+	PolicyDecisionHash           string         `json:"policy_decision_hash"`
+	RequiredApprovalID           string         `json:"required_approval_id,omitempty"`
+	RequiredApprovalReqHash      string         `json:"required_approval_request_hash,omitempty"`
+	RequiredApprovalDecHash      string         `json:"required_approval_decision_hash,omitempty"`
+	LifecycleState               string         `json:"lifecycle_state"`
+	LifecycleReasonCode          string         `json:"lifecycle_reason_code,omitempty"`
+	ExecutionState               string         `json:"execution_state,omitempty"`
+	ExecutionReasonCode          string         `json:"execution_reason_code,omitempty"`
+	CreatedAt                    time.Time      `json:"created_at"`
+	UpdatedAt                    time.Time      `json:"updated_at"`
+	LastPrepareRequestID         string         `json:"last_prepare_request_id,omitempty"`
+	LastGetRequestID             string         `json:"last_get_request_id,omitempty"`
+	LastExecuteRequestID         string         `json:"last_execute_request_id,omitempty"`
+	LastExecuteTargetAuthLeaseID string         `json:"last_execute_target_auth_lease_id,omitempty"`
+	LastExecuteAttemptID         string         `json:"last_execute_attempt_id,omitempty"`
+	LastExecuteAttemptSealDigest string         `json:"last_execute_attempt_seal_digest,omitempty"`
+	LastExecuteAttemptTargetID   string         `json:"last_execute_attempt_target_descriptor_digest,omitempty"`
+	LastExecuteAttemptRequestID  string         `json:"last_execute_attempt_typed_request_hash,omitempty"`
+	LastExecuteSnapshotSegmentID string         `json:"last_execute_snapshot_segment_id,omitempty"`
+	LastExecuteSnapshotSealID    string         `json:"last_execute_snapshot_seal_digest,omitempty"`
+	LastExecuteDeferredPolls     int            `json:"last_execute_deferred_polls_remaining,omitempty"`
+	LastExecuteApprovalID        string         `json:"last_execute_approval_id,omitempty"`
+	LastExecuteApprovalReqID     string         `json:"last_execute_approval_request_hash,omitempty"`
+	LastExecuteApprovalDecID     string         `json:"last_execute_approval_decision_hash,omitempty"`
+	LastAnchorReceiptDigest      string         `json:"last_anchor_receipt_digest,omitempty"`
+	LastAnchorEvidenceDigest     string         `json:"last_anchor_evidence_digest,omitempty"`
+	LastAnchorVerificationDigest string         `json:"last_anchor_verification_digest,omitempty"`
+	LastAnchorProofDigest        string         `json:"last_anchor_proof_digest,omitempty"`
+	LastAnchorProviderReceipt    string         `json:"last_anchor_provider_receipt_digest,omitempty"`
+	LastAnchorTranscriptDigest   string         `json:"last_anchor_transcript_digest,omitempty"`
+}
+
 type PromotionRequest struct {
 	UnapprovedDigest      string
 	Approver              string
@@ -147,6 +191,7 @@ type BackupManifest struct {
 	PolicyDecisions              []PolicyDecisionRecord                                          `json:"policy_decisions,omitempty"`
 	Approvals                    []ApprovalRecord                                                `json:"approvals,omitempty"`
 	GitRemotePrepared            []GitRemotePreparedMutationRecord                               `json:"git_remote_prepared,omitempty"`
+	ExternalAnchorPrepared       []ExternalAnchorPreparedMutationRecord                          `json:"external_anchor_prepared,omitempty"`
 	RuntimeFactsByRun            map[string]launcherbackend.RuntimeFactsSnapshot                 `json:"runtime_facts_by_run,omitempty"`
 	RuntimeEvidenceByRun         map[string]launcherbackend.RuntimeEvidenceSnapshot              `json:"runtime_evidence_by_run,omitempty"`
 	AttestationVerificationCache map[string]launcherbackend.IsolateAttestationVerificationRecord `json:"attestation_verification_cache,omitempty"`

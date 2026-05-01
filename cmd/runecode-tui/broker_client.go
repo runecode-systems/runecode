@@ -66,6 +66,9 @@ type localBrokerClient interface {
 	GitRemoteMutationGet(ctx context.Context, req brokerapi.GitRemoteMutationGetRequest) (brokerapi.GitRemoteMutationGetResponse, error)
 	GitRemoteMutationIssueExecuteLease(ctx context.Context, req brokerapi.GitRemoteMutationIssueExecuteLeaseRequest) (brokerapi.GitRemoteMutationIssueExecuteLeaseResponse, error)
 	GitRemoteMutationExecute(ctx context.Context, req brokerapi.GitRemoteMutationExecuteRequest) (brokerapi.GitRemoteMutationExecuteResponse, error)
+	ExternalAnchorMutationPrepare(ctx context.Context, req brokerapi.ExternalAnchorMutationPrepareRequest) (brokerapi.ExternalAnchorMutationPrepareResponse, error)
+	ExternalAnchorMutationGet(ctx context.Context, req brokerapi.ExternalAnchorMutationGetRequest) (brokerapi.ExternalAnchorMutationGetResponse, error)
+	ExternalAnchorMutationExecute(ctx context.Context, req brokerapi.ExternalAnchorMutationExecuteRequest) (brokerapi.ExternalAnchorMutationExecuteResponse, error)
 	ProjectSubstratePostureGet(ctx context.Context) (brokerapi.ProjectSubstratePostureGetResponse, error)
 	ProjectSubstrateAdopt(ctx context.Context) (brokerapi.ProjectSubstrateAdoptResponse, error)
 	ProjectSubstrateInitPreview(ctx context.Context) (brokerapi.ProjectSubstrateInitPreviewResponse, error)
@@ -333,6 +336,30 @@ func (c *rpcBrokerClient) GitRemoteMutationExecute(ctx context.Context, req brok
 	req.RequestID = newRequestID("git-remote-mutation-execute")
 	resp := brokerapi.GitRemoteMutationExecuteResponse{}
 	return resp, c.invoke(ctx, "git_remote_mutation_execute", req, &resp)
+}
+
+func (c *rpcBrokerClient) ExternalAnchorMutationPrepare(ctx context.Context, req brokerapi.ExternalAnchorMutationPrepareRequest) (brokerapi.ExternalAnchorMutationPrepareResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.ExternalAnchorMutationPrepareRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("external-anchor-mutation-prepare")
+	resp := brokerapi.ExternalAnchorMutationPrepareResponse{}
+	return resp, c.invoke(ctx, "external_anchor_mutation_prepare", req, &resp)
+}
+
+func (c *rpcBrokerClient) ExternalAnchorMutationGet(ctx context.Context, req brokerapi.ExternalAnchorMutationGetRequest) (brokerapi.ExternalAnchorMutationGetResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.ExternalAnchorMutationGetRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("external-anchor-mutation-get")
+	resp := brokerapi.ExternalAnchorMutationGetResponse{}
+	return resp, c.invoke(ctx, "external_anchor_mutation_get", req, &resp)
+}
+
+func (c *rpcBrokerClient) ExternalAnchorMutationExecute(ctx context.Context, req brokerapi.ExternalAnchorMutationExecuteRequest) (brokerapi.ExternalAnchorMutationExecuteResponse, error) {
+	req.SchemaID = "runecode.protocol.v0.ExternalAnchorMutationExecuteRequest"
+	req.SchemaVersion = localAPISchemaVersion
+	req.RequestID = newRequestID("external-anchor-mutation-execute")
+	resp := brokerapi.ExternalAnchorMutationExecuteResponse{}
+	return resp, c.invoke(ctx, "external_anchor_mutation_execute", req, &resp)
 }
 
 func (c *rpcBrokerClient) ProjectSubstratePostureGet(ctx context.Context) (brokerapi.ProjectSubstratePostureGetResponse, error) {
