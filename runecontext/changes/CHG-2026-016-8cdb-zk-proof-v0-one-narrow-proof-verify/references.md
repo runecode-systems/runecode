@@ -8,10 +8,13 @@
 
 - `runecontext/changes/CHG-2026-003-b567-audit-log-v0-verify/`
 - `runecontext/changes/CHG-2026-004-acdb-artifact-store-data-classes-v0/`
+- `runecontext/changes/CHG-2026-006-84f0-audit-anchoring-v0/`
 - `runecontext/changes/CHG-2026-025-5679-external-audit-anchoring-v0/`
 - `runecontext/changes/CHG-2026-030-98b8-isolate-attestation-v0/`
 - `runecontext/changes/CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0/`
 - `runecontext/changes/CHG-2026-053-9d2b-performance-baselines-verification-gates-v0/`
+- `runecontext/standards/security/trusted-runtime-evidence-and-broker-projection.md`
+- `runecontext/standards/security/audit-verification-scope-and-evidence-binding.md`
 
 ## Similar Implementations
 

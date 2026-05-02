@@ -1,12 +1,11 @@
 ## Applicable Standards
-- `runecontext/standards/product/roadmap-conventions.md`
-- `docs/trust-boundaries.md`
-- `runecontext/standards/global/project-substrate-contract-and-lifecycle.md`
-- `runecontext/standards/security/trust-boundary-layered-enforcement.md`
-- `runecontext/standards/security/policy-evaluation-foundations.md`
-- `runecontext/standards/security/trusted-local-artifact-persistence.md`
-- `runecontext/standards/security/audit-anchoring-receipt-and-verification.md`
-- `runecontext/standards/security/audit-verification-scope-and-evidence-binding.md`
+- `standards/product/roadmap-conventions.md`
+- `standards/global/project-substrate-contract-and-lifecycle.md`
+- `standards/security/trust-boundary-layered-enforcement.md`
+- `standards/security/policy-evaluation-foundations.md`
+- `standards/security/trusted-local-artifact-persistence.md`
+- `standards/security/audit-anchoring-receipt-and-verification.md`
+- `standards/security/audit-verification-scope-and-evidence-binding.md`
 
 ## Resolution Notes
 Migrated from the legacy spec standards list and refreshed to canonical RuneContext standard paths.

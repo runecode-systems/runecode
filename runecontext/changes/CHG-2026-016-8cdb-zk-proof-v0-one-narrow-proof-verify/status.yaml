@@ -3,7 +3,7 @@ id: CHG-2026-016-8cdb-zk-proof-v0-one-narrow-proof-verify
 title: ZK Proof v0 (One Narrow Proof + Verify)
 status: planned
 type: feature
-size: medium
+size: large
 verification_status: pending
 context_bundles:
   - product-planning
