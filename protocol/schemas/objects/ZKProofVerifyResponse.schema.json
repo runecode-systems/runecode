@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ZKProofVerifyResponse.schema.json",
+  "title": "ZKProofVerifyResponse",
+  "description": "Trusted response for explicit ZK proof verification with deterministic outcome, stable reason codes, and evaluation/check-in gate metadata.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 12,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "request_id",
+    "zk_proof_artifact_digest",
+    "zk_proof_verification_record_digest",
+    "verification_outcome",
+    "reason_codes",
+    "cache_provenance",
+    "evaluation_gate",
+    "user_check_in_required",
+    "check_in_note"
+  ],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ZKProofVerifyResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable echoed request identifier.", "x-data-class": "public" },
+    "zk_proof_artifact_digest": { "$ref": "Digest.schema.json#/$defs/digestValue", "description": "Proof artifact digest that was verified.", "x-data-class": "public" },
+    "zk_proof_verification_record_digest": { "$ref": "Digest.schema.json#/$defs/digestValue", "description": "Persisted verification record digest for this decision.", "x-data-class": "public" },
+    "verification_outcome": { "type": "string", "enum": ["verified", "rejected"], "description": "Verification outcome.", "x-data-class": "public" },
+    "reason_codes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "description": "Stable proof verification reason codes.",
+      "x-data-class": "public",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "description": "One proof verification reason code."
+      },
+      "uniqueItems": true
+    },
+    "cache_provenance": { "type": "string", "enum": ["fresh", "cache_hit"], "description": "Verification cache provenance.", "x-data-class": "public" },
+    "evaluation_gate": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z0-9._:-]+$", "description": "Evaluation gate state after first narrow proof verification.", "x-data-class": "public" },
+    "user_check_in_required": { "type": "boolean", "description": "Indicates explicit user check-in gate is required before broadening proof scope.", "x-data-class": "public" },
+    "check_in_note": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Human-facing check-in guidance carried in machine output.", "x-data-class": "public" }
+  }
+}

@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditProofBinding.schema.json",
+  "title": "AuditProofBinding",
+  "description": "Protocol-owned additive derived evidence sidecar binding one proof-family statement projection to authoritative audit record and seal identities. This object is not the proof artifact itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 18,
+  "$defs": {
+    "projectedPublicBindings": {
+      "description": "Projected public binding fields used by the selected statement family.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 6,
+      "required": [
+        "runtime_image_descriptor_digest",
+        "attestation_evidence_digest",
+        "applied_hardening_posture_digest",
+        "session_binding_digest"
+      ],
+      "properties": {
+        "runtime_image_descriptor_digest": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "description": "Digest identity for the signed runtime-image descriptor bound into this proof statement.",
+          "x-data-class": "public"
+        },
+        "attestation_evidence_digest": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "description": "Digest identity for attestation evidence bound into this proof statement.",
+          "x-data-class": "public"
+        },
+        "applied_hardening_posture_digest": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "description": "Digest identity for the applied runtime hardening posture bound into this proof statement.",
+          "x-data-class": "public"
+        },
+        "session_binding_digest": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "description": "Digest identity for the source audited session binding.",
+          "x-data-class": "public"
+        },
+        "project_substrate_snapshot_digest": {
+          "type": "string",
+          "minLength": 71,
+          "maxLength": 71,
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "description": "Optional validated project-substrate snapshot identity when the statement family requires verified project context.",
+          "x-data-class": "public"
+        },
+        "attestation_verification_record_digest": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Optional digest for a trusted attestation verification record identity used by the statement family.",
+          "x-data-class": "public"
+        }
+      }
+    },
+    "merkleAuthenticationPathStep": {
+      "description": "One ordered Merkle authentication step from leaf toward root.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 2,
+      "required": [
+        "sibling_digest",
+        "sibling_position"
+      ],
+      "properties": {
+        "sibling_digest": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Digest of the sibling node used for this path step.",
+          "x-data-class": "public"
+        },
+        "sibling_position": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right",
+            "duplicate"
+          ],
+          "description": "Sibling branch direction semantics for this path step, including odd-leaf duplication.",
+          "x-data-class": "public"
+        }
+      }
+    }
+  },
+  "required": [
+    "schema_id",
+    "schema_version",
+    "statement_family",
+    "statement_version",
+    "normalization_profile_id",
+    "scheme_adapter_id",
+    "audit_record_digest",
+    "audit_segment_seal_digest",
+    "merkle_root",
+    "protocol_bundle_manifest_hash",
+    "binding_commitment",
+    "projected_public_bindings",
+    "merkle_path_version",
+    "merkle_authentication_path",
+    "merkle_path_depth",
+    "leaf_index"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.AuditProofBinding",
+      "description": "Stable protocol object-family identifier for audit proof-binding sidecars.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this proof-binding sidecar.",
+      "x-data-class": "public"
+    },
+    "statement_family": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "description": "Machine-consumed statement-family identifier from the statement_family registry.",
+      "x-data-class": "public"
+    },
+    "statement_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "Version identifier for the statement-family contract.",
+      "x-data-class": "public"
+    },
+    "normalization_profile_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 192,
+      "description": "Logical normalization profile identifier from the normalization_profile_id registry.",
+      "x-data-class": "public"
+    },
+    "scheme_adapter_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 192,
+      "description": "Scheme-adapter identifier from the scheme_adapter_id registry.",
+      "x-data-class": "public"
+    },
+    "audit_record_digest": {
+      "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+      "description": "Digest identity of the source signed audit record for this proof-binding sidecar.",
+      "x-data-class": "public"
+    },
+    "audit_segment_seal_digest": {
+      "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+      "description": "Digest identity of the signed AuditSegmentSeal envelope anchoring the source record.",
+      "x-data-class": "public"
+    },
+    "merkle_root": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Authoritative segment Merkle root for the referenced seal.",
+      "x-data-class": "public"
+    },
+    "protocol_bundle_manifest_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Protocol bundle manifest hash from the verified source audit event context.",
+      "x-data-class": "public"
+    },
+    "binding_commitment": {
+      "type": "string",
+      "minLength": 71,
+      "maxLength": 71,
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "description": "Proof-time derived commitment over normalized private witness fields under the selected adapter profile.",
+      "x-data-class": "public"
+    },
+    "projected_public_bindings": {
+      "$ref": "#/$defs/projectedPublicBindings",
+      "description": "Projected statement-family public bindings carried in this sidecar.",
+      "x-data-class": "public"
+    },
+    "merkle_path_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Version tag for Merkle authentication-path encoding semantics.",
+      "x-data-class": "public"
+    },
+    "merkle_authentication_path": {
+      "type": "array",
+      "maxItems": 12,
+      "description": "Ordered authentication path from source audit record to authoritative Merkle root.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "#/$defs/merkleAuthenticationPathStep",
+        "description": "One Merkle authentication path step."
+      }
+    },
+    "merkle_path_depth": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 12,
+      "description": "Merkle authentication path depth for bounded witness verification.",
+      "x-data-class": "public"
+    },
+    "leaf_index": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4095,
+      "description": "Leaf index inside the authoritative ordered segment tree used for branch-direction replay.",
+      "x-data-class": "public"
+    },
+    "source_refs": {
+      "type": "array",
+      "maxItems": 16,
+      "description": "Optional additional typed source references required by this statement family.",
+      "x-data-class": "public",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "maxProperties": 3,
+        "required": [
+          "source_family",
+          "source_digest",
+          "source_role"
+        ],
+        "properties": {
+          "source_family": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Typed source family label for this reference.",
+            "x-data-class": "public"
+          },
+          "source_digest": {
+            "$ref": "Digest.schema.json#/$defs/digestValue",
+            "description": "Digest identity for the referenced source object.",
+            "x-data-class": "public"
+          },
+          "source_role": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Typed source-reference role used by this statement family.",
+            "x-data-class": "public"
+          }
+        }
+      },
+      "uniqueItems": true
+    }
+  }
+}

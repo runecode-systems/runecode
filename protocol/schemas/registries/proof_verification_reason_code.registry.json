@@ -1,0 +1,33 @@
+{
+  "registry_name": "proof_verification_reason_code",
+  "namespace": "runecode.protocol.zk.verification.reason",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Stable machine-consumed reason codes for deterministic trusted proof verification outcomes.",
+  "codes": [
+    {
+      "code": "verified",
+      "summary": "Proof verification completed successfully under trusted verifier posture and setup identity checks."
+    },
+    {
+      "code": "proof_invalid",
+      "summary": "Proof bytes failed deterministic cryptographic verification for the declared public inputs and setup posture."
+    },
+    {
+      "code": "setup_identity_mismatch",
+      "summary": "Proof-declared setup identity differs from trusted verifier posture and must fail closed."
+    },
+    {
+      "code": "unsupported_profile",
+      "summary": "Proof references unsupported statement, normalization, scheme-adapter, or circuit profile contracts."
+    },
+    {
+      "code": "invalid_public_inputs_digest",
+      "summary": "Proof public-input digest identity is malformed or mismatched against canonicalized public-input payload."
+    },
+    {
+      "code": "unconfigured_backend",
+      "summary": "No trusted proof backend implementation is configured for verification."
+    }
+  ]
+}

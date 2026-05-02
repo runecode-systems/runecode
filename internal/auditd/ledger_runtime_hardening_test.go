@@ -59,7 +59,12 @@ func ledgerLayoutPaths(root string) []string {
 		filepath.Join(root, sidecarDirName),
 		filepath.Join(root, sidecarDirName, sealsDirName),
 		filepath.Join(root, sidecarDirName, receiptsDirName),
+		filepath.Join(root, sidecarDirName, externalAnchorEvidenceDir),
+		filepath.Join(root, sidecarDirName, externalAnchorSidecarsDir),
 		filepath.Join(root, sidecarDirName, verificationReportsDirName),
+		filepath.Join(root, sidecarDirName, proofBindingsDirName),
+		filepath.Join(root, sidecarDirName, proofArtifactsDirName),
+		filepath.Join(root, sidecarDirName, proofVerificationsDirName),
 		filepath.Join(root, indexDirName),
 	}
 }

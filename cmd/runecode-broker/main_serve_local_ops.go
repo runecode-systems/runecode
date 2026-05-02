@@ -243,6 +243,14 @@ func artifactRPCOperations(service *brokerapi.Service, ctx context.Context, meta
 }
 
 func auditHealthRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
+	operations := map[string]rpcOperation{}
+	mergeRPCOperations(operations, auditCoreRPCOperations(service, ctx, meta))
+	mergeRPCOperations(operations, zkProofRPCOperations(service, ctx, meta))
+	mergeRPCOperations(operations, healthStatusRPCOperations(service, ctx, meta))
+	return operations
+}
+
+func auditCoreRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
 	return map[string]rpcOperation{
 		"audit_timeline": {requestSchemaPath: "objects/AuditTimelineRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.AuditTimelineRequest) (any, *brokerapi.ErrorResponse) {
@@ -279,6 +287,26 @@ func auditHealthRPCOperations(service *brokerapi.Service, ctx context.Context, m
 				return service.HandleAuditAnchorSegment(ctx, req, meta)
 			})
 		}},
+	}
+}
+
+func zkProofRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
+	return map[string]rpcOperation{
+		"zk_proof_generate": {requestSchemaPath: "objects/ZKProofGenerateRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ZKProofGenerateRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleZKProofGenerate(ctx, req, meta)
+			})
+		}},
+		"zk_proof_verify": {requestSchemaPath: "objects/ZKProofVerifyRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
+			return decodeAndHandle(raw, func(req brokerapi.ZKProofVerifyRequest) (any, *brokerapi.ErrorResponse) {
+				return service.HandleZKProofVerify(ctx, req, meta)
+			})
+		}},
+	}
+}
+
+func healthStatusRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
+	return map[string]rpcOperation{
 		"readiness_get": {requestSchemaPath: "objects/ReadinessGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
 			return decodeAndHandle(raw, func(req brokerapi.ReadinessGetRequest) (any, *brokerapi.ErrorResponse) {
 				return service.HandleReadinessGet(ctx, req, meta)

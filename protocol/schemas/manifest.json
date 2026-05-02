@@ -1759,6 +1759,55 @@
       "status": "mvp"
     },
     {
+      "path": "objects/AuditProofBinding.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditProofBinding",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ZKProofArtifact.schema.json",
+      "schema_id": "runecode.protocol.v0.ZKProofArtifact",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ZKProofVerificationRecord.schema.json",
+      "schema_id": "runecode.protocol.v0.ZKProofVerificationRecord",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ZKProofGenerateRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ZKProofGenerateRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ZKProofGenerateResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ZKProofGenerateResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ZKProofVerifyRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.ZKProofVerifyRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/ZKProofVerifyResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.ZKProofVerifyResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/RunPlan.schema.json",
       "schema_id": "runecode.protocol.v0.RunPlan",
       "schema_version": "0.4.0",
@@ -1813,6 +1862,41 @@
       "path": "registries/audit_verification_reason_code.registry.json",
       "name": "audit_verification_reason_code",
       "namespace": "runecode.protocol.audit.verification.reason",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "registries/statement_family.registry.json",
+      "name": "statement_family",
+      "namespace": "runecode.protocol.zk.statement_family",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "registries/normalization_profile_id.registry.json",
+      "name": "normalization_profile_id",
+      "namespace": "runecode.protocol.zk.normalization_profile",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "registries/scheme_adapter_id.registry.json",
+      "name": "scheme_adapter_id",
+      "namespace": "runecode.protocol.zk.scheme_adapter",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "registries/circuit_id.registry.json",
+      "name": "circuit_id",
+      "namespace": "runecode.protocol.zk.circuit",
+      "documentation_owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "registries/proof_verification_reason_code.registry.json",
+      "name": "proof_verification_reason_code",
+      "namespace": "runecode.protocol.zk.verification.reason",
       "documentation_owner": "protocol",
       "status": "mvp"
     },

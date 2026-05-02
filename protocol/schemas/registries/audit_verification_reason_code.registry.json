@@ -90,6 +90,18 @@
       "summary": "Anchor receipt used passphrase presence posture, which remains explicitly allowed but degraded versus os_confirmation/hardware_touch."
     },
     {
+      "code": "external_anchor_valid",
+      "summary": "External anchor evidence and required sidecars verified for the current scope target bindings."
+    },
+    {
+      "code": "external_anchor_deferred_or_unavailable",
+      "summary": "External anchoring was deferred or unavailable for at least one target while preserving deterministic degraded posture semantics."
+    },
+    {
+      "code": "external_anchor_invalid",
+      "summary": "External anchor evidence, sidecar bindings, or target identity semantics are invalid and require fail-closed posture."
+    },
+    {
       "code": "segment_lifecycle_inconsistent",
       "summary": "Segment lifecycle posture is inconsistent with segment header, lifecycle marker, seal state, or receipts."
     },

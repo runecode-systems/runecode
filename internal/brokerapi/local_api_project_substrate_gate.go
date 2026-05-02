@@ -51,6 +51,8 @@ func isProjectSubstrateInspectSchema(schemaPath string) bool {
 	switch schemaPath {
 	case readinessGetRequestSchemaPath,
 		versionInfoGetRequestSchemaPath,
+		zkProofGenerateRequestSchemaPath,
+		zkProofVerifyRequestSchemaPath,
 		runListRequestSchemaPath,
 		runGetRequestSchemaPath,
 		approvalListRequestSchemaPath,

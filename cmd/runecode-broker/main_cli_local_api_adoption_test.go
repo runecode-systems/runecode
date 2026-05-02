@@ -588,7 +588,7 @@ func TestCLIAdoptionRoutesArtifactAuditAndResolveThroughLocalRPC(t *testing.T) {
 	installArtifactAuditResolveDispatchStub(t, &requestedOps)
 	runArtifactAuditResolveCommands(t, stdout, stderr)
 
-	want := []string{"artifact_list", "artifact_head", "artifact_read", "approval_get", "approval_resolve", "readiness_get", "audit_verification_get", "audit_finalize_verify", "audit_record_get", "audit_anchor_preflight_get", "audit_anchor_presence_get", "audit_anchor_segment"}
+	want := []string{"artifact_list", "artifact_head", "artifact_read", "approval_get", "approval_resolve", "readiness_get", "audit_verification_get", "audit_finalize_verify", "audit_record_get", "audit_anchor_preflight_get", "audit_anchor_presence_get", "audit_anchor_segment", "zk_proof_generate", "zk_proof_verify"}
 	assertRequestedOps(t, requestedOps, want)
 }
 
@@ -623,6 +623,11 @@ func artifactAuditResolveStaticResponse(t *testing.T, operation string) (localRP
 	case "audit_finalize_verify":
 		report := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("e", 64)}
 		return mustOKLocalRPCResponse(t, brokerapi.AuditFinalizeVerifyResponse{SchemaID: "runecode.protocol.v0.AuditFinalizeVerifyResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-finalize", ActionStatus: "ok", SegmentID: "segment-000001", ReportDigest: &report}), true
+	case "zk_proof_generate":
+		verification := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("9", 64)}
+		return mustOKLocalRPCResponse(t, brokerapi.ZKProofGenerateResponse{SchemaID: "runecode.protocol.v0.ZKProofGenerateResponse", SchemaVersion: "0.1.0", RequestID: "req-zk-generate", StatementFamily: "audit.isolate_session_bound.attested_runtime_membership.v0", StatementVersion: "v0", NormalizationProfileID: "runecode.zk.normalize.audit.isolate_session_bound.attested_runtime.v0", SchemeAdapterID: "runecode.zk.adapter.gnark.groth16.isolate_session_bound_attested_runtime.v0", RecordDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}, AuditProofBindingDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)}, ZKProofArtifactDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("c", 64)}, ZKProofVerificationDigest: &verification, EvaluationGate: "first_narrow_proof_family_ready_for_check_in", UserCheckInRequired: true, CheckInNote: "first narrow proof family evaluated; review persisted evaluation details before expanding proof scope"}), true
+	case "zk_proof_verify":
+		return mustOKLocalRPCResponse(t, brokerapi.ZKProofVerifyResponse{SchemaID: "runecode.protocol.v0.ZKProofVerifyResponse", SchemaVersion: "0.1.0", RequestID: "req-zk-verify", ZKProofArtifactDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("c", 64)}, ZKProofVerificationRecordDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("d", 64)}, VerificationOutcome: "verified", ReasonCodes: []string{"verified"}, CacheProvenance: "fresh", EvaluationGate: "first_narrow_proof_family_ready_for_check_in", UserCheckInRequired: true, CheckInNote: "first narrow proof family evaluated; review persisted evaluation details before expanding proof scope"}), true
 	default:
 		return localRPCResponse{}, false
 	}
@@ -753,6 +758,12 @@ func runArtifactAuditResolveCommands(t *testing.T, stdout *bytes.Buffer, stderr 
 	}
 	if err := run([]string{"audit-anchor-segment", "--seal-digest", testDigest("a")}, stdout, stderr); err != nil {
 		t.Fatalf("audit-anchor-segment returned error: %v", err)
+	}
+	if err := run([]string{"zk-proof-generate", "--record-digest", testDigest("a")}, stdout, stderr); err != nil {
+		t.Fatalf("zk-proof-generate returned error: %v", err)
+	}
+	if err := run([]string{"zk-proof-verify", "--proof-digest", testDigest("c")}, stdout, stderr); err != nil {
+		t.Fatalf("zk-proof-verify returned error: %v", err)
 	}
 }
 

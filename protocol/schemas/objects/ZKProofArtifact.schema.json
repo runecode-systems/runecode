@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ZKProofArtifact.schema.json",
+  "title": "ZKProofArtifact",
+  "description": "Protocol-owned scheme-agnostic proof object for one audited statement-family claim, including setup and public-input identities.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 17,
+  "$defs": {
+    "sourceRef": {
+      "description": "Typed immutable source reference bound to this proof artifact.",
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 3,
+      "required": [
+        "source_family",
+        "source_digest",
+        "source_role"
+      ],
+      "properties": {
+        "source_family": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "description": "Machine-consumed source-object family label.",
+          "x-data-class": "public"
+        },
+        "source_digest": {
+          "$ref": "Digest.schema.json#/$defs/digestValue",
+          "description": "Digest identity for the referenced source object.",
+          "x-data-class": "public"
+        },
+        "source_role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Typed role of this source reference in statement binding semantics.",
+          "x-data-class": "public"
+        }
+      }
+    }
+  },
+  "required": [
+    "schema_id",
+    "schema_version",
+    "statement_family",
+    "statement_version",
+    "scheme_id",
+    "curve_id",
+    "circuit_id",
+    "constraint_system_digest",
+    "verifier_key_digest",
+    "setup_provenance_digest",
+    "normalization_profile_id",
+    "scheme_adapter_id",
+    "public_inputs",
+    "public_inputs_digest",
+    "proof_bytes",
+    "source_refs"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.ZKProofArtifact",
+      "description": "Stable protocol object-family identifier for scheme-agnostic proof artifacts.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Exact protocol schema version used to validate this proof artifact.",
+      "x-data-class": "public"
+    },
+    "statement_family": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "description": "Machine-consumed statement-family identifier from the statement_family registry.",
+      "x-data-class": "public"
+    },
+    "statement_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "Statement-family contract version identifier.",
+      "x-data-class": "public"
+    },
+    "scheme_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Scheme identifier for the proving system implementation.",
+      "x-data-class": "public"
+    },
+    "curve_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Curve identifier for the selected proving backend.",
+      "x-data-class": "public"
+    },
+    "circuit_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 192,
+      "description": "Circuit identifier from the circuit_id registry.",
+      "x-data-class": "public"
+    },
+    "constraint_system_digest": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Digest identity for the compiled frozen constraint-system artifact.",
+      "x-data-class": "public"
+    },
+    "verifier_key_digest": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Digest identity for verifier-key material used by this proof artifact.",
+      "x-data-class": "public"
+    },
+    "setup_provenance_digest": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Digest identity over canonical setup lineage object for this circuit and backend.",
+      "x-data-class": "public"
+    },
+    "normalization_profile_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 192,
+      "description": "Logical normalization profile identifier from the normalization_profile_id registry.",
+      "x-data-class": "public"
+    },
+    "scheme_adapter_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 192,
+      "description": "Scheme-adapter identifier from the scheme_adapter_id registry.",
+      "x-data-class": "public"
+    },
+    "public_inputs": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 48,
+      "description": "Public statement inputs disclosed by this proof artifact.",
+      "x-data-class": "public"
+    },
+    "public_inputs_digest": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Digest identity for canonicalized public_inputs content.",
+      "x-data-class": "public"
+    },
+    "proof_bytes": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 24576,
+      "description": "Base64-encoded proof bytes for the selected proving scheme.",
+      "x-data-class": "sensitive"
+    },
+    "source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "description": "Immutable typed source references used to bind this proof to authoritative evidence.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "#/$defs/sourceRef",
+        "description": "One typed source reference."
+      },
+      "uniqueItems": true
+    }
+  }
+}

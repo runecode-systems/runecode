@@ -1,0 +1,13 @@
+{
+  "registry_name": "statement_family",
+  "namespace": "runecode.protocol.zk.statement_family",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Stable machine-consumed statement-family identifiers for trusted proof contracts.",
+  "codes": [
+    {
+      "code": "audit.isolate_session_bound.attested_runtime_membership.v0",
+      "summary": "Proves one verified isolate_session_bound audited event membership in one verified AuditSegmentSeal and binds to attested runtime identity seams without revealing full normalized private session payload."
+    }
+  ]
+}

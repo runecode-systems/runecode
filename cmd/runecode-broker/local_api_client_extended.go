@@ -36,6 +36,16 @@ func (c *localAPIClient) AuditAnchorSegment(ctx context.Context, req brokerapi.A
 	return resp, c.invoke(ctx, "audit_anchor_segment", req, &resp)
 }
 
+func (c *localAPIClient) ZKProofGenerate(ctx context.Context, req brokerapi.ZKProofGenerateRequest) (brokerapi.ZKProofGenerateResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ZKProofGenerateResponse{}
+	return resp, c.invoke(ctx, "zk_proof_generate", req, &resp)
+}
+
+func (c *localAPIClient) ZKProofVerify(ctx context.Context, req brokerapi.ZKProofVerifyRequest) (brokerapi.ZKProofVerifyResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.ZKProofVerifyResponse{}
+	return resp, c.invoke(ctx, "zk_proof_verify", req, &resp)
+}
+
 func (c *localAPIClient) GitSetupGet(ctx context.Context, req brokerapi.GitSetupGetRequest) (brokerapi.GitSetupGetResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.GitSetupGetResponse{}
 	return resp, c.invoke(ctx, "git_setup_get", req, &resp)

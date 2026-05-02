@@ -33,6 +33,8 @@ func TestHelpAndUnknownCommand(t *testing.T) {
 		"--socket-name name",
 		"audit-anchor-segment",
 		"audit-finalize-verify",
+		"zk-proof-generate",
+		"zk-proof-verify",
 		"backend-posture-get",
 		"git-setup-get",
 		"git-remote-mutation-prepare",

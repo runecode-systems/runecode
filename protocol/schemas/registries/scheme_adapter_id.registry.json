@@ -1,0 +1,13 @@
+{
+  "registry_name": "scheme_adapter_id",
+  "namespace": "runecode.protocol.zk.scheme_adapter",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Stable machine-consumed scheme-adapter identifiers for proving-backend-specific normalization and commitment encoding.",
+  "codes": [
+    {
+      "code": "runecode.zk.adapter.gnark.groth16.isolate_session_bound_attested_runtime.v0",
+      "summary": "First trusted scheme-adapter profile for gnark Groth16 backend over the isolate-session-bound attested-runtime statement family."
+    }
+  ]
+}

@@ -240,9 +240,41 @@ func assertAuditVerificationReasonRegistryCodes(t *testing.T) {
 		"anchor_receipt_missing",
 		"anchor_receipt_invalid",
 		"anchor_passphrase_presence_degraded",
+		"external_anchor_valid",
+		"external_anchor_deferred_or_unavailable",
+		"external_anchor_invalid",
 		"segment_lifecycle_inconsistent",
 		"storage_posture_degraded",
 		"storage_posture_invalid",
+	)
+}
+
+func assertZKProofRegistryCodes(t *testing.T) {
+	t.Helper()
+	statementRegistry := loadRegistry(t, schemaPath(t, "registries/statement_family.registry.json"))
+	assertRegistryContainsCodes(t, statementRegistry,
+		"audit.isolate_session_bound.attested_runtime_membership.v0",
+	)
+	normalizationRegistry := loadRegistry(t, schemaPath(t, "registries/normalization_profile_id.registry.json"))
+	assertRegistryContainsCodes(t, normalizationRegistry,
+		"runecode.zk.normalize.audit.isolate_session_bound.attested_runtime.v0",
+	)
+	adapterRegistry := loadRegistry(t, schemaPath(t, "registries/scheme_adapter_id.registry.json"))
+	assertRegistryContainsCodes(t, adapterRegistry,
+		"runecode.zk.adapter.gnark.groth16.isolate_session_bound_attested_runtime.v0",
+	)
+	circuitRegistry := loadRegistry(t, schemaPath(t, "registries/circuit_id.registry.json"))
+	assertRegistryContainsCodes(t, circuitRegistry,
+		"runecode.zk.circuit.audit.isolate_session_bound.attested_runtime_membership.v0",
+	)
+	reasonRegistry := loadRegistry(t, schemaPath(t, "registries/proof_verification_reason_code.registry.json"))
+	assertRegistryContainsCodes(t, reasonRegistry,
+		"verified",
+		"proof_invalid",
+		"setup_identity_mismatch",
+		"unsupported_profile",
+		"invalid_public_inputs_digest",
+		"unconfigured_backend",
 	)
 }
 

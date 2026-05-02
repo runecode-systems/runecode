@@ -175,82 +175,9 @@ var localIPCListen = brokerapi.ListenLocalIPC
 type commandHandler func([]string, *brokerapi.Service, io.Writer) error
 
 func commandHandlers() map[string]brokerCommandSpec {
-	handlers := map[string]brokerCommandSpec{
-		"serve-local":               {handler: handleServeLocal, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"run-list":                  {handler: handleRunList, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"run-get":                   {handler: handleRunGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"run-watch":                 {handler: handleRunWatch, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"backend-posture-get":       {handler: handleBackendPostureGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"backend-posture-change":    {handler: handleBackendPostureChange, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"session-list":              {handler: handleSessionList, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"session-get":               {handler: handleSessionGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"session-send-message":      {handler: handleSessionSendMessage, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"session-execution-trigger": {handler: handleSessionExecutionTrigger, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"session-watch":             {handler: handleSessionWatch, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"approval-list":             {handler: handleApprovalList, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"approval-get":              {handler: handleApprovalGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"approval-resolve":          {handler: handleApprovalResolve, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"approval-watch":            {handler: handleApprovalWatch, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"list-artifacts":            {handler: handleListArtifacts, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"head-artifact":             {handler: handleHeadArtifact, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"get-artifact":              {handler: handleGetArtifact, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"put-artifact":              {handler: handlePutArtifact, requiresStore: false, apiMode: brokerCommandAPIModeInProcess},
-		"check-flow":                {handler: handleCheckFlow, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"promote-excerpt":           {handler: handlePromoteExcerpt, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"revoke-approved-excerpt":   {handler: handleRevokeApprovedExcerpt, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"set-run-status":            {handler: handleSetRunStatus, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"gc":                        {handler: handleGC, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"export-backup":             {handler: handleExportBackup, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"restore-backup":            {handler: handleRestoreBackup, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"show-audit":                {handler: handleShowAudit, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"show-policy":               {handler: handleShowPolicy, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"set-reserved-classes":      {handler: handleSetReservedClasses, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"import-trusted-contract":   {handler: handleImportTrustedContract, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-		"seed-dev-manual-scenario":  {handler: handleSeedDevManualScenario, requiresStore: true, apiMode: brokerCommandAPIModeInProcess},
-	}
+	handlers := baseCommandHandlers()
 	addLiveIPCCommandHandlers(handlers)
 	return handlers
-}
-
-func addLiveIPCCommandHandlers(handlers map[string]brokerCommandSpec) {
-	for command, spec := range map[string]brokerCommandSpec{
-		"dependency-cache-ensure":                      {handler: handleDependencyCacheEnsure, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"dependency-fetch-registry":                    {handler: handleDependencyFetchRegistry, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"dependency-cache-handoff":                     {handler: handleDependencyCacheHandoff, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"audit-readiness":                              {handler: handleAuditReadiness, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"audit-verification":                           {handler: handleAuditVerification, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"audit-finalize-verify":                        {handler: handleAuditFinalizeVerify, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"audit-record-get":                             {handler: handleAuditRecordGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"audit-anchor-segment":                         {handler: handleAuditAnchorSegment, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"git-setup-get":                                {handler: handleGitSetupGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"git-setup-auth-bootstrap":                     {handler: handleGitSetupAuthBootstrap, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"git-setup-identity-upsert":                    {handler: handleGitSetupIdentityUpsert, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"provider-setup-direct":                        {handler: handleProviderSetupDirect, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"provider-credential-lease-issue":              {handler: handleProviderCredentialLeaseIssue, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"provider-profile-list":                        {handler: handleProviderProfileList, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"provider-profile-get":                         {handler: handleProviderProfileGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"project-substrate-get":                        {handler: handleProjectSubstrateGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"project-substrate-posture-get":                {handler: handleProjectSubstratePostureGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"project-substrate-adopt":                      {handler: handleProjectSubstrateAdopt, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"project-substrate-init-preview":               {handler: handleProjectSubstrateInitPreview, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"project-substrate-init-apply":                 {handler: handleProjectSubstrateInitApply, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"project-substrate-upgrade-preview":            {handler: handleProjectSubstrateUpgradePreview, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"project-substrate-upgrade-apply":              {handler: handleProjectSubstrateUpgradeApply, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"git-remote-mutation-prepare":                  {handler: handleGitRemoteMutationPrepare, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"git-remote-mutation-get":                      {handler: handleGitRemoteMutationGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"git-remote-mutation-issue-execute-lease":      {handler: handleGitRemoteMutationIssueExecuteLease, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"git-remote-mutation-execute":                  {handler: handleGitRemoteMutationExecute, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"external-anchor-mutation-prepare":             {handler: handleExternalAnchorMutationPrepare, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"external-anchor-mutation-get":                 {handler: handleExternalAnchorMutationGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"external-anchor-mutation-issue-execute-lease": {handler: handleExternalAnchorMutationIssueExecuteLease, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"external-anchor-mutation-execute":             {handler: handleExternalAnchorMutationExecute, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"version-info":                                 {handler: handleVersionInfo, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"stream-logs":                                  {handler: handleStreamLogs, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"llm-invoke":                                   {handler: handleLLMInvoke, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-		"llm-stream":                                   {handler: handleLLMStream, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
-	} {
-		handlers[command] = spec
-	}
 }
 
 func resolveBrokerCommandAPIMode(command string, mode brokerCommandAPIMode) brokerCommandAPIMode {
@@ -380,6 +307,8 @@ Commands:
 	  audit-finalize-verify
 	  audit-record-get --record-digest sha256:...
 	  audit-anchor-segment --seal-digest sha256:... [--approval-decision-digest sha256:...] [--approval-assurance-level level] [--export-receipt-copy]
+	  zk-proof-generate --record-digest sha256:...
+	  zk-proof-verify --proof-digest sha256:...
 	  git-setup-get [--provider github]
 	  git-setup-auth-bootstrap [--provider github] --mode browser|device_code
 	  git-setup-identity-upsert [--provider github] --profile-id id --display-name name --author-name name --author-email mail --committer-name name --committer-email mail --signoff-name name --signoff-email mail [--default-profile]

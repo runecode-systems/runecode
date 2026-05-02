@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ZKProofGenerateResponse.schema.json",
+  "title": "ZKProofGenerateResponse",
+  "description": "Trusted response for explicit supported ZK proof generation and immediate trusted verification posture recording.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 14,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "request_id",
+    "statement_family",
+    "statement_version",
+    "normalization_profile_id",
+    "scheme_adapter_id",
+    "record_digest",
+    "audit_proof_binding_digest",
+    "zk_proof_artifact_digest",
+    "evaluation_gate",
+    "user_check_in_required",
+    "check_in_note"
+  ],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ZKProofGenerateResponse", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable echoed request identifier.", "x-data-class": "public" },
+    "statement_family": { "type": "string", "minLength": 1, "maxLength": 160, "description": "Statement-family identifier.", "x-data-class": "public" },
+    "statement_version": { "type": "string", "minLength": 1, "maxLength": 32, "description": "Statement-family version identifier.", "x-data-class": "public" },
+    "normalization_profile_id": { "type": "string", "minLength": 1, "maxLength": 192, "description": "Normalization profile identifier.", "x-data-class": "public" },
+    "scheme_adapter_id": { "type": "string", "minLength": 1, "maxLength": 192, "description": "Scheme-adapter identifier.", "x-data-class": "public" },
+    "record_digest": { "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue", "description": "Source audit record digest used for generation.", "x-data-class": "public" },
+    "audit_proof_binding_digest": { "$ref": "Digest.schema.json#/$defs/digestValue", "description": "Persisted proof-binding sidecar digest.", "x-data-class": "public" },
+    "zk_proof_artifact_digest": { "$ref": "Digest.schema.json#/$defs/digestValue", "description": "Persisted ZK proof artifact digest.", "x-data-class": "public" },
+    "zk_proof_verification_record_digest": { "$ref": "Digest.schema.json#/$defs/digestValue", "description": "Persisted trusted verification record digest from immediate verification.", "x-data-class": "public" },
+    "evaluation_gate": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z0-9._:-]+$", "description": "Evaluation gate state after first narrow proof execution.", "x-data-class": "public" },
+    "user_check_in_required": { "type": "boolean", "description": "Indicates explicit user check-in gate is required before broadening proof scope.", "x-data-class": "public" },
+    "check_in_note": { "type": "string", "minLength": 1, "maxLength": 512, "description": "Human-facing check-in guidance carried in machine output.", "x-data-class": "public" }
+  }
+}

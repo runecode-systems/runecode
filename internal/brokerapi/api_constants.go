@@ -52,7 +52,12 @@ type APIConfig struct {
 	DependencyFetch DependencyFetchConfig
 	Compile         CompileConfig
 	ExternalAnchor  ExternalAnchorConfig
+	ZKProof         ZKProofConfig
 	RepositoryRoot  string
+}
+
+type ZKProofConfig struct {
+	EnableFixtureBackend bool
 }
 
 type DependencyFetchConfig struct {

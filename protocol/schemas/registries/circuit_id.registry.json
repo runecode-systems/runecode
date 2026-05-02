@@ -1,0 +1,13 @@
+{
+  "registry_name": "circuit_id",
+  "namespace": "runecode.protocol.zk.circuit",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Stable machine-consumed reviewed circuit identifiers for trusted proof setup and verification posture.",
+  "codes": [
+    {
+      "code": "runecode.zk.circuit.audit.isolate_session_bound.attested_runtime_membership.v0",
+      "summary": "Frozen first circuit family for audit isolate-session-bound attested-runtime membership proofs."
+    }
+  ]
+}

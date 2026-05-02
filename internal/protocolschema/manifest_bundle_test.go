@@ -155,6 +155,7 @@ func TestRegistryNamespacesAreSeparate(t *testing.T) {
 	assertAuditRegistryCodes(t)
 	assertAuditReceiptRegistryCodes(t)
 	assertAuditVerificationReasonRegistryCodes(t)
+	assertZKProofRegistryCodes(t)
 	assertApprovalRegistryCodes(t)
 }
 

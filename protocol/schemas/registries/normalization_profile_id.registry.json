@@ -1,0 +1,13 @@
+{
+  "registry_name": "normalization_profile_id",
+  "namespace": "runecode.protocol.zk.normalization_profile",
+  "documentation_owner": "protocol",
+  "status": "mvp",
+  "description": "Stable machine-consumed logical normalization profile identifiers for proof statement compilation and verification.",
+  "codes": [
+    {
+      "code": "runecode.zk.normalize.audit.isolate_session_bound.attested_runtime.v0",
+      "summary": "Logical normalization profile for audit.isolate_session_bound.attested_runtime_membership.v0 disclosure and witness-binding semantics."
+    }
+  ]
+}

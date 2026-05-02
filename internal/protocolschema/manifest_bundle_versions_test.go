@@ -59,6 +59,13 @@ func coreSchemaVersionsPart1() map[string]string {
 func coreSchemaVersionsPart2() map[string]string {
 	return map[string]string{
 		"runecode.protocol.v0.PolicyRuleSet":                 "0.1.0",
+		"runecode.protocol.v0.AuditProofBinding":             "0.1.0",
+		"runecode.protocol.v0.ZKProofArtifact":               "0.1.0",
+		"runecode.protocol.v0.ZKProofVerificationRecord":     "0.1.0",
+		"runecode.protocol.v0.ZKProofGenerateRequest":        "0.1.0",
+		"runecode.protocol.v0.ZKProofGenerateResponse":       "0.1.0",
+		"runecode.protocol.v0.ZKProofVerifyRequest":          "0.1.0",
+		"runecode.protocol.v0.ZKProofVerifyResponse":         "0.1.0",
 		"runecode.protocol.v0.VerifierRecord":                "0.1.0",
 		"runecode.protocol.v0.BrokerArtifactListRequest":     "0.1.0",
 		"runecode.protocol.v0.BrokerArtifactListResponse":    "0.1.0",

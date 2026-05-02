@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/ZKProofGenerateRequest.schema.json",
+  "title": "ZKProofGenerateRequest",
+  "description": "Explicit trusted request to compile, bind, and generate one supported audit-bound ZK proof artifact.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 4,
+  "required": ["schema_id", "schema_version", "request_id", "record_digest"],
+  "properties": {
+    "schema_id": { "const": "runecode.protocol.v0.ZKProofGenerateRequest", "description": "Protocol schema identifier.", "x-data-class": "public" },
+    "schema_version": { "const": "0.1.0", "description": "Protocol schema version.", "x-data-class": "public" },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Stable request identifier.", "x-data-class": "public" },
+    "record_digest": { "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue", "description": "Audit record digest identity eligible for supported proof-family generation.", "x-data-class": "public" }
+  }
+}

@@ -18,6 +18,9 @@ const (
 	externalAnchorEvidenceDir  = "external-anchor-evidence"
 	externalAnchorSidecarsDir  = "external-anchor-sidecars"
 	verificationReportsDirName = "verification-reports"
+	proofBindingsDirName       = "proof-bindings"
+	proofArtifactsDirName      = "zk-proof-artifacts"
+	proofVerificationsDirName  = "zk-proof-verification-records"
 	indexDirName               = "index"
 	stateFileName              = "state.json"
 	indexFileName              = "timeline-index.json"
@@ -39,6 +42,9 @@ func (l *Ledger) ensureLayout() error {
 		filepath.Join(l.rootDir, sidecarDirName, externalAnchorEvidenceDir),
 		filepath.Join(l.rootDir, sidecarDirName, externalAnchorSidecarsDir),
 		filepath.Join(l.rootDir, sidecarDirName, verificationReportsDirName),
+		filepath.Join(l.rootDir, sidecarDirName, proofBindingsDirName),
+		filepath.Join(l.rootDir, sidecarDirName, proofArtifactsDirName),
+		filepath.Join(l.rootDir, sidecarDirName, proofVerificationsDirName),
 		filepath.Join(l.rootDir, indexDirName),
 	}
 	for _, path := range paths {
