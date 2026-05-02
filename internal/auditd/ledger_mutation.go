@@ -27,8 +27,18 @@ func (l *Ledger) AppendAdmittedEvent(req trustpolicy.AuditAdmissionRequest) (App
 		return AppendResult{}, err
 	}
 	openSegment.Frames = append(openSegment.Frames, frame)
+	newFrameIndex := len(openSegment.Frames) - 1
 	openSegment.LifecycleMarker.MarkedAt = l.nowFn().UTC().Format(time.RFC3339)
 	if err := l.saveSegment(openSegment); err != nil {
+		return AppendResult{}, err
+	}
+	if err := l.ensureProofLookupIndexLocked(); err != nil {
+		return AppendResult{}, err
+	}
+	if err := l.lookupIndex.notePersistedRecordFrame(frame.RecordDigest, openSegment.Header.SegmentID, newFrameIndex); err != nil {
+		return AppendResult{}, err
+	}
+	if err := l.saveProofLookupIndexLocked(l.lookupIndex); err != nil {
 		return AppendResult{}, err
 	}
 	state.OpenFrameCount = len(openSegment.Frames)
@@ -58,6 +68,19 @@ func (l *Ledger) SealCurrentSegment(sealEnvelope trustpolicy.SignedObjectEnvelop
 	}
 	sealDigest, err := l.persistEnvelopeSidecar(sealsDirName, sealEnvelope)
 	if err != nil {
+		return SealResult{}, err
+	}
+	sealPayload, err := decodeAndValidateSealEnvelope(sealEnvelope)
+	if err != nil {
+		return SealResult{}, err
+	}
+	if err := l.ensureProofLookupIndexLocked(); err != nil {
+		return SealResult{}, err
+	}
+	if err := l.lookupIndex.notePersistedSegmentSeal(sealDigest, sealPayload); err != nil {
+		return SealResult{}, err
+	}
+	if err := l.saveProofLookupIndexLocked(l.lookupIndex); err != nil {
 		return SealResult{}, err
 	}
 	nextOpen, err := l.sealAndRotateSegmentsLocked(state, segment, sealDigest)

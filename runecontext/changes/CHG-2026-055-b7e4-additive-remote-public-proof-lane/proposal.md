@@ -8,6 +8,7 @@ RuneCode can add a future operator-private remote proof lane and later public-as
 - Define the additive operator-private remote proof lane as a follow-on change over the same canonical audit and proof-binding substrate established by `CHG-2026-016-8cdb-zk-proof-v0-one-narrow-proof-verify`.
 - Define how canonical evidence, proof-binding sidecars, manifests, and authenticity material are persisted locally even on machines that do not have the remote or public lane enabled yet.
 - Define the export-bundle, ingest, backfill, merge, and publication posture for the future lane so preserved local evidence can be replayed later without ambient source-machine context.
+- Define the concrete export-bundle protocol, manifest, coverage-range semantics, anti-rollback rules, disclosure profile, and remote proof write-back validation strongly enough that the follow-on lane is implementable rather than only directional.
 - Keep the remote lane additive and asynchronous rather than a replacement for local correctness.
 - Keep future public-assurance publication on the same binding substrate rather than introducing a second public-only trust model.
 - Capture the possible additive dual-commitment architecture switch as a deliberate future design option if direct authoritative-Merkle in-circuit membership proves too expensive.

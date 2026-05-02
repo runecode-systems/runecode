@@ -70,6 +70,12 @@ Select and deliver one narrow local zero-knowledge proof workflow with determini
   - `applied_hardening_posture_digest`
   - `session_binding_digest`
   - `binding_commitment`
+- Every statement-critical public field must be cryptographically bound to the proof claim.
+- `v0` must not rely on unauthenticated proof metadata that can be changed outside the circuit while the proof still verifies.
+- Acceptable `v0` binding patterns are:
+  - bind every required public field directly as a circuit public input
+  - or bind one canonical `public_inputs_digest` as a circuit public input and require trusted verification to recompute that digest from the full typed public-input object before cryptographic verification
+- `statement_family`, `statement_version`, `normalization_profile_id`, `scheme_adapter_id`, `audit_segment_seal_digest`, `merkle_root`, `audit_record_digest`, `protocol_bundle_manifest_hash`, `runtime_image_descriptor_digest`, `attestation_evidence_digest`, `applied_hardening_posture_digest`, `session_binding_digest`, and `binding_commitment` are all statement-critical for the first proof family and must not be left as mutable post-proof metadata.
 
 ### Witness Inputs
 - The prover witness should stay bounded and typed. Recommended minimum witness inputs are:
@@ -138,6 +144,8 @@ Select and deliver one narrow local zero-knowledge proof workflow with determini
 - `binding_commitment` is a new proof-time derived commitment, not a source audit field.
 - For `v0`, `binding_commitment` should be computed by the trusted statement-compilation step using a ZK-friendly Poseidon-family commitment over the normalized private field set selected by the logical profile and encoded by the selected scheme-adapter profile.
 - Trusted Go code must verify the off-circuit relationship between the normalized private field set and the source `session_binding_digest` before emitting the `AuditProofBinding` sidecar.
+- That off-circuit relationship check must validate every normalized private field selected by the logical profile against immutable runtime or session evidence behind `session_binding_digest`; comparing only the stored digest string is insufficient.
+- If RuneCode cannot recompute or validate that full relation from authoritative evidence, proof-binding generation must fail closed.
 
 ## Merkle Membership Posture
 
@@ -211,6 +219,15 @@ Select and deliver one narrow local zero-knowledge proof workflow with determini
 - The verifier key must be delivered through reviewed trusted assets only.
 - `v0` must not rely on runtime setup on user machines or ambient key download.
 - Whether the key is compiled into trusted Go assets or loaded from a reviewed local bundle, verification must pin `verifier_key_digest` explicitly and fail closed on mismatch.
+- Trusted verifier posture must be derived only from those reviewed local assets.
+- Proof artifacts may declare `scheme_id`, `curve_id`, `circuit_id`, `constraint_system_digest`, `verifier_key_digest`, and `setup_provenance_digest`, but those declarations are claims to be checked against the locally reviewed verifier posture rather than inputs used to construct that posture.
+- The verification path must load only the pinned verifier material and its metadata.
+- The verification path must not construct or derive proving keys, rerun setup, or compile ad hoc setup material as part of ordinary proof verification.
+
+### Current Implementation Gap
+- The current branch does not yet ship reviewed trusted setup assets for the first Groth16 circuit.
+- Because runtime deterministic setup generation on user machines is prohibited, the trusted local proof backend must stay hard-disabled until reviewed setup assets are delivered through trusted assets.
+- Any interim implementation that synthesizes proving or verifying material at runtime from a deterministic seed, local compilation side effect, or other ambient machine state is out of policy for this change and must fail closed instead.
 
 ### Rotation Posture
 - A future circuit fix or setup rotation should introduce a new `circuit_id`, a new `constraint_system_digest`, a new `verifier_key_digest`, and a new `setup_provenance_digest` rather than mutating the old identity.
@@ -253,6 +270,10 @@ Select and deliver one narrow local zero-knowledge proof workflow with determini
 - Broker-owned explicit proof commands or APIs should trigger proof generation and proof verification using the same reviewed local control-plane pattern already used for audit verification surfaces.
 - Proof verification should record machine-readable results in trusted persistence and audit the verification outcome.
 - `audit_finalize_verify` may later surface proof-reference posture or cached proof-verification posture, but it should not become the only entrypoint for running ZK verification in `v0`.
+- Verification must resolve the referenced `AuditProofBinding` by digest, validate that sidecar canonically, and compare the binding fields and projected public bindings against the proof artifact's public inputs before any cryptographic verification result is persisted.
+- Verification must validate the authoritative source audit evidence and any required runtime, attestation, or project-context evidence referenced by the binding sidecar rather than treating proof bytes alone as sufficient for a persisted `verified` result.
+- Verification must derive the trusted verifier posture only from local reviewed assets and must compare artifact-declared `scheme_id`, `curve_id`, `circuit_id`, `constraint_system_digest`, `verifier_key_digest`, and `setup_provenance_digest` against that posture before proof verification.
+- Proof-generation or proof-verification success must not be returned if the authoritative audit trail could not be updated; audit append failure must either fail the operation or produce an explicit persisted degraded result with stable semantics.
 
 ### Verification-Result Caching
 - Proof verification results should be cached by immutable identity including at least:
@@ -271,6 +292,14 @@ Select and deliver one narrow local zero-knowledge proof workflow with determini
 - The authoritative verification record and any acceleration cache both live in trusted persistence.
 - The runner must not have direct read or write access to the verification-result persistence path.
 - Cache entries may be evicted because verification is re-derivable from immutable inputs, but the authoritative audit record of a completed verification decision remains trusted persisted evidence.
+- Cache lookup must happen before expensive cryptographic verification.
+- The lookup key must include both immutable artifact identity and the local trusted verifier posture so RuneCode can return a cache hit without repeating Groth16 verification when the same artifact and trusted verifier assets are already known.
+- Caching only duplicate persistence after rerunning full verification is insufficient for this change's performance posture.
+
+### Trusted Validation Tightness
+- Trusted Go validation for proof artifacts, proof bindings, and verification records must mirror or exceed the protocol-schema bounds for those objects.
+- That includes at least proof-byte size bounds, base64 validity, bounded public-input object size, required `v0` public-input fields, and closed registry validation for scheme, profile, adapter, and circuit identifiers.
+- Trusted Go validation must fail closed on malformed or oversized proof artifacts even if external schema validation would also reject them.
 
 ## Local Persistence Foundation
 
@@ -295,6 +324,8 @@ Select and deliver one narrow local zero-knowledge proof workflow with determini
   - protocol bundle manifest hashes
   - proof-binding sidecars or equivalent proof-ready normalized bindings for proof-relevant records
 - This preservation requirement applies equally when RuneCode runs concurrently across more than one machine on the same project.
+- Immutable runtime evidence, attestation evidence, and attestation verification records must be preserved in a digest-addressed or equivalently immutable form that later proof generation or remote backfill can validate without depending on ambient `run_id` lookups into mutable live store state.
+- If a local store uses `run_id` indexes for convenience, those indexes are only discovery helpers for immutable preserved evidence and must not become the sole historical evidence model.
 
 ### Future-Lane Handoff
 - The detailed additive remote and public proof-lane architecture, export-bundle format, cross-machine merge rules, remote ingest, and public publication posture are captured in `CHG-2026-055-b7e4-additive-remote-public-proof-lane`.
@@ -336,6 +367,8 @@ Select and deliver one narrow local zero-knowledge proof workflow with determini
   - proof generation `<= 30s`
   - proof-generation peak RSS `<= 1GB`
 - If these gates cannot be met, RuneCode should defer the feature rather than weaken correctness or create a second architecture for smaller devices.
+- These gates must be enforced by required CI or scheduled verification jobs before the backend is re-enabled.
+- Optional local benchmarks are useful for iteration but are not sufficient evidence for shipping or re-enabling the `v0` backend.
 
 ## Alternative Architecture Not Chosen For `v0`
 - A possible future architecture switch is to preserve the authoritative SHA-256 audit Merkle root exactly as-is while adding an additive proof-friendly segment-binding sidecar that binds the authoritative seal and authoritative root to a second proof-friendly root over the same ordered records.

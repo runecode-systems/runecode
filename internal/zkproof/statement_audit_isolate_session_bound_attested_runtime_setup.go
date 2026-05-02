@@ -144,12 +144,18 @@ func resolveProofBackend(backend ProofBackend) ProofBackend {
 	return backend
 }
 
-func VerifyProofWithTrustedPostureV0(backend ProofBackend, proof []byte, publicInputsDigest trustpolicy.Digest, identity ProofVerificationIdentity, trusted TrustedVerifierPosture) error {
+func VerifyProofWithTrustedPostureV0(backend ProofBackend, proof []byte, publicInputs AuditIsolateSessionBoundAttestedRuntimePublicInputs, identity ProofVerificationIdentity, trusted TrustedVerifierPosture) error {
 	if err := VerifySetupIdentityMatchesTrustedPostureV0(identity, trusted); err != nil {
 		return err
 	}
-	if _, err := publicInputsDigest.Identity(); err != nil {
-		return &FeasibilityError{Code: feasibilityCodeMissingBoundedInput, Message: fmt.Sprintf("public_inputs_digest: %v", err)}
+	if _, err := publicInputs.MerkleRoot.Identity(); err != nil {
+		return &FeasibilityError{Code: feasibilityCodeMissingBoundedInput, Message: fmt.Sprintf("public_inputs.merkle_root: %v", err)}
 	}
-	return resolveProofBackend(backend).VerifyDeterministic(proof, publicInputsDigest)
+	if _, err := publicInputs.AuditRecordDigest.Identity(); err != nil {
+		return &FeasibilityError{Code: feasibilityCodeMissingBoundedInput, Message: fmt.Sprintf("public_inputs.audit_record_digest: %v", err)}
+	}
+	if err := requireDigestIdentity(publicInputs.BindingCommitment, "public_inputs.binding_commitment"); err != nil {
+		return err
+	}
+	return resolveProofBackend(backend).VerifyDeterministic(proof, publicInputs)
 }

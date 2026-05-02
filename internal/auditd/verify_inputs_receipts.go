@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
@@ -108,16 +109,19 @@ func decodeExternalAnchorEvidenceRecord(raw map[string]any) (trustpolicy.Externa
 }
 
 func (l *Ledger) loadAllSealDigestsLocked() ([]trustpolicy.Digest, error) {
-	entries, err := os.ReadDir(filepath.Join(l.rootDir, sidecarDirName, sealsDirName))
-	if err != nil {
+	if err := l.ensureProofLookupIndexLocked(); err != nil {
 		return nil, err
 	}
-	digests := make([]trustpolicy.Digest, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-			continue
+	digests := make([]trustpolicy.Digest, 0, len(l.lookupIndex.SegmentSeals))
+	for _, lookup := range l.lookupIndex.SegmentSeals {
+		digest, err := digestFromIdentity(lookup.DigestIdentity)
+		if err != nil {
+			return nil, err
 		}
-		digests = append(digests, trustpolicy.Digest{HashAlg: "sha256", Hash: strings.TrimSuffix(entry.Name(), ".json")})
+		digests = append(digests, digest)
 	}
+	sort.Slice(digests, func(i, j int) bool {
+		return mustDigestIdentity(digests[i]) < mustDigestIdentity(digests[j])
+	})
 	return digests, nil
 }

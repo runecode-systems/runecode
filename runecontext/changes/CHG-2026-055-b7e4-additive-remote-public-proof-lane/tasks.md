@@ -18,6 +18,10 @@
 - [ ] Define the export-bundle format for future proof backfill.
 - [ ] Define the required bundle authenticity and manifest material.
 - [ ] Define bundle provenance, evidence coverage, and export-identity rules.
+- [ ] Define checked-in protocol schemas for the export bundle, bundle manifest, coverage-range records, authenticity envelope, and any remote proof write-back artifact family.
+- [ ] Define explicit coverage-range semantics keyed by authoritative stream identity, including complete versus partial range markers.
+- [ ] Define anti-rollback and predecessor or checkpoint rules for accepted bundles from the same exporter.
+- [ ] Define digest-addressed immutable runtime and attestation evidence inclusion rules rather than allowing only live store references.
 
 ## Define Remote Ingest And Backfill
 
@@ -25,6 +29,7 @@
 - [ ] Define proof-work queue reconstruction from exported bundles.
 - [ ] Define how backfilled proofs are published back as additive derived evidence.
 - [ ] Define disagreement posture when local and remote proof results differ.
+- [ ] Define remote proof write-back validation rules for the receiving RuneCode node, including non-overwrite posture for authoritative local records.
 
 ## Define Cross-Machine Merge Rules
 
@@ -36,6 +41,7 @@
 - [ ] Define how public publication reuses the same binding substrate as the local and remote lanes.
 - [ ] Define what public artifacts may be published without redefining local trust semantics.
 - [ ] Define the information-asymmetry and selective-disclosure use cases for exported proofs.
+- [ ] Define disclosure or redaction profile rules for operator-private export versus public-assurance publication.
 
 ## Evaluate Recursive Or Aggregate Proofs
 
@@ -53,5 +59,7 @@
 - [ ] The follow-on change clearly defines the operator-private remote proof lane without weakening or replacing RuneCode's authoritative local trust model.
 - [ ] The follow-on change clearly defines what machines must retain locally even before any remote or public lane is enabled.
 - [ ] The follow-on change clearly defines export-bundle, ingest, backfill, and disagreement posture strongly enough that another developer can implement it without additional product clarification.
+- [ ] The follow-on change defines a concrete checked-in export-bundle and manifest protocol with coverage-range, authenticity, anti-rollback, and disclosure semantics.
+- [ ] The follow-on change defines remote proof write-back validation strongly enough that additive remote proofs can be accepted without weakening local authority boundaries.
 - [ ] The follow-on change clearly defines the future public-assurance posture without creating a second public-only trust model.
 - [ ] The follow-on change fully captures the additive dual-commitment architecture option and its decision rule.

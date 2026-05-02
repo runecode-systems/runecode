@@ -19,6 +19,8 @@ This feature now has a canonical RuneContext change record, preserving the migra
 - Bind any runtime-sensitive proof statement to the attested runtime identity seam rather than only to pre-attestation launch assumptions.
 - Bind any audit-anchoring-sensitive proof statement to the canonical `AuditSegmentSeal` subject, authoritative anchor receipt identity, canonical target descriptor identity where external anchoring is involved, and preserved attestation or project-context references rather than flattened summaries.
 - Keep future additive remote/public proof-lane design out of this `v0` implementation scope; that follow-on planning now lives in `CHG-2026-055-b7e4-additive-remote-public-proof-lane`.
+- Keep the trusted local Groth16 backend hard-disabled until reviewed trusted setup assets are delivered through trusted assets; runtime deterministic setup generation on user machines remains out of policy.
+- Re-enable the backend only after every statement-critical public field is cryptographically bound, trusted verifier posture comes only from reviewed local assets, proof verification validates the referenced `AuditProofBinding` plus authoritative source evidence, trusted Go validation mirrors protocol-schema bounds, audit recording failures are fail closed, and the documented performance gates are enforced by required CI or scheduled checks.
 
 ## Why Now
 This work now lands in `v0.1.0-alpha.10` as a narrow parallel assurance lane, after signing, attestation, and external audit anchoring have stabilized enough to give the first proof statement durable typed claims to bind to.
@@ -39,3 +41,5 @@ Keeping it pre-beta but non-blocking lets RuneCode explore one real proof path w
 Keeps ZK Proof v0 (One Narrow Proof + Verify) reviewable as a RuneContext-native local-proof change, anchors it to RuneCode's trusted audit and verified-substrate foundations, and removes the need for a second semantics rewrite later.
 
 This change now also captures the local persistence requirement that every RuneCode instance must retain canonical proof-relevant source evidence strongly enough that later backfill remains possible even if the additive remote/public lane is not yet enabled on that machine.
+
+It also records that the current backend remains intentionally fail closed until the remaining correctness, setup-integrity, authoritative-verification, validation-tightness, audit-recording, and performance-gate prerequisites are met.

@@ -35,6 +35,12 @@ func TestProofBackfillEvidenceSnapshotIncludesProofAndAuditSidecars(t *testing.T
 	if len(snapshot.SegmentIDs) == 0 {
 		t.Fatal("SegmentIDs empty")
 	}
+	if len(snapshot.VerifierRecordDigests) == 0 {
+		t.Fatal("VerifierRecordDigests empty")
+	}
+	if len(snapshot.EventContractCatalogDigests) == 0 {
+		t.Fatal("EventContractCatalogDigests empty")
+	}
 	assertStringSliceContains(t, snapshot.AuditReceiptDigests, mustDigestIdentity(receiptDigest))
 	assertStringSliceContains(t, snapshot.AuditProofBindingDigests, mustDigestIdentity(bindingDigest))
 	assertStringSliceContains(t, snapshot.ZKProofArtifactDigests, mustDigestIdentity(artifactDigest))

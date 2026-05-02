@@ -1,11 +1,8 @@
 package auditd
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
+	"strconv"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
@@ -38,86 +35,81 @@ func (l *Ledger) currentSegmentEvidenceLocked() (trustpolicy.AuditSegmentFilePay
 }
 
 func (l *Ledger) loadSealEnvelopeForSegmentLocked(segmentID string) (trustpolicy.SignedObjectEnvelope, trustpolicy.Digest, trustpolicy.AuditSegmentSealPayload, error) {
-	entries, err := os.ReadDir(filepath.Join(l.rootDir, sidecarDirName, sealsDirName))
+	lookup, err := l.segmentSealLookupLocked(segmentID)
 	if err != nil {
 		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.Digest{}, trustpolicy.AuditSegmentSealPayload{}, err
 	}
-	bestIndex := int64(-1)
-	bestEnvelope := trustpolicy.SignedObjectEnvelope{}
-	bestDigest := trustpolicy.Digest{}
-	bestPayload := trustpolicy.AuditSegmentSealPayload{}
-	for _, entry := range entries {
-		envelope, payload, digest, ok, err := l.sealEntryForSegment(entry.Name(), segmentID)
-		if err != nil {
-			return trustpolicy.SignedObjectEnvelope{}, trustpolicy.Digest{}, trustpolicy.AuditSegmentSealPayload{}, err
-		}
-		if !ok || payload.SealChainIndex < bestIndex {
-			continue
-		}
-		bestIndex = payload.SealChainIndex
-		bestEnvelope = envelope
-		bestPayload = payload
-		bestDigest = digest
-	}
-	if bestIndex < 0 {
-		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.Digest{}, trustpolicy.AuditSegmentSealPayload{}, fmt.Errorf("no segment seal found for %s", segmentID)
-	}
-	return bestEnvelope, bestDigest, bestPayload, nil
-}
-
-func (l *Ledger) sealEntryForSegment(name string, segmentID string) (trustpolicy.SignedObjectEnvelope, trustpolicy.AuditSegmentSealPayload, trustpolicy.Digest, bool, error) {
-	if strings.HasSuffix(name, ".json") == false {
-		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.AuditSegmentSealPayload{}, trustpolicy.Digest{}, false, nil
-	}
-	envelope := trustpolicy.SignedObjectEnvelope{}
-	if err := readJSONFile(filepath.Join(l.rootDir, sidecarDirName, sealsDirName, name), &envelope); err != nil {
-		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.AuditSegmentSealPayload{}, trustpolicy.Digest{}, false, err
-	}
-	payload := trustpolicy.AuditSegmentSealPayload{}
-	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
-		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.AuditSegmentSealPayload{}, trustpolicy.Digest{}, false, err
+	envelope, digest, payload, err := l.readVerifiedSegmentSealEnvelope(lookup.DigestIdentity)
+	if err != nil {
+		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.Digest{}, trustpolicy.AuditSegmentSealPayload{}, err
 	}
 	if payload.SegmentID != segmentID {
-		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.AuditSegmentSealPayload{}, trustpolicy.Digest{}, false, nil
+		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.Digest{}, trustpolicy.AuditSegmentSealPayload{}, fmt.Errorf("segment seal %s does not match requested segment %s", payload.SegmentID, segmentID)
 	}
-	digest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.TrimSuffix(name, ".json")}
-	return envelope, payload, digest, true, nil
+	return envelope, digest, payload, nil
+}
+
+func (l *Ledger) segmentSealLookupLocked(segmentID string) (segmentSealLookup, error) {
+	if err := l.ensureProofLookupIndexLocked(); err != nil {
+		return segmentSealLookup{}, err
+	}
+	lookup, ok := l.lookupIndex.SegmentSeals[segmentID]
+	if ok {
+		return lookup, nil
+	}
+	if err := l.refreshProofLookupIndexLocked(); err != nil {
+		return segmentSealLookup{}, err
+	}
+	lookup, ok = l.lookupIndex.SegmentSeals[segmentID]
+	if !ok {
+		return segmentSealLookup{}, fmt.Errorf("no segment seal found for %s", segmentID)
+	}
+	return lookup, nil
+}
+
+func (l *Ledger) readVerifiedSegmentSealEnvelope(identity string) (trustpolicy.SignedObjectEnvelope, trustpolicy.Digest, trustpolicy.AuditSegmentSealPayload, error) {
+	digest, err := digestFromIdentity(identity)
+	if err != nil {
+		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.Digest{}, trustpolicy.AuditSegmentSealPayload{}, err
+	}
+	envelope := trustpolicy.SignedObjectEnvelope{}
+	if err := readJSONFile(sidecarPath(l.rootDir, sealsDirName, identity), &envelope); err != nil {
+		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.Digest{}, trustpolicy.AuditSegmentSealPayload{}, err
+	}
+	computedDigest, err := trustpolicy.ComputeSignedEnvelopeAuditRecordDigest(envelope)
+	if err != nil {
+		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.Digest{}, trustpolicy.AuditSegmentSealPayload{}, err
+	}
+	if mustDigestIdentity(computedDigest) != identity {
+		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.Digest{}, trustpolicy.AuditSegmentSealPayload{}, fmt.Errorf("segment seal content digest mismatch for %s", identity)
+	}
+	payload, err := decodeAndValidateSealEnvelope(envelope)
+	if err != nil {
+		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.Digest{}, trustpolicy.AuditSegmentSealPayload{}, err
+	}
+	return envelope, digest, payload, nil
 }
 
 func (l *Ledger) previousSealDigestByIndexLocked(index int64) (*trustpolicy.Digest, error) {
 	if index < 0 {
 		return nil, nil
 	}
-	entries, err := os.ReadDir(filepath.Join(l.rootDir, sidecarDirName, sealsDirName))
+	if err := l.ensureProofLookupIndexLocked(); err != nil {
+		return nil, err
+	}
+	identity, ok := l.lookupIndex.SealByChainIndex[strconv.FormatInt(index, 10)]
+	if !ok {
+		if err := l.refreshProofLookupIndexLocked(); err != nil {
+			return nil, err
+		}
+		identity, ok = l.lookupIndex.SealByChainIndex[strconv.FormatInt(index, 10)]
+		if !ok {
+			return nil, fmt.Errorf("missing previous seal digest at chain index %d", index)
+		}
+	}
+	digest, err := digestFromIdentity(identity)
 	if err != nil {
 		return nil, err
 	}
-	for _, entry := range entries {
-		digest, ok, err := l.sealDigestByIndexEntry(entry.Name(), index)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			return &digest, nil
-		}
-	}
-	return nil, fmt.Errorf("missing previous seal digest at chain index %d", index)
-}
-
-func (l *Ledger) sealDigestByIndexEntry(name string, index int64) (trustpolicy.Digest, bool, error) {
-	if !strings.HasSuffix(name, ".json") {
-		return trustpolicy.Digest{}, false, nil
-	}
-	envelope := trustpolicy.SignedObjectEnvelope{}
-	if err := readJSONFile(filepath.Join(l.rootDir, sidecarDirName, sealsDirName, name), &envelope); err != nil {
-		return trustpolicy.Digest{}, false, err
-	}
-	payload := trustpolicy.AuditSegmentSealPayload{}
-	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
-		return trustpolicy.Digest{}, false, err
-	}
-	if payload.SealChainIndex != index {
-		return trustpolicy.Digest{}, false, nil
-	}
-	return trustpolicy.Digest{HashAlg: "sha256", Hash: strings.TrimSuffix(name, ".json")}, true, nil
+	return &digest, nil
 }

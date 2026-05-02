@@ -1,7 +1,6 @@
 package auditd
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -11,6 +10,9 @@ import (
 func (l *Ledger) PersistAuditProofBinding(payload trustpolicy.AuditProofBindingPayload) (trustpolicy.Digest, bool, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if err := l.refreshProofLookupIndexLocked(); err != nil {
+		return trustpolicy.Digest{}, false, err
+	}
 	if err := trustpolicy.ValidateAuditProofBindingPayload(payload); err != nil {
 		return trustpolicy.Digest{}, false, err
 	}
@@ -37,7 +39,20 @@ func (l *Ledger) PersistAuditProofBinding(payload trustpolicy.AuditProofBindingP
 	if err := writeCanonicalJSONFile(path, payload); err != nil {
 		return trustpolicy.Digest{}, false, err
 	}
+	if err := l.persistAuditProofBindingLookupLocked(digest, payload); err != nil {
+		return trustpolicy.Digest{}, false, err
+	}
 	return digest, true, nil
+}
+
+func (l *Ledger) persistAuditProofBindingLookupLocked(digest trustpolicy.Digest, payload trustpolicy.AuditProofBindingPayload) error {
+	if err := l.ensureProofLookupIndexLocked(); err != nil {
+		return err
+	}
+	if err := l.lookupIndex.notePersistedAuditProofBinding(digest, payload); err != nil {
+		return err
+	}
+	return l.saveProofLookupIndexLocked(l.lookupIndex)
 }
 
 func (l *Ledger) PersistZKProofArtifact(payload trustpolicy.ZKProofArtifactPayload) (trustpolicy.Digest, error) {
@@ -73,46 +88,36 @@ func (l *Ledger) PersistZKProofVerificationRecord(payload trustpolicy.ZKProofVer
 	if err := writeCanonicalJSONFile(path, payload); err != nil {
 		return trustpolicy.Digest{}, err
 	}
+	if err := l.ensureProofLookupIndexLocked(); err != nil {
+		return trustpolicy.Digest{}, err
+	}
+	if err := l.lookupIndex.notePersistedZKProofVerificationRecord(digest, payload); err != nil {
+		return trustpolicy.Digest{}, err
+	}
+	if err := l.saveProofLookupIndexLocked(l.lookupIndex); err != nil {
+		return trustpolicy.Digest{}, err
+	}
 	return digest, nil
 }
 
 func (l *Ledger) findAuditProofBindingByIdempotencyKeyLocked(want string) (trustpolicy.Digest, bool, error) {
-	entries, err := l.readOptionalSidecarDirEntries(proofBindingsDirName)
+	digest, err := digestFromIdentity(want)
+	if err != nil {
+		return trustpolicy.Digest{}, false, nil
+	}
+	payload, found, err := l.loadAuditProofBindingByIdentityLocked(want)
 	if err != nil {
 		return trustpolicy.Digest{}, false, err
 	}
-	for _, entry := range entries {
-		digest, ok, err := l.auditProofBindingDigestForIdempotencyKeyLocked(entry, want)
-		if err != nil {
-			return trustpolicy.Digest{}, false, err
-		}
-		if ok {
-			return digest, true, nil
-		}
-	}
-	return trustpolicy.Digest{}, false, nil
-}
-
-func (l *Ledger) auditProofBindingDigestForIdempotencyKeyLocked(entry os.DirEntry, want string) (trustpolicy.Digest, bool, error) {
-	identity, ok, err := digestIdentityFromSidecarName(entry.Name())
-	if err != nil || !ok {
-		return trustpolicy.Digest{}, ok, err
-	}
-	payload := trustpolicy.AuditProofBindingPayload{}
-	path := filepath.Join(l.rootDir, sidecarDirName, proofBindingsDirName, entry.Name())
-	if err := readJSONFile(path, &payload); err != nil {
-		return trustpolicy.Digest{}, false, err
-	}
-	if err := trustpolicy.ValidateAuditProofBindingPayload(payload); err != nil {
-		return trustpolicy.Digest{}, false, err
+	if !found {
+		return trustpolicy.Digest{}, false, nil
 	}
 	key, err := proofBindingIdempotencyKey(payload)
-	if err != nil || key != want {
-		return trustpolicy.Digest{}, false, err
-	}
-	digest, err := digestFromIdentity(identity)
 	if err != nil {
 		return trustpolicy.Digest{}, false, err
+	}
+	if key != want {
+		return trustpolicy.Digest{}, false, nil
 	}
 	return digest, true, nil
 }

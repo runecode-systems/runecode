@@ -76,10 +76,42 @@ Define a future additive proof lane that can ingest exported canonical RuneCode 
   - proof-binding sidecars
   - manifest and authenticity material needed to verify the bundle itself
   - bundle-level provenance identifying the exporting RuneCode instance, export time, and covered evidence ranges
+- Runtime and attestation evidence in the bundle must be immutable evidence objects or canonical envelopes addressed by digest, not only live-store references such as `run_id` lookups.
+
+### Bundle Protocol Surfaces
+- The remote lane must define checked-in protocol schemas for at least:
+  - `ProofBackfillExportBundle`
+  - `ProofBackfillBundleManifest`
+  - `ProofBackfillCoverageRange`
+  - `ProofBackfillAuthenticityEnvelope`
+  - any remote proof write-back artifact or receipt family used to return additive proof results to a RuneCode node
+- `ProofBackfillBundleManifest` should include at least:
+  - manifest schema and version
+  - exporter identity
+  - export timestamp
+  - supported statement families and normalization profiles covered by the bundle
+  - redaction or disclosure profile identity
+  - canonical digests for every included evidence object or archive member
+  - declared coverage ranges by authoritative stream
+  - predecessor or checkpoint material needed for anti-rollback evaluation
+  - authenticity-envelope digest or equivalent signature binding
+
+### Coverage-Range Semantics
+- Coverage must be declared explicitly rather than inferred from filenames or directory layout.
+- Each bundle should declare one or more authoritative coverage windows keyed by typed stream identity such as `emitter_stream_id` plus seal or segment progression.
+- Coverage windows must state whether they are complete or partial for the declared stream range so a remote service can distinguish intentionally partial export from accidental truncation.
+- Remote ingest and backfill rules should use those declared ranges when deciding whether historical proof gaps are expected, missing, or suspicious.
 
 ### Bundle Authenticity
 - Export bundles must be verifiable without trusting the transport path used to deliver them.
 - Bundle authenticity should be pinned to canonical digests, bundle manifests, and locally trusted verification evidence rather than to filenames or directory layout.
+- The authenticity model must define how the exporter signs or otherwise authenticates the bundle manifest and how the remote service validates that authenticity against reviewed trust roots.
+- Authenticity validation must also cover any bundle-level archive container so the manifest cannot be replayed over different payload bytes.
+
+### Anti-Rollback Posture
+- Remote ingest must track exporter checkpoints or predecessor relationships strongly enough to detect silent rollback, stream truncation, or replay of older bundle manifests as if they were current.
+- A newly ingested bundle must not silently reduce the highest fully covered range previously accepted for the same exporter and authoritative stream unless the bundle is explicitly marked as partial or diagnostic and the remote service preserves that distinction.
+- Remote services must treat manifest regression, conflicting digests for the same typed identity, or inconsistent predecessor links as hard ingest failures or explicit disagreement evidence.
 
 ## Remote Ingest And Backfill Model
 
@@ -87,11 +119,19 @@ Define a future additive proof lane that can ingest exported canonical RuneCode 
 - A future remote proof service should be able to rebuild its proof-work queue entirely from exported bundles plus configured proof-family support.
 - Remote ingest must not require live reach-back into the originating machine's local storage.
 - Remote ingest should verify the bundle's authenticity and canonical source evidence before any proof work starts.
+- Remote ingest must validate the declared coverage ranges, predecessor or anti-rollback material, disclosure profile, and statement-family support before accepting the bundle into proof-work scheduling.
 
 ### Backfill Rules
 - The remote service may backfill proofs for all retained history, not just newly exported events.
 - Backfilled proofs should be written back as additive derived evidence using the same proof contract and the same proof-binding identities as locally generated proofs.
 - If the remote service later uses recursive or aggregate proofs, those aggregate artifacts must still refer back to the same canonical statement families and source identities.
+- Remote proof write-back must be validated by the receiving RuneCode node before persistence.
+- Write-back validation must check at least:
+  - remote bundle or provenance references
+  - proof-binding digest and statement-family identity
+  - artifact-declared setup and verifier identity against the locally trusted acceptance posture for that remote result family
+  - source-ref integrity and non-overwrite rules for authoritative local records
+- Remote write-back must remain additive derived evidence and must not overwrite local authoritative proof-verification records.
 
 ### Disagreement Posture
 - If local and remote proof results disagree, local authoritative verification posture remains the source of truth for RuneCode's internal assurance model.
@@ -117,6 +157,11 @@ Define a future additive proof lane that can ingest exported canonical RuneCode 
 ### Information-Asymmetry Use Case
 - The public-assurance lane is the clearest consumer of proof-disclosure rules where a verifier sees public inputs and proof objects without receiving the full authoritative private source payload.
 - This lane is a major reason the logical normalization profile's proof-disclosure split must remain separate from the source schema's `x-data-class` semantics.
+- The remote and public lanes must define explicit disclosure or redaction profiles so bundle producers and consumers agree on which evidence classes may be omitted, summarized, or projected for a given export or publication mode.
+- Proof-required evidence classes must not be removed by a disclosure profile if their absence would make later local or remote validation ambiguous.
+
+## Current Design Gap
+- This change is not ready for implementation until the concrete bundle protocol, manifest schema, coverage semantics, anti-rollback rules, disclosure profiles, and remote write-back validation rules above are specified in enough detail to produce authoritative protocol schemas and deterministic verification logic.
 
 ## Recursive Proofs And Aggregation
 

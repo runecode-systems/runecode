@@ -25,20 +25,69 @@ func (l *Ledger) AuditRecordInclusion(recordDigest string) (AuditRecordInclusion
 	if err != nil {
 		return AuditRecordInclusion{}, false, err
 	}
-	segments, err := l.listSegments()
+	if err := l.ensureProofLookupIndexLocked(); err != nil {
+		return AuditRecordInclusion{}, false, err
+	}
+	lookup, found, err := l.lookupRecordInclusionLocked(normalizedDigest)
 	if err != nil {
 		return AuditRecordInclusion{}, false, err
 	}
-	for _, segment := range segments {
-		inclusion, found, err := l.auditRecordInclusionForSegmentLocked(segment, normalizedDigest, recordDigestValue)
-		if err != nil {
-			return AuditRecordInclusion{}, false, err
-		}
-		if found {
-			return inclusion, true, nil
-		}
+	if !found {
+		return AuditRecordInclusion{}, false, nil
 	}
-	return AuditRecordInclusion{}, false, nil
+	segment, err := l.loadSegment(lookup.SegmentID)
+	if err != nil {
+		return AuditRecordInclusion{}, false, err
+	}
+	if ok, err := l.validateInclusionFrameIndexLocked(lookup, segment); err != nil || !ok {
+		return AuditRecordInclusion{}, false, err
+	}
+	frame := segment.Frames[lookup.FrameIndex]
+	matched, err := l.validateInclusionFrameDigestLocked(frame, normalizedDigest)
+	if err != nil || !matched {
+		return AuditRecordInclusion{}, false, err
+	}
+	inclusion, err := l.buildAuditRecordInclusionLocked(segment, frame, lookup.FrameIndex, recordDigestValue)
+	if err != nil {
+		return AuditRecordInclusion{}, false, err
+	}
+	return inclusion, true, nil
+}
+
+func (l *Ledger) lookupRecordInclusionLocked(normalizedDigest string) (recordInclusionLookup, bool, error) {
+	lookup, found := l.lookupIndex.RecordInclusions[normalizedDigest]
+	if found {
+		return lookup, true, nil
+	}
+	if err := l.refreshProofLookupIndexLocked(); err != nil {
+		return recordInclusionLookup{}, false, err
+	}
+	lookup, found = l.lookupIndex.RecordInclusions[normalizedDigest]
+	return lookup, found, nil
+}
+
+func (l *Ledger) validateInclusionFrameIndexLocked(lookup recordInclusionLookup, segment trustpolicy.AuditSegmentFilePayload) (bool, error) {
+	if lookup.FrameIndex >= 0 && lookup.FrameIndex < len(segment.Frames) {
+		return true, nil
+	}
+	if err := l.refreshProofLookupIndexLocked(); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
+func (l *Ledger) validateInclusionFrameDigestLocked(frame trustpolicy.AuditSegmentRecordFrame, normalizedDigest string) (bool, error) {
+	matches, err := frameRecordDigestMatches(frame, normalizedDigest)
+	if err != nil {
+		return false, err
+	}
+	if matches {
+		return true, nil
+	}
+	if err := l.refreshProofLookupIndexLocked(); err != nil {
+		return false, err
+	}
+	return false, nil
 }
 
 func resolvedAuditRecordDigest(recordDigest string) (string, trustpolicy.Digest, error) {
@@ -51,24 +100,6 @@ func resolvedAuditRecordDigest(recordDigest string) (string, trustpolicy.Digest,
 		return "", trustpolicy.Digest{}, err
 	}
 	return normalizedDigest, value, nil
-}
-
-func (l *Ledger) auditRecordInclusionForSegmentLocked(segment trustpolicy.AuditSegmentFilePayload, normalizedDigest string, recordDigestValue trustpolicy.Digest) (AuditRecordInclusion, bool, error) {
-	for index, frame := range segment.Frames {
-		matches, err := frameRecordDigestMatches(frame, normalizedDigest)
-		if err != nil {
-			return AuditRecordInclusion{}, false, err
-		}
-		if !matches {
-			continue
-		}
-		inclusion, err := l.buildAuditRecordInclusionLocked(segment, frame, index, recordDigestValue)
-		if err != nil {
-			return AuditRecordInclusion{}, false, err
-		}
-		return inclusion, true, nil
-	}
-	return AuditRecordInclusion{}, false, nil
 }
 
 func (l *Ledger) buildAuditRecordInclusionLocked(segment trustpolicy.AuditSegmentFilePayload, frame trustpolicy.AuditSegmentRecordFrame, index int, recordDigestValue trustpolicy.Digest) (AuditRecordInclusion, error) {

@@ -1,7 +1,6 @@
 package auditd
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -173,42 +172,19 @@ type discoveredSeal struct {
 }
 
 func (l *Ledger) discoverLatestSealLocked() (digestIdentity string, segmentID string, err error) {
-	entries, err := os.ReadDir(filepath.Join(l.rootDir, sidecarDirName, sealsDirName))
-	if err != nil {
+	if err := l.ensureProofLookupIndexLocked(); err != nil {
 		return "", "", err
 	}
 	best := discoveredSeal{index: -1}
-	for _, entry := range entries {
-		next, ok, err := l.discoverSealEntry(entry.Name())
-		if err != nil {
-			return "", "", err
-		}
-		if ok && next.index > best.index {
-			best = next
+	for segmentID, lookup := range l.lookupIndex.SegmentSeals {
+		if lookup.SealChainIndex > best.index || (lookup.SealChainIndex == best.index && lookup.DigestIdentity > best.digestIdentity) {
+			best = discoveredSeal{digestIdentity: lookup.DigestIdentity, segmentID: segmentID, index: lookup.SealChainIndex}
 		}
 	}
 	if best.index < 0 {
 		return "", "", nil
 	}
 	return best.digestIdentity, best.segmentID, nil
-}
-
-func (l *Ledger) discoverSealEntry(name string) (discoveredSeal, bool, error) {
-	if !strings.HasSuffix(name, ".json") {
-		return discoveredSeal{}, false, nil
-	}
-	path := filepath.Join(l.rootDir, sidecarDirName, sealsDirName, name)
-	envelope := trustpolicy.SignedObjectEnvelope{}
-	if err := readJSONFile(path, &envelope); err != nil {
-		return discoveredSeal{}, false, err
-	}
-	seal := trustpolicy.AuditSegmentSealPayload{}
-	if err := json.Unmarshal(envelope.Payload, &seal); err != nil {
-		return discoveredSeal{}, false, fmt.Errorf("decode seal payload %q: %w", name, err)
-	}
-	digest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.TrimSuffix(name, ".json")}
-	identity, _ := digest.Identity()
-	return discoveredSeal{digestIdentity: identity, segmentID: seal.SegmentID, index: seal.SealChainIndex}, true, nil
 }
 
 func nextSegmentID(number int64) string {

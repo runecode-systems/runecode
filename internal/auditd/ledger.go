@@ -18,9 +18,10 @@ import (
 const stateSchemaVersion = 1
 
 type Ledger struct {
-	mu      sync.Mutex
-	rootDir string
-	nowFn   func() time.Time
+	mu          sync.Mutex
+	rootDir     string
+	nowFn       func() time.Time
+	lookupIndex *proofLookupIndex
 }
 
 func Open(rootDir string) (*Ledger, error) {

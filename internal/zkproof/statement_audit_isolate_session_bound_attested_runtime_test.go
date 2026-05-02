@@ -289,7 +289,14 @@ func TestVerifyProofWithTrustedPostureV0FailClosedWhenBackendUnconfigured(t *tes
 	err := VerifyProofWithTrustedPostureV0(
 		nil,
 		[]byte{0x1, 0x2},
-		digestFixture("9"),
+		AuditIsolateSessionBoundAttestedRuntimePublicInputs{
+			StatementFamily:   StatementFamilyAuditIsolateSessionBoundAttestedRuntimeMembershipV0,
+			StatementVersion:  StatementVersionV0,
+			SchemeAdapterID:   SchemeAdapterGnarkGroth16IsolateSessionBoundV0,
+			MerkleRoot:        digestFixture("9"),
+			AuditRecordDigest: digestFixture("a"),
+			BindingCommitment: digestIdentityFixture("b"),
+		},
 		ProofVerificationIdentity{
 			VerifierKeyDigest:      digestFixture("a"),
 			ConstraintSystemDigest: digestFixture("b"),

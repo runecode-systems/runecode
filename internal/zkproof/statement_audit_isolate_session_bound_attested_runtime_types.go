@@ -10,8 +10,9 @@ const (
 	StatementFamilyAuditIsolateSessionBoundAttestedRuntimeMembershipV0 = "audit.isolate_session_bound.attested_runtime_membership.v0"
 	StatementVersionV0                                                 = "v0"
 
-	ProofSchemeIDGroth16V0 = "groth16"
-	ProofCurveIDBN254V0    = "bn254"
+	ProofSchemeIDGroth16V0                                       = "groth16"
+	ProofCurveIDBN254V0                                          = "bn254"
+	CircuitIDAuditIsolateSessionBoundAttestedRuntimeMembershipV0 = "runecode.zk.circuit.audit.isolate_session_bound.attested_runtime_membership.v0"
 
 	NormalizationProfileAuditIsolateSessionBoundAttestedRuntimeV0 = "runecode.zk.normalize.audit.isolate_session_bound.attested_runtime.v0"
 	SchemeAdapterGnarkGroth16IsolateSessionBoundV0                = "runecode.zk.adapter.gnark.groth16.isolate_session_bound_attested_runtime.v0"
@@ -39,6 +40,7 @@ const (
 	feasibilityCodeSetupIdentityMismatch        = "setup_identity_mismatch"
 	feasibilityCodeUnsupportedProofBackend      = "unsupported_proof_backend"
 	feasibilityCodeUnconfiguredProofBackend     = "unconfigured_proof_backend"
+	feasibilityCodeProofInvalid                 = "proof_invalid"
 )
 
 const (
@@ -95,16 +97,21 @@ type SessionBindingRelationshipVerifier interface {
 
 type ProofBackend interface {
 	BackendIdentity() string
-	VerifyDeterministic(proof []byte, publicInputsDigest trustpolicy.Digest) error
+	VerifyDeterministic(proof []byte, publicInputs AuditIsolateSessionBoundAttestedRuntimePublicInputs) error
+}
+
+type ProofProver interface {
+	ProofBackend
+	ProveDeterministic(contract AuditIsolateSessionBoundAttestedRuntimeProofInputContract) ([]byte, ProofVerificationIdentity, error)
 }
 
 type unsupportedProofBackend struct{}
 
 func (unsupportedProofBackend) BackendIdentity() string { return "unsupported" }
 
-func (unsupportedProofBackend) VerifyDeterministic(proof []byte, publicInputsDigest trustpolicy.Digest) error {
+func (unsupportedProofBackend) VerifyDeterministic(proof []byte, publicInputs AuditIsolateSessionBoundAttestedRuntimePublicInputs) error {
 	_ = proof
-	_ = publicInputsDigest
+	_ = publicInputs
 	return &FeasibilityError{Code: feasibilityCodeUnconfiguredProofBackend, Message: "proof backend is not configured; fail-closed for verification"}
 }
 

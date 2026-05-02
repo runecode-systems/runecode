@@ -92,26 +92,30 @@ func (s *Service) HandleZKProofVerify(ctx context.Context, req ZKProofVerifyRequ
 }
 
 func (s *Service) zkProofGenerateValidated(requestID string, recordDigest trustpolicy.Digest) (ZKProofGenerateResponse, error) {
-	if err := s.requireZKProofFixtureBackend("generation"); err != nil {
+	if err := s.requireZKProofBackend("generation"); err != nil {
 		return ZKProofGenerateResponse{}, err
 	}
 	recordIdentity, inclusion, err := s.loadAuditRecordInclusion(recordDigest)
 	if err != nil {
 		return ZKProofGenerateResponse{}, err
 	}
-	compiled, path, err := s.compileZKProofInput(inclusion)
+	compiled, path, runtimeEvidence, err := s.compileZKProofInput(inclusion)
 	if err != nil {
 		return ZKProofGenerateResponse{}, err
 	}
-	bindingDigest, err := s.persistCompiledAuditProofBinding(compiled, path, inclusion)
+	bindingDigest, err := s.persistCompiledAuditProofBinding(compiled, path, inclusion, runtimeEvidence)
 	if err != nil {
 		return ZKProofGenerateResponse{}, err
 	}
-	artifactPayload, publicInputsDigest, proofDigest, err := s.persistCompiledProofArtifact(compiled, bindingDigest)
+	artifactPayload, err := s.persistCompiledProofArtifact(compiled, bindingDigest)
 	if err != nil {
 		return ZKProofGenerateResponse{}, err
 	}
-	verifyResp, err := s.verifyProofArtifactAndPersistRecord(requestID, proofDigest, artifactPayload, publicInputsDigest)
+	proofDigest, err := s.auditLedger.PersistZKProofArtifact(artifactPayload)
+	if err != nil {
+		return ZKProofGenerateResponse{}, err
+	}
+	verifyResp, err := s.verifyProofArtifactAndPersistRecord(requestID, proofDigest, artifactPayload, artifactPayload.PublicInputsDigest)
 	if err != nil {
 		return ZKProofGenerateResponse{}, err
 	}
@@ -121,11 +125,8 @@ func (s *Service) zkProofGenerateValidated(requestID string, recordDigest trustp
 }
 
 func (s *Service) zkProofVerifyValidated(requestID string, artifactDigest trustpolicy.Digest) (ZKProofVerifyResponse, error) {
-	if s.auditLedger == nil {
-		return ZKProofVerifyResponse{}, fmt.Errorf("audit ledger unavailable")
-	}
-	if !s.apiConfig.ZKProof.EnableFixtureBackend {
-		return ZKProofVerifyResponse{}, &zkproof.FeasibilityError{Code: "unconfigured_proof_backend", Message: "zk proof verification requires explicit trusted fixture backend enablement in this evaluation-only implementation"}
+	if err := s.requireZKProofBackend("verification"); err != nil {
+		return ZKProofVerifyResponse{}, err
 	}
 	artifact, found, err := s.auditLedger.ZKProofArtifactByDigest(artifactDigest)
 	if err != nil {

@@ -8,18 +8,22 @@ import (
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/auditd"
+	"github.com/runecode-ai/runecode/internal/launcherbackend"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 	"github.com/runecode-ai/runecode/internal/zkproof"
 )
 
-func (s *Service) requireZKProofFixtureBackend(operation string) error {
+func (s *Service) requireZKProofBackend(operation string) error {
 	if s.auditLedger == nil {
 		return fmt.Errorf("audit ledger unavailable")
 	}
-	if s.apiConfig.ZKProof.EnableFixtureBackend {
+	if s.store == nil {
+		return fmt.Errorf("artifact store unavailable")
+	}
+	if _, _, _, _, err := zkproof.NewTrustedLocalGroth16BackendV0(); err == nil {
 		return nil
 	}
-	return &zkproof.FeasibilityError{Code: "unconfigured_proof_backend", Message: fmt.Sprintf("zk proof %s requires explicit trusted fixture backend enablement in this evaluation-only implementation", operation)}
+	return &zkproof.FeasibilityError{Code: "unconfigured_proof_backend", Message: fmt.Sprintf("zk proof %s requires trusted local proof backend availability", operation)}
 }
 
 func (s *Service) loadAuditRecordInclusion(recordDigest trustpolicy.Digest) (string, auditd.AuditRecordInclusion, error) {
@@ -40,14 +44,18 @@ func (s *Service) loadAuditRecordInclusion(recordDigest trustpolicy.Digest) (str
 	return recordIdentity, inclusion, nil
 }
 
-func (s *Service) compileZKProofInput(inclusion auditd.AuditRecordInclusion) (zkproof.AuditIsolateSessionBoundAttestedRuntimeProofInputContract, zkproof.MerkleAuthenticationPath, error) {
+func (s *Service) compileZKProofInput(inclusion auditd.AuditRecordInclusion) (zkproof.AuditIsolateSessionBoundAttestedRuntimeProofInputContract, zkproof.MerkleAuthenticationPath, launcherbackend.RuntimeEvidenceSnapshot, error) {
 	auditEvent, err := decodeAuditEventPayload(inclusion.RecordEnvelope)
 	if err != nil {
-		return zkproof.AuditIsolateSessionBoundAttestedRuntimeProofInputContract{}, zkproof.MerkleAuthenticationPath{}, err
+		return zkproof.AuditIsolateSessionBoundAttestedRuntimeProofInputContract{}, zkproof.MerkleAuthenticationPath{}, launcherbackend.RuntimeEvidenceSnapshot{}, err
+	}
+	runtimeEvidence, err := s.runtimeEvidenceForAuditEvent(auditEvent)
+	if err != nil {
+		return zkproof.AuditIsolateSessionBoundAttestedRuntimeProofInputContract{}, zkproof.MerkleAuthenticationPath{}, launcherbackend.RuntimeEvidenceSnapshot{}, err
 	}
 	path, err := zkproof.DeriveAuditSegmentMerkleAuthenticationPathV0(inclusion.SegmentRecordDigests, inclusion.RecordIndex)
 	if err != nil {
-		return zkproof.AuditIsolateSessionBoundAttestedRuntimeProofInputContract{}, zkproof.MerkleAuthenticationPath{}, err
+		return zkproof.AuditIsolateSessionBoundAttestedRuntimeProofInputContract{}, zkproof.MerkleAuthenticationPath{}, launcherbackend.RuntimeEvidenceSnapshot{}, err
 	}
 	compiled, err := zkproof.CompileAuditIsolateSessionBoundAttestedRuntimeMembershipV0(zkproof.CompileAuditIsolateSessionBoundAttestedRuntimeInput{
 		DeterministicVerification:        true,
@@ -56,16 +64,71 @@ func (s *Service) compileZKProofInput(inclusion auditd.AuditRecordInclusion) (zk
 		VerifiedAuditSegmentSeal:         inclusion.SealPayload,
 		VerifiedAuditSegmentSealDigest:   inclusion.SealEnvelopeDigest,
 		MerkleAuthenticationPath:         path,
-		BindingCommitmentDeriver:         deterministicBindingCommitmentDeriver{},
-		SessionBindingRelationshipVerify: deterministicSessionBindingRelationshipVerifier{},
+		BindingCommitmentDeriver:         zkproof.NewPoseidonBindingCommitmentDeriverV0(),
+		SessionBindingRelationshipVerify: runtimeSessionBindingRelationshipVerifier{evidence: runtimeEvidence},
 		NormalizationProfileID:           zkProofNormalizationProfileV0,
 		SchemeAdapterID:                  zkProofSchemeAdapterIDV0,
 		ProjectSubstrateSnapshotDigest:   strings.TrimSpace(s.projectSubstrate.Snapshot.ProjectContextIdentityDigest),
 	})
 	if err != nil {
-		return zkproof.AuditIsolateSessionBoundAttestedRuntimeProofInputContract{}, zkproof.MerkleAuthenticationPath{}, err
+		return zkproof.AuditIsolateSessionBoundAttestedRuntimeProofInputContract{}, zkproof.MerkleAuthenticationPath{}, launcherbackend.RuntimeEvidenceSnapshot{}, err
 	}
-	return compiled, path, nil
+	return compiled, path, runtimeEvidence, nil
+}
+
+func (s *Service) runtimeEvidenceForAuditEvent(auditEvent trustpolicy.AuditEventPayload) (launcherbackend.RuntimeEvidenceSnapshot, error) {
+	payload, err := decodeEligibleAuditEventForRuntimeEvidence(auditEvent)
+	if err != nil {
+		return launcherbackend.RuntimeEvidenceSnapshot{}, err
+	}
+	if s.store == nil {
+		return launcherbackend.RuntimeEvidenceSnapshot{}, fmt.Errorf("artifact store unavailable")
+	}
+	_, evidence, _, _, ok := s.store.RuntimeEvidenceState(payload.RunID)
+	if !ok {
+		return launcherbackend.RuntimeEvidenceSnapshot{}, fmt.Errorf("runtime evidence for run %q not found", payload.RunID)
+	}
+	if evidence.Session == nil || strings.TrimSpace(evidence.Session.EvidenceDigest) == "" {
+		return launcherbackend.RuntimeEvidenceSnapshot{}, fmt.Errorf("runtime session evidence missing for run %q", payload.RunID)
+	}
+	if strings.TrimSpace(evidence.Session.EvidenceDigest) != strings.TrimSpace(payload.SessionBindingDigest) {
+		return launcherbackend.RuntimeEvidenceSnapshot{}, fmt.Errorf("runtime session evidence digest does not match audited session_binding_digest")
+	}
+	if evidence.AttestationVerification == nil || strings.TrimSpace(evidence.AttestationVerification.VerificationDigest) == "" {
+		return launcherbackend.RuntimeEvidenceSnapshot{}, fmt.Errorf("attestation verification record missing for run %q", payload.RunID)
+	}
+	if evidence.AttestationVerification.VerificationResult != launcherbackend.AttestationVerificationResultValid {
+		return launcherbackend.RuntimeEvidenceSnapshot{}, fmt.Errorf("attestation verification result for run %q is not valid", payload.RunID)
+	}
+	if evidence.AttestationVerification.ReplayVerdict != launcherbackend.AttestationReplayVerdictOriginal {
+		return launcherbackend.RuntimeEvidenceSnapshot{}, fmt.Errorf("attestation replay verdict for run %q is not original", payload.RunID)
+	}
+	return evidence, nil
+}
+
+func decodeEligibleAuditEventForRuntimeEvidence(event trustpolicy.AuditEventPayload) (trustpolicy.IsolateSessionBoundPayload, error) {
+	payload := trustpolicy.IsolateSessionBoundPayload{}
+	if strings.TrimSpace(event.AuditEventType) != "isolate_session_bound" {
+		return payload, fmt.Errorf("audit_event_type must be isolate_session_bound")
+	}
+	if err := json.Unmarshal(event.EventPayload, &payload); err != nil {
+		return payload, fmt.Errorf("decode isolate_session_bound payload: %w", err)
+	}
+	return payload, nil
+}
+
+type runtimeSessionBindingRelationshipVerifier struct {
+	evidence launcherbackend.RuntimeEvidenceSnapshot
+}
+
+func (v runtimeSessionBindingRelationshipVerifier) VerifyNormalizedPrivateRemainderSessionBinding(_ zkproof.IsolateSessionBoundPrivateRemainder, sourceSessionBindingDigest string) error {
+	if v.evidence.Session == nil || strings.TrimSpace(v.evidence.Session.EvidenceDigest) == "" {
+		return fmt.Errorf("runtime session evidence digest missing")
+	}
+	if strings.TrimSpace(v.evidence.Session.EvidenceDigest) != strings.TrimSpace(sourceSessionBindingDigest) {
+		return fmt.Errorf("session_binding_digest mismatch against authoritative runtime evidence")
+	}
+	return nil
 }
 
 func decodeAuditEventPayload(envelope trustpolicy.SignedObjectEnvelope) (trustpolicy.AuditEventPayload, error) {
@@ -76,7 +139,15 @@ func decodeAuditEventPayload(envelope trustpolicy.SignedObjectEnvelope) (trustpo
 	return auditEvent, nil
 }
 
-func (s *Service) persistCompiledAuditProofBinding(compiled zkproof.AuditIsolateSessionBoundAttestedRuntimeProofInputContract, path zkproof.MerkleAuthenticationPath, inclusion auditd.AuditRecordInclusion) (trustpolicy.Digest, error) {
+func (s *Service) persistCompiledAuditProofBinding(compiled zkproof.AuditIsolateSessionBoundAttestedRuntimeProofInputContract, path zkproof.MerkleAuthenticationPath, inclusion auditd.AuditRecordInclusion, runtimeEvidence launcherbackend.RuntimeEvidenceSnapshot) (trustpolicy.Digest, error) {
+	var attestationVerificationDigest *trustpolicy.Digest
+	if runtimeEvidence.AttestationVerification != nil && strings.TrimSpace(runtimeEvidence.AttestationVerification.VerificationDigest) != "" {
+		digest, err := parseDigestIdentityString(runtimeEvidence.AttestationVerification.VerificationDigest)
+		if err != nil {
+			return trustpolicy.Digest{}, err
+		}
+		attestationVerificationDigest = &digest
+	}
 	bindingPayload := trustpolicy.AuditProofBindingPayload{
 		SchemaID:               trustpolicy.AuditProofBindingSchemaID,
 		SchemaVersion:          trustpolicy.AuditProofBindingSchemaVersion,
@@ -95,33 +166,28 @@ func (s *Service) persistCompiledAuditProofBinding(compiled zkproof.AuditIsolate
 			AppliedHardeningPostureDigest:  compiled.PublicInputs.AppliedHardeningPostureDigest,
 			SessionBindingDigest:           compiled.PublicInputs.SessionBindingDigest,
 			ProjectSubstrateSnapshotDigest: strings.TrimSpace(compiled.PublicInputs.ProjectSubstrateSnapshotDigest),
+			AttestationVerificationRecord:  attestationVerificationDigest,
 		},
 		MerklePathVersion:        path.PathVersion,
 		MerkleAuthenticationPath: toTrustpolicyMerklePath(path),
 		MerklePathDepth:          len(path.Steps),
 		LeafIndex:                inclusion.RecordIndex,
-		SourceRefs:               []trustpolicy.ZKProofSourceRef{{SourceFamily: "audit_segment_seal", SourceDigest: inclusion.SealEnvelopeDigest, SourceRole: "seal"}, {SourceFamily: "audit_event", SourceDigest: inclusion.RecordDigest, SourceRole: "event"}},
+		SourceRefs:               bindingSourceRefs(inclusion, attestationVerificationDigest),
 	}
 	bindingDigest, _, err := s.auditLedger.PersistAuditProofBinding(bindingPayload)
 	return bindingDigest, err
 }
 
-func (s *Service) persistCompiledProofArtifact(compiled zkproof.AuditIsolateSessionBoundAttestedRuntimeProofInputContract, bindingDigest trustpolicy.Digest) (trustpolicy.ZKProofArtifactPayload, trustpolicy.Digest, trustpolicy.Digest, error) {
-	artifactPayload, publicInputsDigest, err := buildDeterministicZKProofArtifact(compiled, bindingDigest)
+func (s *Service) persistCompiledProofArtifact(compiled zkproof.AuditIsolateSessionBoundAttestedRuntimeProofInputContract, bindingDigest trustpolicy.Digest) (trustpolicy.ZKProofArtifactPayload, error) {
+	backend, frozen, _, trusted, err := zkproof.NewTrustedLocalGroth16BackendV0()
 	if err != nil {
-		return trustpolicy.ZKProofArtifactPayload{}, trustpolicy.Digest{}, trustpolicy.Digest{}, err
+		return trustpolicy.ZKProofArtifactPayload{}, err
 	}
-	proofDigest, err := s.auditLedger.PersistZKProofArtifact(artifactPayload)
+	artifactPayload, err := buildZKProofArtifact(compiled, bindingDigest, backend, frozen, trusted)
 	if err != nil {
-		return trustpolicy.ZKProofArtifactPayload{}, trustpolicy.Digest{}, trustpolicy.Digest{}, err
+		return trustpolicy.ZKProofArtifactPayload{}, err
 	}
-	return artifactPayload, publicInputsDigest, proofDigest, nil
-}
-
-func buildZKProofGenerateResponse(requestID string, recordDigest, bindingDigest, proofDigest, verificationDigest trustpolicy.Digest) ZKProofGenerateResponse {
-	resp := ZKProofGenerateResponse{SchemaID: "runecode.protocol.v0.ZKProofGenerateResponse", SchemaVersion: "0.1.0", RequestID: requestID, StatementFamily: zkProofStatementFamilyV0, StatementVersion: zkProofStatementVersionV0, NormalizationProfileID: zkProofNormalizationProfileV0, SchemeAdapterID: zkProofSchemeAdapterIDV0, RecordDigest: recordDigest, AuditProofBindingDigest: bindingDigest, ZKProofArtifactDigest: proofDigest, EvaluationGate: zkProofEvaluationGatePass, UserCheckInRequired: true, CheckInNote: zkProofUserCheckInNote}
-	resp.ZKProofVerificationDigest = &verificationDigest
-	return resp
+	return artifactPayload, nil
 }
 
 func (s *Service) appendZKProofGenerateAuditEvent(recordIdentity string, resp ZKProofGenerateResponse) {
@@ -148,24 +214,32 @@ func (s *Service) buildVerificationRecord(artifactDigest trustpolicy.Digest, art
 }
 
 func verifyProofArtifactOutcome(artifact trustpolicy.ZKProofArtifactPayload, publicInputsDigest trustpolicy.Digest) (string, []string, error) {
-	proofBytes, identity, trusted, err := decodeProofVerificationInputs(artifact)
+	proofBytes, publicInputs, identity, err := decodeProofVerificationInputs(artifact, publicInputsDigest)
 	if err != nil {
 		return "", nil, err
 	}
-	err = zkproof.VerifyProofWithTrustedPostureV0(deterministicProofBackend{}, proofBytes, publicInputsDigest, identity, trusted)
+	backend, _, _, authoritativeTrusted, err := zkproof.NewTrustedLocalGroth16BackendV0()
+	if err != nil {
+		return "", nil, err
+	}
+	err = zkproof.VerifyProofWithTrustedPostureV0(backend, proofBytes, publicInputs, identity, authoritativeTrusted)
 	if err != nil {
 		return trustpolicy.ProofVerificationOutcomeRejected, []string{classifyProofVerificationReason(err)}, nil
 	}
 	return trustpolicy.ProofVerificationOutcomeVerified, []string{trustpolicy.ProofVerificationReasonVerified}, nil
 }
 
-func decodeProofVerificationInputs(artifact trustpolicy.ZKProofArtifactPayload) ([]byte, zkproof.ProofVerificationIdentity, zkproof.TrustedVerifierPosture, error) {
+func decodeProofVerificationInputs(artifact trustpolicy.ZKProofArtifactPayload, publicInputsDigest trustpolicy.Digest) ([]byte, zkproof.AuditIsolateSessionBoundAttestedRuntimePublicInputs, zkproof.ProofVerificationIdentity, error) {
 	proofBytes, err := base64.StdEncoding.DecodeString(strings.TrimSpace(artifact.ProofBytes))
 	if err != nil {
-		return nil, zkproof.ProofVerificationIdentity{}, zkproof.TrustedVerifierPosture{}, fmt.Errorf("decode proof bytes: %w", err)
+		return nil, zkproof.AuditIsolateSessionBoundAttestedRuntimePublicInputs{}, zkproof.ProofVerificationIdentity{}, fmt.Errorf("decode proof bytes: %w", err)
+	}
+	publicInputs, err := decodeArtifactPublicInputs(artifact.PublicInputs, publicInputsDigest)
+	if err != nil {
+		return nil, zkproof.AuditIsolateSessionBoundAttestedRuntimePublicInputs{}, zkproof.ProofVerificationIdentity{}, err
 	}
 	identity := zkproof.ProofVerificationIdentity{VerifierKeyDigest: artifact.VerifierKeyDigest, ConstraintSystemDigest: artifact.ConstraintSystemDigest, SetupProvenanceDigest: artifact.SetupProvenanceDigest}
-	return proofBytes, identity, trustedVerifierPostureFixtureV0(), nil
+	return proofBytes, publicInputs, identity, nil
 }
 
 func (s *Service) findCachedVerificationResponse(requestID string, artifactDigest trustpolicy.Digest, record trustpolicy.ZKProofVerificationRecordPayload) (ZKProofVerifyResponse, bool, error) {
@@ -174,8 +248,4 @@ func (s *Service) findCachedVerificationResponse(requestID string, artifactDiges
 		return ZKProofVerifyResponse{}, false, err
 	}
 	return buildZKProofVerifyResponse(requestID, artifactDigest, cachedDigest, cachedRecord.VerificationOutcome, append([]string{}, cachedRecord.ReasonCodes...), "cache_hit"), true, nil
-}
-
-func buildZKProofVerifyResponse(requestID string, artifactDigest, verificationDigest trustpolicy.Digest, outcome string, reasons []string, cacheProvenance string) ZKProofVerifyResponse {
-	return ZKProofVerifyResponse{SchemaID: "runecode.protocol.v0.ZKProofVerifyResponse", SchemaVersion: "0.1.0", RequestID: requestID, ZKProofArtifactDigest: artifactDigest, ZKProofVerificationRecordDigest: verificationDigest, VerificationOutcome: outcome, ReasonCodes: reasons, CacheProvenance: cacheProvenance, EvaluationGate: zkProofEvaluationGatePass, UserCheckInRequired: true, CheckInNote: zkProofUserCheckInNote}
 }

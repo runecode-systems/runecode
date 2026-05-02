@@ -20,6 +20,7 @@
   - `applied_hardening_posture_digest`
   - `session_binding_digest`
   - `binding_commitment`
+- [ ] Cryptographically bind every statement-critical public field either directly in-circuit or through a canonical `public_inputs_digest` that is itself circuit-public and recomputed from the full typed public-input object during trusted verification.
 - [ ] Keep witness inputs bounded and typed, including the normalized private remainder of the `IsolateSessionBoundPayload` plus one Merkle authentication path.
 - [ ] Add an explicit feasibility gate:
   - the statement must have bounded inputs and fully deterministic verification
@@ -61,6 +62,7 @@
 - [ ] Normalize variable-length identifiers and enum-like values into stable proof-friendly representations rather than open-ended raw strings where practical.
 - [ ] Define `binding_commitment` as a proof-time derived ZK-friendly Poseidon-family commitment over the normalized private field set, not as an existing source audit field.
 - [ ] Require trusted Go statement compilation to verify the off-circuit relationship between the normalized private field set and the source `session_binding_digest` before the proof-binding sidecar is emitted.
+- [ ] Require that off-circuit session-binding verification to validate every normalized private field selected by the profile against immutable runtime or session evidence, not just compare the source digest string.
 
 Parallelization: can be done in parallel with audit or artifact specs; keep the chosen statement aligned with the canonical audit root and verification artifacts.
 
@@ -93,7 +95,10 @@ Parallelization: can be done in parallel with audit or artifact specs; keep the 
 - [ ] Define `setup_provenance_digest` as a canonical SHA-256 digest over the setup-lineage object, including at least Phase 1 lineage identity and digest, Phase 2 transcript digest, frozen circuit source digest, `constraint_system_digest`, and selected `gnark` module version identity.
 - [ ] Deliver verifier-key material only through reviewed trusted assets.
 - [ ] Prohibit runtime setup on user machines and prohibit ambient key download.
+- [ ] Document the currently unfinished gap explicitly: the proof backend stays hard-disabled until reviewed trusted setup assets are delivered, because runtime deterministic setup generation is prohibited.
 - [ ] Fail closed on any `verifier_key_digest`, `constraint_system_digest`, or `setup_provenance_digest` mismatch.
+- [ ] Derive trusted verifier posture only from reviewed local verifier assets and compare artifact-declared setup and scheme identity against that local posture before proof verification.
+- [ ] Split prover and verifier construction so ordinary verification never loads or constructs proving-key material and never reruns setup.
 - [ ] Pin dependency versions, wrap external library usage behind local trusted interfaces, and treat version drift as security-sensitive.
 - [ ] Add an internal package boundary such as `internal/zkproof/` so no `gnark` types escape the trusted local proof implementation surface.
 - [ ] Verify Go toolchain compatibility, target-platform build compatibility, and binary-size impact before committing to the library introduction.
@@ -115,6 +120,7 @@ Parallelization: can be done in parallel with audit or artifact specs; keep the 
 - [ ] Adopt explicit proof-generation targets for the canonical `v0` fixture:
   - proof generation `<= 10s` on extended Linux CI
   - proof generation `<= 30s` on scheduled low-power ARM64
+- [ ] Enforce the documented proof-generation and proof-verification performance gates through required CI or scheduled jobs before re-enabling the backend.
 - [ ] Default local proof-generation concurrency to one trusted worker until measured evidence demonstrates a safe higher bound on the target deployment class.
 - [ ] Keep proof verification cached by immutable identity and out of watch or read-model refresh hot paths.
 
@@ -137,6 +143,8 @@ Parallelization: can be evaluated in parallel with other later hardening work; t
   - source refs
 - [ ] Define a separate proof-verification record type with verifier implementation identity, proof identity, verification outcome, and stable reason codes.
 - [ ] Require proof verification to check `setup_provenance_digest` against the trusted verifier posture and reject with a stable setup-identity mismatch code if it differs.
+- [ ] Require proof verification to resolve the referenced `AuditProofBinding`, validate it by digest, and compare its canonical fields and projected bindings against the proof artifact's public inputs before persisting a verification result.
+- [ ] Require proof verification to validate the authoritative audit, runtime, attestation, and project-context source evidence referenced by the binding sidecar rather than verifying proof bytes in isolation.
 - [ ] Define an `AuditProofBinding`-style sidecar family as part of the intended `v0` foundation, as additive canonical derived evidence and not as the proof itself.
 - [ ] Recommended first proof-binding sidecar fields:
   - `statement_family`
@@ -159,7 +167,10 @@ Parallelization: can be evaluated in parallel with other later hardening work; t
 - [ ] Keep artifact-store copies optional review or export products rather than the primary trust source.
 - [ ] If a proof-export artifact data class is introduced, use a proof-specific class rather than overloading existing audit-report classes.
 - [ ] Record proof-generation and proof-verification outcomes in the audit chain.
+- [ ] Fail the operation or persist an explicit degraded result if the proof-generation or proof-verification audit append fails; do not silently return success.
 - [ ] Make proof generation idempotent at the proof-binding sidecar layer for the same source record, statement family, and adapter identity.
+- [ ] Perform verification-cache lookup before expensive cryptographic verification using immutable artifact identity plus trusted verifier posture.
+- [ ] Mirror protocol-schema bounds in trusted Go validation for proof bytes, base64 encoding, public-input envelope size, required `v0` public-input fields, and closed registry values.
 
 ## Protocol Schema And Registry Discipline
 
@@ -197,6 +208,7 @@ Parallelization: can be evaluated in parallel with other later hardening work; t
   - proof-binding sidecars or equivalent proof-ready normalized bindings for proof-relevant records
 - [ ] Keep authoritative evidence preservation resilient enough that canonical proof-relevant source evidence has little to no chance of being lost through ordinary restart, recovery, retention, backup, or multi-machine project operation.
 - [ ] Preserve canonical source evidence rather than relying on final digests alone where later proof witnesses may need richer historical inputs.
+- [ ] Preserve immutable runtime evidence, attestation evidence, and attestation verification records in a digest-addressed or equivalently immutable form rather than relying only on live store lookup by `run_id`.
 - [ ] Capture the requirement that concurrent RuneCode execution across more than one machine on the same project must still preserve enough shared canonical evidence for later cross-machine historical proof work.
 - [ ] Keep the detailed remote-ingest, export-bundle, and public-assurance design work in `CHG-2026-055-b7e4-additive-remote-public-proof-lane` rather than expanding this `v0` local implementation scope.
 
@@ -232,7 +244,13 @@ Parallelization: can be implemented in parallel with TUI or CLI work.
 - [ ] The proof-binding sidecar captures the exact Merkle authentication path needed for the first proof family so proof generation does not depend on re-reading the full segment opportunistically.
 - [ ] The circuit and fixtures reproduce RuneCode's authoritative Merkle construction exactly, including the domain separators and odd-leaf duplication rule.
 - [ ] The proof design defines `binding_commitment` explicitly as a proof-time derived ZK-friendly commitment and does not require adding it to the source audit payload schema.
+- [ ] Every statement-critical public field is cryptographically bound either directly in-circuit or through a verified canonical `public_inputs_digest`.
+- [ ] Trusted verifier posture comes only from reviewed local assets, and setup-identity mismatch checks do not compare artifact claims to themselves.
+- [ ] Proof verification validates the referenced `AuditProofBinding` and authoritative source evidence before persisting a `verified` result.
+- [ ] Verification caching avoids duplicate cryptographic work instead of only avoiding duplicate persistence.
+- [ ] Verification success is not returned when the authoritative proof audit event could not be recorded.
 - [ ] The proof-verification architecture and trust semantics run on constrained and scaled deployments, with performance differences handled by caching, queueing, and scheduling rather than by separate architectures.
 - [ ] The change explicitly requires preserving enough canonical proof-relevant source evidence locally that future proof backfill prerequisites are not lost even when no remote or public proof lane is enabled on that machine.
+- [ ] The change explicitly requires immutable preserved runtime and attestation evidence rather than ambient live-store lookup as the only historical evidence model.
 - [ ] The change explicitly requires an evaluation-and-user-check-in gate after the first proof is implemented and measured.
 - [ ] If performance targets cannot be met with a concrete proving system, this capability is deferred to a later release rather than weakening core deliverables.

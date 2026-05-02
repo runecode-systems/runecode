@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/auditd"
+	"github.com/runecode-ai/runecode/internal/launcherbackend"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
@@ -95,7 +96,7 @@ func seedLedgerForBrokerSurfaceTest(root string) error {
 	if err := writeSeedSegment(root, "segment-000001", evidence.recordDigest, evidence.canonicalEnvelope); err != nil {
 		return err
 	}
-	if err := writeSeedSeal(root, "segment-000001", evidence.recordDigest, 0); err != nil {
+	if _, err := writeSeedSeal(root, "segment-000001", evidence.recordDigest, 0, nil); err != nil {
 		return err
 	}
 	ledger, err := auditd.Open(root)
@@ -115,13 +116,14 @@ func seedLedgerWithTwoSegmentsAndFirstReport(root string, first seedEvidence, se
 	if err := writeSeedSegment(root, "segment-000001", first.recordDigest, first.canonicalEnvelope); err != nil {
 		return err
 	}
-	if err := writeSeedSeal(root, "segment-000001", first.recordDigest, 0); err != nil {
+	firstSealDigest, err := writeSeedSeal(root, "segment-000001", first.recordDigest, 0, nil)
+	if err != nil {
 		return err
 	}
 	if err := writeSeedSegment(root, "segment-000002", second.recordDigest, second.canonicalEnvelope); err != nil {
 		return err
 	}
-	if err := writeSeedSeal(root, "segment-000002", second.recordDigest, 1); err != nil {
+	if _, err := writeSeedSeal(root, "segment-000002", second.recordDigest, 1, &firstSealDigest); err != nil {
 		return err
 	}
 	ledger, err := auditd.Open(root)
@@ -139,6 +141,11 @@ type seedEvidence struct {
 	canonicalEnvelope []byte
 }
 
+type seedRuntimeEvidenceFixture struct {
+	facts    launcherbackend.RuntimeFactsSnapshot
+	evidence launcherbackend.RuntimeEvidenceSnapshot
+}
+
 func prepareLedgerDirs(root string) error {
 	for _, path := range []string{filepath.Join(root, "segments"), filepath.Join(root, "sidecar", "segment-seals")} {
 		if err := os.MkdirAll(path, 0o755); err != nil {
@@ -149,17 +156,90 @@ func prepareLedgerDirs(root string) error {
 }
 
 func buildSeedEventEvidence(sessionID string) (seedEvidence, error) {
+	fixture, err := buildSeedRuntimeEvidenceFixture(sessionID)
+	if err != nil {
+		return seedEvidence{}, err
+	}
 	eventPayload := map[string]any{"session_id": sessionID}
 	eventPayloadHash := sha256.Sum256(mustCanonicalJSON(eventPayload))
-	event := seedAuditEventEnvelopePayload(sessionID, eventPayloadHash)
+	event := seedAuditEventEnvelopePayload(sessionID, fixture.evidence, eventPayloadHash)
 	envelope := seedSignedEventEnvelope(event)
 	canonicalEnvelope := mustCanonicalJSON(envelope)
 	sum := sha256.Sum256(canonicalEnvelope)
 	return seedEvidence{recordDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: hex.EncodeToString(sum[:])}, canonicalEnvelope: canonicalEnvelope}, nil
 }
 
-func seedAuditEventEnvelopePayload(sessionID string, eventPayloadHash [32]byte) map[string]any {
-	sessionBindingDigest := buildSeedSessionBindingDigest("run-1", "isolate-1", sessionID, "microvm", "isolated", "tofu", "sha256:"+strings.Repeat("1", 64), "sha256:"+strings.Repeat("2", 64))
+func buildSeedRuntimeEvidenceFixture(sessionID string) (seedRuntimeEvidenceFixture, error) {
+	runID := "run-1"
+	facts := launcherbackend.DefaultRuntimeFacts(runID)
+	seedRuntimeFactsLaunchReceipt(&facts, sessionID)
+	facts.HardeningPosture = seedRuntimeHardeningPosture()
+	evidence, _, err := launcherbackend.SplitRuntimeFactsEvidenceAndLifecycle(facts)
+	if err != nil {
+		return seedRuntimeEvidenceFixture{}, err
+	}
+	return seedRuntimeEvidenceFixture{facts: facts, evidence: evidence}, nil
+}
+
+func seedRuntimeFactsLaunchReceipt(facts *launcherbackend.RuntimeFactsSnapshot, sessionID string) {
+	facts.LaunchReceipt.BackendKind = "microvm"
+	facts.LaunchReceipt.IsolationAssuranceLevel = "isolated"
+	facts.LaunchReceipt.ProvisioningPosture = "tofu"
+	facts.LaunchReceipt.IsolateID = "isolate-1"
+	facts.LaunchReceipt.SessionID = sessionID
+	facts.LaunchReceipt.SessionNonce = "seed-nonce-" + sessionID
+	facts.LaunchReceipt.LaunchContextDigest = "sha256:" + strings.Repeat("1", 64)
+	facts.LaunchReceipt.HandshakeTranscriptHash = "sha256:" + strings.Repeat("2", 64)
+	facts.LaunchReceipt.IsolateSessionKeyIDValue = strings.Repeat("a", 64)
+	facts.LaunchReceipt.RuntimeImageDescriptorDigest = "sha256:" + strings.Repeat("4", 64)
+	facts.LaunchReceipt.RuntimeImageBootProfile = launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1
+	facts.LaunchReceipt.BootComponentDigestByName = map[string]string{"kernel": "sha256:" + strings.Repeat("9", 64), "initrd": "sha256:" + strings.Repeat("c", 64)}
+	facts.LaunchReceipt.AttestationEvidenceSourceKind = launcherbackend.AttestationSourceKindTrustedRuntime
+	facts.LaunchReceipt.AttestationMeasurementProfile = launcherbackend.MeasurementProfileMicroVMBootV1
+	facts.LaunchReceipt.AttestationFreshnessMaterial = []string{"nonce:seed"}
+	facts.LaunchReceipt.AttestationFreshnessBindingClaims = []string{"launch_evidence_digest", "session_binding"}
+	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = "sha256:" + strings.Repeat("6", 64)
+	facts.LaunchReceipt.AttestationVerifierPolicyID = "seed-policy"
+	facts.LaunchReceipt.AttestationVerifierPolicyDigest = "sha256:" + strings.Repeat("8", 64)
+	facts.LaunchReceipt.AttestationVerificationRulesVersion = "v0"
+	facts.LaunchReceipt.AttestationVerificationResult = launcherbackend.AttestationVerificationResultValid
+	facts.LaunchReceipt.AttestationReplayVerdict = launcherbackend.AttestationReplayVerdictOriginal
+	facts.LaunchReceipt.AttestationVerificationTimestamp = "2026-03-13T12:25:00Z"
+}
+
+func seedRuntimeHardeningPosture() launcherbackend.AppliedHardeningPosture {
+	return launcherbackend.AppliedHardeningPosture{
+		Requested:                 launcherbackend.HardeningRequestedHardened,
+		Effective:                 launcherbackend.HardeningEffectiveDegraded,
+		DegradedReasons:           []string{"seed_test_runtime"},
+		ExecutionIdentityPosture:  launcherbackend.HardeningExecutionIdentityUnprivileged,
+		RootlessPosture:           launcherbackend.HardeningRootlessEnabled,
+		FilesystemExposurePosture: launcherbackend.HardeningFilesystemExposureRestricted,
+		WritableLayersPosture:     launcherbackend.HardeningWritableLayersEphemeral,
+		NetworkExposurePosture:    launcherbackend.HardeningNetworkExposureRestricted,
+		NetworkNamespacePosture:   launcherbackend.HardeningNetworkNamespacePerRole,
+		NetworkDefaultPosture:     launcherbackend.HardeningNetworkDefaultLoopbackOnly,
+		EgressEnforcementPosture:  launcherbackend.HardeningEgressEnforcementHostLevel,
+		SyscallFilteringPosture:   launcherbackend.HardeningSyscallFilteringSeccomp,
+		CapabilitiesPosture:       launcherbackend.HardeningCapabilitiesDropped,
+		DeviceSurfacePosture:      launcherbackend.HardeningDeviceSurfaceAllowlist,
+		ControlChannelKind:        launcherbackend.TransportKindVSock,
+		AccelerationKind:          launcherbackend.AccelerationKindNone,
+	}
+}
+
+func recordSeedRuntimeEvidenceForSession(t testing.TB, service *Service, sessionID string) {
+	t.Helper()
+	fixture, err := buildSeedRuntimeEvidenceFixture(sessionID)
+	if err != nil {
+		t.Fatalf("buildSeedRuntimeEvidenceFixture returned error: %v", err)
+	}
+	if err := service.store.RecordRuntimeEvidenceState(fixture.facts.LaunchReceipt.RunID, fixture.facts, fixture.evidence, launcherbackend.RuntimeLifecycleState{}); err != nil {
+		t.Fatalf("RecordRuntimeEvidenceState returned error: %v", err)
+	}
+}
+
+func seedAuditEventEnvelopePayload(sessionID string, evidence launcherbackend.RuntimeEvidenceSnapshot, eventPayloadHash [32]byte) map[string]any {
 	return map[string]any{
 		"schema_id":               trustpolicy.AuditEventSchemaID,
 		"schema_version":          trustpolicy.AuditEventSchemaVersion,
@@ -180,10 +260,10 @@ func seedAuditEventEnvelopePayload(sessionID string, eventPayloadHash [32]byte) 
 			"provisioning_posture":             "tofu",
 			"launch_context_digest":            "sha256:" + strings.Repeat("1", 64),
 			"handshake_transcript_hash":        "sha256:" + strings.Repeat("2", 64),
-			"session_binding_digest":           sessionBindingDigest,
-			"runtime_image_descriptor_digest":  "sha256:" + strings.Repeat("4", 64),
-			"applied_hardening_posture_digest": "sha256:" + strings.Repeat("5", 64),
-			"attestation_evidence_digest":      "sha256:" + strings.Repeat("6", 64),
+			"session_binding_digest":           evidence.Session.EvidenceDigest,
+			"runtime_image_descriptor_digest":  evidence.Launch.RuntimeImageDescriptorDigest,
+			"applied_hardening_posture_digest": evidence.Hardening.EvidenceDigest,
+			"attestation_evidence_digest":      evidence.Attestation.EvidenceDigest,
 		},
 		"event_payload_hash":            map[string]any{"hash_alg": "sha256", "hash": hex.EncodeToString(eventPayloadHash[:])},
 		"protocol_bundle_manifest_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("b", 64)},
@@ -196,76 +276,6 @@ func seedAuditEventEnvelopePayload(sessionID string, eventPayloadHash [32]byte) 
 	}
 }
 
-func buildSeedSessionBindingDigest(runID, isolateID, sessionID, backendKind, assuranceLevel, provisioningPosture, launchContextDigest, handshakeDigest string) string {
-	type fixtureSessionBindingInput struct {
-		RunIDDigest                   string `json:"run_id_digest"`
-		IsolateIDDigest               string `json:"isolate_id_digest"`
-		SessionIDDigest               string `json:"session_id_digest"`
-		BackendKindCode               uint16 `json:"backend_kind_code"`
-		IsolationAssuranceLevelCode   uint16 `json:"isolation_assurance_level_code"`
-		ProvisioningPostureCode       uint16 `json:"provisioning_posture_code"`
-		LaunchContextDigest           string `json:"launch_context_digest"`
-		HandshakeTranscriptHashDigest string `json:"handshake_transcript_hash_digest"`
-	}
-	payload, err := json.Marshal(fixtureSessionBindingInput{
-		RunIDDigest:                   seedStableIdentifierDigest(runID),
-		IsolateIDDigest:               seedStableIdentifierDigest(isolateID),
-		SessionIDDigest:               seedStableIdentifierDigest(sessionID),
-		BackendKindCode:               seedBackendKindCode(backendKind),
-		IsolationAssuranceLevelCode:   seedIsolationAssuranceLevelCode(assuranceLevel),
-		ProvisioningPostureCode:       seedProvisioningPostureCode(provisioningPosture),
-		LaunchContextDigest:           launchContextDigest,
-		HandshakeTranscriptHashDigest: handshakeDigest,
-	})
-	if err != nil {
-		panic(err)
-	}
-	sum := sha256.Sum256(append([]byte("runecode.zkproof.fixture.session_binding.v0:"), payload...))
-	return "sha256:" + hex.EncodeToString(sum[:])
-}
-
-func seedStableIdentifierDigest(value string) string {
-	sum := sha256.Sum256([]byte(value))
-	return "sha256:" + hex.EncodeToString(sum[:])
-}
-
-func seedProvisioningPostureCode(value string) uint16 {
-	switch strings.TrimSpace(strings.ToLower(value)) {
-	case "tofu":
-		return 1
-	case "attested":
-		return 2
-	case "not_applicable":
-		return 254
-	default:
-		return 255
-	}
-}
-
-func seedBackendKindCode(value string) uint16 {
-	switch strings.TrimSpace(strings.ToLower(value)) {
-	case "microvm":
-		return 1
-	case "container":
-		return 2
-	default:
-		return 255
-	}
-}
-
-func seedIsolationAssuranceLevelCode(value string) uint16 {
-	switch strings.TrimSpace(strings.ToLower(value)) {
-	case "isolated":
-		return 1
-	case "degraded":
-		return 2
-	case "not_applicable":
-		return 254
-	default:
-		return 255
-	}
-}
-
 func seedSignedEventEnvelope(event map[string]any) trustpolicy.SignedObjectEnvelope {
 	return trustpolicy.SignedObjectEnvelope{SchemaID: trustpolicy.EnvelopeSchemaID, SchemaVersion: trustpolicy.EnvelopeSchemaVersion, PayloadSchemaID: trustpolicy.AuditEventSchemaID, PayloadSchemaVersion: trustpolicy.AuditEventSchemaVersion, Payload: mustJSON(event), SignatureInput: trustpolicy.SignatureInputProfile, Signature: trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: strings.Repeat("a", 64), Signature: base64.StdEncoding.EncodeToString([]byte("sig"))}}
 }
@@ -275,19 +285,22 @@ func writeSeedSegment(root string, segmentID string, recordDigest trustpolicy.Di
 	return writeCanonicalJSON(filepath.Join(root, "segments", segmentID+".json"), segment)
 }
 
-func writeSeedSeal(root string, segmentID string, recordDigest trustpolicy.Digest, chainIndex int64) error {
+func writeSeedSeal(root string, segmentID string, recordDigest trustpolicy.Digest, chainIndex int64, previousSealDigest *trustpolicy.Digest) (trustpolicy.Digest, error) {
 	merkleRoot, err := trustpolicy.ComputeOrderedAuditSegmentMerkleRoot([]trustpolicy.Digest{recordDigest})
 	if err != nil {
-		return err
+		return trustpolicy.Digest{}, err
 	}
-	sealPayload := trustpolicy.AuditSegmentSealPayload{SchemaID: trustpolicy.AuditSegmentSealSchemaID, SchemaVersion: trustpolicy.AuditSegmentSealSchemaVersion, SegmentID: segmentID, SealedAfterState: trustpolicy.AuditSegmentStateOpen, SegmentState: trustpolicy.AuditSegmentStateSealed, SegmentCut: trustpolicy.AuditSegmentCutWindowPolicy{OwnershipScope: trustpolicy.AuditSegmentOwnershipScopeInstanceGlobal, MaxSegmentBytes: 2048, CutTrigger: trustpolicy.AuditSegmentCutTriggerSizeWindow}, EventCount: 1, FirstRecordDigest: recordDigest, LastRecordDigest: recordDigest, MerkleProfile: trustpolicy.AuditSegmentMerkleProfileOrderedDSEv1, MerkleRoot: merkleRoot, SegmentFileHashScope: trustpolicy.AuditSegmentFileHashScopeRawFramedV1, SegmentFileHash: recordDigest, SealChainIndex: chainIndex, AnchoringSubject: trustpolicy.AuditSegmentAnchoringSubjectSeal, SealedAt: "2026-03-13T12:20:00Z", ProtocolBundleManifestHash: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)}, SealReason: "size_threshold"}
+	sealPayload := trustpolicy.AuditSegmentSealPayload{SchemaID: trustpolicy.AuditSegmentSealSchemaID, SchemaVersion: trustpolicy.AuditSegmentSealSchemaVersion, SegmentID: segmentID, SealedAfterState: trustpolicy.AuditSegmentStateOpen, SegmentState: trustpolicy.AuditSegmentStateSealed, SegmentCut: trustpolicy.AuditSegmentCutWindowPolicy{OwnershipScope: trustpolicy.AuditSegmentOwnershipScopeInstanceGlobal, MaxSegmentBytes: 2048, CutTrigger: trustpolicy.AuditSegmentCutTriggerSizeWindow}, EventCount: 1, FirstRecordDigest: recordDigest, LastRecordDigest: recordDigest, MerkleProfile: trustpolicy.AuditSegmentMerkleProfileOrderedDSEv1, MerkleRoot: merkleRoot, SegmentFileHashScope: trustpolicy.AuditSegmentFileHashScopeRawFramedV1, SegmentFileHash: recordDigest, SealChainIndex: chainIndex, PreviousSealDigest: previousSealDigest, AnchoringSubject: trustpolicy.AuditSegmentAnchoringSubjectSeal, SealedAt: "2026-03-13T12:20:00Z", ProtocolBundleManifestHash: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)}, SealReason: "size_threshold"}
 	sealEnvelope := trustpolicy.SignedObjectEnvelope{SchemaID: trustpolicy.EnvelopeSchemaID, SchemaVersion: trustpolicy.EnvelopeSchemaVersion, PayloadSchemaID: trustpolicy.AuditSegmentSealSchemaID, PayloadSchemaVersion: trustpolicy.AuditSegmentSealSchemaVersion, Payload: mustJSON(sealPayload), SignatureInput: trustpolicy.SignatureInputProfile, Signature: trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: strings.Repeat("a", 64), Signature: base64.StdEncoding.EncodeToString([]byte("sig"))}}
 	sealDigest, err := trustpolicy.ComputeSignedEnvelopeAuditRecordDigest(sealEnvelope)
 	if err != nil {
-		return err
+		return trustpolicy.Digest{}, err
 	}
 	identity, _ := sealDigest.Identity()
-	return writeCanonicalJSON(filepath.Join(root, "sidecar", "segment-seals", strings.TrimPrefix(identity, "sha256:")+".json"), sealEnvelope)
+	if err := writeCanonicalJSON(filepath.Join(root, "sidecar", "segment-seals", strings.TrimPrefix(identity, "sha256:")+".json"), sealEnvelope); err != nil {
+		return trustpolicy.Digest{}, err
+	}
+	return sealDigest, nil
 }
 
 func configureSeedContractsAndIndex(ledger *auditd.Ledger) error {

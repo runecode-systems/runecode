@@ -1,6 +1,8 @@
 package auditd
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -207,5 +209,95 @@ func TestLatestAuditProofBindingForRecordReturnsNewestMatch(t *testing.T) {
 	}
 	if latestBinding.BindingCommitment != second.BindingCommitment {
 		t.Fatalf("latest binding commitment = %q, want %q", latestBinding.BindingCommitment, second.BindingCommitment)
+	}
+}
+
+func TestLatestAuditProofBindingForRecordIgnoresFilesystemModTime(t *testing.T) {
+	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	sealResult := mustSealFixtureSegment(t, ledger, fixture)
+	recordDigest := mustRecordDigestForTest(t, ledger)
+	first, firstDigest, second, secondDigest := persistSkewedBindingPair(t, ledger, recordDigest, sealResult.SealEnvelopeDigest)
+	firstPath := filepath.Join(root, sidecarDirName, proofBindingsDirName, strings.TrimPrefix(mustDigestIdentity(firstDigest), "sha256:")+".json")
+	secondPath := filepath.Join(root, sidecarDirName, proofBindingsDirName, strings.TrimPrefix(mustDigestIdentity(secondDigest), "sha256:")+".json")
+	skewBindingPairModTimes(t, firstPath, secondPath)
+
+	latestDigest, _, found, err := ledger.LatestAuditProofBindingForRecord(recordDigest, first.StatementFamily, first.SchemeAdapterID)
+	if err != nil {
+		t.Fatalf("LatestAuditProofBindingForRecord returned error: %v", err)
+	}
+	if !found {
+		t.Fatal("LatestAuditProofBindingForRecord found=false, want true")
+	}
+	if mustDigestIdentity(latestDigest) != mustDigestIdentity(secondDigest) {
+		t.Fatalf("latest digest = %q, want %q after modtime skew", mustDigestIdentity(latestDigest), mustDigestIdentity(secondDigest))
+	}
+	_ = second
+}
+
+func TestZKProofLookupsWorkAfterReopenWithPersistedLookupIndex(t *testing.T) {
+	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	lookup := persistProofLookupIndexFixture(t, ledger, fixture)
+
+	reopened, err := Open(root)
+	if err != nil {
+		t.Fatalf("Open(reopen) returned error: %v", err)
+	}
+	latestDigest, _, found, err := reopened.LatestAuditProofBindingForRecord(lookup.recordDigest, lookup.bindingPayload.StatementFamily, lookup.bindingPayload.SchemeAdapterID)
+	if err != nil {
+		t.Fatalf("LatestAuditProofBindingForRecord(reopen) returned error: %v", err)
+	}
+	if !found || mustDigestIdentity(latestDigest) != mustDigestIdentity(lookup.bindingDigest) {
+		t.Fatalf("latest digest after reopen = %q, want %q", mustDigestIdentity(latestDigest), mustDigestIdentity(lookup.bindingDigest))
+	}
+	foundDigest, _, found, err := reopened.FindMatchingZKProofVerificationRecord(lookup.verificationPayload)
+	if err != nil {
+		t.Fatalf("FindMatchingZKProofVerificationRecord(reopen) returned error: %v", err)
+	}
+	if !found || mustDigestIdentity(foundDigest) != mustDigestIdentity(lookup.verificationDigest) {
+		t.Fatalf("verification digest after reopen = %q, want %q", mustDigestIdentity(foundDigest), mustDigestIdentity(lookup.verificationDigest))
+	}
+	inclusion, found, err := reopened.AuditRecordInclusion(mustDigestIdentity(lookup.recordDigest))
+	if err != nil {
+		t.Fatalf("AuditRecordInclusion(reopen) returned error: %v", err)
+	}
+	if !found {
+		t.Fatal("AuditRecordInclusion(reopen) found=false, want true")
+	}
+	if err := inclusion.Validate(); err != nil {
+		t.Fatalf("inclusion.Validate after reopen returned error: %v", err)
+	}
+}
+
+func persistSkewedBindingPair(t *testing.T, ledger *Ledger, recordDigest, sealDigest trustpolicy.Digest) (trustpolicy.AuditProofBindingPayload, trustpolicy.Digest, trustpolicy.AuditProofBindingPayload, trustpolicy.Digest) {
+	t.Helper()
+	first := validAuditProofBindingPayloadFixture(recordDigest, sealDigest)
+	first.BindingCommitment = "sha256:" + strings.Repeat("a", 64)
+	firstDigest := mustPersistBinding(t, ledger, first, "first")
+	second := first
+	second.BindingCommitment = "sha256:" + strings.Repeat("b", 64)
+	secondDigest := mustPersistBinding(t, ledger, second, "second")
+	return first, firstDigest, second, secondDigest
+}
+
+func mustPersistBinding(t *testing.T, ledger *Ledger, payload trustpolicy.AuditProofBindingPayload, label string) trustpolicy.Digest {
+	t.Helper()
+	digest, created, err := ledger.PersistAuditProofBinding(payload)
+	if err != nil {
+		t.Fatalf("PersistAuditProofBinding(%s) returned error: %v", label, err)
+	}
+	if !created {
+		t.Fatalf("PersistAuditProofBinding(%s) created=false, want true", label)
+	}
+	return digest
+}
+
+func skewBindingPairModTimes(t *testing.T, firstPath, secondPath string) {
+	t.Helper()
+	now := time.Now().UTC()
+	if err := os.Chtimes(firstPath, now.Add(2*time.Hour), now.Add(2*time.Hour)); err != nil {
+		t.Fatalf("Chtimes(first) returned error: %v", err)
+	}
+	if err := os.Chtimes(secondPath, now.Add(-2*time.Hour), now.Add(-2*time.Hour)); err != nil {
+		t.Fatalf("Chtimes(second) returned error: %v", err)
 	}
 }

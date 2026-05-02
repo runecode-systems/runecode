@@ -12,26 +12,50 @@ import (
 func (l *Ledger) FindMatchingZKProofVerificationRecord(match trustpolicy.ZKProofVerificationRecordPayload) (trustpolicy.Digest, trustpolicy.ZKProofVerificationRecordPayload, bool, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-
-	entries, err := l.readOptionalSidecarDirEntries(proofVerificationsDirName)
+	key, err := verificationIdentityKey(match)
 	if err != nil {
 		return trustpolicy.Digest{}, trustpolicy.ZKProofVerificationRecordPayload{}, false, err
 	}
-	for _, entry := range entries {
-		identity, candidate, ok, err := l.loadVerifiedZKProofVerificationRecordCandidate(entry)
-		if err != nil {
-			return trustpolicy.Digest{}, trustpolicy.ZKProofVerificationRecordPayload{}, false, err
-		}
-		if !ok || !sameZKProofVerificationIdentity(candidate, match) {
-			continue
-		}
-		d, err := digestFromIdentity(identity)
-		if err != nil {
-			return trustpolicy.Digest{}, trustpolicy.ZKProofVerificationRecordPayload{}, false, err
-		}
-		return d, candidate, true, nil
+	identity, found, err := l.matchingVerificationIdentityLocked(key)
+	if err != nil {
+		return trustpolicy.Digest{}, trustpolicy.ZKProofVerificationRecordPayload{}, false, err
 	}
-	return trustpolicy.Digest{}, trustpolicy.ZKProofVerificationRecordPayload{}, false, nil
+	if !found {
+		return trustpolicy.Digest{}, trustpolicy.ZKProofVerificationRecordPayload{}, false, nil
+	}
+	digest, err := digestFromIdentity(identity)
+	if err != nil {
+		return trustpolicy.Digest{}, trustpolicy.ZKProofVerificationRecordPayload{}, false, err
+	}
+	payload, found, err := l.loadZKProofVerificationRecordByIdentityLocked(identity)
+	if err != nil {
+		return trustpolicy.Digest{}, trustpolicy.ZKProofVerificationRecordPayload{}, false, err
+	}
+	if !found {
+		if err := l.refreshProofLookupIndexLocked(); err != nil {
+			return trustpolicy.Digest{}, trustpolicy.ZKProofVerificationRecordPayload{}, false, err
+		}
+		return trustpolicy.Digest{}, trustpolicy.ZKProofVerificationRecordPayload{}, false, nil
+	}
+	return digest, payload, true, nil
+}
+
+func (l *Ledger) matchingVerificationIdentityLocked(key string) (string, bool, error) {
+	if err := l.ensureProofLookupIndexLocked(); err != nil {
+		return "", false, err
+	}
+	lookup, found := l.lookupIndex.VerificationByKey[key]
+	if found {
+		return lookup.DigestIdentity, true, nil
+	}
+	if err := l.refreshProofLookupIndexLocked(); err != nil {
+		return "", false, err
+	}
+	lookup, found = l.lookupIndex.VerificationByKey[key]
+	if !found {
+		return "", false, nil
+	}
+	return lookup.DigestIdentity, true, nil
 }
 
 func (l *Ledger) loadVerifiedZKProofVerificationRecordCandidate(entry os.DirEntry) (string, trustpolicy.ZKProofVerificationRecordPayload, bool, error) {
@@ -55,35 +79,6 @@ func (l *Ledger) loadVerifiedZKProofVerificationRecordCandidate(entry os.DirEntr
 		return "", trustpolicy.ZKProofVerificationRecordPayload{}, false, fmt.Errorf("zk proof verification record content digest mismatch for %s", identity)
 	}
 	return identity, candidate, true, nil
-}
-
-func sameZKProofVerificationIdentity(left, right trustpolicy.ZKProofVerificationRecordPayload) bool {
-	if !sameVerificationDigest(left.ProofDigest, right.ProofDigest) ||
-		!sameVerificationDigest(left.ConstraintSystemDigest, right.ConstraintSystemDigest) ||
-		!sameVerificationDigest(left.VerifierKeyDigest, right.VerifierKeyDigest) ||
-		!sameVerificationDigest(left.SetupProvenanceDigest, right.SetupProvenanceDigest) ||
-		!sameVerificationDigest(left.PublicInputsDigest, right.PublicInputsDigest) {
-		return false
-	}
-	return sameVerificationMetadata(left, right) && sameStringSet(left.ReasonCodes, right.ReasonCodes)
-}
-
-func sameVerificationDigest(left, right trustpolicy.Digest) bool {
-	leftIdentity, leftErr := left.Identity()
-	rightIdentity, rightErr := right.Identity()
-	return leftErr == nil && rightErr == nil && leftIdentity == rightIdentity
-}
-
-func sameVerificationMetadata(left, right trustpolicy.ZKProofVerificationRecordPayload) bool {
-	return strings.TrimSpace(left.StatementFamily) == strings.TrimSpace(right.StatementFamily) &&
-		strings.TrimSpace(left.StatementVersion) == strings.TrimSpace(right.StatementVersion) &&
-		strings.TrimSpace(left.SchemeID) == strings.TrimSpace(right.SchemeID) &&
-		strings.TrimSpace(left.CurveID) == strings.TrimSpace(right.CurveID) &&
-		strings.TrimSpace(left.CircuitID) == strings.TrimSpace(right.CircuitID) &&
-		strings.TrimSpace(left.NormalizationProfileID) == strings.TrimSpace(right.NormalizationProfileID) &&
-		strings.TrimSpace(left.SchemeAdapterID) == strings.TrimSpace(right.SchemeAdapterID) &&
-		strings.TrimSpace(left.VerifierImplementationID) == strings.TrimSpace(right.VerifierImplementationID) &&
-		strings.TrimSpace(left.VerificationOutcome) == strings.TrimSpace(right.VerificationOutcome)
 }
 
 func sameStringSet(left, right []string) bool {
