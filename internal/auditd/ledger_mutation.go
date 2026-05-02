@@ -31,7 +31,11 @@ func (l *Ledger) AppendAdmittedEvent(req trustpolicy.AuditAdmissionRequest) (App
 	if err := l.saveSegment(openSegment); err != nil {
 		return AppendResult{}, err
 	}
+	if err := l.noteAppendedFrameInDerivedIndexLocked(openSegment.Header.SegmentID, len(openSegment.Frames)-1, frame); err != nil {
+		return AppendResult{}, err
+	}
 	state.OpenFrameCount = len(openSegment.Frames)
+	state.LastIndexedRecordCount++
 	if err := l.saveState(state); err != nil {
 		return AppendResult{}, err
 	}
@@ -62,6 +66,13 @@ func (l *Ledger) SealCurrentSegment(sealEnvelope trustpolicy.SignedObjectEnvelop
 	}
 	nextOpen, err := l.sealAndRotateSegmentsLocked(state, segment, sealDigest)
 	if err != nil {
+		return SealResult{}, err
+	}
+	sealPayload, err := decodeAndValidateSealEnvelope(sealEnvelope)
+	if err != nil {
+		return SealResult{}, err
+	}
+	if err := l.noteSealedSegmentInDerivedIndexLocked(sealDigest, sealPayload); err != nil {
 		return SealResult{}, err
 	}
 	return SealResult{SegmentID: segment.Header.SegmentID, SealEnvelopeDigest: sealDigest, NextOpenSegmentID: nextOpen.Header.SegmentID}, nil

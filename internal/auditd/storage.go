@@ -20,7 +20,7 @@ const (
 	verificationReportsDirName = "verification-reports"
 	indexDirName               = "index"
 	stateFileName              = "state.json"
-	indexFileName              = "timeline-index.json"
+	auditEvidenceIndexFileName = "audit-evidence-index.json"
 )
 
 var renameFile = os.Rename

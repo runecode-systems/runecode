@@ -21,6 +21,11 @@ func (c *localAPIClient) AuditRecordGet(ctx context.Context, req brokerapi.Audit
 	return resp, c.invoke(ctx, "audit_record_get", req, &resp)
 }
 
+func (c *localAPIClient) AuditRecordInclusionGet(ctx context.Context, req brokerapi.AuditRecordInclusionGetRequest) (brokerapi.AuditRecordInclusionGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.AuditRecordInclusionGetResponse{}
+	return resp, c.invoke(ctx, "audit_record_inclusion_get", req, &resp)
+}
+
 func (c *localAPIClient) AuditAnchorPreflightGet(ctx context.Context, req brokerapi.AuditAnchorPreflightGetRequest) (brokerapi.AuditAnchorPreflightGetResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.AuditAnchorPreflightGetResponse{}
 	return resp, c.invoke(ctx, "audit_anchor_preflight_get", req, &resp)

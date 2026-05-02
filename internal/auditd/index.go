@@ -2,47 +2,51 @@ package auditd
 
 import (
 	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
+const auditEvidenceIndexSchemaVersion = 1
+
 func (l *Ledger) BuildIndex() (derivedIndex, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	return l.rebuildAndPersistDerivedIndexLocked()
+}
 
-	segments, err := l.listSegments()
+func (l *Ledger) rebuildAndPersistDerivedIndexLocked() (derivedIndex, error) {
+	index, err := l.rebuildDerivedIndexLocked()
 	if err != nil {
 		return derivedIndex{}, err
 	}
-	index, err := buildDerivedIndex(segments, l.nowFn())
-	if err != nil {
+	if err := l.saveDerivedIndexLocked(index); err != nil {
 		return derivedIndex{}, err
 	}
-	if err := writeCanonicalJSONFile(filepath.Join(l.rootDir, indexDirName, indexFileName), index); err != nil {
-		return derivedIndex{}, err
-	}
-	state, err := l.recoverAndPersistStateLocked()
-	if err == nil {
+	if state, stateErr := l.loadState(); stateErr == nil {
 		state.LastIndexedRecordCount = index.TotalRecords
 		_ = l.saveState(state)
 	}
 	return index, nil
 }
 
-func buildDerivedIndex(segments []trustpolicy.AuditSegmentFilePayload, now time.Time) (derivedIndex, error) {
-	index := derivedIndex{BuiltAt: now.UTC().Format(time.RFC3339)}
-	for _, segment := range segments {
-		pointers, err := segmentTimelinePointers(segment)
-		if err != nil {
-			return derivedIndex{}, err
-		}
-		index.RunTimeline = append(index.RunTimeline, pointers...)
-		index.TotalRecords += len(pointers)
+func (l *Ledger) rebuildDerivedIndexLocked() (derivedIndex, error) {
+	segments, err := l.listSegments()
+	if err != nil {
+		return derivedIndex{}, err
 	}
+	index := newDerivedIndex(l.nowFn())
+	if err := indexSegments(&index, segments); err != nil {
+		return derivedIndex{}, err
+	}
+	if err := l.attachSealMetadataLocked(&index); err != nil {
+		return derivedIndex{}, err
+	}
+	if err := l.attachLatestVerificationReportDigestLocked(&index); err != nil {
+		return derivedIndex{}, err
+	}
+	index = normalizeDerivedIndex(index)
 	return index, nil
 }
 
@@ -80,59 +84,63 @@ func frameTimelinePointer(segmentID string, frameIndex int, frame trustpolicy.Au
 	return pointer, true, nil
 }
 
-func (l *Ledger) indexStatusLocked() (indexed int, total int, err error) {
-	state, readErr := l.loadState()
-	if readErr == nil {
-		indexed = state.LastIndexedRecordCount
-	}
-	segments, err := l.listSegments()
+func (l *Ledger) noteAppendedFrameInDerivedIndexLocked(segmentID string, frameIndex int, frame trustpolicy.AuditSegmentRecordFrame) error {
+	index, err := l.ensureDerivedIndexLocked()
 	if err != nil {
-		return 0, 0, err
+		return err
 	}
-	for _, segment := range segments {
-		total += len(segment.Frames)
+	recordDigest, err := frame.RecordDigest.Identity()
+	if err != nil {
+		return err
 	}
-	if indexed > total {
-		indexed = 0
+	if index.RecordDigestLookup == nil {
+		index.RecordDigestLookup = map[string]RecordLookup{}
 	}
-	return indexed, total, nil
+	if _, exists := index.RecordDigestLookup[recordDigest]; !exists {
+		index.TotalRecords++
+	}
+	index.RecordDigestLookup[recordDigest] = RecordLookup{SegmentID: segmentID, FrameIndex: frameIndex}
+	if pointer, ok, err := frameTimelinePointer(segmentID, frameIndex, frame); err != nil {
+		return err
+	} else if ok {
+		index.RunTimeline = append(index.RunTimeline, pointer)
+	}
+	index.LastIndexedSegmentID = segmentID
+	index.BuiltAt = l.nowFn().UTC().Format(time.RFC3339)
+	return l.saveDerivedIndexLocked(index)
 }
 
-func hasVerificationInputs(l *Ledger) bool {
-	if err := validateVerificationInputs(l); err != nil {
-		return false
+func (l *Ledger) noteSealedSegmentInDerivedIndexLocked(sealEnvelopeDigest trustpolicy.Digest, seal trustpolicy.AuditSegmentSealPayload) error {
+	index, err := l.ensureDerivedIndexLocked()
+	if err != nil {
+		return err
 	}
-	return true
+	sealDigestIdentity, err := sealEnvelopeDigest.Identity()
+	if err != nil {
+		return err
+	}
+	if index.SegmentSealLookup == nil {
+		index.SegmentSealLookup = map[string]SegmentSealLookup{}
+	}
+	if index.SealChainIndexLookup == nil {
+		index.SealChainIndexLookup = map[string]string{}
+	}
+	index.SegmentSealLookup[seal.SegmentID] = SegmentSealLookup{SealDigest: sealDigestIdentity, SealChainIndex: seal.SealChainIndex}
+	index.SealChainIndexLookup[strconv.FormatInt(seal.SealChainIndex, 10)] = sealDigestIdentity
+	index.BuiltAt = l.nowFn().UTC().Format(time.RFC3339)
+	return l.saveDerivedIndexLocked(index)
 }
 
-func validateVerificationInputs(l *Ledger) error {
-	contractsDir := filepath.Join(l.rootDir, "contracts")
-	eventCatalogPath := filepath.Join(contractsDir, "event-contract-catalog.json")
-	verifierRecordsPath := filepath.Join(contractsDir, "verifier-records.json")
-	if !fileExists(eventCatalogPath) {
-		return fmt.Errorf("missing event contract catalog")
-	}
-	if !fileExists(verifierRecordsPath) {
-		return fmt.Errorf("missing verifier records")
-	}
-	catalog := trustpolicy.AuditEventContractCatalog{}
-	if err := readJSONFile(eventCatalogPath, &catalog); err != nil {
+func (l *Ledger) notePersistedVerificationReportInDerivedIndexLocked(reportDigest trustpolicy.Digest) error {
+	index, err := l.ensureDerivedIndexLocked()
+	if err != nil {
 		return err
 	}
-	if err := trustpolicy.ValidateAuditEventContractCatalogForRuntime(catalog); err != nil {
+	reportID, err := reportDigest.Identity()
+	if err != nil {
 		return err
 	}
-	verifierRecords := []trustpolicy.VerifierRecord{}
-	if err := readJSONFile(verifierRecordsPath, &verifierRecords); err != nil {
-		return err
-	}
-	if _, err := trustpolicy.NewVerifierRegistry(verifierRecords); err != nil {
-		return err
-	}
-	return nil
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
+	index.LatestVerificationReportDigest = reportID
+	index.BuiltAt = l.nowFn().UTC().Format(time.RFC3339)
+	return l.saveDerivedIndexLocked(index)
 }

@@ -95,7 +95,7 @@ func seedLedgerForBrokerSurfaceTest(root string) error {
 	if err := writeSeedSegment(root, "segment-000001", evidence.recordDigest, evidence.canonicalEnvelope); err != nil {
 		return err
 	}
-	if err := writeSeedSeal(root, "segment-000001", evidence.recordDigest, 0); err != nil {
+	if err := writeSeedSeal(root, "segment-000001", evidence.recordDigest, nil, 0); err != nil {
 		return err
 	}
 	ledger, err := auditd.Open(root)
@@ -115,13 +115,17 @@ func seedLedgerWithTwoSegmentsAndFirstReport(root string, first seedEvidence, se
 	if err := writeSeedSegment(root, "segment-000001", first.recordDigest, first.canonicalEnvelope); err != nil {
 		return err
 	}
-	if err := writeSeedSeal(root, "segment-000001", first.recordDigest, 0); err != nil {
+	if err := writeSeedSeal(root, "segment-000001", first.recordDigest, nil, 0); err != nil {
+		return err
+	}
+	firstSealDigest, err := computeSeedSealDigest("segment-000001", first.recordDigest, nil, 0)
+	if err != nil {
 		return err
 	}
 	if err := writeSeedSegment(root, "segment-000002", second.recordDigest, second.canonicalEnvelope); err != nil {
 		return err
 	}
-	if err := writeSeedSeal(root, "segment-000002", second.recordDigest, 1); err != nil {
+	if err := writeSeedSeal(root, "segment-000002", second.recordDigest, &firstSealDigest, 1); err != nil {
 		return err
 	}
 	ledger, err := auditd.Open(root)
@@ -203,15 +207,28 @@ func writeSeedSegment(root string, segmentID string, recordDigest trustpolicy.Di
 	return writeCanonicalJSON(filepath.Join(root, "segments", segmentID+".json"), segment)
 }
 
-func writeSeedSeal(root string, segmentID string, recordDigest trustpolicy.Digest, chainIndex int64) error {
-	sealPayload := trustpolicy.AuditSegmentSealPayload{SchemaID: trustpolicy.AuditSegmentSealSchemaID, SchemaVersion: trustpolicy.AuditSegmentSealSchemaVersion, SegmentID: segmentID, SealedAfterState: trustpolicy.AuditSegmentStateOpen, SegmentState: trustpolicy.AuditSegmentStateSealed, SegmentCut: trustpolicy.AuditSegmentCutWindowPolicy{OwnershipScope: trustpolicy.AuditSegmentOwnershipScopeInstanceGlobal, MaxSegmentBytes: 2048, CutTrigger: trustpolicy.AuditSegmentCutTriggerSizeWindow}, EventCount: 1, FirstRecordDigest: recordDigest, LastRecordDigest: recordDigest, MerkleProfile: trustpolicy.AuditSegmentMerkleProfileOrderedDSEv1, MerkleRoot: recordDigest, SegmentFileHashScope: trustpolicy.AuditSegmentFileHashScopeRawFramedV1, SegmentFileHash: recordDigest, SealChainIndex: chainIndex, AnchoringSubject: trustpolicy.AuditSegmentAnchoringSubjectSeal, SealedAt: "2026-03-13T12:20:00Z", ProtocolBundleManifestHash: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)}, SealReason: "size_threshold"}
-	sealEnvelope := trustpolicy.SignedObjectEnvelope{SchemaID: trustpolicy.EnvelopeSchemaID, SchemaVersion: trustpolicy.EnvelopeSchemaVersion, PayloadSchemaID: trustpolicy.AuditSegmentSealSchemaID, PayloadSchemaVersion: trustpolicy.AuditSegmentSealSchemaVersion, Payload: mustJSON(sealPayload), SignatureInput: trustpolicy.SignatureInputProfile, Signature: trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: strings.Repeat("a", 64), Signature: base64.StdEncoding.EncodeToString([]byte("sig"))}}
+func writeSeedSeal(root string, segmentID string, recordDigest trustpolicy.Digest, previousSealDigest *trustpolicy.Digest, chainIndex int64) error {
+	sealEnvelope := seedSealEnvelope(segmentID, recordDigest, previousSealDigest, chainIndex)
 	sealDigest, err := trustpolicy.ComputeSignedEnvelopeAuditRecordDigest(sealEnvelope)
 	if err != nil {
 		return err
 	}
 	identity, _ := sealDigest.Identity()
 	return writeCanonicalJSON(filepath.Join(root, "sidecar", "segment-seals", strings.TrimPrefix(identity, "sha256:")+".json"), sealEnvelope)
+}
+
+func computeSeedSealDigest(segmentID string, recordDigest trustpolicy.Digest, previousSealDigest *trustpolicy.Digest, chainIndex int64) (trustpolicy.Digest, error) {
+	sealEnvelope := seedSealEnvelope(segmentID, recordDigest, previousSealDigest, chainIndex)
+	return trustpolicy.ComputeSignedEnvelopeAuditRecordDigest(sealEnvelope)
+}
+
+func seedSealEnvelope(segmentID string, recordDigest trustpolicy.Digest, previousSealDigest *trustpolicy.Digest, chainIndex int64) trustpolicy.SignedObjectEnvelope {
+	merkleRoot, err := trustpolicy.ComputeOrderedAuditSegmentMerkleRoot([]trustpolicy.Digest{recordDigest})
+	if err != nil {
+		panic(err)
+	}
+	sealPayload := trustpolicy.AuditSegmentSealPayload{SchemaID: trustpolicy.AuditSegmentSealSchemaID, SchemaVersion: trustpolicy.AuditSegmentSealSchemaVersion, SegmentID: segmentID, SealedAfterState: trustpolicy.AuditSegmentStateOpen, SegmentState: trustpolicy.AuditSegmentStateSealed, SegmentCut: trustpolicy.AuditSegmentCutWindowPolicy{OwnershipScope: trustpolicy.AuditSegmentOwnershipScopeInstanceGlobal, MaxSegmentBytes: 2048, CutTrigger: trustpolicy.AuditSegmentCutTriggerSizeWindow}, EventCount: 1, FirstRecordDigest: recordDigest, LastRecordDigest: recordDigest, MerkleProfile: trustpolicy.AuditSegmentMerkleProfileOrderedDSEv1, MerkleRoot: merkleRoot, SegmentFileHashScope: trustpolicy.AuditSegmentFileHashScopeRawFramedV1, SegmentFileHash: recordDigest, SealChainIndex: chainIndex, PreviousSealDigest: previousSealDigest, AnchoringSubject: trustpolicy.AuditSegmentAnchoringSubjectSeal, SealedAt: "2026-03-13T12:20:00Z", ProtocolBundleManifestHash: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)}, SealReason: "size_threshold"}
+	return trustpolicy.SignedObjectEnvelope{SchemaID: trustpolicy.EnvelopeSchemaID, SchemaVersion: trustpolicy.EnvelopeSchemaVersion, PayloadSchemaID: trustpolicy.AuditSegmentSealSchemaID, PayloadSchemaVersion: trustpolicy.AuditSegmentSealSchemaVersion, Payload: mustJSON(sealPayload), SignatureInput: trustpolicy.SignatureInputProfile, Signature: trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: strings.Repeat("a", 64), Signature: base64.StdEncoding.EncodeToString([]byte("sig"))}}
 }
 
 func configureSeedContractsAndIndex(ledger *auditd.Ledger) error {

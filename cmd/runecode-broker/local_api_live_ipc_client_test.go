@@ -329,6 +329,7 @@ func TestLiveIPCCommandClassificationIncludesSessionCommands(t *testing.T) {
 		{command: "session-list", mode: brokerCommandAPIModeLiveIPC, requiresStore: false},
 		{command: "session-get", mode: brokerCommandAPIModeLiveIPC, requiresStore: false},
 		{command: "session-execution-trigger", mode: brokerCommandAPIModeLiveIPC, requiresStore: false},
+		{command: "audit-record-inclusion-get", mode: brokerCommandAPIModeLiveIPC, requiresStore: false},
 		{command: "provider-credential-lease-issue", mode: brokerCommandAPIModeLiveIPC, requiresStore: false},
 		{command: "dependency-cache-ensure", mode: brokerCommandAPIModeLiveIPC, requiresStore: false},
 		{command: "dependency-fetch-registry", mode: brokerCommandAPIModeLiveIPC, requiresStore: false},

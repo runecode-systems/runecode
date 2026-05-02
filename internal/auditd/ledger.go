@@ -97,6 +97,9 @@ func (l *Ledger) persistVerificationReportLocked(report trustpolicy.AuditVerific
 	if err := l.saveState(state); err != nil {
 		return trustpolicy.Digest{}, err
 	}
+	if err := l.notePersistedVerificationReportInDerivedIndexLocked(digest); err != nil {
+		return trustpolicy.Digest{}, err
+	}
 	return digest, nil
 }
 
@@ -114,12 +117,7 @@ func (l *Ledger) latestVerificationReportLocked() (trustpolicy.AuditVerification
 	if state.LastVerificationReportDigest == "" {
 		return trustpolicy.AuditVerificationReportPayload{}, fmt.Errorf("no verification report persisted")
 	}
-	path := filepath.Join(l.rootDir, sidecarDirName, verificationReportsDirName, strings.TrimPrefix(state.LastVerificationReportDigest, "sha256:")+".json")
-	report := trustpolicy.AuditVerificationReportPayload{}
-	if err := readJSONFile(path, &report); err != nil {
-		return trustpolicy.AuditVerificationReportPayload{}, err
-	}
-	return report, nil
+	return l.loadVerificationReportByDigestIdentityLocked(state.LastVerificationReportDigest)
 }
 
 func canonicalEnvelopeAndDigest(envelope trustpolicy.SignedObjectEnvelope) ([]byte, trustpolicy.Digest, error) {

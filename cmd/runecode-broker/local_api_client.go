@@ -43,6 +43,7 @@ type brokerLocalAPI interface {
 	AuditVerificationGet(context.Context, brokerapi.AuditVerificationGetRequest) (brokerapi.AuditVerificationGetResponse, *brokerapi.ErrorResponse)
 	AuditFinalizeVerify(context.Context, brokerapi.AuditFinalizeVerifyRequest) (brokerapi.AuditFinalizeVerifyResponse, *brokerapi.ErrorResponse)
 	AuditRecordGet(context.Context, brokerapi.AuditRecordGetRequest) (brokerapi.AuditRecordGetResponse, *brokerapi.ErrorResponse)
+	AuditRecordInclusionGet(context.Context, brokerapi.AuditRecordInclusionGetRequest) (brokerapi.AuditRecordInclusionGetResponse, *brokerapi.ErrorResponse)
 	AuditAnchorPreflightGet(context.Context, brokerapi.AuditAnchorPreflightGetRequest) (brokerapi.AuditAnchorPreflightGetResponse, *brokerapi.ErrorResponse)
 	AuditAnchorPresenceGet(context.Context, brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, *brokerapi.ErrorResponse)
 	AuditAnchorSegment(context.Context, brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, *brokerapi.ErrorResponse)
