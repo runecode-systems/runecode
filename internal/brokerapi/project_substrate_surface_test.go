@@ -416,7 +416,7 @@ func TestHandleProductLifecyclePostureGetDiscoveryFailureStillProjectsDiagnostic
 	}
 }
 
-func repositoryRootForProjectSubstrateTests(t *testing.T) string {
+func repositoryRootForProjectSubstrateTests(t testing.TB) string {
 	t.Helper()
 	wd, err := os.Getwd()
 	if err != nil {

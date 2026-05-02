@@ -120,7 +120,9 @@ func (s *Service) zkProofGenerateValidated(requestID string, recordDigest trustp
 		return ZKProofGenerateResponse{}, err
 	}
 	resp := buildZKProofGenerateResponse(requestID, inclusion.RecordDigest, bindingDigest, proofDigest, verifyResp.ZKProofVerificationRecordDigest)
-	s.appendZKProofGenerateAuditEvent(recordIdentity, resp)
+	if err := s.appendZKProofGenerateAuditEvent(recordIdentity, resp); err != nil {
+		return ZKProofGenerateResponse{}, err
+	}
 	return resp, nil
 }
 
@@ -140,7 +142,7 @@ func (s *Service) zkProofVerifyValidated(requestID string, artifactDigest trustp
 	if err != nil {
 		return ZKProofVerifyResponse{}, err
 	}
-	_ = s.AppendTrustedAuditEvent("zk_proof_verify", "brokerapi", map[string]any{
+	if err := s.AppendTrustedAuditEvent("zk_proof_verify", "brokerapi", map[string]any{
 		"zk_proof_artifact_digest":            mustDigestIdentityString(resp.ZKProofArtifactDigest),
 		"zk_proof_verification_record_digest": mustDigestIdentityString(resp.ZKProofVerificationRecordDigest),
 		"verification_outcome":                resp.VerificationOutcome,
@@ -148,7 +150,9 @@ func (s *Service) zkProofVerifyValidated(requestID string, artifactDigest trustp
 		"cache_provenance":                    resp.CacheProvenance,
 		"evaluation_gate":                     resp.EvaluationGate,
 		"user_check_in_required":              resp.UserCheckInRequired,
-	})
+	}); err != nil {
+		return ZKProofVerifyResponse{}, err
+	}
 	return resp, nil
 }
 
@@ -157,13 +161,20 @@ func (s *Service) verifyProofArtifactAndPersistRecord(requestID string, artifact
 	if err != nil {
 		return ZKProofVerifyResponse{}, err
 	}
-	record, err := s.buildVerificationRecord(artifactDigest, artifact, publicInputsDigest)
+	if err := s.validateArtifactBindingAndAuthoritativeEvidence(artifact, publicInputsDigest); err != nil {
+		return ZKProofVerifyResponse{}, err
+	}
+	recordBase, err := s.buildVerificationRecordBase(artifactDigest, artifact, publicInputsDigest)
 	if err != nil {
 		return ZKProofVerifyResponse{}, err
 	}
-	if cachedResp, found, err := s.findCachedVerificationResponse(requestID, artifactDigest, record); err == nil && found {
+	if cachedResp, found, err := s.findCachedVerificationResponse(requestID, artifactDigest, recordBase); err == nil && found {
 		return cachedResp, nil
 	}
+	if err != nil {
+		return ZKProofVerifyResponse{}, err
+	}
+	record, err := s.finalizeVerificationRecord(recordBase, artifact, publicInputsDigest)
 	if err != nil {
 		return ZKProofVerifyResponse{}, err
 	}

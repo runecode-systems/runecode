@@ -28,7 +28,7 @@ func CompileAuditIsolateSessionBoundAttestedRuntimeMembershipV0(input CompileAud
 	if err != nil {
 		return AuditIsolateSessionBoundAttestedRuntimeProofInputContract{}, err
 	}
-	return buildCompileContract(input, payload, normalizedPrivate, normalizationProfileID, schemeAdapterID, bindingCommitment), nil
+	return buildCompileContract(input, payload, normalizedPrivate, normalizationProfileID, schemeAdapterID, bindingCommitment)
 }
 
 func resolveCompileProfiles(input CompileAuditIsolateSessionBoundAttestedRuntimeInput) (string, string, error) {
@@ -94,7 +94,7 @@ func compileWitnessBinding(input CompileAuditIsolateSessionBoundAttestedRuntimeI
 	return normalizedPrivate, bindingCommitment, nil
 }
 
-func buildCompileContract(input CompileAuditIsolateSessionBoundAttestedRuntimeInput, payload trustpolicy.IsolateSessionBoundPayload, normalizedPrivate IsolateSessionBoundPrivateRemainder, normalizationProfileID, schemeAdapterID, bindingCommitment string) AuditIsolateSessionBoundAttestedRuntimeProofInputContract {
+func buildCompileContract(input CompileAuditIsolateSessionBoundAttestedRuntimeInput, payload trustpolicy.IsolateSessionBoundPayload, normalizedPrivate IsolateSessionBoundPrivateRemainder, normalizationProfileID, schemeAdapterID, bindingCommitment string) (AuditIsolateSessionBoundAttestedRuntimeProofInputContract, error) {
 	publicInputs := AuditIsolateSessionBoundAttestedRuntimePublicInputs{
 		StatementFamily:                StatementFamilyAuditIsolateSessionBoundAttestedRuntimeMembershipV0,
 		StatementVersion:               StatementVersionV0,
@@ -111,7 +111,12 @@ func buildCompileContract(input CompileAuditIsolateSessionBoundAttestedRuntimeIn
 		BindingCommitment:              bindingCommitment,
 		ProjectSubstrateSnapshotDigest: strings.TrimSpace(input.ProjectSubstrateSnapshotDigest),
 	}
-	return AuditIsolateSessionBoundAttestedRuntimeProofInputContract{PublicInputs: publicInputs, WitnessInputs: AuditIsolateSessionBoundAttestedRuntimeWitnessInputs{PrivateRemainder: normalizedPrivate, MerkleAuthenticationPath: input.MerkleAuthenticationPath, MerkleAuthenticationDepth: len(input.MerkleAuthenticationPath.Steps)}}
+	publicInputsDigest, err := CanonicalPublicInputsDigestV0(publicInputs)
+	if err != nil {
+		return AuditIsolateSessionBoundAttestedRuntimeProofInputContract{}, err
+	}
+	publicInputs.PublicInputsDigest = publicInputsDigest
+	return AuditIsolateSessionBoundAttestedRuntimeProofInputContract{PublicInputs: publicInputs, WitnessInputs: AuditIsolateSessionBoundAttestedRuntimeWitnessInputs{PrivateRemainder: normalizedPrivate, MerkleAuthenticationPath: input.MerkleAuthenticationPath, MerkleAuthenticationDepth: len(input.MerkleAuthenticationPath.Steps)}}, nil
 }
 
 func isSupportedLogicalNormalizationProfile(profileID string) bool {

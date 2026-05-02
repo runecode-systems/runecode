@@ -86,24 +86,12 @@ func assignMerkleWitnessV0(public *auditIsolateSessionBoundCircuitV0, path Merkl
 	return nil
 }
 
-func buildCircuitPublicWitnessV0(publicInputs AuditIsolateSessionBoundAttestedRuntimePublicInputs) (auditIsolateSessionBoundCircuitV0, error) {
-	bindingDigest, err := parseDigestIdentity(publicInputs.BindingCommitment, "binding_commitment")
+func digestIdentityStringToPublicByteArrayV0(identity, fieldName string) ([32]frontend.Variable, error) {
+	d, err := parseDigestIdentity(identity, fieldName)
 	if err != nil {
-		return auditIsolateSessionBoundCircuitV0{}, err
+		return [32]frontend.Variable{}, err
 	}
-	bindingBytes, err := digestToPublicByteArrayV0(bindingDigest, "binding_commitment")
-	if err != nil {
-		return auditIsolateSessionBoundCircuitV0{}, err
-	}
-	merkleRootBytes, err := digestToPublicByteArrayV0(publicInputs.MerkleRoot, "merkle_root")
-	if err != nil {
-		return auditIsolateSessionBoundCircuitV0{}, err
-	}
-	auditRecordBytes, err := digestToPublicByteArrayV0(publicInputs.AuditRecordDigest, "audit_record_digest")
-	if err != nil {
-		return auditIsolateSessionBoundCircuitV0{}, err
-	}
-	return auditIsolateSessionBoundCircuitV0{BindingCommitment: bindingBytes, MerkleRoot: merkleRootBytes, AuditRecordDigest: auditRecordBytes}, nil
+	return digestToPublicByteArrayV0(d, fieldName)
 }
 
 func digestToPublicByteArrayV0(d trustpolicy.Digest, fieldName string) ([32]frontend.Variable, error) {

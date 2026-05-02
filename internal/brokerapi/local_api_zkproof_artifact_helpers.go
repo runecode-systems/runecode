@@ -22,6 +22,9 @@ func buildZKProofArtifact(compiled zkproof.AuditIsolateSessionBoundAttestedRunti
 	if err != nil {
 		return trustpolicy.ZKProofArtifactPayload{}, err
 	}
+	if compiled.PublicInputs.PublicInputsDigest != publicInputCanonical {
+		return trustpolicy.ZKProofArtifactPayload{}, &zkproof.FeasibilityError{Code: "invalid_public_inputs_digest", Message: "compiled public_inputs_digest does not match canonical public_inputs content"}
+	}
 	proofBytes, identity, err := backend.ProveDeterministic(compiled)
 	if err != nil {
 		return trustpolicy.ZKProofArtifactPayload{}, err
@@ -69,7 +72,7 @@ func buildZKProofPublicInputs(publicInputs zkproof.AuditIsolateSessionBoundAttes
 	if strings.TrimSpace(publicInputs.ProjectSubstrateSnapshotDigest) != "" {
 		encoded["project_substrate_snapshot_digest"] = strings.TrimSpace(publicInputs.ProjectSubstrateSnapshotDigest)
 	}
-	digest, err := canonicalMapDigest(encoded)
+	digest, err := zkproof.CanonicalPublicInputsDigestV0(publicInputs)
 	if err != nil {
 		return nil, trustpolicy.Digest{}, err
 	}
@@ -77,18 +80,15 @@ func buildZKProofPublicInputs(publicInputs zkproof.AuditIsolateSessionBoundAttes
 }
 
 func decodeArtifactPublicInputs(raw map[string]any, publicInputsDigest trustpolicy.Digest) (zkproof.AuditIsolateSessionBoundAttestedRuntimePublicInputs, error) {
-	recomputedDigest, err := canonicalMapDigest(raw)
-	if err != nil {
-		return zkproof.AuditIsolateSessionBoundAttestedRuntimePublicInputs{}, err
-	}
-	if recomputedDigest != publicInputsDigest {
-		return zkproof.AuditIsolateSessionBoundAttestedRuntimePublicInputs{}, &zkproof.FeasibilityError{Code: "invalid_public_inputs_digest", Message: "proof public_inputs_digest does not match canonical public_inputs content"}
-	}
 	parsed := zkproof.AuditIsolateSessionBoundAttestedRuntimePublicInputs{}
 	if err := assignArtifactStringFields(raw, &parsed); err != nil {
 		return zkproof.AuditIsolateSessionBoundAttestedRuntimePublicInputs{}, err
 	}
 	if err := assignArtifactDigestFields(raw, &parsed); err != nil {
+		return zkproof.AuditIsolateSessionBoundAttestedRuntimePublicInputs{}, err
+	}
+	parsed.PublicInputsDigest = publicInputsDigest
+	if err := zkproof.ValidatePublicInputsDigestBindingV0(parsed); err != nil {
 		return zkproof.AuditIsolateSessionBoundAttestedRuntimePublicInputs{}, err
 	}
 	return parsed, nil

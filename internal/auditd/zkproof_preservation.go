@@ -1,8 +1,6 @@
 package auditd
 
 import (
-	"encoding/json"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -11,19 +9,32 @@ import (
 // ProofBackfillEvidenceSnapshot captures durable local evidence identities that
 // proof backfill workflows can export later without ambient process state.
 type ProofBackfillEvidenceSnapshot struct {
-	SegmentIDs                     []string `json:"segment_ids"`
-	SegmentSealDigests             []string `json:"segment_seal_digests"`
-	AuditReceiptDigests            []string `json:"audit_receipt_digests"`
-	AuditVerificationReportDigests []string `json:"audit_verification_report_digests"`
-	VerifierRecordDigests          []string `json:"verifier_record_digests"`
-	EventContractCatalogDigests    []string `json:"event_contract_catalog_digests"`
-	SignerEvidenceDigests          []string `json:"signer_evidence_digests"`
-	StoragePostureDigests          []string `json:"storage_posture_digests"`
-	ExternalAnchorEvidenceDigests  []string `json:"external_anchor_evidence_digests"`
-	ExternalAnchorSidecarDigests   []string `json:"external_anchor_sidecar_digests"`
-	AuditProofBindingDigests       []string `json:"audit_proof_binding_digests"`
-	ZKProofArtifactDigests         []string `json:"zk_proof_artifact_digests"`
-	ZKProofVerificationDigests     []string `json:"zk_proof_verification_digests"`
+	SegmentIDs                           []string `json:"segment_ids"`
+	SegmentSealDigests                   []string `json:"segment_seal_digests"`
+	AuditReceiptDigests                  []string `json:"audit_receipt_digests"`
+	AuditVerificationReportDigests       []string `json:"audit_verification_report_digests"`
+	ProtocolBundleManifestHashes         []string `json:"protocol_bundle_manifest_hashes,omitempty"`
+	RuntimeImageDescriptorDigests        []string `json:"runtime_image_descriptor_digests,omitempty"`
+	AttestationEvidenceDigests           []string `json:"attestation_evidence_digests,omitempty"`
+	AppliedHardeningPostureDigests       []string `json:"applied_hardening_posture_digests,omitempty"`
+	SessionBindingDigests                []string `json:"session_binding_digests,omitempty"`
+	ProjectSubstrateSnapshotDigests      []string `json:"project_substrate_snapshot_digests,omitempty"`
+	AttestationVerificationRecordDigests []string `json:"attestation_verification_record_digests,omitempty"`
+	VerifierRecordDigests                []string `json:"verifier_record_digests"`
+	EventContractCatalogDigests          []string `json:"event_contract_catalog_digests"`
+	SignerEvidenceDigests                []string `json:"signer_evidence_digests"`
+	StoragePostureDigests                []string `json:"storage_posture_digests"`
+	TypedRequestHashes                   []string `json:"typed_request_hashes,omitempty"`
+	ActionRequestHashes                  []string `json:"action_request_hashes,omitempty"`
+	PolicyDecisionHashes                 []string `json:"policy_decision_hashes,omitempty"`
+	RequiredApprovalIDs                  []string `json:"required_approval_ids,omitempty"`
+	ApprovalRequestHashes                []string `json:"approval_request_hashes,omitempty"`
+	ApprovalDecisionHashes               []string `json:"approval_decision_hashes,omitempty"`
+	ExternalAnchorEvidenceDigests        []string `json:"external_anchor_evidence_digests"`
+	ExternalAnchorSidecarDigests         []string `json:"external_anchor_sidecar_digests"`
+	AuditProofBindingDigests             []string `json:"audit_proof_binding_digests"`
+	ZKProofArtifactDigests               []string `json:"zk_proof_artifact_digests"`
+	ZKProofVerificationDigests           []string `json:"zk_proof_verification_digests"`
 }
 
 func (l *Ledger) ProofBackfillEvidenceSnapshot() (ProofBackfillEvidenceSnapshot, error) {
@@ -41,25 +52,15 @@ func (l *Ledger) ProofBackfillEvidenceSnapshot() (ProofBackfillEvidenceSnapshot,
 	if err != nil {
 		return ProofBackfillEvidenceSnapshot{}, err
 	}
-	return ProofBackfillEvidenceSnapshot{SegmentIDs: segmentIDs, SegmentSealDigests: sidecars.segmentSeals, AuditReceiptDigests: sidecars.receipts, AuditVerificationReportDigests: sidecars.reports, VerifierRecordDigests: contractDigests.verifierRecords, EventContractCatalogDigests: contractDigests.eventCatalogs, SignerEvidenceDigests: contractDigests.signerEvidence, StoragePostureDigests: contractDigests.storagePosture, ExternalAnchorEvidenceDigests: sidecars.externalEvidence, ExternalAnchorSidecarDigests: sidecars.externalSidecars, AuditProofBindingDigests: sidecars.proofBindings, ZKProofArtifactDigests: sidecars.proofArtifacts, ZKProofVerificationDigests: sidecars.proofVerifications}, nil
-}
-
-type proofSidecarDigestSnapshot struct {
-	segmentSeals       []string
-	receipts           []string
-	reports            []string
-	externalEvidence   []string
-	externalSidecars   []string
-	proofBindings      []string
-	proofArtifacts     []string
-	proofVerifications []string
-}
-
-type proofVerificationContractSnapshot struct {
-	verifierRecords []string
-	eventCatalogs   []string
-	signerEvidence  []string
-	storagePosture  []string
+	bindingEvidence, err := l.snapshotAuditProofBindingEvidenceLocked(sidecars.proofBindings)
+	if err != nil {
+		return ProofBackfillEvidenceSnapshot{}, err
+	}
+	externalAnchorBindings, err := l.snapshotExternalAnchorIdentityBindingsLocked(sidecars.externalEvidence)
+	if err != nil {
+		return ProofBackfillEvidenceSnapshot{}, err
+	}
+	return ProofBackfillEvidenceSnapshot{SegmentIDs: segmentIDs, SegmentSealDigests: sidecars.segmentSeals, AuditReceiptDigests: sidecars.receipts, AuditVerificationReportDigests: sidecars.reports, ProtocolBundleManifestHashes: bindingEvidence.protocolBundleManifestHashes, RuntimeImageDescriptorDigests: bindingEvidence.runtimeImageDescriptorDigests, AttestationEvidenceDigests: bindingEvidence.attestationEvidenceDigests, AppliedHardeningPostureDigests: bindingEvidence.appliedHardeningPostureDigests, SessionBindingDigests: bindingEvidence.sessionBindingDigests, ProjectSubstrateSnapshotDigests: bindingEvidence.projectSubstrateSnapshotDigests, AttestationVerificationRecordDigests: bindingEvidence.attestationVerificationRecordDigests, VerifierRecordDigests: contractDigests.verifierRecords, EventContractCatalogDigests: contractDigests.eventCatalogs, SignerEvidenceDigests: contractDigests.signerEvidence, StoragePostureDigests: contractDigests.storagePosture, TypedRequestHashes: externalAnchorBindings.typedRequestHashes, ActionRequestHashes: externalAnchorBindings.actionRequestHashes, PolicyDecisionHashes: externalAnchorBindings.policyDecisionHashes, RequiredApprovalIDs: externalAnchorBindings.requiredApprovalIDs, ApprovalRequestHashes: externalAnchorBindings.approvalRequestHashes, ApprovalDecisionHashes: externalAnchorBindings.approvalDecisionHashes, ExternalAnchorEvidenceDigests: sidecars.externalEvidence, ExternalAnchorSidecarDigests: sidecars.externalSidecars, AuditProofBindingDigests: sidecars.proofBindings, ZKProofArtifactDigests: sidecars.proofArtifacts, ZKProofVerificationDigests: sidecars.proofVerifications}, nil
 }
 
 func (l *Ledger) snapshotSegmentIDsLocked() ([]string, error) {
@@ -111,6 +112,52 @@ func (l *Ledger) snapshotProofSidecarDigestsLocked() (proofSidecarDigestSnapshot
 	return proofSidecarDigestSnapshot{segmentSeals: segmentSeals, receipts: receipts, reports: reports, externalEvidence: externalEvidence, externalSidecars: externalSidecars, proofBindings: proofBindings, proofArtifacts: proofArtifacts, proofVerifications: proofVerifications}, nil
 }
 
+func (l *Ledger) snapshotAuditProofBindingEvidenceLocked(bindingDigests []string) (auditProofBindingEvidenceSnapshot, error) {
+	snapshot := auditProofBindingEvidenceSnapshot{}
+	for i := range bindingDigests {
+		payload, found, err := l.loadAuditProofBindingByIdentityLocked(bindingDigests[i])
+		if err != nil {
+			return auditProofBindingEvidenceSnapshot{}, err
+		}
+		if !found {
+			continue
+		}
+		snapshot.protocolBundleManifestHashes = appendIdentityUnique(snapshot.protocolBundleManifestHashes, mustDigestIdentityString(payload.ProtocolBundleManifest))
+		snapshot.runtimeImageDescriptorDigests = appendIdentityUnique(snapshot.runtimeImageDescriptorDigests, payload.ProjectedPublicBindings.RuntimeImageDescriptorDigest)
+		snapshot.attestationEvidenceDigests = appendIdentityUnique(snapshot.attestationEvidenceDigests, payload.ProjectedPublicBindings.AttestationEvidenceDigest)
+		snapshot.appliedHardeningPostureDigests = appendIdentityUnique(snapshot.appliedHardeningPostureDigests, payload.ProjectedPublicBindings.AppliedHardeningPostureDigest)
+		snapshot.sessionBindingDigests = appendIdentityUnique(snapshot.sessionBindingDigests, payload.ProjectedPublicBindings.SessionBindingDigest)
+		snapshot.projectSubstrateSnapshotDigests = appendIdentityUnique(snapshot.projectSubstrateSnapshotDigests, payload.ProjectedPublicBindings.ProjectSubstrateSnapshotDigest)
+		if payload.ProjectedPublicBindings.AttestationVerificationRecord != nil {
+			snapshot.attestationVerificationRecordDigests = appendIdentityUnique(snapshot.attestationVerificationRecordDigests, mustDigestIdentityString(*payload.ProjectedPublicBindings.AttestationVerificationRecord))
+		}
+	}
+	sort.Strings(snapshot.protocolBundleManifestHashes)
+	sort.Strings(snapshot.runtimeImageDescriptorDigests)
+	sort.Strings(snapshot.attestationEvidenceDigests)
+	sort.Strings(snapshot.appliedHardeningPostureDigests)
+	sort.Strings(snapshot.sessionBindingDigests)
+	sort.Strings(snapshot.projectSubstrateSnapshotDigests)
+	sort.Strings(snapshot.attestationVerificationRecordDigests)
+	return snapshot, nil
+}
+
+func (l *Ledger) snapshotExternalAnchorIdentityBindingsLocked(evidenceDigests []string) (externalAnchorIdentityBindingSnapshot, error) {
+	snapshot := externalAnchorIdentityBindingSnapshot{}
+	for i := range evidenceDigests {
+		rec, digest, ok, err := l.loadExternalAnchorEvidenceEntry(strings.TrimPrefix(evidenceDigests[i], "sha256:") + ".json")
+		if err != nil {
+			return externalAnchorIdentityBindingSnapshot{}, err
+		}
+		if !ok || digest == nil || mustDigestIdentity(*digest) != evidenceDigests[i] {
+			continue
+		}
+		snapshot = appendExternalAnchorIdentityBindingSnapshot(snapshot, rec)
+	}
+	sortExternalAnchorIdentityBindingSnapshot(&snapshot)
+	return snapshot, nil
+}
+
 func (l *Ledger) snapshotVerificationContractDigestsLocked() (proofVerificationContractSnapshot, error) {
 	contractsDir := filepath.Join(l.rootDir, "contracts")
 	verifierRecords, err := canonicalDigestIdentityForJSONPath(filepath.Join(contractsDir, "verifier-records.json"))
@@ -157,33 +204,4 @@ func (l *Ledger) sidecarDigestIdentitiesLocked(dirName string) ([]string, error)
 
 func sidecarPath(root, dirName, identity string) string {
 	return filepath.Join(root, sidecarDirName, dirName, strings.TrimPrefix(identity, "sha256:")+".json")
-}
-
-func canonicalDigestIdentityForJSONPath(path string) (string, error) {
-	raw := json.RawMessage{}
-	if err := readJSONFile(path, &raw); err != nil {
-		return "", err
-	}
-	digest, err := canonicalDigest(raw)
-	if err != nil {
-		return "", err
-	}
-	return digest.Identity()
-}
-
-func canonicalDigestIdentityForOptionalJSONPath(path string) (string, error) {
-	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			return "", nil
-		}
-		return "", err
-	}
-	return canonicalDigestIdentityForJSONPath(path)
-}
-
-func wrapIdentityList(identity string) []string {
-	if strings.TrimSpace(identity) == "" {
-		return nil
-	}
-	return []string{identity}
 }

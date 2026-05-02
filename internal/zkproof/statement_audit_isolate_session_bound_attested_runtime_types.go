@@ -128,6 +128,7 @@ type AuditIsolateSessionBoundAttestedRuntimePublicInputs struct {
 	StatementVersion               string             `json:"statement_version"`
 	NormalizationProfileID         string             `json:"normalization_profile_id"`
 	SchemeAdapterID                string             `json:"scheme_adapter_id"`
+	PublicInputsDigest             trustpolicy.Digest `json:"public_inputs_digest"`
 	AuditSegmentSealDigest         trustpolicy.Digest `json:"audit_segment_seal_digest"`
 	MerkleRoot                     trustpolicy.Digest `json:"merkle_root"`
 	AuditRecordDigest              trustpolicy.Digest `json:"audit_record_digest"`

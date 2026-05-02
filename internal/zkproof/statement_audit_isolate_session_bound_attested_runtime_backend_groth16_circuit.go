@@ -9,9 +9,16 @@ import (
 )
 
 type auditIsolateSessionBoundCircuitV0 struct {
-	BindingCommitment [32]frontend.Variable `gnark:",public"`
-	MerkleRoot        [32]frontend.Variable `gnark:",public"`
-	AuditRecordDigest [32]frontend.Variable `gnark:",public"`
+	PublicInputsDigest            [32]frontend.Variable `gnark:",public"`
+	AuditSegmentSealDigest        [32]frontend.Variable `gnark:",public"`
+	BindingCommitment             [32]frontend.Variable `gnark:",public"`
+	MerkleRoot                    [32]frontend.Variable `gnark:",public"`
+	AuditRecordDigest             [32]frontend.Variable `gnark:",public"`
+	ProtocolBundleManifestHash    [32]frontend.Variable `gnark:",public"`
+	RuntimeImageDescriptorDigest  [32]frontend.Variable `gnark:",public"`
+	AttestationEvidenceDigest     [32]frontend.Variable `gnark:",public"`
+	AppliedHardeningPostureDigest [32]frontend.Variable `gnark:",public"`
+	SessionBindingDigest          [32]frontend.Variable `gnark:",public"`
 
 	RunIDDigest                 frontend.Variable
 	IsolateIDDigest             frontend.Variable
@@ -28,11 +35,46 @@ type auditIsolateSessionBoundCircuitV0 struct {
 }
 
 func (c *auditIsolateSessionBoundCircuitV0) Define(api frontend.API) error {
+	if err := c.assertPublicInputsDigest(api); err != nil {
+		return err
+	}
 	if err := c.assertBindingCommitment(api); err != nil {
 		return err
 	}
 	if err := c.assertMerkleMembership(api); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (c *auditIsolateSessionBoundCircuitV0) assertPublicInputsDigest(api frontend.API) error {
+	preimage := make([]frontend.Variable, 0, 512)
+	preimage = appendLabeledConstantBytesVarsV0(preimage, "statement_family", StatementFamilyAuditIsolateSessionBoundAttestedRuntimeMembershipV0)
+	preimage = appendLabeledConstantBytesVarsV0(preimage, "statement_version", StatementVersionV0)
+	preimage = appendLabeledConstantBytesVarsV0(preimage, "normalization_profile_id", NormalizationProfileAuditIsolateSessionBoundAttestedRuntimeV0)
+	preimage = appendLabeledConstantBytesVarsV0(preimage, "scheme_adapter_id", SchemeAdapterGnarkGroth16IsolateSessionBoundV0)
+	for _, field := range []struct {
+		label string
+		value [32]frontend.Variable
+	}{
+		{label: "audit_segment_seal_digest", value: c.AuditSegmentSealDigest},
+		{label: "merkle_root", value: c.MerkleRoot},
+		{label: "audit_record_digest", value: c.AuditRecordDigest},
+		{label: "protocol_bundle_manifest_hash", value: c.ProtocolBundleManifestHash},
+		{label: "runtime_image_descriptor_digest", value: c.RuntimeImageDescriptorDigest},
+		{label: "attestation_evidence_digest", value: c.AttestationEvidenceDigest},
+		{label: "applied_hardening_posture_digest", value: c.AppliedHardeningPostureDigest},
+		{label: "session_binding_digest", value: c.SessionBindingDigest},
+		{label: "binding_commitment", value: c.BindingCommitment},
+	} {
+		preimage = appendLabeledDigestBytesVarsV0(preimage, field.label, field.value)
+	}
+	digest, err := sha256BytesV0(api, preimage)
+	if err != nil {
+		return err
+	}
+	for i := 0; i < 32; i++ {
+		api.AssertIsEqual(digest[i], c.PublicInputsDigest[i])
 	}
 	return nil
 }
@@ -104,6 +146,20 @@ func constantBytesVarsV0(s string) []frontend.Variable {
 		out[i] = int(s[i])
 	}
 	return out
+}
+
+func appendLabeledConstantBytesVarsV0(dst []frontend.Variable, label, value string) []frontend.Variable {
+	dst = append(dst, constantBytesVarsV0(label)...)
+	dst = append(dst, frontend.Variable('='))
+	dst = append(dst, constantBytesVarsV0(value)...)
+	return append(dst, frontend.Variable('|'))
+}
+
+func appendLabeledDigestBytesVarsV0(dst []frontend.Variable, label string, value [32]frontend.Variable) []frontend.Variable {
+	dst = append(dst, constantBytesVarsV0(label)...)
+	dst = append(dst, frontend.Variable('='))
+	dst = append(dst, value[:]...)
+	return append(dst, frontend.Variable('|'))
 }
 
 func fieldElementToBytesBEV0(api frontend.API, value frontend.Variable) []frontend.Variable {

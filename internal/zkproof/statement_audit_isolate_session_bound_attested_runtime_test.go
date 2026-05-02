@@ -27,6 +27,9 @@ func TestCompileAuditIsolateSessionBoundAttestedRuntimeMembershipV0Success(t *te
 	if contract.PublicInputs.AttestationEvidenceDigest == "" {
 		t.Fatal("attestation_evidence_digest is empty")
 	}
+	if _, err := contract.PublicInputs.PublicInputsDigest.Identity(); err != nil {
+		t.Fatalf("public_inputs_digest identity invalid: %v", err)
+	}
 	if contract.WitnessInputs.MerkleAuthenticationDepth != 1 {
 		t.Fatalf("merkle_authentication_depth mismatch: got %d want 1", contract.WitnessInputs.MerkleAuthenticationDepth)
 	}
@@ -286,28 +289,7 @@ func TestVerifySetupIdentityMatchesTrustedPostureV0FailsClosedOnMismatch(t *test
 }
 
 func TestVerifyProofWithTrustedPostureV0FailClosedWhenBackendUnconfigured(t *testing.T) {
-	err := VerifyProofWithTrustedPostureV0(
-		nil,
-		[]byte{0x1, 0x2},
-		AuditIsolateSessionBoundAttestedRuntimePublicInputs{
-			StatementFamily:   StatementFamilyAuditIsolateSessionBoundAttestedRuntimeMembershipV0,
-			StatementVersion:  StatementVersionV0,
-			SchemeAdapterID:   SchemeAdapterGnarkGroth16IsolateSessionBoundV0,
-			MerkleRoot:        digestFixture("9"),
-			AuditRecordDigest: digestFixture("a"),
-			BindingCommitment: digestIdentityFixture("b"),
-		},
-		ProofVerificationIdentity{
-			VerifierKeyDigest:      digestFixture("a"),
-			ConstraintSystemDigest: digestFixture("b"),
-			SetupProvenanceDigest:  digestFixture("c"),
-		},
-		TrustedVerifierPosture{
-			VerifierKeyDigest:      digestFixture("a"),
-			ConstraintSystemDigest: digestFixture("b"),
-			SetupProvenanceDigest:  digestFixture("c"),
-		},
-	)
+	err := VerifyProofWithTrustedPostureV0(nil, []byte{0x1, 0x2}, mustValidPublicInputsForTrustedPostureTest(t), validProofVerificationIdentityFixture(), validTrustedVerifierPostureFixture())
 	if err == nil {
 		t.Fatal("expected unconfigured backend failure, got nil")
 	}
@@ -317,6 +299,70 @@ func TestVerifyProofWithTrustedPostureV0FailClosedWhenBackendUnconfigured(t *tes
 	}
 	if ferr.Code != feasibilityCodeUnconfiguredProofBackend {
 		t.Fatalf("code mismatch: got %q want %q", ferr.Code, feasibilityCodeUnconfiguredProofBackend)
+	}
+}
+
+func mustValidPublicInputsForTrustedPostureTest(t *testing.T) AuditIsolateSessionBoundAttestedRuntimePublicInputs {
+	t.Helper()
+	publicInputs := AuditIsolateSessionBoundAttestedRuntimePublicInputs{
+		StatementFamily:               StatementFamilyAuditIsolateSessionBoundAttestedRuntimeMembershipV0,
+		StatementVersion:              StatementVersionV0,
+		NormalizationProfileID:        NormalizationProfileAuditIsolateSessionBoundAttestedRuntimeV0,
+		SchemeAdapterID:               SchemeAdapterGnarkGroth16IsolateSessionBoundV0,
+		AuditSegmentSealDigest:        digestFixture("8"),
+		MerkleRoot:                    digestFixture("9"),
+		AuditRecordDigest:             digestFixture("a"),
+		ProtocolBundleManifestHash:    digestFixture("b"),
+		RuntimeImageDescriptorDigest:  digestIdentityFixture("c"),
+		AttestationEvidenceDigest:     digestIdentityFixture("d"),
+		AppliedHardeningPostureDigest: digestIdentityFixture("e"),
+		SessionBindingDigest:          digestIdentityFixture("f"),
+		BindingCommitment:             digestIdentityFixture("1"),
+	}
+	digest, err := CanonicalPublicInputsDigestV0(publicInputs)
+	if err != nil {
+		t.Fatalf("CanonicalPublicInputsDigestV0 returned error: %v", err)
+	}
+	publicInputs.PublicInputsDigest = digest
+	return publicInputs
+}
+
+func validProofVerificationIdentityFixture() ProofVerificationIdentity {
+	return ProofVerificationIdentity{
+		VerifierKeyDigest:      digestFixture("a"),
+		ConstraintSystemDigest: digestFixture("b"),
+		SetupProvenanceDigest:  digestFixture("c"),
+	}
+}
+
+func validTrustedVerifierPostureFixture() TrustedVerifierPosture {
+	return TrustedVerifierPosture{
+		VerifierKeyDigest:      digestFixture("a"),
+		ConstraintSystemDigest: digestFixture("b"),
+		SetupProvenanceDigest:  digestFixture("c"),
+	}
+}
+
+func TestValidatePublicInputsDigestBindingV0FailsWhenTypedFieldDrifts(t *testing.T) {
+	contract, err := CompileAuditIsolateSessionBoundAttestedRuntimeMembershipV0(validCompileInputFixture(t))
+	if err != nil {
+		t.Fatalf("CompileAuditIsolateSessionBoundAttestedRuntimeMembershipV0 returned error: %v", err)
+	}
+	if err := ValidatePublicInputsDigestBindingV0(contract.PublicInputs); err != nil {
+		t.Fatalf("ValidatePublicInputsDigestBindingV0 returned error: %v", err)
+	}
+	tampered := contract.PublicInputs
+	tampered.SessionBindingDigest = digestIdentityFixture("3")
+	err = ValidatePublicInputsDigestBindingV0(tampered)
+	if err == nil {
+		t.Fatal("expected public_inputs_digest mismatch error, got nil")
+	}
+	ferr, ok := err.(*FeasibilityError)
+	if !ok {
+		t.Fatalf("expected FeasibilityError, got %T (%v)", err, err)
+	}
+	if ferr.Code != "invalid_public_inputs_digest" {
+		t.Fatalf("code mismatch: got %q want invalid_public_inputs_digest", ferr.Code)
 	}
 }
 
@@ -345,7 +391,7 @@ func TestFrozenCircuitIdentityValidateV0(t *testing.T) {
 	}
 }
 
-func validCompileInputFixture(t *testing.T) CompileAuditIsolateSessionBoundAttestedRuntimeInput {
+func validCompileInputFixture(t testing.TB) CompileAuditIsolateSessionBoundAttestedRuntimeInput {
 	t.Helper()
 	payload := validIsolateSessionBoundPayloadFixture(t)
 	return CompileAuditIsolateSessionBoundAttestedRuntimeInput{
@@ -362,19 +408,18 @@ func validCompileInputFixture(t *testing.T) CompileAuditIsolateSessionBoundAttes
 		MerkleAuthenticationPath:         mustMerklePathForFixture(t, []trustpolicy.Digest{digestFixture("9"), digestFixture("f")}, 0),
 		BindingCommitmentDeriver:         fakeBindingCommitmentDeriver{digest: digestIdentityFixture("d")},
 		SessionBindingRelationshipVerify: fakeSessionBindingRelationshipVerifier{},
-		ProjectSubstrateSnapshotDigest:   digestIdentityFixture("e"),
 	}
 }
 
-func validIsolateSessionBoundPayloadFixture(t *testing.T) trustpolicy.IsolateSessionBoundPayload {
+func validIsolateSessionBoundPayloadFixture(t testing.TB) trustpolicy.IsolateSessionBoundPayload {
 	return trustpolicy.IsolateSessionBoundPayload{SchemaID: trustpolicy.IsolateSessionBoundPayloadSchemaID, SchemaVersion: trustpolicy.IsolateSessionBoundPayloadSchemaVersion, RunID: "run-1", IsolateID: "iso-1", SessionID: "sess-1", BackendKind: "microvm", IsolationAssuranceLevel: "isolated", ProvisioningPosture: "attested", LaunchContextDigest: digestIdentityFixture("1"), HandshakeTranscriptHash: digestIdentityFixture("2"), SessionBindingDigest: fixtureSessionBindingDigest(t, "run-1", "iso-1", "sess-1", "microvm", "isolated", "attested", digestIdentityFixture("1"), digestIdentityFixture("2")), RuntimeImageDescriptorDigest: digestIdentityFixture("4"), AppliedHardeningPostureDigest: digestIdentityFixture("5"), AttestationEvidenceDigest: digestIdentityFixture("6")}
 }
 
-func validAuditEventFixture(t *testing.T, payload trustpolicy.IsolateSessionBoundPayload) trustpolicy.AuditEventPayload {
+func validAuditEventFixture(t testing.TB, payload trustpolicy.IsolateSessionBoundPayload) trustpolicy.AuditEventPayload {
 	return trustpolicy.AuditEventPayload{SchemaID: trustpolicy.AuditEventSchemaID, SchemaVersion: trustpolicy.AuditEventSchemaVersion, AuditEventType: "isolate_session_bound", EmitterStreamID: "stream-1", Seq: 1, OccurredAt: "2026-03-13T12:20:00Z", EventPayloadSchemaID: trustpolicy.IsolateSessionBoundPayloadSchemaID, EventPayload: mustJSON(t, payload), EventPayloadHash: digestFixture("7"), ProtocolBundleManifestHash: digestFixture("8")}
 }
 
-func mustMerkleRootForFixture(t *testing.T, digests []trustpolicy.Digest) trustpolicy.Digest {
+func mustMerkleRootForFixture(t testing.TB, digests []trustpolicy.Digest) trustpolicy.Digest {
 	t.Helper()
 	root, err := trustpolicy.ComputeOrderedAuditSegmentMerkleRoot(digests)
 	if err != nil {
@@ -383,7 +428,7 @@ func mustMerkleRootForFixture(t *testing.T, digests []trustpolicy.Digest) trustp
 	return root
 }
 
-func mustMerklePathForFixture(t *testing.T, digests []trustpolicy.Digest, leafIndex int) MerkleAuthenticationPath {
+func mustMerklePathForFixture(t testing.TB, digests []trustpolicy.Digest, leafIndex int) MerkleAuthenticationPath {
 	t.Helper()
 	path, err := DeriveAuditSegmentMerkleAuthenticationPathV0(digests, leafIndex)
 	if err != nil {
@@ -416,7 +461,7 @@ func (f fakeSessionBindingRelationshipVerifier) VerifyNormalizedPrivateRemainder
 	return f.err
 }
 
-func fixtureSessionBindingDigest(t *testing.T, runID, isolateID, sessionID, backendKind, assuranceLevel, provisioningPosture, launchContextDigest, handshakeDigest string) string {
+func fixtureSessionBindingDigest(t testing.TB, runID, isolateID, sessionID, backendKind, assuranceLevel, provisioningPosture, launchContextDigest, handshakeDigest string) string {
 	t.Helper()
 	normalized, err := normalizePrivateRemainderV0(trustpolicy.IsolateSessionBoundPayload{
 		RunID:                   runID,
@@ -456,7 +501,7 @@ func fixtureSessionBindingDigest(t *testing.T, runID, isolateID, sessionID, back
 	return digestIdentityForBytes("runecode.zkproof.fixture.session_binding.v0:", b)
 }
 
-func mustDigestIdentity(t *testing.T, digest trustpolicy.Digest) string {
+func mustDigestIdentity(t testing.TB, digest trustpolicy.Digest) string {
 	t.Helper()
 	identity, err := digest.Identity()
 	if err != nil {
@@ -479,7 +524,7 @@ func payloadFromEventFixture(t *testing.T, event trustpolicy.AuditEventPayload) 
 	return payload
 }
 
-func mustJSON(t *testing.T, value any) []byte {
+func mustJSON(t testing.TB, value any) []byte {
 	t.Helper()
 	b, err := json.Marshal(value)
 	if err != nil {

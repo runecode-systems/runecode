@@ -27,6 +27,10 @@
 - Confirm the change defines circuit freeze, `constraint_system_digest`, `setup_provenance_digest`, verifier-key pinning, and fail-closed setup-identity mismatch handling clearly enough for implementation.
 - Confirm the change explicitly requires trusted verifier posture to be derived only from reviewed local verifier assets rather than from proof-artifact declarations.
 - Confirm the change explicitly records the unfinished `v0` gap that the trusted local proof backend remains hard-disabled until reviewed setup assets are delivered through trusted assets.
+- Confirm the change now distinguishes the authoritative/default trusted backend from a separate evaluation-only Groth16 path for benchmark and feasibility work.
+- Confirm the evaluation-only path is documented as non-authoritative, benchmark-only, and not reachable through the normal authoritative broker proof-generate or proof-verify surfaces.
+- Confirm the change explicitly says serious benchmarking should happen only after the circuit shape binds every statement-critical public field, likely through a circuit-public `public_inputs_digest`.
+- Confirm the change requires pinned non-authoritative benchmark setup assets for the evaluation-only path rather than runtime trusted setup generation.
 - Confirm the change requires proof-related protocol schemas and registries to be added to the authoritative protocol manifest discipline.
 - Confirm the change requires proof-library isolation behind trusted local interfaces and compatibility checks for `gnark` introduction.
 - Confirm project-context-sensitive proof families are documented to reuse the validated project-substrate snapshot digest from verified-mode RuneContext rather than ambient repository assumptions.
@@ -38,9 +42,12 @@
 - Confirm the change explicitly requires the verification cache to avoid duplicate cryptographic verification rather than only duplicate persistence.
 - Confirm the change explicitly requires proof-generation and proof-verification audit recording failures to fail closed or produce an explicit degraded record.
 - Confirm the change explicitly requires trusted Go validation to mirror protocol-schema bounds for proof artifacts and public-input envelopes.
+- Confirm the change explicitly requires benchmark coverage for crypto-core timings and a broker-adjacent end-to-end harness, using `go test -bench` by default and keeping any optional benchmark command non-authoritative.
+- Confirm the change explicitly separates evaluation-only performance measurement from authoritative broker enablement, and that passing benchmarks alone is not sufficient to re-enable the authoritative backend.
 - Confirm the detailed additive remote or public proof-lane design has been moved to `CHG-2026-055-b7e4-additive-remote-public-proof-lane` rather than left ambiguously inside this local `v0` implementation change.
 - Confirm the documented performance gates preserve one architecture across constrained and scaled environments and use caching, queueing, and scheduling rather than separate trust models for low-power systems.
 - Confirm the documented performance gates are described as required CI or scheduled enforcement prerequisites for re-enabling the backend rather than as optional benchmark guidance.
+- Confirm the change now documents a phased implementation order: authoritative correctness and circuit shaping first, evaluation-only backend and benchmarks second, authoritative reviewed setup assets and backend enablement later, and CHG-055 alternative review only if measured results miss the gates badly.
 - Confirm the change explicitly requires a post-implementation evaluation and user check-in before considering broader proof-lane expansion or the additive dual-commitment alternative.
 
 ## Close Gate

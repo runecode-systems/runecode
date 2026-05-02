@@ -87,6 +87,7 @@ Parallelization: can be done in parallel with audit or artifact specs; keep the 
 - [ ] For `v0`, prefer `gnark` in trusted Go with a fixed-circuit `Groth16` verifier if the performance targets are met.
 - [ ] Treat `Groth16` as a `v0` performance choice, not a forever-global proving-system commitment.
 - [ ] Freeze one reviewed first circuit before setup material is generated.
+- [ ] Close the circuit-shaping gaps before serious benchmarking, especially cryptographically binding every statement-critical public field, likely through a circuit-public `public_inputs_digest` recomputed by trusted verification.
 - [ ] Track the frozen circuit with both:
   - `circuit_id` for the reviewed circuit family and version
   - `constraint_system_digest` for the compiled constraint-system artifact
@@ -95,7 +96,10 @@ Parallelization: can be done in parallel with audit or artifact specs; keep the 
 - [ ] Define `setup_provenance_digest` as a canonical SHA-256 digest over the setup-lineage object, including at least Phase 1 lineage identity and digest, Phase 2 transcript digest, frozen circuit source digest, `constraint_system_digest`, and selected `gnark` module version identity.
 - [ ] Deliver verifier-key material only through reviewed trusted assets.
 - [ ] Prohibit runtime setup on user machines and prohibit ambient key download.
-- [ ] Document the currently unfinished gap explicitly: the proof backend stays hard-disabled until reviewed trusted setup assets are delivered, because runtime deterministic setup generation is prohibited.
+- [ ] Keep `NewTrustedLocalGroth16BackendV0()` disabled for authoritative broker or API use until reviewed trusted setup assets and the remaining authoritative correctness gaps are closed.
+- [ ] Add a separate evaluation-only Groth16 constructor and setup loader that reuse the same frozen circuit code but derive posture from explicitly non-authoritative benchmark assets.
+- [ ] Load evaluation-only setup material from checked-in or embedded benchmark fixtures with pinned digests for the constraint system, proving key, verifying key, and setup metadata so measurements are reproducible.
+- [ ] Document the currently unfinished gap explicitly: the authoritative proof backend stays hard-disabled until reviewed trusted setup assets are delivered, because runtime deterministic setup generation is prohibited.
 - [ ] Fail closed on any `verifier_key_digest`, `constraint_system_digest`, or `setup_provenance_digest` mismatch.
 - [ ] Derive trusted verifier posture only from reviewed local verifier assets and compare artifact-declared setup and scheme identity against that local posture before proof verification.
 - [ ] Split prover and verifier construction so ordinary verification never loads or constructs proving-key material and never reruns setup.
@@ -120,6 +124,10 @@ Parallelization: can be done in parallel with audit or artifact specs; keep the 
 - [ ] Adopt explicit proof-generation targets for the canonical `v0` fixture:
   - proof generation `<= 10s` on extended Linux CI
   - proof generation `<= 30s` on scheduled low-power ARM64
+- [ ] Add benchmark fixtures for the frozen measurement circuit, including precomputed setup material and pinned metadata digests for the evaluation-only path.
+- [ ] Add `go test -bench` coverage for proof generation wall time, warm verify, cold verify including key load and public-input normalization, invalid-proof rejection, cache-hit lookup, proof size, public-input envelope size, and peak memory.
+- [ ] Add a broker-adjacent end-to-end benchmark harness that exercises compile, proof binding, artifact construction, verification, and temporary persistence without using the authoritative `zk-proof-generate` or `zk-proof-verify` commands.
+- [ ] Fix cache timing before trusting cache-hit benchmarks so lookup happens before cryptographic verification rather than only before duplicate persistence.
 - [ ] Enforce the documented proof-generation and proof-verification performance gates through required CI or scheduled jobs before re-enabling the backend.
 - [ ] Default local proof-generation concurrency to one trusted worker until measured evidence demonstrates a safe higher bound on the target deployment class.
 - [ ] Keep proof verification cached by immutable identity and out of watch or read-model refresh hot paths.
@@ -171,6 +179,7 @@ Parallelization: can be evaluated in parallel with other later hardening work; t
 - [ ] Make proof generation idempotent at the proof-binding sidecar layer for the same source record, statement family, and adapter identity.
 - [ ] Perform verification-cache lookup before expensive cryptographic verification using immutable artifact identity plus trusted verifier posture.
 - [ ] Mirror protocol-schema bounds in trusted Go validation for proof bytes, base64 encoding, public-input envelope size, required `v0` public-input fields, and closed registry values.
+- [ ] Keep authoritative broker proof-generate and proof-verify surfaces disabled until binding-sidecar verification, authoritative source-evidence verification, fail-closed audit recording, trusted validation tightening, reviewed trusted setup assets, and performance gates are all complete.
 
 ## Protocol Schema And Registry Discipline
 
@@ -216,8 +225,10 @@ Parallelization: can be evaluated in parallel with other later hardening work; t
 
 - [ ] Implement and verify the first narrow proof family end-to-end before broadening the ZK roadmap work.
 - [ ] Evaluate whether the first proof materially improves RuneCode's assurance story relative to its implementation and runtime cost.
+- [ ] Evaluate performance first through the separate evaluation-only Groth16 path rather than by turning on the authoritative broker generate or verify surfaces.
 - [ ] Evaluate whether the first proof meets the documented performance gates on required Linux CI and scheduled low-power ARM64.
 - [ ] Evaluate whether `gnark` plus `Groth16` remains the right `v0` proving choice after real end-to-end measurement.
+- [ ] Keep benchmark entrypoints non-authoritative: use `go test -bench` by default, and if a dedicated benchmark command is added, keep it separate from authoritative proof generation and verification semantics.
 - [ ] If the direct authoritative-Merkle-membership design misses the gates badly, stop and perform a separate explicit architecture review before considering the additive dual-commitment proof-bridge option captured in `CHG-2026-055-b7e4-additive-remote-public-proof-lane`.
 - [ ] Check in with the user after the first proof evaluation before expanding into broader follow-on proof-lane work.
 
@@ -228,6 +239,8 @@ Parallelization: can be evaluated in parallel with other later hardening work; t
   - verify a proof artifact
 - [ ] Keep broker or API commands explicit and trusted rather than ambient background work.
 - [ ] Keep proof verification out of ordinary TUI, watch, or read-model refresh paths.
+- [ ] Do not route evaluation-only benchmark work through the authoritative proof-generate or proof-verify commands.
+- [ ] Optional: add a dedicated non-authoritative benchmark command such as `zk-proof-benchmark` if RuneCode wants CLI or local-RPC overhead included in measurement.
 
 Parallelization: can be implemented in parallel with TUI or CLI work.
 
@@ -246,9 +259,13 @@ Parallelization: can be implemented in parallel with TUI or CLI work.
 - [ ] The proof design defines `binding_commitment` explicitly as a proof-time derived ZK-friendly commitment and does not require adding it to the source audit payload schema.
 - [ ] Every statement-critical public field is cryptographically bound either directly in-circuit or through a verified canonical `public_inputs_digest`.
 - [ ] Trusted verifier posture comes only from reviewed local assets, and setup-identity mismatch checks do not compare artifact claims to themselves.
+- [ ] The change distinguishes the authoritative trusted backend from a separate evaluation-only Groth16 path rather than treating all `Groth16` work as either fully enabled or fully disabled.
+- [ ] The authoritative/default backend and authoritative broker proof-generate or proof-verify surfaces remain disabled until reviewed trusted setup assets and the remaining correctness and trust prerequisites are complete.
+- [ ] The evaluation-only path uses pinned non-authoritative benchmark setup assets, is reachable only through benchmark entrypoints, and does not persist authoritative verified proof results.
 - [ ] Proof verification validates the referenced `AuditProofBinding` and authoritative source evidence before persisting a `verified` result.
 - [ ] Verification caching avoids duplicate cryptographic work instead of only avoiding duplicate persistence.
 - [ ] Verification success is not returned when the authoritative proof audit event could not be recorded.
+- [ ] Serious benchmarking happens only after the circuit shape reflects full statement-critical public-input binding, so the performance data represents the intended `v0` statement.
 - [ ] The proof-verification architecture and trust semantics run on constrained and scaled deployments, with performance differences handled by caching, queueing, and scheduling rather than by separate architectures.
 - [ ] The change explicitly requires preserving enough canonical proof-relevant source evidence locally that future proof backfill prerequisites are not lost even when no remote or public proof lane is enabled on that machine.
 - [ ] The change explicitly requires immutable preserved runtime and attestation evidence rather than ambient live-store lookup as the only historical evidence model.

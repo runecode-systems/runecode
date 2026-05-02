@@ -123,5 +123,8 @@ func validateProofInputContractV0(contract AuditIsolateSessionBoundAttestedRunti
 	if contract.PublicInputs.SchemeAdapterID != SchemeAdapterGnarkGroth16IsolateSessionBoundV0 {
 		return &FeasibilityError{Code: feasibilityCodeUnsupportedProfile, Message: "scheme_adapter_id mismatch"}
 	}
+	if err := ValidatePublicInputsDigestBindingV0(contract.PublicInputs); err != nil {
+		return err
+	}
 	return nil
 }

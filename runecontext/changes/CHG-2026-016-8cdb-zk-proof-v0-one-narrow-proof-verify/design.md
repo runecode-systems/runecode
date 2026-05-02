@@ -225,9 +225,17 @@ Select and deliver one narrow local zero-knowledge proof workflow with determini
 - The verification path must not construct or derive proving keys, rerun setup, or compile ad hoc setup material as part of ordinary proof verification.
 
 ### Current Implementation Gap
-- The current branch does not yet ship reviewed trusted setup assets for the first Groth16 circuit.
-- Because runtime deterministic setup generation on user machines is prohibited, the trusted local proof backend must stay hard-disabled until reviewed setup assets are delivered through trusted assets.
+- The current branch does not yet ship reviewed trusted setup assets for the first authoritative Groth16 circuit.
+- Because runtime deterministic setup generation on user machines is prohibited, the authoritative trusted local proof backend must stay hard-disabled until reviewed setup assets are delivered through trusted assets.
+- The current circuit shape is also incomplete for the intended `v0` statement because it does not yet cryptographically bind every statement-critical public field. Serious benchmarking should wait until that circuit-shaping gap is closed, likely by introducing a circuit-public `public_inputs_digest` that the trusted verifier recomputes from the full typed public-input object.
 - Any interim implementation that synthesizes proving or verifying material at runtime from a deterministic seed, local compilation side effect, or other ambient machine state is out of policy for this change and must fail closed instead.
+
+### Evaluation-Only Groth16 Posture
+- `v0` may add a separate evaluation-only `Groth16` constructor and setup loader that reuse the same frozen circuit code and proving backend while deriving posture from explicitly non-authoritative benchmark assets.
+- That evaluation-only path should load precomputed benchmark constraint-system, proving-key, verifying-key, and setup-metadata assets from checked-in or embedded fixtures rather than generating trusted setup at runtime.
+- Benchmark assets must still be pinned and digest-validated so measurements are reproducible and circuit drift is detectable.
+- The evaluation-only path must be reachable only from benchmark harnesses and other explicitly non-authoritative measurement entrypoints.
+- The normal authoritative broker `zk-proof-generate` and `zk-proof-verify` surfaces must remain disabled until authoritative correctness, trust, and audit-recording prerequisites are complete.
 
 ### Rotation Posture
 - A future circuit fix or setup rotation should introduce a new `circuit_id`, a new `constraint_system_digest`, a new `verifier_key_digest`, and a new `setup_provenance_digest` rather than mutating the old identity.
@@ -274,6 +282,7 @@ Select and deliver one narrow local zero-knowledge proof workflow with determini
 - Verification must validate the authoritative source audit evidence and any required runtime, attestation, or project-context evidence referenced by the binding sidecar rather than treating proof bytes alone as sufficient for a persisted `verified` result.
 - Verification must derive the trusted verifier posture only from local reviewed assets and must compare artifact-declared `scheme_id`, `curve_id`, `circuit_id`, `constraint_system_digest`, `verifier_key_digest`, and `setup_provenance_digest` against that posture before proof verification.
 - Proof-generation or proof-verification success must not be returned if the authoritative audit trail could not be updated; audit append failure must either fail the operation or produce an explicit persisted degraded result with stable semantics.
+- Benchmark-only evaluation flows must stay separate from those authoritative broker or audit-writing surfaces. They may measure the same circuit and broker-adjacent compile or bind flow, but they must not persist authoritative proof-verification records or success events.
 
 ### Verification-Result Caching
 - Proof verification results should be cached by immutable identity including at least:
@@ -369,6 +378,15 @@ Select and deliver one narrow local zero-knowledge proof workflow with determini
 - If these gates cannot be met, RuneCode should defer the feature rather than weaken correctness or create a second architecture for smaller devices.
 - These gates must be enforced by required CI or scheduled verification jobs before the backend is re-enabled.
 - Optional local benchmarks are useful for iteration but are not sufficient evidence for shipping or re-enabling the `v0` backend.
+- Initial performance measurement may use an evaluation-only backend with non-authoritative setup fixtures while the authoritative backend remains disabled.
+- Benchmark coverage should include crypto-core timing and a broker-adjacent end-to-end harness that exercises compile, binding resolution, artifact construction, verification, and temporary persistence without routing through the authoritative broker proof generate or proof verify commands.
+
+## Implementation Phasing
+- Phase 1: close the circuit-shaping and authoritative-correctness gaps first, especially full statement-critical public-input binding, `AuditProofBinding` plus source-evidence verification, cache lookup before cryptographic verification, fail-closed audit recording, and tighter trusted validation.
+- Phase 2: add an evaluation-only `Groth16` backend with pinned non-authoritative benchmark setup assets.
+- Phase 3: add `go test -bench` coverage for crypto-core and broker-adjacent end-to-end timing. A dedicated non-authoritative benchmark command such as `zk-proof-benchmark` is optional if RuneCode also wants CLI or local-RPC overhead in scope.
+- Phase 4: if the measured circuit shape and harness pass the documented gates, deliver reviewed trusted setup assets and re-enable the authoritative backend and broker surfaces.
+- Phase 5: if the measured results miss the gates badly, use that evidence to decide between feature deferral and the additive dual-commitment alternative captured in `CHG-2026-055-b7e4-additive-remote-public-proof-lane`.
 
 ## Alternative Architecture Not Chosen For `v0`
 - A possible future architecture switch is to preserve the authoritative SHA-256 audit Merkle root exactly as-is while adding an additive proof-friendly segment-binding sidecar that binds the authoritative seal and authoritative root to a second proof-friendly root over the same ordered records.

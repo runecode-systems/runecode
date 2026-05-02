@@ -1,6 +1,7 @@
 package auditd
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -8,16 +9,44 @@ import (
 )
 
 func TestProofBackfillEvidenceSnapshotIncludesProofAndAuditSidecars(t *testing.T) {
+	ledger, receiptDigest, bindingDigest, bindingPayload, artifactDigest, verificationDigest := mustPrepareProofBackfillEvidenceSnapshotFixture(t)
+	snapshot := mustProofBackfillEvidenceSnapshot(t, ledger)
+	assertBaseProofBackfillEvidenceSnapshot(t, snapshot)
+	assertProofBackfillBindingEvidenceSnapshot(t, snapshot, receiptDigest, bindingDigest, bindingPayload)
+	assertStringSliceContains(t, snapshot.ZKProofArtifactDigests, mustDigestIdentity(artifactDigest))
+	assertStringSliceContains(t, snapshot.ZKProofVerificationDigests, mustDigestIdentity(verificationDigest))
+}
+
+func mustPrepareProofBackfillEvidenceSnapshotFixture(t *testing.T) (*Ledger, trustpolicy.Digest, trustpolicy.Digest, trustpolicy.AuditProofBindingPayload, trustpolicy.Digest, trustpolicy.Digest) {
+	t.Helper()
 	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
 	sealResult := mustSealFixtureSegment(t, ledger, fixture)
 	_ = mustPersistReport(t, ledger, validReportFixture("segment-000001"))
 	receiptDigest := mustPersistReceipt(t, ledger, buildAnchorReceiptEnvelope(t, fixture, sealResult.SealEnvelopeDigest))
-
 	recordDigest := mustRecordDigestForTest(t, ledger)
-	bindingDigest, _, err := ledger.PersistAuditProofBinding(validAuditProofBindingPayloadFixture(recordDigest, sealResult.SealEnvelopeDigest))
+	bindingDigest, bindingPayload := mustPersistAuditProofBindingFixture(t, ledger, recordDigest, sealResult.SealEnvelopeDigest)
+	artifactDigest, verificationDigest := mustPersistZKProofFixture(t, ledger, bindingDigest)
+	return ledger, receiptDigest, bindingDigest, bindingPayload, artifactDigest, verificationDigest
+}
+
+func mustPersistAuditProofBindingFixture(t *testing.T, ledger *Ledger, recordDigest, sealDigest trustpolicy.Digest) (trustpolicy.Digest, trustpolicy.AuditProofBindingPayload) {
+	t.Helper()
+	bindingDigest, _, err := ledger.PersistAuditProofBinding(validAuditProofBindingPayloadFixture(recordDigest, sealDigest))
 	if err != nil {
 		t.Fatalf("PersistAuditProofBinding returned error: %v", err)
 	}
+	bindingPayload, found, err := ledger.AuditProofBindingByDigest(bindingDigest)
+	if err != nil {
+		t.Fatalf("AuditProofBindingByDigest returned error: %v", err)
+	}
+	if !found {
+		t.Fatal("AuditProofBindingByDigest returned !found")
+	}
+	return bindingDigest, bindingPayload
+}
+
+func mustPersistZKProofFixture(t *testing.T, ledger *Ledger, bindingDigest trustpolicy.Digest) (trustpolicy.Digest, trustpolicy.Digest) {
+	t.Helper()
 	artifact := validZKProofArtifactPayloadFixture(bindingDigest)
 	artifactDigest, err := ledger.PersistZKProofArtifact(artifact)
 	if err != nil {
@@ -27,11 +56,20 @@ func TestProofBackfillEvidenceSnapshotIncludesProofAndAuditSidecars(t *testing.T
 	if err != nil {
 		t.Fatalf("PersistZKProofVerificationRecord returned error: %v", err)
 	}
+	return artifactDigest, verificationDigest
+}
 
+func mustProofBackfillEvidenceSnapshot(t *testing.T, ledger *Ledger) ProofBackfillEvidenceSnapshot {
+	t.Helper()
 	snapshot, err := ledger.ProofBackfillEvidenceSnapshot()
 	if err != nil {
 		t.Fatalf("ProofBackfillEvidenceSnapshot returned error: %v", err)
 	}
+	return snapshot
+}
+
+func assertBaseProofBackfillEvidenceSnapshot(t *testing.T, snapshot ProofBackfillEvidenceSnapshot) {
+	t.Helper()
 	if len(snapshot.SegmentIDs) == 0 {
 		t.Fatal("SegmentIDs empty")
 	}
@@ -41,10 +79,18 @@ func TestProofBackfillEvidenceSnapshotIncludesProofAndAuditSidecars(t *testing.T
 	if len(snapshot.EventContractCatalogDigests) == 0 {
 		t.Fatal("EventContractCatalogDigests empty")
 	}
+}
+
+func assertProofBackfillBindingEvidenceSnapshot(t *testing.T, snapshot ProofBackfillEvidenceSnapshot, receiptDigest, bindingDigest trustpolicy.Digest, bindingPayload trustpolicy.AuditProofBindingPayload) {
+	t.Helper()
+	assertStringSliceContains(t, snapshot.ProtocolBundleManifestHashes, mustDigestIdentity(bindingPayload.ProtocolBundleManifest))
+	assertStringSliceContains(t, snapshot.RuntimeImageDescriptorDigests, bindingPayload.ProjectedPublicBindings.RuntimeImageDescriptorDigest)
+	assertStringSliceContains(t, snapshot.AttestationEvidenceDigests, bindingPayload.ProjectedPublicBindings.AttestationEvidenceDigest)
+	assertStringSliceContains(t, snapshot.AppliedHardeningPostureDigests, bindingPayload.ProjectedPublicBindings.AppliedHardeningPostureDigest)
+	assertStringSliceContains(t, snapshot.SessionBindingDigests, bindingPayload.ProjectedPublicBindings.SessionBindingDigest)
+	assertStringSliceContains(t, snapshot.ProjectSubstrateSnapshotDigests, bindingPayload.ProjectedPublicBindings.ProjectSubstrateSnapshotDigest)
 	assertStringSliceContains(t, snapshot.AuditReceiptDigests, mustDigestIdentity(receiptDigest))
 	assertStringSliceContains(t, snapshot.AuditProofBindingDigests, mustDigestIdentity(bindingDigest))
-	assertStringSliceContains(t, snapshot.ZKProofArtifactDigests, mustDigestIdentity(artifactDigest))
-	assertStringSliceContains(t, snapshot.ZKProofVerificationDigests, mustDigestIdentity(verificationDigest))
 }
 
 func TestProofBackfillEvidenceSnapshotIncludesExternalAnchorEvidenceClasses(t *testing.T) {
@@ -56,6 +102,12 @@ func TestProofBackfillEvidenceSnapshotIncludesExternalAnchorEvidenceClasses(t *t
 	if err != nil {
 		t.Fatalf("ProofBackfillEvidenceSnapshot returned error: %v", err)
 	}
+	assertStringSliceContains(t, snapshot.TypedRequestHashes, "sha256:"+strings.Repeat("d", 64))
+	assertStringSliceContains(t, snapshot.ActionRequestHashes, "sha256:"+strings.Repeat("e", 64))
+	assertStringSliceContains(t, snapshot.PolicyDecisionHashes, "sha256:"+strings.Repeat("f", 64))
+	assertStringSliceContains(t, snapshot.RequiredApprovalIDs, "approval-1")
+	assertStringSliceContains(t, snapshot.ApprovalRequestHashes, "sha256:"+strings.Repeat("1", 64))
+	assertStringSliceContains(t, snapshot.ApprovalDecisionHashes, "sha256:"+strings.Repeat("2", 64))
 	assertStringSliceContains(t, snapshot.ExternalAnchorEvidenceDigests, mustDigestIdentity(evidenceDigest))
 	assertStringSliceContains(t, snapshot.ExternalAnchorSidecarDigests, mustDigestIdentity(proofDigest))
 }
@@ -74,11 +126,15 @@ func mustPersistExternalAnchorEvidenceForSnapshot(t *testing.T, ledger *Ledger, 
 	targetDigest := trustpolicy.Digest{HashAlg: "sha256", Hash: "9999999999999999999999999999999999999999999999999999999999999999"}
 	targetIdentity, _ := targetDigest.Identity()
 	outbound := trustpolicy.Digest{HashAlg: "sha256", Hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
-	evidenceDigest, _, err := ledger.PersistExternalAnchorEvidence(ExternalAnchorEvidenceRequest{RecordedAtRFC3339: time.Now().UTC().Format(time.RFC3339), RunID: "run-1", PreparedMutationID: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", ExecutionAttemptID: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", CanonicalTargetKind: "transparency_log", CanonicalTargetDigest: targetDigest, CanonicalTargetIdentity: targetIdentity, TargetRequirement: trustpolicy.ExternalAnchorTargetRequirementOptional, AnchoringSubjectFamily: trustpolicy.AuditSegmentAnchoringSubjectSeal, AnchoringSubjectDigest: sealDigest, OutboundPayloadDigest: &outbound, Outcome: trustpolicy.ExternalAnchorOutcomeDeferred, OutcomeReasonCode: "external_anchor_execution_deferred", ProofDigest: proofDigest, ProofSchemaID: "runecode.protocol.audit.anchor_proof.transparency_log_receipt.v0", ProofKind: "transparency_log_receipt_v0"})
+	evidenceDigest, _, err := ledger.PersistExternalAnchorEvidence(ExternalAnchorEvidenceRequest{RecordedAtRFC3339: time.Now().UTC().Format(time.RFC3339), RunID: "run-1", PreparedMutationID: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", ExecutionAttemptID: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", CanonicalTargetKind: "transparency_log", CanonicalTargetDigest: targetDigest, CanonicalTargetIdentity: targetIdentity, TargetRequirement: trustpolicy.ExternalAnchorTargetRequirementOptional, AnchoringSubjectFamily: trustpolicy.AuditSegmentAnchoringSubjectSeal, AnchoringSubjectDigest: sealDigest, OutboundPayloadDigest: &outbound, Outcome: trustpolicy.ExternalAnchorOutcomeDeferred, OutcomeReasonCode: "external_anchor_execution_deferred", TypedRequestHash: digestPtr("d"), ActionRequestHash: digestPtr("e"), PolicyDecisionHash: digestPtr("f"), RequiredApprovalID: "approval-1", ApprovalRequestHash: digestPtr("1"), ApprovalDecisionHash: digestPtr("2"), ProofDigest: proofDigest, ProofSchemaID: "runecode.protocol.audit.anchor_proof.transparency_log_receipt.v0", ProofKind: "transparency_log_receipt_v0"})
 	if err != nil {
 		t.Fatalf("PersistExternalAnchorEvidence returned error: %v", err)
 	}
 	return evidenceDigest
+}
+
+func digestPtr(ch string) *trustpolicy.Digest {
+	return &trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat(ch, 64)}
 }
 
 func assertStringSliceContains(t *testing.T, values []string, want string) {

@@ -154,6 +154,9 @@ func VerifyProofWithTrustedPostureV0(backend ProofBackend, proof []byte, publicI
 	if _, err := publicInputs.AuditRecordDigest.Identity(); err != nil {
 		return &FeasibilityError{Code: feasibilityCodeMissingBoundedInput, Message: fmt.Sprintf("public_inputs.audit_record_digest: %v", err)}
 	}
+	if err := ValidatePublicInputsDigestBindingV0(publicInputs); err != nil {
+		return err
+	}
 	if err := requireDigestIdentity(publicInputs.BindingCommitment, "public_inputs.binding_commitment"); err != nil {
 		return err
 	}
