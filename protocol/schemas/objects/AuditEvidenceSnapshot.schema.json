@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditEvidenceSnapshot.schema.json",
+  "title": "AuditEvidenceSnapshot",
+  "description": "Typed preservation manifest listing canonical evidence identities required for retention, export planning, and verification backfill checks. This manifest is not a substitute for underlying evidence objects.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 19,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "created_at"
+  ],
+  "$defs": {
+    "digestList": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000000,
+      "uniqueItems": true,
+      "description": "Sorted, unique digest identity list for one evidence family.",
+      "x-data-class": "public",
+      "items": {
+        "$ref": "Digest.schema.json#/$defs/digestValue",
+        "description": "One canonical digest identity.",
+        "x-data-class": "public"
+      }
+    },
+    "idList": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000000,
+      "uniqueItems": true,
+      "description": "Sorted, unique identifier list.",
+      "x-data-class": "public",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[A-Za-z0-9._:-]+$",
+        "description": "One stable identifier.",
+        "x-data-class": "public"
+      }
+    }
+  },
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.AuditEvidenceSnapshot",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64,
+      "description": "RFC 3339 timestamp when the snapshot was generated.",
+      "x-data-class": "public"
+    },
+    "segment_ids": {
+      "$ref": "#/$defs/idList",
+      "description": "Segment identifiers with sealed evidence in scope.",
+      "x-data-class": "public"
+    },
+    "segment_seal_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Segment seal envelope digests committed in scope.",
+      "x-data-class": "public"
+    },
+    "audit_receipt_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Audit receipt envelope digests in scope.",
+      "x-data-class": "public"
+    },
+    "verification_report_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Audit verification report digests in scope.",
+      "x-data-class": "public"
+    },
+    "runtime_evidence_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Runtime/signer evidence digests needed for verification context.",
+      "x-data-class": "public"
+    },
+    "attestation_evidence_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Attestation evidence and verification digests where present.",
+      "x-data-class": "public"
+    },
+    "instance_identity_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Stable instance identity digests preserved for cross-machine portability.",
+      "x-data-class": "public"
+    },
+    "policy_evidence_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Policy decision digests linked to anchored evidence where present.",
+      "x-data-class": "public"
+    },
+    "required_approval_ids": {
+      "$ref": "#/$defs/idList",
+      "description": "Required approval identifiers linked to preserved evidence where present.",
+      "x-data-class": "public"
+    },
+    "approval_evidence_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Approval request and decision digests where present.",
+      "x-data-class": "public"
+    },
+    "anchor_evidence_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "External anchor evidence and sidecar digests where present.",
+      "x-data-class": "public"
+    },
+    "provider_invocation_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Reserved extension point for provider invocation evidence digests.",
+      "x-data-class": "public"
+    },
+    "secret_lease_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Reserved extension point for secret lease evidence digests.",
+      "x-data-class": "public"
+    }
+  }
+}

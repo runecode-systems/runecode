@@ -1604,6 +1604,97 @@
       "status": "mvp"
     },
     {
+      "path": "objects/AuditEvidenceSnapshot.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEvidenceSnapshot",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditEvidenceSnapshotGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEvidenceSnapshotGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditEvidenceSnapshotGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEvidenceSnapshotGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditEvidenceRetentionReviewRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEvidenceRetentionReviewRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditEvidenceRetentionReviewResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEvidenceRetentionReviewResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditEvidenceBundleManifest.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEvidenceBundleManifest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditEvidenceBundleManifestGetRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEvidenceBundleManifestGetRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditEvidenceBundleManifestGetResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEvidenceBundleManifestGetResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditEvidenceBundleExportRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEvidenceBundleExportRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditEvidenceBundleExportEvent.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEvidenceBundleExportEvent",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditEvidenceBundleOfflineVerifyRequest.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEvidenceBundleOfflineVerifyRequest",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditEvidenceBundleOfflineVerification.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEvidenceBundleOfflineVerification",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
+      "path": "objects/AuditEvidenceBundleOfflineVerifyResponse.schema.json",
+      "schema_id": "runecode.protocol.v0.AuditEvidenceBundleOfflineVerifyResponse",
+      "schema_version": "0.1.0",
+      "owner": "protocol",
+      "status": "mvp"
+    },
+    {
       "path": "objects/AuditAnchorPreflightGetRequest.schema.json",
       "schema_id": "runecode.protocol.v0.AuditAnchorPreflightGetRequest",
       "schema_version": "0.1.0",
