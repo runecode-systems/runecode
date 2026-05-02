@@ -26,6 +26,31 @@ func (c *localAPIClient) AuditRecordInclusionGet(ctx context.Context, req broker
 	return resp, c.invoke(ctx, "audit_record_inclusion_get", req, &resp)
 }
 
+func (c *localAPIClient) AuditEvidenceSnapshotGet(ctx context.Context, req brokerapi.AuditEvidenceSnapshotGetRequest) (brokerapi.AuditEvidenceSnapshotGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.AuditEvidenceSnapshotGetResponse{}
+	return resp, c.invoke(ctx, "audit_evidence_snapshot_get", req, &resp)
+}
+
+func (c *localAPIClient) AuditEvidenceRetentionReview(ctx context.Context, req brokerapi.AuditEvidenceRetentionReviewRequest) (brokerapi.AuditEvidenceRetentionReviewResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.AuditEvidenceRetentionReviewResponse{}
+	return resp, c.invoke(ctx, "audit_evidence_retention_review", req, &resp)
+}
+
+func (c *localAPIClient) AuditEvidenceBundleManifestGet(ctx context.Context, req brokerapi.AuditEvidenceBundleManifestGetRequest) (brokerapi.AuditEvidenceBundleManifestGetResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.AuditEvidenceBundleManifestGetResponse{}
+	return resp, c.invoke(ctx, "audit_evidence_bundle_manifest_get", req, &resp)
+}
+
+func (c *localAPIClient) AuditEvidenceBundleExport(ctx context.Context, req brokerapi.AuditEvidenceBundleExportRequest) ([]brokerapi.AuditEvidenceBundleExportEvent, *brokerapi.ErrorResponse) {
+	events := []brokerapi.AuditEvidenceBundleExportEvent{}
+	return events, c.invoke(ctx, "audit_evidence_bundle_export", req, &events)
+}
+
+func (c *localAPIClient) AuditEvidenceBundleOfflineVerify(ctx context.Context, req brokerapi.AuditEvidenceBundleOfflineVerifyRequest) (brokerapi.AuditEvidenceBundleOfflineVerifyResponse, *brokerapi.ErrorResponse) {
+	resp := brokerapi.AuditEvidenceBundleOfflineVerifyResponse{}
+	return resp, c.invoke(ctx, "audit_evidence_bundle_offline_verify", req, &resp)
+}
+
 func (c *localAPIClient) AuditAnchorPreflightGet(ctx context.Context, req brokerapi.AuditAnchorPreflightGetRequest) (brokerapi.AuditAnchorPreflightGetResponse, *brokerapi.ErrorResponse) {
 	resp := brokerapi.AuditAnchorPreflightGetResponse{}
 	return resp, c.invoke(ctx, "audit_anchor_preflight_get", req, &resp)

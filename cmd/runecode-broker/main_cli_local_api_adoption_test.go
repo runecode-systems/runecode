@@ -588,7 +588,7 @@ func TestCLIAdoptionRoutesArtifactAuditAndResolveThroughLocalRPC(t *testing.T) {
 	installArtifactAuditResolveDispatchStub(t, &requestedOps)
 	runArtifactAuditResolveCommands(t, stdout, stderr)
 
-	want := []string{"artifact_list", "artifact_head", "artifact_read", "approval_get", "approval_resolve", "readiness_get", "audit_verification_get", "audit_finalize_verify", "audit_record_get", "audit_record_inclusion_get", "audit_anchor_preflight_get", "audit_anchor_presence_get", "audit_anchor_segment"}
+	want := []string{"artifact_list", "artifact_head", "artifact_read", "approval_get", "approval_resolve", "readiness_get", "audit_verification_get", "audit_finalize_verify", "audit_record_get", "audit_record_inclusion_get", "audit_evidence_snapshot_get", "audit_evidence_retention_review", "audit_evidence_bundle_manifest_get", "audit_evidence_bundle_export", "audit_evidence_bundle_offline_verify", "audit_anchor_preflight_get", "audit_anchor_presence_get", "audit_anchor_segment"}
 	assertRequestedOps(t, requestedOps, want)
 }
 
@@ -637,6 +637,16 @@ func artifactAuditResolveDynamicResponse(t *testing.T, wire localRPCRequest) loc
 		return mustOKLocalRPCResponse(t, brokerapi.AuditRecordGetResponse{SchemaID: "runecode.protocol.v0.AuditRecordGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-record", Record: brokerapi.AuditRecordDetail{SchemaID: "runecode.protocol.v0.AuditRecordDetail", SchemaVersion: "0.1.0", RecordDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}, RecordFamily: "audit_event", OccurredAt: "2026-01-01T00:00:00Z", EventType: "isolate_session_bound", Summary: "Audit event isolate_session_bound recorded.", LinkedReferences: []brokerapi.AuditRecordLinkedReference{}}})
 	case "audit_record_inclusion_get":
 		return mustOKLocalRPCResponse(t, brokerapi.AuditRecordInclusionGetResponse{SchemaID: "runecode.protocol.v0.AuditRecordInclusionGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-record-inclusion", Inclusion: brokerapi.AuditRecordInclusion{SchemaID: "runecode.protocol.v0.AuditRecordInclusion", SchemaVersion: "0.1.0", RecordDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}, RecordEnvelopeDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)}, SegmentID: "segment-000001", FrameIndex: 0, SegmentRecordCount: 1, SegmentSealDigest: digestPtr(t, strings.Repeat("c", 64)), SegmentSealChainIndex: int64Ptr(0), OrderedMerkle: brokerapi.AuditRecordInclusionOrderedMerkle{Profile: "sha256_ordered_dse_v1", LeafIndex: 0, LeafCount: 1, SegmentMerkleRoot: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}, SegmentRecordDigests: []trustpolicy.Digest{{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}}}}})
+	case "audit_evidence_snapshot_get":
+		return mustOKLocalRPCResponse(t, brokerapi.AuditEvidenceSnapshotGetResponse{SchemaID: "runecode.protocol.v0.AuditEvidenceSnapshotGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-snapshot", Snapshot: brokerapi.AuditEvidenceSnapshot{SchemaID: "runecode.protocol.v0.AuditEvidenceSnapshot", SchemaVersion: "0.1.0", CreatedAt: "2026-01-01T00:00:00Z", SegmentIDs: []string{"segment-000001"}, SegmentSealDigests: []trustpolicy.Digest{{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}}}})
+	case "audit_evidence_retention_review":
+		return mustOKLocalRPCResponse(t, brokerapi.AuditEvidenceRetentionReviewResponse{SchemaID: "runecode.protocol.v0.AuditEvidenceRetentionReviewResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-retention-review", Snapshot: brokerapi.AuditEvidenceSnapshot{SchemaID: "runecode.protocol.v0.AuditEvidenceSnapshot", SchemaVersion: "0.1.0", CreatedAt: "2026-01-01T00:00:00Z", SegmentIDs: []string{"segment-000001"}, SegmentSealDigests: []trustpolicy.Digest{{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}}}, Manifest: brokerapi.AuditEvidenceBundleManifest{SchemaID: "runecode.protocol.v0.AuditEvidenceBundleManifest", SchemaVersion: "0.1.0", BundleID: "bundle-20260101T000000Z", CreatedAt: "2026-01-01T00:00:00Z", CreatedByTool: brokerapi.AuditEvidenceBundleToolIdentity{ToolName: "runecode-auditd", ToolVersion: "0.0.0-dev"}, ExportProfile: "operator_private_full", Scope: brokerapi.AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"}, VerifierIdentity: brokerapi.AuditEvidenceBundleVerifierIdentity{KeyID: "key_sha256", KeyIDValue: strings.Repeat("c", 64), LogicalPurpose: "audit_anchor", LogicalScope: "node"}, DisclosurePosture: brokerapi.AuditEvidenceBundleDisclosurePosture{Posture: "operator_private", SelectiveDisclosureApplied: false}}, Completeness: brokerapi.AuditEvidenceSnapshotCompleteness{FullySatisfied: false, RequiredIdentityCount: 1, Missing: []brokerapi.AuditEvidenceSnapshotIdentity{{Family: "runtime_evidence_digest", Identity: &trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("d", 64)}}}}})
+	case "audit_evidence_bundle_manifest_get":
+		return mustOKLocalRPCResponse(t, brokerapi.AuditEvidenceBundleManifestGetResponse{SchemaID: "runecode.protocol.v0.AuditEvidenceBundleManifestGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-bundle", Manifest: brokerapi.AuditEvidenceBundleManifest{SchemaID: "runecode.protocol.v0.AuditEvidenceBundleManifest", SchemaVersion: "0.1.0", BundleID: "bundle-20260101T000000Z", CreatedAt: "2026-01-01T00:00:00Z", CreatedByTool: brokerapi.AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev", ProtocolBundleManifestHash: &trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)}}, ExportProfile: "external_relying_party_minimal", Scope: brokerapi.AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"}, IncludedObjects: []brokerapi.AuditEvidenceBundleIncludedObject{{ObjectFamily: "audit_segment_seal", Digest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}, Path: "sidecar/segment-seals/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.json", ByteLength: 123}}, RootDigests: []trustpolicy.Digest{{HashAlg: "sha256", Hash: strings.Repeat("b", 64)}}, SealReferences: []brokerapi.AuditEvidenceBundleSealReference{{SegmentID: "segment-000001", SealDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}, SealChainIndex: 0}}, VerifierIdentity: brokerapi.AuditEvidenceBundleVerifierIdentity{KeyID: "key_sha256", KeyIDValue: strings.Repeat("c", 64), LogicalPurpose: "audit_anchor", LogicalScope: "node"}, TrustRootDigests: []trustpolicy.Digest{{HashAlg: "sha256", Hash: strings.Repeat("c", 64)}}, DisclosurePosture: brokerapi.AuditEvidenceBundleDisclosurePosture{Posture: "digest_metadata_only", SelectiveDisclosureApplied: true}}})
+	case "audit_evidence_bundle_export":
+		return mustOKLocalRPCResponse(t, []brokerapi.AuditEvidenceBundleExportEvent{{SchemaID: "runecode.protocol.v0.AuditEvidenceBundleExportEvent", SchemaVersion: "0.1.0", StreamID: "bundle-1", RequestID: "req-audit-bundle-export", Seq: 1, EventType: "audit_evidence_bundle_export_start", ArchiveFormat: "tar", ManifestDigest: digestPtr(t, strings.Repeat("d", 64)), Manifest: &brokerapi.AuditEvidenceBundleManifest{SchemaID: "runecode.protocol.v0.AuditEvidenceBundleManifest", SchemaVersion: "0.1.0", BundleID: "bundle-20260101T000000Z", CreatedAt: "2026-01-01T00:00:00Z", CreatedByTool: brokerapi.AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"}, ExportProfile: "external_relying_party_minimal", Scope: brokerapi.AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"}, VerifierIdentity: brokerapi.AuditEvidenceBundleVerifierIdentity{KeyID: "key_sha256", KeyIDValue: strings.Repeat("c", 64), LogicalPurpose: "audit_anchor", LogicalScope: "node"}, DisclosurePosture: brokerapi.AuditEvidenceBundleDisclosurePosture{Posture: "digest_metadata_only", SelectiveDisclosureApplied: true}}}, {SchemaID: "runecode.protocol.v0.AuditEvidenceBundleExportEvent", SchemaVersion: "0.1.0", StreamID: "bundle-1", RequestID: "req-audit-bundle-export", Seq: 2, EventType: "audit_evidence_bundle_export_chunk", ChunkBase64: base64.StdEncoding.EncodeToString([]byte("tar-bytes")), ChunkBytes: len("tar-bytes")}, {SchemaID: "runecode.protocol.v0.AuditEvidenceBundleExportEvent", SchemaVersion: "0.1.0", StreamID: "bundle-1", RequestID: "req-audit-bundle-export", Seq: 3, EventType: "audit_evidence_bundle_export_terminal", Terminal: true, TerminalStatus: "completed", EOF: true}})
+	case "audit_evidence_bundle_offline_verify":
+		return mustOKLocalRPCResponse(t, brokerapi.AuditEvidenceBundleOfflineVerifyResponse{SchemaID: "runecode.protocol.v0.AuditEvidenceBundleOfflineVerifyResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-bundle-offline-verify", Verification: brokerapi.AuditEvidenceBundleOfflineVerification{SchemaID: "runecode.protocol.v0.AuditEvidenceBundleOfflineVerification", SchemaVersion: "0.1.0", VerifiedAt: "2026-01-01T00:00:00Z", ArchiveFormat: "tar", ManifestDigest: digestPtr(t, strings.Repeat("d", 64)), BundleID: "bundle-20260101T000000Z", ExportProfile: "external_relying_party_minimal", Scope: brokerapi.AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"}, VerifierIdentity: brokerapi.AuditEvidenceBundleVerifierIdentity{KeyID: "key_sha256", KeyIDValue: strings.Repeat("c", 64), LogicalPurpose: "audit_anchor", LogicalScope: "node"}, TrustRootDigests: []trustpolicy.Digest{{HashAlg: "sha256", Hash: strings.Repeat("c", 64)}}, VerificationStatus: "degraded", Findings: []brokerapi.AuditEvidenceBundleOfflineFinding{{Code: "verification_report_degraded_posture", Severity: "warning", Message: "verification report indicates degraded posture", Digest: digestPtr(t, strings.Repeat("f", 64))}}}})
 	case "audit_anchor_preflight_get":
 		return artifactAuditResolveAnchorPreflightResponse(t, wire)
 	case "audit_anchor_segment":
@@ -719,15 +729,34 @@ func assertAuditAnchorPresenceAttestationForCLI(t *testing.T, att *brokerapi.Aud
 func runArtifactAuditResolveCommands(t *testing.T, stdout *bytes.Buffer, stderr *bytes.Buffer) {
 	t.Helper()
 	outPath := filepath.Join(t.TempDir(), "artifact.out")
-	if err := run([]string{"list-artifacts"}, stdout, stderr); err != nil {
-		t.Fatalf("list-artifacts returned error: %v", err)
-	}
-	if err := run([]string{"head-artifact", "--digest", testDigest("b")}, stdout, stderr); err != nil {
-		t.Fatalf("head-artifact returned error: %v", err)
-	}
-	if err := run([]string{"get-artifact", "--digest", testDigest("b"), "--producer", "workspace", "--consumer", "model_gateway", "--out", outPath}, stdout, stderr); err != nil {
-		t.Fatalf("get-artifact returned error: %v", err)
-	}
+	runArtifactResolveCommands(t, stdout, stderr, outPath)
+	assertResolvedArtifactPayload(t, outPath)
+
+	approvalRequestPath, approvalEnvelopePath, _ := writeApprovalFixtures(t, "human", testDigest("2"), "repo/file.txt", "abc123", "tool-v1")
+	seedPendingPromotionApprovalForCLI(t, testDigest("2"), approvalRequestPath)
+	runCLICommandOrFatal(t, stdout, stderr, "promote-excerpt", []string{"promote-excerpt", "--unapproved-digest", testDigest("2"), "--approver", "human", "--approval-request", approvalRequestPath, "--approval-envelope", approvalEnvelopePath, "--repo-path", "repo/file.txt", "--commit", "abc123", "--extractor-version", "tool-v1", "--full-content-visible"})
+	runArtifactAuditReadinessCommands(t, stdout, stderr)
+	retentionReqPath := filepath.Join(t.TempDir(), "audit-evidence-retention-review.request.json")
+	writeJSONFixtureFile(t, retentionReqPath, map[string]any{"scope": map[string]any{"scope_kind": "run", "run_id": "run-1"}})
+	runCLICommandOrFatal(t, stdout, stderr, "audit-evidence-retention-review", []string{"audit-evidence-retention-review", "--request-file", retentionReqPath})
+	bundleReqPath := filepath.Join(t.TempDir(), "audit-evidence-bundle-manifest-get.request.json")
+	writeJSONFixtureFile(t, bundleReqPath, map[string]any{"scope": map[string]any{"scope_kind": "run", "run_id": "run-1"}, "export_profile": "external_relying_party_minimal", "created_by_tool": map[string]any{"tool_name": "runecode-broker", "tool_version": "0.0.0-dev", "protocol_bundle_manifest_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("b", 64)}}, "disclosure_posture": map[string]any{"posture": "digest_metadata_only", "selective_disclosure_applied": true}})
+	runCLICommandOrFatal(t, stdout, stderr, "audit-evidence-bundle-manifest-get", []string{"audit-evidence-bundle-manifest-get", "--request-file", bundleReqPath})
+	exportReqPath := filepath.Join(t.TempDir(), "audit-evidence-bundle-export.request.json")
+	exportOutPath := filepath.Join(t.TempDir(), "audit-evidence-bundle-export.tar")
+	writeJSONFixtureFile(t, exportReqPath, map[string]any{"scope": map[string]any{"scope_kind": "run", "run_id": "run-1"}, "export_profile": "external_relying_party_minimal", "created_by_tool": map[string]any{"tool_name": "runecode-broker", "tool_version": "0.0.0-dev"}, "disclosure_posture": map[string]any{"posture": "digest_metadata_only", "selective_disclosure_applied": true}, "archive_format": "tar"})
+	runArtifactAuditBundleCommands(t, stdout, stderr, exportReqPath, exportOutPath)
+}
+
+func runArtifactResolveCommands(t *testing.T, stdout *bytes.Buffer, stderr *bytes.Buffer, outPath string) {
+	t.Helper()
+	runCLICommandOrFatal(t, stdout, stderr, "list-artifacts", []string{"list-artifacts"})
+	runCLICommandOrFatal(t, stdout, stderr, "head-artifact", []string{"head-artifact", "--digest", testDigest("b")})
+	runCLICommandOrFatal(t, stdout, stderr, "get-artifact", []string{"get-artifact", "--digest", testDigest("b"), "--producer", "workspace", "--consumer", "model_gateway", "--out", outPath})
+}
+
+func assertResolvedArtifactPayload(t *testing.T, outPath string) {
+	t.Helper()
 	payload, err := os.ReadFile(outPath)
 	if err != nil {
 		t.Fatalf("ReadFile(%q) error: %v", outPath, err)
@@ -735,29 +764,27 @@ func runArtifactAuditResolveCommands(t *testing.T, stdout *bytes.Buffer, stderr 
 	if string(payload) != "hello" {
 		t.Fatalf("artifact payload = %q, want hello", string(payload))
 	}
+}
 
-	approvalRequestPath, approvalEnvelopePath, _ := writeApprovalFixtures(t, "human", testDigest("2"), "repo/file.txt", "abc123", "tool-v1")
-	seedPendingPromotionApprovalForCLI(t, testDigest("2"), approvalRequestPath)
-	if err := run([]string{"promote-excerpt", "--unapproved-digest", testDigest("2"), "--approver", "human", "--approval-request", approvalRequestPath, "--approval-envelope", approvalEnvelopePath, "--repo-path", "repo/file.txt", "--commit", "abc123", "--extractor-version", "tool-v1", "--full-content-visible"}, stdout, stderr); err != nil {
-		t.Fatalf("promote-excerpt returned error: %v", err)
+func runArtifactAuditReadinessCommands(t *testing.T, stdout *bytes.Buffer, stderr *bytes.Buffer) {
+	t.Helper()
+	commands := [][]string{{"audit-readiness"}, {"audit-verification"}, {"audit-finalize-verify"}, {"audit-record-get", "--record-digest", testDigest("a")}, {"audit-record-inclusion-get", "--record-digest", testDigest("a")}, {"audit-evidence-snapshot-get"}}
+	for i := range commands {
+		runCLICommandOrFatal(t, stdout, stderr, commands[i][0], commands[i])
 	}
-	if err := run([]string{"audit-readiness"}, stdout, stderr); err != nil {
-		t.Fatalf("audit-readiness returned error: %v", err)
-	}
-	if err := run([]string{"audit-verification"}, stdout, stderr); err != nil {
-		t.Fatalf("audit-verification returned error: %v", err)
-	}
-	if err := run([]string{"audit-finalize-verify"}, stdout, stderr); err != nil {
-		t.Fatalf("audit-finalize-verify returned error: %v", err)
-	}
-	if err := run([]string{"audit-record-get", "--record-digest", testDigest("a")}, stdout, stderr); err != nil {
-		t.Fatalf("audit-record-get returned error: %v", err)
-	}
-	if err := run([]string{"audit-record-inclusion-get", "--record-digest", testDigest("a")}, stdout, stderr); err != nil {
-		t.Fatalf("audit-record-inclusion-get returned error: %v", err)
-	}
-	if err := run([]string{"audit-anchor-segment", "--seal-digest", testDigest("a")}, stdout, stderr); err != nil {
-		t.Fatalf("audit-anchor-segment returned error: %v", err)
+}
+
+func runArtifactAuditBundleCommands(t *testing.T, stdout *bytes.Buffer, stderr *bytes.Buffer, exportReqPath string, exportOutPath string) {
+	t.Helper()
+	runCLICommandOrFatal(t, stdout, stderr, "audit-evidence-bundle-export", []string{"audit-evidence-bundle-export", "--request-file", exportReqPath, "--out", exportOutPath})
+	runCLICommandOrFatal(t, stdout, stderr, "audit-evidence-bundle-offline-verify", []string{"audit-evidence-bundle-offline-verify", "--bundle", exportOutPath, "--archive-format", "tar"})
+	runCLICommandOrFatal(t, stdout, stderr, "audit-anchor-segment", []string{"audit-anchor-segment", "--seal-digest", testDigest("a")})
+}
+
+func runCLICommandOrFatal(t *testing.T, stdout *bytes.Buffer, stderr *bytes.Buffer, name string, args []string) {
+	t.Helper()
+	if err := run(args, stdout, stderr); err != nil {
+		t.Fatalf("%s returned error: %v", name, err)
 	}
 }
 

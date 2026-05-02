@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditEvidenceBundleOfflineVerifyRequest.schema.json",
+  "title": "AuditEvidenceBundleOfflineVerifyRequest",
+  "description": "Typed request to verify an exported audit evidence bundle offline using only bundle contents and manifest.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 5,
+  "required": ["schema_id", "schema_version", "request_id", "bundle_path"],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.AuditEvidenceBundleOfflineVerifyRequest",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Stable request identifier.",
+      "x-data-class": "public"
+    },
+    "bundle_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "Trusted local path to exported evidence bundle archive.",
+      "x-data-class": "sensitive"
+    },
+    "archive_format": {
+      "type": "string",
+      "enum": ["tar"],
+      "description": "Bundle archive format.",
+      "x-data-class": "public"
+    }
+  }
+}

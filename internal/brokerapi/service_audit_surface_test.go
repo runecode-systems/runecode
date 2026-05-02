@@ -98,6 +98,9 @@ func seedLedgerForBrokerSurfaceTest(root string) error {
 	if err := writeSeedSeal(root, "segment-000001", evidence.recordDigest, nil, 0); err != nil {
 		return err
 	}
+	if err := writeSeedExternalAnchorEvidence(root, evidence.recordDigest); err != nil {
+		return err
+	}
 	ledger, err := auditd.Open(root)
 	if err != nil {
 		return err
@@ -144,12 +147,52 @@ type seedEvidence struct {
 }
 
 func prepareLedgerDirs(root string) error {
-	for _, path := range []string{filepath.Join(root, "segments"), filepath.Join(root, "sidecar", "segment-seals")} {
+	for _, path := range []string{filepath.Join(root, "segments"), filepath.Join(root, "sidecar", "segment-seals"), filepath.Join(root, "sidecar", "external-anchor-evidence")} {
 		if err := os.MkdirAll(path, 0o755); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func writeSeedExternalAnchorEvidence(root string, sealDigest trustpolicy.Digest) error {
+	payload := trustpolicy.ExternalAnchorEvidencePayload{
+		SchemaID:               trustpolicy.ExternalAnchorEvidenceSchemaID,
+		SchemaVersion:          trustpolicy.ExternalAnchorEvidenceSchemaVersion,
+		RecordedAt:             "2026-03-13T12:40:00Z",
+		RunID:                  "run-1",
+		PreparedMutationID:     "prepared-1",
+		ExecutionAttemptID:     "attempt-1",
+		CanonicalTargetKind:    "transparency_log",
+		CanonicalTargetDigest:  trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("c", 64)},
+		TargetRequirement:      trustpolicy.ExternalAnchorTargetRequirementRequired,
+		AnchoringSubjectFamily: trustpolicy.AuditSegmentAnchoringSubjectSeal,
+		AnchoringSubjectDigest: sealDigest,
+		OutboundPayloadDigest:  &trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("d", 64)},
+		Outcome:                trustpolicy.ExternalAnchorOutcomeCompleted,
+		PolicyDecisionHash:     &trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("9", 64)},
+		RequiredApprovalID:     "approval-req-1",
+		ApprovalRequestHash:    &trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("8", 64)},
+		ApprovalDecisionHash:   &trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("7", 64)},
+		ProofSchemaID:          "runecode.protocol.audit.anchor_proof.transparency_log_receipt.v0",
+		ProofKind:              "transparency_log_receipt_v0",
+		SidecarRefs:            []trustpolicy.ExternalAnchorEvidenceSidecarRef{{EvidenceKind: trustpolicy.ExternalAnchorSidecarKindProofBytes, Digest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("6", 64)}}, {EvidenceKind: trustpolicy.ExternalAnchorSidecarKindAttestationRef, Digest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("5", 64)}}},
+	}
+	if err := trustpolicy.ValidateExternalAnchorEvidencePayload(payload); err != nil {
+		return err
+	}
+	digest, err := canonicalDigestForSeed(payload)
+	if err != nil {
+		return err
+	}
+	identity, _ := digest.Identity()
+	return writeCanonicalJSON(filepath.Join(root, "sidecar", "external-anchor-evidence", strings.TrimPrefix(identity, "sha256:")+".json"), payload)
+}
+
+func canonicalDigestForSeed(value any) (trustpolicy.Digest, error) {
+	canonical := mustCanonicalJSON(value)
+	sum := sha256.Sum256(canonical)
+	return trustpolicy.Digest{HashAlg: "sha256", Hash: hex.EncodeToString(sum[:])}, nil
 }
 
 func buildSeedEventEvidence(sessionID string) (seedEvidence, error) {

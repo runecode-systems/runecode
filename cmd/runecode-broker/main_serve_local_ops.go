@@ -243,61 +243,77 @@ func artifactRPCOperations(service *brokerapi.Service, ctx context.Context, meta
 }
 
 func auditHealthRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
+	operations := auditEvidenceRPCOperations(service, ctx, meta)
+	mergeRPCOperations(operations, auditAnchorRPCOperations(service, ctx, meta))
+	mergeRPCOperations(operations, auditStatusRPCOperations(service, ctx, meta))
+	return operations
+}
+
+func auditEvidenceRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
 	return map[string]rpcOperation{
-		"audit_timeline": {requestSchemaPath: "objects/AuditTimelineRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.AuditTimelineRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditTimeline(ctx, req, meta)
-			})
-		}},
-		"audit_verification_get": {requestSchemaPath: "objects/AuditVerificationGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.AuditVerificationGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditVerificationGet(ctx, req, meta)
-			})
-		}},
-		"audit_finalize_verify": {requestSchemaPath: "objects/AuditFinalizeVerifyRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.AuditFinalizeVerifyRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditFinalizeVerify(ctx, req, meta)
-			})
-		}},
-		"audit_record_get": {requestSchemaPath: "objects/AuditRecordGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.AuditRecordGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditRecordGet(ctx, req, meta)
-			})
-		}},
-		"audit_record_inclusion_get": {requestSchemaPath: "objects/AuditRecordInclusionGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.AuditRecordInclusionGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditRecordInclusionGet(ctx, req, meta)
-			})
-		}},
-		"audit_anchor_preflight_get": {requestSchemaPath: "objects/AuditAnchorPreflightGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.AuditAnchorPreflightGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditAnchorPreflightGet(ctx, req, meta)
-			})
-		}},
-		"audit_anchor_presence_get": {requestSchemaPath: "objects/AuditAnchorPresenceGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.AuditAnchorPresenceGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditAnchorPresenceGet(ctx, req, meta)
-			})
-		}},
-		"audit_anchor_segment": {requestSchemaPath: "objects/AuditAnchorSegmentRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.AuditAnchorSegmentRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleAuditAnchorSegment(ctx, req, meta)
-			})
-		}},
-		"readiness_get": {requestSchemaPath: "objects/ReadinessGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.ReadinessGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleReadinessGet(ctx, req, meta)
-			})
-		}},
-		"version_info_get": {requestSchemaPath: "objects/VersionInfoGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.VersionInfoGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleVersionInfoGet(ctx, req, meta)
-			})
-		}},
-		"product_lifecycle_posture_get": {requestSchemaPath: "objects/ProductLifecyclePostureGetRequest.schema.json", handle: func(raw json.RawMessage) localRPCResponse {
-			return decodeAndHandle(raw, func(req brokerapi.ProductLifecyclePostureGetRequest) (any, *brokerapi.ErrorResponse) {
-				return service.HandleProductLifecyclePostureGet(ctx, req, meta)
-			})
-		}},
+		"audit_timeline": auditRPCOperation("objects/AuditTimelineRequest.schema.json", func(req brokerapi.AuditTimelineRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleAuditTimeline(ctx, req, meta)
+		}),
+		"audit_verification_get": auditRPCOperation("objects/AuditVerificationGetRequest.schema.json", func(req brokerapi.AuditVerificationGetRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleAuditVerificationGet(ctx, req, meta)
+		}),
+		"audit_finalize_verify": auditRPCOperation("objects/AuditFinalizeVerifyRequest.schema.json", func(req brokerapi.AuditFinalizeVerifyRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleAuditFinalizeVerify(ctx, req, meta)
+		}),
+		"audit_record_get": auditRPCOperation("objects/AuditRecordGetRequest.schema.json", func(req brokerapi.AuditRecordGetRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleAuditRecordGet(ctx, req, meta)
+		}),
+		"audit_record_inclusion_get": auditRPCOperation("objects/AuditRecordInclusionGetRequest.schema.json", func(req brokerapi.AuditRecordInclusionGetRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleAuditRecordInclusionGet(ctx, req, meta)
+		}),
+		"audit_evidence_snapshot_get": auditRPCOperation("objects/AuditEvidenceSnapshotGetRequest.schema.json", func(req brokerapi.AuditEvidenceSnapshotGetRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleAuditEvidenceSnapshotGet(ctx, req, meta)
+		}),
+		"audit_evidence_retention_review": auditRPCOperation("objects/AuditEvidenceRetentionReviewRequest.schema.json", func(req brokerapi.AuditEvidenceRetentionReviewRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleAuditEvidenceRetentionReview(ctx, req, meta)
+		}),
+		"audit_evidence_bundle_manifest_get": auditRPCOperation("objects/AuditEvidenceBundleManifestGetRequest.schema.json", func(req brokerapi.AuditEvidenceBundleManifestGetRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleAuditEvidenceBundleManifestGet(ctx, req, meta)
+		}),
+		"audit_evidence_bundle_export": auditRPCOperation("objects/AuditEvidenceBundleExportRequest.schema.json", func(req brokerapi.AuditEvidenceBundleExportRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleAuditEvidenceBundleExport(ctx, req, meta)
+		}),
+		"audit_evidence_bundle_offline_verify": auditRPCOperation("objects/AuditEvidenceBundleOfflineVerifyRequest.schema.json", func(req brokerapi.AuditEvidenceBundleOfflineVerifyRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleAuditEvidenceBundleOfflineVerify(ctx, req, meta)
+		}),
 	}
+}
+
+func auditAnchorRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
+	return map[string]rpcOperation{
+		"audit_anchor_preflight_get": auditRPCOperation("objects/AuditAnchorPreflightGetRequest.schema.json", func(req brokerapi.AuditAnchorPreflightGetRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleAuditAnchorPreflightGet(ctx, req, meta)
+		}),
+		"audit_anchor_presence_get": auditRPCOperation("objects/AuditAnchorPresenceGetRequest.schema.json", func(req brokerapi.AuditAnchorPresenceGetRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleAuditAnchorPresenceGet(ctx, req, meta)
+		}),
+		"audit_anchor_segment": auditRPCOperation("objects/AuditAnchorSegmentRequest.schema.json", func(req brokerapi.AuditAnchorSegmentRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleAuditAnchorSegment(ctx, req, meta)
+		}),
+	}
+}
+
+func auditStatusRPCOperations(service *brokerapi.Service, ctx context.Context, meta brokerapi.RequestContext) map[string]rpcOperation {
+	return map[string]rpcOperation{
+		"readiness_get": auditRPCOperation("objects/ReadinessGetRequest.schema.json", func(req brokerapi.ReadinessGetRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleReadinessGet(ctx, req, meta)
+		}),
+		"version_info_get": auditRPCOperation("objects/VersionInfoGetRequest.schema.json", func(req brokerapi.VersionInfoGetRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleVersionInfoGet(ctx, req, meta)
+		}),
+		"product_lifecycle_posture_get": auditRPCOperation("objects/ProductLifecyclePostureGetRequest.schema.json", func(req brokerapi.ProductLifecyclePostureGetRequest) (any, *brokerapi.ErrorResponse) {
+			return service.HandleProductLifecyclePostureGet(ctx, req, meta)
+		}),
+	}
+}
+
+func auditRPCOperation[T any](schemaPath string, handleFn func(T) (any, *brokerapi.ErrorResponse)) rpcOperation {
+	return rpcOperation{requestSchemaPath: schemaPath, handle: func(raw json.RawMessage) localRPCResponse {
+		return decodeAndHandle(raw, handleFn)
+	}}
 }

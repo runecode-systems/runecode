@@ -76,6 +76,18 @@ func (l *Ledger) PersistVerificationReport(report trustpolicy.AuditVerificationR
 	return l.persistVerificationReportLocked(report)
 }
 
+func (l *Ledger) PersistBundleManifestEnvelope(envelope trustpolicy.SignedObjectEnvelope) (trustpolicy.Digest, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if strings.TrimSpace(envelope.PayloadSchemaID) != auditEvidenceBundleManifestSchemaID {
+		return trustpolicy.Digest{}, fmt.Errorf("bundle manifest envelope must use payload_schema_id %q", auditEvidenceBundleManifestSchemaID)
+	}
+	if strings.TrimSpace(envelope.PayloadSchemaVersion) != auditEvidenceBundleManifestSchemaVersion {
+		return trustpolicy.Digest{}, fmt.Errorf("bundle manifest envelope must use payload_schema_version %q", auditEvidenceBundleManifestSchemaVersion)
+	}
+	return l.persistEnvelopeSidecar("bundle-manifests", envelope)
+}
+
 func (l *Ledger) persistVerificationReportLocked(report trustpolicy.AuditVerificationReportPayload) (trustpolicy.Digest, error) {
 	if err := trustpolicy.ValidateAuditVerificationReportPayload(report); err != nil {
 		return trustpolicy.Digest{}, err
