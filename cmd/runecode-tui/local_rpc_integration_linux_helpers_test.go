@@ -106,6 +106,8 @@ func dispatchTUILocalRPCJSONAuditOps(service *brokerapi.Service, wire brokerapi.
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleAuditFinalizeVerify), true
 	case "audit_record_get":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleAuditRecordGet), true
+	case "audit_record_inclusion_get":
+		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleAuditRecordInclusionGet), true
 	case "audit_anchor_preflight_get":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleAuditAnchorPreflightGet), true
 	case "audit_anchor_presence_get":

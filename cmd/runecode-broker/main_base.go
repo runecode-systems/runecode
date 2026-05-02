@@ -221,6 +221,7 @@ func addLiveIPCCommandHandlers(handlers map[string]brokerCommandSpec) {
 		"audit-verification":                           {handler: handleAuditVerification, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"audit-finalize-verify":                        {handler: handleAuditFinalizeVerify, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"audit-record-get":                             {handler: handleAuditRecordGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
+		"audit-record-inclusion-get":                   {handler: handleAuditRecordInclusionGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"audit-anchor-segment":                         {handler: handleAuditAnchorSegment, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"git-setup-get":                                {handler: handleGitSetupGet, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
 		"git-setup-auth-bootstrap":                     {handler: handleGitSetupAuthBootstrap, requiresStore: false, apiMode: brokerCommandAPIModeLiveIPC},
@@ -379,6 +380,7 @@ Commands:
 	  audit-verification [--limit N]
 	  audit-finalize-verify
 	  audit-record-get --record-digest sha256:...
+	  audit-record-inclusion-get --record-digest sha256:...
 	  audit-anchor-segment --seal-digest sha256:... [--approval-decision-digest sha256:...] [--approval-assurance-level level] [--export-receipt-copy]
 	  git-setup-get [--provider github]
 	  git-setup-auth-bootstrap [--provider github] --mode browser|device_code

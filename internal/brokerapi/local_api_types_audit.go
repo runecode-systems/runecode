@@ -117,6 +117,42 @@ type AuditRecordGetResponse struct {
 	Record        AuditRecordDetail `json:"record"`
 }
 
+type AuditRecordInclusionGetRequest struct {
+	SchemaID      string             `json:"schema_id"`
+	SchemaVersion string             `json:"schema_version"`
+	RequestID     string             `json:"request_id"`
+	RecordDigest  trustpolicy.Digest `json:"record_digest"`
+}
+
+type AuditRecordInclusionGetResponse struct {
+	SchemaID      string               `json:"schema_id"`
+	SchemaVersion string               `json:"schema_version"`
+	RequestID     string               `json:"request_id"`
+	Inclusion     AuditRecordInclusion `json:"inclusion"`
+}
+
+type AuditRecordInclusion struct {
+	SchemaID              string                            `json:"schema_id"`
+	SchemaVersion         string                            `json:"schema_version"`
+	RecordDigest          trustpolicy.Digest                `json:"record_digest"`
+	RecordEnvelopeDigest  trustpolicy.Digest                `json:"record_envelope_digest"`
+	SegmentID             string                            `json:"segment_id"`
+	FrameIndex            int                               `json:"frame_index"`
+	SegmentRecordCount    int                               `json:"segment_record_count"`
+	SegmentSealDigest     *trustpolicy.Digest               `json:"segment_seal_digest,omitempty"`
+	SegmentSealChainIndex *int64                            `json:"segment_seal_chain_index,omitempty"`
+	PreviousSealDigest    *trustpolicy.Digest               `json:"previous_seal_digest,omitempty"`
+	OrderedMerkle         AuditRecordInclusionOrderedMerkle `json:"ordered_merkle"`
+}
+
+type AuditRecordInclusionOrderedMerkle struct {
+	Profile              string               `json:"profile"`
+	LeafIndex            int                  `json:"leaf_index"`
+	LeafCount            int                  `json:"leaf_count"`
+	SegmentMerkleRoot    trustpolicy.Digest   `json:"segment_merkle_root"`
+	SegmentRecordDigests []trustpolicy.Digest `json:"segment_record_digests"`
+}
+
 type AuditAnchorSegmentRequest struct {
 	SchemaID               string                          `json:"schema_id"`
 	SchemaVersion          string                          `json:"schema_version"`

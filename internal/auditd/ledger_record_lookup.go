@@ -16,12 +16,36 @@ func (l *Ledger) SignedEnvelopeByRecordDigest(recordDigest string) (trustpolicy.
 	if err != nil {
 		return trustpolicy.SignedObjectEnvelope{}, false, err
 	}
-
-	segments, err := l.listSegments()
+	lookup, ok, err := l.lookupRecordDigestLocked(normalizedDigest, false)
 	if err != nil {
 		return trustpolicy.SignedObjectEnvelope{}, false, err
 	}
-	return signedEnvelopeByRecordDigestFromSegments(segments, normalizedDigest)
+	if !ok {
+		return trustpolicy.SignedObjectEnvelope{}, false, nil
+	}
+	segment, err := l.loadSegment(lookup.SegmentID)
+	if err != nil {
+		return trustpolicy.SignedObjectEnvelope{}, false, err
+	}
+	if lookup.FrameIndex < 0 || lookup.FrameIndex >= len(segment.Frames) {
+		return trustpolicy.SignedObjectEnvelope{}, false, fmt.Errorf("record lookup out of bounds for segment %q", lookup.SegmentID)
+	}
+	frame := segment.Frames[lookup.FrameIndex]
+	matches, err := frameRecordDigestMatches(frame, normalizedDigest)
+	if err != nil {
+		return trustpolicy.SignedObjectEnvelope{}, false, err
+	}
+	if !matches {
+		return trustpolicy.SignedObjectEnvelope{}, false, fmt.Errorf("record lookup mismatch for digest %q", normalizedDigest)
+	}
+	envelope, err := decodeFrameEnvelope(frame)
+	if err != nil {
+		return trustpolicy.SignedObjectEnvelope{}, false, err
+	}
+	if err := verifyFrameRecordDigest(frame, envelope); err != nil {
+		return trustpolicy.SignedObjectEnvelope{}, false, err
+	}
+	return envelope, true, nil
 }
 
 func normalizedRecordDigestIdentity(recordDigest string) (string, error) {

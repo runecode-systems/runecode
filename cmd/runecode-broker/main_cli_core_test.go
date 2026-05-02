@@ -32,6 +32,7 @@ func TestHelpAndUnknownCommand(t *testing.T) {
 		"--runtime-dir dir",
 		"--socket-name name",
 		"audit-anchor-segment",
+		"audit-record-inclusion-get",
 		"audit-finalize-verify",
 		"backend-posture-get",
 		"git-setup-get",

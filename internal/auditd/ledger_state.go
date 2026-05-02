@@ -1,7 +1,6 @@
 package auditd
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,82 +47,27 @@ func (l *Ledger) recoverStateLocked() (ledgerState, error) {
 }
 
 func (l *Ledger) attachSealAndIndexStateLocked(state *ledgerState) error {
-	sealDigest, lastSealed, err := l.discoverLatestSealLocked()
+	sealDigest, lastSealed, err := l.discoverLatestSealFromIndexLocked()
 	if err != nil {
 		return err
 	}
+	if sealDigest == "" && lastSealed == "" {
+		sealDigest, lastSealed, err = l.discoverLatestSealLocked()
+		if err != nil {
+			return err
+		}
+	}
 	state.LastSealEnvelopeDigest = sealDigest
 	state.LastSealedSegmentID = lastSealed
-	if index, _, err := l.indexStatusLocked(); err == nil {
-		state.LastIndexedRecordCount = index
+	if index, idxErr := l.ensureDerivedIndexLocked(); idxErr == nil {
+		state.LastIndexedRecordCount = index.TotalRecords
+		if index.LatestVerificationReportDigest != "" {
+			state.LastVerificationReportDigest = index.LatestVerificationReportDigest
+		}
+	} else if indexCount, _, statusErr := l.indexStatusLocked(); statusErr == nil {
+		state.LastIndexedRecordCount = indexCount
 	}
 	return nil
-}
-
-func (l *Ledger) preservedLastReportDigestLocked() string {
-	prevState, err := l.loadState()
-	if err != nil {
-		return ""
-	}
-	return prevState.LastVerificationReportDigest
-}
-
-func (l *Ledger) recoverLatestVerificationReportDigestLocked() string {
-	latestDigest := l.discoverLatestVerificationReportDigestLocked()
-	if latestDigest != "" {
-		return latestDigest
-	}
-	return l.preservedLastReportDigestLocked()
-}
-
-type verificationReportCandidate struct {
-	digest     string
-	verifiedAt time.Time
-}
-
-func (l *Ledger) discoverLatestVerificationReportDigestLocked() string {
-	entries, err := os.ReadDir(filepath.Join(l.rootDir, sidecarDirName, verificationReportsDirName))
-	if err != nil {
-		return ""
-	}
-	best := verificationReportCandidate{}
-	for _, entry := range entries {
-		next, ok := l.verificationReportCandidateFromEntry(entry)
-		if !ok {
-			continue
-		}
-		if chooseVerificationReportCandidate(best, next) {
-			best = next
-		}
-	}
-	return best.digest
-}
-
-func chooseVerificationReportCandidate(current, next verificationReportCandidate) bool {
-	if current.digest == "" {
-		return true
-	}
-	if next.verifiedAt.After(current.verifiedAt) {
-		return true
-	}
-	return next.verifiedAt.Equal(current.verifiedAt) && next.digest > current.digest
-}
-
-func (l *Ledger) verificationReportCandidateFromEntry(entry os.DirEntry) (verificationReportCandidate, bool) {
-	if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-		return verificationReportCandidate{}, false
-	}
-	report := trustpolicy.AuditVerificationReportPayload{}
-	path := filepath.Join(l.rootDir, sidecarDirName, verificationReportsDirName, entry.Name())
-	if err := readJSONFile(path, &report); err != nil {
-		return verificationReportCandidate{}, false
-	}
-	verifiedAt, err := time.Parse(time.RFC3339, report.VerifiedAt)
-	if err != nil {
-		return verificationReportCandidate{}, false
-	}
-	digest := "sha256:" + strings.TrimSuffix(entry.Name(), ".json")
-	return verificationReportCandidate{digest: digest, verifiedAt: verifiedAt}, true
 }
 
 func (l *Ledger) bootstrapInitialStateLocked() (ledgerState, error) {
@@ -170,45 +114,6 @@ type discoveredSeal struct {
 	digestIdentity string
 	segmentID      string
 	index          int64
-}
-
-func (l *Ledger) discoverLatestSealLocked() (digestIdentity string, segmentID string, err error) {
-	entries, err := os.ReadDir(filepath.Join(l.rootDir, sidecarDirName, sealsDirName))
-	if err != nil {
-		return "", "", err
-	}
-	best := discoveredSeal{index: -1}
-	for _, entry := range entries {
-		next, ok, err := l.discoverSealEntry(entry.Name())
-		if err != nil {
-			return "", "", err
-		}
-		if ok && next.index > best.index {
-			best = next
-		}
-	}
-	if best.index < 0 {
-		return "", "", nil
-	}
-	return best.digestIdentity, best.segmentID, nil
-}
-
-func (l *Ledger) discoverSealEntry(name string) (discoveredSeal, bool, error) {
-	if !strings.HasSuffix(name, ".json") {
-		return discoveredSeal{}, false, nil
-	}
-	path := filepath.Join(l.rootDir, sidecarDirName, sealsDirName, name)
-	envelope := trustpolicy.SignedObjectEnvelope{}
-	if err := readJSONFile(path, &envelope); err != nil {
-		return discoveredSeal{}, false, err
-	}
-	seal := trustpolicy.AuditSegmentSealPayload{}
-	if err := json.Unmarshal(envelope.Payload, &seal); err != nil {
-		return discoveredSeal{}, false, fmt.Errorf("decode seal payload %q: %w", name, err)
-	}
-	digest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.TrimSuffix(name, ".json")}
-	identity, _ := digest.Identity()
-	return discoveredSeal{digestIdentity: identity, segmentID: seal.SegmentID, index: seal.SealChainIndex}, true, nil
 }
 
 func nextSegmentID(number int64) string {

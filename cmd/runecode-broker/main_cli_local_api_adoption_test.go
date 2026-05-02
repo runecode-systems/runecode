@@ -588,7 +588,7 @@ func TestCLIAdoptionRoutesArtifactAuditAndResolveThroughLocalRPC(t *testing.T) {
 	installArtifactAuditResolveDispatchStub(t, &requestedOps)
 	runArtifactAuditResolveCommands(t, stdout, stderr)
 
-	want := []string{"artifact_list", "artifact_head", "artifact_read", "approval_get", "approval_resolve", "readiness_get", "audit_verification_get", "audit_finalize_verify", "audit_record_get", "audit_anchor_preflight_get", "audit_anchor_presence_get", "audit_anchor_segment"}
+	want := []string{"artifact_list", "artifact_head", "artifact_read", "approval_get", "approval_resolve", "readiness_get", "audit_verification_get", "audit_finalize_verify", "audit_record_get", "audit_record_inclusion_get", "audit_anchor_preflight_get", "audit_anchor_presence_get", "audit_anchor_segment"}
 	assertRequestedOps(t, requestedOps, want)
 }
 
@@ -635,6 +635,8 @@ func artifactAuditResolveDynamicResponse(t *testing.T, wire localRPCRequest) loc
 		return artifactAuditResolveApprovalGetResponse(t, wire)
 	case "audit_record_get":
 		return mustOKLocalRPCResponse(t, brokerapi.AuditRecordGetResponse{SchemaID: "runecode.protocol.v0.AuditRecordGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-record", Record: brokerapi.AuditRecordDetail{SchemaID: "runecode.protocol.v0.AuditRecordDetail", SchemaVersion: "0.1.0", RecordDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}, RecordFamily: "audit_event", OccurredAt: "2026-01-01T00:00:00Z", EventType: "isolate_session_bound", Summary: "Audit event isolate_session_bound recorded.", LinkedReferences: []brokerapi.AuditRecordLinkedReference{}}})
+	case "audit_record_inclusion_get":
+		return mustOKLocalRPCResponse(t, brokerapi.AuditRecordInclusionGetResponse{SchemaID: "runecode.protocol.v0.AuditRecordInclusionGetResponse", SchemaVersion: "0.1.0", RequestID: "req-audit-record-inclusion", Inclusion: brokerapi.AuditRecordInclusion{SchemaID: "runecode.protocol.v0.AuditRecordInclusion", SchemaVersion: "0.1.0", RecordDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}, RecordEnvelopeDigest: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)}, SegmentID: "segment-000001", FrameIndex: 0, SegmentRecordCount: 1, SegmentSealDigest: digestPtr(t, strings.Repeat("c", 64)), SegmentSealChainIndex: int64Ptr(0), OrderedMerkle: brokerapi.AuditRecordInclusionOrderedMerkle{Profile: "sha256_ordered_dse_v1", LeafIndex: 0, LeafCount: 1, SegmentMerkleRoot: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}, SegmentRecordDigests: []trustpolicy.Digest{{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}}}}})
 	case "audit_anchor_preflight_get":
 		return artifactAuditResolveAnchorPreflightResponse(t, wire)
 	case "audit_anchor_segment":
@@ -751,10 +753,24 @@ func runArtifactAuditResolveCommands(t *testing.T, stdout *bytes.Buffer, stderr 
 	if err := run([]string{"audit-record-get", "--record-digest", testDigest("a")}, stdout, stderr); err != nil {
 		t.Fatalf("audit-record-get returned error: %v", err)
 	}
+	if err := run([]string{"audit-record-inclusion-get", "--record-digest", testDigest("a")}, stdout, stderr); err != nil {
+		t.Fatalf("audit-record-inclusion-get returned error: %v", err)
+	}
 	if err := run([]string{"audit-anchor-segment", "--seal-digest", testDigest("a")}, stdout, stderr); err != nil {
 		t.Fatalf("audit-anchor-segment returned error: %v", err)
 	}
 }
+
+func digestPtr(t *testing.T, hash string) *trustpolicy.Digest {
+	t.Helper()
+	d := trustpolicy.Digest{HashAlg: "sha256", Hash: hash}
+	if _, err := d.Identity(); err != nil {
+		t.Fatalf("digestPtr invalid digest: %v", err)
+	}
+	return &d
+}
+
+func int64Ptr(v int64) *int64 { return &v }
 
 func mustOKLocalRPCResponse(t *testing.T, value any) localRPCResponse {
 	t.Helper()
