@@ -1,0 +1,29 @@
+schema_version: 1
+id: CHG-2026-055-b7e4-additive-remote-public-proof-lane
+title: Additive Remote/Public Proof Lane
+status: planned
+type: feature
+size: large
+verification_status: pending
+context_bundles:
+  - product-planning
+related_specs: []
+related_decisions: []
+related_changes:
+  - CHG-2026-016-8cdb-zk-proof-v0-one-narrow-proof-verify
+depends_on:
+  - CHG-2026-016-8cdb-zk-proof-v0-one-narrow-proof-verify
+informed_by:
+  - CHG-2026-003-b567-audit-log-v0-verify
+  - CHG-2026-004-acdb-artifact-store-data-classes-v0
+  - CHG-2026-025-5679-external-audit-anchoring-v0
+  - CHG-2026-030-98b8-isolate-attestation-v0
+  - CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0
+  - CHG-2026-053-9d2b-performance-baselines-verification-gates-v0
+supersedes: []
+superseded_by: []
+created_at: "2026-05-02"
+closed_at: null
+promotion_assessment:
+  status: pending
+  suggested_targets: []

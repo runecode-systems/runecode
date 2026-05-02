@@ -21,6 +21,9 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 - Project Performance Baselines + Verification Gates v0
   - RuneCode establishes the deferred broader performance program after the alpha.7 TUI waiting-state repaint fix: deterministic CI gates for TUI idle and waiting behavior, broker APIs and watch families, runner and workflow execution, launcher startup, gateway overhead, audit and protocol verification, and end-to-end attach or resume flows.
   - Planned change: `runecontext/changes/CHG-2026-053-9d2b-performance-baselines-verification-gates-v0/`
+- Additive Remote/Public Proof Lane
+  - RuneCode defines the follow-on operator-private remote proof lane and later public-assurance publication posture over the same local proof-binding substrate, while requiring machines to retain the canonical evidence needed for future backfill even before those lanes are enabled.
+  - Planned change: `runecontext/changes/CHG-2026-055-b7e4-additive-remote-public-proof-lane/`
 
 ### v0.2 (Post-MVP)
 
@@ -179,4 +182,3 @@ No unscheduled items are currently tracked outside the planned work listed above
 - External Audit Anchoring v0
   - Audit roots can be anchored to external targets with explicit egress, typed receipts, and the same verification discipline used for other high-risk outbound lanes.
   - Planned change: `runecontext/changes/CHG-2026-025-5679-external-audit-anchoring-v0/`
-

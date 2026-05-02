@@ -13,6 +13,7 @@
 - `runecontext/changes/CHG-2026-030-98b8-isolate-attestation-v0/`
 - `runecontext/changes/CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0/`
 - `runecontext/changes/CHG-2026-053-9d2b-performance-baselines-verification-gates-v0/`
+- `runecontext/changes/CHG-2026-055-b7e4-additive-remote-public-proof-lane/`
 - `runecontext/standards/security/trusted-runtime-evidence-and-broker-projection.md`
 - `runecontext/standards/security/audit-verification-scope-and-evidence-binding.md`
 
