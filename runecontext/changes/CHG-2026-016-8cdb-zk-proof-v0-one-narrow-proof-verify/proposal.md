@@ -5,10 +5,13 @@ RuneCode can generate and verify at least one narrowly scoped zero-knowledge pro
 This feature now has a canonical RuneContext change record, preserving the migrated planning content without relying on legacy Agent OS folders or path aliases.
 
 ## Proposed Change
-- Pick the First Proof Statement.
-- Choose Proving System + Libraries.
-- Proof Artifact Format + Storage.
-- CLI Integration.
+- Deliver one narrow audit-bound zero-knowledge integrity proof workflow rather than a broad proof lane for arbitrary reasoning or policy-program execution.
+- Keep proof generation explicit and opt-in; keep proof verification deterministic, trusted, and cheap enough for routine local use.
+- Use a scheme-agnostic proof contract so future proof families may use a different proving system without rewriting RuneCode's broker, audit, or storage semantics.
+- For `v0`, prefer a Go-native implementation path with `gnark` and a fixed-circuit `Groth16` verifier if the concrete performance gates are met.
+- Make the first proof statement bind to canonical verified audit identity first, not to ambient repository state or an alternate product-private truth surface.
+- Treat authoritative proof persistence for the first proof as audit-owned sidecar evidence; artifact-store copies remain optional review/export products rather than the primary trust source.
+- Bind any project-context-sensitive proof statement to the validated RuneContext project-substrate snapshot digest in verified mode rather than ambient repository assumptions.
 - Bind any runtime-sensitive proof statement to the attested runtime identity seam rather than only to pre-attestation launch assumptions.
 - Bind any audit-anchoring-sensitive proof statement to the canonical `AuditSegmentSeal` subject, authoritative anchor receipt identity, canonical target descriptor identity where external anchoring is involved, and preserved attestation or project-context references rather than flattened summaries.
 
@@ -27,4 +30,4 @@ Keeping it pre-beta but non-blocking lets RuneCode explore one real proof path w
 - Re-introducing legacy Agent OS planning paths as canonical references.
 
 ## Impact
-Keeps ZK Proof v0 (One Narrow Proof + Verify) reviewable as a RuneContext-native change and removes the need for a second semantics rewrite later.
+Keeps ZK Proof v0 (One Narrow Proof + Verify) reviewable as a RuneContext-native change, anchors it to RuneCode's trusted audit and verified-substrate foundations, and removes the need for a second semantics rewrite later.
