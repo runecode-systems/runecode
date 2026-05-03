@@ -122,6 +122,9 @@ func finalizeAuditVerificationReport(report AuditVerificationReportPayload) Audi
 	if report.AnchoringStatus == "" {
 		report.AnchoringStatus = AuditVerificationStatusOK
 	}
+	if report.AnchoringPosture == "" {
+		report.AnchoringPosture = AuditVerificationAnchoringPostureLocalAnchorReceiptOnly
+	}
 	if report.StoragePostureStatus == "" {
 		report.StoragePostureStatus = AuditVerificationStatusOK
 	}
@@ -130,6 +133,12 @@ func finalizeAuditVerificationReport(report AuditVerificationReportPayload) Audi
 	}
 	if report.Summary == "" {
 		report.Summary = buildVerificationSummary(report)
+	}
+	if strings.TrimSpace(report.VerifierIdentity) == "" {
+		report.VerifierIdentity = "unknown"
+	}
+	if len(report.TrustRootIdentities) == 0 {
+		report.TrustRootIdentities = []string{"unknown"}
 	}
 	return report
 }
@@ -198,7 +207,8 @@ func isCryptographicFailureCode(code string) bool {
 	case AuditVerificationReasonDetachedSignatureInvalid,
 		AuditVerificationReasonSegmentFrameDigestMismatch,
 		AuditVerificationReasonSegmentFileHashMismatch,
-		AuditVerificationReasonSegmentSealInvalid:
+		AuditVerificationReasonSegmentSealInvalid,
+		AuditVerificationReasonMissingRequiredApprovalEvidence:
 		return true
 	default:
 		return false

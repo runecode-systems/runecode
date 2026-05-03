@@ -351,6 +351,39 @@ func assertPendingApprovalBinding(t *testing.T, detail ApprovalDetail, approvalI
 	if detail.BoundIdentity.ApprovalRequestDigest != approvalID {
 		t.Fatalf("approval_detail.bound_identity.approval_request_digest = %q, want %q", detail.BoundIdentity.ApprovalRequestDigest, approvalID)
 	}
+	if detail.BoundIdentity.ScopeDigest == "" {
+		t.Fatal("approval_detail.bound_identity.scope_digest should be populated")
+	}
+	if detail.BoundIdentity.ArtifactSetDigest == "" {
+		t.Fatal("approval_detail.bound_identity.artifact_set_digest should be populated")
+	}
+}
+
+func TestApprovalGetIncludesApprovalBasisEvidenceDigestsAndConsumptionLinkage(t *testing.T) {
+	s, unapproved, requestEnv, decisionEnv := setupServiceWithApprovalFixture(t)
+	approvalID := approvalIDForBrokerTest(t, requestEnv)
+	policyDecisionHash := policyDecisionHashForStoredApproval(t, s, approvalID)
+	resolveReq := ApprovalResolveRequest{SchemaID: "runecode.protocol.v0.ApprovalResolveRequest", SchemaVersion: "0.1.0", RequestID: "req-approval-resolve-basis-evidence", ApprovalID: approvalID, BoundScope: ApprovalBoundScope{SchemaID: "runecode.protocol.v0.ApprovalBoundScope", SchemaVersion: "0.1.0", WorkspaceID: workspaceIDForRun("run-approval"), RunID: "run-approval", StageID: "artifact_flow", StepID: "step-1", ActionKind: "promotion", PolicyDecisionHash: policyDecisionHash}, UnapprovedDigest: unapproved.Digest, Approver: "human", RepoPath: "repo/file.txt", Commit: "abc123", ExtractorToolVersion: "tool-v1", FullContentVisible: true, ExplicitViewFull: false, BulkRequest: false, BulkApprovalConfirmed: false, SignedApprovalRequest: *requestEnv, SignedApprovalDecision: *decisionEnv}
+	resolveResp, errResp := s.HandleApprovalResolve(context.Background(), resolveReq, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleApprovalResolve error response: %+v", errResp)
+	}
+	if resolveResp.Approval.ScopeDigest == "" || resolveResp.Approval.ArtifactSetDigest == "" || resolveResp.Approval.DiffDigest == "" {
+		t.Fatalf("resolve approval missing basis digests: %+v", resolveResp.Approval)
+	}
+	if resolveResp.Approval.ConsumedActionHash == "" || resolveResp.Approval.ConsumedArtifactDigest == "" || resolveResp.Approval.ConsumptionLinkDigest == "" {
+		t.Fatalf("resolve approval missing consumption linkage digests: %+v", resolveResp.Approval)
+	}
+	resp := mustApprovalGetResponse(t, s, "req-approval-get-basis-evidence", approvalID)
+	if resp.Approval.ScopeDigest == "" || resp.Approval.ArtifactSetDigest == "" || resp.Approval.DiffDigest == "" {
+		t.Fatalf("approval summary missing basis digests: %+v", resp.Approval)
+	}
+	if resp.Approval.ConsumedActionHash == "" || resp.Approval.ConsumedArtifactDigest == "" || resp.Approval.ConsumptionLinkDigest == "" {
+		t.Fatalf("approval summary missing consumption linkage digests: %+v", resp.Approval)
+	}
+	if resp.ApprovalDetail.BoundIdentity.ConsumptionLinkDigest != resp.Approval.ConsumptionLinkDigest {
+		t.Fatalf("bound_identity.consumption_link_digest = %q, want %q", resp.ApprovalDetail.BoundIdentity.ConsumptionLinkDigest, resp.Approval.ConsumptionLinkDigest)
+	}
 }
 
 func approvalGetResponseForTerminalState(t *testing.T, tc approvalLifecycleTerminalCase) ApprovalGetResponse {

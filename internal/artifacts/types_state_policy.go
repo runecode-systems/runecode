@@ -67,6 +67,13 @@ type ApprovalRecord struct {
 	RequestDigest          string                            `json:"request_digest,omitempty"`
 	DecisionDigest         string                            `json:"decision_digest,omitempty"`
 	SourceDigest           string                            `json:"source_digest,omitempty"`
+	ScopeDigest            string                            `json:"scope_digest,omitempty"`
+	ArtifactSetDigest      string                            `json:"artifact_set_digest,omitempty"`
+	DiffDigest             string                            `json:"diff_digest,omitempty"`
+	SummaryPreviewDigest   string                            `json:"summary_preview_digest,omitempty"`
+	ConsumedActionHash     string                            `json:"consumed_action_hash,omitempty"`
+	ConsumedArtifactDigest string                            `json:"consumed_artifact_digest,omitempty"`
+	ConsumptionLinkDigest  string                            `json:"consumption_link_digest,omitempty"`
 	RequestEnvelope        *trustpolicy.SignedObjectEnvelope `json:"request_envelope,omitempty"`
 	DecisionEnvelope       *trustpolicy.SignedObjectEnvelope `json:"decision_envelope,omitempty"`
 	AuditEventType         string                            `json:"audit_event_type,omitempty"`

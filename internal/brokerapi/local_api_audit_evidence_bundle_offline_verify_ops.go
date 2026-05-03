@@ -35,6 +35,7 @@ func (s *Service) HandleAuditEvidenceBundleOfflineVerify(ctx context.Context, re
 		errOut := s.errorFromValidation(requestID, err)
 		return AuditEvidenceBundleOfflineVerifyResponse{}, &errOut
 	}
+	s.persistMetaAuditReceipt(auditReceiptKindSensitiveEvidenceView, "audit_evidence_bundle_offline_verify", nil, resp.Verification.ManifestDigest, resp.Verification.ManifestDigest, "offline_verification")
 	return resp, nil
 }
 
@@ -80,15 +81,15 @@ func validatedOfflineBundlePath(bundlePath string) (string, error) {
 	if !filepath.IsAbs(clean) {
 		return "", fmt.Errorf("bundle_path must be an absolute path")
 	}
-	if err := rejectLinkedPathComponents(filepath.Dir(clean)); err != nil {
-		if errors.Is(err, errLinkedPathComponent) {
-			return "", fmt.Errorf("bundle_path must not contain symlink components")
-		}
+	if err := validateOfflineBundleParentPath(clean); err != nil {
 		return "", err
 	}
 	info, err := os.Stat(clean)
 	if err != nil {
 		return "", err
+	}
+	if err := validateOfflineBundleLeaf(clean); err != nil {
+		return "", fmt.Errorf("bundle_path must not reference a symlink")
 	}
 	if info.IsDir() {
 		return "", fmt.Errorf("bundle_path must reference a file")
@@ -97,6 +98,31 @@ func validatedOfflineBundlePath(bundlePath string) (string, error) {
 		return "", fmt.Errorf("bundle_path must reference a .tar archive")
 	}
 	return clean, nil
+}
+
+func validateOfflineBundleParentPath(clean string) error {
+	if err := rejectLinkedPathComponents(filepath.Dir(clean)); err != nil {
+		if errors.Is(err, errLinkedPathComponent) {
+			return fmt.Errorf("bundle_path must not contain symlink components")
+		}
+		return err
+	}
+	return nil
+}
+
+func validateOfflineBundleLeaf(clean string) error {
+	lstatInfo, err := os.Lstat(clean)
+	if err != nil {
+		return err
+	}
+	linked, err := pathEntryIsLinkOrReparse(clean, lstatInfo)
+	if err != nil {
+		return err
+	}
+	if linked {
+		return fmt.Errorf("linked bundle path")
+	}
+	return nil
 }
 
 func projectAuditEvidenceBundleOfflineVerification(value auditd.AuditEvidenceBundleOfflineVerification) (AuditEvidenceBundleOfflineVerification, error) {

@@ -90,6 +90,17 @@ func normalizeEvidenceBundleToolIdentity(identity AuditEvidenceBundleToolIdentit
 	}
 }
 
+func normalizeEvidenceBundleControlProvenance(provenance AuditEvidenceBundleControlProvenance) AuditEvidenceBundleControlProvenance {
+	return AuditEvidenceBundleControlProvenance{
+		WorkflowDefinitionHash: strings.TrimSpace(provenance.WorkflowDefinitionHash),
+		ToolManifestDigest:     strings.TrimSpace(provenance.ToolManifestDigest),
+		PromptTemplateDigest:   strings.TrimSpace(provenance.PromptTemplateDigest),
+		ProtocolBundleHash:     strings.TrimSpace(provenance.ProtocolBundleHash),
+		VerifierImplDigest:     strings.TrimSpace(provenance.VerifierImplDigest),
+		TrustPolicyDigest:      strings.TrimSpace(provenance.TrustPolicyDigest),
+	}
+}
+
 func normalizeEvidenceBundleScope(scope AuditEvidenceBundleScope) AuditEvidenceBundleScope {
 	artifactDigests := normalizeIdentityList(scope.ArtifactDigests)
 	if len(artifactDigests) == 0 {

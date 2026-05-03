@@ -60,7 +60,7 @@ func (s *Service) issueGitRemoteExecutionLease(record artifacts.GitRemotePrepare
 	if err != nil {
 		return secretsd.Lease{}, err
 	}
-	return s.secretsSvc.IssueLease(secretsd.IssueLeaseRequest{
+	lease, err := s.secretsSvc.IssueLease(secretsd.IssueLeaseRequest{
 		SecretRef:    gitRemoteProviderTokenSecretRef,
 		ConsumerID:   "principal:gateway:git:1",
 		RoleKind:     "git-gateway",
@@ -74,4 +74,8 @@ func (s *Service) issueGitRemoteExecutionLease(record artifacts.GitRemotePrepare
 			PolicyContextHash:  strings.TrimSpace(record.PolicyDecisionHash),
 		},
 	})
+	if err != nil {
+		return secretsd.Lease{}, err
+	}
+	return lease, nil
 }

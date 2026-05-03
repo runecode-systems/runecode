@@ -159,21 +159,22 @@ type AuditEvidenceBundleExport struct {
 }
 
 type AuditEvidenceBundleManifest struct {
-	SchemaID          string                               `json:"schema_id"`
-	SchemaVersion     string                               `json:"schema_version"`
-	BundleID          string                               `json:"bundle_id"`
-	CreatedAt         string                               `json:"created_at"`
-	CreatedByTool     AuditEvidenceBundleToolIdentity      `json:"created_by_tool"`
-	ExportProfile     string                               `json:"export_profile"`
-	Scope             AuditEvidenceBundleScope             `json:"scope"`
-	InstanceIdentity  string                               `json:"instance_identity_digest,omitempty"`
-	IncludedObjects   []AuditEvidenceBundleIncludedObject  `json:"included_objects,omitempty"`
-	RootDigests       []string                             `json:"root_digests,omitempty"`
-	SealReferences    []AuditEvidenceBundleSealReference   `json:"seal_references,omitempty"`
-	VerifierIdentity  AuditEvidenceBundleVerifierIdentity  `json:"verifier_identity"`
-	TrustRootDigests  []string                             `json:"trust_root_digests,omitempty"`
-	DisclosurePosture AuditEvidenceBundleDisclosurePosture `json:"disclosure_posture"`
-	Redactions        []AuditEvidenceBundleRedaction       `json:"redactions,omitempty"`
+	SchemaID          string                                `json:"schema_id"`
+	SchemaVersion     string                                `json:"schema_version"`
+	BundleID          string                                `json:"bundle_id"`
+	CreatedAt         string                                `json:"created_at"`
+	CreatedByTool     AuditEvidenceBundleToolIdentity       `json:"created_by_tool"`
+	ExportProfile     string                                `json:"export_profile"`
+	Scope             AuditEvidenceBundleScope              `json:"scope"`
+	ControlPlane      *AuditEvidenceBundleControlProvenance `json:"control_plane_provenance,omitempty"`
+	InstanceIdentity  string                                `json:"instance_identity_digest,omitempty"`
+	IncludedObjects   []AuditEvidenceBundleIncludedObject   `json:"included_objects,omitempty"`
+	RootDigests       []string                              `json:"root_digests,omitempty"`
+	SealReferences    []AuditEvidenceBundleSealReference    `json:"seal_references,omitempty"`
+	VerifierIdentity  AuditEvidenceBundleVerifierIdentity   `json:"verifier_identity"`
+	TrustRootDigests  []string                              `json:"trust_root_digests,omitempty"`
+	DisclosurePosture AuditEvidenceBundleDisclosurePosture  `json:"disclosure_posture"`
+	Redactions        []AuditEvidenceBundleRedaction        `json:"redactions,omitempty"`
 }
 
 type AuditEvidenceBundleToolIdentity struct {
@@ -181,6 +182,15 @@ type AuditEvidenceBundleToolIdentity struct {
 	ToolVersion                string `json:"tool_version"`
 	BuildRevision              string `json:"build_revision,omitempty"`
 	ProtocolBundleManifestHash string `json:"protocol_bundle_manifest_hash,omitempty"`
+}
+
+type AuditEvidenceBundleControlProvenance struct {
+	WorkflowDefinitionHash string `json:"workflow_definition_hash,omitempty"`
+	ToolManifestDigest     string `json:"tool_manifest_digest,omitempty"`
+	PromptTemplateDigest   string `json:"prompt_template_digest,omitempty"`
+	ProtocolBundleHash     string `json:"protocol_bundle_manifest_hash,omitempty"`
+	VerifierImplDigest     string `json:"verifier_implementation_digest,omitempty"`
+	TrustPolicyDigest      string `json:"trust_policy_digest,omitempty"`
 }
 
 type AuditEvidenceBundleScope struct {

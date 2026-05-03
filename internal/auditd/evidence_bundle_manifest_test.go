@@ -168,6 +168,18 @@ func assertExternalRelyingPartyManifestEvidence(t *testing.T, manifest AuditEvid
 	if len(manifest.TrustRootDigests) == 0 {
 		t.Fatal("trust_root_digests empty, want trust roots")
 	}
+	if manifest.ControlPlane == nil {
+		t.Fatal("control_plane_provenance missing, want trusted control-plane digests")
+	}
+	if strings.TrimSpace(manifest.ControlPlane.ProtocolBundleHash) == "" {
+		t.Fatal("control_plane_provenance.protocol_bundle_manifest_hash empty, want protocol bundle identity")
+	}
+	if strings.TrimSpace(manifest.ControlPlane.VerifierImplDigest) == "" {
+		t.Fatal("control_plane_provenance.verifier_implementation_digest empty, want verifier implementation identity")
+	}
+	if strings.TrimSpace(manifest.ControlPlane.TrustPolicyDigest) == "" {
+		t.Fatal("control_plane_provenance.trust_policy_digest empty, want trust-policy identity")
+	}
 }
 
 func assertExternalRelyingPartyDisclosure(t *testing.T, manifest AuditEvidenceBundleManifest) {

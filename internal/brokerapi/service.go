@@ -67,6 +67,7 @@ func NewServiceWithConfig(storeRoot string, ledgerRoot string, cfg APIConfig) (*
 	svc := newConfiguredService(store, ledger, ledgerRoot, auditor, resolved)
 	if secretsSvc, secretsErr := openLocalSecretsService(); secretsErr == nil {
 		svc.secretsSvc = secretsSvc
+		svc.bindSecretsLeaseAuditHook()
 	}
 	svc.providerSetup = newProviderSetupState(time.Now)
 	authority := projectsubstrate.RepoRootAuthorityProcessWorkingDirectory

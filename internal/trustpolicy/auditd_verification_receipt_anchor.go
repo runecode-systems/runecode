@@ -151,14 +151,14 @@ func validateAnchorApprovalLinkAndPosture(payload anchorReceiptPayload) error {
 }
 
 func validateReceiptSignerContract(receipt auditReceiptPayloadStrict, verifier VerifierRecord) error {
-	if receipt.AuditReceiptKind != "anchor" {
+	if !receiptRequiresAnchorStyleVerifier(receipt.AuditReceiptKind) {
 		return nil
 	}
-	if verifier.LogicalPurpose != "audit_anchor" {
-		return fmt.Errorf("anchor receipts require verifier logical_purpose audit_anchor")
+	if err := validateAnchorStyleVerifier(verifier); err != nil {
+		return err
 	}
-	if verifier.LogicalScope != "node" && verifier.LogicalScope != "deployment" {
-		return fmt.Errorf("anchor receipts require verifier logical_scope node or deployment")
+	if receipt.AuditReceiptKind != "anchor" {
+		return nil
 	}
 	payload := anchorReceiptPayload{}
 	if err := unmarshalJSONStrict(receipt.ReceiptPayload, &payload); err != nil {
@@ -172,6 +172,43 @@ func validateReceiptSignerContract(receipt auditReceiptPayloadStrict, verifier V
 	}
 	if payload.PresenceMode != verifier.PresenceMode {
 		return fmt.Errorf("anchor presence_mode %q does not match verifier presence_mode %q", payload.PresenceMode, verifier.PresenceMode)
+	}
+	return nil
+}
+
+func receiptRequiresAnchorStyleVerifier(kind string) bool {
+	switch kind {
+	case "anchor",
+		auditReceiptKindProviderInvocationAuthorized,
+		auditReceiptKindProviderInvocationDenied,
+		auditReceiptKindSecretLeaseIssued,
+		auditReceiptKindSecretLeaseRevoked,
+		auditReceiptKindRuntimeSummary,
+		auditReceiptKindDegradedPostureSummary,
+		auditReceiptKindNegativeCapabilitySummary,
+		auditReceiptKindEvidenceBundleExport,
+		auditReceiptKindEvidenceImport,
+		auditReceiptKindEvidenceRestore,
+		auditReceiptKindRetentionPolicyChanged,
+		auditReceiptKindArchivalOperation,
+		auditReceiptKindVerifierConfigurationChanged,
+		auditReceiptKindTrustRootUpdated,
+		auditReceiptKindSensitiveEvidenceView:
+		return true
+	default:
+		return false
+	}
+}
+
+func validateAnchorStyleVerifier(verifier VerifierRecord) error {
+	if verifier.LogicalPurpose != "audit_anchor" {
+		return fmt.Errorf("runtime provenance receipts require verifier logical_purpose audit_anchor")
+	}
+	if verifier.LogicalScope != "node" && verifier.LogicalScope != "deployment" {
+		return fmt.Errorf("runtime provenance receipts require verifier logical_scope node or deployment")
+	}
+	if verifier.KeyProtectionPosture == "ephemeral_memory" && verifier.IdentityBindingPosture == "tofu" && verifier.PresenceMode == "none" {
+		return fmt.Errorf("runtime provenance receipts must not use ephemeral tofu verifier posture")
 	}
 	return nil
 }

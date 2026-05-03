@@ -54,6 +54,9 @@ func (l *Ledger) loadSealEnvelopeForSegmentLocked(segmentID string) (trustpolicy
 		if !ok || payload.SealChainIndex < bestIndex {
 			continue
 		}
+		if err := validateSealEnvelopeCandidate(envelope); err != nil {
+			continue
+		}
 		bestIndex = payload.SealChainIndex
 		bestEnvelope = envelope
 		bestPayload = payload
@@ -81,6 +84,9 @@ func (l *Ledger) sealEntryForSegment(name string, segmentID string) (trustpolicy
 		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.AuditSegmentSealPayload{}, trustpolicy.Digest{}, false, nil
 	}
 	digest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.TrimSuffix(name, ".json")}
+	if err := validateSealFilenameDigest(envelope, digest); err != nil {
+		return trustpolicy.SignedObjectEnvelope{}, trustpolicy.AuditSegmentSealPayload{}, trustpolicy.Digest{}, false, err
+	}
 	return envelope, payload, digest, true, nil
 }
 
@@ -119,5 +125,27 @@ func (l *Ledger) sealDigestByIndexEntry(name string, index int64) (trustpolicy.D
 	if payload.SealChainIndex != index {
 		return trustpolicy.Digest{}, false, nil
 	}
-	return trustpolicy.Digest{HashAlg: "sha256", Hash: strings.TrimSuffix(name, ".json")}, true, nil
+	digest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.TrimSuffix(name, ".json")}
+	if err := validateSealFilenameDigest(envelope, digest); err != nil {
+		return trustpolicy.Digest{}, false, err
+	}
+	return digest, true, nil
+}
+
+func validateSealFilenameDigest(envelope trustpolicy.SignedObjectEnvelope, want trustpolicy.Digest) error {
+	computed, err := trustpolicy.ComputeSignedEnvelopeAuditRecordDigest(envelope)
+	if err != nil {
+		return err
+	}
+	if mustDigestIdentity(computed) != mustDigestIdentity(want) {
+		return fmt.Errorf("seal filename digest does not match envelope digest")
+	}
+	return nil
+}
+
+func validateSealEnvelopeCandidate(envelope trustpolicy.SignedObjectEnvelope) error {
+	if envelope.PayloadSchemaID != trustpolicy.AuditSegmentSealSchemaID {
+		return fmt.Errorf("candidate seal envelope uses unexpected payload schema")
+	}
+	return nil
 }

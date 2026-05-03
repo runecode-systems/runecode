@@ -1,3 +1,5 @@
+//go:build runecode_devseed
+
 package brokerapi
 
 import (
@@ -68,10 +70,6 @@ func ensureDevManualLedgerDirs(root string) (string, error) {
 		}
 	}
 	return validatedRoot, nil
-}
-
-func devManualLedgerSeedMarkerPath(root string) string {
-	return filepath.Join(root, "contracts", "dev-manual-seed.marker")
 }
 
 func writeDevManualSeedMarker(root string) error {

@@ -120,6 +120,7 @@ func (s *Service) resolveCurrentPendingApproval(requestID string, req ApprovalRe
 	if errResp := validateBoundScopeMatchesStored(requestID, current.Summary.BoundScope, req.BoundScope, s); errResp != nil {
 		return approvalRecord{}, errResp
 	}
+	populateApprovalEvidenceDigests(&current)
 	return current, nil
 }
 
