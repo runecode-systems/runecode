@@ -21,6 +21,9 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 - Project Performance Baselines + Verification Gates v0
   - RuneCode establishes the deferred broader performance program after the alpha.7 TUI waiting-state repaint fix: deterministic CI gates for TUI idle and waiting behavior, broker APIs and watch families, runner and workflow execution, launcher startup, gateway overhead, audit and protocol verification, and end-to-end attach or resume flows.
   - Planned change: `runecontext/changes/CHG-2026-053-9d2b-performance-baselines-verification-gates-v0/`
+- Cross-Machine Evidence Replication + Restore v0
+  - RuneCode can replicate immutable canonical evidence and signed replication checkpoints across machines, restore missing evidence from remote durability targets, thin local historical storage safely, and block publication-sensitive actions until evidence durability is healthy.
+  - Planned change: `runecontext/changes/CHG-2026-059-7b31-cross-machine-evidence-replication-restore-v0/`
 
 ### v0.2 (Post-MVP)
 
