@@ -13,6 +13,7 @@
 - Confirm authenticated external anchor submissions align with the shared remote-state-mutation gateway class rather than an external-only outbound category.
 - Confirm target identity uses typed exact-match semantics rather than raw URL-only policy.
 - Confirm the change explicitly decides `v0` external anchor submission uses exact-action approval per submission and reserves signed-manifest automation as an additive later posture over the same typed request path.
+- Confirm the change remains compatible with `CHG-2026-059-7b31-cross-machine-evidence-replication-restore-v0` by preserving one shared trusted prepare, execute, and reconcile recovery model for remote-state mutation rather than introducing an anchor-local exception path.
 - Confirm authenticated target access, if any, remains lease-bound through the shared secrets model.
 - Confirm audit evidence includes canonical target identity, anchoring subject identity, outbound payload or subject hash, bytes, timing, outcome, and relevant lease or policy bindings.
 - Confirm anchored audit chains preserve attestation evidence and verification references when attested runtime evidence is part of the anchored subject rather than flattening those references away.

@@ -29,6 +29,7 @@
 - [ ] Keep `v0` external anchor submission as an exact-action approval boundary per outbound submission when remote target state is mutated.
 - [ ] Shape later signed-manifest automation as an additive posture that reuses the same typed prepared and execute path, request hashes, policy bindings, and lease bindings rather than creating an automation-only route.
 - [ ] Bind exact-action approval to the canonical typed external anchor request hash and canonical target descriptor identity.
+- [ ] Keep later external anchor execution compatible with `CHG-2026-059-7b31-cross-machine-evidence-replication-restore-v0` so any future durability barrier or remote-state-mutation recovery requirement reuses the shared trusted prepare, execute, and reconcile model rather than inventing an anchor-local exception path.
 
 ## Execution Lifecycle And Performance Foundation
 

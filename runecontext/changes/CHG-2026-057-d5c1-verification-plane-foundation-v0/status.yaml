@@ -15,6 +15,7 @@ related_changes:
   - CHG-2026-055-546a-verification-evidence-preservation-bundle-export-v0
   - CHG-2026-056-8c75-audit-evidence-index-record-inclusion-v0
   - CHG-2026-058-04e9-verification-coverage-expansion-v0
+  - CHG-2026-059-7b31-cross-machine-evidence-replication-restore-v0
 depends_on:
   - CHG-2026-003-b567-audit-log-v0-verify
   - CHG-2026-008-62e1-broker-local-api-v0
