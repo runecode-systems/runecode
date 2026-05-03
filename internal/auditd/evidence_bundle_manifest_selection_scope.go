@@ -34,13 +34,64 @@ func (l *Ledger) resolveEvidenceBundleSegmentIDsForScope(index derivedIndex, sco
 	switch scopeKind := strings.TrimSpace(scope.ScopeKind); scopeKind {
 	case "run":
 		return l.selectEvidenceBundleSegmentsForRunLocked(index, scope.RunID)
-	case "artifact", "incident":
-		return nil, fmt.Errorf("bundle scope_kind %q is not yet supported for deterministic segment resolution in this lane", scopeKind)
+	case "artifact":
+		return l.selectEvidenceBundleSegmentsForArtifactLocked(index, scope.ArtifactDigests)
+	case "incident":
+		return l.selectEvidenceBundleSegmentsForIncidentLocked(index, scope.IncidentID)
 	case "auditor_minimal", "operator_private", "external_relying_party":
 		return allSealedSegments, nil
 	default:
 		return nil, fmt.Errorf("unsupported bundle scope_kind %q", scopeKind)
 	}
+}
+
+func (l *Ledger) selectEvidenceBundleSegmentsForArtifactLocked(index derivedIndex, artifactDigests []string) ([]string, error) {
+	segmentSet := map[string]struct{}{}
+	normalizedDigests := normalizeIdentityList(artifactDigests)
+	for i := range normalizedDigests {
+		matched, err := l.artifactDigestSegmentIDsLocked(index, normalizedDigests[i])
+		if err != nil {
+			return nil, err
+		}
+		if len(matched) == 0 {
+			return nil, fmt.Errorf("bundle scope artifact digest %q has no sealed evidence", normalizedDigests[i])
+		}
+		for j := range matched {
+			segmentSet[matched[j]] = struct{}{}
+		}
+	}
+	if len(segmentSet) == 0 {
+		return nil, fmt.Errorf("bundle scope artifact has no sealed evidence")
+	}
+	out := make([]string, 0, len(segmentSet))
+	for segmentID := range segmentSet {
+		out = append(out, segmentID)
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+func (l *Ledger) selectEvidenceBundleSegmentsForIncidentLocked(index derivedIndex, incidentID string) ([]string, error) {
+	incidentID = strings.TrimSpace(incidentID)
+	matchedSet := map[string]struct{}{}
+	for segmentID := range index.SegmentSealLookup {
+		hasIncident, err := l.segmentContainsIncidentIDLocked(segmentID, incidentID)
+		if err != nil {
+			return nil, err
+		}
+		if hasIncident {
+			matchedSet[segmentID] = struct{}{}
+		}
+	}
+	if len(matchedSet) == 0 {
+		return nil, fmt.Errorf("bundle scope incident_id %q has no sealed evidence", incidentID)
+	}
+	matched := make([]string, 0, len(matchedSet))
+	for segmentID := range matchedSet {
+		matched = append(matched, segmentID)
+	}
+	sort.Strings(matched)
+	return matched, nil
 }
 
 func (l *Ledger) selectEvidenceBundleSegmentsForRunLocked(index derivedIndex, runID string) ([]string, error) {

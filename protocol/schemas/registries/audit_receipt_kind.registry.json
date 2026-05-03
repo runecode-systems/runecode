@@ -30,6 +30,22 @@
       "summary": "Receipt attesting a denied provider invocation authorization decision as first-class evidence."
     },
     {
+      "code": "approval_resolution",
+      "summary": "Receipt attesting canonical approval-resolution evidence including basis digests and approver identity binding when present."
+    },
+    {
+      "code": "approval_consumption",
+      "summary": "Receipt attesting canonical approval-consumption linkage for production-affecting operations that consumed prior approval." 
+    },
+    {
+      "code": "artifact_published",
+      "summary": "Receipt attesting canonical publication evidence for approved artifacts and linked approval decision/consumption digests."
+    },
+    {
+      "code": "override_or_break_glass",
+      "summary": "Receipt attesting explicit override or break-glass evidence posture for policy exceptions and degraded assurance paths."
+    },
+    {
       "code": "secret_lease_issued",
       "summary": "Receipt attesting secret lease issuance using digest identities for lease and binding metadata."
     },

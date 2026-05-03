@@ -32,6 +32,9 @@ func providerInvocationReceiptPayloadMap(runID string, outcome string, decisionR
 	receiptPayload := map[string]any{
 		"authorization_outcome": outcome,
 		"provider_kind":         providerKindForGatewayPayload(payload),
+		"provider_profile_id":   strings.TrimSpace(payload.ProviderProfileID),
+		"model_id":              strings.TrimSpace(payload.ModelID),
+		"endpoint_identity":     strings.TrimSpace(payload.EndpointIdentity),
 		"gateway_role_kind":     strings.TrimSpace(payload.GatewayRoleKind),
 		"destination_kind":      strings.TrimSpace(payload.DestinationKind),
 		"operation":             strings.TrimSpace(payload.Operation),
@@ -42,6 +45,15 @@ func providerInvocationReceiptPayloadMap(runID string, outcome string, decisionR
 	}
 	appendProviderInvocationAuditContext(receiptPayload, payload)
 	appendProviderInvocationAllowlist(receiptPayload, match)
+	if strings.TrimSpace(payload.ProviderProfileID) == "" {
+		delete(receiptPayload, "provider_profile_id")
+	}
+	if strings.TrimSpace(payload.ModelID) == "" {
+		delete(receiptPayload, "model_id")
+	}
+	if strings.TrimSpace(payload.EndpointIdentity) == "" {
+		delete(receiptPayload, "endpoint_identity")
+	}
 	return receiptPayload, nil
 }
 

@@ -5,7 +5,7 @@
   "description": "Typed preservation manifest listing canonical evidence identities required for retention, export planning, and verification backfill checks. This manifest is not a substitute for underlying evidence objects.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 19,
+  "maxProperties": 28,
   "required": [
     "schema_id",
     "schema_version",
@@ -83,6 +83,41 @@
     "runtime_evidence_digests": {
       "$ref": "#/$defs/digestList",
       "description": "Runtime/signer evidence digests needed for verification context.",
+      "x-data-class": "public"
+    },
+    "verifier_record_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Verifier record-set digest identities required for offline re-verification.",
+      "x-data-class": "public"
+    },
+    "event_contract_catalog_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Event-contract catalog digest identities required for offline re-verification.",
+      "x-data-class": "public"
+    },
+    "signer_evidence_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Signer evidence digest identities preserved for verifier input reconstruction.",
+      "x-data-class": "public"
+    },
+    "storage_posture_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Storage-posture evidence digest identities where emitted.",
+      "x-data-class": "public"
+    },
+    "typed_request_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Typed-request digest identities required for replay and restore workflows where emitted.",
+      "x-data-class": "public"
+    },
+    "action_request_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Action-request digest identities required for replay and restore workflows where emitted.",
+      "x-data-class": "public"
+    },
+    "control_plane_digests": {
+      "$ref": "#/$defs/digestList",
+      "description": "Control-plane and verification-contract digest identities preserved for offline verification context.",
       "x-data-class": "public"
     },
     "attestation_evidence_digests": {

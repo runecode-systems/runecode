@@ -79,6 +79,21 @@ func validateProviderInvocationOptionalDigests(payload providerInvocationReceipt
 			return err
 		}
 	}
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{name: "provider_profile_id", value: payload.ProviderProfileID},
+		{name: "model_id", value: payload.ModelID},
+		{name: "endpoint_identity", value: payload.EndpointIdentity},
+	} {
+		if strings.TrimSpace(field.value) == "" {
+			continue
+		}
+		if strings.ContainsAny(field.value, "\n\r\t") {
+			return fmt.Errorf("%s contains unsupported control whitespace", field.name)
+		}
+	}
 	return nil
 }
 

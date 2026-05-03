@@ -129,7 +129,7 @@ func TestSensitiveEvidenceFilesAreOwnerReadWriteOnly(t *testing.T) {
 
 	paths := []string{
 		filepath.Join(root, stateFileName),
-		filepath.Join(root, indexDirName, auditEvidenceIndexFileName),
+		filepath.Join(root, indexDirName, indexMetaFileName),
 	}
 	for _, path := range paths {
 		assertOwnerReadWriteOnlyFile(t, path)

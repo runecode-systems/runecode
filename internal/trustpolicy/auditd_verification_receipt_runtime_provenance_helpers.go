@@ -53,6 +53,20 @@ func validateMetaAuditActionOperator(operator *PrincipalIdentity) error {
 	return nil
 }
 
+func validatePrincipalIdentityOptional(identity *PrincipalIdentity, field string) error {
+	if identity == nil {
+		return nil
+	}
+	raw, err := json.Marshal(identity)
+	if err != nil {
+		return fmt.Errorf("%s marshal failed: %w", field, err)
+	}
+	if err := validateReceiptRecorder(raw); err != nil {
+		return fmt.Errorf("%s: %w", field, err)
+	}
+	return nil
+}
+
 func validateOptionalReceiptDigestField(d *Digest, field string) error {
 	if d == nil {
 		return nil

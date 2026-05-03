@@ -60,6 +60,7 @@ func verifyAuditEvidenceBundleContents(bundle offlineBundleSnapshot) ([]AuditEvi
 	findings = append(findings, objectFindings...)
 	reports = append(reports, reportPostures...)
 	findings = append(findings, verifyOfflineBundleReportCoverage(bundle, reports)...)
+	findings = append(findings, verifyOfflineBundleRecomputation(bundle)...)
 	sortOfflineFindings(findings)
 	sort.Slice(reports, func(i, j int) bool { return reports[i].Digest < reports[j].Digest })
 	return findings, reports

@@ -65,7 +65,7 @@ func validateManifestControlPlane(controlPlane *AuditEvidenceBundleControlProven
 }
 
 func (l *Ledger) evidenceBundleInstanceIdentityLocked() (string, error) {
-	_, _, _, _, instanceIdentityDigests, err := l.externalAnchorDerivedEvidenceIdentitiesLocked()
+	_, _, _, _, _, _, _, instanceIdentityDigests, _, _, err := l.externalAnchorDerivedEvidenceIdentitiesLocked()
 	if err != nil {
 		return "", err
 	}

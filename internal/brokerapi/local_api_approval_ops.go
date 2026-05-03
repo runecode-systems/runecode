@@ -59,13 +59,13 @@ func (s *Service) resolveApprovalResponse(ctx context.Context, requestID string,
 		errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, err.Error())
 		return ApprovalResolveResponse{}, &errOut
 	}
-	if errResp := s.persistApprovalFollowUps(ctx, requestID, resolved.record, resp.ResolutionReasonCode); errResp != nil {
+	if errResp := s.persistApprovalFollowUps(ctx, requestID, resolved.record, resp.ResolutionReasonCode, resp.ApprovedArtifact); errResp != nil {
 		return ApprovalResolveResponse{}, errResp
 	}
 	return resp, nil
 }
 
-func (s *Service) persistApprovalFollowUps(ctx context.Context, requestID string, record approvalRecord, resolutionReason string) *ErrorResponse {
+func (s *Service) persistApprovalFollowUps(ctx context.Context, requestID string, record approvalRecord, resolutionReason string, approvedArtifact *ArtifactSummary) *ErrorResponse {
 	if errResp := s.requestContextError(requestID, ctx); errResp != nil {
 		return errResp
 	}
@@ -73,6 +73,7 @@ func (s *Service) persistApprovalFollowUps(ctx context.Context, requestID string
 		errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, err.Error())
 		return &errOut
 	}
+	s.persistApprovalResolutionReceipts(record, resolutionReason, approvedArtifact)
 	runID := strings.TrimSpace(record.Summary.BoundScope.RunID)
 	if runID == "" {
 		return nil

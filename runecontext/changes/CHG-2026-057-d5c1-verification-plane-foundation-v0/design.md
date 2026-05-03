@@ -304,6 +304,8 @@ This layer binds execution claims to runtime evidence. It must preserve image id
 ### Evidence Bundle Layer
 This layer turns local evidence into portable evidence. It should support run-scoped bundles, artifact-scoped bundles, incident-scoped bundles, auditor-minimal bundles, operator-private bundles, and external relying-party bundles.
 
+Independent verification in this layer means more than checking archive integrity or replaying an included report payload. The foundation should support recomputing verification conclusions from exported canonical evidence alone when the bundle carries the required verification inputs, and should fail closed or degrade explicitly when the bundle omits evidence needed for that recomputation.
+
 This layer is implemented by `CHG-2026-055-546a-verification-evidence-preservation-bundle-export-v0`.
 
 ### Derived Views Layer
@@ -341,6 +343,8 @@ This layer powers UI timelines, audit search, watch views, SIEM exports, and com
 - search materializations
 - cache entries
 - alert summaries
+
+These derived surfaces may use different cache sizes, queue depth, and storage backends across constrained and scaled environments, but they must preserve the same trust roots, verification semantics, evidence objects, and failure posture everywhere.
 
 ## Canonical Evidence Object Families
 The foundation should reuse existing object families on `main` where they already fit and add new families only where the current model has a clear gap.
@@ -382,6 +386,8 @@ Recommended initial receipt kinds are:
 - `network_usage_summary`
 - `secret_usage_summary`
 - `verification_finalize`
+
+These receipt families should land as canonical protocol and trusted-code work rather than as UI-only summaries. Approval resolution, approval consumption, publication, boundary, override, and summary evidence should remain first-class canonical evidence whenever they express authority, side effects, or explicit absence claims.
 
 ## Privacy And Selective Disclosure
 RuneCode is not primarily a privacy product, but the verification plane still must avoid oversharing.
@@ -438,6 +444,13 @@ Minimum public execution identity fields are:
 - attestation evidence digest where present
 - attestation verification record digest where present
 
+Recommended minimum preserved execution evidence fields additionally include:
+
+- isolate identity
+- backend kind
+- launch context digest
+- handshake transcript digest or equivalent session-establishment binding
+
 ## Meta-Audit, Completeness, And Negative Evidence
 RuneCode should audit the audit plane itself where security and compliance care. That includes evidence export, import, restore, retention changes, trust-root updates, verifier configuration changes, and sensitive evidence views where appropriate.
 
@@ -449,6 +462,8 @@ Important examples include:
 - if an artifact crossed a boundary, an authorization receipt must exist
 - if a production-affecting mutation happened, approval or explicit policy-exception evidence must exist
 - if a run claims no network egress, a final network summary receipt should support that claim
+
+Completeness checks should also cover the case where a production-affecting mutation, publication, or boundary-crossing side effect occurred without the required approval or explicit policy-exception evidence.
 
 ## Gaps The Foundation Must Close
 - control-plane provenance gap
@@ -503,6 +518,12 @@ Performance guidance:
 - make bundle export streaming-friendly
 - make index rebuild possible from canonical evidence
 
+Recommended additional foundation guidance:
+
+- avoid derived-index implementations that rewrite a monolithic state file on every append or seal at large scale
+- prefer append-friendly or sharded trusted derived storage so hot-path work remains close to constant time without changing trust semantics
+- keep record-inclusion material compact where possible so exported evidence remains practical on constrained devices and scaled systems alike
+
 Concrete foundation targets:
 
 - routine evidence append should stay near constant time with respect to historical ledger size
@@ -549,6 +570,7 @@ The exact filenames may differ, but the recommended responsibility split is:
 - bundle export helpers
 - verification report strengthening
 - canonical sidecar persistence for new evidence classes
+- offline verification replay from exported canonical evidence
 
 ### `internal/brokerapi/`
 - read-only trusted local API for record inclusion
@@ -567,6 +589,8 @@ The exact filenames may differ, but the recommended responsibility split is:
 - bundle completeness tests
 - degraded-posture tests
 - fail-closed tests for missing required evidence
+- performance regression checks for append, inclusion lookup, export, and verification-report retrieval
+- invariant and model-check updates where verification-plane foundation logic changes critical audit or approval bindings
 
 ## Experimental Concepts To Generalize
 The foundation should bring back these concepts in generalized form:

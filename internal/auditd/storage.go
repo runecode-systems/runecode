@@ -19,8 +19,13 @@ const (
 	externalAnchorSidecarsDir  = "external-anchor-sidecars"
 	verificationReportsDirName = "verification-reports"
 	indexDirName               = "index"
+	indexMetaFileName          = "audit-evidence-index-meta.json"
 	stateFileName              = "state.json"
 	auditEvidenceIndexFileName = "audit-evidence-index.json"
+	indexRecordLookupDirName   = "record-digest-lookup"
+	indexSegmentSealDirName    = "segment-seal-lookup"
+	indexSealChainDirName      = "seal-chain-index-lookup"
+	indexRunTimelineDirName    = "run-timeline"
 )
 
 var renameFile = os.Rename

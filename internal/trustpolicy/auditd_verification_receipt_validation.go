@@ -91,21 +91,35 @@ func validateAuditReceiptPayload(receipt auditReceiptPayloadStrict) error {
 	if err := validateAuditReceiptPayloadPresence(receipt); err != nil {
 		return err
 	}
-	switch receipt.AuditReceiptKind {
+	validator := auditReceiptPayloadValidator(receipt.AuditReceiptKind)
+	if validator == nil {
+		return fmt.Errorf("unsupported audit_receipt_kind %q for payload validation", receipt.AuditReceiptKind)
+	}
+	return validator(receipt)
+}
+
+func auditReceiptPayloadValidator(kind string) func(auditReceiptPayloadStrict) error {
+	switch kind {
 	case "anchor":
-		return validateAnchorReceiptPayload(receipt)
+		return validateAnchorReceiptPayload
 	case "import", "restore", "reconciliation":
-		return validateImportRestoreReceiptPayload(receipt)
+		return validateImportRestoreReceiptPayload
 	case auditReceiptKindProviderInvocationAuthorized, auditReceiptKindProviderInvocationDenied:
-		return validateProviderInvocationReceiptPayload(receipt)
+		return validateProviderInvocationReceiptPayload
+	case auditReceiptKindApprovalResolution, auditReceiptKindApprovalConsumption:
+		return validateApprovalEvidenceReceiptPayload
+	case auditReceiptKindArtifactPublished:
+		return validatePublicationEvidenceReceiptPayload
+	case auditReceiptKindOverrideOrBreakGlass:
+		return validateOverrideEvidenceReceiptPayload
 	case auditReceiptKindSecretLeaseIssued, auditReceiptKindSecretLeaseRevoked:
-		return validateSecretLeaseReceiptPayload(receipt)
+		return validateSecretLeaseReceiptPayload
 	case auditReceiptKindRuntimeSummary:
-		return validateRuntimeSummaryReceiptPayload(receipt)
+		return validateRuntimeSummaryReceiptPayload
 	case auditReceiptKindDegradedPostureSummary:
-		return validateDegradedPostureSummaryReceiptPayload(receipt)
+		return validateDegradedPostureSummaryReceiptPayload
 	case auditReceiptKindNegativeCapabilitySummary:
-		return validateNegativeCapabilitySummaryReceiptPayload(receipt)
+		return validateNegativeCapabilitySummaryReceiptPayload
 	case auditReceiptKindEvidenceBundleExport,
 		auditReceiptKindEvidenceImport,
 		auditReceiptKindEvidenceRestore,
@@ -114,9 +128,9 @@ func validateAuditReceiptPayload(receipt auditReceiptPayloadStrict) error {
 		auditReceiptKindVerifierConfigurationChanged,
 		auditReceiptKindTrustRootUpdated,
 		auditReceiptKindSensitiveEvidenceView:
-		return validateMetaAuditActionReceiptPayload(receipt)
+		return validateMetaAuditActionReceiptPayload
 	default:
-		return fmt.Errorf("unsupported audit_receipt_kind %q for payload validation", receipt.AuditReceiptKind)
+		return nil
 	}
 }
 
@@ -163,6 +177,10 @@ func supportedAuditReceiptKinds() map[string]struct{} {
 		"reconciliation": {},
 		auditReceiptKindProviderInvocationAuthorized: {},
 		auditReceiptKindProviderInvocationDenied:     {},
+		auditReceiptKindApprovalResolution:           {},
+		auditReceiptKindApprovalConsumption:          {},
+		auditReceiptKindArtifactPublished:            {},
+		auditReceiptKindOverrideOrBreakGlass:         {},
 		auditReceiptKindSecretLeaseIssued:            {},
 		auditReceiptKindSecretLeaseRevoked:           {},
 		auditReceiptKindRuntimeSummary:               {},

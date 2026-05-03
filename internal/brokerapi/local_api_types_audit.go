@@ -150,5 +150,6 @@ type AuditRecordInclusionOrderedMerkle struct {
 	LeafIndex            int                  `json:"leaf_index"`
 	LeafCount            int                  `json:"leaf_count"`
 	SegmentMerkleRoot    trustpolicy.Digest   `json:"segment_merkle_root"`
-	SegmentRecordDigests []trustpolicy.Digest `json:"segment_record_digests"`
+	SegmentRecordDigests []trustpolicy.Digest `json:"segment_record_digests,omitempty"`
+	CompactPath          []trustpolicy.Digest `json:"compact_path,omitempty"`
 }

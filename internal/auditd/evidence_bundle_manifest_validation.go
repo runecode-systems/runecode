@@ -16,6 +16,7 @@ type evidenceBundleProfilePolicy struct {
 	IncludeReceipts            bool
 	IncludeVerificationReports bool
 	IncludeExternalAnchor      bool
+	IncludeVerificationInputs  bool
 	DefaultPosture             string
 	SelectiveDisclosure        bool
 }
@@ -23,13 +24,13 @@ type evidenceBundleProfilePolicy struct {
 func evidenceBundleExportProfilePolicy(exportProfile string) (evidenceBundleProfilePolicy, error) {
 	switch strings.TrimSpace(exportProfile) {
 	case "external_relying_party_minimal":
-		return evidenceBundleProfilePolicy{Name: "external_relying_party_minimal", IncludeSegments: false, IncludeReceipts: false, IncludeVerificationReports: true, IncludeExternalAnchor: true, DefaultPosture: "digest_metadata_only", SelectiveDisclosure: true}, nil
+		return evidenceBundleProfilePolicy{Name: "external_relying_party_minimal", IncludeSegments: false, IncludeReceipts: false, IncludeVerificationReports: true, IncludeExternalAnchor: true, IncludeVerificationInputs: true, DefaultPosture: "digest_metadata_only", SelectiveDisclosure: true}, nil
 	case "company_internal_audit":
-		return evidenceBundleProfilePolicy{Name: "company_internal_audit", IncludeSegments: false, IncludeReceipts: true, IncludeVerificationReports: true, IncludeExternalAnchor: true, DefaultPosture: "digest_metadata_only", SelectiveDisclosure: true}, nil
+		return evidenceBundleProfilePolicy{Name: "company_internal_audit", IncludeSegments: false, IncludeReceipts: true, IncludeVerificationReports: true, IncludeExternalAnchor: true, IncludeVerificationInputs: true, DefaultPosture: "digest_metadata_only", SelectiveDisclosure: true}, nil
 	case "incident_response_scope":
-		return evidenceBundleProfilePolicy{Name: "incident_response_scope", IncludeSegments: true, IncludeReceipts: true, IncludeVerificationReports: true, IncludeExternalAnchor: true, DefaultPosture: "operator_private", SelectiveDisclosure: true}, nil
+		return evidenceBundleProfilePolicy{Name: "incident_response_scope", IncludeSegments: true, IncludeReceipts: true, IncludeVerificationReports: true, IncludeExternalAnchor: true, IncludeVerificationInputs: true, DefaultPosture: "operator_private", SelectiveDisclosure: true}, nil
 	case "operator_private_full":
-		return evidenceBundleProfilePolicy{Name: "operator_private_full", IncludeSegments: true, IncludeReceipts: true, IncludeVerificationReports: true, IncludeExternalAnchor: true, DefaultPosture: "operator_private", SelectiveDisclosure: false}, nil
+		return evidenceBundleProfilePolicy{Name: "operator_private_full", IncludeSegments: true, IncludeReceipts: true, IncludeVerificationReports: true, IncludeExternalAnchor: true, IncludeVerificationInputs: true, DefaultPosture: "operator_private", SelectiveDisclosure: false}, nil
 	default:
 		return evidenceBundleProfilePolicy{}, fmt.Errorf("unsupported export profile %q", strings.TrimSpace(exportProfile))
 	}

@@ -196,7 +196,7 @@
           "minLength": 1,
           "maxLength": 128,
           "pattern": "^[a-z][a-z0-9_]*$",
-          "enum": ["audit_segment", "audit_segment_seal", "audit_receipt", "audit_verification_report", "external_anchor_evidence", "external_anchor_sidecar"],
+          "enum": ["audit_segment", "audit_segment_seal", "audit_receipt", "audit_verification_report", "external_anchor_evidence", "external_anchor_sidecar", "event_contract_catalog", "verifier_record_set", "signer_evidence", "storage_posture"],
           "description": "Included object family.",
           "x-data-class": "public"
         },
@@ -209,6 +209,7 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 1024,
+          "pattern": "^[A-Za-z0-9._/-]+$",
           "description": "Portable bundle path for this object.",
           "x-data-class": "public"
         },
