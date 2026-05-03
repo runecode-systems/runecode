@@ -1,6 +1,8 @@
 package auditd
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,6 +44,12 @@ func (l *Ledger) recoverStateLocked() (ledgerState, error) {
 	if err := l.attachSealAndIndexStateLocked(&state); err != nil {
 		return ledgerState{}, err
 	}
+	if persisted, loadErr := l.loadState(); loadErr == nil && strings.TrimSpace(persisted.LedgerIdentity) != "" {
+		state.LedgerIdentity = strings.TrimSpace(persisted.LedgerIdentity)
+	}
+	if err := ensureLedgerIdentity(&state); err != nil {
+		return ledgerState{}, err
+	}
 	state.LastVerificationReportDigest = l.recoverLatestVerificationReportDigestLocked()
 	return state, nil
 }
@@ -75,7 +83,34 @@ func (l *Ledger) bootstrapInitialStateLocked() (ledgerState, error) {
 	if err := l.saveSegment(initial); err != nil {
 		return ledgerState{}, err
 	}
-	return ledgerState{SchemaVersion: stateSchemaVersion, CurrentOpenSegmentID: initial.Header.SegmentID, NextSegmentNumber: 2, OpenFrameCount: 0, RecoveryComplete: true}, nil
+	state := ledgerState{SchemaVersion: stateSchemaVersion, CurrentOpenSegmentID: initial.Header.SegmentID, NextSegmentNumber: 2, OpenFrameCount: 0, RecoveryComplete: true}
+	if err := ensureLedgerIdentity(&state); err != nil {
+		return ledgerState{}, err
+	}
+	return state, nil
+}
+
+func ensureLedgerIdentity(state *ledgerState) error {
+	if state == nil {
+		return fmt.Errorf("ledger state is required")
+	}
+	if strings.TrimSpace(state.LedgerIdentity) != "" {
+		return nil
+	}
+	identity, err := newLedgerIdentity()
+	if err != nil {
+		return err
+	}
+	state.LedgerIdentity = identity
+	return nil
+}
+
+func newLedgerIdentity() (string, error) {
+	raw := make([]byte, 16)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	return "ledger-" + hex.EncodeToString(raw), nil
 }
 
 func summarizeSegmentSet(segments []trustpolicy.AuditSegmentFilePayload) ([]trustpolicy.AuditSegmentFilePayload, int64, error) {

@@ -119,36 +119,43 @@ type AuditRecordInclusionOrderedMerkleLookup struct {
 }
 
 type AuditEvidenceSnapshot struct {
-	SchemaID                    string   `json:"schema_id"`
-	SchemaVersion               string   `json:"schema_version"`
-	CreatedAt                   string   `json:"created_at"`
-	SegmentIDs                  []string `json:"segment_ids,omitempty"`
-	SegmentSealDigests          []string `json:"segment_seal_digests,omitempty"`
-	AuditReceiptDigests         []string `json:"audit_receipt_digests,omitempty"`
-	VerificationReportDigests   []string `json:"verification_report_digests,omitempty"`
-	RuntimeEvidenceDigests      []string `json:"runtime_evidence_digests,omitempty"`
-	VerifierRecordDigests       []string `json:"verifier_record_digests,omitempty"`
-	EventContractCatalogDigests []string `json:"event_contract_catalog_digests,omitempty"`
-	SignerEvidenceDigests       []string `json:"signer_evidence_digests,omitempty"`
-	StoragePostureDigests       []string `json:"storage_posture_digests,omitempty"`
-	TypedRequestDigests         []string `json:"typed_request_digests,omitempty"`
-	ActionRequestDigests        []string `json:"action_request_digests,omitempty"`
-	ControlPlaneDigests         []string `json:"control_plane_digests,omitempty"`
-	AttestationEvidenceDigests  []string `json:"attestation_evidence_digests,omitempty"`
-	InstanceIdentityDigests     []string `json:"instance_identity_digests,omitempty"`
-	PolicyEvidenceDigests       []string `json:"policy_evidence_digests,omitempty"`
-	RequiredApprovalIDs         []string `json:"required_approval_ids,omitempty"`
-	ApprovalEvidenceDigests     []string `json:"approval_evidence_digests,omitempty"`
-	AnchorEvidenceDigests       []string `json:"anchor_evidence_digests,omitempty"`
-	ProviderInvocationDigests   []string `json:"provider_invocation_digests,omitempty"`
-	SecretLeaseDigests          []string `json:"secret_lease_digests,omitempty"`
+	SchemaID                      string   `json:"schema_id"`
+	SchemaVersion                 string   `json:"schema_version"`
+	CreatedAt                     string   `json:"created_at"`
+	RepositoryIdentityDigest      string   `json:"repository_identity_digest,omitempty"`
+	ProductInstanceID             string   `json:"product_instance_id,omitempty"`
+	LedgerIdentity                string   `json:"ledger_identity,omitempty"`
+	SegmentIDs                    []string `json:"segment_ids,omitempty"`
+	SegmentSealDigests            []string `json:"segment_seal_digests,omitempty"`
+	AuditReceiptDigests           []string `json:"audit_receipt_digests,omitempty"`
+	VerificationReportDigests     []string `json:"verification_report_digests,omitempty"`
+	RuntimeEvidenceDigests        []string `json:"runtime_evidence_digests,omitempty"`
+	VerifierRecordDigests         []string `json:"verifier_record_digests,omitempty"`
+	EventContractCatalogDigests   []string `json:"event_contract_catalog_digests,omitempty"`
+	SignerEvidenceDigests         []string `json:"signer_evidence_digests,omitempty"`
+	StoragePostureDigests         []string `json:"storage_posture_digests,omitempty"`
+	TypedRequestDigests           []string `json:"typed_request_digests,omitempty"`
+	ActionRequestDigests          []string `json:"action_request_digests,omitempty"`
+	ControlPlaneDigests           []string `json:"control_plane_digests,omitempty"`
+	AttestationEvidenceDigests    []string `json:"attestation_evidence_digests,omitempty"`
+	ProjectContextIdentityDigests []string `json:"project_context_identity_digests,omitempty"`
+	PolicyEvidenceDigests         []string `json:"policy_evidence_digests,omitempty"`
+	RequiredApprovalIDs           []string `json:"required_approval_ids,omitempty"`
+	ApprovalEvidenceDigests       []string `json:"approval_evidence_digests,omitempty"`
+	AnchorEvidenceDigests         []string `json:"anchor_evidence_digests,omitempty"`
+	ProviderInvocationDigests     []string `json:"provider_invocation_digests,omitempty"`
+	SecretLeaseDigests            []string `json:"secret_lease_digests,omitempty"`
 }
 
 type AuditEvidenceSnapshotCompletenessReview struct {
-	FullySatisfied        bool                                `json:"fully_satisfied"`
-	RequiredIdentityCount int                                 `json:"required_identity_count"`
-	Missing               []AuditEvidenceSnapshotCompleteness `json:"missing,omitempty"`
-	DeclaredRedactions    []AuditEvidenceSnapshotCompleteness `json:"declared_redactions,omitempty"`
+	FullySatisfied                  bool                                `json:"fully_satisfied"`
+	RequiredIdentityCount           int                                 `json:"required_identity_count"`
+	Missing                         []AuditEvidenceSnapshotCompleteness `json:"missing,omitempty"`
+	DeclaredRedactions              []AuditEvidenceSnapshotCompleteness `json:"declared_redactions,omitempty"`
+	TransitiveEmbedded              []AuditEvidenceSnapshotCompleteness `json:"transitive_embedded,omitempty"`
+	UnsupportedDirectCompleteness   []AuditEvidenceSnapshotCompleteness `json:"unsupported_direct_completeness,omitempty"`
+	TransitiveEmbeddedIdentityCount int                                 `json:"transitive_embedded_identity_count,omitempty"`
+	UnsupportedDirectIdentityCount  int                                 `json:"unsupported_direct_identity_count,omitempty"`
 }
 
 type AuditEvidenceSnapshotCompleteness struct {

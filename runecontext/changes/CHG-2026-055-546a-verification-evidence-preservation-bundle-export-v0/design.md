@@ -81,6 +81,8 @@ Rules:
 - keep the format streaming-friendly
 - do not require loading the whole bundle into memory to verify it
 - preserve enough verification-input identity that external parties can determine whether the bundle is sufficient for recomputed verification, not just payload-integrity inspection
+- mark directly included canonical objects explicitly and separately from transitive digest-reference dependencies
+- do not treat this manifest as replication checkpoint or federation authority
 
 ## Bundle Scopes And Profiles
 
@@ -138,6 +140,8 @@ This feature does not solve full federation, but it must avoid closing the door 
 Required rules:
 
 - preserve stable instance identity
+- preserve persistent ledger identity as a required continuity seam
+- preserve project-substrate snapshot identity only as snapshot scope identity, not as ledger authority
 - preserve exportable canonical evidence
 - do not rely on machine-local mutable state as the only history
 - support retention checks and export completeness review from preserved evidence identities

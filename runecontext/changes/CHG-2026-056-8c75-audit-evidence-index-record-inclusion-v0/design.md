@@ -85,6 +85,7 @@ Rules:
 - keep it independently checkable
 - make it safe to expose through a read-only trusted API
 - include enough material to support external checking without forcing a full ledger rescan in the common case
+- harden inclusion and checkpoint binding seams needed by downstream publication durability barriers and crash reconcile without implementing remote durability gating in this lane
 
 ## Trusted Surfaces
 

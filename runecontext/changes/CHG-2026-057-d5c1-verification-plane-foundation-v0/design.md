@@ -61,6 +61,16 @@ Derived surfaces are rebuildable views and indexes that exist to make verificati
 ### Evidence Bundle
 An evidence bundle is a portable package of canonical evidence and a manifest that lets someone verify a run, artifact, or decision outside the originating machine.
 
+### Identity Seams (Foundation Requirement)
+The foundation distinguishes four different identities that must not be conflated:
+
+- project or repository identity (the codebase and planning surface)
+- repo-scoped product-instance identity (the trusted local product instance for that repository)
+- persistent ledger identity (the canonical append-only audit history identity)
+- project-substrate snapshot identity (a snapshot identity used for scoped reconstruction and reproducibility)
+
+The persistent ledger identity is a required foundation seam for verification continuity across restarts, migrations, export, restore, and future federation work.
+
 ## Non-Negotiables
 - Preserve the trust boundary described in `docs/trust-boundaries.md`.
 - Do not add runner-side access to trusted state or trusted evidence internals.
@@ -70,6 +80,7 @@ An evidence bundle is a portable package of canonical evidence and a manifest th
 - Keep the same overall trust model and verification semantics on small devices and scaled deployments.
 - Do not create a second project-truth surface or a second authorization engine.
 - Do not treat UI views, mutable databases, or search indexes as authoritative evidence.
+- Do not treat preservation snapshots, bundle manifests, or storage namespace layout as federation authority.
 - Do not silently accept degraded assurance.
 - Record denials, failures, deferrals, and overrides, not only successful actions.
 - Prefer the smallest correct change, but do not under-scope the evidence needed for future verification.
@@ -307,6 +318,8 @@ This layer turns local evidence into portable evidence. It should support run-sc
 Independent verification in this layer means more than checking archive integrity or replaying an included report payload. The foundation should support recomputing verification conclusions from exported canonical evidence alone when the bundle carries the required verification inputs, and should fail closed or degrade explicitly when the bundle omits evidence needed for that recomputation.
 
 This layer is implemented by `CHG-2026-055-546a-verification-evidence-preservation-bundle-export-v0`.
+
+This layer must preserve truthful completeness semantics: directly included canonical objects are first-class inclusion facts, while transitive digest references are dependency claims that may still require additional fetch or restore to recompute verification conclusions.
 
 ### Derived Views Layer
 This layer powers UI timelines, audit search, watch views, SIEM exports, and compliance dashboards. These views must always point back to canonical evidence identities.
@@ -634,6 +647,12 @@ This project change owns sequencing and integration posture across three related
   - meta-audit coverage
   - missing-evidence detection
   - verifier identity and anchor reason-code strengthening
+
+Downstream ownership split:
+
+- this foundation lane and child lanes (`055`, `056`, `058`) harden identity seams, inclusion semantics, and prepared-record evidence seams needed for future publication durability and crash reconcile
+- `CHG-2026-059-7b31-cross-machine-evidence-replication-restore-v0` owns replication checkpoints, remote durability targets, thin-local GC, fetch-on-miss restore, anti-entropy, durability posture enforcement, and publication durability barrier execution semantics
+- this lane does not implement federation execution or remote durability gating behavior
 
 ## Recommended Order Of Implementation
 

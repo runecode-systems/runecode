@@ -67,6 +67,7 @@ func (s *Service) buildAuditEvidenceBundleExportArtifacts(requestID string, req 
 			Scope:             trustedScope,
 			ExportProfile:     req.ExportProfile,
 			CreatedByTool:     trustedTool,
+			IdentityContext:   s.auditEvidenceIdentityContext(),
 			DisclosurePosture: projectAuditEvidenceBundleDisclosurePostureToTrusted(req.DisclosurePosture),
 			Redactions:        projectAuditEvidenceBundleRedactionsToTrusted(req.Redactions),
 		},

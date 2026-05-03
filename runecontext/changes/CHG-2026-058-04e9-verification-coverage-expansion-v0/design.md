@@ -16,6 +16,10 @@ Capture:
 - stage identity where relevant
 - initiating principal identity
 - triggering source
+- project or repository identity
+- repo-scoped product-instance identity
+- persistent ledger identity where the run's canonical history is committed
+- project-substrate snapshot identity when a snapshot-scoped reconstruction claim is made
 - workflow definition identity
 - tool manifest identity
 - prompt or request artifact digests where policy permits

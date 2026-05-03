@@ -30,6 +30,24 @@ Those shortcuts would conflict with the current verification-plane foundation, w
 - Reuse durable prepared and execute plus reconcile semantics for publication-sensitive actions so crash recovery remains trustworthy even if a machine fails immediately after remote state mutation.
 - Forbid a permanent lower-assurance publication path for degraded-state changes. If degraded-state work survives outside a healthy evidentiary run, RuneCode should capture it only as a recovery seed and re-create it through a fresh healthy audited run before publication.
 - Keep one topology-neutral architecture across constrained local devices and scaled deployments by varying only queue depth, cache size, and target count rather than logical trust semantics.
+- Keep downstream ownership boundaries explicit: this change owns replication checkpoints, remote S3-compatible durability targets, tenant and project namespace storage layout, thin-local GC eligibility and skeleton-state requirements, fetch-on-miss and anti-entropy repair, durability posture enforcement, publication durability barriers, and degraded-state recovery-seed plus healthy re-creation workflow.
+- Keep adjacent downstream scopes separate and not absorbed by this change:
+  - `CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0`: attestation gating semantics and runtime-assurance policy
+  - `CHG-2026-053-9d2b-performance-baselines-verification-gates-v0`: performance baselines and verification gate targets
+  - `CHG-2026-014-0c5d-approval-profiles-strict-permissive`: approval posture and profile policy semantics
+  - `CHG-2026-017-3d58-workflow-extensibility-v0`: workflow extension model
+  - `CHG-2026-018-5900-auth-gateway-role-v0`: auth gateway authority and identity flows
+  - `CHG-2026-019-40c5-bridge-runtime-protocol-v0`: bridge runtime protocol contracts
+  - `CHG-2026-020-4425-openai-chatgpt-subscription-provider-oauth-codex-bridge`: provider-specific OAuth bridge behavior
+  - `CHG-2026-021-8d6d-local-ipc-protobuf-transport-v0`: local IPC transport contract
+  - `CHG-2026-022-8051-github-copilot-subscription-provider-official-runtime-bridge`: provider-runtime bridge behavior
+  - `CHG-2026-023-59ac-web-research-role`: web research role authority and guardrails
+  - `CHG-2026-027-71ed-workflow-concurrency-v0`: workflow concurrency behavior
+  - `CHG-2026-028-647e-windows-microvm-runtime-support`: Windows runtime support specifics
+  - `CHG-2026-029-5e5e-macos-virtualization-polish`: macOS virtualization behavior
+  - `CHG-2026-044-9f2a-optional-langgraph-runner-runtime-evaluation`: optional runtime evaluation lane
+  - `CHG-2026-050-e3f8-workflow-definition-contract-binding-v0`: workflow-definition binding to execution contracts
+  - `CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0`: implementation-track decomposition and git-worktree execution semantics
 
 ## Why Now
 This work should be tracked now as a dedicated downstream change so the current verification-plane bundle and coverage work can remain future-safe without being overloaded into a federation redesign.

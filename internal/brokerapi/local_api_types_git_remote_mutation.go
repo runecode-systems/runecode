@@ -42,6 +42,11 @@ type GitRemoteMutationPreparedState struct {
 	LastPrepareRequestID         string                          `json:"last_prepare_request_id,omitempty"`
 	LastGetRequestID             string                          `json:"last_get_request_id,omitempty"`
 	LastExecuteRequestID         string                          `json:"last_execute_request_id,omitempty"`
+	LastExecuteProviderLeaseID   string                          `json:"last_execute_provider_auth_lease_id,omitempty"`
+	LastExecuteAttemptID         string                          `json:"last_execute_attempt_id,omitempty"`
+	LastExecuteAttemptRequestID  *trustpolicy.Digest             `json:"last_execute_attempt_typed_request_hash,omitempty"`
+	LastExecuteSnapshotSegmentID string                          `json:"last_execute_snapshot_segment_id,omitempty"`
+	LastExecuteSnapshotSealID    *trustpolicy.Digest             `json:"last_execute_snapshot_seal_digest,omitempty"`
 }
 
 type GitRemoteMutationPrepareRequest struct {

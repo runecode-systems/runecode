@@ -5,7 +5,7 @@
   "description": "Authoritative prepared-mutation record state for broker-local git remote mutation control-plane.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 26,
+  "maxProperties": 31,
   "required": [
     "schema_id",
     "schema_version",
@@ -122,6 +122,53 @@
     "derived_summary": { "$ref": "GitRemoteMutationDerivedSummary.schema.json", "description": "Derived non-authoritative summary projection for display.", "x-data-class": "public" },
     "last_prepare_request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Last prepare request identifier recorded for diagnostics.", "x-data-class": "public" },
     "last_get_request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Last get request identifier recorded for diagnostics.", "x-data-class": "public" },
-    "last_execute_request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Last execute request identifier recorded for diagnostics.", "x-data-class": "public" }
-  }
+    "last_execute_request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$", "description": "Last execute request identifier recorded for diagnostics.", "x-data-class": "public" },
+    "last_execute_provider_auth_lease_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Last execute provider auth lease identifier recorded for diagnostics and execution binding traceability.",
+      "x-data-class": "public"
+    },
+    "last_execute_attempt_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "maxLength": 71,
+      "description": "Durable execute attempt id bound to immutable request inputs.",
+      "x-data-class": "public"
+    },
+    "last_execute_attempt_typed_request_hash": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Execute attempt immutable binding to authoritative typed request hash.",
+      "x-data-class": "public"
+    },
+    "last_execute_snapshot_segment_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Immutable segment identifier snapshot captured before outbound execution.",
+      "x-data-class": "public"
+    },
+    "last_execute_snapshot_seal_digest": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Immutable seal digest snapshot captured before outbound execution when available.",
+      "x-data-class": "public"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["last_execute_request_id"]
+      },
+      "then": {
+        "required": [
+          "last_execute_provider_auth_lease_id",
+          "last_execute_attempt_id",
+          "last_execute_attempt_typed_request_hash"
+        ]
+      }
+    }
+  ]
 }

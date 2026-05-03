@@ -267,29 +267,7 @@ func TestReplaceFileFallbackPromotesSourceAndRemovesBackup(t *testing.T) {
 func TestOpenConcurrentCleanStartAndRestart(t *testing.T) {
 	root := t.TempDir()
 	const starters = 16
-
-	var start sync.WaitGroup
-	start.Add(1)
-	var wg sync.WaitGroup
-	errCh := make(chan error, starters)
-
-	for i := 0; i < starters; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			start.Wait()
-			if _, err := Open(root); err != nil {
-				errCh <- err
-			}
-		}()
-	}
-
-	start.Done()
-	wg.Wait()
-	close(errCh)
-	for err := range errCh {
-		t.Fatalf("Open(clean-start) returned error: %v", err)
-	}
+	assertConcurrentOpenSucceeds(t, root, starters)
 
 	reopened, err := Open(root)
 	if err != nil {
@@ -301,6 +279,60 @@ func TestOpenConcurrentCleanStartAndRestart(t *testing.T) {
 	}
 	if state.CurrentOpenSegmentID == "" || !state.RecoveryComplete {
 		t.Fatalf("unexpected persisted state after restart: %+v", state)
+	}
+	if state.LedgerIdentity == "" {
+		t.Fatalf("ledger_identity empty after restart: %+v", state)
+	}
+}
+
+func assertConcurrentOpenSucceeds(t *testing.T, root string, starters int) {
+	t.Helper()
+	var start sync.WaitGroup
+	start.Add(1)
+	var wg sync.WaitGroup
+	errCh := make(chan error, starters)
+	for i := 0; i < starters; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			start.Wait()
+			if _, err := Open(root); err != nil {
+				errCh <- err
+			}
+		}()
+	}
+	start.Done()
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		t.Fatalf("Open(clean-start) returned error: %v", err)
+	}
+}
+
+func TestLedgerIdentityGeneratedAndPersistsAcrossReopen(t *testing.T) {
+	root := t.TempDir()
+	ledger, err := Open(root)
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	state, err := ledger.loadState()
+	if err != nil {
+		t.Fatalf("loadState(first) returned error: %v", err)
+	}
+	if state.LedgerIdentity == "" {
+		t.Fatalf("ledger_identity empty on first open: %+v", state)
+	}
+	first := state.LedgerIdentity
+	reopened, err := Open(root)
+	if err != nil {
+		t.Fatalf("Open(reopened) returned error: %v", err)
+	}
+	reloaded, err := reopened.loadState()
+	if err != nil {
+		t.Fatalf("loadState(reopened) returned error: %v", err)
+	}
+	if reloaded.LedgerIdentity != first {
+		t.Fatalf("ledger_identity after reopen = %q, want %q", reloaded.LedgerIdentity, first)
 	}
 }
 

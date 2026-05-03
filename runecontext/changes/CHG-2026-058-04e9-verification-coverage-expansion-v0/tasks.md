@@ -4,6 +4,7 @@
 
 - [ ] Capture workflow definition digest, tool manifest digest, prompt or template digest where policy permits, protocol bundle manifest hash, verifier implementation digest, and trust-root or trust-policy digest.
 - [ ] Capture initiating principal identity and triggering source alongside the trusted control-plane digests that shaped behavior.
+- [ ] Capture project or repository identity, repo-scoped product-instance identity, persistent ledger identity, and project-substrate snapshot identity where those identities are relevant to verification claims.
 
 ## Approval-Basis Evidence
 

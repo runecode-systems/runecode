@@ -74,6 +74,9 @@ func (l *Ledger) loadState() (ledgerState, error) {
 
 func (l *Ledger) saveState(state ledgerState) error {
 	state.SchemaVersion = stateSchemaVersion
+	if err := ensureLedgerIdentity(&state); err != nil {
+		return err
+	}
 	return writeCanonicalJSONFile(filepath.Join(l.rootDir, stateFileName), state)
 }
 

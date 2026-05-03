@@ -6,11 +6,13 @@
 - [ ] Include segment, seal, receipt, verification-report, runtime, attestation, policy, approval, and anchor evidence identities.
 - [ ] Make the snapshot cheap to generate and suitable for retention, export, and backfill planning.
 - [ ] Include verifier-record, event-contract-catalog, signer-evidence, storage-posture, typed-request, action-request, and control-plane provenance digests where those identities are required for later offline verification.
+- [ ] Preserve explicit identity seams for project or repository identity, repo-scoped product-instance identity, persistent ledger identity, and project-substrate snapshot identity when needed for verification continuity.
 
 ## Bundle Manifest
 
 - [ ] Define the `AuditEvidenceBundleManifest` object family.
 - [ ] Include bundle scope, created-by tool identity, export profile, included object list, root digests, seal references, verifier identity, trust-root digests, disclosure posture, and redaction list when present.
+- [ ] Distinguish directly included canonical objects from transitive digest-reference dependencies in manifest semantics.
 - [ ] Sign the manifest when the bundle is intended for external sharing.
 
 ## Bundle Export
@@ -37,8 +39,10 @@
 
 - [ ] Use preservation snapshots for retention checks and backfill completeness review.
 - [ ] Preserve stable instance identity and exportable canonical evidence without relying on machine-local mutable state.
+- [ ] Preserve persistent ledger identity as required continuity state for export, restore, and later federation-safe workflows.
 - [ ] Keep the design future-safe for cross-machine workflows without solving full federation here.
 - [ ] Preserve enough evidence identity for import, restore, and later merge-oriented workflows without creating a second truth surface.
+- [ ] Do not overload snapshots or bundle manifests into replication-checkpoint or federation-authority roles.
 
 ## Verification
 

@@ -21,6 +21,7 @@
 - [ ] Return segment id, frame index, segment record count, segment seal digest, and previous-seal linkage where available.
 - [ ] Include ordered-Merkle inclusion material directly or enough information to derive it deterministically.
 - [ ] Keep the result independently checkable against canonical evidence.
+- [ ] Harden inclusion and sealing-checkpoint seams so downstream publication durability and crash-reconcile flows can bind exact action intent to prior evidence checkpoints.
 
 ## Trusted API
 

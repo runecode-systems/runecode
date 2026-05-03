@@ -1,11 +1,12 @@
 package auditd
 
 type evidenceBundleManifestData struct {
-	includedObjects  []AuditEvidenceBundleIncludedObject
-	rootDigests      []string
-	sealRefs         []AuditEvidenceBundleSealReference
-	instanceIdentity string
-	controlPlane     *AuditEvidenceBundleControlProvenance
+	includedObjects        []AuditEvidenceBundleIncludedObject
+	rootDigests            []string
+	sealRefs               []AuditEvidenceBundleSealReference
+	projectContextIdentity string
+	identityContext        AuditEvidenceIdentityContext
+	controlPlane           *AuditEvidenceBundleControlProvenance
 }
 
 func (l *Ledger) evidenceBundleManifestDataLocked(scope AuditEvidenceBundleScope, profilePolicy evidenceBundleProfilePolicy) (evidenceBundleManifestData, error) {
@@ -25,7 +26,11 @@ func (l *Ledger) evidenceBundleManifestDataLocked(scope AuditEvidenceBundleScope
 	if err != nil {
 		return evidenceBundleManifestData{}, err
 	}
-	instanceIdentity, err := l.evidenceBundleInstanceIdentityLocked()
+	projectContextIdentity, err := l.evidenceBundleProjectContextIdentityLocked()
+	if err != nil {
+		return evidenceBundleManifestData{}, err
+	}
+	identityContext, err := l.evidenceIdentityManifestLocked()
 	if err != nil {
 		return evidenceBundleManifestData{}, err
 	}
@@ -34,10 +39,11 @@ func (l *Ledger) evidenceBundleManifestDataLocked(scope AuditEvidenceBundleScope
 		return evidenceBundleManifestData{}, err
 	}
 	return evidenceBundleManifestData{
-		includedObjects:  included,
-		rootDigests:      rootDigests,
-		sealRefs:         sealRefs,
-		instanceIdentity: instanceIdentity,
-		controlPlane:     controlPlane,
+		includedObjects:        included,
+		rootDigests:            rootDigests,
+		sealRefs:               sealRefs,
+		projectContextIdentity: projectContextIdentity,
+		identityContext:        identityContext,
+		controlPlane:           controlPlane,
 	}, nil
 }
