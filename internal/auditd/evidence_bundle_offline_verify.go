@@ -28,11 +28,13 @@ func (l *Ledger) OfflineVerifyEvidenceBundle(reader io.Reader, archiveFormat str
 	if reader == nil {
 		return AuditEvidenceBundleOfflineVerification{}, fmt.Errorf("bundle reader is required")
 	}
+	verifiedAtTime := l.nowFn().UTC()
 	bundle, err := loadAuditEvidenceBundleFromTar(reader)
 	if err != nil {
 		return AuditEvidenceBundleOfflineVerification{}, err
 	}
-	verifiedAt := l.nowFn().UTC().Format(time.RFC3339)
+	bundle.verifiedAt = verifiedAtTime
+	verifiedAt := verifiedAtTime.Format(time.RFC3339)
 	findings, reportPosture := verifyAuditEvidenceBundleContents(bundle)
 	status := offlineBundleVerificationStatus(findings, reportPosture)
 	return AuditEvidenceBundleOfflineVerification{
@@ -72,10 +74,10 @@ func verifyOfflineBundleManifest(bundle offlineBundleSnapshot) []AuditEvidenceBu
 		findings = append(findings, AuditEvidenceBundleOfflineFinding{Code: "manifest_not_canonical", Severity: "warning", Message: "manifest.json is not canonicalized; verification used canonical projection", ObjectPath: "manifest.json", Digest: bundle.manifestDigestIdentity})
 	}
 	if strings.TrimSpace(bundle.manifest.VerifierIdentity.KeyIDValue) == "" {
-		findings = append(findings, AuditEvidenceBundleOfflineFinding{Code: "verifier_identity_missing", Severity: "warning", Message: "manifest verifier_identity.key_id_value is missing"})
+		findings = append(findings, AuditEvidenceBundleOfflineFinding{Code: "verifier_identity_missing", Severity: "warning", Message: "manifest verifier_identity.key_id_value is missing; bundle cannot support full verifier-of-verifier posture"})
 	}
 	if len(bundle.manifest.TrustRootDigests) == 0 {
-		findings = append(findings, AuditEvidenceBundleOfflineFinding{Code: "trust_root_identity_missing", Severity: "warning", Message: "manifest trust_root_digests is empty"})
+		findings = append(findings, AuditEvidenceBundleOfflineFinding{Code: "trust_root_identity_missing", Severity: "warning", Message: "manifest trust_root_digests is empty; bundle cannot support full trust-root verification posture"})
 	}
 	for i := range bundle.manifest.TrustRootDigests {
 		if _, err := digestFromIdentity(bundle.manifest.TrustRootDigests[i]); err != nil {

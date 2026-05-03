@@ -125,15 +125,13 @@ func buildOfflineAuditVerificationInput(
 		ExternalAnchorEvidence:  externalEvidence,
 		ExternalAnchorSidecars:  externalSidecars,
 		ExternalAnchorTargetSet: []trustpolicy.ExternalAnchorVerificationTarget{},
-		Now:                     reportVerifiedAtOrNow(report),
+		Now:                     bundleVerificationNowUTC(bundle),
 	}
 }
 
-func reportVerifiedAtOrNow(report trustpolicy.AuditVerificationReportPayload) time.Time {
-	now := time.Now().UTC()
-	verifiedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(report.VerifiedAt))
-	if err != nil {
-		return now
+func bundleVerificationNowUTC(bundle offlineBundleSnapshot) time.Time {
+	if !bundle.verifiedAt.IsZero() {
+		return bundle.verifiedAt.UTC()
 	}
-	return verifiedAt
+	return time.Now().UTC()
 }

@@ -157,13 +157,25 @@ func devManualLedgerHasRecordedData(root string) (bool, error) {
 	if populated, err := devManualLedgerHasNonBootstrapSegments(root); populated || err != nil {
 		return populated, err
 	}
-	if populated, err := devManualLedgerHasJSON(filepath.Join(root, "sidecar", "segment-seals")); populated || err != nil {
-		return populated, err
-	}
-	if populated, err := devManualLedgerHasJSON(filepath.Join(root, "sidecar", "verification-reports")); populated || err != nil {
+	if populated, err := devManualLedgerHasRecordedSidecars(root); populated || err != nil {
 		return populated, err
 	}
 	return devManualLedgerHasJSON(filepath.Join(root, "contracts"))
+}
+
+func devManualLedgerHasRecordedSidecars(root string) (bool, error) {
+	for _, rel := range []string{
+		filepath.Join("sidecar", "segment-seals"),
+		filepath.Join("sidecar", "receipts"),
+		filepath.Join("sidecar", "external-anchor-evidence"),
+		filepath.Join("sidecar", "external-anchor-sidecars"),
+		filepath.Join("sidecar", "verification-reports"),
+	} {
+		if populated, err := devManualLedgerHasJSON(filepath.Join(root, rel)); populated || err != nil {
+			return populated, err
+		}
+	}
+	return false, nil
 }
 
 func devManualLedgerHasNonBootstrapSegments(root string) (bool, error) {

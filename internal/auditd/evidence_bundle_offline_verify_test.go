@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
@@ -157,6 +158,79 @@ func TestOfflineVerifyEvidenceBundleDegradesWhenRecomputeInputsMissing(t *testin
 	}
 }
 
+func TestOfflineVerifyEvidenceBundleDegradesWhenVerifierIdentityMissing(t *testing.T) {
+	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	seedOfflineVerifyBundleEvidence(t, ledger, fixture)
+	archive, manifest := mustExportAndReadExternalRelyingPartyManifest(t, ledger)
+	manifest.VerifierIdentity.KeyIDValue = ""
+	manifest.TrustRootDigests = []string{"sha256:" + strings.Repeat("a", 64)}
+	verification, err := ledger.OfflineVerifyEvidenceBundle(bytes.NewReader(rewriteBundleManifest(t, archive, manifest)), "tar")
+	if err != nil {
+		t.Fatalf("OfflineVerifyEvidenceBundle returned error: %v", err)
+	}
+	if verification.VerificationStatus != "degraded" {
+		t.Fatalf("verification_status = %q, want degraded", verification.VerificationStatus)
+	}
+	if !hasOfflineFindingCode(verification.Findings, "verifier_identity_missing") {
+		t.Fatalf("findings = %+v, want verifier_identity_missing", verification.Findings)
+	}
+}
+
+func TestOfflineVerifyEvidenceBundleDegradesWhenTrustRootDigestsMissing(t *testing.T) {
+	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	seedOfflineVerifyBundleEvidence(t, ledger, fixture)
+	archive, manifest := mustExportAndReadExternalRelyingPartyManifest(t, ledger)
+	manifest.VerifierIdentity.KeyIDValue = strings.Repeat("a", 64)
+	manifest.TrustRootDigests = nil
+	verification, err := ledger.OfflineVerifyEvidenceBundle(bytes.NewReader(rewriteBundleManifest(t, archive, manifest)), "tar")
+	if err != nil {
+		t.Fatalf("OfflineVerifyEvidenceBundle returned error: %v", err)
+	}
+	if verification.VerificationStatus != "degraded" {
+		t.Fatalf("verification_status = %q, want degraded", verification.VerificationStatus)
+	}
+	if !hasOfflineFindingCode(verification.Findings, "trust_root_identity_missing") {
+		t.Fatalf("findings = %+v, want trust_root_identity_missing", verification.Findings)
+	}
+}
+
+func TestOfflineVerifyEvidenceBundleUsesVerifierClockForRecompute(t *testing.T) {
+	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	seedOfflineRecomputeComparableBundleEvidence(t, ledger, fixture)
+	wantNow := time.Date(2030, time.January, 2, 3, 4, 5, 0, time.UTC)
+	ledger.nowFn = func() time.Time { return wantNow }
+	archive := mustExportBundleArchiveForOfflineVerify(t, ledger, AuditEvidenceBundleExportRequest{
+		ManifestRequest: AuditEvidenceBundleManifestRequest{
+			Scope:             AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"},
+			ExportProfile:     "operator_private_full",
+			CreatedByTool:     AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"},
+			DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "operator_private", SelectiveDisclosureApplied: false},
+		},
+		ArchiveFormat: "tar",
+	})
+	bundle, err := loadAuditEvidenceBundleFromTar(bytes.NewReader(archive))
+	if err != nil {
+		t.Fatalf("loadAuditEvidenceBundleFromTar returned error: %v", err)
+	}
+	bundle.verifiedAt = wantNow
+	reportObject := offlineBundleObjectsByFamily(bundle.manifest.IncludedObjects, "audit_verification_report")[0]
+	report, _, err := decodeOfflineVerificationReport(bundle, reportObject)
+	if err != nil {
+		t.Fatalf("decodeOfflineVerificationReport returned error: %v", err)
+	}
+	report.VerifiedAt = "1999-01-01T00:00:00Z"
+	input, missing, err := offlineRecomputeInput(bundle, report)
+	if err != nil {
+		t.Fatalf("offlineRecomputeInput returned error: %v", err)
+	}
+	if len(missing) > 0 {
+		t.Fatalf("offlineRecomputeInput missing=%v, want complete inputs", missing)
+	}
+	if !input.Now.Equal(wantNow) {
+		t.Fatalf("input.Now = %s, want %s", input.Now.Format(time.RFC3339), wantNow.Format(time.RFC3339))
+	}
+}
+
 func TestOfflineVerifyEvidenceBundleFlagsMissingReferencedVerificationReport(t *testing.T) {
 	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
 	seedOfflineRecomputeComparableBundleEvidence(t, ledger, fixture)
@@ -211,8 +285,8 @@ func TestOfflineVerifyEvidenceBundleIgnoresUnrelatedMetaAuditReceiptDrift(t *tes
 	if err != nil {
 		t.Fatalf("OfflineVerifyEvidenceBundle returned error: %v", err)
 	}
-	if hasOfflineFindingCode(verification.Findings, "verification_recompute_mismatch") {
-		t.Fatalf("findings = %+v, did not want recompute mismatch when unrelated receipts drift", verification.Findings)
+	if !hasOfflineFindingCode(verification.Findings, "bundle_object_missing") {
+		t.Fatalf("findings = %+v, want explicit missing-object finding for removed receipts", verification.Findings)
 	}
 }
 
@@ -238,6 +312,7 @@ func seedOfflineComparableReport(t *testing.T, ledger *Ledger) {
 	if err != nil {
 		t.Fatalf("loadAuditEvidenceBundleFromTar returned error: %v", err)
 	}
+	bundle.verifiedAt = time.Now().UTC()
 	if len(bundle.manifest.SealReferences) == 0 {
 		t.Fatal("bundle seal_references empty, want sealed segment for recomputation")
 	}
@@ -324,6 +399,55 @@ func mustReadExportedBundleManifest(t *testing.T, ledger *Ledger) ([]byte, Audit
 		t.Fatalf("Unmarshal(manifest.json) returned error: %v", err)
 	}
 	return manifestBytes, manifest
+}
+
+func mustExportAndReadBundleManifest(t *testing.T, ledger *Ledger) ([]byte, AuditEvidenceBundleManifest) {
+	t.Helper()
+	archive := mustExportBundleArchiveForOfflineVerify(t, ledger, AuditEvidenceBundleExportRequest{
+		ManifestRequest: AuditEvidenceBundleManifestRequest{
+			Scope:             AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"},
+			ExportProfile:     "operator_private_full",
+			CreatedByTool:     AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"},
+			DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "operator_private", SelectiveDisclosureApplied: false},
+		},
+		ArchiveFormat: "tar",
+	})
+	entries := readTarEntries(t, archive)
+	manifestBytes, ok := entries["manifest.json"]
+	if !ok {
+		t.Fatal("manifest.json missing from archive")
+	}
+	manifest := AuditEvidenceBundleManifest{}
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		t.Fatalf("Unmarshal(manifest.json) returned error: %v", err)
+	}
+	return archive, manifest
+}
+
+func mustExportAndReadExternalRelyingPartyManifest(t *testing.T, ledger *Ledger) ([]byte, AuditEvidenceBundleManifest) {
+	t.Helper()
+	archive := mustExportExternalRelyingPartyBundle(t, ledger, nil)
+	entries := readTarEntries(t, archive)
+	manifestBytes, ok := entries["manifest.json"]
+	if !ok {
+		t.Fatal("manifest.json missing from archive")
+	}
+	manifest := AuditEvidenceBundleManifest{}
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		t.Fatalf("Unmarshal(manifest.json) returned error: %v", err)
+	}
+	return archive, manifest
+}
+
+func rewriteBundleManifest(t *testing.T, archive []byte, manifest AuditEvidenceBundleManifest) []byte {
+	t.Helper()
+	entries := readTarEntries(t, archive)
+	manifestBytes, err := evidenceBundleCanonicalBytes(manifest)
+	if err != nil {
+		t.Fatalf("evidenceBundleCanonicalBytes returned error: %v", err)
+	}
+	entries["manifest.json"] = manifestBytes
+	return mustBuildTarFromEntries(t, entries)
 }
 
 func mustExportBundleArchiveForOfflineVerify(t *testing.T, ledger *Ledger, req AuditEvidenceBundleExportRequest) []byte {
