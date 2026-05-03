@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 type evidenceSnapshotFamilies struct {
@@ -149,7 +147,7 @@ func (l *Ledger) verificationContractDigestFamiliesLocked() (verificationContrac
 	if err != nil {
 		return verificationContractDigestFamilies{}, err
 	}
-	signerEvidenceDigests, err := signerEvidenceReferenceDigests(inputs.signerEvidence)
+	signerEvidenceDigests, err := canonicalIdentityFromAny(inputs.signerEvidence)
 	if err != nil {
 		return verificationContractDigestFamilies{}, err
 	}
@@ -182,18 +180,6 @@ func canonicalIdentityFromPointerAny(value any) ([]string, error) {
 		return nil, nil
 	}
 	return canonicalIdentityFromAny(value)
-}
-
-func signerEvidenceReferenceDigests(refs []trustpolicy.AuditSignerEvidenceReference) ([]string, error) {
-	out := make([]string, 0, len(refs))
-	for i := range refs {
-		identity, err := refs[i].Digest.Identity()
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, identity)
-	}
-	return out, nil
 }
 
 func (l *Ledger) approvalDigestIdentitiesFromReceiptsLocked() ([]string, error) {

@@ -3,55 +3,83 @@
 package brokerapi
 
 import (
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/runecode-ai/runecode/internal/auditd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
 
-func seedDevManualAuditLedger(root string) (string, error) {
-	validatedRoot, err := ensureDevManualLedgerDirs(root)
+type devManualAuditMaterial struct {
+	profile             string
+	verifier            trustpolicy.VerifierRecord
+	signerEvidence      []trustpolicy.AuditSignerEvidenceReference
+	recordDigest        trustpolicy.Digest
+	canonicalEnvelope   []byte
+	segmentRawBytes     []byte
+	segmentFileHash     trustpolicy.Digest
+	segmentMerkleRoot   trustpolicy.Digest
+	segmentSealEnvelope trustpolicy.SignedObjectEnvelope
+	seedReport          trustpolicy.AuditVerificationReportPayload
+}
+
+func seedDevManualAuditLedger(root string, profile string) (string, error) {
+	material, err := buildDevManualAuditMaterial(profile)
 	if err != nil {
 		return "", err
 	}
-	recordDigest, canonicalEnvelope, err := devManualAuditEnvelopeAndDigest()
+	validatedRoot, err := ensureDevManualLedgerDirs(root, profile)
 	if err != nil {
 		return "", err
 	}
-	if err := writeDevManualSegments(validatedRoot, recordDigest, canonicalEnvelope); err != nil {
+	if err := writeDevManualSegments(validatedRoot, material); err != nil {
 		return "", err
 	}
-	if err := writeDevManualSeal(validatedRoot, recordDigest); err != nil {
+	if err := writeDevManualSeal(validatedRoot, material); err != nil {
 		return "", err
 	}
 	ledger, err := auditd.Open(validatedRoot)
 	if err != nil {
 		return "", err
 	}
-	if err := ledger.ConfigureVerificationInputs(auditd.VerificationConfiguration{VerifierRecords: []trustpolicy.VerifierRecord{devManualVerifierRecord()}, EventContractCatalog: devManualEventContractCatalog()}); err != nil {
+	if err := ledger.ConfigureVerificationInputs(auditd.VerificationConfiguration{
+		VerifierRecords:      []trustpolicy.VerifierRecord{material.verifier},
+		EventContractCatalog: devManualEventContractCatalog(),
+		SignerEvidence:       material.signerEvidence,
+	}); err != nil {
 		return "", err
 	}
 	if _, err := ledger.BuildIndex(); err != nil {
 		return "", err
 	}
-	if _, err := ledger.PersistVerificationReport(devManualVerificationReport()); err != nil {
+	if _, err := ledger.PersistVerificationReport(material.seedReport); err != nil {
 		return "", err
 	}
-	if err := writeDevManualSeedMarker(validatedRoot); err != nil {
+	if err := writeDevManualSeedMarker(validatedRoot, profile); err != nil {
 		return "", err
 	}
-	return recordDigestIdentity(recordDigest)
+	return recordDigestIdentity(material.recordDigest)
 }
 
-func ensureDevManualLedgerDirs(root string) (string, error) {
-	validatedRoot, err := ensureDevManualSeedLedgerAllowed(root)
+func buildDevManualAuditMaterial(profile string) (devManualAuditMaterial, error) {
+	material, signerMaterial := newDevManualAuditMaterial(profile)
+	if err := attachDevManualEventMaterial(&material, signerMaterial); err != nil {
+		return devManualAuditMaterial{}, err
+	}
+	if err := attachDevManualSegmentMaterial(&material, signerMaterial); err != nil {
+		return devManualAuditMaterial{}, err
+	}
+	if err := attachDevManualSeedReport(&material); err != nil {
+		return devManualAuditMaterial{}, err
+	}
+	return material, nil
+}
+
+func ensureDevManualLedgerDirs(root string, profile string) (string, error) {
+	validatedRoot, err := ensureDevManualSeedLedgerAllowed(root, profile)
 	if err != nil {
 		return "", err
 	}
@@ -72,86 +100,13 @@ func ensureDevManualLedgerDirs(root string) (string, error) {
 	return validatedRoot, nil
 }
 
-func writeDevManualSeedMarker(root string) error {
-	return os.WriteFile(devManualLedgerSeedMarkerPath(root), []byte(devManualSeedProfile+"\n"), 0o600)
+func writeDevManualSeedMarker(root string, profile string) error {
+	return os.WriteFile(devManualLedgerSeedMarkerPath(root), []byte(profile+"\n"), 0o600)
 }
 
-func devManualAuditEnvelopeAndDigest() (trustpolicy.Digest, []byte, error) {
-	eventPayload := devManualAuditEventPayload()
-	eventPayloadHash := sha256.Sum256(mustDevManualCanonicalJSON(eventPayload))
-	event := devManualAuditEvent(eventPayload, eventPayloadHash)
-	envelope := trustpolicy.SignedObjectEnvelope{
-		SchemaID:             trustpolicy.EnvelopeSchemaID,
-		SchemaVersion:        trustpolicy.EnvelopeSchemaVersion,
-		PayloadSchemaID:      trustpolicy.AuditEventSchemaID,
-		PayloadSchemaVersion: trustpolicy.AuditEventSchemaVersion,
-		Payload:              mustDevManualJSON(event),
-		SignatureInput:       trustpolicy.SignatureInputProfile,
-		Signature: trustpolicy.SignatureBlock{
-			Alg:        "ed25519",
-			KeyID:      trustpolicy.KeyIDProfile,
-			KeyIDValue: strings.Repeat("a", 64),
-			Signature:  base64.StdEncoding.EncodeToString([]byte("sig")),
-		},
-	}
-	canonicalEnvelope := mustDevManualCanonicalJSON(envelope)
-	recordSum := sha256.Sum256(canonicalEnvelope)
-	return trustpolicy.Digest{HashAlg: "sha256", Hash: hex.EncodeToString(recordSum[:])}, canonicalEnvelope, nil
-}
-
-func devManualAuditEventPayload() map[string]any {
-	return map[string]any{
-		"schema_id":                        trustpolicy.IsolateSessionBoundPayloadSchemaID,
-		"schema_version":                   trustpolicy.IsolateSessionBoundPayloadSchemaVersion,
-		"run_id":                           devManualSeedRunID,
-		"isolate_id":                       "isolate-manual-001",
-		"session_id":                       devManualSeedSessionID,
-		"backend_kind":                     "microvm",
-		"isolation_assurance_level":        "isolated",
-		"provisioning_posture":             "tofu",
-		"launch_context_digest":            digestWithByte("1"),
-		"handshake_transcript_hash":        digestWithByte("2"),
-		"session_binding_digest":           digestWithByte("3"),
-		"runtime_image_descriptor_digest":  digestWithByte("4"),
-		"applied_hardening_posture_digest": digestWithByte("5"),
-	}
-}
-
-func devManualAuditEvent(eventPayload map[string]any, eventPayloadHash [32]byte) map[string]any {
-	return map[string]any{
-		"schema_id":                     trustpolicy.AuditEventSchemaID,
-		"schema_version":                trustpolicy.AuditEventSchemaVersion,
-		"audit_event_type":              "isolate_session_bound",
-		"emitter_stream_id":             "auditd-stream-manual",
-		"seq":                           1,
-		"occurred_at":                   devManualSeedRecordedAtRFC3339,
-		"principal":                     map[string]any{"schema_id": "runecode.protocol.v0.PrincipalIdentity", "schema_version": "0.2.0", "actor_kind": "daemon", "principal_id": "auditd", "instance_id": "auditd-manual"},
-		"event_payload_schema_id":       trustpolicy.IsolateSessionBoundPayloadSchemaID,
-		"event_payload":                 eventPayload,
-		"event_payload_hash":            map[string]any{"hash_alg": "sha256", "hash": hex.EncodeToString(eventPayloadHash[:])},
-		"protocol_bundle_manifest_hash": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("b", 64)},
-		"scope":                         map[string]any{"workspace_id": devManualSeedWorkspaceID, "run_id": devManualSeedRunID, "stage_id": devManualSeedStageID},
-		"correlation":                   map[string]any{"session_id": devManualSeedSessionID, "operation_id": "op-manual-1"},
-		"subject_ref":                   map[string]any{"object_family": "isolate_binding", "digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("c", 64)}, "ref_role": "binding_target"},
-		"cause_refs":                    []any{map[string]any{"object_family": "audit_event", "digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("d", 64)}, "ref_role": "session_cause"}},
-		"related_refs":                  []any{map[string]any{"object_family": "verifier_record", "digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("e", 64)}, "ref_role": "binding"}},
-		"signer_evidence_refs":          []any{map[string]any{"object_family": "verifier_record", "digest": map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("f", 64)}, "ref_role": "admissibility"}},
-	}
-}
-
-func writeDevManualSegments(root string, recordDigest trustpolicy.Digest, canonicalEnvelope []byte) error {
-	sealed := trustpolicy.AuditSegmentFilePayload{
-		SchemaID:      "runecode.protocol.v0.AuditSegmentFile",
-		SchemaVersion: "0.1.0",
-		Header: trustpolicy.AuditSegmentHeader{
-			Format:       "audit_segment_framed_v1",
-			SegmentID:    "segment-000001",
-			SegmentState: trustpolicy.AuditSegmentStateSealed,
-			CreatedAt:    "2026-03-13T12:00:00Z",
-			Writer:       "auditd",
-		},
-		Frames:          []trustpolicy.AuditSegmentRecordFrame{{RecordDigest: recordDigest, ByteLength: int64(len(canonicalEnvelope)), CanonicalSignedEnvelopeBytes: base64.StdEncoding.EncodeToString(canonicalEnvelope)}},
-		LifecycleMarker: trustpolicy.AuditSegmentLifecycleMarker{State: trustpolicy.AuditSegmentStateSealed, MarkedAt: "2026-03-13T12:20:00Z"},
+func writeDevManualSegments(root string, material devManualAuditMaterial) error {
+	if err := writeDevManualCanonicalJSON(filepath.Join(root, "segments", "segment-000001.json"), sealedSegmentPayload(material)); err != nil {
+		return err
 	}
 	open := trustpolicy.AuditSegmentFilePayload{
 		SchemaID:      "runecode.protocol.v0.AuditSegmentFile",
@@ -166,15 +121,31 @@ func writeDevManualSegments(root string, recordDigest trustpolicy.Digest, canoni
 		Frames:          []trustpolicy.AuditSegmentRecordFrame{},
 		LifecycleMarker: trustpolicy.AuditSegmentLifecycleMarker{State: trustpolicy.AuditSegmentStateOpen, MarkedAt: "2026-03-13T12:21:00Z"},
 	}
-	if err := writeDevManualCanonicalJSON(filepath.Join(root, "segments", "segment-000001.json"), sealed); err != nil {
-		return err
-	}
 	return writeDevManualCanonicalJSON(filepath.Join(root, "segments", "segment-000002.json"), open)
 }
 
-func writeDevManualSeal(root string, recordDigest trustpolicy.Digest) error {
-	sealEnvelope := devManualSealEnvelope(recordDigest)
-	sealDigest, err := trustpolicy.ComputeSignedEnvelopeAuditRecordDigest(sealEnvelope)
+func sealedSegmentPayload(material devManualAuditMaterial) trustpolicy.AuditSegmentFilePayload {
+	return trustpolicy.AuditSegmentFilePayload{
+		SchemaID:      "runecode.protocol.v0.AuditSegmentFile",
+		SchemaVersion: "0.1.0",
+		Header: trustpolicy.AuditSegmentHeader{
+			Format:       "audit_segment_framed_v1",
+			SegmentID:    "segment-000001",
+			SegmentState: trustpolicy.AuditSegmentStateSealed,
+			CreatedAt:    "2026-03-13T12:00:00Z",
+			Writer:       "auditd",
+		},
+		Frames: []trustpolicy.AuditSegmentRecordFrame{{
+			RecordDigest:                 material.recordDigest,
+			ByteLength:                   int64(len(material.canonicalEnvelope)),
+			CanonicalSignedEnvelopeBytes: base64.StdEncoding.EncodeToString(material.canonicalEnvelope),
+		}},
+		LifecycleMarker: trustpolicy.AuditSegmentLifecycleMarker{State: trustpolicy.AuditSegmentStateSealed, MarkedAt: "2026-03-13T12:20:00Z"},
+	}
+}
+
+func writeDevManualSeal(root string, material devManualAuditMaterial) error {
+	sealDigest, err := trustpolicy.ComputeSignedEnvelopeAuditRecordDigest(material.segmentSealEnvelope)
 	if err != nil {
 		return err
 	}
@@ -182,22 +153,10 @@ func writeDevManualSeal(root string, recordDigest trustpolicy.Digest) error {
 	if err != nil {
 		return err
 	}
-	return writeDevManualCanonicalJSON(filepath.Join(root, "sidecar", "segment-seals", strings.TrimPrefix(sealID, "sha256:")+".json"), sealEnvelope)
+	return writeDevManualCanonicalJSON(filepath.Join(root, "sidecar", "segment-seals", trimSHA256Prefix(sealID)+".json"), material.segmentSealEnvelope)
 }
 
-func devManualSealEnvelope(recordDigest trustpolicy.Digest) trustpolicy.SignedObjectEnvelope {
-	return trustpolicy.SignedObjectEnvelope{
-		SchemaID:             trustpolicy.EnvelopeSchemaID,
-		SchemaVersion:        trustpolicy.EnvelopeSchemaVersion,
-		PayloadSchemaID:      trustpolicy.AuditSegmentSealSchemaID,
-		PayloadSchemaVersion: trustpolicy.AuditSegmentSealSchemaVersion,
-		Payload:              mustDevManualJSON(devManualSealPayload(recordDigest)),
-		SignatureInput:       trustpolicy.SignatureInputProfile,
-		Signature:            trustpolicy.SignatureBlock{Alg: "ed25519", KeyID: trustpolicy.KeyIDProfile, KeyIDValue: strings.Repeat("a", 64), Signature: base64.StdEncoding.EncodeToString([]byte("sig"))},
-	}
-}
-
-func devManualSealPayload(recordDigest trustpolicy.Digest) trustpolicy.AuditSegmentSealPayload {
+func devManualSealPayload(recordDigest trustpolicy.Digest, segmentFileHash trustpolicy.Digest, merkleRoot trustpolicy.Digest) trustpolicy.AuditSegmentSealPayload {
 	return trustpolicy.AuditSegmentSealPayload{
 		SchemaID:                   trustpolicy.AuditSegmentSealSchemaID,
 		SchemaVersion:              trustpolicy.AuditSegmentSealSchemaVersion,
@@ -209,15 +168,38 @@ func devManualSealPayload(recordDigest trustpolicy.Digest) trustpolicy.AuditSegm
 		FirstRecordDigest:          recordDigest,
 		LastRecordDigest:           recordDigest,
 		MerkleProfile:              trustpolicy.AuditSegmentMerkleProfileOrderedDSEv1,
-		MerkleRoot:                 recordDigest,
+		MerkleRoot:                 merkleRoot,
 		SegmentFileHashScope:       trustpolicy.AuditSegmentFileHashScopeRawFramedV1,
-		SegmentFileHash:            recordDigest,
+		SegmentFileHash:            segmentFileHash,
 		SealChainIndex:             0,
 		AnchoringSubject:           trustpolicy.AuditSegmentAnchoringSubjectSeal,
 		SealedAt:                   "2026-03-13T12:20:00Z",
-		ProtocolBundleManifestHash: trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("b", 64)},
+		ProtocolBundleManifestHash: trustpolicy.Digest{HashAlg: "sha256", Hash: stringsRepeat("b")},
 		SealReason:                 "size_threshold",
 	}
+}
+
+func degradeDevManualVerificationReport(report trustpolicy.AuditVerificationReportPayload) trustpolicy.AuditVerificationReportPayload {
+	report.CurrentlyDegraded = true
+	report.AnchoringStatus = trustpolicy.AuditVerificationStatusDegraded
+	report.AnchoringPosture = trustpolicy.AuditVerificationAnchoringPostureAnchorReceiptMissingOrUnbound
+	report.DegradedReasons = uniqueSortedStrings(append(report.DegradedReasons, trustpolicy.AuditVerificationReasonAnchorReceiptMissing))
+	report.Findings = append(report.Findings, trustpolicy.AuditVerificationFinding{
+		Code:      trustpolicy.AuditVerificationReasonAnchorReceiptMissing,
+		Dimension: trustpolicy.AuditVerificationDimensionAnchoring,
+		Severity:  trustpolicy.AuditVerificationSeverityWarning,
+		Message:   "dev manual degraded profile omits anchor receipts",
+		SegmentID: "segment-000001",
+	})
+	report.Summary = "deterministic dev seed with intentionally degraded anchoring posture"
+	return report
+}
+
+func trimSHA256Prefix(identity string) string {
+	if len(identity) > len("sha256:") && identity[:len("sha256:")] == "sha256:" {
+		return identity[len("sha256:"):]
+	}
+	return identity
 }
 
 func writeDevManualCanonicalJSON(path string, value any) error {
@@ -230,14 +212,6 @@ func writeDevManualCanonicalJSON(path string, value any) error {
 		return err
 	}
 	return os.WriteFile(path, canonical, 0o600)
-}
-
-func mustDevManualJSON(value any) []byte {
-	b, err := json.Marshal(value)
-	if err != nil {
-		panic(err)
-	}
-	return b
 }
 
 func mustDevManualCanonicalJSON(value any) []byte {

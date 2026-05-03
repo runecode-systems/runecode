@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	devManualSeedProfile           = "tui-rich-v1"
+	devManualSeedDefaultProfile    = "tui-rich-v1"
+	devManualSeedDegradedProfile   = "tui-rich-degraded-v1"
 	devManualSeedEnvVar            = "RUNECODE_DEV_MODE"
 	devManualSeedRunID             = "run-manual-001"
 	devManualSeedSessionID         = "session-manual-001"
@@ -36,6 +37,18 @@ type DevManualSeedResult struct {
 // SeedDevManualScenario seeds a deterministic, dev-focused broker state profile
 // for manual TUI/broker workflow drills.
 func (s *Service) SeedDevManualScenario() (DevManualSeedResult, error) {
+	return s.SeedDevManualScenarioWithProfile(devManualSeedDefaultProfile)
+}
+
+func SupportedDevManualSeedProfiles() []string {
+	return []string{devManualSeedDefaultProfile, devManualSeedDegradedProfile}
+}
+
+func (s *Service) SeedDevManualScenarioWithProfile(profile string) (DevManualSeedResult, error) {
+	seedProfile, err := normalizeDevManualSeedProfile(profile)
+	if err != nil {
+		return DevManualSeedResult{}, err
+	}
 	if s == nil || s.store == nil {
 		return DevManualSeedResult{}, fmt.Errorf("broker store unavailable")
 	}
@@ -45,14 +58,14 @@ func (s *Service) SeedDevManualScenario() (DevManualSeedResult, error) {
 	if strings.TrimSpace(os.Getenv(devManualSeedEnvVar)) != "1" {
 		return DevManualSeedResult{}, fmt.Errorf("dev manual seeding requires %s=1", devManualSeedEnvVar)
 	}
-	seedState, err := s.seedDevManualScenarioState()
+	seedState, err := s.seedDevManualScenarioState(seedProfile)
 	if err != nil {
 		return DevManualSeedResult{}, err
 	}
 	return DevManualSeedResult{
 		SchemaID:          "runecode.protocol.v0.DevManualSeedResult",
 		SchemaVersion:     "0.1.0",
-		Profile:           devManualSeedProfile,
+		Profile:           seedProfile,
 		RunID:             devManualSeedRunID,
 		SessionID:         devManualSeedSessionID,
 		ApprovalID:        seedState.approvalID,
@@ -69,8 +82,22 @@ type devManualSeedState struct {
 	approvalID        string
 }
 
-func (s *Service) seedDevManualScenarioState() (devManualSeedState, error) {
-	recordDigest, err := s.seedDevManualAuditLedger()
+func normalizeDevManualSeedProfile(profile string) (string, error) {
+	value := strings.TrimSpace(profile)
+	for _, supported := range SupportedDevManualSeedProfiles() {
+		if value == supported {
+			return value, nil
+		}
+	}
+	return "", fmt.Errorf("unsupported dev manual seed profile %q", profile)
+}
+
+func NormalizeDevManualSeedProfile(profile string) (string, error) {
+	return normalizeDevManualSeedProfile(profile)
+}
+
+func (s *Service) seedDevManualScenarioState(profile string) (devManualSeedState, error) {
+	recordDigest, err := s.seedDevManualAuditLedger(profile)
 	if err != nil {
 		return devManualSeedState{}, err
 	}
@@ -84,21 +111,21 @@ func (s *Service) seedDevManualScenarioState() (devManualSeedState, error) {
 	if err := s.seedDevManualRuntimeFacts(); err != nil {
 		return devManualSeedState{}, err
 	}
-	approvalID, err := s.seedDevManualApproval()
+	approvalID, err := s.seedDevManualApproval(profile)
 	if err != nil {
 		return devManualSeedState{}, err
 	}
-	if err := s.seedDevManualSession(approvalID, recordDigest, artifactDigests); err != nil {
+	if err := s.seedDevManualSession(approvalID, recordDigest, artifactDigests, profile); err != nil {
 		return devManualSeedState{}, err
 	}
-	if err := s.ensureDevManualSessionAuditLink(recordDigest); err != nil {
+	if err := s.ensureDevManualSessionAuditLink(recordDigest, profile); err != nil {
 		return devManualSeedState{}, err
 	}
 	return devManualSeedState{auditRecordDigest: recordDigest, artifactDigests: artifactDigests, approvalID: approvalID}, nil
 }
 
-func (s *Service) seedDevManualAuditLedger() (string, error) {
-	recordDigest, err := seedDevManualAuditLedger(s.auditRoot)
+func (s *Service) seedDevManualAuditLedger(profile string) (string, error) {
+	recordDigest, err := seedDevManualAuditLedger(s.auditRoot, profile)
 	if err != nil {
 		return "", err
 	}
@@ -159,8 +186,8 @@ func (s *Service) seedDevManualRuntimeFacts() error {
 	}})
 }
 
-func (s *Service) seedDevManualApproval() (string, error) {
-	decision, err := devManualApprovalDecision()
+func (s *Service) seedDevManualApproval(profile string) (string, error) {
+	decision, err := devManualApprovalDecision(profile)
 	if err != nil {
 		return "", err
 	}
@@ -201,7 +228,11 @@ func isDevManualApprovalDecision(record artifacts.PolicyDecisionRecord) bool {
 	if record.RunID != devManualSeedRunID || record.DecisionOutcome != string(policyengine.DecisionRequireHumanApproval) {
 		return false
 	}
-	return record.ManifestHash == digestWithByte("e") && record.ActionRequestHash == digestWithByte("f")
+	if record.ManifestHash != digestWithByte("e") || record.ActionRequestHash != digestWithByte("f") {
+		return false
+	}
+	precedence, _ := record.Details["precedence"].(string)
+	return strings.HasPrefix(precedence, "manual_seed_profile:")
 }
 
 func digestWithByte(ch string) string {

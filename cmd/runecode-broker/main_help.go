@@ -39,7 +39,7 @@ Commands:
   show-policy
   set-reserved-classes --enabled=true|false
 	  import-trusted-contract --kind <kind> --file payload.json --evidence import-evidence.json
-  seed-dev-manual-scenario --dev-only [--profile tui-rich-v1] (requires dev-seed build tag; seeds trusted context using the same import/audit semantics as other trusted policy artifacts)
+	  seed-dev-manual-scenario --dev-only [--profile tui-rich-v1|tui-rich-degraded-v1] (requires build tag runecode_devseed; tui-rich-v1 is green baseline, tui-rich-degraded-v1 is intentionally degraded but internally consistent)
 	  audit-readiness
 	  audit-verification [--limit N]
 	  audit-finalize-verify
