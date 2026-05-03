@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/policyengine"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
@@ -20,7 +21,7 @@ func TestGitRemoteMutationPrepareGetExecuteMaintainsTypedAuthorityAndBindings(t 
 	assertFetchedPreparedGitRemoteMutation(t, s, prepareResp.PreparedMutationID)
 	approvalID, approvalRequestDigest, approvalDecisionDigest := resolveApprovalForPreparedMutation(t, s, runID, prepareResp)
 	execResp := mustExecutePreparedGitRemoteMutation(t, s, prepareResp.PreparedMutationID, approvalID, approvalRequestDigest, approvalDecisionDigest, "req-git-execute")
-	assertExecutedGitRemoteMutation(t, prepareResp, execResp)
+	assertExecutedGitRemoteMutation(t, s, prepareResp, execResp)
 }
 
 func TestGitRemoteMutationExecuteFailsClosedOnBindingMismatch(t *testing.T) {
@@ -66,6 +67,40 @@ func TestGitRemoteMutationPrepareFailsClosedWhenApprovalNotDerivable(t *testing.
 	}
 	if errResp.Error.Code != "gateway_failure" && errResp.Error.Code != "broker_limit_policy_rejected" {
 		t.Fatalf("error.code=%q, want gateway_failure or broker_limit_policy_rejected", errResp.Error.Code)
+	}
+}
+
+func TestBuildPreparedGitRemoteMutationRecordPersistsApprovalDecisionBinding(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-git-prepare-bindings"
+	requestID := "req-git-prepare-bindings"
+	typedRequest := trustedGitRequestPayload(t, "git_ref_update")
+	req := GitRemoteMutationPrepareRequest{
+		SchemaID:      "runecode.protocol.v0.GitRemoteMutationPrepareRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     requestID,
+		RunID:         runID,
+		Provider:      "github",
+		TypedRequest:  typedRequest,
+	}
+	resolved, errResp := s.resolveGitRemotePrepareInput(req, requestID)
+	if errResp != nil {
+		t.Fatalf("resolveGitRemotePrepareInput returned error: %+v", errResp)
+	}
+	decision := policyengine.PolicyDecision{ActionRequestHash: testDigestFromChar('a')}
+	record, errResp := s.buildPreparedGitRemoteMutationRecord(req, requestID, resolved, decision, gitPreparedApprovalBinding{
+		ApprovalID:     testDigestFromChar('b'),
+		RequestDigest:  testDigestFromChar('c'),
+		DecisionDigest: testDigestFromChar('d'),
+	}, testDigestFromChar('e'))
+	if errResp != nil {
+		t.Fatalf("buildPreparedGitRemoteMutationRecord returned error: %+v", errResp)
+	}
+	if record.RequiredApprovalReqHash != testDigestFromChar('c') {
+		t.Fatalf("required_approval_request_hash=%q, want %q", record.RequiredApprovalReqHash, testDigestFromChar('c'))
+	}
+	if record.RequiredApprovalDecHash != testDigestFromChar('d') {
+		t.Fatalf("required_approval_decision_hash=%q, want %q", record.RequiredApprovalDecHash, testDigestFromChar('d'))
 	}
 }
 
@@ -410,6 +445,10 @@ func mustDigestFromIdentity(t *testing.T, identity, label string) trustpolicy.Di
 	return digest
 }
 
+func testDigestFromChar(ch byte) string {
+	return "sha256:" + strings.Repeat(string(ch), 64)
+}
+
 func mustExecutePreparedGitRemoteMutation(t *testing.T, s *Service, preparedMutationID, approvalID string, approvalRequestDigest, approvalDecisionDigest trustpolicy.Digest, requestID string) GitRemoteMutationExecuteResponse {
 	t.Helper()
 	execResp, execErr := s.HandleGitRemoteMutationExecute(context.Background(), GitRemoteMutationExecuteRequest{
@@ -428,7 +467,19 @@ func mustExecutePreparedGitRemoteMutation(t *testing.T, s *Service, preparedMuta
 	return execResp
 }
 
-func assertExecutedGitRemoteMutation(t *testing.T, prepareResp GitRemoteMutationPrepareResponse, execResp GitRemoteMutationExecuteResponse) {
+func assertExecutedGitRemoteMutation(t *testing.T, s *Service, prepareResp GitRemoteMutationPrepareResponse, execResp GitRemoteMutationExecuteResponse) {
+	t.Helper()
+	assertExecutedGitRemoteMutationResponse(t, prepareResp, execResp)
+	rec, ok := s.GitRemotePreparedGet(execResp.PreparedMutationID)
+	if !ok {
+		t.Fatalf("GitRemotePreparedGet(%q) missing after execute", execResp.PreparedMutationID)
+	}
+	if got, want := strings.TrimSpace(rec.RequiredApprovalDecHash), strings.TrimSpace(rec.LastExecuteApprovalDecID); got != want {
+		t.Fatalf("required_approval_decision_hash=%q, want last_execute_approval_decision_hash=%q", got, want)
+	}
+}
+
+func assertExecutedGitRemoteMutationResponse(t *testing.T, prepareResp GitRemoteMutationPrepareResponse, execResp GitRemoteMutationExecuteResponse) {
 	t.Helper()
 	if execResp.ExecutionState != gitRemoteMutationExecutionCompleted {
 		t.Fatalf("execution_state=%q, want %q", execResp.ExecutionState, gitRemoteMutationExecutionCompleted)
@@ -438,6 +489,18 @@ func assertExecutedGitRemoteMutation(t *testing.T, prepareResp GitRemoteMutation
 	}
 	if execResp.Prepared.LastExecuteRequestID != "req-git-execute" {
 		t.Fatalf("last_execute_request_id=%q, want req-git-execute", execResp.Prepared.LastExecuteRequestID)
+	}
+	if strings.TrimSpace(execResp.Prepared.LastExecuteProviderLeaseID) == "" {
+		t.Fatal("last_execute_provider_auth_lease_id empty")
+	}
+	if strings.TrimSpace(execResp.Prepared.LastExecuteAttemptID) == "" {
+		t.Fatal("last_execute_attempt_id empty")
+	}
+	if execResp.Prepared.LastExecuteAttemptRequestID == nil {
+		t.Fatal("last_execute_attempt_typed_request_hash missing")
+	}
+	if execResp.Prepared.LastExecuteSnapshotSealID == nil && strings.TrimSpace(execResp.Prepared.LastExecuteSnapshotSegmentID) != "" {
+		t.Fatal("last_execute_snapshot_segment_id set without last_execute_snapshot_seal_digest")
 	}
 	if execResp.Prepared.TypedRequestHash.Hash != prepareResp.Prepared.TypedRequestHash.Hash {
 		t.Fatalf("typed_request_hash changed between prepare and execute")

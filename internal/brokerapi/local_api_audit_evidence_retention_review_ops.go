@@ -44,7 +44,7 @@ func (s *Service) buildProjectedAuditEvidenceRetentionReview(requestID string, s
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
 		return AuditEvidenceSnapshot{}, AuditEvidenceBundleManifest{}, AuditEvidenceSnapshotCompleteness{}, &errOut
 	}
-	trustedSnapshot, trustedManifest, completeness, err := s.auditLedger.BuildEvidenceRetentionReview(trustedScope)
+	trustedSnapshot, trustedManifest, completeness, err := s.auditLedger.BuildEvidenceRetentionReview(trustedScope, s.auditEvidenceIdentityContext())
 	if err != nil {
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
 		return AuditEvidenceSnapshot{}, AuditEvidenceBundleManifest{}, AuditEvidenceSnapshotCompleteness{}, &errOut
@@ -76,11 +76,23 @@ func projectAuditEvidenceSnapshotCompleteness(review auditd.AuditEvidenceSnapsho
 	if err != nil {
 		return AuditEvidenceSnapshotCompleteness{}, err
 	}
+	transitive, err := projectAuditEvidenceSnapshotIdentityEntries(review.TransitiveEmbedded)
+	if err != nil {
+		return AuditEvidenceSnapshotCompleteness{}, err
+	}
+	unsupported, err := projectAuditEvidenceSnapshotIdentityEntries(review.UnsupportedDirectCompleteness)
+	if err != nil {
+		return AuditEvidenceSnapshotCompleteness{}, err
+	}
 	return AuditEvidenceSnapshotCompleteness{
-		FullySatisfied:        review.FullySatisfied,
-		RequiredIdentityCount: review.RequiredIdentityCount,
-		Missing:               missing,
-		DeclaredRedactions:    declared,
+		FullySatisfied:                  review.FullySatisfied,
+		RequiredIdentityCount:           review.RequiredIdentityCount,
+		Missing:                         missing,
+		DeclaredRedactions:              declared,
+		TransitiveEmbedded:              transitive,
+		UnsupportedDirectCompleteness:   unsupported,
+		TransitiveEmbeddedIdentityCount: review.TransitiveEmbeddedIdentityCount,
+		UnsupportedDirectIdentityCount:  review.UnsupportedDirectIdentityCount,
 	}, nil
 }
 

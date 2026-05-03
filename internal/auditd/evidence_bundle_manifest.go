@@ -28,33 +28,46 @@ func (l *Ledger) buildEvidenceBundleManifestLocked(req AuditEvidenceBundleManife
 	if err != nil {
 		return AuditEvidenceBundleManifest{}, err
 	}
-	requestedRedactions := normalizeEvidenceBundleRedactions(req.Redactions)
-	declaredProfileRedactions := evidenceBundleProfileDeclaredRedactions(profilePolicy)
-	allRedactions := normalizeEvidenceBundleRedactions(append(declaredProfileRedactions, requestedRedactions...))
-	included, userRedactionApplied := applyEvidenceBundleRedactions(data.includedObjects, requestedRedactions)
-	disclosurePosture := resolveEvidenceBundleDisclosurePosture(req.DisclosurePosture, profilePolicy, userRedactionApplied, len(allRedactions) > 0)
+	requestedRedactions, allRedactions := evidenceBundleRedactionSets(req.Redactions, profilePolicy)
+	included, disclosurePosture := buildManifestDisclosureState(data.includedObjects, requestedRedactions, allRedactions, req.DisclosurePosture, profilePolicy)
 	manifest := AuditEvidenceBundleManifest{
-		SchemaID:          auditEvidenceBundleManifestSchemaID,
-		SchemaVersion:     auditEvidenceBundleManifestSchemaVersion,
-		BundleID:          evidenceBundleID(l.nowFn()),
-		CreatedAt:         l.nowFn().UTC().Format(time.RFC3339),
-		CreatedByTool:     normalizeEvidenceBundleToolIdentity(req.CreatedByTool),
-		ExportProfile:     strings.TrimSpace(req.ExportProfile),
-		Scope:             normalizeEvidenceBundleScope(req.Scope),
-		ControlPlane:      data.controlPlane,
-		InstanceIdentity:  strings.TrimSpace(data.instanceIdentity),
-		IncludedObjects:   included,
-		RootDigests:       data.rootDigests,
-		SealReferences:    data.sealRefs,
-		VerifierIdentity:  l.evidenceBundleVerifierIdentityLocked(),
-		TrustRootDigests:  l.evidenceBundleTrustRootDigestsLocked(),
-		DisclosurePosture: disclosurePosture,
-		Redactions:        allRedactions,
+		SchemaID:                     auditEvidenceBundleManifestSchemaID,
+		SchemaVersion:                auditEvidenceBundleManifestSchemaVersion,
+		BundleID:                     evidenceBundleID(l.nowFn()),
+		CreatedAt:                    l.nowFn().UTC().Format(time.RFC3339),
+		CreatedByTool:                normalizeEvidenceBundleToolIdentity(req.CreatedByTool),
+		ExportProfile:                strings.TrimSpace(req.ExportProfile),
+		Scope:                        normalizeEvidenceBundleScope(req.Scope),
+		RepositoryIdentityDigest:     strings.TrimSpace(req.IdentityContext.RepositoryIdentityDigest),
+		ProductInstanceID:            strings.TrimSpace(req.IdentityContext.ProductInstanceID),
+		LedgerIdentity:               strings.TrimSpace(data.identityContext.LedgerIdentity),
+		ControlPlane:                 data.controlPlane,
+		ProjectContextIdentityDigest: strings.TrimSpace(data.projectContextIdentity),
+		IncludedObjects:              included,
+		RootDigests:                  data.rootDigests,
+		SealReferences:               data.sealRefs,
+		VerifierIdentity:             l.evidenceBundleVerifierIdentityLocked(),
+		TrustRootDigests:             l.evidenceBundleTrustRootDigestsLocked(),
+		DisclosurePosture:            disclosurePosture,
+		Redactions:                   allRedactions,
 	}
 	if err := validateManifestControlPlane(manifest.ControlPlane); err != nil {
 		return AuditEvidenceBundleManifest{}, err
 	}
 	return manifest, nil
+}
+
+func evidenceBundleRedactionSets(requested []AuditEvidenceBundleRedaction, profilePolicy evidenceBundleProfilePolicy) ([]AuditEvidenceBundleRedaction, []AuditEvidenceBundleRedaction) {
+	requestedRedactions := normalizeEvidenceBundleRedactions(requested)
+	declaredProfileRedactions := evidenceBundleProfileDeclaredRedactions(profilePolicy)
+	allRedactions := normalizeEvidenceBundleRedactions(append(declaredProfileRedactions, requestedRedactions...))
+	return requestedRedactions, allRedactions
+}
+
+func buildManifestDisclosureState(includedObjects []AuditEvidenceBundleIncludedObject, requestedRedactions, allRedactions []AuditEvidenceBundleRedaction, requestedPosture AuditEvidenceBundleDisclosurePosture, profilePolicy evidenceBundleProfilePolicy) ([]AuditEvidenceBundleIncludedObject, AuditEvidenceBundleDisclosurePosture) {
+	included, userRedactionApplied := applyEvidenceBundleRedactions(includedObjects, requestedRedactions)
+	disclosurePosture := resolveEvidenceBundleDisclosurePosture(requestedPosture, profilePolicy, userRedactionApplied, len(allRedactions) > 0)
+	return included, disclosurePosture
 }
 
 func validateManifestControlPlane(controlPlane *AuditEvidenceBundleControlProvenance) error {
@@ -64,12 +77,12 @@ func validateManifestControlPlane(controlPlane *AuditEvidenceBundleControlProven
 	return validateEvidenceBundleControlProvenance(*controlPlane)
 }
 
-func (l *Ledger) evidenceBundleInstanceIdentityLocked() (string, error) {
-	_, _, _, _, _, _, _, instanceIdentityDigests, _, _, err := l.externalAnchorDerivedEvidenceIdentitiesLocked()
+func (l *Ledger) evidenceBundleProjectContextIdentityLocked() (string, error) {
+	_, _, _, _, _, _, _, projectContextDigests, _, _, err := l.externalAnchorDerivedEvidenceIdentitiesLocked()
 	if err != nil {
 		return "", err
 	}
-	normalized := normalizeIdentityList(instanceIdentityDigests)
+	normalized := normalizeIdentityList(projectContextDigests)
 	if len(normalized) == 0 {
 		return "", nil
 	}

@@ -33,7 +33,7 @@ func approvalDecisionDigestFromReceipt(envelope trustpolicy.SignedObjectEnvelope
 	return identity, true, nil
 }
 
-func (l *Ledger) externalAnchorDerivedEvidenceIdentitiesLocked() (policyDigests []string, typedRequestDigests []string, actionRequestDigests []string, controlPlaneDigests []string, approvalDigests []string, requiredApprovalIDs []string, attestationDigests []string, instanceIdentityDigests []string, providerInvocationDigests []string, secretLeaseDigests []string, err error) {
+func (l *Ledger) externalAnchorDerivedEvidenceIdentitiesLocked() (policyDigests []string, typedRequestDigests []string, actionRequestDigests []string, controlPlaneDigests []string, approvalDigests []string, requiredApprovalIDs []string, attestationDigests []string, projectContextDigests []string, providerInvocationDigests []string, secretLeaseDigests []string, err error) {
 	evidence, err := l.loadExternalAnchorEvidenceLocked()
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
@@ -44,12 +44,12 @@ func (l *Ledger) externalAnchorDerivedEvidenceIdentitiesLocked() (policyDigests 
 		if err != nil {
 			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
-		attestationDigests, instanceIdentityDigests, err = appendExternalAnchorSidecarEvidence(rec, attestationDigests, instanceIdentityDigests)
+		attestationDigests, projectContextDigests, err = appendExternalAnchorSidecarEvidence(rec, attestationDigests, projectContextDigests)
 		if err != nil {
 			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 	}
-	return policyDigests, typedRequestDigests, actionRequestDigests, controlPlaneDigests, approvalDigests, requiredApprovalIDs, attestationDigests, instanceIdentityDigests, providerInvocationDigests, secretLeaseDigests, nil
+	return policyDigests, typedRequestDigests, actionRequestDigests, controlPlaneDigests, approvalDigests, requiredApprovalIDs, attestationDigests, projectContextDigests, providerInvocationDigests, secretLeaseDigests, nil
 }
 
 func appendExternalAnchorCoreEvidence(rec trustpolicy.ExternalAnchorEvidencePayload, policyDigests []string, typedRequestDigests []string, actionRequestDigests []string, controlPlaneDigests []string, approvalDigests []string, requiredApprovalIDs []string, providerInvocationDigests []string, secretLeaseDigests []string) ([]string, []string, []string, []string, []string, []string, []string, []string, error) {
@@ -83,14 +83,16 @@ func appendExternalAnchorCoreEvidence(rec trustpolicy.ExternalAnchorEvidencePayl
 	if identity, ok := digestIdentityIfValid(rec.TargetAuthLeaseID); ok {
 		secretLeaseDigests = append(secretLeaseDigests, identity)
 	}
-	providerInvocationDigests = append(providerInvocationDigests, rec.CanonicalTargetIdentity)
+	if identity, ok := digestIdentityIfValid(rec.CanonicalTargetIdentity); ok {
+		providerInvocationDigests = append(providerInvocationDigests, identity)
+	}
 	if approvalID := strings.TrimSpace(rec.RequiredApprovalID); approvalID != "" {
 		requiredApprovalIDs = append(requiredApprovalIDs, approvalID)
 	}
 	return policyDigests, typedRequestDigests, actionRequestDigests, controlPlaneDigests, approvalDigests, requiredApprovalIDs, providerInvocationDigests, secretLeaseDigests, nil
 }
 
-func appendExternalAnchorSidecarEvidence(rec trustpolicy.ExternalAnchorEvidencePayload, attestationDigests []string, instanceIdentityDigests []string) ([]string, []string, error) {
+func appendExternalAnchorSidecarEvidence(rec trustpolicy.ExternalAnchorEvidencePayload, attestationDigests []string, projectContextDigests []string) ([]string, []string, error) {
 	for j := range rec.SidecarRefs {
 		identity, err := rec.SidecarRefs[j].Digest.Identity()
 		if err != nil {
@@ -100,10 +102,10 @@ func appendExternalAnchorSidecarEvidence(rec trustpolicy.ExternalAnchorEvidenceP
 		case trustpolicy.ExternalAnchorSidecarKindAttestationRef:
 			attestationDigests = append(attestationDigests, identity)
 		case trustpolicy.ExternalAnchorSidecarKindProjectContextRef:
-			instanceIdentityDigests = append(instanceIdentityDigests, identity)
+			projectContextDigests = append(projectContextDigests, identity)
 		}
 	}
-	return attestationDigests, instanceIdentityDigests, nil
+	return attestationDigests, projectContextDigests, nil
 }
 
 func appendOptionalDigestIdentity(target []string, digest *trustpolicy.Digest) ([]string, error) {

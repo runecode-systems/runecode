@@ -34,7 +34,7 @@
       "description": "Snapshot-versus-bundle completeness review result.",
       "type": "object",
       "additionalProperties": false,
-      "maxProperties": 4,
+      "maxProperties": 8,
       "required": ["fully_satisfied", "required_identity_count"],
       "properties": {
         "fully_satisfied": {
@@ -70,6 +70,42 @@
             "$ref": "#/$defs/snapshotIdentity",
             "description": "One redacted required identity."
           }
+        },
+        "transitive_embedded": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000000,
+          "description": "Digest identities preserved transitively inside included canonical objects; these are not counted as direct object completeness requirements.",
+          "x-data-class": "public",
+          "items": {
+            "$ref": "#/$defs/snapshotIdentity",
+            "description": "One transitively embedded digest identity."
+          }
+        },
+        "unsupported_direct_completeness": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000000,
+          "description": "Identity families currently unsupported for direct completeness accounting to concrete restorable object paths.",
+          "x-data-class": "public",
+          "items": {
+            "$ref": "#/$defs/snapshotIdentity",
+            "description": "One unsupported direct-completeness identity."
+          }
+        },
+        "transitive_embedded_identity_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000,
+          "description": "Total number of transitive embedded identities surfaced for review context.",
+          "x-data-class": "public"
+        },
+        "unsupported_direct_identity_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000,
+          "description": "Total number of identities in families that are unsupported for direct completeness accounting.",
+          "x-data-class": "public"
         }
       }
     }

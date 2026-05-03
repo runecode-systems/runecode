@@ -84,12 +84,17 @@ func validatedOfflineBundlePath(bundlePath string) (string, error) {
 	if err := validateOfflineBundleParentPath(clean); err != nil {
 		return "", err
 	}
-	info, err := os.Stat(clean)
+	if err := validateOfflineBundleLeaf(clean); err != nil {
+		return "", fmt.Errorf("bundle_path must not reference a symlink")
+	}
+	f, err := os.Open(clean)
 	if err != nil {
 		return "", err
 	}
-	if err := validateOfflineBundleLeaf(clean); err != nil {
-		return "", fmt.Errorf("bundle_path must not reference a symlink")
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return "", err
 	}
 	if info.IsDir() {
 		return "", fmt.Errorf("bundle_path must reference a file")

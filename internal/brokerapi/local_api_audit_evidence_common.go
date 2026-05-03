@@ -1,6 +1,11 @@
 package brokerapi
 
-import "context"
+import (
+	"context"
+	"strings"
+
+	"github.com/runecode-ai/runecode/internal/auditd"
+)
 
 func (s *Service) prepareAuditEvidenceRequest(ctx context.Context, reqID, fallbackReqID string, admissionErr error, req any, schemaPath string, meta RequestContext, unavailableMessage string) (string, context.Context, func(), *ErrorResponse) {
 	requestID := resolveRequestID(reqID, fallbackReqID)
@@ -36,4 +41,21 @@ func (s *Service) requireAuditEvidenceLedger(requestID string) *ErrorResponse {
 	}
 	errOut := s.makeError(requestID, "gateway_failure", "internal", false, "audit ledger unavailable")
 	return &errOut
+}
+
+func (s *Service) auditEvidenceIdentityContext() auditd.AuditEvidenceIdentityContext {
+	repoRoot := strings.TrimSpace(s.projectSubstrate.RepositoryRoot)
+	if repoRoot == "" {
+		repoRoot = strings.TrimSpace(s.apiConfig.RepositoryRoot)
+	}
+	repositoryIdentityDigest := ""
+	if digest := hashIdentityDigest(repoRoot); digest != nil {
+		if identity, err := digest.Identity(); err == nil {
+			repositoryIdentityDigest = identity
+		}
+	}
+	return auditd.AuditEvidenceIdentityContext{
+		RepositoryIdentityDigest: repositoryIdentityDigest,
+		ProductInstanceID:        strings.TrimSpace(s.productInstanceID),
+	}
 }
