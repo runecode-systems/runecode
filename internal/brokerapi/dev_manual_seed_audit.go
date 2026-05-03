@@ -40,34 +40,41 @@ func seedDevManualAuditLedger(root string, profile string) (string, error) {
 	if err := writeDevManualSeal(validatedRoot, material); err != nil {
 		return "", err
 	}
-	ledger, err := auditd.Open(validatedRoot)
-	if err != nil {
+	if err := verifyDevManualAuditLedger(validatedRoot, material, profile); err != nil {
 		return "", err
+	}
+	if err := writeDevManualSeedMarker(validatedRoot, profile); err != nil {
+		return "", err
+	}
+	return recordDigestIdentity(material.recordDigest)
+}
+
+func verifyDevManualAuditLedger(root string, material devManualAuditMaterial, profile string) error {
+	ledger, err := auditd.Open(root)
+	if err != nil {
+		return err
 	}
 	if err := ledger.ConfigureVerificationInputs(auditd.VerificationConfiguration{
 		VerifierRecords:      []trustpolicy.VerifierRecord{material.verifier},
 		EventContractCatalog: devManualEventContractCatalog(),
 		SignerEvidence:       material.signerEvidence,
 	}); err != nil {
-		return "", err
+		return err
 	}
 	if _, err := ledger.BuildIndex(); err != nil {
-		return "", err
+		return err
 	}
 	result, err := ledger.VerifyCurrentSegmentAndPersist()
 	if err != nil {
-		return "", err
+		return err
 	}
 	if profile == devManualSeedDegradedProfile {
 		degraded := degradeDevManualVerificationReport(result.Report)
 		if _, err := ledger.PersistVerificationReport(degraded); err != nil {
-			return "", err
+			return err
 		}
 	}
-	if err := writeDevManualSeedMarker(validatedRoot, profile); err != nil {
-		return "", err
-	}
-	return recordDigestIdentity(material.recordDigest)
+	return nil
 }
 
 func buildDevManualAuditMaterial(profile string) (devManualAuditMaterial, error) {

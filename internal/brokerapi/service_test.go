@@ -163,6 +163,50 @@ func TestSeedDevManualScenarioRejectsLedgerWithMultipleBootstrapSegments(t *test
 	}
 }
 
+func TestSeedDevManualScenarioRejectsLedgerWithExistingReceiptSidecar(t *testing.T) {
+	if !DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
+	service := newDevManualSeedService(t)
+	t.Setenv(devManualSeedEnvVar, "1")
+	receiptsDir := filepath.Join(service.auditRoot, "sidecar", "receipts")
+	if err := os.MkdirAll(receiptsDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(receiptsDir, strings.Repeat("a", 64)+".json"), []byte(`{"schema_id":"x"}`), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	_, err := service.SeedDevManualScenario()
+	if err == nil {
+		t.Fatal("SeedDevManualScenario expected populated-ledger rejection for receipt sidecar")
+	}
+	if err.Error() != "dev manual seeding refuses populated audit ledger root" {
+		t.Fatalf("SeedDevManualScenario error = %q, want populated-ledger refusal", err.Error())
+	}
+}
+
+func TestSeedDevManualScenarioRejectsLedgerWithExistingExternalAnchorEvidence(t *testing.T) {
+	if !DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
+	service := newDevManualSeedService(t)
+	t.Setenv(devManualSeedEnvVar, "1")
+	evidenceDir := filepath.Join(service.auditRoot, "sidecar", "external-anchor-evidence")
+	if err := os.MkdirAll(evidenceDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(evidenceDir, strings.Repeat("b", 64)+".json"), []byte(`{"schema_id":"x"}`), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	_, err := service.SeedDevManualScenario()
+	if err == nil {
+		t.Fatal("SeedDevManualScenario expected populated-ledger rejection for external anchor evidence")
+	}
+	if err.Error() != "dev manual seeding refuses populated audit ledger root" {
+		t.Fatalf("SeedDevManualScenario error = %q, want populated-ledger refusal", err.Error())
+	}
+}
+
 func TestSeedDevManualScenarioRejectsOversizedSeedMarker(t *testing.T) {
 	if !DevManualSeedBuildEnabled() {
 		t.Skip("dev manual seed is disabled in this build")

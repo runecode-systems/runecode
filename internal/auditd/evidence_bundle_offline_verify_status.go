@@ -98,7 +98,7 @@ func offlineBundleFindingFlags(findings []AuditEvidenceBundleOfflineFinding) (bo
 
 func isOfflineBundleDegradedFinding(code string) bool {
 	switch code {
-	case "verification_report_degraded_posture", "verification_report_missing", "verification_evidence_redacted", "verification_recompute_inputs_missing", "verification_recompute_unavailable":
+	case "verification_report_degraded_posture", "verification_report_missing", "verification_evidence_redacted", "verification_recompute_inputs_missing", "verification_recompute_unavailable", "verifier_identity_missing", "trust_root_identity_missing":
 		return true
 	default:
 		return false
