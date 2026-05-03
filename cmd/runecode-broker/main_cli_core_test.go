@@ -47,6 +47,7 @@ func TestHelpAndUnknownCommand(t *testing.T) {
 		"dependency-fetch-registry",
 		"dependency-cache-handoff",
 		"approval-resolve",
+		"requires build tag runecode_devseed",
 	})
 	err := run([]string{"not-a-command"}, stdout, stderr)
 	if err == nil {

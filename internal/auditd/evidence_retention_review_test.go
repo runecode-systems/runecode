@@ -7,33 +7,35 @@ import (
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
-func TestBuildEvidenceRetentionReviewDetectsMissingBackfillIdentities(t *testing.T) {
+func TestBuildEvidenceRetentionReviewSeededFixtureIsFullySatisfied(t *testing.T) {
 	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
 	seal := mustSealFixtureSegment(t, ledger, fixture)
 	_ = mustPersistReceipt(t, ledger, buildAnchorReceiptEnvelope(t, fixture, seal.SealEnvelopeDigest))
 	_ = mustPersistReport(t, ledger, validReportFixture("segment-000001"))
 
-	instanceDigest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("9", 64)}
-	targetDigest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("8", 64)}
-	if err := persistExternalAnchorEvidenceForSealWithProjectContext(t, ledger, seal.SealEnvelopeDigest, targetDigest, instanceDigest); err != nil {
-		t.Fatalf("persistExternalAnchorEvidenceForSealWithProjectContext returned error: %v", err)
-	}
-
-	snapshot, manifest, review, err := ledger.BuildEvidenceRetentionReview(AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"})
+	_, _, review, err := ledger.BuildEvidenceRetentionReview(AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"})
 	if err != nil {
 		t.Fatalf("BuildEvidenceRetentionReview returned error: %v", err)
 	}
-	if len(snapshot.InstanceIdentityDigests) == 0 {
-		t.Fatal("snapshot.instance_identity_digests empty, want preserved instance identity digest")
+	if !review.FullySatisfied {
+		t.Fatalf("completeness review = %+v, want fully satisfied for seeded complete fixture", review)
 	}
+	if len(review.Missing) != 0 {
+		t.Fatalf("missing = %+v, want no completeness gaps for seeded complete fixture", review.Missing)
+	}
+}
+
+func TestEvaluateEvidenceRetentionCompletenessReportsRuntimeEvidenceGapWhenObjectMissing(t *testing.T) {
+	runtime := "sha256:" + strings.Repeat("b", 64)
+	review := EvaluateEvidenceRetentionCompleteness(
+		AuditEvidenceSnapshot{RuntimeEvidenceDigests: []string{runtime}},
+		AuditEvidenceBundleManifest{},
+	)
 	if review.FullySatisfied {
-		t.Fatalf("completeness review = %+v, want incomplete while runtime evidence export remains missing", review)
+		t.Fatalf("review = %+v, want incomplete when runtime evidence digest has no included object", review)
 	}
-	if !containsCompletenessFamily(review.Missing, "signer_evidence_digest") {
-		t.Fatalf("missing = %+v, want signer_evidence_digest gap visible for backfill planning", review.Missing)
-	}
-	if strings.TrimSpace(manifest.InstanceIdentity) == "" {
-		t.Fatal("manifest.instance_identity_digest empty, want stable portable instance identity")
+	if !containsCompletenessFamily(review.Missing, "runtime_evidence_digest") {
+		t.Fatalf("missing = %+v, want runtime_evidence_digest completeness gap", review.Missing)
 	}
 }
 

@@ -401,18 +401,18 @@ func handleSeedDevManualScenario(args []string, service *brokerapi.Service, stdo
 	profile := fs.String("profile", "tui-rich-v1", "deterministic dev seed profile")
 	devOnly := fs.Bool("dev-only", false, "required acknowledgement; this command is dev/manual-test only")
 	if err := fs.Parse(args); err != nil {
-		return &usageError{message: "seed-dev-manual-scenario usage: runecode-broker seed-dev-manual-scenario --dev-only [--profile tui-rich-v1]"}
+		return &usageError{message: "seed-dev-manual-scenario usage: runecode-broker seed-dev-manual-scenario --dev-only [--profile tui-rich-v1|tui-rich-degraded-v1]"}
 	}
 	if !*devOnly {
 		return &usageError{message: "seed-dev-manual-scenario requires --dev-only acknowledgement"}
 	}
-	if *profile != "tui-rich-v1" {
-		return &usageError{message: fmt.Sprintf("seed-dev-manual-scenario unsupported --profile %q (supported: tui-rich-v1)", *profile)}
+	if _, err := brokerapi.NormalizeDevManualSeedProfile(*profile); err != nil {
+		return &usageError{message: fmt.Sprintf("seed-dev-manual-scenario unsupported --profile %q (supported: %s)", *profile, strings.Join(brokerapi.SupportedDevManualSeedProfiles(), ", "))}
 	}
 	if !brokerapi.DevManualSeedBuildEnabled() {
 		return &usageError{message: "seed-dev-manual-scenario unavailable in this build"}
 	}
-	result, err := service.SeedDevManualScenario()
+	result, err := service.SeedDevManualScenarioWithProfile(*profile)
 	if err != nil {
 		return fmt.Errorf("seed-dev-manual-scenario failed: %w", err)
 	}

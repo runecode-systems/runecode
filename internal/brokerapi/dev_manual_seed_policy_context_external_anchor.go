@@ -1,3 +1,5 @@
+//go:build runecode_devseed
+
 package brokerapi
 
 import (
@@ -22,6 +24,16 @@ func (s *Service) seedDevManualPolicyAllowlist(runID string) (string, error) {
 }
 
 func (s *Service) seedDevManualExternalAnchorGatewayContext(runID, allowlistDigest string, verifier trustpolicy.VerifierRecord, privateKey ed25519.PrivateKey) error {
+	if err := s.seedDevManualExternalAnchorGatewayContextForRun(runID, allowlistDigest, verifier, privateKey); err != nil {
+		return err
+	}
+	if runID == devManualSeedRunID {
+		return nil
+	}
+	return s.seedDevManualExternalAnchorGatewayContextForRun(devManualSeedRunID, allowlistDigest, verifier, privateKey)
+}
+
+func (s *Service) seedDevManualExternalAnchorGatewayContextForRun(runID, allowlistDigest string, verifier trustpolicy.VerifierRecord, privateKey ed25519.PrivateKey) error {
 	if err := s.recordDevManualSignedTrustedContext(runID, artifacts.TrustedContractImportKindRoleManifest, devManualExternalAnchorGatewayRoleManifestPayload(runID, allowlistDigest), verifier, privateKey); err != nil {
 		return err
 	}
@@ -126,14 +138,4 @@ func devManualExternalAnchorGatewayCapabilityManifestPayload(runID, allowlistDig
 		"capability_opt_ins": []any{"cap_external_anchor"},
 		"allowlist_refs":     []any{digestObjectForDevSeed(allowlistDigest)},
 	}
-}
-
-func devManualExternalAnchorTargetDescriptorDigest() (string, error) {
-	descriptor := map[string]any{
-		"descriptor_schema_id":   "runecode.protocol.audit.anchor_target.transparency_log.v0",
-		"log_id":                 "manual-seed-transparency-log",
-		"log_public_key_digest":  digestObjectForDevSeed("sha256:" + strings.Repeat("d", 64)),
-		"entry_encoding_profile": "jcs_v1",
-	}
-	return externalAnchorCanonicalDescriptorDigestIdentity(descriptor)
 }
