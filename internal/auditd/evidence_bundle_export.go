@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
 
@@ -99,15 +98,15 @@ func (l *Ledger) segmentBundleObjectBytesLocked(segmentID string) ([]byte, error
 	if err != nil {
 		return nil, err
 	}
-	return l.rawSegmentFramedBytes(segment)
+	b, err := json.Marshal(segment)
+	if err != nil {
+		return nil, err
+	}
+	return jsoncanonicalizer.Transform(b)
 }
 
 func validateSegmentBundleObject(object AuditEvidenceBundleIncludedObject, cleanPath string, raw []byte) error {
-	segmentDigest, err := trustpolicy.ComputeSegmentFileHash(raw)
-	if err != nil {
-		return err
-	}
-	segmentIdentity, err := segmentDigest.Identity()
+	segmentIdentity, err := digestIdentityFromSegmentPayload(raw)
 	if err != nil {
 		return err
 	}

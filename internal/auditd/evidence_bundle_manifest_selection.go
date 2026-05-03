@@ -4,8 +4,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func (l *Ledger) collectEvidenceBundleIncludedObjectsLocked(profilePolicy evidenceBundleProfilePolicy, segmentIDs []string, segmentSet map[string]struct{}) ([]AuditEvidenceBundleIncludedObject, error) {
@@ -204,11 +202,7 @@ func (l *Ledger) segmentObjectDigestIdentityLocked(segmentID string) (string, er
 	if err != nil {
 		return "", err
 	}
-	raw, err := l.rawSegmentFramedBytes(segment)
-	if err != nil {
-		return "", err
-	}
-	digest, err := trustpolicy.ComputeSegmentFileHash(raw)
+	digest, err := canonicalDigest(segment)
 	if err != nil {
 		return "", err
 	}

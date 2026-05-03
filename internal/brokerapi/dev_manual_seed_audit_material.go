@@ -67,23 +67,3 @@ func devManualSegmentEvidence(recordDigest trustpolicy.Digest, canonicalEnvelope
 	}
 	return segmentRawBytes, segmentFileHash, segmentMerkleRoot, nil
 }
-
-func attachDevManualSeedReport(material *devManualAuditMaterial) error {
-	report, err := trustpolicy.VerifyAuditEvidence(trustpolicy.AuditVerificationInput{
-		Scope:                 trustpolicy.AuditVerificationScope{ScopeKind: trustpolicy.AuditVerificationScopeSegment, LastSegmentID: "segment-000001"},
-		Segment:               sealedSegmentPayload(*material),
-		RawFramedSegmentBytes: material.segmentRawBytes,
-		SegmentSealEnvelope:   material.segmentSealEnvelope,
-		VerifierRecords:       []trustpolicy.VerifierRecord{material.verifier},
-		EventContractCatalog:  devManualEventContractCatalog(),
-		SignerEvidence:        material.signerEvidence,
-	})
-	if err != nil {
-		return err
-	}
-	if material.profile == devManualSeedDegradedProfile {
-		report = degradeDevManualVerificationReport(report)
-	}
-	material.seedReport = report
-	return nil
-}
