@@ -12,7 +12,7 @@ import (
 
 const (
 	AuditReceiptSchemaID      = "runecode.protocol.v0.AuditReceipt"
-	AuditReceiptSchemaVersion = "0.4.0"
+	AuditReceiptSchemaVersion = "0.5.0"
 
 	AuditOperationalViewPolicyID      = "audit_default_operational_view"
 	AuditOperationalViewPolicyVersion = "0.1.0"
