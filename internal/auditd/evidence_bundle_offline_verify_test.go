@@ -58,8 +58,8 @@ func TestOfflineVerifyEvidenceBundleSurfacesMissingVerificationEvidence(t *testi
 	if err != nil {
 		t.Fatalf("OfflineVerifyEvidenceBundle returned error: %v", err)
 	}
-	if verification.VerificationStatus != "degraded" {
-		t.Fatalf("verification_status = %q, want degraded", verification.VerificationStatus)
+	if verification.VerificationStatus != "failed" {
+		t.Fatalf("verification_status = %q, want failed", verification.VerificationStatus)
 	}
 	if !hasOfflineFindingCode(verification.Findings, "verification_report_missing") {
 		t.Fatalf("findings = %+v, want verification_report_missing", verification.Findings)

@@ -1,6 +1,7 @@
 package auditd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -331,6 +332,42 @@ func TestConfigureVerificationInputsClearsOmittedOptionalFiles(t *testing.T) {
 	}
 	assertPathMissing(t, filepath.Join(contractsDir, "signer-evidence.json"), "signer-evidence.json should be removed when omitted")
 	assertPathMissing(t, filepath.Join(contractsDir, "storage-posture.json"), "storage-posture.json should be removed when omitted")
+}
+
+func TestConfigureVerificationInputsPersistsMetaAuditReceiptsWhenSealedSegmentExists(t *testing.T) {
+	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	seal := mustSealFixtureSegment(t, ledger, fixture)
+	request := validAdmissionRequestForLedger(t, fixture)
+	if err := ledger.ConfigureVerificationInputs(VerificationConfiguration{VerifierRecords: request.VerifierRecords, EventContractCatalog: request.EventContractCatalog, SignerEvidence: request.SignerEvidence}); err != nil {
+		t.Fatalf("ConfigureVerificationInputs returned error: %v", err)
+	}
+	receipts, err := ledger.ReceiptsForSealDigest(seal.SealEnvelopeDigest)
+	if err != nil {
+		t.Fatalf("ReceiptsForSealDigest returned error: %v", err)
+	}
+	if !hasReceiptKind(t, receipts, "verifier_configuration_changed") {
+		t.Fatal("missing verifier_configuration_changed receipt")
+	}
+	if !hasReceiptKind(t, receipts, "trust_root_updated") {
+		t.Fatal("missing trust_root_updated receipt")
+	}
+	if !hasReceiptKind(t, receipts, "evidence_import") {
+		t.Fatal("missing evidence_import receipt")
+	}
+}
+
+func hasReceiptKind(t *testing.T, receipts []trustpolicy.SignedObjectEnvelope, kind string) bool {
+	t.Helper()
+	for i := range receipts {
+		payload := map[string]any{}
+		if err := json.Unmarshal(receipts[i].Payload, &payload); err != nil {
+			continue
+		}
+		if receiptKind, _ := payload["audit_receipt_kind"].(string); receiptKind == kind {
+			return true
+		}
+	}
+	return false
 }
 
 func fullStoragePostureFixture() *trustpolicy.AuditStoragePostureEvidence {

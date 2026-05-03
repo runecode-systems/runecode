@@ -30,6 +30,13 @@ func approvalBoundIdentityFromRecord(record approvalRecord, bindingKind, boundAc
 		identity.DecisionVerifierKeyID = strings.TrimSpace(record.DecisionEnvelope.Signature.KeyID)
 		identity.DecisionVerifierKeyIDValue = strings.TrimSpace(record.DecisionEnvelope.Signature.KeyIDValue)
 	}
+	identity.ScopeDigest = strings.TrimSpace(record.Summary.ScopeDigest)
+	identity.ArtifactSetDigest = strings.TrimSpace(record.Summary.ArtifactSetDigest)
+	identity.DiffDigest = strings.TrimSpace(record.Summary.DiffDigest)
+	identity.SummaryPreviewDigest = strings.TrimSpace(record.Summary.SummaryPreviewDigest)
+	identity.ConsumedActionHash = strings.TrimSpace(record.Summary.ConsumedActionHash)
+	identity.ConsumedArtifactDigest = strings.TrimSpace(record.Summary.ConsumedArtifactDigest)
+	identity.ConsumptionLinkDigest = strings.TrimSpace(record.Summary.ConsumptionLinkDigest)
 	return identity
 }
 

@@ -20,7 +20,10 @@ func (l *Ledger) buildEvidenceBundleManifestLocked(req AuditEvidenceBundleManife
 	if err := validateEvidenceBundleManifestRequest(req); err != nil {
 		return AuditEvidenceBundleManifest{}, err
 	}
-	profilePolicy := evidenceBundleExportProfilePolicy(strings.TrimSpace(req.ExportProfile))
+	profilePolicy, err := evidenceBundleExportProfilePolicy(strings.TrimSpace(req.ExportProfile))
+	if err != nil {
+		return AuditEvidenceBundleManifest{}, err
+	}
 	data, err := l.evidenceBundleManifestDataLocked(req.Scope, profilePolicy)
 	if err != nil {
 		return AuditEvidenceBundleManifest{}, err
@@ -38,6 +41,7 @@ func (l *Ledger) buildEvidenceBundleManifestLocked(req AuditEvidenceBundleManife
 		CreatedByTool:     normalizeEvidenceBundleToolIdentity(req.CreatedByTool),
 		ExportProfile:     strings.TrimSpace(req.ExportProfile),
 		Scope:             normalizeEvidenceBundleScope(req.Scope),
+		ControlPlane:      data.controlPlane,
 		InstanceIdentity:  strings.TrimSpace(data.instanceIdentity),
 		IncludedObjects:   included,
 		RootDigests:       data.rootDigests,
@@ -47,7 +51,17 @@ func (l *Ledger) buildEvidenceBundleManifestLocked(req AuditEvidenceBundleManife
 		DisclosurePosture: disclosurePosture,
 		Redactions:        allRedactions,
 	}
+	if err := validateManifestControlPlane(manifest.ControlPlane); err != nil {
+		return AuditEvidenceBundleManifest{}, err
+	}
 	return manifest, nil
+}
+
+func validateManifestControlPlane(controlPlane *AuditEvidenceBundleControlProvenance) error {
+	if controlPlane == nil {
+		return nil
+	}
+	return validateEvidenceBundleControlProvenance(*controlPlane)
 }
 
 func (l *Ledger) evidenceBundleInstanceIdentityLocked() (string, error) {

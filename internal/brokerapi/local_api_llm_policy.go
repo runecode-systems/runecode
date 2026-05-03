@@ -160,6 +160,7 @@ func (s *Service) emitModelGatewayTerminalAudit(runID string, decision policyeng
 		s.gatewayRuntime.releaseQuotaUsage(runID, payload)
 		return err
 	}
+	s.persistProviderInvocationReceipt(runID, string(decision.DecisionOutcome), "", payload, match)
 	s.gatewayRuntime.releaseQuotaUsage(runID, payload)
 	return nil
 }

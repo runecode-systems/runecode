@@ -5,7 +5,7 @@
   "description": "Typed bound-identity detail for approval request/decision and immutable binding hashes.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 13,
+  "maxProperties": 20,
   "required": ["schema_id", "schema_version", "approval_request_digest", "manifest_hash", "binding_kind"],
   "properties": {
     "schema_id": { "const": "runecode.protocol.v0.ApprovalBoundIdentity", "description": "Protocol schema identifier.", "x-data-class": "public" },
@@ -26,7 +26,14 @@
     "bound_stage_summary_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Canonical stage summary hash when binding_kind is stage_sign_off.", "x-data-class": "public" },
     "decision_approver": { "$ref": "PrincipalIdentity.schema.json", "description": "Approver principal identity from signed decision payload when available.", "x-data-class": "public" },
     "decision_verifier_key_id": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Verifier key-id selected by the signed decision envelope.", "x-data-class": "public" },
-    "decision_verifier_key_id_value": { "type": "string", "pattern": "^[a-f0-9]{64}$", "maxLength": 64, "description": "Verifier key-id value selected by the signed decision envelope.", "x-data-class": "public" }
+    "decision_verifier_key_id_value": { "type": "string", "pattern": "^[a-f0-9]{64}$", "maxLength": 64, "description": "Verifier key-id value selected by the signed decision envelope.", "x-data-class": "public" },
+    "scope_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Canonical digest identity for the scope evidence shown to the approver.", "x-data-class": "public" },
+    "artifact_set_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Canonical digest identity for artifact-set evidence shown to the approver.", "x-data-class": "public" },
+    "diff_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Canonical digest identity for diff evidence shown to the approver when available.", "x-data-class": "public" },
+    "summary_preview_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Canonical digest identity for summary or preview evidence shown to the approver when available.", "x-data-class": "public" },
+    "consumed_action_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Bound action hash for the final action that consumed this approval when applicable.", "x-data-class": "public" },
+    "consumed_artifact_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Artifact digest for the final artifact path that consumed this approval when applicable.", "x-data-class": "public" },
+    "consumption_link_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "maxLength": 71, "description": "Canonical digest linking approval identity with the final consuming action evidence when available.", "x-data-class": "public" }
   },
   "allOf": [
     {

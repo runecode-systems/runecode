@@ -50,9 +50,20 @@ const (
 	AuditVerificationReasonExternalAnchorValid                 = "external_anchor_valid"
 	AuditVerificationReasonExternalAnchorDeferredOrUnavailable = "external_anchor_deferred_or_unavailable"
 	AuditVerificationReasonExternalAnchorInvalid               = "external_anchor_invalid"
+	AuditVerificationReasonMissingRequiredApprovalEvidence     = "missing_required_approval_evidence"
+	AuditVerificationReasonMissingRuntimeAttestationEvidence   = "missing_runtime_attestation_evidence"
+	AuditVerificationReasonNegativeCapabilitySummaryMissing    = "negative_capability_summary_missing"
+	AuditVerificationReasonVerifierIdentityMissingOrUnknown    = "verifier_identity_missing_or_unknown"
+	AuditVerificationReasonEvidenceExportIncomplete            = "evidence_export_incomplete"
 	AuditVerificationReasonSegmentLifecycleInconsistent        = "segment_lifecycle_inconsistent"
 	AuditVerificationReasonStoragePostureDegraded              = "storage_posture_degraded"
 	AuditVerificationReasonStoragePostureInvalid               = "storage_posture_invalid"
+
+	AuditVerificationAnchoringPostureLocalAnchorReceiptOnly          = "local_anchor_receipt_only"
+	AuditVerificationAnchoringPostureAnchorReceiptMissingOrUnbound   = "anchor_receipt_missing_or_unbound"
+	AuditVerificationAnchoringPostureExternalAnchorValidated         = "external_anchor_validated"
+	AuditVerificationAnchoringPostureExternalAnchorDeferredOrUnknown = "external_anchor_deferred_or_unavailable"
+	AuditVerificationAnchoringPostureExternalAnchorInvalid           = "external_anchor_invalid"
 )
 
 var (
@@ -82,6 +93,11 @@ var (
 		AuditVerificationReasonExternalAnchorValid:                 {},
 		AuditVerificationReasonExternalAnchorDeferredOrUnavailable: {},
 		AuditVerificationReasonExternalAnchorInvalid:               {},
+		AuditVerificationReasonMissingRequiredApprovalEvidence:     {},
+		AuditVerificationReasonMissingRuntimeAttestationEvidence:   {},
+		AuditVerificationReasonNegativeCapabilitySummaryMissing:    {},
+		AuditVerificationReasonVerifierIdentityMissingOrUnknown:    {},
+		AuditVerificationReasonEvidenceExportIncomplete:            {},
 		AuditVerificationReasonSegmentLifecycleInconsistent:        {},
 		AuditVerificationReasonStoragePostureDegraded:              {},
 		AuditVerificationReasonStoragePostureInvalid:               {},
@@ -115,8 +131,11 @@ type AuditVerificationReportPayload struct {
 	CurrentlyDegraded      bool                       `json:"currently_degraded"`
 	IntegrityStatus        string                     `json:"integrity_status"`
 	AnchoringStatus        string                     `json:"anchoring_status"`
+	AnchoringPosture       string                     `json:"anchoring_posture"`
 	StoragePostureStatus   string                     `json:"storage_posture_status"`
 	SegmentLifecycleStatus string                     `json:"segment_lifecycle_status"`
+	VerifierIdentity       string                     `json:"verifier_identity"`
+	TrustRootIdentities    []string                   `json:"trust_root_identities"`
 	DegradedReasons        []string                   `json:"degraded_reasons"`
 	HardFailures           []string                   `json:"hard_failures"`
 	Findings               []AuditVerificationFinding `json:"findings"`
@@ -168,7 +187,10 @@ type AuditVerificationInput struct {
 	ExternalAnchorEvidence   []ExternalAnchorEvidencePayload
 	ExternalAnchorSidecars   []Digest
 	PreverifiedSealDigest    *Digest
+	PreverifiedSealPayload   *AuditSegmentSealPayload
+	PreverifiedEvents        []AuditEventPayload
 	SkipFrameAndSealReplay   bool
+	TrustedPreverifiedSeal   bool
 	Now                      time.Time
 }
 

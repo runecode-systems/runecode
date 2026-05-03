@@ -29,15 +29,44 @@ func (s *Service) HandleAuditEvidenceBundleExport(ctx context.Context, req Audit
 	if errResp != nil {
 		return nil, errResp
 	}
+	if auditEvidenceBundleExportCompleted(events) {
+		s.persistMetaAuditReceipt(auditReceiptKindEvidenceBundleExport, "audit_evidence_bundle", manifestDigestRefOrNil(manifestDigest), nil, manifestDigestRefOrNil(manifestDigest), "")
+	}
 	return s.validateAuditEvidenceBundleExportEvents(requestID, events)
 }
 
+func auditEvidenceBundleExportCompleted(events []AuditEvidenceBundleExportEvent) bool {
+	if len(events) == 0 {
+		return false
+	}
+	last := events[len(events)-1]
+	return last.Terminal && last.TerminalStatus == "completed" && last.EOF
+}
+
+func manifestDigestRefOrNil(digest trustpolicy.Digest) *trustpolicy.Digest {
+	if identity, err := digest.Identity(); err != nil || strings.TrimSpace(identity) == "" {
+		return nil
+	}
+	copyDigest := digest
+	return &copyDigest
+}
+
 func (s *Service) buildAuditEvidenceBundleExportArtifacts(requestID string, req AuditEvidenceBundleExportRequest) (AuditEvidenceBundleManifest, trustpolicy.Digest, io.ReadCloser, *ErrorResponse) {
+	trustedScope, err := projectAuditEvidenceBundleScopeToTrusted(req.Scope)
+	if err != nil {
+		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
+		return AuditEvidenceBundleManifest{}, trustpolicy.Digest{}, nil, &errOut
+	}
+	trustedTool, err := projectAuditEvidenceBundleToolIdentityToTrusted(req.CreatedByTool)
+	if err != nil {
+		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
+		return AuditEvidenceBundleManifest{}, trustpolicy.Digest{}, nil, &errOut
+	}
 	exportResult, err := s.auditLedger.ExportEvidenceBundle(auditd.AuditEvidenceBundleExportRequest{
 		ManifestRequest: auditd.AuditEvidenceBundleManifestRequest{
-			Scope:             projectAuditEvidenceBundleScopeToTrusted(req.Scope),
+			Scope:             trustedScope,
 			ExportProfile:     req.ExportProfile,
-			CreatedByTool:     projectAuditEvidenceBundleToolIdentityToTrusted(req.CreatedByTool),
+			CreatedByTool:     trustedTool,
 			DisclosurePosture: projectAuditEvidenceBundleDisclosurePostureToTrusted(req.DisclosurePosture),
 			Redactions:        projectAuditEvidenceBundleRedactionsToTrusted(req.Redactions),
 		},

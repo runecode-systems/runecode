@@ -68,6 +68,7 @@ func enforceStreamContinuity(streams map[string]streamState, event AuditEventPay
 }
 
 func verifyReceipts(input AuditVerificationInput, registry *VerifierRegistry, sealDigest *Digest, sealPayload AuditSegmentSealPayload, report *AuditVerificationReportPayload) {
+	summary := receiptEvidenceSummary{}
 	anchorReceipts := 0
 	validAnchorForSeal := false
 
@@ -81,17 +82,22 @@ func verifyReceipts(input AuditVerificationInput, registry *VerifierRegistry, se
 			continue
 		}
 		anchorReceipts, validAnchorForSeal = processReceiptByKind(index, input, report, receipt, sealDigest, sealPayload, anchorReceipts, validAnchorForSeal)
+		summary.observeReceipt(receipt)
 	}
+
+	reportReceiptEvidenceSummary(report, input.Segment.Header.SegmentID, summary)
 
 	if sealDigest == nil {
 		return
 	}
 	if anchorReceipts == 0 {
 		addDegraded(report, AuditVerificationReasonAnchorReceiptMissing, AuditVerificationDimensionAnchoring, "no anchor receipts present for sealed segment", input.Segment.Header.SegmentID, nil)
+		report.AnchoringPosture = AuditVerificationAnchoringPostureAnchorReceiptMissingOrUnbound
 		return
 	}
 	if !validAnchorForSeal {
 		addDegraded(report, AuditVerificationReasonAnchorReceiptMissing, AuditVerificationDimensionAnchoring, "anchor receipts are present but none target this segment seal digest", input.Segment.Header.SegmentID, nil)
+		report.AnchoringPosture = AuditVerificationAnchoringPostureAnchorReceiptMissingOrUnbound
 	}
 
 	evaluateExternalAnchorEvidence(input, report, sealDigest)

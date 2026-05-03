@@ -1,6 +1,9 @@
 package artifacts
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
@@ -22,9 +25,22 @@ func IsTrustedVerifierArtifact(record ArtifactRecord, events []AuditEvent) bool 
 }
 
 func isValidTrustedVerifierProvenance(value string) bool {
-	digest := trustpolicy.Digest{HashAlg: "sha256", Hash: trimDigestPrefix(value)}
-	_, err := digest.Identity()
+	_, err := digestFromIdentityString(value)
 	return err == nil
+}
+
+func digestFromIdentityString(value string) (trustpolicy.Digest, error) {
+	parts := splitDigestIdentity(value)
+	if len(parts) != 2 {
+		return trustpolicy.Digest{}, fmt.Errorf("digest identity must be hash_alg:hash")
+	}
+	digest := trustpolicy.Digest{HashAlg: parts[0], Hash: parts[1]}
+	_, err := digest.Identity()
+	return digest, err
+}
+
+func splitDigestIdentity(value string) []string {
+	return strings.SplitN(strings.TrimSpace(value), ":", 2)
 }
 
 func hasAuditEventArtifactPutForRole(events []AuditEvent, digest, role, provenanceHash string) bool {
@@ -71,12 +87,4 @@ func auditEventDetailMatches(details map[string]interface{}, key, want string) b
 		return false
 	}
 	return value == want
-}
-
-func trimDigestPrefix(value string) string {
-	const prefix = "sha256:"
-	if len(value) > len(prefix) && value[:len(prefix)] == prefix {
-		return value[len(prefix):]
-	}
-	return value
 }

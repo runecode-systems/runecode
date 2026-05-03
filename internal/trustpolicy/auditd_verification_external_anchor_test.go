@@ -39,6 +39,9 @@ func TestVerifyAuditEvidenceExternalAnchorCompletedAddsValidFinding(t *testing.T
 	if !hasFindingWithCode(report.Findings, AuditVerificationReasonExternalAnchorValid) {
 		t.Fatalf("findings missing %q: %+v", AuditVerificationReasonExternalAnchorValid, report.Findings)
 	}
+	if report.AnchoringPosture != AuditVerificationAnchoringPostureExternalAnchorValidated {
+		t.Fatalf("anchoring_posture=%q, want %q", report.AnchoringPosture, AuditVerificationAnchoringPostureExternalAnchorValidated)
+	}
 }
 
 func TestVerifyAuditEvidenceExternalAnchorDeferredDegrades(t *testing.T) {
@@ -68,6 +71,9 @@ func TestVerifyAuditEvidenceExternalAnchorDeferredDegrades(t *testing.T) {
 	if !containsReasonCode(report.DegradedReasons, AuditVerificationReasonExternalAnchorDeferredOrUnavailable) {
 		t.Fatalf("degraded_reasons=%v, want %q", report.DegradedReasons, AuditVerificationReasonExternalAnchorDeferredOrUnavailable)
 	}
+	if report.AnchoringPosture != AuditVerificationAnchoringPostureExternalAnchorDeferredOrUnknown {
+		t.Fatalf("anchoring_posture=%q, want %q", report.AnchoringPosture, AuditVerificationAnchoringPostureExternalAnchorDeferredOrUnknown)
+	}
 }
 
 func TestVerifyAuditEvidenceExternalAnchorInvalidFailsClosed(t *testing.T) {
@@ -96,6 +102,9 @@ func TestVerifyAuditEvidenceExternalAnchorInvalidFailsClosed(t *testing.T) {
 	}
 	if !containsReasonCode(report.HardFailures, AuditVerificationReasonExternalAnchorInvalid) {
 		t.Fatalf("hard_failures=%v, want %q", report.HardFailures, AuditVerificationReasonExternalAnchorInvalid)
+	}
+	if report.AnchoringPosture != AuditVerificationAnchoringPostureExternalAnchorInvalid {
+		t.Fatalf("anchoring_posture=%q, want %q", report.AnchoringPosture, AuditVerificationAnchoringPostureExternalAnchorInvalid)
 	}
 }
 

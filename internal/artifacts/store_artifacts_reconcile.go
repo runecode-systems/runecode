@@ -39,7 +39,7 @@ func (s *Store) recoveredArtifactRecordFromAuditEvent(event AuditEvent) (Artifac
 		Reference:         ArtifactReference{Digest: details.digest, SizeBytes: size, ContentType: "application/octet-stream", DataClass: details.dataClass, ProvenanceReceiptHash: details.provenance},
 		BlobPath:          blobPath,
 		CreatedAt:         event.OccurredAt.UTC(),
-		CreatedByRole:     recoveredArtifactActor(event.Actor),
+		CreatedByRole:     recoveredArtifactActor(),
 		StorageProtection: s.state.StorageProtectionPosture,
 	}, true, nil
 }
@@ -96,8 +96,8 @@ func artifactPutDetailsFromAuditEvent(event AuditEvent) (recoveredArtifactAuditD
 	return recoveredArtifactAuditDetails{digest: digest, dataClass: dataClass, provenance: provenance}, true
 }
 
-func recoveredArtifactActor(actor string) string {
-	return createdByRole(PutRequest{CreatedByRole: actor})
+func recoveredArtifactActor() string {
+	return "recovered_audit_event"
 }
 
 func stringValue(details map[string]interface{}, key string) string {

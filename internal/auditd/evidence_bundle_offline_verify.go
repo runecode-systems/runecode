@@ -131,7 +131,7 @@ func verifyOfflineBundleReportCoverage(bundle offlineBundleSnapshot, reports []A
 	if len(reports) != 0 {
 		return nil
 	}
-	findings := []AuditEvidenceBundleOfflineFinding{{Code: "verification_report_missing", Severity: "warning", Message: "bundle does not include audit verification report evidence"}}
+	findings := []AuditEvidenceBundleOfflineFinding{{Code: "verification_report_missing", Severity: "error", Message: "bundle does not include audit verification report evidence"}}
 	for i := range bundle.manifest.Redactions {
 		if strings.TrimSpace(bundle.manifest.Redactions[i].Path) == "" {
 			continue

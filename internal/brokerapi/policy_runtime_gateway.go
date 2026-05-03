@@ -46,21 +46,26 @@ func (r policyRuntime) enforceGatewayRuntime(runID string, compiled *policyengin
 		if reason == "" {
 			reason = "runtime_gateway_destination_not_allowlisted"
 		}
+		r.service.persistProviderInvocationReceipt(runID, string(policyengine.DecisionDeny), reason, payload, gatewayAllowlistMatch{})
 		return runtimeGatewayDenyDecision(compiled, decision, payload, reason, nil)
 	}
 
 	if reason, details, denied := r.service.gatewayRuntime.runtimeEnforcementDenyReason(runID, entry, payload); denied {
+		r.service.persistProviderInvocationReceipt(runID, string(policyengine.DecisionDeny), reason, payload, match)
 		return runtimeGatewayDenyDecision(compiled, decision, payload, reason, details)
 	}
 	if reason, details, denied := runtimeGitOutboundVerificationReason(payload); denied {
 		r.service.gatewayRuntime.releaseQuotaUsage(runID, payload)
+		r.service.persistProviderInvocationReceipt(runID, string(policyengine.DecisionDeny), reason, payload, match)
 		return runtimeGatewayDenyDecision(compiled, decision, payload, reason, details)
 	}
 
 	if err := r.service.gatewayRuntime.emitGatewayAuditEvent(runID, decision, payload, match); err != nil {
 		r.service.gatewayRuntime.releaseQuotaUsage(runID, payload)
+		r.service.persistProviderInvocationReceipt(runID, string(policyengine.DecisionDeny), "runtime_gateway_audit_emit_failed", payload, match)
 		return runtimeGatewayDenyDecision(compiled, decision, payload, "runtime_gateway_audit_emit_failed", map[string]any{"error": err.Error()})
 	}
+	r.service.persistProviderInvocationReceipt(runID, string(decision.DecisionOutcome), "", payload, match)
 	r.service.gatewayRuntime.releaseQuotaUsage(runID, payload)
 	return decision
 }

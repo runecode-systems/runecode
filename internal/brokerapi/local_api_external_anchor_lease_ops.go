@@ -60,7 +60,7 @@ func (s *Service) issueExternalAnchorExecutionLease(record artifacts.ExternalAnc
 	if strings.TrimSpace(record.ActionRequestHash) == "" || strings.TrimSpace(record.PolicyDecisionHash) == "" {
 		return secretsd.Lease{}, fmt.Errorf("external anchor prepared mutation missing bound action/policy hashes")
 	}
-	return s.secretsSvc.IssueLease(secretsd.IssueLeaseRequest{
+	lease, err := s.secretsSvc.IssueLease(secretsd.IssueLeaseRequest{
 		SecretRef:    gitRemoteProviderTokenSecretRef,
 		ConsumerID:   "principal:gateway:git:1",
 		RoleKind:     "git-gateway",
@@ -74,4 +74,8 @@ func (s *Service) issueExternalAnchorExecutionLease(record artifacts.ExternalAnc
 			PolicyContextHash:  strings.TrimSpace(record.PolicyDecisionHash),
 		},
 	})
+	if err != nil {
+		return secretsd.Lease{}, err
+	}
+	return lease, nil
 }

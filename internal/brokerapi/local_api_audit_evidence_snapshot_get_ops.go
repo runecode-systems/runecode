@@ -30,6 +30,7 @@ func (s *Service) HandleAuditEvidenceSnapshotGet(ctx context.Context, req AuditE
 		errOut := s.errorFromValidation(requestID, err)
 		return AuditEvidenceSnapshotGetResponse{}, &errOut
 	}
+	s.persistMetaAuditReceipt(auditReceiptKindSensitiveEvidenceView, "audit_evidence_snapshot", nil, nil, nil, "evidence_snapshot")
 	return resp, nil
 }
 

@@ -3,6 +3,7 @@ package trustpolicy
 import "strings"
 
 func evaluateExternalAnchorEvidence(input AuditVerificationInput, report *AuditVerificationReportPayload, sealDigest *Digest) {
+	report.AnchoringPosture = AuditVerificationAnchoringPostureLocalAnchorReceiptOnly
 	if len(input.ExternalAnchorEvidence) == 0 {
 		return
 	}
@@ -16,10 +17,16 @@ func evaluateExternalAnchorEvidence(input AuditVerificationInput, report *AuditV
 		evaluateSingleExternalAnchorEvidence(input, report, sealDigest, sidecars, requiredTargets, hasExplicitTargetSet, requiredState, input.ExternalAnchorEvidence[i])
 	}
 	if report.AnchoringStatus == AuditVerificationStatusFailed {
+		report.AnchoringPosture = AuditVerificationAnchoringPostureExternalAnchorInvalid
 		return
 	}
 	if externalAnchorRequiredTargetsPending(requiredState) {
 		addDegraded(report, AuditVerificationReasonExternalAnchorDeferredOrUnavailable, AuditVerificationDimensionAnchoring, "one or more required external anchor targets remain deferred, unavailable, or unsatisfied", input.Segment.Header.SegmentID, nil)
+		report.AnchoringPosture = AuditVerificationAnchoringPostureExternalAnchorDeferredOrUnknown
+		return
+	}
+	if hasFindingWithCode(report.Findings, AuditVerificationReasonExternalAnchorValid) {
+		report.AnchoringPosture = AuditVerificationAnchoringPostureExternalAnchorValidated
 	}
 }
 

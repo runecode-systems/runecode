@@ -5,15 +5,22 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func TestAuditEvidenceBundleExportStreamsManifestAndTarChunks(t *testing.T) {
 	service, _ := seededAuditRecordTestServiceAndDigest(t)
+	_, sealDigest, err := service.auditLedger.LatestAnchorableSeal()
+	if err != nil {
+		t.Fatalf("LatestAnchorableSeal returned error: %v", err)
+	}
 	events, errResp := service.HandleAuditEvidenceBundleExport(context.Background(), validAuditEvidenceBundleExportRequest("req-audit-bundle-export"), RequestContext{})
 	if errResp != nil {
 		t.Fatalf("HandleAuditEvidenceBundleExport error response: %+v", errResp)
@@ -27,6 +34,7 @@ func TestAuditEvidenceBundleExportStreamsManifestAndTarChunks(t *testing.T) {
 	assertAuditEvidenceBundleExportChunking(t, events)
 	assertAuditEvidenceBundleExportTerminal(t, events)
 	assertAuditEvidenceBundleExportSchemaValidation(t, service, events)
+	assertMetaAuditReceiptPresent(t, service, sealDigest, auditReceiptKindEvidenceBundleExport)
 }
 
 func validAuditEvidenceBundleExportRequest(requestID string) AuditEvidenceBundleExportRequest {
@@ -265,4 +273,22 @@ func readAuditBundleTarEntries(t *testing.T, archive []byte) map[string][]byte {
 		}
 		entries[strings.TrimSpace(header.Name)] = payload
 	}
+}
+
+func assertMetaAuditReceiptPresent(t *testing.T, service *Service, sealDigest trustpolicy.Digest, kind string) {
+	t.Helper()
+	receipts, err := service.auditLedger.ReceiptsForSealDigest(sealDigest)
+	if err != nil {
+		t.Fatalf("ReceiptsForSealDigest returned error: %v", err)
+	}
+	for i := range receipts {
+		payload := map[string]any{}
+		if err := json.Unmarshal(receipts[i].Payload, &payload); err != nil {
+			continue
+		}
+		if receiptKind, _ := payload["audit_receipt_kind"].(string); receiptKind == kind {
+			return
+		}
+	}
+	t.Fatalf("meta-audit receipt kind %q not found", kind)
 }

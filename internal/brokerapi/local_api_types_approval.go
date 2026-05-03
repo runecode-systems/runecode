@@ -37,6 +37,13 @@ type ApprovalSummary struct {
 	SupersededByApprovalID string             `json:"superseded_by_approval_id,omitempty"`
 	RequestDigest          string             `json:"request_digest,omitempty"`
 	DecisionDigest         string             `json:"decision_digest,omitempty"`
+	ScopeDigest            string             `json:"scope_digest,omitempty"`
+	ArtifactSetDigest      string             `json:"artifact_set_digest,omitempty"`
+	DiffDigest             string             `json:"diff_digest,omitempty"`
+	SummaryPreviewDigest   string             `json:"summary_preview_digest,omitempty"`
+	ConsumedActionHash     string             `json:"consumed_action_hash,omitempty"`
+	ConsumedArtifactDigest string             `json:"consumed_artifact_digest,omitempty"`
+	ConsumptionLinkDigest  string             `json:"consumption_link_digest,omitempty"`
 }
 
 type ApprovalDetail struct {
@@ -113,6 +120,13 @@ type ApprovalBoundIdentity struct {
 	DecisionApprover           *trustpolicy.PrincipalIdentity `json:"decision_approver,omitempty"`
 	DecisionVerifierKeyID      string                         `json:"decision_verifier_key_id,omitempty"`
 	DecisionVerifierKeyIDValue string                         `json:"decision_verifier_key_id_value,omitempty"`
+	ScopeDigest                string                         `json:"scope_digest,omitempty"`
+	ArtifactSetDigest          string                         `json:"artifact_set_digest,omitempty"`
+	DiffDigest                 string                         `json:"diff_digest,omitempty"`
+	SummaryPreviewDigest       string                         `json:"summary_preview_digest,omitempty"`
+	ConsumedActionHash         string                         `json:"consumed_action_hash,omitempty"`
+	ConsumedArtifactDigest     string                         `json:"consumed_artifact_digest,omitempty"`
+	ConsumptionLinkDigest      string                         `json:"consumption_link_digest,omitempty"`
 }
 
 type ApprovalListRequest struct {
