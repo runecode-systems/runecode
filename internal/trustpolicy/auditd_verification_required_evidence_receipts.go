@@ -5,15 +5,20 @@ import "strings"
 type receiptEvidenceSummary struct {
 	hasRuntimeSummary            bool
 	hasNegativeCapabilitySummary bool
+	hasNegativeCapabilityLimited bool
 	hasEvidenceBundleExport      bool
 	hasMetaAuditEvidence         bool
 	hasBoundaryAuthorization     bool
 	hasApprovalEvidence          bool
+	hasApprovalConsumption       bool
+	hasPublicationEvidence       bool
+	hasOverrideEvidence          bool
 }
 
 func (s *receiptEvidenceSummary) observeReceipt(receipt auditReceiptPayloadStrict) {
 	s.observeReceiptKind(receipt.AuditReceiptKind)
 	s.observeAnchorApprovalEvidence(receipt)
+	s.observeNegativeCapabilitySupport(receipt)
 }
 
 func (s *receiptEvidenceSummary) observeReceiptKind(kind string) {
@@ -35,6 +40,15 @@ func (s *receiptEvidenceSummary) observeReceiptKind(kind string) {
 		s.hasMetaAuditEvidence = true
 	case auditReceiptKindProviderInvocationAuthorized, auditReceiptKindProviderInvocationDenied:
 		s.hasBoundaryAuthorization = true
+	case auditReceiptKindApprovalResolution:
+		s.hasApprovalEvidence = true
+	case auditReceiptKindApprovalConsumption:
+		s.hasApprovalEvidence = true
+		s.hasApprovalConsumption = true
+	case auditReceiptKindArtifactPublished:
+		s.hasPublicationEvidence = true
+	case auditReceiptKindOverrideOrBreakGlass:
+		s.hasOverrideEvidence = true
 	}
 }
 
@@ -48,10 +62,33 @@ func (s *receiptEvidenceSummary) observeAnchorApprovalEvidence(receipt auditRece
 	}
 }
 
+func (s *receiptEvidenceSummary) observeNegativeCapabilitySupport(receipt auditReceiptPayloadStrict) {
+	if receipt.AuditReceiptKind != auditReceiptKindNegativeCapabilitySummary {
+		return
+	}
+	payload := negativeCapabilitySummaryReceiptPayload{}
+	if err := unmarshalJSONStrict(receipt.ReceiptPayload, &payload); err != nil {
+		return
+	}
+	for _, support := range []string{
+		payload.SecretLeaseEvidenceSupport,
+		payload.NetworkEgressEvidenceSupport,
+		payload.ApprovalConsumptionEvidenceSupport,
+		payload.BoundaryCrossingEvidenceSupport,
+	} {
+		if strings.TrimSpace(support) != "explicit" {
+			s.hasNegativeCapabilityLimited = true
+			return
+		}
+	}
+}
+
 func reportReceiptEvidenceSummary(report *AuditVerificationReportPayload, segmentID string, summary receiptEvidenceSummary) {
 	applyMissingNegativeCapabilitySummary(report, segmentID, summary)
 	applyEvidenceExportCompleteness(report, segmentID, summary)
 	applyRequiredApprovalEvidence(report, segmentID, summary)
+	applyRequiredOverrideEvidence(report, segmentID, summary)
+	applyNegativeCapabilitySupportPosture(report, segmentID, summary)
 	applyAnchoringPostureFromSummary(report)
 }
 
@@ -70,6 +107,21 @@ func applyEvidenceExportCompleteness(report *AuditVerificationReportPayload, seg
 func applyRequiredApprovalEvidence(report *AuditVerificationReportPayload, segmentID string, summary receiptEvidenceSummary) {
 	if summary.hasBoundaryAuthorization && !summary.hasApprovalEvidence {
 		addHardFailure(report, AuditVerificationReasonMissingRequiredApprovalEvidence, AuditVerificationDimensionIntegrity, "boundary authorization evidence exists without approval evidence linkage", segmentID, nil)
+	}
+	if summary.hasPublicationEvidence && !summary.hasApprovalConsumption && !summary.hasOverrideEvidence {
+		addHardFailure(report, AuditVerificationReasonMissingRequiredApprovalEvidence, AuditVerificationDimensionIntegrity, "publication evidence exists without approval consumption linkage", segmentID, nil)
+	}
+}
+
+func applyRequiredOverrideEvidence(report *AuditVerificationReportPayload, segmentID string, summary receiptEvidenceSummary) {
+	if summary.hasOverrideEvidence && !summary.hasApprovalEvidence && !summary.hasPublicationEvidence {
+		addDegraded(report, AuditVerificationReasonMissingRequiredApprovalEvidence, AuditVerificationDimensionIntegrity, "override evidence exists without linked approval resolution evidence", segmentID, nil)
+	}
+}
+
+func applyNegativeCapabilitySupportPosture(report *AuditVerificationReportPayload, segmentID string, summary receiptEvidenceSummary) {
+	if summary.hasNegativeCapabilitySummary && summary.hasNegativeCapabilityLimited {
+		addDegraded(report, AuditVerificationReasonNegativeCapabilitySupportLimitedOrUnknown, AuditVerificationDimensionIntegrity, "negative-capability summary includes limited evidence support", segmentID, nil)
 	}
 }
 

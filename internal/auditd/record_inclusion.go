@@ -8,6 +8,8 @@ import (
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
+const orderedMerkleFullDigestListMax = 64
+
 // RecordInclusionByDigest resolves trusted record-inclusion material for one canonical record digest.
 func (l *Ledger) RecordInclusionByDigest(recordDigest string) (AuditRecordInclusion, bool, error) {
 	l.mu.Lock()
@@ -44,7 +46,11 @@ func (l *Ledger) recordInclusionFromLookupLocked(recordDigest string, lookup Rec
 	if err != nil {
 		return AuditRecordInclusion{}, false, err
 	}
-	inclusion := newAuditRecordInclusion(recordDigest, envelopeDigestIdentity, lookup, len(segment.Frames), merkleRootIdentity, recordDigestIdentities)
+	compactPath, err := recordInclusionCompactPath(recordDigests, lookup.FrameIndex)
+	if err != nil {
+		return AuditRecordInclusion{}, false, err
+	}
+	inclusion := newAuditRecordInclusion(recordDigest, envelopeDigestIdentity, lookup, len(segment.Frames), merkleRootIdentity, recordDigestIdentities, compactPath)
 	if err := l.attachSegmentSealInclusionLocked(&inclusion, lookup.SegmentID, merkleRoot); err != nil {
 		return AuditRecordInclusion{}, false, err
 	}
@@ -105,21 +111,44 @@ func recordInclusionMerkleMaterial(recordDigests []trustpolicy.Digest) (trustpol
 	return merkleRoot, merkleRootIdentity, nil
 }
 
-func newAuditRecordInclusion(recordDigest string, envelopeDigestIdentity string, lookup RecordLookup, recordCount int, merkleRootIdentity string, recordDigestIdentities []string) AuditRecordInclusion {
+func newAuditRecordInclusion(recordDigest string, envelopeDigestIdentity string, lookup RecordLookup, recordCount int, merkleRootIdentity string, recordDigestIdentities []string, compactPath []string) AuditRecordInclusion {
+	orderedMerkle := AuditRecordInclusionOrderedMerkleLookup{
+		Profile:           trustpolicy.AuditSegmentMerkleProfileOrderedDSEv1,
+		LeafIndex:         lookup.FrameIndex,
+		LeafCount:         recordCount,
+		SegmentMerkleRoot: merkleRootIdentity,
+		CompactPath:       compactPath,
+	}
+	if recordCount <= orderedMerkleFullDigestListMax {
+		orderedMerkle.SegmentRecordDigests = recordDigestIdentities
+	}
 	return AuditRecordInclusion{
 		RecordDigest:         recordDigest,
 		RecordEnvelopeDigest: envelopeDigestIdentity,
 		SegmentID:            lookup.SegmentID,
 		FrameIndex:           lookup.FrameIndex,
 		SegmentRecordCount:   recordCount,
-		OrderedMerkle: AuditRecordInclusionOrderedMerkleLookup{
-			Profile:              trustpolicy.AuditSegmentMerkleProfileOrderedDSEv1,
-			LeafIndex:            lookup.FrameIndex,
-			LeafCount:            recordCount,
-			SegmentMerkleRoot:    merkleRootIdentity,
-			SegmentRecordDigests: recordDigestIdentities,
-		},
+		OrderedMerkle:        orderedMerkle,
 	}
+}
+
+func recordInclusionCompactPath(recordDigests []trustpolicy.Digest, leafIndex int) ([]string, error) {
+	path, err := trustpolicy.ComputeOrderedAuditSegmentMerkleCompactPath(recordDigests, leafIndex)
+	if err != nil {
+		return nil, err
+	}
+	if len(path) == 0 {
+		return nil, nil
+	}
+	out := make([]string, 0, len(path))
+	for i := range path {
+		identity, err := path[i].Identity()
+		if err != nil {
+			return nil, fmt.Errorf("compact_path[%d] invalid: %w", i, err)
+		}
+		out = append(out, identity)
+	}
+	return out, nil
 }
 
 func segmentRecordDigestIdentities(segment trustpolicy.AuditSegmentFilePayload) ([]trustpolicy.Digest, []string, error) {

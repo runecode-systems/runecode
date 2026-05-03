@@ -60,6 +60,7 @@ type llmExecutionBinding struct {
 	ProviderFamily string
 	AdapterKind    string
 	PolicyRef      string
+	ModelID        string
 	StartedAt      time.Time
 	CompletedAt    time.Time
 	OutboundBytes  int64

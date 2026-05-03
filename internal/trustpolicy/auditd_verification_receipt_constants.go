@@ -6,6 +6,10 @@ const (
 
 	auditReceiptKindProviderInvocationAuthorized = "provider_invocation_authorized"
 	auditReceiptKindProviderInvocationDenied     = "provider_invocation_denied"
+	auditReceiptKindApprovalResolution           = "approval_resolution"
+	auditReceiptKindApprovalConsumption          = "approval_consumption"
+	auditReceiptKindArtifactPublished            = "artifact_published"
+	auditReceiptKindOverrideOrBreakGlass         = "override_or_break_glass"
 	auditReceiptKindSecretLeaseIssued            = "secret_lease_issued"
 	auditReceiptKindSecretLeaseRevoked           = "secret_lease_revoked"
 	auditReceiptKindRuntimeSummary               = "runtime_summary"
@@ -21,6 +25,9 @@ const (
 	auditReceiptKindSensitiveEvidenceView        = "sensitive_evidence_view"
 
 	auditReceiptPayloadSchemaProviderInvocationV0 = "runecode.protocol.audit.receipt.provider_invocation.v0"
+	auditReceiptPayloadSchemaApprovalEvidenceV0   = "runecode.protocol.audit.receipt.approval_evidence.v0"
+	auditReceiptPayloadSchemaPublicationV0        = "runecode.protocol.audit.receipt.publication_evidence.v0"
+	auditReceiptPayloadSchemaOverrideV0           = "runecode.protocol.audit.receipt.override_evidence.v0"
 	auditReceiptPayloadSchemaSecretLeaseV0        = "runecode.protocol.audit.receipt.secret_lease.v0"
 	auditReceiptPayloadSchemaRuntimeSummaryV0     = "runecode.protocol.audit.receipt.runtime_summary.v0"
 	auditReceiptPayloadSchemaDegradedPostureV0    = "runecode.protocol.audit.receipt.degraded_posture_summary.v0"

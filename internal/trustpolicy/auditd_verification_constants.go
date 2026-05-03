@@ -26,38 +26,39 @@ const (
 	AuditVerificationScopeSegmentRange = "segment_range"
 	AuditVerificationScopeSegment      = "segment"
 
-	AuditVerificationReasonSegmentFrameDigestMismatch          = "segment_frame_digest_mismatch"
-	AuditVerificationReasonSegmentFrameByteLengthMismatch      = "segment_frame_byte_length_mismatch"
-	AuditVerificationReasonSegmentFileHashMismatch             = "segment_file_hash_mismatch"
-	AuditVerificationReasonSegmentMerkleRootMismatch           = "segment_merkle_root_mismatch"
-	AuditVerificationReasonSegmentSealInvalid                  = "segment_seal_invalid"
-	AuditVerificationReasonSegmentSealChainMismatch            = "segment_seal_chain_mismatch"
-	AuditVerificationReasonStreamSequenceGap                   = "stream_sequence_gap"
-	AuditVerificationReasonStreamSequenceRollbackOrDuplicate   = "stream_sequence_rollback_or_duplicate"
-	AuditVerificationReasonStreamPreviousHashMismatch          = "stream_previous_hash_mismatch"
-	AuditVerificationReasonDetachedSignatureInvalid            = "detached_signature_invalid"
-	AuditVerificationReasonSignerEvidenceMissing               = "signer_evidence_missing"
-	AuditVerificationReasonSignerEvidenceInvalid               = "signer_evidence_invalid"
-	AuditVerificationReasonSignerHistoricallyInadmissible      = "signer_historically_inadmissible"
-	AuditVerificationReasonSignerCurrentlyRevokedOrCompromised = "signer_currently_revoked_or_compromised"
-	AuditVerificationReasonEventContractMismatch               = "event_contract_mismatch"
-	AuditVerificationReasonEventContractMissing                = "event_contract_missing"
-	AuditVerificationReasonImportRestoreProvenanceInconsistent = "import_restore_provenance_inconsistent"
-	AuditVerificationReasonReceiptInvalid                      = "receipt_invalid"
-	AuditVerificationReasonAnchorReceiptMissing                = "anchor_receipt_missing"
-	AuditVerificationReasonAnchorReceiptInvalid                = "anchor_receipt_invalid"
-	AuditVerificationReasonAnchorPassphrasePresenceDegraded    = "anchor_passphrase_presence_degraded"
-	AuditVerificationReasonExternalAnchorValid                 = "external_anchor_valid"
-	AuditVerificationReasonExternalAnchorDeferredOrUnavailable = "external_anchor_deferred_or_unavailable"
-	AuditVerificationReasonExternalAnchorInvalid               = "external_anchor_invalid"
-	AuditVerificationReasonMissingRequiredApprovalEvidence     = "missing_required_approval_evidence"
-	AuditVerificationReasonMissingRuntimeAttestationEvidence   = "missing_runtime_attestation_evidence"
-	AuditVerificationReasonNegativeCapabilitySummaryMissing    = "negative_capability_summary_missing"
-	AuditVerificationReasonVerifierIdentityMissingOrUnknown    = "verifier_identity_missing_or_unknown"
-	AuditVerificationReasonEvidenceExportIncomplete            = "evidence_export_incomplete"
-	AuditVerificationReasonSegmentLifecycleInconsistent        = "segment_lifecycle_inconsistent"
-	AuditVerificationReasonStoragePostureDegraded              = "storage_posture_degraded"
-	AuditVerificationReasonStoragePostureInvalid               = "storage_posture_invalid"
+	AuditVerificationReasonSegmentFrameDigestMismatch                = "segment_frame_digest_mismatch"
+	AuditVerificationReasonSegmentFrameByteLengthMismatch            = "segment_frame_byte_length_mismatch"
+	AuditVerificationReasonSegmentFileHashMismatch                   = "segment_file_hash_mismatch"
+	AuditVerificationReasonSegmentMerkleRootMismatch                 = "segment_merkle_root_mismatch"
+	AuditVerificationReasonSegmentSealInvalid                        = "segment_seal_invalid"
+	AuditVerificationReasonSegmentSealChainMismatch                  = "segment_seal_chain_mismatch"
+	AuditVerificationReasonStreamSequenceGap                         = "stream_sequence_gap"
+	AuditVerificationReasonStreamSequenceRollbackOrDuplicate         = "stream_sequence_rollback_or_duplicate"
+	AuditVerificationReasonStreamPreviousHashMismatch                = "stream_previous_hash_mismatch"
+	AuditVerificationReasonDetachedSignatureInvalid                  = "detached_signature_invalid"
+	AuditVerificationReasonSignerEvidenceMissing                     = "signer_evidence_missing"
+	AuditVerificationReasonSignerEvidenceInvalid                     = "signer_evidence_invalid"
+	AuditVerificationReasonSignerHistoricallyInadmissible            = "signer_historically_inadmissible"
+	AuditVerificationReasonSignerCurrentlyRevokedOrCompromised       = "signer_currently_revoked_or_compromised"
+	AuditVerificationReasonEventContractMismatch                     = "event_contract_mismatch"
+	AuditVerificationReasonEventContractMissing                      = "event_contract_missing"
+	AuditVerificationReasonImportRestoreProvenanceInconsistent       = "import_restore_provenance_inconsistent"
+	AuditVerificationReasonReceiptInvalid                            = "receipt_invalid"
+	AuditVerificationReasonAnchorReceiptMissing                      = "anchor_receipt_missing"
+	AuditVerificationReasonAnchorReceiptInvalid                      = "anchor_receipt_invalid"
+	AuditVerificationReasonAnchorPassphrasePresenceDegraded          = "anchor_passphrase_presence_degraded"
+	AuditVerificationReasonExternalAnchorValid                       = "external_anchor_valid"
+	AuditVerificationReasonExternalAnchorDeferredOrUnavailable       = "external_anchor_deferred_or_unavailable"
+	AuditVerificationReasonExternalAnchorInvalid                     = "external_anchor_invalid"
+	AuditVerificationReasonMissingRequiredApprovalEvidence           = "missing_required_approval_evidence"
+	AuditVerificationReasonMissingRuntimeAttestationEvidence         = "missing_runtime_attestation_evidence"
+	AuditVerificationReasonNegativeCapabilitySummaryMissing          = "negative_capability_summary_missing"
+	AuditVerificationReasonNegativeCapabilitySupportLimitedOrUnknown = "negative_capability_support_limited_or_unknown"
+	AuditVerificationReasonVerifierIdentityMissingOrUnknown          = "verifier_identity_missing_or_unknown"
+	AuditVerificationReasonEvidenceExportIncomplete                  = "evidence_export_incomplete"
+	AuditVerificationReasonSegmentLifecycleInconsistent              = "segment_lifecycle_inconsistent"
+	AuditVerificationReasonStoragePostureDegraded                    = "storage_posture_degraded"
+	AuditVerificationReasonStoragePostureInvalid                     = "storage_posture_invalid"
 
 	AuditVerificationAnchoringPostureLocalAnchorReceiptOnly          = "local_anchor_receipt_only"
 	AuditVerificationAnchoringPostureAnchorReceiptMissingOrUnbound   = "anchor_receipt_missing_or_unbound"
@@ -69,38 +70,39 @@ const (
 var (
 	auditVerificationCodePattern  = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 	auditVerificationAllowedCodes = map[string]struct{}{
-		AuditVerificationReasonSegmentFrameDigestMismatch:          {},
-		AuditVerificationReasonSegmentFrameByteLengthMismatch:      {},
-		AuditVerificationReasonSegmentFileHashMismatch:             {},
-		AuditVerificationReasonSegmentMerkleRootMismatch:           {},
-		AuditVerificationReasonSegmentSealInvalid:                  {},
-		AuditVerificationReasonSegmentSealChainMismatch:            {},
-		AuditVerificationReasonStreamSequenceGap:                   {},
-		AuditVerificationReasonStreamSequenceRollbackOrDuplicate:   {},
-		AuditVerificationReasonStreamPreviousHashMismatch:          {},
-		AuditVerificationReasonDetachedSignatureInvalid:            {},
-		AuditVerificationReasonSignerEvidenceMissing:               {},
-		AuditVerificationReasonSignerEvidenceInvalid:               {},
-		AuditVerificationReasonSignerHistoricallyInadmissible:      {},
-		AuditVerificationReasonSignerCurrentlyRevokedOrCompromised: {},
-		AuditVerificationReasonEventContractMismatch:               {},
-		AuditVerificationReasonEventContractMissing:                {},
-		AuditVerificationReasonImportRestoreProvenanceInconsistent: {},
-		AuditVerificationReasonReceiptInvalid:                      {},
-		AuditVerificationReasonAnchorReceiptMissing:                {},
-		AuditVerificationReasonAnchorReceiptInvalid:                {},
-		AuditVerificationReasonAnchorPassphrasePresenceDegraded:    {},
-		AuditVerificationReasonExternalAnchorValid:                 {},
-		AuditVerificationReasonExternalAnchorDeferredOrUnavailable: {},
-		AuditVerificationReasonExternalAnchorInvalid:               {},
-		AuditVerificationReasonMissingRequiredApprovalEvidence:     {},
-		AuditVerificationReasonMissingRuntimeAttestationEvidence:   {},
-		AuditVerificationReasonNegativeCapabilitySummaryMissing:    {},
-		AuditVerificationReasonVerifierIdentityMissingOrUnknown:    {},
-		AuditVerificationReasonEvidenceExportIncomplete:            {},
-		AuditVerificationReasonSegmentLifecycleInconsistent:        {},
-		AuditVerificationReasonStoragePostureDegraded:              {},
-		AuditVerificationReasonStoragePostureInvalid:               {},
+		AuditVerificationReasonSegmentFrameDigestMismatch:                {},
+		AuditVerificationReasonSegmentFrameByteLengthMismatch:            {},
+		AuditVerificationReasonSegmentFileHashMismatch:                   {},
+		AuditVerificationReasonSegmentMerkleRootMismatch:                 {},
+		AuditVerificationReasonSegmentSealInvalid:                        {},
+		AuditVerificationReasonSegmentSealChainMismatch:                  {},
+		AuditVerificationReasonStreamSequenceGap:                         {},
+		AuditVerificationReasonStreamSequenceRollbackOrDuplicate:         {},
+		AuditVerificationReasonStreamPreviousHashMismatch:                {},
+		AuditVerificationReasonDetachedSignatureInvalid:                  {},
+		AuditVerificationReasonSignerEvidenceMissing:                     {},
+		AuditVerificationReasonSignerEvidenceInvalid:                     {},
+		AuditVerificationReasonSignerHistoricallyInadmissible:            {},
+		AuditVerificationReasonSignerCurrentlyRevokedOrCompromised:       {},
+		AuditVerificationReasonEventContractMismatch:                     {},
+		AuditVerificationReasonEventContractMissing:                      {},
+		AuditVerificationReasonImportRestoreProvenanceInconsistent:       {},
+		AuditVerificationReasonReceiptInvalid:                            {},
+		AuditVerificationReasonAnchorReceiptMissing:                      {},
+		AuditVerificationReasonAnchorReceiptInvalid:                      {},
+		AuditVerificationReasonAnchorPassphrasePresenceDegraded:          {},
+		AuditVerificationReasonExternalAnchorValid:                       {},
+		AuditVerificationReasonExternalAnchorDeferredOrUnavailable:       {},
+		AuditVerificationReasonExternalAnchorInvalid:                     {},
+		AuditVerificationReasonMissingRequiredApprovalEvidence:           {},
+		AuditVerificationReasonMissingRuntimeAttestationEvidence:         {},
+		AuditVerificationReasonNegativeCapabilitySummaryMissing:          {},
+		AuditVerificationReasonNegativeCapabilitySupportLimitedOrUnknown: {},
+		AuditVerificationReasonVerifierIdentityMissingOrUnknown:          {},
+		AuditVerificationReasonEvidenceExportIncomplete:                  {},
+		AuditVerificationReasonSegmentLifecycleInconsistent:              {},
+		AuditVerificationReasonStoragePostureDegraded:                    {},
+		AuditVerificationReasonStoragePostureInvalid:                     {},
 	}
 )
 

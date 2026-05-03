@@ -29,8 +29,8 @@ func TestBuildEvidenceRetentionReviewDetectsMissingBackfillIdentities(t *testing
 	if review.FullySatisfied {
 		t.Fatalf("completeness review = %+v, want incomplete while runtime evidence export remains missing", review)
 	}
-	if !containsCompletenessFamily(review.Missing, "runtime_evidence_digest") {
-		t.Fatalf("missing = %+v, want runtime_evidence_digest gap visible for backfill planning", review.Missing)
+	if !containsCompletenessFamily(review.Missing, "signer_evidence_digest") {
+		t.Fatalf("missing = %+v, want signer_evidence_digest gap visible for backfill planning", review.Missing)
 	}
 	if strings.TrimSpace(manifest.InstanceIdentity) == "" {
 		t.Fatal("manifest.instance_identity_digest empty, want stable portable instance identity")

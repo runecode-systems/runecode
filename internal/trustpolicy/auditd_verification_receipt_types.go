@@ -105,6 +105,9 @@ type publicChainDerivedExecution struct {
 type providerInvocationReceiptPayload struct {
 	AuthorizationOutcome string                  `json:"authorization_outcome"`
 	ProviderKind         string                  `json:"provider_kind"`
+	ProviderProfileID    string                  `json:"provider_profile_id,omitempty"`
+	ModelID              string                  `json:"model_id,omitempty"`
+	EndpointIdentity     string                  `json:"endpoint_identity,omitempty"`
 	GatewayRoleKind      string                  `json:"gateway_role_kind"`
 	DestinationKind      string                  `json:"destination_kind"`
 	Operation            string                  `json:"operation"`
@@ -210,4 +213,42 @@ type metaAuditActionReceiptPayload struct {
 	Operator           *PrincipalIdentity `json:"operator,omitempty"`
 	ExternalSystemRef  string             `json:"external_system_ref,omitempty"`
 	SensitiveViewClass string             `json:"sensitive_view_class,omitempty"`
+}
+
+type approvalEvidenceReceiptPayload struct {
+	ApprovalID            string             `json:"approval_id"`
+	ApprovalStatus        string             `json:"approval_status"`
+	ResolutionReasonCode  string             `json:"resolution_reason_code,omitempty"`
+	RequestDigest         Digest             `json:"request_digest"`
+	DecisionDigest        *Digest            `json:"decision_digest,omitempty"`
+	ScopeDigest           *Digest            `json:"scope_digest,omitempty"`
+	ArtifactSetDigest     *Digest            `json:"artifact_set_digest,omitempty"`
+	DiffDigest            *Digest            `json:"diff_digest,omitempty"`
+	SummaryPreviewDigest  *Digest            `json:"summary_preview_digest,omitempty"`
+	ConsumptionLinkDigest *Digest            `json:"consumption_link_digest,omitempty"`
+	PolicyDecisionDigest  *Digest            `json:"policy_decision_digest,omitempty"`
+	Approver              *PrincipalIdentity `json:"approver,omitempty"`
+	RunIDDigest           *Digest            `json:"run_id_digest,omitempty"`
+	ActionKind            string             `json:"action_kind,omitempty"`
+	RecordedFrom          string             `json:"recorded_from,omitempty"`
+}
+
+type publicationEvidenceReceiptPayload struct {
+	PublicationKind        string  `json:"publication_kind"`
+	ArtifactDigest         Digest  `json:"artifact_digest"`
+	SourceArtifactDigest   *Digest `json:"source_artifact_digest,omitempty"`
+	ApprovalDecisionDigest *Digest `json:"approval_decision_digest,omitempty"`
+	ApprovalLinkDigest     *Digest `json:"approval_link_digest,omitempty"`
+	RunIDDigest            *Digest `json:"run_id_digest,omitempty"`
+	ActionKind             string  `json:"action_kind,omitempty"`
+}
+
+type overrideEvidenceReceiptPayload struct {
+	OverrideKind         string  `json:"override_kind"`
+	PolicyDecisionDigest *Digest `json:"policy_decision_digest,omitempty"`
+	ActionRequestDigest  *Digest `json:"action_request_digest,omitempty"`
+	ApprovalLinkDigest   *Digest `json:"approval_link_digest,omitempty"`
+	RunIDDigest          *Digest `json:"run_id_digest,omitempty"`
+	ApprovalRequired     bool    `json:"approval_required"`
+	ApprovalConsumed     bool    `json:"approval_consumed"`
 }

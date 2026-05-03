@@ -36,6 +36,7 @@ func TestValidateAuditVerificationReportAcceptsExpandedReasonCodes(t *testing.T)
 		AuditVerificationReasonMissingRequiredApprovalEvidence,
 		AuditVerificationReasonMissingRuntimeAttestationEvidence,
 		AuditVerificationReasonNegativeCapabilitySummaryMissing,
+		AuditVerificationReasonNegativeCapabilitySupportLimitedOrUnknown,
 		AuditVerificationReasonVerifierIdentityMissingOrUnknown,
 		AuditVerificationReasonEvidenceExportIncomplete,
 	}

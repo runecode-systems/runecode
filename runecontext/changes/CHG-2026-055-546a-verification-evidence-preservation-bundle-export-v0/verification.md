@@ -14,6 +14,9 @@
 - Confirm the design avoids default raw secret, raw prompt, or raw provider-payload export when digests and typed metadata are sufficient.
 - Confirm the feature preserves enough evidence identity for retention, backfill, export, and future cross-machine work.
 - Confirm tests include bundle completeness, large-export streaming behavior, selective disclosure, and offline verification.
+- Confirm the design requires deterministic artifact-scoped and incident-scoped bundle selection from canonical evidence and rebuildable indexes.
+- Confirm offline verification is described as recomputable from exported canonical evidence when required verification inputs are present.
+- Confirm preservation manifests include verifier, contract, signer, storage, and control-plane identities needed for later offline verification and restore workflows.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

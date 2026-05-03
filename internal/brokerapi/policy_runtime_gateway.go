@@ -18,17 +18,20 @@ const (
 )
 
 type gatewayActionPayloadRuntime struct {
-	GatewayRoleKind string                      `json:"gateway_role_kind"`
-	DestinationKind string                      `json:"destination_kind"`
-	DestinationRef  string                      `json:"destination_ref"`
-	EgressDataClass string                      `json:"egress_data_class"`
-	Operation       string                      `json:"operation"`
-	TimeoutSeconds  *int                        `json:"timeout_seconds,omitempty"`
-	PayloadHash     *trustpolicy.Digest         `json:"payload_hash,omitempty"`
-	AuditContext    *gatewayAuditContextPayload `json:"audit_context,omitempty"`
-	GitRequest      map[string]any              `json:"git_request,omitempty"`
-	GitRuntimeProof *gitRuntimeProofPayload     `json:"git_runtime_proof,omitempty"`
-	QuotaContext    *gatewayQuotaContextPayload `json:"quota_context,omitempty"`
+	GatewayRoleKind   string                      `json:"gateway_role_kind"`
+	DestinationKind   string                      `json:"destination_kind"`
+	DestinationRef    string                      `json:"destination_ref"`
+	ProviderProfileID string                      `json:"provider_profile_id,omitempty"`
+	ModelID           string                      `json:"model_id,omitempty"`
+	EndpointIdentity  string                      `json:"endpoint_identity,omitempty"`
+	EgressDataClass   string                      `json:"egress_data_class"`
+	Operation         string                      `json:"operation"`
+	TimeoutSeconds    *int                        `json:"timeout_seconds,omitempty"`
+	PayloadHash       *trustpolicy.Digest         `json:"payload_hash,omitempty"`
+	AuditContext      *gatewayAuditContextPayload `json:"audit_context,omitempty"`
+	GitRequest        map[string]any              `json:"git_request,omitempty"`
+	GitRuntimeProof   *gitRuntimeProofPayload     `json:"git_runtime_proof,omitempty"`
+	QuotaContext      *gatewayQuotaContextPayload `json:"quota_context,omitempty"`
 }
 
 func (r policyRuntime) enforceGatewayRuntime(runID string, compiled *policyengine.CompiledContext, action policyengine.ActionRequest, decision policyengine.PolicyDecision) policyengine.PolicyDecision {

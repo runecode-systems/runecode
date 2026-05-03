@@ -56,24 +56,51 @@ func includedIdentitySet(objects []AuditEvidenceBundleIncludedObject) map[string
 }
 
 func evidenceRetentionDigestFamilies(snapshot AuditEvidenceSnapshot) []evidenceRetentionDigestFamily {
-	return []evidenceRetentionDigestFamily{
+	families := []evidenceRetentionDigestFamily{
 		{name: "segment_seal_digest", identities: snapshot.SegmentSealDigests, pathFor: func(identity string) string { return evidenceBundleSidecarObjectPath(sealsDirName, identity) }},
 		{name: "audit_receipt_digest", identities: snapshot.AuditReceiptDigests, pathFor: func(identity string) string { return evidenceBundleSidecarObjectPath(receiptsDirName, identity) }},
-		{name: "verification_report_digest", identities: snapshot.VerificationReportDigests, pathFor: func(identity string) string {
-			return evidenceBundleSidecarObjectPath(verificationReportsDirName, identity)
-		}},
+		{name: "verification_report_digest", identities: snapshot.VerificationReportDigests, pathFor: verificationReportRetentionPath},
 		{name: "runtime_evidence_digest", identities: snapshot.RuntimeEvidenceDigests, pathFor: func(string) string { return "contracts/signer-evidence.json" }},
-		{name: "attestation_evidence_digest", identities: snapshot.AttestationEvidenceDigests, pathFor: func(identity string) string {
-			return evidenceBundleSidecarObjectPath(externalAnchorSidecarsDir, identity)
-		}},
-		{name: "policy_evidence_digest", identities: snapshot.PolicyEvidenceDigests, pathFor: func(identity string) string {
-			return evidenceBundleSidecarObjectPath(externalAnchorEvidenceDir, identity)
-		}},
-		{name: "approval_evidence_digest", identities: snapshot.ApprovalEvidenceDigests, pathFor: func(identity string) string {
-			return evidenceBundleSidecarObjectPath(externalAnchorEvidenceDir, identity)
-		}},
+		{name: "verifier_record_digest", identities: snapshot.VerifierRecordDigests, pathFor: func(string) string { return "contracts/verifier-records.json" }},
+		{name: "event_contract_catalog_digest", identities: snapshot.EventContractCatalogDigests, pathFor: func(string) string { return "contracts/event-contract-catalog.json" }},
+		{name: "signer_evidence_digest", identities: snapshot.SignerEvidenceDigests, pathFor: func(string) string { return "contracts/signer-evidence.json" }},
+		{name: "storage_posture_digest", identities: snapshot.StoragePostureDigests, pathFor: func(string) string { return "contracts/storage-posture.json" }},
+		{name: "typed_request_digest", identities: snapshot.TypedRequestDigests, pathFor: externalAnchorEvidenceRetentionPath},
+		{name: "action_request_digest", identities: snapshot.ActionRequestDigests, pathFor: externalAnchorEvidenceRetentionPath},
+		{name: "attestation_evidence_digest", identities: snapshot.AttestationEvidenceDigests, pathFor: externalAnchorSidecarRetentionPath},
+		{name: "policy_evidence_digest", identities: snapshot.PolicyEvidenceDigests, pathFor: externalAnchorEvidenceRetentionPath},
+		{name: "approval_evidence_digest", identities: snapshot.ApprovalEvidenceDigests, pathFor: externalAnchorEvidenceRetentionPath},
 		{name: "anchor_evidence_digest", identities: snapshot.AnchorEvidenceDigests, pathFor: anchorEvidenceRetentionPath},
 	}
+	families = append(families, shaIdentityRetentionFamilies(snapshot)...)
+	return families
+}
+
+func shaIdentityRetentionFamilies(snapshot AuditEvidenceSnapshot) []evidenceRetentionDigestFamily {
+	return []evidenceRetentionDigestFamily{
+		{name: "control_plane_digest", identities: snapshot.ControlPlaneDigests, pathFor: shaExternalAnchorEvidenceRetentionPath},
+		{name: "provider_invocation_digest", identities: snapshot.ProviderInvocationDigests, pathFor: shaExternalAnchorEvidenceRetentionPath},
+		{name: "secret_lease_digest", identities: snapshot.SecretLeaseDigests, pathFor: shaExternalAnchorEvidenceRetentionPath},
+	}
+}
+
+func verificationReportRetentionPath(identity string) string {
+	return evidenceBundleSidecarObjectPath(verificationReportsDirName, identity)
+}
+
+func externalAnchorEvidenceRetentionPath(identity string) string {
+	return evidenceBundleSidecarObjectPath(externalAnchorEvidenceDir, identity)
+}
+
+func externalAnchorSidecarRetentionPath(identity string) string {
+	return evidenceBundleSidecarObjectPath(externalAnchorSidecarsDir, identity)
+}
+
+func shaExternalAnchorEvidenceRetentionPath(identity string) string {
+	if strings.HasPrefix(identity, "sha256:") {
+		return evidenceBundleSidecarObjectPath(externalAnchorEvidenceDir, identity)
+	}
+	return ""
 }
 
 func anchorEvidenceRetentionPath(identity string) string {

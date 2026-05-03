@@ -87,6 +87,91 @@ func TestOfflineVerifyEvidenceBundleManifestIsNotSubstituteForMissingEvidenceObj
 	}
 }
 
+func TestOfflineVerifyEvidenceBundleRecomputesWhenInputsPresent(t *testing.T) {
+	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	seedOfflineRecomputeComparableBundleEvidence(t, ledger, fixture)
+	archive := mustExportBundleArchiveForOfflineVerify(t, ledger, AuditEvidenceBundleExportRequest{
+		ManifestRequest: AuditEvidenceBundleManifestRequest{
+			Scope:             AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"},
+			ExportProfile:     "operator_private_full",
+			CreatedByTool:     AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"},
+			DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "operator_private", SelectiveDisclosureApplied: false},
+		},
+		ArchiveFormat: "tar",
+	})
+	verification, err := ledger.OfflineVerifyEvidenceBundle(bytes.NewReader(archive), "tar")
+	if err != nil {
+		t.Fatalf("OfflineVerifyEvidenceBundle returned error: %v", err)
+	}
+	if hasOfflineFindingCode(verification.Findings, "verification_recompute_inputs_missing") {
+		t.Fatalf("findings = %+v, want recomputation inputs present for operator_private_full", verification.Findings)
+	}
+	if hasOfflineFindingCode(verification.Findings, "verification_recompute_mismatch") {
+		t.Fatalf("findings = %+v, want recomputation to match included report conclusion", verification.Findings)
+	}
+}
+
+func TestOfflineVerifyEvidenceBundleDegradesWhenRecomputeInputsMissing(t *testing.T) {
+	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	seedOfflineRecomputeComparableBundleEvidence(t, ledger, fixture)
+	archive := mustExportBundleArchiveForOfflineVerify(t, ledger, AuditEvidenceBundleExportRequest{
+		ManifestRequest: AuditEvidenceBundleManifestRequest{
+			Scope:             AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"},
+			ExportProfile:     "external_relying_party_minimal",
+			CreatedByTool:     AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"},
+			DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "digest_metadata_only", SelectiveDisclosureApplied: true},
+		},
+		ArchiveFormat: "tar",
+	})
+	verification, err := ledger.OfflineVerifyEvidenceBundle(bytes.NewReader(archive), "tar")
+	if err != nil {
+		t.Fatalf("OfflineVerifyEvidenceBundle returned error: %v", err)
+	}
+	if !hasOfflineFindingCode(verification.Findings, "verification_recompute_inputs_missing") {
+		t.Fatalf("findings = %+v, want explicit recomputation input gap", verification.Findings)
+	}
+}
+
+func seedOfflineRecomputeComparableBundleEvidence(t *testing.T, ledger *Ledger, fixture auditFixtureKey) {
+	t.Helper()
+	seal := mustSealFixtureSegment(t, ledger, fixture)
+	_ = mustPersistReceipt(t, ledger, buildAnchorReceiptEnvelope(t, fixture, seal.SealEnvelopeDigest))
+	seedOfflineComparableReport(t, ledger)
+}
+
+func seedOfflineComparableReport(t *testing.T, ledger *Ledger) {
+	t.Helper()
+	seedArchive := mustExportBundleArchiveForOfflineVerify(t, ledger, AuditEvidenceBundleExportRequest{
+		ManifestRequest: AuditEvidenceBundleManifestRequest{
+			Scope:             AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"},
+			ExportProfile:     "operator_private_full",
+			CreatedByTool:     AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"},
+			DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "operator_private", SelectiveDisclosureApplied: false},
+		},
+		ArchiveFormat: "tar",
+	})
+	bundle, err := loadAuditEvidenceBundleFromTar(bytes.NewReader(seedArchive))
+	if err != nil {
+		t.Fatalf("loadAuditEvidenceBundleFromTar returned error: %v", err)
+	}
+	if len(bundle.manifest.SealReferences) == 0 {
+		t.Fatal("bundle seal_references empty, want sealed segment for recomputation")
+	}
+	segmentID := bundle.manifest.SealReferences[0].SegmentID
+	input, missing, err := offlineRecomputeInput(bundle, trustpolicy.AuditVerificationReportPayload{VerificationScope: trustpolicy.AuditVerificationScope{ScopeKind: trustpolicy.AuditVerificationScopeSegment, LastSegmentID: segmentID}})
+	if err != nil {
+		t.Fatalf("offlineRecomputeInput returned error: %v", err)
+	}
+	if len(missing) > 0 {
+		t.Fatalf("offlineRecomputeInput missing=%v, want complete recompute inputs for operator_private_full", missing)
+	}
+	report, err := trustpolicy.VerifyAuditEvidence(input)
+	if err != nil {
+		t.Fatalf("VerifyAuditEvidence returned error: %v", err)
+	}
+	_ = mustPersistReport(t, ledger, report)
+}
+
 func seedOfflineVerifyBundleEvidence(t *testing.T, ledger *Ledger, fixture auditFixtureKey) {
 	t.Helper()
 	seal := mustSealFixtureSegment(t, ledger, fixture)

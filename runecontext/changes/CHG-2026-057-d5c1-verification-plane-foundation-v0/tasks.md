@@ -21,6 +21,9 @@
 - [ ] Ensure denials, failures, deferrals, and overrides remain first-class evidence outcomes.
 - [ ] Ensure portable evidence bundles remain independently verifiable outside RuneCode's UI and database.
 - [ ] Ensure runtime evidence, attestation evidence, approval scope, and policy posture remain part of the same provenance chain rather than separate auxiliary views.
+- [ ] Ensure canonical receipt-family expansion covers material authority, mutation, publication, boundary-crossing, override, and summary evidence rather than leaving those facts in derived views only.
+- [ ] Ensure preservation manifests capture the minimum cross-machine evidence identities needed for rebuild, export, restore, and future federation-safe workflows.
+- [ ] Ensure offline verification can recompute conclusions from exported canonical evidence when required inputs are present, and fail closed or degrade explicitly when they are not.
 
 ## Phase Sequencing
 
@@ -30,6 +33,7 @@
 - [ ] Phase 4: expand coverage for control-plane provenance, approval basis, provider and egress provenance, meta-audit, degraded-posture summaries, and negative-capability receipts.
 - [ ] Phase 5: strengthen verification reports with verifier identity, trust-root identity, missing-evidence findings, and clearer anchoring posture.
 - [ ] Phase 6: harden invariants and performance without changing trust semantics.
+- [ ] Phase 6 includes append-friendly derived-index storage, compact inclusion-material support, and formal or model-checked coverage for critical fail-closed invariants where appropriate.
 
 ## Acceptance Criteria
 
@@ -43,3 +47,5 @@
 - [ ] RuneCode preserves enough evidence for future backfill and cross-machine export.
 - [ ] RuneCode does not require a different architecture for small devices.
 - [ ] RuneCode does not weaken trust boundaries or introduce a second truth surface.
+- [ ] RuneCode preserves enough control-plane, runtime, policy, approval, provider, and anchor evidence identity to support later offline verification recomputation and future cross-machine workflows.
+- [ ] RuneCode keeps hot-path append, seal, and lookup work near constant time with respect to historical ledger size without changing trust semantics across deployment sizes.

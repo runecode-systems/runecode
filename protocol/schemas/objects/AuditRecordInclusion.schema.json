@@ -20,9 +20,9 @@
     "orderedMerkle": {
       "type": "object",
       "additionalProperties": false,
-      "maxProperties": 5,
-      "required": ["profile", "leaf_index", "leaf_count", "segment_merkle_root", "segment_record_digests"],
-      "description": "Ordered-Merkle material sufficient to recompute the segment merkle root from canonical record digests.",
+      "maxProperties": 6,
+      "required": ["profile", "leaf_index", "leaf_count", "segment_merkle_root"],
+      "description": "Ordered-Merkle material sufficient to recompute the segment merkle root from canonical record digests (full list) or compact sibling-path representation.",
       "properties": {
         "profile": {
           "type": "string",
@@ -51,16 +51,35 @@
         },
         "segment_record_digests": {
           "type": "array",
-          "minItems": 1,
+          "minItems": 0,
           "maxItems": 1000000,
-          "description": "Ordered segment record digest identities used to recompute segment_merkle_root.",
+          "description": "Ordered segment record digest identities used to recompute segment_merkle_root in full-list mode.",
           "x-data-class": "public",
           "items": {
             "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
             "description": "One canonical record digest identity in segment order."
           }
+        },
+        "compact_path": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 128,
+          "description": "Ordered compact sibling-path digest identities for reconstructing segment_merkle_root from record_digest, leaf_index, and leaf_count.",
+          "x-data-class": "public",
+          "items": {
+            "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+            "description": "Sibling digest identity for one Merkle level."
+          }
         }
-      }
+      },
+      "oneOf": [
+        {
+          "required": ["segment_record_digests"]
+        },
+        {
+          "required": ["compact_path"]
+        }
+      ]
     }
   },
   "properties": {

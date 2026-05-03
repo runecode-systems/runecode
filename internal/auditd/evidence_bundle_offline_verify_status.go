@@ -14,7 +14,7 @@ func offlineBundleObjectDigestIdentity(family string, payload []byte) (string, e
 		return digestIdentityFromSegmentPayload(payload)
 	case "audit_segment_seal", "audit_receipt":
 		return digestIdentityFromSignedEnvelopePayload(payload)
-	case "audit_verification_report", "external_anchor_evidence", "external_anchor_sidecar":
+	case "audit_verification_report", "external_anchor_evidence", "external_anchor_sidecar", "event_contract_catalog", "verifier_record_set", "signer_evidence", "storage_posture":
 		return digestIdentityFromCanonicalPayload(payload)
 	default:
 		return "", fmt.Errorf("object family %q has no offline digest verifier in this lane", family)
@@ -86,7 +86,7 @@ func offlineBundleFindingFlags(findings []AuditEvidenceBundleOfflineFinding) (bo
 
 func isOfflineBundleDegradedFinding(code string) bool {
 	switch code {
-	case "verification_report_degraded_posture", "verification_report_missing", "verification_evidence_redacted":
+	case "verification_report_degraded_posture", "verification_report_missing", "verification_evidence_redacted", "verification_recompute_inputs_missing", "verification_recompute_unavailable":
 		return true
 	default:
 		return false

@@ -14,13 +14,20 @@ const (
 	runtimeSummaryScopeRun           = "run"
 	runtimeSummaryBoundaryRoute      = "artifact_io_promotion"
 
-	auditReceiptPayloadSchemaMetaAuditActionV0 = "runecode.protocol.audit.receipt.meta_audit_action.v0"
-	auditReceiptKindEvidenceBundleExport       = "evidence_bundle_export"
-	auditReceiptKindEvidenceImport             = "evidence_import"
-	auditReceiptKindEvidenceRestore            = "evidence_restore"
-	auditReceiptKindRetentionPolicyChanged     = "retention_policy_changed"
-	auditReceiptKindArchivalOperation          = "archival_operation"
-	auditReceiptKindSensitiveEvidenceView      = "sensitive_evidence_view"
+	auditReceiptPayloadSchemaMetaAuditActionV0  = "runecode.protocol.audit.receipt.meta_audit_action.v0"
+	auditReceiptPayloadSchemaApprovalEvidenceV0 = "runecode.protocol.audit.receipt.approval_evidence.v0"
+	auditReceiptPayloadSchemaPublicationV0      = "runecode.protocol.audit.receipt.publication_evidence.v0"
+	auditReceiptPayloadSchemaOverrideV0         = "runecode.protocol.audit.receipt.override_evidence.v0"
+	auditReceiptKindApprovalResolution          = "approval_resolution"
+	auditReceiptKindApprovalConsumption         = "approval_consumption"
+	auditReceiptKindArtifactPublished           = "artifact_published"
+	auditReceiptKindOverrideOrBreakGlass        = "override_or_break_glass"
+	auditReceiptKindEvidenceBundleExport        = "evidence_bundle_export"
+	auditReceiptKindEvidenceImport              = "evidence_import"
+	auditReceiptKindEvidenceRestore             = "evidence_restore"
+	auditReceiptKindRetentionPolicyChanged      = "retention_policy_changed"
+	auditReceiptKindArchivalOperation           = "archival_operation"
+	auditReceiptKindSensitiveEvidenceView       = "sensitive_evidence_view"
 )
 
 func (s *Service) persistProviderInvocationReceipt(runID string, decisionOutcome string, decisionReason string, payload gatewayActionPayloadRuntime, match gatewayAllowlistMatch) {

@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -106,23 +108,205 @@ func assertIncludedBundleObjectsPresent(t *testing.T, objects []AuditEvidenceBun
 	}
 }
 
-func TestBuildEvidenceBundleManifestFailsClosedForUnresolvedArtifactAndIncidentScopes(t *testing.T) {
+func TestBuildEvidenceBundleManifestSupportsDeterministicArtifactAndIncidentScopes(t *testing.T) {
 	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	setIncidentCorrelationOnCurrentOpenSegmentFrame(t, ledger, "incident-42")
 	seal := mustSealFixtureSegment(t, ledger, fixture)
 	_ = mustPersistReceipt(t, ledger, buildAnchorReceiptEnvelope(t, fixture, seal.SealEnvelopeDigest))
 	_ = mustPersistReport(t, ledger, validReportFixture("segment-000001"))
+	inclusion := mustRecordInclusionForRun1(t, ledger)
+	artifactManifest, err := ledger.BuildEvidenceBundleManifest(AuditEvidenceBundleManifestRequest{Scope: AuditEvidenceBundleScope{ScopeKind: "artifact", ArtifactDigests: []string{inclusion.RecordDigest}}, ExportProfile: "operator_private_full", CreatedByTool: AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"}, DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "operator_private", SelectiveDisclosureApplied: false}})
+	if err != nil {
+		t.Fatalf("BuildEvidenceBundleManifest(artifact) returned error: %v", err)
+	}
+	if len(artifactManifest.SealReferences) != 1 || artifactManifest.SealReferences[0].SegmentID != inclusion.SegmentID {
+		t.Fatalf("artifact scope selected unexpected seal references: %+v", artifactManifest.SealReferences)
+	}
+	request := validAdmissionRequestForLedger(t, fixture)
+	request.Envelope = signedEnvelopeForRunAndSession(t, fixture, request.Envelope, "run-2", "session-2", 2)
+	if _, err := ledger.AppendAdmittedEvent(request); err != nil {
+		t.Fatalf("AppendAdmittedEvent(run-2) returned error: %v", err)
+	}
+	if _, err := ledger.SealCurrentSegment(newSealEnvelopeForCurrentSegment(t, ledger, fixture)); err != nil {
+		t.Fatalf("SealCurrentSegment(run-2) returned error: %v", err)
+	}
+	incidentManifest, err := ledger.BuildEvidenceBundleManifest(AuditEvidenceBundleManifestRequest{Scope: AuditEvidenceBundleScope{ScopeKind: "incident", IncidentID: "incident-42"}, ExportProfile: "incident_response_scope", CreatedByTool: AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"}, DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "operator_private", SelectiveDisclosureApplied: true}})
+	if err != nil {
+		t.Fatalf("BuildEvidenceBundleManifest(incident) returned error: %v", err)
+	}
+	if len(incidentManifest.SealReferences) != 1 || incidentManifest.SealReferences[0].SegmentID != inclusion.SegmentID {
+		t.Fatalf("incident scope selected unexpected seal references: %+v", incidentManifest.SealReferences)
+	}
+}
 
-	artifactDigest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("a", 64)}
-	artifactIdentity, _ := artifactDigest.Identity()
-	_, err := ledger.BuildEvidenceBundleManifest(AuditEvidenceBundleManifestRequest{Scope: AuditEvidenceBundleScope{ScopeKind: "artifact", ArtifactDigests: []string{artifactIdentity}}, ExportProfile: "external_relying_party_minimal", CreatedByTool: AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"}, DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "digest_metadata_only", SelectiveDisclosureApplied: true}})
-	if err == nil {
-		t.Fatal("BuildEvidenceBundleManifest(artifact) expected fail-closed error")
+func TestBuildEvidenceBundleManifestArtifactScopeFailsClosedOnCorruptReceiptSidecar(t *testing.T) {
+	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	seal := mustSealFixtureSegment(t, ledger, fixture)
+	receiptDigest := mustPersistReceipt(t, ledger, buildAnchorReceiptEnvelope(t, fixture, seal.SealEnvelopeDigest))
+
+	receiptID, _ := receiptDigest.Identity()
+	receiptPath := filepath.Join(root, sidecarDirName, receiptsDirName, strings.TrimPrefix(receiptID, "sha256:")+".json")
+	if err := os.WriteFile(receiptPath, []byte(`{"bad":`), 0o600); err != nil {
+		t.Fatalf("WriteFile(receiptPath) returned error: %v", err)
 	}
 
-	_, err = ledger.BuildEvidenceBundleManifest(AuditEvidenceBundleManifestRequest{Scope: AuditEvidenceBundleScope{ScopeKind: "incident", IncidentID: "incident-42"}, ExportProfile: "incident_response_scope", CreatedByTool: AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"}, DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "operator_private", SelectiveDisclosureApplied: true}})
+	_, err := ledger.BuildEvidenceBundleManifest(AuditEvidenceBundleManifestRequest{
+		Scope:             AuditEvidenceBundleScope{ScopeKind: "artifact", ArtifactDigests: []string{receiptID}},
+		ExportProfile:     "operator_private_full",
+		CreatedByTool:     AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"},
+		DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "operator_private", SelectiveDisclosureApplied: false},
+	})
 	if err == nil {
-		t.Fatal("BuildEvidenceBundleManifest(incident) expected fail-closed error")
+		t.Fatal("BuildEvidenceBundleManifest returned nil error, want fail-closed error for corrupt receipt sidecar")
 	}
+}
+
+func TestBuildEvidenceBundleManifestArtifactScopeFailsClosedOnCorruptReportSidecar(t *testing.T) {
+	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	_ = mustSealFixtureSegment(t, ledger, fixture)
+	reportDigest := mustPersistReport(t, ledger, validReportFixture("segment-000001"))
+
+	reportID, _ := reportDigest.Identity()
+	reportPath := filepath.Join(root, sidecarDirName, verificationReportsDirName, strings.TrimPrefix(reportID, "sha256:")+".json")
+	if err := os.WriteFile(reportPath, []byte(`{"bad":`), 0o600); err != nil {
+		t.Fatalf("WriteFile(reportPath) returned error: %v", err)
+	}
+
+	_, err := ledger.BuildEvidenceBundleManifest(AuditEvidenceBundleManifestRequest{
+		Scope:             AuditEvidenceBundleScope{ScopeKind: "artifact", ArtifactDigests: []string{reportID}},
+		ExportProfile:     "operator_private_full",
+		CreatedByTool:     AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"},
+		DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "operator_private", SelectiveDisclosureApplied: false},
+	})
+	if err == nil {
+		t.Fatal("BuildEvidenceBundleManifest returned nil error, want fail-closed error for corrupt report sidecar")
+	}
+}
+
+func mustRecordInclusionForRun1(t *testing.T, ledger *Ledger) AuditRecordInclusion {
+	t.Helper()
+	index, err := ledger.BuildIndex()
+	if err != nil {
+		t.Fatalf("BuildIndex returned error: %v", err)
+	}
+	for i := range index.RunTimeline {
+		if index.RunTimeline[i].RunID != "run-1" {
+			continue
+		}
+		inc, ok, err := ledger.RecordInclusionByDigest(index.RunTimeline[i].RecordDigest)
+		if err != nil {
+			t.Fatalf("RecordInclusionByDigest returned error: %v", err)
+		}
+		if ok {
+			return inc
+		}
+	}
+	t.Fatal("no record inclusion found for run-1")
+	return AuditRecordInclusion{}
+}
+
+func setIncidentCorrelationOnCurrentOpenSegmentFrame(t *testing.T, ledger *Ledger, incidentID string) {
+	t.Helper()
+	segment, idx := mustLoadCurrentOpenSegmentAndFrameIndex(t, ledger)
+	envelope := mustDecodeFrameEnvelope(t, segment.Frames[idx])
+	payload := mustUnmarshalEnvelopePayloadMap(t, envelope.Payload)
+	payload["correlation"] = incidentCorrelationMap(payload["correlation"], incidentID)
+	mutated, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Marshal(mutated payload) returned error: %v", err)
+	}
+	envelope.Payload = mutated
+	canonBytes, digest, err := canonicalEnvelopeAndDigest(envelope)
+	if err != nil {
+		t.Fatalf("canonicalEnvelopeAndDigest returned error: %v", err)
+	}
+	segment.Frames[idx].CanonicalSignedEnvelopeBytes = base64.StdEncoding.EncodeToString(canonBytes)
+	segment.Frames[idx].RecordDigest = digest
+	segment.Frames[idx].ByteLength = int64(len(canonBytes))
+	if err := writeCanonicalJSONFile(filepath.Join(ledger.rootDir, segmentsDirName, segment.Header.SegmentID+".json"), segment); err != nil {
+		t.Fatalf("writeCanonicalJSONFile(segment) returned error: %v", err)
+	}
+}
+
+func mustLoadCurrentOpenSegmentAndFrameIndex(t *testing.T, ledger *Ledger) (trustpolicy.AuditSegmentFilePayload, int) {
+	t.Helper()
+	state, err := ledger.loadState()
+	if err != nil {
+		t.Fatalf("loadState returned error: %v", err)
+	}
+	segment, err := ledger.loadSegment(state.CurrentOpenSegmentID)
+	if err != nil {
+		t.Fatalf("loadSegment returned error: %v", err)
+	}
+	if len(segment.Frames) == 0 {
+		t.Fatal("current segment has no frames")
+	}
+	return segment, len(segment.Frames) - 1
+}
+
+func mustDecodeFrameEnvelope(t *testing.T, frame trustpolicy.AuditSegmentRecordFrame) trustpolicy.SignedObjectEnvelope {
+	t.Helper()
+	envelope, err := decodeFrameEnvelope(frame)
+	if err != nil {
+		t.Fatalf("decodeFrameEnvelope returned error: %v", err)
+	}
+	return envelope
+}
+
+func mustUnmarshalEnvelopePayloadMap(t *testing.T, payloadBytes []byte) map[string]any {
+	t.Helper()
+	payload := map[string]any{}
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		t.Fatalf("Unmarshal(event payload) returned error: %v", err)
+	}
+	return payload
+}
+
+func incidentCorrelationMap(existing any, incidentID string) map[string]any {
+	corr := map[string]any{}
+	existingMap, ok := existing.(map[string]any)
+	if ok {
+		for key, value := range existingMap {
+			corr[key] = value
+		}
+	}
+	corr["incident_id"] = incidentID
+	return corr
+}
+
+func newSealEnvelopeForCurrentSegment(t *testing.T, ledger *Ledger, fixture auditFixtureKey) trustpolicy.SignedObjectEnvelope {
+	t.Helper()
+	state, err := ledger.loadState()
+	if err != nil {
+		t.Fatalf("loadState returned error: %v", err)
+	}
+	segment, err := ledger.loadSegment(state.CurrentOpenSegmentID)
+	if err != nil {
+		t.Fatalf("loadSegment returned error: %v", err)
+	}
+	var previous *trustpolicy.Digest
+	if state.LastSealEnvelopeDigest != "" {
+		d, err := digestFromIdentity(state.LastSealEnvelopeDigest)
+		if err != nil {
+			t.Fatalf("digestFromIdentity(last seal) returned error: %v", err)
+		}
+		previous = &d
+	}
+	chainIndex := int64(0)
+	if previous != nil {
+		if sealedCount, err := countSealedSegments(ledger); err == nil {
+			chainIndex = int64(sealedCount)
+		}
+	}
+	return buildSealEnvelopeForSegment(t, fixture, ledger, segment, previous, chainIndex)
+}
+
+func countSealedSegments(ledger *Ledger) (int, error) {
+	index, err := ledger.BuildIndex()
+	if err != nil {
+		return 0, err
+	}
+	return len(index.SegmentSealLookup), nil
 }
 
 func TestOfflineVerifyEvidenceBundleRejectsDuplicateTarPaths(t *testing.T) {
