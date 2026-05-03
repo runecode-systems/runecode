@@ -23,8 +23,8 @@ func TestAuditEvidenceSnapshotGetIncludesIdentityFoundationFields(t *testing.T) 
 	if err := service.validateResponse(resp, auditEvidenceSnapshotGetResponseSchemaPath); err != nil {
 		t.Fatalf("validateResponse(auditEvidenceSnapshotGetResponse) returned error: %v", err)
 	}
-	if resp.Snapshot.RepositoryIdentityDigest == nil {
-		t.Fatal("repository_identity_digest missing, want repository/project identity")
+	if resp.Snapshot.RepositoryIdentityDigest != nil {
+		t.Fatal("repository_identity_digest present, want empty until canonical cross-machine repository identity exists")
 	}
 	if strings.TrimSpace(resp.Snapshot.ProductInstanceID) == "" {
 		t.Fatal("product_instance_id empty, want repo-scoped product identity")

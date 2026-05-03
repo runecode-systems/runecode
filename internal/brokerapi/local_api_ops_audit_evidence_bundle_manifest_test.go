@@ -34,8 +34,8 @@ func assertProjectedAuditEvidenceBundleManifest(t *testing.T, manifest AuditEvid
 
 func assertAuditEvidenceBundleManifestMaterialized(t *testing.T, manifest AuditEvidenceBundleManifest) {
 	t.Helper()
-	if manifest.RepositoryIdentityDigest == nil {
-		t.Fatal("repository_identity_digest missing, want projected repository identity")
+	if manifest.RepositoryIdentityDigest != nil {
+		t.Fatal("repository_identity_digest present, want empty until canonical cross-machine repository identity exists")
 	}
 	if strings.TrimSpace(manifest.ProductInstanceID) == "" {
 		t.Fatal("product_instance_id empty, want projected product instance identity")
