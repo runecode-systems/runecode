@@ -160,7 +160,46 @@
   "allOf": [
     {
       "if": {
-        "required": ["last_execute_request_id"]
+        "required": ["last_execute_request_id"],
+        "properties": {
+          "lifecycle_state": {
+            "not": { "const": "executed" }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "last_execute_provider_auth_lease_id",
+          "last_execute_attempt_id",
+          "last_execute_attempt_typed_request_hash"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": ["last_execute_request_id"],
+        "properties": {
+          "lifecycle_state": { "const": "executed" },
+          "execution_state": {
+            "not": { "const": "completed" }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "last_execute_provider_auth_lease_id",
+          "last_execute_attempt_id",
+          "last_execute_attempt_typed_request_hash"
+        ]
+      }
+    },
+    {
+      "if": {
+        "anyOf": [
+          { "required": ["last_execute_provider_auth_lease_id"] },
+          { "required": ["last_execute_attempt_id"] },
+          { "required": ["last_execute_attempt_typed_request_hash"] }
+        ]
       },
       "then": {
         "required": [

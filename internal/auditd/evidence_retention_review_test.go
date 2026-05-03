@@ -25,6 +25,28 @@ func TestBuildEvidenceRetentionReviewSeededFixtureIsFullySatisfied(t *testing.T)
 	}
 }
 
+func TestBuildEvidenceRetentionReviewSnapshotPreservesIdentityContext(t *testing.T) {
+	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	seal := mustSealFixtureSegment(t, ledger, fixture)
+	_ = mustPersistReceipt(t, ledger, buildAnchorReceiptEnvelope(t, fixture, seal.SealEnvelopeDigest))
+	_ = mustPersistReport(t, ledger, validReportFixture("segment-000001"))
+
+	identityContext := AuditEvidenceIdentityContext{
+		RepositoryIdentityDigest: "sha256:" + strings.Repeat("f", 64),
+		ProductInstanceID:        "product-instance-123",
+	}
+	snapshot, _, _, err := ledger.BuildEvidenceRetentionReview(AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"}, identityContext)
+	if err != nil {
+		t.Fatalf("BuildEvidenceRetentionReview returned error: %v", err)
+	}
+	if snapshot.RepositoryIdentityDigest != identityContext.RepositoryIdentityDigest {
+		t.Fatalf("snapshot repository_identity_digest = %q, want %q", snapshot.RepositoryIdentityDigest, identityContext.RepositoryIdentityDigest)
+	}
+	if snapshot.ProductInstanceID != identityContext.ProductInstanceID {
+		t.Fatalf("snapshot product_instance_id = %q, want %q", snapshot.ProductInstanceID, identityContext.ProductInstanceID)
+	}
+}
+
 func TestEvaluateEvidenceRetentionCompletenessReportsRuntimeEvidenceGapWhenObjectMissing(t *testing.T) {
 	runtime := "sha256:" + strings.Repeat("b", 64)
 	review := EvaluateEvidenceRetentionCompleteness(

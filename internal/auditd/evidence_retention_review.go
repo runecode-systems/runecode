@@ -3,7 +3,7 @@ package auditd
 import "strings"
 
 func (l *Ledger) BuildEvidenceRetentionReview(scope AuditEvidenceBundleScope, identityContext AuditEvidenceIdentityContext) (AuditEvidenceSnapshot, AuditEvidenceBundleManifest, AuditEvidenceSnapshotCompletenessReview, error) {
-	snapshot, err := l.EvidenceSnapshot()
+	snapshot, err := l.EvidenceSnapshotWithIdentity(identityContext)
 	if err != nil {
 		return AuditEvidenceSnapshot{}, AuditEvidenceBundleManifest{}, AuditEvidenceSnapshotCompletenessReview{}, err
 	}

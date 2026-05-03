@@ -12,6 +12,33 @@ import (
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
+type offlineBundlePathError struct {
+	err error
+}
+
+func (e *offlineBundlePathError) Error() string {
+	if e == nil || e.err == nil {
+		return ""
+	}
+	return e.err.Error()
+}
+
+func (e *offlineBundlePathError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
+func newOfflineBundlePathError(format string, args ...any) error {
+	return &offlineBundlePathError{err: fmt.Errorf(format, args...)}
+}
+
+func isOfflineBundlePathError(err error) bool {
+	var target *offlineBundlePathError
+	return errors.As(err, &target)
+}
+
 func (s *Service) HandleAuditEvidenceBundleOfflineVerify(ctx context.Context, req AuditEvidenceBundleOfflineVerifyRequest, meta RequestContext) (AuditEvidenceBundleOfflineVerifyResponse, *ErrorResponse) {
 	requestID, _, cleanup, errResp := s.prepareAuditEvidenceRequest(ctx, req.RequestID, meta.RequestID, meta.AdmissionErr, req, auditEvidenceBundleOfflineVerifyRequestSchemaPath, meta, "audit evidence bundle offline verify service unavailable")
 	if errResp != nil {
@@ -45,14 +72,13 @@ func (s *Service) verifyAuditEvidenceBundleFromRequest(requestID string, req Aud
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "bundle_path is required")
 		return AuditEvidenceBundleOfflineVerification{}, &errOut
 	}
-	cleanBundlePath, err := validatedOfflineBundlePath(bundlePath)
+	f, err := openValidatedOfflineBundleFile(bundlePath)
 	if err != nil {
-		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
-		return AuditEvidenceBundleOfflineVerification{}, &errOut
-	}
-	f, err := os.Open(cleanBundlePath)
-	if err != nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, fmt.Sprintf("bundle open failed: %v", err))
+		code, category := "gateway_failure", "internal"
+		if isOfflineBundlePathError(err) {
+			code, category = "broker_validation_schema_invalid", "validation"
+		}
+		errOut := s.makeError(requestID, code, category, false, err.Error())
 		return AuditEvidenceBundleOfflineVerification{}, &errOut
 	}
 	defer f.Close()
@@ -73,61 +99,71 @@ func (s *Service) verifyAuditEvidenceBundleFromRequest(requestID string, req Aud
 	return verification, nil
 }
 
-func validatedOfflineBundlePath(bundlePath string) (string, error) {
+func openValidatedOfflineBundleFile(bundlePath string) (*os.File, error) {
+	return openValidatedOfflineBundleFileWithOpener(bundlePath, os.Open)
+}
+
+func openValidatedOfflineBundleFileWithOpener(bundlePath string, opener func(string) (*os.File, error)) (*os.File, error) {
 	clean := filepath.Clean(strings.TrimSpace(bundlePath))
 	if clean == "." || clean == "" {
-		return "", fmt.Errorf("bundle_path is required")
+		return nil, newOfflineBundlePathError("bundle_path is required")
 	}
 	if !filepath.IsAbs(clean) {
-		return "", fmt.Errorf("bundle_path must be an absolute path")
-	}
-	if err := validateOfflineBundleParentPath(clean); err != nil {
-		return "", err
-	}
-	if err := validateOfflineBundleLeaf(clean); err != nil {
-		return "", fmt.Errorf("bundle_path must not reference a symlink")
-	}
-	f, err := os.Open(clean)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return "", err
-	}
-	if info.IsDir() {
-		return "", fmt.Errorf("bundle_path must reference a file")
+		return nil, newOfflineBundlePathError("bundle_path must be an absolute path")
 	}
 	if filepath.Ext(clean) != ".tar" {
-		return "", fmt.Errorf("bundle_path must reference a .tar archive")
+		return nil, newOfflineBundlePathError("bundle_path must reference a .tar archive")
 	}
-	return clean, nil
+	if err := validateOfflineBundleParentPath(clean); err != nil {
+		return nil, err
+	}
+	preOpenInfo, err := validatedOfflineBundleLeafInfo(clean)
+	if err != nil {
+		return nil, err
+	}
+	f, err := opener(clean)
+	if err != nil {
+		return nil, err
+	}
+	openedInfo, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	if openedInfo.IsDir() {
+		_ = f.Close()
+		return nil, newOfflineBundlePathError("bundle_path must reference a file")
+	}
+	if !os.SameFile(preOpenInfo, openedInfo) {
+		_ = f.Close()
+		return nil, newOfflineBundlePathError("bundle_path changed while opening")
+	}
+	return f, nil
 }
 
 func validateOfflineBundleParentPath(clean string) error {
 	if err := rejectLinkedPathComponents(filepath.Dir(clean)); err != nil {
 		if errors.Is(err, errLinkedPathComponent) {
-			return fmt.Errorf("bundle_path must not contain symlink components")
+			return newOfflineBundlePathError("bundle_path must not contain symlink components")
 		}
 		return err
 	}
 	return nil
 }
 
-func validateOfflineBundleLeaf(clean string) error {
+func validatedOfflineBundleLeafInfo(clean string) (os.FileInfo, error) {
 	lstatInfo, err := os.Lstat(clean)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	linked, err := pathEntryIsLinkOrReparse(clean, lstatInfo)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if linked {
-		return fmt.Errorf("linked bundle path")
+		return nil, newOfflineBundlePathError("bundle_path must not reference a symlink")
 	}
-	return nil
+	return lstatInfo, nil
 }
 
 func projectAuditEvidenceBundleOfflineVerification(value auditd.AuditEvidenceBundleOfflineVerification) (AuditEvidenceBundleOfflineVerification, error) {
