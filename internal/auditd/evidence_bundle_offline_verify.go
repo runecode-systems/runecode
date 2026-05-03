@@ -102,7 +102,11 @@ func verifyOfflineBundleIncludedObject(bundle offlineBundleSnapshot, obj AuditEv
 	path := strings.TrimSpace(obj.Path)
 	rel, ok := bundle.objects[path]
 	if !ok {
-		return []AuditEvidenceBundleOfflineFinding{{Code: "bundle_object_missing", Severity: "error", Message: "manifest listed object is missing from archive", ObjectPath: path, Digest: strings.TrimSpace(obj.Digest)}}, AuditEvidenceBundleOfflineReportPosture{}, false
+		findings := []AuditEvidenceBundleOfflineFinding{{Code: "bundle_object_missing", Severity: "error", Message: "manifest listed object is missing from archive", ObjectPath: path, Digest: strings.TrimSpace(obj.Digest)}}
+		if obj.ObjectFamily == "audit_verification_report" {
+			findings = append(findings, AuditEvidenceBundleOfflineFinding{Code: "verification_report_missing", Severity: "error", Message: "bundle does not include audit verification report evidence", ObjectPath: path, Digest: strings.TrimSpace(obj.Digest)})
+		}
+		return findings, AuditEvidenceBundleOfflineReportPosture{}, false
 	}
 	findings := verifyOfflineBundleObjectContent(obj, rel)
 	if obj.ObjectFamily != "audit_verification_report" {
@@ -132,6 +136,9 @@ func verifyOfflineBundleReportCoverage(bundle offlineBundleSnapshot, reports []A
 	if len(reports) != 0 {
 		return nil
 	}
+	if offlineBundleHasReferencedVerificationReport(bundle) {
+		return nil
+	}
 	findings := []AuditEvidenceBundleOfflineFinding{{Code: "verification_report_missing", Severity: "error", Message: "bundle does not include audit verification report evidence"}}
 	for i := range bundle.manifest.Redactions {
 		if strings.TrimSpace(bundle.manifest.Redactions[i].Path) == "" {
@@ -140,6 +147,15 @@ func verifyOfflineBundleReportCoverage(bundle offlineBundleSnapshot, reports []A
 		findings = append(findings, AuditEvidenceBundleOfflineFinding{Code: "verification_evidence_redacted", Severity: "warning", Message: "manifest redactions omit evidence object", ObjectPath: bundle.manifest.Redactions[i].Path})
 	}
 	return findings
+}
+
+func offlineBundleHasReferencedVerificationReport(bundle offlineBundleSnapshot) bool {
+	for i := range bundle.manifest.IncludedObjects {
+		if strings.TrimSpace(bundle.manifest.IncludedObjects[i].ObjectFamily) == "audit_verification_report" {
+			return true
+		}
+	}
+	return false
 }
 
 func verifyOfflineReportPosture(raw []byte, digestIdentity string) (AuditEvidenceBundleOfflineReportPosture, []AuditEvidenceBundleOfflineFinding, bool) {

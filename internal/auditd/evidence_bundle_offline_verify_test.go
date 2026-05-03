@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
@@ -111,6 +113,29 @@ func TestOfflineVerifyEvidenceBundleRecomputesWhenInputsPresent(t *testing.T) {
 	}
 }
 
+func TestOfflineVerifyEvidenceBundleExportsSegmentPayloadForRecompute(t *testing.T) {
+	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	seedOfflineRecomputeComparableBundleEvidence(t, ledger, fixture)
+	archive := mustExportBundleArchiveForOfflineVerify(t, ledger, AuditEvidenceBundleExportRequest{
+		ManifestRequest: AuditEvidenceBundleManifestRequest{
+			Scope:             AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"},
+			ExportProfile:     "operator_private_full",
+			CreatedByTool:     AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"},
+			DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "operator_private", SelectiveDisclosureApplied: false},
+		},
+		ArchiveFormat: "tar",
+	})
+	entries := readTarEntries(t, archive)
+	segmentPayload, ok := entries["segments/segment-000001.json"]
+	if !ok {
+		t.Fatal("segments/segment-000001.json missing from archive")
+	}
+	segment := trustpolicy.AuditSegmentFilePayload{}
+	if err := json.Unmarshal(segmentPayload, &segment); err != nil {
+		t.Fatalf("segment payload should decode as AuditSegmentFilePayload: %v", err)
+	}
+}
+
 func TestOfflineVerifyEvidenceBundleDegradesWhenRecomputeInputsMissing(t *testing.T) {
 	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
 	seedOfflineRecomputeComparableBundleEvidence(t, ledger, fixture)
@@ -129,6 +154,65 @@ func TestOfflineVerifyEvidenceBundleDegradesWhenRecomputeInputsMissing(t *testin
 	}
 	if !hasOfflineFindingCode(verification.Findings, "verification_recompute_inputs_missing") {
 		t.Fatalf("findings = %+v, want explicit recomputation input gap", verification.Findings)
+	}
+}
+
+func TestOfflineVerifyEvidenceBundleFlagsMissingReferencedVerificationReport(t *testing.T) {
+	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	seedOfflineRecomputeComparableBundleEvidence(t, ledger, fixture)
+	report := validReportFixture("segment-000001")
+	missingDigest := mustPersistReport(t, ledger, report)
+	archive := mustExportBundleArchiveForOfflineVerify(t, ledger, AuditEvidenceBundleExportRequest{
+		ManifestRequest: AuditEvidenceBundleManifestRequest{
+			Scope:             AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"},
+			ExportProfile:     "operator_private_full",
+			CreatedByTool:     AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"},
+			DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "operator_private", SelectiveDisclosureApplied: false},
+		},
+		ArchiveFormat: "tar",
+	})
+	entries := readTarEntries(t, archive)
+	missingID, _ := missingDigest.Identity()
+	missingPath := filepath.ToSlash("sidecar/verification-reports/" + strings.TrimPrefix(missingID, "sha256:") + ".json")
+	delete(entries, missingPath)
+	modified := mustBuildTarFromEntries(t, entries)
+	verification, err := ledger.OfflineVerifyEvidenceBundle(bytes.NewReader(modified), "tar")
+	if err != nil {
+		t.Fatalf("OfflineVerifyEvidenceBundle returned error: %v", err)
+	}
+	if !hasOfflineFindingCode(verification.Findings, "verification_report_missing") {
+		t.Fatalf("findings = %+v, want verification_report_missing", verification.Findings)
+	}
+	if got := countOfflineFindingCode(verification.Findings, "verification_report_missing"); got != 1 {
+		t.Fatalf("verification_report_missing count = %d, want 1 (findings=%+v)", got, verification.Findings)
+	}
+}
+
+func TestOfflineVerifyEvidenceBundleIgnoresUnrelatedMetaAuditReceiptDrift(t *testing.T) {
+	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	seedOfflineRecomputeComparableBundleEvidence(t, ledger, fixture)
+	archive := mustExportBundleArchiveForOfflineVerify(t, ledger, AuditEvidenceBundleExportRequest{
+		ManifestRequest: AuditEvidenceBundleManifestRequest{
+			Scope:             AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"},
+			ExportProfile:     "operator_private_full",
+			CreatedByTool:     AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"},
+			DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "operator_private", SelectiveDisclosureApplied: false},
+		},
+		ArchiveFormat: "tar",
+	})
+	entries := readTarEntries(t, archive)
+	for path := range entries {
+		if strings.HasPrefix(path, "sidecar/receipts/") {
+			delete(entries, path)
+		}
+	}
+	modified := mustBuildTarFromEntries(t, entries)
+	verification, err := ledger.OfflineVerifyEvidenceBundle(bytes.NewReader(modified), "tar")
+	if err != nil {
+		t.Fatalf("OfflineVerifyEvidenceBundle returned error: %v", err)
+	}
+	if hasOfflineFindingCode(verification.Findings, "verification_recompute_mismatch") {
+		t.Fatalf("findings = %+v, did not want recompute mismatch when unrelated receipts drift", verification.Findings)
 	}
 }
 
@@ -263,6 +347,16 @@ func hasOfflineFindingCode(findings []AuditEvidenceBundleOfflineFinding, code st
 		}
 	}
 	return false
+}
+
+func countOfflineFindingCode(findings []AuditEvidenceBundleOfflineFinding, code string) int {
+	count := 0
+	for i := range findings {
+		if findings[i].Code == code {
+			count++
+		}
+	}
+	return count
 }
 
 func mustBuildTarFromEntries(t *testing.T, entries map[string][]byte) []byte {

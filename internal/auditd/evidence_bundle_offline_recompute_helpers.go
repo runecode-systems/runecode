@@ -76,6 +76,8 @@ func loadOfflineExternalAnchorSidecarDigests(bundle offlineBundleSnapshot) ([]tr
 }
 
 func compareVerificationConclusions(expected trustpolicy.AuditVerificationReportPayload, got trustpolicy.AuditVerificationReportPayload) string {
+	expected = normalizeOfflineRecomputedReportComparison(expected)
+	got = normalizeOfflineRecomputedReportComparison(got)
 	if verificationStatusesMismatch(expected, got) {
 		return fmt.Sprintf(
 			"recomputed verification conclusion mismatch: expected statuses=%s/%s/%s/%s degraded=%t cryptographically_valid=%t historically_admissible=%t got=%s/%s/%s/%s degraded=%t cryptographically_valid=%t historically_admissible=%t",
@@ -102,6 +104,51 @@ func compareVerificationConclusions(expected trustpolicy.AuditVerificationReport
 		return fmt.Sprintf("recomputed degraded_reasons mismatch: expected=%v got=%v", normalizeStringList(expected.DegradedReasons), normalizeStringList(got.DegradedReasons))
 	}
 	return ""
+}
+
+func normalizeOfflineRecomputedReportComparison(report trustpolicy.AuditVerificationReportPayload) trustpolicy.AuditVerificationReportPayload {
+	hadOnlyExportIncomplete := report.IntegrityStatus == trustpolicy.AuditVerificationStatusDegraded && hasOnlyDroppedReason(report.DegradedReasons, trustpolicy.AuditVerificationReasonEvidenceExportIncomplete)
+	report.DegradedReasons = filteredReasonCodes(report.DegradedReasons, trustpolicy.AuditVerificationReasonEvidenceExportIncomplete)
+	report.Findings = filteredFindings(report.Findings, trustpolicy.AuditVerificationReasonEvidenceExportIncomplete)
+	report.CurrentlyDegraded = len(report.DegradedReasons) > 0
+	if hadOnlyExportIncomplete || (report.IntegrityStatus == trustpolicy.AuditVerificationStatusDegraded && len(report.DegradedReasons) == 0) {
+		report.IntegrityStatus = trustpolicy.AuditVerificationStatusOK
+	}
+	return report
+}
+
+func hasOnlyDroppedReason(codes []string, drop string) bool {
+	hasDrop := false
+	for i := range codes {
+		if strings.TrimSpace(codes[i]) == drop {
+			hasDrop = true
+			continue
+		}
+		return false
+	}
+	return hasDrop
+}
+
+func filteredReasonCodes(codes []string, drop string) []string {
+	out := make([]string, 0, len(codes))
+	for i := range codes {
+		if strings.TrimSpace(codes[i]) == drop {
+			continue
+		}
+		out = append(out, codes[i])
+	}
+	return out
+}
+
+func filteredFindings(findings []trustpolicy.AuditVerificationFinding, drop string) []trustpolicy.AuditVerificationFinding {
+	out := make([]trustpolicy.AuditVerificationFinding, 0, len(findings))
+	for i := range findings {
+		if strings.TrimSpace(findings[i].Code) == drop {
+			continue
+		}
+		out = append(out, findings[i])
+	}
+	return out
 }
 
 func verificationStatusesMismatch(expected trustpolicy.AuditVerificationReportPayload, got trustpolicy.AuditVerificationReportPayload) bool {

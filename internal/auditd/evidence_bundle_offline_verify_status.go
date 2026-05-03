@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
 
 func offlineBundleObjectDigestIdentity(family string, payload []byte) (string, error) {
@@ -22,7 +23,18 @@ func offlineBundleObjectDigestIdentity(family string, payload []byte) (string, e
 }
 
 func digestIdentityFromSegmentPayload(payload []byte) (string, error) {
-	d, err := trustpolicy.ComputeSegmentFileHash(payload)
+	segment := trustpolicy.AuditSegmentFilePayload{}
+	if err := json.Unmarshal(payload, &segment); err != nil {
+		return "", err
+	}
+	b, err := json.Marshal(segment)
+	if err != nil {
+		return "", err
+	}
+	if _, err := jsoncanonicalizer.Transform(b); err != nil {
+		return "", err
+	}
+	d, err := canonicalDigest(segment)
 	if err != nil {
 		return "", err
 	}

@@ -23,7 +23,6 @@ type devManualAuditMaterial struct {
 	segmentFileHash     trustpolicy.Digest
 	segmentMerkleRoot   trustpolicy.Digest
 	segmentSealEnvelope trustpolicy.SignedObjectEnvelope
-	seedReport          trustpolicy.AuditVerificationReportPayload
 }
 
 func seedDevManualAuditLedger(root string, profile string) (string, error) {
@@ -55,8 +54,15 @@ func seedDevManualAuditLedger(root string, profile string) (string, error) {
 	if _, err := ledger.BuildIndex(); err != nil {
 		return "", err
 	}
-	if _, err := ledger.PersistVerificationReport(material.seedReport); err != nil {
+	result, err := ledger.VerifyCurrentSegmentAndPersist()
+	if err != nil {
 		return "", err
+	}
+	if profile == devManualSeedDegradedProfile {
+		degraded := degradeDevManualVerificationReport(result.Report)
+		if _, err := ledger.PersistVerificationReport(degraded); err != nil {
+			return "", err
+		}
 	}
 	if err := writeDevManualSeedMarker(validatedRoot, profile); err != nil {
 		return "", err
@@ -70,9 +76,6 @@ func buildDevManualAuditMaterial(profile string) (devManualAuditMaterial, error)
 		return devManualAuditMaterial{}, err
 	}
 	if err := attachDevManualSegmentMaterial(&material, signerMaterial); err != nil {
-		return devManualAuditMaterial{}, err
-	}
-	if err := attachDevManualSeedReport(&material); err != nil {
 		return devManualAuditMaterial{}, err
 	}
 	return material, nil
