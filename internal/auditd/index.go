@@ -96,6 +96,9 @@ func (l *Ledger) noteAppendedFrameInDerivedIndexLocked(segmentID string, frameIn
 	if index.RecordDigestLookup == nil {
 		index.RecordDigestLookup = map[string]RecordLookup{}
 	}
+	// TotalRecords tracks the number of indexed frames persisted in segments.
+	// RecordDigestLookup stays a single-location lookup because duplicate
+	// record digests are rejected at append admission time.
 	index.TotalRecords++
 	index.RecordDigestLookup[recordDigest] = RecordLookup{SegmentID: segmentID, FrameIndex: frameIndex}
 	if pointer, ok, err := frameTimelinePointer(segmentID, frameIndex, frame); err != nil {
