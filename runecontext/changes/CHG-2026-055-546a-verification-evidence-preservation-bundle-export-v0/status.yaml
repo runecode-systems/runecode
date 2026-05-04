@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-055-546a-verification-evidence-preservation-bundle-export-v0
 title: Verification Evidence Preservation + Bundle Export v0
-status: proposed
+status: implemented
 type: feature
 size: large
 verification_status: pending

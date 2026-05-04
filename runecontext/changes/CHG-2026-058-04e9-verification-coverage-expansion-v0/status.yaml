@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-058-04e9-verification-coverage-expansion-v0
 title: Verification Coverage Expansion v0
-status: proposed
+status: implemented
 type: feature
 size: large
 verification_status: pending

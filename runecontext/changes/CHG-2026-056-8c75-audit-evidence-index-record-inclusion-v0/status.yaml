@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-056-8c75-audit-evidence-index-record-inclusion-v0
 title: Audit Evidence Index + Record Inclusion v0
-status: proposed
+status: implemented
 type: feature
 size: large
 verification_status: pending
