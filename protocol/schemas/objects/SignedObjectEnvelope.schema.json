@@ -5,7 +5,7 @@
   "description": "Protocol-owned detached single-signature envelope. The signature covers the RFC 8785 JCS canonical bytes of the payload before envelope fields are attached. Additional attestations are modeled as separate signed objects.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 8,
+  "maxProperties": 7,
   "$defs": {
     "signatureBlock": {
       "description": "Reusable detached signature block shared across signed protocol objects.",
