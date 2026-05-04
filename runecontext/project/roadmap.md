@@ -17,7 +17,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
   - RuneCode closes the remaining product-integration gaps before beta by wiring one honest useful end-to-end workflow through the real trusted and untrusted execution path, tightening operator truth surfaces, and capturing dogfooding-driven polish across the local product UX with emphasis on the TUI.
   - Project change: `runecontext/changes/CHG-2026-060-c1a4-beta-readiness-hardening-product-polish/`
 
-
 ### v0.1.0-beta.1
 
 - Usable End-to-End Linux-First Cut
