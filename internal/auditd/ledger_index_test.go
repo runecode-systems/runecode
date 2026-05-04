@@ -146,9 +146,7 @@ func TestOpenFailsClosedWhenLatestSealIndexBuildDetectsCanonicalConflict(t *test
 	if err := writeCanonicalJSONFile(conflictPath, conflictEnvelope); err != nil {
 		t.Fatalf("writeCanonicalJSONFile returned error: %v", err)
 	}
-	if err := os.Remove(filepath.Join(root, indexDirName, auditEvidenceIndexFileName)); err != nil {
-		t.Fatalf("Remove(index) returned error: %v", err)
-	}
+	removeDerivedIndexArtifactsForTest(t, root)
 
 	if _, err := Open(root); err == nil || !strings.Contains(err.Error(), "multiple seals share chain index") {
 		t.Fatalf("Open error=%v, want canonical conflict", err)

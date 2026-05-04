@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/auditd"
@@ -94,26 +93,6 @@ func openValidatedOfflineBundleFileWithOpener(bundlePath string, opener func(str
 		return nil, err
 	}
 	return openVerifiedOfflineBundleFile(clean, preOpenInfo, opener)
-}
-
-func validateOfflineBundlePath(bundlePath string) (string, error) {
-	clean := filepath.Clean(strings.TrimSpace(bundlePath))
-	if clean == "." || clean == "" {
-		return "", errOfflineBundlePathRequired
-	}
-	if !filepath.IsAbs(clean) {
-		return "", errOfflineBundlePathAbsolute
-	}
-	if filepath.Ext(clean) != ".tar" {
-		return "", errOfflineBundlePathTar
-	}
-	if err := rejectLinkedPathComponents(filepath.Dir(clean)); err != nil {
-		if errors.Is(err, errLinkedPathComponent) {
-			return "", errOfflineBundlePathLinkedComponents
-		}
-		return "", fmt.Errorf("%w: %v", errOfflineBundlePathNotAccessible, err)
-	}
-	return clean, nil
 }
 
 func openVerifiedOfflineBundleFile(clean string, preOpenInfo os.FileInfo, opener func(string) (*os.File, error)) (*os.File, error) {

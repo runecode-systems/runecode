@@ -228,7 +228,7 @@ func exportAuditBundleFileForOfflineVerifyTest(t *testing.T, service *Service) (
 		t.Fatalf("HandleAuditEvidenceBundleExport error response: %+v", errResp)
 	}
 	archiveBytes := gatherAuditBundleExportBytes(t, events)
-	dir := t.TempDir()
+	dir := canonicalTempDir(t)
 	path := filepath.Join(dir, "offline-verify-bundle.tar")
 	if err := os.WriteFile(path, archiveBytes, 0o600); err != nil {
 		t.Fatalf("WriteFile(bundle) returned error: %v", err)

@@ -15,6 +15,8 @@ func Open(root string) (*Service, error) {
 	if cleanRoot == "" {
 		return nil, fmt.Errorf("state root is required")
 	}
+	release := lockServiceRoot(cleanRoot)
+	defer release()
 	if err := os.MkdirAll(filepath.Join(cleanRoot, secretsDirName), 0o700); err != nil {
 		return nil, err
 	}

@@ -27,7 +27,7 @@ func TestAuditEvidenceBundleOfflineVerifyRejectsMissingBundlePath(t *testing.T) 
 
 func TestAuditEvidenceBundleOfflineVerifyRejectsNonTarBundlePath(t *testing.T) {
 	service := newBrokerAPIServiceForTests(t, APIConfig{})
-	bundlePath := t.TempDir() + "/bundle.json"
+	bundlePath := filepath.Join(canonicalTempDir(t), "bundle.json")
 	if err := os.WriteFile(bundlePath, []byte("{}"), 0o600); err != nil {
 		t.Fatalf("WriteFile(bundlePath) returned error: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestAuditEvidenceBundleOfflineVerifyRejectsNonTarBundlePath(t *testing.T) {
 
 func TestAuditEvidenceBundleOfflineVerifyRejectsSymlinkLeafBundlePath(t *testing.T) {
 	service := newBrokerAPIServiceForTests(t, APIConfig{})
-	dir := t.TempDir()
+	dir := canonicalTempDir(t)
 	realPath := filepath.Join(dir, "bundle-real.tar")
 	if err := os.WriteFile(realPath, []byte("not-a-tar"), 0o600); err != nil {
 		t.Fatalf("WriteFile(realPath) returned error: %v", err)
@@ -78,7 +78,7 @@ func TestAuditEvidenceBundleOfflineVerifyRejectsSymlinkLeafBundlePath(t *testing
 func TestAuditEvidenceBundleOfflineVerifyMissingPathUsesRedactedValidationError(t *testing.T) {
 	service := newBrokerAPIServiceForTests(t, APIConfig{})
 	sensitiveToken := "very-sensitive-local-path"
-	bundlePath := filepath.Join(t.TempDir(), sensitiveToken, "bundle.tar")
+	bundlePath := filepath.Join(canonicalTempDir(t), sensitiveToken, "bundle.tar")
 	_, errResp := service.HandleAuditEvidenceBundleOfflineVerify(context.Background(), AuditEvidenceBundleOfflineVerifyRequest{
 		SchemaID:      "runecode.protocol.v0.AuditEvidenceBundleOfflineVerifyRequest",
 		SchemaVersion: "0.1.0",
@@ -102,7 +102,7 @@ func TestAuditEvidenceBundleOfflineVerifyMissingPathUsesRedactedValidationError(
 
 func TestAuditEvidenceBundleOfflineVerifyVerifyFailureUsesStableMessage(t *testing.T) {
 	service := newBrokerAPIServiceForTests(t, APIConfig{})
-	dir := t.TempDir()
+	dir := canonicalTempDir(t)
 	sensitiveToken := "sensitive-bundle-location"
 	bundlePath := filepath.Join(dir, sensitiveToken, "bundle.tar")
 	if err := os.MkdirAll(filepath.Dir(bundlePath), 0o700); err != nil {
@@ -133,7 +133,7 @@ func TestAuditEvidenceBundleOfflineVerifyVerifyFailureUsesStableMessage(t *testi
 }
 
 func TestOpenValidatedOfflineBundleFileRejectsSymlinkLeaf(t *testing.T) {
-	dir := t.TempDir()
+	dir := canonicalTempDir(t)
 	target := filepath.Join(dir, "target.tar")
 	if err := os.WriteFile(target, []byte("tar"), 0o600); err != nil {
 		t.Fatalf("WriteFile(target) returned error: %v", err)
@@ -152,7 +152,7 @@ func TestOpenValidatedOfflineBundleFileRejectsSymlinkLeaf(t *testing.T) {
 }
 
 func TestOpenValidatedOfflineBundleFileRejectsPathSwapDuringOpen(t *testing.T) {
-	dir := t.TempDir()
+	dir := canonicalTempDir(t)
 	bundlePath := filepath.Join(dir, "bundle.tar")
 	if err := os.WriteFile(bundlePath, []byte("first"), 0o600); err != nil {
 		t.Fatalf("WriteFile(bundlePath) returned error: %v", err)

@@ -7,7 +7,7 @@ import (
 func TestLatestAnchorableSealReturnsLatestSealedSegment(t *testing.T) {
 	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
 	first := mustSealFixtureSegment(t, ledger, fixture)
-	if _, err := ledger.AppendAdmittedEvent(validAdmissionRequestForLedger(t, fixture)); err != nil {
+	if _, err := ledger.AppendAdmittedEvent(validAdmissionRequestForLedger(t, newAuditFixtureKey(t))); err != nil {
 		t.Fatalf("AppendAdmittedEvent(second segment) returned error: %v", err)
 	}
 	segment, err := ledger.loadSegment("segment-000002")
