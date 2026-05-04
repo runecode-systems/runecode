@@ -29,6 +29,30 @@ func TestRecordInclusionByDigestSingleSegmentSealed(t *testing.T) {
 	assertInclusionMerkleRecomputes(t, inclusion)
 }
 
+func TestRecordInclusionByDigestOpenSegmentWithoutSeal(t *testing.T) {
+	_, ledger, _ := setupLedgerWithAdmissionFixture(t)
+	recordID := recordDigestIdentity(t, ledger, 0)
+	inclusion := mustRecordInclusionByDigest(t, ledger, recordID)
+
+	if inclusion.SegmentID != "segment-000001" || inclusion.FrameIndex != 0 {
+		t.Fatalf("inclusion segment/frame = %q/%d, want segment-000001/0", inclusion.SegmentID, inclusion.FrameIndex)
+	}
+	if inclusion.SegmentRecordCount != 1 {
+		t.Fatalf("SegmentRecordCount = %d, want 1", inclusion.SegmentRecordCount)
+	}
+	if inclusion.SegmentSealDigest != "" {
+		t.Fatalf("SegmentSealDigest = %q, want empty", inclusion.SegmentSealDigest)
+	}
+	if inclusion.SegmentSealChainIndex != nil {
+		t.Fatalf("SegmentSealChainIndex = %v, want nil", inclusion.SegmentSealChainIndex)
+	}
+	if inclusion.PreviousSealDigest != "" {
+		t.Fatalf("PreviousSealDigest = %q, want empty", inclusion.PreviousSealDigest)
+	}
+
+	assertInclusionMerkleRecomputes(t, inclusion)
+}
+
 func TestRecordInclusionByDigestMultiSegmentPreviousSealLinkage(t *testing.T) {
 	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
 	firstRecordID := recordDigestIdentity(t, ledger, 0)

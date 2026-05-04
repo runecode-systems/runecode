@@ -34,7 +34,7 @@ func (l *Ledger) discoverLatestSealLocked() (digestIdentity string, segmentID st
 func (l *Ledger) discoverLatestSealFromIndexLocked() (digestIdentity string, segmentID string, err error) {
 	index, idxErr := l.ensureDerivedIndexLocked()
 	if idxErr != nil {
-		return "", "", nil
+		return "", "", idxErr
 	}
 	bestSegment, bestSeal, bestIndex := latestSealCandidate(index.SegmentSealLookup)
 	if bestIndex < 0 {

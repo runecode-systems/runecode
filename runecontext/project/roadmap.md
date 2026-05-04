@@ -69,10 +69,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ## Unscheduled (Needs Specs)
 
-No unscheduled items are currently tracked outside the planned work listed above.
-
-## Deferred/Delayed
-
 - ZK Proof v0 (One Narrow Proof + Verify)
   - RuneCode can evaluate at least one narrow zero-knowledge integrity proof on top of the stabilized pre-beta assurance surfaces without blocking the usable product cut.
   - Planned change: `runecontext/changes/CHG-2026-016-8cdb-zk-proof-v0-one-narrow-proof-verify/`
