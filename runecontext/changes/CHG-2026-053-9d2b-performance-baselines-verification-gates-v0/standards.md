@@ -10,16 +10,16 @@
 - `standards/security/trusted-runtime-evidence-and-broker-projection.md`
 
 ## Resolution Notes
-This change exists to make RuneCode performance a maintained product contract rather than a one-off local debugging exercise.
+This change exists to make RuneCode MVP beta performance a maintained product contract rather than a one-off local debugging exercise.
 
-That includes freezing the following clarifications for future work:
+That includes freezing the following clarifications for the first gate set:
 
 - performance verification must remain deterministic, reviewable, and CI-safe
 - performance checks must respect the same trust boundaries and broker-owned authority surfaces as correctness checks
-- TUI empty-idle and active or waiting-state costs are distinct product regimes and must not be collapsed into one metric
-- broker request latency, watch-family cost, runner startup, workflow execution, launcher startup, gateway overhead, audit verification, and attach or resume paths all need explicit budgets
-- first-party workflow-pack entry, draft artifact generation, explicit promote/apply, approved-input binding, admission control, and fail-closed re-evaluation paths also need explicit budgets once CHG-049 lands
-- Linux is the first authoritative numeric gate, while other platforms should execute the same flow families and gain tuned thresholds over time
+- TUI empty-idle and waiting-state costs are distinct product regimes and must not be collapsed into one metric
+- broker request latency, watch-family cost, runner startup, supported workflow execution, launcher startup, gateway overhead, audit verification, external audit anchoring, and attach or resume paths all need explicit budgets
+- the supported first-party workflow-pack beta slice needs explicit budgets now, while broader workflow-pack surfaces should be expanded later under `CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0`
+- Linux is the first authoritative numeric gate for this layer, while broader cross-platform tuning should remain explicit post-MVP work
 - threshold updates and baseline refreshes require explicit review rather than silent CI mutation
 
 This change builds on the existing broker, runner, TUI, lifecycle, and watch-family foundations rather than redefining those product contracts locally.

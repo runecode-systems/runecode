@@ -11,7 +11,7 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
   - RuneCode only awards supported `attested` posture after a live runtime completes secure-session validation and post-handshake trusted runtime-proof verification, closing the remaining gap between the reviewed attestation design and launch-time implementation order before beta assurance claims are treated as settled.
   - Planned change: `runecontext/changes/CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0/`
 - Project Performance Baselines + Verification Gates v0
-  - RuneCode establishes the deferred broader performance program after the alpha.7 TUI waiting-state repaint fix: deterministic CI gates for TUI idle and waiting behavior, broker APIs and watch families, runner and workflow execution, launcher startup, gateway overhead, audit and protocol verification, and end-to-end attach or resume flows.
+  - RuneCode establishes the first MVP-grade performance baselines and deterministic Linux-first CI gates for the supported beta surface: TUI idle and waiting behavior, broker APIs and watch families, the supported workflow path, launcher startup with the truthful attestation path, gateway overhead, audit and protocol verification, external audit anchoring, and end-to-end attach or resume flows.
   - Planned change: `runecontext/changes/CHG-2026-053-9d2b-performance-baselines-verification-gates-v0/`
 - Beta Readiness Hardening + Product Polish
   - RuneCode closes the remaining product-integration gaps before beta by wiring one honest useful end-to-end workflow through the real trusted and untrusted execution path, tightening operator truth surfaces, and capturing dogfooding-driven polish across the local product UX with emphasis on the TUI.
@@ -22,12 +22,15 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 - Usable End-to-End Linux-First Cut
   - RuneCode reaches the first usable end-to-end release on Linux: verified RuneContext project lifecycle, remote model access via direct credentials, isolate-backed interactive and autonomous workflows, full TUI usage on the local machine, and the planned pre-beta assurance trio of signing, attestation, and external audit anchoring.
-- Cross-Machine Evidence Replication + Restore v0
-  - RuneCode can replicate immutable canonical evidence and signed replication checkpoints across machines, restore missing evidence from remote durability targets, thin local historical storage safely, and block publication-sensitive actions until evidence durability is healthy.
-  - Planned change: `runecontext/changes/CHG-2026-059-7b31-cross-machine-evidence-replication-restore-v0/`
 
 ### v0.2 (Post-MVP)
 
+- Cross-Machine Evidence Replication + Restore v0
+  - RuneCode can replicate immutable canonical evidence and signed replication checkpoints across machines, restore missing evidence from remote durability targets, thin local historical storage safely, and block publication-sensitive actions until evidence durability is healthy.
+  - Planned change: `runecontext/changes/CHG-2026-059-7b31-cross-machine-evidence-replication-restore-v0/`
+- Performance Program Expansion + Cross-Platform Gates v0
+  - RuneCode expands the MVP performance program to broader workflow-pack and git surfaces, larger fixture tiers, and tuned cross-platform verification gates beyond the Linux-first beta baseline.
+  - Planned change: `runecontext/changes/CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0/`
 - Approval Profiles (Strict/Permissive)
   - Add selectable human-in-the-loop profiles beyond MVP moderate.
   - Planned change: `runecontext/changes/CHG-2026-014-0c5d-approval-profiles-strict-permissive/`
@@ -186,4 +189,3 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
   - RuneCode defines one inspectable evidence-first verification foundation across canonical evidence, append-only sealing, runtime identity and attestation, portable evidence bundles, and explicit degraded-posture handling, delivered through scoped child features.
   - Project change: `runecontext/changes/CHG-2026-057-d5c1-verification-plane-foundation-v0/`
   - Feature changes: `runecontext/changes/CHG-2026-056-8c75-audit-evidence-index-record-inclusion-v0/`, `runecontext/changes/CHG-2026-055-546a-verification-evidence-preservation-bundle-export-v0/`, `runecontext/changes/CHG-2026-058-04e9-verification-coverage-expansion-v0/`
-
