@@ -46,7 +46,11 @@ func (l *Ledger) loadExternalAnchorIncrementalFoundationLocked() (externalAnchor
 	if foundation.Seals == nil {
 		foundation.Seals = map[string]externalAnchorIncrementalSealSnapshot{}
 	}
-	return normalizeExternalAnchorIncrementalFoundation(foundation), true, nil
+	normalized, err := normalizeExternalAnchorIncrementalFoundation(foundation)
+	if err != nil {
+		return externalAnchorIncrementalFoundation{}, false, err
+	}
+	return normalized, true, nil
 }
 
 func (l *Ledger) saveExternalAnchorIncrementalFoundationLocked(foundation externalAnchorIncrementalFoundation) error {
@@ -54,19 +58,27 @@ func (l *Ledger) saveExternalAnchorIncrementalFoundationLocked(foundation extern
 		foundation.Seals = map[string]externalAnchorIncrementalSealSnapshot{}
 	}
 	foundation.SchemaVersion = externalAnchorIncrementalFoundationSchemaVersion
-	foundation = normalizeExternalAnchorIncrementalFoundation(foundation)
+	normalized, err := normalizeExternalAnchorIncrementalFoundation(foundation)
+	if err != nil {
+		return err
+	}
+	foundation = normalized
 	return writeCanonicalJSONFile(filepath.Join(l.rootDir, indexDirName, externalAnchorIncrementalFoundationFileName), foundation)
 }
 
-func normalizeExternalAnchorIncrementalFoundation(foundation externalAnchorIncrementalFoundation) externalAnchorIncrementalFoundation {
+func normalizeExternalAnchorIncrementalFoundation(foundation externalAnchorIncrementalFoundation) (externalAnchorIncrementalFoundation, error) {
 	for sealIdentity, entry := range foundation.Seals {
 		entry.ReceiptDigests = normalizeIdentityList(entry.ReceiptDigests)
 		entry.ExternalAnchorEvidenceDigests = normalizeIdentityList(entry.ExternalAnchorEvidenceDigests)
 		entry.ExternalAnchorSidecarDigests = normalizeIdentityList(entry.ExternalAnchorSidecarDigests)
-		entry.ExternalAnchorTargets = normalizeExternalAnchorTargetSnapshots(entry.ExternalAnchorTargets)
+		normalizedTargets, err := normalizeExternalAnchorTargetSnapshots(entry.ExternalAnchorTargets)
+		if err != nil {
+			return externalAnchorIncrementalFoundation{}, fmt.Errorf("normalize external anchor target snapshots for seal %q: %w", sealIdentity, err)
+		}
+		entry.ExternalAnchorTargets = normalizedTargets
 		foundation.Seals[sealIdentity] = entry
 	}
-	return foundation
+	return foundation, nil
 }
 
 func normalizeIdentityList(values []string) []string {
@@ -130,15 +142,15 @@ func mergeExternalAnchorTargetSnapshot(current, incoming externalAnchorVerificat
 	return current
 }
 
-func normalizeExternalAnchorTargetSnapshots(values []externalAnchorVerificationTargetSnapshot) []externalAnchorVerificationTargetSnapshot {
+func normalizeExternalAnchorTargetSnapshots(values []externalAnchorVerificationTargetSnapshot) ([]externalAnchorVerificationTargetSnapshot, error) {
 	if len(values) == 0 {
-		return nil
+		return nil, nil
 	}
 	normalized := make([]externalAnchorVerificationTargetSnapshot, 0, len(values))
 	for i := range values {
 		target, err := verificationTargetFromSnapshot(values[i])
 		if err != nil {
-			continue
+			return nil, err
 		}
 		normalized = appendUniqueExternalAnchorTarget(normalized, target)
 	}
@@ -146,9 +158,9 @@ func normalizeExternalAnchorTargetSnapshots(values []externalAnchorVerificationT
 		return normalized[i].TargetDescriptorDigest < normalized[j].TargetDescriptorDigest
 	})
 	if len(normalized) == 0 {
-		return nil
+		return nil, nil
 	}
-	return normalized
+	return normalized, nil
 }
 
 func externalAnchorVerificationTargetsFromSnapshot(values []externalAnchorVerificationTargetSnapshot) ([]trustpolicy.ExternalAnchorVerificationTarget, error) {

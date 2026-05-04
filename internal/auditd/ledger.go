@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/runecode-ai/runecode/internal/secretsd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
@@ -18,9 +19,10 @@ import (
 const stateSchemaVersion = 1
 
 type Ledger struct {
-	mu      sync.Mutex
-	rootDir string
-	nowFn   func() time.Time
+	mu              sync.Mutex
+	rootDir         string
+	nowFn           func() time.Time
+	metaAuditSigner *secretsd.Service
 }
 
 func Open(rootDir string) (*Ledger, error) {
@@ -31,6 +33,12 @@ func Open(rootDir string) (*Ledger, error) {
 	if err := ledger.ensureLayout(); err != nil {
 		return nil, err
 	}
+	metaAuditSigner, err := secretsd.Open(filepath.Join(rootDir, "meta-audit-signer"))
+	if err != nil {
+		return nil, err
+	}
+	metaAuditSigner.SetAuditAnchorPresenceModeForTrustedRuntime("none")
+	ledger.metaAuditSigner = metaAuditSigner
 	if _, err := ledger.recoverAndPersistStateLocked(); err != nil {
 		return nil, err
 	}
@@ -76,6 +84,18 @@ func (l *Ledger) PersistVerificationReport(report trustpolicy.AuditVerificationR
 	return l.persistVerificationReportLocked(report)
 }
 
+func (l *Ledger) PersistBundleManifestEnvelope(envelope trustpolicy.SignedObjectEnvelope) (trustpolicy.Digest, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if strings.TrimSpace(envelope.PayloadSchemaID) != auditEvidenceBundleManifestSchemaID {
+		return trustpolicy.Digest{}, fmt.Errorf("bundle manifest envelope must use payload_schema_id %q", auditEvidenceBundleManifestSchemaID)
+	}
+	if strings.TrimSpace(envelope.PayloadSchemaVersion) != auditEvidenceBundleManifestSchemaVersion {
+		return trustpolicy.Digest{}, fmt.Errorf("bundle manifest envelope must use payload_schema_version %q", auditEvidenceBundleManifestSchemaVersion)
+	}
+	return l.persistEnvelopeSidecar("bundle-manifests", envelope)
+}
+
 func (l *Ledger) persistVerificationReportLocked(report trustpolicy.AuditVerificationReportPayload) (trustpolicy.Digest, error) {
 	if err := trustpolicy.ValidateAuditVerificationReportPayload(report); err != nil {
 		return trustpolicy.Digest{}, err
@@ -97,6 +117,9 @@ func (l *Ledger) persistVerificationReportLocked(report trustpolicy.AuditVerific
 	if err := l.saveState(state); err != nil {
 		return trustpolicy.Digest{}, err
 	}
+	if err := l.notePersistedVerificationReportInDerivedIndexLocked(digest); err != nil {
+		return trustpolicy.Digest{}, err
+	}
 	return digest, nil
 }
 
@@ -114,12 +137,7 @@ func (l *Ledger) latestVerificationReportLocked() (trustpolicy.AuditVerification
 	if state.LastVerificationReportDigest == "" {
 		return trustpolicy.AuditVerificationReportPayload{}, fmt.Errorf("no verification report persisted")
 	}
-	path := filepath.Join(l.rootDir, sidecarDirName, verificationReportsDirName, strings.TrimPrefix(state.LastVerificationReportDigest, "sha256:")+".json")
-	report := trustpolicy.AuditVerificationReportPayload{}
-	if err := readJSONFile(path, &report); err != nil {
-		return trustpolicy.AuditVerificationReportPayload{}, err
-	}
-	return report, nil
+	return l.loadVerificationReportByDigestIdentityLocked(state.LastVerificationReportDigest)
 }
 
 func canonicalEnvelopeAndDigest(envelope trustpolicy.SignedObjectEnvelope) ([]byte, trustpolicy.Digest, error) {

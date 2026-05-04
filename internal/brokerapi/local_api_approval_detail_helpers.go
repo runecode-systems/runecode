@@ -1,6 +1,7 @@
 package brokerapi
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -185,12 +186,36 @@ func approvalWhatChangesIfApprovedFromRecord(record approvalRecord) ApprovalWhat
 	if summary == "" {
 		summary = approvalChangesIfApprovedDefault
 	}
+	if strings.TrimSpace(summary) == "" {
+		summary = approvalDetailSummaryFromRequest(record)
+	}
 	return ApprovalWhatChangesIfApproved{
 		SchemaID:      "runecode.protocol.v0.ApprovalWhatChangesIfApproved",
 		SchemaVersion: "0.1.0",
 		Summary:       summary,
 		EffectKind:    approvalEffectKindForActionKind(record.Summary.BoundScope.ActionKind),
 	}
+}
+
+func approvalDetailSummaryFromRequest(record approvalRecord) string {
+	if record.RequestEnvelope == nil {
+		return ""
+	}
+	payload, err := decodeApprovalRequestPayload(*record.RequestEnvelope)
+	if err != nil {
+		return ""
+	}
+	details, _ := payload["details"].(map[string]any)
+	if details == nil {
+		return ""
+	}
+	if metadata, _ := details["metadata_summary"].(map[string]any); metadata != nil {
+		b, err := json.Marshal(metadata)
+		if err == nil && len(b) > 0 {
+			return string(b)
+		}
+	}
+	return ""
 }
 
 func approvalBlockedWorkScopeFromRecord(record approvalRecord) ApprovalBlockedWorkScope {

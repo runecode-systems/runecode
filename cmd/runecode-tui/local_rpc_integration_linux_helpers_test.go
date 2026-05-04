@@ -106,6 +106,8 @@ func dispatchTUILocalRPCJSONAuditOps(service *brokerapi.Service, wire brokerapi.
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleAuditFinalizeVerify), true
 	case "audit_record_get":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleAuditRecordGet), true
+	case "audit_record_inclusion_get":
+		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleAuditRecordInclusionGet), true
 	case "audit_anchor_preflight_get":
 		return dispatchTUILocalRPCJSON(service, wire.Request, meta, (*brokerapi.Service).HandleAuditAnchorPreflightGet), true
 	case "audit_anchor_presence_get":
@@ -514,7 +516,8 @@ func configureTUISeedContractsAndIndex(ledger *auditd.Ledger, seedPublicKey ed25
 }
 
 func persistTUISeedReport(ledger *auditd.Ledger) error {
-	report := trustpolicy.AuditVerificationReportPayload{SchemaID: trustpolicy.AuditVerificationReportSchemaID, SchemaVersion: trustpolicy.AuditVerificationReportSchemaVersion, VerifiedAt: time.Now().UTC().Format(time.RFC3339), VerificationScope: trustpolicy.AuditVerificationScope{ScopeKind: trustpolicy.AuditVerificationScopeSegment, LastSegmentID: "segment-000001"}, CryptographicallyValid: true, HistoricallyAdmissible: true, CurrentlyDegraded: false, IntegrityStatus: trustpolicy.AuditVerificationStatusOK, AnchoringStatus: trustpolicy.AuditVerificationStatusOK, StoragePostureStatus: trustpolicy.AuditVerificationStatusOK, SegmentLifecycleStatus: trustpolicy.AuditVerificationStatusOK, DegradedReasons: []string{}, HardFailures: []string{}, Findings: []trustpolicy.AuditVerificationFinding{}, Summary: "ok"}
+	keyHash := strings.Repeat("d", 64)
+	report := trustpolicy.AuditVerificationReportPayload{SchemaID: trustpolicy.AuditVerificationReportSchemaID, SchemaVersion: trustpolicy.AuditVerificationReportSchemaVersion, VerifiedAt: time.Now().UTC().Format(time.RFC3339), VerificationScope: trustpolicy.AuditVerificationScope{ScopeKind: trustpolicy.AuditVerificationScopeSegment, LastSegmentID: "segment-000001"}, CryptographicallyValid: true, HistoricallyAdmissible: true, CurrentlyDegraded: false, IntegrityStatus: trustpolicy.AuditVerificationStatusOK, AnchoringStatus: trustpolicy.AuditVerificationStatusOK, AnchoringPosture: trustpolicy.AuditVerificationAnchoringPostureLocalAnchorReceiptOnly, StoragePostureStatus: trustpolicy.AuditVerificationStatusOK, SegmentLifecycleStatus: trustpolicy.AuditVerificationStatusOK, VerifierIdentity: trustpolicy.KeyIDProfile + ":" + keyHash, TrustRootIdentities: []string{"sha256:" + keyHash}, DegradedReasons: []string{}, HardFailures: []string{}, Findings: []trustpolicy.AuditVerificationFinding{}, Summary: "ok"}
 	_, err := ledger.PersistVerificationReport(report)
 	return err
 }

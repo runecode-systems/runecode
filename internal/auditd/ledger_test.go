@@ -1,9 +1,11 @@
 package auditd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -74,6 +76,67 @@ func TestReadinessSemantics(t *testing.T) {
 	if !readiness.Ready {
 		t.Fatal("Readiness.Ready = false, want true")
 	}
+}
+
+func TestAppendAdmittedEventRejectsDuplicateRecordDigestAndPreservesCounts(t *testing.T) {
+	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+
+	assertDerivedIndexTotalRecords(t, root, 1, "before duplicate")
+
+	duplicate := validAdmissionRequestForLedger(t, fixture)
+	if _, err := ledger.AppendAdmittedEvent(duplicate); err == nil || !strings.Contains(err.Error(), "duplicate record digest") {
+		t.Fatalf("AppendAdmittedEvent(duplicate) error = %v, want duplicate record digest rejection", err)
+	}
+
+	assertSegmentFrameCount(t, ledger, "segment-000001", 1, "after duplicate rejection")
+
+	assertDerivedIndexTotalRecords(t, root, 1, "after duplicate")
+	rebuilt := mustBuildIndex(t, ledger)
+	if rebuilt.TotalRecords != 1 {
+		t.Fatalf("rebuilt index TotalRecords = %d, want 1", rebuilt.TotalRecords)
+	}
+
+	assertStateCounts(t, ledger, 1, 1, "after duplicate rejection")
+}
+
+func TestAppendAdmittedEventRejectsConcurrentDuplicateRecordDigest(t *testing.T) {
+	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	duplicate := validAdmissionRequestForLedger(t, fixture)
+
+	const attempts = 8
+	errCh := make(chan error, attempts)
+	var start sync.WaitGroup
+	start.Add(1)
+	var wg sync.WaitGroup
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			start.Wait()
+			_, err := ledger.AppendAdmittedEvent(duplicate)
+			errCh <- err
+		}()
+	}
+	start.Done()
+	wg.Wait()
+	close(errCh)
+
+	duplicateErrs := 0
+	for err := range errCh {
+		if err == nil {
+			continue
+		}
+		if !strings.Contains(err.Error(), "duplicate record digest") {
+			t.Fatalf("AppendAdmittedEvent(concurrent duplicate) error = %v, want duplicate record digest rejection", err)
+		}
+		duplicateErrs++
+	}
+	if duplicateErrs != attempts {
+		t.Fatalf("duplicate rejections = %d, want %d", duplicateErrs, attempts)
+	}
+
+	assertSegmentFrameCount(t, ledger, "segment-000001", 1, "after concurrent duplicate rejection")
+	assertStateCounts(t, ledger, 1, 1, "after concurrent duplicate rejection")
 }
 
 func TestReadinessFailsClosedWhenVerificationInputsMalformed(t *testing.T) {
@@ -266,29 +329,7 @@ func TestReplaceFileFallbackPromotesSourceAndRemovesBackup(t *testing.T) {
 func TestOpenConcurrentCleanStartAndRestart(t *testing.T) {
 	root := t.TempDir()
 	const starters = 16
-
-	var start sync.WaitGroup
-	start.Add(1)
-	var wg sync.WaitGroup
-	errCh := make(chan error, starters)
-
-	for i := 0; i < starters; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			start.Wait()
-			if _, err := Open(root); err != nil {
-				errCh <- err
-			}
-		}()
-	}
-
-	start.Done()
-	wg.Wait()
-	close(errCh)
-	for err := range errCh {
-		t.Fatalf("Open(clean-start) returned error: %v", err)
-	}
+	assertConcurrentOpenSucceeds(t, root, starters)
 
 	reopened, err := Open(root)
 	if err != nil {
@@ -300,6 +341,60 @@ func TestOpenConcurrentCleanStartAndRestart(t *testing.T) {
 	}
 	if state.CurrentOpenSegmentID == "" || !state.RecoveryComplete {
 		t.Fatalf("unexpected persisted state after restart: %+v", state)
+	}
+	if state.LedgerIdentity == "" {
+		t.Fatalf("ledger_identity empty after restart: %+v", state)
+	}
+}
+
+func assertConcurrentOpenSucceeds(t *testing.T, root string, starters int) {
+	t.Helper()
+	var start sync.WaitGroup
+	start.Add(1)
+	var wg sync.WaitGroup
+	errCh := make(chan error, starters)
+	for i := 0; i < starters; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			start.Wait()
+			if _, err := Open(root); err != nil {
+				errCh <- err
+			}
+		}()
+	}
+	start.Done()
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		t.Fatalf("Open(clean-start) returned error: %v", err)
+	}
+}
+
+func TestLedgerIdentityGeneratedAndPersistsAcrossReopen(t *testing.T) {
+	root := t.TempDir()
+	ledger, err := Open(root)
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	state, err := ledger.loadState()
+	if err != nil {
+		t.Fatalf("loadState(first) returned error: %v", err)
+	}
+	if state.LedgerIdentity == "" {
+		t.Fatalf("ledger_identity empty on first open: %+v", state)
+	}
+	first := state.LedgerIdentity
+	reopened, err := Open(root)
+	if err != nil {
+		t.Fatalf("Open(reopened) returned error: %v", err)
+	}
+	reloaded, err := reopened.loadState()
+	if err != nil {
+		t.Fatalf("loadState(reopened) returned error: %v", err)
+	}
+	if reloaded.LedgerIdentity != first {
+		t.Fatalf("ledger_identity after reopen = %q, want %q", reloaded.LedgerIdentity, first)
 	}
 }
 
@@ -333,8 +428,74 @@ func TestConfigureVerificationInputsClearsOmittedOptionalFiles(t *testing.T) {
 	assertPathMissing(t, filepath.Join(contractsDir, "storage-posture.json"), "storage-posture.json should be removed when omitted")
 }
 
+func TestConfigureVerificationInputsPersistsMetaAuditReceiptsWhenSealedSegmentExists(t *testing.T) {
+	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	seal := mustSealFixtureSegment(t, ledger, fixture)
+	request := validAdmissionRequestForLedger(t, fixture)
+	if err := ledger.ConfigureVerificationInputs(VerificationConfiguration{VerifierRecords: request.VerifierRecords, EventContractCatalog: request.EventContractCatalog, SignerEvidence: request.SignerEvidence}); err != nil {
+		t.Fatalf("ConfigureVerificationInputs returned error: %v", err)
+	}
+	receipts, err := ledger.ReceiptsForSealDigest(seal.SealEnvelopeDigest)
+	if err != nil {
+		t.Fatalf("ReceiptsForSealDigest returned error: %v", err)
+	}
+	if !hasReceiptKind(t, receipts, "verifier_configuration_changed") {
+		t.Fatal("missing verifier_configuration_changed receipt")
+	}
+	if !hasReceiptKind(t, receipts, "trust_root_updated") {
+		t.Fatal("missing trust_root_updated receipt")
+	}
+	if !hasReceiptKind(t, receipts, "evidence_import") {
+		t.Fatal("missing evidence_import receipt")
+	}
+}
+
+func hasReceiptKind(t *testing.T, receipts []trustpolicy.SignedObjectEnvelope, kind string) bool {
+	t.Helper()
+	for i := range receipts {
+		payload := map[string]any{}
+		if err := json.Unmarshal(receipts[i].Payload, &payload); err != nil {
+			continue
+		}
+		if receiptKind, _ := payload["audit_receipt_kind"].(string); receiptKind == kind {
+			return true
+		}
+	}
+	return false
+}
+
 func fullStoragePostureFixture() *trustpolicy.AuditStoragePostureEvidence {
 	return &trustpolicy.AuditStoragePostureEvidence{EncryptedAtRestDefault: true, EncryptedAtRestEffective: true, DevPlaintextOverrideActive: false, SurfacedToOperator: true}
+}
+
+func assertDerivedIndexTotalRecords(t *testing.T, root string, want int, label string) {
+	t.Helper()
+	index := mustReadDerivedIndex(t, root)
+	if index.TotalRecords != want {
+		t.Fatalf("index TotalRecords(%s) = %d, want %d", label, index.TotalRecords, want)
+	}
+}
+
+func assertSegmentFrameCount(t *testing.T, ledger *Ledger, segmentID string, want int, label string) {
+	t.Helper()
+	segment, err := ledger.loadSegment(segmentID)
+	if err != nil {
+		t.Fatalf("loadSegment returned error: %v", err)
+	}
+	if len(segment.Frames) != want {
+		t.Fatalf("segment frame count = %d, want %d %s", len(segment.Frames), want, label)
+	}
+}
+
+func assertStateCounts(t *testing.T, ledger *Ledger, wantIndexed int, wantOpenFrames int, label string) {
+	t.Helper()
+	state, err := ledger.loadState()
+	if err != nil {
+		t.Fatalf("loadState returned error: %v", err)
+	}
+	if state.LastIndexedRecordCount != wantIndexed || state.OpenFrameCount != wantOpenFrames {
+		t.Fatalf("state %s = %+v, want indexed=%d open_frames=%d", label, state, wantIndexed, wantOpenFrames)
+	}
 }
 
 func assertPathPresent(t *testing.T, path string, msg string) {

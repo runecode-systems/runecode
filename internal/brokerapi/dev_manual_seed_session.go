@@ -7,7 +7,7 @@ import (
 	"github.com/runecode-ai/runecode/internal/policyengine"
 )
 
-func (s *Service) seedDevManualSession(approvalID string, auditRecordDigest string, artifactDigests []string) error {
+func (s *Service) seedDevManualSession(approvalID string, auditRecordDigest string, artifactDigests []string, profile string) error {
 	occurredAt, err := time.Parse(time.RFC3339, "2026-03-13T12:16:00Z")
 	if err != nil {
 		return err
@@ -16,7 +16,7 @@ func (s *Service) seedDevManualSession(approvalID string, auditRecordDigest stri
 	if err != nil {
 		return err
 	}
-	_, err = s.AppendSessionMessage(devManualSessionAppendRequest(occurredAt, appendSpec))
+	_, err = s.AppendSessionMessage(devManualSessionAppendRequest(occurredAt, appendSpec, profile))
 	return err
 }
 
@@ -39,7 +39,7 @@ func devManualSessionAppendSpec(approvalID string, auditRecordDigest string, art
 	return devManualSessionSpec{links: links, idempotencyHash: idempotencyHash}, nil
 }
 
-func devManualSessionAppendRequest(occurredAt time.Time, spec devManualSessionSpec) artifacts.SessionMessageAppendRequest {
+func devManualSessionAppendRequest(occurredAt time.Time, spec devManualSessionSpec, profile string) artifacts.SessionMessageAppendRequest {
 	return artifacts.SessionMessageAppendRequest{
 		SessionID:       devManualSeedSessionID,
 		WorkspaceID:     devManualSeedWorkspaceID,
@@ -47,14 +47,14 @@ func devManualSessionAppendRequest(occurredAt time.Time, spec devManualSessionSp
 		Role:            "user",
 		ContentText:     "Please review and approve this run.",
 		RelatedLinks:    spec.links,
-		IdempotencyKey:  "dev-seed-msg-1",
+		IdempotencyKey:  "dev-seed-msg-1:" + profile,
 		IdempotencyHash: spec.idempotencyHash,
 		OccurredAt:      occurredAt,
 	}
 }
 
-func (s *Service) ensureDevManualSessionAuditLink(recordDigest string) error {
-	exists, err := s.devManualSessionAuditLinkExists(recordDigest)
+func (s *Service) ensureDevManualSessionAuditLink(recordDigest string, profile string) error {
+	exists, err := s.devManualSessionAuditLinkExists(recordDigest, profile)
 	if err != nil {
 		return err
 	}
@@ -65,24 +65,24 @@ func (s *Service) ensureDevManualSessionAuditLink(recordDigest string) error {
 		"run_id":        devManualSeedRunID,
 		"session_id":    devManualSeedSessionID,
 		"record_digest": recordDigest,
-		"seed_profile":  devManualSeedProfile,
+		"seed_profile":  profile,
 	})
 }
 
-func (s *Service) devManualSessionAuditLinkExists(recordDigest string) (bool, error) {
+func (s *Service) devManualSessionAuditLinkExists(recordDigest string, profile string) (bool, error) {
 	events, err := s.ReadAuditEvents()
 	if err != nil {
 		return false, err
 	}
 	for _, event := range events {
-		if devManualSessionAuditLinkMatches(event, recordDigest) {
+		if devManualSessionAuditLinkMatches(event, recordDigest, profile) {
 			return true, nil
 		}
 	}
 	return false, nil
 }
 
-func devManualSessionAuditLinkMatches(event artifacts.AuditEvent, recordDigest string) bool {
+func devManualSessionAuditLinkMatches(event artifacts.AuditEvent, recordDigest string, expectedProfile string) bool {
 	if event.Type != "manual_seed_link" {
 		return false
 	}
@@ -99,14 +99,18 @@ func devManualSessionAuditLinkMatches(event artifacts.AuditEvent, recordDigest s
 		return false
 	}
 	profile, ok := details["seed_profile"].(string)
-	if !ok || profile != devManualSeedProfile {
+	if !ok || profile != expectedProfile {
 		return false
 	}
 	linkedDigest, ok := details["record_digest"].(string)
 	return ok && linkedDigest == recordDigest
 }
 
-func devManualApprovalDecision() (policyengine.PolicyDecision, error) {
+func devManualApprovalDecision(profile string) (policyengine.PolicyDecision, error) {
+	precedence := "manual_seed_profile:" + profile
+	if profile == devManualSeedDegradedProfile {
+		precedence = precedence + ":degraded"
+	}
 	return policyengine.PolicyDecision{
 		SchemaID:                 "runecode.protocol.v0.PolicyDecision",
 		SchemaVersion:            "0.3.0",
@@ -117,7 +121,7 @@ func devManualApprovalDecision() (policyengine.PolicyDecision, error) {
 		PolicyInputHashes:        []string{digestWithByte("7")},
 		RelevantArtifactHashes:   []string{digestWithByte("8")},
 		DetailsSchemaID:          "runecode.protocol.details.policy.evaluation.v0",
-		Details:                  map[string]any{"precedence": "manual_seed_profile"},
+		Details:                  map[string]any{"precedence": precedence},
 		RequiredApprovalSchemaID: "runecode.protocol.details.policy.required_approval.moderate.workspace_write.v0",
 		RequiredApproval: map[string]any{
 			"approval_trigger_code":    "excerpt_promotion",

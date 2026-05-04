@@ -142,25 +142,18 @@ func buildResolvedApprovalRecordForOutcome(req ApprovalResolveRequest, prior app
 	if strings.TrimSpace(status) == "" {
 		return approvalRecord{}, fmt.Errorf("approval status is required")
 	}
-	requestedAt := prior.Summary.RequestedAt
-	if requestedAt == "" {
-		requestedAt = now
-	}
-	changesIfApproved := prior.Summary.ChangesIfApproved
-	if changesIfApproved == "" {
-		changesIfApproved = approvalChangesIfApprovedDefault
-	}
+	resolved := resolvedApprovalEvidence(req, prior, approvalID, decisionDigest, status, now)
 	return approvalRecord{
 		Summary: ApprovalSummary{
 			SchemaID:               "runecode.protocol.v0.ApprovalSummary",
 			SchemaVersion:          "0.1.0",
 			ApprovalID:             approvalID,
 			Status:                 status,
-			RequestedAt:            requestedAt,
+			RequestedAt:            resolved.requestedAt,
 			ExpiresAt:              prior.Summary.ExpiresAt,
 			DecidedAt:              now,
 			ApprovalTriggerCode:    prior.Summary.ApprovalTriggerCode,
-			ChangesIfApproved:      changesIfApproved,
+			ChangesIfApproved:      resolved.changesIfApproved,
 			ApprovalAssuranceLevel: decodeDecisionString(req.SignedApprovalDecision.Payload, "approval_assurance_level", "reauthenticated"),
 			PresenceMode:           decodeDecisionString(req.SignedApprovalDecision.Payload, "presence_mode", "hardware_touch"),
 			BoundScope:             prior.Summary.BoundScope,
@@ -168,6 +161,13 @@ func buildResolvedApprovalRecordForOutcome(req ApprovalResolveRequest, prior app
 			SupersededByApprovalID: supersededBy,
 			RequestDigest:          prior.Summary.RequestDigest,
 			DecisionDigest:         decisionDigest,
+			ScopeDigest:            resolved.scopeDigest,
+			ArtifactSetDigest:      resolved.artifactSetDigest,
+			DiffDigest:             resolved.diffDigest,
+			SummaryPreviewDigest:   resolved.summaryPreviewDigest,
+			ConsumedActionHash:     resolved.consumedActionHash,
+			ConsumedArtifactDigest: resolved.consumedArtifactDigest,
+			ConsumptionLinkDigest:  resolved.consumptionLinkDigest,
 		},
 		RequestEnvelope:        &req.SignedApprovalRequest,
 		DecisionEnvelope:       &req.SignedApprovalDecision,

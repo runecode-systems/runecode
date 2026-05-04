@@ -47,6 +47,46 @@ func TestArtifactCLIRecoversMissingIndexFromAuditAndBlob(t *testing.T) {
 	payload := []byte("recovered artifact")
 	digest := artifacts.DigestBytes(payload)
 	provenance := testDigest("8")
+	seedRecoveredArtifactCLITestState(t, root, digest, provenance, payload)
+	allowRecoveredArtifactFlowForCLITest(t, root)
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	list := listArtifactsViaCLI(t, stdout, stderr)
+	if len(list) != 1 {
+		t.Fatalf("list-artifacts count = %d, want 1", len(list))
+	}
+	if list[0].Digest != digest {
+		t.Fatalf("list-artifacts digest = %q, want %q", list[0].Digest, digest)
+	}
+	head := headArtifactViaCLI(t, stdout, stderr, digest)
+	if head.Digest != digest {
+		t.Fatalf("head-artifact digest = %q, want %q", head.Digest, digest)
+	}
+	service, err := brokerServiceFactory(defaultBrokerServiceRoots())
+	if err != nil {
+		t.Fatalf("brokerServiceFactory returned error: %v", err)
+	}
+	record, err := service.Head(digest)
+	if err != nil {
+		t.Fatalf("service.Head returned error: %v", err)
+	}
+	if record.CreatedByRole != "recovered_audit_event" {
+		t.Fatalf("record.CreatedByRole = %q, want recovered_audit_event", record.CreatedByRole)
+	}
+	outPath := filepath.Join(t.TempDir(), "recovered.txt")
+	getArtifactViaCLI(t, stdout, stderr, digest, "recovered_audit_event", "model_gateway", "", false, outPath)
+	b, readErr := os.ReadFile(outPath)
+	if readErr != nil {
+		t.Fatalf("ReadFile recovered output returned error: %v", readErr)
+	}
+	if string(b) != "recovered artifact" {
+		t.Fatalf("get-artifact recovered payload = %q, want recovered artifact", string(b))
+	}
+}
+
+func seedRecoveredArtifactCLITestState(t *testing.T, root, digest, provenance string, payload []byte) {
+	t.Helper()
 	blobPath := filepath.Join(root, "blobs", strings.TrimPrefix(digest, "sha256:"))
 	if err := os.MkdirAll(filepath.Dir(blobPath), 0o700); err != nil {
 		t.Fatalf("MkdirAll blobs returned error: %v", err)
@@ -75,28 +115,22 @@ func TestArtifactCLIRecoversMissingIndexFromAuditAndBlob(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "audit.log"), append(auditLine, '\n'), 0o600); err != nil {
 		t.Fatalf("WriteFile audit returned error: %v", err)
 	}
+}
 
-	stdout := &bytes.Buffer{}
-	stderr := &bytes.Buffer{}
-	list := listArtifactsViaCLI(t, stdout, stderr)
-	if len(list) != 1 {
-		t.Fatalf("list-artifacts count = %d, want 1", len(list))
+func allowRecoveredArtifactFlowForCLITest(t *testing.T, root string) {
+	t.Helper()
+	store, err := artifacts.NewStore(root)
+	if err != nil {
+		t.Fatalf("artifacts.NewStore returned error: %v", err)
 	}
-	if list[0].Digest != digest {
-		t.Fatalf("list-artifacts digest = %q, want %q", list[0].Digest, digest)
-	}
-	head := headArtifactViaCLI(t, stdout, stderr, digest)
-	if head.Digest != digest {
-		t.Fatalf("head-artifact digest = %q, want %q", head.Digest, digest)
-	}
-	outPath := filepath.Join(t.TempDir(), "recovered.txt")
-	getArtifactViaCLI(t, stdout, stderr, digest, "workspace", "model_gateway", "", false, outPath)
-	b, readErr := os.ReadFile(outPath)
-	if readErr != nil {
-		t.Fatalf("ReadFile recovered output returned error: %v", readErr)
-	}
-	if string(b) != "recovered artifact" {
-		t.Fatalf("get-artifact recovered payload = %q, want recovered artifact", string(b))
+	policy := store.Policy()
+	policy.FlowMatrix = append(policy.FlowMatrix, artifacts.FlowRule{
+		ProducerRole:       "recovered_audit_event",
+		ConsumerRole:       "model_gateway",
+		AllowedDataClasses: []artifacts.DataClass{artifacts.DataClassSpecText},
+	})
+	if err := store.SetPolicy(policy); err != nil {
+		t.Fatalf("store.SetPolicy returned error: %v", err)
 	}
 }
 

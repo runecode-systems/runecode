@@ -114,7 +114,16 @@ func (s *Service) bindLLMRequestToArtifacts(requestID, runID string, expectedDig
 	binding.ProviderID = profile.ProviderProfileID
 	binding.ProviderFamily = profile.ProviderFamily
 	binding.AdapterKind = profile.AdapterKind
+	binding.ModelID = strings.TrimSpace(profileModelForLLMRequest(llmReq))
 	return binding, primaryInputRecord.Reference, nil
+}
+
+func profileModelForLLMRequest(llmReq any) string {
+	view, err := decodeCanonicalLLMRequestView(llmReq)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(view.Model)
 }
 
 func (s *Service) ensureInputArtifactsExist(requestID, runID string, refs []artifacts.ArtifactReference) (artifacts.ArtifactRecord, *ErrorResponse) {

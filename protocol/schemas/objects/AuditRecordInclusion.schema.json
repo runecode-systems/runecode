@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditRecordInclusion.schema.json",
+  "title": "AuditRecordInclusion",
+  "description": "Typed broker-owned derived audit record inclusion material for independently checkable operator and incident-response use.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 11,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "record_digest",
+    "record_envelope_digest",
+    "segment_id",
+    "frame_index",
+    "segment_record_count",
+    "ordered_merkle"
+  ],
+  "$defs": {
+    "orderedMerkle": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 6,
+      "required": ["profile", "leaf_index", "leaf_count", "segment_merkle_root"],
+      "description": "Ordered-Merkle material sufficient to recompute the segment merkle root from canonical record digests (full list) or compact sibling-path representation.",
+      "properties": {
+        "profile": {
+          "type": "string",
+          "const": "sha256_ordered_dse_v1",
+          "description": "Pinned ordered Merkle profile for audit segment seals.",
+          "x-data-class": "public"
+        },
+        "leaf_index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000000,
+          "description": "Zero-based segment leaf index for the selected record.",
+          "x-data-class": "public"
+        },
+        "leaf_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000000,
+          "description": "Total record leaf count in the segment.",
+          "x-data-class": "public"
+        },
+        "segment_merkle_root": {
+          "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+          "description": "Segment ordered-Merkle root digest identity.",
+          "x-data-class": "public"
+        },
+        "segment_record_digests": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000000,
+          "description": "Ordered segment record digest identities used to recompute segment_merkle_root in full-list mode.",
+          "x-data-class": "public",
+          "items": {
+            "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+            "description": "One canonical record digest identity in segment order."
+          }
+        },
+        "compact_path": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "description": "Ordered compact sibling-path digest identities for reconstructing segment_merkle_root from record_digest, leaf_index, and leaf_count.",
+          "x-data-class": "public",
+          "items": {
+            "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+            "description": "Sibling digest identity for one Merkle level."
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["segment_record_digests"],
+          "not": {
+            "required": ["compact_path"]
+          }
+        },
+        {
+          "required": ["compact_path"],
+          "not": {
+            "required": ["segment_record_digests"]
+          }
+        }
+      ]
+    }
+  },
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.AuditRecordInclusion",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "record_digest": {
+      "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+      "description": "Selected audit record digest identity.",
+      "x-data-class": "public"
+    },
+    "record_envelope_digest": {
+      "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+      "description": "Canonical signed-envelope digest identity for the selected record.",
+      "x-data-class": "public"
+    },
+    "segment_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Ledger segment identifier that contains this record.",
+      "x-data-class": "public"
+    },
+    "frame_index": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000000,
+      "description": "Zero-based frame index within segment_id for this record.",
+      "x-data-class": "public"
+    },
+    "segment_record_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000000,
+      "description": "Number of canonical records in segment_id.",
+      "x-data-class": "public"
+    },
+    "segment_seal_digest": {
+      "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+      "description": "Seal envelope digest identity that commits to segment_id when available.",
+      "x-data-class": "public"
+    },
+    "segment_seal_chain_index": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000000,
+      "description": "Seal-chain index for segment_seal_digest when available.",
+      "x-data-class": "public"
+    },
+    "previous_seal_digest": {
+      "$ref": "AuditRecordDigest.schema.json#/$defs/auditRecordDigestValue",
+      "description": "Previous segment seal digest identity when segment_seal_digest is linked to an earlier seal.",
+      "x-data-class": "public"
+    },
+    "ordered_merkle": {
+      "$ref": "#/$defs/orderedMerkle",
+      "description": "Ordered-Merkle lookup material for independent inclusion checks.",
+      "x-data-class": "public"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["segment_seal_digest"]
+      },
+      "then": {
+        "required": ["segment_seal_chain_index"]
+      }
+    },
+    {
+      "if": {
+        "required": ["segment_seal_chain_index"]
+      },
+      "then": {
+        "required": ["segment_seal_digest"]
+      }
+    },
+    {
+      "if": {
+        "required": ["previous_seal_digest"]
+      },
+      "then": {
+        "required": ["segment_seal_digest", "segment_seal_chain_index"]
+      }
+    }
+  ]
+}

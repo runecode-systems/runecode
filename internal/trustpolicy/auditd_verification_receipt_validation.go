@@ -91,13 +91,46 @@ func validateAuditReceiptPayload(receipt auditReceiptPayloadStrict) error {
 	if err := validateAuditReceiptPayloadPresence(receipt); err != nil {
 		return err
 	}
-	switch receipt.AuditReceiptKind {
-	case "anchor":
-		return validateAnchorReceiptPayload(receipt)
-	case "import", "restore", "reconciliation":
-		return validateImportRestoreReceiptPayload(receipt)
-	default:
+	validator := auditReceiptPayloadValidator(receipt.AuditReceiptKind)
+	if validator == nil {
 		return fmt.Errorf("unsupported audit_receipt_kind %q for payload validation", receipt.AuditReceiptKind)
+	}
+	return validator(receipt)
+}
+
+func auditReceiptPayloadValidator(kind string) func(auditReceiptPayloadStrict) error {
+	switch kind {
+	case "anchor":
+		return validateAnchorReceiptPayload
+	case "import", "restore", "reconciliation":
+		return validateImportRestoreReceiptPayload
+	case auditReceiptKindProviderInvocationAuthorized, auditReceiptKindProviderInvocationDenied:
+		return validateProviderInvocationReceiptPayload
+	case auditReceiptKindApprovalResolution, auditReceiptKindApprovalConsumption:
+		return validateApprovalEvidenceReceiptPayload
+	case auditReceiptKindArtifactPublished:
+		return validatePublicationEvidenceReceiptPayload
+	case auditReceiptKindOverrideOrBreakGlass:
+		return validateOverrideEvidenceReceiptPayload
+	case auditReceiptKindSecretLeaseIssued, auditReceiptKindSecretLeaseRevoked:
+		return validateSecretLeaseReceiptPayload
+	case auditReceiptKindRuntimeSummary:
+		return validateRuntimeSummaryReceiptPayload
+	case auditReceiptKindDegradedPostureSummary:
+		return validateDegradedPostureSummaryReceiptPayload
+	case auditReceiptKindNegativeCapabilitySummary:
+		return validateNegativeCapabilitySummaryReceiptPayload
+	case auditReceiptKindEvidenceBundleExport,
+		auditReceiptKindEvidenceImport,
+		auditReceiptKindEvidenceRestore,
+		auditReceiptKindRetentionPolicyChanged,
+		auditReceiptKindArchivalOperation,
+		auditReceiptKindVerifierConfigurationChanged,
+		auditReceiptKindTrustRootUpdated,
+		auditReceiptKindSensitiveEvidenceView:
+		return validateMetaAuditActionReceiptPayload
+	default:
+		return nil
 	}
 }
 
@@ -111,11 +144,8 @@ func validateAuditReceiptCoreFields(receipt auditReceiptPayloadStrict) error {
 	if _, err := receipt.SubjectDigest.Identity(); err != nil {
 		return fmt.Errorf("subject_digest: %w", err)
 	}
-	if !auditVerificationCodePattern.MatchString(receipt.AuditReceiptKind) {
-		return fmt.Errorf("invalid audit_receipt_kind %q", receipt.AuditReceiptKind)
-	}
-	if _, ok := map[string]struct{}{"anchor": {}, "import": {}, "restore": {}, "reconciliation": {}}[receipt.AuditReceiptKind]; !ok {
-		return fmt.Errorf("unsupported audit_receipt_kind %q", receipt.AuditReceiptKind)
+	if err := validateAuditReceiptKind(receipt.AuditReceiptKind); err != nil {
+		return err
 	}
 	if err := validateReceiptRecorder(receipt.Recorder); err != nil {
 		return err
@@ -127,6 +157,44 @@ func validateAuditReceiptCoreFields(receipt auditReceiptPayloadStrict) error {
 		return fmt.Errorf("invalid recorded_at: %w", err)
 	}
 	return nil
+}
+
+func validateAuditReceiptKind(kind string) error {
+	if !auditVerificationCodePattern.MatchString(kind) {
+		return fmt.Errorf("invalid audit_receipt_kind %q", kind)
+	}
+	if _, ok := supportedAuditReceiptKinds()[kind]; !ok {
+		return fmt.Errorf("unsupported audit_receipt_kind %q", kind)
+	}
+	return nil
+}
+
+func supportedAuditReceiptKinds() map[string]struct{} {
+	return map[string]struct{}{
+		"anchor":         {},
+		"import":         {},
+		"restore":        {},
+		"reconciliation": {},
+		auditReceiptKindProviderInvocationAuthorized: {},
+		auditReceiptKindProviderInvocationDenied:     {},
+		auditReceiptKindApprovalResolution:           {},
+		auditReceiptKindApprovalConsumption:          {},
+		auditReceiptKindArtifactPublished:            {},
+		auditReceiptKindOverrideOrBreakGlass:         {},
+		auditReceiptKindSecretLeaseIssued:            {},
+		auditReceiptKindSecretLeaseRevoked:           {},
+		auditReceiptKindRuntimeSummary:               {},
+		auditReceiptKindDegradedPostureSummary:       {},
+		auditReceiptKindNegativeCapabilitySummary:    {},
+		auditReceiptKindEvidenceBundleExport:         {},
+		auditReceiptKindEvidenceImport:               {},
+		auditReceiptKindEvidenceRestore:              {},
+		auditReceiptKindRetentionPolicyChanged:       {},
+		auditReceiptKindArchivalOperation:            {},
+		auditReceiptKindVerifierConfigurationChanged: {},
+		auditReceiptKindTrustRootUpdated:             {},
+		auditReceiptKindSensitiveEvidenceView:        {},
+	}
 }
 
 func validateReceiptRecorder(recorder json.RawMessage) error {

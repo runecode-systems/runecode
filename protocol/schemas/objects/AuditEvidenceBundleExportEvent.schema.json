@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditEvidenceBundleExportEvent.schema.json",
+  "title": "AuditEvidenceBundleExportEvent",
+  "description": "Streaming event envelope for audit evidence bundle export archives.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 15,
+  "required": ["schema_id", "schema_version", "stream_id", "request_id", "seq", "event_type"],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.AuditEvidenceBundleExportEvent",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "stream_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Stable stream identifier.",
+      "x-data-class": "public"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Echoed request identifier.",
+      "x-data-class": "public"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "description": "Monotonic stream sequence number.",
+      "x-data-class": "public"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": ["audit_evidence_bundle_export_start", "audit_evidence_bundle_export_chunk", "audit_evidence_bundle_export_terminal"],
+      "description": "Bundle export stream event type.",
+      "x-data-class": "public"
+    },
+    "manifest": {
+      "$ref": "AuditEvidenceBundleManifest.schema.json",
+      "description": "Projected bundle manifest emitted in the start event.",
+      "x-data-class": "public"
+    },
+    "archive_format": {
+      "type": "string",
+      "enum": ["tar"],
+      "description": "Streaming archive format for emitted chunk bytes.",
+      "x-data-class": "public"
+    },
+    "chunk_base64": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 87384,
+      "contentEncoding": "base64",
+      "description": "Base64-encoded archive chunk payload.",
+      "x-data-class": "public"
+    },
+    "chunk_bytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65536,
+      "description": "Decoded chunk byte length.",
+      "x-data-class": "public"
+    },
+    "manifest_digest": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Canonical digest of the emitted manifest JSON object for incremental verification.",
+      "x-data-class": "public"
+    },
+    "terminal": {
+      "type": "boolean",
+      "description": "Marks terminal stream event.",
+      "x-data-class": "public"
+    },
+    "terminal_status": {
+      "type": "string",
+      "enum": ["completed", "failed", "cancelled"],
+      "description": "Terminal status for stream completion.",
+      "x-data-class": "public"
+    },
+    "eof": {
+      "type": "boolean",
+      "description": "Signals clean EOF when terminal_status=completed.",
+      "x-data-class": "public"
+    },
+    "error": {
+      "$ref": "Error.schema.json",
+      "description": "Typed terminal error when stream fails.",
+      "x-data-class": "public"
+    }
+  }
+}

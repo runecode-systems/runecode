@@ -222,6 +222,30 @@ func TestComputeOrderedAuditSegmentMerkleRootIsDeterministicAndOrderSensitive(t 
 	}
 }
 
+func TestComputeAndVerifyOrderedAuditSegmentMerkleCompactPath(t *testing.T) {
+	digests := []Digest{testDigestFromByte('1'), testDigestFromByte('2'), testDigestFromByte('3'), testDigestFromByte('4'), testDigestFromByte('5')}
+	root, err := ComputeOrderedAuditSegmentMerkleRoot(digests)
+	if err != nil {
+		t.Fatalf("ComputeOrderedAuditSegmentMerkleRoot returned error: %v", err)
+	}
+	for leafIndex := range digests {
+		path, err := ComputeOrderedAuditSegmentMerkleCompactPath(digests, leafIndex)
+		if err != nil {
+			t.Fatalf("ComputeOrderedAuditSegmentMerkleCompactPath(%d) returned error: %v", leafIndex, err)
+		}
+		if err := VerifyOrderedAuditSegmentMerkleCompactPath(digests[leafIndex], leafIndex, len(digests), path, root); err != nil {
+			t.Fatalf("VerifyOrderedAuditSegmentMerkleCompactPath(%d) returned error: %v", leafIndex, err)
+		}
+	}
+	path, err := ComputeOrderedAuditSegmentMerkleCompactPath(digests, 2)
+	if err != nil {
+		t.Fatalf("ComputeOrderedAuditSegmentMerkleCompactPath returned error: %v", err)
+	}
+	if err := VerifyOrderedAuditSegmentMerkleCompactPath(testDigestFromByte('9'), 2, len(digests), path, root); err == nil {
+		t.Fatal("VerifyOrderedAuditSegmentMerkleCompactPath expected mismatch for wrong leaf digest")
+	}
+}
+
 func TestComputeAndVerifySegmentFileHashUsesExactRawBytes(t *testing.T) {
 	raw := []byte{0x01, 0x02, 0x03, 0xff, 0x00, 0x10}
 	hash, err := ComputeSegmentFileHash(raw)

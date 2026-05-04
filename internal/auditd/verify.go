@@ -1,6 +1,7 @@
 package auditd
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
@@ -77,7 +78,10 @@ func (l *Ledger) incrementalVerificationInput(snapshot currentSealSnapshot, prev
 	if err != nil {
 		return trustpolicy.AuditVerificationInput{}, err
 	}
-	_ = sealPayload
+	verifiedEvents, err := validatedPreverifiedEvents(segment, sealPayload)
+	if err != nil {
+		return trustpolicy.AuditVerificationInput{}, err
+	}
 	contractInputs, sealDigests, sealScoped, err := l.incrementalVerificationDependencies(segment.Header.SegmentID, snapshot.sealDigest)
 	if err != nil {
 		return trustpolicy.AuditVerificationInput{}, err
@@ -102,7 +106,61 @@ func (l *Ledger) incrementalVerificationInput(snapshot currentSealSnapshot, prev
 		ExternalAnchorEvidence:   sealScoped.externalAnchorEvidence,
 		ExternalAnchorSidecars:   sealScoped.externalAnchorSidecars,
 		PreverifiedSealDigest:    &preverifiedSealDigest,
+		PreverifiedSealPayload:   &sealPayload,
+		PreverifiedEvents:        verifiedEvents,
 		SkipFrameAndSealReplay:   true,
+		TrustedPreverifiedSeal:   true,
 		Now:                      l.nowFn(),
 	}, nil
+}
+
+func validatedPreverifiedEvents(segment trustpolicy.AuditSegmentFilePayload, sealPayload trustpolicy.AuditSegmentSealPayload) ([]trustpolicy.AuditEventPayload, error) {
+	events, err := preverifiedEventsFromSegment(segment)
+	if err != nil {
+		return nil, err
+	}
+	if err := preverifiedFramesMatchSeal(segment, sealPayload); err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
+func preverifiedEventsFromSegment(segment trustpolicy.AuditSegmentFilePayload) ([]trustpolicy.AuditEventPayload, error) {
+	if len(segment.Frames) == 0 {
+		return nil, nil
+	}
+	events := make([]trustpolicy.AuditEventPayload, 0, len(segment.Frames))
+	for i := range segment.Frames {
+		envelope, err := decodeFrameEnvelope(segment.Frames[i])
+		if err != nil {
+			return nil, err
+		}
+		if envelope.PayloadSchemaID != trustpolicy.AuditEventSchemaID {
+			continue
+		}
+		event := trustpolicy.AuditEventPayload{}
+		if err := json.Unmarshal(envelope.Payload, &event); err != nil {
+			return nil, err
+		}
+		events = append(events, event)
+	}
+	return events, nil
+}
+
+func preverifiedFramesMatchSeal(segment trustpolicy.AuditSegmentFilePayload, sealPayload trustpolicy.AuditSegmentSealPayload) error {
+	if len(segment.Frames) == 0 {
+		return nil
+	}
+	frameDigests := make([]trustpolicy.Digest, 0, len(segment.Frames))
+	for i := range segment.Frames {
+		frameDigests = append(frameDigests, segment.Frames[i].RecordDigest)
+	}
+	merkleRoot, err := trustpolicy.ComputeOrderedAuditSegmentMerkleRoot(frameDigests)
+	if err != nil {
+		return err
+	}
+	if mustDigestIdentity(merkleRoot) != mustDigestIdentity(sealPayload.MerkleRoot) {
+		return fmt.Errorf("preverified events do not match seal merkle root")
+	}
+	return nil
 }

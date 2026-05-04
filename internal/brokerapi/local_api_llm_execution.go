@@ -104,7 +104,11 @@ func (s *Service) revokeLLMLease(runID, leaseID string) {
 	if strings.TrimSpace(leaseID) == "" || s == nil || s.secretsSvc == nil {
 		return
 	}
-	_, _ = s.secretsSvc.RevokeLease(secretsd.RevokeLeaseRequest{LeaseID: leaseID, ConsumerID: "principal:gateway:model:" + runID, RoleKind: "model-gateway", Scope: "run:" + runID, Reason: "llm_execution_complete"})
+	lease, err := s.secretsSvc.RevokeLease(secretsd.RevokeLeaseRequest{LeaseID: leaseID, ConsumerID: "principal:gateway:model:" + runID, RoleKind: "model-gateway", Scope: "run:" + runID, Reason: "llm_execution_complete"})
+	if err != nil {
+		return
+	}
+	_ = lease
 }
 
 func hardenedProviderExecutionDestination(profile ProviderProfile, adapter llmProviderAdapter) (*url.URL, string, error) {

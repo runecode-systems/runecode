@@ -321,6 +321,10 @@ func validApprovalDecision() map[string]any {
 		"restrictions":                map[string]any{"max_uses": 1},
 		"policy_decision_hash":        testDigestValue("e"),
 		"stage_manifest_summary_hash": testDigestValue("f"),
+		"scope_digest":                testDigestValue("2"),
+		"artifact_set_digest":         testDigestValue("3"),
+		"diff_digest":                 testDigestValue("4"),
+		"summary_preview_digest":      testDigestValue("5"),
 		"signatures":                  []any{signatureBlock()},
 	}
 }

@@ -13,11 +13,12 @@ import (
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
 
-func verifySegmentFramesAndEvents(input AuditVerificationInput, registry *VerifierRegistry, report *AuditVerificationReportPayload) ([]Digest, []SignedObjectEnvelope, []time.Time) {
+func verifySegmentFramesAndEvents(input AuditVerificationInput, registry *VerifierRegistry, report *AuditVerificationReportPayload) ([]Digest, []SignedObjectEnvelope, []time.Time, []AuditEventPayload) {
 	streams := map[string]streamState{}
 	frameDigests := make([]Digest, 0, len(input.Segment.Frames))
 	frameEnvelopes := make([]SignedObjectEnvelope, 0, len(input.Segment.Frames))
 	eventTimes := make([]time.Time, 0, len(input.Segment.Frames))
+	events := make([]AuditEventPayload, 0, len(input.Segment.Frames))
 
 	for index := range input.Segment.Frames {
 		verified, ok := verifySegmentFrame(index, input, registry, report, streams)
@@ -28,9 +29,10 @@ func verifySegmentFramesAndEvents(input AuditVerificationInput, registry *Verifi
 		frameDigests = append(frameDigests, verified.recordDigest)
 		frameEnvelopes = append(frameEnvelopes, verified.envelope)
 		eventTimes = append(eventTimes, verified.eventTime)
+		events = append(events, verified.event)
 	}
 
-	return frameDigests, frameEnvelopes, eventTimes
+	return frameDigests, frameEnvelopes, eventTimes, events
 }
 
 type verifiedSegmentFrame struct {

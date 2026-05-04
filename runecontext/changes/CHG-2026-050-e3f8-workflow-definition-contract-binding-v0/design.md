@@ -17,6 +17,7 @@ This change now documents the recommended durable authority model for workflow e
 - JSON is the canonical on-disk and runtime format for workflow definitions, and JSON Schema is the single validation source of truth.
 - Workflow/process definitions must reuse the shared workflow identity model, typed gate contract, executor model, approval split, and runner-to-broker checkpoint/result model rather than defining process-local variants.
 - Workflows that compose git remote mutation must reuse shared typed git request families, signed patch artifacts, exact repository identity, and `git_remote_ops` approval semantics.
+- When `CHG-2026-059-7b31-cross-machine-evidence-replication-restore-v0` is active, workflows that compose publication-sensitive remote mutation must also reuse the shared evidence-durability barrier, evidence-checkpoint binding, and durable prepare, execute, and reconcile semantics rather than inventing workflow-local publication shortcuts.
 - Workflows that require dependency material must reuse the shared typed dependency-fetch and offline-cache contracts from `CHG-2026-024-acde-deps-fetch-offline-cache` rather than embedding workflow-local package-manager fetch semantics.
 - Later authoring surfaces and shared-memory accelerators remain additive work on top of this contract substrate rather than being part of the contract definition itself.
 - Workflow definitions that are sensitive to project context must reuse the shared project-substrate contract and validated snapshot-binding model rather than inventing workflow-local project-context references.
@@ -85,6 +86,7 @@ This change now documents the recommended durable authority model for workflow e
 - Workflow-defined execution must report progress through the shared runner-to-broker checkpoint/result contract.
 - Stage sign-off and exact-action approval semantics remain shared and hash-bound.
 - Workflow-composed git remote mutation must route through the same typed git request, patch artifact, repository identity, and exact-approval contracts as built-in git flows.
+- Workflow-composed publication-sensitive remote mutation must also route through the same shared durability gating and evidence-checkpoint binding defined by `CHG-2026-059-7b31-cross-machine-evidence-replication-restore-v0`; workflow definitions must not downgrade or bypass those preconditions.
 - Workflow-composed dependency fetch must route through the same typed dependency-fetch request identity, shared gateway approval semantics, broker-owned cache authority, and shared gateway audit model as built-in dependency flows.
 - Approval, policy, and audit binding should use a broker-owned signed selection/compilation artifact that binds at least:
   - `workflow_definition_hash`

@@ -592,9 +592,22 @@ func (f *fakeBrokerClient) AuditVerificationGet(ctx context.Context, viewLimit i
 	_ = ctx
 	_ = viewLimit
 	report := trustpolicy.AuditVerificationReportPayload{
-		AnchoringStatus: "degraded",
-		DegradedReasons: []string{"anchor_receipt_missing"},
-		HardFailures:    []string{"anchor_receipt_invalid"},
+		SchemaID:               trustpolicy.AuditVerificationReportSchemaID,
+		SchemaVersion:          trustpolicy.AuditVerificationReportSchemaVersion,
+		VerifiedAt:             "2026-03-13T12:30:00Z",
+		VerificationScope:      trustpolicy.AuditVerificationScope{ScopeKind: trustpolicy.AuditVerificationScopeSegment, LastSegmentID: "segment-000001"},
+		CryptographicallyValid: false,
+		HistoricallyAdmissible: false,
+		CurrentlyDegraded:      true,
+		IntegrityStatus:        trustpolicy.AuditVerificationStatusFailed,
+		AnchoringStatus:        "degraded",
+		AnchoringPosture:       trustpolicy.AuditVerificationAnchoringPostureAnchorReceiptMissingOrUnbound,
+		StoragePostureStatus:   trustpolicy.AuditVerificationStatusOK,
+		SegmentLifecycleStatus: trustpolicy.AuditVerificationStatusOK,
+		VerifierIdentity:       trustpolicy.KeyIDProfile + ":" + strings.Repeat("f", 64),
+		TrustRootIdentities:    []string{"sha256:" + strings.Repeat("f", 64)},
+		DegradedReasons:        []string{"anchor_receipt_missing"},
+		HardFailures:           []string{"anchor_receipt_invalid"},
 		Findings: []trustpolicy.AuditVerificationFinding{
 			{Code: "anchor_receipt_missing", Dimension: trustpolicy.AuditVerificationDimensionAnchoring, Severity: trustpolicy.AuditVerificationSeverityWarning, Message: "anchor receipt pending"},
 			{Code: "anchor_receipt_invalid", Dimension: trustpolicy.AuditVerificationDimensionAnchoring, Severity: trustpolicy.AuditVerificationSeverityError, Message: "anchor receipt invalid"},

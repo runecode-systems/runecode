@@ -94,6 +94,43 @@ func TestAuditRecordGetCommand(t *testing.T) {
 	}
 }
 
+func TestAuditRecordInclusionGetCommand(t *testing.T) {
+	root := setBrokerServiceForTest(t)
+	if err := seedLedgerForBrokerCommandTest(filepath.Join(root, "audit-ledger")); err != nil {
+		t.Fatalf("seedLedgerForBrokerCommandTest returned error: %v", err)
+	}
+	service, err := brokerServiceFactory(defaultBrokerServiceRoots())
+	if err != nil {
+		t.Fatalf("brokerServiceFactory returned error: %v", err)
+	}
+	surface, err := service.LatestAuditVerificationSurface(1)
+	if err != nil {
+		t.Fatalf("LatestAuditVerificationSurface returned error: %v", err)
+	}
+	if len(surface.Views) == 0 {
+		t.Fatal("seed surface views empty, want at least one record")
+	}
+	digestID, err := surface.Views[0].RecordDigest.Identity()
+	if err != nil {
+		t.Fatalf("record digest identity error: %v", err)
+	}
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	if err := run([]string{"audit-record-inclusion-get", "--record-digest", digestID}, stdout, stderr); err != nil {
+		t.Fatalf("audit-record-inclusion-get returned error: %v", err)
+	}
+	inclusion := brokerapi.AuditRecordInclusion{}
+	if err := json.Unmarshal(stdout.Bytes(), &inclusion); err != nil {
+		t.Fatalf("audit-record-inclusion-get output parse error: %v", err)
+	}
+	if inclusion.SegmentID == "" || inclusion.SegmentRecordCount <= 0 || inclusion.RecordEnvelopeDigest.Hash == "" {
+		t.Fatalf("audit-record-inclusion-get inclusion missing core fields: %+v", inclusion)
+	}
+	if len(inclusion.OrderedMerkle.SegmentRecordDigests) == 0 || inclusion.OrderedMerkle.SegmentMerkleRoot.Hash == "" {
+		t.Fatalf("audit-record-inclusion-get merkle material incomplete: %+v", inclusion.OrderedMerkle)
+	}
+}
+
 func TestPromoteExcerptRequiresSignedApprovalInputs(t *testing.T) {
 	root := setBrokerServiceForTest(t)
 	stderr := &bytes.Buffer{}

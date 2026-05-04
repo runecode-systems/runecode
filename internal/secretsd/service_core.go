@@ -15,6 +15,8 @@ func Open(root string) (*Service, error) {
 	if cleanRoot == "" {
 		return nil, fmt.Errorf("state root is required")
 	}
+	release := lockServiceRoot(cleanRoot)
+	defer release()
 	if err := os.MkdirAll(filepath.Join(cleanRoot, secretsDirName), 0o700); err != nil {
 		return nil, err
 	}
@@ -66,26 +68,32 @@ func (s *Service) ImportSecret(secretRef string, r io.Reader) (SecretMetadata, e
 
 func (s *Service) IssueLease(req IssueLeaseRequest) (Lease, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	deliveryKind, err := validateIssueLeaseRequest(req)
 	if err != nil {
+		s.mu.Unlock()
 		return Lease{}, err
 	}
 	if _, ok := s.state.Secrets[req.SecretRef]; !ok {
 		s.state.Metrics.LeaseDenyCount++
 		_ = s.persistState()
+		s.mu.Unlock()
 		return Lease{}, ErrAccessDenied
 	}
 	rec, err := s.newLeaseRecord(req, deliveryKind)
 	if err != nil {
+		s.mu.Unlock()
 		return Lease{}, err
 	}
 	s.state.Leases[rec.LeaseID] = rec
 	s.state.Metrics.LeaseIssueCount++
 	if err := s.persistState(); err != nil {
+		s.mu.Unlock()
 		return Lease{}, err
 	}
-	return rec.public(), nil
+	lease := rec.public()
+	s.mu.Unlock()
+	s.emitLeaseAuditEventLocked("issued", lease)
+	return lease, nil
 }
 
 func (s *Service) RenewLease(req RenewLeaseRequest) (Lease, error) {
@@ -117,19 +125,21 @@ func (s *Service) RenewLease(req RenewLeaseRequest) (Lease, error) {
 
 func (s *Service) RevokeLease(req RevokeLeaseRequest) (Lease, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err := validateBinding("placeholder", req.ConsumerID, req.RoleKind, req.Scope); err != nil {
+		s.mu.Unlock()
 		return Lease{}, err
 	}
 	lease, ok := s.state.Leases[req.LeaseID]
 	if !ok {
 		s.state.Metrics.LeaseDenyCount++
 		_ = s.persistState()
+		s.mu.Unlock()
 		return Lease{}, ErrAccessDenied
 	}
 	if !lease.bindingMatches(req.ConsumerID, req.RoleKind, req.Scope) {
 		s.state.Metrics.LeaseDenyCount++
 		_ = s.persistState()
+		s.mu.Unlock()
 		return Lease{}, ErrAccessDenied
 	}
 	now := s.now().UTC()
@@ -141,9 +151,13 @@ func (s *Service) RevokeLease(req RevokeLeaseRequest) (Lease, error) {
 	}
 	s.state.Leases[req.LeaseID] = lease
 	if err := s.persistState(); err != nil {
+		s.mu.Unlock()
 		return Lease{}, err
 	}
-	return lease.public(), nil
+	public := lease.public()
+	s.mu.Unlock()
+	s.emitLeaseAuditEventLocked("revoked", public)
+	return public, nil
 }
 
 func (s *Service) Retrieve(req RetrieveRequest) ([]byte, Lease, error) {
@@ -176,9 +190,9 @@ func (s *Service) Retrieve(req RetrieveRequest) ([]byte, Lease, error) {
 
 func (s *Service) RevokeGitLeases(req RevokeGitLeasesRequest) ([]Lease, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	repositoryIdentity, actionRequestHash, policyContextHash, err := validateGitLeaseRevocationRequest(req)
 	if err != nil {
+		s.mu.Unlock()
 		return nil, err
 	}
 	now := s.now().UTC()
@@ -195,14 +209,19 @@ func (s *Service) RevokeGitLeases(req RevokeGitLeasesRequest) ([]Lease, error) {
 		updated = append(updated, lease.public())
 	}
 	if len(updated) == 0 {
+		s.mu.Unlock()
 		return []Lease{}, nil
 	}
 	if err := s.persistState(); err != nil {
+		s.mu.Unlock()
 		return nil, err
+	}
+	s.mu.Unlock()
+	for i := range updated {
+		s.emitLeaseAuditEventLocked("revoked", updated[i])
 	}
 	return updated, nil
 }
-
 func (s *Service) retrievableLease(req RetrieveRequest) (leaseRecord, error) {
 	requestedDeliveryKind := normalizeDeliveryKind(req.DeliveryKind)
 	if deniedDeliveryKind(requestedDeliveryKind) {
@@ -222,23 +241,4 @@ func (s *Service) retrievableLease(req RetrieveRequest) (leaseRecord, error) {
 		return leaseRecord{}, s.accessDenied()
 	}
 	return lease, nil
-}
-
-func (s *Service) LookupSecretMetadata(secretRef string) (SecretMetadata, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	trimmed := strings.TrimSpace(secretRef)
-	if trimmed == "" {
-		return SecretMetadata{}, false
-	}
-	rec, ok := s.state.Secrets[trimmed]
-	if !ok {
-		return SecretMetadata{}, false
-	}
-	return SecretMetadata{
-		SecretRef:      trimmed,
-		SecretID:       rec.SecretID,
-		MaterialDigest: rec.MaterialDigest,
-		ImportedAt:     rec.ImportedAt,
-	}, true
 }

@@ -10,6 +10,8 @@ import (
 
 var replaceFileLocksMu sync.Mutex
 var replaceFileLocks = map[string]*sync.Mutex{}
+var serviceRootLocksMu sync.Mutex
+var serviceRootLocks = map[string]*sync.Mutex{}
 var renameFile = os.Rename
 var removeFile = os.Remove
 
@@ -84,6 +86,19 @@ func lockReplaceTarget(path string) func() {
 		replaceFileLocks[key] = mu
 	}
 	replaceFileLocksMu.Unlock()
+	mu.Lock()
+	return mu.Unlock
+}
+
+func lockServiceRoot(root string) func() {
+	key := filepath.Clean(root)
+	serviceRootLocksMu.Lock()
+	mu, ok := serviceRootLocks[key]
+	if !ok {
+		mu = &sync.Mutex{}
+		serviceRootLocks[key] = mu
+	}
+	serviceRootLocksMu.Unlock()
 	mu.Lock()
 	return mu.Unlock
 }

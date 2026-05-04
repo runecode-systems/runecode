@@ -18,6 +18,8 @@ Recent notable standards for this branch:
 - `runecontext/standards/security/model-provider-substrate-and-secret-ingress.md`
 - `runecontext/standards/security/approval-binding-and-verifier-identity.md`
 - `runecontext/standards/security/audit-anchoring-receipt-and-verification.md`
+- `runecontext/standards/security/audit-evidence-bundles-and-offline-verification.md`
+- `runecontext/standards/security/audit-evidence-index-and-record-inclusion.md`
 - `runecontext/standards/security/audit-verification-scope-and-evidence-binding.md`
 - `runecontext/standards/security/trusted-local-path-link-protection.md`
 - `runecontext/standards/security/trusted-local-artifact-persistence.md`

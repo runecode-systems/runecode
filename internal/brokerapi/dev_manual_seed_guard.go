@@ -15,12 +15,12 @@ import (
 
 const devManualSeedMarkerMaxBytes = 64
 
-func ensureDevManualSeedLedgerAllowed(root string) (string, error) {
+func ensureDevManualSeedLedgerAllowed(root string, profile string) (string, error) {
 	canonicalRoot, err := normalizeDevManualSeedRoot(root)
 	if err != nil {
 		return "", err
 	}
-	markerState, err := devManualSeedMarkerState(canonicalRoot)
+	markerState, markerProfile, err := devManualSeedMarkerState(canonicalRoot)
 	if err != nil {
 		return "", err
 	}
@@ -28,6 +28,7 @@ func ensureDevManualSeedLedgerAllowed(root string) (string, error) {
 		return "", fmt.Errorf("dev manual seeding refuses tampered seed marker")
 	}
 	if markerState == devManualSeedMarkerValid {
+		_ = markerProfile
 		return canonicalRoot, ensureValidSeedMarkerLedger(canonicalRoot)
 	}
 	populated, err := devManualLedgerHasRecordedData(canonicalRoot)
@@ -73,17 +74,18 @@ const (
 )
 
 func hasDevManualSeedMarker(root string) bool {
-	state, _ := devManualSeedMarkerState(root)
+	state, _, _ := devManualSeedMarkerState(root)
 	return state == devManualSeedMarkerValid
 }
 
-func devManualSeedMarkerState(root string) (devManualSeedMarkerStatus, error) {
+func devManualSeedMarkerState(root string) (devManualSeedMarkerStatus, string, error) {
 	markerPath := devManualLedgerSeedMarkerPath(root)
 	info, status, err := loadSeedMarkerInfo(markerPath)
 	if status != devManualSeedMarkerValid {
-		return status, err
+		return status, "", err
 	}
-	return evaluateSeedMarkerFile(markerPath, info), nil
+	status, profile := evaluateSeedMarkerFile(markerPath, info)
+	return status, profile, nil
 }
 
 func loadSeedMarkerInfo(markerPath string) (os.FileInfo, devManualSeedMarkerStatus, error) {
@@ -100,24 +102,27 @@ func loadSeedMarkerInfo(markerPath string) (os.FileInfo, devManualSeedMarkerStat
 	return info, devManualSeedMarkerValid, nil
 }
 
-func evaluateSeedMarkerFile(markerPath string, info os.FileInfo) devManualSeedMarkerStatus {
+func evaluateSeedMarkerFile(markerPath string, info os.FileInfo) (devManualSeedMarkerStatus, string) {
 	f, err := openReadOnlyNoFollow(markerPath)
 	if err != nil {
-		return devManualSeedMarkerInvalid
+		return devManualSeedMarkerInvalid, ""
 	}
 	defer f.Close()
 	openedInfo, err := f.Stat()
 	if err != nil || !os.SameFile(info, openedInfo) {
-		return devManualSeedMarkerInvalid
+		return devManualSeedMarkerInvalid, ""
 	}
 	b, err := io.ReadAll(io.LimitReader(f, devManualSeedMarkerMaxBytes+1))
 	if err != nil || len(b) > devManualSeedMarkerMaxBytes {
-		return devManualSeedMarkerInvalid
+		return devManualSeedMarkerInvalid, ""
 	}
-	if strings.TrimSpace(string(b)) != devManualSeedProfile {
-		return devManualSeedMarkerInvalid
+	profile := strings.TrimSpace(string(b))
+	for _, supported := range SupportedDevManualSeedProfiles() {
+		if profile == supported {
+			return devManualSeedMarkerValid, profile
+		}
 	}
-	return devManualSeedMarkerValid
+	return devManualSeedMarkerInvalid, ""
 }
 
 func canonicalPathWithoutSymlinkComponents(path string) (string, error) {
@@ -152,13 +157,25 @@ func devManualLedgerHasRecordedData(root string) (bool, error) {
 	if populated, err := devManualLedgerHasNonBootstrapSegments(root); populated || err != nil {
 		return populated, err
 	}
-	if populated, err := devManualLedgerHasJSON(filepath.Join(root, "sidecar", "segment-seals")); populated || err != nil {
-		return populated, err
-	}
-	if populated, err := devManualLedgerHasJSON(filepath.Join(root, "sidecar", "verification-reports")); populated || err != nil {
+	if populated, err := devManualLedgerHasRecordedSidecars(root); populated || err != nil {
 		return populated, err
 	}
 	return devManualLedgerHasJSON(filepath.Join(root, "contracts"))
+}
+
+func devManualLedgerHasRecordedSidecars(root string) (bool, error) {
+	for _, rel := range []string{
+		filepath.Join("sidecar", "segment-seals"),
+		filepath.Join("sidecar", "receipts"),
+		filepath.Join("sidecar", "external-anchor-evidence"),
+		filepath.Join("sidecar", "external-anchor-sidecars"),
+		filepath.Join("sidecar", "verification-reports"),
+	} {
+		if populated, err := devManualLedgerHasJSON(filepath.Join(root, rel)); populated || err != nil {
+			return populated, err
+		}
+	}
+	return false, nil
 }
 
 func devManualLedgerHasNonBootstrapSegments(root string) (bool, error) {
