@@ -96,17 +96,32 @@ func validateApprovalRecordBindings(record ApprovalRecord) error {
 }
 
 func validateApprovalRecordOptionalDigests(record ApprovalRecord) error {
-	if record.RequestDigest != "" && !isValidDigest(record.RequestDigest) {
-		return fmt.Errorf("request_digest: %w", ErrInvalidDigest)
-	}
-	if record.DecisionDigest != "" && !isValidDigest(record.DecisionDigest) {
-		return fmt.Errorf("decision_digest: %w", ErrInvalidDigest)
-	}
-	if record.PolicyDecisionHash != "" && !isValidDigest(record.PolicyDecisionHash) {
-		return fmt.Errorf("policy_decision_hash: %w", ErrInvalidDigest)
-	}
-	if record.SourceDigest != "" && !isValidDigest(record.SourceDigest) {
-		return fmt.Errorf("source_digest: %w", ErrInvalidDigest)
+	for _, field := range []struct {
+		name  string
+		value string
+	}{
+		{name: "request_digest", value: record.RequestDigest},
+		{name: "decision_digest", value: record.DecisionDigest},
+		{name: "policy_decision_hash", value: record.PolicyDecisionHash},
+		{name: "source_digest", value: record.SourceDigest},
+		{name: "scope_digest", value: record.ScopeDigest},
+		{name: "artifact_set_digest", value: record.ArtifactSetDigest},
+		{name: "diff_digest", value: record.DiffDigest},
+		{name: "summary_preview_digest", value: record.SummaryPreviewDigest},
+		{name: "consumed_action_hash", value: record.ConsumedActionHash},
+		{name: "consumed_artifact_digest", value: record.ConsumedArtifactDigest},
+		{name: "consumption_link_digest", value: record.ConsumptionLinkDigest},
+	} {
+		if err := validateOptionalApprovalRecordDigest(field.name, field.value); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+func validateOptionalApprovalRecordDigest(name, value string) error {
+	if value == "" || isValidDigest(value) {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", name, ErrInvalidDigest)
 }

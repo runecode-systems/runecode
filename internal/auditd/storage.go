@@ -19,8 +19,13 @@ const (
 	externalAnchorSidecarsDir  = "external-anchor-sidecars"
 	verificationReportsDirName = "verification-reports"
 	indexDirName               = "index"
+	indexMetaFileName          = "audit-evidence-index-meta.json"
 	stateFileName              = "state.json"
-	indexFileName              = "timeline-index.json"
+	auditEvidenceIndexFileName = "audit-evidence-index.json"
+	indexRecordLookupDirName   = "record-digest-lookup"
+	indexSegmentSealDirName    = "segment-seal-lookup"
+	indexSealChainDirName      = "seal-chain-index-lookup"
+	indexRunTimelineDirName    = "run-timeline"
 )
 
 var renameFile = os.Rename
@@ -69,6 +74,9 @@ func (l *Ledger) loadState() (ledgerState, error) {
 
 func (l *Ledger) saveState(state ledgerState) error {
 	state.SchemaVersion = stateSchemaVersion
+	if err := ensureLedgerIdentity(&state); err != nil {
+		return err
+	}
 	return writeCanonicalJSONFile(filepath.Join(l.rootDir, stateFileName), state)
 }
 
@@ -128,7 +136,7 @@ func replaceFile(src, dst string) error {
 		return nil
 	}
 	if err := removeFile(backup); err != nil && !os.IsNotExist(err) {
-		return nil
+		return err
 	}
 	return nil
 }

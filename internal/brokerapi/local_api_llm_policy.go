@@ -100,13 +100,16 @@ func llmMeterInt64(value int64) *int64 {
 
 func llmGatewayRuntimePayload(binding llmExecutionBinding, outcome string) gatewayActionPayloadRuntime {
 	return gatewayActionPayloadRuntime{
-		GatewayRoleKind: "model-gateway",
-		DestinationKind: "model_endpoint",
-		DestinationRef:  binding.DestinationRef,
-		EgressDataClass: "spec_text",
-		Operation:       "invoke_model",
-		TimeoutSeconds:  llmTimeoutSeconds(),
-		PayloadHash:     &binding.RequestHash,
+		GatewayRoleKind:   "model-gateway",
+		DestinationKind:   "model_endpoint",
+		DestinationRef:    binding.DestinationRef,
+		ProviderProfileID: binding.ProviderID,
+		ModelID:           binding.ModelID,
+		EndpointIdentity:  binding.DestinationRef,
+		EgressDataClass:   "spec_text",
+		Operation:         "invoke_model",
+		TimeoutSeconds:    llmTimeoutSeconds(),
+		PayloadHash:       &binding.RequestHash,
 		AuditContext: &gatewayAuditContextPayload{
 			OutboundBytes: binding.OutboundBytes,
 			StartedAt:     binding.StartedAt.UTC().Format(time.RFC3339),
@@ -160,6 +163,7 @@ func (s *Service) emitModelGatewayTerminalAudit(runID string, decision policyeng
 		s.gatewayRuntime.releaseQuotaUsage(runID, payload)
 		return err
 	}
+	s.persistProviderInvocationReceipt(runID, string(decision.DecisionOutcome), "", payload, match)
 	s.gatewayRuntime.releaseQuotaUsage(runID, payload)
 	return nil
 }

@@ -1,6 +1,7 @@
 package secretsd
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -98,13 +99,16 @@ func (s *Service) computeAuditAnchorPresenceAcknowledgmentTokenLocked(mode strin
 
 func (s *Service) auditAnchorPresenceKeyLocked() ([]byte, error) {
 	if inline := strings.TrimSpace(os.Getenv(envAuditAnchorPresenceKeyB64)); inline != "" {
-		return decodeAuditAnchorPresenceKey(inline)
+		inlineBytes := []byte(inline)
+		defer zeroBytes(inlineBytes)
+		return decodeAuditAnchorPresenceKeyBytes(inlineBytes)
 	}
 	material, err := loadOrCreateAuditAnchorPresenceKey(filepath.Join(s.root, auditAnchorPresenceKeyFileName), s.rand)
 	if err != nil {
 		return nil, err
 	}
-	return decodeAuditAnchorPresenceKey(strings.TrimSpace(string(material)))
+	trimmed := bytes.TrimSpace(material)
+	return decodeAuditAnchorPresenceKeyBytes(trimmed)
 }
 
 func loadOrCreateAuditAnchorPresenceKey(path string, randSource io.Reader) ([]byte, error) {
@@ -121,14 +125,16 @@ func loadOrCreateAuditAnchorPresenceKey(path string, randSource io.Reader) ([]by
 	}
 	defer zeroBytes(key)
 	encoded := base64.StdEncoding.EncodeToString(key)
-	if err := writeFileAtomic(path, []byte(encoded), 0o600); err != nil {
+	encodedBytes := []byte(encoded)
+	defer zeroBytes(encodedBytes)
+	if err := writeFileAtomic(path, encodedBytes, 0o600); err != nil {
 		return nil, err
 	}
-	return []byte(encoded), nil
+	return append([]byte(nil), encodedBytes...), nil
 }
 
-func decodeAuditAnchorPresenceKey(encoded string) ([]byte, error) {
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
+func decodeAuditAnchorPresenceKeyBytes(encoded []byte) ([]byte, error) {
+	decoded, err := base64.StdEncoding.DecodeString(string(encoded))
 	if err != nil {
 		return nil, fmt.Errorf("decode audit anchor presence key: %w", err)
 	}

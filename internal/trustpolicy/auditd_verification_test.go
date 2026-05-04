@@ -9,6 +9,9 @@ import (
 func TestVerifyAuditEvidenceMissingAnchorIsDegradedByDefault(t *testing.T) {
 	report := mustVerifyAuditEvidenceReport(t, newAuditVerificationFixture(t, verifierStatusFixture{status: "active"}), nil)
 	assertMissingAnchorDegradesReport(t, report)
+	if report.AnchoringPosture != AuditVerificationAnchoringPostureAnchorReceiptMissingOrUnbound {
+		t.Fatalf("anchoring_posture = %q, want %q", report.AnchoringPosture, AuditVerificationAnchoringPostureAnchorReceiptMissingOrUnbound)
+	}
 	assertDerivedSummaryDegraded(t, report)
 }
 

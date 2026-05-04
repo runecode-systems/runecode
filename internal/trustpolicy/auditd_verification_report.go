@@ -41,6 +41,9 @@ func validateAuditVerificationReportHeader(report AuditVerificationReportPayload
 	if err := validateAuditVerificationScope(report.VerificationScope); err != nil {
 		return fmt.Errorf("verification_scope: %w", err)
 	}
+	if err := validateVerificationIdentityFootprint(report.VerifierIdentity, report.TrustRootIdentities); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -50,6 +53,9 @@ func validateAuditVerificationReportStatuses(report AuditVerificationReportPaylo
 	}
 	if err := validateAuditVerificationStatus(report.AnchoringStatus); err != nil {
 		return fmt.Errorf("anchoring_status: %w", err)
+	}
+	if err := validateAuditVerificationAnchoringPosture(report.AnchoringPosture); err != nil {
+		return fmt.Errorf("anchoring_posture: %w", err)
 	}
 	if err := validateAuditVerificationStatus(report.StoragePostureStatus); err != nil {
 		return fmt.Errorf("storage_posture_status: %w", err)
@@ -63,7 +69,10 @@ func validateAuditVerificationReportStatuses(report AuditVerificationReportPaylo
 func validateReasonCodeList(reasons []string, field string) error {
 	seen := map[string]struct{}{}
 	for index := range reasons {
-		reason := reasons[index]
+		reason := strings.TrimSpace(reasons[index])
+		if reason == "" {
+			return fmt.Errorf("%s[%d] reason code is required", field, index)
+		}
 		if _, ok := auditVerificationAllowedCodes[reason]; !ok {
 			return fmt.Errorf("%s[%d] has unknown reason code %q", field, index, reason)
 		}

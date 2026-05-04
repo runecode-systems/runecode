@@ -59,6 +59,8 @@ func ledgerLayoutPaths(root string) []string {
 		filepath.Join(root, sidecarDirName),
 		filepath.Join(root, sidecarDirName, sealsDirName),
 		filepath.Join(root, sidecarDirName, receiptsDirName),
+		filepath.Join(root, sidecarDirName, externalAnchorEvidenceDir),
+		filepath.Join(root, sidecarDirName, externalAnchorSidecarsDir),
 		filepath.Join(root, sidecarDirName, verificationReportsDirName),
 		filepath.Join(root, indexDirName),
 	}
@@ -113,5 +115,34 @@ func TestLatestVerificationSummaryAndViewsFailsClosedOnFrameDigestMismatch(t *te
 	}
 	if !strings.Contains(err.Error(), "frame record_digest mismatch") {
 		t.Fatalf("error = %q, want frame record_digest mismatch", err)
+	}
+}
+
+func TestSensitiveEvidenceFilesAreOwnerReadWriteOnly(t *testing.T) {
+	skipIfDirectoryModeAssertionsUnavailable(t)
+	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	mustSealFixtureSegment(t, ledger, fixture)
+	mustPersistReport(t, ledger, validReportFixture("segment-000001"))
+	if _, err := ledger.BuildIndex(); err != nil {
+		t.Fatalf("BuildIndex returned error: %v", err)
+	}
+
+	paths := []string{
+		filepath.Join(root, stateFileName),
+		filepath.Join(root, indexDirName, indexMetaFileName),
+	}
+	for _, path := range paths {
+		assertOwnerReadWriteOnlyFile(t, path)
+	}
+}
+
+func assertOwnerReadWriteOnlyFile(t *testing.T, path string) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat(%q) returned error: %v", path, err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("%s mode = %o, want 600", path, got)
 	}
 }

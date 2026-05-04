@@ -1,0 +1,30 @@
+schema_version: 1
+id: CHG-2026-056-8c75-audit-evidence-index-record-inclusion-v0
+title: Audit Evidence Index + Record Inclusion v0
+status: proposed
+type: feature
+size: large
+verification_status: pending
+context_bundles:
+  - product-planning
+  - go-control-plane
+  - protocol-foundation
+related_specs: []
+related_decisions: []
+related_changes:
+  - CHG-2026-057-d5c1-verification-plane-foundation-v0
+  - CHG-2026-055-546a-verification-evidence-preservation-bundle-export-v0
+  - CHG-2026-058-04e9-verification-coverage-expansion-v0
+depends_on:
+  - CHG-2026-003-b567-audit-log-v0-verify
+  - CHG-2026-008-62e1-broker-local-api-v0
+informed_by:
+  - CHG-2026-025-5679-external-audit-anchoring-v0
+  - CHG-2026-042-6f3c-audit-record-drill-down-v0
+supersedes: []
+superseded_by: []
+created_at: "2026-05-02"
+closed_at: null
+promotion_assessment:
+  status: pending
+  suggested_targets: []

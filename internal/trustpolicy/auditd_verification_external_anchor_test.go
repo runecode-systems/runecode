@@ -39,6 +39,9 @@ func TestVerifyAuditEvidenceExternalAnchorCompletedAddsValidFinding(t *testing.T
 	if !hasFindingWithCode(report.Findings, AuditVerificationReasonExternalAnchorValid) {
 		t.Fatalf("findings missing %q: %+v", AuditVerificationReasonExternalAnchorValid, report.Findings)
 	}
+	if report.AnchoringPosture != AuditVerificationAnchoringPostureExternalAnchorValidated {
+		t.Fatalf("anchoring_posture=%q, want %q", report.AnchoringPosture, AuditVerificationAnchoringPostureExternalAnchorValidated)
+	}
 }
 
 func TestVerifyAuditEvidenceExternalAnchorDeferredDegrades(t *testing.T) {
@@ -68,6 +71,9 @@ func TestVerifyAuditEvidenceExternalAnchorDeferredDegrades(t *testing.T) {
 	if !containsReasonCode(report.DegradedReasons, AuditVerificationReasonExternalAnchorDeferredOrUnavailable) {
 		t.Fatalf("degraded_reasons=%v, want %q", report.DegradedReasons, AuditVerificationReasonExternalAnchorDeferredOrUnavailable)
 	}
+	if report.AnchoringPosture != AuditVerificationAnchoringPostureExternalAnchorDeferredOrUnknown {
+		t.Fatalf("anchoring_posture=%q, want %q", report.AnchoringPosture, AuditVerificationAnchoringPostureExternalAnchorDeferredOrUnknown)
+	}
 }
 
 func TestVerifyAuditEvidenceExternalAnchorInvalidFailsClosed(t *testing.T) {
@@ -96,6 +102,9 @@ func TestVerifyAuditEvidenceExternalAnchorInvalidFailsClosed(t *testing.T) {
 	}
 	if !containsReasonCode(report.HardFailures, AuditVerificationReasonExternalAnchorInvalid) {
 		t.Fatalf("hard_failures=%v, want %q", report.HardFailures, AuditVerificationReasonExternalAnchorInvalid)
+	}
+	if report.AnchoringPosture != AuditVerificationAnchoringPostureExternalAnchorInvalid {
+		t.Fatalf("anchoring_posture=%q, want %q", report.AnchoringPosture, AuditVerificationAnchoringPostureExternalAnchorInvalid)
 	}
 }
 
@@ -223,6 +232,60 @@ func TestVerifyAuditEvidenceRequiredTargetInvalidFails(t *testing.T) {
 	}
 	if !containsReasonCode(report.HardFailures, AuditVerificationReasonExternalAnchorInvalid) {
 		t.Fatalf("hard_failures=%v, want %q", report.HardFailures, AuditVerificationReasonExternalAnchorInvalid)
+	}
+}
+
+func TestEvaluateExternalAnchorEvidencePreservesMoreSevereExistingPosture(t *testing.T) {
+	fixture := newAuditVerificationFixture(t, verifierStatusFixture{})
+	proof := Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)}
+	evidence := externalAnchorEvidenceFixture(fixture.sealEnvelopeDigest, Digest{HashAlg: "sha256", Hash: strings.Repeat("6", 64)}, ExternalAnchorOutcomeCompleted, "", []ExternalAnchorEvidenceSidecarRef{{EvidenceKind: ExternalAnchorSidecarKindProofBytes, Digest: proof}})
+	report := &AuditVerificationReportPayload{
+		AnchoringStatus:  AuditVerificationStatusDegraded,
+		AnchoringPosture: AuditVerificationAnchoringPostureAnchorReceiptMissingOrUnbound,
+	}
+
+	evaluateExternalAnchorEvidence(AuditVerificationInput{
+		Segment:                fixture.segment,
+		ExternalAnchorEvidence: []ExternalAnchorEvidencePayload{evidence},
+		ExternalAnchorSidecars: []Digest{proof},
+	}, report, &fixture.sealEnvelopeDigest)
+
+	if report.AnchoringPosture != AuditVerificationAnchoringPostureAnchorReceiptMissingOrUnbound {
+		t.Fatalf("anchoring_posture=%q, want %q", report.AnchoringPosture, AuditVerificationAnchoringPostureAnchorReceiptMissingOrUnbound)
+	}
+	if !hasFindingWithCode(report.Findings, AuditVerificationReasonExternalAnchorValid) {
+		t.Fatalf("findings missing %q: %+v", AuditVerificationReasonExternalAnchorValid, report.Findings)
+	}
+}
+
+func TestEvaluateExternalAnchorEvidenceDefaultsLocalOnlyWhenUnsetAndNoEvidence(t *testing.T) {
+	report := &AuditVerificationReportPayload{}
+	evaluateExternalAnchorEvidence(AuditVerificationInput{}, report, nil)
+	if report.AnchoringPosture != AuditVerificationAnchoringPostureLocalAnchorReceiptOnly {
+		t.Fatalf("anchoring_posture=%q, want %q", report.AnchoringPosture, AuditVerificationAnchoringPostureLocalAnchorReceiptOnly)
+	}
+}
+
+func TestEvaluateExternalAnchorEvidenceDeferredPreservesMoreSevereExistingPosture(t *testing.T) {
+	fixture := newAuditVerificationFixture(t, verifierStatusFixture{})
+	proof := Digest{HashAlg: "sha256", Hash: strings.Repeat("1", 64)}
+	evidence := externalAnchorEvidenceFixture(fixture.sealEnvelopeDigest, Digest{HashAlg: "sha256", Hash: strings.Repeat("6", 64)}, ExternalAnchorOutcomeDeferred, ExternalAnchorTargetRequirementRequired, []ExternalAnchorEvidenceSidecarRef{{EvidenceKind: ExternalAnchorSidecarKindProofBytes, Digest: proof}})
+	report := &AuditVerificationReportPayload{
+		AnchoringStatus:  AuditVerificationStatusDegraded,
+		AnchoringPosture: AuditVerificationAnchoringPostureAnchorReceiptMissingOrUnbound,
+	}
+
+	evaluateExternalAnchorEvidence(AuditVerificationInput{
+		Segment:                fixture.segment,
+		ExternalAnchorEvidence: []ExternalAnchorEvidencePayload{evidence},
+		ExternalAnchorSidecars: []Digest{proof},
+	}, report, &fixture.sealEnvelopeDigest)
+
+	if report.AnchoringPosture != AuditVerificationAnchoringPostureAnchorReceiptMissingOrUnbound {
+		t.Fatalf("anchoring_posture=%q, want %q", report.AnchoringPosture, AuditVerificationAnchoringPostureAnchorReceiptMissingOrUnbound)
+	}
+	if !containsReasonCode(report.DegradedReasons, AuditVerificationReasonExternalAnchorDeferredOrUnavailable) {
+		t.Fatalf("degraded_reasons=%v, want %q", report.DegradedReasons, AuditVerificationReasonExternalAnchorDeferredOrUnavailable)
 	}
 }
 

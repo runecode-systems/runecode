@@ -48,23 +48,36 @@ func (s *Service) handleAuditFinalizeVerifyValidated(requestCtx context.Context,
 	}
 	result, err := s.auditLedger.VerifyCurrentSegmentAndPersist()
 	if err == nil {
-		resp := AuditFinalizeVerifyResponse{
-			SchemaID:      "runecode.protocol.v0.AuditFinalizeVerifyResponse",
-			SchemaVersion: "0.1.0",
-			RequestID:     requestID,
-			ActionStatus:  "ok",
-			SegmentID:     result.SegmentID,
-			ReportDigest:  cloneDigestPointer(result.ReportDigest),
+		if summaryErr := s.maybePersistRuntimeSummaryReceipt(); summaryErr != nil {
+			return s.auditFinalizeVerifySuccessWithWarning(requestID, result, summaryErr)
 		}
+		resp := auditFinalizeVerifySuccessResponse(requestID, result)
 		return s.validatedAuditFinalizeVerifyResponse(resp)
 	}
 	if errors.Is(err, auditd.ErrAnchorReceiptInvalid) {
 		resp := auditFinalizeVerifyFailedResponse(requestID, auditFinalizeVerifyFailureCodeInvalid, "audit anchor receipt invalid")
 		return s.validatedAuditFinalizeVerifyResponse(resp)
 	}
-	log.Printf("brokerapi: audit finalize verification failed request_id=%q category=internal", requestID)
+	log.Printf("brokerapi: audit finalize verification failed request_id=%q category=internal err=%v", requestID, err)
 	resp := auditFinalizeVerifyFailedResponse(requestID, auditFinalizeVerifyFailureCodeUnavailable, auditFinalizeVerifyFailureMessageInternal)
 	return s.validatedAuditFinalizeVerifyResponse(resp)
+}
+
+func (s *Service) auditFinalizeVerifySuccessWithWarning(requestID string, result auditd.VerificationResult, summaryErr error) (AuditFinalizeVerifyResponse, *ErrorResponse) {
+	log.Printf("brokerapi: audit finalize runtime summary persistence failed request_id=%q err=%v", requestID, summaryErr)
+	resp := auditFinalizeVerifySuccessResponse(requestID, result)
+	return s.validatedAuditFinalizeVerifyResponse(resp)
+}
+
+func auditFinalizeVerifySuccessResponse(requestID string, result auditd.VerificationResult) AuditFinalizeVerifyResponse {
+	return AuditFinalizeVerifyResponse{
+		SchemaID:      "runecode.protocol.v0.AuditFinalizeVerifyResponse",
+		SchemaVersion: "0.1.0",
+		RequestID:     requestID,
+		ActionStatus:  "ok",
+		SegmentID:     result.SegmentID,
+		ReportDigest:  cloneDigestPointer(result.ReportDigest),
+	}
 }
 
 func auditFinalizeVerifyFailedResponse(requestID, failureCode, failureMessage string) AuditFinalizeVerifyResponse {

@@ -26,6 +26,8 @@
 - [ ] Keep gate overrides explicit approvals across all profiles and do not batch them into ambient milestone sign-off.
 - [ ] Keep `git_remote_ops` explicit exact-action approvals across all profiles and do not batch them into stage sign-off, milestone approval, or ambient acknowledgment.
 - [ ] Keep `git_remote_ops` approval payload binding aligned with canonical repository identity, target refs, referenced patch artifact digests, expected result tree hash, and canonical action request hash.
+- [ ] When `CHG-2026-059-7b31-cross-machine-evidence-replication-restore-v0` is active, keep profile behavior aligned with the shared publication durability barrier so no profile can authorize `git_remote_ops` while healthy evidence durability preconditions remain unsatisfied.
+- [ ] When the replication and restore lane is active, keep publication-sensitive approval payload binding aligned with the required evidence checkpoint digest or equivalent pre-publication durability boundary in addition to the existing git request bindings.
 - [ ] Keep the minimum assurance floor for `git_remote_ops` at least `reauthenticated` across all profiles.
 - [ ] Keep external audit anchor submission explicit exact-action approvals across all profiles once that hard-floor class is active; do not batch them into stage sign-off, milestone approval, deferred ambient approval, or durable pre-approval semantics.
 - [ ] Keep external audit anchor approval payload binding aligned with canonical target descriptor identity, typed external anchor request hash, targeted `AuditSegmentSeal` digest, and required immutable request fields.
@@ -94,6 +96,7 @@ Parallelization: can be implemented in parallel across policy/runner/TUI as long
 - [ ] Attempting to use an unknown profile value fails closed.
 - [ ] Profiles do not weaken the fixed minimum assurance floor for hard-floor operations.
 - [ ] Profiles do not weaken exact-action binding or assurance for `git_remote_ops`, including canonical repo identity, target refs, patch artifact digests, and expected result tree hash.
+- [ ] Profiles do not weaken the publication durability barrier or required evidence-checkpoint binding for publication-sensitive remote mutation once the replication and restore lane is active.
 - [ ] Profiles do not weaken exact-action binding or assurance for external audit anchor submission, including canonical target descriptor identity, typed request hash, targeted seal digest, and required immutable request fields.
 - [ ] Profiles preserve the shared dependency-fetch checkpoint model and do not invent per-cache-miss approval semantics for ordinary in-scope `fetch_dependency` work.
 - [ ] Profiles do not weaken blocked project-substrate posture or convert diagnostics/remediation-only repository substrate states into ordinary execution.

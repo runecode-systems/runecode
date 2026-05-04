@@ -38,6 +38,33 @@ func handleAuditRecordGet(args []string, service *brokerapi.Service, stdout io.W
 	return writeJSON(stdout, resp.Record)
 }
 
+func handleAuditRecordInclusionGet(args []string, service *brokerapi.Service, stdout io.Writer) error {
+	fs := flag.NewFlagSet("audit-record-inclusion-get", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	recordDigest := fs.String("record-digest", "", "audit record digest")
+	if err := fs.Parse(args); err != nil {
+		return &usageError{message: "audit-record-inclusion-get usage: runecode-broker audit-record-inclusion-get --record-digest sha256:..."}
+	}
+	digest, err := parseDigestFlag(*recordDigest, "--record-digest")
+	if err != nil {
+		return &usageError{message: "audit-record-inclusion-get " + err.Error()}
+	}
+
+	api := localAPIForService(service)
+	ctx, cancel := commandRequestContext(context.Background())
+	defer cancel()
+	resp, errResp := api.AuditRecordInclusionGet(ctx, brokerapi.AuditRecordInclusionGetRequest{
+		SchemaID:      "runecode.protocol.v0.AuditRecordInclusionGetRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     defaultRequestID(),
+		RecordDigest:  digest,
+	})
+	if errResp != nil {
+		return localAPIError(errResp)
+	}
+	return writeJSON(stdout, resp.Inclusion)
+}
+
 func handleAuditAnchorSegment(args []string, service *brokerapi.Service, stdout io.Writer) error {
 	input, err := parseAuditAnchorSegmentCLIInput(args)
 	if err != nil {

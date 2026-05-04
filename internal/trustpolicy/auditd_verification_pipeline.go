@@ -2,6 +2,8 @@ package trustpolicy
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -20,28 +22,50 @@ func VerifyAuditEvidence(input AuditVerificationInput) (AuditVerificationReportP
 		addHardFailure(&report, AuditVerificationReasonSegmentFileHashMismatch, AuditVerificationDimensionIntegrity, "raw framed segment bytes are required", input.Segment.Header.SegmentID, nil)
 	}
 
-	frameDigests, frameEnvelopes, eventTimes := []Digest{}, []SignedObjectEnvelope{}, []time.Time{}
-	sealDigest, sealPayload, sealErr := input.PreverifiedSealDigest, AuditSegmentSealPayload{}, error(nil)
-	if input.SkipFrameAndSealReplay && input.PreverifiedSealDigest != nil {
-		if _, err := input.PreverifiedSealDigest.Identity(); err != nil {
-			addHardFailure(&report, AuditVerificationReasonSegmentSealInvalid, AuditVerificationDimensionIntegrity, fmt.Sprintf("preverified seal digest invalid: %v", err), input.Segment.Header.SegmentID, nil)
-			sealDigest = nil
-		}
-	} else {
-		frameDigests, frameEnvelopes, eventTimes = verifySegmentFramesAndEvents(input, registry, &report)
-
-		sealDigest, sealPayload, sealErr = verifySegmentSeal(input, registry, frameDigests, &report)
-		if sealErr != nil {
-			_ = sealDigest
-		}
-	}
+	_, frameEnvelopes, eventTimes, verifiedEvents, sealDigest, sealPayload, _ := verificationFrameAndSealState(input, registry, &report)
 
 	verifyReceipts(input, registry, sealDigest, sealPayload, &report)
 
 	evaluateStoragePostureEvidence(input, &report)
+	evaluateRequiredEvidenceInvariants(input, &report, verifiedEvents)
 	setDerivedVerificationPosture(&report, frameEnvelopes, eventTimes)
 
 	return finalizeAuditVerificationReport(report), nil
+}
+
+func verificationFrameAndSealState(input AuditVerificationInput, registry *VerifierRegistry, report *AuditVerificationReportPayload) ([]Digest, []SignedObjectEnvelope, []time.Time, []AuditEventPayload, *Digest, AuditSegmentSealPayload, error) {
+	frameDigests, frameEnvelopes, eventTimes, verifiedEvents := []Digest{}, []SignedObjectEnvelope{}, []time.Time{}, []AuditEventPayload{}
+	sealDigest, sealPayload, sealErr := input.PreverifiedSealDigest, AuditSegmentSealPayload{}, error(nil)
+	if input.SkipFrameAndSealReplay && input.PreverifiedSealDigest != nil {
+		sealPayload = preverifiedSealPayloadOrZero(input)
+		verifiedEvents = append([]AuditEventPayload{}, input.PreverifiedEvents...)
+		return frameDigests, frameEnvelopes, eventTimes, verifiedEvents, validateTrustedPreverifiedSeal(input, report), sealPayload, sealErr
+	}
+	frameDigests, frameEnvelopes, eventTimes, verifiedEvents = verifySegmentFramesAndEvents(input, registry, report)
+	sealDigest, sealPayload, sealErr = verifySegmentSeal(input, registry, frameDigests, report)
+	if sealErr != nil {
+		_ = sealDigest
+	}
+	return frameDigests, frameEnvelopes, eventTimes, verifiedEvents, sealDigest, sealPayload, sealErr
+}
+
+func preverifiedSealPayloadOrZero(input AuditVerificationInput) AuditSegmentSealPayload {
+	if input.PreverifiedSealPayload == nil {
+		return AuditSegmentSealPayload{}
+	}
+	return *input.PreverifiedSealPayload
+}
+
+func validateTrustedPreverifiedSeal(input AuditVerificationInput, report *AuditVerificationReportPayload) *Digest {
+	if !input.TrustedPreverifiedSeal {
+		addHardFailure(report, AuditVerificationReasonSegmentSealInvalid, AuditVerificationDimensionIntegrity, "preverified seal replay bypass requires trusted input", input.Segment.Header.SegmentID, nil)
+		return nil
+	}
+	if _, err := input.PreverifiedSealDigest.Identity(); err != nil {
+		addHardFailure(report, AuditVerificationReasonSegmentSealInvalid, AuditVerificationDimensionIntegrity, fmt.Sprintf("preverified seal digest invalid: %v", err), input.Segment.Header.SegmentID, nil)
+		return nil
+	}
+	return input.PreverifiedSealDigest
 }
 
 func initializeAuditVerificationRegistry(input AuditVerificationInput, report *AuditVerificationReportPayload) (*VerifierRegistry, error) {
@@ -64,6 +88,7 @@ func initializeAuditVerificationReport(input AuditVerificationInput) AuditVerifi
 		VerificationScope:      input.Scope,
 		IntegrityStatus:        AuditVerificationStatusOK,
 		AnchoringStatus:        AuditVerificationStatusOK,
+		AnchoringPosture:       AuditVerificationAnchoringPostureLocalAnchorReceiptOnly,
 		StoragePostureStatus:   AuditVerificationStatusOK,
 		SegmentLifecycleStatus: AuditVerificationStatusOK,
 	}
@@ -75,7 +100,58 @@ func initializeAuditVerificationReport(input AuditVerificationInput) AuditVerifi
 	if report.VerificationScope.ScopeKind == "" {
 		report.VerificationScope = AuditVerificationScope{ScopeKind: AuditVerificationScopeSegment, LastSegmentID: input.Segment.Header.SegmentID}
 	}
+	report.VerifierIdentity, report.TrustRootIdentities = verificationIdentityFootprint(input.VerifierRecords)
 	return report
+}
+
+func verificationIdentityFootprint(records []VerifierRecord) (string, []string) {
+	if len(records) == 0 {
+		return "unknown", []string{"unknown"}
+	}
+	selected := canonicalVerificationIdentityRecord(records)
+	verifierID, err := canonicalVerifierIdentityFromRecord(selected)
+	if err != nil {
+		verifierID = "unknown"
+	}
+	roots := map[string]struct{}{}
+	for i := range records {
+		identity, identityErr := trustRootDigestIdentityFromRecord(records[i])
+		if identityErr == nil && identity != "" {
+			roots[identity] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(roots))
+	for identity := range roots {
+		out = append(out, identity)
+	}
+	sort.Strings(out)
+	if len(out) == 0 {
+		out = []string{"unknown"}
+	}
+	return verifierID, out
+}
+
+func canonicalVerificationIdentityRecord(records []VerifierRecord) VerifierRecord {
+	selected := records[0]
+	for i := 1; i < len(records); i++ {
+		if strings.TrimSpace(records[i].KeyIDValue) < strings.TrimSpace(selected.KeyIDValue) {
+			selected = records[i]
+		}
+	}
+	return selected
+}
+
+func canonicalVerifierIdentityFromRecord(record VerifierRecord) (string, error) {
+	decodedPublicKey, err := record.PublicKey.DecodedBytes()
+	if err != nil {
+		return "", err
+	}
+	return canonicalVerifierIdentity(record.KeyIDValue, decodedPublicKey)
+}
+
+func trustRootDigestIdentityFromRecord(record VerifierRecord) (string, error) {
+	digest := Digest{HashAlg: "sha256", Hash: record.KeyIDValue}
+	return digest.Identity()
 }
 
 func evaluateStoragePostureEvidence(input AuditVerificationInput, report *AuditVerificationReportPayload) {

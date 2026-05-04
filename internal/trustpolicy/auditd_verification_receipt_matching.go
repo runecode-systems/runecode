@@ -64,7 +64,25 @@ func processReceiptTarget(index int, input AuditVerificationInput, report *Audit
 }
 
 func receiptRequiresCurrentSealMatch(receipt auditReceiptPayloadStrict) bool {
-	return receipt.AuditReceiptKind == "anchor" || receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore" || receipt.AuditReceiptKind == "reconciliation"
+	return receipt.AuditReceiptKind == "anchor" ||
+		receipt.AuditReceiptKind == "import" ||
+		receipt.AuditReceiptKind == "restore" ||
+		receipt.AuditReceiptKind == "reconciliation" ||
+		receipt.AuditReceiptKind == auditReceiptKindProviderInvocationAuthorized ||
+		receipt.AuditReceiptKind == auditReceiptKindProviderInvocationDenied ||
+		receipt.AuditReceiptKind == auditReceiptKindSecretLeaseIssued ||
+		receipt.AuditReceiptKind == auditReceiptKindSecretLeaseRevoked ||
+		receipt.AuditReceiptKind == auditReceiptKindRuntimeSummary ||
+		receipt.AuditReceiptKind == auditReceiptKindDegradedPostureSummary ||
+		receipt.AuditReceiptKind == auditReceiptKindNegativeCapabilitySummary ||
+		receipt.AuditReceiptKind == auditReceiptKindEvidenceBundleExport ||
+		receipt.AuditReceiptKind == auditReceiptKindEvidenceImport ||
+		receipt.AuditReceiptKind == auditReceiptKindEvidenceRestore ||
+		receipt.AuditReceiptKind == auditReceiptKindRetentionPolicyChanged ||
+		receipt.AuditReceiptKind == auditReceiptKindArchivalOperation ||
+		receipt.AuditReceiptKind == auditReceiptKindVerifierConfigurationChanged ||
+		receipt.AuditReceiptKind == auditReceiptKindTrustRootUpdated ||
+		receipt.AuditReceiptKind == auditReceiptKindSensitiveEvidenceView
 }
 
 func receiptTargetsKnownHistoricalSeal(receipt auditReceiptPayloadStrict, currentSealDigest Digest, knownSealDigests []Digest) bool {
@@ -90,6 +108,24 @@ func addMismatchedReceiptFailure(index int, input AuditVerificationInput, report
 	}
 	if receipt.AuditReceiptKind == "import" || receipt.AuditReceiptKind == "restore" || receipt.AuditReceiptKind == "reconciliation" {
 		addHardFailure(report, AuditVerificationReasonImportRestoreProvenanceInconsistent, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] subject_digest does not match segment seal digest", index), input.Segment.Header.SegmentID, nil)
+		return
+	}
+	if receipt.AuditReceiptKind == auditReceiptKindProviderInvocationAuthorized ||
+		receipt.AuditReceiptKind == auditReceiptKindProviderInvocationDenied ||
+		receipt.AuditReceiptKind == auditReceiptKindSecretLeaseIssued ||
+		receipt.AuditReceiptKind == auditReceiptKindSecretLeaseRevoked ||
+		receipt.AuditReceiptKind == auditReceiptKindRuntimeSummary ||
+		receipt.AuditReceiptKind == auditReceiptKindDegradedPostureSummary ||
+		receipt.AuditReceiptKind == auditReceiptKindNegativeCapabilitySummary ||
+		receipt.AuditReceiptKind == auditReceiptKindEvidenceBundleExport ||
+		receipt.AuditReceiptKind == auditReceiptKindEvidenceImport ||
+		receipt.AuditReceiptKind == auditReceiptKindEvidenceRestore ||
+		receipt.AuditReceiptKind == auditReceiptKindRetentionPolicyChanged ||
+		receipt.AuditReceiptKind == auditReceiptKindArchivalOperation ||
+		receipt.AuditReceiptKind == auditReceiptKindVerifierConfigurationChanged ||
+		receipt.AuditReceiptKind == auditReceiptKindTrustRootUpdated ||
+		receipt.AuditReceiptKind == auditReceiptKindSensitiveEvidenceView {
+		addHardFailure(report, AuditVerificationReasonReceiptInvalid, AuditVerificationDimensionIntegrity, fmt.Sprintf("receipt[%d] subject_digest does not match segment seal digest", index), input.Segment.Header.SegmentID, nil)
 		return
 	}
 }

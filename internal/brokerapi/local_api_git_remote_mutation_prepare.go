@@ -38,10 +38,14 @@ func (s *Service) pendingApprovalBindingForDecision(runID, actionRequestHash, po
 		if !isSHA256Digest(strings.TrimSpace(rec.RequestDigest)) {
 			continue
 		}
+		decisionDigest := strings.TrimSpace(rec.DecisionDigest)
+		if decisionDigest != "" && !isSHA256Digest(decisionDigest) {
+			continue
+		}
 		return gitPreparedApprovalBinding{
 			ApprovalID:     strings.TrimSpace(rec.ApprovalID),
 			RequestDigest:  strings.TrimSpace(rec.RequestDigest),
-			DecisionDigest: strings.TrimSpace(rec.DecisionDigest),
+			DecisionDigest: decisionDigest,
 		}, true
 	}
 	return gitPreparedApprovalBinding{}, false
@@ -115,7 +119,29 @@ func (s *Service) evaluatePreparedGitRemoteMutation(_ context.Context, requestID
 		errOut := s.makeError(requestID, "broker_approval_state_invalid", "auth", false, "policy required approval but no pending approval binding was recorded")
 		return policyengine.PolicyDecision{}, gitPreparedApprovalBinding{}, "", &errOut
 	}
+	approvalBinding = s.backfillPreparedApprovalDecisionDigest(approvalBinding)
 	return decision, approvalBinding, policyDecisionHash, nil
+}
+
+func (s *Service) backfillPreparedApprovalDecisionDigest(binding gitPreparedApprovalBinding) gitPreparedApprovalBinding {
+	if strings.TrimSpace(binding.DecisionDigest) != "" {
+		return binding
+	}
+	for _, rec := range s.ApprovalList() {
+		if strings.TrimSpace(rec.ApprovalID) != strings.TrimSpace(binding.ApprovalID) {
+			continue
+		}
+		status := strings.TrimSpace(rec.Status)
+		if status != "approved" && status != "consumed" {
+			continue
+		}
+		decisionDigest := strings.TrimSpace(rec.DecisionDigest)
+		if isSHA256Digest(decisionDigest) {
+			binding.DecisionDigest = decisionDigest
+		}
+		break
+	}
+	return binding
 }
 
 func (s *Service) buildPreparedGitRemoteMutationRecord(req GitRemoteMutationPrepareRequest, requestID string, resolved gitRemotePrepareResolvedInput, decision policyengine.PolicyDecision, approvalBinding gitPreparedApprovalBinding, policyDecisionHash string) (artifacts.GitRemotePreparedMutationRecord, *ErrorResponse) {
@@ -148,6 +174,7 @@ func (s *Service) buildPreparedGitRemoteMutationRecord(req GitRemoteMutationPrep
 		PolicyDecisionHash:      policyDecisionHash,
 		RequiredApprovalID:      approvalBinding.ApprovalID,
 		RequiredApprovalReqHash: approvalBinding.RequestDigest,
+		RequiredApprovalDecHash: approvalBinding.DecisionDigest,
 		LifecycleState:          gitRemoteMutationLifecyclePrepared,
 		ExecutionState:          gitRemoteMutationExecutionNotStarted,
 		DerivedSummary:          summaryMap,

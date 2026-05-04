@@ -109,6 +109,10 @@ type ApprovalDecision struct {
 	KeyProtectionPosture   string            `json:"key_protection_posture"`
 	IdentityBindingPosture string            `json:"identity_binding_posture"`
 	ApprovalAssertionHash  *Digest           `json:"approval_assertion_hash,omitempty"`
+	ScopeDigest            *Digest           `json:"scope_digest,omitempty"`
+	ArtifactSetDigest      *Digest           `json:"artifact_set_digest,omitempty"`
+	DiffDigest             *Digest           `json:"diff_digest,omitempty"`
+	SummaryPreviewDigest   *Digest           `json:"summary_preview_digest,omitempty"`
 	DecidedAt              string            `json:"decided_at"`
 	ConsumptionPosture     string            `json:"consumption_posture"`
 }

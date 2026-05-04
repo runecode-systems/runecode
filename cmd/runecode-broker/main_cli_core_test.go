@@ -32,6 +32,12 @@ func TestHelpAndUnknownCommand(t *testing.T) {
 		"--runtime-dir dir",
 		"--socket-name name",
 		"audit-anchor-segment",
+		"audit-record-inclusion-get",
+		"audit-evidence-snapshot-get",
+		"audit-evidence-retention-review",
+		"audit-evidence-bundle-manifest-get",
+		"audit-evidence-bundle-export",
+		"audit-evidence-bundle-offline-verify",
 		"audit-finalize-verify",
 		"backend-posture-get",
 		"git-setup-get",
@@ -41,6 +47,7 @@ func TestHelpAndUnknownCommand(t *testing.T) {
 		"dependency-fetch-registry",
 		"dependency-cache-handoff",
 		"approval-resolve",
+		"requires build tag runecode_devseed",
 	})
 	err := run([]string{"not-a-command"}, stdout, stderr)
 	if err == nil {
