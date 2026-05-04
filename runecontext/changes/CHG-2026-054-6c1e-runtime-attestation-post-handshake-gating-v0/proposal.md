@@ -28,7 +28,7 @@ This should land as a beta hardening follow-up rather than being folded into the
 
 The current lane fixed portability and strengthened shared session-binding inputs, but wiring real runtime-side boot/bind proof into launch gating would widen across launcher lifecycle, handshake sequencing, evidence persistence, audit timing, and broker projection. That is a separate product change, not a small patch.
 
-Scheduling it for `v0.1.0-beta.1` keeps the work visible and reviewed before the first beta assurance story is treated as settled.
+Scheduling it for `v0.1.0-alpha.11` keeps the work visible and reviewed in the explicit pre-beta hardening lane before the first beta assurance story is treated as settled.
 
 ## Assumptions
 - The reviewed secure-session contract in trusted Go remains the authoritative validation boundary for runtime-side session proof.

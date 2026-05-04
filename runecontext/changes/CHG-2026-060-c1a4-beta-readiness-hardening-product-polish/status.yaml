@@ -1,0 +1,40 @@
+schema_version: 1
+id: CHG-2026-060-c1a4-beta-readiness-hardening-product-polish
+title: Beta Readiness Hardening + Product Polish
+status: proposed
+type: project
+size: large
+verification_status: pending
+context_bundles:
+  - product-planning
+  - go-control-plane
+related_specs: []
+related_decisions: []
+related_changes:
+  - CHG-2026-045-7f4c-direct-credential-model-providers-v0
+  - CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0
+  - CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0
+  - CHG-2026-048-6b7a-session-execution-orchestration-v0
+  - CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0
+  - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
+  - CHG-2026-052-a7f1-tui-leader-sequences-command-mode-v0
+  - CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0
+depends_on:
+  - CHG-2026-045-7f4c-direct-credential-model-providers-v0
+  - CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0
+  - CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0
+  - CHG-2026-048-6b7a-session-execution-orchestration-v0
+  - CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0
+  - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
+informed_by:
+  - CHG-2026-025-5679-external-audit-anchoring-v0
+  - CHG-2026-026-98be-image-toolchain-signing-pipeline
+  - CHG-2026-030-98b8-isolate-attestation-v0
+  - CHG-2026-057-d5c1-verification-plane-foundation-v0
+supersedes: []
+superseded_by: []
+created_at: "2026-05-04"
+closed_at: null
+promotion_assessment:
+  status: pending
+  suggested_targets: []
