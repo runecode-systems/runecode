@@ -89,6 +89,9 @@ func (l *Ledger) discoverSealEntry(name string) (discoveredSeal, bool, error) {
 		return discoveredSeal{}, false, fmt.Errorf("decode seal payload %q: %w", name, err)
 	}
 	digest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.TrimSuffix(name, ".json")}
+	if err := validateSealFilenameDigest(envelope, digest); err != nil {
+		return discoveredSeal{}, false, err
+	}
 	identity, _ := digest.Identity()
 	return discoveredSeal{digestIdentity: identity, segmentID: seal.SegmentID, index: seal.SealChainIndex}, true, nil
 }

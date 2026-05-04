@@ -22,7 +22,10 @@ func (l *Ledger) ConfigureVerificationInputs(config VerificationConfiguration) e
 	if err := ensureDir(contractsDir); err != nil {
 		return err
 	}
-	return writeConfiguredInputs(contractsDir, config)
+	if err := writeConfiguredInputs(contractsDir, config); err != nil {
+		return err
+	}
+	return l.persistMetaAuditReceiptsForVerificationContractsLocked(config)
 }
 
 func writeConfiguredInputs(contractsDir string, config VerificationConfiguration) error {

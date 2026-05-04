@@ -2,6 +2,7 @@ package auditd
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -93,22 +94,47 @@ func (l *Ledger) noteAppendedFrameInDerivedIndexLocked(segmentID string, frameIn
 	if err != nil {
 		return err
 	}
+	lookup := RecordLookup{SegmentID: segmentID, FrameIndex: frameIndex}
+	exists, err := l.hasDerivedIndexRecordLookupLocked(recordDigest)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		index.TotalRecords++
+	}
+	if err := l.upsertDerivedIndexRecordLookupLocked(recordDigest, lookup); err != nil {
+		return err
+	}
 	if index.RecordDigestLookup == nil {
 		index.RecordDigestLookup = map[string]RecordLookup{}
 	}
-	// TotalRecords tracks the number of indexed frames persisted in segments.
-	// RecordDigestLookup stays a single-location lookup because duplicate
-	// record digests are rejected at append admission time.
-	index.TotalRecords++
-	index.RecordDigestLookup[recordDigest] = RecordLookup{SegmentID: segmentID, FrameIndex: frameIndex}
-	if pointer, ok, err := frameTimelinePointer(segmentID, frameIndex, frame); err != nil {
+	index.RecordDigestLookup[recordDigest] = lookup
+	if err := l.appendTimelinePointerIfPresentLocked(&index, segmentID, frameIndex, frame); err != nil {
 		return err
-	} else if ok {
-		index.RunTimeline = append(index.RunTimeline, pointer)
 	}
 	index.LastIndexedSegmentID = segmentID
 	index.BuiltAt = l.nowFn().UTC().Format(time.RFC3339)
-	return l.saveDerivedIndexLocked(index)
+	meta := derivedIndexMetaFromIndex(index)
+	return l.saveDerivedIndexMetaLocked(meta)
+}
+
+func (l *Ledger) appendTimelinePointerIfPresentLocked(index *derivedIndex, segmentID string, frameIndex int, frame trustpolicy.AuditSegmentRecordFrame) error {
+	pointer, ok, err := frameTimelinePointer(segmentID, frameIndex, frame)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+	nextCount, err := l.appendDerivedIndexRunTimelinePointerLocked(pointer)
+	if err != nil {
+		return err
+	}
+	if expected := len(index.RunTimeline) + 1; nextCount != expected {
+		return fmt.Errorf("audit evidence index run_timeline append mismatch: expected count %d got %d", expected, nextCount)
+	}
+	index.RunTimeline = append(index.RunTimeline, pointer)
+	return nil
 }
 
 func (l *Ledger) noteSealedSegmentInDerivedIndexLocked(sealEnvelopeDigest trustpolicy.Digest, seal trustpolicy.AuditSegmentSealPayload) error {
@@ -120,16 +146,24 @@ func (l *Ledger) noteSealedSegmentInDerivedIndexLocked(sealEnvelopeDigest trustp
 	if err != nil {
 		return err
 	}
+	segmentLookup := SegmentSealLookup{SealDigest: sealDigestIdentity, SealChainIndex: seal.SealChainIndex}
+	if err := l.upsertDerivedIndexSegmentSealLookupLocked(seal.SegmentID, segmentLookup); err != nil {
+		return err
+	}
+	if err := l.upsertDerivedIndexSealChainLookupLocked(seal.SealChainIndex, sealDigestIdentity); err != nil {
+		return err
+	}
 	if index.SegmentSealLookup == nil {
 		index.SegmentSealLookup = map[string]SegmentSealLookup{}
 	}
 	if index.SealChainIndexLookup == nil {
 		index.SealChainIndexLookup = map[string]string{}
 	}
-	index.SegmentSealLookup[seal.SegmentID] = SegmentSealLookup{SealDigest: sealDigestIdentity, SealChainIndex: seal.SealChainIndex}
+	index.SegmentSealLookup[seal.SegmentID] = segmentLookup
 	index.SealChainIndexLookup[strconv.FormatInt(seal.SealChainIndex, 10)] = sealDigestIdentity
 	index.BuiltAt = l.nowFn().UTC().Format(time.RFC3339)
-	return l.saveDerivedIndexLocked(index)
+	meta := derivedIndexMetaFromIndex(index)
+	return l.saveDerivedIndexMetaLocked(meta)
 }
 
 func (l *Ledger) notePersistedVerificationReportInDerivedIndexLocked(reportDigest trustpolicy.Digest) error {
@@ -143,5 +177,5 @@ func (l *Ledger) notePersistedVerificationReportInDerivedIndexLocked(reportDiges
 	}
 	index.LatestVerificationReportDigest = reportID
 	index.BuiltAt = l.nowFn().UTC().Format(time.RFC3339)
-	return l.saveDerivedIndexLocked(index)
+	return l.saveDerivedIndexMetaLocked(derivedIndexMetaFromIndex(index))
 }

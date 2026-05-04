@@ -2,7 +2,18 @@ package trustpolicy
 
 import "strings"
 
+func canPromoteAnchoringPostureToExternalValidated(current string) bool {
+	return current == "" || current == AuditVerificationAnchoringPostureLocalAnchorReceiptOnly
+}
+
+func canPromoteAnchoringPostureToExternalDeferred(current string) bool {
+	return current == "" || current == AuditVerificationAnchoringPostureLocalAnchorReceiptOnly || current == AuditVerificationAnchoringPostureExternalAnchorValidated
+}
+
 func evaluateExternalAnchorEvidence(input AuditVerificationInput, report *AuditVerificationReportPayload, sealDigest *Digest) {
+	if report.AnchoringPosture == "" {
+		report.AnchoringPosture = AuditVerificationAnchoringPostureLocalAnchorReceiptOnly
+	}
 	if len(input.ExternalAnchorEvidence) == 0 {
 		return
 	}
@@ -16,10 +27,18 @@ func evaluateExternalAnchorEvidence(input AuditVerificationInput, report *AuditV
 		evaluateSingleExternalAnchorEvidence(input, report, sealDigest, sidecars, requiredTargets, hasExplicitTargetSet, requiredState, input.ExternalAnchorEvidence[i])
 	}
 	if report.AnchoringStatus == AuditVerificationStatusFailed {
+		report.AnchoringPosture = AuditVerificationAnchoringPostureExternalAnchorInvalid
 		return
 	}
 	if externalAnchorRequiredTargetsPending(requiredState) {
 		addDegraded(report, AuditVerificationReasonExternalAnchorDeferredOrUnavailable, AuditVerificationDimensionAnchoring, "one or more required external anchor targets remain deferred, unavailable, or unsatisfied", input.Segment.Header.SegmentID, nil)
+		if canPromoteAnchoringPostureToExternalDeferred(report.AnchoringPosture) {
+			report.AnchoringPosture = AuditVerificationAnchoringPostureExternalAnchorDeferredOrUnknown
+		}
+		return
+	}
+	if hasFindingWithCode(report.Findings, AuditVerificationReasonExternalAnchorValid) && canPromoteAnchoringPostureToExternalValidated(report.AnchoringPosture) {
+		report.AnchoringPosture = AuditVerificationAnchoringPostureExternalAnchorValidated
 	}
 }
 

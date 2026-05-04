@@ -10,29 +10,72 @@ func ComputeOrderedAuditSegmentMerkleRoot(recordDigests []Digest) (Digest, error
 	if len(recordDigests) == 0 {
 		return Digest{}, fmt.Errorf("record digests are required for merkle construction")
 	}
-	level := make([][32]byte, 0, len(recordDigests))
-	for index := range recordDigests {
-		recordDigestBytes, err := digestHexBytes(recordDigests[index])
-		if err != nil {
-			return Digest{}, fmt.Errorf("record_digests[%d]: %w", index, err)
-		}
-		leafMaterial := append(append([]byte{}, []byte("runecode.audit.merkle.leaf.v1:")...), recordDigestBytes...)
-		level = append(level, sha256.Sum256(leafMaterial))
+	level, err := merkleLeafLevel(recordDigests)
+	if err != nil {
+		return Digest{}, err
 	}
 	for len(level) > 1 {
-		next := make([][32]byte, 0, (len(level)+1)/2)
-		for index := 0; index < len(level); index += 2 {
-			left := level[index]
-			right := left
-			if index+1 < len(level) {
-				right = level[index+1]
-			}
-			nodeMaterial := append(append(append([]byte{}, []byte("runecode.audit.merkle.node.v1:")...), left[:]...), right[:]...)
-			next = append(next, sha256.Sum256(nodeMaterial))
-		}
-		level = next
+		level = merkleNextLevel(level)
 	}
 	return Digest{HashAlg: "sha256", Hash: hex.EncodeToString(level[0][:])}, nil
+}
+
+func ComputeOrderedAuditSegmentMerkleCompactPath(recordDigests []Digest, leafIndex int) ([]Digest, error) {
+	if len(recordDigests) == 0 {
+		return nil, fmt.Errorf("record digests are required for merkle construction")
+	}
+	if leafIndex < 0 || leafIndex >= len(recordDigests) {
+		return nil, fmt.Errorf("leaf_index %d out of bounds", leafIndex)
+	}
+	level, err := merkleLeafLevel(recordDigests)
+	if err != nil {
+		return nil, err
+	}
+	path := make([]Digest, 0, 16)
+	current := leafIndex
+	for len(level) > 1 {
+		path = append(path, merkleLevelSiblingDigest(level, current))
+		level = merkleNextLevel(level)
+		current /= 2
+	}
+	if len(path) == 0 {
+		return nil, nil
+	}
+	return path, nil
+}
+
+func merkleLeafLevel(recordDigests []Digest) ([][32]byte, error) {
+	level := make([][32]byte, 0, len(recordDigests))
+	for index := range recordDigests {
+		leafHash, err := merkleLeafHashFromRecordDigest(recordDigests[index])
+		if err != nil {
+			return nil, fmt.Errorf("record_digests[%d]: %w", index, err)
+		}
+		level = append(level, leafHash)
+	}
+	return level, nil
+}
+
+func merkleNextLevel(level [][32]byte) [][32]byte {
+	next := make([][32]byte, 0, (len(level)+1)/2)
+	for index := 0; index < len(level); index += 2 {
+		left := level[index]
+		right := left
+		if index+1 < len(level) {
+			right = level[index+1]
+		}
+		next = append(next, merkleNodeHash(left, right))
+	}
+	return next
+}
+
+func merkleLevelSiblingDigest(level [][32]byte, current int) Digest {
+	siblingIndex := current ^ 1
+	sibling := level[current]
+	if siblingIndex < len(level) {
+		sibling = level[siblingIndex]
+	}
+	return Digest{HashAlg: "sha256", Hash: hex.EncodeToString(sibling[:])}
 }
 
 func VerifyOrderedAuditSegmentMerkleRoot(recordDigests []Digest, expected Digest) error {
@@ -49,6 +92,87 @@ func VerifyOrderedAuditSegmentMerkleRoot(recordDigests []Digest, expected Digest
 		return fmt.Errorf("merkle root mismatch: got %q want %q", computedIdentity, expectedIdentity)
 	}
 	return nil
+}
+
+func VerifyOrderedAuditSegmentMerkleCompactPath(leafDigest Digest, leafIndex int, leafCount int, compactPath []Digest, expected Digest) error {
+	if err := validateCompactMerklePathInputs(leafIndex, leafCount, compactPath); err != nil {
+		return err
+	}
+	node, err := merkleLeafHashFromRecordDigest(leafDigest)
+	if err != nil {
+		return fmt.Errorf("leaf_digest: %w", err)
+	}
+	position := leafIndex
+	for level := range compactPath {
+		sibling, err := compactMerkleSiblingHash(compactPath[level], level)
+		if err != nil {
+			return err
+		}
+		if position%2 == 0 {
+			node = merkleNodeHash(node, sibling)
+		} else {
+			node = merkleNodeHash(sibling, node)
+		}
+		position /= 2
+	}
+	return verifyComputedMerkleRoot(node, expected)
+}
+
+func validateCompactMerklePathInputs(leafIndex int, leafCount int, compactPath []Digest) error {
+	if leafCount <= 0 {
+		return fmt.Errorf("leaf_count must be positive")
+	}
+	if leafIndex < 0 || leafIndex >= leafCount {
+		return fmt.Errorf("leaf_index %d out of bounds", leafIndex)
+	}
+	expectedLevels := 0
+	for levelCount := leafCount; levelCount > 1; levelCount = (levelCount + 1) / 2 {
+		expectedLevels++
+	}
+	if len(compactPath) != expectedLevels {
+		return fmt.Errorf("compact path length %d does not match expected %d", len(compactPath), expectedLevels)
+	}
+	return nil
+}
+
+func compactMerkleSiblingHash(digest Digest, level int) ([32]byte, error) {
+	siblingBytes, err := digestHexBytes(digest)
+	if err != nil {
+		return [32]byte{}, fmt.Errorf("compact_path[%d]: %w", level, err)
+	}
+	if len(siblingBytes) != sha256.Size {
+		return [32]byte{}, fmt.Errorf("compact_path[%d]: digest must be 32 bytes", level)
+	}
+	sibling := [32]byte{}
+	copy(sibling[:], siblingBytes)
+	return sibling, nil
+}
+
+func verifyComputedMerkleRoot(node [32]byte, expected Digest) error {
+	computed := Digest{HashAlg: "sha256", Hash: hex.EncodeToString(node[:])}
+	computedIdentity, _ := computed.Identity()
+	expectedIdentity, err := expected.Identity()
+	if err != nil {
+		return fmt.Errorf("expected merkle root: %w", err)
+	}
+	if computedIdentity != expectedIdentity {
+		return fmt.Errorf("merkle root mismatch: got %q want %q", computedIdentity, expectedIdentity)
+	}
+	return nil
+}
+
+func merkleLeafHashFromRecordDigest(recordDigest Digest) ([32]byte, error) {
+	recordDigestBytes, err := digestHexBytes(recordDigest)
+	if err != nil {
+		return [32]byte{}, err
+	}
+	leafMaterial := append(append([]byte{}, []byte("runecode.audit.merkle.leaf.v1:")...), recordDigestBytes...)
+	return sha256.Sum256(leafMaterial), nil
+}
+
+func merkleNodeHash(left [32]byte, right [32]byte) [32]byte {
+	nodeMaterial := append(append(append([]byte{}, []byte("runecode.audit.merkle.node.v1:")...), left[:]...), right[:]...)
+	return sha256.Sum256(nodeMaterial)
 }
 
 func ComputeSegmentFileHash(rawFramedSegmentBytes []byte) (Digest, error) {
@@ -84,100 +208,4 @@ func digestHexBytes(digest Digest) ([]byte, error) {
 		return nil, err
 	}
 	return decoded, nil
-}
-
-type AuditSegmentRecoveryState struct {
-	SegmentID            string `json:"segment_id"`
-	HeaderState          string `json:"header_state"`
-	LifecycleMarkerState string `json:"lifecycle_marker_state"`
-	HasTornTrailingFrame bool   `json:"has_torn_trailing_frame"`
-	FrameIntegrityOK     bool   `json:"frame_integrity_ok"`
-	SealIntegrityOK      bool   `json:"seal_integrity_ok"`
-}
-
-type AuditSegmentRecoveryDecision struct {
-	Action                string `json:"action"`
-	TruncateTrailingFrame bool   `json:"truncate_trailing_frame"`
-	Quarantine            bool   `json:"quarantine"`
-	FailClosed            bool   `json:"fail_closed"`
-	Message               string `json:"message"`
-}
-
-func EvaluateAuditSegmentRecovery(state AuditSegmentRecoveryState) (AuditSegmentRecoveryDecision, error) {
-	if state.SegmentID == "" {
-		return AuditSegmentRecoveryDecision{}, fmt.Errorf("segment_id is required")
-	}
-	if decision, handled := evaluateQuarantinedOrInconsistentRecovery(state); handled {
-		return decision, nil
-	}
-	if decision, handled := evaluateImmutableRecovery(state); handled {
-		return decision, nil
-	}
-	return evaluateOpenSegmentRecovery(state)
-}
-
-func evaluateQuarantinedOrInconsistentRecovery(state AuditSegmentRecoveryState) (AuditSegmentRecoveryDecision, bool) {
-	if state.HeaderState == "quarantined" || state.LifecycleMarkerState == "quarantined" {
-		return AuditSegmentRecoveryDecision{
-			Action:     "quarantine_inconsistent_segment",
-			Quarantine: true,
-			FailClosed: true,
-			Message:    "segment is already quarantined and cannot be repaired silently",
-		}, true
-	}
-	if state.HeaderState != state.LifecycleMarkerState {
-		return AuditSegmentRecoveryDecision{
-			Action:     "quarantine_inconsistent_segment",
-			Quarantine: true,
-			FailClosed: true,
-			Message:    "header and lifecycle marker states disagree",
-		}, true
-	}
-	return AuditSegmentRecoveryDecision{}, false
-}
-
-func evaluateImmutableRecovery(state AuditSegmentRecoveryState) (AuditSegmentRecoveryDecision, bool) {
-	if state.HeaderState != "sealed" && state.HeaderState != "anchored" && state.HeaderState != "imported" {
-		return AuditSegmentRecoveryDecision{}, false
-	}
-	if !state.FrameIntegrityOK || !state.SealIntegrityOK || state.HasTornTrailingFrame {
-		return AuditSegmentRecoveryDecision{
-			Action:     "quarantine_inconsistent_sealed_segment",
-			Quarantine: true,
-			FailClosed: true,
-			Message:    "immutable segment mismatch requires quarantine; silent repair is forbidden",
-		}, true
-	}
-	return AuditSegmentRecoveryDecision{
-		Action:     "accept_immutable_segment",
-		FailClosed: false,
-		Message:    "segment verified and immutable",
-	}, true
-}
-
-func evaluateOpenSegmentRecovery(state AuditSegmentRecoveryState) (AuditSegmentRecoveryDecision, error) {
-	if state.HeaderState != "open" {
-		return AuditSegmentRecoveryDecision{}, fmt.Errorf("unsupported segment state %q", state.HeaderState)
-	}
-	if state.HasTornTrailingFrame {
-		return AuditSegmentRecoveryDecision{
-			Action:                "truncate_open_torn_trailing_frame",
-			TruncateTrailingFrame: true,
-			FailClosed:            false,
-			Message:               "open segment may truncate torn trailing frame before sealing",
-		}, nil
-	}
-	if !state.FrameIntegrityOK {
-		return AuditSegmentRecoveryDecision{
-			Action:     "quarantine_inconsistent_segment",
-			Quarantine: true,
-			FailClosed: true,
-			Message:    "open segment corruption is not a torn-trailing-frame case",
-		}, nil
-	}
-	return AuditSegmentRecoveryDecision{
-		Action:     "resume_open_append",
-		FailClosed: false,
-		Message:    "open segment integrity is stable for continued append",
-	}, nil
 }

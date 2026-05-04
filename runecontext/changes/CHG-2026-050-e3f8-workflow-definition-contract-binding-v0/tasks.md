@@ -48,6 +48,7 @@
 - [x] Encode dependency-aware continuation so shared execution can distinguish blocked scope and direct downstream work from unrelated eligible work.
 - [x] Keep encoded independence as a contract-level eligibility model, not as a promise of parallel execution in `v0`.
 - [x] Ensure workflow-composed git remote mutation still routes through shared typed git request families, signed patch artifacts, exact repository identity, and `git_remote_ops` exact-action approval.
+- [ ] When `CHG-2026-059-7b31-cross-machine-evidence-replication-restore-v0` is active, ensure workflow-composed publication-sensitive remote mutation also routes through the shared evidence-durability barrier, evidence-checkpoint binding, and durable prepare, execute, and reconcile semantics.
 - [x] Prefer reviewed git-operation intent and trusted compilation into shared git request families over embedding workflow-local raw git mutation payloads.
 - [x] Ensure workflow-composed dependency fetch routes through the shared typed dependency-fetch request/batch contracts, broker-owned cache authority, and shared gateway audit/approval semantics from `CHG-2026-024-acde-deps-fetch-offline-cache`.
 - [x] Prefer reference-oriented dependency requirement binding to shared typed dependency request identity over embedding raw lockfile bytes or bulky workflow-local resolver payloads.

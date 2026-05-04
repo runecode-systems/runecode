@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
@@ -110,9 +111,7 @@ func TestLookupSealDigestByChainIndexFailsClosedOnCanonicalConflict(t *testing.T
 	if err := writeCanonicalJSONFile(conflictPath, conflictEnvelope); err != nil {
 		t.Fatalf("writeCanonicalJSONFile returned error: %v", err)
 	}
-	if err := os.Remove(filepath.Join(root, indexDirName, auditEvidenceIndexFileName)); err != nil {
-		t.Fatalf("Remove(index) returned error: %v", err)
-	}
+	removeDerivedIndexArtifactsForTest(t, root)
 
 	if _, _, err := ledger.LookupSealDigestByChainIndex(0); err == nil || !strings.Contains(err.Error(), "multiple seals share chain index") {
 		t.Fatalf("LookupSealDigestByChainIndex error=%v, want canonical conflict", err)
@@ -232,6 +231,24 @@ func TestDerivedIndexRebuildMatchesIncrementalState(t *testing.T) {
 	}
 }
 
+func TestLookupRecordDigestFailsClosedWhenLegacyDerivedIndexOverwritesShardedIndex(t *testing.T) {
+	root, ledger, result := appendFixtureAndBuildIndex(t)
+	recordID, _ := result.RecordDigest.Identity()
+	stale := mustReadDerivedIndex(t, root)
+	stale.RecordDigestLookup = map[string]RecordLookup{recordID: {SegmentID: "segment-stale", FrameIndex: 99}}
+	if err := writeCanonicalJSONFile(filepath.Join(root, indexDirName, auditEvidenceIndexFileName), stale); err != nil {
+		t.Fatalf("writeCanonicalJSONFile(legacy index) returned error: %v", err)
+	}
+	legacyPath := filepath.Join(root, indexDirName, auditEvidenceIndexFileName)
+	future := time.Now().Add(2 * time.Second)
+	if err := os.Chtimes(legacyPath, future, future); err != nil {
+		t.Fatalf("Chtimes(legacy index) returned error: %v", err)
+	}
+	if _, _, err := ledger.LookupRecordDigest(recordID); err == nil || !strings.Contains(err.Error(), "legacy representation is newer") {
+		t.Fatalf("LookupRecordDigest error=%v, want fail-closed stale legacy representation", err)
+	}
+}
+
 func TestOpenUsesIndexBackedLatestSealDiscoveryWithoutRescanningMalformedOldSeals(t *testing.T) {
 	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
 	firstSealDigest := sealFirstSegmentForOpenRecovery(t, ledger, fixture)
@@ -290,18 +307,50 @@ func tamperDerivedIndexForTest(t *testing.T, root string, mutate func(*derivedIn
 	t.Helper()
 	index := mustReadDerivedIndex(t, root)
 	mutate(&index)
-	if err := writeCanonicalJSONFile(filepath.Join(root, indexDirName, auditEvidenceIndexFileName), index); err != nil {
-		t.Fatalf("writeCanonicalJSONFile(index) returned error: %v", err)
+	ledger, err := Open(root)
+	if err != nil {
+		t.Fatalf("Open(root) returned error: %v", err)
+	}
+	ledger.mu.Lock()
+	defer ledger.mu.Unlock()
+	if err := ledger.saveDerivedIndexLocked(index); err != nil {
+		t.Fatalf("saveDerivedIndexLocked returned error: %v", err)
 	}
 }
 
 func mustReadDerivedIndex(t *testing.T, root string) derivedIndex {
 	t.Helper()
-	index := derivedIndex{}
-	if err := readJSONFile(filepath.Join(root, indexDirName, auditEvidenceIndexFileName), &index); err != nil {
-		t.Fatalf("readJSONFile(index) returned error: %v", err)
+	ledger, err := Open(root)
+	if err != nil {
+		t.Fatalf("Open(root) returned error: %v", err)
+	}
+	ledger.mu.Lock()
+	defer ledger.mu.Unlock()
+	index, exists, err := ledger.loadDerivedIndexLocked()
+	if err != nil {
+		t.Fatalf("loadDerivedIndexLocked returned error: %v", err)
+	}
+	if !exists {
+		t.Fatal("loadDerivedIndexLocked found=false, want true")
 	}
 	return index
+}
+
+func removeDerivedIndexArtifactsForTest(t *testing.T, root string) {
+	t.Helper()
+	paths := []string{
+		filepath.Join(root, indexDirName, auditEvidenceIndexFileName),
+		filepath.Join(root, indexDirName, indexMetaFileName),
+		filepath.Join(root, indexDirName, indexRecordLookupDirName),
+		filepath.Join(root, indexDirName, indexSegmentSealDirName),
+		filepath.Join(root, indexDirName, indexSealChainDirName),
+		filepath.Join(root, indexDirName, indexRunTimelineDirName),
+	}
+	for _, path := range paths {
+		if err := os.RemoveAll(path); err != nil {
+			t.Fatalf("RemoveAll(%q) returned error: %v", path, err)
+		}
+	}
 }
 
 func appendAndSealSecondSegment(t *testing.T, ledger *Ledger, fixture auditFixtureKey) AppendResult {

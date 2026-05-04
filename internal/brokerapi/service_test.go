@@ -98,7 +98,7 @@ func TestSeedDevManualScenarioAddsManualSeedLinkWhenDifferentEventSharesDigest(t
 		"run_id":        devManualSeedRunID,
 		"session_id":    devManualSeedSessionID,
 		"record_digest": "sha256:" + strings.Repeat("1", 64),
-		"seed_profile":  devManualSeedProfile,
+		"seed_profile":  devManualSeedDefaultProfile,
 	}); err != nil {
 		t.Fatalf("AppendTrustedAuditEvent returned error: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestSeedDevManualScenarioAddsManualSeedLinkWhenDifferentEventSharesDigest(t
 	}
 	count := 0
 	for _, event := range events {
-		if devManualSessionAuditLinkMatches(event, result.AuditRecordDigest) {
+		if devManualSessionAuditLinkMatches(event, result.AuditRecordDigest, result.Profile) {
 			count++
 		}
 	}
@@ -157,6 +157,50 @@ func TestSeedDevManualScenarioRejectsLedgerWithMultipleBootstrapSegments(t *test
 	_, err := service.SeedDevManualScenario()
 	if err == nil {
 		t.Fatal("SeedDevManualScenario expected populated-ledger rejection for multiple bootstrap segments")
+	}
+	if err.Error() != "dev manual seeding refuses populated audit ledger root" {
+		t.Fatalf("SeedDevManualScenario error = %q, want populated-ledger refusal", err.Error())
+	}
+}
+
+func TestSeedDevManualScenarioRejectsLedgerWithExistingReceiptSidecar(t *testing.T) {
+	if !DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
+	service := newDevManualSeedService(t)
+	t.Setenv(devManualSeedEnvVar, "1")
+	receiptsDir := filepath.Join(service.auditRoot, "sidecar", "receipts")
+	if err := os.MkdirAll(receiptsDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(receiptsDir, strings.Repeat("a", 64)+".json"), []byte(`{"schema_id":"x"}`), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	_, err := service.SeedDevManualScenario()
+	if err == nil {
+		t.Fatal("SeedDevManualScenario expected populated-ledger rejection for receipt sidecar")
+	}
+	if err.Error() != "dev manual seeding refuses populated audit ledger root" {
+		t.Fatalf("SeedDevManualScenario error = %q, want populated-ledger refusal", err.Error())
+	}
+}
+
+func TestSeedDevManualScenarioRejectsLedgerWithExistingExternalAnchorEvidence(t *testing.T) {
+	if !DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
+	service := newDevManualSeedService(t)
+	t.Setenv(devManualSeedEnvVar, "1")
+	evidenceDir := filepath.Join(service.auditRoot, "sidecar", "external-anchor-evidence")
+	if err := os.MkdirAll(evidenceDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(evidenceDir, strings.Repeat("b", 64)+".json"), []byte(`{"schema_id":"x"}`), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	_, err := service.SeedDevManualScenario()
+	if err == nil {
+		t.Fatal("SeedDevManualScenario expected populated-ledger rejection for external anchor evidence")
 	}
 	if err.Error() != "dev manual seeding refuses populated audit ledger root" {
 		t.Fatalf("SeedDevManualScenario error = %q, want populated-ledger refusal", err.Error())
@@ -252,6 +296,27 @@ func TestSeedDevManualScenarioSupportsBackendPostureApprovalFlow(t *testing.T) {
 	}
 	if resp.Outcome.ApprovalID == "" {
 		t.Fatal("approval_id = empty, want backend posture approval")
+	}
+}
+
+func TestSeedDevManualScenarioSupportsDegradedProfile(t *testing.T) {
+	if !DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
+	service := newDevManualSeedService(t)
+	t.Setenv(devManualSeedEnvVar, "1")
+	result, err := service.SeedDevManualScenarioWithProfile(devManualSeedDegradedProfile)
+	if err != nil {
+		t.Fatalf("SeedDevManualScenarioWithProfile returned error: %v", err)
+	}
+	if result.Profile != devManualSeedDegradedProfile {
+		t.Fatalf("profile = %q, want %q", result.Profile, devManualSeedDegradedProfile)
+	}
+}
+
+func TestNormalizeDevManualSeedProfileRejectsUnsupportedValue(t *testing.T) {
+	if _, err := NormalizeDevManualSeedProfile("not-a-profile"); err == nil {
+		t.Fatal("NormalizeDevManualSeedProfile expected error for unsupported profile")
 	}
 }
 

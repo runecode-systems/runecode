@@ -115,7 +115,12 @@ func (s *Service) DeleteDigest(digest string) error {
 }
 
 func (s *Service) ExportBackup(path string) error {
-	return s.store.ExportBackup(path)
+	if err := s.store.ExportBackup(path); err != nil {
+		return err
+	}
+	pathDigest := hashIdentityDigest(path)
+	s.persistMetaAuditReceipt(auditReceiptKindArchivalOperation, "artifact_backup_bundle", pathDigest, nil, nil, "")
+	return nil
 }
 
 func (s *Service) RestoreBackup(path string) error {
@@ -123,6 +128,8 @@ func (s *Service) RestoreBackup(path string) error {
 		return err
 	}
 	s.runGatePlanCache.invalidateAll()
+	pathDigest := hashIdentityDigest(path)
+	s.persistMetaAuditReceipt(auditReceiptKindEvidenceRestore, "artifact_backup_bundle", pathDigest, nil, nil, "")
 	return s.reloadProviderDurableState()
 }
 
@@ -238,7 +245,14 @@ func (s *Service) ExternalAnchorPreparedClaimDeferredExecution(preparedMutationI
 }
 
 func (s *Service) SetPolicy(policy artifacts.Policy) error {
-	return s.store.SetPolicy(policy)
+	if err := s.store.SetPolicy(policy); err != nil {
+		return err
+	}
+	policyDigest, err := canonicalDigest(policy)
+	if err == nil {
+		s.persistMetaAuditReceipt(auditReceiptKindRetentionPolicyChanged, "artifact_retention_policy", nil, manifestDigestRefOrNil(policyDigest), nil, "")
+	}
+	return nil
 }
 
 func (s *Service) Policy() artifacts.Policy {

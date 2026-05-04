@@ -212,7 +212,31 @@ func assertApprovalRegistryCodes(t *testing.T) {
 func assertAuditReceiptRegistryCodes(t *testing.T) {
 	t.Helper()
 	auditReceiptRegistry := loadRegistry(t, schemaPath(t, "registries/audit_receipt_kind.registry.json"))
-	assertRegistryContainsCodes(t, auditReceiptRegistry, "anchor", "import", "restore", "reconciliation")
+	assertRegistryContainsCodes(t, auditReceiptRegistry,
+		"anchor",
+		"import",
+		"restore",
+		"reconciliation",
+		"provider_invocation_authorized",
+		"provider_invocation_denied",
+		"approval_resolution",
+		"approval_consumption",
+		"artifact_published",
+		"override_or_break_glass",
+		"secret_lease_issued",
+		"secret_lease_revoked",
+		"runtime_summary",
+		"degraded_posture_summary",
+		"negative_capability_summary",
+		"evidence_bundle_export",
+		"evidence_import",
+		"evidence_restore",
+		"retention_policy_changed",
+		"archival_operation",
+		"verifier_configuration_changed",
+		"trust_root_updated",
+		"sensitive_evidence_view",
+	)
 }
 
 func assertAuditVerificationReasonRegistryCodes(t *testing.T) {
@@ -240,6 +264,15 @@ func assertAuditVerificationReasonRegistryCodes(t *testing.T) {
 		"anchor_receipt_missing",
 		"anchor_receipt_invalid",
 		"anchor_passphrase_presence_degraded",
+		"external_anchor_valid",
+		"external_anchor_deferred_or_unavailable",
+		"external_anchor_invalid",
+		"missing_required_approval_evidence",
+		"missing_runtime_attestation_evidence",
+		"negative_capability_summary_missing",
+		"negative_capability_support_limited_or_unknown",
+		"verifier_identity_missing_or_unknown",
+		"evidence_export_incomplete",
 		"segment_lifecycle_inconsistent",
 		"storage_posture_degraded",
 		"storage_posture_invalid",

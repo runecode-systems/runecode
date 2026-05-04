@@ -119,6 +119,39 @@ func TestSeedDevManualScenarioIsIdempotentForPolicyAndPrimaryIdentifiers(t *test
 	}
 }
 
+func TestSeedDevManualScenarioSupportsDegradedProfile(t *testing.T) {
+	if !brokerapi.DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
+	setBrokerServiceForTest(t)
+	t.Setenv("RUNECODE_DEV_MODE", "1")
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	result := runSeedDevManualScenarioWithProfile(t, stdout, stderr, "tui-rich-degraded-v1")
+	if result.Profile != "tui-rich-degraded-v1" {
+		t.Fatalf("profile = %q, want tui-rich-degraded-v1", result.Profile)
+	}
+}
+
+func TestSeedDevManualScenarioRejectsUnsupportedProfile(t *testing.T) {
+	if !brokerapi.DevManualSeedBuildEnabled() {
+		t.Skip("dev manual seed is disabled in this build")
+	}
+	setBrokerServiceForTest(t)
+	t.Setenv("RUNECODE_DEV_MODE", "1")
+	err := run([]string{"seed-dev-manual-scenario", "--dev-only", "--profile", "bogus-profile"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil {
+		t.Fatal("seed-dev-manual-scenario expected usage error for unsupported profile")
+	}
+	uerr, ok := err.(*usageError)
+	if !ok {
+		t.Fatalf("seed-dev-manual-scenario error type = %T, want *usageError", err)
+	}
+	if got := uerr.Error(); got != "seed-dev-manual-scenario unsupported --profile \"bogus-profile\" (supported: tui-rich-v1, tui-rich-degraded-v1)" {
+		t.Fatalf("seed-dev-manual-scenario error = %q", got)
+	}
+}
+
 func TestSeedDevManualScenarioUnavailableWhenBuildTagDisabled(t *testing.T) {
 	if brokerapi.DevManualSeedBuildEnabled() {
 		t.Skip("dev manual seed is enabled in this build")
@@ -140,7 +173,12 @@ func TestSeedDevManualScenarioUnavailableWhenBuildTagDisabled(t *testing.T) {
 
 func runSeedDevManualScenario(t *testing.T, stdout, stderr *bytes.Buffer) brokerapi.DevManualSeedResult {
 	t.Helper()
-	return decodeCLIJSON[brokerapi.DevManualSeedResult](t, stdout, stderr, []string{"seed-dev-manual-scenario", "--dev-only"}, "seed-dev-manual-scenario")
+	return runSeedDevManualScenarioWithProfile(t, stdout, stderr, "tui-rich-v1")
+}
+
+func runSeedDevManualScenarioWithProfile(t *testing.T, stdout, stderr *bytes.Buffer, profile string) brokerapi.DevManualSeedResult {
+	t.Helper()
+	return decodeCLIJSON[brokerapi.DevManualSeedResult](t, stdout, stderr, []string{"seed-dev-manual-scenario", "--dev-only", "--profile", profile}, "seed-dev-manual-scenario")
 }
 
 func decodeCLIJSON[T any](t *testing.T, stdout, stderr *bytes.Buffer, args []string, label string) T {

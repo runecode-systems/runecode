@@ -1,0 +1,36 @@
+schema_version: 1
+id: CHG-2026-059-7b31-cross-machine-evidence-replication-restore-v0
+title: Cross-Machine Evidence Replication + Restore v0
+status: planned
+type: feature
+size: large
+verification_status: pending
+context_bundles:
+  - product-planning
+  - go-control-plane
+  - protocol-foundation
+related_specs: []
+related_decisions: []
+related_changes:
+  - CHG-2026-057-d5c1-verification-plane-foundation-v0
+  - CHG-2026-055-546a-verification-evidence-preservation-bundle-export-v0
+  - CHG-2026-058-04e9-verification-coverage-expansion-v0
+  - CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0
+depends_on:
+  - CHG-2026-003-b567-audit-log-v0-verify
+  - CHG-2026-008-62e1-broker-local-api-v0
+  - CHG-2026-011-7240-secretsd-model-gateway-v0
+  - CHG-2026-057-d5c1-verification-plane-foundation-v0
+informed_by:
+  - CHG-2026-004-acdb-artifact-store-data-classes-v0
+  - CHG-2026-014-0c5d-approval-profiles-strict-permissive
+  - CHG-2026-024-acde-deps-fetch-offline-cache
+  - CHG-2026-025-5679-external-audit-anchoring-v0
+  - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
+supersedes: []
+superseded_by: []
+created_at: "2026-05-03"
+closed_at: null
+promotion_assessment:
+  status: pending
+  suggested_targets: []

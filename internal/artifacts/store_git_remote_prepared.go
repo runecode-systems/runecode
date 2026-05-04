@@ -79,32 +79,56 @@ func rebuildRunGitRemotePreparedRefsLocked(state *StoreState) {
 }
 
 func validateGitRemotePreparedRecord(record GitRemotePreparedMutationRecord) error {
-	if strings.TrimSpace(record.PreparedMutationID) == "" {
-		return fmt.Errorf("prepared mutation id is required")
-	}
-	if strings.TrimSpace(record.RunID) == "" {
-		return fmt.Errorf("run id is required")
-	}
-	if err := validateGitRemotePreparedDigest(record.TypedRequestHash, "typed request hash"); err != nil {
+	if err := validateGitRemotePreparedRequiredFields(record); err != nil {
 		return err
 	}
-	if err := validateGitRemotePreparedDigest(record.ActionRequestHash, "action request hash"); err != nil {
+	if err := validateGitRemotePreparedRequiredDigests(record); err != nil {
 		return err
 	}
-	if err := validateGitRemotePreparedDigest(record.PolicyDecisionHash, "policy decision hash"); err != nil {
-		return err
-	}
-	if strings.TrimSpace(record.LifecycleState) == "" {
-		return fmt.Errorf("lifecycle state is required")
-	}
-	if strings.TrimSpace(record.ExecutionState) == "" {
-		return fmt.Errorf("execution state is required")
+	return validateGitRemotePreparedOptionalDigests(record)
+}
+
+func validateGitRemotePreparedRequiredFields(record GitRemotePreparedMutationRecord) error {
+	for _, field := range []struct {
+		value string
+		name  string
+	}{{record.PreparedMutationID, "prepared mutation id"}, {record.RunID, "run id"}, {record.LifecycleState, "lifecycle state"}, {record.ExecutionState, "execution state"}} {
+		if strings.TrimSpace(field.value) == "" {
+			return fmt.Errorf("%s is required", field.name)
+		}
 	}
 	if record.TypedRequest == nil {
 		return fmt.Errorf("typed request is required")
 	}
 	if record.DerivedSummary == nil {
 		return fmt.Errorf("derived summary is required")
+	}
+	return nil
+}
+
+func validateGitRemotePreparedRequiredDigests(record GitRemotePreparedMutationRecord) error {
+	for _, digestField := range []struct {
+		value string
+		name  string
+	}{{record.TypedRequestHash, "typed request hash"}, {record.ActionRequestHash, "action request hash"}, {record.PolicyDecisionHash, "policy decision hash"}} {
+		if err := validateGitRemotePreparedDigest(digestField.value, digestField.name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateGitRemotePreparedOptionalDigests(record GitRemotePreparedMutationRecord) error {
+	for _, digestField := range []struct {
+		value string
+		name  string
+	}{{record.LastExecuteAttemptReqID, "last execute attempt typed request hash"}, {record.LastExecuteSnapshotSeal, "last execute snapshot seal digest"}} {
+		if strings.TrimSpace(digestField.value) == "" {
+			continue
+		}
+		if err := validateGitRemotePreparedDigest(digestField.value, digestField.name); err != nil {
+			return err
+		}
 	}
 	return nil
 }

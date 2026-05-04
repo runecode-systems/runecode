@@ -17,6 +17,15 @@
 - Confirm the change makes degraded posture, denials, deferrals, overrides, and missing-evidence findings explicit rather than optional.
 - Confirm the design preserves one architecture across constrained and scaled deployments and does not introduce a second truth surface or second authorization engine.
 - Confirm proof-specific CLI, protocol, API, and dependency work is explicitly excluded from the foundation.
+- Confirm the design requires canonical receipt families for material authority, approval, boundary, publication, override, and summary evidence rather than relying on derived summaries alone.
+- Confirm the design requires preservation of enough evidence identity for cross-machine export, restore, and future federation-safe workflows without relying on machine-local mutable state as sole history.
+- Confirm offline verification is described as recomputable from exported canonical evidence when required inputs are present, not only as archive integrity checking.
+- Confirm Phase 6 explicitly includes invariant/model-check hardening and append-friendly performance work without changing trust semantics.
+- Confirm the foundation explicitly separates project or repository identity, repo-scoped product-instance identity, persistent ledger identity, and project-substrate snapshot identity.
+- Confirm persistent ledger identity is treated as a required seam for continuity across export, restore, migration, and reconcile workflows.
+- Confirm bundle and snapshot semantics distinguish directly included canonical objects from transitive digest-reference dependencies.
+- Confirm prepared-record evidence seams are hardened for downstream publication durability barriers and crash reconcile without implementing federation execution here.
+- Confirm bundle manifests, preservation snapshots, and storage namespace layout are not treated as federation authority primitives.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

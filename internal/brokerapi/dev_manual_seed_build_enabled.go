@@ -1,4 +1,4 @@
-//go:build runecode_dev_manual_seed
+//go:build runecode_devseed
 
 package brokerapi
 

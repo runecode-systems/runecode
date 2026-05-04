@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runecode.dev/protocol/schemas/objects/AuditEvidenceBundleManifestGetResponse.schema.json",
+  "title": "AuditEvidenceBundleManifestGetResponse",
+  "description": "Typed response carrying an audit evidence bundle manifest and optional signed envelope when external sharing is intended.",
+  "type": "object",
+  "additionalProperties": false,
+  "maxProperties": 5,
+  "required": ["schema_id", "schema_version", "request_id", "manifest"],
+  "properties": {
+    "schema_id": {
+      "const": "runecode.protocol.v0.AuditEvidenceBundleManifestGetResponse",
+      "description": "Protocol schema identifier.",
+      "x-data-class": "public"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "description": "Protocol schema version.",
+      "x-data-class": "public"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "description": "Stable echoed request identifier.",
+      "x-data-class": "public"
+    },
+    "manifest": {
+      "$ref": "AuditEvidenceBundleManifest.schema.json",
+      "description": "Projected audit evidence bundle manifest.",
+      "x-data-class": "public"
+    },
+    "signed_manifest": {
+      "$ref": "SignedObjectEnvelope.schema.json",
+      "description": "Signed manifest envelope returned when external_sharing_intended=true.",
+      "x-data-class": "public"
+    }
+  }
+}

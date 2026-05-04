@@ -15,6 +15,10 @@
 - Confirm missing-evidence findings are treated as first-class verification outcomes.
 - Confirm verification reports preserve verifier identity and trust-root identity.
 - Confirm the reason-code list includes explicit anchoring and missing-evidence reasons.
+- Confirm control-plane provenance captures initiating principal identity and triggering source alongside trusted digests.
+- Confirm control-plane provenance distinguishes project or repository identity, repo-scoped product-instance identity, persistent ledger identity, and project-substrate snapshot identity where relevant.
+- Confirm canonical receipt families cover approval resolution or consumption, publication, override, and summary evidence rather than relying on derived state only.
+- Confirm negative-capability evidence distinguishes explicit absence support from limited or unknown support in verifier findings.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

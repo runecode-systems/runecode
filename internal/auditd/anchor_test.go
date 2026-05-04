@@ -123,3 +123,53 @@ func containsReasonCodeForAuditdTest(codes []string, code string) bool {
 	}
 	return false
 }
+
+func TestAnchorFailureReasonCodePrefersAnchoringFinding(t *testing.T) {
+	report := trustpolicy.AuditVerificationReportPayload{
+		AnchoringStatus: trustpolicy.AuditVerificationStatusFailed,
+		Findings: []trustpolicy.AuditVerificationFinding{
+			{Code: trustpolicy.AuditVerificationReasonExternalAnchorInvalid, Dimension: trustpolicy.AuditVerificationDimensionAnchoring},
+			{Code: trustpolicy.AuditVerificationReasonReceiptInvalid, Dimension: trustpolicy.AuditVerificationDimensionIntegrity},
+		},
+		HardFailures: []string{trustpolicy.AuditVerificationReasonAnchorReceiptInvalid},
+		DegradedReasons: []string{
+			trustpolicy.AuditVerificationReasonExternalAnchorDeferredOrUnavailable,
+		},
+	}
+	if got := anchorFailureReasonCode(report); got != trustpolicy.AuditVerificationReasonExternalAnchorInvalid {
+		t.Fatalf("anchorFailureReasonCode() = %q, want %q", got, trustpolicy.AuditVerificationReasonExternalAnchorInvalid)
+	}
+}
+
+func TestAnchorFailureReasonCodeFallsBackToHardFailure(t *testing.T) {
+	report := trustpolicy.AuditVerificationReportPayload{
+		AnchoringStatus: trustpolicy.AuditVerificationStatusFailed,
+		HardFailures:    []string{trustpolicy.AuditVerificationReasonAnchorReceiptInvalid},
+	}
+	if got := anchorFailureReasonCode(report); got != trustpolicy.AuditVerificationReasonAnchorReceiptInvalid {
+		t.Fatalf("anchorFailureReasonCode() = %q, want %q", got, trustpolicy.AuditVerificationReasonAnchorReceiptInvalid)
+	}
+}
+
+func TestAnchorFailureReasonCodeFallsBackToDegradedReason(t *testing.T) {
+	report := trustpolicy.AuditVerificationReportPayload{
+		AnchoringStatus: trustpolicy.AuditVerificationStatusDegraded,
+		DegradedReasons: []string{trustpolicy.AuditVerificationReasonExternalAnchorDeferredOrUnavailable},
+	}
+	if got := anchorFailureReasonCode(report); got != trustpolicy.AuditVerificationReasonExternalAnchorDeferredOrUnavailable {
+		t.Fatalf("anchorFailureReasonCode() = %q, want %q", got, trustpolicy.AuditVerificationReasonExternalAnchorDeferredOrUnavailable)
+	}
+}
+
+func TestAnchorFailureReasonMessagePrefersMatchingFinding(t *testing.T) {
+	report := trustpolicy.AuditVerificationReportPayload{
+		AnchoringStatus: trustpolicy.AuditVerificationStatusFailed,
+		Findings: []trustpolicy.AuditVerificationFinding{
+			{Code: trustpolicy.AuditVerificationReasonAnchorReceiptInvalid, Message: "anchor receipt signature does not verify"},
+		},
+		Summary: "fallback summary",
+	}
+	if got := anchorFailureReasonMessage(report, trustpolicy.AuditVerificationReasonAnchorReceiptInvalid); got != "anchor receipt signature does not verify" {
+		t.Fatalf("anchorFailureReasonMessage() = %q, want %q", got, "anchor receipt signature does not verify")
+	}
+}
