@@ -40,6 +40,19 @@ func attestationPostureReasonCodes(receipt BackendLaunchReceipt) []string {
 }
 
 func DeriveAttestationPostureFromEvidence(evidence RuntimeEvidenceSnapshot) (string, []string) {
+	if evidence.Attestation == nil && evidence.AttestationVerification == nil {
+		return DeriveAttestationPosture(BackendLaunchReceipt{ProvisioningPosture: evidence.Launch.ProvisioningPosture})
+	}
+	if evidence.Attestation == nil {
+		reasons := []string{"attestation_evidence_unavailable"}
+		if evidence.AttestationVerification != nil {
+			reasons = append(reasons, sanitizedAttestationReasonCodes(evidence.AttestationVerification.ReasonCodes)...)
+		}
+		return AttestationPostureUnavailable, uniqueSortedStrings(reasons)
+	}
+	if evidence.AttestationVerification == nil {
+		return AttestationPostureUnavailable, []string{"attestation_verification_unavailable"}
+	}
 	receipt := BackendLaunchReceipt{
 		ProvisioningPosture:                evidence.Launch.ProvisioningPosture,
 		AttestationEvidenceSourceKind:      AttestationSourceKindUnknown,
@@ -65,17 +78,21 @@ func sanitizedAttestationReasonCodes(reasonCodes []string) []string {
 		return nil
 	}
 	allowed := map[string]struct{}{
-		"attestation_replay_detected":            {},
-		"attestation_source_kind_invalid":        {},
-		"attestation_measurement_digest_invalid": {},
-		"attestation_freshness_material_missing": {},
-		"attestation_freshness_binding_missing":  {},
-		"attestation_freshness_stale":            {},
-		"attestation_evidence_required":          {},
-		"attestation_verification_required":      {},
-		"attestation_verification_not_valid":     {},
-		"attestation_evidence_unavailable":       {},
-		"attestation_verification_unavailable":   {},
+		"attestation_replay_detected":               {},
+		"attestation_source_kind_invalid":           {},
+		"attestation_identity_binding_invalid":      {},
+		"attestation_measurement_digest_invalid":    {},
+		"attestation_session_validation_required":   {},
+		"attestation_post_handshake_input_required": {},
+		"attestation_runtime_evidence_required":     {},
+		"attestation_freshness_material_missing":    {},
+		"attestation_freshness_binding_missing":     {},
+		"attestation_freshness_stale":               {},
+		"attestation_evidence_required":             {},
+		"attestation_verification_required":         {},
+		"attestation_verification_not_valid":        {},
+		"attestation_evidence_unavailable":          {},
+		"attestation_verification_unavailable":      {},
 	}
 	sanitized := make([]string, 0, len(reasonCodes))
 	for _, reason := range reasonCodes {

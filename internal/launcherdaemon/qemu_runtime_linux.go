@@ -13,7 +13,7 @@ import (
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
-func (c *qemuController) monitorInstance(parent context.Context, inst *qemuInstance, spec launcherbackend.BackendLaunchSpec, out io.Reader, hardening launcherbackend.AppliedHardeningPosture, receipt launcherbackend.BackendLaunchReceipt) {
+func (c *qemuController) monitorInstance(parent context.Context, inst *qemuInstance, spec launcherbackend.BackendLaunchSpec, out io.Reader, hardening launcherbackend.AppliedHardeningPosture, receipt launcherbackend.BackendLaunchReceipt, attestationInput *launcherbackend.PostHandshakeRuntimeAttestationInput) {
 	defer removeLaunchDir(inst.launchDir)
 	scanStop := make(chan struct{})
 	defer close(scanStop)
@@ -21,7 +21,7 @@ func (c *qemuController) monitorInstance(parent context.Context, inst *qemuInsta
 	helloSeen := c.waitForHelloOrExit(parent, inst, spec, lineCh, scanDone)
 	_ = inst.cmd.Wait()
 	term := buildTerminalReport(spec, receipt, helloSeen, inst.errText)
-	facts := launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: receipt, HardeningPosture: hardening, TerminalReport: &term}
+	facts := launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: receipt, PostHandshakeAttestationInput: attestationInput, HardeningPosture: hardening, TerminalReport: &term}
 	inst.updates <- RuntimeUpdate{RunID: spec.RunID, Facts: &facts}
 	terminating, terminated := terminalLifecycleUpdates(term)
 	inst.updates <- RuntimeUpdate{RunID: spec.RunID, Lifecycle: &terminating}

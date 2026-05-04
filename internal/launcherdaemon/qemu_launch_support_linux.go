@@ -19,10 +19,10 @@ import (
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
-func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild string, cacheEvidence *launcherbackend.BackendCacheEvidence, now time.Time) (launcherbackend.BackendLaunchReceipt, error) {
+func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild string, cacheEvidence *launcherbackend.BackendCacheEvidence, now time.Time) (launcherbackend.BackendLaunchReceipt, *launcherbackend.PostHandshakeRuntimeAttestationInput, error) {
 	sessionBinding, err := deriveRuntimeSessionBinding(spec, admission.DescriptorDigest, isoID, sessionID, nonce)
 	if err != nil {
-		return launcherbackend.BackendLaunchReceipt{}, err
+		return launcherbackend.BackendLaunchReceipt{}, nil, err
 	}
 	receipt := launcherbackend.BackendLaunchReceipt{
 		RunID:                   spec.RunID,
@@ -36,10 +36,11 @@ func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launch
 	populateRuntimeSessionBinding(&receipt, sessionBinding)
 	applyRuntimeAssetIdentity(&receipt, admission, qemuVersion, qemuBuild)
 	applyLaunchExecutionDetails(&receipt, spec, cacheEvidence, qemuVersion, qemuBuild)
-	if err := applyTrustedRuntimeAttestation(&receipt, admission, now); err != nil {
-		return launcherbackend.BackendLaunchReceipt{}, err
+	attestationInput, err := upgradeReceiptAfterSecureSessionValidation(&receipt, spec, admission, now)
+	if err != nil {
+		return launcherbackend.BackendLaunchReceipt{}, nil, err
 	}
-	return receipt, nil
+	return receipt, attestationInput, nil
 }
 
 func applyRuntimeAssetIdentity(receipt *launcherbackend.BackendLaunchReceipt, admission launcherbackend.RuntimeAdmissionRecord, qemuVersion, qemuBuild string) {

@@ -60,7 +60,7 @@ func (c *qemuController) Launch(ctx context.Context, spec launcherbackend.Backen
 		return nil, err
 	}
 	instance := c.registerLaunchState(spec, launchState)
-	go c.monitorInstance(context.Background(), instance, spec, launchState.stdout, launchState.hardening, launchState.receipt)
+	go c.monitorInstance(context.Background(), instance, spec, launchState.stdout, launchState.hardening, launchState.receipt, launchState.attestationInput)
 	return instance.updates, nil
 }
 
@@ -97,12 +97,13 @@ func (c *qemuController) Shutdown(_ context.Context) error {
 }
 
 type preparedLaunchState struct {
-	stdout    io.Reader
-	launchDir string
-	receipt   launcherbackend.BackendLaunchReceipt
-	hardening launcherbackend.AppliedHardeningPosture
-	cmd       *exec.Cmd
-	cancel    context.CancelFunc
+	stdout           io.Reader
+	launchDir        string
+	receipt          launcherbackend.BackendLaunchReceipt
+	attestationInput *launcherbackend.PostHandshakeRuntimeAttestationInput
+	hardening        launcherbackend.AppliedHardeningPosture
+	cmd              *exec.Cmd
+	cancel           context.CancelFunc
 }
 
 func (c *qemuController) prepareLaunchState(ctx context.Context, spec launcherbackend.BackendLaunchSpec) (preparedLaunchState, error) {
@@ -126,18 +127,19 @@ func (c *qemuController) prepareLaunchState(ctx context.Context, spec launcherba
 	if err != nil {
 		return preparedLaunchState{}, err
 	}
-	receipt, err := buildLaunchReceipt(spec, admittedImage.admissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild, admittedImage.cacheEvidence, c.cfg.Now())
+	receipt, attestationInput, err := buildLaunchReceipt(spec, admittedImage.admissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild, admittedImage.cacheEvidence, c.cfg.Now())
 	if err != nil {
 		cancel()
 		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeHandshakeFailed, err.Error())
 	}
 	return preparedLaunchState{
-		stdout:    stdout,
-		launchDir: launchDir,
-		receipt:   receipt,
-		hardening: buildHardeningPosture(),
-		cmd:       cmd,
-		cancel:    cancel,
+		stdout:           stdout,
+		launchDir:        launchDir,
+		receipt:          receipt,
+		attestationInput: attestationInput,
+		hardening:        buildHardeningPosture(),
+		cmd:              cmd,
+		cancel:           cancel,
 	}, nil
 }
 
@@ -240,10 +242,12 @@ func (c *qemuController) registerLaunchState(spec launcherbackend.BackendLaunchS
 	if existing != nil {
 		c.terminateInstance(existing)
 	}
-	updates <- RuntimeUpdate{RunID: spec.RunID, Facts: &launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launchState.receipt, HardeningPosture: launchState.hardening}}
+	updates <- RuntimeUpdate{RunID: spec.RunID, Facts: &launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launchState.receipt, PostHandshakeAttestationInput: launchState.attestationInput, HardeningPosture: launchState.hardening}}
 	started := lifecycleUpdate(launcherbackend.BackendLifecycleStateStarted, launcherbackend.BackendLifecycleStateLaunching, 2, "")
-	active := lifecycleUpdate(launcherbackend.BackendLifecycleStateActive, launcherbackend.BackendLifecycleStateStarted, 3, "")
+	binding := lifecycleUpdate(launcherbackend.BackendLifecycleStateBinding, launcherbackend.BackendLifecycleStateStarted, 3, "")
+	active := lifecycleUpdate(launcherbackend.BackendLifecycleStateActive, launcherbackend.BackendLifecycleStateBinding, 4, "")
 	updates <- RuntimeUpdate{RunID: spec.RunID, Lifecycle: &started}
+	updates <- RuntimeUpdate{RunID: spec.RunID, Lifecycle: &binding}
 	updates <- RuntimeUpdate{RunID: spec.RunID, Lifecycle: &active}
 	c.mu.Lock()
 	instance.state.LifecycleState = active
@@ -264,10 +268,5 @@ func (c *qemuController) terminateInstance(inst *qemuInstance) {
 func (c *qemuController) instanceByRef(ref InstanceRef) *qemuInstance {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if ref.RunID == "" && len(c.instances) == 1 {
-		for _, inst := range c.instances {
-			return inst
-		}
-	}
 	return c.instances[instanceKey(ref)]
 }

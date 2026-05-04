@@ -15,9 +15,13 @@ func (s *Store) RecordRuntimeEvidenceState(runID string, facts launcherbackend.R
 		return fmt.Errorf("run id is required")
 	}
 	facts.LaunchReceipt = facts.LaunchReceipt.Normalized()
+	facts.PostHandshakeAttestationInput = launcherbackend.NormalizePostHandshakeRuntimeAttestationInput(facts.PostHandshakeAttestationInput)
 	facts.HardeningPosture = facts.HardeningPosture.Normalized()
 	facts.TerminalReport = normalizeRuntimeTerminalReport(facts.TerminalReport)
 	evidence = s.applyCachedAttestationVerificationLocked(evidence)
+	if err := launcherbackend.ReconcileRuntimeEvidenceAttestation(facts.LaunchReceipt, facts.PostHandshakeAttestationInput, &evidence); err != nil {
+		return err
+	}
 	s.upsertAttestationVerificationCacheLocked(evidence)
 	s.state.RuntimeFactsByRun[trimmedRunID] = facts
 	s.state.RuntimeEvidenceByRun[trimmedRunID] = evidence
@@ -81,25 +85,19 @@ func (s *Store) UpdateRuntimeLifecycleState(runID string, lifecycle launcherback
 	if trimmedRunID == "" {
 		return fmt.Errorf("run id is required")
 	}
-	facts, ok := s.state.RuntimeFactsByRun[trimmedRunID]
-	if !ok {
-		facts = launcherbackend.DefaultRuntimeFacts(trimmedRunID)
-	}
-	if lifecycle.BackendLifecycle != nil {
-		normalized := lifecycle.BackendLifecycle.Normalized()
-		facts.LaunchReceipt.Lifecycle = &normalized
-	}
-	if strings.TrimSpace(lifecycle.ProvisioningPosture) != "" {
-		facts.LaunchReceipt.ProvisioningPosture = lifecycle.ProvisioningPosture
-	}
-	facts.LaunchReceipt.ProvisioningPostureDegraded = lifecycle.ProvisioningPostureDegraded
-	facts.LaunchReceipt.ProvisioningDegradedReasons = append([]string{}, lifecycle.ProvisioningDegradedReasons...)
-	facts.LaunchReceipt.LaunchFailureReasonCode = strings.TrimSpace(lifecycle.LaunchFailureReasonCode)
+	facts, existed := s.runtimeFactsForLifecycleUpdateLocked(trimmedRunID)
+	applyLifecycleToRuntimeFacts(&facts, &lifecycle)
 	evidence, projectedLifecycle, err := launcherbackend.SplitRuntimeFactsEvidenceAndLifecycle(facts)
 	if err != nil {
+		if !existed {
+			return s.persistLifecycleFallbackLocked(trimmedRunID, facts, lifecycle)
+		}
 		return err
 	}
 	evidence = s.applyCachedAttestationVerificationLocked(evidence)
+	if err := launcherbackend.ReconcileRuntimeEvidenceAttestation(facts.LaunchReceipt, facts.PostHandshakeAttestationInput, &evidence); err != nil {
+		return err
+	}
 	s.upsertAttestationVerificationCacheLocked(evidence)
 	s.state.RuntimeFactsByRun[trimmedRunID] = facts
 	s.state.RuntimeEvidenceByRun[trimmedRunID] = evidence
@@ -108,6 +106,49 @@ func (s *Store) UpdateRuntimeLifecycleState(runID string, lifecycle launcherback
 		s.state.Runs[trimmedRunID] = "active"
 	}
 	_ = s.upsertSessionRuntimeBindingLocked(trimmedRunID, facts)
+	return s.saveStateLocked()
+}
+
+func (s *Store) runtimeFactsForLifecycleUpdateLocked(runID string) (launcherbackend.RuntimeFactsSnapshot, bool) {
+	facts, ok := s.state.RuntimeFactsByRun[runID]
+	if ok {
+		return facts, true
+	}
+	return launcherbackend.DefaultRuntimeFacts(runID), false
+}
+
+func applyLifecycleToRuntimeFacts(facts *launcherbackend.RuntimeFactsSnapshot, lifecycle *launcherbackend.RuntimeLifecycleState) {
+	if facts == nil || lifecycle == nil {
+		return
+	}
+	if lifecycle.BackendLifecycle != nil {
+		normalized := lifecycle.BackendLifecycle.Normalized()
+		facts.LaunchReceipt.Lifecycle = &normalized
+	}
+	if normalized := normalizeLifecycleProvisioningPosture(lifecycle); normalized != "" {
+		facts.LaunchReceipt.ProvisioningPosture = normalized
+	}
+	facts.LaunchReceipt.ProvisioningPostureDegraded = lifecycle.ProvisioningPostureDegraded
+	facts.LaunchReceipt.ProvisioningDegradedReasons = append([]string{}, lifecycle.ProvisioningDegradedReasons...)
+	facts.LaunchReceipt.LaunchFailureReasonCode = strings.TrimSpace(lifecycle.LaunchFailureReasonCode)
+}
+
+func normalizeLifecycleProvisioningPosture(lifecycle *launcherbackend.RuntimeLifecycleState) string {
+	if lifecycle == nil {
+		return ""
+	}
+	if strings.TrimSpace(lifecycle.ProvisioningPosture) == launcherbackend.ProvisioningPostureAttested {
+		lifecycle.ProvisioningPosture = ""
+	}
+	return lifecycle.ProvisioningPosture
+}
+
+func (s *Store) persistLifecycleFallbackLocked(runID string, facts launcherbackend.RuntimeFactsSnapshot, lifecycle launcherbackend.RuntimeLifecycleState) error {
+	s.state.RuntimeFactsByRun[runID] = facts
+	s.state.RuntimeLifecycleByRun[runID] = lifecycle
+	if _, exists := s.state.Runs[runID]; !exists {
+		s.state.Runs[runID] = "active"
+	}
 	return s.saveStateLocked()
 }
 

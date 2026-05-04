@@ -105,11 +105,60 @@ func projectAttestationIdentityState(state map[string]any, evidence launcherback
 	attestationVerifierClass := launcherbackend.DeriveAttestationVerifierClassFromEvidence(evidence)
 	state["attestation_posture"] = attestationPosture
 	state["attestation_verifier_class"] = attestationVerifierClass
-	state["session_binding_present"] = evidence.Session != nil && strings.TrimSpace(evidence.Session.EvidenceDigest) != ""
-	state["attestation_evidence_present"] = evidence.Attestation != nil && strings.TrimSpace(evidence.Attestation.EvidenceDigest) != ""
-	state["attestation_verification_succeeded"] = evidence.AttestationVerification != nil && evidence.AttestationVerification.VerificationResult == launcherbackend.AttestationVerificationResultValid && evidence.AttestationVerification.ReplayVerdict == launcherbackend.AttestationReplayVerdictOriginal
+	projectAttestationPresenceState(state, evidence)
+	projectAttestationDigestState(state, evidence)
+	projectAttestationVerificationMetadataState(state, evidence)
 	if len(attestationReasons) > 0 {
 		state["attestation_reason_codes"] = attestationReasons
+	}
+}
+
+func projectAttestationPresenceState(state map[string]any, evidence launcherbackend.RuntimeEvidenceSnapshot) {
+	sessionBindingPresent := evidence.Session != nil && strings.TrimSpace(evidence.Session.EvidenceDigest) != ""
+	attestationEvidencePresent := evidence.Attestation != nil && strings.TrimSpace(evidence.Attestation.EvidenceDigest) != ""
+	attestationVerificationPresent := evidence.AttestationVerification != nil
+	attestationVerificationSucceeded := attestationVerificationPresent && evidence.AttestationVerification.VerificationResult == launcherbackend.AttestationVerificationResultValid && evidence.AttestationVerification.ReplayVerdict == launcherbackend.AttestationReplayVerdictOriginal
+	state["session_binding_present"] = sessionBindingPresent
+	state["attestation_evidence_present"] = attestationEvidencePresent
+	state["attestation_verification_succeeded"] = attestationVerificationSucceeded
+	state["attestation_verification_failed"] = attestationVerificationPresent && !attestationVerificationSucceeded
+}
+
+func projectAttestationDigestState(state map[string]any, evidence launcherbackend.RuntimeEvidenceSnapshot) {
+	if evidence.Attestation != nil {
+		if digest := strings.TrimSpace(evidence.Attestation.EvidenceDigest); digest != "" {
+			state["attestation_evidence_digest"] = digest
+		}
+	}
+	if evidence.AttestationVerification == nil {
+		return
+	}
+	if digest := strings.TrimSpace(evidence.AttestationVerification.AttestationEvidenceDigest); digest != "" {
+		state["attestation_verification_attestation_evidence_digest"] = digest
+		if _, ok := state["attestation_evidence_digest"]; !ok {
+			state["attestation_evidence_digest"] = digest
+		}
+	}
+	if digest := strings.TrimSpace(evidence.AttestationVerification.VerificationDigest); digest != "" {
+		state["attestation_verification_digest"] = digest
+	}
+	if digest := strings.TrimSpace(evidence.AttestationVerification.ReplayIdentityDigest); digest != "" {
+		state["attestation_replay_identity_digest"] = digest
+	}
+}
+
+func projectAttestationVerificationMetadataState(state map[string]any, evidence launcherbackend.RuntimeEvidenceSnapshot) {
+	if evidence.AttestationVerification == nil {
+		return
+	}
+	if policyID := strings.TrimSpace(evidence.AttestationVerification.VerifierPolicyID); policyID != "" {
+		state["attestation_verifier_policy_id"] = policyID
+	}
+	if policyDigest := strings.TrimSpace(evidence.AttestationVerification.VerifierPolicyDigest); policyDigest != "" {
+		state["attestation_verifier_policy_digest"] = policyDigest
+	}
+	if profile := strings.TrimSpace(evidence.AttestationVerification.VerificationRulesProfileVersion); profile != "" {
+		state["attestation_verification_rules_profile_version"] = profile
 	}
 }
 

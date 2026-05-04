@@ -2,7 +2,6 @@ package brokerapi
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"testing"
 
@@ -285,6 +284,110 @@ func TestRuntimeSessionAuditPayloadIncludesAttestationEvidenceDigestAdditively(t
 	assertLauncherRuntimeAuditDigestValue(t, launcherRuntimeAuditDigests(t, startedEvent), "attestation_evidence", evidence.Attestation.EvidenceDigest)
 }
 
+func TestRuntimeSessionBoundAuditTracksPersistedAttestationStateTransitions(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	const runID = "run-runtime-attestation-transition"
+	_ = putRunScopedArtifactForLocalOpsTest(t, s, runID, "step-1")
+
+	recordRuntimeFactsForAuditTransition(t, s, runID, preAttestationRuntimeFacts(runID), "pre-attestation")
+	assertBoundAuditBeforePersistedAttestation(t, s)
+
+	attestedFacts := attestedRuntimeFacts(runID)
+	recordRuntimeFactsForAuditTransition(t, s, runID, attestedFacts, "attested")
+	assertBoundAuditAfterPersistedAttestation(t, s, runID)
+
+	recordRuntimeFactsForAuditTransition(t, s, runID, attestedFacts, "attested repeat")
+	assertBoundAuditEventCount(t, s, 2, "after repeat")
+}
+
+func preAttestationRuntimeFacts(runID string) launcherbackend.RuntimeFactsSnapshot {
+	facts := launcherRuntimeFactsFixture()
+	facts.LaunchReceipt.RunID = runID
+	facts.LaunchReceipt.LaunchFailureReasonCode = ""
+	facts.LaunchReceipt.AttestationEvidenceSourceKind = launcherbackend.AttestationSourceKindUnknown
+	facts.LaunchReceipt.AttestationMeasurementProfile = ""
+	facts.LaunchReceipt.AttestationFreshnessMaterial = nil
+	facts.LaunchReceipt.AttestationFreshnessBindingClaims = nil
+	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = ""
+	facts.LaunchReceipt.AttestationVerifierPolicyID = ""
+	facts.LaunchReceipt.AttestationVerifierPolicyDigest = ""
+	facts.LaunchReceipt.AttestationVerificationRulesVersion = ""
+	facts.LaunchReceipt.AttestationVerificationTimestamp = ""
+	facts.LaunchReceipt.AttestationVerificationResult = ""
+	facts.LaunchReceipt.AttestationVerificationReasonCodes = nil
+	facts.LaunchReceipt.AttestationReplayVerdict = ""
+	facts.PostHandshakeAttestationInput = nil
+	return facts
+}
+
+func attestedRuntimeFacts(runID string) launcherbackend.RuntimeFactsSnapshot {
+	facts := launcherRuntimeFactsFixture()
+	facts.LaunchReceipt.RunID = runID
+	facts.LaunchReceipt.LaunchFailureReasonCode = ""
+	facts.PostHandshakeAttestationInput = runtimeFactsPostHandshakeAttestationInput(facts.LaunchReceipt)
+	return facts
+}
+
+func recordRuntimeFactsForAuditTransition(t *testing.T, s *Service, runID string, facts launcherbackend.RuntimeFactsSnapshot, label string) {
+	t.Helper()
+	if err := s.RecordRuntimeFacts(runID, facts); err != nil {
+		t.Fatalf("RecordRuntimeFacts(%s) returned error: %v", label, err)
+	}
+}
+
+func assertBoundAuditBeforePersistedAttestation(t *testing.T, s *Service) {
+	t.Helper()
+	boundEvents := requireBoundAuditEvents(t, s, 1, "before persisted attestation evidence")
+	firstPayload := launcherRuntimeAuditEventPayload(t, boundEvents[0])
+	if _, ok := firstPayload["attestation_evidence_digest"]; ok {
+		t.Fatalf("first isolate_session_bound payload attestation_evidence_digest = %v, want omitted before persisted attestation", firstPayload["attestation_evidence_digest"])
+	}
+}
+
+func assertBoundAuditAfterPersistedAttestation(t *testing.T, s *Service, runID string) {
+	t.Helper()
+	boundEvents := requireBoundAuditEvents(t, s, 2, "after attestation transition")
+	latestBound := boundEvents[len(boundEvents)-1]
+	latestPayload := launcherRuntimeAuditEventPayload(t, latestBound)
+	persistedEvidence := requirePersistedAttestationVerificationEvidence(t, s, runID)
+	if latestPayload["attestation_evidence_digest"] != persistedEvidence.Attestation.EvidenceDigest {
+		t.Fatalf("latest isolate_session_bound payload attestation_evidence_digest = %v, want %q", latestPayload["attestation_evidence_digest"], persistedEvidence.Attestation.EvidenceDigest)
+	}
+	if latestBound.Details["attestation_posture"] != launcherbackend.AttestationPostureValid {
+		t.Fatalf("latest isolate_session_bound details attestation_posture = %v, want %q", latestBound.Details["attestation_posture"], launcherbackend.AttestationPostureValid)
+	}
+}
+
+func assertBoundAuditEventCount(t *testing.T, s *Service, want int, label string) {
+	t.Helper()
+	requireBoundAuditEvents(t, s, want, label)
+}
+
+func requireBoundAuditEvents(t *testing.T, s *Service, want int, label string) []artifacts.AuditEvent {
+	t.Helper()
+	events, err := s.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents(%s) returned error: %v", label, err)
+	}
+	boundEvents := launcherRuntimeAuditEventsByRuntimeType(events, "isolate_session_bound")
+	if len(boundEvents) != want {
+		t.Fatalf("isolate_session_bound event count %s = %d, want %d", label, len(boundEvents), want)
+	}
+	return boundEvents
+}
+
+func requirePersistedAttestationVerificationEvidence(t *testing.T, s *Service, runID string) launcherbackend.RuntimeEvidenceSnapshot {
+	t.Helper()
+	_, persistedEvidence, _, _, ok := s.store.RuntimeEvidenceState(runID)
+	if !ok {
+		t.Fatal("RuntimeEvidenceState = not found, want persisted runtime evidence")
+	}
+	if persistedEvidence.Attestation == nil || persistedEvidence.AttestationVerification == nil {
+		t.Fatalf("persisted evidence missing attestation/verification after attested facts: %#v", persistedEvidence)
+	}
+	return persistedEvidence
+}
+
 func attestationAuditRuntimeFacts() launcherbackend.RuntimeFactsSnapshot {
 	facts := launcherRuntimeFactsFixture()
 	facts.LaunchReceipt.RunID = "run-runtime-attestation-audit"
@@ -293,6 +396,7 @@ func attestationAuditRuntimeFacts() launcherbackend.RuntimeFactsSnapshot {
 	facts.LaunchReceipt.AttestationFreshnessMaterial = []string{"quote_nonce"}
 	facts.LaunchReceipt.AttestationFreshnessBindingClaims = []string{"session_nonce", "handshake_transcript_hash"}
 	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = runtimeFactsMeasurementDigests(facts.LaunchReceipt)[0]
+	facts.PostHandshakeAttestationInput = runtimeFactsPostHandshakeAttestationInput(facts.LaunchReceipt)
 	return facts
 }
 
@@ -332,121 +436,4 @@ func assertLauncherRuntimeAuditEvent(t *testing.T, events []artifacts.AuditEvent
 	t.Helper()
 	event := findLauncherRuntimeAuditEvent(t, events, runtimeEventType)
 	assertLauncherRuntimeAuditDigests(t, event, launchDigest, hardeningDigest, sessionDigest)
-}
-
-func findLauncherRuntimeAuditEvent(t *testing.T, events []artifacts.AuditEvent, runtimeEventType string) artifacts.AuditEvent {
-	t.Helper()
-	for _, event := range events {
-		if event.Type != brokerAuditEventTypeLauncherRuntime {
-			continue
-		}
-		if event.Details["runtime_event_type"] != runtimeEventType {
-			continue
-		}
-		return event
-	}
-	t.Fatalf("missing %s launcher runtime audit event", runtimeEventType)
-	return artifacts.AuditEvent{}
-}
-
-func launcherRuntimeAuditEventPayload(t *testing.T, event artifacts.AuditEvent) map[string]any {
-	t.Helper()
-	rawPayload, ok := event.Details["event_payload"]
-	if !ok {
-		t.Fatal("event_payload missing from launcher runtime audit details")
-	}
-	switch payload := rawPayload.(type) {
-	case map[string]any:
-		return payload
-	case json.RawMessage:
-		var decoded map[string]any
-		if err := json.Unmarshal(payload, &decoded); err != nil {
-			t.Fatalf("json.Unmarshal(event_payload RawMessage) returned error: %v", err)
-		}
-		return decoded
-	case []byte:
-		var decoded map[string]any
-		if err := json.Unmarshal(payload, &decoded); err != nil {
-			t.Fatalf("json.Unmarshal(event_payload bytes) returned error: %v", err)
-		}
-		return decoded
-	case string:
-		var decoded map[string]any
-		if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
-			t.Fatalf("json.Unmarshal(event_payload string) returned error: %v", err)
-		}
-		return decoded
-	default:
-		t.Fatalf("event_payload = %T, want object or JSON payload", rawPayload)
-		return nil
-	}
-}
-
-func assertLauncherRuntimeAuditDigests(t *testing.T, event artifacts.AuditEvent, launchDigest, hardeningDigest, sessionDigest string) {
-	t.Helper()
-	digests := launcherRuntimeAuditDigests(t, event)
-	assertLauncherRuntimeAuditDigestValue(t, digests, "launch_receipt", launchDigest)
-	assertLauncherRuntimeAuditDigestValue(t, digests, "hardening_posture", hardeningDigest)
-	assertLauncherRuntimeAuditDigestValue(t, digests, "session_binding", sessionDigest)
-}
-
-func launcherRuntimeAuditDigests(t *testing.T, event artifacts.AuditEvent) map[string]any {
-	t.Helper()
-	digests, ok := event.Details["stored_runtime_fact_digests"].(map[string]any)
-	if !ok {
-		t.Fatalf("stored_runtime_fact_digests = %T, want map", event.Details["stored_runtime_fact_digests"])
-	}
-	return digests
-}
-
-func assertLauncherRuntimeAuditDigestValue(t *testing.T, digests map[string]any, name, want string) {
-	t.Helper()
-	if digests[name] != want {
-		t.Fatalf("%s digest = %v, want %q", name, digests[name], want)
-	}
-}
-
-func countLauncherRuntimeAuditEvents(events []artifacts.AuditEvent) int {
-	count := 0
-	for _, event := range events {
-		if event.Type == brokerAuditEventTypeLauncherRuntime {
-			count++
-		}
-	}
-	return count
-}
-
-func countRuntimeLaunchDeniedEventsByReasonCode(t *testing.T, events []artifacts.AuditEvent, reasonCode string) int {
-	t.Helper()
-	count := 0
-	for _, event := range events {
-		if event.Type != brokerAuditEventTypeLauncherRuntime {
-			continue
-		}
-		if event.Details["runtime_event_type"] != "runtime_launch_denied" {
-			continue
-		}
-		payload := launcherRuntimeAuditEventPayload(t, event)
-		if payload["launch_failure_reason_code"] == reasonCode {
-			count++
-		}
-	}
-	return count
-}
-
-func assertBrokerRejectionAuditEvent(t *testing.T, events []artifacts.AuditEvent, requestID, reasonCode string) {
-	t.Helper()
-	for _, event := range events {
-		if event.Type != brokerAuditEventTypeRejection {
-			continue
-		}
-		if event.Details["request_id"] != requestID {
-			continue
-		}
-		if event.Details["reason_code"] != reasonCode {
-			t.Fatalf("reason_code = %v, want %s", event.Details["reason_code"], reasonCode)
-		}
-		return
-	}
-	t.Fatalf("missing broker rejection audit event for request_id=%s reason_code=%s", requestID, reasonCode)
 }

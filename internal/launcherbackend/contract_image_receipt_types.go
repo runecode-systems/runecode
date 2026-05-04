@@ -160,7 +160,8 @@ type BackendTerminalReport struct {
 }
 
 type RuntimeFactsSnapshot struct {
-	LaunchReceipt    BackendLaunchReceipt    `json:"launch_receipt"`
-	HardeningPosture AppliedHardeningPosture `json:"hardening_posture"`
-	TerminalReport   *BackendTerminalReport  `json:"terminal_report,omitempty"`
+	LaunchReceipt                 BackendLaunchReceipt                  `json:"launch_receipt"`
+	PostHandshakeAttestationInput *PostHandshakeRuntimeAttestationInput `json:"post_handshake_attestation_input,omitempty"`
+	HardeningPosture              AppliedHardeningPosture               `json:"hardening_posture"`
+	TerminalReport                *BackendTerminalReport                `json:"terminal_report,omitempty"`
 }

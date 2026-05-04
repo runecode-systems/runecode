@@ -23,15 +23,19 @@ func (s *Service) RecordRuntimeFacts(runID string, facts launcherbackend.Runtime
 	if err := s.store.RecordRuntimeEvidenceState(normalizedRunID, facts, evidence, lifecycle); err != nil {
 		return err
 	}
-	if err := s.syncRunStatusFromRuntimeFacts(normalizedRunID, facts); err != nil {
+	persistedFacts, persistedEvidence, _, _, ok := s.store.RuntimeEvidenceState(normalizedRunID)
+	if !ok {
+		return fmt.Errorf("persisted runtime evidence state missing for run %q", normalizedRunID)
+	}
+	if err := s.syncRunStatusFromRuntimeFacts(normalizedRunID, persistedFacts); err != nil {
 		return err
 	}
-	runtimeSupportState := runtimeAuditSupportState(evidence, s.currentInstanceBackendPosture().InstanceID, normalizedRunID, s.PolicyDecisionRefsForRun(normalizedRunID), s.listApprovals())
+	runtimeSupportState := runtimeAuditSupportState(persistedEvidence, s.currentInstanceBackendPosture().InstanceID, normalizedRunID, s.PolicyDecisionRefsForRun(normalizedRunID), s.listApprovals())
 	runnerAdvisory, _ := s.RunnerAdvisory(normalizedRunID)
-	if err := s.SyncSessionExecutionFromRunRuntime(normalizedRunID, facts, runnerAdvisory, s.now().UTC()); err != nil {
+	if err := s.SyncSessionExecutionFromRunRuntime(normalizedRunID, persistedFacts, runnerAdvisory, s.now().UTC()); err != nil {
 		return err
 	}
-	if err := s.emitRuntimeEvidenceAuditEvents(normalizedRunID, facts, evidence, runtimeSupportState); err != nil {
+	if err := s.emitRuntimeEvidenceAuditEvents(normalizedRunID, persistedFacts, persistedEvidence, runtimeSupportState); err != nil {
 		return err
 	}
 	return nil
@@ -58,6 +62,7 @@ func (s *Service) RuntimeEvidence(runID string) launcherbackend.RuntimeEvidenceS
 func normalizeRuntimeFactsSnapshot(runID string, input launcherbackend.RuntimeFactsSnapshot) launcherbackend.RuntimeFactsSnapshot {
 	facts := input
 	facts.LaunchReceipt = facts.LaunchReceipt.Normalized()
+	facts.PostHandshakeAttestationInput = launcherbackend.NormalizePostHandshakeRuntimeAttestationInput(facts.PostHandshakeAttestationInput)
 	facts.HardeningPosture = normalizeRuntimeHardeningPosture(facts.HardeningPosture, facts.LaunchReceipt)
 	facts.TerminalReport = normalizeRuntimeTerminalReport(facts.TerminalReport)
 	if facts.LaunchReceipt.RunID == "" {
@@ -78,12 +83,8 @@ func applyPersistedLifecycle(facts *launcherbackend.RuntimeFactsSnapshot, lifecy
 		facts.LaunchReceipt.ProvisioningPosture = lifecycle.ProvisioningPosture
 	}
 	facts.LaunchReceipt.ProvisioningPostureDegraded = lifecycle.ProvisioningPostureDegraded
-	if len(lifecycle.ProvisioningDegradedReasons) > 0 {
-		facts.LaunchReceipt.ProvisioningDegradedReasons = append([]string{}, lifecycle.ProvisioningDegradedReasons...)
-	}
-	if strings.TrimSpace(lifecycle.LaunchFailureReasonCode) != "" {
-		facts.LaunchReceipt.LaunchFailureReasonCode = lifecycle.LaunchFailureReasonCode
-	}
+	facts.LaunchReceipt.ProvisioningDegradedReasons = append([]string{}, lifecycle.ProvisioningDegradedReasons...)
+	facts.LaunchReceipt.LaunchFailureReasonCode = strings.TrimSpace(lifecycle.LaunchFailureReasonCode)
 }
 
 func normalizeRuntimeHardeningPosture(input launcherbackend.AppliedHardeningPosture, receipt launcherbackend.BackendLaunchReceipt) launcherbackend.AppliedHardeningPosture {
