@@ -12,6 +12,18 @@ import (
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
+var (
+	errOfflineBundlePathRequired           = errors.New("bundle_path is required")
+	errOfflineBundlePathAbsolute           = errors.New("bundle_path must be an absolute path")
+	errOfflineBundlePathLinkedComponents   = errors.New("bundle_path must not contain symlink components")
+	errOfflineBundlePathSymlink            = errors.New("bundle_path must not reference a symlink")
+	errOfflineBundlePathFile               = errors.New("bundle_path must reference a file")
+	errOfflineBundlePathTar                = errors.New("bundle_path must reference a .tar archive")
+	errOfflineBundlePathNotAccessible      = errors.New("bundle_path is not accessible")
+	errOfflineBundlePathAccess             = errors.New("bundle path access failed")
+	errOfflineBundleVerificationFailedSafe = errors.New("audit evidence bundle offline verify failed")
+)
+
 func (s *Service) HandleAuditEvidenceBundleOfflineVerify(ctx context.Context, req AuditEvidenceBundleOfflineVerifyRequest, meta RequestContext) (AuditEvidenceBundleOfflineVerifyResponse, *ErrorResponse) {
 	requestID, _, cleanup, errResp := s.prepareAuditEvidenceRequest(ctx, req.RequestID, meta.RequestID, meta.AdmissionErr, req, auditEvidenceBundleOfflineVerifyRequestSchemaPath, meta, "audit evidence bundle offline verify service unavailable")
 	if errResp != nil {
@@ -40,24 +52,19 @@ func (s *Service) HandleAuditEvidenceBundleOfflineVerify(ctx context.Context, re
 
 func (s *Service) verifyAuditEvidenceBundleFromRequest(requestID string, req AuditEvidenceBundleOfflineVerifyRequest) (AuditEvidenceBundleOfflineVerification, *ErrorResponse) {
 	bundlePath := strings.TrimSpace(req.BundlePath)
-	if bundlePath == "" {
-		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, "bundle_path is required")
-		return AuditEvidenceBundleOfflineVerification{}, &errOut
-	}
-	cleanBundlePath, err := validatedOfflineBundlePath(bundlePath)
+	f, err := openValidatedOfflineBundleFile(bundlePath)
 	if err != nil {
-		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
-		return AuditEvidenceBundleOfflineVerification{}, &errOut
-	}
-	f, err := os.Open(cleanBundlePath)
-	if err != nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, fmt.Sprintf("bundle open failed: %v", err))
+		if msg, ok := offlineBundleValidationClientMessage(err); ok {
+			errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, msg)
+			return AuditEvidenceBundleOfflineVerification{}, &errOut
+		}
+		errOut := s.makeError(requestID, "gateway_failure", "internal", false, "bundle open failed")
 		return AuditEvidenceBundleOfflineVerification{}, &errOut
 	}
 	defer f.Close()
 	trustedVerification, err := s.auditLedger.OfflineVerifyEvidenceBundle(f, req.ArchiveFormat)
 	if err != nil {
-		errOut := s.makeError(requestID, "gateway_failure", "internal", false, fmt.Sprintf("audit evidence bundle offline verify failed: %v", err))
+		errOut := s.makeError(requestID, "gateway_failure", "internal", false, errOfflineBundleVerificationFailedSafe.Error())
 		return AuditEvidenceBundleOfflineVerification{}, &errOut
 	}
 	verification, err := projectAuditEvidenceBundleOfflineVerification(trustedVerification)
@@ -72,31 +79,76 @@ func (s *Service) verifyAuditEvidenceBundleFromRequest(requestID string, req Aud
 	return verification, nil
 }
 
-func validatedOfflineBundlePath(bundlePath string) (string, error) {
+func openValidatedOfflineBundleFile(bundlePath string) (*os.File, error) {
 	clean := filepath.Clean(strings.TrimSpace(bundlePath))
 	if clean == "." || clean == "" {
-		return "", fmt.Errorf("bundle_path is required")
+		return nil, errOfflineBundlePathRequired
 	}
 	if !filepath.IsAbs(clean) {
-		return "", fmt.Errorf("bundle_path must be an absolute path")
+		return nil, errOfflineBundlePathAbsolute
+	}
+	if filepath.Ext(clean) != ".tar" {
+		return nil, errOfflineBundlePathTar
 	}
 	if err := rejectLinkedPathComponents(filepath.Dir(clean)); err != nil {
 		if errors.Is(err, errLinkedPathComponent) {
-			return "", fmt.Errorf("bundle_path must not contain symlink components")
+			return nil, errOfflineBundlePathLinkedComponents
 		}
-		return "", err
+		return nil, fmt.Errorf("%w: %v", errOfflineBundlePathNotAccessible, err)
 	}
-	info, err := os.Stat(clean)
+	info, err := os.Lstat(clean)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("%w", errOfflineBundlePathNotAccessible)
+	}
+	linked, err := pathEntryIsLinkOrReparse(clean, info)
+	if err != nil {
+		return nil, fmt.Errorf("%w", errOfflineBundlePathNotAccessible)
+	}
+	if linked {
+		return nil, errOfflineBundlePathSymlink
 	}
 	if info.IsDir() {
-		return "", fmt.Errorf("bundle_path must reference a file")
+		return nil, errOfflineBundlePathFile
 	}
-	if filepath.Ext(clean) != ".tar" {
-		return "", fmt.Errorf("bundle_path must reference a .tar archive")
+	f, err := openReadOnlyNoFollow(clean)
+	if err != nil {
+		return nil, fmt.Errorf("%w", errOfflineBundlePathNotAccessible)
 	}
-	return clean, nil
+	openedInfo, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("%w", errOfflineBundlePathAccess)
+	}
+	if !openedInfo.Mode().IsRegular() {
+		_ = f.Close()
+		return nil, errOfflineBundlePathFile
+	}
+	if !os.SameFile(info, openedInfo) {
+		_ = f.Close()
+		return nil, fmt.Errorf("%w", errOfflineBundlePathAccess)
+	}
+	return f, nil
+}
+
+func offlineBundleValidationClientMessage(err error) (string, bool) {
+	switch {
+	case errors.Is(err, errOfflineBundlePathRequired):
+		return errOfflineBundlePathRequired.Error(), true
+	case errors.Is(err, errOfflineBundlePathAbsolute):
+		return errOfflineBundlePathAbsolute.Error(), true
+	case errors.Is(err, errOfflineBundlePathLinkedComponents):
+		return errOfflineBundlePathLinkedComponents.Error(), true
+	case errors.Is(err, errOfflineBundlePathSymlink):
+		return errOfflineBundlePathSymlink.Error(), true
+	case errors.Is(err, errOfflineBundlePathFile):
+		return errOfflineBundlePathFile.Error(), true
+	case errors.Is(err, errOfflineBundlePathTar):
+		return errOfflineBundlePathTar.Error(), true
+	case errors.Is(err, errOfflineBundlePathNotAccessible):
+		return errOfflineBundlePathNotAccessible.Error(), true
+	default:
+		return "", false
+	}
 }
 
 func projectAuditEvidenceBundleOfflineVerification(value auditd.AuditEvidenceBundleOfflineVerification) (AuditEvidenceBundleOfflineVerification, error) {
