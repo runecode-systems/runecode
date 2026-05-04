@@ -117,10 +117,11 @@ func newAuditRecordInclusion(recordDigest string, envelopeDigestIdentity string,
 		LeafIndex:         lookup.FrameIndex,
 		LeafCount:         recordCount,
 		SegmentMerkleRoot: merkleRootIdentity,
-		CompactPath:       compactPath,
 	}
 	if recordCount <= orderedMerkleFullDigestListMax {
 		orderedMerkle.SegmentRecordDigests = recordDigestIdentities
+	} else {
+		orderedMerkle.CompactPath = compactPath
 	}
 	return AuditRecordInclusion{
 		RecordDigest:         recordDigest,

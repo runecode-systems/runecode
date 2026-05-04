@@ -51,7 +51,7 @@
         },
         "segment_record_digests": {
           "type": "array",
-          "minItems": 0,
+          "minItems": 1,
           "maxItems": 1000000,
           "description": "Ordered segment record digest identities used to recompute segment_merkle_root in full-list mode.",
           "x-data-class": "public",
@@ -62,7 +62,7 @@
         },
         "compact_path": {
           "type": "array",
-          "minItems": 0,
+          "minItems": 1,
           "maxItems": 128,
           "description": "Ordered compact sibling-path digest identities for reconstructing segment_merkle_root from record_digest, leaf_index, and leaf_count.",
           "x-data-class": "public",
@@ -74,10 +74,16 @@
       },
       "oneOf": [
         {
-          "required": ["segment_record_digests"]
+          "required": ["segment_record_digests"],
+          "not": {
+            "required": ["compact_path"]
+          }
         },
         {
-          "required": ["compact_path"]
+          "required": ["compact_path"],
+          "not": {
+            "required": ["segment_record_digests"]
+          }
         }
       ]
     }

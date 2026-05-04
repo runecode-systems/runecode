@@ -26,6 +26,12 @@ func TestRecordInclusionByDigestSingleSegmentSealed(t *testing.T) {
 	recordID, _ := secondAppend.RecordDigest.Identity()
 	inclusion := mustRecordInclusionByDigest(t, ledger, recordID)
 	assertSingleSegmentSealedInclusion(t, inclusion, sealID)
+	if len(inclusion.OrderedMerkle.SegmentRecordDigests) != inclusion.OrderedMerkle.LeafCount {
+		t.Fatalf("SegmentRecordDigests length = %d, want full-list representation of %d leaves", len(inclusion.OrderedMerkle.SegmentRecordDigests), inclusion.OrderedMerkle.LeafCount)
+	}
+	if len(inclusion.OrderedMerkle.CompactPath) != 0 {
+		t.Fatalf("CompactPath length = %d, want full-list-only representation for small segments", len(inclusion.OrderedMerkle.CompactPath))
+	}
 	assertInclusionMerkleRecomputes(t, inclusion)
 }
 

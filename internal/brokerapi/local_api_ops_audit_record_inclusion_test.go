@@ -43,6 +43,9 @@ func assertProjectedAuditRecordInclusion(t *testing.T, inclusion AuditRecordIncl
 	if len(inclusion.OrderedMerkle.SegmentRecordDigests) > 0 && inclusion.OrderedMerkle.LeafCount != len(inclusion.OrderedMerkle.SegmentRecordDigests) {
 		t.Fatalf("ordered_merkle leaf_count=%d segment_record_digests=%d mismatch", inclusion.OrderedMerkle.LeafCount, len(inclusion.OrderedMerkle.SegmentRecordDigests))
 	}
+	if len(inclusion.OrderedMerkle.SegmentRecordDigests) > 0 && len(inclusion.OrderedMerkle.CompactPath) > 0 {
+		t.Fatalf("ordered_merkle exposes both full-list and compact representations: %+v", inclusion.OrderedMerkle)
+	}
 	assertProjectedSealLinkage(t, inclusion)
 	assertInclusionMerkleMaterialRecomputes(t, inclusion)
 }
