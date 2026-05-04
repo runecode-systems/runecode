@@ -144,10 +144,14 @@ func gitPreparedMutationID(runID, provider, destinationRef, typedRequestHash, ac
 }
 
 func gitPreparedStateFromRecord(record artifacts.GitRemotePreparedMutationRecord) (GitRemoteMutationPreparedState, error) {
-	typedRequestHash, actionRequestHash, policyDecisionHash, approvalReqHash, approvalDecHash, derivedSummary, err := decodeGitPreparedStateRecord(record)
+	typedRequestHash, actionRequestHash, policyDecisionHash, optional, derivedSummary, err := decodeGitPreparedStateRecord(record)
 	if err != nil {
 		return GitRemoteMutationPreparedState{}, err
 	}
+	return gitPreparedStateFromDecodedRecord(record, typedRequestHash, actionRequestHash, policyDecisionHash, optional, derivedSummary), nil
+}
+
+func gitPreparedStateFromDecodedRecord(record artifacts.GitRemotePreparedMutationRecord, typedRequestHash, actionRequestHash, policyDecisionHash trustpolicy.Digest, optional gitPreparedStateOptionalDigests, derivedSummary GitRemoteMutationDerivedSummary) GitRemoteMutationPreparedState {
 	return GitRemoteMutationPreparedState{
 		SchemaID:                     "runecode.protocol.v0.GitRemoteMutationPreparedState",
 		SchemaVersion:                "0.1.0",
@@ -163,8 +167,8 @@ func gitPreparedStateFromRecord(record artifacts.GitRemotePreparedMutationRecord
 		ActionRequestHash:            actionRequestHash,
 		PolicyDecisionHash:           policyDecisionHash,
 		RequiredApprovalID:           record.RequiredApprovalID,
-		RequiredApprovalRequestHash:  approvalReqHash,
-		RequiredApprovalDecisionHash: approvalDecHash,
+		RequiredApprovalRequestHash:  optional.RequiredApprovalRequestHash,
+		RequiredApprovalDecisionHash: optional.RequiredApprovalDecisionHash,
 		LifecycleState:               record.LifecycleState,
 		LifecycleReasonCode:          record.LifecycleReasonCode,
 		ExecutionState:               record.ExecutionState,
@@ -175,41 +179,12 @@ func gitPreparedStateFromRecord(record artifacts.GitRemotePreparedMutationRecord
 		LastPrepareRequestID:         record.LastPrepareRequestID,
 		LastGetRequestID:             record.LastGetRequestID,
 		LastExecuteRequestID:         record.LastExecuteRequestID,
-	}, nil
-}
-
-func decodeGitPreparedStateRecord(record artifacts.GitRemotePreparedMutationRecord) (trustpolicy.Digest, trustpolicy.Digest, trustpolicy.Digest, *trustpolicy.Digest, *trustpolicy.Digest, GitRemoteMutationDerivedSummary, error) {
-	typedRequestHash, err := digestFromIdentity(record.TypedRequestHash)
-	if err != nil {
-		return trustpolicy.Digest{}, trustpolicy.Digest{}, trustpolicy.Digest{}, nil, nil, GitRemoteMutationDerivedSummary{}, fmt.Errorf("typed_request_hash invalid: %w", err)
+		LastExecuteProviderLeaseID:   record.LastExecuteProviderLease,
+		LastExecuteAttemptID:         record.LastExecuteAttemptID,
+		LastExecuteAttemptRequestID:  optional.LastExecuteAttemptRequestHash,
+		LastExecuteSnapshotSegmentID: record.LastExecuteSnapshotSegID,
+		LastExecuteSnapshotSealID:    optional.LastExecuteSnapshotSealDigest,
 	}
-	actionRequestHash, err := digestFromIdentity(record.ActionRequestHash)
-	if err != nil {
-		return trustpolicy.Digest{}, trustpolicy.Digest{}, trustpolicy.Digest{}, nil, nil, GitRemoteMutationDerivedSummary{}, fmt.Errorf("action_request_hash invalid: %w", err)
-	}
-	policyDecisionHash, err := digestFromIdentity(record.PolicyDecisionHash)
-	if err != nil {
-		return trustpolicy.Digest{}, trustpolicy.Digest{}, trustpolicy.Digest{}, nil, nil, GitRemoteMutationDerivedSummary{}, fmt.Errorf("policy_decision_hash invalid: %w", err)
-	}
-	approvalReqHash, err := optionalDigestFromIdentity(record.RequiredApprovalReqHash, "required_approval_request_hash")
-	if err != nil {
-		return trustpolicy.Digest{}, trustpolicy.Digest{}, trustpolicy.Digest{}, nil, nil, GitRemoteMutationDerivedSummary{}, err
-	}
-	approvalDecHash, err := optionalDigestFromIdentity(record.RequiredApprovalDecHash, "required_approval_decision_hash")
-	if err != nil {
-		return trustpolicy.Digest{}, trustpolicy.Digest{}, trustpolicy.Digest{}, nil, nil, GitRemoteMutationDerivedSummary{}, err
-	}
-	derivedSummary := GitRemoteMutationDerivedSummary{}
-	if err := remarshalValue(record.DerivedSummary, &derivedSummary); err != nil {
-		return trustpolicy.Digest{}, trustpolicy.Digest{}, trustpolicy.Digest{}, nil, nil, GitRemoteMutationDerivedSummary{}, fmt.Errorf("derived_summary invalid: %w", err)
-	}
-	if derivedSummary.SchemaID == "" {
-		derivedSummary.SchemaID = "runecode.protocol.v0.GitRemoteMutationDerivedSummary"
-	}
-	if derivedSummary.SchemaVersion == "" {
-		derivedSummary.SchemaVersion = "0.1.0"
-	}
-	return typedRequestHash, actionRequestHash, policyDecisionHash, approvalReqHash, approvalDecHash, derivedSummary, nil
 }
 
 func optionalDigestFromIdentity(identity, field string) (*trustpolicy.Digest, error) {

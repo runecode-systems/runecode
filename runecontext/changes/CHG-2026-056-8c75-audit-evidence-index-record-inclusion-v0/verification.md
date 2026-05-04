@@ -15,6 +15,7 @@
 - Confirm tests include multi-segment previous-seal linkage, real computed Merkle roots, mismatch handling, and permission checks.
 - Confirm the design allows append-friendly or sharded trusted derived storage so hot-path updates do not require rewriting a monolithic index representation at scale.
 - Confirm record-inclusion output remains independently checkable even if compact Merkle-path representations are introduced later for performance.
+- Confirm record-inclusion and sealing-checkpoint seams are hardened for downstream publication durability and crash-reconcile bindings without adding replication or federation execution behavior here.
 
 ## Close Gate
 Use the repository's standard verification flow before closing this change.

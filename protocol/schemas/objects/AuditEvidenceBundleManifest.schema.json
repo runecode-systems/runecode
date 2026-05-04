@@ -5,7 +5,7 @@
   "description": "Portable evidence-bundle manifest describing bundle scope, export posture, included objects, root digests, seal references, verifier identity, trust roots, and disclosure posture. This manifest is not a substitute for underlying evidence objects.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 17,
+  "maxProperties": 20,
   "required": [
     "schema_id",
     "schema_version",
@@ -383,14 +383,35 @@
       "description": "Scope declaration for this bundle.",
       "x-data-class": "public"
     },
+    "repository_identity_digest": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Repository/project identity digest bound by trusted local context when available.",
+      "x-data-class": "public"
+    },
+    "product_instance_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^repo-[a-z0-9]+$",
+      "description": "Stable repo-scoped product instance identity for this bundle projection.",
+      "x-data-class": "public"
+    },
+    "ledger_identity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^ledger-[a-f0-9]+$",
+      "description": "Persistent audit ledger identity for the source evidence ledger.",
+      "x-data-class": "public"
+    },
     "control_plane_provenance": {
       "$ref": "#/$defs/controlPlaneProvenance",
       "description": "Control-plane provenance digest identities captured for this bundle when available.",
       "x-data-class": "public"
     },
-    "instance_identity_digest": {
+    "project_context_identity_digest": {
       "$ref": "Digest.schema.json#/$defs/digestValue",
-      "description": "Stable instance identity digest preserved for portable provenance identity.",
+      "description": "Project-context identity digest preserved for portable provenance identity.",
       "x-data-class": "public"
     },
     "included_objects": {

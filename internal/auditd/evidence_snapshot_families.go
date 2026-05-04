@@ -23,7 +23,7 @@ type evidenceSnapshotFamilies struct {
 	requiredApprovalIDs       []string
 	approvalDigests           []string
 	attestationDigests        []string
-	instanceIdentityDigests   []string
+	projectContextDigests     []string
 	anchorEvidenceDigests     []string
 }
 
@@ -40,7 +40,7 @@ func (l *Ledger) collectEvidenceSnapshotFamiliesLocked() (evidenceSnapshotFamili
 	if err != nil {
 		return evidenceSnapshotFamilies{}, err
 	}
-	policyDigests, typedRequestDigests, actionRequestDigests, controlPlaneDigests, approvalDigests, requiredApprovalIDs, attestationDigests, instanceIdentityDigests, providerInvocationDigests, secretLeaseDigests, err := l.externalAnchorDerivedEvidenceIdentitiesLocked()
+	policyDigests, typedRequestDigests, actionRequestDigests, controlPlaneDigests, approvalDigests, requiredApprovalIDs, attestationDigests, projectContextDigests, providerInvocationDigests, secretLeaseDigests, err := l.externalAnchorDerivedEvidenceIdentitiesLocked()
 	if err != nil {
 		return evidenceSnapshotFamilies{}, err
 	}
@@ -62,7 +62,7 @@ func (l *Ledger) collectEvidenceSnapshotFamiliesLocked() (evidenceSnapshotFamili
 		requiredApprovalIDs:       requiredApprovalIDs,
 		approvalDigests:           append(approvalDigests, receiptApprovalDigests...),
 		attestationDigests:        attestationDigests,
-		instanceIdentityDigests:   instanceIdentityDigests,
+		projectContextDigests:     projectContextDigests,
 		anchorEvidenceDigests:     append(sidecars.anchorEvidenceDigests, sidecars.anchorSidecarDigests...),
 	}, nil
 }
@@ -160,6 +160,16 @@ func (l *Ledger) verificationContractDigestFamiliesLocked() (verificationContrac
 }
 
 func canonicalIdentityFromAny(value any) ([]string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Interface, reflect.Pointer, reflect.Slice, reflect.Map:
+		if v.IsNil() {
+			return nil, nil
+		}
+	}
 	digest, err := canonicalDigest(value)
 	if err != nil {
 		return nil, err

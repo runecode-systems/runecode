@@ -19,11 +19,14 @@ Without this feature, the project risks preserving some evidence strongly but lo
 ## Proposed Change
 - Add `AuditEvidenceSnapshot` as a preservation manifest for the minimum set of canonical evidence identities that must be preserved or exported for future verification and backfill.
 - Add `AuditEvidenceBundleManifest` as the portable description of an evidence bundle.
+- Preserve explicit identity seams across project or repository identity, repo-scoped product-instance identity, persistent ledger identity, and project-substrate snapshot identity where those identities are required for later verification continuity.
+- Require bundle completeness semantics to distinguish directly included canonical objects from transitive digest-reference dependencies.
 - Support streaming-friendly bundle export so large evidence sets do not require full in-memory assembly.
 - Support explicit export profiles and selective-disclosure declarations.
 - Keep portable bundles independently verifiable outside RuneCode's UI and database.
 - Preserve enough identity material for export, restore, retention checks, and future cross-machine work.
 - Keep bundle manifests signed when bundles are intended for external sharing.
+- Do not treat snapshots or bundle manifests as federation authority primitives.
 
 ## Why Now
 This feature is part of the foundation because preservation mistakes are expensive to fix later.

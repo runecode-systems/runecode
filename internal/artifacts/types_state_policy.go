@@ -125,6 +125,11 @@ type GitRemotePreparedMutationRecord struct {
 	LastPrepareRequestID     string         `json:"last_prepare_request_id,omitempty"`
 	LastGetRequestID         string         `json:"last_get_request_id,omitempty"`
 	LastExecuteRequestID     string         `json:"last_execute_request_id,omitempty"`
+	LastExecuteProviderLease string         `json:"last_execute_provider_auth_lease_id,omitempty"`
+	LastExecuteAttemptID     string         `json:"last_execute_attempt_id,omitempty"`
+	LastExecuteAttemptReqID  string         `json:"last_execute_attempt_typed_request_hash,omitempty"`
+	LastExecuteSnapshotSegID string         `json:"last_execute_snapshot_segment_id,omitempty"`
+	LastExecuteSnapshotSeal  string         `json:"last_execute_snapshot_seal_digest,omitempty"`
 	LastExecuteApprovalID    string         `json:"last_execute_approval_id,omitempty"`
 	LastExecuteApprovalReqID string         `json:"last_execute_approval_request_hash,omitempty"`
 	LastExecuteApprovalDecID string         `json:"last_execute_approval_decision_hash,omitempty"`

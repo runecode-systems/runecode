@@ -5,7 +5,7 @@
   "description": "Typed preservation manifest listing canonical evidence identities required for retention, export planning, and verification backfill checks. This manifest is not a substitute for underlying evidence objects.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 28,
+  "maxProperties": 32,
   "required": [
     "schema_id",
     "schema_version",
@@ -58,6 +58,27 @@
       "format": "date-time",
       "maxLength": 64,
       "description": "RFC 3339 timestamp when the snapshot was generated.",
+      "x-data-class": "public"
+    },
+    "repository_identity_digest": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Repository/project identity digest bound by trusted local context when available.",
+      "x-data-class": "public"
+    },
+    "product_instance_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^repo-[a-z0-9]+$",
+      "description": "Stable repo-scoped product instance identity for this snapshot projection.",
+      "x-data-class": "public"
+    },
+    "ledger_identity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^ledger-[a-f0-9]+$",
+      "description": "Persistent audit ledger identity for this local evidence store.",
       "x-data-class": "public"
     },
     "segment_ids": {
@@ -125,9 +146,9 @@
       "description": "Attestation evidence and verification digests where present.",
       "x-data-class": "public"
     },
-    "instance_identity_digests": {
+    "project_context_identity_digests": {
       "$ref": "#/$defs/digestList",
-      "description": "Stable instance identity digests preserved for cross-machine portability.",
+      "description": "Project-context identity digests preserved for cross-machine portability.",
       "x-data-class": "public"
     },
     "policy_evidence_digests": {

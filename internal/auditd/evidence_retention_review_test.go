@@ -13,7 +13,7 @@ func TestBuildEvidenceRetentionReviewSeededFixtureIsFullySatisfied(t *testing.T)
 	_ = mustPersistReceipt(t, ledger, buildAnchorReceiptEnvelope(t, fixture, seal.SealEnvelopeDigest))
 	_ = mustPersistReport(t, ledger, validReportFixture("segment-000001"))
 
-	_, _, review, err := ledger.BuildEvidenceRetentionReview(AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"})
+	_, _, review, err := ledger.BuildEvidenceRetentionReview(AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"}, AuditEvidenceIdentityContext{})
 	if err != nil {
 		t.Fatalf("BuildEvidenceRetentionReview returned error: %v", err)
 	}
@@ -22,6 +22,28 @@ func TestBuildEvidenceRetentionReviewSeededFixtureIsFullySatisfied(t *testing.T)
 	}
 	if len(review.Missing) != 0 {
 		t.Fatalf("missing = %+v, want no completeness gaps for seeded complete fixture", review.Missing)
+	}
+}
+
+func TestBuildEvidenceRetentionReviewSnapshotPreservesIdentityContext(t *testing.T) {
+	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	seal := mustSealFixtureSegment(t, ledger, fixture)
+	_ = mustPersistReceipt(t, ledger, buildAnchorReceiptEnvelope(t, fixture, seal.SealEnvelopeDigest))
+	_ = mustPersistReport(t, ledger, validReportFixture("segment-000001"))
+
+	identityContext := AuditEvidenceIdentityContext{
+		RepositoryIdentityDigest: "sha256:" + strings.Repeat("f", 64),
+		ProductInstanceID:        "product-instance-123",
+	}
+	snapshot, _, _, err := ledger.BuildEvidenceRetentionReview(AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"}, identityContext)
+	if err != nil {
+		t.Fatalf("BuildEvidenceRetentionReview returned error: %v", err)
+	}
+	if snapshot.RepositoryIdentityDigest != identityContext.RepositoryIdentityDigest {
+		t.Fatalf("snapshot repository_identity_digest = %q, want %q", snapshot.RepositoryIdentityDigest, identityContext.RepositoryIdentityDigest)
+	}
+	if snapshot.ProductInstanceID != identityContext.ProductInstanceID {
+		t.Fatalf("snapshot product_instance_id = %q, want %q", snapshot.ProductInstanceID, identityContext.ProductInstanceID)
 	}
 }
 
@@ -73,6 +95,49 @@ func TestEvaluateEvidenceRetentionCompletenessManifestDeclaresButDoesNotSubstitu
 	}
 	if !containsCompletenessFamily(review.Missing, "audit_receipt_digest") {
 		t.Fatalf("missing = %+v, want audit_receipt_digest even when manifest contains root/seal digests", review.Missing)
+	}
+}
+
+func TestEvaluateEvidenceRetentionCompletenessClassifiesTransitiveEmbeddedDigests(t *testing.T) {
+	typed := "sha256:" + strings.Repeat("1", 64)
+	action := "sha256:" + strings.Repeat("2", 64)
+	policy := "sha256:" + strings.Repeat("3", 64)
+	review := EvaluateEvidenceRetentionCompleteness(
+		AuditEvidenceSnapshot{
+			TypedRequestDigests:   []string{typed},
+			ActionRequestDigests:  []string{action},
+			PolicyEvidenceDigests: []string{policy},
+		},
+		AuditEvidenceBundleManifest{},
+	)
+	if containsCompletenessFamily(review.Missing, "typed_request_digest") || containsCompletenessFamily(review.Missing, "action_request_digest") || containsCompletenessFamily(review.Missing, "policy_evidence_digest") {
+		t.Fatalf("missing = %+v, want transitive embedded digest families excluded from direct-missing accounting", review.Missing)
+	}
+	if !containsCompletenessFamily(review.TransitiveEmbedded, "typed_request_digest") || !containsCompletenessFamily(review.TransitiveEmbedded, "action_request_digest") || !containsCompletenessFamily(review.TransitiveEmbedded, "policy_evidence_digest") {
+		t.Fatalf("transitive_embedded = %+v, want typed/action/policy families tracked as transitive embedded", review.TransitiveEmbedded)
+	}
+	if review.TransitiveEmbeddedIdentityCount != 3 {
+		t.Fatalf("transitive_embedded_identity_count = %d, want 3", review.TransitiveEmbeddedIdentityCount)
+	}
+}
+
+func TestEvaluateEvidenceRetentionCompletenessClassifiesUnsupportedDirectFamilies(t *testing.T) {
+	review := EvaluateEvidenceRetentionCompleteness(
+		AuditEvidenceSnapshot{
+			ControlPlaneDigests:       []string{"sha256:" + strings.Repeat("4", 64)},
+			ProviderInvocationDigests: []string{"opaque-provider-ref"},
+			SecretLeaseDigests:        []string{"sha256:" + strings.Repeat("5", 64)},
+		},
+		AuditEvidenceBundleManifest{},
+	)
+	if containsCompletenessFamily(review.Missing, "control_plane_digest") || containsCompletenessFamily(review.Missing, "provider_invocation_digest") || containsCompletenessFamily(review.Missing, "secret_lease_digest") {
+		t.Fatalf("missing = %+v, want unsupported families excluded from direct-missing accounting", review.Missing)
+	}
+	if !containsCompletenessFamily(review.UnsupportedDirectCompleteness, "control_plane_digest") || !containsCompletenessFamily(review.UnsupportedDirectCompleteness, "provider_invocation_digest") || !containsCompletenessFamily(review.UnsupportedDirectCompleteness, "secret_lease_digest") {
+		t.Fatalf("unsupported_direct_completeness = %+v, want control_plane/provider_invocation/secret_lease tracked as unsupported direct", review.UnsupportedDirectCompleteness)
+	}
+	if review.UnsupportedDirectIdentityCount != 3 {
+		t.Fatalf("unsupported_direct_identity_count = %d, want 3", review.UnsupportedDirectIdentityCount)
 	}
 }
 

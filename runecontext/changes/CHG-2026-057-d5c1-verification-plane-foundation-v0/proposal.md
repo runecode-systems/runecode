@@ -36,13 +36,18 @@ That requires a project-level foundation that keeps the source of truth in trust
   - explicit degraded-assurance posture rather than silent fallback
 - Keep one architecture and one trust model across constrained local devices and larger deployments.
 - Separate canonical evidence from derived operational surfaces, and keep derived surfaces rebuildable rather than authoritative.
+- Freeze explicit identity separation among project or repository identity, repo-scoped product-instance identity, persistent ledger identity, and project-substrate snapshot identity.
+- Require persistent ledger identity as a first-class foundation seam for export, restore, reconcile, and future federation continuity.
 - Define the recommended evidence object families, receipt kinds, verifier findings, and coverage gaps that must be closed for `v0`.
+- Require truthful completeness semantics for portable evidence: directly included canonical objects versus transitive digest-reference dependencies must be distinguishable.
+- Harden prepared-record evidence seams now so downstream publication durability barriers and crash reconcile can bind exact action intent to prior evidence checkpoints without implementing federation behavior in this lane.
 - Make this parent project responsible for sequencing and integration posture while child feature changes carry the implementation detail.
 - Track three child workstreams under this umbrella:
   - `CHG-2026-056-8c75-audit-evidence-index-record-inclusion-v0`
   - `CHG-2026-055-546a-verification-evidence-preservation-bundle-export-v0`
   - `CHG-2026-058-04e9-verification-coverage-expansion-v0`
 - Keep proof-specific generation, verification, and protocol surfaces out of the foundation lane.
+- Do not overload bundle manifests or preservation snapshots into federation authority primitives.
 
 ## Why Now
 RuneCode is moving toward a more complete end-to-end product surface where users, reviewers, operators, companies, and auditors will all need stronger answers about provenance, authority, runtime identity, approvals, provider usage, anti-tamper history, and exportable verification.

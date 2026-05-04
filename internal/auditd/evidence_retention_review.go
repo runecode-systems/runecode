@@ -2,8 +2,8 @@ package auditd
 
 import "strings"
 
-func (l *Ledger) BuildEvidenceRetentionReview(scope AuditEvidenceBundleScope) (AuditEvidenceSnapshot, AuditEvidenceBundleManifest, AuditEvidenceSnapshotCompletenessReview, error) {
-	snapshot, err := l.EvidenceSnapshot()
+func (l *Ledger) BuildEvidenceRetentionReview(scope AuditEvidenceBundleScope, identityContext AuditEvidenceIdentityContext) (AuditEvidenceSnapshot, AuditEvidenceBundleManifest, AuditEvidenceSnapshotCompletenessReview, error) {
+	snapshot, err := l.EvidenceSnapshotWithIdentity(identityContext)
 	if err != nil {
 		return AuditEvidenceSnapshot{}, AuditEvidenceBundleManifest{}, AuditEvidenceSnapshotCompletenessReview{}, err
 	}
@@ -11,6 +11,7 @@ func (l *Ledger) BuildEvidenceRetentionReview(scope AuditEvidenceBundleScope) (A
 		Scope:             scope,
 		ExportProfile:     "operator_private_full",
 		CreatedByTool:     AuditEvidenceBundleToolIdentity{ToolName: "runecode-auditd", ToolVersion: "0.0.0-dev"},
+		IdentityContext:   identityContext,
 		DisclosurePosture: AuditEvidenceBundleDisclosurePosture{Posture: "operator_private", SelectiveDisclosureApplied: false},
 	})
 	if err != nil {
@@ -24,9 +25,16 @@ func EvaluateEvidenceRetentionCompleteness(snapshot AuditEvidenceSnapshot, manif
 	included := includedIdentitySet(manifest.IncludedObjects)
 	track := evidenceCompletenessTracker{review: &review, included: included, redactions: manifest.Redactions}
 	for _, family := range evidenceRetentionDigestFamilies(snapshot) {
-		track.digestFamily(family.name, family.identities, family.pathFor)
+		switch family.kind {
+		case evidenceRetentionFamilyTransitive:
+			track.transitiveDigestFamily(family.name, family.identities)
+		case evidenceRetentionFamilyUnsupportedDirect:
+			track.unsupportedDirectFamily(family.name, family.identities)
+		default:
+			track.digestFamily(family.name, family.identities, family.pathFor)
+		}
 	}
-	track.instanceIdentityDigests(snapshot.InstanceIdentityDigests, manifest.InstanceIdentity)
+	track.projectContextIdentityDigests(snapshot.ProjectContextIdentityDigests, manifest.ProjectContextIdentityDigest)
 
 	review.FullySatisfied = len(review.Missing) == 0 && len(review.DeclaredRedactions) == 0
 	return review
@@ -42,7 +50,16 @@ type evidenceRetentionDigestFamily struct {
 	name       string
 	identities []string
 	pathFor    func(string) string
+	kind       evidenceRetentionFamilyKind
 }
+
+type evidenceRetentionFamilyKind int
+
+const (
+	evidenceRetentionFamilyDirect evidenceRetentionFamilyKind = iota
+	evidenceRetentionFamilyTransitive
+	evidenceRetentionFamilyUnsupportedDirect
+)
 
 func includedIdentitySet(objects []AuditEvidenceBundleIncludedObject) map[string]struct{} {
 	included := map[string]struct{}{}
@@ -57,20 +74,20 @@ func includedIdentitySet(objects []AuditEvidenceBundleIncludedObject) map[string
 
 func evidenceRetentionDigestFamilies(snapshot AuditEvidenceSnapshot) []evidenceRetentionDigestFamily {
 	families := []evidenceRetentionDigestFamily{
-		{name: "segment_seal_digest", identities: snapshot.SegmentSealDigests, pathFor: func(identity string) string { return evidenceBundleSidecarObjectPath(sealsDirName, identity) }},
-		{name: "audit_receipt_digest", identities: snapshot.AuditReceiptDigests, pathFor: func(identity string) string { return evidenceBundleSidecarObjectPath(receiptsDirName, identity) }},
-		{name: "verification_report_digest", identities: snapshot.VerificationReportDigests, pathFor: verificationReportRetentionPath},
-		{name: "runtime_evidence_digest", identities: snapshot.RuntimeEvidenceDigests, pathFor: func(string) string { return "contracts/signer-evidence.json" }},
-		{name: "verifier_record_digest", identities: snapshot.VerifierRecordDigests, pathFor: func(string) string { return "contracts/verifier-records.json" }},
-		{name: "event_contract_catalog_digest", identities: snapshot.EventContractCatalogDigests, pathFor: func(string) string { return "contracts/event-contract-catalog.json" }},
-		{name: "signer_evidence_digest", identities: snapshot.SignerEvidenceDigests, pathFor: func(string) string { return "contracts/signer-evidence.json" }},
-		{name: "storage_posture_digest", identities: snapshot.StoragePostureDigests, pathFor: func(string) string { return "contracts/storage-posture.json" }},
-		{name: "typed_request_digest", identities: snapshot.TypedRequestDigests, pathFor: externalAnchorEvidenceRetentionPath},
-		{name: "action_request_digest", identities: snapshot.ActionRequestDigests, pathFor: externalAnchorEvidenceRetentionPath},
-		{name: "attestation_evidence_digest", identities: snapshot.AttestationEvidenceDigests, pathFor: externalAnchorSidecarRetentionPath},
-		{name: "policy_evidence_digest", identities: snapshot.PolicyEvidenceDigests, pathFor: externalAnchorEvidenceRetentionPath},
-		{name: "approval_evidence_digest", identities: snapshot.ApprovalEvidenceDigests, pathFor: externalAnchorEvidenceRetentionPath},
-		{name: "anchor_evidence_digest", identities: snapshot.AnchorEvidenceDigests, pathFor: anchorEvidenceRetentionPath},
+		{name: "segment_seal_digest", identities: snapshot.SegmentSealDigests, pathFor: func(identity string) string { return evidenceBundleSidecarObjectPath(sealsDirName, identity) }, kind: evidenceRetentionFamilyDirect},
+		{name: "audit_receipt_digest", identities: snapshot.AuditReceiptDigests, pathFor: func(identity string) string { return evidenceBundleSidecarObjectPath(receiptsDirName, identity) }, kind: evidenceRetentionFamilyDirect},
+		{name: "verification_report_digest", identities: snapshot.VerificationReportDigests, pathFor: verificationReportRetentionPath, kind: evidenceRetentionFamilyDirect},
+		{name: "runtime_evidence_digest", identities: snapshot.RuntimeEvidenceDigests, pathFor: func(string) string { return "contracts/signer-evidence.json" }, kind: evidenceRetentionFamilyDirect},
+		{name: "verifier_record_digest", identities: snapshot.VerifierRecordDigests, pathFor: func(string) string { return "contracts/verifier-records.json" }, kind: evidenceRetentionFamilyDirect},
+		{name: "event_contract_catalog_digest", identities: snapshot.EventContractCatalogDigests, pathFor: func(string) string { return "contracts/event-contract-catalog.json" }, kind: evidenceRetentionFamilyDirect},
+		{name: "signer_evidence_digest", identities: snapshot.SignerEvidenceDigests, pathFor: func(string) string { return "contracts/signer-evidence.json" }, kind: evidenceRetentionFamilyDirect},
+		{name: "storage_posture_digest", identities: snapshot.StoragePostureDigests, pathFor: func(string) string { return "contracts/storage-posture.json" }, kind: evidenceRetentionFamilyDirect},
+		{name: "typed_request_digest", identities: snapshot.TypedRequestDigests, kind: evidenceRetentionFamilyTransitive},
+		{name: "action_request_digest", identities: snapshot.ActionRequestDigests, kind: evidenceRetentionFamilyTransitive},
+		{name: "attestation_evidence_digest", identities: snapshot.AttestationEvidenceDigests, kind: evidenceRetentionFamilyTransitive},
+		{name: "policy_evidence_digest", identities: snapshot.PolicyEvidenceDigests, kind: evidenceRetentionFamilyTransitive},
+		{name: "approval_evidence_digest", identities: snapshot.ApprovalEvidenceDigests, kind: evidenceRetentionFamilyTransitive},
+		{name: "anchor_evidence_digest", identities: snapshot.AnchorEvidenceDigests, pathFor: anchorEvidenceRetentionPath, kind: evidenceRetentionFamilyDirect},
 	}
 	families = append(families, shaIdentityRetentionFamilies(snapshot)...)
 	return families
@@ -78,9 +95,9 @@ func evidenceRetentionDigestFamilies(snapshot AuditEvidenceSnapshot) []evidenceR
 
 func shaIdentityRetentionFamilies(snapshot AuditEvidenceSnapshot) []evidenceRetentionDigestFamily {
 	return []evidenceRetentionDigestFamily{
-		{name: "control_plane_digest", identities: snapshot.ControlPlaneDigests, pathFor: shaExternalAnchorEvidenceRetentionPath},
-		{name: "provider_invocation_digest", identities: snapshot.ProviderInvocationDigests, pathFor: shaExternalAnchorEvidenceRetentionPath},
-		{name: "secret_lease_digest", identities: snapshot.SecretLeaseDigests, pathFor: shaExternalAnchorEvidenceRetentionPath},
+		{name: "control_plane_digest", identities: snapshot.ControlPlaneDigests, kind: evidenceRetentionFamilyUnsupportedDirect},
+		{name: "provider_invocation_digest", identities: snapshot.ProviderInvocationDigests, kind: evidenceRetentionFamilyUnsupportedDirect},
+		{name: "secret_lease_digest", identities: snapshot.SecretLeaseDigests, kind: evidenceRetentionFamilyUnsupportedDirect},
 	}
 }
 
@@ -121,7 +138,29 @@ func (t evidenceCompletenessTracker) digestFamily(family string, identities []st
 	}
 }
 
-func (t evidenceCompletenessTracker) instanceIdentityDigests(identities []string, manifestIdentity string) {
+func (t evidenceCompletenessTracker) transitiveDigestFamily(family string, identities []string) {
+	for i := range identities {
+		identity := strings.TrimSpace(identities[i])
+		if identity == "" {
+			continue
+		}
+		t.review.TransitiveEmbeddedIdentityCount++
+		t.review.TransitiveEmbedded = append(t.review.TransitiveEmbedded, AuditEvidenceSnapshotCompleteness{Family: family, Identity: identity})
+	}
+}
+
+func (t evidenceCompletenessTracker) unsupportedDirectFamily(family string, identities []string) {
+	for i := range identities {
+		identity := strings.TrimSpace(identities[i])
+		if identity == "" {
+			continue
+		}
+		t.review.UnsupportedDirectIdentityCount++
+		t.review.UnsupportedDirectCompleteness = append(t.review.UnsupportedDirectCompleteness, AuditEvidenceSnapshotCompleteness{Family: family, Identity: identity})
+	}
+}
+
+func (t evidenceCompletenessTracker) projectContextIdentityDigests(identities []string, manifestIdentity string) {
 	for i := range identities {
 		identity := strings.TrimSpace(identities[i])
 		if identity == "" {
@@ -129,7 +168,7 @@ func (t evidenceCompletenessTracker) instanceIdentityDigests(identities []string
 		}
 		t.review.RequiredIdentityCount++
 		if strings.TrimSpace(manifestIdentity) != identity {
-			t.review.Missing = append(t.review.Missing, AuditEvidenceSnapshotCompleteness{Family: "instance_identity_digest", Identity: identity})
+			t.review.Missing = append(t.review.Missing, AuditEvidenceSnapshotCompleteness{Family: "project_context_identity_digest", Identity: identity})
 		}
 	}
 }

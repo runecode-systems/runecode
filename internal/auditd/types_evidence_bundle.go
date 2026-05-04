@@ -6,8 +6,15 @@ type AuditEvidenceBundleManifestRequest struct {
 	Scope             AuditEvidenceBundleScope
 	ExportProfile     string
 	CreatedByTool     AuditEvidenceBundleToolIdentity
+	IdentityContext   AuditEvidenceIdentityContext
 	DisclosurePosture AuditEvidenceBundleDisclosurePosture
 	Redactions        []AuditEvidenceBundleRedaction
+}
+
+type AuditEvidenceIdentityContext struct {
+	RepositoryIdentityDigest string `json:"repository_identity_digest,omitempty"`
+	ProductInstanceID        string `json:"product_instance_id,omitempty"`
+	LedgerIdentity           string `json:"ledger_identity,omitempty"`
 }
 
 type AuditEvidenceBundleExportRequest struct {
@@ -21,22 +28,25 @@ type AuditEvidenceBundleExport struct {
 }
 
 type AuditEvidenceBundleManifest struct {
-	SchemaID          string                                `json:"schema_id"`
-	SchemaVersion     string                                `json:"schema_version"`
-	BundleID          string                                `json:"bundle_id"`
-	CreatedAt         string                                `json:"created_at"`
-	CreatedByTool     AuditEvidenceBundleToolIdentity       `json:"created_by_tool"`
-	ExportProfile     string                                `json:"export_profile"`
-	Scope             AuditEvidenceBundleScope              `json:"scope"`
-	ControlPlane      *AuditEvidenceBundleControlProvenance `json:"control_plane_provenance,omitempty"`
-	InstanceIdentity  string                                `json:"instance_identity_digest,omitempty"`
-	IncludedObjects   []AuditEvidenceBundleIncludedObject   `json:"included_objects,omitempty"`
-	RootDigests       []string                              `json:"root_digests,omitempty"`
-	SealReferences    []AuditEvidenceBundleSealReference    `json:"seal_references,omitempty"`
-	VerifierIdentity  AuditEvidenceBundleVerifierIdentity   `json:"verifier_identity"`
-	TrustRootDigests  []string                              `json:"trust_root_digests,omitempty"`
-	DisclosurePosture AuditEvidenceBundleDisclosurePosture  `json:"disclosure_posture"`
-	Redactions        []AuditEvidenceBundleRedaction        `json:"redactions,omitempty"`
+	SchemaID                     string                                `json:"schema_id"`
+	SchemaVersion                string                                `json:"schema_version"`
+	BundleID                     string                                `json:"bundle_id"`
+	CreatedAt                    string                                `json:"created_at"`
+	CreatedByTool                AuditEvidenceBundleToolIdentity       `json:"created_by_tool"`
+	ExportProfile                string                                `json:"export_profile"`
+	Scope                        AuditEvidenceBundleScope              `json:"scope"`
+	RepositoryIdentityDigest     string                                `json:"repository_identity_digest,omitempty"`
+	ProductInstanceID            string                                `json:"product_instance_id,omitempty"`
+	LedgerIdentity               string                                `json:"ledger_identity,omitempty"`
+	ControlPlane                 *AuditEvidenceBundleControlProvenance `json:"control_plane_provenance,omitempty"`
+	ProjectContextIdentityDigest string                                `json:"project_context_identity_digest,omitempty"`
+	IncludedObjects              []AuditEvidenceBundleIncludedObject   `json:"included_objects,omitempty"`
+	RootDigests                  []string                              `json:"root_digests,omitempty"`
+	SealReferences               []AuditEvidenceBundleSealReference    `json:"seal_references,omitempty"`
+	VerifierIdentity             AuditEvidenceBundleVerifierIdentity   `json:"verifier_identity"`
+	TrustRootDigests             []string                              `json:"trust_root_digests,omitempty"`
+	DisclosurePosture            AuditEvidenceBundleDisclosurePosture  `json:"disclosure_posture"`
+	Redactions                   []AuditEvidenceBundleRedaction        `json:"redactions,omitempty"`
 }
 
 type AuditEvidenceBundleToolIdentity struct {

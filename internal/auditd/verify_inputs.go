@@ -110,10 +110,10 @@ func loadOptionalContractFiles(contractsDir string, inputs *verificationInputs) 
 	if !fileExists(filepath.Join(contractsDir, "storage-posture.json")) {
 		return nil
 	}
-	var posture trustpolicy.AuditStoragePostureEvidence
+	var posture *trustpolicy.AuditStoragePostureEvidence
 	if err := readJSONFile(filepath.Join(contractsDir, "storage-posture.json"), &posture); err != nil {
 		return err
 	}
-	inputs.storagePosture = &posture
+	inputs.storagePosture = posture
 	return nil
 }
