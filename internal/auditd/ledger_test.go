@@ -81,43 +81,22 @@ func TestReadinessSemantics(t *testing.T) {
 func TestAppendAdmittedEventRejectsDuplicateRecordDigestAndPreservesCounts(t *testing.T) {
 	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
 
-	before := mustReadDerivedIndex(t, root)
-	if before.TotalRecords != 1 {
-		t.Fatalf("index TotalRecords(before duplicate) = %d, want 1", before.TotalRecords)
-	}
+	assertDerivedIndexTotalRecords(t, root, 1, "before duplicate")
 
 	duplicate := validAdmissionRequestForLedger(t, fixture)
 	if _, err := ledger.AppendAdmittedEvent(duplicate); err == nil || !strings.Contains(err.Error(), "duplicate record digest") {
 		t.Fatalf("AppendAdmittedEvent(duplicate) error = %v, want duplicate record digest rejection", err)
 	}
 
-	segment, err := ledger.loadSegment("segment-000001")
-	if err != nil {
-		t.Fatalf("loadSegment returned error: %v", err)
-	}
-	if len(segment.Frames) != 1 {
-		t.Fatalf("segment frame count = %d, want 1 after duplicate rejection", len(segment.Frames))
-	}
+	assertSegmentFrameCount(t, ledger, "segment-000001", 1, "after duplicate rejection")
 
-	after := mustReadDerivedIndex(t, root)
-	if after.TotalRecords != 1 {
-		t.Fatalf("index TotalRecords(after duplicate) = %d, want 1", after.TotalRecords)
-	}
+	assertDerivedIndexTotalRecords(t, root, 1, "after duplicate")
 	rebuilt := mustBuildIndex(t, ledger)
 	if rebuilt.TotalRecords != 1 {
 		t.Fatalf("rebuilt index TotalRecords = %d, want 1", rebuilt.TotalRecords)
 	}
 
-	state, err := ledger.loadState()
-	if err != nil {
-		t.Fatalf("loadState returned error: %v", err)
-	}
-	if state.LastIndexedRecordCount != 1 {
-		t.Fatalf("state LastIndexedRecordCount = %d, want 1", state.LastIndexedRecordCount)
-	}
-	if state.OpenFrameCount != 1 {
-		t.Fatalf("state OpenFrameCount = %d, want 1", state.OpenFrameCount)
-	}
+	assertStateCounts(t, ledger, 1, 1, "after duplicate rejection")
 }
 
 func TestAppendAdmittedEventRejectsConcurrentDuplicateRecordDigest(t *testing.T) {
@@ -156,20 +135,8 @@ func TestAppendAdmittedEventRejectsConcurrentDuplicateRecordDigest(t *testing.T)
 		t.Fatalf("duplicate rejections = %d, want %d", duplicateErrs, attempts)
 	}
 
-	segment, err := ledger.loadSegment("segment-000001")
-	if err != nil {
-		t.Fatalf("loadSegment returned error: %v", err)
-	}
-	if len(segment.Frames) != 1 {
-		t.Fatalf("segment frame count = %d, want 1 after concurrent duplicate rejection", len(segment.Frames))
-	}
-	state, err := ledger.loadState()
-	if err != nil {
-		t.Fatalf("loadState returned error: %v", err)
-	}
-	if state.LastIndexedRecordCount != 1 || state.OpenFrameCount != 1 {
-		t.Fatalf("state after concurrent duplicate rejection = %+v, want frame/index counts of 1", state)
-	}
+	assertSegmentFrameCount(t, ledger, "segment-000001", 1, "after concurrent duplicate rejection")
+	assertStateCounts(t, ledger, 1, 1, "after concurrent duplicate rejection")
 }
 
 func TestReadinessFailsClosedWhenVerificationInputsMalformed(t *testing.T) {
@@ -499,6 +466,36 @@ func hasReceiptKind(t *testing.T, receipts []trustpolicy.SignedObjectEnvelope, k
 
 func fullStoragePostureFixture() *trustpolicy.AuditStoragePostureEvidence {
 	return &trustpolicy.AuditStoragePostureEvidence{EncryptedAtRestDefault: true, EncryptedAtRestEffective: true, DevPlaintextOverrideActive: false, SurfacedToOperator: true}
+}
+
+func assertDerivedIndexTotalRecords(t *testing.T, root string, want int, label string) {
+	t.Helper()
+	index := mustReadDerivedIndex(t, root)
+	if index.TotalRecords != want {
+		t.Fatalf("index TotalRecords(%s) = %d, want %d", label, index.TotalRecords, want)
+	}
+}
+
+func assertSegmentFrameCount(t *testing.T, ledger *Ledger, segmentID string, want int, label string) {
+	t.Helper()
+	segment, err := ledger.loadSegment(segmentID)
+	if err != nil {
+		t.Fatalf("loadSegment returned error: %v", err)
+	}
+	if len(segment.Frames) != want {
+		t.Fatalf("segment frame count = %d, want %d %s", len(segment.Frames), want, label)
+	}
+}
+
+func assertStateCounts(t *testing.T, ledger *Ledger, wantIndexed int, wantOpenFrames int, label string) {
+	t.Helper()
+	state, err := ledger.loadState()
+	if err != nil {
+		t.Fatalf("loadState returned error: %v", err)
+	}
+	if state.LastIndexedRecordCount != wantIndexed || state.OpenFrameCount != wantOpenFrames {
+		t.Fatalf("state %s = %+v, want indexed=%d open_frames=%d", label, state, wantIndexed, wantOpenFrames)
+	}
 }
 
 func assertPathPresent(t *testing.T, path string, msg string) {

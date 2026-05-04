@@ -53,8 +53,7 @@ func (s *Service) HandleAuditEvidenceBundleOfflineVerify(ctx context.Context, re
 }
 
 func (s *Service) verifyAuditEvidenceBundleFromRequest(requestID string, req AuditEvidenceBundleOfflineVerifyRequest) (AuditEvidenceBundleOfflineVerification, *ErrorResponse) {
-	bundlePath := strings.TrimSpace(req.BundlePath)
-	f, err := openValidatedOfflineBundleFile(bundlePath)
+	f, err := openValidatedOfflineBundleFile(req.BundlePath)
 	if err != nil {
 		if msg, ok := offlineBundleValidationClientMessage(err); ok {
 			errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, msg)
@@ -86,26 +85,38 @@ func openValidatedOfflineBundleFile(bundlePath string) (*os.File, error) {
 }
 
 func openValidatedOfflineBundleFileWithOpener(bundlePath string, opener func(string) (*os.File, error)) (*os.File, error) {
-	clean := filepath.Clean(strings.TrimSpace(bundlePath))
-	if clean == "." || clean == "" {
-		return nil, errOfflineBundlePathRequired
-	}
-	if !filepath.IsAbs(clean) {
-		return nil, errOfflineBundlePathAbsolute
-	}
-	if filepath.Ext(clean) != ".tar" {
-		return nil, errOfflineBundlePathTar
-	}
-	if err := rejectLinkedPathComponents(filepath.Dir(clean)); err != nil {
-		if errors.Is(err, errLinkedPathComponent) {
-			return nil, errOfflineBundlePathLinkedComponents
-		}
-		return nil, fmt.Errorf("%w: %v", errOfflineBundlePathNotAccessible, err)
+	clean, err := validateOfflineBundlePath(bundlePath)
+	if err != nil {
+		return nil, err
 	}
 	preOpenInfo, err := validatedOfflineBundleLeafInfo(clean)
 	if err != nil {
 		return nil, err
 	}
+	return openVerifiedOfflineBundleFile(clean, preOpenInfo, opener)
+}
+
+func validateOfflineBundlePath(bundlePath string) (string, error) {
+	clean := filepath.Clean(strings.TrimSpace(bundlePath))
+	if clean == "." || clean == "" {
+		return "", errOfflineBundlePathRequired
+	}
+	if !filepath.IsAbs(clean) {
+		return "", errOfflineBundlePathAbsolute
+	}
+	if filepath.Ext(clean) != ".tar" {
+		return "", errOfflineBundlePathTar
+	}
+	if err := rejectLinkedPathComponents(filepath.Dir(clean)); err != nil {
+		if errors.Is(err, errLinkedPathComponent) {
+			return "", errOfflineBundlePathLinkedComponents
+		}
+		return "", fmt.Errorf("%w: %v", errOfflineBundlePathNotAccessible, err)
+	}
+	return clean, nil
+}
+
+func openVerifiedOfflineBundleFile(clean string, preOpenInfo os.FileInfo, opener func(string) (*os.File, error)) (*os.File, error) {
 	f, err := opener(clean)
 	if err != nil {
 		return nil, fmt.Errorf("%w", errOfflineBundlePathNotAccessible)
