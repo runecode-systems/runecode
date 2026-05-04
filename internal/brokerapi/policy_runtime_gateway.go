@@ -18,17 +18,20 @@ const (
 )
 
 type gatewayActionPayloadRuntime struct {
-	GatewayRoleKind string                      `json:"gateway_role_kind"`
-	DestinationKind string                      `json:"destination_kind"`
-	DestinationRef  string                      `json:"destination_ref"`
-	EgressDataClass string                      `json:"egress_data_class"`
-	Operation       string                      `json:"operation"`
-	TimeoutSeconds  *int                        `json:"timeout_seconds,omitempty"`
-	PayloadHash     *trustpolicy.Digest         `json:"payload_hash,omitempty"`
-	AuditContext    *gatewayAuditContextPayload `json:"audit_context,omitempty"`
-	GitRequest      map[string]any              `json:"git_request,omitempty"`
-	GitRuntimeProof *gitRuntimeProofPayload     `json:"git_runtime_proof,omitempty"`
-	QuotaContext    *gatewayQuotaContextPayload `json:"quota_context,omitempty"`
+	GatewayRoleKind   string                      `json:"gateway_role_kind"`
+	DestinationKind   string                      `json:"destination_kind"`
+	DestinationRef    string                      `json:"destination_ref"`
+	ProviderProfileID string                      `json:"provider_profile_id,omitempty"`
+	ModelID           string                      `json:"model_id,omitempty"`
+	EndpointIdentity  string                      `json:"endpoint_identity,omitempty"`
+	EgressDataClass   string                      `json:"egress_data_class"`
+	Operation         string                      `json:"operation"`
+	TimeoutSeconds    *int                        `json:"timeout_seconds,omitempty"`
+	PayloadHash       *trustpolicy.Digest         `json:"payload_hash,omitempty"`
+	AuditContext      *gatewayAuditContextPayload `json:"audit_context,omitempty"`
+	GitRequest        map[string]any              `json:"git_request,omitempty"`
+	GitRuntimeProof   *gitRuntimeProofPayload     `json:"git_runtime_proof,omitempty"`
+	QuotaContext      *gatewayQuotaContextPayload `json:"quota_context,omitempty"`
 }
 
 func (r policyRuntime) enforceGatewayRuntime(runID string, compiled *policyengine.CompiledContext, action policyengine.ActionRequest, decision policyengine.PolicyDecision) policyengine.PolicyDecision {
@@ -46,21 +49,26 @@ func (r policyRuntime) enforceGatewayRuntime(runID string, compiled *policyengin
 		if reason == "" {
 			reason = "runtime_gateway_destination_not_allowlisted"
 		}
+		r.service.persistProviderInvocationReceipt(runID, string(policyengine.DecisionDeny), reason, payload, gatewayAllowlistMatch{})
 		return runtimeGatewayDenyDecision(compiled, decision, payload, reason, nil)
 	}
 
 	if reason, details, denied := r.service.gatewayRuntime.runtimeEnforcementDenyReason(runID, entry, payload); denied {
+		r.service.persistProviderInvocationReceipt(runID, string(policyengine.DecisionDeny), reason, payload, match)
 		return runtimeGatewayDenyDecision(compiled, decision, payload, reason, details)
 	}
 	if reason, details, denied := runtimeGitOutboundVerificationReason(payload); denied {
 		r.service.gatewayRuntime.releaseQuotaUsage(runID, payload)
+		r.service.persistProviderInvocationReceipt(runID, string(policyengine.DecisionDeny), reason, payload, match)
 		return runtimeGatewayDenyDecision(compiled, decision, payload, reason, details)
 	}
 
 	if err := r.service.gatewayRuntime.emitGatewayAuditEvent(runID, decision, payload, match); err != nil {
 		r.service.gatewayRuntime.releaseQuotaUsage(runID, payload)
+		r.service.persistProviderInvocationReceipt(runID, string(policyengine.DecisionDeny), "runtime_gateway_audit_emit_failed", payload, match)
 		return runtimeGatewayDenyDecision(compiled, decision, payload, "runtime_gateway_audit_emit_failed", map[string]any{"error": err.Error()})
 	}
+	r.service.persistProviderInvocationReceipt(runID, string(decision.DecisionOutcome), "", payload, match)
 	r.service.gatewayRuntime.releaseQuotaUsage(runID, payload)
 	return decision
 }

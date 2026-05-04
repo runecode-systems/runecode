@@ -30,11 +30,12 @@ func (s *Service) HandleAuditEvidenceSnapshotGet(ctx context.Context, req AuditE
 		errOut := s.errorFromValidation(requestID, err)
 		return AuditEvidenceSnapshotGetResponse{}, &errOut
 	}
+	s.persistMetaAuditReceipt(auditReceiptKindSensitiveEvidenceView, "audit_evidence_snapshot", nil, nil, nil, "evidence_snapshot")
 	return resp, nil
 }
 
 func (s *Service) loadProjectedAuditEvidenceSnapshot(requestID string) (AuditEvidenceSnapshot, *ErrorResponse) {
-	trustedSnapshot, err := s.auditLedger.EvidenceSnapshot()
+	trustedSnapshot, err := s.auditLedger.EvidenceSnapshotWithIdentity(s.auditEvidenceIdentityContext())
 	if err != nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, "audit evidence snapshot lookup failed")
 		return AuditEvidenceSnapshot{}, &errOut
@@ -56,38 +57,59 @@ func projectAuditEvidenceSnapshot(snapshot auditd.AuditEvidenceSnapshot) (AuditE
 	if err != nil {
 		return AuditEvidenceSnapshot{}, err
 	}
+	repositoryIdentityDigest, err := optionalDigestFromAuditIdentity(snapshot.RepositoryIdentityDigest)
+	if err != nil {
+		return AuditEvidenceSnapshot{}, err
+	}
 	return AuditEvidenceSnapshot{
-		SchemaID:                   "runecode.protocol.v0.AuditEvidenceSnapshot",
-		SchemaVersion:              "0.1.0",
-		CreatedAt:                  snapshot.CreatedAt,
-		SegmentIDs:                 snapshot.SegmentIDs,
-		SegmentSealDigests:         projected.segmentSealDigests,
-		AuditReceiptDigests:        projected.auditReceiptDigests,
-		VerificationReportDigests:  projected.verificationReportDigests,
-		RuntimeEvidenceDigests:     projected.runtimeEvidenceDigests,
-		AttestationEvidenceDigests: projected.attestationEvidenceDigests,
-		InstanceIdentityDigests:    projected.instanceIdentityDigests,
-		PolicyEvidenceDigests:      projected.policyEvidenceDigests,
-		RequiredApprovalIDs:        snapshot.RequiredApprovalIDs,
-		ApprovalEvidenceDigests:    projected.approvalEvidenceDigests,
-		AnchorEvidenceDigests:      projected.anchorEvidenceDigests,
-		ProviderInvocationDigests:  projected.providerInvocationDigests,
-		SecretLeaseDigests:         projected.secretLeaseDigests,
+		SchemaID:                      "runecode.protocol.v0.AuditEvidenceSnapshot",
+		SchemaVersion:                 "0.1.0",
+		CreatedAt:                     snapshot.CreatedAt,
+		RepositoryIdentityDigest:      repositoryIdentityDigest,
+		ProductInstanceID:             snapshot.ProductInstanceID,
+		LedgerIdentity:                snapshot.LedgerIdentity,
+		SegmentIDs:                    snapshot.SegmentIDs,
+		SegmentSealDigests:            projected.segmentSealDigests,
+		AuditReceiptDigests:           projected.auditReceiptDigests,
+		VerificationReportDigests:     projected.verificationReportDigests,
+		RuntimeEvidenceDigests:        projected.runtimeEvidenceDigests,
+		VerifierRecordDigests:         projected.verifierRecordDigests,
+		EventContractCatalogDigests:   projected.eventContractCatalogDigests,
+		SignerEvidenceDigests:         projected.signerEvidenceDigests,
+		StoragePostureDigests:         projected.storagePostureDigests,
+		TypedRequestDigests:           projected.typedRequestDigests,
+		ActionRequestDigests:          projected.actionRequestDigests,
+		ControlPlaneDigests:           projected.controlPlaneDigests,
+		AttestationEvidenceDigests:    projected.attestationEvidenceDigests,
+		ProjectContextIdentityDigests: projected.projectContextIdentityDigests,
+		PolicyEvidenceDigests:         projected.policyEvidenceDigests,
+		RequiredApprovalIDs:           snapshot.RequiredApprovalIDs,
+		ApprovalEvidenceDigests:       projected.approvalEvidenceDigests,
+		AnchorEvidenceDigests:         projected.anchorEvidenceDigests,
+		ProviderInvocationDigests:     projected.providerInvocationDigests,
+		SecretLeaseDigests:            projected.secretLeaseDigests,
 	}, nil
 }
 
 type projectedAuditSnapshotDigestFamilies struct {
-	segmentSealDigests         []trustpolicy.Digest
-	auditReceiptDigests        []trustpolicy.Digest
-	verificationReportDigests  []trustpolicy.Digest
-	runtimeEvidenceDigests     []trustpolicy.Digest
-	attestationEvidenceDigests []trustpolicy.Digest
-	instanceIdentityDigests    []trustpolicy.Digest
-	policyEvidenceDigests      []trustpolicy.Digest
-	approvalEvidenceDigests    []trustpolicy.Digest
-	anchorEvidenceDigests      []trustpolicy.Digest
-	providerInvocationDigests  []trustpolicy.Digest
-	secretLeaseDigests         []trustpolicy.Digest
+	segmentSealDigests            []trustpolicy.Digest
+	auditReceiptDigests           []trustpolicy.Digest
+	verificationReportDigests     []trustpolicy.Digest
+	runtimeEvidenceDigests        []trustpolicy.Digest
+	verifierRecordDigests         []trustpolicy.Digest
+	eventContractCatalogDigests   []trustpolicy.Digest
+	signerEvidenceDigests         []trustpolicy.Digest
+	storagePostureDigests         []trustpolicy.Digest
+	typedRequestDigests           []trustpolicy.Digest
+	actionRequestDigests          []trustpolicy.Digest
+	controlPlaneDigests           []trustpolicy.Digest
+	attestationEvidenceDigests    []trustpolicy.Digest
+	projectContextIdentityDigests []trustpolicy.Digest
+	policyEvidenceDigests         []trustpolicy.Digest
+	approvalEvidenceDigests       []trustpolicy.Digest
+	anchorEvidenceDigests         []trustpolicy.Digest
+	providerInvocationDigests     []trustpolicy.Digest
+	secretLeaseDigests            []trustpolicy.Digest
 }
 
 func projectAuditSnapshotDigestFamilies(snapshot auditd.AuditEvidenceSnapshot) (projectedAuditSnapshotDigestFamilies, error) {
@@ -113,8 +135,15 @@ func projectedAuditSnapshotDigestFamilyTargets(projected *projectedAuditSnapshot
 		{identities: snapshot.AuditReceiptDigests, target: &projected.auditReceiptDigests},
 		{identities: snapshot.VerificationReportDigests, target: &projected.verificationReportDigests},
 		{identities: snapshot.RuntimeEvidenceDigests, target: &projected.runtimeEvidenceDigests},
+		{identities: snapshot.VerifierRecordDigests, target: &projected.verifierRecordDigests},
+		{identities: snapshot.EventContractCatalogDigests, target: &projected.eventContractCatalogDigests},
+		{identities: snapshot.SignerEvidenceDigests, target: &projected.signerEvidenceDigests},
+		{identities: snapshot.StoragePostureDigests, target: &projected.storagePostureDigests},
+		{identities: snapshot.TypedRequestDigests, target: &projected.typedRequestDigests},
+		{identities: snapshot.ActionRequestDigests, target: &projected.actionRequestDigests},
+		{identities: snapshot.ControlPlaneDigests, target: &projected.controlPlaneDigests},
 		{identities: snapshot.AttestationEvidenceDigests, target: &projected.attestationEvidenceDigests},
-		{identities: snapshot.InstanceIdentityDigests, target: &projected.instanceIdentityDigests},
+		{identities: snapshot.ProjectContextIdentityDigests, target: &projected.projectContextIdentityDigests},
 		{identities: snapshot.PolicyEvidenceDigests, target: &projected.policyEvidenceDigests},
 		{identities: snapshot.ApprovalEvidenceDigests, target: &projected.approvalEvidenceDigests},
 		{identities: snapshot.AnchorEvidenceDigests, target: &projected.anchorEvidenceDigests},

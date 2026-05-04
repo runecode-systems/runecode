@@ -61,6 +61,16 @@ Derived surfaces are rebuildable views and indexes that exist to make verificati
 ### Evidence Bundle
 An evidence bundle is a portable package of canonical evidence and a manifest that lets someone verify a run, artifact, or decision outside the originating machine.
 
+### Identity Seams (Foundation Requirement)
+The foundation distinguishes four different identities that must not be conflated:
+
+- project or repository identity (the codebase and planning surface)
+- repo-scoped product-instance identity (the trusted local product instance for that repository)
+- persistent ledger identity (the canonical append-only audit history identity)
+- project-substrate snapshot identity (a snapshot identity used for scoped reconstruction and reproducibility)
+
+The persistent ledger identity is a required foundation seam for verification continuity across restarts, migrations, export, restore, and future federation work.
+
 ## Non-Negotiables
 - Preserve the trust boundary described in `docs/trust-boundaries.md`.
 - Do not add runner-side access to trusted state or trusted evidence internals.
@@ -70,6 +80,7 @@ An evidence bundle is a portable package of canonical evidence and a manifest th
 - Keep the same overall trust model and verification semantics on small devices and scaled deployments.
 - Do not create a second project-truth surface or a second authorization engine.
 - Do not treat UI views, mutable databases, or search indexes as authoritative evidence.
+- Do not treat preservation snapshots, bundle manifests, or storage namespace layout as federation authority.
 - Do not silently accept degraded assurance.
 - Record denials, failures, deferrals, and overrides, not only successful actions.
 - Prefer the smallest correct change, but do not under-scope the evidence needed for future verification.
@@ -304,7 +315,11 @@ This layer binds execution claims to runtime evidence. It must preserve image id
 ### Evidence Bundle Layer
 This layer turns local evidence into portable evidence. It should support run-scoped bundles, artifact-scoped bundles, incident-scoped bundles, auditor-minimal bundles, operator-private bundles, and external relying-party bundles.
 
+Independent verification in this layer means more than checking archive integrity or replaying an included report payload. The foundation should support recomputing verification conclusions from exported canonical evidence alone when the bundle carries the required verification inputs, and should fail closed or degrade explicitly when the bundle omits evidence needed for that recomputation.
+
 This layer is implemented by `CHG-2026-055-546a-verification-evidence-preservation-bundle-export-v0`.
+
+This layer must preserve truthful completeness semantics: directly included canonical objects are first-class inclusion facts, while transitive digest references are dependency claims that may still require additional fetch or restore to recompute verification conclusions.
 
 ### Derived Views Layer
 This layer powers UI timelines, audit search, watch views, SIEM exports, and compliance dashboards. These views must always point back to canonical evidence identities.
@@ -341,6 +356,8 @@ This layer powers UI timelines, audit search, watch views, SIEM exports, and com
 - search materializations
 - cache entries
 - alert summaries
+
+These derived surfaces may use different cache sizes, queue depth, and storage backends across constrained and scaled environments, but they must preserve the same trust roots, verification semantics, evidence objects, and failure posture everywhere.
 
 ## Canonical Evidence Object Families
 The foundation should reuse existing object families on `main` where they already fit and add new families only where the current model has a clear gap.
@@ -382,6 +399,8 @@ Recommended initial receipt kinds are:
 - `network_usage_summary`
 - `secret_usage_summary`
 - `verification_finalize`
+
+These receipt families should land as canonical protocol and trusted-code work rather than as UI-only summaries. Approval resolution, approval consumption, publication, boundary, override, and summary evidence should remain first-class canonical evidence whenever they express authority, side effects, or explicit absence claims.
 
 ## Privacy And Selective Disclosure
 RuneCode is not primarily a privacy product, but the verification plane still must avoid oversharing.
@@ -438,6 +457,13 @@ Minimum public execution identity fields are:
 - attestation evidence digest where present
 - attestation verification record digest where present
 
+Recommended minimum preserved execution evidence fields additionally include:
+
+- isolate identity
+- backend kind
+- launch context digest
+- handshake transcript digest or equivalent session-establishment binding
+
 ## Meta-Audit, Completeness, And Negative Evidence
 RuneCode should audit the audit plane itself where security and compliance care. That includes evidence export, import, restore, retention changes, trust-root updates, verifier configuration changes, and sensitive evidence views where appropriate.
 
@@ -449,6 +475,8 @@ Important examples include:
 - if an artifact crossed a boundary, an authorization receipt must exist
 - if a production-affecting mutation happened, approval or explicit policy-exception evidence must exist
 - if a run claims no network egress, a final network summary receipt should support that claim
+
+Completeness checks should also cover the case where a production-affecting mutation, publication, or boundary-crossing side effect occurred without the required approval or explicit policy-exception evidence.
 
 ## Gaps The Foundation Must Close
 - control-plane provenance gap
@@ -503,6 +531,12 @@ Performance guidance:
 - make bundle export streaming-friendly
 - make index rebuild possible from canonical evidence
 
+Recommended additional foundation guidance:
+
+- avoid derived-index implementations that rewrite a monolithic state file on every append or seal at large scale
+- prefer append-friendly or sharded trusted derived storage so hot-path work remains close to constant time without changing trust semantics
+- keep record-inclusion material compact where possible so exported evidence remains practical on constrained devices and scaled systems alike
+
 Concrete foundation targets:
 
 - routine evidence append should stay near constant time with respect to historical ledger size
@@ -549,6 +583,7 @@ The exact filenames may differ, but the recommended responsibility split is:
 - bundle export helpers
 - verification report strengthening
 - canonical sidecar persistence for new evidence classes
+- offline verification replay from exported canonical evidence
 
 ### `internal/brokerapi/`
 - read-only trusted local API for record inclusion
@@ -567,6 +602,8 @@ The exact filenames may differ, but the recommended responsibility split is:
 - bundle completeness tests
 - degraded-posture tests
 - fail-closed tests for missing required evidence
+- performance regression checks for append, inclusion lookup, export, and verification-report retrieval
+- invariant and model-check updates where verification-plane foundation logic changes critical audit or approval bindings
 
 ## Experimental Concepts To Generalize
 The foundation should bring back these concepts in generalized form:
@@ -610,6 +647,12 @@ This project change owns sequencing and integration posture across three related
   - meta-audit coverage
   - missing-evidence detection
   - verifier identity and anchor reason-code strengthening
+
+Downstream ownership split:
+
+- this foundation lane and child lanes (`055`, `056`, `058`) harden identity seams, inclusion semantics, and prepared-record evidence seams needed for future publication durability and crash reconcile
+- `CHG-2026-059-7b31-cross-machine-evidence-replication-restore-v0` owns replication checkpoints, remote durability targets, thin-local GC, fetch-on-miss restore, anti-entropy, durability posture enforcement, and publication durability barrier execution semantics
+- this lane does not implement federation execution or remote durability gating behavior
 
 ## Recommended Order Of Implementation
 

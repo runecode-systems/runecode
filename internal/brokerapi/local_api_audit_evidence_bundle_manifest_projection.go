@@ -8,12 +8,13 @@ import (
 )
 
 type projectedAuditEvidenceBundleManifestParts struct {
-	rootDigests      []trustpolicy.Digest
-	trustRootDigests []trustpolicy.Digest
-	includedObjects  []AuditEvidenceBundleIncludedObject
-	sealReferences   []AuditEvidenceBundleSealReference
-	scope            AuditEvidenceBundleScope
-	instanceIdentity *trustpolicy.Digest
+	rootDigests                  []trustpolicy.Digest
+	trustRootDigests             []trustpolicy.Digest
+	includedObjects              []AuditEvidenceBundleIncludedObject
+	sealReferences               []AuditEvidenceBundleSealReference
+	scope                        AuditEvidenceBundleScope
+	repositoryIdentityDigest     *trustpolicy.Digest
+	projectContextIdentityDigest *trustpolicy.Digest
 }
 
 func projectAuditEvidenceBundleManifest(manifest auditd.AuditEvidenceBundleManifest) (AuditEvidenceBundleManifest, error) {
@@ -21,22 +22,34 @@ func projectAuditEvidenceBundleManifest(manifest auditd.AuditEvidenceBundleManif
 	if err != nil {
 		return AuditEvidenceBundleManifest{}, err
 	}
+	toolIdentity, err := projectAuditEvidenceBundleToolIdentity(manifest.CreatedByTool)
+	if err != nil {
+		return AuditEvidenceBundleManifest{}, err
+	}
+	controlPlane, err := projectAuditEvidenceBundleControlProvenance(manifest.ControlPlane)
+	if err != nil {
+		return AuditEvidenceBundleManifest{}, err
+	}
 	return AuditEvidenceBundleManifest{
-		SchemaID:          "runecode.protocol.v0.AuditEvidenceBundleManifest",
-		SchemaVersion:     "0.1.0",
-		BundleID:          manifest.BundleID,
-		CreatedAt:         manifest.CreatedAt,
-		CreatedByTool:     projectAuditEvidenceBundleToolIdentity(manifest.CreatedByTool),
-		ExportProfile:     manifest.ExportProfile,
-		Scope:             parts.scope,
-		InstanceIdentity:  parts.instanceIdentity,
-		IncludedObjects:   parts.includedObjects,
-		RootDigests:       parts.rootDigests,
-		SealReferences:    parts.sealReferences,
-		VerifierIdentity:  projectAuditEvidenceBundleVerifierIdentity(manifest.VerifierIdentity),
-		TrustRootDigests:  parts.trustRootDigests,
-		DisclosurePosture: projectAuditEvidenceBundleDisclosurePosture(manifest.DisclosurePosture),
-		Redactions:        projectAuditEvidenceBundleRedactions(manifest.Redactions),
+		SchemaID:                     "runecode.protocol.v0.AuditEvidenceBundleManifest",
+		SchemaVersion:                "0.1.0",
+		BundleID:                     manifest.BundleID,
+		CreatedAt:                    manifest.CreatedAt,
+		CreatedByTool:                toolIdentity,
+		ExportProfile:                manifest.ExportProfile,
+		Scope:                        parts.scope,
+		RepositoryIdentityDigest:     parts.repositoryIdentityDigest,
+		ProductInstanceID:            manifest.ProductInstanceID,
+		LedgerIdentity:               manifest.LedgerIdentity,
+		ControlPlane:                 controlPlane,
+		ProjectContextIdentityDigest: parts.projectContextIdentityDigest,
+		IncludedObjects:              parts.includedObjects,
+		RootDigests:                  parts.rootDigests,
+		SealReferences:               parts.sealReferences,
+		VerifierIdentity:             projectAuditEvidenceBundleVerifierIdentity(manifest.VerifierIdentity),
+		TrustRootDigests:             parts.trustRootDigests,
+		DisclosurePosture:            projectAuditEvidenceBundleDisclosurePosture(manifest.DisclosurePosture),
+		Redactions:                   projectAuditEvidenceBundleRedactions(manifest.Redactions),
 	}, nil
 }
 
@@ -61,17 +74,22 @@ func projectAuditEvidenceBundleManifestPartsFromTrusted(manifest auditd.AuditEvi
 	if err != nil {
 		return projectedAuditEvidenceBundleManifestParts{}, err
 	}
-	instanceIdentity, err := optionalDigestFromAuditIdentity(manifest.InstanceIdentity)
+	repositoryIdentityDigest, err := optionalDigestFromAuditIdentity(manifest.RepositoryIdentityDigest)
+	if err != nil {
+		return projectedAuditEvidenceBundleManifestParts{}, err
+	}
+	projectContextIdentityDigest, err := optionalDigestFromAuditIdentity(manifest.ProjectContextIdentityDigest)
 	if err != nil {
 		return projectedAuditEvidenceBundleManifestParts{}, err
 	}
 	return projectedAuditEvidenceBundleManifestParts{
-		rootDigests:      rootDigests,
-		trustRootDigests: trustRootDigests,
-		includedObjects:  includedObjects,
-		sealReferences:   sealReferences,
-		scope:            scope,
-		instanceIdentity: instanceIdentity,
+		rootDigests:                  rootDigests,
+		trustRootDigests:             trustRootDigests,
+		includedObjects:              includedObjects,
+		sealReferences:               sealReferences,
+		scope:                        scope,
+		repositoryIdentityDigest:     repositoryIdentityDigest,
+		projectContextIdentityDigest: projectContextIdentityDigest,
 	}, nil
 }
 
@@ -129,85 +147,14 @@ func projectAuditEvidenceBundleScope(scope auditd.AuditEvidenceBundleScope) (Aud
 	return AuditEvidenceBundleScope{ScopeKind: scope.ScopeKind, RunID: scope.RunID, IncidentID: scope.IncidentID, ArtifactDigests: artifactDigests}, nil
 }
 
-func projectAuditEvidenceBundleToolIdentity(identity auditd.AuditEvidenceBundleToolIdentity) AuditEvidenceBundleToolIdentity {
-	var protocolBundleManifestHash *trustpolicy.Digest
-	if hash := strings.TrimSpace(identity.ProtocolBundleManifestHash); hash != "" {
-		d, err := digestFromIdentity(hash)
-		if err == nil {
-			protocolBundleManifestHash = &d
-		}
-	}
-	return AuditEvidenceBundleToolIdentity{
-		ToolName:                   identity.ToolName,
-		ToolVersion:                identity.ToolVersion,
-		BuildRevision:              identity.BuildRevision,
-		ProtocolBundleManifestHash: protocolBundleManifestHash,
-	}
-}
-
-func projectAuditEvidenceBundleVerifierIdentity(identity auditd.AuditEvidenceBundleVerifierIdentity) AuditEvidenceBundleVerifierIdentity {
-	return AuditEvidenceBundleVerifierIdentity{
-		KeyID:          identity.KeyID,
-		KeyIDValue:     identity.KeyIDValue,
-		LogicalPurpose: identity.LogicalPurpose,
-		LogicalScope:   identity.LogicalScope,
-	}
-}
-
-func projectAuditEvidenceBundleDisclosurePosture(posture auditd.AuditEvidenceBundleDisclosurePosture) AuditEvidenceBundleDisclosurePosture {
-	return AuditEvidenceBundleDisclosurePosture{Posture: posture.Posture, SelectiveDisclosureApplied: posture.SelectiveDisclosureApplied}
-}
-
-func projectAuditEvidenceBundleRedactions(redactions []auditd.AuditEvidenceBundleRedaction) []AuditEvidenceBundleRedaction {
-	if len(redactions) == 0 {
-		return nil
-	}
-	out := make([]AuditEvidenceBundleRedaction, 0, len(redactions))
-	for i := range redactions {
-		out = append(out, AuditEvidenceBundleRedaction{Path: redactions[i].Path, ReasonCode: redactions[i].ReasonCode})
-	}
-	return out
-}
-
-func projectAuditEvidenceBundleToolIdentityToTrusted(identity AuditEvidenceBundleToolIdentity) auditd.AuditEvidenceBundleToolIdentity {
-	protocolBundleManifestHash := ""
-	if identity.ProtocolBundleManifestHash != nil {
-		id, err := identity.ProtocolBundleManifestHash.Identity()
-		if err == nil {
-			protocolBundleManifestHash = id
-		}
-	}
-	return auditd.AuditEvidenceBundleToolIdentity{
-		ToolName:                   identity.ToolName,
-		ToolVersion:                identity.ToolVersion,
-		BuildRevision:              identity.BuildRevision,
-		ProtocolBundleManifestHash: protocolBundleManifestHash,
-	}
-}
-
-func projectAuditEvidenceBundleScopeToTrusted(scope AuditEvidenceBundleScope) auditd.AuditEvidenceBundleScope {
+func projectAuditEvidenceBundleScopeToTrusted(scope AuditEvidenceBundleScope) (auditd.AuditEvidenceBundleScope, error) {
 	artifacts := make([]string, 0, len(scope.ArtifactDigests))
 	for i := range scope.ArtifactDigests {
 		identity, err := scope.ArtifactDigests[i].Identity()
 		if err != nil {
-			continue
+			return auditd.AuditEvidenceBundleScope{}, err
 		}
 		artifacts = append(artifacts, identity)
 	}
-	return auditd.AuditEvidenceBundleScope{ScopeKind: scope.ScopeKind, RunID: scope.RunID, IncidentID: scope.IncidentID, ArtifactDigests: artifacts}
-}
-
-func projectAuditEvidenceBundleDisclosurePostureToTrusted(posture AuditEvidenceBundleDisclosurePosture) auditd.AuditEvidenceBundleDisclosurePosture {
-	return auditd.AuditEvidenceBundleDisclosurePosture{Posture: posture.Posture, SelectiveDisclosureApplied: posture.SelectiveDisclosureApplied}
-}
-
-func projectAuditEvidenceBundleRedactionsToTrusted(redactions []AuditEvidenceBundleRedaction) []auditd.AuditEvidenceBundleRedaction {
-	if len(redactions) == 0 {
-		return nil
-	}
-	out := make([]auditd.AuditEvidenceBundleRedaction, 0, len(redactions))
-	for i := range redactions {
-		out = append(out, auditd.AuditEvidenceBundleRedaction{Path: redactions[i].Path, ReasonCode: redactions[i].ReasonCode})
-	}
-	return out
+	return auditd.AuditEvidenceBundleScope{ScopeKind: scope.ScopeKind, RunID: scope.RunID, IncidentID: scope.IncidentID, ArtifactDigests: artifacts}, nil
 }

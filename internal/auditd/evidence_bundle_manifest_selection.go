@@ -1,10 +1,9 @@
 package auditd
 
 import (
+	"os"
 	"sort"
 	"strings"
-
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func (l *Ledger) collectEvidenceBundleIncludedObjectsLocked(profilePolicy evidenceBundleProfilePolicy, segmentIDs []string, segmentSet map[string]struct{}) ([]AuditEvidenceBundleIncludedObject, error) {
@@ -12,6 +11,13 @@ func (l *Ledger) collectEvidenceBundleIncludedObjectsLocked(profilePolicy eviden
 	if profilePolicy.IncludeSegments {
 		var err error
 		objects, err = l.appendEvidenceBundleSegmentObjectsLocked(objects, segmentIDs)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if profilePolicy.IncludeVerificationInputs {
+		var err error
+		objects, err = l.appendEvidenceBundleVerificationInputObjectsLocked(objects)
 		if err != nil {
 			return nil, err
 		}
@@ -28,6 +34,50 @@ func (l *Ledger) collectEvidenceBundleIncludedObjectsLocked(profilePolicy eviden
 	}
 	sortEvidenceBundleIncludedObjects(objects)
 	return objects, nil
+}
+
+func (l *Ledger) appendEvidenceBundleVerificationInputObjectsLocked(objects []AuditEvidenceBundleIncludedObject) ([]AuditEvidenceBundleIncludedObject, error) {
+	for _, contract := range []struct {
+		path   string
+		family string
+	}{
+		{path: "contracts/event-contract-catalog.json", family: "event_contract_catalog"},
+		{path: "contracts/verifier-records.json", family: "verifier_record_set"},
+		{path: "contracts/signer-evidence.json", family: "signer_evidence"},
+		{path: "contracts/storage-posture.json", family: "storage_posture"},
+	} {
+		object, ok, err := l.evidenceBundleContractObjectLocked(contract.path, contract.family)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			objects = append(objects, object)
+		}
+	}
+	return objects, nil
+}
+
+func (l *Ledger) evidenceBundleContractObjectLocked(objectPath string, family string) (AuditEvidenceBundleIncludedObject, bool, error) {
+	abs, err := l.bundleObjectAbsolutePathLocked(objectPath)
+	if err != nil {
+		return AuditEvidenceBundleIncludedObject{}, false, err
+	}
+	raw, err := readFileBytes(abs)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return AuditEvidenceBundleIncludedObject{}, false, nil
+		}
+		return AuditEvidenceBundleIncludedObject{}, false, err
+	}
+	identity, err := digestIdentityFromCanonicalPayload(raw)
+	if err != nil {
+		return AuditEvidenceBundleIncludedObject{}, false, err
+	}
+	return AuditEvidenceBundleIncludedObject{ObjectFamily: family, Digest: identity, Path: objectPath, ByteLength: int64(len(raw))}, true, nil
+}
+
+func readFileBytes(path string) ([]byte, error) {
+	return os.ReadFile(path)
 }
 
 type evidenceBundleSidecarFamily struct {
@@ -152,11 +202,7 @@ func (l *Ledger) segmentObjectDigestIdentityLocked(segmentID string) (string, er
 	if err != nil {
 		return "", err
 	}
-	raw, err := l.rawSegmentFramedBytes(segment)
-	if err != nil {
-		return "", err
-	}
-	digest, err := trustpolicy.ComputeSegmentFileHash(raw)
+	digest, err := canonicalDigest(segment)
 	if err != nil {
 		return "", err
 	}

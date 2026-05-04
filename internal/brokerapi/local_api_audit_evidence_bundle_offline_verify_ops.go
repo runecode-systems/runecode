@@ -19,6 +19,7 @@ var (
 	errOfflineBundlePathSymlink            = errors.New("bundle_path must not reference a symlink")
 	errOfflineBundlePathFile               = errors.New("bundle_path must reference a file")
 	errOfflineBundlePathTar                = errors.New("bundle_path must reference a .tar archive")
+	errOfflineBundlePathChanged            = errors.New("bundle_path changed while opening")
 	errOfflineBundlePathNotAccessible      = errors.New("bundle_path is not accessible")
 	errOfflineBundlePathAccess             = errors.New("bundle path access failed")
 	errOfflineBundleVerificationFailedSafe = errors.New("audit evidence bundle offline verify failed")
@@ -47,6 +48,7 @@ func (s *Service) HandleAuditEvidenceBundleOfflineVerify(ctx context.Context, re
 		errOut := s.errorFromValidation(requestID, err)
 		return AuditEvidenceBundleOfflineVerifyResponse{}, &errOut
 	}
+	s.persistMetaAuditReceipt(auditReceiptKindSensitiveEvidenceView, "audit_evidence_bundle_offline_verify", nil, resp.Verification.ManifestDigest, resp.Verification.ManifestDigest, "offline_verification")
 	return resp, nil
 }
 
@@ -80,6 +82,10 @@ func (s *Service) verifyAuditEvidenceBundleFromRequest(requestID string, req Aud
 }
 
 func openValidatedOfflineBundleFile(bundlePath string) (*os.File, error) {
+	return openValidatedOfflineBundleFileWithOpener(bundlePath, openReadOnlyNoFollow)
+}
+
+func openValidatedOfflineBundleFileWithOpener(bundlePath string, opener func(string) (*os.File, error)) (*os.File, error) {
 	clean := filepath.Clean(strings.TrimSpace(bundlePath))
 	if clean == "." || clean == "" {
 		return nil, errOfflineBundlePathRequired
@@ -96,21 +102,11 @@ func openValidatedOfflineBundleFile(bundlePath string) (*os.File, error) {
 		}
 		return nil, fmt.Errorf("%w: %v", errOfflineBundlePathNotAccessible, err)
 	}
-	info, err := os.Lstat(clean)
+	preOpenInfo, err := validatedOfflineBundleLeafInfo(clean)
 	if err != nil {
-		return nil, fmt.Errorf("%w", errOfflineBundlePathNotAccessible)
+		return nil, err
 	}
-	linked, err := pathEntryIsLinkOrReparse(clean, info)
-	if err != nil {
-		return nil, fmt.Errorf("%w", errOfflineBundlePathNotAccessible)
-	}
-	if linked {
-		return nil, errOfflineBundlePathSymlink
-	}
-	if info.IsDir() {
-		return nil, errOfflineBundlePathFile
-	}
-	f, err := openReadOnlyNoFollow(clean)
+	f, err := opener(clean)
 	if err != nil {
 		return nil, fmt.Errorf("%w", errOfflineBundlePathNotAccessible)
 	}
@@ -123,11 +119,29 @@ func openValidatedOfflineBundleFile(bundlePath string) (*os.File, error) {
 		_ = f.Close()
 		return nil, errOfflineBundlePathFile
 	}
-	if !os.SameFile(info, openedInfo) {
+	if !os.SameFile(preOpenInfo, openedInfo) {
 		_ = f.Close()
-		return nil, fmt.Errorf("%w", errOfflineBundlePathAccess)
+		return nil, errOfflineBundlePathChanged
 	}
 	return f, nil
+}
+
+func validatedOfflineBundleLeafInfo(clean string) (os.FileInfo, error) {
+	lstatInfo, err := os.Lstat(clean)
+	if err != nil {
+		return nil, fmt.Errorf("%w", errOfflineBundlePathNotAccessible)
+	}
+	linked, err := pathEntryIsLinkOrReparse(clean, lstatInfo)
+	if err != nil {
+		return nil, fmt.Errorf("%w", errOfflineBundlePathNotAccessible)
+	}
+	if linked {
+		return nil, errOfflineBundlePathSymlink
+	}
+	if lstatInfo.IsDir() {
+		return nil, errOfflineBundlePathFile
+	}
+	return lstatInfo, nil
 }
 
 func offlineBundleValidationClientMessage(err error) (string, bool) {

@@ -1,3 +1,5 @@
+//go:build runecode_devseed
+
 package brokerapi
 
 import (
@@ -6,32 +8,29 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"strings"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
 
-const devManualSeedInstanceID = "launcher-instance-1"
-
 func (s *Service) seedDevManualInstanceControlContext() error {
-	runID := instanceControlRunIDForInstanceID(devManualSeedInstanceID)
+	instanceControlRunID := instanceControlRunIDForInstanceID(devManualSeedInstanceID)
 	verifier, privateKey := devManualPolicyContextVerifier()
 	if err := s.recordTrustedVerifierRecord(verifier); err != nil {
 		return err
 	}
-	allowlistDigest, err := s.seedDevManualPolicyAllowlist(runID)
+	allowlistDigest, err := s.seedDevManualPolicyAllowlist(instanceControlRunID)
 	if err != nil {
 		return err
 	}
-	if err := s.recordDevManualSignedTrustedContext(runID, artifacts.TrustedContractImportKindRoleManifest, devManualWorkspaceRoleManifestPayload(runID, allowlistDigest), verifier, privateKey); err != nil {
+	if err := s.seedDevManualExternalAnchorGatewayContext(instanceControlRunID, allowlistDigest, verifier, privateKey); err != nil {
 		return err
 	}
-	if err := s.recordDevManualSignedTrustedContext(runID, artifacts.TrustedContractImportKindRunCapability, devManualWorkspaceCapabilityManifestPayload(runID, allowlistDigest), verifier, privateKey); err != nil {
+	if err := s.recordDevManualSignedTrustedContext(instanceControlRunID, artifacts.TrustedContractImportKindRoleManifest, devManualWorkspaceRoleManifestPayload(instanceControlRunID, allowlistDigest), verifier, privateKey); err != nil {
 		return err
 	}
-	return s.seedDevManualExternalAnchorGatewayContext(runID, allowlistDigest, verifier, privateKey)
+	return s.recordDevManualSignedTrustedContext(instanceControlRunID, artifacts.TrustedContractImportKindRunCapability, devManualWorkspaceCapabilityManifestPayload(instanceControlRunID, allowlistDigest), verifier, privateKey)
 }
 
 func devManualPolicyContextVerifier() (trustpolicy.VerifierRecord, ed25519.PrivateKey) {
@@ -170,10 +169,6 @@ func mustJSONBytesForDevSeed(value any) []byte {
 		panic(err)
 	}
 	return b
-}
-
-func digestObjectForDevSeed(identity string) map[string]any {
-	return map[string]any{"hash_alg": "sha256", "hash": strings.TrimPrefix(identity, "sha256:")}
 }
 
 func sha256DigestBytes(input []byte) []byte {

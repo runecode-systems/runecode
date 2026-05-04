@@ -146,8 +146,8 @@ func assertExternalRelyingPartyManifestScope(t *testing.T, manifest AuditEvidenc
 	if manifest.Scope.ScopeKind != "run" || manifest.Scope.RunID != "run-1" {
 		t.Fatalf("manifest scope = %+v, want run scope", manifest.Scope)
 	}
-	if strings.TrimSpace(manifest.InstanceIdentity) != "" {
-		t.Fatalf("instance_identity_digest = %q, want empty when no instance identity evidence exists", manifest.InstanceIdentity)
+	if strings.TrimSpace(manifest.ProjectContextIdentityDigest) != "" {
+		t.Fatalf("project_context_identity_digest = %q, want empty when no project-context identity evidence exists", manifest.ProjectContextIdentityDigest)
 	}
 }
 
@@ -167,6 +167,18 @@ func assertExternalRelyingPartyManifestEvidence(t *testing.T, manifest AuditEvid
 	}
 	if len(manifest.TrustRootDigests) == 0 {
 		t.Fatal("trust_root_digests empty, want trust roots")
+	}
+	if manifest.ControlPlane == nil {
+		t.Fatal("control_plane_provenance missing, want trusted control-plane digests")
+	}
+	if strings.TrimSpace(manifest.ControlPlane.ProtocolBundleHash) == "" {
+		t.Fatal("control_plane_provenance.protocol_bundle_manifest_hash empty, want protocol bundle identity")
+	}
+	if strings.TrimSpace(manifest.ControlPlane.VerifierImplDigest) == "" {
+		t.Fatal("control_plane_provenance.verifier_implementation_digest empty, want verifier implementation identity")
+	}
+	if strings.TrimSpace(manifest.ControlPlane.TrustPolicyDigest) == "" {
+		t.Fatal("control_plane_provenance.trust_policy_digest empty, want trust-policy identity")
 	}
 }
 
@@ -222,7 +234,7 @@ func assertExternalRelyingPartyExcludesRawEvidence(t *testing.T, manifest AuditE
 	}
 }
 
-func TestBuildEvidenceBundleManifestIncludesStableInstanceIdentityWhenPresent(t *testing.T) {
+func TestBuildEvidenceBundleManifestIncludesStableProjectContextIdentityWhenPresent(t *testing.T) {
 	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
 	seal := mustSealFixtureSegment(t, ledger, fixture)
 	_ = mustPersistReceipt(t, ledger, buildAnchorReceiptEnvelope(t, fixture, seal.SealEnvelopeDigest))
@@ -241,11 +253,11 @@ func TestBuildEvidenceBundleManifestIncludesStableInstanceIdentityWhenPresent(t 
 	if err != nil {
 		t.Fatalf("BuildEvidenceBundleManifest returned error: %v", err)
 	}
-	if strings.TrimSpace(manifest.InstanceIdentity) == "" {
-		t.Fatal("instance_identity_digest empty, want preserved stable instance identity")
+	if strings.TrimSpace(manifest.ProjectContextIdentityDigest) == "" {
+		t.Fatal("project_context_identity_digest empty, want preserved stable project-context identity")
 	}
-	if manifest.InstanceIdentity != "sha256:"+strings.Repeat("9", 64) {
-		t.Fatalf("instance_identity_digest = %q, want seeded project context identity digest", manifest.InstanceIdentity)
+	if manifest.ProjectContextIdentityDigest != "sha256:"+strings.Repeat("9", 64) {
+		t.Fatalf("project_context_identity_digest = %q, want seeded project context identity digest", manifest.ProjectContextIdentityDigest)
 	}
 }
 

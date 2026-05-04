@@ -1,6 +1,7 @@
 package auditd
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -19,6 +20,9 @@ func (l *Ledger) LookupRecordDigest(recordDigestIdentity string) (RecordLookup, 
 func (l *Ledger) lookupRecordDigestLocked(recordDigestIdentity string, refreshed bool) (RecordLookup, bool, error) {
 	index, err := l.ensureDerivedIndexLocked()
 	if err != nil {
+		if errors.Is(err, errStaleLegacyDerivedIndexRepresentation) {
+			return RecordLookup{}, false, err
+		}
 		return RecordLookup{}, false, err
 	}
 	lookup, ok := index.RecordDigestLookup[recordDigestIdentity]
@@ -60,6 +64,9 @@ func (l *Ledger) LookupSegmentSeal(segmentID string) (SegmentSealLookup, bool, e
 func (l *Ledger) lookupSegmentSealLocked(segmentID string, refreshed bool) (SegmentSealLookup, bool, error) {
 	index, err := l.ensureDerivedIndexLocked()
 	if err != nil {
+		if errors.Is(err, errStaleLegacyDerivedIndexRepresentation) {
+			return SegmentSealLookup{}, false, err
+		}
 		return SegmentSealLookup{}, false, err
 	}
 	lookup, ok := index.SegmentSealLookup[segmentID]
@@ -100,6 +107,9 @@ func (l *Ledger) LookupSealDigestByChainIndex(sealChainIndex int64) (string, boo
 func (l *Ledger) lookupSealDigestByChainIndexLocked(sealChainIndex int64, refreshed bool) (string, bool, error) {
 	index, err := l.ensureDerivedIndexLocked()
 	if err != nil {
+		if errors.Is(err, errStaleLegacyDerivedIndexRepresentation) {
+			return "", false, err
+		}
 		return "", false, err
 	}
 	sealDigest, ok := index.SealChainIndexLookup[strconv.FormatInt(sealChainIndex, 10)]

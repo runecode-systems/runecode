@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/runecode-ai/runecode/internal/secretsd"
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
@@ -18,9 +19,10 @@ import (
 const stateSchemaVersion = 1
 
 type Ledger struct {
-	mu      sync.Mutex
-	rootDir string
-	nowFn   func() time.Time
+	mu              sync.Mutex
+	rootDir         string
+	nowFn           func() time.Time
+	metaAuditSigner *secretsd.Service
 }
 
 func Open(rootDir string) (*Ledger, error) {
@@ -31,6 +33,12 @@ func Open(rootDir string) (*Ledger, error) {
 	if err := ledger.ensureLayout(); err != nil {
 		return nil, err
 	}
+	metaAuditSigner, err := secretsd.Open(filepath.Join(rootDir, "meta-audit-signer"))
+	if err != nil {
+		return nil, err
+	}
+	metaAuditSigner.SetAuditAnchorPresenceModeForTrustedRuntime("none")
+	ledger.metaAuditSigner = metaAuditSigner
 	if _, err := ledger.recoverAndPersistStateLocked(); err != nil {
 		return nil, err
 	}

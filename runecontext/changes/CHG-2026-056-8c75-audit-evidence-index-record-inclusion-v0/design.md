@@ -85,6 +85,7 @@ Rules:
 - keep it independently checkable
 - make it safe to expose through a read-only trusted API
 - include enough material to support external checking without forcing a full ledger rescan in the common case
+- harden inclusion and checkpoint binding seams needed by downstream publication durability barriers and crash reconcile without implementing remote durability gating in this lane
 
 ## Trusted Surfaces
 
@@ -142,3 +143,5 @@ If `AuditRecordInclusion` is exposed across a reviewed boundary or exported, the
 ### Watch
 - avoid an implementation that rewrites too much state on every append at large scale
 - keep rebuild deterministic and cheap enough for recovery workflows
+- keep the same trust model while allowing append-friendly or sharded trusted derived storage as ledgers grow
+- prefer compact ordered-Merkle inclusion material when it reduces export and lookup cost without weakening independent checkability

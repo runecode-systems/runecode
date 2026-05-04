@@ -77,11 +77,7 @@ func (l *Ledger) shouldIncludeVerificationReportForSegmentSetLocked(reportDigest
 func (l *Ledger) evidenceBundleObjectByteLengthLocked(relPath string) (int64, error) {
 	segmentID, ok := segmentIDFromPath(relPath)
 	if ok {
-		segment, err := l.loadSegment(segmentID)
-		if err != nil {
-			return 0, err
-		}
-		raw, err := l.rawSegmentFramedBytes(segment)
+		raw, err := l.segmentBundleObjectBytesLocked(segmentID)
 		if err != nil {
 			return 0, err
 		}

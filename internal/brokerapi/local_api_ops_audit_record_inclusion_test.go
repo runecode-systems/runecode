@@ -40,8 +40,11 @@ func assertProjectedAuditRecordInclusion(t *testing.T, inclusion AuditRecordIncl
 	if inclusion.OrderedMerkle.Profile != trustpolicy.AuditSegmentMerkleProfileOrderedDSEv1 {
 		t.Fatalf("ordered_merkle.profile = %q, want %q", inclusion.OrderedMerkle.Profile, trustpolicy.AuditSegmentMerkleProfileOrderedDSEv1)
 	}
-	if inclusion.OrderedMerkle.LeafCount != len(inclusion.OrderedMerkle.SegmentRecordDigests) {
+	if len(inclusion.OrderedMerkle.SegmentRecordDigests) > 0 && inclusion.OrderedMerkle.LeafCount != len(inclusion.OrderedMerkle.SegmentRecordDigests) {
 		t.Fatalf("ordered_merkle leaf_count=%d segment_record_digests=%d mismatch", inclusion.OrderedMerkle.LeafCount, len(inclusion.OrderedMerkle.SegmentRecordDigests))
+	}
+	if len(inclusion.OrderedMerkle.SegmentRecordDigests) > 0 && len(inclusion.OrderedMerkle.CompactPath) > 0 {
+		t.Fatalf("ordered_merkle exposes both full-list and compact representations: %+v", inclusion.OrderedMerkle)
 	}
 	assertProjectedSealLinkage(t, inclusion)
 	assertInclusionMerkleMaterialRecomputes(t, inclusion)
@@ -97,23 +100,45 @@ func TestProjectAuditRecordInclusionRejectsChainIndexWithoutSealDigest(t *testin
 
 func assertInclusionMerkleMaterialRecomputes(t *testing.T, inclusion AuditRecordInclusion) {
 	t.Helper()
-	recordDigests := make([]trustpolicy.Digest, 0, len(inclusion.OrderedMerkle.SegmentRecordDigests))
-	for i, digest := range inclusion.OrderedMerkle.SegmentRecordDigests {
-		if _, err := digest.Identity(); err != nil {
-			t.Fatalf("segment_record_digests[%d] invalid digest: %v", i, err)
-		}
-		recordDigests = append(recordDigests, digest)
+	if inclusion.OrderedMerkle.LeafIndex < 0 || inclusion.OrderedMerkle.LeafIndex >= inclusion.OrderedMerkle.LeafCount {
+		t.Fatalf("ordered_merkle leaf index/count invalid: %d/%d", inclusion.OrderedMerkle.LeafIndex, inclusion.OrderedMerkle.LeafCount)
 	}
+	gotRootID, err := inclusion.OrderedMerkle.SegmentMerkleRoot.Identity()
+	if err != nil {
+		t.Fatalf("segment_merkle_root invalid digest: %v", err)
+	}
+	if len(inclusion.OrderedMerkle.SegmentRecordDigests) > 0 {
+		assertProjectedFullMerkleMaterial(t, inclusion.OrderedMerkle.SegmentRecordDigests, gotRootID)
+		return
+	}
+	assertProjectedCompactMerkleMaterial(t, inclusion)
+}
+
+func assertProjectedFullMerkleMaterial(t *testing.T, recordDigests []trustpolicy.Digest, gotRootID string) {
+	t.Helper()
 	computedRoot, err := trustpolicy.ComputeOrderedAuditSegmentMerkleRoot(recordDigests)
 	if err != nil {
 		t.Fatalf("ComputeOrderedAuditSegmentMerkleRoot returned error: %v", err)
 	}
 	computedRootID, _ := computedRoot.Identity()
-	gotRootID, err := inclusion.OrderedMerkle.SegmentMerkleRoot.Identity()
-	if err != nil {
-		t.Fatalf("segment_merkle_root invalid digest: %v", err)
-	}
 	if gotRootID != computedRootID {
 		t.Fatalf("segment_merkle_root = %q, want %q", gotRootID, computedRootID)
+	}
+}
+
+func assertProjectedCompactMerkleMaterial(t *testing.T, inclusion AuditRecordInclusion) {
+	t.Helper()
+	compactPath := make([]trustpolicy.Digest, 0, len(inclusion.OrderedMerkle.CompactPath))
+	for i, digest := range inclusion.OrderedMerkle.CompactPath {
+		if _, err := digest.Identity(); err != nil {
+			t.Fatalf("compact_path[%d] invalid digest: %v", i, err)
+		}
+		compactPath = append(compactPath, digest)
+	}
+	if len(compactPath) == 0 {
+		t.Fatal("expected either segment_record_digests or compact_path merkle material")
+	}
+	if err := trustpolicy.VerifyOrderedAuditSegmentMerkleCompactPath(inclusion.RecordDigest, inclusion.OrderedMerkle.LeafIndex, inclusion.OrderedMerkle.LeafCount, compactPath, inclusion.OrderedMerkle.SegmentMerkleRoot); err != nil {
+		t.Fatalf("VerifyOrderedAuditSegmentMerkleCompactPath returned error: %v", err)
 	}
 }

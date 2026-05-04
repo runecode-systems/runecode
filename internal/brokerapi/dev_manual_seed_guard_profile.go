@@ -12,6 +12,9 @@ func devManualLedgerMatchesSeedFootprint(root string) (bool, error) {
 	checks := []func(string) (bool, error){
 		devManualSeedSegmentsMatch,
 		devManualSeedSegmentSealsMatch,
+		devManualSeedReceiptsMatch,
+		devManualSeedExternalAnchorEvidenceMatch,
+		devManualSeedExternalAnchorSidecarsMatch,
 		devManualSeedVerificationReportsMatch,
 	}
 	for _, check := range checks {
@@ -59,6 +62,30 @@ func devManualSeedVerificationReportsMatch(root string) (bool, error) {
 		return false, err
 	}
 	return len(names) == 1, nil
+}
+
+func devManualSeedReceiptsMatch(root string) (bool, error) {
+	names, err := devManualJSONFileNames(filepath.Join(root, "sidecar", "receipts"))
+	if err != nil {
+		return false, err
+	}
+	return len(names) == 0, nil
+}
+
+func devManualSeedExternalAnchorEvidenceMatch(root string) (bool, error) {
+	names, err := devManualJSONFileNames(filepath.Join(root, "sidecar", "external-anchor-evidence"))
+	if err != nil {
+		return false, err
+	}
+	return len(names) == 0, nil
+}
+
+func devManualSeedExternalAnchorSidecarsMatch(root string) (bool, error) {
+	names, err := devManualJSONFileNames(filepath.Join(root, "sidecar", "external-anchor-sidecars"))
+	if err != nil {
+		return false, err
+	}
+	return len(names) == 0, nil
 }
 
 func devManualLedgerHasExactJSONNames(path string, expected ...string) (bool, error) {

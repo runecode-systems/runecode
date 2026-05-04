@@ -99,6 +99,8 @@ func buildAnchorSegmentResponse(requestID string, result auditd.AnchorSegmentRes
 		ReceiptDigest:            digestPtr(result.ReceiptDigest),
 		VerificationReportDigest: digestPtr(result.VerificationDigest),
 		AnchoringStatus:          anchorStatus,
+		FailureCode:              strings.TrimSpace(result.FailureReasonCode),
+		FailureMessage:           strings.TrimSpace(result.FailureReasonMessage),
 	}
 	return resp, nil
 }

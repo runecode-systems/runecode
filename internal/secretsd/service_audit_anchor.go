@@ -57,7 +57,7 @@ func (s *Service) SignAuditAnchor(req AuditAnchorSignRequest) (AuditAnchorSignRe
 	if err != nil {
 		return AuditAnchorSignResult{}, err
 	}
-	preconditions, err := buildAuditAnchorSignPreconditions(req)
+	preconditions, err := buildAuditAnchorSignPreconditions(s, req)
 	if err != nil {
 		return AuditAnchorSignResult{}, err
 	}
@@ -79,7 +79,7 @@ func validateAuditAnchorSignRequest(req AuditAnchorSignRequest) error {
 	return nil
 }
 
-func buildAuditAnchorSignPreconditions(req AuditAnchorSignRequest) (trustpolicy.SignRequestPreconditions, error) {
+func buildAuditAnchorSignPreconditions(s *Service, req AuditAnchorSignRequest) (trustpolicy.SignRequestPreconditions, error) {
 	logicalScope, err := resolveAuditAnchorScope(req.LogicalScope)
 	if err != nil {
 		return trustpolicy.SignRequestPreconditions{}, fmt.Errorf("audit anchor sign preconditions: %w", err)
@@ -89,7 +89,7 @@ func buildAuditAnchorSignPreconditions(req AuditAnchorSignRequest) (trustpolicy.
 		LogicalScope:            logicalScope,
 		KeyProtectionPosture:    auditAnchorKeyProtectionPosture(),
 		IdentityBindingPosture:  "attested",
-		PresenceMode:            auditAnchorPresenceMode(),
+		PresenceMode:            auditAnchorPresenceModeForService(s),
 		ApprovalDecisionContext: req.ApprovalDecision,
 	}
 	if err := trustpolicy.ValidateSignRequestPreconditions(preconditions); err != nil {
@@ -137,6 +137,9 @@ func resolveAuditAnchorScope(scope string) (string, error) {
 func validateAuditAnchorSignerPosture(preconditions trustpolicy.SignRequestPreconditions) error {
 	mode := strings.TrimSpace(preconditions.PresenceMode)
 	posture := strings.TrimSpace(preconditions.KeyProtectionPosture)
+	if mode == "none" {
+		return validateNoPresencePosture(posture)
+	}
 	if mode == "os_confirmation" || mode == "hardware_touch" {
 		return validateTouchPresencePosture(posture)
 	}
@@ -144,6 +147,13 @@ func validateAuditAnchorSignerPosture(preconditions trustpolicy.SignRequestPreco
 		return validatePassphrasePresencePosture(posture)
 	}
 	return fmt.Errorf("audit_anchor presence_mode must be os_confirmation, hardware_touch, or passphrase")
+}
+
+func validateNoPresencePosture(posture string) error {
+	if posture == "passphrase_wrapped" {
+		return fmt.Errorf("inconsistent signer posture: passphrase_wrapped key_protection_posture requires presence_mode passphrase")
+	}
+	return nil
 }
 
 func validateTouchPresencePosture(posture string) error {
@@ -178,19 +188,6 @@ func normalizeAuditAnchorScope(scope string) string {
 		return scope
 	}
 	return "node"
-}
-
-func auditAnchorPresenceMode() string {
-	mode := strings.TrimSpace(os.Getenv(envAuditAnchorPresenceMode))
-	if mode == "" {
-		return "os_confirmation"
-	}
-	return mode
-}
-
-func (s *Service) AuditAnchorPresenceMode() string {
-	_ = s
-	return auditAnchorPresenceMode()
 }
 
 func auditAnchorKeyProtectionPosture() string {

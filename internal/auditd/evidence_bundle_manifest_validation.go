@@ -16,22 +16,23 @@ type evidenceBundleProfilePolicy struct {
 	IncludeReceipts            bool
 	IncludeVerificationReports bool
 	IncludeExternalAnchor      bool
+	IncludeVerificationInputs  bool
 	DefaultPosture             string
 	SelectiveDisclosure        bool
 }
 
-func evidenceBundleExportProfilePolicy(exportProfile string) evidenceBundleProfilePolicy {
+func evidenceBundleExportProfilePolicy(exportProfile string) (evidenceBundleProfilePolicy, error) {
 	switch strings.TrimSpace(exportProfile) {
 	case "external_relying_party_minimal":
-		return evidenceBundleProfilePolicy{Name: "external_relying_party_minimal", IncludeSegments: false, IncludeReceipts: false, IncludeVerificationReports: true, IncludeExternalAnchor: true, DefaultPosture: "digest_metadata_only", SelectiveDisclosure: true}
+		return evidenceBundleProfilePolicy{Name: "external_relying_party_minimal", IncludeSegments: false, IncludeReceipts: false, IncludeVerificationReports: true, IncludeExternalAnchor: true, IncludeVerificationInputs: true, DefaultPosture: "digest_metadata_only", SelectiveDisclosure: true}, nil
 	case "company_internal_audit":
-		return evidenceBundleProfilePolicy{Name: "company_internal_audit", IncludeSegments: false, IncludeReceipts: true, IncludeVerificationReports: true, IncludeExternalAnchor: true, DefaultPosture: "digest_metadata_only", SelectiveDisclosure: true}
+		return evidenceBundleProfilePolicy{Name: "company_internal_audit", IncludeSegments: false, IncludeReceipts: true, IncludeVerificationReports: true, IncludeExternalAnchor: true, IncludeVerificationInputs: true, DefaultPosture: "digest_metadata_only", SelectiveDisclosure: true}, nil
 	case "incident_response_scope":
-		return evidenceBundleProfilePolicy{Name: "incident_response_scope", IncludeSegments: true, IncludeReceipts: true, IncludeVerificationReports: true, IncludeExternalAnchor: true, DefaultPosture: "operator_private", SelectiveDisclosure: true}
+		return evidenceBundleProfilePolicy{Name: "incident_response_scope", IncludeSegments: true, IncludeReceipts: true, IncludeVerificationReports: true, IncludeExternalAnchor: true, IncludeVerificationInputs: true, DefaultPosture: "operator_private", SelectiveDisclosure: true}, nil
 	case "operator_private_full":
-		fallthrough
+		return evidenceBundleProfilePolicy{Name: "operator_private_full", IncludeSegments: true, IncludeReceipts: true, IncludeVerificationReports: true, IncludeExternalAnchor: true, IncludeVerificationInputs: true, DefaultPosture: "operator_private", SelectiveDisclosure: false}, nil
 	default:
-		return evidenceBundleProfilePolicy{Name: "operator_private_full", IncludeSegments: true, IncludeReceipts: true, IncludeVerificationReports: true, IncludeExternalAnchor: true, DefaultPosture: "operator_private", SelectiveDisclosure: false}
+		return evidenceBundleProfilePolicy{}, fmt.Errorf("unsupported export profile %q", strings.TrimSpace(exportProfile))
 	}
 }
 
@@ -192,7 +193,7 @@ func validateEvidenceBundleExportProfile(exportProfile string) (evidenceBundlePr
 	}
 	switch trimmed {
 	case "operator_private_full", "company_internal_audit", "external_relying_party_minimal", "incident_response_scope":
-		return evidenceBundleExportProfilePolicy(trimmed), nil
+		return evidenceBundleExportProfilePolicy(trimmed)
 	default:
 		return evidenceBundleProfilePolicy{}, fmt.Errorf("unsupported export profile %q", exportProfile)
 	}
@@ -208,6 +209,20 @@ func validateEvidenceBundleToolIdentity(identity AuditEvidenceBundleToolIdentity
 	if hash := strings.TrimSpace(identity.ProtocolBundleManifestHash); hash != "" {
 		if _, err := digestFromIdentity(hash); err != nil {
 			return fmt.Errorf("created_by_tool.protocol_bundle_manifest_hash: %w", err)
+		}
+	}
+	return nil
+}
+
+func validateEvidenceBundleControlProvenance(provenance AuditEvidenceBundleControlProvenance) error {
+	for _, field := range []struct {
+		label string
+		value string
+	}{{label: "control_plane_provenance.workflow_definition_hash", value: provenance.WorkflowDefinitionHash}, {label: "control_plane_provenance.tool_manifest_digest", value: provenance.ToolManifestDigest}, {label: "control_plane_provenance.prompt_template_digest", value: provenance.PromptTemplateDigest}, {label: "control_plane_provenance.protocol_bundle_manifest_hash", value: provenance.ProtocolBundleHash}, {label: "control_plane_provenance.verifier_implementation_digest", value: provenance.VerifierImplDigest}, {label: "control_plane_provenance.trust_policy_digest", value: provenance.TrustPolicyDigest}} {
+		if digest := strings.TrimSpace(field.value); digest != "" {
+			if _, err := digestFromIdentity(digest); err != nil {
+				return fmt.Errorf("%s: %w", field.label, err)
+			}
 		}
 	}
 	return nil

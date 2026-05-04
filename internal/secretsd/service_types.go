@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -32,8 +33,28 @@ type Service struct {
 	now  func() time.Time
 	rand io.Reader
 
+	auditAnchorSignerProfile auditAnchorSignerProfile
+
+	leaseAuditHook atomic.Pointer[leaseAuditHookHolder]
+
 	state state
 }
+
+type LeaseAuditEvent struct {
+	Action string `json:"action"`
+	Lease  Lease  `json:"lease"`
+}
+
+type leaseAuditHookHolder struct {
+	hook func(LeaseAuditEvent)
+}
+
+type auditAnchorSignerProfile string
+
+const (
+	auditAnchorSignerProfileDefault   auditAnchorSignerProfile = "default"
+	auditAnchorSignerProfileMetaAudit auditAnchorSignerProfile = "meta_audit"
+)
 
 type SecretMetadata struct {
 	SecretRef      string    `json:"secret_ref"`

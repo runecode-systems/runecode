@@ -5,7 +5,7 @@
   "description": "Protocol-owned approval decision family for hash-bound approval outcomes, approver attribution, and explicit consumption semantics. Decisions are signed by trusted approval authorities and can bind step-up assurance evidence hashes without making delivery channels authoritative.",
   "type": "object",
   "additionalProperties": false,
-  "maxProperties": 18,
+  "maxProperties": 22,
   "allOf": [
     {
       "if": {
@@ -169,6 +169,26 @@
     "stage_manifest_summary_hash": {
       "$ref": "Digest.schema.json#/$defs/digestValue",
       "description": "Optional hash of the stage manifest summary the approver acted on.",
+      "x-data-class": "public"
+    },
+    "scope_digest": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Optional digest identity for canonical approval scope evidence shown to the approver.",
+      "x-data-class": "public"
+    },
+    "artifact_set_digest": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Optional digest identity for canonical artifact-set evidence shown to the approver.",
+      "x-data-class": "public"
+    },
+    "diff_digest": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Optional digest identity for canonical diff evidence shown to the approver.",
+      "x-data-class": "public"
+    },
+    "summary_preview_digest": {
+      "$ref": "Digest.schema.json#/$defs/digestValue",
+      "description": "Optional digest identity for canonical summary or preview evidence shown to the approver.",
       "x-data-class": "public"
     },
     "signatures": {

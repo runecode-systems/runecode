@@ -132,6 +132,50 @@ func TestAuditEvidenceBundleOfflineVerifyVerifyFailureUsesStableMessage(t *testi
 	}
 }
 
+func TestOpenValidatedOfflineBundleFileRejectsSymlinkLeaf(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.tar")
+	if err := os.WriteFile(target, []byte("tar"), 0o600); err != nil {
+		t.Fatalf("WriteFile(target) returned error: %v", err)
+	}
+	symlink := filepath.Join(dir, "bundle.tar")
+	if err := os.Symlink(target, symlink); err != nil {
+		t.Skipf("symlink setup unsupported on this platform: %v", err)
+	}
+	_, err := openValidatedOfflineBundleFile(symlink)
+	if err == nil {
+		t.Fatal("openValidatedOfflineBundleFile expected symlink validation error")
+	}
+	if !strings.Contains(err.Error(), "bundle_path must not reference a symlink") {
+		t.Fatalf("error = %q, want symlink leaf validation", err)
+	}
+}
+
+func TestOpenValidatedOfflineBundleFileRejectsPathSwapDuringOpen(t *testing.T) {
+	dir := t.TempDir()
+	bundlePath := filepath.Join(dir, "bundle.tar")
+	if err := os.WriteFile(bundlePath, []byte("first"), 0o600); err != nil {
+		t.Fatalf("WriteFile(bundlePath) returned error: %v", err)
+	}
+	replacementPath := filepath.Join(dir, "replacement.tar")
+	if err := os.WriteFile(replacementPath, []byte("second"), 0o600); err != nil {
+		t.Fatalf("WriteFile(replacementPath) returned error: %v", err)
+	}
+	_, err := openValidatedOfflineBundleFileWithOpener(bundlePath, func(name string) (*os.File, error) {
+		f, err := os.Open(replacementPath)
+		if err != nil {
+			return nil, err
+		}
+		return f, nil
+	})
+	if err == nil {
+		t.Fatal("openValidatedOfflineBundleFile expected descriptor mismatch error")
+	}
+	if !strings.Contains(err.Error(), "bundle_path changed while opening") {
+		t.Fatalf("error = %q, want path change detection", err)
+	}
+}
+
 func TestOfflineBundleValidationClientMessage(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -2,6 +2,7 @@ package brokerapi
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/secretsd"
@@ -16,23 +17,62 @@ func TestAuditEvidenceBundleManifestGetBuildsManifest(t *testing.T) {
 	if err := service.validateResponse(resp, auditEvidenceBundleManifestGetResponseSchemaPath); err != nil {
 		t.Fatalf("validateResponse(auditEvidenceBundleManifestGetResponse) returned error: %v", err)
 	}
-	if resp.Manifest.SchemaID != "runecode.protocol.v0.AuditEvidenceBundleManifest" {
-		t.Fatalf("manifest.schema_id = %q, want runecode.protocol.v0.AuditEvidenceBundleManifest", resp.Manifest.SchemaID)
-	}
-	if len(resp.Manifest.IncludedObjects) == 0 {
-		t.Fatal("included_objects empty, want projected included objects")
-	}
-	if len(resp.Manifest.SealReferences) == 0 {
-		t.Fatal("seal_references empty, want seal references")
-	}
-	if len(resp.Manifest.RootDigests) == 0 {
-		t.Fatal("root_digests empty, want root digests")
-	}
-	if len(resp.Manifest.TrustRootDigests) == 0 {
-		t.Fatal("trust_root_digests empty, want trust roots")
-	}
+	assertProjectedAuditEvidenceBundleManifest(t, resp.Manifest)
 	if resp.SignedManifest != nil {
 		t.Fatal("signed_manifest present without external_sharing_intended")
+	}
+}
+
+func assertProjectedAuditEvidenceBundleManifest(t *testing.T, manifest AuditEvidenceBundleManifest) {
+	t.Helper()
+	if manifest.SchemaID != "runecode.protocol.v0.AuditEvidenceBundleManifest" {
+		t.Fatalf("manifest.schema_id = %q, want runecode.protocol.v0.AuditEvidenceBundleManifest", manifest.SchemaID)
+	}
+	assertAuditEvidenceBundleManifestMaterialized(t, manifest)
+	assertAuditEvidenceBundleManifestControlPlane(t, manifest)
+}
+
+func assertAuditEvidenceBundleManifestMaterialized(t *testing.T, manifest AuditEvidenceBundleManifest) {
+	t.Helper()
+	if manifest.RepositoryIdentityDigest != nil {
+		t.Fatal("repository_identity_digest present, want empty until canonical cross-machine repository identity exists")
+	}
+	if strings.TrimSpace(manifest.ProductInstanceID) == "" {
+		t.Fatal("product_instance_id empty, want projected product instance identity")
+	}
+	if strings.TrimSpace(manifest.LedgerIdentity) == "" {
+		t.Fatal("ledger_identity empty, want persistent ledger identity")
+	}
+	if manifest.ProjectContextIdentityDigest != nil {
+		t.Fatal("project_context_identity_digest present, want nil when no project-context sidecar exists")
+	}
+	if len(manifest.IncludedObjects) == 0 {
+		t.Fatal("included_objects empty, want projected included objects")
+	}
+	if len(manifest.SealReferences) == 0 {
+		t.Fatal("seal_references empty, want seal references")
+	}
+	if len(manifest.RootDigests) == 0 {
+		t.Fatal("root_digests empty, want root digests")
+	}
+	if len(manifest.TrustRootDigests) == 0 {
+		t.Fatal("trust_root_digests empty, want trust roots")
+	}
+}
+
+func assertAuditEvidenceBundleManifestControlPlane(t *testing.T, manifest AuditEvidenceBundleManifest) {
+	t.Helper()
+	if manifest.ControlPlane == nil {
+		t.Fatal("control_plane_provenance missing, want projected control-plane digests")
+	}
+	if manifest.ControlPlane.ProtocolBundleHash == nil {
+		t.Fatal("control_plane_provenance.protocol_bundle_manifest_hash missing, want protocol bundle digest")
+	}
+	if manifest.ControlPlane.VerifierImplDigest == nil {
+		t.Fatal("control_plane_provenance.verifier_implementation_digest missing, want verifier implementation digest")
+	}
+	if manifest.ControlPlane.TrustPolicyDigest == nil {
+		t.Fatal("control_plane_provenance.trust_policy_digest missing, want trust-policy digest")
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/runecode-ai/runecode/internal/auditd"
 	"github.com/runecode-ai/runecode/internal/brokerapi"
@@ -171,6 +172,9 @@ func buildBrokerServiceIfNeeded(needService bool, roots brokerServiceRoots) (*br
 
 var brokerServiceFactory brokerServiceFactoryFunc = newBrokerService
 var localIPCListen = brokerapi.ListenLocalIPC
+var resolveBrokerRepoScope = func() (localbootstrap.RepoScope, error) {
+	return localbootstrap.ResolveRepoScope(localbootstrap.ResolveInput{})
+}
 
 type commandHandler func([]string, *brokerapi.Service, io.Writer) error
 
@@ -342,18 +346,20 @@ func writeHelp(w io.Writer) error {
 }
 
 func defaultBrokerServiceRoots() brokerServiceRoots {
-	scope, err := localbootstrap.ResolveRepoScope(localbootstrap.ResolveInput{})
+	scope, err := resolveBrokerRepoScope()
 	if err == nil {
+		seedRepoRootSchemaEnv(scope.RepositoryRoot)
 		return brokerServiceRoots{stateRoot: scope.StateRoot, auditLedgerRoot: scope.AuditLedgerRoot}
 	}
 	return brokerServiceRoots{stateRoot: defaultBrokerStoreRoot(), auditLedgerRoot: auditd.DefaultLedgerRoot()}
 }
 
 func newBrokerService(roots brokerServiceRoots) (*brokerapi.Service, error) {
-	scope, err := localbootstrap.ResolveRepoScope(localbootstrap.ResolveInput{})
+	scope, err := resolveBrokerRepoScope()
 	if err != nil {
 		return nil, err
 	}
+	seedRepoRootSchemaEnv(scope.RepositoryRoot)
 	resolved := roots
 	if resolved.stateRoot == "" {
 		resolved.stateRoot = scope.StateRoot
@@ -362,4 +368,14 @@ func newBrokerService(roots brokerServiceRoots) (*brokerapi.Service, error) {
 		resolved.auditLedgerRoot = scope.AuditLedgerRoot
 	}
 	return brokerapi.NewServiceWithConfig(resolved.stateRoot, resolved.auditLedgerRoot, brokerapi.APIConfig{RepositoryRoot: scope.RepositoryRoot})
+}
+
+func seedRepoRootSchemaEnv(repoRoot string) {
+	if strings.TrimSpace(repoRoot) == "" {
+		return
+	}
+	if strings.TrimSpace(os.Getenv("RUNE_REPO_ROOT")) != "" {
+		return
+	}
+	_ = os.Setenv("RUNE_REPO_ROOT", repoRoot)
 }

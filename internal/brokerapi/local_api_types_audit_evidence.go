@@ -25,10 +25,14 @@ type AuditEvidenceRetentionReviewResponse struct {
 }
 
 type AuditEvidenceSnapshotCompleteness struct {
-	FullySatisfied        bool                            `json:"fully_satisfied"`
-	RequiredIdentityCount int                             `json:"required_identity_count"`
-	Missing               []AuditEvidenceSnapshotIdentity `json:"missing,omitempty"`
-	DeclaredRedactions    []AuditEvidenceSnapshotIdentity `json:"declared_redactions,omitempty"`
+	FullySatisfied                  bool                            `json:"fully_satisfied"`
+	RequiredIdentityCount           int                             `json:"required_identity_count"`
+	Missing                         []AuditEvidenceSnapshotIdentity `json:"missing,omitempty"`
+	DeclaredRedactions              []AuditEvidenceSnapshotIdentity `json:"declared_redactions,omitempty"`
+	TransitiveEmbedded              []AuditEvidenceSnapshotIdentity `json:"transitive_embedded,omitempty"`
+	UnsupportedDirectCompleteness   []AuditEvidenceSnapshotIdentity `json:"unsupported_direct_completeness,omitempty"`
+	TransitiveEmbeddedIdentityCount int                             `json:"transitive_embedded_identity_count,omitempty"`
+	UnsupportedDirectIdentityCount  int                             `json:"unsupported_direct_identity_count,omitempty"`
 }
 
 type AuditEvidenceSnapshotIdentity struct {
@@ -44,22 +48,32 @@ type AuditEvidenceSnapshotGetResponse struct {
 }
 
 type AuditEvidenceSnapshot struct {
-	SchemaID                   string               `json:"schema_id"`
-	SchemaVersion              string               `json:"schema_version"`
-	CreatedAt                  string               `json:"created_at"`
-	SegmentIDs                 []string             `json:"segment_ids,omitempty"`
-	SegmentSealDigests         []trustpolicy.Digest `json:"segment_seal_digests,omitempty"`
-	AuditReceiptDigests        []trustpolicy.Digest `json:"audit_receipt_digests,omitempty"`
-	VerificationReportDigests  []trustpolicy.Digest `json:"verification_report_digests,omitempty"`
-	RuntimeEvidenceDigests     []trustpolicy.Digest `json:"runtime_evidence_digests,omitempty"`
-	AttestationEvidenceDigests []trustpolicy.Digest `json:"attestation_evidence_digests,omitempty"`
-	InstanceIdentityDigests    []trustpolicy.Digest `json:"instance_identity_digests,omitempty"`
-	PolicyEvidenceDigests      []trustpolicy.Digest `json:"policy_evidence_digests,omitempty"`
-	RequiredApprovalIDs        []string             `json:"required_approval_ids,omitempty"`
-	ApprovalEvidenceDigests    []trustpolicy.Digest `json:"approval_evidence_digests,omitempty"`
-	AnchorEvidenceDigests      []trustpolicy.Digest `json:"anchor_evidence_digests,omitempty"`
-	ProviderInvocationDigests  []trustpolicy.Digest `json:"provider_invocation_digests,omitempty"`
-	SecretLeaseDigests         []trustpolicy.Digest `json:"secret_lease_digests,omitempty"`
+	SchemaID                      string               `json:"schema_id"`
+	SchemaVersion                 string               `json:"schema_version"`
+	CreatedAt                     string               `json:"created_at"`
+	RepositoryIdentityDigest      *trustpolicy.Digest  `json:"repository_identity_digest,omitempty"`
+	ProductInstanceID             string               `json:"product_instance_id,omitempty"`
+	LedgerIdentity                string               `json:"ledger_identity,omitempty"`
+	SegmentIDs                    []string             `json:"segment_ids,omitempty"`
+	SegmentSealDigests            []trustpolicy.Digest `json:"segment_seal_digests,omitempty"`
+	AuditReceiptDigests           []trustpolicy.Digest `json:"audit_receipt_digests,omitempty"`
+	VerificationReportDigests     []trustpolicy.Digest `json:"verification_report_digests,omitempty"`
+	RuntimeEvidenceDigests        []trustpolicy.Digest `json:"runtime_evidence_digests,omitempty"`
+	VerifierRecordDigests         []trustpolicy.Digest `json:"verifier_record_digests,omitempty"`
+	EventContractCatalogDigests   []trustpolicy.Digest `json:"event_contract_catalog_digests,omitempty"`
+	SignerEvidenceDigests         []trustpolicy.Digest `json:"signer_evidence_digests,omitempty"`
+	StoragePostureDigests         []trustpolicy.Digest `json:"storage_posture_digests,omitempty"`
+	TypedRequestDigests           []trustpolicy.Digest `json:"typed_request_digests,omitempty"`
+	ActionRequestDigests          []trustpolicy.Digest `json:"action_request_digests,omitempty"`
+	ControlPlaneDigests           []trustpolicy.Digest `json:"control_plane_digests,omitempty"`
+	AttestationEvidenceDigests    []trustpolicy.Digest `json:"attestation_evidence_digests,omitempty"`
+	ProjectContextIdentityDigests []trustpolicy.Digest `json:"project_context_identity_digests,omitempty"`
+	PolicyEvidenceDigests         []trustpolicy.Digest `json:"policy_evidence_digests,omitempty"`
+	RequiredApprovalIDs           []string             `json:"required_approval_ids,omitempty"`
+	ApprovalEvidenceDigests       []trustpolicy.Digest `json:"approval_evidence_digests,omitempty"`
+	AnchorEvidenceDigests         []trustpolicy.Digest `json:"anchor_evidence_digests,omitempty"`
+	ProviderInvocationDigests     []trustpolicy.Digest `json:"provider_invocation_digests,omitempty"`
+	SecretLeaseDigests            []trustpolicy.Digest `json:"secret_lease_digests,omitempty"`
 }
 
 type AuditEvidenceBundleManifestGetRequest struct {
@@ -163,21 +177,25 @@ type AuditEvidenceBundleOfflineReportPosture struct {
 }
 
 type AuditEvidenceBundleManifest struct {
-	SchemaID          string                               `json:"schema_id"`
-	SchemaVersion     string                               `json:"schema_version"`
-	BundleID          string                               `json:"bundle_id"`
-	CreatedAt         string                               `json:"created_at"`
-	CreatedByTool     AuditEvidenceBundleToolIdentity      `json:"created_by_tool"`
-	ExportProfile     string                               `json:"export_profile"`
-	Scope             AuditEvidenceBundleScope             `json:"scope"`
-	InstanceIdentity  *trustpolicy.Digest                  `json:"instance_identity_digest,omitempty"`
-	IncludedObjects   []AuditEvidenceBundleIncludedObject  `json:"included_objects,omitempty"`
-	RootDigests       []trustpolicy.Digest                 `json:"root_digests,omitempty"`
-	SealReferences    []AuditEvidenceBundleSealReference   `json:"seal_references,omitempty"`
-	VerifierIdentity  AuditEvidenceBundleVerifierIdentity  `json:"verifier_identity"`
-	TrustRootDigests  []trustpolicy.Digest                 `json:"trust_root_digests,omitempty"`
-	DisclosurePosture AuditEvidenceBundleDisclosurePosture `json:"disclosure_posture"`
-	Redactions        []AuditEvidenceBundleRedaction       `json:"redactions,omitempty"`
+	SchemaID                     string                                `json:"schema_id"`
+	SchemaVersion                string                                `json:"schema_version"`
+	BundleID                     string                                `json:"bundle_id"`
+	CreatedAt                    string                                `json:"created_at"`
+	CreatedByTool                AuditEvidenceBundleToolIdentity       `json:"created_by_tool"`
+	ExportProfile                string                                `json:"export_profile"`
+	Scope                        AuditEvidenceBundleScope              `json:"scope"`
+	RepositoryIdentityDigest     *trustpolicy.Digest                   `json:"repository_identity_digest,omitempty"`
+	ProductInstanceID            string                                `json:"product_instance_id,omitempty"`
+	LedgerIdentity               string                                `json:"ledger_identity,omitempty"`
+	ControlPlane                 *AuditEvidenceBundleControlProvenance `json:"control_plane_provenance,omitempty"`
+	ProjectContextIdentityDigest *trustpolicy.Digest                   `json:"project_context_identity_digest,omitempty"`
+	IncludedObjects              []AuditEvidenceBundleIncludedObject   `json:"included_objects,omitempty"`
+	RootDigests                  []trustpolicy.Digest                  `json:"root_digests,omitempty"`
+	SealReferences               []AuditEvidenceBundleSealReference    `json:"seal_references,omitempty"`
+	VerifierIdentity             AuditEvidenceBundleVerifierIdentity   `json:"verifier_identity"`
+	TrustRootDigests             []trustpolicy.Digest                  `json:"trust_root_digests,omitempty"`
+	DisclosurePosture            AuditEvidenceBundleDisclosurePosture  `json:"disclosure_posture"`
+	Redactions                   []AuditEvidenceBundleRedaction        `json:"redactions,omitempty"`
 }
 
 type AuditEvidenceBundleToolIdentity struct {
@@ -185,6 +203,15 @@ type AuditEvidenceBundleToolIdentity struct {
 	ToolVersion                string              `json:"tool_version"`
 	BuildRevision              string              `json:"build_revision,omitempty"`
 	ProtocolBundleManifestHash *trustpolicy.Digest `json:"protocol_bundle_manifest_hash,omitempty"`
+}
+
+type AuditEvidenceBundleControlProvenance struct {
+	WorkflowDefinitionHash *trustpolicy.Digest `json:"workflow_definition_hash,omitempty"`
+	ToolManifestDigest     *trustpolicy.Digest `json:"tool_manifest_digest,omitempty"`
+	PromptTemplateDigest   *trustpolicy.Digest `json:"prompt_template_digest,omitempty"`
+	ProtocolBundleHash     *trustpolicy.Digest `json:"protocol_bundle_manifest_hash,omitempty"`
+	VerifierImplDigest     *trustpolicy.Digest `json:"verifier_implementation_digest,omitempty"`
+	TrustPolicyDigest      *trustpolicy.Digest `json:"trust_policy_digest,omitempty"`
 }
 
 type AuditEvidenceBundleScope struct {

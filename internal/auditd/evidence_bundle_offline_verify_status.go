@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
 
 func offlineBundleObjectDigestIdentity(family string, payload []byte) (string, error) {
@@ -14,7 +15,7 @@ func offlineBundleObjectDigestIdentity(family string, payload []byte) (string, e
 		return digestIdentityFromSegmentPayload(payload)
 	case "audit_segment_seal", "audit_receipt":
 		return digestIdentityFromSignedEnvelopePayload(payload)
-	case "audit_verification_report", "external_anchor_evidence", "external_anchor_sidecar":
+	case "audit_verification_report", "external_anchor_evidence", "external_anchor_sidecar", "event_contract_catalog", "verifier_record_set", "signer_evidence", "storage_posture":
 		return digestIdentityFromCanonicalPayload(payload)
 	default:
 		return "", fmt.Errorf("object family %q has no offline digest verifier in this lane", family)
@@ -22,7 +23,18 @@ func offlineBundleObjectDigestIdentity(family string, payload []byte) (string, e
 }
 
 func digestIdentityFromSegmentPayload(payload []byte) (string, error) {
-	d, err := trustpolicy.ComputeSegmentFileHash(payload)
+	segment := trustpolicy.AuditSegmentFilePayload{}
+	if err := json.Unmarshal(payload, &segment); err != nil {
+		return "", err
+	}
+	b, err := json.Marshal(segment)
+	if err != nil {
+		return "", err
+	}
+	if _, err := jsoncanonicalizer.Transform(b); err != nil {
+		return "", err
+	}
+	d, err := canonicalDigest(segment)
 	if err != nil {
 		return "", err
 	}
@@ -86,7 +98,7 @@ func offlineBundleFindingFlags(findings []AuditEvidenceBundleOfflineFinding) (bo
 
 func isOfflineBundleDegradedFinding(code string) bool {
 	switch code {
-	case "verification_report_degraded_posture", "verification_report_missing", "verification_evidence_redacted":
+	case "verification_report_degraded_posture", "verification_report_missing", "verification_evidence_redacted", "verification_recompute_inputs_missing", "verification_recompute_unavailable", "verifier_identity_missing", "trust_root_identity_missing":
 		return true
 	default:
 		return false

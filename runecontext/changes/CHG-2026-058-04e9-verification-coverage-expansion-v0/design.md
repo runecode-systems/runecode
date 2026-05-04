@@ -16,6 +16,10 @@ Capture:
 - stage identity where relevant
 - initiating principal identity
 - triggering source
+- project or repository identity
+- repo-scoped product-instance identity
+- persistent ledger identity where the run's canonical history is committed
+- project-substrate snapshot identity when a snapshot-scoped reconstruction claim is made
 - workflow definition identity
 - tool manifest identity
 - prompt or request artifact digests where policy permits
@@ -149,6 +153,8 @@ This feature should extend receipt families to cover the high-value control and 
 
 Recommended priority receipt kinds:
 
+- `run_start`
+- `run_finalize`
 - `policy_decision_allow`
 - `policy_decision_deny`
 - `capability_grant`
@@ -161,11 +167,18 @@ Recommended priority receipt kinds:
 - `secret_lease_revoked`
 - `provider_invocation_authorized`
 - `provider_invocation_denied`
+- `artifact_published`
 - `override_or_break_glass`
 - `degraded_posture_summary`
 - `network_usage_summary`
 - `secret_usage_summary`
 - `verification_finalize`
+
+Additional coverage expectations:
+
+- approval resolution and approval consumption should be emitted as canonical evidence, not only implied by derived approval state
+- provider provenance should preserve provider profile identity, model identity, and endpoint identity where those facts are available from trusted control-plane or runtime evidence
+- control-plane provenance should preserve initiating principal identity and triggering source alongside the digests that shaped behavior
 
 Each receipt should bind:
 
@@ -220,11 +233,15 @@ RuneCode needs to preserve not only that an approval happened, but what the appr
 ### Provider And Egress Provenance Gap
 RuneCode needs explicit provenance around provider use, secret use, request and response digests, endpoints, and allowed or denied network targets.
 
+That provenance should also preserve provider-profile identity, model identity, and endpoint identity where those facts are available from trusted evidence so auditors can answer provider-usage questions without relying on UI-only state.
+
 ### Degraded Posture Gap
 RuneCode needs stronger receipts and final summaries for reduced assurance, deferrals, and break-glass paths.
 
 ### Meta-Audit Gap
 RuneCode needs evidence for export, import, restore, retention, and verifier-configuration events.
+
+Meta-audit evidence should also make actor identity, scope, affected object digest, and operation result explicit so it remains useful for security and compliance review rather than only activity counting.
 
 ### Completeness And Omission Detection Gap
 RuneCode needs stronger checks for missing required evidence, not only invalid present evidence.
@@ -234,6 +251,8 @@ Verification reports should state which verifier and trust roots were used.
 
 ### Negative Capability Evidence Gap
 RuneCode needs explicit summary evidence when the claim is that something did not happen.
+
+Summary receipts should remain canonical evidence and bind the support posture for absence claims so a verifier can distinguish explicit absence evidence from limited or unknown evidence support.
 
 ## Failure Posture
 - Verifiers should fail closed or degrade explicitly when required evidence is missing.

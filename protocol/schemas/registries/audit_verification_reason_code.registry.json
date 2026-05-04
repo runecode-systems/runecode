@@ -90,6 +90,42 @@
       "summary": "Anchor receipt used passphrase presence posture, which remains explicitly allowed but degraded versus os_confirmation/hardware_touch."
     },
     {
+      "code": "external_anchor_valid",
+      "summary": "External anchor evidence validated for at least one target and contributed explicit anchoring confirmation."
+    },
+    {
+      "code": "external_anchor_deferred_or_unavailable",
+      "summary": "External anchor evidence indicates deferred/unavailable posture for required target coverage."
+    },
+    {
+      "code": "external_anchor_invalid",
+      "summary": "External anchor evidence is invalid for required anchoring target coverage and fails closed."
+    },
+    {
+      "code": "missing_required_approval_evidence",
+      "summary": "Required approval evidence linkage is missing for observed authorization or production-affecting mutation evidence."
+    },
+    {
+      "code": "missing_runtime_attestation_evidence",
+      "summary": "Runtime event posture indicates attested operation but required attestation evidence is absent."
+    },
+    {
+      "code": "negative_capability_summary_missing",
+      "summary": "Runtime summary evidence exists but explicit negative-capability summary evidence is missing."
+    },
+    {
+      "code": "negative_capability_support_limited_or_unknown",
+      "summary": "Negative-capability summary evidence exists but one or more absence-claim support lanes are limited or unknown instead of explicit."
+    },
+    {
+      "code": "verifier_identity_missing_or_unknown",
+      "summary": "Verification inputs did not provide sufficient verifier identity/trust-root material for explicit identity attribution."
+    },
+    {
+      "code": "evidence_export_incomplete",
+      "summary": "Evidence export completeness could not be established from canonical export evidence receipts."
+    },
+    {
       "code": "segment_lifecycle_inconsistent",
       "summary": "Segment lifecycle posture is inconsistent with segment header, lifecycle marker, seal state, or receipts."
     },

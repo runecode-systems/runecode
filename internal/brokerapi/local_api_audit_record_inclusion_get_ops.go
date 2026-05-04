@@ -18,47 +18,58 @@ func (s *Service) HandleAuditRecordInclusionGet(ctx context.Context, req AuditRe
 	if errResp != nil {
 		return AuditRecordInclusionGetResponse{}, errResp
 	}
-	recordIdentity, errResp := s.validatedAuditRecordInclusionGetRequest(ctx, req, requestID, meta)
+	recordIdentity, requestCtx, done, errResp := s.validatedAuditRecordInclusionGetRequest(ctx, req, requestID, meta)
 	if errResp != nil {
 		return AuditRecordInclusionGetResponse{}, errResp
 	}
-	inclusion, errResp := s.lookupAuditRecordInclusion(recordIdentity, requestID)
+	defer done()
+	inclusion, errResp := s.lookupAuditRecordInclusion(requestCtx, recordIdentity, requestID)
 	if errResp != nil {
 		return AuditRecordInclusionGetResponse{}, errResp
 	}
 	return s.validatedAuditRecordInclusionGetResponse(requestID, inclusion)
 }
 
-func (s *Service) validatedAuditRecordInclusionGetRequest(ctx context.Context, req AuditRecordInclusionGetRequest, requestID string, meta RequestContext) (string, *ErrorResponse) {
+func (s *Service) validatedAuditRecordInclusionGetRequest(ctx context.Context, req AuditRecordInclusionGetRequest, requestID string, meta RequestContext) (string, context.Context, func(), *ErrorResponse) {
 	release, err := s.acquireInFlight(meta)
 	if err != nil {
 		errOut := s.errorFromLimit(requestID, err)
-		return "", &errOut
+		return "", nil, nil, &errOut
 	}
-	defer release()
 	requestCtx, cancel := withRequestDeadline(ctx, meta, s.apiConfig.Limits.DefaultRequestDeadline)
-	defer cancel()
+	done := func() {
+		release()
+		cancel()
+	}
 	if err := requestCtx.Err(); err != nil {
+		done()
 		errOut := s.errorFromContext(requestID, err)
-		return "", &errOut
+		return "", nil, nil, &errOut
 	}
 	recordIdentity, err := req.RecordDigest.Identity()
 	if err != nil {
+		done()
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, fmt.Sprintf("record_digest: %v", err))
-		return "", &errOut
+		return "", nil, nil, &errOut
 	}
-	return recordIdentity, nil
+	return recordIdentity, requestCtx, done, nil
 }
 
-func (s *Service) lookupAuditRecordInclusion(recordIdentity string, requestID string) (AuditRecordInclusion, *ErrorResponse) {
+func (s *Service) lookupAuditRecordInclusion(ctx context.Context, recordIdentity string, requestID string) (AuditRecordInclusion, *ErrorResponse) {
 	if s.auditLedger == nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, "audit ledger unavailable")
 		return AuditRecordInclusion{}, &errOut
+	}
+	if errResp := s.requestContextError(requestID, ctx); errResp != nil {
+		return AuditRecordInclusion{}, errResp
 	}
 	trustedInclusion, found, err := s.auditLedger.RecordInclusionByDigest(recordIdentity)
 	if err != nil {
 		errOut := s.makeError(requestID, "gateway_failure", "internal", false, "audit record inclusion lookup failed")
 		return AuditRecordInclusion{}, &errOut
+	}
+	if errResp := s.requestContextError(requestID, ctx); errResp != nil {
+		return AuditRecordInclusion{}, errResp
 	}
 	if !found {
 		errOut := s.makeError(requestID, "broker_not_found_audit_record", "storage", false, "audit record not found")
@@ -117,12 +128,17 @@ func projectAuditRecordInclusionOrderedMerkle(lookup auditd.AuditRecordInclusion
 	if err != nil {
 		return AuditRecordInclusionOrderedMerkle{}, err
 	}
+	compactPath, err := projectAuditRecordDigestIdentities(lookup.CompactPath)
+	if err != nil {
+		return AuditRecordInclusionOrderedMerkle{}, err
+	}
 	return AuditRecordInclusionOrderedMerkle{
 		Profile:              lookup.Profile,
 		LeafIndex:            lookup.LeafIndex,
 		LeafCount:            lookup.LeafCount,
 		SegmentMerkleRoot:    segmentMerkleRoot,
 		SegmentRecordDigests: segmentRecordDigests,
+		CompactPath:          compactPath,
 	}, nil
 }
 

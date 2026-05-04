@@ -20,6 +20,82 @@
     {
       "code": "reconciliation",
       "summary": "Receipt attesting deterministic reconciliation between expected and observed audit evidence sets."
+    },
+    {
+      "code": "provider_invocation_authorized",
+      "summary": "Receipt attesting a provider invocation runtime authorization outcome with digest-only request/response provenance."
+    },
+    {
+      "code": "provider_invocation_denied",
+      "summary": "Receipt attesting a denied provider invocation authorization decision as first-class evidence."
+    },
+    {
+      "code": "approval_resolution",
+      "summary": "Receipt attesting canonical approval-resolution evidence including basis digests and approver identity binding when present."
+    },
+    {
+      "code": "approval_consumption",
+      "summary": "Receipt attesting canonical approval-consumption linkage for production-affecting operations that consumed prior approval." 
+    },
+    {
+      "code": "artifact_published",
+      "summary": "Receipt attesting canonical publication evidence for approved artifacts and linked approval decision/consumption digests."
+    },
+    {
+      "code": "override_or_break_glass",
+      "summary": "Receipt attesting explicit override or break-glass evidence posture for policy exceptions and degraded assurance paths."
+    },
+    {
+      "code": "secret_lease_issued",
+      "summary": "Receipt attesting secret lease issuance using digest identities for lease and binding metadata."
+    },
+    {
+      "code": "secret_lease_revoked",
+      "summary": "Receipt attesting secret lease revocation using digest identities for lease and revocation context."
+    },
+    {
+      "code": "runtime_summary",
+      "summary": "Receipt attesting final runtime provenance summary including explicit no-provider/no-secret-lease outcomes."
+    },
+    {
+      "code": "degraded_posture_summary",
+      "summary": "Receipt attesting explicit degraded-posture status, trust-claim change, and acknowledgment/approval/override requirements."
+    },
+    {
+      "code": "negative_capability_summary",
+      "summary": "Receipt attesting negative-capability outcomes and explicit support posture for absence claims across high-value categories."
+    },
+    {
+      "code": "evidence_bundle_export",
+      "summary": "Receipt attesting export of a verification evidence bundle from authoritative trusted storage."
+    },
+    {
+      "code": "evidence_import",
+      "summary": "Receipt attesting import of verification-plane evidence or trust-material into authoritative trusted storage."
+    },
+    {
+      "code": "evidence_restore",
+      "summary": "Receipt attesting restore of verification evidence from archived backup material."
+    },
+    {
+      "code": "retention_policy_changed",
+      "summary": "Receipt attesting a change to evidence retention policy settings affecting preservation posture."
+    },
+    {
+      "code": "archival_operation",
+      "summary": "Receipt attesting archival operation execution for evidence preservation lifecycle controls."
+    },
+    {
+      "code": "verifier_configuration_changed",
+      "summary": "Receipt attesting trusted verifier configuration updates used by the verification plane."
+    },
+    {
+      "code": "trust_root_updated",
+      "summary": "Receipt attesting trusted verification trust-root updates in authoritative control-plane contracts."
+    },
+    {
+      "code": "sensitive_evidence_view",
+      "summary": "Receipt attesting high-value sensitive evidence view operations on authoritative verification surfaces."
     }
   ]
 }

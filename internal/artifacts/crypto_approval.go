@@ -79,7 +79,11 @@ func verifiedApprovalDecision(req PromotionRequest, trustedVerifiers []trustpoli
 	if err != nil {
 		return trustpolicy.ApprovalDecision{}, trustpolicy.VerifierRecord{}, errors.Join(ErrApprovalVerificationFailed, err)
 	}
-	return decision, verifiers[0], nil
+	resolvedVerifier, err := registry.Resolve(req.ApprovalDecision.Signature)
+	if err != nil {
+		return trustpolicy.ApprovalDecision{}, trustpolicy.VerifierRecord{}, errors.Join(ErrApprovalVerificationFailed, err)
+	}
+	return decision, resolvedVerifier, nil
 }
 
 func verifierRegistry(verifiers []trustpolicy.VerifierRecord) (*trustpolicy.VerifierRegistry, error) {
@@ -223,7 +227,7 @@ func digestIdentityField(object map[string]any, key string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("key %q hash missing or invalid", key)
 	}
-	return hashAlg + ":" + hash, nil
+	return trustpolicy.Digest{HashAlg: hashAlg, Hash: hash}.Identity()
 }
 
 func digestIdentityArrayField(object map[string]any, key string) ([]string, error) {

@@ -7,6 +7,13 @@ import (
 	"io"
 	"path"
 	"strings"
+	"time"
+)
+
+const (
+	offlineBundleTarMaxObjects     = 1024
+	offlineBundleTarMaxObjectBytes = 256 << 20
+	offlineBundleTarMaxTotalBytes  = 512 << 20
 )
 
 type offlineBundleObject struct {
@@ -19,6 +26,7 @@ type offlineBundleSnapshot struct {
 	manifestCanonicalJSON  []byte
 	manifestDigestIdentity string
 	objects                map[string]offlineBundleObject
+	verifiedAt             time.Time
 }
 
 func loadAuditEvidenceBundleFromTar(reader io.Reader) (offlineBundleSnapshot, error) {
@@ -32,8 +40,9 @@ func loadAuditEvidenceBundleFromTar(reader io.Reader) (offlineBundleSnapshot, er
 func loadOfflineBundleTarObjects(reader io.Reader) (map[string]offlineBundleObject, error) {
 	objects := map[string]offlineBundleObject{}
 	tarReader := tar.NewReader(reader)
+	var totalBytes int64
 	for {
-		done, err := loadNextOfflineBundleTarObject(tarReader, objects)
+		done, err := loadNextOfflineBundleTarObject(tarReader, objects, &totalBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -43,7 +52,7 @@ func loadOfflineBundleTarObjects(reader io.Reader) (map[string]offlineBundleObje
 	}
 }
 
-func loadNextOfflineBundleTarObject(tarReader *tar.Reader, objects map[string]offlineBundleObject) (bool, error) {
+func loadNextOfflineBundleTarObject(tarReader *tar.Reader, objects map[string]offlineBundleObject, totalBytes *int64) (bool, error) {
 	header, err := tarReader.Next()
 	if err == io.EOF {
 		return true, nil
@@ -58,12 +67,50 @@ func loadNextOfflineBundleTarObject(tarReader *tar.Reader, objects map[string]of
 	if err := ensureOfflineBundlePathAbsent(objects, cleanPath); err != nil {
 		return false, err
 	}
-	payload, err := io.ReadAll(tarReader)
+	if err := ensureOfflineBundleObjectLimit(objects); err != nil {
+		return false, err
+	}
+	payload, err := loadOfflineBundleTarPayload(tarReader, header, cleanPath, totalBytes)
 	if err != nil {
 		return false, err
 	}
 	objects[cleanPath] = offlineBundleObject{path: cleanPath, content: payload}
 	return false, nil
+}
+
+func ensureOfflineBundleObjectLimit(objects map[string]offlineBundleObject) error {
+	if len(objects) >= offlineBundleTarMaxObjects {
+		return fmt.Errorf("bundle contains too many objects")
+	}
+	return nil
+}
+
+func loadOfflineBundleTarPayload(tarReader *tar.Reader, header *tar.Header, cleanPath string, totalBytes *int64) ([]byte, error) {
+	if header == nil {
+		return nil, fmt.Errorf("bundle object %q missing tar header", cleanPath)
+	}
+	if header.Size < 0 {
+		return nil, fmt.Errorf("bundle object %q has negative size", cleanPath)
+	}
+	if header.Size > offlineBundleTarMaxObjectBytes {
+		return nil, fmt.Errorf("bundle object %q exceeds max size", cleanPath)
+	}
+	if totalBytes != nil {
+		if *totalBytes > offlineBundleTarMaxTotalBytes-header.Size {
+			return nil, fmt.Errorf("bundle exceeds max total size")
+		}
+	}
+	payload, err := io.ReadAll(io.LimitReader(tarReader, header.Size))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(payload)) != header.Size {
+		return nil, fmt.Errorf("bundle object %q size mismatch", cleanPath)
+	}
+	if totalBytes != nil {
+		*totalBytes += header.Size
+	}
+	return payload, nil
 }
 
 func offlineBundleTarRegularPath(header *tar.Header) (string, bool) {

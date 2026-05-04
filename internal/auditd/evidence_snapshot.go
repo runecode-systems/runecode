@@ -13,12 +13,16 @@ const (
 
 // EvidenceSnapshot returns a cheap preservation-manifest view of canonical evidence identities.
 func (l *Ledger) EvidenceSnapshot() (AuditEvidenceSnapshot, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.evidenceSnapshotLocked()
+	return l.EvidenceSnapshotWithIdentity(AuditEvidenceIdentityContext{})
 }
 
-func (l *Ledger) evidenceSnapshotLocked() (AuditEvidenceSnapshot, error) {
+func (l *Ledger) EvidenceSnapshotWithIdentity(identityContext AuditEvidenceIdentityContext) (AuditEvidenceSnapshot, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.evidenceSnapshotLocked(identityContext)
+}
+
+func (l *Ledger) evidenceSnapshotLocked(identityContext AuditEvidenceIdentityContext) (AuditEvidenceSnapshot, error) {
 	index, err := l.ensureDerivedIndexLocked()
 	if err != nil {
 		return AuditEvidenceSnapshot{}, err
@@ -27,25 +31,52 @@ func (l *Ledger) evidenceSnapshotLocked() (AuditEvidenceSnapshot, error) {
 	if err != nil {
 		return AuditEvidenceSnapshot{}, err
 	}
+	manifestIdentity, err := l.evidenceIdentityManifestLocked()
+	if err != nil {
+		return AuditEvidenceSnapshot{}, err
+	}
 	segmentIDs, segmentSealDigests := evidenceSnapshotSegmentsFromIndex(index)
+	return buildEvidenceSnapshot(identityContext, manifestIdentity, collected, segmentIDs, segmentSealDigests, l.nowFn), nil
+}
 
+func buildEvidenceSnapshot(identityContext, manifestIdentity AuditEvidenceIdentityContext, collected evidenceSnapshotFamilies, segmentIDs, segmentSealDigests []string, now func() time.Time) AuditEvidenceSnapshot {
 	return AuditEvidenceSnapshot{
-		SchemaID:                   auditEvidenceSnapshotSchemaID,
-		SchemaVersion:              auditEvidenceSnapshotSchemaVersion,
-		CreatedAt:                  l.nowFn().UTC().Format(time.RFC3339),
-		SegmentIDs:                 normalizeIdentityList(segmentIDs),
-		SegmentSealDigests:         normalizeIdentityList(segmentSealDigests),
-		AuditReceiptDigests:        normalizeIdentityList(collected.receiptDigests),
-		VerificationReportDigests:  normalizeIdentityList(collected.verificationReportDigests),
-		RuntimeEvidenceDigests:     normalizeIdentityList(collected.runtimeEvidenceDigests),
-		AttestationEvidenceDigests: normalizeIdentityList(collected.attestationDigests),
-		InstanceIdentityDigests:    normalizeIdentityList(collected.instanceIdentityDigests),
-		PolicyEvidenceDigests:      normalizeIdentityList(collected.policyDigests),
-		RequiredApprovalIDs:        normalizeStringList(collected.requiredApprovalIDs),
-		ApprovalEvidenceDigests:    normalizeIdentityList(collected.approvalDigests),
-		AnchorEvidenceDigests:      normalizeIdentityList(collected.anchorEvidenceDigests),
-		ProviderInvocationDigests:  []string{},
-		SecretLeaseDigests:         []string{},
+		SchemaID:                      auditEvidenceSnapshotSchemaID,
+		SchemaVersion:                 auditEvidenceSnapshotSchemaVersion,
+		CreatedAt:                     now().UTC().Format(time.RFC3339),
+		RepositoryIdentityDigest:      strings.TrimSpace(identityContext.RepositoryIdentityDigest),
+		ProductInstanceID:             strings.TrimSpace(identityContext.ProductInstanceID),
+		LedgerIdentity:                strings.TrimSpace(manifestIdentity.LedgerIdentity),
+		SegmentIDs:                    normalizeIdentityList(segmentIDs),
+		SegmentSealDigests:            normalizeIdentityList(segmentSealDigests),
+		AuditReceiptDigests:           normalizeIdentityList(collected.receiptDigests),
+		VerificationReportDigests:     normalizeIdentityList(collected.verificationReportDigests),
+		RuntimeEvidenceDigests:        normalizeIdentityList(collected.runtimeEvidenceDigests),
+		VerifierRecordDigests:         normalizeIdentityList(collected.verifierRecordDigests),
+		EventContractCatalogDigests:   normalizeIdentityList(collected.eventContractDigests),
+		SignerEvidenceDigests:         normalizeIdentityList(collected.signerEvidenceDigests),
+		StoragePostureDigests:         normalizeIdentityList(collected.storagePostureDigests),
+		TypedRequestDigests:           normalizeIdentityList(collected.typedRequestDigests),
+		ActionRequestDigests:          normalizeIdentityList(collected.actionRequestDigests),
+		ControlPlaneDigests:           normalizeIdentityList(collected.controlPlaneDigests),
+		AttestationEvidenceDigests:    normalizeIdentityList(collected.attestationDigests),
+		ProjectContextIdentityDigests: normalizeIdentityList(collected.projectContextDigests),
+		PolicyEvidenceDigests:         normalizeIdentityList(collected.policyDigests),
+		RequiredApprovalIDs:           normalizeStringList(collected.requiredApprovalIDs),
+		ApprovalEvidenceDigests:       normalizeIdentityList(collected.approvalDigests),
+		AnchorEvidenceDigests:         normalizeIdentityList(collected.anchorEvidenceDigests),
+		ProviderInvocationDigests:     normalizeIdentityList(collected.providerInvocationDigests),
+		SecretLeaseDigests:            normalizeIdentityList(collected.secretLeaseDigests),
+	}
+}
+
+func (l *Ledger) evidenceIdentityManifestLocked() (AuditEvidenceIdentityContext, error) {
+	state, err := l.recoverAndPersistStateLocked()
+	if err != nil {
+		return AuditEvidenceIdentityContext{}, err
+	}
+	return AuditEvidenceIdentityContext{
+		LedgerIdentity: strings.TrimSpace(state.LedgerIdentity),
 	}, nil
 }
 

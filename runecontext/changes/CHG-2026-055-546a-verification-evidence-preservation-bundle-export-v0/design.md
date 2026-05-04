@@ -57,6 +57,7 @@ Rules:
 - this object is a preservation manifest, not a substitute for the evidence itself
 - it should be cheap to generate
 - it should support export planning, retention checks, and backfill completeness checks
+- it should preserve enough verification-contract, signer, runtime, approval, and control-plane identity to support later offline re-verification from exported canonical evidence
 
 ## `AuditEvidenceBundleManifest`
 Purpose: describe a portable evidence bundle in a verifier-friendly way.
@@ -79,6 +80,9 @@ Rules:
 - sign the manifest when the bundle is intended for external sharing
 - keep the format streaming-friendly
 - do not require loading the whole bundle into memory to verify it
+- preserve enough verification-input identity that external parties can determine whether the bundle is sufficient for recomputed verification, not just payload-integrity inspection
+- mark directly included canonical objects explicitly and separately from transitive digest-reference dependencies
+- do not treat this manifest as replication checkpoint or federation authority
 
 ## Bundle Scopes And Profiles
 
@@ -110,6 +114,8 @@ The default export posture should reveal enough to verify provenance without aut
 - exported evidence bundles must be independently verifiable without trusting RuneCode's UI or internal database
 - bundle manifests should preserve verifier identity and trust-root digests when a verification report is included
 - bundle verification should make degraded posture and missing-evidence findings visible rather than hiding them behind bundle creation success
+- when a bundle includes the required verification inputs, offline verification should be able to recompute verification conclusions from exported canonical evidence rather than only replaying included verification reports
+- when a bundle omits required verification inputs, offline verification should fail closed or degrade explicitly with machine-readable findings describing the missing evidence
 
 ## Privacy And Selective Disclosure
 RuneCode should store canonical evidence strongly but expose it according to policy.
@@ -134,9 +140,12 @@ This feature does not solve full federation, but it must avoid closing the door 
 Required rules:
 
 - preserve stable instance identity
+- preserve persistent ledger identity as a required continuity seam
+- preserve project-substrate snapshot identity only as snapshot scope identity, not as ledger authority
 - preserve exportable canonical evidence
 - do not rely on machine-local mutable state as the only history
 - support retention checks and export completeness review from preserved evidence identities
+- keep exported evidence and manifests future-safe for cross-machine import, restore, and merge-oriented workflows without requiring a second truth surface
 
 ## Trusted Surfaces
 
@@ -165,6 +174,8 @@ Any exported verification object that crosses a reviewed boundary should be defi
 - retention and backfill completeness tests using preservation manifests
 - offline verification tests using exported bundles alone
 - tests proving manifests are not treated as substitutes for the underlying evidence
+- tests proving artifact-scoped and incident-scoped bundle selection resolve deterministically from canonical evidence and rebuildable indexes
+- tests proving offline verification can recompute verification conclusions from exported canonical evidence when required inputs are present
 
 ## Key Design Rule
 The preservation manifest and bundle manifest exist so RuneCode preserves the right evidence now, not to create a lighter-weight second truth surface later.

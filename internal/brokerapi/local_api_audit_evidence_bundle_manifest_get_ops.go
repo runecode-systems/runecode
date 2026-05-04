@@ -32,6 +32,10 @@ func (s *Service) HandleAuditEvidenceBundleManifestGet(ctx context.Context, req 
 		errOut := s.errorFromValidation(requestID, err)
 		return AuditEvidenceBundleManifestGetResponse{}, &errOut
 	}
+	manifestDigest, err := canonicalDigest(resp.Manifest)
+	if err == nil {
+		s.persistMetaAuditReceipt(auditReceiptKindSensitiveEvidenceView, "audit_evidence_bundle_manifest", manifestDigestRefOrNil(manifestDigest), nil, manifestDigestRefOrNil(manifestDigest), "bundle_manifest")
+	}
 	return resp, nil
 }
 
@@ -72,10 +76,21 @@ func (s *Service) validateBundleManifestSharingPreconditions(requestID string, e
 }
 
 func (s *Service) buildProjectedAuditEvidenceBundleManifest(requestID string, req AuditEvidenceBundleManifestGetRequest) (AuditEvidenceBundleManifest, *ErrorResponse) {
+	trustedScope, err := projectAuditEvidenceBundleScopeToTrusted(req.Scope)
+	if err != nil {
+		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
+		return AuditEvidenceBundleManifest{}, &errOut
+	}
+	trustedTool, err := projectAuditEvidenceBundleToolIdentityToTrusted(req.CreatedByTool)
+	if err != nil {
+		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
+		return AuditEvidenceBundleManifest{}, &errOut
+	}
 	trustedManifest, err := s.auditLedger.BuildEvidenceBundleManifest(auditd.AuditEvidenceBundleManifestRequest{
-		Scope:             projectAuditEvidenceBundleScopeToTrusted(req.Scope),
+		Scope:             trustedScope,
 		ExportProfile:     req.ExportProfile,
-		CreatedByTool:     projectAuditEvidenceBundleToolIdentityToTrusted(req.CreatedByTool),
+		CreatedByTool:     trustedTool,
+		IdentityContext:   s.auditEvidenceIdentityContext(),
 		DisclosurePosture: projectAuditEvidenceBundleDisclosurePostureToTrusted(req.DisclosurePosture),
 		Redactions:        projectAuditEvidenceBundleRedactionsToTrusted(req.Redactions),
 	})

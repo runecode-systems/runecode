@@ -37,15 +37,17 @@ func (l *Ledger) AnchorCurrentSegment(req AnchorSegmentRequest) (AnchorSegmentRe
 	if err != nil {
 		return AnchorSegmentResult{}, err
 	}
+	failureReasonCode := anchorFailureReasonCode(report)
 
 	return AnchorSegmentResult{
-		SealDigest:         req.SealDigest,
-		ReceiptDigest:      receiptDigest,
-		VerificationDigest: verificationDigest,
-		AnchorStatus:       strings.TrimSpace(report.AnchoringStatus),
+		SealDigest:           req.SealDigest,
+		ReceiptDigest:        receiptDigest,
+		VerificationDigest:   verificationDigest,
+		AnchorStatus:         strings.TrimSpace(report.AnchoringStatus),
+		FailureReasonCode:    failureReasonCode,
+		FailureReasonMessage: anchorFailureReasonMessage(report, failureReasonCode),
 	}, nil
 }
-
 func (l *Ledger) verifyAnchorEvidenceWithReceiptLocked(segment trustpolicy.AuditSegmentFilePayload, sealEnvelope trustpolicy.SignedObjectEnvelope, rawBytes []byte, receiptEnvelope trustpolicy.SignedObjectEnvelope, anchorVerifier trustpolicy.VerifierRecord) (trustpolicy.AuditVerificationReportPayload, error) {
 	verificationInput, err := l.verificationInputWithExtraReceipt(segment, sealEnvelope, rawBytes, receiptEnvelope, anchorVerifier)
 	if err != nil {

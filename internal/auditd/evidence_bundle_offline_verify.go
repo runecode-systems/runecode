@@ -28,11 +28,13 @@ func (l *Ledger) OfflineVerifyEvidenceBundle(reader io.Reader, archiveFormat str
 	if reader == nil {
 		return AuditEvidenceBundleOfflineVerification{}, fmt.Errorf("bundle reader is required")
 	}
+	verifiedAtTime := l.nowFn().UTC()
 	bundle, err := loadAuditEvidenceBundleFromTar(reader)
 	if err != nil {
 		return AuditEvidenceBundleOfflineVerification{}, err
 	}
-	verifiedAt := l.nowFn().UTC().Format(time.RFC3339)
+	bundle.verifiedAt = verifiedAtTime
+	verifiedAt := verifiedAtTime.Format(time.RFC3339)
 	findings, reportPosture := verifyAuditEvidenceBundleContents(bundle)
 	status := offlineBundleVerificationStatus(findings, reportPosture)
 	return AuditEvidenceBundleOfflineVerification{
@@ -60,6 +62,7 @@ func verifyAuditEvidenceBundleContents(bundle offlineBundleSnapshot) ([]AuditEvi
 	findings = append(findings, objectFindings...)
 	reports = append(reports, reportPostures...)
 	findings = append(findings, verifyOfflineBundleReportCoverage(bundle, reports)...)
+	findings = append(findings, verifyOfflineBundleRecomputation(bundle)...)
 	sortOfflineFindings(findings)
 	sort.Slice(reports, func(i, j int) bool { return reports[i].Digest < reports[j].Digest })
 	return findings, reports
@@ -71,10 +74,10 @@ func verifyOfflineBundleManifest(bundle offlineBundleSnapshot) []AuditEvidenceBu
 		findings = append(findings, AuditEvidenceBundleOfflineFinding{Code: "manifest_not_canonical", Severity: "warning", Message: "manifest.json is not canonicalized; verification used canonical projection", ObjectPath: "manifest.json", Digest: bundle.manifestDigestIdentity})
 	}
 	if strings.TrimSpace(bundle.manifest.VerifierIdentity.KeyIDValue) == "" {
-		findings = append(findings, AuditEvidenceBundleOfflineFinding{Code: "verifier_identity_missing", Severity: "warning", Message: "manifest verifier_identity.key_id_value is missing"})
+		findings = append(findings, AuditEvidenceBundleOfflineFinding{Code: "verifier_identity_missing", Severity: "warning", Message: "manifest verifier_identity.key_id_value is missing; bundle cannot support full verifier-of-verifier posture"})
 	}
 	if len(bundle.manifest.TrustRootDigests) == 0 {
-		findings = append(findings, AuditEvidenceBundleOfflineFinding{Code: "trust_root_identity_missing", Severity: "warning", Message: "manifest trust_root_digests is empty"})
+		findings = append(findings, AuditEvidenceBundleOfflineFinding{Code: "trust_root_identity_missing", Severity: "warning", Message: "manifest trust_root_digests is empty; bundle cannot support full trust-root verification posture"})
 	}
 	for i := range bundle.manifest.TrustRootDigests {
 		if _, err := digestFromIdentity(bundle.manifest.TrustRootDigests[i]); err != nil {
@@ -101,7 +104,11 @@ func verifyOfflineBundleIncludedObject(bundle offlineBundleSnapshot, obj AuditEv
 	path := strings.TrimSpace(obj.Path)
 	rel, ok := bundle.objects[path]
 	if !ok {
-		return []AuditEvidenceBundleOfflineFinding{{Code: "bundle_object_missing", Severity: "error", Message: "manifest listed object is missing from archive", ObjectPath: path, Digest: strings.TrimSpace(obj.Digest)}}, AuditEvidenceBundleOfflineReportPosture{}, false
+		findings := []AuditEvidenceBundleOfflineFinding{{Code: "bundle_object_missing", Severity: "error", Message: "manifest listed object is missing from archive", ObjectPath: path, Digest: strings.TrimSpace(obj.Digest)}}
+		if obj.ObjectFamily == "audit_verification_report" {
+			findings = append(findings, AuditEvidenceBundleOfflineFinding{Code: "verification_report_missing", Severity: "error", Message: "bundle does not include audit verification report evidence", ObjectPath: path, Digest: strings.TrimSpace(obj.Digest)})
+		}
+		return findings, AuditEvidenceBundleOfflineReportPosture{}, false
 	}
 	findings := verifyOfflineBundleObjectContent(obj, rel)
 	if obj.ObjectFamily != "audit_verification_report" {
@@ -131,7 +138,10 @@ func verifyOfflineBundleReportCoverage(bundle offlineBundleSnapshot, reports []A
 	if len(reports) != 0 {
 		return nil
 	}
-	findings := []AuditEvidenceBundleOfflineFinding{{Code: "verification_report_missing", Severity: "warning", Message: "bundle does not include audit verification report evidence"}}
+	if offlineBundleHasReferencedVerificationReport(bundle) {
+		return nil
+	}
+	findings := []AuditEvidenceBundleOfflineFinding{{Code: "verification_report_missing", Severity: "error", Message: "bundle does not include audit verification report evidence"}}
 	for i := range bundle.manifest.Redactions {
 		if strings.TrimSpace(bundle.manifest.Redactions[i].Path) == "" {
 			continue
@@ -139,6 +149,15 @@ func verifyOfflineBundleReportCoverage(bundle offlineBundleSnapshot, reports []A
 		findings = append(findings, AuditEvidenceBundleOfflineFinding{Code: "verification_evidence_redacted", Severity: "warning", Message: "manifest redactions omit evidence object", ObjectPath: bundle.manifest.Redactions[i].Path})
 	}
 	return findings
+}
+
+func offlineBundleHasReferencedVerificationReport(bundle offlineBundleSnapshot) bool {
+	for i := range bundle.manifest.IncludedObjects {
+		if strings.TrimSpace(bundle.manifest.IncludedObjects[i].ObjectFamily) == "audit_verification_report" {
+			return true
+		}
+	}
+	return false
 }
 
 func verifyOfflineReportPosture(raw []byte, digestIdentity string) (AuditEvidenceBundleOfflineReportPosture, []AuditEvidenceBundleOfflineFinding, bool) {

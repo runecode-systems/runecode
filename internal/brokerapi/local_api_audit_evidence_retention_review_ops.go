@@ -31,11 +31,20 @@ func (s *Service) HandleAuditEvidenceRetentionReview(ctx context.Context, req Au
 		errOut := s.errorFromValidation(requestID, err)
 		return AuditEvidenceRetentionReviewResponse{}, &errOut
 	}
+	manifestDigest, err := canonicalDigest(resp.Manifest)
+	if err == nil {
+		s.persistMetaAuditReceipt(auditReceiptKindSensitiveEvidenceView, "audit_evidence_retention_review", manifestDigestRefOrNil(manifestDigest), nil, manifestDigestRefOrNil(manifestDigest), "retention_review")
+	}
 	return resp, nil
 }
 
 func (s *Service) buildProjectedAuditEvidenceRetentionReview(requestID string, scope AuditEvidenceBundleScope) (AuditEvidenceSnapshot, AuditEvidenceBundleManifest, AuditEvidenceSnapshotCompleteness, *ErrorResponse) {
-	trustedSnapshot, trustedManifest, completeness, err := s.auditLedger.BuildEvidenceRetentionReview(projectAuditEvidenceBundleScopeToTrusted(scope))
+	trustedScope, err := projectAuditEvidenceBundleScopeToTrusted(scope)
+	if err != nil {
+		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
+		return AuditEvidenceSnapshot{}, AuditEvidenceBundleManifest{}, AuditEvidenceSnapshotCompleteness{}, &errOut
+	}
+	trustedSnapshot, trustedManifest, completeness, err := s.auditLedger.BuildEvidenceRetentionReview(trustedScope, s.auditEvidenceIdentityContext())
 	if err != nil {
 		errOut := s.makeError(requestID, "broker_validation_schema_invalid", "validation", false, err.Error())
 		return AuditEvidenceSnapshot{}, AuditEvidenceBundleManifest{}, AuditEvidenceSnapshotCompleteness{}, &errOut
@@ -67,11 +76,23 @@ func projectAuditEvidenceSnapshotCompleteness(review auditd.AuditEvidenceSnapsho
 	if err != nil {
 		return AuditEvidenceSnapshotCompleteness{}, err
 	}
+	transitive, err := projectAuditEvidenceSnapshotIdentityEntries(review.TransitiveEmbedded)
+	if err != nil {
+		return AuditEvidenceSnapshotCompleteness{}, err
+	}
+	unsupported, err := projectAuditEvidenceSnapshotIdentityEntries(review.UnsupportedDirectCompleteness)
+	if err != nil {
+		return AuditEvidenceSnapshotCompleteness{}, err
+	}
 	return AuditEvidenceSnapshotCompleteness{
-		FullySatisfied:        review.FullySatisfied,
-		RequiredIdentityCount: review.RequiredIdentityCount,
-		Missing:               missing,
-		DeclaredRedactions:    declared,
+		FullySatisfied:                  review.FullySatisfied,
+		RequiredIdentityCount:           review.RequiredIdentityCount,
+		Missing:                         missing,
+		DeclaredRedactions:              declared,
+		TransitiveEmbedded:              transitive,
+		UnsupportedDirectCompleteness:   unsupported,
+		TransitiveEmbeddedIdentityCount: review.TransitiveEmbeddedIdentityCount,
+		UnsupportedDirectIdentityCount:  review.UnsupportedDirectIdentityCount,
 	}, nil
 }
 
