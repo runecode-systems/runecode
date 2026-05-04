@@ -10,6 +10,9 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
   - RuneCode defines one inspectable evidence-first verification foundation across canonical evidence, append-only sealing, runtime identity and attestation, portable evidence bundles, and explicit degraded-posture handling, delivered through scoped child features.
   - Project change: `runecontext/changes/CHG-2026-057-d5c1-verification-plane-foundation-v0/`
   - Feature changes: `runecontext/changes/CHG-2026-056-8c75-audit-evidence-index-record-inclusion-v0/`, `runecontext/changes/CHG-2026-055-546a-verification-evidence-preservation-bundle-export-v0/`, `runecontext/changes/CHG-2026-058-04e9-verification-coverage-expansion-v0/`
+- ZK Proof v0 (One Narrow Proof + Verify)
+  - RuneCode can evaluate at least one narrow zero-knowledge integrity proof on top of the stabilized pre-beta assurance surfaces without blocking the usable product cut.
+  - Planned change: `runecontext/changes/CHG-2026-016-8cdb-zk-proof-v0-one-narrow-proof-verify/`
 
 ### v0.1.0-beta.1
 
@@ -68,10 +71,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
   - Planned change: `runecontext/changes/CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0/`
 
 ## Unscheduled (Needs Specs)
-
-- ZK Proof v0 (One Narrow Proof + Verify)
-  - RuneCode can evaluate at least one narrow zero-knowledge integrity proof on top of the stabilized pre-beta assurance surfaces without blocking the usable product cut.
-  - Planned change: `runecontext/changes/CHG-2026-016-8cdb-zk-proof-v0-one-narrow-proof-verify/`
 
 
 ## Completed Features

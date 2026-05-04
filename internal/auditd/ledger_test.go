@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -73,6 +74,54 @@ func TestReadinessSemantics(t *testing.T) {
 	}
 	if !readiness.Ready {
 		t.Fatal("Readiness.Ready = false, want true")
+	}
+}
+
+func TestAppendAdmittedEventRejectsDuplicateRecordDigestAndPreservesCounts(t *testing.T) {
+	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+
+	before := derivedIndex{}
+	if err := readJSONFile(filepath.Join(root, indexDirName, auditEvidenceIndexFileName), &before); err != nil {
+		t.Fatalf("readJSONFile(index before duplicate) returned error: %v", err)
+	}
+	if before.TotalRecords != 1 {
+		t.Fatalf("index TotalRecords(before duplicate) = %d, want 1", before.TotalRecords)
+	}
+
+	duplicate := validAdmissionRequestForLedger(t, fixture)
+	if _, err := ledger.AppendAdmittedEvent(duplicate); err == nil || !strings.Contains(err.Error(), "duplicate record digest") {
+		t.Fatalf("AppendAdmittedEvent(duplicate) error = %v, want duplicate record digest rejection", err)
+	}
+
+	segment, err := ledger.loadSegment("segment-000001")
+	if err != nil {
+		t.Fatalf("loadSegment returned error: %v", err)
+	}
+	if len(segment.Frames) != 1 {
+		t.Fatalf("segment frame count = %d, want 1 after duplicate rejection", len(segment.Frames))
+	}
+
+	after := derivedIndex{}
+	if err := readJSONFile(filepath.Join(root, indexDirName, auditEvidenceIndexFileName), &after); err != nil {
+		t.Fatalf("readJSONFile(index after duplicate) returned error: %v", err)
+	}
+	if after.TotalRecords != 1 {
+		t.Fatalf("index TotalRecords(after duplicate) = %d, want 1", after.TotalRecords)
+	}
+	rebuilt := mustBuildIndex(t, ledger)
+	if rebuilt.TotalRecords != 1 {
+		t.Fatalf("rebuilt index TotalRecords = %d, want 1", rebuilt.TotalRecords)
+	}
+
+	state, err := ledger.loadState()
+	if err != nil {
+		t.Fatalf("loadState returned error: %v", err)
+	}
+	if state.LastIndexedRecordCount != 1 {
+		t.Fatalf("state LastIndexedRecordCount = %d, want 1", state.LastIndexedRecordCount)
+	}
+	if state.OpenFrameCount != 1 {
+		t.Fatalf("state OpenFrameCount = %d, want 1", state.OpenFrameCount)
 	}
 }
 

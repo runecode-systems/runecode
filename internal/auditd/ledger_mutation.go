@@ -26,6 +26,13 @@ func (l *Ledger) AppendAdmittedEvent(req trustpolicy.AuditAdmissionRequest) (App
 	if err != nil {
 		return AppendResult{}, err
 	}
+	recordDigestIdentity, err := frame.RecordDigest.Identity()
+	if err != nil {
+		return AppendResult{}, err
+	}
+	if err := l.ensureRecordDigestUniqueLocked(recordDigestIdentity); err != nil {
+		return AppendResult{}, err
+	}
 	openSegment.Frames = append(openSegment.Frames, frame)
 	openSegment.LifecycleMarker.MarkedAt = l.nowFn().UTC().Format(time.RFC3339)
 	if err := l.saveSegment(openSegment); err != nil {
@@ -40,6 +47,17 @@ func (l *Ledger) AppendAdmittedEvent(req trustpolicy.AuditAdmissionRequest) (App
 		return AppendResult{}, err
 	}
 	return AppendResult{SegmentID: openSegment.Header.SegmentID, RecordDigest: frame.RecordDigest, ByteLength: frame.ByteLength, FrameCount: len(openSegment.Frames)}, nil
+}
+
+func (l *Ledger) ensureRecordDigestUniqueLocked(recordDigestIdentity string) error {
+	index, err := l.ensureDerivedIndexLocked()
+	if err != nil {
+		return err
+	}
+	if _, exists := index.RecordDigestLookup[recordDigestIdentity]; exists {
+		return fmt.Errorf("duplicate record digest %q already admitted", recordDigestIdentity)
+	}
+	return nil
 }
 
 func frameForEnvelope(envelope trustpolicy.SignedObjectEnvelope) (trustpolicy.AuditSegmentRecordFrame, error) {
