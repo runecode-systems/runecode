@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -74,6 +75,100 @@ func TestReadinessSemantics(t *testing.T) {
 	}
 	if !readiness.Ready {
 		t.Fatal("Readiness.Ready = false, want true")
+	}
+}
+
+func TestAppendAdmittedEventRejectsDuplicateRecordDigestAndPreservesCounts(t *testing.T) {
+	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+
+	before := mustReadDerivedIndex(t, root)
+	if before.TotalRecords != 1 {
+		t.Fatalf("index TotalRecords(before duplicate) = %d, want 1", before.TotalRecords)
+	}
+
+	duplicate := validAdmissionRequestForLedger(t, fixture)
+	if _, err := ledger.AppendAdmittedEvent(duplicate); err == nil || !strings.Contains(err.Error(), "duplicate record digest") {
+		t.Fatalf("AppendAdmittedEvent(duplicate) error = %v, want duplicate record digest rejection", err)
+	}
+
+	segment, err := ledger.loadSegment("segment-000001")
+	if err != nil {
+		t.Fatalf("loadSegment returned error: %v", err)
+	}
+	if len(segment.Frames) != 1 {
+		t.Fatalf("segment frame count = %d, want 1 after duplicate rejection", len(segment.Frames))
+	}
+
+	after := mustReadDerivedIndex(t, root)
+	if after.TotalRecords != 1 {
+		t.Fatalf("index TotalRecords(after duplicate) = %d, want 1", after.TotalRecords)
+	}
+	rebuilt := mustBuildIndex(t, ledger)
+	if rebuilt.TotalRecords != 1 {
+		t.Fatalf("rebuilt index TotalRecords = %d, want 1", rebuilt.TotalRecords)
+	}
+
+	state, err := ledger.loadState()
+	if err != nil {
+		t.Fatalf("loadState returned error: %v", err)
+	}
+	if state.LastIndexedRecordCount != 1 {
+		t.Fatalf("state LastIndexedRecordCount = %d, want 1", state.LastIndexedRecordCount)
+	}
+	if state.OpenFrameCount != 1 {
+		t.Fatalf("state OpenFrameCount = %d, want 1", state.OpenFrameCount)
+	}
+}
+
+func TestAppendAdmittedEventRejectsConcurrentDuplicateRecordDigest(t *testing.T) {
+	_, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	duplicate := validAdmissionRequestForLedger(t, fixture)
+
+	const attempts = 8
+	errCh := make(chan error, attempts)
+	var start sync.WaitGroup
+	start.Add(1)
+	var wg sync.WaitGroup
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			start.Wait()
+			_, err := ledger.AppendAdmittedEvent(duplicate)
+			errCh <- err
+		}()
+	}
+	start.Done()
+	wg.Wait()
+	close(errCh)
+
+	duplicateErrs := 0
+	for err := range errCh {
+		if err == nil {
+			continue
+		}
+		if !strings.Contains(err.Error(), "duplicate record digest") {
+			t.Fatalf("AppendAdmittedEvent(concurrent duplicate) error = %v, want duplicate record digest rejection", err)
+		}
+		duplicateErrs++
+	}
+	if duplicateErrs != attempts {
+		t.Fatalf("duplicate rejections = %d, want %d", duplicateErrs, attempts)
+	}
+
+	segment, err := ledger.loadSegment("segment-000001")
+	if err != nil {
+		t.Fatalf("loadSegment returned error: %v", err)
+	}
+	if len(segment.Frames) != 1 {
+		t.Fatalf("segment frame count = %d, want 1 after concurrent duplicate rejection", len(segment.Frames))
+	}
+	state, err := ledger.loadState()
+	if err != nil {
+		t.Fatalf("loadState returned error: %v", err)
+	}
+	if state.LastIndexedRecordCount != 1 || state.OpenFrameCount != 1 {
+		t.Fatalf("state after concurrent duplicate rejection = %+v, want frame/index counts of 1", state)
 	}
 }
 

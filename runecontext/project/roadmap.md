@@ -5,6 +5,15 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ## Upcoming Features
 
+### v0.1.0-alpha.10
+- Verification Plane Foundation v0
+  - RuneCode defines one inspectable evidence-first verification foundation across canonical evidence, append-only sealing, runtime identity and attestation, portable evidence bundles, and explicit degraded-posture handling, delivered through scoped child features.
+  - Project change: `runecontext/changes/CHG-2026-057-d5c1-verification-plane-foundation-v0/`
+  - Feature changes: `runecontext/changes/CHG-2026-056-8c75-audit-evidence-index-record-inclusion-v0/`, `runecontext/changes/CHG-2026-055-546a-verification-evidence-preservation-bundle-export-v0/`, `runecontext/changes/CHG-2026-058-04e9-verification-coverage-expansion-v0/`
+- ZK Proof v0 (One Narrow Proof + Verify)
+  - RuneCode can evaluate at least one narrow zero-knowledge integrity proof on top of the stabilized pre-beta assurance surfaces without blocking the usable product cut.
+  - Planned change: `runecontext/changes/CHG-2026-016-8cdb-zk-proof-v0-one-narrow-proof-verify/`
+
 ### v0.1.0-beta.1
 
 - Usable End-to-End Linux-First Cut
@@ -69,14 +78,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
   - Planned change: `runecontext/changes/CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0/`
 
 ## Unscheduled (Needs Specs)
-
-No unscheduled items are currently tracked outside the planned work listed above.
-
-## Deferred/Delayed
-
-- ZK Proof v0 (One Narrow Proof + Verify)
-  - RuneCode can evaluate at least one narrow zero-knowledge integrity proof on top of the stabilized pre-beta assurance surfaces without blocking the usable product cut.
-  - Planned change: `runecontext/changes/CHG-2026-016-8cdb-zk-proof-v0-one-narrow-proof-verify/`
 
 
 ## Completed Features
@@ -187,4 +188,3 @@ No unscheduled items are currently tracked outside the planned work listed above
 - External Audit Anchoring v0
   - Audit roots can be anchored to external targets with explicit egress, typed receipts, and the same verification discipline used for other high-risk outbound lanes.
   - Planned change: `runecontext/changes/CHG-2026-025-5679-external-audit-anchoring-v0/`
-

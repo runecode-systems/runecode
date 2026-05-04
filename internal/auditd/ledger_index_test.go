@@ -103,7 +103,10 @@ func TestLookupSealDigestByChainIndexFailsClosedOnCanonicalConflict(t *testing.T
 	if err != nil {
 		t.Fatalf("ComputeSignedEnvelopeAuditRecordDigest returned error: %v", err)
 	}
-	conflictID, _ := conflictDigest.Identity()
+	conflictID, err := conflictDigest.Identity()
+	if err != nil {
+		t.Fatalf("conflictDigest.Identity() returned error: %v", err)
+	}
 	conflictPath := filepath.Join(root, sidecarDirName, sealsDirName, strings.TrimPrefix(conflictID, "sha256:")+".json")
 	if err := writeCanonicalJSONFile(conflictPath, conflictEnvelope); err != nil {
 		t.Fatalf("writeCanonicalJSONFile returned error: %v", err)
@@ -112,6 +115,43 @@ func TestLookupSealDigestByChainIndexFailsClosedOnCanonicalConflict(t *testing.T
 
 	if _, _, err := ledger.LookupSealDigestByChainIndex(0); err == nil || !strings.Contains(err.Error(), "multiple seals share chain index") {
 		t.Fatalf("LookupSealDigestByChainIndex error=%v, want canonical conflict", err)
+	}
+}
+
+func TestOpenFailsClosedWhenLatestSealIndexBuildDetectsCanonicalConflict(t *testing.T) {
+	root, ledger, fixture := setupLedgerWithAdmissionFixture(t)
+	segment, err := ledger.loadSegment("segment-000001")
+	if err != nil {
+		t.Fatalf("loadSegment returned error: %v", err)
+	}
+	_ = mustSealFixtureSegment(t, ledger, fixture)
+
+	conflictEnvelope := buildSealEnvelopeForSegment(t, fixture, ledger, segment, nil, 0)
+	conflictPayload, err := decodeAndValidateSealEnvelope(conflictEnvelope)
+	if err != nil {
+		t.Fatalf("decodeAndValidateSealEnvelope returned error: %v", err)
+	}
+	conflictPayload.SegmentID = "segment-999999"
+	conflictBytes := mustJSON(t, conflictPayload)
+	conflictEnvelope.Payload = conflictBytes
+	conflictDigest, err := trustpolicy.ComputeSignedEnvelopeAuditRecordDigest(conflictEnvelope)
+	if err != nil {
+		t.Fatalf("ComputeSignedEnvelopeAuditRecordDigest returned error: %v", err)
+	}
+	conflictID, err := conflictDigest.Identity()
+	if err != nil {
+		t.Fatalf("conflictDigest.Identity() returned error: %v", err)
+	}
+	conflictPath := filepath.Join(root, sidecarDirName, sealsDirName, strings.TrimPrefix(conflictID, "sha256:")+".json")
+	if err := writeCanonicalJSONFile(conflictPath, conflictEnvelope); err != nil {
+		t.Fatalf("writeCanonicalJSONFile returned error: %v", err)
+	}
+	if err := os.Remove(filepath.Join(root, indexDirName, auditEvidenceIndexFileName)); err != nil {
+		t.Fatalf("Remove(index) returned error: %v", err)
+	}
+
+	if _, err := Open(root); err == nil || !strings.Contains(err.Error(), "multiple seals share chain index") {
+		t.Fatalf("Open error=%v, want canonical conflict", err)
 	}
 }
 
