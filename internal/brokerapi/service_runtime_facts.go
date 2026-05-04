@@ -42,12 +42,13 @@ func (s *Service) RecordRuntimeFacts(runID string, facts launcherbackend.Runtime
 }
 
 func (s *Service) RuntimeFacts(runID string) launcherbackend.RuntimeFactsSnapshot {
-	facts, _, lifecycle, _, ok := s.store.RuntimeEvidenceState(runID)
+	facts, evidence, lifecycle, _, ok := s.store.RuntimeEvidenceState(runID)
 	if !ok {
 		return launcherbackend.DefaultRuntimeFacts(runID)
 	}
 	facts = normalizeRuntimeFactsSnapshot(runID, facts)
 	applyPersistedLifecycle(&facts, lifecycle)
+	facts.LaunchReceipt.ProvisioningPosture = authoritativeRuntimeProvisioningPosture(facts.LaunchReceipt.ProvisioningPosture, evidence)
 	return facts
 }
 
@@ -85,6 +86,18 @@ func applyPersistedLifecycle(facts *launcherbackend.RuntimeFactsSnapshot, lifecy
 	facts.LaunchReceipt.ProvisioningPostureDegraded = lifecycle.ProvisioningPostureDegraded
 	facts.LaunchReceipt.ProvisioningDegradedReasons = append([]string{}, lifecycle.ProvisioningDegradedReasons...)
 	facts.LaunchReceipt.LaunchFailureReasonCode = strings.TrimSpace(lifecycle.LaunchFailureReasonCode)
+}
+
+func authoritativeRuntimeProvisioningPosture(current string, evidence launcherbackend.RuntimeEvidenceSnapshot) string {
+	posture := strings.TrimSpace(current)
+	if posture != launcherbackend.ProvisioningPostureAttested {
+		return posture
+	}
+	attestationPosture, _ := launcherbackend.DeriveAttestationPostureFromEvidence(evidence)
+	if attestationPosture == launcherbackend.AttestationPostureValid {
+		return launcherbackend.ProvisioningPostureAttested
+	}
+	return launcherbackend.ProvisioningPostureTOFU
 }
 
 func normalizeRuntimeHardeningPosture(input launcherbackend.AppliedHardeningPosture, receipt launcherbackend.BackendLaunchReceipt) launcherbackend.AppliedHardeningPosture {

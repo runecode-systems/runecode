@@ -324,7 +324,15 @@ func attestedRuntimeFacts(runID string) launcherbackend.RuntimeFactsSnapshot {
 	facts := launcherRuntimeFactsFixture()
 	facts.LaunchReceipt.RunID = runID
 	facts.LaunchReceipt.LaunchFailureReasonCode = ""
+	facts.LaunchReceipt.AttestationVerifierPolicyID = "runtime_asset_admission_identity"
+	facts.LaunchReceipt.AttestationVerifierPolicyDigest = facts.LaunchReceipt.AuthorityStateDigest
+	facts.LaunchReceipt.AttestationVerificationResult = launcherbackend.AttestationVerificationResultValid
+	facts.LaunchReceipt.AttestationReplayVerdict = launcherbackend.AttestationReplayVerdictOriginal
 	facts.PostHandshakeAttestationInput = runtimeFactsPostHandshakeAttestationInput(facts.LaunchReceipt)
+	facts.PostHandshakeAttestationInput.VerifierPolicyID = facts.LaunchReceipt.AttestationVerifierPolicyID
+	facts.PostHandshakeAttestationInput.VerifierPolicyDigest = facts.LaunchReceipt.AttestationVerifierPolicyDigest
+	facts.PostHandshakeAttestationInput.VerificationResult = facts.LaunchReceipt.AttestationVerificationResult
+	facts.PostHandshakeAttestationInput.ReplayVerdict = facts.LaunchReceipt.AttestationReplayVerdict
 	return facts
 }
 
@@ -396,7 +404,15 @@ func attestationAuditRuntimeFacts() launcherbackend.RuntimeFactsSnapshot {
 	facts.LaunchReceipt.AttestationFreshnessMaterial = []string{"quote_nonce"}
 	facts.LaunchReceipt.AttestationFreshnessBindingClaims = []string{"session_nonce", "handshake_transcript_hash"}
 	facts.LaunchReceipt.AttestationEvidenceClaimsDigest = runtimeFactsMeasurementDigests(facts.LaunchReceipt)[0]
+	facts.LaunchReceipt.AttestationVerifierPolicyID = "runtime_asset_admission_identity"
+	facts.LaunchReceipt.AttestationVerifierPolicyDigest = facts.LaunchReceipt.AuthorityStateDigest
+	facts.LaunchReceipt.AttestationVerificationResult = launcherbackend.AttestationVerificationResultValid
+	facts.LaunchReceipt.AttestationReplayVerdict = launcherbackend.AttestationReplayVerdictOriginal
 	facts.PostHandshakeAttestationInput = runtimeFactsPostHandshakeAttestationInput(facts.LaunchReceipt)
+	facts.PostHandshakeAttestationInput.VerifierPolicyID = facts.LaunchReceipt.AttestationVerifierPolicyID
+	facts.PostHandshakeAttestationInput.VerifierPolicyDigest = facts.LaunchReceipt.AttestationVerifierPolicyDigest
+	facts.PostHandshakeAttestationInput.VerificationResult = facts.LaunchReceipt.AttestationVerificationResult
+	facts.PostHandshakeAttestationInput.ReplayVerdict = facts.LaunchReceipt.AttestationReplayVerdict
 	return facts
 }
 

@@ -233,8 +233,8 @@ func recordAndFetchSyntheticReceiptOnlyAttestation(t *testing.T, backend string,
 
 func assertSyntheticReceiptOnlyAuthoritativeState(t *testing.T, state map[string]any) {
 	t.Helper()
-	if state["provisioning_posture"] != launcherbackend.ProvisioningPostureAttested {
-		t.Fatalf("authoritative_state.provisioning_posture = %v, want %q", state["provisioning_posture"], launcherbackend.ProvisioningPostureAttested)
+	if state["provisioning_posture"] != launcherbackend.ProvisioningPostureTOFU {
+		t.Fatalf("authoritative_state.provisioning_posture = %v, want %q", state["provisioning_posture"], launcherbackend.ProvisioningPostureTOFU)
 	}
 	if state["supported_runtime_requirements_satisfied"] != false {
 		t.Fatalf("authoritative_state.supported_runtime_requirements_satisfied = %v, want false for synthetic receipt-only attestation", state["supported_runtime_requirements_satisfied"])
@@ -508,8 +508,8 @@ func assertContainerSummaryIdentityFields(t *testing.T, run RunSummary) {
 	if run.IsolationAssuranceLevel != launcherbackend.IsolationAssuranceDegraded {
 		t.Fatalf("summary.isolation_assurance_level = %q, want %q", run.IsolationAssuranceLevel, launcherbackend.IsolationAssuranceDegraded)
 	}
-	if run.ProvisioningPosture != launcherbackend.ProvisioningPostureAttested {
-		t.Fatalf("summary.provisioning_posture = %q, want %q", run.ProvisioningPosture, launcherbackend.ProvisioningPostureAttested)
+	if run.ProvisioningPosture != launcherbackend.ProvisioningPostureTOFU {
+		t.Fatalf("summary.provisioning_posture = %q, want %q", run.ProvisioningPosture, launcherbackend.ProvisioningPostureTOFU)
 	}
 }
 

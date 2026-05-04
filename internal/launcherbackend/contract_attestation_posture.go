@@ -18,17 +18,25 @@ func DeriveAttestationPosture(receipt BackendLaunchReceipt) (string, []string) {
 }
 
 func deriveRequiredAttestationPosture(receipt BackendLaunchReceipt) (string, []string) {
+	reasons := attestationPostureReasonCodes(receipt)
+	if !receiptHasAttestationEvidence(receipt) {
+		return AttestationPostureUnavailable, append(reasons, "attestation_evidence_unavailable")
+	}
+	if !receiptHasAttestationVerification(receipt) {
+		return AttestationPostureUnavailable, append(reasons, "attestation_verification_unavailable")
+	}
 	if receipt.AttestationVerificationResult == AttestationVerificationResultValid && receipt.AttestationReplayVerdict == AttestationReplayVerdictOriginal {
 		return AttestationPostureValid, nil
 	}
-	reasons := attestationPostureReasonCodes(receipt)
-	if receipt.AttestationEvidenceSourceKind == AttestationSourceKindUnknown || receipt.AttestationMeasurementProfile == "" {
-		return AttestationPostureUnavailable, append(reasons, "attestation_evidence_unavailable")
-	}
-	if receipt.AttestationVerificationResult == AttestationVerificationResultUnknown {
-		return AttestationPostureUnavailable, append(reasons, "attestation_verification_unavailable")
-	}
 	return AttestationPostureInvalid, reasons
+}
+
+func receiptHasAttestationEvidence(receipt BackendLaunchReceipt) bool {
+	return receipt.AttestationEvidenceSourceKind != AttestationSourceKindUnknown && receipt.AttestationMeasurementProfile != "" && receipt.AttestationEvidenceDigest != ""
+}
+
+func receiptHasAttestationVerification(receipt BackendLaunchReceipt) bool {
+	return receipt.AttestationVerificationResult != AttestationVerificationResultUnknown && receipt.AttestationReplayVerdict != AttestationReplayVerdictUnknown && receipt.AttestationVerificationDigest != ""
 }
 
 func attestationPostureReasonCodes(receipt BackendLaunchReceipt) []string {
@@ -64,11 +72,13 @@ func DeriveAttestationPostureFromEvidence(evidence RuntimeEvidenceSnapshot) (str
 	if evidence.Attestation != nil {
 		receipt.AttestationEvidenceSourceKind = evidence.Attestation.AttestationSourceKind
 		receipt.AttestationMeasurementProfile = evidence.Attestation.MeasurementProfile
+		receipt.AttestationEvidenceDigest = evidence.Attestation.EvidenceDigest
 	}
 	if evidence.AttestationVerification != nil {
 		receipt.AttestationVerificationResult = evidence.AttestationVerification.VerificationResult
 		receipt.AttestationVerificationReasonCodes = evidence.AttestationVerification.ReasonCodes
 		receipt.AttestationReplayVerdict = evidence.AttestationVerification.ReplayVerdict
+		receipt.AttestationVerificationDigest = evidence.AttestationVerification.VerificationDigest
 	}
 	return DeriveAttestationPosture(receipt)
 }

@@ -55,7 +55,7 @@ func TestRunDetailRuntimeFactsContainerProjectionSurvivesServiceRestartWithPersi
 	if state["attestation_verification_digest"] != preRestartEvidence.AttestationVerification.VerificationDigest {
 		t.Fatalf("authoritative_state.attestation_verification_digest = %v, want %q after restart", state["attestation_verification_digest"], preRestartEvidence.AttestationVerification.VerificationDigest)
 	}
-	wantVerificationSucceeded := preRestartEvidence.AttestationVerification.VerificationResult == launcherbackend.AttestationVerificationResultValid && preRestartEvidence.AttestationVerification.ReplayVerdict == launcherbackend.AttestationReplayVerdictOriginal
+	wantVerificationSucceeded := preRestartEvidence.Attestation != nil && preRestartEvidence.AttestationVerification != nil && preRestartEvidence.AttestationVerification.VerificationDigest != "" && preRestartEvidence.AttestationVerification.VerificationResult == launcherbackend.AttestationVerificationResultValid && preRestartEvidence.AttestationVerification.ReplayVerdict == launcherbackend.AttestationReplayVerdictOriginal
 	if state["attestation_verification_succeeded"] != wantVerificationSucceeded {
 		t.Fatalf("authoritative_state.attestation_verification_succeeded = %v, want %v from persisted verification", state["attestation_verification_succeeded"], wantVerificationSucceeded)
 	}
@@ -234,8 +234,8 @@ func assertContainerSummaryPostureVocabulary(t *testing.T, summary RunSummary) {
 	if summary.BackendKind != launcherbackend.BackendKindContainer {
 		t.Fatalf("summary.backend_kind = %q, want %q", summary.BackendKind, launcherbackend.BackendKindContainer)
 	}
-	if summary.ProvisioningPosture != launcherbackend.ProvisioningPostureAttested {
-		t.Fatalf("summary.provisioning_posture = %q, want %q", summary.ProvisioningPosture, launcherbackend.ProvisioningPostureAttested)
+	if summary.ProvisioningPosture != launcherbackend.ProvisioningPostureTOFU {
+		t.Fatalf("summary.provisioning_posture = %q, want %q", summary.ProvisioningPosture, launcherbackend.ProvisioningPostureTOFU)
 	}
 	if !summary.RuntimePostureDegraded {
 		t.Fatal("summary.runtime_posture_degraded = false, want true for container reduced assurance")
@@ -247,8 +247,8 @@ func assertContainerAuthoritativePostureVocabulary(t *testing.T, state map[strin
 	if state["runtime_posture_degraded"] != true {
 		t.Fatalf("authoritative_state.runtime_posture_degraded = %v, want true", state["runtime_posture_degraded"])
 	}
-	if state["provisioning_posture"] != launcherbackend.ProvisioningPostureAttested {
-		t.Fatalf("authoritative_state.provisioning_posture = %v, want %q", state["provisioning_posture"], launcherbackend.ProvisioningPostureAttested)
+	if state["provisioning_posture"] != launcherbackend.ProvisioningPostureTOFU {
+		t.Fatalf("authoritative_state.provisioning_posture = %v, want %q", state["provisioning_posture"], launcherbackend.ProvisioningPostureTOFU)
 	}
 	if state["transport_kind"] != launcherbackend.TransportKindNotApplicable {
 		t.Fatalf("authoritative_state.transport_kind = %v, want %q", state["transport_kind"], launcherbackend.TransportKindNotApplicable)

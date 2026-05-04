@@ -49,12 +49,8 @@ func withTrustedAttestationVerificationDefaults(input PostHandshakeRuntimeAttest
 	if strings.TrimSpace(input.VerificationRulesProfileVersion) == "" {
 		input.VerificationRulesProfileVersion = trustedRuntimeAttestationRulesVersion
 	}
-	if strings.TrimSpace(input.VerificationResult) == "" || input.VerificationResult == AttestationVerificationResultUnknown {
-		input.VerificationResult = AttestationVerificationResultValid
-	}
-	if strings.TrimSpace(input.ReplayVerdict) == "" || input.ReplayVerdict == AttestationReplayVerdictUnknown {
-		input.ReplayVerdict = AttestationReplayVerdictOriginal
-	}
+	input.VerificationResult = normalizeAttestationVerificationResult(input.VerificationResult)
+	input.ReplayVerdict = normalizeAttestationReplayVerdict(input.ReplayVerdict)
 	return input
 }
 

@@ -285,8 +285,16 @@ func runtimeFactsWithValidAttestationVerification(t *testing.T, runID string, au
 	t.Helper()
 	facts := runtimeFactsFixtureForStoreRuntimeTests(t, runID)
 	facts.LaunchReceipt.AuthorityStateDigest = DigestBytes([]byte(authoritySeed))
+	facts.LaunchReceipt.AttestationVerifierPolicyID = strings.TrimSpace(policySeed)
+	facts.LaunchReceipt.AttestationVerifierPolicyDigest = DigestBytes([]byte(policySeed))
+	facts.LaunchReceipt.AttestationVerificationResult = launcherbackend.AttestationVerificationResultValid
+	facts.LaunchReceipt.AttestationReplayVerdict = launcherbackend.AttestationReplayVerdictOriginal
 	facts.PostHandshakeAttestationInput = postHandshakeAttestationInputForStoreRuntimeFacts(facts.LaunchReceipt)
 	facts.PostHandshakeAttestationInput.AuthorityStateDigest = DigestBytes([]byte(authoritySeed))
+	facts.PostHandshakeAttestationInput.VerifierPolicyID = strings.TrimSpace(policySeed)
+	facts.PostHandshakeAttestationInput.VerifierPolicyDigest = DigestBytes([]byte(policySeed))
+	facts.PostHandshakeAttestationInput.VerificationResult = launcherbackend.AttestationVerificationResultValid
+	facts.PostHandshakeAttestationInput.ReplayVerdict = launcherbackend.AttestationReplayVerdictOriginal
 	facts.PostHandshakeAttestationInput.RuntimeEvidenceCollected = true
 	return facts
 }

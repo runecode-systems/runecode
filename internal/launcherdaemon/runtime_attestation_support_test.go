@@ -3,7 +3,6 @@ package launcherdaemon
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
@@ -18,23 +17,35 @@ func TestPopulateRuntimeSessionBindingDoesNotAwardAttestedPosture(t *testing.T) 
 	if got, want := receipt.ProvisioningPosture, launcherbackend.ProvisioningPostureTOFU; got != want {
 		t.Fatalf("provisioning posture = %q, want %q", got, want)
 	}
+	if receipt.LaunchContextDigest != "" || receipt.HandshakeTranscriptHash != "" || receipt.IsolateSessionKeyIDValue != "" {
+		t.Fatal("launch-time session binding must not claim validated secure-session fields")
+	}
 	if receipt.AttestationVerificationResult == launcherbackend.AttestationVerificationResultValid {
 		t.Fatal("populateRuntimeSessionBinding must not set attestation verification success")
 	}
 }
 
-func TestUpgradeReceiptAfterSecureSessionValidationKeepsReceiptPostureAtTOFU(t *testing.T) {
+func TestRecordValidatedSecureSessionKeepsReceiptPostureAtTOFU(t *testing.T) {
 	spec, admission, receipt := runtimeAttestationReceiptFixtureForValidation(t)
 	if receipt.ProvisioningPosture != launcherbackend.ProvisioningPostureTOFU {
 		t.Fatalf("pre-validation provisioning posture = %q, want %q", receipt.ProvisioningPosture, launcherbackend.ProvisioningPostureTOFU)
 	}
-
-	now := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
-	postHandshakeInput, err := upgradeReceiptAfterSecureSessionValidation(&receipt, spec, admission, now)
+	if receipt.SessionSecurity != nil {
+		t.Fatal("session_security must be empty before runtime secure-session update")
+	}
+	summary, launchContextDigest, err := validateSecureSessionAndBuildSummary(spec, receipt)
 	if err != nil {
-		t.Fatalf("upgradeReceiptAfterSecureSessionValidation returned error: %v", err)
+		t.Fatalf("validateSecureSessionAndBuildSummary returned error: %v", err)
+	}
+	if err := recordValidatedSecureSession(&receipt, summary, launchContextDigest); err != nil {
+		t.Fatalf("recordValidatedSecureSession returned error: %v", err)
 	}
 	assertValidatedReceiptStillTOFU(t, receipt)
+
+	postHandshakeInput, err := buildPostHandshakeAttestationProgress(receipt, admission)
+	if err != nil {
+		t.Fatalf("buildPostHandshakeAttestationProgress returned error: %v", err)
+	}
 	assertPostHandshakeInputUsesReceiptBinding(t, receipt, postHandshakeInput)
 }
 
@@ -89,9 +100,12 @@ func assertPostHandshakeInputUsesReceiptBinding(t *testing.T, receipt launcherba
 	if got, want := postHandshakeInput.VerificationResult, launcherbackend.AttestationVerificationResultUnknown; got != want {
 		t.Fatalf("post-handshake verification result = %q, want %q", got, want)
 	}
+	if postHandshakeInput.VerificationTimestamp != "" {
+		t.Fatalf("post-handshake verification timestamp = %q, want empty", postHandshakeInput.VerificationTimestamp)
+	}
 }
 
-func TestUpgradeReceiptAfterSecureSessionValidationFailsWithoutSessionBinding(t *testing.T) {
+func TestBuildPostHandshakeAttestationProgressFailsWithoutValidatedSessionBinding(t *testing.T) {
 	spec := validSpecForTests()
 	admission, err := launcherbackend.NewRuntimeAdmissionRecord(spec.Image)
 	if err != nil {
@@ -107,11 +121,11 @@ func TestUpgradeReceiptAfterSecureSessionValidationFailsWithoutSessionBinding(t 
 		BootComponentDigestByName:    cloneMap(admission.ComponentDigests),
 	}
 
-	_, err = upgradeReceiptAfterSecureSessionValidation(&receipt, spec, admission, time.Now())
+	_, err = buildPostHandshakeAttestationProgress(receipt, admission)
 	if err == nil {
-		t.Fatal("upgradeReceiptAfterSecureSessionValidation expected error")
+		t.Fatal("buildPostHandshakeAttestationProgress expected error")
 	}
-	if !strings.Contains(err.Error(), "session binding is required before secure session validation") {
+	if !strings.Contains(err.Error(), "session binding is required before attestation") {
 		t.Fatalf("error = %q, want missing secure-session binding", err.Error())
 	}
 }

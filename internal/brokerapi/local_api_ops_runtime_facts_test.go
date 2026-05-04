@@ -309,11 +309,14 @@ func assertRuntimeFactsAttestationReferenceProjection(t *testing.T, state map[st
 	if state["attestation_replay_identity_digest"] != evidence.AttestationVerification.ReplayIdentityDigest {
 		t.Fatalf("authoritative_state.attestation_replay_identity_digest = %v, want %q", state["attestation_replay_identity_digest"], evidence.AttestationVerification.ReplayIdentityDigest)
 	}
-	if state["attestation_verifier_policy_id"] != evidence.AttestationVerification.VerifierPolicyID {
-		t.Fatalf("authoritative_state.attestation_verifier_policy_id = %v, want %q", state["attestation_verifier_policy_id"], evidence.AttestationVerification.VerifierPolicyID)
+	if _, ok := state["attestation_verifier_policy_id"]; ok {
+		t.Fatalf("authoritative_state.attestation_verifier_policy_id should be omitted: %v", state["attestation_verifier_policy_id"])
 	}
-	if state["attestation_verifier_policy_digest"] != evidence.AttestationVerification.VerifierPolicyDigest {
-		t.Fatalf("authoritative_state.attestation_verifier_policy_digest = %v, want %q", state["attestation_verifier_policy_digest"], evidence.AttestationVerification.VerifierPolicyDigest)
+	if _, ok := state["attestation_verifier_policy_digest"]; ok {
+		t.Fatalf("authoritative_state.attestation_verifier_policy_digest should be omitted: %v", state["attestation_verifier_policy_digest"])
+	}
+	if state["attestation_verification_attestation_evidence_digest"] != evidence.AttestationVerification.AttestationEvidenceDigest {
+		t.Fatalf("authoritative_state.attestation_verification_attestation_evidence_digest = %v, want %q", state["attestation_verification_attestation_evidence_digest"], evidence.AttestationVerification.AttestationEvidenceDigest)
 	}
 	if state["attestation_verification_rules_profile_version"] != evidence.AttestationVerification.VerificationRulesProfileVersion {
 		t.Fatalf("authoritative_state.attestation_verification_rules_profile_version = %v, want %q", state["attestation_verification_rules_profile_version"], evidence.AttestationVerification.VerificationRulesProfileVersion)

@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
@@ -42,13 +41,12 @@ func TestContainerControllerLaunchUsesAdmittedRuntimeIdentityInReceipt(t *testin
 	assertContainerLaunchReceiptUsesAdmittedRuntimeIdentity(t, updates, spec)
 }
 
-func TestContainerControllerLaunchUsesInjectedClockForAttestationTimestamp(t *testing.T) {
+func TestContainerControllerLaunchKeepsLaunchFactsNonAttestedUntilRuntimeUpdate(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("container controller requires rootless launcher execution")
 	}
 	workRoot, spec := admittedContainerSpecForReceiptTest(t)
-	attestedAt := time.Date(2026, time.February, 3, 4, 5, 6, 0, time.UTC)
-	controller := NewContainerController(ContainerControllerConfig{WorkRoot: workRoot, Now: func() time.Time { return attestedAt }})
+	controller := NewContainerController(ContainerControllerConfig{WorkRoot: workRoot})
 	updates, err := controller.Launch(context.Background(), spec)
 	if err != nil {
 		t.Fatalf("Launch returned error: %v", err)
@@ -60,17 +58,16 @@ func TestContainerControllerLaunchUsesInjectedClockForAttestationTimestamp(t *te
 	if got, want := first.Facts.LaunchReceipt.AttestationVerificationTimestamp, ""; got != want {
 		t.Fatalf("attestation verification timestamp = %q, want %q", got, want)
 	}
-	if first.Facts.PostHandshakeAttestationInput == nil {
-		t.Fatal("post-handshake attestation input missing")
+	if first.Facts.PostHandshakeAttestationInput != nil {
+		t.Fatal("post-handshake attestation input must not be present at launch-time facts")
 	}
-	if got, want := first.Facts.PostHandshakeAttestationInput.VerificationTimestamp, attestedAt.Format(time.RFC3339); got != want {
-		t.Fatalf("post-handshake verification timestamp = %q, want %q", got, want)
+	if first.Facts.LaunchReceipt.SessionSecurity != nil {
+		t.Fatal("session_security must not be present before runtime secure-session update")
 	}
 }
 
 func TestLaunchReceiptBuildersRequireSecureSessionValidationBeforeAttestedPosture(t *testing.T) {
-	attestedAt := time.Date(2026, time.March, 4, 5, 6, 7, 0, time.UTC)
-	for _, tc := range launchReceiptBuilderTests(attestedAt) {
+	for _, tc := range launchReceiptBuilderTests() {
 		t.Run(tc.name, func(t *testing.T) {
 			assertLaunchReceiptRequiresSecureSessionValidationBeforeAttestedPosture(t, tc.spec, tc.build)
 		})
@@ -78,8 +75,7 @@ func TestLaunchReceiptBuildersRequireSecureSessionValidationBeforeAttestedPostur
 }
 
 func TestLaunchReceiptBuildersRequirePostHandshakeEvidenceForAttestationSuccess(t *testing.T) {
-	attestedAt := time.Date(2026, time.March, 5, 6, 7, 8, 0, time.UTC)
-	for _, tc := range launchReceiptBuilderTests(attestedAt) {
+	for _, tc := range launchReceiptBuilderTests() {
 		t.Run(tc.name, func(t *testing.T) {
 			evidence := buildLaunchReceiptEvidenceForTest(t, tc.spec, tc.build, func(facts *launcherbackend.RuntimeFactsSnapshot) {
 				facts.PostHandshakeAttestationInput = nil
@@ -90,8 +86,7 @@ func TestLaunchReceiptBuildersRequirePostHandshakeEvidenceForAttestationSuccess(
 }
 
 func TestLaunchReceiptBuildersRequireSecureSessionValidationForAttestationSuccess(t *testing.T) {
-	attestedAt := time.Date(2026, time.March, 6, 7, 8, 9, 0, time.UTC)
-	for _, tc := range launchReceiptBuilderTests(attestedAt) {
+	for _, tc := range launchReceiptBuilderTests() {
 		t.Run(tc.name, func(t *testing.T) {
 			evidence := buildLaunchReceiptEvidenceForTest(t, tc.spec, tc.build, func(facts *launcherbackend.RuntimeFactsSnapshot) {
 				facts.LaunchReceipt.SessionSecurity = nil
@@ -200,7 +195,7 @@ func assertInvalidAttestationEvidence(t *testing.T, evidence launcherbackend.Run
 	}
 }
 
-func launchReceiptBuilderTests(attestedAt time.Time) []struct {
+func launchReceiptBuilderTests() []struct {
 	name  string
 	spec  launcherbackend.BackendLaunchSpec
 	build func(launcherbackend.BackendLaunchSpec, launcherbackend.RuntimeAdmissionRecord) (launcherbackend.BackendLaunchReceipt, *launcherbackend.PostHandshakeRuntimeAttestationInput, error)
@@ -214,17 +209,43 @@ func launchReceiptBuilderTests(attestedAt time.Time) []struct {
 			name: "microvm",
 			spec: validSpecForTests(),
 			build: func(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord) (launcherbackend.BackendLaunchReceipt, *launcherbackend.PostHandshakeRuntimeAttestationInput, error) {
-				return buildLaunchReceipt(spec, admission, "isolate-shared", "session-shared", strings.Repeat("a", 32), "9.0.0", "qemu-system-x86_64 9.0.0", nil, attestedAt)
+				receipt, err := buildLaunchReceipt(spec, admission, "isolate-shared", "session-shared", strings.Repeat("a", 32), "9.0.0", "qemu-system-x86_64 9.0.0", nil)
+				if err != nil {
+					return launcherbackend.BackendLaunchReceipt{}, nil, err
+				}
+				return validatedReceiptWithPostHandshakeProgress(spec, admission, receipt)
 			},
 		},
 		{
 			name: "container",
 			spec: validContainerSpecForTests(),
 			build: func(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord) (launcherbackend.BackendLaunchReceipt, *launcherbackend.PostHandshakeRuntimeAttestationInput, error) {
-				return containerLaunchReceipt(spec, admission, "isolate-shared", "session-shared", strings.Repeat("a", 32), attestedAt)
+				receipt, err := containerLaunchReceipt(spec, admission, "isolate-shared", "session-shared", strings.Repeat("a", 32))
+				if err != nil {
+					return launcherbackend.BackendLaunchReceipt{}, nil, err
+				}
+				return validatedReceiptWithPostHandshakeProgress(spec, admission, receipt)
 			},
 		},
 	}
+}
+
+func validatedReceiptWithPostHandshakeProgress(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, receipt launcherbackend.BackendLaunchReceipt) (launcherbackend.BackendLaunchReceipt, *launcherbackend.PostHandshakeRuntimeAttestationInput, error) {
+	summary, launchContextDigest, err := validateSecureSessionAndBuildSummary(spec, receipt)
+	if err != nil {
+		return launcherbackend.BackendLaunchReceipt{}, nil, err
+	}
+	if err := recordValidatedSecureSession(&receipt, summary, launchContextDigest); err != nil {
+		return launcherbackend.BackendLaunchReceipt{}, nil, err
+	}
+	input, err := buildPostHandshakeAttestationProgress(receipt, admission)
+	if err != nil {
+		return launcherbackend.BackendLaunchReceipt{}, nil, err
+	}
+	if err := recordPostHandshakeAttestationProgress(&receipt, input); err != nil {
+		return launcherbackend.BackendLaunchReceipt{}, nil, err
+	}
+	return receipt, input, nil
 }
 
 func admittedContainerSpecForReceiptTest(t *testing.T) (string, launcherbackend.BackendLaunchSpec) {

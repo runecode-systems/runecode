@@ -22,6 +22,7 @@ func (s *Store) RecordRuntimeEvidenceState(runID string, facts launcherbackend.R
 	if err := launcherbackend.ReconcileRuntimeEvidenceAttestation(facts.LaunchReceipt, facts.PostHandshakeAttestationInput, &evidence); err != nil {
 		return err
 	}
+	reconcileAuthoritativeProvisioningPosture(&facts, &evidence)
 	s.upsertAttestationVerificationCacheLocked(evidence)
 	s.state.RuntimeFactsByRun[trimmedRunID] = facts
 	s.state.RuntimeEvidenceByRun[trimmedRunID] = evidence
@@ -49,6 +50,7 @@ func (s *Store) RuntimeEvidenceState(runID string) (launcherbackend.RuntimeFacts
 	}
 	evidence := s.state.RuntimeEvidenceByRun[trimmedRunID]
 	evidence = s.applyCachedAttestationVerificationLocked(evidence)
+	reconcileAuthoritativeProvisioningPosture(&facts, &evidence)
 	lifecycle := s.state.RuntimeLifecycleByRun[trimmedRunID]
 	auditState := s.state.RuntimeAuditStateByRun[trimmedRunID]
 	return facts, evidence, lifecycle, auditState, true
@@ -98,6 +100,7 @@ func (s *Store) UpdateRuntimeLifecycleState(runID string, lifecycle launcherback
 	if err := launcherbackend.ReconcileRuntimeEvidenceAttestation(facts.LaunchReceipt, facts.PostHandshakeAttestationInput, &evidence); err != nil {
 		return err
 	}
+	reconcileAuthoritativeProvisioningPosture(&facts, &evidence)
 	s.upsertAttestationVerificationCacheLocked(evidence)
 	s.state.RuntimeFactsByRun[trimmedRunID] = facts
 	s.state.RuntimeEvidenceByRun[trimmedRunID] = evidence
@@ -158,4 +161,43 @@ func normalizeRuntimeTerminalReport(report *launcherbackend.BackendTerminalRepor
 	}
 	normalized := report.Normalized()
 	return &normalized
+}
+
+func reconcileAuthoritativeProvisioningPosture(facts *launcherbackend.RuntimeFactsSnapshot, evidence *launcherbackend.RuntimeEvidenceSnapshot) {
+	if evidence == nil {
+		return
+	}
+	posture := authoritativeProvisioningPostureFromEvidence(*evidence)
+	evidence.Launch.ProvisioningPosture = posture
+	if evidence.Session != nil {
+		evidence.Session.ProvisioningPosture = sessionProvisioningPostureForEvidence(*evidence, posture)
+	}
+	if facts != nil {
+		facts.LaunchReceipt.ProvisioningPosture = posture
+	}
+}
+
+func authoritativeProvisioningPostureFromEvidence(evidence launcherbackend.RuntimeEvidenceSnapshot) string {
+	launchPosture := strings.TrimSpace(evidence.Launch.ProvisioningPosture)
+	attestationPosture, _ := launcherbackend.DeriveAttestationPostureFromEvidence(evidence)
+	if attestationPosture == launcherbackend.AttestationPostureValid {
+		return launcherbackend.ProvisioningPostureAttested
+	}
+	if launchPosture == launcherbackend.ProvisioningPostureAttested {
+		return launcherbackend.ProvisioningPostureTOFU
+	}
+	return launchPosture
+}
+
+func sessionProvisioningPostureForEvidence(evidence launcherbackend.RuntimeEvidenceSnapshot, launchPosture string) string {
+	if evidence.Session == nil {
+		return ""
+	}
+	if strings.TrimSpace(evidence.Session.ProvisioningPosture) != launcherbackend.ProvisioningPostureAttested {
+		return evidence.Session.ProvisioningPosture
+	}
+	if launchPosture == launcherbackend.ProvisioningPostureAttested {
+		return launcherbackend.ProvisioningPostureAttested
+	}
+	return launcherbackend.ProvisioningPostureTOFU
 }

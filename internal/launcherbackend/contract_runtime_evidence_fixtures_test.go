@@ -209,6 +209,8 @@ func attestationSourceFacts(source string) RuntimeFactsSnapshot {
 		AttestationFreshnessMaterial:      []string{"nonce"},
 		AttestationFreshnessBindingClaims: []string{"session_nonce"},
 		AttestationEvidenceClaimsDigest:   attestationSourceFixtureClaimsDigest(measurementProfile, bootProfile, bootComponentDigestByName),
+		AttestationVerificationResult:     AttestationVerificationResultValid,
+		AttestationReplayVerdict:          AttestationReplayVerdictOriginal,
 	}
 	return facts
 }

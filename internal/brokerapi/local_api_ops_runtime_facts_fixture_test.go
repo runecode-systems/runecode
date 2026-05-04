@@ -52,6 +52,10 @@ func runtimeFactsPostHandshakeAttestationInput(receipt launcherbackend.BackendLa
 		FreshnessMaterial:      append([]string{}, receipt.AttestationFreshnessMaterial...),
 		FreshnessBindingClaims: append([]string{}, receipt.AttestationFreshnessBindingClaims...),
 		EvidenceClaimsDigest:   receipt.AttestationEvidenceClaimsDigest,
+		VerifierPolicyID:       receipt.AttestationVerifierPolicyID,
+		VerifierPolicyDigest:   receipt.AttestationVerifierPolicyDigest,
+		VerificationResult:     receipt.AttestationVerificationResult,
+		ReplayVerdict:          receipt.AttestationReplayVerdict,
 	}
 }
 
@@ -111,6 +115,10 @@ func applyRuntimeFactsAttestation(receipt *launcherbackend.BackendLaunchReceipt)
 	receipt.AttestationFreshnessMaterial = []string{"session_nonce"}
 	receipt.AttestationFreshnessBindingClaims = []string{"session_nonce", "handshake_transcript_hash", "launch_context_digest"}
 	receipt.AttestationEvidenceClaimsDigest = runtimeFactsMeasurementDigests(*receipt)[0]
+	receipt.AttestationVerifierPolicyID = "runtime_asset_admission_identity"
+	receipt.AttestationVerifierPolicyDigest = receipt.AuthorityStateDigest
+	receipt.AttestationVerificationResult = launcherbackend.AttestationVerificationResultValid
+	receipt.AttestationReplayVerdict = launcherbackend.AttestationReplayVerdictOriginal
 }
 
 func runtimeFactsMeasurementDigests(receipt launcherbackend.BackendLaunchReceipt) []string {

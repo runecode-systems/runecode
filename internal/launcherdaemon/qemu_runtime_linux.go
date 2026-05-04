@@ -13,19 +13,35 @@ import (
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
-func (c *qemuController) monitorInstance(parent context.Context, inst *qemuInstance, spec launcherbackend.BackendLaunchSpec, out io.Reader, hardening launcherbackend.AppliedHardeningPosture, receipt launcherbackend.BackendLaunchReceipt, attestationInput *launcherbackend.PostHandshakeRuntimeAttestationInput) {
+func (c *qemuController) monitorInstance(parent context.Context, inst *qemuInstance, launchState preparedLaunchState) {
 	defer removeLaunchDir(inst.launchDir)
 	scanStop := make(chan struct{})
 	defer close(scanStop)
-	lineCh, scanDone := scanQEMUOutput(out, scanStop)
-	helloSeen := c.waitForHelloOrExit(parent, inst, spec, lineCh, scanDone)
+	currentReceipt := launchState.receipt
+	var currentPostHandshake *launcherbackend.PostHandshakeRuntimeAttestationInput
+	lineCh, scanDone := scanQEMUOutput(launchState.stdout, scanStop)
+	helloSeen := c.waitForHelloOrExit(parent, inst, launchState, lineCh, scanDone)
+	postHandshakeFailed := false
+	if helloSeen {
+		if update, err := runtimePostHandshakeUpdate(launchState); err == nil {
+			if update.Facts != nil {
+				currentReceipt = update.Facts.LaunchReceipt
+				currentPostHandshake = update.Facts.PostHandshakeAttestationInput
+			}
+			inst.updates <- update
+		} else {
+			postHandshakeFailed = true
+			inst.errText = launcherbackend.BackendErrorCodeHandshakeFailed
+			_ = inst.cmd.Process.Kill()
+		}
+	}
 	_ = inst.cmd.Wait()
-	term := buildTerminalReport(spec, receipt, helloSeen, inst.errText)
-	facts := launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: receipt, PostHandshakeAttestationInput: attestationInput, HardeningPosture: hardening, TerminalReport: &term}
-	inst.updates <- RuntimeUpdate{RunID: spec.RunID, Facts: &facts}
+	term := buildTerminalReport(launchState.spec, currentReceipt, helloSeen && !postHandshakeFailed, inst.errText)
+	facts := launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: currentReceipt, PostHandshakeAttestationInput: currentPostHandshake, HardeningPosture: launchState.hardening, TerminalReport: &term}
+	inst.updates <- RuntimeUpdate{RunID: launchState.spec.RunID, Facts: &facts}
 	terminating, terminated := terminalLifecycleUpdates(term)
-	inst.updates <- RuntimeUpdate{RunID: spec.RunID, Lifecycle: &terminating}
-	inst.updates <- RuntimeUpdate{RunID: spec.RunID, Lifecycle: &terminated}
+	inst.updates <- RuntimeUpdate{RunID: launchState.spec.RunID, Lifecycle: &terminating}
+	inst.updates <- RuntimeUpdate{RunID: launchState.spec.RunID, Lifecycle: &terminated}
 	c.finishInstance(inst, terminated, term.FailureReasonCode)
 	close(inst.updates)
 
@@ -70,8 +86,8 @@ func scanQEMUOutput(out io.Reader, stop <-chan struct{}) (<-chan string, <-chan 
 	return lineCh, scanDone
 }
 
-func (c *qemuController) waitForHelloOrExit(parent context.Context, inst *qemuInstance, spec launcherbackend.BackendLaunchSpec, lineCh <-chan string, scanDone <-chan struct{}) bool {
-	timer := time.NewTimer(activeTimeout(spec.ResourceLimits))
+func (c *qemuController) waitForHelloOrExit(parent context.Context, inst *qemuInstance, launchState preparedLaunchState, lineCh <-chan string, scanDone <-chan struct{}) bool {
+	timer := time.NewTimer(activeTimeout(launchState.spec.ResourceLimits))
 	defer timer.Stop()
 	for {
 		select {
@@ -86,7 +102,7 @@ func (c *qemuController) waitForHelloOrExit(parent context.Context, inst *qemuIn
 			if !ok {
 				return inst.helloSeen
 			}
-			if c.recordHelloLine(inst, line) {
+			if c.recordHelloLine(inst, launchState, line) {
 				continue
 			}
 		case <-scanDone:
@@ -103,15 +119,38 @@ func activeTimeout(limits launcherbackend.BackendResourceLimits) time.Duration {
 	return timeout
 }
 
-func (c *qemuController) recordHelloLine(inst *qemuInstance, line string) bool {
+func (c *qemuController) recordHelloLine(inst *qemuInstance, launchState preparedLaunchState, line string) bool {
 	if !strings.Contains(line, helloWorldToken) {
 		return false
 	}
 	c.mu.Lock()
+	if inst.helloSeen {
+		c.mu.Unlock()
+		return true
+	}
 	inst.helloSeen = true
 	inst.state.HelloWorldSeen = true
 	c.mu.Unlock()
 	return true
+}
+
+func runtimePostHandshakeUpdate(launchState preparedLaunchState) (RuntimeUpdate, error) {
+	summary, launchContextDigest, err := validateSecureSessionAndBuildSummary(launchState.spec, launchState.receipt)
+	if err != nil {
+		return RuntimeUpdate{}, err
+	}
+	receipt := launchState.receipt
+	if err := recordValidatedSecureSession(&receipt, summary, launchContextDigest); err != nil {
+		return RuntimeUpdate{}, err
+	}
+	postHandshake, err := buildPostHandshakeAttestationProgress(receipt, launchState.admission)
+	if err != nil {
+		return RuntimeUpdate{}, err
+	}
+	if err := recordPostHandshakeAttestationProgress(&receipt, postHandshake); err != nil {
+		return RuntimeUpdate{}, err
+	}
+	return RuntimeUpdate{RunID: launchState.spec.RunID, Facts: &launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: receipt, PostHandshakeAttestationInput: postHandshake, HardeningPosture: launchState.hardening}}, nil
 }
 
 func buildTerminalReport(spec launcherbackend.BackendLaunchSpec, receipt launcherbackend.BackendLaunchReceipt, helloSeen bool, errText string) launcherbackend.BackendTerminalReport {

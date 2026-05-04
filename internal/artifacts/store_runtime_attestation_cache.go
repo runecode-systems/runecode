@@ -52,7 +52,7 @@ func shouldApplyCachedAttestationVerification(verification *launcherbackend.Isol
 	if verification == nil {
 		return true
 	}
-	return strings.TrimSpace(verification.AttestationEvidenceDigest) == "" &&
+	if strings.TrimSpace(verification.AttestationEvidenceDigest) == "" &&
 		strings.TrimSpace(verification.ReplayIdentityDigest) == "" &&
 		strings.TrimSpace(verification.VerifierPolicyDigest) == "" &&
 		strings.TrimSpace(verification.VerifierPolicyID) == "" &&
@@ -62,7 +62,31 @@ func shouldApplyCachedAttestationVerification(verification *launcherbackend.Isol
 		strings.TrimSpace(verification.ReplayVerdict) == "" &&
 		strings.TrimSpace(verification.VerificationDigest) == "" &&
 		len(verification.ReasonCodes) == 0 &&
-		len(verification.DerivedMeasurementDigests) == 0
+		len(verification.DerivedMeasurementDigests) == 0 {
+		return true
+	}
+	return isAttestationVerificationReplayPlaceholder(*verification)
+}
+
+func isAttestationVerificationReplayPlaceholder(verification launcherbackend.IsolateAttestationVerificationRecord) bool {
+	if strings.TrimSpace(verification.VerificationResult) != launcherbackend.AttestationVerificationResultInvalid {
+		return false
+	}
+	if strings.TrimSpace(verification.ReplayVerdict) != launcherbackend.AttestationReplayVerdictUnknown {
+		return false
+	}
+	if len(verification.ReasonCodes) == 0 {
+		return false
+	}
+	for _, reason := range verification.ReasonCodes {
+		switch strings.TrimSpace(reason) {
+		case "attestation_verification_not_valid", "attestation_verification_required", "attestation_verification_unavailable":
+			continue
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func attestationVerificationEvidenceDigest(evidence launcherbackend.RuntimeEvidenceSnapshot) string {

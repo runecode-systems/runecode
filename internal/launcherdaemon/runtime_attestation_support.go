@@ -2,7 +2,6 @@ package launcherdaemon
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
@@ -15,18 +14,26 @@ func populateRuntimeSessionBinding(receipt *launcherbackend.BackendLaunchReceipt
 	receipt.IsolateID = binding.IsolateID
 	receipt.SessionID = binding.SessionID
 	receipt.SessionNonce = binding.SessionNonce
-	receipt.LaunchContextDigest = binding.LaunchContextDigest
-	receipt.HandshakeTranscriptHash = binding.HandshakeTranscriptHash
-	receipt.IsolateSessionKeyIDValue = binding.IsolateSessionKeyIDValue
 }
 
-func upgradeReceiptAfterSecureSessionValidation(receipt *launcherbackend.BackendLaunchReceipt, spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, now time.Time) (*launcherbackend.PostHandshakeRuntimeAttestationInput, error) {
-	if receipt == nil {
+func buildPostHandshakeAttestationProgress(receipt launcherbackend.BackendLaunchReceipt, admission launcherbackend.RuntimeAdmissionRecord) (*launcherbackend.PostHandshakeRuntimeAttestationInput, error) {
+	if receipt.RunID == "" {
 		return nil, fmt.Errorf("receipt is required")
 	}
-	summary, launchContextDigest, err := validateSecureSessionAndBuildSummary(spec, *receipt)
+	input, err := collectPostHandshakeRuntimeAttestationInput(&receipt, admission)
 	if err != nil {
 		return nil, err
+	}
+	input.VerificationResult = launcherbackend.AttestationVerificationResultUnknown
+	input.VerificationReasonCodes = nil
+	input.ReplayVerdict = launcherbackend.AttestationReplayVerdictUnknown
+	input.VerificationTimestamp = ""
+	return input, nil
+}
+
+func recordValidatedSecureSession(receipt *launcherbackend.BackendLaunchReceipt, summary launcherbackend.SecureSessionSummary, launchContextDigest string) error {
+	if receipt == nil {
+		return fmt.Errorf("receipt is required")
 	}
 	receipt.IsolateID = summary.BindingRecord.IsolateID
 	receipt.SessionID = summary.BindingRecord.SessionID
@@ -36,14 +43,11 @@ func upgradeReceiptAfterSecureSessionValidation(receipt *launcherbackend.Backend
 	receipt.IsolateSessionKeyIDValue = summary.BindingRecord.IsolateKeyIDValue
 	receipt.SessionSecurity = &summary.SecurityPosture
 	receipt.ProvisioningPosture = summary.BindingRecord.ProvisioningMode
-	attestationInput, err := collectPostHandshakeRuntimeAttestationInput(receipt, admission)
-	if err != nil {
-		return nil, err
-	}
-	if err := applyTrustedRuntimeAttestation(receipt, attestationInput, now); err != nil {
-		return nil, err
-	}
-	return attestationInput, nil
+	receipt.AttestationVerificationResult = launcherbackend.AttestationVerificationResultUnknown
+	receipt.AttestationReplayVerdict = launcherbackend.AttestationReplayVerdictUnknown
+	receipt.AttestationVerificationReasonCodes = nil
+	receipt.AttestationVerificationTimestamp = ""
+	return nil
 }
 
 func validateSecureSessionAndBuildSummary(spec launcherbackend.BackendLaunchSpec, receipt launcherbackend.BackendLaunchReceipt) (launcherbackend.SecureSessionSummary, string, error) {
@@ -96,18 +100,16 @@ func collectPostHandshakeRuntimeAttestationInput(receipt *launcherbackend.Backen
 		FreshnessMaterial:            []string{"session_nonce"},
 		FreshnessBindingClaims:       []string{"session_nonce", "handshake_transcript_hash", "launch_context_digest"},
 		EvidenceClaimsDigest:         expectedMeasurementDigests[0],
+		VerificationResult:           launcherbackend.AttestationVerificationResultUnknown,
+		ReplayVerdict:                launcherbackend.AttestationReplayVerdictUnknown,
 	}, nil
 }
 
-func applyTrustedRuntimeAttestation(receipt *launcherbackend.BackendLaunchReceipt, attestationInput *launcherbackend.PostHandshakeRuntimeAttestationInput, now time.Time) error {
-	_ = now
+func recordPostHandshakeAttestationProgress(receipt *launcherbackend.BackendLaunchReceipt, input *launcherbackend.PostHandshakeRuntimeAttestationInput) error {
 	if receipt == nil {
 		return fmt.Errorf("receipt is required")
 	}
-	if attestationInput == nil {
-		return fmt.Errorf("post-handshake runtime attestation input is required")
-	}
-	normalizedInput := launcherbackend.NormalizePostHandshakeRuntimeAttestationInput(attestationInput)
+	normalizedInput := launcherbackend.NormalizePostHandshakeRuntimeAttestationInput(input)
 	if normalizedInput == nil {
 		return fmt.Errorf("post-handshake runtime attestation input is required")
 	}
@@ -127,13 +129,6 @@ func applyTrustedRuntimeAttestation(receipt *launcherbackend.BackendLaunchReceip
 	receipt.AttestationVerificationResult = launcherbackend.AttestationVerificationResultUnknown
 	receipt.AttestationReplayVerdict = launcherbackend.AttestationReplayVerdictUnknown
 	receipt.AttestationVerificationReasonCodes = nil
-	attestationInput.VerifierPolicyID = ""
-	attestationInput.VerifierPolicyDigest = ""
-	attestationInput.VerificationRulesProfileVersion = ""
-	attestationInput.VerificationTimestamp = now.UTC().Format(time.RFC3339)
-	attestationInput.VerificationResult = launcherbackend.AttestationVerificationResultUnknown
-	attestationInput.VerificationReasonCodes = nil
-	attestationInput.ReplayVerdict = launcherbackend.AttestationReplayVerdictUnknown
 	return nil
 }
 
