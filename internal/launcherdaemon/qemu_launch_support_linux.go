@@ -211,17 +211,6 @@ func makeRuntimeIdentity(runID string) (string, string, string, error) {
 	return iso, session, nonce, nil
 }
 
-func cloneMap(in map[string]string) map[string]string {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(in))
-	for k, v := range in {
-		out[k] = v
-	}
-	return out
-}
-
 func safeToken(in string) string {
 	v := strings.TrimSpace(strings.ToLower(in))
 	if v == "" {

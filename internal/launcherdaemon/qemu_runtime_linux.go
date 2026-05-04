@@ -5,7 +5,6 @@ package launcherdaemon
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -17,8 +16,9 @@ func (c *qemuController) monitorInstance(parent context.Context, inst *qemuInsta
 	defer removeLaunchDir(inst.launchDir)
 	currentReceipt := launchState.receipt
 	var currentPostHandshake *launcherbackend.PostHandshakeRuntimeAttestationInput
-	runtimeMaterial, helloSeen, waitErr := waitForHelloAndRuntimeMaterial(parent, inst, launchState)
+	runtimeMaterial, helloSeen, waitErr := waitForHelloAndRuntimeMaterial(parent, c, inst, launchState)
 	if waitErr != nil {
+		qemuKillAndReap(inst)
 		c.finishQEMUInstanceWithTerminal(inst, launchState, currentReceipt, currentPostHandshake, helloSeen)
 		return
 	}
@@ -78,7 +78,7 @@ func (c *qemuController) finishInstance(inst *qemuInstance, terminated launcherb
 	inst.state.LastError = failureReason
 }
 
-func waitForHelloAndRuntimeMaterial(parent context.Context, inst *qemuInstance, launchState preparedLaunchState) (*launcherbackend.RuntimePostHandshakeMaterial, bool, error) {
+func waitForHelloAndRuntimeMaterial(parent context.Context, c *qemuController, inst *qemuInstance, launchState preparedLaunchState) (*launcherbackend.RuntimePostHandshakeMaterial, bool, error) {
 	timer := time.NewTimer(activeTimeout(launchState.spec.ResourceLimits))
 	defer timer.Stop()
 	lineCh := make(chan string, 16)
@@ -102,25 +102,25 @@ func waitForHelloAndRuntimeMaterial(parent context.Context, inst *qemuInstance, 
 		case <-timer.C:
 			return qemuWaitTimedOut(inst, runtimeMaterial)
 		case line, ok := <-lineCh:
-			updatedMaterial, done, err := handleQEMURuntimeOutputLine(inst, runtimeMaterial, line, ok, errCh)
-			if err != nil || done {
-				return updatedMaterial, inst.helloSeen, err
+			nextMaterial, done, err := advanceQEMURuntimeWaitState(c, inst, runtimeMaterial, line, ok, errCh)
+			if done || err != nil {
+				return nextMaterial, inst.helloSeen, err
 			}
-			runtimeMaterial = updatedMaterial
+			runtimeMaterial = nextMaterial
 		}
 	}
 }
 
-func qemuWaitCancelled(inst *qemuInstance, runtimeMaterial *launcherbackend.RuntimePostHandshakeMaterial, err error) (*launcherbackend.RuntimePostHandshakeMaterial, bool, error) {
-	_ = inst.cmd.Process.Kill()
-	inst.errText = launcherbackend.BackendErrorCodeHandshakeFailed
-	return runtimeMaterial, inst.helloSeen, err
-}
-
-func qemuWaitTimedOut(inst *qemuInstance, runtimeMaterial *launcherbackend.RuntimePostHandshakeMaterial) (*launcherbackend.RuntimePostHandshakeMaterial, bool, error) {
-	_ = inst.cmd.Process.Kill()
-	inst.errText = launcherbackend.BackendErrorCodeWatchdogTimeout
-	return runtimeMaterial, inst.helloSeen, fmt.Errorf("watchdog timeout waiting for runtime material")
+func advanceQEMURuntimeWaitState(c *qemuController, inst *qemuInstance, runtimeMaterial *launcherbackend.RuntimePostHandshakeMaterial, line string, ok bool, errCh <-chan error) (*launcherbackend.RuntimePostHandshakeMaterial, bool, error) {
+	updatedMaterial, done, err := handleQEMURuntimeOutputLine(c, inst, runtimeMaterial, line, ok, errCh)
+	if err != nil || done {
+		return updatedMaterial, done, err
+	}
+	nextMaterial := mergeQEMURuntimePostHandshakeMaterial(runtimeMaterial, updatedMaterial)
+	if runtimeMaterialReady(inst, nextMaterial) {
+		return nextMaterial, true, nil
+	}
+	return nextMaterial, false, nil
 }
 
 func parseQEMURuntimeMaterialUpdate(line string) (*launcherbackend.RuntimePostHandshakeMaterial, bool, error) {
@@ -131,7 +131,7 @@ func parseQEMURuntimeMaterialUpdate(line string) (*launcherbackend.RuntimePostHa
 	return material, material != nil, nil
 }
 
-func handleQEMURuntimeOutputLine(inst *qemuInstance, runtimeMaterial *launcherbackend.RuntimePostHandshakeMaterial, line string, ok bool, errCh <-chan error) (*launcherbackend.RuntimePostHandshakeMaterial, bool, error) {
+func handleQEMURuntimeOutputLine(c *qemuController, inst *qemuInstance, runtimeMaterial *launcherbackend.RuntimePostHandshakeMaterial, line string, ok bool, errCh <-chan error) (*launcherbackend.RuntimePostHandshakeMaterial, bool, error) {
 	if !ok {
 		return runtimeMaterial, true, <-errCh
 	}
@@ -142,10 +142,17 @@ func handleQEMURuntimeOutputLine(inst *qemuInstance, runtimeMaterial *launcherba
 	if handled {
 		return material, false, nil
 	}
-	if recordHelloLine(inst, line) {
+	if recordHelloLine(c, inst, line) {
 		return runtimeMaterial, false, nil
 	}
 	return runtimeMaterial, false, nil
+}
+
+func runtimeMaterialReady(inst *qemuInstance, runtimeMaterial *launcherbackend.RuntimePostHandshakeMaterial) bool {
+	if inst == nil || runtimeMaterial == nil || runtimeMaterial.SecureSession == nil {
+		return false
+	}
+	return qemuHelloSeen(inst)
 }
 
 func activeTimeout(limits launcherbackend.BackendResourceLimits) time.Duration {
@@ -156,17 +163,25 @@ func activeTimeout(limits launcherbackend.BackendResourceLimits) time.Duration {
 	return timeout
 }
 
-func recordHelloLine(inst *qemuInstance, line string) bool {
-	if !strings.Contains(line, helloWorldToken) {
+func recordHelloLine(c *qemuController, inst *qemuInstance, line string) bool {
+	if strings.TrimSpace(line) != helloWorldToken {
 		return false
 	}
-	// caller synchronizes around lifecycle updates; this flag is per-instance
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if inst.helloSeen {
 		return true
 	}
 	inst.helloSeen = true
 	inst.state.HelloWorldSeen = true
 	return true
+}
+
+func qemuHelloSeen(inst *qemuInstance) bool {
+	if inst == nil {
+		return false
+	}
+	return inst.helloSeen
 }
 
 func (c *qemuController) runtimePostHandshakeUpdate(launchState preparedLaunchState) (RuntimeUpdate, error) {

@@ -22,9 +22,7 @@ type qemuRuntimeMaterialEnvelope struct {
 }
 
 func defaultQEMURuntimePostHandshakeMaterialProvider(spec launcherbackend.BackendLaunchSpec, receipt launcherbackend.BackendLaunchReceipt) (*launcherbackend.RuntimePostHandshakeMaterial, error) {
-	_ = spec
-	_ = receipt
-	return nil, nil
+	return defaultRuntimePostHandshakeMaterialProvider(spec, receipt)
 }
 
 func qemuGuestRuntimeMaterialKernelArg(runtimeMaterialLine string) string {
@@ -102,16 +100,68 @@ func mergeQEMURuntimePostHandshakeMaterial(seed, runtime *launcherbackend.Runtim
 	} else {
 		merged.SecureSession = seed.SecureSession
 	}
-	if runtime.Attestation != nil {
-		if seed.Attestation != nil && runtime.Attestation.RuntimeEvidenceCollected {
-			attestation := *seed.Attestation
-			attestation.RuntimeEvidenceCollected = true
-			merged.Attestation = &attestation
-		} else {
-			merged.Attestation = runtime.Attestation
-		}
-	} else {
-		merged.Attestation = seed.Attestation
-	}
+	merged.Attestation = mergeQEMURuntimeAttestation(seed.Attestation, runtime.Attestation)
 	return merged
+}
+
+func mergeQEMURuntimeAttestation(seed, runtime *launcherbackend.PostHandshakeRuntimeAttestationInput) *launcherbackend.PostHandshakeRuntimeAttestationInput {
+	if seed == nil {
+		return runtime
+	}
+	if runtime == nil {
+		return seed
+	}
+	merged := *runtime
+	mergeQEMUAuthoritativeAttestationFields(&merged, seed)
+	mergeQEMURuntimeAttestationFields(&merged, seed)
+	if len(merged.BootComponentDigestByName) == 0 {
+		merged.BootComponentDigestByName = cloneMap(seed.BootComponentDigestByName)
+	}
+	if len(merged.BootComponentDigests) == 0 {
+		merged.BootComponentDigests = append([]string{}, seed.BootComponentDigests...)
+	}
+	return &merged
+}
+
+func mergeQEMUAuthoritativeAttestationFields(merged *launcherbackend.PostHandshakeRuntimeAttestationInput, seed *launcherbackend.PostHandshakeRuntimeAttestationInput) {
+	if merged == nil || seed == nil {
+		return
+	}
+	merged.RunID = seed.RunID
+	merged.IsolateID = seed.IsolateID
+	merged.SessionID = seed.SessionID
+	merged.SessionNonce = seed.SessionNonce
+	merged.LaunchContextDigest = seed.LaunchContextDigest
+	merged.HandshakeTranscriptHash = seed.HandshakeTranscriptHash
+	merged.IsolateSessionKeyIDValue = seed.IsolateSessionKeyIDValue
+	merged.RuntimeImageDescriptorDigest = seed.RuntimeImageDescriptorDigest
+	merged.RuntimeImageBootProfile = seed.RuntimeImageBootProfile
+	merged.RuntimeImageVerifierRef = seed.RuntimeImageVerifierRef
+	merged.AuthorityStateDigest = seed.AuthorityStateDigest
+	merged.BootComponentDigestByName = cloneMap(seed.BootComponentDigestByName)
+	merged.BootComponentDigests = append([]string{}, seed.BootComponentDigests...)
+}
+
+func mergeQEMURuntimeAttestationFields(merged *launcherbackend.PostHandshakeRuntimeAttestationInput, seed *launcherbackend.PostHandshakeRuntimeAttestationInput) {
+	if merged == nil || seed == nil {
+		return
+	}
+	if merged.AttestationSourceKind == "" || merged.AttestationSourceKind == launcherbackend.AttestationSourceKindUnknown {
+		merged.AttestationSourceKind = seed.AttestationSourceKind
+	}
+	if merged.MeasurementProfile == "" || merged.MeasurementProfile == launcherbackend.MeasurementProfileUnknown {
+		merged.MeasurementProfile = seed.MeasurementProfile
+	}
+	if !merged.RuntimeEvidenceCollected {
+		merged.RuntimeEvidenceCollected = seed.RuntimeEvidenceCollected
+	}
+	if merged.EvidenceClaimsDigest == "" {
+		merged.EvidenceClaimsDigest = seed.EvidenceClaimsDigest
+	}
+	if len(merged.FreshnessMaterial) == 0 {
+		merged.FreshnessMaterial = append([]string{}, seed.FreshnessMaterial...)
+	}
+	if len(merged.FreshnessBindingClaims) == 0 {
+		merged.FreshnessBindingClaims = append([]string{}, seed.FreshnessBindingClaims...)
+	}
 }
