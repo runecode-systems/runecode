@@ -137,7 +137,7 @@ func writeAttachmentManifest(root, role string, binding launcherbackend.Attachme
 	return os.WriteFile(filepath.Join(roleDir, "manifest.json"), raw, 0o600)
 }
 
-func buildQEMUArgv(binary, kernel, initrd string, limits launcherbackend.BackendResourceLimits) []string {
+func buildQEMUArgv(binary, kernel, initrd string, limits launcherbackend.BackendResourceLimits, guestMaterialArg string) []string {
 	memory := limits.MemoryMiB
 	if memory <= 0 {
 		memory = 256
@@ -145,6 +145,10 @@ func buildQEMUArgv(binary, kernel, initrd string, limits launcherbackend.Backend
 	vcpus := limits.VCPUCount
 	if vcpus <= 0 {
 		vcpus = 1
+	}
+	appendValue := "console=ttyS0 panic=-1"
+	if strings.TrimSpace(guestMaterialArg) != "" {
+		appendValue += " " + guestMaterialArg
 	}
 	return []string{
 		binary,
@@ -160,7 +164,7 @@ func buildQEMUArgv(binary, kernel, initrd string, limits launcherbackend.Backend
 		"-nic", "none",
 		"-kernel", kernel,
 		"-initrd", initrd,
-		"-append", "console=ttyS0 panic=-1",
+		"-append", appendValue,
 	}
 }
 

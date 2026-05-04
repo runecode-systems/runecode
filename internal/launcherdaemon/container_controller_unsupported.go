@@ -11,8 +11,9 @@ import (
 )
 
 type ContainerControllerConfig struct {
-	WorkRoot string
-	Now      func() time.Time
+	WorkRoot                             string
+	Now                                  func() time.Time
+	RuntimePostHandshakeMaterialProvider func(launcherbackend.BackendLaunchSpec, launcherbackend.BackendLaunchReceipt) (*launcherbackend.RuntimePostHandshakeMaterial, error)
 }
 
 type unsupportedContainerController struct{}

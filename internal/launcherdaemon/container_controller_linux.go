@@ -14,22 +14,29 @@ import (
 )
 
 type ContainerControllerConfig struct {
-	WorkRoot string
-	Now      func() time.Time
+	WorkRoot                             string
+	Now                                  func() time.Time
+	RuntimePostHandshakeMaterialProvider func(launcherbackend.BackendLaunchSpec, launcherbackend.BackendLaunchReceipt) (*launcherbackend.RuntimePostHandshakeMaterial, error)
 }
 
 type containerController struct {
-	workRoot  string
-	now       func() time.Time
-	mu        sync.RWMutex
-	instances map[string]InstanceState
+	workRoot                             string
+	now                                  func() time.Time
+	runtimePostHandshakeMaterialProvider func(launcherbackend.BackendLaunchSpec, launcherbackend.BackendLaunchReceipt) (*launcherbackend.RuntimePostHandshakeMaterial, error)
+	mu                                   sync.RWMutex
+	instances                            map[string]InstanceState
 }
 
 func NewContainerController(cfg ContainerControllerConfig) Controller {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
-	return &containerController{workRoot: strings.TrimSpace(cfg.WorkRoot), now: cfg.Now, instances: map[string]InstanceState{}}
+	return &containerController{
+		workRoot:                             strings.TrimSpace(cfg.WorkRoot),
+		now:                                  cfg.Now,
+		runtimePostHandshakeMaterialProvider: cfg.RuntimePostHandshakeMaterialProvider,
+		instances:                            map[string]InstanceState{},
+	}
 }
 
 func (c *containerController) Launch(_ context.Context, spec launcherbackend.BackendLaunchSpec) (<-chan RuntimeUpdate, error) {
@@ -114,9 +121,9 @@ func validateContainerLaunchSpec(spec launcherbackend.BackendLaunchSpec) (launch
 	return hardening, nil
 }
 
-func (c *containerController) storeLaunchedContainerInstance(ref InstanceRef) {
+func (c *containerController) storeContainerInstanceState(ref InstanceRef, state launcherbackend.RuntimeLifecycleState, active bool, lastErr string) {
 	c.mu.Lock()
-	c.instances[instanceKey(ref)] = InstanceState{Ref: ref, Active: true, LifecycleState: launcherbackend.RuntimeLifecycleState{BackendLifecycle: &launcherbackend.BackendLifecycleSnapshot{CurrentState: launcherbackend.BackendLifecycleStateActive, PreviousState: launcherbackend.BackendLifecycleStateBinding, TerminateBetweenSteps: true, TransitionCount: 4}}}
+	c.instances[instanceKey(ref)] = InstanceState{Ref: ref, Active: active, LifecycleState: state, LastError: lastErr}
 	c.mu.Unlock()
 }
 
@@ -128,17 +135,58 @@ func (c *containerController) buildContainerRuntimeUpdates(ref InstanceRef, spec
 		close(updates)
 		return updates
 	}
-	c.storeLaunchedContainerInstance(ref)
-	facts := launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: receipt, HardeningPosture: hardening}
-	updates <- RuntimeUpdate{RunID: spec.RunID, Facts: &facts}
-	started := lifecycleUpdate(launcherbackend.BackendLifecycleStateStarted, launcherbackend.BackendLifecycleStateLaunching, 2, "")
-	binding := lifecycleUpdate(launcherbackend.BackendLifecycleStateBinding, launcherbackend.BackendLifecycleStateStarted, 3, "")
-	active := lifecycleUpdate(launcherbackend.BackendLifecycleStateActive, launcherbackend.BackendLifecycleStateBinding, 4, "")
-	updates <- RuntimeUpdate{RunID: spec.RunID, Lifecycle: &started}
-	updates <- RuntimeUpdate{RunID: spec.RunID, Lifecycle: &binding}
-	updates <- RuntimeUpdate{RunID: spec.RunID, Lifecycle: &active}
+	c.emitContainerLaunchProgress(ref, spec.RunID, receipt, hardening, updates)
+	material, err := c.containerRuntimePostHandshakeMaterial(spec, receipt)
+	if err != nil {
+		c.emitContainerHandshakeFailure(ref, spec.RunID, updates)
+		close(updates)
+		return updates
+	}
+	postHandshake, err := runtimePostHandshakeFactsUpdate(spec.RunID, receipt, admission, hardening, material)
+	if err != nil {
+		c.emitContainerHandshakeFailure(ref, spec.RunID, updates)
+		close(updates)
+		return updates
+	}
+	updates <- postHandshake
+	c.emitContainerActive(ref, spec.RunID, updates)
 	close(updates)
 	return updates
+}
+
+func (c *containerController) emitContainerLaunchProgress(ref InstanceRef, runID string, receipt launcherbackend.BackendLaunchReceipt, hardening launcherbackend.AppliedHardeningPosture, updates chan<- RuntimeUpdate) {
+	launching := lifecycleUpdate(launcherbackend.BackendLifecycleStateLaunching, launcherbackend.BackendLifecycleStatePlanned, 1, "")
+	c.storeContainerInstanceState(ref, launching, true, "")
+	facts := launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: receipt, HardeningPosture: hardening}
+	updates <- RuntimeUpdate{RunID: runID, Facts: &facts}
+	started := lifecycleUpdate(launcherbackend.BackendLifecycleStateStarted, launcherbackend.BackendLifecycleStateLaunching, 2, "")
+	binding := lifecycleUpdate(launcherbackend.BackendLifecycleStateBinding, launcherbackend.BackendLifecycleStateStarted, 3, "")
+	c.storeContainerInstanceState(ref, started, true, "")
+	updates <- RuntimeUpdate{RunID: runID, Lifecycle: &started}
+	c.storeContainerInstanceState(ref, binding, true, "")
+	updates <- RuntimeUpdate{RunID: runID, Lifecycle: &binding}
+}
+
+func (c *containerController) containerRuntimePostHandshakeMaterial(spec launcherbackend.BackendLaunchSpec, receipt launcherbackend.BackendLaunchReceipt) (*launcherbackend.RuntimePostHandshakeMaterial, error) {
+	if c.runtimePostHandshakeMaterialProvider == nil {
+		return nil, fmt.Errorf("runtime post-handshake material not provided")
+	}
+	return c.runtimePostHandshakeMaterialProvider(spec, receipt)
+}
+
+func (c *containerController) emitContainerHandshakeFailure(ref InstanceRef, runID string, updates chan<- RuntimeUpdate) {
+	terminating := lifecycleUpdate(launcherbackend.BackendLifecycleStateTerminating, launcherbackend.BackendLifecycleStateBinding, 4, launcherbackend.BackendErrorCodeHandshakeFailed)
+	terminated := lifecycleUpdate(launcherbackend.BackendLifecycleStateTerminated, launcherbackend.BackendLifecycleStateTerminating, 5, launcherbackend.BackendErrorCodeHandshakeFailed)
+	c.storeContainerInstanceState(ref, terminating, false, launcherbackend.BackendErrorCodeHandshakeFailed)
+	updates <- RuntimeUpdate{RunID: runID, Lifecycle: &terminating}
+	c.storeContainerInstanceState(ref, terminated, false, launcherbackend.BackendErrorCodeHandshakeFailed)
+	updates <- RuntimeUpdate{RunID: runID, Lifecycle: &terminated}
+}
+
+func (c *containerController) emitContainerActive(ref InstanceRef, runID string, updates chan<- RuntimeUpdate) {
+	active := lifecycleUpdate(launcherbackend.BackendLifecycleStateActive, launcherbackend.BackendLifecycleStateBinding, 4, "")
+	c.storeContainerInstanceState(ref, active, true, "")
+	updates <- RuntimeUpdate{RunID: runID, Lifecycle: &active}
 }
 
 func containerLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isolateID string, sessionID string, nonce string) (launcherbackend.BackendLaunchReceipt, error) {

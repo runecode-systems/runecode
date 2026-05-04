@@ -5,7 +5,7 @@ package launcherdaemon
 import (
 	"bufio"
 	"context"
-	"io"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -15,20 +15,27 @@ import (
 
 func (c *qemuController) monitorInstance(parent context.Context, inst *qemuInstance, launchState preparedLaunchState) {
 	defer removeLaunchDir(inst.launchDir)
-	scanStop := make(chan struct{})
-	defer close(scanStop)
 	currentReceipt := launchState.receipt
 	var currentPostHandshake *launcherbackend.PostHandshakeRuntimeAttestationInput
-	lineCh, scanDone := scanQEMUOutput(launchState.stdout, scanStop)
-	helloSeen := c.waitForHelloOrExit(parent, inst, launchState, lineCh, scanDone)
+	runtimeMaterial, helloSeen, waitErr := waitForHelloAndRuntimeMaterial(parent, inst, launchState)
+	if waitErr != nil {
+		c.finishQEMUInstanceWithTerminal(inst, launchState, currentReceipt, currentPostHandshake, helloSeen)
+		return
+	}
+	launchState.material = mergeQEMURuntimePostHandshakeMaterial(launchState.material, runtimeMaterial)
 	postHandshakeFailed := false
 	if helloSeen {
-		if update, err := runtimePostHandshakeUpdate(launchState); err == nil {
+		if update, err := c.runtimePostHandshakeUpdate(launchState); err == nil {
 			if update.Facts != nil {
 				currentReceipt = update.Facts.LaunchReceipt
 				currentPostHandshake = update.Facts.PostHandshakeAttestationInput
 			}
 			inst.updates <- update
+			active := lifecycleUpdate(launcherbackend.BackendLifecycleStateActive, launcherbackend.BackendLifecycleStateBinding, 4, "")
+			inst.updates <- RuntimeUpdate{RunID: launchState.spec.RunID, Lifecycle: &active}
+			c.mu.Lock()
+			inst.state.LifecycleState = active
+			c.mu.Unlock()
 		} else {
 			postHandshakeFailed = true
 			inst.errText = launcherbackend.BackendErrorCodeHandshakeFailed
@@ -36,7 +43,11 @@ func (c *qemuController) monitorInstance(parent context.Context, inst *qemuInsta
 		}
 	}
 	_ = inst.cmd.Wait()
-	term := buildTerminalReport(launchState.spec, currentReceipt, helloSeen && !postHandshakeFailed, inst.errText)
+	c.finishQEMUInstanceWithTerminal(inst, launchState, currentReceipt, currentPostHandshake, helloSeen && !postHandshakeFailed)
+}
+
+func (c *qemuController) finishQEMUInstanceWithTerminal(inst *qemuInstance, launchState preparedLaunchState, currentReceipt launcherbackend.BackendLaunchReceipt, currentPostHandshake *launcherbackend.PostHandshakeRuntimeAttestationInput, helloSeen bool) {
+	term := buildTerminalReport(launchState.spec, currentReceipt, helloSeen, inst.errText)
 	facts := launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: currentReceipt, PostHandshakeAttestationInput: currentPostHandshake, HardeningPosture: launchState.hardening, TerminalReport: &term}
 	inst.updates <- RuntimeUpdate{RunID: launchState.spec.RunID, Facts: &facts}
 	terminating, terminated := terminalLifecycleUpdates(term)
@@ -67,48 +78,74 @@ func (c *qemuController) finishInstance(inst *qemuInstance, terminated launcherb
 	inst.state.LastError = failureReason
 }
 
-func scanQEMUOutput(out io.Reader, stop <-chan struct{}) (<-chan string, <-chan struct{}) {
-	lineCh := make(chan string, 16)
-	scanDone := make(chan struct{})
-	go func() {
-		defer close(lineCh)
-		defer close(scanDone)
-		scanner := bufio.NewScanner(out)
-		for scanner.Scan() {
-			line := scanner.Text()
-			select {
-			case lineCh <- line:
-			case <-stop:
-				return
-			}
-		}
-	}()
-	return lineCh, scanDone
-}
-
-func (c *qemuController) waitForHelloOrExit(parent context.Context, inst *qemuInstance, launchState preparedLaunchState, lineCh <-chan string, scanDone <-chan struct{}) bool {
+func waitForHelloAndRuntimeMaterial(parent context.Context, inst *qemuInstance, launchState preparedLaunchState) (*launcherbackend.RuntimePostHandshakeMaterial, bool, error) {
 	timer := time.NewTimer(activeTimeout(launchState.spec.ResourceLimits))
 	defer timer.Stop()
+	lineCh := make(chan string, 16)
+	errCh := make(chan error, 1)
+	go func() {
+		defer close(lineCh)
+		scanner := bufio.NewScanner(launchState.stdout)
+		const maxFrame = 1024 * 1024
+		buf := make([]byte, 64*1024)
+		scanner.Buffer(buf, maxFrame)
+		for scanner.Scan() {
+			lineCh <- scanner.Text()
+		}
+		errCh <- scanner.Err()
+	}()
+	var runtimeMaterial *launcherbackend.RuntimePostHandshakeMaterial
 	for {
 		select {
 		case <-parent.Done():
-			_ = inst.cmd.Process.Kill()
-			return inst.helloSeen
+			return qemuWaitCancelled(inst, runtimeMaterial, parent.Err())
 		case <-timer.C:
-			_ = inst.cmd.Process.Kill()
-			inst.errText = launcherbackend.BackendErrorCodeWatchdogTimeout
-			return inst.helloSeen
+			return qemuWaitTimedOut(inst, runtimeMaterial)
 		case line, ok := <-lineCh:
-			if !ok {
-				return inst.helloSeen
+			updatedMaterial, done, err := handleQEMURuntimeOutputLine(inst, runtimeMaterial, line, ok, errCh)
+			if err != nil || done {
+				return updatedMaterial, inst.helloSeen, err
 			}
-			if c.recordHelloLine(inst, launchState, line) {
-				continue
-			}
-		case <-scanDone:
-			return inst.helloSeen
+			runtimeMaterial = updatedMaterial
 		}
 	}
+}
+
+func qemuWaitCancelled(inst *qemuInstance, runtimeMaterial *launcherbackend.RuntimePostHandshakeMaterial, err error) (*launcherbackend.RuntimePostHandshakeMaterial, bool, error) {
+	_ = inst.cmd.Process.Kill()
+	inst.errText = launcherbackend.BackendErrorCodeHandshakeFailed
+	return runtimeMaterial, inst.helloSeen, err
+}
+
+func qemuWaitTimedOut(inst *qemuInstance, runtimeMaterial *launcherbackend.RuntimePostHandshakeMaterial) (*launcherbackend.RuntimePostHandshakeMaterial, bool, error) {
+	_ = inst.cmd.Process.Kill()
+	inst.errText = launcherbackend.BackendErrorCodeWatchdogTimeout
+	return runtimeMaterial, inst.helloSeen, fmt.Errorf("watchdog timeout waiting for runtime material")
+}
+
+func parseQEMURuntimeMaterialUpdate(line string) (*launcherbackend.RuntimePostHandshakeMaterial, bool, error) {
+	material, err := parseQEMURuntimeMaterialLine(line)
+	if err != nil {
+		return nil, false, err
+	}
+	return material, material != nil, nil
+}
+
+func handleQEMURuntimeOutputLine(inst *qemuInstance, runtimeMaterial *launcherbackend.RuntimePostHandshakeMaterial, line string, ok bool, errCh <-chan error) (*launcherbackend.RuntimePostHandshakeMaterial, bool, error) {
+	if !ok {
+		return runtimeMaterial, true, <-errCh
+	}
+	material, handled, err := parseQEMURuntimeMaterialUpdate(line)
+	if err != nil {
+		return nil, true, err
+	}
+	if handled {
+		return material, false, nil
+	}
+	if recordHelloLine(inst, line) {
+		return runtimeMaterial, false, nil
+	}
+	return runtimeMaterial, false, nil
 }
 
 func activeTimeout(limits launcherbackend.BackendResourceLimits) time.Duration {
@@ -119,23 +156,28 @@ func activeTimeout(limits launcherbackend.BackendResourceLimits) time.Duration {
 	return timeout
 }
 
-func (c *qemuController) recordHelloLine(inst *qemuInstance, launchState preparedLaunchState, line string) bool {
+func recordHelloLine(inst *qemuInstance, line string) bool {
 	if !strings.Contains(line, helloWorldToken) {
 		return false
 	}
-	c.mu.Lock()
+	// caller synchronizes around lifecycle updates; this flag is per-instance
 	if inst.helloSeen {
-		c.mu.Unlock()
 		return true
 	}
 	inst.helloSeen = true
 	inst.state.HelloWorldSeen = true
-	c.mu.Unlock()
 	return true
 }
 
-func runtimePostHandshakeUpdate(launchState preparedLaunchState) (RuntimeUpdate, error) {
-	summary, launchContextDigest, err := validateSecureSessionAndBuildSummary(launchState.spec, launchState.receipt)
+func (c *qemuController) runtimePostHandshakeUpdate(launchState preparedLaunchState) (RuntimeUpdate, error) {
+	runtimeMaterial, err := c.runtimePostHandshakeMaterialForQEMU(launchState)
+	if err != nil {
+		return RuntimeUpdate{}, err
+	}
+	if runtimeMaterial == nil || runtimeMaterial.SecureSession == nil {
+		return RuntimeUpdate{}, backendError(launcherbackend.BackendErrorCodeHandshakeFailed, "runtime secure-session material not provided")
+	}
+	summary, launchContextDigest, err := validateSecureSessionAndBuildSummary(launchState.receipt, runtimeMaterial.SecureSession)
 	if err != nil {
 		return RuntimeUpdate{}, err
 	}
@@ -143,7 +185,7 @@ func runtimePostHandshakeUpdate(launchState preparedLaunchState) (RuntimeUpdate,
 	if err := recordValidatedSecureSession(&receipt, summary, launchContextDigest); err != nil {
 		return RuntimeUpdate{}, err
 	}
-	postHandshake, err := buildPostHandshakeAttestationProgress(receipt, launchState.admission)
+	postHandshake, err := buildPostHandshakeAttestationProgressFromMaterial(receipt, launchState.admission, runtimeMaterial)
 	if err != nil {
 		return RuntimeUpdate{}, err
 	}
@@ -151,6 +193,13 @@ func runtimePostHandshakeUpdate(launchState preparedLaunchState) (RuntimeUpdate,
 		return RuntimeUpdate{}, err
 	}
 	return RuntimeUpdate{RunID: launchState.spec.RunID, Facts: &launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: receipt, PostHandshakeAttestationInput: postHandshake, HardeningPosture: launchState.hardening}}, nil
+}
+
+func (c *qemuController) runtimePostHandshakeMaterialForQEMU(launchState preparedLaunchState) (*launcherbackend.RuntimePostHandshakeMaterial, error) {
+	if launchState.material == nil {
+		return nil, nil
+	}
+	return launchState.material, nil
 }
 
 func buildTerminalReport(spec launcherbackend.BackendLaunchSpec, receipt launcherbackend.BackendLaunchReceipt, helloSeen bool, errText string) launcherbackend.BackendTerminalReport {
@@ -164,13 +213,17 @@ func buildTerminalReport(spec launcherbackend.BackendLaunchSpec, receipt launche
 		FallbackPosture: launcherbackend.BackendFallbackPostureNoAutomaticFallback,
 		TerminatedAt:    time.Now().UTC().Format(time.RFC3339),
 	}
-	if helloSeen {
+	if strings.TrimSpace(errText) == "" && helloSeen {
 		report.TerminationKind = launcherbackend.BackendTerminationKindCompleted
 		return report
 	}
 	report.TerminationKind = launcherbackend.BackendTerminationKindFailed
 	if errText == launcherbackend.BackendErrorCodeWatchdogTimeout {
 		report.FailureReasonCode = launcherbackend.BackendErrorCodeWatchdogTimeout
+		return report
+	}
+	if errText == launcherbackend.BackendErrorCodeHandshakeFailed {
+		report.FailureReasonCode = launcherbackend.BackendErrorCodeHandshakeFailed
 		return report
 	}
 	report.FailureReasonCode = launcherbackend.BackendErrorCodeHypervisorLaunchFailed

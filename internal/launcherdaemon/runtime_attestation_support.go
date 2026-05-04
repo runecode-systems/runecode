@@ -17,17 +17,17 @@ func populateRuntimeSessionBinding(receipt *launcherbackend.BackendLaunchReceipt
 }
 
 func buildPostHandshakeAttestationProgress(receipt launcherbackend.BackendLaunchReceipt, admission launcherbackend.RuntimeAdmissionRecord) (*launcherbackend.PostHandshakeRuntimeAttestationInput, error) {
+	return buildPostHandshakeAttestationProgressFromMaterial(receipt, admission, nil)
+}
+
+func buildPostHandshakeAttestationProgressFromMaterial(receipt launcherbackend.BackendLaunchReceipt, admission launcherbackend.RuntimeAdmissionRecord, material *launcherbackend.RuntimePostHandshakeMaterial) (*launcherbackend.PostHandshakeRuntimeAttestationInput, error) {
 	if receipt.RunID == "" {
 		return nil, fmt.Errorf("receipt is required")
 	}
-	input, err := collectPostHandshakeRuntimeAttestationInput(&receipt, admission)
+	input, err := collectPostHandshakeRuntimeAttestationInput(&receipt, admission, material)
 	if err != nil {
 		return nil, err
 	}
-	input.VerificationResult = launcherbackend.AttestationVerificationResultUnknown
-	input.VerificationReasonCodes = nil
-	input.ReplayVerdict = launcherbackend.AttestationReplayVerdictUnknown
-	input.VerificationTimestamp = ""
 	return input, nil
 }
 
@@ -50,20 +50,32 @@ func recordValidatedSecureSession(receipt *launcherbackend.BackendLaunchReceipt,
 	return nil
 }
 
-func validateSecureSessionAndBuildSummary(spec launcherbackend.BackendLaunchSpec, receipt launcherbackend.BackendLaunchReceipt) (launcherbackend.SecureSessionSummary, string, error) {
-	handshakeTuple, launchContextDigest, err := secureSessionHandshakeTuple(spec, receipt)
-	if err != nil {
-		return launcherbackend.SecureSessionSummary{}, "", err
+func validateSecureSessionAndBuildSummary(receipt launcherbackend.BackendLaunchReceipt, secureSession *launcherbackend.RuntimeSecureSessionMaterial) (launcherbackend.SecureSessionSummary, string, error) {
+	if secureSession == nil {
+		return launcherbackend.SecureSessionSummary{}, "", fmt.Errorf("runtime secure-session material is required")
 	}
-	binding, err := launcherbackend.ValidateSessionHandshake(handshakeTuple.launchContext, handshakeTuple.host, handshakeTuple.isolate, handshakeTuple.ready, nil)
+	if receipt.RunID == "" || receipt.IsolateID == "" || receipt.SessionID == "" || receipt.SessionNonce == "" {
+		return launcherbackend.SecureSessionSummary{}, "", fmt.Errorf("session binding is required before secure session validation")
+	}
+	binding, err := launcherbackend.ValidateSessionHandshake(secureSession.LaunchContext, secureSession.HostHello, secureSession.IsolateHello, secureSession.SessionReady, nil)
 	if err != nil {
 		return launcherbackend.SecureSessionSummary{}, "", fmt.Errorf("secure session validation failed: %w", err)
 	}
-	summary, err := launcherbackend.BuildSecureSessionSummary(handshakeTuple.host, handshakeTuple.isolate, handshakeTuple.ready, binding)
+	if err := validateSecureSessionSummaryBinding(receipt, binding); err != nil {
+		return launcherbackend.SecureSessionSummary{}, "", err
+	}
+	summary, err := launcherbackend.BuildSecureSessionSummary(secureSession.HostHello, secureSession.IsolateHello, secureSession.SessionReady, binding)
 	if err != nil {
 		return launcherbackend.SecureSessionSummary{}, "", fmt.Errorf("secure session summary failed: %w", err)
 	}
-	return summary, launchContextDigest, nil
+	return summary, secureSession.LaunchContext.LaunchContextDigest, nil
+}
+
+func validateSecureSessionSummaryBinding(receipt launcherbackend.BackendLaunchReceipt, binding launcherbackend.SessionBindingRecord) error {
+	if binding.RunID != receipt.RunID || binding.IsolateID != receipt.IsolateID || binding.SessionID != receipt.SessionID || binding.SessionNonce != receipt.SessionNonce {
+		return fmt.Errorf("secure session material must bind to launch receipt session tuple")
+	}
+	return nil
 }
 
 func secureSessionTransportKind(value string) string {
@@ -75,34 +87,62 @@ func secureSessionTransportKind(value string) string {
 	}
 }
 
-func collectPostHandshakeRuntimeAttestationInput(receipt *launcherbackend.BackendLaunchReceipt, admission launcherbackend.RuntimeAdmissionRecord) (*launcherbackend.PostHandshakeRuntimeAttestationInput, error) {
-	expectedMeasurementDigests, err := canonicalTrustedRuntimeMeasurementDigests(receipt, admission)
-	if err != nil {
-		return nil, err
+func validateRuntimeReportedAttestationBinding(receipt *launcherbackend.BackendLaunchReceipt, input *launcherbackend.PostHandshakeRuntimeAttestationInput) error {
+	if receipt == nil || input == nil {
+		return nil
 	}
-	return &launcherbackend.PostHandshakeRuntimeAttestationInput{
-		RunID:                        receipt.RunID,
-		IsolateID:                    receipt.IsolateID,
-		SessionID:                    receipt.SessionID,
-		SessionNonce:                 receipt.SessionNonce,
-		RuntimeEvidenceCollected:     false,
-		LaunchContextDigest:          receipt.LaunchContextDigest,
-		HandshakeTranscriptHash:      receipt.HandshakeTranscriptHash,
-		IsolateSessionKeyIDValue:     receipt.IsolateSessionKeyIDValue,
-		RuntimeImageDescriptorDigest: receipt.RuntimeImageDescriptorDigest,
-		RuntimeImageBootProfile:      receipt.RuntimeImageBootProfile,
-		RuntimeImageVerifierRef:      receipt.RuntimeImageVerifierRef,
-		AuthorityStateDigest:         receipt.AuthorityStateDigest,
-		BootComponentDigestByName:    cloneMap(receipt.BootComponentDigestByName),
-		BootComponentDigests:         componentDigestValues(receipt.BootComponentDigestByName),
-		AttestationSourceKind:        launcherbackend.AttestationSourceKindTrustedRuntime,
-		MeasurementProfile:           admission.AttestationMeasurementProfile,
-		FreshnessMaterial:            []string{"session_nonce"},
-		FreshnessBindingClaims:       []string{"session_nonce", "handshake_transcript_hash", "launch_context_digest"},
-		EvidenceClaimsDigest:         expectedMeasurementDigests[0],
-		VerificationResult:           launcherbackend.AttestationVerificationResultUnknown,
-		ReplayVerdict:                launcherbackend.AttestationReplayVerdictUnknown,
-	}, nil
+	if err := validateRuntimeReportedRequiredFields(input); err != nil {
+		return err
+	}
+	if err := validateRuntimeReportedSessionTuple(receipt, input); err != nil {
+		return err
+	}
+	return validateRuntimeReportedIdentity(receipt, input)
+}
+
+func validateRuntimeReportedRequiredFields(input *launcherbackend.PostHandshakeRuntimeAttestationInput) error {
+	if input == nil || !input.RuntimeEvidenceCollected {
+		return nil
+	}
+	if input.RunID == "" || input.IsolateID == "" || input.SessionID == "" || input.SessionNonce == "" || input.LaunchContextDigest == "" || input.HandshakeTranscriptHash == "" || input.IsolateSessionKeyIDValue == "" {
+		return fmt.Errorf("runtime-reported attestation input must include full validated session binding when runtime evidence is collected")
+	}
+	if input.RuntimeImageDescriptorDigest == "" || input.RuntimeImageBootProfile == "" {
+		return fmt.Errorf("runtime-reported attestation input must include admitted runtime identity when runtime evidence is collected")
+	}
+	return nil
+}
+
+func validateRuntimeReportedSessionTuple(receipt *launcherbackend.BackendLaunchReceipt, input *launcherbackend.PostHandshakeRuntimeAttestationInput) error {
+	checks := []struct {
+		value string
+		want  string
+		msg   string
+	}{
+		{input.RunID, receipt.RunID, "runtime-reported attestation input must bind to launch receipt run_id"},
+		{input.IsolateID, receipt.IsolateID, "runtime-reported attestation input must bind to launch receipt isolate_id"},
+		{input.SessionID, receipt.SessionID, "runtime-reported attestation input must bind to launch receipt session_id"},
+		{input.SessionNonce, receipt.SessionNonce, "runtime-reported attestation input must bind to launch receipt session_nonce"},
+		{input.LaunchContextDigest, receipt.LaunchContextDigest, "runtime-reported attestation input must bind to launch receipt launch_context_digest"},
+		{input.HandshakeTranscriptHash, receipt.HandshakeTranscriptHash, "runtime-reported attestation input must bind to launch receipt handshake_transcript_hash"},
+		{input.IsolateSessionKeyIDValue, receipt.IsolateSessionKeyIDValue, "runtime-reported attestation input must bind to launch receipt isolate_session_key_id_value"},
+	}
+	for _, check := range checks {
+		if check.value != "" && check.value != check.want {
+			return fmt.Errorf("%s", check.msg)
+		}
+	}
+	return nil
+}
+
+func validateRuntimeReportedIdentity(receipt *launcherbackend.BackendLaunchReceipt, input *launcherbackend.PostHandshakeRuntimeAttestationInput) error {
+	if input.RuntimeImageDescriptorDigest != "" && input.RuntimeImageDescriptorDigest != receipt.RuntimeImageDescriptorDigest {
+		return fmt.Errorf("runtime-reported attestation input must bind to admitted runtime image descriptor")
+	}
+	if input.RuntimeImageBootProfile != "" && input.RuntimeImageBootProfile != receipt.RuntimeImageBootProfile {
+		return fmt.Errorf("runtime-reported attestation input must bind to admitted runtime image boot profile")
+	}
+	return nil
 }
 
 func recordPostHandshakeAttestationProgress(receipt *launcherbackend.BackendLaunchReceipt, input *launcherbackend.PostHandshakeRuntimeAttestationInput) error {
@@ -149,4 +189,25 @@ func validatePostHandshakeAttestationInputBinding(receipt *launcherbackend.Backe
 		return fmt.Errorf("post-handshake attestation input must bind to admitted runtime identity")
 	}
 	return nil
+}
+
+func runtimePostHandshakeFactsUpdate(runID string, receipt launcherbackend.BackendLaunchReceipt, admission launcherbackend.RuntimeAdmissionRecord, hardening launcherbackend.AppliedHardeningPosture, material *launcherbackend.RuntimePostHandshakeMaterial) (RuntimeUpdate, error) {
+	if material == nil || material.SecureSession == nil {
+		return RuntimeUpdate{}, backendError(launcherbackend.BackendErrorCodeHandshakeFailed, "runtime secure-session material not provided")
+	}
+	summary, launchContextDigest, err := validateSecureSessionAndBuildSummary(receipt, material.SecureSession)
+	if err != nil {
+		return RuntimeUpdate{}, err
+	}
+	if err := recordValidatedSecureSession(&receipt, summary, launchContextDigest); err != nil {
+		return RuntimeUpdate{}, err
+	}
+	postHandshake, err := buildPostHandshakeAttestationProgressFromMaterial(receipt, admission, material)
+	if err != nil {
+		return RuntimeUpdate{}, err
+	}
+	if err := recordPostHandshakeAttestationProgress(&receipt, postHandshake); err != nil {
+		return RuntimeUpdate{}, err
+	}
+	return RuntimeUpdate{RunID: runID, Facts: &launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: receipt, PostHandshakeAttestationInput: postHandshake, HardeningPosture: hardening}}, nil
 }

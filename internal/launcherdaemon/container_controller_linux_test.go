@@ -33,7 +33,7 @@ func TestContainerControllerLaunchUsesAdmittedRuntimeIdentityInReceipt(t *testin
 		t.Skip("container controller requires rootless launcher execution")
 	}
 	workRoot, spec := admittedContainerSpecForReceiptTest(t)
-	controller := NewContainerController(ContainerControllerConfig{WorkRoot: workRoot})
+	controller := NewContainerController(ContainerControllerConfig{WorkRoot: workRoot, RuntimePostHandshakeMaterialProvider: runtimePostHandshakeMaterialProviderForContainerTests})
 	updates, err := controller.Launch(context.Background(), spec)
 	if err != nil {
 		t.Fatalf("Launch returned error: %v", err)
@@ -42,6 +42,49 @@ func TestContainerControllerLaunchUsesAdmittedRuntimeIdentityInReceipt(t *testin
 }
 
 func TestContainerControllerLaunchKeepsLaunchFactsNonAttestedUntilRuntimeUpdate(t *testing.T) {
+	updates := launchContainerControllerForTest(t, runtimePostHandshakeMaterialProviderForContainerTests)
+	first := requireFirstContainerFacts(t, updates)
+	assertLaunchFactsRemainPreHandshake(t, first)
+	postHandshake := requireLaterPostHandshakeFacts(t, updates)
+	assertPostHandshakeFactsCollected(t, postHandshake)
+}
+
+func TestContainerControllerLaunchEmitsOrderedLaunchThenPostHandshakeFacts(t *testing.T) {
+	updates := launchContainerControllerForTest(t, runtimePostHandshakeMaterialProviderForContainerTests)
+	assertLaunchFactsRemainPreHandshake(t, requireFirstContainerFacts(t, updates))
+	requireLaterPostHandshakeFacts(t, updates)
+}
+
+func TestContainerControllerLaunchFailsClosedWithoutRuntimePostHandshakeMaterial(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("container controller requires rootless launcher execution")
+	}
+	workRoot, spec := admittedContainerSpecForReceiptTest(t)
+	controller := NewContainerController(ContainerControllerConfig{
+		WorkRoot: workRoot,
+		RuntimePostHandshakeMaterialProvider: func(launcherbackend.BackendLaunchSpec, launcherbackend.BackendLaunchReceipt) (*launcherbackend.RuntimePostHandshakeMaterial, error) {
+			return nil, nil
+		},
+	})
+	updates, err := controller.Launch(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Launch returned error: %v", err)
+	}
+	lastLifecycle := launcherbackend.RuntimeLifecycleState{}
+	for update := range updates {
+		if update.Lifecycle != nil {
+			lastLifecycle = *update.Lifecycle
+		}
+	}
+	if lastLifecycle.BackendLifecycle == nil || lastLifecycle.BackendLifecycle.CurrentState != launcherbackend.BackendLifecycleStateTerminated {
+		t.Fatalf("final lifecycle state = %#v, want terminated", lastLifecycle.BackendLifecycle)
+	}
+	if got, want := lastLifecycle.LaunchFailureReasonCode, launcherbackend.BackendErrorCodeHandshakeFailed; got != want {
+		t.Fatalf("failure reason = %q, want %q", got, want)
+	}
+}
+
+func TestContainerControllerLaunchFailsClosedWithoutRuntimePostHandshakeMaterialProvider(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("container controller requires rootless launcher execution")
 	}
@@ -51,19 +94,117 @@ func TestContainerControllerLaunchKeepsLaunchFactsNonAttestedUntilRuntimeUpdate(
 	if err != nil {
 		t.Fatalf("Launch returned error: %v", err)
 	}
+	lastLifecycle := launcherbackend.RuntimeLifecycleState{}
+	for update := range updates {
+		if update.Lifecycle != nil {
+			lastLifecycle = *update.Lifecycle
+		}
+	}
+	if lastLifecycle.BackendLifecycle == nil || lastLifecycle.BackendLifecycle.CurrentState != launcherbackend.BackendLifecycleStateTerminated {
+		t.Fatalf("final lifecycle state = %#v, want terminated", lastLifecycle.BackendLifecycle)
+	}
+	if got, want := lastLifecycle.LaunchFailureReasonCode, launcherbackend.BackendErrorCodeHandshakeFailed; got != want {
+		t.Fatalf("failure reason = %q, want %q", got, want)
+	}
+}
+
+func TestContainerControllerLaunchFailsClosedWhenRuntimeEvidenceClaimDigestIsInvalid(t *testing.T) {
+	updates := launchContainerControllerForTest(t, invalidContainerRuntimePostHandshakeMaterialProvider)
+	assertContainerTerminatedWithHandshakeFailure(t, updates)
+}
+
+func launchContainerControllerForTest(t *testing.T, provider func(launcherbackend.BackendLaunchSpec, launcherbackend.BackendLaunchReceipt) (*launcherbackend.RuntimePostHandshakeMaterial, error)) <-chan RuntimeUpdate {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("container controller requires rootless launcher execution")
+	}
+	workRoot, spec := admittedContainerSpecForReceiptTest(t)
+	controller := NewContainerController(ContainerControllerConfig{WorkRoot: workRoot, RuntimePostHandshakeMaterialProvider: provider})
+	updates, err := controller.Launch(context.Background(), spec)
+	if err != nil {
+		t.Fatalf("Launch returned error: %v", err)
+	}
+	return updates
+}
+
+func requireFirstContainerFacts(t *testing.T, updates <-chan RuntimeUpdate) *launcherbackend.RuntimeFactsSnapshot {
+	t.Helper()
 	first, ok := <-updates
 	if !ok || first.Facts == nil {
 		t.Fatal("first runtime update must include facts")
 	}
-	if got, want := first.Facts.LaunchReceipt.AttestationVerificationTimestamp, ""; got != want {
+	return first.Facts
+}
+
+func assertLaunchFactsRemainPreHandshake(t *testing.T, facts *launcherbackend.RuntimeFactsSnapshot) {
+	t.Helper()
+	if got, want := facts.LaunchReceipt.AttestationVerificationTimestamp, ""; got != want {
 		t.Fatalf("attestation verification timestamp = %q, want %q", got, want)
 	}
-	if first.Facts.PostHandshakeAttestationInput != nil {
+	if facts.PostHandshakeAttestationInput != nil {
 		t.Fatal("post-handshake attestation input must not be present at launch-time facts")
 	}
-	if first.Facts.LaunchReceipt.SessionSecurity != nil {
+	if facts.LaunchReceipt.SessionSecurity != nil {
 		t.Fatal("session_security must not be present before runtime secure-session update")
 	}
+}
+
+func requireLaterPostHandshakeFacts(t *testing.T, updates <-chan RuntimeUpdate) *launcherbackend.RuntimeFactsSnapshot {
+	t.Helper()
+	for update := range updates {
+		if update.Facts != nil && update.Facts.PostHandshakeAttestationInput != nil {
+			return update.Facts
+		}
+	}
+	t.Fatal("expected a later post-handshake facts update")
+	return nil
+}
+
+func assertPostHandshakeFactsCollected(t *testing.T, facts *launcherbackend.RuntimeFactsSnapshot) {
+	t.Helper()
+	if facts.LaunchReceipt.SessionSecurity == nil {
+		t.Fatal("post-handshake facts must include validated session_security")
+	}
+	if !facts.PostHandshakeAttestationInput.RuntimeEvidenceCollected {
+		t.Fatal("post-handshake facts must report runtime_evidence_collected=true when runtime material is present")
+	}
+}
+
+func assertContainerTerminatedWithHandshakeFailure(t *testing.T, updates <-chan RuntimeUpdate) {
+	t.Helper()
+	lastLifecycle := launcherbackend.RuntimeLifecycleState{}
+	for update := range updates {
+		if update.Lifecycle != nil {
+			lastLifecycle = *update.Lifecycle
+		}
+	}
+	if lastLifecycle.BackendLifecycle == nil || lastLifecycle.BackendLifecycle.CurrentState != launcherbackend.BackendLifecycleStateTerminated {
+		t.Fatalf("final lifecycle state = %#v, want terminated", lastLifecycle.BackendLifecycle)
+	}
+	if got, want := lastLifecycle.LaunchFailureReasonCode, launcherbackend.BackendErrorCodeHandshakeFailed; got != want {
+		t.Fatalf("failure reason = %q, want %q", got, want)
+	}
+}
+
+func invalidContainerRuntimePostHandshakeMaterialProvider(spec launcherbackend.BackendLaunchSpec, receipt launcherbackend.BackendLaunchReceipt) (*launcherbackend.RuntimePostHandshakeMaterial, error) {
+	handshakeTuple, _, err := secureSessionHandshakeTuple(spec, receipt)
+	if err != nil {
+		return nil, err
+	}
+	return &launcherbackend.RuntimePostHandshakeMaterial{
+		SecureSession: &launcherbackend.RuntimeSecureSessionMaterial{
+			LaunchContext: handshakeTuple.launchContext,
+			HostHello:     handshakeTuple.host,
+			IsolateHello:  handshakeTuple.isolate,
+			SessionReady:  handshakeTuple.ready,
+		},
+		Attestation: &launcherbackend.PostHandshakeRuntimeAttestationInput{
+			RuntimeEvidenceCollected: true,
+			AttestationSourceKind:    launcherbackend.AttestationSourceKindTrustedRuntime,
+			MeasurementProfile:       launcherbackend.MeasurementProfileContainerImageV1,
+			EvidenceClaimsDigest:     "sha256:" + strings.Repeat("f", 64),
+		},
+	}, nil
 }
 
 func TestLaunchReceiptBuildersRequireSecureSessionValidationBeforeAttestedPosture(t *testing.T) {
@@ -231,7 +372,11 @@ func launchReceiptBuilderTests() []struct {
 }
 
 func validatedReceiptWithPostHandshakeProgress(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, receipt launcherbackend.BackendLaunchReceipt) (launcherbackend.BackendLaunchReceipt, *launcherbackend.PostHandshakeRuntimeAttestationInput, error) {
-	summary, launchContextDigest, err := validateSecureSessionAndBuildSummary(spec, receipt)
+	secureSession, err := runtimeSecureSessionMaterialForBuilder(spec, receipt)
+	if err != nil {
+		return launcherbackend.BackendLaunchReceipt{}, nil, err
+	}
+	summary, launchContextDigest, err := validateSecureSessionAndBuildSummary(receipt, secureSession)
 	if err != nil {
 		return launcherbackend.BackendLaunchReceipt{}, nil, err
 	}
@@ -246,6 +391,55 @@ func validatedReceiptWithPostHandshakeProgress(spec launcherbackend.BackendLaunc
 		return launcherbackend.BackendLaunchReceipt{}, nil, err
 	}
 	return receipt, input, nil
+}
+
+func runtimeSecureSessionMaterialForBuilder(spec launcherbackend.BackendLaunchSpec, receipt launcherbackend.BackendLaunchReceipt) (*launcherbackend.RuntimeSecureSessionMaterial, error) {
+	handshakeTuple, _, err := secureSessionHandshakeTuple(spec, receipt)
+	if err != nil {
+		return nil, err
+	}
+	return &launcherbackend.RuntimeSecureSessionMaterial{
+		LaunchContext: handshakeTuple.launchContext,
+		HostHello:     handshakeTuple.host,
+		IsolateHello:  handshakeTuple.isolate,
+		SessionReady:  handshakeTuple.ready,
+	}, nil
+}
+
+func runtimePostHandshakeMaterialProviderForContainerTests(spec launcherbackend.BackendLaunchSpec, receipt launcherbackend.BackendLaunchReceipt) (*launcherbackend.RuntimePostHandshakeMaterial, error) {
+	handshakeTuple, _, err := secureSessionHandshakeTuple(spec, receipt)
+	if err != nil {
+		return nil, err
+	}
+	expectedMeasurementDigests, err := launcherbackend.DeriveExpectedMeasurementDigests(launcherbackend.MeasurementProfileContainerImageV1, receipt.RuntimeImageBootProfile, receipt.BootComponentDigestByName)
+	if err != nil {
+		return nil, err
+	}
+	return &launcherbackend.RuntimePostHandshakeMaterial{
+		SecureSession: &launcherbackend.RuntimeSecureSessionMaterial{
+			LaunchContext: handshakeTuple.launchContext,
+			HostHello:     handshakeTuple.host,
+			IsolateHello:  handshakeTuple.isolate,
+			SessionReady:  handshakeTuple.ready,
+		},
+		Attestation: &launcherbackend.PostHandshakeRuntimeAttestationInput{
+			RunID:                        receipt.RunID,
+			IsolateID:                    receipt.IsolateID,
+			SessionID:                    receipt.SessionID,
+			SessionNonce:                 receipt.SessionNonce,
+			LaunchContextDigest:          handshakeTuple.launchContext.LaunchContextDigest,
+			HandshakeTranscriptHash:      handshakeTuple.ready.HandshakeTranscriptHash,
+			IsolateSessionKeyIDValue:     handshakeTuple.ready.IsolateKeyIDValue,
+			RuntimeImageDescriptorDigest: receipt.RuntimeImageDescriptorDigest,
+			RuntimeImageBootProfile:      receipt.RuntimeImageBootProfile,
+			RuntimeEvidenceCollected:     true,
+			AttestationSourceKind:        launcherbackend.AttestationSourceKindTrustedRuntime,
+			MeasurementProfile:           launcherbackend.MeasurementProfileContainerImageV1,
+			FreshnessMaterial:            []string{"session_nonce"},
+			FreshnessBindingClaims:       []string{"session_nonce", "handshake_transcript_hash", "launch_context_digest"},
+			EvidenceClaimsDigest:         expectedMeasurementDigests[0],
+		},
+	}, nil
 }
 
 func admittedContainerSpecForReceiptTest(t *testing.T) (string, launcherbackend.BackendLaunchSpec) {
