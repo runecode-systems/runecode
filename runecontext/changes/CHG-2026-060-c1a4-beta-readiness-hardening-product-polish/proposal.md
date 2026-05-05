@@ -25,6 +25,7 @@ Without a dedicated alpha hardening lane, RuneCode risks declaring beta too earl
 - Track the production adoption of trusted `RunPlan` compilation rather than leaving it as a largely test-proven foundation seam.
 - Track the replacement of effectively noop runner transport defaults with real broker integration in the actual workflow path.
 - Fold in the truthful attestation-posture correction from `CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0` as a required pre-beta hardening companion.
+- Keep workflow-path dogfooding, TUI polish, and operator-truth improvements aligned with the reviewed performance-contract discipline in `CHG-2026-053-9d2b-performance-baselines-verification-gates-v0`, especially around attach/resume truth, waiting-state communication, and avoidance of client-local shortcuts that would make measured product surfaces less honest.
 - Explicitly capture TUI and operator polish discovered while dogfooding the real workflow path, especially around run state clarity, attach or reconnect behavior, remediation cues, approval and audit discoverability, and overall usability.
 - Align roadmap and product-surface messaging with the real shipped state once the honest workflow path exists.
 - Require the alpha lane to exercise verification artifacts on the real workflow path so beta ships with strong evidence continuity instead of a later degraded verification posture.
@@ -46,6 +47,7 @@ That split is easier to reason about than continuing to leave integration and po
 - RuneCode should ship beta only when at least one real useful workflow runs through the honest trusted and untrusted execution path and is inspectable through the normal product surfaces.
 - TUI and product polish discovered while dogfooding are legitimate alpha hardening work and should be planned explicitly rather than treated as incidental cleanup.
 - Verification artifacts generated from the real workflow path must remain first-class deliverables of this lane so later verification work strengthens rather than backfills the beta story.
+- Product polish in this lane must improve operator clarity without undermining the authoritative broker-owned and persisted surfaces that `CHG-053` measures and protects.
 
 ## Out of Scope
 - Replacing the broader beta milestone with a new version target.
