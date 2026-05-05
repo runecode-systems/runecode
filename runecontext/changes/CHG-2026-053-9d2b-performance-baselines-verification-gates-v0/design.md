@@ -32,7 +32,14 @@ This change freezes the same architecture rule already established in the relate
 
 Performance baselines for this change must not be stored in `runecontext/assurance/baseline.yaml`.
 
-That file is already part of the project-substrate assurance posture and should remain dedicated to that purpose. This change should instead define one separate reviewed performance-contract artifact family that stores metric identity, fixture identity, environment authority, statistical policy, and threshold declarations for the performance program.
+That file is already part of the project-substrate assurance posture and should remain dedicated to that purpose. This change should instead define one separate reviewed performance-contract artifact family under `runecontext/assurance/performance/` that stores metric identity, fixture identity, environment authority, statistical policy, and threshold declarations for the performance program.
+
+The first artifact family should use:
+
+- `runecontext/assurance/performance/manifest.json` as the reviewed inventory for performance contract files
+- per-surface reviewed contract files under `runecontext/assurance/performance/contracts/`
+- optional reviewed baseline sample artifacts under `runecontext/assurance/performance/baselines/` only when a metric needs repeated-sample comparison against preserved historical samples
+- one trusted repo-local compare/enforce tool under `tools/` that reads these artifacts and check outputs but never rewrites baselines during normal CI
 
 The first reviewed artifact family should be explicit enough to capture at least:
 
@@ -45,7 +52,23 @@ The first reviewed artifact family should be explicit enough to capture at least
 - sampling policy
 - budget class
 - explicit threshold or regression allowance
+- lane authority
+- activation state
+- baseline source
+- comparison method
+- practical noise floor
+- threshold origin
 - notes or review rationale when needed
+
+Each metric contract should also declare:
+
+- `start_event`
+- `end_event`
+- `clock_source`
+- `evidence_source`
+- `included_phases`
+
+Those fields make timing boundaries reviewable and prevent implementation from moving a metric to an earlier advisory milestone without changing the reviewed contract.
 
 ### Metric Taxonomy
 
@@ -118,6 +141,27 @@ Linux remains the first authoritative numeric-gate environment, but this change 
 - Shared hosted Linux CI is acceptable for the initial required-gate slice where thresholds are conservative enough to remain deterministic.
 - The design should allow selected higher-noise metrics to be promoted later to a tighter authoritative Linux environment without changing metric identity or product architecture.
 - The performance program must not require a second product architecture merely because measurement infrastructure differs.
+
+### Lane And Activation States
+
+Each performance metric should declare both a lane authority and an activation state.
+
+Initial lane authorities:
+
+- `required_shared_linux`: required in the Linux PR path on shared hosted Linux because the metric is stable enough with conservative thresholds
+- `required_tight_linux`: required for beta closure, but measured in a tighter authoritative Linux environment because shared hosted Linux is too noisy
+- `informational_until_stable`: collected in CI or local verification until calibration data proves it is stable enough to become required
+- `contract_pending_dependency`: contract and harness may be authored, but the gate cannot become required until the underlying reviewed path exists
+- `extended`: non-PR, merge-queue, scheduled, or post-MVP measurement
+
+Initial activation states:
+
+- `defined`: contract exists but no enforcement yet
+- `informational`: measurement runs but does not block
+- `required`: measurement blocks in its declared lane
+- `contract_pending_dependency`: contract exists but depends on another reviewed path before it can run authoritatively
+
+`CHG-025` external-anchor metrics and `CHG-054` truthful-attestation metrics may be defined before those changes fully land, but they must remain `contract_pending_dependency` until the reviewed path exists.
 
 ## Investigation Scope And Constraints
 
@@ -216,39 +260,39 @@ The first gate set should also preserve the distinction between:
 
 | Aspect | Fixture | Check | Initial Threshold | CI Lane |
 | --- | --- | --- | --- | --- |
-| Empty idle CPU | isolated empty broker state, isolated runtime/socket/target alias | sample real `runecode-tui` child CPU for fixed repeated windows after explicit warmup | average `<= 2%`, max sample `<= 4%` | required Linux |
-| Waiting-state CPU | deterministic waiting session fixture in isolated broker store | sample real `runecode-tui` child CPU for fixed repeated windows after explicit warmup | average `<= 8%`, max sample `<= 12%` | required Linux |
-| Attach/startup | isolated broker store with no pending work | PTY launch to first settled full frame after broker-owned attachable posture is reached | `<= 500ms` to first settled frame | required Linux |
-| Key-response latency | quiet route, empty and waiting-state fixtures | fixed repeated trials from key inject to transcript delta proxy | p95 `<= 50ms` empty, p95 `<= 75ms` waiting-state | required Linux |
-| Render microbenchmarks | synthetic route surfaces and shell states | `BenchmarkShellViewEmpty`, `BenchmarkShellViewWaitingSession` | fail on `> 15%` regression in `ns/op`, `B/op`, or `allocs/op` from committed Linux baseline once repeated-sample comparison exceeds the reviewed noise floor | required Linux |
-| Update microbenchmarks | synthetic watch messages and command-surface states | `BenchmarkShellWatchApply`, `BenchmarkBuildPaletteEntries` | fail on `> 15%` regression in `ns/op`, `B/op`, or `allocs/op` once repeated-sample comparison exceeds the reviewed noise floor | required Linux |
+| Empty idle CPU | isolated empty broker state, isolated runtime/socket/target alias | sample real `runecode-tui` child CPU for fixed repeated windows after explicit warmup | average `<= 2%`, max sample `<= 4%` | `informational_until_stable`, promote to `required_shared_linux` or `required_tight_linux` after calibration |
+| Waiting-state CPU | deterministic waiting session fixture in isolated broker store | sample real `runecode-tui` child CPU for fixed repeated windows after explicit warmup | average `<= 8%`, max sample `<= 12%` | `informational_until_stable`, promote to `required_shared_linux` or `required_tight_linux` after calibration |
+| Attach/startup | isolated broker store with no pending work | PTY launch to first settled full frame after broker-owned attachable posture is reached | `<= 500ms` to first settled frame | `required_shared_linux` after timing contract is frozen |
+| Key-response latency | quiet route, empty and waiting-state fixtures | fixed repeated trials from key inject to transcript delta proxy | p95 `<= 50ms` empty, p95 `<= 75ms` waiting-state | `required_shared_linux` after sample count is validated |
+| Render microbenchmarks | synthetic route surfaces and shell states | `BenchmarkShellViewEmpty`, `BenchmarkShellViewWaitingSession` | fail on `> 15%` regression in `ns/op`, `B/op`, or `allocs/op` from committed Linux baseline once repeated-sample comparison exceeds the reviewed noise floor | `required_shared_linux` |
+| Update microbenchmarks | synthetic watch messages and command-surface states | `BenchmarkShellWatchApply`, `BenchmarkBuildPaletteEntries` | fail on `> 15%` regression in `ns/op`, `B/op`, or `allocs/op` once repeated-sample comparison exceeds the reviewed noise floor | `required_shared_linux` |
 
 ### Broker Local API, Watch, And Attach Paths
 
 | Aspect | Fixture | Check | Initial Threshold | CI Lane |
 | --- | --- | --- | --- | --- |
-| Unary local API latency | deterministic stores for supported beta fixtures | repeated local trials over `session-list`, `session-get`, `run-list`, `run-get`, `approval-list`, `readiness`, `version-info`, `project-substrate-posture-get` | p95 `<= 150ms` for supported fixture sizes and fail on `> 15%` regression where hybrid budgets are used | required Linux |
-| Watch-family latency | deterministic stores for supported beta fixtures | repeated local trials over `run-watch`, `approval-watch`, `session-watch`, `session-turn-execution-watch` with `IncludeSnapshot` and `Follow` | p95 `<= 200ms` for supported fixture sizes and fail on `> 15%` regression where hybrid budgets are used | required Linux |
-| Watch payload growth | same fixtures | response bytes and event counts | fail if payload grows `> 15%` beyond committed baseline per supported fixture bucket | required Linux |
-| Mutation-path latency | deterministic local stores | `session-execution-trigger`, `continue`, `approval-resolve`, `backend-posture-change` | p95 `<= 200ms` for local control-plane-only paths | required Linux |
-| Local attach | broker already running with isolated state | attach to ready interactive surface after broker-owned lifecycle posture confirms attachability | `<= 500ms` | required Linux |
-| Resume after reconnect | persisted session/run state with broker already running | detach and reattach workflow to ready broker-owned session/run truth | `<= 500ms` from attach to ready surface | required Linux |
+| Unary local API latency | deterministic stores for supported beta fixtures | repeated local trials over `session-list`, `session-get`, `run-list`, `run-get`, `approval-list`, `readiness`, `version-info`, `project-substrate-posture-get` | p95 `<= 150ms` for supported fixture sizes and fail on `> 15%` regression where hybrid budgets are used | `required_shared_linux` |
+| Watch-family latency | deterministic stores for supported beta fixtures | repeated local trials over `run-watch`, `approval-watch`, `session-watch`, `session-turn-execution-watch` with `IncludeSnapshot` and `Follow` | p95 `<= 200ms` for supported fixture sizes and fail on `> 15%` regression where hybrid budgets are used | `required_shared_linux` |
+| Watch payload growth | same fixtures | response bytes and event counts | fail if payload grows `> 15%` beyond committed baseline per supported fixture bucket | `required_shared_linux` |
+| Mutation-path latency | deterministic local stores | `session-execution-trigger`, `continue`, `approval-resolve`, `backend-posture-change` | p95 `<= 200ms` for local control-plane-only paths | `required_shared_linux` |
+| Local attach | broker already running with isolated state | attach to ready interactive surface after broker-owned lifecycle posture confirms attachability | `<= 500ms` | `required_shared_linux` after timing contract is frozen |
+| Resume after reconnect | persisted session/run state with broker already running | detach and reattach workflow to ready broker-owned session/run truth | `<= 500ms` from attach to ready surface | `required_shared_linux` after timing contract is frozen |
 
 ### Runner, Workflow, And Launcher Paths
 
 | Aspect | Fixture | Check | Initial Threshold | CI Lane |
 | --- | --- | --- | --- | --- |
-| Runner boundary check | current repo plus deterministic fixture workspace | `cd runner && npm run boundary-check` | wall time `<= 5s`; fail on `> 15%` regression | required Linux |
-| Protocol fixture tests | deterministic shared fixture set | `cd runner && node --test scripts/protocol-fixtures.test.js` | wall time `<= 10s`; fail on `> 15%` regression | required Linux |
-| Representative runner cold start | deterministic minimal workflow fixture | runner startup to first durable checkpoint bound to the active immutable plan identity | `<= 1s` local-overhead budget | required Linux |
-| Supported workflow execution | deterministic MVP workflow fixture | trigger to completed durable broker state on the supported beta slice | threshold derived from committed baseline; fail on `> 15%` regression | required Linux |
-| CHG-050 workflow path | deterministic definitions and process fixtures | validation or canonicalization, trusted compilation, compiled-plan persistence or load, runner startup from immutable `RunPlan` | threshold derived from committed baseline; fail on `> 15%` regression once repeated-sample comparison exceeds the reviewed noise floor | required Linux |
-| MicroVM cold start | deterministic lightweight signed role image with verified-cache miss or required trusted-admission path | trigger to broker-observed ready state | `<= 8s` cold | required Linux |
-| MicroVM warm start | same signed runtime-image fixture with verified local runtime-asset cache hit | trigger to ready | `<= 3s` warm | required Linux |
-| Container cold start | opt-in deterministic signed container-runtime fixture with verified-cache miss or required trusted-admission path | trigger to ready | `<= 4s` cold | required Linux |
-| Container warm start | same signed container-runtime fixture with verified local runtime-asset cache hit | trigger to ready | `<= 2s` warm | required Linux |
-| Attestation cold path | deterministic runtime startup fixture with full post-handshake verification | launch to persisted post-handshake attestation verification and broker projection | threshold derived from committed baseline; fail on `> 15%` regression | required Linux |
-| Attestation warm path | same fixture with immutable verification-cache hits | launch to persisted post-handshake attestation verification and broker projection | threshold derived from committed baseline; fail on `> 15%` regression | required Linux |
+| Runner boundary check | current repo plus deterministic fixture workspace | `cd runner && npm run boundary-check` | wall time `<= 5s`; fail on `> 15%` regression | `required_shared_linux` |
+| Protocol fixture tests | deterministic shared fixture set | `cd runner && node --test scripts/protocol-fixtures.test.js` | wall time `<= 10s`; fail on `> 15%` regression | `required_shared_linux` |
+| Representative runner cold start | deterministic minimal workflow fixture | runner startup to first durable checkpoint bound to the active immutable plan identity | `<= 1s` local-overhead budget | `informational_until_stable`, promote after sample stability is proven |
+| Supported workflow execution | deterministic MVP workflow fixture | trigger to completed durable broker state on the supported beta slice | threshold derived from committed baseline; fail on `> 15%` regression | `contract_pending_dependency` until the real supported workflow path exists, then promote |
+| CHG-050 workflow path | deterministic definitions and process fixtures | validation or canonicalization, trusted compilation, compiled-plan persistence or load, runner startup from immutable `RunPlan` | threshold derived from committed baseline; fail on `> 15%` regression once repeated-sample comparison exceeds the reviewed noise floor | `required_shared_linux` for trusted compilation/load checks; execution startup remains `contract_pending_dependency` until the real path exists |
+| MicroVM cold start | deterministic lightweight signed role image with verified-cache miss or required trusted-admission path | trigger to broker-observed ready state | `<= 8s` cold | `informational_until_stable` or `required_tight_linux` after calibration |
+| MicroVM warm start | same signed runtime-image fixture with verified local runtime-asset cache hit | trigger to ready | `<= 3s` warm | `informational_until_stable` or `required_tight_linux` after calibration |
+| Container cold start | opt-in deterministic signed container-runtime fixture with verified-cache miss or required trusted-admission semantics used for microVM startup checks | trigger to ready | `<= 4s` cold | `informational_until_stable` |
+| Container warm start | same signed container-runtime fixture with verified local runtime-asset cache hit | trigger to ready | `<= 2s` warm | `informational_until_stable` |
+| Attestation cold path | deterministic runtime startup fixture with full post-handshake verification | launch to persisted post-handshake attestation verification and broker projection | threshold derived from committed baseline; fail on `> 15%` regression | `contract_pending_dependency` until `CHG-054` lands |
+| Attestation warm path | same fixture with immutable verification-cache hits | launch to persisted post-handshake attestation verification and broker projection | threshold derived from committed baseline; fail on `> 15%` regression | `contract_pending_dependency` until `CHG-054` lands |
 
 Launcher and attestation checks must preserve the reviewed architecture rather than rewarding unsafe shortcuts:
 
@@ -260,23 +304,23 @@ Launcher and attestation checks must preserve the reviewed architecture rather t
 
 | Aspect | Fixture | Check | Initial Threshold | CI Lane |
 | --- | --- | --- | --- | --- |
-| Secret-ingress prepare and submit | stubbed deterministic secret payloads | local broker and secrets overhead only | p95 `<= 300ms` for small payloads | required Linux |
-| Credential lease issuance | deterministic provider-profile fixture | local issuance overhead | p95 `<= 150ms` | required Linux |
-| Model-gateway invoke overhead | stubbed provider backend returning deterministic responses | RuneCode-added overhead excluding external network | p95 `<= 100ms` added overhead | required Linux |
-| Dependency cache miss | deterministic dependency-request fixture and stubbed registry payload source | broker-owned fetch to CAS with no existing cached units | threshold derived from committed baseline; fail on `> 15%` regression in wall time, reviewed bounded-buffer metrics, or peak RSS guardrails beyond reviewed budgets | required Linux |
-| Dependency cache hit | same fixture with cached resolved units already present | broker-owned dependency availability request with no network fetch path taken | threshold derived from committed baseline; fail on `> 15%` regression | required Linux |
-| Dependency miss coalescing | concurrent identical deterministic dependency requests | wall time, duplicate network work count, and CAS write count | require one effective upstream fill per canonical request identity; fail on duplicate-fill regression | required Linux |
-| Dependency materialization | deterministic cached dependency manifest and units | broker-mediated offline staging or materialization for workspace use | threshold derived from committed baseline; fail on `> 15%` regression | required Linux |
-| Dependency stream-to-CAS posture | large deterministic dependency payload fixture | memory and streaming behavior during cache fill | fail if implementation buffers full payloads in memory beyond reviewed budget, violates reviewed bounded-buffer instrumentation limits, or regresses beyond baseline | required Linux |
-| Audit verification | deterministic ledger fixtures | verify end-to-end locally | threshold derived from committed baseline; fail on `> 15%` regression | required Linux |
-| Audit finalize verify | deterministic local ledger | finalize plus verify | threshold derived from committed baseline; fail on `> 15%` regression | required Linux |
-| Protocol schema validation | checked-in protocol schemas and fixtures | schema load and validation suite | `<= 2s` for standard CI fixture set | required Linux |
-| Fixture-manifest parity | protocol fixtures plus manifest | parity and canonicalization checks | `<= 2s` | required Linux |
-| External anchor prepare | deterministic sealed audit segment plus stubbed target descriptor | prepare request to durable prepared state | p95 `<= 500ms` local control-plane overhead | required Linux |
-| External anchor execute-completed | deterministic sealed audit segment plus fast stubbed target | execute request to completed authoritative persistence | threshold derived from committed baseline; fail on `> 15%` regression | required Linux |
-| External anchor execute-deferred handoff | deterministic sealed audit segment plus intentionally delayed stubbed target | execute request to deferred durable state | p95 `<= 500ms` local control-plane overhead | required Linux |
-| Deferred completion visibility | same delayed stubbed target | deferred completion to durable completed state plus get/watch visibility | threshold derived from committed baseline; fail on `> 15%` regression | required Linux |
-| Receipt admission on unchanged seal | already-verified sealed segment plus valid stubbed target proof | authoritative receipt and sidecar admission without full seal replay | threshold derived from committed baseline; fail on `> 15%` regression in wall time or peak RSS | required Linux |
+| Secret-ingress prepare and submit | stubbed deterministic secret payloads | local broker and secrets overhead only | p95 `<= 300ms` for small payloads | `required_shared_linux` |
+| Credential lease issuance | deterministic provider-profile fixture | local issuance overhead | p95 `<= 150ms` | `required_shared_linux` |
+| Model-gateway invoke overhead | stubbed provider backend returning deterministic responses | RuneCode-added overhead excluding external network | p95 `<= 100ms` added overhead | `required_shared_linux` |
+| Dependency cache miss | deterministic dependency-request fixture and stubbed registry payload source | broker-owned fetch to CAS with no existing cached units | threshold derived from committed baseline; fail on `> 15%` regression in wall time, reviewed bounded-buffer metrics, or peak RSS guardrails beyond reviewed budgets | `required_shared_linux` for bounded-buffer/exact counters; wall/RSS may begin `informational_until_stable` |
+| Dependency cache hit | same fixture with cached resolved units already present | broker-owned dependency availability request with no network fetch path taken | threshold derived from committed baseline; fail on `> 15%` regression | `required_shared_linux` |
+| Dependency miss coalescing | concurrent identical deterministic dependency requests | wall time, duplicate network work count, and CAS write count | require one effective upstream fill per canonical request identity; fail on duplicate-fill regression | `required_shared_linux` for exact duplicate-fill and CAS-write counts |
+| Dependency materialization | deterministic cached dependency manifest and units | broker-mediated offline staging or materialization for workspace use | threshold derived from committed baseline; fail on `> 15%` regression | `required_shared_linux` after fixture calibration |
+| Dependency stream-to-CAS posture | large deterministic dependency payload fixture | memory and streaming behavior during cache fill | fail if implementation buffers full payloads in memory beyond reviewed budget, violates reviewed bounded-buffer instrumentation limits, or regresses beyond baseline | `required_shared_linux` for bounded-buffer instrumentation; process RSS starts `informational_until_stable` |
+| Audit verification | deterministic ledger fixtures | verify end-to-end locally | threshold derived from committed baseline; fail on `> 15%` regression | `required_shared_linux` |
+| Audit finalize verify | deterministic local ledger | finalize plus verify | threshold derived from committed baseline; fail on `> 15%` regression | `required_shared_linux` |
+| Protocol schema validation | checked-in protocol schemas and fixtures | schema load and validation suite | `<= 2s` for standard CI fixture set | `required_shared_linux` |
+| Fixture-manifest parity | protocol fixtures plus manifest | parity and canonicalization checks | `<= 2s` | `required_shared_linux` |
+| External anchor prepare | deterministic sealed audit segment plus stubbed target descriptor | prepare request to durable prepared state | p95 `<= 500ms` local control-plane overhead | `contract_pending_dependency` until `CHG-025` lands |
+| External anchor execute-completed | deterministic sealed audit segment plus fast stubbed target | execute request to completed authoritative persistence | threshold derived from committed baseline; fail on `> 15%` regression | `contract_pending_dependency` until `CHG-025` lands |
+| External anchor execute-deferred handoff | deterministic sealed audit segment plus intentionally delayed stubbed target | execute request to deferred durable state | p95 `<= 500ms` local control-plane overhead | `contract_pending_dependency` until `CHG-025` lands |
+| Deferred completion visibility | same delayed stubbed target | deferred completion to durable completed state plus get/watch visibility | threshold derived from committed baseline; fail on `> 15%` regression | `contract_pending_dependency` until `CHG-025` lands |
+| Receipt admission on unchanged seal | already-verified sealed segment plus valid stubbed target proof | authoritative receipt and sidecar admission without full seal replay | threshold derived from committed baseline; fail on `> 15%` regression in wall time or peak RSS | `contract_pending_dependency` until `CHG-025` lands |
 
 External audit anchoring checks must preserve the reviewed architecture rather than rewarding unsafe shortcuts:
 
@@ -292,28 +336,33 @@ The initial gate set should start with a small reviewed fixture inventory rather
 Recommended first durable slice:
 
 - TUI:
-  - empty fixture
-  - waiting fixture
+  - `tui.empty.v1`
+  - `tui.waiting.v1`
 - broker local API:
-  - one supported fixture size for unary reads
-  - one supported snapshot-plus-follow fixture for each watched family
+  - `broker.unary.beta-small.v1`
+  - `broker.watch.run.snapshot-follow.v1`
+  - `broker.watch.approval.snapshot-follow.v1`
+  - `broker.watch.session.snapshot-follow.v1`
+  - `broker.watch.turn-execution.snapshot-follow.v1`
 - runner and workflow:
-  - one minimal supported workflow fixture
-  - one canonical CHG-050 validation or compilation fixture
+  - `workflow.first-party-minimal.v1`
+  - `workflow.chg050-compile.v1`
 - dependency fetch:
-  - one cache miss fixture
-  - one cache hit fixture
-  - one coalesced identical-miss fixture
+  - `deps.cache-miss.small.v1`
+  - `deps.cache-hit.small.v1`
+  - `deps.coalesced-miss.small.v1`
 - audit:
-  - one standard local ledger fixture
+  - `audit.ledger.standard.v1`
 - external anchor:
-  - one fast-complete stubbed target fixture
-  - one deferred-completion stubbed target fixture
+  - `anchor.fast-complete.stub.v1`
+  - `anchor.deferred.stub.v1`
 - attestation:
-  - one cold fixture
-  - one warm verification-cache fixture on the same signed runtime identity
+  - `attestation.cold.signed-runtime.v1`
+  - `attestation.warm.signed-runtime.v1`
 
 This keeps the first release-defining gate set narrow enough to stay deterministic while still covering the regimes that matter for `v0.1.0-beta.1`.
+
+Fixture IDs are part of metric identity. Future fixture expansion should add new IDs rather than changing these IDs in place unless the fixture semantics intentionally change and the baseline is reviewed as a new contract.
 
 ## Statistical And Comparison Policy
 
@@ -326,12 +375,25 @@ This keeps the first release-defining gate set narrow enough to stay determinist
   - the change to exceed the reviewed practical noise floor
 - Treat summary statistics such as median and confidence intervals as authoritative comparison context, not single best-case runs.
 
+Initial constants:
+
+- required PR comparisons should use at least `10` repeated samples when runtime cost allows
+- baseline refresh or threshold recalibration should preferably use at least `20` repeated samples
+- fail only when the configured regression threshold and the reviewed practical noise floor are both exceeded
+- use a `benchstat`-style comparison workflow or equivalent robust repeated-sample comparison for Go microbenchmarks
+
 ### Latency Metrics
 
 - Run a fixed number of repeated trials per fixture.
 - Record median and `p95`.
 - Gate on the reviewed explicit ceiling, with median retained as diagnostic context.
 - Avoid using statistical significance alone as the gate for user-visible latency promises.
+
+Initial constants:
+
+- cheap local latency metrics should target `30` fixed trials so `p95` is meaningful enough for a required gate
+- heavier lifecycle metrics may use median plus max ceilings while they are too expensive for a meaningful `p95` sample size
+- each latency metric contract should declare whether `p95`, median plus max, or both are authoritative
 
 ### CPU And Process-Behavior Metrics
 
@@ -340,18 +402,35 @@ This keeps the first release-defining gate set narrow enough to stay determinist
 - Summarize with average or median plus max guardrails.
 - Prefer conservative thresholds over false precision in noisy shared environments.
 
+Initial constants:
+
+- each metric must declare warmup duration, observation-window duration, and number of repeated windows before it can become required
+- shared hosted Linux CPU metrics should start as `informational_until_stable` unless validation data proves the threshold is stable enough to require there
+- max guardrails should catch pathological spikes, but sustained average or median window cost should remain the primary CPU signal
+
 ### Exact Metrics
 
 - Treat deterministic counts, duplicate-work counts, payload counts, and similar invariants as exact checks or hard bounds.
 - Do not subject exact metrics to inferential comparison logic.
 
+### Threshold Provenance
+
+Every threshold should declare one reviewed `threshold_origin`:
+
+- `product_budget`: an intentional product promise or safety ceiling
+- `investigation_baseline`: derived from the corrected investigation data captured by this change
+- `first_calibration`: accepted as an initial calibration value after implementation produces repeatable measurements
+- `temporary_guardrail`: intentionally provisional and expected to be revisited after more data
+
+Threshold loosening should require explicit review rationale and should not be hidden inside baseline refresh mechanics.
+
 ## CI Integration Plan
 
 ### Required Linux PR Lane
-The required Linux PR lane should include the smallest deterministic checks that still catch the main MVP regressions:
+The required Linux PR lane should include the smallest deterministic `required_shared_linux` checks that still catch the main MVP regressions without pretending high-noise checks are stable on shared hosted runners:
 
-- TUI empty-idle CPU gate
-- TUI waiting-state CPU gate
+- TUI empty-idle CPU measurement as informational until stability is proven
+- TUI waiting-state CPU measurement as informational until stability is proven
 - TUI attach/startup gate
 - TUI key-response gate
 - TUI render and update microbenchmarks
@@ -359,9 +438,11 @@ The required Linux PR lane should include the smallest deterministic checks that
 - broker watch-family latency gate
 - local attach and resume gates
 - protocol and runner deterministic quick checks
-- supported workflow execution gate
-- launcher startup and attestation cold or warm quick checks
-- deterministic model-gateway, dependency-fetch, audit, and external-anchor quick checks
+- supported workflow execution contracts, with required enforcement only after the real supported workflow path exists
+- launcher startup measurements as informational until stability or tighter Linux authority is available
+- attestation cold or warm contracts as `contract_pending_dependency` until `CHG-054` lands
+- deterministic model-gateway, dependency-fetch, audit, and protocol quick checks
+- external-anchor contracts as `contract_pending_dependency` until `CHG-025` lands
 
 The first required lane should prefer metrics that are already stable enough on shared hosted Linux. The design may later promote selected higher-noise gates to a tighter authoritative Linux environment, but the initial gate set should not depend on that tighter environment existing on day one.
 

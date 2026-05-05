@@ -7,8 +7,12 @@
 - [ ] Add deterministic stubbed provider backends for model-gateway and secrets overhead checks.
 - [ ] Add deterministic stubbed external-anchor targets for prepare, execute, deferred, and receipt-admission checks.
 - [ ] Define one reviewed performance-contract artifact format for benchmark and latency thresholds, separate from `runecontext/assurance/baseline.yaml`.
+- [ ] Store the reviewed performance-contract family under `runecontext/assurance/performance/` with a manifest, per-surface contract files, and optional repeated-sample baseline artifacts where needed.
+- [ ] Define one trusted repo-local compare/enforce tool under `tools/` that reads performance contracts and check outputs without rewriting baselines during normal CI.
 - [ ] Define the metric taxonomy for exact, absolute-budget, regression-budget, and hybrid-budget checks in the reviewed performance-contract artifacts.
+- [ ] Define lane authority and activation states for every metric: `required_shared_linux`, `required_tight_linux`, `informational_until_stable`, `contract_pending_dependency`, and `extended`.
 - [ ] Define the initial reviewed MVP fixture inventory per major surface and explicitly defer larger fixture ladders to `CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0`.
+- [ ] Assign stable fixture IDs for the initial inventory before collecting baselines.
 
 ## Phase 2: TUI Regime Checks
 
@@ -16,7 +20,7 @@
 - [ ] Add an empty-state idle CPU gate using fully isolated broker store, audit ledger, runtime directory, socket, and TUI target alias.
 - [ ] Add a waiting-state CPU gate using a deterministic waiting-session fixture.
 - [ ] Add attach/startup and key-response latency checks for quiet and waiting-state fixtures.
-- [ ] Freeze authoritative timing boundaries for TUI attach and key-response checks so they stop on reviewed broker-owned and settled-frame milestones rather than client-local heuristics alone.
+- [ ] Freeze authoritative timing boundaries for TUI attach and key-response checks, including `start_event`, `end_event`, `clock_source`, `evidence_source`, and `included_phases`.
 - [x] Add `go test -bench` coverage for render and update hot paths, including shell view, watch apply, and palette-entry building.
 
 Alpha.7 bootstrap already landed:
@@ -30,7 +34,7 @@ Alpha.7 bootstrap already landed:
 - [ ] Add control-plane mutation latency checks for execution trigger, continue, approval resolve, and backend posture change paths.
 - [ ] Add attach and resume performance checks for the persistent local control-plane lifecycle.
 - [ ] Ensure all broker performance checks remain local-only and do not rely on live network services.
-- [ ] Freeze authoritative timing boundaries for local attach and resume so metrics terminate on broker-owned attachable posture and visible canonical session or run truth.
+- [ ] Freeze authoritative timing boundaries for local attach and resume, including `start_event`, `end_event`, `clock_source`, `evidence_source`, and `included_phases`.
 
 ## Phase 4: Runner, Workflow, Launcher, And Attestation Checks
 
@@ -43,7 +47,8 @@ Alpha.7 bootstrap already landed:
 - [ ] Add cold and warm microVM startup checks, with cold covering verified-cache miss or trusted-admission cost and warm covering verified local runtime-asset cache-hit cost on the same signed runtime identity.
 - [ ] Add cold and warm container startup checks for the explicit opt-in backend, with the same verified-cache miss or hit semantics used for microVM startup checks.
 - [ ] Add attestation cold-path and warm verification-cache checks for the truthful supported runtime path.
-- [ ] Freeze authoritative timing boundaries for launcher and attestation checks so metrics terminate on persisted evidence and broker projection rather than launcher-local optimistic milestones.
+- [ ] Freeze authoritative timing boundaries for launcher and attestation checks, including `start_event`, `end_event`, `clock_source`, `evidence_source`, and `included_phases`.
+- [ ] Keep attestation performance contracts in `contract_pending_dependency` until `CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0` lands.
 
 ## Phase 5: Gateway, Dependency, Audit, Protocol, And External Anchor Checks
 
@@ -61,11 +66,13 @@ Alpha.7 bootstrap already landed:
 - [ ] Add deferred-completion visibility checks for external audit anchoring through durable get or watch surfaces.
 - [ ] Add external anchor receipt-admission checks for unchanged verified seals so the incremental path is measured explicitly.
 - [ ] Add checks ensuring external audit anchoring performance does not reward network I/O under audit-ledger lock or bypass authoritative verifier admission.
-- [ ] Freeze authoritative timing boundaries for external audit anchoring so prepare, execute, deferred handoff, and completion metrics stop on durable broker-visible states.
+- [ ] Freeze authoritative timing boundaries for external audit anchoring, including `start_event`, `end_event`, `clock_source`, `evidence_source`, and `included_phases`.
+- [ ] Keep external-audit-anchor performance contracts in `contract_pending_dependency` until `CHG-2026-025-5679-external-audit-anchoring-v0` lands.
 
 ## Phase 6: CI Integration
 
 - [ ] Add a required Linux PR lane containing the smallest deterministic performance gates with the highest regression value across the MVP beta surface.
+- [ ] Limit the initial required shared-Linux PR lane to metrics declared `required_shared_linux` and keep higher-noise metrics informational or pending until their authority is reviewed.
 - [ ] Keep performance verification check-only and aligned with `just ci` discipline.
 - [ ] Store reviewed threshold declarations in the dedicated performance-contract artifacts rather than auto-generated mutable baselines.
 - [ ] Distinguish metrics stable enough for shared hosted Linux required gates from metrics that may later need a tighter authoritative Linux environment.
@@ -75,7 +82,9 @@ Alpha.7 bootstrap already landed:
 - [ ] Define the review process for tightening thresholds or accepting deliberate regressions with explicit justification.
 - [ ] Document how to refresh baselines safely when major architectural shifts land.
 - [ ] Document the reviewed statistical defaults for microbenchmarks, latency metrics, CPU/process-behavior metrics, and exact metrics.
+- [ ] Document initial statistical constants for sample counts, warmup windows, p95 eligibility, and repeated-window CPU/process metrics.
 - [ ] Document the practical noise-floor policy used alongside repeated-sample regression checks.
+- [ ] Document `threshold_origin` for every threshold as `product_budget`, `investigation_baseline`, `first_calibration`, or `temporary_guardrail`.
 - [ ] Document which broader performance surfaces are intentionally deferred to `CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0`.
 
 ## Acceptance Criteria
@@ -87,6 +96,7 @@ Alpha.7 bootstrap already landed:
 - [ ] Model-gateway, dependency-fetch, audit, protocol, and external audit anchoring paths each have at least one deterministic CI-compatible performance check.
 - [ ] Linux PR CI enforces numeric thresholds for the highest-value checks.
 - [ ] Reviewed performance-contract artifacts remain separate from project-substrate assurance baseline artifacts.
+- [ ] Each required metric has reviewed lane authority, activation state, fixture ID, threshold origin, and timing-boundary metadata.
 - [ ] Timing boundaries for attach, workflow, launcher, attestation, dependency, and external-anchor checks terminate on reviewed broker-owned or persisted milestones rather than advisory shortcuts.
 - [ ] The first implementation slice uses the reviewed statistical defaults captured by this change and tunes them only through explicit follow-up review.
 - [ ] Threshold changes and baseline refreshes require explicit review rather than silent CI mutation.
