@@ -4,11 +4,12 @@ import "fmt"
 
 func SplitRuntimeFactsEvidenceAndLifecycle(facts RuntimeFactsSnapshot) (RuntimeEvidenceSnapshot, RuntimeLifecycleState, error) {
 	receipt := facts.LaunchReceipt.Normalized()
+	postHandshake := NormalizePostHandshakeRuntimeAttestationInput(facts.PostHandshakeAttestationInput)
 	hardening := facts.HardeningPosture.Normalized()
 	if err := hardening.Validate(); err != nil {
 		return RuntimeEvidenceSnapshot{}, RuntimeLifecycleState{}, fmt.Errorf("hardening_posture: %w", err)
 	}
-	evidence, err := buildRuntimeEvidenceSnapshot(receipt, hardening, facts.TerminalReport)
+	evidence, err := buildRuntimeEvidenceSnapshot(receipt, postHandshake, hardening, facts.TerminalReport)
 	if err != nil {
 		return RuntimeEvidenceSnapshot{}, RuntimeLifecycleState{}, err
 	}
@@ -22,7 +23,7 @@ func SplitRuntimeFactsEvidenceAndLifecycle(facts RuntimeFactsSnapshot) (RuntimeE
 	return evidence, state, nil
 }
 
-func buildRuntimeEvidenceSnapshot(receipt BackendLaunchReceipt, hardening AppliedHardeningPosture, terminal *BackendTerminalReport) (RuntimeEvidenceSnapshot, error) {
+func buildRuntimeEvidenceSnapshot(receipt BackendLaunchReceipt, postHandshake *PostHandshakeRuntimeAttestationInput, hardening AppliedHardeningPosture, terminal *BackendTerminalReport) (RuntimeEvidenceSnapshot, error) {
 	launch, err := buildLaunchRuntimeEvidence(receipt)
 	if err != nil {
 		return RuntimeEvidenceSnapshot{}, err
@@ -35,10 +36,10 @@ func buildRuntimeEvidenceSnapshot(receipt BackendLaunchReceipt, hardening Applie
 	if err := attachSessionRuntimeEvidence(&bundle, receipt); err != nil {
 		return RuntimeEvidenceSnapshot{}, err
 	}
-	if err := attachAttestationRuntimeEvidence(&bundle, receipt, launch); err != nil {
+	if err := attachAttestationRuntimeEvidence(&bundle, receipt, postHandshake, launch); err != nil {
 		return RuntimeEvidenceSnapshot{}, err
 	}
-	applyAttestationFailClosedPolicy(receipt, &bundle)
+	applyAttestationFailClosedPolicy(receipt, postHandshake, &bundle)
 	if err := finalizeAttestationVerificationRecord(&bundle); err != nil {
 		return RuntimeEvidenceSnapshot{}, err
 	}
@@ -62,11 +63,11 @@ func attachSessionRuntimeEvidence(bundle *RuntimeEvidenceSnapshot, receipt Backe
 	return nil
 }
 
-func attachAttestationRuntimeEvidence(bundle *RuntimeEvidenceSnapshot, receipt BackendLaunchReceipt, launch LaunchRuntimeEvidence) error {
+func attachAttestationRuntimeEvidence(bundle *RuntimeEvidenceSnapshot, receipt BackendLaunchReceipt, postHandshake *PostHandshakeRuntimeAttestationInput, launch LaunchRuntimeEvidence) error {
 	if bundle == nil {
 		return nil
 	}
-	attestation, verification, err := buildIsolateAttestationEvidence(receipt, launch)
+	attestation, verification, err := buildIsolateAttestationEvidence(receipt, postHandshake, launch)
 	if err != nil {
 		return err
 	}

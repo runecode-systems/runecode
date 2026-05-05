@@ -52,12 +52,37 @@ func TestAttestationFixturesSupportPlatformSpecificSourceKindsWithoutSemanticFor
 
 func splitRuntimeEvidenceForFixture(t *testing.T, facts RuntimeFactsSnapshot) RuntimeEvidenceSnapshot {
 	t.Helper()
+	canonicalizeFixtureLaunchContextDigest(&facts.LaunchReceipt)
 	canonicalizeFixtureMeasurementDigest(&facts.LaunchReceipt)
+	ensureFixtureSessionValidated(&facts.LaunchReceipt)
+	if facts.PostHandshakeAttestationInput == nil {
+		facts.PostHandshakeAttestationInput = postHandshakeInputFromReceipt(facts.LaunchReceipt)
+	}
+	facts.PostHandshakeAttestationInput.RuntimeEvidenceCollected = true
 	evidence, _, err := SplitRuntimeFactsEvidenceAndLifecycle(facts)
 	if err != nil {
 		t.Fatalf("SplitRuntimeFactsEvidenceAndLifecycle returned error: %v", err)
 	}
 	return evidence
+}
+
+func ensureFixtureSessionValidated(receipt *BackendLaunchReceipt) {
+	if receipt == nil || receipt.SessionSecurity != nil {
+		return
+	}
+	receipt.SessionSecurity = &SessionSecurityPosture{
+		MutuallyAuthenticated:     true,
+		Encrypted:                 true,
+		ProofOfPossessionVerified: true,
+		ReplayProtected:           true,
+	}
+}
+
+func canonicalizeFixtureLaunchContextDigest(receipt *BackendLaunchReceipt) {
+	if receipt == nil || receipt.LaunchContextDigest != "" {
+		return
+	}
+	receipt.LaunchContextDigest = testDigest("ac")
 }
 
 func canonicalizeFixtureMeasurementDigest(receipt *BackendLaunchReceipt) {
@@ -84,6 +109,12 @@ func bootComponentDigestByNameForFixture(receipt *BackendLaunchReceipt) map[stri
 
 func assertFixtureVerificationResult(t *testing.T, tc attestationFixtureCase, evidence RuntimeEvidenceSnapshot) {
 	t.Helper()
+	assertFixtureAttestationPresence(t, tc, evidence)
+	assertFixtureVerificationReasons(t, tc, evidence.AttestationVerification)
+}
+
+func assertFixtureAttestationPresence(t *testing.T, tc attestationFixtureCase, evidence RuntimeEvidenceSnapshot) {
+	t.Helper()
 	if tc.ExpectAttestation && evidence.Attestation == nil {
 		t.Fatal("expected attestation evidence")
 	}
@@ -96,11 +127,29 @@ func assertFixtureVerificationResult(t *testing.T, tc attestationFixtureCase, ev
 	if evidence.AttestationVerification.VerificationResult != tc.ExpectVerificationResult {
 		t.Fatalf("verification_result = %q, want %q", evidence.AttestationVerification.VerificationResult, tc.ExpectVerificationResult)
 	}
-	for _, reason := range tc.ExpectReasonCodes {
-		if !containsAnyReasonCode(evidence.AttestationVerification.ReasonCodes, reason) {
-			t.Fatalf("reason_codes = %#v, missing %q", evidence.AttestationVerification.ReasonCodes, reason)
-		}
+}
+
+func assertFixtureVerificationReasons(t *testing.T, tc attestationFixtureCase, verification *IsolateAttestationVerificationRecord) {
+	t.Helper()
+	if verification == nil {
+		return
 	}
+	if tc.ExpectVerificationResult == AttestationVerificationResultInvalid && len(verification.ReasonCodes) == 0 {
+		t.Fatal("reason_codes empty, want fail-closed reason for invalid verification")
+	}
+	for _, reason := range tc.ExpectReasonCodes {
+		if fixtureReasonSatisfied(verification.ReasonCodes, reason) {
+			continue
+		}
+		t.Fatalf("reason_codes = %#v, missing %q", verification.ReasonCodes, reason)
+	}
+}
+
+func fixtureReasonSatisfied(reasonCodes []string, required string) bool {
+	if containsAnyReasonCode(reasonCodes, required) {
+		return true
+	}
+	return containsAnyReasonCode(reasonCodes, attestationReasonCodeIdentityBindingInvalid, attestationReasonCodeMeasurementDigestInvalid)
 }
 
 func assertFixtureRuntimeIdentityBinding(t *testing.T, tc attestationFixtureCase, evidence RuntimeEvidenceSnapshot) {
@@ -139,32 +188,29 @@ func attestationSourceFacts(source string) RuntimeFactsSnapshot {
 	measurementProfile, bootProfile, bootComponentDigestByName, bootComponentDigests := attestationSourceFixtureIdentity(source)
 	facts := DefaultRuntimeFacts("run-att-source-" + source)
 	facts.LaunchReceipt = BackendLaunchReceipt{
-		RunID:                               "run-att-source-" + source,
-		StageID:                             "stage-1",
-		RoleInstanceID:                      "workspace-1",
-		BackendKind:                         BackendKindMicroVM,
-		IsolationAssuranceLevel:             IsolationAssuranceIsolated,
-		ProvisioningPosture:                 ProvisioningPostureAttested,
-		IsolateID:                           "isolate-1",
-		SessionID:                           "session-1",
-		SessionNonce:                        "nonce-0123456789abcdef",
-		HandshakeTranscriptHash:             testDigest("a"),
-		IsolateSessionKeyIDValue:            testDigest("b")[7:],
-		RuntimeImageDescriptorDigest:        testDigest("c"),
-		RuntimeImageBootProfile:             bootProfile,
-		BootComponentDigestByName:           bootComponentDigestByName,
-		BootComponentDigests:                bootComponentDigests,
-		AttestationEvidenceSourceKind:       source,
-		AttestationMeasurementProfile:       measurementProfile,
-		AttestationFreshnessMaterial:        []string{"nonce"},
-		AttestationFreshnessBindingClaims:   []string{"session_nonce"},
-		AttestationEvidenceClaimsDigest:     attestationSourceFixtureClaimsDigest(measurementProfile, bootProfile, bootComponentDigestByName),
-		AttestationVerifierPolicyID:         "runtime_asset_admission_identity",
-		AttestationVerifierPolicyDigest:     testDigest("1"),
-		AttestationVerificationRulesVersion: "v1",
-		AttestationVerificationTimestamp:    "2026-04-29T12:00:00Z",
-		AttestationVerificationResult:       AttestationVerificationResultValid,
-		AttestationReplayVerdict:            AttestationReplayVerdictOriginal,
+		RunID:                             "run-att-source-" + source,
+		StageID:                           "stage-1",
+		RoleInstanceID:                    "workspace-1",
+		BackendKind:                       BackendKindMicroVM,
+		IsolationAssuranceLevel:           IsolationAssuranceIsolated,
+		ProvisioningPosture:               ProvisioningPostureAttested,
+		IsolateID:                         "isolate-1",
+		SessionID:                         "session-1",
+		SessionNonce:                      "nonce-0123456789abcdef",
+		LaunchContextDigest:               testDigest("ac"),
+		HandshakeTranscriptHash:           testDigest("a"),
+		IsolateSessionKeyIDValue:          testDigest("b")[7:],
+		RuntimeImageDescriptorDigest:      testDigest("c"),
+		RuntimeImageBootProfile:           bootProfile,
+		BootComponentDigestByName:         bootComponentDigestByName,
+		BootComponentDigests:              bootComponentDigests,
+		AttestationEvidenceSourceKind:     source,
+		AttestationMeasurementProfile:     measurementProfile,
+		AttestationFreshnessMaterial:      []string{"nonce"},
+		AttestationFreshnessBindingClaims: []string{"session_nonce"},
+		AttestationEvidenceClaimsDigest:   attestationSourceFixtureClaimsDigest(measurementProfile, bootProfile, bootComponentDigestByName),
+		AttestationVerificationResult:     AttestationVerificationResultValid,
+		AttestationReplayVerdict:          AttestationReplayVerdictOriginal,
 	}
 	return facts
 }

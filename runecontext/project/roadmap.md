@@ -7,9 +7,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ### v0.1.0-alpha.11
 
-- Runtime Attestation Post-Handshake Gating v0
-  - RuneCode only awards supported `attested` posture after a live runtime completes secure-session validation and post-handshake trusted runtime-proof verification, closing the remaining gap between the reviewed attestation design and launch-time implementation order before beta assurance claims are treated as settled.
-  - Planned change: `runecontext/changes/CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0/`
 - Project Performance Baselines + Verification Gates v0
   - RuneCode establishes the first MVP-grade performance baselines and deterministic Linux-first CI gates for the supported beta surface: TUI idle and waiting behavior, broker APIs and watch families, the supported workflow path, launcher startup with the truthful attestation path, gateway overhead, audit and protocol verification, external audit anchoring, and end-to-end attach or resume flows.
   - Planned change: `runecontext/changes/CHG-2026-053-9d2b-performance-baselines-verification-gates-v0/`
@@ -188,3 +185,8 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
   - RuneCode defines one inspectable evidence-first verification foundation across canonical evidence, append-only sealing, runtime identity and attestation, portable evidence bundles, and explicit degraded-posture handling, delivered through scoped child features.
   - Project change: `runecontext/changes/CHG-2026-057-d5c1-verification-plane-foundation-v0/`
   - Feature changes: `runecontext/changes/CHG-2026-056-8c75-audit-evidence-index-record-inclusion-v0/`, `runecontext/changes/CHG-2026-055-546a-verification-evidence-preservation-bundle-export-v0/`, `runecontext/changes/CHG-2026-058-04e9-verification-coverage-expansion-v0/`
+
+- Runtime Attestation Post-Handshake Gating v0
+  - RuneCode only awards supported `attested` posture after a live runtime completes secure-session validation and post-handshake trusted runtime-proof verification, closing the remaining gap between the reviewed attestation design and launch-time implementation order before beta assurance claims are treated as settled.
+  - Planned change: `runecontext/changes/CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0/`
+

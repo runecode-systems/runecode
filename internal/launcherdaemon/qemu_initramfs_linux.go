@@ -49,12 +49,23 @@ func helloInitProgram() string {
 	return `package main
 import (
   "fmt"
+  "os"
+  "strings"
   "syscall"
 )
 func main() {
+  cmdline, err := os.ReadFile("/proc/cmdline")
+  if err == nil {
+    for _, arg := range strings.Fields(string(cmdline)) {
+      if line, ok := strings.CutPrefix(arg, "RUNE_POST_HANDSHAKE_MATERIAL_LINE="); ok && line != "" {
+        fmt.Println(line)
+        break
+      }
+    }
+  }
   fmt.Println("` + helloWorldToken + `")
   _ = syscall.Reboot(syscall.LINUX_REBOOT_CMD_POWER_OFF)
-}`
+ }`
 }
 
 func buildHelloInitBinary(ctx context.Context, goBin, binPath, src string) error {

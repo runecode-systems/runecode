@@ -40,40 +40,70 @@ func TestQEMUPrepareLaunchAssetsSurfacesToolchainVerificationFailure(t *testing.
 	}
 }
 
-func TestQEMULaunchReceiptCarriesTrustedRuntimeAttestation(t *testing.T) {
+func TestQEMULaunchReceiptFailsClosedWithoutRuntimeCollectedAttestationEvidence(t *testing.T) {
+	receipt, attestationInput, evidence := qemuRuntimeAttestationEvidenceWithoutCollection(t)
+	if receipt.ProvisioningPosture != launcherbackend.ProvisioningPostureTOFU {
+		t.Fatalf("provisioning posture = %q, want %q", receipt.ProvisioningPosture, launcherbackend.ProvisioningPostureTOFU)
+	}
+	if evidence.Attestation != nil {
+		t.Fatalf("attestation evidence = %#v, want nil until runtime-side evidence is collected", evidence.Attestation)
+	}
+	assertQEMUAttestationVerificationInvalid(t, evidence)
+	if !strings.Contains(strings.Join(evidence.AttestationVerification.ReasonCodes, ","), "attestation_runtime_evidence_required") {
+		t.Fatalf("reason codes = %v, want attestation_runtime_evidence_required", evidence.AttestationVerification.ReasonCodes)
+	}
+	if evidence.Launch.ProvisioningPosture != launcherbackend.ProvisioningPostureTOFU {
+		t.Fatalf("evidence launch provisioning posture = %q, want %q", evidence.Launch.ProvisioningPosture, launcherbackend.ProvisioningPostureTOFU)
+	}
+	if got, want := receipt.AttestationVerificationTimestamp, ""; got != want {
+		t.Fatalf("attestation verification timestamp = %q, want %q", got, want)
+	}
+	if attestationInput == nil {
+		t.Fatal("post-handshake attestation input missing")
+	}
+	if got, want := attestationInput.VerificationTimestamp, ""; got != want {
+		t.Fatalf("post-handshake verification timestamp = %q, want %q", got, want)
+	}
+}
+
+func qemuRuntimeAttestationEvidenceWithoutCollection(t *testing.T) (launcherbackend.BackendLaunchReceipt, *launcherbackend.PostHandshakeRuntimeAttestationInput, launcherbackend.RuntimeEvidenceSnapshot) {
+	t.Helper()
 	_, _, spec := qemuToolchainVerificationLaunchSpecForTests(t)
 	admission, err := launcherbackend.NewRuntimeAdmissionRecord(spec.Image)
 	if err != nil {
 		t.Fatalf("NewRuntimeAdmissionRecord returned error: %v", err)
 	}
-	attestedAt := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
-
-	receipt, err := buildLaunchReceipt(spec, admission, "isolate-1", "session-1", strings.Repeat("a", 32), "9.0.0", "qemu-system-x86_64 9.0.0", nil, attestedAt)
+	receipt, err := buildLaunchReceipt(spec, admission, "isolate-1", "session-1", strings.Repeat("a", 32), "9.0.0", "qemu-system-x86_64 9.0.0", nil)
 	if err != nil {
 		t.Fatalf("buildLaunchReceipt returned error: %v", err)
 	}
-	facts := launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: receipt, HardeningPosture: buildHardeningPosture()}
+	secureSession := mustRuntimeSecureSessionMaterialForTests(t, spec, receipt)
+	summary, launchContextDigest, err := validateSecureSessionAndBuildSummary(receipt, secureSession)
+	if err != nil {
+		t.Fatalf("validateSecureSessionAndBuildSummary returned error: %v", err)
+	}
+	if err := recordValidatedSecureSession(&receipt, summary, launchContextDigest); err != nil {
+		t.Fatalf("recordValidatedSecureSession returned error: %v", err)
+	}
+	attestationInput, err := buildPostHandshakeAttestationProgress(receipt, admission)
+	if err != nil {
+		t.Fatalf("buildPostHandshakeAttestationProgress returned error: %v", err)
+	}
+	facts := launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: receipt, PostHandshakeAttestationInput: attestationInput, HardeningPosture: buildHardeningPosture()}
 	evidence, _, err := launcherbackend.SplitRuntimeFactsEvidenceAndLifecycle(facts)
 	if err != nil {
 		t.Fatalf("SplitRuntimeFactsEvidenceAndLifecycle returned error: %v", err)
 	}
-	if receipt.ProvisioningPosture != launcherbackend.ProvisioningPostureAttested {
-		t.Fatalf("provisioning posture = %q, want %q", receipt.ProvisioningPosture, launcherbackend.ProvisioningPostureAttested)
-	}
-	if evidence.Attestation == nil {
-		t.Fatal("attestation evidence missing")
-	}
+	return receipt, attestationInput, evidence
+}
+
+func assertQEMUAttestationVerificationInvalid(t *testing.T, evidence launcherbackend.RuntimeEvidenceSnapshot) {
+	t.Helper()
 	if evidence.AttestationVerification == nil {
 		t.Fatal("attestation verification missing")
 	}
-	if evidence.AttestationVerification.VerificationResult != launcherbackend.AttestationVerificationResultValid {
-		t.Fatalf("verification result = %q, want %q", evidence.AttestationVerification.VerificationResult, launcherbackend.AttestationVerificationResultValid)
-	}
-	if evidence.AttestationVerification.ReplayVerdict != launcherbackend.AttestationReplayVerdictOriginal {
-		t.Fatalf("replay verdict = %q, want %q", evidence.AttestationVerification.ReplayVerdict, launcherbackend.AttestationReplayVerdictOriginal)
-	}
-	if got, want := receipt.AttestationVerificationTimestamp, attestedAt.Format(time.RFC3339); got != want {
-		t.Fatalf("attestation verification timestamp = %q, want %q", got, want)
+	if evidence.AttestationVerification.VerificationResult != launcherbackend.AttestationVerificationResultInvalid {
+		t.Fatalf("verification result = %q, want %q", evidence.AttestationVerification.VerificationResult, launcherbackend.AttestationVerificationResultInvalid)
 	}
 }
 
@@ -83,20 +113,149 @@ func TestApplyTrustedRuntimeAttestationFailsClosedWithoutLaunchContextDigest(t *
 	if err != nil {
 		t.Fatalf("NewRuntimeAdmissionRecord returned error: %v", err)
 	}
-	attestedAt := time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)
 
-	receipt, err := buildLaunchReceipt(spec, admission, "isolate-1", "session-1", strings.Repeat("a", 32), "9.0.0", "qemu-system-x86_64 9.0.0", nil, attestedAt)
+	receipt, err := buildLaunchReceipt(spec, admission, "isolate-1", "session-1", strings.Repeat("a", 32), "9.0.0", "qemu-system-x86_64 9.0.0", nil)
 	if err != nil {
 		t.Fatalf("buildLaunchReceipt returned error: %v", err)
 	}
+	secureSession := mustRuntimeSecureSessionMaterialForTests(t, spec, receipt)
+	summary, launchContextDigest, err := validateSecureSessionAndBuildSummary(receipt, secureSession)
+	if err != nil {
+		t.Fatalf("validateSecureSessionAndBuildSummary returned error: %v", err)
+	}
+	if err := recordValidatedSecureSession(&receipt, summary, launchContextDigest); err != nil {
+		t.Fatalf("recordValidatedSecureSession returned error: %v", err)
+	}
 	receipt.LaunchContextDigest = ""
-
-	err = applyTrustedRuntimeAttestation(&receipt, admission, attestedAt)
+	_, err = buildPostHandshakeAttestationProgress(receipt, admission)
 	if err == nil {
-		t.Fatal("applyTrustedRuntimeAttestation expected missing launch context digest error")
+		t.Fatal("buildPostHandshakeAttestationProgress expected missing launch context digest error")
 	}
 	if !strings.Contains(err.Error(), "session binding is required before attestation") {
-		t.Fatalf("applyTrustedRuntimeAttestation error = %q, want session binding failure", err.Error())
+		t.Fatalf("buildPostHandshakeAttestationProgress error = %q, want session binding failure", err.Error())
+	}
+}
+
+func TestQEMURuntimePostHandshakeUpdateRequiresRuntimeProducedSecureSessionMaterial(t *testing.T) {
+	spec, admission, receipt := runtimeAttestationReceiptFixtureForValidation(t)
+	controller := &qemuController{cfg: QEMUControllerConfig{}, instances: map[string]*qemuInstance{}}
+	_, err := controller.runtimePostHandshakeUpdate(preparedLaunchState{
+		spec:      spec,
+		receipt:   receipt,
+		admission: admission,
+		hardening: buildHardeningPosture(),
+		material:  nil,
+	})
+	if err == nil {
+		t.Fatal("runtimePostHandshakeUpdate expected missing runtime secure-session material error")
+	}
+	if !strings.Contains(err.Error(), launcherbackend.BackendErrorCodeHandshakeFailed) {
+		t.Fatalf("runtimePostHandshakeUpdate error = %q, want handshake failure", err.Error())
+	}
+}
+
+func TestQEMURuntimePostHandshakeUpdateRuntimeEvidenceCollectedTrueOnlyWithConcreteEvidence(t *testing.T) {
+	spec, admission, receipt := runtimeAttestationReceiptFixtureForValidation(t)
+	secureSession := mustRuntimeSecureSessionMaterialForTests(t, spec, receipt)
+	controller := &qemuController{cfg: QEMUControllerConfig{}, instances: map[string]*qemuInstance{}}
+
+	updateWithoutEvidence, err := controller.runtimePostHandshakeUpdate(qemuPreparedStateForEvidenceTest(spec, admission, receipt, secureSession, nil))
+	assertQEMURuntimeEvidenceCollection(t, updateWithoutEvidence, err, false)
+
+	updateWithEvidence, err := controller.runtimePostHandshakeUpdate(qemuPreparedStateForEvidenceTest(spec, admission, receipt, secureSession, &launcherbackend.PostHandshakeRuntimeAttestationInput{
+		RunID:                        receipt.RunID,
+		IsolateID:                    receipt.IsolateID,
+		SessionID:                    receipt.SessionID,
+		SessionNonce:                 receipt.SessionNonce,
+		LaunchContextDigest:          secureSession.LaunchContext.LaunchContextDigest,
+		HandshakeTranscriptHash:      secureSession.SessionReady.HandshakeTranscriptHash,
+		IsolateSessionKeyIDValue:     secureSession.SessionReady.IsolateKeyIDValue,
+		RuntimeImageDescriptorDigest: receipt.RuntimeImageDescriptorDigest,
+		RuntimeImageBootProfile:      receipt.RuntimeImageBootProfile,
+		RuntimeEvidenceCollected:     true,
+		AttestationSourceKind:        launcherbackend.AttestationSourceKindTrustedRuntime,
+		MeasurementProfile:           admission.AttestationMeasurementProfile,
+		FreshnessMaterial:            []string{"session_nonce"},
+		FreshnessBindingClaims:       []string{"session_nonce", "handshake_transcript_hash", "launch_context_digest"},
+		EvidenceClaimsDigest:         admission.AttestationExpectedMeasurementDigests[0],
+	}))
+	assertQEMURuntimeEvidenceCollection(t, updateWithEvidence, err, true)
+
+	evidence, _, err := launcherbackend.SplitRuntimeFactsEvidenceAndLifecycle(*updateWithEvidence.Facts)
+	if err != nil {
+		t.Fatalf("SplitRuntimeFactsEvidenceAndLifecycle returned error: %v", err)
+	}
+	if evidence.Launch.ProvisioningPosture == launcherbackend.ProvisioningPostureAttested {
+		t.Fatal("attested posture must not be synthesized without valid verification")
+	}
+}
+
+func qemuPreparedStateForEvidenceTest(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, receipt launcherbackend.BackendLaunchReceipt, secureSession *launcherbackend.RuntimeSecureSessionMaterial, attestation *launcherbackend.PostHandshakeRuntimeAttestationInput) preparedLaunchState {
+	return preparedLaunchState{
+		spec:      spec,
+		receipt:   receipt,
+		admission: admission,
+		hardening: buildHardeningPosture(),
+		material:  &launcherbackend.RuntimePostHandshakeMaterial{SecureSession: secureSession, Attestation: attestation},
+	}
+}
+
+func assertQEMURuntimeEvidenceCollection(t *testing.T, update RuntimeUpdate, err error, wantCollected bool) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("runtimePostHandshakeUpdate returned error: %v", err)
+	}
+	if update.Facts == nil || update.Facts.PostHandshakeAttestationInput == nil {
+		t.Fatal("runtimePostHandshakeUpdate missing post-handshake input")
+	}
+	if update.Facts.PostHandshakeAttestationInput.RuntimeEvidenceCollected != wantCollected {
+		t.Fatalf("runtime evidence collected = %v, want %v", update.Facts.PostHandshakeAttestationInput.RuntimeEvidenceCollected, wantCollected)
+	}
+}
+
+func TestQEMURuntimePostHandshakeUpdateFailsClosedOnInvalidRuntimeMaterial(t *testing.T) {
+	spec, admission, receipt := runtimeAttestationReceiptFixtureForValidation(t)
+	secureSession := mustRuntimeSecureSessionMaterialForTests(t, spec, receipt)
+	controller := &qemuController{cfg: QEMUControllerConfig{}, instances: map[string]*qemuInstance{}}
+	_, err := controller.runtimePostHandshakeUpdate(preparedLaunchState{
+		spec:      spec,
+		receipt:   receipt,
+		admission: admission,
+		hardening: buildHardeningPosture(),
+		material: &launcherbackend.RuntimePostHandshakeMaterial{
+			SecureSession: secureSession,
+			Attestation: &launcherbackend.PostHandshakeRuntimeAttestationInput{
+				RunID:                        receipt.RunID,
+				IsolateID:                    receipt.IsolateID,
+				SessionID:                    receipt.SessionID,
+				SessionNonce:                 receipt.SessionNonce,
+				LaunchContextDigest:          secureSession.LaunchContext.LaunchContextDigest,
+				HandshakeTranscriptHash:      secureSession.SessionReady.HandshakeTranscriptHash,
+				IsolateSessionKeyIDValue:     secureSession.SessionReady.IsolateKeyIDValue,
+				RuntimeImageDescriptorDigest: receipt.RuntimeImageDescriptorDigest,
+				RuntimeImageBootProfile:      receipt.RuntimeImageBootProfile,
+				RuntimeEvidenceCollected:     true,
+				AttestationSourceKind:        launcherbackend.AttestationSourceKindTrustedRuntime,
+				MeasurementProfile:           admission.AttestationMeasurementProfile,
+				EvidenceClaimsDigest:         "sha256:" + strings.Repeat("f", 64),
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("runtimePostHandshakeUpdate expected invalid runtime material error")
+	}
+	if !strings.Contains(err.Error(), "runtime-reported evidence_claims_digest must bind to admitted runtime identity") {
+		t.Fatalf("runtimePostHandshakeUpdate error = %q, want admitted runtime identity binding failure", err.Error())
+	}
+}
+
+func TestBuildTerminalReportFailsClosedWhenErrorPresentAfterHello(t *testing.T) {
+	report := buildTerminalReport(validSpecForTests(), launcherbackend.BackendLaunchReceipt{IsolateID: "iso-1", SessionID: "session-1"}, true, launcherbackend.BackendErrorCodeHandshakeFailed)
+	if report.TerminationKind != launcherbackend.BackendTerminationKindFailed {
+		t.Fatalf("termination kind = %q, want failed", report.TerminationKind)
+	}
+	if report.FailureReasonCode != launcherbackend.BackendErrorCodeHandshakeFailed {
+		t.Fatalf("failure_reason_code = %q, want %q", report.FailureReasonCode, launcherbackend.BackendErrorCodeHandshakeFailed)
 	}
 }
 

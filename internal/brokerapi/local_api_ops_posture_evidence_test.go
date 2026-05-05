@@ -197,6 +197,143 @@ func TestRunSummaryKeepsAuditPostureDistinctFromBackendAndRuntimePosture(t *test
 	}
 }
 
+func TestRunDetailAuthoritativeStateKeepsSyntheticReceiptAttestationUnsupportedAcrossBackends(t *testing.T) {
+	tests := []struct {
+		name      string
+		backend   string
+		isolation string
+	}{
+		{name: "microvm", backend: launcherbackend.BackendKindMicroVM, isolation: launcherbackend.IsolationAssuranceIsolated},
+		{name: "container", backend: launcherbackend.BackendKindContainer, isolation: launcherbackend.IsolationAssuranceDegraded},
+	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			state, evidence := recordAndFetchSyntheticReceiptOnlyAttestation(t, tc.backend, tc.isolation)
+			assertSyntheticReceiptOnlyAuthoritativeState(t, state)
+			assertSyntheticReceiptOnlyRuntimeEvidence(t, evidence)
+		})
+	}
+}
+
+func recordAndFetchSyntheticReceiptOnlyAttestation(t *testing.T, backend string, isolation string) (map[string]any, launcherbackend.RuntimeEvidenceSnapshot) {
+	t.Helper()
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-synthetic-receipt-only-" + backend
+	_ = putRunScopedArtifactForLocalOpsTest(t, s, runID, "step-1")
+	if err := s.RecordRuntimeFacts(runID, syntheticReceiptOnlyAttestationFacts(runID, backend, isolation)); err != nil {
+		t.Fatalf("RecordRuntimeFacts returned error: %v", err)
+	}
+	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-synthetic-receipt", RunID: runID}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleRunGet error response: %+v", errResp)
+	}
+	return runGet.Run.AuthoritativeState, s.RuntimeEvidence(runID)
+}
+
+func assertSyntheticReceiptOnlyAuthoritativeState(t *testing.T, state map[string]any) {
+	t.Helper()
+	if state["provisioning_posture"] != launcherbackend.ProvisioningPostureTOFU {
+		t.Fatalf("authoritative_state.provisioning_posture = %v, want %q", state["provisioning_posture"], launcherbackend.ProvisioningPostureTOFU)
+	}
+	if state["supported_runtime_requirements_satisfied"] != false {
+		t.Fatalf("authoritative_state.supported_runtime_requirements_satisfied = %v, want false for synthetic receipt-only attestation", state["supported_runtime_requirements_satisfied"])
+	}
+	if state["attestation_posture"] == launcherbackend.AttestationPostureValid {
+		t.Fatalf("authoritative_state.attestation_posture = %v, want not %q", state["attestation_posture"], launcherbackend.AttestationPostureValid)
+	}
+	if state["attestation_evidence_present"] != false {
+		t.Fatalf("authoritative_state.attestation_evidence_present = %v, want false", state["attestation_evidence_present"])
+	}
+}
+
+func assertSyntheticReceiptOnlyRuntimeEvidence(t *testing.T, evidence launcherbackend.RuntimeEvidenceSnapshot) {
+	t.Helper()
+	if evidence.Attestation != nil {
+		t.Fatalf("runtime evidence attestation = %#v, want nil without post-handshake evidence", evidence.Attestation)
+	}
+	if evidence.AttestationVerification == nil {
+		t.Fatal("runtime evidence attestation verification missing")
+	}
+	if evidence.AttestationVerification.VerificationResult != launcherbackend.AttestationVerificationResultInvalid {
+		t.Fatalf("runtime evidence verification_result = %q, want %q", evidence.AttestationVerification.VerificationResult, launcherbackend.AttestationVerificationResultInvalid)
+	}
+	if !containsStringInSlice(evidence.AttestationVerification.ReasonCodes, "attestation_post_handshake_input_required") {
+		t.Fatalf("runtime evidence reason_codes = %v, want include attestation_post_handshake_input_required", evidence.AttestationVerification.ReasonCodes)
+	}
+}
+
+func syntheticReceiptOnlyAttestationFacts(runID string, backend string, isolation string) launcherbackend.RuntimeFactsSnapshot {
+	bootProfile, measurementProfile, bootByName, measurementDigests := syntheticReceiptOnlyAttestationIdentity(backend)
+	receipt := syntheticReceiptOnlyAttestationLaunchReceipt(runID, backend, isolation, bootProfile, measurementProfile, bootByName, measurementDigests)
+	return launcherbackend.RuntimeFactsSnapshot{
+		LaunchReceipt:    receipt,
+		HardeningPosture: syntheticReceiptOnlyAttestationHardeningPosture(),
+	}
+}
+
+func syntheticReceiptOnlyAttestationLaunchReceipt(runID, backend, isolation, bootProfile, measurementProfile string, bootByName map[string]string, measurementDigests []string) launcherbackend.BackendLaunchReceipt {
+	return launcherbackend.BackendLaunchReceipt{
+		RunID:                             runID,
+		StageID:                           "artifact_flow",
+		RoleInstanceID:                    "workspace-1",
+		RoleFamily:                        "workspace",
+		RoleKind:                          "workspace-edit",
+		BackendKind:                       backend,
+		IsolationAssuranceLevel:           isolation,
+		ProvisioningPosture:               launcherbackend.ProvisioningPostureAttested,
+		IsolateID:                         "isolate-synthetic",
+		SessionID:                         "session-synthetic",
+		SessionNonce:                      "nonce-synthetic-0123456789abcdef",
+		LaunchContextDigest:               "sha256:" + strings.Repeat("c", 64),
+		HandshakeTranscriptHash:           "sha256:" + strings.Repeat("d", 64),
+		IsolateSessionKeyIDValue:          strings.Repeat("e", 64),
+		SessionSecurity:                   &launcherbackend.SessionSecurityPosture{MutuallyAuthenticated: true, Encrypted: true, ProofOfPossessionVerified: true, ReplayProtected: true},
+		RuntimeImageDescriptorDigest:      "sha256:" + strings.Repeat("f", 64),
+		RuntimeImageBootProfile:           bootProfile,
+		BootComponentDigestByName:         bootByName,
+		BootComponentDigests:              append([]string{}, measurementDigests...),
+		AttestationEvidenceSourceKind:     launcherbackend.AttestationSourceKindTrustedRuntime,
+		AttestationMeasurementProfile:     measurementProfile,
+		AttestationFreshnessMaterial:      []string{"session_nonce"},
+		AttestationFreshnessBindingClaims: []string{"session_nonce", "handshake_transcript_hash", "launch_context_digest"},
+		AttestationEvidenceClaimsDigest:   measurementDigests[0],
+		CachePosture:                      syntheticReceiptOnlyAttestationCachePosture(),
+	}
+}
+
+func syntheticReceiptOnlyAttestationCachePosture() *launcherbackend.BackendCachePosture {
+	return &launcherbackend.BackendCachePosture{WarmPoolEnabled: true, BootCacheEnabled: true, ResetOrDestroyBeforeReuse: false, ReusePriorSessionIdentityKeys: true, DigestPinned: true, SignaturePinned: true}
+}
+
+func syntheticReceiptOnlyAttestationHardeningPosture() launcherbackend.AppliedHardeningPosture {
+	return launcherbackend.AppliedHardeningPosture{
+		Requested:                 launcherbackend.HardeningRequestedHardened,
+		Effective:                 launcherbackend.HardeningEffectiveHardened,
+		ExecutionIdentityPosture:  launcherbackend.HardeningExecutionIdentityUnprivileged,
+		FilesystemExposurePosture: launcherbackend.HardeningFilesystemExposureRestricted,
+		NetworkExposurePosture:    launcherbackend.HardeningNetworkExposureNone,
+		SyscallFilteringPosture:   launcherbackend.HardeningSyscallFilteringSeccomp,
+		DeviceSurfacePosture:      launcherbackend.HardeningDeviceSurfaceAllowlist,
+	}
+}
+
+func syntheticReceiptOnlyAttestationIdentity(backend string) (string, string, map[string]string, []string) {
+	bootByName := map[string]string{"kernel": "sha256:" + strings.Repeat("a", 64), "initrd": "sha256:" + strings.Repeat("b", 64)}
+	bootProfile := launcherbackend.BootProfileMicroVMLinuxKernelInitrdV1
+	measurementProfile := launcherbackend.MeasurementProfileMicroVMBootV1
+	if backend == launcherbackend.BackendKindContainer {
+		bootByName = map[string]string{"image": "sha256:" + strings.Repeat("a", 64)}
+		bootProfile = launcherbackend.BootProfileContainerOCIImageV1
+		measurementProfile = launcherbackend.MeasurementProfileContainerImageV1
+	}
+	measurementDigests, err := launcherbackend.DeriveExpectedMeasurementDigests(measurementProfile, bootProfile, bootByName)
+	if err != nil {
+		panic(err)
+	}
+	return bootProfile, measurementProfile, bootByName, measurementDigests
+}
+
 func recordBackendPosturePolicyDecisionForRun(t *testing.T, s *Service, runID, manifestHash, actionHash, instanceID string) string {
 	t.Helper()
 	decision := policyengine.PolicyDecision{
@@ -371,8 +508,8 @@ func assertContainerSummaryIdentityFields(t *testing.T, run RunSummary) {
 	if run.IsolationAssuranceLevel != launcherbackend.IsolationAssuranceDegraded {
 		t.Fatalf("summary.isolation_assurance_level = %q, want %q", run.IsolationAssuranceLevel, launcherbackend.IsolationAssuranceDegraded)
 	}
-	if run.ProvisioningPosture != launcherbackend.ProvisioningPostureAttested {
-		t.Fatalf("summary.provisioning_posture = %q, want %q", run.ProvisioningPosture, launcherbackend.ProvisioningPostureAttested)
+	if run.ProvisioningPosture != launcherbackend.ProvisioningPostureTOFU {
+		t.Fatalf("summary.provisioning_posture = %q, want %q", run.ProvisioningPosture, launcherbackend.ProvisioningPostureTOFU)
 	}
 }
 

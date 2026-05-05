@@ -19,7 +19,7 @@ import (
 	"github.com/runecode-ai/runecode/internal/launcherbackend"
 )
 
-func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild string, cacheEvidence *launcherbackend.BackendCacheEvidence, now time.Time) (launcherbackend.BackendLaunchReceipt, error) {
+func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launcherbackend.RuntimeAdmissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild string, cacheEvidence *launcherbackend.BackendCacheEvidence) (launcherbackend.BackendLaunchReceipt, error) {
 	sessionBinding, err := deriveRuntimeSessionBinding(spec, admission.DescriptorDigest, isoID, sessionID, nonce)
 	if err != nil {
 		return launcherbackend.BackendLaunchReceipt{}, err
@@ -36,9 +36,6 @@ func buildLaunchReceipt(spec launcherbackend.BackendLaunchSpec, admission launch
 	populateRuntimeSessionBinding(&receipt, sessionBinding)
 	applyRuntimeAssetIdentity(&receipt, admission, qemuVersion, qemuBuild)
 	applyLaunchExecutionDetails(&receipt, spec, cacheEvidence, qemuVersion, qemuBuild)
-	if err := applyTrustedRuntimeAttestation(&receipt, admission, now); err != nil {
-		return launcherbackend.BackendLaunchReceipt{}, err
-	}
 	return receipt, nil
 }
 
@@ -140,7 +137,7 @@ func writeAttachmentManifest(root, role string, binding launcherbackend.Attachme
 	return os.WriteFile(filepath.Join(roleDir, "manifest.json"), raw, 0o600)
 }
 
-func buildQEMUArgv(binary, kernel, initrd string, limits launcherbackend.BackendResourceLimits) []string {
+func buildQEMUArgv(binary, kernel, initrd string, limits launcherbackend.BackendResourceLimits, guestMaterialArg string) []string {
 	memory := limits.MemoryMiB
 	if memory <= 0 {
 		memory = 256
@@ -148,6 +145,10 @@ func buildQEMUArgv(binary, kernel, initrd string, limits launcherbackend.Backend
 	vcpus := limits.VCPUCount
 	if vcpus <= 0 {
 		vcpus = 1
+	}
+	appendValue := "console=ttyS0 panic=-1"
+	if strings.TrimSpace(guestMaterialArg) != "" {
+		appendValue += " " + guestMaterialArg
 	}
 	return []string{
 		binary,
@@ -163,7 +164,7 @@ func buildQEMUArgv(binary, kernel, initrd string, limits launcherbackend.Backend
 		"-nic", "none",
 		"-kernel", kernel,
 		"-initrd", initrd,
-		"-append", "console=ttyS0 panic=-1",
+		"-append", appendValue,
 	}
 }
 
@@ -208,17 +209,6 @@ func makeRuntimeIdentity(runID string) (string, string, string, error) {
 	iso := "isolate-" + safeToken(runID) + "-" + nonce[:8]
 	session := "session-" + hex.EncodeToString(b[16:])
 	return iso, session, nonce, nil
-}
-
-func cloneMap(in map[string]string) map[string]string {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(in))
-	for k, v := range in {
-		out[k] = v
-	}
-	return out
 }
 
 func safeToken(in string) string {

@@ -3,163 +3,168 @@ package launcherbackend
 import "strings"
 
 const (
-	attestationReasonCodeReplayDetected           = "attestation_replay_detected"
-	attestationReasonCodeSourceKindInvalid        = "attestation_source_kind_invalid"
-	attestationReasonCodeMeasurementDigestInvalid = "attestation_measurement_digest_invalid"
-	attestationReasonCodeFreshnessMaterialMissing = "attestation_freshness_material_missing"
-	attestationReasonCodeFreshnessBindingMissing  = "attestation_freshness_binding_missing"
-	attestationReasonCodeFreshnessStale           = "attestation_freshness_stale"
-	attestationReasonCodeEvidenceRequired         = "attestation_evidence_required"
-	attestationReasonCodeVerificationRequired     = "attestation_verification_required"
-	attestationReasonCodeVerificationNotValid     = "attestation_verification_not_valid"
+	attestationReasonCodeReplayDetected             = "attestation_replay_detected"
+	attestationReasonCodeSourceKindInvalid          = "attestation_source_kind_invalid"
+	attestationReasonCodeIdentityBindingInvalid     = "attestation_identity_binding_invalid"
+	attestationReasonCodeMeasurementDigestInvalid   = "attestation_measurement_digest_invalid"
+	attestationReasonCodeSessionValidationRequired  = "attestation_session_validation_required"
+	attestationReasonCodePostHandshakeInputRequired = "attestation_post_handshake_input_required"
+	attestationReasonCodeRuntimeEvidenceRequired    = "attestation_runtime_evidence_required"
+	attestationReasonCodeFreshnessMaterialMissing   = "attestation_freshness_material_missing"
+	attestationReasonCodeFreshnessBindingMissing    = "attestation_freshness_binding_missing"
+	attestationReasonCodeFreshnessStale             = "attestation_freshness_stale"
+	attestationReasonCodeEvidenceRequired           = "attestation_evidence_required"
+	attestationReasonCodeVerificationRequired       = "attestation_verification_required"
+	attestationReasonCodeVerificationNotValid       = "attestation_verification_not_valid"
+	trustedRuntimeAttestationVerifierPolicyID       = "runtime_asset_admission_identity"
+	trustedRuntimeAttestationRulesVersion           = "trusted-runtime-v1"
 )
 
-func buildIsolateAttestationEvidence(receipt BackendLaunchReceipt, launch LaunchRuntimeEvidence) (*IsolateAttestationEvidence, *IsolateAttestationVerificationRecord, error) {
-	if !hasIsolateAttestationEvidence(receipt) {
+func buildIsolateAttestationEvidence(receipt BackendLaunchReceipt, postHandshake *PostHandshakeRuntimeAttestationInput, launch LaunchRuntimeEvidence) (*IsolateAttestationEvidence, *IsolateAttestationVerificationRecord, error) {
+	attestationInput := derivePostHandshakeRuntimeAttestationInput(postHandshake)
+	if !hasIsolateAttestationEvidence(attestationInput) {
 		return nil, nil, nil
 	}
-	evidence := isolateAttestationEvidenceFromReceipt(receipt, launch)
+	evidence := isolateAttestationEvidenceFromPostHandshakeInput(*attestationInput, launch)
 	digest, err := canonicalSHA256Digest(isolateAttestationEvidenceDigestInput(*evidence), "isolate attestation evidence")
 	if err != nil {
 		return nil, nil, err
 	}
 	evidence.EvidenceDigest = digest
 
-	verification, err := isolateAttestationVerificationFromReceipt(receipt, launch.EvidenceDigest, digest)
+	verification, err := isolateAttestationVerificationFromPostHandshakeInput(*attestationInput, launch.EvidenceDigest, digest)
 	if err != nil {
 		return nil, nil, err
 	}
 	return evidence, verification, nil
 }
 
-func hasIsolateAttestationEvidence(receipt BackendLaunchReceipt) bool {
-	return receipt.RunID != "" && receipt.IsolateID != "" && receipt.SessionID != "" &&
-		receipt.SessionNonce != "" && receipt.HandshakeTranscriptHash != "" &&
-		receipt.IsolateSessionKeyIDValue != "" && receipt.RuntimeImageDescriptorDigest != "" &&
-		receipt.RuntimeImageBootProfile != "" && receipt.AttestationEvidenceSourceKind != "" &&
-		receipt.AttestationMeasurementProfile != ""
+func withTrustedAttestationVerificationDefaults(input PostHandshakeRuntimeAttestationInput) PostHandshakeRuntimeAttestationInput {
+	if strings.TrimSpace(input.VerifierPolicyID) == "" {
+		input.VerifierPolicyID = trustedRuntimeAttestationVerifierPolicyID
+	}
+	if strings.TrimSpace(input.VerifierPolicyDigest) == "" {
+		input.VerifierPolicyDigest = trustedVerificationPolicyDigest(input)
+	}
+	if strings.TrimSpace(input.VerificationRulesProfileVersion) == "" {
+		input.VerificationRulesProfileVersion = trustedRuntimeAttestationRulesVersion
+	}
+	input.VerificationResult = normalizeAttestationVerificationResult(input.VerificationResult)
+	input.ReplayVerdict = normalizeAttestationReplayVerdict(input.ReplayVerdict)
+	return input
 }
 
-func isolateAttestationEvidenceFromReceipt(receipt BackendLaunchReceipt, launch LaunchRuntimeEvidence) *IsolateAttestationEvidence {
-	return &IsolateAttestationEvidence{
-		RunID:                        receipt.RunID,
-		IsolateID:                    receipt.IsolateID,
-		SessionID:                    receipt.SessionID,
-		SessionNonce:                 receipt.SessionNonce,
-		HandshakeTranscriptHash:      receipt.HandshakeTranscriptHash,
-		IsolateSessionKeyIDValue:     receipt.IsolateSessionKeyIDValue,
-		LaunchRuntimeEvidenceDigest:  launch.EvidenceDigest,
-		RuntimeImageDescriptorDigest: receipt.RuntimeImageDescriptorDigest,
-		RuntimeImageBootProfile:      receipt.RuntimeImageBootProfile,
-		BootComponentDigestByName:    cloneStringMap(receipt.BootComponentDigestByName),
-		BootComponentDigests:         uniqueSortedStrings(receipt.BootComponentDigests),
-		AttestationSourceKind:        receipt.AttestationEvidenceSourceKind,
-		MeasurementProfile:           receipt.AttestationMeasurementProfile,
-		FreshnessMaterial:            uniqueSortedStrings(receipt.AttestationFreshnessMaterial),
-		FreshnessBindingClaims:       uniqueSortedStrings(receipt.AttestationFreshnessBindingClaims),
-		EvidenceClaimsDigest:         receipt.AttestationEvidenceClaimsDigest,
-	}
+func derivePostHandshakeRuntimeAttestationInput(postHandshake *PostHandshakeRuntimeAttestationInput) *PostHandshakeRuntimeAttestationInput {
+	return NormalizePostHandshakeRuntimeAttestationInput(postHandshake)
 }
 
-func isolateAttestationEvidenceDigestInput(evidence IsolateAttestationEvidence) isolateAttestationEvidenceDigestFields {
-	return isolateAttestationEvidenceDigestFields{
-		RunID:                        evidence.RunID,
-		IsolateID:                    evidence.IsolateID,
-		SessionID:                    evidence.SessionID,
-		SessionNonce:                 evidence.SessionNonce,
-		HandshakeTranscriptHash:      evidence.HandshakeTranscriptHash,
-		IsolateSessionKeyIDValue:     evidence.IsolateSessionKeyIDValue,
-		LaunchRuntimeEvidenceDigest:  evidence.LaunchRuntimeEvidenceDigest,
-		RuntimeImageDescriptorDigest: evidence.RuntimeImageDescriptorDigest,
-		RuntimeImageBootProfile:      evidence.RuntimeImageBootProfile,
-		BootComponentDigestByName:    cloneStringMap(evidence.BootComponentDigestByName),
-		BootComponentDigests:         evidence.BootComponentDigests,
-		AttestationSourceKind:        evidence.AttestationSourceKind,
-		MeasurementProfile:           evidence.MeasurementProfile,
-		FreshnessMaterial:            evidence.FreshnessMaterial,
-		FreshnessBindingClaims:       evidence.FreshnessBindingClaims,
-		EvidenceClaimsDigest:         evidence.EvidenceClaimsDigest,
-	}
-}
-
-func isolateAttestationVerificationFromReceipt(receipt BackendLaunchReceipt, launchEvidenceDigest, attestationEvidenceDigest string) (*IsolateAttestationVerificationRecord, error) {
-	if strings.TrimSpace(receipt.AttestationVerifierPolicyID) == "" && strings.TrimSpace(receipt.AttestationVerifierPolicyDigest) == "" && strings.TrimSpace(receipt.AttestationVerificationResult) == "" {
-		return nil, nil
-	}
-	replayIdentityDigest, err := canonicalSHA256Digest(isolateAttestationReplayIdentityInput(receipt, launchEvidenceDigest, attestationEvidenceDigest), "isolate attestation replay identity")
-	if err != nil {
-		return nil, err
-	}
-	verification := &IsolateAttestationVerificationRecord{
-		AttestationEvidenceDigest:       attestationEvidenceDigest,
-		ReplayIdentityDigest:            replayIdentityDigest,
-		VerifierPolicyID:                receipt.AttestationVerifierPolicyID,
-		VerifierPolicyDigest:            receipt.AttestationVerifierPolicyDigest,
-		VerificationRulesProfileVersion: receipt.AttestationVerificationRulesVersion,
-		VerificationTimestamp:           receipt.AttestationVerificationTimestamp,
-		VerificationResult:              receipt.AttestationVerificationResult,
-		ReasonCodes:                     uniqueSortedStrings(receipt.AttestationVerificationReasonCodes),
-		ReplayVerdict:                   receipt.AttestationReplayVerdict,
-		DerivedMeasurementDigests:       []string{receipt.AttestationEvidenceClaimsDigest},
-	}
-	if verification.DerivedMeasurementDigests[0] == "" {
-		verification.DerivedMeasurementDigests = nil
-	}
-	digest, err := canonicalSHA256Digest(isolateAttestationVerificationDigestInput(*verification), "isolate attestation verification")
-	if err != nil {
-		return nil, err
-	}
-	verification.VerificationDigest = digest
-	return verification, nil
-}
-
-func isolateAttestationReplayIdentityInput(receipt BackendLaunchReceipt, launchEvidenceDigest, attestationEvidenceDigest string) isolateAttestationReplayIdentityFields {
-	return isolateAttestationReplayIdentityFields{
-		RunID:                     receipt.RunID,
-		IsolateID:                 receipt.IsolateID,
-		SessionID:                 receipt.SessionID,
-		SessionNonce:              receipt.SessionNonce,
-		HandshakeTranscriptHash:   receipt.HandshakeTranscriptHash,
-		IsolateSessionKeyIDValue:  receipt.IsolateSessionKeyIDValue,
-		LaunchEvidenceDigest:      launchEvidenceDigest,
-		AttestationEvidenceDigest: attestationEvidenceDigest,
-		MeasurementProfile:        receipt.AttestationMeasurementProfile,
-	}
-}
-
-func isolateAttestationVerificationDigestInput(verification IsolateAttestationVerificationRecord) isolateAttestationVerificationRecordDigestFields {
-	return isolateAttestationVerificationRecordDigestFields{
-		AttestationEvidenceDigest:       verification.AttestationEvidenceDigest,
-		ReplayIdentityDigest:            verification.ReplayIdentityDigest,
-		VerifierPolicyID:                verification.VerifierPolicyID,
-		VerifierPolicyDigest:            verification.VerifierPolicyDigest,
-		VerificationRulesProfileVersion: verification.VerificationRulesProfileVersion,
-		VerificationTimestamp:           verification.VerificationTimestamp,
-		VerificationResult:              verification.VerificationResult,
-		ReasonCodes:                     verification.ReasonCodes,
-		ReplayVerdict:                   verification.ReplayVerdict,
-		DerivedMeasurementDigests:       verification.DerivedMeasurementDigests,
-	}
-}
-
-func applyAttestationFailClosedPolicy(receipt BackendLaunchReceipt, evidence *RuntimeEvidenceSnapshot) {
-	if evidence == nil || receipt.ProvisioningPosture != ProvisioningPostureAttested {
+func applyAttestationFailClosedPolicy(receipt BackendLaunchReceipt, postHandshake *PostHandshakeRuntimeAttestationInput, evidence *RuntimeEvidenceSnapshot) {
+	if evidence == nil || !requiresAttestationVerification(receipt, postHandshake) {
 		return
 	}
-	if evidence.Attestation == nil {
-		evidence.AttestationVerification = invalidAttestationVerificationForRequiredEvidence("", []string{attestationReasonCodeEvidenceRequired}, AttestationReplayVerdictUnknown)
-		return
-	}
-	if evidence.AttestationVerification == nil {
-		evidence.AttestationVerification = invalidAttestationVerificationForRequiredEvidence(evidence.Attestation.EvidenceDigest, []string{attestationReasonCodeVerificationRequired}, AttestationReplayVerdictUnknown)
+	if failed := attestationFailClosedVerification(receipt, postHandshake, evidence); failed != nil {
+		evidence.AttestationVerification = failed
 		return
 	}
 	reasonCodes := attestationReasonCodesForEvidence(evidence)
 	if len(reasonCodes) == 0 {
+		promoteAttestedProvisioningPosture(evidence)
 		return
 	}
 	evidence.AttestationVerification.VerificationResult = AttestationVerificationResultInvalid
 	evidence.AttestationVerification.ReasonCodes = reasonCodes
+}
+
+func attestationFailClosedVerification(receipt BackendLaunchReceipt, postHandshake *PostHandshakeRuntimeAttestationInput, evidence *RuntimeEvidenceSnapshot) *IsolateAttestationVerificationRecord {
+	if !hasValidatedSessionForAttestation(receipt, evidence) {
+		return invalidAttestationVerificationForRequiredEvidence("", []string{attestationReasonCodeSessionValidationRequired}, AttestationReplayVerdictUnknown)
+	}
+	if verification := missingPostHandshakeVerification(postHandshake, evidence); verification != nil {
+		return verification
+	}
+	if verification := missingRuntimeEvidenceVerification(postHandshake, evidence); verification != nil {
+		return verification
+	}
+	if verification := missingAttestationEvidenceVerification(evidence); verification != nil {
+		return verification
+	}
+	if evidence.AttestationVerification == nil {
+		return invalidAttestationVerificationForRequiredEvidence(evidence.Attestation.EvidenceDigest, []string{attestationReasonCodeVerificationRequired}, AttestationReplayVerdictUnknown)
+	}
+	return nil
+}
+
+func missingPostHandshakeVerification(postHandshake *PostHandshakeRuntimeAttestationInput, evidence *RuntimeEvidenceSnapshot) *IsolateAttestationVerificationRecord {
+	if NormalizePostHandshakeRuntimeAttestationInput(postHandshake) != nil {
+		return nil
+	}
+	return invalidAttestationVerificationForRequiredEvidence("", requiredEvidenceReasonCodes(attestationReasonCodePostHandshakeInputRequired, evidence), AttestationReplayVerdictUnknown)
+}
+
+func missingRuntimeEvidenceVerification(postHandshake *PostHandshakeRuntimeAttestationInput, evidence *RuntimeEvidenceSnapshot) *IsolateAttestationVerificationRecord {
+	if postHandshake != nil && postHandshake.RuntimeEvidenceCollected {
+		return nil
+	}
+	return invalidAttestationVerificationForRequiredEvidence("", requiredEvidenceReasonCodes(attestationReasonCodeRuntimeEvidenceRequired, evidence), AttestationReplayVerdictUnknown)
+}
+
+func missingAttestationEvidenceVerification(evidence *RuntimeEvidenceSnapshot) *IsolateAttestationVerificationRecord {
+	if evidence != nil && evidence.Attestation != nil {
+		return nil
+	}
+	return invalidAttestationVerificationForRequiredEvidence("", []string{attestationReasonCodeEvidenceRequired}, AttestationReplayVerdictUnknown)
+}
+
+func requiredEvidenceReasonCodes(requiredReason string, evidence *RuntimeEvidenceSnapshot) []string {
+	reasonCodes := []string{requiredReason}
+	if evidence == nil || evidence.Attestation == nil {
+		reasonCodes = append(reasonCodes, attestationReasonCodeEvidenceRequired)
+	}
+	return reasonCodes
+}
+
+func requiresAttestationVerification(receipt BackendLaunchReceipt, postHandshake *PostHandshakeRuntimeAttestationInput) bool {
+	normalized := receipt.Normalized()
+	if normalized.ProvisioningPosture == ProvisioningPostureAttested {
+		return true
+	}
+	if NormalizePostHandshakeRuntimeAttestationInput(postHandshake) != nil {
+		return true
+	}
+	if normalized.AttestationEvidenceSourceKind != AttestationSourceKindUnknown || normalized.AttestationMeasurementProfile != "" {
+		return true
+	}
+	if normalized.AttestationVerificationResult != AttestationVerificationResultUnknown {
+		return true
+	}
+	if strings.TrimSpace(normalized.AttestationVerifierPolicyID) != "" || strings.TrimSpace(normalized.AttestationVerifierPolicyDigest) != "" {
+		return true
+	}
+	return false
+}
+
+func hasValidatedSessionForAttestation(receipt BackendLaunchReceipt, evidence *RuntimeEvidenceSnapshot) bool {
+	if evidence == nil || evidence.Session == nil {
+		return false
+	}
+	security := receipt.SessionSecurity
+	if security == nil {
+		return false
+	}
+	if !security.MutuallyAuthenticated || !security.Encrypted || !security.ProofOfPossessionVerified {
+		return false
+	}
+	return evidence.Session.LaunchContextDigest != "" && evidence.Session.HandshakeTranscriptHash != "" && evidence.Session.IsolateSessionKeyIDValue != ""
+}
+
+func promoteAttestedProvisioningPosture(evidence *RuntimeEvidenceSnapshot) {
+	if evidence == nil {
+		return
+	}
+	evidence.Launch.ProvisioningPosture = ProvisioningPostureAttested
+	if evidence.Session != nil {
+		evidence.Session.ProvisioningPosture = ProvisioningPostureAttested
+	}
 }
 
 func attestationReasonCodesForEvidence(evidence *RuntimeEvidenceSnapshot) []string {
@@ -168,11 +173,17 @@ func attestationReasonCodesForEvidence(evidence *RuntimeEvidenceSnapshot) []stri
 	if evidence.AttestationVerification.VerificationResult != AttestationVerificationResultValid {
 		reasonCodes = append(reasonCodes, attestationReasonCodeVerificationNotValid)
 	}
+	if evidence.AttestationVerification.ReplayVerdict != AttestationReplayVerdictOriginal {
+		reasonCodes = append(reasonCodes, attestationReasonCodeVerificationNotValid)
+	}
 	if evidence.AttestationVerification.ReplayVerdict == AttestationReplayVerdictReplay {
 		reasonCodes = append(reasonCodes, attestationReasonCodeReplayDetected)
 	}
 	if !measurementProfileAcceptsSourceKind(evidence.Attestation.MeasurementProfile, evidence.Attestation.AttestationSourceKind) {
 		reasonCodes = append(reasonCodes, attestationReasonCodeSourceKindInvalid)
+	}
+	if !attestationIdentityMatchesLaunchEvidence(evidence.Launch, evidence.Attestation) {
+		reasonCodes = append(reasonCodes, attestationReasonCodeIdentityBindingInvalid)
 	}
 	if !attestationMeasurementIdentityMatchesEvidence(evidence.Attestation) {
 		reasonCodes = append(reasonCodes, attestationReasonCodeMeasurementDigestInvalid)
@@ -198,48 +209,10 @@ func invalidAttestationVerificationForRequiredEvidence(attestationEvidenceDigest
 	}
 }
 
-func finalizeAttestationVerificationRecord(evidence *RuntimeEvidenceSnapshot) error {
-	if evidence == nil || evidence.AttestationVerification == nil {
+func ReconcileRuntimeEvidenceAttestation(receipt BackendLaunchReceipt, postHandshake *PostHandshakeRuntimeAttestationInput, evidence *RuntimeEvidenceSnapshot) error {
+	if evidence == nil {
 		return nil
 	}
-	verification := evidence.AttestationVerification
-	if verification.AttestationEvidenceDigest == "" && evidence.Attestation != nil {
-		verification.AttestationEvidenceDigest = evidence.Attestation.EvidenceDigest
-	}
-	if verification.ReplayIdentityDigest == "" && evidence.Attestation != nil {
-		replayIdentityDigest, err := canonicalSHA256Digest(isolateAttestationReplayIdentityFields{
-			RunID:                     evidence.Attestation.RunID,
-			IsolateID:                 evidence.Attestation.IsolateID,
-			SessionID:                 evidence.Attestation.SessionID,
-			SessionNonce:              evidence.Attestation.SessionNonce,
-			HandshakeTranscriptHash:   evidence.Attestation.HandshakeTranscriptHash,
-			IsolateSessionKeyIDValue:  evidence.Attestation.IsolateSessionKeyIDValue,
-			LaunchEvidenceDigest:      evidence.Attestation.LaunchRuntimeEvidenceDigest,
-			AttestationEvidenceDigest: evidence.Attestation.EvidenceDigest,
-			MeasurementProfile:        evidence.Attestation.MeasurementProfile,
-		}, "isolate attestation replay identity")
-		if err != nil {
-			return err
-		}
-		verification.ReplayIdentityDigest = replayIdentityDigest
-	}
-	return FinalizeIsolateAttestationVerificationRecord(verification)
-}
-
-func FinalizeIsolateAttestationVerificationRecord(record *IsolateAttestationVerificationRecord) error {
-	if record == nil {
-		return nil
-	}
-	record.ReasonCodes = uniqueSortedStrings(record.ReasonCodes)
-	record.DerivedMeasurementDigests = uniqueSortedStrings(record.DerivedMeasurementDigests)
-	return assignAttestationVerificationDigest(record)
-}
-
-func assignAttestationVerificationDigest(record *IsolateAttestationVerificationRecord) error {
-	digest, err := canonicalSHA256Digest(isolateAttestationVerificationDigestInput(*record), "isolate attestation verification")
-	if err != nil {
-		return err
-	}
-	record.VerificationDigest = digest
-	return nil
+	applyAttestationFailClosedPolicy(receipt.Normalized(), NormalizePostHandshakeRuntimeAttestationInput(postHandshake), evidence)
+	return finalizeAttestationVerificationRecord(evidence)
 }
