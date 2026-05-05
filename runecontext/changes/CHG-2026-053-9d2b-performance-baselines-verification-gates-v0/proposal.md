@@ -35,7 +35,7 @@ At the same time, the repository now has a broader set of performance surfaces t
 - Introduce deterministic performance checks for the supported beta surfaces only.
 - Assign per-aspect thresholds that are suitable for CI, with Linux-first numeric gates and deterministic local fixtures or stubs instead of live external dependencies.
 - Define one reviewed performance-contract artifact family separate from `runecontext/assurance/baseline.yaml` so project-substrate assurance posture and performance-governance posture remain distinct.
-- Store that reviewed performance-contract artifact family under `runecontext/assurance/performance/`, with a manifest plus per-surface contract files and one trusted repo-local enforcement tool under `tools/` that never rewrites baselines during normal CI.
+- Store that reviewed performance-contract artifact family under `tools/perfcontracts/`, with `manifest.json`, per-surface contract files, reviewed fixture inventory, optional repeated-sample baseline artifacts, and a trusted check-only repo-local enforcement entrypoint that never rewrites baselines during normal CI.
 - Freeze one metric taxonomy for the first gate set so each measurement uses the right contract model instead of one vague "benchmark" bucket:
   - exact checks for exact counters and invariant counts
   - absolute budgets for user-visible experience ceilings

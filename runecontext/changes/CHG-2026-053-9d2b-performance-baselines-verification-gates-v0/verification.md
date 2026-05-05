@@ -34,7 +34,7 @@
 - Confirm the design captures the profile-backed render and allocation hot spots, not just the top-line CPU numbers.
 - Confirm performance checks are proposed for the supported MVP beta surfaces rather than the full eventual product surface.
 - Confirm the change defines a reviewed performance-contract artifact family separate from `runecontext/assurance/baseline.yaml`.
-- Confirm the reviewed performance-contract artifact family lives under `runecontext/assurance/performance/` with a manifest, per-surface contract files, and optional repeated-sample baselines where needed.
+- Confirm the reviewed performance-contract artifact family lives under `tools/perfcontracts/` with a manifest, per-surface contract files, reviewed fixture inventory, and optional repeated-sample baselines where needed.
 - Confirm one trusted repo-local compare/enforce tool exists under `tools/` and does not rewrite baselines during normal CI.
 - Confirm the design freezes a metric taxonomy across exact, absolute-budget, regression-budget, and hybrid-budget checks.
 - Confirm every metric declares lane authority and activation state before enforcement.

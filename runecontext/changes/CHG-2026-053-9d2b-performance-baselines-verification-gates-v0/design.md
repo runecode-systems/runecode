@@ -32,14 +32,15 @@ This change freezes the same architecture rule already established in the relate
 
 Performance baselines for this change must not be stored in `runecontext/assurance/baseline.yaml`.
 
-That file is already part of the project-substrate assurance posture and should remain dedicated to that purpose. This change should instead define one separate reviewed performance-contract artifact family under `runecontext/assurance/performance/` that stores metric identity, fixture identity, environment authority, statistical policy, and threshold declarations for the performance program.
+That file is already part of the project-substrate assurance posture and should remain dedicated to that purpose. This change should instead define one separate reviewed performance-contract artifact family under `tools/perfcontracts/` that stores metric identity, fixture identity, environment authority, statistical policy, and threshold declarations for the performance program.
 
 The first artifact family should use:
 
-- `runecontext/assurance/performance/manifest.json` as the reviewed inventory for performance contract files
-- per-surface reviewed contract files under `runecontext/assurance/performance/contracts/`
-- optional reviewed baseline sample artifacts under `runecontext/assurance/performance/baselines/` only when a metric needs repeated-sample comparison against preserved historical samples
-- one trusted repo-local compare/enforce tool under `tools/` that reads these artifacts and check outputs but never rewrites baselines during normal CI
+- `tools/perfcontracts/manifest.json` as the reviewed inventory for performance contract files
+- per-surface reviewed contract files under `tools/perfcontracts/contracts/`
+- reviewed fixture inventory under `tools/perfcontracts/fixtures/`
+- optional reviewed baseline sample artifacts under `tools/perfcontracts/baselines/` only when a metric needs repeated-sample comparison against preserved historical samples
+- one trusted repo-local compare/enforce entrypoint at `tools/perfcontracts/main.go` that reads these artifacts and check outputs but never rewrites baselines during normal CI
 
 The first reviewed artifact family should be explicit enough to capture at least:
 

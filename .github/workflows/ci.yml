@@ -18,8 +18,8 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            label: ubuntu canonical
-            ci-target: ci
+            label: ubuntu required shared-linux perf
+            ci-target: ci-required-shared-linux
           - os: macos-latest
             label: macos portability
             ci-target: ci-portability

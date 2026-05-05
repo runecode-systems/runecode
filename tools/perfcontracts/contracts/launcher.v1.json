@@ -1,0 +1,99 @@
+{
+  "schema_version":"runecode.performance.contract.v1",
+  "contract_id": "performance.launcher.v1",
+  "surface": "launcher",
+  "metrics": [
+    {
+      "metric_id": "metric.launcher.microvm.cold_start.wall_ms",
+      "subsystem": "launcher",
+      "runtime_regime": "microvm_cold",
+      "fixture_id": "launcher.microvm.signed-runtime.v1",
+      "measurement_kind": "latency",
+      "unit": "ms",
+      "authoritative_environment": "linux_shared_ci",
+      "sampling_policy": {"trials": 10, "median_max_authoritative": true},
+      "budget_class": "absolute-budget",
+      "threshold": {"max_value": 8000},
+      "lane_authority": "informational_until_stable",
+      "activation_state": "informational",
+      "comparison_method": "max_ceiling",
+      "threshold_origin": "temporary_guardrail",
+      "timing_boundary": {
+        "start_event": "launcher.runtime_admission.start",
+        "end_event": "broker.runtime_ready.projected",
+        "clock_source": "monotonic",
+        "evidence_source": "runtime_evidence_and_broker_projection",
+        "included_phases": ["signature_verification", "component_digest_verification", "admission", "launch", "broker_projection"]
+      }
+    },
+    {
+      "metric_id": "metric.launcher.microvm.warm_start.wall_ms",
+      "subsystem": "launcher",
+      "runtime_regime": "microvm_warm",
+      "fixture_id": "launcher.microvm.signed-runtime.v1",
+      "measurement_kind": "latency",
+      "unit": "ms",
+      "authoritative_environment": "linux_shared_ci",
+      "sampling_policy": {"trials": 10, "median_max_authoritative": true},
+      "budget_class": "absolute-budget",
+      "threshold": {"max_value": 3000},
+      "lane_authority": "informational_until_stable",
+      "activation_state": "informational",
+      "comparison_method": "max_ceiling",
+      "threshold_origin": "temporary_guardrail",
+      "timing_boundary": {
+        "start_event": "launcher.verified_cache_lookup.start",
+        "end_event": "broker.runtime_ready.projected",
+        "clock_source": "monotonic",
+        "evidence_source": "runtime_evidence_and_broker_projection",
+        "included_phases": ["verified_cache_hit", "launch", "broker_projection"]
+      }
+    },
+    {
+      "metric_id": "metric.launcher.container.cold_start.wall_ms",
+      "subsystem": "launcher",
+      "runtime_regime": "container_cold",
+      "fixture_id": "launcher.container.signed-runtime.v1",
+      "measurement_kind": "latency",
+      "unit": "ms",
+      "authoritative_environment": "linux_shared_ci",
+      "sampling_policy": {"trials": 10, "median_max_authoritative": true},
+      "budget_class": "absolute-budget",
+      "threshold": {"max_value": 4000},
+      "lane_authority": "informational_until_stable",
+      "activation_state": "informational",
+      "comparison_method": "max_ceiling",
+      "threshold_origin": "temporary_guardrail",
+      "timing_boundary": {
+        "start_event": "launcher.runtime_admission.start",
+        "end_event": "broker.runtime_ready.projected",
+        "clock_source": "monotonic",
+        "evidence_source": "runtime_evidence_and_broker_projection",
+        "included_phases": ["signature_verification", "component_digest_verification", "admission", "launch", "broker_projection"]
+      }
+    },
+    {
+      "metric_id": "metric.launcher.container.warm_start.wall_ms",
+      "subsystem": "launcher",
+      "runtime_regime": "container_warm",
+      "fixture_id": "launcher.container.signed-runtime.v1",
+      "measurement_kind": "latency",
+      "unit": "ms",
+      "authoritative_environment": "linux_shared_ci",
+      "sampling_policy": {"trials": 10, "median_max_authoritative": true},
+      "budget_class": "absolute-budget",
+      "threshold": {"max_value": 2000},
+      "lane_authority": "informational_until_stable",
+      "activation_state": "informational",
+      "comparison_method": "max_ceiling",
+      "threshold_origin": "temporary_guardrail",
+      "timing_boundary": {
+        "start_event": "launcher.verified_cache_lookup.start",
+        "end_event": "broker.runtime_ready.projected",
+        "clock_source": "monotonic",
+        "evidence_source": "runtime_evidence_and_broker_projection",
+        "included_phases": ["verified_cache_hit", "launch", "broker_projection"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "schema_version":"runecode.performance.baseline.v1",
+  "metric_id": "metric.runner.protocol_fixtures.wall_ms",
+  "unit": "ms",
+  "samples": [2650, 2725, 2685, 2710, 2690],
+  "summary": {
+    "median": 2690
+  }
+}
