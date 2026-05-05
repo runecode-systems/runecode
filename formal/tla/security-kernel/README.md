@@ -51,3 +51,9 @@ TLC wiring is owned by the CI/tooling lane. When TLC tooling is available, run w
 - configs:
   - `formal/tla/security-kernel/SecurityKernelV0.core.cfg`
   - `formal/tla/security-kernel/SecurityKernelV0.replay.cfg`
+
+Convenience recipes:
+
+- `just model-check-core` runs the faster core PR gate.
+- `just model-check-replay` runs the broader replay model.
+- `just model-check` runs both and is included in full local `just ci` parity.

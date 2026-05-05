@@ -146,6 +146,32 @@ func TestFindRepoRootWalksUpToRepoMarkers(t *testing.T) {
 	}
 }
 
+func TestSelectedModelConfigs(t *testing.T) {
+	tests := []struct {
+		mode string
+		want []string
+	}{
+		{mode: "all", want: []string{"SecurityKernelV0.core.cfg", "SecurityKernelV0.replay.cfg"}},
+		{mode: "core", want: []string{"SecurityKernelV0.core.cfg"}},
+		{mode: "replay", want: []string{"SecurityKernelV0.replay.cfg"}},
+	}
+	for _, test := range tests {
+		got, err := selectedModelConfigs(test.mode)
+		if err != nil {
+			t.Fatalf("selectedModelConfigs(%q) error = %v, want nil", test.mode, err)
+		}
+		if !reflect.DeepEqual(got, test.want) {
+			t.Fatalf("selectedModelConfigs(%q) = %#v, want %#v", test.mode, got, test.want)
+		}
+	}
+}
+
+func TestSelectedModelConfigsRejectsUnknownMode(t *testing.T) {
+	if _, err := selectedModelConfigs("unknown"); err == nil {
+		t.Fatal("selectedModelConfigs error = nil, want unsupported mode failure")
+	}
+}
+
 func lookPathStub(entries map[string]string) func(string) (string, error) {
 	return func(file string) (string, error) {
 		if path, ok := entries[file]; ok {

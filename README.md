@@ -173,7 +173,7 @@ This quick path verifies signed checksums and the signed archive before install.
 - Signed runtime-image and runtime-toolchain identity contracts, typed verifier-authority state, trusted admission into a launcher-private verified runtime cache, and fail-closed launch from verified local assets rather than mutable host paths or ad hoc launch-time synthesis
 - Durable launcher runtime evidence persistence and broker-derived authoritative runtime projection for `backend_kind`, `isolation_assurance_level`, `provisioning_posture`, lifecycle, terminal state, and runtime attestation support or verification posture from persisted evidence rather than transient launcher state, with supported `attested` posture only earned after secure-session validation, post-handshake runtime evidence collection, and trusted verification
 - Broker-owned runtime audit emission for `runtime_launch_admission`, `runtime_launch_denied`, `isolate_session_started`, and `isolate_session_bound`, with reference-heavy payloads bound to persisted launcher evidence digests and later attestation linkage added from persisted post-handshake evidence rather than optimistic launch-time fields
-- Checked-in bounded TLA+ security-kernel artifacts plus deterministic TLC model-checking wired into `just model-check` and `just ci`
+- Checked-in bounded TLA+ security-kernel artifacts plus deterministic TLC model-checking wired into `just model-check`, `just model-check-core`, and `just ci`
 
 Still incremental / not implemented end-to-end yet:
 - Secure-storage posture projection and broader provider auth modes remain incremental, but direct-credential provider setup and execution now exist for OpenAI-compatible and Anthropic-compatible endpoints on the shared provider substrate
@@ -240,6 +240,7 @@ Common commands:
 just fmt
 just lint
 just model-check
+just model-check-core
 just test
 just ci
 ```
@@ -260,6 +261,8 @@ Formal model checking entrypoint:
 
 ```sh
 just model-check
+just model-check-core
+just model-check-replay
 ```
 
 Optional: enable automatic dev-shell entry with `direnv` + `nix-direnv`:

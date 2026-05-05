@@ -3,6 +3,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -29,13 +30,23 @@ var (
 )
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "tlc model check failed: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func run(args []string) error {
+	fs := flag.NewFlagSet("tlccheck", flag.ContinueOnError)
+	mode := fs.String("mode", "all", "model-check mode: all, core, or replay")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	configs, err := selectedModelConfigs(*mode)
+	if err != nil {
+		return err
+	}
+
 	repoRoot, err := resolveRepoRoot()
 	if err != nil {
 		return err
@@ -51,7 +62,7 @@ func run() error {
 		return err
 	}
 
-	for _, cfg := range modelConfigs {
+	for _, cfg := range configs {
 		cfgPath := filepath.Join(specDir, cfg)
 		if err := ensureFile(cfgPath); err != nil {
 			return err

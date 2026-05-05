@@ -80,6 +80,7 @@ Parallelization: can proceed once the semantic freeze above is settled; keep the
 - [x] Add a dedicated `just` recipe for model checking.
 - [x] Add the required TLA+ and TLC tooling to the dev shell and CI environment explicitly.
 - [x] Run model checking in `just ci` and fail closed on invariant violations.
+- [x] Split CI scheduling so security-kernel-relevant PR diffs run the faster core model, while merge queue and `main` run the full model.
 - [x] Keep the repo clean and deterministic after local or CI model checking.
 
 Parallelization: can be implemented in parallel with spec authoring once the toolchain and CI ownership are agreed.

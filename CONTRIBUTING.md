@@ -60,7 +60,7 @@ The canonical local workflow uses Nix + `just`:
 - Prerequisite: Nix `>= 2.18`
 - Optional auto-entry: `direnv` + `nix-direnv`
 - Canonical command surface: `just`
-- CI runs one canonical `just ci` lane plus portability lanes (`just ci-portability`) to avoid duplicating model-check runtime cost across every matrix leg
+- CI runs fast canonical checks plus a dedicated Linux formal-security gate to avoid duplicating model-check runtime cost across every matrix leg
 
 ### Use the dev shell manually
 
