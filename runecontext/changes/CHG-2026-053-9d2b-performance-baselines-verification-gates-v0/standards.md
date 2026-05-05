@@ -18,6 +18,11 @@ That includes freezing the following clarifications for the first gate set:
 - performance checks must respect the same trust boundaries and broker-owned authority surfaces as correctness checks
 - TUI empty-idle and waiting-state costs are distinct product regimes and must not be collapsed into one metric
 - broker request latency, watch-family cost, runner startup, supported workflow execution, launcher startup, gateway overhead, audit verification, external audit anchoring, and attach or resume paths all need explicit budgets
+- performance-contract artifacts remain separate from project-substrate assurance baseline state; `runecontext/assurance/baseline.yaml` is not the home for CHG-053 threshold declarations
+- the first gate set uses an explicit metric taxonomy across exact, absolute-budget, regression-budget, and hybrid-budget checks rather than one generic benchmark bucket
+- timing boundaries must terminate on reviewed broker-owned or persisted milestones whenever those authoritative surfaces exist downstream in the product contract
+- the first implementation slice uses reviewed statistical defaults per metric class rather than one universal statistics rule for every check
+- the first gate set should start with one small reviewed fixture inventory per major surface, while larger fixture ladders remain explicit post-MVP expansion work
 - the supported first-party workflow-pack beta slice needs explicit budgets now, while broader workflow-pack surfaces should be expanded later under `CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0`
 - Linux is the first authoritative numeric gate for this layer, while broader cross-platform tuning should remain explicit post-MVP work
 - threshold updates and baseline refreshes require explicit review rather than silent CI mutation

@@ -34,6 +34,19 @@ At the same time, the repository now has a broader set of performance surfaces t
   - benchmarked render, watch, orchestration, and backend paths
 - Introduce deterministic performance checks for the supported beta surfaces only.
 - Assign per-aspect thresholds that are suitable for CI, with Linux-first numeric gates and deterministic local fixtures or stubs instead of live external dependencies.
+- Define one reviewed performance-contract artifact family separate from `runecontext/assurance/baseline.yaml` so project-substrate assurance posture and performance-governance posture remain distinct.
+- Freeze one metric taxonomy for the first gate set so each measurement uses the right contract model instead of one vague "benchmark" bucket:
+  - exact checks for exact counters and invariant counts
+  - absolute budgets for user-visible experience ceilings
+  - regression budgets for stable repeated microbenchmarks and hot paths
+  - hybrid budgets where both explicit product ceilings and baseline-regression limits matter
+- Freeze the initial statistical defaults for the first implementation slice:
+  - repeated-sample robust comparison for microbenchmarks
+  - median plus `p95` plus explicit ceilings for latency metrics
+  - fixed-window repeated sampling with average or median plus max ceilings for CPU and process-behavior metrics
+  - exact comparison for deterministic event-count, payload-count, and duplicate-work metrics
+  - practical noise-floor thresholds in addition to statistical significance for repeated regression checks
+- Freeze the rule that performance timing boundaries must terminate on reviewed broker-owned or persisted milestones rather than advisory launcher-local or client-local heuristics whenever authoritative downstream milestones exist.
 - Keep performance verification check-only and CI-safe so it remains compatible with `just ci` discipline and does not introduce silent writes or mutable benchmark artifacts during normal verification.
 - Freeze a policy for baseline maintenance so future work can tighten thresholds intentionally instead of letting them drift implicitly.
 - Include dependency-fetch and offline-cache performance as an MVP product regime, including cache miss, cache hit, miss coalescing, bounded concurrency, stream-to-CAS persistence, and broker-mediated offline dependency staging or materialization costs.
@@ -41,6 +54,9 @@ At the same time, the repository now has a broader set of performance surfaces t
 - Include explicit measurement of the supported CHG-049 first-party workflow-pack beta slice rather than every broader workflow-pack surface.
 - Include explicit measurement of the required attestation path for supported runtime startup and attach flows, including cold verification, warm verification-cache hits, replay and freshness checks, and persisted attestation-evidence handling.
 - Include explicit measurement of the external audit anchoring path, including prepare latency, execute handoff latency, deferred completion handling, target-proof admission cost, and verifier behavior on unchanged verified seals.
+- Freeze one small reviewed MVP fixture inventory per major surface for the first gate set rather than starting with broad ladder coverage; larger fixture ladders remain post-MVP expansion work.
+- Treat dependency-fetch memory posture as an explicit architectural contract, measured through both coarse process memory observations and reviewed internal bounded-buffer instrumentation so stream-to-CAS behavior is verified directly rather than inferred only from RSS.
+- Keep the first required Linux performance lane compatible with shared CI where thresholds are conservative enough to remain deterministic, while leaving room to promote selected high-noise metrics to a tighter authoritative Linux environment later without changing product architecture or metric identity.
 - Defer broader workflow-pack surfaces, git-gateway performance expansion, larger fixture ladders, and tuned macOS or Windows numeric gates to `CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0`.
 
 ## Why Now
@@ -55,10 +71,13 @@ Capturing that distinction now prevents future work from overfitting to the wron
 
 ## Assumptions
 - Linux CI will remain the first authoritative numeric-gate environment for the initial MVP performance program.
+- Shared hosted Linux CI is acceptable for the first required numeric-gate slice where thresholds are deliberately conservative and metric noise is understood; the design may later promote selected high-noise metrics to a tighter Linux environment without redefining the product contract.
 - Deterministic local fixtures, synthetic stores, stubbed provider backends, and stubbed external anchor targets are acceptable and preferred for CI gating.
 - Network round-trip time to external providers is out of scope for hard CI gates; only RuneCode-added overhead should be measured under deterministic stubs.
 - Performance checks must not weaken trust boundaries, bypass audit or policy, or replace canonical broker-owned state with client-local shortcuts.
 - The supported beta workflow slice is the right first workflow gate set; broader workflow-pack entry families and post-MVP workflow surfaces should be measured later rather than broadening the first beta gate set prematurely.
+- The first performance implementation slice should start with the reviewed statistical defaults captured by this change and tune them only after implementation and validation data shows that a given metric class needs different handling.
+- External audit anchoring and truthful post-handshake attestation performance suites should align explicitly with the underlying reviewed changes they measure rather than relying on sequencing folklore.
 - Broader macOS and Windows numeric performance gates should follow later platform tuning work rather than blocking Linux-first beta readiness.
 
 ## Out of Scope
@@ -79,6 +98,9 @@ This change gives RuneCode one canonical planning surface for the first durable 
 - the distinction between empty-idle and waiting-state costs
 - the deterministic benchmark and latency checks needed across the supported beta surface
 - the per-aspect thresholds and CI structure required to make performance a maintained contract rather than an anecdotal concern
+- the explicit metric taxonomy, statistical defaults, and practical noise-floor policy for the first durable gate set
+- the explicit rule that reviewed broker-owned or persisted milestones are authoritative timing boundaries for performance checks
+- the explicit separation between project-substrate assurance baseline state and reviewed performance-contract artifacts
 - the explicit expectation that dependency-fetch performance must be measured on both cold-cache and warm-cache paths without weakening trust boundaries or buffering full dependency payloads in memory
 - the explicit expectation that the supported first-party workflow slice becomes a measurable product surface rather than invisible orchestration overhead
 - the explicit expectation that launcher and attach-ready performance checks measure the reviewed signed-runtime plus required-attestation trust path rather than rewarding bypasses around attestation verification, replay or freshness enforcement, or attestation evidence persistence

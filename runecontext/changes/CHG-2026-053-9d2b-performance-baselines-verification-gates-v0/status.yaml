@@ -11,8 +11,11 @@ context_bundles:
 related_specs: []
 related_decisions: []
 related_changes:
+  - CHG-2026-025-5679-external-audit-anchoring-v0
+  - CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0
   - CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0
 depends_on:
+  - CHG-2026-025-5679-external-audit-anchoring-v0
   - CHG-2026-008-62e1-broker-local-api-v0
   - CHG-2026-011-7240-secretsd-model-gateway-v0
   - CHG-2026-012-f1ef-workflow-runner-workspace-roles-deterministic-gates-v0
@@ -22,6 +25,7 @@ depends_on:
   - CHG-2026-048-6b7a-session-execution-orchestration-v0
   - CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0
   - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
+  - CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0
 informed_by:
   - CHG-2026-009-1672-launcher-microvm-backend-v0
   - CHG-2026-037-91be-tui-multi-session-power-workspace-v0

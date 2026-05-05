@@ -19,7 +19,7 @@
 - Confirmed the post-fix waiting transcript still rendered a `WAITING session=sess-manual-multiwait` marker, so the CPU improvement did not come from suppressing the operator-visible waiting cue.
 
 ## Planned Automated Checks
-- `go test ./cmd/runecode-tui -bench 'BenchmarkShell(View|Watch|BuildPaletteEntries)' -benchmem`
+- `go test ./cmd/runecode-tui -bench 'Benchmark(ShellViewEmpty|ShellViewWaitingSession|ShellWatchApply|BuildPaletteEntries)' -benchmem`
 - deterministic PTY-based TUI empty-idle CPU gate
 - deterministic PTY-based TUI waiting-state CPU gate
 - deterministic broker unary local API latency suite
@@ -33,15 +33,21 @@
 - Confirm the change records the most important methodological correction: socket isolation is not broker-store isolation.
 - Confirm the design captures the profile-backed render and allocation hot spots, not just the top-line CPU numbers.
 - Confirm performance checks are proposed for the supported MVP beta surfaces rather than the full eventual product surface.
+- Confirm the change defines a reviewed performance-contract artifact family separate from `runecontext/assurance/baseline.yaml`.
+- Confirm the design freezes a metric taxonomy across exact, absolute-budget, regression-budget, and hybrid-budget checks.
+- Confirm the design freezes the reviewed statistical defaults for repeated microbenchmarks, latency metrics, CPU/process-behavior metrics, and exact metrics.
+- Confirm repeated-sample regression checks use a practical noise-floor policy in addition to significance or interval-based comparison logic.
+- Confirm authoritative timing boundaries terminate on reviewed broker-owned or persisted milestones rather than advisory launcher-local or client-local proxies when reviewed downstream authority surfaces exist.
 - Confirm the refined CHG-050 workflow path is measured explicitly, including validation or canonicalization, trusted compilation, compiled-plan persistence/load, and runner startup from immutable `RunPlan`.
 - Confirm the supported CHG-049 workflow-pack beta slice is measured explicitly while broader workflow-pack surfaces are deferred.
 - Confirm dependency-fetch and offline-cache have explicit cold-cache, warm-cache, miss-coalescing, and materialization checks.
-- Confirm dependency-fetch performance checks preserve the reviewed stream-to-CAS and bounded-memory posture rather than rewarding trust-boundary shortcuts.
+- Confirm dependency-fetch performance checks preserve the reviewed stream-to-CAS and bounded-memory posture rather than rewarding trust-boundary shortcuts, and that bounded-buffer instrumentation exists in addition to coarse process-memory observation.
 - Confirm external audit anchoring has explicit checks for prepare latency, execute-completed latency, execute-deferred handoff latency, deferred completion visibility, and receipt admission over an unchanged verified seal.
 - Confirm external audit anchoring performance checks do not reward forbidden shortcuts such as network I/O under audit-ledger lock, bypassing authoritative verifier admission, or forcing full verifier replay as the only normal receipt-admission path.
 - Confirm launcher cold and warm startup checks are defined in terms of the signed runtime-asset path.
 - Confirm attestation cold and warm checks are defined in terms of the required attestation trust path.
 - Confirm launcher and attach-ready performance checks do not reward bypassing attestation verification, replay checks, freshness checks, or attestation evidence persistence.
+- Confirm the first required Linux lane is scoped to metrics stable enough for shared hosted Linux thresholds, while leaving room to promote selected higher-noise metrics later without changing metric identity or product architecture.
 - Confirm the roadmap places this work under `v0.1.0-alpha.11`.
 - Confirm broader workflow-pack expansion, git-gateway expansion, larger fixture ladders, and tuned macOS or Windows numeric gates are deferred to `CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0`.
 - Confirm the change keeps performance verification check-only and CI-safe.
