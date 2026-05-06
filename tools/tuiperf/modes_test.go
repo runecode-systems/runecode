@@ -5,10 +5,41 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/runecode-ai/runecode/internal/tuiperf"
 )
+
+func TestRunModeUnsupportedModeReturnsUsageError(t *testing.T) {
+	t.Parallel()
+
+	err := runMode(config{mode: "unknown"})
+	if err == nil {
+		t.Fatal("runMode error = nil, want usage error")
+	}
+	var usageErr usageError
+	if !errors.As(err, &usageErr) {
+		t.Fatalf("runMode error = %T, want usageError", err)
+	}
+}
+
+func TestRunBenchParseModeRequiresBenchOutputAsUsageError(t *testing.T) {
+	t.Parallel()
+
+	err := runBenchParseMode(config{})
+	if err == nil {
+		t.Fatal("runBenchParseMode error = nil, want usage error")
+	}
+	var usageErr usageError
+	if !errors.As(err, &usageErr) {
+		t.Fatalf("runBenchParseMode error = %T, want usageError", err)
+	}
+}
 
 func TestCollectLatencySamplesFromFreshSpawnStartsAndStopsPerTrial(t *testing.T) {
 	t.Parallel()
@@ -142,5 +173,49 @@ func TestCollectLatencySamplesFromFreshSpawnMeasuresFromPreSpawnStart(t *testing
 	)
 	if err != nil {
 		t.Fatalf("collectLatencySamplesFromFreshSpawn error = %v", err)
+	}
+}
+
+func TestWaitForMarkerAfterSkipsStaleEvents(t *testing.T) {
+	t.Parallel()
+	events := make(chan tuiperf.MarkerEvent, 3)
+	start := time.Now()
+	events <- tuiperf.MarkerEvent{Marker: "Runecode TUI α shell", At: start.Add(-time.Millisecond)}
+	events <- tuiperf.MarkerEvent{Marker: "Runecode TUI α shell", At: start.Add(time.Millisecond)}
+	got, err := waitForMarkerAfter(events, "Runecode TUI α shell", start, time.Second)
+	if err != nil {
+		t.Fatalf("waitForMarkerAfter error = %v", err)
+	}
+	if got.Before(start) {
+		t.Fatalf("got = %s, want >= %s", got, start)
+	}
+}
+
+func TestRunBenchParseModeStoresBenchOutputBaseName(t *testing.T) {
+	t.Parallel()
+	tmp := t.TempDir()
+	benchPath := filepath.Join(tmp, "bench.txt")
+	outputPath := filepath.Join(tmp, "out.json")
+	content := strings.Join([]string{
+		"BenchmarkShellViewEmpty-8 1000 10 ns/op",
+		"BenchmarkShellViewWaitingSession-8 1000 11 ns/op",
+		"BenchmarkShellWatchApply-8 1000 12 ns/op",
+		"BenchmarkBuildPaletteEntries-8 1000 13 ns/op",
+	}, "\n") + "\n"
+	if err := os.WriteFile(benchPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile benchPath: %v", err)
+	}
+	if err := runBenchParseMode(config{benchOutput: benchPath, outputPath: outputPath}); err != nil {
+		t.Fatalf("runBenchParseMode error = %v", err)
+	}
+	raw, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("ReadFile output: %v", err)
+	}
+	if strings.Contains(string(raw), benchPath) {
+		t.Fatalf("output leaked full bench path: %s", benchPath)
+	}
+	if !strings.Contains(string(raw), filepath.Base(benchPath)) {
+		t.Fatalf("output missing bench basename: %s", filepath.Base(benchPath))
 	}
 }

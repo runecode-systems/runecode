@@ -20,8 +20,28 @@ func waitForMarker(events <-chan tuiperf.MarkerEvent, marker string, timeout tim
 	deadline := time.After(timeout)
 	for {
 		select {
-		case ev := <-events:
+		case ev, ok := <-events:
+			if !ok {
+				return time.Time{}, fmt.Errorf("marker stream closed before marker %q", marker)
+			}
 			if ev.Marker == marker {
+				return ev.At, nil
+			}
+		case <-deadline:
+			return time.Time{}, fmt.Errorf("timeout waiting for marker %q", marker)
+		}
+	}
+}
+
+func waitForMarkerAfter(events <-chan tuiperf.MarkerEvent, marker string, earliest time.Time, timeout time.Duration) (time.Time, error) {
+	deadline := time.After(timeout)
+	for {
+		select {
+		case ev, ok := <-events:
+			if !ok {
+				return time.Time{}, fmt.Errorf("marker stream closed before marker %q", marker)
+			}
+			if ev.Marker == marker && !ev.At.Before(earliest) {
 				return ev.At, nil
 			}
 		case <-deadline:

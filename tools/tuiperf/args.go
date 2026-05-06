@@ -28,7 +28,7 @@ func runMode(cfg config) error {
 	case "bench-parse":
 		return runBenchParseMode(cfg)
 	default:
-		return fmt.Errorf("unsupported mode %q", cfg.mode)
+		return usageError{err: fmt.Errorf("unsupported mode %q", cfg.mode)}
 	}
 }
 

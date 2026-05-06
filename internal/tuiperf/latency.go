@@ -2,6 +2,7 @@ package tuiperf
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"sort"
@@ -14,10 +15,27 @@ type MarkerEvent struct {
 	At     time.Time
 }
 
-func WatchMarkers(r io.Reader, markers []string, sink chan<- MarkerEvent) {
-	if len(markers) == 0 {
+func WatchMarkers(ctx context.Context, r io.Reader, markers []string, sink chan<- MarkerEvent) {
+	defer close(sink)
+	want := markerSet(markers)
+	if len(want) == 0 {
 		return
 	}
+	ctx = normalizeMarkerContext(ctx)
+	done := watchMarkerCancellation(ctx, r)
+	defer close(done)
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		if emitMarkerMatches(ctx, sink, scanner.Text(), want) {
+			return
+		}
+		if markerContextDone(ctx) {
+			return
+		}
+	}
+}
+
+func markerSet(markers []string) map[string]struct{} {
 	want := map[string]struct{}{}
 	for _, marker := range markers {
 		trimmed := strings.TrimSpace(marker)
@@ -26,14 +44,52 @@ func WatchMarkers(r io.Reader, markers []string, sink chan<- MarkerEvent) {
 		}
 		want[trimmed] = struct{}{}
 	}
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		line := scanner.Text()
-		for marker := range want {
-			if strings.Contains(line, marker) {
-				sink <- MarkerEvent{Marker: marker, At: time.Now()}
-			}
+	return want
+}
+
+func normalizeMarkerContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
+}
+
+func watchMarkerCancellation(ctx context.Context, r io.Reader) chan struct{} {
+	done := make(chan struct{})
+	closer, ok := r.(io.ReadCloser)
+	if !ok {
+		return done
+	}
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = closer.Close()
+		case <-done:
 		}
+	}()
+	return done
+}
+
+func emitMarkerMatches(ctx context.Context, sink chan<- MarkerEvent, line string, want map[string]struct{}) bool {
+	for marker := range want {
+		if !strings.Contains(line, marker) {
+			continue
+		}
+		select {
+		case sink <- MarkerEvent{Marker: marker, At: time.Now()}:
+		case <-ctx.Done():
+			return true
+		}
+	}
+	return false
+}
+
+func markerContextDone(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
 	}
 }
 

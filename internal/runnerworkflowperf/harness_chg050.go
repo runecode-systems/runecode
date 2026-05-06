@@ -62,14 +62,16 @@ func buildPersistAndLoadCHG050(tmpRoot string) (float64, float64, float64, error
 }
 
 func buildCHG050CompileInput() (runplan.CompileInput, float64, error) {
+	validationCanonicalizationStart := time.Now()
 	processBytes, processHash, err := marshalCHG050ProcessDefinition()
 	if err != nil {
 		return runplan.CompileInput{}, 0, err
 	}
-	workflowBytes, validationCanonicalizationMS, err := marshalCHG050WorkflowDefinition(processHash)
+	workflowBytes, err := marshalCHG050WorkflowDefinition(processHash)
 	if err != nil {
 		return runplan.CompileInput{}, 0, err
 	}
+	validationCanonicalizationMS := float64(time.Since(validationCanonicalizationStart).Milliseconds())
 	return runplan.CompileInput{RunID: "run-chg050", PlanID: "plan-chg050-v1", CompiledAt: time.Date(2026, time.March, 20, 10, 0, 0, 0, time.UTC), WorkflowDefinitionBytes: workflowBytes, ProcessDefinitionBytes: processBytes, ProjectContextIdentityDigest: "sha256:" + strings.Repeat("3", 64), PolicyContextHash: "sha256:" + strings.Repeat("4", 64), ExecutorRegistry: policyengine.BuildExecutorRegistryProjection()}, validationCanonicalizationMS, nil
 }
 
@@ -86,18 +88,17 @@ func marshalCHG050ProcessDefinition() ([]byte, string, error) {
 	return processBytes, policyengine.HashCanonicalJSONBytes(processCanonical), nil
 }
 
-func marshalCHG050WorkflowDefinition(processHash string) ([]byte, float64, error) {
+func marshalCHG050WorkflowDefinition(processHash string) ([]byte, error) {
 	workflowDefinition := map[string]any{"schema_id": "runecode.protocol.v0.WorkflowDefinition", "schema_version": "0.5.0", "workflow_id": "workflow_chg050", "workflow_version": "1.0.0", "selected_process_id": "process_chg050", "selected_process_definition_hash": processHash, "reviewed_process_artifacts": []map[string]any{{"process_id": "process_chg050", "process_definition_hash": processHash}}, "approval_profile": "moderate", "autonomy_posture": "balanced"}
 	workflowBytes, err := json.Marshal(workflowDefinition)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
-	validateStart := time.Now()
 	_, err = policyengine.CanonicalizeJSONBytes(workflowBytes)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
-	return workflowBytes, float64(time.Since(validateStart).Milliseconds()), nil
+	return workflowBytes, nil
 }
 
 func persistAndLoadCHG050RunPlan(tmpRoot string, plan runplan.RunPlan) (float64, error) {

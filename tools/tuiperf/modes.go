@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -100,7 +101,7 @@ func collectLatencySamplesFromFreshSpawn(
 
 func collectLatencySampleFromHarness(h runningHarness, marker string, start time.Time) (float64, float64, error) {
 	events := make(chan tuiperf.MarkerEvent, 64)
-	go tuiperf.WatchMarkers(h.tuiOut, []string{marker}, events)
+	go tuiperf.WatchMarkers(h.ctx, h.tuiOut, []string{marker}, events)
 	attachAt, err := waitForMarker(events, marker, latencyMarkerTimeout)
 	if err != nil {
 		return 0, 0, err
@@ -109,7 +110,7 @@ func collectLatencySampleFromHarness(h runningHarness, marker string, start time
 	if _, err := io.WriteString(h.tuiIn, "\t"); err != nil {
 		return 0, 0, err
 	}
-	keyAt, err := waitForMarker(events, marker, latencyMarkerTimeout)
+	keyAt, err := waitForMarkerAfter(events, marker, keyStart, latencyMarkerTimeout)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -137,7 +138,7 @@ func latencyMeasurementsForFixture(fixtureID string, attachP95, keyP95 float64) 
 
 func runBenchParseMode(cfg config) error {
 	if strings.TrimSpace(cfg.benchOutput) == "" {
-		return fmt.Errorf("bench-parse mode requires --bench-output")
+		return usageError{err: fmt.Errorf("bench-parse mode requires --bench-output")}
 	}
 	file, err := os.Open(cfg.benchOutput)
 	if err != nil {
@@ -153,5 +154,5 @@ func runBenchParseMode(cfg config) error {
 	if err != nil {
 		return err
 	}
-	return writeEnvelope(cfg.outputPath, checkEnvelope{SchemaVersion: checkSchemaVersion, Metadata: map[string]any{"mode": "bench-parse", "bench_output": cfg.benchOutput}, Measurements: measurements})
+	return writeEnvelope(cfg.outputPath, checkEnvelope{SchemaVersion: checkSchemaVersion, Metadata: map[string]any{"mode": "bench-parse", "bench_output": filepath.Base(cfg.benchOutput)}, Measurements: measurements})
 }

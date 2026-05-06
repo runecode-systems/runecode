@@ -3,15 +3,19 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
+
+const terminateGracePeriod = 2 * time.Second
 
 type runningHarness struct {
 	ctx       context.Context
@@ -56,10 +60,10 @@ func requireTUIFixtureConfig(cfg config) error {
 		return err
 	}
 	if cfg.fixtureID != "tui.empty.v1" && cfg.fixtureID != "tui.waiting.v1" {
-		return fmt.Errorf("mode requires --fixture-id tui.empty.v1|tui.waiting.v1")
+		return usageError{err: fmt.Errorf("mode requires --fixture-id tui.empty.v1|tui.waiting.v1")}
 	}
 	if cfg.trials <= 0 {
-		return fmt.Errorf("--trials must be > 0")
+		return usageError{err: fmt.Errorf("--trials must be > 0")}
 	}
 	return nil
 }
@@ -74,20 +78,22 @@ func prepareTUIIsolation(cfg config) error {
 	if err := os.Chmod(cfg.runtimeDir, 0o700); err != nil {
 		return err
 	}
-	return os.MkdirAll(cfg.auditLedgerRoot, 0o755)
+	return os.MkdirAll(cfg.auditLedgerRoot, 0o700)
 }
 
 func startBrokerProcess(ctx context.Context, cfg config) (*exec.Cmd, error) {
 	brokerCmd := exec.CommandContext(ctx, "go", "run", "./cmd/runecode-broker", "--state-root", cfg.stateRoot, "--audit-ledger-root", cfg.auditLedgerRoot, "serve-local", "--runtime-dir", cfg.runtimeDir, "--socket-name", cfg.socketName)
 	brokerCmd.Env = os.Environ()
-	brokerCmd.Stdout = io.Discard
-	brokerCmd.Stderr = io.Discard
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	brokerCmd.Stdout = &stdout
+	brokerCmd.Stderr = &stderr
 	if err := brokerCmd.Start(); err != nil {
 		return nil, err
 	}
 	if err := waitForSocket(filepath.Join(cfg.runtimeDir, cfg.socketName), 5*time.Second); err != nil {
 		terminateProcess(brokerCmd.Process)
-		return nil, err
+		return nil, fmt.Errorf("%w; broker startup output available but redacted", err)
 	}
 	return brokerCmd, nil
 }
@@ -117,7 +123,7 @@ func stopHarness(h runningHarness) {
 
 func requireIsolationInputs(cfg config) error {
 	if cfg.runtimeDir == "" || cfg.socketName == "" || cfg.stateRoot == "" || cfg.auditLedgerRoot == "" || cfg.targetAlias == "" {
-		return fmt.Errorf("isolation inputs required: --runtime-dir --socket-name --state-root --audit-ledger-root --target-alias")
+		return usageError{err: fmt.Errorf("isolation inputs required: --runtime-dir --socket-name --state-root --audit-ledger-root --target-alias")}
 	}
 	return nil
 }
@@ -140,6 +146,32 @@ func terminateProcess(p *os.Process) {
 	if p == nil {
 		return
 	}
+	done := make(chan struct{})
+	go func() {
+		_, _ = p.Wait()
+		close(done)
+	}()
 	_ = p.Signal(syscall.SIGTERM)
-	_, _ = p.Wait()
+	select {
+	case <-done:
+		return
+	case <-time.After(terminateGracePeriod):
+	}
+	_ = p.Signal(syscall.SIGKILL)
+	select {
+	case <-done:
+	case <-time.After(terminateGracePeriod):
+	}
+}
+
+func summarizeStartupOutput(raw string) string {
+	text := strings.TrimSpace(raw)
+	if text == "" {
+		return "<empty>"
+	}
+	const maxLen = 200
+	if len(text) <= maxLen {
+		return text
+	}
+	return text[len(text)-maxLen:]
 }
