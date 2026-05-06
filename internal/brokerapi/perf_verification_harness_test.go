@@ -56,8 +56,8 @@ func TestRunPhase5PerformanceHarnessProducesExpectedMetrics(t *testing.T) {
 func TestMeasurePhase5AuditVerificationUsesMedianOfTrials(t *testing.T) {
 	t.Parallel()
 
-	verifySamples := []float64{240, 210, 220}
-	finalizeSamples := []float64{700, 650, 620}
+	verifySamples := []float64{900, 240, 210, 220}
+	finalizeSamples := []float64{1200, 700, 650, 620}
 	verifyCalls := 0
 	finalizeCalls := 0
 	measurements, err := measurePhase5AuditVerification(3, "/repo", time.Second, func(_ string, _ time.Duration, command ...string) (float64, error) {
@@ -80,8 +80,8 @@ func TestMeasurePhase5AuditVerificationUsesMedianOfTrials(t *testing.T) {
 	}
 	assertMetricValue(t, measurements, "metric.audit.verify_current_segment.wall_ms", 220)
 	assertMetricValue(t, measurements, "metric.audit.finalize_verify.wall_ms", 650)
-	if verifyCalls != 3 || finalizeCalls != 3 {
-		t.Fatalf("verifyCalls=%d finalizeCalls=%d, want 3 each", verifyCalls, finalizeCalls)
+	if verifyCalls != 4 || finalizeCalls != 4 {
+		t.Fatalf("verifyCalls=%d finalizeCalls=%d, want 4 each", verifyCalls, finalizeCalls)
 	}
 }
 

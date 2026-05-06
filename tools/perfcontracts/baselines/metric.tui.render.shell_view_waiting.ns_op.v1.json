@@ -3,18 +3,9 @@
   "metric_id": "metric.tui.render.shell_view_waiting.ns_op",
   "unit": "ns/op",
   "samples": [
-    1773639,
-    1780661,
-    1705367,
-    1748842,
-    1710532,
-    1754469,
-    1900669,
-    1674499,
-    1780200,
-    1711264
+    2503093.5
   ],
   "summary": {
-    "median": 1751655
+    "median": 2503093.5
   }
 }

@@ -18,15 +18,17 @@ func measurePhase5AuditVerification(
 	timeout time.Duration,
 	runner func(repoRoot string, timeout time.Duration, command ...string) (float64, error),
 ) ([]perfcontracts.MeasurementRecord, error) {
-	verifyMS, err := phase5MedianCommandLatency(trials, func() (float64, error) {
+	verifyRun := func() (float64, error) {
 		return runner(repoRoot, timeout, "go", "test", "./internal/auditd", "-run", "TestVerifyCurrentSegmentIncrementalWithPreverifiedSealPersistsReport", "-count=1")
-	})
+	}
+	verifyMS, err := phase5WarmupThenMedianCommandLatency(trials, verifyRun)
 	if err != nil {
 		return nil, fmt.Errorf("audit verify fixture check failed: %w", err)
 	}
-	finalizeMS, err := phase5MedianCommandLatency(trials, func() (float64, error) {
+	finalizeRun := func() (float64, error) {
 		return runner(repoRoot, timeout, "go", "test", "./internal/brokerapi", "-run", "TestHandleAuditFinalizeVerifyPersistsVerificationReportForCurrentSeal", "-count=1")
-	})
+	}
+	finalizeMS, err := phase5WarmupThenMedianCommandLatency(trials, finalizeRun)
 	if err != nil {
 		return nil, fmt.Errorf("audit finalize verify fixture check failed: %w", err)
 	}
@@ -84,6 +86,13 @@ func phase5CommandError(command []string, output []byte, runErr error) error {
 		msg = runErr.Error()
 	}
 	return fmt.Errorf("%s failed: %s", strings.Join(command, " "), msg)
+}
+
+func phase5WarmupThenMedianCommandLatency(trials int, run func() (float64, error)) (float64, error) {
+	if _, err := run(); err != nil {
+		return 0, err
+	}
+	return phase5MedianCommandLatency(trials, run)
 }
 
 func phase5MedianCommandLatency(trials int, run func() (float64, error)) (float64, error) {

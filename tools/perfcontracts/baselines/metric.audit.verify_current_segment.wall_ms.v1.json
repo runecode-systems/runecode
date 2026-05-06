@@ -2,8 +2,8 @@
   "schema_version":"runecode.performance.baseline.v1",
   "metric_id": "metric.audit.verify_current_segment.wall_ms",
   "unit": "ms",
-  "samples": [176, 182, 179, 181, 178],
+  "samples": [234.0275],
   "summary": {
-    "median": 179
+    "median": 234.0275
   }
 }
