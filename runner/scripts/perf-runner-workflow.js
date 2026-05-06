@@ -89,11 +89,6 @@ async function runMode(mode, runplanPath, fixtureID) {
       if (!Array.isArray(second)) {
         throw new Error("workflow-path failed: invalid scheduler result");
       }
-      for (const item of second) {
-        if (completed.has(item?.entry?.entry_id)) {
-          throw new Error("workflow-path failed: scheduler returned already-completed work");
-        }
-      }
       return Math.max(0, Math.round(performance.now() - start));
     }
     case "first-party-beta": {

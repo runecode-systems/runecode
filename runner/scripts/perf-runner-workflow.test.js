@@ -159,6 +159,18 @@ test("workflow-path rejects supported fixture when no work is schedulable", () =
   }
 });
 
+test("workflow-path accepts supported fixture and runplan", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-perf-workflow-"));
+  try {
+    const runplanPath = writeRunPlan(root);
+    const result = runPerf("workflow-path", runplanPath, "workflow.first-party-minimal.v1");
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout.trim(), /^\d+$/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("first-party-beta rejects non-supported runplan identity", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-perf-workflow-"));
   try {

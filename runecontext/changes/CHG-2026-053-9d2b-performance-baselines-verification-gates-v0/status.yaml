@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-053-9d2b-performance-baselines-verification-gates-v0
 title: Project Performance Baselines + Verification Gates v0
-status: planned
+status: implemented
 type: feature
 size: large
 verification_status: pending
@@ -13,6 +13,7 @@ related_decisions: []
 related_changes:
   - CHG-2026-025-5679-external-audit-anchoring-v0
   - CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0
+  - CHG-2026-060-c1a4-beta-readiness-hardening-product-polish
   - CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0
 depends_on:
   - CHG-2026-025-5679-external-audit-anchoring-v0
