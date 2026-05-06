@@ -1,7 +1,6 @@
 package brokerperf
 
 import (
-	"path"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -14,7 +13,7 @@ func TestRunDeterministicBrokerHarnessProducesPhase3Metrics(t *testing.T) {
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
-	repoRoot := filepath.Clean(path.Join(filepath.Dir(file), "..", ".."))
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
 	out, err := Run(HarnessConfig{Trials: 2, RepositoryRoot: repoRoot})
 	if err != nil {
 		t.Fatalf("Run returned error: %v", err)

@@ -1,7 +1,6 @@
 package runnerworkflowperf
 
 import (
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -12,11 +11,7 @@ import (
 )
 
 func TestRunProducesPhase4RunnerWorkflowMetrics(t *testing.T) {
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("runtime.Caller failed")
-	}
-	repoRoot := filepath.Clean(path.Join(filepath.Dir(file), "..", ".."))
+	repoRoot := runnerWorkflowRepoRoot(t)
 	out, err := Run(HarnessConfig{RepositoryRoot: repoRoot, CommandRunner: deterministicCommandRunner, CommandTimeout: 10 * time.Second})
 	if err != nil {
 		t.Fatalf("Run returned error: %v", err)
@@ -63,7 +58,7 @@ func runnerWorkflowRepoRoot(t *testing.T) string {
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
-	return filepath.Clean(path.Join(filepath.Dir(file), "..", ".."))
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
 }
 
 func assertModeFixtureArg(t *testing.T, calls [][]string, mode string) {

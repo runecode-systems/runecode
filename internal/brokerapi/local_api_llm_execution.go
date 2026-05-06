@@ -139,9 +139,10 @@ func (s *Service) executeProviderRequest(ctx context.Context, execCtx llmExecuti
 	}
 	req, errResp := s.buildProviderHTTPRequest(ctx, execCtx, body, started)
 	if errResp != nil {
-		return "", int64(len(body)), started, time.Now().UTC(), errResp
+		return "", int64(len(body)), started, normalizeExecutionCompletedAt(started, time.Now().UTC()), errResp
 	}
 	respBody, completed, errResp := s.doProviderHTTPRequest(execCtx, req)
+	completed = normalizeExecutionCompletedAt(started, completed)
 	if errResp != nil {
 		return "", int64(len(body)), started, completed, errResp
 	}
@@ -150,6 +151,13 @@ func (s *Service) executeProviderRequest(ctx context.Context, execCtx llmExecuti
 		return "", int64(len(body)), started, completed, errResp
 	}
 	return text, int64(len(body)), started, completed, nil
+}
+
+func normalizeExecutionCompletedAt(started, completed time.Time) time.Time {
+	if completed.After(started) {
+		return completed
+	}
+	return started.Add(time.Millisecond)
 }
 
 func (s *Service) prepareProviderRequestBody(requestID string, translated map[string]any) ([]byte, time.Time, *ErrorResponse) {
