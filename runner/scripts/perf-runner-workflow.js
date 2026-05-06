@@ -84,10 +84,15 @@ async function runMode(mode, runplanPath, fixtureID) {
       if (!Array.isArray(first) || first.length === 0) {
         throw new Error("workflow-path failed: no schedulable work on supported path");
       }
-      const completed = first.map((w) => w.entry.entry_id);
-      const second = scheduler.listPlannedWork(plan, { pending_approval_waits: [], completed_entry_ids: completed });
-      if (!Array.isArray(second) || second.length !== 0) {
+      const completed = new Set(first.map((w) => w.entry.entry_id));
+      const second = scheduler.listPlannedWork(plan, { pending_approval_waits: [], completed_entry_ids: [...completed] });
+      if (!Array.isArray(second)) {
         throw new Error("workflow-path failed: invalid scheduler result");
+      }
+      for (const item of second) {
+        if (completed.has(item?.entry?.entry_id)) {
+          throw new Error("workflow-path failed: scheduler returned already-completed work");
+        }
       }
       return Math.max(0, Math.round(performance.now() - start));
     }
