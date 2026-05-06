@@ -2,9 +2,14 @@ name: CI
 
 on:
   pull_request:
+  merge_group:
   push:
     branches:
       - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -18,8 +23,8 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            label: ubuntu canonical
-            ci-target: ci
+            label: ubuntu required shared-linux perf
+            ci-target: ci-required-shared-linux
           - os: macos-latest
             label: macos portability
             ci-target: ci-portability
@@ -63,6 +68,74 @@ jobs:
           untracked="$(git ls-files --others --exclude-standard)"
           if [ -n "$untracked" ]; then
             echo "Untracked files found after CI command:"
+            echo "$untracked"
+            exit 1
+          fi
+
+  formal-security-kernel:
+    name: Formal security kernel TLA
+    runs-on: ubuntu-latest
+    env:
+      NIX_CONFIG: |
+        substituters = https://cache.nixos.org
+        trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Detect TLA-relevant PR changes
+        id: tla_changes
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "required=true" >> "$GITHUB_OUTPUT"
+            echo "mode=all" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed_files="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")"
+          if grep -E '^(formal/tla/|tools/tlccheck/|justfile|\.github/workflows/ci\.yml)' <<< "$changed_files"; then
+            echo "required=true" >> "$GITHUB_OUTPUT"
+            echo "mode=all" >> "$GITHUB_OUTPUT"
+          elif grep -E '^(protocol/|internal/|cmd/|runner/|docs/trust-boundaries\.md|runecontext/standards/security/|runecontext/standards/global/|runecontext/changes/CHG-2026-015-[^/]+/)' <<< "$changed_files"; then
+            echo "required=true" >> "$GITHUB_OUTPUT"
+            echo "mode=core" >> "$GITHUB_OUTPUT"
+          else
+            echo "required=false" >> "$GITHUB_OUTPUT"
+            echo "mode=skip" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report TLA skip
+        if: github.event_name == 'pull_request' && steps.tla_changes.outputs.required != 'true'
+        run: echo "No security-kernel-relevant changes detected; TLA model check skipped for this PR diff."
+
+      - name: Install Nix
+        if: steps.tla_changes.outputs.required == 'true'
+        uses: DeterminateSystems/nix-installer-action@c5a866b6ab867e88becbed4467b93592bce69f8a # v21
+
+      - name: Cache Nix store
+        if: steps.tla_changes.outputs.required == 'true'
+        uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
+        with:
+          use-flakehub: false
+
+      - name: Run PR core TLA model check
+        if: github.event_name == 'pull_request' && steps.tla_changes.outputs.mode == 'core'
+        run: nix develop --no-write-lock-file -c just model-check-core
+
+      - name: Run full TLA model check
+        if: steps.tla_changes.outputs.mode == 'all'
+        run: nix develop --no-write-lock-file -c just model-check
+
+      - name: Verify repository unchanged after TLA check
+        if: steps.tla_changes.outputs.required == 'true'
+        run: |
+          git diff --exit-code
+          untracked="$(git ls-files --others --exclude-standard)"
+          if [ -n "$untracked" ]; then
+            echo "Untracked files found after TLA check:"
             echo "$untracked"
             exit 1
           fi

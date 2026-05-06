@@ -1,0 +1,27 @@
+{
+  "schema_version":"runecode.performance.fixtures.v1",
+  "fixtures": [
+    {"fixture_id": "tui.empty.v1", "surface": "tui", "runtime_regime": "empty_idle", "status": "mvp_reviewed"},
+    {"fixture_id": "tui.waiting.v1", "surface": "tui", "runtime_regime": "waiting_state", "status": "mvp_reviewed"},
+    {"fixture_id": "broker.unary.beta-small.v1", "surface": "broker", "runtime_regime": "unary_api", "status": "mvp_reviewed"},
+    {"fixture_id": "broker.watch.run.snapshot-follow.v1", "surface": "broker", "runtime_regime": "watch_run", "status": "mvp_reviewed"},
+    {"fixture_id": "broker.watch.approval.snapshot-follow.v1", "surface": "broker", "runtime_regime": "watch_approval", "status": "mvp_reviewed"},
+    {"fixture_id": "broker.watch.session.snapshot-follow.v1", "surface": "broker", "runtime_regime": "watch_session", "status": "mvp_reviewed"},
+    {"fixture_id": "broker.watch.turn-execution.snapshot-follow.v1", "surface": "broker", "runtime_regime": "watch_turn_execution", "status": "mvp_reviewed"},
+    {"fixture_id": "workflow.first-party-minimal.v1", "surface": "runner-workflow", "runtime_regime": "minimal_workflow", "status": "mvp_reviewed"},
+    {"fixture_id": "workflow.chg050-compile.v1", "surface": "runner-workflow", "runtime_regime": "chg050_compile", "status": "mvp_reviewed"},
+    {"fixture_id": "runner.boundary.minimal.v1", "surface": "runner-workflow", "runtime_regime": "boundary_check", "status": "mvp_reviewed"},
+    {"fixture_id": "launcher.microvm.signed-runtime.v1", "surface": "launcher", "runtime_regime": "microvm_startup", "status": "mvp_reviewed"},
+    {"fixture_id": "launcher.container.signed-runtime.v1", "surface": "launcher", "runtime_regime": "container_startup", "status": "mvp_reviewed"},
+    {"fixture_id": "deps.cache-miss.small.v1", "surface": "dependency", "runtime_regime": "cache_miss", "status": "mvp_reviewed"},
+    {"fixture_id": "deps.cache-hit.small.v1", "surface": "dependency", "runtime_regime": "cache_hit", "status": "mvp_reviewed"},
+    {"fixture_id": "deps.coalesced-miss.small.v1", "surface": "dependency", "runtime_regime": "coalesced_miss", "status": "mvp_reviewed"},
+    {"fixture_id": "audit.ledger.standard.v1", "surface": "audit", "runtime_regime": "verify_finalize", "status": "mvp_reviewed"},
+    {"fixture_id": "protocol.schema.bundle.v1", "surface": "protocol", "runtime_regime": "schema_validation", "status": "mvp_reviewed"},
+    {"fixture_id": "protocol.fixture.parity.v1", "surface": "protocol", "runtime_regime": "fixture_parity", "status": "mvp_reviewed"},
+    {"fixture_id": "anchor.fast-complete.stub.v1", "surface": "external-anchor", "runtime_regime": "execute_fast_complete", "status": "mvp_reviewed"},
+    {"fixture_id": "anchor.deferred.stub.v1", "surface": "external-anchor", "runtime_regime": "execute_deferred", "status": "mvp_reviewed"},
+    {"fixture_id": "attestation.cold.signed-runtime.v1", "surface": "attestation", "runtime_regime": "cold_path", "status": "mvp_reviewed"},
+    {"fixture_id": "attestation.warm.signed-runtime.v1", "surface": "attestation", "runtime_regime": "warm_path", "status": "mvp_reviewed"}
+  ]
+}

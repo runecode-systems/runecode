@@ -8,7 +8,7 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 ### v0.1.0-alpha.11
 
 - Project Performance Baselines + Verification Gates v0
-  - RuneCode establishes the first MVP-grade performance baselines and deterministic Linux-first CI gates for the supported beta surface: TUI idle and waiting behavior, broker APIs and watch families, the supported workflow path, launcher startup with the truthful attestation path, gateway overhead, audit and protocol verification, external audit anchoring, and end-to-end attach or resume flows.
+  - RuneCode establishes the first MVP-grade performance baselines and deterministic Linux-first CI gates for the supported beta surface. The required shared-Linux lane enforces the current `required_shared_linux` subset, while launcher startup/attestation and external audit anchoring contracts are tracked as informational or `contract_pending_dependency` until their dependency paths are fully landed.
   - Planned change: `runecontext/changes/CHG-2026-053-9d2b-performance-baselines-verification-gates-v0/`
 - Beta Readiness Hardening + Product Polish
   - RuneCode closes the remaining product-integration gaps before beta by wiring one honest useful end-to-end workflow through the real trusted and untrusted execution path, tightening operator truth surfaces, and capturing dogfooding-driven polish across the local product UX with emphasis on the TUI.
@@ -189,4 +189,3 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 - Runtime Attestation Post-Handshake Gating v0
   - RuneCode only awards supported `attested` posture after a live runtime completes secure-session validation and post-handshake trusted runtime-proof verification, closing the remaining gap between the reviewed attestation design and launch-time implementation order before beta assurance claims are treated as settled.
   - Planned change: `runecontext/changes/CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0/`
-

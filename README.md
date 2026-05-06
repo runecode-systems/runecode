@@ -1,7 +1,7 @@
 # RuneCode — Security-first AI coding: isolated execution, signed, auditable
 
 [![CI](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml/badge.svg)](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml)
-[![Status: alpha.9 in progress](https://img.shields.io/badge/status-alpha.9%20in%20progress-orange)](runecontext/project/roadmap.md)
+[![Status: alpha.11 in progress](https://img.shields.io/badge/status-alpha.11%20in%20progress-orange)](runecontext/project/roadmap.md)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 RuneCode is a security-first agentic automation platform for software engineering.
@@ -9,7 +9,7 @@ It treats isolation and cryptographic provenance as co-equal pillars: work runs 
 
 ## Status
 
-The latest published release is `v0.1.0-alpha.7`, and the repository mainline already includes `v0.1.0-alpha.9` work in progress.
+The latest published release is `v0.1.0-alpha.7`, and the repository mainline already includes `v0.1.0-alpha.11` work in progress.
 RuneCode remains pre-production: the signed, tag-driven release pipeline exists, but the shipped Go binaries are still scaffold-heavy and not feature-complete.
 
 ## Why RuneCode
@@ -173,7 +173,8 @@ This quick path verifies signed checksums and the signed archive before install.
 - Signed runtime-image and runtime-toolchain identity contracts, typed verifier-authority state, trusted admission into a launcher-private verified runtime cache, and fail-closed launch from verified local assets rather than mutable host paths or ad hoc launch-time synthesis
 - Durable launcher runtime evidence persistence and broker-derived authoritative runtime projection for `backend_kind`, `isolation_assurance_level`, `provisioning_posture`, lifecycle, terminal state, and runtime attestation support or verification posture from persisted evidence rather than transient launcher state, with supported `attested` posture only earned after secure-session validation, post-handshake runtime evidence collection, and trusted verification
 - Broker-owned runtime audit emission for `runtime_launch_admission`, `runtime_launch_denied`, `isolate_session_started`, and `isolate_session_bound`, with reference-heavy payloads bound to persisted launcher evidence digests and later attestation linkage added from persisted post-handshake evidence rather than optimistic launch-time fields
-- Checked-in bounded TLA+ security-kernel artifacts plus deterministic TLC model-checking wired into `just model-check` and `just ci`
+- Checked-in bounded TLA+ security-kernel artifacts plus deterministic TLC model-checking wired into `just model-check`, `just model-check-core`, and `just ci`
+- Reviewed machine-consumed performance contracts under `tools/perfcontracts/`, deterministic performance fixtures and harnesses for TUI, broker, runner or workflow, gateway or dependency or audit or protocol surfaces, and a required shared-Linux CI gate that currently enforces only the checked-in `required_shared_linux` subset while launcher, attestation, and external-anchor surfaces remain informational or `contract_pending_dependency`
 
 Still incremental / not implemented end-to-end yet:
 - Secure-storage posture projection and broader provider auth modes remain incremental, but direct-credential provider setup and execution now exist for OpenAI-compatible and Anthropic-compatible endpoints on the shared provider substrate
@@ -240,8 +241,12 @@ Common commands:
 just fmt
 just lint
 just model-check
+just model-check-core
+just model-check-replay
 just test
+just ci-fast
 just ci
+just ci-required-shared-linux
 ```
 
 Useful protocol-specific checks:
@@ -254,12 +259,14 @@ cd runner && npm test
 cd runner && npm run boundary-check
 ```
 
-These checks are also covered by `just ci`.
+These checks are covered by `just ci`, while the required shared-Linux performance-contract subset runs in the dedicated `just ci-required-shared-linux` lane rather than every local `just ci` run.
 
 Formal model checking entrypoint:
 
 ```sh
 just model-check
+just model-check-core
+just model-check-replay
 ```
 
 Optional: enable automatic dev-shell entry with `direnv` + `nix-direnv`:

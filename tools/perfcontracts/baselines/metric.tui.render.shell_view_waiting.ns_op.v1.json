@@ -1,0 +1,20 @@
+{
+  "schema_version":"runecode.performance.baseline.v1",
+  "metric_id": "metric.tui.render.shell_view_waiting.ns_op",
+  "unit": "ns/op",
+  "samples": [
+    89210,
+    90105,
+    89904,
+    88820,
+    89711,
+    90330,
+    89440,
+    89118,
+    89602,
+    89890
+  ],
+  "summary": {
+    "median": 89656
+  }
+}

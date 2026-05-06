@@ -3,6 +3,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -29,13 +30,28 @@ var (
 )
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:]); err != nil {
+		var usageErr usageError
+		if errors.As(err, &usageErr) {
+			fmt.Fprintf(os.Stderr, "tlccheck usage error: %v\n", err)
+			os.Exit(2)
+		}
 		fmt.Fprintf(os.Stderr, "tlc model check failed: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func run(args []string) error {
+	fs := flag.NewFlagSet("tlccheck", flag.ContinueOnError)
+	mode := fs.String("mode", "all", "model-check mode: all, core, or replay")
+	if err := fs.Parse(args); err != nil {
+		return usageError{err: err}
+	}
+	configs, err := selectedModelConfigs(*mode)
+	if err != nil {
+		return err
+	}
+
 	repoRoot, err := resolveRepoRoot()
 	if err != nil {
 		return err
@@ -51,7 +67,7 @@ func run() error {
 		return err
 	}
 
-	for _, cfg := range modelConfigs {
+	for _, cfg := range configs {
 		cfgPath := filepath.Join(specDir, cfg)
 		if err := ensureFile(cfgPath); err != nil {
 			return err
@@ -199,82 +215,8 @@ func nixTLCRunner(repoRoot, nixPath string) tlcRunner {
 	}
 }
 
-func resolveRepoRoot() (string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("resolve current directory: %w", err)
-	}
+type usageError struct{ err error }
 
-	root, ok := findRepoRoot(cwd)
-	if !ok {
-		return "", fmt.Errorf("resolve repo root from %s: required markers go.mod, justfile, and %s", cwd, specDirRelative)
-	}
+func (e usageError) Error() string { return e.err.Error() }
 
-	return root, nil
-}
-
-func findRepoRoot(start string) (string, bool) {
-	dir := start
-	for {
-		if looksLikeRepoRoot(dir) {
-			return dir, true
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", false
-		}
-		dir = parent
-	}
-}
-
-func looksLikeRepoRoot(path string) bool {
-	if !fileExists(filepath.Join(path, "go.mod")) {
-		return false
-	}
-	if !fileExists(filepath.Join(path, "justfile")) {
-		return false
-	}
-	return dirExists(filepath.Join(path, specDirRelative))
-}
-
-func ensureDir(path string) error {
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("stat dir %s: %w", path, err)
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("expected directory: %s", path)
-	}
-
-	return nil
-}
-
-func ensureFile(path string) error {
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("stat file %s: %w", path, err)
-	}
-	if info.IsDir() {
-		return fmt.Errorf("expected file, got directory: %s", path)
-	}
-
-	return nil
-}
-
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-
-	return !info.IsDir()
-}
-
-func dirExists(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-
-	return info.IsDir()
-}
+func (e usageError) Unwrap() error { return e.err }
