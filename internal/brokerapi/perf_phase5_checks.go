@@ -13,15 +13,20 @@ import (
 )
 
 func measurePhase5AuditVerification(
+	trials int,
 	repoRoot string,
 	timeout time.Duration,
 	runner func(repoRoot string, timeout time.Duration, command ...string) (float64, error),
 ) ([]perfcontracts.MeasurementRecord, error) {
-	verifyMS, err := runner(repoRoot, timeout, "go", "test", "./internal/auditd", "-run", "TestVerifyCurrentSegmentIncrementalWithPreverifiedSealPersistsReport", "-count=1")
+	verifyMS, err := phase5MedianCommandLatency(trials, func() (float64, error) {
+		return runner(repoRoot, timeout, "go", "test", "./internal/auditd", "-run", "TestVerifyCurrentSegmentIncrementalWithPreverifiedSealPersistsReport", "-count=1")
+	})
 	if err != nil {
 		return nil, fmt.Errorf("audit verify fixture check failed: %w", err)
 	}
-	finalizeMS, err := runner(repoRoot, timeout, "go", "test", "./internal/brokerapi", "-run", "TestHandleAuditFinalizeVerifyPersistsVerificationReportForCurrentSeal", "-count=1")
+	finalizeMS, err := phase5MedianCommandLatency(trials, func() (float64, error) {
+		return runner(repoRoot, timeout, "go", "test", "./internal/brokerapi", "-run", "TestHandleAuditFinalizeVerifyPersistsVerificationReportForCurrentSeal", "-count=1")
+	})
 	if err != nil {
 		return nil, fmt.Errorf("audit finalize verify fixture check failed: %w", err)
 	}
@@ -81,6 +86,21 @@ func phase5CommandError(command []string, output []byte, runErr error) error {
 	return fmt.Errorf("%s failed: %s", strings.Join(command, " "), msg)
 }
 
+func phase5MedianCommandLatency(trials int, run func() (float64, error)) (float64, error) {
+	if trials <= 0 {
+		trials = 1
+	}
+	samples := make([]float64, 0, trials)
+	for i := 0; i < trials; i++ {
+		value, err := run()
+		if err != nil {
+			return 0, err
+		}
+		samples = append(samples, value)
+	}
+	return phase5Median(samples)
+}
+
 func phase5P95(values []float64) (float64, error) {
 	if len(values) == 0 {
 		return 0, fmt.Errorf("samples required")
@@ -95,6 +115,19 @@ func phase5P95(values []float64) (float64, error) {
 		idx = len(cp) - 1
 	}
 	return cp[idx], nil
+}
+
+func phase5Median(values []float64) (float64, error) {
+	if len(values) == 0 {
+		return 0, fmt.Errorf("samples required")
+	}
+	cp := append([]float64(nil), values...)
+	sort.Float64s(cp)
+	mid := len(cp) / 2
+	if len(cp)%2 == 0 {
+		return (cp[mid-1] + cp[mid]) / 2, nil
+	}
+	return cp[mid], nil
 }
 
 func boolToCount(v bool) float64 {

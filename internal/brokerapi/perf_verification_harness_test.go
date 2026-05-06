@@ -53,6 +53,38 @@ func TestRunPhase5PerformanceHarnessProducesExpectedMetrics(t *testing.T) {
 	}
 }
 
+func TestMeasurePhase5AuditVerificationUsesMedianOfTrials(t *testing.T) {
+	t.Parallel()
+
+	verifySamples := []float64{240, 210, 220}
+	finalizeSamples := []float64{700, 650, 620}
+	verifyCalls := 0
+	finalizeCalls := 0
+	measurements, err := measurePhase5AuditVerification(3, "/repo", time.Second, func(_ string, _ time.Duration, command ...string) (float64, error) {
+		switch command[2] {
+		case "./internal/auditd":
+			value := verifySamples[verifyCalls]
+			verifyCalls++
+			return value, nil
+		case "./internal/brokerapi":
+			value := finalizeSamples[finalizeCalls]
+			finalizeCalls++
+			return value, nil
+		default:
+			t.Fatalf("unexpected command: %v", command)
+			return 0, nil
+		}
+	})
+	if err != nil {
+		t.Fatalf("measurePhase5AuditVerification returned error: %v", err)
+	}
+	assertMetricValue(t, measurements, "metric.audit.verify_current_segment.wall_ms", 220)
+	assertMetricValue(t, measurements, "metric.audit.finalize_verify.wall_ms", 650)
+	if verifyCalls != 3 || finalizeCalls != 3 {
+		t.Fatalf("verifyCalls=%d finalizeCalls=%d, want 3 each", verifyCalls, finalizeCalls)
+	}
+}
+
 func testPhase5HarnessConfig() Phase5PerformanceHarnessConfig {
 	return Phase5PerformanceHarnessConfig{
 		Trials: 2,
@@ -106,6 +138,19 @@ func hasPhase5Metric(measurements []perfcontracts.MeasurementRecord, metricID, u
 		}
 	}
 	return false
+}
+
+func assertMetricValue(t *testing.T, measurements []perfcontracts.MeasurementRecord, metricID string, want float64) {
+	t.Helper()
+	for _, measurement := range measurements {
+		if measurement.MetricID == metricID {
+			if measurement.Value != want {
+				t.Fatalf("metric %s value = %v, want %v", metricID, measurement.Value, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("metric %s missing", metricID)
 }
 
 func hasAuditEventType(events []artifacts.AuditEvent, eventType string) bool {

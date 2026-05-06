@@ -115,6 +115,14 @@ func regressionComparisonMethodTests(max500, reg15 float64) []comparisonMethodTe
 			wantViolation: false,
 		},
 		{
+			name:           "median_regression_with_noise_floor reports measured and allowed values",
+			metric:         MetricContract{MetricID: "m.reg.fail", Unit: "ms", BudgetClass: "regression-budget", ComparisonMethod: "median_regression_with_noise_floor", Threshold: MetricThreshold{MaxRegressionPercent: &reg15}, NoiseFloor: 10},
+			measurement:    MeasurementRecord{MetricID: "m.reg.fail", Unit: "ms", Value: 140},
+			baseline:       medianBaseline(100),
+			wantViolation:  true,
+			wantReasonLike: "value 140.0000ms baseline 100.0000ms allowed <= 115.0000ms",
+		},
+		{
 			name:           "median_plus_regression checks absolute max",
 			metric:         MetricContract{MetricID: "m.med.plus.abs.fail", Unit: "ms", BudgetClass: "hybrid-budget", ComparisonMethod: "median_plus_regression", Threshold: MetricThreshold{MaxValue: &max500, MaxRegressionPercent: &reg15}, NoiseFloor: 10},
 			measurement:    MeasurementRecord{MetricID: "m.med.plus.abs.fail", Unit: "ms", Value: 550},

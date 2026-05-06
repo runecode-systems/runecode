@@ -262,14 +262,26 @@ func TestRunWithDepsFailsWhenRequiredMetricMissingFromAggregation(t *testing.T) 
 	}
 }
 
-func TestParseBenchmarkNSOp(t *testing.T) {
-	out := "BenchmarkShellViewWaitingSession-8  12493  8912 ns/op  1200 B/op  10 allocs/op\n"
-	value, err := parseBenchmarkNSOp(out, "BenchmarkShellViewWaitingSession")
+func TestParseBenchmarkMedianNSOp(t *testing.T) {
+	out := strings.Join([]string{
+		"BenchmarkShellViewWaitingSession-8  12493  8912 ns/op  1200 B/op  10 allocs/op",
+		"BenchmarkShellViewWaitingSession-8  12493  9012 ns/op  1200 B/op  10 allocs/op",
+		"BenchmarkShellViewWaitingSession-8  12493  8812 ns/op  1200 B/op  10 allocs/op",
+	}, "\n") + "\n"
+	value, err := parseBenchmarkMedianNSOp(out, "BenchmarkShellViewWaitingSession", 3)
 	if err != nil {
-		t.Fatalf("parseBenchmarkNSOp returned error: %v", err)
+		t.Fatalf("parseBenchmarkMedianNSOp returned error: %v", err)
 	}
 	if value != 8912 {
 		t.Fatalf("value = %v, want 8912", value)
+	}
+}
+
+func TestParseBenchmarkMedianNSOpRejectsWrongSampleCount(t *testing.T) {
+	out := "BenchmarkShellViewWaitingSession-8  12493  8912 ns/op  1200 B/op  10 allocs/op\n"
+	_, err := parseBenchmarkMedianNSOp(out, "BenchmarkShellViewWaitingSession", 2)
+	if err == nil || !strings.Contains(err.Error(), "sample count") {
+		t.Fatalf("parseBenchmarkMedianNSOp error = %v, want sample count failure", err)
 	}
 }
 

@@ -86,37 +86,49 @@ func evaluateAbsoluteBudgetMetric(metric MetricContract, measured float64) []Vio
 }
 
 func evaluateRegressionMetric(metric MetricContract, measured float64, baseline BaselineFile) []Violation {
-	if !regressionViolation(metric, measured, baseline) {
+	violates, details := regressionViolation(metric, measured, baseline)
+	if !violates {
 		return nil
 	}
-	return []Violation{{MetricID: metric.MetricID, Reason: "regression threshold exceeded"}}
+	return []Violation{{MetricID: metric.MetricID, Reason: details}}
 }
 
 func evaluateHybridMetric(metric MetricContract, measured float64, baseline BaselineFile) []Violation {
 	violations := evaluateAbsoluteBudgetMetric(metric, measured)
-	if regressionViolation(metric, measured, baseline) {
-		violations = append(violations, Violation{MetricID: metric.MetricID, Reason: "hybrid regression threshold exceeded"})
+	if violates, details := regressionViolation(metric, measured, baseline); violates {
+		violations = append(violations, Violation{MetricID: metric.MetricID, Reason: "hybrid " + details})
 	}
 	return violations
 }
 
-func regressionViolation(metric MetricContract, measured float64, baseline BaselineFile) bool {
+func regressionViolation(metric MetricContract, measured float64, baseline BaselineFile) (bool, string) {
 	if metric.Threshold.MaxRegressionPercent == nil {
-		return true
+		return true, "regression threshold missing max_regression_percent"
 	}
 	base, ok := baselineValue(baseline)
 	if !ok || base == 0 {
-		return true
+		return true, "regression threshold missing usable baseline"
 	}
 	delta := measured - base
 	if delta <= 0 {
-		return false
+		return false, ""
 	}
 	if delta < metric.NoiseFloor {
-		return false
+		return false, ""
 	}
 	percent := (delta / base) * 100.0
-	return percent > *metric.Threshold.MaxRegressionPercent
+	if percent <= *metric.Threshold.MaxRegressionPercent {
+		return false, ""
+	}
+	allowed := base * (1 + (*metric.Threshold.MaxRegressionPercent / 100.0))
+	return true, fmt.Sprintf(
+		"regression threshold exceeded: value %.4f%s baseline %.4f%s allowed <= %.4f%s (+%.2f%%, max +%.2f%%, noise floor %.4f%s)",
+		measured, metric.Unit,
+		base, metric.Unit,
+		allowed, metric.Unit,
+		percent, *metric.Threshold.MaxRegressionPercent,
+		metric.NoiseFloor, metric.Unit,
+	)
 }
 
 func baselineValue(file BaselineFile) (float64, bool) {

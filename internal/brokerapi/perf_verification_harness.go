@@ -77,7 +77,7 @@ func phase5CollectMeasurements(
 	if err := phase5AppendDependencyFlow(&measurements, trials, repoRoot); err != nil {
 		return nil, err
 	}
-	if err := phase5AppendAuditVerification(&measurements, repoRoot, timeout, runner); err != nil {
+	if err := phase5AppendAuditVerification(&measurements, trials, repoRoot, timeout, runner); err != nil {
 		return nil, err
 	}
 	if err := phase5AppendProtocolChecks(&measurements, repoRoot, timeout, runner); err != nil {
@@ -107,11 +107,12 @@ func phase5AppendDependencyFlow(measurements *[]perfcontracts.MeasurementRecord,
 
 func phase5AppendAuditVerification(
 	measurements *[]perfcontracts.MeasurementRecord,
+	trials int,
 	repoRoot string,
 	timeout time.Duration,
 	runner func(repoRoot string, timeout time.Duration, command ...string) (float64, error),
 ) error {
-	items, err := measurePhase5AuditVerification(repoRoot, timeout, runner)
+	items, err := measurePhase5AuditVerification(trials, repoRoot, timeout, runner)
 	if err != nil {
 		return err
 	}
