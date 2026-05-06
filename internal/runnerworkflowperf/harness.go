@@ -22,6 +22,7 @@ type HarnessConfig struct {
 type runnerMeasurementSpec struct {
 	metricID string
 	mode     string
+	fixture  string
 }
 
 func Run(cfg HarnessConfig) (perfcontracts.CheckOutput, error) {

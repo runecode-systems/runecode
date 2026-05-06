@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,9 +33,9 @@ func collectMinimalWorkflowMeasurements(repoRoot string, timeout time.Duration, 
 	}
 	defer cleanup()
 	specs := []runnerMeasurementSpec{
-		{metricID: "metric.runner.cold_start.minimal_workflow.wall_ms", mode: "cold-start"},
-		{metricID: "metric.workflow.mvp_execution.supported_path.wall_ms", mode: "workflow-path"},
-		{metricID: "metric.workflow.chg049.first_party_beta_slice.wall_ms", mode: "first-party-beta"},
+		{metricID: "metric.runner.cold_start.minimal_workflow.wall_ms", mode: "cold-start", fixture: minimal.FixtureID},
+		{metricID: "metric.workflow.mvp_execution.supported_path.wall_ms", mode: "workflow-path", fixture: minimal.FixtureID},
+		{metricID: "metric.workflow.chg049.first_party_beta_slice.wall_ms", mode: "first-party-beta", fixture: minimal.FixtureID},
 	}
 	return collectWorkflowSpecs(repoRoot, timeout, runner, minimal.RunPlan, specs)
 }
@@ -48,7 +49,11 @@ func collectWorkflowSpecs(
 ) ([]perfcontracts.MeasurementRecord, error) {
 	measurements := make([]perfcontracts.MeasurementRecord, 0, len(specs))
 	for _, spec := range specs {
-		wallMS, err := runner(repoRoot, timeout, "node", "--experimental-strip-types", "scripts/perf-runner-workflow.js", "--mode", spec.mode, "--runplan", runPlanPath)
+		args := []string{"node", "--experimental-strip-types", "scripts/perf-runner-workflow.js", "--mode", spec.mode, "--runplan", runPlanPath}
+		if fixtureID := strings.TrimSpace(spec.fixture); fixtureID != "" {
+			args = append(args, "--fixture", fixtureID)
+		}
+		wallMS, err := runner(repoRoot, timeout, args...)
 		if err != nil {
 			return nil, fmt.Errorf("measure %s: %w", spec.mode, err)
 		}
@@ -75,6 +80,9 @@ func measureRunnerCommand(repoRoot string, timeout time.Duration, args ...string
 	if len(args) == 0 {
 		return 0, fmt.Errorf("command arguments required")
 	}
+	if err := validateRunnerExecutable(args[0]); err != nil {
+		return 0, err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	runnerDir := filepath.Join(repoRoot, "runner")
@@ -89,5 +97,38 @@ func measureRunnerCommand(repoRoot string, timeout time.Duration, args ...string
 		}
 		return 0, fmt.Errorf("%s failed: %s", strings.Join(args, " "), msg)
 	}
+	if expectsRunnerScriptMeasurement(args) {
+		return parseRunnerMeasurement(out)
+	}
 	return float64(time.Since(started).Milliseconds()), nil
+}
+
+func validateRunnerExecutable(name string) error {
+	switch strings.TrimSpace(name) {
+	case "npm", "node":
+		return nil
+	default:
+		return fmt.Errorf("unsupported runner executable %q", name)
+	}
+}
+
+func expectsRunnerScriptMeasurement(args []string) bool {
+	for _, arg := range args {
+		if arg == "scripts/perf-runner-workflow.js" {
+			return true
+		}
+	}
+	return false
+}
+
+func parseRunnerMeasurement(out []byte) (float64, error) {
+	value := strings.TrimSpace(string(out))
+	if value == "" {
+		return 0, fmt.Errorf("runner workflow script returned empty measurement output")
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse runner workflow measurement %q: %w", value, err)
+	}
+	return parsed, nil
 }

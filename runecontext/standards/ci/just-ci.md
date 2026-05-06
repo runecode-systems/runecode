@@ -9,8 +9,9 @@ suggested_context_bundles:
 
 # `just ci` Convention
 
-- `just ci` is the canonical full local parity command
+- `just ci` is the canonical local check entrypoint
 - CI may use `just ci-fast` plus dedicated required gates when a heavyweight check needs path-aware or merge-queue scheduling
+- Required shared-Linux performance contracts run in the dedicated CI lane (`just ci-required-shared-linux`) rather than every local `just ci` run
 - `just ci` is check-only:
   - No formatters in write mode
   - No lockfile updates (`flake.lock`, `go.sum`, `package-lock.json`)

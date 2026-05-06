@@ -4,6 +4,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,6 +40,48 @@ func TestRunProducesPhase4RunnerWorkflowMetrics(t *testing.T) {
 			t.Fatalf("missing metric %s (%s)", metricID, unit)
 		}
 	}
+}
+
+func TestRunPassesExpectedWorkflowFixtureForSupportedPathMetrics(t *testing.T) {
+	repoRoot := runnerWorkflowRepoRoot(t)
+	var calls [][]string
+	runner := func(_ string, _ time.Duration, args ...string) (float64, error) {
+		copied := append([]string(nil), args...)
+		calls = append(calls, copied)
+		return deterministicCommandRunner("", 0, args...)
+	}
+	if _, err := Run(HarnessConfig{RepositoryRoot: repoRoot, CommandRunner: runner, CommandTimeout: 10 * time.Second}); err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	assertModeFixtureArg(t, calls, "workflow-path")
+	assertModeFixtureArg(t, calls, "first-party-beta")
+}
+
+func runnerWorkflowRepoRoot(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	return filepath.Clean(path.Join(filepath.Dir(file), "..", ".."))
+}
+
+func assertModeFixtureArg(t *testing.T, calls [][]string, mode string) {
+	t.Helper()
+	for _, call := range calls {
+		if !containsArg(call, "--mode", mode) {
+			continue
+		}
+		fixture, ok := argValue(call, "--fixture")
+		if !ok {
+			t.Fatalf("mode %s missing --fixture argument", mode)
+		}
+		if fixture != "workflow.first-party-minimal.v1" {
+			t.Fatalf("mode %s fixture %q, want %q", mode, fixture, "workflow.first-party-minimal.v1")
+		}
+		return
+	}
+	t.Fatalf("no invocation found for mode %s", mode)
 }
 
 func deterministicCommandRunner(_ string, _ time.Duration, args ...string) (float64, error) {
@@ -80,6 +123,29 @@ func isNodeProtocolFixtureCommand(args []string) bool {
 	return len(args) >= 3 && args[1] == "--test"
 }
 
+func containsArg(args []string, key, value string) bool {
+	for idx := 0; idx < len(args)-1; idx++ {
+		if strings.TrimSpace(args[idx]) == key && strings.TrimSpace(args[idx+1]) == value {
+			return true
+		}
+	}
+	return false
+}
+
+func argValue(args []string, key string) (string, bool) {
+	for idx := 0; idx < len(args)-1; idx++ {
+		if strings.TrimSpace(args[idx]) != key {
+			continue
+		}
+		value := strings.TrimSpace(args[idx+1])
+		if value == "" {
+			return "", false
+		}
+		return value, true
+	}
+	return "", false
+}
+
 func hasMetric(measurements []perfcontracts.MeasurementRecord, metricID, unit string) bool {
 	for _, m := range measurements {
 		if m.MetricID == metricID && m.Unit == unit {
@@ -87,4 +153,30 @@ func hasMetric(measurements []perfcontracts.MeasurementRecord, metricID, unit st
 		}
 	}
 	return false
+}
+
+func TestValidateRunnerExecutableRejectsUnexpectedBinary(t *testing.T) {
+	if err := validateRunnerExecutable("bash"); err == nil {
+		t.Fatal("validateRunnerExecutable error = nil, want rejection")
+	}
+}
+
+func TestParseRunnerMeasurement(t *testing.T) {
+	value, err := parseRunnerMeasurement([]byte("340\n"))
+	if err != nil {
+		t.Fatalf("parseRunnerMeasurement returned error: %v", err)
+	}
+	if value != 340 {
+		t.Fatalf("value = %v, want 340", value)
+	}
+}
+
+func TestDeterministicCommandRunnerUsesScriptMeasurementOutput(t *testing.T) {
+	value, err := deterministicCommandRunner("", 0, "node", "--experimental-strip-types", "scripts/perf-runner-workflow.js", "--mode", "workflow-path")
+	if err != nil {
+		t.Fatalf("deterministicCommandRunner returned error: %v", err)
+	}
+	if value != 340 {
+		t.Fatalf("value = %v, want 340", value)
+	}
 }

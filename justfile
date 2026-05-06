@@ -40,6 +40,8 @@ ci-fast:
   cd runner && npm run boundary-check
 
 ci:
+  # Canonical local check entrypoint.
+  # Required shared-Linux performance contracts run in CI via ci-required-shared-linux.
   just ci-fast
   just model-check
 

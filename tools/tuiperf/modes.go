@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -35,13 +36,22 @@ func runCPUMode(cfg config) error {
 }
 
 func runLatencyMode(cfg config) error {
-	_, cancel, harness, err := startTUIHarness(cfg)
-	if err != nil {
+	if err := requireTUIFixtureConfig(cfg); err != nil {
 		return err
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.timeout)
 	defer cancel()
-	defer stopHarness(harness)
-	attachDurations, keyDurations, err := collectLatencySamples(harness, cfg.trials)
+	if err := prepareTUIIsolation(cfg); err != nil {
+		return err
+	}
+	attachDurations, keyDurations, err := collectLatencySamplesFromFreshSpawn(
+		cfg.trials,
+		func() (runningHarness, error) {
+			return startHarnessProcesses(ctx, cfg)
+		},
+		stopHarness,
+		collectLatencySampleFromHarness,
+	)
 	if err != nil {
 		return err
 	}
@@ -60,14 +70,25 @@ func cpuMeasurementsForFixture(fixtureID string, result tuiperf.CPUSampleResult)
 	return []perfcontracts.MeasurementRecord{{MetricID: "metric.tui.idle_cpu.waiting.avg_pct", Value: result.AverageCPUPercent, Unit: "percent"}, {MetricID: "metric.tui.idle_cpu.waiting.max_pct", Value: result.MaxCPUPercent, Unit: "percent"}}
 }
 
-func collectLatencySamples(h runningHarness, trials int) ([]float64, []float64, error) {
+func collectLatencySamplesFromFreshSpawn(
+	trials int,
+	startHarness func() (runningHarness, error),
+	stopHarnessFn func(runningHarness),
+	collectSample func(runningHarness, string, time.Time) (float64, float64, error),
+) ([]float64, []float64, error) {
 	marker := "Runecode TUI α shell"
 	attachDurations := make([]float64, 0, trials)
 	keyDurations := make([]float64, 0, trials)
-	events := make(chan tuiperf.MarkerEvent, 64)
-	go tuiperf.WatchMarkers(h.tuiOut, []string{marker}, events)
 	for i := 0; i < trials; i++ {
-		attachMS, keyMS, err := collectLatencySample(events, h.tuiIn, marker)
+		start := time.Now()
+		h, err := startHarness()
+		if err != nil {
+			return nil, nil, err
+		}
+		attachMS, keyMS, err := func() (float64, float64, error) {
+			defer stopHarnessFn(h)
+			return collectSample(h, marker, start)
+		}()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -77,14 +98,15 @@ func collectLatencySamples(h runningHarness, trials int) ([]float64, []float64, 
 	return attachDurations, keyDurations, nil
 }
 
-func collectLatencySample(events <-chan tuiperf.MarkerEvent, tuiIn io.Writer, marker string) (float64, float64, error) {
-	start := time.Now()
+func collectLatencySampleFromHarness(h runningHarness, marker string, start time.Time) (float64, float64, error) {
+	events := make(chan tuiperf.MarkerEvent, 64)
+	go tuiperf.WatchMarkers(h.tuiOut, []string{marker}, events)
 	attachAt, err := waitForMarker(events, marker, latencyMarkerTimeout)
 	if err != nil {
 		return 0, 0, err
 	}
 	keyStart := time.Now()
-	if _, err := io.WriteString(tuiIn, "\t"); err != nil {
+	if _, err := io.WriteString(h.tuiIn, "\t"); err != nil {
 		return 0, 0, err
 	}
 	keyAt, err := waitForMarker(events, marker, latencyMarkerTimeout)
