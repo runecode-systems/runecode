@@ -166,6 +166,17 @@ func TestParseRunnerMeasurement(t *testing.T) {
 	}
 }
 
+func TestParseRunnerMeasurementIgnoresWarningNoise(t *testing.T) {
+	out := []byte("(node:29695) warning text\nadditional warning context\n0\n")
+	value, err := parseRunnerMeasurement(out)
+	if err != nil {
+		t.Fatalf("parseRunnerMeasurement returned error: %v", err)
+	}
+	if value != 0 {
+		t.Fatalf("value = %v, want 0", value)
+	}
+}
+
 func TestDeterministicCommandRunnerUsesScriptMeasurementOutput(t *testing.T) {
 	value, err := deterministicCommandRunner("", 0, "node", "--experimental-strip-types", "scripts/perf-runner-workflow.js", "--mode", "workflow-path")
 	if err != nil {

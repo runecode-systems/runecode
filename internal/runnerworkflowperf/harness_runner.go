@@ -122,7 +122,7 @@ func expectsRunnerScriptMeasurement(args []string) bool {
 }
 
 func parseRunnerMeasurement(out []byte) (float64, error) {
-	value := strings.TrimSpace(string(out))
+	value := lastNumericMeasurementLine(string(out))
 	if value == "" {
 		return 0, fmt.Errorf("runner workflow script returned empty measurement output")
 	}
@@ -131,4 +131,18 @@ func parseRunnerMeasurement(out []byte) (float64, error) {
 		return 0, fmt.Errorf("parse runner workflow measurement %q: %w", value, err)
 	}
 	return parsed, nil
+}
+
+func lastNumericMeasurementLine(raw string) string {
+	lines := strings.Split(raw, "\n")
+	for idx := len(lines) - 1; idx >= 0; idx-- {
+		line := strings.TrimSpace(lines[idx])
+		if line == "" {
+			continue
+		}
+		if _, err := strconv.ParseFloat(line, 64); err == nil {
+			return line
+		}
+	}
+	return strings.TrimSpace(raw)
 }
