@@ -42,14 +42,17 @@ func seedServiceData(service *brokerapi.Service) error {
 	if err := service.RecordRuntimeFacts("run-broker-1", launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launcherbackend.BackendLaunchReceipt{RunID: "run-broker-1", SessionID: "sess-broker-1"}}); err != nil {
 		return err
 	}
-	if err := seedBlockedTurn(service); err != nil {
+	if err := seedBlockedTurn(service, "seed-trigger-1", "seed"); err != nil {
+		return err
+	}
+	if err := seedBlockedTurn(service, "seed-trigger-2", "seed follow-up"); err != nil {
 		return err
 	}
 	return service.RecordPolicyDecision("run-broker-1", "", seedPolicyDecision())
 }
 
-func seedBlockedTurn(service *brokerapi.Service) error {
-	triggerResp, errResp := service.HandleSessionExecutionTrigger(context.Background(), brokerapi.SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "seed-trigger", SessionID: "sess-broker-1", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &brokerapi.SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "change_draft"}, UserMessageContentText: "seed"}, brokerapi.RequestContext{})
+func seedBlockedTurn(service *brokerapi.Service, requestID, message string) error {
+	triggerResp, errResp := service.HandleSessionExecutionTrigger(context.Background(), brokerapi.SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: requestID, SessionID: "sess-broker-1", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &brokerapi.SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "change_draft"}, UserMessageContentText: message}, brokerapi.RequestContext{})
 	if errResp != nil {
 		return fmt.Errorf("seed session_execution_trigger: %s", errResp.Error.Code)
 	}

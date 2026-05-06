@@ -37,20 +37,15 @@ func runCPUMode(cfg config) error {
 }
 
 func runLatencyMode(cfg config) error {
-	if err := requireTUIFixtureConfig(cfg); err != nil {
+	preparedCfg, cleanup, err := prepareLatencyMode(cfg)
+	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.timeout)
-	defer cancel()
-	if err := prepareTUIIsolation(cfg); err != nil {
-		return err
-	}
+	defer cleanup()
 	attachDurations, keyDurations, err := collectLatencySamplesFromFreshSpawn(
-		cfg.trials,
-		func() (runningHarness, error) {
-			return startHarnessProcesses(ctx, cfg)
-		},
-		stopHarness,
+		preparedCfg.trials,
+		func() (runningHarness, error) { return startLatencyHarness(preparedCfg) },
+		stopLatencyHarness,
 		collectLatencySampleFromHarness,
 	)
 	if err != nil {
@@ -60,8 +55,43 @@ func runLatencyMode(cfg config) error {
 	if err != nil {
 		return err
 	}
-	measurements := latencyMeasurementsForFixture(cfg.fixtureID, attachP95, keyP95)
-	return writeEnvelope(cfg.outputPath, checkEnvelope{SchemaVersion: checkSchemaVersion, Metadata: map[string]any{"mode": "latency", "fixture_id": cfg.fixtureID, "trials": cfg.trials, "attach_samples_ms": attachDurations, "key_samples_ms": keyDurations}, Measurements: measurements})
+	measurements := latencyMeasurementsForFixture(preparedCfg.fixtureID, attachP95, keyP95)
+	return writeEnvelope(preparedCfg.outputPath, checkEnvelope{SchemaVersion: checkSchemaVersion, Metadata: map[string]any{"mode": "latency", "fixture_id": preparedCfg.fixtureID, "trials": preparedCfg.trials, "attach_samples_ms": attachDurations, "key_samples_ms": keyDurations}, Measurements: measurements})
+}
+
+func prepareLatencyMode(cfg config) (config, func(), error) {
+	if err := requireTUIFixtureConfig(cfg); err != nil {
+		return config{}, nil, err
+	}
+	preparedCfg, err := prepareHarnessBinaries(cfg)
+	if err != nil {
+		return config{}, nil, err
+	}
+	cleanup := func() { cleanupHarnessBinaries(preparedCfg) }
+	if err := prepareTUIIsolation(cfg); err != nil {
+		cleanup()
+		return config{}, nil, err
+	}
+	return preparedCfg, cleanup, nil
+}
+
+func startLatencyHarness(cfg config) (runningHarness, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.timeout)
+	harness, err := startHarnessProcesses(ctx, cfg)
+	if err != nil {
+		cancel()
+		return runningHarness{}, err
+	}
+	harness.ctx = ctx
+	harness.cancel = cancel
+	return harness, nil
+}
+
+func stopLatencyHarness(h runningHarness) {
+	stopHarness(h)
+	if h.cancel != nil {
+		h.cancel()
+	}
 }
 
 func cpuMeasurementsForFixture(fixtureID string, result tuiperf.CPUSampleResult) []perfcontracts.MeasurementRecord {
@@ -101,7 +131,8 @@ func collectLatencySamplesFromFreshSpawn(
 
 func collectLatencySampleFromHarness(h runningHarness, marker string, start time.Time) (float64, float64, error) {
 	events := make(chan tuiperf.MarkerEvent, 64)
-	go tuiperf.WatchMarkers(h.ctx, h.tuiOut, []string{marker}, events)
+	const keyResponseMarker = "focus=MAIN"
+	go tuiperf.WatchMarkers(h.ctx, h.tuiOut, []string{marker, keyResponseMarker}, events)
 	attachAt, err := waitForMarker(events, marker, latencyMarkerTimeout)
 	if err != nil {
 		return 0, 0, err
@@ -110,7 +141,7 @@ func collectLatencySampleFromHarness(h runningHarness, marker string, start time
 	if _, err := io.WriteString(h.tuiIn, "\t"); err != nil {
 		return 0, 0, err
 	}
-	keyAt, err := waitForMarkerAfter(events, marker, keyStart, latencyMarkerTimeout)
+	keyAt, err := waitForMarkerAfter(events, keyResponseMarker, keyStart, latencyMarkerTimeout)
 	if err != nil {
 		return 0, 0, err
 	}

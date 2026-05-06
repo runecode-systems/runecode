@@ -7,6 +7,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -78,6 +80,11 @@ func buildConfig(
 	if timeout <= 0 {
 		timeout = 120 * time.Second
 	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return config{}, err
+	}
+	repoRoot := filepath.Clean(wd)
 	return config{
 		mode:            strings.TrimSpace(*mode),
 		outputPath:      strings.TrimSpace(*output),
@@ -87,6 +94,7 @@ func buildConfig(
 		stateRoot:       strings.TrimSpace(*stateRoot),
 		auditLedgerRoot: strings.TrimSpace(*auditLedgerRoot),
 		targetAlias:     strings.TrimSpace(*targetAlias),
+		repoRoot:        repoRoot,
 		trials:          *trials,
 		warmup:          time.Duration(*warmupMs) * time.Millisecond,
 		window:          time.Duration(*windowMs) * time.Millisecond,

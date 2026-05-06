@@ -67,9 +67,9 @@ func (m shellModel) loadWatchPollCmd() tea.Cmd {
 		ctx, cancel := withLoadTimeout()
 		defer cancel()
 
-		runEvents, runErr := m.client.RunWatch(ctx, brokerapi.RunWatchRequest{StreamID: newRequestID("shell-run-watch-stream"), IncludeSnapshot: true, Follow: true})
-		approvalEvents, approvalErr := m.client.ApprovalWatch(ctx, brokerapi.ApprovalWatchRequest{StreamID: newRequestID("shell-approval-watch-stream"), IncludeSnapshot: true, Follow: true})
-		sessionEvents, sessionErr := m.client.SessionWatch(ctx, brokerapi.SessionWatchRequest{StreamID: newRequestID("shell-session-watch-stream"), IncludeSnapshot: true, Follow: true})
+		runEvents, runErr := m.client.RunWatch(ctx, brokerapi.RunWatchRequest{StreamID: newRequestID("shell-run-watch-stream"), IncludeSnapshot: true})
+		approvalEvents, approvalErr := m.client.ApprovalWatch(ctx, brokerapi.ApprovalWatchRequest{StreamID: newRequestID("shell-approval-watch-stream"), IncludeSnapshot: true})
+		sessionEvents, sessionErr := m.client.SessionWatch(ctx, brokerapi.SessionWatchRequest{StreamID: newRequestID("shell-session-watch-stream"), IncludeSnapshot: true})
 
 		return shellWatchTransportLoadedMsg{
 			Run:        shellWatchRunTransportResult{Events: runEvents, Err: runErr},

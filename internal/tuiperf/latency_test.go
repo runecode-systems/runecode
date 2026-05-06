@@ -83,3 +83,52 @@ func TestWatchMarkersCancellationHelperExitsAfterEOF(t *testing.T) {
 	cancel()
 	t.Fatalf("goroutine count stayed elevated: baseline=%d current=%d", baseline, runtime.NumGoroutine())
 }
+
+func TestWatchMarkersDetectsMarkerWithoutTrailingNewline(t *testing.T) {
+	t.Parallel()
+
+	r, w := io.Pipe()
+	events := make(chan MarkerEvent, 1)
+	go WatchMarkers(context.Background(), r, []string{"Runecode TUI α shell"}, events)
+	if _, err := io.WriteString(w, "prefix Runecode TUI α shell suffix"); err != nil {
+		t.Fatalf("WriteString error = %v", err)
+	}
+	_ = w.Close()
+	select {
+	case ev, ok := <-events:
+		if !ok {
+			t.Fatal("events closed before receiving marker")
+		}
+		if ev.Marker != "Runecode TUI α shell" {
+			t.Fatalf("marker = %q, want %q", ev.Marker, "Runecode TUI α shell")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for marker event")
+	}
+}
+
+func TestWatchMarkersDetectsMarkerSplitAcrossWrites(t *testing.T) {
+	t.Parallel()
+
+	r, w := io.Pipe()
+	events := make(chan MarkerEvent, 1)
+	go WatchMarkers(context.Background(), r, []string{"Runecode TUI α shell"}, events)
+	if _, err := io.WriteString(w, "Runecode TUI "); err != nil {
+		t.Fatalf("WriteString first chunk error = %v", err)
+	}
+	if _, err := io.WriteString(w, "α shell"); err != nil {
+		t.Fatalf("WriteString second chunk error = %v", err)
+	}
+	_ = w.Close()
+	select {
+	case ev, ok := <-events:
+		if !ok {
+			t.Fatal("events closed before receiving split marker")
+		}
+		if ev.Marker != "Runecode TUI α shell" {
+			t.Fatalf("marker = %q, want %q", ev.Marker, "Runecode TUI α shell")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for split marker event")
+	}
+}

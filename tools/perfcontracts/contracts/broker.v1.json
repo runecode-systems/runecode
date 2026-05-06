@@ -384,7 +384,7 @@
       "authoritative_environment": "linux_shared_ci",
       "sampling_policy": {},
       "budget_class": "exact",
-      "threshold": {"exact_value": 2},
+      "threshold": {"exact_value": 3},
       "lane_authority": "required_shared_linux",
       "activation_state": "required",
       "comparison_method": "exact_match",

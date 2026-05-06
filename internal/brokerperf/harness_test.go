@@ -28,6 +28,8 @@ func TestRunDeterministicBrokerHarnessProducesPhase3Metrics(t *testing.T) {
 	assertMetricUnit(t, out.Measurements, "metric.broker.watch.run.snapshot_follow.p95_ms", "ms")
 	assertMetricUnit(t, out.Measurements, "metric.broker.watch.run.snapshot_follow.payload_bytes", "bytes")
 	assertMetricUnit(t, out.Measurements, "metric.broker.watch.turn_execution.snapshot_follow.event_count", "count")
+	assertMetricValue(t, out.Measurements, "metric.broker.watch.run.snapshot_follow.event_count", 3)
+	assertMetricValue(t, out.Measurements, "metric.broker.watch.turn_execution.snapshot_follow.event_count", 3)
 	assertMetricUnit(t, out.Measurements, "metric.broker.mutation.session_execution_trigger.p95_ms", "ms")
 	assertMetricUnit(t, out.Measurements, "metric.broker.mutation.session_execution_continue.p95_ms", "ms")
 	assertMetricUnit(t, out.Measurements, "metric.broker.mutation.approval_resolve.p95_ms", "ms")
@@ -49,6 +51,19 @@ func assertMetricUnit(t *testing.T, measurements []perfcontracts.MeasurementReco
 		if m.MetricID == metricID {
 			if m.Unit != unit {
 				t.Fatalf("metric %s unit = %q, want %q", metricID, m.Unit, unit)
+			}
+			return
+		}
+	}
+	t.Fatalf("metric %s missing", metricID)
+}
+
+func assertMetricValue(t *testing.T, measurements []perfcontracts.MeasurementRecord, metricID string, value float64) {
+	t.Helper()
+	for _, m := range measurements {
+		if m.MetricID == metricID {
+			if m.Value != value {
+				t.Fatalf("metric %s value = %v, want %v", metricID, m.Value, value)
 			}
 			return
 		}

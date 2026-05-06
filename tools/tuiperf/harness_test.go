@@ -3,6 +3,9 @@
 package main
 
 import (
+	"bytes"
+	"io"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -46,5 +49,44 @@ func TestSummarizeBrokerStartupOutputIncludesBothStreams(t *testing.T) {
 	}
 	if !strings.Contains(summary, "stderr=stderr boom") {
 		t.Fatalf("summary missing stderr segment: %q", summary)
+	}
+}
+
+func TestStableTTYEnvOverridesOrAddsTERM(t *testing.T) {
+	t.Parallel()
+
+	got := stableTTYEnv([]string{"FOO=bar", "TERM=dumb"})
+	if !reflect.DeepEqual(got, []string{"FOO=bar", "TERM=" + stableTUITerm}) {
+		t.Fatalf("stableTTYEnv override = %v", got)
+	}
+
+	got = stableTTYEnv([]string{"FOO=bar"})
+	if !reflect.DeepEqual(got, []string{"FOO=bar", "TERM=" + stableTUITerm}) {
+		t.Fatalf("stableTTYEnv append = %v", got)
+	}
+}
+
+func TestTerminalQueryResponderAnswersSplitQueries(t *testing.T) {
+	t.Parallel()
+
+	reader := io.NopCloser(strings.NewReader("prefix \x1b]11;?\x1b\\ middle \x1b[6n suffix"))
+	var responses bytes.Buffer
+	responder := newTerminalQueryResponder(reader, &responses)
+	buf := make([]byte, 4)
+	for {
+		_, err := responder.Read(buf)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("Read error = %v", err)
+		}
+	}
+	got := responses.String()
+	if !strings.Contains(got, terminalBackgroundColorResponse) {
+		t.Fatalf("responses missing background color response: %q", got)
+	}
+	if !strings.Contains(got, terminalCPRResponse) {
+		t.Fatalf("responses missing CPR response: %q", got)
 	}
 }

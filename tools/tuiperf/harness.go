@@ -14,6 +14,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/creack/pty"
 )
 
 const terminateGracePeriod = 2 * time.Second
@@ -27,6 +29,7 @@ var (
 
 type runningHarness struct {
 	ctx       context.Context
+	cancel    context.CancelFunc
 	brokerCmd *exec.Cmd
 	tuiCmd    *exec.Cmd
 	tuiOut    io.ReadCloser
@@ -38,16 +41,64 @@ func startTUIHarness(cfg config) (context.Context, context.CancelFunc, runningHa
 		return nil, nil, runningHarness{}, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.timeout)
-	if err := prepareTUIIsolation(cfg); err != nil {
-		cancel()
-		return nil, nil, runningHarness{}, err
-	}
-	harness, err := startHarnessProcesses(ctx, cfg)
+	preparedCfg, err := prepareHarnessBinaries(cfg)
 	if err != nil {
 		cancel()
 		return nil, nil, runningHarness{}, err
 	}
-	return ctx, cancel, harness, nil
+	cancelWithCleanup := func() {
+		cancel()
+		cleanupHarnessBinaries(preparedCfg)
+	}
+	if err := prepareTUIIsolation(cfg); err != nil {
+		cancelWithCleanup()
+		return nil, nil, runningHarness{}, err
+	}
+	harness, err := startHarnessProcesses(ctx, preparedCfg)
+	if err != nil {
+		cancelWithCleanup()
+		return nil, nil, runningHarness{}, err
+	}
+	return ctx, cancelWithCleanup, harness, nil
+}
+
+func prepareHarnessBinaries(cfg config) (config, error) {
+	if cfg.repoRoot == "" {
+		return cfg, fmt.Errorf("repository root required")
+	}
+	binDir, err := os.MkdirTemp("", "runecode-tuiperf-bin-")
+	if err != nil {
+		return cfg, err
+	}
+	brokerBin := filepath.Join(binDir, "runecode-broker")
+	tuiBin := filepath.Join(binDir, "runecode-tui")
+	cfg.harnessBinDir = binDir
+	if err := buildHarnessBinary(cfg.repoRoot, "./cmd/runecode-broker", brokerBin); err != nil {
+		_ = os.RemoveAll(binDir)
+		return cfg, err
+	}
+	if err := buildHarnessBinary(cfg.repoRoot, "./cmd/runecode-tui", tuiBin); err != nil {
+		_ = os.RemoveAll(binDir)
+		return cfg, err
+	}
+	cfg.brokerBin = brokerBin
+	cfg.tuiBin = tuiBin
+	return cfg, nil
+}
+
+func cleanupHarnessBinaries(cfg config) {
+	if cfg.harnessBinDir != "" {
+		_ = os.RemoveAll(cfg.harnessBinDir)
+	}
+}
+
+func buildHarnessBinary(repoRoot, pkg, output string) error {
+	cmd := exec.Command("go", "build", "-o", output, pkg)
+	cmd.Dir = repoRoot
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("build %s: %s", pkg, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 func startHarnessProcesses(ctx context.Context, cfg config) (runningHarness, error) {
@@ -90,7 +141,15 @@ func prepareTUIIsolation(cfg config) error {
 }
 
 func startBrokerProcess(ctx context.Context, cfg config) (*exec.Cmd, error) {
-	brokerCmd := exec.CommandContext(ctx, "go", "run", "./cmd/runecode-broker", "--state-root", cfg.stateRoot, "--audit-ledger-root", cfg.auditLedgerRoot, "serve-local", "--runtime-dir", cfg.runtimeDir, "--socket-name", cfg.socketName)
+	brokerBin := cfg.brokerBin
+	if brokerBin == "" {
+		brokerBin = "go"
+	}
+	brokerArgs := []string{"--state-root", cfg.stateRoot, "--audit-ledger-root", cfg.auditLedgerRoot, "serve-local", "--runtime-dir", cfg.runtimeDir, "--socket-name", cfg.socketName}
+	brokerCmd := exec.CommandContext(ctx, brokerBin, brokerArgs...)
+	if cfg.brokerBin == "" {
+		brokerCmd = exec.CommandContext(ctx, "go", append([]string{"run", "./cmd/runecode-broker"}, brokerArgs...)...)
+	}
 	brokerCmd.Env = os.Environ()
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -107,21 +166,19 @@ func startBrokerProcess(ctx context.Context, cfg config) (*exec.Cmd, error) {
 }
 
 func startTUIProcess(ctx context.Context, cfg config) (*exec.Cmd, io.ReadCloser, io.WriteCloser, error) {
-	tuiCmd := exec.CommandContext(ctx, "script", "-q", "-f", "-c", fmt.Sprintf("RUNECODE_TUI_BROKER_TARGET=%s go run ./cmd/runecode-tui --runtime-dir %s --socket-name %s", shellEscape(cfg.targetAlias), shellEscape(cfg.runtimeDir), shellEscape(cfg.socketName)), "/dev/null")
-	tuiCmd.Env = os.Environ()
-	tuiOut, err := tuiCmd.StdoutPipe()
+	tuiBin := cfg.tuiBin
+	tuiArgs := []string{"--runtime-dir", cfg.runtimeDir, "--socket-name", cfg.socketName}
+	tuiCmd := exec.CommandContext(ctx, tuiBin, tuiArgs...)
+	if cfg.tuiBin == "" {
+		tuiCmd = exec.CommandContext(ctx, "go", append([]string{"run", "./cmd/runecode-tui"}, tuiArgs...)...)
+	}
+	tuiCmd.Env = stableTTYEnv(os.Environ())
+	tuiCmd.Env = append(tuiCmd.Env, "RUNECODE_TUI_BROKER_TARGET="+cfg.targetAlias)
+	tty, err := pty.Start(tuiCmd)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	tuiIn, err := tuiCmd.StdinPipe()
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	tuiCmd.Stderr = io.Discard
-	if err := tuiCmd.Start(); err != nil {
-		return nil, nil, nil, err
-	}
-	return tuiCmd, tuiOut, tuiIn, nil
+	return tuiCmd, newTerminalQueryResponder(tty, tty), tty, nil
 }
 
 func stopHarness(h runningHarness) {

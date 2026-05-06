@@ -19,6 +19,10 @@ type config struct {
 	stateRoot       string
 	auditLedgerRoot string
 	targetAlias     string
+	repoRoot        string
+	harnessBinDir   string
+	brokerBin       string
+	tuiBin          string
 	trials          int
 	warmup          time.Duration
 	window          time.Duration

@@ -23,7 +23,7 @@ func measureTUILatency(repoRoot, fixtureID string, trials int, timeout time.Dura
 	}
 	defer os.RemoveAll(tmpDir)
 	outputPath := filepath.Join(tmpDir, "latency.json")
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), latencyBatchTimeout(timeout, trials))
 	defer cancel()
 	cmd := exec.CommandContext(ctx,
 		"go", "run", "./tools/tuiperf",
@@ -46,6 +46,17 @@ func measureTUILatency(repoRoot, fixtureID string, trials int, timeout time.Dura
 		return perfcontracts.CheckOutput{}, commandFailure(err, stderr.String(), fmt.Sprintf("tuiperf latency %s", fixtureID))
 	}
 	return perfcontracts.LoadCheckOutput(outputPath)
+}
+
+func latencyBatchTimeout(perTrialTimeout time.Duration, trials int) time.Duration {
+	if trials < 1 {
+		trials = 1
+	}
+	estimated := 30*time.Second + time.Duration(trials)*7*time.Second
+	if estimated > perTrialTimeout {
+		return estimated
+	}
+	return perTrialTimeout
 }
 
 func measureTUIRenderWaitingBenchmark(repoRoot string, timeout time.Duration) (perfcontracts.MeasurementRecord, error) {
