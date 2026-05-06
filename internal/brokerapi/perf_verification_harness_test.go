@@ -4,8 +4,38 @@ import (
 	"testing"
 	"time"
 
+	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/perfcontracts"
 )
+
+func TestPhase5GatewayPerfRigMeasuresGatewayAdmissionAndIngressPaths(t *testing.T) {
+	rig, err := newPhase5GatewayPerfRig("")
+	if err != nil {
+		t.Fatalf("newPhase5GatewayPerfRig returned error: %v", err)
+	}
+	defer rig.cleanup()
+
+	if err := rig.invokeGatewayTrial(1); err != nil {
+		t.Fatalf("invokeGatewayTrial returned error: %v", err)
+	}
+	if err := rig.issueLeaseTrial(1); err != nil {
+		t.Fatalf("issueLeaseTrial returned error: %v", err)
+	}
+	if err := rig.ingressPrepareSubmitTrial(1); err != nil {
+		t.Fatalf("ingressPrepareSubmitTrial returned error: %v", err)
+	}
+
+	events, err := rig.service.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents returned error: %v", err)
+	}
+	if !hasAuditEventType(events, "model_egress") {
+		t.Fatal("missing model_egress audit event from gateway invoke trial")
+	}
+	if !hasAuditEventType(events, brokerAuditEventTypeProviderCredential) {
+		t.Fatal("missing provider credential audit event from ingress submit trial")
+	}
+}
 
 func TestRunPhase5PerformanceHarnessProducesExpectedMetrics(t *testing.T) {
 	out, err := RunPhase5PerformanceHarness(testPhase5HarnessConfig())
@@ -72,6 +102,15 @@ func requiredPhase5Metrics() map[string]string {
 func hasPhase5Metric(measurements []perfcontracts.MeasurementRecord, metricID, unit string) bool {
 	for _, m := range measurements {
 		if m.MetricID == metricID && m.Unit == unit {
+			return true
+		}
+	}
+	return false
+}
+
+func hasAuditEventType(events []artifacts.AuditEvent, eventType string) bool {
+	for _, event := range events {
+		if event.Type == eventType {
 			return true
 		}
 	}

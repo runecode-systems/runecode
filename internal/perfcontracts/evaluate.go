@@ -34,6 +34,23 @@ func Evaluate(check CheckOutput, contracts []ContractFile, baselineByMetric map[
 }
 
 func evaluateMetric(metric MetricContract, measured float64, baseline BaselineFile) []Violation {
+	switch metric.ComparisonMethod {
+	case "exact_match":
+		return evaluateExactMetric(metric, measured)
+	case "absolute_ceiling", "max_ceiling", "p95_ceiling", "window_average", "window_max":
+		return evaluateAbsoluteBudgetMetric(metric, measured)
+	case "median_regression_with_noise_floor":
+		return evaluateRegressionMetric(metric, measured, baseline)
+	case "median_plus_regression", "p95_ceiling_plus_regression":
+		return evaluateHybridMetric(metric, measured, baseline)
+	case "":
+		return evaluateMetricByBudgetClass(metric, measured, baseline)
+	default:
+		return []Violation{{MetricID: metric.MetricID, Reason: fmt.Sprintf("unsupported comparison method %q", metric.ComparisonMethod)}}
+	}
+}
+
+func evaluateMetricByBudgetClass(metric MetricContract, measured float64, baseline BaselineFile) []Violation {
 	switch metric.BudgetClass {
 	case "exact":
 		return evaluateExactMetric(metric, measured)

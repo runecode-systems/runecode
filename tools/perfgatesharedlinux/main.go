@@ -1,19 +1,14 @@
 package main
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/brokerperf"
 	"github.com/runecode-ai/runecode/internal/perfcontracts"
 	"github.com/runecode-ai/runecode/internal/projectsubstrate"
 )
@@ -28,32 +23,25 @@ type config struct {
 }
 
 type deps struct {
-	runRunnerBoundary func(repoRoot string, timeout time.Duration) (perfcontracts.MeasurementRecord, error)
-	runRunnerFixtures func(repoRoot string, timeout time.Duration) (perfcontracts.MeasurementRecord, error)
-	runBrokerUnary    func(repoRoot string, trials int) (perfcontracts.MeasurementRecord, error)
+	runRunnerWorkflow func(repoRoot string, timeout time.Duration) (perfcontracts.CheckOutput, error)
+	runBrokerPerf     func(repoRoot string, trials int) (perfcontracts.CheckOutput, error)
+	runPhase5Perf     func(repoRoot string, trials int, timeout time.Duration) (perfcontracts.CheckOutput, error)
+	runTUIQuiet       func(repoRoot string, trials int, timeout time.Duration) (perfcontracts.CheckOutput, error)
+	runTUIWaiting     func(repoRoot string, trials int, timeout time.Duration) (perfcontracts.CheckOutput, error)
+	runTUIBench       func(repoRoot string, timeout time.Duration) (perfcontracts.MeasurementRecord, error)
+	listRequiredIDs   func(repoRoot string) ([]string, error)
 }
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
+		var usageErr usageError
+		if errors.As(err, &usageErr) {
+			fmt.Fprintf(os.Stderr, "perfgatesharedlinux usage error: %v\n", err)
+			os.Exit(2)
+		}
 		fmt.Fprintf(os.Stderr, "perfgatesharedlinux failed: %v\n", err)
 		os.Exit(1)
 	}
-}
-
-func run(args []string) error {
-	cfg, err := parseArgs(args)
-	if err != nil {
-		return err
-	}
-	return runWithDeps(cfg, deps{
-		runRunnerBoundary: func(repoRoot string, timeout time.Duration) (perfcontracts.MeasurementRecord, error) {
-			return measureRunnerCommand(repoRoot, timeout, "metric.runner.boundary_check.wall_ms", "npm", "run", "boundary-check")
-		},
-		runRunnerFixtures: func(repoRoot string, timeout time.Duration) (perfcontracts.MeasurementRecord, error) {
-			return measureRunnerCommand(repoRoot, timeout, "metric.runner.protocol_fixtures.wall_ms", "node", "--test", "scripts/protocol-fixtures.test.js")
-		},
-		runBrokerUnary: measureBrokerUnarySessionList,
-	})
 }
 
 func parseArgs(args []string) (config, error) {
@@ -64,17 +52,17 @@ func parseArgs(args []string) (config, error) {
 	trials := fs.Int("trials", 30, "deterministic broker unary trials")
 	timeoutMs := fs.Int("timeout-ms", 120000, "runner command timeout milliseconds")
 	if err := fs.Parse(args); err != nil {
-		return config{}, err
+		return config{}, usageError{err: err}
 	}
 	if strings.TrimSpace(*output) == "" {
-		return config{}, fmt.Errorf("--output is required")
+		return config{}, usageError{err: fmt.Errorf("--output is required")}
 	}
 	if *trials <= 0 {
-		return config{}, fmt.Errorf("--trials must be > 0")
+		return config{}, usageError{err: fmt.Errorf("--trials must be > 0")}
 	}
 	timeout := time.Duration(*timeoutMs) * time.Millisecond
 	if timeout <= 0 {
-		return config{}, fmt.Errorf("--timeout-ms must be > 0")
+		return config{}, usageError{err: fmt.Errorf("--timeout-ms must be > 0")}
 	}
 	return config{
 		outputPath: strings.TrimSpace(*output),
@@ -82,54 +70,6 @@ func parseArgs(args []string) (config, error) {
 		trials:     *trials,
 		timeout:    timeout,
 	}, nil
-}
-
-func runWithDeps(cfg config, d deps) error {
-	repoRoot, err := resolveRepoRoot(cfg.repository)
-	if err != nil {
-		return err
-	}
-	runnerBoundary, err := d.runRunnerBoundary(repoRoot, cfg.timeout)
-	if err != nil {
-		return fmt.Errorf("run runner boundary-check perf: %w", err)
-	}
-	runnerFixtures, err := d.runRunnerFixtures(repoRoot, cfg.timeout)
-	if err != nil {
-		return fmt.Errorf("run runner protocol-fixtures perf: %w", err)
-	}
-	brokerUnary, err := d.runBrokerUnary(repoRoot, cfg.trials)
-	if err != nil {
-		return fmt.Errorf("run broker unary perf: %w", err)
-	}
-	measurements := []perfcontracts.MeasurementRecord{runnerBoundary, runnerFixtures, brokerUnary}
-
-	raw, err := json.MarshalIndent(perfcontracts.CheckOutput{SchemaVersion: checkSchemaVersion, Measurements: measurements}, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(cfg.outputPath, raw, 0o644)
-}
-
-func measureRunnerCommand(repoRoot string, timeout time.Duration, metricID string, args ...string) (perfcontracts.MeasurementRecord, error) {
-	if len(args) == 0 {
-		return perfcontracts.MeasurementRecord{}, fmt.Errorf("command arguments required")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
-	cmd.Dir = filepath.Join(filepath.Clean(repoRoot), "runner")
-	cmd.Stdout = io.Discard
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	start := time.Now()
-	if err := cmd.Run(); err != nil {
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = err.Error()
-		}
-		return perfcontracts.MeasurementRecord{}, fmt.Errorf("%s failed: %s", strings.Join(args, " "), msg)
-	}
-	return perfcontracts.MeasurementRecord{MetricID: metricID, Value: float64(time.Since(start).Milliseconds()), Unit: "ms"}, nil
 }
 
 func resolveRepoRoot(explicit string) (string, error) {
@@ -157,15 +97,8 @@ func validateRepoRoot(root string) (string, error) {
 	return clean, nil
 }
 
-func measureBrokerUnarySessionList(repoRoot string, trials int) (perfcontracts.MeasurementRecord, error) {
-	out, err := brokerperf.Run(brokerperf.HarnessConfig{RepositoryRoot: repoRoot, Trials: trials})
-	if err != nil {
-		return perfcontracts.MeasurementRecord{}, err
-	}
-	for _, measurement := range out.Measurements {
-		if measurement.MetricID == "metric.broker.unary.session_list.p95_ms" {
-			return measurement, nil
-		}
-	}
-	return perfcontracts.MeasurementRecord{}, fmt.Errorf("metric.broker.unary.session_list.p95_ms missing from broker harness output")
-}
+type usageError struct{ err error }
+
+func (e usageError) Error() string { return e.err.Error() }
+
+func (e usageError) Unwrap() error { return e.err }

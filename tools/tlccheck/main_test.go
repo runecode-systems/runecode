@@ -167,8 +167,13 @@ func TestSelectedModelConfigs(t *testing.T) {
 }
 
 func TestSelectedModelConfigsRejectsUnknownMode(t *testing.T) {
-	if _, err := selectedModelConfigs("unknown"); err == nil {
+	_, err := selectedModelConfigs("unknown")
+	if err == nil {
 		t.Fatal("selectedModelConfigs error = nil, want unsupported mode failure")
+	}
+	var usageErr usageError
+	if !errors.As(err, &usageErr) {
+		t.Fatalf("selectedModelConfigs error = %T, want usageError", err)
 	}
 }
 

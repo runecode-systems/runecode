@@ -14,6 +14,6 @@ func selectedModelConfigs(mode string) ([]string, error) {
 	case "replay":
 		return []string{"SecurityKernelV0.replay.cfg"}, nil
 	default:
-		return nil, fmt.Errorf("unsupported mode %q", mode)
+		return nil, usageError{err: fmt.Errorf("unsupported mode %q", mode)}
 	}
 }

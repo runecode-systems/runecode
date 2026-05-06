@@ -13,6 +13,8 @@ import (
 	"github.com/runecode-ai/runecode/internal/tuiperf"
 )
 
+const latencyMarkerTimeout = 20 * time.Second
+
 func runCPUMode(cfg config) error {
 	_, cancel, harness, err := startTUIHarness(cfg)
 	if err != nil {
@@ -77,7 +79,7 @@ func collectLatencySamples(h runningHarness, trials int) ([]float64, []float64, 
 
 func collectLatencySample(events <-chan tuiperf.MarkerEvent, tuiIn io.Writer, marker string) (float64, float64, error) {
 	start := time.Now()
-	attachAt, err := waitForMarker(events, marker, 2*time.Second)
+	attachAt, err := waitForMarker(events, marker, latencyMarkerTimeout)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -85,7 +87,7 @@ func collectLatencySample(events <-chan tuiperf.MarkerEvent, tuiIn io.Writer, ma
 	if _, err := io.WriteString(tuiIn, "\t"); err != nil {
 		return 0, 0, err
 	}
-	keyAt, err := waitForMarker(events, marker, 2*time.Second)
+	keyAt, err := waitForMarker(events, marker, latencyMarkerTimeout)
 	if err != nil {
 		return 0, 0, err
 	}

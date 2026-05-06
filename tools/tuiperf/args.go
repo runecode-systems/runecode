@@ -50,7 +50,7 @@ func parseArgs(args []string) (config, error) {
 	timeoutMs := fs.Int("timeout-ms", 120000, "mode timeout millis")
 	benchOutput := fs.String("bench-output", "", "go test bench output path for bench-parse mode")
 	if err := fs.Parse(args); err != nil {
-		return config{}, err
+		return config{}, usageError{err: err}
 	}
 	return buildConfig(mode, output, fixtureID, runtimeDir, socketName, stateRoot, auditLedgerRoot, targetAlias, trials, warmupMs, windowMs, windows, timeoutMs, benchOutput)
 }
@@ -72,7 +72,7 @@ func buildConfig(
 	benchOutput *string,
 ) (config, error) {
 	if strings.TrimSpace(*mode) == "" || strings.TrimSpace(*output) == "" {
-		return config{}, errors.New("--mode and --output are required")
+		return config{}, usageError{err: errors.New("--mode and --output are required")}
 	}
 	timeout := time.Duration(*timeoutMs) * time.Millisecond
 	if timeout <= 0 {
@@ -95,3 +95,9 @@ func buildConfig(
 		benchOutput:     strings.TrimSpace(*benchOutput),
 	}, nil
 }
+
+type usageError struct{ err error }
+
+func (e usageError) Error() string { return e.err.Error() }
+
+func (e usageError) Unwrap() error { return e.err }

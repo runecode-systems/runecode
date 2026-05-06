@@ -71,7 +71,7 @@ func phase5CollectMeasurements(
 ) ([]perfcontracts.MeasurementRecord, error) {
 	measurements := make([]perfcontracts.MeasurementRecord, 0, 24)
 
-	if err := phase5AppendGatewayAndSecrets(&measurements, trials); err != nil {
+	if err := phase5AppendGatewayAndSecrets(&measurements, trials, repoRoot); err != nil {
 		return nil, err
 	}
 	if err := phase5AppendDependencyFlow(&measurements, trials, repoRoot); err != nil {
@@ -87,8 +87,8 @@ func phase5CollectMeasurements(
 	return measurements, nil
 }
 
-func phase5AppendGatewayAndSecrets(measurements *[]perfcontracts.MeasurementRecord, trials int) error {
-	items, err := measurePhase5GatewayAndSecrets(trials)
+func phase5AppendGatewayAndSecrets(measurements *[]perfcontracts.MeasurementRecord, trials int, repoRoot string) error {
+	items, err := measurePhase5GatewayAndSecrets(trials, repoRoot)
 	if err != nil {
 		return err
 	}

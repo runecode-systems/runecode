@@ -47,10 +47,7 @@ ci-required-shared-linux:
   just ci-fast
   tmpdir="$(mktemp -d)" && trap 'rm -rf "$tmpdir"' EXIT && \
     go run ./tools/perfgatesharedlinux --output "$tmpdir/perf-check.json" && \
-    go run ./tools/perfcontracts --check-output "$tmpdir/perf-check.json" --lane required_shared_linux \
-      --metric-id metric.runner.boundary_check.wall_ms \
-      --metric-id metric.runner.protocol_fixtures.wall_ms \
-      --metric-id metric.broker.unary.session_list.p95_ms
+    go run ./tools/perfcontracts --check-output "$tmpdir/perf-check.json" --lane required_shared_linux
 
 ci-portability:
   go run ./tools/gofmtcheck
