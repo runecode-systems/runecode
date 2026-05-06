@@ -10,12 +10,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
 )
 
 const terminateGracePeriod = 2 * time.Second
+
+var (
+	absPathPattern      = regexp.MustCompile(`(?:[A-Za-z]:\\|/)[^\s"']+`)
+	longTokenPattern    = regexp.MustCompile(`\b[A-Za-z0-9_=-]{24,}\b`)
+	wsPattern           = regexp.MustCompile(`\s+`)
+	nonPrintablePattern = regexp.MustCompile(`[^[:print:]\t\n\r]`)
+)
 
 type runningHarness struct {
 	ctx       context.Context
@@ -93,7 +101,7 @@ func startBrokerProcess(ctx context.Context, cfg config) (*exec.Cmd, error) {
 	}
 	if err := waitForSocket(filepath.Join(cfg.runtimeDir, cfg.socketName), 5*time.Second); err != nil {
 		terminateProcess(brokerCmd.Process)
-		return nil, fmt.Errorf("%w; broker startup output available but redacted", err)
+		return nil, fmt.Errorf("%w; broker startup summary: %s", err, summarizeBrokerStartupOutput(stdout.String(), stderr.String()))
 	}
 	return brokerCmd, nil
 }
@@ -117,8 +125,15 @@ func startTUIProcess(ctx context.Context, cfg config) (*exec.Cmd, io.ReadCloser,
 }
 
 func stopHarness(h runningHarness) {
-	terminateProcess(h.tuiCmd.Process)
-	terminateProcess(h.brokerCmd.Process)
+	terminateProcess(processOf(h.tuiCmd))
+	terminateProcess(processOf(h.brokerCmd))
+}
+
+func processOf(cmd *exec.Cmd) *os.Process {
+	if cmd == nil {
+		return nil
+	}
+	return cmd.Process
 }
 
 func requireIsolationInputs(cfg config) error {
@@ -164,8 +179,20 @@ func terminateProcess(p *os.Process) {
 	}
 }
 
+func summarizeBrokerStartupOutput(stdoutRaw, stderrRaw string) string {
+	return fmt.Sprintf("stdout=%s stderr=%s", summarizeStartupOutput(stdoutRaw), summarizeStartupOutput(stderrRaw))
+}
+
 func summarizeStartupOutput(raw string) string {
 	text := strings.TrimSpace(raw)
+	if text == "" {
+		return "<empty>"
+	}
+	text = nonPrintablePattern.ReplaceAllString(text, "")
+	text = absPathPattern.ReplaceAllString(text, "<path>")
+	text = longTokenPattern.ReplaceAllString(text, "<redacted>")
+	text = wsPattern.ReplaceAllString(text, " ")
+	text = strings.TrimSpace(text)
 	if text == "" {
 		return "<empty>"
 	}
@@ -173,5 +200,5 @@ func summarizeStartupOutput(raw string) string {
 	if len(text) <= maxLen {
 		return text
 	}
-	return text[len(text)-maxLen:]
+	return "…" + text[len(text)-maxLen:]
 }

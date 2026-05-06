@@ -121,7 +121,20 @@ func TestValidateWithBaselinesAllowsNonRequiredRegressionMetricWithoutBaseline(t
 }
 
 func TestValidateWithBaselinesRejectsMismatchedBaselineUnit(t *testing.T) {
-	manifest := Manifest{SchemaVersion: "runecode.performance.manifest.v1"}
+	manifest, inventory, contracts, baselines := mismatchedBaselineUnitFixture()
+	if err := ValidateWithBaselines(manifest, inventory, contracts, baselines); err == nil {
+		t.Fatal("ValidateWithBaselines error = nil, want baseline unit mismatch failure")
+	}
+}
+
+func mismatchedBaselineUnitFixture() (Manifest, FixtureInventory, []ContractFile, map[string]BaselineFile) {
+	manifest := Manifest{
+		SchemaVersion: "runecode.performance.manifest.v1",
+		Baselines: []ManifestBaseline{{
+			MetricID: "metric.tui.render.shell_view_empty.ns_op",
+			Path:     "baselines/metric.tui.render.shell_view_empty.ns_op.v1.json",
+		}},
+	}
 	inventory := FixtureInventory{SchemaVersion: "runecode.performance.fixtures.v1", Fixtures: []FixtureRecord{{FixtureID: "tui.empty.v1"}}}
 	threshold := 15.0
 	median := 1000.0
@@ -151,7 +164,51 @@ func TestValidateWithBaselinesRejectsMismatchedBaselineUnit(t *testing.T) {
 			}{Median: &median},
 		},
 	}
-	if err := ValidateWithBaselines(manifest, inventory, contracts, baselines); err == nil {
-		t.Fatal("ValidateWithBaselines error = nil, want baseline unit mismatch failure")
+	return manifest, inventory, contracts, baselines
+}
+
+func TestValidateWithBaselinesRejectsMismatchedBaselineRefProvenance(t *testing.T) {
+	manifest := Manifest{
+		SchemaVersion: "runecode.performance.manifest.v1",
+		Baselines: []ManifestBaseline{{
+			MetricID: "metric.tui.render.shell_view_empty.ns_op",
+			Path:     "baselines/metric.tui.render.shell_view_empty.ns_op.v1.json",
+		}},
+	}
+	inventory := FixtureInventory{SchemaVersion: "runecode.performance.fixtures.v1", Fixtures: []FixtureRecord{{FixtureID: "tui.empty.v1"}}}
+	threshold := 15.0
+	contracts := []ContractFile{{
+		SchemaVersion: "runecode.performance.contract.v1",
+		ContractID:    "performance.tui.v1",
+		Metrics: []MetricContract{{
+			MetricID:        "metric.tui.render.shell_view_empty.ns_op",
+			FixtureID:       "tui.empty.v1",
+			Unit:            "ns/op",
+			BudgetClass:     "regression-budget",
+			BaselineRef:     "baselines/other-baseline.v1.json",
+			LaneAuthority:   "required_shared_linux",
+			ActivationState: "required",
+			ThresholdOrigin: "first_calibration",
+			Threshold:       MetricThreshold{MaxRegressionPercent: &threshold},
+			TimingBoundary:  TimingBoundary{StartEvent: "start", EndEvent: "end", ClockSource: "monotonic", EvidenceSource: "bench", IncludedPhases: []string{"render"}},
+		}},
+	}}
+	if err := ValidateWithBaselines(manifest, inventory, contracts, nil); err == nil {
+		t.Fatal("ValidateWithBaselines error = nil, want baseline_ref provenance mismatch failure")
+	}
+}
+
+func TestValidateWithBaselinesRejectsDuplicateManifestBaselineMetricID(t *testing.T) {
+	manifest := Manifest{
+		SchemaVersion: "runecode.performance.manifest.v1",
+		Baselines: []ManifestBaseline{
+			{MetricID: "metric.sample", Path: "baselines/metric.sample.v1.json"},
+			{MetricID: "metric.sample", Path: "baselines/metric.sample.v2.json"},
+		},
+	}
+	inventory := FixtureInventory{SchemaVersion: "runecode.performance.fixtures.v1", Fixtures: []FixtureRecord{{FixtureID: "fixture.sample"}}}
+	contracts := []ContractFile{{SchemaVersion: "runecode.performance.contract.v1", ContractID: "performance.sample.v1"}}
+	if err := ValidateWithBaselines(manifest, inventory, contracts, nil); err == nil {
+		t.Fatal("ValidateWithBaselines error = nil, want duplicate manifest baseline metric_id failure")
 	}
 }
