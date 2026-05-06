@@ -1,0 +1,9 @@
+{
+  "schema_version":"runecode.performance.baseline.v1",
+  "metric_id": "metric.workflow.chg050.validation_canonicalization.wall_ms",
+  "unit": "ms",
+  "samples": [92, 96, 94, 95, 93],
+  "summary": {
+    "median": 94
+  }
+}

@@ -19,20 +19,37 @@ test:
   cd runner && npm test
 
 model-check:
-  go run ./tools/tlccheck
+  go run ./tools/tlccheck --mode all
 
-ci:
+model-check-core:
+  go run ./tools/tlccheck --mode core
+
+model-check-replay:
+  go run ./tools/tlccheck --mode replay
+
+ci-fast:
   go run ./tools/gofmtcheck
   go run {{golangci_lint}} run
   go vet ./...
   go run ./tools/checksourcequality
-  just model-check
   go test ./...
   go build ./cmd/...
   cd runner && npm ci
   cd runner && npm run lint
   cd runner && npm test
   cd runner && npm run boundary-check
+
+ci:
+  # Canonical local check entrypoint.
+  # Required shared-Linux performance contracts run in CI via ci-required-shared-linux.
+  just ci-fast
+  just model-check
+
+ci-required-shared-linux:
+  just ci-fast
+  tmpdir="$(mktemp -d)" && trap 'rm -rf "$tmpdir"' EXIT && \
+    go run ./tools/perfgatesharedlinux --output "$tmpdir/perf-check.json" && \
+    go run ./tools/perfcontracts --check-output "$tmpdir/perf-check.json" --lane required_shared_linux
 
 ci-portability:
   go run ./tools/gofmtcheck

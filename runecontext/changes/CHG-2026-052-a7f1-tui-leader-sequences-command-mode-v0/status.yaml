@@ -17,6 +17,7 @@ related_changes:
   - CHG-2026-040-2b7f-session-transcript-model-v0
   - CHG-2026-043-8e9b-live-activity-watch-streams-v0
   - CHG-2026-045-7f4c-direct-credential-model-providers-v0
+  - CHG-2026-060-c1a4-beta-readiness-hardening-product-polish
 depends_on:
   - CHG-2026-013-d2c9-minimal-tui-v0
   - CHG-2026-037-91be-tui-multi-session-power-workspace-v0

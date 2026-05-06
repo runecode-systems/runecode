@@ -25,5 +25,5 @@ env:
 steps:
   - run: nix flake lock --no-update-lock-file
   - run: nix flake check --no-write-lock-file
-  - run: nix develop --no-write-lock-file -c just ci
+  - run: nix develop --no-write-lock-file -c just ci-fast
 ```

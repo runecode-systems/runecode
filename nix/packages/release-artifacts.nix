@@ -75,7 +75,7 @@ pkgs.buildGoModule {
   src = releaseSource;
   go = goToolchain;
   # Refresh explicitly with `just refresh-release-vendor-hash`.
-  vendorHash = "sha256-X7jALliWzq3PLI1eeluKi8rHxqhjGyiU+WmU5GsqiFs=";
+  vendorHash = "sha256-I+WLce2YQRAVkMovlaWcbocashO88gyF9P4/y4dHJho=";
   # The workflow runs `just ci` before building this packaging-focused derivation.
   doCheck = false;
   strictDeps = true;

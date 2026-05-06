@@ -18,6 +18,7 @@ related_changes:
   - CHG-2026-006-84f0-audit-anchoring-v0
   - CHG-2026-003-b567-audit-log-v0-verify
   - CHG-2026-007-2315-policy-engine-v0
+  - CHG-2026-053-9d2b-performance-baselines-verification-gates-v0
 depends_on: []
 informed_by: []
 supersedes: []

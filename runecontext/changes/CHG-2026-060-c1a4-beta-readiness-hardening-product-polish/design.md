@@ -9,6 +9,8 @@ The central rule of this lane is:
 
 RuneCode should not claim beta readiness until one real workflow path runs through the real trusted and untrusted execution path, produces inspectable artifacts and audit evidence, and remains understandable to an operator using the normal product surfaces.
 
+This lane also coordinates directly with `CHG-2026-053-9d2b-performance-baselines-verification-gates-v0` for the surfaces that beta users actually experience. Dogfooding-driven polish must improve those surfaces without making them less authoritative or less measurable.
+
 ## Scope
 This lane covers five connected concerns:
 
@@ -103,6 +105,12 @@ This lane should capture polish work discovered while testing the real workflow 
 
 The TUI is the highest-priority polish surface because it is the normal user-facing shell for the local product.
 
+That polish should stay aligned with the reviewed performance-contract discipline in `CHG-053`, especially:
+
+- attach, reconnect, and resume surfaces should continue to reflect broker-owned lifecycle truth rather than client-local optimistic shortcuts
+- waiting, blocked, degraded, and failed states should remain operator-visible without reintroducing misleading high-activity rendering paths or synthetic progress cues
+- dogfooding fixes should preserve the same authoritative surfaces that the MVP performance gates measure rather than optimizing around those gates with less truthful UI behavior
+
 ## Verification Smoke Path
 This lane should require that the real workflow path also exercises the verification surfaces already present in the repository.
 
@@ -135,3 +143,4 @@ This alpha lane is complete when:
 - verification artifacts are generated and exercised from that real workflow path
 - TUI and surrounding operator surfaces are polished enough that a new user can test the product coherently on Linux
 - the beta story is honest about assurance and execution behavior
+- workflow-path and TUI polish remain compatible with the authoritative surfaces and honest measurement boundaries frozen by `CHG-053`

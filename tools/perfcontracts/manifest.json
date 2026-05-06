@@ -1,0 +1,58 @@
+{
+  "schema_version":"runecode.performance.manifest.v1",
+  "manifest_version": "1",
+  "change_ref": "CHG-2026-053-9d2b-performance-baselines-verification-gates-v0",
+  "fixture_inventory_ref": "fixtures/inventory.v1.json",
+  "contracts": [
+    {"surface": "tui", "path": "contracts/tui.v1.json"},
+    {"surface": "broker", "path": "contracts/broker.v1.json"},
+    {"surface": "runner-workflow", "path": "contracts/runner-workflow.v1.json"},
+    {"surface": "launcher", "path": "contracts/launcher.v1.json"},
+    {"surface": "dependency-audit", "path": "contracts/dependency-audit.v1.json"},
+    {"surface": "gateway-secrets", "path": "contracts/gateway-secrets.v1.json"},
+    {"surface": "external-anchor", "path": "contracts/external-anchor.v1.json"},
+    {"surface": "attestation", "path": "contracts/attestation.v1.json"}
+  ],
+  "baselines": [
+    {"metric_id": "metric.tui.render.shell_view_waiting.ns_op", "path": "baselines/metric.tui.render.shell_view_waiting.ns_op.v1.json"},
+    {"metric_id": "metric.broker.unary.session_list.p95_ms", "path": "baselines/metric.broker.unary.session_list.p95_ms.v1.json"},
+    {"metric_id": "metric.runner.boundary_check.wall_ms", "path": "baselines/metric.runner.boundary_check.wall_ms.v1.json"},
+    {"metric_id": "metric.runner.protocol_fixtures.wall_ms", "path": "baselines/metric.runner.protocol_fixtures.wall_ms.v1.json"},
+    {"metric_id": "metric.workflow.chg049.first_party_beta_slice.wall_ms", "path": "baselines/metric.workflow.chg049.first_party_beta_slice.wall_ms.v1.json"},
+    {"metric_id": "metric.workflow.chg050.compile.wall_ms", "path": "baselines/metric.workflow.chg050.compile.wall_ms.v1.json"},
+    {"metric_id": "metric.workflow.chg050.validation_canonicalization.wall_ms", "path": "baselines/metric.workflow.chg050.validation_canonicalization.wall_ms.v1.json"},
+    {"metric_id": "metric.workflow.chg050.runplan_persist_load.wall_ms", "path": "baselines/metric.workflow.chg050.runplan_persist_load.wall_ms.v1.json"},
+    {"metric_id": "metric.deps.cache_miss.small.wall_ms", "path": "baselines/metric.deps.cache_miss.small.wall_ms.v1.json"},
+    {"metric_id": "metric.deps.cache_hit.small.wall_ms", "path": "baselines/metric.deps.cache_hit.small.wall_ms.v1.json"},
+    {"metric_id": "metric.deps.materialization.workspace_handoff.wall_ms", "path": "baselines/metric.deps.materialization.workspace_handoff.wall_ms.v1.json"},
+    {"metric_id": "metric.audit.verify_current_segment.wall_ms", "path": "baselines/metric.audit.verify_current_segment.wall_ms.v1.json"},
+    {"metric_id": "metric.audit.finalize_verify.wall_ms", "path": "baselines/metric.audit.finalize_verify.wall_ms.v1.json"}
+  ],
+  "metric_taxonomy": {
+    "budget_classes": [
+      "exact",
+      "absolute-budget",
+      "regression-budget",
+      "hybrid-budget"
+    ]
+  },
+  "lane_authorities": [
+    "required_shared_linux",
+    "required_tight_linux",
+    "informational_until_stable",
+    "contract_pending_dependency",
+    "extended"
+  ],
+  "activation_states": [
+    "defined",
+    "informational",
+    "required",
+    "contract_pending_dependency"
+  ],
+  "deferrals": [
+    {
+      "change_ref": "CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0",
+      "reason": "broader fixture ladders and cross-platform numeric-gate expansion"
+    }
+  ]
+}

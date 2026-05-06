@@ -11,6 +11,7 @@ context_bundles:
 related_specs: []
 related_decisions: []
 related_changes:
+  - CHG-2026-053-9d2b-performance-baselines-verification-gates-v0
   - CHG-2026-045-7f4c-direct-credential-model-providers-v0
   - CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0
   - CHG-2026-047-c3e2-local-control-plane-bootstrap-persistent-session-lifecycle-v0

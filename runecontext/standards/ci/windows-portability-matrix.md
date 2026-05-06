@@ -13,7 +13,7 @@ suggested_context_bundles:
 - Windows CI runs `just ci-portability` under PowerShell (no bash dependency)
 - Test Node "min + max" versions within `runner/package.json` `engines` (pin exact versions)
 - Pin Windows job tooling versions for reproducibility (Go, Node, just, gopls, baseline CLIs)
-- Keep one canonical TLC/model-check gate in a single CI lane (currently Linux via `just ci`), and keep Windows focused on portability checks that do not depend on TLC runtime provisioning
+- Keep the canonical TLC/model-check gate on Linux in a dedicated formal-security CI job, and keep Windows focused on portability checks that do not depend on TLC runtime provisioning
 - Keep failure-path tests portable: do not rely on POSIX-only chmod or permission semantics when a deterministic injected failure seam can exercise the same rollback or cleanup path on Windows
 
 ```yaml

@@ -18,6 +18,7 @@ That includes freezing the following clarifications for post-MVP work:
 - git-gateway and broader project-substrate performance checks should remain deterministic and local-first where feasible
 - larger fixture ladders and heavier extended lanes are valuable, but should not destabilize the MVP PR gate
 - broader macOS and Windows numeric tuning should remain explicit follow-on work rather than implied parity with Linux before the platform lanes are ready
+- post-MVP expansion should keep using the reviewed performance-contract artifacts, metric taxonomy, statistical defaults, and authoritative timing-boundary rules established by `CHG-053` unless a later reviewed change deliberately revises them
 - threshold updates and baseline refreshes still require explicit review rather than silent CI mutation
 
 This change extends the MVP performance foundation from `CHG-053` rather than redefining RuneCode's trust or control-plane contracts.
