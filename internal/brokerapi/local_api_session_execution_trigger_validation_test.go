@@ -1,26 +1,64 @@
 package brokerapi
 
 import (
+	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/runecode-ai/runecode/internal/artifacts"
 )
 
-func TestMatchesBoundInputSetDigestAcceptsDigestObjectIdentity(t *testing.T) {
-	bound := "sha256:" + strings.Repeat("a", 64)
+func TestApprovedImplementationInputSetDigestAcceptsDigestObjectIdentity(t *testing.T) {
+	want := "sha256:" + strings.Repeat("a", 64)
 	decoded := map[string]any{
-		"input_set_digest": digestObject(bound),
+		"input_set_digest": digestObject(want),
 	}
-	if !matchesBoundInputSetDigest(decoded, bound) {
-		t.Fatal("matchesBoundInputSetDigest returned false, want true")
+	if got, ok := approvedImplementationInputSetDigest(decoded); !ok || got != want {
+		t.Fatalf("approvedImplementationInputSetDigest = (%q, %v), want (%q, true)", got, ok, want)
 	}
 }
 
-func TestMatchesBoundInputSetDigestRejectsMalformedDigestObject(t *testing.T) {
+func TestApprovedImplementationInputSetDigestRejectsMalformedDigestObject(t *testing.T) {
 	decoded := map[string]any{
 		"input_set_digest": map[string]any{"hash_alg": "sha512", "hash": "abc"},
 	}
-	if matchesBoundInputSetDigest(decoded, "sha256:"+strings.Repeat("a", 64)) {
-		t.Fatal("matchesBoundInputSetDigest returned true for malformed digest object")
+	if _, ok := approvedImplementationInputSetDigest(decoded); ok {
+		t.Fatal("approvedImplementationInputSetDigest returned ok for malformed digest object")
+	}
+}
+
+func TestRecomputeApprovedImplementationInputSetDigestExcludesEmbeddedDigestField(t *testing.T) {
+	decoded := map[string]any{
+		"schema_id":              "runecode.protocol.v0.RuneContextApprovedImplementationInputSet",
+		"schema_version":         "0.1.0",
+		"approval_profile":       "moderate",
+		"input_set_digest":       digestObject("sha256:" + strings.Repeat("f", 64)),
+		"approved_input_digests": []any{digestObject("sha256:" + strings.Repeat("a", 64))},
+	}
+	got, err := recomputeApprovedImplementationInputSetDigest(decoded)
+	if err != nil {
+		t.Fatalf("recomputeApprovedImplementationInputSetDigest returned error: %v", err)
+	}
+	clone := map[string]any{}
+	for key, value := range decoded {
+		clone[key] = value
+	}
+	delete(clone, "input_set_digest")
+	raw, err := json.Marshal(clone)
+	if err != nil {
+		t.Fatalf("Marshal returned error: %v", err)
+	}
+	canonical, err := artifacts.CanonicalizeJSONBytes(raw)
+	if err != nil {
+		t.Fatalf("CanonicalizeJSONBytes returned error: %v", err)
+	}
+	want := artifacts.DigestBytes(canonical)
+	if got != want {
+		t.Fatalf("recomputeApprovedImplementationInputSetDigest = %q, want %q", got, want)
+	}
+	if !reflect.DeepEqual(decoded["input_set_digest"], digestObject("sha256:"+strings.Repeat("f", 64))) {
+		t.Fatal("recomputeApprovedImplementationInputSetDigest mutated input payload")
 	}
 }
 

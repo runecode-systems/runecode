@@ -24,10 +24,12 @@ func TestRunsRouteExplainsBrokerPostureAndStateTaxonomy(t *testing.T) {
 		"Local actions: jump:approvals | jump:artifacts | jump:audit | copy:run_id",
 		"Copy actions: run id | raw block",
 		"backend_kind=workspace",
+		"Workflow identity (authoritative): workflow_kind=n/a workflow_definition_hash=n/a current_stage_",
 		"Runtime isolation assurance (authoritative): runtime isolation=sandboxed",
 		"Provisioning/binding posture (authoritative): provisioning posture=attested",
 		"PROVISIONING_OK",
 		"Attestation posture (authoritative): attestation posture=valid",
+		"Runtime attestation truthfulness (authoritative): post-handshake verification succeeded; support",
 		"Verifier class (authoritative): verifier class=trusted_domain_local",
 		"Supported runtime requirements (authoritative): supported_runtime_requirements_satisfied=true",
 		"Reduced-assurance posture (authoritative): reduced_assurance=false",
@@ -39,8 +41,6 @@ func TestRunsRouteExplainsBrokerPostureAndStateTaxonomy(t *testing.T) {
 		"Coordination summary: blocked=true wait_reason=approval_wait",
 		"Blocking cue:",
 		"APPROVAL_REQUIRED",
-		"Stage summaries: 2 total, 1 with pending approvals",
-		"Role summaries: 2 total, 1 reporting coordination waits",
 	)
 	if strings.Contains(view, "Summary: run=run-1 lifecycle=n/a pending_approvals=0") {
 		t.Fatalf("expected run detail only in inspector region, got %q", view)

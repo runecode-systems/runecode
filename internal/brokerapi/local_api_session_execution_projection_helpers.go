@@ -64,9 +64,6 @@ func fromDurableWorkflowRouting(in artifacts.SessionWorkflowPackRoutingDurableSt
 	if out.WorkflowFamily == "" {
 		out.WorkflowFamily = "runecontext"
 	}
-	if out.WorkflowOperation == "" {
-		out.WorkflowOperation = "approved_change_implementation"
-	}
 	if len(in.BoundInputArtifacts) == 0 {
 		return out
 	}

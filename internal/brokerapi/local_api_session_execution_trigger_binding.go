@@ -67,7 +67,7 @@ func (s *Service) updateSessionRunBindingState(requestID, sessionID, runID strin
 }
 
 func (s *Service) initializeSessionExecutionRunBinding(requestID, sessionID, runID string) *ErrorResponse {
-	if err := s.SetRunStatus(runID, "active"); err != nil {
+	if err := s.SetRunStatus(runID, "starting"); err != nil {
 		errOut := s.errorFromStore(requestID, err)
 		return &errOut
 	}
@@ -82,5 +82,30 @@ func sessionExecutionRunID(sessionID string, executionIndex int) string {
 	if executionIndex < 1 {
 		executionIndex = 1
 	}
-	return fmt.Sprintf("%s.run.%06d", strings.TrimSpace(sessionID), executionIndex)
+	return fmt.Sprintf("run_%s_%06d", sessionExecutionIdentifierToken(sessionID), executionIndex)
+}
+
+func sessionExecutionIdentifierToken(value string) string {
+	trimmed := strings.TrimSpace(strings.ToLower(value))
+	if trimmed == "" {
+		return "session"
+	}
+	b := strings.Builder{}
+	b.Grow(len(trimmed))
+	for i := 0; i < len(trimmed); i++ {
+		ch := trimmed[i]
+		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_' || ch == '-' {
+			b.WriteByte(ch)
+			continue
+		}
+		b.WriteByte('_')
+	}
+	normalized := strings.Trim(b.String(), "_-")
+	if normalized == "" {
+		return "session"
+	}
+	if normalized[0] < 'a' || normalized[0] > 'z' {
+		return "s_" + normalized
+	}
+	return normalized
 }

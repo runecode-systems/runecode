@@ -10,7 +10,8 @@ It treats isolation and cryptographic provenance as co-equal pillars: work runs 
 ## Status
 
 The latest published release is `v0.1.0-alpha.7`, and the repository mainline already includes `v0.1.0-alpha.11` work in progress.
-RuneCode remains pre-production: the signed, tag-driven release pipeline exists, but the shipped Go binaries are still scaffold-heavy and not feature-complete.
+RuneCode remains pre-production: the signed, tag-driven release pipeline exists, and the current shipped surface is a local-first beta-hardening slice rather than the full long-term product.
+Today that supported slice is the repo-scoped local lifecycle plus verified RuneContext project-substrate lifecycle, change/spec drafting, reviewed draft promote/apply, approved implementation, and inspectable audit/evidence surfaces.
 
 ## Why RuneCode
 
@@ -283,15 +284,16 @@ just ci
 
 ## Components
 
-The Go binaries currently shipped by the release pipeline remain pre-production and intentionally do not expose the full production system surface.
+The Go binaries currently shipped by the release pipeline remain pre-production and intentionally expose a local-first supported slice rather than the full production system surface.
 
 Alongside that still-incremental surface, the repository already includes working foundations with:
 - manifest-verified schemas and registries
 - cross-language fixture validation
 - canonicalization/hash golden tests
 - runner trust-boundary static checks
-- a trusted full-screen `runecode-tui` workbench with dashboard/chat/runs/approvals/Action Center/artifacts/audit/status/model-providers/git-setup/git-remote routes, shell-owned pane composition, session quick switching, a configurable `space`-default leader surface, bottom-left `:` command mode, one unified action graph for help/discovery/leader/command aliases, a visible quit action plus double-press `ctrl+c` emergency escape hatch, typed watch-backed live activity, chat execution progress derived from broker-owned session execution trigger plus turn-execution watch state, selection-mode copy ergonomics, broker-owned direct-credential provider setup with masked secret entry, and local-only layout/theme persistence
+- a trusted full-screen `runecode-tui` workbench with dashboard/chat/runs/approvals/Action Center/artifacts/audit/status/model-providers and other admin routes, shell-owned pane composition, session quick switching, a configurable `space`-default leader surface, bottom-left `:` command mode, one unified action graph for help/discovery/leader/command aliases, a visible quit action plus double-press `ctrl+c` emergency escape hatch, typed watch-backed live activity, chat execution progress derived from broker-owned session execution trigger plus turn-execution watch state, selection-mode copy ergonomics, broker-owned direct-credential provider setup with masked secret entry, and local-only layout/theme persistence
 - the TUI status route now surfaces broker-owned project-substrate posture plus adopt, init, and upgrade actions without making the TUI itself authoritative
+- a broker-owned local-first RuneContext workflow slice covering project-substrate inspect/adopt/init/upgrade, `change_draft`, `spec_draft`, reviewed `draft_promote_apply`, and `approved_change_implementation`, with runs, artifacts, approvals, and audit/evidence surfaces linked back to the authoritative plan
 - a trusted local artifact store and broker CLI for artifact put/get/head/list, flow checks, excerpt promotion and revocation, run-status updates, GC, and self-contained signed backup bundle export or fail-closed restore that preserves runtime evidence, lifecycle state, and related durable attestation state
 - a trusted local audit ledger plus broker/auditd CLI surfaces for audit readiness, audit verification inspection, audit record inspection, audit record inclusion lookup, evidence snapshots and retention review, verifier-friendly evidence-bundle manifest generation, streaming bundle export, offline bundle verification, explicit audit anchoring over signed segment seals, and external-anchor evidence plus sidecar persistence used by verification and projections
 - a broker local IPC API and CLI read/action surfaces for run list/detail, session list/detail/message append/execution trigger/session watch, approval list/detail/resolve, policy-backed artifact reads, audit timeline/record inspection, audit record inclusion lookup, audit evidence snapshot/retention review/bundle manifest/bundle export/offline verify, audit anchoring presence/action, audit verification/readiness, external-anchor mutation prepare/get/issue-execute-lease/execute, trusted-contract import, version inspection, structured log streaming, broker-projected backend posture get/change operations, project-substrate posture/get/adopt/init/upgrade operations with preview-digest-bound upgrade apply, provider profile list/get, provider setup session and secret-ingress flows, provider validation lifecycle operations, provider credential lease issuance, and broker-owned session-turn-execution watch streams for in-flight execution state

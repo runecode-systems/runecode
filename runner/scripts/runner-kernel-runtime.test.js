@@ -324,6 +324,7 @@ test("fails closed when resume resolution binding/hash does not match pending wa
     FileDurableStateStore,
     InvalidApprovalWaitError,
     PlanIdentityMismatchError,
+    NoopRunnerBrokerClient,
   } = await loadRunnerModules();
 
   const schemaBundle = await ProtocolSchemaBundle.fromProtocolSchemasRoot(path.join(repoRoot, "protocol", "schemas"));
@@ -356,6 +357,7 @@ test("fails closed when resume resolution binding/hash does not match pending wa
   const kernelWrongHash = new RunnerKernel({
     planLoader: loader,
     durableStateStore: store,
+    brokerClient: new NoopRunnerBrokerClient(),
     approvalWaitResolver: {
       async resolve(wait) {
         return {
@@ -378,6 +380,7 @@ test("fails closed when resume resolution binding/hash does not match pending wa
   const kernelStalePlan = new RunnerKernel({
     planLoader: loader,
     durableStateStore: store,
+    brokerClient: new NoopRunnerBrokerClient(),
     approvalWaitResolver: {
       async resolve(wait) {
         return {
@@ -463,6 +466,7 @@ test("kernel resumeApprovalWaits returns explicit cleared statuses", async (t) =
     RunPlanLoader,
     RunnerKernel,
     FileDurableStateStore,
+    NoopRunnerBrokerClient,
   } = await loadRunnerModules();
 
   const schemaBundle = await ProtocolSchemaBundle.fromProtocolSchemasRoot(path.join(repoRoot, "protocol", "schemas"));
@@ -494,6 +498,7 @@ test("kernel resumeApprovalWaits returns explicit cleared statuses", async (t) =
   const kernel = new RunnerKernel({
     planLoader: loader,
     durableStateStore: store,
+    brokerClient: new NoopRunnerBrokerClient(),
     approvalWaitResolver: {
       async resolve(wait) {
         return {
@@ -792,4 +797,29 @@ test("kernel composes modules with plan-bound identity", async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].kind, "park");
   assert.equal(calls[0].input.identity.run_id, "run_alpha");
+});
+
+test("kernel constructor fails closed without broker client", async () => {
+  const {
+    ProtocolSchemaBundle,
+    RunPlanLoader,
+    RunnerKernel,
+    FileDurableStateStore,
+    MissingRunnerBrokerClientError,
+  } = await loadRunnerModules();
+
+  const schemaBundle = await ProtocolSchemaBundle.fromProtocolSchemasRoot(path.join(repoRoot, "protocol", "schemas"));
+  const loader = new RunPlanLoader(schemaBundle);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-kernel-"));
+  const store = new FileDurableStateStore(root);
+  try {
+    assert.throws(() => {
+      new RunnerKernel({
+        planLoader: loader,
+        durableStateStore: store,
+      });
+    }, MissingRunnerBrokerClientError);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

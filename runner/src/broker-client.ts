@@ -41,3 +41,10 @@ export class NoopRunnerBrokerClient implements RunnerBrokerClient {
     return { accepted: false, reason: "broker client not configured" };
   }
 }
+
+export class MissingRunnerBrokerClientError extends Error {
+  constructor() {
+    super("runner broker client is required for supported execution path");
+    this.name = "MissingRunnerBrokerClientError";
+  }
+}

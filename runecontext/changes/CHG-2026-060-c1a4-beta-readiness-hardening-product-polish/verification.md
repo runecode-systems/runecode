@@ -15,6 +15,7 @@
 - Workflow smoke: run `change_draft` and `spec_draft` through the real trusted `RunPlan` and runner path.
 - Promote/apply smoke: promote a reviewed change draft into `runecontext/changes/` and a reviewed spec draft into `runecontext/specs/` through the shared audited mutation path.
 - Implementation smoke: run `approved_change_implementation` from one reviewed implementation input set and verify resulting local workspace mutation plus required RuneContext lifecycle metadata updates when included in the approved input.
+- Approved implementation identity smoke: verify trusted code rejects an input set whose embedded `input_set_digest` does not equal the canonical semantic body digest recomputed with `input_set_digest` omitted, while still using the bound artifact digest for exact stored payload retrieval.
 - Evidence smoke: inspect run/session/artifact/approval/audit surfaces, capture an evidence snapshot, verify at least one record-inclusion result, export an evidence bundle, and verify the bundle offline.
 - External anchoring smoke: exercise external audit anchoring on the real workflow path where environment and policy allow.
 - Git publication posture: confirm beta messaging does not claim push, pull request, prompt-to-PR, or team-collaboration publishing unless a separate reviewed git remote smoke path is added.
@@ -29,6 +30,7 @@
 - Confirm the design calls out runner transport and reporting integration rather than leaving noop/default runner transport ambiguous for the real path.
 - Confirm run/session/TUI projections are plan-authoritative for the supported path rather than artifact-inferred.
 - Confirm approved implementation can carry required RuneContext lifecycle metadata updates without creating a separate fifth workflow operation for this lane.
+- Confirm approved implementation keeps `input_set_artifact_digest` and semantic `input_set_digest` distinct and fail-closed on embedded semantic digest drift.
 - Confirm the tasks explicitly capture TUI and operator polish discovered while testing.
 - Confirm the change requires exercising evidence snapshot, record inclusion, bundle export, and offline verification on the real workflow path.
 - Confirm the design keeps product messaging and assurance wording aligned with actual implementation state.

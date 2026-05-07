@@ -173,3 +173,62 @@ func TestStatusRouteRendersDiagnosticsOnlyAttachGuidanceWhenNormalOperationBlock
 		"Attach guidance: diagnostics/remediation-only attach is available; normal operation is blocked by current project-substrate posture.",
 	)
 }
+
+type blockedProjectSubstrateStatusClient struct {
+	*fakeBrokerClient
+}
+
+func (f *blockedProjectSubstrateStatusClient) ProductLifecyclePostureGet(ctx context.Context) (brokerapi.ProductLifecyclePostureGetResponse, error) {
+	_, _ = f.fakeBrokerClient.ProductLifecyclePostureGet(ctx)
+	return brokerapi.ProductLifecyclePostureGetResponse{ProductLifecycle: brokerapi.BrokerProductLifecyclePosture{
+		SchemaID:               "runecode.protocol.v0.BrokerProductLifecyclePosture",
+		SchemaVersion:          "0.1.0",
+		ProductInstanceID:      "repo-test",
+		LifecycleGeneration:    "gen-blocked-substrate",
+		AttachMode:             "diagnostics_only",
+		LifecyclePosture:       "blocked",
+		Attachable:             true,
+		NormalOperationAllowed: false,
+		BlockedReasonCodes:     []string{"project_substrate_missing"},
+	}}, nil
+}
+
+func (f *blockedProjectSubstrateStatusClient) ProjectSubstratePostureGet(ctx context.Context) (brokerapi.ProjectSubstratePostureGetResponse, error) {
+	_, _ = f.fakeBrokerClient.ProjectSubstratePostureGet(ctx)
+	return brokerapi.ProjectSubstratePostureGetResponse{
+		SchemaID:       "runecode.protocol.v0.ProjectSubstratePostureGetResponse",
+		SchemaVersion:  "0.1.0",
+		RequestID:      "req-project-substrate-posture-blocked",
+		RepositoryRoot: "/repo",
+		PostureSummary: brokerapi.ProjectSubstratePostureSummary{
+			SchemaID:               "runecode.protocol.v0.ProjectSubstratePostureSummary",
+			SchemaVersion:          "0.1.0",
+			ValidationState:        "missing",
+			CompatibilityPosture:   "missing",
+			NormalOperationAllowed: false,
+			BlockedReasonCodes:     []string{"project_substrate_missing"},
+		},
+		BlockedExplanation:  "normal operation blocked by project substrate posture: project_substrate_missing",
+		RemediationGuidance: []string{"inspect_project_substrate_posture", "initialize_canonical_runecontext_substrate", "revalidate_project_substrate"},
+		InitPreview:         brokerapi.ProjectSubstrateInitPreviewResponse{Preview: brokerapi.ProjectSubstrateInitPreviewResponse{}.Preview}.Preview,
+		UpgradePreview:      brokerapi.ProjectSubstrateUpgradePreviewResponse{}.Preview,
+	}, nil
+}
+
+func TestStatusRouteRendersBlockedProjectSubstrateGuidance(t *testing.T) {
+	model := newStatusRouteModel(routeDefinition{ID: routeStatus, Label: "Status"}, &blockedProjectSubstrateStatusClient{fakeBrokerClient: &fakeBrokerClient{}})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeStatus})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+	view := updated.View(120, 40, focusContent)
+	mustContainAll(t, view,
+		"Project substrate posture:",
+		"state=missing",
+		"compatibility=missing",
+		"normal_operation_allowed=false",
+		"Project substrate block: normal operation blocked by project substrate posture: project_substrate_missing",
+		"Project substrate remediation: inspect_project_substrate_posture,initialize_canonical_runecontext_substrate,revalidate_project_substrate",
+	)
+}

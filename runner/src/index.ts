@@ -52,6 +52,7 @@ export {
   type RunnerBrokerClient,
   type BrokerAcknowledge,
   NoopRunnerBrokerClient,
+  MissingRunnerBrokerClientError,
 } from "./broker-client.ts";
 export {
   RUNNER_CHECKPOINT_REPORT_SCHEMA_ID,

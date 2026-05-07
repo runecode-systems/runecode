@@ -14,7 +14,7 @@ import {
 import { PlanScheduler, type ScheduledWorkItem } from "./scheduler.ts";
 import type { DependencyCacheHandoffRequirement, RunnerPlan, RunnerPlanEntry, RunPlanLoader } from "./run-plan.ts";
 import { DurableRuntimeSeam, type RunnerRuntimeSeam } from "./runtime-seam.ts";
-import { NoopRunnerBrokerClient, type RunnerBrokerClient } from "./broker-client.ts";
+import { MissingRunnerBrokerClientError, type RunnerBrokerClient } from "./broker-client.ts";
 import type {
   DependencyCacheHandoffMetadata,
   PlanBoundExecutionIdentity,
@@ -83,7 +83,10 @@ export class RunnerKernel {
     this.scheduler = options.scheduler ?? new PlanScheduler();
     this.runtimeSeam = options.runtimeSeam ?? new DurableRuntimeSeam(options.durableStateStore);
     this.approvalWaitResolver = options.approvalWaitResolver;
-    this.brokerClient = options.brokerClient ?? new NoopRunnerBrokerClient();
+    if (!options.brokerClient) {
+      throw new MissingRunnerBrokerClientError();
+    }
+    this.brokerClient = options.brokerClient;
   }
 
   async initializeFromPlanFile(planFilePath: string): Promise<{ plan: RunnerPlan; work: ScheduledWorkItem[] }> {

@@ -26,6 +26,7 @@ Without a dedicated alpha hardening lane, RuneCode risks declaring beta too earl
 - Treat this lane as the integration and dogfooding bridge between implemented foundations and the `v0.1.0-beta.1` milestone outcome.
 - Close the remaining end-to-end execution gap from session trigger to real trusted `RunPlan` adoption, runner or isolate launch, runner checkpoint and result reporting, and durable operator-visible state.
 - Require the supported beta RuneContext workflow slice to be runnable and inspectable through the normal product path: `change_draft`, `spec_draft`, `draft_promote_apply`, and `approved_change_implementation`.
+- Tighten the `approved_change_implementation` input-set identity contract before beta so the bound artifact digest and the semantic input-set digest are distinct, recomputed by trusted code, and fail closed on drift.
 - Require canonical RuneContext project-substrate lifecycle proof through RuneCode-owned surfaces: inspect or adopt existing substrate, initialize missing substrate through preview/apply, upgrade supported older substrate through preview/apply, and validate/status the resulting posture.
 - Track the production adoption of trusted `RunPlan` compilation rather than leaving it as a largely test-proven foundation seam.
 - Track the replacement of effectively noop runner transport defaults with real broker integration in the actual workflow path.
@@ -53,6 +54,7 @@ That split is easier to reason about than continuing to leave integration and po
 - RuneCode should ship beta only when the local canonical workflow loop runs through the honest trusted and untrusted execution path and is inspectable through the normal product surfaces.
 - The required local canonical workflow loop includes project-substrate lifecycle, `change_draft`, `spec_draft`, `draft_promote_apply`, and `approved_change_implementation`.
 - `approved_change_implementation` may include required RuneContext lifecycle metadata updates, such as `tasks.md`, `status.yaml`, verification status, roadmap, or release-note updates, when those updates are part of the approved implementation input set; a separate fifth workflow operation is not required for this lane.
+- `approved_change_implementation` must preserve two digest domains: the routing-bound artifact digest identifies the exact stored payload bytes, while `input_set_digest` identifies the canonical input-set body with `input_set_digest` omitted.
 - TUI and product polish discovered while dogfooding are legitimate alpha hardening work and should be planned explicitly rather than treated as incidental cleanup.
 - Verification artifacts generated from the real workflow path must remain first-class deliverables of this lane so later verification work strengthens rather than backfills the beta story.
 - Product polish in this lane must improve operator clarity without undermining the authoritative broker-owned and persisted surfaces that `CHG-053` measures and protects.

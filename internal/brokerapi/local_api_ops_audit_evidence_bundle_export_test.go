@@ -209,6 +209,122 @@ func TestAuditEvidenceBundleOfflineVerifySurfacesDegradedPostureFromBundle(t *te
 	}
 }
 
+func TestAuditEvidenceBundleExportAndOfflineVerifySmokeForWorkflowRun(t *testing.T) {
+	service := newWorkflowRunBundleSmokeService(t)
+	archiveBytes := exportWorkflowRunBundleForSmoke(t, service)
+	entries := readAuditBundleTarEntries(t, archiveBytes)
+	if _, ok := entries["manifest.json"]; !ok {
+		t.Fatal("manifest.json missing from workflow-run export")
+	}
+	dir := canonicalTempDir(t)
+	bundlePath := filepath.Join(dir, "workflow-run-smoke-bundle.tar")
+	if err := os.WriteFile(bundlePath, archiveBytes, 0o600); err != nil {
+		t.Fatalf("WriteFile(bundlePath) returned error: %v", err)
+	}
+
+	verifyResp, errResp := service.HandleAuditEvidenceBundleOfflineVerify(context.Background(), AuditEvidenceBundleOfflineVerifyRequest{
+		SchemaID:      "runecode.protocol.v0.AuditEvidenceBundleOfflineVerifyRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-audit-bundle-smoke-offline-verify",
+		BundlePath:    bundlePath,
+		ArchiveFormat: "tar",
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleAuditEvidenceBundleOfflineVerify returned error: %+v", errResp)
+	}
+	if got := verifyResp.Verification.Scope.RunID; got != "run-1" {
+		t.Fatalf("offline verification scope.run_id = %q, want run-1", got)
+	}
+	if verifyResp.Verification.ManifestDigest == nil {
+		t.Fatal("offline verification manifest_digest = nil, want preserved manifest identity")
+	}
+	if len(verifyResp.Verification.VerificationReports) == 0 {
+		t.Fatal("offline verification reports empty for workflow-run export")
+	}
+}
+
+func newWorkflowRunBundleSmokeService(t *testing.T) *Service {
+	t.Helper()
+	repoRoot := t.TempDir()
+	writeProjectSubstrateAnchors(t, repoRoot, "0.1.0-alpha.14", "verified", "runecontext")
+	storeRoot := t.TempDir()
+	ledgerRoot := t.TempDir()
+	if err := seedLedgerForBrokerSurfaceTest(ledgerRoot); err != nil {
+		t.Fatalf("seedLedgerForBrokerSurfaceTest returned error: %v", err)
+	}
+	service, err := NewServiceWithConfig(storeRoot, ledgerRoot, APIConfig{RepositoryRoot: repoRoot})
+	if err != nil {
+		t.Fatalf("NewServiceWithConfig returned error: %v", err)
+	}
+	seedSessionRuntimeFactsForOpsTest(t, service, "run-audit-bundle-smoke", "sess-audit-bundle-smoke")
+	return service
+}
+
+func exportWorkflowRunBundleForSmoke(t *testing.T, service *Service) []byte {
+	t.Helper()
+	changeDigest := runWorkflowRunBundleSmokeDraftAndPromote(t, service)
+	events, errResp := service.HandleAuditEvidenceBundleExport(context.Background(), AuditEvidenceBundleExportRequest{
+		SchemaID:      "runecode.protocol.v0.AuditEvidenceBundleExportRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-audit-bundle-smoke-export",
+		Scope:         AuditEvidenceBundleScope{ScopeKind: "run", RunID: "run-1"},
+		ExportProfile: "external_relying_party_minimal",
+		CreatedByTool: AuditEvidenceBundleToolIdentity{ToolName: "runecode-broker", ToolVersion: "0.0.0-dev"},
+		DisclosurePosture: AuditEvidenceBundleDisclosurePosture{
+			Posture:                    "digest_metadata_only",
+			SelectiveDisclosureApplied: true,
+		},
+		ArchiveFormat: "tar",
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleAuditEvidenceBundleExport returned error: %+v", errResp)
+	}
+	archiveBytes := gatherAuditBundleExportBytes(t, events)
+	if len(archiveBytes) == 0 {
+		t.Fatal("bundle export archive bytes empty")
+	}
+	_ = changeDigest
+	return archiveBytes
+}
+
+func runWorkflowRunBundleSmokeDraftAndPromote(t *testing.T, service *Service) string {
+	t.Helper()
+	changeAck := mustSessionExecutionTrigger(t, service, SessionExecutionTriggerRequest{
+		SchemaID:               "runecode.protocol.v0.SessionExecutionTriggerRequest",
+		SchemaVersion:          "0.1.0",
+		RequestID:              "req-audit-bundle-smoke-change-draft",
+		SessionID:              "sess-audit-bundle-smoke",
+		TriggerSource:          "interactive_user",
+		RequestedOperation:     "start",
+		WorkflowRouting:        &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: sessionWorkflowOperationChangeDraft},
+		UserMessageContentText: "Bundle smoke change draft",
+	})
+	if changeAck.ExecutionState != "running" {
+		t.Fatalf("change draft ack execution_state = %q, want running", changeAck.ExecutionState)
+	}
+	changeGet := mustSessionGet(t, service, "req-audit-bundle-smoke-change-draft-get", "sess-audit-bundle-smoke")
+	if changeGet.Session.LatestTurnExecution == nil {
+		t.Fatal("latest_turn_execution missing after change draft")
+	}
+	changeExec := changeGet.Session.LatestTurnExecution
+	changeDigest := digestForRunStep(t, service, changeExec.PrimaryRunID, "session_execution/change_draft_artifact")
+	mustSessionExecutionTrigger(t, service, SessionExecutionTriggerRequest{
+		SchemaID:               "runecode.protocol.v0.SessionExecutionTriggerRequest",
+		SchemaVersion:          "0.1.0",
+		RequestID:              "req-audit-bundle-smoke-promote",
+		SessionID:              "sess-audit-bundle-smoke",
+		TriggerSource:          "interactive_user",
+		RequestedOperation:     "start",
+		WorkflowRouting:        &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: sessionWorkflowOperationDraftPromoteApply, BoundInputArtifacts: []SessionWorkflowPackBoundInputArtifact{{ArtifactRef: "change_draft_artifact", ArtifactDigest: changeDigest}}},
+		UserMessageContentText: "Bundle smoke promote change draft",
+	})
+	post := mustSessionGet(t, service, "req-audit-bundle-smoke-post", "sess-audit-bundle-smoke")
+	if post.Session.LatestTurnExecution == nil {
+		t.Fatal("latest_turn_execution missing after promote/apply")
+	}
+	return changeDigest
+}
+
 func exportAuditBundleFileForOfflineVerifyTest(t *testing.T, service *Service) (string, func()) {
 	t.Helper()
 	events, errResp := service.HandleAuditEvidenceBundleExport(context.Background(), AuditEvidenceBundleExportRequest{

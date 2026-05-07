@@ -78,6 +78,18 @@ The proof chain should show that planning, canonical RuneContext mutation, and l
 
 The broader implementation-track decomposition and isolated-worktree execution roadmap remains follow-on unless a narrow part is required to make this approved implementation proof real.
 
+### Approved Implementation Input-Set Identity
+The beta workflow slice must make the approved implementation input-set identity contract explicit before future implementation, collaboration, or git publication features depend on it.
+
+The contract has two digest domains:
+
+- `workflow_routing.bound_input_artifacts[].artifact_digest` identifies the exact stored canonical JSON artifact bytes supplied to the run.
+- `implementation_input_set.input_set_digest` identifies the semantic input-set body: the canonical JSON object after omitting `input_set_digest` itself.
+
+Trusted broker validation must recompute the semantic digest from the stored payload and require it to match `implementation_input_set.input_set_digest`. Validation must also keep using the bound artifact digest for artifact retrieval and byte-level identity. A stored artifact can therefore be addressed by one digest while carrying a self-excluded semantic identity that is stable across storage wrappers and safe to use as the approved input-set identity.
+
+Run, audit, and projection code should avoid conflating the names. Where both are relevant, use `input_set_artifact_digest` for the routing-bound artifact identity and `input_set_digest` for the recomputed semantic input-set identity.
+
 ## Project-Substrate Lifecycle Proof
 Beta owns the canonical RuneContext lifecycle for a repository. This lane therefore requires a normal product proof for project substrate, not only a workflow proof.
 

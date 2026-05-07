@@ -201,10 +201,14 @@ func sortSessionSummaries(items []SessionSummary, order string) {
 }
 
 func buildSessionDetail(summary SessionSummary, runs, approvals, artifactsByDigest, auditRecordDigests map[string]struct{}) SessionDetail {
-	return buildSessionDetailFromState(summary, nil, runs, approvals, artifactsByDigest, auditRecordDigests)
+	return buildSessionDetailFromState(summary, nil, runs, approvals, artifactsByDigest, auditRecordDigests, nil)
 }
 
-func buildSessionDetailFromState(summary SessionSummary, transcriptTurns []artifacts.SessionTranscriptTurnDurableState, runs, approvals, artifactsByDigest, auditRecordDigests map[string]struct{}) SessionDetail {
+func buildSessionDetailFromState(summary SessionSummary, transcriptTurns []artifacts.SessionTranscriptTurnDurableState, runs, approvals, artifactsByDigest, auditRecordDigests map[string]struct{}, executions []artifacts.SessionTurnExecutionDurableState) SessionDetail {
+	runs = sessionDetailLinkedRunIndex(runs, executions)
+	approvals = sessionDetailLinkedApprovalIndex(approvals, executions)
+	artifactsByDigest = sessionDetailLinkedArtifactIndex(artifactsByDigest, executions)
+	auditRecordDigests = sessionDetailLinkedAuditIndex(auditRecordDigests, executions)
 	projectedTurns := buildSessionTranscriptTurnsFromDurable(transcriptTurns)
 	if len(projectedTurns) == 0 {
 		projectedTurns = buildSessionTranscriptTurns(summary.Identity.SessionID, summary, runs, approvals, artifactsByDigest, auditRecordDigests)

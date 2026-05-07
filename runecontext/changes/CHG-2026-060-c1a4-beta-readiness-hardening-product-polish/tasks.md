@@ -27,6 +27,8 @@
 - [ ] Deliver `draft_promote_apply` for a reviewed change draft into canonical `runecontext/changes/`.
 - [ ] Deliver `draft_promote_apply` for a reviewed spec draft into canonical `runecontext/specs/`.
 - [ ] Deliver `approved_change_implementation` from one reviewed implementation input set containing one or more approved change/spec inputs by exact digest.
+- [ ] Enforce the approved implementation input-set identity contract: bound artifact digest for exact stored bytes, `input_set_digest` for the broker-recomputed canonical body with `input_set_digest` omitted, and fail-closed validation on drift.
+- [ ] Keep approved implementation run, audit, and projection fields from conflating `input_set_artifact_digest` and semantic `input_set_digest` where both identities matter.
 - [ ] Allow approved implementation to update required RuneContext lifecycle metadata when the approved input set requires it, without adding a separate lifecycle-close workflow operation in this lane.
 - [ ] Keep the supported workflow loop inspectable through runs, sessions, artifacts, approvals, and audit surfaces.
 - [ ] Ensure the supported workflow loop remains Linux-first and does not depend on future platform work.

@@ -39,7 +39,7 @@ func (s *Service) newSessionExecutionAppendRequest(requestID string, req Session
 		PrimaryRunID:                         initialSessionExecutionPrimaryRunID(session),
 		LinkedRunIDs:                         links.runIDs,
 		LinkedApprovalIDs:                    links.approvalIDs,
-		LinkedArtifactDigests:                links.artifactDigests,
+		LinkedArtifactDigests:                sessionExecutionLinkedArtifactDigests(links.artifactDigests, req.WorkflowRouting),
 		LinkedAuditRecordDigests:             links.auditRecordDigests,
 		BoundValidatedProjectSubstrateDigest: sessionExecutionBoundDigest(project),
 		ExecutionState:                       executionState,
@@ -50,6 +50,16 @@ func (s *Service) newSessionExecutionAppendRequest(requestID string, req Session
 		IdempotencyHash:                      idempotencyHash,
 		OccurredAt:                           s.currentTimestamp(),
 	}, nil
+}
+
+func sessionExecutionLinkedArtifactDigests(existing []string, routing *SessionWorkflowPackRouting) []string {
+	merged := append([]string{}, existing...)
+	if routing != nil {
+		for _, artifact := range routing.BoundInputArtifacts {
+			merged = append(merged, strings.TrimSpace(artifact.ArtifactDigest))
+		}
+	}
+	return uniqueSortedStrings(merged)
 }
 
 func (s *Service) sessionExecutionTriggerIdempotencyHash(requestID string, req SessionExecutionTriggerRequest, controls sessionExecutionTriggerControlValues) (string, *ErrorResponse) {
