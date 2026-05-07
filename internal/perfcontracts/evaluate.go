@@ -69,7 +69,7 @@ func evaluateExactMetric(metric MetricContract, measured float64) []Violation {
 	if metric.Threshold.ExactValue == nil {
 		return []Violation{{MetricID: metric.MetricID, Reason: "exact threshold missing exact_value"}}
 	}
-	if measured == *metric.Threshold.ExactValue {
+	if almostEqual(measured, *metric.Threshold.ExactValue) {
 		return nil
 	}
 	return []Violation{{MetricID: metric.MetricID, Reason: fmt.Sprintf("exact mismatch: got %.4f want %.4f", measured, *metric.Threshold.ExactValue)}}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/runplan"
 )
 
 func TestCompileAndPersistRunPlanBuildsDurableAuthorityAndCompilationBinding(t *testing.T) {
@@ -89,6 +90,53 @@ func TestCompileAndPersistRunPlanDifferentPlanIDMissesCache(t *testing.T) {
 	if _, ok := s.RunPlanCompilationRecord(runID, "plan-id-2"); !ok {
 		t.Fatal("expected compilation record for second plan")
 	}
+}
+
+func TestCompileAndPersistRunPlanApprovedInputSetSemanticDigestShapesCompileIdentity(t *testing.T) {
+	s := newTrustedRunPlanBrokerService(t)
+	runID := "run-compile-approved-input-semantic"
+	if err := s.SetRunStatus(runID, "active"); err != nil {
+		t.Fatalf("SetRunStatus returned error: %v", err)
+	}
+	workflowRef, processRef := putTrustedWorkflowAndProcessDefinitions(t, s, runID)
+	semanticDigest := "sha256:" + strings.Repeat("a", 64)
+	first, err := s.CompileAndPersistRunPlan(CompileAndPersistRunPlanRequest{RunID: runID, PlanID: "plan-approved-semantic", WorkflowDefinitionRef: workflowRef.Digest, ProcessDefinitionRef: processRef.Digest, PolicyContextHash: "sha256:" + strings.Repeat("5", 64), ApprovedInputSetDigest: semanticDigest})
+	if err != nil {
+		t.Fatalf("first CompileAndPersistRunPlan returned error: %v", err)
+	}
+	identityA, cacheKeyA, err := compileIdentityFromInput(workflowRef.Digest, processRef.Digest, semanticDigest, mustCompileInputForIdentityTest(t, s, runID, "plan-approved-semantic", workflowRef.Digest, processRef.Digest, "sha256:"+strings.Repeat("5", 64)))
+	if err != nil {
+		t.Fatalf("compileIdentityFromInput returned error: %v", err)
+	}
+	if got := identityA.ApprovedInputSetDigest; got != semanticDigest {
+		t.Fatalf("ApprovedInputSetDigest = %q, want %q", got, semanticDigest)
+	}
+	identityB, cacheKeyB, err := compileIdentityFromInput(workflowRef.Digest, processRef.Digest, semanticDigest, mustCompileInputForIdentityTest(t, s, runID, "plan-approved-semantic", workflowRef.Digest, processRef.Digest, "sha256:"+strings.Repeat("5", 64)))
+	if err != nil {
+		t.Fatalf("compileIdentityFromInput returned error: %v", err)
+	}
+	if cacheKeyA != cacheKeyB {
+		t.Fatalf("semantic digest stable cache key mismatch: %q vs %q", cacheKeyA, cacheKeyB)
+	}
+	second, err := s.CompileAndPersistRunPlan(CompileAndPersistRunPlanRequest{RunID: runID, PlanID: "plan-approved-semantic", WorkflowDefinitionRef: workflowRef.Digest, ProcessDefinitionRef: processRef.Digest, PolicyContextHash: "sha256:" + strings.Repeat("5", 64), ApprovedInputSetDigest: semanticDigest})
+	if err != nil {
+		t.Fatalf("second CompileAndPersistRunPlan returned error: %v", err)
+	}
+	if first.RunPlanDigest != second.RunPlanDigest {
+		t.Fatalf("semantic approved input digest should preserve cache identity: first=%+v second=%+v", first, second)
+	}
+	if identityB.ApprovedInputSetDigest == first.RunPlanDigest || identityB.ApprovedInputSetDigest == workflowRef.Digest {
+		t.Fatalf("compile identity conflated artifact identity with semantic digest: %+v", identityB)
+	}
+}
+
+func mustCompileInputForIdentityTest(t *testing.T, s *Service, runID, planID, workflowRef, processRef, policyContextHash string) runplan.CompileInput {
+	t.Helper()
+	input, _, _, err := s.compileRunPlanInputFromArtifacts(CompileAndPersistRunPlanRequest{RunID: runID, PlanID: planID, WorkflowDefinitionRef: workflowRef, ProcessDefinitionRef: processRef, PolicyContextHash: policyContextHash})
+	if err != nil {
+		t.Fatalf("compileRunPlanInputFromArtifacts returned error: %v", err)
+	}
+	return input
 }
 
 func TestCompileAndPersistRunPlanCoalescesInFlightIdenticalRequests(t *testing.T) {

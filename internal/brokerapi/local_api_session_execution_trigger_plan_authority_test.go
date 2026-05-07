@@ -9,6 +9,7 @@ import (
 
 func TestEnsureSessionExecutionRunPlanAuthorityCompilesBuiltInPlan(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	s.sessionExecutionRunner = launchSessionExecutionRunnerCompleteInProcessForTests
 	runID := "run-session-plan-authority"
 	if err := s.SetRunStatus(runID, "starting"); err != nil {
 		t.Fatalf("SetRunStatus returned error: %v", err)
@@ -28,6 +29,9 @@ func TestEnsureSessionExecutionRunPlanAuthorityCompilesBuiltInPlan(t *testing.T)
 	}
 	if stored.PlanID != authority.planID {
 		t.Fatalf("stored plan_id = %q, want %q", stored.PlanID, authority.planID)
+	}
+	if stored.RunPlanDigest != authority.runPlanDigest {
+		t.Fatalf("stored run_plan_digest = %q, want %q", stored.RunPlanDigest, authority.runPlanDigest)
 	}
 	if err := s.bridgeSessionExecutionTriggerToRun("req-session-plan-authority", result, authority); err != nil {
 		t.Fatalf("bridgeSessionExecutionTriggerToRun returned error: %v", err)

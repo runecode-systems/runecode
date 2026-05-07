@@ -32,6 +32,7 @@ func newVerificationSmokeService(t *testing.T) (*Service, string) {
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
+	s.sessionExecutionRunner = launchSessionExecutionRunnerCompleteInProcessForTests
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-verification-smoke", "sess-verification-smoke")
 	return s, repoRoot
 }

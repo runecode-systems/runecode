@@ -1,6 +1,8 @@
 package brokerapi
 
 import (
+	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -52,6 +54,105 @@ func TestSessionExecutionTriggerSessionDetailProjectsExecutionOwnedLinksForCompl
 	assertCompletedWorkflowLoopProjectsOwnedLinks(t, s, draft.digest, draft.primaryRunID)
 }
 
+func TestSessionExecutionTriggerDraftPromoteApplyRollsBackOnAuditFailure(t *testing.T) {
+	repoRoot, s := newSessionExecutionTriggerWorkflowService(t, "run-change-promote-rollback", "sess-change-promote-rollback")
+	draft := runChangeDraftForPromoteApply(t, s, "sess-change-promote-rollback", "req-change-promote-rollback-draft", "Draft rollback path")
+	target := filepath.Join(repoRoot, filepath.FromSlash(filepath.Join("runecontext/changes", draft.changeOrSpecID, "proposal.md")))
+	beforeDecisionCount := len(s.PolicyDecisionRefsForRun("run-change-promote-rollback"))
+	beforeApprovals := len(s.ApprovalList())
+	brokerOwnedMutationPostWriteHookForTest = func(path string) error {
+		if path == target {
+			return os.WriteFile(path, []byte("tampered-after-write"), 0o644)
+		}
+		return nil
+	}
+	defer func() { brokerOwnedMutationPostWriteHookForTest = nil }()
+	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-change-promote-rollback-apply", SessionID: "sess-change-promote-rollback", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: sessionWorkflowOperationDraftPromoteApply, BoundInputArtifacts: []SessionWorkflowPackBoundInputArtifact{{ArtifactRef: "change_draft_artifact", ArtifactDigest: draft.digest}}}, UserMessageContentText: "apply reviewed change draft"}, RequestContext{})
+	assertSessionExecutionContinueBlocked(t, errResp, "broker_storage_write_failed")
+	if !strings.Contains(errResp.Error.Message, "post-write digest drift") {
+		t.Fatalf("error message = %q, want post-write digest drift", errResp.Error.Message)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatalf("draft promote target exists after rollback, stat err = %v", err)
+	}
+	if got := len(s.PolicyDecisionRefsForRun("run-change-promote-rollback")); got != beforeDecisionCount {
+		t.Fatalf("policy decision count = %d, want %d", got, beforeDecisionCount)
+	}
+	if got := len(s.ApprovalList()); got != beforeApprovals {
+		t.Fatalf("approval count = %d, want %d", got, beforeApprovals)
+	}
+	if auditEventContainsValue(mustReadAuditEvents(t, s), "runecontext_draft_promote_apply", "draft_artifact_digest", draft.digest) {
+		t.Fatalf("unexpected draft promote/apply audit event for %q", draft.digest)
+	}
+}
+
+func TestSessionExecutionTriggerApprovedImplementationSupportsContentArtifactDigestAndRollback(t *testing.T) {
+	repoRoot, s := newSessionExecutionTriggerWorkflowService(t, "run-approved-impl-artifact", "sess-approved-impl-artifact")
+	inputSetArtifactDigest, tasksPath := seedApprovedImplementationContentArtifactRollbackFixture(t, repoRoot, s)
+	beforeDecisionCount := len(s.PolicyDecisionRefsForRun("run-approved-impl-artifact"))
+	beforeApprovals := len(s.ApprovalList())
+	brokerOwnedMutationPostWriteHookForTest = func(path string) error {
+		if path == tasksPath {
+			return os.WriteFile(path, []byte("tampered-after-write"), 0o644)
+		}
+		return nil
+	}
+	defer func() { brokerOwnedMutationPostWriteHookForTest = nil }()
+	_, errResp := s.HandleSessionExecutionTrigger(context.Background(), SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-approved-impl-artifact", SessionID: "sess-approved-impl-artifact", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: sessionWorkflowOperationApprovedImplementation, BoundInputArtifacts: []SessionWorkflowPackBoundInputArtifact{{ArtifactRef: "implementation_input_set", ArtifactDigest: inputSetArtifactDigest}}}, UserMessageContentText: "apply approved implementation"}, RequestContext{})
+	assertSessionExecutionContinueBlocked(t, errResp, "broker_storage_write_failed")
+	if !strings.Contains(errResp.Error.Message, "post-write digest drift") {
+		t.Fatalf("error message = %q, want post-write digest drift", errResp.Error.Message)
+	}
+	requireFileContents(t, repoRoot, filepath.ToSlash(filepath.Join("runecontext/changes", "CHG-approved-impl-artifact", "proposal.md")), "old proposal")
+	if _, err := os.Stat(tasksPath); !os.IsNotExist(err) {
+		t.Fatalf("tasks path exists after rollback, stat err = %v", err)
+	}
+	if got := len(s.PolicyDecisionRefsForRun("run-approved-impl-artifact")); got != beforeDecisionCount {
+		t.Fatalf("policy decision count = %d, want %d", got, beforeDecisionCount)
+	}
+	if got := len(s.ApprovalList()); got != beforeApprovals {
+		t.Fatalf("approval count = %d, want %d", got, beforeApprovals)
+	}
+	if auditEventContainsValue(mustReadAuditEvents(t, s), "runecontext_approved_implementation_applied", "input_set_artifact_digest", inputSetArtifactDigest) {
+		t.Fatalf("unexpected approved implementation audit event for %q", inputSetArtifactDigest)
+	}
+}
+
+func seedApprovedImplementationContentArtifactRollbackFixture(t *testing.T, repoRoot string, s *Service) (string, string) {
+	t.Helper()
+	changeID := "CHG-approved-impl-artifact"
+	proposalPath := filepath.Join(repoRoot, filepath.FromSlash(filepath.Join("runecontext/changes", changeID, "proposal.md")))
+	if err := os.MkdirAll(filepath.Dir(proposalPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll returned error: %v", err)
+	}
+	if err := os.WriteFile(proposalPath, []byte("old proposal"), 0o644); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	proposalText := "# artifact proposal\n"
+	tasksText := "# artifact tasks\n"
+	proposalContentRef, err := s.Put(artifacts.PutRequest{Payload: []byte(proposalText), ContentType: "text/plain", DataClass: artifacts.DataClassSpecText, ProvenanceReceiptHash: artifacts.DigestBytes([]byte(proposalText)), CreatedByRole: "test", TrustedSource: true})
+	if err != nil {
+		t.Fatalf("Put proposal content returned error: %v", err)
+	}
+	proposalDigest := putApprovedImplementationMutationArtifactForTest(t, s, map[string]any{
+		"target_path":             filepath.ToSlash(filepath.Join("runecontext/changes", changeID, "proposal.md")),
+		"content_artifact_digest": proposalContentRef.Digest,
+		"content_digest":          digestObject(artifacts.DigestBytes([]byte(proposalText))),
+		"write_mode":              "update",
+	})
+	tasksDigest := putApprovedImplementationMutationArtifactForTest(t, s, map[string]any{
+		"target_path":    filepath.ToSlash(filepath.Join("runecontext/changes", changeID, "tasks.md")),
+		"content":        tasksText,
+		"content_digest": digestObject(artifacts.DigestBytes([]byte(tasksText))),
+		"write_mode":     "create",
+	})
+	payload := approvedImplementationInputSetFixture(t, s, []string{proposalDigest, tasksDigest}, []string{proposalDigest, tasksDigest}, nil)
+	if _, ok := approvedImplementationInputSetDigest(payload); !ok {
+		t.Fatal("approvedImplementationInputSetDigest returned invalid fixture digest")
+	}
+	return putApprovedImplementationInputSetForTest(t, s, payload), filepath.Join(repoRoot, filepath.FromSlash(filepath.Join("runecontext/changes", changeID, "tasks.md")))
+}
+
 type draftPromoteApplyFixture struct {
 	digest         string
 	changeOrSpecID string
@@ -64,6 +165,7 @@ func newSessionExecutionTriggerWorkflowService(t *testing.T, runID, sessionID st
 	repoRoot := t.TempDir()
 	writeProjectSubstrateAnchors(t, repoRoot, "0.1.0-alpha.14", "verified", "runecontext")
 	s := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: repoRoot})
+	s.sessionExecutionRunner = launchSessionExecutionRunnerCompleteInProcessForTests
 	seedSessionRuntimeFactsForOpsTest(t, s, runID, sessionID)
 	return repoRoot, s
 }

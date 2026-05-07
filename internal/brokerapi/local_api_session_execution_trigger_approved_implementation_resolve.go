@@ -182,7 +182,7 @@ func (s *Service) resolveApprovedImplementationWrite(repoRoot string, authority 
 	if err != nil {
 		return approvedImplementationWorkspaceWrite{}, fmt.Errorf("read approved implementation artifact %q: %w", digest, err)
 	}
-	targetRelativePath, writeMode, content, err := approvedImplementationWriteIntent(payload)
+	targetRelativePath, writeMode, content, err := s.approvedImplementationWriteIntent(payload)
 	if err != nil {
 		return approvedImplementationWorkspaceWrite{}, err
 	}
@@ -209,39 +209,21 @@ func (s *Service) resolveApprovedImplementationWrite(repoRoot string, authority 
 	}, nil
 }
 
-func writeApprovedImplementationResolvedWrites(resolved approvedImplementationResolvedInput) (func() error, error) {
+func prepareApprovedImplementationResolvedWrites(resolved approvedImplementationResolvedInput) ([]brokerOwnedPreparedMutationWrite, error) {
 	writes := append([]approvedImplementationWorkspaceWrite{}, resolved.resolvedWorkspaceWrites...)
 	writes = append(writes, resolved.resolvedMetadataWrites...)
-	snapshots, err := captureApprovedImplementationWriteSnapshots(writes)
-	if err != nil {
-		return nil, err
-	}
-	if err := writeApprovedImplementationWrites(writes); err != nil {
-		return nil, joinBrokerOwnedRollbackError(err, rollbackBrokerOwnedFileSnapshots(snapshots))
-	}
-	return func() error { return rollbackBrokerOwnedFileSnapshots(snapshots) }, nil
-}
-
-func captureApprovedImplementationWriteSnapshots(writes []approvedImplementationWorkspaceWrite) ([]brokerOwnedFileSnapshot, error) {
-	snapshots := make([]brokerOwnedFileSnapshot, 0, len(writes))
+	intents := make([]brokerOwnedMutationWriteIntent, 0, len(writes))
 	for _, write := range writes {
-		snapshot, err := captureBrokerOwnedFileSnapshot(write.targetAbsolutePath)
-		if err != nil {
-			return nil, err
-		}
-		snapshots = append(snapshots, snapshot)
+		intents = append(intents, brokerOwnedMutationWriteIntent{
+			targetAbsolutePath: write.targetAbsolutePath,
+			targetRelativePath: write.targetRelativePath,
+			writeMode:          write.writeMode,
+			contents:           write.content,
+			expectedDigest:     write.contentDigest,
+			mode:               0o644,
+		})
 	}
-	return snapshots, nil
-}
-
-func writeApprovedImplementationWrites(writes []approvedImplementationWorkspaceWrite) error {
-	for idx := range writes {
-		write := &writes[idx]
-		if err := writeApprovedImplementationFile(*write); err != nil {
-			return err
-		}
-	}
-	return nil
+	return prepareBrokerOwnedMutationWrites(intents)
 }
 
 func approvedImplementationArtifactDigests(resolved approvedImplementationResolvedInput) []string {

@@ -25,18 +25,37 @@ func (s *Service) applySessionExecutionDraftPromote(result artifacts.SessionExec
 	if err != nil {
 		return "", err
 	}
-	snapshot, err := captureBrokerOwnedFileSnapshot(resolved.targetAbsolutePath)
+	prepared, err := prepareDraftPromoteMutation(resolved)
 	if err != nil {
 		return "", err
 	}
-	if err := writeBrokerOwnedDraftPromoteFile(resolved.targetAbsolutePath, resolved.draftText, 0o644); err != nil {
+	approvalID := sessionDraftPromoteApplyApprovalIdentity(resolved)
+	if err := finalizeBrokerOwnedMutationWrites(prepared, func() error {
+		if err := s.recordSessionExecutionDraftPromoteApproval(result, authority, resolved, approvalID); err != nil {
+			return err
+		}
+		if err := s.appendDraftPromoteAuditEvent(result, authority, resolved, approvalID); err != nil {
+			return fmt.Errorf("append draft promote/apply audit event: %w", err)
+		}
+		return nil
+	}); err != nil {
 		return "", err
 	}
-	approvalID := sessionDraftPromoteApplyApprovalIdentity(resolved)
-	if err := s.recordSessionExecutionDraftPromoteApproval(result, authority, resolved, approvalID); err != nil {
-		return "", joinBrokerOwnedRollbackError(err, rollbackBrokerOwnedFileSnapshots([]brokerOwnedFileSnapshot{snapshot}))
-	}
-	if err := s.AppendTrustedAuditEvent("runecontext_draft_promote_apply", "brokerapi", map[string]interface{}{
+	return approvalID, nil
+}
+
+func prepareDraftPromoteMutation(resolved sessionDraftPromoteResolvedInput) ([]brokerOwnedPreparedMutationWrite, error) {
+	return prepareBrokerOwnedMutationWrites([]brokerOwnedMutationWriteIntent{{
+		targetAbsolutePath: resolved.targetAbsolutePath,
+		targetRelativePath: resolved.targetRelativePath,
+		contents:           resolved.draftText,
+		expectedDigest:     resolved.appliedFileDigest,
+		mode:               0o644,
+	}})
+}
+
+func (s *Service) appendDraftPromoteAuditEvent(result artifacts.SessionExecutionTriggerAppendResult, authority sessionExecutionPlanAuthority, resolved sessionDraftPromoteResolvedInput, approvalID string) error {
+	return s.AppendTrustedAuditEvent("runecontext_draft_promote_apply", "brokerapi", map[string]interface{}{
 		"run_id":                strings.TrimSpace(authority.runID),
 		"plan_id":               strings.TrimSpace(authority.planID),
 		"workflow_operation":    strings.TrimSpace(authority.workflowOperation),
@@ -51,10 +70,7 @@ func (s *Service) applySessionExecutionDraftPromote(result artifacts.SessionExec
 		"approval_id":           strings.TrimSpace(approvalID),
 		"trigger_id":            strings.TrimSpace(result.Trigger.TriggerID),
 		"turn_id":               strings.TrimSpace(result.TurnExecution.TurnID),
-	}); err != nil {
-		return "", joinBrokerOwnedRollbackError(fmt.Errorf("append draft promote/apply audit event: %w", err), rollbackBrokerOwnedFileSnapshots([]brokerOwnedFileSnapshot{snapshot}))
-	}
-	return approvalID, nil
+	})
 }
 
 func sessionDraftPromoteApplyApprovalIdentity(resolved sessionDraftPromoteResolvedInput) string {

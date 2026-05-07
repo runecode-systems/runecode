@@ -48,6 +48,7 @@ func TestSessionGetUnionsCompletedExecutionLinksIntoInspectableSessionDetail(t *
 	repoRoot := t.TempDir()
 	writeProjectSubstrateAnchors(t, repoRoot, "0.1.0-alpha.14", "verified", "runecontext")
 	s := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: repoRoot})
+	s.sessionExecutionRunner = launchSessionExecutionRunnerCompleteInProcessForTests
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-link-union", "sess-link-union")
 
 	draftExec := triggerSessionLinkUnionDraft(t, s)

@@ -1,4 +1,5 @@
-import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, open, readFile, rename } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { RunnerPlanIdentity } from "../run-plan.ts";
 import {
@@ -272,11 +273,15 @@ export class FileDurableStateStore {
   }
 
   private async writeSnapshot(snapshot: DurableSnapshot): Promise<void> {
-    const tempPath = `${this.snapshotPath}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
-    await writeFile(tempPath, `${JSON.stringify(snapshot, null, 2)}\n`, {
-      encoding: "utf8",
-      mode: PRIVATE_STATE_FILE_MODE,
-    });
+    const tempPath = `${this.snapshotPath}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
+    const file = await open(tempPath, "wx", PRIVATE_STATE_FILE_MODE);
+    try {
+      await file.writeFile(`${JSON.stringify(snapshot, null, 2)}\n`, {
+        encoding: "utf8",
+      });
+    } finally {
+      await file.close();
+    }
     await rename(tempPath, this.snapshotPath);
   }
 

@@ -95,6 +95,7 @@ func TestRunnerCheckpointReportRejectsUnknownCheckpointCode(t *testing.T) {
 
 func TestRunnerCheckpointReportProjectsApprovalWaitIntoSessionExecution(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	s.sessionExecutionRunner = launchSessionExecutionRunnerCheckpointOnlyInProcessForTests
 	now := time.Date(2026, 4, 1, 18, 0, 0, 0, time.UTC)
 	s.SetNowFuncForTests(func() time.Time { return now })
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-checkpoint-session", "sess-checkpoint-session")

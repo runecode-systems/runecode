@@ -5,6 +5,7 @@
  * plan-bound scheduled work with no local planning/authorization semantics.
  */
 
+import { createHash } from "node:crypto";
 import {
   InvalidApprovalWaitError,
   PlanIdentityMismatchError,
@@ -14,7 +15,7 @@ import {
 import { PlanScheduler, type ScheduledWorkItem } from "./scheduler.ts";
 import type { DependencyCacheHandoffRequirement, RunnerPlan, RunnerPlanEntry, RunPlanLoader } from "./run-plan.ts";
 import { DurableRuntimeSeam, type RunnerRuntimeSeam } from "./runtime-seam.ts";
-import { MissingRunnerBrokerClientError, type RunnerBrokerClient } from "./broker-client.ts";
+import { MissingRunnerBrokerTransportError, type RunnerBrokerClient } from "./broker-client.ts";
 import type {
   DependencyCacheHandoffMetadata,
   PlanBoundExecutionIdentity,
@@ -27,6 +28,8 @@ import {
   RUNNER_CONTRACT_SCHEMA_VERSION,
   RUNNER_RESULT_REPORT_SCHEMA_ID,
 } from "./contracts.ts";
+import { MinimalGateExecutorAdapter, type ExecutionOutcome, type ExecutorAdapterRegistry } from "./executor-adapter.ts";
+import { ReportEmitter } from "./report-emitter.ts";
 
 export type RunnerKernelOptions = {
   planLoader: RunPlanLoader;
@@ -35,6 +38,22 @@ export type RunnerKernelOptions = {
   runtimeSeam?: RunnerRuntimeSeam;
   approvalWaitResolver?: ApprovalWaitResolver;
   brokerClient?: RunnerBrokerClient;
+  executorAdapterRegistry?: ExecutorAdapterRegistry;
+};
+
+export type EntryExecutionRecord = {
+  entry_id: string;
+  request_ids: {
+    checkpoint: string;
+    result: string;
+  };
+  outcome: ExecutionOutcome;
+};
+
+export type RunPlanExecutionResult = {
+  plan: RunnerPlan;
+  work: ScheduledWorkItem[];
+  executed: EntryExecutionRecord[];
 };
 
 export type ApprovalWaitResolution = {
@@ -78,15 +97,21 @@ export class RunnerKernel {
 
   private readonly brokerClient: RunnerBrokerClient;
 
+  private readonly reportEmitter: ReportEmitter;
+
+  private readonly executorAdapterRegistry: ExecutorAdapterRegistry | undefined;
+
   constructor(options: RunnerKernelOptions) {
     this.options = options;
     this.scheduler = options.scheduler ?? new PlanScheduler();
     this.runtimeSeam = options.runtimeSeam ?? new DurableRuntimeSeam(options.durableStateStore);
     this.approvalWaitResolver = options.approvalWaitResolver;
     if (!options.brokerClient) {
-      throw new MissingRunnerBrokerClientError();
+      throw new MissingRunnerBrokerTransportError();
     }
     this.brokerClient = options.brokerClient;
+    this.reportEmitter = new ReportEmitter(this.brokerClient);
+    this.executorAdapterRegistry = options.executorAdapterRegistry;
   }
 
   async initializeFromPlanFile(planFilePath: string): Promise<{ plan: RunnerPlan; work: ScheduledWorkItem[] }> {
@@ -95,6 +120,22 @@ export class RunnerKernel {
     const pendingApprovalWaits = await this.options.durableStateStore.listPendingApprovalWaits();
     const work = this.scheduler.listPlannedWork(plan, { pending_approval_waits: pendingApprovalWaits });
     return { plan, work };
+  }
+
+  async executeScheduledWorkFromPlanFile(planFilePath: string): Promise<RunPlanExecutionResult> {
+    const initialized = await this.initializeFromPlanFile(planFilePath);
+    if (initialized.work.length === 0) {
+      throw new Error(`RunPlan ${initialized.plan.run_id}/${initialized.plan.plan_id} produced no scheduled work`);
+    }
+    const executed: EntryExecutionRecord[] = [];
+    for (const item of initialized.work) {
+      executed.push(await this.executeScheduledEntry(initialized.plan, item));
+    }
+    return {
+      plan: initialized.plan,
+      work: initialized.work,
+      executed,
+    };
   }
 
   async resumeApprovalWaits(): Promise<{ pending_waits: DurableApprovalWait[]; cleared_waits: ClearedApprovalWait[] }> {
@@ -162,6 +203,75 @@ export class RunnerKernel {
     return this.composeModules(identity, modules, entry.dependency_cache_handoffs);
   }
 
+  async executeScheduledEntry(plan: RunnerPlan, item: ScheduledWorkItem): Promise<EntryExecutionRecord> {
+    const identity = this.executionIdentityForEntry(plan, item.entry);
+    const dependencyCacheHandoffs = await this.resolveDependencyCacheHandoffs(identity, item.entry.dependency_cache_handoffs ?? []);
+    const adapter = this.resolveExecutorAdapter(item.entry.entry_kind);
+    const checkpointRequestID = this.reportRequestID("checkpoint", identity, item.entry, item.index);
+    const resultRequestID = this.reportRequestID("result", identity, item.entry, item.index);
+
+    await this.assertBrokerAccepted(await this.reportEmitter.emitCheckpointReport({
+      request_id: checkpointRequestID,
+      identity,
+      report: {
+        lifecycle_state: "active",
+        checkpoint_code: "gate_started",
+        occurred_at: new Date().toISOString(),
+        idempotency_key: `runner-checkpoint:${plan.run_id}:${item.entry.entry_id}:active`,
+        plan_checkpoint_code: item.entry.checkpoint_code,
+        plan_order_index: item.entry.order_index,
+        gate_id: optionalGateString(item.entry.gate.gate_id),
+        gate_kind: gateKind(item.entry.gate.gate_kind),
+        gate_version: optionalGateString(item.entry.gate.gate_version),
+        gate_lifecycle_state: "running",
+        normalized_input_digests: normalizedInputDigests(item.entry.gate.normalized_inputs),
+        details: {
+          entry_id: item.entry.entry_id,
+          executor_binding_id: item.entry.executor_binding_id,
+          dependency_cache_handoff_count: dependencyCacheHandoffs.length,
+        },
+      },
+    }));
+
+    const outcome = await adapter.execute({
+      identity,
+      entry: item.entry,
+      dependency_cache_handoffs: dependencyCacheHandoffs,
+    });
+
+    await this.assertBrokerAccepted(await this.reportEmitter.emitResultReport({
+      request_id: resultRequestID,
+      identity,
+      report: {
+        lifecycle_state: outcome.status === "ok" ? "completed" : "failed",
+        result_code: outcome.status === "ok" ? "gate_passed" : "gate_failed",
+        occurred_at: new Date().toISOString(),
+        idempotency_key: `runner-result:${plan.run_id}:${item.entry.entry_id}:${outcome.status}`,
+        plan_checkpoint_code: item.entry.checkpoint_code,
+        plan_order_index: item.entry.order_index,
+        gate_id: optionalGateString(item.entry.gate.gate_id),
+        gate_kind: gateKind(item.entry.gate.gate_kind),
+        gate_version: optionalGateString(item.entry.gate.gate_version),
+        gate_lifecycle_state: outcome.status === "ok" ? "passed" : "failed",
+        normalized_input_digests: normalizedInputDigests(item.entry.gate.normalized_inputs),
+        failure_reason_code: outcome.failure_reason_code,
+        details: {
+          entry_id: item.entry.entry_id,
+          ...outcome.details,
+        },
+      },
+    }));
+
+    return {
+      entry_id: item.entry.entry_id,
+      request_ids: {
+        checkpoint: checkpointRequestID,
+        result: resultRequestID,
+      },
+      outcome,
+    };
+  }
+
   private async resolveDependencyCacheHandoffs(
     identity: PlanBoundExecutionIdentity,
     requirements: DependencyCacheHandoffRequirement[],
@@ -183,9 +293,47 @@ export class RunnerKernel {
     return resolved;
   }
 
+  private resolveExecutorAdapter(entryKind: string) {
+    const adapter = this.executorAdapterRegistry?.resolve(entryKind);
+    if (adapter) {
+      return adapter;
+    }
+    if (entryKind === "gate") {
+      return new MinimalGateExecutorAdapter();
+    }
+    throw new Error(`no executor adapter registered for entry kind ${entryKind}`);
+  }
+
+  private async assertBrokerAccepted(ack: { accepted: boolean; reason?: string }): Promise<void> {
+    if (!ack.accepted) {
+      throw new Error(ack.reason ?? "broker rejected runner report");
+    }
+  }
+
+  private executionIdentityForEntry(plan: RunnerPlan, entry: RunnerPlanEntry): PlanBoundExecutionIdentity {
+    return {
+      run_id: plan.run_id,
+      plan_id: plan.plan_id,
+      stage_id: entry.stage_id,
+      step_id: entry.step_id,
+      role_instance_id: entry.role_instance_id,
+      stage_attempt_id: `${plan.plan_id}:${entry.stage_id}:attempt-1`,
+      step_attempt_id: `${plan.plan_id}:${entry.step_id}:attempt-1`,
+      gate_attempt_id: `${plan.plan_id}:${entry.entry_id}:gate-attempt-1`,
+    };
+  }
+
+  private reportRequestID(kind: "checkpoint" | "result", identity: PlanBoundExecutionIdentity, entry: RunnerPlanEntry, index: number): string {
+    return `runner-${kind}:${identity.run_id}:${entry.entry_id}:${index}`;
+  }
+
   private dependencyCacheHandoffRequestID(identity: PlanBoundExecutionIdentity, requirement: DependencyCacheHandoffRequirement): string {
-    const digestSuffix = requirement.request_digest.slice(-12);
-    return `dependency-handoff:${identity.run_id.slice(0, 24)}:${digestSuffix}`;
+    const binding = createHash("sha256")
+      .update(identity.run_id)
+      .update("\n")
+      .update(requirement.request_digest)
+      .digest("hex");
+    return `dependency-handoff:${binding}`;
   }
 
   private digestObject(digestIdentity: string): { hash_alg: "sha256"; hash: string } {
@@ -262,4 +410,37 @@ export class RunnerKernel {
     }
   }
 
+}
+
+function optionalGateString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function assertDigestIdentity(value: string, location: string): string {
+  if (!/^sha256:[a-f0-9]{64}$/.test(value)) {
+    throw new Error(`${location} must be sha256:<hex>`);
+  }
+  return value;
+}
+
+function gateKind(value: unknown): RunnerCheckpointReport["gate_kind"] | RunnerResultReport["gate_kind"] | undefined {
+  return value === "build" || value === "test" || value === "lint" || value === "format" || value === "secret_scan" || value === "policy"
+    ? value
+    : undefined;
+}
+
+function normalizedInputDigests(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const digests = value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        return undefined;
+      }
+      const digest = (entry as Record<string, unknown>).input_digest;
+      return typeof digest === "string" ? assertDigestIdentity(digest, "gate normalized input digest") : undefined;
+    })
+    .filter((entry): entry is string => Boolean(entry));
+  return digests.length > 0 ? digests : undefined;
 }

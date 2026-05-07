@@ -10,6 +10,13 @@
 - `just test`
 - `just ci`
 
+## Implemented This Pass
+- Fixed broker-side session execution tests around the real runner bridge by keeping production stdio subprocess launch intact while adding narrow in-process runner launch seams for deterministic tests.
+- Verified the supported workflow slice now compiles and persists authoritative `RunPlan` state, launches/proxies the runner path, accepts runner checkpoint/result reports, and keeps run/session projections plan-authoritative.
+- Added/updated smoke coverage that exercises `change_draft`, `spec_draft`, `draft_promote_apply`, and `approved_change_implementation`, then inspects runs, artifacts, approvals, audit records, evidence snapshot, inclusion, and offline bundle verification.
+- External audit anchoring remains environment-conditional and is not claimed as a completed always-on smoke in this closure pass.
+- TUI polish remains explicitly pending and is not marked complete here.
+
 ## Required Product Smokes
 - Project-substrate lifecycle smoke: inspect/posture, adopt compatible existing substrate, init preview/apply for missing substrate, upgrade preview/apply for supported older substrate, and validate/status after apply.
 - Workflow smoke: run `change_draft` and `spec_draft` through the real trusted `RunPlan` and runner path.

@@ -16,6 +16,7 @@ type runSummaryProjection struct {
 	workflowDefinitionHash string
 	currentStageID         string
 	approvalProfile        string
+	projectionReason       string
 }
 
 type runSummaryPlanAuthoritativeProjection struct {
@@ -23,18 +24,34 @@ type runSummaryPlanAuthoritativeProjection struct {
 	workflowDefinitionHash string
 	currentStageID         string
 	approvalProfile        string
+	authoritative          bool
 }
 
 func (s *Service) resolveRunSummaryProjection(runID string, records []artifacts.ArtifactRecord, pending int) runSummaryProjection {
 	planProjection := s.runSummaryPlanProjection(runID)
-	workflowKind, workflowDefinitionHash := s.inferWorkflowIdentity(runID, records)
+	workflowKind, workflowDefinitionHash, inferredByArtifacts := s.inferWorkflowIdentity(runID, records)
 	currentStageID := currentStageIDFromArtifacts(records, pending)
+	reason := "plan_authoritative"
+	if planProjection.authoritative {
+		workflowKind = coalesceTrimmed(planProjection.workflowKind, workflowKind)
+		workflowDefinitionHash = coalesceTrimmed(planProjection.workflowDefinitionHash, workflowDefinitionHash)
+		currentStageID = coalesceTrimmed(planProjection.currentStageID, currentStageID)
+	} else if inferredByArtifacts {
+		reason = "missing_active_run_plan_authority"
+		workflowKind = ""
+		workflowDefinitionHash = ""
+		currentStageID = ""
+	} else {
+		reason = "projection_unknown"
+		currentStageID = ""
+	}
 
 	return runSummaryProjection{
-		workflowKind:           coalesceTrimmed(planProjection.workflowKind, workflowKind),
-		workflowDefinitionHash: coalesceTrimmed(planProjection.workflowDefinitionHash, workflowDefinitionHash),
-		currentStageID:         coalesceTrimmed(planProjection.currentStageID, currentStageID),
+		workflowKind:           workflowKind,
+		workflowDefinitionHash: workflowDefinitionHash,
+		currentStageID:         currentStageID,
 		approvalProfile:        defaultTrimmed(planProjection.approvalProfile, "unknown"),
+		projectionReason:       reason,
 	}
 }
 
@@ -76,6 +93,7 @@ func (s *Service) runSummaryPlanProjection(runID string) runSummaryPlanAuthorita
 	}
 	projection := runSummaryPlanAuthoritativeProjection{
 		workflowDefinitionHash: strings.TrimSpace(authority.WorkflowDefinitionHash),
+		authoritative:          true,
 	}
 	if selectedEntry, err := selectSessionExecutionPlanEntry(authority.Entries); err == nil {
 		projection.currentStageID = strings.TrimSpace(selectedEntry.StageID)
@@ -132,16 +150,16 @@ func currentStageIDFromArtifacts(records []artifacts.ArtifactRecord, pending int
 	return "artifact_flow"
 }
 
-func (s *Service) inferWorkflowIdentity(runID string, records []artifacts.ArtifactRecord) (string, string) {
+func (s *Service) inferWorkflowIdentity(runID string, records []artifacts.ArtifactRecord) (string, string, bool) {
 	if authorityWorkflowID, workflowHash := s.inferWorkflowIdentityFromActivePlanAuthority(runID); authorityWorkflowID != "" || workflowHash != "" {
-		return authorityWorkflowID, workflowHash
+		return authorityWorkflowID, workflowHash, false
 	}
 	for _, entry := range runplan.BuiltInWorkflowCatalogV0() {
 		if strings.TrimSpace(entry.WorkflowDefinitionHash) == "" {
 			continue
 		}
 		if runHasTrustedWorkflowDefinitionHash(runID, records, entry.WorkflowDefinitionHash) {
-			return strings.TrimSpace(entry.WorkflowID), strings.TrimSpace(entry.WorkflowDefinitionHash)
+			return strings.TrimSpace(entry.WorkflowID), strings.TrimSpace(entry.WorkflowDefinitionHash), true
 		}
 	}
 	workflowDefinitionHash := ""
@@ -149,7 +167,7 @@ func (s *Service) inferWorkflowIdentity(runID string, records []artifacts.Artifa
 	if len(manifestDigests) == 1 {
 		workflowDefinitionHash = manifestDigests[0]
 	}
-	return "", workflowDefinitionHash
+	return "", workflowDefinitionHash, false
 }
 
 func (s *Service) inferWorkflowIdentityFromActivePlanAuthority(runID string) (string, string) {

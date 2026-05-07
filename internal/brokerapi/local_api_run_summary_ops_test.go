@@ -9,40 +9,6 @@ import (
 	"github.com/runecode-ai/runecode/internal/runplan"
 )
 
-func TestRunSummaryUsesBuiltInWorkflowAuthorityForSessionExecutionPath(t *testing.T) {
-	s := newBrokerAPIServiceForTests(t, APIConfig{})
-	runID := "run-summary-authority"
-	entry := runplan.BuiltInWorkflowCatalogV0()[0]
-	if _, err := s.Put(artifacts.PutRequest{
-		Payload:               []byte(`{"schema_id":"runecode.protocol.v0.WorkflowDefinition"}`),
-		ContentType:           "application/json",
-		DataClass:             artifacts.DataClassSpecText,
-		ProvenanceReceiptHash: entry.WorkflowDefinitionHash,
-		CreatedByRole:         "brokerapi",
-		TrustedSource:         true,
-		RunID:                 runID,
-		StepID:                "session_execution/workflow_definition",
-	}); err != nil {
-		t.Fatalf("Put returned error: %v", err)
-	}
-
-	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{
-		SchemaID:      "runecode.protocol.v0.RunGetRequest",
-		SchemaVersion: "0.1.0",
-		RequestID:     "req-run-summary-authority",
-		RunID:         runID,
-	}, RequestContext{})
-	if errResp != nil {
-		t.Fatalf("HandleRunGet error response: %+v", errResp)
-	}
-	if got := strings.TrimSpace(runGet.Run.Summary.WorkflowKind); got != strings.TrimSpace(entry.WorkflowID) {
-		t.Fatalf("workflow_kind = %q, want %q", got, entry.WorkflowID)
-	}
-	if got := strings.TrimSpace(runGet.Run.Summary.WorkflowDefinitionHash); got != strings.TrimSpace(entry.WorkflowDefinitionHash) {
-		t.Fatalf("workflow_definition_hash = %q, want %q", got, entry.WorkflowDefinitionHash)
-	}
-}
-
 func TestRunSummaryUsesBuiltInWorkflowAuthorityForTypedDraftExecutionPath(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	exec, runGet := runGetForChangeDraftSummaryTest(t, s)
@@ -85,6 +51,7 @@ func runHasTypedChangeDraftArtifact(t *testing.T, s *Service, runID string) bool
 
 func runGetForChangeDraftSummaryTest(t *testing.T, s *Service) (*SessionTurnExecution, RunGetResponse) {
 	t.Helper()
+	s.sessionExecutionRunner = launchSessionExecutionRunnerCompleteInProcessForTests
 	_ = mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-run-summary-draft-path", SessionID: "sess-run-summary-draft-path", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: sessionWorkflowOperationChangeDraft}, UserMessageContentText: "summary path draft artifact"})
 	getResp := mustSessionGet(t, s, "req-run-summary-draft-path-session", "sess-run-summary-draft-path")
 	if getResp.Session.LatestTurnExecution == nil {
@@ -174,5 +141,42 @@ func TestRunSummaryUsesPlanAuthoritativeStageAndApprovalProfileForDraftPromoteAp
 	}
 	if got := strings.TrimSpace(runGet.Run.Summary.ApprovalProfile); got != "moderate" {
 		t.Fatalf("approval_profile = %q, want moderate", got)
+	}
+}
+
+func TestRunSummaryLeavesWorkflowIdentityUnknownWithoutActivePlanAuthority(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	runID := "run-summary-missing-authority"
+	entry := runplan.BuiltInWorkflowCatalogV0()[0]
+	if err := s.SetRunStatus(runID, "active"); err != nil {
+		t.Fatalf("SetRunStatus returned error: %v", err)
+	}
+	if _, err := s.Put(artifacts.PutRequest{
+		Payload:               []byte(`{"schema_id":"runecode.protocol.v0.WorkflowDefinition"}`),
+		ContentType:           "application/json",
+		DataClass:             artifacts.DataClassSpecText,
+		ProvenanceReceiptHash: entry.WorkflowDefinitionHash,
+		CreatedByRole:         "brokerapi",
+		TrustedSource:         true,
+		RunID:                 runID,
+		StepID:                "session_execution/workflow_definition",
+	}); err != nil {
+		t.Fatalf("Put returned error: %v", err)
+	}
+	runGet, errResp := s.HandleRunGet(context.Background(), RunGetRequest{SchemaID: "runecode.protocol.v0.RunGetRequest", SchemaVersion: "0.1.0", RequestID: "req-run-summary-missing-authority", RunID: runID}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleRunGet error response: %+v", errResp)
+	}
+	if got := strings.TrimSpace(runGet.Run.Summary.WorkflowKind); got != "" {
+		t.Fatalf("workflow_kind = %q, want empty without active plan authority", got)
+	}
+	if got := strings.TrimSpace(runGet.Run.Summary.WorkflowDefinitionHash); got != "" {
+		t.Fatalf("workflow_definition_hash = %q, want empty without active plan authority", got)
+	}
+	if got := strings.TrimSpace(runGet.Run.Summary.CurrentStageID); got != "" {
+		t.Fatalf("current_stage_id = %q, want empty without active plan authority", got)
+	}
+	if got := runGet.Run.AuthoritativeState["workflow_projection_reason"]; got != "missing_active_run_plan_authority" {
+		t.Fatalf("authoritative_state.workflow_projection_reason = %v, want missing_active_run_plan_authority", got)
 	}
 }

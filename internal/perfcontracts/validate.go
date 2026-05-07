@@ -27,6 +27,12 @@ var allowedActivationStates = map[string]struct{}{
 	"contract_pending_dependency": {},
 }
 
+var allowedMeasurementProfiles = map[string]struct{}{
+	"linux_shared_ci":        {},
+	"linux_pi_reference":     {},
+	"linux_scaled_reference": {},
+}
+
 var allowedThresholdOrigins = map[string]struct{}{
 	"product_budget":         {},
 	"investigation_baseline": {},
@@ -59,6 +65,15 @@ func validateManifestAndInventory(manifest Manifest, inventory FixtureInventory)
 	}
 	if strings.TrimSpace(inventory.SchemaVersion) == "" {
 		return fmt.Errorf("fixture inventory schema_version is required")
+	}
+	for _, profile := range manifest.MeasurementProfiles {
+		normalized := strings.TrimSpace(profile)
+		if normalized == "" {
+			return fmt.Errorf("measurement_profiles entries must be non-empty")
+		}
+		if _, ok := allowedMeasurementProfiles[normalized]; !ok {
+			return fmt.Errorf("measurement_profile %q unsupported", normalized)
+		}
 	}
 	return nil
 }
@@ -139,6 +154,11 @@ func validateMetricEnums(metric MetricContract, _ map[string]struct{}, _ map[str
 	}
 	if _, ok := allowedActivationStates[metric.ActivationState]; !ok {
 		return fmt.Errorf("activation_state %q unsupported", metric.ActivationState)
+	}
+	if profile := strings.TrimSpace(metric.MeasurementProfile); profile != "" {
+		if _, ok := allowedMeasurementProfiles[profile]; !ok {
+			return fmt.Errorf("measurement_profile %q unsupported", metric.MeasurementProfile)
+		}
 	}
 	return nil
 }

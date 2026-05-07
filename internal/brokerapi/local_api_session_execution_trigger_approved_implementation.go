@@ -42,17 +42,24 @@ func (s *Service) applySessionExecutionApprovedImplementation(result artifacts.S
 	if err != nil {
 		return nil, nil, err
 	}
-	rollback, err := writeApprovedImplementationResolvedWrites(resolved)
+	prepared, err := prepareApprovedImplementationResolvedWrites(resolved)
 	if err != nil {
 		return nil, nil, err
 	}
-	approvalIDs, err := s.recordApprovedImplementationMutationApprovals(result, authority, &resolved)
-	if err != nil {
-		return nil, nil, joinBrokerOwnedRollbackError(err, rollback())
-	}
+	var approvalIDs []string
 	artifactDigests := approvedImplementationArtifactDigests(resolved)
-	if err := s.appendApprovedImplementationAuditEvent(result, authority, resolved, approvalIDs, artifactDigests); err != nil {
-		return nil, nil, joinBrokerOwnedRollbackError(fmt.Errorf("append approved implementation audit event: %w", err), rollback())
+	if err := finalizeBrokerOwnedMutationWrites(prepared, func() error {
+		var finalizeErr error
+		approvalIDs, finalizeErr = s.recordApprovedImplementationMutationApprovals(result, authority, &resolved)
+		if finalizeErr != nil {
+			return finalizeErr
+		}
+		if err := s.appendApprovedImplementationAuditEvent(result, authority, resolved, approvalIDs, artifactDigests); err != nil {
+			return fmt.Errorf("append approved implementation audit event: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return nil, nil, err
 	}
 	return approvalIDs, artifactDigests, nil
 }

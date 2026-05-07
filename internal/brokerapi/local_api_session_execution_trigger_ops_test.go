@@ -243,6 +243,7 @@ func assertSupportedDraftArtifacts(t *testing.T, s *Service, tc struct {
 	identityPrefix string
 }) {
 	t.Helper()
+	s.sessionExecutionRunner = launchSessionExecutionRunnerCompleteInProcessForTests
 	seedSessionRuntimeFactsForOpsTest(t, s, "run-"+tc.operation, tc.sessionID)
 	ack := mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: tc.requestID, SessionID: tc.sessionID, TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: tc.operation}, UserMessageContentText: tc.message})
 	if ack.ExecutionState != "running" {

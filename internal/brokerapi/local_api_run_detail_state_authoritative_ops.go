@@ -209,4 +209,7 @@ func projectWorkflowDerivedState(state map[string]any, summary RunSummary, manif
 	if summary.WorkflowKind != "" {
 		state["workflow_kind"] = summary.WorkflowKind
 	}
+	if summary.WorkflowKind == "" && summary.CurrentStageID == "" {
+		state["workflow_projection_reason"] = "missing_active_run_plan_authority"
+	}
 }

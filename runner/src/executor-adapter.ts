@@ -5,15 +5,21 @@
  * policy-agnostic: authorization remains broker-owned.
  */
 
+import type { DependencyCacheHandoffMetadata, PlanBoundExecutionIdentity } from "./contracts.ts";
 import type { RunnerPlanEntry } from "./run-plan.ts";
 
 export type ExecutionOutcome = {
   status: "ok" | "failed";
   details?: Record<string, unknown>;
+  failure_reason_code?: string;
 };
 
 export type ExecutorAdapter = {
-  execute(entry: RunnerPlanEntry): Promise<ExecutionOutcome>;
+  execute(input: {
+    identity: PlanBoundExecutionIdentity;
+    entry: RunnerPlanEntry;
+    dependency_cache_handoffs: DependencyCacheHandoffMetadata[];
+  }): Promise<ExecutionOutcome>;
 };
 
 export class ExecutorAdapterRegistry {
@@ -26,4 +32,27 @@ export class ExecutorAdapterRegistry {
   resolve(entryKind: string): ExecutorAdapter | null {
     return this.adaptersByKind.get(entryKind) ?? null;
   }
+}
+
+export class MinimalGateExecutorAdapter implements ExecutorAdapter {
+  async execute(input: {
+    identity: PlanBoundExecutionIdentity;
+    entry: RunnerPlanEntry;
+    dependency_cache_handoffs: DependencyCacheHandoffMetadata[];
+  }): Promise<ExecutionOutcome> {
+    return {
+      status: "ok",
+      details: {
+        executor_binding_id: input.entry.executor_binding_id,
+        gate_id: gateString(input.entry.gate.gate_id),
+        gate_kind: gateString(input.entry.gate.gate_kind),
+        handoff_count: input.dependency_cache_handoffs.length,
+        step_id: input.identity.step_id,
+      },
+    };
+  }
+}
+
+function gateString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }

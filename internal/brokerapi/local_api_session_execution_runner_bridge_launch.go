@@ -1,0 +1,176 @@
+package brokerapi
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+)
+
+func launchSessionExecutionRunnerSubprocess(ctx context.Context, s *Service, spec sessionExecutionRunnerLaunchSpec) error {
+	prepared, err := prepareSessionExecutionRunnerLaunch(s, spec)
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(prepared.stateRoot)
+	cmd := exec.CommandContext(ctx, prepared.command[0], prepared.command[1:]...)
+	cmd.Dir = prepared.runnerRoot
+	cmd.Env = prepared.env
+	stdin, stdout, stderr, err := openSessionExecutionRunnerPipes(cmd)
+	if err != nil {
+		return err
+	}
+	stderrBytes, stderrDone := captureSessionExecutionRunnerStderr(stderr)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("launch runner subprocess: %w", err)
+	}
+	return waitForSessionExecutionRunner(ctx, s, spec, cmd, stdin, stdout, stderrBytes, stderrDone)
+}
+
+type preparedSessionExecutionRunnerLaunch struct {
+	runnerRoot string
+	stateRoot  string
+	command    []string
+	env        []string
+}
+
+func prepareSessionExecutionRunnerLaunch(s *Service, spec sessionExecutionRunnerLaunchSpec) (preparedSessionExecutionRunnerLaunch, error) {
+	runnerRoot, err := resolveRunnerLaunchRoot(s, spec)
+	if err != nil {
+		return preparedSessionExecutionRunnerLaunch{}, err
+	}
+	if _, err := os.Stat(filepath.Join(runnerRoot, "package.json")); err != nil {
+		return preparedSessionExecutionRunnerLaunch{}, fmt.Errorf("runner launch root missing package.json: %w", err)
+	}
+	stateRoot, err := os.MkdirTemp(filepath.Dir(spec.planPath), "runecode-runner-state-")
+	if err != nil {
+		return preparedSessionExecutionRunnerLaunch{}, fmt.Errorf("create runner state root: %w", err)
+	}
+	nodePath, err := resolveRunnerNodePath(s)
+	if err != nil {
+		return preparedSessionExecutionRunnerLaunch{}, err
+	}
+	command, err := sessionExecutionRunnerCommand(nodePath, runnerRoot, spec.planPath, stateRoot)
+	if err != nil {
+		return preparedSessionExecutionRunnerLaunch{}, err
+	}
+	return preparedSessionExecutionRunnerLaunch{
+		runnerRoot: runnerRoot,
+		stateRoot:  stateRoot,
+		command:    command,
+		env:        append(os.Environ(), "RUNECODE_PROTOCOL_SCHEMAS_ROOT="+filepath.Join(filepath.Dir(runnerRoot), "protocol", "schemas")),
+	}, nil
+}
+
+func openSessionExecutionRunnerPipes(cmd *exec.Cmd) (io.WriteCloser, io.Reader, io.Reader, error) {
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("open runner stdin: %w", err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("open runner stdout: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("open runner stderr: %w", err)
+	}
+	return stdin, stdout, stderr, nil
+}
+
+func captureSessionExecutionRunnerStderr(stderr io.Reader) (*strings.Builder, <-chan struct{}) {
+	stderrBytes := &strings.Builder{}
+	stderrDone := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(stderrBytes, stderr)
+		close(stderrDone)
+	}()
+	return stderrBytes, stderrDone
+}
+
+func waitForSessionExecutionRunner(ctx context.Context, s *Service, spec sessionExecutionRunnerLaunchSpec, cmd *exec.Cmd, stdin io.WriteCloser, stdout io.Reader, stderrBytes *strings.Builder, stderrDone <-chan struct{}) error {
+	handleErr := make(chan error, 1)
+	go func() {
+		handleErr <- s.proxyRunnerTransport(ctx, spec.requestID, spec.runID, stdin, stdout)
+	}()
+	waitErr := cmd.Wait()
+	transportErr := <-handleErr
+	_ = stdin.Close()
+	<-stderrDone
+	if transportErr != nil {
+		if waitErr != nil {
+			return fmt.Errorf("runner transport failed: %v (runner exit: %v; stderr: %s)", transportErr, waitErr, summarizeRunnerStderr(stderrBytes.String()))
+		}
+		return fmt.Errorf("runner transport failed: %v (stderr: %s)", transportErr, summarizeRunnerStderr(stderrBytes.String()))
+	}
+	if waitErr != nil {
+		return fmt.Errorf("runner subprocess failed: %v (stderr: %s)", waitErr, summarizeRunnerStderr(stderrBytes.String()))
+	}
+	return nil
+}
+
+func resolveRunnerLaunchRoot(s *Service, spec sessionExecutionRunnerLaunchSpec) (string, error) {
+	if strings.TrimSpace(spec.runnerRoot) == "" && strings.TrimSpace(s.projectSubstrate.RepositoryRoot) == "" && strings.TrimSpace(s.apiConfig.RepositoryRoot) == "" {
+		return "", fmt.Errorf("resolve runner launch root: repository root is required")
+	}
+	if runnerRoot, ok := firstRunnerRootCandidate(strings.TrimSpace(spec.runnerRoot), strings.TrimSpace(s.projectSubstrate.RepositoryRoot), strings.TrimSpace(s.apiConfig.RepositoryRoot)); ok {
+		return runnerRoot, nil
+	}
+	return "", fmt.Errorf("resolve runner launch root: repository root missing runner/package.json")
+}
+
+func firstRunnerRootCandidate(candidates ...string) (string, bool) {
+	for _, candidate := range candidates {
+		root := strings.TrimSpace(candidate)
+		if root == "" {
+			continue
+		}
+		clean := filepath.Clean(root)
+		runnerRoot := filepath.Join(clean, "runner")
+		if _, err := os.Stat(filepath.Join(runnerRoot, "package.json")); err == nil {
+			return runnerRoot, true
+		}
+	}
+	return "", false
+}
+
+func sessionExecutionRunnerCommand(nodePath, repoRoot, planPath, stateRoot string) ([]string, error) {
+	cliPath := filepath.Join(repoRoot, "src", "cli.ts")
+	planRoot := filepath.Dir(planPath)
+	return []string{nodePath, "--experimental-strip-types", cliPath, "--plan-file", planPath, "--plan-root", planRoot, "--state-root", stateRoot, "--broker-transport", "stdio"}, nil
+}
+
+func resolveRunnerNodePath(s *Service) (string, error) {
+	configured := strings.TrimSpace(s.apiConfig.RunnerNodePath)
+	if configured != "" {
+		if !filepath.IsAbs(configured) {
+			return "", fmt.Errorf("configured runner node path must be absolute")
+		}
+		return configured, nil
+	}
+	resolved, err := exec.LookPath("node")
+	if err != nil {
+		return "", fmt.Errorf("resolve node runtime for runner launch: %w", err)
+	}
+	if !filepath.IsAbs(resolved) {
+		return "", fmt.Errorf("resolved node runtime must be absolute")
+	}
+	return resolved, nil
+}
+
+func summarizeRunnerStderr(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "none"
+	}
+	const limit = 512
+	if len(trimmed) > limit {
+		trimmed = trimmed[:limit]
+	}
+	trimmed = strings.ReplaceAll(trimmed, "\n", " | ")
+	trimmed = strings.ReplaceAll(trimmed, "\r", "")
+	return trimmed
+}

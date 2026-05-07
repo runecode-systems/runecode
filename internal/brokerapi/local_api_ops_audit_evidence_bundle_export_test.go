@@ -256,6 +256,7 @@ func newWorkflowRunBundleSmokeService(t *testing.T) *Service {
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
+	service.sessionExecutionRunner = launchSessionExecutionRunnerCompleteInProcessForTests
 	seedSessionRuntimeFactsForOpsTest(t, service, "run-audit-bundle-smoke", "sess-audit-bundle-smoke")
 	return service
 }

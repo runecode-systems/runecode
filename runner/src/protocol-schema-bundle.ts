@@ -76,6 +76,10 @@ export class ProtocolSchemaBundle {
 
     return { ok: false, reason: JSON.stringify(validate.errors ?? []) };
   }
+
+  hasRuntimeKey(schemaId: string, schemaVersion: string): boolean {
+    return this.schemaPathByRuntimeKey.has(schemaKey(schemaId, schemaVersion));
+  }
 }
 
 async function readJsonFile<T>(filePath: string): Promise<T> {

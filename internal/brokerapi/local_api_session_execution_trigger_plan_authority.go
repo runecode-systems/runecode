@@ -11,6 +11,7 @@ import (
 type sessionExecutionPlanAuthority struct {
 	runID                        string
 	planID                       string
+	runPlanDigest                string
 	planCheckpointCode           string
 	planOrderIndex               int
 	gateID                       string
@@ -92,6 +93,10 @@ func sessionExecutionProjectContextIdentityDigest(s *Service, turnExecution arti
 }
 
 func (s *Service) compileSessionExecutionRunPlan(runID, planID, workflowRef, processRef, projectContextIdentityDigest string, result artifacts.SessionExecutionTriggerAppendResult) (CompileAndPersistRunPlanResult, error) {
+	approvedInputSetDigest, err := approvedInputSetSemanticDigestForSessionExecution(s, result)
+	if err != nil {
+		return CompileAndPersistRunPlanResult{}, err
+	}
 	compiled, err := s.CompileAndPersistRunPlan(CompileAndPersistRunPlanRequest{
 		RunID:                        runID,
 		PlanID:                       planID,
@@ -99,7 +104,7 @@ func (s *Service) compileSessionExecutionRunPlan(runID, planID, workflowRef, pro
 		ProcessDefinitionRef:         processRef,
 		PolicyContextHash:            sessionExecutionPolicyContextHash(result),
 		ProjectContextIdentityDigest: projectContextIdentityDigest,
-		ApprovedInputSetDigest:       approvedInputSetDigestForSessionExecution(result),
+		ApprovedInputSetDigest:       approvedInputSetDigest,
 	})
 	if err != nil {
 		return CompileAndPersistRunPlanResult{}, err
@@ -195,22 +200,27 @@ func sessionExecutionPolicyContextHash(result artifacts.SessionExecutionTriggerA
 	return shaDigestIdentity(payload)
 }
 
-func approvedInputSetDigestForSessionExecution(result artifacts.SessionExecutionTriggerAppendResult) string {
+func approvedInputSetSemanticDigestForSessionExecution(s *Service, result artifacts.SessionExecutionTriggerAppendResult) (string, error) {
 	if strings.TrimSpace(result.TurnExecution.WorkflowRouting.WorkflowOperation) != sessionWorkflowOperationApprovedImplementation {
-		return ""
+		return "", nil
 	}
 	for _, binding := range result.TurnExecution.WorkflowRouting.BoundInputArtifacts {
 		if strings.TrimSpace(binding.ArtifactRef) == "implementation_input_set" {
-			return strings.TrimSpace(binding.ArtifactDigest)
+			inputSet, errResp := s.decodeApprovedImplementationInputSet("compile_session_execution_run_plan", strings.TrimSpace(binding.ArtifactDigest))
+			if errResp != nil {
+				return "", fmt.Errorf("%s", strings.TrimSpace(errResp.Error.Message))
+			}
+			return strings.TrimSpace(inputSet.inputSetDigest), nil
 		}
 	}
-	return ""
+	return "", nil
 }
 
 func newSessionExecutionPlanAuthority(inputs sessionExecutionAuthorityInputSet, compiled CompileAndPersistRunPlanResult, selectedEntry artifacts.RunPlanGateEntryRecord, workflowRef, processRef artifacts.ArtifactReference, projectContextIdentityDigest string) sessionExecutionPlanAuthority {
 	return sessionExecutionPlanAuthority{
 		runID:                        inputs.runID,
 		planID:                       strings.TrimSpace(compiled.PlanID),
+		runPlanDigest:                strings.TrimSpace(compiled.RunPlanDigest),
 		planCheckpointCode:           strings.TrimSpace(selectedEntry.PlanCheckpointCode),
 		planOrderIndex:               selectedEntry.PlanOrderIndex,
 		gateID:                       strings.TrimSpace(selectedEntry.GateID),

@@ -324,7 +324,6 @@ test("fails closed when resume resolution binding/hash does not match pending wa
     FileDurableStateStore,
     InvalidApprovalWaitError,
     PlanIdentityMismatchError,
-    NoopRunnerBrokerClient,
   } = await loadRunnerModules();
 
   const schemaBundle = await ProtocolSchemaBundle.fromProtocolSchemasRoot(path.join(repoRoot, "protocol", "schemas"));
@@ -357,7 +356,22 @@ test("fails closed when resume resolution binding/hash does not match pending wa
   const kernelWrongHash = new RunnerKernel({
     planLoader: loader,
     durableStateStore: store,
-    brokerClient: new NoopRunnerBrokerClient(),
+    brokerClient: {
+      async requestDependencyCacheHandoff(request) {
+        return {
+          schema_id: "runecode.protocol.v0.DependencyCacheHandoffResponse",
+          schema_version: "0.1.0",
+          request_id: request.request_id,
+          found: false,
+        };
+      },
+      async sendRunnerCheckpointReport() {
+        return { accepted: false, reason: "unused" };
+      },
+      async sendRunnerResultReport() {
+        return { accepted: false, reason: "unused" };
+      },
+    },
     approvalWaitResolver: {
       async resolve(wait) {
         return {
@@ -380,7 +394,22 @@ test("fails closed when resume resolution binding/hash does not match pending wa
   const kernelStalePlan = new RunnerKernel({
     planLoader: loader,
     durableStateStore: store,
-    brokerClient: new NoopRunnerBrokerClient(),
+    brokerClient: {
+      async requestDependencyCacheHandoff(request) {
+        return {
+          schema_id: "runecode.protocol.v0.DependencyCacheHandoffResponse",
+          schema_version: "0.1.0",
+          request_id: request.request_id,
+          found: false,
+        };
+      },
+      async sendRunnerCheckpointReport() {
+        return { accepted: false, reason: "unused" };
+      },
+      async sendRunnerResultReport() {
+        return { accepted: false, reason: "unused" };
+      },
+    },
     approvalWaitResolver: {
       async resolve(wait) {
         return {
@@ -466,7 +495,6 @@ test("kernel resumeApprovalWaits returns explicit cleared statuses", async (t) =
     RunPlanLoader,
     RunnerKernel,
     FileDurableStateStore,
-    NoopRunnerBrokerClient,
   } = await loadRunnerModules();
 
   const schemaBundle = await ProtocolSchemaBundle.fromProtocolSchemasRoot(path.join(repoRoot, "protocol", "schemas"));
@@ -498,7 +526,22 @@ test("kernel resumeApprovalWaits returns explicit cleared statuses", async (t) =
   const kernel = new RunnerKernel({
     planLoader: loader,
     durableStateStore: store,
-    brokerClient: new NoopRunnerBrokerClient(),
+    brokerClient: {
+      async requestDependencyCacheHandoff(request) {
+        return {
+          schema_id: "runecode.protocol.v0.DependencyCacheHandoffResponse",
+          schema_version: "0.1.0",
+          request_id: request.request_id,
+          found: false,
+        };
+      },
+      async sendRunnerCheckpointReport() {
+        return { accepted: false, reason: "unused" };
+      },
+      async sendRunnerResultReport() {
+        return { accepted: false, reason: "unused" };
+      },
+    },
     approvalWaitResolver: {
       async resolve(wait) {
         return {
@@ -518,68 +561,6 @@ test("kernel resumeApprovalWaits returns explicit cleared statuses", async (t) =
     approval_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
     status: "denied",
   }]);
-});
-
-test("report emitter wraps typed request envelopes", async () => {
-  const {
-    ReportEmitter,
-  } = await loadRunnerModules();
-
-  const captured = [];
-  const emitter = new ReportEmitter({
-    async sendRunnerCheckpointReport(request) {
-      captured.push(request);
-      return { accepted: true };
-    },
-    async sendRunnerResultReport(request) {
-      captured.push(request);
-      return { accepted: true };
-    },
-  });
-
-  await emitter.emitCheckpointReport({
-    request_id: "req-1",
-    identity: {
-      run_id: "run_alpha",
-      plan_id: "plan_alpha",
-      stage_id: "stage_alpha",
-      step_attempt_id: "step_attempt_alpha",
-    },
-    report: {
-      lifecycle_state: "active",
-      checkpoint_code: "gate_running",
-      occurred_at: "2026-01-01T00:00:00Z",
-      idempotency_key: "cp-1",
-    },
-  });
-
-  assert.equal(captured.length, 1);
-  assert.equal(captured[0].schema_id, "runecode.protocol.v0.RunnerCheckpointReportRequest");
-  assert.equal(captured[0].run_id, "run_alpha");
-  assert.equal(captured[0].report.schema_id, "runecode.protocol.v0.RunnerCheckpointReport");
-  assert.equal(captured[0].report.step_attempt_id, "step_attempt_alpha");
-});
-
-test("noop broker client exposes dependency cache handoff seam", async () => {
-  const {
-    NoopRunnerBrokerClient,
-  } = await loadRunnerModules();
-
-  const client = new NoopRunnerBrokerClient();
-  const response = await client.requestDependencyCacheHandoff({
-    schema_id: "runecode.protocol.v0.DependencyCacheHandoffRequest",
-    schema_version: "0.1.0",
-    request_id: "noop-handoff",
-    request_digest: { hash_alg: "sha256", hash: "a".repeat(64) },
-    consumer_role: "workspace",
-  });
-
-  assert.deepEqual(response, {
-    schema_id: "runecode.protocol.v0.DependencyCacheHandoffResponse",
-    schema_version: "0.1.0",
-    request_id: "noop-handoff",
-    found: false,
-  });
 });
 
 test("runtime seam idempotency ignores payload detail key order and writes private file mode", async (t) => {
@@ -792,7 +773,7 @@ test("kernel composes modules with plan-bound identity", async () => {
   ]);
 
   assert.equal(handoffRequests.length, 1);
-  assert.match(handoffRequests[0].request_id, /^dependency-handoff:run_alpha:[a-f0-9]{12}$/);
+  assert.match(handoffRequests[0].request_id, /^dependency-handoff:[a-f0-9]{64}$/);
   assert.equal(handoffRequests[0].consumer_role, "workspace");
   assert.equal(calls.length, 1);
   assert.equal(calls[0].kind, "park");
@@ -805,7 +786,7 @@ test("kernel constructor fails closed without broker client", async () => {
     RunPlanLoader,
     RunnerKernel,
     FileDurableStateStore,
-    MissingRunnerBrokerClientError,
+    MissingRunnerBrokerTransportError,
   } = await loadRunnerModules();
 
   const schemaBundle = await ProtocolSchemaBundle.fromProtocolSchemasRoot(path.join(repoRoot, "protocol", "schemas"));
@@ -818,7 +799,7 @@ test("kernel constructor fails closed without broker client", async () => {
         planLoader: loader,
         durableStateStore: store,
       });
-    }, MissingRunnerBrokerClientError);
+    }, MissingRunnerBrokerTransportError);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

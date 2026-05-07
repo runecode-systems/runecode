@@ -204,7 +204,7 @@ func putApprovedImplementationMutationArtifactForTest(t *testing.T, s *Service, 
 	if err != nil {
 		t.Fatalf("Put returned error: %v", err)
 	}
-	if _, _, _, err := approvedImplementationWriteIntent(canonical); err != nil {
+	if _, _, _, err := s.approvedImplementationWriteIntent(canonical); err != nil {
 		t.Fatalf("approvedImplementationWriteIntent returned error: %v", err)
 	}
 	return ref.Digest
