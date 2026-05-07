@@ -10,6 +10,7 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 - Beta Readiness Hardening + Product Polish
   - RuneCode closes the remaining product-integration gaps before beta by wiring one honest useful end-to-end workflow through the real trusted and untrusted execution path, tightening operator truth surfaces, and capturing dogfooding-driven polish across the local product UX with emphasis on the TUI.
   - Project change: `runecontext/changes/CHG-2026-060-c1a4-beta-readiness-hardening-product-polish/`
+  - Feature changes: 
 
 ### v0.1.0-beta.1
 
@@ -189,4 +190,3 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 - Project Performance Baselines + Verification Gates v0
   - RuneCode establishes the first MVP-grade performance baselines and deterministic Linux-first CI gates for the supported beta surface. The required shared-Linux lane enforces the current `required_shared_linux` subset, while launcher startup/attestation and external audit anchoring contracts are tracked as informational or `contract_pending_dependency` until their dependency paths are fully landed.
   - Planned change: `runecontext/changes/CHG-2026-053-9d2b-performance-baselines-verification-gates-v0/`
-

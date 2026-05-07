@@ -8,22 +8,36 @@
 - [ ] Ensure the real execution path starts from the persisted authoritative plan identity.
 - [ ] Ensure real runner checkpoint and result reporting reaches the broker through the typed production path.
 - [ ] Remove ambiguity around noop/default runner transport behavior for the real supported workflow path.
+- [ ] Add or document the normal product runner launch entrypoint for the supported path.
+- [ ] Make run, session, and TUI workflow projections plan-authoritative for the supported path rather than artifact-inferred.
 
-## Phase 2: Make One Workflow Honestly Useful
+## Phase 2: Prove Canonical RuneContext Project Lifecycle
 
-- [ ] Deliver one first-party RuneContext workflow slice that a user can run usefully on a real project through the normal product path.
-- [ ] Prefer `change_draft` or `spec_draft` as the minimum honest useful workflow.
-- [ ] If scope remains manageable, also wire `draft_promote_apply` through the same real path so verified RuneContext lifecycle mutation is exercised end to end.
-- [ ] Keep the chosen slice inspectable through runs, sessions, artifacts, approvals, and audit surfaces.
-- [ ] Ensure the supported workflow path remains Linux-first and does not depend on future platform work.
+- [ ] Prove project-substrate inspect and posture reporting through normal product surfaces.
+- [ ] Prove compatible existing substrate adoption remains read-only and does not silently rewrite discovered state.
+- [ ] Prove missing substrate initialization through explicit preview/apply and follow-up validation/status.
+- [ ] Prove supported older substrate upgrade through explicit preview/apply and follow-up validation/status.
+- [ ] Prove normal productive workflow execution remains blocked for missing, invalid, non-verified, or unsupported substrate posture.
+- [ ] Keep apply flows broker-owned, typed, auditable where mutation occurs, and visible through TUI or CLI surfaces.
 
-## Phase 3: Align Runtime Assurance Truthfulness
+## Phase 3: Make The Required Workflow Loop Honestly Useful
+
+- [ ] Deliver `change_draft` from prompt to typed change-draft artifact through the real product path.
+- [ ] Deliver `spec_draft` from prompt to typed spec-draft artifact through the same real product path.
+- [ ] Deliver `draft_promote_apply` for a reviewed change draft into canonical `runecontext/changes/`.
+- [ ] Deliver `draft_promote_apply` for a reviewed spec draft into canonical `runecontext/specs/`.
+- [ ] Deliver `approved_change_implementation` from one reviewed implementation input set containing one or more approved change/spec inputs by exact digest.
+- [ ] Allow approved implementation to update required RuneContext lifecycle metadata when the approved input set requires it, without adding a separate lifecycle-close workflow operation in this lane.
+- [ ] Keep the supported workflow loop inspectable through runs, sessions, artifacts, approvals, and audit surfaces.
+- [ ] Ensure the supported workflow loop remains Linux-first and does not depend on future platform work.
+
+## Phase 4: Align Runtime Assurance Truthfulness
 
 - [ ] Coordinate the user-facing assurance story with `CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0`.
-- [ ] Avoid presenting supported `attested` posture as settled beta truth until post-handshake gating lands.
+- [ ] Avoid presenting supported `attested` posture as settled beta truth until post-handshake gating is implemented, verified, and integrated into the supported path.
 - [ ] Ensure product surfaces distinguish current runtime evidence state from the final intended beta attestation story.
 
-## Phase 4: TUI And Product Polish During Dogfooding
+## Phase 5: TUI And Product Polish During Dogfooding
 
 - [ ] Capture TUI polish items discovered while testing the real workflow path.
 - [ ] Improve clarity for waiting, blocked, degraded, failed, resumed, and completed states.
@@ -31,28 +45,38 @@
 - [ ] Improve project-substrate remediation and workflow follow-up guidance where operator confusion appears.
 - [ ] Improve discoverability for artifacts, audit evidence, approvals, and verification actions.
 - [ ] Tighten wording, route labels, and status cues so the product reads like one coherent local system.
+- [ ] Fix blockers and misleading product-truth issues found during TUI walkthroughs before closure.
+- [ ] Record non-blocking polish follow-ups when they do not block the supported beta proof.
 
-## Phase 5: Verification Smoke Path
+## Phase 6: Verification Smoke Path
 
-- [ ] Run the supported useful workflow through the real product path and confirm canonical evidence is generated.
+- [ ] Run the supported project-substrate lifecycle proof through normal product surfaces.
+- [ ] Run `change_draft`, `spec_draft`, `draft_promote_apply`, and `approved_change_implementation` through the real product path and confirm canonical evidence is generated.
 - [ ] Inspect the resulting run, artifacts, and audit records through normal product surfaces.
 - [ ] Exercise audit evidence snapshot on the real workflow path.
 - [ ] Exercise audit record inclusion on at least one real workflow-generated record.
 - [ ] Exercise evidence bundle export and offline verification on the real workflow path.
 - [ ] Exercise external audit anchoring on the real workflow path where environment and policy allow.
 
-## Phase 6: Release-Surface Alignment
+## Phase 7: Release-Surface Alignment
 
 - [ ] Update roadmap and product-facing docs so alpha.11 is the hardening lane and beta.1 remains the milestone outcome.
+- [ ] Resolve incomplete alpha.11 roadmap wording, including any blank `Feature changes:` entry.
+- [ ] Represent `CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0` consistently where beta assurance wording depends on its verified integration.
 - [ ] Align README, help text, and operator-facing wording with the real workflow and assurance story.
 - [ ] Ensure release messaging does not imply a stronger end-to-end or attestation posture than the code actually provides.
+- [ ] Keep git remote publication out of required beta messaging unless a separate reviewed publishing smoke path is added.
 
 ## Acceptance Criteria
 
-- [ ] RuneCode has one honest useful workflow path that runs through the real trusted and untrusted execution path.
+- [ ] RuneCode proves canonical project-substrate lifecycle through inspect/adopt/init/upgrade/validate/status surfaces.
+- [ ] RuneCode runs `change_draft`, `spec_draft`, `draft_promote_apply`, and `approved_change_implementation` through the real trusted and untrusted execution path.
+- [ ] RuneCode promotes reviewed change and spec drafts into canonical RuneContext files through the shared audited mutation path.
+- [ ] RuneCode implements one reviewed implementation input set through the shared workflow system, including local workspace mutation and required RuneContext lifecycle metadata updates when approved.
 - [ ] Trusted `RunPlan` compilation and persistence are part of the real production workflow path.
 - [ ] Runner progress shown to operators comes from real reporting integration for the supported path.
 - [ ] The supported path is inspectable through session, run, artifact, approval, and audit surfaces.
 - [ ] Verification artifacts are generated and exercised from the same real workflow path.
 - [ ] TUI and surrounding operator surfaces are polished enough that a new Linux user can test the product coherently.
+- [ ] Git remote publication is not implied unless explicitly verified by a separate publishing smoke path.
 - [ ] The beta story is more truthful and less scaffold-heavy after this alpha lane completes.
