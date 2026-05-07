@@ -7,6 +7,7 @@
 
 ## Verification Notes
 - Confirm the roadmap and change text both describe LangGraph as optional and post-MVP rather than required.
+- Confirm the change treats CHG-060's native beta workflow-loop proof as a prerequisite rather than something LangGraph may replace or shortcut.
 - Confirm the change explicitly states that implementation should be determined later based on whether it is still needed.
 - Confirm the change keeps LangGraph internal-only and non-canonical.
 - Confirm the change preserves broker-owned run truth, approval truth, lifecycle state, and immutable `RunPlan` authority.

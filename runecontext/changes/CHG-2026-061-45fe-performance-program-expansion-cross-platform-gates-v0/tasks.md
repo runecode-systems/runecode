@@ -1,13 +1,14 @@
 # Tasks
 
-## Phase 1: Broader Workflow-Pack Coverage
+## Phase 1: Broader Workflow-Pack Performance Coverage
 
 - [ ] Reuse the reviewed performance-contract artifact family from `CHG-053` rather than defining a second baseline format for post-MVP checks.
 - [ ] Reuse the `CHG-053` metric taxonomy and statistical defaults as the starting policy for broader checks unless later reviewed work explicitly refines them.
-- [ ] Add deterministic checks for broader CHG-049 workflow-pack surfaces beyond the supported MVP beta slice.
-- [ ] Add deterministic draft artifact-generation checks where those surfaces are part of the supported post-MVP product story.
-- [ ] Add deterministic draft promote/apply checks for canonical RuneContext mutation through the shared audited path.
-- [ ] Add deterministic reviewed implementation-input-set validation or binding checks for approved-change implementation entry.
+- [ ] Treat CHG-060 as the required beta product-smoke baseline for project-substrate lifecycle, `change_draft`, `spec_draft`, `draft_promote_apply`, and `approved_change_implementation`.
+- [ ] Add deterministic performance checks that broaden the CHG-060 beta workflow loop beyond its release-defining smoke fixtures.
+- [ ] Add larger deterministic draft artifact-generation checks where those surfaces are part of the supported post-MVP product story.
+- [ ] Add broader deterministic draft promote/apply timing checks for canonical RuneContext mutation through the shared audited path.
+- [ ] Add deterministic reviewed implementation-input-set validation or binding checks for approved-change implementation entry across larger and drift-sensitive fixtures.
 - [ ] Add deterministic direct CLI workflow-trigger latency checks for broader workflow-pack entry points.
 - [ ] Add deterministic repo-scoped admission-control and idempotency checks for broader workflow trigger paths.
 - [ ] Add deterministic fail-closed re-evaluation or recompilation checks for project-context or approved-input drift on broader workflow-pack paths.
@@ -18,7 +19,7 @@
 - [ ] Add git gateway prepare performance checks against deterministic local fixture repos.
 - [ ] Add git execute performance checks against deterministic local bare remotes.
 - [ ] Add project-substrate posture and preview performance checks for deterministic fixture repos.
-- [ ] Add local project-substrate apply performance checks for deterministic fixture repos.
+- [ ] Add local project-substrate apply performance checks for deterministic fixture repos beyond the CHG-060 lifecycle proof fixtures.
 - [ ] Apply the inherited metric taxonomy and authoritative timing-boundary rules to git-gateway and project-substrate checks.
 
 ## Phase 3: Larger Fixture Ladders And Heavier Lanes
@@ -47,7 +48,7 @@
 
 ## Acceptance Criteria
 
-- [ ] RuneCode has explicit post-MVP performance checks for broader workflow-pack surfaces beyond the first beta gate set.
+- [ ] RuneCode has explicit post-MVP performance checks that broaden the CHG-060 beta workflow loop without moving required beta product smokes out of CHG-060.
 - [ ] Git-gateway and broader project-substrate paths each have at least one deterministic CI-compatible performance check.
 - [ ] Larger fixture ladders and heavier extended-Linux lanes exist without destabilizing the MVP beta PR gate.
 - [ ] macOS and Windows run the same flow families where feasible, with tuned numeric gates added only where stable and meaningful.

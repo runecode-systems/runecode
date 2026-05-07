@@ -19,8 +19,10 @@ That includes freezing the following clarifications for this future foundation:
 - unrelated eligible tracks may continue only when plan, dependency graph, policy, coordination state, and project-substrate posture all allow it
 - git worktree mechanics remain implementation-private while broker-owned track, session, run, approval, artifact, audit, and project-context identities remain canonical
 
-This change builds on session execution orchestration, workflow definition binding, and first-party workflow-pack foundations rather than redefining those authority surfaces locally.
+This change builds on session execution orchestration, workflow definition binding, first-party workflow-pack foundations, and the CHG-060 beta approved implementation baseline rather than redefining those authority surfaces locally.
 
 That now also includes the `CHG-049` clarifications that:
 - approved implementation work is already bound to reviewed implementation-input sets and exact digests before this change starts decomposing it
 - the initial `v0` baseline remains at most one mutation-bearing shared-workspace run per authoritative repository root unless and until later reviewed concurrency or worktree execution rules explicitly extend it
+
+It also includes the CHG-060 clarification that the first beta approved implementation path is a local, canonical, single-lane implementation flow through trusted `RunPlan` authority, real runner reporting, local workspace mutation, and evidence-backed operator surfaces. This change extends that baseline with decomposition and isolated worktree behavior only after the baseline exists.

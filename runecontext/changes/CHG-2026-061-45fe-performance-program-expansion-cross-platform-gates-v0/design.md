@@ -5,8 +5,8 @@ This change expands RuneCode's performance program beyond the MVP beta gate set 
 
 The design goal is to preserve the MVP gate set as a stable release contract while adding broader post-MVP coverage for:
 
-- broader first-party workflow-pack surfaces
-- git-gateway and broader project-substrate paths
+- broader performance coverage for and beyond the CHG-060 first-party workflow loop
+- git-gateway publication paths and broader project-substrate fixture coverage
 - larger broker and end-to-end fixture tiers
 - tuned cross-platform gates beyond Linux-first numeric enforcement
 
@@ -25,32 +25,32 @@ That means the post-MVP expansion should continue to use:
 ## Layer Boundary
 
 ### Layer 1: MVP Beta Gates
-Owned by `CHG-053`:
+Owned by `CHG-053`, with CHG-060 defining the required product loop those gates and smokes must cover:
 
 - Linux-first numeric gates
 - TUI idle and waiting behavior
 - broker API and watch families for supported beta fixtures
 - attach and resume
-- supported workflow execution path
+- supported workflow execution path for project-substrate lifecycle, `change_draft`, `spec_draft`, `draft_promote_apply`, and `approved_change_implementation`
 - launcher startup and truthful attestation path
 - model-gateway, dependency-fetch, audit, protocol, and external-anchor checks
 
 ### Layer 2: Post-MVP Expansion
 Owned by this change:
 
-- broader CHG-049 workflow-pack surfaces beyond the supported beta slice
-- git-gateway and broader project-substrate performance suites
+- broader workflow-pack performance coverage, larger fixtures, and additional entrypoint timings beyond the CHG-060 beta smokes
+- git-gateway publication and broader project-substrate performance suites
 - larger broker-fixture ladders and heavier extended-Linux measurements
 - tuned macOS and Windows numeric gates where feasible
 
 Layer 2 expands breadth and confidence. It does not introduce a second semantics model for thresholds, baselines, timing boundaries, or trust ownership.
 
 ## Broader Workflow-Pack Coverage
-The post-MVP workflow-pack expansion should cover surfaces that are useful but were intentionally excluded from the MVP hard gate, such as:
+The post-MVP workflow-pack expansion should broaden performance coverage for the CHG-060 beta workflow loop and add later workflow-pack surfaces that are useful but not release-defining for the first beta, such as:
 
-- draft artifact generation when it is no longer merely the minimum supported workflow slice
-- explicit draft promote/apply timing through the audited shared path
-- reviewed implementation-input-set validation or binding costs for approved-change implementation entry
+- larger draft artifact-generation fixture tiers beyond the beta smoke fixtures
+- explicit draft promote/apply timing through the audited shared path across broader fixture sizes
+- reviewed implementation-input-set validation or binding costs for approved-change implementation entry across larger and drift-sensitive fixtures
 - direct CLI workflow-trigger latency for broader workflow families
 - repo-scoped admission-control and idempotency timing across broader workflow-pack entry points
 - fail-closed drift-triggered re-evaluation or recompilation costs across those broader surfaces
@@ -64,8 +64,8 @@ This expansion lane should add explicit performance coverage for surfaces that a
 
 - git remote prepare
 - execute against local bare remotes
-- project substrate posture and preview flows
-- local project substrate apply flows
+- project substrate posture and preview flows across broader fixture repos
+- local project substrate apply flows beyond the CHG-060 lifecycle proof fixtures
 
 These checks should remain local-only and deterministic where possible.
 

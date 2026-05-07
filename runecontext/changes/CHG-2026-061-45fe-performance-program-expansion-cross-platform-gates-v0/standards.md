@@ -14,8 +14,8 @@ This change exists to expand RuneCode's performance program after the MVP gate s
 
 That includes freezing the following clarifications for post-MVP work:
 
-- broader workflow-pack surfaces can gain explicit budgets without widening the first beta gate set retroactively
-- git-gateway and broader project-substrate performance checks should remain deterministic and local-first where feasible
+- broader workflow-pack performance coverage can gain explicit budgets without moving CHG-060 required product smokes out of the first beta lane
+- git-gateway publication and broader project-substrate performance checks should remain deterministic and local-first where feasible
 - larger fixture ladders and heavier extended lanes are valuable, but should not destabilize the MVP PR gate
 - broader macOS and Windows numeric tuning should remain explicit follow-on work rather than implied parity with Linux before the platform lanes are ready
 - post-MVP expansion should keep using the reviewed performance-contract artifacts, metric taxonomy, statistical defaults, and authoritative timing-boundary rules established by `CHG-053` unless a later reviewed change deliberately revises them

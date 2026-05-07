@@ -4,6 +4,7 @@
 
 - [ ] Define a broker-owned implementation-track model with stable track identity, dependency edges, and readiness/blocking posture.
 - [ ] Consume the reviewed implementation-input-set authority model from `CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0` rather than ambient repository planning state.
+- [ ] Consume the CHG-060 single-lane approved implementation baseline rather than defining the first approved implementation path in this change.
 - [ ] Support explicit track declarations from approved canonical implementation inputs.
 - [ ] Support inferred candidate tracks when explicit track declarations are absent.
 - [ ] Make explicit track declarations authoritative over inferred grouping.
@@ -11,6 +12,7 @@
 - [ ] Carry enough confidence or overlap-risk information for operator review and orchestration policy.
 - [ ] Keep the proposed execution-plan artifact as planning/review state rather than a second runner-consumed runtime authority beside CHG-050 immutable `RunPlan`.
 - [ ] Keep later multi-track execution explicitly additive over the CHG-049 `v0` baseline of at most one mutation-bearing shared-workspace run per authoritative repository root.
+- [ ] Keep later multi-track execution explicitly additive over the CHG-060 real product implementation path of trusted `RunPlan`, real runner reporting, local workspace mutation, and evidence-backed operator surfaces.
 
 ## Git Worktree Execution Lifecycle
 
@@ -58,3 +60,4 @@
 - [ ] Track execution reuses shared policy, approval, audit, lifecycle, and validated project-context binding models instead of inventing parallel semantics.
 - [ ] Track execution reuses shared dependency-fetch and offline-cache contracts so worktrees consume derived dependency artifacts without becoming authoritative dependency cache owners.
 - [ ] This change remains additive over the CHG-049 `v0` baseline instead of silently redefining approved-input authority or pretending the single mutation-bearing shared-workspace posture never existed.
+- [ ] This change remains additive over the CHG-060 beta implementation baseline instead of replacing the first approved implementation path with decomposition or worktree requirements.

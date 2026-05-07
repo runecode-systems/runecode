@@ -8,9 +8,9 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 ### v0.1.0-alpha.11
 
 - Beta Readiness Hardening + Product Polish
-  - RuneCode closes the remaining product-integration gaps before beta by wiring one honest useful end-to-end workflow through the real trusted and untrusted execution path, tightening operator truth surfaces, and capturing dogfooding-driven polish across the local product UX with emphasis on the TUI.
+  - RuneCode closes the remaining product-integration gaps before beta by proving the local canonical RuneContext lifecycle and productive workflow loop through the real trusted and untrusted execution path: project-substrate lifecycle, change/spec drafting, draft promote/apply, approved implementation, evidence continuity, and dogfooding-driven TUI polish.
   - Project change: `runecontext/changes/CHG-2026-060-c1a4-beta-readiness-hardening-product-polish/`
-  - Feature changes: 
+  - Feature changes: `CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0` remains part of the beta assurance closure story where supported attested posture is claimed.
 
 ### v0.1.0-beta.1
 
@@ -23,7 +23,7 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
   - RuneCode can replicate immutable canonical evidence and signed replication checkpoints across machines, restore missing evidence from remote durability targets, thin local historical storage safely, and block publication-sensitive actions until evidence durability is healthy.
   - Planned change: `runecontext/changes/CHG-2026-059-7b31-cross-machine-evidence-replication-restore-v0/`
 - Performance Program Expansion + Cross-Platform Gates v0
-  - RuneCode expands the MVP performance program to broader workflow-pack and git surfaces, larger fixture tiers, and tuned cross-platform verification gates beyond the Linux-first beta baseline.
+  - RuneCode expands the MVP performance program to broader performance coverage for and beyond the beta workflow loop, git publication paths, larger fixture tiers, and tuned cross-platform verification gates beyond the Linux-first beta baseline.
   - Planned change: `runecontext/changes/CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0/`
 - Approval Profiles (Strict/Permissive)
   - Add selectable human-in-the-loop profiles beyond MVP moderate.
@@ -65,7 +65,7 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
   - Add explicit, auditable shared-workspace concurrency instead of relying on one-run-per-workspace indefinitely.
   - Planned change: `runecontext/changes/CHG-2026-027-71ed-workflow-concurrency-v0/`
 - Implementation Track Decomposition + Git Worktree Execution v0
-  - RuneCode can decompose implementation work into low-coupling tracks, run eligible tracks in isolated git worktrees, pause only the dependent tracks for user input, and keep unrelated eligible work moving when it is safe to do so.
+  - RuneCode extends the beta approved-implementation baseline by decomposing implementation work into low-coupling tracks, running eligible tracks in isolated git worktrees, pausing only dependent tracks for user input, and keeping unrelated eligible work moving when safe.
   - Planned change: `runecontext/changes/CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0/`
 
 ## Unscheduled (Needs Specs)

@@ -10,6 +10,7 @@ Define a broker-owned model for decomposing implementation work into low-couplin
 - Inferred track grouping must become a broker-owned proposed execution-plan artifact rather than a hidden heuristic.
 - Git worktrees are the preferred isolation substrate for low-coupling parallel implementation tracks, but they are not mandatory for every implementation plan.
 - Worktree execution should remain fail closed: if overlap risk, dependency ambiguity, or project-context drift makes safe parallelization unclear, RuneCode should pause for operator input or fall back to a more conservative execution mode.
+- `CHG-2026-060-c1a4-beta-readiness-hardening-product-polish` now owns the first approved-change implementation proof through the real product path; this change extends that single-lane baseline rather than defining it.
 - Pending operator input or formal approval should block only the directly affected track and direct downstream dependent tracks; unrelated eligible tracks may continue only when the active plan, dependency graph, policy, coordination state, and project-substrate posture allow it.
 - Multiple pending waits may coexist simultaneously; resolution of one wait resumes only the affected track(s) and newly unblocked dependents.
 - Track execution, worktree lifecycle, and final integration must preserve canonical links to sessions, runs, approvals, artifacts, audit records, and validated project-context bindings.
@@ -96,6 +97,12 @@ This keeps "always try to keep useful work moving" aligned with the fail-closed 
 - Session execution orchestration freezes the core rule that pending user input is dependency-aware partial blocking rather than a whole-system stop signal.
 - This change extends that rule across explicit or inferred implementation tracks and isolated worktree execution.
 
+## Relationship To Beta Implementation Baseline
+
+- `CHG-2026-060-c1a4-beta-readiness-hardening-product-polish` proves that `approved_change_implementation` can run as a local, canonical, single-lane implementation flow through trusted `RunPlan` authority, real runner reporting, local workspace mutation, and evidence-backed operator surfaces.
+- This change must consume that baseline rather than bypassing it with a track-local planner or worktree-local runtime authority.
+- Track decomposition, worktree execution, and unrelated-track continuation are optional later broadening layers; if they are unsafe or unavailable, the conservative CHG-060-style implementation path remains the fallback posture.
+
 ## Policy, Approval, And Autonomy Controls
 
 - Formal approval frequency remains under the canonical approval-profile model.
@@ -117,7 +124,7 @@ This keeps "always try to keep useful work moving" aligned with the fail-closed 
 - Track execution should reuse shared workflow identity, policy, approval, audit, and project-context contracts rather than inventing track-local variants of those authority surfaces.
 - Track execution should also reuse shared dependency-fetch identity, approval, and cache-ownership contracts so parallel worktrees do not drift into package-manager-local or path-local dependency semantics.
 - Any future track-aware workflow/process definition additions should build on the refined CHG-050 split between `WorkflowDefinition`, `ProcessDefinition`, and immutable `RunPlan` rather than creating a second executable planning format.
-- First-party approved-change implementation should be able to adopt this track model later without inventing workflow-pack-local decomposition semantics or reopening the reviewed implementation-input-set authority model frozen by CHG-049.
+- First-party approved-change implementation should be able to adopt this track model later without inventing workflow-pack-local decomposition semantics, reopening the reviewed implementation-input-set authority model frozen by CHG-049, or weakening the CHG-060 beta implementation baseline.
 
 ## Main Workstreams
 - Broker-Owned Track Decomposition Model
