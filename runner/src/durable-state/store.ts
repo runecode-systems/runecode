@@ -1,4 +1,4 @@
-import { appendFile, mkdir, open, readFile, rename } from "node:fs/promises";
+import { appendFile, mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { RunnerPlanIdentity } from "../run-plan.ts";
@@ -26,6 +26,24 @@ import { healSnapshotFromJournal, replayDurableState, replayDurableStateInternal
 const durableStateWriteLocks = new Map<string, Promise<void>>();
 const PRIVATE_STATE_DIR_MODE = 0o700;
 const PRIVATE_STATE_FILE_MODE = 0o600;
+
+type DurableStateStoreFS = {
+  open: typeof open;
+  rename: typeof rename;
+  rm: typeof rm;
+};
+
+const durableStateStoreFS: DurableStateStoreFS = {
+  open,
+  rename,
+  rm,
+};
+
+export function setDurableStateStoreFSTestHooksForTesting(hooks: Partial<DurableStateStoreFS> | null): void {
+  durableStateStoreFS.open = hooks?.open ?? open;
+  durableStateStoreFS.rename = hooks?.rename ?? rename;
+  durableStateStoreFS.rm = hooks?.rm ?? rm;
+}
 
 export class FileDurableStateStore {
   private readonly stateRoot: string;
@@ -274,7 +292,7 @@ export class FileDurableStateStore {
 
   private async writeSnapshot(snapshot: DurableSnapshot): Promise<void> {
     const tempPath = `${this.snapshotPath}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
-    const file = await open(tempPath, "wx", PRIVATE_STATE_FILE_MODE);
+    const file = await durableStateStoreFS.open(tempPath, "wx", PRIVATE_STATE_FILE_MODE);
     try {
       await file.writeFile(`${JSON.stringify(snapshot, null, 2)}\n`, {
         encoding: "utf8",
@@ -282,7 +300,12 @@ export class FileDurableStateStore {
     } finally {
       await file.close();
     }
-    await rename(tempPath, this.snapshotPath);
+    try {
+      await durableStateStoreFS.rename(tempPath, this.snapshotPath);
+    } catch (error) {
+      await durableStateStoreFS.rm(tempPath, { force: true }).catch(() => {});
+      throw error;
+    }
   }
 
   private async withWriteLock<T>(operation: () => Promise<T>): Promise<T> {

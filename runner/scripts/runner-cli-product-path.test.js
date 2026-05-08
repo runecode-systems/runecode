@@ -25,7 +25,7 @@ function runCLI(args, options = {}) {
     process.execPath,
     ["--experimental-strip-types", cliPath, ...args],
     {
-      cwd: path.join(repoRoot, "runner"),
+      cwd: options.cwd ?? path.join(repoRoot, "runner"),
       encoding: "utf8",
       input: options.input,
       env: {
@@ -99,6 +99,115 @@ test("cli fails closed when protocol schema root env lacks required runner schem
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(fakeSchemas, { recursive: true, force: true });
+  }
+});
+
+test("cli fails closed when manifest omits one required runner schema entry", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-cli-"));
+  const fakeSchemas = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-schemas-"));
+  try {
+    const planPath = writePlan(root);
+    const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, "protocol", "schemas", "manifest.json"), "utf8"));
+    manifest.schema_files = manifest.schema_files.filter(
+      (entry) => !(entry.schema_id === "runecode.protocol.v0.RunnerResultReportResponse" && entry.schema_version === "0.1.0"),
+    );
+    fs.cpSync(path.join(repoRoot, "protocol", "schemas"), fakeSchemas, { recursive: true });
+    fs.writeFileSync(path.join(fakeSchemas, "manifest.json"), JSON.stringify(manifest, null, 2));
+
+    const result = runCLI(["--plan-file", planPath, "--plan-root", root], { env: { RUNECODE_PROTOCOL_SCHEMAS_ROOT: fakeSchemas } });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /missing required runner schema .*RunnerResultReportResponse@0\.1\.0/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(fakeSchemas, { recursive: true, force: true });
+  }
+});
+
+test("cli fails closed when manifest runtime key points at malformed relaxed schema content", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-cli-"));
+  const fakeSchemas = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-schemas-"));
+  try {
+    const planPath = writePlan(root);
+    fs.cpSync(path.join(repoRoot, "protocol", "schemas"), fakeSchemas, { recursive: true });
+    const schemaPath = path.join(fakeSchemas, "objects", "DependencyCacheHandoffRequest.schema.json");
+    const schema = JSON.parse(fs.readFileSync(schemaPath, "utf8"));
+    schema.properties.schema_id.const = "runecode.protocol.v0.NotDependencyCacheHandoffRequest";
+    delete schema.required;
+    schema.additionalProperties = true;
+    fs.writeFileSync(schemaPath, JSON.stringify(schema, null, 2));
+
+    const result = runCLI(["--plan-file", planPath, "--plan-root", root], { env: { RUNECODE_PROTOCOL_SCHEMAS_ROOT: fakeSchemas } });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /schema manifest entry .*DependencyCacheHandoffRequest\.schema\.json schema_id const .* does not match runecode\.protocol\.v0\.DependencyCacheHandoffRequest/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(fakeSchemas, { recursive: true, force: true });
+  }
+});
+
+test("cli works from non-runner cwd when schema root comes from env", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-cli-"));
+  try {
+    const planPath = writePlan(root);
+    const responses = [
+      {
+        message_type: "dependency_cache_handoff_response",
+        payload: {
+          schema_id: "runecode.protocol.v0.DependencyCacheHandoffResponse",
+          schema_version: "0.1.0",
+          request_id: dependencyHandoffRequestID("run_alpha", "sha256:" + "d".repeat(64)),
+          found: true,
+          handoff: {
+            schema_id: "runecode.protocol.v0.DependencyCacheHandoffMetadata",
+            schema_version: "0.1.0",
+            request_digest: { hash_alg: "sha256", hash: "d".repeat(64) },
+            resolved_unit_digest: { hash_alg: "sha256", hash: "e".repeat(64) },
+            manifest_digest: { hash_alg: "sha256", hash: "f".repeat(64) },
+            payload_digests: [{ hash_alg: "sha256", hash: "1".repeat(64) }],
+            materialization_mode: "derived_read_only",
+            handoff_mode: "broker_internal_artifact_handoff",
+          },
+        },
+      },
+      {
+        message_type: "runner_checkpoint_report_response",
+        payload: {
+          schema_id: "runecode.protocol.v0.RunnerCheckpointReportResponse",
+          schema_version: "0.1.0",
+          request_id: "runner-checkpoint:run_alpha:quality_lint:0",
+          run_id: "run_alpha",
+          accepted: true,
+          canonical_lifecycle_state: "active",
+          accepted_at: "2026-01-01T00:00:00Z",
+          idempotency_key: "runner-checkpoint:run_alpha:quality_lint:active",
+        },
+      },
+      {
+        message_type: "runner_result_report_response",
+        payload: {
+          schema_id: "runecode.protocol.v0.RunnerResultReportResponse",
+          schema_version: "0.1.0",
+          request_id: "runner-result:run_alpha:quality_lint:0",
+          run_id: "run_alpha",
+          accepted: true,
+          canonical_lifecycle_state: "completed",
+          accepted_at: "2026-01-01T00:00:00Z",
+          idempotency_key: "runner-result:run_alpha:quality_lint:ok",
+        },
+      },
+    ].map((entry) => JSON.stringify(entry)).join("\n") + "\n";
+
+    const result = runCLI([
+      "--plan-file", planPath,
+      "--plan-root", root,
+      "--state-root", path.join(root, "state"),
+      "--broker-transport", "stdio",
+    ], { input: responses, cwd: repoRoot });
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr, /executed 1\/1 scheduled entries/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 

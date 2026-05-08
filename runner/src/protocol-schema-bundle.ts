@@ -22,6 +22,11 @@ type SchemaManifest = {
   schema_files: SchemaManifestEntry[];
 };
 
+type JsonSchemaLike = JsonObject & {
+  $id?: unknown;
+  properties?: Record<string, unknown>;
+};
+
 export type SchemaValidationResult =
   | { ok: true }
   | { ok: false; reason: string };
@@ -51,6 +56,7 @@ export class ProtocolSchemaBundle {
     for (const entry of manifest.schema_files) {
       const schemaPath = path.join(protocolSchemasRoot, entry.path);
       const schema = await readJsonFile<JsonObject>(schemaPath);
+      assertSchemaManifestEntryMatchesLoadedSchema(entry, schema);
       ajv.addSchema(schema);
       schemaPathByRuntimeKey.set(schemaKey(entry.schema_id, entry.schema_version), entry.path);
     }
@@ -80,6 +86,35 @@ export class ProtocolSchemaBundle {
   hasRuntimeKey(schemaId: string, schemaVersion: string): boolean {
     return this.schemaPathByRuntimeKey.has(schemaKey(schemaId, schemaVersion));
   }
+}
+
+function assertSchemaManifestEntryMatchesLoadedSchema(entry: SchemaManifestEntry, schema: JsonObject): void {
+  const loaded = schema as JsonSchemaLike;
+  const expectedSchemaPath = `https://runecode.dev/protocol/schemas/${entry.path}`;
+  if (loaded.$id !== expectedSchemaPath) {
+    throw new Error(`protocol schema manifest entry ${entry.path} has unexpected $id ${String(loaded.$id ?? "<missing>")}`);
+  }
+  const schemaID = schemaPropertyConst(loaded, "schema_id");
+  if (schemaID !== entry.schema_id) {
+    throw new Error(`protocol schema manifest entry ${entry.path} schema_id const ${schemaID ?? "<missing>"} does not match ${entry.schema_id}`);
+  }
+  const schemaVersion = schemaPropertyConst(loaded, "schema_version");
+  if (schemaVersion !== entry.schema_version) {
+    throw new Error(`protocol schema manifest entry ${entry.path} schema_version const ${schemaVersion ?? "<missing>"} does not match ${entry.schema_version}`);
+  }
+}
+
+function schemaPropertyConst(schema: JsonSchemaLike, key: string): string | null {
+  const properties = schema.properties;
+  if (!properties || typeof properties !== "object") {
+    return null;
+  }
+  const property = properties[key];
+  if (!property || typeof property !== "object") {
+    return null;
+  }
+  const value = (property as Record<string, unknown>).const;
+  return typeof value === "string" ? value : null;
 }
 
 async function readJsonFile<T>(filePath: string): Promise<T> {

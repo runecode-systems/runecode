@@ -20,6 +20,7 @@ export {
 } from "./run-plan.ts";
 export {
   FileDurableStateStore,
+  setDurableStateStoreFSTestHooksForTesting,
   InvalidApprovalWaitError,
   PlanIdentityMismatchError,
   DurableReplayError,

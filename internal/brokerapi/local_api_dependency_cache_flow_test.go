@@ -2,9 +2,13 @@ package brokerapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"strings"
 	"testing"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
 func TestDependencyCacheEnsureHitAndMiss(t *testing.T) {
@@ -148,6 +152,63 @@ func TestDependencyCacheHandoffOperationNotFoundAndValidationDenied(t *testing.T
 	if denyErr.Error.Code != "broker_validation_schema_invalid" {
 		t.Fatalf("error code = %q, want broker_validation_schema_invalid", denyErr.Error.Code)
 	}
+}
+
+func TestDependencyCacheHandoffRequestIDsRemainStableAndDistinctForLongRunIDDigestPairs(t *testing.T) {
+	s, runIDA, runIDB, digestA, digestB := newDependencyCacheHandoffRequestIDFixture(t)
+	respA1 := mustHandleDependencyCacheHandoff(t, s, dependencyCacheHandoffRequestWithDigest(runIDA, digestA))
+	respB := mustHandleDependencyCacheHandoff(t, s, dependencyCacheHandoffRequestWithDigest(runIDA, digestB))
+	respA2 := mustHandleDependencyCacheHandoff(t, s, dependencyCacheHandoffRequestWithDigest(runIDA, digestA))
+	respAOtherRun := mustHandleDependencyCacheHandoff(t, s, dependencyCacheHandoffRequestWithDigest(runIDB, digestA))
+
+	if respA1.RequestID != respA2.RequestID {
+		t.Fatalf("stable request_id mismatch: %q vs %q", respA1.RequestID, respA2.RequestID)
+	}
+	if respA1.RequestID == respB.RequestID {
+		t.Fatal("request_id collision for distinct request_digest values")
+	}
+	if respA1.RequestID == respAOtherRun.RequestID {
+		t.Fatal("request_id collision for distinct run_id values")
+	}
+}
+
+func TestDependencyCacheHandoffRequestIDUsesFullHashLength(t *testing.T) {
+	_, runIDA, _, digestA, _ := newDependencyCacheHandoffRequestIDFixture(t)
+	requestID := dependencyCacheHandoffRequestWithDigest(runIDA, digestA).RequestID
+	if got, want := len(requestID), len("dependency-handoff:")+64; got != want {
+		t.Fatalf("request_id length = %d, want %d", got, want)
+	}
+}
+
+func newDependencyCacheHandoffRequestIDFixture(t *testing.T) (*Service, string, string, trustpolicy.Digest, trustpolicy.Digest) {
+	t.Helper()
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	putTrustedDependencyFetchContextForRun(t, s, "run-deps")
+	seedDependencyCacheForHandoff(t, s, "req-handoff-long", "run-deps", "handoff-long")
+	return s,
+		"run-" + strings.Repeat("shared-prefix-", 12) + "A",
+		"run-" + strings.Repeat("shared-prefix-", 12) + "B",
+		mustDigestObjectFromIdentity("sha256:" + strings.Repeat("a", 64)),
+		mustDigestObjectFromIdentity("sha256:" + strings.Repeat("b", 64))
+}
+
+func dependencyCacheHandoffRequestWithDigest(runID string, digest trustpolicy.Digest) DependencyCacheHandoffRequest {
+	return DependencyCacheHandoffRequest{
+		SchemaID:      "runecode.protocol.v0.DependencyCacheHandoffRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     requestIDForLongRunnerPair(runID, digest),
+		RequestDigest: digest,
+		ConsumerRole:  "workspace",
+	}
+}
+
+func requestIDForLongRunnerPair(runID string, digest trustpolicy.Digest) string {
+	identity, err := digest.Identity()
+	if err != nil {
+		panic(err)
+	}
+	sum := sha256.Sum256([]byte(runID + "\n" + identity))
+	return "dependency-handoff:" + hex.EncodeToString(sum[:])
 }
 
 func seedDependencyCacheForHandoff(t *testing.T, s *Service, requestID, runID, pkg string) {
