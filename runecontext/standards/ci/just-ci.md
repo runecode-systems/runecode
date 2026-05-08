@@ -12,6 +12,7 @@ suggested_context_bundles:
 - `just ci` is the canonical local check entrypoint
 - CI may use `just ci-fast` plus dedicated required gates when a heavyweight check needs path-aware or merge-queue scheduling
 - Required shared-Linux performance contracts run in the dedicated CI lane (`just ci-required-shared-linux`) rather than every local `just ci` run
+- Install untrusted runner runtime dependencies before trusted Go tests when any `go test ./...` path can launch the product runner; do not assume `runner/node_modules` already exists on fresh checkouts or CI machines
 - `just ci` is check-only:
   - No formatters in write mode
   - No lockfile updates (`flake.lock`, `go.sum`, `package-lock.json`)
@@ -32,9 +33,9 @@ ci-fast:
   go run github.com/golangci/golangci-lint/cmd/golangci-lint@...
   go vet ./...
   go run ./tools/checksourcequality
+  cd runner && npm ci
   go test ./...
   go build ./cmd/...
-  cd runner && npm ci
   cd runner && npm run lint
   cd runner && npm test
   cd runner && npm run boundary-check
