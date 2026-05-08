@@ -19,8 +19,18 @@ export function boundedAttemptID(prefix: string, planID: string, scopeID: string
   const token = idToken(scopeID);
   const suffix = `${digest}_${attemptIndex}`;
   const maxTokenLength = MAX_IDENTIFIER_LENGTH - prefix.length - suffix.length - 2;
-  const boundedToken = maxTokenLength > 0 && token.length > maxTokenLength ? token.slice(0, maxTokenLength) : token;
+  const boundedToken = boundedIdentifierToken(token, maxTokenLength);
   return `${prefix}_${boundedToken}_${suffix}`;
+}
+
+function boundedIdentifierToken(token: string, maxTokenLength: number): string {
+  if (maxTokenLength <= 0) {
+    return "scope";
+  }
+  if (token.length <= maxTokenLength) {
+    return token;
+  }
+  return token.slice(0, maxTokenLength);
 }
 
 export function boundedReportRequestID(kind: "checkpoint" | "result", runID: string, entry: RunnerPlanEntry, index: number): string {
@@ -41,9 +51,51 @@ function idToken(value: string): string {
   if (!trimmed) {
     return "scope";
   }
-  const normalized = trimmed.replace(/[^a-z0-9_-]/g, "_").replace(/^[_-]+|[_-]+$/g, "");
+  let normalized = "";
+  for (const character of trimmed) {
+    normalized += isIdentifierTokenCharacter(character) ? character : "_";
+  }
+  normalized = trimIdentifierTokenSeparators(normalized);
   if (!normalized) {
     return "scope";
   }
-  return /^[a-z]/.test(normalized) ? normalized : `s_${normalized}`;
+  return startsWithASCIILowercase(normalized) ? normalized : `s_${normalized}`;
+}
+
+function isIdentifierTokenCharacter(character: string): boolean {
+  return startsWithASCIILowercase(character) || isASCIIDigit(character) || character === "_" || character === "-";
+}
+
+function trimIdentifierTokenSeparators(value: string): string {
+  let start = 0;
+  let end = value.length;
+
+  while (start < end && isIdentifierSeparator(value.charAt(start))) {
+    start += 1;
+  }
+  while (end > start && isIdentifierSeparator(value.charAt(end - 1))) {
+    end -= 1;
+  }
+
+  return start === 0 && end === value.length ? value : value.slice(start, end);
+}
+
+function startsWithASCIILowercase(value: string): boolean {
+  if (value.length === 0) {
+    return false;
+  }
+  const code = value.charCodeAt(0);
+  return code >= 97 && code <= 122;
+}
+
+function isASCIIDigit(value: string): boolean {
+  if (value.length === 0) {
+    return false;
+  }
+  const code = value.charCodeAt(0);
+  return code >= 48 && code <= 57;
+}
+
+function isIdentifierSeparator(character: string): boolean {
+  return character === "_" || character === "-";
 }
