@@ -76,12 +76,44 @@ func TestBridgeSessionExecutionTriggerToRunPreservesContextDeadline(t *testing.T
 func TestSessionExecutionRunnerSubprocessContextIgnoresCallerCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	runnerCtx := sessionExecutionRunnerSubprocessContext(ctx)
+	runnerCtx, stopRunner := sessionExecutionRunnerSubprocessContext(ctx)
+	defer stopRunner(nil)
 	if err := runnerCtx.Err(); err != nil {
 		t.Fatalf("runnerCtx.Err() = %v, want nil", err)
 	}
 	if _, ok := runnerCtx.Deadline(); ok {
 		t.Fatal("runnerCtx unexpectedly preserved canceled caller deadline")
+	}
+}
+
+func TestSessionExecutionRunnerSubprocessContextAllowsIntentionalShutdown(t *testing.T) {
+	runnerCtx, stopRunner := sessionExecutionRunnerSubprocessContext(context.Background())
+	stopRunner(context.Canceled)
+	if err := runnerCtx.Err(); !errors.Is(err, context.Canceled) {
+		t.Fatalf("runnerCtx.Err() = %v, want context canceled", err)
+	}
+	if cause := context.Cause(runnerCtx); !errors.Is(cause, context.Canceled) {
+		t.Fatalf("context.Cause(runnerCtx) = %v, want context canceled", cause)
+	}
+}
+
+func TestLaunchSessionExecutionRunnerSubprocessRejectsAlreadyCanceledRequestContext(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := launchSessionExecutionRunnerSubprocess(ctx, s, sessionExecutionRunnerLaunchSpec{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("launchSessionExecutionRunnerSubprocess error = %v, want context canceled", err)
+	}
+}
+
+func TestLaunchSessionExecutionRunnerSubprocessRejectsExpiredRequestContext(t *testing.T) {
+	s := newBrokerAPIServiceForTests(t, APIConfig{})
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	err := launchSessionExecutionRunnerSubprocess(ctx, s, sessionExecutionRunnerLaunchSpec{})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("launchSessionExecutionRunnerSubprocess error = %v, want deadline exceeded", err)
 	}
 }
 

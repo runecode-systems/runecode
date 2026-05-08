@@ -30,6 +30,7 @@ import {
 } from "./contracts.ts";
 import { MinimalGateExecutorAdapter, type ExecutionOutcome, type ExecutorAdapterRegistry } from "./executor-adapter.ts";
 import { ReportEmitter } from "./report-emitter.ts";
+import { boundedAttemptID, boundedReportRequestID } from "./runner-identifiers.ts";
 
 export type RunnerKernelOptions = {
   planLoader: RunPlanLoader;
@@ -311,20 +312,21 @@ export class RunnerKernel {
   }
 
   private executionIdentityForEntry(plan: RunnerPlan, entry: RunnerPlanEntry): PlanBoundExecutionIdentity {
+    const gateScopeID = typeof entry.gate_id === "string" && entry.gate_id ? entry.gate_id : entry.entry_id;
     return {
       run_id: plan.run_id,
       plan_id: plan.plan_id,
       stage_id: entry.stage_id,
       step_id: entry.step_id,
       role_instance_id: entry.role_instance_id,
-      stage_attempt_id: `${plan.plan_id}:${entry.stage_id}:attempt-1`,
-      step_attempt_id: `${plan.plan_id}:${entry.step_id}:attempt-1`,
-      gate_attempt_id: `${plan.plan_id}:${entry.entry_id}:gate-attempt-1`,
+      stage_attempt_id: boundedAttemptID("stage_attempt", plan.plan_id, entry.stage_id, 1),
+      step_attempt_id: boundedAttemptID("step_attempt", plan.plan_id, entry.step_id, 1),
+      gate_attempt_id: boundedAttemptID("gate_attempt", plan.plan_id, gateScopeID, 1),
     };
   }
 
   private reportRequestID(kind: "checkpoint" | "result", identity: PlanBoundExecutionIdentity, entry: RunnerPlanEntry, index: number): string {
-    return `runner-${kind}:${identity.run_id}:${entry.entry_id}:${index}`;
+    return boundedReportRequestID(kind, identity.run_id, entry, index);
   }
 
   private dependencyCacheHandoffRequestID(identity: PlanBoundExecutionIdentity, requirement: DependencyCacheHandoffRequirement): string {

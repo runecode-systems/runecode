@@ -17,12 +17,19 @@ const (
 )
 
 func launchSessionExecutionRunnerSubprocess(ctx context.Context, s *Service, spec sessionExecutionRunnerLaunchSpec) error {
+	if ctx == nil {
+		return fmt.Errorf("runner subprocess context is required")
+	}
+	if err := sessionExecutionRunnerRequestLifecycleErr(ctx); err != nil {
+		return err
+	}
 	prepared, err := prepareSessionExecutionRunnerLaunch(s, spec)
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(prepared.stateRoot)
-	runnerCtx := sessionExecutionRunnerSubprocessContext(ctx)
+	runnerCtx, stopRunner := sessionExecutionRunnerSubprocessContext(ctx)
+	defer stopRunner(nil)
 	cmd := exec.CommandContext(runnerCtx, prepared.command[0], prepared.command[1:]...)
 	cmd.Dir = prepared.runnerRoot
 	cmd.Env = prepared.env
@@ -30,15 +37,15 @@ func launchSessionExecutionRunnerSubprocess(ctx context.Context, s *Service, spe
 	if err != nil {
 		return err
 	}
+	if err := sessionExecutionRunnerRequestLifecycleErr(ctx); err != nil {
+		_ = stdin.Close()
+		return err
+	}
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("launch runner subprocess: %w", err)
 	}
 	stderrBytes, stderrDone := captureSessionExecutionRunnerStderr(stderr)
-	return waitForSessionExecutionRunner(runnerCtx, s, spec, cmd, stdin, stdout, stderrBytes, stderrDone)
-}
-
-func sessionExecutionRunnerSubprocessContext(ctx context.Context) context.Context {
-	return context.WithoutCancel(ctx)
+	return waitForSessionExecutionRunner(ctx, s, spec, runnerCtx, stopRunner, cmd, stdin, stdout, stderrBytes, stderrDone)
 }
 
 type preparedSessionExecutionRunnerLaunch struct {
@@ -100,28 +107,6 @@ func captureSessionExecutionRunnerStderr(stderr io.Reader) (*boundedSessionExecu
 		close(stderrDone)
 	}()
 	return stderrBytes, stderrDone
-}
-
-func waitForSessionExecutionRunner(ctx context.Context, s *Service, spec sessionExecutionRunnerLaunchSpec, cmd *exec.Cmd, stdin io.WriteCloser, stdout io.Reader, stderrBytes *boundedSessionExecutionRunnerStderrCapture, stderrDone <-chan struct{}) error {
-	handleErr := make(chan error, 1)
-	go func() {
-		err := s.proxyRunnerTransport(ctx, spec.requestID, spec.runID, stdin, stdout)
-		_ = stdin.Close()
-		handleErr <- err
-	}()
-	transportErr := <-handleErr
-	waitErr := cmd.Wait()
-	<-stderrDone
-	if transportErr != nil {
-		if waitErr != nil {
-			return fmt.Errorf("runner transport failed: %v (runner exit: %v; stderr: %s)", transportErr, waitErr, summarizeRunnerStderr(stderrBytes.String(), stderrBytes.Truncated()))
-		}
-		return fmt.Errorf("runner transport failed: %v (stderr: %s)", transportErr, summarizeRunnerStderr(stderrBytes.String(), stderrBytes.Truncated()))
-	}
-	if waitErr != nil {
-		return fmt.Errorf("runner subprocess failed: %v (stderr: %s)", waitErr, summarizeRunnerStderr(stderrBytes.String(), stderrBytes.Truncated()))
-	}
-	return nil
 }
 
 type boundedSessionExecutionRunnerStderrCapture struct {

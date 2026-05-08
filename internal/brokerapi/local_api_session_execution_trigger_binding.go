@@ -1,7 +1,6 @@
 package brokerapi
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
@@ -9,10 +8,16 @@ import (
 )
 
 func (s *Service) ensureSessionExecutionPrimaryRunBinding(requestID, sessionID string, execution artifacts.SessionTurnExecutionDurableState) (artifacts.SessionTurnExecutionDurableState, *ErrorResponse) {
-	if strings.TrimSpace(execution.PrimaryRunID) != "" {
+	if runID := strings.TrimSpace(execution.PrimaryRunID); runID != "" {
+		if errResp := s.ensureSessionExecutionRunBindingInitialized(requestID, sessionID, runID); errResp != nil {
+			return artifacts.SessionTurnExecutionDurableState{}, errResp
+		}
 		return execution, nil
 	}
 	runID := sessionExecutionRunID(sessionID, execution.ExecutionIndex)
+	if errResp := s.ensureSessionExecutionRunBindingInitialized(requestID, sessionID, runID); errResp != nil {
+		return artifacts.SessionTurnExecutionDurableState{}, errResp
+	}
 	updated, errResp := s.updateSessionExecutionRunBinding(requestID, sessionID, execution, runID)
 	if errResp != nil {
 		return artifacts.SessionTurnExecutionDurableState{}, errResp
@@ -20,10 +25,16 @@ func (s *Service) ensureSessionExecutionPrimaryRunBinding(requestID, sessionID s
 	if errResp := s.updateSessionRunBindingState(requestID, sessionID, runID); errResp != nil {
 		return artifacts.SessionTurnExecutionDurableState{}, errResp
 	}
-	if errResp := s.initializeSessionExecutionRunBinding(requestID, sessionID, runID); errResp != nil {
-		return artifacts.SessionTurnExecutionDurableState{}, errResp
-	}
 	return updated, nil
+}
+
+func (s *Service) ensureSessionExecutionRunBindingInitialized(requestID, sessionID, runID string) *ErrorResponse {
+	if _, ok := s.RunStatuses()[runID]; ok {
+		if facts := s.RuntimeFacts(runID); strings.TrimSpace(facts.LaunchReceipt.RunID) == runID {
+			return nil
+		}
+	}
+	return s.initializeSessionExecutionRunBinding(requestID, sessionID, runID)
 }
 
 func (s *Service) updateSessionExecutionRunBinding(requestID, sessionID string, execution artifacts.SessionTurnExecutionDurableState, runID string) (artifacts.SessionTurnExecutionDurableState, *ErrorResponse) {
@@ -76,36 +87,4 @@ func (s *Service) initializeSessionExecutionRunBinding(requestID, sessionID, run
 		return &errOut
 	}
 	return nil
-}
-
-func sessionExecutionRunID(sessionID string, executionIndex int) string {
-	if executionIndex < 1 {
-		executionIndex = 1
-	}
-	return fmt.Sprintf("run_%s_%06d", sessionExecutionIdentifierToken(sessionID), executionIndex)
-}
-
-func sessionExecutionIdentifierToken(value string) string {
-	trimmed := strings.TrimSpace(strings.ToLower(value))
-	if trimmed == "" {
-		return "session"
-	}
-	b := strings.Builder{}
-	b.Grow(len(trimmed))
-	for i := 0; i < len(trimmed); i++ {
-		ch := trimmed[i]
-		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_' || ch == '-' {
-			b.WriteByte(ch)
-			continue
-		}
-		b.WriteByte('_')
-	}
-	normalized := strings.Trim(b.String(), "_-")
-	if normalized == "" {
-		return "session"
-	}
-	if normalized[0] < 'a' || normalized[0] > 'z' {
-		return "s_" + normalized
-	}
-	return normalized
 }

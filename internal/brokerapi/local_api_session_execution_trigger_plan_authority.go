@@ -186,10 +186,7 @@ func (s *Service) persistSessionExecutionWorkflowAssets(runID string, workflowPa
 }
 
 func sessionExecutionPlanID(runID string, executionIndex int) string {
-	if executionIndex < 1 {
-		executionIndex = 1
-	}
-	return fmt.Sprintf("plan_%s_%06d", sessionExecutionIdentifierToken(runID), executionIndex)
+	return sessionExecutionDerivedPlanID(runID, executionIndex)
 }
 
 func sessionExecutionPolicyContextHash(result artifacts.SessionExecutionTriggerAppendResult) string {

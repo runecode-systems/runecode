@@ -147,6 +147,69 @@ test("kernel executes scheduled gate entries and fails closed on rejected report
   }
 });
 
+test("kernel bounds derived attempt ids for long plan identities", async () => {
+  const {
+    ProtocolSchemaBundle,
+    RunPlanLoader,
+    RunnerKernel,
+    FileDurableStateStore,
+  } = await loadRunnerModules();
+
+  const schemaBundle = await ProtocolSchemaBundle.fromProtocolSchemasRoot(path.join(repoRoot, "protocol", "schemas"));
+  const loader = new RunPlanLoader(schemaBundle);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-attempt-id-"));
+  try {
+    const store = new FileDurableStateStore(root);
+    const captured = [];
+    const kernel = new RunnerKernel({
+      planLoader: loader,
+      durableStateStore: store,
+      brokerClient: {
+        async requestDependencyCacheHandoff(request) {
+          return {
+            schema_id: "runecode.protocol.v0.DependencyCacheHandoffResponse",
+            schema_version: "0.1.0",
+            request_id: request.request_id,
+            found: true,
+            handoff: {
+              schema_id: "runecode.protocol.v0.DependencyCacheHandoffMetadata",
+              schema_version: "0.1.0",
+              request_digest: request.request_digest,
+              resolved_unit_digest: { hash_alg: "sha256", hash: "e".repeat(64) },
+              manifest_digest: { hash_alg: "sha256", hash: "f".repeat(64) },
+              payload_digests: [{ hash_alg: "sha256", hash: "1".repeat(64) }],
+              materialization_mode: "derived_read_only",
+              handoff_mode: "broker_internal_artifact_handoff",
+            },
+          };
+        },
+        async sendRunnerCheckpointReport(request) {
+          captured.push(request);
+          return { accepted: true };
+        },
+        async sendRunnerResultReport(request) {
+          captured.push(request);
+          return { accepted: true };
+        },
+      },
+    });
+
+    const fixture = validRunPlanFixture();
+    fixture.plan_id = `plan_${"a".repeat(118)}`;
+    const planPath = path.join(root, "runplan.json");
+    fs.writeFileSync(planPath, JSON.stringify(fixture, null, 2));
+
+    await kernel.executeScheduledWorkFromPlanFile(planPath);
+
+    assert.equal(captured.length, 2);
+    assert.ok(captured[0].report.stage_attempt_id.length <= 128);
+    assert.ok(captured[0].report.step_attempt_id.length <= 128);
+    assert.ok(captured[0].report.gate_attempt_id.length <= 128);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("kernel fails closed when a valid plan produces no scheduled work", async () => {
   const {
     ProtocolSchemaBundle,

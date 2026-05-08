@@ -79,9 +79,9 @@ func reportSessionExecutionCheckpointForTests(ctx context.Context, s *Service, s
 			StageID:                entry.StageID,
 			StepID:                 entry.StepID,
 			RoleInstanceID:         entry.RoleInstanceID,
-			StageAttemptID:         spec.planID + ":stage-attempt-1",
-			StepAttemptID:          spec.planID + ":step-attempt-1",
-			GateAttemptID:          spec.planID + ":gate-attempt-1",
+			StageAttemptID:         sessionExecutionDerivedAttemptID("stage_attempt", spec.planID, 1),
+			StepAttemptID:          sessionExecutionDerivedAttemptID("step_attempt", spec.planID, 1),
+			GateAttemptID:          sessionExecutionDerivedAttemptID("gate_attempt", spec.planID, 1),
 		},
 	}
 	if _, errResp := s.HandleRunnerCheckpointReport(ctx, checkpoint, RequestContext{}); errResp != nil {
@@ -114,9 +114,9 @@ func reportSessionExecutionResultForTests(ctx context.Context, s *Service, spec 
 			StageID:                entry.StageID,
 			StepID:                 entry.StepID,
 			RoleInstanceID:         entry.RoleInstanceID,
-			StageAttemptID:         spec.planID + ":stage-attempt-1",
-			StepAttemptID:          spec.planID + ":step-attempt-1",
-			GateAttemptID:          spec.planID + ":gate-attempt-1",
+			StageAttemptID:         sessionExecutionDerivedAttemptID("stage_attempt", spec.planID, 1),
+			StepAttemptID:          sessionExecutionDerivedAttemptID("step_attempt", spec.planID, 1),
+			GateAttemptID:          sessionExecutionDerivedAttemptID("gate_attempt", spec.planID, 1),
 		},
 	}
 	if _, errResp := s.HandleRunnerResultReport(ctx, result, RequestContext{}); errResp != nil {
