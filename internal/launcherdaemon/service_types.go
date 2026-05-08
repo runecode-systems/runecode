@@ -72,8 +72,11 @@ type Config struct {
 	// Optional backend-specific controller overrides.
 	MicroVMController   Controller
 	ContainerController Controller
-	Reporter            RuntimeReporter
-	WorkRoot            string
+	// RuntimePostHandshakeMaterialProvider supplies trusted post-handshake
+	// session and attestation material for default backend controllers.
+	RuntimePostHandshakeMaterialProvider func(launcherbackend.BackendLaunchSpec, launcherbackend.BackendLaunchReceipt) (*launcherbackend.RuntimePostHandshakeMaterial, error)
+	Reporter                             RuntimeReporter
+	WorkRoot                             string
 }
 
 type Service struct {

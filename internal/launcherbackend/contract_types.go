@@ -182,6 +182,18 @@ type SecureSessionSummary struct {
 	TranscriptBinding string                 `json:"transcript_binding"`
 }
 
+type RuntimeSecureSessionMaterial struct {
+	LaunchContext LaunchContext `json:"launch_context"`
+	HostHello     HostHello     `json:"host_hello"`
+	IsolateHello  IsolateHello  `json:"isolate_hello"`
+	SessionReady  SessionReady  `json:"session_ready"`
+}
+
+type RuntimePostHandshakeMaterial struct {
+	SecureSession *RuntimeSecureSessionMaterial         `json:"secure_session,omitempty"`
+	Attestation   *PostHandshakeRuntimeAttestationInput `json:"attestation,omitempty"`
+}
+
 type SessionSecurityPosture struct {
 	MutuallyAuthenticated     bool     `json:"mutually_authenticated"`
 	Encrypted                 bool     `json:"encrypted"`

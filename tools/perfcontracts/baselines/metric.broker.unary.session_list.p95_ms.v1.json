@@ -1,0 +1,20 @@
+{
+  "schema_version":"runecode.performance.baseline.v1",
+  "metric_id": "metric.broker.unary.session_list.p95_ms",
+  "unit": "ms",
+  "samples": [
+    47,
+    51,
+    49,
+    52,
+    50,
+    48,
+    53,
+    50,
+    49,
+    51
+  ],
+  "summary": {
+    "median": 50
+  }
+}

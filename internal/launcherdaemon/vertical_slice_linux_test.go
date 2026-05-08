@@ -32,7 +32,7 @@ func TestQEMUVerticalSliceHelloWorld(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService returned error: %v", err)
 	}
-	svc, err := New(Config{Controller: NewQEMUController(QEMUControllerConfig{WorkRoot: workRoot, QEMUBinary: qemuBinary}), Reporter: brokerSvc})
+	svc, err := New(Config{Controller: NewQEMUController(QEMUControllerConfig{WorkRoot: workRoot, QEMUBinary: qemuBinary, RuntimePostHandshakeMaterialProvider: runtimePostHandshakeMaterialProviderForTests}), Reporter: brokerSvc})
 	if err != nil {
 		t.Fatalf("New returned error: %v", err)
 	}
@@ -94,6 +94,14 @@ if [ "$1" = "--version" ]; then
   echo "QEMU emulator version fixture-vertical-slice-1.0"
   exit 0
 fi
+for arg in "$@"; do
+  case "$arg" in
+    *RUNE_POST_HANDSHAKE_MATERIAL_LINE=*)
+      value=${arg#*RUNE_POST_HANDSHAKE_MATERIAL_LINE=}
+      printf '%s\n' "$value"
+      ;;
+  esac
+done
 printf '%s\n' "` + helloWorldToken + `"
 exit 0
 `
@@ -277,4 +285,40 @@ func waitForCompletedTerminalReport(t *testing.T, brokerSvc *brokerapi.Service, 
 		time.Sleep(200 * time.Millisecond)
 	}
 	t.Fatal("timed out waiting for terminal report")
+}
+
+func runtimePostHandshakeMaterialProviderForTests(spec launcherbackend.BackendLaunchSpec, receipt launcherbackend.BackendLaunchReceipt) (*launcherbackend.RuntimePostHandshakeMaterial, error) {
+	handshakeTuple, _, err := secureSessionHandshakeTuple(spec, receipt)
+	if err != nil {
+		return nil, err
+	}
+	expectedMeasurementDigests, err := launcherbackend.DeriveExpectedMeasurementDigests(launcherbackend.MeasurementProfileMicroVMBootV1, receipt.RuntimeImageBootProfile, receipt.BootComponentDigestByName)
+	if err != nil {
+		return nil, err
+	}
+	return &launcherbackend.RuntimePostHandshakeMaterial{
+		SecureSession: &launcherbackend.RuntimeSecureSessionMaterial{
+			LaunchContext: handshakeTuple.launchContext,
+			HostHello:     handshakeTuple.host,
+			IsolateHello:  handshakeTuple.isolate,
+			SessionReady:  handshakeTuple.ready,
+		},
+		Attestation: &launcherbackend.PostHandshakeRuntimeAttestationInput{
+			RunID:                        receipt.RunID,
+			IsolateID:                    receipt.IsolateID,
+			SessionID:                    receipt.SessionID,
+			SessionNonce:                 receipt.SessionNonce,
+			LaunchContextDigest:          handshakeTuple.launchContext.LaunchContextDigest,
+			HandshakeTranscriptHash:      handshakeTuple.ready.HandshakeTranscriptHash,
+			IsolateSessionKeyIDValue:     handshakeTuple.ready.IsolateKeyIDValue,
+			RuntimeImageDescriptorDigest: receipt.RuntimeImageDescriptorDigest,
+			RuntimeImageBootProfile:      receipt.RuntimeImageBootProfile,
+			RuntimeEvidenceCollected:     true,
+			AttestationSourceKind:        launcherbackend.AttestationSourceKindTrustedRuntime,
+			MeasurementProfile:           launcherbackend.MeasurementProfileMicroVMBootV1,
+			FreshnessMaterial:            []string{"session_nonce"},
+			FreshnessBindingClaims:       []string{"session_nonce", "handshake_transcript_hash", "launch_context_digest"},
+			EvidenceClaimsDigest:         expectedMeasurementDigests[0],
+		},
+	}, nil
 }

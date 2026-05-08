@@ -1,0 +1,57 @@
+{
+  "schema_version":"runecode.performance.contract.v1",
+  "contract_id": "performance.attestation.v1",
+  "surface": "attestation",
+  "metrics": [
+    {
+      "metric_id": "metric.attestation.cold.verify.wall_ms",
+      "subsystem": "attestation",
+      "runtime_regime": "cold_path",
+      "fixture_id": "attestation.cold.signed-runtime.v1",
+      "measurement_kind": "latency",
+      "unit": "ms",
+      "authoritative_environment": "linux_shared_ci",
+      "sampling_policy": {"trials": 10, "median_max_authoritative": true},
+      "budget_class": "regression-budget",
+      "threshold": {"max_regression_percent": 15},
+      "lane_authority": "contract_pending_dependency",
+      "activation_state": "contract_pending_dependency",
+      "comparison_method": "median_regression_with_noise_floor",
+      "practical_noise_floor": 15,
+      "threshold_origin": "temporary_guardrail",
+      "timing_boundary": {
+        "start_event": "runtime.launch.start",
+        "end_event": "attestation.verification.persisted",
+        "clock_source": "monotonic",
+        "evidence_source": "trusted_runtime_evidence_and_broker_projection",
+        "included_phases": ["launch", "secure_session_validation", "post_handshake_runtime_evidence", "attestation_verification", "replay_check", "freshness_check", "evidence_persistence", "broker_projection"]
+      },
+      "notes": "Pending CHG-2026-054 truthful post-handshake attestation gate"
+    },
+    {
+      "metric_id": "metric.attestation.warm.verify.wall_ms",
+      "subsystem": "attestation",
+      "runtime_regime": "warm_path",
+      "fixture_id": "attestation.warm.signed-runtime.v1",
+      "measurement_kind": "latency",
+      "unit": "ms",
+      "authoritative_environment": "linux_shared_ci",
+      "sampling_policy": {"trials": 10, "median_max_authoritative": true},
+      "budget_class": "regression-budget",
+      "threshold": {"max_regression_percent": 15},
+      "lane_authority": "contract_pending_dependency",
+      "activation_state": "contract_pending_dependency",
+      "comparison_method": "median_regression_with_noise_floor",
+      "practical_noise_floor": 10,
+      "threshold_origin": "temporary_guardrail",
+      "timing_boundary": {
+        "start_event": "runtime.launch.start",
+        "end_event": "attestation.verification.persisted",
+        "clock_source": "monotonic",
+        "evidence_source": "trusted_runtime_evidence_and_broker_projection",
+        "included_phases": ["launch", "secure_session_validation", "post_handshake_runtime_evidence", "attestation_verification_cache_hit", "replay_check", "freshness_check", "evidence_persistence", "broker_projection"]
+      },
+      "notes": "Pending CHG-2026-054 truthful post-handshake attestation gate"
+    }
+  ]
+}

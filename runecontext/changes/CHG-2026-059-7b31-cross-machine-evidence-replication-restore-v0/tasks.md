@@ -47,6 +47,7 @@
 ## Publication-Sensitive Durability Barrier
 
 - [ ] Define the hard-floor publication-sensitive actions that must pass the durability barrier before execution.
+- [ ] Keep CHG-060 local canonical RuneContext mutation and local approved implementation out of the publication-sensitive class unless and until a remote publication action is requested.
 - [ ] Require sealing or checkpointing, signed checkpoint creation, and successful replication of required evidence to the healthy replica set before publication execute.
 - [ ] Bind publication prepare records to exact repository identity, target refs, referenced patch or input digests, expected result tree hash, canonical action request hash, and evidence checkpoint digest.
 - [ ] Reuse durable prepared and execute plus reconcile semantics so crash recovery remains trustworthy if a machine fails immediately after remote state mutation.

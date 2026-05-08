@@ -7,6 +7,8 @@ import (
 )
 
 func (f *fakeReporter) RecordRuntimeFacts(_ string, facts launcherbackend.RuntimeFactsSnapshot) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.factsErr != nil {
 		return f.factsErr
 	}
@@ -15,11 +17,27 @@ func (f *fakeReporter) RecordRuntimeFacts(_ string, facts launcherbackend.Runtim
 }
 
 func (f *fakeReporter) RecordRuntimeLifecycleState(_ string, lifecycle launcherbackend.RuntimeLifecycleState) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.stateErr != nil {
 		return f.stateErr
 	}
 	f.lifecycle = append(f.lifecycle, lifecycle)
 	return nil
+}
+
+func (f *fakeReporter) factsCount() int {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return len(f.facts)
+}
+
+func (f *fakeReporter) factsSnapshot() []launcherbackend.RuntimeFactsSnapshot {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	out := make([]launcherbackend.RuntimeFactsSnapshot, len(f.facts))
+	copy(out, f.facts)
+	return out
 }
 
 type scriptedController struct{}

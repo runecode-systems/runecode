@@ -27,6 +27,7 @@ Recent notable standards for this branch:
 - `runecontext/standards/security/runner-durable-state-and-replay.md`
 - `runecontext/standards/security/runtime-image-signing-admission-and-verified-cache.md`
 - `runecontext/standards/security/trusted-runtime-evidence-and-broker-projection.md`
+- `runecontext/standards/testing/performance-contract-governance.md`
 
 Recent additions should be reflected here when they become durable cross-cutting guidance rather than change-local design notes.
 

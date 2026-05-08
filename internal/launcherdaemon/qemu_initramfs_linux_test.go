@@ -89,6 +89,30 @@ func TestBuildHelloInitBinaryUsesStagingDir(t *testing.T) {
 	}
 }
 
+func TestHelloInitProgramEmitsRuntimePostHandshakeMaterialBeforeHello(t *testing.T) {
+	program := helloInitProgram()
+	runtimeLineIndex := strings.Index(program, "/proc/cmdline")
+	helloIndex := strings.Index(program, helloWorldToken)
+	if runtimeLineIndex < 0 {
+		t.Fatal("hello init program must read runtime post-handshake material line from guest cmdline")
+	}
+	if helloIndex < 0 {
+		t.Fatal("hello init program must emit hello token")
+	}
+	if runtimeLineIndex > helloIndex {
+		t.Fatal("hello init program must emit runtime post-handshake material before hello token")
+	}
+}
+
+func TestQEMUGuestRuntimeMaterialKernelArg(t *testing.T) {
+	if got := qemuGuestRuntimeMaterialKernelArg(""); got != "" {
+		t.Fatalf("guest material arg for empty input = %q, want empty", got)
+	}
+	if got := qemuGuestRuntimeMaterialKernelArg("RUNE_POST_HANDSHAKE_MATERIAL=abc"); got != "RUNE_POST_HANDSHAKE_MATERIAL_LINE=RUNE_POST_HANDSHAKE_MATERIAL=abc" {
+		t.Fatalf("guest material arg = %q", got)
+	}
+}
+
 func setHelloWorldGoBinaryCandidatesForTests(t *testing.T, candidates []string) {
 	t.Helper()
 	previous := helloWorldGoBinaryCandidates

@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-030-98b8-isolate-attestation-v0
 title: Isolate Attestation v0
-status: planned
+status: implemented
 type: feature
 size: medium
 verification_status: pending

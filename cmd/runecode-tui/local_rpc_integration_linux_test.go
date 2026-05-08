@@ -37,10 +37,7 @@ func TestTUIRoutesUseRealLocalRPCBrokerContracts(t *testing.T) {
 
 func startTUILocalRPCServer(t *testing.T) (*brokerapi.LocalIPCListener, *brokerapi.Service, string, <-chan error) {
 	t.Helper()
-	runtimeDir := filepath.Join(t.TempDir(), "runtime")
-	if err := os.MkdirAll(runtimeDir, 0o700); err != nil {
-		t.Fatalf("MkdirAll returned error: %v", err)
-	}
+	runtimeDir := shortTUILocalRPCRuntimeDir(t)
 	service, ledgerRoot := newTUILocalRPCService(t)
 	listener, err := brokerapi.ListenLocalIPC(brokerapi.LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
 	if err != nil {
@@ -52,6 +49,16 @@ func startTUILocalRPCServer(t *testing.T) (*brokerapi.LocalIPCListener, *brokera
 		errCh <- serveTUILocalRPCConn(t, listener, service)
 	}()
 	return listener, service, ledgerRoot, errCh
+}
+
+func shortTUILocalRPCRuntimeDir(t *testing.T) string {
+	t.Helper()
+	runtimeDir, err := os.MkdirTemp("", "rc-tui-rpc-")
+	if err != nil {
+		t.Fatalf("MkdirTemp returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(runtimeDir) })
+	return runtimeDir
 }
 
 func configureTUILocalRPCClient(t *testing.T, runtimeDir string) {

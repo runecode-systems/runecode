@@ -16,6 +16,7 @@ related_decisions:
 related_changes:
   - CHG-2026-009-1672-launcher-microvm-backend-v0
   - CHG-2026-021-8d6d-local-ipc-protobuf-transport-v0
+  - CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0
 depends_on: []
 informed_by: []
 supersedes: []

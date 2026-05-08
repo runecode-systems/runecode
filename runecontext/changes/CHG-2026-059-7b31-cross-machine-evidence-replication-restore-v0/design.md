@@ -209,6 +209,8 @@ This change should treat at least these as publication-sensitive:
 - pull request creation when it is the reviewed remote mutation act
 - other later remote-state mutation or publication actions classified into the same hard-floor lane
 
+Local canonical RuneContext mutation from `CHG-2026-060-c1a4-beta-readiness-hardening-product-polish`, including draft promote/apply and local approved implementation, is not publication-sensitive by itself. It becomes publication-sensitive only when the resulting work is bound to a remote publication action such as push, tag, pull-request creation, or an equivalent future remote-state mutation.
+
 ### Required Sequence
 Before a publication-sensitive action executes, RuneCode must:
 1. seal or checkpoint the evidence that justifies the action

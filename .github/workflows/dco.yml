@@ -1,0 +1,52 @@
+name: DCO
+
+on:
+  pull_request:
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  dco:
+    name: DCO
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Validate DCO sign-offs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            range="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          else
+            range="HEAD^1..HEAD"
+          fi
+
+          commits="$(git rev-list --reverse "$range")"
+          if [ -z "$commits" ]; then
+            echo "No commits found in range $range"
+            exit 1
+          fi
+
+          missing=0
+          while IFS= read -r commit; do
+            [ -n "$commit" ] || continue
+            if ! git log -1 --format=%B "$commit" | grep -qi '^Signed-off-by: '; then
+              echo "Missing Signed-off-by trailer in commit $commit"
+              git log -1 --format='subject: %s%nauthor: %an <%ae>' "$commit"
+              missing=1
+            fi
+          done <<< "$commits"
+
+          if [ "$missing" -ne 0 ]; then
+            echo "One or more commits are missing DCO sign-off trailers."
+            exit 1
+          fi
+
+          echo "All commits in $range include DCO sign-off trailers."

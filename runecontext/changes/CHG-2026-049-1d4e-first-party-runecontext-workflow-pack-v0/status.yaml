@@ -1,7 +1,7 @@
 schema_version: 1
 id: CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0
 title: First-Party RuneContext Workflow Pack v0
-status: planned
+status: implemented
 type: feature
 size: large
 verification_status: pending
@@ -19,6 +19,8 @@ related_changes:
   - CHG-2026-048-6b7a-session-execution-orchestration-v0
   - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
   - CHG-2026-051-4b9d-implementation-track-decomposition-git-worktree-execution-v0
+  - CHG-2026-060-c1a4-beta-readiness-hardening-product-polish
+  - CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0
 depends_on:
   - CHG-2026-024-acde-deps-fetch-offline-cache
   - CHG-2026-046-a91d-runecontext-verified-project-substrate-compatibility-lifecycle-v0

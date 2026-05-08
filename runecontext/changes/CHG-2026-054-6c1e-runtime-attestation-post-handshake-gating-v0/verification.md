@@ -7,7 +7,7 @@
 
 ## Verification Notes
 - Confirm the change keeps RuneContext change docs as the canonical planning surface.
-- Confirm the roadmap entry is added under `v0.1.0-beta.1` and remains outcome-focused.
+- Confirm the roadmap entry is added under `v0.1.0-alpha.11` and remains outcome-focused.
 - Confirm the design preserves the reviewed trust ordering from isolate attestation instead of redefining the attestation model.
 - Confirm `attested` is described as unavailable before secure-session validation and post-handshake trusted verification.
 - Confirm the change does not redefine runtime identity away from the signed runtime-asset pipeline.

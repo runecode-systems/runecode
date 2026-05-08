@@ -100,9 +100,11 @@ func runInspectorContent(summary brokerapi.RunSummary, detail *brokerapi.RunDeta
 	attestationPosture, attestationReasons := attestationPostureFromState(detail.AuthoritativeState)
 	return compactLines(
 		fmt.Sprintf("backend_kind=%s", summary.BackendKind),
+		fmt.Sprintf("Workflow identity (authoritative): workflow_kind=%s workflow_definition_hash=%s current_stage_id=%s", valueOrNA(summary.WorkflowKind), valueOrNA(summary.WorkflowDefinitionHash), valueOrNA(summary.CurrentStageID)),
 		"Runtime isolation assurance (authoritative): "+renderRuntimeIsolationCue(summary.BackendKind, summary.IsolationAssuranceLevel),
 		"Provisioning/binding posture (authoritative): "+renderProvisioningPostureCue(summary.ProvisioningPosture),
 		"Attestation posture (authoritative): "+renderAttestationPostureCue(attestationPosture, attestationReasons),
+		fmt.Sprintf("Runtime attestation truthfulness (authoritative): %s", renderRuntimeAttestationTruthfulnessCue(detail.AuthoritativeState)),
 		"Verifier class (authoritative): "+renderAuthoritativeVerifierClassCue(detail.AuthoritativeState),
 		"Supported runtime requirements (authoritative): "+renderSupportedRuntimeRequirementsCue(detail.AuthoritativeState),
 		"Reduced-assurance posture (authoritative): "+renderReducedAssurancePostureCue(detail.AuthoritativeState),
@@ -115,6 +117,32 @@ func runInspectorContent(summary brokerapi.RunSummary, detail *brokerapi.RunDeta
 		fmt.Sprintf("Role summaries: %d total, %d reporting coordination waits", len(detail.RoleSummaries), waitingRoles),
 		fmt.Sprintf("Pending approvals=%d active manifests=%d policy refs=%d", len(detail.PendingApprovalIDs), len(detail.ActiveManifestHashes), len(detail.LatestPolicyDecisionRefs)),
 	)
+}
+
+func renderRuntimeAttestationTruthfulnessCue(state map[string]any) string {
+	attestationPosture, reasons := attestationPostureFromState(state)
+	verificationSucceeded, _ := state["attestation_verification_succeeded"].(bool)
+	sessionBindingPresent, _ := state["session_binding_present"].(bool)
+	attestationEvidencePresent, _ := state["attestation_evidence_present"].(bool)
+	supportedRuntimeSatisfied, _ := state["supported_runtime_requirements_satisfied"].(bool)
+
+	currentEvidence := "launch-only evidence"
+	switch {
+	case verificationSucceeded:
+		currentEvidence = "post-handshake verification succeeded"
+	case attestationEvidencePresent:
+		currentEvidence = "post-handshake evidence collected but not yet supportable"
+	case sessionBindingPresent:
+		currentEvidence = "secure session bound without verified attestation"
+	}
+
+	if supportedRuntimeSatisfied && attestationPosture == "valid" {
+		return currentEvidence + "; supported attested posture earned from verified post-handshake evidence"
+	}
+	if len(reasons) > 0 {
+		return currentEvidence + "; beta attested story still gated by post-handshake verification; reasons=" + strings.Join(reasons, ",")
+	}
+	return currentEvidence + "; beta attested story still gated by post-handshake verification"
 }
 
 func attestationPostureFromState(state map[string]any) (string, []string) {

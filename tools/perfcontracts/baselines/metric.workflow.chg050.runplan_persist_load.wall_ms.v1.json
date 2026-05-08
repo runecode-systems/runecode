@@ -1,0 +1,9 @@
+{
+  "schema_version":"runecode.performance.baseline.v1",
+  "metric_id": "metric.workflow.chg050.runplan_persist_load.wall_ms",
+  "unit": "ms",
+  "samples": [68, 71, 69, 70, 72],
+  "summary": {
+    "median": 70
+  }
+}

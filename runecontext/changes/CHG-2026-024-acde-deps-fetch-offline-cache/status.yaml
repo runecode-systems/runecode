@@ -7,12 +7,12 @@ size: medium
 verification_status: pending
 context_bundles:
   - product-planning
+related_specs: []
 related_decisions:
   - decisions/DEC-2026-001-runecontext-canonical-planning-system.md
   - decisions/DEC-2026-002-verified-assurance-and-assurance-path.md
   - decisions/DEC-2026-003-bundled-runecontext-default-and-verified-requirement.md
   - decisions/DEC-2026-004-runecode-ux-ownership-and-runecontext-generic-boundary.md
-related_specs: []
 related_changes:
   - CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0
   - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0

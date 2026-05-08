@@ -188,6 +188,7 @@ func cloneExternalAnchorPreparedRecord(in ExternalAnchorPreparedMutationRecord) 
 func cloneRuntimeFactsSnapshot(in launcherbackend.RuntimeFactsSnapshot) launcherbackend.RuntimeFactsSnapshot {
 	out := in
 	out.LaunchReceipt = in.LaunchReceipt.Normalized()
+	out.PostHandshakeAttestationInput = launcherbackend.NormalizePostHandshakeRuntimeAttestationInput(in.PostHandshakeAttestationInput)
 	out.HardeningPosture = in.HardeningPosture.Normalized()
 	out.TerminalReport = normalizeRuntimeTerminalReport(in.TerminalReport)
 	return out

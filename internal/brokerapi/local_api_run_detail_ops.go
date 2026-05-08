@@ -86,10 +86,14 @@ func buildRunDetail(summary RunSummary, verification AuditVerificationSurface, a
 }
 
 func buildRunStageSummary(summary RunSummary, artifactsForRun []artifacts.ArtifactRecord, pendingIDs []string) RunStageSummary {
+	stageID := strings.TrimSpace(summary.CurrentStageID)
+	if stageID == "" {
+		stageID = "artifact_flow"
+	}
 	return RunStageSummary{
 		SchemaID:             "runecode.protocol.v0.RunStageSummary",
 		SchemaVersion:        "0.1.0",
-		StageID:              "artifact_flow",
+		StageID:              stageID,
 		LifecycleState:       summary.LifecycleState,
 		StartedAt:            summary.StartedAt,
 		FinishedAt:           summary.FinishedAt,

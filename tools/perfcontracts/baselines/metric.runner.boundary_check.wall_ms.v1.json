@@ -1,0 +1,9 @@
+{
+  "schema_version":"runecode.performance.baseline.v1",
+  "metric_id": "metric.runner.boundary_check.wall_ms",
+  "unit": "ms",
+  "samples": [980, 1005, 995, 1010, 990],
+  "summary": {
+    "median": 995
+  }
+}

@@ -1,7 +1,6 @@
 package brokerapi
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -20,7 +19,7 @@ func (s *Service) runSummaries(order string) ([]RunSummary, error) {
 	summaries := make([]RunSummary, 0, len(byRun))
 	for runID, records := range byRun {
 		runnerAdvisory, _ := s.RunnerAdvisory(runID)
-		summaries = append(summaries, buildRunSummary(runID, projectContextIdentity, records, runStatus[runID], pendingByRun[runID], verification, s.RuntimeFacts(runID), runnerAdvisory))
+		summaries = append(summaries, s.buildRunSummary(runID, projectContextIdentity, records, runStatus[runID], pendingByRun[runID], verification, s.RuntimeFacts(runID), runnerAdvisory))
 	}
 	sortRunSummaries(summaries, order)
 	return summaries, nil
@@ -71,35 +70,21 @@ func buildRunRecordIndex(all []artifacts.ArtifactRecord, runStatus map[string]st
 	return byRun
 }
 
-func buildRunSummary(runID string, projectContextIdentityDigest string, records []artifacts.ArtifactRecord, status string, pending int, verification AuditVerificationSurface, runtimeFacts launcherbackend.RuntimeFactsSnapshot, runnerAdvisory artifacts.RunnerAdvisoryState) RunSummary {
+func (s *Service) buildRunSummary(runID string, projectContextIdentityDigest string, records []artifacts.ArtifactRecord, status string, pending int, verification AuditVerificationSurface, runtimeFacts launcherbackend.RuntimeFactsSnapshot, runnerAdvisory artifacts.RunnerAdvisoryState) RunSummary {
 	created, updated := runRecordTiming(records)
 	state := runLifecycleFromStore(status, pending, len(records) > 0, runnerAdvisory, runtimeFacts)
-	workflowKind, workflowDefinitionHash := inferWorkflowIdentity(records)
-	backendKind, isolationAssuranceLevel, provisioningPosture := normalizedRunSummaryPosture(runtimeFacts)
-	summary := RunSummary{
-		SchemaID:                "runecode.protocol.v0.RunSummary",
-		SchemaVersion:           "0.2.0",
-		RunID:                   runID,
-		WorkspaceID:             workspaceIDForProjectContext(projectContextIdentityDigest),
-		ProjectContextIdentity:  strings.TrimSpace(projectContextIdentityDigest),
-		WorkflowKind:            workflowKind,
-		WorkflowDefinitionHash:  workflowDefinitionHash,
-		CreatedAt:               created.UTC().Format(time.RFC3339),
-		StartedAt:               created.UTC().Format(time.RFC3339),
-		UpdatedAt:               updated.UTC().Format(time.RFC3339),
-		LifecycleState:          state,
-		CurrentStageID:          currentStageIDFromArtifacts(records, pending),
-		PendingApprovalCount:    pending,
-		ApprovalProfile:         "unknown",
-		BackendKind:             backendKind,
-		IsolationAssuranceLevel: isolationAssuranceLevel,
-		ProvisioningPosture:     provisioningPosture,
-		RuntimePostureDegraded:  runtimePostureDegraded(backendKind, isolationAssuranceLevel),
-		AssuranceLevel:          isolationAssuranceLevel,
-		AuditIntegrityStatus:    verification.Summary.IntegrityStatus,
-		AuditAnchoringStatus:    verification.Summary.AnchoringStatus,
-		AuditCurrentlyDegraded:  verification.Summary.CurrentlyDegraded,
-	}
+	projection := s.resolveRunSummaryProjection(runID, records, pending)
+	summary := newRunSummary(
+		runID,
+		projectContextIdentityDigest,
+		created,
+		updated,
+		state,
+		pending,
+		projection,
+		verification,
+		runtimeFacts,
+	)
 	finalizeRunSummaryTerminalState(&summary, state, updated)
 	return summary
 }
@@ -167,85 +152,4 @@ func pendingApprovalCountByRun(approvals []ApprovalSummary) map[string]int {
 		counts[approval.BoundScope.RunID]++
 	}
 	return counts
-}
-
-func workspaceIDForRun(runID string) string {
-	trimmed := strings.TrimSpace(runID)
-	if trimmed == "" {
-		return "workspace-local"
-	}
-	return "workspace-" + trimmed
-}
-
-func workspaceIDForProjectContext(projectContextIdentityDigest string) string {
-	identity := strings.TrimSpace(projectContextIdentityDigest)
-	if identity == "" {
-		return "workspace-local"
-	}
-	return "workspace-" + strings.TrimPrefix(identity, "sha256:")
-}
-
-func stageIDForRun(runID string) string {
-	if strings.TrimSpace(runID) == "" {
-		return "artifact_flow"
-	}
-	return "artifact_flow"
-}
-
-func currentStageIDFromArtifacts(records []artifacts.ArtifactRecord, pending int) string {
-	if len(records) == 0 && pending == 0 {
-		return ""
-	}
-	return "artifact_flow"
-}
-
-func inferWorkflowIdentity(records []artifacts.ArtifactRecord) (string, string) {
-	workflowKind := inferWorkflowKind(records)
-	workflowDefinitionHash := ""
-	manifestDigests := uniqueSortedDigests(runProvenanceDigests(records))
-	if len(manifestDigests) == 1 {
-		workflowDefinitionHash = manifestDigests[0]
-	}
-	return workflowKind, workflowDefinitionHash
-}
-
-func runProvenanceDigests(records []artifacts.ArtifactRecord) []string {
-	out := make([]string, 0, len(records))
-	for _, record := range records {
-		out = append(out, record.Reference.ProvenanceReceiptHash)
-	}
-	return out
-}
-
-func inferWorkflowKind(records []artifacts.ArtifactRecord) string {
-	hasDiff := false
-	hasBuildLogs := false
-	hasUnapproved := false
-	for _, record := range records {
-		switch record.Reference.DataClass {
-		case artifacts.DataClassDiffs:
-			hasDiff = true
-		case artifacts.DataClassBuildLogs:
-			hasBuildLogs = true
-		case artifacts.DataClassUnapprovedFileExcerpts, artifacts.DataClassApprovedFileExcerpts:
-			hasUnapproved = true
-		}
-	}
-	switch {
-	case hasUnapproved:
-		return "excerpt_promotion"
-	case hasDiff && hasBuildLogs:
-		return "edit_build_gate"
-	case hasDiff:
-		return "edit_diff"
-	default:
-		return ""
-	}
-}
-
-func runRoleInstanceID(role string) string {
-	if strings.TrimSpace(role) == "" {
-		return "role-unknown-1"
-	}
-	return fmt.Sprintf("%s-1", role)
 }

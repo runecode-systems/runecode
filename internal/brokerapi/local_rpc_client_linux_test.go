@@ -148,7 +148,7 @@ func assertLocalRPCSocketPath(t *testing.T, runtimeDir string) {
 
 func setupLocalRPCRunListRoundTrip(t *testing.T, service *Service) (string, *LocalRPCClient, chan error) {
 	t.Helper()
-	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	runtimeDir := shortLocalRPCRuntimeDir(t)
 	listener, err := ListenLocalIPC(LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
 	if err != nil {
 		t.Fatalf("ListenLocalIPC returned error: %v", err)
@@ -172,7 +172,7 @@ func setupLocalRPCRunListRoundTrip(t *testing.T, service *Service) (string, *Loc
 
 func setupLocalRPCSessionListRoundTrip(t *testing.T, service *Service) (string, *LocalRPCClient, chan error) {
 	t.Helper()
-	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	runtimeDir := shortLocalRPCRuntimeDir(t)
 	listener, err := ListenLocalIPC(LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
 	if err != nil {
 		t.Fatalf("ListenLocalIPC returned error: %v", err)
@@ -196,7 +196,7 @@ func setupLocalRPCSessionListRoundTrip(t *testing.T, service *Service) (string, 
 
 func setupLocalRPCSessionSendMessageRoundTrip(t *testing.T, service *Service) (string, *LocalRPCClient, chan error) {
 	t.Helper()
-	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	runtimeDir := shortLocalRPCRuntimeDir(t)
 	listener, err := ListenLocalIPC(LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
 	if err != nil {
 		t.Fatalf("ListenLocalIPC returned error: %v", err)
@@ -220,7 +220,7 @@ func setupLocalRPCSessionSendMessageRoundTrip(t *testing.T, service *Service) (s
 
 func setupLocalRPCSessionExecutionTriggerRoundTrip(t *testing.T, service *Service) (string, *LocalRPCClient, chan error) {
 	t.Helper()
-	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	runtimeDir := shortLocalRPCRuntimeDir(t)
 	listener, err := ListenLocalIPC(LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
 	if err != nil {
 		t.Fatalf("ListenLocalIPC returned error: %v", err)
@@ -427,7 +427,7 @@ func TestValidateRawMessageLimitsRejectsLargePayload(t *testing.T) {
 }
 
 func TestLocalRPCClientInvokeRespectsContextDeadline(t *testing.T) {
-	runtimeDir := filepath.Join(t.TempDir(), "runtime")
+	runtimeDir := shortLocalRPCRuntimeDir(t)
 	listener, err := ListenLocalIPC(LocalIPCConfig{RuntimeDir: runtimeDir, SocketName: "broker.sock"})
 	if err != nil {
 		t.Fatalf("ListenLocalIPC returned error: %v", err)
@@ -456,4 +456,14 @@ func TestLocalRPCClientInvokeRespectsContextDeadline(t *testing.T) {
 	if errResp.Error.Code != "request_cancelled" {
 		t.Fatalf("error code = %q, want request_cancelled", errResp.Error.Code)
 	}
+}
+
+func shortLocalRPCRuntimeDir(t *testing.T) string {
+	t.Helper()
+	runtimeDir, err := os.MkdirTemp("", "rc-rpc-")
+	if err != nil {
+		t.Fatalf("MkdirTemp returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(runtimeDir) })
+	return runtimeDir
 }

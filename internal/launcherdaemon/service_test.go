@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -90,6 +91,7 @@ func (f *fakeController) Shutdown(context.Context) error {
 }
 
 type fakeReporter struct {
+	mu        sync.RWMutex
 	facts     []launcherbackend.RuntimeFactsSnapshot
 	lifecycle []launcherbackend.RuntimeLifecycleState
 	factsErr  error
@@ -430,10 +432,10 @@ func TestServiceLaunchConsumesRuntimeUpdates(t *testing.T) {
 		t.Fatalf("Launch returned error: %v", err)
 	}
 	deadline := time.Now().Add(2 * time.Second)
-	for len(reporter.facts) == 0 && time.Now().Before(deadline) {
+	for reporter.factsCount() == 0 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
-	if len(reporter.facts) == 0 {
+	if reporter.factsCount() == 0 {
 		t.Fatal("expected runtime facts update")
 	}
 }

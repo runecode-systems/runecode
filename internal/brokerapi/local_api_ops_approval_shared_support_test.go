@@ -28,6 +28,7 @@ func setupServiceWithApprovalFixtureAndOutcome(t *testing.T, outcome string) (*S
 	if err != nil {
 		t.Fatalf("NewServiceWithConfig returned error: %v", err)
 	}
+	s.sessionExecutionRunner = launchSessionExecutionRunnerCheckpointOnlyInProcessForTests
 	unapproved, err := s.Put(artifacts.PutRequest{Payload: []byte("private excerpt"), ContentType: "text/plain", DataClass: artifacts.DataClassUnapprovedFileExcerpts, ProvenanceReceiptHash: "sha256:" + strings.Repeat("b", 64), CreatedByRole: "workspace", RunID: "run-approval", StepID: "step-1"})
 	if err != nil {
 		t.Fatalf("Put unapproved returned error: %v", err)

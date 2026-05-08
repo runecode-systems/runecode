@@ -324,7 +324,7 @@ func defaultSessionWorkflowRouting() *brokerapi.SessionWorkflowPackRouting {
 		SchemaID:          "runecode.protocol.v0.SessionWorkflowPackRouting",
 		SchemaVersion:     "0.1.0",
 		WorkflowFamily:    "runecontext",
-		WorkflowOperation: "draft_promote_apply",
+		WorkflowOperation: "change_draft",
 	}
 }
 

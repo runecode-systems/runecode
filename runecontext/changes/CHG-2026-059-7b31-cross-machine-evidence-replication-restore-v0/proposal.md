@@ -28,6 +28,7 @@ Those shortcuts would conflict with the current verification-plane foundation, w
 - Add fetch-on-miss, restore, and anti-entropy repair flows driven by signed replication checkpoints and verified immutable object identities.
 - Freeze a durability barrier for publication-sensitive actions: required pre-action evidence must be sealed or checkpointed and durably replicated to the healthy replica set before the action executes.
 - Reuse durable prepared and execute plus reconcile semantics for publication-sensitive actions so crash recovery remains trustworthy even if a machine fails immediately after remote state mutation.
+- Keep `CHG-2026-060-c1a4-beta-readiness-hardening-product-polish` local canonical RuneContext mutation and approved implementation out of the publication-sensitive class by default; those actions produce local evidence and workspace/RuneContext mutations, but they do not become publication-sensitive until a later remote publication action such as push, tag, pull-request creation, or equivalent remote-state mutation is requested.
 - Forbid a permanent lower-assurance publication path for degraded-state changes. If degraded-state work survives outside a healthy evidentiary run, RuneCode should capture it only as a recovery seed and re-create it through a fresh healthy audited run before publication.
 - Keep one topology-neutral architecture across constrained local devices and scaled deployments by varying only queue depth, cache size, and target count rather than logical trust semantics.
 - Keep downstream ownership boundaries explicit: this change owns replication checkpoints, remote S3-compatible durability targets, tenant and project namespace storage layout, thin-local GC eligibility and skeleton-state requirements, fetch-on-miss and anti-entropy repair, durability posture enforcement, publication durability barriers, and degraded-state recovery-seed plus healthy re-creation workflow.
@@ -73,6 +74,7 @@ Freezing the replication, GC, and publication-durability model now avoids later 
 - Allowing runner-owned, workflow-local, or client-local evidence federation authority.
 - Defining peer-to-peer replication as a required first implementation slice.
 - Allowing permanent lower-assurance publication of degraded-state changes.
+- Treating local canonical RuneContext mutation or local approved implementation from CHG-060 as remote publication by itself.
 
 ## Impact
 This change creates one reviewed future path for multi-machine evidence durability:

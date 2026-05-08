@@ -16,6 +16,7 @@ related_specs: []
 related_changes:
   - CHG-2026-009-1672-launcher-microvm-backend-v0
   - CHG-2026-010-54b7-container-backend-v0-explicit-opt-in
+  - CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0
 depends_on: []
 informed_by: []
 supersedes: []

@@ -16,6 +16,7 @@ related_decisions:
 related_changes:
   - CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0
   - CHG-2026-050-e3f8-workflow-definition-contract-binding-v0
+  - CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0
   - CHG-2026-003-b567-audit-log-v0-verify
   - CHG-2026-004-acdb-artifact-store-data-classes-v0
   - CHG-2026-007-2315-policy-engine-v0

@@ -20,6 +20,7 @@ export {
 } from "./run-plan.ts";
 export {
   FileDurableStateStore,
+  setDurableStateStoreFSTestHooksForTesting,
   InvalidApprovalWaitError,
   PlanIdentityMismatchError,
   DurableReplayError,
@@ -47,17 +48,23 @@ export {
   type ExecutionOutcome,
   type ExecutorAdapter,
   ExecutorAdapterRegistry,
+  MinimalGateExecutorAdapter,
 } from "./executor-adapter.ts";
 export {
   type RunnerBrokerClient,
   type BrokerAcknowledge,
-  NoopRunnerBrokerClient,
+  StdioRunnerBrokerClient,
+  RunnerBrokerTransportError,
+  MissingRunnerBrokerTransportError,
+  createSupportedRunnerBrokerClient,
 } from "./broker-client.ts";
 export {
   RUNNER_CHECKPOINT_REPORT_SCHEMA_ID,
   RUNNER_RESULT_REPORT_SCHEMA_ID,
   RUNNER_CHECKPOINT_REPORT_REQUEST_SCHEMA_ID,
   RUNNER_RESULT_REPORT_REQUEST_SCHEMA_ID,
+  RUNNER_CHECKPOINT_REPORT_RESPONSE_SCHEMA_ID,
+  RUNNER_RESULT_REPORT_RESPONSE_SCHEMA_ID,
   DEPENDENCY_CACHE_HANDOFF_REQUEST_SCHEMA_ID,
   DEPENDENCY_CACHE_HANDOFF_RESPONSE_SCHEMA_ID,
   DEPENDENCY_CACHE_HANDOFF_METADATA_SCHEMA_ID,
@@ -67,6 +74,8 @@ export {
   type RunnerResultReport,
   type RunnerCheckpointReportRequest,
   type RunnerResultReportRequest,
+  type RunnerCheckpointReportResponse,
+  type RunnerResultReportResponse,
   type DependencyCacheHandoffRequest,
   type DependencyCacheHandoffMetadata,
   type DependencyCacheHandoffResponse,
@@ -88,7 +97,9 @@ export {
   RunnerKernel,
   type ApprovalWaitResolution,
   type ApprovalWaitResolver,
+  type EntryExecutionRecord,
   type KernelExecutionContext,
   type KernelExecutionModule,
+  type RunPlanExecutionResult,
   type RunnerKernelOptions,
 } from "./kernel.ts";

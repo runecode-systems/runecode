@@ -29,13 +29,23 @@ func resolveControllers(cfg Config) (Controller, Controller) {
 	if cfg.Controller != nil {
 		return cfg.Controller, cfg.Controller
 	}
+	runtimeMaterialProvider := cfg.RuntimePostHandshakeMaterialProvider
+	if runtimeMaterialProvider == nil {
+		runtimeMaterialProvider = defaultRuntimePostHandshakeMaterialProvider
+	}
 	microVMController := cfg.MicroVMController
 	if microVMController == nil {
-		microVMController = NewQEMUController(QEMUControllerConfig{WorkRoot: cfg.WorkRoot})
+		microVMController = NewQEMUController(QEMUControllerConfig{
+			WorkRoot:                             cfg.WorkRoot,
+			RuntimePostHandshakeMaterialProvider: runtimeMaterialProvider,
+		})
 	}
 	containerController := cfg.ContainerController
 	if containerController == nil {
-		containerController = NewContainerController(ContainerControllerConfig{WorkRoot: cfg.WorkRoot})
+		containerController = NewContainerController(ContainerControllerConfig{
+			WorkRoot:                             cfg.WorkRoot,
+			RuntimePostHandshakeMaterialProvider: runtimeMaterialProvider,
+		})
 	}
 	return microVMController, containerController
 }

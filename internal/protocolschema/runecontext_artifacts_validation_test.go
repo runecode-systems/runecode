@@ -39,19 +39,21 @@ func TestRuneContextApprovedImplementationInputSetSchemaValidateMinimalAndReject
 	schema := mustCompileObjectSchema(t, bundle, "objects/RuneContextApprovedImplementationInputSet.schema.json")
 
 	valid := map[string]any{
-		"schema_id":                          "runecode.protocol.v0.RuneContextApprovedImplementationInputSet",
-		"schema_version":                     "0.1.0",
-		"input_set_digest":                   testDigestValue("a"),
-		"approved_input_digests":             []any{testDigestValue("b")},
-		"workflow_definition_hash":           testDigestValue("c"),
-		"process_definition_hash":            testDigestValue("d"),
-		"approval_profile":                   "moderate",
-		"autonomy_posture":                   "operator_guided",
-		"validated_project_substrate_digest": testDigestValue("e"),
-		"project_substrate_snapshot_digest":  testDigestValue("f"),
-		"control_input_digest":               testDigestValue("1"),
-		"repo_identity_digest":               testDigestValue("2"),
-		"repo_state_identity_digest":         testDigestValue("3"),
+		"schema_id":                           "runecode.protocol.v0.RuneContextApprovedImplementationInputSet",
+		"schema_version":                      "0.1.0",
+		"input_set_digest":                    testDigestValue("a"),
+		"approved_input_digests":              []any{testDigestValue("b")},
+		"workspace_mutation_digests":          []any{testDigestValue("b")},
+		"lifecycle_metadata_mutation_digests": []any{testDigestValue("c")},
+		"workflow_definition_hash":            testDigestValue("c"),
+		"process_definition_hash":             testDigestValue("d"),
+		"approval_profile":                    "moderate",
+		"autonomy_posture":                    "operator_guided",
+		"validated_project_substrate_digest":  testDigestValue("e"),
+		"project_substrate_snapshot_digest":   testDigestValue("f"),
+		"control_input_digest":                testDigestValue("1"),
+		"repo_identity_digest":                testDigestValue("2"),
+		"repo_state_identity_digest":          testDigestValue("3"),
 	}
 
 	if err := schema.Validate(valid); err != nil {

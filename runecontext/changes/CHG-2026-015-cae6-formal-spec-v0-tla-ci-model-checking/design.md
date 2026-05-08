@@ -187,6 +187,7 @@ The first formal model should at least prove:
 - Add checked-in TLA+ spec files and deterministic TLC configs.
 - Add a dedicated `just` recipe for model checking and include it in `just ci`.
 - Add the required tooling to the dev shell and CI environment explicitly; the model-checking path must be deterministic and must leave the repo clean.
+- Keep PR CI security-preserving but bounded: run the core model for security-kernel-relevant code or protocol PR diffs, run the full model for formal-spec/tooling/workflow PR diffs, and run the full model on merge queue and `main` so the final merge candidate remains covered without replaying the slow model on every push.
 - Keep bounds small but meaningful:
   - multiple runs
   - multiple approvals

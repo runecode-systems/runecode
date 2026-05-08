@@ -15,6 +15,9 @@ func handleRunList(args []string, service *brokerapi.Service, stdout io.Writer) 
 	if err := fs.Parse(args); err != nil {
 		return &usageError{message: "run-list usage: runecode-broker run-list [--limit N]"}
 	}
+	if err := rejectPositionalArgs("run-list", fs); err != nil {
+		return err
+	}
 	api := localAPIForService(service)
 	ctx, cancel := commandRequestContext(context.Background())
 	defer cancel()
@@ -36,6 +39,9 @@ func handleRunGet(args []string, service *brokerapi.Service, stdout io.Writer) e
 	runID := fs.String("run-id", "", "run id")
 	if err := fs.Parse(args); err != nil {
 		return &usageError{message: "run-get usage: runecode-broker run-get --run-id id"}
+	}
+	if err := rejectPositionalArgs("run-get", fs); err != nil {
+		return err
 	}
 	if *runID == "" {
 		return &usageError{message: "run-get requires --run-id"}
@@ -66,6 +72,9 @@ func handleRunWatch(args []string, service *brokerapi.Service, stdout io.Writer)
 	includeSnapshot := fs.Bool("include-snapshot", true, "include initial snapshot event")
 	if err := fs.Parse(args); err != nil {
 		return &usageError{message: "run-watch usage: runecode-broker run-watch [--stream-id id] [--run-id id] [--workspace-id id] [--lifecycle-state state] [--follow] [--include-snapshot]"}
+	}
+	if err := rejectPositionalArgs("run-watch", fs); err != nil {
+		return err
 	}
 	api := localAPIForService(service)
 	ctx, cancel := commandRequestContext(context.Background())
@@ -99,6 +108,9 @@ func handleSessionList(args []string, service *brokerapi.Service, stdout io.Writ
 	if err := fs.Parse(args); err != nil {
 		return &usageError{message: "session-list usage: runecode-broker session-list [--limit N]"}
 	}
+	if err := rejectPositionalArgs("session-list", fs); err != nil {
+		return err
+	}
 	api := localAPIForService(service)
 	ctx, cancel := commandRequestContext(context.Background())
 	defer cancel()
@@ -120,6 +132,9 @@ func handleSessionGet(args []string, service *brokerapi.Service, stdout io.Write
 	sessionID := fs.String("session-id", "", "session id")
 	if err := fs.Parse(args); err != nil {
 		return &usageError{message: "session-get usage: runecode-broker session-get --session-id id"}
+	}
+	if err := rejectPositionalArgs("session-get", fs); err != nil {
+		return err
 	}
 	if *sessionID == "" {
 		return &usageError{message: "session-get requires --session-id"}
@@ -148,6 +163,9 @@ func handleSessionSendMessage(args []string, service *brokerapi.Service, stdout 
 	idempotencyKey := fs.String("idempotency-key", "", "optional idempotency key")
 	if err := fs.Parse(args); err != nil {
 		return &usageError{message: "session-send-message usage: runecode-broker session-send-message --session-id id --content text [--role user|assistant|system|tool] [--idempotency-key key]"}
+	}
+	if err := rejectPositionalArgs("session-send-message", fs); err != nil {
+		return err
 	}
 	if *sessionID == "" {
 		return &usageError{message: "session-send-message requires --session-id"}
@@ -184,11 +202,14 @@ func handleSessionExecutionTrigger(args []string, service *brokerapi.Service, st
 	triggerSource := fs.String("trigger-source", "interactive_user", "trigger source classification")
 	requestedOperation := fs.String("requested-operation", "start", "requested execution operation")
 	workflowFamily := fs.String("workflow-family", "runecontext", "workflow pack family")
-	workflowOperation := fs.String("workflow-operation", "draft_promote_apply", "workflow pack operation")
+	workflowOperation := fs.String("workflow-operation", "change_draft", "workflow pack operation for start requests")
 	userMessage := fs.String("user-message", "", "optional user message content")
 	idempotencyKey := fs.String("idempotency-key", "", "optional idempotency key")
 	if err := fs.Parse(args); err != nil {
-		return &usageError{message: "session-execution-trigger usage: runecode-broker session-execution-trigger --session-id id [--turn-id id] [--trigger-source interactive_user|autonomous_background|resume_follow_up] [--requested-operation start|continue] [--workflow-family runecontext] [--workflow-operation change_draft|spec_draft|draft_promote_apply|approved_change_implementation] [--user-message text] [--idempotency-key key]"}
+		return &usageError{message: "session-execution-trigger usage: runecode-broker session-execution-trigger --session-id id [--turn-id id] [--trigger-source interactive_user|autonomous_background|resume_follow_up] [--requested-operation start|continue] [--workflow-family runecontext] [--workflow-operation change_draft|spec_draft|draft_promote_apply|approved_change_implementation] [--user-message text] [--idempotency-key key] (start defaults to change_draft)"}
+	}
+	if err := rejectPositionalArgs("session-execution-trigger", fs); err != nil {
+		return err
 	}
 	if *sessionID == "" {
 		return &usageError{message: "session-execution-trigger requires --session-id"}
@@ -243,6 +264,9 @@ func handleSessionWatch(args []string, service *brokerapi.Service, stdout io.Wri
 	if err := fs.Parse(args); err != nil {
 		return &usageError{message: "session-watch usage: runecode-broker session-watch [--stream-id id] [--session-id id] [--workspace-id id] [--status active|completed|archived] [--last-activity-kind kind] [--follow] [--include-snapshot]"}
 	}
+	if err := rejectPositionalArgs("session-watch", fs); err != nil {
+		return err
+	}
 	api := localAPIForService(service)
 	ctx, cancel := commandRequestContext(context.Background())
 	defer cancel()
@@ -267,6 +291,13 @@ func handleSessionWatch(args []string, service *brokerapi.Service, stdout io.Wri
 		return localAPIError(errResp)
 	}
 	return writeJSON(stdout, events)
+}
+
+func rejectPositionalArgs(command string, fs *flag.FlagSet) error {
+	if len(fs.Args()) == 0 {
+		return nil
+	}
+	return &usageError{message: command + " does not accept positional arguments"}
 }
 
 func validSessionMessageRole(role string) bool {

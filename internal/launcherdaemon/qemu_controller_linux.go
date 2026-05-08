@@ -4,7 +4,6 @@ package launcherdaemon
 
 import (
 	"context"
-	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -18,10 +17,11 @@ import (
 const helloWorldToken = "RUNE_HELLO_WORLD"
 
 type QEMUControllerConfig struct {
-	QEMUBinary string
-	KernelPath string
-	WorkRoot   string
-	Now        func() time.Time
+	QEMUBinary                           string
+	KernelPath                           string
+	WorkRoot                             string
+	Now                                  func() time.Time
+	RuntimePostHandshakeMaterialProvider func(launcherbackend.BackendLaunchSpec, launcherbackend.BackendLaunchReceipt) (*launcherbackend.RuntimePostHandshakeMaterial, error)
 }
 
 type qemuController struct {
@@ -51,6 +51,9 @@ func NewQEMUController(cfg QEMUControllerConfig) Controller {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
+	if cfg.RuntimePostHandshakeMaterialProvider == nil {
+		cfg.RuntimePostHandshakeMaterialProvider = defaultQEMURuntimePostHandshakeMaterialProvider
+	}
 	return &qemuController{cfg: cfg, instances: map[string]*qemuInstance{}}
 }
 
@@ -60,7 +63,7 @@ func (c *qemuController) Launch(ctx context.Context, spec launcherbackend.Backen
 		return nil, err
 	}
 	instance := c.registerLaunchState(spec, launchState)
-	go c.monitorInstance(context.Background(), instance, spec, launchState.stdout, launchState.hardening, launchState.receipt)
+	go c.monitorInstance(context.Background(), instance, launchState)
 	return instance.updates, nil
 }
 
@@ -97,73 +100,15 @@ func (c *qemuController) Shutdown(_ context.Context) error {
 }
 
 type preparedLaunchState struct {
-	stdout    io.Reader
+	stdout    launchStateStdout
 	launchDir string
 	receipt   launcherbackend.BackendLaunchReceipt
 	hardening launcherbackend.AppliedHardeningPosture
-	cmd       *exec.Cmd
+	admission launcherbackend.RuntimeAdmissionRecord
+	material  *launcherbackend.RuntimePostHandshakeMaterial
+	spec      launcherbackend.BackendLaunchSpec
+	cmd       launchStateCmd
 	cancel    context.CancelFunc
-}
-
-func (c *qemuController) prepareLaunchState(ctx context.Context, spec launcherbackend.BackendLaunchSpec) (preparedLaunchState, error) {
-	if err := ctx.Err(); err != nil {
-		return preparedLaunchState{}, err
-	}
-	if err := c.validateLaunchPrereqs(spec); err != nil {
-		return preparedLaunchState{}, err
-	}
-	qemuPath := strings.TrimSpace(c.cfg.QEMUBinary)
-	admittedImage, launchDir, kernelPath, initrdPath, err := c.prepareLaunchAssets(ctx, qemuPath, spec)
-	if err != nil {
-		return preparedLaunchState{}, err
-	}
-	isoID, sessionID, nonce, err := makeRuntimeIdentity(spec.RunID)
-	if err != nil {
-		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "failed to generate runtime identity")
-	}
-	qemuVersion, qemuBuild := detectQEMUProvenance(qemuPath)
-	cmd, stdout, cancel, err := c.startQEMUProcess(ctx, qemuPath, kernelPath, initrdPath, spec.ResourceLimits)
-	if err != nil {
-		return preparedLaunchState{}, err
-	}
-	receipt, err := buildLaunchReceipt(spec, admittedImage.admissionRecord, isoID, sessionID, nonce, qemuVersion, qemuBuild, admittedImage.cacheEvidence, c.cfg.Now())
-	if err != nil {
-		cancel()
-		return preparedLaunchState{}, backendError(launcherbackend.BackendErrorCodeHandshakeFailed, err.Error())
-	}
-	return preparedLaunchState{
-		stdout:    stdout,
-		launchDir: launchDir,
-		receipt:   receipt,
-		hardening: buildHardeningPosture(),
-		cmd:       cmd,
-		cancel:    cancel,
-	}, nil
-}
-
-func (c *qemuController) prepareLaunchAssets(ctx context.Context, qemuPath string, spec launcherbackend.BackendLaunchSpec) (admittedRuntimeImage, string, string, string, error) {
-	admittedImage, err := admitRuntimeImage(c.cfg.WorkRoot, spec.Image)
-	if err != nil {
-		return admittedRuntimeImage{}, "", "", "", err
-	}
-	launchDir, err := c.prepareLaunchDir(spec)
-	if err != nil {
-		return admittedRuntimeImage{}, "", "", "", backendError(launcherbackend.BackendErrorCodeAttachmentPlanInvalid, "failed to materialize attachments")
-	}
-	keepLaunchDir := false
-	defer func() {
-		if !keepLaunchDir {
-			_ = os.RemoveAll(launchDir)
-		}
-	}()
-	if err := ctx.Err(); err != nil {
-		return admittedRuntimeImage{}, "", "", "", err
-	}
-	if err := verifyRuntimeToolchainArtifact(qemuPath, admittedImage.toolchain); err != nil {
-		return admittedRuntimeImage{}, "", "", "", backendError(launcherbackend.BackendErrorCodeImageDescriptorSignatureMismatch, err.Error())
-	}
-	keepLaunchDir = true
-	return admittedImage, launchDir, admittedImage.componentPaths["kernel"], admittedImage.componentPaths["initrd"], nil
 }
 
 func (c *qemuController) validateLaunchPrereqs(spec launcherbackend.BackendLaunchSpec) error {
@@ -183,38 +128,6 @@ func (c *qemuController) validateLaunchPrereqs(spec launcherbackend.BackendLaunc
 		return backendError(launcherbackend.BackendErrorCodeAccelerationUnavailable, "qemu binary unavailable")
 	}
 	return nil
-}
-
-func (c *qemuController) startQEMUProcess(ctx context.Context, qemuPath, kernelPath, initrdPath string, limits launcherbackend.BackendResourceLimits) (*exec.Cmd, io.Reader, context.CancelFunc, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, nil, nil, err
-	}
-	argv := buildQEMUArgv(qemuPath, kernelPath, initrdPath, limits)
-	cmd := exec.Command(argv[0], argv[1:]...)
-	launchCancel := func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-	}
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, nil, nil, backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "failed to prepare qemu output stream")
-	}
-	cmd.Stderr = cmd.Stdout
-	if err := cmd.Start(); err != nil {
-		launchCancel()
-		if strings.Contains(strings.ToLower(err.Error()), "kvm") {
-			return nil, nil, nil, backendError(launcherbackend.BackendErrorCodeAccelerationUnavailable, "kvm initialization failed")
-		}
-		return nil, nil, nil, backendError(launcherbackend.BackendErrorCodeHypervisorLaunchFailed, "qemu launch failed")
-	}
-	if err := ctx.Err(); err != nil {
-		launchCancel()
-		_ = cmd.Process.Kill()
-		return nil, nil, nil, err
-	}
-	return cmd, stdout, launchCancel, nil
 }
 
 func (c *qemuController) registerLaunchState(spec launcherbackend.BackendLaunchSpec, launchState preparedLaunchState) *qemuInstance {
@@ -242,11 +155,11 @@ func (c *qemuController) registerLaunchState(spec launcherbackend.BackendLaunchS
 	}
 	updates <- RuntimeUpdate{RunID: spec.RunID, Facts: &launcherbackend.RuntimeFactsSnapshot{LaunchReceipt: launchState.receipt, HardeningPosture: launchState.hardening}}
 	started := lifecycleUpdate(launcherbackend.BackendLifecycleStateStarted, launcherbackend.BackendLifecycleStateLaunching, 2, "")
-	active := lifecycleUpdate(launcherbackend.BackendLifecycleStateActive, launcherbackend.BackendLifecycleStateStarted, 3, "")
+	binding := lifecycleUpdate(launcherbackend.BackendLifecycleStateBinding, launcherbackend.BackendLifecycleStateStarted, 3, "")
 	updates <- RuntimeUpdate{RunID: spec.RunID, Lifecycle: &started}
-	updates <- RuntimeUpdate{RunID: spec.RunID, Lifecycle: &active}
+	updates <- RuntimeUpdate{RunID: spec.RunID, Lifecycle: &binding}
 	c.mu.Lock()
-	instance.state.LifecycleState = active
+	instance.state.LifecycleState = binding
 	c.mu.Unlock()
 	return instance
 }
@@ -264,10 +177,5 @@ func (c *qemuController) terminateInstance(inst *qemuInstance) {
 func (c *qemuController) instanceByRef(ref InstanceRef) *qemuInstance {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if ref.RunID == "" && len(c.instances) == 1 {
-		for _, inst := range c.instances {
-			return inst
-		}
-	}
 	return c.instances[instanceKey(ref)]
 }

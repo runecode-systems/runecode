@@ -1,12 +1,59 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
+
+type watchPollRequestRecorder struct {
+	*fakeBrokerClient
+	run      brokerapi.RunWatchRequest
+	approval brokerapi.ApprovalWatchRequest
+	session  brokerapi.SessionWatchRequest
+}
+
+func (r *watchPollRequestRecorder) RunWatch(ctx context.Context, req brokerapi.RunWatchRequest) ([]brokerapi.RunWatchEvent, error) {
+	r.run = req
+	return r.fakeBrokerClient.RunWatch(ctx, req)
+}
+
+func (r *watchPollRequestRecorder) ApprovalWatch(ctx context.Context, req brokerapi.ApprovalWatchRequest) ([]brokerapi.ApprovalWatchEvent, error) {
+	r.approval = req
+	return r.fakeBrokerClient.ApprovalWatch(ctx, req)
+}
+
+func (r *watchPollRequestRecorder) SessionWatch(ctx context.Context, req brokerapi.SessionWatchRequest) ([]brokerapi.SessionWatchEvent, error) {
+	r.session = req
+	return r.fakeBrokerClient.SessionWatch(ctx, req)
+}
+
+func TestShellWatchPollRequestsSnapshotOnlyStreams(t *testing.T) {
+	m := newShellModel()
+	recorder := &watchPollRequestRecorder{fakeBrokerClient: &fakeBrokerClient{}}
+	m.client = recorder
+
+	msg, ok := m.loadWatchPollCmd()().(shellWatchTransportLoadedMsg)
+	if !ok {
+		t.Fatalf("loadWatchPollCmd message = %T, want shellWatchTransportLoadedMsg", msg)
+	}
+	assertWatchPollSnapshotOnly(t, recorder.run.IncludeSnapshot, recorder.run.Follow, "run")
+	assertWatchPollSnapshotOnly(t, recorder.approval.IncludeSnapshot, recorder.approval.Follow, "approval")
+	assertWatchPollSnapshotOnly(t, recorder.session.IncludeSnapshot, recorder.session.Follow, "session")
+}
+
+func assertWatchPollSnapshotOnly(t *testing.T, includeSnapshot, follow bool, family string) {
+	t.Helper()
+	if !includeSnapshot {
+		t.Fatalf("%s watch poll IncludeSnapshot = false, want true", family)
+	}
+	if follow {
+		t.Fatalf("%s watch poll Follow = true, want false", family)
+	}
+}
 
 func TestShellWatchManagerFamilySpecificFailureProjectsDegradedHealth(t *testing.T) {
 	manager := newShellWatchManager()

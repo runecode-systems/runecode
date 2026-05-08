@@ -24,7 +24,12 @@ const (
 	ContractVersionV0              = "v0"
 	CanonicalConfigPath            = "runecontext.yaml"
 	CanonicalSourcePath            = "runecontext"
+	CanonicalChangesPath           = "runecontext/changes"
+	CanonicalSpecsPath             = "runecontext/specs"
 	CanonicalAssurancePath         = "runecontext/assurance"
+	CanonicalChangeProposalName    = "proposal.md"
+	CanonicalChangeTasksName       = "tasks.md"
+	CanonicalChangeStatusName      = "status.yaml"
 	canonicalAssuranceBaselinePath = "runecontext/assurance/baseline.yaml"
 
 	validationStateValid   = "valid"

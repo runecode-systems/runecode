@@ -53,6 +53,7 @@ type APIConfig struct {
 	Compile         CompileConfig
 	ExternalAnchor  ExternalAnchorConfig
 	RepositoryRoot  string
+	RunnerNodePath  string
 }
 
 type DependencyFetchConfig struct {

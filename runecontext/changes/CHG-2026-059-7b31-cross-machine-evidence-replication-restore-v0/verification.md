@@ -14,6 +14,7 @@
 - Confirm the change defines at least `healthy`, `remote_durability_degraded`, and `local_capture_unhealthy` durability posture with the intended action gates.
 - Confirm one remote target is explicitly degraded posture and healthy self-healing requires two independent remote targets.
 - Confirm publication-sensitive actions require a pre-action durability barrier and durable prepare, execute, and reconcile semantics rather than a best-effort flush.
+- Confirm CHG-060 local canonical RuneContext mutation and local approved implementation are not treated as publication-sensitive by themselves.
 - Confirm degraded-state changes have no permanent lower-assurance publication lane and are only eligible for re-creation through a new healthy audited run.
 - Confirm fetch-on-miss, restore, and anti-entropy are checkpoint-driven and fail closed on ambiguous or unverifiable remote content.
 - Confirm any optional helper remains in the trusted domain and does not become a second public authority or restore-admission surface.

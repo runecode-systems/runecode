@@ -11,10 +11,11 @@ import (
 )
 
 type QEMUControllerConfig struct {
-	QEMUBinary string
-	KernelPath string
-	WorkRoot   string
-	Now        func() time.Time
+	QEMUBinary                           string
+	KernelPath                           string
+	WorkRoot                             string
+	Now                                  func() time.Time
+	RuntimePostHandshakeMaterialProvider func(launcherbackend.BackendLaunchSpec, launcherbackend.BackendLaunchReceipt) (*launcherbackend.RuntimePostHandshakeMaterial, error)
 }
 
 type unsupportedController struct{}

@@ -1,0 +1,9 @@
+{
+  "schema_version":"runecode.performance.baseline.v1",
+  "metric_id": "metric.workflow.chg049.first_party_beta_slice.wall_ms",
+  "unit": "ms",
+  "samples": [420, 432, 428, 425, 430],
+  "summary": {
+    "median": 428
+  }
+}
