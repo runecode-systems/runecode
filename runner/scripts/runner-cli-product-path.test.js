@@ -63,6 +63,31 @@ test("cli rejects plan files outside the declared plan root", () => {
   }
 });
 
+test("cli rejects plan files that escape plan root through symlinks", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-cli-"));
+  const otherRoot = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-cli-other-"));
+  try {
+    const escapedPlanPath = writePlan(otherRoot);
+    const linkedDir = path.join(root, "linked");
+    try {
+      fs.symlinkSync(otherRoot, linkedDir, "dir");
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error ? error.code : "";
+      if (["EPERM", "EACCES", "ENOTSUP"].includes(code)) {
+        t.skip(`symlink creation unavailable: ${code}`);
+      }
+      throw error;
+    }
+    const symlinkedPlanPath = path.join(linkedDir, path.basename(escapedPlanPath));
+    const result = runCLI(["--plan-file", symlinkedPlanPath, "--plan-root", root, "--broker-transport", "stdio"]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /--plan-file must resolve inside --plan-root/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(otherRoot, { recursive: true, force: true });
+  }
+});
+
 test("cli rejects caller-supplied protocol schema roots", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-cli-"));
   try {
@@ -70,6 +95,29 @@ test("cli rejects caller-supplied protocol schema roots", () => {
     const result = runCLI(["--plan-file", planPath, "--plan-root", root, "--protocol-schemas-root", root]);
     assert.equal(result.status, 1);
     assert.match(result.stderr, /--protocol-schemas-root is not supported/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("cli rejects unknown flags", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-cli-"));
+  try {
+    const planPath = writePlan(root);
+    const result = runCLI(["--plan-file", planPath, "--plan-root", root, "--unknown-flag"]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /unknown argument: --unknown-flag/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("cli rejects missing required flag values", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-cli-"));
+  try {
+    const result = runCLI(["--plan-file", "--plan-root", root]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /--plan-file requires a value/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -56,7 +56,7 @@ func TestAuditEvidenceBundleCommandsSmokePath(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &exportResp); err != nil {
 		t.Fatalf("audit-evidence-bundle-export output parse error: %v", err)
 	}
-	if got := strings.TrimSpace(exportResp["out"].(string)); got != outPath {
+	if got := auditEvidenceBundleExportOutPath(t, exportResp); got != outPath {
 		t.Fatalf("export out path = %q, want %q", got, outPath)
 	}
 	if info, err := os.Stat(outPath); err != nil {
@@ -94,4 +94,17 @@ func writeAuditEvidenceBundleExportFixtures(t *testing.T) (string, string) {
 		"archive_format":     "tar",
 	})
 	return requestPath, outPath
+}
+
+func auditEvidenceBundleExportOutPath(t *testing.T, exportResp map[string]any) string {
+	t.Helper()
+	outValue, ok := exportResp["out"]
+	if !ok {
+		t.Fatalf("audit-evidence-bundle-export response missing out field: %#v", exportResp)
+	}
+	outString, ok := outValue.(string)
+	if !ok {
+		t.Fatalf("audit-evidence-bundle-export response out field has type %T, want string", outValue)
+	}
+	return strings.TrimSpace(outString)
 }

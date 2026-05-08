@@ -63,6 +63,9 @@ func prepareSessionExecutionRunnerLaunch(s *Service, spec sessionExecutionRunner
 	if _, err := os.Stat(filepath.Join(runnerRoot, "package.json")); err != nil {
 		return preparedSessionExecutionRunnerLaunch{}, fmt.Errorf("runner launch root missing package.json: %w", err)
 	}
+	if err := validateSessionExecutionRunnerInstall(runnerRoot); err != nil {
+		return preparedSessionExecutionRunnerLaunch{}, err
+	}
 	stateRoot, err := os.MkdirTemp(filepath.Dir(spec.planPath), "runecode-runner-state-")
 	if err != nil {
 		return preparedSessionExecutionRunnerLaunch{}, fmt.Errorf("create runner state root: %w", err)
@@ -192,6 +195,15 @@ func firstRunnerRootCandidate(candidates ...string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func validateSessionExecutionRunnerInstall(runnerRoot string) error {
+	for _, dependency := range []string{"ajv", "ajv-formats"} {
+		if _, err := os.Stat(filepath.Join(runnerRoot, "node_modules", dependency, "package.json")); err != nil {
+			return fmt.Errorf("runner launch root missing installed runtime dependency %q; run (cd runner && npm ci): %w", dependency, err)
+		}
+	}
+	return nil
 }
 
 func sessionExecutionRunnerCommand(nodePath, repoRoot, planPath, stateRoot string) ([]string, error) {

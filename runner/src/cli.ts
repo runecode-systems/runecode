@@ -13,7 +13,8 @@ import { RunPlanLoader } from "./run-plan.ts";
 import { FileDurableStateStore } from "./durable-state.ts";
 import { RunnerKernel } from "./kernel.ts";
 import { createSupportedRunnerBrokerClient } from "./broker-client.ts";
-import { isAbsolute, relative, resolve } from "node:path";
+import { existsSync, realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { ExecutorAdapterRegistry, MinimalGateExecutorAdapter } from "./executor-adapter.ts";
 import {
   DEPENDENCY_CACHE_HANDOFF_REQUEST_SCHEMA_ID,
@@ -37,48 +38,58 @@ function parseArgs(argv: string[]): RunnerCLIOptions {
   let planFile = "";
   let planRoot = process.cwd();
   let stateRoot = ".runecode/runner-state";
-  let protocolSchemasRoot = defaultProtocolSchemasRoot();
   let brokerTransport: "stdio" | "none" = "none";
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === "--plan-file" && i + 1 < argv.length) {
-      planFile = argv[i + 1] ?? "";
+    if (arg === "--plan-file") {
+      planFile = readFlagValue(argv, i, "--plan-file");
       i += 1;
       continue;
     }
-    if (arg === "--plan-root" && i + 1 < argv.length) {
-      planRoot = argv[i + 1] ?? planRoot;
+    if (arg === "--plan-root") {
+      planRoot = readFlagValue(argv, i, "--plan-root");
       i += 1;
       continue;
     }
-    if (arg === "--state-root" && i + 1 < argv.length) {
-      stateRoot = argv[i + 1] ?? stateRoot;
+    if (arg === "--state-root") {
+      stateRoot = readFlagValue(argv, i, "--state-root");
       i += 1;
       continue;
     }
-    if (arg === "--protocol-schemas-root" && i + 1 < argv.length) {
+    if (arg === "--protocol-schemas-root") {
       throw new Error("--protocol-schemas-root is not supported for product runner execution");
     }
-    if (arg === "--broker-transport" && i + 1 < argv.length) {
-      const value = argv[i + 1];
+    if (arg === "--broker-transport") {
+      const value = readFlagValue(argv, i, "--broker-transport");
       if (value !== "stdio" && value !== "none") {
         throw new Error("--broker-transport must be stdio or none");
       }
       brokerTransport = value;
       i += 1;
+      continue;
     }
+    throw new Error(`unknown argument: ${arg}`);
   }
   if (!planFile.trim()) {
     throw new Error("--plan-file is required");
   }
   const resolvedPlanRoot = resolve(planRoot);
+  const confinedPlanRoot = canonicalizeConfinedRoot(resolvedPlanRoot, "--plan-root");
   return {
-    planFile: resolveConfinedPath(resolvedPlanRoot, planFile, "--plan-file"),
-    planRoot: resolvedPlanRoot,
-    stateRoot: resolveConfinedPath(resolvedPlanRoot, stateRoot, "--state-root"),
-    protocolSchemasRoot,
+    planFile: resolveConfinedPath(confinedPlanRoot, planFile, "--plan-file"),
+    planRoot: confinedPlanRoot,
+    stateRoot: resolveConfinedPath(confinedPlanRoot, stateRoot, "--state-root"),
+    protocolSchemasRoot: defaultProtocolSchemasRoot(),
     brokerTransport,
   };
+}
+
+function readFlagValue(argv: string[], index: number, flag: string): string {
+  const value = argv[index + 1] ?? "";
+  if (!value || value.startsWith("--")) {
+    throw new Error(`${flag} requires a value`);
+  }
+  return value;
 }
 
 function defaultProtocolSchemasRoot(): string {
@@ -109,11 +120,40 @@ function assertRequiredRunnerSchemasPresent(bundle: ProtocolSchemaBundle): void 
 
 function resolveConfinedPath(root: string, value: string, label: string): string {
   const resolved = isAbsolute(value) ? resolve(value) : resolve(root, value);
-  const rel = relative(root, resolved);
+  const canonicalResolved = canonicalizeExistingPathPrefix(resolved);
+  const rel = relative(root, canonicalResolved);
   if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) {
     return resolved;
   }
   throw new Error(`${label} must resolve inside --plan-root`);
+}
+
+function canonicalizeConfinedRoot(root: string, label: string): string {
+  try {
+    return realpathSync(root);
+  } catch {
+    throw new Error(`${label} must exist`);
+  }
+}
+
+function canonicalizeExistingPathPrefix(pathValue: string): string {
+  let current = pathValue;
+  const suffix: string[] = [];
+  for (;;) {
+    if (existsSync(current)) {
+      let canonical = realpathSync(current);
+      while (suffix.length > 0) {
+        canonical = resolve(canonical, suffix.pop() ?? "");
+      }
+      return canonical;
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      throw new Error(`path does not exist: ${pathValue}`);
+    }
+    suffix.push(basename(current));
+    current = parent;
+  }
 }
 
 async function main(): Promise<void> {

@@ -1,6 +1,7 @@
 package brokerapi
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -68,6 +69,43 @@ func TestResolveRunnerLaunchRootAcceptsRepositoryRootOverride(t *testing.T) {
 	}
 	if want := filepath.Join(repoRoot, "runner"); runnerRoot != want {
 		t.Fatalf("runnerRoot = %q, want %q", runnerRoot, want)
+	}
+}
+
+func TestValidateSessionExecutionRunnerInstallRejectsMissingRuntimeDependencies(t *testing.T) {
+	runnerRoot := t.TempDir()
+	if err := os.WriteFile(filepath.Join(runnerRoot, "package.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatalf("WriteFile package.json returned error: %v", err)
+	}
+	err := validateSessionExecutionRunnerInstall(runnerRoot)
+	if err == nil {
+		t.Fatal("validateSessionExecutionRunnerInstall error = nil, want missing dependency failure")
+	}
+	if !strings.Contains(err.Error(), `missing installed runtime dependency "ajv"`) {
+		t.Fatalf("validateSessionExecutionRunnerInstall error = %q, want ajv dependency detail", err)
+	}
+	if !strings.Contains(err.Error(), "npm ci") {
+		t.Fatalf("validateSessionExecutionRunnerInstall error = %q, want remediation detail", err)
+	}
+}
+
+func TestValidateSessionExecutionRunnerInstallAcceptsInstalledRuntimeDependencies(t *testing.T) {
+	runnerRoot := t.TempDir()
+	for _, relative := range []string{
+		"package.json",
+		filepath.Join("node_modules", "ajv", "package.json"),
+		filepath.Join("node_modules", "ajv-formats", "package.json"),
+	} {
+		path := filepath.Join(runnerRoot, relative)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll %q returned error: %v", relative, err)
+		}
+		if err := os.WriteFile(path, []byte("{}"), 0o644); err != nil {
+			t.Fatalf("WriteFile %q returned error: %v", relative, err)
+		}
+	}
+	if err := validateSessionExecutionRunnerInstall(runnerRoot); err != nil {
+		t.Fatalf("validateSessionExecutionRunnerInstall returned error: %v", err)
 	}
 }
 
