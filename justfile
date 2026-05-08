@@ -15,6 +15,7 @@ lint:
   cd runner && npm run boundary-check
 
 test:
+  cd runner && npm ci
   go test ./...
   cd runner && npm test
 
@@ -32,9 +33,9 @@ ci-fast:
   go run {{golangci_lint}} run
   go vet ./...
   go run ./tools/checksourcequality
+  cd runner && npm ci
   go test ./...
   go build ./cmd/...
-  cd runner && npm ci
   cd runner && npm run lint
   cd runner && npm test
   cd runner && npm run boundary-check
@@ -56,9 +57,9 @@ ci-portability:
   go run {{golangci_lint}} run
   go vet ./...
   go run ./tools/checksourcequality
+  cd runner && npm ci
   go test ./...
   go build ./cmd/...
-  cd runner && npm ci
   cd runner && npm run lint
   cd runner && npm test
   cd runner && npm run boundary-check

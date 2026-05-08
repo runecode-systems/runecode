@@ -44,6 +44,18 @@ func TestSessionListIncludesRuntimeDerivedSessionWithoutArtifacts(t *testing.T) 
 	}
 }
 
+func TestSessionGetUnionsCompletedExecutionLinksIntoInspectableSessionDetail(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeProjectSubstrateAnchors(t, repoRoot, "0.1.0-alpha.14", "verified", "runecontext")
+	s := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: repoRoot})
+	s.sessionExecutionRunner = launchSessionExecutionRunnerCompleteInProcessForTests
+	seedSessionRuntimeFactsForOpsTest(t, s, "run-session-link-union", "sess-link-union")
+
+	draftExec := triggerSessionLinkUnionDraft(t, s)
+	getResp := triggerSessionLinkUnionApplyAndGet(t, s, draftExec)
+	assertSessionLinkUnionProjection(t, getResp, draftExec.PrimaryRunID)
+}
+
 func TestSessionGetNotFoundUsesSessionSpecificCode(t *testing.T) {
 	s := newBrokerAPIServiceForTests(t, APIConfig{})
 	_, errResp := s.HandleSessionGet(context.Background(), SessionGetRequest{SchemaID: "runecode.protocol.v0.SessionGetRequest", SchemaVersion: "0.1.0", RequestID: "req-session-missing", SessionID: "sess-missing"}, RequestContext{})
@@ -209,6 +221,49 @@ func assertRestartSessionSequence(t *testing.T, ack SessionSendMessageResponse, 
 	t.Helper()
 	if ack.Seq != wantSeq {
 		t.Fatalf("%s seq = %d, want %d", label, ack.Seq, wantSeq)
+	}
+}
+
+func triggerSessionLinkUnionDraft(t *testing.T, s *Service) *SessionTurnExecution {
+	t.Helper()
+	mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-link-union-draft", SessionID: "sess-link-union", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: sessionWorkflowOperationChangeDraft}, UserMessageContentText: "session link union draft"})
+	draftGet := mustSessionGet(t, s, "req-session-link-union-draft-get", "sess-link-union")
+	if draftGet.Session.LatestTurnExecution == nil {
+		t.Fatal("latest_turn_execution missing after draft")
+	}
+	return draftGet.Session.LatestTurnExecution
+}
+
+func triggerSessionLinkUnionApplyAndGet(t *testing.T, s *Service, draftExec *SessionTurnExecution) SessionGetResponse {
+	t.Helper()
+	draftDigest := digestForRunStep(t, s, draftExec.PrimaryRunID, "session_execution/change_draft_artifact")
+	mustSessionExecutionTrigger(t, s, SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "req-session-link-union-apply", SessionID: "sess-link-union", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: sessionWorkflowOperationDraftPromoteApply, BoundInputArtifacts: []SessionWorkflowPackBoundInputArtifact{{ArtifactRef: "change_draft_artifact", ArtifactDigest: draftDigest}}}, UserMessageContentText: "session link union apply"})
+	return mustSessionGet(t, s, "req-session-link-union-get", "sess-link-union")
+}
+
+func assertSessionLinkUnionProjection(t *testing.T, getResp SessionGetResponse, draftRunID string) {
+	t.Helper()
+	if getResp.Session.LatestTurnExecution == nil {
+		t.Fatal("latest_turn_execution missing after promote/apply")
+	}
+	latest := getResp.Session.LatestTurnExecution
+	if latest.ExecutionState != "completed" {
+		t.Fatalf("latest execution_state = %q, want completed", latest.ExecutionState)
+	}
+	assertSessionContainsAllLinks(t, "linked_approval_ids", getResp.Session.LinkedApprovalIDs, latest.LinkedApprovalIDs)
+	assertSessionContainsAllLinks(t, "linked_artifact_digests", getResp.Session.LinkedArtifactDigests, latest.LinkedArtifactDigests)
+	assertSessionContainsAllLinks(t, "linked_run_ids", getResp.Session.LinkedRunIDs, []string{draftRunID, latest.PrimaryRunID})
+	if latest.WorkflowRouting.WorkflowOperation != sessionWorkflowOperationDraftPromoteApply {
+		t.Fatalf("latest workflow_operation = %q, want %q", latest.WorkflowRouting.WorkflowOperation, sessionWorkflowOperationDraftPromoteApply)
+	}
+}
+
+func assertSessionContainsAllLinks(t *testing.T, label string, sessionValues, expectedValues []string) {
+	t.Helper()
+	for _, value := range expectedValues {
+		if !containsStringLocal(sessionValues, value) {
+			t.Fatalf("session %s = %+v, want %q", label, sessionValues, value)
+		}
 	}
 }
 
@@ -406,4 +461,13 @@ func assertSessionGetLastMessageContent(t *testing.T, resp SessionGetResponse, w
 	if lastMessage.ContentText != wantContent {
 		t.Fatalf("last message content_text = %q, want %q", lastMessage.ContentText, wantContent)
 	}
+}
+
+func containsStringLocal(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

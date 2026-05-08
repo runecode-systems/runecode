@@ -3,6 +3,7 @@
 ## Adoption Gate
 
 - [ ] Reassess the runner after `CHG-2026-033-6e7b-workflow-runner-durable-state-v0` native hardening is complete.
+- [ ] Reassess the runner only after CHG-060 proves real broker transport, persisted `RunPlan` adoption, runner checkpoint/result reporting, and the supported beta workflow loop.
 - [ ] Decide whether LangGraph is still needed for runner-local checkpoint/wait/resume complexity.
 - [ ] Record the outcome explicitly: adopt behind the runtime seam or do not adopt.
 - [ ] Require the adoption decision to account for exact-action wait support for hard-floor approvals such as `git_remote_ops`.
@@ -11,6 +12,7 @@
 ## Runtime Seam Fit
 
 - [ ] Confirm the runner runtime seam is narrow enough to keep LangGraph fully internal.
+- [ ] Confirm LangGraph is not being used to replace or shortcut the CHG-060 beta workflow-loop proof.
 - [ ] Ensure LangGraph can be substituted without changing broker local API contracts, protocol schemas, or broker-owned lifecycle/approval semantics.
 - [ ] Ensure LangGraph does not require relaxing exact-action approval or remote-drift semantics for `git_remote_ops` or similar hard-floor remote-state-mutation lanes.
 - [ ] Ensure LangGraph does not require relaxing exact-action approval, target-binding, or deferred prepared and execute semantics for external audit anchor submission or similar hard-floor remote-state-mutation lanes.
@@ -38,6 +40,7 @@
 
 - [ ] LangGraph is implemented only if it remains optional, internal-only, and clearly beneficial.
 - [ ] Adoption, if chosen, does not change trust-boundary ownership, broker authority, or public contracts.
+- [ ] Adoption, if chosen, remains downstream of CHG-060 and does not redefine the supported beta workflow-loop architecture.
 - [ ] Replay, wait/resume, and restart semantics remain fail-closed and plan-bound.
 - [ ] Adoption, if chosen, does not weaken exact-action approval or fail-closed remote-drift handling for `git_remote_ops` or similar hard-floor remote-state-mutation lanes.
 - [ ] Adoption, if chosen, does not weaken exact-action approval, target binding, deferred execution semantics, or fail-closed drift handling for external audit anchor submission or similar hard-floor remote-state-mutation lanes.

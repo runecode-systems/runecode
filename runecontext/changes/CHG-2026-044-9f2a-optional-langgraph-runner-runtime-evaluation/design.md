@@ -5,7 +5,7 @@ Evaluate whether LangGraph provides enough implementation leverage for runner-lo
 
 ## Key Decisions
 - LangGraph remains optional; implementation should be decided at delivery time based on whether the native runner foundation still leaves enough orchestration complexity to justify it.
-- Native thin-kernel runner hardening remains the prerequisite and baseline.
+- Native thin-kernel runner hardening remains the prerequisite and baseline, including CHG-060's real broker transport, persisted `RunPlan` adoption, runner checkpoint/result reporting, and supported beta workflow loop.
 - Any LangGraph usage must stay behind the internal runtime seam established by `CHG-2026-033-6e7b-workflow-runner-durable-state-v0`.
 - LangGraph must remain internal and non-canonical.
 - Broker-owned run truth, approval truth, lifecycle state, and immutable `RunPlan` authority remain unchanged.
@@ -23,6 +23,7 @@ Evaluate whether LangGraph provides enough implementation leverage for runner-lo
 LangGraph should be implemented only if all of the following are true at that time:
 
 - the native runner durable-state and approval-wait model is already complete and verified
+- CHG-060 has already proven the supported beta workflow loop through the native runner path
 - the runtime seam is in place and small enough to keep LangGraph fully internal
 - LangGraph measurably reduces runner-local orchestration complexity for pause/wait/resume flows
 - replay, interrupt, and checkpoint semantics can be bound cleanly to the same `run_id`, `plan_id`, scope identity, attempt identity, and idempotency model RuneCode already uses
@@ -40,6 +41,7 @@ LangGraph adoption must not:
 - define a second public lifecycle vocabulary
 - require broker/API contracts to mirror LangGraph thread/checkpoint vocabulary
 - replace explicit runner journal families with opaque framework-owned blobs
+- replace or shortcut the CHG-060 beta workflow-loop proof
 - weaken exact-action approval or remote-drift semantics for git remote mutation or other hard-floor remote-state-mutation lanes
 - weaken exact-action approval, target binding, or deferred prepared and execute semantics for external audit anchor submission or other hard-floor remote-state-mutation lanes
 

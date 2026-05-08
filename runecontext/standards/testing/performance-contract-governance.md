@@ -21,5 +21,7 @@ Use `tools/perfcontracts/manifest.json` as the authoritative inventory for check
 - Keep the shared-Linux required lane truthful: it enforces only the current checked-in `required_shared_linux` subset, while broader surfaces may remain informational or `contract_pending_dependency`
 - Keep perf-tool diagnostics sanitized: do not leak sensitive local paths, tokens, or raw startup output in check failures
 - Keep measurement boundaries honest: validate fixture or path preconditions before timing, measure fresh-process startup or attach when startup cost is in scope, and preserve the authoritative timing source when a script or tool emits the measurement directly
+- For broker mutation metrics, seed approvals, blocked turns, policy context, and other preconditions outside the timed region unless the contract boundary explicitly includes that setup work
+- When a contract says a mutation ends at ack or persistence, do not let the harness silently include runner launch, bridge execution, run-sync, checkpoint publication, or unrelated post-resolution side effects unless the checked-in timing boundary explicitly names those phases
 - Treat baseline refresh as explicit reviewed change; do not hide threshold loosening in silent baseline updates
 - Keep broader fixture ladders and cross-platform expansion in `CHG-2026-061-45fe-performance-program-expansion-cross-platform-gates-v0`

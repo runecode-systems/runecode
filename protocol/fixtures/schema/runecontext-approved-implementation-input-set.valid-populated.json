@@ -3,12 +3,24 @@
   "schema_version": "0.1.0",
   "input_set_digest": {
     "hash_alg": "sha256",
-    "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    "hash": "194c10fbb20693642c2af7fbd8ced95760faaf20fbde7a6d3eeb4281abd67e44"
   },
   "approved_input_digests": [
     {
       "hash_alg": "sha256",
       "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "workspace_mutation_digests": [
+    {
+      "hash_alg": "sha256",
+      "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "lifecycle_metadata_mutation_digests": [
+    {
+      "hash_alg": "sha256",
+      "hash": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
     }
   ],
   "workflow_definition_hash": {

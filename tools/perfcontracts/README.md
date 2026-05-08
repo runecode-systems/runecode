@@ -15,12 +15,23 @@ Each metric contract declares:
 
 - metric identity and fixture identity
 - measurement kind and unit
+- measurement profile for one shared architecture across reviewed deployment scales
 - budget class (`exact`, `absolute-budget`, `regression-budget`, `hybrid-budget`)
 - lane authority and activation state
 - threshold origin
 - timing boundary (`start_event`, `end_event`, `clock_source`, `evidence_source`, `included_phases`)
 
 ## Baseline Governance
+
+## Measurement profiles
+
+Measurement profiles describe the reviewed hardware/deployment lane used to collect a metric without creating separate product architectures.
+
+- `linux_shared_ci` is the authoritative required gate profile for shared Linux CI/local parity.
+- `linux_pi_reference` records the same architecture on Raspberry Pi-class reference hardware.
+- `linux_scaled_reference` records the same architecture on scaled Linux reference hardware.
+
+Profiles are descriptive contract metadata. Required beta enforcement continues to flow through lane authority and activation state rather than splitting the product into separate perf paths.
 
 ### Threshold review process
 

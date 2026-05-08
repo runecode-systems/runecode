@@ -2,6 +2,7 @@ package brokerapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
@@ -9,8 +10,14 @@ import (
 	"github.com/runecode-ai/runecode/internal/trustpolicy"
 )
 
+type approvedImplementationInputSetState struct {
+	decoded                map[string]any
+	inputSetArtifactDigest string
+	inputSetDigest         string
+}
+
 func (s *Service) validateApprovedImplementationRouting(requestID string, routing *SessionWorkflowPackRouting) *ErrorResponse {
-	inputSetDigest := ""
+	inputSetArtifactDigest := ""
 	inputSetCount := 0
 	for _, artifact := range routing.BoundInputArtifacts {
 		if strings.TrimSpace(artifact.ArtifactRef) != "implementation_input_set" {
@@ -20,57 +27,89 @@ func (s *Service) validateApprovedImplementationRouting(requestID string, routin
 		if inputSetCount > 1 {
 			return sessionExecutionTriggerValidationError(s, requestID, "workflow_routing approved_change_implementation allows exactly one implementation_input_set artifact binding")
 		}
-		inputSetDigest = strings.TrimSpace(artifact.ArtifactDigest)
+		inputSetArtifactDigest = strings.TrimSpace(artifact.ArtifactDigest)
 	}
-	if inputSetDigest == "" {
+	if inputSetArtifactDigest == "" {
 		return sessionExecutionTriggerValidationError(s, requestID, "workflow_routing approved_change_implementation requires implementation_input_set artifact binding")
 	}
-	return s.validateApprovedImplementationIdentityTuple(requestID, inputSetDigest)
+	return s.validateApprovedImplementationIdentityTuple(requestID, inputSetArtifactDigest)
 }
 
-func (s *Service) validateApprovedImplementationIdentityTuple(requestID, inputSetDigest string) *ErrorResponse {
-	decoded, errResp := s.decodeApprovedImplementationInputSet(requestID, inputSetDigest)
+func (s *Service) validateApprovedImplementationIdentityTuple(requestID, inputSetArtifactDigest string) *ErrorResponse {
+	inputSet, errResp := s.decodeApprovedImplementationInputSet(requestID, inputSetArtifactDigest)
 	if errResp != nil {
 		return errResp
 	}
-	if !matchesBoundInputSetDigest(decoded, inputSetDigest) {
-		return sessionExecutionTriggerValidationError(s, requestID, "implementation_input_set input_set_digest does not match bound artifact digest")
-	}
-	if errResp := validateApprovedImplementationCatalogBinding(s, requestID, decoded); errResp != nil {
+	if errResp := validateApprovedImplementationCatalogBinding(s, requestID, inputSet.decoded); errResp != nil {
 		return errResp
 	}
 	project, errResp := s.requireSupportedProjectSubstrateForSessionExecution(requestID)
 	if errResp != nil {
 		return errResp
 	}
-	validatedDigest, ok := digestIdentityFromApprovedImplementationField(decoded, "validated_project_substrate_digest")
+	validatedDigest, ok := digestIdentityFromApprovedImplementationField(inputSet.decoded, "validated_project_substrate_digest")
 	if !ok || strings.TrimSpace(validatedDigest) != strings.TrimSpace(sessionExecutionBoundDigest(project)) {
 		return sessionExecutionTriggerValidationError(s, requestID, "implementation_input_set validated_project_substrate_digest drift detected")
 	}
 	return nil
 }
 
-func (s *Service) decodeApprovedImplementationInputSet(requestID, inputSetDigest string) (map[string]any, *ErrorResponse) {
-	payload, err := s.readArtifactPayload(inputSetDigest)
+func (s *Service) decodeApprovedImplementationInputSet(requestID, inputSetArtifactDigest string) (approvedImplementationInputSetState, *ErrorResponse) {
+	payload, err := s.readArtifactPayloadVerified(inputSetArtifactDigest)
 	if err != nil {
-		return nil, sessionExecutionTriggerValidationError(s, requestID, "workflow_routing implementation_input_set artifact is unreadable")
+		return approvedImplementationInputSetState{}, sessionExecutionTriggerValidationError(s, requestID, "workflow_routing implementation_input_set artifact is unreadable")
 	}
 	if err := artifacts.ValidateObjectPayloadAgainstSchema(payload, "objects/RuneContextApprovedImplementationInputSet.schema.json"); err != nil {
-		return nil, sessionExecutionTriggerValidationError(s, requestID, "workflow_routing implementation_input_set payload is invalid")
+		return approvedImplementationInputSetState{}, sessionExecutionTriggerValidationError(s, requestID, "workflow_routing implementation_input_set payload is invalid")
 	}
 	var decoded map[string]any
 	if err := json.Unmarshal(payload, &decoded); err != nil {
-		return nil, sessionExecutionTriggerValidationError(s, requestID, "workflow_routing implementation_input_set payload decode failed")
+		return approvedImplementationInputSetState{}, sessionExecutionTriggerValidationError(s, requestID, "workflow_routing implementation_input_set payload decode failed")
 	}
-	return decoded, nil
+	inputSetDigest, ok := approvedImplementationInputSetDigest(decoded)
+	if !ok {
+		return approvedImplementationInputSetState{}, sessionExecutionTriggerValidationError(s, requestID, "implementation_input_set input_set_digest is invalid")
+	}
+	recomputedInputSetDigest, err := recomputeApprovedImplementationInputSetDigest(decoded)
+	if err != nil {
+		return approvedImplementationInputSetState{}, sessionExecutionTriggerValidationError(s, requestID, "implementation_input_set input_set_digest recompute failed")
+	}
+	if strings.TrimSpace(inputSetDigest) != strings.TrimSpace(recomputedInputSetDigest) {
+		return approvedImplementationInputSetState{}, sessionExecutionTriggerValidationError(s, requestID, "implementation_input_set input_set_digest drift detected")
+	}
+	return approvedImplementationInputSetState{
+		decoded:                decoded,
+		inputSetArtifactDigest: strings.TrimSpace(inputSetArtifactDigest),
+		inputSetDigest:         strings.TrimSpace(recomputedInputSetDigest),
+	}, nil
 }
 
-func matchesBoundInputSetDigest(decoded map[string]any, inputSetDigest string) bool {
+func approvedImplementationInputSetDigest(decoded map[string]any) (string, bool) {
 	inputSetField, ok := digestIdentityFromApprovedImplementationField(decoded, "input_set_digest")
 	if !ok {
-		return false
+		return "", false
 	}
-	return strings.TrimSpace(inputSetField) == strings.TrimSpace(inputSetDigest)
+	return strings.TrimSpace(inputSetField), true
+}
+
+func recomputeApprovedImplementationInputSetDigest(decoded map[string]any) (string, error) {
+	if decoded == nil {
+		return "", fmt.Errorf("payload must be an object")
+	}
+	payloadWithoutDigest := make(map[string]any, len(decoded))
+	for key, value := range decoded {
+		payloadWithoutDigest[key] = value
+	}
+	delete(payloadWithoutDigest, "input_set_digest")
+	raw, err := json.Marshal(payloadWithoutDigest)
+	if err != nil {
+		return "", fmt.Errorf("marshal canonical input set body: %w", err)
+	}
+	canonical, err := artifacts.CanonicalizeJSONBytes(raw)
+	if err != nil {
+		return "", fmt.Errorf("canonicalize input set body: %w", err)
+	}
+	return artifacts.DigestBytes(canonical), nil
 }
 
 func validateApprovedImplementationCatalogBinding(s *Service, requestID string, decoded map[string]any) *ErrorResponse {

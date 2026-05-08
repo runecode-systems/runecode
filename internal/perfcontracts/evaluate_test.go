@@ -52,6 +52,13 @@ func exactAndAbsoluteComparisonTests(max500 float64) []comparisonMethodTestCase 
 			wantViolation: false,
 		},
 		{
+			name:           "exact_match fails on near-equal value",
+			metric:         MetricContract{MetricID: "m.exact.near.fail", Unit: "count", BudgetClass: "exact", ComparisonMethod: "exact_match", Threshold: MetricThreshold{ExactValue: floatPtr(2)}},
+			measurement:    MeasurementRecord{MetricID: "m.exact.near.fail", Unit: "count", Value: 2.0000000001},
+			wantViolation:  true,
+			wantReasonLike: "exact mismatch",
+		},
+		{
 			name:           "absolute_ceiling fails above max",
 			metric:         MetricContract{MetricID: "m.abs.fail", Unit: "ms", BudgetClass: "absolute-budget", ComparisonMethod: "absolute_ceiling", Threshold: MetricThreshold{MaxValue: &max500}},
 			measurement:    MeasurementRecord{MetricID: "m.abs.fail", Unit: "ms", Value: 501},

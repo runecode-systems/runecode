@@ -219,7 +219,17 @@ func (f *reloadAwareBrokerClient) RunGet(ctx context.Context, runID string) (bro
 		summary = brokerapi.RunSummary{RunID: runID, BackendKind: "container", IsolationAssuranceLevel: "reduced", ProvisioningPosture: "attested", AuditIntegrityStatus: "degraded", AuditAnchoringStatus: "degraded"}
 		coordination = brokerapi.RunCoordinationSummary{Blocked: false, WaitReasonCode: "", CoordinationMode: "free"}
 	}
-	return brokerapi.RunGetResponse{Run: brokerapi.RunDetail{Summary: summary, Coordination: coordination}}, nil
+	detail := brokerapi.RunDetail{Summary: summary, Coordination: coordination}
+	if runID == "run-2" {
+		detail.AuthoritativeState = map[string]any{
+			"attestation_posture":                      "unavailable",
+			"session_binding_present":                  true,
+			"attestation_evidence_present":             false,
+			"attestation_verification_succeeded":       false,
+			"supported_runtime_requirements_satisfied": false,
+		}
+	}
+	return brokerapi.RunGetResponse{Run: detail}, nil
 }
 
 func (f *reloadAwareBrokerClient) RunWatch(ctx context.Context, req brokerapi.RunWatchRequest) ([]brokerapi.RunWatchEvent, error) {

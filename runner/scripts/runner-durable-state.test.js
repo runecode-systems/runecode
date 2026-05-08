@@ -466,3 +466,36 @@ test("heals snapshot state from journal after crash window during wait resolutio
     status: "approved",
   }]);
 });
+
+test("cleans up temp snapshot file when exclusive create successor rename fails", async (t) => {
+  const {
+    FileDurableStateStore,
+    setDurableStateStoreFSTestHooksForTesting,
+  } = await loadRunnerModules();
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-state-"));
+  t.after(() => {
+    setDurableStateStoreFSTestHooksForTesting(null);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  let observedTempPath = "";
+  setDurableStateStoreFSTestHooksForTesting({
+    async rename(from, to) {
+      observedTempPath = from;
+      const error = new Error(`simulated snapshot collision for ${to}`);
+      error.code = "EEXIST";
+      throw error;
+    },
+  });
+
+  const store = new FileDurableStateStore(root);
+  await assert.rejects(
+    () => store.bindPlanIdentity({ run_id: "run_alpha", plan_id: "plan_alpha" }),
+    /simulated snapshot collision/,
+  );
+
+  assert.notEqual(observedTempPath, "");
+  assert.equal(fs.existsSync(observedTempPath), false);
+  assert.equal(fs.existsSync(path.join(root, "snapshot.v2.json")), false);
+});

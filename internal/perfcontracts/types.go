@@ -5,6 +5,7 @@ type Manifest struct {
 	ManifestVersion     string             `json:"manifest_version"`
 	ChangeRef           string             `json:"change_ref"`
 	FixtureInventoryRef string             `json:"fixture_inventory_ref"`
+	MeasurementProfiles []string           `json:"measurement_profiles,omitempty"`
 	Contracts           []ManifestContract `json:"contracts"`
 	Baselines           []ManifestBaseline `json:"baselines,omitempty"`
 	Taxonomy            MetricTaxonomy     `json:"metric_taxonomy"`
@@ -53,25 +54,26 @@ type ContractFile struct {
 }
 
 type MetricContract struct {
-	MetricID         string          `json:"metric_id"`
-	Subsystem        string          `json:"subsystem"`
-	RuntimeRegime    string          `json:"runtime_regime"`
-	FixtureID        string          `json:"fixture_id"`
-	MeasurementKind  string          `json:"measurement_kind"`
-	Unit             string          `json:"unit"`
-	AuthoritativeEnv string          `json:"authoritative_environment"`
-	SamplingPolicy   SamplingPolicy  `json:"sampling_policy"`
-	BudgetClass      string          `json:"budget_class"`
-	Threshold        MetricThreshold `json:"threshold"`
-	LaneAuthority    string          `json:"lane_authority"`
-	ActivationState  string          `json:"activation_state"`
-	BaselineSource   string          `json:"baseline_source,omitempty"`
-	BaselineRef      string          `json:"baseline_ref,omitempty"`
-	ComparisonMethod string          `json:"comparison_method"`
-	NoiseFloor       float64         `json:"practical_noise_floor,omitempty"`
-	ThresholdOrigin  string          `json:"threshold_origin"`
-	TimingBoundary   TimingBoundary  `json:"timing_boundary"`
-	Notes            string          `json:"notes,omitempty"`
+	MetricID           string          `json:"metric_id"`
+	Subsystem          string          `json:"subsystem"`
+	RuntimeRegime      string          `json:"runtime_regime"`
+	FixtureID          string          `json:"fixture_id"`
+	MeasurementKind    string          `json:"measurement_kind"`
+	Unit               string          `json:"unit"`
+	AuthoritativeEnv   string          `json:"authoritative_environment"`
+	MeasurementProfile string          `json:"measurement_profile,omitempty"`
+	SamplingPolicy     SamplingPolicy  `json:"sampling_policy"`
+	BudgetClass        string          `json:"budget_class"`
+	Threshold          MetricThreshold `json:"threshold"`
+	LaneAuthority      string          `json:"lane_authority"`
+	ActivationState    string          `json:"activation_state"`
+	BaselineSource     string          `json:"baseline_source,omitempty"`
+	BaselineRef        string          `json:"baseline_ref,omitempty"`
+	ComparisonMethod   string          `json:"comparison_method"`
+	NoiseFloor         float64         `json:"practical_noise_floor,omitempty"`
+	ThresholdOrigin    string          `json:"threshold_origin"`
+	TimingBoundary     TimingBoundary  `json:"timing_boundary"`
+	Notes              string          `json:"notes,omitempty"`
 }
 
 type SamplingPolicy struct {

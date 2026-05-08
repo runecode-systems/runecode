@@ -6,11 +6,14 @@ Even with session execution orchestration and durable wait/resume semantics, imp
 
 At the same time, naive parallelization in one shared workspace risks collisions, hidden dependency mistakes, and client-local scheduling semantics that bypass the broker-owned lifecycle and policy model.
 
+`CHG-2026-060-c1a4-beta-readiness-hardening-product-polish` now owns the first beta proof that `approved_change_implementation` can run through the real trusted `RunPlan`, runner reporting, local workspace mutation, and evidence-backed product path. This change therefore starts after that single-lane approved implementation baseline exists; it does not introduce the first approved implementation path.
+
 ## Proposed Change
 - One broker-owned implementation-track model with stable track identity, dependency edges, and explicit blocked/unblocked readiness.
 - Track decomposition that consumes the reviewed implementation-input-set foundation from `CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0`, can use explicit track declarations from approved canonical inputs when they exist, and can infer candidate tracks when they do not.
 - A broker-owned proposed execution-plan artifact so inferred decomposition remains auditable, reviewable, and operator-visible rather than a hidden runtime heuristic.
 - Explicit alignment with CHG-050 so the proposed execution-plan artifact remains planning/review state, while actual runner-consumed runtime authority still flows through broker-compiled immutable `RunPlan`.
+- Explicitly additive posture over the CHG-060 single-lane approved implementation proof; this change extends that path with decomposition, isolated worktrees, partial blocking, and safe continuation of unrelated tracks.
 - Isolated git-worktree execution for low-coupling eligible tracks when confidence, dependency state, policy, and coordination posture allow it.
 - Explicitly additive posture over the `CHG-049` `v0` baseline of at most one mutation-bearing shared-workspace run per authoritative repository root; this change is where later reviewed multi-track implementation execution becomes explicit.
 - Dependency-aware partial blocking so pending operator input or approval freezes only the directly affected tracks and downstream dependent tracks, while unrelated eligible tracks may continue.
@@ -34,6 +37,7 @@ Planning it now avoids a later split between:
 - When explicit track declarations are absent, inferred tracks should still become broker-owned proposed execution-plan state rather than remaining hidden agent-local reasoning.
 - Git worktrees are the preferred isolation substrate for low-coupling implementation tracks, but only when overlap risk and dependency ambiguity remain low enough for safe reviewed use.
 - Worktree paths, branch names, and local filesystem mechanics remain implementation-private and non-authoritative.
+- The CHG-060 beta path proves approved implementation without requiring track decomposition or isolated worktree execution.
 - `CHG-2026-049-1d4e-first-party-runecontext-workflow-pack-v0` freezes the reviewed implementation-input-set authority model and the initial `v0` single mutation-bearing shared-workspace baseline this change extends later rather than redefines locally.
 
 ## Out of Scope
@@ -54,3 +58,7 @@ This change remains explicitly additive over CHG-050:
 It also remains explicitly additive over CHG-049:
 - approved implementation work already binds to reviewed implementation-input sets and exact digests before this change
 - this change adds reviewed decomposition, isolation, and coordination behavior on top of that foundation rather than reopening approved-input authority or ambient-repo heuristics
+
+And it remains explicitly additive over CHG-060:
+- CHG-060 proves the first local canonical approved implementation path through the real product architecture
+- this change broadens that path into explicit multi-track and isolated-worktree execution only after the baseline is already honest and inspectable

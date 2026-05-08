@@ -86,4 +86,4 @@ export {
   healSnapshotFromJournal,
   snapshotNeedsRewrite,
 } from "./durable-state/replay.ts";
-export { FileDurableStateStore } from "./durable-state/store.ts";
+export { FileDurableStateStore, setDurableStateStoreFSTestHooksForTesting } from "./durable-state/store.ts";

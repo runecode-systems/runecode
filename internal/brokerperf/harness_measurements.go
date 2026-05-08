@@ -76,13 +76,33 @@ func measureWatches(trials int, repoRoot string) ([]perfcontracts.MeasurementRec
 
 func measureMutations(trials int, repoRoot string) ([]perfcontracts.MeasurementRecord, error) {
 	ctx := context.Background()
-	specs := []latencySpec{
-		{metricID: "metric.broker.mutation.session_execution_trigger.p95_ms", call: func() error { return measureSessionExecutionTriggerMutation(ctx, repoRoot) }},
-		{metricID: "metric.broker.mutation.session_execution_continue.p95_ms", call: func() error { return measureSessionExecutionContinueMutation(ctx, repoRoot) }},
-		{metricID: "metric.broker.mutation.approval_resolve.p95_ms", call: func() error { return measureApprovalResolveMutation(ctx, repoRoot) }},
-		{metricID: "metric.broker.mutation.backend_posture_change.p95_ms", call: func() error { return measureBackendPostureChangeFixture(repoRoot) }},
+	latency := map[string][]float64{}
+	for i := 0; i < trials; i++ {
+		triggerDuration, err := measureSessionExecutionTriggerMutation(ctx, repoRoot)
+		if err != nil {
+			return nil, err
+		}
+		latency["metric.broker.mutation.session_execution_trigger.p95_ms"] = append(latency["metric.broker.mutation.session_execution_trigger.p95_ms"], triggerDuration)
+
+		continueDuration, err := measureSessionExecutionContinueMutation(ctx, repoRoot)
+		if err != nil {
+			return nil, err
+		}
+		latency["metric.broker.mutation.session_execution_continue.p95_ms"] = append(latency["metric.broker.mutation.session_execution_continue.p95_ms"], continueDuration)
+
+		approvalDuration, err := measureApprovalResolveMutation(ctx, repoRoot)
+		if err != nil {
+			return nil, err
+		}
+		latency["metric.broker.mutation.approval_resolve.p95_ms"] = append(latency["metric.broker.mutation.approval_resolve.p95_ms"], approvalDuration)
+
+		postureDuration, err := measureBackendPostureChangeMutation(ctx, repoRoot)
+		if err != nil {
+			return nil, err
+		}
+		latency["metric.broker.mutation.backend_posture_change.p95_ms"] = append(latency["metric.broker.mutation.backend_posture_change.p95_ms"], postureDuration)
 	}
-	return collectLatencyMeasurements(trials, specs)
+	return p95Records(latency)
 }
 
 func measureAttachResume(trials int, repoRoot string) ([]perfcontracts.MeasurementRecord, error) {
@@ -138,63 +158,92 @@ func timedProductLifecyclePostureGet(ctx context.Context, service *brokerapi.Ser
 	})
 }
 
-func measureSessionExecutionTriggerMutation(ctx context.Context, repoRoot string) error {
+func measureSessionExecutionTriggerMutation(ctx context.Context, repoRoot string) (float64, error) {
 	service, cleanup, err := newSeededService(repoRoot)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer cleanup()
-	_, errResp := service.HandleSessionExecutionTrigger(ctx, brokerapi.SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "perf-trigger", SessionID: "sess-broker-1", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &brokerapi.SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "change_draft"}, UserMessageContentText: "trigger"}, brokerapi.RequestContext{})
-	if errResp != nil {
-		return fmt.Errorf("session_execution_trigger: %s", errResp.Error.Code)
-	}
-	return nil
+	return timedCall(func() error {
+		_, errResp := service.HandleSessionExecutionTrigger(ctx, brokerapi.SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "perf-trigger", SessionID: "sess-broker-1", TriggerSource: "autonomous_background", RequestedOperation: "start", WorkflowRouting: &brokerapi.SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "change_draft"}, AutonomyPosture: "operator_guided"}, brokerapi.RequestContext{})
+		if errResp != nil {
+			return fmt.Errorf("session_execution_trigger: %s", errResp.Error.Code)
+		}
+		return nil
+	})
 }
 
-func measureSessionExecutionContinueMutation(ctx context.Context, repoRoot string) error {
+func measureSessionExecutionContinueMutation(ctx context.Context, repoRoot string) (float64, error) {
 	service, cleanup, err := newSeededService(repoRoot)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer cleanup()
-	startResp, errResp := service.HandleSessionExecutionTrigger(ctx, brokerapi.SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "perf-continue-start", SessionID: "sess-broker-1", TriggerSource: "interactive_user", RequestedOperation: "start", WorkflowRouting: &brokerapi.SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "change_draft"}, UserMessageContentText: "start"}, brokerapi.RequestContext{})
+	startResp, errResp := service.HandleSessionExecutionTrigger(ctx, brokerapi.SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "perf-continue-start", SessionID: "sess-broker-1", TriggerSource: "autonomous_background", RequestedOperation: "start", WorkflowRouting: &brokerapi.SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "change_draft"}, AutonomyPosture: "operator_guided"}, brokerapi.RequestContext{})
 	if errResp != nil {
-		return fmt.Errorf("continue start seed: %s", errResp.Error.Code)
+		return 0, fmt.Errorf("continue start seed: %s", errResp.Error.Code)
 	}
-	_, _ = service.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-broker-1", TurnID: startResp.TurnID, ExecutionState: "blocked", WaitKind: "project_blocked", WaitState: "waiting_project_blocked", BlockedReasonCode: "project_substrate_posture_blocked", OccurredAt: time.Now().UTC()})
-	_, errResp = service.HandleSessionExecutionTrigger(ctx, brokerapi.SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "perf-continue", SessionID: "sess-broker-1", TurnID: startResp.TurnID, TriggerSource: "resume_follow_up", RequestedOperation: "continue", WorkflowRouting: &brokerapi.SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "change_draft"}, UserMessageContentText: "continue"}, brokerapi.RequestContext{})
-	if errResp != nil {
-		return fmt.Errorf("session_execution_continue: %s", errResp.Error.Code)
+	if _, err := service.UpdateSessionTurnExecution(artifacts.SessionTurnExecutionUpdateRequest{SessionID: "sess-broker-1", TurnID: startResp.TurnID, ExecutionState: "blocked", WaitKind: "project_blocked", WaitState: "waiting_project_blocked", BlockedReasonCode: "project_substrate_posture_blocked", OccurredAt: time.Now().UTC()}); err != nil {
+		return 0, fmt.Errorf("continue blocked seed: %w", err)
 	}
-	return nil
+	return timedCall(func() error {
+		_, errResp = service.HandleSessionExecutionTrigger(ctx, brokerapi.SessionExecutionTriggerRequest{SchemaID: "runecode.protocol.v0.SessionExecutionTriggerRequest", SchemaVersion: "0.1.0", RequestID: "perf-continue", SessionID: "sess-broker-1", TurnID: startResp.TurnID, TriggerSource: "resume_follow_up", RequestedOperation: "continue", WorkflowRouting: &brokerapi.SessionWorkflowPackRouting{SchemaID: "runecode.protocol.v0.SessionWorkflowPackRouting", SchemaVersion: "0.1.0", WorkflowFamily: "runecontext", WorkflowOperation: "change_draft"}}, brokerapi.RequestContext{})
+		if errResp != nil {
+			return fmt.Errorf("session_execution_continue: %s", errResp.Error.Code)
+		}
+		return nil
+	})
 }
 
-func measureApprovalResolveMutation(ctx context.Context, repoRoot string) error {
+func measureApprovalResolveMutation(ctx context.Context, repoRoot string) (float64, error) {
 	service, cleanup, err := newSeededService(repoRoot)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer cleanup()
-	resolveReq, err := seedBackendPostureApprovalForResolve(service)
+	resolveReq, err := seedBackendPostureApprovalForResolveWithRunID(service, "")
 	if err != nil {
-		return err
+		return 0, err
 	}
-	_, errResp := service.HandleApprovalResolve(ctx, resolveReq, brokerapi.RequestContext{})
-	if errResp != nil {
-		return fmt.Errorf("approval_resolve: %s: %s", errResp.Error.Code, errResp.Error.Message)
-	}
-	return nil
+	return timedCall(func() error {
+		_, errResp := service.HandleApprovalResolve(ctx, resolveReq, brokerapi.RequestContext{})
+		if errResp != nil {
+			return fmt.Errorf("approval_resolve: %s: %s", errResp.Error.Code, errResp.Error.Message)
+		}
+		return nil
+	})
 }
 
-func measureBackendPostureChangeFixture(repoRoot string) error {
+func measureBackendPostureChangeMutation(ctx context.Context, repoRoot string) (float64, error) {
 	service, cleanup, err := newSeededService(repoRoot)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer cleanup()
-	_, err = seedBackendPostureApprovalForResolve(service)
-	if err != nil {
-		return fmt.Errorf("backend_posture_change fixture: %w", err)
+	if err := seedBackendPosturePolicyContext(service); err != nil {
+		return 0, fmt.Errorf("backend_posture_change context: %w", err)
 	}
-	return nil
+	targetInstanceID := serviceCurrentInstanceID(service)
+	if targetInstanceID == "" {
+		return 0, fmt.Errorf("backend_posture_change target instance missing")
+	}
+	return timedCall(func() error {
+		_, errResp := service.HandleBackendPostureChange(ctx, brokerapi.BackendPostureChangeRequest{
+			SchemaID:                     "runecode.protocol.v0.BackendPostureChangeRequest",
+			SchemaVersion:                "0.1.0",
+			RequestID:                    "perf-backend-posture-change",
+			TargetInstanceID:             targetInstanceID,
+			TargetBackendKind:            "container",
+			SelectionMode:                "explicit_selection",
+			ChangeKind:                   "select_backend",
+			AssuranceChangeKind:          "reduce_assurance",
+			OptInKind:                    "exact_action_approval",
+			ReducedAssuranceAcknowledged: true,
+			Reason:                       "operator_requested_reduced_assurance_backend_opt_in",
+		}, brokerapi.RequestContext{})
+		if errResp != nil {
+			return fmt.Errorf("backend_posture_change: %s: %s", errResp.Error.Code, errResp.Error.Message)
+		}
+		return nil
+	})
 }

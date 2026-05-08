@@ -27,6 +27,12 @@ var allowedActivationStates = map[string]struct{}{
 	"contract_pending_dependency": {},
 }
 
+var allowedMeasurementProfiles = map[string]struct{}{
+	"linux_shared_ci":        {},
+	"linux_pi_reference":     {},
+	"linux_scaled_reference": {},
+}
+
 var allowedThresholdOrigins = map[string]struct{}{
 	"product_budget":         {},
 	"investigation_baseline": {},
@@ -42,6 +48,7 @@ func ValidateWithBaselines(manifest Manifest, inventory FixtureInventory, contra
 	if err := validateManifestAndInventory(manifest, inventory); err != nil {
 		return err
 	}
+	reviewedMeasurementProfiles := measurementProfileSet(manifest.MeasurementProfiles)
 	baselineRefsByMetric, err := baselineRefSet(manifest.Baselines)
 	if err != nil {
 		return err
@@ -50,7 +57,7 @@ func ValidateWithBaselines(manifest Manifest, inventory FixtureInventory, contra
 	if err != nil {
 		return err
 	}
-	return validateContracts(contracts, fixtures, baselinesByMetric, baselineRefsByMetric)
+	return validateContracts(contracts, fixtures, reviewedMeasurementProfiles, baselinesByMetric, baselineRefsByMetric)
 }
 
 func validateManifestAndInventory(manifest Manifest, inventory FixtureInventory) error {
@@ -59,6 +66,15 @@ func validateManifestAndInventory(manifest Manifest, inventory FixtureInventory)
 	}
 	if strings.TrimSpace(inventory.SchemaVersion) == "" {
 		return fmt.Errorf("fixture inventory schema_version is required")
+	}
+	for _, profile := range manifest.MeasurementProfiles {
+		normalized := strings.TrimSpace(profile)
+		if normalized == "" {
+			return fmt.Errorf("measurement_profiles entries must be non-empty")
+		}
+		if _, ok := allowedMeasurementProfiles[normalized]; !ok {
+			return fmt.Errorf("measurement_profile %q unsupported", normalized)
+		}
 	}
 	return nil
 }
@@ -74,6 +90,14 @@ func fixtureSet(inventory FixtureInventory) (map[string]struct{}, error) {
 	return fixtures, nil
 }
 
+func measurementProfileSet(profiles []string) map[string]struct{} {
+	set := map[string]struct{}{}
+	for _, profile := range profiles {
+		set[strings.TrimSpace(profile)] = struct{}{}
+	}
+	return set
+}
+
 func baselineRefSet(entries []ManifestBaseline) (map[string]string, error) {
 	refs := map[string]string{}
 	for _, entry := range entries {
@@ -85,29 +109,29 @@ func baselineRefSet(entries []ManifestBaseline) (map[string]string, error) {
 	return refs, nil
 }
 
-func validateContracts(contracts []ContractFile, fixtures map[string]struct{}, baselinesByMetric map[string]BaselineFile, baselineRefsByMetric map[string]string) error {
+func validateContracts(contracts []ContractFile, fixtures map[string]struct{}, reviewedMeasurementProfiles map[string]struct{}, baselinesByMetric map[string]BaselineFile, baselineRefsByMetric map[string]string) error {
 	for _, contract := range contracts {
-		if err := validateContract(contract, fixtures, baselinesByMetric, baselineRefsByMetric); err != nil {
+		if err := validateContract(contract, fixtures, reviewedMeasurementProfiles, baselinesByMetric, baselineRefsByMetric); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateContract(contract ContractFile, fixtures map[string]struct{}, baselinesByMetric map[string]BaselineFile, baselineRefsByMetric map[string]string) error {
+func validateContract(contract ContractFile, fixtures map[string]struct{}, reviewedMeasurementProfiles map[string]struct{}, baselinesByMetric map[string]BaselineFile, baselineRefsByMetric map[string]string) error {
 	if strings.TrimSpace(contract.SchemaVersion) == "" {
 		return fmt.Errorf("contract %s missing schema_version", contract.ContractID)
 	}
 	for _, metric := range contract.Metrics {
-		if err := validateMetric(metric, fixtures, baselinesByMetric, baselineRefsByMetric); err != nil {
+		if err := validateMetric(metric, fixtures, reviewedMeasurementProfiles, baselinesByMetric, baselineRefsByMetric); err != nil {
 			return fmt.Errorf("contract %s metric %s invalid: %w", contract.ContractID, metric.MetricID, err)
 		}
 	}
 	return nil
 }
 
-func validateMetric(metric MetricContract, fixtures map[string]struct{}, baselinesByMetric map[string]BaselineFile, baselineRefsByMetric map[string]string) error {
-	checks := []func(MetricContract, map[string]struct{}, map[string]BaselineFile, map[string]string) error{
+func validateMetric(metric MetricContract, fixtures map[string]struct{}, reviewedMeasurementProfiles map[string]struct{}, baselinesByMetric map[string]BaselineFile, baselineRefsByMetric map[string]string) error {
+	checks := []func(MetricContract, map[string]struct{}, map[string]struct{}, map[string]BaselineFile, map[string]string) error{
 		validateMetricIdentity,
 		validateMetricEnums,
 		validateMetricFixture,
@@ -116,21 +140,21 @@ func validateMetric(metric MetricContract, fixtures map[string]struct{}, baselin
 		validateMetricBaseline,
 	}
 	for _, check := range checks {
-		if err := check(metric, fixtures, baselinesByMetric, baselineRefsByMetric); err != nil {
+		if err := check(metric, fixtures, reviewedMeasurementProfiles, baselinesByMetric, baselineRefsByMetric); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateMetricIdentity(metric MetricContract, _ map[string]struct{}, _ map[string]BaselineFile, _ map[string]string) error {
+func validateMetricIdentity(metric MetricContract, _ map[string]struct{}, _ map[string]struct{}, _ map[string]BaselineFile, _ map[string]string) error {
 	if strings.TrimSpace(metric.MetricID) == "" {
 		return fmt.Errorf("metric_id is required")
 	}
 	return nil
 }
 
-func validateMetricEnums(metric MetricContract, _ map[string]struct{}, _ map[string]BaselineFile, _ map[string]string) error {
+func validateMetricEnums(metric MetricContract, _ map[string]struct{}, reviewedMeasurementProfiles map[string]struct{}, _ map[string]BaselineFile, _ map[string]string) error {
 	if _, ok := allowedBudgetClasses[metric.BudgetClass]; !ok {
 		return fmt.Errorf("budget_class %q unsupported", metric.BudgetClass)
 	}
@@ -140,17 +164,25 @@ func validateMetricEnums(metric MetricContract, _ map[string]struct{}, _ map[str
 	if _, ok := allowedActivationStates[metric.ActivationState]; !ok {
 		return fmt.Errorf("activation_state %q unsupported", metric.ActivationState)
 	}
+	if profile := strings.TrimSpace(metric.MeasurementProfile); profile != "" {
+		if _, ok := allowedMeasurementProfiles[profile]; !ok {
+			return fmt.Errorf("measurement_profile %q unsupported", metric.MeasurementProfile)
+		}
+		if _, ok := reviewedMeasurementProfiles[profile]; !ok {
+			return fmt.Errorf("measurement_profile %q missing from manifest measurement_profiles", metric.MeasurementProfile)
+		}
+	}
 	return nil
 }
 
-func validateMetricFixture(metric MetricContract, fixtures map[string]struct{}, _ map[string]BaselineFile, _ map[string]string) error {
+func validateMetricFixture(metric MetricContract, fixtures map[string]struct{}, _ map[string]struct{}, _ map[string]BaselineFile, _ map[string]string) error {
 	if _, ok := fixtures[metric.FixtureID]; !ok {
 		return fmt.Errorf("fixture_id %q missing from inventory", metric.FixtureID)
 	}
 	return nil
 }
 
-func validateMetricThresholdOrigin(metric MetricContract, _ map[string]struct{}, _ map[string]BaselineFile, _ map[string]string) error {
+func validateMetricThresholdOrigin(metric MetricContract, _ map[string]struct{}, _ map[string]struct{}, _ map[string]BaselineFile, _ map[string]string) error {
 	if strings.TrimSpace(metric.ThresholdOrigin) == "" {
 		return fmt.Errorf("threshold_origin is required")
 	}
@@ -160,7 +192,7 @@ func validateMetricThresholdOrigin(metric MetricContract, _ map[string]struct{},
 	return nil
 }
 
-func validateMetricTimingBoundary(metric MetricContract, _ map[string]struct{}, _ map[string]BaselineFile, _ map[string]string) error {
+func validateMetricTimingBoundary(metric MetricContract, _ map[string]struct{}, _ map[string]struct{}, _ map[string]BaselineFile, _ map[string]string) error {
 	boundary := metric.TimingBoundary
 	if strings.TrimSpace(boundary.StartEvent) == "" || strings.TrimSpace(boundary.EndEvent) == "" {
 		return fmt.Errorf("timing_boundary start_event/end_event are required")
@@ -174,7 +206,7 @@ func validateMetricTimingBoundary(metric MetricContract, _ map[string]struct{}, 
 	return nil
 }
 
-func validateMetricBaseline(metric MetricContract, _ map[string]struct{}, baselinesByMetric map[string]BaselineFile, baselineRefsByMetric map[string]string) error {
+func validateMetricBaseline(metric MetricContract, _ map[string]struct{}, _ map[string]struct{}, baselinesByMetric map[string]BaselineFile, baselineRefsByMetric map[string]string) error {
 	if !requiresBaselineValidation(metric) {
 		return nil
 	}

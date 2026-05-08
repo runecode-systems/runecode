@@ -9,6 +9,8 @@ export const RUNNER_CHECKPOINT_REPORT_SCHEMA_ID = "runecode.protocol.v0.RunnerCh
 export const RUNNER_RESULT_REPORT_SCHEMA_ID = "runecode.protocol.v0.RunnerResultReport";
 export const RUNNER_CHECKPOINT_REPORT_REQUEST_SCHEMA_ID = "runecode.protocol.v0.RunnerCheckpointReportRequest";
 export const RUNNER_RESULT_REPORT_REQUEST_SCHEMA_ID = "runecode.protocol.v0.RunnerResultReportRequest";
+export const RUNNER_CHECKPOINT_REPORT_RESPONSE_SCHEMA_ID = "runecode.protocol.v0.RunnerCheckpointReportResponse";
+export const RUNNER_RESULT_REPORT_RESPONSE_SCHEMA_ID = "runecode.protocol.v0.RunnerResultReportResponse";
 export const DEPENDENCY_CACHE_HANDOFF_REQUEST_SCHEMA_ID = "runecode.protocol.v0.DependencyCacheHandoffRequest";
 export const DEPENDENCY_CACHE_HANDOFF_RESPONSE_SCHEMA_ID = "runecode.protocol.v0.DependencyCacheHandoffResponse";
 export const DEPENDENCY_CACHE_HANDOFF_METADATA_SCHEMA_ID = "runecode.protocol.v0.DependencyCacheHandoffMetadata";
@@ -97,6 +99,28 @@ export type RunnerResultReportRequest = {
   request_id: string;
   run_id: string;
   report: RunnerResultReport;
+};
+
+export type RunnerCheckpointReportResponse = {
+  schema_id: typeof RUNNER_CHECKPOINT_REPORT_RESPONSE_SCHEMA_ID;
+  schema_version: typeof RUNNER_CONTRACT_SCHEMA_VERSION;
+  request_id: string;
+  run_id: string;
+  accepted: boolean;
+  canonical_lifecycle_state: "pending" | "starting" | "active" | "blocked" | "recovering" | "completed" | "failed" | "cancelled";
+  accepted_at: string;
+  idempotency_key: string;
+};
+
+export type RunnerResultReportResponse = {
+  schema_id: typeof RUNNER_RESULT_REPORT_RESPONSE_SCHEMA_ID;
+  schema_version: typeof RUNNER_CONTRACT_SCHEMA_VERSION;
+  request_id: string;
+  run_id: string;
+  accepted: boolean;
+  canonical_lifecycle_state: "pending" | "starting" | "active" | "blocked" | "recovering" | "completed" | "failed" | "cancelled";
+  accepted_at: string;
+  idempotency_key: string;
 };
 
 export type DependencyCacheHandoffRequest = {

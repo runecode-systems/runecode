@@ -50,6 +50,7 @@ type Service struct {
 	dependencyFetchService     *dependencyFetchService
 	runGatePlanCache           *runGatePlanCache
 	compileCoordinator         *compileCoordinator
+	sessionExecutionRunner     sessionExecutionRunnerLaunchFunc
 	externalAnchorRuntime      externalAnchorExecutionRuntime
 	externalAnchorQueue        *externalAnchorBackgroundQueue
 }
@@ -128,6 +129,7 @@ func newConfiguredService(store *artifacts.Store, ledger *auditd.Ledger, ledgerR
 		versionInfo:               defaultBrokerVersionInfo(),
 		runGatePlanCache:          newRunGatePlanCache(),
 		compileCoordinator:        newCompileCoordinator(cfg.Compile.MaxParallelCompiles),
+		sessionExecutionRunner:    launchSessionExecutionRunnerSubprocess,
 		externalAnchorRuntime:     externalAnchorExecutionRuntimeDeterministic{},
 		externalAnchorQueue:       newExternalAnchorBackgroundQueue(),
 	}

@@ -43,7 +43,7 @@ func (s *Service) HandleSessionExecutionTrigger(ctx context.Context, req Session
 		return SessionExecutionTriggerResponse{}, errResp
 	}
 	if created || req.RequestedOperation == "continue" {
-		if err := s.reconcileSessionExecutionTriggerSideEffects(requestID, session, req, resp); err != nil {
+		if err := s.reconcileSessionExecutionTriggerSideEffects(requestCtx, requestID, session, req, resp); err != nil {
 			errOut := s.makeError(requestID, "broker_storage_write_failed", "storage", false, err.Error())
 			return SessionExecutionTriggerResponse{}, &errOut
 		}

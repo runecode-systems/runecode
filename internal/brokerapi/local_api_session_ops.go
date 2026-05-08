@@ -133,7 +133,7 @@ func (s *Service) sessionDetail(sessionID string) (SessionDetail, bool, error) {
 	if !ok {
 		return SessionDetail{}, false, nil
 	}
-	detail := buildSessionDetailFromState(summary, state.TranscriptTurns, runsBySession[sessionID], approvalsBySession[sessionID], artifactsBySession[sessionID], auditBySession[sessionID])
+	detail := buildSessionDetailFromState(summary, state.TranscriptTurns, runsBySession[sessionID], approvalsBySession[sessionID], artifactsBySession[sessionID], auditBySession[sessionID], state.TurnExecutions)
 	currentExecution, latestExecution, pendingExecutions := currentAndLatestSessionTurnExecution(state.TurnExecutions)
 	detail.CurrentTurnExecution = currentExecution
 	detail.LatestTurnExecution = latestExecution

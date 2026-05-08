@@ -1,9 +1,6 @@
 package perfcontracts
 
-import (
-	"fmt"
-	"math"
-)
+import "fmt"
 
 type Violation struct {
 	MetricID string
@@ -158,8 +155,4 @@ func median(values []float64) float64 {
 		return (cp[m-1] + cp[m]) / 2
 	}
 	return cp[m]
-}
-
-func almostEqual(a, b float64) bool {
-	return math.Abs(a-b) < 1e-9
 }

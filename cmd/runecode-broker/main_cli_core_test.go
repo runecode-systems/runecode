@@ -31,6 +31,7 @@ func TestHelpAndUnknownCommand(t *testing.T) {
 		"--audit-ledger-root path",
 		"--runtime-dir dir",
 		"--socket-name name",
+		"low-level start default: change_draft",
 		"audit-anchor-segment",
 		"audit-record-inclusion-get",
 		"audit-evidence-snapshot-get",

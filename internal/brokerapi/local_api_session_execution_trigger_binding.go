@@ -1,7 +1,6 @@
 package brokerapi
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
@@ -9,10 +8,16 @@ import (
 )
 
 func (s *Service) ensureSessionExecutionPrimaryRunBinding(requestID, sessionID string, execution artifacts.SessionTurnExecutionDurableState) (artifacts.SessionTurnExecutionDurableState, *ErrorResponse) {
-	if strings.TrimSpace(execution.PrimaryRunID) != "" {
+	if runID := strings.TrimSpace(execution.PrimaryRunID); runID != "" {
+		if errResp := s.ensureSessionExecutionRunBindingInitialized(requestID, sessionID, runID); errResp != nil {
+			return artifacts.SessionTurnExecutionDurableState{}, errResp
+		}
 		return execution, nil
 	}
 	runID := sessionExecutionRunID(sessionID, execution.ExecutionIndex)
+	if errResp := s.ensureSessionExecutionRunBindingInitialized(requestID, sessionID, runID); errResp != nil {
+		return artifacts.SessionTurnExecutionDurableState{}, errResp
+	}
 	updated, errResp := s.updateSessionExecutionRunBinding(requestID, sessionID, execution, runID)
 	if errResp != nil {
 		return artifacts.SessionTurnExecutionDurableState{}, errResp
@@ -20,10 +25,16 @@ func (s *Service) ensureSessionExecutionPrimaryRunBinding(requestID, sessionID s
 	if errResp := s.updateSessionRunBindingState(requestID, sessionID, runID); errResp != nil {
 		return artifacts.SessionTurnExecutionDurableState{}, errResp
 	}
-	if errResp := s.initializeSessionExecutionRunBinding(requestID, sessionID, runID); errResp != nil {
-		return artifacts.SessionTurnExecutionDurableState{}, errResp
-	}
 	return updated, nil
+}
+
+func (s *Service) ensureSessionExecutionRunBindingInitialized(requestID, sessionID, runID string) *ErrorResponse {
+	if _, ok := s.RunStatuses()[runID]; ok {
+		if facts := s.RuntimeFacts(runID); strings.TrimSpace(facts.LaunchReceipt.RunID) == runID {
+			return nil
+		}
+	}
+	return s.initializeSessionExecutionRunBinding(requestID, sessionID, runID)
 }
 
 func (s *Service) updateSessionExecutionRunBinding(requestID, sessionID string, execution artifacts.SessionTurnExecutionDurableState, runID string) (artifacts.SessionTurnExecutionDurableState, *ErrorResponse) {
@@ -67,7 +78,7 @@ func (s *Service) updateSessionRunBindingState(requestID, sessionID, runID strin
 }
 
 func (s *Service) initializeSessionExecutionRunBinding(requestID, sessionID, runID string) *ErrorResponse {
-	if err := s.SetRunStatus(runID, "active"); err != nil {
+	if err := s.SetRunStatus(runID, "starting"); err != nil {
 		errOut := s.errorFromStore(requestID, err)
 		return &errOut
 	}
@@ -76,11 +87,4 @@ func (s *Service) initializeSessionExecutionRunBinding(requestID, sessionID, run
 		return &errOut
 	}
 	return nil
-}
-
-func sessionExecutionRunID(sessionID string, executionIndex int) string {
-	if executionIndex < 1 {
-		executionIndex = 1
-	}
-	return fmt.Sprintf("%s.run.%06d", strings.TrimSpace(sessionID), executionIndex)
 }

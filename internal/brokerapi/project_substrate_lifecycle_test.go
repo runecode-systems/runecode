@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/runecode-ai/runecode/internal/artifacts"
 	"github.com/runecode-ai/runecode/internal/projectsubstrate"
 )
 
@@ -85,6 +86,36 @@ func TestHandleProjectSubstrateAdoptBlocksUnsupportedCompatibility(t *testing.T)
 	}
 }
 
+func TestHandleProjectSubstrateAdoptCompatibleExistingIsReadOnly(t *testing.T) {
+	repoRoot := t.TempDir()
+	writeProjectSubstrateAnchors(t, repoRoot, "0.1.0-alpha.14", "verified", "runecontext")
+	configPath := filepath.Join(repoRoot, "runecontext.yaml")
+	before, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile(before) returned error: %v", err)
+	}
+
+	service := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: repoRoot})
+	resp, errResp := service.HandleProjectSubstrateAdopt(context.Background(), ProjectSubstrateAdoptRequest{
+		SchemaID:      "runecode.protocol.v0.ProjectSubstrateAdoptRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-project-substrate-adopt-compatible-read-only",
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleProjectSubstrateAdopt returned error: %+v", errResp)
+	}
+	if got := resp.Adoption.Status; got != "adopted" {
+		t.Fatalf("adoption.status = %q, want adopted", got)
+	}
+	after, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile(after) returned error: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("runecontext.yaml mutated during read-only adopt:\nbefore:\n%s\nafter:\n%s", string(before), string(after))
+	}
+}
+
 func TestHandleProjectSubstrateUpgradePreviewAndApply(t *testing.T) {
 	root := t.TempDir()
 	writeProjectSubstrateAnchors(t, root, "0.1.0-alpha.14", "plain", "runecontext")
@@ -120,6 +151,68 @@ func TestHandleProjectSubstrateUpgradePreviewAndApply(t *testing.T) {
 	if got := applyResp.ApplyResult.ResultingSnapshot.ValidationState; got != "valid" {
 		t.Fatalf("resulting snapshot validation_state = %q, want valid", got)
 	}
+}
+
+func TestHandleProjectSubstrateApplyOperationsAppendTrustedAuditEvents(t *testing.T) {
+	initRoot := t.TempDir()
+	initService := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: initRoot})
+	initPreview := assertProjectSubstrateInitPreviewReady(t, initService)
+	assertProjectSubstrateInitApplyApplied(t, initService, initPreview.Preview.PreviewToken)
+	initEvents, err := initService.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents(init) returned error: %v", err)
+	}
+	if !auditEventContainsValue(initEvents, "project_substrate_init_event", "preview_token", initPreview.Preview.PreviewToken) {
+		t.Fatalf("init apply audit event missing preview token %q", initPreview.Preview.PreviewToken)
+	}
+	assertProjectSubstrateUpgradeAuditEvent(t)
+}
+
+func assertProjectSubstrateUpgradeAuditEvent(t *testing.T) {
+	t.Helper()
+	upgradeRoot := t.TempDir()
+	writeProjectSubstrateAnchors(t, upgradeRoot, "0.1.0-alpha.13", "verified", "runecontext")
+	upgradeService := newBrokerAPIServiceForTests(t, APIConfig{RepositoryRoot: upgradeRoot})
+	upgradePreviewResp, errResp := upgradeService.HandleProjectSubstrateUpgradePreview(context.Background(), ProjectSubstrateUpgradePreviewRequest{
+		SchemaID:      "runecode.protocol.v0.ProjectSubstrateUpgradePreviewRequest",
+		SchemaVersion: "0.1.0",
+		RequestID:     "req-project-substrate-upgrade-preview-audit",
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleProjectSubstrateUpgradePreview returned error: %+v", errResp)
+	}
+	_, errResp = upgradeService.HandleProjectSubstrateUpgradeApply(context.Background(), ProjectSubstrateUpgradeApplyRequest{
+		SchemaID:              "runecode.protocol.v0.ProjectSubstrateUpgradeApplyRequest",
+		SchemaVersion:         "0.1.0",
+		RequestID:             "req-project-substrate-upgrade-apply-audit",
+		ExpectedPreviewDigest: upgradePreviewResp.Preview.PreviewDigest,
+	}, RequestContext{})
+	if errResp != nil {
+		t.Fatalf("HandleProjectSubstrateUpgradeApply returned error: %+v", errResp)
+	}
+	upgradeEvents, err := upgradeService.ReadAuditEvents()
+	if err != nil {
+		t.Fatalf("ReadAuditEvents(upgrade) returned error: %v", err)
+	}
+	if !auditEventContainsValue(upgradeEvents, "project_substrate_upgrade_event", "preview_digest", upgradePreviewResp.Preview.PreviewDigest) {
+		t.Fatalf("upgrade apply audit event missing preview digest %q", upgradePreviewResp.Preview.PreviewDigest)
+	}
+}
+
+func auditEventContainsValue(events []artifacts.AuditEvent, eventType, key, want string) bool {
+	for _, event := range events {
+		if strings.TrimSpace(event.Type) != strings.TrimSpace(eventType) {
+			continue
+		}
+		value, ok := event.Details[key]
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(fmt.Sprintf("%v", value)) == strings.TrimSpace(want) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestHandleProjectSubstrateApplyReturnsSuccessWhenRefreshFails(t *testing.T) {

@@ -3,6 +3,11 @@
   "manifest_version": "1",
   "change_ref": "CHG-2026-053-9d2b-performance-baselines-verification-gates-v0",
   "fixture_inventory_ref": "fixtures/inventory.v1.json",
+  "measurement_profiles": [
+    "linux_shared_ci",
+    "linux_pi_reference",
+    "linux_scaled_reference"
+  ],
   "contracts": [
     {"surface": "tui", "path": "contracts/tui.v1.json"},
     {"surface": "broker", "path": "contracts/broker.v1.json"},
