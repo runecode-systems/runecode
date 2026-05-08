@@ -151,6 +151,8 @@ The positive foundation is also clear: trusted `RunPlan` compile/persist, active
 ## Product Polish Goal
 Dogfooding should be part of the plan, not an afterthought.
 
+The TUI polish goal for this lane is to move the current interface from a dense development/debug console toward a polished, professional, production-feeling operator product. The existing TUI foundations are strong: a unified shell, route workbenches, inspectors, command mode, palette discovery, themes, live watch projection, and broker-owned state surfaces. The remaining product gap is presentation hierarchy and operator confidence. Primary screens should explain what is happening, whether the operator needs to act, and what to do next before exposing protocol, schema, or debug-level detail.
+
 This lane should capture polish work discovered while testing the real workflow path, especially in:
 
 - run and session state clarity
@@ -163,6 +165,19 @@ This lane should capture polish work discovered while testing the real workflow 
 
 The TUI is the highest-priority polish surface because it is the normal user-facing shell for the local product.
 
+The first once-over identified these concrete polish directions:
+
+- Treat `Action Center` as the operator home for attention, blocked work, approvals, failed or waiting workflows, substrate remediation, audit/runtime degradation, and follow-up cues.
+- Keep `Dashboard` as a calm executive overview that summarizes system health, current workflow posture, and the most important next action rather than a dense dump of readiness fields.
+- Make every route answer the same operator questions: what is happening, is it healthy, am I blocked, what should I do next, and where is the evidence?
+- Prefer product language in primary panes and move protocol names, raw contract terms, and debug-level identifiers into inspectors, detail modes, or copy actions.
+- Rework global chrome so the top bar and footer feel calm: show route, product posture, sync truth, and a small set of primary actions without repeating long trust-boundary or shortcut text on every screen.
+- Make loading, empty, waiting, blocked, degraded, failed, resumed, completed, and approval-required states use one state-card pattern with a state label, reason, next action, and shortcut or route cue.
+- Make project-substrate setup and remediation feel like a guided broker-owned flow: inspect current posture, preview init or upgrade, review the planned mutation, apply intentionally, then validate/status again.
+- Make Chat and run progress feel alive but honest by surfacing broker-owned execution stages such as waiting, plan compiled, runner active, approval required, artifact ready, failed, and completed without inventing optimistic progress.
+- Make evidence trails obvious across runs, sessions, approvals, artifacts, audit records, and verification actions so users can follow a workflow result to the artifacts and audit proof behind it.
+- Shorten primary keyboard help and keep exhaustive shortcuts discoverable through command discovery, leader help, or route detail surfaces so the footer stays readable.
+
 TUI acceptance is intentionally dogfooding-gated rather than fully preplanned. Issues found during walkthroughs of the required paths should be captured, blockers and misleading product-truth issues should be fixed before closure, and non-blocking polish can be recorded as follow-up.
 
 That polish should stay aligned with the reviewed performance-contract discipline in `CHG-053`, especially:
@@ -170,6 +185,7 @@ That polish should stay aligned with the reviewed performance-contract disciplin
 - attach, reconnect, and resume surfaces should continue to reflect broker-owned lifecycle truth rather than client-local optimistic shortcuts
 - waiting, blocked, degraded, and failed states should remain operator-visible without reintroducing misleading high-activity rendering paths or synthetic progress cues
 - dogfooding fixes should preserve the same authoritative surfaces that the MVP performance gates measure rather than optimizing around those gates with less truthful UI behavior
+- polished wording must not imply a stronger attestation, execution, publication, or collaboration posture than the current broker-owned state can prove
 
 ## Verification Smoke Path
 This lane should require that the real workflow path also exercises the verification surfaces already present in the repository.
