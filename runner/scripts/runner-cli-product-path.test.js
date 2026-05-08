@@ -63,7 +63,7 @@ test("cli rejects plan files outside the declared plan root", () => {
   }
 });
 
-test("cli rejects plan files that escape plan root through symlinks", () => {
+test("cli rejects plan files that escape plan root through symlinks", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-cli-"));
   const otherRoot = fs.mkdtempSync(path.join(os.tmpdir(), "runecode-runner-cli-other-"));
   try {

@@ -20,6 +20,10 @@ import (
 )
 
 func seedBackendPostureApprovalForResolve(service *brokerapi.Service) (brokerapi.ApprovalResolveRequest, error) {
+	return seedBackendPostureApprovalForResolveWithRunID(service, "run-backend")
+}
+
+func seedBackendPostureApprovalForResolveWithRunID(service *brokerapi.Service, runID string) (brokerapi.ApprovalResolveRequest, error) {
 	targetInstanceID, targetBackend, actionHash, err := backendPostureApprovalFixtureInputs(service)
 	if err != nil {
 		return brokerapi.ApprovalResolveRequest{}, err
@@ -35,7 +39,7 @@ func seedBackendPostureApprovalForResolve(service *brokerapi.Service) (brokerapi
 	if err := putTrustedVerifierRecordForService(service, verifierRecord); err != nil {
 		return brokerapi.ApprovalResolveRequest{}, err
 	}
-	policyHash, err := persistBackendPostureApprovalFixture(service, targetInstanceID, actionHash, approvalID, requestEnv)
+	policyHash, err := persistBackendPostureApprovalFixture(service, targetInstanceID, actionHash, approvalID, requestEnv, runID)
 	if err != nil {
 		return brokerapi.ApprovalResolveRequest{}, err
 	}
@@ -49,7 +53,7 @@ func seedBackendPostureApprovalForResolve(service *brokerapi.Service) (brokerapi
 			SchemaVersion:      "0.1.0",
 			WorkspaceID:        "workspace-local",
 			InstanceID:         targetInstanceID,
-			RunID:              "run-backend",
+			RunID:              strings.TrimSpace(runID),
 			ActionKind:         policyengine.ActionKindBackendPosture,
 			PolicyDecisionHash: policyHash,
 		},
@@ -177,26 +181,46 @@ func marshalBackendPostureDecisionPayload(approvalID string, verifier trustpolic
 	return json.Marshal(decisionPayload)
 }
 
-func persistBackendPostureApprovalFixture(service *brokerapi.Service, targetInstanceID, actionHash, approvalID string, requestEnv trustpolicy.SignedObjectEnvelope) (string, error) {
-	policyDecision := policyengine.PolicyDecision{SchemaID: "runecode.protocol.v0.PolicyDecision", SchemaVersion: "0.3.0", DecisionOutcome: policyengine.DecisionRequireHumanApproval, PolicyReasonCode: "approval_required", ManifestHash: "sha256:" + strings.Repeat("1", 64), ActionRequestHash: actionHash, PolicyInputHashes: []string{"sha256:" + strings.Repeat("4", 64)}, DetailsSchemaID: "runecode.protocol.details.policy.evaluation.v0", Details: map[string]any{"precedence": "approval_profile_moderate"}, RequiredApprovalSchemaID: "runecode.protocol.details.policy.required_approval.reduced_assurance_backend.v0", RequiredApproval: map[string]any{"approval_trigger_code": "reduced_assurance_backend", "approval_assurance_level": "reauthenticated", "presence_mode": "hardware_touch", "scope": map[string]any{"schema_id": "runecode.protocol.v0.ApprovalBoundScope", "schema_version": "0.1.0", "workspace_id": "workspace-local", "run_id": "run-backend", "instance_id": targetInstanceID, "action_kind": policyengine.ActionKindBackendPosture}, "changes_if_approved": "Reduced-assurance backend posture change may be applied.", "approval_ttl_seconds": 1800}}
-	if err := service.RecordPolicyDecision("run-backend", "", policyDecision); err != nil {
+func persistBackendPostureApprovalFixture(service *brokerapi.Service, targetInstanceID, actionHash, approvalID string, requestEnv trustpolicy.SignedObjectEnvelope, runID string) (string, error) {
+	runID = strings.TrimSpace(runID)
+	decisionRunID := runID
+	if decisionRunID == "" {
+		decisionRunID = "run-backend"
+	}
+	scope := map[string]any{
+		"schema_id":      "runecode.protocol.v0.ApprovalBoundScope",
+		"schema_version": "0.1.0",
+		"workspace_id":   "workspace-local",
+		"instance_id":    targetInstanceID,
+		"action_kind":    policyengine.ActionKindBackendPosture,
+	}
+	if runID != "" {
+		scope["run_id"] = runID
+	}
+	policyDecision := policyengine.PolicyDecision{SchemaID: "runecode.protocol.v0.PolicyDecision", SchemaVersion: "0.3.0", DecisionOutcome: policyengine.DecisionRequireHumanApproval, PolicyReasonCode: "approval_required", ManifestHash: "sha256:" + strings.Repeat("1", 64), ActionRequestHash: actionHash, PolicyInputHashes: []string{"sha256:" + strings.Repeat("4", 64)}, DetailsSchemaID: "runecode.protocol.details.policy.evaluation.v0", Details: map[string]any{"precedence": "approval_profile_moderate"}, RequiredApprovalSchemaID: "runecode.protocol.details.policy.required_approval.reduced_assurance_backend.v0", RequiredApproval: map[string]any{"approval_trigger_code": "reduced_assurance_backend", "approval_assurance_level": "reauthenticated", "presence_mode": "hardware_touch", "scope": scope, "changes_if_approved": "Reduced-assurance backend posture change may be applied.", "approval_ttl_seconds": 1800}}
+	if err := service.RecordPolicyDecision(decisionRunID, "", policyDecision); err != nil {
 		return "", err
 	}
-	refs := service.PolicyDecisionRefsForRun("run-backend")
-	if len(refs) == 0 {
-		return "", fmt.Errorf("missing policy decision refs")
+	var policyHash string
+	if decisionRunID == "" {
+		return "", fmt.Errorf("backend posture approval fixture decision run_id is required")
+	} else {
+		refs := service.PolicyDecisionRefsForRun(decisionRunID)
+		if len(refs) == 0 {
+			return "", fmt.Errorf("missing policy decision refs")
+		}
+		policyHash = refs[len(refs)-1]
 	}
-	policyHash := refs[len(refs)-1]
-	if err := recordPendingApproval(service, targetInstanceID, actionHash, approvalID, policyHash, requestEnv); err != nil {
+	if err := recordPendingApproval(service, runID, targetInstanceID, actionHash, approvalID, policyHash, requestEnv); err != nil {
 		return "", err
 	}
 	return policyHash, nil
 }
 
-func recordPendingApproval(service *brokerapi.Service, targetInstanceID, actionHash, approvalID, policyHash string, requestEnv trustpolicy.SignedObjectEnvelope) error {
+func recordPendingApproval(service *brokerapi.Service, runID, targetInstanceID, actionHash, approvalID, policyHash string, requestEnv trustpolicy.SignedObjectEnvelope) error {
 	expiresAt := time.Now().UTC().Add(30 * time.Minute)
 	requestedAt := time.Now().UTC().Add(-time.Minute)
-	record := artifacts.ApprovalRecord{ApprovalID: approvalID, Status: "pending", WorkspaceID: "workspace-local", InstanceID: targetInstanceID, RunID: "run-backend", ActionKind: policyengine.ActionKindBackendPosture, RequestedAt: requestedAt, ExpiresAt: &expiresAt, ApprovalTriggerCode: "reduced_assurance_backend", ChangesIfApproved: "Reduced-assurance backend posture change may be applied.", ApprovalAssuranceLevel: "reauthenticated", PresenceMode: "hardware_touch", ManifestHash: "sha256:" + strings.Repeat("1", 64), ActionRequestHash: actionHash, PolicyDecisionHash: policyHash, RequestDigest: approvalID, RequestEnvelope: &requestEnv}
+	record := artifacts.ApprovalRecord{ApprovalID: approvalID, Status: "pending", WorkspaceID: "workspace-local", InstanceID: targetInstanceID, RunID: strings.TrimSpace(runID), ActionKind: policyengine.ActionKindBackendPosture, RequestedAt: requestedAt, ExpiresAt: &expiresAt, ApprovalTriggerCode: "reduced_assurance_backend", ChangesIfApproved: "Reduced-assurance backend posture change may be applied.", ApprovalAssuranceLevel: "reauthenticated", PresenceMode: "hardware_touch", ManifestHash: "sha256:" + strings.Repeat("1", 64), ActionRequestHash: actionHash, PolicyDecisionHash: policyHash, RequestDigest: approvalID, RequestEnvelope: &requestEnv}
 	return service.RecordApproval(record)
 }
 
