@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -79,6 +80,8 @@ func (m chatRouteModel) applyLoaded(typed chatLoadedMsg) (routeModel, tea.Cmd) {
 	m.selected = selectedSessionIndex(m.sessions, typed.activeSessionID)
 	m.activeID = typed.activeSessionID
 	m.active = typed.detail
+	m.runDetail = typed.runDetail
+	m.posture = typed.posture
 	m.watching = false
 	m.watchSession = ""
 	m.watchTrigger = ""
@@ -128,6 +131,8 @@ func (m *chatRouteModel) applySentActiveState(typed chatMessageSentMsg) {
 }
 
 func (m *chatRouteModel) applySentExecutionState(typed chatMessageSentMsg) {
+	m.runDetail = typed.runDetail
+	m.posture = typed.posture
 	if m.active != nil && typed.turnExecution != nil {
 		exec := *typed.turnExecution
 		m.active.CurrentTurnExecution = &exec
@@ -197,6 +202,8 @@ func (m chatRouteModel) applyExecutionWatchLoaded(msg chatExecutionWatchLoadedMs
 	}
 	m.errText = ""
 	m.activeID = strings.TrimSpace(msg.sessionID)
+	m.runDetail = msg.runDetail
+	m.posture = msg.posture
 	if msg.detail != nil {
 		m.active = msg.detail
 	}
@@ -311,11 +318,15 @@ func (m chatRouteModel) sendCmd(sessionID, content string) tea.Cmd {
 		if err != nil {
 			return chatMessageSentMsg{err: err}
 		}
+		runDetail, err := m.loadChatRunDetail(ctx, getResp.Session)
+		if err != nil {
+			return chatMessageSentMsg{err: err}
+		}
 		listResp, err := m.client.SessionList(ctx, 20)
 		if err != nil {
 			return chatMessageSentMsg{err: err}
 		}
-		return chatMessageSentMsg{sessions: listResp.Sessions, detail: &getResp.Session, ack: &sendResp, turnExecution: turnExecution, posture: &posture}
+		return chatMessageSentMsg{sessions: listResp.Sessions, detail: &getResp.Session, ack: &sendResp, turnExecution: turnExecution, posture: &posture, runDetail: runDetail}
 	}
 }
 
@@ -345,6 +356,10 @@ func (m chatRouteModel) watchLoadCmd(sessionID, triggerID string, seq uint64) te
 		if err != nil {
 			return chatExecutionWatchLoadedMsg{seq: seq, err: err}
 		}
+		runDetail, err := m.loadChatRunDetail(ctx, getResp.Session)
+		if err != nil {
+			return chatExecutionWatchLoadedMsg{seq: seq, err: err}
+		}
 		listResp, err := m.client.SessionList(ctx, 20)
 		if err != nil {
 			return chatExecutionWatchLoadedMsg{seq: seq, err: err}
@@ -361,11 +376,31 @@ func (m chatRouteModel) watchLoadCmd(sessionID, triggerID string, seq uint64) te
 			triggerID:     triggerID,
 			turnExecution: turnExecution,
 			detail:        &getResp.Session,
+			runDetail:     runDetail,
 			sessions:      listResp.Sessions,
 			posture:       &posture,
 			continueWatch: continueWatch,
 		}
 	}
+}
+
+func (m chatRouteModel) loadChatRunDetail(ctx context.Context, detail brokerapi.SessionDetail) (*brokerapi.RunDetail, error) {
+	runID := ""
+	if exec := chatVisibleExecution(&detail); exec != nil {
+		runID = chatRunIDFromExecution(*exec)
+	}
+	if strings.TrimSpace(runID) == "" && len(detail.LinkedRunIDs) > 0 {
+		runID = strings.TrimSpace(detail.LinkedRunIDs[0])
+	}
+	if strings.TrimSpace(runID) == "" {
+		return nil, nil
+	}
+	resp, err := m.client.RunGet(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	run := resp.Run
+	return &run, nil
 }
 
 func matchingTurnExecutionFromWatch(events []brokerapi.SessionTurnExecutionWatchEvent, triggerID string) *brokerapi.SessionTurnExecution {

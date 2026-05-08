@@ -216,7 +216,16 @@ func mustLatestSealDigestForTUILocalRPCProbe(t *testing.T, service *brokerapi.Se
 func assertTUIBrokerBackedRoutes(t *testing.T) {
 	t.Helper()
 	recording := newRecordingBrokerClient(&rpcBrokerClient{})
+	assertDashboardAndChatBackedRoutes(t, recording)
+	assertWorkAndSetupBackedRoutes(t, recording)
 
+	if !containsCall(recording.Calls(), "ArtifactRead") || !containsCall(recording.Calls(), "AuditVerificationGet") || !containsCall(recording.Calls(), "AuditRecordGet") {
+		t.Fatalf("expected broker-backed route calls, got %v", recording.Calls())
+	}
+}
+
+func assertDashboardAndChatBackedRoutes(t *testing.T, recording localBrokerClient) {
+	t.Helper()
 	dashboard := newDashboardRouteModel(routeDefinition{ID: routeDashboard, Label: "Dashboard"}, recording)
 	assertRouteOutputContainsAll(t, dashboard, routeDashboard,
 		"Now",
@@ -229,30 +238,35 @@ func assertTUIBrokerBackedRoutes(t *testing.T) {
 
 	chat := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, recording)
 	assertRouteOutputContainsAll(t, chat, routeChat,
-		"Sessions: 1 active=session-tui",
-		"Composer: idle",
+		"Active session",
+		"Session session-tui in workspace workspace-local is active.",
+		"Composer is idle.",
 	)
 	assertRouteInspectorContainsAll(t, chat, routeChat,
 		"Inspector",
 		"Linked runs: run-tui",
 	)
 
+}
+
+func assertWorkAndSetupBackedRoutes(t *testing.T, recording localBrokerClient) {
+	t.Helper()
 	runs := newRunsRouteModel(routeDefinition{ID: routeRuns, Label: "Runs"}, recording)
 	assertRouteOutputContainsAll(t, runs, routeRuns,
 		"backend_kind=unknown",
 	)
 	assertRouteInspectorContainsAll(t, runs, routeRuns,
-		"Authoritative broker state (control-plane truth):",
-		"Coordination summary:",
+		"Workflow identity (authoritative):",
+		"Evidence links:",
 	)
 
 	approvals := newApprovalsRouteModel(routeDefinition{ID: routeApprovals, Label: "Approvals"}, recording)
 	assertRouteOutputContainsAll(t, approvals, routeApprovals,
-		"Approval safety strip",
+		"Approval posture",
 	)
 	assertRouteInspectorContainsAll(t, approvals, routeApprovals,
 		"Approval trigger code:",
-		"Canonical bound identity:",
+		"Exact gated object/action:",
 	)
 
 	artifacts := newArtifactsRouteModel(routeDefinition{ID: routeArtifacts, Label: "Artifacts"}, recording)
@@ -266,12 +280,8 @@ func assertTUIBrokerBackedRoutes(t *testing.T) {
 		"Runtime/audit readiness strip",
 		"Broker ready=true local_only=true",
 		"Protocol posture:",
-		"Project substrate posture:",
+		"Project setup",
 	)
-
-	if !containsCall(recording.Calls(), "ArtifactRead") || !containsCall(recording.Calls(), "AuditVerificationGet") || !containsCall(recording.Calls(), "AuditRecordGet") {
-		t.Fatalf("expected broker-backed route calls, got %v", recording.Calls())
-	}
 }
 
 func assertRouteInspectorContainsAll(t *testing.T, model routeModel, id routeID, want ...string) {
@@ -335,12 +345,12 @@ func assertAuditRouteSupportsDrillDown(t *testing.T, model routeModel) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	for _, needle := range []string{"Audit safety strip", "Timeline paging: page=1 entries=1 has_next=no", "Verification posture:"} {
+	for _, needle := range []string{"Audit posture", "Timeline paging: page=1 entries=1 has_next=no", "Verification posture:"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("audit view missing %q: %s", needle, view)
 		}
 	}
-	if !strings.Contains(view, "Verification findings:") && !strings.Contains(view, "Verification findings (machine-readable):") {
+	if !strings.Contains(view, "Verification findings") {
 		t.Fatalf("audit view missing verification findings section: %s", view)
 	}
 	updated, cmd = updated.Update(teaKey("enter"))

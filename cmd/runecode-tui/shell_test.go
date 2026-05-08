@@ -349,9 +349,14 @@ func TestShellViewRendersShellSurfaces(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
 	v := m.View()
-	for _, want := range []string{"Runecode TUI α shell", "Path:", "History:", "Main pane", "Sidebar", "Bottom strip", "Status:"} {
+	for _, want := range []string{"RuneCode Workbench", "Product truth:", "Main pane", "Sidebar", "Bottom strip", "Status:"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected %q in view, got %q", want, v)
+		}
+	}
+	for _, retired := range []string{"Path:", "History:", "clipboard="} {
+		if strings.Contains(v, retired) {
+			t.Fatalf("did not expect retired dense chrome text %q in view, got %q", retired, v)
 		}
 	}
 	for _, want := range []string{"┌────────────────", "FOCUS"} {
@@ -559,7 +564,7 @@ func TestShellSelectionModeToggleReflectsInView(t *testing.T) {
 		t.Fatal("expected selection mode enabled")
 	}
 	v := shell.View()
-	if !strings.Contains(v, "selection=on") {
+	if !strings.Contains(v, "Selection mode on") {
 		t.Fatalf("expected selection mode state in view, got %q", v)
 	}
 }
@@ -613,8 +618,8 @@ func TestShellBottomStripSelectionHintUsesCtrlT(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
 	v := m.View()
-	if !strings.Contains(v, "Selection mode off") {
-		t.Fatalf("expected updated selection hint in bottom strip, got %q", v)
+	if !strings.Contains(v, "Use Status, inspectors, or command discovery for detailed diagnostics") {
+		t.Fatalf("expected calm diagnostic hint in bottom strip, got %q", v)
 	}
 }
 
@@ -855,7 +860,7 @@ func TestShellWatchManagerUpdatesRoutesAndSyncHealth(t *testing.T) {
 	}
 	view := shell.View()
 	mustContainAll(t, view,
-		"Sync health:",
+		"Product truth:",
 		"sync=healthy",
 		"last_event=run_watch_terminal subject=run-1 status=completed",
 		"event=session_watch_terminal subject=session-1 status=completed",

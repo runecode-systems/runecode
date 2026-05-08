@@ -150,7 +150,7 @@ func (m shellModel) paletteStartY() int {
 }
 
 func (m shellModel) sidebarYRange() (startY int, endY int) {
-	startY = shellTopStatusHeight + shellSyncHealthHeight + shellBreadcrumbHeight + shellHistoryHeight + shellPaneSpacerHeight + 3
+	startY = shellTopStatusHeight + shellSyncHealthHeight + shellPaneSpacerHeight + 3
 	endY = startY + m.sidebarMouseRowCount() - 1
 	return startY, endY
 }

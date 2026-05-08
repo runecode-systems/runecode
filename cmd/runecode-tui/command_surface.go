@@ -90,7 +90,7 @@ func (m shellModel) appendActionCenterPaletteEntries(add func(string, string, st
 	}
 	for family, items := range actionModel.familyBuckets() {
 		for _, item := range items {
-			if strings.TrimSpace(item.Title) == "" || strings.TrimSpace(item.Detail) == "" {
+			if strings.TrimSpace(item.Title) == "" || strings.TrimSpace(item.Reason) == "" {
 				continue
 			}
 			target := item.Target
@@ -100,7 +100,7 @@ func (m shellModel) appendActionCenterPaletteEntries(add func(string, string, st
 			add(
 				fmt.Sprintf("triage %s %s", family, item.Title),
 				fmt.Sprintf("urgency=%s impact=%s", valueOrNA(item.Urgency), valueOrNA(item.Impact)),
-				fmt.Sprintf("triage action center %s %s %s %s %s", family, item.Title, item.Detail, item.Impact, item.ExpiryCue),
+				fmt.Sprintf("triage action center %s %s %s %s %s", family, item.Title, item.Reason, item.Impact, item.EvidenceCue),
 				paletteActionMsg{Verb: verbJump, Target: target},
 			)
 		}

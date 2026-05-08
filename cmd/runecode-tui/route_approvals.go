@@ -133,7 +133,7 @@ func (m approvalsRouteModel) handleApprovalResolved(msg approvalResolvedMsg) (ro
 		return m, nil
 	}
 	m.errText = ""
-	m.statusText = fmt.Sprintf("Approval %s resolved via typed ApprovalResolve (%s).", msg.approvalID, valueOrNA(msg.result))
+	m.statusText = fmt.Sprintf("Approval %s resolved; broker result=%s and the blocked workflow can continue when broker state advances.", approvalUIValue(msg.approvalID), approvalUIValue(msg.result))
 	m.loading = true
 	m.loadSeq++
 	return m, m.loadCmd("", m.loadSeq)
@@ -153,8 +153,10 @@ func (m approvalsRouteModel) View(width, height int, focus focusArea) string {
 	}
 	body := []string{
 		sectionTitle("Approvals") + " " + focusBadge(focus),
+		renderApprovalOverviewCard(m.active),
 		renderApprovalSafetyStrip(m.active),
 		renderApprovalFlowPath(m.active),
+		renderApprovalReviewPlan(m.active),
 		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
 		renderDirectory("Approval queue", renderApprovalDirectoryItems(m.items), m.selected),
 	}
@@ -164,7 +166,7 @@ func (m approvalsRouteModel) View(width, height int, focus focusArea) string {
 	if m.statusText != "" {
 		body = append(body, "Status: "+m.statusText)
 	}
-	body = append(body, keyHint("Route keys: j/k move, enter load detail, a resolve current approval where supported, v cycle rendered/raw/structured, i toggle inspector, r reload"))
+	body = append(body, keyHint("Keys: j/k move, enter detail, a resolve, v mode, r reload"))
 	return compactLines(body...)
 }
 
@@ -187,7 +189,7 @@ func (m approvalsRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 		Regions: routeSurfaceRegions{
 			Main:      routeSurfaceRegion{Title: "Approval workspace", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
 			Inspector: routeSurfaceRegion{Title: "Approval inspector", Body: inspector},
-			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, a resolve current approval where supported, v cycle rendered/raw/structured, i toggle inspector, r reload")},
+			Bottom:    routeSurfaceRegion{Body: keyHint("Keys: j/k move, enter detail, a resolve, v mode, r reload")},
 			Status:    routeSurfaceRegion{Body: status},
 		},
 		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
@@ -252,7 +254,7 @@ func (m approvalsRouteModel) handleResolveKey() (routeModel, tea.Cmd) {
 	if err := validateApprovalResolveInput(*m.active); err != nil {
 		m.resolving = false
 		m.errText = ""
-		m.statusText = safeUIErrorText(err)
+		m.statusText = approvalResolveUnavailableReason(err)
 		return m, nil
 	}
 	m.resolving = true
@@ -277,13 +279,13 @@ func (m approvalsRouteModel) resolveCmd(resp brokerapi.ApprovalGetResponse) tea.
 	return func() tea.Msg {
 		resolveReq, err := approvalResolveRequestFromDetail(resp)
 		if err != nil {
-			return approvalResolvedMsg{approvalID: strings.TrimSpace(resp.Approval.ApprovalID), err: err}
+			return approvalResolvedMsg{approvalID: approvalUIValue(resp.Approval.ApprovalID), err: err}
 		}
 		ctx, cancel := withLoadTimeout()
 		defer cancel()
 		resolveResp, err := m.client.ApprovalResolve(ctx, resolveReq)
 		if err != nil {
-			return approvalResolvedMsg{approvalID: strings.TrimSpace(resp.Approval.ApprovalID), err: err}
+			return approvalResolvedMsg{approvalID: approvalUIValue(resp.Approval.ApprovalID), err: err}
 		}
 		result := strings.TrimSpace(resolveResp.ResolutionReasonCode)
 		if result == "" {
@@ -292,7 +294,7 @@ func (m approvalsRouteModel) resolveCmd(resp brokerapi.ApprovalGetResponse) tea.
 		if result == "" {
 			result = "resolved"
 		}
-		return approvalResolvedMsg{approvalID: strings.TrimSpace(resp.Approval.ApprovalID), result: result}
+		return approvalResolvedMsg{approvalID: approvalUIValue(resp.Approval.ApprovalID), result: approvalUIValue(result)}
 	}
 }
 

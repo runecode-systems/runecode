@@ -29,23 +29,26 @@ func TestActionCenterViewKeepsFamiliesDistinctAndReservedQANotice(t *testing.T) 
 	view := updated.View(140, 40, focusContent)
 	mustContainAll(t, view,
 		"Action Center",
+		"Blocked follow-up",
 		"Queue families:",
 		"approvals",
 		"operational_attention",
 		"blocked_work_impact",
-		"Approvals queue (canonical)",
+		"Approvals queue",
 		"Operational attention",
 		"Blocked-work impact",
-		"Question/answer queues are reserved for future canonical broker models",
+		"Action Center is the operator home for broker-known follow-up.",
 	)
 	surface := updated.ShellSurface(routeShellContext{Width: 140, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
 	inspector := surface.Regions.Inspector.Body
 	mustContainAll(t, inspector,
 		"family=",
+		"state=",
 		"urgency=",
-		"expiry=",
-		"stale_or_superseded=",
+		"reason=",
 		"impact=",
+		"required_action=",
+		"evidence=",
 	)
 }
 
@@ -96,11 +99,13 @@ func TestBuildApprovalActionItemsIncludesExpiryAndSupersededCues(t *testing.T) {
 	text := strings.Join(joined, "\n")
 	mustContainAll(t, text,
 		"approval ap-expired",
-		"expiry=expired",
+		"expired",
 		"approval ap-soon",
-		"expiry=expiring_soon",
+		"expiring_soon",
 		"approval ap-super",
-		"stale/superseded=superseded",
+		"superseded",
+		"action:",
+		"evidence:",
 	)
 }
 
@@ -111,7 +116,7 @@ func TestBuildOperationalAttentionItemsIncludesAuditAndWatchDisconnect(t *testin
 		approvalWatch: watchFamilySummary{family: "approval_watch", errorCount: 0, lastStatus: "ok"},
 		sessionWatch:  watchFamilySummary{family: "session_watch", errorCount: 0, lastStatus: "ok"},
 	}
-	items := buildOperationalAttentionItems(audit, watch, shellSyncHealth{State: shellSyncStateDisconnected, ErrorText: "local_ipc_dial_error"}, []brokerapi.RunSummary{{RunID: "run-1", RuntimePostureDegraded: true}})
+	items := buildOperationalAttentionItems(audit, "", watch, shellSyncHealth{State: shellSyncStateDisconnected, ErrorText: "local_ipc_dial_error"}, []brokerapi.RunSummary{{RunID: "run-1", RuntimePostureDegraded: true}}, brokerapi.ProjectSubstratePostureGetResponse{})
 	text := strings.Join(renderActionCenterItems(items), "\n")
 	mustContainAll(t, text,
 		"shell watch sync health",
@@ -119,6 +124,7 @@ func TestBuildOperationalAttentionItemsIncludesAuditAndWatchDisconnect(t *testin
 		"audit verification posture",
 		"anchoring=degraded",
 		"run run-1 operational posture",
+		"action:",
 	)
 }
 

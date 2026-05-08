@@ -15,34 +15,30 @@ func TestRunsRouteExplainsBrokerPostureAndStateTaxonomy(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	surface := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
+	surface := updated.ShellSurface(routeShellContext{Width: 120, Height: 80, Focus: focusContent, Breakpoint: shellBreakpointWide})
 	inspector := surface.Regions.Inspector.Body
 
 	mustContainAll(t, inspector,
-		"Summary: run=run-1 lifecycle=n/a pending_approvals=0",
-		"Identity: run=run-1 backend=workspace",
-		"Local actions: jump:approvals | jump:artifacts | jump:audit | copy:run_id",
-		"Copy actions: run id | raw block",
+		"Summary: Run run-1 is active with 0 pending approval(s).",
+		"Identity: run=run-1 workspace=ws-1 session=session-1",
+		"Local actions: jump:session | jump:approvals | jump:artifacts | jump:audit | copy:run_id",
+		"Copy actions: run id | workspace id | raw block",
+		"Workflow operation: change_draft",
+		"Plan authority: workflow definition hash",
+		"Runner/reporting posture: runner=active • last checkpoint=approval_wait_entered",
+		"Blocked/failure reason: approval wait",
+		"Evidence links: approvals 1 • artifact classes 2 • active manifests 1 • policy refs 1",
+		"Navigation cues: session=session-1 approvals=1 artifacts=3 audit=2",
 		"backend_kind=workspace",
-		"Workflow identity (authoritative): workflow_kind=n/a workflow_definition_hash=n/a current_stage_",
+		"Workflow identity (authoritative): workflow_kind=change_draft workflow_definition_hash=sha256:",
 		"Runtime isolation assurance (authoritative): runtime isolation=sandboxed",
 		"Provisioning/binding posture (authoritative): provisioning posture=attested",
 		"PROVISIONING_OK",
 		"Attestation posture (authoritative): attestation posture=valid",
 		"Runtime attestation truthfulness (authoritative): post-handshake verification succeeded; support",
 		"Verifier class (authoritative): verifier class=trusted_domain_local",
-		"Supported runtime requirements (authoritative): supported_runtime_requirements_satisfied=true",
-		"Reduced-assurance posture (authoritative): reduced_assurance=false",
-		"approval_backed=n/a",
-		"Audit posture (authoritative): audit posture=ok/degraded (unanchored/degraded)",
-		"Approval profile (authoritative): approval_profile=n/a",
-		"Authoritative broker state (control-plane truth):",
-		"Advisory state",
-		"Coordination summary: blocked=true wait_reason=approval_wait",
-		"Blocking cue:",
-		"APPROVAL_REQUIRED",
 	)
-	if strings.Contains(view, "Summary: run=run-1 lifecycle=n/a pending_approvals=0") {
+	if strings.Contains(view, "Summary: Run run-1 is active with 0 pending approval(s).") {
 		t.Fatalf("expected run detail only in inspector region, got %q", view)
 	}
 }
@@ -55,29 +51,32 @@ func TestApprovalsRouteDistinguishesCodesLifecycleAndBinding(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	surface := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
+	surface := updated.ShellSurface(routeShellContext{Width: 120, Height: 80, Focus: focusContent, Breakpoint: shellBreakpointWide})
 	inspector := surface.Regions.Inspector.Body
 
 	mustContainAll(t, inspector,
-		"Summary: approval=ap-1 status=pending trigger=policy_gate",
-		"Identity: approval=ap-1 run=run-1",
+		"Summary: approval=ap-1 state=approval required reason=policy requires operator review before promotion for run-1 can continue (requires_human_review)",
+		"Identity: approval=ap-1 run=run-1 action=promotion",
 		"Local actions: resolve:typed | jump:runs | jump:audit | copy:approval_id",
 		"Copy actions: approval id | bound run id | raw block",
+		"Approval state: approval required",
+		"Why this approval exists: policy requires operator review before promotion for run-1 can",
+		"Exact gated object/action: run run-1 • stage stage-1 • action=promotion",
+		"Review first: run evidence for run-1",
+		"If approved next: Promotion continues (effect=unblock_next_stage)",
+		"Resolve availability: unavailable here because promotion approvals must be completed in the prom",
+		"Resolve status: unsupported",
 		"Approval type: exact-action approval (binding_kind=exact_action)",
 		"Lifecycle state: pending (stale)",
 		"Lifecycle reason code: awaiting_decision",
 		"Policy reason code: requires_human_review",
 		"Approval trigger code: policy_gate",
 		"Distinct blocking semantics: trigger=policy_gate",
-		"Execution/system errors: shown as load failures above",
-		"What changes if approved: effect=unblock_next_stage summary=Promotion continues",
-		"Canonical bound identity: request=sha256:req",
-		"Exact bound scope: workspace=ws-1 run=run-1 stage=stage-1",
 	)
-	if !strings.Contains(view, "Approval safety strip") {
-		t.Fatalf("expected approval safety strip in main view, got %q", view)
+	if !strings.Contains(view, "Approval review") {
+		t.Fatalf("expected approval overview card in main view, got %q", view)
 	}
-	if strings.Contains(view, "Summary: approval=ap-1 status=pending trigger=policy_gate") {
+	if strings.Contains(view, "Summary: approval=ap-1 state=approval required") {
 		t.Fatalf("expected approval detail only in inspector region, got %q", view)
 	}
 }
@@ -94,16 +93,18 @@ func TestArtifactsRouteUsesTypedReadAndInspectableModes(t *testing.T) {
 	inspector := surface.Regions.Inspector.Body
 
 	mustContainAll(t, inspector,
-		"Summary: artifact=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb class=diffs bytes=128",
-		"Identity: digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		"Summary: artifact=diffs for run-1 class=diffs bytes=128",
+		"Identity: artifact=diffs for run-1 digest=sha256:bbbbbbbbbbbb",
 		"Local actions: jump:runs | jump:audit | copy:digest | copy:provenance_receipt",
 		"Copy actions: artifact digest | provenance receipt | artifact preview",
+		"Evidence label: diffs for run-1",
+		"Evidence trail: run run-1 -> artifact diffs for run-1 -> Audit for verification posture",
 		"Typed detail mode:",
 		"Inspectable content is supplemental evidence, not authoritative run/approval truth.",
 		"diff preview (secrets redacted):",
 		"token=[REDACTED]",
 	)
-	if strings.Contains(view, "Summary: artifact=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb") {
+	if strings.Contains(view, "Summary: artifact=diffs for run-1") {
 		t.Fatalf("expected artifact detail only in inspector region, got %q", view)
 	}
 
@@ -131,11 +132,11 @@ func TestApprovalsRouteSupportsTypedResolveFlowPath(t *testing.T) {
 	updated, _ = updated.Update(cmd())
 
 	view := updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "Flow path: workspace=ws-1 run=run-1 stage=stage-1 action=promotion") {
+	if !strings.Contains(view, "Evidence path: promotion for run-1 -> artifacts (run evidence for run-1) -> audit (run run-1)") {
 		t.Fatalf("expected typed flow-path summary in view, got %q", view)
 	}
-	if !strings.Contains(view, "typed approval_resolve -> resume signal") {
-		t.Fatalf("expected typed resolve copy in flow path, got %q", view)
+	if !strings.Contains(view, "verification posture (Audit) -> anchor/export actions where available") {
+		t.Fatalf("expected evidence trail copy in flow path, got %q", view)
 	}
 
 	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
@@ -149,7 +150,7 @@ func TestApprovalsRouteSupportsTypedResolveFlowPath(t *testing.T) {
 	}
 
 	view = updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "Status: promotion approvals must be resolved via promote-excerpt to preserve exact promotion binding") {
+	if !strings.Contains(view, "Status: Resolve unavailable: promotion approvals must be completed in the promotion flow so exact promotion binding stays intact.") {
 		t.Fatalf("expected fail-closed approval status in view, got %q", view)
 	}
 }
@@ -186,7 +187,7 @@ func TestApprovalsRouteResolvesBackendPostureViaTypedApprovalResolve(t *testing.
 		t.Fatalf("expected ApprovalResolve to be called, got %v", calls)
 	}
 	view := updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "resolved via typed ApprovalResolve") {
+	if !strings.Contains(view, "resolved; broker result=approval_consumed") {
 		t.Fatalf("expected resolve success status in view, got %q", view)
 	}
 }
@@ -207,6 +208,11 @@ func TestRunsReloadKeepsSelectedDetailAligned(t *testing.T) {
 	updated, _ = updated.Update(cmd())
 
 	view := updated.View(120, 40, focusContent)
+	mustContainAll(t, view,
+		"Selected run",
+		"Run run-2 is blocked.",
+		"Run directory",
+	)
 	if !strings.Contains(view, "> run-2") {
 		t.Fatalf("expected run-2 to remain selected after reload, got %q", view)
 	}
@@ -257,7 +263,7 @@ func TestArtifactsReloadKeepsSelectedDetailAligned(t *testing.T) {
 	updated, _ = updated.Update(cmd())
 
 	view := updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "> sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc") {
+	if !strings.Contains(view, "> build_logs for run-2 sha256:cccccccccccc") {
 		t.Fatalf("expected second artifact to remain selected after reload, got %q", view)
 	}
 	surface := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
@@ -333,10 +339,10 @@ func TestArtifactsReloadFallsBackWhenSelectedArtifactDisappears(t *testing.T) {
 	if strings.Contains(view, "Load failed") {
 		t.Fatalf("expected graceful fallback instead of load failure, got %q", view)
 	}
-	if !strings.Contains(view, "> sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb") {
+	if !strings.Contains(view, "> diffs for run-1 sha256:bbbbbbbbbbbb") {
 		t.Fatalf("expected fallback selection to first available artifact, got %q", view)
 	}
-	if !strings.Contains(updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body, "artifact=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb") {
+	if !strings.Contains(updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body, "artifact=diffs for run-1") {
 		t.Fatalf("expected fallback detail for first artifact, got %q", updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body)
 	}
 }

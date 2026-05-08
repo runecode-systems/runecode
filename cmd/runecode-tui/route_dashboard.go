@@ -110,10 +110,26 @@ func (m dashboardRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 func (m dashboardRouteModel) View(width, height int, focus focusArea) string {
 	_ = height
 	if m.loading {
-		return renderStateCard(routeLoadStateLoading, "Dashboard", "Loading dashboard from broker API...")
+		return renderStateCardSpec(stateCardSpec{
+			State:       routeLoadStateLoading,
+			Title:       "Dashboard",
+			Message:     "Refreshing the executive overview.",
+			Reason:      "Dashboard waits for broker-owned status before updating.",
+			NextAction:  "Wait for the broker response or press r to retry.",
+			ShortcutCue: "r reload",
+			RouteCue:    "Action Center",
+		})
 	}
 	if m.errText != "" {
-		return renderStateCard(routeLoadStateError, "Dashboard", "Load failed: "+m.errText+" (press r to retry)")
+		return renderStateCardSpec(stateCardSpec{
+			State:       routeLoadStateError,
+			Title:       "Dashboard",
+			Message:     "Dashboard is temporarily unavailable.",
+			Reason:      m.errText,
+			NextAction:  "Press r to retry. Use Status or Action Center if needed.",
+			ShortcutCue: "r reload",
+			RouteCue:    "Status or Action Center",
+		})
 	}
 	focusLabel := "inactive"
 	if focus == focusContent {
@@ -121,22 +137,41 @@ func (m dashboardRouteModel) View(width, height int, focus focusArea) string {
 	}
 	primaryRun := primaryDashboardRun(m.data.runs)
 	innerWidth := dashboardContentWidth(width)
+	executive := buildDashboardExecutiveSummary(m.data)
 	sections := []string{
-		compactLines(sectionTitle("Dashboard")+" "+focusBadge(focus)+" "+navStateBadge(focusLabel == "active"), tableHeader("Now")+" "+renderDashboardNowBar(primaryRun, len(m.data.approvals), focusLabel == "active", innerWidth)),
+		compactLines(
+			sectionTitle("Dashboard")+" "+focusBadge(focus)+" "+navStateBadge(focusLabel == "active"),
+			renderStateCardSpec(stateCardSpec{
+				State:      executive.State,
+				Title:      executive.Title,
+				Message:    executive.Message,
+				Reason:     executive.Reason,
+				NextAction: executive.NextAction,
+				RouteCue:   "Action Center",
+			}),
+			tableHeader("Now")+" "+renderDashboardNowBar(primaryRun, len(m.data.approvals), focusLabel == "active", innerWidth),
+		),
+		compactLines(
+			tableHeader("Executive overview"),
+			wrapDashboardLine(renderDashboardWorkflowPosture(m.data), innerWidth),
+			wrapDashboardLine(renderDashboardHighValueCounts(m.data, innerWidth), innerWidth),
+			wrapDashboardLine(renderDashboardNextActions(m.data), innerWidth),
+			wrapDashboardLine(renderDashboardActionCenterCue(m.data), innerWidth),
+		),
 		compactLines(tableHeader("Safety Summary"), renderRunSafetyStrip(primaryDashboardRun(m.data.runs), innerWidth), wrapDashboardLine(renderDashboardSafetyAlerts(m.data), innerWidth)),
 		m.controlPlaneSection(innerWidth),
 		compactLines(tableHeader("Live Activity"), wrapDashboardLine("Live activity (typed watch families; logs are supplemental inspection only):", innerWidth), wrapDashboardLine(muted("Live activity uses semantic watch families with explicit event types."), innerWidth), renderWatchFamilySummary(m.data.live.runWatch), renderWatchFamilySummary(m.data.live.approvalWatch), renderWatchFamilySummary(m.data.live.sessionWatch), renderLiveActivityFeed(m.data.live.feed)),
 		compactLines(tableHeader("Highlights"), wrapDashboardLine(renderRunHighlights(m.data.runs), innerWidth), wrapDashboardLine(renderApprovalHighlights(m.data.approvals), innerWidth)),
-		compactLines(tableHeader("Actions")+" "+keyHint("r reload")+" "+muted("tab moves focus • : opens command surface"), keyHint("Route keys: r reload")),
+		compactLines(tableHeader("Actions")+" "+keyHint("r reload")+" "+muted("tab moves focus • : opens command surface"), wrapDashboardLine("Primary follow-up lives in Action Center; use Runs, Approvals, Audit, and Status for detail.", innerWidth), keyHint("Route keys: r reload")),
 	}
 	return joinDashboardSections(sections...)
 }
 
 func (m dashboardRouteModel) controlPlaneSection(width int) string {
 	parts := []string{
-		tableHeader("Control Plane"),
+		tableHeader("Supporting detail"),
 		wrapPartsByWidth([]string{tableHeader("Readiness"), boolBadge("ready", m.data.readiness.Ready), boolBadge("local_only", m.data.readiness.LocalOnly), boolBadge("recovery_complete", m.data.readiness.RecoveryComplete)}, " ", width),
-		wrapPartsByWidth([]string{tableHeader("Safety posture"), stateBadgeWithLabel("integrity", m.data.audit.Summary.IntegrityStatus), stateBadgeWithLabel("anchoring", m.data.audit.Summary.AnchoringStatus), boolBadge("degraded", m.data.audit.Summary.CurrentlyDegraded)}, " ", width),
+		wrapPartsByWidth([]string{tableHeader("Evidence posture"), stateBadgeWithLabel("integrity", m.data.audit.Summary.IntegrityStatus), stateBadgeWithLabel("anchoring", m.data.audit.Summary.AnchoringStatus), boolBadge("degraded", m.data.audit.Summary.CurrentlyDegraded)}, " ", width),
 	}
 	if notice := strings.TrimSpace(renderDashboardAuditFallbackNotice(m.data.auditErr)); notice != "" {
 		parts = append(parts, wrapDashboardLine(notice, width))
@@ -144,8 +179,7 @@ func (m dashboardRouteModel) controlPlaneSection(width int) string {
 	parts = append(parts,
 		wrapDashboardLine(renderDashboardProjectSubstrateLine(m.data.project), width),
 		wrapDashboardLine(renderDashboardProjectSubstrateGuidance(m.data.project), width),
-		wrapDashboardLine(fmt.Sprintf("Workflow posture: runs=%d pending_approvals=%d", len(m.data.runs), pendingApprovalCount(m.data.runs, m.data.approvals)), width),
-		wrapDashboardLine(fmt.Sprintf("Version: %s (%s) protocol bundle=%s", m.data.version.ProductVersion, m.data.version.BuildRevision, m.data.version.ProtocolBundleVersion), width),
+		wrapDashboardLine(fmt.Sprintf("Overview data source: runs=%d approvals=%d version=%s (%s)", len(m.data.runs), len(m.data.approvals), m.data.version.ProductVersion, m.data.version.BuildRevision), width),
 	)
 	return compactLines(parts...)
 }

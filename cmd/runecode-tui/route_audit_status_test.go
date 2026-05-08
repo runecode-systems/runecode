@@ -21,13 +21,15 @@ func TestAuditRouteShowsPagedTimelineAndVerificationReasonCodes(t *testing.T) {
 	view := updated.View(120, 40, focusContent)
 
 	mustContainAll(t, view,
-		"Audit safety strip",
+		"Verification trail",
+		"Audit posture",
 		"Finalize/verify",
 		"status=unavailable",
 		"UNANCHORED_OR_DEGRADED_AUDIT",
 		"Timeline paging: page=1 entries=1 has_next=yes",
 		"anchoring=degraded (unanchored/degraded)",
-		"Verification findings (machine-readable):",
+		"Evidence path:",
+		"Verification findings (operator summary):",
 		"code=anchor_receipt_missing severity=warning dimension=anchoring",
 		"degraded_reason_codes=",
 		"posture=degraded reasons=anchor_receipt_missing",
@@ -59,6 +61,9 @@ func TestAuditRouteShowsPagedTimelineAndVerificationReasonCodes(t *testing.T) {
 	}
 	if !strings.Contains(inspector, "Verification posture: degraded (unanchored/degraded)") {
 		t.Fatalf("expected record inspector posture rendering, got %q", inspector)
+	}
+	if !strings.Contains(inspector, "Evidence trail: follow linked runs/artifacts/approvals") {
+		t.Fatalf("expected evidence trail guidance in inspector, got %q", inspector)
 	}
 }
 
@@ -163,6 +168,7 @@ func TestAuditRouteAnchorActionDispatchesToBrokerAndRendersSuccess(t *testing.T)
 		"Anchor action: ok",
 		"receipt=sha256:",
 		"export_copy=off",
+		"next=use receipt for export/offline verification when available",
 	)
 	updated = mustRunAuditRouteKey(t, updated, 'f', "expected finalize+verify command")
 	view = updated.View(120, 40, focusContent)
@@ -170,6 +176,7 @@ func TestAuditRouteAnchorActionDispatchesToBrokerAndRendersSuccess(t *testing.T)
 		"Finalize/verify",
 		"status=ok",
 		"segment=segment-000001",
+		"next=review Audit findings or anchor/export the latest verified segment",
 	)
 }
 

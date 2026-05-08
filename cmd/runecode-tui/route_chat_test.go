@@ -119,7 +119,7 @@ func TestChatRouteRendersOrderedTranscriptAndLinkedReferences(t *testing.T) {
 	mustContainAll(t, inspector,
 		"Summary:",
 		"Identity: session=session-1 workspace=ws-1",
-		"Local actions: jump:runs | jump:approvals | jump:artifacts | jump:audit | copy:session_id",
+		"Local actions: jump:session-run | jump:runs | jump:approvals | jump:artifacts | jump:audit | copy:session_id",
 		"Copy actions: session id | workspace id | transcript excerpt | linked references",
 		"Long-form transcript:",
 	)
@@ -176,8 +176,13 @@ func TestChatRouteComposeSendsTypedSessionMessageRequest(t *testing.T) {
 	}
 
 	view := updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "Status: Execution progress: running") {
-		t.Fatalf("expected broker-owned execution progress status in view, got %q", view)
+	mustContainAll(t, view,
+		"Workflow is waiting for approval.",
+		"Session directory",
+		"Composer is idle.",
+	)
+	if strings.Contains(view, "SessionExecutionTrigger") {
+		t.Fatalf("expected product language instead of protocol phrasing in primary view, got %q", view)
 	}
 }
 
@@ -280,13 +285,13 @@ func TestChatRouteComposeUsesTurnExecutionWatchStateOverTriggerAck(t *testing.T)
 	updated, _ = updated.Update(cmd())
 
 	view := updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "Status: Execution progress: blocked (waiting_project_blocked)") {
-		t.Fatalf("expected status from turn execution watch blocked state, got %q", view)
+	if !strings.Contains(view, "Workflow cannot continue yet.") {
+		t.Fatalf("expected blocked workflow headline from turn execution watch state, got %q", view)
 	}
 	if !strings.Contains(view, "Follow-up: Remediation:") {
 		t.Fatalf("expected remediation posture follow-up in view, got %q", view)
 	}
-	if !strings.Contains(view, "execution watch is advisory live state") {
-		t.Fatalf("expected transcript/execution separation hint in view, got %q", view)
+	if !strings.Contains(view, "Transcript remains the durable conversation record") {
+		t.Fatalf("expected transcript/evidence separation hint in view, got %q", view)
 	}
 }

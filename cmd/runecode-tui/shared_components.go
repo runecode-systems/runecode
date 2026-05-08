@@ -385,33 +385,6 @@ func renderInspectorDetailViewport(spec inspectorShellSpec) []string {
 	return []string{tableHeader("Detail viewport"), "Long-form " + contentLabel + ":", renderedContent}
 }
 
-func renderStateCard(state routeLoadState, title, message string) string {
-	label := string(state)
-	if label == "" {
-		label = string(routeLoadStateReady)
-	}
-	if strings.TrimSpace(message) == "" {
-		message = "n/a"
-	}
-	headline := tableHeader(strings.ToUpper(label)) + " " + strings.TrimSpace(title)
-	detail := appTheme.SurfaceCard.Padding(0, 1).Render(strings.TrimSpace(message))
-	next := muted(stateCardNextStep(state))
-	return compactLines(headline, detail, next)
-}
-
-func stateCardNextStep(state routeLoadState) string {
-	switch state {
-	case routeLoadStateLoading:
-		return "Waiting for the broker response to settle."
-	case routeLoadStateError:
-		return "Use the route reload shortcut to try again."
-	case routeLoadStateEmpty:
-		return "No matching records are available for the current route state."
-	default:
-		return ""
-	}
-}
-
 func titleOrFallback(title string, fallback string) string {
 	title = strings.TrimSpace(title)
 	if title == "" {

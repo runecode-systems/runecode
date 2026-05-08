@@ -25,15 +25,15 @@ func (m statusRouteModel) beginProjectSubstrateAction(key string) (routeModel, t
 func (m statusRouteModel) projectSubstrateActionForKey(key string) (string, tea.Cmd) {
 	switch key {
 	case "a":
-		return "Submitting project substrate adoption through broker local API...", m.projectSubstrateAdoptCmd()
+		return "Inspecting compatible existing project setup for broker-owned adoption...", m.projectSubstrateAdoptCmd()
 	case "i":
-		return "Loading project substrate init preview through broker local API...", m.projectSubstrateInitPreviewCmd()
+		return "Loading broker-owned init preview for project setup...", m.projectSubstrateInitPreviewCmd()
 	case "I":
-		return "Applying project substrate init with broker preview token...", m.projectSubstrateInitApplyCmd()
+		return "Applying broker-owned init preview for project setup...", m.projectSubstrateInitApplyCmd()
 	case "u":
-		return "Loading project substrate upgrade preview through broker local API...", m.projectSubstrateUpgradePreviewCmd()
+		return "Loading broker-owned upgrade preview for project setup...", m.projectSubstrateUpgradePreviewCmd()
 	case "U":
-		return "Applying project substrate upgrade with broker preview digest...", m.projectSubstrateUpgradeApplyCmd()
+		return "Applying broker-owned upgrade preview for project setup...", m.projectSubstrateUpgradeApplyCmd()
 	default:
 		return "", nil
 	}
@@ -47,7 +47,7 @@ func (m statusRouteModel) projectSubstrateAdoptCmd() tea.Cmd {
 		if err != nil {
 			return projectSubstrateActionResultMsg{err: err}
 		}
-		status := fmt.Sprintf("Project substrate adopt status=%s", valueOrNA(resp.Adoption.Status))
+		status := fmt.Sprintf("Project setup adoption: status=%s mutation=none", valueOrNA(resp.Adoption.Status))
 		if len(resp.Adoption.ReasonCodes) > 0 {
 			status += " reasons=" + joinCSV(resp.Adoption.ReasonCodes)
 		}
@@ -63,9 +63,12 @@ func (m statusRouteModel) projectSubstrateInitPreviewCmd() tea.Cmd {
 		if err != nil {
 			return projectSubstrateActionResultMsg{err: err}
 		}
-		status := fmt.Sprintf("Project substrate init preview status=%s token=%s", valueOrNA(resp.Preview.Status), projectSubstrateHandleDisplay(resp.Preview.PreviewToken))
+		status := fmt.Sprintf("Project setup init preview: status=%s mutation=preview_only handle=%s", valueOrNA(resp.Preview.Status), projectSubstrateHandleDisplay(resp.Preview.PreviewToken))
 		if len(resp.Preview.ReasonCodes) > 0 {
 			status += " reasons=" + joinCSV(resp.Preview.ReasonCodes)
+		}
+		if strings.TrimSpace(resp.Preview.PreviewToken) == "" {
+			status += " next=reload_or_retry_preview"
 		}
 		return projectSubstrateActionResultMsg{status: status}
 	}
@@ -78,16 +81,17 @@ func (m statusRouteModel) projectSubstrateInitApplyCmd() tea.Cmd {
 		preview := m.data.project.InitPreview
 		token := strings.TrimSpace(preview.PreviewToken)
 		if token == "" {
-			return projectSubstrateActionResultMsg{err: fmt.Errorf("project substrate init preview token unavailable; reload or run preview first")}
+			return projectSubstrateActionResultMsg{err: fmt.Errorf("project setup init apply unavailable: preview handle missing; reload or run init preview first")}
 		}
 		applyResp, err := m.client.ProjectSubstrateInitApply(ctx, token)
 		if err != nil {
 			return projectSubstrateActionResultMsg{err: err}
 		}
-		status := fmt.Sprintf("Project substrate init apply status=%s preview_status=%s token=%s", valueOrNA(applyResp.ApplyResult.Status), valueOrNA(preview.Status), projectSubstrateHandleDisplay(token))
+		status := fmt.Sprintf("Project setup init apply: status=%s preview_status=%s mutation=applied handle=%s", valueOrNA(applyResp.ApplyResult.Status), valueOrNA(preview.Status), projectSubstrateHandleDisplay(token))
 		if len(applyResp.ApplyResult.ReasonCodes) > 0 {
 			status += " reasons=" + joinCSV(applyResp.ApplyResult.ReasonCodes)
 		}
+		status += " next=reload_validation_status"
 		return projectSubstrateActionResultMsg{status: status}
 	}
 }
@@ -100,9 +104,12 @@ func (m statusRouteModel) projectSubstrateUpgradePreviewCmd() tea.Cmd {
 		if err != nil {
 			return projectSubstrateActionResultMsg{err: err}
 		}
-		status := fmt.Sprintf("Project substrate upgrade preview status=%s digest=%s", valueOrNA(resp.Preview.Status), projectSubstrateHandleDisplay(resp.Preview.PreviewDigest))
+		status := fmt.Sprintf("Project setup upgrade preview: status=%s mutation=preview_only digest=%s", valueOrNA(resp.Preview.Status), projectSubstrateHandleDisplay(resp.Preview.PreviewDigest))
 		if len(resp.Preview.ReasonCodes) > 0 {
 			status += " reasons=" + joinCSV(resp.Preview.ReasonCodes)
+		}
+		if strings.TrimSpace(resp.Preview.PreviewDigest) == "" {
+			status += " next=reload_or_retry_preview"
 		}
 		return projectSubstrateActionResultMsg{status: status}
 	}
@@ -115,16 +122,17 @@ func (m statusRouteModel) projectSubstrateUpgradeApplyCmd() tea.Cmd {
 		preview := m.data.project.UpgradePreview
 		digest := strings.TrimSpace(preview.PreviewDigest)
 		if digest == "" {
-			return projectSubstrateActionResultMsg{err: fmt.Errorf("project substrate upgrade preview digest unavailable; reload or run preview first")}
+			return projectSubstrateActionResultMsg{err: fmt.Errorf("project setup upgrade apply unavailable: preview digest missing; reload or run upgrade preview first")}
 		}
 		applyResp, err := m.client.ProjectSubstrateUpgradeApply(ctx, digest)
 		if err != nil {
 			return projectSubstrateActionResultMsg{err: err}
 		}
-		status := fmt.Sprintf("Project substrate upgrade apply status=%s preview_status=%s digest=%s", valueOrNA(applyResp.ApplyResult.Status), valueOrNA(preview.Status), projectSubstrateHandleDisplay(digest))
+		status := fmt.Sprintf("Project setup upgrade apply: status=%s preview_status=%s mutation=applied digest=%s", valueOrNA(applyResp.ApplyResult.Status), valueOrNA(preview.Status), projectSubstrateHandleDisplay(digest))
 		if len(applyResp.ApplyResult.ReasonCodes) > 0 {
 			status += " reasons=" + joinCSV(applyResp.ApplyResult.ReasonCodes)
 		}
+		status += " next=reload_validation_status"
 		return projectSubstrateActionResultMsg{status: status}
 	}
 }

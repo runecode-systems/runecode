@@ -28,8 +28,14 @@ func TestDashboardRouteShowsTypedLiveWatchFamilies(t *testing.T) {
 	view := updated.View(120, 40, focusContent)
 
 	mustContainAll(t, view,
+		"Degraded",
+		"Executive overview",
 		"Now",
 		"CONTENT_READY",
+		"Workflow posture:",
+		"High-value counts:",
+		"Next action:",
+		"Action Center is the operator home",
 		"Safety Summary",
 		"Safety strip",
 		"backend_kind=workspace",
@@ -38,10 +44,10 @@ func TestDashboardRouteShowsTypedLiveWatchFamilies(t *testing.T) {
 		"approval_profile=n/a",
 		"Safety alerts:",
 		"ALERT_AUDIT_UNANCHORED",
-		"Control Plane",
-		"Project substrate:",
+		"Supporting detail",
+		"Project setup:",
 		"compatibility=supported_with_upgrade_available",
-		"Project substrate remediation:",
+		"Project setup guidance:",
 		"Live Activity",
 		"Live activity (typed watch families; logs are supplemental inspection only):",
 		"totals events=2 snapshot=1 upsert=0 terminal=1 errors=0",
@@ -82,14 +88,15 @@ func TestDashboardRouteFallsBackWhenAuditVerificationUnavailable(t *testing.T) {
 
 	mustContainAll(t, view,
 		"Dashboard",
+		"Degraded",
 		"Now",
-		"Safety posture",
-		"Project substrate:",
+		"Evidence posture",
+		"Project setup:",
 		"FAILED",
 		"degraded=true",
 		"AUDIT_VERIFICATION_UNAVAILABLE",
 		"showing degraded fallback posture (gateway_failure)",
-		"Control Plane",
+		"Supporting detail",
 		"Live Activity",
 		"Live activity (typed watch families; logs are supplemental inspection only):",
 	)
@@ -103,7 +110,7 @@ func TestDashboardViewPreservesSectionGaps(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	for _, want := range []string{"PENDING_APPROVALS=1\n\nSafety Summary", "ALERT_AUDIT_UNANCHORED  audit posture unanchored/degraded\n\nControl Plane", "protocol bundle=0.9.0\n\nLive Activity"} {
+	for _, want := range []string{"degraded=1.\n\nSafety Summary", "ALERT_AUDIT_UNANCHORED  audit posture unanchored/degraded\n\nSupporting detail", "Overview data source: runs=1 approvals=1 version=0.1.0 (abc123)\n\nLive Activity"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("expected preserved blank section gap %q in view, got %q", want, view)
 		}
@@ -118,7 +125,7 @@ func TestDashboardAuditFallbackWithoutErrorDoesNotAddExtraBlankLine(t *testing.T
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	if strings.Contains(view, "Safety posture\n\nWorkflow posture") {
+	if strings.Contains(view, "Evidence posture\n\nOverview data source") {
 		t.Fatalf("did not expect extra blank line when audit fallback notice absent, got %q", view)
 	}
 }
@@ -161,8 +168,9 @@ func TestDashboardViewNarrowWidthKeepsBoundedLinesAndSectionSpacing(t *testing.T
 	}
 	mustContainAll(t, view,
 		"Dashboard",
+		"Executive overview",
 		"Safety Summary",
-		"Control Plane",
+		"Supporting detail",
 		"Live Activity",
 	)
 }

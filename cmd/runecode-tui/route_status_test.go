@@ -18,22 +18,23 @@ func TestStatusRouteRendersProjectSubstratePostureAndGuidance(t *testing.T) {
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
 	mustContainAll(t, view,
-		"Broker lifecycle posture:",
+		"Managed operation",
+		"Attach and normal managed operation are available.",
+		"Managed-operation details:",
 		"attach_mode=full",
 		"attachable=true",
 		"normal_operation_allowed=true",
-		"Broker lifecycle blocked reasons: none",
-		"Broker lifecycle degraded reasons: none",
-		"Attach guidance: full attach and normal operation are allowed.",
-		"Project substrate posture:",
+		"Managed-operation blocking reasons: none",
+		"Managed-operation degraded reasons: none",
+		"Project setup",
+		"Project setup is usable, but a broker-owned upgrade is available.",
+		"Project setup details:",
 		"compatibility=supported_with_upgrade_available",
-		"Project substrate remediation:",
-		"Project substrate upgrade:",
-		"a adopt substrate",
-		"i init preview",
-		"I init apply",
-		"u upgrade preview",
-		"U upgrade apply",
+		"Guided setup/remediation flow",
+		"Compatible adoption (a): no mutation",
+		"Init preview/apply (i/I):",
+		"Upgrade preview/apply (u/U):",
+		"Keys: r reload",
 	)
 }
 
@@ -59,11 +60,11 @@ type statusRouteActionCase struct {
 
 func statusRouteActionCases() []statusRouteActionCase {
 	return []statusRouteActionCase{
-		{key: 'a', expectedStatus: "Project substrate adopt status=", expectedRPCCall: []string{"ProjectSubstrateAdopt"}},
-		{key: 'i', expectedStatus: "Project substrate init preview status=", expectedRPCCall: []string{"ProjectSubstrateInitPreview"}},
-		{key: 'I', expectedStatus: "Project substrate init apply status=", expectedRPCCall: []string{"ProjectSubstrateInitApply"}},
-		{key: 'u', expectedStatus: "Project substrate upgrade preview status=", expectedRPCCall: []string{"ProjectSubstrateUpgradePreview"}},
-		{key: 'U', expectedStatus: "Project substrate upgrade apply status=", expectedRPCCall: []string{"ProjectSubstrateUpgradeApply"}},
+		{key: 'a', expectedStatus: "Project setup adoption: status=", expectedRPCCall: []string{"ProjectSubstrateAdopt"}},
+		{key: 'i', expectedStatus: "Project setup init preview: status=", expectedRPCCall: []string{"ProjectSubstrateInitPreview"}},
+		{key: 'I', expectedStatus: "Project setup init apply: status=", expectedRPCCall: []string{"ProjectSubstrateInitApply"}},
+		{key: 'u', expectedStatus: "Project setup upgrade preview: status=", expectedRPCCall: []string{"ProjectSubstrateUpgradePreview"}},
+		{key: 'U', expectedStatus: "Project setup upgrade apply: status=", expectedRPCCall: []string{"ProjectSubstrateUpgradeApply"}},
 	}
 }
 
@@ -164,13 +165,14 @@ func TestStatusRouteRendersDiagnosticsOnlyAttachGuidanceWhenNormalOperationBlock
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
 	mustContainAll(t, view,
+		"Managed operation",
+		"You can attach for diagnostics and remediation only; managed work stays blocked.",
 		"attach_mode=diagnostics_only",
-		"lifecycle_posture=blocked",
+		"posture=blocked",
 		"attachable=true",
 		"normal_operation_allowed=false",
-		"Broker lifecycle blocked reasons: project_substrate_unsupported_too_new",
-		"Broker lifecycle degraded reasons: project_substrate_upgrade_available",
-		"Attach guidance: diagnostics/remediation-only attach is available; normal operation is blocked by current project-substrate posture.",
+		"Managed-operation blocking reasons: project_substrate_unsupported_too_new",
+		"Managed-operation degraded reasons: project_substrate_upgrade_available",
 	)
 }
 
@@ -224,11 +226,13 @@ func TestStatusRouteRendersBlockedProjectSubstrateGuidance(t *testing.T) {
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
 	mustContainAll(t, view,
-		"Project substrate posture:",
-		"state=missing",
+		"Project setup",
+		"Project setup needs attention before managed work can continue.",
+		"Project setup details:",
+		"validation=missing",
 		"compatibility=missing",
 		"normal_operation_allowed=false",
-		"Project substrate block: normal operation blocked by project substrate posture: project_substrate_missing",
-		"Project substrate remediation: inspect_project_substrate_posture,initialize_canonical_runecontext_substrate,revalidate_project_substrate",
+		"What blocks normal work: normal operation blocked by project substrate posture: project_substrate_missing",
+		"Broker guidance: inspect_project_substrate_posture,initialize_canonical_runecontext_substrate,revalidate_project_substrate",
 	)
 }

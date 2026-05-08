@@ -10,12 +10,12 @@ type shellLayoutPlan struct {
 const (
 	shellTopStatusHeight   = 2
 	shellSyncHealthHeight  = 1
-	shellBreadcrumbHeight  = 1
-	shellHistoryHeight     = 1
+	shellBreadcrumbHeight  = 0
+	shellHistoryHeight     = 0
 	shellPaneSpacerHeight  = 1
-	shellBottomStripHeight = 5
+	shellBottomStripHeight = 4
 	shellStatusHeight      = 1
-	shellFooterHeight      = 3
+	shellFooterHeight      = 2
 )
 
 func shellChromeReservedHeight() int {

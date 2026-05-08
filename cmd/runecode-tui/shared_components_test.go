@@ -216,3 +216,35 @@ func TestLongFormDocumentStatePersistsViewportAndResetsOnDocumentChange(t *testi
 		t.Fatalf("expected offset reset on document swap, got %q", got)
 	}
 }
+
+func TestRenderStateCardSpecShowsConsistentReasonNextAndCueLines(t *testing.T) {
+	got := renderStateCardSpec(stateCardSpec{
+		State:       routeLoadStateApprovalRequired,
+		Title:       "Approvals",
+		Message:     "A policy gate is waiting on review.",
+		Reason:      "Exact action approval is required before execution can continue.",
+		NextAction:  "Review the request and decide when ready.",
+		ShortcutCue: ":open approvals",
+		RouteCue:    "Approvals",
+	})
+	mustContainAll(t, got,
+		"APPROVAL REQUIRED",
+		"Message: A policy gate is waiting on review.",
+		"Reason: Exact action approval is required before execution can continue.",
+		"Next: Review the request and decide when ready.",
+		"Shortcut: :open approvals • Route: Approvals",
+	)
+}
+
+func TestRenderStateCardProvidesDefaultNextStepForBlockedAndCompleted(t *testing.T) {
+	blocked := renderStateCard(routeLoadStateBlocked, "Run", "Execution cannot continue yet.")
+	completed := renderStateCard(routeLoadStateCompleted, "Run", "Execution finished and evidence is available.")
+	mustContainAll(t, blocked,
+		"BLOCKED",
+		"Next: Review the blocking reason and complete the required operator action before retrying.",
+	)
+	mustContainAll(t, completed,
+		"COMPLETED",
+		"Next: Review the resulting artifacts, approvals, or audit evidence if you need more detail.",
+	)
+}

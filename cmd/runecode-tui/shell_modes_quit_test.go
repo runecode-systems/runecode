@@ -390,7 +390,7 @@ func TestShellBottomStripCopyHintUsesActionEntryWording(t *testing.T) {
 	m.location.Primary = shellObjectLocation{RouteID: routeRuns, Object: workbenchObjectRef{Kind: "route", ID: string(routeRuns)}}
 
 	bottom := m.renderBottomStrip(m.activeShellSurface())
-	if !strings.Contains(bottom, "Copy actions (use action entry):") {
+	if !strings.Contains(bottom, "copy actions 3 via action entry") {
 		t.Fatalf("expected updated copy hint wording, got %q", bottom)
 	}
 	if strings.Contains(bottom, "Y cycles/copies") {

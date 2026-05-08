@@ -139,13 +139,14 @@ func (m runsRouteModel) View(width, height int, focus focusArea) string {
 	_ = width
 	_ = height
 	if m.loading {
-		return renderStateCard(routeLoadStateLoading, "Runs", "Loading runs from broker run summaries/details...")
+		return renderStateCard(routeLoadStateLoading, "Runs", "Loading runs and linked workflow evidence...")
 	}
 	if m.errText != "" {
 		return renderStateCard(routeLoadStateError, "Runs", "Load failed: "+m.errText+" (press r to retry)")
 	}
 	body := []string{
 		sectionTitle("Runs") + " " + focusBadge(focus),
+		renderStateCardSpec(runStateCard(m.active)),
 		renderRunSafetyStrip(m.activeSummary(), width-4),
 		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
 		renderDirectory("Run directory", renderRunDirectoryItems(m.runs), m.selected),
@@ -153,7 +154,8 @@ func (m runsRouteModel) View(width, height int, focus focusArea) string {
 	if len(m.runs) == 0 {
 		body = append(body, muted("No runs are available yet; reload after the broker reports canonical run activity."))
 	}
-	body = append(body, keyHint("Route keys: j/k move, enter load detail, i toggle inspector, v cycle rendered/raw/structured, r reload"))
+	body = append(body, muted("Runs keeps the broker-owned outcome, coordination, and evidence trail together for the selected workflow."))
+	body = append(body, keyHint("Keys: j/k move • enter review • i inspector • v mode • r reload"))
 	return compactLines(body...)
 }
 
@@ -176,7 +178,7 @@ func (m runsRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 		Regions: routeSurfaceRegions{
 			Main:      routeSurfaceRegion{Title: "Run workbench", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
 			Inspector: routeSurfaceRegion{Title: "Run inspector", Body: inspector},
-			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, i toggle inspector, v cycle rendered/raw/structured, r reload")},
+			Bottom:    routeSurfaceRegion{Body: keyHint("Keys: j/k move • enter review • i inspector • v mode • r reload")},
 			Status:    routeSurfaceRegion{Body: status},
 		},
 		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
@@ -299,7 +301,49 @@ func renderRunList(runs []brokerapi.RunSummary, selected int) string {
 func renderRunDirectoryItems(runs []brokerapi.RunSummary) []string {
 	items := make([]string, 0, len(runs))
 	for _, run := range runs {
-		items = append(items, fmt.Sprintf("%s %s approvals=%d", run.RunID, stateBadgeWithLabel("state", run.LifecycleState), run.PendingApprovalCount))
+		items = append(items, strings.TrimSpace(strings.Join([]string{
+			run.RunID,
+			stateBadgeWithLabel("state", run.LifecycleState),
+			fmt.Sprintf("workflow=%s", valueOrNA(run.WorkflowKind)),
+			fmt.Sprintf("backend=%s", valueOrNA(run.BackendKind)),
+			fmt.Sprintf("approvals=%d", run.PendingApprovalCount),
+		}, " ")))
 	}
 	return items
+}
+
+func runStateCard(detail *brokerapi.RunDetail) stateCardSpec {
+	if detail == nil {
+		return stateCardSpec{
+			State:       routeLoadStateEmpty,
+			Title:       "Selected run",
+			Message:     "Pick a run to review workflow outcome and evidence.",
+			Reason:      "The directory stays broker-owned; no local progress is synthesized here.",
+			NextAction:  "Select a run from the directory.",
+			ShortcutCue: "j/k move • enter review",
+			RouteCue:    "Runs",
+		}
+	}
+	state := routeLoadStateReady
+	if detail.Coordination.Blocked {
+		state = routeLoadStateBlocked
+	}
+	if len(detail.PendingApprovalIDs) > 0 {
+		state = routeLoadStateApprovalRequired
+	}
+	if strings.Contains(strings.ToLower(strings.TrimSpace(detail.Summary.LifecycleState)), "fail") {
+		state = routeLoadStateDegraded
+	}
+	if strings.EqualFold(strings.TrimSpace(detail.Summary.LifecycleState), "completed") {
+		state = routeLoadStateCompleted
+	}
+	return stateCardSpec{
+		State:       state,
+		Title:       "Selected run",
+		Message:     fmt.Sprintf("Run %s is %s.", detail.Summary.RunID, valueOrNA(detail.Summary.LifecycleState)),
+		Reason:      fmt.Sprintf("Workflow %s • %s • %s", runWorkflowOperation(detail.Summary, detail), runPlanAuthoritySummary(detail.Summary, detail), runEvidenceSummary(detail)),
+		NextAction:  fmt.Sprintf("Use the inspector for detail, then jump to session=%s / approvals=%d / artifacts=%d / audit=%d as needed.", valueOrNA(authoritativeString(detail.AuthoritativeState, "session_id")), len(detail.PendingApprovalIDs), runArtifactCount(detail), runAuditReferenceCount(detail)),
+		ShortcutCue: "enter review • i inspector",
+		RouteCue:    "Chat / Approvals / Artifacts / Audit",
+	}
 }

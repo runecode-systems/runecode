@@ -30,36 +30,28 @@ func renderLinkedReferenceLine(prefix string, refs []string) string {
 func renderSessionDirectoryItems(sessions []brokerapi.SessionSummary) []string {
 	items := make([]string, 0, len(sessions))
 	for _, s := range sessions {
-		items = append(items, fmt.Sprintf("%s %s turns=%d", s.Identity.SessionID, stateBadgeWithLabel("status", s.Status), s.TurnCount))
+		items = append(items, fmt.Sprintf("%s %s %s turns=%d runs=%d artifacts=%d approvals=%d", s.Identity.SessionID, stateBadgeWithLabel("status", s.Status), stateBadgeWithLabel("work", sessionHighLevelCue(s)), s.TurnCount, s.LinkedRunCount, s.LinkedArtifactCount, s.LinkedApprovalCount))
 	}
 	return items
 }
 
 func activeSessionSummaryLine(detail *brokerapi.SessionDetail) string {
 	if detail == nil {
-		return "none selected"
+		return "No session selected."
 	}
 	s := detail.Summary
-	executionCue := "execution=n/a"
-	if detail.CurrentTurnExecution != nil {
-		executionCue = fmt.Sprintf("execution=%s", detail.CurrentTurnExecution.ExecutionState)
-		if strings.TrimSpace(detail.CurrentTurnExecution.WaitState) != "" {
-			executionCue += fmt.Sprintf("(%s)", detail.CurrentTurnExecution.WaitState)
+	exec := chatVisibleExecution(detail)
+	statusParts := []string{fmt.Sprintf("Session %s in workspace %s is %s.", s.Identity.SessionID, valueOrNA(s.Identity.WorkspaceID), sessionHighLevelCue(s))}
+	if exec != nil {
+		statusParts = append(statusParts, fmt.Sprintf("Latest workflow state: %s", humanizeExecutionToken(exec.ExecutionState)))
+		if wait := strings.TrimSpace(exec.WaitState); wait != "" {
+			statusParts = append(statusParts, fmt.Sprintf("waiting on %s", humanizeExecutionToken(wait)))
 		}
-	} else if detail.LatestTurnExecution != nil {
-		executionCue = fmt.Sprintf("latest_execution=%s", detail.LatestTurnExecution.ExecutionState)
 	}
-	return fmt.Sprintf("%s | ws=%s | cue=%s | activity=%s/%s | preview=%q | incomplete=%t | runs=%d approvals=%d",
-		s.Identity.SessionID,
-		s.Identity.WorkspaceID,
-		sessionHighLevelCue(s)+" "+executionCue,
-		defaultPlaceholder(s.LastActivityAt, "n/a"),
-		defaultPlaceholder(s.LastActivityKind, "n/a"),
-		truncateText(s.LastActivityPreview, 64),
-		s.HasIncompleteTurn,
-		s.LinkedRunCount,
-		s.LinkedApprovalCount,
-	)
+	if preview := truncateText(s.LastActivityPreview, 72); preview != "" {
+		statusParts = append(statusParts, fmt.Sprintf("last activity %q", preview))
+	}
+	return strings.Join(statusParts, " • ")
 }
 
 func renderTranscriptTurns(turns []brokerapi.SessionTranscriptTurn) string {

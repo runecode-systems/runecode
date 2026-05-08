@@ -42,10 +42,6 @@ func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, la
 	b.WriteString("\n")
 	b.WriteString(constrainShellBlock(m.renderSyncHealth(), viewportWidth, shellSyncHealthHeight))
 	b.WriteString("\n")
-	b.WriteString(constrainShellBlock(m.renderBreadcrumbs(surface), viewportWidth, shellBreadcrumbHeight))
-	b.WriteString("\n")
-	b.WriteString(constrainShellBlock(m.renderHistory(), viewportWidth, shellHistoryHeight))
-	b.WriteString("\n")
 	b.WriteString(constrainShellBlock("", viewportWidth, shellPaneSpacerHeight))
 	b.WriteString("\n")
 	b.WriteString(m.renderShellPanes(surface, layout))
@@ -60,9 +56,7 @@ func (m shellModel) writeShellFooter(b *strings.Builder) {
 	viewportWidth, _ := normalizedShellViewport(m.width, m.height)
 	b.WriteString(constrainShellBlock(renderHelp(m.keys, m.palette.IsOpen() || m.sessions.IsOpen(), m.actions), viewportWidth, 1))
 	b.WriteString("\n")
-	b.WriteString(constrainShellBlock(muted(localBrokerBoundaryPosture()), viewportWidth, 1))
-	b.WriteString("\n")
-	b.WriteString(constrainShellBlock(muted("Trust boundary: typed broker contracts only; no CLI scraping or daemon-private path modeling."), viewportWidth, 1))
+	b.WriteString(constrainShellBlock(muted("Truth via typed broker state; details in Status, inspectors, and command discovery."), viewportWidth, 1))
 	b.WriteString("\n")
 }
 
@@ -200,27 +194,25 @@ func constrainShellBlock(block string, width int, height int) string {
 }
 
 func (m shellModel) renderTopStatus(surface routeSurface, layout shellLayoutPlan) string {
-	selection := "off"
 	activity := renderShellActivityState(m.watch.projection.Activity.State)
-	if m.selectionMode {
-		selection = "on"
-	}
-	routeSummary := fmt.Sprintf("%s  %s", appTheme.AppTitle.Render("Runecode TUI α shell"), neutralBadge("THEME "+string(m.themePreset)))
+	routeSummary := fmt.Sprintf("%s  %s", appTheme.AppTitle.Render("RuneCode Workbench"), neutralBadge("THEME "+string(m.themePreset)))
 	workbenchSummary := []string{
-		fmt.Sprintf("route=%s", m.routeLabel(m.currentRouteID())),
-		fmt.Sprintf("focus=%s", strings.ToUpper(m.focus.Label())),
-		fmt.Sprintf("layout=%s", layout.Breakpoint),
-		fmt.Sprintf("selection=%s", selection),
+		fmt.Sprintf("Route %s", sanitizeUIText(m.routeLabel(m.currentRouteID()))),
+		fmt.Sprintf("Focus %s", strings.ToUpper(m.focus.Label())),
+		activity,
 	}
-	if routeInspectorAvailable(surface) {
-		workbenchSummary = append(workbenchSummary, fmt.Sprintf("inspector=%t", layout.InspectorVisible))
+	if activeWork := strings.TrimSpace(m.renderActiveWorkSummary()); activeWork != "" {
+		workbenchSummary = append(workbenchSummary, activeWork)
 	}
 	if strings.TrimSpace(m.activeSessionID) != "" {
-		workbenchSummary = append(workbenchSummary, fmt.Sprintf("session=%s", sanitizeUIText(m.activeSessionID)))
+		workbenchSummary = append(workbenchSummary, fmt.Sprintf("Session %s", sanitizeUIText(m.activeSessionID)))
+	}
+	if diag := strings.TrimSpace(m.renderChromeDiagnosticHint(surface, layout)); diag != "" {
+		workbenchSummary = append(workbenchSummary, muted(diag))
 	}
 	return compactLines(
 		appTheme.SurfaceChrome.Padding(0, 1).Render(routeSummary),
-		appTheme.SurfaceChrome.Padding(0, 1).Render(strings.Join(append(workbenchSummary, activity), "  •  ")+renderRunningSuffix(m.renderRunningIndicator())),
+		appTheme.SurfaceChrome.Padding(0, 1).Render(strings.Join(workbenchSummary, "  •  ")+renderRunningSuffix(m.renderRunningIndicator())),
 	)
 }
 
@@ -233,10 +225,11 @@ func renderRunningSuffix(indicator string) string {
 }
 
 func (m shellModel) renderSyncHealth() string {
-	text := "Sync health: " + renderShellSyncState(m.watch.projection.Health.State)
+	text := "Product truth: " + renderShellSyncState(m.watch.projection.Health.State)
 	if strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" {
 		text += " " + infoBadge(fmt.Sprintf("active_%s=%s", sanitizeUIText(m.watch.projection.Activity.Active.Kind), sanitizeUIText(m.watch.projection.Activity.Active.ID)))
 	}
+	text += "  •  " + muted(localBrokerBoundaryPosture())
 	if strings.TrimSpace(m.watch.projection.Health.ErrorText) != "" {
 		text += " " + muted("("+sanitizeUIText(m.watch.projection.Health.ErrorText)+")")
 	}
@@ -283,6 +276,39 @@ func (m shellModel) renderHistory() string {
 		items = items[len(items)-5:]
 	}
 	return muted("History: " + strings.Join(items, " <- "))
+}
+
+func (m shellModel) renderActiveWorkSummary() string {
+	active := m.watch.projection.Activity.Active
+	if strings.TrimSpace(active.ID) == "" {
+		return ""
+	}
+	label := sanitizeUIText(active.Kind)
+	if label == "" {
+		label = "work"
+	}
+	return fmt.Sprintf("Active %s %s", label, sanitizeUIText(active.ID))
+}
+
+func (m shellModel) renderChromeDiagnosticHint(surface routeSurface, layout shellLayoutPlan) string {
+	parts := []string{}
+	if routeInspectorAvailable(surface) {
+		parts = append(parts, fmt.Sprintf("inspector %s", boolOnOff(layout.InspectorVisible)))
+	}
+	if m.selectionMode {
+		parts = append(parts, "selection text")
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, " • ")
+}
+
+func boolOnOff(v bool) string {
+	if v {
+		return "on"
+	}
+	return "off"
 }
 
 func (m shellModel) renderShellPanes(surface routeSurface, layout shellLayoutPlan) string {
