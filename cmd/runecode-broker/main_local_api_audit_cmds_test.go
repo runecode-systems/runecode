@@ -48,15 +48,7 @@ func TestAuditEvidenceBundleCommandsSmokePath(t *testing.T) {
 	}
 
 	stdout.Reset()
-	requestPath := filepath.Join(t.TempDir(), "audit-evidence-bundle-export.request.json")
-	outPath := filepath.Join(t.TempDir(), "audit-evidence-bundle-export.tar")
-	writeJSONFixtureFile(t, requestPath, map[string]any{
-		"scope":              map[string]any{"scope_kind": "run", "run_id": "run-1"},
-		"export_profile":     "external_relying_party_minimal",
-		"created_by_tool":    map[string]any{"tool_name": "runecode-broker", "tool_version": "0.0.0-dev"},
-		"disclosure_posture": map[string]any{"posture": "digest_metadata_only", "selective_disclosure_applied": true},
-		"archive_format":     "tar",
-	})
+	requestPath, outPath := writeAuditEvidenceBundleExportFixtures(t)
 	if err := run([]string{"audit-evidence-bundle-export", "--request-file", requestPath, "--out", outPath}, stdout, stderr); err != nil {
 		t.Fatalf("audit-evidence-bundle-export returned error: %v", err)
 	}
@@ -87,4 +79,19 @@ func TestAuditEvidenceBundleCommandsSmokePath(t *testing.T) {
 	if len(verification.VerificationReports) == 0 {
 		t.Fatal("offline verification reports empty, want projected report posture")
 	}
+}
+
+func writeAuditEvidenceBundleExportFixtures(t *testing.T) (string, string) {
+	t.Helper()
+	tempRoot := canonicalTempDir(t)
+	requestPath := filepath.Join(tempRoot, "audit-evidence-bundle-export.request.json")
+	outPath := filepath.Join(tempRoot, "audit-evidence-bundle-export.tar")
+	writeJSONFixtureFile(t, requestPath, map[string]any{
+		"scope":              map[string]any{"scope_kind": "run", "run_id": "run-1"},
+		"export_profile":     "external_relying_party_minimal",
+		"created_by_tool":    map[string]any{"tool_name": "runecode-broker", "tool_version": "0.0.0-dev"},
+		"disclosure_posture": map[string]any{"posture": "digest_metadata_only", "selective_disclosure_applied": true},
+		"archive_format":     "tar",
+	})
+	return requestPath, outPath
 }

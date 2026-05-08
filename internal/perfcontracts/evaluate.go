@@ -1,9 +1,6 @@
 package perfcontracts
 
-import (
-	"fmt"
-	"math"
-)
+import "fmt"
 
 type Violation struct {
 	MetricID string
@@ -69,7 +66,7 @@ func evaluateExactMetric(metric MetricContract, measured float64) []Violation {
 	if metric.Threshold.ExactValue == nil {
 		return []Violation{{MetricID: metric.MetricID, Reason: "exact threshold missing exact_value"}}
 	}
-	if almostEqual(measured, *metric.Threshold.ExactValue) {
+	if measured == *metric.Threshold.ExactValue {
 		return nil
 	}
 	return []Violation{{MetricID: metric.MetricID, Reason: fmt.Sprintf("exact mismatch: got %.4f want %.4f", measured, *metric.Threshold.ExactValue)}}
@@ -158,8 +155,4 @@ func median(values []float64) float64 {
 		return (cp[m-1] + cp[m]) / 2
 	}
 	return cp[m]
-}
-
-func almostEqual(a, b float64) bool {
-	return math.Abs(a-b) < 1e-9
 }

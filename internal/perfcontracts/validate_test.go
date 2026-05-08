@@ -57,6 +57,34 @@ func TestValidateAcceptsReviewedMeasurementProfiles(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsUnreviewedMeasurementProfile(t *testing.T) {
+	manifest := Manifest{SchemaVersion: "runecode.performance.manifest.v1", MeasurementProfiles: []string{"linux_shared_ci"}}
+	inventory := FixtureInventory{SchemaVersion: "runecode.performance.fixtures.v1", Fixtures: []FixtureRecord{{FixtureID: "tui.empty.v1"}}}
+	contracts := []ContractFile{{
+		SchemaVersion: "runecode.performance.contract.v1",
+		ContractID:    "performance.tui.v1",
+		Metrics: []MetricContract{{
+			MetricID:           "metric.tui.attach.latency.p95",
+			FixtureID:          "tui.empty.v1",
+			BudgetClass:        "absolute-budget",
+			LaneAuthority:      "required_shared_linux",
+			ActivationState:    "required",
+			MeasurementProfile: "linux_pi_reference",
+			ThresholdOrigin:    "product_budget",
+			TimingBoundary: TimingBoundary{
+				StartEvent:     "spawn",
+				EndEvent:       "ready",
+				ClockSource:    "monotonic",
+				EvidenceSource: "events",
+				IncludedPhases: []string{"launch"},
+			},
+		}},
+	}}
+	if err := Validate(manifest, inventory, contracts); err == nil {
+		t.Fatal("Validate error = nil, want manifest measurement_profiles failure")
+	}
+}
+
 func TestValidateRejectsUnsupportedMeasurementProfile(t *testing.T) {
 	manifest := Manifest{SchemaVersion: "runecode.performance.manifest.v1"}
 	inventory := FixtureInventory{SchemaVersion: "runecode.performance.fixtures.v1", Fixtures: []FixtureRecord{{FixtureID: "tui.empty.v1"}}}

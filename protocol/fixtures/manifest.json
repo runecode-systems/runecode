@@ -529,9 +529,9 @@
       "expect_valid": false
     },
     {
-      "id": "runecontext-approved-implementation-input-set.valid-minimal",
+      "id": "runecontext-approved-implementation-input-set.valid-populated",
       "schema_path": "objects/RuneContextApprovedImplementationInputSet.schema.json",
-      "fixture_path": "schema/runecontext-approved-implementation-input-set.valid-minimal.json",
+      "fixture_path": "schema/runecontext-approved-implementation-input-set.valid-populated.json",
       "expect_valid": true
     },
     {

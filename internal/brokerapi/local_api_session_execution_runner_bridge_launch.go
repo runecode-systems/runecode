@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+const (
+	sessionExecutionRunnerStderrCaptureLimit  = 8 * 1024
+	sessionExecutionRunnerStderrSummaryLimit  = 512
+	sessionExecutionRunnerStderrSummarySuffix = " [truncated]"
+)
+
 func launchSessionExecutionRunnerSubprocess(ctx context.Context, s *Service, spec sessionExecutionRunnerLaunchSpec) error {
 	prepared, err := prepareSessionExecutionRunnerLaunch(s, spec)
 	if err != nil {
@@ -24,10 +30,10 @@ func launchSessionExecutionRunnerSubprocess(ctx context.Context, s *Service, spe
 	if err != nil {
 		return err
 	}
-	stderrBytes, stderrDone := captureSessionExecutionRunnerStderr(stderr)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("launch runner subprocess: %w", err)
 	}
+	stderrBytes, stderrDone := captureSessionExecutionRunnerStderr(stderr)
 	return waitForSessionExecutionRunner(runnerCtx, s, spec, cmd, stdin, stdout, stderrBytes, stderrDone)
 }
 
@@ -66,7 +72,7 @@ func prepareSessionExecutionRunnerLaunch(s *Service, spec sessionExecutionRunner
 		runnerRoot: runnerRoot,
 		stateRoot:  stateRoot,
 		command:    command,
-		env:        append(os.Environ(), "RUNECODE_PROTOCOL_SCHEMAS_ROOT="+filepath.Join(filepath.Dir(runnerRoot), "protocol", "schemas")),
+		env:        sessionExecutionRunnerEnv(filepath.Join(filepath.Dir(runnerRoot), "protocol", "schemas"), stateRoot),
 	}, nil
 }
 
@@ -86,8 +92,8 @@ func openSessionExecutionRunnerPipes(cmd *exec.Cmd) (io.WriteCloser, io.Reader, 
 	return stdin, stdout, stderr, nil
 }
 
-func captureSessionExecutionRunnerStderr(stderr io.Reader) (*strings.Builder, <-chan struct{}) {
-	stderrBytes := &strings.Builder{}
+func captureSessionExecutionRunnerStderr(stderr io.Reader) (*boundedSessionExecutionRunnerStderrCapture, <-chan struct{}) {
+	stderrBytes := newBoundedSessionExecutionRunnerStderrCapture(sessionExecutionRunnerStderrCaptureLimit)
 	stderrDone := make(chan struct{})
 	go func() {
 		_, _ = io.Copy(stderrBytes, stderr)
@@ -96,7 +102,7 @@ func captureSessionExecutionRunnerStderr(stderr io.Reader) (*strings.Builder, <-
 	return stderrBytes, stderrDone
 }
 
-func waitForSessionExecutionRunner(ctx context.Context, s *Service, spec sessionExecutionRunnerLaunchSpec, cmd *exec.Cmd, stdin io.WriteCloser, stdout io.Reader, stderrBytes *strings.Builder, stderrDone <-chan struct{}) error {
+func waitForSessionExecutionRunner(ctx context.Context, s *Service, spec sessionExecutionRunnerLaunchSpec, cmd *exec.Cmd, stdin io.WriteCloser, stdout io.Reader, stderrBytes *boundedSessionExecutionRunnerStderrCapture, stderrDone <-chan struct{}) error {
 	handleErr := make(chan error, 1)
 	go func() {
 		err := s.proxyRunnerTransport(ctx, spec.requestID, spec.runID, stdin, stdout)
@@ -108,24 +114,84 @@ func waitForSessionExecutionRunner(ctx context.Context, s *Service, spec session
 	<-stderrDone
 	if transportErr != nil {
 		if waitErr != nil {
-			return fmt.Errorf("runner transport failed: %v (runner exit: %v; stderr: %s)", transportErr, waitErr, summarizeRunnerStderr(stderrBytes.String()))
+			return fmt.Errorf("runner transport failed: %v (runner exit: %v; stderr: %s)", transportErr, waitErr, summarizeRunnerStderr(stderrBytes.String(), stderrBytes.Truncated()))
 		}
-		return fmt.Errorf("runner transport failed: %v (stderr: %s)", transportErr, summarizeRunnerStderr(stderrBytes.String()))
+		return fmt.Errorf("runner transport failed: %v (stderr: %s)", transportErr, summarizeRunnerStderr(stderrBytes.String(), stderrBytes.Truncated()))
 	}
 	if waitErr != nil {
-		return fmt.Errorf("runner subprocess failed: %v (stderr: %s)", waitErr, summarizeRunnerStderr(stderrBytes.String()))
+		return fmt.Errorf("runner subprocess failed: %v (stderr: %s)", waitErr, summarizeRunnerStderr(stderrBytes.String(), stderrBytes.Truncated()))
 	}
 	return nil
 }
 
+type boundedSessionExecutionRunnerStderrCapture struct {
+	builder   strings.Builder
+	remaining int
+	truncated bool
+}
+
+func newBoundedSessionExecutionRunnerStderrCapture(limit int) *boundedSessionExecutionRunnerStderrCapture {
+	return &boundedSessionExecutionRunnerStderrCapture{remaining: limit}
+}
+
+func (c *boundedSessionExecutionRunnerStderrCapture) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	if c.remaining <= 0 {
+		c.truncated = true
+		return len(p), nil
+	}
+	keep := len(p)
+	if keep > c.remaining {
+		keep = c.remaining
+		c.truncated = true
+	}
+	_, _ = c.builder.Write(p[:keep])
+	c.remaining -= keep
+	if keep < len(p) {
+		c.truncated = true
+	}
+	return len(p), nil
+}
+
+func (c *boundedSessionExecutionRunnerStderrCapture) String() string {
+	return c.builder.String()
+}
+
+func (c *boundedSessionExecutionRunnerStderrCapture) Truncated() bool {
+	return c.truncated
+}
+
 func resolveRunnerLaunchRoot(s *Service, spec sessionExecutionRunnerLaunchSpec) (string, error) {
-	if strings.TrimSpace(spec.runnerRoot) == "" && strings.TrimSpace(s.projectSubstrate.RepositoryRoot) == "" && strings.TrimSpace(s.apiConfig.RepositoryRoot) == "" {
+	overrideRoot := strings.TrimSpace(spec.runnerRoot)
+	if overrideRoot == "" && strings.TrimSpace(s.projectSubstrate.RepositoryRoot) == "" && strings.TrimSpace(s.apiConfig.RepositoryRoot) == "" {
 		return "", fmt.Errorf("resolve runner launch root: repository root is required")
 	}
-	if runnerRoot, ok := firstRunnerRootCandidate(strings.TrimSpace(spec.runnerRoot), strings.TrimSpace(s.projectSubstrate.RepositoryRoot), strings.TrimSpace(s.apiConfig.RepositoryRoot)); ok {
+	if overrideRoot != "" {
+		if runnerRoot, ok := firstRunnerRootCandidate(overrideRoot); ok {
+			return runnerRoot, nil
+		}
+		if runnerRoot, ok := directRunnerRootCandidate(overrideRoot); ok {
+			return runnerRoot, nil
+		}
+	}
+	if runnerRoot, ok := firstRunnerRootCandidate(strings.TrimSpace(s.projectSubstrate.RepositoryRoot), strings.TrimSpace(s.apiConfig.RepositoryRoot)); ok {
 		return runnerRoot, nil
 	}
 	return "", fmt.Errorf("resolve runner launch root: repository root missing runner/package.json")
+}
+
+func directRunnerRootCandidate(candidate string) (string, bool) {
+	root := strings.TrimSpace(candidate)
+	if root == "" {
+		return "", false
+	}
+	clean := filepath.Clean(root)
+	if _, err := os.Stat(filepath.Join(clean, "package.json")); err == nil {
+		return clean, true
+	}
+	return "", false
 }
 
 func firstRunnerRootCandidate(candidates ...string) (string, bool) {
@@ -167,16 +233,27 @@ func resolveRunnerNodePath(s *Service) (string, error) {
 	return resolved, nil
 }
 
-func summarizeRunnerStderr(raw string) string {
+func summarizeRunnerStderr(raw string, truncated bool) string {
 	trimmed := strings.TrimSpace(raw)
+	trimmed = strings.ReplaceAll(trimmed, "\n", " | ")
+	trimmed = strings.ReplaceAll(trimmed, "\r", "")
+	trimmed = strings.TrimSpace(trimmed)
 	if trimmed == "" {
+		if truncated {
+			return strings.TrimSpace(sessionExecutionRunnerStderrSummarySuffix)
+		}
 		return "none"
 	}
-	const limit = 512
+	suffix := ""
+	if truncated {
+		suffix = sessionExecutionRunnerStderrSummarySuffix
+	}
+	limit := sessionExecutionRunnerStderrSummaryLimit - len(suffix)
+	if limit < 0 {
+		limit = 0
+	}
 	if len(trimmed) > limit {
 		trimmed = trimmed[:limit]
 	}
-	trimmed = strings.ReplaceAll(trimmed, "\n", " | ")
-	trimmed = strings.ReplaceAll(trimmed, "\r", "")
-	return trimmed
+	return trimmed + suffix
 }
