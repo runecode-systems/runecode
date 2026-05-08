@@ -35,6 +35,7 @@ export type RunnerBrokerClient = {
   requestDependencyCacheHandoff(request: DependencyCacheHandoffRequest): Promise<DependencyCacheHandoffResponse>;
   sendRunnerCheckpointReport(request: RunnerCheckpointReportRequest): Promise<BrokerAcknowledge>;
   sendRunnerResultReport(request: RunnerResultReportRequest): Promise<BrokerAcknowledge>;
+  close(): void;
 };
 
 type StdioBrokerTransportMessage = {
@@ -137,6 +138,10 @@ export class StdioRunnerBrokerClient implements RunnerBrokerClient {
       },
     );
     return responseToAcknowledge(response);
+  }
+
+  close(): void {
+    this.lines.close();
   }
 
   private async roundTrip<T extends DependencyCacheHandoffResponse | RunnerCheckpointReportResponse | RunnerResultReportResponse>(
@@ -264,7 +269,23 @@ export function createSupportedRunnerBrokerClient(options: {
       output: options.output,
     });
   }
-  throw new MissingRunnerBrokerTransportError();
+  return new MissingRunnerBrokerClient();
+}
+
+class MissingRunnerBrokerClient implements RunnerBrokerClient {
+  requestDependencyCacheHandoff(_request: DependencyCacheHandoffRequest): Promise<DependencyCacheHandoffResponse> {
+    throw new MissingRunnerBrokerTransportError();
+  }
+
+  sendRunnerCheckpointReport(_request: RunnerCheckpointReportRequest): Promise<BrokerAcknowledge> {
+    throw new MissingRunnerBrokerTransportError();
+  }
+
+  sendRunnerResultReport(_request: RunnerResultReportRequest): Promise<BrokerAcknowledge> {
+    throw new MissingRunnerBrokerTransportError();
+  }
+
+  close(): void {}
 }
 
 function responseToAcknowledge(response: RunnerCheckpointReportResponse | RunnerResultReportResponse): BrokerAcknowledge {

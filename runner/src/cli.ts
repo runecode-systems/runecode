@@ -135,6 +135,7 @@ async function main(): Promise<void> {
     executorAdapterRegistry,
   });
   const execution = await kernel.executeScheduledWorkFromPlanFile(options.planFile);
+  brokerClient.close();
   process.stderr.write(
     `executed ${execution.executed.length}/${execution.work.length} scheduled entries\n`,
   );

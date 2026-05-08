@@ -16,7 +16,8 @@ func launchSessionExecutionRunnerSubprocess(ctx context.Context, s *Service, spe
 		return err
 	}
 	defer os.RemoveAll(prepared.stateRoot)
-	cmd := exec.CommandContext(ctx, prepared.command[0], prepared.command[1:]...)
+	runnerCtx := sessionExecutionRunnerSubprocessContext(ctx)
+	cmd := exec.CommandContext(runnerCtx, prepared.command[0], prepared.command[1:]...)
 	cmd.Dir = prepared.runnerRoot
 	cmd.Env = prepared.env
 	stdin, stdout, stderr, err := openSessionExecutionRunnerPipes(cmd)
@@ -27,7 +28,11 @@ func launchSessionExecutionRunnerSubprocess(ctx context.Context, s *Service, spe
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("launch runner subprocess: %w", err)
 	}
-	return waitForSessionExecutionRunner(ctx, s, spec, cmd, stdin, stdout, stderrBytes, stderrDone)
+	return waitForSessionExecutionRunner(runnerCtx, s, spec, cmd, stdin, stdout, stderrBytes, stderrDone)
+}
+
+func sessionExecutionRunnerSubprocessContext(ctx context.Context) context.Context {
+	return context.WithoutCancel(ctx)
 }
 
 type preparedSessionExecutionRunnerLaunch struct {
@@ -94,11 +99,12 @@ func captureSessionExecutionRunnerStderr(stderr io.Reader) (*strings.Builder, <-
 func waitForSessionExecutionRunner(ctx context.Context, s *Service, spec sessionExecutionRunnerLaunchSpec, cmd *exec.Cmd, stdin io.WriteCloser, stdout io.Reader, stderrBytes *strings.Builder, stderrDone <-chan struct{}) error {
 	handleErr := make(chan error, 1)
 	go func() {
-		handleErr <- s.proxyRunnerTransport(ctx, spec.requestID, spec.runID, stdin, stdout)
+		err := s.proxyRunnerTransport(ctx, spec.requestID, spec.runID, stdin, stdout)
+		_ = stdin.Close()
+		handleErr <- err
 	}()
-	waitErr := cmd.Wait()
 	transportErr := <-handleErr
-	_ = stdin.Close()
+	waitErr := cmd.Wait()
 	<-stderrDone
 	if transportErr != nil {
 		if waitErr != nil {

@@ -1,6 +1,7 @@
 package brokerapi
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -33,7 +34,7 @@ func TestEnsureSessionExecutionRunPlanAuthorityCompilesBuiltInPlan(t *testing.T)
 	if stored.RunPlanDigest != authority.runPlanDigest {
 		t.Fatalf("stored run_plan_digest = %q, want %q", stored.RunPlanDigest, authority.runPlanDigest)
 	}
-	if err := s.bridgeSessionExecutionTriggerToRun("req-session-plan-authority", result, authority); err != nil {
+	if err := s.bridgeSessionExecutionTriggerToRun(context.Background(), "req-session-plan-authority", result, authority); err != nil {
 		t.Fatalf("bridgeSessionExecutionTriggerToRun returned error: %v", err)
 	}
 	runnerAdvisory, ok := s.RunnerAdvisory(runID)

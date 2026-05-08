@@ -81,6 +81,9 @@ func (s *Service) handleRunnerCheckpointTransport(ctx context.Context, requestID
 	if err := json.Unmarshal(payload, &req); err != nil {
 		return stdioRunnerTransportResponse{}, fmt.Errorf("decode runner checkpoint request: %w", err)
 	}
+	if err := validateBridgedRunnerReportRunID(req.RunID, runID); err != nil {
+		return stdioRunnerTransportResponse{}, fmt.Errorf("reject runner checkpoint request: %w", err)
+	}
 	resp, errResp := s.HandleRunnerCheckpointReport(ctx, req, RequestContext{RequestID: requestIDForRunnerTransport(requestID, runID, "checkpoint", messageIndex)})
 	if errResp != nil {
 		return stdioRunnerTransportResponse{}, fmt.Errorf("runner checkpoint report rejected: %s", strings.TrimSpace(errResp.Error.Message))
@@ -93,9 +96,22 @@ func (s *Service) handleRunnerResultTransport(ctx context.Context, requestID, ru
 	if err := json.Unmarshal(payload, &req); err != nil {
 		return stdioRunnerTransportResponse{}, fmt.Errorf("decode runner result request: %w", err)
 	}
+	if err := validateBridgedRunnerReportRunID(req.RunID, runID); err != nil {
+		return stdioRunnerTransportResponse{}, fmt.Errorf("reject runner result request: %w", err)
+	}
 	resp, errResp := s.HandleRunnerResultReport(ctx, req, RequestContext{RequestID: requestIDForRunnerTransport(requestID, runID, "result", messageIndex)})
 	if errResp != nil {
 		return stdioRunnerTransportResponse{}, fmt.Errorf("runner result report rejected: %s", strings.TrimSpace(errResp.Error.Message))
 	}
 	return stdioRunnerTransportResponse{MessageType: "runner_result_report_response", Payload: resp}, nil
+}
+
+func validateBridgedRunnerReportRunID(requestRunID, bridgedRunID string) error {
+	if strings.TrimSpace(requestRunID) == "" {
+		return fmt.Errorf("run_id is required")
+	}
+	if requestRunID != bridgedRunID {
+		return fmt.Errorf("run_id must match bridged run_id")
+	}
+	return nil
 }

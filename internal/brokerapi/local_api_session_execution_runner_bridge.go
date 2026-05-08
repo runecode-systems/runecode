@@ -22,10 +22,13 @@ type sessionExecutionRunnerLaunchSpec struct {
 	runnerRoot string
 }
 
-func (s *Service) bridgeSessionExecutionTriggerToRun(requestID string, result artifacts.SessionExecutionTriggerAppendResult, authority sessionExecutionPlanAuthority) error {
+func (s *Service) bridgeSessionExecutionTriggerToRun(ctx context.Context, requestID string, result artifacts.SessionExecutionTriggerAppendResult, authority sessionExecutionPlanAuthority) error {
+	if ctx == nil {
+		return fmt.Errorf("session execution bridge context is required")
+	}
 	runID := strings.TrimSpace(authority.runID)
 	if runID == "" {
-		return nil
+		return fmt.Errorf("trusted run id missing for session execution bridge")
 	}
 	planDigest := strings.TrimSpace(authority.runPlanDigest)
 	if planDigest == "" {
@@ -37,8 +40,6 @@ func (s *Service) bridgeSessionExecutionTriggerToRun(requestID string, result ar
 	}
 	defer os.Remove(planPath)
 	defer os.RemoveAll(filepath.Dir(planPath))
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	if err := s.markSessionExecutionRunnerLaunching(runID, result.Trigger.SessionID); err != nil {
 		return err
 	}

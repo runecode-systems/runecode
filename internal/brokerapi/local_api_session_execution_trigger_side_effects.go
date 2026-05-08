@@ -1,13 +1,14 @@
 package brokerapi
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/artifacts"
 )
 
-func (s *Service) reconcileSessionExecutionTriggerSideEffects(requestID string, session artifacts.SessionDurableState, req SessionExecutionTriggerRequest, resp SessionExecutionTriggerResponse) error {
+func (s *Service) reconcileSessionExecutionTriggerSideEffects(ctx context.Context, requestID string, session artifacts.SessionDurableState, req SessionExecutionTriggerRequest, resp SessionExecutionTriggerResponse) error {
 	if req.RequestedOperation == "start" {
 		s.auditSessionExecutionTrigger(requestID, req, resp)
 	}
@@ -29,7 +30,7 @@ func (s *Service) reconcileSessionExecutionTriggerSideEffects(requestID string, 
 	if err != nil {
 		return err
 	}
-	return s.bridgeSessionExecutionTriggerToRun(requestID, result, authority)
+	return s.bridgeSessionExecutionTriggerToRun(ctx, requestID, result, authority)
 }
 
 func (s *Service) loadSessionExecutionTriggerResult(sessionID, triggerID string) (artifacts.SessionExecutionTriggerAppendResult, string, error) {
