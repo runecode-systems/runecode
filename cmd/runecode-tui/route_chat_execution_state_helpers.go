@@ -167,3 +167,15 @@ func chooseActionTextByPosture(existing string, posture brokerapi.ProjectSubstra
 	}
 	return strings.Join(parts, " | ")
 }
+
+func joinCSVWithWrapHint(values []string) string {
+	clean := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		clean = append(clean, trimmed)
+	}
+	return strings.Join(clean, ", ")
+}

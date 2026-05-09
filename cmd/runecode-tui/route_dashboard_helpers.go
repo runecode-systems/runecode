@@ -191,20 +191,96 @@ func renderDashboardHighValueCounts(snapshot dashboardSnapshot, width int) strin
 	return "At a glance: " + wrapPartsByWidth(parts, " | ", width)
 }
 
-func renderDashboardNextActions(data dashboardData, snapshot dashboardSnapshot) string {
-	if snapshot.SetupBlocked {
-		return "Next action: Open Action Center, follow the setup blocker, then use Status for broker-owned remediation steps."
+func dashboardCardTone(snapshot dashboardSnapshot) visualTone {
+	switch snapshot.Executive.State {
+	case routeLoadStateBlocked, routeLoadStateError:
+		return visualToneDanger
+	case routeLoadStateApprovalRequired, routeLoadStateDegraded, routeLoadStateWaiting:
+		return visualToneAttention
+	case routeLoadStateReady:
+		return visualToneSuccess
+	default:
+		return visualToneInfo
 	}
-	if snapshot.PendingApprovals > 0 {
-		return "Next action: Open Action Center and review the pending approval before workflow progress resumes."
+}
+
+func renderDashboardCurrentWork(data dashboardData, snapshot dashboardSnapshot) string {
+	runID := strings.TrimSpace(snapshot.PrimaryRun.RunID)
+	if runID == "" {
+		if snapshot.NoWork {
+			return "Current work: no active run is visible yet."
+		}
+		return "Current work: broker returned follow-up items, but no primary run is selected."
+	}
+	state := humanizeExecutionToken(snapshot.PrimaryRun.LifecycleState)
+	parts := []string{fmt.Sprintf("Current work: %s is %s", sanitizeUIText(runID), state)}
+	if snapshot.BlockedRuns > 0 || strings.TrimSpace(snapshot.PrimaryRun.BlockingReasonCode) != "" {
+		parts = append(parts, "blocked follow-up is waiting")
+	} else if snapshot.ActiveRuns > 0 {
+		parts = append(parts, "work is active")
 	}
 	if snapshot.DegradedSignals > 0 {
-		return "Next action: Open Action Center for degraded evidence or runtime follow-up, then inspect Audit or Runs."
+		parts = append(parts, "evidence or runtime posture needs review")
+	}
+	if data.readiness.RecoveryComplete {
+		parts = append(parts, "recovery is complete")
+	}
+	return strings.Join(parts, "; ") + "."
+}
+
+func renderDashboardApprovalCue(data dashboardData, snapshot dashboardSnapshot) string {
+	if snapshot.PendingApprovals == 0 {
+		return "Approvals: none waiting."
+	}
+	first := firstPendingApproval(data.approvals)
+	if strings.TrimSpace(first.ApprovalID) == "" {
+		return fmt.Sprintf("Approvals: %d decision(s) are waiting.", snapshot.PendingApprovals)
+	}
+	return fmt.Sprintf("Approvals: %d decision(s) waiting; next is %s for run %s.", snapshot.PendingApprovals, sanitizeUIText(first.ApprovalID), valueOrNA(sanitizeUIText(first.BoundScope.RunID)))
+}
+
+func dashboardMetricLines(snapshot dashboardSnapshot) []string {
+	return []string{
+		fmt.Sprintf("Active work: %d", snapshot.ActiveRuns),
+		fmt.Sprintf("Approvals waiting: %d", snapshot.PendingApprovals),
+		fmt.Sprintf("Blocked or waiting: %d", snapshot.BlockedRuns),
+		fmt.Sprintf("Needs review: %d", snapshot.DegradedSignals),
+	}
+}
+
+func renderDashboardDetailCue(snapshot dashboardSnapshot) string {
+	if snapshot.BlockedRuns > 0 || snapshot.PendingApprovals > 0 || snapshot.DegradedSignals > 0 || snapshot.SetupNeedsAttention {
+		return "Detail: Action Center explains blockers and degraded cues; Audit, Runs, and Status keep the raw proof."
+	}
+	return "Detail: use Runs, Audit, or Status when you need broker proof instead of the overview."
+}
+
+func firstPendingApproval(approvals []brokerapi.ApprovalSummary) brokerapi.ApprovalSummary {
+	for _, approval := range approvals {
+		if strings.EqualFold(strings.TrimSpace(approval.Status), "pending") || strings.TrimSpace(approval.Status) == "" {
+			return approval
+		}
+	}
+	if len(approvals) == 0 {
+		return brokerapi.ApprovalSummary{}
+	}
+	return approvals[0]
+}
+
+func renderDashboardNextActions(data dashboardData, snapshot dashboardSnapshot) string {
+	if snapshot.SetupBlocked {
+		return "Open Action Center and clear the setup blocker, then use Status for broker-owned remediation steps."
+	}
+	if snapshot.PendingApprovals > 0 {
+		return "Open Action Center and review the pending approval before workflow progress resumes."
+	}
+	if snapshot.DegradedSignals > 0 {
+		return "Open Action Center for degraded evidence or runtime follow-up, then inspect Audit or Runs."
 	}
 	if strings.TrimSpace(snapshot.PrimaryRun.RunID) != "" {
-		return fmt.Sprintf("Next action: Open Runs for %s or Action Center if new follow-up appears.", sanitizeUIText(snapshot.PrimaryRun.RunID))
+		return fmt.Sprintf("Open Runs for %s or Action Center if new follow-up appears.", sanitizeUIText(snapshot.PrimaryRun.RunID))
 	}
-	return "Next action: Start a workflow from Chat, then return here for the executive overview."
+	return "Start a workflow from Chat, then return here for the executive overview."
 }
 
 func renderDashboardActionCenterCue(snapshot dashboardSnapshot) string {
@@ -214,6 +290,22 @@ func renderDashboardActionCenterCue(snapshot dashboardSnapshot) string {
 		snapshot.BlockedRuns,
 		snapshot.DegradedSignals,
 	)
+}
+
+func renderDashboardLiveActivitySummary(live dashboardLiveActivity) string {
+	degraded := 0
+	for _, family := range []watchFamilySummary{live.runWatch, live.approvalWatch, live.sessionWatch} {
+		if family.errorCount > 0 || !strings.EqualFold(strings.TrimSpace(family.lastStatus), "ok") {
+			degraded++
+		}
+	}
+	if degraded > 0 {
+		return fmt.Sprintf("Live updates need attention in %d stream(s); Action Center and Status have the details.", degraded)
+	}
+	if len(live.feed) > 0 {
+		return fmt.Sprintf("Live updates are healthy; %d recent broker event(s) are visible below.", len(live.feed))
+	}
+	return "Live updates are quiet; RuneCode will show broker-owned activity here when work changes."
 }
 
 func dashboardActiveRunCount(runs []brokerapi.RunSummary) int {
@@ -283,7 +375,7 @@ func dashboardProjectSubstrateReason(posture brokerapi.ProjectSubstratePostureGe
 	}
 	compatibility := strings.TrimSpace(posture.PostureSummary.CompatibilityPosture)
 	if compatibility != "" {
-		return fmt.Sprintf("project setup posture=%s", sanitizeUIText(compatibility))
+		return fmt.Sprintf("project setup posture is %s", humanizeExecutionToken(compatibility))
 	}
 	if len(posture.RemediationGuidance) > 0 {
 		return "project setup guidance is available"
@@ -308,92 +400,9 @@ func pendingApprovalCount(runs []brokerapi.RunSummary, approvals []brokerapi.App
 	return pending
 }
 
-func renderRunHighlights(runs []brokerapi.RunSummary) string {
-	if len(runs) == 0 {
-		return "Current work: no recent runs returned by the broker."
-	}
-	first := runs[0]
-	return fmt.Sprintf("Current work: latest run %s is %s on %s runtime with %d pending approval(s).", sanitizeUIText(first.RunID), valueOrNA(sanitizeUIText(first.LifecycleState)), valueOrNA(sanitizeUIText(first.BackendKind)), first.PendingApprovalCount)
-}
-
-func renderApprovalHighlights(approvals []brokerapi.ApprovalSummary) string {
-	if len(approvals) == 0 {
-		return "Approval follow-up: no pending approvals returned by the broker."
-	}
-	first := approvals[0]
-	return fmt.Sprintf("Approval follow-up: %s is %s for %s on run %s.", sanitizeUIText(first.ApprovalID), valueOrNA(sanitizeUIText(first.Status)), valueOrNA(sanitizeUIText(first.ApprovalTriggerCode)), valueOrNA(sanitizeUIText(first.BoundScope.RunID)))
-}
-
 func primaryDashboardRun(runs []brokerapi.RunSummary) brokerapi.RunSummary {
 	if len(runs) == 0 {
 		return brokerapi.RunSummary{}
 	}
 	return runs[0]
-}
-
-func renderDashboardSafetyAlerts(data dashboardData) string {
-	alerts := []string{}
-	run := primaryDashboardRun(data.runs)
-	if strings.ToLower(strings.TrimSpace(run.ProvisioningPosture)) == "tofu" {
-		alerts = append(alerts, dangerBadge("ALERT_TOFU_PROVISIONING")+" unsupported legacy TOFU provisioning posture detected")
-	}
-	if strings.ToLower(strings.TrimSpace(run.IsolationAssuranceLevel)) == "unknown" || strings.ToLower(strings.TrimSpace(run.IsolationAssuranceLevel)) == "unavailable" {
-		alerts = append(alerts, dangerBadge("ALERT_RUNTIME_POSTURE_UNAVAILABLE")+" authoritative runtime isolation posture degraded/unavailable")
-	}
-	if run.RuntimePostureDegraded {
-		alerts = append(alerts, reducedAssuranceBadge("ALERT_REDUCED_ASSURANCE_RUNTIME")+" reduced-assurance runtime posture is active")
-	}
-	if strings.ToLower(strings.TrimSpace(data.audit.Summary.AnchoringStatus)) == "degraded" || data.audit.Summary.CurrentlyDegraded {
-		alerts = append(alerts, auditDegradedBadge("ALERT_AUDIT_UNANCHORED")+" audit posture unanchored/degraded")
-	}
-	if len(alerts) == 0 {
-		return "Safety alerts: " + successBadge("NO_ACTIVE_DEGRADATION")
-	}
-	return "Safety alerts: " + strings.Join(alerts, " ")
-}
-
-func renderDashboardProjectSubstrateLine(posture brokerapi.ProjectSubstratePostureGetResponse) string {
-	summary := posture.PostureSummary
-	if strings.TrimSpace(summary.SchemaID) == "" {
-		return "Project setup: unavailable"
-	}
-	return fmt.Sprintf(
-		"Project setup: validation=%s compatibility=%s normal_operation_allowed=%t",
-		sanitizeUIText(summary.ValidationState),
-		sanitizeUIText(summary.CompatibilityPosture),
-		summary.NormalOperationAllowed,
-	)
-}
-
-func renderDashboardProjectSubstrateGuidance(posture brokerapi.ProjectSubstratePostureGetResponse) string {
-	parts := []string{}
-	if strings.TrimSpace(posture.BlockedExplanation) != "" {
-		parts = append(parts, "Project setup block: "+sanitizeUIText(posture.BlockedExplanation))
-	}
-	if len(posture.RemediationGuidance) > 0 {
-		parts = append(parts, "Project setup guidance:")
-		parts = append(parts, joinCSVWithWrapHint(posture.RemediationGuidance))
-	}
-	if strings.TrimSpace(posture.InitPreview.Status) != "" {
-		parts = append(parts, fmt.Sprintf("Project setup init preview=%s", posture.InitPreview.Status))
-	}
-	if strings.TrimSpace(posture.UpgradePreview.Status) != "" {
-		parts = append(parts, fmt.Sprintf("Project setup upgrade preview=%s", posture.UpgradePreview.Status))
-	}
-	if len(parts) == 0 {
-		return "Project setup guidance: none"
-	}
-	return strings.Join(parts, " | ")
-}
-
-func joinCSVWithWrapHint(values []string) string {
-	clean := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		clean = append(clean, trimmed)
-	}
-	return strings.Join(clean, ", ")
 }

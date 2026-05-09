@@ -196,16 +196,58 @@ func (m gitSetupRouteModel) View(width, height int, focus focusArea) string {
 	}
 	return compactLines(
 		sectionTitle("Git Setup")+" "+focusBadge(focus),
-		"Broker-owned setup/config state (non-policy authority):",
-		fmt.Sprintf("Provider account: provider=%s linked=%t account=%s", valueOrNA(account.Provider), account.Linked, valueOrNA(account.AccountUsername)),
-		fmt.Sprintf("Auth posture: status=%s bootstrap_mode=%s headless_supported=%t interactive_token_fallback=%t", valueOrNA(auth.AuthStatus), valueOrNA(auth.BootstrapMode), auth.HeadlessBootstrapSupported, auth.InteractiveTokenFallbackSupport),
-		fmt.Sprintf("Commit identity profiles: count=%d profiles=%s default=%s", len(profiles), profileSummary, valueOrNA(control.DefaultIdentityProfileID)),
-		fmt.Sprintf("Control-plane convenience state: last_view=%s recent_repositories=%d", valueOrNA(control.LastSetupView), len(control.RecentRepositories)),
-		fmt.Sprintf("Policy authority: artifact_managed_only=%t inspect_supported=%t prepare_changes_supported=%t direct_mutation_supported=%t", m.data.PolicySurface.ArtifactManagedOnly, m.data.PolicySurface.InspectionSupported, m.data.PolicySurface.PrepareChangesSupport, m.data.PolicySurface.DirectMutationSupport),
-		"Policy edits must stay artifact-managed. This route only inspects and prepares setup via broker APIs.",
+		renderStateCardSpec(gitSetupStateCard(account, auth, profiles)),
+		fmt.Sprintf("Provider account: %s", gitProviderAccountSummary(account)),
+		fmt.Sprintf("Authentication: %s", gitAuthSummary(auth)),
+		fmt.Sprintf("Commit identity: %s", gitIdentitySummary(profiles, control.DefaultIdentityProfileID)),
+		fmt.Sprintf("Policy safety: %s", gitPolicySafetySummary(m.data.PolicySurface)),
+		muted(fmt.Sprintf("Structured/raw detail can show bootstrap_mode=%s headless=%t token_fallback=%t profiles=%s last_view=%s recent_repositories=%d.", valueOrNA(auth.BootstrapMode), auth.HeadlessBootstrapSupported, auth.InteractiveTokenFallbackSupport, profileSummary, valueOrNA(control.LastSetupView), len(control.RecentRepositories))),
 		m.status,
 		keyHint("Route keys: r reload, a browser auth, d device-code auth, i identity upsert"),
 	)
+}
+
+func gitSetupStateCard(account brokerapi.GitProviderAccountState, auth brokerapi.GitAuthPostureState, profiles []brokerapi.GitCommitIdentityProfile) stateCardSpec {
+	state := routeLoadStateWaiting
+	message := "Git account setup is not linked yet."
+	next := "Press a for browser auth or d for device-code auth."
+	if account.Linked && len(profiles) > 0 {
+		state = routeLoadStateReady
+		message = "Git account and commit identity are ready for broker-managed review flows."
+		next = "Continue to review flows, or refresh if provider state changed."
+	} else if account.Linked {
+		message = "Git account is linked; commit identity needs setup."
+		next = "Press i to upsert the default commit identity profile."
+	}
+	return stateCardSpec{State: state, Title: "Git setup", Message: message, Reason: "Remote mutation stays broker-gated and artifact-managed; this route only prepares account and identity state.", NextAction: next, ShortcutCue: "a browser • d device • i identity", EvidenceCue: "broker git setup profile"}
+}
+
+func gitProviderAccountSummary(account brokerapi.GitProviderAccountState) string {
+	if account.Linked {
+		return fmt.Sprintf("%s linked as %s", valueOrNA(account.Provider), valueOrNA(account.AccountUsername))
+	}
+	return fmt.Sprintf("%s not linked", valueOrNA(account.Provider))
+}
+
+func gitAuthSummary(auth brokerapi.GitAuthPostureState) string {
+	if strings.TrimSpace(auth.AuthStatus) == "" {
+		return "not started"
+	}
+	return fmt.Sprintf("%s via %s", valueOrNA(auth.AuthStatus), valueOrNA(auth.BootstrapMode))
+}
+
+func gitIdentitySummary(profiles []brokerapi.GitCommitIdentityProfile, defaultID string) string {
+	if len(profiles) == 0 {
+		return "no identity profile yet"
+	}
+	return fmt.Sprintf("%d profile(s), default %s", len(profiles), valueOrNA(defaultID))
+}
+
+func gitPolicySafetySummary(policy brokerapi.GitPolicySurfaceState) string {
+	if policy.ArtifactManagedOnly && !policy.DirectMutationSupport {
+		return "artifact-managed review only; direct mutation disabled"
+	}
+	return fmt.Sprintf("artifact_managed_only=%t direct_mutation=%t", policy.ArtifactManagedOnly, policy.DirectMutationSupport)
 }
 
 func (m gitSetupRouteModel) ShellSurface(ctx routeShellContext) routeSurface {

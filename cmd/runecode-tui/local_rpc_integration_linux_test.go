@@ -228,12 +228,11 @@ func assertDashboardAndChatBackedRoutes(t *testing.T, recording localBrokerClien
 	t.Helper()
 	dashboard := newDashboardRouteModel(routeDefinition{ID: routeDashboard, Label: "Dashboard"}, recording)
 	assertRouteOutputContainsAll(t, dashboard, routeDashboard,
-		"Now",
-		"Runtime and evidence",
-		"Backend: unknown",
-		"Live Activity",
-		"Live activity detail is available here when you need typed broker watch confirmation.",
-		"feed: waiting for shell watch manager",
+		"Current work",
+		"At a glance",
+		"Approvals waiting:",
+		"Next action",
+		"Action Center explains blockers and degraded cues",
 	)
 
 	chat := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, recording)
@@ -256,7 +255,7 @@ func assertWorkAndSetupBackedRoutes(t *testing.T, recording localBrokerClient) {
 		"Backend: unknown",
 	)
 	assertRouteInspectorContainsAll(t, runs, routeRuns,
-		"Workflow identity (authoritative):",
+		"Workflow operation:",
 		"Evidence links:",
 	)
 

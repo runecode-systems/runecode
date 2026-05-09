@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -131,15 +130,15 @@ func (m dashboardRouteModel) View(width, height int, focus focusArea) string {
 			RouteCue:    "Status or Action Center",
 		})
 	}
-	focusLabel := "inactive"
-	if focus == focusContent {
-		focusLabel = "active"
-	}
 	innerWidth := dashboardContentWidth(width)
+	cardWidth := innerWidth - 4
+	if cardWidth < 1 {
+		cardWidth = 1
+	}
 	snapshot := buildDashboardSnapshot(m.data)
 	sections := []string{
 		compactLines(
-			sectionTitle("Dashboard")+" "+focusBadge(focus)+" "+navStateBadge(focusLabel == "active"),
+			sectionTitle("Dashboard")+" "+focusBadge(focus),
 			renderStateCardSpec(stateCardSpec{
 				State:      snapshot.Executive.State,
 				Title:      snapshot.Executive.Title,
@@ -148,39 +147,18 @@ func (m dashboardRouteModel) View(width, height int, focus focusArea) string {
 				NextAction: snapshot.Executive.NextAction,
 				RouteCue:   "Action Center",
 			}),
-			tableHeader("Now")+" "+renderDashboardNowBar(snapshot.PrimaryRun, snapshot.PendingApprovals, focusLabel == "active", innerWidth),
 		),
-		compactLines(
-			tableHeader("Executive overview"),
-			wrapDashboardLine(renderDashboardWorkflowPosture(snapshot), innerWidth),
-			wrapDashboardLine(renderDashboardHighValueCounts(snapshot, innerWidth), innerWidth),
-			wrapDashboardLine(renderDashboardNextActions(m.data, snapshot), innerWidth),
-			wrapDashboardLine(renderDashboardActionCenterCue(snapshot), innerWidth),
-		),
-		compactLines(tableHeader("Safety Summary"), renderRunSafetyStrip(snapshot.PrimaryRun, innerWidth), wrapDashboardLine(renderDashboardSafetyAlerts(m.data), innerWidth)),
-		m.controlPlaneSection(innerWidth),
-		compactLines(tableHeader("Live Activity"), wrapDashboardLine("Live activity detail is available here when you need typed broker watch confirmation.", innerWidth), wrapDashboardLine(muted("Typed watch family status and event detail are secondary to the executive overview."), innerWidth), renderWatchFamilySummary(m.data.live.runWatch), renderWatchFamilySummary(m.data.live.approvalWatch), renderWatchFamilySummary(m.data.live.sessionWatch), renderLiveActivityFeed(m.data.live.feed)),
-		compactLines(tableHeader("Highlights"), wrapDashboardLine(renderRunHighlights(m.data.runs), innerWidth), wrapDashboardLine(renderApprovalHighlights(m.data.approvals), innerWidth)),
-		compactLines(tableHeader("Actions")+" "+keyHint("r reload")+" "+muted("tab moves focus • : opens command surface"), wrapDashboardLine("Primary follow-up lives in Action Center; use Runs, Approvals, Audit, and Status for detail.", innerWidth), keyHint("Route keys: r reload")),
+		renderProductCard(productCardSpec{Tone: dashboardCardTone(snapshot), Title: "Current work", Lines: []string{
+			wrapDashboardLine(renderDashboardCurrentWork(m.data, snapshot), cardWidth),
+			wrapDashboardLine(renderDashboardApprovalCue(m.data, snapshot), cardWidth),
+		}}),
+		renderProductCard(productCardSpec{Tone: visualToneInfo, Title: "At a glance", Lines: dashboardMetricLines(snapshot)}),
+		renderProductCard(productCardSpec{Tone: dashboardCardTone(snapshot), Title: "Next action", Lines: []string{
+			wrapDashboardLine(renderDashboardNextActions(m.data, snapshot), cardWidth),
+			wrapDashboardLine(renderDashboardDetailCue(snapshot), cardWidth),
+		}}),
 	}
 	return joinDashboardSections(sections...)
-}
-
-func (m dashboardRouteModel) controlPlaneSection(width int) string {
-	parts := []string{
-		tableHeader("Supporting detail"),
-		wrapPartsByWidth([]string{tableHeader("Readiness"), boolBadge("ready", m.data.readiness.Ready), boolBadge("local_only", m.data.readiness.LocalOnly), boolBadge("recovery_complete", m.data.readiness.RecoveryComplete)}, " ", width),
-		wrapPartsByWidth([]string{tableHeader("Evidence posture"), stateBadgeWithLabel("integrity", m.data.audit.Summary.IntegrityStatus), stateBadgeWithLabel("anchoring", m.data.audit.Summary.AnchoringStatus), boolBadge("degraded", m.data.audit.Summary.CurrentlyDegraded)}, " ", width),
-	}
-	if notice := strings.TrimSpace(renderDashboardAuditFallbackNotice(m.data.auditErr)); notice != "" {
-		parts = append(parts, wrapDashboardLine(notice, width))
-	}
-	parts = append(parts,
-		wrapDashboardLine(renderDashboardProjectSubstrateLine(m.data.project), width),
-		wrapDashboardLine(renderDashboardProjectSubstrateGuidance(m.data.project), width),
-		wrapDashboardLine(fmt.Sprintf("Overview data source: runs=%d approvals=%d version=%s (%s)", len(m.data.runs), len(m.data.approvals), m.data.version.ProductVersion, m.data.version.BuildRevision), width),
-	)
-	return compactLines(parts...)
 }
 
 func joinDashboardSections(sections ...string) string {
@@ -248,7 +226,8 @@ func (m dashboardRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 	mainHeight := routeRegionHeight(ctx.Regions.Main, ctx.Height)
 	return routeSurface{
 		Regions: routeSurfaceRegions{
-			Main: routeSurfaceRegion{Title: "Dashboard", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
+			Main:   routeSurfaceRegion{Title: "Dashboard", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
+			Bottom: routeSurfaceRegion{Body: keyHint("r reload • 5 Action Center • 7 Audit • 8 Status")},
 		},
 		Capabilities: routeSurfaceCapabilities{},
 		Chrome:       routeSurfaceChrome{Breadcrumbs: []string{"Home", m.def.Label}},

@@ -17,10 +17,10 @@ func TestProviderSetupRouteActivationLoadsBrokerProjectedProfilePosture(t *testi
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "Auth modes: supported=[direct_credential] current=direct_credential") {
+	if !strings.Contains(view, "Credential setup: credential stored") {
 		t.Fatalf("expected auth-mode posture in provider view, got %q", view)
 	}
-	if !strings.Contains(view, "Compatibility posture: unverified") {
+	if !strings.Contains(view, "Structured/raw detail can show provider_family=openai_compatible") {
 		t.Fatalf("expected compatibility posture in provider view, got %q", view)
 	}
 	assertStringSliceEqual(t, recording.Calls(), []string{"ProviderProfileList"})

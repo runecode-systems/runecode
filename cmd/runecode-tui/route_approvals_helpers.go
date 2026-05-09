@@ -136,6 +136,7 @@ func approvalInspectorContent(summary brokerapi.ApprovalSummary, detail brokerap
 			fmt.Sprintf("structured approval: id=%s", approvalUIValue(summary.ApprovalID)),
 			fmt.Sprintf("state: workflow=%s resolve=%s lifecycle_flags=%s", approvalUIValue(workflowApprovalState(summary, detail)), approvalUIValue(approvalResolveStatus(summary, detail)), approvalUIValue(lifecycleFlags)),
 			fmt.Sprintf("review_first=%s next_route=%s", approvalUIValue(approvalReviewFirst(summary, detail)), approvalUIValue(approvalFollowUpRoute(summary))),
+			fmt.Sprintf("identity: request=%s decision=%s", approvalUIValue(identity.ApprovalRequestDigest), approvalUIValue(identity.ApprovalDecisionDigest)),
 		)
 	}
 	if presentation == presentationRaw {
@@ -147,26 +148,16 @@ func approvalInspectorContent(summary brokerapi.ApprovalSummary, detail brokerap
 	}
 	return compactLines(
 		fmt.Sprintf("Approval state: %s %s", approvalUIValue(approvalDisplayState(summary, detail)), approvalPrimaryStateBadge(summary)),
-		fmt.Sprintf("State taxonomy: approval-required=%s pending=%s resolved=%s expired=%s unsupported=%s", boolWord(approvalDisplayState(summary, detail) == "approval required"), boolWord(approvalLifecycleState(detail) == "pending"), boolWord(workflowApprovalState(summary, detail) == "resolved"), boolWord(workflowApprovalState(summary, detail) == "expired"), boolWord(approvalResolveStatus(summary, detail) == "unsupported")),
 		fmt.Sprintf("Why this approval exists: %s", approvalUIValue(approvalPrimaryReason(summary, detail))),
 		fmt.Sprintf("Exact gated object/action: %s", approvalUIValue(approvalExactObjectAction(summary, detail))),
 		fmt.Sprintf("Review first: %s", approvalUIValue(approvalReviewFirst(summary, detail))),
 		fmt.Sprintf("If approved next: %s", approvalUIValue(approvalEffectSummary(detail))),
 		fmt.Sprintf("After approval route: %s", approvalUIValue(approvalFollowUpRoute(summary))),
 		fmt.Sprintf("Resolve availability: %s", approvalUIValue(approvalResolveSummary(summary, detail))),
-		fmt.Sprintf("Resolve status: %s", approvalUIValue(approvalResolveStatus(summary, detail))),
 		fmt.Sprintf("Resolve unavailable because: %s", approvalUIValue(approvalResolveBlockedReason(summary, detail))),
-		fmt.Sprintf("Workflow posture: %s", approvalUIValue(workflowApprovalState(summary, detail))),
-		fmt.Sprintf("Approval type: %s (binding_kind=%s) %s", approvalUIValue(bindingLabel), approvalUIValue(detail.BindingKind), infoBadge("type cue")),
-		fmt.Sprintf("Lifecycle state: %s (%s) %s", approvalUIValue(lifecycleState), approvalUIValue(lifecycleFlags), postureBadge(lifecycleState)),
-		fmt.Sprintf("Lifecycle reason code: %s", approvalUIValue(detail.LifecycleDetail.LifecycleReasonCode)),
-		fmt.Sprintf("Policy reason code: %s %s", approvalUIValue(detail.PolicyReasonCode), warnBadge("policy cue")),
-		fmt.Sprintf("Approval trigger code: %s %s", approvalUIValue(summary.ApprovalTriggerCode), infoBadge("trigger cue")),
-		fmt.Sprintf("Distinct blocking semantics: trigger=%s cue=%s", approvalUIValue(summary.ApprovalTriggerCode), renderBlockingStateCue(true, summary.ApprovalTriggerCode)),
-		"Execution/system errors stay separate from approval policy and lifecycle cues. "+dangerBadge("system cue"),
-		fmt.Sprintf("Blocked work scope: kind=%s action=%s run=%s stage=%s step=%s role=%s", approvalUIValue(detail.BlockedWorkScope.ScopeKind), approvalUIValue(detail.BlockedWorkScope.ActionKind), approvalUIValue(detail.BlockedWorkScope.RunID), approvalUIValue(detail.BlockedWorkScope.StageID), approvalUIValue(detail.BlockedWorkScope.StepID), approvalUIValue(detail.BlockedWorkScope.RoleInstanceID)),
-		fmt.Sprintf("Canonical bound identity: request=%s decision=%s manifest=%s policy_decision=%s", approvalUIValue(identity.ApprovalRequestDigest), approvalUIValue(identity.ApprovalDecisionDigest), approvalUIValue(identity.ManifestHash), approvalUIValue(identity.PolicyDecisionHash)),
-		fmt.Sprintf("Exact bound scope: workspace=%s run=%s stage=%s step=%s role=%s action=%s", approvalUIValue(boundScope.WorkspaceID), approvalUIValue(boundScope.RunID), approvalUIValue(boundScope.StageID), approvalUIValue(boundScope.StepID), approvalUIValue(boundScope.RoleInstanceID), approvalUIValue(boundScope.ActionKind)),
+		fmt.Sprintf("Workflow posture: %s; lifecycle=%s (%s)", approvalUIValue(workflowApprovalState(summary, detail)), approvalUIValue(lifecycleState), approvalUIValue(lifecycleFlags)),
+		"Safety cue: approval policy, lifecycle, and execution/system errors remain distinct before any decision is accepted.",
+		muted(fmt.Sprintf("Structured/raw modes expose %s, binding kind, trigger codes, policy reason codes, bound scope, request/decision digests, manifest, and policy decision hash.", approvalUIValue(bindingLabel))),
 	)
 }
 

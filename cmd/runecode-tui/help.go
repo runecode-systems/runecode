@@ -21,6 +21,9 @@ func renderHelp(keys shellKeyMap, paletteOpen bool, actions shellActionGraph) st
 	h := help.New()
 	h.ShowAll = false
 	view := "Help: " + h.View(shellHelpKeys(bubbleBindings))
+	if !paletteOpen {
+		view = "ctrl+p commands  •  " + view
+	}
 	if entries := compactActionHelpEntries(actions.helpEntries(4)); len(entries) > 0 {
 		view += " | Actions: " + strings.Join(entries, " · ")
 	}

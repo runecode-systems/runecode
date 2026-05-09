@@ -10,6 +10,7 @@ type stateCardSpec struct {
 	NextAction  string
 	ShortcutCue string
 	RouteCue    string
+	EvidenceCue string
 }
 
 func renderStateCard(state routeLoadState, title, message string) string {
@@ -35,17 +36,30 @@ func renderStateCardSpec(spec stateCardSpec) string {
 		nextAction = stateCardNextStep(spec.State)
 	}
 	cues := stateCardCueLine(spec.ShortcutCue, spec.RouteCue)
-	lines := []string{
-		tableHeader(strings.ToUpper(label)) + " " + strings.TrimSpace(title),
-		appTheme.SurfaceCard.Padding(0, 1).Render(compactLines("Message: "+message, "Reason: "+reason)),
-	}
+	lines := []string{appTheme.SurfaceCard.Padding(0, 1).Render(compactLines("Message: "+message, "Reason: "+reason))}
 	if nextAction != "" {
-		lines = append(lines, muted("Next: "+nextAction))
+		lines = append(lines, "Next: "+nextAction)
+	}
+	if evidence := strings.TrimSpace(spec.EvidenceCue); evidence != "" {
+		lines = append(lines, muted("Evidence: "+evidence))
 	}
 	if cues != "" {
 		lines = append(lines, muted(cues))
 	}
-	return compactLines(lines...)
+	return renderProductCard(productCardSpec{Tone: stateCardTone(spec.State), Title: strings.ToUpper(label) + " " + strings.TrimSpace(title), Badge: toneBadge(stateCardTone(spec.State), strings.ToUpper(label)), Lines: lines})
+}
+
+func stateCardTone(state routeLoadState) visualTone {
+	switch state {
+	case routeLoadStateReady, routeLoadStateCompleted:
+		return visualToneSuccess
+	case routeLoadStateWaiting, routeLoadStateApprovalRequired, routeLoadStateLoading, routeLoadStateEmpty:
+		return visualToneAttention
+	case routeLoadStateBlocked, routeLoadStateDegraded, routeLoadStateError:
+		return visualToneDanger
+	default:
+		return visualToneInfo
+	}
 }
 
 func stateCardCueLine(shortcutCue, routeCue string) string {

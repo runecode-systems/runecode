@@ -349,12 +349,12 @@ func TestShellViewRendersShellSurfaces(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
 	v := m.View()
-	for _, want := range []string{"RuneCode Workbench", "ROUTE", "Product truth:", "Main pane", "Sidebar", "Workbench actions", "Status:"} {
+	for _, want := range []string{"RuneCode Workbench", "ROUTE", "Product truth:", "Main pane", "Sidebar", "ctrl+p commands", "Status:"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected %q in view, got %q", want, v)
 		}
 	}
-	for _, retired := range []string{"Path:", "History:", "clipboard=", localBrokerBoundaryPosture(), "inspector on", "copy actions 3 via action entry"} {
+	for _, retired := range []string{"Path:", "History:", "clipboard=", localBrokerBoundaryPosture(), "inspector on", "copy actions 3 via action entry", "Workbench actions"} {
 		if strings.Contains(v, retired) {
 			t.Fatalf("did not expect retired dense chrome text %q in view, got %q", retired, v)
 		}
@@ -394,7 +394,7 @@ func TestShellOverlayRemainsVisibleWithinViewport(t *testing.T) {
 	if !strings.Contains(v, "Workbench Command Surface") {
 		t.Fatalf("expected palette overlay content in viewport, got %q", v)
 	}
-	for _, want := range []string{"Overlay", "Matches"} {
+	for _, want := range []string{"Overlay", "Suggested"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected styled overlay affordance %q in viewport, got %q", want, v)
 		}
@@ -421,7 +421,7 @@ func TestShellOverlayNarrowViewportKeepsFrameBounds(t *testing.T) {
 			t.Fatalf("expected overlay/frame line width <= 42, got %d in %q", lipgloss.Width(line), line)
 		}
 	}
-	if !strings.Contains(v, "Workbench Command Surface") {
+	if !strings.Contains(v, "Commands") {
 		t.Fatalf("expected palette overlay content in narrow viewport, got %q", v)
 	}
 }
@@ -840,8 +840,8 @@ func TestShellWatchManagerUpdatesRoutesAndSyncHealth(t *testing.T) {
 	mustContainAll(t, view,
 		"Product truth:",
 		"Sync healthy",
-		"last_event=run_watch_terminal subject=run-1 status=completed",
-		"event=session_watch_terminal subject=session-1 status=completed",
+		"Open Action Center for degraded evidence or runtime follow-up",
+		"Action Center explains blockers and degraded cues",
 	)
 }
 

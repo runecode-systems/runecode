@@ -18,25 +18,25 @@ func (m shellModel) renderOverlayStack() string {
 
 func (m shellModel) renderPalette() string {
 	b := strings.Builder{}
-	b.WriteString(tableHeader("Workbench Command Surface") + " " + neutralBadge("toggle=ctrl+p") + "\n")
-	b.WriteString("Verbs: " + strings.Join([]string{infoBadge("open"), infoBadge("inspect"), infoBadge("jump"), infoBadge("back")}, " ") + "\n")
-	b.WriteString(fmt.Sprintf("Query: %q\n", m.palette.query))
+	width := boundedOverlayListWidth(m.width)
+	b.WriteString(rightAlignMetadata(tableHeader("Commands")+" "+muted("Workbench Command Surface"), "esc", width) + "\n")
+	b.WriteString(renderAccentRail(visualToneCommand, "Search  "+paletteSearchText(m.palette.query)) + "\n")
 	if len(m.palette.matches) == 0 {
-		b.WriteString(muted("No matches. Press esc to close."))
+		b.WriteString(muted("No matches. Keep typing or press esc to close."))
 		b.WriteString("\n")
 		return b.String()
 	}
-	b.WriteString(tableHeader("Matches"))
+	b.WriteString(tableHeader("Suggested") + " " + muted("Matches"))
 	b.WriteString("\n")
 	rows := make([]boundedListRow, 0, len(m.palette.matches))
 	for _, entry := range m.palette.matches {
-		rows = append(rows, boundedListRow{Text: paletteMatchLine(entry, false), Selectable: true})
+		rows = append(rows, boundedListRow{Text: paletteMatchLineBounded(entry, width), Selectable: true})
 	}
 	b.WriteString(renderBoundedList(boundedListSpec{
 		Rows:          rows,
 		Selected:      m.palette.selectedIndex,
-		Width:         boundedOverlayListWidth(m.width),
-		Height:        8,
+		Width:         width,
+		Height:        10,
 		GapMarker:     "...",
 		PreserveGaps:  true,
 		ApplySelected: true,
@@ -48,14 +48,15 @@ func (m shellModel) renderPalette() string {
 
 func (m shellModel) renderSessionQuickSwitcher() string {
 	b := strings.Builder{}
-	b.WriteString(tableHeader("Session Quick Switcher") + " " + neutralBadge("toggle=ctrl+j") + "\n")
-	b.WriteString(fmt.Sprintf("Query: %q\n", m.sessions.query))
+	width := boundedOverlayListWidth(m.width)
+	b.WriteString(rightAlignMetadata(tableHeader("Switch Session"), "esc", width) + "\n")
+	b.WriteString(renderAccentRail(visualToneCommand, "Search  "+paletteSearchText(m.sessions.query)) + "\n")
 	if len(m.sessions.matches) == 0 {
 		b.WriteString(muted("No matches. Press esc to close."))
 		b.WriteString("\n")
 		return b.String()
 	}
-	b.WriteString(tableHeader("Matches"))
+	b.WriteString(tableHeader("Recent sessions"))
 	b.WriteString("\n")
 	rows := make([]boundedListRow, 0, len(m.sessions.matches))
 	for i, s := range m.sessions.matches {
@@ -68,24 +69,25 @@ func (m shellModel) renderSessionQuickSwitcher() string {
 			sessionLabel = "● " + sessionLabel
 		}
 		preview := truncateText(sanitizeUIText(s.LastActivityPreview), 50)
-		line := fmt.Sprintf(" %s %s | ws=%s | activity=%s/%s | cue=%s | preview=%q | incomplete=%t | runs=%d approvals=%d",
-			marker,
-			sessionLabel,
-			s.Identity.WorkspaceID,
+		left := fmt.Sprintf("%s %s  %s", marker, sessionLabel, sessionHighLevelCue(s))
+		right := fmt.Sprintf("runs=%d approvals=%d", s.LinkedRunCount, s.LinkedApprovalCount)
+		line := rightAlignMetadata(left, right, width)
+		detail := fmt.Sprintf("    activity=%s/%s  ws=%s  preview=%q",
 			defaultPlaceholder(s.LastActivityAt, "n/a"),
 			defaultPlaceholder(s.LastActivityKind, "n/a"),
-			sessionHighLevelCue(s),
+			s.Identity.WorkspaceID,
 			preview,
-			s.HasIncompleteTurn,
-			s.LinkedRunCount,
-			s.LinkedApprovalCount,
 		)
+		if s.HasIncompleteTurn {
+			detail += "  waiting"
+		}
+		line = compactLines(line, muted(clipDisplayText(detail, width)))
 		rows = append(rows, boundedListRow{Text: line, Selectable: true})
 	}
 	b.WriteString(renderBoundedList(boundedListSpec{
 		Rows:          rows,
 		Selected:      m.sessions.selectedIndex,
-		Width:         boundedOverlayListWidth(m.width),
+		Width:         width,
 		Height:        8,
 		GapMarker:     "...",
 		PreserveGaps:  true,
@@ -137,7 +139,7 @@ func (m shellModel) renderQuitConfirmDialog() string {
 
 func boundedOverlayListWidth(viewportWidth int) int {
 	if viewportWidth <= 0 {
-		return 0
+		return 80
 	}
 	width := overlayBlockWidth(viewportWidth) - 4
 	if width < 1 {

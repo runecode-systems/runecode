@@ -37,7 +37,7 @@ func blockedImpactItem(run brokerapi.RunSummary, blockedCount int) actionCenterI
 		State:          stateCard,
 		Urgency:        urgency,
 		Reason:         blockedImpactReason(run, blockedCount),
-		Impact:         fmt.Sprintf("Workflow progress is waiting for run %s; pending_approvals=%d linked_queue_items=%d.", valueOrNA(run.RunID), run.PendingApprovalCount, blockedCount),
+		Impact:         fmt.Sprintf("Workflow progress is waiting for run %s; %d pending approval(s) and %d linked queue item(s) are visible.", valueOrNA(run.RunID), run.PendingApprovalCount, blockedCount),
 		Owner:          owner,
 		RequiredAction: requiredAction,
 		TargetLabel:    fmt.Sprintf("Runs › %s", valueOrNA(run.RunID)),
@@ -54,12 +54,12 @@ func blockedImpactDisposition(run brokerapi.RunSummary) (string, routeLoadState,
 }
 
 func blockedImpactReason(run brokerapi.RunSummary, blockedCount int) string {
-	reasonParts := []string{fmt.Sprintf("lifecycle=%s", valueOrNA(run.LifecycleState))}
+	reasonParts := []string{fmt.Sprintf("Lifecycle is %s", humanizeExecutionToken(run.LifecycleState))}
 	if strings.TrimSpace(run.BlockingReasonCode) != "" {
-		reasonParts = append(reasonParts, fmt.Sprintf("reason=%s", valueOrNA(run.BlockingReasonCode)))
+		reasonParts = append(reasonParts, fmt.Sprintf("reason is %s", humanizeExecutionToken(run.BlockingReasonCode)))
 	}
 	if blockedCount > 0 {
-		reasonParts = append(reasonParts, fmt.Sprintf("approval_queue_items=%d", blockedCount))
+		reasonParts = append(reasonParts, fmt.Sprintf("%d approval queue item(s) are linked", blockedCount))
 	}
-	return strings.Join(reasonParts, "; ")
+	return strings.Join(reasonParts, "; ") + "."
 }

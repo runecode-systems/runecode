@@ -221,17 +221,7 @@ func boundedListWindowStart(totalRows int, selectedRow int, dataSlots int) int {
 }
 
 func clipBoundedListText(text string, width int) string {
-	if width <= 0 {
-		return text
-	}
-	runes := []rune(text)
-	if len(runes) <= width {
-		return text
-	}
-	if width <= 3 {
-		return string(runes[:width])
-	}
-	return string(runes[:width-3]) + "..."
+	return clipDisplayText(text, width)
 }
 
 func renderInspectorHeader(title string, badges ...string) string {

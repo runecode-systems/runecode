@@ -197,6 +197,46 @@ func sessionDirectoryLine(summary brokerapi.SessionSummary, activeSessionID stri
 	return strings.Join(parts, " | ")
 }
 
+func sessionSidebarLine(summary brokerapi.SessionSummary, activeSessionID string, pinned map[string]struct{}, recentOrder map[string]int, viewed map[string]string, active shellActivityFocus) string {
+	sid := strings.TrimSpace(summary.Identity.SessionID)
+	if sid == "" {
+		sid = "session"
+	}
+	markers := conciseSessionMarkers(summary, activeSessionID, pinned, recentOrder, viewed[sid], active)
+	parts := []string{sid}
+	if cue := sessionHighLevelCue(summary); cue != "" {
+		parts = append(parts, cue)
+	}
+	if summary.LinkedRunCount > 0 {
+		parts = append(parts, countNoun(summary.LinkedRunCount, "run", "runs"))
+	}
+	if summary.LinkedApprovalCount > 0 {
+		parts = append(parts, countNoun(summary.LinkedApprovalCount, "approval", "approvals"))
+	}
+	if len(markers) > 0 {
+		parts = append(parts, strings.Join(markers, ","))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func conciseSessionMarkers(summary brokerapi.SessionSummary, activeSessionID string, pinned map[string]struct{}, recentOrder map[string]int, viewedAt string, active shellActivityFocus) []string {
+	markers := sessionDirectoryMarkers(summary, activeSessionID, pinned, recentOrder, viewedAt, active)
+	out := make([]string, 0, len(markers))
+	for _, marker := range markers {
+		switch marker {
+		case "active":
+			out = append(out, "active")
+		case "pin":
+			out = append(out, "pinned")
+		case "new":
+			out = append(out, "new")
+		case "running":
+			out = append(out, "live")
+		}
+	}
+	return out
+}
+
 func recentSessionOrder(recents []string) map[string]int {
 	recentOrder := map[string]int{}
 	for i, sid := range recents {

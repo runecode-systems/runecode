@@ -18,10 +18,10 @@ func TestGitRemoteMutationRouteLoadsPreparedReviewState(t *testing.T) {
 	view := updated.View(120, 40, focusContent)
 	for _, want := range []string{
 		"Git Remote Mutation",
-		"Review-centric broker flow over canonical prepare/get/execute contracts",
-		"Stable identities: typed_request_hash=",
-		"Approval binding:",
-		"Fail-closed: execute requires required approval bindings and a broker-issued provider credential lease bound to this prepared mutation.",
+		"Guarded remote review",
+		"Prepared change:",
+		"Approval:",
+		"Safety: execute remains fail-closed",
 	} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("view missing %q in %q", want, view)

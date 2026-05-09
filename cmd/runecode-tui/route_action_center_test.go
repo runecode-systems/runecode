@@ -30,22 +30,21 @@ func TestActionCenterViewKeepsFamiliesDistinctAndReservedQANotice(t *testing.T) 
 	mustContainAll(t, view,
 		"Action Center",
 		"Blocked",
-		"Queue families:",
-		"approvals",
-		"operational_attention",
-		"blocked_work_impact",
+		"Queues:",
+		"Approvals",
+		"Operational attention",
+		"Blocked work",
 		"Approvals queue",
 		"Operational attention",
 		"Blocked-work impact",
-		"Action Center is the operator home for broker-known follow-up.",
+		"Action Center is the operator home for blocked work",
 		"owner/action:",
 		"target:",
-		"evidence:",
 	)
 	surface := updated.ShellSurface(routeShellContext{Width: 140, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
 	inspector := surface.Regions.Inspector.Body
 	mustContainAll(t, inspector,
-		"family=",
+		"queue=",
 		"state=",
 		"urgency=",
 		"reason=",
@@ -84,7 +83,7 @@ func TestActionCenterKeyboardTriageAndDrillDown(t *testing.T) {
 	}
 
 	view := updated.View(140, 40, focusContent)
-	if !strings.Contains(view, "Active triage family") {
+	if !strings.Contains(view, "Active queue") {
 		t.Fatalf("expected family indicator in view, got %q", view)
 	}
 	surface := updated.ShellSurface(routeShellContext{Width: 140, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
@@ -106,12 +105,11 @@ func TestBuildApprovalActionItemsIncludesExpiryAndSupersededCues(t *testing.T) {
 		"approval ap-expired",
 		"expired",
 		"approval ap-soon",
-		"expiring_soon",
+		"expiring soon",
 		"approval ap-super",
 		"superseded",
 		"owner/action:",
 		"owner: operator decision",
-		"evidence:",
 	)
 }
 
@@ -126,9 +124,9 @@ func TestBuildOperationalAttentionItemsIncludesAuditAndWatchDisconnect(t *testin
 	text := strings.Join(renderActionCenterItems(items), "\n")
 	mustContainAll(t, text,
 		"shell watch sync health",
-		"state=disconnected",
+		"Watch sync is disconnected",
 		"audit verification posture",
-		"anchoring=degraded",
+		"anchoring is degraded",
 		"run run-1 operational posture",
 		"owner/action:",
 	)
@@ -154,7 +152,6 @@ func TestActionCenterItemsStateReasonImpactOwnerTargetEvidence(t *testing.T) {
 		"impact:",
 		"owner/action:",
 		"target:",
-		"evidence:",
 	)
 }
 

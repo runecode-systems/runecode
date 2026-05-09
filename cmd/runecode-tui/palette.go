@@ -196,6 +196,36 @@ func paletteMatchLine(entry paletteEntry, selected bool) string {
 	return line
 }
 
+func paletteMatchLineBounded(entry paletteEntry, width int) string {
+	left := fmt.Sprintf("%s", entry.Label)
+	if strings.TrimSpace(entry.Description) != "" {
+		left += "  " + muted(entry.Description)
+	}
+	right := paletteEntryShortcut(entry)
+	return rightAlignMetadata(left, right, width)
+}
+
+func paletteEntryShortcut(entry paletteEntry) string {
+	if commandID := strings.TrimSpace(entry.Action.Target.CommandID); commandID != "" {
+		return commandID
+	}
+	if route := strings.TrimSpace(string(entry.Action.Target.RouteID)); route != "" {
+		return route
+	}
+	if kind := strings.TrimSpace(entry.Action.Target.Kind); kind != "" {
+		return kind
+	}
+	return string(entry.Action.Verb)
+}
+
+func paletteSearchText(query string) string {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return muted("type to filter commands, routes, sessions, and evidence")
+	}
+	return query
+}
+
 func isTypingKey(msg tea.KeyMsg) bool {
 	if msg.Type == tea.KeyRunes && len(msg.Runes) == 1 {
 		r := msg.Runes[0]

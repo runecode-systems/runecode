@@ -34,10 +34,9 @@ func TestRunsRouteExplainsBrokerPostureAndStateTaxonomy(t *testing.T) {
 		"Artifacts trail: change_draft (1) • diffs (2)",
 		"Audit evidence: manifest sha256:manifest • policy sha256:policy",
 		"Navigation cues: session=session-1 approvals=1 artifacts=3 audit=2",
-		"Copy cues: use Copy actions for raw run/session ids plus broker-linked approval ids",
 		"backend_kind=workspace",
-		"Workflow identity (authoritative): workflow_kind=change_draft workflow_definition_hash=sha256:",
-		"Runtime isolation assurance (authoritative): Isolation: sandboxed",
+		"Structured/raw modes expose workflow hashes",
+		"Runtime assurance: Isolation: sandboxed",
 	)
 	if strings.Contains(view, "Summary: Run run-1 is active with 1 pending approval(s).") {
 		t.Fatalf("expected run detail only in inspector region, got %q", view)
@@ -61,18 +60,15 @@ func TestApprovalsRouteDistinguishesCodesLifecycleAndBinding(t *testing.T) {
 		"Local actions: resolve:typed | jump:runs | jump:artifacts | jump:audit | copy:approval_id",
 		"Copy actions: approval id | bound run id | request digest | decision digest | raw block",
 		"Approval state: approval required",
-		"State taxonomy: approval-required=yes pending=yes resolved=no expired=no unsupported=yes",
 		"Why this approval exists: policy requires operator review before promotion for run-1 can",
 		"Exact gated object/action: run run-1 • stage stage-1 • action=promotion",
 		"Review first: run evidence for run-1",
 		"If approved next: Promotion continues (effect=unblock_next_stage)",
 		"After approval route: Artifacts → Audit",
 		"Resolve availability: unavailable here because promotion approvals must be completed in the prom",
-		"Resolve status: unsupported",
 		"Resolve unavailable because: promotion approvals must stay in the promotion flow",
-		"Approval type: exact-action approval (binding_kind=exact_action)",
-		"Lifecycle state: pending (stale)",
-		"Lifecycle reason code: awaiting_decision",
+		"Workflow posture: approval required; lifecycle=pending (stale)",
+		"Structured/raw modes expose exact-action approval",
 	)
 	if !strings.Contains(view, "Approval review") {
 		t.Fatalf("expected approval overview card in main view, got %q", view)
@@ -199,11 +195,11 @@ func TestRunInspectorContentIncludesPostureAndTrustCues(t *testing.T) {
 	detail := mustFakeRunDetail(t)
 	content := runInspectorContent(detail.Summary, detail, pendingApprovalStageCount(detail.StageSummaries), waitingRoleCount(detail.RoleSummaries), buildRunEvidenceLinks(detail), presentationRendered)
 	mustContainAll(t, content,
-		"Provisioning/binding posture (authoritative): Provisioning: attested",
+		"Provisioning posture: Provisioning: attested",
 		"PROVISIONING_OK",
-		"Attestation posture (authoritative): attestation posture=valid",
-		"Runtime attestation truthfulness (authoritative): post-handshake verification succeeded; supported attested posture earned from verified post-handshake evidence",
-		"Verifier class (authoritative): verifier class=trusted_domain_local",
+		"Attestation truth: attestation posture=valid",
+		"post-handshake verification succeeded; supported attested posture earned from verified post-handshake evidence",
+		"Structured/raw modes expose workflow hashes",
 	)
 }
 
@@ -211,9 +207,9 @@ func TestApprovalInspectorContentIncludesPolicyAndTriggerCues(t *testing.T) {
 	resp := mustFakeApprovalDetail(t)
 	content := approvalInspectorContent(resp.Approval, resp.ApprovalDetail, resp.ApprovalDetail.BoundIdentity, resp.Approval.BoundScope, approvalBindingLabel(resp.ApprovalDetail.BindingKind), resp.ApprovalDetail.LifecycleDetail.LifecycleState, renderApprovalLifecycleFlags(resp.ApprovalDetail.LifecycleDetail), presentationRendered)
 	mustContainAll(t, content,
-		"Policy reason code: requires_human_review",
-		"Approval trigger code: policy_gate",
-		"Distinct blocking semantics: trigger=policy_gate",
+		"Why this approval exists: policy requires operator review",
+		"Safety cue: approval policy, lifecycle, and execution/system errors remain distinct",
+		"Structured/raw modes expose exact-action approval, binding kind, trigger codes, policy reason codes",
 	)
 }
 

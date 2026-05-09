@@ -30,12 +30,12 @@ func renderActionCenterItems(items []actionCenterItem) []string {
 
 func renderActionCenterItem(item actionCenterItem, width int) string {
 	parts := []string{
-		fmt.Sprintf("%s %s urgency=%s", tableHeader(strings.ToUpper(string(item.State))), item.Title, valueOrNA(item.Urgency)),
+		fmt.Sprintf("%s %s", tableHeader(actionCenterStateLabel(item.State)), item.Title),
+		"  urgency: " + humanizeExecutionToken(item.Urgency),
 		"  reason: " + valueOrNA(item.Reason),
 		"  impact: " + valueOrNA(item.Impact),
 		"  owner/action: " + valueOrNA(strings.TrimSpace(strings.Join([]string{item.Owner, item.RequiredAction}, " • "))),
 		"  target: " + valueOrNA(item.TargetLabel),
-		"  evidence: " + valueOrNA(item.EvidenceCue),
 	}
 	if width <= 0 {
 		return strings.Join(parts, "\n")
@@ -47,6 +47,36 @@ func renderActionCenterItem(item actionCenterItem, width int) string {
 	return strings.Join(wrapped, "\n")
 }
 
+func actionCenterStateLabel(state routeLoadState) string {
+	switch state {
+	case routeLoadStateApprovalRequired:
+		return "Approval required"
+	case routeLoadStateBlocked:
+		return "Blocked"
+	case routeLoadStateDegraded:
+		return "Needs review"
+	case routeLoadStateReady:
+		return "Ready"
+	case routeLoadStateEmpty:
+		return "Clear"
+	default:
+		return strings.ToUpper(string(state))
+	}
+}
+
+func actionCenterFamilyLabel(family actionCenterFamily) string {
+	switch family {
+	case actionCenterFamilyApprovals:
+		return "Approvals"
+	case actionCenterFamilyOps:
+		return "Operational Attention"
+	case actionCenterFamilyBlocked:
+		return "Blocked Work"
+	default:
+		return strings.TrimSpace(string(family))
+	}
+}
+
 func renderActionCenterInspector(family actionCenterFamily, items []actionCenterItem, selected int) string {
 	if len(items) == 0 || selected < 0 || selected >= len(items) {
 		return renderInspectorHeader("Action Center inspector", appTheme.InspectorHint.Render("triage detail")) + "\n  No item selected."
@@ -54,7 +84,7 @@ func renderActionCenterInspector(family actionCenterFamily, items []actionCenter
 	item := items[selected]
 	return compactLines(
 		renderInspectorHeader("Action Center inspector", appTheme.InspectorHint.Render("triage detail")),
-		fmt.Sprintf("  family=%s", family),
+		fmt.Sprintf("  queue=%s", actionCenterFamilyLabel(family)),
 		fmt.Sprintf("  title=%s", item.Title),
 		fmt.Sprintf("  state=%s", valueOrNA(string(item.State))),
 		fmt.Sprintf("  urgency=%s", valueOrNA(item.Urgency)),
@@ -74,13 +104,13 @@ func buildActionCenterSummary(families map[actionCenterFamily][]actionCenterItem
 	blocked := countActionCenterItemsByState(families[actionCenterFamilyBlocked], routeLoadStateBlocked)
 	approvalBlocked := countActionCenterItemsByState(families[actionCenterFamilyBlocked], routeLoadStateApprovalRequired)
 	if blocked > 0 {
-		return actionCenterSummary{State: routeLoadStateBlocked, Title: "Blocked", Message: "Workflow progress is blocked and needs operator follow-up.", Reason: fmt.Sprintf("blocked_work_impact=%d approval_gated_work=%d operational_attention=%d approvals=%d", blocked, approvalBlocked, ops, approvals), NextAction: "Start with blocked-work impact items, then review linked approvals or setup guidance."}
+		return actionCenterSummary{State: routeLoadStateBlocked, Title: "Blocked", Message: "Workflow progress is blocked and needs operator follow-up.", Reason: fmt.Sprintf("%d blocked item(s), %d approval-gated item(s), %d operational item(s), and %d approval decision(s) are visible.", blocked, approvalBlocked, ops, approvals), NextAction: "Start with blocked-work impact items, then review linked approvals or setup guidance."}
 	}
 	if approvals > 0 || approvalBlocked > 0 {
-		return actionCenterSummary{State: routeLoadStateApprovalRequired, Title: "Needs attention", Message: "Approval decisions are waiting on the operator.", Reason: fmt.Sprintf("approvals=%d approval_gated_work=%d operational_attention=%d", approvals, approvalBlocked, ops), NextAction: "Open the approvals queue and review the exact gated action before deciding."}
+		return actionCenterSummary{State: routeLoadStateApprovalRequired, Title: "Needs attention", Message: "Approval decisions are waiting on the operator.", Reason: fmt.Sprintf("%d approval decision(s), %d approval-gated workflow item(s), and %d operational item(s) are visible.", approvals, approvalBlocked, ops), NextAction: "Open the approvals queue and review the exact gated action before deciding."}
 	}
 	if ops > 0 {
-		return actionCenterSummary{State: routeLoadStateDegraded, Title: "Degraded", Message: "Runtime, evidence, setup, or sync posture needs review.", Reason: fmt.Sprintf("operational_attention=%d", ops), NextAction: "Review degraded items first, then confirm detail in Audit, Runs, or Status."}
+		return actionCenterSummary{State: routeLoadStateDegraded, Title: "Degraded", Message: "Runtime, evidence, setup, or sync posture needs review.", Reason: fmt.Sprintf("%d operational attention item(s) are visible.", ops), NextAction: "Review degraded items first, then confirm detail in Audit, Runs, or Status."}
 	}
 	return actionCenterSummary{State: routeLoadStateReady, Title: "No immediate follow-up", Message: "No broker-known attention items are currently waiting in Action Center.", Reason: "Approvals, blocked-work impact, and operational attention queues are clear on the current broker surfaces.", NextAction: "Return to Dashboard or Chat and continue work until new follow-up appears."}
 }

@@ -29,11 +29,11 @@ func (m shellModel) renderShellWorkbench(surface routeSurface, layout shellLayou
 	b := strings.Builder{}
 	m.writeShellFrame(&b, surface, layout, viewportWidth)
 	m.writeShellFooter(&b, viewportWidth)
-	frame := padShellBlock(strings.TrimRight(b.String(), "\n"), viewportWidth, m.availableShellHeight())
+	frame := padShellBlock(strings.TrimRight(b.String(), "\n"), viewportWidth, viewportHeight)
 	if strings.TrimSpace(overlayBody) == "" {
 		return lipgloss.JoinVertical(lipgloss.Left, frame)
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, frame, overlayBody)
+	return applyModalOverlay(frame, overlayBody, viewportWidth, viewportHeight)
 }
 
 func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, layout shellLayoutPlan, viewportWidth int) {
@@ -222,14 +222,42 @@ func renderRunningSuffix(indicator string) string {
 
 func (m shellModel) renderSyncHealth() string {
 	text := "Product truth: " + renderShellSyncState(m.watch.projection.Health.State)
-	text += "  •  broker-owned via local broker IPC"
 	if strings.TrimSpace(m.watch.projection.Health.ErrorText) != "" {
-		text += "  •  " + muted("check Status: "+sanitizeUIText(m.watch.projection.Health.ErrorText))
+		text += "  •  " + muted("Status has detail: "+sanitizeUIText(m.watch.projection.Health.ErrorText))
 	}
 	if actions := strings.TrimSpace(m.renderPrimaryWorkbenchActions()); actions != "" {
 		text += "  •  " + actions
 	}
 	return text
+}
+
+func applyModalOverlay(frame string, overlay string, width int, height int) string {
+	if strings.TrimSpace(overlay) == "" {
+		return frame
+	}
+	if width <= 0 {
+		width = 1
+	}
+	if height <= 0 {
+		return frame
+	}
+	frameLines := strings.Split(padShellBlock(frame, width, height), "\n")
+	overlayLines := strings.Split(strings.TrimRight(overlay, "\n"), "\n")
+	if len(overlayLines) > height {
+		overlayLines = overlayLines[:height]
+	}
+	start := (height - len(overlayLines)) / 2
+	if start < 0 {
+		start = 0
+	}
+	for i, line := range overlayLines {
+		row := start + i
+		if row < 0 || row >= len(frameLines) {
+			continue
+		}
+		frameLines[row] = lipgloss.NewStyle().Width(width).MaxWidth(width).Align(lipgloss.Center).Render(line)
+	}
+	return strings.Join(frameLines, "\n")
 }
 
 func (m shellModel) renderBreadcrumbs(surface routeSurface) string {

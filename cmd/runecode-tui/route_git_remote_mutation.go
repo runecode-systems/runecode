@@ -183,21 +183,74 @@ func (m gitRemoteMutationRouteModel) View(width, height int, focus focusArea) st
 	}
 	return compactLines(
 		sectionTitle("Git Remote Mutation")+" "+focusBadge(focus),
-		"Review-centric broker flow over canonical prepare/get/execute contracts:",
-		fmt.Sprintf("Prepared mutation: %s", valueOrNA(m.prepared.PreparedMutationID)),
-		fmt.Sprintf("Lifecycle: lifecycle_state=%s reason=%s execution_state=%s execution_reason=%s", valueOrNA(m.prepared.LifecycleState), valueOrNA(m.prepared.LifecycleReasonCode), valueOrNA(m.prepared.ExecutionState), valueOrNA(m.prepared.ExecutionReasonCode)),
-		fmt.Sprintf("Scope: run=%s provider=%s destination_ref=%s request_kind=%s", valueOrNA(m.prepared.RunID), valueOrNA(m.prepared.Provider), valueOrNA(m.prepared.DestinationRef), valueOrNA(m.prepared.RequestKind)),
-		fmt.Sprintf("Stable identities: typed_request_hash=%s", requestHash),
-		fmt.Sprintf("Bindings: action_request_hash=%s policy_decision_hash=%s", actionHash, decisionHash),
-		fmt.Sprintf("Approval binding: approval_id=%s approval_request_hash=%s approval_decision_hash=%s", valueOrNA(m.prepared.RequiredApprovalID), approvalReqHash, approvalDecisionHash),
-		fmt.Sprintf("Execute credential lease: provider_auth_lease_id=%s", valueOrNA(m.providerAuthLeaseID)),
-		fmt.Sprintf("Derived summary: repository=%s target_refs=%s", valueOrNA(summary.RepositoryIdentity), joinCSV(summary.TargetRefs)),
-		fmt.Sprintf("Derived result: expected_result_tree_hash=%s patch_artifacts=%s", digestIdentityOrNA(summary.ExpectedResultTreeHash), joinCSV(patches)),
-		fmt.Sprintf("Derived intent: commit_subject=%s pr_title=%s pr_base=%s pr_head=%s", valueOrNA(summary.CommitSubject), valueOrNA(summary.PullRequestTitle), valueOrNA(summary.PullRequestBaseRef), valueOrNA(summary.PullRequestHeadRef)),
-		"Fail-closed: execute requires required approval bindings and a broker-issued provider credential lease bound to this prepared mutation.",
+		renderStateCardSpec(gitRemoteStateCard(m.prepared, m.providerAuthLeaseID)),
+		fmt.Sprintf("Prepared change: %s", gitRemotePreparedSummary(summary)),
+		fmt.Sprintf("Target: repository=%s refs=%s", valueOrNA(summary.RepositoryIdentity), joinCSV(summary.TargetRefs)),
+		fmt.Sprintf("Approval: %s", gitRemoteApprovalSummary(m.prepared)),
+		fmt.Sprintf("Credential lease: %s", gitRemoteLeaseSummary(m.providerAuthLeaseID)),
+		fmt.Sprintf("Execution: %s", gitRemoteExecutionSummary(m.prepared)),
+		"Safety: execute remains fail-closed until approval bindings and a broker-issued provider credential lease match this prepared mutation.",
+		muted(fmt.Sprintf("Structured/raw detail can show prepared=%s typed_request=%s action=%s policy=%s approval_request=%s approval_decision=%s tree=%s patches=%s.", valueOrNA(m.prepared.PreparedMutationID), requestHash, actionHash, decisionHash, approvalReqHash, approvalDecisionHash, digestIdentityOrNA(summary.ExpectedResultTreeHash), joinCSV(patches))),
 		m.status,
 		keyHint("Route keys: r reload prepared state, e execute prepared mutation"),
 	)
+}
+
+func gitRemoteStateCard(prepared brokerapi.GitRemoteMutationPreparedState, leaseID string) stateCardSpec {
+	state := routeLoadStateWaiting
+	message := "Prepared remote mutation is ready for review."
+	next := "Review the target, approval, and lease state before executing."
+	if strings.TrimSpace(prepared.RequiredApprovalID) != "" && prepared.RequiredApprovalDecisionHash == nil {
+		state = routeLoadStateApprovalRequired
+		message = "Remote execution is waiting for approval."
+		next = "Open Approvals before executing this prepared mutation."
+	}
+	if strings.TrimSpace(leaseID) != "" {
+		state = routeLoadStateReady
+		message = "Credential lease is present for execution."
+		next = "Press e only after confirming the prepared change and approval state."
+	}
+	if strings.Contains(strings.ToLower(prepared.ExecutionState), "fail") {
+		state = routeLoadStateDegraded
+		message = "Remote mutation execution failed."
+		next = "Review the broker execution reason before retrying."
+	}
+	return stateCardSpec{State: state, Title: "Guarded remote review", Message: message, Reason: "Git remote mutation stays behind broker prepare/get/execute contracts and fail-closed approval/lease checks.", NextAction: next, ShortcutCue: "r reload • e execute", EvidenceCue: "prepared mutation, approval binding, provider lease"}
+}
+
+func gitRemotePreparedSummary(summary brokerapi.GitRemoteMutationDerivedSummary) string {
+	if strings.TrimSpace(summary.CommitSubject) != "" {
+		return summary.CommitSubject
+	}
+	if strings.TrimSpace(summary.PullRequestTitle) != "" {
+		return summary.PullRequestTitle
+	}
+	return "review prepared repository mutation"
+}
+
+func gitRemoteApprovalSummary(prepared brokerapi.GitRemoteMutationPreparedState) string {
+	if strings.TrimSpace(prepared.RequiredApprovalID) == "" {
+		return "no approval binding reported"
+	}
+	if prepared.RequiredApprovalDecisionHash != nil {
+		return fmt.Sprintf("approval %s has decision evidence", prepared.RequiredApprovalID)
+	}
+	return fmt.Sprintf("approval %s required before execution", prepared.RequiredApprovalID)
+}
+
+func gitRemoteLeaseSummary(leaseID string) string {
+	if strings.TrimSpace(leaseID) == "" {
+		return "not issued yet"
+	}
+	return "issued for this prepared mutation"
+}
+
+func gitRemoteExecutionSummary(prepared brokerapi.GitRemoteMutationPreparedState) string {
+	state := strings.TrimSpace(prepared.ExecutionState)
+	if state == "" {
+		state = strings.TrimSpace(prepared.LifecycleState)
+	}
+	return valueOrNA(state)
 }
 
 func (m gitRemoteMutationRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
