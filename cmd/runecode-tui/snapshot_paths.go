@@ -10,8 +10,18 @@ import (
 	"strings"
 )
 
+const snapshotDefaultDirName = ".tui-snapshots"
+
 func snapshotDefaultOutputDir() string {
-	return filepath.Join(os.TempDir(), "runecode-tui-snapshots")
+	workspaceRoot, err := snapshotWorkspaceRoot()
+	if err == nil {
+		return filepath.Join(workspaceRoot, snapshotDefaultDirName)
+	}
+	cwd, err := os.Getwd()
+	if err == nil {
+		return filepath.Join(cwd, snapshotDefaultDirName)
+	}
+	return filepath.Join(os.TempDir(), snapshotDefaultDirName)
 }
 
 func normalizeSnapshotOutputDir(outputDir string) (string, error) {
@@ -19,19 +29,19 @@ func normalizeSnapshotOutputDir(outputDir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve snapshot output directory: %w", err)
 	}
-	trustedTempRoots, err := snapshotTrustedTempRoots()
+	trustedRoots, err := snapshotTrustedOutputRoots()
 	if err != nil {
 		return "", err
 	}
-	for _, trustedTempRoot := range trustedTempRoots {
-		if snapshotPathWithinBase(trustedTempRoot, resolvedOutputDir) {
+	for _, trustedRoot := range trustedRoots {
+		if snapshotPathWithinBase(trustedRoot, resolvedOutputDir) {
 			return resolvedOutputDir, nil
 		}
 	}
-	return "", fmt.Errorf("snapshot output directory must stay under one of %s", strings.Join(trustedTempRoots, ", "))
+	return "", fmt.Errorf("snapshot output directory must stay under one of %s", strings.Join(trustedRoots, ", "))
 }
 
-func snapshotTrustedTempRoots() ([]string, error) {
+func snapshotTrustedOutputRoots() ([]string, error) {
 	roots := make([]string, 0, 2)
 	seen := make(map[string]struct{}, 2)
 
@@ -61,8 +71,35 @@ func snapshotTrustedTempRoots() ([]string, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("stat /tmp: %w", err)
 	}
+	if err := addRoot(snapshotDefaultOutputDir()); err != nil {
+		return nil, fmt.Errorf("resolve default snapshot directory: %w", err)
+	}
 
 	return roots, nil
+}
+
+func snapshotWorkspaceRoot() (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	resolvedCWD, err := snapshotCanonicalPath(cwd)
+	if err != nil {
+		return "", err
+	}
+	dir := resolvedCWD
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir, nil
+		} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return resolvedCWD, nil
+		}
+		dir = parent
+	}
 }
 
 func snapshotCanonicalPath(path string) (string, error) {

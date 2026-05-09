@@ -93,9 +93,14 @@ class SelectArtifactPathsTest(unittest.TestCase):
         if not tmp_root.is_dir():
             self.skipTest("/tmp unavailable on this platform")
 
-        requested = str(tmp_root / "runecode-tui-snapshots")
+        requested = str(tmp_root / ".tui-snapshots")
         with mock.patch.object(MODULE.tempfile, "gettempdir", return_value=str(Path(tempfile.gettempdir()) / "alternate-temp-root")):
             self.assertEqual(MODULE.resolve_output_dir(requested), str(Path(requested).resolve()))
+
+    def test_resolve_output_dir_accepts_repo_snapshot_root(self) -> None:
+        requested = MODULE.repo_snapshot_root()
+
+        self.assertEqual(MODULE.resolve_output_dir(requested), str(Path(requested).resolve()))
 
     def test_windows_absolute_paths_are_not_treated_as_uris(self) -> None:
         self.assertFalse(MODULE.is_uri_like_path(r"C:\temp\snapshot.png"))

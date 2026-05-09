@@ -92,7 +92,7 @@ func TestNormalizeSnapshotConfigAllowsCanonicalTmpWhenTempDirDiffers(t *testing.
 	}
 	t.Setenv("TMPDIR", customTempDir)
 
-	outputDir := filepath.Join("/tmp", "runecode-tui-snapshots", t.Name())
+	outputDir := filepath.Join("/tmp", ".tui-snapshots", t.Name())
 	cfg, err := normalizeSnapshotConfig(tuiSnapshotConfig{enabled: true, scenario: "dashboard", outputDir: outputDir, viewport: snapshotViewportCompact})
 	if err != nil {
 		t.Fatalf("normalizeSnapshotConfig returned error: %v", err)
@@ -100,6 +100,20 @@ func TestNormalizeSnapshotConfigAllowsCanonicalTmpWhenTempDirDiffers(t *testing.
 	wantOutputDir, err := snapshotCanonicalPath(outputDir)
 	if err != nil {
 		t.Fatalf("snapshotCanonicalPath returned error: %v", err)
+	}
+	if cfg.outputDir != wantOutputDir {
+		t.Fatalf("normalizeSnapshotConfig outputDir = %q, want %q", cfg.outputDir, wantOutputDir)
+	}
+}
+
+func TestNormalizeSnapshotConfigDefaultsToRepoSnapshotDir(t *testing.T) {
+	cfg, err := normalizeSnapshotConfig(tuiSnapshotConfig{enabled: true, scenario: "dashboard", viewport: snapshotViewportCompact})
+	if err != nil {
+		t.Fatalf("normalizeSnapshotConfig returned error: %v", err)
+	}
+	wantOutputDir, err := snapshotCanonicalPath(snapshotDefaultOutputDir())
+	if err != nil {
+		t.Fatalf("snapshotCanonicalPath(snapshotDefaultOutputDir()) returned error: %v", err)
 	}
 	if cfg.outputDir != wantOutputDir {
 		t.Fatalf("normalizeSnapshotConfig outputDir = %q, want %q", cfg.outputDir, wantOutputDir)

@@ -230,9 +230,9 @@ func assertDashboardAndChatBackedRoutes(t *testing.T, recording localBrokerClien
 	assertRouteOutputContainsAll(t, dashboard, routeDashboard,
 		"Current work",
 		"At a glance",
-		"Approvals waiting:",
+		"Approvals:",
 		"Next action",
-		"Action Center explains blockers and degraded cues",
+		"Evidence: Runs, Audit, and Status keep proof details.",
 	)
 
 	chat := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, recording)

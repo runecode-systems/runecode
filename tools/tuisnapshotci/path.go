@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const localSnapshotDirName = "runecode-tui-snapshots"
+const localSnapshotDirName = ".tui-snapshots"
 
 func canonicalPath(path string) (string, error) {
 	absPath, err := filepath.Abs(path)
@@ -80,7 +80,7 @@ func prepareArtifactsDir(workDir string, outputDir string) (string, error) {
 func resolveLocalSnapshotDir(outputDir string) (string, error) {
 	requestedDir := strings.TrimSpace(outputDir)
 	if requestedDir == "" {
-		requestedDir = filepath.Join(os.TempDir(), localSnapshotDirName)
+		requestedDir = defaultLocalSnapshotDir()
 	}
 	resolvedOutputDir, err := canonicalPath(requestedDir)
 	if err != nil {
@@ -127,7 +127,7 @@ func normalizeTrustedOutputDir(outputDir string) (string, error) {
 }
 
 func requirePathWithinTrustedRoot(label string, candidate string) error {
-	trustedRoots, err := trustedTempRoots()
+	trustedRoots, err := trustedSnapshotRoots()
 	if err != nil {
 		return err
 	}
@@ -137,6 +137,56 @@ func requirePathWithinTrustedRoot(label string, candidate string) error {
 		}
 	}
 	return fmt.Errorf("%s must stay under %s", label, trustedRoots[0])
+}
+
+func trustedSnapshotRoots() ([]string, error) {
+	roots, err := trustedTempRoots()
+	if err != nil {
+		return nil, err
+	}
+	defaultRoot, err := canonicalPath(defaultLocalSnapshotDir())
+	if err != nil {
+		return nil, fmt.Errorf("resolve default local snapshot directory: %w", err)
+	}
+	if !slices.Contains(roots, defaultRoot) {
+		roots = append(roots, defaultRoot)
+	}
+	return roots, nil
+}
+
+func defaultLocalSnapshotDir() string {
+	workspaceRoot, err := workspaceRoot()
+	if err == nil {
+		return filepath.Join(workspaceRoot, localSnapshotDirName)
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		return filepath.Join(cwd, localSnapshotDirName)
+	}
+	return filepath.Join(os.TempDir(), localSnapshotDirName)
+}
+
+func workspaceRoot() (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	resolvedCWD, err := canonicalPath(cwd)
+	if err != nil {
+		return "", err
+	}
+	dir := resolvedCWD
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir, nil
+		} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return resolvedCWD, nil
+		}
+		dir = parent
+	}
 }
 
 func trustedTempRoots() ([]string, error) {

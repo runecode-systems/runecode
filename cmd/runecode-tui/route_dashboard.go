@@ -139,20 +139,15 @@ func (m dashboardRouteModel) View(width, height int, focus focusArea) string {
 	sections := []string{
 		compactLines(
 			sectionTitle("Dashboard")+" "+focusBadge(focus),
-			renderStateCardSpec(stateCardSpec{
-				State:      snapshot.Executive.State,
-				Title:      snapshot.Executive.Title,
-				Message:    snapshot.Executive.Message,
-				Reason:     snapshot.Executive.Reason,
-				NextAction: snapshot.Executive.NextAction,
-				RouteCue:   "Action Center",
-			}),
+			renderDashboardHero(snapshot, cardWidth),
 		),
 		renderProductCard(productCardSpec{Tone: dashboardCardTone(snapshot), Title: "Current work", Lines: []string{
 			wrapDashboardLine(renderDashboardCurrentWork(m.data, snapshot), cardWidth),
 			wrapDashboardLine(renderDashboardApprovalCue(m.data, snapshot), cardWidth),
 		}}),
-		renderProductCard(productCardSpec{Tone: visualToneInfo, Title: "At a glance", Lines: dashboardMetricLines(snapshot)}),
+		renderProductCard(productCardSpec{Tone: visualToneInfo, Title: "At a glance", Lines: []string{
+			wrapDashboardLine(dashboardMetricStrip(snapshot), cardWidth),
+		}}),
 		renderProductCard(productCardSpec{Tone: dashboardCardTone(snapshot), Title: "Next action", Lines: []string{
 			wrapDashboardLine(renderDashboardNextActions(m.data, snapshot), cardWidth),
 			wrapDashboardLine(renderDashboardDetailCue(snapshot), cardWidth),

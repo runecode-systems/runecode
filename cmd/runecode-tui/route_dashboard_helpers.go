@@ -11,6 +11,7 @@ import (
 type dashboardExecutiveSummary struct {
 	State      routeLoadState
 	Title      string
+	BadgeLabel string
 	Message    string
 	Reason     string
 	NextAction string
@@ -124,38 +125,84 @@ func dashboardBlockedSummary(data dashboardData, snapshot dashboardSnapshot) das
 		reasons = append(reasons, dashboardProjectSubstrateReason(data.project))
 	}
 	if snapshot.BlockedRuns > 0 {
-		reasons = append(reasons, fmt.Sprintf("%d workflow(s) are blocked or waiting", snapshot.BlockedRuns))
+		reasons = append(reasons, fmt.Sprintf("%s %s blocked or waiting", dashboardCountPhrase(snapshot.BlockedRuns, "workflow", "workflows"), dashboardIsAre(snapshot.BlockedRuns)))
 	}
-	return dashboardExecutiveSummary{State: routeLoadStateBlocked, Title: "Blocked", Message: "Workflow progress is blocked.", Reason: strings.Join(reasons, "; "), NextAction: "Open Action Center and clear the blocker."}
+	return dashboardExecutiveSummary{State: routeLoadStateBlocked, Title: "Blocked", BadgeLabel: "Action needed", Message: "Workflow progress is blocked.", Reason: strings.Join(reasons, "; "), NextAction: "Open Action Center and clear the blocker."}
 }
 
 func dashboardDegradedSummary(data dashboardData, snapshot dashboardSnapshot) dashboardExecutiveSummary {
-	reasons := []string{}
+	subjects := []string{}
 	if !data.readiness.Ready {
-		reasons = append(reasons, "broker readiness is not fully settled")
+		subjects = append(subjects, "broker readiness")
 	}
 	if snapshot.AuditDegraded {
-		reasons = append(reasons, "audit or runtime evidence needs review")
+		subjects = append(subjects, "evidence posture")
 	}
 	if snapshot.RunRuntimeDegraded > 0 {
-		reasons = append(reasons, fmt.Sprintf("%d run(s) report degraded runtime posture", snapshot.RunRuntimeDegraded))
+		subjects = append(subjects, dashboardCountPhrase(snapshot.RunRuntimeDegraded, "runtime signal", "runtime signals"))
 	}
-	return dashboardExecutiveSummary{State: routeLoadStateDegraded, Title: "Degraded", Message: "Evidence or runtime posture needs review.", Reason: strings.Join(reasons, "; "), NextAction: "Open Action Center, then confirm Audit or Runs."}
+	reason := "broker posture needs review"
+	if len(subjects) > 0 {
+		reason = fmt.Sprintf("%s %s review", dashboardJoinPhrases(subjects), dashboardNeedsNeed(len(subjects)))
+	}
+	return dashboardExecutiveSummary{State: routeLoadStateDegraded, Title: "Degraded", BadgeLabel: "Review", Message: "Evidence or runtime posture needs review.", Reason: reason, NextAction: "Open Action Center, then confirm Audit or Runs."}
 }
 
 func dashboardAttentionSummary(data dashboardData, snapshot dashboardSnapshot) dashboardExecutiveSummary {
 	reasons := []string{}
 	if snapshot.PendingApprovals > 0 {
-		reasons = append(reasons, fmt.Sprintf("%d approval decision(s) are waiting", snapshot.PendingApprovals))
+		reasons = append(reasons, fmt.Sprintf("%s %s waiting", dashboardCountPhrase(snapshot.PendingApprovals, "approval", "approvals"), dashboardIsAre(snapshot.PendingApprovals)))
 	}
 	if snapshot.SetupNeedsAttention {
-		reasons = append(reasons, dashboardProjectSubstrateReason(data.project))
+		reasons = append(reasons, dashboardProjectSubstrateAttentionReason(data.project))
 	}
-	return dashboardExecutiveSummary{State: routeLoadStateApprovalRequired, Title: "Needs attention", Message: "Operator follow-up is waiting.", Reason: strings.Join(reasons, "; "), NextAction: "Open Action Center for the exact follow-up."}
+	return dashboardExecutiveSummary{State: routeLoadStateApprovalRequired, Title: "Needs attention", BadgeLabel: "Approval", Message: "Operator follow-up is waiting.", Reason: strings.Join(reasons, "; "), NextAction: "Open Action Center for the exact follow-up."}
 }
 
 func dashboardActiveWorkSummary(activeRuns int) dashboardExecutiveSummary {
-	return dashboardExecutiveSummary{State: routeLoadStateReady, Title: "Active work", Message: "Workflow work is active.", Reason: fmt.Sprintf("%d active workflow(s) are visible.", activeRuns), NextAction: "Use Action Center or open Runs for detail."}
+	return dashboardExecutiveSummary{State: routeLoadStateReady, Title: "Active work", Message: "Workflow work is active.", Reason: fmt.Sprintf("%s %s active", dashboardCountPhrase(activeRuns, "workflow", "workflows"), dashboardIsAre(activeRuns)), NextAction: "Use Action Center or open Runs for detail."}
+}
+
+func renderDashboardHero(snapshot dashboardSnapshot, width int) string {
+	exec := snapshot.Executive
+	lines := []string{
+		wrapDashboardLine("Message: "+exec.Message, width),
+		wrapDashboardLine(dashboardReasonLabel(exec)+": "+exec.Reason, width),
+		wrapDashboardLine("Next: "+exec.NextAction, width),
+	}
+	if cue := dashboardHeroRouteCue(snapshot); cue != "" {
+		lines = append(lines, muted("Route: "+cue))
+	}
+	badge := dashboardStateBadge(exec)
+	return renderProductCard(productCardSpec{Tone: dashboardCardTone(snapshot), Title: exec.Title, Badge: badge, Lines: lines})
+}
+
+func dashboardReasonLabel(exec dashboardExecutiveSummary) string {
+	if exec.State == routeLoadStateBlocked || exec.State == routeLoadStateDegraded {
+		return "Why"
+	}
+	return "Reason"
+}
+
+func dashboardStateBadge(exec dashboardExecutiveSummary) string {
+	label := strings.TrimSpace(exec.BadgeLabel)
+	if label == "" {
+		return ""
+	}
+	if strings.EqualFold(label, strings.TrimSpace(exec.Title)) {
+		return ""
+	}
+	return toneBadge(stateCardTone(exec.State), strings.ToUpper(label))
+}
+
+func dashboardHeroRouteCue(snapshot dashboardSnapshot) string {
+	if snapshot.PendingApprovals > 0 || snapshot.BlockedRuns > 0 || snapshot.DegradedSignals > 0 || snapshot.SetupNeedsAttention || snapshot.SetupBlocked {
+		return "Action Center"
+	}
+	if snapshot.ActiveRuns > 0 {
+		return "Action Center or Runs"
+	}
+	return ""
 }
 
 func renderDashboardWorkflowPosture(snapshot dashboardSnapshot) string {
@@ -163,14 +210,14 @@ func renderDashboardWorkflowPosture(snapshot dashboardSnapshot) string {
 	if snapshot.SetupBlocked {
 		parts = append(parts, "normal product work is blocked until project setup is remediated")
 	} else if snapshot.BlockedRuns > 0 {
-		parts = append(parts, fmt.Sprintf("%d workflow(s) are blocked or waiting on follow-up", snapshot.BlockedRuns))
+		parts = append(parts, fmt.Sprintf("%s %s blocked or waiting on follow-up", dashboardCountPhrase(snapshot.BlockedRuns, "workflow", "workflows"), dashboardIsAre(snapshot.BlockedRuns)))
 	} else if snapshot.ActiveRuns > 0 {
-		parts = append(parts, fmt.Sprintf("%d workflow(s) are active", snapshot.ActiveRuns))
+		parts = append(parts, fmt.Sprintf("%s %s active", dashboardCountPhrase(snapshot.ActiveRuns, "workflow", "workflows"), dashboardIsAre(snapshot.ActiveRuns)))
 	} else {
 		parts = append(parts, "no active workflow work is currently running")
 	}
 	if snapshot.PendingApprovals > 0 {
-		parts = append(parts, fmt.Sprintf("%d approval decision(s) are waiting", snapshot.PendingApprovals))
+		parts = append(parts, fmt.Sprintf("%s %s waiting", dashboardCountPhrase(snapshot.PendingApprovals, "approval", "approvals"), dashboardIsAre(snapshot.PendingApprovals)))
 	}
 	if snapshot.SetupNeedsAttention && !snapshot.SetupBlocked {
 		parts = append(parts, "project setup guidance is available")
@@ -210,17 +257,17 @@ func renderDashboardCurrentWork(data dashboardData, snapshot dashboardSnapshot) 
 		if snapshot.NoWork {
 			return "Current work: no active run is visible yet."
 		}
-		return "Current work: broker returned follow-up items, but no primary run is selected."
+		return "Current work: follow-up is waiting, but no active run is highlighted yet."
 	}
 	state := humanizeExecutionToken(snapshot.PrimaryRun.LifecycleState)
 	parts := []string{fmt.Sprintf("Current work: %s is %s", sanitizeUIText(runID), state)}
 	if snapshot.BlockedRuns > 0 || strings.TrimSpace(snapshot.PrimaryRun.BlockingReasonCode) != "" {
 		parts = append(parts, "blocked follow-up is waiting")
 	} else if snapshot.ActiveRuns > 0 {
-		parts = append(parts, "work is active")
+		parts = append(parts, "work is moving")
 	}
 	if snapshot.DegradedSignals > 0 {
-		parts = append(parts, "evidence or runtime posture needs review")
+		parts = append(parts, "review is still needed")
 	}
 	if data.readiness.RecoveryComplete {
 		parts = append(parts, "recovery is complete")
@@ -234,25 +281,26 @@ func renderDashboardApprovalCue(data dashboardData, snapshot dashboardSnapshot) 
 	}
 	first := firstPendingApproval(data.approvals)
 	if strings.TrimSpace(first.ApprovalID) == "" {
-		return fmt.Sprintf("Approvals: %d decision(s) are waiting.", snapshot.PendingApprovals)
+		return fmt.Sprintf("Approvals: %s %s waiting.", dashboardCountPhrase(snapshot.PendingApprovals, "approval", "approvals"), dashboardIsAre(snapshot.PendingApprovals))
 	}
-	return fmt.Sprintf("Approvals: %d decision(s) waiting; next is %s for run %s.", snapshot.PendingApprovals, sanitizeUIText(first.ApprovalID), valueOrNA(sanitizeUIText(first.BoundScope.RunID)))
+	return fmt.Sprintf("Approvals: %s %s waiting; next is %s for run %s.", dashboardCountPhrase(snapshot.PendingApprovals, "approval", "approvals"), dashboardIsAre(snapshot.PendingApprovals), sanitizeUIText(first.ApprovalID), valueOrNA(sanitizeUIText(first.BoundScope.RunID)))
 }
 
-func dashboardMetricLines(snapshot dashboardSnapshot) []string {
-	return []string{
-		fmt.Sprintf("Active work: %d", snapshot.ActiveRuns),
-		fmt.Sprintf("Approvals waiting: %d", snapshot.PendingApprovals),
-		fmt.Sprintf("Blocked or waiting: %d", snapshot.BlockedRuns),
-		fmt.Sprintf("Needs review: %d", snapshot.DegradedSignals),
+func dashboardMetricStrip(snapshot dashboardSnapshot) string {
+	parts := []string{
+		fmt.Sprintf("Work %d", snapshot.ActiveRuns),
+		fmt.Sprintf("Approvals %d", snapshot.PendingApprovals),
+		fmt.Sprintf("Blocked %d", snapshot.BlockedRuns),
+		fmt.Sprintf("Review %d", snapshot.DegradedSignals),
 	}
+	return strings.Join(parts, "  •  ")
 }
 
 func renderDashboardDetailCue(snapshot dashboardSnapshot) string {
 	if snapshot.BlockedRuns > 0 || snapshot.PendingApprovals > 0 || snapshot.DegradedSignals > 0 || snapshot.SetupNeedsAttention {
-		return "Detail: Action Center explains blockers and degraded cues; Audit, Runs, and Status keep the raw proof."
+		return "Evidence: Runs, Audit, and Status keep proof details."
 	}
-	return "Detail: use Runs, Audit, or Status when you need broker proof instead of the overview."
+	return "Evidence: open Runs, Audit, or Status for broker proof."
 }
 
 func firstPendingApproval(approvals []brokerapi.ApprovalSummary) brokerapi.ApprovalSummary {
@@ -271,11 +319,14 @@ func renderDashboardNextActions(data dashboardData, snapshot dashboardSnapshot) 
 	if snapshot.SetupBlocked {
 		return "Open Action Center and clear the setup blocker, then use Status for broker-owned remediation steps."
 	}
+	if snapshot.BlockedRuns > 0 {
+		return "Open Action Center and clear the blocker."
+	}
 	if snapshot.PendingApprovals > 0 {
-		return "Open Action Center and review the pending approval before workflow progress resumes."
+		return "Open Action Center and review the pending approval."
 	}
 	if snapshot.DegradedSignals > 0 {
-		return "Open Action Center for degraded evidence or runtime follow-up, then inspect Audit or Runs."
+		return "Open Action Center for the follow-up, then inspect Audit or Runs."
 	}
 	if strings.TrimSpace(snapshot.PrimaryRun.RunID) != "" {
 		return fmt.Sprintf("Open Runs for %s or Action Center if new follow-up appears.", sanitizeUIText(snapshot.PrimaryRun.RunID))
@@ -300,12 +351,57 @@ func renderDashboardLiveActivitySummary(live dashboardLiveActivity) string {
 		}
 	}
 	if degraded > 0 {
-		return fmt.Sprintf("Live updates need attention in %d stream(s); Action Center and Status have the details.", degraded)
+		return fmt.Sprintf("Live updates need attention in %s; Action Center and Status have the details.", dashboardCountPhrase(degraded, "stream", "streams"))
 	}
 	if len(live.feed) > 0 {
-		return fmt.Sprintf("Live updates are healthy; %d recent broker event(s) are visible below.", len(live.feed))
+		return fmt.Sprintf("Live updates are healthy; %s visible below.", dashboardCountPhrase(len(live.feed), "recent broker event", "recent broker events"))
 	}
 	return "Live updates are quiet; RuneCode will show broker-owned activity here when work changes."
+}
+
+func dashboardCountPhrase(count int, singular, plural string) string {
+	if count == 1 {
+		return fmt.Sprintf("1 %s", singular)
+	}
+	return fmt.Sprintf("%d %s", count, plural)
+}
+
+func dashboardIsAre(count int) string {
+	if count == 1 {
+		return "is"
+	}
+	return "are"
+}
+
+func dashboardNeedsNeed(count int) string {
+	if count == 1 {
+		return "needs"
+	}
+	return "need"
+}
+
+func dashboardJoinPhrases(parts []string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	if len(parts) == 1 {
+		return parts[0]
+	}
+	if len(parts) == 2 {
+		return parts[0] + " and " + parts[1]
+	}
+	return strings.Join(parts[:len(parts)-1], ", ") + ", and " + parts[len(parts)-1]
+}
+
+func dashboardProjectSubstrateAttentionReason(posture brokerapi.ProjectSubstratePostureGetResponse) string {
+	if len(posture.RemediationGuidance) > 0 {
+		return "setup guidance is available"
+	}
+	compatibility := strings.ToLower(strings.TrimSpace(posture.PostureSummary.CompatibilityPosture))
+	if strings.Contains(compatibility, "upgrade") {
+		return "setup guidance is available"
+	}
+	return dashboardProjectSubstrateReason(posture)
 }
 
 func dashboardActiveRunCount(runs []brokerapi.RunSummary) int {

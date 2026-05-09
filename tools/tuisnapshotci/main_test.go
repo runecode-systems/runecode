@@ -10,13 +10,16 @@ import (
 	"testing"
 )
 
-func TestRunLocalOutputDirDefaultsToTempDir(t *testing.T) {
+func TestRunLocalOutputDirDefaultsToRepoSnapshotDir(t *testing.T) {
 	var stdout strings.Builder
 	var stderr strings.Builder
 	if err := run([]string{"local-output-dir"}, &stdout, &stderr); err != nil {
 		t.Fatalf("run returned error: %v", err)
 	}
-	want := filepath.Join(os.TempDir(), localSnapshotDirName)
+	want, err := canonicalPath(defaultLocalSnapshotDir())
+	if err != nil {
+		t.Fatalf("canonicalPath(defaultLocalSnapshotDir) returned error: %v", err)
+	}
 	if got := strings.TrimSpace(stdout.String()); got != want {
 		t.Fatalf("local-output-dir = %q, want %q", got, want)
 	}
@@ -335,9 +338,19 @@ func TestRequirePathWithinTrustedRootAcceptsCanonicalTmp(t *testing.T) {
 	if _, err := os.Stat("/tmp"); err != nil {
 		t.Skip("/tmp unavailable on this platform")
 	}
-	candidate := filepath.Join("/tmp", "runecode-tui-snapshots")
+	candidate := filepath.Join("/tmp", ".tui-snapshots")
 	if err := requirePathWithinTrustedRoot("artifact directory", candidate); err != nil {
 		t.Fatalf("requirePathWithinTrustedRoot returned error for /tmp path: %v", err)
+	}
+}
+
+func TestRequirePathWithinTrustedRootAcceptsRepoSnapshotDir(t *testing.T) {
+	candidate, err := canonicalPath(defaultLocalSnapshotDir())
+	if err != nil {
+		t.Fatalf("canonicalPath(defaultLocalSnapshotDir) returned error: %v", err)
+	}
+	if err := requirePathWithinTrustedRoot("artifact directory", candidate); err != nil {
+		t.Fatalf("requirePathWithinTrustedRoot returned error for repo snapshot dir: %v", err)
 	}
 }
 

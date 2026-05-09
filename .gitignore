@@ -25,3 +25,6 @@ __pycache__/
 cmd/runecode-broker/.runecode-secretsd/
 audit-anchor-ed25519.private
 audit-anchor-presence-hmac.key
+
+# TUI snapshot tool
+.tui-snapshots/

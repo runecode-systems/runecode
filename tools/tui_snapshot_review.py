@@ -17,6 +17,7 @@ REVIEW_MODE_LIST = "list"
 REVIEW_MODE_SUMMARY = "summary"
 REVIEW_MODE_OPEN = "open"
 REVIEW_MODES = (REVIEW_MODE_LIST, REVIEW_MODE_SUMMARY, REVIEW_MODE_OPEN)
+REPO_SNAPSHOT_DIR_NAME = ".tui-snapshots"
 
 
 def normalize_string_list(value: object) -> List[str]:
@@ -46,7 +47,7 @@ def resolve_output_dir(output_dir: object) -> Optional[str]:
         return None
 
     output_dir_real = os.path.realpath(output_dir)
-    for trusted_root in trusted_temp_roots():
+    for trusted_root in trusted_output_roots():
         try:
             if os.path.commonpath([trusted_root, output_dir_real]) == trusted_root:
                 return output_dir_real
@@ -66,6 +67,20 @@ def trusted_temp_roots() -> List[str]:
         if root not in unique_roots:
             unique_roots.append(root)
     return unique_roots
+
+
+def repo_snapshot_root() -> str:
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    repo_root = os.path.realpath(os.path.join(script_dir, os.pardir))
+    return os.path.join(repo_root, REPO_SNAPSHOT_DIR_NAME)
+
+
+def trusted_output_roots() -> List[str]:
+    roots = trusted_temp_roots()
+    repo_root = os.path.realpath(repo_snapshot_root())
+    if repo_root not in roots:
+        roots.append(repo_root)
+    return roots
 
 
 def resolve_artifact_path(output_dir: str, artifact_path: object) -> Optional[str]:
@@ -387,8 +402,8 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     parser.add_argument(
         "output_dir",
         nargs="?",
-        default=os.path.join(tempfile.gettempdir(), "runecode-tui-snapshots"),
-        help="snapshot output directory under the trusted temp root",
+        default=repo_snapshot_root(),
+        help="snapshot output directory under a trusted snapshot root",
     )
     parser.add_argument(
         "--mode",
@@ -420,7 +435,7 @@ def main() -> int:
     requested_output_dir = args.output_dir
     output_dir = resolve_output_dir(requested_output_dir)
     if output_dir is None:
-        print("Requested output directory must resolve inside the system temp directory", file=sys.stderr)
+        print("Requested output directory must resolve inside a trusted snapshot root", file=sys.stderr)
         return 1
 
     manifest_path = os.path.join(output_dir, "manifest.json")

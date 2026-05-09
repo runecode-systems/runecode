@@ -13,7 +13,7 @@ The snapshot tool now supports agent-facing audit bundles. Use bundles for audit
 
 - Default to non-GUI review. Do not open desktop windows unless the human explicitly asks for GUI review.
 - Snapshot runs clean their output directory before and after by default. Use `TUI_SNAPSHOT_KEEP=1` when artifacts must persist for inspection.
-- Snapshot artifacts must stay under trusted temp roots. Use `TUI_SNAPSHOT_DIR` only for a temp-backed local output directory.
+- Snapshot artifacts default to repo-local `.tui-snapshots/`. `TUI_SNAPSHOT_DIR` may override that to another allowed snapshot output directory.
 - Snapshot tooling is dev/CI-only. Do not add snapshot-enabled binaries, flags, or helpers to release artifacts.
 - In plan/read-only mode, do not claim a TUI audit unless a preserved snapshot manifest already exists. Missing preserved artifacts are a workflow blocker, not an audit finding.
 - `python3 ./tools/tui_snapshot_review.py ...` is read-only. `just tui-snapshot-review*` recipes rebuild and regenerate snapshots first, so they are not read-only inspection commands.
@@ -40,8 +40,8 @@ The snapshot tool now supports agent-facing audit bundles. Use bundles for audit
 - Explicit GUI review: `just tui-snapshot-review-open`
 - Deterministic CI/dev validation: `just tui-snapshot-ci`
 - Release safety check: `just tui-release-safety`
-- Read-only preserved-artifact summary: `python3 ./tools/tui_snapshot_review.py --mode summary /tmp/runecode-tui-snapshots`
-- Read-only preserved-artifact path listing: `python3 ./tools/tui_snapshot_review.py --mode list /tmp/runecode-tui-snapshots`
+- Read-only preserved-artifact summary: `python3 ./tools/tui_snapshot_review.py --mode summary ./.tui-snapshots`
+- Read-only preserved-artifact path listing: `python3 ./tools/tui_snapshot_review.py --mode list ./.tui-snapshots`
 
 ## Environment Controls
 
@@ -64,13 +64,13 @@ python3 ./tools/tui_snapshot_review.py \
   --mode summary \
   --require-bundle full-audit \
   --require-viewport desktop \
-  /tmp/runecode-tui-plan-review
+  ./.tui-snapshots
 
 python3 ./tools/tui_snapshot_review.py \
   --mode list \
   --require-bundle full-audit \
   --require-viewport desktop \
-  /tmp/runecode-tui-plan-review
+  ./.tui-snapshots
 ```
 
 5. If the preserved bundle is missing or incomplete, stop and tell the user exactly how to continue:
@@ -80,12 +80,12 @@ I’m in OpenCode plan/read-only mode, so I can’t generate the TUI snapshot bu
 
 To continue, either switch me to build mode, or run this command yourself:
 
-TUI_SNAPSHOT_KEEP=1 TUI_SNAPSHOT_DIR=/tmp/runecode-tui-plan-review just tui-snapshot-audit-full
+TUI_SNAPSHOT_KEEP=1 TUI_SNAPSHOT_DIR=./.tui-snapshots just tui-snapshot-audit-full
 
 Then tell me to continue, and I’ll audit the preserved bundle with:
 
-python3 ./tools/tui_snapshot_review.py --mode summary --require-bundle full-audit --require-viewport desktop /tmp/runecode-tui-plan-review
-python3 ./tools/tui_snapshot_review.py --mode list --require-bundle full-audit --require-viewport desktop /tmp/runecode-tui-plan-review
+python3 ./tools/tui_snapshot_review.py --mode summary --require-bundle full-audit --require-viewport desktop ./.tui-snapshots
+python3 ./tools/tui_snapshot_review.py --mode list --require-bundle full-audit --require-viewport desktop ./.tui-snapshots
 ```
 
 6. In write-capable mode, proceed with bundle generation and preserved-artifact review normally.
@@ -96,13 +96,13 @@ python3 ./tools/tui_snapshot_review.py --mode list --require-bundle full-audit -
 2. Only inspect an already-preserved temp directory:
 
 ```sh
-python3 ./tools/tui_snapshot_review.py --mode summary --require-bundle full-audit /tmp/runecode-tui-snapshots
-python3 ./tools/tui_snapshot_review.py --mode list --require-bundle full-audit /tmp/runecode-tui-snapshots
+python3 ./tools/tui_snapshot_review.py --mode summary --require-bundle full-audit ./.tui-snapshots
+python3 ./tools/tui_snapshot_review.py --mode list --require-bundle full-audit ./.tui-snapshots
 ```
 
 3. If `manifest.json` is missing or the listed PNG/SVG artifacts are absent, report a workflow blocker. Do not convert missing artifacts into a TUI audit finding.
 4. State clearly that no audit coverage can be claimed until either:
-   - a preserved bundle exists under a trusted temp dir, or
+   - a preserved bundle exists under an allowed snapshot dir, or
    - write-producing snapshot commands are allowed again.
 
 ## Audit Bundles And Scenarios
@@ -166,13 +166,13 @@ TUI_SNAPSHOT_KEEP=1 just tui-snapshot-audit-full
 4. Produce a non-GUI summary from the preserved artifact directory:
 
 ```sh
-python3 ./tools/tui_snapshot_review.py --mode summary --require-bundle full-audit --require-viewport desktop /tmp/runecode-tui-snapshots
+python3 ./tools/tui_snapshot_review.py --mode summary --require-bundle full-audit --require-viewport desktop ./.tui-snapshots
 ```
 
 5. Print artifact paths for direct file inspection from the same preserved directory:
 
 ```sh
-python3 ./tools/tui_snapshot_review.py --mode list --require-bundle full-audit --require-viewport desktop /tmp/runecode-tui-snapshots
+python3 ./tools/tui_snapshot_review.py --mode list --require-bundle full-audit --require-viewport desktop ./.tui-snapshots
 ```
 
 6. Inspect the selected `.png` or `.svg` files directly with file-reading tools. Do not open GUI windows unless asked.
@@ -221,8 +221,8 @@ TUI_SNAPSHOT_KEEP=1 just tui-snapshot-audit-chat
 4. Use non-GUI review first against the preserved output directory:
 
 ```sh
-python3 ./tools/tui_snapshot_review.py --mode summary --require-bundle dashboard-audit /tmp/runecode-tui-snapshots
-python3 ./tools/tui_snapshot_review.py --mode list --require-bundle dashboard-audit /tmp/runecode-tui-snapshots
+python3 ./tools/tui_snapshot_review.py --mode summary --require-bundle dashboard-audit ./.tui-snapshots
+python3 ./tools/tui_snapshot_review.py --mode list --require-bundle dashboard-audit ./.tui-snapshots
 ```
 
 5. Confirm the summary/list output matches the requested focused bundle or focused scenario before analyzing it.

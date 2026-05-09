@@ -31,14 +31,14 @@ func TestDashboardRouteShowsTypedLiveWatchFamilies(t *testing.T) {
 		"Degraded",
 		"Current work",
 		"run-1 is active",
-		"Approvals: 1 decision(s) waiting",
+		"Approvals: 1 approval is waiting",
 		"At a glance",
-		"Active work: 1",
-		"Approvals waiting: 1",
-		"Needs review: 1",
+		"Work 1",
+		"Approvals 1",
+		"Review 1",
 		"Next action",
 		"Open Action Center",
-		"Audit, Runs, and Status keep the raw proof",
+		"Evidence: Runs, Audit, and Status keep proof details.",
 	)
 	for _, retired := range []string{"Runtime and evidence", "Supporting detail", "ALERT_AUDIT_UNANCHORED", "AUDIT_UNANCHORED_OR_DEGRADED", "Live activity"} {
 		if strings.Contains(view, retired) {
@@ -77,7 +77,7 @@ func TestDashboardRouteFallsBackWhenAuditVerificationUnavailable(t *testing.T) {
 		"Degraded",
 		"Current work",
 		"At a glance",
-		"Needs review: 1",
+		"Review 1",
 		"Next action",
 		"Open Action Center",
 	)
@@ -108,8 +108,13 @@ func TestDashboardExecutiveHierarchyAndCalmPrimaryWording(t *testing.T) {
 	if strings.Contains(view, "Protocol bundle") || strings.Contains(view, "watch_family") || strings.Contains(view, "Supporting detail") {
 		t.Fatalf("expected no debug-heavy primary wording, got %q", view)
 	}
-	if !strings.Contains(view, "Action Center explains blockers and degraded cues") {
+	if !strings.Contains(view, "Route: Action Center") {
 		t.Fatalf("expected dashboard to point operators to Action Center, got %q", view)
+	}
+	for _, unwanted := range []string{"DEGRADED Degraded", "! DEGRADED", "APPROVAL REQUIRED Needs attention", "BLOCKED Blocked", "EMPTY No work yet"} {
+		if strings.Contains(view, unwanted) {
+			t.Fatalf("expected dashboard hero without duplicated state/title wording %q, got %q", unwanted, view)
+		}
 	}
 }
 
@@ -121,7 +126,7 @@ func TestDashboardViewPreservesSectionGaps(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	for _, want := range []string{"Current work", "\n\n|  At a glance", "Needs review: 1\n\n|  Next action"} {
+	for _, want := range []string{"Current work", "\n\n|  At a glance", "Review 1\n\n|  Next action"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("expected preserved blank section gap %q in view, got %q", want, view)
 		}
@@ -154,7 +159,7 @@ func TestDashboardViewWrapsLongRowsToWidth(t *testing.T) {
 			t.Fatalf("expected wrapped dashboard line within content width, got width=%d line=%q", lipgloss.Width(line), line)
 		}
 	}
-	if !strings.Contains(view, "Audit, Runs, and Status keep") {
+	if !strings.Contains(view, "Runs, Audit, and Status keep") {
 		t.Fatalf("expected wrapped dashboard detail cue retained, got %q", view)
 	}
 	if strings.Contains(view, "AUDIT_UNANCHORED_OR_DEGRADED") {

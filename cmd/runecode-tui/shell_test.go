@@ -840,8 +840,8 @@ func TestShellWatchManagerUpdatesRoutesAndSyncHealth(t *testing.T) {
 	mustContainAll(t, view,
 		"Product truth:",
 		"Sync healthy",
-		"Open Action Center for degraded evidence or runtime follow-up",
-		"Action Center explains blockers and degraded cues",
+		"Open Action Center for the follow-up, then inspect Audit or Runs",
+		"Evidence: Runs, Audit, and Status keep proof details.",
 	)
 }
 
