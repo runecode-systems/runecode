@@ -30,28 +30,30 @@ func TestActionCenterViewKeepsFamiliesDistinctAndReservedQANotice(t *testing.T) 
 	mustContainAll(t, view,
 		"Action Center",
 		"Blocked",
-		"Queues:",
 		"Approvals",
-		"Operational attention",
-		"Blocked work",
-		"Approvals queue",
-		"Operational attention",
+		"Operational Attention",
+		"Blocked Work",
+		"Focus Approvals",
+		"Continue in",
+	)
+	mustNotContainAny(t, view,
 		"Blocked-work impact",
-		"Action Center is the operator home for blocked work",
 		"owner/action:",
-		"target:",
+		"Focused queue:",
 	)
 	surface := updated.ShellSurface(routeShellContext{Width: 140, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
 	inspector := surface.Regions.Inspector.Body
 	mustContainAll(t, inspector,
+		"Why this needs attention",
+		"What it affects",
+		"What to do",
+		"Continue in",
+		"Evidence",
+	)
+	mustNotContainAny(t, inspector,
 		"queue=",
 		"state=",
-		"urgency=",
-		"reason=",
-		"impact=",
-		"owner=",
 		"required_action=",
-		"evidence=",
 	)
 }
 
@@ -83,11 +85,11 @@ func TestActionCenterKeyboardTriageAndDrillDown(t *testing.T) {
 	}
 
 	view := updated.View(140, 40, focusContent)
-	if !strings.Contains(view, "Active queue") {
+	if !strings.Contains(view, "Focus Blocked Work") {
 		t.Fatalf("expected family indicator in view, got %q", view)
 	}
 	surface := updated.ShellSurface(routeShellContext{Width: 140, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
-	if !strings.Contains(surface.Regions.Inspector.Body, "drill_down_target=") {
+	if !strings.Contains(surface.Regions.Inspector.Body, "Continue in") {
 		t.Fatalf("expected action center drill-down details in inspector, got %q", surface.Regions.Inspector.Body)
 	}
 }
@@ -108,9 +110,9 @@ func TestBuildApprovalActionItemsIncludesExpiryAndSupersededCues(t *testing.T) {
 		"expiring soon",
 		"approval ap-super",
 		"superseded",
-		"owner/action:",
-		"owner: operator decision",
+		"Continue in Approvals",
 	)
+	mustNotContainAny(t, text, "owner/action:", "Next:")
 }
 
 func TestBuildOperationalAttentionItemsIncludesAuditAndWatchDisconnect(t *testing.T) {
@@ -128,8 +130,9 @@ func TestBuildOperationalAttentionItemsIncludesAuditAndWatchDisconnect(t *testin
 		"audit verification posture",
 		"anchoring is degraded",
 		"run run-1 operational posture",
-		"owner/action:",
+		"Continue in",
 	)
+	mustNotContainAny(t, text, "owner/action:", "Next:")
 }
 
 func TestActionCenterItemsStateReasonImpactOwnerTargetEvidence(t *testing.T) {
@@ -148,13 +151,27 @@ func TestActionCenterItemsStateReasonImpactOwnerTargetEvidence(t *testing.T) {
 	}
 	text := renderActionCenterItem(item, 0)
 	mustContainAll(t, text,
-		"reason:",
-		"impact:",
+		item.Title,
+		actionCenterShortReason(item.Reason),
+		"Continue in",
+	)
+	mustNotContainAny(t, text,
 		"owner/action:",
 		"target:",
+		"impact:",
+		"Next:",
 	)
 }
 
 func timeNowUTCForTest() time.Time {
 	return time.Now().UTC()
+}
+
+func mustNotContainAny(t *testing.T, body string, values ...string) {
+	t.Helper()
+	for _, value := range values {
+		if strings.Contains(body, value) {
+			t.Fatalf("expected %q to be absent from %q", value, body)
+		}
+	}
 }

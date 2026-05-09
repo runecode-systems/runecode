@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -175,22 +174,19 @@ func (m actionCenterRouteModel) View(width, height int, focus focusArea) string 
 	vm := m.snapshot()
 	return compactLines(
 		sectionTitle("Action Center")+" "+focusBadge(focus),
-		renderStateCardSpec(stateCardSpec{
-			State:      vm.Summary.State,
-			Title:      vm.Summary.Title,
-			Message:    vm.Summary.Message,
-			Reason:     vm.Summary.Reason,
-			NextAction: vm.Summary.NextAction,
-			RouteCue:   "Approvals, Runs, Audit, Status",
-		}),
-		fmt.Sprintf("Queues: Approvals %d  •  Operational attention %d  •  Blocked work %d", len(vm.Families[actionCenterFamilyApprovals]), len(vm.Families[actionCenterFamilyOps]), len(vm.Families[actionCenterFamilyBlocked])),
-		fmt.Sprintf("Active queue: %s", actionCenterFamilyLabel(m.family)),
-		"Action Center is the operator home for blocked work, approval gates, degraded sync, setup, runtime, and evidence follow-up.",
-		renderActionCenterDirectory("Approvals queue", vm.Families[actionCenterFamilyApprovals], m.selectedIndex(actionCenterFamilyApprovals, len(vm.Families[actionCenterFamilyApprovals])), width),
-		renderActionCenterDirectory("Operational attention", vm.Families[actionCenterFamilyOps], m.selectedIndex(actionCenterFamilyOps, len(vm.Families[actionCenterFamilyOps])), width),
-		renderActionCenterDirectory("Blocked-work impact", vm.Families[actionCenterFamilyBlocked], m.selectedIndex(actionCenterFamilyBlocked, len(vm.Families[actionCenterFamilyBlocked])), width),
-		muted("If every bucket is empty, the control plane is currently waiting on new canonical work or operator intervention."),
-		keyHint("Route keys: [/] change family, j/k move, enter drill-down, i toggle inspector, r reload"),
+			renderStateCardSpec(stateCardSpec{
+				State:      vm.Summary.State,
+				Title:      vm.Summary.Title,
+				Message:    vm.Summary.Message,
+				Reason:     vm.Summary.Reason,
+				NextAction: vm.Summary.NextAction,
+				RouteCue:   "Approvals, Runs, Audit, Status",
+			}),
+			renderActionCenterQueueStrip(vm, m.family),
+			renderActionCenterDirectory("Approvals", vm.Families[actionCenterFamilyApprovals], m.selectedIndex(actionCenterFamilyApprovals, len(vm.Families[actionCenterFamilyApprovals])), width),
+			renderActionCenterDirectory("Operational Attention", vm.Families[actionCenterFamilyOps], m.selectedIndex(actionCenterFamilyOps, len(vm.Families[actionCenterFamilyOps])), width),
+			renderActionCenterDirectory("Blocked Work", vm.Families[actionCenterFamilyBlocked], m.selectedIndex(actionCenterFamilyBlocked, len(vm.Families[actionCenterFamilyBlocked])), width),
+			keyHint("Route keys: [/] change family, j/k move, enter drill-down, i toggle inspector, r reload"),
 	)
 }
 
