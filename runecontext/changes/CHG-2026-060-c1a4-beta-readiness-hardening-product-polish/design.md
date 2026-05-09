@@ -153,6 +153,8 @@ Dogfooding should be part of the plan, not an afterthought.
 
 The TUI polish goal for this lane is to move the current interface from a dense development/debug console toward a polished, professional, production-feeling operator product. The existing TUI foundations are strong: a unified shell, route workbenches, inspectors, command mode, palette discovery, themes, live watch projection, and broker-owned state surfaces. The remaining product gap is presentation hierarchy and operator confidence. Primary screens should explain what is happening, whether the operator needs to act, and what to do next before exposing protocol, schema, or debug-level detail.
 
+The preserved full snapshot audit reinforced that goal. A desktop `full-audit` bundle covering Dashboard, Chat, Runs, Approvals, Action Center, Audit, Status, Model Providers, Git Setup, and Git Remote confirmed that the product now has real route structure and operator intent, but it also showed that the default shell still spends too much space on chrome and footer surfaces, many rendered panes still read like styled control-plane views, and the current deterministic audit coverage still omits Artifacts, overlay surfaces, and compact/mobile layouts.
+
 This lane should capture polish work discovered while testing the real workflow path, especially in:
 
 - run and session state clarity
@@ -181,19 +183,19 @@ The first once-over identified these concrete polish directions:
 ### TUI Once-Over Findings
 The focused source review of the current TUI implementation found that the product is partway through this polish goal, but not yet at the professional operator-product bar required for beta. The code already uses a real Bubble Tea shell, route models, route workbenches, inspectors, command and leader surfaces, live watch projection, themes, Lip Gloss-styled panes, Bubbles textarea/viewport/help/spinner primitives, and broker-owned state. The gap is no longer whether the implementation has TUI foundations; the gap is whether the default presentation feels calm, coherent, and designed rather than like a dense control-plane console.
 
-The current implementation partially satisfies the CHG-060 intent:
+The current implementation partially satisfies the CHG-060 intent, but the full snapshot audit clarifies the remaining gaps:
 
-- `Dashboard` has an executive-summary shape, high-value counts, next-action language, and Action Center cues, but it still exposes readiness fields, evidence posture internals, version/build data, and watch-family detail in the primary pane.
-- `Action Center` exists and has approval, operational-attention, and blocked-work buckets with reason, impact, owner/action, target, and evidence cues, but it is not the first/default operator home and still uses internal family names such as `operational_attention`, `blocked_work_impact`, and watch-family language in primary content.
-- `Chat` has the strongest route-level alignment: active session, composer state, broker-owned execution state, linked evidence counts, and honest broker-known stages such as waiting, plan compiled, runner active, checkpoint received, approval required, artifact ready, failed, and completed.
-- `Runs` keeps outcomes, coordination, plan authority, runner/reporting posture, approvals, artifacts, and audit evidence together, but rendered inspector content still includes debug-heavy details such as `backend_kind`, workflow hashes, authoritative/advisory key counts, coordination locks/conflicts, approval profile, and raw posture taxonomy.
-- `Approvals` distinguishes approval-required, pending, resolved, expired, unsupported, lifecycle, policy, trigger, and bound-scope cues, but the rendered view still surfaces contract vocabulary and policy codes too early for a non-debug operator.
-- `Artifacts` and `Audit` provide useful evidence continuity and copyable raw identifiers, but digest labels, event names, verification codes, and anchoring internals still dominate too much of the primary visual hierarchy.
-- `Status` and project-substrate remediation are closest to the target: inspect/current posture, adoption, init preview/apply, upgrade preview/apply, apply-unavailable states, post-apply validation, and broker-owned mutation language are present and mostly understandable.
-- `Model Providers`, `Git Setup`, and `Git Remote` are the least polished product surfaces. They still read like broker API/state dumps because primary panes expose provider family, endpoint, profile IDs, auth modes, bootstrap modes, policy booleans, prepared mutation IDs, typed request hashes, action hashes, approval hashes, credential leases, lifecycle reason codes, and derived git metadata without enough product hierarchy.
-- The shell chrome is improved from a raw debug frame, but it still reserves a lot of vertical space for top status, sync strip, bottom strip, status row, and footer. The resulting workbench can feel dense even before route content renders.
-- The command, session, leader, inspector, and quit overlays are functional, but they are appended as additional blocks rather than visually layered modal surfaces. They do not yet match the clean centered command-palette pattern suggested by the reference images: dimmed background, centered elevated panel, compact search field, grouped actions, strong selected row, and low-noise shortcut hints.
-- The implementation uses Lip Gloss styles and tokens, but the styling is mostly utility-level: bordered panes, badges, muted text, and surface colors. It does not yet use a strong visual system with accent rails, differentiated message blocks, sparse typography, focused cards, subdued secondary text, and consistent color semantics across all routes.
+- `Dashboard` is the best-aligned route. It now has an executive state card, high-value counts, and next-action language, but it still shares the screen with too much shell chrome and still repeats state/badge language that should feel calmer and more intentional.
+- `Action Center` is the strongest triage surface and should become the operator home for follow-up, but selected cards are still too dense and the inspector largely repeats the same reason, impact, owner/action, and target text as raw key/value detail.
+- `Chat` has the strongest route-level alignment around active session, composer state, broker-owned execution state, and linked evidence counts, but the route still feels crowded because active-session state, workflow state, approval state, session directory, mode tabs, inspector, route keys, and shell footer all compete at once.
+- `Runs` keeps outcomes, coordination, approvals, artifacts, and audit evidence together, but rendered content still leaks implementation vocabulary such as projection or plan-authority terms, backend labels, approval profile detail, and raw posture taxonomy before the route has cleanly answered the operator's first questions.
+- `Approvals` distinguishes approval-required, pending, resolved, expired, unsupported, lifecycle, policy, and trigger cues, but the rendered view still surfaces policy codes, trigger codes, gate bindings, and bound-scope detail too early for a non-debug operator.
+- `Artifacts`, `Audit`, and verification still need to read as one evidence trail. The product has useful continuity and copyable raw identifiers, but digest labels, event names, verification codes, anchoring posture terms, and full raw identities still dominate too much of the primary visual hierarchy.
+- `Status` and project-substrate remediation have the right broker-owned lifecycle concepts, but the main route still reads too much like a diagnostic dump because subsystem booleans, protocol/version details, compatibility tokens, preview handles, and normal-operation flags remain in the primary pane.
+- `Model Providers`, `Git Setup`, and `Git Remote` remain the least polished product surfaces. They still read like broker state dumps because rendered views expose provider family, endpoint, profile IDs, auth modes, bootstrap modes, policy booleans, prepared mutation IDs, long request or approval hashes, credential leases, lifecycle reason codes, and derived git metadata before the operator story is clear.
+- The shell chrome is improved from a raw debug frame, but the snapshot audit shows that top status, sync strip, pane spacer, bottom strip, status row, footer help, and the repeated broker-truth sentence still consume too much vertical space. The workbench feels dense before route content begins.
+- Overlay behavior is directionally right in code, but the deterministic route bundle did not yet prove command palette, session switcher, leader help, inspector sheet, sidebar drawer, or quit confirmation as polished modal surfaces. Those surfaces remain an explicit TUI acceptance gap until they are captured and reviewed.
+- The implementation uses Lip Gloss styles and tokens, but the styling is still mostly utility-level: bordered panes, badges, muted text, and surface colors. It does not yet deliver a strong visual system with accent rails, differentiated message blocks, sparse typography, focused cards, subdued secondary text, and consistent color semantics across all routes and responsive layouts.
 
 The result is a TUI that is operationally useful and honest, but still short of the desired polished/professional experience. The remaining work should be treated as beta-blocking product polish, not optional beautification, because the TUI is the normal local product shell and the main place where a new Linux user will decide whether RuneCode feels understandable and trustworthy.
 
@@ -207,7 +209,7 @@ The target visual language is:
 - high-contrast but low-noise typography: primary status in clear text, secondary facts dimmed, raw IDs shortened unless selected or copied
 - one prominent operator card per route that answers: what is happening, is it healthy, am I blocked, what should I do next, and where is the evidence
 - visual accent rails or sidebars for active message blocks, selected work items, approval-required cards, and command input rather than wrapping every object in heavy borders
-- fewer always-visible words in chrome; route-specific detail should live in the route body, inspector, command palette, or copy actions
+- fewer always-visible words in chrome; route-specific detail should live in the route body, inspector, command palette, or copy actions, and the footer should not repeat trust-boundary or shortcut prose that overwhelms the route
 - focused overlays that appear as centered, elevated panels with optional background dimming instead of appended blocks
 - compact command discovery similar to the inspiration: title, escape hint, search field, grouped suggestions, selected row with strong contrast, and right-aligned shortcuts or command IDs
 - diff/log/evidence views that use colored line blocks and columns intentionally, while keeping trust-sensitive raw content redacted and secondary unless selected
@@ -260,13 +262,13 @@ To reach a polished and professional TUI experience, close the gaps in this orde
    Define product-level primitives for hero state card, compact count strip, action item, evidence trail, setup stepper, command palette, modal panel, detail viewport, and selected directory row. These should be Lip Gloss components that routes compose instead of bespoke line dumps.
 
 2. Reframe the shell.
-   Reduce always-visible chrome to product title/route, sync truth, active work, and the smallest viable action hint. Move diagnostics, path/history, raw focus/layout state, clipboard/copy counts, and exhaustive shortcuts into command discovery, inspector, or Status. Wide layout can keep sidebar/main/inspector, but medium and narrow layouts should feel like focused single-pane work with overlays for nav and inspector.
+   Reduce always-visible chrome to product title/route, sync truth, active work, and the smallest viable action hint. Move diagnostics, path/history, raw focus/layout state, clipboard/copy counts, repeated broker-truth reminders, and exhaustive shortcuts into command discovery, inspector, or Status. Wide layout can keep sidebar/main/inspector, but medium and narrow layouts should feel like focused single-pane work with overlays for nav and inspector.
 
 3. Make overlays professional.
    Replace appended overlay blocks with centered modal panels. Command palette should have a search row, grouped suggestions, high-contrast selected row, right-aligned command IDs/shortcuts, and dimmed background where terminal rendering allows. Session switcher and leader help should follow the same modal grammar.
 
 4. Promote Action Center.
-   Make Action Center the first place to look when anything needs attention. The shell should either start there when follow-up exists or make the Dashboard hero card route there. Rename primary bucket labels into product language: `Approvals`, `Operational Attention`, and `Blocked Work` rather than internal token names. Every item should include state, reason, impact, owner/action, target, and evidence source, with raw watch-family facts moved to inspector/detail.
+   Make Action Center the first place to look when anything needs attention. The shell should either start there when follow-up exists or make the Dashboard hero card route there. Rename primary bucket labels into product language: `Approvals`, `Operational Attention`, and `Blocked Work` rather than internal token names. Every item should include state, reason, impact, owner/action, target, and evidence source, with raw watch-family facts moved to inspector/detail. The main pane and inspector should complement each other rather than repeating the same triage card verbatim.
 
 5. Calm Dashboard.
    Dashboard should show one executive state card, one count strip, workflow posture, current active work, and the next best action. Readiness fields, version/build data, watch-family summaries, protocol bundle detail, low-level audit facts, and raw evidence posture fields should move to Status, Action Center detail, or inspector.
@@ -275,7 +277,7 @@ To reach a polished and professional TUI experience, close the gaps in this orde
    All loading, empty, ready, waiting, blocked, degraded, failed, completed, resumed, and approval-required states should use a rich state-card spec with state label, message, reason, next action, route cue, shortcut cue, and optional evidence/source cue. The basic three-argument state-card helper should be retired from primary route states or wrapped so missing reason/next-action cannot regress.
 
 7. Split rendered, structured, and raw modes more strictly.
-   Rendered mode should be product language. Structured mode can show stable fields and counts. Raw mode can show protocol, schema, hashes, contract method names, binding kinds, and debug details. Runs, Approvals, Artifacts, Audit, Model Providers, Git Setup, and Git Remote need this separation most.
+   Rendered mode should be product language. Structured mode can show stable fields and counts. Raw mode can show protocol, schema, hashes, contract method names, binding kinds, policy codes, request/decision identities, and debug details. Runs, Approvals, Artifacts, Audit, Status, Model Providers, Git Setup, and Git Remote need this separation most.
 
 8. Improve evidence trail navigation.
    Every workflow result should have an obvious path: Chat or Runs -> Artifacts -> Audit -> verification posture -> export/offline verification -> anchoring where available. Use short stable labels in primary views and keep full digests copyable through copy actions or raw mode.
@@ -284,7 +286,7 @@ To reach a polished and professional TUI experience, close the gaps in this orde
    Model Providers should read like credential setup with safe secret ingress, current readiness, next action, and evidence that no secret leaked. Git Setup should read like account and identity setup, not a broker state dump. Git Remote should read like a guarded review-and-execute flow with approval and lease prerequisites, not a hash inventory.
 
 10. Verify with real product walkthroughs.
-   Capture terminal frames for Dashboard, Action Center, Chat, Runs, Approvals, Artifacts, Audit, Status/project substrate, Model Providers, Git Setup, Git Remote, command palette, session switcher, leader help, narrow layout, and degraded/disconnected states. Review those frames against CHG-060 before marking the TUI acceptance criterion complete.
+    Capture terminal frames and deterministic bundle coverage for Dashboard, Action Center, Chat, Runs, Approvals, Artifacts, Audit, Status/project substrate, Model Providers, Git Setup, Git Remote, command palette, session switcher, leader help, inspector sheet, sidebar drawer, quit confirmation, blocked/degraded/disconnected states, and desktop plus compact/mobile layouts. Review those frames against CHG-060 before marking the TUI acceptance criterion complete; desktop-only route snapshots are not enough.
 
 TUI acceptance is intentionally dogfooding-gated rather than fully preplanned. Issues found during walkthroughs of the required paths should be captured, blockers and misleading product-truth issues should be fixed before closure, and non-blocking polish can be recorded as follow-up.
 
@@ -331,7 +333,7 @@ This alpha lane is complete when:
 - the path uses authoritative trusted `RunPlan` adoption in production
 - run and session progress surfaces reflect real execution rather than only synthetic projection
 - verification artifacts are generated and exercised from that real workflow path
-- TUI and surrounding operator surfaces are polished enough that a new user can test the product coherently on Linux
+- TUI and surrounding operator surfaces are polished enough that a new user can test the product coherently on Linux, as demonstrated by captured route, overlay, and responsive-layout audit frames
 - the beta story is honest about assurance and execution behavior
 - workflow-path and TUI polish remain compatible with the authoritative surfaces and honest measurement boundaries frozen by `CHG-053`
 - git remote publication is either explicitly out of beta messaging or covered by a separate reviewed smoke path before any publishing claim is made
