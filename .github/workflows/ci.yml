@@ -27,7 +27,7 @@ jobs:
             ci-target: ci-required-shared-linux
           - os: macos-latest
             label: macos portability
-            ci-target: ci-portability
+            ci-target: ci-portability-unix
     env:
       NIX_CONFIG: |
         substituters = https://cache.nixos.org

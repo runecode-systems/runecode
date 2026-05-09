@@ -1,3 +1,5 @@
+//go:build runecode_tui_snapshot
+
 package main
 
 import (
@@ -45,6 +47,9 @@ func resolveSnapshotScenarios(name string) ([]snapshotScenarioState, error) {
 }
 
 func renderSnapshotScenario(state snapshotScenarioState, cfg tuiSnapshotConfig) (string, routeID, error) {
+	snapshotRenderMu.Lock()
+	defer snapshotRenderMu.Unlock()
+
 	return withSnapshotColorProfile(func() (string, routeID, error) {
 		forceMemoryWorkbenchState = true
 		defer func() { forceMemoryWorkbenchState = false }()

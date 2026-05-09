@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
@@ -74,46 +75,79 @@ type tuiCLIConfig struct {
 	snapshot   tuiSnapshotConfig
 }
 
-type tuiSnapshotConfig struct {
-	enabled   bool
-	scenario  string
-	outputDir string
-	width     int
-	height    int
-	theme     themePreset
-}
-
 func parseCLIConfig(args []string) (tuiCLIConfig, error) {
 	if len(args) == 1 && isHelpArg(args[0]) {
 		return tuiCLIConfig{showHelp: true}, nil
 	}
 	fs := flag.NewFlagSet("runecode-tui", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
+	showHelp := fs.Bool("help", false, "show help")
+	showHelpShort := fs.Bool("h", false, "show help")
 	runtimeDir := fs.String("runtime-dir", "", "broker local IPC runtime directory override")
 	socketName := fs.String("socket-name", "", "broker local IPC socket filename override")
-	snapshotScenario := fs.String("snapshot-scenario", "", "hidden dev option: deterministic TUI snapshot scenario")
-	snapshotOutputDir := fs.String("snapshot-output-dir", "/tmp/runecode-tui-snapshots", "hidden dev option: snapshot output directory")
-	snapshotWidth := fs.Int("snapshot-width", 160, "hidden dev option: snapshot terminal width")
-	snapshotHeight := fs.Int("snapshot-height", 48, "hidden dev option: snapshot terminal height")
-	snapshotTheme := fs.String("snapshot-theme", string(themePresetDark), "hidden dev option: snapshot theme preset")
+	snapshotFlags := registerSnapshotFlags(fs)
+	if containsStandaloneHelpFlag(args, fs) {
+		return tuiCLIConfig{showHelp: true}, nil
+	}
 	if err := fs.Parse(args); err != nil {
 		return tuiCLIConfig{}, &usageError{message: "runecode-tui usage: runecode-tui [--runtime-dir dir] [--socket-name broker.sock] [--help]"}
+	}
+	if *showHelp || *showHelpShort {
+		return tuiCLIConfig{showHelp: true}, nil
 	}
 	if len(fs.Args()) > 0 {
 		return tuiCLIConfig{}, &usageError{message: "runecode-tui accepts no positional arguments; use --help for usage"}
 	}
 	cfg := tuiCLIConfig{runtimeDir: *runtimeDir, socketName: *socketName}
-	if *snapshotScenario != "" {
-		cfg.snapshot = tuiSnapshotConfig{
-			enabled:   true,
-			scenario:  *snapshotScenario,
-			outputDir: *snapshotOutputDir,
-			width:     *snapshotWidth,
-			height:    *snapshotHeight,
-			theme:     normalizeThemePreset(themePreset(*snapshotTheme)),
-		}
-	}
+	applySnapshotCLIConfig(&cfg, snapshotFlags)
 	return cfg, nil
+}
+
+func containsStandaloneHelpFlag(args []string, fs *flag.FlagSet) bool {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "-h", "-help", "--help":
+			return true
+		case "--":
+			return false
+		}
+
+		name, hasValue, ok := parseFlagToken(args[i])
+		if !ok || hasValue {
+			continue
+		}
+
+		f := fs.Lookup(name)
+		if f == nil || !flagConsumesValue(f) {
+			continue
+		}
+
+		i++
+	}
+
+	return false
+}
+
+func parseFlagToken(arg string) (name string, hasValue bool, ok bool) {
+	if arg == "" || arg == "-" || arg == "--" || !strings.HasPrefix(arg, "-") {
+		return "", false, false
+	}
+
+	trimmed := strings.TrimLeft(arg, "-")
+	if trimmed == "" {
+		return "", false, false
+	}
+
+	if idx := strings.Index(trimmed, "="); idx >= 0 {
+		return trimmed[:idx], true, true
+	}
+
+	return trimmed, false, true
+}
+
+func flagConsumesValue(f *flag.Flag) bool {
+	boolValue, ok := f.Value.(interface{ IsBoolFlag() bool })
+	return !ok || !boolValue.IsBoolFlag()
 }
 
 func setCLIIPCConfigOverrides(cfg tuiCLIConfig) {

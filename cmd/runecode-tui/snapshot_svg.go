@@ -1,13 +1,19 @@
+//go:build runecode_tui_snapshot
+
 package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image/color"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -15,23 +21,36 @@ import (
 	"github.com/muesli/termenv"
 )
 
-const snapshotDefaultOutputDir = "/tmp/runecode-tui-snapshots"
+var snapshotRenderMu sync.Mutex
 
 type snapshotManifest struct {
 	Version   int                     `json:"version"`
 	Width     int                     `json:"width"`
 	Height    int                     `json:"height"`
+	Viewport  string                  `json:"viewport,omitempty"`
 	Theme     string                  `json:"theme"`
 	Scenarios []snapshotManifestEntry `json:"scenarios"`
 }
 
+type snapshotManifestArtifact struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256,omitempty"`
+}
+
+type snapshotManifestArtifacts struct {
+	ANSI snapshotManifestArtifact `json:"ansi"`
+	Text snapshotManifestArtifact `json:"text"`
+	SVG  snapshotManifestArtifact `json:"svg"`
+	PNG  snapshotManifestArtifact `json:"png"`
+}
+
 type snapshotManifestEntry struct {
-	Name  string `json:"name"`
-	Route string `json:"route"`
-	ANSI  string `json:"ansi"`
-	Text  string `json:"text"`
-	SVG   string `json:"svg"`
-	PNG   string `json:"png"`
+	Name      string                    `json:"name"`
+	Viewport  string                    `json:"viewport,omitempty"`
+	Width     int                       `json:"width"`
+	Height    int                       `json:"height"`
+	Route     string                    `json:"route"`
+	Artifacts snapshotManifestArtifacts `json:"artifacts"`
 }
 
 type snapshotArtifactPaths struct {
@@ -64,7 +83,7 @@ func writeSnapshotArtifacts(cfg tuiSnapshotConfig) error {
 	if err := os.MkdirAll(cfg.outputDir, 0o755); err != nil {
 		return err
 	}
-	manifest := snapshotManifest{Version: 1, Width: cfg.width, Height: cfg.height, Theme: string(snapshotManifestTheme(cfg, scenarios))}
+	manifest := snapshotManifest{Version: 2, Width: cfg.width, Height: cfg.height, Viewport: string(cfg.viewport), Theme: string(snapshotManifestTheme(cfg, scenarios))}
 	entries, err := writeSnapshotScenarioArtifacts(cfg, scenarios)
 	if err != nil {
 		return err
@@ -75,7 +94,25 @@ func writeSnapshotArtifacts(cfg tuiSnapshotConfig) error {
 
 func normalizeSnapshotConfig(cfg tuiSnapshotConfig) (tuiSnapshotConfig, error) {
 	if cfg.outputDir == "" {
-		cfg.outputDir = snapshotDefaultOutputDir
+		cfg.outputDir = snapshotDefaultOutputDir()
+	}
+	normalizedOutputDir, err := normalizeSnapshotOutputDir(cfg.outputDir)
+	if err != nil {
+		return tuiSnapshotConfig{}, err
+	}
+	cfg.outputDir = normalizedOutputDir
+	viewport, err := resolveSnapshotViewportPreset(cfg.viewport)
+	if err != nil {
+		return tuiSnapshotConfig{}, err
+	}
+	if cfg.viewport == "" {
+		cfg.viewport = viewport.Name
+	}
+	if cfg.width == 0 {
+		cfg.width = viewport.Width
+	}
+	if cfg.height == 0 {
+		cfg.height = viewport.Height
 	}
 	if cfg.width <= 0 || cfg.height <= 0 {
 		return tuiSnapshotConfig{}, fmt.Errorf("snapshot dimensions must be positive")
@@ -106,25 +143,89 @@ func writeSnapshotScenarioArtifacts(cfg tuiSnapshotConfig, scenarios []snapshotS
 }
 
 func writeSnapshotScenarioArtifact(cfg tuiSnapshotConfig, scenario snapshotScenarioState) (snapshotManifestEntry, error) {
+	paths := snapshotPathsForScenario(cfg.outputDir, scenario.Name, cfg.viewport)
+	ansiManifestPath, err := snapshotManifestArtifactPath(cfg.outputDir, paths.ANSI)
+	if err != nil {
+		return snapshotManifestEntry{}, err
+	}
+	textManifestPath, err := snapshotManifestArtifactPath(cfg.outputDir, paths.Text)
+	if err != nil {
+		return snapshotManifestEntry{}, err
+	}
+	svgManifestPath, err := snapshotManifestArtifactPath(cfg.outputDir, paths.SVG)
+	if err != nil {
+		return snapshotManifestEntry{}, err
+	}
+	pngManifestPath, err := snapshotManifestArtifactPath(cfg.outputDir, paths.PNG)
+	if err != nil {
+		return snapshotManifestEntry{}, err
+	}
+	if err := removeSnapshotArtifactIfPresent(paths.PNG); err != nil {
+		return snapshotManifestEntry{}, err
+	}
 	view, routeID, err := renderSnapshotScenario(scenario, cfg)
 	if err != nil {
 		return snapshotManifestEntry{}, err
 	}
-	paths := snapshotPathsForScenario(cfg.outputDir, scenario.Name)
-	if err := os.WriteFile(paths.ANSI, []byte(view), 0o644); err != nil {
+	ansiArtifact, err := writeSnapshotHashedArtifact(paths.ANSI, []byte(view))
+	if err != nil {
 		return snapshotManifestEntry{}, err
 	}
-	if err := os.WriteFile(paths.Text, []byte(ansi.Strip(view)), 0o644); err != nil {
+	textArtifact, err := writeSnapshotHashedArtifact(paths.Text, []byte(ansi.Strip(view)))
+	if err != nil {
 		return snapshotManifestEntry{}, err
 	}
-	if err := os.WriteFile(paths.SVG, []byte(renderSnapshotSVG(view, cfg.width, cfg.height)), 0o644); err != nil {
+	svgArtifact, err := writeSnapshotHashedArtifact(paths.SVG, []byte(renderSnapshotSVG(view, cfg.width, cfg.height)))
+	if err != nil {
 		return snapshotManifestEntry{}, err
 	}
-	return snapshotManifestEntry{Name: scenario.Name, Route: string(routeID), ANSI: paths.ANSI, Text: paths.Text, SVG: paths.SVG, PNG: paths.PNG}, nil
+	ansiArtifact.Path = ansiManifestPath
+	textArtifact.Path = textManifestPath
+	svgArtifact.Path = svgManifestPath
+	return snapshotManifestEntry{
+		Name:     scenario.Name,
+		Viewport: string(cfg.viewport),
+		Width:    cfg.width,
+		Height:   cfg.height,
+		Route:    string(routeID),
+		Artifacts: snapshotManifestArtifacts{
+			ANSI: ansiArtifact,
+			Text: textArtifact,
+			SVG:  svgArtifact,
+			PNG:  snapshotManifestArtifact{Path: pngManifestPath},
+		},
+	}, nil
 }
 
-func snapshotPathsForScenario(outputDir string, scenario string) snapshotArtifactPaths {
-	base := filepath.Join(outputDir, scenario)
+func snapshotManifestArtifactPath(outputDir string, artifactPath string) (string, error) {
+	relPath, err := filepath.Rel(outputDir, artifactPath)
+	if err != nil {
+		return "", fmt.Errorf("resolve snapshot artifact path %q relative to %q: %w", artifactPath, outputDir, err)
+	}
+	relPath = filepath.Clean(relPath)
+	if relPath == "." || filepath.IsAbs(relPath) || relPath == ".." || strings.HasPrefix(relPath, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("snapshot artifact path %q must stay under %s", artifactPath, outputDir)
+	}
+	return relPath, nil
+}
+
+func removeSnapshotArtifactIfPresent(path string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+func writeSnapshotHashedArtifact(path string, content []byte) (snapshotManifestArtifact, error) {
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		return snapshotManifestArtifact{}, err
+	}
+	sum := sha256.Sum256(content)
+	return snapshotManifestArtifact{Path: path, SHA256: hex.EncodeToString(sum[:])}, nil
+}
+
+func snapshotPathsForScenario(outputDir string, scenario string, viewport snapshotViewportPreset) snapshotArtifactPaths {
+	base := filepath.Join(outputDir, scenario+"."+string(viewport))
 	return snapshotArtifactPaths{ANSI: base + ".ansi", Text: base + ".txt", SVG: base + ".svg", PNG: base + ".png"}
 }
 
@@ -227,6 +328,7 @@ func escapeSVGText(text string) string {
 	text = strings.ReplaceAll(text, "&", "&amp;")
 	text = strings.ReplaceAll(text, "<", "&lt;")
 	text = strings.ReplaceAll(text, ">", "&gt;")
+	text = strings.ReplaceAll(text, "'", "&#39;")
 	text = strings.ReplaceAll(text, `"`, "&quot;")
 	return text
 }
