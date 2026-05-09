@@ -19,6 +19,16 @@ REVIEW_MODE_OPEN = "open"
 REVIEW_MODES = (REVIEW_MODE_LIST, REVIEW_MODE_SUMMARY, REVIEW_MODE_OPEN)
 
 
+def normalize_string_list(value: object) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    normalized: List[str] = []
+    for item in value:
+        if isinstance(item, str) and item:
+            normalized.append(item)
+    return normalized
+
+
 def is_windows_absolute_path(path: str) -> bool:
     return ntpath.isabs(path)
 
@@ -230,6 +240,106 @@ def print_review_summary(output_dir: str, manifest_path: str, manifest: object, 
         print("Missing review artifacts: " + ", ".join(missing))
 
 
+def suggested_preserved_bundle_command(output_dir: str) -> str:
+    return f"TUI_SNAPSHOT_KEEP=1 TUI_SNAPSHOT_DIR={output_dir} just tui-snapshot-audit-full"
+
+
+def print_missing_manifest_guidance(output_dir: str, manifest_path: str) -> None:
+    print(f"No preserved snapshot manifest was found at {manifest_path}.", file=sys.stderr)
+    print("tui_snapshot_review.py only reviews existing artifacts; it does not generate snapshots.", file=sys.stderr)
+    print("If write-producing snapshot commands are allowed, generate preserved artifacts with:", file=sys.stderr)
+    print(f"  {suggested_preserved_bundle_command(output_dir)}", file=sys.stderr)
+    print("If you are in plan/read-only mode, provide an existing TUI_SNAPSHOT_DIR containing manifest.json.", file=sys.stderr)
+
+
+def print_missing_artifact_guidance(output_dir: str, manifest_path: str) -> None:
+    print(f"No snapshot review artifacts found in {manifest_path}", file=sys.stderr)
+    print("The manifest does not currently reference any readable PNG or SVG review artifacts.", file=sys.stderr)
+    print("This blocks snapshot review; do not treat missing artifacts as a TUI audit finding.", file=sys.stderr)
+    print("If write-producing snapshot commands are allowed, regenerate preserved artifacts with the matching audit recipe, for example:", file=sys.stderr)
+    print(f"  {suggested_preserved_bundle_command(output_dir)}", file=sys.stderr)
+    print(f"Otherwise, point the review tool at a different preserved temp directory than {output_dir}.", file=sys.stderr)
+
+
+def manifest_coverage(manifest: object) -> Dict[str, object]:
+    if not isinstance(manifest, dict):
+        return {}
+    coverage = manifest.get("coverage", {})
+    if not isinstance(coverage, dict):
+        return {}
+    return coverage
+
+
+def manifest_bundle_name(manifest: object) -> str:
+    coverage = manifest_coverage(manifest)
+    bundle = coverage.get("bundle")
+    if isinstance(bundle, str) and bundle:
+        return bundle
+    if isinstance(manifest, dict):
+        top_level_bundle = manifest.get("bundle")
+        if isinstance(top_level_bundle, str):
+            return top_level_bundle
+    return ""
+
+
+def manifest_viewports(manifest: object) -> List[str]:
+    coverage = manifest_coverage(manifest)
+    viewports = normalize_string_list(coverage.get("viewports"))
+    if viewports:
+        return viewports
+    if isinstance(manifest, dict):
+        viewport = manifest.get("viewport")
+        if isinstance(viewport, str) and viewport:
+            return [viewport]
+    return []
+
+
+def manifest_routes(manifest: object) -> List[str]:
+    coverage = manifest_coverage(manifest)
+    routes = normalize_string_list(coverage.get("routes"))
+    if routes:
+        return routes
+    if not isinstance(manifest, dict):
+        return []
+    scenario_routes: List[str] = []
+    for entry in manifest.get("scenarios", []):
+        if not isinstance(entry, dict):
+            continue
+        route = entry.get("route")
+        if isinstance(route, str) and route and route not in scenario_routes:
+            scenario_routes.append(route)
+    return scenario_routes
+
+
+def validate_manifest_requirements(manifest: object, require_bundle: str, require_routes: List[str], require_viewport: str) -> List[str]:
+    errors: List[str] = []
+    bundle = manifest_bundle_name(manifest)
+    if require_bundle and bundle != require_bundle:
+        found_bundle = bundle or "<none>"
+        errors.append(f"Required bundle {require_bundle!r} was not found in manifest coverage (found {found_bundle!r}).")
+
+    available_viewports = manifest_viewports(manifest)
+    if require_viewport and require_viewport not in available_viewports:
+        found_viewports = ", ".join(available_viewports) if available_viewports else "<none>"
+        errors.append(f"Required viewport {require_viewport!r} was not found in manifest coverage (found {found_viewports}).")
+
+    available_routes = manifest_routes(manifest)
+    missing_routes = [route for route in require_routes if route not in available_routes]
+    if missing_routes:
+        found_routes = ", ".join(available_routes) if available_routes else "<none>"
+        errors.append(f"Required routes missing from manifest coverage: {', '.join(missing_routes)} (found {found_routes}).")
+
+    return errors
+
+
+def print_requirement_failure(output_dir: str, errors: List[str]) -> None:
+    for err in errors:
+        print(err, file=sys.stderr)
+    print("This blocks preserved-artifact review; no audit coverage can be claimed for the requested scope.", file=sys.stderr)
+    print("Point the review tool at a preserved temp directory containing the requested scope, or regenerate it in write-capable mode with the matching audit recipe.", file=sys.stderr)
+    print(f"Example write-capable command: {suggested_preserved_bundle_command(output_dir)}", file=sys.stderr)
+
+
 def bundle_coverage_summary(manifest: object) -> str:
     if not isinstance(manifest, dict):
         return ""
@@ -286,6 +396,22 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         default=REVIEW_MODE_SUMMARY,
         help="review mode: summary (default), list, or open",
     )
+    parser.add_argument(
+        "--require-bundle",
+        default="",
+        help="require a specific manifest bundle before review succeeds",
+    )
+    parser.add_argument(
+        "--require-route",
+        action="append",
+        default=[],
+        help="require a specific covered route before review succeeds; repeat for multiple routes",
+    )
+    parser.add_argument(
+        "--require-viewport",
+        default="",
+        help="require a specific covered viewport before review succeeds",
+    )
     return parser.parse_args(argv)
 
 
@@ -301,6 +427,10 @@ def main() -> int:
     try:
         with open(manifest_path, encoding="utf-8") as manifest_file:
             manifest = json.load(manifest_file)
+    except FileNotFoundError as err:
+        print(f"Failed to read snapshot manifest {manifest_path}: {err}", file=sys.stderr)
+        print_missing_manifest_guidance(output_dir, manifest_path)
+        return 1
     except OSError as err:
         print(f"Failed to read snapshot manifest {manifest_path}: {err}", file=sys.stderr)
         return 1
@@ -308,9 +438,14 @@ def main() -> int:
         print(f"Failed to parse snapshot manifest {manifest_path}: {err}", file=sys.stderr)
         return 1
 
+    requirement_errors = validate_manifest_requirements(manifest, args.require_bundle, args.require_route, args.require_viewport)
+    if requirement_errors:
+        print_requirement_failure(output_dir, requirement_errors)
+        return 1
+
     entries = select_review_entries_from_manifest(output_dir, manifest)
     if not entries:
-        print(f"No snapshot review artifacts found in {manifest_path}", file=sys.stderr)
+        print_missing_artifact_guidance(output_dir, manifest_path)
         return 1
 
     if args.mode == REVIEW_MODE_LIST:

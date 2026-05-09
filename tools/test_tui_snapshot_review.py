@@ -223,6 +223,105 @@ class ReviewModesTest(unittest.TestCase):
             ],
         )
 
+    def test_requirement_flags_accept_matching_bundle_routes_and_viewport(self) -> None:
+        output_dir, _, _ = self.create_snapshot_dir()
+
+        exit_code, stdout, stderr = self.run_main(
+            "--require-bundle",
+            "full-audit",
+            "--require-route",
+            "dashboard",
+            "--require-route",
+            "action-center",
+            "--require-viewport",
+            "desktop",
+            str(output_dir),
+        )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stderr, "")
+        self.assertIn("Bundle: full-audit", stdout)
+
+    def test_require_bundle_rejects_wrong_bundle(self) -> None:
+        output_dir, _, _ = self.create_snapshot_dir()
+
+        exit_code, stdout, stderr = self.run_main("--require-bundle", "dashboard-audit", str(output_dir))
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(stdout, "")
+        self.assertIn("Required bundle 'dashboard-audit' was not found in manifest coverage (found 'full-audit').", stderr)
+        self.assertIn("This blocks preserved-artifact review; no audit coverage can be claimed for the requested scope.", stderr)
+
+    def test_require_viewport_rejects_missing_viewport(self) -> None:
+        output_dir, _, _ = self.create_snapshot_dir()
+
+        exit_code, stdout, stderr = self.run_main("--require-viewport", "mobile", str(output_dir))
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(stdout, "")
+        self.assertIn("Required viewport 'mobile' was not found in manifest coverage (found desktop).", stderr)
+
+    def test_require_route_rejects_missing_route(self) -> None:
+        output_dir, _, _ = self.create_snapshot_dir()
+
+        exit_code, stdout, stderr = self.run_main("--require-route", "runs", str(output_dir))
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(stdout, "")
+        self.assertIn("Required routes missing from manifest coverage: runs (found dashboard, action-center).", stderr)
+
+    def test_missing_manifest_prints_read_only_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
+
+            exit_code, stdout, stderr = self.run_main(str(output_dir))
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(stdout, "")
+        self.assertIn(f"Failed to read snapshot manifest {output_dir / 'manifest.json'}", stderr)
+        self.assertIn("tui_snapshot_review.py only reviews existing artifacts; it does not generate snapshots.", stderr)
+        self.assertIn(f"TUI_SNAPSHOT_KEEP=1 TUI_SNAPSHOT_DIR={output_dir.resolve()} just tui-snapshot-audit-full", stderr)
+        self.assertIn("If you are in plan/read-only mode, provide an existing TUI_SNAPSHOT_DIR containing manifest.json.", stderr)
+
+    def test_manifest_without_reviewable_artifacts_prints_blocker_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
+            manifest_path = output_dir / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "version": 2,
+                        "bundle": "full-audit",
+                        "coverage": {
+                            "bundle": "full-audit",
+                            "routes": ["dashboard"],
+                            "viewports": ["desktop"],
+                            "scenarios": ["dashboard"],
+                        },
+                        "scenarios": [
+                            {
+                                "name": "dashboard",
+                                "viewport": "desktop",
+                                "route": "dashboard",
+                                "artifacts": {
+                                    "png": {"path": "missing.png"},
+                                    "svg": {"path": "missing.svg"},
+                                },
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            exit_code, stdout, stderr = self.run_main(str(output_dir))
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(stdout, "")
+        self.assertIn(f"No snapshot review artifacts found in {manifest_path}", stderr)
+        self.assertIn("This blocks snapshot review; do not treat missing artifacts as a TUI audit finding.", stderr)
+        self.assertIn(f"TUI_SNAPSHOT_KEEP=1 TUI_SNAPSHOT_DIR={output_dir.resolve()} just tui-snapshot-audit-full", stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
