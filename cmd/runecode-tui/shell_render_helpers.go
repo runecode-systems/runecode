@@ -200,16 +200,10 @@ func (m shellModel) renderPaneActivityMarker() string {
 	if m.watch.projection.Activity.State != shellActivityStateRunning && m.watch.projection.Activity.State != shellActivityStateWaiting {
 		return ""
 	}
-	if strings.TrimSpace(m.watch.projection.Activity.Active.Kind) == "" || strings.TrimSpace(m.watch.projection.Activity.Active.ID) == "" {
-		if m.watch.projection.Activity.State == shellActivityStateWaiting {
-			return warnBadge("WAITING")
-		}
-		return infoBadge("ACTIVE")
-	}
 	if m.watch.projection.Activity.State == shellActivityStateWaiting {
-		return warnBadge(fmt.Sprintf("WAITING %s=%s", sanitizeUIText(m.watch.projection.Activity.Active.Kind), sanitizeUIText(m.watch.projection.Activity.Active.ID)))
+		return warnBadge("WAITING")
 	}
-	return infoBadge(fmt.Sprintf("ACTIVE %s=%s", sanitizeUIText(m.watch.projection.Activity.Active.Kind), sanitizeUIText(m.watch.projection.Activity.Active.ID)))
+	return infoBadge("WORKING")
 }
 
 func (m shellModel) renderRunningIndicator() string {
@@ -217,9 +211,9 @@ func (m shellModel) renderRunningIndicator() string {
 		return ""
 	}
 	frames := []string{"⠁", "⠂", "⠄", "⠂", "⠁", "⠈", "⠐", "⠈"}
-	label := "running"
-	if strings.TrimSpace(m.watch.projection.Activity.Active.Kind) != "" && strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" {
-		label = fmt.Sprintf("running %s:%s", sanitizeUIText(m.watch.projection.Activity.Active.Kind), sanitizeUIText(m.watch.projection.Activity.Active.ID))
+	label := "working"
+	if target := strings.TrimSpace(humanShellActivityTarget(m.watch.projection.Activity.Active)); target != "" {
+		label = "working on " + target
 	}
 	return infoBadge(frames[m.activityFrame%len(frames)] + " " + label)
 }

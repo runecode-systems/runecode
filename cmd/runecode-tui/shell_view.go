@@ -193,13 +193,11 @@ func constrainShellBlock(block string, width int, height int) string {
 }
 
 func (m shellModel) renderTopStatus(surface routeSurface, layout shellLayoutPlan) string {
-	activity := renderShellActivityState(m.watch.projection.Activity.State)
 	routeSummary := fmt.Sprintf("%s  %s", appTheme.AppTitle.Render("RuneCode Workbench"), neutralBadge("ROUTE "+strings.ToUpper(sanitizeUIText(m.routeLabel(m.currentRouteID())))))
-	workbenchSummary := []string{fmt.Sprintf("Focus %s", strings.ToUpper(m.focus.Label())), activity}
-	if activeWork := strings.TrimSpace(m.renderActiveWorkSummary()); activeWork != "" {
-		workbenchSummary = append(workbenchSummary, activeWork)
-	}
-	if strings.TrimSpace(m.activeSessionID) != "" {
+	workbenchSummary := []string{humanFocusLabel(m.focus) + " focus"}
+	if activity := strings.TrimSpace(humanShellActivitySummary(m.watch.projection.Activity)); activity != "" {
+		workbenchSummary = append(workbenchSummary, activity)
+	} else if strings.TrimSpace(m.activeSessionID) != "" {
 		workbenchSummary = append(workbenchSummary, fmt.Sprintf("Session %s", sanitizeUIText(m.activeSessionID)))
 	}
 	if m.selectionMode {
@@ -210,7 +208,7 @@ func (m shellModel) renderTopStatus(surface routeSurface, layout shellLayoutPlan
 	}
 	return compactLines(
 		appTheme.SurfaceChrome.Padding(0, 1).Render(routeSummary),
-		appTheme.SurfaceChrome.Padding(0, 1).Render(strings.Join(workbenchSummary, "  •  ")+renderRunningSuffix(m.renderRunningIndicator())),
+		appTheme.SurfaceChrome.Padding(0, 1).Render(strings.Join(workbenchSummary, "  •  ")),
 	)
 }
 

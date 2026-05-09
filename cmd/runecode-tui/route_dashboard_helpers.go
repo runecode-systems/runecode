@@ -70,25 +70,25 @@ func renderDashboardAuditFallbackNotice(auditErr string) string {
 	if strings.TrimSpace(auditErr) == "" {
 		return ""
 	}
-	return dangerBadge("AUDIT_VERIFICATION_UNAVAILABLE") + " audit verification unavailable; showing degraded fallback posture (" + auditErr + ")"
+	return dangerBadge("Evidence verification unavailable") + " Audit verification is unavailable, so RuneCode is showing degraded evidence posture. Reason: " + auditErr
 }
 
 func renderDashboardNowBar(run brokerapi.RunSummary, approvalCount int, focusActive bool, width int) string {
 	parts := []string{}
 	if focusActive {
-		parts = append(parts, successBadge("CONTENT_READY"))
+		parts = append(parts, successBadge("Overview focused"))
 	} else {
-		parts = append(parts, neutralBadge("CONTENT_IDLE"))
+		parts = append(parts, neutralBadge("Overview visible"))
 	}
 	if strings.TrimSpace(run.RunID) != "" {
-		parts = append(parts, fmt.Sprintf("run=%s", sanitizeUIText(run.RunID)))
-		parts = append(parts, stateBadgeWithLabel("state", run.LifecycleState))
-		parts = append(parts, stateBadgeWithLabel("backend", sanitizeUIText(run.BackendKind)))
+		parts = append(parts, fmt.Sprintf("Current run %s", sanitizeUIText(run.RunID)))
+		parts = append(parts, "state "+postureBadge(run.LifecycleState))
+		parts = append(parts, "runtime "+postureBadge(sanitizeUIText(run.BackendKind)))
 	}
 	if approvalCount > 0 {
-		parts = append(parts, approvalRequiredBadge(fmt.Sprintf("PENDING_APPROVALS=%d", approvalCount)))
+		parts = append(parts, approvalRequiredBadge(fmt.Sprintf("%d approval waiting", approvalCount)))
 	} else {
-		parts = append(parts, successBadge("PENDING_APPROVALS=0"))
+		parts = append(parts, successBadge("No approvals waiting"))
 	}
 	return wrapPartsByWidth(parts, " ", width)
 }
@@ -124,7 +124,7 @@ func dashboardBlockedSummary(data dashboardData, snapshot dashboardSnapshot) das
 		reasons = append(reasons, dashboardProjectSubstrateReason(data.project))
 	}
 	if snapshot.BlockedRuns > 0 {
-		reasons = append(reasons, fmt.Sprintf("%d run(s) report blocked or waiting workflow posture", snapshot.BlockedRuns))
+		reasons = append(reasons, fmt.Sprintf("%d workflow(s) are blocked or waiting", snapshot.BlockedRuns))
 	}
 	return dashboardExecutiveSummary{State: routeLoadStateBlocked, Title: "Blocked", Message: "Workflow progress is blocked.", Reason: strings.Join(reasons, "; "), NextAction: "Open Action Center and clear the blocker."}
 }
@@ -155,7 +155,7 @@ func dashboardAttentionSummary(data dashboardData, snapshot dashboardSnapshot) d
 }
 
 func dashboardActiveWorkSummary(activeRuns int) dashboardExecutiveSummary {
-	return dashboardExecutiveSummary{State: routeLoadStateReady, Title: "Active work", Message: "Workflow work is active.", Reason: fmt.Sprintf("%d active run(s) are visible on the current broker surfaces.", activeRuns), NextAction: "Use Action Center or open Runs for detail."}
+	return dashboardExecutiveSummary{State: routeLoadStateReady, Title: "Active work", Message: "Workflow work is active.", Reason: fmt.Sprintf("%d active workflow(s) are visible.", activeRuns), NextAction: "Use Action Center or open Runs for detail."}
 }
 
 func renderDashboardWorkflowPosture(snapshot dashboardSnapshot) string {
@@ -188,7 +188,7 @@ func renderDashboardHighValueCounts(snapshot dashboardSnapshot, width int) strin
 		fmt.Sprintf("blocked or waiting=%d", snapshot.BlockedRuns),
 		fmt.Sprintf("degraded cues=%d", snapshot.DegradedSignals),
 	}
-	return "High-value counts: " + wrapPartsByWidth(parts, " | ", width)
+	return "At a glance: " + wrapPartsByWidth(parts, " | ", width)
 }
 
 func renderDashboardNextActions(data dashboardData, snapshot dashboardSnapshot) string {
@@ -209,7 +209,7 @@ func renderDashboardNextActions(data dashboardData, snapshot dashboardSnapshot) 
 
 func renderDashboardActionCenterCue(snapshot dashboardSnapshot) string {
 	return fmt.Sprintf(
-		"Action Center is the operator home for approvals, blocked work, degraded posture, setup follow-up, and waiting queues. Current follow-up: approvals=%d blocked_or_waiting=%d degraded=%d.",
+		"Action Center has the exact follow-up list: approvals=%d, blocked or waiting=%d, degraded cues=%d.",
 		snapshot.PendingApprovals,
 		snapshot.BlockedRuns,
 		snapshot.DegradedSignals,

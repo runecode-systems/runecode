@@ -32,13 +32,11 @@ func TestSessionDirectoryItemsRenderRequiredMetadataAndLocalMarkers(t *testing.T
 	for _, want := range []string{
 		"session-1",
 		"[active,pin,recent,new,running]",
-		"ws=ws-1",
-		"kind=chat_message",
-		"preview=\"hello world\"",
-		"incomplete=true",
-		"cue=active",
-		"runs=2",
-		"approvals=1",
+		"workspace ws-1",
+		"active",
+		"2 run(s)",
+		"1 approval(s)",
+		"hello world",
 	} {
 		if !strings.Contains(line, want) {
 			t.Fatalf("expected %q in %q", want, line)

@@ -839,7 +839,7 @@ func TestShellWatchManagerUpdatesRoutesAndSyncHealth(t *testing.T) {
 	view := shell.View()
 	mustContainAll(t, view,
 		"Product truth:",
-		"sync=healthy",
+		"Sync healthy",
 		"last_event=run_watch_terminal subject=run-1 status=completed",
 		"event=session_watch_terminal subject=session-1 status=completed",
 	)
@@ -856,7 +856,7 @@ func TestShellWatchManagerRendersDisconnectedHealth(t *testing.T) {
 	if shell.watch.projection.Health.State != shellSyncStateDisconnected {
 		t.Fatalf("expected disconnected sync, got %s", shell.watch.projection.Health.State)
 	}
-	if !strings.Contains(shell.View(), "sync=disconnected") {
+	if !strings.Contains(shell.View(), "Sync disconnected") {
 		t.Fatalf("expected disconnected indicator in view, got %q", shell.View())
 	}
 }

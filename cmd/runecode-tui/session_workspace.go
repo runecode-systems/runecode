@@ -180,18 +180,21 @@ func sessionDirectoryItems(summaries []brokerapi.SessionSummary, activeSessionID
 func sessionDirectoryLine(summary brokerapi.SessionSummary, activeSessionID string, pinned map[string]struct{}, recentOrder map[string]int, viewed map[string]string, active shellActivityFocus) string {
 	sid := summary.Identity.SessionID
 	markerText := formatSessionDirectoryMarkers(summary, activeSessionID, pinned, recentOrder, viewed[sid], active)
-	return fmt.Sprintf("%s%s | ws=%s | at=%s kind=%s | preview=%q | incomplete=%t cue=%s | runs=%d approvals=%d",
-		sid,
-		markerText,
-		summary.Identity.WorkspaceID,
-		defaultPlaceholder(summary.LastActivityAt, "n/a"),
-		defaultPlaceholder(summary.LastActivityKind, "n/a"),
-		truncateText(summary.LastActivityPreview, 52),
-		summary.HasIncompleteTurn,
+	parts := []string{
+		fmt.Sprintf("%s%s", sid, markerText),
+		fmt.Sprintf("workspace %s", valueOrNA(summary.Identity.WorkspaceID)),
 		sessionHighLevelCue(summary),
-		summary.LinkedRunCount,
-		summary.LinkedApprovalCount,
-	)
+	}
+	if summary.LinkedRunCount > 0 {
+		parts = append(parts, fmt.Sprintf("%d run(s)", summary.LinkedRunCount))
+	}
+	if summary.LinkedApprovalCount > 0 {
+		parts = append(parts, fmt.Sprintf("%d approval(s)", summary.LinkedApprovalCount))
+	}
+	if preview := strings.TrimSpace(summary.LastActivityPreview); preview != "" {
+		parts = append(parts, truncateText(sanitizeUIText(preview), 36))
+	}
+	return strings.Join(parts, " | ")
 }
 
 func recentSessionOrder(recents []string) map[string]int {

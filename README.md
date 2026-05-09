@@ -325,6 +325,17 @@ go run ./cmd/runecode stop
 
 Bare `runecode` is the canonical `attach` path: it resolves the authoritative repository root, ensures the repo-scoped local broker lifecycle exists, and opens the TUI against that broker-owned product instance. `runecode status` is intentionally non-starting and reports either broker-owned lifecycle plus project-substrate posture or only the bootstrap-local fact that no live product instance is reachable.
 
+When developing inside this repository, prefer the repo-local dev recipes so the product path uses the in-progress source binaries instead of any system-wide `runecode*` install on your `PATH`:
+
+```sh
+just tui-dev
+just tui-dev-restart
+just tui-dev-status
+just tui-dev-stop
+```
+
+These recipes build `runecode`, `runecode-broker`, and `runecode-tui` from the current working tree into `/tmp/runecode-current/bin`, keep Go build/temp artifacts under `/tmp/runecode-ci-cache`, and then run the canonical `runecode` lifecycle flow with that repo-local bin directory first on `PATH`. Outside the repo, installed `runecode` behavior stays unchanged.
+
 `runecode-tui` remains a low-level/dev entrypoint for attaching to an already running broker listener and still supports `--runtime-dir` / `--socket-name` for isolated local-dev IPC overrides. `runecode-broker` now also accepts those as broker-global options for live-IPC command surfaces such as session, approval, and external-anchor mutation commands.
 
 Low-level broker help still covers plumbing/admin surfaces such as:

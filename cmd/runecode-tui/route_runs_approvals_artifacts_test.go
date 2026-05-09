@@ -37,7 +37,7 @@ func TestRunsRouteExplainsBrokerPostureAndStateTaxonomy(t *testing.T) {
 		"Copy cues: use Copy actions for raw run/session ids plus broker-linked approval ids",
 		"backend_kind=workspace",
 		"Workflow identity (authoritative): workflow_kind=change_draft workflow_definition_hash=sha256:",
-		"Runtime isolation assurance (authoritative): runtime isolation=sandboxed",
+		"Runtime isolation assurance (authoritative): Isolation: sandboxed",
 	)
 	if strings.Contains(view, "Summary: Run run-1 is active with 1 pending approval(s).") {
 		t.Fatalf("expected run detail only in inspector region, got %q", view)
@@ -199,7 +199,7 @@ func TestRunInspectorContentIncludesPostureAndTrustCues(t *testing.T) {
 	detail := mustFakeRunDetail(t)
 	content := runInspectorContent(detail.Summary, detail, pendingApprovalStageCount(detail.StageSummaries), waitingRoleCount(detail.RoleSummaries), buildRunEvidenceLinks(detail), presentationRendered)
 	mustContainAll(t, content,
-		"Provisioning/binding posture (authoritative): provisioning posture=attested",
+		"Provisioning/binding posture (authoritative): Provisioning: attested",
 		"PROVISIONING_OK",
 		"Attestation posture (authoritative): attestation posture=valid",
 		"Runtime attestation truthfulness (authoritative): post-handshake verification succeeded; supported attested posture earned from verified post-handshake evidence",

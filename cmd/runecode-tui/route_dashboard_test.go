@@ -31,17 +31,17 @@ func TestDashboardRouteShowsTypedLiveWatchFamilies(t *testing.T) {
 		"Degraded",
 		"Executive overview",
 		"Now",
-		"CONTENT_READY",
+		"Overview focused",
 		"Workflow posture:",
-		"High-value counts:",
+		"At a glance:",
 		"Next action:",
-		"Action Center is the operator home",
+		"Action Center has the exact follow-up list",
 		"Safety Summary",
-		"Safety strip",
-		"backend_kind=workspace",
-		"runtime isolation=sandboxed",
-		"audit posture=ok/degraded (unanchored/degraded)",
-		"approval_profile=n/a",
+		"Runtime and evidence",
+		"Backend: workspace",
+		"Isolation: sandboxed",
+		"Audit evidence: ok/degraded (unanchored or degraded)",
+		"Approval profile: n/a",
 		"Safety alerts:",
 		"ALERT_AUDIT_UNANCHORED",
 		"Supporting detail",
@@ -95,8 +95,8 @@ func TestDashboardRouteFallsBackWhenAuditVerificationUnavailable(t *testing.T) {
 		"Project setup:",
 		"FAILED",
 		"degraded=true",
-		"AUDIT_VERIFICATION_UNAVAILABLE",
-		"showing degraded fallback posture (gateway_failure)",
+		"Evidence verification unavailable",
+		"Reason: gateway_failure",
 		"Supporting detail",
 		"Live Activity",
 		"Live activity detail is available here when you need typed broker watch confirmation.",
@@ -124,7 +124,7 @@ func TestDashboardExecutiveHierarchyAndCalmPrimaryWording(t *testing.T) {
 	if strings.Contains(view, "Protocol bundle") || strings.Contains(view, "watch_family") {
 		t.Fatalf("expected no debug-heavy primary wording, got %q", view)
 	}
-	if !strings.Contains(view, "Action Center is the operator home") {
+	if !strings.Contains(view, "Action Center has the exact follow-up list") {
 		t.Fatalf("expected dashboard to point operators to Action Center, got %q", view)
 	}
 }
@@ -137,7 +137,7 @@ func TestDashboardViewPreservesSectionGaps(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	for _, want := range []string{"degraded=1.\n\nSafety Summary", "ALERT_AUDIT_UNANCHORED  audit posture unanchored/degraded\n\nSupporting detail", "Overview data source: runs=1 approvals=1 version=0.1.0 (abc123)\n\nLive Activity"} {
+	for _, want := range []string{"degraded cues=1.\n\nSafety Summary", "ALERT_AUDIT_UNANCHORED  audit posture unanchored/degraded\n\nSupporting detail", "Overview data source: runs=1 approvals=1 version=0.1.0 (abc123)\n\nLive Activity"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("expected preserved blank section gap %q in view, got %q", want, view)
 		}
@@ -170,7 +170,7 @@ func TestDashboardViewWrapsLongRowsToWidth(t *testing.T) {
 			t.Fatalf("expected wrapped dashboard line within content width, got width=%d line=%q", lipgloss.Width(line), line)
 		}
 	}
-	if !strings.Contains(view, "runtime_posture_degraded=false") {
+	if !strings.Contains(view, "Runtime posture nominal") {
 		t.Fatalf("expected wrapped safety strip content retained, got %q", view)
 	}
 	if !strings.Contains(view, "AUDIT_UNANCHORED_OR_DEGRADED") {

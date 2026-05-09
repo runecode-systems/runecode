@@ -15,17 +15,14 @@ func (m shellModel) renderBottomStrip(surface routeSurface) string {
 	if bottom == "" {
 		bottom = strings.TrimSpace(surface.Regions.Bottom.Body)
 	}
-	if bottom == "" {
-		bottom = muted("No route composer active.")
-	}
 	discovery := m.renderBottomActionLine(surface)
 	diagnostic := m.renderBottomDiagnosticLine(surface)
-	return compactLines(
-		tableHeader("Workbench actions"),
-		bottom,
-		discovery,
-		diagnostic,
-	)
+	lines := []string{tableHeader("Workbench actions")}
+	if bottom != "" {
+		lines = append(lines, bottom)
+	}
+	lines = append(lines, discovery, diagnostic)
+	return compactLines(lines...)
 }
 
 func (m shellModel) renderQuitDiscoverabilityHint() string {
@@ -74,7 +71,7 @@ func (m shellModel) renderRouteActionHints(surface routeSurface) string {
 func (m shellModel) renderStatusSurface(surface routeSurface) string {
 	status := strings.TrimSpace(surface.Regions.Status.Body)
 	if status == "" {
-		status = fmt.Sprintf("route=%s", m.routeLabel(m.currentRouteID()))
+		status = fmt.Sprintf("%s ready", m.routeLabel(m.currentRouteID()))
 	}
 	return "Status: " + status
 }
