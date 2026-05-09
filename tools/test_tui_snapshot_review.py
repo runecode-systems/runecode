@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import tempfile
 import unittest
@@ -124,6 +125,93 @@ class SelectArtifactPathsTest(unittest.TestCase):
             paths = MODULE.select_artifact_paths_from_manifest(str(output_dir), manifest)
 
             self.assertEqual(paths, [str(svg_path.resolve())])
+
+
+class ReviewModesTest(unittest.TestCase):
+    def create_snapshot_dir(self) -> tuple[Path, Path, Path]:
+        temp_dir = Path(tempfile.mkdtemp())
+        png_path = temp_dir / "dashboard.desktop.png"
+        png_path.write_bytes(b"png")
+        svg_path = temp_dir / "action-center.desktop.svg"
+        svg_path.write_text("<svg />", encoding="utf-8")
+        manifest_path = temp_dir / "manifest.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "viewport": "desktop",
+                    "theme": "dark",
+                    "scenarios": [
+                        {
+                            "name": "dashboard",
+                            "viewport": "desktop",
+                            "route": "dashboard",
+                            "artifacts": {
+                                "png": {"path": png_path.name},
+                                "svg": {"path": "dashboard.desktop.svg"},
+                            },
+                        },
+                        {
+                            "name": "action-center",
+                            "viewport": "desktop",
+                            "route": "approvals",
+                            "artifacts": {
+                                "png": {"path": "missing.png"},
+                                "svg": {"path": svg_path.name},
+                            },
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.addCleanup(lambda: __import__("shutil").rmtree(temp_dir, ignore_errors=True))
+        return temp_dir, png_path, svg_path
+
+    def run_main(self, *argv: str) -> tuple[int, str, str]:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with mock.patch.object(MODULE.sys, "argv", [str(MODULE_PATH), *argv]), mock.patch("sys.stdout", stdout), mock.patch("sys.stderr", stderr):
+            return MODULE.main(), stdout.getvalue(), stderr.getvalue()
+
+    def test_default_mode_prints_summary_without_opening_gui(self) -> None:
+        output_dir, png_path, svg_path = self.create_snapshot_dir()
+        with mock.patch.object(MODULE, "detect_opener", return_value="xdg-open"), mock.patch.object(MODULE.subprocess, "run") as run_mock:
+            exit_code, stdout, stderr = self.run_main(str(output_dir))
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stderr, "")
+        self.assertIn(f"Output dir: {output_dir.resolve()}", stdout)
+        self.assertIn("Review artifacts: 2", stdout)
+        self.assertIn(f"- dashboard | viewport=desktop | route=dashboard | artifact=png | {png_path.resolve()}", stdout)
+        self.assertIn(f"- action-center | viewport=desktop | route=approvals | artifact=svg | {svg_path.resolve()}", stdout)
+        run_mock.assert_not_called()
+
+    def test_list_mode_prints_selected_artifact_paths(self) -> None:
+        output_dir, png_path, svg_path = self.create_snapshot_dir()
+        with mock.patch.object(MODULE.subprocess, "run") as run_mock:
+            exit_code, stdout, stderr = self.run_main("--mode", "list", str(output_dir))
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stderr, "")
+        self.assertEqual(stdout.splitlines(), [str(png_path.resolve()), str(svg_path.resolve())])
+        run_mock.assert_not_called()
+
+    def test_open_mode_uses_desktop_opener(self) -> None:
+        output_dir, png_path, svg_path = self.create_snapshot_dir()
+        with mock.patch.object(MODULE, "detect_opener", return_value="xdg-open"), mock.patch.object(MODULE.subprocess, "run") as run_mock:
+            exit_code, stdout, stderr = self.run_main("--mode", "open", str(output_dir))
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stdout, "")
+        self.assertEqual(stderr, "")
+        self.assertEqual(
+            run_mock.call_args_list,
+            [
+                mock.call(["xdg-open", str(png_path.resolve())], check=True),
+                mock.call(["xdg-open", str(svg_path.resolve())], check=True),
+            ],
+        )
 
 
 if __name__ == "__main__":

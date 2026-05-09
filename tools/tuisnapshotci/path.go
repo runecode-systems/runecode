@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+const localSnapshotDirName = "runecode-tui-snapshots"
+
 func canonicalPath(path string) (string, error) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -73,6 +75,44 @@ func prepareArtifactsDir(workDir string, outputDir string) (string, error) {
 		return "", fmt.Errorf("create artifact directory: %w", err)
 	}
 	return resolvedArtifactsDir, nil
+}
+
+func resolveLocalSnapshotDir(outputDir string) (string, error) {
+	requestedDir := strings.TrimSpace(outputDir)
+	if requestedDir == "" {
+		requestedDir = filepath.Join(os.TempDir(), localSnapshotDirName)
+	}
+	resolvedOutputDir, err := canonicalPath(requestedDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve local snapshot directory: %w", err)
+	}
+	if err := requirePathWithinTrustedRoot("local snapshot directory", resolvedOutputDir); err != nil {
+		return "", err
+	}
+	return resolvedOutputDir, nil
+}
+
+func cleanupLocalSnapshotDir(outputDir string) error {
+	resolvedOutputDir, err := resolveLocalSnapshotDir(outputDir)
+	if err != nil {
+		return err
+	}
+	if err := requirePathWithinTrustedRoot("local snapshot cleanup directory", resolvedOutputDir); err != nil {
+		return err
+	}
+	trustedRoots, err := trustedTempRoots()
+	if err != nil {
+		return err
+	}
+	for _, trustedRoot := range trustedRoots {
+		if resolvedOutputDir == trustedRoot {
+			return fmt.Errorf("local snapshot cleanup directory must not be the trusted temporary root %q", trustedRoot)
+		}
+	}
+	if err := os.RemoveAll(resolvedOutputDir); err != nil {
+		return fmt.Errorf("remove local snapshot directory %q: %w", resolvedOutputDir, err)
+	}
+	return nil
 }
 
 func normalizeTrustedOutputDir(outputDir string) (string, error) {

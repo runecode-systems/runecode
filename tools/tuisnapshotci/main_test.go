@@ -10,6 +10,50 @@ import (
 	"testing"
 )
 
+func TestRunLocalOutputDirDefaultsToTempDir(t *testing.T) {
+	var stdout strings.Builder
+	var stderr strings.Builder
+	if err := run([]string{"local-output-dir"}, &stdout, &stderr); err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	want := filepath.Join(os.TempDir(), localSnapshotDirName)
+	if got := strings.TrimSpace(stdout.String()); got != want {
+		t.Fatalf("local-output-dir = %q, want %q", got, want)
+	}
+}
+
+func TestRunCleanupLocalDirRemovesTrustedSnapshotDir(t *testing.T) {
+	outputDir := filepath.Join(os.TempDir(), "runecode-custom-cleanup", t.Name())
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll returned error: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(outputDir, "artifact.txt"), []byte("ok\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	var stdout strings.Builder
+	var stderr strings.Builder
+	if err := run([]string{"cleanup-local-dir", "--output-dir", outputDir}, &stdout, &stderr); err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	if _, err := os.Stat(outputDir); !os.IsNotExist(err) {
+		t.Fatalf("outputDir still exists after cleanup, stat err = %v", err)
+	}
+}
+
+func TestRunCleanupLocalDirRejectsTrustedTempRoot(t *testing.T) {
+	outputDir := os.TempDir()
+	var stdout strings.Builder
+	var stderr strings.Builder
+	err := run([]string{"cleanup-local-dir", "--output-dir", outputDir}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("run returned nil error, want cleanup trust failure")
+	}
+	if !strings.Contains(err.Error(), "must not be the trusted temporary root") {
+		t.Fatalf("run error = %v, want cleanup trust failure", err)
+	}
+}
+
 func TestValidateSnapshotArtifactsAcceptsExpectedManifestWithoutPNGFiles(t *testing.T) {
 	outputDir := t.TempDir()
 	manifest := snapshotManifest{

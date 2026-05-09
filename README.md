@@ -336,11 +336,14 @@ just tui-snapshot-dashboard
 just tui-snapshot-action-center
 just tui-snapshot-all
 just tui-snapshot-review
+just tui-snapshot-review-open
 ```
 
 These recipes build `runecode`, `runecode-broker`, and `runecode-tui` from the current working tree into `/tmp/runecode-current/bin`, keep Go build/temp artifacts under `/tmp/runecode-ci-cache`, and then run the canonical `runecode` lifecycle flow with that repo-local bin directory first on `PATH`. Outside the repo, installed `runecode` behavior stays unchanged.
 
-The `tui-snapshot-*` recipes generate deterministic TUI review artifacts under `/tmp/runecode-tui-snapshots/` using named scenarios. Each run writes a `manifest.json` plus per-scenario `.ansi`, `.txt`, and `.svg` files, and also derives `.png` files when ImageMagick `convert` is available locally. `just tui-snapshot-review` runs the snapshot generation flow first and then opens the generated PNGs when present, otherwise the SVGs; if no supported desktop opener is available it prints the manifest-selected artifact paths instead. This remains a repo-local developer review loop and is structured so future visual-regression baselines can key off the stable scenario names in the manifest.
+The `tui-snapshot-*` recipes generate deterministic TUI review artifacts under `/tmp/runecode-tui-snapshots/` by default, or under `TUI_SNAPSHOT_DIR` when you want a different local output directory. Each run writes a `manifest.json` plus per-scenario `.ansi`, `.txt`, and `.svg` files, and also derives `.png` files when ImageMagick `magick`/`convert` is available locally.
+
+The local snapshot helper cleans the target snapshot directory before it runs and, by default, cleans it again after review so repeated runs start from a known-empty directory and do not leave artifacts behind. Set `TUI_SNAPSHOT_KEEP=1` to preserve the generated files for follow-up inspection. `just tui-snapshot-review` is intentionally non-GUI by default and prints a manifest/scenario summary; use `just tui-snapshot-review-open` for the explicit GUI review path that opens generated PNGs when present, otherwise the SVGs. This remains a repo-local developer review loop and is structured so future visual-regression baselines can key off the stable scenario names in the manifest.
 
 `runecode-tui` remains a low-level/dev entrypoint for attaching to an already running broker listener and still supports `--runtime-dir` / `--socket-name` for isolated local-dev IPC overrides. `runecode-broker` now also accepts those as broker-global options for live-IPC command surfaces such as session, approval, and external-anchor mutation commands.
 

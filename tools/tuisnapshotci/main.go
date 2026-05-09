@@ -62,11 +62,23 @@ func main() {
 }
 
 func run(args []string, stdout io.Writer, stderr io.Writer) error {
+	if len(args) > 0 {
+		switch args[0] {
+		case "local-output-dir":
+			return runLocalOutputDir(args[1:], stdout, stderr)
+		case "cleanup-local-dir":
+			return runCleanupLocalDir(args[1:], stderr)
+		}
+	}
+
 	outputDir, err := parseOutputDirArg(args, stderr)
 	if err != nil {
 		return err
 	}
+	return runSnapshotCI(outputDir, stdout)
+}
 
+func runSnapshotCI(outputDir string, stdout io.Writer) error {
 	workspaceDir, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("resolve workspace: %w", err)
@@ -95,6 +107,30 @@ func run(args []string, stdout io.Writer, stderr io.Writer) error {
 	}
 
 	_, _ = fmt.Fprintf(stdout, "validated TUI snapshot artifacts in %s\n", artifactsDir)
+	return nil
+}
+
+func runLocalOutputDir(args []string, stdout io.Writer, stderr io.Writer) error {
+	outputDir, err := parseOutputDirArg(args, stderr)
+	if err != nil {
+		return err
+	}
+	resolvedOutputDir, err := resolveLocalSnapshotDir(outputDir)
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintln(stdout, resolvedOutputDir)
+	return nil
+}
+
+func runCleanupLocalDir(args []string, stderr io.Writer) error {
+	outputDir, err := parseOutputDirArg(args, stderr)
+	if err != nil {
+		return err
+	}
+	if err := cleanupLocalSnapshotDir(outputDir); err != nil {
+		return err
+	}
 	return nil
 }
 

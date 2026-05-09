@@ -18,6 +18,9 @@ func validateSnapshotArtifacts(outputDir string) error {
 	if err != nil {
 		return fmt.Errorf("resolve output directory: %w", err)
 	}
+	if err := requirePathWithinTrustedRoot("output directory", resolvedOutputDir); err != nil {
+		return err
+	}
 	outputDir = resolvedOutputDir
 
 	manifest, err := readSnapshotManifest(outputDir)
