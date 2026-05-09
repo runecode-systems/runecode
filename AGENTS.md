@@ -29,11 +29,26 @@ Repo bootstrap for coding agents. Read this first, then follow the linked standa
 - Lint: `just lint`
 - Test: `just test`
 - CI parity gate: `just ci`
+- TUI snapshot review, when iterating on `cmd/runecode-tui` UI/polish:
+  - Generate isolated local snapshots: `just tui-snapshot-all`
+  - Preserve artifacts for inspection: `TUI_SNAPSHOT_KEEP=1 just tui-snapshot-all`
+  - Non-GUI review summary: `just tui-snapshot-review`
+  - Print selected artifact paths: `just tui-snapshot-review-list`
+  - Explicit GUI open for manual review: `just tui-snapshot-review-open`
+  - Override local snapshot temp dir: `TUI_SNAPSHOT_DIR=/tmp/my-snapshots ...`
+  - CI/dev-only validation: `just tui-snapshot-ci`
+  - Release safety check: `just tui-release-safety`
 - Protocol-focused checks:
   - `go test ./internal/protocolschema`
   - `cd runner && node --test scripts/protocol-fixtures.test.js`
   - `cd runner && npm run boundary-check`
 - Use `justfile` as the exact command source of truth.
+
+### TUI Snapshot Usage
+- Use the snapshot workflow when changing TUI layout, wording, spacing, color treatment, or other visual polish in `cmd/runecode-tui`.
+- Prefer the default non-GUI review flow first so local runs stay uncluttered; only use `tui-snapshot-review-open` when a human explicitly wants desktop-opened images.
+- Local snapshot runs clean before and after by default; use `TUI_SNAPSHOT_KEEP=1` only when artifacts need to persist for inspection.
+- Snapshot tooling is dev/CI-only and must not be added to release artifacts or release-only verification paths.
 
 ## If You Touch...
 
