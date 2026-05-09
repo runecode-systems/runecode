@@ -190,13 +190,33 @@ def print_review_summary(output_dir: str, manifest_path: str, manifest: object, 
     print(f"Output dir: {output_dir}")
     print(f"Manifest: {manifest_path}")
     if isinstance(manifest, dict):
+        if manifest.get("bundle"):
+            print(f"Bundle: {manifest['bundle']}")
         if manifest.get("viewport"):
             print(f"Viewport: {manifest['viewport']}")
         if manifest.get("theme"):
             print(f"Theme: {manifest['theme']}")
+        coverage = manifest.get("coverage", {})
+        if isinstance(coverage, dict):
+            if coverage.get("routes"):
+                print(f"Coverage routes: {', '.join(coverage['routes'])}")
+            if coverage.get("viewports"):
+                print(f"Coverage viewports: {', '.join(coverage['viewports'])}")
+            if coverage.get("scenarios"):
+                print(f"Coverage scenarios: {', '.join(coverage['scenarios'])}")
     print(f"Scenarios: {scenario_count}")
     print(f"Review artifacts: {len(entries)}")
+    coverage_summary = bundle_coverage_summary(manifest)
+    if coverage_summary:
+        print(f"Coverage summary: {coverage_summary}")
+    manifest_scenarios = set()
+    selected_scenarios = set()
+    if isinstance(manifest, dict):
+        coverage = manifest.get("coverage", {})
+        if isinstance(coverage, dict):
+            manifest_scenarios = {str(name) for name in coverage.get("scenarios", []) if isinstance(name, str)}
     for entry in entries:
+        selected_scenarios.add(entry["name"])
         details = [entry["name"]]
         if entry.get("viewport"):
             details.append(f"viewport={entry['viewport']}")
@@ -205,6 +225,23 @@ def print_review_summary(output_dir: str, manifest_path: str, manifest: object, 
         details.append(f"artifact={entry['artifact_kind']}")
         details.append(entry["artifact_path"])
         print("- " + " | ".join(details))
+    missing = sorted(manifest_scenarios - selected_scenarios)
+    if missing:
+        print("Missing review artifacts: " + ", ".join(missing))
+
+
+def bundle_coverage_summary(manifest: object) -> str:
+    if not isinstance(manifest, dict):
+        return ""
+    coverage = manifest.get("coverage", {})
+    if not isinstance(coverage, dict):
+        return ""
+    routes = coverage.get("routes", [])
+    scenarios = coverage.get("scenarios", [])
+    viewports = coverage.get("viewports", [])
+    if not isinstance(routes, list) or not isinstance(scenarios, list) or not isinstance(viewports, list):
+        return ""
+    return f"bundle={coverage.get('bundle', '')} routes={len(routes)} viewports={len(viewports)} scenarios={len(scenarios)}"
 
 
 def open_review_artifacts(entries: List[Dict[str, str]]) -> int:

@@ -58,9 +58,11 @@ func TestValidateSnapshotArtifactsAcceptsExpectedManifestWithoutPNGFiles(t *test
 	outputDir := t.TempDir()
 	manifest := snapshotManifest{
 		Version:  manifestVersion,
+		Bundle:   snapshotBundle,
 		Viewport: snapshotViewport,
 		Width:    160,
 		Height:   48,
+		Coverage: testCoverage(),
 	}
 	for _, scenario := range expectedScenarioNames {
 		base := scenario + "." + snapshotViewport
@@ -107,9 +109,11 @@ func TestValidateSnapshotArtifactsAcceptsSymlinkedOutputDir(t *testing.T) {
 
 	manifest := snapshotManifest{
 		Version:  manifestVersion,
+		Bundle:   snapshotBundle,
 		Viewport: snapshotViewport,
 		Width:    160,
 		Height:   48,
+		Coverage: testCoverage(),
 	}
 	for _, scenario := range expectedScenarioNames {
 		base := scenario + "." + snapshotViewport
@@ -139,9 +143,11 @@ func TestValidateSnapshotArtifactsRejectsMissingScenarioEntries(t *testing.T) {
 	base := expectedScenarioNames[0] + "." + snapshotViewport
 	manifest := snapshotManifest{
 		Version:  manifestVersion,
+		Bundle:   snapshotBundle,
 		Viewport: snapshotViewport,
 		Width:    160,
 		Height:   48,
+		Coverage: testCoverage(),
 		Scenarios: []snapshotManifestEntry{{
 			Name:     expectedScenarioNames[0],
 			Viewport: snapshotViewport,
@@ -339,9 +345,11 @@ func testManifestForAllScenarios(t *testing.T, outputDir string) snapshotManifes
 	t.Helper()
 	manifest := snapshotManifest{
 		Version:  manifestVersion,
+		Bundle:   snapshotBundle,
 		Viewport: snapshotViewport,
 		Width:    160,
 		Height:   48,
+		Coverage: testCoverage(),
 	}
 	for _, scenario := range expectedScenarioNames {
 		manifest.Scenarios = append(manifest.Scenarios, scenarioEntryForDir(t, outputDir, scenario))
@@ -357,13 +365,44 @@ func scenarioEntryForDir(t *testing.T, outputDir string, scenario string) snapsh
 		Viewport: snapshotViewport,
 		Width:    160,
 		Height:   48,
-		Route:    "dashboard",
+		Route:    routeForScenario(scenario),
 		Artifacts: snapshotManifestArtifacts{
 			ANSI: writeTestArtifact(t, outputDir, base+".ansi", scenario+" ansi\n"),
 			Text: writeTestArtifact(t, outputDir, base+".txt", scenario+" text\n"),
 			SVG:  writeTestArtifact(t, outputDir, base+".svg", "<svg>"+scenario+"</svg>\n"),
 			PNG:  snapshotManifestArtifact{Path: base + ".png"},
 		},
+	}
+}
+
+func testCoverage() snapshotCoverage {
+	return snapshotCoverage{Bundle: snapshotBundle, Routes: expectedCoverageRoutes(), Viewports: []string{snapshotViewport}, Scenarios: append([]string(nil), expectedScenarioNames...)}
+}
+
+func routeForScenario(scenario string) string {
+	switch scenario {
+	case "dashboard-healthy-empty", "dashboard-approval-waiting", "dashboard-blocked", "dashboard-degraded":
+		return "dashboard"
+	case "chat-active-session":
+		return "chat"
+	case "runs-active-detail":
+		return "runs"
+	case "approvals-pending-detail":
+		return "approvals"
+	case "action-center-triage":
+		return "action-center"
+	case "audit-degraded-detail":
+		return "audit"
+	case "status-ready-overview":
+		return "status"
+	case "model-providers-credential-needed":
+		return "model-providers"
+	case "git-setup-identity-needed":
+		return "git-setup"
+	case "git-remote-approval-ready":
+		return "git-remote-mutation"
+	default:
+		return "dashboard"
 	}
 }
 

@@ -139,8 +139,15 @@ class ReviewModesTest(unittest.TestCase):
             json.dumps(
                 {
                     "version": 2,
+                    "bundle": "full-audit",
                     "viewport": "desktop",
                     "theme": "dark",
+                    "coverage": {
+                        "bundle": "full-audit",
+                        "routes": ["dashboard", "action-center"],
+                        "viewports": ["desktop"],
+                        "scenarios": ["dashboard", "action-center"],
+                    },
                     "scenarios": [
                         {
                             "name": "dashboard",
@@ -182,6 +189,9 @@ class ReviewModesTest(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(stderr, "")
         self.assertIn(f"Output dir: {output_dir.resolve()}", stdout)
+        self.assertIn("Bundle: full-audit", stdout)
+        self.assertIn("Coverage routes: dashboard, action-center", stdout)
+        self.assertIn("Coverage summary: bundle=full-audit routes=2 viewports=1 scenarios=2", stdout)
         self.assertIn("Review artifacts: 2", stdout)
         self.assertIn(f"- dashboard | viewport=desktop | route=dashboard | artifact=png | {png_path.resolve()}", stdout)
         self.assertIn(f"- action-center | viewport=desktop | route=approvals | artifact=svg | {svg_path.resolve()}", stdout)

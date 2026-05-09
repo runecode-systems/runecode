@@ -51,11 +51,17 @@ func validateManifestStructure(manifest snapshotManifest) (map[string]snapshotMa
 	if manifest.Version != manifestVersion {
 		return nil, fmt.Errorf("manifest version = %d, want %d", manifest.Version, manifestVersion)
 	}
+	if manifest.Bundle != snapshotBundle {
+		return nil, fmt.Errorf("manifest bundle = %q, want %q", manifest.Bundle, snapshotBundle)
+	}
 	if manifest.Viewport != snapshotViewport {
 		return nil, fmt.Errorf("manifest viewport = %q, want %q", manifest.Viewport, snapshotViewport)
 	}
 	if manifest.Width <= 0 || manifest.Height <= 0 {
 		return nil, fmt.Errorf("manifest dimensions must be positive, got %dx%d", manifest.Width, manifest.Height)
+	}
+	if err := validateCoverage(manifest.Coverage); err != nil {
+		return nil, err
 	}
 	entriesByName, err := manifestEntriesByName(manifest.Scenarios)
 	if err != nil {
@@ -65,6 +71,34 @@ func validateManifestStructure(manifest snapshotManifest) (map[string]snapshotMa
 		return nil, err
 	}
 	return entriesByName, nil
+}
+
+func validateCoverage(coverage snapshotCoverage) error {
+	if coverage.Bundle != snapshotBundle {
+		return fmt.Errorf("coverage bundle = %q, want %q", coverage.Bundle, snapshotBundle)
+	}
+	if len(coverage.Viewports) != 1 || coverage.Viewports[0] != snapshotViewport {
+		return fmt.Errorf("coverage viewports = %v, want [%s]", coverage.Viewports, snapshotViewport)
+	}
+	routes := append([]string(nil), coverage.Routes...)
+	slices.Sort(routes)
+	if !slices.Equal(routes, expectedCoverageRoutes()) {
+		return fmt.Errorf("coverage routes = %v, want %v", routes, expectedCoverageRoutes())
+	}
+	scenarios := append([]string(nil), coverage.Scenarios...)
+	slices.Sort(scenarios)
+	wantScenarios := append([]string(nil), expectedScenarioNames...)
+	slices.Sort(wantScenarios)
+	if !slices.Equal(scenarios, wantScenarios) {
+		return fmt.Errorf("coverage scenarios = %v, want %v", scenarios, wantScenarios)
+	}
+	return nil
+}
+
+func expectedCoverageRoutes() []string {
+	routes := []string{"action-center", "approvals", "audit", "chat", "dashboard", "git-remote-mutation", "git-setup", "model-providers", "runs", "status"}
+	slices.Sort(routes)
+	return routes
 }
 
 func manifestEntriesByName(entries []snapshotManifestEntry) (map[string]snapshotManifestEntry, error) {

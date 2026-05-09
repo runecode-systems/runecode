@@ -103,6 +103,9 @@ tui-dev-stop: tui-dev-build
 _tui-snapshot scenario: tui-dev-snapshot-build
 	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --scenario {{scenario}}
 
+_tui-snapshot-bundle bundle: tui-dev-snapshot-build
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle {{bundle}}
+
 tui-dev-snapshot-build:
 	mkdir -p {{dev_bin_dir}} {{dev_gocache_dir}} {{dev_gotmp_dir}}
 	GOCACHE={{dev_gocache_dir}} GOTMPDIR={{dev_gotmp_dir}} TMPDIR={{dev_gotmp_dir}} go build -tags {{tui_snapshot_tag}} -o {{dev_bin_dir}}/runecode-tui ./cmd/runecode-tui
@@ -123,17 +126,53 @@ tui-snapshot-action-center:
 tui-snapshot-all:
 	just _tui-snapshot all
 
+tui-snapshot-audit-full:
+	just _tui-snapshot-bundle full-audit
+
+tui-snapshot-audit-dashboard:
+	just _tui-snapshot-bundle dashboard-audit
+
+tui-snapshot-audit-action-center:
+	just _tui-snapshot-bundle action-center-audit
+
+tui-snapshot-audit-runs:
+	just _tui-snapshot-bundle runs-audit
+
+tui-snapshot-audit-approvals:
+	just _tui-snapshot-bundle approvals-audit
+
+tui-snapshot-audit-audit:
+	just _tui-snapshot-bundle audit-route-audit
+
+tui-snapshot-audit-status:
+	just _tui-snapshot-bundle status-audit
+
+tui-snapshot-audit-setup:
+	just _tui-snapshot-bundle setup-audit
+
+tui-snapshot-audit-chat:
+	just _tui-snapshot-bundle chat-audit
+
 tui-snapshot-review: tui-dev-snapshot-build
-	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --scenario all --review --review-mode summary
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle full-audit --review --review-mode summary
+
+tui-snapshot-review-full: tui-dev-snapshot-build
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle full-audit --review --review-mode summary
+
+tui-snapshot-review-dashboard: tui-dev-snapshot-build
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle dashboard-audit --review --review-mode summary
+
+tui-snapshot-review-action-center: tui-dev-snapshot-build
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle action-center-audit --review --review-mode summary
 
 tui-snapshot-review-summary: tui-dev-snapshot-build
-	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --scenario all --review --review-mode summary
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle full-audit --review --review-mode summary
 
 tui-snapshot-review-list: tui-dev-snapshot-build
-	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --scenario all --review --review-mode list
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle full-audit --review --review-mode list
 
 tui-snapshot-review-open: tui-dev-snapshot-build
-	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --scenario all --review --review-mode open
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle full-audit --review --review-mode open
 
 tui-snapshot-ci:
 	go run ./tools/tuisnapshotci

@@ -25,10 +25,12 @@ var snapshotRenderMu sync.Mutex
 
 type snapshotManifest struct {
 	Version   int                     `json:"version"`
+	Bundle    string                  `json:"bundle,omitempty"`
 	Width     int                     `json:"width"`
 	Height    int                     `json:"height"`
 	Viewport  string                  `json:"viewport,omitempty"`
 	Theme     string                  `json:"theme"`
+	Coverage  snapshotCoverage        `json:"coverage,omitempty"`
 	Scenarios []snapshotManifestEntry `json:"scenarios"`
 }
 
@@ -80,10 +82,16 @@ func writeSnapshotArtifacts(cfg tuiSnapshotConfig) error {
 	if err != nil {
 		return err
 	}
+	if cfg.bundle != "" {
+		scenarios, err = resolveSnapshotBundleScenarios(cfg.bundle)
+		if err != nil {
+			return err
+		}
+	}
 	if err := os.MkdirAll(cfg.outputDir, 0o755); err != nil {
 		return err
 	}
-	manifest := snapshotManifest{Version: 2, Width: cfg.width, Height: cfg.height, Viewport: string(cfg.viewport), Theme: string(snapshotManifestTheme(cfg, scenarios))}
+	manifest := snapshotManifest{Version: 2, Bundle: cfg.bundle, Width: cfg.width, Height: cfg.height, Viewport: string(cfg.viewport), Theme: string(snapshotManifestTheme(cfg, scenarios)), Coverage: snapshotCoverageForBundle(normalizeSnapshotBundle(cfg.bundle), scenarios, cfg.viewport)}
 	entries, err := writeSnapshotScenarioArtifacts(cfg, scenarios)
 	if err != nil {
 		return err
@@ -95,6 +103,9 @@ func writeSnapshotArtifacts(cfg tuiSnapshotConfig) error {
 func normalizeSnapshotConfig(cfg tuiSnapshotConfig) (tuiSnapshotConfig, error) {
 	if cfg.outputDir == "" {
 		cfg.outputDir = snapshotDefaultOutputDir()
+	}
+	if strings.TrimSpace(cfg.bundle) != "" && strings.TrimSpace(cfg.scenario) != "" {
+		return tuiSnapshotConfig{}, fmt.Errorf("snapshot bundle and snapshot scenario are mutually exclusive")
 	}
 	normalizedOutputDir, err := normalizeSnapshotOutputDir(cfg.outputDir)
 	if err != nil {

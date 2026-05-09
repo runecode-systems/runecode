@@ -7,6 +7,8 @@ disable-model-invocation: true
 
 Use this workflow when changing or reviewing `cmd/runecode-tui` UI/UX, layout, route wording, spacing, color treatment, shell chrome, overlays, or other visual polish.
 
+The snapshot tool now supports agent-facing audit bundles. Use bundles for audit scope selection. Use raw scenarios only when the request is narrowly scoped to one exact deterministic state.
+
 ## Core Principles
 
 - Default to non-GUI review. Do not open desktop windows unless the human explicitly asks for GUI review.
@@ -18,9 +20,19 @@ Use this workflow when changing or reviewing `cmd/runecode-tui` UI/UX, layout, r
 ## Available Commands
 
 - Full local snapshot set: `just tui-snapshot-all`
+- Full audit bundle: `just tui-snapshot-audit-full`
 - Dashboard-focused snapshots: `just tui-snapshot-dashboard`
 - Dashboard desktop and mobile snapshots: `just tui-snapshot-dashboard-multi`
 - Action Center-focused snapshots: `just tui-snapshot-action-center`
+- Focused audit bundles:
+  - `just tui-snapshot-audit-dashboard`
+  - `just tui-snapshot-audit-action-center`
+  - `just tui-snapshot-audit-runs`
+  - `just tui-snapshot-audit-approvals`
+  - `just tui-snapshot-audit-audit`
+  - `just tui-snapshot-audit-status`
+  - `just tui-snapshot-audit-setup`
+  - `just tui-snapshot-audit-chat`
 - Non-GUI summary review: `just tui-snapshot-review`
 - Non-GUI artifact path listing: `just tui-snapshot-review-list`
 - Explicit GUI review: `just tui-snapshot-review-open`
@@ -33,9 +45,21 @@ Use this workflow when changing or reviewing `cmd/runecode-tui` UI/UX, layout, r
 - Override output directory: `TUI_SNAPSHOT_DIR=/tmp/my-snapshots`
 - Combine controls when an agent must inspect files directly: `TUI_SNAPSHOT_KEEP=1 TUI_SNAPSHOT_DIR=/tmp/runecode-tui-agent-review just tui-snapshot-all`
 
-## Snapshot Scenarios
+## Audit Bundles And Scenarios
 
-Use public recipes first. When a focused audit needs a specific scenario, build the snapshot binary and invoke the helper directly.
+Use public audit-bundle recipes first. When a focused audit needs a specific deterministic state, build the snapshot binary and invoke the helper directly.
+
+Agent-facing audit bundles:
+
+- `full-audit`: representative desktop audit coverage across Dashboard, Chat, Runs, Approvals, Action Center, Audit, Status, Model Providers, Git Setup, and Git Remote. Agents must confirm this bundle coverage in the non-GUI summary before claiming a full audit was completed.
+- `dashboard-audit`
+- `action-center-audit`
+- `runs-audit`
+- `approvals-audit`
+- `audit-route-audit`
+- `status-audit`
+- `setup-audit`
+- `chat-audit`
 
 Public scenario groups:
 
@@ -72,41 +96,44 @@ TUI_SNAPSHOT_KEEP=1 sh ./tools/tui_snapshot_local.sh \
 ## Full TUI Audit Workflow
 
 1. Confirm the request is a full visual audit or broad polish review for `cmd/runecode-tui`.
-2. Generate and preserve all snapshots for inspection:
+2. Use the full audit bundle, not the raw `all` scenario group.
+3. Generate and preserve the full audit bundle for inspection:
 
 ```sh
-TUI_SNAPSHOT_KEEP=1 just tui-snapshot-all
+TUI_SNAPSHOT_KEEP=1 just tui-snapshot-audit-full
 ```
 
-3. Produce a non-GUI summary:
+4. Produce a non-GUI summary:
 
 ```sh
 TUI_SNAPSHOT_KEEP=1 just tui-snapshot-review
 ```
 
-4. Print artifact paths for direct file inspection:
+5. Print artifact paths for direct file inspection:
 
 ```sh
 TUI_SNAPSHOT_KEEP=1 just tui-snapshot-review-list
 ```
 
-5. Inspect the selected `.png` or `.svg` files directly with file-reading tools. Do not open GUI windows unless asked.
-6. Review each scenario for route hierarchy, text density, sidebar behavior, footer/chrome weight, inspector layout, modal/overlay polish, color contrast, and raw debug-token leakage.
-7. Compare desktop and mobile/compact behavior when the audit involves layout responsiveness:
+6. Inspect the selected `.png` or `.svg` files directly with file-reading tools. Do not open GUI windows unless asked.
+7. Confirm the review summary reports the expected bundle, route coverage, viewport coverage, and scenario coverage before claiming the audit is complete.
+Route coverage expected today: Dashboard, Chat, Runs, Approvals, Action Center, Audit, Status, Model Providers, Git Setup, and Git Remote.
+8. Review each captured route/state for route hierarchy, text density, sidebar behavior, footer/chrome weight, inspector layout, modal/overlay polish, color contrast, and raw debug-token leakage.
+9. Compare desktop and mobile/compact behavior when the audit involves layout responsiveness:
 
 ```sh
 TUI_SNAPSHOT_KEEP=1 just tui-snapshot-dashboard-multi
 ```
 
-8. Record findings with scenario name, viewport, artifact path, and concrete issue.
-9. If code changes are made, regenerate the relevant snapshots and compare the updated artifacts.
-10. Run validation before handoff:
+10. Record findings with bundle name, scenario name, viewport, artifact path, and concrete issue.
+11. If code changes are made, regenerate the relevant bundle or focused route snapshots and compare the updated artifacts.
+12. Run validation before handoff:
 
 ```sh
 just tui-snapshot-ci
 ```
 
-11. If snapshot plumbing, build tags, release safety, or dev/CI boundaries changed, also run:
+13. If snapshot plumbing, build tags, release safety, or dev/CI boundaries changed, also run:
 
 ```sh
 just tui-release-safety
@@ -117,24 +144,32 @@ just tui-release-safety
 Use this workflow when the human asks to audit one route, state, viewport, or a small polish change.
 
 1. Identify the target surface.
-2. Prefer the nearest public recipe:
+2. Map the request to the smallest matching audit bundle first:
 
 ```sh
-TUI_SNAPSHOT_KEEP=1 just tui-snapshot-dashboard
-TUI_SNAPSHOT_KEEP=1 just tui-snapshot-action-center
+TUI_SNAPSHOT_KEEP=1 just tui-snapshot-audit-dashboard
+TUI_SNAPSHOT_KEEP=1 just tui-snapshot-audit-action-center
+TUI_SNAPSHOT_KEEP=1 just tui-snapshot-audit-runs
+TUI_SNAPSHOT_KEEP=1 just tui-snapshot-audit-approvals
+TUI_SNAPSHOT_KEEP=1 just tui-snapshot-audit-audit
+TUI_SNAPSHOT_KEEP=1 just tui-snapshot-audit-status
+TUI_SNAPSHOT_KEEP=1 just tui-snapshot-audit-setup
+TUI_SNAPSHOT_KEEP=1 just tui-snapshot-audit-chat
 ```
 
-3. For a specific scenario or viewport, use the direct helper pattern from the Snapshot Scenarios section.
+3. Only fall back to a raw scenario when the request is truly about one exact deterministic state.
 4. Use non-GUI review first:
 
 ```sh
 TUI_SNAPSHOT_KEEP=1 just tui-snapshot-review-list
 ```
 
-5. Inspect only the relevant artifact paths. Ignore unrelated scenarios.
-6. Analyze the focused area for the requested concern, such as wording, spacing, overflow, truncation, color, responsive layout, or debug-token exposure.
-7. If a fix is implemented, regenerate only the focused route/scenario where possible.
-8. Run at least the relevant targeted verification:
+5. Confirm the summary/list output matches the requested focused bundle or focused scenario before analyzing it.
+If the user asks for a route or area without a matching bundle yet, state exactly which existing bundle or explicit scenario you are using as the nearest proxy and what route coverage it actually provides.
+6. Inspect only the relevant artifact paths. Ignore unrelated scenarios.
+7. Analyze the focused area for the requested concern, such as wording, spacing, overflow, truncation, color, responsive layout, or debug-token exposure.
+8. If a fix is implemented, regenerate only the focused bundle or focused scenario where possible.
+9. Run at least the relevant targeted verification:
 
 ```sh
 go test ./cmd/runecode-tui
@@ -168,7 +203,9 @@ If GUI opening fails, report the selected artifact paths from `just tui-snapshot
 When reporting an audit, include:
 
 - Command(s) run
+- Bundle or scenario requested
 - Scenario(s) and viewport(s) reviewed
+- Route coverage confirmed from manifest summary
 - Artifact paths inspected
 - Findings ordered by severity
 - Any fixes made

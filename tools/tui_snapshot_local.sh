@@ -3,11 +3,12 @@
 set -eu
 
 usage() {
-	printf '%s\n' 'usage: sh ./tools/tui_snapshot_local.sh --binary <path> --scenario <name> [--viewport <name>] [--review] [--review-mode <summary|list|open>]' >&2
+	printf '%s\n' 'usage: sh ./tools/tui_snapshot_local.sh --binary <path> (--scenario <name> | --bundle <name>) [--viewport <name>] [--review] [--review-mode <summary|list|open>]' >&2
 }
 
 binary_path=''
 scenario=''
+bundle=''
 viewport=''
 review='0'
 review_mode='summary'
@@ -22,6 +23,11 @@ while [ "$#" -gt 0 ]; do
 		--scenario)
 			[ "$#" -ge 2 ] || { usage; exit 2; }
 			scenario=$2
+			shift 2
+			;;
+		--bundle)
+			[ "$#" -ge 2 ] || { usage; exit 2; }
+			bundle=$2
 			shift 2
 			;;
 		--viewport)
@@ -46,7 +52,8 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -n "$binary_path" ] || { usage; exit 2; }
-[ -n "$scenario" ] || { usage; exit 2; }
+[ -n "$scenario" ] || [ -n "$bundle" ] || { usage; exit 2; }
+[ -z "$scenario" ] || [ -z "$bundle" ] || { usage; exit 2; }
 
 case "$review_mode" in
 	summary|list|open) ;;
@@ -90,11 +97,17 @@ trap 'finish $?' EXIT HUP INT TERM
 
 mkdir -p "$output_dir"
 
-if [ -n "$viewport" ]; then
-	"$binary_path" --snapshot-scenario "$scenario" --snapshot-output-dir "$output_dir" --snapshot-viewport "$viewport"
-else
-	"$binary_path" --snapshot-scenario "$scenario" --snapshot-output-dir "$output_dir"
+set -- "$binary_path" --snapshot-output-dir "$output_dir"
+if [ -n "$scenario" ]; then
+	set -- "$@" --snapshot-scenario "$scenario"
 fi
+if [ -n "$bundle" ]; then
+	set -- "$@" --snapshot-bundle "$bundle"
+fi
+if [ -n "$viewport" ]; then
+	set -- "$@" --snapshot-viewport "$viewport"
+fi
+"$@"
 
 if command -v magick >/dev/null 2>&1; then
 	for svg in "$output_dir"/*.svg; do

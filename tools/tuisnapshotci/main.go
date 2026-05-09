@@ -13,6 +13,7 @@ import (
 
 const (
 	snapshotBuildTag = "runecode_tui_snapshot"
+	snapshotBundle   = "full-audit"
 	snapshotViewport = "desktop"
 	manifestVersion  = 2
 )
@@ -22,15 +23,32 @@ var expectedScenarioNames = []string{
 	"dashboard-approval-waiting",
 	"dashboard-blocked",
 	"dashboard-degraded",
+	"chat-active-session",
+	"runs-active-detail",
+	"approvals-pending-detail",
 	"action-center-triage",
+	"audit-degraded-detail",
+	"status-ready-overview",
+	"model-providers-credential-needed",
+	"git-setup-identity-needed",
+	"git-remote-approval-ready",
 }
 
 type snapshotManifest struct {
 	Version   int                     `json:"version"`
+	Bundle    string                  `json:"bundle,omitempty"`
 	Viewport  string                  `json:"viewport,omitempty"`
 	Width     int                     `json:"width"`
 	Height    int                     `json:"height"`
+	Coverage  snapshotCoverage        `json:"coverage,omitempty"`
 	Scenarios []snapshotManifestEntry `json:"scenarios"`
+}
+
+type snapshotCoverage struct {
+	Bundle    string   `json:"bundle,omitempty"`
+	Routes    []string `json:"routes,omitempty"`
+	Viewports []string `json:"viewports,omitempty"`
+	Scenarios []string `json:"scenarios,omitempty"`
 }
 
 type snapshotManifestEntry struct {

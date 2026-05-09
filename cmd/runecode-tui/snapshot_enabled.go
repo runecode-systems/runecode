@@ -25,6 +25,7 @@ type snapshotViewportSpec struct {
 type tuiSnapshotConfig struct {
 	enabled   bool
 	scenario  string
+	bundle    string
 	outputDir string
 	viewport  snapshotViewportPreset
 	width     int
@@ -34,6 +35,7 @@ type tuiSnapshotConfig struct {
 
 type tuiSnapshotFlags struct {
 	scenario  *string
+	bundle    *string
 	outputDir *string
 	viewport  *string
 	width     *int
@@ -44,6 +46,7 @@ type tuiSnapshotFlags struct {
 func registerSnapshotFlags(fs *flag.FlagSet) tuiSnapshotFlags {
 	return tuiSnapshotFlags{
 		scenario:  fs.String("snapshot-scenario", "", "hidden dev option: deterministic TUI snapshot scenario"),
+		bundle:    fs.String("snapshot-bundle", "", "hidden dev option: snapshot audit bundle"),
 		outputDir: fs.String("snapshot-output-dir", snapshotDefaultOutputDir(), "hidden dev option: snapshot output directory"),
 		viewport:  fs.String("snapshot-viewport", string(snapshotViewportDesktop), "hidden dev option: snapshot viewport preset"),
 		width:     fs.Int("snapshot-width", 0, "hidden dev option: snapshot terminal width override"),
@@ -53,12 +56,13 @@ func registerSnapshotFlags(fs *flag.FlagSet) tuiSnapshotFlags {
 }
 
 func applySnapshotCLIConfig(cfg *tuiCLIConfig, flags tuiSnapshotFlags) {
-	if *flags.scenario == "" {
+	if *flags.scenario == "" && *flags.bundle == "" {
 		return
 	}
 	cfg.snapshot = tuiSnapshotConfig{
 		enabled:   true,
 		scenario:  *flags.scenario,
+		bundle:    *flags.bundle,
 		outputDir: *flags.outputDir,
 		viewport:  snapshotViewportPreset(strings.TrimSpace(*flags.viewport)),
 		width:     *flags.width,
