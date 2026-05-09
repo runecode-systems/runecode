@@ -2,6 +2,7 @@ golangci_lint := "github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8"
 dev_bin_dir := "/tmp/runecode-current/bin"
 dev_gocache_dir := "/tmp/runecode-ci-cache/gocache"
 dev_gotmp_dir := "/tmp/runecode-ci-cache/gotmp"
+tui_snapshot_dir := "/tmp/runecode-tui-snapshots"
 
 default:
   @just --list
@@ -91,3 +92,17 @@ tui-dev-status: tui-dev-build
 
 tui-dev-stop: tui-dev-build
   PATH={{dev_bin_dir}}:$PATH {{dev_bin_dir}}/runecode stop
+
+_tui-snapshot scenario: tui-dev-build
+	mkdir -p {{tui_snapshot_dir}}
+	{{dev_bin_dir}}/runecode-tui --snapshot-scenario {{scenario}} --snapshot-output-dir {{tui_snapshot_dir}}
+	if command -v magick >/dev/null 2>&1; then for svg in {{tui_snapshot_dir}}/*.svg; do [ -e "$svg" ] || continue; magick "$svg" "${svg%.svg}.png"; done; elif command -v convert >/dev/null 2>&1; then for svg in {{tui_snapshot_dir}}/*.svg; do [ -e "$svg" ] || continue; convert "$svg" "${svg%.svg}.png"; done; fi
+
+tui-snapshot-dashboard:
+	just _tui-snapshot dashboard
+
+tui-snapshot-action-center:
+	just _tui-snapshot action-center
+
+tui-snapshot-all:
+	just _tui-snapshot all

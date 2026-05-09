@@ -47,6 +47,16 @@ func TestParseCLIConfigParsesIPCOverrides(t *testing.T) {
 	}
 }
 
+func TestParseCLIConfigParsesSnapshotOptions(t *testing.T) {
+	cfg, err := parseCLIConfig([]string{"--snapshot-scenario", "dashboard", "--snapshot-output-dir", "/tmp/snaps", "--snapshot-width", "140", "--snapshot-height", "40", "--snapshot-theme", "dusk"})
+	if err != nil {
+		t.Fatalf("parseCLIConfig returned error: %v", err)
+	}
+	if !cfg.snapshot.enabled || cfg.snapshot.scenario != "dashboard" || cfg.snapshot.outputDir != "/tmp/snaps" || cfg.snapshot.width != 140 || cfg.snapshot.height != 40 || cfg.snapshot.theme != themePresetDusk {
+		t.Fatalf("parseCLIConfig snapshot cfg = %+v, want snapshot options populated", cfg.snapshot)
+	}
+}
+
 func TestWriteNonInteractiveMessageIncludesBrokerRemediation(t *testing.T) {
 	var out bytes.Buffer
 	if err := writeNonInteractiveMessage(&out); err != nil {

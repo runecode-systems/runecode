@@ -15,6 +15,8 @@ const (
 	emergencyQuitArmWindow = 1500 * time.Millisecond
 )
 
+var forceMemoryWorkbenchState bool
+
 type shellOverlayID string
 
 const (
@@ -142,7 +144,7 @@ func newShellModel() shellModel {
 	actions := newShellActionGraph(routes, commands)
 	workbench := newDefaultWorkbenchStateStore()
 	binaryPath := strings.ToLower(strings.TrimSpace(os.Args[0]))
-	if strings.HasSuffix(binaryPath, ".test") || strings.HasSuffix(binaryPath, ".test.exe") {
+	if forceMemoryWorkbenchState || strings.HasSuffix(binaryPath, ".test") || strings.HasSuffix(binaryPath, ".test.exe") {
 		workbench = &memoryWorkbenchStateStore{}
 	}
 	scope := logicalBrokerTargetKey()

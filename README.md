@@ -332,9 +332,14 @@ just tui-dev
 just tui-dev-restart
 just tui-dev-status
 just tui-dev-stop
+just tui-snapshot-dashboard
+just tui-snapshot-action-center
+just tui-snapshot-all
 ```
 
 These recipes build `runecode`, `runecode-broker`, and `runecode-tui` from the current working tree into `/tmp/runecode-current/bin`, keep Go build/temp artifacts under `/tmp/runecode-ci-cache`, and then run the canonical `runecode` lifecycle flow with that repo-local bin directory first on `PATH`. Outside the repo, installed `runecode` behavior stays unchanged.
+
+The `tui-snapshot-*` recipes generate deterministic TUI review artifacts under `/tmp/runecode-tui-snapshots/` using named scenarios. Each run writes a `manifest.json` plus per-scenario `.ansi`, `.txt`, and `.svg` files, and also derives `.png` files when ImageMagick `convert` is available locally. This is the intended fast UI/UX review loop for the repo-local TUI and is structured so future visual-regression baselines can key off the stable scenario names in the manifest.
 
 `runecode-tui` remains a low-level/dev entrypoint for attaching to an already running broker listener and still supports `--runtime-dir` / `--socket-name` for isolated local-dev IPC overrides. `runecode-broker` now also accepts those as broker-global options for live-IPC command surfaces such as session, approval, and external-anchor mutation commands.
 

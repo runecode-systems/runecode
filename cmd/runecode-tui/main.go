@@ -32,6 +32,14 @@ func main() {
 		return
 	}
 
+	if cfg.snapshot.enabled {
+		if err := writeSnapshotArtifacts(cfg.snapshot); err != nil {
+			fmt.Fprintf(os.Stderr, "runecode-tui snapshot failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
 		if err := writeNonInteractiveMessage(os.Stdout); err != nil {
 			fmt.Fprintf(os.Stderr, "runecode-tui failed to write output: %v\n", err)
@@ -63,6 +71,16 @@ type tuiCLIConfig struct {
 	showHelp   bool
 	runtimeDir string
 	socketName string
+	snapshot   tuiSnapshotConfig
+}
+
+type tuiSnapshotConfig struct {
+	enabled   bool
+	scenario  string
+	outputDir string
+	width     int
+	height    int
+	theme     themePreset
 }
 
 func parseCLIConfig(args []string) (tuiCLIConfig, error) {
@@ -73,13 +91,29 @@ func parseCLIConfig(args []string) (tuiCLIConfig, error) {
 	fs.SetOutput(io.Discard)
 	runtimeDir := fs.String("runtime-dir", "", "broker local IPC runtime directory override")
 	socketName := fs.String("socket-name", "", "broker local IPC socket filename override")
+	snapshotScenario := fs.String("snapshot-scenario", "", "hidden dev option: deterministic TUI snapshot scenario")
+	snapshotOutputDir := fs.String("snapshot-output-dir", "/tmp/runecode-tui-snapshots", "hidden dev option: snapshot output directory")
+	snapshotWidth := fs.Int("snapshot-width", 160, "hidden dev option: snapshot terminal width")
+	snapshotHeight := fs.Int("snapshot-height", 48, "hidden dev option: snapshot terminal height")
+	snapshotTheme := fs.String("snapshot-theme", string(themePresetDark), "hidden dev option: snapshot theme preset")
 	if err := fs.Parse(args); err != nil {
 		return tuiCLIConfig{}, &usageError{message: "runecode-tui usage: runecode-tui [--runtime-dir dir] [--socket-name broker.sock] [--help]"}
 	}
 	if len(fs.Args()) > 0 {
 		return tuiCLIConfig{}, &usageError{message: "runecode-tui accepts no positional arguments; use --help for usage"}
 	}
-	return tuiCLIConfig{runtimeDir: *runtimeDir, socketName: *socketName}, nil
+	cfg := tuiCLIConfig{runtimeDir: *runtimeDir, socketName: *socketName}
+	if *snapshotScenario != "" {
+		cfg.snapshot = tuiSnapshotConfig{
+			enabled:   true,
+			scenario:  *snapshotScenario,
+			outputDir: *snapshotOutputDir,
+			width:     *snapshotWidth,
+			height:    *snapshotHeight,
+			theme:     normalizeThemePreset(themePreset(*snapshotTheme)),
+		}
+	}
+	return cfg, nil
 }
 
 func setCLIIPCConfigOverrides(cfg tuiCLIConfig) {
