@@ -181,6 +181,138 @@ func runOutcomeHeadline(summary brokerapi.RunSummary, detail *brokerapi.RunDetai
 	return fmt.Sprintf("Outcome summary: run %s is %s.", summary.RunID, valueOrNA(summary.LifecycleState))
 }
 
+func runOverviewMessage(detail *brokerapi.RunDetail) string {
+	if detail == nil {
+		return "No run selected."
+	}
+	summary := detail.Summary
+	status := humanizeExecutionToken(summary.LifecycleState)
+	if len(detail.PendingApprovalIDs) > 0 {
+		return fmt.Sprintf("Run %s is %s and waiting on %s.", summary.RunID, status, countNoun(len(detail.PendingApprovalIDs), "approval", "approvals"))
+	}
+	if detail.Coordination.Blocked {
+		return fmt.Sprintf("Run %s is %s and currently blocked.", summary.RunID, status)
+	}
+	if strings.Contains(strings.ToLower(strings.TrimSpace(summary.LifecycleState)), "fail") {
+		return fmt.Sprintf("Run %s finished in a failed state.", summary.RunID)
+	}
+	if strings.EqualFold(strings.TrimSpace(summary.LifecycleState), "completed") {
+		return fmt.Sprintf("Run %s completed successfully.", summary.RunID)
+	}
+	return fmt.Sprintf("Run %s is %s.", summary.RunID, status)
+}
+
+func runOverviewReason(detail *brokerapi.RunDetail) string {
+	if detail == nil {
+		return "n/a"
+	}
+	parts := []string{}
+	if workflow := strings.TrimSpace(runWorkflowOperatorCue(detail.Summary, detail)); workflow != "" {
+		parts = append(parts, workflow)
+	}
+	if blocked := strings.TrimSpace(runBlockingReasonSummary(detail.Summary, detail)); blocked != "" && blocked != "no blocking or failure reason reported" {
+		parts = append(parts, blocked)
+	}
+	if progress := strings.TrimSpace(runOperatorProgressCue(detail)); progress != "" {
+		parts = append(parts, progress)
+	}
+	if len(parts) == 0 {
+		return "No additional operator context reported yet."
+	}
+	return strings.Join(parts, " • ")
+}
+
+func runOverviewNextAction(detail *brokerapi.RunDetail) string {
+	if detail == nil {
+		return "Select a run from the directory."
+	}
+	if len(detail.PendingApprovalIDs) > 0 {
+		return fmt.Sprintf("Open Approvals to review %s, then return here for the updated result.", countNoun(len(detail.PendingApprovalIDs), "pending approval", "pending approvals"))
+	}
+	if detail.Coordination.Blocked {
+		if sessionID := strings.TrimSpace(authoritativeString(detail.AuthoritativeState, "session_id")); sessionID != "" {
+			return fmt.Sprintf("Check session %s for operator context, then review linked artifacts or audit evidence if the block clears.", sessionID)
+		}
+		return "Review the linked session or evidence trail to clear the current block."
+	}
+	if runArtifactCount(detail) > 0 {
+		return "Open Artifacts to review the resulting evidence, or Audit if you need the verification trail."
+	}
+	if runAuditReferenceCount(detail) > 0 {
+		return "Open Audit to confirm the recorded evidence trail."
+	}
+	if sessionID := strings.TrimSpace(authoritativeString(detail.AuthoritativeState, "session_id")); sessionID != "" {
+		return fmt.Sprintf("Open Chat for session %s if you need the surrounding operator conversation.", sessionID)
+	}
+	return "Use the inspector for structured detail if you need the underlying control-plane fields."
+}
+
+func runOverviewEvidenceCue(detail *brokerapi.RunDetail) string {
+	if detail == nil {
+		return ""
+	}
+	parts := []string{}
+	if approvals := len(detail.PendingApprovalIDs); approvals > 0 {
+		parts = append(parts, countNoun(approvals, "approval link", "approval links"))
+	}
+	if artifacts := runArtifactCount(detail); artifacts > 0 {
+		parts = append(parts, countNoun(artifacts, "artifact", "artifacts"))
+	}
+	if audits := runAuditReferenceCount(detail); audits > 0 {
+		parts = append(parts, countNoun(audits, "audit reference", "audit references"))
+	}
+	if len(parts) == 0 {
+		return "No linked evidence reported yet."
+	}
+	return strings.Join(parts, " • ")
+}
+
+func runWorkflowOperatorCue(summary brokerapi.RunSummary, detail *brokerapi.RunDetail) string {
+	workflow := strings.TrimSpace(summary.WorkflowKind)
+	if workflow == "" {
+		workflow = strings.TrimSpace(authoritativeString(detail.AuthoritativeState, "workflow_kind"))
+	}
+	stage := strings.TrimSpace(summary.CurrentStageID)
+	if stage == "" {
+		stage = strings.TrimSpace(authoritativeString(detail.AuthoritativeState, "workflow_operation"))
+	}
+	parts := []string{}
+	if workflow != "" {
+		parts = append(parts, humanizeRunLabel(workflow))
+	}
+	if stage != "" {
+		parts = append(parts, "current stage "+humanizeRunLabel(stage))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, " • ")
+}
+
+func runOperatorProgressCue(detail *brokerapi.RunDetail) string {
+	if detail == nil {
+		return ""
+	}
+	parts := []string{}
+	if runRunnerActive(detail) {
+		parts = append(parts, "runner reporting is active")
+	}
+	if checkpoint := strings.TrimSpace(runCheckpointCode(detail)); checkpoint != "" {
+		parts = append(parts, "last checkpoint "+humanizeRunLabel(checkpoint))
+	}
+	return strings.Join(parts, " • ")
+}
+
+func humanizeRunLabel(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	value = strings.ReplaceAll(value, "_", " ")
+	value = strings.ReplaceAll(value, "-", " ")
+	return value
+}
+
 func runWorkflowOperation(summary brokerapi.RunSummary, detail *brokerapi.RunDetail) string {
 	workflow := strings.TrimSpace(summary.WorkflowKind)
 	if workflow == "" {

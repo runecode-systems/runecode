@@ -38,8 +38,20 @@ func TestRunsRouteExplainsBrokerPostureAndStateTaxonomy(t *testing.T) {
 		"Structured/raw modes expose workflow hashes",
 		"Runtime assurance: Isolation: sandboxed",
 	)
+	mustContainAll(t, view,
+		"Run overview",
+		"Run run-1 is active and waiting on 1 approval.",
+		"Next: Open Approvals to review 1 pending approval, then return here for the updated result.",
+		"Safety and evidence",
+		"Run directory",
+	)
 	if strings.Contains(view, "Summary: Run run-1 is active with 1 pending approval(s).") {
 		t.Fatalf("expected run detail only in inspector region, got %q", view)
+	}
+	for _, banned := range []string{"Selected run", "workflow=", "operation=", "backend=", "audit=", "Modes:"} {
+		if strings.Contains(view, banned) {
+			t.Fatalf("expected %q to stay out of rendered runs pane, got %q", banned, view)
+		}
 	}
 }
 
@@ -274,7 +286,7 @@ func TestRunsReloadKeepsSelectedDetailAligned(t *testing.T) {
 
 	view := updated.View(120, 40, focusContent)
 	mustContainAll(t, view,
-		"Selected run",
+		"Run overview",
 		"Run run-2 is blocked.",
 		"Run directory",
 	)

@@ -136,7 +136,6 @@ func (m runsRouteModel) handleShellPreferences(msg routeShellPreferencesMsg) (ro
 }
 
 func (m runsRouteModel) View(width, height int, focus focusArea) string {
-	_ = width
 	_ = height
 	if m.loading {
 		return renderStateCard(routeLoadStateLoading, "Runs", "Loading runs and linked workflow evidence...")
@@ -147,14 +146,13 @@ func (m runsRouteModel) View(width, height int, focus focusArea) string {
 	body := []string{
 		sectionTitle("Runs") + " " + focusBadge(focus),
 		renderStateCardSpec(runStateCard(m.active)),
-		renderRunSafetyStrip(m.activeSummary(), width-4),
-		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
+		renderRunMainPaneCues(m.active, m.activeSummary(), width-4),
 		renderDirectory("Run directory", renderRunDirectoryItems(m.runs), m.selected),
 	}
 	if len(m.runs) == 0 {
 		body = append(body, muted("No runs are available yet; reload after the broker reports canonical run activity."))
 	}
-	body = append(body, muted("Runs keeps the broker-owned outcome, coordination, and evidence trail together for the selected workflow."))
+	body = append(body, muted("Runs keeps the selected workflow outcome, operator checkpoints, and linked evidence together."))
 	body = append(body, keyHint("Keys: j/k move • enter review • i inspector • v mode • r reload"))
 	return compactLines(body...)
 }
@@ -303,13 +301,11 @@ func renderRunDirectoryItems(runs []brokerapi.RunSummary) []string {
 	for _, run := range runs {
 		items = append(items, strings.TrimSpace(strings.Join([]string{
 			run.RunID,
-			stateBadgeWithLabel("state", run.LifecycleState),
-			fmt.Sprintf("workflow=%s", valueOrNA(run.WorkflowKind)),
-			fmt.Sprintf("operation=%s", valueOrNA(run.CurrentStageID)),
-			fmt.Sprintf("backend=%s", valueOrNA(run.BackendKind)),
-			fmt.Sprintf("approvals=%d", run.PendingApprovalCount),
-			fmt.Sprintf("audit=%s/%s", valueOrNA(run.AuditIntegrityStatus), valueOrNA(run.AuditAnchoringStatus)),
-		}, " ")))
+			postureBadge(run.LifecycleState),
+			runDirectoryWorkflowCue(run),
+			runDirectoryAttentionCue(run),
+			runDirectoryEvidenceCue(run),
+		}, " • ")))
 	}
 	return items
 }
@@ -318,12 +314,12 @@ func runStateCard(detail *brokerapi.RunDetail) stateCardSpec {
 	if detail == nil {
 		return stateCardSpec{
 			State:       routeLoadStateEmpty,
-			Title:       "Selected run",
-			Message:     "Pick a run to review workflow outcome and evidence.",
-			Reason:      "The directory stays broker-owned; no local progress is synthesized here.",
-			NextAction:  "Select a run from the directory.",
+			Title:       "Run overview",
+			Message:     "Choose a run to review what happened and what needs attention.",
+			Reason:      "The directory keeps each run tied to its approvals, artifacts, and audit trail.",
+			NextAction:  "Select a run from the directory to open its operator summary.",
 			ShortcutCue: "j/k move • enter review",
-			RouteCue:    "Runs",
+			RouteCue:    "Approvals / Artifacts / Audit",
 		}
 	}
 	state := routeLoadStateReady
@@ -341,11 +337,106 @@ func runStateCard(detail *brokerapi.RunDetail) stateCardSpec {
 	}
 	return stateCardSpec{
 		State:       state,
-		Title:       "Selected run",
-		Message:     fmt.Sprintf("Run %s is %s.", detail.Summary.RunID, valueOrNA(detail.Summary.LifecycleState)),
-		Reason:      fmt.Sprintf("Workflow %s • %s • %s", runWorkflowOperation(detail.Summary, detail), runPlanAuthoritySummary(detail.Summary, detail), runEvidenceSummary(detail)),
-		NextAction:  fmt.Sprintf("Use the inspector for detail, then jump to session=%s / approvals=%d / artifacts=%d / audit=%d as needed.", valueOrNA(authoritativeString(detail.AuthoritativeState, "session_id")), len(detail.PendingApprovalIDs), runArtifactCount(detail), runAuditReferenceCount(detail)),
+		Title:       "Run overview",
+		Message:     runOverviewMessage(detail),
+		Reason:      runOverviewReason(detail),
+		NextAction:  runOverviewNextAction(detail),
 		ShortcutCue: "enter review • i inspector",
 		RouteCue:    "Chat / Approvals / Artifacts / Audit",
+		EvidenceCue: runOverviewEvidenceCue(detail),
 	}
+}
+
+func renderRunMainPaneCues(detail *brokerapi.RunDetail, summary brokerapi.RunSummary, width int) string {
+	if strings.TrimSpace(summary.RunID) == "" {
+		return ""
+	}
+	cues := []string{}
+	if attention := strings.TrimSpace(runDirectoryAttentionCue(summary)); attention != "" {
+		cues = append(cues, attention)
+	}
+	if runtime := strings.TrimSpace(runMainPaneRuntimeCue(summary)); runtime != "" {
+		cues = append(cues, runtime)
+	}
+	if provisioning := strings.TrimSpace(runMainPaneProvisioningCue(summary)); provisioning != "" {
+		cues = append(cues, provisioning)
+	}
+	if audit := strings.TrimSpace(runMainPaneAuditCue(summary)); audit != "" {
+		cues = append(cues, audit)
+	}
+	if detail != nil {
+		if evidence := strings.TrimSpace(runOverviewEvidenceCue(detail)); evidence != "" {
+			cues = append(cues, evidence)
+		}
+	}
+	if len(cues) == 0 {
+		return ""
+	}
+	return compactLines(tableHeader("Safety and evidence"), wrapPartsByWidth(cues, " • ", width))
+}
+
+func runDirectoryWorkflowCue(summary brokerapi.RunSummary) string {
+	workflow := strings.TrimSpace(summary.WorkflowKind)
+	if workflow == "" {
+		workflow = strings.TrimSpace(summary.CurrentStageID)
+	}
+	if workflow == "" {
+		return "Run activity"
+	}
+	return humanizeRunLabel(workflow)
+}
+
+func runDirectoryAttentionCue(summary brokerapi.RunSummary) string {
+	switch {
+	case summary.PendingApprovalCount > 0:
+		return countNoun(summary.PendingApprovalCount, "approval waiting", "approvals waiting")
+	case strings.Contains(strings.ToLower(strings.TrimSpace(summary.LifecycleState)), "fail"):
+		return "needs operator review"
+	case strings.EqualFold(strings.TrimSpace(summary.LifecycleState), "blocked"):
+		return "operator follow-up needed"
+	case summary.RuntimePostureDegraded:
+		return "runtime posture needs review"
+	default:
+		return "progress healthy"
+	}
+}
+
+func runDirectoryEvidenceCue(summary brokerapi.RunSummary) string {
+	if summary.AuditCurrentlyDegraded || !strings.EqualFold(strings.TrimSpace(summary.AuditAnchoringStatus), "ok") || !strings.EqualFold(strings.TrimSpace(summary.AuditIntegrityStatus), "ok") {
+		return "audit trail needs review"
+	}
+	return "audit trail available"
+}
+
+func runMainPaneRuntimeCue(summary brokerapi.RunSummary) string {
+	nBackend := strings.ToLower(strings.TrimSpace(summary.BackendKind))
+	nIsolation := strings.ToLower(strings.TrimSpace(summary.IsolationAssuranceLevel))
+	switch {
+	case summary.RuntimePostureDegraded || nIsolation == "degraded" || nIsolation == "unavailable" || nIsolation == "unknown":
+		return "runtime posture needs review"
+	case nBackend == "container" || nIsolation == "reduced":
+		return "runtime uses reduced assurance"
+	case nIsolation == "sandboxed" || nIsolation == "isolated" || nIsolation == "microvm":
+		return "runtime is operating in an isolated environment"
+	default:
+		return "runtime posture reported"
+	}
+}
+
+func runMainPaneProvisioningCue(summary brokerapi.RunSummary) string {
+	switch strings.ToLower(strings.TrimSpace(summary.ProvisioningPosture)) {
+	case "ok", "trusted", "bound", "attested":
+		return "provisioning evidence is in good standing"
+	case "tofu", "degraded", "unavailable", "unknown":
+		return "provisioning evidence needs review"
+	default:
+		return "provisioning posture reported"
+	}
+}
+
+func runMainPaneAuditCue(summary brokerapi.RunSummary) string {
+	if summary.AuditCurrentlyDegraded || !strings.EqualFold(strings.TrimSpace(summary.AuditAnchoringStatus), "ok") || !strings.EqualFold(strings.TrimSpace(summary.AuditIntegrityStatus), "ok") {
+		return "audit trail needs review"
+	}
+	return "audit trail looks healthy"
 }
