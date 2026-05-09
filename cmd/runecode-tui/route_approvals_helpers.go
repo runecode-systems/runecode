@@ -26,7 +26,14 @@ func renderApprovalList(items []brokerapi.ApprovalSummary, selected int) string 
 func renderApprovalDirectoryItems(items []brokerapi.ApprovalSummary) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {
-		out = append(out, fmt.Sprintf("%s %s %s %s gate=%s", valueOrNA(item.ApprovalID), approvalDisplayLabel(item), approvalPrimaryStateBadge(item), approvalQueueReason(item), approvalBoundScopeCue(item)))
+		row := fmt.Sprintf("%s %s %s", valueOrNA(item.ApprovalID), approvalDisplayLabel(item), approvalPrimaryStateBadge(item))
+		if cue := strings.TrimSpace(approvalQueueReason(item)); cue != "" {
+			row += " • " + cue
+		}
+		if scope := strings.TrimSpace(approvalBoundScopeCue(item)); scope != "" {
+			row += " • " + scope
+		}
+		out = append(out, row)
 	}
 	return out
 }
@@ -279,11 +286,28 @@ func renderApprovalOverviewCard(resp *brokerapi.ApprovalGetResponse) string {
 		State:       state,
 		Title:       "Approval review",
 		Message:     fmt.Sprintf("%s needs attention for %s.", approvalDisplayLabel(summary), approvalDisplayState(summary, detail)),
-		Reason:      approvalPrimaryReason(summary, detail),
+		Reason:      approvalOperatorReason(summary, detail),
 		NextAction:  fmt.Sprintf("Review %s first, then %s.", approvalReviewFirst(summary, detail), approvalNextAction(summary, detail)),
 		ShortcutCue: "enter / a",
 		RouteCue:    approvalFollowUpRoute(summary),
 	})
+}
+
+func renderApprovalDecisionWorkbench(resp *brokerapi.ApprovalGetResponse) string {
+	if resp == nil {
+		return compactLines(
+			tableHeader("Decision workbench"),
+			"Load an approval to review the evidence trail and decide where the workflow should continue.",
+		)
+	}
+	summary := resp.Approval
+	detail := resp.ApprovalDetail
+	return compactLines(
+		tableHeader("Decision workbench"),
+		fmt.Sprintf("Start with %s. Scope: %s.", approvalReviewFirst(summary, detail), approvalWorkScopeSummary(summary, detail)),
+		approvalEvidenceGuidance(summary, detail),
+		approvalDecisionGuidance(summary, detail),
+	)
 }
 
 func renderApprovalReviewPlan(resp *brokerapi.ApprovalGetResponse) string {

@@ -131,18 +131,18 @@ func approvalResolveBlockedReason(summary brokerapi.ApprovalSummary, detail brok
 func approvalBoundScopeCue(summary brokerapi.ApprovalSummary) string {
 	parts := []string{}
 	if run := strings.TrimSpace(summary.BoundScope.RunID); run != "" {
-		parts = append(parts, "run="+run)
+		parts = append(parts, "run "+run)
 	}
 	if stage := strings.TrimSpace(summary.BoundScope.StageID); stage != "" {
-		parts = append(parts, "stage="+stage)
+		parts = append(parts, "stage "+stage)
 	}
 	if action := strings.TrimSpace(summary.BoundScope.ActionKind); action != "" {
-		parts = append(parts, "action="+action)
+		parts = append(parts, humanizeExecutionToken(action))
 	}
 	if len(parts) == 0 {
-		return "broker_scope=n/a"
+		return ""
 	}
-	return strings.Join(parts, ",")
+	return strings.Join(parts, " • ")
 }
 
 func approvalExactObjectAction(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {

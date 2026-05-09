@@ -82,6 +82,77 @@ func approvalReviewFirst(summary brokerapi.ApprovalSummary, detail brokerapi.App
 	return "the linked broker evidence"
 }
 
+func approvalOperatorReason(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {
+	switch workflowApprovalState(summary, detail) {
+	case "expired":
+		return "the previous approval window expired, so the blocked action needs a fresh approval before it can continue"
+	case "resolved":
+		return "the broker already recorded a decision for this approval"
+	case "denied":
+		return "the broker recorded a denied decision, so workflow progress needs a new approved gate"
+	default:
+		if approvalResolveSupported(summary, detail) {
+			return fmt.Sprintf("operator review is still required before %s can continue", approvalDisplayLabel(summary))
+		}
+		return fmt.Sprintf("operator review is required before %s can continue", approvalDisplayLabel(summary))
+	}
+}
+
+func approvalWorkScopeSummary(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {
+	scope := detail.BlockedWorkScope
+	if strings.TrimSpace(scope.ActionKind) == "" {
+		scope.WorkspaceID = summary.BoundScope.WorkspaceID
+		scope.RunID = summary.BoundScope.RunID
+		scope.StageID = summary.BoundScope.StageID
+		scope.StepID = summary.BoundScope.StepID
+		scope.RoleInstanceID = summary.BoundScope.RoleInstanceID
+		scope.ActionKind = summary.BoundScope.ActionKind
+	}
+	parts := []string{}
+	if run := strings.TrimSpace(valueOrBlank(scope.RunID)); run != "" {
+		parts = append(parts, "run "+run)
+	}
+	if stage := strings.TrimSpace(valueOrBlank(scope.StageID)); stage != "" {
+		parts = append(parts, "stage "+stage)
+	}
+	if step := strings.TrimSpace(valueOrBlank(scope.StepID)); step != "" {
+		parts = append(parts, "step "+step)
+	}
+	if role := strings.TrimSpace(valueOrBlank(scope.RoleInstanceID)); role != "" {
+		parts = append(parts, "role "+role)
+	}
+	if action := strings.TrimSpace(scope.ActionKind); action != "" {
+		parts = append(parts, humanizeExecutionToken(action))
+	}
+	if len(parts) == 0 {
+		return "linked approval scope"
+	}
+	return strings.Join(parts, " • ")
+}
+
+func approvalEvidenceGuidance(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {
+	first := approvalReviewFirst(summary, detail)
+	if strings.TrimSpace(summary.BoundScope.RunID) != "" {
+		return fmt.Sprintf("Evidence trail: review %s, then open Audit for policy and verification context.", first)
+	}
+	return fmt.Sprintf("Evidence trail: review %s, then continue in Audit for the linked decision record.", first)
+}
+
+func approvalDecisionGuidance(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {
+	switch workflowApprovalState(summary, detail) {
+	case "resolved":
+		return "Decision path: this approval is already settled; refresh to confirm the workflow continues."
+	case "expired":
+		return "Decision path: this approval expired; request a fresh approval before continuing."
+	case "denied":
+		return "Decision path: this approval was denied; the workflow needs a new approved gate before continuing."
+	}
+	if approvalResolveSupported(summary, detail) {
+		return "Decision path: after review, you can resolve this approval here."
+	}
+	return fmt.Sprintf("Decision path: review here, then continue in %s for the final workflow-specific step.", approvalFollowUpRoute(summary))
+}
+
 func approvalAuditLinkSummary(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {
 	if run := strings.TrimSpace(summary.BoundScope.RunID); run != "" {
 		return "run " + run
@@ -107,7 +178,7 @@ func approvalFollowUpRoute(summary brokerapi.ApprovalSummary) string {
 }
 
 func approvalDisplayLabel(summary brokerapi.ApprovalSummary) string {
-	action := strings.TrimSpace(summary.BoundScope.ActionKind)
+	action := humanizeExecutionToken(summary.BoundScope.ActionKind)
 	if run := strings.TrimSpace(summary.BoundScope.RunID); run != "" {
 		if action != "" {
 			return fmt.Sprintf("%s for %s", approvalUIValue(action), approvalUIValue(run))
@@ -121,11 +192,13 @@ func approvalDisplayLabel(summary brokerapi.ApprovalSummary) string {
 }
 
 func approvalQueueReason(summary brokerapi.ApprovalSummary) string {
-	trigger := strings.TrimSpace(summary.ApprovalTriggerCode)
-	if trigger == "" {
-		return "review pending"
+	if run := strings.TrimSpace(summary.BoundScope.RunID); run != "" {
+		return "Review evidence for " + approvalUIValue(run)
 	}
-	return "reason=" + approvalUIValue(trigger)
+	if action := strings.TrimSpace(summary.BoundScope.ActionKind); action != "" {
+		return "Review the requested " + approvalUIValue(humanizeExecutionToken(action))
+	}
+	return "Review linked evidence"
 }
 
 func shortIdentity(value string) string {

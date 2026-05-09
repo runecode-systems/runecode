@@ -85,8 +85,17 @@ func TestApprovalsRouteDistinguishesCodesLifecycleAndBinding(t *testing.T) {
 	if !strings.Contains(view, "Approval review") {
 		t.Fatalf("expected approval overview card in main view, got %q", view)
 	}
+	mustContainAll(t, view,
+		"Decision workbench",
+		"Approval queue",
+	)
 	if strings.Contains(view, "Summary: approval=ap-1 state=approval required") {
 		t.Fatalf("expected approval detail only in inspector region, got %q", view)
+	}
+	for _, banned := range []string{"Modes:", "policy_reason_code=", "approval_trigger_code=", "reason=", "gate="} {
+		if strings.Contains(view, banned) {
+			t.Fatalf("expected %q to stay out of rendered approvals pane, got %q", banned, view)
+		}
 	}
 }
 
@@ -143,11 +152,11 @@ func TestApprovalsRouteSupportsTypedResolveFlowPath(t *testing.T) {
 	updated, _ = updated.Update(cmd())
 
 	view := updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "Evidence path: promotion for run-1 -> artifacts (run evidence for run-1) -> audit (run run-1)") {
-		t.Fatalf("expected typed flow-path summary in view, got %q", view)
+	if !strings.Contains(view, "Evidence trail: review run evidence for run-1, then open Audit for policy and verification context.") {
+		t.Fatalf("expected compact evidence guidance in view, got %q", view)
 	}
-	if !strings.Contains(view, "verification posture (Audit) -> anchor/export actions where available") {
-		t.Fatalf("expected evidence trail copy in flow path, got %q", view)
+	if !strings.Contains(view, "Decision path: review here, then continue in Artifacts → Audit for the final workflow-specific step.") {
+		t.Fatalf("expected decision guidance in view, got %q", view)
 	}
 
 	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})

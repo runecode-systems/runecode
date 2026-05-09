@@ -154,10 +154,7 @@ func (m approvalsRouteModel) View(width, height int, focus focusArea) string {
 	body := []string{
 		sectionTitle("Approvals") + " " + focusBadge(focus),
 		renderApprovalOverviewCard(m.active),
-		renderApprovalSafetyStrip(m.active),
-		renderApprovalFlowPath(m.active),
-		renderApprovalReviewPlan(m.active),
-		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
+		renderApprovalDecisionWorkbench(m.active),
 		renderDirectory("Approval queue", renderApprovalDirectoryItems(m.items), m.selected),
 	}
 	if len(m.items) == 0 {
