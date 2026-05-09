@@ -27,8 +27,8 @@ func (m shellModel) View() string {
 func (m shellModel) renderShellWorkbench(surface routeSurface, layout shellLayoutPlan, viewportWidth int, viewportHeight int) string {
 	overlayBody, _ := m.overlayBodyWithHeight(surface, layout, viewportHeight)
 	b := strings.Builder{}
-	m.writeShellFrame(&b, surface, layout)
-	m.writeShellFooter(&b)
+	m.writeShellFrame(&b, surface, layout, viewportWidth)
+	m.writeShellFooter(&b, viewportWidth)
 	frame := padShellBlock(strings.TrimRight(b.String(), "\n"), viewportWidth, m.availableShellHeight())
 	if strings.TrimSpace(overlayBody) == "" {
 		return lipgloss.JoinVertical(lipgloss.Left, frame)
@@ -36,8 +36,7 @@ func (m shellModel) renderShellWorkbench(surface routeSurface, layout shellLayou
 	return lipgloss.JoinVertical(lipgloss.Left, frame, overlayBody)
 }
 
-func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, layout shellLayoutPlan) {
-	viewportWidth, _ := normalizedShellViewport(m.width, m.height)
+func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, layout shellLayoutPlan, viewportWidth int) {
 	b.WriteString(constrainShellBlock(m.renderTopStatus(surface, layout), viewportWidth, shellTopStatusHeight))
 	b.WriteString("\n")
 	b.WriteString(constrainShellBlock(m.renderSyncHealth(), viewportWidth, shellSyncHealthHeight))
@@ -52,11 +51,10 @@ func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, la
 	b.WriteString("\n")
 }
 
-func (m shellModel) writeShellFooter(b *strings.Builder) {
-	viewportWidth, _ := normalizedShellViewport(m.width, m.height)
+func (m shellModel) writeShellFooter(b *strings.Builder, viewportWidth int) {
 	b.WriteString(constrainShellBlock(renderHelp(m.keys, m.palette.IsOpen() || m.sessions.IsOpen(), m.actions), viewportWidth, 1))
 	b.WriteString("\n")
-	b.WriteString(constrainShellBlock(muted("Truth via typed broker state; details in Status, inspectors, and command discovery."), viewportWidth, 1))
+	b.WriteString(constrainShellBlock(muted("Broker-owned truth stays in Status, inspectors, and command discovery."), viewportWidth, 1))
 	b.WriteString("\n")
 }
 
@@ -142,7 +140,8 @@ func (m shellModel) narrowInspectorOverlayBody(surface routeSurface, layout shel
 }
 
 func (m shellModel) activeOverlayHeight(viewportHeight int) int {
-	_, height := m.overlayBodyWithHeight(m.activeShellSurfaceWithoutOverlayHeight(), m.planShellLayout(m.activeShellSurfaceWithoutOverlayHeight()), viewportHeight)
+	surface := m.activeShellSurfaceWithoutOverlayHeight()
+	_, height := m.overlayBodyWithHeight(surface, m.planShellLayout(surface), viewportHeight)
 	return height
 }
 
@@ -195,20 +194,19 @@ func constrainShellBlock(block string, width int, height int) string {
 
 func (m shellModel) renderTopStatus(surface routeSurface, layout shellLayoutPlan) string {
 	activity := renderShellActivityState(m.watch.projection.Activity.State)
-	routeSummary := fmt.Sprintf("%s  %s", appTheme.AppTitle.Render("RuneCode Workbench"), neutralBadge("THEME "+string(m.themePreset)))
-	workbenchSummary := []string{
-		fmt.Sprintf("Route %s", sanitizeUIText(m.routeLabel(m.currentRouteID()))),
-		fmt.Sprintf("Focus %s", strings.ToUpper(m.focus.Label())),
-		activity,
-	}
+	routeSummary := fmt.Sprintf("%s  %s", appTheme.AppTitle.Render("RuneCode Workbench"), neutralBadge("ROUTE "+strings.ToUpper(sanitizeUIText(m.routeLabel(m.currentRouteID())))))
+	workbenchSummary := []string{fmt.Sprintf("Focus %s", strings.ToUpper(m.focus.Label())), activity}
 	if activeWork := strings.TrimSpace(m.renderActiveWorkSummary()); activeWork != "" {
 		workbenchSummary = append(workbenchSummary, activeWork)
 	}
 	if strings.TrimSpace(m.activeSessionID) != "" {
 		workbenchSummary = append(workbenchSummary, fmt.Sprintf("Session %s", sanitizeUIText(m.activeSessionID)))
 	}
-	if diag := strings.TrimSpace(m.renderChromeDiagnosticHint(surface, layout)); diag != "" {
-		workbenchSummary = append(workbenchSummary, muted(diag))
+	if m.selectionMode {
+		workbenchSummary = append(workbenchSummary, "Selection mode on")
+	}
+	if routeInspectorAvailable(surface) && layout.InspectorVisible {
+		workbenchSummary = append(workbenchSummary, "Inspector ready")
 	}
 	return compactLines(
 		appTheme.SurfaceChrome.Padding(0, 1).Render(routeSummary),
@@ -226,12 +224,12 @@ func renderRunningSuffix(indicator string) string {
 
 func (m shellModel) renderSyncHealth() string {
 	text := "Product truth: " + renderShellSyncState(m.watch.projection.Health.State)
-	if strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" {
-		text += " " + infoBadge(fmt.Sprintf("active_%s=%s", sanitizeUIText(m.watch.projection.Activity.Active.Kind), sanitizeUIText(m.watch.projection.Activity.Active.ID)))
-	}
-	text += "  •  " + muted(localBrokerBoundaryPosture())
+	text += "  •  broker-owned via local broker IPC"
 	if strings.TrimSpace(m.watch.projection.Health.ErrorText) != "" {
-		text += " " + muted("("+sanitizeUIText(m.watch.projection.Health.ErrorText)+")")
+		text += "  •  " + muted("check Status: "+sanitizeUIText(m.watch.projection.Health.ErrorText))
+	}
+	if actions := strings.TrimSpace(m.renderPrimaryWorkbenchActions()); actions != "" {
+		text += "  •  " + actions
 	}
 	return text
 }

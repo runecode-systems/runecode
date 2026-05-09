@@ -67,6 +67,7 @@ func (m shellModel) renderSessionQuickSwitcher() string {
 		if m.watch.projection.Activity.Active.Kind == "session" && strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" && m.watch.projection.Activity.Active.ID == s.Identity.SessionID {
 			sessionLabel = "● " + sessionLabel
 		}
+		preview := truncateText(sanitizeUIText(s.LastActivityPreview), 50)
 		line := fmt.Sprintf(" %s %s | ws=%s | activity=%s/%s | cue=%s | preview=%q | incomplete=%t | runs=%d approvals=%d",
 			marker,
 			sessionLabel,
@@ -74,7 +75,7 @@ func (m shellModel) renderSessionQuickSwitcher() string {
 			defaultPlaceholder(s.LastActivityAt, "n/a"),
 			defaultPlaceholder(s.LastActivityKind, "n/a"),
 			sessionHighLevelCue(s),
-			truncateText(s.LastActivityPreview, 50),
+			preview,
 			s.HasIncompleteTurn,
 			s.LinkedRunCount,
 			s.LinkedApprovalCount,
@@ -221,4 +222,18 @@ func (m shellModel) renderRunningIndicator() string {
 		label = fmt.Sprintf("running %s:%s", sanitizeUIText(m.watch.projection.Activity.Active.Kind), sanitizeUIText(m.watch.projection.Activity.Active.ID))
 	}
 	return infoBadge(frames[m.activityFrame%len(frames)] + " " + label)
+}
+
+func (m shellModel) renderPrimaryWorkbenchActions() string {
+	parts := make([]string, 0, 3)
+	if _, ok := m.actions.definitionByID("shell.open_action_center"); ok {
+		parts = append(parts, "Action Center")
+	}
+	if _, ok := m.actions.definitionByID("shell.open_approvals"); ok {
+		parts = append(parts, "Approvals")
+	}
+	if _, ok := m.actions.definitionByID("shell.open_palette"); ok {
+		parts = append(parts, "Commands ctrl+p/:")
+	}
+	return strings.Join(parts, " · ")
 }

@@ -349,12 +349,12 @@ func TestShellViewRendersShellSurfaces(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
 	v := m.View()
-	for _, want := range []string{"RuneCode Workbench", "Product truth:", "Main pane", "Sidebar", "Bottom strip", "Status:"} {
+	for _, want := range []string{"RuneCode Workbench", "ROUTE", "Product truth:", "Main pane", "Sidebar", "Workbench actions", "Status:"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected %q in view, got %q", want, v)
 		}
 	}
-	for _, retired := range []string{"Path:", "History:", "clipboard="} {
+	for _, retired := range []string{"Path:", "History:", "clipboard=", localBrokerBoundaryPosture(), "inspector on", "copy actions 3 via action entry"} {
 		if strings.Contains(v, retired) {
 			t.Fatalf("did not expect retired dense chrome text %q in view, got %q", retired, v)
 		}
@@ -614,15 +614,6 @@ func TestShellOverlayDoesNotBlockWatchUpdates(t *testing.T) {
 	}
 }
 
-func TestShellBottomStripSelectionHintUsesCtrlT(t *testing.T) {
-	m := newShellModel()
-	m.width = 150
-	v := m.View()
-	if !strings.Contains(v, "Use Status, inspectors, or command discovery for detailed diagnostics") {
-		t.Fatalf("expected calm diagnostic hint in bottom strip, got %q", v)
-	}
-}
-
 func TestShellScrollDispatchTargetsRouteViewportState(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
@@ -720,19 +711,6 @@ func TestShellPaletteCommandEntriesComeFromActionDefinitions(t *testing.T) {
 	}
 	if !foundLabel || !foundSearch {
 		t.Fatalf("expected palette command entry metadata sourced from unified action graph; label=%t search=%t", foundLabel, foundSearch)
-	}
-}
-
-func TestHelpIncludesActionMetadataFromUnifiedDefinitions(t *testing.T) {
-	m := newShellModel()
-	cmd := m.commands.commands["shell.focus_main"]
-	cmd.HelpText = "focus main pane — custom help text"
-	m.commands.Register(cmd)
-	m.actions = newShellActionGraph(m.routes, m.commands)
-
-	help := renderHelp(m.keys, false, m.actions)
-	if !strings.Contains(help, "focus main pane — custom help text") {
-		t.Fatalf("expected help to include action-metadata help text, got %q", help)
 	}
 }
 

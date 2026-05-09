@@ -41,9 +41,9 @@ func activeSessionSummaryLine(detail *brokerapi.SessionDetail) string {
 	}
 	s := detail.Summary
 	exec := chatVisibleExecution(detail)
-	statusParts := []string{fmt.Sprintf("Session %s in workspace %s is %s.", s.Identity.SessionID, valueOrNA(s.Identity.WorkspaceID), sessionHighLevelCue(s))}
+	statusParts := []string{fmt.Sprintf("Canonical session %s in workspace %s is %s.", s.Identity.SessionID, valueOrNA(s.Identity.WorkspaceID), sessionHighLevelCue(s))}
 	if exec != nil {
-		statusParts = append(statusParts, fmt.Sprintf("Latest workflow state: %s", humanizeExecutionToken(exec.ExecutionState)))
+		statusParts = append(statusParts, fmt.Sprintf("Current workflow state: %s", humanizeExecutionToken(exec.ExecutionState)))
 		if wait := strings.TrimSpace(exec.WaitState); wait != "" {
 			statusParts = append(statusParts, fmt.Sprintf("waiting on %s", humanizeExecutionToken(wait)))
 		}
@@ -52,6 +52,15 @@ func activeSessionSummaryLine(detail *brokerapi.SessionDetail) string {
 		statusParts = append(statusParts, fmt.Sprintf("last activity %q", preview))
 	}
 	return strings.Join(statusParts, " • ")
+}
+
+func composeDraftStatusLine(draft string) string {
+	draft = strings.TrimSpace(draft)
+	if draft == "" {
+		return "Composer is active with an empty draft."
+	}
+	lines := strings.Count(draft, "\n") + 1
+	return fmt.Sprintf("Composer has a local draft (%d chars across %d line(s)).", len([]rune(draft)), lines)
 }
 
 func renderTranscriptTurns(turns []brokerapi.SessionTranscriptTurn) string {

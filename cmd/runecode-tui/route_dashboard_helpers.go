@@ -16,6 +16,43 @@ type dashboardExecutiveSummary struct {
 	NextAction string
 }
 
+type dashboardSnapshot struct {
+	PrimaryRun          brokerapi.RunSummary
+	PendingApprovals    int
+	BlockedRuns         int
+	DegradedSignals     int
+	ActiveRuns          int
+	RunRuntimeDegraded  int
+	SetupBlocked        bool
+	SetupNeedsAttention bool
+	AuditDegraded       bool
+	NoWork              bool
+	Executive           dashboardExecutiveSummary
+}
+
+func buildDashboardSnapshot(data dashboardData) dashboardSnapshot {
+	snapshot := dashboardSnapshot{
+		PrimaryRun:          primaryDashboardRun(data.runs),
+		PendingApprovals:    pendingApprovalCount(data.runs, data.approvals),
+		BlockedRuns:         dashboardBlockedRunCount(data.runs),
+		ActiveRuns:          dashboardActiveRunCount(data.runs),
+		RunRuntimeDegraded:  dashboardRunRuntimeDegradedCount(data.runs),
+		SetupBlocked:        dashboardProjectSubstrateBlocked(data.project),
+		SetupNeedsAttention: dashboardProjectSubstrateNeedsAttention(data.project),
+		AuditDegraded:       dashboardAuditDegraded(data.audit),
+	}
+	snapshot.DegradedSignals = snapshot.RunRuntimeDegraded
+	if snapshot.AuditDegraded {
+		snapshot.DegradedSignals++
+	}
+	if !data.readiness.Ready {
+		snapshot.DegradedSignals++
+	}
+	snapshot.NoWork = len(data.runs) == 0 && len(data.approvals) == 0
+	snapshot.Executive = buildDashboardExecutiveSummary(data, snapshot)
+	return snapshot
+}
+
 func degradedDashboardAuditFallback() brokerapi.AuditVerificationGetResponse {
 	return brokerapi.AuditVerificationGetResponse{Summary: trustpolicy.DerivedRunAuditVerificationSummary{
 		CryptographicallyValid: false,
@@ -56,26 +93,18 @@ func renderDashboardNowBar(run brokerapi.RunSummary, approvalCount int, focusAct
 	return wrapPartsByWidth(parts, " ", width)
 }
 
-func buildDashboardExecutiveSummary(data dashboardData) dashboardExecutiveSummary {
-	pendingApprovals := pendingApprovalCount(data.runs, data.approvals)
-	blockedRuns := dashboardBlockedRunCount(data.runs)
-	degradedSignals := dashboardDegradedSignalCount(data)
-	activeRuns := dashboardActiveRunCount(data.runs)
-	setupBlocked := dashboardProjectSubstrateBlocked(data.project)
-	setupNeedsAttention := dashboardProjectSubstrateNeedsAttention(data.project)
-	noWork := len(data.runs) == 0 && len(data.approvals) == 0
-
+func buildDashboardExecutiveSummary(data dashboardData, snapshot dashboardSnapshot) dashboardExecutiveSummary {
 	switch {
-	case noWork:
+	case snapshot.SetupBlocked || snapshot.BlockedRuns > 0:
+		return dashboardBlockedSummary(data, snapshot)
+	case snapshot.DegradedSignals > 0:
+		return dashboardDegradedSummary(data, snapshot)
+	case snapshot.PendingApprovals > 0 || snapshot.SetupNeedsAttention:
+		return dashboardAttentionSummary(data, snapshot)
+	case snapshot.ActiveRuns > 0:
+		return dashboardActiveWorkSummary(snapshot.ActiveRuns)
+	case snapshot.NoWork:
 		return dashboardNoWorkSummary()
-	case setupBlocked || blockedRuns > 0:
-		return dashboardBlockedSummary(data, setupBlocked, blockedRuns)
-	case degradedSignals > 0:
-		return dashboardDegradedSummary(data)
-	case pendingApprovals > 0 || setupNeedsAttention:
-		return dashboardAttentionSummary(data, pendingApprovals, setupNeedsAttention)
-	case activeRuns > 0:
-		return dashboardActiveWorkSummary(activeRuns)
 	default:
 		return defaultDashboardExecutiveSummary()
 	}
@@ -89,37 +118,37 @@ func dashboardNoWorkSummary() dashboardExecutiveSummary {
 	return dashboardExecutiveSummary{State: routeLoadStateEmpty, Title: "No work yet", Message: "RuneCode is ready, but no work has started yet.", Reason: "No recent runs or approvals are visible.", NextAction: "Start work from Chat, then use Action Center."}
 }
 
-func dashboardBlockedSummary(data dashboardData, setupBlocked bool, blockedRuns int) dashboardExecutiveSummary {
+func dashboardBlockedSummary(data dashboardData, snapshot dashboardSnapshot) dashboardExecutiveSummary {
 	reasons := []string{}
-	if setupBlocked {
+	if snapshot.SetupBlocked {
 		reasons = append(reasons, dashboardProjectSubstrateReason(data.project))
 	}
-	if blockedRuns > 0 {
-		reasons = append(reasons, fmt.Sprintf("%d run(s) report blocked or waiting workflow posture", blockedRuns))
+	if snapshot.BlockedRuns > 0 {
+		reasons = append(reasons, fmt.Sprintf("%d run(s) report blocked or waiting workflow posture", snapshot.BlockedRuns))
 	}
 	return dashboardExecutiveSummary{State: routeLoadStateBlocked, Title: "Blocked", Message: "Workflow progress is blocked.", Reason: strings.Join(reasons, "; "), NextAction: "Open Action Center and clear the blocker."}
 }
 
-func dashboardDegradedSummary(data dashboardData) dashboardExecutiveSummary {
+func dashboardDegradedSummary(data dashboardData, snapshot dashboardSnapshot) dashboardExecutiveSummary {
 	reasons := []string{}
 	if !data.readiness.Ready {
 		reasons = append(reasons, "broker readiness is not fully settled")
 	}
-	if dashboardAuditDegraded(data.audit) {
+	if snapshot.AuditDegraded {
 		reasons = append(reasons, "audit or runtime evidence needs review")
 	}
-	if count := dashboardRunRuntimeDegradedCount(data.runs); count > 0 {
-		reasons = append(reasons, fmt.Sprintf("%d run(s) report degraded runtime posture", count))
+	if snapshot.RunRuntimeDegraded > 0 {
+		reasons = append(reasons, fmt.Sprintf("%d run(s) report degraded runtime posture", snapshot.RunRuntimeDegraded))
 	}
 	return dashboardExecutiveSummary{State: routeLoadStateDegraded, Title: "Degraded", Message: "Evidence or runtime posture needs review.", Reason: strings.Join(reasons, "; "), NextAction: "Open Action Center, then confirm Audit or Runs."}
 }
 
-func dashboardAttentionSummary(data dashboardData, pendingApprovals int, setupNeedsAttention bool) dashboardExecutiveSummary {
+func dashboardAttentionSummary(data dashboardData, snapshot dashboardSnapshot) dashboardExecutiveSummary {
 	reasons := []string{}
-	if pendingApprovals > 0 {
-		reasons = append(reasons, fmt.Sprintf("%d approval decision(s) are waiting", pendingApprovals))
+	if snapshot.PendingApprovals > 0 {
+		reasons = append(reasons, fmt.Sprintf("%d approval decision(s) are waiting", snapshot.PendingApprovals))
 	}
-	if setupNeedsAttention {
+	if snapshot.SetupNeedsAttention {
 		reasons = append(reasons, dashboardProjectSubstrateReason(data.project))
 	}
 	return dashboardExecutiveSummary{State: routeLoadStateApprovalRequired, Title: "Needs attention", Message: "Operator follow-up is waiting.", Reason: strings.Join(reasons, "; "), NextAction: "Open Action Center for the exact follow-up."}
@@ -129,70 +158,61 @@ func dashboardActiveWorkSummary(activeRuns int) dashboardExecutiveSummary {
 	return dashboardExecutiveSummary{State: routeLoadStateReady, Title: "Active work", Message: "Workflow work is active.", Reason: fmt.Sprintf("%d active run(s) are visible on the current broker surfaces.", activeRuns), NextAction: "Use Action Center or open Runs for detail."}
 }
 
-func renderDashboardWorkflowPosture(data dashboardData) string {
-	pendingApprovals := pendingApprovalCount(data.runs, data.approvals)
-	blockedRuns := dashboardBlockedRunCount(data.runs)
-	activeRuns := dashboardActiveRunCount(data.runs)
-	setupBlocked := dashboardProjectSubstrateBlocked(data.project)
-	setupNeedsAttention := dashboardProjectSubstrateNeedsAttention(data.project)
-	auditDegraded := dashboardAuditDegraded(data.audit)
-
+func renderDashboardWorkflowPosture(snapshot dashboardSnapshot) string {
 	parts := []string{}
-	if setupBlocked {
+	if snapshot.SetupBlocked {
 		parts = append(parts, "normal product work is blocked until project setup is remediated")
-	} else if blockedRuns > 0 {
-		parts = append(parts, fmt.Sprintf("%d workflow(s) are blocked or waiting on follow-up", blockedRuns))
-	} else if activeRuns > 0 {
-		parts = append(parts, fmt.Sprintf("%d workflow(s) are active", activeRuns))
+	} else if snapshot.BlockedRuns > 0 {
+		parts = append(parts, fmt.Sprintf("%d workflow(s) are blocked or waiting on follow-up", snapshot.BlockedRuns))
+	} else if snapshot.ActiveRuns > 0 {
+		parts = append(parts, fmt.Sprintf("%d workflow(s) are active", snapshot.ActiveRuns))
 	} else {
 		parts = append(parts, "no active workflow work is currently running")
 	}
-	if pendingApprovals > 0 {
-		parts = append(parts, fmt.Sprintf("%d approval decision(s) are waiting", pendingApprovals))
+	if snapshot.PendingApprovals > 0 {
+		parts = append(parts, fmt.Sprintf("%d approval decision(s) are waiting", snapshot.PendingApprovals))
 	}
-	if setupNeedsAttention && !setupBlocked {
+	if snapshot.SetupNeedsAttention && !snapshot.SetupBlocked {
 		parts = append(parts, "project setup guidance is available")
 	}
-	if auditDegraded {
+	if snapshot.AuditDegraded {
 		parts = append(parts, "evidence posture needs review")
 	}
 	return "Workflow posture: " + strings.Join(parts, "; ") + "."
 }
 
-func renderDashboardHighValueCounts(data dashboardData, width int) string {
+func renderDashboardHighValueCounts(snapshot dashboardSnapshot, width int) string {
 	parts := []string{
-		fmt.Sprintf("active work=%d", dashboardActiveRunCount(data.runs)),
-		fmt.Sprintf("approval follow-up=%d", pendingApprovalCount(data.runs, data.approvals)),
-		fmt.Sprintf("blocked or waiting=%d", dashboardBlockedRunCount(data.runs)),
-		fmt.Sprintf("degraded cues=%d", dashboardDegradedSignalCount(data)),
+		fmt.Sprintf("active work=%d", snapshot.ActiveRuns),
+		fmt.Sprintf("approval follow-up=%d", snapshot.PendingApprovals),
+		fmt.Sprintf("blocked or waiting=%d", snapshot.BlockedRuns),
+		fmt.Sprintf("degraded cues=%d", snapshot.DegradedSignals),
 	}
 	return "High-value counts: " + wrapPartsByWidth(parts, " | ", width)
 }
 
-func renderDashboardNextActions(data dashboardData) string {
-	primaryRun := primaryDashboardRun(data.runs)
-	pendingApprovals := pendingApprovalCount(data.runs, data.approvals)
-	if dashboardProjectSubstrateBlocked(data.project) {
+func renderDashboardNextActions(data dashboardData, snapshot dashboardSnapshot) string {
+	if snapshot.SetupBlocked {
 		return "Next action: Open Action Center, follow the setup blocker, then use Status for broker-owned remediation steps."
 	}
-	if pendingApprovals > 0 {
+	if snapshot.PendingApprovals > 0 {
 		return "Next action: Open Action Center and review the pending approval before workflow progress resumes."
 	}
-	if dashboardDegradedSignalCount(data) > 0 {
+	if snapshot.DegradedSignals > 0 {
 		return "Next action: Open Action Center for degraded evidence or runtime follow-up, then inspect Audit or Runs."
 	}
-	if strings.TrimSpace(primaryRun.RunID) != "" {
-		return fmt.Sprintf("Next action: Open Runs for %s or Action Center if new follow-up appears.", sanitizeUIText(primaryRun.RunID))
+	if strings.TrimSpace(snapshot.PrimaryRun.RunID) != "" {
+		return fmt.Sprintf("Next action: Open Runs for %s or Action Center if new follow-up appears.", sanitizeUIText(snapshot.PrimaryRun.RunID))
 	}
 	return "Next action: Start a workflow from Chat, then return here for the executive overview."
 }
 
-func renderDashboardActionCenterCue(data dashboardData) string {
+func renderDashboardActionCenterCue(snapshot dashboardSnapshot) string {
 	return fmt.Sprintf(
 		"Action Center is the operator home for approvals, blocked work, degraded posture, setup follow-up, and waiting queues. Current follow-up: approvals=%d blocked_or_waiting=%d degraded=%d.",
-		pendingApprovalCount(data.runs, data.approvals),
-		dashboardBlockedRunCount(data.runs),
-		dashboardDegradedSignalCount(data),
+		snapshot.PendingApprovals,
+		snapshot.BlockedRuns,
+		snapshot.DegradedSignals,
 	)
 }
 
@@ -224,17 +244,6 @@ func dashboardRunRuntimeDegradedCount(runs []brokerapi.RunSummary) int {
 		if run.RuntimePostureDegraded || run.AuditCurrentlyDegraded {
 			total++
 		}
-	}
-	return total
-}
-
-func dashboardDegradedSignalCount(data dashboardData) int {
-	total := dashboardRunRuntimeDegradedCount(data.runs)
-	if dashboardAuditDegraded(data.audit) {
-		total++
-	}
-	if !data.readiness.Ready {
-		total++
 	}
 	return total
 }

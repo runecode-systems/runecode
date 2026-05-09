@@ -34,15 +34,22 @@ type actionCenterItem struct {
 	Urgency        string
 	Reason         string
 	Impact         string
+	Owner          string
 	RequiredAction string
 	TargetLabel    string
 	EvidenceCue    string
 	Target         paletteTarget
 }
 
+type actionCenterViewModel struct {
+	Families map[actionCenterFamily][]actionCenterItem
+	Summary  actionCenterSummary
+}
+
 type actionCenterRouteModel struct {
 	def         routeDefinition
 	client      localBrokerClient
+	now         func() time.Time
 	loading     bool
 	errText     string
 	statusText  string
@@ -63,6 +70,7 @@ func newActionCenterRouteModel(def routeDefinition, client localBrokerClient) ro
 	return actionCenterRouteModel{
 		def:         def,
 		client:      client,
+		now:         time.Now,
 		inspectorOn: true,
 		family:      actionCenterFamilyApprovals,
 		selected: map[actionCenterFamily]int{
@@ -164,24 +172,23 @@ func (m actionCenterRouteModel) View(width, height int, focus focusArea) string 
 			RouteCue:    "Status or Dashboard",
 		})
 	}
-	families := m.familyBuckets()
-	summary := buildActionCenterSummary(families)
+	vm := m.snapshot()
 	return compactLines(
 		sectionTitle("Action Center")+" "+focusBadge(focus),
 		renderStateCardSpec(stateCardSpec{
-			State:      summary.State,
-			Title:      summary.Title,
-			Message:    summary.Message,
-			Reason:     summary.Reason,
-			NextAction: summary.NextAction,
+			State:      vm.Summary.State,
+			Title:      vm.Summary.Title,
+			Message:    vm.Summary.Message,
+			Reason:     vm.Summary.Reason,
+			NextAction: vm.Summary.NextAction,
 			RouteCue:   "Approvals, Runs, Audit, Status",
 		}),
-		fmt.Sprintf("Queue families: %s=%d %s=%d %s=%d", infoBadge("approvals"), len(families[actionCenterFamilyApprovals]), warnBadge("operational_attention"), len(families[actionCenterFamilyOps]), dangerBadge("blocked_work_impact"), len(families[actionCenterFamilyBlocked])),
+		fmt.Sprintf("Queue families: %s=%d %s=%d %s=%d", infoBadge("approvals"), len(vm.Families[actionCenterFamilyApprovals]), warnBadge("operational_attention"), len(vm.Families[actionCenterFamilyOps]), dangerBadge("blocked_work_impact"), len(vm.Families[actionCenterFamilyBlocked])),
 		fmt.Sprintf("Active triage family: %s", stateBadgeWithLabel("family", string(m.family))),
 		"Action Center is the operator home for broker-known follow-up. Question/answer queues remain reserved for future canonical broker models and are intentionally not implemented locally.",
-		renderActionCenterDirectory("Approvals queue", families[actionCenterFamilyApprovals], m.selectedIndex(actionCenterFamilyApprovals, len(families[actionCenterFamilyApprovals])), width),
-		renderActionCenterDirectory("Operational attention", families[actionCenterFamilyOps], m.selectedIndex(actionCenterFamilyOps, len(families[actionCenterFamilyOps])), width),
-		renderActionCenterDirectory("Blocked-work impact", families[actionCenterFamilyBlocked], m.selectedIndex(actionCenterFamilyBlocked, len(families[actionCenterFamilyBlocked])), width),
+		renderActionCenterDirectory("Approvals queue", vm.Families[actionCenterFamilyApprovals], m.selectedIndex(actionCenterFamilyApprovals, len(vm.Families[actionCenterFamilyApprovals])), width),
+		renderActionCenterDirectory("Operational attention", vm.Families[actionCenterFamilyOps], m.selectedIndex(actionCenterFamilyOps, len(vm.Families[actionCenterFamilyOps])), width),
+		renderActionCenterDirectory("Blocked-work impact", vm.Families[actionCenterFamilyBlocked], m.selectedIndex(actionCenterFamilyBlocked, len(vm.Families[actionCenterFamilyBlocked])), width),
 		muted("If every bucket is empty, the control plane is currently waiting on new canonical work or operator intervention."),
 		keyHint("Route keys: [/] change family, j/k move, enter drill-down, i toggle inspector, r reload"),
 	)
@@ -194,8 +201,8 @@ func (m actionCenterRouteModel) ShellSurface(ctx routeShellContext) routeSurface
 	if status == "" && strings.TrimSpace(m.errText) != "" {
 		status = "Load failed: " + strings.TrimSpace(m.errText)
 	}
-	families := m.familyBuckets()
-	activeItems := families[m.family]
+	vm := m.snapshot()
+	activeItems := vm.Families[m.family]
 	selected := m.selectedIndex(m.family, len(activeItems))
 	inspector := ""
 	if m.inspectorOn {
@@ -211,6 +218,16 @@ func (m actionCenterRouteModel) ShellSurface(ctx routeShellContext) routeSurface
 		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
 		Chrome:       routeSurfaceChrome{Breadcrumbs: []string{"Home", m.def.Label}},
 	}
+}
+
+func (m actionCenterRouteModel) snapshot() actionCenterViewModel {
+	now := time.Now
+	if m.now != nil {
+		now = m.now
+	}
+	current := now().UTC()
+	families := m.familyBucketsAt(current)
+	return actionCenterViewModel{Families: families, Summary: buildActionCenterSummary(families)}
 }
 
 func (m actionCenterRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {

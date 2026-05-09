@@ -9,6 +9,15 @@ import (
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
+func chatMustContainAll(t *testing.T, haystack string, needles ...string) {
+	t.Helper()
+	for _, needle := range needles {
+		if !strings.Contains(haystack, needle) {
+			t.Fatalf("expected %q in view, got %q", needle, haystack)
+		}
+	}
+}
+
 type chatBrokerClientSpy struct {
 	fakeBrokerClient
 	sentReq   *brokerapi.SessionExecutionTriggerRequest
@@ -116,7 +125,7 @@ func TestChatRouteRendersOrderedTranscriptAndLinkedReferences(t *testing.T) {
 	if !strings.Contains(inspector, "Linked audit: sha256:aaaa") {
 		t.Fatalf("expected linked audit reference in inspector, got %q", inspector)
 	}
-	mustContainAll(t, inspector,
+	chatMustContainAll(t, inspector,
 		"Summary:",
 		"Identity: session=session-1 workspace=ws-1",
 		"Local actions: jump:session-run | jump:runs | jump:approvals | jump:artifacts | jump:audit | copy:session_id",
@@ -147,20 +156,30 @@ func TestChatRouteComposeSendsTypedSessionMessageRequest(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 
+	assertChatSendAndWatchRequests(t, spy)
+
+	view := updated.View(120, 40, focusContent)
+	chatMustContainAll(t, view,
+		"Canonical session session-1",
+		"Workflow is waiting for approval.",
+		"Current broker state: running",
+		"Approval is still required before the broker can continue this workflow.",
+		"Evidence: 1 linked run • 1 approval • 3 artifacts • 1 audit record",
+		"Session directory",
+		"Composer is idle.",
+	)
+	if strings.Contains(view, "SessionExecutionTrigger") {
+		t.Fatalf("expected product language instead of protocol phrasing in primary view, got %q", view)
+	}
+}
+
+func assertChatSendAndWatchRequests(t *testing.T, spy *chatBrokerClientSpy) {
+	t.Helper()
 	if spy.sentReq == nil {
 		t.Fatal("expected SessionExecutionTrigger request to be captured")
 	}
-	if spy.sentReq.SessionID != "session-1" {
-		t.Fatalf("expected session-1 send target, got %q", spy.sentReq.SessionID)
-	}
-	if spy.sentReq.TriggerSource != "interactive_user" {
-		t.Fatalf("expected interactive_user trigger source, got %q", spy.sentReq.TriggerSource)
-	}
-	if spy.sentReq.RequestedOperation != "start" {
-		t.Fatalf("expected requested operation start, got %q", spy.sentReq.RequestedOperation)
-	}
-	if spy.sentReq.UserMessageContentText != "hi" {
-		t.Fatalf("expected content hi, got %q", spy.sentReq.UserMessageContentText)
+	if spy.sentReq.SessionID != "session-1" || spy.sentReq.TriggerSource != "interactive_user" || spy.sentReq.RequestedOperation != "start" || spy.sentReq.UserMessageContentText != "hi" {
+		t.Fatalf("unexpected send request: %+v", *spy.sentReq)
 	}
 	if spy.sentReq.WorkflowRouting == nil || spy.sentReq.WorkflowRouting.WorkflowFamily != "runecontext" || spy.sentReq.WorkflowRouting.WorkflowOperation != "change_draft" {
 		t.Fatalf("unexpected workflow routing: %+v", spy.sentReq.WorkflowRouting)
@@ -168,21 +187,115 @@ func TestChatRouteComposeSendsTypedSessionMessageRequest(t *testing.T) {
 	if spy.watchReq == nil {
 		t.Fatal("expected SessionTurnExecutionWatch request to be captured")
 	}
-	if spy.watchReq.SessionID != "session-1" {
-		t.Fatalf("expected session-1 watch target, got %q", spy.watchReq.SessionID)
+	if spy.watchReq.SessionID != "session-1" || !spy.watchReq.IncludeSnapshot || !spy.watchReq.Follow {
+		t.Fatalf("unexpected watch request: %+v", *spy.watchReq)
 	}
-	if !spy.watchReq.IncludeSnapshot || !spy.watchReq.Follow {
-		t.Fatalf("expected watch include_snapshot+follow true, got %+v", *spy.watchReq)
+}
+
+func TestChatRouteLoadIncludesExecutionTruthAndEvidenceCounts(t *testing.T) {
+	model := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, &fakeBrokerClient{})
+
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeChat})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
 	}
+	updated, _ = updated.Update(cmd())
 
 	view := updated.View(120, 40, focusContent)
-	mustContainAll(t, view,
-		"Workflow is waiting for approval.",
-		"Session directory",
-		"Composer is idle.",
+	chatMustContainAll(t, view,
+		"Current broker state: waiting / wait waiting approval",
+		"Broker-known stages: waiting • plan compiled • runner active • checkpoint received • approval required • artifact ready",
+		"Evidence: 1 linked run • 1 approval • 3 artifacts • 1 audit record",
 	)
-	if strings.Contains(view, "SessionExecutionTrigger") {
-		t.Fatalf("expected product language instead of protocol phrasing in primary view, got %q", view)
+}
+
+func TestChatRouteBlockedWorkflowUsesStatusRemediationLanguage(t *testing.T) {
+	spy := &chatBrokerClientSpy{}
+	blocked := brokerapi.SessionTurnExecution{
+		TurnID:             "turn-1",
+		SessionID:          "session-1",
+		ExecutionIndex:     1,
+		TriggerID:          "trigger-send",
+		TriggerSource:      "interactive_user",
+		RequestedOperation: "start",
+		ExecutionState:     "blocked",
+		WaitKind:           "project_blocked",
+		WaitState:          "waiting_project_blocked",
+		ApprovalProfile:    "moderate",
+		AutonomyPosture:    "balanced",
+		CreatedAt:          "2026-01-01T00:00:00Z",
+		UpdatedAt:          "2026-01-01T00:00:00Z",
+	}
+	spy.watchResp = []brokerapi.SessionTurnExecutionWatchEvent{
+		{EventType: "session_turn_execution_watch_snapshot", Seq: 1, TurnExecution: &blocked},
+		{EventType: "session_turn_execution_watch_terminal", Seq: 2, Terminal: true, TerminalStatus: "completed"},
+	}
+	model := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, spy)
+
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeChat})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
+	if cmd == nil {
+		t.Fatal("expected send command from compose alt+enter")
+	}
+	updated, _ = updated.Update(cmd())
+
+	view := updated.View(120, 40, focusContent)
+	if !strings.Contains(view, "Project setup is blocking this workflow. Open Status") {
+		t.Fatalf("expected Status remediation in view, got %q", view)
+	}
+	if !strings.Contains(view, "Follow-up: Project setup is blocking this workflow") || !strings.Contains(view, "Remediation:") {
+		t.Fatalf("expected posture guidance in view, got %q", view)
+	}
+}
+
+func TestChatRouteWatchPollingSkipsRepeatedSessionListRefreshes(t *testing.T) {
+	spy := &chatBrokerClientSpy{}
+	model := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, spy)
+
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeChat})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
+	if cmd == nil {
+		t.Fatal("expected send command from compose alt+enter")
+	}
+	updated, cmd = updated.Update(cmd())
+	if cmd == nil {
+		t.Fatal("expected watch polling command after send")
+	}
+
+	chat := updated.(chatRouteModel)
+	watchMsg, ok := cmd().(chatExecutionWatchPollMsg)
+	if !ok {
+		t.Fatalf("expected chatExecutionWatchPollMsg, got %T", cmd())
+	}
+	updated, cmd = chat.Update(watchMsg)
+	if cmd == nil {
+		t.Fatal("expected watch load command")
+	}
+	updated, _ = updated.Update(cmd())
+	chat = updated.(chatRouteModel)
+	if chat.watching {
+		t.Fatal("expected terminal watch envelope to stop polling")
+	}
+	if chat.watchPollCount != 0 {
+		t.Fatalf("watchPollCount = %d, want reset after terminal", chat.watchPollCount)
+	}
+	if chat.sessions == nil || len(chat.sessions) == 0 {
+		t.Fatal("expected sessions retained during watch updates")
 	}
 }
 
@@ -243,55 +356,5 @@ func TestChatRouteComposeSupportsMultilineBracketedPaste(t *testing.T) {
 	chat = updated.(chatRouteModel)
 	if !strings.Contains(chat.composer.Value(), "\n") {
 		t.Fatalf("expected newline retained in composer, got %q", chat.composer.Value())
-	}
-}
-
-func TestChatRouteComposeUsesTurnExecutionWatchStateOverTriggerAck(t *testing.T) {
-	spy := &chatBrokerClientSpy{}
-	blocked := brokerapi.SessionTurnExecution{
-		TurnID:             "turn-1",
-		SessionID:          "session-1",
-		ExecutionIndex:     1,
-		TriggerID:          "trigger-send",
-		TriggerSource:      "interactive_user",
-		RequestedOperation: "start",
-		ExecutionState:     "blocked",
-		WaitKind:           "project_blocked",
-		WaitState:          "waiting_project_blocked",
-		ApprovalProfile:    "moderate",
-		AutonomyPosture:    "balanced",
-		CreatedAt:          "2026-01-01T00:00:00Z",
-		UpdatedAt:          "2026-01-01T00:00:00Z",
-	}
-	spy.watchResp = []brokerapi.SessionTurnExecutionWatchEvent{
-		{EventType: "session_turn_execution_watch_snapshot", Seq: 1, TurnExecution: &blocked},
-		{EventType: "session_turn_execution_watch_terminal", Seq: 2, Terminal: true, TerminalStatus: "completed"},
-	}
-	model := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, spy)
-
-	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeChat})
-	if cmd == nil {
-		t.Fatal("expected activation load command")
-	}
-	updated, _ = updated.Update(cmd())
-
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
-	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
-	if cmd == nil {
-		t.Fatal("expected send command from compose alt+enter")
-	}
-	updated, _ = updated.Update(cmd())
-
-	view := updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "Workflow cannot continue yet.") {
-		t.Fatalf("expected blocked workflow headline from turn execution watch state, got %q", view)
-	}
-	if !strings.Contains(view, "Follow-up: Remediation:") {
-		t.Fatalf("expected remediation posture follow-up in view, got %q", view)
-	}
-	if !strings.Contains(view, "Transcript remains the durable conversation record") {
-		t.Fatalf("expected transcript/evidence separation hint in view, got %q", view)
 	}
 }

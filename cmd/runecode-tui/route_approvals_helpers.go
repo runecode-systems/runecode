@@ -26,7 +26,7 @@ func renderApprovalList(items []brokerapi.ApprovalSummary, selected int) string 
 func renderApprovalDirectoryItems(items []brokerapi.ApprovalSummary) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {
-		out = append(out, fmt.Sprintf("%s %s %s %s", valueOrNA(item.ApprovalID), approvalDisplayLabel(item), approvalPrimaryStateBadge(item), approvalQueueReason(item)))
+		out = append(out, fmt.Sprintf("%s %s %s %s gate=%s", valueOrNA(item.ApprovalID), approvalDisplayLabel(item), approvalPrimaryStateBadge(item), approvalQueueReason(item), approvalBoundScopeCue(item)))
 	}
 	return out
 }
@@ -61,9 +61,7 @@ func renderApprovalInspector(resp *brokerapi.ApprovalGetResponse, presentation c
 			{Label: "run", Items: mapReferenceIDs([]string{boundScope.RunID}, func(id string) paletteActionMsg {
 				return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "run", RouteID: routeRuns, RunID: id}}
 			})},
-			{Label: "stage", Items: mapReferenceIDs([]string{boundScope.StageID}, func(id string) paletteActionMsg {
-				return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeApprovals}}
-			})},
+			{Label: "approval evidence", Items: approvalEvidenceReferenceItems(resp)},
 		},
 		LocalActions: approvalInspectorLocalActions(),
 		CopyActions:  approvalRouteCopyActions(resp),
@@ -77,6 +75,7 @@ func approvalInspectorLocalActions() []routeActionItem {
 	return []routeActionItem{
 		{Label: "resolve:typed"},
 		{Label: "jump:runs", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeRuns}}},
+		{Label: "jump:artifacts", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeArtifacts}}},
 		{Label: "jump:audit", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeAudit}}},
 		{Label: "copy:approval_id"},
 	}
@@ -92,6 +91,34 @@ func approvalInspectorReferenceActions(resp *brokerapi.ApprovalGetResponse) []ro
 		return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "run", RouteID: routeRuns, RunID: id}}
 	}) {
 		items = append(items, routeActionItem{Label: "run:" + ref.Label, Action: ref.Action})
+	}
+	for _, ref := range approvalEvidenceReferenceItems(resp) {
+		items = append(items, routeActionItem{Label: "evidence:" + ref.Label, Action: ref.Action})
+	}
+	return items
+}
+
+func approvalEvidenceReferenceItems(resp *brokerapi.ApprovalGetResponse) []inspectorReferenceItem {
+	if resp == nil {
+		return nil
+	}
+	detail := resp.ApprovalDetail
+	items := make([]inspectorReferenceItem, 0, 6)
+	appendArtifact := func(label, digest string) {
+		digest = strings.TrimSpace(digest)
+		if digest == "" {
+			return
+		}
+		items = append(items, inspectorReferenceItem{Label: label + " " + shortIdentity(digest), Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "artifact", RouteID: routeArtifacts, Digest: digest}}})
+	}
+	appendArtifact("summary", detail.BoundIdentity.SummaryPreviewDigest)
+	appendArtifact("diff", detail.BoundIdentity.DiffDigest)
+	appendArtifact("artifact_set", detail.BoundIdentity.ArtifactSetDigest)
+	if policy := strings.TrimSpace(detail.BoundIdentity.PolicyDecisionHash); policy != "" {
+		items = append(items, inspectorReferenceItem{Label: "policy " + shortIdentity(policy), Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeAudit}}})
+	}
+	if manifest := strings.TrimSpace(detail.BoundIdentity.ManifestHash); manifest != "" {
+		items = append(items, inspectorReferenceItem{Label: "manifest " + shortIdentity(manifest), Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeAudit}}})
 	}
 	return items
 }
@@ -120,12 +147,15 @@ func approvalInspectorContent(summary brokerapi.ApprovalSummary, detail brokerap
 	}
 	return compactLines(
 		fmt.Sprintf("Approval state: %s %s", approvalUIValue(approvalDisplayState(summary, detail)), approvalPrimaryStateBadge(summary)),
+		fmt.Sprintf("State taxonomy: approval-required=%s pending=%s resolved=%s expired=%s unsupported=%s", boolWord(approvalDisplayState(summary, detail) == "approval required"), boolWord(approvalLifecycleState(detail) == "pending"), boolWord(workflowApprovalState(summary, detail) == "resolved"), boolWord(workflowApprovalState(summary, detail) == "expired"), boolWord(approvalResolveStatus(summary, detail) == "unsupported")),
 		fmt.Sprintf("Why this approval exists: %s", approvalUIValue(approvalPrimaryReason(summary, detail))),
 		fmt.Sprintf("Exact gated object/action: %s", approvalUIValue(approvalExactObjectAction(summary, detail))),
 		fmt.Sprintf("Review first: %s", approvalUIValue(approvalReviewFirst(summary, detail))),
 		fmt.Sprintf("If approved next: %s", approvalUIValue(approvalEffectSummary(detail))),
+		fmt.Sprintf("After approval route: %s", approvalUIValue(approvalFollowUpRoute(summary))),
 		fmt.Sprintf("Resolve availability: %s", approvalUIValue(approvalResolveSummary(summary, detail))),
 		fmt.Sprintf("Resolve status: %s", approvalUIValue(approvalResolveStatus(summary, detail))),
+		fmt.Sprintf("Resolve unavailable because: %s", approvalUIValue(approvalResolveBlockedReason(summary, detail))),
 		fmt.Sprintf("Workflow posture: %s", approvalUIValue(workflowApprovalState(summary, detail))),
 		fmt.Sprintf("Approval type: %s (binding_kind=%s) %s", approvalUIValue(bindingLabel), approvalUIValue(detail.BindingKind), infoBadge("type cue")),
 		fmt.Sprintf("Lifecycle state: %s (%s) %s", approvalUIValue(lifecycleState), approvalUIValue(lifecycleFlags), postureBadge(lifecycleState)),
@@ -164,6 +194,8 @@ func approvalRouteCopyActions(resp *brokerapi.ApprovalGetResponse) []routeCopyAc
 	return compactCopyActions([]routeCopyAction{
 		{ID: "approval_id", Label: "approval id", Text: approvalUIValue(summary.ApprovalID)},
 		{ID: "run_id", Label: "bound run id", Text: approvalUIValue(bound.RunID)},
+		{ID: "request_digest", Label: "request digest", Text: approvalUIValue(resp.ApprovalDetail.BoundIdentity.ApprovalRequestDigest)},
+		{ID: "decision_digest", Label: "decision digest", Text: approvalUIValue(resp.ApprovalDetail.BoundIdentity.ApprovalDecisionDigest)},
 		{ID: "raw_block", Label: "raw block", Text: sanitizeUIText(raw)},
 	})
 }
@@ -274,106 +306,6 @@ func renderApprovalReviewPlan(resp *brokerapi.ApprovalGetResponse) string {
 		fmt.Sprintf("1. Inspect %s.", approvalReviewFirst(summary, detail)),
 		fmt.Sprintf("2. Confirm gated scope: %s.", approvalExactObjectAction(summary, detail)),
 		fmt.Sprintf("3. Continue to %s for the audit + verification trail.", approvalFollowUpRoute(summary)),
+		fmt.Sprintf("4. Resolve only when broker validation allows it; current status=%s.", approvalResolveStatus(summary, detail)),
 	)
-}
-
-func approvalPrimaryStateBadge(summary brokerapi.ApprovalSummary) string {
-	return workflowApprovalBadge(summary, brokerapi.ApprovalDetail{})
-}
-
-func approvalSupportBadge(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {
-	if approvalResolveSupported(summary, detail) {
-		return successBadge("RESOLVE_SUPPORTED")
-	}
-	return dangerBadge("RESOLVE_UNAVAILABLE")
-}
-
-func workflowApprovalBadge(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {
-	switch workflowApprovalState(summary, detail) {
-	case "resolved":
-		return successBadge("READY_TO_CONTINUE")
-	case "expired":
-		return dangerBadge("EXPIRED")
-	case "unsupported":
-		return dangerBadge("RESOLVE_UNAVAILABLE")
-	case "approval required":
-		return approvalRequiredBadge("APPROVAL_REQUIRED")
-	default:
-		return warnBadge("PENDING_REVIEW")
-	}
-}
-
-func workflowApprovalState(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {
-	status := strings.ToLower(strings.TrimSpace(summary.Status))
-	lifecycle := strings.ToLower(strings.TrimSpace(detail.LifecycleDetail.LifecycleState))
-	if lifecycle == "expired" || status == "expired" {
-		return "expired"
-	}
-	if lifecycle == "approved" || lifecycle == "consumed" || status == "approved" || status == "consumed" || status == "resolved" {
-		return "resolved"
-	}
-	if lifecycle == "pending" || status == "pending" {
-		return "approval required"
-	}
-	if strings.TrimSpace(summary.ApprovalID) == "" {
-		return "pending"
-	}
-	return valueOrNA(status)
-}
-
-func approvalDisplayState(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {
-	state := workflowApprovalState(summary, detail)
-	if state == "approval required" {
-		return "approval required"
-	}
-	return state
-}
-
-func approvalPrimaryReason(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {
-	switch workflowApprovalState(summary, detail) {
-	case "expired":
-		return "the previous approval window has expired, so the blocked action cannot continue until a fresh broker approval exists"
-	case "resolved":
-		return "the broker has already recorded a decision for this gate"
-	default:
-		policy := strings.TrimSpace(detail.PolicyReasonCode)
-		trigger := strings.TrimSpace(summary.ApprovalTriggerCode)
-		if policy != "" {
-			return fmt.Sprintf("policy requires operator review before %s can continue (%s)", approvalDisplayLabel(summary), policy)
-		}
-		if trigger != "" {
-			return fmt.Sprintf("workflow is waiting on an approval gate triggered by %s", trigger)
-		}
-		return "workflow is blocked on an operator approval"
-	}
-}
-
-func approvalExactObjectAction(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {
-	scope := detail.BlockedWorkScope
-	if strings.TrimSpace(scope.ActionKind) == "" {
-		scope.WorkspaceID = summary.BoundScope.WorkspaceID
-		scope.RunID = summary.BoundScope.RunID
-		scope.StageID = summary.BoundScope.StageID
-		scope.StepID = summary.BoundScope.StepID
-		scope.RoleInstanceID = summary.BoundScope.RoleInstanceID
-		scope.ActionKind = summary.BoundScope.ActionKind
-	}
-	parts := []string{}
-	if run := strings.TrimSpace(valueOrBlank(scope.RunID)); run != "" {
-		parts = append(parts, "run "+run)
-	}
-	if stage := strings.TrimSpace(valueOrBlank(scope.StageID)); stage != "" {
-		parts = append(parts, "stage "+stage)
-	}
-	if step := strings.TrimSpace(valueOrBlank(scope.StepID)); step != "" {
-		parts = append(parts, "step "+step)
-	}
-	if role := strings.TrimSpace(valueOrBlank(scope.RoleInstanceID)); role != "" {
-		parts = append(parts, "role "+role)
-	}
-	action := valueOrNA(strings.TrimSpace(scope.ActionKind))
-	if len(parts) == 0 {
-		return "action=" + action
-	}
-	return strings.Join(parts, " • ") + " • action=" + action
 }

@@ -89,13 +89,48 @@ func TestChatExecutionStateCardReflectsApprovalEvidenceAndStages(t *testing.T) {
 	if card.State != routeLoadStateApprovalRequired {
 		t.Fatalf("card state = %q, want %q", card.State, routeLoadStateApprovalRequired)
 	}
-	if !strings.Contains(card.Reason, "Broker-known stages: plan compiled") {
+	if !strings.Contains(card.Reason, "Broker-known stages:") || !strings.Contains(card.Reason, "plan compiled") || !strings.Contains(card.Reason, "waiting") {
 		t.Fatalf("expected stage summary in reason, got %q", card.Reason)
 	}
-	if !strings.Contains(card.Reason, "Evidence: linked runs 1") {
+	if !strings.Contains(card.Reason, "Current broker state: waiting / wait waiting approval") {
+		t.Fatalf("expected current/latest execution summary in reason, got %q", card.Reason)
+	}
+	if !strings.Contains(card.Reason, "Evidence: 1 linked run • 1 approval • 1 artifact • 1 audit record") {
 		t.Fatalf("expected evidence summary in reason, got %q", card.Reason)
 	}
 	if !strings.Contains(card.NextAction, "Approvals") {
 		t.Fatalf("expected approvals follow-up, got %q", card.NextAction)
+	}
+}
+
+func TestChatExecutionStageSummaryOnlyShowsBrokerOwnedStages(t *testing.T) {
+	detail := &brokerapi.SessionDetail{
+		Summary: brokerapi.SessionSummary{Identity: brokerapi.SessionIdentity{SessionID: "session-1", WorkspaceID: "ws-1"}},
+		CurrentTurnExecution: &brokerapi.SessionTurnExecution{
+			ExecutionState: "running",
+			PrimaryRunID:   "run-1",
+		},
+	}
+	run := &brokerapi.RunDetail{Summary: brokerapi.RunSummary{RunID: "run-1"}}
+	got := chatExecutionStageSummary(*detail.CurrentTurnExecution, detail, run)
+	if strings.Contains(got, "run linked") {
+		t.Fatalf("did not expect local-only run linked stage, got %q", got)
+	}
+	if strings.Contains(got, "waiting") {
+		t.Fatalf("did not expect waiting stage without broker-owned waiting state, got %q", got)
+	}
+	if got != "" {
+		t.Fatalf("expected no broker-owned stages, got %q", got)
+	}
+}
+
+func TestChatExecutionStatusAndActionForProjectBlockedUsesStatusRemediation(t *testing.T) {
+	exec := brokerapi.SessionTurnExecution{ExecutionState: "blocked", WaitKind: "project_blocked", WaitState: "waiting_project_blocked"}
+	status, action := chatExecutionStatusAndAction(exec)
+	if status != "Workflow cannot continue yet." {
+		t.Fatalf("status = %q", status)
+	}
+	if !strings.Contains(action, "Open Status") {
+		t.Fatalf("expected Status remediation action, got %q", action)
 	}
 }

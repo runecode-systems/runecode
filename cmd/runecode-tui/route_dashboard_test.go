@@ -49,7 +49,8 @@ func TestDashboardRouteShowsTypedLiveWatchFamilies(t *testing.T) {
 		"compatibility=supported_with_upgrade_available",
 		"Project setup guidance:",
 		"Live Activity",
-		"Live activity (typed watch families; logs are supplemental inspection only):",
+		"Live activity detail is available here when you need typed broker watch confirmation.",
+		"Typed watch family status and event detail are secondary to the executive overview.",
 		"totals events=2 snapshot=1 upsert=0 terminal=1 errors=0",
 		"last_event=run_watch_terminal subject=run-1 status=completed",
 		"last_event=approval_watch_terminal subject=ap-1 status=completed",
@@ -98,8 +99,34 @@ func TestDashboardRouteFallsBackWhenAuditVerificationUnavailable(t *testing.T) {
 		"showing degraded fallback posture (gateway_failure)",
 		"Supporting detail",
 		"Live Activity",
-		"Live activity (typed watch families; logs are supplemental inspection only):",
+		"Live activity detail is available here when you need typed broker watch confirmation.",
 	)
+}
+
+func TestDashboardExecutiveHierarchyAndCalmPrimaryWording(t *testing.T) {
+	model := newDashboardRouteModel(routeDefinition{ID: routeDashboard, Label: "Dashboard"}, &fakeBrokerClient{})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeDashboard})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+	view := updated.View(120, 40, focusContent)
+
+	cardIndex := strings.Index(view, "Evidence or runtime posture needs review.")
+	overviewIndex := strings.Index(view, "Executive overview")
+	detailIndex := strings.Index(view, "Supporting detail")
+	if cardIndex < 0 || overviewIndex < 0 || detailIndex < 0 {
+		t.Fatalf("expected executive hierarchy sections in view, got %q", view)
+	}
+	if !(cardIndex < overviewIndex && overviewIndex < detailIndex) {
+		t.Fatalf("expected state card before overview before supporting detail, got %q", view)
+	}
+	if strings.Contains(view, "Protocol bundle") || strings.Contains(view, "watch_family") {
+		t.Fatalf("expected no debug-heavy primary wording, got %q", view)
+	}
+	if !strings.Contains(view, "Action Center is the operator home") {
+		t.Fatalf("expected dashboard to point operators to Action Center, got %q", view)
+	}
 }
 
 func TestDashboardViewPreservesSectionGaps(t *testing.T) {

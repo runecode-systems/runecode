@@ -18,8 +18,12 @@ type actionCenterSummary struct {
 }
 
 func (m actionCenterRouteModel) familyBuckets() map[actionCenterFamily][]actionCenterItem {
+	return m.familyBucketsAt(time.Now().UTC())
+}
+
+func (m actionCenterRouteModel) familyBucketsAt(now time.Time) map[actionCenterFamily][]actionCenterItem {
 	buckets := map[actionCenterFamily][]actionCenterItem{
-		actionCenterFamilyApprovals: buildApprovalActionItems(m.approvals),
+		actionCenterFamilyApprovals: buildApprovalActionItems(m.approvals, now),
 		actionCenterFamilyOps:       buildOperationalAttentionItems(m.audit, m.auditErr, m.watch, m.watchHealth, m.runs, m.project),
 		actionCenterFamilyBlocked:   buildBlockedImpactItems(m.runs, m.approvals),
 	}
@@ -32,8 +36,8 @@ func (m actionCenterRouteModel) familyBuckets() map[actionCenterFamily][]actionC
 	return buckets
 }
 
-func buildApprovalActionItems(items []brokerapi.ApprovalSummary) []actionCenterItem {
-	now := time.Now().UTC()
+func buildApprovalActionItems(items []brokerapi.ApprovalSummary, now time.Time) []actionCenterItem {
+	now = now.UTC()
 	out := make([]actionCenterItem, 0, len(items))
 	for _, ap := range items {
 		approvalID := strings.TrimSpace(ap.ApprovalID)
@@ -54,7 +58,7 @@ func buildApprovalActionItems(items []brokerapi.ApprovalSummary) []actionCenterI
 		if expiryCue != "no_expiry" {
 			reasons = append(reasons, expiryCue)
 		}
-		impact := fmt.Sprintf("Workflow work stays gated for run %s stage %s action %s.", valueOrNA(ap.BoundScope.RunID), valueOrNA(ap.BoundScope.StageID), valueOrNA(ap.BoundScope.ActionKind))
+		impact := fmt.Sprintf("Workflow progress stays gated for run %s stage %s action %s until this decision is resolved.", valueOrNA(ap.BoundScope.RunID), valueOrNA(ap.BoundScope.StageID), valueOrNA(ap.BoundScope.ActionKind))
 		targetLabel := fmt.Sprintf("Approvals › %s", approvalID)
 		evidence := fmt.Sprintf("source=approval_summary approval_id=%s run=%s", approvalID, valueOrNA(ap.BoundScope.RunID))
 		out = append(out, actionCenterItem{
@@ -63,14 +67,15 @@ func buildApprovalActionItems(items []brokerapi.ApprovalSummary) []actionCenterI
 			Urgency:        urgency,
 			Reason:         strings.Join(reasons, "; "),
 			Impact:         impact,
-			RequiredAction: "Open Approvals, review the exact gated action and evidence, then decide.",
+			Owner:          "owner: operator decision",
+			RequiredAction: "Open Approvals, review the exact gated action and evidence, then approve or reject.",
 			TargetLabel:    targetLabel,
 			EvidenceCue:    evidence,
 			Target:         paletteTarget{Kind: "approval", RouteID: routeApprovals, ApprovalID: approvalID},
 		})
 	}
 	if len(out) == 0 {
-		return []actionCenterItem{{Title: "no pending approvals", State: routeLoadStateEmpty, Urgency: "low", Reason: "canonical approval queue is currently empty", Impact: "No workflow work is waiting on approval decisions from the current broker surfaces.", RequiredAction: "No approval follow-up is needed right now.", TargetLabel: "Approvals", EvidenceCue: "source=approval_list empty"}}
+		return []actionCenterItem{{Title: "no pending approvals", State: routeLoadStateEmpty, Urgency: "low", Reason: "canonical approval queue is currently empty", Impact: "No workflow work is waiting on approval decisions from the current broker surfaces.", Owner: "owner: none", RequiredAction: "No approval follow-up is needed right now.", TargetLabel: "Approvals", EvidenceCue: "source=approval_list empty"}}
 	}
 	return out
 }
@@ -128,7 +133,7 @@ func buildOperationalAttentionItems(audit *brokerapi.AuditVerificationGetRespons
 	items = append(items, operationalRunItems(runs)...)
 	items = append(items, operationalProjectSetupItems(project)...)
 	if len(items) == 0 {
-		return []actionCenterItem{{Title: "no active operational attention", State: routeLoadStateReady, Urgency: "low", Reason: "audit evidence, watch sync, runtime posture, and setup posture are nominal on current broker surfaces", Impact: "No degraded operational follow-up is visible here.", RequiredAction: "No operational remediation is needed right now.", TargetLabel: "Action Center", EvidenceCue: "source=operational_attention empty"}}
+		return []actionCenterItem{{Title: "no active operational attention", State: routeLoadStateReady, Urgency: "low", Reason: "audit evidence, watch sync, runtime posture, and setup posture are nominal on current broker surfaces", Impact: "No degraded operational follow-up is visible here.", Owner: "owner: none", RequiredAction: "No operational remediation is needed right now.", TargetLabel: "Action Center", EvidenceCue: "source=operational_attention empty"}}
 	}
 	return items
 }
@@ -147,6 +152,7 @@ func operationalSyncHealthItem(health shellSyncHealth) []actionCenterItem {
 		Urgency:        urgency,
 		Reason:         fmt.Sprintf("watch sync state=%s error=%s", health.State, defaultPlaceholder(health.ErrorText, "n/a")),
 		Impact:         "Live operator follow-up coverage is degraded until shell watch sync recovers.",
+		Owner:          "owner: operator checks broker connectivity",
 		RequiredAction: "Open Status to confirm broker connectivity and sync posture before relying on live updates.",
 		TargetLabel:    "Status",
 		EvidenceCue:    fmt.Sprintf("source=shell_sync_health state=%s", health.State),
@@ -170,6 +176,7 @@ func operationalWatchFamilyItems(watch dashboardLiveActivity) []actionCenterItem
 			Urgency:        urgency,
 			Reason:         fmt.Sprintf("errors=%d last_status=%s last_subject=%s", family.errorCount, valueOrNA(family.lastStatus), valueOrNA(family.lastSubject)),
 			Impact:         "Operator follow-up cues from this watch family may be incomplete or stale.",
+			Owner:          "owner: operator verifies watch health",
 			RequiredAction: "Use Dashboard live activity and Status to confirm whether watch degradation is transient or ongoing.",
 			TargetLabel:    "Dashboard",
 			EvidenceCue:    fmt.Sprintf("source=watch_family family=%s", valueOrNA(family.family)),
@@ -187,6 +194,7 @@ func operationalAuditItems(audit *brokerapi.AuditVerificationGetResponse, auditE
 			Urgency:        "high",
 			Reason:         fmt.Sprintf("audit verification load failed: %s", auditErr),
 			Impact:         "Evidence posture is shown with degraded fallback until broker verification becomes available again.",
+			Owner:          "owner: operator verifies evidence health",
 			RequiredAction: "Open Audit to confirm the fallback posture and verify whether the broker audit surface has recovered.",
 			TargetLabel:    "Audit",
 			EvidenceCue:    "source=audit_verification fallback",
@@ -210,6 +218,7 @@ func operationalAuditItems(audit *brokerapi.AuditVerificationGetResponse, auditE
 		Urgency:        urgency,
 		Reason:         fmt.Sprintf("integrity=%s anchoring=%s degraded=%t", valueOrNA(s.IntegrityStatus), valueOrNA(s.AnchoringStatus), s.CurrentlyDegraded),
 		Impact:         fmt.Sprintf("Evidence confidence is reduced; hard_failures=%d degraded_reasons=%d.", len(s.HardFailures), len(s.DegradedReasons)),
+		Owner:          "owner: operator reviews evidence posture",
 		RequiredAction: "Open Audit to inspect the degraded or failed evidence details before treating the trail as healthy.",
 		TargetLabel:    "Audit",
 		EvidenceCue:    fmt.Sprintf("source=audit_verification summary findings=%d", s.FindingCount),
@@ -220,15 +229,30 @@ func operationalAuditItems(audit *brokerapi.AuditVerificationGetResponse, auditE
 func operationalRunItems(runs []brokerapi.RunSummary) []actionCenterItem {
 	items := make([]actionCenterItem, 0, len(runs))
 	for _, run := range runs {
-		if !run.RuntimePostureDegraded && !run.AuditCurrentlyDegraded {
+		state := strings.ToLower(strings.TrimSpace(run.LifecycleState))
+		failedLifecycle := strings.Contains(state, "fail") || strings.Contains(state, "error")
+		degradedLifecycle := strings.Contains(state, "degrad")
+		if !run.RuntimePostureDegraded && !run.AuditCurrentlyDegraded && !failedLifecycle && !degradedLifecycle {
 			continue
+		}
+		urgency := "high"
+		if failedLifecycle {
+			urgency = "critical"
+		}
+		reasonParts := []string{fmt.Sprintf("lifecycle=%s", valueOrNA(run.LifecycleState))}
+		if run.RuntimePostureDegraded {
+			reasonParts = append(reasonParts, "runtime_degraded=true")
+		}
+		if run.AuditCurrentlyDegraded {
+			reasonParts = append(reasonParts, "audit_degraded=true")
 		}
 		items = append(items, actionCenterItem{
 			Title:          fmt.Sprintf("run %s operational posture", valueOrNA(run.RunID)),
 			State:          routeLoadStateDegraded,
-			Urgency:        "high",
-			Reason:         fmt.Sprintf("runtime_degraded=%t audit_degraded=%t", run.RuntimePostureDegraded, run.AuditCurrentlyDegraded),
-			Impact:         fmt.Sprintf("Execution confidence is reduced for backend=%s isolation=%s.", valueOrNA(run.BackendKind), valueOrNA(run.IsolationAssuranceLevel)),
+			Urgency:        urgency,
+			Reason:         strings.Join(reasonParts, " "),
+			Impact:         fmt.Sprintf("Execution confidence is reduced for run %s on backend=%s isolation=%s.", valueOrNA(run.RunID), valueOrNA(run.BackendKind), valueOrNA(run.IsolationAssuranceLevel)),
+			Owner:          "owner: operator reviews run posture",
 			RequiredAction: "Open Runs to inspect the degraded run posture and confirm linked evidence before continuing.",
 			TargetLabel:    fmt.Sprintf("Runs › %s", valueOrNA(run.RunID)),
 			EvidenceCue:    fmt.Sprintf("source=run_summary run_id=%s", valueOrNA(run.RunID)),
@@ -254,6 +278,7 @@ func operationalProjectSetupItems(project brokerapi.ProjectSubstratePostureGetRe
 		Urgency:        urgency,
 		Reason:         dashboardProjectSubstrateReason(project),
 		Impact:         "Normal product work may stay blocked or require operator remediation until setup posture is brought back into supported shape.",
+		Owner:          "owner: operator remediates project setup",
 		RequiredAction: "Open Status for broker-owned setup guidance, preview/apply availability, and post-remediation validation.",
 		TargetLabel:    "Status",
 		EvidenceCue:    fmt.Sprintf("source=project_substrate_posture compatibility=%s", valueOrNA(project.PostureSummary.CompatibilityPosture)),
@@ -263,52 +288,21 @@ func operationalProjectSetupItems(project brokerapi.ProjectSubstratePostureGetRe
 
 func buildBlockedImpactItems(runs []brokerapi.RunSummary, approvals []brokerapi.ApprovalSummary) []actionCenterItem {
 	items := make([]actionCenterItem, 0, len(runs))
-	byRun := map[string]int{}
-	for _, ap := range approvals {
-		runID := strings.TrimSpace(ap.BoundScope.RunID)
-		if runID != "" {
-			byRun[runID]++
-		}
-	}
+	byRun := approvalCountsByRun(approvals)
 	for _, run := range runs {
-		state := strings.ToLower(strings.TrimSpace(run.LifecycleState))
-		isBlocked := strings.Contains(state, "block") || strings.Contains(state, "wait") || run.PendingApprovalCount > 0 || strings.TrimSpace(run.BlockingReasonCode) != ""
-		if !isBlocked {
+		if !runHasBlockedImpact(run) {
 			continue
 		}
-		urgency := "medium"
-		if run.PendingApprovalCount > 0 {
-			urgency = "high"
-		}
-		blockedCount := run.PendingApprovalCount
-		if blockedCount == 0 {
-			blockedCount = byRun[run.RunID]
-		}
-		requiredAction := "Open Runs to inspect the blocked reason and linked approvals, then continue from the target route."
-		stateCard := routeLoadStateBlocked
-		if run.PendingApprovalCount > 0 {
-			requiredAction = "Open Approvals or Runs, review the exact gate, then decide so workflow progress can resume."
-		}
-		items = append(items, actionCenterItem{
-			Title:          fmt.Sprintf("run %s blocked impact", valueOrNA(run.RunID)),
-			State:          stateCard,
-			Urgency:        urgency,
-			Reason:         fmt.Sprintf("lifecycle=%s reason=%s", valueOrNA(run.LifecycleState), valueOrNA(run.BlockingReasonCode)),
-			Impact:         fmt.Sprintf("Workflow progress is waiting; pending_approvals=%d linked_queue_items=%d.", run.PendingApprovalCount, blockedCount),
-			RequiredAction: requiredAction,
-			TargetLabel:    fmt.Sprintf("Runs › %s", valueOrNA(run.RunID)),
-			EvidenceCue:    fmt.Sprintf("source=run_summary run_id=%s", valueOrNA(run.RunID)),
-			Target:         paletteTarget{Kind: "run", RouteID: routeRuns, RunID: run.RunID},
-		})
+		items = append(items, blockedImpactItem(run, linkedApprovalCount(run, byRun)))
 	}
 	if len(items) == 0 {
-		return []actionCenterItem{{Title: "no blocked work impact", State: routeLoadStateReady, Urgency: "low", Reason: "no run currently reports blocking posture", Impact: "No workflow work is blocked on the current broker surfaces.", RequiredAction: "No blocked-work follow-up is needed right now.", TargetLabel: "Runs", EvidenceCue: "source=run_list no_blocked_items"}}
+		return []actionCenterItem{{Title: "no blocked work impact", State: routeLoadStateReady, Urgency: "low", Reason: "no run currently reports blocking posture", Impact: "No workflow work is blocked on the current broker surfaces.", Owner: "owner: none", RequiredAction: "No blocked-work follow-up is needed right now.", TargetLabel: "Runs", EvidenceCue: "source=run_list no_blocked_items"}}
 	}
 	return items
 }
 
 func (m *actionCenterRouteModel) normalizeSelection() {
-	buckets := m.familyBuckets()
+	buckets := m.snapshot().Families
 	for _, family := range []actionCenterFamily{actionCenterFamilyApprovals, actionCenterFamilyOps, actionCenterFamilyBlocked} {
 		max := len(buckets[family])
 		if max <= 0 {
@@ -325,7 +319,7 @@ func (m *actionCenterRouteModel) normalizeSelection() {
 }
 
 func (m actionCenterRouteModel) moveSelection(delta int) {
-	buckets := m.familyBuckets()
+	buckets := m.snapshot().Families
 	items := buckets[m.family]
 	if len(items) == 0 {
 		m.selected[m.family] = 0
@@ -342,7 +336,7 @@ func (m actionCenterRouteModel) moveSelection(delta int) {
 }
 
 func (m actionCenterRouteModel) selectedItem() (actionCenterItem, bool) {
-	buckets := m.familyBuckets()
+	buckets := m.snapshot().Families
 	items := buckets[m.family]
 	if len(items) == 0 {
 		return actionCenterItem{}, false

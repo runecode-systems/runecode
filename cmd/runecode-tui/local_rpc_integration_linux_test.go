@@ -232,14 +232,14 @@ func assertDashboardAndChatBackedRoutes(t *testing.T, recording localBrokerClien
 		"Safety strip",
 		"backend_kind=unknown",
 		"Live Activity",
-		"Live activity (typed watch families; logs are supplemental inspection only):",
+		"Live activity detail is available here when you need typed broker watch confirmation.",
 		"feed: waiting for shell watch manager",
 	)
 
 	chat := newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, recording)
 	assertRouteOutputContainsAll(t, chat, routeChat,
 		"Active session",
-		"Session session-tui in workspace workspace-local is active.",
+		"Canonical session session-tui in workspace workspace-local is active.",
 		"Composer is idle.",
 	)
 	assertRouteInspectorContainsAll(t, chat, routeChat,
@@ -265,7 +265,7 @@ func assertWorkAndSetupBackedRoutes(t *testing.T, recording localBrokerClient) {
 		"Approval posture",
 	)
 	assertRouteInspectorContainsAll(t, approvals, routeApprovals,
-		"Approval trigger code:",
+		"Why this approval exists:",
 		"Exact gated object/action:",
 	)
 

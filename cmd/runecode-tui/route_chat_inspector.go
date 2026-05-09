@@ -31,19 +31,25 @@ func renderSessionInspector(detail *brokerapi.SessionDetail, presentation conten
 		document = &fallback
 	}
 	presentation = normalizePresentationMode(presentation)
-	transcript := renderTranscriptTurns(detail.TranscriptTurns)
 	contentKind := inspectorContentTranscript
 	if presentation == presentationRaw {
-		transcript = renderTranscriptRaw(detail.TranscriptTurns)
 		contentKind = inspectorContentRaw
 	}
 	if presentation == presentationStructured {
-		transcript = renderTranscriptStructured(detail.TranscriptTurns)
 		contentKind = inspectorContentStructured
 	}
 	summary := detail.Summary
 	ref := workbenchObjectRef{Kind: "session", ID: strings.TrimSpace(summary.Identity.SessionID), WorkspaceID: strings.TrimSpace(summary.Identity.WorkspaceID), SessionID: strings.TrimSpace(summary.Identity.SessionID)}
-	document.SetDocument(ref, contentKind, "transcript", transcript)
+	if document.ObjectRef != ref || document.Kind != contentKind || strings.TrimSpace(document.Label) == "" {
+		transcript := renderTranscriptTurns(detail.TranscriptTurns)
+		if presentation == presentationRaw {
+			transcript = renderTranscriptRaw(detail.TranscriptTurns)
+		}
+		if presentation == presentationStructured {
+			transcript = renderTranscriptStructured(detail.TranscriptTurns)
+		}
+		document.SetDocument(ref, contentKind, "transcript", transcript)
+	}
 	references := chatInspectorReferences(detail)
 	localActions := chatInspectorLocalActions()
 	return renderInspectorShell(inspectorShellSpec{

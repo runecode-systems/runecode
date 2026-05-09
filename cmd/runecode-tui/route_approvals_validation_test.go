@@ -26,6 +26,27 @@ func TestValidateApprovalResolveInputRejectsUnsupportedActionKind(t *testing.T) 
 	}
 }
 
+func TestApprovalResolveUnavailableReasonUsesSafetyWording(t *testing.T) {
+	err := validateApprovalResolveInput(brokerapi.ApprovalGetResponse{
+		Approval: brokerapi.ApprovalSummary{
+			ApprovalID: "ap-promotion",
+			BoundScope: brokerapi.ApprovalBoundScope{ActionKind: "promotion"},
+		},
+		SignedApprovalRequest:  testSignedApprovalRequest,
+		SignedApprovalDecision: testSignedApprovalDecision,
+	})
+	if err == nil {
+		t.Fatal("expected unavailable error")
+	}
+	got := approvalResolveUnavailableReason(err)
+	if !strings.Contains(got, "Resolve unavailable: promotion approvals must be completed in the promotion flow") {
+		t.Fatalf("expected promotion safety wording, got %q", got)
+	}
+	if !strings.Contains(got, "exact promotion binding stays intact") {
+		t.Fatalf("expected exact binding safety rationale, got %q", got)
+	}
+}
+
 func TestApprovalDecisionMatchesRequestRequiresBoundHash(t *testing.T) {
 	requestID, err := approvalRequestDigestIdentity(*testSignedApprovalRequest)
 	if err != nil {
@@ -67,5 +88,30 @@ func TestApprovalDecisionMatchesRequestRejectsInvalidHash(t *testing.T) {
 	wrongSchema.PayloadSchemaID = trustpolicy.ApprovalRequestSchemaID
 	if err := approvalDecisionMatchesRequest(wrongSchema, requestID); err == nil || !strings.Contains(err.Error(), "unexpected decision payload schema") {
 		t.Fatalf("expected wrong payload schema to fail closed, got %v", err)
+	}
+}
+
+func TestApprovalRequestDigestIdentityRejectsWrongSchema(t *testing.T) {
+	wrongSchema := *testSignedApprovalRequest
+	wrongSchema.PayloadSchemaID = trustpolicy.ApprovalDecisionSchemaID
+	err := validateApprovalResolveInput(brokerapi.ApprovalGetResponse{
+		Approval:               brokerapi.ApprovalSummary{ApprovalID: "ap-1", BoundScope: brokerapi.ApprovalBoundScope{ActionKind: "backend_posture_change"}},
+		ApprovalDetail:         brokerapi.ApprovalDetail{BackendPostureSelection: &brokerapi.ApprovalBackendPostureSelection{TargetInstanceID: "instance-1", TargetBackendKind: "container"}},
+		SignedApprovalRequest:  &wrongSchema,
+		SignedApprovalDecision: testSignedApprovalDecision,
+	})
+	if err == nil || !strings.Contains(err.Error(), "unexpected request payload schema") {
+		t.Fatalf("expected wrong request payload schema to fail closed, got %v", err)
+	}
+}
+
+func TestApprovalResolveStatusDistinguishesDenied(t *testing.T) {
+	summary := brokerapi.ApprovalSummary{ApprovalID: "ap-denied", Status: "denied"}
+	detail := brokerapi.ApprovalDetail{LifecycleDetail: brokerapi.ApprovalLifecycleDetail{LifecycleState: "denied"}}
+	if got := workflowApprovalState(summary, detail); got != "denied" {
+		t.Fatalf("workflowApprovalState = %q, want denied", got)
+	}
+	if got := approvalResolveStatus(summary, detail); got != "denied" {
+		t.Fatalf("approvalResolveStatus = %q, want denied", got)
 	}
 }

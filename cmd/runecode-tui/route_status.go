@@ -24,8 +24,13 @@ type postureChangedMsg struct {
 }
 
 type projectSubstrateActionResultMsg struct {
-	status string
-	err    error
+	status         string
+	err            error
+	adoption       *brokerapi.ProjectSubstrateAdoptResponse
+	initPreview    *brokerapi.ProjectSubstrateInitPreviewResponse
+	upgradePreview *brokerapi.ProjectSubstrateUpgradePreviewResponse
+	actionCard     *stateCardSpec
+	reload         bool
 }
 
 const statusRouteKeyHintText = "Keys: r reload • c backend • a adopt • i/I init • u/U upgrade"
@@ -33,16 +38,18 @@ const statusRouteKeyHintText = "Keys: r reload • c backend • a adopt • i/I
 const projectSubstrateHandleAcquiredText = "<acquired>"
 
 type statusRouteModel struct {
-	def       routeDefinition
-	client    localBrokerClient
-	loading   bool
-	changing  bool
-	actioning bool
-	actionMsg string
-	errText   string
-	status    string
-	data      statusLoadedMsg
-	loadSeq   uint64
+	def                        routeDefinition
+	client                     localBrokerClient
+	loading                    bool
+	changing                   bool
+	actioning                  bool
+	validatingProjectSubstrate bool
+	actionMsg                  string
+	errText                    string
+	status                     string
+	projectSubstrateActionCard *stateCardSpec
+	data                       statusLoadedMsg
+	loadSeq                    uint64
 }
 
 func newStatusRouteModel(def routeDefinition, client localBrokerClient) routeModel {
@@ -74,6 +81,7 @@ func (m statusRouteModel) handleRouteActivated(msg routeActivatedMsg) (routeMode
 	if msg.RouteID != m.def.ID {
 		return m, nil
 	}
+	m.validatingProjectSubstrate = false
 	m = m.beginLoad()
 	return m, m.loadCmd(m.loadSeq)
 }
@@ -81,6 +89,7 @@ func (m statusRouteModel) handleRouteActivated(msg routeActivatedMsg) (routeMode
 func (m statusRouteModel) handleKeyMsg(msg tea.KeyMsg) (routeModel, tea.Cmd) {
 	key := msg.String()
 	if key == "r" {
+		m.validatingProjectSubstrate = false
 		m = m.beginLoad()
 		return m, m.loadCmd(m.loadSeq)
 	}
@@ -104,13 +113,25 @@ func (m statusRouteModel) handleStatusLoaded(msg statusLoadedMsg) (routeModel, t
 	if msg.seq != m.loadSeq {
 		return m, nil
 	}
+	wasValidating := m.validatingProjectSubstrate
 	m.loading = false
+	m.validatingProjectSubstrate = false
 	if msg.err != nil {
+		if wasValidating {
+			m.projectSubstrateActionCard = projectSubstrateValidationFailureCard(m.data.project, safeUIErrorText(msg.err))
+			m.errText = ""
+			m.status = "Project setup validation could not be refreshed. Review the broker guidance below."
+			return m, nil
+		}
 		m.errText = safeUIErrorText(msg.err)
 		return m, nil
 	}
 	m.data = msg
 	m.errText = ""
+	if wasValidating {
+		m.status = "Project setup validation refreshed. Review the updated managed-operation and setup posture below."
+		return m, nil
+	}
 	if m.status == "" {
 		m.status = "Status refreshed. Review managed-operation and project setup guidance below."
 	}
@@ -139,13 +160,36 @@ func (m statusRouteModel) handlePostureChanged(msg postureChangedMsg) (routeMode
 func (m statusRouteModel) handleProjectSubstrateActionResult(msg projectSubstrateActionResultMsg) (routeModel, tea.Cmd) {
 	m.actioning = false
 	m.actionMsg = ""
+	if msg.actionCard != nil {
+		m.projectSubstrateActionCard = msg.actionCard
+	}
 	if msg.err != nil {
+		m.validatingProjectSubstrate = false
+		if msg.actionCard != nil {
+			m.errText = ""
+			m.status = strings.TrimSpace(msg.status)
+			return m, nil
+		}
 		m.errText = safeUIErrorText(msg.err)
-		m.status = ""
+		m.status = strings.TrimSpace(msg.status)
 		return m, nil
 	}
 	m.errText = ""
+	if msg.adoption != nil {
+		m.data.project.Adoption = msg.adoption.Adoption
+	}
+	if msg.initPreview != nil {
+		m.data.project.InitPreview = msg.initPreview.Preview
+	}
+	if msg.upgradePreview != nil {
+		m.data.project.UpgradePreview = msg.upgradePreview.Preview
+	}
 	m.status = msg.status
+	if !msg.reload {
+		m.validatingProjectSubstrate = false
+		return m, nil
+	}
+	m.validatingProjectSubstrate = true
 	m = m.beginLoad()
 	return m, m.loadCmd(m.loadSeq)
 }
@@ -168,6 +212,15 @@ func (m statusRouteModel) View(width, height int, focus focusArea) string {
 
 func (m statusRouteModel) renderTransientStatusCard() string {
 	if m.loading {
+		if m.validatingProjectSubstrate {
+			return renderStateCardSpec(stateCardSpec{
+				State:      routeLoadStateLoading,
+				Title:      "Project setup",
+				Message:    "Validating broker-owned project setup after apply.",
+				Reason:     valueOrNA(strings.TrimSpace(m.status)),
+				NextAction: "Wait for refreshed managed-operation and project setup status before continuing normal work.",
+			})
+		}
 		return renderStateCardSpec(stateCardSpec{
 			State:       routeLoadStateLoading,
 			Title:       "Status",
@@ -226,6 +279,7 @@ func (m statusRouteModel) renderReadyStatusView(focus focusArea) string {
 		renderLifecycleBlockedReasonLine(m.data.lifecycle),
 		renderLifecycleDegradedReasonLine(m.data.lifecycle),
 		renderProjectSubstrateStatusCard(m.data.project),
+		renderProjectSubstrateActionCard(m.projectSubstrateActionCard),
 		renderProjectSubstrateStatusLine(m.data.project),
 		renderProjectSubstrateGuidance(m.data.project),
 		renderBackendPostureLine(m.data.posture),

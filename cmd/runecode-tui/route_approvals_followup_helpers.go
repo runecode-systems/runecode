@@ -23,6 +23,13 @@ func approvalEffectSummary(detail brokerapi.ApprovalDetail) string {
 }
 
 func approvalResolveSummary(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {
+	state := workflowApprovalState(summary, detail)
+	if state == "resolved" {
+		return "already resolved; broker recorded the decision and follow-on workflow state can continue when refreshed"
+	}
+	if state == "expired" {
+		return "unavailable because this approval expired; a fresh broker approval is required before the blocked action can continue"
+	}
 	if approvalResolveSupported(summary, detail) {
 		return "available from this route after reviewing the evidence"
 	}
@@ -40,6 +47,19 @@ func approvalResolveSupported(summary brokerapi.ApprovalSummary, detail brokerap
 }
 
 func approvalResolveStatus(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {
+	state := workflowApprovalState(summary, detail)
+	if state == "resolved" {
+		return "resolved"
+	}
+	if state == "expired" {
+		return "expired"
+	}
+	if state == "denied" {
+		return "denied"
+	}
+	if approvalLifecycleState(detail) != "pending" {
+		return "approval-required"
+	}
 	if approvalResolveSupported(summary, detail) {
 		return "supported"
 	}
@@ -48,13 +68,13 @@ func approvalResolveStatus(summary brokerapi.ApprovalSummary, detail brokerapi.A
 
 func approvalReviewFirst(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail) string {
 	if digest := strings.TrimSpace(detail.BoundIdentity.SummaryPreviewDigest); digest != "" {
-		return "summary preview artifact " + shortIdentity(digest)
+		return "summary preview artifact " + shortIdentity(digest) + " (copy raw digest from Artifacts if needed)"
 	}
 	if digest := strings.TrimSpace(detail.BoundIdentity.DiffDigest); digest != "" {
-		return "diff artifact " + shortIdentity(digest)
+		return "diff artifact " + shortIdentity(digest) + " (copy raw digest from Artifacts if needed)"
 	}
 	if digest := strings.TrimSpace(detail.BoundIdentity.ArtifactSetDigest); digest != "" {
-		return "artifact set " + shortIdentity(digest)
+		return "artifact set " + shortIdentity(digest) + " (copy raw digest from Artifacts if needed)"
 	}
 	if run := strings.TrimSpace(summary.BoundScope.RunID); run != "" {
 		return "run evidence for " + run

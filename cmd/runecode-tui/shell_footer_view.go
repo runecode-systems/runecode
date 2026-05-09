@@ -16,21 +16,15 @@ func (m shellModel) renderBottomStrip(surface routeSurface) string {
 		bottom = strings.TrimSpace(surface.Regions.Bottom.Body)
 	}
 	if bottom == "" {
-		bottom = muted("No route composer or status actions for this screen.")
+		bottom = muted("No route composer active.")
 	}
-	discovery := m.renderQuitDiscoverabilityHint()
-	if routeCue := strings.TrimSpace(m.renderRouteActionHints(surface)); routeCue != "" {
-		if discovery != "" {
-			discovery += " | "
-		}
-		discovery += routeCue
-	}
-	diagnostic := m.renderBottomDiagnosticLine()
+	discovery := m.renderBottomActionLine(surface)
+	diagnostic := m.renderBottomDiagnosticLine(surface)
 	return compactLines(
-		tableHeader("Bottom strip"),
+		tableHeader("Workbench actions"),
 		bottom,
 		discovery,
-		muted(diagnostic),
+		diagnostic,
 	)
 }
 
@@ -46,18 +40,35 @@ func (m shellModel) renderQuitDiscoverabilityHint() string {
 	return "Quick action: " + label + " (:quit)"
 }
 
+func (m shellModel) renderBottomActionLine(surface routeSurface) string {
+	parts := make([]string, 0, 3)
+	if quit := strings.TrimSpace(m.renderQuitDiscoverabilityHint()); quit != "" {
+		parts = append(parts, quit)
+	}
+	if actions := strings.TrimSpace(m.renderRouteActionHints(surface)); actions != "" {
+		parts = append(parts, actions)
+	}
+	if len(parts) == 0 {
+		return muted("Use command discovery for more actions.")
+	}
+	return strings.Join(parts, "  •  ")
+}
+
 func (m shellModel) renderRouteActionHints(surface routeSurface) string {
 	parts := []string{}
+	if len(surface.Actions.LocalActions) > 0 {
+		parts = append(parts, fmt.Sprintf("%d route actions", len(surface.Actions.LocalActions)))
+	}
 	if len(surface.Actions.ReferenceActions) > 0 {
 		parts = append(parts, fmt.Sprintf("%d linked refs", len(surface.Actions.ReferenceActions)))
 	}
-	if len(surface.Actions.LocalActions) > 0 {
-		parts = append(parts, fmt.Sprintf("%d local actions", len(surface.Actions.LocalActions)))
+	if len(surface.Actions.CopyActions) > 0 {
+		parts = append(parts, fmt.Sprintf("%d copy actions", len(surface.Actions.CopyActions)))
 	}
 	if len(parts) == 0 {
 		return ""
 	}
-	return "Next actions: " + strings.Join(parts, " | ")
+	return "Route actions: " + strings.Join(parts, " · ")
 }
 
 func (m shellModel) renderStatusSurface(surface routeSurface) string {
@@ -68,16 +79,19 @@ func (m shellModel) renderStatusSurface(surface routeSurface) string {
 	return "Status: " + status
 }
 
-func (m shellModel) renderBottomDiagnosticLine() string {
+func (m shellModel) renderBottomDiagnosticLine(surface routeSurface) string {
 	parts := []string{}
 	if m.selectionMode {
 		parts = append(parts, "Selection mode on")
 	}
-	if actions := len(m.activeShellSurface().Actions.CopyActions); actions > 0 {
-		parts = append(parts, fmt.Sprintf("copy actions %d via action entry", actions))
+	if actions := len(surface.Actions.CopyActions); actions > 0 {
+		parts = append(parts, fmt.Sprintf("Copy via action entry (%d)", actions))
+	}
+	if m.commandMode.Active() {
+		parts = append(parts, "Command mode")
 	}
 	if len(parts) == 0 {
-		parts = append(parts, "Use Status, inspectors, or command discovery for detailed diagnostics")
+		parts = append(parts, muted("Details stay in Status, inspectors, and command discovery"))
 	}
 	return strings.Join(parts, " • ")
 }

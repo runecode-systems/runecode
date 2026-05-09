@@ -33,7 +33,7 @@ func renderActionCenterItem(item actionCenterItem, width int) string {
 		fmt.Sprintf("%s %s urgency=%s", tableHeader(strings.ToUpper(string(item.State))), item.Title, valueOrNA(item.Urgency)),
 		"  reason: " + valueOrNA(item.Reason),
 		"  impact: " + valueOrNA(item.Impact),
-		"  action: " + valueOrNA(item.RequiredAction),
+		"  owner/action: " + valueOrNA(strings.TrimSpace(strings.Join([]string{item.Owner, item.RequiredAction}, " • "))),
 		"  target: " + valueOrNA(item.TargetLabel),
 		"  evidence: " + valueOrNA(item.EvidenceCue),
 	}
@@ -60,6 +60,7 @@ func renderActionCenterInspector(family actionCenterFamily, items []actionCenter
 		fmt.Sprintf("  urgency=%s", valueOrNA(item.Urgency)),
 		fmt.Sprintf("  reason=%s", valueOrNA(item.Reason)),
 		fmt.Sprintf("  impact=%s", valueOrNA(item.Impact)),
+		fmt.Sprintf("  owner=%s", valueOrNA(item.Owner)),
 		fmt.Sprintf("  required_action=%s", valueOrNA(item.RequiredAction)),
 		fmt.Sprintf("  target=%s", valueOrNA(item.TargetLabel)),
 		fmt.Sprintf("  evidence=%s", valueOrNA(item.EvidenceCue)),
@@ -70,17 +71,28 @@ func renderActionCenterInspector(family actionCenterFamily, items []actionCenter
 func buildActionCenterSummary(families map[actionCenterFamily][]actionCenterItem) actionCenterSummary {
 	approvals := countActiveActionCenterItems(families[actionCenterFamilyApprovals])
 	ops := countActiveActionCenterItems(families[actionCenterFamilyOps])
-	blocked := countActiveActionCenterItems(families[actionCenterFamilyBlocked])
+	blocked := countActionCenterItemsByState(families[actionCenterFamilyBlocked], routeLoadStateBlocked)
+	approvalBlocked := countActionCenterItemsByState(families[actionCenterFamilyBlocked], routeLoadStateApprovalRequired)
 	if blocked > 0 {
-		return actionCenterSummary{State: routeLoadStateBlocked, Title: "Blocked follow-up", Message: "Action Center has broker-known blockers that are holding workflow progress.", Reason: fmt.Sprintf("blocked_work_impact=%d operational_attention=%d approvals=%d", blocked, ops, approvals), NextAction: "Start with blocked-work impact items, then review linked approvals or setup guidance."}
+		return actionCenterSummary{State: routeLoadStateBlocked, Title: "Blocked", Message: "Workflow progress is blocked and needs operator follow-up.", Reason: fmt.Sprintf("blocked_work_impact=%d approval_gated_work=%d operational_attention=%d approvals=%d", blocked, approvalBlocked, ops, approvals), NextAction: "Start with blocked-work impact items, then review linked approvals or setup guidance."}
+	}
+	if approvals > 0 || approvalBlocked > 0 {
+		return actionCenterSummary{State: routeLoadStateApprovalRequired, Title: "Needs attention", Message: "Approval decisions are waiting on the operator.", Reason: fmt.Sprintf("approvals=%d approval_gated_work=%d operational_attention=%d", approvals, approvalBlocked, ops), NextAction: "Open the approvals queue and review the exact gated action before deciding."}
 	}
 	if ops > 0 {
-		return actionCenterSummary{State: routeLoadStateDegraded, Title: "Needs operational attention", Message: "Action Center has degraded runtime, evidence, setup, or sync follow-up to review.", Reason: fmt.Sprintf("operational_attention=%d approvals=%d", ops, approvals), NextAction: "Review degraded items first, then confirm detail in Audit, Runs, or Status."}
-	}
-	if approvals > 0 {
-		return actionCenterSummary{State: routeLoadStateApprovalRequired, Title: "Approval follow-up waiting", Message: "Action Center has broker-known approval decisions waiting on the operator.", Reason: fmt.Sprintf("approvals=%d", approvals), NextAction: "Open the approvals queue and review the exact gated action before deciding."}
+		return actionCenterSummary{State: routeLoadStateDegraded, Title: "Degraded", Message: "Runtime, evidence, setup, or sync posture needs review.", Reason: fmt.Sprintf("operational_attention=%d", ops), NextAction: "Review degraded items first, then confirm detail in Audit, Runs, or Status."}
 	}
 	return actionCenterSummary{State: routeLoadStateReady, Title: "No immediate follow-up", Message: "No broker-known attention items are currently waiting in Action Center.", Reason: "Approvals, blocked-work impact, and operational attention queues are clear on the current broker surfaces.", NextAction: "Return to Dashboard or Chat and continue work until new follow-up appears."}
+}
+
+func countActionCenterItemsByState(items []actionCenterItem, state routeLoadState) int {
+	total := 0
+	for _, item := range items {
+		if item.State == state {
+			total++
+		}
+	}
+	return total
 }
 
 func countActiveActionCenterItems(items []actionCenterItem) int {

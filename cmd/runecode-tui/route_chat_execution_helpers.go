@@ -35,7 +35,7 @@ func chatExecutionStateCard(detail *brokerapi.SessionDetail, posture *brokerapi.
 			State:       routeLoadStateEmpty,
 			Title:       "Workflow execution",
 			Message:     "No workflow execution is attached to this session yet.",
-			Reason:      chatExecutionEvidenceSummary(detail, nil),
+			Reason:      chatSessionExecutionSummary(detail),
 			NextAction:  "Open the composer when you are ready to start the next broker-owned workflow.",
 			ShortcutCue: "c compose",
 			RouteCue:    "Runs after start",
@@ -103,6 +103,9 @@ func chatExecutionHeadline(exec brokerapi.SessionTurnExecution, run *brokerapi.R
 
 func chatExecutionReason(exec brokerapi.SessionTurnExecution, detail *brokerapi.SessionDetail, posture *brokerapi.ProjectSubstratePostureGetResponse, run *brokerapi.RunDetail) string {
 	parts := []string{}
+	if summary := chatSessionExecutionSummary(detail); summary != "" {
+		parts = append(parts, summary)
+	}
 	if reason := chatExecutionWaitReason(exec, posture, run); reason != "" {
 		parts = append(parts, reason)
 	}
@@ -113,6 +116,35 @@ func chatExecutionReason(exec brokerapi.SessionTurnExecution, detail *brokerapi.
 		parts = append(parts, evidence)
 	}
 	return strings.Join(parts, " • ")
+}
+
+func chatSessionExecutionSummary(detail *brokerapi.SessionDetail) string {
+	if detail == nil {
+		return ""
+	}
+	parts := []string{}
+	if current := detail.CurrentTurnExecution; current != nil {
+		parts = append(parts, "Current broker state: "+chatExecutionSnapshotLabel(*current))
+	}
+	if latest := detail.LatestTurnExecution; latest != nil {
+		parts = append(parts, "Latest broker state: "+chatExecutionSnapshotLabel(*latest))
+	}
+	if len(parts) == 0 {
+		parts = append(parts, "No broker-owned execution snapshot is attached to this session.")
+	}
+	return strings.Join(parts, " • ")
+}
+
+func chatExecutionSnapshotLabel(exec brokerapi.SessionTurnExecution) string {
+	state := humanizeExecutionToken(exec.ExecutionState)
+	parts := []string{state}
+	if strings.TrimSpace(exec.WaitState) != "" {
+		parts = append(parts, "wait "+humanizeExecutionToken(exec.WaitState))
+	}
+	if strings.TrimSpace(exec.TerminalOutcome) != "" {
+		parts = append(parts, "outcome "+humanizeExecutionToken(exec.TerminalOutcome))
+	}
+	return strings.Join(parts, " / ")
 }
 
 func chatExecutionWaitReason(exec brokerapi.SessionTurnExecution, posture *brokerapi.ProjectSubstratePostureGetResponse, run *brokerapi.RunDetail) string {
@@ -158,21 +190,21 @@ func chatExecutionEvidenceSummary(detail *brokerapi.SessionDetail, run *brokerap
 		runs = 1
 	}
 	parts := []string{
-		fmt.Sprintf("linked runs %d", runs),
-		fmt.Sprintf("approvals %d", approvals),
-		fmt.Sprintf("artifacts %d", maxInt(artifacts, runArtifactCount(run))),
-		fmt.Sprintf("audit %d", audit),
+		countNoun(runs, "linked run", "linked runs"),
+		countNoun(approvals, "approval", "approvals"),
+		countNoun(maxInt(artifacts, runArtifactCount(run)), "artifact", "artifacts"),
+		countNoun(audit, "audit record", "audit records"),
 	}
 	return "Evidence: " + strings.Join(parts, " • ")
 }
 
 func chatExecutionStageSummary(exec brokerapi.SessionTurnExecution, detail *brokerapi.SessionDetail, run *brokerapi.RunDetail) string {
-	stages := make([]string, 0, 6)
+	stages := make([]string, 0, 8)
+	if executionWaiting(exec, run) {
+		stages = append(stages, "waiting")
+	}
 	if run != nil && runPlanAuthorityAvailable(run) {
 		stages = append(stages, "plan compiled")
-	}
-	if chatRunIDFromExecution(exec) != "" {
-		stages = append(stages, "run linked")
 	}
 	if runRunnerActive(run) {
 		stages = append(stages, "runner active")
@@ -183,7 +215,7 @@ func chatExecutionStageSummary(exec brokerapi.SessionTurnExecution, detail *brok
 	if chatExecutionApprovalRequired(exec, run) {
 		stages = append(stages, "approval required")
 	}
-	if len(exec.LinkedArtifactDigests) > 0 || len(detail.LinkedArtifactDigests) > 0 || runArtifactCount(run) > 0 {
+	if len(exec.LinkedArtifactDigests) > 0 || runArtifactCount(run) > 0 {
 		stages = append(stages, "artifact ready")
 	}
 	if strings.EqualFold(strings.TrimSpace(exec.ExecutionState), "failed") || strings.EqualFold(strings.TrimSpace(exec.TerminalOutcome), "failed") {
@@ -217,8 +249,14 @@ func uniqueStageLabels(labels []string) []string {
 }
 
 func chatExecutionNextAction(exec brokerapi.SessionTurnExecution, posture *brokerapi.ProjectSubstratePostureGetResponse, run *brokerapi.RunDetail) string {
+	if chatExecutionApprovalRequired(exec, run) {
+		return "Open Approvals and review the exact gated action before deciding."
+	}
 	action := strings.TrimSpace(blockedExecutionAction(exec))
-	if strings.EqualFold(strings.TrimSpace(exec.ExecutionState), "waiting") || chatExecutionApprovalRequired(exec, run) {
+	if strings.EqualFold(strings.TrimSpace(exec.ExecutionState), "waiting") {
+		action = strings.TrimSpace(waitingExecutionAction(exec))
+	}
+	if strings.EqualFold(strings.TrimSpace(exec.ExecutionState), "blocked") && strings.EqualFold(strings.TrimSpace(exec.WaitKind), "project_blocked") {
 		action = strings.TrimSpace(waitingExecutionAction(exec))
 	}
 	if posture != nil {
@@ -234,7 +272,7 @@ func chatExecutionNextAction(exec brokerapi.SessionTurnExecution, posture *broke
 }
 
 func chatExecutionShortcutCue(exec brokerapi.SessionTurnExecution) string {
-	if strings.EqualFold(strings.TrimSpace(exec.WaitKind), "approval") || strings.TrimSpace(exec.PendingApprovalID) != "" || len(exec.LinkedApprovalIDs) > 0 {
+	if strings.EqualFold(strings.TrimSpace(exec.WaitKind), "approval") || strings.TrimSpace(exec.PendingApprovalID) != "" {
 		return "open inspector or palette references"
 	}
 	if strings.EqualFold(strings.TrimSpace(exec.ExecutionState), "completed") {
@@ -258,144 +296,11 @@ func chatExecutionRouteCue(exec brokerapi.SessionTurnExecution, detail *brokerap
 }
 
 func chatExecutionApprovalRequired(exec brokerapi.SessionTurnExecution, run *brokerapi.RunDetail) bool {
-	if strings.EqualFold(strings.TrimSpace(exec.WaitKind), "approval") || strings.TrimSpace(exec.PendingApprovalID) != "" || len(exec.LinkedApprovalIDs) > 0 {
+	if chatExecutionTerminal(exec) {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(exec.WaitKind), "approval") || strings.TrimSpace(exec.PendingApprovalID) != "" {
 		return true
 	}
 	return run != nil && len(run.PendingApprovalIDs) > 0
-}
-
-func chatRunIDFromExecution(exec brokerapi.SessionTurnExecution) string {
-	if runID := strings.TrimSpace(exec.PrimaryRunID); runID != "" {
-		return runID
-	}
-	if len(exec.LinkedRunIDs) > 0 {
-		return strings.TrimSpace(exec.LinkedRunIDs[0])
-	}
-	return ""
-}
-
-func humanizeExecutionToken(value string) string {
-	value = strings.TrimSpace(strings.ReplaceAll(value, "_", " "))
-	if value == "" {
-		return "n/a"
-	}
-	return value
-}
-
-func maxInt(left, right int) int {
-	if right > left {
-		return right
-	}
-	return left
-}
-
-func runPlanAuthorityAvailable(run *brokerapi.RunDetail) bool {
-	if run == nil {
-		return false
-	}
-	if strings.TrimSpace(run.Summary.WorkflowDefinitionHash) != "" {
-		return true
-	}
-	if strings.TrimSpace(authoritativeString(run.AuthoritativeState, "workflow_projection_reason")) == "plan_authoritative" {
-		return true
-	}
-	return false
-}
-
-func runRunnerActive(run *brokerapi.RunDetail) bool {
-	if run == nil {
-		return false
-	}
-	value := strings.ToLower(strings.TrimSpace(authoritativeString(run.AdvisoryState, "runner")))
-	return value == "active" || value == "running"
-}
-
-func runCheckpointCode(run *brokerapi.RunDetail) string {
-	if run == nil {
-		return ""
-	}
-	checkpoint, _ := run.AdvisoryState["last_checkpoint"].(map[string]any)
-	return authoritativeString(checkpoint, "checkpoint_code")
-}
-
-func runArtifactCount(run *brokerapi.RunDetail) int {
-	if run == nil {
-		return 0
-	}
-	total := 0
-	for _, count := range run.ArtifactCountsByClass {
-		total += count
-	}
-	return total
-}
-
-func authoritativeString(state map[string]any, key string) string {
-	if len(state) == 0 {
-		return ""
-	}
-	value, _ := state[key].(string)
-	return strings.TrimSpace(value)
-}
-
-func chatExecutionTerminal(exec brokerapi.SessionTurnExecution) bool {
-	state := strings.ToLower(strings.TrimSpace(exec.ExecutionState))
-	if state == "completed" || state == "failed" {
-		return true
-	}
-	outcome := strings.ToLower(strings.TrimSpace(exec.TerminalOutcome))
-	return outcome == "completed" || outcome == "failed" || outcome == "cancelled"
-}
-
-func chatExecutionStatusAndAction(exec brokerapi.SessionTurnExecution) (string, string) {
-	status := chatExecutionHeadline(exec, nil)
-	action := blockedExecutionAction(exec)
-	if strings.EqualFold(strings.TrimSpace(exec.ExecutionState), "waiting") || chatExecutionApprovalRequired(exec, nil) {
-		action = waitingExecutionAction(exec)
-	}
-	if strings.EqualFold(strings.TrimSpace(exec.ExecutionState), "blocked") && strings.TrimSpace(exec.WaitKind) == "project_blocked" {
-		action = "Open Status and complete the recommended project setup remediation before retrying."
-	}
-	return status, strings.TrimSpace(action)
-}
-
-func blockedExecutionAction(exec brokerapi.SessionTurnExecution) string {
-	if blocked := strings.TrimSpace(exec.BlockedReasonCode); blocked != "" {
-		return "Review the blocking reason in Runs or the inspector: " + humanizeExecutionToken(blocked) + "."
-	}
-	return ""
-}
-
-func waitingExecutionAction(exec brokerapi.SessionTurnExecution) string {
-	switch strings.TrimSpace(exec.WaitKind) {
-	case "operator_input":
-		return "Provide the missing operator input when you are ready to continue."
-	case "approval":
-		return "Open Approvals and review the exact gated action before deciding."
-	case "external_dependency":
-		return "Wait for the dependency to become ready, then check Runs for the resumed workflow."
-	case "project_blocked":
-		return "Use Status to fix project setup before retrying this workflow."
-	default:
-		return blockedExecutionAction(exec)
-	}
-}
-
-func chooseActionTextByPosture(existing string, posture brokerapi.ProjectSubstratePostureGetResponse, exec brokerapi.SessionTurnExecution) string {
-	if strings.TrimSpace(existing) != "" && strings.TrimSpace(exec.WaitKind) != "project_blocked" {
-		return existing
-	}
-	if !strings.EqualFold(strings.TrimSpace(exec.WaitKind), "project_blocked") {
-		return existing
-	}
-	parts := []string{}
-	if len(posture.RemediationGuidance) > 0 {
-		parts = append(parts, "Remediation: "+joinCSVWithWrapHint(posture.RemediationGuidance))
-	}
-	if strings.TrimSpace(posture.BlockedExplanation) != "" {
-		parts = append(parts, "Project posture: "+sanitizeUIText(posture.BlockedExplanation))
-	}
-	if len(parts) == 0 {
-		return existing
-	}
-	return strings.Join(parts, " | ")
 }

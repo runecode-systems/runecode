@@ -29,7 +29,7 @@ func TestActionCenterViewKeepsFamiliesDistinctAndReservedQANotice(t *testing.T) 
 	view := updated.View(140, 40, focusContent)
 	mustContainAll(t, view,
 		"Action Center",
-		"Blocked follow-up",
+		"Blocked",
 		"Queue families:",
 		"approvals",
 		"operational_attention",
@@ -38,6 +38,9 @@ func TestActionCenterViewKeepsFamiliesDistinctAndReservedQANotice(t *testing.T) 
 		"Operational attention",
 		"Blocked-work impact",
 		"Action Center is the operator home for broker-known follow-up.",
+		"owner/action:",
+		"target:",
+		"evidence:",
 	)
 	surface := updated.ShellSurface(routeShellContext{Width: 140, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
 	inspector := surface.Regions.Inspector.Body
@@ -47,6 +50,7 @@ func TestActionCenterViewKeepsFamiliesDistinctAndReservedQANotice(t *testing.T) 
 		"urgency=",
 		"reason=",
 		"impact=",
+		"owner=",
 		"required_action=",
 		"evidence=",
 	)
@@ -60,6 +64,7 @@ func TestActionCenterKeyboardTriageAndDrillDown(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{']'}})
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{']'}})
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
 	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -94,7 +99,7 @@ func TestBuildApprovalActionItemsIncludesExpiryAndSupersededCues(t *testing.T) {
 		{ApprovalID: "ap-expired", Status: "pending", ExpiresAt: now.Add(-1 * time.Minute).Format(time.RFC3339), BoundScope: brokerapi.ApprovalBoundScope{RunID: "run-1", ActionKind: "promotion"}},
 		{ApprovalID: "ap-soon", Status: "pending", ExpiresAt: now.Add(30 * time.Minute).Format(time.RFC3339), BoundScope: brokerapi.ApprovalBoundScope{RunID: "run-2", ActionKind: "promotion"}},
 		{ApprovalID: "ap-super", Status: "superseded", SupersededByApprovalID: "ap-new", BoundScope: brokerapi.ApprovalBoundScope{RunID: "run-3", ActionKind: "promotion"}},
-	})
+	}, now)
 	joined := renderActionCenterItems(items)
 	text := strings.Join(joined, "\n")
 	mustContainAll(t, text,
@@ -104,7 +109,8 @@ func TestBuildApprovalActionItemsIncludesExpiryAndSupersededCues(t *testing.T) {
 		"expiring_soon",
 		"approval ap-super",
 		"superseded",
-		"action:",
+		"owner/action:",
+		"owner: operator decision",
 		"evidence:",
 	)
 }
@@ -124,7 +130,31 @@ func TestBuildOperationalAttentionItemsIncludesAuditAndWatchDisconnect(t *testin
 		"audit verification posture",
 		"anchoring=degraded",
 		"run run-1 operational posture",
-		"action:",
+		"owner/action:",
+	)
+}
+
+func TestActionCenterItemsStateReasonImpactOwnerTargetEvidence(t *testing.T) {
+	model := newActionCenterRouteModel(routeDefinition{ID: routeAction, Label: "Action Center"}, &fakeBrokerClient{}).(actionCenterRouteModel)
+	model.now = func() time.Time { return time.Date(2026, 5, 8, 12, 0, 0, 0, time.UTC) }
+	model.runs = []brokerapi.RunSummary{{RunID: "run-1", LifecycleState: "waiting", PendingApprovalCount: 1}}
+	model.approvals = []brokerapi.ApprovalSummary{{ApprovalID: "ap-1", Status: "pending", ApprovalTriggerCode: "policy_gate", BoundScope: brokerapi.ApprovalBoundScope{RunID: "run-1", ActionKind: "promotion"}}}
+	vm := model.snapshot()
+	blockedItems := vm.Families[actionCenterFamilyBlocked]
+	if len(blockedItems) == 0 {
+		t.Fatal("expected blocked items")
+	}
+	item := blockedItems[0]
+	if strings.TrimSpace(item.Reason) == "" || strings.TrimSpace(item.Impact) == "" || strings.TrimSpace(item.Owner) == "" || strings.TrimSpace(item.RequiredAction) == "" || strings.TrimSpace(item.TargetLabel) == "" || strings.TrimSpace(item.EvidenceCue) == "" {
+		t.Fatalf("expected full item content, got %+v", item)
+	}
+	text := renderActionCenterItem(item, 0)
+	mustContainAll(t, text,
+		"reason:",
+		"impact:",
+		"owner/action:",
+		"target:",
+		"evidence:",
 	)
 }
 

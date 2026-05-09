@@ -7,6 +7,9 @@ import (
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
+const artifactPreviewLineLimit = 10
+const artifactCopyPreviewLineLimit = 8
+
 func renderArtifactList(items []brokerapi.ArtifactSummary, selected int) string {
 	if len(items) == 0 {
 		return "  - no artifacts"
@@ -46,7 +49,8 @@ func renderArtifactInspector(head *brokerapi.LocalArtifactHeadResponse, mode art
 	document.SetDocument(workbenchObjectRef{Kind: "artifact", ID: strings.TrimSpace(a.Reference.Digest)}, kind, fmt.Sprintf("%s content", mode), compactLines(
 		fmt.Sprintf("Evidence label: %s", artifactDisplayLabel(a)),
 		fmt.Sprintf("Data class: %s", a.Reference.DataClass),
-		fmt.Sprintf("Evidence trail: run %s -> artifact %s -> Audit for verification posture and anchoring actions", valueOrNA(a.RunID), artifactDisplayLabel(a)),
+		fmt.Sprintf("Evidence trail: workflow result/run %s -> artifact %s -> audit records -> verification posture -> export/offline verification or anchoring where available", valueOrNA(a.RunID), artifactDisplayLabel(a)),
+		fmt.Sprintf("Primary digest display: %s (copy raw digest below)", shortIdentity(a.Reference.Digest)),
 		fmt.Sprintf("Typed detail mode: %s (metadata remains control-plane truth)", mode),
 		fmt.Sprintf("Presentation mode: %s", presentation),
 		fmt.Sprintf("Provenance receipt: %s", a.Reference.ProvenanceReceiptHash),
@@ -57,10 +61,12 @@ func renderArtifactInspector(head *brokerapi.LocalArtifactHeadResponse, mode art
 		Title:    "Artifact inspector",
 		Summary:  fmt.Sprintf("artifact=%s class=%s bytes=%d", artifactDisplayLabel(a), a.Reference.DataClass, a.Reference.SizeBytes),
 		Identity: fmt.Sprintf("artifact=%s digest=%s", artifactDisplayLabel(a), shortIdentity(a.Reference.Digest)),
-		Status:   fmt.Sprintf("evidence_trail=run:%s -> audit -> verification posture", valueOrNA(a.RunID)),
+		Status:   fmt.Sprintf("evidence_trail=run:%s -> artifact:%s -> audit -> verification posture", valueOrNA(a.RunID), shortIdentity(a.Reference.Digest)),
 		Badges:   []string{stateBadgeWithLabel("class", fmt.Sprintf("%v", a.Reference.DataClass)), appTheme.InspectorHint.Render("typed metadata first")},
 		References: []inspectorReference{{Label: "run", Items: mapReferenceIDs([]string{a.RunID}, func(id string) paletteActionMsg {
 			return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "run", RouteID: routeRuns, RunID: id}}
+		})}, {Label: "artifact", Items: mapReferenceIDs([]string{a.Reference.Digest}, func(id string) paletteActionMsg {
+			return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "artifact", RouteID: routeArtifacts, Digest: id}}
 		})}},
 		LocalActions: artifactInspectorLocalActions(),
 		CopyActions:  artifactRouteCopyActions(head, content),
@@ -76,6 +82,7 @@ func artifactInspectorLocalActions() []routeActionItem {
 		{Label: "jump:audit", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeAudit}}},
 		{Label: "copy:digest"},
 		{Label: "copy:provenance_receipt"},
+		{Label: "copy:artifact_preview"},
 	}
 }
 
@@ -86,9 +93,16 @@ func artifactInspectorReferenceActions(head *brokerapi.LocalArtifactHeadResponse
 	items := mapReferenceIDs([]string{head.Artifact.RunID}, func(id string) paletteActionMsg {
 		return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "run", RouteID: routeRuns, RunID: id}}
 	})
+	items = append(items, mapReferenceIDs([]string{head.Artifact.Reference.Digest}, func(id string) paletteActionMsg {
+		return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "artifact", RouteID: routeArtifacts, Digest: id}}
+	})...)
 	out := make([]routeActionItem, 0, len(items))
 	for _, item := range items {
-		out = append(out, routeActionItem{Label: "run:" + item.Label, Action: item.Action})
+		prefix := "run:"
+		if strings.Contains(item.Label, "sha256:") {
+			prefix = "artifact:"
+		}
+		out = append(out, routeActionItem{Label: prefix + item.Label, Action: item.Action})
 	}
 	return out
 }
@@ -99,12 +113,7 @@ func artifactRouteCopyActions(head *brokerapi.LocalArtifactHeadResponse, content
 	}
 	ref := head.Artifact.Reference
 	preview := strings.TrimSpace(content)
-	if preview != "" {
-		lines := strings.Split(preview, "\n")
-		if len(lines) > 8 {
-			preview = strings.Join(lines[:8], "\n") + fmt.Sprintf("\n... (%d more lines)", len(lines)-8)
-		}
-	}
+	preview = boundedArtifactPreview(preview, artifactCopyPreviewLineLimit)
 	return compactCopyActions([]routeCopyAction{
 		{ID: "digest", Label: "artifact digest", Text: ref.Digest},
 		{ID: "provenance_receipt", Label: "provenance receipt", Text: ref.ProvenanceReceiptHash},
@@ -187,10 +196,22 @@ func renderArtifactContent(mode artifactDetailMode, presentation contentPresenta
 		}
 		return fmt.Sprintf("  %s structured:\n  - lines=%d\n  - non_empty=%d\n  - preview=%q", mode, len(lines), countNonEmptyLines(lines), redactSecrets(strings.TrimSpace(content)))
 	}
-	if len(lines) > 10 {
-		return fmt.Sprintf("  %s preview (secrets redacted):\n%s\n  ... (%d more lines)", mode, redactSecrets(strings.Join(lines[:10], "\n")), len(lines)-10)
+	if len(lines) > artifactPreviewLineLimit {
+		return fmt.Sprintf("  %s preview (secrets redacted):\n%s\n  ... (%d more lines)", mode, redactSecrets(strings.Join(lines[:artifactPreviewLineLimit], "\n")), len(lines)-artifactPreviewLineLimit)
 	}
 	return fmt.Sprintf("  %s preview (secrets redacted):\n%s", mode, redactSecrets(content))
+}
+
+func boundedArtifactPreview(content string, maxLines int) string {
+	preview := strings.TrimSpace(content)
+	if preview == "" {
+		return ""
+	}
+	lines := strings.Split(preview, "\n")
+	if len(lines) > maxLines {
+		preview = strings.Join(lines[:maxLines], "\n") + fmt.Sprintf("\n... (%d more lines)", len(lines)-maxLines)
+	}
+	return redactSecrets(preview)
 }
 
 func countNonEmptyLines(lines []string) int {
@@ -216,7 +237,8 @@ func (m *artifactsRouteModel) syncDetailDocument() {
 	content := compactLines(
 		fmt.Sprintf("Evidence label: %s", artifactDisplayLabel(a)),
 		fmt.Sprintf("Data class: %s", a.Reference.DataClass),
-		fmt.Sprintf("Evidence trail: run %s -> artifact %s -> Audit for verification posture and anchoring actions", valueOrNA(a.RunID), artifactDisplayLabel(a)),
+		fmt.Sprintf("Evidence trail: workflow result/run %s -> artifact %s -> audit records -> verification posture -> export/offline verification or anchoring where available", valueOrNA(a.RunID), artifactDisplayLabel(a)),
+		fmt.Sprintf("Primary digest display: %s (copy raw digest below)", shortIdentity(a.Reference.Digest)),
 		fmt.Sprintf("Typed detail mode: %s (metadata remains control-plane truth)", mode),
 		fmt.Sprintf("Presentation mode: %s", presentation),
 		fmt.Sprintf("Provenance receipt: %s", a.Reference.ProvenanceReceiptHash),
@@ -244,7 +266,7 @@ func renderArtifactEvidenceTrail(head *brokerapi.LocalArtifactHeadResponse) stri
 		return "Evidence path: workflow result -> artifact -> audit record -> verification posture -> export/offline verification or anchoring where available"
 	}
 	a := head.Artifact
-	return fmt.Sprintf("Evidence path: run %s -> artifact %s -> Audit -> verification posture -> export/offline verification or anchoring where available", valueOrNA(a.RunID), artifactDisplayLabel(a))
+	return fmt.Sprintf("Evidence path: workflow result/run %s -> artifact %s (%s) -> Audit -> verification posture -> export/offline verification or anchoring where available", valueOrNA(a.RunID), artifactDisplayLabel(a), shortIdentity(a.Reference.Digest))
 }
 
 func artifactDisplayLabel(item brokerapi.ArtifactSummary) string {

@@ -28,12 +28,12 @@ func TestStatusRouteRendersProjectSubstratePostureAndGuidance(t *testing.T) {
 		"Managed-operation degraded reasons: none",
 		"Project setup",
 		"Project setup is usable, but a broker-owned upgrade is available.",
+		"Compatible adoption (a): status=unavailable mutation=none; read-only recognition of compatible existing substrate",
+		"Init preview/apply (i/I): preview status=ready_for_apply mutation=apply will mutate the repository through the broker-owned flow handle=<acquired>",
+		"Upgrade preview/apply (u/U): preview status=ready_for_apply mutation=apply will mutate the repository through the broker-owned flow digest=<acquired>",
 		"Project setup details:",
 		"compatibility=supported_with_upgrade_available",
 		"Guided setup/remediation flow",
-		"Compatible adoption (a): no mutation",
-		"Init preview/apply (i/I):",
-		"Upgrade preview/apply (u/U):",
 		"Keys: r reload",
 	)
 }
@@ -53,18 +53,20 @@ func TestStatusRouteProjectSubstrateActionsUseTypedContracts(t *testing.T) {
 }
 
 type statusRouteActionCase struct {
-	key             rune
-	expectedStatus  string
-	expectedRPCCall []string
+	key              rune
+	expectedStatus   string
+	expectedSnippets []string
+	expectedRPCCall  []string
+	expectReload     bool
 }
 
 func statusRouteActionCases() []statusRouteActionCase {
 	return []statusRouteActionCase{
-		{key: 'a', expectedStatus: "Project setup adoption: status=", expectedRPCCall: []string{"ProjectSubstrateAdopt"}},
-		{key: 'i', expectedStatus: "Project setup init preview: status=", expectedRPCCall: []string{"ProjectSubstrateInitPreview"}},
-		{key: 'I', expectedStatus: "Project setup init apply: status=", expectedRPCCall: []string{"ProjectSubstrateInitApply"}},
-		{key: 'u', expectedStatus: "Project setup upgrade preview: status=", expectedRPCCall: []string{"ProjectSubstrateUpgradePreview"}},
-		{key: 'U', expectedStatus: "Project setup upgrade apply: status=", expectedRPCCall: []string{"ProjectSubstrateUpgradeApply"}},
+		{key: 'a', expectedStatus: "Project setup adoption refreshed: status=compatible_existing", expectedSnippets: []string{"Compatible adoption", "Adoption is read-only and does not mutate the repository.", "read-only recognition only"}, expectedRPCCall: []string{"ProjectSubstrateAdopt"}},
+		{key: 'i', expectedStatus: "Project setup init preview refreshed: status=ready_for_apply", expectedSnippets: []string{"Init preview", "Mutation=no mutation yet; apply is available if you explicitly choose it.", "Handle=<acquired>."}, expectedRPCCall: []string{"ProjectSubstrateInitPreview"}},
+		{key: 'I', expectedStatus: "Project setup validation refreshed. Review the updated managed-operation and setup posture below.", expectedSnippets: []string{"Init apply", "Mutation occurred through the broker-owned init flow. Handle=<acquired>.", "Project setup validation refreshed."}, expectedRPCCall: []string{"ProjectSubstrateInitApply"}, expectReload: true},
+		{key: 'u', expectedStatus: "Project setup upgrade preview refreshed: status=ready_for_apply", expectedSnippets: []string{"Upgrade preview", "Mutation=no mutation yet; apply is available if you explicitly choose it.", "Digest=<acquired>."}, expectedRPCCall: []string{"ProjectSubstrateUpgradePreview"}},
+		{key: 'U', expectedStatus: "Project setup validation refreshed. Review the updated managed-operation and setup posture below.", expectedSnippets: []string{"Upgrade apply", "Mutation occurred through the broker-owned upgrade flow. Digest=<acquired>.", "Project setup validation refreshed."}, expectedRPCCall: []string{"ProjectSubstrateUpgradeApply"}, expectReload: true},
 	}
 }
 
@@ -76,22 +78,134 @@ func assertStatusRouteActionUsesTypedContracts(t *testing.T, model routeModel, r
 		t.Fatalf("expected action command for key %q", string(tc.key))
 	}
 	updated, cmd = updated.Update(cmd())
-	if cmd == nil {
+	if tc.expectReload && cmd == nil {
 		t.Fatalf("expected reload command after key %q", string(tc.key))
 	}
-	updated, _ = updated.Update(cmd())
+	if tc.expectReload {
+		updated, _ = updated.Update(cmd())
+	}
 	view := updated.View(120, 40, focusContent)
 	if !strings.Contains(view, tc.expectedStatus) {
 		t.Fatalf("expected status %q in view after key %q, got %q", tc.expectedStatus, string(tc.key), view)
 	}
+	for _, snippet := range tc.expectedSnippets {
+		if !strings.Contains(view, snippet) {
+			t.Fatalf("expected snippet %q in view after key %q, got %q", snippet, string(tc.key), view)
+		}
+	}
 	assertStatusRouteViewRedactsPreviewHandles(t, view, tc.key)
 	afterCalls := recording.Calls()[before:]
 	assertStatusRouteCallsInclude(t, afterCalls, tc.expectedRPCCall, tc.key)
-	if !containsCall(afterCalls, "ProjectSubstratePostureGet") {
+	if tc.expectReload && !containsCall(afterCalls, "ProjectSubstratePostureGet") {
 		t.Fatalf("expected post-action posture reload after key %q; got %v", string(tc.key), afterCalls)
 	}
-	if !containsCall(afterCalls, "ProductLifecyclePostureGet") {
+	if tc.expectReload && !containsCall(afterCalls, "ProductLifecyclePostureGet") {
 		t.Fatalf("expected post-action lifecycle posture reload after key %q; got %v", string(tc.key), afterCalls)
+	}
+}
+
+type failingProjectSubstrateActionClient struct {
+	*fakeBrokerClient
+	initPreviewErr error
+	postureErr     error
+	postureCalls   int
+}
+
+func (f *failingProjectSubstrateActionClient) ProjectSubstrateInitPreview(ctx context.Context) (brokerapi.ProjectSubstrateInitPreviewResponse, error) {
+	_, _ = f.fakeBrokerClient.ProjectSubstrateInitPreview(ctx)
+	if f.initPreviewErr != nil {
+		return brokerapi.ProjectSubstrateInitPreviewResponse{}, f.initPreviewErr
+	}
+	return f.fakeBrokerClient.ProjectSubstrateInitPreview(ctx)
+}
+
+func (f *failingProjectSubstrateActionClient) ProjectSubstratePostureGet(ctx context.Context) (brokerapi.ProjectSubstratePostureGetResponse, error) {
+	f.postureCalls++
+	if f.postureErr != nil && f.postureCalls > 1 {
+		return brokerapi.ProjectSubstratePostureGetResponse{}, f.postureErr
+	}
+	return f.fakeBrokerClient.ProjectSubstratePostureGet(ctx)
+}
+
+func TestStatusRouteProjectSubstratePreviewFailureGuidesRetry(t *testing.T) {
+	model := newStatusRouteModel(routeDefinition{ID: routeStatus, Label: "Status"}, &failingProjectSubstrateActionClient{fakeBrokerClient: &fakeBrokerClient{}, initPreviewErr: context.DeadlineExceeded})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeStatus})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	if cmd == nil {
+		t.Fatal("expected init preview action command")
+	}
+	updated, _ = updated.Update(cmd())
+	view := updated.View(120, 40, focusContent)
+	mustContainAll(t, view,
+		"Init preview",
+		"RuneCode could not load the broker-owned init preview.",
+		"Reload or retry init preview before any init apply.",
+		"normal_work_blocked=project substrate posture blocks execution while validation is incompatible",
+	)
+}
+
+type missingPreviewHandleClient struct {
+	*fakeBrokerClient
+}
+
+func (f *missingPreviewHandleClient) ProjectSubstratePostureGet(ctx context.Context) (brokerapi.ProjectSubstratePostureGetResponse, error) {
+	resp, err := f.fakeBrokerClient.ProjectSubstratePostureGet(ctx)
+	if err != nil {
+		return brokerapi.ProjectSubstratePostureGetResponse{}, err
+	}
+	resp.InitPreview.Status = ""
+	resp.InitPreview.PreviewToken = ""
+	return resp, nil
+}
+
+func TestStatusRouteProjectSubstrateApplyUnavailableExplainsPreviewRequirement(t *testing.T) {
+	model := newStatusRouteModel(routeDefinition{ID: routeStatus, Label: "Status"}, &missingPreviewHandleClient{fakeBrokerClient: &fakeBrokerClient{}})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeStatus})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'I'}})
+	if cmd == nil {
+		t.Fatal("expected init apply action command")
+	}
+	updated, _ = updated.Update(cmd())
+	view := updated.View(120, 40, focusContent)
+	mustContainAll(t, view,
+		"Init apply",
+		"Init apply is unavailable because no preview handle is currently published.",
+		"Run init preview first, then apply only after reviewing the planned mutation.",
+	)
+}
+
+func TestStatusRouteProjectSubstrateValidationReloadFailureStaysScoped(t *testing.T) {
+	model := newStatusRouteModel(routeDefinition{ID: routeStatus, Label: "Status"}, &failingProjectSubstrateActionClient{fakeBrokerClient: &fakeBrokerClient{}, postureErr: context.DeadlineExceeded})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeStatus})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'U'}})
+	if cmd == nil {
+		t.Fatal("expected upgrade apply action command")
+	}
+	updated, cmd = updated.Update(cmd())
+	if cmd == nil {
+		t.Fatal("expected validation reload command")
+	}
+	updated, _ = updated.Update(cmd())
+	view := updated.View(120, 40, focusContent)
+	mustContainAll(t, view,
+		"Post-apply validation",
+		"Project setup apply finished, but refreshed validation status is currently unavailable.",
+		"Press r to retry validation refresh, then confirm managed-operation and setup posture before continuing.",
+	)
+	if strings.Contains(view, "Status is temporarily unavailable.") {
+		t.Fatalf("expected scoped project-setup validation guidance, got %q", view)
 	}
 }
 
@@ -126,10 +240,9 @@ func TestStatusRouteActivationUsesLifecyclePostureAndStatusContracts(t *testing.
 		t.Fatal("expected adopt action command")
 	}
 	updated, cmd = updated.Update(cmd())
-	if cmd == nil {
-		t.Fatal("expected reload command after adopt")
+	if cmd != nil {
+		t.Fatal("did not expect reload command after adopt")
 	}
-	updated, _ = updated.Update(cmd())
 	calls := recording.Calls()
 	if !containsCall(calls, "ProjectSubstrateAdopt") {
 		t.Fatalf("expected ProjectSubstrateAdopt call, got %v", calls)

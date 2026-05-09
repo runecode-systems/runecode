@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"strings"
 	"time"
 
@@ -83,6 +82,7 @@ func (m chatRouteModel) applyLoaded(typed chatLoadedMsg) (routeModel, tea.Cmd) {
 	m.runDetail = typed.runDetail
 	m.posture = typed.posture
 	m.watching = false
+	m.watchPollCount = 0
 	m.watchSession = ""
 	m.watchTrigger = ""
 	m.syncDetailDocument()
@@ -117,6 +117,7 @@ func (m *chatRouteModel) resetSendSuccessState() {
 	m.composer.Blur()
 	m.composeOn = false
 	m.watching = false
+	m.watchPollCount = 0
 	m.watchSession = ""
 	m.watchTrigger = ""
 }
@@ -168,6 +169,7 @@ func (m *chatRouteModel) startSentExecutionWatch(typed chatMessageSentMsg) tea.C
 	}
 	m.watchSeq++
 	m.watching = true
+	m.watchPollCount = 0
 	m.watchSession = sessionID
 	m.watchTrigger = triggerID
 	m.watchStreamID = newRequestID("chat-session-turn-watch")
@@ -184,7 +186,9 @@ func (m chatRouteModel) handleExecutionWatchPoll(msg chatExecutionWatchPollMsg) 
 		m.watching = false
 		return m, nil
 	}
-	return m, m.watchLoadCmd(sessionID, triggerID, msg.seq)
+	nextPoll := m.watchPollCount + 1
+	refreshSessions := nextPoll%4 == 0
+	return m, m.watchLoadCmd(sessionID, triggerID, msg.seq, refreshSessions)
 }
 
 func (m chatRouteModel) applyExecutionWatchLoaded(msg chatExecutionWatchLoadedMsg) (routeModel, tea.Cmd) {
@@ -204,6 +208,7 @@ func (m chatRouteModel) applyExecutionWatchLoaded(msg chatExecutionWatchLoadedMs
 	m.activeID = strings.TrimSpace(msg.sessionID)
 	m.runDetail = msg.runDetail
 	m.posture = msg.posture
+	m.watchPollCount++
 	if msg.detail != nil {
 		m.active = msg.detail
 	}
@@ -222,6 +227,7 @@ func (m chatRouteModel) applyExecutionWatchLoaded(msg chatExecutionWatchLoadedMs
 	}
 	if !msg.continueWatch {
 		m.watching = false
+		m.watchPollCount = 0
 		m.watchSession = ""
 		m.watchTrigger = ""
 		m.syncDetailDocument()
@@ -237,6 +243,7 @@ func (m chatRouteModel) reload() (routeModel, tea.Cmd) {
 	m.actionText = ""
 	m.statusText = ""
 	m.watching = false
+	m.watchPollCount = 0
 	m.watchSession = ""
 	m.watchTrigger = ""
 	m.loadSeq++
@@ -245,10 +252,15 @@ func (m chatRouteModel) reload() (routeModel, tea.Cmd) {
 
 func (m *chatRouteModel) syncDetailDocument() {
 	if m.active == nil {
+		m.detailDocSession = nil
+		m.detailDocMode = normalizePresentationMode(m.presentation)
 		m.detailDoc.SetDocument(workbenchObjectRef{Kind: "session", ID: "none"}, inspectorContentTranscript, "transcript", "")
 		return
 	}
 	presentation := normalizePresentationMode(m.presentation)
+	if m.detailDocSession == m.active && m.detailDocMode == presentation {
+		return
+	}
 	transcript := renderTranscriptTurns(m.active.TranscriptTurns)
 	kind := inspectorContentTranscript
 	if presentation == presentationRaw {
@@ -262,157 +274,6 @@ func (m *chatRouteModel) syncDetailDocument() {
 	summary := m.active.Summary
 	ref := workbenchObjectRef{Kind: "session", ID: strings.TrimSpace(summary.Identity.SessionID), WorkspaceID: strings.TrimSpace(summary.Identity.WorkspaceID), SessionID: strings.TrimSpace(summary.Identity.SessionID)}
 	m.detailDoc.SetDocument(ref, kind, "transcript", transcript)
-}
-
-func (m chatRouteModel) loadCmd(preferredSessionID string, seq uint64) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := withLoadTimeout()
-		defer cancel()
-		listResp, err := m.client.SessionList(ctx, 20)
-		if err != nil {
-			return chatLoadedMsg{err: err, seq: seq}
-		}
-		target := preferredSessionID
-		if target != "" && selectedSessionIndex(listResp.Sessions, target) < 0 {
-			target = ""
-		}
-		if target == "" && len(listResp.Sessions) > 0 {
-			target = listResp.Sessions[0].Identity.SessionID
-		}
-		if target == "" {
-			return chatLoadedMsg{sessions: listResp.Sessions, activeSessionID: "", seq: seq}
-		}
-		getResp, err := m.client.SessionGet(ctx, target)
-		if err != nil {
-			return chatLoadedMsg{err: err, seq: seq}
-		}
-		return chatLoadedMsg{sessions: listResp.Sessions, detail: &getResp.Session, activeSessionID: target, seq: seq}
-	}
-}
-
-func (m chatRouteModel) sendCmd(sessionID, content string) tea.Cmd {
-	m.watchStreamID = newRequestID("chat-session-turn-watch")
-	return func() tea.Msg {
-		ctx, cancel := withLoadTimeout()
-		defer cancel()
-		sendResp, err := m.client.SessionExecutionTrigger(ctx, brokerapi.SessionExecutionTriggerRequest{
-			SessionID:              sessionID,
-			TriggerSource:          "interactive_user",
-			RequestedOperation:     "start",
-			WorkflowRouting:        defaultSessionWorkflowRouting(),
-			UserMessageContentText: content,
-		})
-		if err != nil {
-			return chatMessageSentMsg{err: err}
-		}
-		watchEvents, err := m.client.SessionTurnExecutionWatch(ctx, brokerapi.SessionTurnExecutionWatchRequest{StreamID: m.watchStreamID, SessionID: sessionID, Follow: true, IncludeSnapshot: true})
-		if err != nil {
-			return chatMessageSentMsg{err: err}
-		}
-		turnExecution := matchingTurnExecutionFromWatch(watchEvents, sendResp.TriggerID)
-		posture, err := m.client.ProjectSubstratePostureGet(ctx)
-		if err != nil {
-			return chatMessageSentMsg{err: err}
-		}
-		getResp, err := m.client.SessionGet(ctx, sessionID)
-		if err != nil {
-			return chatMessageSentMsg{err: err}
-		}
-		runDetail, err := m.loadChatRunDetail(ctx, getResp.Session)
-		if err != nil {
-			return chatMessageSentMsg{err: err}
-		}
-		listResp, err := m.client.SessionList(ctx, 20)
-		if err != nil {
-			return chatMessageSentMsg{err: err}
-		}
-		return chatMessageSentMsg{sessions: listResp.Sessions, detail: &getResp.Session, ack: &sendResp, turnExecution: turnExecution, posture: &posture, runDetail: runDetail}
-	}
-}
-
-func defaultSessionWorkflowRouting() *brokerapi.SessionWorkflowPackRouting {
-	return &brokerapi.SessionWorkflowPackRouting{
-		SchemaID:          "runecode.protocol.v0.SessionWorkflowPackRouting",
-		SchemaVersion:     "0.1.0",
-		WorkflowFamily:    "runecontext",
-		WorkflowOperation: "change_draft",
-	}
-}
-
-func (m chatRouteModel) watchLoadCmd(sessionID, triggerID string, seq uint64) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := withLoadTimeout()
-		defer cancel()
-		watchEvents, err := m.client.SessionTurnExecutionWatch(ctx, brokerapi.SessionTurnExecutionWatchRequest{StreamID: m.watchStreamID, SessionID: sessionID, Follow: true, IncludeSnapshot: true})
-		if err != nil {
-			return chatExecutionWatchLoadedMsg{seq: seq, err: err}
-		}
-		turnExecution := matchingTurnExecutionFromWatch(watchEvents, triggerID)
-		posture, err := m.client.ProjectSubstratePostureGet(ctx)
-		if err != nil {
-			return chatExecutionWatchLoadedMsg{seq: seq, err: err}
-		}
-		getResp, err := m.client.SessionGet(ctx, sessionID)
-		if err != nil {
-			return chatExecutionWatchLoadedMsg{seq: seq, err: err}
-		}
-		runDetail, err := m.loadChatRunDetail(ctx, getResp.Session)
-		if err != nil {
-			return chatExecutionWatchLoadedMsg{seq: seq, err: err}
-		}
-		listResp, err := m.client.SessionList(ctx, 20)
-		if err != nil {
-			return chatExecutionWatchLoadedMsg{seq: seq, err: err}
-		}
-		continueWatch := false
-		if turnExecution != nil {
-			continueWatch = !chatExecutionTerminal(*turnExecution)
-		} else {
-			continueWatch = true
-		}
-		return chatExecutionWatchLoadedMsg{
-			seq:           seq,
-			sessionID:     sessionID,
-			triggerID:     triggerID,
-			turnExecution: turnExecution,
-			detail:        &getResp.Session,
-			runDetail:     runDetail,
-			sessions:      listResp.Sessions,
-			posture:       &posture,
-			continueWatch: continueWatch,
-		}
-	}
-}
-
-func (m chatRouteModel) loadChatRunDetail(ctx context.Context, detail brokerapi.SessionDetail) (*brokerapi.RunDetail, error) {
-	runID := ""
-	if exec := chatVisibleExecution(&detail); exec != nil {
-		runID = chatRunIDFromExecution(*exec)
-	}
-	if strings.TrimSpace(runID) == "" && len(detail.LinkedRunIDs) > 0 {
-		runID = strings.TrimSpace(detail.LinkedRunIDs[0])
-	}
-	if strings.TrimSpace(runID) == "" {
-		return nil, nil
-	}
-	resp, err := m.client.RunGet(ctx, runID)
-	if err != nil {
-		return nil, err
-	}
-	run := resp.Run
-	return &run, nil
-}
-
-func matchingTurnExecutionFromWatch(events []brokerapi.SessionTurnExecutionWatchEvent, triggerID string) *brokerapi.SessionTurnExecution {
-	for i := range events {
-		if events[i].TurnExecution == nil {
-			continue
-		}
-		if strings.TrimSpace(events[i].TurnExecution.TriggerID) != strings.TrimSpace(triggerID) {
-			continue
-		}
-		v := *events[i].TurnExecution
-		return &v
-	}
-	return nil
+	m.detailDocSession = m.active
+	m.detailDocMode = presentation
 }

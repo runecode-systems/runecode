@@ -135,32 +135,31 @@ func (m dashboardRouteModel) View(width, height int, focus focusArea) string {
 	if focus == focusContent {
 		focusLabel = "active"
 	}
-	primaryRun := primaryDashboardRun(m.data.runs)
 	innerWidth := dashboardContentWidth(width)
-	executive := buildDashboardExecutiveSummary(m.data)
+	snapshot := buildDashboardSnapshot(m.data)
 	sections := []string{
 		compactLines(
 			sectionTitle("Dashboard")+" "+focusBadge(focus)+" "+navStateBadge(focusLabel == "active"),
 			renderStateCardSpec(stateCardSpec{
-				State:      executive.State,
-				Title:      executive.Title,
-				Message:    executive.Message,
-				Reason:     executive.Reason,
-				NextAction: executive.NextAction,
+				State:      snapshot.Executive.State,
+				Title:      snapshot.Executive.Title,
+				Message:    snapshot.Executive.Message,
+				Reason:     snapshot.Executive.Reason,
+				NextAction: snapshot.Executive.NextAction,
 				RouteCue:   "Action Center",
 			}),
-			tableHeader("Now")+" "+renderDashboardNowBar(primaryRun, len(m.data.approvals), focusLabel == "active", innerWidth),
+			tableHeader("Now")+" "+renderDashboardNowBar(snapshot.PrimaryRun, snapshot.PendingApprovals, focusLabel == "active", innerWidth),
 		),
 		compactLines(
 			tableHeader("Executive overview"),
-			wrapDashboardLine(renderDashboardWorkflowPosture(m.data), innerWidth),
-			wrapDashboardLine(renderDashboardHighValueCounts(m.data, innerWidth), innerWidth),
-			wrapDashboardLine(renderDashboardNextActions(m.data), innerWidth),
-			wrapDashboardLine(renderDashboardActionCenterCue(m.data), innerWidth),
+			wrapDashboardLine(renderDashboardWorkflowPosture(snapshot), innerWidth),
+			wrapDashboardLine(renderDashboardHighValueCounts(snapshot, innerWidth), innerWidth),
+			wrapDashboardLine(renderDashboardNextActions(m.data, snapshot), innerWidth),
+			wrapDashboardLine(renderDashboardActionCenterCue(snapshot), innerWidth),
 		),
-		compactLines(tableHeader("Safety Summary"), renderRunSafetyStrip(primaryDashboardRun(m.data.runs), innerWidth), wrapDashboardLine(renderDashboardSafetyAlerts(m.data), innerWidth)),
+		compactLines(tableHeader("Safety Summary"), renderRunSafetyStrip(snapshot.PrimaryRun, innerWidth), wrapDashboardLine(renderDashboardSafetyAlerts(m.data), innerWidth)),
 		m.controlPlaneSection(innerWidth),
-		compactLines(tableHeader("Live Activity"), wrapDashboardLine("Live activity (typed watch families; logs are supplemental inspection only):", innerWidth), wrapDashboardLine(muted("Live activity uses semantic watch families with explicit event types."), innerWidth), renderWatchFamilySummary(m.data.live.runWatch), renderWatchFamilySummary(m.data.live.approvalWatch), renderWatchFamilySummary(m.data.live.sessionWatch), renderLiveActivityFeed(m.data.live.feed)),
+		compactLines(tableHeader("Live Activity"), wrapDashboardLine("Live activity detail is available here when you need typed broker watch confirmation.", innerWidth), wrapDashboardLine(muted("Typed watch family status and event detail are secondary to the executive overview."), innerWidth), renderWatchFamilySummary(m.data.live.runWatch), renderWatchFamilySummary(m.data.live.approvalWatch), renderWatchFamilySummary(m.data.live.sessionWatch), renderLiveActivityFeed(m.data.live.feed)),
 		compactLines(tableHeader("Highlights"), wrapDashboardLine(renderRunHighlights(m.data.runs), innerWidth), wrapDashboardLine(renderApprovalHighlights(m.data.approvals), innerWidth)),
 		compactLines(tableHeader("Actions")+" "+keyHint("r reload")+" "+muted("tab moves focus • : opens command surface"), wrapDashboardLine("Primary follow-up lives in Action Center; use Runs, Approvals, Audit, and Status for detail.", innerWidth), keyHint("Route keys: r reload")),
 	}

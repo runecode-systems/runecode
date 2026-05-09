@@ -55,6 +55,9 @@ func approvalResolveUnavailableReason(err error) string {
 }
 
 func validateApprovalResolveEnvelopeBinding(resp brokerapi.ApprovalGetResponse) error {
+	// The TUI performs only a consistency guard between broker-projected signed
+	// envelopes. Signature authenticity remains broker-owned and is revalidated
+	// by ApprovalResolve before any authority-bearing mutation is accepted.
 	requestID, err := approvalRequestDigestIdentity(*resp.SignedApprovalRequest)
 	if err != nil {
 		return fmt.Errorf("approval resolve request envelope invalid: %w", err)
@@ -100,7 +103,7 @@ func approvalDecisionMatchesRequest(envelope trustpolicy.SignedObjectEnvelope, r
 		return fmt.Errorf("invalid approval_request_hash: %w", err)
 	}
 	if identity != requestID {
-		return fmt.Errorf("decision payload does not match approval request")
+		return fmt.Errorf("decision payload does not match approval request: decision=%s request=%s", shortIdentity(identity), shortIdentity(requestID))
 	}
 	return nil
 }
@@ -137,10 +140,10 @@ func approvalResolveRequestFromDetail(resp brokerapi.ApprovalGetResponse) (broke
 	summary := resp.Approval
 	boundScope := summary.BoundScope
 	if strings.TrimSpace(boundScope.SchemaID) == "" {
-		boundScope.SchemaID = "runecode.protocol.v0.ApprovalBoundScope"
+		return brokerapi.ApprovalResolveRequest{}, fmt.Errorf("approval resolve requires broker-provided bound scope schema id")
 	}
 	if strings.TrimSpace(boundScope.SchemaVersion) == "" {
-		boundScope.SchemaVersion = "0.1.0"
+		return brokerapi.ApprovalResolveRequest{}, fmt.Errorf("approval resolve requires broker-provided bound scope schema version")
 	}
 	resolveReq := brokerapi.ApprovalResolveRequest{
 		SchemaID:               "runecode.protocol.v0.ApprovalResolveRequest",

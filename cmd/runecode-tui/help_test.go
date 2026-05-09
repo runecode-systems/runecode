@@ -32,3 +32,14 @@ func TestShellViewLeaderOverlayKeepsBaseFooterHelp(t *testing.T) {
 		t.Fatalf("expected footer help under leader overlay not to switch into palette/session bindings, got %q", v)
 	}
 }
+
+func TestHelpFooterStaysCompactWhilePreservingDiscovery(t *testing.T) {
+	m := newShellModel()
+	help := renderHelp(m.keys, false, m.actions)
+	if !strings.Contains(help, "Help:") || !strings.Contains(help, "Actions:") {
+		t.Fatalf("expected compact footer help with actions discovery, got %q", help)
+	}
+	if strings.Contains(help, "copy current object identity") {
+		t.Fatalf("expected footer actions summary not to expand into long-form descriptions, got %q", help)
+	}
+}

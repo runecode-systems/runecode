@@ -354,6 +354,9 @@ func TestShellBottomStripShowsQuitDiscoverabilityWhenSidebarHiddenNarrow(t *test
 	if !strings.Contains(bottom, "Quick action: Quit RuneCode") || !strings.Contains(bottom, "(:quit)") {
 		t.Fatalf("expected bottom strip to expose beginner quit affordance when sidebar hidden, got %q", bottom)
 	}
+	if !strings.Contains(bottom, "Workbench actions") {
+		t.Fatalf("expected calm workbench actions header, got %q", bottom)
+	}
 }
 
 func TestShellBottomStripShowsQuitDiscoverabilityWhenSidebarToggledOff(t *testing.T) {
@@ -390,11 +393,23 @@ func TestShellBottomStripCopyHintUsesActionEntryWording(t *testing.T) {
 	m.location.Primary = shellObjectLocation{RouteID: routeRuns, Object: workbenchObjectRef{Kind: "route", ID: string(routeRuns)}}
 
 	bottom := m.renderBottomStrip(m.activeShellSurface())
-	if !strings.Contains(bottom, "copy actions 3 via action entry") {
+	if !strings.Contains(bottom, "Copy via action entry (3)") {
 		t.Fatalf("expected updated copy hint wording, got %q", bottom)
 	}
 	if strings.Contains(bottom, "Y cycles/copies") {
 		t.Fatalf("expected retired Y wording removed from bottom strip, got %q", bottom)
+	}
+}
+
+func TestShellBottomStripSummarizesRouteActionsCalmly(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	bottom := m.renderBottomStrip(m.activeShellSurface())
+	if !strings.Contains(bottom, "Route actions:") {
+		t.Fatalf("expected calm route action summary, got %q", bottom)
+	}
+	if strings.Contains(bottom, "Next actions:") {
+		t.Fatalf("expected retired next-actions wording removed, got %q", bottom)
 	}
 }
 

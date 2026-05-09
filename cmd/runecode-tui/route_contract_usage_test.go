@@ -29,7 +29,7 @@ var routeActivationCaseData = []routeActivationCase{
 		newModel: func(client localBrokerClient) routeModel {
 			return newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, client)
 		},
-		expected: []string{"SessionList", "SessionGet"},
+		expected: []string{"SessionList", "SessionGet", "ProjectSubstratePostureGet", "RunGet"},
 	},
 	{
 		name:    "runs uses typed run contracts",

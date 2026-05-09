@@ -34,9 +34,9 @@ func renderAuditFinalizeSummary(finalize *brokerapi.AuditFinalizeVerifyResponse)
 	if status == "ok" {
 		return line + " next=review Audit findings or anchor/export the latest verified segment"
 	}
-	reason := strings.TrimSpace(finalize.FailureCode)
+	reason := sanitizeUIText(strings.TrimSpace(finalize.FailureCode))
 	if reason == "" {
-		reason = strings.TrimSpace(finalize.FailureMessage)
+		reason = sanitizeUIText(strings.TrimSpace(finalize.FailureMessage))
 	}
 	if reason != "" {
 		line += " reason=" + reason
@@ -113,7 +113,7 @@ func renderAuditTimeline(timeline []brokerapi.AuditTimelineViewEntry, selected i
 func renderAuditDirectoryItems(timeline []brokerapi.AuditTimelineViewEntry) []string {
 	items := make([]string, 0, len(timeline))
 	for _, entry := range timeline {
-		items = append(items, fmt.Sprintf("%s event=%s %s", auditRecordDisplayLabel(entry), valueOrNA(entry.EventType), auditTimelinePostureLabel(entry)))
+		items = append(items, fmt.Sprintf("%s digest=%s event=%s %s refs=%d", auditRecordDisplayLabel(entry), auditRecordDigestLabel(entry), valueOrNA(entry.EventType), auditTimelinePostureLabel(entry), len(entry.LinkedReferences)))
 	}
 	return items
 }
@@ -182,9 +182,11 @@ func auditInspectorContent(record brokerapi.AuditRecordDetail, status string, re
 	return compactLines(
 		fmt.Sprintf("Record family: %s event=%s", record.RecordFamily, record.EventType),
 		fmt.Sprintf("Occurred at: %s", record.OccurredAt),
+		fmt.Sprintf("Primary digest display: %s (copy raw digest below)", auditRecordDigestDetail(record)),
 		fmt.Sprintf("Verification posture: %s (%s) reasons=%d", status, renderAnchoringPostureLabel(status), reasons),
 		fmt.Sprintf("Linked references: %d", len(record.LinkedReferences)),
-		"Evidence trail: follow linked runs/artifacts/approvals, then use Audit verification and anchor/export actions for proof handling.",
+		"Evidence trail: workflow result -> artifacts -> audit records -> verification posture -> export/offline verification -> anchoring where available.",
+		"Trust posture: broker-linked references stay authoritative; copied digests and any raw content are supplemental proof material.",
 	)
 }
 
@@ -334,9 +336,9 @@ func renderAuditEvidenceTrail(verify *brokerapi.AuditVerificationGetResponse, re
 		recordLabel = "record " + shortIdentity(identity)
 	}
 	if verify == nil {
-		return fmt.Sprintf("Evidence path: %s -> verification posture unavailable until broker verification data loads", recordLabel)
+		return fmt.Sprintf("Evidence path: workflow result -> artifacts -> audit records (%s) -> verification posture unavailable until broker verification data loads", recordLabel)
 	}
-	return fmt.Sprintf("Evidence path: %s -> verification posture -> export/offline verification -> anchoring where available", recordLabel)
+	return fmt.Sprintf("Evidence path: workflow result -> artifacts -> audit records (%s) -> verification posture -> export/offline verification -> anchoring where available", recordLabel)
 }
 
 func auditRecordDisplayLabel(entry brokerapi.AuditTimelineViewEntry) string {
@@ -344,6 +346,16 @@ func auditRecordDisplayLabel(entry brokerapi.AuditTimelineViewEntry) string {
 	if strings.TrimSpace(entry.Summary) != "" {
 		return strings.TrimSpace(entry.Summary)
 	}
+	return shortIdentity(digest)
+}
+
+func auditRecordDigestLabel(entry brokerapi.AuditTimelineViewEntry) string {
+	digest, _ := entry.RecordDigest.Identity()
+	return shortIdentity(digest)
+}
+
+func auditRecordDigestDetail(record brokerapi.AuditRecordDetail) string {
+	digest, _ := record.RecordDigest.Identity()
 	return shortIdentity(digest)
 }
 

@@ -305,8 +305,10 @@ func renderRunDirectoryItems(runs []brokerapi.RunSummary) []string {
 			run.RunID,
 			stateBadgeWithLabel("state", run.LifecycleState),
 			fmt.Sprintf("workflow=%s", valueOrNA(run.WorkflowKind)),
+			fmt.Sprintf("operation=%s", valueOrNA(run.CurrentStageID)),
 			fmt.Sprintf("backend=%s", valueOrNA(run.BackendKind)),
 			fmt.Sprintf("approvals=%d", run.PendingApprovalCount),
+			fmt.Sprintf("audit=%s/%s", valueOrNA(run.AuditIntegrityStatus), valueOrNA(run.AuditAnchoringStatus)),
 		}, " ")))
 	}
 	return items

@@ -8,6 +8,13 @@ import (
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
+type runEvidenceLinks struct {
+	SessionID      string
+	ApprovalIDs    []string
+	ArtifactLabels []string
+	AuditLabels    []string
+}
+
 func renderRunInspector(detail *brokerapi.RunDetail, presentation contentPresentationMode, document *longFormDocumentState) string {
 	if detail == nil {
 		return "  Select a run to review workflow status, outcome, and linked evidence."
@@ -20,7 +27,8 @@ func renderRunInspector(detail *brokerapi.RunDetail, presentation contentPresent
 	presentation = normalizePresentationMode(presentation)
 	waitingStages := pendingApprovalStageCount(detail.StageSummaries)
 	waitingRoles := waitingRoleCount(detail.RoleSummaries)
-	content := runInspectorContent(summary, detail, waitingStages, waitingRoles, presentation)
+	links := buildRunEvidenceLinks(detail)
+	content := runInspectorContent(summary, detail, waitingStages, waitingRoles, links, presentation)
 	contentKind := runInspectorContentKind(presentation)
 	ref := workbenchObjectRef{Kind: "run", ID: strings.TrimSpace(summary.RunID), WorkspaceID: strings.TrimSpace(summary.WorkspaceID)}
 	document.SetDocument(ref, contentKind, "run details", content)
@@ -30,7 +38,7 @@ func renderRunInspector(detail *brokerapi.RunDetail, presentation contentPresent
 		Identity:     runInspectorIdentity(summary, detail),
 		Status:       runInspectorStatus(summary, detail),
 		Badges:       []string{stateBadgeWithLabel("state", summary.LifecycleState), appTheme.InspectorHint.Render("authoritative vs advisory state shown")},
-		References:   runInspectorReferences(detail),
+		References:   runInspectorReferences(detail, links),
 		LocalActions: runInspectorLocalActions(),
 		CopyActions:  runRouteCopyActions(detail),
 		ModeTabs:     []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
@@ -46,25 +54,26 @@ func runInspectorLocalActions() []routeActionItem {
 		{Label: "jump:artifacts", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeArtifacts}}},
 		{Label: "jump:audit", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeAudit}}},
 		{Label: "copy:run_id"},
+		{Label: "copy:session_id"},
 	}
 }
 
-func runInspectorReferences(detail *brokerapi.RunDetail) []inspectorReference {
+func runInspectorReferences(detail *brokerapi.RunDetail, links runEvidenceLinks) []inspectorReference {
 	if detail == nil {
 		return nil
 	}
 	refs := []inspectorReference{}
-	if sessionID := strings.TrimSpace(authoritativeString(detail.AuthoritativeState, "session_id")); sessionID != "" {
+	if sessionID := strings.TrimSpace(links.SessionID); sessionID != "" {
 		refs = append(refs, inspectorReference{Label: "session", Items: []inspectorReferenceItem{{Label: sessionID, Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "session", RouteID: routeChat, SessionID: sessionID}}}}})
 	}
 	refs = append(refs,
-		inspectorReference{Label: "approvals", Items: mapReferenceIDs(detail.PendingApprovalIDs, func(id string) paletteActionMsg {
+		inspectorReference{Label: "approvals", Items: mapReferenceIDs(links.ApprovalIDs, func(id string) paletteActionMsg {
 			return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "approval", RouteID: routeApprovals, ApprovalID: id}}
 		})},
-		inspectorReference{Label: "artifacts", Items: mapReferenceIDs(runArtifactReferenceLabels(detail), func(id string) paletteActionMsg {
+		inspectorReference{Label: "artifacts", Items: mapReferenceIDs(links.ArtifactLabels, func(id string) paletteActionMsg {
 			return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeArtifacts}}
 		})},
-		inspectorReference{Label: "audit", Items: mapReferenceIDs(runAuditReferenceLabels(detail), func(id string) paletteActionMsg {
+		inspectorReference{Label: "audit", Items: mapReferenceIDs(links.AuditLabels, func(id string) paletteActionMsg {
 			return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeAudit}}
 		})},
 	)
@@ -75,7 +84,7 @@ func runInspectorReferenceActions(detail *brokerapi.RunDetail) []routeActionItem
 	if detail == nil {
 		return nil
 	}
-	refs := runInspectorReferences(detail)
+	refs := runInspectorReferences(detail, buildRunEvidenceLinks(detail))
 	out := make([]routeActionItem, 0, 12)
 	for _, ref := range refs {
 		for _, item := range ref.Items {
@@ -108,7 +117,19 @@ func waitingRoleCount(roles []brokerapi.RunRoleSummary) int {
 	return count
 }
 
-func runInspectorContent(summary brokerapi.RunSummary, detail *brokerapi.RunDetail, waitingStages int, waitingRoles int, presentation contentPresentationMode) string {
+func buildRunEvidenceLinks(detail *brokerapi.RunDetail) runEvidenceLinks {
+	if detail == nil {
+		return runEvidenceLinks{}
+	}
+	return runEvidenceLinks{
+		SessionID:      strings.TrimSpace(authoritativeString(detail.AuthoritativeState, "session_id")),
+		ApprovalIDs:    append([]string(nil), detail.PendingApprovalIDs...),
+		ArtifactLabels: runArtifactReferenceLabels(detail),
+		AuditLabels:    runAuditReferenceLabels(detail),
+	}
+}
+
+func runInspectorContent(summary brokerapi.RunSummary, detail *brokerapi.RunDetail, waitingStages int, waitingRoles int, links runEvidenceLinks, presentation contentPresentationMode) string {
 	if presentation == presentationStructured {
 		return compactLines(
 			fmt.Sprintf("structured run detail: run=%s workflow=%s status=%s", summary.RunID, valueOrNA(summary.WorkflowKind), valueOrNA(summary.LifecycleState)),
@@ -130,7 +151,11 @@ func runInspectorContent(summary brokerapi.RunSummary, detail *brokerapi.RunDeta
 		fmt.Sprintf("Runner/reporting posture: %s", runReportingPostureSummary(detail)),
 		fmt.Sprintf("Blocked/failure reason: %s", runBlockingReasonSummary(summary, detail)),
 		fmt.Sprintf("Evidence links: %s", runEvidenceSummary(detail)),
-		fmt.Sprintf("Navigation cues: session=%s approvals=%d artifacts=%d audit=%d", valueOrNA(authoritativeString(detail.AuthoritativeState, "session_id")), len(detail.PendingApprovalIDs), runArtifactCount(detail), runAuditReferenceCount(detail)),
+		fmt.Sprintf("Linked approvals: %s", runJoinedOrNA(links.ApprovalIDs)),
+		fmt.Sprintf("Artifacts trail: %s", runJoinedOrNA(links.ArtifactLabels)),
+		fmt.Sprintf("Audit evidence: %s", runJoinedOrNA(links.AuditLabels)),
+		fmt.Sprintf("Navigation cues: session=%s approvals=%d artifacts=%d audit=%d", valueOrNA(links.SessionID), len(links.ApprovalIDs), runArtifactCount(detail), len(links.AuditLabels)),
+		"Copy cues: use Copy actions for raw run/session ids plus broker-linked approval ids and audit hashes; artifacts stay route-linked until the broker exposes exact object ids.",
 		fmt.Sprintf("backend_kind=%s", summary.BackendKind),
 		fmt.Sprintf("Workflow identity (authoritative): workflow_kind=%s workflow_definition_hash=%s current_stage_id=%s", valueOrNA(summary.WorkflowKind), valueOrNA(summary.WorkflowDefinitionHash), valueOrNA(summary.CurrentStageID)),
 		"Runtime isolation assurance (authoritative): "+renderRuntimeIsolationCue(summary.BackendKind, summary.IsolationAssuranceLevel),
@@ -152,7 +177,7 @@ func runInspectorContent(summary brokerapi.RunSummary, detail *brokerapi.RunDeta
 }
 
 func runInspectorSummary(summary brokerapi.RunSummary, detail *brokerapi.RunDetail) string {
-	return fmt.Sprintf("Run %s is %s with %d pending approval(s).", summary.RunID, valueOrNA(summary.LifecycleState), summary.PendingApprovalCount)
+	return fmt.Sprintf("Run %s is %s with %d pending approval(s).", summary.RunID, valueOrNA(summary.LifecycleState), runPendingApprovalCount(summary, detail))
 }
 
 func runInspectorIdentity(summary brokerapi.RunSummary, detail *brokerapi.RunDetail) string {
@@ -160,7 +185,7 @@ func runInspectorIdentity(summary brokerapi.RunSummary, detail *brokerapi.RunDet
 }
 
 func runInspectorStatus(summary brokerapi.RunSummary, detail *brokerapi.RunDetail) string {
-	return fmt.Sprintf("workflow=%s blocked=%t reason=%s", runWorkflowOperation(summary, detail), detail.Coordination.Blocked, valueOrNA(runBlockingReasonCode(summary, detail)))
+	return fmt.Sprintf("lifecycle=%s workflow=%s blocked=%t reason=%s", valueOrNA(summary.LifecycleState), runWorkflowOperation(summary, detail), detail.Coordination.Blocked, valueOrNA(runBlockingReasonCode(summary, detail)))
 }
 
 func runOutcomeHeadline(summary brokerapi.RunSummary, detail *brokerapi.RunDetail) string {
@@ -168,10 +193,31 @@ func runOutcomeHeadline(summary brokerapi.RunSummary, detail *brokerapi.RunDetai
 }
 
 func runWorkflowOperation(summary brokerapi.RunSummary, detail *brokerapi.RunDetail) string {
-	if workflow := strings.TrimSpace(summary.WorkflowKind); workflow != "" {
+	workflow := strings.TrimSpace(summary.WorkflowKind)
+	if workflow == "" {
+		workflow = strings.TrimSpace(authoritativeString(detail.AuthoritativeState, "workflow_kind"))
+	}
+	operation := strings.TrimSpace(authoritativeString(detail.AuthoritativeState, "workflow_operation"))
+	if operation == "" {
+		operation = strings.TrimSpace(summary.CurrentStageID)
+	}
+	if workflow != "" && operation != "" {
+		return fmt.Sprintf("%s • stage=%s", workflow, operation)
+	}
+	if workflow != "" {
 		return workflow
 	}
-	return valueOrNA(authoritativeString(detail.AuthoritativeState, "workflow_kind"))
+	if operation != "" {
+		return "stage=" + operation
+	}
+	return "n/a"
+}
+
+func runPendingApprovalCount(summary brokerapi.RunSummary, detail *brokerapi.RunDetail) int {
+	if detail != nil && len(detail.PendingApprovalIDs) > 0 {
+		return len(detail.PendingApprovalIDs)
+	}
+	return summary.PendingApprovalCount
 }
 
 func runPlanAuthoritySummary(summary brokerapi.RunSummary, detail *brokerapi.RunDetail) string {
@@ -197,6 +243,13 @@ func runReportingPostureSummary(detail *brokerapi.RunDetail) string {
 		return "runner reporting has not produced advisory progress yet"
 	}
 	return strings.Join(parts, " • ")
+}
+
+func runJoinedOrNA(items []string) string {
+	if len(items) == 0 {
+		return "n/a"
+	}
+	return strings.Join(items, " • ")
 }
 
 func runBlockingReasonCode(summary brokerapi.RunSummary, detail *brokerapi.RunDetail) string {
@@ -248,11 +301,19 @@ func runAuditReferenceLabels(detail *brokerapi.RunDetail) []string {
 		return nil
 	}
 	labels := []string{}
-	if len(detail.ActiveManifestHashes) > 0 {
-		labels = append(labels, fmt.Sprintf("manifests (%d)", len(detail.ActiveManifestHashes)))
+	for _, digest := range detail.ActiveManifestHashes {
+		digest = strings.TrimSpace(digest)
+		if digest == "" {
+			continue
+		}
+		labels = append(labels, "manifest "+shortIdentity(digest))
 	}
-	if len(detail.LatestPolicyDecisionRefs) > 0 {
-		labels = append(labels, fmt.Sprintf("policy refs (%d)", len(detail.LatestPolicyDecisionRefs)))
+	for _, digest := range detail.LatestPolicyDecisionRefs {
+		digest = strings.TrimSpace(digest)
+		if digest == "" {
+			continue
+		}
+		labels = append(labels, "policy "+shortIdentity(digest))
 	}
 	if detail.AuditSummary.FindingCount > 0 || detail.AuditSummary.ErrorFindingCount > 0 || detail.AuditSummary.WarningFindingCount > 0 {
 		labels = append(labels, fmt.Sprintf("audit findings (%d)", detail.AuditSummary.FindingCount))
@@ -318,15 +379,22 @@ func runRouteCopyActions(detail *brokerapi.RunDetail) []routeCopyAction {
 		return nil
 	}
 	summary := detail.Summary
+	sessionID := strings.TrimSpace(authoritativeString(detail.AuthoritativeState, "session_id"))
+	auditRefs := append([]string{}, detail.ActiveManifestHashes...)
+	auditRefs = append(auditRefs, detail.LatestPolicyDecisionRefs...)
 	raw := compactLines(
 		fmt.Sprintf("run_id=%s", summary.RunID),
 		fmt.Sprintf("workspace_id=%s", summary.WorkspaceID),
+		fmt.Sprintf("session_id=%s", valueOrNA(sessionID)),
 		fmt.Sprintf("lifecycle=%s", summary.LifecycleState),
 		fmt.Sprintf("backend_kind=%s", summary.BackendKind),
 	)
 	return compactCopyActions([]routeCopyAction{
 		{ID: "run_id", Label: "run id", Text: summary.RunID},
 		{ID: "workspace_id", Label: "workspace id", Text: summary.WorkspaceID},
+		{ID: "session_id", Label: "session id", Text: sessionID},
+		{ID: "approval_ids", Label: "linked approval ids", Text: strings.Join(detail.PendingApprovalIDs, "\n")},
+		{ID: "audit_refs", Label: "audit refs", Text: strings.Join(auditRefs, "\n")},
 		{ID: "raw_block", Label: "raw block", Text: raw},
 	})
 }
@@ -350,7 +418,7 @@ func (m *runsRouteModel) syncDetailDocument() {
 	presentation := normalizePresentationMode(m.presentation)
 	waitingStages := pendingApprovalStageCount(m.active.StageSummaries)
 	waitingRoles := waitingRoleCount(m.active.RoleSummaries)
-	content := runInspectorContent(summary, m.active, waitingStages, waitingRoles, presentation)
+	content := runInspectorContent(summary, m.active, waitingStages, waitingRoles, buildRunEvidenceLinks(m.active), presentation)
 	kind := runInspectorContentKind(presentation)
 	ref := workbenchObjectRef{Kind: "run", ID: strings.TrimSpace(summary.RunID), WorkspaceID: strings.TrimSpace(summary.WorkspaceID)}
 	m.detailDoc.SetDocument(ref, kind, "run details", content)

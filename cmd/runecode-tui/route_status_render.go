@@ -133,6 +133,13 @@ func renderProjectSubstrateStatusLine(posture brokerapi.ProjectSubstratePostureG
 	return fmt.Sprintf("Project setup details: validation=%s compatibility=%s normal_operation_allowed=%t", valueOrNA(summary.ValidationState), valueOrNA(summary.CompatibilityPosture), summary.NormalOperationAllowed)
 }
 
+func renderProjectSubstrateActionCard(spec *stateCardSpec) string {
+	if spec == nil {
+		return ""
+	}
+	return renderStateCardSpec(*spec)
+}
+
 func renderProjectSubstrateStatusCard(posture brokerapi.ProjectSubstratePostureGetResponse) string {
 	summary := posture.PostureSummary
 	if strings.TrimSpace(summary.SchemaID) == "" {
@@ -160,17 +167,23 @@ func renderProjectSubstrateGuidance(posture brokerapi.ProjectSubstratePostureGet
 	summary := posture.PostureSummary
 	parts := []string{tableHeader("Guided setup/remediation flow")}
 	parts = append(parts, fmt.Sprintf("Inspect current posture: validation=%s compatibility=%s normal_operation_allowed=%t", valueOrNA(summary.ValidationState), valueOrNA(summary.CompatibilityPosture), summary.NormalOperationAllowed))
-	parts = append(parts, fmt.Sprintf("Compatible adoption (a): no mutation; broker only records compatible existing substrate status=%s", projectSubstrateStepStatus(posture.Adoption.Status)))
+	parts = append(parts, fmt.Sprintf("Compatible adoption (a): status=%s mutation=none; read-only recognition of compatible existing substrate", projectSubstrateStepStatus(posture.Adoption.Status)))
 	parts = append(parts, fmt.Sprintf("Init preview/apply (i/I): preview status=%s mutation=%s handle=%s", projectSubstrateStepStatus(posture.InitPreview.Status), projectSubstrateMutationLabel(posture.InitPreview.Status, posture.InitPreview.PreviewToken), projectSubstrateHandleDisplay(posture.InitPreview.PreviewToken)))
 	parts = append(parts, fmt.Sprintf("Upgrade preview/apply (u/U): preview status=%s mutation=%s digest=%s", projectSubstrateStepStatus(posture.UpgradePreview.Status), projectSubstrateMutationLabel(posture.UpgradePreview.Status, posture.UpgradePreview.PreviewDigest), projectSubstrateHandleDisplay(posture.UpgradePreview.PreviewDigest)))
 	if strings.TrimSpace(posture.BlockedExplanation) != "" {
 		parts = append(parts, "What blocks normal work: "+sanitizeUIText(posture.BlockedExplanation))
 	}
+	if strings.TrimSpace(posture.InitPreview.Status) == "" {
+		parts = append(parts, "If init preview/apply is unavailable: reload current posture, then run init preview before any init apply.")
+	}
+	if strings.TrimSpace(posture.UpgradePreview.Status) == "" {
+		parts = append(parts, "If upgrade preview/apply is unavailable: reload current posture, then run upgrade preview before any upgrade apply.")
+	}
 	if len(posture.RemediationGuidance) > 0 {
 		parts = append(parts, "Broker guidance: "+joinCSV(posture.RemediationGuidance))
 	}
 	if !summary.NormalOperationAllowed {
-		parts = append(parts, "Next action: use adopt if the repository is already compatible; otherwise run preview before any apply, then reload to validate resulting posture.")
+		parts = append(parts, "Next action: use adopt only for read-only compatible recognition; otherwise run preview before any apply, then reload to validate resulting posture.")
 	} else if strings.Contains(strings.ToLower(strings.TrimSpace(summary.CompatibilityPosture)), "upgrade") {
 		parts = append(parts, "Next action: managed work is allowed, but review the broker-owned upgrade preview and revalidate after any apply.")
 	} else {

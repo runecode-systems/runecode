@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
 func TestRunsRouteExplainsBrokerPostureAndStateTaxonomy(t *testing.T) {
@@ -19,26 +21,25 @@ func TestRunsRouteExplainsBrokerPostureAndStateTaxonomy(t *testing.T) {
 	inspector := surface.Regions.Inspector.Body
 
 	mustContainAll(t, inspector,
-		"Summary: Run run-1 is active with 0 pending approval(s).",
+		"Summary: Run run-1 is active with 1 pending approval(s).",
 		"Identity: run=run-1 workspace=ws-1 session=session-1",
-		"Local actions: jump:session | jump:approvals | jump:artifacts | jump:audit | copy:run_id",
-		"Copy actions: run id | workspace id | raw block",
-		"Workflow operation: change_draft",
+		"Local actions: jump:session | jump:approvals | jump:artifacts | jump:audit | copy:run_id | copy:session_id",
+		"Copy actions: run id | workspace id | session id | linked approval ids | audit refs | raw block",
+		"Workflow operation: change_draft • stage=stage-1",
 		"Plan authority: workflow definition hash",
 		"Runner/reporting posture: runner=active • last checkpoint=approval_wait_entered",
 		"Blocked/failure reason: approval wait",
 		"Evidence links: approvals 1 • artifact classes 2 • active manifests 1 • policy refs 1",
+		"Linked approvals: ap-1",
+		"Artifacts trail: change_draft (1) • diffs (2)",
+		"Audit evidence: manifest sha256:manifest • policy sha256:policy",
 		"Navigation cues: session=session-1 approvals=1 artifacts=3 audit=2",
+		"Copy cues: use Copy actions for raw run/session ids plus broker-linked approval ids",
 		"backend_kind=workspace",
 		"Workflow identity (authoritative): workflow_kind=change_draft workflow_definition_hash=sha256:",
 		"Runtime isolation assurance (authoritative): runtime isolation=sandboxed",
-		"Provisioning/binding posture (authoritative): provisioning posture=attested",
-		"PROVISIONING_OK",
-		"Attestation posture (authoritative): attestation posture=valid",
-		"Runtime attestation truthfulness (authoritative): post-handshake verification succeeded; support",
-		"Verifier class (authoritative): verifier class=trusted_domain_local",
 	)
-	if strings.Contains(view, "Summary: Run run-1 is active with 0 pending approval(s).") {
+	if strings.Contains(view, "Summary: Run run-1 is active with 1 pending approval(s).") {
 		t.Fatalf("expected run detail only in inspector region, got %q", view)
 	}
 }
@@ -57,21 +58,21 @@ func TestApprovalsRouteDistinguishesCodesLifecycleAndBinding(t *testing.T) {
 	mustContainAll(t, inspector,
 		"Summary: approval=ap-1 state=approval required reason=policy requires operator review before promotion for run-1 can continue (requires_human_review)",
 		"Identity: approval=ap-1 run=run-1 action=promotion",
-		"Local actions: resolve:typed | jump:runs | jump:audit | copy:approval_id",
-		"Copy actions: approval id | bound run id | raw block",
+		"Local actions: resolve:typed | jump:runs | jump:artifacts | jump:audit | copy:approval_id",
+		"Copy actions: approval id | bound run id | request digest | decision digest | raw block",
 		"Approval state: approval required",
+		"State taxonomy: approval-required=yes pending=yes resolved=no expired=no unsupported=yes",
 		"Why this approval exists: policy requires operator review before promotion for run-1 can",
 		"Exact gated object/action: run run-1 • stage stage-1 • action=promotion",
 		"Review first: run evidence for run-1",
 		"If approved next: Promotion continues (effect=unblock_next_stage)",
+		"After approval route: Artifacts → Audit",
 		"Resolve availability: unavailable here because promotion approvals must be completed in the prom",
 		"Resolve status: unsupported",
+		"Resolve unavailable because: promotion approvals must stay in the promotion flow",
 		"Approval type: exact-action approval (binding_kind=exact_action)",
 		"Lifecycle state: pending (stale)",
 		"Lifecycle reason code: awaiting_decision",
-		"Policy reason code: requires_human_review",
-		"Approval trigger code: policy_gate",
-		"Distinct blocking semantics: trigger=policy_gate",
 	)
 	if !strings.Contains(view, "Approval review") {
 		t.Fatalf("expected approval overview card in main view, got %q", view)
@@ -95,10 +96,12 @@ func TestArtifactsRouteUsesTypedReadAndInspectableModes(t *testing.T) {
 	mustContainAll(t, inspector,
 		"Summary: artifact=diffs for run-1 class=diffs bytes=128",
 		"Identity: artifact=diffs for run-1 digest=sha256:bbbbbbbbbbbb",
-		"Local actions: jump:runs | jump:audit | copy:digest | copy:provenance_receipt",
+		"Status: evidence_trail=run:run-1 -> artifact:sha256:bbbbbbbbbbbb -> audit -> verification posture",
+		"Local actions: jump:runs | jump:audit | copy:digest | copy:provenance_receipt | copy:artifact_preview",
 		"Copy actions: artifact digest | provenance receipt | artifact preview",
 		"Evidence label: diffs for run-1",
-		"Evidence trail: run run-1 -> artifact diffs for run-1 -> Audit for verification posture",
+		"Evidence trail: workflow result/run run-1 -> artifact diffs for run-1 -> audit records -> verifi",
+		"Primary digest display: sha256:bbbbbbbbbbbb (copy raw digest below)",
 		"Typed detail mode:",
 		"Inspectable content is supplemental evidence, not authoritative run/approval truth.",
 		"diff preview (secrets redacted):",
@@ -192,6 +195,72 @@ func TestApprovalsRouteResolvesBackendPostureViaTypedApprovalResolve(t *testing.
 	}
 }
 
+func TestRunInspectorContentIncludesPostureAndTrustCues(t *testing.T) {
+	detail := mustFakeRunDetail(t)
+	content := runInspectorContent(detail.Summary, detail, pendingApprovalStageCount(detail.StageSummaries), waitingRoleCount(detail.RoleSummaries), buildRunEvidenceLinks(detail), presentationRendered)
+	mustContainAll(t, content,
+		"Provisioning/binding posture (authoritative): provisioning posture=attested",
+		"PROVISIONING_OK",
+		"Attestation posture (authoritative): attestation posture=valid",
+		"Runtime attestation truthfulness (authoritative): post-handshake verification succeeded; supported attested posture earned from verified post-handshake evidence",
+		"Verifier class (authoritative): verifier class=trusted_domain_local",
+	)
+}
+
+func TestApprovalInspectorContentIncludesPolicyAndTriggerCues(t *testing.T) {
+	resp := mustFakeApprovalDetail(t)
+	content := approvalInspectorContent(resp.Approval, resp.ApprovalDetail, resp.ApprovalDetail.BoundIdentity, resp.Approval.BoundScope, approvalBindingLabel(resp.ApprovalDetail.BindingKind), resp.ApprovalDetail.LifecycleDetail.LifecycleState, renderApprovalLifecycleFlags(resp.ApprovalDetail.LifecycleDetail), presentationRendered)
+	mustContainAll(t, content,
+		"Policy reason code: requires_human_review",
+		"Approval trigger code: policy_gate",
+		"Distinct blocking semantics: trigger=policy_gate",
+	)
+}
+
+func TestAuditRouteInspectorShowsBoundedTrailAndCopyableDigest(t *testing.T) {
+	model := newAuditRouteModel(routeDefinition{ID: routeAudit, Label: "Audit"}, &fakeBrokerClient{})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeAudit})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected record detail load command")
+	}
+	updated, _ = updated.Update(cmd())
+	surface := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
+	inspector := surface.Regions.Inspector.Body
+	mustContainAll(t, inspector,
+		"Copy actions: record digest | linked references | raw block",
+		"Primary digest display: sha256:aaaaaaaaaaaa (copy raw digest below)",
+		"Evidence trail: workflow result -> artifacts -> audit records -> verification posture",
+		"Trust posture: broker-linked references stay authoritative",
+	)
+	view := updated.View(120, 40, focusContent)
+	if !strings.Contains(view, "digest=sha256:aaaaaaaaaaaa") {
+		t.Fatalf("expected bounded digest in timeline directory, got %q", view)
+	}
+}
+
+func mustFakeRunDetail(t *testing.T) *brokerapi.RunDetail {
+	t.Helper()
+	resp, err := (&fakeBrokerClient{}).RunGet(context.Background(), "run-1")
+	if err != nil {
+		t.Fatalf("RunGet failed: %v", err)
+	}
+	return &resp.Run
+}
+
+func mustFakeApprovalDetail(t *testing.T) brokerapi.ApprovalGetResponse {
+	t.Helper()
+	resp, err := (&fakeBrokerClient{}).ApprovalGet(context.Background(), "ap-1")
+	if err != nil {
+		t.Fatalf("ApprovalGet failed: %v", err)
+	}
+	return resp
+}
+
 func TestRunsReloadKeepsSelectedDetailAligned(t *testing.T) {
 	model := newRunsRouteModel(routeDefinition{ID: routeRuns, Label: "Runs"}, &reloadAwareBrokerClient{})
 	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeRuns})
@@ -242,7 +311,7 @@ func TestApprovalsReloadKeepsSelectedDetailAligned(t *testing.T) {
 		t.Fatalf("expected ap-2 to remain selected after reload, got %q", view)
 	}
 	surface := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
-	if !strings.Contains(surface.Regions.Inspector.Body, "Policy reason code: stage_sign_off_required") {
+	if !strings.Contains(surface.Regions.Inspector.Body, "Exact gated object/action: run run-2 • stage stage-2 • action=stage_summary_sign_off") {
 		t.Fatalf("expected ap-2 detail to remain active after reload, got %q", surface.Regions.Inspector.Body)
 	}
 }

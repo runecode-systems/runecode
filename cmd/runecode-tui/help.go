@@ -21,8 +21,23 @@ func renderHelp(keys shellKeyMap, paletteOpen bool, actions shellActionGraph) st
 	h := help.New()
 	h.ShowAll = false
 	view := "Help: " + h.View(shellHelpKeys(bubbleBindings))
-	if entries := actions.helpEntries(6); len(entries) > 0 {
+	if entries := compactActionHelpEntries(actions.helpEntries(4)); len(entries) > 0 {
 		view += " | Actions: " + strings.Join(entries, " · ")
 	}
 	return view
+}
+
+func compactActionHelpEntries(entries []string) []string {
+	out := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		if before, _, ok := strings.Cut(entry, " — "); ok {
+			entry = strings.TrimSpace(before)
+		}
+		out = append(out, entry)
+	}
+	return out
 }

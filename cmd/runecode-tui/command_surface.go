@@ -88,7 +88,7 @@ func (m shellModel) appendActionCenterPaletteEntries(add func(string, string, st
 	if !ok {
 		return
 	}
-	for family, items := range actionModel.familyBuckets() {
+	for family, items := range actionModel.snapshot().Families {
 		for _, item := range items {
 			if strings.TrimSpace(item.Title) == "" || strings.TrimSpace(item.Reason) == "" {
 				continue

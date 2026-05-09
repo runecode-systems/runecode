@@ -56,13 +56,13 @@ func TestAuditRouteShowsPagedTimelineAndVerificationReasonCodes(t *testing.T) {
 	view = updated.View(120, 40, focusContent)
 	surface := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
 	inspector := surface.Regions.Inspector.Body
-	if !strings.Contains(inspector, "Copy actions: linked references | raw block") {
+	if !strings.Contains(inspector, "Copy actions: record digest | linked references | raw block") {
 		t.Fatalf("expected copy actions after loading record detail, got %q", inspector)
 	}
 	if !strings.Contains(inspector, "Verification posture: degraded (unanchored/degraded)") {
 		t.Fatalf("expected record inspector posture rendering, got %q", inspector)
 	}
-	if !strings.Contains(inspector, "Evidence trail: follow linked runs/artifacts/approvals") {
+	if !strings.Contains(inspector, "Evidence trail: workflow result -> artifacts -> audit records -> verification posture -> export/") {
 		t.Fatalf("expected evidence trail guidance in inspector, got %q", inspector)
 	}
 }

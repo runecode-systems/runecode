@@ -266,6 +266,7 @@ func (f *reloadAwareBrokerClient) ApprovalGet(ctx context.Context, approvalID st
 	}
 	if approvalID == "ap-2" {
 		resp.Approval.BoundScope = brokerapi.ApprovalBoundScope{WorkspaceID: "ws-1", RunID: "run-2", StageID: "stage-2", ActionKind: "stage_summary_sign_off"}
+		resp.ApprovalDetail.BlockedWorkScope = brokerapi.ApprovalBlockedWorkScope{WorkspaceID: "ws-1", RunID: "run-2", StageID: "stage-2", ActionKind: "stage_summary_sign_off"}
 		resp.ApprovalDetail.BindingKind = "stage_sign_off"
 		resp.ApprovalDetail.PolicyReasonCode = "stage_sign_off_required"
 		resp.ApprovalDetail.BoundStageSummaryHash = "sha256:stage"
@@ -381,78 +382,6 @@ func (f *reloadAwareBrokerClient) AuditAnchorPresenceGet(ctx context.Context, re
 
 func (f *reloadAwareBrokerClient) AuditAnchorSegment(ctx context.Context, req brokerapi.AuditAnchorSegmentRequest) (brokerapi.AuditAnchorSegmentResponse, error) {
 	return (&fakeBrokerClient{}).AuditAnchorSegment(ctx, req)
-}
-
-func (f *reloadAwareBrokerClient) GitSetupGet(ctx context.Context, provider string) (brokerapi.GitSetupGetResponse, error) {
-	return (&fakeBrokerClient{}).GitSetupGet(ctx, provider)
-}
-
-func (f *reloadAwareBrokerClient) ProviderSetupSessionBegin(ctx context.Context, req brokerapi.ProviderSetupSessionBeginRequest) (brokerapi.ProviderSetupSessionBeginResponse, error) {
-	return (&fakeBrokerClient{}).ProviderSetupSessionBegin(ctx, req)
-}
-
-func (f *reloadAwareBrokerClient) ProviderSetupSecretIngressPrepare(ctx context.Context, req brokerapi.ProviderSetupSecretIngressPrepareRequest) (brokerapi.ProviderSetupSecretIngressPrepareResponse, error) {
-	return (&fakeBrokerClient{}).ProviderSetupSecretIngressPrepare(ctx, req)
-}
-
-func (f *reloadAwareBrokerClient) ProviderSetupSecretIngressSubmit(ctx context.Context, req brokerapi.ProviderSetupSecretIngressSubmitRequest, secret []byte) (brokerapi.ProviderSetupSecretIngressSubmitResponse, error) {
-	return (&fakeBrokerClient{}).ProviderSetupSecretIngressSubmit(ctx, req, secret)
-}
-
-func (f *reloadAwareBrokerClient) ProviderCredentialLeaseIssue(ctx context.Context, req brokerapi.ProviderCredentialLeaseIssueRequest) (brokerapi.ProviderCredentialLeaseIssueResponse, error) {
-	return (&fakeBrokerClient{}).ProviderCredentialLeaseIssue(ctx, req)
-}
-
-func (f *reloadAwareBrokerClient) ProviderProfileList(ctx context.Context) (brokerapi.ProviderProfileListResponse, error) {
-	return (&fakeBrokerClient{}).ProviderProfileList(ctx)
-}
-
-func (f *reloadAwareBrokerClient) ProviderProfileGet(ctx context.Context, providerProfileID string) (brokerapi.ProviderProfileGetResponse, error) {
-	return (&fakeBrokerClient{}).ProviderProfileGet(ctx, providerProfileID)
-}
-
-func (f *reloadAwareBrokerClient) GitSetupAuthBootstrap(ctx context.Context, req brokerapi.GitSetupAuthBootstrapRequest) (brokerapi.GitSetupAuthBootstrapResponse, error) {
-	return (&fakeBrokerClient{}).GitSetupAuthBootstrap(ctx, req)
-}
-
-func (f *reloadAwareBrokerClient) GitSetupIdentityUpsert(ctx context.Context, req brokerapi.GitSetupIdentityUpsertRequest) (brokerapi.GitSetupIdentityUpsertResponse, error) {
-	return (&fakeBrokerClient{}).GitSetupIdentityUpsert(ctx, req)
-}
-
-func (f *reloadAwareBrokerClient) ReadinessGet(ctx context.Context) (brokerapi.ReadinessGetResponse, error) {
-	return (&fakeBrokerClient{}).ReadinessGet(ctx)
-}
-
-func (f *reloadAwareBrokerClient) VersionInfoGet(ctx context.Context) (brokerapi.VersionInfoGetResponse, error) {
-	return (&fakeBrokerClient{}).VersionInfoGet(ctx)
-}
-
-func (f *reloadAwareBrokerClient) ProductLifecyclePostureGet(ctx context.Context) (brokerapi.ProductLifecyclePostureGetResponse, error) {
-	return (&fakeBrokerClient{}).ProductLifecyclePostureGet(ctx)
-}
-
-func (f *reloadAwareBrokerClient) ProjectSubstratePostureGet(ctx context.Context) (brokerapi.ProjectSubstratePostureGetResponse, error) {
-	return (&fakeBrokerClient{}).ProjectSubstratePostureGet(ctx)
-}
-
-func (f *reloadAwareBrokerClient) ProjectSubstrateAdopt(ctx context.Context) (brokerapi.ProjectSubstrateAdoptResponse, error) {
-	return (&fakeBrokerClient{}).ProjectSubstrateAdopt(ctx)
-}
-
-func (f *reloadAwareBrokerClient) ProjectSubstrateInitPreview(ctx context.Context) (brokerapi.ProjectSubstrateInitPreviewResponse, error) {
-	return (&fakeBrokerClient{}).ProjectSubstrateInitPreview(ctx)
-}
-
-func (f *reloadAwareBrokerClient) ProjectSubstrateInitApply(ctx context.Context, expectedPreviewToken string) (brokerapi.ProjectSubstrateInitApplyResponse, error) {
-	return (&fakeBrokerClient{}).ProjectSubstrateInitApply(ctx, expectedPreviewToken)
-}
-
-func (f *reloadAwareBrokerClient) ProjectSubstrateUpgradePreview(ctx context.Context) (brokerapi.ProjectSubstrateUpgradePreviewResponse, error) {
-	return (&fakeBrokerClient{}).ProjectSubstrateUpgradePreview(ctx)
-}
-
-func (f *reloadAwareBrokerClient) ProjectSubstrateUpgradeApply(ctx context.Context, expectedPreviewDigest string) (brokerapi.ProjectSubstrateUpgradeApplyResponse, error) {
-	return (&fakeBrokerClient{}).ProjectSubstrateUpgradeApply(ctx, expectedPreviewDigest)
 }
 
 func (f *fakeBrokerClient) ApprovalWatch(ctx context.Context, req brokerapi.ApprovalWatchRequest) ([]brokerapi.ApprovalWatchEvent, error) {
@@ -636,7 +565,8 @@ func (f *fakeBrokerClient) AuditRecordGet(ctx context.Context, digest string) (b
 	if digest == "" {
 		return brokerapi.AuditRecordGetResponse{}, fmt.Errorf("digest required")
 	}
-	return brokerapi.AuditRecordGetResponse{Record: brokerapi.AuditRecordDetail{RecordFamily: "audit_event", EventType: "run_state", OccurredAt: "2026-01-01T00:00:00Z", LinkedReferences: []brokerapi.AuditRecordLinkedReference{{ReferenceKind: "run", ReferenceID: "run-1"}}, VerificationPosture: &brokerapi.AuditRecordVerificationPosture{Status: "degraded", ReasonCodes: []string{"anchor_delayed"}}}}, nil
+	recordDigest := parseDigestIdentity(digest)
+	return brokerapi.AuditRecordGetResponse{Record: brokerapi.AuditRecordDetail{RecordDigest: recordDigest, RecordFamily: "audit_event", EventType: "run_state", OccurredAt: "2026-01-01T00:00:00Z", LinkedReferences: []brokerapi.AuditRecordLinkedReference{{ReferenceKind: "run", ReferenceID: "run-1"}}, VerificationPosture: &brokerapi.AuditRecordVerificationPosture{Status: "degraded", ReasonCodes: []string{"anchor_delayed"}}}}, nil
 }
 
 func (f *fakeBrokerClient) AuditAnchorPresenceGet(ctx context.Context, req brokerapi.AuditAnchorPresenceGetRequest) (brokerapi.AuditAnchorPresenceGetResponse, error) {
@@ -869,31 +799,67 @@ func (f *fakeBrokerClient) ProjectSubstratePostureGet(ctx context.Context) (brok
 
 func (f *fakeBrokerClient) ProjectSubstrateAdopt(ctx context.Context) (brokerapi.ProjectSubstrateAdoptResponse, error) {
 	_ = ctx
-	return brokerapi.ProjectSubstrateAdoptResponse{Adoption: brokerapi.ProjectSubstrateAdoptResponse{}.Adoption}, nil
+	return brokerapi.ProjectSubstrateAdoptResponse{Adoption: projectsubstrate.AdoptionResult{
+		SchemaID:       "runecode.protocol.v0.ProjectSubstrateAdoptionResult",
+		SchemaVersion:  "0.1.0",
+		RepositoryRoot: "/repo",
+		Status:         "compatible_existing",
+		ReasonCodes:    []string{"compatible_existing_substrate"},
+	}}, nil
 }
 
 func (f *fakeBrokerClient) ProjectSubstrateInitPreview(ctx context.Context) (brokerapi.ProjectSubstrateInitPreviewResponse, error) {
 	_ = ctx
-	return brokerapi.ProjectSubstrateInitPreviewResponse{Preview: brokerapi.ProjectSubstrateInitPreviewResponse{}.Preview}, nil
+	return brokerapi.ProjectSubstrateInitPreviewResponse{Preview: projectsubstrate.InitPreview{
+		SchemaID:         "runecode.protocol.v0.ProjectSubstrateInitPreview",
+		SchemaVersion:    "0.1.0",
+		RepositoryRoot:   "/repo",
+		Status:           "ready_for_apply",
+		ReasonCodes:      []string{"project_substrate_missing"},
+		RequiredFollowUp: []string{"review_planned_mutation", "apply_init_if_intended"},
+		PreviewToken:     "sha256:" + strings.Repeat("2", 64),
+	}}, nil
 }
 
 func (f *fakeBrokerClient) ProjectSubstrateInitApply(ctx context.Context, expectedPreviewToken string) (brokerapi.ProjectSubstrateInitApplyResponse, error) {
 	_ = ctx
 	if strings.TrimSpace(expectedPreviewToken) == "" {
-		return brokerapi.ProjectSubstrateInitApplyResponse{ApplyResult: brokerapi.ProjectSubstrateInitApplyResponse{}.ApplyResult}, nil
+		return brokerapi.ProjectSubstrateInitApplyResponse{ApplyResult: projectsubstrate.InitApplyResult{}}, nil
 	}
-	return brokerapi.ProjectSubstrateInitApplyResponse{ApplyResult: brokerapi.ProjectSubstrateInitApplyResponse{}.ApplyResult}, nil
+	return brokerapi.ProjectSubstrateInitApplyResponse{ApplyResult: projectsubstrate.InitApplyResult{
+		SchemaID:       "runecode.protocol.v0.ProjectSubstrateInitApplyResult",
+		SchemaVersion:  "0.1.0",
+		RepositoryRoot: "/repo",
+		Status:         "applied",
+		ReasonCodes:    []string{"project_substrate_initialized"},
+		PreviewToken:   expectedPreviewToken,
+	}}, nil
 }
 
 func (f *fakeBrokerClient) ProjectSubstrateUpgradePreview(ctx context.Context) (brokerapi.ProjectSubstrateUpgradePreviewResponse, error) {
 	_ = ctx
-	return brokerapi.ProjectSubstrateUpgradePreviewResponse{Preview: brokerapi.ProjectSubstrateUpgradePreviewResponse{}.Preview}, nil
+	return brokerapi.ProjectSubstrateUpgradePreviewResponse{Preview: projectsubstrate.UpgradePreview{
+		SchemaID:         "runecode.protocol.v0.ProjectSubstrateUpgradePreview",
+		SchemaVersion:    "0.1.0",
+		RepositoryRoot:   "/repo",
+		Status:           "ready_for_apply",
+		ReasonCodes:      []string{"project_substrate_upgrade_available"},
+		RequiredFollowUp: []string{"review_upgrade_mutation", "apply_upgrade_if_intended"},
+		PreviewDigest:    "sha256:" + strings.Repeat("3", 64),
+	}}, nil
 }
 
 func (f *fakeBrokerClient) ProjectSubstrateUpgradeApply(ctx context.Context, expectedPreviewDigest string) (brokerapi.ProjectSubstrateUpgradeApplyResponse, error) {
 	_ = ctx
 	if strings.TrimSpace(expectedPreviewDigest) == "" {
-		return brokerapi.ProjectSubstrateUpgradeApplyResponse{ApplyResult: brokerapi.ProjectSubstrateUpgradeApplyResponse{}.ApplyResult}, nil
+		return brokerapi.ProjectSubstrateUpgradeApplyResponse{ApplyResult: projectsubstrate.UpgradeApplyResult{}}, nil
 	}
-	return brokerapi.ProjectSubstrateUpgradeApplyResponse{ApplyResult: brokerapi.ProjectSubstrateUpgradeApplyResponse{}.ApplyResult}, nil
+	return brokerapi.ProjectSubstrateUpgradeApplyResponse{ApplyResult: projectsubstrate.UpgradeApplyResult{
+		SchemaID:       "runecode.protocol.v0.ProjectSubstrateUpgradeApplyResult",
+		SchemaVersion:  "0.1.0",
+		RepositoryRoot: "/repo",
+		Status:         "applied",
+		ReasonCodes:    []string{"project_substrate_upgraded"},
+		PreviewDigest:  expectedPreviewDigest,
+	}}, nil
 }
