@@ -30,9 +30,45 @@ func renderLinkedReferenceLine(prefix string, refs []string) string {
 func renderSessionDirectoryItems(sessions []brokerapi.SessionSummary) []string {
 	items := make([]string, 0, len(sessions))
 	for _, s := range sessions {
-		items = append(items, fmt.Sprintf("%s %s %s turns=%d runs=%d artifacts=%d approvals=%d", s.Identity.SessionID, stateBadgeWithLabel("status", s.Status), stateBadgeWithLabel("work", sessionHighLevelCue(s)), s.TurnCount, s.LinkedRunCount, s.LinkedArtifactCount, s.LinkedApprovalCount))
+		items = append(items, renderSessionDirectoryItem(s))
 	}
 	return items
+}
+
+func renderSessionDirectoryItem(summary brokerapi.SessionSummary) string {
+	parts := []string{summary.Identity.SessionID, postureBadge(summary.Status)}
+	if cue := shortSessionWorkCue(summary); cue != "" {
+		parts = append(parts, cue)
+	}
+	if followUp := sessionDirectoryFollowUpCue(summary); followUp != "" {
+		parts = append(parts, muted("• "+followUp))
+	}
+	return strings.Join(parts, " ")
+}
+
+func shortSessionWorkCue(summary brokerapi.SessionSummary) string {
+	preview := truncateText(summary.LastActivityPreview, 56)
+	if preview != "" {
+		return fmt.Sprintf("— %s", preview)
+	}
+	return fmt.Sprintf("— %s work in progress", sessionHighLevelCue(summary))
+}
+
+func sessionDirectoryFollowUpCue(summary brokerapi.SessionSummary) string {
+	cues := make([]string, 0, 3)
+	if summary.LinkedApprovalCount > 0 {
+		cues = append(cues, countNoun(summary.LinkedApprovalCount, "approval waiting", "approvals waiting"))
+	}
+	if summary.LinkedRunCount > 0 {
+		cues = append(cues, countNoun(summary.LinkedRunCount, "linked run", "linked runs"))
+	}
+	if summary.LinkedArtifactCount > 0 {
+		cues = append(cues, countNoun(summary.LinkedArtifactCount, "artifact", "artifacts"))
+	}
+	if len(cues) == 0 && summary.TurnCount > 0 {
+		cues = append(cues, countNoun(summary.TurnCount, "turn so far", "turns so far"))
+	}
+	return strings.Join(cues, " • ")
 }
 
 func activeSessionSummaryLine(detail *brokerapi.SessionDetail) string {
@@ -52,6 +88,29 @@ func activeSessionSummaryLine(detail *brokerapi.SessionDetail) string {
 		statusParts = append(statusParts, fmt.Sprintf("last activity %q", preview))
 	}
 	return strings.Join(statusParts, " • ")
+}
+
+func renderActiveSessionSummaryBlock(detail *brokerapi.SessionDetail, sessionCount int) string {
+	if detail == nil {
+		return muted("No active session selected. Pick a session from the directory to resume the work loop.")
+	}
+	lines := []string{
+		fmt.Sprintf("Active session %s · workspace %s", detail.Summary.Identity.SessionID, valueOrNA(detail.Summary.Identity.WorkspaceID)),
+	}
+	if cue := shortSessionWorkCue(detail.Summary); cue != "" {
+		lines = append(lines, muted(strings.TrimPrefix(cue, "— ")))
+	}
+	meta := []string{}
+	if sessionCount > 0 {
+		meta = append(meta, countNoun(sessionCount, "session in directory", "sessions in directory"))
+	}
+	if followUp := sessionDirectoryFollowUpCue(detail.Summary); followUp != "" {
+		meta = append(meta, followUp)
+	}
+	if len(meta) > 0 {
+		lines = append(lines, muted(strings.Join(meta, " • ")))
+	}
+	return compactLines(lines...)
 }
 
 func composeDraftStatusLine(draft string) string {
@@ -101,19 +160,12 @@ func flattenRelatedLinks(links brokerapi.SessionTranscriptLinks) string {
 
 func renderComposer(on bool, draft string, textareaView string) string {
 	if !on {
-		return "Composer: press c to compose and send to active session"
+		return muted("Composer closed. Press c to continue the conversation.")
 	}
 	if strings.TrimSpace(textareaView) != "" {
 		return compactLines("Compose draft:", textareaView)
 	}
 	return fmt.Sprintf("Compose draft: %q", redactSecrets(draft))
-}
-
-func composerState(on bool) string {
-	if on {
-		return "active"
-	}
-	return "idle"
 }
 
 func renderTranscriptRaw(turns []brokerapi.SessionTranscriptTurn) string {

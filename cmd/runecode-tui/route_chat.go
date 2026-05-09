@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -128,24 +127,10 @@ func (m chatRouteModel) View(width, height int, focus focusArea) string {
 	if m.errText != "" {
 		return renderStateCard(routeLoadStateError, "Chat", "Load failed: "+m.errText+" (press r to retry)")
 	}
-	activeLine := activeSessionSummaryLine(m.active)
-	if activeLine == "" {
-		activeLine = "No active session selected."
-	}
-	composerMessage := fmt.Sprintf("Composer is %s.", composerState(m.composeOn))
-	composerSummary := "Composer is ready for a follow-up prompt."
-	if !m.composeOn {
-		composerSummary = "Composer is closed. Press c when you want to continue the conversation."
-	} else {
-		composerMessage = composeDraftStatusLine(m.composer.Value())
-		composerSummary = "Draft stays local until you send it. Use alt+enter when this follow-up is ready for the broker."
-	}
 	body := []string{
 		sectionTitle("Chat") + " " + focusBadge(focus),
-		renderStateCardSpec(stateCardSpec{State: routeLoadStateReady, Title: "Active session", Message: activeLine, Reason: fmt.Sprintf("Canonical session directory: %d session(s) available.", len(m.sessions)), NextAction: "Review the session below, or move through the directory to switch context.", ShortcutCue: "j/k move • enter review", RouteCue: "Chat"}),
 		renderStateCardSpec(chatExecutionStateCard(m.active, m.posture, m.runDetail)),
-		renderStateCardSpec(stateCardSpec{State: routeLoadStateReady, Title: "Composer", Message: composerMessage, Reason: composerSummary, NextAction: "Write a prompt here when you want the broker to start the next workflow turn.", ShortcutCue: "c compose • alt+enter send", RouteCue: "Chat"}),
-		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
+		renderActiveSessionSummaryBlock(m.active, len(m.sessions)),
 		renderDirectory("Session directory", renderSessionDirectoryItems(m.sessions), m.selected),
 		renderComposer(m.composeOn, m.draft, m.composer.View()),
 	}

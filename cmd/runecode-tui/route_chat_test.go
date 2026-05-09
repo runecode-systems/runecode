@@ -160,16 +160,22 @@ func TestChatRouteComposeSendsTypedSessionMessageRequest(t *testing.T) {
 
 	view := updated.View(120, 40, focusContent)
 	chatMustContainAll(t, view,
-		"Canonical session session-1",
 		"Workflow is waiting for approval.",
 		"Current broker state: running",
 		"Approval is still required before the broker can continue this workflow.",
 		"Evidence: 1 linked run • 1 approval • 3 artifacts • 1 audit record",
+		"Active session session-1 · workspace ws-1",
 		"Session directory",
-		"Composer is idle.",
+		"Composer closed. Press c to continue the conversation.",
 	)
 	if strings.Contains(view, "SessionExecutionTrigger") {
 		t.Fatalf("expected product language instead of protocol phrasing in primary view, got %q", view)
+	}
+	if strings.Contains(view, "Modes:") {
+		t.Fatalf("expected no duplicate mode tabs in main chat view, got %q", view)
+	}
+	if strings.Contains(view, "status=") || strings.Contains(view, "work=") {
+		t.Fatalf("expected calmer session directory rows without dump-style labels, got %q", view)
 	}
 }
 

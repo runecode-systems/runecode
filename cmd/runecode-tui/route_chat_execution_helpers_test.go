@@ -134,3 +134,28 @@ func TestChatExecutionStatusAndActionForProjectBlockedUsesStatusRemediation(t *t
 		t.Fatalf("expected Status remediation action, got %q", action)
 	}
 }
+
+func TestRenderSessionDirectoryItemsUsesCalmerProductLanguage(t *testing.T) {
+	items := renderSessionDirectoryItems([]brokerapi.SessionSummary{{
+		Identity:            brokerapi.SessionIdentity{SessionID: "session-1", WorkspaceID: "ws-1"},
+		Status:              "active",
+		LastActivityPreview: "Draft a change proposal",
+		LinkedRunCount:      1,
+		LinkedArtifactCount: 2,
+		LinkedApprovalCount: 1,
+		TurnCount:           2,
+	}})
+	if len(items) != 1 {
+		t.Fatalf("item count = %d, want 1", len(items))
+	}
+	got := items[0]
+	if strings.Contains(got, "status=") || strings.Contains(got, "work=") || strings.Contains(got, "turns=") {
+		t.Fatalf("expected calmer session row, got %q", got)
+	}
+	if !strings.Contains(got, "session-1") || !strings.Contains(got, "Draft a change proposal") {
+		t.Fatalf("expected session id and work cue, got %q", got)
+	}
+	if !strings.Contains(got, "1 approval waiting") || !strings.Contains(got, "1 linked run") || !strings.Contains(got, "2 artifacts") {
+		t.Fatalf("expected follow-up cues, got %q", got)
+	}
+}
