@@ -277,8 +277,8 @@ func assertWorkAndSetupBackedRoutes(t *testing.T, recording localBrokerClient) {
 	status := newStatusRouteModel(routeDefinition{ID: routeStatus, Label: "Status"}, recording)
 	assertRouteOutputContainsAll(t, status, routeStatus,
 		"Runtime/audit readiness strip",
-		"Broker ready=true local_only=true",
-		"Protocol posture:",
+		"Overview:",
+		"Version posture:",
 		"Project setup",
 	)
 }

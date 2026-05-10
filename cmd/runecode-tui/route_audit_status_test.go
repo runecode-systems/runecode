@@ -100,11 +100,10 @@ func TestStatusRouteExplainsDegradedSubsystemPosture(t *testing.T) {
 		"Runtime/audit readiness strip",
 		"RUNTIME_POSTURE_AUTH_UNAVAILABLE",
 		"AUDIT_STORAGE_NOMINAL",
-		"Broker ready=true local_only=true",
-		"Subsystem posture:",
-		"Diagnostics: degraded subsystems=verifier_material=missing",
-		"Version posture: product=0.1.0",
-		"Protocol posture: bundle=0.9.0",
+		"Overview: • broker reachable • normal work available • local broker mode",
+		"Broker health: attention needed for runtime verification material is unavailable.",
+		"Version posture: RuneCode 0.1.0",
+		"protocol bundle 0.9.0",
 	)
 }
 

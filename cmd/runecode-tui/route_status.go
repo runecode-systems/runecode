@@ -264,16 +264,13 @@ func (m statusRouteModel) renderTransientStatusCard() string {
 func (m statusRouteModel) renderReadyStatusView(focus focusArea) string {
 	r := m.data.readiness
 	v := m.data.version
-	diagnostics := renderReadinessDiagnostics(r)
 	return compactLines(
 		sectionTitle("Status")+" "+focusBadge(focus),
 		renderStatusSafetyStrip(r),
-		fmt.Sprintf("Broker ready=%t local_only=%t channel=%s", r.Ready, r.LocalOnly, r.ConsumptionChannel),
-		fmt.Sprintf("Broker cues: %s %s", boolBadge("ready", r.Ready), boolBadge("local_only", r.LocalOnly)),
-		fmt.Sprintf("Subsystem posture: recovery=%t append=%t writable=%t verifier_material=%t derived_index=%t", r.RecoveryComplete, r.AppendPositionStable, r.CurrentSegmentWritable, r.VerifierMaterialAvailable, r.DerivedIndexCaughtUp),
-		diagnostics,
-		fmt.Sprintf("Version posture: product=%s revision=%s build=%s", v.ProductVersion, v.BuildRevision, v.BuildTime),
-		fmt.Sprintf("Protocol posture: bundle=%s manifest=%s api=%s/%s", v.ProtocolBundleVersion, v.ProtocolBundleManifestHash, v.APIFamily, v.APIVersion),
+		renderStatusOverviewLine(r, m.data.lifecycle, m.data.project),
+		renderStatusSetupLine(m.data.project),
+		renderReadinessDiagnostics(r),
+		renderVersionPostureLine(v),
 		renderLifecycleOperationCard(m.data.lifecycle),
 		renderLifecycleStatusLine(m.data.lifecycle),
 		renderLifecycleBlockedReasonLine(m.data.lifecycle),

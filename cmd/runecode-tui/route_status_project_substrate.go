@@ -173,7 +173,7 @@ func projectSubstrateAdoptionCard(adoption projectsubstrate.AdoptionResult, post
 	return &stateCardSpec{
 		State:       routeLoadStateReady,
 		Title:       "Compatible adoption",
-		Message:     fmt.Sprintf("Broker recognition status=%s. Adoption is read-only and does not mutate the repository. This is read-only recognition only.", valueOrNA(adoption.Status)),
+		Message:     "RuneCode found an existing compatible setup it can recognize without changing repository files.",
 		Reason:      projectSubstrateActionReason(adoption.ReasonCodes, posture),
 		NextAction:  "If managed work is still blocked, use init or upgrade preview next; otherwise continue with normal work.",
 		ShortcutCue: "i preview init • u preview upgrade • r reload",
@@ -189,19 +189,19 @@ func projectSubstrateUpgradePreviewCard(preview projectsubstrate.UpgradePreview,
 }
 
 func previewCard(title, identityLabel, status, handle, mutation, reason string, followUp []string, next string) *stateCardSpec {
-	message := fmt.Sprintf("Preview status=%s. Mutation=%s. %s=%s.", status, mutation, identityLabel, handle)
+	message := fmt.Sprintf("Preview is %s. %s %s is %s.", projectSubstratePreviewStatusSummary(status, handle), strings.TrimSpace(mutationSentence(mutation)), identityLabel, handle)
 	if handle == "n/a" {
-		message = fmt.Sprintf("Preview status=%s. Mutation=%s. No %s is currently available.", status, mutation, strings.ToLower(identityLabel))
+		message = fmt.Sprintf("Preview is %s. %s No %s is currently available.", projectSubstratePreviewStatusSummary(status, handle), strings.TrimSpace(mutationSentence(mutation)), strings.ToLower(identityLabel))
 	}
 	return &stateCardSpec{State: previewCardState(handle, status), Title: title, Message: message, Reason: projectSubstrateReasonWithFollowUp(reason, followUp), NextAction: next, ShortcutCue: "I apply init • U apply upgrade • r reload"}
 }
 
 func projectSubstrateInitApplyCard(preview projectsubstrate.InitPreview, result projectsubstrate.InitApplyResult, posture brokerapi.ProjectSubstratePostureGetResponse) *stateCardSpec {
-	return &stateCardSpec{State: routeLoadStateCompleted, Title: "Init apply", Message: fmt.Sprintf("Apply status=%s. Mutation occurred through the broker-owned init flow. Handle=%s.", valueOrNA(result.Status), projectSubstrateHandleDisplay(preview.PreviewToken)), Reason: fmt.Sprintf("Preview status=%s • %s", valueOrNA(preview.Status), projectSubstrateActionReason(result.ReasonCodes, posture)), NextAction: "RuneCode is reloading broker posture now to validate the resulting project setup before normal work resumes."}
+	return &stateCardSpec{State: routeLoadStateCompleted, Title: "Init apply", Message: "RuneCode applied the broker-owned project setup initialization and is now rechecking the resulting posture.", Reason: fmt.Sprintf("Preview was %s • %s", projectSubstratePreviewStatusSummary(preview.Status, preview.PreviewToken), projectSubstrateActionReason(result.ReasonCodes, posture)), NextAction: "RuneCode is reloading broker posture now to validate the resulting project setup before normal work resumes."}
 }
 
 func projectSubstrateUpgradeApplyCard(preview projectsubstrate.UpgradePreview, result projectsubstrate.UpgradeApplyResult, posture brokerapi.ProjectSubstratePostureGetResponse) *stateCardSpec {
-	return &stateCardSpec{State: routeLoadStateCompleted, Title: "Upgrade apply", Message: fmt.Sprintf("Apply status=%s. Mutation occurred through the broker-owned upgrade flow. Digest=%s.", valueOrNA(result.Status), projectSubstrateHandleDisplay(preview.PreviewDigest)), Reason: fmt.Sprintf("Preview status=%s • %s", valueOrNA(preview.Status), projectSubstrateActionReason(result.ReasonCodes, posture)), NextAction: "RuneCode is reloading broker posture now to validate the resulting project setup before normal work resumes."}
+	return &stateCardSpec{State: routeLoadStateCompleted, Title: "Upgrade apply", Message: "RuneCode applied the broker-owned project setup upgrade and is now rechecking the resulting posture.", Reason: fmt.Sprintf("Preview was %s • %s", projectSubstratePreviewStatusSummary(preview.Status, preview.PreviewDigest), projectSubstrateActionReason(result.ReasonCodes, posture)), NextAction: "RuneCode is reloading broker posture now to validate the resulting project setup before normal work resumes."}
 }
 
 func projectSubstrateApplyUnavailableCard(title, message string, posture brokerapi.ProjectSubstratePostureGetResponse, next string) *stateCardSpec {
@@ -226,12 +226,12 @@ func projectSubstrateValidationFailureCard(posture brokerapi.ProjectSubstratePos
 
 func projectSubstratePreviewMutationLine(handle, status string) string {
 	if strings.TrimSpace(handle) == "" {
-		return "no mutation; preview is unavailable until the broker publishes a handle"
+		return "No changes are available yet because the broker has not published a preview"
 	}
 	if strings.EqualFold(strings.TrimSpace(status), "ready_for_apply") {
-		return "no mutation yet; apply is available if you explicitly choose it"
+		return "No changes have been made yet; apply is available if you explicitly choose it"
 	}
-	return "no mutation yet; preview is advisory until you explicitly apply"
+	return "No changes have been made yet; this preview stays advisory until you explicitly apply it"
 }
 
 func previewCardState(handle, status string) routeLoadState {
@@ -248,13 +248,13 @@ func projectSubstrateReasonWithFollowUp(reason string, followUp []string) string
 	if len(followUp) == 0 {
 		return reason
 	}
-	return reason + " • follow_up=" + joinCSV(followUp)
+	return reason + " • next broker steps=" + joinCSV(followUp)
 }
 
 func projectSubstrateActionReason(reasons []string, posture brokerapi.ProjectSubstratePostureGetResponse) string {
 	parts := []string{}
 	if len(reasons) > 0 {
-		parts = append(parts, "reasons="+joinCSV(reasons))
+		parts = append(parts, "broker reasons="+joinCSV(reasons))
 	}
 	if blocking := strings.TrimSpace(projectSubstrateBlockingReason(posture)); blocking != "" {
 		parts = append(parts, blocking)
@@ -264,13 +264,24 @@ func projectSubstrateActionReason(reasons []string, posture brokerapi.ProjectSub
 
 func projectSubstrateBlockingReason(posture brokerapi.ProjectSubstratePostureGetResponse) string {
 	if explanation := strings.TrimSpace(posture.BlockedExplanation); explanation != "" {
-		return "normal_work_blocked=" + sanitizeUIText(explanation)
+		return "normal work blocked: " + sanitizeUIText(explanation)
 	}
 	if len(posture.PostureSummary.BlockedReasonCodes) > 0 {
-		return "normal_work_blocked=" + joinCSV(posture.PostureSummary.BlockedReasonCodes)
+		return "normal work blocked: " + joinCSV(posture.PostureSummary.BlockedReasonCodes)
 	}
 	if len(posture.PostureSummary.ReasonCodes) > 0 {
-		return "broker_guidance=" + joinCSV(posture.PostureSummary.ReasonCodes)
+		return "broker guidance: " + joinCSV(posture.PostureSummary.ReasonCodes)
 	}
-	return "normal_work_blocked=not_reported"
+	return "normal work blocked: not reported"
+}
+
+func mutationSentence(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+	if strings.HasSuffix(text, ".") {
+		return text
+	}
+	return text + "."
 }

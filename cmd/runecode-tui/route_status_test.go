@@ -20,20 +20,20 @@ func TestStatusRouteRendersProjectSubstratePostureAndGuidance(t *testing.T) {
 	mustContainAll(t, view,
 		"Managed operation",
 		"Attach and normal managed operation are available.",
-		"Managed-operation details:",
-		"attach_mode=full",
-		"attachable=true",
-		"normal_operation_allowed=true",
-		"Managed-operation blocking reasons: none",
-		"Managed-operation degraded reasons: none",
+		"Overview: • broker reachable • normal work available • local broker mode",
+		"Setup posture: setup validated • supported with an upgrade available",
+		"Managed-operation summary:",
+		"full managed access",
+		"Normal work is available now",
+		"Managed-operation blockers: none reported",
+		"Managed-operation watchouts: none reported",
 		"Project setup",
 		"Project setup is usable, but a broker-owned upgrade is available.",
-		"Compatible adoption (a): status=unavailable mutation=none; read-only recognition of compatible existing substrate",
-		"Init preview/apply (i/I): preview status=ready_for_apply mutation=apply will mutate the repository through the broker-owned flow handle=<acquired>",
-		"Upgrade preview/apply (u/U): preview status=ready_for_apply mutation=apply will mutate the repository through the broker-owned flow digest=<acquired>",
-		"Project setup details:",
-		"compatibility=supported_with_upgrade_available",
-		"Guided setup/remediation flow",
+		"Project setup summary:",
+		"Adopt (a): not currently available.",
+		"Init (i/I): preview ready for review and optional apply (preview handle ready).",
+		"Upgrade (u/U): preview ready for review and optional apply (preview handle ready).",
+		"Project setup guidance",
 		"Keys: r reload",
 	)
 }
@@ -62,11 +62,11 @@ type statusRouteActionCase struct {
 
 func statusRouteActionCases() []statusRouteActionCase {
 	return []statusRouteActionCase{
-		{key: 'a', expectedStatus: "Project setup adoption refreshed: status=compatible_existing", expectedSnippets: []string{"Compatible adoption", "Adoption is read-only and does not mutate the repository.", "read-only recognition only"}, expectedRPCCall: []string{"ProjectSubstrateAdopt"}},
-		{key: 'i', expectedStatus: "Project setup init preview refreshed: status=ready_for_apply", expectedSnippets: []string{"Init preview", "Mutation=no mutation yet; apply is available if you explicitly choose it.", "Handle=<acquired>."}, expectedRPCCall: []string{"ProjectSubstrateInitPreview"}},
-		{key: 'I', expectedStatus: "Project setup validation refreshed. Review the updated managed-operation and setup posture below.", expectedSnippets: []string{"Init apply", "Mutation occurred through the broker-owned init flow. Handle=<acquired>.", "Project setup validation refreshed."}, expectedRPCCall: []string{"ProjectSubstrateInitApply"}, expectReload: true},
-		{key: 'u', expectedStatus: "Project setup upgrade preview refreshed: status=ready_for_apply", expectedSnippets: []string{"Upgrade preview", "Mutation=no mutation yet; apply is available if you explicitly choose it.", "Digest=<acquired>."}, expectedRPCCall: []string{"ProjectSubstrateUpgradePreview"}},
-		{key: 'U', expectedStatus: "Project setup validation refreshed. Review the updated managed-operation and setup posture below.", expectedSnippets: []string{"Upgrade apply", "Mutation occurred through the broker-owned upgrade flow. Digest=<acquired>.", "Project setup validation refreshed."}, expectedRPCCall: []string{"ProjectSubstrateUpgradeApply"}, expectReload: true},
+		{key: 'a', expectedStatus: "Project setup adoption refreshed: status=compatible_existing", expectedSnippets: []string{"Compatible adoption", "existing compatible setup", "without changing repository files"}, expectedRPCCall: []string{"ProjectSubstrateAdopt"}},
+		{key: 'i', expectedStatus: "Project setup init preview refreshed: status=ready_for_apply", expectedSnippets: []string{"Init preview", "Preview is preview ready for review and optional apply.", "Handle is <acquired>."}, expectedRPCCall: []string{"ProjectSubstrateInitPreview"}},
+		{key: 'I', expectedStatus: "Project setup validation refreshed. Review the updated managed-operation and setup posture below.", expectedSnippets: []string{"Init apply", "applied the broker-owned project setup initialization", "Project setup validation refreshed."}, expectedRPCCall: []string{"ProjectSubstrateInitApply"}, expectReload: true},
+		{key: 'u', expectedStatus: "Project setup upgrade preview refreshed: status=ready_for_apply", expectedSnippets: []string{"Upgrade preview", "Preview is preview ready for review and optional apply.", "Digest is <acquired>."}, expectedRPCCall: []string{"ProjectSubstrateUpgradePreview"}},
+		{key: 'U', expectedStatus: "Project setup validation refreshed. Review the updated managed-operation and setup posture below.", expectedSnippets: []string{"Upgrade apply", "applied the broker-owned project setup upgrade", "Project setup validation refreshed."}, expectedRPCCall: []string{"ProjectSubstrateUpgradeApply"}, expectReload: true},
 	}
 }
 
@@ -144,7 +144,7 @@ func TestStatusRouteProjectSubstratePreviewFailureGuidesRetry(t *testing.T) {
 		"Init preview",
 		"RuneCode could not load the broker-owned init preview.",
 		"Reload or retry init preview before any init apply.",
-		"normal_work_blocked=project substrate posture blocks execution while validation is incompatible",
+		"normal work blocked: project substrate posture blocks execution while validation is incompatible",
 	)
 }
 
@@ -280,12 +280,10 @@ func TestStatusRouteRendersDiagnosticsOnlyAttachGuidanceWhenNormalOperationBlock
 	mustContainAll(t, view,
 		"Managed operation",
 		"You can attach for diagnostics and remediation only; managed work stays blocked.",
-		"attach_mode=diagnostics_only",
-		"posture=blocked",
-		"attachable=true",
-		"normal_operation_allowed=false",
-		"Managed-operation blocking reasons: project_substrate_unsupported_too_new",
-		"Managed-operation degraded reasons: project_substrate_upgrade_available",
+		"diagnostics-only access",
+		"Attach is available for inspection and remediation",
+		"Managed-operation blockers: project_substrate_unsupported_too_new",
+		"Managed-operation watchouts: project_substrate_upgrade_available",
 	)
 }
 
@@ -341,10 +339,10 @@ func TestStatusRouteRendersBlockedProjectSubstrateGuidance(t *testing.T) {
 	mustContainAll(t, view,
 		"Project setup",
 		"Project setup needs attention before managed work can continue.",
-		"Project setup details:",
-		"validation=missing",
-		"compatibility=missing",
-		"normal_operation_allowed=false",
+		"Project setup summary:",
+		"setup missing",
+		"no compatible setup detected",
+		"Normal work stays blocked until setup is fixed",
 		"What blocks normal work: normal operation blocked by project substrate posture: project_substrate_missing",
 		"Broker guidance: inspect_project_substrate_posture,initialize_canonical_runecontext_substrate,revalidate_project_substrate",
 	)
