@@ -117,9 +117,6 @@ func (m gitSetupRouteModel) handleLoaded(msg gitSetupLoadedMsg) (routeModel, tea
 	}
 	m.errText = ""
 	m.data = msg.resp
-	if m.status == "" {
-		m.status = "Press a (browser auth), d (device-code auth), i (identity profile upsert)."
-	}
 	return m, nil
 }
 
@@ -157,7 +154,10 @@ func gitSetupBootstrapStatus(resp brokerapi.GitSetupAuthBootstrapResponse) strin
 	if resp.Status == "pending" && strings.TrimSpace(resp.DeviceVerificationURI) != "" {
 		return fmt.Sprintf("Device-code bootstrap pending. Open %s and enter code %s.", resp.DeviceVerificationURI, resp.DeviceUserCode)
 	}
-	return fmt.Sprintf("Provider auth bootstrap status=%s mode=%s", resp.Status, resp.Mode)
+	if resp.Status == "pending" {
+		return "Browser auth started. Finish sign-in with the provider, then reload if the linked account does not appear."
+	}
+	return fmt.Sprintf("Provider sign-in status: %s.", valueOrNA(resp.Status))
 }
 
 func (m gitSetupRouteModel) beginLoad() gitSetupRouteModel {
@@ -186,68 +186,76 @@ func (m gitSetupRouteModel) View(width, height int, focus focusArea) string {
 	auth := m.data.AuthPosture
 	control := m.data.ControlPlaneState
 	profiles := m.data.IdentityProfiles
-	profileSummary := "none"
-	if len(profiles) > 0 {
-		ids := make([]string, 0, len(profiles))
-		for _, p := range profiles {
-			ids = append(ids, p.ProfileID)
-		}
-		profileSummary = strings.Join(ids, ", ")
-	}
 	return compactLines(
 		sectionTitle("Git Setup")+" "+focusBadge(focus),
 		renderStateCardSpec(gitSetupStateCard(account, auth, profiles)),
-		fmt.Sprintf("Provider account: %s", gitProviderAccountSummary(account)),
-		fmt.Sprintf("Authentication: %s", gitAuthSummary(auth)),
+		fmt.Sprintf("Provider link: %s", gitProviderAccountSummary(account, auth)),
 		fmt.Sprintf("Commit identity: %s", gitIdentitySummary(profiles, control.DefaultIdentityProfileID)),
-		fmt.Sprintf("Policy safety: %s", gitPolicySafetySummary(m.data.PolicySurface)),
-		muted(fmt.Sprintf("Structured/raw detail can show bootstrap_mode=%s headless=%t token_fallback=%t profiles=%s last_view=%s recent_repositories=%d.", valueOrNA(auth.BootstrapMode), auth.HeadlessBootstrapSupported, auth.InteractiveTokenFallbackSupport, profileSummary, valueOrNA(control.LastSetupView), len(control.RecentRepositories))),
+		fmt.Sprintf("Review safety: %s", gitPolicySafetySummary(m.data.PolicySurface)),
+		fmt.Sprintf("Next safe action: %s", gitNextSafeAction(account, profiles)),
 		m.status,
-		keyHint("Route keys: r reload, a browser auth, d device-code auth, i identity upsert"),
 	)
 }
 
 func gitSetupStateCard(account brokerapi.GitProviderAccountState, auth brokerapi.GitAuthPostureState, profiles []brokerapi.GitCommitIdentityProfile) stateCardSpec {
 	state := routeLoadStateWaiting
-	message := "Git account setup is not linked yet."
-	next := "Press a for browser auth or d for device-code auth."
+	message := "Link a provider account before starting broker-managed review work."
+	next := "Start browser auth or use device code to connect the provider account."
 	if account.Linked && len(profiles) > 0 {
 		state = routeLoadStateReady
 		message = "Git account and commit identity are ready for broker-managed review flows."
-		next = "Continue to review flows, or refresh if provider state changed."
+		next = "Continue to review flows, or reload here if provider state changed."
 	} else if account.Linked {
-		message = "Git account is linked; commit identity needs setup."
-		next = "Press i to upsert the default commit identity profile."
+		message = "The provider account is linked, but commit identity still needs setup."
+		next = "Upsert the default broker-managed commit identity before review work."
+	} else if strings.TrimSpace(auth.AuthStatus) == "pending" {
+		message = "Provider sign-in is in progress; the account link is not ready yet."
+		next = "Finish the current sign-in step, then reload to confirm the linked account."
 	}
-	return stateCardSpec{State: state, Title: "Git setup", Message: message, Reason: "Remote mutation stays broker-gated and artifact-managed; this route only prepares account and identity state.", NextAction: next, ShortcutCue: "a browser • d device • i identity", EvidenceCue: "broker git setup profile"}
+	return stateCardSpec{State: state, Title: "Git setup", Message: message, Reason: "This route prepares the broker-owned account and identity state used by artifact-managed review flows; remote mutation remains broker-gated.", NextAction: next, ShortcutCue: "browser auth • device auth • identity upsert", EvidenceCue: "broker git setup posture"}
 }
 
-func gitProviderAccountSummary(account brokerapi.GitProviderAccountState) string {
+func gitProviderAccountSummary(account brokerapi.GitProviderAccountState, auth brokerapi.GitAuthPostureState) string {
 	if account.Linked {
-		return fmt.Sprintf("%s linked as %s", valueOrNA(account.Provider), valueOrNA(account.AccountUsername))
+		return fmt.Sprintf("%s is linked as %s.", valueOrNA(account.Provider), valueOrNA(account.AccountUsername))
 	}
-	return fmt.Sprintf("%s not linked", valueOrNA(account.Provider))
-}
-
-func gitAuthSummary(auth brokerapi.GitAuthPostureState) string {
-	if strings.TrimSpace(auth.AuthStatus) == "" {
-		return "not started"
+	if strings.TrimSpace(auth.AuthStatus) == "pending" {
+		return fmt.Sprintf("%s sign-in is in progress.", valueOrNA(account.Provider))
 	}
-	return fmt.Sprintf("%s via %s", valueOrNA(auth.AuthStatus), valueOrNA(auth.BootstrapMode))
+	return fmt.Sprintf("%s is not linked yet.", valueOrNA(account.Provider))
 }
 
 func gitIdentitySummary(profiles []brokerapi.GitCommitIdentityProfile, defaultID string) string {
 	if len(profiles) == 0 {
-		return "no identity profile yet"
+		return "No broker-managed commit identity is ready yet."
 	}
-	return fmt.Sprintf("%d profile(s), default %s", len(profiles), valueOrNA(defaultID))
+	if strings.TrimSpace(defaultID) != "" {
+		return fmt.Sprintf("Broker-managed identity is ready with default profile %s.", valueOrNA(defaultID))
+	}
+	return fmt.Sprintf("%d broker-managed identity profile(s) are available.", len(profiles))
 }
 
 func gitPolicySafetySummary(policy brokerapi.GitPolicySurfaceState) string {
 	if policy.ArtifactManagedOnly && !policy.DirectMutationSupport {
-		return "artifact-managed review only; direct mutation disabled"
+		return "Reviews stay artifact-managed and direct remote mutation remains disabled."
 	}
-	return fmt.Sprintf("artifact_managed_only=%t direct_mutation=%t", policy.ArtifactManagedOnly, policy.DirectMutationSupport)
+	if policy.ArtifactManagedOnly {
+		return "Reviews stay artifact-managed; any remote mutation still requires broker-gated policy checks."
+	}
+	if !policy.DirectMutationSupport {
+		return "Direct remote mutation is disabled until broker policy allows it."
+	}
+	return "Remote review actions remain broker-gated by the current policy posture."
+}
+
+func gitNextSafeAction(account brokerapi.GitProviderAccountState, profiles []brokerapi.GitCommitIdentityProfile) string {
+	if !account.Linked {
+		return "Link the provider account with browser auth or device code."
+	}
+	if len(profiles) == 0 {
+		return "Upsert the default broker-managed commit identity."
+	}
+	return "Move on to review flows, and reload here if provider state changes."
 }
 
 func (m gitSetupRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
