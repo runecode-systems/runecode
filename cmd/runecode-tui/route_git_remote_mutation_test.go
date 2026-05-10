@@ -20,11 +20,24 @@ func TestGitRemoteMutationRouteLoadsPreparedReviewState(t *testing.T) {
 		"Git Remote Mutation",
 		"Guarded remote review",
 		"Prepared change:",
-		"Approval:",
+		"Target:",
+		"Approval state:",
+		"Credential lease:",
+		"Next safe action:",
 		"Safety: execute remains fail-closed",
 	} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("view missing %q in %q", want, view)
+		}
+	}
+	for _, unwanted := range []string{
+		"Structured/raw detail can show prepared=",
+		"Route keys: r reload prepared state, e execute prepared mutation",
+		"repository=",
+		"approval sha256:",
+	} {
+		if strings.Contains(view, unwanted) {
+			t.Fatalf("view unexpectedly contained %q in %q", unwanted, view)
 		}
 	}
 }
@@ -51,7 +64,7 @@ func TestGitRemoteMutationRouteExecuteUsesTypedContract(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "Execute completed") {
+	if !strings.Contains(view, "Remote execution completed") {
 		t.Fatalf("expected execute completion status in %q", view)
 	}
 	assertStringSliceEqual(t, recording.Calls(), []string{"GitRemoteMutationGet", "GitRemoteMutationIssueExecuteLease", "GitRemoteMutationExecute", "GitRemoteMutationGet"})
