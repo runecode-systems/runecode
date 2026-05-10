@@ -22,7 +22,7 @@ func TestShellChromeShowsCalmWorkbenchSummary(t *testing.T) {
 	m.watch.projection.Activity = shellActivitySemantics{State: shellActivityStateRunning, Active: shellActivityFocus{Kind: "session", ID: "session-1"}}
 
 	v := m.View()
-	for _, want := range []string{"ROUTE", "Sidebar focus", "Working on session session-1", "Action Center", "Approvals", "Commands ctrl+p/:", "Quick action: Quit RuneCode"} {
+	for _, want := range []string{"ROUTE", "Sidebar focus", "Working on session session-1", "Action Center", "Approvals", "Commands ctrl+p/:", "Quick action: Quit RuneCode", "space leader", "tab focus"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected calm chrome cue %q in view, got %q", want, v)
 		}

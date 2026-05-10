@@ -34,7 +34,7 @@ func TestStatusRouteRendersProjectSubstratePostureAndGuidance(t *testing.T) {
 		"Init (i/I): preview ready for review and optional apply (preview handle ready).",
 		"Upgrade (u/U): preview ready for review and optional apply (preview handle ready).",
 		"Project setup guidance",
-		"Keys: r reload",
+		"r reload",
 	)
 }
 

@@ -29,7 +29,7 @@ func (m shellModel) renderShellWorkbench(surface routeSurface, layout shellLayou
 	b := strings.Builder{}
 	m.writeShellFrame(&b, surface, layout, viewportWidth)
 	m.writeShellFooter(&b, viewportWidth)
-	frame := padShellBlock(strings.TrimRight(b.String(), "\n"), viewportWidth, viewportHeight)
+	frame := padShellFrame(strings.TrimRight(b.String(), "\n"), viewportWidth, viewportHeight)
 	if strings.TrimSpace(overlayBody) == "" {
 		return lipgloss.JoinVertical(lipgloss.Left, frame)
 	}
@@ -44,6 +44,8 @@ func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, la
 	b.WriteString(constrainShellBlock("", viewportWidth, shellPaneSpacerHeight))
 	b.WriteString("\n")
 	b.WriteString(m.renderShellPanes(surface, layout))
+	b.WriteString("\n")
+	b.WriteString(constrainShellBlock(m.renderStatusSurface(surface), viewportWidth, layout.Regions.Status.Height))
 	b.WriteString("\n")
 	b.WriteString(constrainShellBlock(m.renderBottomStrip(surface), viewportWidth, layout.Regions.Bottom.Height))
 }
@@ -74,11 +76,7 @@ func (m shellModel) overlayBodyWithHeight(surface routeSurface, layout shellLayo
 }
 
 func (m shellModel) overlayStaticParts() []string {
-	parts := []string{}
-	if toast := strings.TrimSpace(m.toasts.Latest()); toast != "" {
-		parts = append(parts, "Toast: "+sanitizeUIText(toast))
-	}
-	return parts
+	return nil
 }
 
 func overlayHeightBudget(viewportHeight int) int {
@@ -412,4 +410,29 @@ func (m shellModel) renderSidebar() string {
 		lines = m.appendSidebarActionLines(lines, entries, cursor, width)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func padShellFrame(block string, width int, height int) string {
+	if height <= 0 {
+		return ""
+	}
+	if width <= 0 {
+		width = 1
+	}
+	trimmed := strings.TrimRight(block, "\n")
+	if trimmed == "" {
+		return strings.TrimRight(lipgloss.NewStyle().Width(width).Height(height).Render(""), "\n")
+	}
+	rawLines := strings.Split(trimmed, "\n")
+	if len(rawLines) >= height {
+		return strings.Join(rawLines[:height], "\n")
+	}
+	padCount := height - len(rawLines)
+	lineStyle := lipgloss.NewStyle().Width(width).MaxWidth(width).Height(1).MaxHeight(1)
+	padded := make([]string, 0, height)
+	for i := 0; i < padCount; i++ {
+		padded = append(padded, lineStyle.Render(""))
+	}
+	padded = append(padded, rawLines...)
+	return strings.Join(padded, "\n")
 }

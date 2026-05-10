@@ -236,6 +236,13 @@ func muted(label string) string {
 }
 
 func keyHint(label string) string {
+	label = strings.TrimSpace(label)
+	for _, prefix := range []string{"Route keys:", "Keys:"} {
+		if strings.HasPrefix(label, prefix) {
+			label = strings.TrimSpace(strings.TrimPrefix(label, prefix))
+			break
+		}
+	}
 	return appTheme.KeyHint.Render(label)
 }
 

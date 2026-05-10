@@ -349,7 +349,7 @@ func TestShellViewRendersShellSurfaces(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
 	v := m.View()
-	for _, want := range []string{"RuneCode Workbench", "ROUTE", "Product truth:", "Main pane", "Sidebar", "ctrl+p commands"} {
+	for _, want := range []string{"RuneCode Workbench", "ROUTE", "Product truth:", "Main pane", "Sidebar", "ctrl+p commands", "r reload"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected %q in view, got %q", want, v)
 		}
@@ -519,6 +519,12 @@ func TestShellToastRemainsVisibleWithinViewport(t *testing.T) {
 	}
 	if !strings.Contains(v, "Toast: INFO: Sidebar visibility changed.") {
 		t.Fatalf("expected toast content in viewport, got %q", v)
+	}
+	if strings.Contains(v, "Overlay stack") {
+		t.Fatalf("expected toast not to render as centered overlay, got %q", v)
+	}
+	if strings.HasSuffix(v, "\n") {
+		t.Fatalf("expected shell frame not to leave trailing blank line below footer, got %q", v)
 	}
 }
 

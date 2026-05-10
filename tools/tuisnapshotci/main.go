@@ -23,6 +23,7 @@ var expectedScenarioNames = []string{
 	"dashboard-approval-waiting",
 	"dashboard-blocked",
 	"dashboard-degraded",
+	"dashboard-toast-info",
 	"leader-help-root",
 	"chat-active-session",
 	"runs-active-detail",

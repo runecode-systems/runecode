@@ -354,8 +354,8 @@ func TestShellBottomStripShowsQuitDiscoverabilityWhenSidebarHiddenNarrow(t *test
 	if !strings.Contains(bottom, "Quick action: Quit RuneCode") || !strings.Contains(bottom, "(:quit)") {
 		t.Fatalf("expected bottom strip to expose beginner quit affordance when sidebar hidden, got %q", bottom)
 	}
-	if strings.Contains(bottom, "\n") {
-		t.Fatalf("expected one-line bottom strip, got %q", bottom)
+	if !strings.Contains(bottom, "\n") {
+		t.Fatalf("expected two-line bottom strip with route keys above command line, got %q", bottom)
 	}
 }
 
@@ -408,8 +408,8 @@ func TestShellBottomStripSummarizesRouteActionsCalmly(t *testing.T) {
 	if strings.Contains(bottom, "Route actions:") {
 		t.Fatalf("expected route action summary removed from collapsed footer, got %q", bottom)
 	}
-	if strings.Contains(bottom, "\n") {
-		t.Fatalf("expected one-line route action summary, got %q", bottom)
+	if !strings.Contains(bottom, "\n") {
+		t.Fatalf("expected separate route-keys and command lines, got %q", bottom)
 	}
 	if strings.Contains(bottom, "Next actions:") {
 		t.Fatalf("expected retired next-actions wording removed, got %q", bottom)
