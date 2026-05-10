@@ -46,6 +46,7 @@ func reducedAssurancePostureCueParts(state map[string]any) []string {
 	parts := []string{fmt.Sprintf("reduced_assurance=%t", runtimeDegraded)}
 	approvalBacked, _ := state["reduced_assurance_approval_backed"].(bool)
 	approvalStatus, _ := state["reduced_assurance_approval_status"].(string)
+	approvalStatus = sanitizeUIText(approvalStatus)
 	if approvalBacked {
 		parts = append(parts, fmt.Sprintf("approval_backed=true status=%s", valueOrNA(approvalStatus)))
 		parts = append(parts, infoBadge("REDUCED_ASSURANCE_APPROVAL_BACKED"))
@@ -91,34 +92,41 @@ func renderSupportedRuntimeRequirementsCue(state map[string]any) string {
 func firstAuthoritativeString(state map[string]any, keys ...string) (string, string) {
 	for _, key := range keys {
 		value, _ := state[key].(string)
-		trimmed := strings.TrimSpace(value)
-		if trimmed != "" {
-			return trimmed, key
+		sanitized := sanitizeUIText(strings.TrimSpace(value))
+		if sanitized != "" {
+			return sanitized, sanitizeUIText(key)
 		}
 	}
 	return "", ""
 }
 
 func authoritativeStringSlice(state map[string]any, key string) []string {
+	sanitizeValues := func(rawValues []string) []string {
+		values := make([]string, 0, len(rawValues))
+		for _, rawValue := range rawValues {
+			sanitized := sanitizeUIText(strings.TrimSpace(rawValue))
+			if sanitized != "" {
+				values = append(values, sanitized)
+			}
+		}
+		return values
+	}
 	if values, ok := state[key].([]string); ok {
-		return append([]string{}, values...)
+		return sanitizeValues(values)
 	}
 	valuesAny, ok := state[key].([]any)
 	if !ok {
 		return nil
 	}
-	values := make([]string, 0, len(valuesAny))
+	rawValues := make([]string, 0, len(valuesAny))
 	for _, value := range valuesAny {
 		stringValue, ok := value.(string)
 		if !ok {
 			continue
 		}
-		trimmed := strings.TrimSpace(stringValue)
-		if trimmed != "" {
-			values = append(values, trimmed)
-		}
+		rawValues = append(rawValues, stringValue)
 	}
-	return values
+	return sanitizeValues(rawValues)
 }
 
 func wrapPartsByWidth(parts []string, separator string, width int) string {
@@ -187,8 +195,24 @@ func renderProvisioningPostureCue(posture string) string {
 	return strings.Join(provisioningPostureCueParts(posture), " ")
 }
 
+func sanitizeAttestationPostureAndReasons(posture string, reasonCodes []string) (string, []string) {
+	posture = sanitizeUIText(strings.TrimSpace(posture))
+	if len(reasonCodes) == 0 {
+		return posture, nil
+	}
+	sanitizedReasons := make([]string, 0, len(reasonCodes))
+	for _, reasonCode := range reasonCodes {
+		reasonCode = sanitizeUIText(strings.TrimSpace(reasonCode))
+		if reasonCode != "" {
+			sanitizedReasons = append(sanitizedReasons, reasonCode)
+		}
+	}
+	return posture, sanitizedReasons
+}
+
 func attestationPostureCueParts(posture string, reasonCodes []string) []string {
-	n := strings.ToLower(strings.TrimSpace(posture))
+	posture, reasonCodes = sanitizeAttestationPostureAndReasons(posture, reasonCodes)
+	n := strings.ToLower(posture)
 	reason := ""
 	if len(reasonCodes) > 0 {
 		reason = " reasons=" + strings.Join(reasonCodes, ",")

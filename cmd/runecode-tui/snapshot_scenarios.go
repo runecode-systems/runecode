@@ -3,7 +3,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -42,7 +41,7 @@ func resolveSnapshotScenarios(name string) ([]snapshotScenarioState, error) {
 				return []snapshotScenarioState{scenario}, nil
 			}
 		}
-		return nil, fmt.Errorf("unknown snapshot scenario %q", name)
+		return nil, usageErrorf("unknown snapshot scenario %q", name)
 	}
 }
 
@@ -101,12 +100,30 @@ func renderSnapshotScenario(state snapshotScenarioState, cfg tuiSnapshotConfig) 
 	})
 }
 
+func snapshotScenarioViewport(state snapshotScenarioState, cfg tuiSnapshotConfig) snapshotViewportPreset {
+	if state.Viewport != "" {
+		return state.Viewport
+	}
+	return cfg.viewport
+}
+
 func snapshotScenarioDimensions(state snapshotScenarioState, cfg tuiSnapshotConfig) (int, int) {
 	width := cfg.width
+	height := cfg.height
+	if state.Viewport != "" {
+		viewport, err := resolveSnapshotViewportPreset(state.Viewport)
+		if err == nil {
+			if cfg.widthFromViewport {
+				width = viewport.Width
+			}
+			if cfg.heightFromViewport {
+				height = viewport.Height
+			}
+		}
+	}
 	if state.Width > 0 {
 		width = state.Width
 	}
-	height := cfg.height
 	if state.Height > 0 {
 		height = state.Height
 	}

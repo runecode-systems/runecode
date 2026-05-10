@@ -87,8 +87,12 @@ func (m shellModel) renderSessionQuickSwitcherRow(index int, width int) string {
 	if index == m.sessions.selectedIndex {
 		marker = "▶"
 	}
-	sessionLabel := s.Identity.SessionID
-	if m.watch.projection.Activity.Active.Kind == "session" && strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" && m.watch.projection.Activity.Active.ID == s.Identity.SessionID {
+	rawSessionID := s.Identity.SessionID
+	sessionLabel := sanitizeUIText(rawSessionID)
+	if sessionLabel == "" {
+		sessionLabel = "session"
+	}
+	if m.watch.projection.Activity.Active.Kind == "session" && strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" && m.watch.projection.Activity.Active.ID == rawSessionID {
 		sessionLabel = "● " + sessionLabel
 	}
 	preview := truncateText(sanitizeUIText(s.LastActivityPreview), 58)
@@ -98,10 +102,10 @@ func (m shellModel) renderSessionQuickSwitcherRow(index int, width int) string {
 	}
 	line := clipDisplayText(strings.Join(lineParts, "  "), width)
 	detailParts := make([]string, 0, 3)
-	if workspace := strings.TrimSpace(s.Identity.WorkspaceID); workspace != "" {
+	if workspace := sanitizeUIText(s.Identity.WorkspaceID); workspace != "" {
 		detailParts = append(detailParts, "Workspace "+workspace)
 	}
-	if activityKind := strings.TrimSpace(s.LastActivityKind); activityKind != "" {
+	if activityKind := sanitizeUIText(s.LastActivityKind); activityKind != "" {
 		detailParts = append(detailParts, "Recent activity "+activityKind)
 	}
 	if preview != "" {

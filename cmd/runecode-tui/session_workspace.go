@@ -205,9 +205,10 @@ func sessionDirectoryItems(summaries []brokerapi.SessionSummary, activeSessionID
 }
 
 func sessionDirectoryLine(summary brokerapi.SessionSummary, activeSessionID string, pinned map[string]struct{}, recentOrder map[string]int, viewed map[string]string, active shellActivityFocus) string {
-	sid := sanitizeUIText(summary.Identity.SessionID)
+	rawSessionID := strings.TrimSpace(summary.Identity.SessionID)
+	sid := sanitizeUIText(rawSessionID)
 	workspaceID := sanitizeUIText(summary.Identity.WorkspaceID)
-	markerText := formatSessionDirectoryMarkers(summary, activeSessionID, pinned, recentOrder, viewed[sid], active)
+	markerText := formatSessionDirectoryMarkers(summary, activeSessionID, pinned, recentOrder, viewed[rawSessionID], active)
 	parts := []string{
 		fmt.Sprintf("%s%s", sid, markerText),
 		fmt.Sprintf("workspace %s", valueOrNA(workspaceID)),
@@ -226,11 +227,12 @@ func sessionDirectoryLine(summary brokerapi.SessionSummary, activeSessionID stri
 }
 
 func sessionSidebarLine(summary brokerapi.SessionSummary, activeSessionID string, pinned map[string]struct{}, recentOrder map[string]int, viewed map[string]string, active shellActivityFocus) string {
-	sid := strings.TrimSpace(summary.Identity.SessionID)
+	rawSessionID := strings.TrimSpace(summary.Identity.SessionID)
+	sid := sanitizeUIText(rawSessionID)
 	if sid == "" {
 		sid = "session"
 	}
-	markers := conciseSessionMarkers(summary, activeSessionID, pinned, recentOrder, viewed[sid], active)
+	markers := conciseSessionMarkers(summary, activeSessionID, pinned, recentOrder, viewed[rawSessionID], active)
 	parts := []string{sid}
 	if cue := sessionHighLevelCue(summary); cue != "" {
 		parts = append(parts, cue)

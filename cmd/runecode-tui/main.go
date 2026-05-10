@@ -2,6 +2,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -15,6 +16,15 @@ import (
 type usageError struct{ message string }
 
 func (e *usageError) Error() string { return e.message }
+
+func usageErrorf(format string, args ...any) error {
+	return &usageError{message: fmt.Sprintf(format, args...)}
+}
+
+func isUsageError(err error) bool {
+	var usageErr *usageError
+	return errors.As(err, &usageErr)
+}
 
 var (
 	newShellModelFunc = newShellModel
@@ -49,11 +59,7 @@ func runMain(args []string, stdin *os.File, stdout *os.File, stderr io.Writer) i
 	}
 
 	if cfg.snapshot.enabled {
-		if err := writeSnapshotArtifacts(cfg.snapshot); err != nil {
-			fmt.Fprintf(stderr, "runecode-tui snapshot failed: %v\n", err)
-			return 1
-		}
-		return 0
+		return runSnapshotMode(cfg.snapshot, stderr)
 	}
 
 	if !isTerminalFunc(int(stdin.Fd())) || !isTerminalFunc(int(stdout.Fd())) {
@@ -74,6 +80,18 @@ func runMain(args []string, stdin *os.File, stdout *os.File, stderr io.Writer) i
 	}
 	if err != nil {
 		fmt.Fprintf(stderr, "runecode-tui failed: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func runSnapshotMode(cfg tuiSnapshotConfig, stderr io.Writer) int {
+	if err := writeSnapshotArtifacts(cfg); err != nil {
+		if isUsageError(err) {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
+		fmt.Fprintf(stderr, "runecode-tui snapshot failed: %v\n", err)
 		return 1
 	}
 	return 0

@@ -484,6 +484,121 @@ func TestAttestationPostureCueClarifiesRuntimeIsolationAssurance(t *testing.T) {
 	}
 }
 
+func TestAttestationPostureCueSanitizesBrokerDerivedPostureAndReasons(t *testing.T) {
+	cue := renderAttestationPostureCue("invalid\x00", []string{"  token=secret123  ", "", "bad\x00reason"})
+	mustContainAll(t, cue,
+		"attestation posture=invalid (evidence rejected reasons=token=[REDACTED],badreason)",
+		"ATTESTATION_INVALID",
+	)
+	for _, banned := range []string{"secret123", "\x00"} {
+		if strings.Contains(cue, banned) {
+			t.Fatalf("expected sanitized attestation cue, found %q in %q", banned, cue)
+		}
+	}
+}
+
+func TestRuntimeAttestationTruthfulnessCueSanitizesBrokerDerivedAttestationState(t *testing.T) {
+	validState := map[string]any{
+		"attestation_posture":                      "valid\x00",
+		"attestation_verification_succeeded":       true,
+		"supported_runtime_requirements_satisfied": true,
+		"attestation_evidence_present":             true,
+	}
+	got := renderRuntimeAttestationTruthfulnessCue(validState)
+	if !strings.Contains(got, "post-handshake verification succeeded; supported attested posture earned from verified post-handshake evidence") {
+		t.Fatalf("expected sanitized valid posture to unlock supported attestation wording, got %q", got)
+	}
+
+	invalidState := map[string]any{
+		"attestation_posture":                      "invalid",
+		"attestation_reason_codes":                 []any{" token=secret123 ", "", "bad\x00reason"},
+		"session_binding_present":                  true,
+		"attestation_evidence_present":             true,
+		"supported_runtime_requirements_satisfied": false,
+	}
+	got = renderRuntimeAttestationTruthfulnessCue(invalidState)
+	mustContainAll(t, got,
+		"post-handshake evidence collected but not yet supportable; beta attested story still gated by post-handshake verification; reasons=token=[REDACTED],badreason",
+	)
+	for _, banned := range []string{"secret123", "\x00"} {
+		if strings.Contains(got, banned) {
+			t.Fatalf("expected sanitized runtime attestation truthfulness cue, found %q in %q", banned, got)
+		}
+	}
+}
+
+func TestReducedAssurancePostureCueSanitizesBrokerDerivedApprovalStatus(t *testing.T) {
+	got := renderReducedAssurancePostureCue(map[string]any{
+		"runtime_posture_degraded":          true,
+		"reduced_assurance_approval_backed": true,
+		"reduced_assurance_approval_status": " token=secret123\napproved\x00",
+	})
+	mustContainAll(t, got,
+		"reduced_assurance=true",
+		"approval_backed=true status=token=[REDACTED]approved",
+		"REDUCED_ASSURANCE_APPROVAL_BACKED",
+	)
+	for _, banned := range []string{"secret123", "\n", "\x00"} {
+		if strings.Contains(got, banned) {
+			t.Fatalf("expected sanitized reduced assurance cue, found %q in %q", banned, got)
+		}
+	}
+}
+
+func TestSupportedRuntimeRequirementsCueSanitizesReasonCodesFromStringSlice(t *testing.T) {
+	got := renderSupportedRuntimeRequirementsCue(map[string]any{
+		"supported_runtime_requirements_satisfied":   false,
+		"supported_runtime_requirement_reason_codes": []string{"  token=secret123  ", "", "bad\x00reason", "\n"},
+	})
+	mustContainAll(t, got,
+		"supported_runtime_requirements_satisfied=false reasons=token=[REDACTED],badreason",
+		"SUPPORTED_RUNTIME_REQUIREMENTS_UNSATISFIED",
+	)
+	for _, banned := range []string{"secret123", "\x00", "\n"} {
+		if strings.Contains(got, banned) {
+			t.Fatalf("expected sanitized supported runtime reasons from []string, found %q in %q", banned, got)
+		}
+	}
+}
+
+func TestSupportedRuntimeRequirementsCueSanitizesReasonCodesFromAnySlice(t *testing.T) {
+	got := renderSupportedRuntimeRequirementsCue(map[string]any{
+		"supported_runtime_requirements_satisfied":   false,
+		"supported_runtime_requirement_reason_codes": []any{"  token=secret123  ", "", "bad\x00reason", "\n", 17},
+	})
+	mustContainAll(t, got,
+		"supported_runtime_requirements_satisfied=false reasons=token=[REDACTED],badreason",
+		"SUPPORTED_RUNTIME_REQUIREMENTS_UNSATISFIED",
+	)
+	for _, banned := range []string{"secret123", "\x00", "\n"} {
+		if strings.Contains(got, banned) {
+			t.Fatalf("expected sanitized supported runtime reasons from []any, found %q in %q", banned, got)
+		}
+	}
+}
+
+func TestAuthoritativeVerifierClassCueSanitizesBrokerDerivedClass(t *testing.T) {
+	got := renderAuthoritativeVerifierClassCue(map[string]any{
+		"attestation_verifier_class": " token=secret123\ntrusted\x00",
+	})
+	mustContainAll(t, got,
+		"verifier class=token=[REDACTED]trusted (source=attestation_verifier_class)",
+		"VERIFIER_CLASS_REPORTED",
+	)
+	for _, banned := range []string{"secret123", "\n", "\x00"} {
+		if strings.Contains(got, banned) {
+			t.Fatalf("expected sanitized verifier class cue, found %q in %q", banned, got)
+		}
+	}
+}
+
+func TestRunEvidenceSummaryNilDetailReturnsZeroCounts(t *testing.T) {
+	got := runEvidenceSummary(nil)
+	if got != "approvals 0 • artifact classes 0 • active manifests 0 • policy refs 0" {
+		t.Fatalf("runEvidenceSummary(nil) = %q", got)
+	}
+}
+
 func containsCall(calls []string, want string) bool {
 	for _, call := range calls {
 		if call == want {

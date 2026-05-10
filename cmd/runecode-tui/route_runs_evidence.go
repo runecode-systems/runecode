@@ -9,6 +9,9 @@ import (
 )
 
 func runEvidenceSummary(detail *brokerapi.RunDetail) string {
+	if detail == nil {
+		return "approvals 0 • artifact classes 0 • active manifests 0 • policy refs 0"
+	}
 	parts := []string{fmt.Sprintf("approvals %d", len(detail.PendingApprovalIDs)), fmt.Sprintf("artifact classes %d", len(detail.ArtifactCountsByClass)), fmt.Sprintf("active manifests %d", len(detail.ActiveManifestHashes)), fmt.Sprintf("policy refs %d", len(detail.LatestPolicyDecisionRefs))}
 	return strings.Join(parts, " • ")
 }
@@ -85,15 +88,15 @@ func attestationPostureFromState(state map[string]any) (string, []string) {
 	reasonsAny, ok := state["attestation_reason_codes"].([]any)
 	if !ok {
 		reasons, _ := state["attestation_reason_codes"].([]string)
-		return posture, reasons
+		return sanitizeAttestationPostureAndReasons(posture, reasons)
 	}
 	reasons := make([]string, 0, len(reasonsAny))
 	for _, value := range reasonsAny {
-		if s, ok := value.(string); ok && strings.TrimSpace(s) != "" {
+		if s, ok := value.(string); ok {
 			reasons = append(reasons, s)
 		}
 	}
-	return posture, reasons
+	return sanitizeAttestationPostureAndReasons(posture, reasons)
 }
 
 func runInspectorContentKind(presentation contentPresentationMode) inspectorContentKind {

@@ -44,23 +44,86 @@ func TestSessionDirectoryItemsRenderRequiredMetadataAndLocalMarkers(t *testing.T
 	}
 }
 
+func TestSessionSidebarLineSanitizesRenderedSessionID(t *testing.T) {
+	rawSessionID := " session-1\nspoof\r\x1b[31m"
+	line := sessionSidebarLine(
+		brokerapi.SessionSummary{
+			Identity:       brokerapi.SessionIdentity{SessionID: rawSessionID},
+			Status:         "active",
+			LastActivityAt: "2026-01-03T00:00:00Z",
+		},
+		rawSessionID,
+		map[string]struct{}{rawSessionID: {}},
+		map[string]int{rawSessionID: 0},
+		map[string]string{rawSessionID: ""},
+		shellActivityFocus{Kind: "session", ID: rawSessionID},
+	)
+
+	if !strings.Contains(line, sanitizeUIText(rawSessionID)) {
+		t.Fatalf("expected sanitized session ID in %q", line)
+	}
+	for _, unsafe := range []string{"\n", "\r", "\x1b"} {
+		if strings.Contains(line, unsafe) {
+			t.Fatalf("expected sidebar line to exclude %q, got %q", unsafe, line)
+		}
+	}
+	for _, want := range []string{"active", "pinned", "new", "live"} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("expected %q marker in %q", want, line)
+		}
+	}
+}
+
+func TestSessionDirectoryLineUsesRawSessionIDForViewedLookup(t *testing.T) {
+	rawSessionID := "session-1[31m"
+	lastViewed := "2026-01-03T00:00:00Z"
+	line := sessionDirectoryLine(
+		brokerapi.SessionSummary{
+			Identity:       brokerapi.SessionIdentity{SessionID: rawSessionID, WorkspaceID: "ws-1"},
+			LastActivityAt: lastViewed,
+			Status:         "active",
+		},
+		"",
+		nil,
+		nil,
+		map[string]string{rawSessionID: lastViewed},
+		shellActivityFocus{},
+	)
+
+	if strings.Contains(line, "new") {
+		t.Fatalf("expected viewed state to use raw session ID and suppress new marker, got %q", line)
+	}
+	if !strings.Contains(line, sanitizeUIText(rawSessionID)) {
+		t.Fatalf("expected sanitized session ID in %q", line)
+	}
+}
+
 func TestSessionQuickSwitcherIncludesCanonicalSessionMetadata(t *testing.T) {
 	m := newShellModel()
+	rawSessionID := " session-1\nspoof\r\x1b[31m"
+	rawWorkspaceID := " ws-1\nspoof\r\x1b[31m"
+	rawActivityKind := " token=secret123\nrun_progress\x00"
 	m.applySessionWorkspaceLoaded(sessionWorkspaceLoadedMsg{sessions: []brokerapi.SessionSummary{{
-		Identity:            brokerapi.SessionIdentity{SessionID: "session-1", WorkspaceID: "ws-1"},
+		Identity:            brokerapi.SessionIdentity{SessionID: rawSessionID, WorkspaceID: rawWorkspaceID},
 		LastActivityAt:      "2026-01-03T00:00:00Z",
-		LastActivityKind:    "run_progress",
+		LastActivityKind:    rawActivityKind,
 		LastActivityPreview: "preview",
 		HasIncompleteTurn:   false,
 		LinkedRunCount:      1,
 		LinkedApprovalCount: 0,
 		Status:              "active",
 	}}})
+	m.watch.projection.Activity.Active = shellActivityFocus{Kind: "session", ID: rawSessionID}
 	m.sessions = m.sessions.Open(m.sessionItems)
 	v := m.renderSessionQuickSwitcher()
-	for _, want := range []string{"session-1", "Workspace ws-1", "Recent activity run_progress", "1 run"} {
+	for _, want := range []string{"● " + sanitizeUIText(rawSessionID), "Workspace " + sanitizeUIText(rawWorkspaceID), "Recent activity " + sanitizeUIText(rawActivityKind), "1 run"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected %q in switcher view %q", want, v)
+		}
+	}
+	for _, unsafe := range []string{"\nspoof", "\r", "\x1b", "secret123"} {
+		if strings.Contains(v, unsafe) {
+			t.Fatalf("expected quick switcher view to exclude %q, got %q", unsafe, v)
 		}
 	}
 }

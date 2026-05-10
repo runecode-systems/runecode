@@ -3,11 +3,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -199,6 +201,49 @@ func TestWriteSnapshotArtifactsIncludesPerScenarioViewportAndDimensions(t *testi
 	}
 }
 
+func TestWriteSnapshotArtifactsUsesScenarioViewportOverrideForArtifactMetadata(t *testing.T) {
+	outputDir := t.TempDir()
+	if err := writeSnapshotArtifacts(tuiSnapshotConfig{enabled: true, scenario: "narrow-sidebar-overlay", outputDir: outputDir, viewport: snapshotViewportDesktop}); err != nil {
+		t.Fatalf("writeSnapshotArtifacts returned error: %v", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(outputDir, "manifest.json"))
+	if err != nil {
+		t.Fatalf("ReadFile(manifest.json) returned error: %v", err)
+	}
+	var manifest snapshotManifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatalf("json.Unmarshal(manifest.json) returned error: %v", err)
+	}
+	if len(manifest.Scenarios) != 1 {
+		t.Fatalf("manifest scenarios len = %d, want 1", len(manifest.Scenarios))
+	}
+	entry := manifest.Scenarios[0]
+	if entry.Viewport != string(snapshotViewportMobile) || entry.Width != 80 || entry.Height != 32 {
+		t.Fatalf("manifest entry = %+v, want mobile override dimensions", entry)
+	}
+	if entry.Artifacts.SVG.Path != "narrow-sidebar-overlay.mobile.svg" || entry.Artifacts.Text.Path != "narrow-sidebar-overlay.mobile.txt" || entry.Artifacts.ANSI.Path != "narrow-sidebar-overlay.mobile.ansi" || entry.Artifacts.PNG.Path != "narrow-sidebar-overlay.mobile.png" {
+		t.Fatalf("manifest entry paths = %+v, want mobile-qualified artifact names", entry)
+	}
+}
+
+func TestWriteSnapshotArtifactsBundleCoverageTracksScenarioViewportOverrides(t *testing.T) {
+	outputDir := t.TempDir()
+	if err := writeSnapshotArtifacts(tuiSnapshotConfig{enabled: true, bundle: string(snapshotBundleNarrowMobile), outputDir: outputDir, viewport: snapshotViewportDesktop}); err != nil {
+		t.Fatalf("writeSnapshotArtifacts returned error: %v", err)
+	}
+	raw, err := os.ReadFile(filepath.Join(outputDir, "manifest.json"))
+	if err != nil {
+		t.Fatalf("ReadFile(manifest.json) returned error: %v", err)
+	}
+	var manifest snapshotManifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatalf("json.Unmarshal(manifest.json) returned error: %v", err)
+	}
+	if len(manifest.Coverage.Viewports) != 1 || manifest.Coverage.Viewports[0] != string(snapshotViewportMobile) {
+		t.Fatalf("manifest coverage viewports = %+v, want only mobile", manifest.Coverage.Viewports)
+	}
+}
+
 func TestWriteSnapshotArtifactsIncludesBundleCoverageMetadata(t *testing.T) {
 	outputDir := t.TempDir()
 	if err := writeSnapshotArtifacts(tuiSnapshotConfig{enabled: true, bundle: "dashboard-audit", outputDir: outputDir, viewport: snapshotViewportDesktop}); err != nil {
@@ -235,5 +280,71 @@ func TestWriteSnapshotArtifactsRemovesStalePNG(t *testing.T) {
 	}
 	if _, err := os.Stat(stalePNG); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("Stat(stalePNG) error = %v, want not exist after regeneration", err)
+	}
+}
+
+func TestRunMainSnapshotUsageErrorsExitCodeTwo(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name:    "mutually exclusive config",
+			args:    []string{"--snapshot-scenario", "dashboard-healthy-empty", "--snapshot-bundle", "dashboard-audit"},
+			wantErr: "snapshot bundle and snapshot scenario are mutually exclusive",
+		},
+		{
+			name:    "invalid viewport",
+			args:    []string{"--snapshot-scenario", "dashboard-healthy-empty", "--snapshot-viewport", "tablet"},
+			wantErr: "unknown snapshot viewport \"tablet\"",
+		},
+		{
+			name:    "negative width",
+			args:    []string{"--snapshot-scenario", "dashboard-healthy-empty", "--snapshot-width", "-1"},
+			wantErr: "snapshot dimensions must be positive",
+		},
+		{
+			name:    "unknown scenario",
+			args:    []string{"--snapshot-scenario", "missing-scenario"},
+			wantErr: "unknown snapshot scenario \"missing-scenario\"",
+		},
+		{
+			name:    "unknown bundle",
+			args:    []string{"--snapshot-bundle", "missing-bundle"},
+			wantErr: "unknown snapshot bundle \"missing-bundle\"",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			var stderr bytes.Buffer
+			code := runMain(tc.args, os.Stdin, os.Stdout, &stderr)
+			if code != 2 {
+				t.Fatalf("runMain(%v) exit code = %d stderr=%q, want 2", tc.args, code, stderr.String())
+			}
+			if got := stderr.String(); !strings.Contains(got, tc.wantErr) {
+				t.Fatalf("runMain(%v) stderr = %q, want substring %q", tc.args, got, tc.wantErr)
+			} else if strings.Contains(got, "runecode-tui snapshot failed:") {
+				t.Fatalf("runMain(%v) stderr = %q, want plain usage error", tc.args, got)
+			}
+		})
+	}
+}
+
+func TestRunMainSnapshotRuntimeFailuresExitCodeOne(t *testing.T) {
+	outputDir := filepath.Join(t.TempDir(), "snapshot-output")
+	if err := os.WriteFile(outputDir, []byte("occupied"), 0o644); err != nil {
+		t.Fatalf("WriteFile(outputDir) returned error: %v", err)
+	}
+
+	var stderr bytes.Buffer
+	code := runMain([]string{"--snapshot-scenario", "dashboard-healthy-empty", "--snapshot-output-dir", outputDir}, os.Stdin, os.Stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("runMain(snapshot runtime failure) exit code = %d stderr=%q, want 1", code, stderr.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "runecode-tui snapshot failed:") {
+		t.Fatalf("runMain(snapshot runtime failure) stderr = %q, want runtime failure prefix", got)
 	}
 }

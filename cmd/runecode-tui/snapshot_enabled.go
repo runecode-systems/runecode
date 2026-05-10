@@ -4,7 +4,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"strings"
 )
 
@@ -23,14 +22,16 @@ type snapshotViewportSpec struct {
 }
 
 type tuiSnapshotConfig struct {
-	enabled   bool
-	scenario  string
-	bundle    string
-	outputDir string
-	viewport  snapshotViewportPreset
-	width     int
-	height    int
-	theme     themePreset
+	enabled            bool
+	scenario           string
+	bundle             string
+	outputDir          string
+	viewport           snapshotViewportPreset
+	width              int
+	height             int
+	widthFromViewport  bool
+	heightFromViewport bool
+	theme              themePreset
 }
 
 type tuiSnapshotFlags struct {
@@ -80,6 +81,6 @@ func resolveSnapshotViewportPreset(name snapshotViewportPreset) (snapshotViewpor
 	case snapshotViewportMobile:
 		return snapshotViewportSpec{Name: snapshotViewportMobile, Width: 80, Height: 32}, nil
 	default:
-		return snapshotViewportSpec{}, fmt.Errorf("unknown snapshot viewport %q", name)
+		return snapshotViewportSpec{}, usageErrorf("unknown snapshot viewport %q", name)
 	}
 }

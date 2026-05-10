@@ -91,7 +91,7 @@ func writeSnapshotArtifacts(cfg tuiSnapshotConfig) error {
 	if err := os.MkdirAll(cfg.outputDir, 0o755); err != nil {
 		return err
 	}
-	manifest := snapshotManifest{Version: 2, Bundle: cfg.bundle, Width: cfg.width, Height: cfg.height, Viewport: string(cfg.viewport), Theme: string(snapshotManifestTheme(cfg, scenarios)), Coverage: snapshotCoverageForBundle(normalizeSnapshotBundle(cfg.bundle), scenarios, cfg.viewport)}
+	manifest := snapshotManifest{Version: 2, Bundle: cfg.bundle, Width: cfg.width, Height: cfg.height, Viewport: string(cfg.viewport), Theme: string(snapshotManifestTheme(cfg, scenarios)), Coverage: snapshotCoverageForBundle(normalizeSnapshotBundle(cfg.bundle), scenarios, cfg)}
 	entries, err := writeSnapshotScenarioArtifacts(cfg, scenarios)
 	if err != nil {
 		return err
@@ -105,11 +105,11 @@ func normalizeSnapshotConfig(cfg tuiSnapshotConfig) (tuiSnapshotConfig, error) {
 		cfg.outputDir = snapshotDefaultOutputDir()
 	}
 	if strings.TrimSpace(cfg.bundle) != "" && strings.TrimSpace(cfg.scenario) != "" {
-		return tuiSnapshotConfig{}, fmt.Errorf("snapshot bundle and snapshot scenario are mutually exclusive")
+		return tuiSnapshotConfig{}, usageErrorf("snapshot bundle and snapshot scenario are mutually exclusive")
 	}
 	normalizedOutputDir, err := normalizeSnapshotOutputDir(cfg.outputDir)
 	if err != nil {
-		return tuiSnapshotConfig{}, err
+		return tuiSnapshotConfig{}, usageErrorf("%v", err)
 	}
 	cfg.outputDir = normalizedOutputDir
 	viewport, err := resolveSnapshotViewportPreset(cfg.viewport)
@@ -121,12 +121,14 @@ func normalizeSnapshotConfig(cfg tuiSnapshotConfig) (tuiSnapshotConfig, error) {
 	}
 	if cfg.width == 0 {
 		cfg.width = viewport.Width
+		cfg.widthFromViewport = true
 	}
 	if cfg.height == 0 {
 		cfg.height = viewport.Height
+		cfg.heightFromViewport = true
 	}
 	if cfg.width <= 0 || cfg.height <= 0 {
-		return tuiSnapshotConfig{}, fmt.Errorf("snapshot dimensions must be positive")
+		return tuiSnapshotConfig{}, usageErrorf("snapshot dimensions must be positive")
 	}
 	return cfg, nil
 }
@@ -154,8 +156,9 @@ func writeSnapshotScenarioArtifacts(cfg tuiSnapshotConfig, scenarios []snapshotS
 }
 
 func writeSnapshotScenarioArtifact(cfg tuiSnapshotConfig, scenario snapshotScenarioState) (snapshotManifestEntry, error) {
+	viewport := snapshotScenarioViewport(scenario, cfg)
 	width, height := snapshotScenarioDimensions(scenario, cfg)
-	paths := snapshotPathsForScenario(cfg.outputDir, scenario.Name, cfg.viewport)
+	paths := snapshotPathsForScenario(cfg.outputDir, scenario.Name, viewport)
 	ansiManifestPath, err := snapshotManifestArtifactPath(cfg.outputDir, paths.ANSI)
 	if err != nil {
 		return snapshotManifestEntry{}, err
@@ -196,7 +199,7 @@ func writeSnapshotScenarioArtifact(cfg tuiSnapshotConfig, scenario snapshotScena
 	svgArtifact.Path = svgManifestPath
 	return snapshotManifestEntry{
 		Name:     scenario.Name,
-		Viewport: string(cfg.viewport),
+		Viewport: string(viewport),
 		Width:    width,
 		Height:   height,
 		Route:    string(routeID),
