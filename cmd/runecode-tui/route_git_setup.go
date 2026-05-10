@@ -191,7 +191,7 @@ func (m gitSetupRouteModel) View(width, height int, focus focusArea) string {
 		renderStateCardSpec(gitSetupStateCard(account, auth, profiles)),
 		fmt.Sprintf("Provider link: %s", gitProviderAccountSummary(account, auth)),
 		fmt.Sprintf("Commit identity: %s", gitIdentitySummary(profiles, control.DefaultIdentityProfileID)),
-		fmt.Sprintf("Review safety: %s", gitPolicySafetySummary(m.data.PolicySurface)),
+		fmt.Sprintf("Review posture: %s", gitPolicySafetySummary(m.data.PolicySurface)),
 		fmt.Sprintf("Next safe action: %s", gitNextSafeAction(account, profiles)),
 		m.status,
 	)
@@ -212,7 +212,7 @@ func gitSetupStateCard(account brokerapi.GitProviderAccountState, auth brokerapi
 		message = "Provider sign-in is in progress; the account link is not ready yet."
 		next = "Finish the current sign-in step, then reload to confirm the linked account."
 	}
-	return stateCardSpec{State: state, Title: "Git setup", Message: message, Reason: "This route prepares the broker-owned account and identity state used by artifact-managed review flows; remote mutation remains broker-gated.", NextAction: next, ShortcutCue: "browser auth • device auth • identity upsert", EvidenceCue: "broker git setup posture"}
+	return stateCardSpec{State: state, Title: "Git setup", Message: message, Reason: "RuneCode needs a linked account and ready commit identity before broker-managed review work can proceed.", NextAction: next, ShortcutCue: "browser auth • device auth • identity upsert", EvidenceCue: "linked account and commit identity posture"}
 }
 
 func gitProviderAccountSummary(account brokerapi.GitProviderAccountState, auth brokerapi.GitAuthPostureState) string {
@@ -227,12 +227,12 @@ func gitProviderAccountSummary(account brokerapi.GitProviderAccountState, auth b
 
 func gitIdentitySummary(profiles []brokerapi.GitCommitIdentityProfile, defaultID string) string {
 	if len(profiles) == 0 {
-		return "No broker-managed commit identity is ready yet."
+		return "No commit identity is ready yet."
 	}
 	if strings.TrimSpace(defaultID) != "" {
-		return fmt.Sprintf("Broker-managed identity is ready with default profile %s.", valueOrNA(defaultID))
+		return fmt.Sprintf("Default commit identity %s is ready.", valueOrNA(defaultID))
 	}
-	return fmt.Sprintf("%d broker-managed identity profile(s) are available.", len(profiles))
+	return fmt.Sprintf("%d commit identity profile(s) are available.", len(profiles))
 }
 
 func gitPolicySafetySummary(policy brokerapi.GitPolicySurfaceState) string {

@@ -58,7 +58,7 @@ func TestSessionQuickSwitcherIncludesCanonicalSessionMetadata(t *testing.T) {
 	}}})
 	m.sessions = m.sessions.Open(m.sessionItems)
 	v := m.renderSessionQuickSwitcher()
-	for _, want := range []string{"session-1", "ws=ws-1", "activity=2026-01-03T00:00:00Z/run_progress", "runs=1 approvals=0"} {
+	for _, want := range []string{"session-1", "Workspace ws-1", "Recent activity run_progress", "1 run"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected %q in switcher view %q", want, v)
 		}

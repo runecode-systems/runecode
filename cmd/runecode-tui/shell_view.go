@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func (m shellModel) View() string {
@@ -33,7 +34,7 @@ func (m shellModel) renderShellWorkbench(surface routeSurface, layout shellLayou
 	if strings.TrimSpace(overlayBody) == "" {
 		return lipgloss.JoinVertical(lipgloss.Left, frame)
 	}
-	return applyModalOverlay(frame, overlayBody, viewportWidth, viewportHeight)
+	return applyModalOverlay(scrubShellFrameForOverlay(frame, viewportWidth, viewportHeight), overlayBody, viewportWidth, viewportHeight)
 }
 
 func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, layout shellLayoutPlan, viewportWidth int) {
@@ -101,15 +102,15 @@ func overlayRemainingHeight(parts []string, maxOverlayHeight int) int {
 func (m shellModel) activeOverlayBody(surface routeSurface, layout shellLayoutPlan, overlayWidth int, remainingHeight int) string {
 	switch {
 	case m.palette.IsOpen():
-		return compactLines(m.renderOverlayStack(), centeredOverlayBlockBounded(overlayIDQuickJump, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderPalette()), overlayWidth, remainingHeight))
+		return centeredOverlayBlockBounded(overlayIDQuickJump, m.renderPalette(), overlayWidth, remainingHeight)
 	case m.sessions.IsOpen():
-		return compactLines(m.renderOverlayStack(), centeredOverlayBlockBounded(overlayIDSessions, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderSessionQuickSwitcher()), overlayWidth, remainingHeight))
+		return centeredOverlayBlockBounded(overlayIDSessions, m.renderSessionQuickSwitcher(), overlayWidth, remainingHeight)
 	case m.leader.Active():
-		return compactLines(m.renderOverlayStack(), centeredOverlayBlockBounded(overlayIDLeader, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderLeaderWhichKey()), overlayWidth, remainingHeight))
+		return centeredOverlayBlockBounded(overlayIDLeader, m.renderLeaderWhichKey(), overlayWidth, remainingHeight)
 	case m.quitConfirm.active:
-		return compactLines(m.renderOverlayStack(), centeredOverlayBlockBounded(overlayIDQuitConfirm, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderQuitConfirmDialog()), overlayWidth, remainingHeight))
+		return centeredOverlayBlockBounded(overlayIDQuitConfirm, m.renderQuitConfirmDialog(), overlayWidth, remainingHeight)
 	case m.narrowSidebarOn && m.breakpoint() == shellBreakpointNarrow:
-		return compactLines(m.renderOverlayStack(), centeredOverlayBlockBounded(overlayIDSidebar, compactLines("Return focus: "+m.overlayReturn.Label(), m.renderSidebar()), overlayWidth, remainingHeight))
+		return centeredOverlayBlockBounded(overlayIDSidebar, m.renderSidebar(), overlayWidth, remainingHeight)
 	case m.narrowInspectOn && m.breakpoint() == shellBreakpointNarrow:
 		return m.narrowInspectorOverlayBody(surface, layout, overlayWidth, remainingHeight)
 	default:
@@ -124,12 +125,12 @@ func (m shellModel) narrowInspectorOverlayBody(surface routeSurface, layout shel
 		title = "Inspector"
 	}
 	if inspector != "" && routeInspectorAvailable(surface) && m.inspectorOn {
-		return compactLines(m.renderOverlayStack(), centeredOverlayBlockBounded(overlayIDInspector, compactLines("Return focus: "+m.overlayReturn.Label(), title, inspector), overlayWidth, remainingHeight))
+		return centeredOverlayBlockBounded(overlayIDInspector, compactLines(title, inspector), overlayWidth, remainingHeight)
 	}
 	if !layout.InspectorVisible && !routeInspectorAvailable(surface) {
-		return centeredOverlayBlockBounded(overlayIDInspector, compactLines("Return focus: "+m.overlayReturn.Label(), "Inspector unavailable for current route."), overlayWidth, remainingHeight)
+		return centeredOverlayBlockBounded(overlayIDInspector, "Inspector unavailable for current route.", overlayWidth, remainingHeight)
 	}
-	return compactLines(m.renderOverlayStack(), centeredOverlayBlockBounded(overlayIDInspector, compactLines("Return focus: "+m.overlayReturn.Label(), title, "No inspector item selected."), overlayWidth, remainingHeight))
+	return centeredOverlayBlockBounded(overlayIDInspector, compactLines(title, "No inspector item selected."), overlayWidth, remainingHeight)
 }
 
 func (m shellModel) activeOverlayHeight(viewportHeight int) int {
@@ -214,7 +215,11 @@ func renderRunningSuffix(indicator string) string {
 }
 
 func (m shellModel) renderSyncHealth() string {
-	text := "Product truth: " + renderShellSyncState(m.watch.projection.Health.State)
+	prefix := "Product truth: "
+	if m.width > 0 && m.width < shellMediumMinWidth {
+		prefix = "Truth: "
+	}
+	text := prefix + renderShellSyncState(m.watch.projection.Health.State)
 	if strings.TrimSpace(m.watch.projection.Health.ErrorText) != "" {
 		text += "  •  " + muted("Status has detail: "+sanitizeUIText(m.watch.projection.Health.ErrorText))
 	}
@@ -222,6 +227,49 @@ func (m shellModel) renderSyncHealth() string {
 		text += "  •  " + actions
 	}
 	return text
+}
+
+func scrubShellFrameForOverlay(frame string, width int, height int) string {
+	if strings.TrimSpace(frame) == "" {
+		return frame
+	}
+	lines := strings.Split(padShellFrame(frame, width, height), "\n")
+	blank := lipgloss.NewStyle().Width(width).MaxWidth(width).Render("")
+	blankFrom := len(lines) - (shellStatusHeight + shellBottomStripHeight)
+	if blankFrom < 0 {
+		blankFrom = 0
+	}
+	for i := range lines {
+		if i >= blankFrom {
+			lines[i] = blank
+			continue
+		}
+		stripped := strings.TrimSpace(ansiStripForOverlay(lines[i]))
+		if stripped == "" {
+			lines[i] = blank
+			continue
+		}
+		if containsBoxDrawing(stripped) {
+			lines[i] = blank
+			continue
+		}
+		lines[i] = appTheme.Muted.Width(width).MaxWidth(width).Render(ansiStripForOverlay(lines[i]))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func containsBoxDrawing(line string) bool {
+	for _, r := range line {
+		switch r {
+		case '┌', '┐', '└', '┘', '│', '─', '├', '┤', '┬', '┴', '┼':
+			return true
+		}
+	}
+	return false
+}
+
+func ansiStripForOverlay(line string) string {
+	return sanitizeUIText(ansi.Strip(line))
 }
 
 func applyModalOverlay(frame string, overlay string, width int, height int) string {

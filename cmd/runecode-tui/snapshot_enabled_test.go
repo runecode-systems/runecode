@@ -218,8 +218,8 @@ func TestWriteSnapshotArtifactsIncludesBundleCoverageMetadata(t *testing.T) {
 	if len(manifest.Coverage.Routes) != 1 || manifest.Coverage.Routes[0] != "dashboard" {
 		t.Fatalf("manifest coverage routes = %+v, want dashboard only", manifest.Coverage)
 	}
-	if len(manifest.Coverage.Scenarios) != 4 {
-		t.Fatalf("manifest coverage scenarios = %+v, want 4 dashboard scenarios", manifest.Coverage)
+	if len(manifest.Coverage.Scenarios) != 6 {
+		t.Fatalf("manifest coverage scenarios = %+v, want 6 dashboard scenarios", manifest.Coverage)
 	}
 }
 

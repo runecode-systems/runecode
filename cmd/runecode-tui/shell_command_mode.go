@@ -66,7 +66,10 @@ func (s shellCommandModeState) RenderPrompt() string {
 	errText := clampCommandModeDisplayText(s.error)
 	if s.active {
 		if strings.TrimSpace(errText) != "" {
-			return ":[input hidden]  [error: " + errText + "]"
+			if draft == "" || !revealCommandDraftOnError(s.draft) {
+				return ":  [error: " + errText + "]"
+			}
+			return ":" + draft + "  [error: " + errText + "]"
 		}
 		return ":" + draft
 	}
@@ -74,6 +77,14 @@ func (s shellCommandModeState) RenderPrompt() string {
 		return "command error: " + errText
 	}
 	return ""
+}
+
+func revealCommandDraftOnError(draft string) bool {
+	draft = strings.TrimSpace(draft)
+	if draft == "" {
+		return false
+	}
+	return strings.Contains(draft, " ")
 }
 
 func clampCommandModeDisplayText(text string) string {

@@ -108,7 +108,7 @@ func resolveSnapshotBundle(name string) (snapshotBundleSpec, error) {
 	case snapshotBundleNarrowMobile:
 		return snapshotBundleSpec{Name: snapshotBundleNarrowMobile, Scenarios: []string{"narrow-sidebar-overlay", "narrow-inspector-overlay"}, Routes: []routeID{routeDashboard, routeRuns}}, nil
 	case snapshotBundleNarrowCompact:
-		return snapshotBundleSpec{Name: snapshotBundleNarrowCompact, Scenarios: []string{"narrow-sidebar-overlay", "narrow-inspector-overlay"}, Routes: []routeID{routeDashboard, routeRuns}}, nil
+		return snapshotBundleSpec{Name: snapshotBundleNarrowCompact, Scenarios: []string{"narrow-sidebar-overlay-compact", "narrow-inspector-overlay-compact"}, Routes: []routeID{routeDashboard, routeRuns}}, nil
 	default:
 		return snapshotBundleSpec{}, fmt.Errorf("unknown snapshot bundle %q", name)
 	}

@@ -154,6 +154,7 @@ func writeSnapshotScenarioArtifacts(cfg tuiSnapshotConfig, scenarios []snapshotS
 }
 
 func writeSnapshotScenarioArtifact(cfg tuiSnapshotConfig, scenario snapshotScenarioState) (snapshotManifestEntry, error) {
+	width, height := snapshotScenarioDimensions(scenario, cfg)
 	paths := snapshotPathsForScenario(cfg.outputDir, scenario.Name, cfg.viewport)
 	ansiManifestPath, err := snapshotManifestArtifactPath(cfg.outputDir, paths.ANSI)
 	if err != nil {
@@ -186,7 +187,7 @@ func writeSnapshotScenarioArtifact(cfg tuiSnapshotConfig, scenario snapshotScena
 	if err != nil {
 		return snapshotManifestEntry{}, err
 	}
-	svgArtifact, err := writeSnapshotHashedArtifact(paths.SVG, []byte(renderSnapshotSVG(view, cfg.width, cfg.height)))
+	svgArtifact, err := writeSnapshotHashedArtifact(paths.SVG, []byte(renderSnapshotSVG(view, width, height)))
 	if err != nil {
 		return snapshotManifestEntry{}, err
 	}
@@ -196,8 +197,8 @@ func writeSnapshotScenarioArtifact(cfg tuiSnapshotConfig, scenario snapshotScena
 	return snapshotManifestEntry{
 		Name:     scenario.Name,
 		Viewport: string(cfg.viewport),
-		Width:    cfg.width,
-		Height:   cfg.height,
+		Width:    width,
+		Height:   height,
 		Route:    string(routeID),
 		Artifacts: snapshotManifestArtifacts{
 			ANSI: ansiArtifact,

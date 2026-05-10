@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
 func (m shellModel) renderOverlayStack() string {
@@ -19,14 +21,13 @@ func (m shellModel) renderOverlayStack() string {
 func (m shellModel) renderPalette() string {
 	b := strings.Builder{}
 	width := boundedOverlayListWidth(m.width)
-	b.WriteString(rightAlignMetadata(tableHeader("Commands")+" "+muted("Workbench Command Surface"), "esc", width) + "\n")
 	b.WriteString(renderAccentRail(visualToneCommand, "Search  "+paletteSearchText(m.palette.query)) + "\n")
 	if len(m.palette.matches) == 0 {
 		b.WriteString(muted("No matches. Keep typing or press esc to close."))
 		b.WriteString("\n")
 		return b.String()
 	}
-	b.WriteString(tableHeader("Suggested") + " " + muted("Matches"))
+	b.WriteString(tableHeader("Suggested actions"))
 	b.WriteString("\n")
 	rows := make([]boundedListRow, 0, len(m.palette.matches))
 	for _, entry := range m.palette.matches {
@@ -49,7 +50,6 @@ func (m shellModel) renderPalette() string {
 func (m shellModel) renderSessionQuickSwitcher() string {
 	b := strings.Builder{}
 	width := boundedOverlayListWidth(m.width)
-	b.WriteString(rightAlignMetadata(tableHeader("Switch Session"), "esc", width) + "\n")
 	b.WriteString(renderAccentRail(visualToneCommand, "Search  "+paletteSearchText(m.sessions.query)) + "\n")
 	if len(m.sessions.matches) == 0 {
 		b.WriteString(muted("No matches. Press esc to close."))
@@ -68,18 +68,26 @@ func (m shellModel) renderSessionQuickSwitcher() string {
 		if m.watch.projection.Activity.Active.Kind == "session" && strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" && m.watch.projection.Activity.Active.ID == s.Identity.SessionID {
 			sessionLabel = "● " + sessionLabel
 		}
-		preview := truncateText(sanitizeUIText(s.LastActivityPreview), 50)
+		preview := truncateText(sanitizeUIText(s.LastActivityPreview), 58)
 		left := fmt.Sprintf("%s %s  %s", marker, sessionLabel, sessionHighLevelCue(s))
-		right := fmt.Sprintf("runs=%d approvals=%d", s.LinkedRunCount, s.LinkedApprovalCount)
+		right := compactSessionSwitcherCounts(s)
 		line := rightAlignMetadata(left, right, width)
-		detail := fmt.Sprintf("    activity=%s/%s  ws=%s  preview=%q",
-			defaultPlaceholder(s.LastActivityAt, "n/a"),
-			defaultPlaceholder(s.LastActivityKind, "n/a"),
-			s.Identity.WorkspaceID,
-			preview,
-		)
+		detailParts := []string{}
+		if workspace := strings.TrimSpace(s.Identity.WorkspaceID); workspace != "" {
+			detailParts = append(detailParts, "Workspace "+workspace)
+		}
+		if activityKind := strings.TrimSpace(s.LastActivityKind); activityKind != "" {
+			detailParts = append(detailParts, "Recent activity "+activityKind)
+		}
+		if preview != "" {
+			detailParts = append(detailParts, preview)
+		}
+		detail := "    " + strings.Join(detailParts, "  •  ")
+		if strings.TrimSpace(detail) == "" {
+			detail = "    No recent activity yet."
+		}
 		if s.HasIncompleteTurn {
-			detail += "  waiting"
+			detail += "  •  Needs follow-up"
 		}
 		line = compactLines(line, muted(clipDisplayText(detail, width)))
 		rows = append(rows, boundedListRow{Text: line, Selectable: true})
@@ -96,6 +104,20 @@ func (m shellModel) renderSessionQuickSwitcher() string {
 	}))
 	b.WriteString("\n")
 	return b.String()
+}
+
+func compactSessionSwitcherCounts(summary brokerapi.SessionSummary) string {
+	parts := make([]string, 0, 2)
+	if summary.LinkedRunCount > 0 {
+		parts = append(parts, countNoun(summary.LinkedRunCount, "run", "runs"))
+	}
+	if summary.LinkedApprovalCount > 0 {
+		parts = append(parts, countNoun(summary.LinkedApprovalCount, "approval", "approvals"))
+	}
+	if len(parts) == 0 {
+		return "idle"
+	}
+	return strings.Join(parts, " • ")
 }
 
 func (m shellModel) renderLeaderWhichKey() string {
@@ -233,7 +255,14 @@ func (m shellModel) renderPrimaryWorkbenchActions() string {
 		parts = append(parts, "Approvals")
 	}
 	if _, ok := m.actions.definitionByID("shell.open_palette"); ok {
-		parts = append(parts, "Commands ctrl+p/:")
+		if m.width > 0 && m.width < shellMediumMinWidth {
+			parts = append(parts, "Cmds ^P/:")
+		} else {
+			parts = append(parts, "Commands ctrl+p/:")
+		}
+	}
+	if m.width > 0 && m.width < shellMediumMinWidth && len(parts) > 2 {
+		parts = parts[len(parts)-2:]
 	}
 	return strings.Join(parts, " · ")
 }

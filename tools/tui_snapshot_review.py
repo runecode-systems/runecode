@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import atexit
 import ntpath
 import os
 import platform
@@ -18,6 +19,21 @@ REVIEW_MODE_SUMMARY = "summary"
 REVIEW_MODE_OPEN = "open"
 REVIEW_MODES = (REVIEW_MODE_LIST, REVIEW_MODE_SUMMARY, REVIEW_MODE_OPEN)
 REPO_SNAPSHOT_DIR_NAME = ".tui-snapshots"
+_OPEN_STAGE_DIRS: List[str] = []
+
+
+def register_open_stage_dir(path: str) -> None:
+    if path not in _OPEN_STAGE_DIRS:
+        _OPEN_STAGE_DIRS.append(path)
+
+
+def cleanup_open_stage_dirs() -> None:
+    for path in _OPEN_STAGE_DIRS[:]:
+        shutil.rmtree(path, ignore_errors=True)
+        _OPEN_STAGE_DIRS.remove(path)
+
+
+atexit.register(cleanup_open_stage_dirs)
 
 
 def normalize_string_list(value: object) -> List[str]:
@@ -377,14 +393,18 @@ def open_review_artifacts(entries: List[Dict[str, str]]) -> int:
         return 1
 
     failed_paths: List[str] = []
+    stage_dir = tempfile.mkdtemp(prefix="runecode-tui-review-open-")
+    register_open_stage_dir(stage_dir)
     for entry in entries:
         artifact_path = entry["artifact_path"]
         _, ext = os.path.splitext(artifact_path)
         if ext.lower() not in {".png", ".svg"} or not os.path.isfile(artifact_path):
             failed_paths.append(artifact_path)
             continue
+        staged_path = os.path.join(stage_dir, os.path.basename(artifact_path))
         try:
-            subprocess.run([opener, artifact_path], check=True)
+            shutil.copy2(artifact_path, staged_path)
+            subprocess.run([opener, staged_path], check=True)
         except OSError:
             failed_paths.append(artifact_path)
         except subprocess.CalledProcessError:

@@ -135,7 +135,7 @@ func runMainPaneRuntimeCue(summary brokerapi.RunSummary) string {
 	case nBackend == "container" || nIsolation == "reduced":
 		return "runtime uses reduced assurance"
 	case nIsolation == "sandboxed" || nIsolation == "isolated" || nIsolation == "microvm":
-		return "runtime is operating in an isolated environment"
+		return "runtime is isolated"
 	default:
 		return "runtime posture reported"
 	}

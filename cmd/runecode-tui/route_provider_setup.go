@@ -218,7 +218,7 @@ func (m providerSetupRouteModel) View(width, height int, focus focusArea) string
 		fmt.Sprintf("Selected provider: %s", valueOrNA(m.selected.DisplayLabel)),
 		providerSetupSummary(current, m.entryActive, len(m.profiles)),
 		providerMaskedEntryLine(masked, m.entryActive),
-		"Credential safety: entry stays masked locally, moves through trusted secret ingress, and never appears in ordinary route output.",
+		"Credential safety: secrets stay masked in the TUI and move through trusted broker-owned entry flow.",
 		m.status,
 	)
 }
@@ -226,11 +226,11 @@ func (m providerSetupRouteModel) View(width, height int, focus focusArea) string
 func providerSetupStateCard(m providerSetupRouteModel, current brokerapi.ProviderProfile) stateCardSpec {
 	providerLabel := valueOrNA(m.selected.DisplayLabel)
 	state := routeLoadStateWaiting
-	message := fmt.Sprintf("%s is selected for broker-managed credential setup.", providerLabel)
-	next := "Press s to add a credential through trusted secret ingress."
+	message := fmt.Sprintf("%s is selected and ready for secure credential setup.", providerLabel)
+	next := "Press s to start secure credential setup."
 	if strings.TrimSpace(current.ProviderProfileID) != "" && strings.EqualFold(strings.TrimSpace(current.ReadinessPosture.CredentialState), "present") {
 		state = routeLoadStateReady
-		message = fmt.Sprintf("%s already has a stored broker-managed credential.", providerLabel)
+		message = fmt.Sprintf("%s already has a stored credential and is ready for use.", providerLabel)
 		next = "Refresh readiness or continue with Chat when workflow execution needs a model."
 	}
 	if m.entryActive {
@@ -238,7 +238,7 @@ func providerSetupStateCard(m providerSetupRouteModel, current brokerapi.Provide
 		message = fmt.Sprintf("%s is ready for masked credential entry.", providerLabel)
 		next = "Paste or type the credential, then press Enter to submit or Esc to cancel."
 	}
-	return stateCardSpec{State: state, Title: "Provider setup", Message: message, Reason: "RuneCode keeps direct credentials in broker-owned storage and accepts entry only through trusted secret ingress.", NextAction: next, ShortcutCue: "s setup • f provider • r refresh", EvidenceCue: "broker provider profiles and secret-ingress session"}
+	return stateCardSpec{State: state, Title: "Provider setup", Message: message, Reason: "RuneCode handles provider credentials through broker-owned secure setup instead of ordinary route input.", NextAction: next, ShortcutCue: "s setup • f provider • r refresh", EvidenceCue: "provider profile and secure setup session"}
 }
 
 func providerCredentialSetupState(profile brokerapi.ProviderProfile, entryActive bool) string {
@@ -253,7 +253,7 @@ func providerCredentialSetupState(profile brokerapi.ProviderProfile, entryActive
 
 func providerSetupSummary(profile brokerapi.ProviderProfile, entryActive bool, profileCount int) string {
 	return fmt.Sprintf(
-		"Current setup: %s • %s • %s.",
+		"Setup status: %s • %s • %s.",
 		valueOrNA(strings.TrimSpace(profile.ReadinessPosture.EffectiveReadiness)),
 		providerCredentialSetupState(profile, entryActive),
 		providerProfileCountSummary(profileCount),

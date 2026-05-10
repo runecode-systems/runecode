@@ -13,7 +13,7 @@ func renderAuditSummary(verify *brokerapi.AuditVerificationGetResponse) string {
 	}
 	s := verify.Summary
 	anchorLabel := renderAnchoringPostureLabel(s.AnchoringStatus)
-	return fmt.Sprintf("Verification posture: integrity=%s %s • anchoring=%s (%s) • storage=%s • lifecycle=%s • %s • findings=%d", s.IntegrityStatus, postureBadge(s.IntegrityStatus), s.AnchoringStatus, anchorLabel, s.StoragePostureStatus, s.SegmentLifecycleStatus, boolBadge("degraded", s.CurrentlyDegraded), s.FindingCount)
+	return fmt.Sprintf("Verification posture: integrity=%s %s • anchoring=%s (%s) • findings=%d • %s", s.IntegrityStatus, postureBadge(s.IntegrityStatus), s.AnchoringStatus, anchorLabel, s.FindingCount, boolBadge("degraded", s.CurrentlyDegraded))
 }
 
 func renderAuditFinalizeSummary(finalize *brokerapi.AuditFinalizeVerifyResponse) string {
@@ -62,7 +62,7 @@ func renderAuditFindings(verify *brokerapi.AuditVerificationGetResponse, present
 		return "Verification findings: unavailable"
 	}
 	if len(verify.Report.Findings) == 0 {
-		return "Verification findings: none; current audit posture does not report degraded or failed reasons"
+		return "Verification findings: none; the current audit posture does not report degraded or failed reasons."
 	}
 	if presentation == presentationStructured {
 		return fmt.Sprintf("Verification findings (structured): total=%d degraded_reasons=%d hard_failures=%d", len(verify.Report.Findings), len(verify.Report.DegradedReasons), len(verify.Report.HardFailures))
@@ -205,8 +205,8 @@ func auditInspectorContent(record brokerapi.AuditRecordDetail, status string, re
 		fmt.Sprintf("Primary digest display: %s (copy raw digest below)", auditRecordDigestDetail(record)),
 		fmt.Sprintf("Verification posture: %s (%s) reasons=%d", status, renderAnchoringPostureLabel(status), reasons),
 		fmt.Sprintf("Linked references: %d", len(record.LinkedReferences)),
-		"Evidence trail: workflow result -> artifacts -> audit records -> verification posture -> export/offline verification -> anchoring where available.",
-		"Trust posture: broker-linked references stay authoritative; copied digests and any raw content are supplemental proof material.",
+		"Evidence trail: workflow result -> artifacts -> audit record -> verification posture -> offline review or anchoring.",
+		"Trust posture: linked records stay authoritative; copied digests and raw content are supplemental proof material.",
 	)
 }
 

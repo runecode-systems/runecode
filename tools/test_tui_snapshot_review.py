@@ -220,13 +220,24 @@ class ReviewModesTest(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(stdout, "")
         self.assertEqual(stderr, "")
-        self.assertEqual(
-            run_mock.call_args_list,
-            [
-                mock.call(["xdg-open", str(png_path.resolve())], check=True),
-                mock.call(["xdg-open", str(svg_path.resolve())], check=True),
-            ],
-        )
+        self.assertEqual(len(run_mock.call_args_list), 2)
+        opened_paths = [call.args[0][1] for call in run_mock.call_args_list]
+        for opened_path in opened_paths:
+            self.assertTrue(Path(opened_path).name in {png_path.name, svg_path.name})
+            self.assertNotEqual(Path(opened_path).resolve(), png_path.resolve())
+            self.assertNotEqual(Path(opened_path).resolve(), svg_path.resolve())
+
+    def test_open_mode_stages_artifacts_before_opening(self) -> None:
+        output_dir, png_path, _ = self.create_snapshot_dir()
+        with mock.patch.object(MODULE, "detect_opener", return_value="xdg-open"), mock.patch.object(MODULE.subprocess, "run") as run_mock:
+            exit_code, stdout, stderr = self.run_main("--mode", "open", str(output_dir))
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stdout, "")
+        self.assertEqual(stderr, "")
+        staged_path = Path(run_mock.call_args_list[0].args[0][1])
+        self.assertTrue(staged_path.is_file())
+        self.assertEqual(staged_path.read_bytes(), png_path.read_bytes())
 
     def test_requirement_flags_accept_matching_bundle_routes_and_viewport(self) -> None:
         output_dir, _, _ = self.create_snapshot_dir()

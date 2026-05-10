@@ -21,6 +21,8 @@ type snapshotScenarioState struct {
 	Focus      focusArea
 	Toast      string
 	Viewport   snapshotViewportPreset
+	Width      int
+	Height     int
 	Prepare    func(*shellModel)
 	PostRender func(*shellModel)
 }
@@ -41,6 +43,8 @@ func resolveSnapshotScenarios(name string) ([]snapshotScenarioState, error) {
 		buildQuitConfirmProviderSecretSnapshot(),
 		buildNarrowSidebarOverlaySnapshot(),
 		buildNarrowInspectorOverlaySnapshot(),
+		buildNarrowSidebarOverlayCompactSnapshot(),
+		buildNarrowInspectorOverlayCompactSnapshot(),
 		buildDashboardFocusNavSnapshot(),
 		buildLeaderHelpSnapshot(),
 		buildChatSnapshot(),
@@ -117,10 +121,11 @@ func renderSnapshotScenario(state snapshotScenarioState, cfg tuiSnapshotConfig) 
 		if theme == "" {
 			theme = state.Theme
 		}
+		width, height := snapshotScenarioDimensions(state, cfg)
 		appTheme = newTheme(theme)
 		m := newShellModel()
-		m.width = cfg.width
-		m.height = cfg.height
+		m.width = width
+		m.height = height
 		m.themePreset = theme
 		m.preferredMode = presentationRendered
 		m.location.Primary = shellObjectLocation{RouteID: state.RouteID, Object: workbenchObjectRef{Kind: "route", ID: string(state.RouteID)}}
@@ -142,6 +147,18 @@ func renderSnapshotScenario(state snapshotScenarioState, cfg tuiSnapshotConfig) 
 		}
 		return m.View(), state.RouteID, nil
 	})
+}
+
+func snapshotScenarioDimensions(state snapshotScenarioState, cfg tuiSnapshotConfig) (int, int) {
+	width := cfg.width
+	if state.Width > 0 {
+		width = state.Width
+	}
+	height := cfg.height
+	if state.Height > 0 {
+		height = state.Height
+	}
+	return width, height
 }
 
 func defaultSnapshotSessions() []brokerapi.SessionSummary {
@@ -321,6 +338,22 @@ func buildNarrowInspectorOverlaySnapshot() snapshotScenarioState {
 		m.setFocus(focusPalette)
 		m.syncOverlayStack()
 	}}
+}
+
+func buildNarrowSidebarOverlayCompactSnapshot() snapshotScenarioState {
+	state := buildNarrowSidebarOverlaySnapshot()
+	state.Name = "narrow-sidebar-overlay-compact"
+	state.Width = shellMediumMinWidth - 2
+	state.Height = 36
+	return state
+}
+
+func buildNarrowInspectorOverlayCompactSnapshot() snapshotScenarioState {
+	state := buildNarrowInspectorOverlaySnapshot()
+	state.Name = "narrow-inspector-overlay-compact"
+	state.Width = shellMediumMinWidth - 2
+	state.Height = 36
+	return state
 }
 
 func buildDashboardFocusNavSnapshot() snapshotScenarioState {

@@ -31,6 +31,9 @@ func (m shellModel) renderBottomCommandLine() string {
 		return prompt
 	}
 	parts := []string{"ctrl+p commands", ": command", m.keys.LeaderStart.label() + " leader", "tab focus"}
+	if m.width > 0 && m.width < shellMediumMinWidth {
+		parts = []string{"^P commands", ": command", m.keys.LeaderStart.label() + " leader", "tab focus"}
+	}
 	if quit := strings.TrimSpace(m.renderQuitDiscoverabilityHint()); quit != "" {
 		parts = append(parts, quit)
 	}
@@ -45,6 +48,9 @@ func (m shellModel) renderQuitDiscoverabilityHint() string {
 	label := "Quit RuneCode"
 	if title := strings.TrimSpace(action.Title); title != "" {
 		label = title
+	}
+	if m.width > 0 && m.width < shellMediumMinWidth {
+		return "Quit :quit"
 	}
 	return "Quick action: " + label + " (:quit)"
 }

@@ -206,11 +206,23 @@ func paletteMatchLineBounded(entry paletteEntry, width int) string {
 }
 
 func paletteEntryShortcut(entry paletteEntry) string {
-	if commandID := strings.TrimSpace(entry.Action.Target.CommandID); commandID != "" {
-		return commandID
+	if strings.TrimSpace(entry.Action.Target.CommandID) != "" {
+		return "Quick action"
 	}
 	if route := strings.TrimSpace(string(entry.Action.Target.RouteID)); route != "" {
-		return route
+		return "Route"
+	}
+	if strings.TrimSpace(entry.Action.Target.SessionID) != "" {
+		return "Session"
+	}
+	if strings.TrimSpace(entry.Action.Target.RunID) != "" {
+		return "Run"
+	}
+	if strings.TrimSpace(entry.Action.Target.ApprovalID) != "" {
+		return "Approval"
+	}
+	if strings.TrimSpace(entry.Action.Target.Digest) != "" {
+		return "Evidence"
 	}
 	if kind := strings.TrimSpace(entry.Action.Target.Kind); kind != "" {
 		return kind

@@ -351,7 +351,7 @@ func TestShellBottomStripShowsQuitDiscoverabilityWhenSidebarHiddenNarrow(t *test
 	}
 
 	bottom := m.renderBottomStrip(m.activeShellSurface())
-	if !strings.Contains(bottom, "Quick action: Quit RuneCode") || !strings.Contains(bottom, "(:quit)") {
+	if !strings.Contains(bottom, "Quit :quit") {
 		t.Fatalf("expected bottom strip to expose beginner quit affordance when sidebar hidden, got %q", bottom)
 	}
 	if !strings.Contains(bottom, "\n") {

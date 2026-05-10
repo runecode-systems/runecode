@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -29,31 +30,31 @@ func centeredOverlayBlockBounded(title shellOverlayID, body string, viewportWidt
 		bodyHeight = 1
 	}
 	if maxHeight > 0 {
-		maxBodyHeight := maxHeight - 3 // 1 overlay header + 2 frame border rows.
+		maxBodyHeight := maxHeight - 3 // 1 modal header + 2 frame border rows.
 		if maxBodyHeight < 1 {
 			maxBodyHeight = 1
 		}
 		bodyHeight = maxBodyHeight
 	}
 	body = constrainShellBlock(body, contentWidth, bodyHeight)
+	titleLine := tableHeader(overlayDisplayTitle(title))
+	dismissLine := muted(overlayDismissHint(title))
 
 	content := appTheme.SurfaceOverlay.
 		Width(contentWidth).
 		MaxWidth(contentWidth).
-		Padding(0, 1).
-		Render(body)
+		Padding(0, 2).
+		Render(compactLines(titleLine, dismissLine, body))
 
 	frame := appTheme.SurfaceOverlay.
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(appTheme.BorderStrong.GetForeground()).
+		Padding(0, 0).
 		Width(innerWidth).
 		MaxWidth(innerWidth).
 		Render(content)
 
-	rendered := compactLines(
-		lipgloss.NewStyle().Width(viewportWidth).Align(lipgloss.Center).Render(tableHeader("Overlay")+" "+neutralBadge(strings.ToUpper(string(title)))+" "+muted("esc close")),
-		lipgloss.NewStyle().Width(viewportWidth).Align(lipgloss.Center).Render(frame),
-	)
+	rendered := lipgloss.NewStyle().Width(viewportWidth).Align(lipgloss.Center).Render(frame)
 	if maxHeight <= 0 {
 		return rendered
 	}
@@ -89,4 +90,30 @@ func centeredOverlayContentBounds(viewportWidth int) (int, int) {
 		contentEndX = contentStartX
 	}
 	return contentStartX, contentEndX
+}
+
+func overlayDisplayTitle(id shellOverlayID) string {
+	switch id {
+	case overlayIDQuickJump:
+		return "Command Palette"
+	case overlayIDSessions:
+		return "Session Switcher"
+	case overlayIDSidebar:
+		return "Navigation"
+	case overlayIDInspector:
+		return "Inspector"
+	case overlayIDLeader:
+		return "Leader Help"
+	case overlayIDQuitConfirm:
+		return "Quit RuneCode"
+	default:
+		return strings.TrimSpace(string(id))
+	}
+}
+
+func overlayDismissHint(id shellOverlayID) string {
+	if id == overlayIDQuitConfirm {
+		return "esc keep editing"
+	}
+	return fmt.Sprintf("esc close")
 }

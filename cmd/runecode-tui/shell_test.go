@@ -391,10 +391,10 @@ func TestShellOverlayRemainsVisibleWithinViewport(t *testing.T) {
 	if got := lipgloss.Height(v); got != 28 {
 		t.Fatalf("expected full-frame height=28 with overlay open, got %d", got)
 	}
-	if !strings.Contains(v, "Workbench Command Surface") {
+	if !strings.Contains(v, "Command Palette") {
 		t.Fatalf("expected palette overlay content in viewport, got %q", v)
 	}
-	for _, want := range []string{"Overlay", "Suggested"} {
+	for _, want := range []string{"Suggested actions", "esc", "close"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected styled overlay affordance %q in viewport, got %q", want, v)
 		}
@@ -421,7 +421,7 @@ func TestShellOverlayNarrowViewportKeepsFrameBounds(t *testing.T) {
 			t.Fatalf("expected overlay/frame line width <= 42, got %d in %q", lipgloss.Width(line), line)
 		}
 	}
-	if !strings.Contains(v, "Commands") {
+	if !strings.Contains(v, "Command Palette") {
 		t.Fatalf("expected palette overlay content in narrow viewport, got %q", v)
 	}
 }
@@ -437,11 +437,11 @@ func TestShellOverlayBodyHeightClampsToViewportBudget(t *testing.T) {
 	layout := shell.planShellLayout(surface)
 	overlay, overlayHeight := shell.overlayBodyWithHeight(surface, layout, shell.height)
 
-	if overlayHeight != 4 {
-		t.Fatalf("expected overlay height=4 from viewport budget (12-8), got %d", overlayHeight)
+	if overlayHeight != 3 {
+		t.Fatalf("expected overlay height=3 from current viewport budget, got %d", overlayHeight)
 	}
-	if got := lipgloss.Height(overlay); got != 4 {
-		t.Fatalf("expected rendered overlay block height=4, got %d", got)
+	if got := lipgloss.Height(overlay); got != 3 {
+		t.Fatalf("expected rendered overlay block height=3, got %d", got)
 	}
 	for _, line := range strings.Split(overlay, "\n") {
 		if lipgloss.Width(line) > 52 {
