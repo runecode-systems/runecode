@@ -397,7 +397,13 @@ func (m shellModel) renderSidebar() string {
 	}
 	entries := m.sidebarEntries()
 	cursor := m.normalizedSidebarCursor(entries)
-	width := m.planShellLayout(m.activeShellSurface()).Regions.Sidebar.Width - 2
+	var surface routeSurface
+	if m.breakpoint() == shellBreakpointNarrow && m.narrowSidebarOn {
+		surface = m.activeShellSurfaceWithoutOverlayHeight()
+	} else {
+		surface = m.activeShellSurface()
+	}
+	width := m.planShellLayout(surface).Regions.Sidebar.Width - 2
 	if width < 12 {
 		width = 12
 	}

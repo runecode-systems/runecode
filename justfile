@@ -153,6 +153,15 @@ tui-snapshot-audit-setup:
 tui-snapshot-audit-chat:
 	just _tui-snapshot-bundle chat-audit
 
+tui-snapshot-audit-shell:
+	just _tui-snapshot-bundle shell-overlays-audit
+
+tui-snapshot-audit-shell-narrow-mobile: tui-dev-snapshot-build
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle shell-narrow-mobile-audit --viewport mobile
+
+tui-snapshot-audit-shell-narrow-compact: tui-dev-snapshot-build
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle shell-narrow-compact-audit --viewport compact
+
 tui-snapshot-review: tui-dev-snapshot-build
 	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle full-audit --review --review-mode summary
 
@@ -164,6 +173,30 @@ tui-snapshot-review-dashboard: tui-dev-snapshot-build
 
 tui-snapshot-review-action-center: tui-dev-snapshot-build
 	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle action-center-audit --review --review-mode summary
+
+tui-snapshot-review-shell: tui-dev-snapshot-build
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle shell-overlays-audit --review --review-mode summary
+
+tui-snapshot-review-shell-list: tui-dev-snapshot-build
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle shell-overlays-audit --review --review-mode list
+
+tui-snapshot-review-shell-narrow-mobile: tui-dev-snapshot-build
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle shell-narrow-mobile-audit --viewport mobile --review --review-mode summary
+
+tui-snapshot-review-shell-narrow-mobile-list: tui-dev-snapshot-build
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle shell-narrow-mobile-audit --viewport mobile --review --review-mode list
+
+tui-snapshot-review-shell-narrow-mobile-open: tui-dev-snapshot-build
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle shell-narrow-mobile-audit --viewport mobile --review --review-mode open
+
+tui-snapshot-review-shell-narrow-compact: tui-dev-snapshot-build
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle shell-narrow-compact-audit --viewport compact --review --review-mode summary
+
+tui-snapshot-review-shell-narrow-compact-list: tui-dev-snapshot-build
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle shell-narrow-compact-audit --viewport compact --review --review-mode list
+
+tui-snapshot-review-shell-narrow-compact-open: tui-dev-snapshot-build
+	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle shell-narrow-compact-audit --viewport compact --review --review-mode open
 
 tui-snapshot-review-summary: tui-dev-snapshot-build
 	sh ./tools/tui_snapshot_local.sh --binary "{{dev_bin_dir}}/runecode-tui" --bundle full-audit --review --review-mode summary
