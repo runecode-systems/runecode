@@ -285,7 +285,10 @@ func TestPrepareWorkDirCanonicalizesSymlinkedOutputDir(t *testing.T) {
 	}
 	defer cleanup()
 
-	want := filepath.Join(realRoot, "nested", "artifacts")
+	want, err := canonicalPath(filepath.Join(realRoot, "nested", "artifacts"))
+	if err != nil {
+		t.Fatalf("canonicalPath(want) returned error: %v", err)
+	}
 	if got != want {
 		t.Fatalf("prepareWorkDir returned %q, want %q", got, want)
 	}
@@ -338,7 +341,10 @@ func TestRequirePathWithinTrustedRootAcceptsCanonicalTmp(t *testing.T) {
 	if _, err := os.Stat("/tmp"); err != nil {
 		t.Skip("/tmp unavailable on this platform")
 	}
-	candidate := filepath.Join("/tmp", ".tui-snapshots")
+	candidate, err := canonicalPath(filepath.Join("/tmp", ".tui-snapshots"))
+	if err != nil {
+		t.Fatalf("canonicalPath(/tmp candidate) returned error: %v", err)
+	}
 	if err := requirePathWithinTrustedRoot("artifact directory", candidate); err != nil {
 		t.Fatalf("requirePathWithinTrustedRoot returned error for /tmp path: %v", err)
 	}
