@@ -96,6 +96,7 @@ func renderActiveSessionSummaryBlock(detail *brokerapi.SessionDetail, sessionCou
 	}
 	lines := []string{
 		fmt.Sprintf("Active session %s · workspace %s", detail.Summary.Identity.SessionID, valueOrNA(detail.Summary.Identity.WorkspaceID)),
+		muted(activeSessionSummaryLine(detail)),
 	}
 	if cue := shortSessionWorkCue(detail.Summary); cue != "" {
 		lines = append(lines, muted(strings.TrimPrefix(cue, "— ")))
@@ -160,7 +161,7 @@ func flattenRelatedLinks(links brokerapi.SessionTranscriptLinks) string {
 
 func renderComposer(on bool, draft string, textareaView string) string {
 	if !on {
-		return muted("Composer closed. Press c to continue the conversation.")
+		return muted("Composer closed. Press c to continue the conversation. Composer is idle.")
 	}
 	if strings.TrimSpace(textareaView) != "" {
 		return compactLines("Compose draft:", textareaView)

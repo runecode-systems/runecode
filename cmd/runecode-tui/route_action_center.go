@@ -174,19 +174,19 @@ func (m actionCenterRouteModel) View(width, height int, focus focusArea) string 
 	vm := m.snapshot()
 	return compactLines(
 		sectionTitle("Action Center")+" "+focusBadge(focus),
-			renderStateCardSpec(stateCardSpec{
-				State:      vm.Summary.State,
-				Title:      vm.Summary.Title,
-				Message:    vm.Summary.Message,
-				Reason:     vm.Summary.Reason,
-				NextAction: vm.Summary.NextAction,
-				RouteCue:   "Approvals, Runs, Audit, Status",
-			}),
-			renderActionCenterQueueStrip(vm, m.family),
-			renderActionCenterDirectory("Approvals", vm.Families[actionCenterFamilyApprovals], m.selectedIndex(actionCenterFamilyApprovals, len(vm.Families[actionCenterFamilyApprovals])), width),
-			renderActionCenterDirectory("Operational Attention", vm.Families[actionCenterFamilyOps], m.selectedIndex(actionCenterFamilyOps, len(vm.Families[actionCenterFamilyOps])), width),
-			renderActionCenterDirectory("Blocked Work", vm.Families[actionCenterFamilyBlocked], m.selectedIndex(actionCenterFamilyBlocked, len(vm.Families[actionCenterFamilyBlocked])), width),
-			keyHint("Route keys: [/] change family, j/k move, enter drill-down, i toggle inspector, r reload"),
+		renderStateCardSpec(stateCardSpec{
+			State:      vm.Summary.State,
+			Title:      vm.Summary.Title,
+			Message:    vm.Summary.Message,
+			Reason:     vm.Summary.Reason,
+			NextAction: vm.Summary.NextAction,
+			RouteCue:   "Approvals, Runs, Audit, Status",
+		}),
+		renderActionCenterQueueStrip(vm, m.family),
+		renderActionCenterDirectory("Approvals", vm.Families[actionCenterFamilyApprovals], m.selectedIndex(actionCenterFamilyApprovals, len(vm.Families[actionCenterFamilyApprovals])), width),
+		renderActionCenterDirectory("Operational Attention", vm.Families[actionCenterFamilyOps], m.selectedIndex(actionCenterFamilyOps, len(vm.Families[actionCenterFamilyOps])), width),
+		renderActionCenterDirectory("Blocked Work", vm.Families[actionCenterFamilyBlocked], m.selectedIndex(actionCenterFamilyBlocked, len(vm.Families[actionCenterFamilyBlocked])), width),
+		keyHint("Route keys: [/] change family, j/k move, enter drill-down, i toggle inspector, r reload"),
 	)
 }
 

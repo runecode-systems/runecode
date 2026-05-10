@@ -27,6 +27,7 @@ var expectedScenarioNames = []string{
 	"runs-active-detail",
 	"approvals-pending-detail",
 	"action-center-triage",
+	"artifacts-evidence-detail",
 	"audit-degraded-detail",
 	"status-ready-overview",
 	"model-providers-credential-needed",
@@ -195,7 +196,7 @@ func buildSnapshotBinary(workspaceDir string, binaryPath string) error {
 }
 
 func generateSnapshotArtifacts(workspaceDir string, binaryPath string, outputDir string) error {
-	if err := runCommand(workspaceDir, binaryPath, "--snapshot-scenario", "all", "--snapshot-viewport", snapshotViewport, "--snapshot-output-dir", outputDir); err != nil {
+	if err := runCommand(workspaceDir, binaryPath, "--snapshot-bundle", snapshotBundle, "--snapshot-viewport", snapshotViewport, "--snapshot-output-dir", outputDir); err != nil {
 		return fmt.Errorf("generate snapshot artifacts: %w", err)
 	}
 	return nil

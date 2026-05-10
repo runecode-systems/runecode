@@ -252,7 +252,8 @@ func assertWorkAndSetupBackedRoutes(t *testing.T, recording localBrokerClient) {
 	t.Helper()
 	runs := newRunsRouteModel(routeDefinition{ID: routeRuns, Label: "Runs"}, recording)
 	assertRouteOutputContainsAll(t, runs, routeRuns,
-		"Backend: unknown",
+		"Run overview",
+		"Safety and evidence",
 	)
 	assertRouteInspectorContainsAll(t, runs, routeRuns,
 		"Workflow operation:",
@@ -261,7 +262,8 @@ func assertWorkAndSetupBackedRoutes(t *testing.T, recording localBrokerClient) {
 
 	approvals := newApprovalsRouteModel(routeDefinition{ID: routeApprovals, Label: "Approvals"}, recording)
 	assertRouteOutputContainsAll(t, approvals, routeApprovals,
-		"Approval posture",
+		"Approval review",
+		"Decision workbench",
 	)
 	assertRouteInspectorContainsAll(t, approvals, routeApprovals,
 		"Why this approval exists:",
@@ -349,8 +351,8 @@ func assertAuditRouteSupportsDrillDown(t *testing.T, model routeModel) {
 			t.Fatalf("audit view missing %q: %s", needle, view)
 		}
 	}
-	if !strings.Contains(view, "Verification findings") {
-		t.Fatalf("audit view missing verification findings section: %s", view)
+	if !strings.Contains(view, "Findings to review:") {
+		t.Fatalf("audit view missing findings section: %s", view)
 	}
 	updated, cmd = updated.Update(teaKey("enter"))
 	if cmd == nil {

@@ -96,7 +96,7 @@ func validateCoverage(coverage snapshotCoverage) error {
 }
 
 func expectedCoverageRoutes() []string {
-	routes := []string{"action-center", "approvals", "audit", "chat", "dashboard", "git-remote-mutation", "git-setup", "model-providers", "runs", "status"}
+	routes := []string{"action-center", "approvals", "artifacts", "audit", "chat", "dashboard", "git-remote-mutation", "git-setup", "model-providers", "runs", "status"}
 	slices.Sort(routes)
 	return routes
 }

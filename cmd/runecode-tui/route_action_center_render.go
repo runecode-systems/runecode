@@ -94,13 +94,25 @@ func actionCenterShortReason(reason string) string {
 	if reason == "" || strings.EqualFold(reason, "n/a") {
 		return ""
 	}
-	for _, sep := range []string{";", "."} {
-		if idx := strings.Index(reason, sep); idx > 0 {
-			reason = reason[:idx]
-			break
+	parts := strings.Split(reason, ";")
+	if len(parts) == 0 {
+		return strings.TrimSpace(strings.TrimSuffix(reason, "."))
+	}
+	base := strings.TrimSpace(strings.TrimSuffix(parts[0], "."))
+	for _, part := range parts[1:] {
+		cue := strings.TrimSpace(strings.TrimSuffix(part, "."))
+		if cue == "" {
+			continue
+		}
+		cueLower := strings.ToLower(cue)
+		if strings.Contains(cueLower, "expired") || strings.Contains(cueLower, "expiring") || strings.Contains(cueLower, "superseded") || strings.Contains(cueLower, "stale") {
+			if base == "" {
+				return cue
+			}
+			return base + " • " + cue
 		}
 	}
-	return strings.TrimSpace(reason)
+	return base
 }
 
 func actionCenterContinueCue(target string) string {
