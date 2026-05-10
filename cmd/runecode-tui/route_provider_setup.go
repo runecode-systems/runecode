@@ -32,7 +32,7 @@ type providerSetupRouteModel struct {
 }
 
 func newProviderSetupRouteModel(def routeDefinition, client localBrokerClient) routeModel {
-	return providerSetupRouteModel{def: def, client: client, selected: providerSetupDefaultsFor("openai_compatible"), status: "Press s to start direct-credential setup. Press f to switch provider family."}
+	return providerSetupRouteModel{def: def, client: client, selected: providerSetupDefaultsFor("openai_compatible"), status: "Choose a provider, then press s to add a direct credential through trusted secret ingress."}
 }
 
 func (m providerSetupRouteModel) ID() routeID   { return m.def.ID }
@@ -69,7 +69,7 @@ func (m providerSetupRouteModel) handleRouteMsg(msg providerSetupRouteMsg) (rout
 	m.errText = ""
 	if msg.beginResp != nil {
 		m.begin = *msg.beginResp
-		m.status = "Session started. Type API credential (masked), Enter to submit, Esc to cancel."
+		m.status = "Credential entry is open. Type the credential, press Enter to submit, or Esc to cancel."
 		m.entryActive = true
 		m.secretRunes = nil
 	}
@@ -146,7 +146,7 @@ func (m providerSetupRouteModel) handleIdleKey(key tea.KeyMsg) (routeModel, tea.
 	}
 	if key.Type == tea.KeyRunes && string(key.Runes) == "f" {
 		m.selected = providerSetupDefaultsFor(nextProviderFamily(m.selected.ProviderFamily))
-		m.status = fmt.Sprintf("Selected provider family: %s (%s%s)", m.selected.ProviderFamily, m.selected.CanonicalHost, m.selected.CanonicalPathPrefix)
+		m.status = fmt.Sprintf("Selected provider: %s. Press s to add a direct credential.", m.selected.DisplayLabel)
 		return m, nil
 	}
 	if key.Type == tea.KeyRunes && string(key.Runes) == "r" {
@@ -212,50 +212,66 @@ func (m providerSetupRouteModel) View(width, height int, focus focusArea) string
 		masked = strings.Repeat("*", len(m.secretRunes))
 	}
 	current := m.currentProfile()
-	supportedAuthModes := "(none)"
-	if len(current.SupportedAuthModes) > 0 {
-		supportedAuthModes = strings.Join(current.SupportedAuthModes, ", ")
-	}
 	return compactLines(
 		sectionTitle("Model Providers")+" "+focusBadge(focus),
 		renderStateCardSpec(providerSetupStateCard(m, current)),
-		"Credential safety: raw secrets are masked locally, submitted through trusted secret ingress, and never displayed in ordinary route output.",
-		fmt.Sprintf("Provider: %s", valueOrNA(m.selected.DisplayLabel)),
-		fmt.Sprintf("Readiness: %s", valueOrNA(current.ReadinessPosture.EffectiveReadiness)),
-		fmt.Sprintf("Credential setup: %s", providerCredentialSetupState(current, m.entryActive)),
-		fmt.Sprintf("Masked credential input: %s", masked),
-		fmt.Sprintf("Profiles discovered: %d", len(m.profiles)),
-		muted(fmt.Sprintf("Structured/raw detail can show provider_family=%s endpoint=%s%s profile=%s auth_modes=[%s].", valueOrNA(m.selected.ProviderFamily), valueOrNA(m.selected.CanonicalHost), valueOrNA(m.selected.CanonicalPathPrefix), valueOrNA(current.ProviderProfileID), supportedAuthModes)),
+		fmt.Sprintf("Selected provider: %s", valueOrNA(m.selected.DisplayLabel)),
+		providerSetupSummary(current, m.entryActive, len(m.profiles)),
+		providerMaskedEntryLine(masked, m.entryActive),
+		"Credential safety: entry stays masked locally, moves through trusted secret ingress, and never appears in ordinary route output.",
 		m.status,
-		keyHint("Route keys: s start setup, f switch family, r refresh posture; during entry type secret, Enter submit, Esc cancel"),
 	)
 }
 
 func providerSetupStateCard(m providerSetupRouteModel, current brokerapi.ProviderProfile) stateCardSpec {
+	providerLabel := valueOrNA(m.selected.DisplayLabel)
 	state := routeLoadStateWaiting
-	message := "Model provider setup is ready for a credential."
-	next := "Press s to start trusted secret ingress."
+	message := fmt.Sprintf("%s is selected for broker-managed credential setup.", providerLabel)
+	next := "Press s to add a credential through trusted secret ingress."
 	if strings.TrimSpace(current.ProviderProfileID) != "" && strings.EqualFold(strings.TrimSpace(current.ReadinessPosture.CredentialState), "present") {
 		state = routeLoadStateReady
-		message = "A broker-managed model provider credential is present."
+		message = fmt.Sprintf("%s already has a stored broker-managed credential.", providerLabel)
 		next = "Refresh readiness or continue with Chat when workflow execution needs a model."
 	}
 	if m.entryActive {
 		state = routeLoadStateWaiting
-		message = "Secret entry is active and masked."
+		message = fmt.Sprintf("%s is ready for masked credential entry.", providerLabel)
 		next = "Paste or type the credential, then press Enter to submit or Esc to cancel."
 	}
-	return stateCardSpec{State: state, Title: "Provider setup", Message: message, Reason: "RuneCode uses broker-owned direct-credential setup and trusted secret ingress.", NextAction: next, ShortcutCue: "s setup • f provider • r refresh", EvidenceCue: "broker provider profiles and secret-ingress session"}
+	return stateCardSpec{State: state, Title: "Provider setup", Message: message, Reason: "RuneCode keeps direct credentials in broker-owned storage and accepts entry only through trusted secret ingress.", NextAction: next, ShortcutCue: "s setup • f provider • r refresh", EvidenceCue: "broker provider profiles and secret-ingress session"}
 }
 
 func providerCredentialSetupState(profile brokerapi.ProviderProfile, entryActive bool) string {
 	if entryActive {
-		return "masked entry active"
+		return "credential entry in progress"
 	}
 	if strings.EqualFold(strings.TrimSpace(profile.ReadinessPosture.CredentialState), "present") {
 		return "credential stored"
 	}
 	return "credential needed"
+}
+
+func providerSetupSummary(profile brokerapi.ProviderProfile, entryActive bool, profileCount int) string {
+	return fmt.Sprintf(
+		"Current setup: %s • %s • %s.",
+		valueOrNA(strings.TrimSpace(profile.ReadinessPosture.EffectiveReadiness)),
+		providerCredentialSetupState(profile, entryActive),
+		providerProfileCountSummary(profileCount),
+	)
+}
+
+func providerProfileCountSummary(profileCount int) string {
+	if profileCount == 1 {
+		return "1 broker profile discovered"
+	}
+	return fmt.Sprintf("%d broker profiles discovered", profileCount)
+}
+
+func providerMaskedEntryLine(masked string, entryActive bool) string {
+	if !entryActive {
+		return ""
+	}
+	return fmt.Sprintf("Credential entry: %s (masked)", masked)
 }
 
 func (m providerSetupRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
