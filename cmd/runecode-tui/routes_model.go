@@ -131,11 +131,15 @@ func newRouteModels(defs []routeDefinition) map[routeID]routeModel {
 func compactLines(lines ...string) string {
 	nonEmpty := make([]string, 0, len(lines))
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
+		block := strings.Trim(line, "\n")
+		if strings.TrimSpace(block) == "" {
 			continue
 		}
-		nonEmpty = append(nonEmpty, trimmed)
+		if strings.Contains(block, "\n") {
+			nonEmpty = append(nonEmpty, block)
+			continue
+		}
+		nonEmpty = append(nonEmpty, strings.TrimSpace(block))
 	}
 	return strings.Join(nonEmpty, "\n")
 }

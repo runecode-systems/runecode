@@ -21,7 +21,7 @@ func (m shellModel) renderOverlayStack() string {
 func (m shellModel) renderPalette() string {
 	b := strings.Builder{}
 	width := boundedOverlayListWidth(m.width)
-	b.WriteString(renderAccentRail(visualToneCommand, "Search  "+paletteSearchText(m.palette.query)) + "\n")
+	b.WriteString(renderOverlaySearchPrompt(m.palette.query) + "\n")
 	if len(m.palette.matches) == 0 {
 		b.WriteString(muted("No matches. Keep typing or press esc to close."))
 		b.WriteString("\n")
@@ -50,7 +50,7 @@ func (m shellModel) renderPalette() string {
 func (m shellModel) renderSessionQuickSwitcher() string {
 	b := strings.Builder{}
 	width := boundedOverlayListWidth(m.width)
-	b.WriteString(renderAccentRail(visualToneCommand, "Search  "+paletteSearchText(m.sessions.query)) + "\n")
+	b.WriteString(renderOverlaySearchPrompt(m.sessions.query) + "\n")
 	if len(m.sessions.matches) == 0 {
 		b.WriteString(muted("No matches. Press esc to close."))
 		b.WriteString("\n")
@@ -69,9 +69,11 @@ func (m shellModel) renderSessionQuickSwitcher() string {
 			sessionLabel = "● " + sessionLabel
 		}
 		preview := truncateText(sanitizeUIText(s.LastActivityPreview), 58)
-		left := fmt.Sprintf("%s %s  %s", marker, sessionLabel, sessionHighLevelCue(s))
-		right := compactSessionSwitcherCounts(s)
-		line := rightAlignMetadata(left, right, width)
+		lineParts := []string{fmt.Sprintf("%s %s", marker, sessionLabel), sessionHighLevelCue(s)}
+		if counts := strings.TrimSpace(compactSessionSwitcherCounts(s)); counts != "" {
+			lineParts = append(lineParts, "["+counts+"]")
+		}
+		line := clipDisplayText(strings.Join(lineParts, "  "), width)
 		detailParts := []string{}
 		if workspace := strings.TrimSpace(s.Identity.WorkspaceID); workspace != "" {
 			detailParts = append(detailParts, "Workspace "+workspace)
@@ -265,4 +267,8 @@ func (m shellModel) renderPrimaryWorkbenchActions() string {
 		parts = parts[len(parts)-2:]
 	}
 	return strings.Join(parts, " · ")
+}
+
+func renderOverlaySearchPrompt(query string) string {
+	return appTheme.TextSecondary.Render("› Search") + "  " + paletteSearchText(query)
 }

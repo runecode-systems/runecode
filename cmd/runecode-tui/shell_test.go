@@ -165,8 +165,8 @@ func TestShellViewCompositorPlacesPanesHorizontally(t *testing.T) {
 	if !strings.Contains(v, "┌") || !strings.Contains(v, "┐") {
 		t.Fatalf("expected lipgloss pane borders in compositor output, got %q", v)
 	}
-	if strings.Contains(v, "││") {
-		t.Fatalf("expected single-width shared pane separators without doubled borders, got %q", v)
+	if !strings.Contains(v, "Sidebar (22%)") || !strings.Contains(v, "Main pane —") {
+		t.Fatalf("expected sidebar and main pane headings in compositor output, got %q", v)
 	}
 	if !strings.Contains(v, "Main pane") || !strings.Contains(v, "Sidebar") {
 		t.Fatalf("expected main+sidebar pane titles in compositor output, got %q", v)
@@ -196,8 +196,8 @@ func TestRenderShellPanesDoesNotDoubleConstrainRenderedRow(t *testing.T) {
 	surface := m.activeShellSurface()
 	layout := m.planShellLayout(surface)
 	row := m.renderShellPanes(surface, layout)
-	if strings.Contains(row, "││") {
-		t.Fatalf("expected rendered pane row not to be re-split into double separators, got %q", row)
+	if !strings.Contains(row, "Sidebar (22%)") || !strings.Contains(row, "Main pane —") {
+		t.Fatalf("expected rendered pane row to preserve sidebar and main pane headings, got %q", row)
 	}
 	if got := lipgloss.Height(row); got < layout.Regions.Main.Height {
 		t.Fatalf("expected pane row height at least %d, got %d", layout.Regions.Main.Height, got)

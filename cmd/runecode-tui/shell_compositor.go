@@ -40,8 +40,8 @@ func renderShellPane(spec shellPaneSpec) string {
 	if spec.Focused {
 		header = appTheme.FocusLine.Render(title) + " " + infoBadge("FOCUS")
 	}
-	body := strings.TrimSpace(spec.Body)
-	if body == "" {
+	body := strings.Trim(spec.Body, "\n")
+	if strings.TrimSpace(body) == "" {
 		body = "(empty pane)"
 	}
 

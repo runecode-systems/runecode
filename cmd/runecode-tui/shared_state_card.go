@@ -36,7 +36,7 @@ func renderStateCardSpec(spec stateCardSpec) string {
 		nextAction = stateCardNextStep(spec.State)
 	}
 	cues := stateCardCueLine(spec.ShortcutCue, spec.RouteCue)
-	lines := []string{appTheme.SurfaceCard.Padding(0, 1).Render(compactLines("Message: "+message, "Reason: "+reason))}
+	lines := []string{compactLines("Message: " + message, "Reason: " + reason)}
 	if nextAction != "" {
 		lines = append(lines, "Next: "+nextAction)
 	}

@@ -49,10 +49,10 @@ func renderAccentRail(tone visualTone, body string) string {
 	if strings.TrimSpace(body) == "" {
 		return ""
 	}
-	rail := toneAccentStyle(tone).Render("|")
+	rail := toneAccentStyle(tone).Render("│")
 	lines := strings.Split(body, "\n")
 	for i, line := range lines {
-		lines[i] = rail + " " + line
+		lines[i] = " " + rail + " " + line
 	}
 	return strings.Join(lines, "\n")
 }
@@ -60,17 +60,17 @@ func renderAccentRail(tone visualTone, body string) string {
 func toneAccentStyle(tone visualTone) lipgloss.Style {
 	switch tone {
 	case visualToneSuccess:
-		return appTheme.StateSuccess.Bold(true)
+		return lipgloss.NewStyle().Foreground(appTheme.StateSuccess.GetBackground())
 	case visualToneAttention:
-		return appTheme.StateWarn.Bold(true)
+		return lipgloss.NewStyle().Foreground(appTheme.StateWarn.GetBackground())
 	case visualToneDanger:
-		return appTheme.StateDanger.Bold(true)
+		return lipgloss.NewStyle().Foreground(appTheme.StateDanger.GetBackground())
 	case visualToneCommand:
-		return appTheme.Selected.Bold(true)
+		return lipgloss.NewStyle().Foreground(appTheme.Selected.GetForeground())
 	case visualToneInfo:
-		return appTheme.StateInfo.Bold(true)
+		return lipgloss.NewStyle().Foreground(appTheme.StateInfo.GetBackground())
 	default:
-		return appTheme.BorderStrong.Bold(true)
+		return lipgloss.NewStyle().Foreground(appTheme.BorderStrong.GetForeground())
 	}
 }
 
@@ -127,8 +127,9 @@ func rightAlignMetadata(left, right string, width int) string {
 	if right == "" || width <= 0 {
 		return left
 	}
+	renderedRight := muted(right)
 	leftWidth := lipgloss.Width(left)
-	rightWidth := lipgloss.Width(right)
+	rightWidth := lipgloss.Width(renderedRight)
 	if leftWidth+rightWidth+2 > width {
 		left = clipDisplayText(left, width-rightWidth-2)
 		leftWidth = lipgloss.Width(left)
@@ -137,5 +138,5 @@ func rightAlignMetadata(left, right string, width int) string {
 	if gap < 1 {
 		gap = 1
 	}
-	return left + strings.Repeat(" ", gap) + muted(right)
+	return left + strings.Repeat(" ", gap) + renderedRight
 }

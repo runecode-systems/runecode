@@ -126,7 +126,7 @@ func TestDashboardViewPreservesSectionGaps(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	for _, want := range []string{"Current work", "\n\n|  At a glance", "Review 1\n\n|  Next action"} {
+	for _, want := range []string{"Current work", "\n\n │ At a glance", "Review 1\n\n │ Next action"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("expected preserved blank section gap %q in view, got %q", want, view)
 		}
@@ -179,7 +179,7 @@ func TestDashboardViewNarrowWidthKeepsBoundedLinesAndSectionSpacing(t *testing.T
 	if strings.Contains(view, "\n\n\n") {
 		t.Fatalf("expected no triple blank section gaps in narrow view, got %q", view)
 	}
-	if !strings.Contains(view, "\n\n|  At a glance") {
+	if !strings.Contains(view, "\n\n │ At a glance") {
 		t.Fatalf("expected preserved single blank section gap before At a glance, got %q", view)
 	}
 	mustContainAll(t, view,

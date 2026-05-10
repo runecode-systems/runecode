@@ -385,7 +385,7 @@ func (m shellModel) renderShellPanes(surface routeSurface, layout shellLayoutPla
 	if activity := strings.TrimSpace(m.renderPaneActivityMarker()); activity != "" {
 		mainTitle += " " + activity
 	}
-	mainBody := strings.TrimSpace(surface.Regions.Main.Body)
+	mainBody := strings.Trim(surface.Regions.Main.Body, "\n")
 	if modes := renderModeSwitchTabs(surface.Actions.ModeTabs, surface.Actions.ActiveTab); strings.TrimSpace(modes) != "" {
 		mainBody = compactLines(mainBody, modes)
 	}
@@ -408,7 +408,7 @@ func (m shellModel) renderShellPanes(surface routeSurface, layout shellLayoutPla
 		if layout.Breakpoint == shellBreakpointWide {
 			inspectorTitle += fmt.Sprintf(" (%.0f%%)", clampPaneRatio(m.inspectorRatio)*100)
 		}
-		inspectorPane := renderShellPane(shellPaneSpec{Title: inspectorTitle, Body: strings.TrimSpace(surface.Regions.Inspector.Body), Width: routeRegionWidth(layout.Regions.Inspector, 0), Height: routeRegionHeight(layout.Regions.Inspector, viewportHeight), Focused: m.focus == focusInspector, Border: shellPaneBorder{Top: true, Bottom: true, Left: false, Right: true}})
+		inspectorPane := renderShellPane(shellPaneSpec{Title: inspectorTitle, Body: strings.Trim(surface.Regions.Inspector.Body, "\n"), Width: routeRegionWidth(layout.Regions.Inspector, 0), Height: routeRegionHeight(layout.Regions.Inspector, viewportHeight), Focused: m.focus == focusInspector, Border: shellPaneBorder{Top: true, Bottom: true, Left: false, Right: true}})
 		row = joinPanesHorizontal(row, inspectorPane)
 	}
 	row = lipgloss.NewStyle().Width(viewportWidth).MaxWidth(viewportWidth).Render(row)

@@ -197,17 +197,28 @@ func paletteMatchLine(entry paletteEntry, selected bool) string {
 }
 
 func paletteMatchLineBounded(entry paletteEntry, width int) string {
-	left := fmt.Sprintf("%s", entry.Label)
-	if strings.TrimSpace(entry.Description) != "" {
-		left += "  " + muted(entry.Description)
+	label := strings.TrimSpace(entry.Label)
+	description := strings.TrimSpace(entry.Description)
+	kind := paletteEntryShortcut(entry)
+	if width <= 0 {
+		if description == "" {
+			return label
+		}
+		return label + "  " + muted(description)
 	}
-	right := paletteEntryShortcut(entry)
-	return rightAlignMetadata(left, right, width)
+	parts := []string{label}
+	if description != "" {
+		parts = append(parts, description)
+	}
+	if kind != "" {
+		parts = append(parts, "["+kind+"]")
+	}
+	return clipDisplayText(strings.Join(parts, "  "), width)
 }
 
 func paletteEntryShortcut(entry paletteEntry) string {
 	if strings.TrimSpace(entry.Action.Target.CommandID) != "" {
-		return "Quick action"
+		return "Cmd"
 	}
 	if route := strings.TrimSpace(string(entry.Action.Target.RouteID)); route != "" {
 		return "Route"

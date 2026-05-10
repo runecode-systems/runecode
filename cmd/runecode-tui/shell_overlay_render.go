@@ -17,14 +17,12 @@ func centeredOverlayBlockBounded(title shellOverlayID, body string, viewportWidt
 		body = "(empty overlay)"
 	}
 	outerWidth := overlayBlockWidth(viewportWidth)
-	innerWidth := outerWidth - 2
+	frameInnerWidth := outerWidth - 2
+	innerWidth := frameInnerWidth - 4
 	if innerWidth < 1 {
 		innerWidth = 1
 	}
-	contentWidth := innerWidth - 2
-	if contentWidth < 1 {
-		contentWidth = 1
-	}
+	contentWidth := innerWidth
 	bodyHeight := lipgloss.Height(strings.TrimRight(body, "\n"))
 	if bodyHeight < 1 {
 		bodyHeight = 1
@@ -50,8 +48,6 @@ func centeredOverlayBlockBounded(title shellOverlayID, body string, viewportWidt
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(appTheme.BorderStrong.GetForeground()).
 		Padding(0, 0).
-		Width(innerWidth).
-		MaxWidth(innerWidth).
 		Render(content)
 
 	rendered := lipgloss.NewStyle().Width(viewportWidth).Align(lipgloss.Center).Render(frame)
@@ -85,7 +81,7 @@ func centeredOverlayContentBounds(viewportWidth int) (int, int) {
 		startX = 0
 	}
 	contentStartX := startX + 2 // border + left padding
-	contentEndX := startX + outerWidth - 3
+	contentEndX := startX + outerWidth - 5
 	if contentEndX < contentStartX {
 		contentEndX = contentStartX
 	}

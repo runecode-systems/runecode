@@ -159,8 +159,8 @@ func (m dashboardRouteModel) View(width, height int, focus focusArea) string {
 func joinDashboardSections(sections ...string) string {
 	nonEmpty := make([]string, 0, len(sections))
 	for _, section := range sections {
-		section = strings.TrimSpace(section)
-		if section == "" {
+		section = strings.Trim(section, "\n")
+		if strings.TrimSpace(section) == "" {
 			continue
 		}
 		nonEmpty = append(nonEmpty, section)
