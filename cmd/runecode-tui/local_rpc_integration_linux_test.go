@@ -344,7 +344,7 @@ func assertAuditRouteSupportsDrillDown(t *testing.T, model routeModel) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	for _, needle := range []string{"Audit posture", "Timeline paging: page=1 entries=1 has_next=no", "Verification posture:"} {
+	for _, needle := range []string{"Audit posture", "Timeline: page 1 • 1 records • no more pages", "Verification posture:"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("audit view missing %q: %s", needle, view)
 		}

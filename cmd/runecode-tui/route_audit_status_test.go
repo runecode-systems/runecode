@@ -23,16 +23,16 @@ func TestAuditRouteShowsPagedTimelineAndVerificationReasonCodes(t *testing.T) {
 	mustContainAll(t, view,
 		"Verification trail",
 		"Audit posture",
-		"Finalize/verify",
-		"status=unavailable",
+		"Evidence workbench",
+		"Finalize/verify: unavailable",
 		"UNANCHORED_OR_DEGRADED_AUDIT",
-		"Timeline paging: page=1 entries=1 has_next=yes",
+		"Timeline: page 1 • 1 records • next page available • back 0",
 		"anchoring=degraded (unanchored/degraded)",
-		"Evidence path:",
-		"Verification findings (operator summary):",
-		"code=anchor_receipt_missing severity=warning dimension=anchoring",
-		"degraded_reason_codes=",
-		"posture=degraded reasons=anchor_receipt_missing",
+		"Evidence trail:",
+		"Findings to review:",
+		"anchor_receipt_missing • warning • anchoring",
+		"degraded reasons:",
+		"verification degraded",
 	)
 
 	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
@@ -41,10 +41,10 @@ func TestAuditRouteShowsPagedTimelineAndVerificationReasonCodes(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 	view = updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "page_cursor=page-2") {
+	if !strings.Contains(view, "Timeline: page page-2") {
 		t.Fatalf("expected second page cursor in view, got %q", view)
 	}
-	if !strings.Contains(view, "posture=failed reasons=anchor_receipt_invalid") {
+	if !strings.Contains(view, "Selected record: Approval consumed • verification failed") || !strings.Contains(view, "reasons anchor_receipt_invalid") {
 		t.Fatalf("expected failed anchoring posture on page 2, got %q", view)
 	}
 
@@ -168,15 +168,14 @@ func TestAuditRouteAnchorActionDispatchesToBrokerAndRendersSuccess(t *testing.T)
 		"Anchor action: ok",
 		"receipt=sha256:",
 		"export_copy=off",
-		"next=use receipt for export/offline verification when available",
+		"Anchoring: Anchor action: ok",
 	)
 	updated = mustRunAuditRouteKey(t, updated, 'f', "expected finalize+verify command")
 	view = updated.View(120, 40, focusContent)
 	mustContainAll(t, view,
-		"Finalize/verify",
-		"status=ok",
-		"segment=segment-000001",
-		"next=review Audit findings or anchor/export the latest verified segment",
+		"Finalize/verify: ok",
+		"segment segment-000001",
+		"next review findings or anchor/export the latest verified segment",
 	)
 }
 

@@ -255,8 +255,13 @@ func TestAuditRouteInspectorShowsBoundedTrailAndCopyableDigest(t *testing.T) {
 		"Trust posture: broker-linked references stay authoritative",
 	)
 	view := updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "digest=sha256:aaaaaaaaaaaa") {
-		t.Fatalf("expected bounded digest in timeline directory, got %q", view)
+	if !strings.Contains(view, "Run state changed • sha256:aaaaaaaaaaaa • verification degraded") {
+		t.Fatalf("expected product-language timeline directory row, got %q", view)
+	}
+	for _, banned := range []string{"digest=", "event=", "posture=", "refs=", "Modes:"} {
+		if strings.Contains(view, banned) {
+			t.Fatalf("expected %q to stay out of rendered audit pane, got %q", banned, view)
+		}
 	}
 }
 

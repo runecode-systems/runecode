@@ -211,16 +211,10 @@ func (m auditRouteModel) View(width, height int, focus focusArea) string {
 	body := []string{
 		sectionTitle("Audit") + " " + focusBadge(focus),
 		renderAuditOverviewCard(m.verify, m.active),
-		renderAuditSafetyAlertStrip(m.verify),
-		renderAuditFinalizeSummary(m.finalize),
-		renderAuditAnchorActionSummary(m),
-		renderAuditEvidenceTrail(m.verify, m.active),
-		renderAuditPageSummary(m.cursor, m.nextCursor, len(m.prevCursors), len(m.timeline)),
-		renderAuditSummary(m.verify),
-		renderAuditFindings(m.verify, m.presentation),
-		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
+		renderAuditWorkbenchSummary(m.verify, m.finalize, m.active, m.cursor, m.nextCursor, len(m.prevCursors), len(m.timeline), m.anchoring, m.exportCopy, m.statusText),
 		renderDirectory("Timeline directory", renderAuditDirectoryItems(m.timeline), m.selected),
-		renderAuditTimeline(m.timeline, m.selected),
+		renderAuditSelectedEntryCue(m.timeline, m.selected),
+		renderAuditFindings(m.verify, m.presentation),
 	}
 	if len(m.timeline) == 0 {
 		body = append(body, muted("The audit timeline is empty; retry after the broker persists verification posture or sealed timeline records."))
