@@ -9,11 +9,11 @@ import (
 
 func renderAuditSummary(verify *brokerapi.AuditVerificationGetResponse) string {
 	if verify == nil {
-		return "Verification posture: unavailable"
+		return "Audit health: unavailable"
 	}
 	s := verify.Summary
 	anchorLabel := renderAnchoringPostureLabel(s.AnchoringStatus)
-	return fmt.Sprintf("Verification posture: integrity=%s %s • anchoring=%s (%s) • findings=%d • %s", s.IntegrityStatus, postureBadge(s.IntegrityStatus), s.AnchoringStatus, anchorLabel, s.FindingCount, boolBadge("degraded", s.CurrentlyDegraded))
+	return fmt.Sprintf("Audit health: integrity=%s %s • receipts=%s (%s) • findings=%d • %s", s.IntegrityStatus, postureBadge(s.IntegrityStatus), s.AnchoringStatus, anchorLabel, s.FindingCount, boolBadge("degraded", s.CurrentlyDegraded))
 }
 
 func renderAuditFinalizeSummary(finalize *brokerapi.AuditFinalizeVerifyResponse) string {
@@ -131,7 +131,7 @@ func renderAuditWorkbenchSummary(verify *brokerapi.AuditVerificationGetResponse,
 		fmt.Sprintf("Record in focus: %s", recordLabel),
 		evidence,
 		fmt.Sprintf("Next actions: %s", renderAuditNextActionCue(verify, finalize)),
-		fmt.Sprintf("Verification: %s", renderAuditSummary(verify)),
+		fmt.Sprintf("Audit summary: %s", renderAuditSummary(verify)),
 		finalizeLine,
 		anchorLine,
 		paging,
@@ -159,10 +159,10 @@ func renderAuditInspector(record *brokerapi.AuditRecordGetResponse, presentation
 	document.SetDocument(workbenchObjectRef{Kind: "audit", ID: strings.TrimSpace(identity)}, contentKind, "audit record", content)
 	return renderInspectorShell(inspectorShellSpec{
 		Title:        "Audit inspector",
-		Summary:      fmt.Sprintf("record=%s event=%s linked_refs=%d", shortIdentity(identity), valueOrNA(r.EventType), len(r.LinkedReferences)),
-		Identity:     fmt.Sprintf("record_family=%s event_type=%s digest=%s", valueOrNA(r.RecordFamily), valueOrNA(r.EventType), shortIdentity(identity)),
-		Status:       fmt.Sprintf("verification=%s reasons=%d", valueOrNA(status), reasons),
-		Badges:       []string{stateBadgeWithLabel("posture", status), appTheme.InspectorHint.Render("typed record details")},
+		Summary:      fmt.Sprintf("%s with %d linked reference(s).", auditEventLabel(valueOrNA(r.EventType)), len(r.LinkedReferences)),
+		Identity:     fmt.Sprintf("Record %s • %s", shortIdentity(identity), valueOrNA(r.RecordFamily)),
+		Status:       fmt.Sprintf("Audit health %s • %d reason code(s)", valueOrNA(status), reasons),
+		Badges:       []string{stateBadgeWithLabel("posture", status), appTheme.InspectorHint.Render("record details")},
 		References:   []inspectorReference{{Label: "records", Items: referenceItems}, {Label: "reason codes", Items: reasonItems}},
 		LocalActions: auditInspectorLocalActions(),
 		CopyActions:  auditRouteCopyActions(record),
@@ -203,9 +203,9 @@ func auditInspectorContent(record brokerapi.AuditRecordDetail, status string, re
 		fmt.Sprintf("Record family: %s event=%s", record.RecordFamily, record.EventType),
 		fmt.Sprintf("Occurred at: %s", record.OccurredAt),
 		fmt.Sprintf("Primary digest display: %s (copy raw digest below)", auditRecordDigestDetail(record)),
-		fmt.Sprintf("Verification posture: %s (%s) reasons=%d", status, renderAnchoringPostureLabel(status), reasons),
+		fmt.Sprintf("Audit health: %s (%s) reasons=%d", status, renderAnchoringPostureLabel(status), reasons),
 		fmt.Sprintf("Linked references: %d", len(record.LinkedReferences)),
-		"Evidence trail: workflow result -> artifacts -> audit record -> verification posture -> offline review or anchoring.",
+		"Evidence trail: workflow result -> artifacts -> audit record -> final checks -> offline review or receipts.",
 		"Trust posture: linked records stay authoritative; copied digests and raw content are supplemental proof material.",
 	)
 }
@@ -314,18 +314,18 @@ func renderAnchoringPostureLabel(status string) string {
 
 func renderAuditSafetyAlertStrip(verify *brokerapi.AuditVerificationGetResponse) string {
 	if verify == nil {
-		return tableHeader("Audit posture") + " " + dangerBadge("AUDIT_POSTURE_UNAVAILABLE") + " audit verification unavailable"
+		return tableHeader("Audit health") + " " + dangerBadge("Audit unavailable") + " audit verification unavailable"
 	}
 	s := verify.Summary
-	parts := []string{tableHeader("Audit posture")}
+	parts := []string{tableHeader("Audit health")}
 	if strings.EqualFold(strings.TrimSpace(s.AnchoringStatus), "degraded") || s.CurrentlyDegraded {
-		parts = append(parts, auditDegradedBadge("UNANCHORED_OR_DEGRADED_AUDIT"))
+		parts = append(parts, auditDegradedBadge("Receipts need review"))
 	}
 	if strings.EqualFold(strings.TrimSpace(s.AnchoringStatus), "failed") || strings.EqualFold(strings.TrimSpace(s.IntegrityStatus), "failed") || strings.EqualFold(strings.TrimSpace(s.IntegrityStatus), "invalid") {
-		parts = append(parts, dangerBadge("INVALID_OR_FAILED_ANCHORING"))
+		parts = append(parts, dangerBadge("Audit failed"))
 	}
 	if len(parts) == 1 {
-		parts = append(parts, successBadge("AUDIT_ANCHORED_AND_VALID"))
+		parts = append(parts, successBadge("Audit ready"))
 	}
 	return strings.Join(parts, " ")
 }
@@ -346,7 +346,7 @@ func renderAuditOverviewCard(verify *brokerapi.AuditVerificationGetResponse, rec
 		identity, _ := record.Record.RecordDigest.Identity()
 		recordLabel = "record " + shortIdentity(identity)
 	}
-	return renderStateCardSpec(stateCardSpec{State: state, Title: "Verification trail", Message: fmt.Sprintf("Audit explains the current verification posture for %s.", recordLabel), Reason: renderAuditSummary(verify), NextAction: "Review findings, then use finalize/verify, export copy, or anchoring actions as needed.", ShortcutCue: "f / a / x", RouteCue: "Audit"})
+	return renderStateCardSpec(stateCardSpec{State: state, Title: "Verification trail", Message: fmt.Sprintf("Audit explains the current health of %s.", recordLabel), Reason: renderAuditSummary(verify), NextAction: "Review findings, then use finalize/verify, export copy, or receipt actions as needed.", ShortcutCue: "f / a / x", RouteCue: "Audit"})
 }
 
 func renderAuditEvidenceTrail(verify *brokerapi.AuditVerificationGetResponse, record *brokerapi.AuditRecordGetResponse) string {
@@ -356,7 +356,7 @@ func renderAuditEvidenceTrail(verify *brokerapi.AuditVerificationGetResponse, re
 		recordLabel = "record " + shortIdentity(identity)
 	}
 	if verify == nil {
-		return fmt.Sprintf("Evidence trail: workflow result -> artifacts -> audit records (%s) -> verification posture unavailable until broker verification data loads", recordLabel)
+		return fmt.Sprintf("Evidence trail: workflow result -> artifacts -> audit records (%s) -> audit health unavailable until broker verification data loads", recordLabel)
 	}
-	return fmt.Sprintf("Evidence trail: workflow result -> artifacts -> audit records (%s) -> verification posture -> export/offline verification -> anchoring", recordLabel)
+	return fmt.Sprintf("Evidence trail: workflow result -> artifacts -> audit records (%s) -> final checks -> export/offline review -> receipts", recordLabel)
 }

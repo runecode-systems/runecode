@@ -128,7 +128,7 @@ func TestBuildOperationalAttentionItemsIncludesAuditAndWatchDisconnect(t *testin
 		"shell watch sync health",
 		"Watch sync is disconnected",
 		"audit verification posture",
-		"anchoring is degraded",
+		"receipts are degraded",
 		"run run-1 operational posture",
 		"Continue in",
 	)

@@ -20,7 +20,7 @@ func TestProviderSetupRouteActivationLoadsBrokerProjectedProfilePosture(t *testi
 	if !strings.Contains(view, "Selected provider: OpenAI default") {
 		t.Fatalf("expected selected provider summary in provider view, got %q", view)
 	}
-	if !strings.Contains(view, "Current setup: not_ready • credential stored • 1 broker profile discovered.") {
+	if !strings.Contains(view, "Setup status: not_ready • credential stored • 1 broker profile discovered.") {
 		t.Fatalf("expected guided setup summary in provider view, got %q", view)
 	}
 	if strings.Contains(view, "provider_family=openai_compatible") {

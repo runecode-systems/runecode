@@ -267,7 +267,7 @@ func assertWorkAndSetupBackedRoutes(t *testing.T, recording localBrokerClient) {
 	)
 	assertRouteInspectorContainsAll(t, approvals, routeApprovals,
 		"Why this approval exists:",
-		"Exact gated object/action:",
+		"What is gated:",
 	)
 
 	artifacts := newArtifactsRouteModel(routeDefinition{ID: routeArtifacts, Label: "Artifacts"}, recording)
@@ -278,9 +278,9 @@ func assertWorkAndSetupBackedRoutes(t *testing.T, recording localBrokerClient) {
 
 	status := newStatusRouteModel(routeDefinition{ID: routeStatus, Label: "Status"}, recording)
 	assertRouteOutputContainsAll(t, status, routeStatus,
-		"Runtime/audit readiness strip",
+		"System health",
 		"Overview:",
-		"Version posture:",
+		"Version:",
 		"Project setup",
 	)
 }
@@ -331,7 +331,7 @@ func assertArtifactsRouteRedactsDiffContent(t *testing.T, model routeModel) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body
-	for _, needle := range []string{"Typed detail mode:", "diff content unavailable: broker_limit_policy_rejected"} {
+	for _, needle := range []string{"Detail mode:", "diff content unavailable: broker_limit_policy_rejected"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("artifacts view missing %q: %s", needle, view)
 		}
@@ -346,7 +346,7 @@ func assertAuditRouteSupportsDrillDown(t *testing.T, model routeModel) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	for _, needle := range []string{"Audit posture", "Timeline: page 1 • 1 records • no more pages", "Verification posture:"} {
+	for _, needle := range []string{"Audit health", "Timeline: page 1 • 1 records • no more pages", "Audit summary:"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("audit view missing %q: %s", needle, view)
 		}
@@ -360,7 +360,7 @@ func assertAuditRouteSupportsDrillDown(t *testing.T, model routeModel) {
 	}
 	updated, _ = updated.Update(cmd())
 	view = updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body
-	for _, needle := range []string{"Record family:", "Verification posture:", "Linked references:"} {
+	for _, needle := range []string{"Record family:", "Audit health:", "Linked references:"} {
 		if !strings.Contains(view, needle) {
 			t.Fatalf("audit drill-down view missing %q: %s", needle, view)
 		}

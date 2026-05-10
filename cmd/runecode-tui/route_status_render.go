@@ -64,7 +64,7 @@ func renderLifecycleBlockedReasonLine(posture brokerapi.BrokerProductLifecyclePo
 	if len(posture.BlockedReasonCodes) == 0 {
 		return "Managed-operation blockers: none reported"
 	}
-	return "Managed-operation blockers: " + joinCSV(posture.BlockedReasonCodes)
+	return "Managed-operation blockers: " + humanizeStatusCodes(posture.BlockedReasonCodes)
 }
 
 func renderLifecycleDegradedReasonLine(posture brokerapi.BrokerProductLifecyclePosture) string {
@@ -74,16 +74,16 @@ func renderLifecycleDegradedReasonLine(posture brokerapi.BrokerProductLifecycleP
 	if len(posture.DegradedReasonCodes) == 0 {
 		return "Managed-operation watchouts: none reported"
 	}
-	return "Managed-operation watchouts: " + joinCSV(posture.DegradedReasonCodes)
+	return "Managed-operation watchouts: " + humanizeStatusCodes(posture.DegradedReasonCodes)
 }
 
 func lifecycleReasonSummary(posture brokerapi.BrokerProductLifecyclePosture) string {
 	parts := []string{}
 	if len(posture.BlockedReasonCodes) > 0 {
-		parts = append(parts, "blocked="+joinCSV(posture.BlockedReasonCodes))
+		parts = append(parts, "blocked because "+humanizeStatusCodes(posture.BlockedReasonCodes))
 	}
 	if len(posture.DegradedReasonCodes) > 0 {
-		parts = append(parts, "degraded="+joinCSV(posture.DegradedReasonCodes))
+		parts = append(parts, "watchouts: "+humanizeStatusCodes(posture.DegradedReasonCodes))
 	}
 	if len(parts) == 0 {
 		return fmt.Sprintf("Broker reports %s operation with %s access.", lifecyclePostureSummary(posture.LifecyclePosture), attachModeSummary(posture.AttachMode))
@@ -93,9 +93,9 @@ func lifecycleReasonSummary(posture brokerapi.BrokerProductLifecyclePosture) str
 
 func renderBackendPostureLine(posture brokerapi.BackendPostureState) string {
 	if strings.TrimSpace(posture.InstanceID) == "" {
-		return "Backend posture: unavailable"
+		return "Backend: unavailable"
 	}
-	parts := []string{fmt.Sprintf("Backend posture: %s", valueOrNA(posture.BackendKind))}
+	parts := []string{fmt.Sprintf("Backend: %s", valueOrNA(posture.BackendKind))}
 	if posture.PendingApproval {
 		parts = append(parts, "approval pending")
 	}
@@ -106,19 +106,19 @@ func renderBackendPostureLine(posture brokerapi.BackendPostureState) string {
 }
 
 func renderStatusSafetyStrip(r brokerapi.BrokerReadiness) string {
-	parts := []string{tableHeader("Runtime/audit readiness strip")}
+	parts := []string{tableHeader("System health")}
 	if !r.VerifierMaterialAvailable {
-		parts = append(parts, dangerBadge("RUNTIME_POSTURE_AUTH_UNAVAILABLE"))
+		parts = append(parts, dangerBadge("Runtime proof missing"))
 	} else {
-		parts = append(parts, successBadge("RUNTIME_POSTURE_AUTH_AVAILABLE"))
+		parts = append(parts, successBadge("Runtime proof ready"))
 	}
 	if !r.RecoveryComplete || !r.AppendPositionStable || !r.CurrentSegmentWritable {
-		parts = append(parts, auditDegradedBadge("AUDIT_POSTURE_DEGRADED_OR_UNAVAILABLE"))
+		parts = append(parts, auditDegradedBadge("Audit needs review"))
 	} else {
-		parts = append(parts, successBadge("AUDIT_STORAGE_NOMINAL"))
+		parts = append(parts, successBadge("Audit ready"))
 	}
 	if !r.Ready {
-		parts = append(parts, systemFailureBadge("SYSTEM_FAILURE_BROKER_NOT_READY"))
+		parts = append(parts, systemFailureBadge("Broker not ready"))
 	}
 	return compactLines(parts...)
 }
@@ -141,9 +141,9 @@ func renderReadinessDiagnostics(r brokerapi.BrokerReadiness) string {
 		issues = append(issues, "derived index still catching up")
 	}
 	if len(issues) == 0 {
-		return "Broker health: ready for local work; no runtime or audit warnings reported."
+		return "Broker health: ready for normal work."
 	}
-	return fmt.Sprintf("Broker health: attention needed for %s.", joinCSV(issues))
+	return fmt.Sprintf("Broker health: %s.", strings.Join(issues, "; "))
 }
 
 func renderProjectSubstrateStatusLine(posture brokerapi.ProjectSubstratePostureGetResponse) string {
@@ -153,7 +153,7 @@ func renderProjectSubstrateStatusLine(posture brokerapi.ProjectSubstratePostureG
 	}
 	parts := []string{projectSetupValidationSummary(summary.ValidationState), projectSetupCompatibilitySummary(summary.CompatibilityPosture)}
 	if summary.NormalOperationAllowed {
-		parts = append(parts, "Normal work is allowed")
+		parts = append(parts, "Normal work can continue")
 	} else {
 		parts = append(parts, "Normal work stays blocked until setup is fixed")
 	}
@@ -200,7 +200,7 @@ func renderProjectSubstrateGuidance(posture brokerapi.ProjectSubstratePostureGet
 		parts = append(parts, "What blocks normal work: "+sanitizeUIText(posture.BlockedExplanation))
 	}
 	if len(posture.RemediationGuidance) > 0 {
-		parts = append(parts, "Broker guidance: "+joinCSV(posture.RemediationGuidance))
+		parts = append(parts, "Broker guidance: "+humanizeStatusCodes(posture.RemediationGuidance))
 	}
 	if !summary.NormalOperationAllowed {
 		parts = append(parts, "Next action: choose the lightest broker-owned fix that matches this repository, then reload to confirm managed work is restored.")
@@ -219,10 +219,10 @@ func projectSubstrateReasonSummary(posture brokerapi.ProjectSubstratePostureGetR
 	summary := posture.PostureSummary
 	parts := []string{}
 	if len(summary.BlockedReasonCodes) > 0 {
-		parts = append(parts, "blocked="+joinCSV(summary.BlockedReasonCodes))
+		parts = append(parts, "blocked because "+humanizeStatusCodes(summary.BlockedReasonCodes))
 	}
 	if len(summary.ReasonCodes) > 0 {
-		parts = append(parts, "reasons="+joinCSV(summary.ReasonCodes))
+		parts = append(parts, "notes: "+humanizeStatusCodes(summary.ReasonCodes))
 	}
 	if explanation := strings.TrimSpace(posture.BlockedExplanation); explanation != "" {
 		parts = append(parts, sanitizeUIText(explanation))
@@ -236,7 +236,7 @@ func projectSubstrateReasonSummary(posture brokerapi.ProjectSubstratePostureGetR
 func renderStatusOverviewLine(r brokerapi.BrokerReadiness, lifecycle brokerapi.BrokerProductLifecyclePosture, posture brokerapi.ProjectSubstratePostureGetResponse) string {
 	parts := []string{"Overview:"}
 	if r.Ready {
-		parts = append(parts, "broker reachable")
+		parts = append(parts, "broker connected")
 	} else {
 		parts = append(parts, "broker not ready")
 	}
@@ -246,7 +246,7 @@ func renderStatusOverviewLine(r brokerapi.BrokerReadiness, lifecycle brokerapi.B
 		parts = append(parts, "normal work blocked")
 	}
 	if r.LocalOnly {
-		parts = append(parts, "local broker mode")
+		parts = append(parts, "local workspace mode")
 	}
 	return strings.Join(parts, " • ")
 }
@@ -254,20 +254,35 @@ func renderStatusOverviewLine(r brokerapi.BrokerReadiness, lifecycle brokerapi.B
 func renderStatusSetupLine(posture brokerapi.ProjectSubstratePostureGetResponse) string {
 	summary := posture.PostureSummary
 	if strings.TrimSpace(summary.SchemaID) == "" {
-		return "Setup posture: unavailable"
+		return "Setup: unavailable"
 	}
-	return fmt.Sprintf("Setup posture: %s • %s", projectSetupValidationSummary(summary.ValidationState), projectSetupCompatibilitySummary(summary.CompatibilityPosture))
+	return fmt.Sprintf("Setup: %s • %s", projectSetupValidationSummary(summary.ValidationState), projectSetupCompatibilitySummary(summary.CompatibilityPosture))
 }
 
 func renderVersionPostureLine(v brokerapi.BrokerVersionInfo) string {
-	parts := []string{fmt.Sprintf("Version posture: RuneCode %s", valueOrNA(v.ProductVersion))}
+	parts := []string{fmt.Sprintf("Version: RuneCode %s", valueOrNA(v.ProductVersion))}
 	if strings.TrimSpace(v.ProtocolBundleVersion) != "" {
-		parts = append(parts, fmt.Sprintf("protocol bundle %s", sanitizeUIText(v.ProtocolBundleVersion)))
+		parts = append(parts, fmt.Sprintf("protocol %s", sanitizeUIText(v.ProtocolBundleVersion)))
 	}
 	if strings.TrimSpace(v.APIFamily) != "" || strings.TrimSpace(v.APIVersion) != "" {
-		parts = append(parts, fmt.Sprintf("broker API available (%s)", versionAPIShortLabel(v.APIFamily, v.APIVersion)))
+		parts = append(parts, fmt.Sprintf("broker API ready (%s)", versionAPIShortLabel(v.APIFamily, v.APIVersion)))
 	}
 	return strings.Join(parts, " • ")
+}
+
+func humanizeStatusCodes(values []string) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		parts = append(parts, humanizeExecutionToken(value))
+	}
+	if len(parts) == 0 {
+		return "n/a"
+	}
+	return strings.Join(parts, ", ")
 }
 
 func renderProjectSubstrateActionSummaryLine(label, status, guidance string) string {
@@ -328,7 +343,7 @@ func projectSetupCompatibilitySummary(value string) string {
 	case "supported":
 		return "fully supported"
 	case "supported_with_upgrade_available":
-		return "supported with an upgrade available"
+		return "upgrade available"
 	case "missing":
 		return "no compatible setup detected"
 	case "unsupported":

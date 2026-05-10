@@ -141,12 +141,12 @@ func renderActionCenterInspector(family actionCenterFamily, items []actionCenter
 		"    "+valueOrNA(item.Reason),
 		"  What it affects",
 		"    "+valueOrNA(item.Impact),
-		"  What to do",
-		"    "+valueOrNA(strings.TrimSpace(strings.Join([]string{item.Owner, item.RequiredAction}, " • "))),
+		"  What to do now",
+		"    "+valueOrNA(strings.TrimSpace(item.RequiredAction)),
 		"  Continue in",
 		"    "+drillDown,
 		"  Evidence",
-		"    "+valueOrNA(item.EvidenceCue),
+		"    "+actionCenterEvidenceSummary(item.EvidenceCue),
 	)
 }
 
@@ -156,7 +156,7 @@ func buildActionCenterSummary(families map[actionCenterFamily][]actionCenterItem
 	blocked := countActionCenterItemsByState(families[actionCenterFamilyBlocked], routeLoadStateBlocked)
 	approvalBlocked := countActionCenterItemsByState(families[actionCenterFamilyBlocked], routeLoadStateApprovalRequired)
 	if blocked > 0 {
-		return actionCenterSummary{State: routeLoadStateBlocked, Title: "Action Center", Message: "Workflow progress is blocked and needs operator follow-up.", Reason: fmt.Sprintf("%d blocked item(s), %d approval-gated item(s), %d operational item(s), and %d approval decision(s) are visible.", blocked, approvalBlocked, ops, approvals), NextAction: "Start with Blocked Work, then review linked approvals or setup guidance."}
+		return actionCenterSummary{State: routeLoadStateBlocked, Title: "Action Center", Message: "Some work is blocked and needs operator follow-up.", Reason: fmt.Sprintf("%d blocked item(s), %d approval-gated item(s), %d operational item(s), and %d approval decision(s) are visible.", blocked, approvalBlocked, ops, approvals), NextAction: "Start with Blocked Work, then review linked approvals or setup guidance."}
 	}
 	if approvals > 0 || approvalBlocked > 0 {
 		return actionCenterSummary{State: routeLoadStateApprovalRequired, Title: "Action Center", Message: "Approval decisions are waiting on the operator.", Reason: fmt.Sprintf("%d approval decision(s), %d approval-gated workflow item(s), and %d operational item(s) are visible.", approvals, approvalBlocked, ops), NextAction: "Open Approvals and review the exact gated action before deciding."}
@@ -165,6 +165,30 @@ func buildActionCenterSummary(families map[actionCenterFamily][]actionCenterItem
 		return actionCenterSummary{State: routeLoadStateDegraded, Title: "Action Center", Message: "Runtime, evidence, setup, or sync posture needs review.", Reason: fmt.Sprintf("%d operational attention item(s) are visible.", ops), NextAction: "Review Operational Attention first, then confirm detail in Audit, Runs, or Status."}
 	}
 	return actionCenterSummary{State: routeLoadStateReady, Title: "Action Center", Message: "No broker-known attention items are currently waiting in Action Center.", Reason: "Approvals, Blocked Work, and Operational Attention are clear on the current broker surfaces.", NextAction: "Return to Dashboard or Chat and continue work until new follow-up appears."}
+}
+
+func actionCenterEvidenceSummary(cue string) string {
+	parts := []string{}
+	for _, field := range strings.Fields(strings.TrimSpace(cue)) {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
+		}
+		if strings.HasPrefix(field, "source=") {
+			parts = append(parts, "source "+humanizeExecutionToken(strings.TrimPrefix(field, "source=")))
+			continue
+		}
+		kv := strings.SplitN(field, "=", 2)
+		if len(kv) != 2 || strings.TrimSpace(kv[1]) == "" {
+			parts = append(parts, humanizeExecutionToken(field))
+			continue
+		}
+		parts = append(parts, humanizeExecutionToken(kv[0])+" "+kv[1])
+	}
+	if len(parts) == 0 {
+		return valueOrNA(cue)
+	}
+	return strings.Join(parts, " • ")
 }
 
 func countActionCenterItemsByState(items []actionCenterItem, state routeLoadState) int {

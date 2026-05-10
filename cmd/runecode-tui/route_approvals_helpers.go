@@ -60,10 +60,10 @@ func renderApprovalInspector(resp *brokerapi.ApprovalGetResponse, presentation c
 	document.SetDocument(ref, contentKind, "approval details", content)
 	return renderInspectorShell(inspectorShellSpec{
 		Title:    "Approval inspector",
-		Summary:  fmt.Sprintf("approval=%s state=%s reason=%s", summary.ApprovalID, approvalDisplayState(summary, detail), approvalPrimaryReason(summary, detail)),
-		Identity: fmt.Sprintf("approval=%s run=%s action=%s", summary.ApprovalID, valueOrNA(boundScope.RunID), valueOrNA(boundScope.ActionKind)),
-		Status:   fmt.Sprintf("workflow_state=%s resolve=%s", workflowApprovalState(summary, detail), approvalResolveStatus(summary, detail)),
-		Badges:   []string{stateBadgeWithLabel("status", summary.Status), appTheme.InspectorHint.Render("policy/trigger/system cues are distinct")},
+		Summary:  fmt.Sprintf("%s is %s.", approvalDisplayLabel(summary), approvalDisplayState(summary, detail)),
+		Identity: fmt.Sprintf("Approval %s • run %s • %s", summary.ApprovalID, valueOrNA(boundScope.RunID), humanizeExecutionToken(boundScope.ActionKind)),
+		Status:   fmt.Sprintf("Decision path: %s", approvalResolveSummary(summary, detail)),
+		Badges:   []string{stateBadgeWithLabel("status", summary.Status), appTheme.InspectorHint.Render("operator review details")},
 		References: []inspectorReference{
 			{Label: "run", Items: mapReferenceIDs([]string{boundScope.RunID}, func(id string) paletteActionMsg {
 				return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "run", RouteID: routeRuns, RunID: id}}
@@ -156,13 +156,13 @@ func approvalInspectorContent(summary brokerapi.ApprovalSummary, detail brokerap
 	return compactLines(
 		fmt.Sprintf("Approval state: %s %s", approvalUIValue(approvalDisplayState(summary, detail)), approvalPrimaryStateBadge(summary)),
 		fmt.Sprintf("Why this approval exists: %s", approvalUIValue(approvalPrimaryReason(summary, detail))),
-		fmt.Sprintf("Exact gated object/action: %s", approvalUIValue(approvalExactObjectAction(summary, detail))),
+		fmt.Sprintf("What is gated: %s", approvalUIValue(approvalExactObjectAction(summary, detail))),
 		fmt.Sprintf("Review first: %s", approvalUIValue(approvalReviewFirst(summary, detail))),
 		fmt.Sprintf("If approved next: %s", approvalUIValue(approvalEffectSummary(detail))),
-		fmt.Sprintf("After approval route: %s", approvalUIValue(approvalFollowUpRoute(summary))),
+		fmt.Sprintf("Continue after review: %s", approvalUIValue(approvalFollowUpRoute(summary))),
 		fmt.Sprintf("Resolve availability: %s", approvalUIValue(approvalResolveSummary(summary, detail))),
 		fmt.Sprintf("Resolve unavailable because: %s", approvalUIValue(approvalResolveBlockedReason(summary, detail))),
-		fmt.Sprintf("Workflow posture: %s; lifecycle=%s (%s)", approvalUIValue(workflowApprovalState(summary, detail)), approvalUIValue(lifecycleState), approvalUIValue(lifecycleFlags)),
+		fmt.Sprintf("Workflow state: %s; lifecycle=%s (%s)", approvalUIValue(workflowApprovalState(summary, detail)), approvalUIValue(lifecycleState), approvalUIValue(lifecycleFlags)),
 		"Safety cue: approval policy, lifecycle, and execution/system errors remain distinct before any decision is accepted.",
 		muted(fmt.Sprintf("Structured/raw modes expose %s, binding kind, trigger codes, policy reason codes, bound scope, request/decision digests, manifest, and policy decision hash.", approvalUIValue(bindingLabel))),
 	)
@@ -255,7 +255,7 @@ func renderApprovalSafetyStrip(resp *brokerapi.ApprovalGetResponse) string {
 	return compactLines(
 		tableHeader("Approval posture")+" "+approvalPrimaryStateBadge(s)+" "+approvalSupportBadge(s, d),
 		fmt.Sprintf("Needs attention because %s", approvalPrimaryReason(s, d)),
-		fmt.Sprintf("Broker cues: policy_reason_code=%s %s | approval_trigger_code=%s %s", approvalUIValue(d.PolicyReasonCode), stateCue, approvalUIValue(s.ApprovalTriggerCode), triggerCue),
+		fmt.Sprintf("Broker cues: policy %s %s | trigger %s %s", approvalUIValue(d.PolicyReasonCode), stateCue, approvalUIValue(s.ApprovalTriggerCode), triggerCue),
 	)
 }
 

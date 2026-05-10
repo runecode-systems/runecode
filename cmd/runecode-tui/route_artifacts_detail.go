@@ -61,9 +61,9 @@ func renderArtifactInspector(head *brokerapi.LocalArtifactHeadResponse, mode art
 	document.SetDocument(workbenchObjectRef{Kind: "artifact", ID: strings.TrimSpace(a.Reference.Digest)}, kind, fmt.Sprintf("%s content", mode), compactLines(
 		fmt.Sprintf("Evidence label: %s", artifactDisplayLabel(a)),
 		fmt.Sprintf("Data class: %s", a.Reference.DataClass),
-		fmt.Sprintf("Evidence trail: run %s -> artifact %s -> Audit for verification posture and anchoring context", valueOrNA(a.RunID), artifactDisplayLabel(a)),
+		fmt.Sprintf("Evidence trail: run %s -> artifact %s -> Audit for final checks and receipts", valueOrNA(a.RunID), artifactDisplayLabel(a)),
 		fmt.Sprintf("Primary digest display: %s (copy raw digest below)", shortIdentity(a.Reference.Digest)),
-		fmt.Sprintf("Typed detail mode: %s (metadata remains control-plane truth)", mode),
+		fmt.Sprintf("Detail mode: %s (typed metadata stays authoritative)", mode),
 		fmt.Sprintf("Presentation mode: %s", presentation),
 		fmt.Sprintf("Provenance receipt: %s", a.Reference.ProvenanceReceiptHash),
 		"Inspectable content is supplemental evidence, not authoritative run/approval truth.",
@@ -71,10 +71,10 @@ func renderArtifactInspector(head *brokerapi.LocalArtifactHeadResponse, mode art
 	))
 	return renderInspectorShell(inspectorShellSpec{
 		Title:    "Artifact inspector",
-		Summary:  fmt.Sprintf("artifact=%s class=%s bytes=%d", artifactDisplayLabel(a), a.Reference.DataClass, a.Reference.SizeBytes),
-		Identity: fmt.Sprintf("artifact=%s digest=%s", artifactDisplayLabel(a), shortIdentity(a.Reference.Digest)),
-		Status:   fmt.Sprintf("evidence_trail=run:%s -> artifact:%s -> audit -> verification posture", valueOrNA(a.RunID), shortIdentity(a.Reference.Digest)),
-		Badges:   []string{stateBadgeWithLabel("class", fmt.Sprintf("%v", a.Reference.DataClass)), appTheme.InspectorHint.Render("typed metadata first")},
+		Summary:  fmt.Sprintf("%s ready to inspect.", artifactDisplayLabel(a)),
+		Identity: fmt.Sprintf("Artifact %s • digest %s", artifactDisplayLabel(a), shortIdentity(a.Reference.Digest)),
+		Status:   fmt.Sprintf("From run %s • open Audit next for final checks or receipts", valueOrNA(a.RunID)),
+		Badges:   []string{stateBadgeWithLabel("class", fmt.Sprintf("%v", a.Reference.DataClass)), appTheme.InspectorHint.Render("evidence details")},
 		References: []inspectorReference{{Label: "run", Items: mapReferenceIDs([]string{a.RunID}, func(id string) paletteActionMsg {
 			return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "run", RouteID: routeRuns, RunID: id}}
 		})}, {Label: "artifact", Items: mapReferenceIDs([]string{a.Reference.Digest}, func(id string) paletteActionMsg {
@@ -249,9 +249,9 @@ func (m *artifactsRouteModel) syncDetailDocument() {
 	content := compactLines(
 		fmt.Sprintf("Evidence label: %s", artifactDisplayLabel(a)),
 		fmt.Sprintf("Data class: %s", a.Reference.DataClass),
-		fmt.Sprintf("Evidence trail: run %s -> artifact %s -> Audit for verification posture and anchoring context", valueOrNA(a.RunID), artifactDisplayLabel(a)),
+		fmt.Sprintf("Evidence trail: run %s -> artifact %s -> Audit for final checks and receipts", valueOrNA(a.RunID), artifactDisplayLabel(a)),
 		fmt.Sprintf("Primary digest display: %s (copy raw digest below)", shortIdentity(a.Reference.Digest)),
-		fmt.Sprintf("Typed detail mode: %s (metadata remains control-plane truth)", mode),
+		fmt.Sprintf("Detail mode: %s (typed metadata stays authoritative)", mode),
 		fmt.Sprintf("Presentation mode: %s", presentation),
 		fmt.Sprintf("Provenance receipt: %s", a.Reference.ProvenanceReceiptHash),
 		"Inspectable content is supplemental evidence, not authoritative run/approval truth.",
@@ -267,18 +267,18 @@ func renderArtifactOverviewCard(head *brokerapi.LocalArtifactHeadResponse, class
 		if strings.TrimSpace(classFilter) != "" {
 			message = fmt.Sprintf("Select %s evidence to review what the run produced before you continue to Audit.", artifactClassLabel(classFilter))
 		}
-		return renderStateCardSpec(stateCardSpec{State: routeLoadStateWaiting, Title: "Evidence workspace", Message: message, Reason: "No evidence is open yet.", NextAction: "Choose an artifact, then continue to Audit for verification posture and anchoring.", ShortcutCue: "enter", RouteCue: "Artifacts → Audit"})
+		return renderStateCardSpec(stateCardSpec{State: routeLoadStateWaiting, Title: "Evidence workspace", Message: message, Reason: "No evidence is open yet.", NextAction: "Choose an artifact, then continue to Audit for final checks or receipts.", ShortcutCue: "enter", RouteCue: "Artifacts → Audit"})
 	}
 	a := head.Artifact
-	return renderStateCardSpec(stateCardSpec{State: routeLoadStateReady, Title: "Evidence workspace", Message: fmt.Sprintf("%s is ready to inspect.", artifactDisplayLabel(a)), Reason: fmt.Sprintf("Artifact class %s from run %s with %s ready in the inspector.", artifactClassLabel(a.Reference.DataClass), valueOrNA(a.RunID), artifactPreviewIdentity(a.Reference.SizeBytes, a.Reference.ContentType)), NextAction: "Review the evidence here, then open Audit to confirm verification posture, export, or anchoring actions.", ShortcutCue: "enter / m", RouteCue: "Audit"})
+	return renderStateCardSpec(stateCardSpec{State: routeLoadStateReady, Title: "Evidence workspace", Message: fmt.Sprintf("%s is ready to inspect.", artifactDisplayLabel(a)), Reason: fmt.Sprintf("%s from run %s with %s ready in the inspector.", artifactClassLabel(a.Reference.DataClass), valueOrNA(a.RunID), artifactPreviewIdentity(a.Reference.SizeBytes, a.Reference.ContentType)), NextAction: "Review the evidence here, then open Audit to confirm final checks, export, or receipts.", ShortcutCue: "enter / m", RouteCue: "Audit"})
 }
 
 func renderArtifactEvidenceTrail(head *brokerapi.LocalArtifactHeadResponse) string {
 	if head == nil {
-		return "Evidence path: run result → artifact evidence → Audit verification and anchoring."
+		return "Evidence path: run result -> artifact evidence -> Audit review and receipts."
 	}
 	a := head.Artifact
-	return fmt.Sprintf("Evidence path: run %s → %s → Audit for verification posture and anchoring.", valueOrNA(a.RunID), artifactDisplayLabel(a))
+	return fmt.Sprintf("Evidence path: run %s -> %s -> Audit review and receipts.", valueOrNA(a.RunID), artifactDisplayLabel(a))
 }
 
 func artifactDisplayLabel(item brokerapi.ArtifactSummary) string {

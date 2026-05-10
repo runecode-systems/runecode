@@ -67,19 +67,19 @@ func TestApprovalsRouteDistinguishesCodesLifecycleAndBinding(t *testing.T) {
 	inspector := surface.Regions.Inspector.Body
 
 	mustContainAll(t, inspector,
-		"Summary: approval=ap-1 state=approval required reason=policy requires operator review before promotion for run-1 can continue (requires_human_review)",
-		"Identity: approval=ap-1 run=run-1 action=promotion",
+		"Summary: promotion for run-1 is approval required.",
+		"Identity: Approval ap-1 • run run-1 • promotion",
 		"Local actions: resolve:typed | jump:runs | jump:artifacts | jump:audit | copy:approval_id",
 		"Copy actions: approval id | bound run id | request digest | decision digest | raw block",
 		"Approval state: approval required",
 		"Why this approval exists: policy requires operator review before promotion for run-1 can",
-		"Exact gated object/action: run run-1 • stage stage-1 • action=promotion",
+		"What is gated: run run-1 • stage stage-1 • promotion",
 		"Review first: run evidence for run-1",
 		"If approved next: Promotion continues (effect=unblock_next_stage)",
-		"After approval route: Artifacts → Audit",
-		"Resolve availability: unavailable here because promotion approvals must be completed in the prom",
+		"Continue after review: Artifacts → Audit",
+		"Resolve availability: continue in the promotion flow after review",
 		"Resolve unavailable because: promotion approvals must stay in the promotion flow",
-		"Workflow posture: approval required; lifecycle=pending (stale)",
+		"Workflow state: approval required; lifecycle=pending (stale)",
 		"Structured/raw modes expose exact-action approval",
 	)
 	if !strings.Contains(view, "Approval review") {
@@ -89,7 +89,7 @@ func TestApprovalsRouteDistinguishesCodesLifecycleAndBinding(t *testing.T) {
 		"Decision workbench",
 		"Approval queue",
 	)
-	if strings.Contains(view, "Summary: approval=ap-1 state=approval required") {
+	if strings.Contains(view, "Summary: promotion for run-1 is approval required.") {
 		t.Fatalf("expected approval detail only in inspector region, got %q", view)
 	}
 	for _, banned := range []string{"Modes:", "policy_reason_code=", "approval_trigger_code=", "reason=", "gate="} {
@@ -111,26 +111,26 @@ func TestArtifactsRouteUsesTypedReadAndInspectableModes(t *testing.T) {
 	inspector := surface.Regions.Inspector.Body
 
 	mustContainAll(t, inspector,
-		"Summary: artifact=diffs for run-1 class=diffs bytes=128",
-		"Identity: artifact=diffs for run-1 digest=sha256:bbbbbbbbbbbb",
-		"Status: evidence_trail=run:run-1 -> artifact:sha256:bbbbbbbbbbbb -> audit -> verification posture",
+		"Summary: diffs for run-1 ready to inspect.",
+		"Identity: Artifact diffs for run-1 • digest sha256:bbbbbbbbbbbb",
+		"Status: From run run-1 • open Audit next for final checks or receipts",
 		"Local actions: jump:runs | jump:audit | copy:digest | copy:provenance_receipt | copy:artifact_preview",
 		"Copy actions: artifact digest | provenance receipt | artifact preview",
 		"Evidence label: diffs for run-1",
-		"Evidence trail: run run-1 -> artifact diffs for run-1 -> Audit for verification posture and anch",
+		"Evidence trail: run run-1 -> artifact diffs for run-1 -> Audit for final checks and receipts",
 		"Primary digest display: sha256:bbbbbbbbbbbb (copy raw digest below)",
-		"Typed detail mode:",
+		"Detail mode:",
 		"Inspectable content is supplemental evidence, not authoritative run/approval truth.",
 		"diff preview (secrets redacted):",
 		"token=[REDACTED]",
 	)
 	mustContainAll(t, view,
 		"Evidence workspace",
-		"Evidence path: run run-1 → diffs for run-1 → Audit for verification posture and anchoring.",
+		"Evidence path: run run-1 -> diffs for run-1 -> Audit review and receipts.",
 		"Filter: all artifact classes",
 		"diffs for run-1 sha256:bbbbbbbbbbbb • 128 bytes plain text preview",
 	)
-	if strings.Contains(view, "Summary: artifact=diffs for run-1") {
+	if strings.Contains(view, "Summary: diffs for run-1 ready to inspect.") {
 		t.Fatalf("expected artifact detail only in inspector region, got %q", view)
 	}
 	for _, banned := range []string{"Modes:", "class=", "bytes=", "run="} {
@@ -262,8 +262,8 @@ func TestAuditRouteInspectorShowsBoundedTrailAndCopyableDigest(t *testing.T) {
 	mustContainAll(t, inspector,
 		"Copy actions: record digest | linked references | raw block",
 		"Primary digest display: sha256:aaaaaaaaaaaa (copy raw digest below)",
-		"Evidence trail: workflow result -> artifacts -> audit records -> verification posture",
-		"Trust posture: broker-linked references stay authoritative",
+		"Evidence trail: workflow result -> artifacts -> audit record -> final checks",
+		"Trust posture: linked records stay authoritative",
 	)
 	view := updated.View(120, 40, focusContent)
 	if !strings.Contains(view, "Run state changed • sha256:aaaaaaaaaaaa • verification degraded") {
@@ -344,7 +344,7 @@ func TestApprovalsReloadKeepsSelectedDetailAligned(t *testing.T) {
 		t.Fatalf("expected ap-2 to remain selected after reload, got %q", view)
 	}
 	surface := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
-	if !strings.Contains(surface.Regions.Inspector.Body, "Exact gated object/action: run run-2 • stage stage-2 • action=stage_summary_sign_off") {
+	if !strings.Contains(surface.Regions.Inspector.Body, "What is gated: run run-2 • stage stage-2 • stage summary sign off") {
 		t.Fatalf("expected ap-2 detail to remain active after reload, got %q", surface.Regions.Inspector.Body)
 	}
 }
@@ -419,7 +419,7 @@ func TestApprovalsReloadFallsBackWhenSelectedApprovalDisappears(t *testing.T) {
 	if !strings.Contains(view, "> ap-1") {
 		t.Fatalf("expected fallback selection to available approval, got %q", view)
 	}
-	if !strings.Contains(updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body, "approval=ap-1") {
+	if !strings.Contains(updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body, "Approval ap-1") {
 		t.Fatalf("expected fallback detail for ap-1, got %q", updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body)
 	}
 }
@@ -444,7 +444,7 @@ func TestArtifactsReloadFallsBackWhenSelectedArtifactDisappears(t *testing.T) {
 	if !strings.Contains(view, "> diffs for run-1 sha256:bbbbbbbbbbbb • 128 bytes plain text preview") {
 		t.Fatalf("expected fallback selection to first available artifact, got %q", view)
 	}
-	if !strings.Contains(updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body, "artifact=diffs for run-1") {
+	if !strings.Contains(updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body, "Artifact diffs for run-1") {
 		t.Fatalf("expected fallback detail for first artifact, got %q", updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body)
 	}
 }

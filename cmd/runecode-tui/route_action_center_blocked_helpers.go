@@ -56,7 +56,7 @@ func blockedImpactDisposition(run brokerapi.RunSummary) (string, routeLoadState,
 func blockedImpactReason(run brokerapi.RunSummary, blockedCount int) string {
 	reasonParts := []string{fmt.Sprintf("Lifecycle is %s", humanizeExecutionToken(run.LifecycleState))}
 	if strings.TrimSpace(run.BlockingReasonCode) != "" {
-		reasonParts = append(reasonParts, fmt.Sprintf("reason is %s", humanizeExecutionToken(run.BlockingReasonCode)))
+		reasonParts = append(reasonParts, humanizeExecutionToken(run.BlockingReasonCode))
 	}
 	if blockedCount > 0 {
 		reasonParts = append(reasonParts, fmt.Sprintf("%d approval queue item(s) are linked", blockedCount))

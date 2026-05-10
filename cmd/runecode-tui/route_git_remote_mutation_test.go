@@ -19,12 +19,12 @@ func TestGitRemoteMutationRouteLoadsPreparedReviewState(t *testing.T) {
 	for _, want := range []string{
 		"Git Remote Mutation",
 		"Guarded remote review",
-		"Prepared change:",
+		"Planned change:",
 		"Target:",
-		"Approval state:",
-		"Credential lease:",
+		"Approval check:",
+		"Execution access:",
 		"Next safe action:",
-		"Safety: execute remains fail-closed",
+		"Safety: RuneCode keeps execution blocked",
 	} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("view missing %q in %q", want, view)

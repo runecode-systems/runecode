@@ -35,7 +35,7 @@ func approvalResolveSummary(summary brokerapi.ApprovalSummary, detail brokerapi.
 	}
 	switch strings.TrimSpace(summary.BoundScope.ActionKind) {
 	case "promotion":
-		return "unavailable here because promotion approvals must be completed in the promotion flow to preserve exact binding"
+		return "continue in the promotion flow after review"
 	default:
 		return "unavailable here because this approval type does not have a supported typed resolve path in the current TUI"
 	}
@@ -167,7 +167,7 @@ func approvalNextAction(summary brokerapi.ApprovalSummary, detail brokerapi.Appr
 	if approvalResolveSupported(summary, detail) {
 		return "resolve it here if the evidence supports the requested change"
 	}
-	return "follow the linked workflow-specific route because resolve is unavailable here"
+	return "continue in the linked route after review"
 }
 
 func approvalFollowUpRoute(summary brokerapi.ApprovalSummary) string {

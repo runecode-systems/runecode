@@ -22,12 +22,12 @@ func TestAuditRouteShowsPagedTimelineAndVerificationReasonCodes(t *testing.T) {
 
 	mustContainAll(t, view,
 		"Verification trail",
-		"Audit posture",
+		"Audit health",
 		"Evidence workbench",
 		"Finalize/verify: unavailable",
-		"UNANCHORED_OR_DEGRADED_AUDIT",
+		"Receipts need review",
 		"Timeline: page 1 • 1 records • next page available • back 0",
-		"anchoring=degraded (unanchored/degraded)",
+		"receipts=degraded (unanchored/degraded)",
 		"Evidence trail:",
 		"Findings to review:",
 		"anchor_receipt_missing • warning • anchoring",
@@ -59,10 +59,10 @@ func TestAuditRouteShowsPagedTimelineAndVerificationReasonCodes(t *testing.T) {
 	if !strings.Contains(inspector, "Copy actions: record digest | linked references | raw block") {
 		t.Fatalf("expected copy actions after loading record detail, got %q", inspector)
 	}
-	if !strings.Contains(inspector, "Verification posture: degraded (unanchored/degraded)") {
+	if !strings.Contains(inspector, "Audit health: degraded (unanchored/degraded)") {
 		t.Fatalf("expected record inspector posture rendering, got %q", inspector)
 	}
-	if !strings.Contains(inspector, "Evidence trail: workflow result -> artifacts -> audit records -> verification posture -> export/") {
+	if !strings.Contains(inspector, "Evidence trail: workflow result -> artifacts -> audit record -> final checks -> offline review") {
 		t.Fatalf("expected evidence trail guidance in inspector, got %q", inspector)
 	}
 }
@@ -73,7 +73,7 @@ func TestRenderAuditSafetyAlertStripUsesVerifierAnchoringStatusOnly(t *testing.T
 		IntegrityStatus:   "ok",
 		CurrentlyDegraded: true,
 	}})
-	if !strings.Contains(strip, "UNANCHORED_OR_DEGRADED_AUDIT") {
+	if !strings.Contains(strip, "Receipts need review") {
 		t.Fatalf("expected degraded badge when currently_degraded=true, got %q", strip)
 	}
 
@@ -97,13 +97,13 @@ func TestStatusRouteExplainsDegradedSubsystemPosture(t *testing.T) {
 	view := updated.View(120, 40, focusContent)
 
 	mustContainAll(t, view,
-		"Runtime/audit readiness strip",
-		"RUNTIME_POSTURE_AUTH_UNAVAILABLE",
-		"AUDIT_STORAGE_NOMINAL",
-		"Overview: • broker reachable • normal work available • local broker mode",
-		"Broker health: attention needed for runtime verification material is unavailable.",
-		"Version posture: RuneCode 0.1.0",
-		"protocol bundle 0.9.0",
+		"System health",
+		"Runtime proof missing",
+		"Audit ready",
+		"Overview: • broker connected • normal work available • local workspace mode",
+		"Broker health: runtime verification material is unavailable.",
+		"Version: RuneCode 0.1.0",
+		"protocol 0.9.0",
 	)
 }
 

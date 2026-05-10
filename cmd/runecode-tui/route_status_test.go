@@ -20,8 +20,8 @@ func TestStatusRouteRendersProjectSubstratePostureAndGuidance(t *testing.T) {
 	mustContainAll(t, view,
 		"Managed operation",
 		"Attach and normal managed operation are available.",
-		"Overview: • broker reachable • normal work available • local broker mode",
-		"Setup posture: setup validated • supported with an upgrade available",
+		"Overview: • broker connected • normal work available • local workspace mode",
+		"Setup: setup validated • upgrade available",
 		"Managed-operation summary:",
 		"full managed access",
 		"Normal work is available now",
@@ -282,8 +282,8 @@ func TestStatusRouteRendersDiagnosticsOnlyAttachGuidanceWhenNormalOperationBlock
 		"You can attach for diagnostics and remediation only; managed work stays blocked.",
 		"diagnostics-only access",
 		"Attach is available for inspection and remediation",
-		"Managed-operation blockers: project_substrate_unsupported_too_new",
-		"Managed-operation watchouts: project_substrate_upgrade_available",
+		"Managed-operation blockers: project substrate unsupported too new",
+		"Managed-operation watchouts: project substrate upgrade available",
 	)
 }
 
@@ -344,6 +344,6 @@ func TestStatusRouteRendersBlockedProjectSubstrateGuidance(t *testing.T) {
 		"no compatible setup detected",
 		"Normal work stays blocked until setup is fixed",
 		"What blocks normal work: normal operation blocked by project substrate posture: project_substrate_missing",
-		"Broker guidance: inspect_project_substrate_posture,initialize_canonical_runecontext_substrate,revalidate_project_substrate",
+		"Broker guidance: inspect project substrate posture, initialize canonical runecontext substrate, revalidate project substrate",
 	)
 }

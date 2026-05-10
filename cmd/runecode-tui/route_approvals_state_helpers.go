@@ -100,7 +100,7 @@ func approvalPrimaryReason(summary brokerapi.ApprovalSummary, detail brokerapi.A
 			return fmt.Sprintf("approval required before %s can continue; broker validation still requires operator confirmation", approvalDisplayLabel(summary))
 		}
 		if policy != "" {
-			return fmt.Sprintf("policy requires operator review before %s can continue (%s)", approvalDisplayLabel(summary), policy)
+			return fmt.Sprintf("policy requires operator review before %s can continue", approvalDisplayLabel(summary))
 		}
 		if trigger != "" {
 			return fmt.Sprintf("workflow is waiting on an approval gate triggered by %s", trigger)
@@ -170,7 +170,7 @@ func approvalExactObjectAction(summary brokerapi.ApprovalSummary, detail brokera
 	}
 	action := valueOrNA(strings.TrimSpace(scope.ActionKind))
 	if len(parts) == 0 {
-		return "action=" + action
+		return humanizeExecutionToken(action)
 	}
-	return strings.Join(parts, " • ") + " • action=" + action
+	return strings.Join(parts, " • ") + " • " + humanizeExecutionToken(action)
 }

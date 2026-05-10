@@ -51,14 +51,17 @@ func buildApprovalActionItems(items []brokerapi.ApprovalSummary, now time.Time) 
 		if urgency == "critical" {
 			state = routeLoadStateBlocked
 		}
-		reasons := []string{fmt.Sprintf("Approval is %s", humanizeExecutionToken(ap.Status)), fmt.Sprintf("triggered by %s", humanizeExecutionToken(ap.ApprovalTriggerCode))}
+		reasons := []string{fmt.Sprintf("Approval is %s", humanizeExecutionToken(ap.Status))}
+		if trigger := strings.TrimSpace(ap.ApprovalTriggerCode); trigger != "" {
+			reasons = append(reasons, fmt.Sprintf("triggered by %s", humanizeExecutionToken(trigger)))
+		}
 		if staleCue != "fresh" {
 			reasons = append(reasons, humanizeExecutionToken(staleCue))
 		}
 		if expiryCue != "no_expiry" {
 			reasons = append(reasons, humanizeExecutionToken(expiryCue))
 		}
-		impact := fmt.Sprintf("Workflow progress stays gated for run %s stage %s action %s until this decision is resolved.", valueOrNA(ap.BoundScope.RunID), valueOrNA(ap.BoundScope.StageID), valueOrNA(ap.BoundScope.ActionKind))
+		impact := fmt.Sprintf("Workflow progress stays gated for run %s stage %s until this decision is resolved.", valueOrNA(ap.BoundScope.RunID), valueOrNA(ap.BoundScope.StageID))
 		targetLabel := fmt.Sprintf("Approvals › %s", approvalID)
 		evidence := fmt.Sprintf("source=approval_summary approval_id=%s run=%s", approvalID, valueOrNA(ap.BoundScope.RunID))
 		out = append(out, actionCenterItem{
@@ -150,7 +153,7 @@ func operationalSyncHealthItem(health shellSyncHealth) []actionCenterItem {
 		Title:          "shell watch sync health",
 		State:          routeLoadStateDegraded,
 		Urgency:        urgency,
-		Reason:         fmt.Sprintf("Watch sync is %s; last error: %s.", humanizeExecutionToken(string(health.State)), defaultPlaceholder(health.ErrorText, "n/a")),
+		Reason:         fmt.Sprintf("Watch sync is %s.", humanizeExecutionToken(string(health.State))),
 		Impact:         "Live operator follow-up coverage is degraded until shell watch sync recovers.",
 		Owner:          "owner: operator checks broker connectivity",
 		RequiredAction: "Open Status to confirm broker connectivity and sync posture before relying on live updates.",
@@ -174,7 +177,7 @@ func operationalWatchFamilyItems(watch dashboardLiveActivity) []actionCenterItem
 			Title:          fmt.Sprintf("watch family %s", valueOrNA(family.family)),
 			State:          routeLoadStateDegraded,
 			Urgency:        urgency,
-			Reason:         fmt.Sprintf("%s reported %d error(s); last status %s; subject %s.", humanizeExecutionToken(family.family), family.errorCount, humanizeExecutionToken(family.lastStatus), valueOrNA(family.lastSubject)),
+			Reason:         fmt.Sprintf("%s reported %d error(s); last status %s.", humanizeExecutionToken(family.family), family.errorCount, humanizeExecutionToken(family.lastStatus)),
 			Impact:         "Operator follow-up cues from this watch family may be incomplete or stale.",
 			Owner:          "owner: operator verifies watch health",
 			RequiredAction: "Use Dashboard live activity and Status to confirm whether watch degradation is transient or ongoing.",
@@ -192,7 +195,7 @@ func operationalAuditItems(audit *brokerapi.AuditVerificationGetResponse, auditE
 			Title:          "audit verification unavailable",
 			State:          routeLoadStateDegraded,
 			Urgency:        "high",
-			Reason:         fmt.Sprintf("Audit verification load failed: %s", auditErr),
+			Reason:         fmt.Sprintf("Audit verification could not be loaded: %s", auditErr),
 			Impact:         "Evidence posture is shown with degraded fallback until broker verification becomes available again.",
 			Owner:          "owner: operator verifies evidence health",
 			RequiredAction: "Open Audit to confirm the fallback posture and verify whether the broker audit surface has recovered.",
@@ -216,7 +219,7 @@ func operationalAuditItems(audit *brokerapi.AuditVerificationGetResponse, auditE
 		Title:          "audit verification posture",
 		State:          routeLoadStateDegraded,
 		Urgency:        urgency,
-		Reason:         fmt.Sprintf("Integrity is %s, anchoring is %s, and evidence currently needs review: %t.", humanizeExecutionToken(s.IntegrityStatus), humanizeExecutionToken(s.AnchoringStatus), s.CurrentlyDegraded),
+		Reason:         fmt.Sprintf("Integrity is %s, receipts are %s, and evidence needs review.", humanizeExecutionToken(s.IntegrityStatus), humanizeExecutionToken(s.AnchoringStatus)),
 		Impact:         fmt.Sprintf("Evidence confidence is reduced; %d hard failure(s) and %d degraded reason(s) are available in Audit.", len(s.HardFailures), len(s.DegradedReasons)),
 		Owner:          "owner: operator reviews evidence posture",
 		RequiredAction: "Open Audit to inspect the degraded or failed evidence details before treating the trail as healthy.",

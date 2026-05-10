@@ -19,7 +19,7 @@ func TestGitSetupRouteViewUsesGuidedSummaries(t *testing.T) {
 	for _, want := range []string{
 		"Provider link:",
 		"Commit identity:",
-		"Review safety:",
+		"Review posture:",
 		"Next safe action:",
 	} {
 		if !strings.Contains(view, want) {
