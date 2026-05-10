@@ -117,15 +117,26 @@ func TestArtifactsRouteUsesTypedReadAndInspectableModes(t *testing.T) {
 		"Local actions: jump:runs | jump:audit | copy:digest | copy:provenance_receipt | copy:artifact_preview",
 		"Copy actions: artifact digest | provenance receipt | artifact preview",
 		"Evidence label: diffs for run-1",
-		"Evidence trail: workflow result/run run-1 -> artifact diffs for run-1 -> audit records -> verifi",
+		"Evidence trail: run run-1 -> artifact diffs for run-1 -> Audit for verification posture and anch",
 		"Primary digest display: sha256:bbbbbbbbbbbb (copy raw digest below)",
 		"Typed detail mode:",
 		"Inspectable content is supplemental evidence, not authoritative run/approval truth.",
 		"diff preview (secrets redacted):",
 		"token=[REDACTED]",
 	)
+	mustContainAll(t, view,
+		"Evidence workspace",
+		"Evidence path: run run-1 → diffs for run-1 → Audit for verification posture and anchoring.",
+		"Filter: all artifact classes",
+		"diffs for run-1 sha256:bbbbbbbbbbbb • 128 bytes plain text preview",
+	)
 	if strings.Contains(view, "Summary: artifact=diffs for run-1") {
 		t.Fatalf("expected artifact detail only in inspector region, got %q", view)
+	}
+	for _, banned := range []string{"Modes:", "class=", "bytes=", "run="} {
+		if strings.Contains(view, banned) {
+			t.Fatalf("expected %q to stay out of rendered artifacts pane, got %q", banned, view)
+		}
 	}
 
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'m'}})
@@ -354,7 +365,7 @@ func TestArtifactsReloadKeepsSelectedDetailAligned(t *testing.T) {
 	updated, _ = updated.Update(cmd())
 
 	view := updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "> build_logs for run-2 sha256:cccccccccccc") {
+	if !strings.Contains(view, "> build logs for run-2 sha256:cccccccccccc • 256 bytes plain text preview") {
 		t.Fatalf("expected second artifact to remain selected after reload, got %q", view)
 	}
 	surface := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
@@ -430,7 +441,7 @@ func TestArtifactsReloadFallsBackWhenSelectedArtifactDisappears(t *testing.T) {
 	if strings.Contains(view, "Load failed") {
 		t.Fatalf("expected graceful fallback instead of load failure, got %q", view)
 	}
-	if !strings.Contains(view, "> diffs for run-1 sha256:bbbbbbbbbbbb") {
+	if !strings.Contains(view, "> diffs for run-1 sha256:bbbbbbbbbbbb • 128 bytes plain text preview") {
 		t.Fatalf("expected fallback selection to first available artifact, got %q", view)
 	}
 	if !strings.Contains(updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide}).Regions.Inspector.Body, "artifact=diffs for run-1") {

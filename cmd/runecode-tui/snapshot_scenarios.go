@@ -31,6 +31,7 @@ func resolveSnapshotScenarios(name string) ([]snapshotScenarioState, error) {
 		buildRunsSnapshot(),
 		buildApprovalsSnapshot(),
 		buildActionCenterSnapshot(),
+		buildArtifactsSnapshot(),
 		buildAuditSnapshot(),
 		buildStatusSnapshot(),
 		buildProviderSetupSnapshot(),
@@ -229,6 +230,35 @@ func buildApprovalsSnapshot() snapshotScenarioState {
 	active := &brokerapi.ApprovalGetResponse{Approval: brokerapi.ApprovalSummary{ApprovalID: "ap-1", Status: "pending", ApprovalTriggerCode: "policy_gate", BoundScope: brokerapi.ApprovalBoundScope{WorkspaceID: "ws-1", RunID: "run-1", StageID: "stage-1", ActionKind: "promotion"}}, ApprovalDetail: brokerapi.ApprovalDetail{BindingKind: "exact_action", PolicyReasonCode: "requires_human_review", LifecycleDetail: brokerapi.ApprovalLifecycleDetail{LifecycleState: "pending", LifecycleReasonCode: "awaiting_decision"}, WhatChangesIfApproved: brokerapi.ApprovalWhatChangesIfApproved{Summary: "Promotion continues", EffectKind: "unblock_next_stage"}, BlockedWorkScope: brokerapi.ApprovalBlockedWorkScope{ScopeKind: "stage", RunID: "run-1", StageID: "stage-1", ActionKind: "promotion"}, BoundIdentity: brokerapi.ApprovalBoundIdentity{ApprovalRequestDigest: "sha256:req", ManifestHash: "sha256:manifest", PolicyDecisionHash: "sha256:policy"}}}
 	approvals := approvalsRouteModel{def: routeDefinition{ID: routeApprovals, Label: "Approvals"}, items: []brokerapi.ApprovalSummary{active.Approval}, selected: 0, active: active, inspectorOn: true, presentation: presentationRendered, detailDoc: newLongFormDocumentState()}
 	return snapshotScenarioState{Name: "approvals-pending-detail", RouteID: routeApprovals, Surface: approvals, Sessions: defaultSnapshotSessions(), Watch: watch, Theme: themePresetDark, Focus: focusContent}
+}
+
+func buildArtifactsSnapshot() snapshotScenarioState {
+	watch := snapshotWatchApprovalWaiting()
+	selected := brokerapi.ArtifactSummary{RunID: "run-1"}
+	selected.Reference.Digest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	selected.Reference.ContentType = "text/plain"
+	selected.Reference.DataClass = "diffs"
+	selected.Reference.SizeBytes = 128
+	selected.Reference.ProvenanceReceiptHash = "sha256:receipt"
+	other := brokerapi.ArtifactSummary{RunID: "run-1"}
+	other.Reference.Digest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	other.Reference.ContentType = "text/plain"
+	other.Reference.DataClass = "build_logs"
+	other.Reference.SizeBytes = 256
+	other.Reference.ProvenanceReceiptHash = "sha256:receipt-2"
+	artifacts := artifactsRouteModel{
+		def:          routeDefinition{ID: routeArtifacts, Label: "Artifacts"},
+		items:        []brokerapi.ArtifactSummary{selected, other},
+		selected:     0,
+		active:       &brokerapi.LocalArtifactHeadResponse{Artifact: selected},
+		content:      "diff --git a/docs/plan.md b/docs/plan.md\n+Evidence trail copy now points reviewers to Audit\n+Anchoring receipt attached: sha256:receipt\n-result: pending approval\n",
+		mode:         artifactModeDiff,
+		presentation: presentationRendered,
+		inspectorOn:  true,
+		detailDoc:    newLongFormDocumentState(),
+	}
+	artifacts.syncDetailDocument()
+	return snapshotScenarioState{Name: "artifacts-evidence-detail", RouteID: routeArtifacts, Surface: artifacts, Sessions: defaultSnapshotSessions(), Watch: watch, Theme: themePresetDark, Focus: focusContent}
 }
 
 func buildAuditSnapshot() snapshotScenarioState {

@@ -20,7 +20,7 @@ func renderArtifactList(items []brokerapi.ArtifactSummary, selected int) string 
 		if i == selected {
 			marker = ">"
 		}
-		line += selectedLine(i == selected, fmt.Sprintf("  %s %s class=%s bytes=%d run=%s", marker, item.Reference.Digest, item.Reference.DataClass, item.Reference.SizeBytes, item.RunID)) + "\n"
+		line += selectedLine(i == selected, fmt.Sprintf("  %s %s", marker, renderArtifactDirectoryRow(item))) + "\n"
 	}
 	return line
 }
@@ -28,9 +28,21 @@ func renderArtifactList(items []brokerapi.ArtifactSummary, selected int) string 
 func renderArtifactDirectoryItems(items []brokerapi.ArtifactSummary) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {
-		out = append(out, fmt.Sprintf("%s %s class=%s bytes=%d %s", artifactDisplayLabel(item), shortIdentity(item.Reference.Digest), item.Reference.DataClass, item.Reference.SizeBytes, artifactRunLabel(item.RunID)))
+		out = append(out, renderArtifactDirectoryRow(item))
 	}
 	return out
+}
+
+func renderArtifactDirectoryRow(item brokerapi.ArtifactSummary) string {
+	parts := []string{artifactDisplayLabel(item), shortIdentity(item.Reference.Digest)}
+	meta := []string{}
+	if preview := artifactPreviewIdentity(item.Reference.SizeBytes, item.Reference.ContentType); preview != "" {
+		meta = append(meta, preview)
+	}
+	if len(meta) > 0 {
+		parts = append(parts, "• "+strings.Join(meta, " • "))
+	}
+	return strings.Join(parts, " ")
 }
 
 func renderArtifactInspector(head *brokerapi.LocalArtifactHeadResponse, mode artifactDetailMode, presentation contentPresentationMode, content, contentErr string, document *longFormDocumentState) string {
@@ -49,7 +61,7 @@ func renderArtifactInspector(head *brokerapi.LocalArtifactHeadResponse, mode art
 	document.SetDocument(workbenchObjectRef{Kind: "artifact", ID: strings.TrimSpace(a.Reference.Digest)}, kind, fmt.Sprintf("%s content", mode), compactLines(
 		fmt.Sprintf("Evidence label: %s", artifactDisplayLabel(a)),
 		fmt.Sprintf("Data class: %s", a.Reference.DataClass),
-		fmt.Sprintf("Evidence trail: workflow result/run %s -> artifact %s -> audit records -> verification posture -> export/offline verification or anchoring where available", valueOrNA(a.RunID), artifactDisplayLabel(a)),
+		fmt.Sprintf("Evidence trail: run %s -> artifact %s -> Audit for verification posture and anchoring context", valueOrNA(a.RunID), artifactDisplayLabel(a)),
 		fmt.Sprintf("Primary digest display: %s (copy raw digest below)", shortIdentity(a.Reference.Digest)),
 		fmt.Sprintf("Typed detail mode: %s (metadata remains control-plane truth)", mode),
 		fmt.Sprintf("Presentation mode: %s", presentation),
@@ -237,7 +249,7 @@ func (m *artifactsRouteModel) syncDetailDocument() {
 	content := compactLines(
 		fmt.Sprintf("Evidence label: %s", artifactDisplayLabel(a)),
 		fmt.Sprintf("Data class: %s", a.Reference.DataClass),
-		fmt.Sprintf("Evidence trail: workflow result/run %s -> artifact %s -> audit records -> verification posture -> export/offline verification or anchoring where available", valueOrNA(a.RunID), artifactDisplayLabel(a)),
+		fmt.Sprintf("Evidence trail: run %s -> artifact %s -> Audit for verification posture and anchoring context", valueOrNA(a.RunID), artifactDisplayLabel(a)),
 		fmt.Sprintf("Primary digest display: %s (copy raw digest below)", shortIdentity(a.Reference.Digest)),
 		fmt.Sprintf("Typed detail mode: %s (metadata remains control-plane truth)", mode),
 		fmt.Sprintf("Presentation mode: %s", presentation),
@@ -251,26 +263,26 @@ func (m *artifactsRouteModel) syncDetailDocument() {
 
 func renderArtifactOverviewCard(head *brokerapi.LocalArtifactHeadResponse, classFilter string) string {
 	if head == nil {
-		message := "Select an artifact to inspect the evidence trail from workflow result to audit verification."
+		message := "Select evidence to review what the run produced before you continue to Audit."
 		if strings.TrimSpace(classFilter) != "" {
-			message = fmt.Sprintf("Select an artifact in class %q to inspect the evidence trail from workflow result to audit verification.", classFilter)
+			message = fmt.Sprintf("Select %s evidence to review what the run produced before you continue to Audit.", artifactClassLabel(classFilter))
 		}
-		return renderStateCardSpec(stateCardSpec{State: routeLoadStateWaiting, Title: "Evidence trail", Message: message, Reason: "No artifact detail is loaded yet.", NextAction: "Choose an artifact, then continue to Audit for verification posture and anchoring.", ShortcutCue: "enter", RouteCue: "Artifacts → Audit"})
+		return renderStateCardSpec(stateCardSpec{State: routeLoadStateWaiting, Title: "Evidence workspace", Message: message, Reason: "No evidence is open yet.", NextAction: "Choose an artifact, then continue to Audit for verification posture and anchoring.", ShortcutCue: "enter", RouteCue: "Artifacts → Audit"})
 	}
 	a := head.Artifact
-	return renderStateCardSpec(stateCardSpec{State: routeLoadStateReady, Title: "Evidence trail", Message: fmt.Sprintf("%s is ready for inspection.", artifactDisplayLabel(a)), Reason: fmt.Sprintf("This artifact belongs to run %s and carries broker metadata plus copyable raw digests.", valueOrNA(a.RunID)), NextAction: "Inspect content here, then open Audit to review verification posture, export, or anchoring actions.", ShortcutCue: "enter / m", RouteCue: "Audit"})
+	return renderStateCardSpec(stateCardSpec{State: routeLoadStateReady, Title: "Evidence workspace", Message: fmt.Sprintf("%s is ready to inspect.", artifactDisplayLabel(a)), Reason: fmt.Sprintf("Artifact class %s from run %s with %s ready in the inspector.", artifactClassLabel(a.Reference.DataClass), valueOrNA(a.RunID), artifactPreviewIdentity(a.Reference.SizeBytes, a.Reference.ContentType)), NextAction: "Review the evidence here, then open Audit to confirm verification posture, export, or anchoring actions.", ShortcutCue: "enter / m", RouteCue: "Audit"})
 }
 
 func renderArtifactEvidenceTrail(head *brokerapi.LocalArtifactHeadResponse) string {
 	if head == nil {
-		return "Evidence path: workflow result -> artifact -> audit record -> verification posture -> export/offline verification or anchoring where available"
+		return "Evidence path: run result → artifact evidence → Audit verification and anchoring."
 	}
 	a := head.Artifact
-	return fmt.Sprintf("Evidence path: workflow result/run %s -> artifact %s (%s) -> Audit -> verification posture -> export/offline verification or anchoring where available", valueOrNA(a.RunID), artifactDisplayLabel(a), shortIdentity(a.Reference.Digest))
+	return fmt.Sprintf("Evidence path: run %s → %s → Audit for verification posture and anchoring.", valueOrNA(a.RunID), artifactDisplayLabel(a))
 }
 
 func artifactDisplayLabel(item brokerapi.ArtifactSummary) string {
-	class := strings.TrimSpace(fmt.Sprintf("%v", item.Reference.DataClass))
+	class := artifactClassLabel(item.Reference.DataClass)
 	run := strings.TrimSpace(item.RunID)
 	if class != "" && run != "" {
 		return fmt.Sprintf("%s for %s", class, run)
@@ -281,10 +293,60 @@ func artifactDisplayLabel(item brokerapi.ArtifactSummary) string {
 	return shortIdentity(item.Reference.Digest)
 }
 
-func artifactRunLabel(runID string) string {
+func renderArtifactClassFilterLine(classFilter string) string {
+	classFilter = strings.TrimSpace(classFilter)
+	if classFilter == "" {
+		return "Filter: all artifact classes"
+	}
+	return "Filter: " + artifactClassLabel(classFilter)
+}
+
+func artifactClassLabel(dataClass any) string {
+	value := strings.TrimSpace(fmt.Sprintf("%v", dataClass))
+	if value == "" {
+		return ""
+	}
+	return humanizeExecutionToken(value)
+}
+
+func artifactSourceRunLabel(runID string) string {
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
 		return ""
 	}
-	return "run=" + runID
+	return "source run " + runID
+}
+
+func artifactPreviewIdentity(sizeBytes int64, contentType string) string {
+	parts := []string{}
+	if sizeBytes > 0 {
+		parts = append(parts, fmt.Sprintf("%d bytes", sizeBytes))
+	}
+	if label := artifactContentTypeLabel(contentType); label != "" {
+		parts = append(parts, label)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, " ") + " preview"
+}
+
+func artifactContentTypeLabel(contentType string) string {
+	contentType = strings.ToLower(strings.TrimSpace(contentType))
+	if contentType == "" {
+		return ""
+	}
+	if idx := strings.Index(contentType, ";"); idx >= 0 {
+		contentType = strings.TrimSpace(contentType[:idx])
+	}
+	switch contentType {
+	case "text/plain":
+		return "plain text"
+	case "text/markdown":
+		return "markdown"
+	case "application/json":
+		return "json"
+	default:
+		return contentType
+	}
 }

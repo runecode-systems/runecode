@@ -54,20 +54,21 @@ func resolveSnapshotBundle(name string) (snapshotBundleSpec, error) {
 				"runs-active-detail",
 				"approvals-pending-detail",
 				"action-center-triage",
+				"artifacts-evidence-detail",
 				"audit-degraded-detail",
 				"status-ready-overview",
 				"model-providers-credential-needed",
 				"git-setup-identity-needed",
 				"git-remote-approval-ready",
 			},
-			Routes: []routeID{routeDashboard, routeChat, routeRuns, routeApprovals, routeAction, routeAudit, routeStatus, routeProviders, routeGitSetup, routeGitRemote},
+			Routes: []routeID{routeDashboard, routeChat, routeRuns, routeApprovals, routeAction, routeArtifacts, routeAudit, routeStatus, routeProviders, routeGitSetup, routeGitRemote},
 		}, nil
 	case snapshotBundleDashboard:
 		return snapshotBundleSpec{Name: snapshotBundleDashboard, Scenarios: []string{"dashboard-healthy-empty", "dashboard-approval-waiting", "dashboard-blocked", "dashboard-degraded"}, Routes: []routeID{routeDashboard}}, nil
 	case snapshotBundleActionCenter:
 		return snapshotBundleSpec{Name: snapshotBundleActionCenter, Scenarios: []string{"action-center-triage"}, Routes: []routeID{routeAction}}, nil
 	case snapshotBundleRuns:
-		return snapshotBundleSpec{Name: snapshotBundleRuns, Scenarios: []string{"runs-active-detail"}, Routes: []routeID{routeRuns}}, nil
+		return snapshotBundleSpec{Name: snapshotBundleRuns, Scenarios: []string{"runs-active-detail", "artifacts-evidence-detail"}, Routes: []routeID{routeRuns, routeArtifacts}}, nil
 	case snapshotBundleApprovals:
 		return snapshotBundleSpec{Name: snapshotBundleApprovals, Scenarios: []string{"approvals-pending-detail"}, Routes: []routeID{routeApprovals}}, nil
 	case snapshotBundleAudit:

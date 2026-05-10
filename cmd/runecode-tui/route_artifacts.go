@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -157,14 +156,12 @@ func (m artifactsRouteModel) View(width, height int, focus focusArea) string {
 		sectionTitle("Artifacts") + " " + focusBadge(focus),
 		renderArtifactOverviewCard(m.active, artifactClassFilters[m.classIndex]),
 		renderArtifactEvidenceTrail(m.active),
-		fmt.Sprintf("Filter: evidence class=%q", artifactClassFilters[m.classIndex]),
-		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
+		renderArtifactClassFilterLine(artifactClassFilters[m.classIndex]),
 		renderDirectory("Artifact directory", renderArtifactDirectoryItems(m.items), m.selected),
 	}
 	if len(m.items) == 0 {
 		body = append(body, muted("No artifacts match the current class filter; switch filters or reload after new evidence arrives."))
 	}
-	body = append(body, keyHint("Keys: j/k move, enter detail, [/] filter, m detail view, v mode, r reload"))
 	return compactLines(body...)
 }
 
@@ -195,8 +192,6 @@ func (m artifactsRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
 		Chrome:       routeSurfaceChrome{Breadcrumbs: breadcrumbs},
 		Actions: routeSurfaceActions{
-			ModeTabs:         []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
-			ActiveTab:        string(normalizePresentationMode(m.presentation)),
 			CopyActions:      artifactRouteCopyActions(m.active, m.content),
 			ReferenceActions: artifactInspectorReferenceActions(m.active),
 			LocalActions:     artifactInspectorLocalActions(),
