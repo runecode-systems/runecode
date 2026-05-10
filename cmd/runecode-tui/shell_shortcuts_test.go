@@ -9,15 +9,22 @@ import (
 
 func TestHelpRenderedFromRealKeyBindings(t *testing.T) {
 	m := newShellModel()
+	m.width = 150
+	m.height = 40
 	help := renderHelp(defaultShellKeyMap(), false, m.actions)
-	for _, want := range []string{"ctrl+c", "space", "tab", "shift+tab", "ctrl+p", "ctrl+j"} {
-		if !strings.Contains(help, want) {
-			t.Fatalf("expected %q in help, got %q", want, help)
+	if strings.TrimSpace(help) != "" {
+		t.Fatalf("expected footer help removed, got %q", help)
+	}
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	v := updated.(shellModel).View()
+	for _, want := range []string{"space", "tab", "shift+tab", "ctrl+p", "ctrl+j"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("expected %q in leader overlay help, got %q", want, v)
 		}
 	}
 	for _, retired := range []string{"q/ctrl+c", "b/alt+left", "0-9", "pgup", "pgdown"} {
-		if strings.Contains(help, retired) {
-			t.Fatalf("did not expect retired shortcut %q in help, got %q", retired, help)
+		if strings.Contains(v, retired) {
+			t.Fatalf("did not expect retired shortcut %q in leader overlay help, got %q", retired, v)
 		}
 	}
 }

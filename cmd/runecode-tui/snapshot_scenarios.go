@@ -27,6 +27,7 @@ func resolveSnapshotScenarios(name string) ([]snapshotScenarioState, error) {
 		buildApprovalWaitingSnapshot(),
 		buildBlockedSnapshot(),
 		buildDegradedSnapshot(),
+		buildLeaderHelpSnapshot(),
 		buildChatSnapshot(),
 		buildRunsSnapshot(),
 		buildApprovalsSnapshot(),
@@ -42,7 +43,7 @@ func resolveSnapshotScenarios(name string) ([]snapshotScenarioState, error) {
 	case "", "all":
 		return scenarios, nil
 	case "dashboard":
-		return scenarios[:4], nil
+		return scenarios[:5], nil
 	case "action-center":
 		return []snapshotScenarioState{buildActionCenterSnapshot()}, nil
 	default:
@@ -94,6 +95,13 @@ func renderSnapshotScenario(state snapshotScenarioState, cfg tuiSnapshotConfig) 
 		m.applySessionWorkspaceLoaded(sessionWorkspaceLoadedMsg{sessions: append([]brokerapi.SessionSummary(nil), state.Sessions...)})
 		m.applyWatchTransport(state.Watch)
 		m.publishWatchStateToRoutes()
+		if state.Name == "leader-help-root" {
+			m.beginOverlaySession()
+			m.leader.Rebind(m.actions.leaderBindings(m))
+			m.leader.Start()
+			m.setFocus(focusPalette)
+			m.syncOverlayStack()
+		}
 		m.setFocus(state.Focus)
 		m.syncSidebarCursorToLocation()
 		return m.View(), state.RouteID, nil
@@ -203,6 +211,23 @@ func buildActionCenterSnapshot() snapshotScenarioState {
 		audit:     &audit,
 	}
 	return snapshotScenarioState{Name: "action-center-triage", RouteID: routeAction, Surface: action, Sessions: defaultSnapshotSessions(), Watch: watch, Theme: themePresetDark, Focus: focusContent}
+}
+
+func buildLeaderHelpSnapshot() snapshotScenarioState {
+	watch := snapshotWatchBlocked()
+	dashboard := dashboardRouteModel{
+		def: routeDefinition{ID: routeDashboard, Label: "Dashboard"},
+		data: dashboardData{
+			readiness: brokerapi.BrokerReadiness{Ready: true, RecoveryComplete: true},
+			version:   brokerapi.BrokerVersionInfo{ProductVersion: "0.1.0"},
+			project:   brokerapi.ProjectSubstratePostureGetResponse{PostureSummary: brokerapi.ProjectSubstratePostureSummary{SchemaID: "runecode.protocol.v0.ProjectSubstratePostureSummary", ValidationState: "valid", CompatibilityPosture: "supported", NormalOperationAllowed: true}},
+			runs:      []brokerapi.RunSummary{{RunID: "run-blocked", WorkspaceID: "ws-1", LifecycleState: "blocked", BlockingReasonCode: "approval_wait", PendingApprovalCount: 1, BackendKind: "workspace", IsolationAssuranceLevel: "sandboxed", ProvisioningPosture: "attested", AuditIntegrityStatus: "ok", AuditAnchoringStatus: "ok"}},
+			approvals: []brokerapi.ApprovalSummary{{ApprovalID: "ap-blocked", Status: "pending", ApprovalTriggerCode: "policy_gate", BoundScope: brokerapi.ApprovalBoundScope{RunID: "run-blocked", StageID: "stage-1", ActionKind: "promotion"}}},
+			live:      watchProjection(watch).Live,
+			audit:     brokerapi.AuditVerificationGetResponse{Summary: trustpolicy.DerivedRunAuditVerificationSummary{IntegrityStatus: "ok", AnchoringStatus: "ok", CurrentlyDegraded: false}},
+		},
+	}
+	return snapshotScenarioState{Name: "leader-help-root", RouteID: routeDashboard, Surface: dashboard, Sessions: defaultSnapshotSessions(), Watch: watch, Theme: themePresetDark, Focus: focusPalette}
 }
 
 func buildChatSnapshot() snapshotScenarioState {

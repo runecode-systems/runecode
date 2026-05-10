@@ -393,8 +393,8 @@ func TestShellBottomStripCopyHintUsesActionEntryWording(t *testing.T) {
 	m.location.Primary = shellObjectLocation{RouteID: routeRuns, Object: workbenchObjectRef{Kind: "route", ID: string(routeRuns)}}
 
 	bottom := m.renderBottomStrip(m.activeShellSurface())
-	if !strings.Contains(bottom, "Copy via action entry (3)") {
-		t.Fatalf("expected updated copy hint wording, got %q", bottom)
+	if strings.Contains(bottom, "Copy via action entry (3)") {
+		t.Fatalf("expected copy hint removed from collapsed footer, got %q", bottom)
 	}
 	if strings.Contains(bottom, "Y cycles/copies") {
 		t.Fatalf("expected retired Y wording removed from bottom strip, got %q", bottom)
@@ -405,8 +405,8 @@ func TestShellBottomStripSummarizesRouteActionsCalmly(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
 	bottom := m.renderBottomStrip(m.activeShellSurface())
-	if !strings.Contains(bottom, "Route actions:") {
-		t.Fatalf("expected calm route action summary, got %q", bottom)
+	if strings.Contains(bottom, "Route actions:") {
+		t.Fatalf("expected route action summary removed from collapsed footer, got %q", bottom)
 	}
 	if strings.Contains(bottom, "\n") {
 		t.Fatalf("expected one-line route action summary, got %q", bottom)

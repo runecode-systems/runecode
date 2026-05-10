@@ -50,6 +50,7 @@ func resolveSnapshotBundle(name string) (snapshotBundleSpec, error) {
 				"dashboard-approval-waiting",
 				"dashboard-blocked",
 				"dashboard-degraded",
+				"leader-help-root",
 				"chat-active-session",
 				"runs-active-detail",
 				"approvals-pending-detail",
@@ -64,7 +65,7 @@ func resolveSnapshotBundle(name string) (snapshotBundleSpec, error) {
 			Routes: []routeID{routeDashboard, routeChat, routeRuns, routeApprovals, routeAction, routeArtifacts, routeAudit, routeStatus, routeProviders, routeGitSetup, routeGitRemote},
 		}, nil
 	case snapshotBundleDashboard:
-		return snapshotBundleSpec{Name: snapshotBundleDashboard, Scenarios: []string{"dashboard-healthy-empty", "dashboard-approval-waiting", "dashboard-blocked", "dashboard-degraded"}, Routes: []routeID{routeDashboard}}, nil
+		return snapshotBundleSpec{Name: snapshotBundleDashboard, Scenarios: []string{"dashboard-healthy-empty", "dashboard-approval-waiting", "dashboard-blocked", "dashboard-degraded", "leader-help-root"}, Routes: []routeID{routeDashboard}}, nil
 	case snapshotBundleActionCenter:
 		return snapshotBundleSpec{Name: snapshotBundleActionCenter, Scenarios: []string{"action-center-triage"}, Routes: []routeID{routeAction}}, nil
 	case snapshotBundleRuns:

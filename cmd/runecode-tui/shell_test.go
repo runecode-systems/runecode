@@ -349,7 +349,7 @@ func TestShellViewRendersShellSurfaces(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
 	v := m.View()
-	for _, want := range []string{"RuneCode Workbench", "ROUTE", "Product truth:", "Main pane", "Sidebar", "ctrl+p commands", "Status:"} {
+	for _, want := range []string{"RuneCode Workbench", "ROUTE", "Product truth:", "Main pane", "Sidebar", "ctrl+p commands"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected %q in view, got %q", want, v)
 		}

@@ -9,8 +9,8 @@ func TestShellBottomStripSelectionHintUsesCtrlT(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
 	v := m.View()
-	if !strings.Contains(v, "Broker-owned truth stays in Status, inspectors, and command discovery") {
-		t.Fatalf("expected calm diagnostic hint in bottom strip, got %q", v)
+	if strings.Contains(v, "Broker-owned truth stays in Status, inspectors, and command discovery") {
+		t.Fatalf("expected footer diagnostic hint removed from always-visible chrome, got %q", v)
 	}
 }
 

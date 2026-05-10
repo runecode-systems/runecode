@@ -103,6 +103,10 @@ func (m shellModel) renderLeaderWhichKey() string {
 	b.WriteString(tableHeader("Leader Mode") + " " + neutralBadge("start="+m.keys.LeaderStart.label()) + "\n")
 	b.WriteString("Sequence: " + m.leader.SequenceLabel() + "\n")
 	b.WriteString("Press esc to abort.\n")
+	if len(m.leader.prefix) == 0 {
+		b.WriteString("Help: " + m.keys.LeaderStart.label() + " leader mode; tab next focus area; shift+tab previous focus area.\n")
+		b.WriteString("      ctrl+p opens quick jump palette; ctrl+j opens session quick switcher.\n")
+	}
 	choices := m.leader.Choices()
 	if len(choices) == 0 {
 		b.WriteString(muted("No valid next keys."))

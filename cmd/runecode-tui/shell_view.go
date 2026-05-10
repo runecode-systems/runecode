@@ -46,16 +46,11 @@ func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, la
 	b.WriteString(m.renderShellPanes(surface, layout))
 	b.WriteString("\n")
 	b.WriteString(constrainShellBlock(m.renderBottomStrip(surface), viewportWidth, layout.Regions.Bottom.Height))
-	b.WriteString("\n")
-	b.WriteString(constrainShellBlock(m.renderStatusSurface(surface), viewportWidth, layout.Regions.Status.Height))
-	b.WriteString("\n")
 }
 
 func (m shellModel) writeShellFooter(b *strings.Builder, viewportWidth int) {
-	b.WriteString(constrainShellBlock(renderHelp(m.keys, m.palette.IsOpen() || m.sessions.IsOpen(), m.actions), viewportWidth, 1))
-	b.WriteString("\n")
-	b.WriteString(constrainShellBlock(muted("Broker-owned truth stays in Status, inspectors, and command discovery."), viewportWidth, 1))
-	b.WriteString("\n")
+	_ = b
+	_ = viewportWidth
 }
 
 func (m shellModel) overlayBodyWithHeight(surface routeSurface, layout shellLayoutPlan, viewportHeight int) (string, int) {

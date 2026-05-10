@@ -13,9 +13,9 @@ const (
 	shellBreadcrumbHeight  = 0
 	shellHistoryHeight     = 0
 	shellPaneSpacerHeight  = 1
-	shellBottomStripHeight = 4
-	shellStatusHeight      = 1
-	shellFooterHeight      = 2
+	shellBottomStripHeight = 1
+	shellStatusHeight      = 0
+	shellFooterHeight      = 0
 )
 
 func shellChromeReservedHeight() int {
@@ -66,7 +66,7 @@ func (m shellModel) planShellRegions(viewportWidth int, viewportHeight int, brea
 		mainWidth = viewportWidth
 	}
 
-	paneFrameHeight := viewportHeight - shellChromeReservedHeight() - 2
+	paneFrameHeight := viewportHeight - shellChromeReservedHeight() - 1
 	if modeTabsVisible {
 		paneFrameHeight--
 	}
