@@ -179,12 +179,17 @@ func TestShellFormerPlainLetterGlobalsFlowToActiveRouteTyping(t *testing.T) {
 func TestShellCtrlPRemainsExplicitPaletteEntry(t *testing.T) {
 	m := newShellModel()
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
-	if cmd != nil {
-		t.Fatal("did not expect separate command while opening palette")
-	}
 	shell := updated.(shellModel)
 	if !shell.palette.IsOpen() {
 		t.Fatal("expected ctrl+p to open command palette")
+	}
+	if cmd == nil {
+		return
+	}
+	updated, _ = shell.Update(cmd())
+	shell = updated.(shellModel)
+	if !shell.palette.IsOpen() {
+		t.Fatal("expected palette to remain open after background refresh")
 	}
 }
 

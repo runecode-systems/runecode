@@ -41,17 +41,54 @@ type paletteEntry struct {
 
 func (m shellModel) buildPaletteEntries() []paletteEntry {
 	entries := make([]paletteEntry, 0, 64)
+	entries = append(entries, m.buildPaletteCommandEntries()...)
+	entries = append(entries, m.buildActionCenterPaletteEntries()...)
+	entries = append(entries, m.buildActiveSurfacePaletteEntries()...)
+	entries = append(entries, buildPaletteDiscoverabilityEntries(m.objectIndex.clone(), len(entries)+1)...)
+	return entries
+}
+
+func (m shellModel) buildPaletteCommandEntries() []paletteEntry {
+	entries := make([]paletteEntry, 0, 64)
 	idx := 1
 	add := func(label, description, search string, action paletteActionMsg) {
 		entries = append(entries, paletteEntry{Index: idx, Label: label, Description: description, Search: search, Action: action})
 		idx++
 	}
-
 	m.actions.appendPaletteEntries(add, m)
-	m.objectIndex.appendPaletteEntries(add)
-	m.appendActionCenterPaletteEntries(add)
-	m.appendActiveSurfaceActionEntries(add)
+	return entries
+}
 
+func buildPaletteDiscoverabilityEntries(idx shellDiscoverabilityIndex, startIndex int) []paletteEntry {
+	entries := make([]paletteEntry, 0, 64)
+	index := startIndex
+	add := func(label, description, search string, action paletteActionMsg) {
+		entries = append(entries, paletteEntry{Index: index, Label: label, Description: description, Search: search, Action: action})
+		index++
+	}
+	idx.appendPaletteEntries(add)
+	return entries
+}
+
+func (m shellModel) buildActiveSurfacePaletteEntries() []paletteEntry {
+	entries := make([]paletteEntry, 0, 16)
+	index := 1
+	add := func(label, description, search string, action paletteActionMsg) {
+		entries = append(entries, paletteEntry{Index: index, Label: label, Description: description, Search: search, Action: action})
+		index++
+	}
+	m.appendActiveSurfaceActionEntries(add)
+	return entries
+}
+
+func (m shellModel) buildActionCenterPaletteEntries() []paletteEntry {
+	entries := make([]paletteEntry, 0, 16)
+	index := 1
+	add := func(label, description, search string, action paletteActionMsg) {
+		entries = append(entries, paletteEntry{Index: index, Label: label, Description: description, Search: search, Action: action})
+		index++
+	}
+	m.appendActionCenterPaletteEntries(add)
 	return entries
 }
 

@@ -87,6 +87,7 @@ type shellModel struct {
 	workbenchScope string
 	toasts         shellToastService
 	objectIndex    shellDiscoverabilityIndex
+	paletteCache   []paletteEntry
 
 	sidebarVisible  bool
 	inspectorOn     bool
@@ -225,6 +226,7 @@ func newShellModelState(routes []routeDefinition, models map[routeID]routeModel,
 		leaderBindingsSignature: shellLeaderBindingsSignature(leaderBindings),
 		leaderKeyConfig:         "space",
 		overlayFrameCache:       &shellOverlayFrameCache{},
+		paletteCache:            nil,
 	}
 }
 
@@ -382,6 +384,40 @@ func (m *shellModel) invalidateOverlayFrameCache() {
 		return
 	}
 	*m.overlayFrameCache = shellOverlayFrameCache{}
+}
+
+func (m *shellModel) invalidatePaletteCache() {
+	m.paletteCache = nil
+}
+
+func (m shellModel) paletteImmediateEntries() []paletteEntry {
+	return m.buildPaletteCommandEntries()
+}
+
+func (m shellModel) loadPaletteEntriesCmd(request uint64) tea.Cmd {
+	commands := append([]paletteEntry(nil), m.buildPaletteCommandEntries()...)
+	indexSnapshot := m.objectIndex.clone()
+	activeSurfaceEntries := append([]paletteEntry(nil), m.buildActiveSurfacePaletteEntries()...)
+	actionCenterEntries := append([]paletteEntry(nil), m.buildActionCenterPaletteEntries()...)
+	return func() tea.Msg {
+		entries := make([]paletteEntry, 0, len(commands)+len(activeSurfaceEntries)+len(actionCenterEntries)+64)
+		entries = append(entries, commands...)
+		entries = append(entries, activeSurfaceEntries...)
+		entries = append(entries, actionCenterEntries...)
+		entries = append(entries, buildPaletteDiscoverabilityEntries(indexSnapshot, len(entries)+1)...)
+		return shellPaletteEntriesLoadedMsg{request: request, entries: entries}
+	}
+}
+
+func (m shellModel) loadPaletteFilterCmd(request uint64) tea.Cmd {
+	entriesVersion := m.palette.entriesVersion
+	query := m.palette.query
+	normalizedEntries := append([]string(nil), m.palette.normalizedEntries...)
+	priorNeedle := m.palette.appliedNeedle
+	priorMatches := append([]int(nil), m.palette.matchIndexes...)
+	return func() tea.Msg {
+		return buildPaletteFilterResult(request, entriesVersion, query, normalizedEntries, priorNeedle, priorMatches)
+	}
 }
 
 func (m shellModel) focusedRouteRegion() routeRegionFocus {

@@ -735,11 +735,23 @@ func TestShellPaletteNavigationFromFreshLaunchUsesShellIndex(t *testing.T) {
 	updated, _ := m.Update(loadedMsg)
 	shell := updated.(shellModel)
 
-	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+	updated, cmd := shell.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
 	shell = updated.(shellModel)
-	for _, r := range "run-1" {
-		updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	if cmd != nil {
+		updated, follow := shell.Update(cmd())
 		shell = updated.(shellModel)
+		if follow != nil {
+			updated, _ = shell.Update(follow())
+			shell = updated.(shellModel)
+		}
+	}
+	for _, r := range "run-1" {
+		updated, cmd = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		shell = updated.(shellModel)
+		if cmd != nil {
+			updated, _ = shell.Update(cmd())
+			shell = updated.(shellModel)
+		}
 	}
 	selected, ok := shell.palette.SelectedEntry()
 	if !ok {
@@ -749,7 +761,7 @@ func TestShellPaletteNavigationFromFreshLaunchUsesShellIndex(t *testing.T) {
 		t.Fatalf("expected selected run entry after query, got %q", selected.Label)
 	}
 
-	updated, cmd := shell.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd = shell.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("expected palette pick command")
 	}

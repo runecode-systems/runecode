@@ -8,13 +8,31 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type shellPaletteEntriesLoadedMsg struct {
+	request uint64
+	entries []paletteEntry
+}
+
+type shellPaletteFilterLoadedMsg struct {
+	request        uint64
+	entriesVersion uint64
+	needle         string
+	matches        []int
+}
+
 type paletteModel struct {
 	open              bool
 	query             string
+	appliedNeedle     string
 	selectedIndex     int
-	matches           []paletteEntry
+	matchIndexes      []int
 	entries           []paletteEntry
 	normalizedEntries []string
+	entriesVersion    uint64
+	entriesRequest    uint64
+	filterRequest     uint64
+	entriesLoading    bool
+	filterLoading     bool
 }
 
 func newPaletteModel(entries []paletteEntry) paletteModel {
@@ -24,20 +42,29 @@ func newPaletteModel(entries []paletteEntry) paletteModel {
 func (m paletteModel) UpdateEntries(entries []paletteEntry) paletteModel {
 	m.entries = append([]paletteEntry(nil), entries...)
 	m.normalizedEntries = buildPaletteNormalizedEntries(m.entries)
-	m.rebuildMatches()
+	m.entriesVersion++
+	m.entriesLoading = false
+	m.filterLoading = false
+	m.appliedNeedle = ""
+	m.selectedIndex = 0
+	m.matchIndexes = buildPaletteFullIndexes(m.matchIndexes[:0], len(m.entries))
 	return m
 }
 
 func (m paletteModel) Open() paletteModel {
 	m.open = true
 	m.query = ""
+	m.appliedNeedle = ""
 	m.selectedIndex = 0
-	m.rebuildMatches()
+	m.filterLoading = false
+	m.matchIndexes = buildPaletteFullIndexes(m.matchIndexes[:0], len(m.entries))
 	return m
 }
 
 func (m paletteModel) Close() paletteModel {
 	m.open = false
+	m.entriesLoading = false
+	m.filterLoading = false
 	return m
 }
 
@@ -45,17 +72,93 @@ func (m paletteModel) IsOpen() bool {
 	return m.open
 }
 
-func (m paletteModel) SelectedEntry() (paletteEntry, bool) {
-	if len(m.matches) == 0 {
+func (m paletteModel) MatchCount() int {
+	return len(m.matchIndexes)
+}
+
+func (m paletteModel) MatchEntry(index int) (paletteEntry, bool) {
+	if index < 0 || index >= len(m.matchIndexes) {
 		return paletteEntry{}, false
 	}
-	if m.selectedIndex < 0 {
-		m.selectedIndex = 0
+	entryIndex := m.matchIndexes[index]
+	if entryIndex < 0 || entryIndex >= len(m.entries) {
+		return paletteEntry{}, false
 	}
-	if m.selectedIndex >= len(m.matches) {
-		m.selectedIndex = len(m.matches) - 1
+	return m.entries[entryIndex], true
+}
+
+func (m paletteModel) SelectedEntry() (paletteEntry, bool) {
+	if len(m.matchIndexes) == 0 {
+		return paletteEntry{}, false
 	}
-	return m.matches[m.selectedIndex], true
+	selected := m.selectedIndex
+	if selected < 0 {
+		selected = 0
+	}
+	if selected >= len(m.matchIndexes) {
+		selected = len(m.matchIndexes) - 1
+	}
+	return m.MatchEntry(selected)
+}
+
+func (m paletteModel) BeginEntriesRefresh() (paletteModel, uint64) {
+	m.entriesRequest++
+	m.entriesLoading = true
+	return m, m.entriesRequest
+}
+
+func (m paletteModel) ApplyEntriesRefresh(msg shellPaletteEntriesLoadedMsg) (paletteModel, bool) {
+	if msg.request != m.entriesRequest {
+		return m, false
+	}
+	m = m.UpdateEntries(msg.entries)
+	return m, true
+}
+
+func (m paletteModel) BeginFilterRefresh() (paletteModel, uint64, bool) {
+	needle := normalizePaletteQuery(m.query)
+	if needle == "" {
+		m.filterLoading = false
+		m.appliedNeedle = ""
+		m.matchIndexes = buildPaletteFullIndexes(m.matchIndexes[:0], len(m.entries))
+		return m, 0, false
+	}
+	m.filterRequest++
+	m.filterLoading = true
+	return m, m.filterRequest, true
+}
+
+func (m paletteModel) ApplyFilterRefresh(msg shellPaletteFilterLoadedMsg) (paletteModel, bool) {
+	if msg.request != m.filterRequest || msg.entriesVersion != m.entriesVersion {
+		return m, false
+	}
+	m.filterLoading = false
+	m.appliedNeedle = msg.needle
+	m.matchIndexes = append(m.matchIndexes[:0], msg.matches...)
+	m.clampSelectedIndex()
+	return m, true
+}
+
+func (m paletteModel) AppendQuery(value string) paletteModel {
+	if strings.TrimSpace(value) == "" {
+		return m
+	}
+	m.query += value
+	m.selectedIndex = 0
+	return m
+}
+
+func (m paletteModel) DeleteQueryRune() paletteModel {
+	if len(m.query) == 0 {
+		return m
+	}
+	_, size := utf8.DecodeLastRuneInString(m.query)
+	if size <= 0 {
+		return m
+	}
+	m.query = m.query[:len(m.query)-size]
+	m.selectedIndex = 0
+	return m
 }
 
 func (m paletteModel) Update(msg tea.Msg, keys shellKeyMap) (paletteModel, paletteActionMsg, bool) {
@@ -73,10 +176,7 @@ func (m paletteModel) UpdateMouse(msg tea.MouseMsg, paletteStartY int, layoutWid
 	if !m.open {
 		return m, paletteActionMsg{}, false
 	}
-	if msg.Button != tea.MouseButtonLeft {
-		return m, paletteActionMsg{}, false
-	}
-	if msg.Action != tea.MouseActionRelease {
+	if msg.Button != tea.MouseButtonLeft || msg.Action != tea.MouseActionRelease {
 		return m, paletteActionMsg{}, false
 	}
 	index, ok := m.matchIndexAtPosition(msg.X, msg.Y, paletteStartY, layoutWidth)
@@ -98,11 +198,9 @@ func (m paletteModel) updateKey(key tea.KeyMsg, keys shellKeyMap) (paletteModel,
 	case keys.PalettePrev.matches(key):
 		return m.stepSelection(-1), paletteActionMsg{}, false
 	case key.Type == tea.KeyBackspace || key.Type == tea.KeyDelete:
-		return m.deleteQueryRune(), paletteActionMsg{}, false
+		return m.DeleteQueryRune(), paletteActionMsg{}, false
 	case isTypingKey(key):
-		m.query += key.String()
-		m.rebuildMatches()
-		return m, paletteActionMsg{}, false
+		return m.AppendQuery(key.String()), paletteActionMsg{}, false
 	default:
 		return m, paletteActionMsg{}, false
 	}
@@ -117,52 +215,77 @@ func (m paletteModel) pickRoute() (paletteModel, paletteActionMsg, bool) {
 }
 
 func (m paletteModel) stepSelection(delta int) paletteModel {
-	if len(m.matches) == 0 {
+	if len(m.matchIndexes) == 0 {
 		return m
 	}
 	if delta > 0 {
-		m.selectedIndex = (m.selectedIndex + 1) % len(m.matches)
+		m.selectedIndex = (m.selectedIndex + 1) % len(m.matchIndexes)
 		return m
 	}
 	m.selectedIndex--
 	if m.selectedIndex < 0 {
-		m.selectedIndex = len(m.matches) - 1
+		m.selectedIndex = len(m.matchIndexes) - 1
 	}
 	return m
 }
 
-func (m paletteModel) deleteQueryRune() paletteModel {
-	if len(m.query) == 0 {
-		return m
-	}
-	_, size := utf8.DecodeLastRuneInString(m.query)
-	if size <= 0 {
-		return m
-	}
-	m.query = m.query[:len(m.query)-size]
-	m.rebuildMatches()
-	return m
-}
-
-func (m *paletteModel) rebuildMatches() {
-	needle := strings.ToLower(strings.TrimSpace(m.query))
-	m.matches = m.matches[:0]
-	if needle == "" {
-		m.matches = append(m.matches, m.entries...)
-	} else {
-		for i, entry := range m.entries {
-			if strings.Contains(m.normalizedEntries[i], needle) {
-				m.matches = append(m.matches, entry)
-			}
-		}
-	}
-	if m.selectedIndex >= len(m.matches) {
-		if len(m.matches) == 0 {
+func (m *paletteModel) clampSelectedIndex() {
+	if m.selectedIndex >= len(m.matchIndexes) {
+		if len(m.matchIndexes) == 0 {
 			m.selectedIndex = 0
 		} else {
-			m.selectedIndex = len(m.matches) - 1
+			m.selectedIndex = len(m.matchIndexes) - 1
 		}
 	}
+	if m.selectedIndex < 0 {
+		m.selectedIndex = 0
+	}
+}
+
+func buildPaletteFilterResult(request uint64, entriesVersion uint64, query string, normalizedEntries []string, priorNeedle string, priorMatches []int) shellPaletteFilterLoadedMsg {
+	needle := normalizePaletteQuery(query)
+	searchSpace := paletteFilterSearchSpace(needle, priorNeedle, priorMatches, len(normalizedEntries))
+	return shellPaletteFilterLoadedMsg{
+		request:        request,
+		entriesVersion: entriesVersion,
+		needle:         needle,
+		matches:        filterPaletteMatchIndexes(needle, normalizedEntries, searchSpace),
+	}
+}
+
+func paletteFilterSearchSpace(needle string, priorNeedle string, priorMatches []int, total int) []int {
+	if priorNeedle != "" && strings.HasPrefix(needle, priorNeedle) && len(priorMatches) > 0 {
+		return append([]int(nil), priorMatches...)
+	}
+	return buildPaletteFullIndexes(make([]int, 0, total), total)
+}
+
+func filterPaletteMatchIndexes(needle string, normalizedEntries []string, searchSpace []int) []int {
+	if needle == "" {
+		return append([]int(nil), searchSpace...)
+	}
+	matches := make([]int, 0, len(searchSpace))
+	for _, i := range searchSpace {
+		if i < 0 || i >= len(normalizedEntries) {
+			continue
+		}
+		if strings.Contains(normalizedEntries[i], needle) {
+			matches = append(matches, i)
+		}
+	}
+	return matches
+}
+
+func buildPaletteFullIndexes(dst []int, count int) []int {
+	dst = dst[:0]
+	for i := 0; i < count; i++ {
+		dst = append(dst, i)
+	}
+	return dst
+}
+
+func normalizePaletteQuery(query string) string {
+	return strings.ToLower(strings.TrimSpace(query))
 }
 
 func buildPaletteNormalizedEntries(entries []paletteEntry) []string {
@@ -188,7 +311,7 @@ func normalizePaletteEntrySearch(entry paletteEntry) string {
 }
 
 func (m paletteModel) matchIndexAtPosition(x int, y int, paletteStartY int, layoutWidth int) (int, bool) {
-	if len(m.matches) == 0 {
+	if len(m.matchIndexes) == 0 {
 		return 0, false
 	}
 	startX, endX := centeredOverlayContentBounds(layoutWidth)
@@ -198,7 +321,7 @@ func (m paletteModel) matchIndexAtPosition(x int, y int, paletteStartY int, layo
 	startY := paletteStartY + 5
 	for _, candidateY := range []int{y, y - 1} {
 		index := candidateY - startY
-		if index >= 0 && index < len(m.matches) {
+		if index >= 0 && index < len(m.matchIndexes) {
 			return index, true
 		}
 	}

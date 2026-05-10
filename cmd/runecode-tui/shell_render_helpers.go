@@ -22,7 +22,12 @@ func (m shellModel) renderPalette() string {
 	b := strings.Builder{}
 	width := boundedOverlayListWidth(m.width)
 	b.WriteString(renderOverlaySearchPrompt(m.palette.query) + "\n")
-	if len(m.palette.matches) == 0 {
+	if m.palette.MatchCount() == 0 {
+		if m.palette.entriesLoading || m.palette.filterLoading {
+			b.WriteString(muted("Updating matches..."))
+			b.WriteString("\n")
+			return b.String()
+		}
 		b.WriteString(muted("No matches. Keep typing or press esc to close."))
 		b.WriteString("\n")
 		return b.String()
@@ -30,7 +35,7 @@ func (m shellModel) renderPalette() string {
 	b.WriteString(tableHeader("Suggested actions"))
 	b.WriteString("\n")
 	b.WriteString(renderBoundedListWindowed(boundedListWindowedSpec{
-		TotalRows:     len(m.palette.matches),
+		TotalRows:     m.palette.MatchCount(),
 		SelectedRow:   m.palette.selectedIndex,
 		Width:         width,
 		Height:        10,
@@ -38,7 +43,11 @@ func (m shellModel) renderPalette() string {
 		ApplySelected: true,
 		ActiveFill:    true,
 		RenderRow: func(index int) boundedListRow {
-			return boundedListRow{Text: paletteMatchLineBounded(m.palette.matches[index], width), Selectable: true}
+			entry, ok := m.palette.MatchEntry(index)
+			if !ok {
+				return boundedListRow{}
+			}
+			return boundedListRow{Text: paletteMatchLineBounded(entry, width), Selectable: true}
 		},
 	}))
 	b.WriteString("\n")

@@ -126,7 +126,7 @@ func openPaletteOverlay(m *shellModel) {
 	m.narrowInspectOn = false
 	m.beginOverlaySession()
 	m.sessions = m.sessions.Close()
-	m.palette = m.palette.UpdateEntries(m.buildPaletteEntries()).Open()
+	m.palette = m.palette.UpdateEntries(m.paletteImmediateEntries()).Open()
 	m.setFocus(focusPalette)
 	m.syncOverlayStack()
 }

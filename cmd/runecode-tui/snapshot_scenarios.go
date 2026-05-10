@@ -223,7 +223,11 @@ func buildCommandPaletteSnapshot() snapshotScenarioState {
 	return snapshotScenarioState{Name: "overlay-command-palette", RouteID: routeDashboard, Surface: buildBlockedSnapshot().Surface, Sessions: defaultSnapshotSessions(), Watch: snapshotWatchBlocked(), Theme: themePresetDark, Focus: focusPalette, Prepare: func(m *shellModel) {
 		openPaletteOverlay(m)
 		m.palette.query = "focus"
-		m.palette.rebuildMatches()
+		if updated, request, ok := m.palette.BeginFilterRefresh(); ok {
+			if applied, ok := updated.ApplyFilterRefresh(buildPaletteFilterResult(request, updated.entriesVersion, updated.query, updated.normalizedEntries, updated.appliedNeedle, updated.matchIndexes)); ok {
+				m.palette = applied
+			}
+		}
 		m.syncOverlayStack()
 	}}
 }

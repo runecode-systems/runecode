@@ -172,16 +172,45 @@ func BenchmarkShellSessionQuickSwitchTyping(b *testing.B) {
 }
 
 func BenchmarkPaletteFilterTyping(b *testing.B) {
-	entries := makePaletteBenchmarkEntries(2000)
-	keys := defaultShellKeyMap()
-	base := newPaletteModel(entries)
-	query := []rune("session-1999")
+	base := newPaletteModel(makePaletteBenchmarkEntries(2000)).Open()
+	query := "session-1999"
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		state := base.Open()
-		for _, r := range query {
-			state, _, _ = state.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}}, keys)
+		state := base
+		state.query = query
+		state.appliedNeedle = ""
+		state.filterRequest = 1
+		_ = buildPaletteFilterResult(state.filterRequest, state.entriesVersion, state.query, state.normalizedEntries, state.appliedNeedle, state.matchIndexes)
+	}
+}
+
+func BenchmarkPaletteOpenAndFastCopyTyping(b *testing.B) {
+	base := newShellModel()
+	base.width = 120
+	base.height = 32
+	base.paletteCache = makePaletteBenchmarkEntries(4000)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		shell := base
+		updated, cmd := shell.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+		shell = updated.(shellModel)
+		if cmd != nil {
+			updated, follow := shell.Update(cmd())
+			shell = updated.(shellModel)
+			if follow != nil {
+				updated, _ = shell.Update(follow())
+				shell = updated.(shellModel)
+			}
+		}
+		for _, r := range "copy" {
+			updated, cmd = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+			shell = updated.(shellModel)
+			if cmd != nil {
+				updated, _ = shell.Update(cmd())
+				shell = updated.(shellModel)
+			}
 		}
 	}
 }
@@ -212,6 +241,46 @@ func BenchmarkRenderPaletteLargeMatchWindow(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = m.renderPalette()
+	}
+}
+
+func TestShellPaletteFastTypingRetainsCopyQuery(t *testing.T) {
+	m := newShellModel()
+	m.width = 120
+	m.height = 32
+	m.paletteCache = []paletteEntry{
+		{Index: 1, Label: "copy current identity", Description: "copy the current route identity", Search: "copy identity route"},
+		{Index: 2, Label: "copy next route action", Description: "copy the next route action", Search: "copy next route action"},
+		{Index: 3, Label: "open runs", Description: "jump to runs", Search: "open runs"},
+	}
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+	shell := updated.(shellModel)
+	if cmd != nil {
+		updated, follow := shell.Update(cmd())
+		shell = updated.(shellModel)
+		if follow != nil {
+			updated, _ = shell.Update(follow())
+			shell = updated.(shellModel)
+		}
+	}
+	for _, r := range "copy" {
+		updated, cmd = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		shell = updated.(shellModel)
+		if cmd != nil {
+			updated, _ = shell.Update(cmd())
+			shell = updated.(shellModel)
+		}
+	}
+	if got := shell.palette.query; got != "copy" {
+		t.Fatalf("expected full palette query retained, got %q", got)
+	}
+	if shell.palette.MatchCount() == 0 {
+		t.Fatal("expected copy query to retain matching palette entries")
+	}
+	selected, ok := shell.palette.SelectedEntry()
+	if !ok || !strings.Contains(selected.Label, "copy") {
+		t.Fatalf("expected selected copy entry after fast typing, got %+v ok=%v", selected, ok)
 	}
 }
 

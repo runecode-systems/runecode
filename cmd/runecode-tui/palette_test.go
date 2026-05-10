@@ -12,12 +12,12 @@ func TestPaletteDeleteQueryRunePreservesUTF8(t *testing.T) {
 	m.open = true
 	m.query = "Goλ"
 
-	m = m.deleteQueryRune()
+	m = m.DeleteQueryRune()
 	if m.query != "Go" {
 		t.Fatalf("expected UTF-8-safe delete to keep valid string, got %q", m.query)
 	}
 
-	m = m.deleteQueryRune()
+	m = m.DeleteQueryRune()
 	if m.query != "G" {
 		t.Fatalf("expected second delete to remove one rune, got %q", m.query)
 	}
@@ -115,14 +115,63 @@ func TestPaletteFilteringMatchesAcrossCachedNormalizedFields(t *testing.T) {
 	}
 
 	m.query = "WORKSPACE-2"
-	m.rebuildMatches()
-	if len(m.matches) != 1 || m.matches[0].Index != 2 {
-		t.Fatalf("expected search text match for second entry, got %+v", m.matches)
+	updated, request, ok := m.BeginFilterRefresh()
+	if !ok {
+		t.Fatal("expected filter refresh request for workspace query")
+	}
+	m, _ = updated.ApplyFilterRefresh(buildPaletteFilterResult(request, updated.entriesVersion, updated.query, updated.normalizedEntries, updated.appliedNeedle, updated.matchIndexes))
+	if m.MatchCount() != 1 {
+		t.Fatalf("expected one workspace match, got %d", m.MatchCount())
+	}
+	matched, ok := m.MatchEntry(0)
+	if !ok || matched.Index != 2 {
+		t.Fatalf("expected search text match for second entry, got %+v ok=%v", matched, ok)
 	}
 
 	m.query = "FOLLOW-UP"
-	m.rebuildMatches()
-	if len(m.matches) != 1 || m.matches[0].Index != 2 {
-		t.Fatalf("expected description match for second entry, got %+v", m.matches)
+	updated, request, ok = m.BeginFilterRefresh()
+	if !ok {
+		t.Fatal("expected filter refresh request for description query")
+	}
+	m, _ = updated.ApplyFilterRefresh(buildPaletteFilterResult(request, updated.entriesVersion, updated.query, updated.normalizedEntries, updated.appliedNeedle, updated.matchIndexes))
+	matched, ok = m.MatchEntry(0)
+	if m.MatchCount() != 1 || !ok || matched.Index != 2 {
+		t.Fatalf("expected description match for second entry, got %+v count=%d ok=%v", matched, m.MatchCount(), ok)
+	}
+}
+
+func TestPaletteIncrementalFilteringNarrowsFromPreviousMatches(t *testing.T) {
+	entries := []paletteEntry{
+		{Index: 1, Label: "copy current identity", Description: "copy route identity", Search: "copy identity route"},
+		{Index: 2, Label: "copy next route action", Description: "copy route action", Search: "copy next action"},
+		{Index: 3, Label: "open runs", Description: "jump to runs", Search: "open runs"},
+	}
+	m := newPaletteModel(entries).Open()
+	m = m.AppendQuery("c")
+	updated, request, ok := m.BeginFilterRefresh()
+	if !ok {
+		t.Fatal("expected initial filter refresh request")
+	}
+	m, _ = updated.ApplyFilterRefresh(buildPaletteFilterResult(request, updated.entriesVersion, updated.query, updated.normalizedEntries, updated.appliedNeedle, updated.matchIndexes))
+	if m.MatchCount() != 2 {
+		t.Fatalf("expected broad initial copy matches, got %d", m.MatchCount())
+	}
+	m = m.AppendQuery("o")
+	updated, request, ok = m.BeginFilterRefresh()
+	if !ok {
+		t.Fatal("expected second filter refresh request")
+	}
+	m, _ = updated.ApplyFilterRefresh(buildPaletteFilterResult(request, updated.entriesVersion, updated.query, updated.normalizedEntries, updated.appliedNeedle, updated.matchIndexes))
+	if m.MatchCount() != 2 {
+		t.Fatalf("expected incremental filter to retain two copy matches, got %d", m.MatchCount())
+	}
+	m = m.AppendQuery("p")
+	updated, request, ok = m.BeginFilterRefresh()
+	if !ok {
+		t.Fatal("expected third filter refresh request")
+	}
+	m, _ = updated.ApplyFilterRefresh(buildPaletteFilterResult(request, updated.entriesVersion, updated.query, updated.normalizedEntries, updated.appliedNeedle, updated.matchIndexes))
+	if m.MatchCount() != 2 {
+		t.Fatalf("expected copy matches after third rune, got %d", m.MatchCount())
 	}
 }

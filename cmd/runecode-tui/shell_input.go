@@ -112,10 +112,11 @@ func (m shellModel) handleOpenPaletteKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bo
 	m.beginOverlaySession()
 	m.invalidateOverlayFrameCache()
 	m.sessions = m.sessions.Close()
-	m.palette = m.palette.UpdateEntries(m.buildPaletteEntries()).Open()
+	palette, request := m.palette.UpdateEntries(m.paletteImmediateEntries()).Open().BeginEntriesRefresh()
+	m.palette = palette
 	m.setFocus(focusPalette)
 	m.syncOverlayStack()
-	return m, nil, true
+	return m, m.loadPaletteEntriesCmd(request), true
 }
 
 func (m shellModel) handleOpenSessionQuickSwitchKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) {

@@ -83,6 +83,7 @@ func (m shellModel) loadWatchPollCmd() tea.Cmd {
 func (m *shellModel) applyWatchTransport(msg shellWatchTransportLoadedMsg) {
 	m.watch.applyTransport(msg)
 	m.publishWatchStateToRoutes()
+	m.invalidatePaletteCache()
 	m.refreshObjectIndexFromShellState()
 }
 

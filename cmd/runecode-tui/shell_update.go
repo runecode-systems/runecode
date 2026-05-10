@@ -199,6 +199,20 @@ func (m shellModel) handleShellMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	case shellObjectIndexLoadedMsg:
 		m.applyObjectIndexLoaded(typed)
 		return m, nil, true
+	case shellPaletteEntriesLoadedMsg:
+		if updated, applied := m.palette.ApplyEntriesRefresh(typed); applied {
+			m.palette = updated
+			if next, request, ok := m.palette.BeginFilterRefresh(); ok {
+				m.palette = next
+				return m, m.loadPaletteFilterCmd(request), true
+			}
+		}
+		return m, nil, true
+	case shellPaletteFilterLoadedMsg:
+		if updated, applied := m.palette.ApplyFilterRefresh(typed); applied {
+			m.palette = updated
+		}
+		return m, nil, true
 	case shellWatchPollMsg:
 		return m, m.loadWatchPollCmd(), true
 	case shellWatchTransportLoadedMsg:
@@ -338,6 +352,13 @@ func (m shellModel) handlePaletteMouse(mouse tea.MouseMsg) (tea.Model, tea.Cmd, 
 func (m shellModel) handlePaletteKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	updatedPalette, routeMsg, changed := m.palette.Update(key, m.keys)
 	m.palette = updatedPalette
+	var cmd tea.Cmd
+	if changed == false {
+		if next, request, ok := m.palette.BeginFilterRefresh(); ok {
+			m.palette = next
+			cmd = m.loadPaletteFilterCmd(request)
+		}
+	}
 	if !m.palette.IsOpen() {
 		m.invalidateOverlayFrameCache()
 	}
@@ -346,7 +367,7 @@ func (m shellModel) handlePaletteKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) 
 	if changed {
 		return m, func() tea.Msg { return routeMsg }, true
 	}
-	return m, nil, true
+	return m, cmd, true
 }
 
 func (m *shellModel) syncOverlayStack() {
