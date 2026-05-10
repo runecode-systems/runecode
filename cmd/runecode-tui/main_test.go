@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -120,7 +121,7 @@ func TestRunMainFlushesWorkbenchStateBeforeExit(t *testing.T) {
 }
 
 func TestRunMainReturnsFailureWhenWorkbenchFlushFails(t *testing.T) {
-	store := &flushTrackingWorkbenchStore{err: errForcedFlushFailure{}}
+	store := &flushTrackingWorkbenchStore{err: fmt.Errorf("open /home/user/.config/runecode/workbench.json: permission denied")}
 	origModel := newShellModelFunc
 	origTerm := isTerminalFunc
 	origRunner := runShellProgram
@@ -141,8 +142,7 @@ func TestRunMainReturnsFailureWhenWorkbenchFlushFails(t *testing.T) {
 	if !strings.Contains(stderr.String(), "runecode-tui failed") {
 		t.Fatalf("expected flush failure on stderr, got %q", stderr.String())
 	}
+	if !strings.Contains(stderr.String(), "local path redacted") || strings.Contains(stderr.String(), "/home/user") {
+		t.Fatalf("expected path-sanitized flush failure on stderr, got %q", stderr.String())
+	}
 }
-
-type errForcedFlushFailure struct{}
-
-func (errForcedFlushFailure) Error() string { return "forced flush failure" }

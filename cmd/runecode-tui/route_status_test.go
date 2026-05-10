@@ -64,9 +64,9 @@ func statusRouteActionCases() []statusRouteActionCase {
 	return []statusRouteActionCase{
 		{key: 'a', expectedStatus: "Project setup adoption refreshed: status=compatible_existing", expectedSnippets: []string{"Compatible adoption", "existing compatible setup", "without changing repository files"}, expectedRPCCall: []string{"ProjectSubstrateAdopt"}},
 		{key: 'i', expectedStatus: "Project setup init preview refreshed: status=ready_for_apply", expectedSnippets: []string{"Init preview", "Preview is preview ready for review and optional apply.", "Handle is <acquired>."}, expectedRPCCall: []string{"ProjectSubstrateInitPreview"}},
-		{key: 'I', expectedStatus: "Project setup validation refreshed. Review the updated managed-operation and setup posture below.", expectedSnippets: []string{"Init apply", "applied the broker-owned project setup initialization", "Project setup validation refreshed."}, expectedRPCCall: []string{"ProjectSubstrateInitApply"}, expectReload: true},
+		{key: 'I', expectedStatus: "Project setup validation refreshed. Review the updated managed-operation and setup posture below.", expectedSnippets: []string{"Managed operation", "Project setup validation refreshed.", "Project setup guidance"}, expectedRPCCall: []string{"ProjectSubstrateInitApply"}, expectReload: true},
 		{key: 'u', expectedStatus: "Project setup upgrade preview refreshed: status=ready_for_apply", expectedSnippets: []string{"Upgrade preview", "Preview is preview ready for review and optional apply.", "Digest is <acquired>."}, expectedRPCCall: []string{"ProjectSubstrateUpgradePreview"}},
-		{key: 'U', expectedStatus: "Project setup validation refreshed. Review the updated managed-operation and setup posture below.", expectedSnippets: []string{"Upgrade apply", "applied the broker-owned project setup upgrade", "Project setup validation refreshed."}, expectedRPCCall: []string{"ProjectSubstrateUpgradeApply"}, expectReload: true},
+		{key: 'U', expectedStatus: "Project setup validation refreshed. Review the updated managed-operation and setup posture below.", expectedSnippets: []string{"Managed operation", "Project setup validation refreshed.", "Project setup guidance"}, expectedRPCCall: []string{"ProjectSubstrateUpgradeApply"}, expectReload: true},
 	}
 }
 
@@ -206,6 +206,24 @@ func TestStatusRouteProjectSubstrateValidationReloadFailureStaysScoped(t *testin
 	)
 	if strings.Contains(view, "Status is temporarily unavailable.") {
 		t.Fatalf("expected scoped project-setup validation guidance, got %q", view)
+	}
+}
+
+func TestStatusRouteSuccessfulValidationClearsFailureCard(t *testing.T) {
+	model := statusRouteModel{
+		def:                        routeDefinition{ID: routeStatus, Label: "Status"},
+		validatingProjectSubstrate: true,
+		loadSeq:                    1,
+		projectSubstrateActionCard: projectSubstrateValidationFailureCard(brokerapi.ProjectSubstratePostureGetResponse{}, "open /home/user/.config/runecode/state.json: permission denied"),
+	}
+	updated, _ := model.Update(statusLoadedMsg{seq: 1, project: brokerapi.ProjectSubstratePostureGetResponse{PostureSummary: brokerapi.ProjectSubstratePostureSummary{ValidationState: "valid"}}})
+	shell := updated.(statusRouteModel)
+	if shell.projectSubstrateActionCard != nil {
+		t.Fatal("expected successful validation reload to clear stale project substrate action card")
+	}
+	view := shell.View(120, 40, focusContent)
+	if strings.Contains(view, "Post-apply validation") || strings.Contains(view, "permission denied") {
+		t.Fatalf("expected stale validation failure card to be removed after success, got %q", view)
 	}
 }
 

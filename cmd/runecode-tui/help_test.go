@@ -12,8 +12,8 @@ func TestHelpUsesBaseBindingsForLeaderOverlay(t *testing.T) {
 	m.width = 150
 	m.height = 40
 	help := renderHelp(m.keys, false, m.actions)
-	if strings.TrimSpace(help) != "" {
-		t.Fatalf("expected footer help removed in favor of leader overlay help, got %q", help)
+	if !strings.Contains(help, "ctrl+p commands") || !strings.Contains(help, "ctrl+j sessions") {
+		t.Fatalf("expected concise footer discovery help, got %q", help)
 	}
 
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
@@ -55,7 +55,8 @@ func TestShellViewLeaderOverlayKeepsBaseFooterHelp(t *testing.T) {
 func TestHelpFooterStaysCompactWhilePreservingDiscovery(t *testing.T) {
 	m := newShellModel()
 	help := renderHelp(m.keys, false, m.actions)
-	if strings.TrimSpace(help) != "" {
-		t.Fatalf("expected footer help removed to reclaim pane height, got %q", help)
+	mustContainAll(t, help, "leader", "ctrl+p commands", "ctrl+j sessions", "tab focus")
+	if strings.Contains(help, "ctrl+n") || strings.Contains(help, "Open selected match") {
+		t.Fatalf("expected compact footer help without exhaustive overlay bindings, got %q", help)
 	}
 }

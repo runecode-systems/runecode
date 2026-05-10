@@ -32,6 +32,13 @@ func (m *shellModel) workbenchFlushError() error {
 	return nil
 }
 
+func safeWorkbenchPersistenceErrorText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return "workbench state persistence failed; local path redacted"
+}
+
 func (m *shellModel) currentWorkbenchState() workbenchLocalState {
 	return workbenchLocalState{
 		SidebarVisible:     m.sidebarVisible,

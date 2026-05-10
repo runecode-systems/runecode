@@ -12,8 +12,9 @@ func TestHelpRenderedFromRealKeyBindings(t *testing.T) {
 	m.width = 150
 	m.height = 40
 	help := renderHelp(defaultShellKeyMap(), false, m.actions)
-	if strings.TrimSpace(help) != "" {
-		t.Fatalf("expected footer help removed, got %q", help)
+	mustContainAll(t, help, "space leader", "ctrl+p commands", "ctrl+j sessions", "tab focus")
+	if strings.Contains(help, "ctrl+n") || strings.Contains(help, "Open selected match") {
+		t.Fatalf("expected compact footer help without overlay-specific bindings, got %q", help)
 	}
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
 	v := updated.(shellModel).View()

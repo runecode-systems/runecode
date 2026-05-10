@@ -98,6 +98,7 @@ func (m shellModel) loadObjectIndexCmd() tea.Cmd {
 }
 
 func (m *shellModel) applyObjectIndexLoaded(msg shellObjectIndexLoadedMsg) {
+	m.invalidateOverlayFrameCache()
 	if msg.sessionErr == nil {
 		m.objectIndex.ingestSessions(msg.sessions)
 	}

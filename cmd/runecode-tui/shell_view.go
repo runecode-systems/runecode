@@ -69,8 +69,11 @@ func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, la
 }
 
 func (m shellModel) writeShellFooter(b *strings.Builder, viewportWidth int) {
-	_ = b
-	_ = viewportWidth
+	if shellFooterHeight <= 0 {
+		return
+	}
+	b.WriteString("\n")
+	b.WriteString(constrainShellBlock(renderHelp(m.keys, m.palette.IsOpen() || m.sessions.IsOpen(), m.actions), viewportWidth, shellFooterHeight))
 }
 
 func constrainShellBlock(block string, width int, height int) string {

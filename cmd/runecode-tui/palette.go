@@ -118,6 +118,7 @@ func (m paletteModel) ApplyEntriesRefresh(msg shellPaletteEntriesLoadedMsg) (pal
 func (m paletteModel) BeginFilterRefresh() (paletteModel, uint64, bool) {
 	needle := normalizePaletteQuery(m.query)
 	if needle == "" {
+		m.filterRequest++
 		m.filterLoading = false
 		m.appliedNeedle = ""
 		m.matchIndexes = buildPaletteFullIndexes(m.matchIndexes[:0], len(m.entries))
@@ -130,6 +131,9 @@ func (m paletteModel) BeginFilterRefresh() (paletteModel, uint64, bool) {
 
 func (m paletteModel) ApplyFilterRefresh(msg shellPaletteFilterLoadedMsg) (paletteModel, bool) {
 	if msg.request != m.filterRequest || msg.entriesVersion != m.entriesVersion {
+		return m, false
+	}
+	if msg.needle != normalizePaletteQuery(m.query) {
 		return m, false
 	}
 	m.filterLoading = false

@@ -128,6 +128,7 @@ func (m statusRouteModel) handleStatusLoaded(msg statusLoadedMsg) (routeModel, t
 	}
 	m.data = msg
 	m.errText = ""
+	m.projectSubstrateActionCard = nil
 	if wasValidating {
 		m.status = "Project setup validation refreshed. Review the updated managed-operation and setup posture below."
 		return m, nil

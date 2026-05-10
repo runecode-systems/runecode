@@ -19,8 +19,8 @@ func TestHelpIncludesActionMetadataFromUnifiedDefinitions(t *testing.T) {
 	m.actions = newShellActionGraph(m.routes, m.commands)
 
 	help := renderHelp(m.keys, false, m.actions)
-	if strings.TrimSpace(help) != "" {
-		t.Fatalf("expected footer help removed, got %q", help)
+	if !strings.Contains(help, "ctrl+p commands") {
+		t.Fatalf("expected compact footer help, got %q", help)
 	}
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})

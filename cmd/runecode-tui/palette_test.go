@@ -175,3 +175,36 @@ func TestPaletteIncrementalFilteringNarrowsFromPreviousMatches(t *testing.T) {
 		t.Fatalf("expected copy matches after third rune, got %d", m.MatchCount())
 	}
 }
+
+func TestPaletteFilterRefreshRejectsStaleResultAfterQueryClears(t *testing.T) {
+	entries := []paletteEntry{
+		{Index: 1, Label: "open chat", Search: "chat"},
+		{Index: 2, Label: "open runs", Search: "runs"},
+	}
+	m := newPaletteModel(entries).Open().AppendQuery("runs")
+	filtering, request, ok := m.BeginFilterRefresh()
+	if !ok {
+		t.Fatal("expected non-empty query to request async filtering")
+	}
+	delayed := buildPaletteFilterResult(request, filtering.entriesVersion, filtering.query, filtering.normalizedEntries, filtering.appliedNeedle, filtering.matchIndexes)
+
+	cleared := filtering
+	for cleared.query != "" {
+		cleared = cleared.DeleteQueryRune()
+	}
+	cleared, _, ok = cleared.BeginFilterRefresh()
+	if ok {
+		t.Fatal("expected empty query to apply full match set synchronously")
+	}
+	if cleared.MatchCount() != len(entries) {
+		t.Fatalf("expected full match set after clearing query, got %d", cleared.MatchCount())
+	}
+
+	updated, applied := cleared.ApplyFilterRefresh(delayed)
+	if applied {
+		t.Fatal("expected stale delayed filter result to be rejected")
+	}
+	if updated.MatchCount() != len(entries) {
+		t.Fatalf("expected stale filter result not to change matches, got %d", updated.MatchCount())
+	}
+}

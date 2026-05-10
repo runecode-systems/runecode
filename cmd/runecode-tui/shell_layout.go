@@ -15,7 +15,7 @@ const (
 	shellPaneSpacerHeight  = 1
 	shellBottomStripHeight = 2
 	shellStatusHeight      = 1
-	shellFooterHeight      = 0
+	shellFooterHeight      = 1
 )
 
 func shellChromeReservedHeight() int {

@@ -230,7 +230,7 @@ func TestRunInspectorContentIncludesPostureAndTrustCues(t *testing.T) {
 		"Provisioning posture: Provisioning: attested",
 		"PROVISIONING_OK",
 		"Attestation truth: attestation posture=valid",
-		"post-handshake verification succeeded; supported attested posture earned from verified post-handshake evidence",
+		"post-handshake verification succeeded; supported runtime evidence is present, but beta attested posture still waits for explicit post-handshake gating integration",
 		"Structured/raw modes expose workflow hashes",
 	)
 }
@@ -505,8 +505,8 @@ func TestRuntimeAttestationTruthfulnessCueSanitizesBrokerDerivedAttestationState
 		"attestation_evidence_present":             true,
 	}
 	got := renderRuntimeAttestationTruthfulnessCue(validState)
-	if !strings.Contains(got, "post-handshake verification succeeded; supported attested posture earned from verified post-handshake evidence") {
-		t.Fatalf("expected sanitized valid posture to unlock supported attestation wording, got %q", got)
+	if !strings.Contains(got, "post-handshake verification succeeded; supported runtime evidence is present, but beta attested posture still waits for explicit post-handshake gating integration") {
+		t.Fatalf("expected valid posture to keep supported attestation wording provisional, got %q", got)
 	}
 
 	invalidState := map[string]any{

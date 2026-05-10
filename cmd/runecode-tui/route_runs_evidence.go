@@ -75,7 +75,7 @@ func renderRuntimeAttestationTruthfulnessCue(state map[string]any) string {
 		currentEvidence = "secure session bound without verified attestation"
 	}
 	if supportedRuntimeSatisfied && attestationPosture == "valid" {
-		return currentEvidence + "; supported attested posture earned from verified post-handshake evidence"
+		return currentEvidence + "; supported runtime evidence is present, but beta attested posture still waits for explicit post-handshake gating integration"
 	}
 	if len(reasons) > 0 {
 		return currentEvidence + "; beta attested story still gated by post-handshake verification; reasons=" + strings.Join(reasons, ",")

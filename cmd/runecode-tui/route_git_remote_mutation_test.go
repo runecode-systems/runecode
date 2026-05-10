@@ -86,3 +86,22 @@ func TestGitRemoteMutationRouteExecuteFailsClosedWithoutApprovalBinding(t *testi
 		t.Fatalf("expected fail-closed status in view, got %q", view)
 	}
 }
+
+func TestGitRemoteMutationRouteClearsLeaseWhenReloadDropsApprovalBinding(t *testing.T) {
+	prepared := fakePreparedGitRemoteMutationState("sha256:" + strings.Repeat("8", 64))
+	refreshed := prepared
+	refreshed.RequiredApprovalID = ""
+	refreshed.RequiredApprovalRequestHash = nil
+	refreshed.RequiredApprovalDecisionHash = nil
+	model := gitRemoteMutationRouteModel{def: routeDefinition{ID: routeGitRemote, Label: "Git Remote"}, prepared: prepared, providerAuthLeaseID: "lease-git-provider", loadSeq: 1}
+
+	updated, _ := model.Update(gitRemoteMutationLoadedMsg{resp: brokerapi.GitRemoteMutationGetResponse{Prepared: refreshed}, seq: 1})
+	shell := updated.(gitRemoteMutationRouteModel)
+	if shell.providerAuthLeaseID != "" {
+		t.Fatalf("expected lease cleared when refreshed approval binding is incomplete, got %q", shell.providerAuthLeaseID)
+	}
+	view := shell.View(120, 40, focusContent)
+	if strings.Contains(view, "Execution access is ready") || strings.Contains(view, "Press e to execute") {
+		t.Fatalf("expected refreshed incomplete binding to remain not-ready, got %q", view)
+	}
+}

@@ -22,6 +22,7 @@ func (m shellModel) loadSessionWorkspaceCmd() tea.Cmd {
 
 func (m *shellModel) applySessionWorkspaceLoaded(msg sessionWorkspaceLoadedMsg) {
 	m.sessionLoading = false
+	m.invalidateOverlayFrameCache()
 	if msg.err != nil {
 		m.sessionLoadError = safeUIErrorText(msg.err)
 		m.refreshObjectIndexFromShellState()

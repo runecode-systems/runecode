@@ -76,7 +76,10 @@ func runMain(args []string, stdin *os.File, stdout *os.File, stderr io.Writer) i
 	finalModel, err := runShellProgram(model)
 	finalModel.flushWorkbenchState()
 	if err == nil {
-		err = finalModel.workbenchFlushError()
+		if flushErr := finalModel.workbenchFlushError(); flushErr != nil {
+			fmt.Fprintf(stderr, "runecode-tui failed: %s\n", safeWorkbenchPersistenceErrorText(flushErr))
+			return 1
+		}
 	}
 	if err != nil {
 		fmt.Fprintf(stderr, "runecode-tui failed: %v\n", err)
