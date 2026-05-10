@@ -90,3 +90,26 @@ func TestSessionQuickSwitcherBoundsMatchListWithGapMarkers(t *testing.T) {
 		t.Fatalf("expected bounded render to omit at least one edge row, got %q", v)
 	}
 }
+
+func TestSessionSwitcherFilteringUsesCachedNormalizedSessionText(t *testing.T) {
+	sessions := []brokerapi.SessionSummary{
+		{Identity: brokerapi.SessionIdentity{SessionID: "session-1", WorkspaceID: "ws-1"}, LastActivityKind: "chat_message", LastActivityPreview: "alpha preview"},
+		{Identity: brokerapi.SessionIdentity{SessionID: "session-2", WorkspaceID: "ws-2"}, LastActivityKind: "run_progress", LastActivityPreview: "Needs Follow-Up"},
+	}
+	m := newSessionSwitcherModel().Open(sessions)
+	if got := len(m.normalizedSessions); got != len(sessions) {
+		t.Fatalf("expected %d cached normalized sessions, got %d", len(sessions), got)
+	}
+
+	m.query = "WS-2"
+	m.rebuildMatches()
+	if len(m.matches) != 1 || m.matches[0].Identity.SessionID != "session-2" {
+		t.Fatalf("expected workspace match for session-2, got %+v", m.matches)
+	}
+
+	m.query = "FOLLOW-UP"
+	m.rebuildMatches()
+	if len(m.matches) != 1 || m.matches[0].Identity.SessionID != "session-2" {
+		t.Fatalf("expected preview match for session-2, got %+v", m.matches)
+	}
+}

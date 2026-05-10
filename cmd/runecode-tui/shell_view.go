@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
 )
 
 func (m shellModel) View() string {
@@ -13,10 +12,12 @@ func (m shellModel) View() string {
 		return "Goodbye from runecode-tui.\n"
 	}
 
-	surface := m.activeShellSurface()
-	layout := m.planShellLayout(surface)
 	viewportWidth, viewportHeight := normalizedShellViewport(m.width, m.height)
-	workbench := m.renderShellWorkbench(surface, layout, viewportWidth, viewportHeight)
+	workbench, ok := m.cachedOverlayWorkbench(viewportWidth, viewportHeight)
+	if !ok {
+		surface, layout := m.activeShellSurfacePlan()
+		workbench = m.renderShellWorkbench(surface, layout, viewportWidth, viewportHeight)
+	}
 	root := appTheme.SurfaceBase.
 		Width(viewportWidth).
 		MaxWidth(viewportWidth).
@@ -27,14 +28,30 @@ func (m shellModel) View() string {
 
 func (m shellModel) renderShellWorkbench(surface routeSurface, layout shellLayoutPlan, viewportWidth int, viewportHeight int) string {
 	overlayBody, _ := m.overlayBodyWithHeight(surface, layout, viewportHeight)
+	frame := m.renderShellFrame(surface, layout, viewportWidth, viewportHeight)
+	if strings.TrimSpace(overlayBody) == "" {
+		if m.overlayFrameCache != nil {
+			*m.overlayFrameCache = shellOverlayFrameCache{}
+		}
+		return lipgloss.JoinVertical(lipgloss.Left, frame)
+	}
+	return applyModalOverlay(scrubShellFrameForOverlay(frame, viewportWidth, viewportHeight), overlayBody, viewportWidth, viewportHeight)
+}
+
+func (m shellModel) renderShellFrame(surface routeSurface, layout shellLayoutPlan, viewportWidth int, viewportHeight int) string {
+	if m.overlayFrameCacheable() && m.overlayFrameCache != nil {
+		if cached := m.overlayFrameCache; cached.overlay == m.activeOverlayID() && cached.width == viewportWidth && cached.height == viewportHeight && cached.frame != "" {
+			return cached.frame
+		}
+	}
 	b := strings.Builder{}
 	m.writeShellFrame(&b, surface, layout, viewportWidth)
 	m.writeShellFooter(&b, viewportWidth)
 	frame := padShellFrame(strings.TrimRight(b.String(), "\n"), viewportWidth, viewportHeight)
-	if strings.TrimSpace(overlayBody) == "" {
-		return lipgloss.JoinVertical(lipgloss.Left, frame)
+	if m.overlayFrameCacheable() && m.overlayFrameCache != nil {
+		*m.overlayFrameCache = shellOverlayFrameCache{overlay: m.activeOverlayID(), width: viewportWidth, height: viewportHeight, frame: frame}
 	}
-	return applyModalOverlay(scrubShellFrameForOverlay(frame, viewportWidth, viewportHeight), overlayBody, viewportWidth, viewportHeight)
+	return frame
 }
 
 func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, layout shellLayoutPlan, viewportWidth int) {
@@ -54,110 +71,6 @@ func (m shellModel) writeShellFrame(b *strings.Builder, surface routeSurface, la
 func (m shellModel) writeShellFooter(b *strings.Builder, viewportWidth int) {
 	_ = b
 	_ = viewportWidth
-}
-
-func (m shellModel) overlayBodyWithHeight(surface routeSurface, layout shellLayoutPlan, viewportHeight int) (string, int) {
-	parts := m.overlayStaticParts()
-	maxOverlayHeight := overlayHeightBudget(viewportHeight)
-	remainingHeight := overlayRemainingHeight(parts, maxOverlayHeight)
-	overlayWidth := normalizedOverlayWidth(m.width)
-	overlay := m.activeOverlayBody(surface, layout, overlayWidth, remainingHeight)
-	if strings.TrimSpace(overlay) != "" {
-		parts = append(parts, overlay)
-	}
-	if len(parts) == 0 {
-		return "", 0
-	}
-	contentHeight := lipgloss.Height(strings.Join(parts, "\n"))
-	if contentHeight > maxOverlayHeight {
-		contentHeight = maxOverlayHeight
-	}
-	content := constrainShellBlock(strings.Join(parts, "\n"), overlayWidth, contentHeight)
-	return content, lipgloss.Height(content)
-}
-
-func (m shellModel) overlayStaticParts() []string {
-	return nil
-}
-
-func overlayHeightBudget(viewportHeight int) int {
-	maxOverlayHeight := viewportHeight - 8
-	if maxOverlayHeight < 1 {
-		return 1
-	}
-	return maxOverlayHeight
-}
-
-func overlayRemainingHeight(parts []string, maxOverlayHeight int) int {
-	remainingHeight := maxOverlayHeight - lipgloss.Height(strings.Join(parts, "\n"))
-	if len(parts) > 0 {
-		remainingHeight--
-	}
-	if remainingHeight < 1 {
-		return 1
-	}
-	return remainingHeight
-}
-
-func (m shellModel) activeOverlayBody(surface routeSurface, layout shellLayoutPlan, overlayWidth int, remainingHeight int) string {
-	switch {
-	case m.palette.IsOpen():
-		return centeredOverlayBlockBounded(overlayIDQuickJump, m.renderPalette(), overlayWidth, remainingHeight)
-	case m.sessions.IsOpen():
-		return centeredOverlayBlockBounded(overlayIDSessions, m.renderSessionQuickSwitcher(), overlayWidth, remainingHeight)
-	case m.leader.Active():
-		return centeredOverlayBlockBounded(overlayIDLeader, m.renderLeaderWhichKey(), overlayWidth, remainingHeight)
-	case m.quitConfirm.active:
-		return centeredOverlayBlockBounded(overlayIDQuitConfirm, m.renderQuitConfirmDialog(), overlayWidth, remainingHeight)
-	case m.narrowSidebarOn && m.breakpoint() == shellBreakpointNarrow:
-		return centeredOverlayBlockBounded(overlayIDSidebar, m.renderSidebar(), overlayWidth, remainingHeight)
-	case m.narrowInspectOn && m.breakpoint() == shellBreakpointNarrow:
-		return m.narrowInspectorOverlayBody(surface, layout, overlayWidth, remainingHeight)
-	default:
-		return ""
-	}
-}
-
-func (m shellModel) narrowInspectorOverlayBody(surface routeSurface, layout shellLayoutPlan, overlayWidth int, remainingHeight int) string {
-	inspector := strings.TrimSpace(surface.Regions.Inspector.Body)
-	title := strings.TrimSpace(surface.Regions.Inspector.Title)
-	if title == "" {
-		title = "Inspector"
-	}
-	if inspector != "" && routeInspectorAvailable(surface) && m.inspectorOn {
-		return centeredOverlayBlockBounded(overlayIDInspector, compactLines(title, inspector), overlayWidth, remainingHeight)
-	}
-	if !layout.InspectorVisible && !routeInspectorAvailable(surface) {
-		return centeredOverlayBlockBounded(overlayIDInspector, "Inspector unavailable for current route.", overlayWidth, remainingHeight)
-	}
-	return centeredOverlayBlockBounded(overlayIDInspector, compactLines(title, "No inspector item selected."), overlayWidth, remainingHeight)
-}
-
-func (m shellModel) activeOverlayHeight(viewportHeight int) int {
-	surface := m.activeShellSurfaceWithoutOverlayHeight()
-	_, height := m.overlayBodyWithHeight(surface, m.planShellLayout(surface), viewportHeight)
-	return height
-}
-
-func (m shellModel) activeShellSurfaceWithoutOverlayHeight() routeSurface {
-	active := m.routeModels[m.currentRouteID()]
-	if active == nil {
-		return routeSurface{}
-	}
-	baseCtx := routeShellContext{Width: m.width, Height: m.height, Focus: m.focus, Focused: m.focusedRouteRegion(), Breakpoint: m.breakpoint(), Render: routeShellRenderPreferences{PreferredPresentation: normalizePresentationMode(m.preferredMode), ThemePreset: normalizeThemePreset(m.themePreset)}}
-	surface := active.ShellSurface(baseCtx)
-	layout := m.planShellLayout(surface)
-	ctx := baseCtx
-	ctx.Regions = layout.Regions
-	ctx.Breakpoint = layout.Breakpoint
-	return m.withLocationChrome(active.ShellSurface(ctx))
-}
-
-func normalizedOverlayWidth(width int) int {
-	if width <= 0 {
-		return 1
-	}
-	return width
 }
 
 func constrainShellBlock(block string, width int, height int) string {
@@ -227,78 +140,6 @@ func (m shellModel) renderSyncHealth() string {
 		text += "  •  " + actions
 	}
 	return text
-}
-
-func scrubShellFrameForOverlay(frame string, width int, height int) string {
-	if strings.TrimSpace(frame) == "" {
-		return frame
-	}
-	lines := strings.Split(padShellFrame(frame, width, height), "\n")
-	blank := lipgloss.NewStyle().Width(width).MaxWidth(width).Render("")
-	blankFrom := len(lines) - (shellStatusHeight + shellBottomStripHeight)
-	if blankFrom < 0 {
-		blankFrom = 0
-	}
-	for i := range lines {
-		if i >= blankFrom {
-			lines[i] = blank
-			continue
-		}
-		stripped := strings.TrimSpace(ansiStripForOverlay(lines[i]))
-		if stripped == "" {
-			lines[i] = blank
-			continue
-		}
-		if containsBoxDrawing(stripped) {
-			lines[i] = blank
-			continue
-		}
-		lines[i] = appTheme.Muted.Width(width).MaxWidth(width).Render(ansiStripForOverlay(lines[i]))
-	}
-	return strings.Join(lines, "\n")
-}
-
-func containsBoxDrawing(line string) bool {
-	for _, r := range line {
-		switch r {
-		case '┌', '┐', '└', '┘', '│', '─', '├', '┤', '┬', '┴', '┼':
-			return true
-		}
-	}
-	return false
-}
-
-func ansiStripForOverlay(line string) string {
-	return sanitizeUIText(ansi.Strip(line))
-}
-
-func applyModalOverlay(frame string, overlay string, width int, height int) string {
-	if strings.TrimSpace(overlay) == "" {
-		return frame
-	}
-	if width <= 0 {
-		width = 1
-	}
-	if height <= 0 {
-		return frame
-	}
-	frameLines := strings.Split(padShellBlock(frame, width, height), "\n")
-	overlayLines := strings.Split(strings.TrimRight(overlay, "\n"), "\n")
-	if len(overlayLines) > height {
-		overlayLines = overlayLines[:height]
-	}
-	start := (height - len(overlayLines)) / 2
-	if start < 0 {
-		start = 0
-	}
-	for i, line := range overlayLines {
-		row := start + i
-		if row < 0 || row >= len(frameLines) {
-			continue
-		}
-		frameLines[row] = lipgloss.NewStyle().Width(width).MaxWidth(width).Align(lipgloss.Center).Render(line)
-	}
-	return strings.Join(frameLines, "\n")
 }
 
 func (m shellModel) renderBreadcrumbs(surface routeSurface) string {

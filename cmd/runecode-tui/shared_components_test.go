@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -247,4 +248,25 @@ func TestRenderStateCardProvidesDefaultNextStepForBlockedAndCompleted(t *testing
 		"COMPLETED",
 		"Next: Review the resulting artifacts, approvals, or audit evidence if you need more detail.",
 	)
+}
+
+func TestRenderBoundedListWindowedOnlyRendersVisibleRows(t *testing.T) {
+	calls := make([]int, 0, 4)
+	got := renderBoundedListWindowed(boundedListWindowedSpec{
+		TotalRows:   100,
+		SelectedRow: 50,
+		Height:      5,
+		GapMarker:   "...",
+		RenderRow: func(index int) boundedListRow {
+			calls = append(calls, index)
+			return boundedListRow{Text: fmt.Sprintf("row-%d", index), Selectable: true}
+		},
+	})
+	wantCalls := []int{49, 50, 51}
+	if fmt.Sprint(calls) != fmt.Sprint(wantCalls) {
+		t.Fatalf("expected visible row renders %v, got %v", wantCalls, calls)
+	}
+	if strings.Contains(got, "row-0") || strings.Contains(got, "row-99") {
+		t.Fatalf("expected off-window rows omitted, got %q", got)
+	}
 }

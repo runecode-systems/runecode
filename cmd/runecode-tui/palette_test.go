@@ -103,3 +103,26 @@ func keyMsg(key string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
 	}
 }
+
+func TestPaletteFilteringMatchesAcrossCachedNormalizedFields(t *testing.T) {
+	entries := []paletteEntry{
+		{Index: 1, Label: "jump route chat", Description: "open workspace home", Search: "session-alpha ws-home"},
+		{Index: 2, Label: "inspect session beta", Description: "follow-up needed", Search: "workspace-2 run-2"},
+	}
+	m := newPaletteModel(entries).Open()
+	if got := len(m.normalizedEntries); got != len(entries) {
+		t.Fatalf("expected %d cached normalized entries, got %d", len(entries), got)
+	}
+
+	m.query = "WORKSPACE-2"
+	m.rebuildMatches()
+	if len(m.matches) != 1 || m.matches[0].Index != 2 {
+		t.Fatalf("expected search text match for second entry, got %+v", m.matches)
+	}
+
+	m.query = "FOLLOW-UP"
+	m.rebuildMatches()
+	if len(m.matches) != 1 || m.matches[0].Index != 2 {
+		t.Fatalf("expected description match for second entry, got %+v", m.matches)
+	}
+}

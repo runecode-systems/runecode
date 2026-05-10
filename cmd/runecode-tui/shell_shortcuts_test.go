@@ -781,3 +781,44 @@ func TestLeaderStartKeyValidationRejectsUnsafeOptions(t *testing.T) {
 		}
 	}
 }
+
+func TestShellLeaderBindingsRefreshWhenAvailabilityChanges(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	cmd := m.commands.commands["shell.copy_identity"]
+	cmd.ID = "shell.custom_sensitive"
+	cmd.Title = "Custom Sensitive"
+	cmd.Aliases = []string{"custom sensitive"}
+	cmd.LeaderPath = []string{"z", "s"}
+	cmd.LeaderGroup = "Custom"
+	m.commands.Register(cmd)
+	m.actions = newShellActionGraph(m.routes, m.commands)
+	m.location.Primary = shellObjectLocation{RouteID: routeProviders, Object: workbenchObjectRef{Kind: "route", ID: string(routeProviders)}}
+	m.routeModels[routeProviders] = providerSetupRouteModel{def: routeDefinition{ID: routeProviders, Label: "Model Providers"}, entryActive: true}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	shell := updated.(shellModel)
+	for _, choice := range shell.leader.Choices() {
+		if choice.Key == "z" {
+			t.Fatalf("expected custom family unavailable during exclusive capture, got %+v", shell.leader.Choices())
+		}
+	}
+
+	provider := shell.routeModels[routeProviders].(providerSetupRouteModel)
+	provider.entryActive = false
+	shell.routeModels[routeProviders] = provider
+	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	shell = updated.(shellModel)
+	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	shell = updated.(shellModel)
+	foundCustom := false
+	for _, choice := range shell.leader.Choices() {
+		if choice.Key == "z" {
+			foundCustom = true
+			break
+		}
+	}
+	if !foundCustom {
+		t.Fatalf("expected leader bindings refreshed after availability change, got %+v", shell.leader.Choices())
+	}
+}

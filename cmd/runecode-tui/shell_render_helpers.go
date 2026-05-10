@@ -29,19 +29,17 @@ func (m shellModel) renderPalette() string {
 	}
 	b.WriteString(tableHeader("Suggested actions"))
 	b.WriteString("\n")
-	rows := make([]boundedListRow, 0, len(m.palette.matches))
-	for _, entry := range m.palette.matches {
-		rows = append(rows, boundedListRow{Text: paletteMatchLineBounded(entry, width), Selectable: true})
-	}
-	b.WriteString(renderBoundedList(boundedListSpec{
-		Rows:          rows,
-		Selected:      m.palette.selectedIndex,
+	b.WriteString(renderBoundedListWindowed(boundedListWindowedSpec{
+		TotalRows:     len(m.palette.matches),
+		SelectedRow:   m.palette.selectedIndex,
 		Width:         width,
 		Height:        10,
 		GapMarker:     "...",
-		PreserveGaps:  true,
 		ApplySelected: true,
 		ActiveFill:    true,
+		RenderRow: func(index int) boundedListRow {
+			return boundedListRow{Text: paletteMatchLineBounded(m.palette.matches[index], width), Selectable: true}
+		},
 	}))
 	b.WriteString("\n")
 	return b.String()
@@ -58,54 +56,56 @@ func (m shellModel) renderSessionQuickSwitcher() string {
 	}
 	b.WriteString(tableHeader("Recent sessions"))
 	b.WriteString("\n")
-	rows := make([]boundedListRow, 0, len(m.sessions.matches))
-	for i, s := range m.sessions.matches {
-		marker := " "
-		if i == m.sessions.selectedIndex {
-			marker = "▶"
-		}
-		sessionLabel := s.Identity.SessionID
-		if m.watch.projection.Activity.Active.Kind == "session" && strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" && m.watch.projection.Activity.Active.ID == s.Identity.SessionID {
-			sessionLabel = "● " + sessionLabel
-		}
-		preview := truncateText(sanitizeUIText(s.LastActivityPreview), 58)
-		lineParts := []string{fmt.Sprintf("%s %s", marker, sessionLabel), sessionHighLevelCue(s)}
-		if counts := strings.TrimSpace(compactSessionSwitcherCounts(s)); counts != "" {
-			lineParts = append(lineParts, "["+counts+"]")
-		}
-		line := clipDisplayText(strings.Join(lineParts, "  "), width)
-		detailParts := []string{}
-		if workspace := strings.TrimSpace(s.Identity.WorkspaceID); workspace != "" {
-			detailParts = append(detailParts, "Workspace "+workspace)
-		}
-		if activityKind := strings.TrimSpace(s.LastActivityKind); activityKind != "" {
-			detailParts = append(detailParts, "Recent activity "+activityKind)
-		}
-		if preview != "" {
-			detailParts = append(detailParts, preview)
-		}
-		detail := "    " + strings.Join(detailParts, "  •  ")
-		if strings.TrimSpace(detail) == "" {
-			detail = "    No recent activity yet."
-		}
-		if s.HasIncompleteTurn {
-			detail += "  •  Needs follow-up"
-		}
-		line = compactLines(line, muted(clipDisplayText(detail, width)))
-		rows = append(rows, boundedListRow{Text: line, Selectable: true})
-	}
-	b.WriteString(renderBoundedList(boundedListSpec{
-		Rows:          rows,
-		Selected:      m.sessions.selectedIndex,
+	b.WriteString(renderBoundedListWindowed(boundedListWindowedSpec{
+		TotalRows:     len(m.sessions.matches),
+		SelectedRow:   m.sessions.selectedIndex,
 		Width:         width,
 		Height:        8,
 		GapMarker:     "...",
-		PreserveGaps:  true,
 		ApplySelected: true,
 		ActiveFill:    true,
+		RenderRow: func(index int) boundedListRow {
+			return boundedListRow{Text: m.renderSessionQuickSwitcherRow(index, width), Selectable: true}
+		},
 	}))
 	b.WriteString("\n")
 	return b.String()
+}
+
+func (m shellModel) renderSessionQuickSwitcherRow(index int, width int) string {
+	s := m.sessions.matches[index]
+	marker := " "
+	if index == m.sessions.selectedIndex {
+		marker = "▶"
+	}
+	sessionLabel := s.Identity.SessionID
+	if m.watch.projection.Activity.Active.Kind == "session" && strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" && m.watch.projection.Activity.Active.ID == s.Identity.SessionID {
+		sessionLabel = "● " + sessionLabel
+	}
+	preview := truncateText(sanitizeUIText(s.LastActivityPreview), 58)
+	lineParts := []string{fmt.Sprintf("%s %s", marker, sessionLabel), sessionHighLevelCue(s)}
+	if counts := strings.TrimSpace(compactSessionSwitcherCounts(s)); counts != "" {
+		lineParts = append(lineParts, "["+counts+"]")
+	}
+	line := clipDisplayText(strings.Join(lineParts, "  "), width)
+	detailParts := make([]string, 0, 3)
+	if workspace := strings.TrimSpace(s.Identity.WorkspaceID); workspace != "" {
+		detailParts = append(detailParts, "Workspace "+workspace)
+	}
+	if activityKind := strings.TrimSpace(s.LastActivityKind); activityKind != "" {
+		detailParts = append(detailParts, "Recent activity "+activityKind)
+	}
+	if preview != "" {
+		detailParts = append(detailParts, preview)
+	}
+	detail := "    " + strings.Join(detailParts, "  •  ")
+	if strings.TrimSpace(detail) == "" {
+		detail = "    No recent activity yet."
+	}
+	if s.HasIncompleteTurn {
+		detail += "  •  Needs follow-up"
+	}
+	return compactLines(line, muted(clipDisplayText(detail, width)))
 }
 
 func compactSessionSwitcherCounts(summary brokerapi.SessionSummary) string {
@@ -139,16 +139,25 @@ func (m shellModel) renderLeaderWhichKey() string {
 	}
 	b.WriteString(tableHeader("Valid next keys"))
 	b.WriteString("\n")
-	for _, choice := range choices {
-		suffix := ""
-		if choice.Completes {
-			suffix = " " + infoBadge("exec")
-		}
-		line := " • " + choice.Key + " — " + defaultPlaceholder(choice.Label, "(group)") + " — " + defaultPlaceholder(choice.Description, "") + suffix
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
+	b.WriteString(renderBoundedListWindowed(boundedListWindowedSpec{
+		TotalRows: len(choices),
+		Width:     boundedOverlayListWidth(m.width),
+		Height:    10,
+		GapMarker: "...",
+		RenderRow: func(index int) boundedListRow {
+			return boundedListRow{Text: leaderChoiceLine(choices[index])}
+		},
+	}))
+	b.WriteString("\n")
 	return b.String()
+}
+
+func leaderChoiceLine(choice shellLeaderChoice) string {
+	suffix := ""
+	if choice.Completes {
+		suffix = " " + infoBadge("exec")
+	}
+	return " • " + choice.Key + " — " + defaultPlaceholder(choice.Label, "(group)") + " — " + defaultPlaceholder(choice.Description, "") + suffix
 }
 
 func (m shellModel) renderQuitConfirmDialog() string {

@@ -21,7 +21,7 @@ func (m *shellModel) setFocus(area focusArea) {
 }
 
 func (m *shellModel) normalizeFocusForLayout() {
-	layout := m.planShellLayout(m.activeShellSurface())
+	layout := m.focusTraversalLayout()
 	m.focusManager.Normalize(layout, m.commandOverlayOpen())
 	m.focus = m.focusManager.Current()
 }
@@ -30,7 +30,7 @@ func (m *shellModel) restoreFocusAfterOverlayClose() {
 	if m.overlayOpen() {
 		return
 	}
-	layout := m.planShellLayout(m.activeShellSurface())
+	layout := m.focusTraversalLayout()
 	m.focusManager.Set(m.overlayReturn)
 	m.focusManager.Normalize(layout, false)
 	m.focus = m.focusManager.Current()

@@ -21,6 +21,9 @@
 - Current TUI implementation does use Bubble Tea, Bubbles, and Lip Gloss foundations: `tea.NewProgram`, `tea.Model`/`Init`/`Update`/`View`, async `tea.Cmd` route loading, `tea.Tick` for broker-watch polling/activity, Bubbles textarea/viewport/help/spinner primitives, and Lip Gloss theme/style/composition primitives.
 - Bubble Tea architecture is broadly sound, but polish work must preserve deterministic `View` rendering, route-local `Update` state transitions, explicit keyboard ownership for text/secret entry and overlays, command-based broker operations, centralized resize behavior, and honest watch-driven progress.
 - Lip Gloss usage is competent but not yet product-polished. Current styling provides panes, borders, badges, muted text, and theme tokens, but the professional bar requires stronger shared components, accent rails, focused cards, modal overlays, deliberate state colors, display-width-safe truncation, and high-contrast verification.
+- Interaction performance is currently below the desired product bar. The source review found synchronous per-keystroke overlay filtering, full-match row formatting before visible-window trimming, repeated shell-background render work while overlays are active, repeated route-surface/layout generation in hot paths, unnecessary leader binding/choice recomputation, and some synchronous persistence writes from interactive paths.
+- These latency findings match Bubble Tea's serialized `Update` plus render model: any synchronous filter, layout, render, or file-write cost directly increases key-to-render latency and can make rapid input feel dropped. TUI polish therefore includes interaction responsiveness, not only wording and visual hierarchy.
+- The highest-value implementation fixes are to precompute normalized search text, reuse match buffers, render only visible overlay rows, cache/reuse unchanged shell background work while overlays are active, reduce duplicate route-surface work in focus/overlay flows, remove synchronous persistence from critical key paths, and add deterministic benchmarks/tests for keypress-heavy scenarios.
 - The preserved `full-audit` desktop bundle covered 10 routes and 13 scenarios: Dashboard, Chat, Runs, Approvals, Action Center, Audit, Status, Model Providers, Git Setup, and Git Remote. That bundle is useful proof of route direction, but it is not enough to close TUI polish because it does not yet cover Artifacts, overlay surfaces, or compact/mobile behavior.
 - The TUI partially satisfies CHG-060: Dashboard now has an executive-summary shape, Action Center is a credible triage route, Chat communicates active-work state honestly, Status/project substrate has understandable lifecycle concepts, and the product has real inspectors, copy actions, and plan-authoritative workflow surfaces.
 - The TUI does not fully satisfy CHG-060 yet: shell chrome and footer rows still dominate too much vertical space, Action Center cards and inspectors are too dense, and Runs, Approvals, Audit, Status, Model Providers, Git Setup, and Git Remote still expose too much control-plane/debug detail in rendered primary surfaces.
@@ -41,6 +44,8 @@
 - Launch through the canonical product path, not only `go run ./cmd/runecode-tui`, so the TUI is reviewed with broker-owned lifecycle and sibling-binary resolution behavior.
 - Capture terminal frames or deterministic render snapshots for Dashboard, Action Center, Chat, Runs, Approvals, Artifacts, Audit, Status/project substrate, Model Providers, Git Setup, Git Remote, command palette, session switcher, leader help, inspector sheet, sidebar drawer, quit confirmation, desktop, compact, and mobile layouts.
 - Require the preserved deterministic audit bundle used for closure to cover Artifacts and overlay surfaces in addition to the current desktop route set; desktop-only route captures are insufficient proof of TUI polish.
+- Verify rapid typing in command palette and session switcher remains responsive and deterministic under realistic fixture sizes, without dropped characters or visible event-loop stalls.
+- Verify arrow-key focus/navigation and leader-key start/step flows remain responsive under normal route and overlay state, including when the active route has populated inspector/detail content.
 - For every primary route, verify the first visible card answers: what is happening, whether it is healthy, whether the operator is blocked, what the operator should do next, and where the evidence or source of truth lives.
 - Verify Dashboard is a calm executive overview and does not surface readiness fields, watch-family details, protocol bundle data, version/build detail, or low-level audit facts as primary content.
 - Verify Action Center is the clearest operator home for attention, with product-language buckets for approvals, operational attention, and blocked work, and with raw watch-family/debug facts moved to inspector/detail.
@@ -53,6 +58,12 @@
 - Verify all state-card variants include state label, message, reason, next action, route cue, shortcut cue, and evidence/source cue where applicable.
 - Verify display-width-sensitive rows remain aligned with styled text, wide characters, and ANSI sequences; raw rune-count truncation should not break selected rows, directories, overlays, or inspector summaries.
 - Verify dark, dusk, and high-contrast themes preserve legibility for ready/success, waiting/attention, blocked/danger, active/command, link/evidence, selected, muted, and raw/digest text.
+
+## Required TUI Interaction Performance Checks
+- Add focused Go benchmarks for palette typing/filtering, session-switcher typing/filtering, leader open/step, and overlay-heavy shell view rendering with deterministic fixed datasets.
+- Add a deterministic no-dropped-keys test that scripts rapid overlay text-entry input and verifies all characters are consumed in order.
+- Keep benchmark runs deterministic by fixing dataset size, terminal dimensions, and benchmark environment; do not rely on PTY wall-clock timing variance across the full CI matrix.
+- Run the TUI performance gate on a stable Linux CI job and fail on meaningful regressions rather than treating interaction responsiveness as manual-only QA.
 
 ## Verification Notes
 - Confirm `runecontext/project/roadmap.md` places this change under `v0.1.0-alpha.11` and keeps `v0.1.0-beta.1` as the milestone framing.

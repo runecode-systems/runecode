@@ -16,47 +16,67 @@ type usageError struct{ message string }
 
 func (e *usageError) Error() string { return e.message }
 
+var (
+	newShellModelFunc = newShellModel
+	isTerminalFunc    = term.IsTerminal
+	runShellProgram   = func(model shellModel) (shellModel, error) {
+		p := tea.NewProgram(model, tea.WithAltScreen())
+		finalModel, err := p.Run()
+		if finalShell, ok := finalModel.(shellModel); ok {
+			return finalShell, err
+		}
+		return model, err
+	}
+)
+
 func main() {
-	args := os.Args[1:]
+	os.Exit(runMain(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+}
+
+func runMain(args []string, stdin *os.File, stdout *os.File, stderr io.Writer) int {
 	cfg, err := parseCLIConfig(args)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
+		fmt.Fprintln(stderr, err)
+		return 2
 	}
 
 	if cfg.showHelp {
-		if err := writeHelp(os.Stdout); err != nil {
-			fmt.Fprintf(os.Stderr, "runecode-tui failed to write help: %v\n", err)
-			os.Exit(1)
+		if err := writeHelp(stdout); err != nil {
+			fmt.Fprintf(stderr, "runecode-tui failed to write help: %v\n", err)
+			return 1
 		}
-
-		return
+		return 0
 	}
 
 	if cfg.snapshot.enabled {
 		if err := writeSnapshotArtifacts(cfg.snapshot); err != nil {
-			fmt.Fprintf(os.Stderr, "runecode-tui snapshot failed: %v\n", err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "runecode-tui snapshot failed: %v\n", err)
+			return 1
 		}
-		return
+		return 0
 	}
 
-	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
-		if err := writeNonInteractiveMessage(os.Stdout); err != nil {
-			fmt.Fprintf(os.Stderr, "runecode-tui failed to write output: %v\n", err)
-			os.Exit(1)
+	if !isTerminalFunc(int(stdin.Fd())) || !isTerminalFunc(int(stdout.Fd())) {
+		if err := writeNonInteractiveMessage(stdout); err != nil {
+			fmt.Fprintf(stderr, "runecode-tui failed to write output: %v\n", err)
+			return 1
 		}
-
-		return
+		return 0
 	}
 
 	setCLIIPCConfigOverrides(cfg)
+	model := newShellModelFunc()
 
-	p := tea.NewProgram(newShellModel(), tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "runecode-tui failed: %v\n", err)
-		os.Exit(1)
+	finalModel, err := runShellProgram(model)
+	finalModel.flushWorkbenchState()
+	if err == nil {
+		err = finalModel.workbenchFlushError()
 	}
+	if err != nil {
+		fmt.Fprintf(stderr, "runecode-tui failed: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func isHelpArg(arg string) bool {

@@ -183,6 +183,46 @@ The first once-over identified these concrete polish directions:
 ### TUI Once-Over Findings
 The focused source review of the current TUI implementation found that the product is partway through this polish goal, but not yet at the professional operator-product bar required for beta. The code already uses a real Bubble Tea shell, route models, route workbenches, inspectors, command and leader surfaces, live watch projection, themes, Lip Gloss-styled panes, Bubbles textarea/viewport/help/spinner primitives, and broker-owned state. The gap is no longer whether the implementation has TUI foundations; the gap is whether the default presentation feels calm, coherent, and designed rather than like a dense control-plane console.
 
+### TUI Interaction Performance Findings
+The dogfooding review also found that the TUI currently feels sluggish during common interaction loops. This is beta-blocking product polish because delayed or dropped input makes the product feel unproductive even when the underlying broker state is correct.
+
+The source review identified these concrete causes:
+
+- overlay search currently performs synchronous per-keystroke filtering on the Bubble Tea event loop for the command palette and session switcher, while repeatedly lowercasing and scanning large entry sets in hot input paths
+- overlay list rendering formats every match before the bounded list window trims to the visible rows, so short overlays still pay formatting cost for the full result set
+- overlay typing still re-renders the full shell workbench behind the modal surface, including route surface generation, pane layout, sidebar, inspector, and frame scrubbing work that does not change for most overlay keystrokes
+- shell surface generation is duplicated in hot paths: layout planning, overlay-height calculation, focus traversal, and final `View` rendering can all trigger repeated route `ShellSurface` work for a single key press
+- leader navigation recomputes bindings and next-choice sets more often than necessary, including repeated scans and sorting during open/step flows
+- some interactive navigation and workbench actions still perform synchronous persistence writes from key-driven paths, which can introduce visible hitches when the local filesystem is slow
+
+These findings align with Bubble Tea's execution model: `Update` and render are serialized on the main event loop, so any synchronous filter, render, layout, or file-write cost directly increases key-to-render latency and can make rapid input feel dropped.
+
+### TUI Interaction Performance Recommendations
+The TUI polish plan should therefore treat interaction latency as a first-class product-quality requirement, not as a later optimization pass.
+
+Recommended closure order:
+
+1. Make hot key paths cheap.
+   Keep text-entry, leader, focus-traversal, and navigation updates close to state mutation only. Avoid repeated route-surface generation, repeated layout planning, and any synchronous file I/O from those key paths.
+
+2. Precompute and reuse searchable text.
+   Palette and quick-switch entries should carry normalized search text so typing does not repeatedly lowercase and concatenate fields. Match buffers should reuse backing storage rather than forcing unnecessary allocation churn.
+
+3. Render only visible rows for overlay lists.
+   Command palette, session switcher, and leader-help lists should format only the bounded visible window plus gap markers rather than building rows for the full match set.
+
+4. Cache unchanged shell frame work while overlays are active.
+   When the user is typing into command palette, session switcher, or leader help, the background workbench should be reused until route state, watch state, window size, theme, or focus requires invalidation.
+
+5. Remove unnecessary leader recomputation.
+   Leader mode should avoid repeated binding scans and sorting for unchanged prefixes; open/start flows should not rebuild the same choice set multiple times.
+
+6. Move persistence off the critical input path.
+   Workbench-state persistence should be queued or coalesced so route/layout actions remain responsive without weakening durability expectations.
+
+7. Add deterministic latency-focused tests and benchmarks.
+   TUI polish is not complete until the repository has repeatable benchmarks and regression tests for keypress-heavy interactions and a CI job that makes regressions visible.
+
 The current implementation partially satisfies the CHG-060 intent, but the full snapshot audit clarifies the remaining gaps:
 
 - `Dashboard` is the best-aligned route. It now has an executive state card, high-value counts, and next-action language, but it still shares the screen with too much shell chrome and still repeats state/badge language that should feel calmer and more intentional.
@@ -286,7 +326,10 @@ To reach a polished and professional TUI experience, close the gaps in this orde
    Model Providers should read like credential setup with safe secret ingress, current readiness, next action, and evidence that no secret leaked. Git Setup should read like account and identity setup, not a broker state dump. Git Remote should read like a guarded review-and-execute flow with approval and lease prerequisites, not a hash inventory.
 
 10. Verify with real product walkthroughs.
-    Capture terminal frames and deterministic bundle coverage for Dashboard, Action Center, Chat, Runs, Approvals, Artifacts, Audit, Status/project substrate, Model Providers, Git Setup, Git Remote, command palette, session switcher, leader help, inspector sheet, sidebar drawer, quit confirmation, blocked/degraded/disconnected states, and desktop plus compact/mobile layouts. Review those frames against CHG-060 before marking the TUI acceptance criterion complete; desktop-only route snapshots are not enough.
+     Capture terminal frames and deterministic bundle coverage for Dashboard, Action Center, Chat, Runs, Approvals, Artifacts, Audit, Status/project substrate, Model Providers, Git Setup, Git Remote, command palette, session switcher, leader help, inspector sheet, sidebar drawer, quit confirmation, blocked/degraded/disconnected states, and desktop plus compact/mobile layouts. Review those frames against CHG-060 before marking the TUI acceptance criterion complete; desktop-only route snapshots are not enough.
+
+11. Close interaction-latency gaps with measured verification.
+    Optimize palette/session filtering, overlay rendering, leader-step handling, and focus/navigation hot paths using the smallest correct changes. Add targeted benchmarks for keypress update latency, search/filter latency, and overlay view cost, plus deterministic tests that confirm rapid scripted input is fully consumed without dropped keys.
 
 TUI acceptance is intentionally dogfooding-gated rather than fully preplanned. Issues found during walkthroughs of the required paths should be captured, blockers and misleading product-truth issues should be fixed before closure, and non-blocking polish can be recorded as follow-up.
 
@@ -311,6 +354,12 @@ The alpha.11 smoke path should include:
 - inspect at least one record inclusion result
 - export a bundle and verify it offline
 - exercise external anchoring when appropriate and available
+
+The TUI polish close path should also include interaction-performance verification:
+
+- benchmark palette typing, session-switcher typing, leader open/step, and overlay-heavy shell view paths against realistic deterministic datasets
+- verify rapid scripted key input is fully consumed for overlay text-entry flows without lost characters
+- keep the benchmark gate deterministic by fixing term size, data shape, and benchmark OS in CI rather than relying on PTY timing variance across platforms
 
 The goal is not to finish every planned verification-plane feature here. The goal is to prove that beta ships with real evidence continuity from a real workflow path.
 

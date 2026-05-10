@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 )
@@ -79,3 +80,69 @@ func TestWriteNonInteractiveMessageIncludesBrokerRemediation(t *testing.T) {
 		}
 	}
 }
+
+type flushTrackingWorkbenchStore struct {
+	memoryWorkbenchStateStore
+	flushed bool
+	err     error
+}
+
+func (s *flushTrackingWorkbenchStore) Flush() {
+	s.flushed = true
+}
+
+func (s *flushTrackingWorkbenchStore) LastError() error {
+	return s.err
+}
+
+func TestRunMainFlushesWorkbenchStateBeforeExit(t *testing.T) {
+	store := &flushTrackingWorkbenchStore{}
+	origModel := newShellModelFunc
+	origTerm := isTerminalFunc
+	origRunner := runShellProgram
+	newShellModelFunc = func() shellModel { return newShellModelWithWorkbenchStore(store) }
+	isTerminalFunc = func(int) bool { return true }
+	runShellProgram = func(model shellModel) (shellModel, error) { return model, nil }
+	defer func() {
+		newShellModelFunc = origModel
+		isTerminalFunc = origTerm
+		runShellProgram = origRunner
+	}()
+
+	var stderr bytes.Buffer
+	code := runMain(nil, os.Stdin, os.Stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("runMain() exit code = %d stderr=%q", code, stderr.String())
+	}
+	if !store.flushed {
+		t.Fatal("expected runMain to flush workbench state before exit")
+	}
+}
+
+func TestRunMainReturnsFailureWhenWorkbenchFlushFails(t *testing.T) {
+	store := &flushTrackingWorkbenchStore{err: errForcedFlushFailure{}}
+	origModel := newShellModelFunc
+	origTerm := isTerminalFunc
+	origRunner := runShellProgram
+	newShellModelFunc = func() shellModel { return newShellModelWithWorkbenchStore(store) }
+	isTerminalFunc = func(int) bool { return true }
+	runShellProgram = func(model shellModel) (shellModel, error) { return model, nil }
+	defer func() {
+		newShellModelFunc = origModel
+		isTerminalFunc = origTerm
+		runShellProgram = origRunner
+	}()
+
+	var stderr bytes.Buffer
+	code := runMain(nil, os.Stdin, os.Stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("runMain() exit code = %d stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "runecode-tui failed") {
+		t.Fatalf("expected flush failure on stderr, got %q", stderr.String())
+	}
+}
+
+type errForcedFlushFailure struct{}
+
+func (errForcedFlushFailure) Error() string { return "forced flush failure" }

@@ -118,12 +118,21 @@ type shellModel struct {
 	selectionMode    bool
 	copyActionIndex  int
 
-	leader           shellLeaderState
-	leaderKeyConfig  string
-	leaderKeyInvalid string
-	commandMode      shellCommandModeState
-	emergencyQuit    shellEmergencyQuitState
-	quitConfirm      shellQuitConfirmState
+	leader                  shellLeaderState
+	leaderBindingsSignature string
+	leaderKeyConfig         string
+	leaderKeyInvalid        string
+	commandMode             shellCommandModeState
+	emergencyQuit           shellEmergencyQuitState
+	quitConfirm             shellQuitConfirmState
+	overlayFrameCache       *shellOverlayFrameCache
+}
+
+type shellOverlayFrameCache struct {
+	overlay shellOverlayID
+	width   int
+	height  int
+	frame   string
 }
 
 type shellEmergencyQuitState struct {
@@ -137,23 +146,47 @@ type shellQuitConfirmState struct {
 }
 
 func newShellModel() shellModel {
+	return newShellModelWithWorkbenchStore(nil)
+}
+
+func newShellModelWithWorkbenchStore(store shellWorkbenchStateStore) shellModel {
 	routes := shellRoutes()
 	models := newRouteModels(routes)
 	defaultRoute := routeChat
 	commands := defaultShellCommandRegistry()
 	actions := newShellActionGraph(routes, commands)
-	workbench := newDefaultWorkbenchStateStore()
+	leaderBindings := actions.leaderBindings(shellModel{})
+	workbench := resolveShellWorkbenchStore(store)
+	scope := logicalBrokerTargetKey()
+	primeShellWorkbenchState(workbench, scope, defaultRoute)
+	appTheme = newTheme(themePresetDark)
+	m := newShellModelState(routes, models, commands, actions, leaderBindings, workbench, scope, defaultRoute)
+	_ = m.setLeaderKey(m.leaderKeyConfig)
+	m.restoreWorkbenchState()
+	m.syncSidebarCursorToLocation()
+	return m
+}
+
+func resolveShellWorkbenchStore(store shellWorkbenchStateStore) shellWorkbenchStateStore {
+	if store != nil {
+		return store
+	}
 	binaryPath := strings.ToLower(strings.TrimSpace(os.Args[0]))
 	if forceMemoryWorkbenchState || strings.HasSuffix(binaryPath, ".test") || strings.HasSuffix(binaryPath, ".test.exe") {
-		workbench = &memoryWorkbenchStateStore{}
+		return &memoryWorkbenchStateStore{}
 	}
-	scope := logicalBrokerTargetKey()
+	return newDefaultWorkbenchStateStore()
+}
+
+func primeShellWorkbenchState(workbench shellWorkbenchStateStore, scope string, defaultRoute routeID) {
 	initialState := workbenchLocalState{SidebarVisible: true, InspectorVisible: true, InspectorMode: presentationRendered, ThemePreset: themePresetDark, LastRouteID: defaultRoute, ViewedActivity: map[string]string{}, LastSessionByWS: map[string]string{}, SidebarPaneRatio: 0.22, InspectorPaneRatio: 0.30}
 	if existing := workbench.Read(scope); isZeroWorkbenchState(existing) {
 		workbench.Write(scope, initialState)
 	}
-	appTheme = newTheme(themePresetDark)
-	m := shellModel{
+}
+
+func newShellModelState(routes []routeDefinition, models map[routeID]routeModel, commands shellCommandRegistry, actions shellActionGraph, leaderBindings []shellLeaderBinding, workbench shellWorkbenchStateStore, scope string, defaultRoute routeID) shellModel {
+	return shellModel{
 		keys:           defaultShellKeyMap(),
 		routes:         routes,
 		nav:            newPrimaryNavModel(routes),
@@ -173,28 +206,26 @@ func newShellModel() shellModel {
 		location: shellWorkbenchLocation{
 			Primary: shellObjectLocation{RouteID: defaultRoute, Object: workbenchObjectRef{Kind: "route", ID: string(defaultRoute)}},
 		},
-		sidebarVisible:   true,
-		inspectorOn:      true,
-		themePreset:      themePresetDark,
-		preferredMode:    presentationRendered,
-		sidebarRatio:     0.22,
-		inspectorRatio:   0.30,
-		sessionLoading:   true,
-		pinnedSessions:   map[string]struct{}{},
-		lastSessionByWS:  map[string]string{},
-		recentObjects:    nil,
-		sessionWorkspace: map[string]string{},
-		viewedActivity:   map[string]string{},
-		watch:            newShellWatchManager(),
-		objectIndex:      newShellDiscoverabilityIndex(routes),
-		overlayReturn:    focusContent,
-		leader:           newShellLeaderState(actions.leaderBindings(shellModel{})),
-		leaderKeyConfig:  "space",
+		sidebarVisible:          true,
+		inspectorOn:             true,
+		themePreset:             themePresetDark,
+		preferredMode:           presentationRendered,
+		sidebarRatio:            0.22,
+		inspectorRatio:          0.30,
+		sessionLoading:          true,
+		pinnedSessions:          map[string]struct{}{},
+		lastSessionByWS:         map[string]string{},
+		recentObjects:           nil,
+		sessionWorkspace:        map[string]string{},
+		viewedActivity:          map[string]string{},
+		watch:                   newShellWatchManager(),
+		objectIndex:             newShellDiscoverabilityIndex(routes),
+		overlayReturn:           focusContent,
+		leader:                  newShellLeaderState(leaderBindings),
+		leaderBindingsSignature: shellLeaderBindingsSignature(leaderBindings),
+		leaderKeyConfig:         "space",
+		overlayFrameCache:       &shellOverlayFrameCache{},
 	}
-	_ = m.setLeaderKey(m.leaderKeyConfig)
-	m.restoreWorkbenchState()
-	m.syncSidebarCursorToLocation()
-	return m
 }
 
 func (m shellModel) Init() tea.Cmd {
@@ -202,6 +233,7 @@ func (m shellModel) Init() tea.Cmd {
 }
 
 func (m shellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.prepareOverlayFrameCache(msg)
 	m = m.disarmEmergencyQuitOnNormalInteraction(msg)
 	updated, cmd, handled := m.handleQuitMessage(msg)
 	m = updated.(shellModel)
@@ -267,15 +299,21 @@ func (m *shellModel) publishShellPreferencesToCurrentRoute() {
 }
 
 func (m shellModel) activeShellSurface() routeSurface {
+	surface, _ := m.activeShellSurfacePlan()
+	return surface
+}
+
+func (m shellModel) activeShellSurfacePlan() (routeSurface, shellLayoutPlan) {
 	active := m.routeModels[m.currentRouteID()]
 	if active == nil {
-		return routeSurface{
+		surface := routeSurface{
 			Regions: routeSurfaceRegions{
 				Main: routeSurfaceRegion{Body: "Route not available"},
 			},
 			Capabilities: routeSurfaceCapabilities{},
 			Chrome:       routeSurfaceChrome{Breadcrumbs: []string{"Home", string(m.currentRouteID())}},
 		}
+		return surface, m.planShellLayout(surface)
 	}
 	baseCtx := routeShellContext{Width: m.width, Height: m.availableShellHeight(), Focus: m.focus, Focused: m.focusedRouteRegion(), Breakpoint: m.breakpoint(), Render: routeShellRenderPreferences{PreferredPresentation: normalizePresentationMode(m.preferredMode), ThemePreset: normalizeThemePreset(m.themePreset)}}
 	surface := active.ShellSurface(baseCtx)
@@ -283,8 +321,8 @@ func (m shellModel) activeShellSurface() routeSurface {
 	ctx := baseCtx
 	ctx.Regions = layout.Regions
 	ctx.Breakpoint = layout.Breakpoint
-	surface = active.ShellSurface(ctx)
-	return m.withLocationChrome(surface)
+	surface = m.withLocationChrome(active.ShellSurface(ctx))
+	return surface, layout
 }
 
 func (m shellModel) availableShellHeight() int {
@@ -300,6 +338,50 @@ func (m shellModel) availableShellHeight() int {
 		return available
 	}
 	return viewportHeight
+}
+
+func (m shellModel) focusTraversalLayout() shellLayoutPlan {
+	active := m.routeModels[m.currentRouteID()]
+	if active == nil {
+		return m.planShellLayout(routeSurface{})
+	}
+	ctx := routeShellContext{Width: m.width, Height: m.height, Focus: m.focus, Focused: m.focusedRouteRegion(), Breakpoint: m.breakpoint(), Render: routeShellRenderPreferences{PreferredPresentation: normalizePresentationMode(m.preferredMode), ThemePreset: normalizeThemePreset(m.themePreset)}}
+	return m.planShellLayout(active.ShellSurface(ctx))
+}
+
+func (m shellModel) activeOverlayID() shellOverlayID {
+	switch {
+	case m.palette.IsOpen():
+		return overlayIDQuickJump
+	case m.sessions.IsOpen():
+		return overlayIDSessions
+	case m.leader.Active():
+		return overlayIDLeader
+	case m.quitConfirm.active:
+		return overlayIDQuitConfirm
+	case m.narrowSidebarOn && m.breakpoint() == shellBreakpointNarrow:
+		return overlayIDSidebar
+	case m.narrowInspectOn && m.breakpoint() == shellBreakpointNarrow:
+		return overlayIDInspector
+	default:
+		return ""
+	}
+}
+
+func (m shellModel) overlayFrameCacheable() bool {
+	switch m.activeOverlayID() {
+	case overlayIDQuickJump, overlayIDSessions, overlayIDLeader, overlayIDQuitConfirm:
+		return true
+	default:
+		return false
+	}
+}
+
+func (m *shellModel) invalidateOverlayFrameCache() {
+	if m.overlayFrameCache == nil {
+		return
+	}
+	*m.overlayFrameCache = shellOverlayFrameCache{}
 }
 
 func (m shellModel) focusedRouteRegion() routeRegionFocus {

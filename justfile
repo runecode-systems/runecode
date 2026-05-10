@@ -23,6 +23,9 @@ test:
   go test ./...
   cd runner && npm test
 
+tui-perf:
+  go test ./cmd/runecode-tui -run "TestShellSessionQuickSwitchTypingDoesNotPersistWorkbenchState|TestFileWorkbenchStateStoreWritesAsynchronously" -bench "Benchmark(PaletteFilterTyping|SessionSwitcherFilterTyping|RenderPaletteLargeMatchWindow|RenderSessionQuickSwitcherLargeWindow|ShellLeaderOpenAndStep|ShellViewLeaderOverlayCached|ShellFocusTraversalHotPath|ShellSessionQuickSwitchTyping|ShellViewEmpty|ShellViewWaitingSession|ShellWatchApply|BuildPaletteEntries)$" -benchtime=1x -count=1
+
 model-check:
   go run ./tools/tlccheck --mode all
 
@@ -39,6 +42,7 @@ ci-fast:
   go run ./tools/checksourcequality
   cd runner && npm ci
   go test ./...
+  just tui-perf
   go build ./cmd/...
   cd runner && npm run lint
   cd runner && npm test

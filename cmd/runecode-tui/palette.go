@@ -9,21 +9,21 @@ import (
 )
 
 type paletteModel struct {
-	open          bool
-	query         string
-	selectedIndex int
-	matches       []paletteEntry
-	entries       []paletteEntry
+	open              bool
+	query             string
+	selectedIndex     int
+	matches           []paletteEntry
+	entries           []paletteEntry
+	normalizedEntries []string
 }
 
 func newPaletteModel(entries []paletteEntry) paletteModel {
-	m := paletteModel{entries: entries}
-	m.rebuildMatches()
-	return m
+	return paletteModel{}.UpdateEntries(entries)
 }
 
 func (m paletteModel) UpdateEntries(entries []paletteEntry) paletteModel {
 	m.entries = append([]paletteEntry(nil), entries...)
+	m.normalizedEntries = buildPaletteNormalizedEntries(m.entries)
 	m.rebuildMatches()
 	return m
 }
@@ -146,13 +146,13 @@ func (m paletteModel) deleteQueryRune() paletteModel {
 
 func (m *paletteModel) rebuildMatches() {
 	needle := strings.ToLower(strings.TrimSpace(m.query))
-	m.matches = m.matches[:0:0]
+	m.matches = m.matches[:0]
 	if needle == "" {
 		m.matches = append(m.matches, m.entries...)
 	} else {
-		for _, r := range m.entries {
-			if strings.Contains(strings.ToLower(r.Label), needle) || strings.Contains(strings.ToLower(r.Description), needle) || strings.Contains(strings.ToLower(r.Search), needle) {
-				m.matches = append(m.matches, r)
+		for i, entry := range m.entries {
+			if strings.Contains(m.normalizedEntries[i], needle) {
+				m.matches = append(m.matches, entry)
 			}
 		}
 	}
@@ -163,6 +163,28 @@ func (m *paletteModel) rebuildMatches() {
 			m.selectedIndex = len(m.matches) - 1
 		}
 	}
+}
+
+func buildPaletteNormalizedEntries(entries []paletteEntry) []string {
+	if len(entries) == 0 {
+		return nil
+	}
+	normalized := make([]string, len(entries))
+	for i, entry := range entries {
+		normalized[i] = normalizePaletteEntrySearch(entry)
+	}
+	return normalized
+}
+
+func normalizePaletteEntrySearch(entry paletteEntry) string {
+	var b strings.Builder
+	b.Grow(len(entry.Label) + len(entry.Description) + len(entry.Search) + 2)
+	b.WriteString(strings.TrimSpace(entry.Label))
+	b.WriteByte('\n')
+	b.WriteString(strings.TrimSpace(entry.Description))
+	b.WriteByte('\n')
+	b.WriteString(strings.TrimSpace(entry.Search))
+	return strings.ToLower(b.String())
 }
 
 func (m paletteModel) matchIndexAtPosition(x int, y int, paletteStartY int, layoutWidth int) (int, bool) {

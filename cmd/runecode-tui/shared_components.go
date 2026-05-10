@@ -23,6 +23,18 @@ type boundedListSpec struct {
 	ActiveFill    bool
 }
 
+type boundedListWindowedSpec struct {
+	TotalRows     int
+	SelectedRow   int
+	Width         int
+	Height        int
+	GapMarker     string
+	Empty         string
+	ApplySelected bool
+	ActiveFill    bool
+	RenderRow     func(int) boundedListRow
+}
+
 type inspectorContentKind string
 
 const (
@@ -92,7 +104,37 @@ func renderBoundedList(spec boundedListSpec) string {
 	}
 
 	selectedRow := boundedListSelectedRow(rows, spec.Selected)
-	windowStart, windowEnd, showTopGap, showBottomGap := boundedListWindow(len(rows), selectedRow, spec.Height)
+	return renderBoundedListWindowed(boundedListWindowedSpec{
+		TotalRows:     len(rows),
+		SelectedRow:   selectedRow,
+		Width:         spec.Width,
+		Height:        spec.Height,
+		GapMarker:     spec.GapMarker,
+		Empty:         spec.Empty,
+		ApplySelected: spec.ApplySelected,
+		ActiveFill:    spec.ActiveFill,
+		RenderRow: func(index int) boundedListRow {
+			return rows[index]
+		},
+	})
+}
+
+func renderBoundedListWindowed(spec boundedListWindowedSpec) string {
+	if spec.TotalRows <= 0 {
+		empty := strings.TrimSpace(spec.Empty)
+		if empty == "" {
+			empty = "no items"
+		}
+		return renderStateCard(routeLoadStateEmpty, titleOrFallback(spec.Empty, "Directory"), empty)
+	}
+	if spec.RenderRow == nil {
+		return ""
+	}
+	selectedRow := spec.SelectedRow
+	if selectedRow >= 0 {
+		selectedRow = clampBoundedListSelectedRow(selectedRow, spec.TotalRows)
+	}
+	windowStart, windowEnd, showTopGap, showBottomGap := boundedListWindow(spec.TotalRows, selectedRow, spec.Height)
 	gap := strings.TrimSpace(spec.GapMarker)
 	if gap == "" {
 		gap = "..."
@@ -103,8 +145,9 @@ func renderBoundedList(spec boundedListSpec) string {
 		lines = append(lines, clipBoundedListText(gap, spec.Width))
 	}
 	for rowIdx := windowStart; rowIdx < windowEnd; rowIdx++ {
-		line := clipBoundedListText(rows[rowIdx].Text, spec.Width)
-		line = renderSelectableRow(line, spec.Width, spec.ApplySelected && rowIdx == selectedRow && rows[rowIdx].Selectable, spec.ActiveFill && rows[rowIdx].Active)
+		row := spec.RenderRow(rowIdx)
+		line := clipBoundedListText(row.Text, spec.Width)
+		line = renderSelectableRow(line, spec.Width, spec.ApplySelected && rowIdx == selectedRow && row.Selectable, spec.ActiveFill && row.Active)
 		lines = append(lines, line)
 	}
 	if showBottomGap {
