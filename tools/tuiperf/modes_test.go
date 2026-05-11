@@ -66,8 +66,8 @@ func collectTrialLifecycleSamples(t *testing.T) ([]string, []string, []float64, 
 		func(h runningHarness) { stopped = append(stopped, h.tuiCmd.Path) },
 		func(_ runningHarness, marker string, _ time.Time) (float64, float64, error) {
 			sampleCalls++
-			if marker != "Runecode TUI α shell" {
-				t.Fatalf("marker = %q, want %q", marker, "Runecode TUI α shell")
+			if marker != tuiStartupMarker {
+				t.Fatalf("marker = %q, want %q", marker, tuiStartupMarker)
 			}
 			return float64(sampleCalls), float64(sampleCalls + 10), nil
 		},
@@ -176,13 +176,23 @@ func TestCollectLatencySamplesFromFreshSpawnMeasuresFromPreSpawnStart(t *testing
 	}
 }
 
+func TestLatencyMarkersMatchCurrentShellChrome(t *testing.T) {
+	t.Parallel()
+	if tuiStartupMarker != "RuneCode Workbench" {
+		t.Fatalf("tuiStartupMarker = %q, want current shell title", tuiStartupMarker)
+	}
+	if tuiKeyResponseMarker != "Main focus" {
+		t.Fatalf("tuiKeyResponseMarker = %q, want current tab-focus response", tuiKeyResponseMarker)
+	}
+}
+
 func TestWaitForMarkerAfterSkipsStaleEvents(t *testing.T) {
 	t.Parallel()
 	events := make(chan tuiperf.MarkerEvent, 3)
 	start := time.Now()
-	events <- tuiperf.MarkerEvent{Marker: "Runecode TUI α shell", At: start.Add(-time.Millisecond)}
-	events <- tuiperf.MarkerEvent{Marker: "Runecode TUI α shell", At: start.Add(time.Millisecond)}
-	got, err := waitForMarkerAfter(events, "Runecode TUI α shell", start, time.Second)
+	events <- tuiperf.MarkerEvent{Marker: tuiStartupMarker, At: start.Add(-time.Millisecond)}
+	events <- tuiperf.MarkerEvent{Marker: tuiStartupMarker, At: start.Add(time.Millisecond)}
+	got, err := waitForMarkerAfter(events, tuiStartupMarker, start, time.Second)
 	if err != nil {
 		t.Fatalf("waitForMarkerAfter error = %v", err)
 	}

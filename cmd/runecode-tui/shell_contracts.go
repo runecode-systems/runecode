@@ -110,10 +110,15 @@ type shellWorkbenchLocation struct {
 type routeLoadState string
 
 const (
-	routeLoadStateReady   routeLoadState = "ready"
-	routeLoadStateLoading routeLoadState = "loading"
-	routeLoadStateEmpty   routeLoadState = "empty"
-	routeLoadStateError   routeLoadState = "error"
+	routeLoadStateReady            routeLoadState = "ready"
+	routeLoadStateLoading          routeLoadState = "loading"
+	routeLoadStateWaiting          routeLoadState = "waiting"
+	routeLoadStateEmpty            routeLoadState = "empty"
+	routeLoadStateBlocked          routeLoadState = "blocked"
+	routeLoadStateDegraded         routeLoadState = "degraded"
+	routeLoadStateError            routeLoadState = "error"
+	routeLoadStateCompleted        routeLoadState = "completed"
+	routeLoadStateApprovalRequired routeLoadState = "approval required"
 )
 
 func combineLegacyRouteView(surface routeSurface) string {

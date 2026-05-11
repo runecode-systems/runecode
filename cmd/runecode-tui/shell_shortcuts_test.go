@@ -9,15 +9,23 @@ import (
 
 func TestHelpRenderedFromRealKeyBindings(t *testing.T) {
 	m := newShellModel()
+	m.width = 150
+	m.height = 40
 	help := renderHelp(defaultShellKeyMap(), false, m.actions)
-	for _, want := range []string{"ctrl+c", "space", "tab", "shift+tab", "ctrl+p", "ctrl+j"} {
-		if !strings.Contains(help, want) {
-			t.Fatalf("expected %q in help, got %q", want, help)
+	mustContainAll(t, help, "space leader", "ctrl+p commands", "ctrl+j sessions", "tab focus")
+	if strings.Contains(help, "ctrl+n") || strings.Contains(help, "Open selected match") {
+		t.Fatalf("expected compact footer help without overlay-specific bindings, got %q", help)
+	}
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	v := updated.(shellModel).View()
+	for _, want := range []string{"space", "tab", "shift+tab", "ctrl+p", "ctrl+j"} {
+		if !strings.Contains(v, want) {
+			t.Fatalf("expected %q in leader overlay help, got %q", want, v)
 		}
 	}
 	for _, retired := range []string{"q/ctrl+c", "b/alt+left", "0-9", "pgup", "pgdown"} {
-		if strings.Contains(help, retired) {
-			t.Fatalf("did not expect retired shortcut %q in help, got %q", retired, help)
+		if strings.Contains(v, retired) {
+			t.Fatalf("did not expect retired shortcut %q in leader overlay help, got %q", retired, v)
 		}
 	}
 }
@@ -172,12 +180,17 @@ func TestShellFormerPlainLetterGlobalsFlowToActiveRouteTyping(t *testing.T) {
 func TestShellCtrlPRemainsExplicitPaletteEntry(t *testing.T) {
 	m := newShellModel()
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
-	if cmd != nil {
-		t.Fatal("did not expect separate command while opening palette")
-	}
 	shell := updated.(shellModel)
 	if !shell.palette.IsOpen() {
 		t.Fatal("expected ctrl+p to open command palette")
+	}
+	if cmd == nil {
+		return
+	}
+	updated, _ = shell.Update(cmd())
+	shell = updated.(shellModel)
+	if !shell.palette.IsOpen() {
+		t.Fatal("expected palette to remain open after background refresh")
 	}
 }
 
@@ -772,5 +785,46 @@ func TestLeaderStartKeyValidationRejectsUnsafeOptions(t *testing.T) {
 		if _, err := shellLeaderStartKeyBinding(key); err == nil {
 			t.Fatalf("expected unsafe leader key %q to be rejected", key)
 		}
+	}
+}
+
+func TestShellLeaderBindingsRefreshWhenAvailabilityChanges(t *testing.T) {
+	m := newShellModel()
+	m.width = 150
+	cmd := m.commands.commands["shell.copy_identity"]
+	cmd.ID = "shell.custom_sensitive"
+	cmd.Title = "Custom Sensitive"
+	cmd.Aliases = []string{"custom sensitive"}
+	cmd.LeaderPath = []string{"z", "s"}
+	cmd.LeaderGroup = "Custom"
+	m.commands.Register(cmd)
+	m.actions = newShellActionGraph(m.routes, m.commands)
+	m.location.Primary = shellObjectLocation{RouteID: routeProviders, Object: workbenchObjectRef{Kind: "route", ID: string(routeProviders)}}
+	m.routeModels[routeProviders] = providerSetupRouteModel{def: routeDefinition{ID: routeProviders, Label: "Model Providers"}, entryActive: true}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	shell := updated.(shellModel)
+	for _, choice := range shell.leader.Choices() {
+		if choice.Key == "z" {
+			t.Fatalf("expected custom family unavailable during exclusive capture, got %+v", shell.leader.Choices())
+		}
+	}
+
+	provider := shell.routeModels[routeProviders].(providerSetupRouteModel)
+	provider.entryActive = false
+	shell.routeModels[routeProviders] = provider
+	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	shell = updated.(shellModel)
+	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	shell = updated.(shellModel)
+	foundCustom := false
+	for _, choice := range shell.leader.Choices() {
+		if choice.Key == "z" {
+			foundCustom = true
+			break
+		}
+	}
+	if !foundCustom {
+		t.Fatalf("expected leader bindings refreshed after availability change, got %+v", shell.leader.Choices())
 	}
 }

@@ -43,6 +43,21 @@ type shellDiscoverabilityIndex struct {
 	sessionWS     map[string]string
 }
 
+func (idx shellDiscoverabilityIndex) clone() shellDiscoverabilityIndex {
+	return shellDiscoverabilityIndex{
+		routes:        append([]routeDefinition(nil), idx.routes...),
+		sessions:      cloneSummaryMap(idx.sessions),
+		runs:          cloneRunSummaryMap(idx.runs),
+		approvals:     cloneApprovalSummaryMap(idx.approvals),
+		artifacts:     cloneArtifactSummaryMap(idx.artifacts),
+		auditRecords:  cloneAuditTimelineMap(idx.auditRecords),
+		recentObjects: append([]workbenchObjectRef(nil), idx.recentObjects...),
+		recentSession: append([]string(nil), idx.recentSession...),
+		activeSession: idx.activeSession,
+		sessionWS:     cloneSessionMap(idx.sessionWS),
+	}
+}
+
 func newShellDiscoverabilityIndex(routes []routeDefinition) shellDiscoverabilityIndex {
 	idx := shellDiscoverabilityIndex{
 		routes:       append([]routeDefinition(nil), routes...),
@@ -83,6 +98,7 @@ func (m shellModel) loadObjectIndexCmd() tea.Cmd {
 }
 
 func (m *shellModel) applyObjectIndexLoaded(msg shellObjectIndexLoadedMsg) {
+	m.invalidateOverlayFrameCache()
 	if msg.sessionErr == nil {
 		m.objectIndex.ingestSessions(msg.sessions)
 	}
@@ -98,6 +114,7 @@ func (m *shellModel) applyObjectIndexLoaded(msg shellObjectIndexLoadedMsg) {
 	if msg.auditErr == nil {
 		m.objectIndex.ingestAuditRecords(msg.auditRecords)
 	}
+	m.invalidatePaletteCache()
 	m.refreshObjectIndexFromShellState()
 }
 
@@ -110,9 +127,6 @@ func (m *shellModel) refreshObjectIndexFromShellState() {
 	m.objectIndex.ingestRuns(shellRunSummariesFromWatch(m.watch.reduction.runs))
 	m.objectIndex.ingestApprovals(shellApprovalSummariesFromWatch(m.watch.reduction.approvals))
 	m.objectIndex.ingestSessions(shellSessionSummariesFromWatch(m.watch.reduction.sessions))
-	if m.palette.IsOpen() {
-		m.palette = m.palette.UpdateEntries(m.buildPaletteEntries())
-	}
 }
 
 func shellRunSummariesFromWatch(items map[string]brokerapi.RunSummary) []brokerapi.RunSummary {
@@ -351,5 +365,60 @@ func sortedKeys[T any](items map[string]T) []string {
 		out = append(out, key)
 	}
 	sort.Strings(out)
+	return out
+}
+
+func cloneSummaryMap(in map[string]brokerapi.SessionSummary) map[string]brokerapi.SessionSummary {
+	if in == nil {
+		return map[string]brokerapi.SessionSummary{}
+	}
+	out := make(map[string]brokerapi.SessionSummary, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func cloneRunSummaryMap(in map[string]brokerapi.RunSummary) map[string]brokerapi.RunSummary {
+	if in == nil {
+		return map[string]brokerapi.RunSummary{}
+	}
+	out := make(map[string]brokerapi.RunSummary, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func cloneApprovalSummaryMap(in map[string]brokerapi.ApprovalSummary) map[string]brokerapi.ApprovalSummary {
+	if in == nil {
+		return map[string]brokerapi.ApprovalSummary{}
+	}
+	out := make(map[string]brokerapi.ApprovalSummary, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func cloneArtifactSummaryMap(in map[string]brokerapi.ArtifactSummary) map[string]brokerapi.ArtifactSummary {
+	if in == nil {
+		return map[string]brokerapi.ArtifactSummary{}
+	}
+	out := make(map[string]brokerapi.ArtifactSummary, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func cloneAuditTimelineMap(in map[string]brokerapi.AuditTimelineViewEntry) map[string]brokerapi.AuditTimelineViewEntry {
+	if in == nil {
+		return map[string]brokerapi.AuditTimelineViewEntry{}
+	}
+	out := make(map[string]brokerapi.AuditTimelineViewEntry, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
 	return out
 }

@@ -23,6 +23,18 @@ type boundedListSpec struct {
 	ActiveFill    bool
 }
 
+type boundedListWindowedSpec struct {
+	TotalRows     int
+	SelectedRow   int
+	Width         int
+	Height        int
+	GapMarker     string
+	Empty         string
+	ApplySelected bool
+	ActiveFill    bool
+	RenderRow     func(int) boundedListRow
+}
+
 type inspectorContentKind string
 
 const (
@@ -92,7 +104,37 @@ func renderBoundedList(spec boundedListSpec) string {
 	}
 
 	selectedRow := boundedListSelectedRow(rows, spec.Selected)
-	windowStart, windowEnd, showTopGap, showBottomGap := boundedListWindow(len(rows), selectedRow, spec.Height)
+	return renderBoundedListWindowed(boundedListWindowedSpec{
+		TotalRows:     len(rows),
+		SelectedRow:   selectedRow,
+		Width:         spec.Width,
+		Height:        spec.Height,
+		GapMarker:     spec.GapMarker,
+		Empty:         spec.Empty,
+		ApplySelected: spec.ApplySelected,
+		ActiveFill:    spec.ActiveFill,
+		RenderRow: func(index int) boundedListRow {
+			return rows[index]
+		},
+	})
+}
+
+func renderBoundedListWindowed(spec boundedListWindowedSpec) string {
+	if spec.TotalRows <= 0 {
+		empty := strings.TrimSpace(spec.Empty)
+		if empty == "" {
+			empty = "no items"
+		}
+		return renderStateCard(routeLoadStateEmpty, titleOrFallback(spec.Empty, "Directory"), empty)
+	}
+	if spec.RenderRow == nil {
+		return ""
+	}
+	selectedRow := spec.SelectedRow
+	if selectedRow >= 0 {
+		selectedRow = clampBoundedListSelectedRow(selectedRow, spec.TotalRows)
+	}
+	windowStart, windowEnd, showTopGap, showBottomGap := boundedListWindow(spec.TotalRows, selectedRow, spec.Height)
 	gap := strings.TrimSpace(spec.GapMarker)
 	if gap == "" {
 		gap = "..."
@@ -103,8 +145,9 @@ func renderBoundedList(spec boundedListSpec) string {
 		lines = append(lines, clipBoundedListText(gap, spec.Width))
 	}
 	for rowIdx := windowStart; rowIdx < windowEnd; rowIdx++ {
-		line := clipBoundedListText(rows[rowIdx].Text, spec.Width)
-		line = renderSelectableRow(line, spec.Width, spec.ApplySelected && rowIdx == selectedRow && rows[rowIdx].Selectable, spec.ActiveFill && rows[rowIdx].Active)
+		row := spec.RenderRow(rowIdx)
+		line := clipBoundedListText(row.Text, spec.Width)
+		line = renderSelectableRow(line, spec.Width, spec.ApplySelected && rowIdx == selectedRow && row.Selectable, spec.ActiveFill && row.Active)
 		lines = append(lines, line)
 	}
 	if showBottomGap {
@@ -221,17 +264,7 @@ func boundedListWindowStart(totalRows int, selectedRow int, dataSlots int) int {
 }
 
 func clipBoundedListText(text string, width int) string {
-	if width <= 0 {
-		return text
-	}
-	runes := []rune(text)
-	if len(runes) <= width {
-		return text
-	}
-	if width <= 3 {
-		return string(runes[:width])
-	}
-	return string(runes[:width-3]) + "..."
+	return clipDisplayText(text, width)
 }
 
 func renderInspectorHeader(title string, badges ...string) string {
@@ -383,33 +416,6 @@ func renderInspectorDetailViewport(spec inspectorShellSpec) []string {
 	}
 	renderedContent := renderInspectorLongForm(spec.ContentKind, spec.Content, spec.ViewportWidth, spec.ViewportHeight)
 	return []string{tableHeader("Detail viewport"), "Long-form " + contentLabel + ":", renderedContent}
-}
-
-func renderStateCard(state routeLoadState, title, message string) string {
-	label := string(state)
-	if label == "" {
-		label = string(routeLoadStateReady)
-	}
-	if strings.TrimSpace(message) == "" {
-		message = "n/a"
-	}
-	headline := tableHeader(strings.ToUpper(label)) + " " + strings.TrimSpace(title)
-	detail := appTheme.SurfaceCard.Padding(0, 1).Render(strings.TrimSpace(message))
-	next := muted(stateCardNextStep(state))
-	return compactLines(headline, detail, next)
-}
-
-func stateCardNextStep(state routeLoadState) string {
-	switch state {
-	case routeLoadStateLoading:
-		return "Waiting for the broker response to settle."
-	case routeLoadStateError:
-		return "Use the route reload shortcut to try again."
-	case routeLoadStateEmpty:
-		return "No matching records are available for the current route state."
-	default:
-		return ""
-	}
 }
 
 func titleOrFallback(title string, fallback string) string {

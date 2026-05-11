@@ -29,7 +29,7 @@ var routeActivationCaseData = []routeActivationCase{
 		newModel: func(client localBrokerClient) routeModel {
 			return newChatRouteModel(routeDefinition{ID: routeChat, Label: "Chat"}, client)
 		},
-		expected: []string{"SessionList", "SessionGet"},
+		expected: []string{"SessionList", "SessionGet", "ProjectSubstratePostureGet", "RunGet"},
 	},
 	{
 		name:    "runs uses typed run contracts",
@@ -48,12 +48,12 @@ var routeActivationCaseData = []routeActivationCase{
 		expected: []string{"ApprovalList", "ApprovalGet"},
 	},
 	{
-		name:    "action center uses typed approval/run/audit contracts",
+		name:    "action center uses typed approval/run/project/audit contracts",
 		routeID: routeAction,
 		newModel: func(client localBrokerClient) routeModel {
 			return newActionCenterRouteModel(routeDefinition{ID: routeAction, Label: "Action Center"}, client)
 		},
-		expected: []string{"ApprovalList", "RunList", "AuditVerificationGet"},
+		expected: []string{"ApprovalList", "RunList", "ProjectSubstratePostureGet", "AuditVerificationGet"},
 	},
 	{
 		name:    "artifacts uses typed artifact contracts",
@@ -143,7 +143,7 @@ func TestApprovalsResolveUsesTypedBrokerContract(t *testing.T) {
 	}
 
 	view := updated.View(120, 40, focusContent)
-	if want := "promotion approvals must be resolved via promote-excerpt to preserve exact promotion binding"; !containsSubstring(view, want) {
+	if want := "promotion approvals must be completed in the promotion flow so exact promotion binding stays intact"; !containsSubstring(view, want) {
 		t.Fatalf("expected fail-closed status %q in view, got %q", want, view)
 	}
 

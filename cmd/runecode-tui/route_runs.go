@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -136,24 +135,24 @@ func (m runsRouteModel) handleShellPreferences(msg routeShellPreferencesMsg) (ro
 }
 
 func (m runsRouteModel) View(width, height int, focus focusArea) string {
-	_ = width
 	_ = height
 	if m.loading {
-		return renderStateCard(routeLoadStateLoading, "Runs", "Loading runs from broker run summaries/details...")
+		return renderStateCard(routeLoadStateLoading, "Runs", "Loading runs and linked workflow evidence...")
 	}
 	if m.errText != "" {
 		return renderStateCard(routeLoadStateError, "Runs", "Load failed: "+m.errText+" (press r to retry)")
 	}
 	body := []string{
 		sectionTitle("Runs") + " " + focusBadge(focus),
-		renderRunSafetyStrip(m.activeSummary(), width-4),
-		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
+		renderStateCardSpec(runStateCard(m.active)),
+		renderRunMainPaneCues(m.active, m.activeSummary(), width-4),
 		renderDirectory("Run directory", renderRunDirectoryItems(m.runs), m.selected),
 	}
 	if len(m.runs) == 0 {
 		body = append(body, muted("No runs are available yet; reload after the broker reports canonical run activity."))
 	}
-	body = append(body, keyHint("Route keys: j/k move, enter load detail, i toggle inspector, v cycle rendered/raw/structured, r reload"))
+	body = append(body, muted("Runs keeps the selected workflow outcome, operator checkpoints, and linked evidence together."))
+	body = append(body, keyHint("Keys: j/k move • enter review • i inspector • v mode • r reload"))
 	return compactLines(body...)
 }
 
@@ -176,7 +175,7 @@ func (m runsRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 		Regions: routeSurfaceRegions{
 			Main:      routeSurfaceRegion{Title: "Run workbench", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
 			Inspector: routeSurfaceRegion{Title: "Run inspector", Body: inspector},
-			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, i toggle inspector, v cycle rendered/raw/structured, r reload")},
+			Bottom:    routeSurfaceRegion{Body: keyHint("Keys: j/k move • enter review • i inspector • v mode • r reload")},
 			Status:    routeSurfaceRegion{Body: status},
 		},
 		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
@@ -278,28 +277,4 @@ func containsRunSummary(items []brokerapi.RunSummary, runID string) bool {
 		}
 	}
 	return false
-}
-
-func renderRunList(runs []brokerapi.RunSummary, selected int) string {
-	if len(runs) == 0 {
-		return "  - no runs"
-	}
-	line := ""
-	for i, run := range runs {
-		marker := " "
-		if i == selected {
-			marker = ">"
-		}
-		line += selectedLine(i == selected, fmt.Sprintf("  %s %s %s approvals=%d", marker, run.RunID, stateBadgeWithLabel("state", run.LifecycleState), run.PendingApprovalCount)) + "\n"
-		line += fmt.Sprintf("      %s | %s | %s | %s | approval_profile=%s\n", fmt.Sprintf("backend_kind=%s", valueOrNA(run.BackendKind)), renderRuntimeIsolationCue(run.BackendKind, run.IsolationAssuranceLevel), renderProvisioningPostureCue(run.ProvisioningPosture), renderAuditPostureCue(run.AuditIntegrityStatus, run.AuditAnchoringStatus, run.AuditCurrentlyDegraded), valueOrNA(run.ApprovalProfile))
-	}
-	return line
-}
-
-func renderRunDirectoryItems(runs []brokerapi.RunSummary) []string {
-	items := make([]string, 0, len(runs))
-	for _, run := range runs {
-		items = append(items, fmt.Sprintf("%s %s approvals=%d", run.RunID, stateBadgeWithLabel("state", run.LifecycleState), run.PendingApprovalCount))
-	}
-	return items
 }

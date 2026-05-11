@@ -101,13 +101,17 @@ func cpuMeasurementsForFixture(fixtureID string, result tuiperf.CPUSampleResult)
 	return []perfcontracts.MeasurementRecord{{MetricID: "metric.tui.idle_cpu.waiting.avg_pct", Value: result.AverageCPUPercent, Unit: "percent"}, {MetricID: "metric.tui.idle_cpu.waiting.max_pct", Value: result.MaxCPUPercent, Unit: "percent"}}
 }
 
+const (
+	tuiStartupMarker     = "RuneCode Workbench"
+	tuiKeyResponseMarker = "Main focus"
+)
+
 func collectLatencySamplesFromFreshSpawn(
 	trials int,
 	startHarness func() (runningHarness, error),
 	stopHarnessFn func(runningHarness),
 	collectSample func(runningHarness, string, time.Time) (float64, float64, error),
 ) ([]float64, []float64, error) {
-	marker := "Runecode TUI α shell"
 	attachDurations := make([]float64, 0, trials)
 	keyDurations := make([]float64, 0, trials)
 	for i := 0; i < trials; i++ {
@@ -118,7 +122,7 @@ func collectLatencySamplesFromFreshSpawn(
 		}
 		attachMS, keyMS, err := func() (float64, float64, error) {
 			defer stopHarnessFn(h)
-			return collectSample(h, marker, start)
+			return collectSample(h, tuiStartupMarker, start)
 		}()
 		if err != nil {
 			return nil, nil, err
@@ -131,8 +135,7 @@ func collectLatencySamplesFromFreshSpawn(
 
 func collectLatencySampleFromHarness(h runningHarness, marker string, start time.Time) (float64, float64, error) {
 	events := make(chan tuiperf.MarkerEvent, 64)
-	const keyResponseMarker = "focus=MAIN"
-	go tuiperf.WatchMarkers(h.ctx, h.tuiOut, []string{marker, keyResponseMarker}, events)
+	go tuiperf.WatchMarkers(h.ctx, h.tuiOut, []string{marker, tuiKeyResponseMarker}, events)
 	attachAt, err := waitForMarker(events, marker, latencyMarkerTimeout)
 	if err != nil {
 		return 0, 0, err
@@ -141,7 +144,7 @@ func collectLatencySampleFromHarness(h runningHarness, marker string, start time
 	if _, err := io.WriteString(h.tuiIn, "\t"); err != nil {
 		return 0, 0, err
 	}
-	keyAt, err := waitForMarkerAfter(events, keyResponseMarker, keyStart, latencyMarkerTimeout)
+	keyAt, err := waitForMarkerAfter(events, tuiKeyResponseMarker, keyStart, latencyMarkerTimeout)
 	if err != nil {
 		return 0, 0, err
 	}

@@ -9,16 +9,16 @@ import (
 
 func renderAuditSummary(verify *brokerapi.AuditVerificationGetResponse) string {
 	if verify == nil {
-		return "Verification posture unavailable"
+		return "Audit health: unavailable"
 	}
 	s := verify.Summary
 	anchorLabel := renderAnchoringPostureLabel(s.AnchoringStatus)
-	return fmt.Sprintf("Verification posture: integrity=%s %s anchoring=%s (%s) storage=%s lifecycle=%s degraded=%t %s findings=%d", s.IntegrityStatus, postureBadge(s.IntegrityStatus), s.AnchoringStatus, anchorLabel, s.StoragePostureStatus, s.SegmentLifecycleStatus, s.CurrentlyDegraded, boolBadge("degraded", s.CurrentlyDegraded), s.FindingCount)
+	return fmt.Sprintf("Audit health: integrity=%s %s • receipts=%s (%s) • findings=%d • %s", s.IntegrityStatus, postureBadge(s.IntegrityStatus), s.AnchoringStatus, anchorLabel, s.FindingCount, boolBadge("degraded", s.CurrentlyDegraded))
 }
 
 func renderAuditFinalizeSummary(finalize *brokerapi.AuditFinalizeVerifyResponse) string {
 	if finalize == nil {
-		return tableHeader("Finalize/verify") + " status=unavailable"
+		return "Finalize/verify: unavailable"
 	}
 	status := strings.TrimSpace(finalize.ActionStatus)
 	if status == "" {
@@ -30,30 +30,30 @@ func renderAuditFinalizeSummary(finalize *brokerapi.AuditFinalizeVerifyResponse)
 			report = id
 		}
 	}
-	line := fmt.Sprintf("%s status=%s segment=%s report=%s", tableHeader("Finalize/verify"), status, valueOrNA(strings.TrimSpace(finalize.SegmentID)), report)
+	line := fmt.Sprintf("Finalize/verify: %s • segment %s • report %s", status, valueOrNA(strings.TrimSpace(finalize.SegmentID)), shortIdentity(report))
 	if status == "ok" {
-		return line
+		return line + " • next review findings or anchor/export the latest verified segment"
 	}
-	reason := strings.TrimSpace(finalize.FailureCode)
+	reason := sanitizeUIText(strings.TrimSpace(finalize.FailureCode))
 	if reason == "" {
-		reason = strings.TrimSpace(finalize.FailureMessage)
+		reason = sanitizeUIText(strings.TrimSpace(finalize.FailureMessage))
 	}
 	if reason != "" {
-		line += " reason=" + reason
+		line += " • reason " + reason
 	}
 	return line
 }
 
 func renderAuditPageSummary(cursor, next string, backDepth, count int) string {
-	page := "page=1"
+	page := "page 1"
 	if cursor != "" {
-		page = fmt.Sprintf("page_cursor=%s", cursor)
+		page = fmt.Sprintf("page %s", cursor)
 	}
-	nextLabel := "no"
+	nextLabel := "no more pages"
 	if next != "" {
-		nextLabel = "yes"
+		nextLabel = "next page available"
 	}
-	return fmt.Sprintf("Timeline paging: %s entries=%d has_next=%s back_stack=%d", page, count, nextLabel, backDepth)
+	return fmt.Sprintf("Timeline: %s • %d records • %s • back %d", page, count, nextLabel, backDepth)
 }
 
 func renderAuditFindings(verify *brokerapi.AuditVerificationGetResponse, presentation contentPresentationMode) string {
@@ -62,12 +62,12 @@ func renderAuditFindings(verify *brokerapi.AuditVerificationGetResponse, present
 		return "Verification findings: unavailable"
 	}
 	if len(verify.Report.Findings) == 0 {
-		return "Verification findings: none"
+		return "Verification findings: none; the current audit posture does not report degraded or failed reasons."
 	}
 	if presentation == presentationStructured {
 		return fmt.Sprintf("Verification findings (structured): total=%d degraded_reasons=%d hard_failures=%d", len(verify.Report.Findings), len(verify.Report.DegradedReasons), len(verify.Report.HardFailures))
 	}
-	line := "Verification findings (machine-readable):"
+	line := "Findings to review:"
 	for i, finding := range verify.Report.Findings {
 		if presentation == presentationRendered && i >= 4 {
 			line += fmt.Sprintf("\n  ... (%d more)", len(verify.Report.Findings)-i)
@@ -77,35 +77,13 @@ func renderAuditFindings(verify *brokerapi.AuditVerificationGetResponse, present
 			line += fmt.Sprintf("\n  ... (%d more in raw mode)", len(verify.Report.Findings)-i)
 			break
 		}
-		line += fmt.Sprintf("\n  - code=%s severity=%s dimension=%s", finding.Code, finding.Severity, finding.Dimension)
+		line += fmt.Sprintf("\n  - %s • %s • %s", finding.Code, finding.Severity, finding.Dimension)
 	}
 	if len(verify.Report.DegradedReasons) > 0 {
-		line += fmt.Sprintf("\n  degraded_reason_codes=%s", joinCSV(verify.Report.DegradedReasons))
+		line += fmt.Sprintf("\n  degraded reasons: %s", joinCSV(verify.Report.DegradedReasons))
 	}
 	if len(verify.Report.HardFailures) > 0 {
-		line += fmt.Sprintf("\n  hard_failure_codes=%s", joinCSV(verify.Report.HardFailures))
-	}
-	return line
-}
-
-func renderAuditTimeline(timeline []brokerapi.AuditTimelineViewEntry, selected int) string {
-	if len(timeline) == 0 {
-		return "  - no audit entries"
-	}
-	line := ""
-	for i, entry := range timeline {
-		marker := " "
-		if i == selected {
-			marker = ">"
-		}
-		digest, _ := entry.RecordDigest.Identity()
-		posture := "n/a"
-		reasonCodes := ""
-		if entry.VerificationPosture != nil {
-			posture = entry.VerificationPosture.Status
-			reasonCodes = joinCSV(entry.VerificationPosture.ReasonCodes)
-		}
-		line += selectedLine(i == selected, fmt.Sprintf("  %s %s event=%s posture=%s reasons=%s summary=%s", marker, digest, entry.EventType, posture, valueOrNA(reasonCodes), entry.Summary)) + "\n"
+		line += fmt.Sprintf("\n  hard failures: %s", joinCSV(verify.Report.HardFailures))
 	}
 	return line
 }
@@ -113,10 +91,51 @@ func renderAuditTimeline(timeline []brokerapi.AuditTimelineViewEntry, selected i
 func renderAuditDirectoryItems(timeline []brokerapi.AuditTimelineViewEntry) []string {
 	items := make([]string, 0, len(timeline))
 	for _, entry := range timeline {
-		digest, _ := entry.RecordDigest.Identity()
-		items = append(items, fmt.Sprintf("%s event=%s", valueOrNA(digest), valueOrNA(entry.EventType)))
+		items = append(items, auditTimelineDirectoryItem(entry))
 	}
 	return items
+}
+
+func renderAuditSelectedEntryCue(timeline []brokerapi.AuditTimelineViewEntry, selected int) string {
+	if len(timeline) == 0 || selected < 0 || selected >= len(timeline) {
+		return ""
+	}
+	entry := timeline[selected]
+	label := auditRecordDisplayLabel(entry)
+	posture := auditTimelinePostureLabel(entry)
+	refs := auditReferenceCue(entry.LinkedReferences)
+	parts := []string{fmt.Sprintf("Selected record: %s", label), posture, "press enter for inspector detail"}
+	if entry.VerificationPosture != nil && len(entry.VerificationPosture.ReasonCodes) > 0 {
+		parts = append(parts, "reasons "+joinCSV(entry.VerificationPosture.ReasonCodes))
+	}
+	if refs != "" {
+		parts = append(parts, refs)
+	}
+	return strings.Join(parts, " • ")
+}
+
+func renderAuditWorkbenchSummary(verify *brokerapi.AuditVerificationGetResponse, finalize *brokerapi.AuditFinalizeVerifyResponse, record *brokerapi.AuditRecordGetResponse, cursor, next string, backDepth, count int, anchoring, exportCopy bool, statusText string) string {
+	recordLabel := "latest audit record"
+	if record != nil {
+		identity, _ := record.Record.RecordDigest.Identity()
+		recordLabel = fmt.Sprintf("record %s", shortIdentity(identity))
+	}
+	health := renderAuditSafetyAlertStrip(verify)
+	evidence := renderAuditEvidenceTrail(verify, record)
+	finalizeLine := renderAuditFinalizeSummary(finalize)
+	anchorLine := renderAuditAnchorWorkbenchLine(anchoring, exportCopy, statusText)
+	paging := renderAuditPageSummary(cursor, next, backDepth, count)
+	return compactLines(
+		tableHeader("Evidence workbench"),
+		fmt.Sprintf("Health: %s", health),
+		fmt.Sprintf("Record in focus: %s", recordLabel),
+		evidence,
+		fmt.Sprintf("Next actions: %s", renderAuditNextActionCue(verify, finalize)),
+		fmt.Sprintf("Audit summary: %s", renderAuditSummary(verify)),
+		finalizeLine,
+		anchorLine,
+		paging,
+	)
 }
 
 func renderAuditInspector(record *brokerapi.AuditRecordGetResponse, presentation contentPresentationMode, document *longFormDocumentState) string {
@@ -140,10 +159,10 @@ func renderAuditInspector(record *brokerapi.AuditRecordGetResponse, presentation
 	document.SetDocument(workbenchObjectRef{Kind: "audit", ID: strings.TrimSpace(identity)}, contentKind, "audit record", content)
 	return renderInspectorShell(inspectorShellSpec{
 		Title:        "Audit inspector",
-		Summary:      fmt.Sprintf("event=%s family=%s linked_refs=%d", valueOrNA(r.EventType), valueOrNA(r.RecordFamily), len(r.LinkedReferences)),
-		Identity:     fmt.Sprintf("record_family=%s event_type=%s", valueOrNA(r.RecordFamily), valueOrNA(r.EventType)),
-		Status:       fmt.Sprintf("verification=%s reasons=%d", valueOrNA(status), reasons),
-		Badges:       []string{stateBadgeWithLabel("posture", status), appTheme.InspectorHint.Render("typed record details")},
+		Summary:      fmt.Sprintf("%s with %d linked reference(s).", auditEventLabel(valueOrNA(r.EventType)), len(r.LinkedReferences)),
+		Identity:     fmt.Sprintf("Record %s • %s", shortIdentity(identity), valueOrNA(r.RecordFamily)),
+		Status:       fmt.Sprintf("Audit health %s • %d reason code(s)", valueOrNA(status), reasons),
+		Badges:       []string{stateBadgeWithLabel("posture", status), appTheme.InspectorHint.Render("record details")},
 		References:   []inspectorReference{{Label: "records", Items: referenceItems}, {Label: "reason codes", Items: reasonItems}},
 		LocalActions: auditInspectorLocalActions(),
 		CopyActions:  auditRouteCopyActions(record),
@@ -170,6 +189,7 @@ func auditInspectorContent(record brokerapi.AuditRecordDetail, status string, re
 		return compactLines(
 			fmt.Sprintf("Structured record: family=%s event=%s", record.RecordFamily, record.EventType),
 			fmt.Sprintf("Link counts: references=%d reasons=%d", len(record.LinkedReferences), reasons),
+			"Evidence trail: audit record -> verification posture -> export/offline verification or anchoring where available",
 		)
 	}
 	if presentation == presentationRaw {
@@ -182,8 +202,11 @@ func auditInspectorContent(record brokerapi.AuditRecordDetail, status string, re
 	return compactLines(
 		fmt.Sprintf("Record family: %s event=%s", record.RecordFamily, record.EventType),
 		fmt.Sprintf("Occurred at: %s", record.OccurredAt),
-		fmt.Sprintf("Verification posture: %s (%s) reasons=%d", status, renderAnchoringPostureLabel(status), reasons),
+		fmt.Sprintf("Primary digest display: %s (copy raw digest below)", auditRecordDigestDetail(record)),
+		fmt.Sprintf("Audit health: %s (%s) reasons=%d", status, renderAnchoringPostureLabel(status), reasons),
 		fmt.Sprintf("Linked references: %d", len(record.LinkedReferences)),
+		"Evidence trail: workflow result -> artifacts -> audit record -> final checks -> offline review or receipts.",
+		"Trust posture: linked records stay authoritative; copied digests and raw content are supplemental proof material.",
 	)
 }
 
@@ -291,18 +314,49 @@ func renderAnchoringPostureLabel(status string) string {
 
 func renderAuditSafetyAlertStrip(verify *brokerapi.AuditVerificationGetResponse) string {
 	if verify == nil {
-		return tableHeader("Audit safety strip") + " " + dangerBadge("AUDIT_POSTURE_UNAVAILABLE") + " audit verification unavailable"
+		return tableHeader("Audit health") + " " + dangerBadge("Audit unavailable") + " audit verification unavailable"
 	}
 	s := verify.Summary
-	parts := []string{tableHeader("Audit safety strip")}
+	parts := []string{tableHeader("Audit health")}
 	if strings.EqualFold(strings.TrimSpace(s.AnchoringStatus), "degraded") || s.CurrentlyDegraded {
-		parts = append(parts, auditDegradedBadge("UNANCHORED_OR_DEGRADED_AUDIT"))
+		parts = append(parts, auditDegradedBadge("Receipts need review"))
 	}
 	if strings.EqualFold(strings.TrimSpace(s.AnchoringStatus), "failed") || strings.EqualFold(strings.TrimSpace(s.IntegrityStatus), "failed") || strings.EqualFold(strings.TrimSpace(s.IntegrityStatus), "invalid") {
-		parts = append(parts, dangerBadge("INVALID_OR_FAILED_ANCHORING"))
+		parts = append(parts, dangerBadge("Audit failed"))
 	}
 	if len(parts) == 1 {
-		parts = append(parts, successBadge("AUDIT_ANCHORED_AND_VALID"))
+		parts = append(parts, successBadge("Audit ready"))
 	}
 	return strings.Join(parts, " ")
+}
+
+func renderAuditOverviewCard(verify *brokerapi.AuditVerificationGetResponse, record *brokerapi.AuditRecordGetResponse) string {
+	if verify == nil {
+		return renderStateCardSpec(stateCardSpec{State: routeLoadStateWaiting, Title: "Verification trail", Message: "Audit verification posture is not loaded yet.", Reason: "The route needs broker verification data before it can explain export, offline verification, or anchoring posture.", NextAction: "Reload this route, then inspect findings and anchoring actions.", ShortcutCue: "r", RouteCue: "Audit"})
+	}
+	state := routeLoadStateReady
+	if verify.Summary.CurrentlyDegraded || strings.EqualFold(strings.TrimSpace(verify.Summary.AnchoringStatus), "degraded") {
+		state = routeLoadStateDegraded
+	}
+	if strings.EqualFold(strings.TrimSpace(verify.Summary.IntegrityStatus), "failed") || strings.EqualFold(strings.TrimSpace(verify.Summary.AnchoringStatus), "failed") {
+		state = routeLoadStateBlocked
+	}
+	recordLabel := "latest verification posture"
+	if record != nil {
+		identity, _ := record.Record.RecordDigest.Identity()
+		recordLabel = "record " + shortIdentity(identity)
+	}
+	return renderStateCardSpec(stateCardSpec{State: state, Title: "Verification trail", Message: fmt.Sprintf("Audit explains the current health of %s.", recordLabel), Reason: renderAuditSummary(verify), NextAction: "Review findings, then use finalize/verify, export copy, or receipt actions as needed.", ShortcutCue: "f / a / x", RouteCue: "Audit"})
+}
+
+func renderAuditEvidenceTrail(verify *brokerapi.AuditVerificationGetResponse, record *brokerapi.AuditRecordGetResponse) string {
+	recordLabel := "timeline records"
+	if record != nil {
+		identity, _ := record.Record.RecordDigest.Identity()
+		recordLabel = "record " + shortIdentity(identity)
+	}
+	if verify == nil {
+		return fmt.Sprintf("Evidence trail: workflow result -> artifacts -> audit records (%s) -> audit health unavailable until broker verification data loads", recordLabel)
+	}
+	return fmt.Sprintf("Evidence trail: workflow result -> artifacts -> audit records (%s) -> final checks -> export/offline review -> receipts", recordLabel)
 }

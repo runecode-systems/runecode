@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 )
@@ -47,6 +49,22 @@ func TestParseCLIConfigParsesIPCOverrides(t *testing.T) {
 	}
 }
 
+func TestParseCLIConfigShowsHelpWhenCombinedWithOtherFlags(t *testing.T) {
+	for _, args := range [][]string{
+		{"--help", "--runtime-dir", "/tmp/runtime"},
+		{"--runtime-dir", "/tmp/runtime", "--help"},
+		{"--help", "--verbose"},
+	} {
+		cfg, err := parseCLIConfig(args)
+		if err != nil {
+			t.Fatalf("parseCLIConfig(%v) returned error: %v", args, err)
+		}
+		if !cfg.showHelp {
+			t.Fatalf("parseCLIConfig(%v) cfg = %+v, want showHelp", args, cfg)
+		}
+	}
+}
+
 func TestWriteNonInteractiveMessageIncludesBrokerRemediation(t *testing.T) {
 	var out bytes.Buffer
 	if err := writeNonInteractiveMessage(&out); err != nil {
@@ -61,5 +79,70 @@ func TestWriteNonInteractiveMessageIncludesBrokerRemediation(t *testing.T) {
 		if !strings.Contains(written, want) {
 			t.Fatalf("non-interactive output missing %q in %q", want, written)
 		}
+	}
+}
+
+type flushTrackingWorkbenchStore struct {
+	memoryWorkbenchStateStore
+	flushed bool
+	err     error
+}
+
+func (s *flushTrackingWorkbenchStore) Flush() {
+	s.flushed = true
+}
+
+func (s *flushTrackingWorkbenchStore) LastError() error {
+	return s.err
+}
+
+func TestRunMainFlushesWorkbenchStateBeforeExit(t *testing.T) {
+	store := &flushTrackingWorkbenchStore{}
+	origModel := newShellModelFunc
+	origTerm := isTerminalFunc
+	origRunner := runShellProgram
+	newShellModelFunc = func() shellModel { return newShellModelWithWorkbenchStore(store) }
+	isTerminalFunc = func(int) bool { return true }
+	runShellProgram = func(model shellModel) (shellModel, error) { return model, nil }
+	defer func() {
+		newShellModelFunc = origModel
+		isTerminalFunc = origTerm
+		runShellProgram = origRunner
+	}()
+
+	var stderr bytes.Buffer
+	code := runMain(nil, os.Stdin, os.Stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("runMain() exit code = %d stderr=%q", code, stderr.String())
+	}
+	if !store.flushed {
+		t.Fatal("expected runMain to flush workbench state before exit")
+	}
+}
+
+func TestRunMainReturnsFailureWhenWorkbenchFlushFails(t *testing.T) {
+	store := &flushTrackingWorkbenchStore{err: fmt.Errorf("open /home/user/.config/runecode/workbench.json: permission denied")}
+	origModel := newShellModelFunc
+	origTerm := isTerminalFunc
+	origRunner := runShellProgram
+	newShellModelFunc = func() shellModel { return newShellModelWithWorkbenchStore(store) }
+	isTerminalFunc = func(int) bool { return true }
+	runShellProgram = func(model shellModel) (shellModel, error) { return model, nil }
+	defer func() {
+		newShellModelFunc = origModel
+		isTerminalFunc = origTerm
+		runShellProgram = origRunner
+	}()
+
+	var stderr bytes.Buffer
+	code := runMain(nil, os.Stdin, os.Stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("runMain() exit code = %d stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "runecode-tui failed") {
+		t.Fatalf("expected flush failure on stderr, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "local path redacted") || strings.Contains(stderr.String(), "/home/user") {
+		t.Fatalf("expected path-sanitized flush failure on stderr, got %q", stderr.String())
 	}
 }

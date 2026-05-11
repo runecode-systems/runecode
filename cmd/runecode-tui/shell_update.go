@@ -7,6 +7,30 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+func (m *shellModel) prepareOverlayFrameCache(msg tea.Msg) {
+	if m.shouldPreserveOverlayFrameCache(msg) {
+		return
+	}
+	m.invalidateOverlayFrameCache()
+}
+
+func (m shellModel) shouldPreserveOverlayFrameCache(msg tea.Msg) bool {
+	if !m.overlayFrameCacheable() {
+		return false
+	}
+	switch m.activeOverlayID() {
+	case overlayIDQuickJump, overlayIDSessions, overlayIDLeader, overlayIDQuitConfirm:
+		switch msg.(type) {
+		case tea.KeyMsg, tea.MouseMsg:
+			return true
+		default:
+			return false
+		}
+	default:
+		return false
+	}
+}
+
 func (m shellModel) disarmEmergencyQuitOnNormalInteraction(msg tea.Msg) shellModel {
 	if !m.emergencyQuit.pending {
 		return m
@@ -21,6 +45,7 @@ func (m shellModel) disarmEmergencyQuitOnNormalInteraction(msg tea.Msg) shellMod
 	switch msg.(type) {
 	case tea.KeyMsg, tea.MouseMsg:
 		m.emergencyQuit.pending = false
+		m.invalidateOverlayFrameCache()
 	}
 	return m
 }
@@ -35,9 +60,11 @@ func (m shellModel) handleQuitMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			m.quitConfirm = shellQuitConfirmState{}
 			m.emergencyQuit.pending = false
 			m.quitting = true
+			m.invalidateOverlayFrameCache()
 			return m, tea.Quit, true
 		}
 		m.emergencyQuit.pending = true
+		m.invalidateOverlayFrameCache()
 		m.emergencyQuit.token++
 		token := m.emergencyQuit.token
 		tick := tea.Tick(emergencyQuitArmWindow, func(time.Time) tea.Msg {
@@ -48,6 +75,7 @@ func (m shellModel) handleQuitMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	}
 	if m.emergencyQuit.pending {
 		m.emergencyQuit.pending = false
+		m.invalidateOverlayFrameCache()
 	}
 	return m, nil, false
 }
@@ -64,6 +92,7 @@ func (m shellModel) handleEmergencyQuitTimeoutMessage(msg tea.Msg) (tea.Model, t
 		return m, nil, true
 	}
 	m.emergencyQuit.pending = false
+	m.invalidateOverlayFrameCache()
 	return m, nil, true
 }
 
@@ -142,11 +171,13 @@ func (m shellModel) handleQuitConfirmMessage(msg tea.Msg) (tea.Model, tea.Cmd, b
 	case key.Type == tea.KeyEnter || key.String() == "y":
 		m.quitConfirm = shellQuitConfirmState{}
 		m.quitting = true
+		m.invalidateOverlayFrameCache()
 		m.syncOverlayStack()
 		m.restoreFocusAfterOverlayClose()
 		return m, tea.Quit, true
 	case key.Type == tea.KeyEsc || key.String() == "n":
 		m.quitConfirm = shellQuitConfirmState{}
+		m.invalidateOverlayFrameCache()
 		m.syncOverlayStack()
 		m.restoreFocusAfterOverlayClose()
 		return m, nil, true
@@ -167,6 +198,20 @@ func (m shellModel) handleShellMessage(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		return m, nil, true
 	case shellObjectIndexLoadedMsg:
 		m.applyObjectIndexLoaded(typed)
+		return m, nil, true
+	case shellPaletteEntriesLoadedMsg:
+		if updated, applied := m.palette.ApplyEntriesRefresh(typed); applied {
+			m.palette = updated
+			if next, request, ok := m.palette.BeginFilterRefresh(); ok {
+				m.palette = next
+				return m, m.loadPaletteFilterCmd(request), true
+			}
+		}
+		return m, nil, true
+	case shellPaletteFilterLoadedMsg:
+		if updated, applied := m.palette.ApplyFilterRefresh(typed); applied {
+			m.palette = updated
+		}
 		return m, nil, true
 	case shellWatchPollMsg:
 		return m, m.loadWatchPollCmd(), true
@@ -211,6 +256,7 @@ func (m shellModel) handleWindowSize(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	prev := m.breakpoint()
 	m.width = typed.Width
 	m.height = typed.Height
+	m.invalidateOverlayFrameCache()
 	if prev != shellBreakpointNarrow && m.breakpoint() == shellBreakpointNarrow {
 		m.narrowSidebarOn = false
 		m.narrowInspectOn = false
@@ -257,12 +303,14 @@ func (m shellModel) handleSessionQuickSwitchMessage(msg tea.Msg) (tea.Model, tea
 	switch {
 	case m.keys.SessionQuickSwitchClose.matches(key):
 		m.sessions = m.sessions.Close()
+		m.invalidateOverlayFrameCache()
 		m.syncOverlayStack()
 		m.restoreFocusAfterOverlayClose()
 		return m, nil, true
 	case m.keys.SessionQuickSwitchPick.matches(key):
 		sid := strings.TrimSpace(m.sessions.SelectedSessionID())
 		m.sessions = m.sessions.Close()
+		m.invalidateOverlayFrameCache()
 		m.syncOverlayStack()
 		m.restoreFocusAfterOverlayClose()
 		if sid == "" {
@@ -290,6 +338,9 @@ func (m shellModel) handleSessionQuickSwitchMessage(msg tea.Msg) (tea.Model, tea
 func (m shellModel) handlePaletteMouse(mouse tea.MouseMsg) (tea.Model, tea.Cmd, bool) {
 	updatedPalette, routeMsg, changed := m.palette.UpdateMouse(mouse, m.paletteStartY(), m.width)
 	m.palette = updatedPalette
+	if !m.palette.IsOpen() {
+		m.invalidateOverlayFrameCache()
+	}
 	m.syncOverlayStack()
 	m.restoreFocusAfterOverlayClose()
 	if changed {
@@ -301,12 +352,22 @@ func (m shellModel) handlePaletteMouse(mouse tea.MouseMsg) (tea.Model, tea.Cmd, 
 func (m shellModel) handlePaletteKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	updatedPalette, routeMsg, changed := m.palette.Update(key, m.keys)
 	m.palette = updatedPalette
+	var cmd tea.Cmd
+	if changed == false {
+		if next, request, ok := m.palette.BeginFilterRefresh(); ok {
+			m.palette = next
+			cmd = m.loadPaletteFilterCmd(request)
+		}
+	}
+	if !m.palette.IsOpen() {
+		m.invalidateOverlayFrameCache()
+	}
 	m.syncOverlayStack()
 	m.restoreFocusAfterOverlayClose()
 	if changed {
 		return m, func() tea.Msg { return routeMsg }, true
 	}
-	return m, nil, true
+	return m, cmd, true
 }
 
 func (m *shellModel) syncOverlayStack() {

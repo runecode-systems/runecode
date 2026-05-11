@@ -17,7 +17,7 @@ func (m auditRouteModel) anchorSelectedOrLatestSeal() (routeModel, tea.Cmd) {
 	}
 	m.anchoring = true
 	m.errText = ""
-	m.statusText = fmt.Sprintf("Anchor action: requesting broker anchor for seal=%s export_copy=%t", sealDigest, m.exportCopy)
+	m.statusText = fmt.Sprintf("Anchor action: requesting broker anchor for seal=%s export_copy=%t; a receipt copy supports offline verification handoff when returned.", shortIdentity(sealDigest), m.exportCopy)
 	return m, m.anchorSealCmd(sealDigest, m.exportCopy)
 }
 
@@ -134,19 +134,19 @@ func auditAnchorPresenceAttestationRequired(mode string) bool {
 func validateAuditAnchorPreflightForTUI(preflight brokerapi.AuditAnchorPreflightGetResponse, requested trustpolicy.Digest) error {
 	if !preflight.SignerReadiness.Ready {
 		if code := strings.TrimSpace(preflight.SignerReadiness.ReasonCode); code != "" {
-			return fmt.Errorf("%s", code)
+			return fmt.Errorf("%s", sanitizeUIText(code))
 		}
 		return fmt.Errorf("anchor signer unavailable")
 	}
 	if !preflight.VerifierReadiness.Ready {
 		if code := strings.TrimSpace(preflight.VerifierReadiness.ReasonCode); code != "" {
-			return fmt.Errorf("%s", code)
+			return fmt.Errorf("%s", sanitizeUIText(code))
 		}
 		return fmt.Errorf("audit verifier unavailable")
 	}
 	if preflight.PresenceRequirements.Required && !preflight.PresenceRequirements.AttestationReady {
 		if code := strings.TrimSpace(preflight.PresenceRequirements.ReasonCode); code != "" {
-			return fmt.Errorf("%s", code)
+			return fmt.Errorf("%s", sanitizeUIText(code))
 		}
 		return fmt.Errorf("presence attestation unavailable")
 	}
@@ -169,7 +169,7 @@ func validateAuditAnchorPreflightForTUI(preflight brokerapi.AuditAnchorPreflight
 
 func renderAuditAnchorActionSummary(m auditRouteModel) string {
 	if m.anchoring {
-		return tableHeader("Anchor action") + " request in flight via broker audit_anchor_segment"
+		return tableHeader("Anchor action") + " request in flight; broker is preparing anchored evidence"
 	}
 	exportCopy := "off"
 	if m.exportCopy {
@@ -179,5 +179,5 @@ func renderAuditAnchorActionSummary(m auditRouteModel) string {
 	if strings.TrimSpace(status) == "" {
 		status = "idle"
 	}
-	return fmt.Sprintf("%s export_copy=%s status=%s", tableHeader("Anchor action"), exportCopy, status)
+	return fmt.Sprintf("%s export_copy=%s status=%s next=use receipt for export/offline verification when available", tableHeader("Anchor action"), exportCopy, status)
 }

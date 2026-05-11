@@ -106,15 +106,19 @@ func (m gitRemoteMutationRouteModel) handleLoaded(msg gitRemoteMutationLoadedMsg
 		return m, nil
 	}
 	m.errText = ""
+	if !gitRemotePreparedBindingMatches(m.prepared, msg.resp.Prepared) {
+		m.providerAuthLeaseID = ""
+	}
 	m.prepared = msg.resp.Prepared
 	if m.status == "" {
-		m.status = "Review derived summary + stable identities, then press e to execute via broker API."
+		m.status = "Review the prepared change, confirm approval evidence, then press e for guarded broker execution."
 	}
 	return m, nil
 }
 
 func (m gitRemoteMutationRouteModel) handleExecuted(msg gitRemoteMutationExecutedMsg) (routeModel, tea.Cmd) {
 	m.executing = false
+	m.providerAuthLeaseID = ""
 	if msg.err != nil {
 		m.errText = safeUIErrorText(msg.err)
 		m.status = ""
@@ -122,7 +126,7 @@ func (m gitRemoteMutationRouteModel) handleExecuted(msg gitRemoteMutationExecute
 	}
 	m.errText = ""
 	m.prepared = msg.resp.Prepared
-	m.status = fmt.Sprintf("Execute completed: execution_state=%s lifecycle_state=%s", valueOrNA(msg.resp.ExecutionState), valueOrNA(msg.resp.Prepared.LifecycleState))
+	m.status = "Remote execution completed; refreshing prepared state from the broker."
 	m = m.beginLoad()
 	return m, m.loadCmd(m.loadSeq)
 }
@@ -135,7 +139,7 @@ func (m gitRemoteMutationRouteModel) handleLeaseIssued(msg gitRemoteMutationLeas
 		return m, nil
 	}
 	m.providerAuthLeaseID = strings.TrimSpace(msg.resp.ProviderAuthLeaseID)
-	m.status = fmt.Sprintf("Issued execute lease %s; executing prepared mutation...", valueOrNA(m.providerAuthLeaseID))
+	m.status = "Provider credential lease is ready; executing the prepared remote change..."
 	execReq, err := m.buildExecuteRequest()
 	if err != nil {
 		m.executing = false
@@ -149,6 +153,7 @@ func (m gitRemoteMutationRouteModel) handleLeaseIssued(msg gitRemoteMutationLeas
 func (m gitRemoteMutationRouteModel) beginLoad() gitRemoteMutationRouteModel {
 	m.loading = true
 	m.errText = ""
+	m.providerAuthLeaseID = ""
 	m.loadSeq++
 	return m
 }
@@ -169,35 +174,135 @@ func (m gitRemoteMutationRouteModel) View(width, height int, focus focusArea) st
 		return renderStateCard(routeLoadStateEmpty, "Git Remote Mutation", "No prepared mutation loaded yet. Press r to fetch prepared state.")
 	}
 	summary := m.prepared.DerivedSummary
-	requestHash := digestIdentityOrNA(m.prepared.TypedRequestHash)
-	actionHash := digestIdentityOrNA(m.prepared.ActionRequestHash)
-	decisionHash := digestIdentityOrNA(m.prepared.PolicyDecisionHash)
-	approvalReqHash := optionalDigestIdentityOrNA(m.prepared.RequiredApprovalRequestHash)
-	approvalDecisionHash := optionalDigestIdentityOrNA(m.prepared.RequiredApprovalDecisionHash)
-	patches := make([]string, 0, len(summary.ReferencedPatchArtifactHashes))
-	for _, d := range summary.ReferencedPatchArtifactHashes {
-		patches = append(patches, digestIdentityOrNA(d))
-	}
-	if len(patches) == 0 {
-		patches = append(patches, "n/a")
-	}
 	return compactLines(
 		sectionTitle("Git Remote Mutation")+" "+focusBadge(focus),
-		"Review-centric broker flow over canonical prepare/get/execute contracts:",
-		fmt.Sprintf("Prepared mutation: %s", valueOrNA(m.prepared.PreparedMutationID)),
-		fmt.Sprintf("Lifecycle: lifecycle_state=%s reason=%s execution_state=%s execution_reason=%s", valueOrNA(m.prepared.LifecycleState), valueOrNA(m.prepared.LifecycleReasonCode), valueOrNA(m.prepared.ExecutionState), valueOrNA(m.prepared.ExecutionReasonCode)),
-		fmt.Sprintf("Scope: run=%s provider=%s destination_ref=%s request_kind=%s", valueOrNA(m.prepared.RunID), valueOrNA(m.prepared.Provider), valueOrNA(m.prepared.DestinationRef), valueOrNA(m.prepared.RequestKind)),
-		fmt.Sprintf("Stable identities: typed_request_hash=%s", requestHash),
-		fmt.Sprintf("Bindings: action_request_hash=%s policy_decision_hash=%s", actionHash, decisionHash),
-		fmt.Sprintf("Approval binding: approval_id=%s approval_request_hash=%s approval_decision_hash=%s", valueOrNA(m.prepared.RequiredApprovalID), approvalReqHash, approvalDecisionHash),
-		fmt.Sprintf("Execute credential lease: provider_auth_lease_id=%s", valueOrNA(m.providerAuthLeaseID)),
-		fmt.Sprintf("Derived summary: repository=%s target_refs=%s", valueOrNA(summary.RepositoryIdentity), joinCSV(summary.TargetRefs)),
-		fmt.Sprintf("Derived result: expected_result_tree_hash=%s patch_artifacts=%s", digestIdentityOrNA(summary.ExpectedResultTreeHash), joinCSV(patches)),
-		fmt.Sprintf("Derived intent: commit_subject=%s pr_title=%s pr_base=%s pr_head=%s", valueOrNA(summary.CommitSubject), valueOrNA(summary.PullRequestTitle), valueOrNA(summary.PullRequestBaseRef), valueOrNA(summary.PullRequestHeadRef)),
-		"Fail-closed: execute requires required approval bindings and a broker-issued provider credential lease bound to this prepared mutation.",
+		renderStateCardSpec(gitRemoteStateCard(m.prepared, m.providerAuthLeaseID)),
+		fmt.Sprintf("Planned change: %s", gitRemotePreparedSummary(summary)),
+		fmt.Sprintf("Target: %s", gitRemoteTargetSummary(summary)),
+		fmt.Sprintf("Approval check: %s", gitRemoteApprovalSummary(m.prepared)),
+		fmt.Sprintf("Execution access: %s", gitRemoteLeaseSummary(m.providerAuthLeaseID)),
+		fmt.Sprintf("Execution: %s", gitRemoteExecutionSummary(m.prepared)),
+		fmt.Sprintf("Next safe action: %s", gitRemoteNextSafeAction(m.prepared, m.providerAuthLeaseID)),
+		"Safety: RuneCode keeps execution blocked until approval evidence and broker-issued execution access both match this prepared change.",
 		m.status,
-		keyHint("Route keys: r reload prepared state, e execute prepared mutation"),
 	)
+}
+
+func gitRemoteStateCard(prepared brokerapi.GitRemoteMutationPreparedState, leaseID string) stateCardSpec {
+	state := routeLoadStateWaiting
+	message := "The prepared remote change is ready for review."
+	next := "Confirm the planned change, target, and approval before executing."
+	if strings.TrimSpace(prepared.RequiredApprovalID) != "" && prepared.RequiredApprovalDecisionHash == nil {
+		state = routeLoadStateApprovalRequired
+		message = "Remote execution is waiting for approval."
+		next = "Open Approvals before executing this remote change."
+	}
+	if strings.TrimSpace(leaseID) != "" && gitRemoteApprovalBindingComplete(prepared) {
+		state = routeLoadStateReady
+		message = "Execution access is ready for this remote change."
+		next = "Press e only after confirming the planned change and approval state."
+	}
+	if strings.Contains(strings.ToLower(prepared.ExecutionState), "fail") {
+		state = routeLoadStateDegraded
+		message = "Remote change execution failed."
+		next = "Review the failure reason before retrying."
+	}
+	return stateCardSpec{State: state, Title: "Guarded remote review", Message: message, Reason: "RuneCode only executes remote changes after the review, approval evidence, and execution access all agree.", NextAction: next, ShortcutCue: "r reload • e execute", EvidenceCue: "review, approval evidence, execution access"}
+}
+
+func gitRemotePreparedSummary(summary brokerapi.GitRemoteMutationDerivedSummary) string {
+	if strings.TrimSpace(summary.CommitSubject) != "" {
+		return summary.CommitSubject
+	}
+	if strings.TrimSpace(summary.PullRequestTitle) != "" {
+		return summary.PullRequestTitle
+	}
+	return "review prepared repository change"
+}
+
+func gitRemoteTargetSummary(summary brokerapi.GitRemoteMutationDerivedSummary) string {
+	repository := valueOrNA(summary.RepositoryIdentity)
+	refs := joinCSV(summary.TargetRefs)
+	if strings.TrimSpace(refs) == "" || refs == "n/a" {
+		return repository
+	}
+	return fmt.Sprintf("%s on %s", repository, refs)
+}
+
+func gitRemoteApprovalSummary(prepared brokerapi.GitRemoteMutationPreparedState) string {
+	if strings.TrimSpace(prepared.RequiredApprovalID) == "" {
+		return "approval evidence is missing, so execution stays blocked"
+	}
+	if prepared.RequiredApprovalDecisionHash != nil {
+		return "approval evidence is ready for execution review"
+	}
+	return "waiting for approval decision before execution"
+}
+
+func gitRemoteLeaseSummary(leaseID string) string {
+	if strings.TrimSpace(leaseID) == "" {
+		return "not ready yet; RuneCode will request execution access when you start the change"
+	}
+	return "ready for this prepared change"
+}
+
+func gitRemoteExecutionSummary(prepared brokerapi.GitRemoteMutationPreparedState) string {
+	state := strings.TrimSpace(prepared.ExecutionState)
+	if state == "" {
+		state = strings.TrimSpace(prepared.LifecycleState)
+	}
+	switch strings.ToLower(state) {
+	case "", "prepared", "not_started":
+		return "not started; approval and execution checks still gate execution"
+	case "completed", "complete", "succeeded", "success":
+		return "completed"
+	}
+	if strings.Contains(strings.ToLower(state), "fail") {
+		return "failed; review execution details before retrying"
+	}
+	return valueOrNA(state)
+}
+
+func gitRemoteNextSafeAction(prepared brokerapi.GitRemoteMutationPreparedState, leaseID string) string {
+	state := strings.ToLower(strings.TrimSpace(prepared.ExecutionState))
+	if strings.Contains(state, "fail") {
+		return "Review the broker failure, then reload before retrying."
+	}
+	if state == "completed" || state == "complete" || state == "succeeded" || state == "success" {
+		return "Review the refreshed state to confirm the remote change landed as expected."
+	}
+	if !gitRemoteApprovalBindingComplete(prepared) {
+		return "Complete the bound approval review before executing this remote change."
+	}
+	if strings.TrimSpace(leaseID) != "" {
+		return "Press e to execute this prepared remote change through the broker."
+	}
+	return "Press e to have RuneCode request a broker-bound credential lease and execute safely."
+}
+
+func gitRemoteApprovalBindingComplete(prepared brokerapi.GitRemoteMutationPreparedState) bool {
+	return strings.TrimSpace(prepared.RequiredApprovalID) != "" && prepared.RequiredApprovalRequestHash != nil && prepared.RequiredApprovalDecisionHash != nil
+}
+
+func gitRemotePreparedBindingMatches(current brokerapi.GitRemoteMutationPreparedState, next brokerapi.GitRemoteMutationPreparedState) bool {
+	if strings.TrimSpace(current.PreparedMutationID) != strings.TrimSpace(next.PreparedMutationID) {
+		return false
+	}
+	if strings.TrimSpace(current.RequiredApprovalID) != strings.TrimSpace(next.RequiredApprovalID) {
+		return false
+	}
+	return digestPtrString(current.RequiredApprovalRequestHash) == digestPtrString(next.RequiredApprovalRequestHash) && digestPtrString(current.RequiredApprovalDecisionHash) == digestPtrString(next.RequiredApprovalDecisionHash)
+}
+
+func digestPtrString(digest *trustpolicy.Digest) string {
+	if digest == nil {
+		return ""
+	}
+	identity, err := digest.Identity()
+	if err != nil {
+		return strings.TrimSpace(digest.HashAlg) + ":" + strings.TrimSpace(digest.Hash)
+	}
+	return identity
 }
 
 func (m gitRemoteMutationRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
@@ -282,23 +387,4 @@ func (m gitRemoteMutationRouteModel) buildExecuteRequest() (brokerapi.GitRemoteM
 		ApprovalDecisionHash: *m.prepared.RequiredApprovalDecisionHash,
 		ProviderAuthLeaseID:  strings.TrimSpace(m.providerAuthLeaseID),
 	}, nil
-}
-
-func digestIdentityOrNA(d trustpolicy.Digest) string {
-	identity, err := d.Identity()
-	if err != nil {
-		return "n/a"
-	}
-	return identity
-}
-
-func optionalDigestIdentityOrNA(d *trustpolicy.Digest) string {
-	if d == nil {
-		return "n/a"
-	}
-	identity, err := d.Identity()
-	if err != nil {
-		return "n/a"
-	}
-	return identity
 }

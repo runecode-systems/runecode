@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -12,6 +11,8 @@ import (
 type chatLoadedMsg struct {
 	sessions        []brokerapi.SessionSummary
 	detail          *brokerapi.SessionDetail
+	runDetail       *brokerapi.RunDetail
+	posture         *brokerapi.ProjectSubstratePostureGetResponse
 	activeSessionID string
 	err             error
 	seq             uint64
@@ -20,6 +21,7 @@ type chatLoadedMsg struct {
 type chatMessageSentMsg struct {
 	sessions      []brokerapi.SessionSummary
 	detail        *brokerapi.SessionDetail
+	runDetail     *brokerapi.RunDetail
 	ack           *brokerapi.SessionExecutionTriggerResponse
 	turnExecution *brokerapi.SessionTurnExecution
 	posture       *brokerapi.ProjectSubstratePostureGetResponse
@@ -36,6 +38,7 @@ type chatExecutionWatchLoadedMsg struct {
 	triggerID     string
 	turnExecution *brokerapi.SessionTurnExecution
 	detail        *brokerapi.SessionDetail
+	runDetail     *brokerapi.RunDetail
 	sessions      []brokerapi.SessionSummary
 	posture       *brokerapi.ProjectSubstratePostureGetResponse
 	continueWatch bool
@@ -47,29 +50,34 @@ type chatSelectSessionMsg struct {
 }
 
 type chatRouteModel struct {
-	def           routeDefinition
-	client        localBrokerClient
-	loading       bool
-	sending       bool
-	errText       string
-	statusText    string
-	sessions      []brokerapi.SessionSummary
-	selected      int
-	active        *brokerapi.SessionDetail
-	activeID      string
-	inspectorOn   bool
-	composeOn     bool
-	presentation  contentPresentationMode
-	draft         string
-	composer      composeTextarea
-	actionText    string
-	loadSeq       uint64
-	watchSeq      uint64
-	watchStreamID string
-	watching      bool
-	watchSession  string
-	watchTrigger  string
-	detailDoc     longFormDocumentState
+	def              routeDefinition
+	client           localBrokerClient
+	loading          bool
+	sending          bool
+	errText          string
+	statusText       string
+	sessions         []brokerapi.SessionSummary
+	selected         int
+	active           *brokerapi.SessionDetail
+	activeID         string
+	inspectorOn      bool
+	composeOn        bool
+	presentation     contentPresentationMode
+	draft            string
+	composer         composeTextarea
+	actionText       string
+	loadSeq          uint64
+	watchSeq         uint64
+	watchStreamID    string
+	watching         bool
+	watchPollCount   int
+	watchSession     string
+	watchTrigger     string
+	posture          *brokerapi.ProjectSubstratePostureGetResponse
+	runDetail        *brokerapi.RunDetail
+	detailDoc        longFormDocumentState
+	detailDocSession *brokerapi.SessionDetail
+	detailDocMode    contentPresentationMode
 }
 
 func newChatRouteModel(def routeDefinition, client localBrokerClient) routeModel {
@@ -111,29 +119,23 @@ func (m chatRouteModel) View(width, height int, focus focusArea) string {
 	_ = width
 	_ = height
 	if m.loading {
-		return renderStateCard(routeLoadStateLoading, "Chat", "Loading chat route from broker session contracts...")
+		return renderStateCard(routeLoadStateLoading, "Chat", "Loading sessions and workflow evidence...")
 	}
 	if m.sending {
-		return renderStateCard(routeLoadStateLoading, "Chat", "Submitting execution trigger via broker SessionExecutionTrigger...")
+		return renderStateCard(routeLoadStateLoading, "Chat", "Starting the broker-owned workflow from this session...")
 	}
 	if m.errText != "" {
 		return renderStateCard(routeLoadStateError, "Chat", "Load failed: "+m.errText+" (press r to retry)")
 	}
-	active := "none"
-	if m.activeID != "" {
-		active = m.activeID
-	}
 	body := []string{
 		sectionTitle("Chat") + " " + focusBadge(focus),
-		fmt.Sprintf("Sessions: %d active=%s", len(m.sessions), active),
-		"Main pane default: one active canonical session",
-		fmt.Sprintf("Composer: %s", composerState(m.composeOn)),
-		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
-		renderStateCard(routeLoadStateReady, "Active session", activeSessionSummaryLine(m.active)),
+		renderStateCardSpec(chatExecutionStateCard(m.active, m.posture, m.runDetail)),
+		renderActiveSessionSummaryBlock(m.active, len(m.sessions)),
+		renderDirectory("Session directory", renderSessionDirectoryItems(m.sessions), m.selected),
 		renderComposer(m.composeOn, m.draft, m.composer.View()),
 	}
 	if m.active == nil {
-		body = append(body, muted("Select a canonical session to load transcript detail or open the composer against the active session."))
+		body = append(body, muted("Select a canonical session to review the transcript and start the next workflow."))
 	}
 	if m.statusText != "" {
 		body = append(body, "Status: "+m.statusText)
@@ -141,8 +143,8 @@ func (m chatRouteModel) View(width, height int, focus focusArea) string {
 	if strings.TrimSpace(m.actionText) != "" {
 		body = append(body, "Follow-up: "+m.actionText)
 	}
-	body = append(body, muted("Transcript is durable checkpoints; execution watch is advisory live state."))
-	body = append(body, keyHint("Route keys: j/k move, enter load detail, i toggle inspector, c compose, alt+enter send, enter newline, v cycle rendered/raw/structured, r reload"))
+	body = append(body, muted("Transcript remains the durable conversation record. Inspectors keep raw detail and evidence links available."))
+	body = append(body, keyHint("Keys: j/k move • enter review • c compose • alt+enter send • i inspector • v mode • r reload"))
 	return compactLines(body...)
 }
 
@@ -168,7 +170,7 @@ func (m chatRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 		Regions: routeSurfaceRegions{
 			Main:      routeSurfaceRegion{Title: "Chat workspace", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
 			Inspector: routeSurfaceRegion{Title: "Session inspector", Body: inspector},
-			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, i toggle inspector, c compose, alt+enter send, enter newline, v cycle rendered/raw/structured, r reload")},
+			Bottom:    routeSurfaceRegion{Body: keyHint("Keys: j/k move • enter review • c compose • alt+enter send • i inspector • v mode • r reload")},
 			Status:    routeSurfaceRegion{Body: status},
 		},
 		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},

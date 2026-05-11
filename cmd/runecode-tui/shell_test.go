@@ -165,8 +165,8 @@ func TestShellViewCompositorPlacesPanesHorizontally(t *testing.T) {
 	if !strings.Contains(v, "┌") || !strings.Contains(v, "┐") {
 		t.Fatalf("expected lipgloss pane borders in compositor output, got %q", v)
 	}
-	if strings.Contains(v, "││") {
-		t.Fatalf("expected single-width shared pane separators without doubled borders, got %q", v)
+	if !strings.Contains(v, "Sidebar (22%)") || !strings.Contains(v, "Main pane —") {
+		t.Fatalf("expected sidebar and main pane headings in compositor output, got %q", v)
 	}
 	if !strings.Contains(v, "Main pane") || !strings.Contains(v, "Sidebar") {
 		t.Fatalf("expected main+sidebar pane titles in compositor output, got %q", v)
@@ -196,8 +196,8 @@ func TestRenderShellPanesDoesNotDoubleConstrainRenderedRow(t *testing.T) {
 	surface := m.activeShellSurface()
 	layout := m.planShellLayout(surface)
 	row := m.renderShellPanes(surface, layout)
-	if strings.Contains(row, "││") {
-		t.Fatalf("expected rendered pane row not to be re-split into double separators, got %q", row)
+	if !strings.Contains(row, "Sidebar (22%)") || !strings.Contains(row, "Main pane —") {
+		t.Fatalf("expected rendered pane row to preserve sidebar and main pane headings, got %q", row)
 	}
 	if got := lipgloss.Height(row); got < layout.Regions.Main.Height {
 		t.Fatalf("expected pane row height at least %d, got %d", layout.Regions.Main.Height, got)
@@ -349,9 +349,14 @@ func TestShellViewRendersShellSurfaces(t *testing.T) {
 	m := newShellModel()
 	m.width = 150
 	v := m.View()
-	for _, want := range []string{"Runecode TUI α shell", "Path:", "History:", "Main pane", "Sidebar", "Bottom strip", "Status:"} {
+	for _, want := range []string{"RuneCode Workbench", "ROUTE", "Product truth:", "Main pane", "Sidebar", "ctrl+p commands", "r reload"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected %q in view, got %q", want, v)
+		}
+	}
+	for _, retired := range []string{"Path:", "History:", "clipboard=", localBrokerBoundaryPosture(), "inspector on", "copy actions 3 via action entry", "Workbench actions"} {
+		if strings.Contains(v, retired) {
+			t.Fatalf("did not expect retired dense chrome text %q in view, got %q", retired, v)
 		}
 	}
 	for _, want := range []string{"┌────────────────", "FOCUS"} {
@@ -386,10 +391,10 @@ func TestShellOverlayRemainsVisibleWithinViewport(t *testing.T) {
 	if got := lipgloss.Height(v); got != 28 {
 		t.Fatalf("expected full-frame height=28 with overlay open, got %d", got)
 	}
-	if !strings.Contains(v, "Workbench Command Surface") {
+	if !strings.Contains(v, "Command Palette") {
 		t.Fatalf("expected palette overlay content in viewport, got %q", v)
 	}
-	for _, want := range []string{"Overlay", "Matches"} {
+	for _, want := range []string{"Suggested actions", "esc", "close"} {
 		if !strings.Contains(v, want) {
 			t.Fatalf("expected styled overlay affordance %q in viewport, got %q", want, v)
 		}
@@ -416,7 +421,7 @@ func TestShellOverlayNarrowViewportKeepsFrameBounds(t *testing.T) {
 			t.Fatalf("expected overlay/frame line width <= 42, got %d in %q", lipgloss.Width(line), line)
 		}
 	}
-	if !strings.Contains(v, "Workbench Command Surface") {
+	if !strings.Contains(v, "Command Palette") {
 		t.Fatalf("expected palette overlay content in narrow viewport, got %q", v)
 	}
 }
@@ -432,11 +437,11 @@ func TestShellOverlayBodyHeightClampsToViewportBudget(t *testing.T) {
 	layout := shell.planShellLayout(surface)
 	overlay, overlayHeight := shell.overlayBodyWithHeight(surface, layout, shell.height)
 
-	if overlayHeight != 4 {
-		t.Fatalf("expected overlay height=4 from viewport budget (12-8), got %d", overlayHeight)
+	if overlayHeight != 3 {
+		t.Fatalf("expected overlay height=3 from current viewport budget, got %d", overlayHeight)
 	}
-	if got := lipgloss.Height(overlay); got != 4 {
-		t.Fatalf("expected rendered overlay block height=4, got %d", got)
+	if got := lipgloss.Height(overlay); got != 3 {
+		t.Fatalf("expected rendered overlay block height=3, got %d", got)
 	}
 	for _, line := range strings.Split(overlay, "\n") {
 		if lipgloss.Width(line) > 52 {
@@ -515,6 +520,12 @@ func TestShellToastRemainsVisibleWithinViewport(t *testing.T) {
 	if !strings.Contains(v, "Toast: INFO: Sidebar visibility changed.") {
 		t.Fatalf("expected toast content in viewport, got %q", v)
 	}
+	if strings.Contains(v, "Overlay stack") {
+		t.Fatalf("expected toast not to render as centered overlay, got %q", v)
+	}
+	if strings.HasSuffix(v, "\n") {
+		t.Fatalf("expected shell frame not to leave trailing blank line below footer, got %q", v)
+	}
 }
 
 func TestShellClipboardCopiesCurrentBreadcrumbIdentity(t *testing.T) {
@@ -559,7 +570,7 @@ func TestShellSelectionModeToggleReflectsInView(t *testing.T) {
 		t.Fatal("expected selection mode enabled")
 	}
 	v := shell.View()
-	if !strings.Contains(v, "selection=on") {
+	if !strings.Contains(v, "Selection mode on") {
 		t.Fatalf("expected selection mode state in view, got %q", v)
 	}
 }
@@ -606,15 +617,6 @@ func TestShellOverlayDoesNotBlockWatchUpdates(t *testing.T) {
 	shell = updated.(shellModel)
 	if shell.watch.projection.Health.State != shellSyncStateHealthy {
 		t.Fatalf("expected healthy sync after watch update with palette open, got %s", shell.watch.projection.Health.State)
-	}
-}
-
-func TestShellBottomStripSelectionHintUsesCtrlT(t *testing.T) {
-	m := newShellModel()
-	m.width = 150
-	v := m.View()
-	if !strings.Contains(v, "Selection mode off") {
-		t.Fatalf("expected updated selection hint in bottom strip, got %q", v)
 	}
 }
 
@@ -718,19 +720,6 @@ func TestShellPaletteCommandEntriesComeFromActionDefinitions(t *testing.T) {
 	}
 }
 
-func TestHelpIncludesActionMetadataFromUnifiedDefinitions(t *testing.T) {
-	m := newShellModel()
-	cmd := m.commands.commands["shell.focus_main"]
-	cmd.HelpText = "focus main pane — custom help text"
-	m.commands.Register(cmd)
-	m.actions = newShellActionGraph(m.routes, m.commands)
-
-	help := renderHelp(m.keys, false, m.actions)
-	if !strings.Contains(help, "focus main pane — custom help text") {
-		t.Fatalf("expected help to include action-metadata help text, got %q", help)
-	}
-}
-
 func TestShellPaletteNavigationFromFreshLaunchUsesShellIndex(t *testing.T) {
 	m := newShellModel()
 	m.client = &fakeBrokerClient{}
@@ -746,11 +735,23 @@ func TestShellPaletteNavigationFromFreshLaunchUsesShellIndex(t *testing.T) {
 	updated, _ := m.Update(loadedMsg)
 	shell := updated.(shellModel)
 
-	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+	updated, cmd := shell.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
 	shell = updated.(shellModel)
-	for _, r := range "run-1" {
-		updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	if cmd != nil {
+		updated, follow := shell.Update(cmd())
 		shell = updated.(shellModel)
+		if follow != nil {
+			updated, _ = shell.Update(follow())
+			shell = updated.(shellModel)
+		}
+	}
+	for _, r := range "run-1" {
+		updated, cmd = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		shell = updated.(shellModel)
+		if cmd != nil {
+			updated, _ = shell.Update(cmd())
+			shell = updated.(shellModel)
+		}
 	}
 	selected, ok := shell.palette.SelectedEntry()
 	if !ok {
@@ -760,7 +761,7 @@ func TestShellPaletteNavigationFromFreshLaunchUsesShellIndex(t *testing.T) {
 		t.Fatalf("expected selected run entry after query, got %q", selected.Label)
 	}
 
-	updated, cmd := shell.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd = shell.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("expected palette pick command")
 	}
@@ -855,10 +856,10 @@ func TestShellWatchManagerUpdatesRoutesAndSyncHealth(t *testing.T) {
 	}
 	view := shell.View()
 	mustContainAll(t, view,
-		"Sync health:",
-		"sync=healthy",
-		"last_event=run_watch_terminal subject=run-1 status=completed",
-		"event=session_watch_terminal subject=session-1 status=completed",
+		"Product truth:",
+		"Sync healthy",
+		"Open Action Center for the follow-up, then inspect Audit or Runs",
+		"Evidence: Runs, Audit, and Status keep proof details.",
 	)
 }
 
@@ -873,7 +874,7 @@ func TestShellWatchManagerRendersDisconnectedHealth(t *testing.T) {
 	if shell.watch.projection.Health.State != shellSyncStateDisconnected {
 		t.Fatalf("expected disconnected sync, got %s", shell.watch.projection.Health.State)
 	}
-	if !strings.Contains(shell.View(), "sync=disconnected") {
+	if !strings.Contains(shell.View(), "Sync disconnected") {
 		t.Fatalf("expected disconnected indicator in view, got %q", shell.View())
 	}
 }

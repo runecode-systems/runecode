@@ -21,16 +21,18 @@ func TestAuditRouteShowsPagedTimelineAndVerificationReasonCodes(t *testing.T) {
 	view := updated.View(120, 40, focusContent)
 
 	mustContainAll(t, view,
-		"Audit safety strip",
-		"Finalize/verify",
-		"status=unavailable",
-		"UNANCHORED_OR_DEGRADED_AUDIT",
-		"Timeline paging: page=1 entries=1 has_next=yes",
-		"anchoring=degraded (unanchored/degraded)",
-		"Verification findings (machine-readable):",
-		"code=anchor_receipt_missing severity=warning dimension=anchoring",
-		"degraded_reason_codes=",
-		"posture=degraded reasons=anchor_receipt_missing",
+		"Verification trail",
+		"Audit health",
+		"Evidence workbench",
+		"Finalize/verify: unavailable",
+		"Receipts need review",
+		"Timeline: page 1 • 1 records • next page available • back 0",
+		"receipts=degraded (unanchored/degraded)",
+		"Evidence trail:",
+		"Findings to review:",
+		"anchor_receipt_missing • warning • anchoring",
+		"degraded reasons:",
+		"verification degraded",
 	)
 
 	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
@@ -39,10 +41,10 @@ func TestAuditRouteShowsPagedTimelineAndVerificationReasonCodes(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 	view = updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "page_cursor=page-2") {
+	if !strings.Contains(view, "Timeline: page page-2") {
 		t.Fatalf("expected second page cursor in view, got %q", view)
 	}
-	if !strings.Contains(view, "posture=failed reasons=anchor_receipt_invalid") {
+	if !strings.Contains(view, "Selected record: Approval consumed • verification failed") || !strings.Contains(view, "reasons anchor_receipt_invalid") {
 		t.Fatalf("expected failed anchoring posture on page 2, got %q", view)
 	}
 
@@ -54,11 +56,14 @@ func TestAuditRouteShowsPagedTimelineAndVerificationReasonCodes(t *testing.T) {
 	view = updated.View(120, 40, focusContent)
 	surface := updated.ShellSurface(routeShellContext{Width: 120, Height: 40, Focus: focusContent, Breakpoint: shellBreakpointWide})
 	inspector := surface.Regions.Inspector.Body
-	if !strings.Contains(inspector, "Copy actions: linked references | raw block") {
+	if !strings.Contains(inspector, "Copy actions: record digest | linked references | raw block") {
 		t.Fatalf("expected copy actions after loading record detail, got %q", inspector)
 	}
-	if !strings.Contains(inspector, "Verification posture: degraded (unanchored/degraded)") {
+	if !strings.Contains(inspector, "Audit health: degraded (unanchored/degraded)") {
 		t.Fatalf("expected record inspector posture rendering, got %q", inspector)
+	}
+	if !strings.Contains(inspector, "Evidence trail: workflow result -> artifacts -> audit record -> final checks -> offline review") {
+		t.Fatalf("expected evidence trail guidance in inspector, got %q", inspector)
 	}
 }
 
@@ -68,7 +73,7 @@ func TestRenderAuditSafetyAlertStripUsesVerifierAnchoringStatusOnly(t *testing.T
 		IntegrityStatus:   "ok",
 		CurrentlyDegraded: true,
 	}})
-	if !strings.Contains(strip, "UNANCHORED_OR_DEGRADED_AUDIT") {
+	if !strings.Contains(strip, "Receipts need review") {
 		t.Fatalf("expected degraded badge when currently_degraded=true, got %q", strip)
 	}
 
@@ -92,14 +97,13 @@ func TestStatusRouteExplainsDegradedSubsystemPosture(t *testing.T) {
 	view := updated.View(120, 40, focusContent)
 
 	mustContainAll(t, view,
-		"Runtime/audit readiness strip",
-		"RUNTIME_POSTURE_AUTH_UNAVAILABLE",
-		"AUDIT_STORAGE_NOMINAL",
-		"Broker ready=true local_only=true",
-		"Subsystem posture:",
-		"Diagnostics: degraded subsystems=verifier_material=missing",
-		"Version posture: product=0.1.0",
-		"Protocol posture: bundle=0.9.0",
+		"System health",
+		"Runtime proof missing",
+		"Audit ready",
+		"Overview: • broker connected • normal work available • local workspace mode",
+		"Broker health: runtime verification material is unavailable.",
+		"Version: RuneCode 0.1.0",
+		"protocol 0.9.0",
 	)
 }
 
@@ -163,13 +167,14 @@ func TestAuditRouteAnchorActionDispatchesToBrokerAndRendersSuccess(t *testing.T)
 		"Anchor action: ok",
 		"receipt=sha256:",
 		"export_copy=off",
+		"Anchoring: Anchor action: ok",
 	)
 	updated = mustRunAuditRouteKey(t, updated, 'f', "expected finalize+verify command")
 	view = updated.View(120, 40, focusContent)
 	mustContainAll(t, view,
-		"Finalize/verify",
-		"status=ok",
-		"segment=segment-000001",
+		"Finalize/verify: ok",
+		"segment segment-000001",
+		"next review findings or anchor/export the latest verified segment",
 	)
 }
 

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -237,6 +236,13 @@ func muted(label string) string {
 }
 
 func keyHint(label string) string {
+	label = strings.TrimSpace(label)
+	for _, prefix := range []string{"Route keys:", "Keys:"} {
+		if strings.HasPrefix(label, prefix) {
+			label = strings.TrimSpace(strings.TrimPrefix(label, prefix))
+			break
+		}
+	}
 	return appTheme.KeyHint.Render(label)
 }
 
@@ -269,14 +275,14 @@ func renderSelectableRow(line string, width int, selected bool, active bool) str
 }
 
 func focusBadge(focus focusArea) string {
-	return infoBadge(fmt.Sprintf("focus=%s", strings.ToUpper(focus.Label())))
+	return infoBadge(humanFocusLabel(focus) + " focus")
 }
 
 func navStateBadge(active bool) string {
 	if active {
-		return successBadge("ACTIVE")
+		return successBadge("Focused")
 	}
-	return neutralBadge("IDLE")
+	return neutralBadge("Overview")
 }
 
 func boolBadge(label string, value bool) string {

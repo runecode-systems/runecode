@@ -28,31 +28,23 @@ func TestDashboardRouteShowsTypedLiveWatchFamilies(t *testing.T) {
 	view := updated.View(120, 40, focusContent)
 
 	mustContainAll(t, view,
-		"Now",
-		"CONTENT_READY",
-		"Safety Summary",
-		"Safety strip",
-		"backend_kind=workspace",
-		"runtime isolation=sandboxed",
-		"audit posture=ok/degraded (unanchored/degraded)",
-		"approval_profile=n/a",
-		"Safety alerts:",
-		"ALERT_AUDIT_UNANCHORED",
-		"Control Plane",
-		"Project substrate:",
-		"compatibility=supported_with_upgrade_available",
-		"Project substrate remediation:",
-		"Live Activity",
-		"Live activity (typed watch families; logs are supplemental inspection only):",
-		"totals events=2 snapshot=1 upsert=0 terminal=1 errors=0",
-		"last_event=run_watch_terminal subject=run-1 status=completed",
-		"last_event=approval_watch_terminal subject=ap-1 status=completed",
-		"last_event=session_watch_terminal subject=session-1 status=completed",
-		"feed:",
-		"event=session_watch_terminal subject=session-1 status=completed",
-		"Actions",
-		"tab moves focus",
+		"Degraded",
+		"Current work",
+		"run-1 is active",
+		"Approvals: 1 approval is waiting",
+		"At a glance",
+		"Work 1",
+		"Approvals 1",
+		"Review 1",
+		"Next action",
+		"Open Action Center",
+		"Evidence: Runs, Audit, and Status keep proof details.",
 	)
+	for _, retired := range []string{"Runtime and evidence", "Supporting detail", "ALERT_AUDIT_UNANCHORED", "AUDIT_UNANCHORED_OR_DEGRADED", "Live activity"} {
+		if strings.Contains(view, retired) {
+			t.Fatalf("did not expect retired dashboard primary detail %q in view, got %q", retired, view)
+		}
+	}
 }
 
 type dashboardAuditUnavailableClient struct{ fakeBrokerClient }
@@ -82,17 +74,48 @@ func TestDashboardRouteFallsBackWhenAuditVerificationUnavailable(t *testing.T) {
 
 	mustContainAll(t, view,
 		"Dashboard",
-		"Now",
-		"Safety posture",
-		"Project substrate:",
-		"FAILED",
-		"degraded=true",
-		"AUDIT_VERIFICATION_UNAVAILABLE",
-		"showing degraded fallback posture (gateway_failure)",
-		"Control Plane",
-		"Live Activity",
-		"Live activity (typed watch families; logs are supplemental inspection only):",
+		"Degraded",
+		"Current work",
+		"At a glance",
+		"Review 1",
+		"Next action",
+		"Open Action Center",
 	)
+	if strings.Contains(view, "gateway_failure") || strings.Contains(view, "Evidence verification unavailable") {
+		t.Fatalf("expected audit fallback detail to stay out of primary dashboard, got %q", view)
+	}
+}
+
+func TestDashboardExecutiveHierarchyAndCalmPrimaryWording(t *testing.T) {
+	model := newDashboardRouteModel(routeDefinition{ID: routeDashboard, Label: "Dashboard"}, &fakeBrokerClient{})
+	updated, cmd := model.Update(routeActivatedMsg{RouteID: routeDashboard})
+	if cmd == nil {
+		t.Fatal("expected activation load command")
+	}
+	updated, _ = updated.Update(cmd())
+	view := updated.View(120, 40, focusContent)
+
+	cardIndex := strings.Index(view, "Evidence or runtime posture needs review.")
+	currentIndex := strings.Index(view, "Current work")
+	countsIndex := strings.Index(view, "At a glance")
+	nextIndex := strings.Index(view, "Next action")
+	if cardIndex < 0 || currentIndex < 0 || countsIndex < 0 || nextIndex < 0 {
+		t.Fatalf("expected executive hierarchy sections in view, got %q", view)
+	}
+	if !(cardIndex < currentIndex && currentIndex < countsIndex && countsIndex < nextIndex) {
+		t.Fatalf("expected state card before current work before counts before next action, got %q", view)
+	}
+	if strings.Contains(view, "Protocol bundle") || strings.Contains(view, "watch_family") || strings.Contains(view, "Supporting detail") {
+		t.Fatalf("expected no debug-heavy primary wording, got %q", view)
+	}
+	if !strings.Contains(view, "Route: Action Center") {
+		t.Fatalf("expected dashboard to point operators to Action Center, got %q", view)
+	}
+	for _, unwanted := range []string{"DEGRADED Degraded", "! DEGRADED", "APPROVAL REQUIRED Needs attention", "BLOCKED Blocked", "EMPTY No work yet"} {
+		if strings.Contains(view, unwanted) {
+			t.Fatalf("expected dashboard hero without duplicated state/title wording %q, got %q", unwanted, view)
+		}
+	}
 }
 
 func TestDashboardViewPreservesSectionGaps(t *testing.T) {
@@ -103,7 +126,7 @@ func TestDashboardViewPreservesSectionGaps(t *testing.T) {
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	for _, want := range []string{"PENDING_APPROVALS=1\n\nSafety Summary", "ALERT_AUDIT_UNANCHORED  audit posture unanchored/degraded\n\nControl Plane", "protocol bundle=0.9.0\n\nLive Activity"} {
+	for _, want := range []string{"Current work", "\n\n │ At a glance", "Review 1\n\n │ Next action"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("expected preserved blank section gap %q in view, got %q", want, view)
 		}
@@ -118,7 +141,7 @@ func TestDashboardAuditFallbackWithoutErrorDoesNotAddExtraBlankLine(t *testing.T
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	if strings.Contains(view, "Safety posture\n\nWorkflow posture") {
+	if strings.Contains(view, "\n\n\n") {
 		t.Fatalf("did not expect extra blank line when audit fallback notice absent, got %q", view)
 	}
 }
@@ -136,11 +159,11 @@ func TestDashboardViewWrapsLongRowsToWidth(t *testing.T) {
 			t.Fatalf("expected wrapped dashboard line within content width, got width=%d line=%q", lipgloss.Width(line), line)
 		}
 	}
-	if !strings.Contains(view, "runtime_posture_degraded=false") {
-		t.Fatalf("expected wrapped safety strip content retained, got %q", view)
+	if !strings.Contains(view, "Runs, Audit, and Status keep") {
+		t.Fatalf("expected wrapped dashboard detail cue retained, got %q", view)
 	}
-	if !strings.Contains(view, "AUDIT_UNANCHORED_OR_DEGRADED") {
-		t.Fatalf("expected wrapped long audit cue retained, got %q", view)
+	if strings.Contains(view, "AUDIT_UNANCHORED_OR_DEGRADED") {
+		t.Fatalf("expected raw audit badge removed from primary dashboard, got %q", view)
 	}
 }
 
@@ -156,13 +179,13 @@ func TestDashboardViewNarrowWidthKeepsBoundedLinesAndSectionSpacing(t *testing.T
 	if strings.Contains(view, "\n\n\n") {
 		t.Fatalf("expected no triple blank section gaps in narrow view, got %q", view)
 	}
-	if !strings.Contains(view, "\n\nSafety Summary") {
-		t.Fatalf("expected preserved single blank section gap before Safety Summary, got %q", view)
+	if !strings.Contains(view, "\n\n │ At a glance") {
+		t.Fatalf("expected preserved single blank section gap before At a glance, got %q", view)
 	}
 	mustContainAll(t, view,
 		"Dashboard",
-		"Safety Summary",
-		"Control Plane",
-		"Live Activity",
+		"Current work",
+		"At a glance",
+		"Next action",
 	)
 }

@@ -175,11 +175,26 @@ func TestCenteredOverlayBlockBoundedClipsToHeight(t *testing.T) {
 	if got := lipgloss.Width(rendered); got != 80 {
 		t.Fatalf("expected bounded overlay width=80, got %d", got)
 	}
+	lines := strings.Split(rendered, "\n")
+	if len(lines) == 0 || !strings.Contains(lines[0], "┌") || !strings.Contains(lines[0], "┐") {
+		t.Fatalf("expected top frame row to include both overlay corners, got %q", rendered)
+	}
+	hasRightEdge := false
+	for _, line := range lines[1:] {
+		trimmed := strings.TrimRight(line, " ")
+		if strings.HasSuffix(trimmed, "│") {
+			hasRightEdge = true
+			break
+		}
+	}
+	if !hasRightEdge {
+		t.Fatalf("expected at least one overlay body row to retain the right border, got %q", rendered)
+	}
 }
 
 func TestCenteredOverlayContentBoundsUseInnerContentArea(t *testing.T) {
 	start, end := centeredOverlayContentBounds(80)
-	if start != 2 || end != 69 {
-		t.Fatalf("expected content bounds [2,69], got [%d,%d]", start, end)
+	if start != 6 || end != 71 {
+		t.Fatalf("expected centered content bounds [6,71], got [%d,%d]", start, end)
 	}
 }

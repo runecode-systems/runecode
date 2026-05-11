@@ -29,6 +29,7 @@ Repo bootstrap for coding agents. Read this first, then follow the linked standa
 - Lint: `just lint`
 - Test: `just test`
 - CI parity gate: `just ci`
+- TUI visual review: use the `tui-snapshot-review` skill when changing or auditing `cmd/runecode-tui` layout, wording, spacing, color, or other visual polish.
 - Protocol-focused checks:
   - `go test ./internal/protocolschema`
   - `cd runner && node --test scripts/protocol-fixtures.test.js`

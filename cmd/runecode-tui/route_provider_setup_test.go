@@ -17,11 +17,14 @@ func TestProviderSetupRouteActivationLoadsBrokerProjectedProfilePosture(t *testi
 	}
 	updated, _ = updated.Update(cmd())
 	view := updated.View(120, 40, focusContent)
-	if !strings.Contains(view, "Auth modes: supported=[direct_credential] current=direct_credential") {
-		t.Fatalf("expected auth-mode posture in provider view, got %q", view)
+	if !strings.Contains(view, "Selected provider: OpenAI default") {
+		t.Fatalf("expected selected provider summary in provider view, got %q", view)
 	}
-	if !strings.Contains(view, "Compatibility posture: unverified") {
-		t.Fatalf("expected compatibility posture in provider view, got %q", view)
+	if !strings.Contains(view, "Setup status: not_ready • credential stored • 1 broker profile discovered.") {
+		t.Fatalf("expected guided setup summary in provider view, got %q", view)
+	}
+	if strings.Contains(view, "provider_family=openai_compatible") {
+		t.Fatalf("expected raw provider family detail to be removed from provider view, got %q", view)
 	}
 	assertStringSliceEqual(t, recording.Calls(), []string{"ProviderProfileList"})
 }

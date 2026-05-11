@@ -7,6 +7,9 @@ import (
 	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
+const artifactPreviewLineLimit = 10
+const artifactCopyPreviewLineLimit = 8
+
 func renderArtifactList(items []brokerapi.ArtifactSummary, selected int) string {
 	if len(items) == 0 {
 		return "  - no artifacts"
@@ -17,7 +20,7 @@ func renderArtifactList(items []brokerapi.ArtifactSummary, selected int) string 
 		if i == selected {
 			marker = ">"
 		}
-		line += selectedLine(i == selected, fmt.Sprintf("  %s %s class=%s bytes=%d run=%s", marker, item.Reference.Digest, item.Reference.DataClass, item.Reference.SizeBytes, item.RunID)) + "\n"
+		line += selectedLine(i == selected, fmt.Sprintf("  %s %s", marker, renderArtifactDirectoryRow(item))) + "\n"
 	}
 	return line
 }
@@ -25,9 +28,21 @@ func renderArtifactList(items []brokerapi.ArtifactSummary, selected int) string 
 func renderArtifactDirectoryItems(items []brokerapi.ArtifactSummary) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {
-		out = append(out, fmt.Sprintf("%s class=%s bytes=%d", item.Reference.Digest, item.Reference.DataClass, item.Reference.SizeBytes))
+		out = append(out, renderArtifactDirectoryRow(item))
 	}
 	return out
+}
+
+func renderArtifactDirectoryRow(item brokerapi.ArtifactSummary) string {
+	parts := []string{artifactDisplayLabel(item), shortIdentity(item.Reference.Digest)}
+	meta := []string{}
+	if preview := artifactPreviewIdentity(item.Reference.SizeBytes, item.Reference.ContentType); preview != "" {
+		meta = append(meta, preview)
+	}
+	if len(meta) > 0 {
+		parts = append(parts, "• "+strings.Join(meta, " • "))
+	}
+	return strings.Join(parts, " ")
 }
 
 func renderArtifactInspector(head *brokerapi.LocalArtifactHeadResponse, mode artifactDetailMode, presentation contentPresentationMode, content, contentErr string, document *longFormDocumentState) string {
@@ -44,8 +59,11 @@ func renderArtifactInspector(head *brokerapi.LocalArtifactHeadResponse, mode art
 	contentView := renderArtifactContent(mode, presentation, content, contentErr)
 	kind := artifactContentKind(mode, a.Reference.ContentType, presentation)
 	document.SetDocument(workbenchObjectRef{Kind: "artifact", ID: strings.TrimSpace(a.Reference.Digest)}, kind, fmt.Sprintf("%s content", mode), compactLines(
+		fmt.Sprintf("Evidence label: %s", artifactDisplayLabel(a)),
 		fmt.Sprintf("Data class: %s", a.Reference.DataClass),
-		fmt.Sprintf("Typed detail mode: %s (metadata remains control-plane truth)", mode),
+		fmt.Sprintf("Evidence trail: run %s -> artifact %s -> Audit for final checks and receipts", valueOrNA(a.RunID), artifactDisplayLabel(a)),
+		fmt.Sprintf("Primary digest display: %s (copy raw digest below)", shortIdentity(a.Reference.Digest)),
+		fmt.Sprintf("Detail mode: %s (typed metadata stays authoritative)", mode),
 		fmt.Sprintf("Presentation mode: %s", presentation),
 		fmt.Sprintf("Provenance receipt: %s", a.Reference.ProvenanceReceiptHash),
 		"Inspectable content is supplemental evidence, not authoritative run/approval truth.",
@@ -53,12 +71,14 @@ func renderArtifactInspector(head *brokerapi.LocalArtifactHeadResponse, mode art
 	))
 	return renderInspectorShell(inspectorShellSpec{
 		Title:    "Artifact inspector",
-		Summary:  fmt.Sprintf("artifact=%s class=%s bytes=%d", a.Reference.Digest, a.Reference.DataClass, a.Reference.SizeBytes),
-		Identity: fmt.Sprintf("digest=%s", a.Reference.Digest),
-		Status:   fmt.Sprintf("data_class=%s content_type=%s", a.Reference.DataClass, a.Reference.ContentType),
-		Badges:   []string{stateBadgeWithLabel("class", fmt.Sprintf("%v", a.Reference.DataClass)), appTheme.InspectorHint.Render("typed metadata first")},
+		Summary:  fmt.Sprintf("%s ready to inspect.", artifactDisplayLabel(a)),
+		Identity: fmt.Sprintf("Artifact %s • digest %s", artifactDisplayLabel(a), shortIdentity(a.Reference.Digest)),
+		Status:   fmt.Sprintf("From run %s • open Audit next for final checks or receipts", valueOrNA(a.RunID)),
+		Badges:   []string{stateBadgeWithLabel("class", fmt.Sprintf("%v", a.Reference.DataClass)), appTheme.InspectorHint.Render("evidence details")},
 		References: []inspectorReference{{Label: "run", Items: mapReferenceIDs([]string{a.RunID}, func(id string) paletteActionMsg {
 			return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "run", RouteID: routeRuns, RunID: id}}
+		})}, {Label: "artifact", Items: mapReferenceIDs([]string{a.Reference.Digest}, func(id string) paletteActionMsg {
+			return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "artifact", RouteID: routeArtifacts, Digest: id}}
 		})}},
 		LocalActions: artifactInspectorLocalActions(),
 		CopyActions:  artifactRouteCopyActions(head, content),
@@ -74,6 +94,7 @@ func artifactInspectorLocalActions() []routeActionItem {
 		{Label: "jump:audit", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeAudit}}},
 		{Label: "copy:digest"},
 		{Label: "copy:provenance_receipt"},
+		{Label: "copy:artifact_preview"},
 	}
 }
 
@@ -84,9 +105,16 @@ func artifactInspectorReferenceActions(head *brokerapi.LocalArtifactHeadResponse
 	items := mapReferenceIDs([]string{head.Artifact.RunID}, func(id string) paletteActionMsg {
 		return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "run", RouteID: routeRuns, RunID: id}}
 	})
+	items = append(items, mapReferenceIDs([]string{head.Artifact.Reference.Digest}, func(id string) paletteActionMsg {
+		return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "artifact", RouteID: routeArtifacts, Digest: id}}
+	})...)
 	out := make([]routeActionItem, 0, len(items))
 	for _, item := range items {
-		out = append(out, routeActionItem{Label: "run:" + item.Label, Action: item.Action})
+		prefix := "run:"
+		if strings.Contains(item.Label, "sha256:") {
+			prefix = "artifact:"
+		}
+		out = append(out, routeActionItem{Label: prefix + item.Label, Action: item.Action})
 	}
 	return out
 }
@@ -97,12 +125,7 @@ func artifactRouteCopyActions(head *brokerapi.LocalArtifactHeadResponse, content
 	}
 	ref := head.Artifact.Reference
 	preview := strings.TrimSpace(content)
-	if preview != "" {
-		lines := strings.Split(preview, "\n")
-		if len(lines) > 8 {
-			preview = strings.Join(lines[:8], "\n") + fmt.Sprintf("\n... (%d more lines)", len(lines)-8)
-		}
-	}
+	preview = boundedArtifactPreview(preview, artifactCopyPreviewLineLimit)
 	return compactCopyActions([]routeCopyAction{
 		{ID: "digest", Label: "artifact digest", Text: ref.Digest},
 		{ID: "provenance_receipt", Label: "provenance receipt", Text: ref.ProvenanceReceiptHash},
@@ -185,10 +208,22 @@ func renderArtifactContent(mode artifactDetailMode, presentation contentPresenta
 		}
 		return fmt.Sprintf("  %s structured:\n  - lines=%d\n  - non_empty=%d\n  - preview=%q", mode, len(lines), countNonEmptyLines(lines), redactSecrets(strings.TrimSpace(content)))
 	}
-	if len(lines) > 10 {
-		return fmt.Sprintf("  %s preview (secrets redacted):\n%s\n  ... (%d more lines)", mode, redactSecrets(strings.Join(lines[:10], "\n")), len(lines)-10)
+	if len(lines) > artifactPreviewLineLimit {
+		return fmt.Sprintf("  %s preview (secrets redacted):\n%s\n  ... (%d more lines)", mode, redactSecrets(strings.Join(lines[:artifactPreviewLineLimit], "\n")), len(lines)-artifactPreviewLineLimit)
 	}
 	return fmt.Sprintf("  %s preview (secrets redacted):\n%s", mode, redactSecrets(content))
+}
+
+func boundedArtifactPreview(content string, maxLines int) string {
+	preview := strings.TrimSpace(content)
+	if preview == "" {
+		return ""
+	}
+	lines := strings.Split(preview, "\n")
+	if len(lines) > maxLines {
+		preview = strings.Join(lines[:maxLines], "\n") + fmt.Sprintf("\n... (%d more lines)", len(lines)-maxLines)
+	}
+	return redactSecrets(preview)
 }
 
 func countNonEmptyLines(lines []string) int {
@@ -212,8 +247,11 @@ func (m *artifactsRouteModel) syncDetailDocument() {
 	contentView := renderArtifactContent(mode, presentation, m.content, m.contentErr)
 	kind := artifactContentKind(mode, a.Reference.ContentType, presentation)
 	content := compactLines(
+		fmt.Sprintf("Evidence label: %s", artifactDisplayLabel(a)),
 		fmt.Sprintf("Data class: %s", a.Reference.DataClass),
-		fmt.Sprintf("Typed detail mode: %s (metadata remains control-plane truth)", mode),
+		fmt.Sprintf("Evidence trail: run %s -> artifact %s -> Audit for final checks and receipts", valueOrNA(a.RunID), artifactDisplayLabel(a)),
+		fmt.Sprintf("Primary digest display: %s (copy raw digest below)", shortIdentity(a.Reference.Digest)),
+		fmt.Sprintf("Detail mode: %s (typed metadata stays authoritative)", mode),
 		fmt.Sprintf("Presentation mode: %s", presentation),
 		fmt.Sprintf("Provenance receipt: %s", a.Reference.ProvenanceReceiptHash),
 		"Inspectable content is supplemental evidence, not authoritative run/approval truth.",
@@ -221,4 +259,94 @@ func (m *artifactsRouteModel) syncDetailDocument() {
 	)
 	ref := workbenchObjectRef{Kind: "artifact", ID: strings.TrimSpace(a.Reference.Digest)}
 	m.detailDoc.SetDocument(ref, kind, fmt.Sprintf("%s content", mode), content)
+}
+
+func renderArtifactOverviewCard(head *brokerapi.LocalArtifactHeadResponse, classFilter string) string {
+	if head == nil {
+		message := "Select evidence to review what the run produced before you continue to Audit."
+		if strings.TrimSpace(classFilter) != "" {
+			message = fmt.Sprintf("Select %s evidence to review what the run produced before you continue to Audit.", artifactClassLabel(classFilter))
+		}
+		return renderStateCardSpec(stateCardSpec{State: routeLoadStateWaiting, Title: "Evidence workspace", Message: message, Reason: "No evidence is open yet.", NextAction: "Choose an artifact, then continue to Audit for final checks or receipts.", ShortcutCue: "enter", RouteCue: "Artifacts → Audit"})
+	}
+	a := head.Artifact
+	return renderStateCardSpec(stateCardSpec{State: routeLoadStateReady, Title: "Evidence workspace", Message: fmt.Sprintf("%s is ready to inspect.", artifactDisplayLabel(a)), Reason: fmt.Sprintf("%s from run %s with %s ready in the inspector.", artifactClassLabel(a.Reference.DataClass), valueOrNA(a.RunID), artifactPreviewIdentity(a.Reference.SizeBytes, a.Reference.ContentType)), NextAction: "Review the evidence here, then open Audit to confirm final checks, export, or receipts.", ShortcutCue: "enter / m", RouteCue: "Audit"})
+}
+
+func renderArtifactEvidenceTrail(head *brokerapi.LocalArtifactHeadResponse) string {
+	if head == nil {
+		return "Evidence path: run result -> artifact evidence -> Audit review and receipts."
+	}
+	a := head.Artifact
+	return fmt.Sprintf("Evidence path: run %s -> %s -> Audit review and receipts.", valueOrNA(a.RunID), artifactDisplayLabel(a))
+}
+
+func artifactDisplayLabel(item brokerapi.ArtifactSummary) string {
+	class := artifactClassLabel(item.Reference.DataClass)
+	run := strings.TrimSpace(item.RunID)
+	if class != "" && run != "" {
+		return fmt.Sprintf("%s for %s", class, run)
+	}
+	if class != "" {
+		return class + " artifact"
+	}
+	return shortIdentity(item.Reference.Digest)
+}
+
+func renderArtifactClassFilterLine(classFilter string) string {
+	classFilter = strings.TrimSpace(classFilter)
+	if classFilter == "" {
+		return "Filter: all artifact classes"
+	}
+	return "Filter: " + artifactClassLabel(classFilter)
+}
+
+func artifactClassLabel(dataClass any) string {
+	value := strings.TrimSpace(fmt.Sprintf("%v", dataClass))
+	if value == "" {
+		return ""
+	}
+	return humanizeExecutionToken(value)
+}
+
+func artifactSourceRunLabel(runID string) string {
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return ""
+	}
+	return "source run " + runID
+}
+
+func artifactPreviewIdentity(sizeBytes int64, contentType string) string {
+	parts := []string{}
+	if sizeBytes > 0 {
+		parts = append(parts, fmt.Sprintf("%d bytes", sizeBytes))
+	}
+	if label := artifactContentTypeLabel(contentType); label != "" {
+		parts = append(parts, label)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, " ") + " preview"
+}
+
+func artifactContentTypeLabel(contentType string) string {
+	contentType = strings.ToLower(strings.TrimSpace(contentType))
+	if contentType == "" {
+		return ""
+	}
+	if idx := strings.Index(contentType, ";"); idx >= 0 {
+		contentType = strings.TrimSpace(contentType[:idx])
+	}
+	switch contentType {
+	case "text/plain":
+		return "plain text"
+	case "text/markdown":
+		return "markdown"
+	case "application/json":
+		return "json"
+	default:
+		return contentType
+	}
 }

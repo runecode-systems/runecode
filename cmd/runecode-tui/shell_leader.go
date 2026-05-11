@@ -23,16 +23,26 @@ type shellLeaderChoice struct {
 	Completes   bool
 }
 
+type leaderChoiceAggregate struct {
+	label       string
+	description string
+	completes   bool
+}
+
+const leaderPrefixSeparator = "::"
+
 type shellLeaderState struct {
-	active   bool
-	prefix   []string
-	bindings []shellLeaderBinding
-	choices  []shellLeaderChoice
+	active          bool
+	prefix          []string
+	bindings        []shellLeaderBinding
+	choices         []shellLeaderChoice
+	exactActions    map[string]paletteActionMsg
+	choicesByPrefix map[string][]shellLeaderChoice
 }
 
 func newShellLeaderState(bindings []shellLeaderBinding) shellLeaderState {
-	state := shellLeaderState{bindings: append([]shellLeaderBinding(nil), bindings...)}
-	state.choices = state.choicesForPrefix(nil)
+	state := shellLeaderState{}
+	state.Rebind(bindings)
 	return state
 }
 
@@ -43,25 +53,28 @@ func (s shellLeaderState) Active() bool {
 func (s *shellLeaderState) Start() {
 	s.active = true
 	s.prefix = nil
-	s.choices = s.choicesForPrefix(nil)
+	s.choices = cloneLeaderChoices(s.choicesByPrefix[""])
 }
 
 func (s *shellLeaderState) Rebind(bindings []shellLeaderBinding) {
 	s.bindings = append([]shellLeaderBinding(nil), bindings...)
+	s.exactActions, s.choicesByPrefix = buildShellLeaderIndexes(s.bindings)
 	if s.active {
-		s.choices = s.choicesForPrefix(s.prefix)
-		if len(s.choices) == 0 {
+		choices := cloneLeaderChoices(s.choicesByPrefix[leaderPrefixKey(s.prefix)])
+		if len(choices) == 0 {
 			s.Abort()
+			return
 		}
+		s.choices = choices
 		return
 	}
-	s.choices = s.choicesForPrefix(nil)
+	s.choices = cloneLeaderChoices(s.choicesByPrefix[""])
 }
 
 func (s *shellLeaderState) Abort() {
 	s.active = false
 	s.prefix = nil
-	s.choices = s.choicesForPrefix(nil)
+	s.choices = cloneLeaderChoices(s.choicesByPrefix[""])
 }
 
 func (s *shellLeaderState) Step(token string) (paletteActionMsg, bool) {
@@ -71,13 +84,11 @@ func (s *shellLeaderState) Step(token string) (paletteActionMsg, bool) {
 		return paletteActionMsg{}, false
 	}
 	nextPrefix := append(append([]string(nil), s.prefix...), token)
-	for _, binding := range s.bindings {
-		if sequenceEqual(binding.Sequence, nextPrefix) {
-			s.Abort()
-			return binding.Action, true
-		}
+	if action, ok := s.exactActions[leaderPrefixKey(nextPrefix)]; ok {
+		s.Abort()
+		return action, true
 	}
-	choices := s.choicesForPrefix(nextPrefix)
+	choices := cloneLeaderChoices(s.choicesByPrefix[leaderPrefixKey(nextPrefix)])
 	if len(choices) == 0 {
 		s.Abort()
 		return paletteActionMsg{}, false
@@ -100,48 +111,115 @@ func (s shellLeaderState) Choices() []shellLeaderChoice {
 	return out
 }
 
-func (s shellLeaderState) choicesForPrefix(prefix []string) []shellLeaderChoice {
-	type agg struct {
-		label       string
-		description string
-		completes   bool
+func buildShellLeaderIndexes(bindings []shellLeaderBinding) (map[string]paletteActionMsg, map[string][]shellLeaderChoice) {
+	exactActions := map[string]paletteActionMsg{}
+	choicesByPrefix := map[string]map[string]leaderChoiceAggregate{"": {}}
+	for _, binding := range bindings {
+		registerLeaderBindingIndexes(binding, exactActions, choicesByPrefix)
 	}
-	byKey := map[string]agg{}
-	for _, binding := range s.bindings {
-		if len(binding.Sequence) <= len(prefix) || !sequenceHasPrefix(binding.Sequence, prefix) {
-			continue
+	choices := make(map[string][]shellLeaderChoice, len(choicesByPrefix))
+	for prefixKey, byKey := range choicesByPrefix {
+		keys := make([]string, 0, len(byKey))
+		for key := range byKey {
+			keys = append(keys, key)
 		}
-		next := binding.Sequence[len(prefix)]
-		existing := byKey[next]
-		candidate := agg{
-			label:       firstNonEmpty(binding.Group, binding.Label),
-			description: binding.Description,
-			completes:   len(binding.Sequence) == len(prefix)+1,
+		sort.Strings(keys)
+		entries := make([]shellLeaderChoice, 0, len(keys))
+		for _, key := range keys {
+			entry := byKey[key]
+			entries = append(entries, shellLeaderChoice{Key: key, Label: entry.label, Description: entry.description, Completes: entry.completes})
 		}
-		if strings.TrimSpace(existing.label) == "" {
-			byKey[next] = candidate
-			continue
-		}
-		if existing.label != candidate.label {
-			existing.label = "(group)"
-		}
-		if existing.description != candidate.description {
-			existing.description = "multiple actions"
-		}
-		existing.completes = existing.completes || candidate.completes
-		byKey[next] = existing
+		choices[prefixKey] = entries
 	}
-	keys := make([]string, 0, len(byKey))
-	for key := range byKey {
-		keys = append(keys, key)
+	if _, ok := choices[""]; !ok {
+		choices[""] = nil
 	}
-	sort.Strings(keys)
-	choices := make([]shellLeaderChoice, 0, len(keys))
-	for _, key := range keys {
-		entry := byKey[key]
-		choices = append(choices, shellLeaderChoice{Key: key, Label: entry.label, Description: entry.description, Completes: entry.completes})
+	return exactActions, choices
+}
+
+func registerLeaderBindingIndexes(binding shellLeaderBinding, exactActions map[string]paletteActionMsg, choicesByPrefix map[string]map[string]leaderChoiceAggregate) {
+	sequence := normalizeLeaderSequence(binding.Sequence)
+	if len(sequence) == 0 {
+		return
 	}
-	return choices
+	exactActions[leaderPrefixKey(sequence)] = binding.Action
+	for i := 0; i < len(sequence); i++ {
+		prefixKey := leaderPrefixKey(sequence[:i])
+		next := sequence[i]
+		choicesByPrefix[prefixKey] = mergeLeaderChoiceAggregate(choicesByPrefix[prefixKey], next, binding, len(sequence) == i+1)
+	}
+}
+
+func mergeLeaderChoiceAggregate(byKey map[string]leaderChoiceAggregate, next string, binding shellLeaderBinding, completes bool) map[string]leaderChoiceAggregate {
+	if byKey == nil {
+		byKey = map[string]leaderChoiceAggregate{}
+	}
+	existing := byKey[next]
+	candidate := leaderChoiceAggregate{
+		label:       firstNonEmpty(binding.Group, binding.Label),
+		description: binding.Description,
+		completes:   completes,
+	}
+	if strings.TrimSpace(existing.label) == "" {
+		byKey[next] = candidate
+		return byKey
+	}
+	if existing.label != candidate.label {
+		existing.label = "(group)"
+	}
+	if existing.description != candidate.description {
+		existing.description = "multiple actions"
+	}
+	existing.completes = existing.completes || candidate.completes
+	byKey[next] = existing
+	return byKey
+}
+
+func cloneLeaderChoices(in []shellLeaderChoice) []shellLeaderChoice {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]shellLeaderChoice, len(in))
+	copy(out, in)
+	return out
+}
+
+func normalizeLeaderSequence(sequence []string) []string {
+	out := make([]string, 0, len(sequence))
+	for _, token := range sequence {
+		if normalized := normalizeLeaderToken(token); normalized != "" {
+			out = append(out, normalized)
+		}
+	}
+	return out
+}
+
+func leaderPrefixKey(prefix []string) string {
+	if len(prefix) == 0 {
+		return ""
+	}
+	return strings.Join(prefix, leaderPrefixSeparator)
+}
+
+func shellLeaderBindingsSignature(bindings []shellLeaderBinding) string {
+	if len(bindings) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(bindings))
+	for _, binding := range bindings {
+		parts = append(parts, strings.Join([]string{
+			strings.Join(normalizeLeaderSequence(binding.Sequence), "/"),
+			strings.TrimSpace(binding.Group),
+			strings.TrimSpace(binding.Label),
+			strings.TrimSpace(binding.Description),
+			string(binding.Action.Verb),
+			binding.Action.Target.Kind,
+			string(binding.Action.Target.RouteID),
+			strings.TrimSpace(binding.Action.Target.CommandID),
+			strings.Join(binding.Action.Target.CommandArgs, "/"),
+		}, "|"))
+	}
+	return strings.Join(parts, leaderPrefixSeparator)
 }
 
 func firstNonEmpty(values ...string) string {
@@ -151,30 +229,6 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-
-func sequenceHasPrefix(sequence []string, prefix []string) bool {
-	if len(prefix) > len(sequence) {
-		return false
-	}
-	for i := range prefix {
-		if normalizeLeaderToken(sequence[i]) != normalizeLeaderToken(prefix[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-func sequenceEqual(a []string, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if normalizeLeaderToken(a[i]) != normalizeLeaderToken(b[i]) {
-			return false
-		}
-	}
-	return true
 }
 
 func normalizeLeaderToken(token string) string {

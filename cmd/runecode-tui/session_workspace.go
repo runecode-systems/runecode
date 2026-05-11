@@ -11,11 +11,12 @@ import (
 )
 
 type sessionSwitcherModel struct {
-	open          bool
-	query         string
-	selectedIndex int
-	matches       []brokerapi.SessionSummary
-	sessions      []brokerapi.SessionSummary
+	open               bool
+	query              string
+	selectedIndex      int
+	matches            []brokerapi.SessionSummary
+	sessions           []brokerapi.SessionSummary
+	normalizedSessions []string
 }
 
 func newSessionSwitcherModel() sessionSwitcherModel {
@@ -30,7 +31,7 @@ func (m sessionSwitcherModel) Open(sessions []brokerapi.SessionSummary) sessionS
 	m.open = true
 	m.query = ""
 	m.selectedIndex = 0
-	m.sessions = append([]brokerapi.SessionSummary(nil), sessions...)
+	m.setSessions(sessions)
 	m.rebuildMatches()
 	return m
 }
@@ -41,7 +42,7 @@ func (m sessionSwitcherModel) Close() sessionSwitcherModel {
 }
 
 func (m sessionSwitcherModel) UpdateSessions(sessions []brokerapi.SessionSummary) sessionSwitcherModel {
-	m.sessions = append([]brokerapi.SessionSummary(nil), sessions...)
+	m.setSessions(sessions)
 	m.rebuildMatches()
 	return m
 }
@@ -100,18 +101,20 @@ func (m sessionSwitcherModel) DeleteQueryRune() sessionSwitcherModel {
 	return m
 }
 
+func (m *sessionSwitcherModel) setSessions(sessions []brokerapi.SessionSummary) {
+	m.sessions = append([]brokerapi.SessionSummary(nil), sessions...)
+	m.normalizedSessions = buildSessionSwitcherNormalizedSessions(m.sessions)
+}
+
 func (m *sessionSwitcherModel) rebuildMatches() {
 	needle := strings.ToLower(strings.TrimSpace(m.query))
 	m.matches = m.matches[:0]
 	if needle == "" {
 		m.matches = append(m.matches, m.sessions...)
 	} else {
-		for _, s := range m.sessions {
-			if strings.Contains(strings.ToLower(s.Identity.SessionID), needle) ||
-				strings.Contains(strings.ToLower(s.Identity.WorkspaceID), needle) ||
-				strings.Contains(strings.ToLower(s.LastActivityKind), needle) ||
-				strings.Contains(strings.ToLower(s.LastActivityPreview), needle) {
-				m.matches = append(m.matches, s)
+		for i, session := range m.sessions {
+			if strings.Contains(m.normalizedSessions[i], needle) {
+				m.matches = append(m.matches, session)
 			}
 		}
 	}
@@ -122,6 +125,30 @@ func (m *sessionSwitcherModel) rebuildMatches() {
 			m.selectedIndex = len(m.matches) - 1
 		}
 	}
+}
+
+func buildSessionSwitcherNormalizedSessions(sessions []brokerapi.SessionSummary) []string {
+	if len(sessions) == 0 {
+		return nil
+	}
+	normalized := make([]string, len(sessions))
+	for i, session := range sessions {
+		normalized[i] = normalizeSessionSwitcherSearch(session)
+	}
+	return normalized
+}
+
+func normalizeSessionSwitcherSearch(summary brokerapi.SessionSummary) string {
+	var b strings.Builder
+	b.Grow(len(summary.Identity.SessionID) + len(summary.Identity.WorkspaceID) + len(summary.LastActivityKind) + len(summary.LastActivityPreview) + 3)
+	b.WriteString(strings.TrimSpace(summary.Identity.SessionID))
+	b.WriteByte('\n')
+	b.WriteString(strings.TrimSpace(summary.Identity.WorkspaceID))
+	b.WriteByte('\n')
+	b.WriteString(strings.TrimSpace(summary.LastActivityKind))
+	b.WriteByte('\n')
+	b.WriteString(strings.TrimSpace(summary.LastActivityPreview))
+	return strings.ToLower(b.String())
 }
 
 func parseTimestamp(ts string) time.Time {
@@ -178,20 +205,66 @@ func sessionDirectoryItems(summaries []brokerapi.SessionSummary, activeSessionID
 }
 
 func sessionDirectoryLine(summary brokerapi.SessionSummary, activeSessionID string, pinned map[string]struct{}, recentOrder map[string]int, viewed map[string]string, active shellActivityFocus) string {
-	sid := summary.Identity.SessionID
-	markerText := formatSessionDirectoryMarkers(summary, activeSessionID, pinned, recentOrder, viewed[sid], active)
-	return fmt.Sprintf("%s%s | ws=%s | at=%s kind=%s | preview=%q | incomplete=%t cue=%s | runs=%d approvals=%d",
-		sid,
-		markerText,
-		summary.Identity.WorkspaceID,
-		defaultPlaceholder(summary.LastActivityAt, "n/a"),
-		defaultPlaceholder(summary.LastActivityKind, "n/a"),
-		truncateText(summary.LastActivityPreview, 52),
-		summary.HasIncompleteTurn,
+	rawSessionID := strings.TrimSpace(summary.Identity.SessionID)
+	sid := sanitizeUIText(rawSessionID)
+	workspaceID := sanitizeUIText(summary.Identity.WorkspaceID)
+	markerText := formatSessionDirectoryMarkers(summary, activeSessionID, pinned, recentOrder, viewed[rawSessionID], active)
+	parts := []string{
+		fmt.Sprintf("%s%s", sid, markerText),
+		fmt.Sprintf("workspace %s", valueOrNA(workspaceID)),
 		sessionHighLevelCue(summary),
-		summary.LinkedRunCount,
-		summary.LinkedApprovalCount,
-	)
+	}
+	if summary.LinkedRunCount > 0 {
+		parts = append(parts, fmt.Sprintf("%d run(s)", summary.LinkedRunCount))
+	}
+	if summary.LinkedApprovalCount > 0 {
+		parts = append(parts, fmt.Sprintf("%d approval(s)", summary.LinkedApprovalCount))
+	}
+	if preview := strings.TrimSpace(summary.LastActivityPreview); preview != "" {
+		parts = append(parts, truncateText(sanitizeUIText(preview), 36))
+	}
+	return strings.Join(parts, " | ")
+}
+
+func sessionSidebarLine(summary brokerapi.SessionSummary, activeSessionID string, pinned map[string]struct{}, recentOrder map[string]int, viewed map[string]string, active shellActivityFocus) string {
+	rawSessionID := strings.TrimSpace(summary.Identity.SessionID)
+	sid := sanitizeUIText(rawSessionID)
+	if sid == "" {
+		sid = "session"
+	}
+	markers := conciseSessionMarkers(summary, activeSessionID, pinned, recentOrder, viewed[rawSessionID], active)
+	parts := []string{sid}
+	if cue := sessionHighLevelCue(summary); cue != "" {
+		parts = append(parts, cue)
+	}
+	if summary.LinkedRunCount > 0 {
+		parts = append(parts, countNoun(summary.LinkedRunCount, "run", "runs"))
+	}
+	if summary.LinkedApprovalCount > 0 {
+		parts = append(parts, countNoun(summary.LinkedApprovalCount, "approval", "approvals"))
+	}
+	if len(markers) > 0 {
+		parts = append(parts, strings.Join(markers, ","))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func conciseSessionMarkers(summary brokerapi.SessionSummary, activeSessionID string, pinned map[string]struct{}, recentOrder map[string]int, viewedAt string, active shellActivityFocus) []string {
+	markers := sessionDirectoryMarkers(summary, activeSessionID, pinned, recentOrder, viewedAt, active)
+	out := make([]string, 0, len(markers))
+	for _, marker := range markers {
+		switch marker {
+		case "active":
+			out = append(out, "active")
+		case "pin":
+			out = append(out, "pinned")
+		case "new":
+			out = append(out, "new")
+		case "running":
+			out = append(out, "live")
+		}
+	}
+	return out
 }
 
 func recentSessionOrder(recents []string) map[string]int {

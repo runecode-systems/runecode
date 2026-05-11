@@ -41,17 +41,54 @@ type paletteEntry struct {
 
 func (m shellModel) buildPaletteEntries() []paletteEntry {
 	entries := make([]paletteEntry, 0, 64)
+	entries = append(entries, m.buildPaletteCommandEntries()...)
+	entries = append(entries, m.buildActionCenterPaletteEntries()...)
+	entries = append(entries, m.buildActiveSurfacePaletteEntries()...)
+	entries = append(entries, buildPaletteDiscoverabilityEntries(m.objectIndex.clone(), len(entries)+1)...)
+	return entries
+}
+
+func (m shellModel) buildPaletteCommandEntries() []paletteEntry {
+	entries := make([]paletteEntry, 0, 64)
 	idx := 1
 	add := func(label, description, search string, action paletteActionMsg) {
 		entries = append(entries, paletteEntry{Index: idx, Label: label, Description: description, Search: search, Action: action})
 		idx++
 	}
-
 	m.actions.appendPaletteEntries(add, m)
-	m.objectIndex.appendPaletteEntries(add)
-	m.appendActionCenterPaletteEntries(add)
-	m.appendActiveSurfaceActionEntries(add)
+	return entries
+}
 
+func buildPaletteDiscoverabilityEntries(idx shellDiscoverabilityIndex, startIndex int) []paletteEntry {
+	entries := make([]paletteEntry, 0, 64)
+	index := startIndex
+	add := func(label, description, search string, action paletteActionMsg) {
+		entries = append(entries, paletteEntry{Index: index, Label: label, Description: description, Search: search, Action: action})
+		index++
+	}
+	idx.appendPaletteEntries(add)
+	return entries
+}
+
+func (m shellModel) buildActiveSurfacePaletteEntries() []paletteEntry {
+	entries := make([]paletteEntry, 0, 16)
+	index := 1
+	add := func(label, description, search string, action paletteActionMsg) {
+		entries = append(entries, paletteEntry{Index: index, Label: label, Description: description, Search: search, Action: action})
+		index++
+	}
+	m.appendActiveSurfaceActionEntries(add)
+	return entries
+}
+
+func (m shellModel) buildActionCenterPaletteEntries() []paletteEntry {
+	entries := make([]paletteEntry, 0, 16)
+	index := 1
+	add := func(label, description, search string, action paletteActionMsg) {
+		entries = append(entries, paletteEntry{Index: index, Label: label, Description: description, Search: search, Action: action})
+		index++
+	}
+	m.appendActionCenterPaletteEntries(add)
 	return entries
 }
 
@@ -88,9 +125,9 @@ func (m shellModel) appendActionCenterPaletteEntries(add func(string, string, st
 	if !ok {
 		return
 	}
-	for family, items := range actionModel.familyBuckets() {
+	for family, items := range actionModel.snapshot().Families {
 		for _, item := range items {
-			if strings.TrimSpace(item.Title) == "" || strings.TrimSpace(item.Detail) == "" {
+			if strings.TrimSpace(item.Title) == "" || strings.TrimSpace(item.Reason) == "" {
 				continue
 			}
 			target := item.Target
@@ -100,7 +137,7 @@ func (m shellModel) appendActionCenterPaletteEntries(add func(string, string, st
 			add(
 				fmt.Sprintf("triage %s %s", family, item.Title),
 				fmt.Sprintf("urgency=%s impact=%s", valueOrNA(item.Urgency), valueOrNA(item.Impact)),
-				fmt.Sprintf("triage action center %s %s %s %s %s", family, item.Title, item.Detail, item.Impact, item.ExpiryCue),
+				fmt.Sprintf("triage action center %s %s %s %s %s", family, item.Title, item.Reason, item.Impact, item.EvidenceCue),
 				paletteActionMsg{Verb: verbJump, Target: target},
 			)
 		}

@@ -4,7 +4,7 @@ title: Beta Readiness Hardening + Product Polish
 status: implemented
 type: project
 size: large
-verification_status: passed
+verification_status: pending
 context_bundles:
   - product-planning
   - go-control-plane

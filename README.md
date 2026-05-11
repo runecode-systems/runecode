@@ -245,6 +245,9 @@ just model-check
 just model-check-core
 just model-check-replay
 just test
+just tui-perf
+just tui-snapshot-ci
+just tui-release-safety
 just ci-fast
 just ci
 just ci-required-shared-linux
@@ -260,7 +263,7 @@ cd runner && npm test
 cd runner && npm run boundary-check
 ```
 
-These checks are covered by `just ci`, while the required shared-Linux performance-contract subset runs in the dedicated `just ci-required-shared-linux` lane rather than every local `just ci` run.
+`just ci-fast` includes focused TUI interaction benchmarks through `just tui-perf`. `just ci` also runs deterministic TUI snapshot validation and release-safety checks through `just tui-snapshot-ci` and `just tui-release-safety`. The required shared-Linux performance-contract subset still runs in the dedicated `just ci-required-shared-linux` lane rather than every local `just ci` run.
 
 Formal model checking entrypoint:
 
@@ -324,6 +327,33 @@ go run ./cmd/runecode stop
 ```
 
 Bare `runecode` is the canonical `attach` path: it resolves the authoritative repository root, ensures the repo-scoped local broker lifecycle exists, and opens the TUI against that broker-owned product instance. `runecode status` is intentionally non-starting and reports either broker-owned lifecycle plus project-substrate posture or only the bootstrap-local fact that no live product instance is reachable.
+
+When developing inside this repository, prefer the repo-local dev recipes so the product path uses the in-progress source binaries instead of any system-wide `runecode*` install on your `PATH`:
+
+```sh
+just tui-dev
+just tui-dev-restart
+just tui-dev-status
+just tui-dev-stop
+just tui-perf
+just tui-snapshot-ci
+just tui-snapshot-dashboard
+just tui-snapshot-action-center
+just tui-snapshot-all
+just tui-snapshot-audit-full
+just tui-snapshot-audit-dashboard
+just tui-snapshot-audit-action-center
+just tui-snapshot-review
+just tui-snapshot-review-shell
+just tui-snapshot-review-shell-narrow-mobile
+just tui-snapshot-review-open
+```
+
+These recipes build `runecode`, `runecode-broker`, and `runecode-tui` from the current working tree into `/tmp/runecode-current/bin`, keep Go build/temp artifacts under `/tmp/runecode-ci-cache`, and then run the canonical `runecode` lifecycle flow with that repo-local bin directory first on `PATH`. Outside the repo, installed `runecode` behavior stays unchanged.
+
+The `tui-snapshot-*` recipes generate deterministic TUI review artifacts under repo-local `.tui-snapshots/` by default, or under `TUI_SNAPSHOT_DIR` when you want a different allowed local output directory. Each run writes a `manifest.json` plus per-scenario `.ansi`, `.txt`, and `.svg` files, and also derives `.png` files when ImageMagick `magick`/`convert` is available locally. The audit recipes use explicit snapshot bundles such as `full-audit`, `dashboard-audit`, `action-center-audit`, route-focused audit bundles, shell-overlay bundles, and compact/mobile shell bundles so review scope is captured in the manifest rather than inferred from filenames. Use `just --list` to see the full `tui-snapshot-*` recipe set.
+
+The local snapshot helper cleans the target snapshot directory before it runs and, by default, cleans it again after review so repeated runs start from a known-empty directory and do not leave artifacts behind. Set `TUI_SNAPSHOT_KEEP=1` to preserve the generated files for follow-up inspection. `just tui-snapshot-review` is intentionally non-GUI by default and prints a manifest/scenario summary; use `just tui-snapshot-review-open` for the explicit GUI review path that opens generated PNGs when present, otherwise the SVGs. This remains a repo-local developer review loop and is structured so future visual-regression baselines can key off the stable scenario names in the manifest.
 
 `runecode-tui` remains a low-level/dev entrypoint for attaching to an already running broker listener and still supports `--runtime-dir` / `--socket-name` for isolated local-dev IPC overrides. `runecode-broker` now also accepts those as broker-global options for live-IPC command surfaces such as session, approval, and external-anchor mutation commands.
 

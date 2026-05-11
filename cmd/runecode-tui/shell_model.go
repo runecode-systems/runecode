@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,6 +12,8 @@ const (
 	shellWideMinWidth      = 130
 	emergencyQuitArmWindow = 1500 * time.Millisecond
 )
+
+var forceMemoryWorkbenchState bool
 
 type shellOverlayID string
 
@@ -85,6 +85,7 @@ type shellModel struct {
 	workbenchScope string
 	toasts         shellToastService
 	objectIndex    shellDiscoverabilityIndex
+	paletteCache   []paletteEntry
 
 	sidebarVisible  bool
 	inspectorOn     bool
@@ -116,12 +117,21 @@ type shellModel struct {
 	selectionMode    bool
 	copyActionIndex  int
 
-	leader           shellLeaderState
-	leaderKeyConfig  string
-	leaderKeyInvalid string
-	commandMode      shellCommandModeState
-	emergencyQuit    shellEmergencyQuitState
-	quitConfirm      shellQuitConfirmState
+	leader                  shellLeaderState
+	leaderBindingsSignature string
+	leaderKeyConfig         string
+	leaderKeyInvalid        string
+	commandMode             shellCommandModeState
+	emergencyQuit           shellEmergencyQuitState
+	quitConfirm             shellQuitConfirmState
+	overlayFrameCache       *shellOverlayFrameCache
+}
+
+type shellOverlayFrameCache struct {
+	overlay shellOverlayID
+	width   int
+	height  int
+	frame   string
 }
 
 type shellEmergencyQuitState struct {
@@ -134,72 +144,12 @@ type shellQuitConfirmState struct {
 	reason string
 }
 
-func newShellModel() shellModel {
-	routes := shellRoutes()
-	models := newRouteModels(routes)
-	defaultRoute := routeChat
-	commands := defaultShellCommandRegistry()
-	actions := newShellActionGraph(routes, commands)
-	workbench := newDefaultWorkbenchStateStore()
-	binaryPath := strings.ToLower(strings.TrimSpace(os.Args[0]))
-	if strings.HasSuffix(binaryPath, ".test") || strings.HasSuffix(binaryPath, ".test.exe") {
-		workbench = &memoryWorkbenchStateStore{}
-	}
-	scope := logicalBrokerTargetKey()
-	initialState := workbenchLocalState{SidebarVisible: true, InspectorVisible: true, InspectorMode: presentationRendered, ThemePreset: themePresetDark, LastRouteID: defaultRoute, ViewedActivity: map[string]string{}, LastSessionByWS: map[string]string{}, SidebarPaneRatio: 0.22, InspectorPaneRatio: 0.30}
-	if existing := workbench.Read(scope); isZeroWorkbenchState(existing) {
-		workbench.Write(scope, initialState)
-	}
-	appTheme = newTheme(themePresetDark)
-	m := shellModel{
-		keys:           defaultShellKeyMap(),
-		routes:         routes,
-		nav:            newPrimaryNavModel(routes),
-		palette:        newPaletteModel(nil),
-		sessions:       newSessionSwitcherModel(),
-		focus:          focusNav,
-		client:         newLocalBrokerClient(),
-		focusManager:   newShellFocusManager(focusNav),
-		overlayManager: shellOverlayManager{},
-		commands:       commands,
-		actions:        actions,
-		clipboard:      newShellClipboardService(),
-		workbench:      workbench,
-		workbenchScope: scope,
-		toasts:         newShellToastService(),
-		routeModels:    models,
-		location: shellWorkbenchLocation{
-			Primary: shellObjectLocation{RouteID: defaultRoute, Object: workbenchObjectRef{Kind: "route", ID: string(defaultRoute)}},
-		},
-		sidebarVisible:   true,
-		inspectorOn:      true,
-		themePreset:      themePresetDark,
-		preferredMode:    presentationRendered,
-		sidebarRatio:     0.22,
-		inspectorRatio:   0.30,
-		sessionLoading:   true,
-		pinnedSessions:   map[string]struct{}{},
-		lastSessionByWS:  map[string]string{},
-		recentObjects:    nil,
-		sessionWorkspace: map[string]string{},
-		viewedActivity:   map[string]string{},
-		watch:            newShellWatchManager(),
-		objectIndex:      newShellDiscoverabilityIndex(routes),
-		overlayReturn:    focusContent,
-		leader:           newShellLeaderState(actions.leaderBindings(shellModel{})),
-		leaderKeyConfig:  "space",
-	}
-	_ = m.setLeaderKey(m.leaderKeyConfig)
-	m.restoreWorkbenchState()
-	m.syncSidebarCursorToLocation()
-	return m
-}
-
 func (m shellModel) Init() tea.Cmd {
 	return tea.Batch(m.activateCurrentRouteCmd(), m.loadSessionWorkspaceCmd(), m.loadObjectIndexCmd(), m.startWatchPollCmd(), m.mouseCaptureCmd())
 }
 
 func (m shellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.prepareOverlayFrameCache(msg)
 	m = m.disarmEmergencyQuitOnNormalInteraction(msg)
 	updated, cmd, handled := m.handleQuitMessage(msg)
 	m = updated.(shellModel)
@@ -265,15 +215,21 @@ func (m *shellModel) publishShellPreferencesToCurrentRoute() {
 }
 
 func (m shellModel) activeShellSurface() routeSurface {
+	surface, _ := m.activeShellSurfacePlan()
+	return surface
+}
+
+func (m shellModel) activeShellSurfacePlan() (routeSurface, shellLayoutPlan) {
 	active := m.routeModels[m.currentRouteID()]
 	if active == nil {
-		return routeSurface{
+		surface := routeSurface{
 			Regions: routeSurfaceRegions{
 				Main: routeSurfaceRegion{Body: "Route not available"},
 			},
 			Capabilities: routeSurfaceCapabilities{},
 			Chrome:       routeSurfaceChrome{Breadcrumbs: []string{"Home", string(m.currentRouteID())}},
 		}
+		return surface, m.planShellLayout(surface)
 	}
 	baseCtx := routeShellContext{Width: m.width, Height: m.availableShellHeight(), Focus: m.focus, Focused: m.focusedRouteRegion(), Breakpoint: m.breakpoint(), Render: routeShellRenderPreferences{PreferredPresentation: normalizePresentationMode(m.preferredMode), ThemePreset: normalizeThemePreset(m.themePreset)}}
 	surface := active.ShellSurface(baseCtx)
@@ -281,8 +237,8 @@ func (m shellModel) activeShellSurface() routeSurface {
 	ctx := baseCtx
 	ctx.Regions = layout.Regions
 	ctx.Breakpoint = layout.Breakpoint
-	surface = active.ShellSurface(ctx)
-	return m.withLocationChrome(surface)
+	surface = m.withLocationChrome(active.ShellSurface(ctx))
+	return surface, layout
 }
 
 func (m shellModel) availableShellHeight() int {
@@ -298,6 +254,84 @@ func (m shellModel) availableShellHeight() int {
 		return available
 	}
 	return viewportHeight
+}
+
+func (m shellModel) focusTraversalLayout() shellLayoutPlan {
+	active := m.routeModels[m.currentRouteID()]
+	if active == nil {
+		return m.planShellLayout(routeSurface{})
+	}
+	ctx := routeShellContext{Width: m.width, Height: m.height, Focus: m.focus, Focused: m.focusedRouteRegion(), Breakpoint: m.breakpoint(), Render: routeShellRenderPreferences{PreferredPresentation: normalizePresentationMode(m.preferredMode), ThemePreset: normalizeThemePreset(m.themePreset)}}
+	return m.planShellLayout(active.ShellSurface(ctx))
+}
+
+func (m shellModel) activeOverlayID() shellOverlayID {
+	switch {
+	case m.palette.IsOpen():
+		return overlayIDQuickJump
+	case m.sessions.IsOpen():
+		return overlayIDSessions
+	case m.leader.Active():
+		return overlayIDLeader
+	case m.quitConfirm.active:
+		return overlayIDQuitConfirm
+	case m.narrowSidebarOn && m.breakpoint() == shellBreakpointNarrow:
+		return overlayIDSidebar
+	case m.narrowInspectOn && m.breakpoint() == shellBreakpointNarrow:
+		return overlayIDInspector
+	default:
+		return ""
+	}
+}
+
+func (m shellModel) overlayFrameCacheable() bool {
+	switch m.activeOverlayID() {
+	case overlayIDQuickJump, overlayIDSessions, overlayIDLeader, overlayIDQuitConfirm:
+		return true
+	default:
+		return false
+	}
+}
+
+func (m *shellModel) invalidateOverlayFrameCache() {
+	if m.overlayFrameCache == nil {
+		return
+	}
+	*m.overlayFrameCache = shellOverlayFrameCache{}
+}
+
+func (m *shellModel) invalidatePaletteCache() {
+	m.paletteCache = nil
+}
+
+func (m shellModel) paletteImmediateEntries() []paletteEntry {
+	return m.buildPaletteCommandEntries()
+}
+
+func (m shellModel) loadPaletteEntriesCmd(request uint64) tea.Cmd {
+	commands := append([]paletteEntry(nil), m.buildPaletteCommandEntries()...)
+	indexSnapshot := m.objectIndex.clone()
+	activeSurfaceEntries := append([]paletteEntry(nil), m.buildActiveSurfacePaletteEntries()...)
+	actionCenterEntries := append([]paletteEntry(nil), m.buildActionCenterPaletteEntries()...)
+	return func() tea.Msg {
+		entries := make([]paletteEntry, 0, len(commands)+len(activeSurfaceEntries)+len(actionCenterEntries)+64)
+		entries = append(entries, commands...)
+		entries = append(entries, activeSurfaceEntries...)
+		entries = append(entries, actionCenterEntries...)
+		entries = append(entries, buildPaletteDiscoverabilityEntries(indexSnapshot, len(entries)+1)...)
+		return shellPaletteEntriesLoadedMsg{request: request, entries: entries}
+	}
+}
+
+func (m shellModel) loadPaletteFilterCmd(request uint64) tea.Cmd {
+	entriesVersion := m.palette.entriesVersion
+	query := m.palette.query
+	normalizedEntries := append([]string(nil), m.palette.normalizedEntries...)
+	priorNeedle := m.palette.appliedNeedle
+	priorMatches := append([]int(nil), m.palette.matchIndexes...)
+	return func() tea.Msg {
+		return buildPaletteFilterResult(request, entriesVersion, query, normalizedEntries, priorNeedle, priorMatches)
+	}
 }
 
 func (m shellModel) focusedRouteRegion() routeRegionFocus {

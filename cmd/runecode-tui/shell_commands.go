@@ -89,10 +89,11 @@ func moveShellFocus(m *shellModel, next bool) {
 	if m.focus == focusPalette {
 		m.setFocus(m.overlayReturn)
 	}
+	layout := m.focusTraversalLayout()
 	if next {
-		m.focusManager.Next(m.planShellLayout(m.activeShellSurface()), m.commandOverlayOpen())
+		m.focusManager.Next(layout, m.commandOverlayOpen())
 	} else {
-		m.focusManager.Prev(m.planShellLayout(m.activeShellSurface()), m.commandOverlayOpen())
+		m.focusManager.Prev(layout, m.commandOverlayOpen())
 	}
 	m.focus = m.focusManager.Current()
 }
@@ -125,7 +126,7 @@ func openPaletteOverlay(m *shellModel) {
 	m.narrowInspectOn = false
 	m.beginOverlaySession()
 	m.sessions = m.sessions.Close()
-	m.palette = m.palette.UpdateEntries(m.buildPaletteEntries()).Open()
+	m.palette = m.palette.UpdateEntries(m.paletteImmediateEntries()).Open()
 	m.setFocus(focusPalette)
 	m.syncOverlayStack()
 }

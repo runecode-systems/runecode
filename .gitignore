@@ -17,7 +17,14 @@ Thumbs.db
 *.swp
 *.swo
 
+# Python cache
+__pycache__/
+*.pyc
+
 # Local secretsd runtime state
 cmd/runecode-broker/.runecode-secretsd/
 audit-anchor-ed25519.private
 audit-anchor-presence-hmac.key
+
+# TUI snapshot tool
+.tui-snapshots/

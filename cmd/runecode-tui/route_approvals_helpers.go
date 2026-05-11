@@ -1,161 +1,11 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
-	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
 )
-
-func validateApprovalResolveInput(resp brokerapi.ApprovalGetResponse) error {
-	approvalID := strings.TrimSpace(resp.Approval.ApprovalID)
-	if approvalID == "" {
-		return fmt.Errorf("approval detail missing approval_id")
-	}
-	if resp.SignedApprovalRequest == nil || resp.SignedApprovalDecision == nil {
-		return fmt.Errorf("approval resolve requires signed approval request and decision envelopes")
-	}
-	boundScope := resp.Approval.BoundScope
-	actionKind := strings.TrimSpace(boundScope.ActionKind)
-	switch actionKind {
-	case "backend_posture_change":
-		if err := validateApprovalResolveEnvelopeBinding(resp); err != nil {
-			return err
-		}
-		selection := resp.ApprovalDetail.BackendPostureSelection
-		if selection == nil {
-			return fmt.Errorf("approval resolve requires typed backend posture selection detail")
-		}
-		if strings.TrimSpace(selection.TargetInstanceID) == "" || strings.TrimSpace(selection.TargetBackendKind) == "" {
-			return fmt.Errorf("approval resolve requires backend posture target instance and backend kind")
-		}
-	case "promotion":
-		return fmt.Errorf("promotion approvals must be resolved via promote-excerpt to preserve exact promotion binding")
-	default:
-		return fmt.Errorf("approval resolve does not support this action kind")
-	}
-	return nil
-}
-
-func validateApprovalResolveEnvelopeBinding(resp brokerapi.ApprovalGetResponse) error {
-	requestID, err := approvalRequestDigestIdentity(*resp.SignedApprovalRequest)
-	if err != nil {
-		return fmt.Errorf("approval resolve request envelope invalid: %w", err)
-	}
-	if err := approvalDecisionMatchesRequest(*resp.SignedApprovalDecision, requestID); err != nil {
-		return fmt.Errorf("approval resolve decision envelope invalid: %w", err)
-	}
-	return nil
-}
-
-func approvalRequestDigestIdentity(envelope trustpolicy.SignedObjectEnvelope) (string, error) {
-	if envelope.PayloadSchemaID != trustpolicy.ApprovalRequestSchemaID {
-		return "", fmt.Errorf("unexpected request payload schema")
-	}
-	digest, err := digestIdentityFromEnvelopePayload(envelope.Payload)
-	if err != nil {
-		return "", err
-	}
-	return digest, nil
-}
-
-func approvalDecisionMatchesRequest(envelope trustpolicy.SignedObjectEnvelope, requestID string) error {
-	if envelope.PayloadSchemaID != trustpolicy.ApprovalDecisionSchemaID {
-		return fmt.Errorf("unexpected decision payload schema")
-	}
-	if len(envelope.Payload) == 0 {
-		return fmt.Errorf("decision payload missing")
-	}
-	payload := map[string]json.RawMessage{}
-	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
-		return fmt.Errorf("decode decision payload: %w", err)
-	}
-	rawDigest, ok := payload["approval_request_hash"]
-	if !ok {
-		return nil
-	}
-	var digest trustpolicy.Digest
-	if err := json.Unmarshal(rawDigest, &digest); err != nil {
-		return fmt.Errorf("decode approval_request_hash: %w", err)
-	}
-	identity, err := digest.Identity()
-	if err != nil {
-		return fmt.Errorf("invalid approval_request_hash: %w", err)
-	}
-	if identity != requestID {
-		return fmt.Errorf("decision payload does not match approval request")
-	}
-	return nil
-}
-
-func digestIdentityFromEnvelopePayload(payload json.RawMessage) (string, error) {
-	canonicalDigest := trustpolicy.Digest{}
-	canonical, err := canonicalJSONPayload(payload)
-	if err != nil {
-		return "", err
-	}
-	canonicalDigest = trustpolicy.Digest{HashAlg: "sha256", Hash: canonical}
-	return canonicalDigest.Identity()
-}
-
-func canonicalJSONPayload(payload json.RawMessage) (string, error) {
-	transformed, err := jsoncanonicalizerTransform(payload)
-	if err != nil {
-		return "", fmt.Errorf("canonicalize approval request payload: %w", err)
-	}
-	sum := sha256HexDigest(transformed)
-	return sum, nil
-}
-
-func jsoncanonicalizerTransform(payload json.RawMessage) ([]byte, error) {
-	return jsoncanonicalizer.Transform(payload)
-}
-
-func sha256HexDigest(payload []byte) string {
-	sum := sha256.Sum256(payload)
-	return hex.EncodeToString(sum[:])
-}
-
-func approvalResolveRequestFromDetail(resp brokerapi.ApprovalGetResponse) (brokerapi.ApprovalResolveRequest, error) {
-	if err := validateApprovalResolveInput(resp); err != nil {
-		return brokerapi.ApprovalResolveRequest{}, err
-	}
-	summary := resp.Approval
-	boundScope := summary.BoundScope
-	if strings.TrimSpace(boundScope.SchemaID) == "" {
-		boundScope.SchemaID = "runecode.protocol.v0.ApprovalBoundScope"
-	}
-	if strings.TrimSpace(boundScope.SchemaVersion) == "" {
-		boundScope.SchemaVersion = "0.1.0"
-	}
-	resolveReq := brokerapi.ApprovalResolveRequest{
-		SchemaID:      "runecode.protocol.v0.ApprovalResolveRequest",
-		SchemaVersion: localAPISchemaVersion,
-		ApprovalID:    strings.TrimSpace(summary.ApprovalID),
-		BoundScope:    boundScope,
-		ResolutionDetails: brokerapi.ApprovalResolveDetails{
-			SchemaID:      "runecode.protocol.v0.ApprovalResolveDetails",
-			SchemaVersion: "0.1.0",
-		},
-		SignedApprovalRequest:  *resp.SignedApprovalRequest,
-		SignedApprovalDecision: *resp.SignedApprovalDecision,
-	}
-	if strings.TrimSpace(boundScope.ActionKind) == "backend_posture_change" && resp.ApprovalDetail.BackendPostureSelection != nil {
-		selection := resp.ApprovalDetail.BackendPostureSelection
-		resolveReq.ResolutionDetails.BackendPostureSelection = &brokerapi.ApprovalResolveBackendPostureSelectionDetail{
-			SchemaID:          "runecode.protocol.v0.ApprovalResolveBackendPostureSelectionDetail",
-			SchemaVersion:     "0.1.0",
-			TargetInstanceID:  strings.TrimSpace(selection.TargetInstanceID),
-			TargetBackendKind: strings.TrimSpace(selection.TargetBackendKind),
-		}
-	}
-	return resolveReq, nil
-}
 
 func renderApprovalList(items []brokerapi.ApprovalSummary, selected int) string {
 	if len(items) == 0 {
@@ -176,7 +26,14 @@ func renderApprovalList(items []brokerapi.ApprovalSummary, selected int) string 
 func renderApprovalDirectoryItems(items []brokerapi.ApprovalSummary) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {
-		out = append(out, fmt.Sprintf("%s %s trigger=%s", item.ApprovalID, stateBadgeWithLabel("status", item.Status), item.ApprovalTriggerCode))
+		row := fmt.Sprintf("%s %s %s", valueOrNA(item.ApprovalID), approvalDisplayLabel(item), approvalPrimaryStateBadge(item))
+		if cue := strings.TrimSpace(approvalQueueReason(item)); cue != "" {
+			row += " • " + cue
+		}
+		if scope := strings.TrimSpace(approvalBoundScopeCue(item)); scope != "" {
+			row += " • " + scope
+		}
+		out = append(out, row)
 	}
 	return out
 }
@@ -203,17 +60,15 @@ func renderApprovalInspector(resp *brokerapi.ApprovalGetResponse, presentation c
 	document.SetDocument(ref, contentKind, "approval details", content)
 	return renderInspectorShell(inspectorShellSpec{
 		Title:    "Approval inspector",
-		Summary:  fmt.Sprintf("approval=%s status=%s trigger=%s", summary.ApprovalID, valueOrNA(summary.Status), valueOrNA(summary.ApprovalTriggerCode)),
-		Identity: fmt.Sprintf("approval=%s run=%s", summary.ApprovalID, valueOrNA(boundScope.RunID)),
-		Status:   fmt.Sprintf("lifecycle=%s policy_reason=%s", lifecycleState, valueOrNA(detail.PolicyReasonCode)),
-		Badges:   []string{stateBadgeWithLabel("status", summary.Status), appTheme.InspectorHint.Render("policy/trigger/system cues are distinct")},
+		Summary:  fmt.Sprintf("%s is %s.", approvalDisplayLabel(summary), approvalDisplayState(summary, detail)),
+		Identity: fmt.Sprintf("Approval %s • run %s • %s", summary.ApprovalID, valueOrNA(boundScope.RunID), humanizeExecutionToken(boundScope.ActionKind)),
+		Status:   fmt.Sprintf("Decision path: %s", approvalResolveSummary(summary, detail)),
+		Badges:   []string{stateBadgeWithLabel("status", summary.Status), appTheme.InspectorHint.Render("operator review details")},
 		References: []inspectorReference{
 			{Label: "run", Items: mapReferenceIDs([]string{boundScope.RunID}, func(id string) paletteActionMsg {
 				return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "run", RouteID: routeRuns, RunID: id}}
 			})},
-			{Label: "stage", Items: mapReferenceIDs([]string{boundScope.StageID}, func(id string) paletteActionMsg {
-				return paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeApprovals}}
-			})},
+			{Label: "approval evidence", Items: approvalEvidenceReferenceItems(resp)},
 		},
 		LocalActions: approvalInspectorLocalActions(),
 		CopyActions:  approvalRouteCopyActions(resp),
@@ -227,6 +82,7 @@ func approvalInspectorLocalActions() []routeActionItem {
 	return []routeActionItem{
 		{Label: "resolve:typed"},
 		{Label: "jump:runs", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeRuns}}},
+		{Label: "jump:artifacts", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeArtifacts}}},
 		{Label: "jump:audit", Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeAudit}}},
 		{Label: "copy:approval_id"},
 	}
@@ -243,6 +99,34 @@ func approvalInspectorReferenceActions(resp *brokerapi.ApprovalGetResponse) []ro
 	}) {
 		items = append(items, routeActionItem{Label: "run:" + ref.Label, Action: ref.Action})
 	}
+	for _, ref := range approvalEvidenceReferenceItems(resp) {
+		items = append(items, routeActionItem{Label: "evidence:" + ref.Label, Action: ref.Action})
+	}
+	return items
+}
+
+func approvalEvidenceReferenceItems(resp *brokerapi.ApprovalGetResponse) []inspectorReferenceItem {
+	if resp == nil {
+		return nil
+	}
+	detail := resp.ApprovalDetail
+	items := make([]inspectorReferenceItem, 0, 6)
+	appendArtifact := func(label, digest string) {
+		digest = strings.TrimSpace(digest)
+		if digest == "" {
+			return
+		}
+		items = append(items, inspectorReferenceItem{Label: label + " " + shortIdentity(digest), Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "artifact", RouteID: routeArtifacts, Digest: digest}}})
+	}
+	appendArtifact("summary", detail.BoundIdentity.SummaryPreviewDigest)
+	appendArtifact("diff", detail.BoundIdentity.DiffDigest)
+	appendArtifact("artifact_set", detail.BoundIdentity.ArtifactSetDigest)
+	if policy := strings.TrimSpace(detail.BoundIdentity.PolicyDecisionHash); policy != "" {
+		items = append(items, inspectorReferenceItem{Label: "policy " + shortIdentity(policy), Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeAudit}}})
+	}
+	if manifest := strings.TrimSpace(detail.BoundIdentity.ManifestHash); manifest != "" {
+		items = append(items, inspectorReferenceItem{Label: "manifest " + shortIdentity(manifest), Action: paletteActionMsg{Verb: verbJump, Target: paletteTarget{Kind: "route", RouteID: routeAudit}}})
+	}
 	return items
 }
 
@@ -256,29 +140,31 @@ func approvalBindingLabel(bindingKind string) string {
 func approvalInspectorContent(summary brokerapi.ApprovalSummary, detail brokerapi.ApprovalDetail, identity brokerapi.ApprovalBoundIdentity, boundScope brokerapi.ApprovalBoundScope, bindingLabel string, lifecycleState string, lifecycleFlags string, presentation contentPresentationMode) string {
 	if presentation == presentationStructured {
 		return compactLines(
-			fmt.Sprintf("structured approval: id=%s", summary.ApprovalID),
-			fmt.Sprintf("counts: lifecycle_flags=%s links=identity+scope", lifecycleFlags),
+			fmt.Sprintf("structured approval: id=%s", approvalUIValue(summary.ApprovalID)),
+			fmt.Sprintf("state: workflow=%s resolve=%s lifecycle_flags=%s", approvalUIValue(workflowApprovalState(summary, detail)), approvalUIValue(approvalResolveStatus(summary, detail)), approvalUIValue(lifecycleFlags)),
+			fmt.Sprintf("review_first=%s next_route=%s", approvalUIValue(approvalReviewFirst(summary, detail)), approvalUIValue(approvalFollowUpRoute(summary))),
+			fmt.Sprintf("identity: request=%s decision=%s", approvalUIValue(identity.ApprovalRequestDigest), approvalUIValue(identity.ApprovalDecisionDigest)),
 		)
 	}
 	if presentation == presentationRaw {
 		return compactLines(
-			fmt.Sprintf("raw approval_id=%s status=%s trigger=%s", summary.ApprovalID, summary.Status, summary.ApprovalTriggerCode),
-			fmt.Sprintf("raw bound_scope workspace=%s run=%s stage=%s action=%s", valueOrNA(boundScope.WorkspaceID), valueOrNA(boundScope.RunID), valueOrNA(boundScope.StageID), valueOrNA(boundScope.ActionKind)),
-			fmt.Sprintf("raw lifecycle state=%s reason=%s stale=%t", detail.LifecycleDetail.LifecycleState, valueOrNA(detail.LifecycleDetail.LifecycleReasonCode), detail.LifecycleDetail.Stale),
+			fmt.Sprintf("raw approval_id=%s status=%s trigger=%s", approvalUIValue(summary.ApprovalID), approvalUIValue(summary.Status), approvalUIValue(summary.ApprovalTriggerCode)),
+			fmt.Sprintf("raw bound_scope workspace=%s run=%s stage=%s action=%s", approvalUIValue(boundScope.WorkspaceID), approvalUIValue(boundScope.RunID), approvalUIValue(boundScope.StageID), approvalUIValue(boundScope.ActionKind)),
+			fmt.Sprintf("raw lifecycle state=%s reason=%s stale=%t", approvalUIValue(detail.LifecycleDetail.LifecycleState), approvalUIValue(detail.LifecycleDetail.LifecycleReasonCode), detail.LifecycleDetail.Stale),
 		)
 	}
 	return compactLines(
-		fmt.Sprintf("Approval type: %s (binding_kind=%s) %s", bindingLabel, detail.BindingKind, infoBadge("type cue")),
-		fmt.Sprintf("Lifecycle state: %s (%s) %s", lifecycleState, lifecycleFlags, postureBadge(lifecycleState)),
-		fmt.Sprintf("Lifecycle reason code: %s", detail.LifecycleDetail.LifecycleReasonCode),
-		fmt.Sprintf("Policy reason code: %s %s", detail.PolicyReasonCode, warnBadge("policy cue")),
-		fmt.Sprintf("Approval trigger code: %s %s", summary.ApprovalTriggerCode, infoBadge("trigger cue")),
-		fmt.Sprintf("Distinct blocking semantics: trigger=%s cue=%s", summary.ApprovalTriggerCode, renderBlockingStateCue(true, summary.ApprovalTriggerCode)),
-		"Execution/system errors: shown as load failures above; not merged with policy/trigger codes. "+dangerBadge("system cue"),
-		fmt.Sprintf("What changes if approved: effect=%s summary=%s", detail.WhatChangesIfApproved.EffectKind, detail.WhatChangesIfApproved.Summary),
-		fmt.Sprintf("Blocked work scope: kind=%s action=%s run=%s stage=%s step=%s role=%s", detail.BlockedWorkScope.ScopeKind, detail.BlockedWorkScope.ActionKind, valueOrNA(detail.BlockedWorkScope.RunID), valueOrNA(detail.BlockedWorkScope.StageID), valueOrNA(detail.BlockedWorkScope.StepID), valueOrNA(detail.BlockedWorkScope.RoleInstanceID)),
-		fmt.Sprintf("Canonical bound identity: request=%s decision=%s manifest=%s policy_decision=%s", valueOrNA(identity.ApprovalRequestDigest), valueOrNA(identity.ApprovalDecisionDigest), valueOrNA(identity.ManifestHash), valueOrNA(identity.PolicyDecisionHash)),
-		fmt.Sprintf("Exact bound scope: workspace=%s run=%s stage=%s step=%s role=%s action=%s", valueOrNA(boundScope.WorkspaceID), valueOrNA(boundScope.RunID), valueOrNA(boundScope.StageID), valueOrNA(boundScope.StepID), valueOrNA(boundScope.RoleInstanceID), valueOrNA(boundScope.ActionKind)),
+		fmt.Sprintf("Approval state: %s %s", approvalUIValue(approvalDisplayState(summary, detail)), approvalPrimaryStateBadge(summary)),
+		fmt.Sprintf("Why this approval exists: %s", approvalUIValue(approvalPrimaryReason(summary, detail))),
+		fmt.Sprintf("What is gated: %s", approvalUIValue(approvalExactObjectAction(summary, detail))),
+		fmt.Sprintf("Review first: %s", approvalUIValue(approvalReviewFirst(summary, detail))),
+		fmt.Sprintf("If approved next: %s", approvalUIValue(approvalEffectSummary(detail))),
+		fmt.Sprintf("Continue after review: %s", approvalUIValue(approvalFollowUpRoute(summary))),
+		fmt.Sprintf("Resolve availability: %s", approvalUIValue(approvalResolveSummary(summary, detail))),
+		fmt.Sprintf("Resolve unavailable because: %s", approvalUIValue(approvalResolveBlockedReason(summary, detail))),
+		fmt.Sprintf("Workflow state: %s; lifecycle=%s (%s)", approvalUIValue(workflowApprovalState(summary, detail)), approvalUIValue(lifecycleState), approvalUIValue(lifecycleFlags)),
+		"Safety cue: approval policy, lifecycle, and execution/system errors remain distinct before any decision is accepted.",
+		muted(fmt.Sprintf("Structured/raw modes expose %s, binding kind, trigger codes, policy reason codes, bound scope, request/decision digests, manifest, and policy decision hash.", approvalUIValue(bindingLabel))),
 	)
 }
 
@@ -296,18 +182,24 @@ func approvalRouteCopyActions(resp *brokerapi.ApprovalGetResponse) []routeCopyAc
 	summary := resp.Approval
 	bound := summary.BoundScope
 	raw := compactLines(
-		fmt.Sprintf("approval_id=%s", summary.ApprovalID),
-		fmt.Sprintf("status=%s", summary.Status),
-		fmt.Sprintf("trigger=%s", summary.ApprovalTriggerCode),
-		fmt.Sprintf("run_id=%s", bound.RunID),
-		fmt.Sprintf("stage_id=%s", bound.StageID),
-		fmt.Sprintf("action_kind=%s", bound.ActionKind),
+		fmt.Sprintf("approval_id=%s", approvalUIValue(summary.ApprovalID)),
+		fmt.Sprintf("status=%s", approvalUIValue(summary.Status)),
+		fmt.Sprintf("trigger=%s", approvalUIValue(summary.ApprovalTriggerCode)),
+		fmt.Sprintf("run_id=%s", approvalUIValue(bound.RunID)),
+		fmt.Sprintf("stage_id=%s", approvalUIValue(bound.StageID)),
+		fmt.Sprintf("action_kind=%s", approvalUIValue(bound.ActionKind)),
 	)
 	return compactCopyActions([]routeCopyAction{
-		{ID: "approval_id", Label: "approval id", Text: summary.ApprovalID},
-		{ID: "run_id", Label: "bound run id", Text: bound.RunID},
-		{ID: "raw_block", Label: "raw block", Text: raw},
+		{ID: "approval_id", Label: "approval id", Text: approvalUIValue(summary.ApprovalID)},
+		{ID: "run_id", Label: "bound run id", Text: approvalUIValue(bound.RunID)},
+		{ID: "request_digest", Label: "request digest", Text: approvalUIValue(resp.ApprovalDetail.BoundIdentity.ApprovalRequestDigest)},
+		{ID: "decision_digest", Label: "decision digest", Text: approvalUIValue(resp.ApprovalDetail.BoundIdentity.ApprovalDecisionDigest)},
+		{ID: "raw_block", Label: "raw block", Text: sanitizeUIText(raw)},
 	})
+}
+
+func approvalUIValue(value string) string {
+	return valueOrNA(sanitizeUIText(value))
 }
 
 func renderApprovalLifecycleFlags(detail brokerapi.ApprovalLifecycleDetail) string {
@@ -361,19 +253,74 @@ func renderApprovalSafetyStrip(resp *brokerapi.ApprovalGetResponse) string {
 	stateCue := renderBlockingStateCue(true, d.PolicyReasonCode)
 	triggerCue := renderBlockingStateCue(true, s.ApprovalTriggerCode)
 	return compactLines(
-		tableHeader("Approval safety strip")+" "+approvalRequiredBadge("APPROVAL_REQUIRED")+" profile cues remain explicit",
-		fmt.Sprintf("status=%s %s | policy_reason_code=%s %s | approval_trigger_code=%s %s", s.Status, postureBadge(s.Status), valueOrNA(d.PolicyReasonCode), stateCue, valueOrNA(s.ApprovalTriggerCode), triggerCue),
+		tableHeader("Approval posture")+" "+approvalPrimaryStateBadge(s)+" "+approvalSupportBadge(s, d),
+		fmt.Sprintf("Needs attention because %s", approvalPrimaryReason(s, d)),
+		fmt.Sprintf("Broker cues: policy %s %s | trigger %s %s", approvalUIValue(d.PolicyReasonCode), stateCue, approvalUIValue(s.ApprovalTriggerCode), triggerCue),
 	)
 }
 
 func renderApprovalFlowPath(resp *brokerapi.ApprovalGetResponse) string {
 	if resp == nil {
-		return "Flow path: run -> approval -> typed resolve (shared exact-action path) -> run resumes (load an approval detail to inspect)"
+		return "Evidence path: run waits for approval -> review evidence -> resolve where supported -> blocked workflow continues when broker state advances"
 	}
 	s := resp.Approval
-	workspace := valueOrNA(s.BoundScope.WorkspaceID)
-	run := valueOrNA(s.BoundScope.RunID)
-	stage := valueOrNA(s.BoundScope.StageID)
-	action := valueOrNA(s.BoundScope.ActionKind)
-	return fmt.Sprintf("Flow path: workspace=%s run=%s stage=%s action=%s -> approval=%s -> typed approval_resolve -> resume signal", workspace, run, stage, action, s.ApprovalID)
+	return fmt.Sprintf("Evidence path: %s -> artifacts (%s) -> audit (%s) -> verification posture (Audit) -> anchor/export actions where available", approvalUIValue(approvalDisplayLabel(s)), approvalUIValue(approvalReviewFirst(s, resp.ApprovalDetail)), approvalUIValue(approvalAuditLinkSummary(s, resp.ApprovalDetail)))
+}
+
+func renderApprovalOverviewCard(resp *brokerapi.ApprovalGetResponse) string {
+	if resp == nil {
+		return renderStateCardSpec(stateCardSpec{State: routeLoadStateWaiting, Title: "Approval review", Message: "Select an approval to see the blocked workflow, review order, and next step.", Reason: "No active approval detail is loaded yet.", NextAction: "Move through the queue and press enter to inspect the broker-owned approval detail.", ShortcutCue: "enter", RouteCue: "Approvals"})
+	}
+	summary := resp.Approval
+	detail := resp.ApprovalDetail
+	state := routeLoadStateReady
+	switch workflowApprovalState(summary, detail) {
+	case "approval required", "pending":
+		state = routeLoadStateApprovalRequired
+	case "expired", "unsupported":
+		state = routeLoadStateBlocked
+	case "resolved":
+		state = routeLoadStateCompleted
+	}
+	return renderStateCardSpec(stateCardSpec{
+		State:       state,
+		Title:       "Approval review",
+		Message:     fmt.Sprintf("%s needs attention for %s.", approvalDisplayLabel(summary), approvalDisplayState(summary, detail)),
+		Reason:      approvalOperatorReason(summary, detail),
+		NextAction:  fmt.Sprintf("Review %s first, then %s.", approvalReviewFirst(summary, detail), approvalNextAction(summary, detail)),
+		ShortcutCue: "enter / a",
+		RouteCue:    approvalFollowUpRoute(summary),
+	})
+}
+
+func renderApprovalDecisionWorkbench(resp *brokerapi.ApprovalGetResponse) string {
+	if resp == nil {
+		return compactLines(
+			tableHeader("Decision workbench"),
+			"Load an approval to review the evidence trail and decide where the workflow should continue.",
+		)
+	}
+	summary := resp.Approval
+	detail := resp.ApprovalDetail
+	return compactLines(
+		tableHeader("Decision workbench"),
+		fmt.Sprintf("Start with %s. Scope: %s.", approvalReviewFirst(summary, detail), approvalWorkScopeSummary(summary, detail)),
+		approvalEvidenceGuidance(summary, detail),
+		approvalDecisionGuidance(summary, detail),
+	)
+}
+
+func renderApprovalReviewPlan(resp *brokerapi.ApprovalGetResponse) string {
+	if resp == nil {
+		return "Review plan: load an approval to see what is blocked, what to review first, and where to continue the evidence trail."
+	}
+	summary := resp.Approval
+	detail := resp.ApprovalDetail
+	return compactLines(
+		tableHeader("Review plan"),
+		fmt.Sprintf("1. Inspect %s.", approvalReviewFirst(summary, detail)),
+		fmt.Sprintf("2. Confirm gated scope: %s.", approvalExactObjectAction(summary, detail)),
+		fmt.Sprintf("3. Continue to %s for the audit + verification trail.", approvalFollowUpRoute(summary)),
+		fmt.Sprintf("4. Resolve only when broker validation allows it; current status=%s.", approvalResolveStatus(summary, detail)),
+	)
 }

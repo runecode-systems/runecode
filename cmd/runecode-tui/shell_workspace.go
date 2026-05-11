@@ -22,6 +22,7 @@ func (m shellModel) loadSessionWorkspaceCmd() tea.Cmd {
 
 func (m *shellModel) applySessionWorkspaceLoaded(msg sessionWorkspaceLoadedMsg) {
 	m.sessionLoading = false
+	m.invalidateOverlayFrameCache()
 	if msg.err != nil {
 		m.sessionLoadError = safeUIErrorText(msg.err)
 		m.refreshObjectIndexFromShellState()
@@ -31,6 +32,7 @@ func (m *shellModel) applySessionWorkspaceLoaded(msg sessionWorkspaceLoadedMsg) 
 	m.sessionItems = append([]brokerapi.SessionSummary(nil), msg.sessions...)
 	m.rememberSessionWorkspaces(m.sessionItems)
 	m.sessions = m.sessions.UpdateSessions(m.sessionItems)
+	m.invalidatePaletteCache()
 	m.ensureActiveSessionSelection()
 	m.sessionSelected = selectedSessionIndex(m.sessionItems, m.activeSessionID)
 	m.syncSidebarCursorToLocation()

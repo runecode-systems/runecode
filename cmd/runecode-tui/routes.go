@@ -38,10 +38,10 @@ func shellRoutes() []routeDefinition {
 		{ID: routeAction, Label: "Action Center", Description: "Interactive/operator-attention queues and blocked-work impact", Index: 5, QuickJumpKey: "5"},
 		{ID: routeArtifacts, Label: "Artifacts", Description: "Artifact browsing and drill-down", Index: 6, QuickJumpKey: "6"},
 		{ID: routeAudit, Label: "Audit", Description: "Audit timeline and verification posture", Index: 7, QuickJumpKey: "7"},
-		{ID: routeStatus, Label: "Status", Description: "Broker readiness and subsystem posture", Index: 8, QuickJumpKey: "8"},
+		{ID: routeStatus, Label: "Status", Description: "Managed operation, setup, and broker health", Index: 8, QuickJumpKey: "8"},
 		{ID: routeProviders, Label: "Model Providers", Description: "Broker-owned direct credential setup", Index: 9, QuickJumpKey: "9"},
 		{ID: routeGitSetup, Label: "Git Setup", Description: "Broker-owned git setup and auth posture", Index: 10, QuickJumpKey: "0"},
-		{ID: routeGitRemote, Label: "Git Remote", Description: "Review prepared git remote mutations and execute", Index: 11, QuickJumpKey: "-"},
+		{ID: routeGitRemote, Label: "Git Remote", Description: "Review prepared remote changes before execution", Index: 11, QuickJumpKey: "-"},
 	}
 }
 

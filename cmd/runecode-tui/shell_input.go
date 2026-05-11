@@ -6,6 +6,16 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+func (m *shellModel) refreshLeaderBindingsIfNeeded() {
+	bindings := m.actions.leaderBindings(*m)
+	signature := shellLeaderBindingsSignature(bindings)
+	if signature == m.leaderBindingsSignature && len(m.leader.bindings) > 0 {
+		return
+	}
+	m.leader.Rebind(bindings)
+	m.leaderBindingsSignature = signature
+}
+
 func (m shellModel) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	for _, handler := range []func(tea.KeyMsg) (tea.Model, tea.Cmd, bool){
 		m.handleCommandModeActiveKey,
@@ -38,8 +48,9 @@ func (m shellModel) handleOpenLeaderKey(key tea.KeyMsg) (tea.Model, tea.Cmd, boo
 	if !m.shellPowerKeysAllowed() {
 		return m, nil, false
 	}
-	m.leader.Rebind(m.actions.leaderBindings(m))
+	m.refreshLeaderBindingsIfNeeded()
 	m.beginOverlaySession()
+	m.invalidateOverlayFrameCache()
 	m.leader.Start()
 	m.setFocus(focusPalette)
 	m.syncOverlayStack()
@@ -52,6 +63,7 @@ func (m shellModel) handleLeaderActiveKey(key tea.KeyMsg) (tea.Model, tea.Cmd, b
 	}
 	if key.Type == tea.KeyEsc {
 		m.leader.Abort()
+		m.invalidateOverlayFrameCache()
 		m.syncOverlayStack()
 		m.restoreFocusAfterOverlayClose()
 		m.toasts.Push(toastInfo, "Leader mode aborted.")
@@ -61,6 +73,7 @@ func (m shellModel) handleLeaderActiveKey(key tea.KeyMsg) (tea.Model, tea.Cmd, b
 	if !ok {
 		prior := append([]string(nil), m.leader.prefix...)
 		m.leader.Abort()
+		m.invalidateOverlayFrameCache()
 		m.syncOverlayStack()
 		m.restoreFocusAfterOverlayClose()
 		m.toasts.Push(toastWarn, formatLeaderInvalidKeyMessage(prior, key.String()))
@@ -70,6 +83,7 @@ func (m shellModel) handleLeaderActiveKey(key tea.KeyMsg) (tea.Model, tea.Cmd, b
 	action, complete := m.leader.Step(token)
 	if !complete {
 		if !m.leader.Active() {
+			m.invalidateOverlayFrameCache()
 			m.syncOverlayStack()
 			m.restoreFocusAfterOverlayClose()
 			m.toasts.Push(toastWarn, formatLeaderInvalidKeyMessage(prior, token))
@@ -78,6 +92,7 @@ func (m shellModel) handleLeaderActiveKey(key tea.KeyMsg) (tea.Model, tea.Cmd, b
 		m.syncOverlayStack()
 		return m, nil, true
 	}
+	m.invalidateOverlayFrameCache()
 	m.syncOverlayStack()
 	m.restoreFocusAfterOverlayClose()
 	updated, cmd := m.applyPaletteAction(action)
@@ -91,14 +106,17 @@ func (m shellModel) handleOpenPaletteKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bo
 	if !m.shellPowerKeysAllowed() {
 		return m, nil, false
 	}
+	m.invalidateOverlayFrameCache()
 	m.narrowSidebarOn = false
 	m.narrowInspectOn = false
 	m.beginOverlaySession()
+	m.invalidateOverlayFrameCache()
 	m.sessions = m.sessions.Close()
-	m.palette = m.palette.UpdateEntries(m.buildPaletteEntries()).Open()
+	palette, request := m.palette.UpdateEntries(m.paletteImmediateEntries()).Open().BeginEntriesRefresh()
+	m.palette = palette
 	m.setFocus(focusPalette)
 	m.syncOverlayStack()
-	return m, nil, true
+	return m, m.loadPaletteEntriesCmd(request), true
 }
 
 func (m shellModel) handleOpenSessionQuickSwitchKey(key tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
@@ -108,9 +126,11 @@ func (m shellModel) handleOpenSessionQuickSwitchKey(key tea.KeyMsg) (tea.Model, 
 	if !m.shellPowerKeysAllowed() {
 		return m, nil, false
 	}
+	m.invalidateOverlayFrameCache()
 	m.narrowSidebarOn = false
 	m.narrowInspectOn = false
 	m.beginOverlaySession()
+	m.invalidateOverlayFrameCache()
 	m.palette = m.palette.Close()
 	m.sessions = m.sessions.Open(m.sessionItems)
 	m.setFocus(focusPalette)
@@ -133,6 +153,7 @@ func (m shellModel) handleToggleSidebarKey(key tea.KeyMsg) (tea.Model, tea.Cmd, 
 	}
 	if m.breakpoint() == shellBreakpointNarrow {
 		m.beginOverlaySession()
+		m.invalidateOverlayFrameCache()
 		m.narrowSidebarOn = !m.narrowSidebarOn
 		if m.narrowSidebarOn {
 			m.narrowInspectOn = false
@@ -144,6 +165,7 @@ func (m shellModel) handleToggleSidebarKey(key tea.KeyMsg) (tea.Model, tea.Cmd, 
 		m.toasts.Push(toastInfo, "Sidebar overlay toggled for narrow layout.")
 		return m, nil, true
 	}
+	m.invalidateOverlayFrameCache()
 	m.sidebarVisible = !m.sidebarVisible
 	m.sidebarFolded = false
 	m.normalizeFocusForLayout()
@@ -236,6 +258,7 @@ func (m shellModel) handleLayoutToggleInspectorCollapseKey(key tea.KeyMsg) (tea.
 	}
 	if m.breakpoint() == shellBreakpointNarrow {
 		m.beginOverlaySession()
+		m.invalidateOverlayFrameCache()
 		return m.toggleNarrowInspectorOverlay(), nil, true
 	}
 	cmd := m.commands.Execute("shell.layout.toggle_inspector_collapse", &m)
@@ -270,8 +293,10 @@ func (m shellModel) handleEscapeCloseNarrowOverlaysKey(key tea.KeyMsg) (tea.Mode
 	if key.Type != tea.KeyEsc || (!m.narrowSidebarOn && !m.narrowInspectOn) {
 		return m, nil, false
 	}
+	m.invalidateOverlayFrameCache()
 	m.narrowSidebarOn = false
 	m.narrowInspectOn = false
+	m.invalidateOverlayFrameCache()
 	m.syncOverlayStack()
 	m.restoreFocusAfterOverlayClose()
 	return m, nil, true
@@ -300,7 +325,7 @@ func (m shellModel) handleCycleFocusNextKey(key tea.KeyMsg) (tea.Model, tea.Cmd,
 	if !m.shellFocusTraversalAllowed() {
 		return m, nil, false
 	}
-	m.focusManager.Next(m.planShellLayout(m.activeShellSurface()), m.commandOverlayOpen())
+	m.focusManager.Next(m.focusTraversalLayout(), m.commandOverlayOpen())
 	m.focus = m.focusManager.Current()
 	return m, nil, true
 }
@@ -312,7 +337,7 @@ func (m shellModel) handleCycleFocusPrevKey(key tea.KeyMsg) (tea.Model, tea.Cmd,
 	if !m.shellFocusTraversalAllowed() {
 		return m, nil, false
 	}
-	m.focusManager.Prev(m.planShellLayout(m.activeShellSurface()), m.commandOverlayOpen())
+	m.focusManager.Prev(m.focusTraversalLayout(), m.commandOverlayOpen())
 	m.focus = m.focusManager.Current()
 	return m, nil, true
 }

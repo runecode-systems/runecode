@@ -1,12 +1,46 @@
 package main
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
+
+const (
+	maxPersistedPinnedSessions  = 50
+	maxPersistedRecentSessions  = 8
+	maxPersistedRecentObjects   = 20
+	maxPersistedLastSessionByWS = 50
+)
 
 func (m *shellModel) persistWorkbenchState() {
 	if m.workbench == nil {
 		return
 	}
-	m.workbench.Write(m.workbenchScope, workbenchLocalState{
+	m.workbench.Write(m.workbenchScope, m.currentWorkbenchState())
+}
+
+func (m *shellModel) flushWorkbenchState() {
+	if flusher, ok := m.workbench.(shellWorkbenchStateFlusher); ok {
+		flusher.Flush()
+	}
+}
+
+func (m *shellModel) workbenchFlushError() error {
+	if flusher, ok := m.workbench.(interface{ LastError() error }); ok {
+		return flusher.LastError()
+	}
+	return nil
+}
+
+func safeWorkbenchPersistenceErrorText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return "workbench state persistence failed; local path redacted"
+}
+
+func (m *shellModel) currentWorkbenchState() workbenchLocalState {
+	return workbenchLocalState{
 		SidebarVisible:     m.sidebarVisible,
 		InspectorVisible:   m.inspectorOn,
 		InspectorMode:      normalizePresentationMode(m.preferredMode),
@@ -14,16 +48,16 @@ func (m *shellModel) persistWorkbenchState() {
 		LeaderKey:          strings.TrimSpace(m.leaderKeyConfig),
 		LastRouteID:        m.currentRouteID(),
 		LastSessionID:      m.activeSessionID,
-		LastSessionByWS:    cloneSessionMap(m.lastSessionByWS),
+		LastSessionByWS:    cloneSessionMapWithLimit(m.lastSessionByWS, maxPersistedLastSessionByWS),
 		PinnedSessions:     m.persistedPinnedSessionRefs(),
 		RecentSessions:     m.persistedRecentSessionRefs(),
-		RecentObjects:      append([]workbenchObjectRef(nil), m.recentObjects...),
+		RecentObjects:      cloneRecentObjectsWithLimit(m.recentObjects, maxPersistedRecentObjects),
 		ViewedActivity:     cloneViewedActivity(m.viewedActivity),
 		SidebarPaneRatio:   clampPaneRatio(m.sidebarRatio),
 		InspectorPaneRatio: clampPaneRatio(m.inspectorRatio),
 		SidebarCollapsed:   m.sidebarFolded,
 		InspectorCollapsed: m.inspectorFolded,
-	})
+	}
 }
 
 func (m *shellModel) restoreWorkbenchState() {
@@ -99,6 +133,9 @@ func (m *shellModel) restoreWorkbenchSessionState(state workbenchLocalState) {
 	m.activeSessionID = strings.TrimSpace(state.LastSessionID)
 	m.pinnedSessions = map[string]struct{}{}
 	for _, ref := range state.PinnedSessions {
+		if len(m.pinnedSessions) >= maxPersistedPinnedSessions {
+			break
+		}
 		sid := strings.TrimSpace(ref.SessionID)
 		if sid == "" {
 			continue
@@ -106,8 +143,11 @@ func (m *shellModel) restoreWorkbenchSessionState(state workbenchLocalState) {
 		m.pinnedSessions[sid] = struct{}{}
 		m.rememberSessionWorkspace(sid, ref.WorkspaceID)
 	}
-	m.recentSessions = make([]string, 0, len(state.RecentSessions))
+	m.recentSessions = make([]string, 0, min(len(state.RecentSessions), maxPersistedRecentSessions))
 	for _, ref := range state.RecentSessions {
+		if len(m.recentSessions) >= maxPersistedRecentSessions {
+			break
+		}
 		sid := strings.TrimSpace(ref.SessionID)
 		if sid == "" {
 			continue
@@ -125,13 +165,16 @@ func (m *shellModel) rememberSessionWorkspace(sessionID string, workspaceID stri
 }
 
 func (m *shellModel) restoreWorkbenchRecentState(state workbenchLocalState) {
-	m.recentObjects = append([]workbenchObjectRef(nil), state.RecentObjects...)
-	m.lastSessionByWS = cloneSessionMap(state.LastSessionByWS)
+	m.recentObjects = cloneRecentObjectsWithLimit(state.RecentObjects, maxPersistedRecentObjects)
+	m.lastSessionByWS = cloneSessionMapWithLimit(state.LastSessionByWS, maxPersistedLastSessionByWS)
 	m.viewedActivity = cloneViewedActivity(state.ViewedActivity)
 }
 
 func (m *shellModel) persistedPinnedSessionRefs() []workbenchSessionRef {
 	keys := sortedSessionKeys(m.pinnedSessions)
+	if len(keys) > maxPersistedPinnedSessions {
+		keys = keys[:maxPersistedPinnedSessions]
+	}
 	out := make([]workbenchSessionRef, 0, len(keys))
 	for _, sid := range keys {
 		out = append(out, workbenchSessionRef{WorkspaceID: strings.TrimSpace(m.sessionWorkspace[sid]), SessionID: sid})
@@ -140,8 +183,12 @@ func (m *shellModel) persistedPinnedSessionRefs() []workbenchSessionRef {
 }
 
 func (m *shellModel) persistedRecentSessionRefs() []workbenchSessionRef {
-	out := make([]workbenchSessionRef, 0, len(m.recentSessions))
+	limit := min(len(m.recentSessions), maxPersistedRecentSessions)
+	out := make([]workbenchSessionRef, 0, limit)
 	for _, sid := range m.recentSessions {
+		if len(out) >= maxPersistedRecentSessions {
+			break
+		}
 		sid = strings.TrimSpace(sid)
 		if sid == "" {
 			continue
@@ -152,12 +199,44 @@ func (m *shellModel) persistedRecentSessionRefs() []workbenchSessionRef {
 }
 
 func cloneSessionMap(in map[string]string) map[string]string {
+	return cloneSessionMapWithLimit(in, 0)
+}
+
+func cloneSessionMapWithLimit(in map[string]string, limit int) map[string]string {
 	if in == nil {
 		return map[string]string{}
 	}
-	out := make(map[string]string, len(in))
-	for k, v := range in {
+	keys := make([]string, 0, len(in))
+	for k := range in {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	if limit > 0 && len(keys) > limit {
+		keys = keys[:limit]
+	}
+	out := make(map[string]string, len(keys))
+	for _, k := range keys {
+		v := in[k]
 		out[k] = v
+	}
+	return out
+}
+
+func cloneRecentObjectsWithLimit(in []workbenchObjectRef, limit int) []workbenchObjectRef {
+	if len(in) == 0 {
+		return nil
+	}
+	if limit > 0 && len(in) > limit {
+		in = in[:limit]
+	}
+	out := make([]workbenchObjectRef, 0, len(in))
+	for _, ref := range in {
+		out = append(out, workbenchObjectRef{
+			Kind:        strings.TrimSpace(ref.Kind),
+			ID:          strings.TrimSpace(ref.ID),
+			WorkspaceID: strings.TrimSpace(ref.WorkspaceID),
+			SessionID:   strings.TrimSpace(ref.SessionID),
+		})
 	}
 	return out
 }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -12,7 +11,9 @@ import (
 type actionCenterLoadedMsg struct {
 	approvals []brokerapi.ApprovalSummary
 	runs      []brokerapi.RunSummary
+	project   brokerapi.ProjectSubstratePostureGetResponse
 	audit     brokerapi.AuditVerificationGetResponse
+	auditErr  string
 	err       error
 	seq       uint64
 }
@@ -27,24 +28,35 @@ const (
 )
 
 type actionCenterItem struct {
-	Title     string
-	Detail    string
-	Urgency   string
-	ExpiryCue string
-	StaleCue  string
-	Impact    string
-	Target    paletteTarget
+	Title          string
+	State          routeLoadState
+	Urgency        string
+	Reason         string
+	Impact         string
+	Owner          string
+	RequiredAction string
+	TargetLabel    string
+	EvidenceCue    string
+	Target         paletteTarget
+}
+
+type actionCenterViewModel struct {
+	Families map[actionCenterFamily][]actionCenterItem
+	Summary  actionCenterSummary
 }
 
 type actionCenterRouteModel struct {
 	def         routeDefinition
 	client      localBrokerClient
+	now         func() time.Time
 	loading     bool
 	errText     string
 	statusText  string
 	approvals   []brokerapi.ApprovalSummary
 	runs        []brokerapi.RunSummary
+	project     brokerapi.ProjectSubstratePostureGetResponse
 	audit       *brokerapi.AuditVerificationGetResponse
+	auditErr    string
 	watch       dashboardLiveActivity
 	watchHealth shellSyncHealth
 	inspectorOn bool
@@ -57,6 +69,7 @@ func newActionCenterRouteModel(def routeDefinition, client localBrokerClient) ro
 	return actionCenterRouteModel{
 		def:         def,
 		client:      client,
+		now:         time.Now,
 		inspectorOn: true,
 		family:      actionCenterFamilyApprovals,
 		selected: map[actionCenterFamily]int{
@@ -80,25 +93,11 @@ func (m actionCenterRouteModel) Title() string { return m.def.Label }
 func (m actionCenterRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 	switch typed := msg.(type) {
 	case routeActivatedMsg:
-		if typed.RouteID != m.def.ID {
-			return m, nil
-		}
-		if typed.InspectorSet {
-			m.inspectorOn = typed.InspectorVisible
-		}
-		m.loading = true
-		m.errText = ""
-		m.statusText = ""
-		m.loadSeq++
-		return m, m.loadCmd(m.loadSeq)
+		return m.handleRouteActivated(typed)
 	case tea.KeyMsg:
 		return m.handleKey(typed)
 	case routeShellPreferencesMsg:
-		if typed.RouteID != m.def.ID {
-			return m, nil
-		}
-		m.inspectorOn = typed.InspectorVisible
-		return m, nil
+		return m.handleShellPreferences(typed)
 	case actionCenterLoadedMsg:
 		if typed.seq != m.loadSeq {
 			return m, nil
@@ -111,7 +110,9 @@ func (m actionCenterRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 		m.errText = ""
 		m.approvals = typed.approvals
 		m.runs = typed.runs
+		m.project = typed.project
 		m.audit = &typed.audit
+		m.auditErr = typed.auditErr
 		m.normalizeSelection()
 		return m, nil
 	case shellLiveActivityUpdatedMsg:
@@ -125,25 +126,66 @@ func (m actionCenterRouteModel) Update(msg tea.Msg) (routeModel, tea.Cmd) {
 	}
 }
 
+func (m actionCenterRouteModel) handleRouteActivated(msg routeActivatedMsg) (routeModel, tea.Cmd) {
+	if msg.RouteID != m.def.ID {
+		return m, nil
+	}
+	if msg.InspectorSet {
+		m.inspectorOn = msg.InspectorVisible
+	}
+	m.loading = true
+	m.errText = ""
+	m.statusText = ""
+	m.loadSeq++
+	return m, m.loadCmd(m.loadSeq)
+}
+
+func (m actionCenterRouteModel) handleShellPreferences(msg routeShellPreferencesMsg) (routeModel, tea.Cmd) {
+	if msg.RouteID != m.def.ID {
+		return m, nil
+	}
+	m.inspectorOn = msg.InspectorVisible
+	return m, nil
+}
+
 func (m actionCenterRouteModel) View(width, height int, focus focusArea) string {
-	_ = width
 	_ = height
 	if m.loading {
-		return renderStateCard(routeLoadStateLoading, "Action Center", "Loading approvals, run posture, audit posture, and shell watch health...")
+		return renderStateCardSpec(stateCardSpec{
+			State:       routeLoadStateLoading,
+			Title:       "Action Center",
+			Message:     "Loading broker-known approvals, blocked work, setup posture, degraded cues, and shell watch health.",
+			Reason:      "Action Center waits for broker-owned follow-up surfaces before presenting operator triage.",
+			NextAction:  "Wait for the route to settle, or press r to retry if loading stalls.",
+			ShortcutCue: "r reload",
+		})
 	}
 	if strings.TrimSpace(m.errText) != "" {
-		return renderStateCard(routeLoadStateError, "Action Center", "Load failed: "+m.errText+" (press r to retry)")
+		return renderStateCardSpec(stateCardSpec{
+			State:       routeLoadStateError,
+			Title:       "Action Center",
+			Message:     "Action Center is temporarily unavailable.",
+			Reason:      m.errText,
+			NextAction:  "Press r to retry. If the error continues, use Status for broker posture and Dashboard for a lighter overview.",
+			ShortcutCue: "r reload",
+			RouteCue:    "Status or Dashboard",
+		})
 	}
-	families := m.familyBuckets()
+	vm := m.snapshot()
 	return compactLines(
 		sectionTitle("Action Center")+" "+focusBadge(focus),
-		fmt.Sprintf("Queue families: %s=%d %s=%d %s=%d", infoBadge("approvals"), len(families[actionCenterFamilyApprovals]), warnBadge("operational_attention"), len(families[actionCenterFamilyOps]), dangerBadge("blocked_work_impact"), len(families[actionCenterFamilyBlocked])),
-		fmt.Sprintf("Active triage family: %s", stateBadgeWithLabel("family", string(m.family))),
-		"Question/answer queues are reserved for future canonical broker models and are intentionally not implemented locally.",
-		renderDirectory("Approvals queue (canonical)", renderActionCenterItems(families[actionCenterFamilyApprovals]), m.selectedIndex(actionCenterFamilyApprovals, len(families[actionCenterFamilyApprovals]))),
-		renderDirectory("Operational attention", renderActionCenterItems(families[actionCenterFamilyOps]), m.selectedIndex(actionCenterFamilyOps, len(families[actionCenterFamilyOps]))),
-		renderDirectory("Blocked-work impact", renderActionCenterItems(families[actionCenterFamilyBlocked]), m.selectedIndex(actionCenterFamilyBlocked, len(families[actionCenterFamilyBlocked]))),
-		muted("If every bucket is empty, the control plane is currently waiting on new canonical work or operator intervention."),
+		renderStateCardSpec(stateCardSpec{
+			State:      vm.Summary.State,
+			Title:      vm.Summary.Title,
+			Message:    vm.Summary.Message,
+			Reason:     vm.Summary.Reason,
+			NextAction: vm.Summary.NextAction,
+			RouteCue:   "Approvals, Runs, Audit, Status",
+		}),
+		renderActionCenterQueueStrip(vm, m.family),
+		renderActionCenterDirectory("Approvals", vm.Families[actionCenterFamilyApprovals], m.selectedIndex(actionCenterFamilyApprovals, len(vm.Families[actionCenterFamilyApprovals])), width),
+		renderActionCenterDirectory("Operational Attention", vm.Families[actionCenterFamilyOps], m.selectedIndex(actionCenterFamilyOps, len(vm.Families[actionCenterFamilyOps])), width),
+		renderActionCenterDirectory("Blocked Work", vm.Families[actionCenterFamilyBlocked], m.selectedIndex(actionCenterFamilyBlocked, len(vm.Families[actionCenterFamilyBlocked])), width),
 		keyHint("Route keys: [/] change family, j/k move, enter drill-down, i toggle inspector, r reload"),
 	)
 }
@@ -155,8 +197,8 @@ func (m actionCenterRouteModel) ShellSurface(ctx routeShellContext) routeSurface
 	if status == "" && strings.TrimSpace(m.errText) != "" {
 		status = "Load failed: " + strings.TrimSpace(m.errText)
 	}
-	families := m.familyBuckets()
-	activeItems := families[m.family]
+	vm := m.snapshot()
+	activeItems := vm.Families[m.family]
 	selected := m.selectedIndex(m.family, len(activeItems))
 	inspector := ""
 	if m.inspectorOn {
@@ -172,6 +214,16 @@ func (m actionCenterRouteModel) ShellSurface(ctx routeShellContext) routeSurface
 		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
 		Chrome:       routeSurfaceChrome{Breadcrumbs: []string{"Home", m.def.Label}},
 	}
+}
+
+func (m actionCenterRouteModel) snapshot() actionCenterViewModel {
+	now := time.Now
+	if m.now != nil {
+		now = m.now
+	}
+	current := now().UTC()
+	families := m.familyBucketsAt(current)
+	return actionCenterViewModel{Families: families, Summary: buildActionCenterSummary(families)}
 }
 
 func (m actionCenterRouteModel) handleKey(key tea.KeyMsg) (routeModel, tea.Cmd) {
@@ -226,10 +278,17 @@ func (m actionCenterRouteModel) loadCmd(seq uint64) tea.Cmd {
 		if err != nil {
 			return actionCenterLoadedMsg{err: err, seq: seq}
 		}
-		auditResp, err := m.client.AuditVerificationGet(ctx, 40)
+		projectResp, err := m.client.ProjectSubstratePostureGet(ctx)
 		if err != nil {
 			return actionCenterLoadedMsg{err: err, seq: seq}
 		}
-		return actionCenterLoadedMsg{approvals: approvalResp.Approvals, runs: runResp.Runs, audit: auditResp, seq: seq}
+		auditResp := degradedDashboardAuditFallback()
+		auditErr := ""
+		if loadedAudit, err := m.client.AuditVerificationGet(ctx, 40); err == nil {
+			auditResp = loadedAudit
+		} else {
+			auditErr = safeUIErrorText(err)
+		}
+		return actionCenterLoadedMsg{approvals: approvalResp.Approvals, runs: runResp.Runs, project: projectResp, audit: auditResp, auditErr: auditErr, seq: seq}
 	}
 }

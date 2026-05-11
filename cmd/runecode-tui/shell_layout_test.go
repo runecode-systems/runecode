@@ -131,7 +131,7 @@ func TestShellLayoutPlannerBudgetsMainHeightFromShellChrome(t *testing.T) {
 	m.height = 40
 
 	plan := m.planShellLayout(routeSurface{})
-	want := 40 - shellChromeReservedHeight() - 2
+	want := 40 - shellChromeReservedHeight()
 	if got := plan.Regions.Main.Height; got != want {
 		t.Fatalf("expected main height=%d from viewport-shell chrome budget, got %d", want, got)
 	}
@@ -149,7 +149,7 @@ func TestShellLayoutPlannerBudgetsModeTabsAsVerticalChrome(t *testing.T) {
 	m.height = 40
 
 	plan := m.planShellLayout(routeSurface{Actions: routeSurfaceActions{ModeTabs: []string{"rendered", "raw"}}})
-	want := 40 - shellChromeReservedHeight() - 2 - 1
+	want := 40 - shellChromeReservedHeight() - 1
 	if got := plan.Regions.Main.Height; got != want {
 		t.Fatalf("expected mode tabs to reserve one line and main height=%d, got %d", want, got)
 	}

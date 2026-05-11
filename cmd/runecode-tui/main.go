@@ -2,10 +2,12 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
@@ -15,39 +17,87 @@ type usageError struct{ message string }
 
 func (e *usageError) Error() string { return e.message }
 
+func usageErrorf(format string, args ...any) error {
+	return &usageError{message: fmt.Sprintf(format, args...)}
+}
+
+func isUsageError(err error) bool {
+	var usageErr *usageError
+	return errors.As(err, &usageErr)
+}
+
+var (
+	newShellModelFunc = newShellModel
+	isTerminalFunc    = term.IsTerminal
+	runShellProgram   = func(model shellModel) (shellModel, error) {
+		p := tea.NewProgram(model, tea.WithAltScreen())
+		finalModel, err := p.Run()
+		if finalShell, ok := finalModel.(shellModel); ok {
+			return finalShell, err
+		}
+		return model, err
+	}
+)
+
 func main() {
-	args := os.Args[1:]
+	os.Exit(runMain(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+}
+
+func runMain(args []string, stdin *os.File, stdout *os.File, stderr io.Writer) int {
 	cfg, err := parseCLIConfig(args)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
+		fmt.Fprintln(stderr, err)
+		return 2
 	}
 
 	if cfg.showHelp {
-		if err := writeHelp(os.Stdout); err != nil {
-			fmt.Fprintf(os.Stderr, "runecode-tui failed to write help: %v\n", err)
-			os.Exit(1)
+		if err := writeHelp(stdout); err != nil {
+			fmt.Fprintf(stderr, "runecode-tui failed to write help: %v\n", err)
+			return 1
 		}
-
-		return
+		return 0
 	}
 
-	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd())) {
-		if err := writeNonInteractiveMessage(os.Stdout); err != nil {
-			fmt.Fprintf(os.Stderr, "runecode-tui failed to write output: %v\n", err)
-			os.Exit(1)
-		}
+	if cfg.snapshot.enabled {
+		return runSnapshotMode(cfg.snapshot, stderr)
+	}
 
-		return
+	if !isTerminalFunc(int(stdin.Fd())) || !isTerminalFunc(int(stdout.Fd())) {
+		if err := writeNonInteractiveMessage(stdout); err != nil {
+			fmt.Fprintf(stderr, "runecode-tui failed to write output: %v\n", err)
+			return 1
+		}
+		return 0
 	}
 
 	setCLIIPCConfigOverrides(cfg)
+	model := newShellModelFunc()
 
-	p := tea.NewProgram(newShellModel(), tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "runecode-tui failed: %v\n", err)
-		os.Exit(1)
+	finalModel, err := runShellProgram(model)
+	finalModel.flushWorkbenchState()
+	if err == nil {
+		if flushErr := finalModel.workbenchFlushError(); flushErr != nil {
+			fmt.Fprintf(stderr, "runecode-tui failed: %s\n", safeWorkbenchPersistenceErrorText(flushErr))
+			return 1
+		}
 	}
+	if err != nil {
+		fmt.Fprintf(stderr, "runecode-tui failed: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func runSnapshotMode(cfg tuiSnapshotConfig, stderr io.Writer) int {
+	if err := writeSnapshotArtifacts(cfg); err != nil {
+		if isUsageError(err) {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
+		fmt.Fprintf(stderr, "runecode-tui snapshot failed: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func isHelpArg(arg string) bool {
@@ -63,6 +113,7 @@ type tuiCLIConfig struct {
 	showHelp   bool
 	runtimeDir string
 	socketName string
+	snapshot   tuiSnapshotConfig
 }
 
 func parseCLIConfig(args []string) (tuiCLIConfig, error) {
@@ -71,15 +122,73 @@ func parseCLIConfig(args []string) (tuiCLIConfig, error) {
 	}
 	fs := flag.NewFlagSet("runecode-tui", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
+	showHelp := fs.Bool("help", false, "show help")
+	showHelpShort := fs.Bool("h", false, "show help")
 	runtimeDir := fs.String("runtime-dir", "", "broker local IPC runtime directory override")
 	socketName := fs.String("socket-name", "", "broker local IPC socket filename override")
+	snapshotFlags := registerSnapshotFlags(fs)
+	if containsStandaloneHelpFlag(args, fs) {
+		return tuiCLIConfig{showHelp: true}, nil
+	}
 	if err := fs.Parse(args); err != nil {
 		return tuiCLIConfig{}, &usageError{message: "runecode-tui usage: runecode-tui [--runtime-dir dir] [--socket-name broker.sock] [--help]"}
+	}
+	if *showHelp || *showHelpShort {
+		return tuiCLIConfig{showHelp: true}, nil
 	}
 	if len(fs.Args()) > 0 {
 		return tuiCLIConfig{}, &usageError{message: "runecode-tui accepts no positional arguments; use --help for usage"}
 	}
-	return tuiCLIConfig{runtimeDir: *runtimeDir, socketName: *socketName}, nil
+	cfg := tuiCLIConfig{runtimeDir: *runtimeDir, socketName: *socketName}
+	applySnapshotCLIConfig(&cfg, snapshotFlags)
+	return cfg, nil
+}
+
+func containsStandaloneHelpFlag(args []string, fs *flag.FlagSet) bool {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "-h", "-help", "--help":
+			return true
+		case "--":
+			return false
+		}
+
+		name, hasValue, ok := parseFlagToken(args[i])
+		if !ok || hasValue {
+			continue
+		}
+
+		f := fs.Lookup(name)
+		if f == nil || !flagConsumesValue(f) {
+			continue
+		}
+
+		i++
+	}
+
+	return false
+}
+
+func parseFlagToken(arg string) (name string, hasValue bool, ok bool) {
+	if arg == "" || arg == "-" || arg == "--" || !strings.HasPrefix(arg, "-") {
+		return "", false, false
+	}
+
+	trimmed := strings.TrimLeft(arg, "-")
+	if trimmed == "" {
+		return "", false, false
+	}
+
+	if idx := strings.Index(trimmed, "="); idx >= 0 {
+		return trimmed[:idx], true, true
+	}
+
+	return trimmed, false, true
+}
+
+func flagConsumesValue(f *flag.Flag) bool {
+	boolValue, ok := f.Value.(interface{ IsBoolFlag() bool })
+	return !ok || !boolValue.IsBoolFlag()
 }
 
 func setCLIIPCConfigOverrides(cfg tuiCLIConfig) {

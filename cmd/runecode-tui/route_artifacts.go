@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -155,14 +154,14 @@ func (m artifactsRouteModel) View(width, height int, focus focusArea) string {
 	}
 	body := []string{
 		sectionTitle("Artifacts") + " " + focusBadge(focus),
-		fmt.Sprintf("Filter data_class=%q", artifactClassFilters[m.classIndex]),
-		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
+		renderArtifactOverviewCard(m.active, artifactClassFilters[m.classIndex]),
+		renderArtifactEvidenceTrail(m.active),
+		renderArtifactClassFilterLine(artifactClassFilters[m.classIndex]),
 		renderDirectory("Artifact directory", renderArtifactDirectoryItems(m.items), m.selected),
 	}
 	if len(m.items) == 0 {
 		body = append(body, muted("No artifacts match the current class filter; switch filters or reload after new evidence arrives."))
 	}
-	body = append(body, keyHint("Route keys: j/k move, enter load detail, [/] class filter, m cycle detail mode, v cycle rendered/raw/structured, i toggle inspector, r reload"))
 	return compactLines(body...)
 }
 
@@ -187,14 +186,12 @@ func (m artifactsRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 		Regions: routeSurfaceRegions{
 			Main:      routeSurfaceRegion{Title: "Artifact workspace", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
 			Inspector: routeSurfaceRegion{Title: "Artifact inspector", Body: inspector},
-			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter load detail, [/] class filter, m cycle detail mode, v cycle rendered/raw/structured, i toggle inspector, r reload")},
+			Bottom:    routeSurfaceRegion{Body: keyHint("Keys: j/k move, enter detail, [/] filter, m detail view, v mode, r reload")},
 			Status:    routeSurfaceRegion{Body: status},
 		},
 		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
 		Chrome:       routeSurfaceChrome{Breadcrumbs: breadcrumbs},
 		Actions: routeSurfaceActions{
-			ModeTabs:         []string{string(presentationRendered), string(presentationRaw), string(presentationStructured)},
-			ActiveTab:        string(normalizePresentationMode(m.presentation)),
 			CopyActions:      artifactRouteCopyActions(m.active, m.content),
 			ReferenceActions: artifactInspectorReferenceActions(m.active),
 			LocalActions:     artifactInspectorLocalActions(),
@@ -314,7 +311,23 @@ func (m artifactsRouteModel) loadArtifactDetail(ctx context.Context, items []bro
 	if err != nil {
 		return artifactsLoadedMsg{err: err, seq: seq}
 	}
+	headResp = enrichArtifactHeadFromList(headResp, items, digest)
 	return m.loadArtifactContent(ctx, items, digest, headResp, seq)
+}
+
+func enrichArtifactHeadFromList(head brokerapi.LocalArtifactHeadResponse, items []brokerapi.ArtifactSummary, digest string) brokerapi.LocalArtifactHeadResponse {
+	if strings.TrimSpace(head.Artifact.RunID) != "" {
+		return head
+	}
+	digest = strings.TrimSpace(digest)
+	for _, item := range items {
+		if strings.TrimSpace(item.Reference.Digest) != digest {
+			continue
+		}
+		head.Artifact.RunID = item.RunID
+		return head
+	}
+	return head
 }
 
 func (m artifactsRouteModel) loadArtifactContent(ctx context.Context, items []brokerapi.ArtifactSummary, digest string, headResp brokerapi.LocalArtifactHeadResponse, seq uint64) artifactsLoadedMsg {

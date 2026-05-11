@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
 func (m shellModel) renderOverlayStack() string {
@@ -18,29 +20,35 @@ func (m shellModel) renderOverlayStack() string {
 
 func (m shellModel) renderPalette() string {
 	b := strings.Builder{}
-	b.WriteString(tableHeader("Workbench Command Surface") + " " + neutralBadge("toggle=ctrl+p") + "\n")
-	b.WriteString("Verbs: " + strings.Join([]string{infoBadge("open"), infoBadge("inspect"), infoBadge("jump"), infoBadge("back")}, " ") + "\n")
-	b.WriteString(fmt.Sprintf("Query: %q\n", m.palette.query))
-	if len(m.palette.matches) == 0 {
-		b.WriteString(muted("No matches. Press esc to close."))
+	width := boundedOverlayListWidth(m.width)
+	b.WriteString(renderOverlaySearchPrompt(m.palette.query) + "\n")
+	if m.palette.MatchCount() == 0 {
+		if m.palette.entriesLoading || m.palette.filterLoading {
+			b.WriteString(muted("Updating matches..."))
+			b.WriteString("\n")
+			return b.String()
+		}
+		b.WriteString(muted("No matches. Keep typing or press esc to close."))
 		b.WriteString("\n")
 		return b.String()
 	}
-	b.WriteString(tableHeader("Matches"))
+	b.WriteString(tableHeader("Suggested actions"))
 	b.WriteString("\n")
-	rows := make([]boundedListRow, 0, len(m.palette.matches))
-	for _, entry := range m.palette.matches {
-		rows = append(rows, boundedListRow{Text: paletteMatchLine(entry, false), Selectable: true})
-	}
-	b.WriteString(renderBoundedList(boundedListSpec{
-		Rows:          rows,
-		Selected:      m.palette.selectedIndex,
-		Width:         boundedOverlayListWidth(m.width),
-		Height:        8,
+	b.WriteString(renderBoundedListWindowed(boundedListWindowedSpec{
+		TotalRows:     m.palette.MatchCount(),
+		SelectedRow:   m.palette.selectedIndex,
+		Width:         width,
+		Height:        10,
 		GapMarker:     "...",
-		PreserveGaps:  true,
 		ApplySelected: true,
 		ActiveFill:    true,
+		RenderRow: func(index int) boundedListRow {
+			entry, ok := m.palette.MatchEntry(index)
+			if !ok {
+				return boundedListRow{}
+			}
+			return boundedListRow{Text: paletteMatchLineBounded(entry, width), Selectable: true}
+		},
 	}))
 	b.WriteString("\n")
 	return b.String()
@@ -48,51 +56,83 @@ func (m shellModel) renderPalette() string {
 
 func (m shellModel) renderSessionQuickSwitcher() string {
 	b := strings.Builder{}
-	b.WriteString(tableHeader("Session Quick Switcher") + " " + neutralBadge("toggle=ctrl+j") + "\n")
-	b.WriteString(fmt.Sprintf("Query: %q\n", m.sessions.query))
+	width := boundedOverlayListWidth(m.width)
+	b.WriteString(renderOverlaySearchPrompt(m.sessions.query) + "\n")
 	if len(m.sessions.matches) == 0 {
 		b.WriteString(muted("No matches. Press esc to close."))
 		b.WriteString("\n")
 		return b.String()
 	}
-	b.WriteString(tableHeader("Matches"))
+	b.WriteString(tableHeader("Recent sessions"))
 	b.WriteString("\n")
-	rows := make([]boundedListRow, 0, len(m.sessions.matches))
-	for i, s := range m.sessions.matches {
-		marker := " "
-		if i == m.sessions.selectedIndex {
-			marker = "▶"
-		}
-		sessionLabel := s.Identity.SessionID
-		if m.watch.projection.Activity.Active.Kind == "session" && strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" && m.watch.projection.Activity.Active.ID == s.Identity.SessionID {
-			sessionLabel = "● " + sessionLabel
-		}
-		line := fmt.Sprintf(" %s %s | ws=%s | activity=%s/%s | cue=%s | preview=%q | incomplete=%t | runs=%d approvals=%d",
-			marker,
-			sessionLabel,
-			s.Identity.WorkspaceID,
-			defaultPlaceholder(s.LastActivityAt, "n/a"),
-			defaultPlaceholder(s.LastActivityKind, "n/a"),
-			sessionHighLevelCue(s),
-			truncateText(s.LastActivityPreview, 50),
-			s.HasIncompleteTurn,
-			s.LinkedRunCount,
-			s.LinkedApprovalCount,
-		)
-		rows = append(rows, boundedListRow{Text: line, Selectable: true})
-	}
-	b.WriteString(renderBoundedList(boundedListSpec{
-		Rows:          rows,
-		Selected:      m.sessions.selectedIndex,
-		Width:         boundedOverlayListWidth(m.width),
+	b.WriteString(renderBoundedListWindowed(boundedListWindowedSpec{
+		TotalRows:     len(m.sessions.matches),
+		SelectedRow:   m.sessions.selectedIndex,
+		Width:         width,
 		Height:        8,
 		GapMarker:     "...",
-		PreserveGaps:  true,
 		ApplySelected: true,
 		ActiveFill:    true,
+		RenderRow: func(index int) boundedListRow {
+			return boundedListRow{Text: m.renderSessionQuickSwitcherRow(index, width), Selectable: true}
+		},
 	}))
 	b.WriteString("\n")
 	return b.String()
+}
+
+func (m shellModel) renderSessionQuickSwitcherRow(index int, width int) string {
+	s := m.sessions.matches[index]
+	marker := " "
+	if index == m.sessions.selectedIndex {
+		marker = "▶"
+	}
+	rawSessionID := s.Identity.SessionID
+	sessionLabel := sanitizeUIText(rawSessionID)
+	if sessionLabel == "" {
+		sessionLabel = "session"
+	}
+	if m.watch.projection.Activity.Active.Kind == "session" && strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" && m.watch.projection.Activity.Active.ID == rawSessionID {
+		sessionLabel = "● " + sessionLabel
+	}
+	preview := truncateText(sanitizeUIText(s.LastActivityPreview), 58)
+	lineParts := []string{fmt.Sprintf("%s %s", marker, sessionLabel), sessionHighLevelCue(s)}
+	if counts := strings.TrimSpace(compactSessionSwitcherCounts(s)); counts != "" {
+		lineParts = append(lineParts, "["+counts+"]")
+	}
+	line := clipDisplayText(strings.Join(lineParts, "  "), width)
+	detailParts := make([]string, 0, 3)
+	if workspace := sanitizeUIText(s.Identity.WorkspaceID); workspace != "" {
+		detailParts = append(detailParts, "Workspace "+workspace)
+	}
+	if activityKind := sanitizeUIText(s.LastActivityKind); activityKind != "" {
+		detailParts = append(detailParts, "Recent activity "+activityKind)
+	}
+	if preview != "" {
+		detailParts = append(detailParts, preview)
+	}
+	detail := "    " + strings.Join(detailParts, "  •  ")
+	if strings.TrimSpace(detail) == "" {
+		detail = "    No recent activity yet."
+	}
+	if s.HasIncompleteTurn {
+		detail += "  •  Needs follow-up"
+	}
+	return compactLines(line, muted(clipDisplayText(detail, width)))
+}
+
+func compactSessionSwitcherCounts(summary brokerapi.SessionSummary) string {
+	parts := make([]string, 0, 2)
+	if summary.LinkedRunCount > 0 {
+		parts = append(parts, countNoun(summary.LinkedRunCount, "run", "runs"))
+	}
+	if summary.LinkedApprovalCount > 0 {
+		parts = append(parts, countNoun(summary.LinkedApprovalCount, "approval", "approvals"))
+	}
+	if len(parts) == 0 {
+		return "idle"
+	}
+	return strings.Join(parts, " • ")
 }
 
 func (m shellModel) renderLeaderWhichKey() string {
@@ -100,6 +140,10 @@ func (m shellModel) renderLeaderWhichKey() string {
 	b.WriteString(tableHeader("Leader Mode") + " " + neutralBadge("start="+m.keys.LeaderStart.label()) + "\n")
 	b.WriteString("Sequence: " + m.leader.SequenceLabel() + "\n")
 	b.WriteString("Press esc to abort.\n")
+	if len(m.leader.prefix) == 0 {
+		b.WriteString("Help: " + m.keys.LeaderStart.label() + " leader mode; tab next focus area; shift+tab previous focus area.\n")
+		b.WriteString("      ctrl+p opens quick jump palette; ctrl+j opens session quick switcher.\n")
+	}
 	choices := m.leader.Choices()
 	if len(choices) == 0 {
 		b.WriteString(muted("No valid next keys."))
@@ -108,16 +152,25 @@ func (m shellModel) renderLeaderWhichKey() string {
 	}
 	b.WriteString(tableHeader("Valid next keys"))
 	b.WriteString("\n")
-	for _, choice := range choices {
-		suffix := ""
-		if choice.Completes {
-			suffix = " " + infoBadge("exec")
-		}
-		line := " • " + choice.Key + " — " + defaultPlaceholder(choice.Label, "(group)") + " — " + defaultPlaceholder(choice.Description, "") + suffix
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
+	b.WriteString(renderBoundedListWindowed(boundedListWindowedSpec{
+		TotalRows: len(choices),
+		Width:     boundedOverlayListWidth(m.width),
+		Height:    10,
+		GapMarker: "...",
+		RenderRow: func(index int) boundedListRow {
+			return boundedListRow{Text: leaderChoiceLine(choices[index])}
+		},
+	}))
+	b.WriteString("\n")
 	return b.String()
+}
+
+func leaderChoiceLine(choice shellLeaderChoice) string {
+	suffix := ""
+	if choice.Completes {
+		suffix = " " + infoBadge("exec")
+	}
+	return " • " + choice.Key + " — " + defaultPlaceholder(choice.Label, "(group)") + " — " + defaultPlaceholder(choice.Description, "") + suffix
 }
 
 func (m shellModel) renderQuitConfirmDialog() string {
@@ -136,7 +189,7 @@ func (m shellModel) renderQuitConfirmDialog() string {
 
 func boundedOverlayListWidth(viewportWidth int) int {
 	if viewportWidth <= 0 {
-		return 0
+		return 80
 	}
 	width := overlayBlockWidth(viewportWidth) - 4
 	if width < 1 {
@@ -150,7 +203,7 @@ func (m shellModel) paletteStartY() int {
 }
 
 func (m shellModel) sidebarYRange() (startY int, endY int) {
-	startY = shellTopStatusHeight + shellSyncHealthHeight + shellBreadcrumbHeight + shellHistoryHeight + shellPaneSpacerHeight + 3
+	startY = shellTopStatusHeight + shellSyncHealthHeight + shellPaneSpacerHeight + 3
 	endY = startY + m.sidebarMouseRowCount() - 1
 	return startY, endY
 }
@@ -199,16 +252,10 @@ func (m shellModel) renderPaneActivityMarker() string {
 	if m.watch.projection.Activity.State != shellActivityStateRunning && m.watch.projection.Activity.State != shellActivityStateWaiting {
 		return ""
 	}
-	if strings.TrimSpace(m.watch.projection.Activity.Active.Kind) == "" || strings.TrimSpace(m.watch.projection.Activity.Active.ID) == "" {
-		if m.watch.projection.Activity.State == shellActivityStateWaiting {
-			return warnBadge("WAITING")
-		}
-		return infoBadge("ACTIVE")
-	}
 	if m.watch.projection.Activity.State == shellActivityStateWaiting {
-		return warnBadge(fmt.Sprintf("WAITING %s=%s", sanitizeUIText(m.watch.projection.Activity.Active.Kind), sanitizeUIText(m.watch.projection.Activity.Active.ID)))
+		return warnBadge("WAITING")
 	}
-	return infoBadge(fmt.Sprintf("ACTIVE %s=%s", sanitizeUIText(m.watch.projection.Activity.Active.Kind), sanitizeUIText(m.watch.projection.Activity.Active.ID)))
+	return infoBadge("WORKING")
 }
 
 func (m shellModel) renderRunningIndicator() string {
@@ -216,9 +263,34 @@ func (m shellModel) renderRunningIndicator() string {
 		return ""
 	}
 	frames := []string{"⠁", "⠂", "⠄", "⠂", "⠁", "⠈", "⠐", "⠈"}
-	label := "running"
-	if strings.TrimSpace(m.watch.projection.Activity.Active.Kind) != "" && strings.TrimSpace(m.watch.projection.Activity.Active.ID) != "" {
-		label = fmt.Sprintf("running %s:%s", sanitizeUIText(m.watch.projection.Activity.Active.Kind), sanitizeUIText(m.watch.projection.Activity.Active.ID))
+	label := "working"
+	if target := strings.TrimSpace(humanShellActivityTarget(m.watch.projection.Activity.Active)); target != "" {
+		label = "working on " + target
 	}
 	return infoBadge(frames[m.activityFrame%len(frames)] + " " + label)
+}
+
+func (m shellModel) renderPrimaryWorkbenchActions() string {
+	parts := make([]string, 0, 3)
+	if _, ok := m.actions.definitionByID("shell.open_action_center"); ok {
+		parts = append(parts, "Action Center")
+	}
+	if _, ok := m.actions.definitionByID("shell.open_approvals"); ok {
+		parts = append(parts, "Approvals")
+	}
+	if _, ok := m.actions.definitionByID("shell.open_palette"); ok {
+		if m.width > 0 && m.width < shellMediumMinWidth {
+			parts = append(parts, "Cmds ^P/:")
+		} else {
+			parts = append(parts, "Commands ctrl+p/:")
+		}
+	}
+	if m.width > 0 && m.width < shellMediumMinWidth && len(parts) > 2 {
+		parts = parts[len(parts)-2:]
+	}
+	return strings.Join(parts, " · ")
+}
+
+func renderOverlaySearchPrompt(query string) string {
+	return appTheme.TextSecondary.Render("› Search") + "  " + paletteSearchText(query)
 }

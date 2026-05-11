@@ -105,30 +105,30 @@ func (m *shellModel) publishWatchStateToRoutes() {
 func renderShellSyncState(state shellSyncState) string {
 	switch state {
 	case shellSyncStateHealthy:
-		return successBadge("sync=healthy")
+		return successBadge("Sync healthy")
 	case shellSyncStateDegraded:
-		return warnBadge("sync=degraded")
+		return warnBadge("Sync degraded")
 	case shellSyncStateReconnecting:
-		return warnBadge("sync=reconnecting")
+		return warnBadge("Sync reconnecting")
 	case shellSyncStateDisconnected:
-		return dangerBadge("sync=disconnected")
+		return dangerBadge("Sync disconnected")
 	default:
-		return neutralBadge("sync=loading")
+		return neutralBadge("Sync loading")
 	}
 }
 
 func renderShellActivityState(state shellActivityState) string {
 	switch state {
 	case shellActivityStateLoading:
-		return neutralBadge("activity=loading")
+		return neutralBadge("Activity loading")
 	case shellActivityStateWaiting:
-		return warnBadge("activity=waiting")
+		return warnBadge("Activity waiting")
 	case shellActivityStateRunning:
-		return infoBadge("activity=running")
+		return infoBadge("Activity running")
 	case shellActivityStateDegradedSync:
-		return warnBadge("activity=degraded_sync")
+		return warnBadge("Activity degraded sync")
 	default:
-		return neutralBadge("activity=idle")
+		return neutralBadge("Activity idle")
 	}
 }
 

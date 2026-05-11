@@ -1,9 +1,11 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/runecode-ai/runecode/internal/brokerapi"
 )
 
 func TestLeaderOverlayConsumesMouseWithoutClickThrough(t *testing.T) {
@@ -33,5 +35,95 @@ func TestLeaderOverlayConsumesMouseWithoutClickThrough(t *testing.T) {
 	}
 	if !shell.leader.Active() {
 		t.Fatal("expected leader mode to remain active after consumed mouse event")
+	}
+}
+
+func TestShellSessionOverlayViewReusesCachedFrameWhileTyping(t *testing.T) {
+	m := newShellModel()
+	m.width = 120
+	m.height = 32
+	m.sessionItems = []brokerapi.SessionSummary{
+		{Identity: brokerapi.SessionIdentity{SessionID: "session-1", WorkspaceID: "ws-1"}},
+		{Identity: brokerapi.SessionIdentity{SessionID: "session-2", WorkspaceID: "ws-2"}},
+	}
+	route := &countingRouteModel{id: routeDashboard}
+	m.location.Primary = shellObjectLocation{RouteID: routeDashboard, Object: workbenchObjectRef{Kind: "route", ID: string(routeDashboard)}}
+	m.routeModels[routeDashboard] = route
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlJ})
+	shell := updated.(shellModel)
+	_ = shell.View()
+	initialCalls := route.shellSurfaceCalls
+	if initialCalls == 0 {
+		t.Fatal("expected initial session overlay render to compute background frame")
+	}
+
+	updated, _ = shell.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	shell = updated.(shellModel)
+	beforeView := route.shellSurfaceCalls
+	view := shell.View()
+	if !strings.Contains(view, "session-2") {
+		t.Fatalf("expected updated quick-switch overlay after typing, got %q", view)
+	}
+	if route.shellSurfaceCalls != beforeView {
+		t.Fatalf("expected cached background frame during session typing, calls before=%d after=%d", beforeView, route.shellSurfaceCalls)
+	}
+}
+
+func TestShellPaletteOverlayViewRefreshesBodyWhileFrameCached(t *testing.T) {
+	m := newShellModel()
+	m.width = 120
+	m.height = 32
+	m.palette = newPaletteModel([]paletteEntry{
+		{Index: 1, Label: "open chat", Search: "chat"},
+		{Index: 2, Label: "open runs", Search: "runs"},
+	}).Open()
+	m.syncOverlayStack()
+	route := &countingRouteModel{id: routeDashboard}
+	m.location.Primary = shellObjectLocation{RouteID: routeDashboard, Object: workbenchObjectRef{Kind: "route", ID: string(routeDashboard)}}
+	m.routeModels[routeDashboard] = route
+
+	_ = m.View()
+	initialCalls := route.shellSurfaceCalls
+	if initialCalls == 0 {
+		t.Fatal("expected initial palette overlay render to compute background frame")
+	}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	shell := updated.(shellModel)
+	beforeView := route.shellSurfaceCalls
+	view := shell.View()
+	if !strings.Contains(view, "r") {
+		t.Fatalf("expected updated palette query while reusing cached frame, got %q", view)
+	}
+	if route.shellSurfaceCalls != beforeView {
+		t.Fatalf("expected cached background frame during palette typing, calls before=%d after=%d", beforeView, route.shellSurfaceCalls)
+	}
+}
+
+func TestShellBackgroundStateUpdatesInvalidateOverlayFrameCache(t *testing.T) {
+	m := newShellModel()
+	m.width = 120
+	m.height = 32
+	m.palette = newPaletteModel([]paletteEntry{{Index: 1, Label: "open chat", Search: "chat"}}).Open()
+	m.syncOverlayStack()
+	_ = m.View()
+	if m.overlayFrameCache == nil || m.overlayFrameCache.frame == "" {
+		t.Fatal("expected overlay frame cache populated before background update")
+	}
+	m.applyWatchTransport(shellWatchTransportLoadedMsg{})
+	if m.overlayFrameCache.frame != "" {
+		t.Fatal("expected watch transport update to invalidate overlay frame cache")
+	}
+
+	m.palette = newPaletteModel([]paletteEntry{{Index: 1, Label: "open chat", Search: "chat"}}).Open()
+	m.syncOverlayStack()
+	_ = m.View()
+	if m.overlayFrameCache == nil || m.overlayFrameCache.frame == "" {
+		t.Fatal("expected overlay frame cache repopulated before session update")
+	}
+	m.applySessionWorkspaceLoaded(sessionWorkspaceLoadedMsg{sessions: []brokerapi.SessionSummary{{Identity: brokerapi.SessionIdentity{SessionID: "session-1"}}}})
+	if m.overlayFrameCache.frame != "" {
+		t.Fatal("expected session workspace update to invalidate overlay frame cache")
 	}
 }

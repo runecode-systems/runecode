@@ -205,7 +205,7 @@ func (m shellModel) appendSidebarSessionLines(lines []string, entries []sidebarE
 			continue
 		}
 		selected := i == cursor
-		item := sessionDirectoryLine(entry.Session, m.activeSessionID, m.pinnedSessions, recentOrder, m.viewedActivity, m.watch.projection.Activity.Active)
+		item := sessionSidebarLine(entry.Session, m.activeSessionID, m.pinnedSessions, recentOrder, m.viewedActivity, m.watch.projection.Activity.Active)
 		marker := " "
 		if selected {
 			marker = ">"

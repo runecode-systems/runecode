@@ -169,7 +169,7 @@ func (m auditRouteModel) handleAuditAnchorCompleted(msg auditAnchorCompletedMsg)
 		m.statusText = fmt.Sprintf("Anchor action: failed seal=%s reason=no response", msg.sealDigest)
 		return m, nil
 	}
-	if strings.TrimSpace(msg.response.AnchoringStatus) != "ok" {
+	if !strings.EqualFold(strings.TrimSpace(msg.response.AnchoringStatus), "ok") {
 		reason := strings.TrimSpace(msg.response.FailureCode)
 		if reason == "" {
 			reason = valueOrNA(strings.TrimSpace(msg.response.FailureMessage))
@@ -210,20 +210,16 @@ func (m auditRouteModel) View(width, height int, focus focusArea) string {
 	}
 	body := []string{
 		sectionTitle("Audit") + " " + focusBadge(focus),
-		renderAuditSafetyAlertStrip(m.verify),
-		renderAuditFinalizeSummary(m.finalize),
-		renderAuditAnchorActionSummary(m),
-		renderAuditPageSummary(m.cursor, m.nextCursor, len(m.prevCursors), len(m.timeline)),
-		renderAuditSummary(m.verify),
-		renderAuditFindings(m.verify, m.presentation),
-		renderModeSwitchTabs([]string{string(presentationRendered), string(presentationRaw), string(presentationStructured)}, string(normalizePresentationMode(m.presentation))),
+		renderAuditOverviewCard(m.verify, m.active),
+		renderAuditWorkbenchSummary(m.verify, m.finalize, m.active, m.cursor, m.nextCursor, len(m.prevCursors), len(m.timeline), m.anchoring, m.exportCopy, m.statusText),
 		renderDirectory("Timeline directory", renderAuditDirectoryItems(m.timeline), m.selected),
-		renderAuditTimeline(m.timeline, m.selected),
+		renderAuditSelectedEntryCue(m.timeline, m.selected),
+		renderAuditFindings(m.verify, m.presentation),
 	}
 	if len(m.timeline) == 0 {
 		body = append(body, muted("The audit timeline is empty; retry after the broker persists verification posture or sealed timeline records."))
 	}
-	body = append(body, keyHint("Route keys: j/k move, enter record detail, f finalize+verify sealed segment posture, a anchor selected/latest sealed segment, x toggle anchor export-copy, n next page, p previous page, v cycle rendered/raw/structured, i toggle inspector, r reload"))
+	body = append(body, keyHint("Keys: j/k move, enter detail, f verify, a anchor, x export copy, n/p page, v mode, r reload"))
 	return compactLines(body...)
 }
 
@@ -248,7 +244,7 @@ func (m auditRouteModel) ShellSurface(ctx routeShellContext) routeSurface {
 		Regions: routeSurfaceRegions{
 			Main:      routeSurfaceRegion{Title: "Audit workspace", Body: m.View(mainWidth, mainHeight, ctx.Focus)},
 			Inspector: routeSurfaceRegion{Title: "Audit inspector", Body: inspector},
-			Bottom:    routeSurfaceRegion{Body: keyHint("Route keys: j/k move, enter record detail, f finalize+verify sealed segment posture, a anchor selected/latest sealed segment, x toggle anchor export-copy, n next page, p previous page, v cycle rendered/raw/structured, i toggle inspector, r reload")},
+			Bottom:    routeSurfaceRegion{Body: keyHint("Keys: j/k move, enter detail, f verify, a anchor, x export copy, n/p page, v mode, r reload")},
 			Status:    routeSurfaceRegion{Body: status},
 		},
 		Capabilities: routeSurfaceCapabilities{Inspector: routeInspectorCapability{Supported: true, Enabled: m.inspectorOn}},
@@ -307,7 +303,7 @@ func (m auditRouteModel) handlePresentationAndInspectorKey(key string) (routeMod
 		if m.exportCopy {
 			state = "enabled"
 		}
-		m.statusText = fmt.Sprintf("Anchor receipt export copy %s for next action.", state)
+		m.statusText = fmt.Sprintf("Anchor receipt export copy %s; use the receipt for offline verification or evidence handoff when the broker returns one.", state)
 		return m, nil, true
 	case "v":
 		m.presentation = nextPresentationMode(m.presentation)
