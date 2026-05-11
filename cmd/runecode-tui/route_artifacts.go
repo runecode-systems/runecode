@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
 )
 
 var artifactClassFilters = []string{"", "diffs", "build_logs", "gate_evidence", "audit_verification_report", "approved_file_excerpts", "unapproved_file_excerpts"}

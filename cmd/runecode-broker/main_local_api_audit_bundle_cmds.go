@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
 )
 
 func handleAuditEvidenceSnapshotGet(args []string, service *brokerapi.Service, stdout io.Writer) error {

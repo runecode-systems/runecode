@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
 )
 
 const helloWorldToken = "RUNE_HELLO_WORLD"

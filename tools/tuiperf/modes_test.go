@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/tuiperf"
+	"github.com/runecode-systems/runecode/internal/tuiperf"
 )
 
 func TestRunModeUnsupportedModeReturnsUsageError(t *testing.T) {

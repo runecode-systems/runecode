@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 var nonDraftIdentityRunePattern = regexp.MustCompile(`[^a-z0-9._-]+`)

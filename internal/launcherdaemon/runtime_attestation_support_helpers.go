@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
-	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/third_party/jsoncanonicalizer"
 )
 
 func deriveSyntheticSecureSessionKeyPair(spec launcherbackend.BackendLaunchSpec, receipt launcherbackend.BackendLaunchReceipt) (string, ed25519.PublicKey, ed25519.PrivateKey) {

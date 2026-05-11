@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/policyengine"
 )
 
 func validateBindingsAgainstTrustedRegistry(bindings []ExecutorBinding, registry policyengine.ExecutorRegistryProjection) error {

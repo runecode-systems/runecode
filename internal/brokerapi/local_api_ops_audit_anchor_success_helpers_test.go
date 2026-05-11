@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func assertAnchorSuccessArtifacts(t *testing.T, service *Service, ledgerRoot string, sealDigest trustpolicy.Digest, resp AuditAnchorSegmentResponse) {

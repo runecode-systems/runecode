@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log"
 
-	"github.com/runecode-ai/runecode/internal/auditd"
+	"github.com/runecode-systems/runecode/internal/auditd"
 )
 
 const (

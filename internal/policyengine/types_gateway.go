@@ -1,6 +1,6 @@
 package policyengine
 
-import "github.com/runecode-ai/runecode/internal/trustpolicy"
+import "github.com/runecode-systems/runecode/internal/trustpolicy"
 
 type DestinationDescriptor struct {
 	SchemaID               string `json:"schema_id"`

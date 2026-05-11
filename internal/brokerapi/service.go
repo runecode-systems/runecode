@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/auditd"
-	"github.com/runecode-ai/runecode/internal/localbootstrap"
-	"github.com/runecode-ai/runecode/internal/projectsubstrate"
-	"github.com/runecode-ai/runecode/internal/secretsd"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/auditd"
+	"github.com/runecode-systems/runecode/internal/localbootstrap"
+	"github.com/runecode-systems/runecode/internal/projectsubstrate"
+	"github.com/runecode-systems/runecode/internal/secretsd"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 var (

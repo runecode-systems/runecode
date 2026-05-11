@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/perffixtures"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/perffixtures"
 )
 
 type config struct {

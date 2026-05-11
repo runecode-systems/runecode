@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/policyengine"
 )
 
 func buildFailedGateResult(now time.Time, idempotencyKey, gateAttemptID, normalizedInput string) RunnerResultReport {

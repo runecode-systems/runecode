@@ -1,6 +1,6 @@
 package brokerapi
 
-import "github.com/runecode-ai/runecode/internal/artifacts"
+import "github.com/runecode-systems/runecode/internal/artifacts"
 
 func filterRunWatchSummaries(all []RunSummary, req RunWatchRequest) []RunSummary {
 	filtered := make([]RunSummary, 0, len(all))

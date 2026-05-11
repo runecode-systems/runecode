@@ -3,8 +3,8 @@ package brokerapi
 import (
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/projectsubstrate"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/projectsubstrate"
 )
 
 func (s *Service) buildSessionExecutionAppendRequest(requestID string, req SessionExecutionTriggerRequest, session artifacts.SessionDurableState) (artifacts.SessionExecutionTriggerAppendRequest, *ErrorResponse) {

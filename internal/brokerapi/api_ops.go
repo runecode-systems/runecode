@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func (s *Service) HandleArtifactList(ctx context.Context, req ArtifactListRequest, meta RequestContext) (ArtifactListResponse, *ErrorResponse) {

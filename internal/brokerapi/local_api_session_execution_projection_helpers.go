@@ -3,7 +3,7 @@ package brokerapi
 import (
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func newSessionDetail(summary SessionSummary, projectedTurns []SessionTranscriptTurn, runs, approvals, artifactsByDigest, auditRecordDigests map[string]struct{}) SessionDetail {

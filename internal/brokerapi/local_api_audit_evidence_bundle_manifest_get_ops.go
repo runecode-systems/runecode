@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/auditd"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/auditd"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func (s *Service) HandleAuditEvidenceBundleManifestGet(ctx context.Context, req AuditEvidenceBundleManifestGetRequest, meta RequestContext) (AuditEvidenceBundleManifestGetResponse, *ErrorResponse) {

@@ -7,9 +7,9 @@ import (
 	"log"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/auditd"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/auditd"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 const (

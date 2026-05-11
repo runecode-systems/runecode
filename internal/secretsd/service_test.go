@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func testDigestIdentity(ch string) string {
@@ -120,7 +120,7 @@ func TestGitLeaseBindingEnforcedFailClosed(t *testing.T) {
 		t.Fatalf("lease git_binding.repository_identity = %q, want %q", got, binding.RepositoryIdentity)
 	}
 	assertGitLeaseRetrieveAllowed(t, svc, lease, gitLeaseUseContext(binding, "push_ref", binding.ActionRequestHash, binding.PolicyContextHash))
-	assertGitLeaseRetrieveDenied(t, svc, lease, gitLeaseUseContext(binding, "push_ref", binding.ActionRequestHash, binding.PolicyContextHash, withGitRepositoryIdentity("git_remote:github.com/runecode-ai/other")))
+	assertGitLeaseRetrieveDenied(t, svc, lease, gitLeaseUseContext(binding, "push_ref", binding.ActionRequestHash, binding.PolicyContextHash, withGitRepositoryIdentity("git_remote:github.com/runecode-systems/other")))
 	assertGitLeaseRetrieveDenied(t, svc, lease, gitLeaseUseContext(binding, "delete_ref", binding.ActionRequestHash, binding.PolicyContextHash))
 	assertGitLeaseRetrieveDenied(t, svc, lease, gitLeaseUseContext(binding, "push_ref", testDigestIdentity("c"), binding.PolicyContextHash))
 	assertGitLeaseRetrieveDenied(t, svc, lease, gitLeaseUseContext(binding, "push_ref", binding.ActionRequestHash, testDigestIdentity("d")))
@@ -132,7 +132,7 @@ func TestGitLeaseRevocationByRepositoryBinding(t *testing.T) {
 		t.Fatalf("Open returned error: %v", err)
 	}
 	importGitProviderSecret(t, svc)
-	repo := "git_remote:github.com/runecode-ai/runecode"
+	repo := "git_remote:github.com/runecode-systems/runecode"
 	actionHash := testDigestIdentity("a")
 	policyHash := testDigestIdentity("b")
 	first := mustIssueGitLease(t, svc, gitLeaseIssueRequest(repo, "run:git-1", "push_ref", actionHash, policyHash))
@@ -159,7 +159,7 @@ func issueBoundGitLeaseForTest(t *testing.T) (*Service, *GitLeaseBinding, Lease)
 	}
 	importGitProviderSecret(t, svc)
 	binding := &GitLeaseBinding{
-		RepositoryIdentity: "git_remote:github.com/runecode-ai/runecode",
+		RepositoryIdentity: "git_remote:github.com/runecode-systems/runecode",
 		AllowedOperations:  []string{"push_ref", "create_pull_request"},
 		ActionRequestHash:  testDigestIdentity("a"),
 		PolicyContextHash:  testDigestIdentity("b"),

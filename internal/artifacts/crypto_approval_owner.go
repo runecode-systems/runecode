@@ -3,7 +3,7 @@ package artifacts
 import (
 	"errors"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func validateDecisionApproverBinding(req PromotionRequest, decision trustpolicy.ApprovalDecision, verifier trustpolicy.VerifierRecord) error {

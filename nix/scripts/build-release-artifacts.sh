@@ -10,6 +10,9 @@ export LC_ALL=C
 
 mkdir -p release/payload release/dist
 
+cp tools/releasebuilder/installers/install-runecode.sh release/dist/install-runecode.sh
+cp tools/releasebuilder/installers/install-runecode.ps1 release/dist/install-runecode.ps1
+
 release_helper="$(pwd)/releasebuilder"
 trap 'rm -f "${release_helper}"' EXIT
 
@@ -79,7 +82,7 @@ archive_checksums="release/archive-sha256sums"
 (
   shopt -s nullglob
   cd release/dist
-  release_files=( *.tar.gz *.zip *.json )
+  release_files=( *.tar.gz *.zip *.json *.sh *.ps1 )
   if [ "${#release_files[@]}" -eq 0 ]; then
     printf 'expected release assets in release/dist for checksum generation\n' >&2
     exit 1

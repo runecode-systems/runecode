@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/policyengine"
 )
 
 func (r policyRuntime) readRoleManifest(record artifacts.ArtifactRecord) (policyengine.ManifestInput, policyengine.RoleManifest, error) {

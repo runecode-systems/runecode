@@ -1,6 +1,6 @@
 package brokerapi
 
-import "github.com/runecode-ai/runecode/internal/launcherbackend"
+import "github.com/runecode-systems/runecode/internal/launcherbackend"
 
 func projectReceiptImageState(state map[string]any, receipt launcherbackend.BackendLaunchReceipt) {
 	projectOptionalImageDigestState(state, receipt)

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
-	"github.com/runecode-ai/runecode/internal/perffixtures"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/perffixtures"
 )
 
 func collectRunnerCheckMeasurements(repoRoot string, timeout time.Duration, runner func(repoRoot string, timeout time.Duration, args ...string) (float64, error)) ([]perfcontracts.MeasurementRecord, error) {

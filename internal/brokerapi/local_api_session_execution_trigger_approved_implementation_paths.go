@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/projectsubstrate"
+	"github.com/runecode-systems/runecode/internal/projectsubstrate"
 )
 
 func validateApprovedImplementationTargetPath(authority sessionExecutionPlanAuthority, targetRelativePath string, lifecycleMetadata bool) error {

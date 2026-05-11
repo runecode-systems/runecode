@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
 )
 
 func measurePhase5ExternalAnchorStubbed(trials int) []perfcontracts.MeasurementRecord {

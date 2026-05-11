@@ -18,14 +18,14 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/auditd"
-	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
-	"github.com/runecode-ai/runecode/internal/policyengine"
-	"github.com/runecode-ai/runecode/internal/secretsd"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
-	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/auditd"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/secretsd"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/third_party/jsoncanonicalizer"
 )
 
 func dispatchTUILocalRPC(service *brokerapi.Service, wire brokerapi.LocalRPCRequest, meta brokerapi.RequestContext) brokerapi.LocalRPCResponse {

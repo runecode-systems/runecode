@@ -3,7 +3,7 @@ package auditd
 import (
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func TestRecordInclusionByDigestSingleSegmentSealed(t *testing.T) {

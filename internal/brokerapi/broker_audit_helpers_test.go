@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func findLauncherRuntimeAuditEvent(t *testing.T, events []artifacts.AuditEvent, runtimeEventType string) artifacts.AuditEvent {

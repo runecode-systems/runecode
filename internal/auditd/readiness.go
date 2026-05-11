@@ -1,6 +1,6 @@
 package auditd
 
-import "github.com/runecode-ai/runecode/internal/trustpolicy"
+import "github.com/runecode-systems/runecode/internal/trustpolicy"
 
 func (l *Ledger) Readiness() (trustpolicy.AuditdReadiness, error) {
 	l.mu.Lock()

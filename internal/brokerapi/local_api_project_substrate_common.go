@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/projectsubstrate"
+	"github.com/runecode-systems/runecode/internal/projectsubstrate"
 )
 
 func (s *Service) prepareProjectSubstrateRequest(ctx context.Context, reqID, fallbackReqID string, admissionErr error, req any, schemaPath string, meta RequestContext) (string, context.Context, func(), *ErrorResponse) {

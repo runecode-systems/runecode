@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/projectsubstrate"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/projectsubstrate"
 )
 
 func (s *Service) resolveSessionDraftPromoteApplyInput(result artifacts.SessionExecutionTriggerAppendResult, authority sessionExecutionPlanAuthority) (sessionDraftPromoteResolvedInput, error) {

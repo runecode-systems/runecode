@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
 )
 
 var benchSuffixPattern = regexp.MustCompile(`-\d+$`)

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
 )
 
 const tuiRenderBenchmarkSamples = 10

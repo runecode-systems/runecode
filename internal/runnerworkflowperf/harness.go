@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
-	"github.com/runecode-ai/runecode/internal/projectsubstrate"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/projectsubstrate"
 )
 
 const CheckSchemaVersion = "runecode.performance.check.v1"

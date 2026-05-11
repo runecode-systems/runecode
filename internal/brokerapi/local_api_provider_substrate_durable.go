@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func (s *Service) configureProviderDurability() {

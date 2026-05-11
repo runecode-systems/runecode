@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func TestHandleApprovalListRejectsInFlightLimit(t *testing.T) {

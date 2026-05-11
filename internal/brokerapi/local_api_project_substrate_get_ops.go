@@ -3,7 +3,7 @@ package brokerapi
 import (
 	"context"
 
-	"github.com/runecode-ai/runecode/internal/projectsubstrate"
+	"github.com/runecode-systems/runecode/internal/projectsubstrate"
 )
 
 func (s *Service) HandleProjectSubstrateGet(ctx context.Context, req ProjectSubstrateGetRequest, meta RequestContext) (ProjectSubstrateGetResponse, *ErrorResponse) {

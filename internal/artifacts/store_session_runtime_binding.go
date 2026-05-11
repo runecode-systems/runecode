@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
 )
 
 func (s *Store) upsertSessionRuntimeBindingLocked(runID string, facts launcherbackend.RuntimeFactsSnapshot) bool {

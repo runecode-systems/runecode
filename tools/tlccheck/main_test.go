@@ -127,7 +127,7 @@ func TestResolveTLCRunnerMissingRunnerErrorMentionsJarMissingWhenJavaExists(t *t
 
 func TestFindRepoRootWalksUpToRepoMarkers(t *testing.T) {
 	repoRoot := t.TempDir()
-	writeFile(t, filepath.Join(repoRoot, "go.mod"), "module github.com/runecode-ai/runecode\n")
+	writeFile(t, filepath.Join(repoRoot, "go.mod"), "module github.com/runecode-systems/runecode\n")
 	writeFile(t, filepath.Join(repoRoot, "justfile"), "default:\n\t@true\n")
 	if err := os.MkdirAll(filepath.Join(repoRoot, specDirRelative), 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)

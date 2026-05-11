@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func TestEnsureSessionExecutionRunPlanAuthorityCompilesBuiltInPlan(t *testing.T) {

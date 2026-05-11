@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/projectsubstrate"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/projectsubstrate"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func (s *Service) HandleAuditTimeline(ctx context.Context, req AuditTimelineRequest, meta RequestContext) (AuditTimelineResponse, *ErrorResponse) {

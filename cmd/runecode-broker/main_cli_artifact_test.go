@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
 )
 
 func TestPutListHeadGetArtifactCLI(t *testing.T) {

@@ -1,6 +1,6 @@
 # RuneCode — Security-first AI coding: isolated execution, signed, auditable
 
-[![CI](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml/badge.svg)](https://github.com/runecode-ai/runecode/actions/workflows/ci.yml)
+[![CI](https://github.com/runecode-systems/runecode/actions/workflows/ci.yml/badge.svg)](https://github.com/runecode-systems/runecode/actions/workflows/ci.yml)
 [![Status: alpha.11 in progress](https://img.shields.io/badge/status-alpha.11%20in%20progress-orange)](runecontext/project/roadmap.md)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
@@ -66,79 +66,29 @@ The official release channel is GitHub Releases.
 - Canonical unsigned release artifacts come from `nix build --no-link .#release-artifacts`
 - Published release assets are signed and attested in GitHub Actions
 - Supported targets: Linux (`amd64`, `arm64`), macOS (`amd64`, `arm64`), Windows (`amd64`, `arm64`)
-- Requires `gh` and `cosign`
+- Primary install path: first-party installer scripts from signed release assets
 
-Quick verified install for Linux and macOS:
+### Primary path: signed installer script (Linux/macOS)
+
+This path downloads the installer from the signed release asset set. The installer bootstraps verification tooling if needed, verifies its own signed metadata plus the selected archive, prints the verification details, and prompts before installing.
 
 ```bash
 set -euo pipefail
 
-REPO="runecode-ai/runecode"
-# Newest published release, including prereleases during pre-alpha.
-# Ordered by creation date; assumes no out-of-order backport releases.
-VERSION="$(gh release list --repo "$REPO" --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')"
-
-if [ -z "$VERSION" ]; then
-  printf 'no published release found for %s\n' "$REPO" >&2
-  exit 1
-fi
-
-OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-ARCH="$(uname -m)"
-
-case "$ARCH" in
-  x86_64) ARCH="amd64" ;;
-  arm64|aarch64) ARCH="arm64" ;;
-  *) printf 'unsupported architecture: %s\n' "$ARCH" >&2; exit 1 ;;
-esac
-
-case "$OS" in
-  linux|darwin) ;;
-  *) printf 'unsupported operating system: %s\n' "$OS" >&2; exit 1 ;;
-esac
-
-ARCHIVE="runecode_${VERSION}_${OS}_${ARCH}.tar.gz"
-WORKDIR="$(mktemp -d)"
-trap 'rm -rf "$WORKDIR"' EXIT
-
-cd "$WORKDIR"
-
-gh release download "$VERSION" --repo "$REPO" \
-  --pattern "$ARCHIVE" \
-  --pattern "$ARCHIVE.sig" \
-  --pattern "$ARCHIVE.pem" \
-  --pattern "SHA256SUMS" \
-  --pattern "SHA256SUMS.sig" \
-  --pattern "SHA256SUMS.pem"
-
-cosign verify-blob \
-  --certificate-identity "https://github.com/${REPO}/.github/workflows/release.yml@refs/tags/${VERSION}" \
-  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-  --signature "SHA256SUMS.sig" \
-  --certificate "SHA256SUMS.pem" \
-  "SHA256SUMS"
-
-cosign verify-blob \
-  --certificate-identity "https://github.com/${REPO}/.github/workflows/release.yml@refs/tags/${VERSION}" \
-  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-  --signature "${ARCHIVE}.sig" \
-  --certificate "${ARCHIVE}.pem" \
-  "$ARCHIVE"
-
-if command -v sha256sum >/dev/null 2>&1; then
-  grep -F "  ${ARCHIVE}" SHA256SUMS | sha256sum -c -
-else
-  grep -F "  ${ARCHIVE}" SHA256SUMS | shasum -a 256 -c -
-fi
-
-mkdir unpack
-tar -xzf "$ARCHIVE" -C unpack
-
-install -d "$HOME/.local/bin"
-install -m 0755 "unpack/runecode_${VERSION}_${OS}_${ARCH}"/bin/runecode* "$HOME/.local/bin/"
+TAG="v0.1.0-alpha.11"
+curl -fsSLO "https://github.com/runecode-systems/runecode/releases/download/${TAG}/install-runecode.sh"
+bash install-runecode.sh --version "$TAG"
 ```
 
-This quick path verifies signed checksums and the signed archive before install. For Windows steps and full provenance verification with `gh attestation verify`, see `docs/install-verify.md`.
+If you want the installer to resolve the newest published release automatically, pass `--latest` instead of `--version <tag>`.
+
+This bootstrap path still trusts the initial script download enough to start it. Once running, the installer verifies the signed checksum manifest, verifies the running installer against the signed release metadata and attestation, verifies the selected archive, prints the relevant hashes and signature details, and then requires explicit approval before installing.
+
+Windows uses the signed `install-runecode.ps1` release asset. On Windows `arm64`, preinstall `cosign v2.4.1` before running the installer because the temporary helper bootstrap for that pinned version is only available for Windows `amd64`.
+
+Windows and full manual verification options are documented in `docs/install-verify.md`.
+
+For explicit manual verification before executing any installer code, including `gh` + `cosign` and `curl` + `cosign` flows, see `docs/install-verify.md`.
 
 ## Implemented in this repo today:
 - A protocol/schema bundle in `protocol/schemas/` with an authoritative manifest at `protocol/schemas/manifest.json`

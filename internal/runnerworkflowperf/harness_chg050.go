@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
-	"github.com/runecode-ai/runecode/internal/perffixtures"
-	"github.com/runecode-ai/runecode/internal/policyengine"
-	"github.com/runecode-ai/runecode/internal/runplan"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/perffixtures"
+	"github.com/runecode-systems/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/runplan"
 )
 
 func measureCHG050CompileAndLoad(repoRoot string, runner func(repoRoot string, timeout time.Duration, args ...string) (float64, error), timeout time.Duration) ([]perfcontracts.MeasurementRecord, error) {

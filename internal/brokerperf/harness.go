@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
 )
 
 const CheckSchemaVersion = "runecode.performance.check.v1"

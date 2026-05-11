@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
 )
 
 func digestFileSHA256(path string) (string, error) {

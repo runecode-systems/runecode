@@ -5,7 +5,7 @@ package main
 import (
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
 )
 
 const checkSchemaVersion = "runecode.performance.check.v1"

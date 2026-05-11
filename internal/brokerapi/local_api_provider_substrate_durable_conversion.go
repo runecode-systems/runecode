@@ -1,8 +1,8 @@
 package brokerapi
 
 import (
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/policyengine"
 )
 
 func destinationIdentityToDurable(identity policyengine.DestinationDescriptor) artifacts.ProviderDestinationIdentityDurableState {

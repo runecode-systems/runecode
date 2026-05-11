@@ -3,7 +3,7 @@ package brokerapi
 import (
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func TestProjectAuditReceiptRecordDetailAddsAnchorApprovalAndWitnessReferences(t *testing.T) {

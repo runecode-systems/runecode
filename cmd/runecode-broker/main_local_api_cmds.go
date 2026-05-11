@@ -10,7 +10,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
 )
 
 func commandRequestContext(parent context.Context) (context.Context, context.CancelFunc) {

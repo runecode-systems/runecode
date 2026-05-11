@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func buildSessionTranscriptTurns(sessionID string, summary SessionSummary, runs, approvals, artifactsByDigest, auditRecordDigests map[string]struct{}) []SessionTranscriptTurn {

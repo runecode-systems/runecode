@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/secretsd"
+	"github.com/runecode-systems/runecode/internal/secretsd"
 )
 
 func (s *Service) HandleProviderCredentialLeaseIssue(ctx context.Context, req ProviderCredentialLeaseIssueRequest, meta RequestContext) (ProviderCredentialLeaseIssueResponse, *ErrorResponse) {

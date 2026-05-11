@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/secretsd"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/secretsd"
 )
 
 const gitRemoteProviderTokenSecretRef = "secrets/prod/git/provider-token"

@@ -3,7 +3,7 @@ package policyengine
 import (
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func newGatewayRelevantArtifactHash(seed string) []trustpolicy.Digest {

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
 )
 
 func measureUnary(trials int, repoRoot string) ([]perfcontracts.MeasurementRecord, error) {

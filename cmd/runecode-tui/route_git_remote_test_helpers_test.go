@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/secretsd"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/secretsd"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func (r *recordingBrokerClient) GitRemoteMutationPrepare(ctx context.Context, req brokerapi.GitRemoteMutationPrepareRequest) (brokerapi.GitRemoteMutationPrepareResponse, error) {
@@ -133,7 +133,7 @@ func (f *fakeBrokerClient) GitRemoteMutationIssueExecuteLease(ctx context.Contex
 			Scope:        "run:run-1",
 			DeliveryKind: "git_gateway",
 			GitBinding: &secretsd.GitLeaseBinding{
-				RepositoryIdentity: "github.com/runecode-ai/runecode",
+				RepositoryIdentity: "github.com/runecode-systems/runecode",
 				AllowedOperations:  []string{"git_ref_update"},
 				ActionRequestHash:  "sha256:" + strings.Repeat("2", 64),
 				PolicyContextHash:  "sha256:" + strings.Repeat("3", 64),
@@ -282,7 +282,7 @@ func fakePreparedGitRemoteMutationState(preparedID string) brokerapi.GitRemoteMu
 		PreparedMutationID:           preparedID,
 		RunID:                        "run-1",
 		Provider:                     "github",
-		DestinationRef:               "github.com/runecode-ai/runecode",
+		DestinationRef:               "github.com/runecode-systems/runecode",
 		RequestKind:                  "git_ref_update",
 		TypedRequestSchemaID:         "runecode.protocol.v0.GitRefUpdateRequest",
 		TypedRequestSchemaVersion:    "0.1.0",
@@ -300,7 +300,7 @@ func fakePreparedGitRemoteMutationState(preparedID string) brokerapi.GitRemoteMu
 		DerivedSummary: brokerapi.GitRemoteMutationDerivedSummary{
 			SchemaID:                      "runecode.protocol.v0.GitRemoteMutationDerivedSummary",
 			SchemaVersion:                 "0.1.0",
-			RepositoryIdentity:            "github.com/runecode-ai/runecode",
+			RepositoryIdentity:            "github.com/runecode-systems/runecode",
 			TargetRefs:                    []string{"refs/heads/main"},
 			ReferencedPatchArtifactHashes: []trustpolicy.Digest{patchDigest},
 			ExpectedResultTreeHash:        expectedTree,

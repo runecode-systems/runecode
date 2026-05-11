@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func (s *Service) HandleDependencyCacheEnsure(ctx context.Context, req DependencyCacheEnsureRequest, meta RequestContext) (DependencyCacheEnsureResponse, *ErrorResponse) {

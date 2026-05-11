@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
-	"github.com/runecode-ai/runecode/internal/tuiperf"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/tuiperf"
 )
 
 const latencyMarkerTimeout = 20 * time.Second

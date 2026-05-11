@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
 )
 
 func TestPrepareHelloWorldRuntimeImageForLaunchSeedsAdmittableImage(t *testing.T) {

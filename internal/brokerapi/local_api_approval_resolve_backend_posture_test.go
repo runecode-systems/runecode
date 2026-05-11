@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/policyengine"
 )
 
 func TestApprovalResolveBackendPostureFailsClosedOnInstanceMismatch(t *testing.T) {

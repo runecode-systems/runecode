@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func (s *dependencyFetchService) resolveBatchRequests(ctx context.Context, runID string, requests []DependencyFetchRequestObject) ([]dependencyUnitResolution, error) {

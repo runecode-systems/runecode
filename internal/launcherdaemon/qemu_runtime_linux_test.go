@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
 )
 
 func TestQEMUMonitorInstanceKillsAndReapsOnRuntimeMaterialParseFailure(t *testing.T) {

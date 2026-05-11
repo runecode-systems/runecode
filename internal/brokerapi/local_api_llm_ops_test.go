@@ -13,9 +13,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
-	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/third_party/jsoncanonicalizer"
 )
 
 func TestHandleLLMInvokeExecutesOpenAICompatible(t *testing.T) {

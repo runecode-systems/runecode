@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/secretsd"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/secretsd"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func (s *Service) prepareLLMExecution(requestID, runID string, expectedDigest *trustpolicy.Digest, llmReq any, streamAsFinal bool) (llmExecutionBinding, artifacts.ArtifactReference, map[string]any, llmExecutionContext, *ErrorResponse) {

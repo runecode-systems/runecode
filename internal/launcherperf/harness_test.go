@@ -3,7 +3,7 @@ package launcherperf
 import (
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
 )
 
 func TestRunProducesPhase4LauncherAndAttestationMetrics(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/runplan"
+	"github.com/runecode-systems/runecode/internal/runplan"
 )
 
 func runPlanGateEntriesFromCompiledEntries(entries []runplan.Entry) []RunPlanGateEntryRecord {

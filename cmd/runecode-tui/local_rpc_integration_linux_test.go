@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func TestTUIRoutesUseRealLocalRPCBrokerContracts(t *testing.T) {

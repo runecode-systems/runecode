@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func decodeRoleManifest(input ManifestInput, registry *trustpolicy.VerifierRegistry, requireSignedContextVerify bool) (RoleManifest, string, []string, error) {

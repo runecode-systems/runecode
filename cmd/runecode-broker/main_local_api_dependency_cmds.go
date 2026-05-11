@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
 )
 
 func handleDependencyCacheEnsure(args []string, service *brokerapi.Service, stdout io.Writer) error {

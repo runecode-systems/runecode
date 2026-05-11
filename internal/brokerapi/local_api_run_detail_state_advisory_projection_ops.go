@@ -1,6 +1,6 @@
 package brokerapi
 
-import "github.com/runecode-ai/runecode/internal/artifacts"
+import "github.com/runecode-systems/runecode/internal/artifacts"
 
 func buildAdvisoryLastCheckpointState(checkpoint *artifacts.RunnerCheckpointAdvisory) map[string]any {
 	if checkpoint == nil {

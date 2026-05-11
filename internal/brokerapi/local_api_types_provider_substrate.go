@@ -1,6 +1,6 @@
 package brokerapi
 
-import "github.com/runecode-ai/runecode/internal/policyengine"
+import "github.com/runecode-systems/runecode/internal/policyengine"
 
 type ProviderAuthMaterial struct {
 	SchemaID         string `json:"schema_id"`

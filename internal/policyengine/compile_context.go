@@ -3,7 +3,7 @@ package policyengine
 import (
 	"fmt"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func Compile(input CompileInput) (*CompiledContext, error) {

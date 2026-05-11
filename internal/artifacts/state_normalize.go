@@ -3,7 +3,7 @@ package artifacts
 import (
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
 )
 
 func normalizeState(state StoreState) StoreState {

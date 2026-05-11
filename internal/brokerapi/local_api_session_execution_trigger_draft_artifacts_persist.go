@@ -3,7 +3,7 @@ package brokerapi
 import (
 	"fmt"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func (s *Service) persistSessionExecutionPromptArtifact(runID string, authority sessionExecutionPlanAuthority, payload []byte) (artifacts.ArtifactReference, error) {

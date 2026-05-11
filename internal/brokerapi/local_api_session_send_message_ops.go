@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func (s *Service) HandleSessionSendMessage(ctx context.Context, req SessionSendMessageRequest, meta RequestContext) (SessionSendMessageResponse, *ErrorResponse) {

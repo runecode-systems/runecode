@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
 )
 
 const phase5PerfCheckSchemaVersion = "runecode.performance.check.v1"

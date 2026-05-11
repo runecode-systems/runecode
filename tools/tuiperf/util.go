@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/tuiperf"
+	"github.com/runecode-systems/runecode/internal/tuiperf"
 )
 
 func waitForMarker(events <-chan tuiperf.MarkerEvent, marker string, timeout time.Duration) (time.Time, error) {

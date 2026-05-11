@@ -6,8 +6,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
 )
 
 func TestRunDeterministicBrokerHarnessProducesPhase3Metrics(t *testing.T) {

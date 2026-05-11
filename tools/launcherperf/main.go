@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/launcherperf"
+	"github.com/runecode-systems/runecode/internal/launcherperf"
 )
 
 func main() {

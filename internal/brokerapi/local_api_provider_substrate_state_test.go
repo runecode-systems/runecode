@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/policyengine"
 )
 
 func TestProviderSubstrateSupportsMultipleProfiles(t *testing.T) {

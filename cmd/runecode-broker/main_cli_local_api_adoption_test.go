@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/secretsd"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/secretsd"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func TestCLIAdoptionRoutesRunApprovalVersionAndLogThroughLocalRPC(t *testing.T) {
@@ -412,7 +412,7 @@ func writeGitRemoteMutationRequestFiles(t *testing.T) (string, string, string, s
 			"schema_version":                    "0.1.0",
 			"request_kind":                      "git_ref_update",
 			"target_ref":                        "refs/heads/main",
-			"repository_identity":               map[string]any{"canonical_host": "github.com", "canonical_path_prefix": "runecode-ai/runecode", "git_repository_identity": "github.com/runecode-ai/runecode"},
+			"repository_identity":               map[string]any{"canonical_host": "github.com", "canonical_path_prefix": "runecode-systems/runecode", "git_repository_identity": "github.com/runecode-systems/runecode"},
 			"expected_old_ref_hash":             map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("2", 64)},
 			"referenced_patch_artifact_digests": []any{map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("3", 64)}},
 			"expected_result_tree_hash":         map[string]any{"hash_alg": "sha256", "hash": strings.Repeat("4", 64)},

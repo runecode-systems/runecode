@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/policyengine"
 )
 
 func (s *Service) HandleArtifactListV0(ctx context.Context, req LocalArtifactListRequest, meta RequestContext) (LocalArtifactListResponse, *ErrorResponse) {

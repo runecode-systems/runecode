@@ -7,11 +7,6 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
 
 ### v0.1.0-alpha.11
 
-- Beta Readiness Hardening + Product Polish
-  - RuneCode closes the remaining product-integration gaps before beta by proving the local canonical RuneContext lifecycle and supported workflow slice through the real trusted and untrusted execution path: project-substrate lifecycle, change/spec drafting, reviewed draft promote/apply, approved implementation, evidence continuity, and dogfooding-driven TUI polish.
-  - Project change: `runecontext/changes/CHG-2026-060-c1a4-beta-readiness-hardening-product-polish/`
-  - Feature changes: `CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0` remains part of the beta assurance closure story wherever supported `attested` posture is claimed.
-
 ### v0.1.0-beta.1
 
 - Usable End-to-End Linux-First Cut
@@ -189,4 +184,8 @@ Active lifecycle state lives in `runecontext/changes/*/status.yaml`, and durable
   - Planned change: `runecontext/changes/CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0/`
 - Project Performance Baselines + Verification Gates v0
   - RuneCode establishes the first MVP-grade performance baselines and deterministic Linux-first CI gates for the supported beta surface. The required shared-Linux lane enforces the current `required_shared_linux` subset, while launcher startup/attestation and external audit anchoring contracts are tracked as informational or `contract_pending_dependency` until their dependency paths are fully landed.
-  - Planned change: `runecontext/changes/CHG-2026-053-9d2b-performance-baselines-verification-gates-v0/`
+ - Beta Readiness Hardening + Product Polish
+  - RuneCode closes the remaining product-integration gaps before beta by proving the local canonical RuneContext lifecycle and supported workflow slice through the real trusted and untrusted execution path: project-substrate lifecycle, change/spec drafting, reviewed draft promote/apply, approved implementation, evidence continuity, and dogfooding-driven TUI polish.
+  - Project change: `runecontext/changes/CHG-2026-060-c1a4-beta-readiness-hardening-product-polish/`
+  - Feature changes: `CHG-2026-054-6c1e-runtime-attestation-post-handshake-gating-v0` remains part of the beta assurance closure story wherever supported `attested` posture is claimed.
+ - Planned change: `runecontext/changes/CHG-2026-053-9d2b-performance-baselines-verification-gates-v0/`

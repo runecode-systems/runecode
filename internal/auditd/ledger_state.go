@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func (l *Ledger) recoverAndPersistStateLocked() (ledgerState, error) {
