@@ -3,7 +3,7 @@ package brokerapi
 import (
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/projectsubstrate"
+	"github.com/runecode-systems/runecode/internal/projectsubstrate"
 )
 
 func (s *Service) enforceProjectSubstrateGate(requestID, schemaPath string) *ErrorResponse {

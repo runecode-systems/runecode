@@ -3,8 +3,8 @@ package artifacts
 import (
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 type StoreState struct {

@@ -5,7 +5,7 @@ package brokerapi
 import (
 	"encoding/hex"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func devManualAuditEventPayload(material devManualVerificationMaterial, profile string) map[string]any {

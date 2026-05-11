@@ -5,8 +5,8 @@ package main
 import (
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func buildChatSnapshot() snapshotScenarioState {
@@ -183,7 +183,7 @@ func buildGitRemoteSnapshot() snapshotScenarioState {
 	approvalDecision := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("5", 64)}
 	patchDigest := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("6", 64)}
 	expectedTree := trustpolicy.Digest{HashAlg: "sha256", Hash: strings.Repeat("7", 64)}
-	prepared := brokerapi.GitRemoteMutationPreparedState{PreparedMutationID: "sha256:" + strings.Repeat("9", 64), RunID: "run-1", Provider: "github", DestinationRef: "github.com/runecode-ai/runecode", RequestKind: "git_ref_update", TypedRequestHash: requestHash, ActionRequestHash: actionHash, PolicyDecisionHash: decisionHash, RequiredApprovalID: "sha256:" + strings.Repeat("a", 64), RequiredApprovalRequestHash: &approvalRequest, RequiredApprovalDecisionHash: &approvalDecision, LifecycleState: "prepared", ExecutionState: "not_started", DerivedSummary: brokerapi.GitRemoteMutationDerivedSummary{RepositoryIdentity: "github.com/runecode-ai/runecode", TargetRefs: []string{"refs/heads/main"}, ReferencedPatchArtifactHashes: []trustpolicy.Digest{patchDigest}, ExpectedResultTreeHash: expectedTree, CommitSubject: "Apply reviewed patch"}}
+	prepared := brokerapi.GitRemoteMutationPreparedState{PreparedMutationID: "sha256:" + strings.Repeat("9", 64), RunID: "run-1", Provider: "github", DestinationRef: "github.com/runecode-systems/runecode", RequestKind: "git_ref_update", TypedRequestHash: requestHash, ActionRequestHash: actionHash, PolicyDecisionHash: decisionHash, RequiredApprovalID: "sha256:" + strings.Repeat("a", 64), RequiredApprovalRequestHash: &approvalRequest, RequiredApprovalDecisionHash: &approvalDecision, LifecycleState: "prepared", ExecutionState: "not_started", DerivedSummary: brokerapi.GitRemoteMutationDerivedSummary{RepositoryIdentity: "github.com/runecode-systems/runecode", TargetRefs: []string{"refs/heads/main"}, ReferencedPatchArtifactHashes: []trustpolicy.Digest{patchDigest}, ExpectedResultTreeHash: expectedTree, CommitSubject: "Apply reviewed patch"}}
 	git := gitRemoteMutationRouteModel{def: routeDefinition{ID: routeGitRemote, Label: "Git Remote"}, prepared: prepared}
 	return snapshotScenarioState{Name: "git-remote-approval-ready", RouteID: routeGitRemote, Surface: git, Sessions: defaultSnapshotSessions(), Watch: watch, Theme: themePresetDark, Focus: focusContent}
 }

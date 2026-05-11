@@ -7,8 +7,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/auditd"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/auditd"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func (s *Service) HandleAuditEvidenceBundleExport(ctx context.Context, req AuditEvidenceBundleExportRequest, meta RequestContext) ([]AuditEvidenceBundleExportEvent, *ErrorResponse) {

@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/policyengine"
-	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
+	"github.com/runecode-systems/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/third_party/jsoncanonicalizer"
 )
 
 func decisionDigestIdentity(decision policyengine.PolicyDecision) string {

@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 const (

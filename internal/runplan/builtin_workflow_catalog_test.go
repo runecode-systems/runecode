@@ -7,7 +7,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/runecode-ai/runecode/internal/workflowpackassets"
+	"github.com/runecode-systems/runecode/internal/workflowpackassets"
 )
 
 func TestBuiltInDraftingCatalogEntriesRequireValidatedProjectSubstrate(t *testing.T) {

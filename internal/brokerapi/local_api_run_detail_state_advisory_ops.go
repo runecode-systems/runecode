@@ -1,6 +1,6 @@
 package brokerapi
 
-import "github.com/runecode-ai/runecode/internal/artifacts"
+import "github.com/runecode-systems/runecode/internal/artifacts"
 
 func buildAdvisoryRunState(advisory artifacts.RunnerAdvisoryState) map[string]any {
 	state := map[string]any{

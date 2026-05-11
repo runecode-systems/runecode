@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/localbootstrap"
+	"github.com/runecode-systems/runecode/internal/localbootstrap"
 )
 
 type DiscoveryInput struct {

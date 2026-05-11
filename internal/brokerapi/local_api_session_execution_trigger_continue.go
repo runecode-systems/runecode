@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func (s *Service) continueSessionTurnExecution(requestID string, req SessionExecutionTriggerRequest, session artifacts.SessionDurableState) (SessionExecutionTriggerResponse, bool, *ErrorResponse) {

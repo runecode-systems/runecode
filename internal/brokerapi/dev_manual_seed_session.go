@@ -3,8 +3,8 @@ package brokerapi
 import (
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/policyengine"
 )
 
 func (s *Service) seedDevManualSession(approvalID string, auditRecordDigest string, artifactDigests []string, profile string) error {

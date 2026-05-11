@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
 )
 
 type config struct {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func launchSessionExecutionRunnerInProcessForTests(ctx context.Context, s *Service, spec sessionExecutionRunnerLaunchSpec) error {

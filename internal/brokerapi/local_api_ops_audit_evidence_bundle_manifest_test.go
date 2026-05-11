@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/secretsd"
+	"github.com/runecode-systems/runecode/internal/secretsd"
 )
 
 func TestAuditEvidenceBundleManifestGetBuildsManifest(t *testing.T) {

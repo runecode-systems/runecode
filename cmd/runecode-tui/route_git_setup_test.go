@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
 )
 
 func TestGitSetupRouteViewUsesGuidedSummaries(t *testing.T) {

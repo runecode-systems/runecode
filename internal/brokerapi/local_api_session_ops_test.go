@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
 )
 
 func TestSessionListAndGetProjectCanonicalSessionIdentity(t *testing.T) {

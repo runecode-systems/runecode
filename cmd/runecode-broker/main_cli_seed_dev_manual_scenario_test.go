@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
 )
 
 func TestSeedDevManualScenarioCommandSeedsDeterministicBrokerSurfaceState(t *testing.T) {

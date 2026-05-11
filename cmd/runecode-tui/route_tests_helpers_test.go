@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/projectsubstrate"
-	"github.com/runecode-ai/runecode/internal/secretsd"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/projectsubstrate"
+	"github.com/runecode-systems/runecode/internal/secretsd"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 const fakeSessionExecutionTriggerID = "trigger-1"

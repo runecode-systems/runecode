@@ -1,6 +1,6 @@
 package runplan
 
-import "github.com/runecode-ai/runecode/internal/trustpolicy"
+import "github.com/runecode-systems/runecode/internal/trustpolicy"
 
 type ExecutorBinding struct {
 	BindingID        string   `json:"binding_id"`

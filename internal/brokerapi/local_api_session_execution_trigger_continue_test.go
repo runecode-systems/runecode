@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
-	"github.com/runecode-ai/runecode/internal/policyengine"
-	"github.com/runecode-ai/runecode/internal/projectsubstrate"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/projectsubstrate"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func TestSessionExecutionTriggerIdempotencyIncludesWorkflowRoutingIdentity(t *testing.T) {

@@ -3,7 +3,7 @@ package brokerapi
 import (
 	"fmt"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func ParseDataClass(value string) (artifacts.DataClass, error) {

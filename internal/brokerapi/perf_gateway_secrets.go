@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func measurePhase5GatewayAndSecrets(trials int, repoRoot string) ([]perfcontracts.MeasurementRecord, error) {

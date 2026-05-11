@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
 )
 
 func measurePhase5DependencyFlow(trials int, repoRoot string) ([]perfcontracts.MeasurementRecord, error) {

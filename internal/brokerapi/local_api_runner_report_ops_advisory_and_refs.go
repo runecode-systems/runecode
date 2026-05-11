@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/third_party/jsoncanonicalizer"
 )
 
 func buildRunnerCheckpointAdvisory(report RunnerCheckpointReport, occurred time.Time, details map[string]any) artifacts.RunnerCheckpointAdvisory {

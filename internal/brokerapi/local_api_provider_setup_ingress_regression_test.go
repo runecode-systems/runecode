@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/secretsd"
+	"github.com/runecode-systems/runecode/internal/secretsd"
 )
 
 func TestProviderSetupSecretIngressTokenSpentBeforeCommitPreventsDuplicateImport(t *testing.T) {

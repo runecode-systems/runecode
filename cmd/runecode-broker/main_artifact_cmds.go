@@ -8,8 +8,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
 )
 
 func handleListArtifacts(_ []string, service *brokerapi.Service, stdout io.Writer) error {

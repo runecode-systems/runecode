@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func (l *Ledger) ensureVerifierRecordDurableLocked(record trustpolicy.VerifierRecord) error {

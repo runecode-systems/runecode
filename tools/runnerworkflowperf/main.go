@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/runnerworkflowperf"
+	"github.com/runecode-systems/runecode/internal/runnerworkflowperf"
 )
 
 func main() {

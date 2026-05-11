@@ -3,7 +3,7 @@ package brokerapi
 import (
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/secretsd"
+	"github.com/runecode-systems/runecode/internal/secretsd"
 )
 
 func (s *Service) bindSecretsLeaseAuditHook() {

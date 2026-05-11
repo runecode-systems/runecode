@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
 )
 
 func renderRunSafetyStrip(summary brokerapi.RunSummary, width int) string {

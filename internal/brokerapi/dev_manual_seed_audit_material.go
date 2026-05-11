@@ -6,7 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func newDevManualAuditMaterial(profile string) (devManualAuditMaterial, devManualVerificationMaterial) {

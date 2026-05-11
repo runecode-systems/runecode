@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
 )
 
 type brokerLocalAPI interface {

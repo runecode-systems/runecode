@@ -1,6 +1,6 @@
 package brokerapi
 
-import "github.com/runecode-ai/runecode/internal/secretsd"
+import "github.com/runecode-systems/runecode/internal/secretsd"
 
 type ProviderSetupSession struct {
 	SchemaID            string   `json:"schema_id"`

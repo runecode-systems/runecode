@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/policyengine"
-	"github.com/runecode-ai/runecode/internal/runplan"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/runplan"
 )
 
 type CompileAndPersistRunPlanRequest struct {

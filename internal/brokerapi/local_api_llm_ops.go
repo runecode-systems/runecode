@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/policyengine"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 const llmHTTPTimeout = 30 * time.Second

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/runecode-ai/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
 )
 
 func TestShellSidebarRenderShowsSingleSelectedRouteAndActiveMarker(t *testing.T) {

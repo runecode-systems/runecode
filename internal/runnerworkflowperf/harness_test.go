@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
 )
 
 func TestRunProducesPhase4RunnerWorkflowMetrics(t *testing.T) {

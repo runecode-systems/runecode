@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/secretsd"
+	"github.com/runecode-systems/runecode/internal/secretsd"
 )
 
 func projectSecretsReadinessFromLocalState() (bool, string, *SecretsOperationalMetrics, *SecretStoragePosture) {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
 )
 
 func TestRestoreRejectsTamperedAttestationVerificationCacheRecord(t *testing.T) {

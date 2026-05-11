@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/localbootstrap"
+	"github.com/runecode-systems/runecode/internal/localbootstrap"
 )
 
 func writePIDFile(scope localbootstrap.RepoScope, pid int) error {

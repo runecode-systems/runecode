@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func (s *Service) beginGitRemoteMutationRequest(ctx context.Context, req any, requestID string, meta RequestContext, schemaPath string) (string, context.Context, func(), *ErrorResponse) {

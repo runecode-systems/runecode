@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
-	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/third_party/jsoncanonicalizer"
 )
 
 func TestQEMUVerticalSliceHelloWorld(t *testing.T) {

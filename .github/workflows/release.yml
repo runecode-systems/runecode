@@ -177,7 +177,7 @@ jobs:
           shopt -s nullglob
           for asset in release/dist/*; do
             case "${asset}" in
-              *.tar.gz|*.zip|*.json|*/SHA256SUMS|*SHA256SUMS)
+              *.tar.gz|*.zip|*.json|*.sh|*.ps1|*/SHA256SUMS|*SHA256SUMS)
                 cosign sign-blob --yes \
                   --output-signature "${asset}.sig" \
                   --output-certificate "${asset}.pem" \
@@ -196,6 +196,8 @@ jobs:
             release/dist/*.tar.gz
             release/dist/*.zip
             release/dist/*.json
+            release/dist/*.sh
+            release/dist/*.ps1
             release/dist/SHA256SUMS
 
       - name: Write release notes preamble
@@ -205,18 +207,19 @@ jobs:
           {
             printf '%s\n' '## Install and verify'
             printf '\n'
-            printf '%s\n' "- Latest-release install and full verification commands: https://github.com/runecode-ai/runecode/blob/${RELEASE_TAG}/docs/install-verify.md"
-            printf '%s\n' "- Maintainer release procedure and required repository settings: https://github.com/runecode-ai/runecode/blob/${RELEASE_TAG}/docs/release-process.md"
+            printf '%s\n' "- Latest-release install and full verification commands: https://github.com/runecode-systems/runecode/blob/${RELEASE_TAG}/docs/install-verify.md"
+            printf '%s\n' "- Maintainer release procedure and required repository settings: https://github.com/runecode-systems/runecode/blob/${RELEASE_TAG}/docs/release-process.md"
             printf '\n'
             printf '%s\n' '## Included assets'
             printf '\n'
             printf '%s\n' '- Unsigned archives built from the canonical flake package `nix build .#release-artifacts`'
+            printf '%s\n' '- First-party installer scripts: `install-runecode.sh` and `install-runecode.ps1`'
             printf '%s\n' "- Canonical unsigned release manifest: \`runecode_${RELEASE_TAG}_release-manifest.json\`"
             printf '%s\n' "- Per-platform archives for Linux, macOS, and Windows under the pattern \`runecode_${RELEASE_TAG}_{os}_{arch}\`"
             printf '%s\n' "- Release-level SBOM: \`runecode_${RELEASE_TAG}_sbom.spdx.json\`"
             printf '%s\n' '- Checksums: `SHA256SUMS`'
             printf '%s\n' '- Keyless cosign signatures and certificates for every primary asset (`.sig` and `.pem`)'
-            printf '%s\n' '- GitHub build provenance attestations for each archive, the release manifest, the SBOM, and `SHA256SUMS`'
+            printf '%s\n' '- GitHub artifact attestations for each archive, both installer scripts, the release manifest, the SBOM, and `SHA256SUMS`'
           } > release-notes.md
 
       - name: Publish GitHub release
@@ -238,6 +241,8 @@ jobs:
             "SHA256SUMS"
             "runecode_${RELEASE_TAG}_release-manifest.json"
             "runecode_${RELEASE_TAG}_sbom.spdx.json"
+            "install-runecode.sh"
+            "install-runecode.ps1"
           )
 
           mapfile -t archive_assets < <(jq -er '.archives[].file' "${manifest}")

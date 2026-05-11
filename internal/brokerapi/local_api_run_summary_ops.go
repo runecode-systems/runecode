@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func (s *Service) runSummaries(order string) ([]RunSummary, error) {

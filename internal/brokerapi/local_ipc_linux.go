@@ -12,7 +12,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/runecode-ai/runecode/internal/localbootstrap"
+	"github.com/runecode-systems/runecode/internal/localbootstrap"
 	"golang.org/x/sys/unix"
 )
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/auditd"
+	"github.com/runecode-systems/runecode/internal/auditd"
 )
 
 func (s *Service) prepareAuditEvidenceRequest(ctx context.Context, reqID, fallbackReqID string, admissionErr error, req any, schemaPath string, meta RequestContext, unavailableMessage string) (string, context.Context, func(), *ErrorResponse) {

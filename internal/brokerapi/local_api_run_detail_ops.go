@@ -4,8 +4,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/launcherbackend"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/launcherbackend"
 )
 
 func (s *Service) runDetail(runID string) (RunDetail, bool, error) {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func canonicalStageSummaryPayloadAndHash(input StageSummarySignOffActionInput, planID string) (map[string]any, string, error) {

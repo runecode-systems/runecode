@@ -5,9 +5,9 @@ import (
 	"io/fs"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/runplan"
-	"github.com/runecode-ai/runecode/internal/workflowpackassets"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/runplan"
+	"github.com/runecode-systems/runecode/internal/workflowpackassets"
 )
 
 func builtInCatalogEntryForWorkflowOperation(operation string) (runplan.BuiltInWorkflowCatalogEntry, error) {

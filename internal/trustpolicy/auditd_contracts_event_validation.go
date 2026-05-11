@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
+	"github.com/runecode-systems/runecode/third_party/jsoncanonicalizer"
 )
 
 func decodeAuditEventPayload(payload json.RawMessage) (AuditEventPayload, error) {

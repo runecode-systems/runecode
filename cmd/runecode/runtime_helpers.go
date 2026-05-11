@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"unicode"
 
-	"github.com/runecode-ai/runecode/internal/brokerapi"
-	"github.com/runecode-ai/runecode/internal/localbootstrap"
+	"github.com/runecode-systems/runecode/internal/brokerapi"
+	"github.com/runecode-systems/runecode/internal/localbootstrap"
 )
 
 func queryRepoProjectSubstratePosture(ctx context.Context, cfg brokerapi.LocalIPCConfig) (brokerapi.ProjectSubstratePostureGetResponse, error) {

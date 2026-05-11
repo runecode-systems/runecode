@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/policyengine"
 )
 
 func (s *Service) approvalDetailFromRecord(record approvalRecord) (ApprovalDetail, error) {

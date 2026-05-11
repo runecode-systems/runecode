@@ -3,7 +3,7 @@ package perffixtures
 import (
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 const (

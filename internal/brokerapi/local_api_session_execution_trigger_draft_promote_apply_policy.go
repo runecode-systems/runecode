@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
-	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/policyengine"
 )
 
 func draftPromotePolicyDecision(authority sessionExecutionPlanAuthority, resolved sessionDraftPromoteResolvedInput, actionHash string) policyengine.PolicyDecision {

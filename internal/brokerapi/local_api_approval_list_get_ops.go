@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func (s *Service) HandleApprovalList(ctx context.Context, req ApprovalListRequest, meta RequestContext) (ApprovalListResponse, *ErrorResponse) {

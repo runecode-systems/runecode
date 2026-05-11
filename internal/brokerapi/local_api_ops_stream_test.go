@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func assertArtifactStreamDecodedPayload(t *testing.T, events []ArtifactStreamEvent, want string) {

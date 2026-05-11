@@ -1,6 +1,6 @@
 package brokerapi
 
-import "github.com/runecode-ai/runecode/internal/artifacts"
+import "github.com/runecode-systems/runecode/internal/artifacts"
 
 func buildAdvisoryStepAttemptsState(stepAttempts map[string]artifacts.RunnerStepHint, pendingByScope map[string]int) map[string]any {
 	if len(stepAttempts) == 0 {

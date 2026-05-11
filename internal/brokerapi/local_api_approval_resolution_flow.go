@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/policyengine"
 )
 
 type resolvedApprovalResult struct {

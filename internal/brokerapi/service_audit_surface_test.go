@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/runecode-ai/runecode/internal/auditd"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
-	"github.com/runecode-ai/runecode/third_party/jsoncanonicalizer"
+	"github.com/runecode-systems/runecode/internal/auditd"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/third_party/jsoncanonicalizer"
 )
 
 func TestAuditReadinessAndVerificationSurface(t *testing.T) {

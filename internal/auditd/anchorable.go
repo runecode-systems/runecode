@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 var ErrNoSealedSegment = errors.New("no sealed segment available")

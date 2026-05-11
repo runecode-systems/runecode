@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/runplan"
+	"github.com/runecode-systems/runecode/internal/runplan"
 )
 
 func validateRunPlanAuthorityRecord(rec RunPlanAuthorityRecord) error {

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/policyengine"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 const promotionActionJustification = "promotion approval request"

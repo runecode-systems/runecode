@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/workflowpackassets"
+	"github.com/runecode-systems/runecode/internal/workflowpackassets"
 )
 
 const builtInWorkflowCatalogVersion = "v0"

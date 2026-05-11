@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func (s *Service) resolveGateEvidenceRef(runID string, report RunnerResultReport, planned runPlannedGateEntry) (string, error) {

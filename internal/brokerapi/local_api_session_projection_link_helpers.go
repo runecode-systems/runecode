@@ -3,7 +3,7 @@ package brokerapi
 import (
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func sessionDetailLinkedRunIndex(base map[string]struct{}, executions []artifacts.SessionTurnExecutionDurableState) map[string]struct{} {

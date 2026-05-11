@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/artifacts"
+	"github.com/runecode-systems/runecode/internal/artifacts"
 )
 
 func (s *Service) reconcileSessionExecutionTriggerSideEffects(ctx context.Context, requestID string, session artifacts.SessionDurableState, req SessionExecutionTriggerRequest, resp SessionExecutionTriggerResponse) error {

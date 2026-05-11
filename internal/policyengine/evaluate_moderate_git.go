@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func moderateGitRemoteApprovalPayload(base map[string]any, action ActionRequest) (map[string]any, bool) {

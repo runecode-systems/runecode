@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/perfcontracts"
+	"github.com/runecode-systems/runecode/internal/perfcontracts"
 )
 
 func requiredSharedLinuxMetricIDs(repoRoot string) ([]string, error) {

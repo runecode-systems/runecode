@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/policyengine"
 )
 
 func (s *Service) HandleBackendPostureGet(ctx context.Context, req BackendPostureGetRequest, meta RequestContext) (BackendPostureGetResponse, *ErrorResponse) {

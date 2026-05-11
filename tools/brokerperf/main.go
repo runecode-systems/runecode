@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/brokerperf"
+	"github.com/runecode-systems/runecode/internal/brokerperf"
 )
 
 func main() {

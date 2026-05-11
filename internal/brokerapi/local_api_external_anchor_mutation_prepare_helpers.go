@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/runecode-ai/runecode/internal/policyengine"
-	"github.com/runecode-ai/runecode/internal/trustpolicy"
+	"github.com/runecode-systems/runecode/internal/policyengine"
+	"github.com/runecode-systems/runecode/internal/trustpolicy"
 )
 
 func resolveExternalAnchorRequestKind(typedRequest map[string]any) string {
