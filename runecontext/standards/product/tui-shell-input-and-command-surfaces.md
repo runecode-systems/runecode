@@ -22,3 +22,5 @@ When extending `runecode-tui` shell interaction behavior:
 - Treat emergency quit as distinct from normal quit: `ctrl+c` may remain an escape hatch, but normal quit confirmation and beginner discoverability should flow through the real shell action surfaces.
 - Clear pending emergency-quit state as soon as ordinary interaction resumes; emergency arming must not linger across unrelated normal use.
 - Keep client-local leader-key preferences and similar shell convenience state explicitly local-only and non-authoritative.
+
+For Bubble Tea event-loop discipline, overlay filtering performance, and Lip Gloss rendering guidance, also apply `runecontext/standards/product/tui-bubbletea-lipgloss-performance.md`.
